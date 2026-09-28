@@ -40,6 +40,11 @@ jobs:
               target = pathlib.Path(name)
               target.parent.mkdir(parents=True, exist_ok=True)
               target.write_text(content, encoding='utf-8', newline='\n')
+          path = pathlib.Path('templates/product/app.py')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('from schema import SPEC, engine, metadata\n', '')
+          text = text.replace('from rule_engine import Rules\n', 'from rule_engine import Rules\nfrom schema import SPEC, engine, metadata\n')
+          path.write_text(text, encoding='utf-8', newline='\n')
           print('Imported', len(files), 'source files after SHA-256 verification')
           PY
       - uses: astral-sh/setup-uv@v6
