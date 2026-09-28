@@ -1,5 +1,5 @@
-# AI R&D Foundation Learning
+# AI R&D Workbench
 
-Python 3.14 AI 研发平台。
+Python 3.14 · uv · FastAPI · SQLite · LangGraph
 
-应用代码、可复现手册和 GitHub Actions 测试通过独立 Pull Request 提交；主分支暂保留仓库入口。
+完整实现正在此 Pull Request 分支内构建。所有业务代码、测试和可复现手册随同一提交更新。
