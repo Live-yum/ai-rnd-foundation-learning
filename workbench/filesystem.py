@@ -1,4 +1,5 @@
 """File boundaries, atomic writes, deterministic hashes, and safe ZIP extraction."""
+
 import hashlib
 import json
 import os
@@ -7,14 +8,27 @@ import tempfile
 import zipfile
 from pathlib import Path, PurePosixPath
 
-EXCLUDED_DIRS = {".git", ".venv", "node_modules", "__pycache__", ".pytest_cache", ".ruff_cache", ".data", "target", "dist"}
+EXCLUDED_DIRS = {
+    ".git",
+    ".venv",
+    "node_modules",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".data",
+    "target",
+    "dist",
+}
 
 
 def secret_name(path):
     name = Path(path).name.lower()
-    return (name == ".env" or (name.startswith(".env.") and not name.endswith(".example"))
-            or name.endswith((".pem", ".key", ".p12", ".pfx", ".db", ".db-wal", ".db-shm"))
-            or name in {"access-token", "id_rsa", "id_ed25519", "credentials.json"})
+    return (
+        name == ".env"
+        or (name.startswith(".env.") and not name.endswith(".example"))
+        or name.endswith((".pem", ".key", ".p12", ".pfx", ".db", ".db-wal", ".db-shm"))
+        or name in {"access-token", "id_rsa", "id_ed25519", "credentials.json"}
+    )
 
 
 def inside(root, relative):
@@ -67,8 +81,10 @@ def files(root):
             path = inside(root, relative)
             if secret_name(relative) or name.startswith(".writing-"):
                 continue
-            if path.stat().st_size > 5_000_000:
-                raise ValueError(f"文件超过 5 MB 限制: {relative}")
+            if not stat.S_ISREG(path.stat().st_mode):
+                raise ValueError("只允许普通文件")
+            if path.stat().st_size > 32_000_000:
+                raise ValueError(f"文件超过 32 MB 限制: {relative}")
             yield relative, path
 
 
@@ -84,9 +100,10 @@ def unpack(archive, destination):
         seen = set()
         for item in entries:
             path = inside(destination, item.filename)
-            if item.filename in seen or stat.S_ISLNK(item.external_attr >> 16):
+            canonical = path.relative_to(Path(destination).resolve()).as_posix().casefold()
+            if canonical in seen or stat.S_ISLNK(item.external_attr >> 16):
                 raise ValueError("压缩包含重复路径或符号链接")
-            seen.add(item.filename)
+            seen.add(canonical)
             if secret_name(item.filename):
                 raise ValueError("压缩包含密钥或数据库文件")
             if item.is_dir():
@@ -95,4 +112,5 @@ def unpack(archive, destination):
                 path.parent.mkdir(parents=True, exist_ok=True)
                 with z.open(item) as src, path.open("wb") as dst:
                     import shutil
+
                     shutil.copyfileobj(src, dst)

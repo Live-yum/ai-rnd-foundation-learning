@@ -1,4 +1,5 @@
 """Typed external contracts. Raw user input cannot choose roles, commands or approval state."""
+
 import hashlib
 import json
 import keyword
@@ -30,7 +31,7 @@ class RunInput(Contract):
 
 
 class ResumeInput(Contract):
-    gate_id: str
+    gate_id: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
     action: Literal["answer", "approve", "reject", "revise"]
     text: str = Field(default="", max_length=20000)
     approved: StrictBool | None = None
@@ -47,19 +48,26 @@ class ResumeInput(Contract):
 
 
 class Requirement(Contract):
-    summary: str
-    users: list[str]
+    summary: str = Field(max_length=4000)
+    users: list[Text] = Field(max_length=20)
     data_scope: Literal["per_user", "shared", "unknown"]
-    features: list[str]
-    acceptance: list[str]
-    questions: list[str] = Field(default_factory=list, max_length=6)
-    assumptions: list[str] = Field(default_factory=list)
-    unsupported: list[str] = Field(default_factory=list)
+    features: list[Text] = Field(max_length=40)
+    acceptance: list[Text]
+    questions: list[Text] = Field(default_factory=list, max_length=6)
+    assumptions: list[Text] = Field(default_factory=list)
+    unsupported: list[Text] = Field(default_factory=list)
 
     @property
     def ready(self) -> bool:
-        return bool(self.summary and self.users and self.features and self.acceptance
-                    and self.data_scope != "unknown" and not self.questions and not self.unsupported)
+        return bool(
+            self.summary
+            and self.users
+            and self.features
+            and self.acceptance
+            and self.data_scope != "unknown"
+            and not self.questions
+            and not self.unsupported
+        )
 
 
 class FieldSpec(Contract):
@@ -99,17 +107,36 @@ class Plan(Contract):
     title: Annotated[str, Field(min_length=1, max_length=200)]
     data_scope: Literal["per_user", "shared"]
     entities: list[Entity] = Field(min_length=1, max_length=8)
-    acceptance: list[str] = Field(min_length=1)
+    acceptance: list[Text] = Field(min_length=1)
     custom_rules: list[CustomRule] = Field(default_factory=list, max_length=6)
-    unsupported: list[str] = Field(default_factory=list)
+    unsupported: list[Text] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def unique_entities(self):
         names = {e.name for e in self.entities}
-        if len(names) != len(self.entities) or names & {"users", "tokens", "sqlite_master"}:
+        if len(names) != len(self.entities) or (
+            names & {"users", "tokens", "alembic_version"}
+            or any(n.startswith("sqlite_") for n in names)
+        ):
             raise ValueError("实体名称重复或为保留名称")
         if any(rule.entity not in names for rule in self.custom_rules):
             raise ValueError("自定义规则引用未知实体")
+        for rule in self.custom_rules:
+            entity = next(e for e in self.entities if e.name == rule.entity)
+            for sample in rule.accept_examples + rule.reject_examples:
+                if set(sample) - {f.name for f in entity.fields}:
+                    raise ValueError("规则示例包含未定义字段")
+                for field in entity.fields:
+                    value = sample.get(field.name)
+                    if value is None:
+                        if field.required:
+                            raise ValueError("规则示例缺少必填字段")
+                        continue
+                    expected = {"text": str, "integer": int, "boolean": bool}[field.kind]
+                    if type(value) is not expected:
+                        raise ValueError("规则示例字段类型错误")
+                    if field.kind == "text" and len(value) > field.max_length:
+                        raise ValueError("规则示例文本过长")
         return self
 
 

@@ -1,4 +1,5 @@
 """Short SQLAlchemy transactions; no model/tool calls inside a database transaction."""
+
 import json
 import secrets
 import uuid
@@ -7,10 +8,22 @@ from datetime import datetime, timezone
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import JSON, ForeignKey, String, Text, UniqueConstraint, create_engine, event, select, update
+from filelock import FileLock
+from sqlalchemy import (
+    JSON,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+    create_engine,
+    event,
+    select,
+    text,
+    update,
+)
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
-from workbench.domain import digest
+from workbench.domain import ResumeInput, digest
 from workbench.settings import ROOT, Settings
 
 
@@ -121,9 +134,14 @@ class Store:
     def __init__(self, settings: Settings):
         self.settings = settings
         settings.prepare()
-        args = {"check_same_thread": False, "autocommit": False} if settings.db_url.startswith("sqlite:") else {}
+        args = (
+            {"check_same_thread": False, "autocommit": False}
+            if settings.db_url.startswith("sqlite:")
+            else {}
+        )
         self.engine = create_engine(settings.db_url, connect_args=args, pool_pre_ping=True)
         if self.engine.dialect.name == "sqlite":
+
             @event.listens_for(self.engine, "connect")
             def configure(connection, _):
                 old = connection.autocommit
@@ -135,6 +153,7 @@ class Store:
                         cursor.execute("PRAGMA journal_mode=WAL")
                 finally:
                     connection.autocommit = old
+
         self.sessions = sessionmaker(self.engine, expire_on_commit=False)
 
     def migrate(self):
@@ -161,10 +180,17 @@ class Store:
             yield session
 
     def request(self, key, payload, operation):
+        # Serialise local API mutations. PostgreSQL additionally uses a short DB lock.
+        with FileLock(str(self.settings.data_dir / "requests.lock"), timeout=30):
+            return self._request(key, payload, operation)
+
+    def _request(self, key, payload, operation):
         if not key or len(key) > 100:
             raise Conflict("Idempotency-Key 必填且长度不超过 100")
         fingerprint = digest(payload)
         with self.tx() as session:
+            if self.engine.dialect.name == "postgresql":
+                session.execute(text("SELECT pg_advisory_xact_lock(728194601)"))
             previous = session.get(Request, key)
             if previous:
                 if previous.fingerprint != fingerprint:
@@ -180,6 +206,7 @@ class Store:
             session.add(project)
             session.flush()
             return {"id": project.id, "title": project.title}
+
         return self.request(key, {"operation": "create-project", "title": title}, operation)
 
     def create_run(self, project_id, data, key):
@@ -192,9 +219,14 @@ class Store:
             session.add(Message(run_id=run.id, role="user", content=data["requirement"]))
             session.add(Job(run_id=run.id, payload={"action": "start"}))
             return {"run_id": run.id, "status": "QUEUED"}
-        return self.request(key, {"operation": "create-run", "project": project_id, **data}, operation)
+
+        return self.request(
+            key, {"operation": "create-run", "project": project_id, **data}, operation
+        )
 
     def submit(self, run_id, data, key):
+        data = ResumeInput.model_validate(data).model_dump()
+
         def operation(session):
             run = session.get(Run, run_id)
             if not run:
@@ -216,6 +248,7 @@ class Store:
             run.pending = None
             run.status = "QUEUED"
             return {"run_id": run_id, "job_id": job.id, "status": "QUEUED"}
+
         return self.request(key, {"operation": "submit", "run_id": run_id, **data}, operation)
 
     def retry(self, run_id, key):
@@ -228,6 +261,7 @@ class Store:
             session.add(Job(run_id=run_id, payload={"action": "retry"}))
             run.status, run.error = "QUEUED", None
             return {"run_id": run_id, "status": run.status}
+
         return self.request(key, {"operation": "retry", "run_id": run_id}, operation)
 
     def get_run(self, run_id):
@@ -239,7 +273,9 @@ class Store:
 
     def messages(self, run_id):
         with self.tx() as session:
-            rows = session.scalars(select(Message).where(Message.run_id == run_id).order_by(Message.id))
+            rows = session.scalars(
+                select(Message).where(Message.run_id == run_id).order_by(Message.id)
+            )
             return [{"role": row.role, "content": row.content} for row in rows]
 
     def step(self, run_id, name, fn):
@@ -256,9 +292,11 @@ class Store:
 
     def reserve_model_call(self, run_id):
         with self.tx() as session:
-            changed = session.execute(update(Run).where(
-                Run.id == run_id, Run.model_calls < self.settings.max_model_calls
-            ).values(model_calls=Run.model_calls + 1)).rowcount
+            changed = session.execute(
+                update(Run)
+                .where(Run.id == run_id, Run.model_calls < self.settings.max_model_calls)
+                .values(model_calls=Run.model_calls + 1)
+            ).rowcount
             if changed != 1:
                 raise Conflict("已到达单次运行的模型调用预算上限")
 
@@ -267,16 +305,35 @@ class Store:
         gate_id = digest([run_id, stage, version, content_digest])
         with self.tx() as session:
             if not session.get(Revision, gate_id):
-                session.add(Revision(gate_id=gate_id, run_id=run_id, stage=stage,
-                                     digest=content_digest, data=data))
-        return {"gate_id": gate_id, "stage": stage, "version": version,
-                "digest": content_digest, "data": data, "actions": actions,
-                "can_approve": can_approve}
+                session.add(
+                    Revision(
+                        gate_id=gate_id,
+                        run_id=run_id,
+                        stage=stage,
+                        digest=content_digest,
+                        data=data,
+                    )
+                )
+        return {
+            "gate_id": gate_id,
+            "stage": stage,
+            "version": version,
+            "digest": content_digest,
+            "data": data,
+            "actions": actions,
+            "can_approve": can_approve,
+        }
 
     def check_decision(self, run_id, gate, value):
-        if value["gate_id"] != gate["gate_id"] or value["action"] not in gate["actions"]:
+        if not isinstance(value, dict):
+            raise Conflict("工作流恢复需要结构化输入")
+        if value.get("gate_id") != gate["gate_id"] or value.get("action") not in gate["actions"]:
             raise Conflict("工作流恢复凭据与等待点不一致")
+        if value["action"] == "approve" and not gate.get("can_approve", False):
+            raise Conflict("不能批准被阻塞的版本")
         if value["action"] in {"approve", "reject"}:
+            if value.get("approved") is not (value["action"] == "approve"):
+                raise Conflict("审批必须使用匹配的布尔值")
             with self.tx() as session:
                 revision = session.get(Revision, gate["gate_id"])
                 approval = session.get(Approval, gate["gate_id"])
@@ -287,11 +344,14 @@ class Store:
 
     def claim(self):
         with self.tx() as session:
-            job = session.scalar(select(Job).where(Job.status == "QUEUED").order_by(Job.created_at).limit(1))
+            job = session.scalar(
+                select(Job).where(Job.status == "QUEUED").order_by(Job.created_at).limit(1)
+            )
             if job is None:
                 return None
-            changed = session.execute(update(Job).where(Job.id == job.id, Job.status == "QUEUED")
-                                      .values(status="RUNNING")).rowcount
+            changed = session.execute(
+                update(Job).where(Job.id == job.id, Job.status == "QUEUED").values(status="RUNNING")
+            ).rowcount
             if changed != 1:
                 return None
             run = session.get(Run, job.run_id)
@@ -309,14 +369,60 @@ class Store:
             run.status, run.pending, run.error = status, pending, error
             if result is not None:
                 run.result = result
-            session.add(Event(run_id=run.id, kind="status", data={"status": status, "error": error}))
+            session.add(
+                Event(run_id=run.id, kind="status", data={"status": status, "error": error})
+            )
 
     def events(self, run_id, after=0):
         self.get_run(run_id)
         with self.tx() as session:
-            rows = session.scalars(select(Event).where(Event.run_id == run_id, Event.id > after)
-                                   .order_by(Event.id).limit(200))
-            return [{"id": r.id, "kind": r.kind, "data": r.data, "created_at": r.created_at} for r in rows]
+            rows = session.scalars(
+                select(Event)
+                .where(Event.run_id == run_id, Event.id > after)
+                .order_by(Event.id)
+                .limit(200)
+            )
+            return [
+                {"id": r.id, "kind": r.kind, "data": r.data, "created_at": r.created_at}
+                for r in rows
+            ]
+
+    def list_projects(self):
+        with self.tx() as session:
+            return [
+                {"id": p.id, "title": p.title, "created_at": p.created_at}
+                for p in session.scalars(
+                    select(Project).order_by(Project.created_at.desc()).limit(100)
+                )
+            ]
+
+    def list_runs(self, project_id=None):
+        with self.tx() as session:
+            statement = select(Run).order_by(Run.created_at.desc()).limit(100)
+            if project_id is not None:
+                if not session.get(Project, project_id):
+                    raise Missing("项目不存在")
+                statement = statement.where(Run.project_id == project_id)
+            return [
+                {
+                    "id": r.id,
+                    "project_id": r.project_id,
+                    "status": r.status,
+                    "template": r.template,
+                    "updated_at": r.updated_at,
+                }
+                for r in session.scalars(statement)
+            ]
+
+    def latest_revision(self, run_id, stage):
+        with self.tx() as session:
+            row = session.scalar(
+                select(Revision)
+                .where(Revision.run_id == run_id, Revision.stage == stage)
+                .order_by(Revision.created_at.desc())
+                .limit(1)
+            )
+            return row.data if row else None
 
 
 @contextmanager

@@ -1,4 +1,5 @@
 """Configuration is relative to the checkout, never the current working directory."""
+
 from pathlib import Path
 
 from pydantic import AliasChoices, Field, SecretStr, field_validator
@@ -17,7 +18,13 @@ class Settings(BaseSettings):
     llm_timeout: float = Field(default=90, gt=0, le=600)
     max_model_calls: int = Field(default=16, ge=1, le=100)
     max_rounds: int = Field(default=10, ge=1, le=30)
-    enable_coding: bool = False
+    install_products: bool = True
+    enable_coding: bool = True
+    max_repair_attempts: int = Field(default=2, ge=0, le=2)
+    tool_timeout: int = Field(default=120, ge=10, le=600)
+    checkpoint_url: str = ""
+    host: str = "127.0.0.1"
+    port: int = Field(default=8000, ge=1024, le=65535)
 
     @field_validator("data_dir", mode="after")
     @classmethod
@@ -35,10 +42,13 @@ class Settings(BaseSettings):
 
     def require_model(self) -> None:
         from urllib.parse import urlsplit
+
         url = urlsplit(self.base_url)
         if url.scheme not in {"http", "https"} or not url.hostname or url.username:
             raise ValueError("BASE_URL 必须是有效的 HTTP(S) API 根地址，不包含用户名/密码")
         if not self.api_key.get_secret_value() or not self.model:
             raise ValueError("请在 .env 填写 BASE_URL、API_KEY、MODE；MODE 是模型名称")
+        if url.scheme == "http" and url.hostname not in {"127.0.0.1", "localhost", "::1"}:
+            raise ValueError("远程模型必须使用 HTTPS；HTTP 仅允许本机模型服务")
         if url.query or url.fragment:
             raise ValueError("BASE_URL 不得包含查询参数或片段")

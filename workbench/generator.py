@@ -1,4 +1,5 @@
 """Deterministic generation: approved metadata -> reviewed golden files, never LLM boilerplate."""
+
 import ast
 import json
 import shutil
@@ -28,16 +29,23 @@ def generate_basic(plan: Plan, destination: Path):
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(source, target)
+    shutil.copyfile(ROOT / "workbench/rules.py", destination / "rule_engine.py")
     write_json(destination / "approved-spec.json", plan.model_dump())
     atomic_text(destination / ".python-version", "3.14\n")
-    atomic_text(destination / "alembic.ini", "[alembic]\nscript_location = %(here)s/migrations\nprepend_sys_path = %(here)s\npath_separator = os\n")
-    atomic_text(destination / "migrations/env.py", '''from alembic import context
+    atomic_text(
+        destination / "alembic.ini",
+        "[alembic]\nscript_location = %(here)s/migrations\nprepend_sys_path = %(here)s\npath_separator = os\n",
+    )
+    atomic_text(
+        destination / "migrations/env.py",
+        """from alembic import context
 from schema import engine
 with engine.begin() as connection:
     context.configure(connection=connection)
     with context.begin_transaction():
         context.run_migrations()
-''')
+""",
+    )
     text = '''"""Initial, frozen business schema."""
 import json
 from alembic import op
@@ -68,7 +76,10 @@ def downgrade():
 '''.replace("SPEC_LITERAL", repr(json.dumps(plan.model_dump(), ensure_ascii=False)))
     ast.parse(text)
     atomic_text(destination / "migrations/versions/0001_initial.py", text)
-    receipt = {"generator": "reviewed-python-basic-v1", "spec_digest": digest(plan.model_dump()),
-               "files": manifest(destination)}
+    receipt = {
+        "generator": "reviewed-python-basic-v1",
+        "spec_digest": digest(plan.model_dump()),
+        "files": manifest(destination),
+    }
     write_json(destination.parent / "generation.json", receipt)
     return receipt

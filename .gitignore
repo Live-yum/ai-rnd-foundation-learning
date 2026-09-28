@@ -12,3 +12,6 @@ dist/
 *.db
 *.db-wal
 *.db-shm
+deliveries/
+htmlcov/
+*.egg-info/
