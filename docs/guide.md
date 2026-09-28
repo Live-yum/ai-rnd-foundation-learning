@@ -142,11 +142,11 @@ uv python pin 3.14
 
 在 VS Code 选择“打开文件夹”。按本章后面的源码清单，逐个右键“新建文件”，复制该文件的**完整代码块**。路径如 `workbench/settings.py` 表示先创建 `workbench` 文件夹，再创建 `settings.py`。保存为 UTF-8；确认不是 `settings.py.txt`。
 
-先创建配置组：`.python-version`、`pyproject.toml`、`uv.lock`、`.gitignore`、`.env.example`、`workbench/__init__.py`。覆盖 `uv init` 的最小 pyproject 为本手册对应版本，再执行 `uv sync --locked`。`uv.lock` 是实际解析结果，不手工删依赖或凭空编版本。完整锁较长，在源码附录单独列出。
+先创建配置组：`.python-version`、`pyproject.toml`、`uv.lock`、`README.md`、`.gitignore`、`.gitattributes`、`.env.example`、`workbench/__init__.py`。README.md 是 pyproject 声明的构建输入，不能漏建。覆盖 `uv init` 的最小 pyproject 为本手册对应版本，再执行 `uv sync --locked`。`uv.lock` 是实际解析结果，不手工删依赖或凭空编版本。完整锁较长，在源码附录单独列出。
 
 本仓库采用安装式包 `workbench`，入口为 `rnd = workbench.cli:app`。不再有 `from main import app`、`from settings import ...` 这种扁平导入。每个 import 与实际包路径一致，不需要手工编辑 sys.path。
 
-创建某阶段文件时，尚未创建的后续文件不要提前 import。源码附录按职责列出最终一致版本；单个文件创建后先执行语法检查，相关依赖组齐全再运行该组测试：
+各章按职责解释代码，实际创建与运行测试的先后顺序以第18章为准。每组测试必须在该组及其前置组的文件齐全后运行；不要提前复制尚未实现模块的测试。源码附录按职责列出最终一致版本；单个文件创建后先执行语法检查，相关依赖组齐全再运行该组测试：
 
 ```powershell
 uv run python -m compileall -q workbench
@@ -439,17 +439,20 @@ uv sync --locked --extra postgres
 
 ## 18. 每阶段的停止条件与源码顺序
 
-| 阶段 | 创建/阅读文件 | 验收后继续 |
+| 顺序 | 本组新增文件（保留前组） | 本组验证 |
 |---|---|---|
-| 环境 | pyproject、锁、settings、domain | test_contracts |
-| 数据与审批 | store、migrations | test_store |
-| 文件与规则 | filesystem、tools、rules、coding | test_safety、test_tools_cli |
-| 真实模型协议 | llm | test_llm |
-| 默认产品 | templates/product、generator、verification | ci_clean_install |
-| 状态图 | flow、runtime | test_workflow |
-| HTTP与交互 | api、cli | test_api，人工rnd chat |
-| 原生扩展 | native | test_native + ci_native_sources；不冒充运行认证 |
-| 发布一致性 | CI、build/rebuild手册脚本 | test_handbook与CI全绿 |
+| 1 环境 | .python-version、pyproject.toml、uv.lock、README.md、.gitignore、.gitattributes、.env.example、workbench/__init__.py | uv sync --locked；uv run python -c "import workbench" |
+| 2 数据与审批 | workbench/settings.py、domain.py、store.py；alembic.ini、migrations 全部文件；tests/conftest.py、test_contracts.py、test_store.py | uv run pytest tests/test_contracts.py tests/test_store.py -q；alembic upgrade head/current/check |
+| 3 基础工具与模型协议 | workbench/filesystem.py、tools.py、rules.py、knowledge.py、llm.py；tests/test_llm.py | uv run pytest tests/test_llm.py -q；不调用真实模型 |
+| 4 默认产品与受限编码 | templates/product 全部文件（包括其独立 uv.lock）；workbench/generator.py、coding.py、verification.py；tests/test_safety.py | uv run pytest tests/test_safety.py -q |
+| 5 状态图 | workbench/native.py、flow.py、runtime.py；tests/test_workflow.py | uv run pytest tests/test_workflow.py -q；实际 SQLite/HTTP 验收，模型用显式夹具 |
+| 6 HTTP与交互 | workbench/api.py、cli.py；tests/test_api.py、test_tools_cli.py | uv run pytest tests/test_api.py tests/test_tools_cli.py -q；rnd init；填写三项配置；rnd start 与 rnd chat |
+| 7 独立安装与原生源码 | scripts/__init__.py、ci_clean_install.py、ci_native_sources.py；tests/test_native.py | test_native；python -m scripts.ci_clean_install；原生源码下载为可选扩展 |
+| 8 发布一致性 | .github/workflows/test.yml；scripts/build_handbook.py、rebuild_from_handbook.py；docs/guide.md；其余全部 tests 文件 | 生成手册；Ruff；pytest -m "not postgres"；手册 --check；GitHub Actions |
+
+表内未写全命令前缀的 Python/pytest/alembic 命令统一加 `uv run`，并始终在含 pyproject.toml 的根目录执行。第2组有独立测试把这些文件复制到新的空目录，并确认没有 API/runtime 文件也能运行该组测试。第4组必须先有第3组的 knowledge/rules；第5组必须先有第4组的 verification；不能按章节编号提前运行依赖尚未建立的测试。
+
+每组代码从下方对应路径的完整代码块复制，文件不存在就逐个创建；不是把所有代码拼进一个 main.py。第8组才复制剩余测试，避免 pytest 在收集阶段导入尚未创建的模块。原生模板导出仍不等于完整原生运行认证，见第12章。
 
 下面按职责给出文件完整内容。不出现“此处自行实现”或省略函数体；能力未实现的部分已在对应章节说明，不会用假success蒙混过关。
 
