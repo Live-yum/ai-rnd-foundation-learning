@@ -1,0 +1,82 @@
+name: Import reviewed implementation
+on:
+  push:
+    branches: [feat/python314-workbench]
+    paths: [.github/workflows/import-source.yml]
+permissions:
+  contents: write
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/python314-workbench
+      - name: Materialize checksum-verified source files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, lzma, os, pathlib, urllib.request
+          repo = 'Live-yum/ai-rnd-foundation-learning'
+          blobs = ['47b6f37eda487a4d7721c53598516f01cce580c2', '2f7251a892a146982408f126e38a6d44ca8c6aca', 'fb4b0ff7c85166b64da195f2680f7d16d0eb6b32', '9c6e7bb57619d52962e1eb8936685d2bd8a86585', '3f6fd4fb67b977b873afbbc630ee3e1e01b3da2c']
+          chunks = []
+          for sha in blobs:
+              request = urllib.request.Request(f'https://api.github.com/repos/{repo}/git/blobs/{sha}', headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  data = json.load(response)
+              chunks.append(base64.b64decode(data['content']))
+          raw = lzma.decompress(base64.b64decode(b''.join(chunks)))
+          assert hashlib.sha256(raw).hexdigest() == '5aa7da12ee5be303987308377a0615cc98ad77eefcae3402e09c4100c5b830a3'
+          files = json.loads(raw)
+          roots = {'README.md', 'SECURITY.md', '.env.example', '.gitignore', '.gitattributes', '.python-version', 'pyproject.toml', 'alembic.ini'}
+          for name, content in files.items():
+              path = pathlib.PurePosixPath(name)
+              assert not path.is_absolute() and '..' not in path.parts and ':' not in name
+              assert name in roots or path.parts[0] in {'workbench', 'templates', 'tests', 'scripts', 'docs', 'migrations'}
+              assert isinstance(content, str)
+          for name, content in files.items():
+              target = pathlib.Path(name)
+              target.parent.mkdir(parents=True, exist_ok=True)
+              target.write_text(content, encoding='utf-8', newline='\n')
+          print('Imported', len(files), 'source files after SHA-256 verification')
+          PY
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - run: uv run ruff format .
+      - run: uv run ruff check --fix .
+      - run: uv run ruff format .
+      - run: uv run python -m scripts.build_handbook
+      - run: uv run pytest -m "not postgres" -q
+      - name: Commit actual source and complete handbook
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add workbench templates/product tests scripts docs README.md SECURITY.md .env.example .gitignore .gitattributes .python-version pyproject.toml alembic.ini 从零实现AI研发平台_逐步实操手册_完整版_v3.md
+          git diff --cached --stat
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat: implement approval-gated Python 3.14 delivery workflow and executable handbook'
+            git push origin HEAD:feat/python314-workbench
+          fi
+      - name: Export normalized source for review
+        if: always()
+        run: |
+          mkdir -p /tmp/review-source
+          cp -r workbench templates tests scripts docs .github /tmp/review-source/
+          cp pyproject.toml uv.lock README.md SECURITY.md .env.example .gitignore .gitattributes .python-version alembic.ini /tmp/review-source/
+          cp -r migrations /tmp/review-source/
+          cp 从零实现AI研发平台_逐步实操手册_完整版_v3.md /tmp/review-source/ || true
+          find /tmp/review-source -type d -name __pycache__ -prune -exec rm -rf {} +
+          tar -czf /tmp/normalized-source.tar.gz -C /tmp/review-source .
+          cp .venv/bin/ruff /tmp/ruff
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: normalized-implementation
+          path: |
+            /tmp/normalized-source.tar.gz
+            /tmp/ruff
+          retention-days: 3
