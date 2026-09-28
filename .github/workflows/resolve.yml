@@ -2,7 +2,7 @@ name: Resolve Python 3.14 dependencies
 on:
   push:
     branches: [feat/python314-workbench]
-    paths: [pyproject.toml, .github/workflows/resolve.yml]
+    paths: [pyproject.toml, templates/product/pyproject.toml, .github/workflows/resolve.yml]
 permissions:
   contents: write
 jobs:
@@ -18,18 +18,22 @@ jobs:
           python-version: '3.14'
       - run: uv lock
       - run: uv sync --locked --all-extras
-      - name: Confirm actual interpreter and imports
+      - run: uv lock --project templates/product
+      - run: uv sync --locked --project templates/product
+      - name: Confirm interpreter
         run: uv run python -c "import sys, fastapi, langgraph, sqlalchemy; print(sys.version)"
-      - name: Commit resolved dependency lock only
+      - name: Commit resolved locks only
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add uv.lock
+          git add uv.lock templates/product/uv.lock
           if ! git diff --cached --quiet; then
-            git commit -m 'build: lock Python 3.14 dependencies'
+            git commit -m 'build: lock platform and standalone product on Python 3.14'
             git push origin HEAD:feat/python314-workbench
           fi
       - uses: actions/upload-artifact@v4
         with:
           name: python314-lock
-          path: uv.lock
+          path: |
+            uv.lock
+            templates/product/uv.lock
