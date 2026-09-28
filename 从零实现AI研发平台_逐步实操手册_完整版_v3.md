@@ -6125,7 +6125,7 @@ if __name__ == "__main__":
 
 ### `.github/workflows/test.yml`
 
-<!-- source-file: .github/workflows/test.yml sha256: 2043331a5e38a382b132283abb17cb613ad0f28dbc188ee15a137defe120293c -->
+<!-- source-file: .github/workflows/test.yml sha256: 64dce9a5913992daa8022e00010419b9ad7991680f979d6784ca79090940a7fc -->
 ````yaml
 name: Python 3.14 acceptance
 on:
@@ -6164,6 +6164,90 @@ jobs:
         with:
           name: tests-${{ matrix.os }}
           path: reports/
+  postgres:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: workbench_test
+        ports: ['127.0.0.1:5432:5432']
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://postgres@127.0.0.1:5432/workbench_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - run: uv run pytest tests/test_postgres.py -q --junitxml=reports/postgres.xml
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: postgres-evidence
+          path: reports/
+  clean-install:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked
+      - run: uv run python -m scripts.ci_clean_install
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: clean-install-${{ matrix.os }}
+          path: reports/
+  native-sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked
+      - run: uv run python -m scripts.ci_native_sources
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pinned-native-source-evidence
+          path: reports/
+  delivery:
+    needs: [tests, postgres, clean-install, native-sources]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: git archive --format=zip --output=workbench-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: source-and-complete-handbook
+          path: |
+            workbench-source.zip
+            从零实现AI研发平台_逐步实操手册_完整版_v3.md
 ````
 
 ## 平台真实依赖锁
