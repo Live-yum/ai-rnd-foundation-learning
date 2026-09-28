@@ -67,7 +67,11 @@ def sources():
         rows = []
         for relative in paths:
             path = ROOT / relative
-            items = sorted(path.rglob("*")) if path.is_dir() else [path]
+            items = (
+                sorted(path.rglob("*"), key=lambda item: item.relative_to(ROOT).as_posix())
+                if path.is_dir()
+                else [path]
+            )
             for item in items:
                 if not item.is_file() or "__pycache__" in item.parts or item.suffix == ".pyc":
                     continue
@@ -114,7 +118,7 @@ def main():
         print("Handbook source consistency PASS")
     else:
         OUTPUT.write_text(expected, encoding="utf-8", newline="\n")
-        print(OUTPUT.name)
+        print("Handbook written successfully")
 
 
 if __name__ == "__main__":
