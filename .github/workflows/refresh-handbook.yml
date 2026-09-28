@@ -1,0 +1,40 @@
+name: Refresh reproducible handbook
+on:
+  push:
+    branches: [feat/python314-workbench]
+    paths: [.github/workflows/refresh-handbook.yml]
+permissions:
+  contents: write
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/python314-workbench
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run python -m scripts.build_handbook
+      - run: uv run pytest -m "not postgres" -q
+      - name: Commit source-aligned documentation
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add 从零实现AI研发平台_逐步实操手册_完整版_v3.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'docs: regenerate exact source appendix with portable ordering'
+            git push origin HEAD:feat/python314-workbench
+          fi
+      - run: git archive --format=zip --output=reviewed-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reviewed-handbook-portable
+          path: |
+            reviewed-source.zip
+            从零实现AI研发平台_逐步实操手册_完整版_v3.md
+          retention-days: 3
