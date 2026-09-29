@@ -38,7 +38,9 @@ def local_http_url(value: str, purpose: str = "工具") -> str:
         or "\\" in value
         or any(ord(char) <= 32 for char in value)
     ):
-        raise ValueError(f"{purpose}只允许本机回环 HTTP(S) 地址，不允许云端、局域网、凭据或查询参数")
+        raise ValueError(
+            f"{purpose}只允许本机回环 HTTP(S) 地址，不允许云端、局域网、凭据或查询参数"
+        )
     host = "[::1]" if parsed.hostname == "::1" else "127.0.0.1"
     port = parsed.port  # Invalid/overflowing ports must also fail before a request.
     if port == 0:
@@ -88,7 +90,7 @@ def install_loopback_guard() -> None:
             return True
         try:
             return ipaddress.ip_address(host).is_loopback
-        except (ValueError, TypeError):
+        except ValueError, TypeError:
             return False
 
     def resolve(host, *args, **kwargs):
@@ -119,7 +121,12 @@ def local_docker_command(argv):
 
     if Path(argv[0]).stem.lower() != "docker":
         return argv
-    if any(arg in {"--context", "-c", "--host", "-H"} or arg.startswith(("--context=", "--host=")) for arg in argv[1:]):
+    if any(
+        arg in {"--context", "-c", "--host", "-H"} or arg.startswith(("--context=", "--host="))
+        for arg in argv[1:]
+    ):
         raise ValueError("Docker工具不接受远程context/host覆盖")
-    endpoint = "npipe:////./pipe/docker_engine" if os.name == "nt" else "unix:///var/run/docker.sock"
+    endpoint = (
+        "npipe:////./pipe/docker_engine" if os.name == "nt" else "unix:///var/run/docker.sock"
+    )
     return [argv[0], "--host", endpoint, *argv[1:]]

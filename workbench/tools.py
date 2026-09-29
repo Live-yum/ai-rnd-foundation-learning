@@ -7,6 +7,8 @@ import tempfile
 import time
 from pathlib import Path
 
+from workbench.local_only import TELEMETRY_OFF, local_docker_command
+
 
 class ToolFailure(RuntimeError):
     pass
@@ -30,6 +32,7 @@ def clean_env(extra=None):
     env = {k: v for k, v in os.environ.items() if k.upper() in names}
     env.update(PYTHONUTF8="1", PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1")
     env.update(extra or {})
+    env.update(TELEMETRY_OFF)
     return env
 
 
@@ -76,6 +79,7 @@ def memory_status():
 def run_command(command, cwd, timeout=120, extra_env=None, *, heartbeat=None):
     if not command or not all(isinstance(v, str) for v in command):
         raise ValueError("工具参数必须是明确的字符串数组")
+    command = local_docker_command(command)
     with tempfile.TemporaryFile() as output:
         try:
             process = subprocess.Popen(

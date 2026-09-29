@@ -7,6 +7,8 @@ from urllib.parse import urlsplit
 from pydantic import AliasChoices, BaseModel, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from workbench.local_only import local_database_url, local_http_url
+
 ROOT = Path(__file__).resolve().parent.parent
 Stage = Literal["requirements", "planning", "coding", "review"]
 STAGES = ("requirements", "planning", "coding", "review")
@@ -92,22 +94,32 @@ class Settings(BaseSettings):
     aider_executable: str = ""
     repo_map_provider: Literal["symbols", "aider"] = "symbols"
     repo_map_chars: int = Field(default=12000, ge=1000, le=40000)
-    embedding_base_url: str = ""
-    embedding_api_key: SecretStr = SecretStr("")
+    embedding_base_url: str = "http://127.0.0.1:11434/v1"
+    embedding_api_key: SecretStr = SecretStr("local-no-auth")
     embedding_model: str = Field(
         default="", validation_alias=AliasChoices("EMBEDDING_MODE", "embedding_model")
     )
-    embedding_allow_upload: bool = False
+    embedding_enabled: bool = False
     embedding_max_chunks: int = Field(default=500, ge=1, le=40000)
     sandbox_provider: Literal["local", "daytona"] = "local"
-    daytona_api_url: str = "https://app.daytona.io/api"
+    daytona_api_url: str = "http://127.0.0.1:3000/api"
     daytona_api_key: SecretStr = SecretStr("")
-    daytona_target: str = "us"
+    daytona_target: str = "local"
     daytona_snapshot: str = ""
-    daytona_allow_upload: bool = False
+    daytona_allow_local_execution: bool = False
     checkpoint_url: str = ""
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1024, le=65535)
+
+    @field_validator("daytona_api_url", "embedding_base_url")
+    @classmethod
+    def only_local_tools(cls, value: str) -> str:
+        return local_http_url(value)
+
+    @field_validator("database_url", "checkpoint_url")
+    @classmethod
+    def only_local_databases(cls, value: str) -> str:
+        return local_database_url(value)
 
     @field_validator("data_dir", mode="after")
     @classmethod
@@ -116,7 +128,10 @@ class Settings(BaseSettings):
 
     @property
     def db_url(self) -> str:
-        return self.database_url or f"sqlite:///{(self.data_dir / 'workbench.db').as_posix()}"
+        return (
+            local_database_url(self.database_url)
+            or f"sqlite:///{(self.data_dir / 'workbench.db').as_posix()}"
+        )
 
     def prepare(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)

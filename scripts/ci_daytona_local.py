@@ -43,7 +43,8 @@ def main():
             path = root / "daytona-verification.json"
             if path.exists():
                 write_json(
-                    ROOT / "reports/daytona-local.json", json.loads(path.read_text(encoding="utf-8"))
+                    ROOT / "reports/daytona-local.json",
+                    json.loads(path.read_text(encoding="utf-8")),
                 )
 
 

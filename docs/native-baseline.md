@@ -2,14 +2,14 @@
 
 本章使用真实 FastapiAdmin / 芋道 Cloud Mini / Vben 固定源码，不另写一个简化后端冒充原框架。基础CRUD由原生生成器产生，平台负责受校验的表元数据、挂载、菜单、兼容修正、权限/浏览器验证以及独立部署包。
 
-现在普通clone即含模板源码；原生产品的交付包含新数据库初始化、业务DDL和菜单SQL，不要求依附当初生成它的平台数据库。原生语言运行时仍必须存在，不可能通过三个模型参数替代Java、Node、PostgreSQL和Redis。
+固定模板源码由书中的vendor脚本取得，演示仓库也已自带；原生产品的交付包含新数据库初始化、业务DDL和菜单SQL，不要求依附当初生成它的平台数据库。原生语言运行时仍必须存在，不可能通过三个模型参数替代Java、Node、PostgreSQL和Redis。
 
 ### 19.1 本章的真实范围
 
 | 通道 | 创建方式 | 成功标准 |
 |---|---|---|
 | 原生托管生成 | 页面/CLI先选择原生前后端、PostgreSQL | 当次原生生成、挂载、角色、CRUD、重启、前端构建/类型/浏览器以及独立新库启动通过，交付获授权后READY |
-| 旧的原生接口导出 | 为已部署生成器提供专用配置/令牌 | 只导出源码时仍是SOURCE_READY，不能冒充全栈已测 |
+| 原生接口导出 | 为已部署生成器提供专用配置/令牌 | 只导出源码时仍是SOURCE_READY，不能冒充全栈已测 |
 | 独立交付启动 | 解压原生产品，在产品目录运行start.py | 自己的依赖锁、SQL、服务和数据库，无需原平台或模型Key |
 
 原生支持shared业务数据与原生角色权限、text/integer/boolean单表CRUD。它不是默认产品的per_user行隔离模型，不允许AI暗改数据归属。每个实体至少一个必填文本字段用于独立UI验收；额外Python规则不插入Java框架。复杂关系、支付和生产部署需另外实现与验证。
@@ -25,7 +25,7 @@
 | `native_modules.py`、`native_compatibility.py`、`native_vben.py` | 原生生成器调用、审计字段元数据、Java/Vue插件挂载、菜单与兼容变更回执 |
 | `native_checks.py`、`native_acceptance.py` | 普通角色授权/撤销、生成实体CRUD、必填验证与重启持久化 |
 | `native_frontend.py`、`scripts/native_browser.cjs` | 完整应用构建/类型检查，真实Chromium登录、菜单及两个生成页面 |
-| `native_lab.py`、`scripts/ci_native_bundled.py` | 平台和CI共用执行链；从随库模板开始，不再额外clone |
+| `native_lab.py`、`scripts/ci_native_bundled.py` | 平台和CI共用执行链；从随库模板开始，不依赖本项目骨架 |
 | `portable.py`、`portable_checks.py` | 导出新库所需SQL及菜单，把独立启动器放进产品，再用另一新数据库实测 |
 | `templates/deployment/entry.py/run.py/services.yaml/uv.lock` | 最终用户拿到的独立启动与数据库生命周期，不依赖原平台安装 |
 | `native_delivery.py` | 绑定源码和验收证据，只有完整通过才发布，兼容重新打开原开发副本 |
@@ -45,7 +45,7 @@
 
 源码在 `templates/vendor/fastapiadmin.zip`、`yudao-backend.zip`、`yudao-frontend.zip`。运行 `uv run rnd init` 后本地解压；再执行 `uv run rnd native prepare 模板名`也只是验证/准备这些已包含的固定快照。安装依赖仍用网络，不等于离线构建。
 
-原生全栈在Linux验收。Windows使用WSL2 Ubuntu，重新clone和建立Linux `.venv`，不要复用Windows虚拟环境。默认Python产品仍在Windows/Linux分别测试。完整Vben较大，建议至少16GB主机内存和足够磁盘；平台错开Java和Vite构建，必要时明确配置交换空间，不删除业务页面来减负。
+原生全栈在Linux验收。Windows使用WSL2 Ubuntu，在Linux目录按本书创建文件并建立Linux `.venv`，不要复用Windows虚拟环境。默认Python产品仍在Windows/Linux分别测试。完整Vben较大，建议至少16GB主机内存和足够磁盘；平台错开Java和Vite构建，必要时明确配置交换空间，不删除业务页面来减负。
 
 ### 19.4 在Linux/WSL准备工具
 
@@ -79,19 +79,18 @@ npm --version
 
 其他CPU架构使用匹配官方二进制。新终端要保留这个PATH或写入自己的shell配置。系统旧Node版本不能用来装Vben11系pnpm。
 
-克隆平台实现分支（合并后main也可）：
+回到按照本书创建的项目根目录（例如`~/rnd-learning`）：
 
 ```bash
-mkdir -p "$HOME/Code"
-cd "$HOME/Code"
-git clone --branch feat/controlled-toolchain-integration https://github.com/Live-yum/ai-rnd-foundation-learning.git
-cd ai-rnd-foundation-learning
+cd ~/rnd-learning
 uv python install 3.14
 uv sync --locked --all-extras
+# 从空目录手写时执行；已有合法vendor ZIP的演示仓库可直接init
+uv run python -m scripts.vendor_templates --fetch
 uv run rnd init
 ```
 
-不再执行另外三个上游git clone。原有目录先检查git状态再更新，不能覆盖你的旧源码和业务数据。
+全部平台源码来自本书完整代码区；vendor脚本只取得固定第三方依赖，不下载本项目的现成骨架。不要复用Windows虚拟环境，也不要用清空数据库解决安装问题。
 
 安装平台的独立浏览器验证工具：
 
@@ -257,4 +256,4 @@ uv run python -m scripts.ci_native_bundled yudao-vben
 
 正式Actions原生矩阵使用真实PG/Redis/Java/Python/Node/Chromium；平台模型CI使用夹具，不能说已验证用户供应商账户。原生类型检查与HTTP验收不代表所有上游历史测试通过。普通共享CRUD权限不代表任意行级隔离或多租户生产安全。
 
-本手册第二部分使用的所有实现代码都在后面的整份源码附录；源码改变后用同一build_handbook命令重新生成，不把“待实现”函数藏在附录里。独立交付首次环境仍需互联网安装依赖，但不再需要重新拉取模板或原始开发数据。最终测试结果应以本次PR提交的Actions及portable-start报告为准。
+本手册第二部分使用的所有实现代码都在后面的整份源码附录；源码改变后用同一build_handbook命令重新生成，不把“待实现”函数藏在附录里。独立交付首次环境仍需互联网安装依赖，但不再需要重新拉取模板或原始开发数据。测试结果以所用提交对应的Actions及portable-start报告为准。

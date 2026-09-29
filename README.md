@@ -2,20 +2,19 @@
 
 从需求到可启动产品的本地工作台：**先选择后端、前端与数据库 → 描述需求 → 人工确认或一键智能推荐 → 原生/确定性生成 → 独立测试 → 可选模型审阅 → 打包下载**。
 
-平台使用 Python、uv、FastAPI、SQLite 和 LangGraph。只有真实模型接口会产生模型费用；基础代码、迁移、索引、测试与打包由工具执行。测试失败不能由模型“宣布通过”。
+平台使用 Python、uv、FastAPI、SQLite 和 LangGraph。**仅聊天大模型允许使用外部推理服务；其余工具均为本机运行。** 基础代码、迁移、索引、测试与打包由工具执行。测试失败不能由模型“宣布通过”。
 
-## 1. 克隆并初始化
+## 1. 初始化完整演示源码
 
-本功能 PR 合并前使用功能分支；合并后可以使用 main。
+从当前所查看源码分支的Code菜单取得完整源码并解压，进入含pyproject.toml的根目录执行：
 
 ```powershell
-cd D:\Code
-git clone --branch feat/controlled-toolchain-integration https://github.com/Live-yum/ai-rnd-foundation-learning.git
-cd ai-rnd-foundation-learning
 uv python install 3.14
 uv sync --locked
 uv run rnd init
 ```
+
+**从零学习不需要先取得这些源码。** 唯一教材`从零实现AI研发平台_逐步实操手册_完整版.md`从空文件夹讲解每个自有文件、调用关系和逻辑，包含所有文本源码及锁文件；书中给出的脚本可从固定第三方提交生成原生模板ZIP。没有本项目骨架也能照书实现。
 
 需要先安装 Git、uv。Windows 的 uv 官方安装器：
 
@@ -151,19 +150,6 @@ uv run --no-project --python 3.14 python start.py
 
 源码包含初始化/迁移语句，不包含用户实际业务数据。重复启动不重置记录或密码。原生 `--check` 会完整验证数据库、菜单、CRUD和前端启动后退出；`--skip-build` 仅用于之前已成功构建的同一产品。不要删除数据库排错，不把源码包当作用户数据备份。
 
-## 8. 从已合并的旧版本升级
-
-先停止旧服务，备份整个 `.data/` 和自己的 `.env`；在已有仓库保存/提交本地代码改动后切换新PR分支并更新依赖：
-
-```powershell
-git fetch origin
-git switch feat/controlled-toolchain-integration
-uv sync --locked
-uv run rnd init
-```
-
-`init` 不覆盖 `.env`。旧配置显式写了 `MAX_ROUNDS=10` 或 `MAX_MODEL_CALLS=16` 时，请改成0再重启。数据库迁移增加必要字段，不删除原记录。针对“超轮数”运行，修正配置后可 `uv run rnd retry UUID`，随后 `uv run rnd chat --run UUID` 或 `uv run rnd recommend UUID`。已有运行的模板选择被保留；更换技术栈应新建运行，不能覆盖已经生成的数据。
-
 ## 9. 测试、证据、手册
 
 ```powershell
@@ -175,34 +161,46 @@ uv run python -m scripts.build_handbook --check
 
 Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新数据库交付、真实Chromium智能推荐和资讯页面搜索筛选。CI模型采用显式协议夹具，不消耗真实Key，也不声称已验证你的供应商账号。
 
-详细从零实现手册：**`从零实现AI研发平台_逐步实操手册_完整版.md`**。兼容旧链接的 `_v3.md` 与它逐字一致。正文、完整代码、数据库迁移、前端、测试、CI、锁文件一起生成；修改代码后执行 `uv run python -m scripts.build_handbook`。模板ZIP二进制不嵌入Markdown，但已随普通clone包含，附录给出哈希、来源和许可证。
+详细从零实现手册：**`从零实现AI研发平台_逐步实操手册_完整版.md`**。从空目录创建文件、数据流讲解、完整代码、数据库迁移、前端、测试、CI与锁文件均包含在同一份教材。第三方模板不是自行编写的代码：教材提供固定提交和打包脚本，读者可以从公开上游重建三个归档，不需要先取得本仓库骨架。演示仓库附带这些归档以便直接体验；源码附录逐文件讲解职责与对应关系。
 
 当前是仅监听本机、单操作人和单Worker的研发工作台。没有公网生产身份体系。请勿公开 `.env`、`.data`、`.deployment` 或访问令牌。更多环境条件、SQL步骤、预算恢复、原生部署与故障定位见完整手册。
 
-## 代码上下文、Aider、Continue 与 Daytona
+## 10. 本机工具链与唯一完整教材
 
-实际流程新增“需求确认 → 模板源码索引/检索/仓库地图 → 规划”，以及“本机验收 → 可选 Daytona 附加验收 → 原有打包/干净解压复验”。CRUD、迁移和菜单仍优先用现有确定性/原生生成器，不交给 LLM 重写。
+默认使用本机Tree-sitter/Python AST、FTS5和符号Repo Map。Aider使用独立Python3.12环境：
 
-默认安装即包含 Java/TS/Vue Tree-sitter 解析与本地 SQLite FTS5 检索，不需要新账户：
-
-```bash
-uv run rnd index templates/product .data/examples/product-index
-uv run rnd tools search templates/product .data/examples/product-index "validate"
-uv run rnd tools continue-config . templates/product .data/examples/product-index
-```
-
-最后一条为 Continue 创建 `.continue/mcpServers/rnd.json`，只读查询与仓库地图通过真实 MCP 协议访问同一索引；没有复制或冒充 Continue 的私有索引引擎。Continue 上游已宣布停止主动维护，本平台不依赖其私有索引内部实现；客户端兼容性与维护边界见工具链章节。配置已存在时拒绝覆盖。索引结果含路径、行号和 SHA，源码变化先重建，默认不上传向量。
-
-Aider 是可选独立工具环境，**平台仍是 Python 3.14**：
-
-```bash
+```powershell
 uv sync --locked --project tools/aider --python 3.12
+uv run rnd index workbench .data/platform-index
+uv run rnd tools search workbench .data/platform-index "model_for"
+uv run rnd tools continue-config . workbench .data/platform-index
 ```
 
-设置 `.env` 的 `REPO_MAP_PROVIDER=aider` 使用真实 Repo Map；`CODING_ENGINE=aider` 使用真实 SEARCH/REPLACE 应用引擎。模型调用仍走平台安全的多模型配置和预算，Aider 不接收真实 Key。当前自动编辑只开放已批准的 Python 业务规则文件；不声称任意 Java/Vue 业务已经自动适配。前后文件哈希、diff、Git commit 和验证回执均保留。
+设置`CODING_ENGINE=aider`和`REPO_MAP_PROVIDER=aider`可启用实际本机编辑/Repo Map。真实模型Key只交给平台网关，Aider不取得它。Continue仅通过本机stdio MCP访问只读search_code/repository_map；上游已停止积极维护，本平台不依赖其云服务。
 
-Daytona 默认 `SANDBOX_PROVIDER=local`（关闭）。启用需 `uv sync --locked --extra daytona`，独立 Daytona Key、已审核快照以及 `DAYTONA_ALLOW_UPLOAD=true`；会上传产品源码并可能产生账户费用。Python/SQLite 远程执行真实运行检查；原生通道是额外构建检查，不能替代现有数据库/浏览器/新库恢复。任何远程检查或清理失败都阻止交付，不偷偷回退到“成功”。云端 smoke 仅在 main 分支显式授权后手动运行，不在普通 PR 中读取云密钥。
+向量服务仅接受回环地址，使用本机模型并显式`EMBEDDING_ENABLED=true`。工具端点拒绝云端/局域网、代理与重定向，数据库和Docker执行也限定本机；继承的LangSmith/OTEL遥测关闭。公开依赖下载不等于云端执行工具。
 
-工具失败时，网页运行报告可查看 `tool-failure.json`（退出码、超时、有限且脱敏的输出）；上下文回执和 Daytona 回执也可从报告读取。修复工具后重试同一 run，不要删除 `.data` 或重新创建项目。
+Daytona固定为**v0.190.0自托管开发部署**，没有云端模式。Linux/WSL准备Docker后：
 
-完整安装、可选向量及独立密钥、Continue Agent 配置、Daytona 快照要求、失败处理和从零实现步骤见 [工具链实操章节](docs/toolchain.md)，也已纳入两份完整手册的正文及完整源码附录。凭据未提供时只可声明 SDK 契约测试，不可声明你的 Daytona 账户已经通过真实云验收。
+```bash
+uv sync --locked --all-extras
+uv run python -m scripts.daytona_local prepare
+uv run python -m scripts.daytona_local images
+uv run python -m scripts.daytona_local up
+uv run python -m scripts.daytona_bootstrap auth
+uv run python -m scripts.daytona_local snapshot-image
+uv run python -m scripts.daytona_bootstrap snapshot
+uv run python -m scripts.ci_daytona_local
+```
+
+本机随机凭据及平台配置保存在`.data/daytona-local`，不得提交Git。完整教材第20章解释Dex、API、Runner、镜像摘要、离线快照、每一步预期结果和清理。默认Python/SQLite快照不冒充Java/Vue通用镜像；原生完整验收仍在本机进行。Daytona上游Compose仅供开发，privileged Runner不是生产强隔离保证。
+
+仓库只保留`从零实现AI研发平台_逐步实操手册_完整版.md`这一份完整教材，不提供版本差异补丁式教程。源码块带SHA，逐文件讲解与源码同步，标准库重建脚本可只从文档建立全部自有文件：
+
+```powershell
+uv run python -m scripts.build_handbook
+uv run python -m scripts.build_handbook --check
+uv run python -m scripts.ci_handbook
+```
+
+真实模型联调需要你自己的大模型配置。CI使用显式模型协议夹具；真实CLI、数据库、浏览器、本机服务测试的证据分别保存，不把SDK模拟响应当成本机完整部署成功。

@@ -4,10 +4,11 @@ import argparse
 import hashlib
 from pathlib import Path
 
+from scripts.handbook_notes import notes
+
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "从零实现AI研发平台_逐步实操手册_完整版.md"
-LEGACY = ROOT / "从零实现AI研发平台_逐步实操手册_完整版_v3.md"
-GUIDES = ["docs/guide.md", "docs/native-baseline.md", "docs/toolchain.md"]
+GUIDES = ["docs/guide.md", "docs/implementation.md", "docs/native-baseline.md", "docs/toolchain.md"]
 GROUPS = [
     (
         "项目配置",
@@ -44,6 +45,7 @@ GROUPS = [
             "tools/aider/pyproject.toml",
             "tools/aider/.python-version",
             "tools/aider/uv.lock",
+            "tools/daytona",
         ],
     ),
     ("平台依赖锁", ["uv.lock"]),
@@ -68,6 +70,8 @@ def sources():
                 if not item.is_file() or "__pycache__" in item.parts or item.suffix == ".pyc":
                     continue
                 name = item.relative_to(ROOT).as_posix()
+                if name == ".github/workflows/prepare-local-tools.yml":
+                    continue  # Temporary review infrastructure is not part of the product.
                 if name not in seen:
                     rows.append((name, item.read_text(encoding="utf-8")))
                     seen.add(name)
@@ -101,7 +105,7 @@ def render():
                 ".css": "css",
                 ".yaml": "yaml",
             }.get(Path(name).suffix, "text")
-            text += f"\n### `{name}`\n\n<!-- source-file: {name} sha256: {code_sha} -->\n{fence}{language}\n{content.rstrip(chr(10))}\n{fence}\n"
+            text += f"\n### `{name}`\n\n{notes(name, content)}<!-- source-file: {name} sha256: {code_sha} -->\n{fence}{language}\n{content.rstrip(chr(10))}\n{fence}\n"
     return text
 
 
@@ -111,17 +115,13 @@ def main():
     args = parser.parse_args()
     expected = render()
     if args.check:
-        if (
-            not OUTPUT.exists()
-            or OUTPUT.read_text(encoding="utf-8") != expected
-            or not LEGACY.exists()
-            or LEGACY.read_text(encoding="utf-8") != expected
-        ):
+        if not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != expected:
             raise SystemExit("手册与源码不一致：执行 uv run python -m scripts.build_handbook")
-        print("Handbook source consistency PASS")
+        if len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) != 1:
+            raise SystemExit("只能保留一份正式完整手册")
+        print("Single handbook source consistency PASS")
     else:
         OUTPUT.write_text(expected, encoding="utf-8", newline="\n")
-        LEGACY.write_text(expected, encoding="utf-8", newline="\n")
         print("Handbook written successfully")
 
 

@@ -143,8 +143,11 @@ def test_export_in_source_does_not_invalidate_index(indexed):
 
 def test_embeddings_require_explicit_credentials(settings):
     settings.embedding_model = "embedding-fixture"
-    settings.embedding_base_url = "https://embeddings.example/v1"
+    settings.embedding_base_url = "http://127.0.0.1:11434/v1"
     settings.api_key = SecretStr("default-provider-secret")
+    # An unauthenticated localhost model is valid; never inherit the chat key.
+    assert embedding_profile(settings).api_key.get_secret_value() == "local-no-auth"
+    settings.embedding_api_key = SecretStr("")
     with pytest.raises(ValueError):
         embedding_profile(settings)
 
@@ -152,9 +155,9 @@ def test_embeddings_require_explicit_credentials(settings):
 def test_real_vector_fusion_with_explicit_transport(indexed, settings):
     source, index = indexed
     settings.embedding_model = "embedding-fixture"
-    settings.embedding_base_url = "https://embeddings.example/v1"
+    settings.embedding_base_url = "http://127.0.0.1:11434/v1"
     settings.embedding_api_key = SecretStr("separate-key")
-    settings.embedding_allow_upload = True
+    settings.embedding_enabled = True
     calls = []
 
     def handler(request):
@@ -245,17 +248,17 @@ def test_context_is_actually_available_to_planning(settings, tmp_path):
 
 def test_daytona_requires_consent_and_never_inherits_model_key(settings):
     settings.sandbox_provider = "daytona"
-    with pytest.raises(PrerequisiteError, match="ALLOW_UPLOAD"):
+    with pytest.raises(PrerequisiteError, match="ALLOW_LOCAL_EXECUTION"):
         validate_configuration(settings, "python-basic")
-    settings.daytona_allow_upload = True
+    settings.daytona_allow_local_execution = True
     with pytest.raises(ValueError):
         validate_configuration(settings, "python-basic")
 
 
 def fake_daytona(settings, *, fail=None):
     settings.sandbox_provider = "daytona"
-    settings.daytona_allow_upload = True
-    settings.daytona_snapshot = "fixture-not-a-real-cloud"
+    settings.daytona_allow_local_execution = True
+    settings.daytona_snapshot = "fixture-self-hosted"
     settings.daytona_api_key = SecretStr("daytona-test-key")
     events = []
 
@@ -325,7 +328,7 @@ def test_workflow_daytona_gate_blocks_packaging(settings, store, monkeypatch):
     settings.sandbox_provider = "daytona"
 
     def failed(*args):
-        raise PrerequisiteError("remote verification rejected")
+        raise PrerequisiteError("local sandbox verification rejected")
 
     monkeypatch.setattr("workbench.sandbox.verify_in_daytona", failed)
     with pytest.raises(PrerequisiteError):

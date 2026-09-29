@@ -271,8 +271,14 @@ pattern = re.compile(
 files = {}
 for name, expected, fence, code in pattern.findall(book):
     relative = PurePosixPath(name)
-    if (relative.is_absolute() or ".." in relative.parts or ":" in name
-            or "\\" in name or name in files or ".git" in relative.parts):
+    if (
+        relative.is_absolute()
+        or ".." in relative.parts
+        or ":" in name
+        or "\\" in name
+        or name in files
+        or ".git" in relative.parts
+    ):
         raise SystemExit("不安全或重复路径: " + name)
     content = code + "\n"
     if hashlib.sha256(content.encode("utf-8")).hexdigest() != expected:

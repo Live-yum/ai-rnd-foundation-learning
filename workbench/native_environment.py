@@ -17,11 +17,12 @@ from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import make_url
 
 from workbench.filesystem import atomic_text, files, inside, sha, write_json
+from workbench.local_only import local_database_url
 from workbench.tools import clean_env, process_options, run_command, stop_process
 
 
 def checked_database(url):
-    parsed = make_url(url)
+    parsed = make_url(local_database_url(url))
     if parsed.get_backend_name() != "postgresql" or parsed.host not in {"127.0.0.1", "localhost"}:
         raise ValueError("Native runtime requires a loopback PostgreSQL database")
     if not re.fullmatch(r"[a-z][a-z0-9_]{0,40}_codegen", parsed.database or ""):

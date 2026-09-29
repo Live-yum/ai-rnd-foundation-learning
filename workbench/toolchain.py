@@ -32,7 +32,11 @@ def prepare_context(settings, template, requirement, destination):
             mapping = repo_map(row["path"], output, settings)
         else:
             mapping = compact_map(output, max_chars=settings.repo_map_chars)
-        found = query(row["path"], output, query_text, limit=4, max_chars=6000)
+        if settings.embedding_enabled:
+            from workbench.retrieval import add_embeddings
+
+            add_embeddings(row["path"], output, settings)
+        found = query(row["path"], output, query_text, limit=4, max_chars=6000, settings=settings)
         contexts.append({"slot": row["slot"], "repo_map": mapping, "retrieval": found})
     result = {
         "template": template,
@@ -48,7 +52,7 @@ def prepare_context(settings, template, requirement, destination):
 def search_command(
     source: Path, index: Path, question: str, file_suffix: str = "", path_prefix: str = ""
 ):
-    """查询已建立的索引，不自动上传源码、不默认使用向量接口。"""
+    """查询已建立的索引，只使用本机索引与本机向量服务，不默认计算向量。"""
     typer.echo(
         json.dumps(
             query(
@@ -67,7 +71,7 @@ def search_command(
 
 @app.command("embed")
 def embed_command(source: Path, index: Path):
-    """明确授权后建立可选向量索引，独立模型地址和密钥，不继承默认凭据。"""
+    """显式启用后建立本机向量索引，不继承聊天模型凭据。"""
     from workbench.retrieval import add_embeddings
 
     typer.echo(json.dumps(add_embeddings(source, index, Settings()), ensure_ascii=False))

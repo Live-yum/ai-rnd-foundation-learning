@@ -46,8 +46,15 @@ def private_json(path, data):
 
 def command(argv, *, cwd=ROOT, timeout=900):
     """Never forward a model key, proxy, remote Docker context or shell string."""
-    result = subprocess.run(argv, cwd=cwd, env=clean_env(), timeout=timeout, check=True,
-                            stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run(
+        argv,
+        cwd=cwd,
+        env=clean_env(),
+        timeout=timeout,
+        check=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
     return result.stdout.decode("utf-8", errors="replace").strip()
 
 
@@ -84,18 +91,27 @@ def render_compose(original, credentials, directory):
         for key in tuple(env):
             if any(word in key for word in ("POSTHOG", "SENTRY", "ANALYTICS", "OTEL", "SSH_")):
                 env.pop(key)
-        env.update(OTEL_ENABLED="false", POSTHOG_API_KEY="", POSTHOG_HOST="",
-                   DO_NOT_TRACK="1", OTEL_SDK_DISABLED="true")
+        env.update(
+            OTEL_ENABLED="false",
+            POSTHOG_API_KEY="",
+            POSTHOG_HOST="",
+            DO_NOT_TRACK="1",
+            OTEL_SDK_DISABLED="true",
+        )
         service["environment"] = env
     api = config["services"]["api"]["environment"]
     api.update(
-        ENCRYPTION_KEY=credentials["encryption_key"], ENCRYPTION_SALT=credentials["salt"],
+        ENCRYPTION_KEY=credentials["encryption_key"],
+        ENCRYPTION_SALT=credentials["salt"],
         DB_PASSWORD=credentials["database_password"],
         S3_SECRET_KEY=credentials["storage_password"],
-        PROXY_API_KEY=credentials["proxy_key"], DEFAULT_RUNNER_API_KEY=credentials["runner_key"],
+        PROXY_API_KEY=credentials["proxy_key"],
+        DEFAULT_RUNNER_API_KEY=credentials["runner_key"],
         HEALTH_CHECK_API_KEY=credentials["health_key"],
-        DEFAULT_REGION_ID="local", DEFAULT_REGION_NAME="Local computer",
-        DEFAULT_RUNNER_NAME="local-docker", OIDC_MANAGEMENT_API_ENABLED="false",
+        DEFAULT_REGION_ID="local",
+        DEFAULT_REGION_NAME="Local computer",
+        DEFAULT_RUNNER_NAME="local-docker",
+        OIDC_MANAGEMENT_API_ENABLED="false",
         # Match Dex's signed issuer, but obtain JWKS via its private Docker hostname.
         PUBLIC_OIDC_DOMAIN="http://localhost:5556/dex",
         DEFAULT_SNAPSHOT="daytonaio/sandbox:0.5.0-slim",
@@ -103,10 +119,13 @@ def render_compose(original, credentials, directory):
     config["services"]["proxy"]["environment"].update(PROXY_API_KEY=credentials["proxy_key"])
     config["services"]["runner"]["environment"].update(
         DAYTONA_RUNNER_TOKEN=credentials["runner_key"],
-        AWS_SECRET_ACCESS_KEY=credentials["storage_password"], SSH_GATEWAY_ENABLE="false",
+        AWS_SECRET_ACCESS_KEY=credentials["storage_password"],
+        SSH_GATEWAY_ENABLE="false",
     )
     config["services"]["db"]["environment"]["POSTGRES_PASSWORD"] = credentials["database_password"]
-    config["services"]["minio"]["environment"]["MINIO_ROOT_PASSWORD"] = credentials["storage_password"]
+    config["services"]["minio"]["environment"]["MINIO_ROOT_PASSWORD"] = credentials[
+        "storage_password"
+    ]
     config["services"]["dex"]["volumes"] = [
         str(Path(directory).resolve() / "dex.yaml") + ":/etc/dex/config.yaml:ro",
         "dex_db:/var/dex",
@@ -126,7 +145,9 @@ def assert_local_compose(config):
             raise ValueError("服务端口不能暴露到局域网/公网")
         env = environment(service)
         for key, value in env.items():
-            if isinstance(value, str) and ("https://" in value or "cloudfront.net" in value or "auth0.com" in value):
+            if isinstance(value, str) and (
+                "https://" in value or "cloudfront.net" in value or "auth0.com" in value
+            ):
                 raise ValueError("本地服务配置含外部服务地址：" + key)
         if env.get("OTEL_ENABLED") != "false" or env.get("POSTHOG_API_KEY"):
             raise ValueError("遥测必须关闭")
@@ -142,26 +163,57 @@ def prepare(directory=HOME):
     source = directory / "upstream"
     source.mkdir()
     command(["git", "init", "--template=", "."], cwd=source)
-    command(["git", "fetch", "--depth", "1", "https://github.com/daytonaio/daytona.git", DAYTONA_SOURCE], cwd=source)
+    command(
+        [
+            "git",
+            "fetch",
+            "--depth",
+            "1",
+            "https://github.com/daytonaio/daytona.git",
+            DAYTONA_SOURCE,
+        ],
+        cwd=source,
+    )
     command(["git", "checkout", "--detach", "FETCH_HEAD"], cwd=source)
     if command(["git", "rev-parse", "HEAD"], cwd=source) != DAYTONA_SOURCE:
         raise ValueError("Daytona源码SHA不匹配")
     import bcrypt
 
-    credentials = {k: secrets.token_hex(24) for k in (
-        "password", "encryption_key", "salt", "database_password", "storage_password",
-        "proxy_key", "runner_key", "health_key", "bootstrap_secret",
-    )}
+    credentials = {
+        k: secrets.token_hex(24)
+        for k in (
+            "password",
+            "encryption_key",
+            "salt",
+            "database_password",
+            "storage_password",
+            "proxy_key",
+            "runner_key",
+            "health_key",
+            "bootstrap_secret",
+        )
+    }
     credentials["email"] = "student@rnd.invalid"
     original = yaml.safe_load((source / "docker/docker-compose.yaml").read_text(encoding="utf-8"))
     config = render_compose(original, credentials, directory)
     dex = yaml.safe_load((source / "docker/dex/config.yaml").read_text(encoding="utf-8"))
-    dex["staticPasswords"] = [{"email": credentials["email"], "username": "student",
-                              "userID": "rnd-local-student",
-                              "hash": bcrypt.hashpw(credentials["password"].encode(), bcrypt.gensalt()).decode()}]
+    dex["staticPasswords"] = [
+        {
+            "email": credentials["email"],
+            "username": "student",
+            "userID": "rnd-local-student",
+            "hash": bcrypt.hashpw(credentials["password"].encode(), bcrypt.gensalt()).decode(),
+        }
+    ]
     dex["staticClients"][0]["trustedPeers"] = ["rnd-bootstrap"]
-    dex["staticClients"].append({"id": "rnd-bootstrap", "name": "Local setup only",
-        "secret": credentials["bootstrap_secret"], "redirectURIs": ["http://localhost:3009/callback"]})
+    dex["staticClients"].append(
+        {
+            "id": "rnd-bootstrap",
+            "name": "Local setup only",
+            "secret": credentials["bootstrap_secret"],
+            "redirectURIs": ["http://localhost:3009/callback"],
+        }
+    )
     dex["oauth2"] = {"passwordConnector": "local"}
     for name, data in (("compose.yaml", config), ("dex.yaml", dex)):
         path = directory / name
@@ -169,8 +221,15 @@ def prepare(directory=HOME):
         if os.name != "nt":
             path.chmod(0o600)
     private_json(directory / "credentials.json", credentials)
-    private_json(directory / "installation.json", {"source_sha": DAYTONA_SOURCE,
-        "release": "v" + DAYTONA_VERSION, "deployment": "local-development-only", "cloud_account": False})
+    private_json(
+        directory / "installation.json",
+        {
+            "source_sha": DAYTONA_SOURCE,
+            "release": "v" + DAYTONA_VERSION,
+            "deployment": "local-development-only",
+            "cloud_account": False,
+        },
+    )
     print("本机配置已生成；密码保存在本机 credentials.json，不会显示或提交到Git。")
 
 
@@ -214,19 +273,31 @@ def snapshot_image(directory=HOME):
     for name in ("pyproject.toml", "uv.lock"):
         shutil.copyfile(ROOT / "templates/product" / name, context / name)
     shutil.copyfile(ROOT / "tools/daytona/Dockerfile", context / "Dockerfile")
-    stamp = hashlib.sha256(b"".join((context / name).read_bytes() for name in ("Dockerfile", "uv.lock", "pyproject.toml"))).hexdigest()[:16]
+    stamp = hashlib.sha256(
+        b"".join(
+            (context / name).read_bytes() for name in ("Dockerfile", "uv.lock", "pyproject.toml")
+        )
+    ).hexdigest()[:16]
     local_image = "127.0.0.1:6000/rnd-python:" + stamp
     docker("build", "--tag", local_image, str(context), timeout=1800)
     docker("push", local_image)
     # The runner's own Docker daemon resolves `registry` on the local Compose network.
-    private_json(directory / "snapshot-image.json", {"image": "registry:6000/rnd-python:" + stamp,
-        "snapshot": "rnd-python-" + stamp, "source_hash": stamp})
+    private_json(
+        directory / "snapshot-image.json",
+        {
+            "image": "registry:6000/rnd-python:" + stamp,
+            "snapshot": "rnd-python-" + stamp,
+            "source_hash": stamp,
+        },
+    )
     print("Python3.14与锁定依赖已预热到本机镜像；沙箱验收使用offline安装。")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["prepare", "images", "up", "status", "down", "snapshot-image"])
+    parser.add_argument(
+        "action", choices=["prepare", "images", "up", "status", "down", "snapshot-image"]
+    )
     parser.add_argument("--directory", type=Path, default=HOME)
     args = parser.parse_args()
     if args.action == "prepare":

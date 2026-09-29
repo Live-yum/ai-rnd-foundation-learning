@@ -18,6 +18,7 @@ from workbench.filesystem import write_json
 from workbench.flow import Workflow
 from workbench.generator import PrerequisiteError
 from workbench.llm import ModelFailure, ModelGateway
+from workbench.local_only import local_database_url
 from workbench.store import Conflict
 from workbench.tools import ToolFailure
 
@@ -54,9 +55,9 @@ class Runtime:
                 )
                 from langgraph.checkpoint.postgres import PostgresSaver
 
-                url = make_url(self.settings.checkpoint_url or self.settings.db_url).set(
-                    drivername="postgresql"
-                )
+                url = make_url(
+                    local_database_url(self.settings.checkpoint_url) or self.settings.db_url
+                ).set(drivername="postgresql")
                 saver = self.stack.enter_context(
                     PostgresSaver.from_conn_string(url.render_as_string(hide_password=False))
                 )

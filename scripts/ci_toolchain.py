@@ -99,7 +99,7 @@ def main():
             "aider_cli_edit": True,
             "git_commits": True,
             "model_calls": 0,
-            "daytona_live": False,
+            "daytona_self_hosted_service_tested": False,
             "daytona_note": "SDK contract tested separately; no account provisioned",
         }
         write_json(ROOT / "reports/toolchain.json", evidence)

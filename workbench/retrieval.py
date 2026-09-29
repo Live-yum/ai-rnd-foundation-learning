@@ -18,6 +18,7 @@ from filelock import FileLock
 
 from workbench.domain import digest
 from workbench.filesystem import inside, manifest, sha, write_json
+from workbench.local_only import local_http_url
 from workbench.settings import ModelProfile
 
 CODE_SUFFIXES = {".py", ".java", ".ts", ".tsx", ".js", ".jsx", ".vue", ".sql", ".md"}
@@ -142,13 +143,14 @@ def embedding_profile(settings):
         return None
     return ModelProfile(
         stage="embedding",
-        base_url=settings.embedding_base_url,
+        base_url=local_http_url(settings.embedding_base_url, "向量服务"),
         model=settings.embedding_model,
         api_key=settings.embedding_api_key,
     ).validate_endpoint()
 
 
 def embed(profile, texts, transport=None):
+    endpoint = local_http_url(profile.base_url, "向量服务")
     if not texts or len(texts) > 32 or sum(map(len, texts)) > 100000:
         raise ValueError("embedding 输入超出批次预算")
     with httpx.Client(
@@ -156,7 +158,7 @@ def embed(profile, texts, transport=None):
     ) as client:
         with client.stream(
             "POST",
-            profile.base_url.rstrip("/") + "/embeddings",
+            endpoint.rstrip("/") + "/embeddings",
             headers={"Authorization": "Bearer " + profile.api_key.get_secret_value()},
             json={"model": profile.model, "input": texts},
         ) as response:
@@ -190,9 +192,9 @@ def profile_id(profile):
 def add_embeddings(source, index_dir, settings, transport=None):
     current_index(source, index_dir)
     profile = embedding_profile(settings)
-    if profile is None or not settings.embedding_allow_upload:
+    if profile is None or not settings.embedding_enabled:
         raise ValueError(
-            "向量索引需要 EMBEDDING_MODE/BASE_URL/API_KEY 和 EMBEDDING_ALLOW_UPLOAD=true"
+            "向量索引需要 本机EMBEDDING_BASE_URL、EMBEDDING_MODE 和 EMBEDDING_ENABLED=true"
         )
     with FileLock(str(Path(index_dir) / "search.lock"), timeout=60):
         with closing(sqlite3.connect(Path(index_dir) / "search.sqlite3")) as db, db:
@@ -202,7 +204,7 @@ def add_embeddings(source, index_dir, settings, transport=None):
                 (profile_id(profile),),
             ).fetchall()
             if len(rows) > settings.embedding_max_chunks:
-                raise ValueError("本次待嵌入分块超出 EMBEDDING_MAX_CHUNKS；未调用收费接口")
+                raise ValueError("本次待嵌入分块超出 EMBEDDING_MAX_CHUNKS；未调用本机向量模型")
             for start in range(0, len(rows), 12):
                 batch = rows[start : start + 12]
                 values = embed(profile, [row[1] for row in batch], transport)
@@ -278,7 +280,7 @@ def query(
         ranks = [lexical]
         mode = "ast+fts5"
         profile = embedding_profile(settings) if settings else None
-        if profile and settings.embedding_allow_upload:
+        if profile and settings.embedding_enabled:
             vectors = db.execute(
                 "SELECT vectors.id,values_json FROM vectors JOIN chunks ON chunks.id=vectors.id WHERE profile=?"
                 + path_clause,

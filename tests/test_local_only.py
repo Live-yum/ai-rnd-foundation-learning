@@ -3,7 +3,6 @@
 import json
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 from pydantic import SecretStr
@@ -15,17 +14,31 @@ from workbench.local_only import (
     local_docker_command,
     local_http_url,
 )
-from workbench.settings import ModelProfile, ROOT, Settings
+from workbench.settings import ROOT, ModelProfile, Settings
 from workbench.tools import clean_env
 
 
-@pytest.mark.parametrize("url", [
-    "https://app.daytona.io/api", "https://embeddings.example/v1", "http://192.168.1.1/api",
-    "http://127.0.0.1.evil.test/api", "http://localhost@evil.test/api", "http://evil.test@localhost/api",
-    "http://127.1/api", "http://2130706433/api", "http://0.0.0.0/api", "http://[::ffff:127.0.0.1]/api",
-    "http://127.0.0.1/?host=remote", "http://127.0.0.1/#remote", "http://127.0.0.1:0/api",
-    " http://localhost/api", "http://localhost/api\n", "http://localhost\\evil/api",
-])
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://app.daytona.io/api",
+        "https://embeddings.example/v1",
+        "http://192.168.1.1/api",
+        "http://127.0.0.1.evil.test/api",
+        "http://localhost@evil.test/api",
+        "http://evil.test@localhost/api",
+        "http://127.1/api",
+        "http://2130706433/api",
+        "http://0.0.0.0/api",
+        "http://[::ffff:127.0.0.1]/api",
+        "http://127.0.0.1/?host=remote",
+        "http://127.0.0.1/#remote",
+        "http://127.0.0.1:0/api",
+        " http://localhost/api",
+        "http://localhost/api\n",
+        "http://localhost\\evil/api",
+    ],
+)
 def test_tool_urls_reject_cloud_and_ambiguous_hosts(url):
     with pytest.raises(ValueError):
         local_http_url(url)
@@ -35,21 +48,34 @@ def test_tool_urls_reject_cloud_and_ambiguous_hosts(url):
         Settings(_env_file=None, embedding_base_url=url)
 
 
-@pytest.mark.parametrize("url, expected", [
-    ("http://localhost:3000/api", "http://127.0.0.1:3000/api"),
-    ("https://127.0.0.1:11434/v1", "https://127.0.0.1:11434/v1"),
-    ("http://[::1]:3000/api", "http://[::1]:3000/api"),
-])
+@pytest.mark.parametrize(
+    "url, expected",
+    [
+        ("http://localhost:3000/api", "http://127.0.0.1:3000/api"),
+        ("https://127.0.0.1:11434/v1", "https://127.0.0.1:11434/v1"),
+        ("http://[::1]:3000/api", "http://[::1]:3000/api"),
+    ],
+)
 def test_only_unambiguous_loopback_is_accepted(url, expected):
     assert local_http_url(url) == expected
 
 
 def test_chat_model_is_the_only_configurable_external_compute():
-    ModelProfile(stage="coding", base_url="https://model.example/v1", model="fixture",
-                 api_key=SecretStr("test-only")).validate_endpoint()
-    assert local_database_url("postgresql://u:p@localhost:5432/db").startswith("postgresql://u:p@127.0.0.1")
-    for url in ["postgresql://u:p@db.cloud.test/db", "postgresql://u:p@localhost/db?hostaddr=8.8.8.8",
-                "postgresql://u:p@127.0.0.1/db?service=remote", "sqlite://///server/share/db"]:
+    ModelProfile(
+        stage="coding",
+        base_url="https://model.example/v1",
+        model="fixture",
+        api_key=SecretStr("test-only"),
+    ).validate_endpoint()
+    assert local_database_url("postgresql://u:p@localhost:5432/db").startswith(
+        "postgresql://u:p@127.0.0.1"
+    )
+    for url in [
+        "postgresql://u:p@db.cloud.test/db",
+        "postgresql://u:p@localhost/db?hostaddr=8.8.8.8",
+        "postgresql://u:p@127.0.0.1/db?service=remote",
+        "sqlite://///server/share/db",
+    ]:
         with pytest.raises(ValueError):
             local_database_url(url)
 
@@ -66,7 +92,7 @@ def test_inherited_tracing_and_cloud_context_cannot_be_reenabled(monkeypatch):
 
 
 def test_daytona_child_blocks_external_dns_tcp_udp_and_redirect():
-    code = '''
+    code = """
 import socket, threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from workbench.local_only import install_loopback_guard
@@ -95,9 +121,15 @@ for kind in ('dns','tcp','udp','redirect'):
     else: raise AssertionError(kind+' unexpectedly permitted')
 server.shutdown(); server.server_close()
 print('loopback-only PASS')
-'''
-    result = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=clean_env(),
-                            capture_output=True, timeout=30, text=True)
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        cwd=ROOT,
+        env=clean_env(),
+        capture_output=True,
+        timeout=30,
+        text=True,
+    )
     assert result.returncode == 0, result.stderr
     assert "loopback-only PASS" in result.stdout
 
@@ -115,11 +147,30 @@ def test_daytona_sdk_and_params_are_pinned(settings, monkeypatch):
 
 
 def test_deployment_transformation_has_no_cloud_services(tmp_path):
-    source = {"services": {n: {"image": "mutable", "environment": ["POSTHOG_HOST=https://cloud.example"],
-        "ports": ["3000:3000"], "depends_on": ["jaeger"]} for n in KEEP}}
+    source = {
+        "services": {
+            n: {
+                "image": "mutable",
+                "environment": ["POSTHOG_HOST=https://cloud.example"],
+                "ports": ["3000:3000"],
+                "depends_on": ["jaeger"],
+            }
+            for n in KEEP
+        }
+    }
     source["services"]["jaeger"] = {"image": "unneeded"}
-    credentials = dict.fromkeys(["encryption_key", "salt", "database_password", "storage_password",
-                                 "proxy_key", "runner_key", "health_key"], "fixture-random")
+    credentials = dict.fromkeys(
+        [
+            "encryption_key",
+            "salt",
+            "database_password",
+            "storage_password",
+            "proxy_key",
+            "runner_key",
+            "health_key",
+        ],
+        "fixture-random",
+    )
     rendered = render_compose(source, credentials, tmp_path)
     assert set(rendered["services"]) == KEEP
     assert "cloud.example" not in json.dumps(rendered)

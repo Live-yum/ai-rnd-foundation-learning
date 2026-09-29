@@ -1,12 +1,13 @@
-"""Opt-in Daytona verification. Credentials stay on the control plane.
+"""Opt-in self-hosted Daytona verification. No cloud control plane is allowed.
 
-Local trusted acceptance is never skipped. A remote build is additional evidence,
+Local trusted acceptance is never skipped. A sandbox build is additional evidence,
 not a substitute for database, RBAC, browser or clean-delivery acceptance.
 """
 
 import io
 import json
 import shlex
+import uuid
 import zipfile
 from importlib.metadata import version
 from pathlib import Path
@@ -14,6 +15,7 @@ from pathlib import Path
 from workbench.domain import digest
 from workbench.filesystem import files, manifest, write_json
 from workbench.generator import PrerequisiteError
+from workbench.local_only import DAYTONA_VERSION, local_http_url
 from workbench.settings import ROOT, ModelProfile
 
 REMOTE = "/tmp/rnd-verification"
@@ -22,13 +24,13 @@ REMOTE = "/tmp/rnd-verification"
 def validate_configuration(settings, template, selection=None):
     if settings.sandbox_provider != "daytona":
         return
-    if not settings.daytona_allow_upload:
+    if not settings.daytona_allow_local_execution:
         raise PrerequisiteError(
-            "Daytona需要明确配置 DAYTONA_ALLOW_UPLOAD=true；不会默认上传项目或产生云端费用"
+            "本机Daytona需要 DAYTONA_ALLOW_LOCAL_EXECUTION=true；只在本机创建隔离验证环境"
         )
     ModelProfile(
         stage="daytona",
-        base_url=settings.daytona_api_url,
+        base_url=local_http_url(settings.daytona_api_url, "Daytona"),
         model="sandbox",
         api_key=settings.daytona_api_key,
     ).validate_endpoint()
@@ -36,27 +38,32 @@ def validate_configuration(settings, template, selection=None):
         raise PrerequisiteError("请配置已安装构建工具的 DAYTONA_SNAPSHOT 和 DAYTONA_TARGET")
     if template == "python-basic" and (selection or {}).get("database", "sqlite") != "sqlite":
         raise PrerequisiteError(
-            "Daytona的Python运行复验当前只支持独立SQLite；不会把本机PostgreSQL凭据上传云端"
+            "Daytona的Python运行复验当前只支持独立SQLite；不会把本机PostgreSQL凭据复制进沙箱"
         )
 
 
 def client_for(settings):
     from daytona import Daytona, DaytonaConfig
 
+    if version("daytona") != DAYTONA_VERSION:
+        raise PrerequisiteError("请使用锁定的Daytona SDK " + DAYTONA_VERSION)
     return Daytona(
         DaytonaConfig(
             api_key=settings.daytona_api_key.get_secret_value(),
-            api_url=settings.daytona_api_url,
+            api_url=local_http_url(settings.daytona_api_url, "Daytona"),
             target=settings.daytona_target,
+            otel_enabled=False,
         )
     )
 
 
-def params_for(settings):
+def params_for(settings, name=None):
     from daytona import CreateSandboxFromSnapshotParams
 
     return CreateSandboxFromSnapshotParams(
         snapshot=settings.daytona_snapshot,
+        name=name,
+        network_block_all=True,
         public=False,
         auto_stop_interval=5,
         auto_delete_interval=0,
@@ -70,7 +77,7 @@ def checks_for(template):
         return [
             (
                 "locked-install",
-                ["uv", "sync", "--locked", "--no-dev", "--python", "3.14"],
+                ["uv", "sync", "--locked", "--offline", "--no-dev", "--python", "3.14"],
                 "product",
             ),
             (
@@ -90,10 +97,10 @@ def checks_for(template):
         ]
     if template == "yudao-vben":
         return [
-            ("maven-test", ["mvn", "-B", "test"], "product/backend"),
+            ("maven-test", ["mvn", "-B", "-o", "test"], "product/backend"),
             (
                 "frontend-install",
-                ["pnpm", "install", "--frozen-lockfile"],
+                ["pnpm", "install", "--offline", "--frozen-lockfile"],
                 "product/frontend-product",
             ),
             (
@@ -105,7 +112,11 @@ def checks_for(template):
     if template == "fastapiadmin":
         return [
             ("python-syntax", ["python3", "-m", "compileall", "-q", "app"], "product/backend"),
-            ("frontend-install", ["pnpm", "install", "--frozen-lockfile"], "product/frontend/web"),
+            (
+                "frontend-install",
+                ["pnpm", "install", "--offline", "--frozen-lockfile"],
+                "product/frontend/web",
+            ),
             ("frontend-types", ["pnpm", "exec", "vue-tsc", "--noEmit"], "product/frontend/web"),
         ]
     raise PrerequisiteError("没有这个模板的已登记Daytona检查；不接受任意shell命令")
@@ -127,8 +138,17 @@ def source_archive(product):
 
 
 def verify_in_daytona(product, template, settings, *, client=None):
+    validate_configuration(settings, template)
+    if client is None:
+        from workbench.daytona_worker import run_isolated
+
+        return run_isolated(product, template, settings)
+    return _verify_in_daytona(product, template, settings, client=client)
+
+
+def _verify_in_daytona(product, template, settings, *, client):
     if settings.sandbox_provider != "daytona":
-        raise PrerequisiteError("没有启用Daytona，拒绝创建远程资源")
+        raise PrerequisiteError("没有启用本机Daytona，拒绝创建资源")
     product = Path(product)
     selected = (
         json.loads((product / "selection.json").read_text(encoding="utf-8"))
@@ -141,6 +161,9 @@ def verify_in_daytona(product, template, settings, *, client=None):
     archive = source_archive(product)
     receipt = {
         "provider": "daytona",
+        "deployment": "self-hosted-loopback",
+        "api_url": local_http_url(settings.daytona_api_url, "Daytona"),
+        "network_block_all": True,
         "sdk_version": version("daytona"),
         "passed": False,
         "source_digest": digest(before),
@@ -150,13 +173,15 @@ def verify_in_daytona(product, template, settings, *, client=None):
         "cleanup": "not-created",
         "scope": "independent-runtime" if template == "python-basic" else "additional-build-checks",
     }
-    owned = client is None
-    client = client or client_for(settings)
+    name = "rnd-verify-" + uuid.uuid4().hex
+    receipt["sandbox_name"] = name
     sandbox = None
     error = None
+    write_json(product.parent / "daytona-verification.json", receipt)
     try:
-        sandbox = client.create(params_for(settings), timeout=settings.tool_timeout)
+        sandbox = client.create(params_for(settings, name), timeout=settings.tool_timeout)
         receipt.update(sandbox_id=sandbox.id, cleanup="pending")
+        write_json(product.parent / "daytona-verification.json", receipt)
         sandbox.fs.create_folder(REMOTE, "700")
         sandbox.fs.upload_file(archive, REMOTE + "/source.zip", timeout=settings.tool_timeout)
         sandbox.fs.upload_file(
@@ -196,7 +221,17 @@ def verify_in_daytona(product, template, settings, *, client=None):
             raise PrerequisiteError("Daytona验收期间本机源码改变")
         receipt["passed"] = True
     except Exception as exc:
+        if sandbox is None:
+            # A timeout may occur after the API created the resource. Look up only
+            # our unpredictable name; never delete another user's sandbox.
+            receipt["cleanup"] = "create-failed-unknown"
+            try:
+                sandbox = client.get(name)
+            except Exception:
+                pass
         receipt["error_type"] = type(exc).__name__
+        receipt["error_detail"] = settings.redact(str(exc))[:2000]
+        receipt["passed"] = False
         error = PrerequisiteError("Daytona未通过，已保留脱敏检查回执；不会回退为本机成功")
     finally:
         if sandbox is not None:
@@ -205,12 +240,9 @@ def verify_in_daytona(product, template, settings, *, client=None):
                 receipt["cleanup"] = "deleted"
             except Exception:
                 receipt.update(cleanup="delete-failed", passed=False)
-                error = PrerequisiteError("Daytona删除失败，请按sandbox_id在控制台清理；交付已阻止")
-        if owned and hasattr(client, "close"):
-            try:
-                client.close()
-            except Exception:
-                receipt["client_close"] = "failed"
+                error = PrerequisiteError(
+                    "Daytona删除失败，请按sandbox_id在本机控制台清理；交付已阻止"
+                )
         write_json(product.parent / "daytona-verification.json", receipt)
     if error:
         raise error

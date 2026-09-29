@@ -34,16 +34,21 @@ def bootstrap(directory=HOME):
                 ready = http.get("http://127.0.0.1:5556/dex/.well-known/openid-configuration")
                 ready.raise_for_status()
                 break
-            except (httpx.HTTPError, ValueError):
+            except httpx.HTTPError, ValueError:
                 if attempt == 89:
                     raise RuntimeError("本机Dex未就绪；没有联系任何云端身份服务") from None
                 time.sleep(2)
-        response = http.post("http://127.0.0.1:5556/dex/token", data={
-            "grant_type": "password", "client_id": "rnd-bootstrap",
-            "client_secret": credentials["bootstrap_secret"], "username": credentials["email"],
-            "password": credentials["password"],
-            "scope": "openid profile email audience:server:client_id:daytona",
-        })
+        response = http.post(
+            "http://127.0.0.1:5556/dex/token",
+            data={
+                "grant_type": "password",
+                "client_id": "rnd-bootstrap",
+                "client_secret": credentials["bootstrap_secret"],
+                "username": credentials["email"],
+                "password": credentials["password"],
+                "scope": "openid profile email audience:server:client_id:daytona",
+            },
+        )
         response.raise_for_status()
         headers = {"Authorization": "Bearer " + response.json()["id_token"]}
         for attempt in range(120):
@@ -54,7 +59,7 @@ def bootstrap(directory=HOME):
                 if not organizations:
                     raise ValueError("本机用户尚未建立个人组织")
                 break
-            except (httpx.HTTPError, ValueError):
+            except httpx.HTTPError, ValueError:
                 if attempt == 119:
                     raise RuntimeError("本机API/身份认证未就绪；请查看本机容器日志") from None
                 time.sleep(2)
@@ -62,8 +67,11 @@ def bootstrap(directory=HOME):
         if len(personal) != 1:
             raise ValueError("个人组织不唯一，拒绝猜测密钥所属组织")
         headers["X-Daytona-Organization-ID"] = personal[0]["id"]
-        response = http.post("http://127.0.0.1:3000/api/api-keys", headers=headers,
-                             json={"name": "rnd-local-verification", "permissions": PERMISSIONS})
+        response = http.post(
+            "http://127.0.0.1:3000/api/api-keys",
+            headers=headers,
+            json={"name": "rnd-local-verification", "permissions": PERMISSIONS},
+        )
         response.raise_for_status()
         key = response.json()["value"]
     # Persist a newly created key immediately, even if a later snapshot operation fails.
@@ -104,8 +112,15 @@ def snapshot(directory=HOME):
             if str(existing.state).lower() != "active":
                 raise ValueError("已存在同名但未就绪的本机快照，请检查状态；不静默覆盖")
         except DaytonaNotFoundError:
-            client.snapshot.create(CreateSnapshotParams(name=metadata["snapshot"], image=metadata["image"],
-                region_id="local", resources=Resources(cpu=1, memory=2, disk=5)), timeout=600)
+            client.snapshot.create(
+                CreateSnapshotParams(
+                    name=metadata["snapshot"],
+                    image=metadata["image"],
+                    region_id="local",
+                    resources=Resources(cpu=1, memory=2, disk=5),
+                ),
+                timeout=600,
+            )
         write_environment(directory / "workbench.env", key, metadata["snapshot"])
         print("本机快照已就绪；沙箱关卡禁止外网并使用离线依赖。")
     finally:

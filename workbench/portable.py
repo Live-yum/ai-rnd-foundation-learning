@@ -15,6 +15,7 @@ from workbench.settings import ROOT
 
 HELPERS = (
     "__init__.py",
+    "local_only.py",
     "settings.py",
     "domain.py",
     "catalog.py",

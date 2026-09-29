@@ -15,6 +15,7 @@ def test_database_lesson_runs_from_only_its_documented_files(tmp_path):
         "alembic.ini",
         "README.md",
         "workbench/__init__.py",
+        "workbench/local_only.py",
         "workbench/settings.py",
         "workbench/domain.py",
         "workbench/errors.py",

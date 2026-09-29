@@ -65,7 +65,20 @@ def main():
         )
         deployment.chmod(0o600)
         subprocess.run(
-            [docker, "compose", "--env-file", str(deployment), "up", "-d", "--wait", "database"],
+            [
+                docker,
+                "--host",
+                "npipe:////./pipe/docker_engine"
+                if os.name == "nt"
+                else "unix:///var/run/docker.sock",
+                "compose",
+                "--env-file",
+                str(deployment),
+                "up",
+                "-d",
+                "--wait",
+                "database",
+            ],
             cwd=ROOT,
             check=True,
         )
