@@ -178,3 +178,28 @@ def prepare_vben_source(root: Path, reports: Path):
         },
     )
     return receipts
+
+
+def adapt_generated_form(source: str, class_name: str) -> str:
+    """Move the native generator's legacy getter generic onto the modal hook.
+
+    Create opens with no record and edit opens with an ID, so the payload is Partial<DTO>.
+    The original codegen ZIP remains unchanged; mounting records before/after hashes.
+    """
+    if not class_name.isidentifier() or not class_name.startswith("Wb"):
+        raise ValueError("Invalid generated Vben class name")
+    dto = f"Infra{class_name}Api.{class_name}"
+    source = checked_replacement(
+        source,
+        "= useVbenModal({",
+        f"= useVbenModal<Partial<{dto}>>({{",
+        1,
+        "generated modal hook",
+    )
+    return checked_replacement(
+        source,
+        f"modalApi.getData<{dto}>()",
+        "modalApi.getData()",
+        1,
+        "generated modal getter",
+    )

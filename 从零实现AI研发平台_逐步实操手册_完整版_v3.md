@@ -759,7 +759,7 @@ uv run python -c "import json; d=json.load(open('reports/native-fastapiadmin/acc
 
 ### 19.11 兼容规则与排错
 
-Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。
+Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。生成器导出的新增表单也做精确兼容：将旧式 `modalApi.getData<DTO>()` 的泛型迁到 `useVbenModal<Partial<DTO>>`，保留新增时的空载荷和编辑时的 ID 检查。原始生成 ZIP 不改写，`generation.json` 同时记录原始文件与实际挂载文件的哈希。
 
 工作副本不会复制上游 `.git`、令牌或环境文件。Vben 副本单独执行 `git init --quiet --template=` 建立本地扫描边界，没有上游 remote、提交历史或 hooks；此边界也不进入源码 ZIP。缺少边界时，构建扫描可能跨入平台和兄弟工作目录，导致日志停滞与内存异常增长。不要用扩大内存、删除业务路由或禁用类型检查代替修复。保留原始仓库不变，并保存 `vben-compatibility.json` 中逐文件的 before/after SHA-256。
 
@@ -5288,7 +5288,7 @@ def browser_check(template, url, reports):
 
 ### `workbench/native_vben.py`
 
-<!-- source-file: workbench/native_vben.py sha256: eb1e298c1d278e09357c7df1f2c88b26c55a25ef83733869abb1473f0fec0687 -->
+<!-- source-file: workbench/native_vben.py sha256: f7d1685f65981dc0bbd866e4b1c73332cca9a706ce31d7b2ebb308fb1b68c6a4 -->
 ````python
 """Reviewed compatibility for pinned Vben 1b14e889; no routes or type checks removed."""
 
@@ -5470,11 +5470,36 @@ def prepare_vben_source(root: Path, reports: Path):
         },
     )
     return receipts
+
+
+def adapt_generated_form(source: str, class_name: str) -> str:
+    """Move the native generator's legacy getter generic onto the modal hook.
+
+    Create opens with no record and edit opens with an ID, so the payload is Partial<DTO>.
+    The original codegen ZIP remains unchanged; mounting records before/after hashes.
+    """
+    if not class_name.isidentifier() or not class_name.startswith("Wb"):
+        raise ValueError("Invalid generated Vben class name")
+    dto = f"Infra{class_name}Api.{class_name}"
+    source = checked_replacement(
+        source,
+        "= useVbenModal({",
+        f"= useVbenModal<Partial<{dto}>>({{",
+        1,
+        "generated modal hook",
+    )
+    return checked_replacement(
+        source,
+        f"modalApi.getData<{dto}>()",
+        "modalApi.getData()",
+        1,
+        "generated modal getter",
+    )
 ````
 
 ### `workbench/native_modules.py`
 
-<!-- source-file: workbench/native_modules.py sha256: 4ffd4a27c14a12057353fcc5617a26424525b3f983a8a040f2985ebb4d5c8139 -->
+<!-- source-file: workbench/native_modules.py sha256: 3207e281fb569e0a383d851c82c1e58fb4873cafb322d6168fa3b4c3bad21dc1 -->
 ````python
 """Native codegen -> deterministic mounting -> native menu metadata. No model-written CRUD."""
 
@@ -5505,6 +5530,7 @@ from workbench.filesystem import atomic_text, inside, sha, unpack, write_json
 from workbench.native import NativeClient, NativeConfig
 from workbench.native_checks import payload, record_id
 from workbench.native_environment import checked_database
+from workbench.native_vben import adapt_generated_form
 
 RESERVED = {
     "id",
@@ -5701,11 +5727,22 @@ def mount_yudao_export(export, backend, frontend, entity, reports, used_errors):
                     raise FileExistsError(
                         "Refusing to overwrite existing Vben feature: " + relative
                     )
+                if relative == f"views/infra/{slug}/modules/form.vue":
+                    class_name = "Wb" + "".join(p.title() for p in entity.name.split("_"))
+                    body = adapt_generated_form(body, class_name)
             else:
                 raise ValueError("Unsupported native generated file: " + name)
             target.parent.mkdir(parents=True, exist_ok=True)
             atomic_text(target, body)
-            writes.append({"source": name, "path": str(target), "sha256": sha(target)})
+            writes.append(
+                {
+                    "source": name,
+                    "path": str(target),
+                    "source_sha256": sha(file),
+                    "sha256": sha(target),
+                    "compatibility_applied": sha(file) != sha(target),
+                }
+            )
     constants = (
         Path(backend)
         / "yudao-module-infra/yudao-module-infra-api/src/main/java/cn/iocoder/yudao/module/infra/enums/ErrorCodeConstants.java"
@@ -8801,7 +8838,7 @@ def test_updates_exercise_integer_and_boolean_changes():
 
 ### `tests/test_native_vben.py`
 
-<!-- source-file: tests/test_native_vben.py sha256: b1bddafc58727328aa27c87912127c3dad99283cf1627cd0a680abfb9f822987 -->
+<!-- source-file: tests/test_native_vben.py sha256: 02bd54991e6beacce6bec362e3396d28736ed277cc855a0edddf8fa3586e6b58 -->
 ````python
 """Small regression contracts; full Vben verification uses the real pinned application."""
 
@@ -8812,7 +8849,11 @@ import pytest
 
 from workbench.filesystem import manifest
 from workbench.native_environment import copy_source
-from workbench.native_vben import checked_replacement, initialize_vben_boundary
+from workbench.native_vben import (
+    adapt_generated_form,
+    checked_replacement,
+    initialize_vben_boundary,
+)
 from workbench.tools import run_command
 
 
@@ -8847,6 +8888,27 @@ def test_vben_boundary_is_local_and_excluded_from_delivery(tmp_path):
     assert Path(result["log"].strip()).resolve() == destination.resolve()
     with pytest.raises(ValueError, match="fresh source copy"):
         initialize_vben_boundary(destination)
+
+
+@pytest.mark.parametrize("class_name", ["WbDevice", "WbCategory", "WbAssetItem"])
+def test_generated_modal_keeps_precise_dto_and_optional_create_payload(class_name):
+    dto = f"Infra{class_name}Api.{class_name}"
+    source = (
+        "const [Modal, modalApi] = useVbenModal({\n"
+        f"const data = modalApi.getData<{dto}>();\n"
+        "if (!data || !data.id) return;\n});"
+    )
+    result = adapt_generated_form(source, class_name)
+    assert f"useVbenModal<Partial<{dto}>>(" in result
+    assert "modalApi.getData()" in result
+    assert "if (!data || !data.id) return;" in result
+    assert "getData<" in source
+    assert "@ts-ignore" not in result and "any" not in result
+
+
+def test_generated_modal_contract_drift_is_not_silently_accepted():
+    with pytest.raises(ValueError, match="compatibility contract changed"):
+        adapt_generated_form("const [Modal, modalApi] = useVbenModal({});", "WbDevice")
 ````
 
 ### `tests/test_postgres.py`
@@ -11949,7 +12011,7 @@ uv sync --locked --extra postgres
 
 ### `docs/native-baseline.md`
 
-<!-- source-file: docs/native-baseline.md sha256: a17740dd08de2ea0f8be40f13780a86422f8dc6b1427d071dfe23b6c29dfdec2 -->
+<!-- source-file: docs/native-baseline.md sha256: 3923b82c77ac9b14988a6b78e101f9a0d462f6d51c2dff2f2e05730f335c73ca -->
 ````markdown
 ## 19. 原生生成产品：自动挂载、菜单权限和完整前后端验收
 
@@ -12239,7 +12301,7 @@ uv run python -c "import json; d=json.load(open('reports/native-fastapiadmin/acc
 
 ### 19.11 兼容规则与排错
 
-Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。
+Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。生成器导出的新增表单也做精确兼容：将旧式 `modalApi.getData<DTO>()` 的泛型迁到 `useVbenModal<Partial<DTO>>`，保留新增时的空载荷和编辑时的 ID 检查。原始生成 ZIP 不改写，`generation.json` 同时记录原始文件与实际挂载文件的哈希。
 
 工作副本不会复制上游 `.git`、令牌或环境文件。Vben 副本单独执行 `git init --quiet --template=` 建立本地扫描边界，没有上游 remote、提交历史或 hooks；此边界也不进入源码 ZIP。缺少边界时，构建扫描可能跨入平台和兄弟工作目录，导致日志停滞与内存异常增长。不要用扩大内存、删除业务路由或禁用类型检查代替修复。保留原始仓库不变，并保存 `vben-compatibility.json` 中逐文件的 before/after SHA-256。
 

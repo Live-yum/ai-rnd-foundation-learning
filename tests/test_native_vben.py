@@ -7,7 +7,11 @@ import pytest
 
 from workbench.filesystem import manifest
 from workbench.native_environment import copy_source
-from workbench.native_vben import checked_replacement, initialize_vben_boundary
+from workbench.native_vben import (
+    adapt_generated_form,
+    checked_replacement,
+    initialize_vben_boundary,
+)
 from workbench.tools import run_command
 
 
@@ -42,3 +46,24 @@ def test_vben_boundary_is_local_and_excluded_from_delivery(tmp_path):
     assert Path(result["log"].strip()).resolve() == destination.resolve()
     with pytest.raises(ValueError, match="fresh source copy"):
         initialize_vben_boundary(destination)
+
+
+@pytest.mark.parametrize("class_name", ["WbDevice", "WbCategory", "WbAssetItem"])
+def test_generated_modal_keeps_precise_dto_and_optional_create_payload(class_name):
+    dto = f"Infra{class_name}Api.{class_name}"
+    source = (
+        "const [Modal, modalApi] = useVbenModal({\n"
+        f"const data = modalApi.getData<{dto}>();\n"
+        "if (!data || !data.id) return;\n});"
+    )
+    result = adapt_generated_form(source, class_name)
+    assert f"useVbenModal<Partial<{dto}>>(" in result
+    assert "modalApi.getData()" in result
+    assert "if (!data || !data.id) return;" in result
+    assert "getData<" in source
+    assert "@ts-ignore" not in result and "any" not in result
+
+
+def test_generated_modal_contract_drift_is_not_silently_accepted():
+    with pytest.raises(ValueError, match="compatibility contract changed"):
+        adapt_generated_form("const [Modal, modalApi] = useVbenModal({});", "WbDevice")

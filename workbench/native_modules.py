@@ -27,6 +27,7 @@ from workbench.filesystem import atomic_text, inside, sha, unpack, write_json
 from workbench.native import NativeClient, NativeConfig
 from workbench.native_checks import payload, record_id
 from workbench.native_environment import checked_database
+from workbench.native_vben import adapt_generated_form
 
 RESERVED = {
     "id",
@@ -223,11 +224,22 @@ def mount_yudao_export(export, backend, frontend, entity, reports, used_errors):
                     raise FileExistsError(
                         "Refusing to overwrite existing Vben feature: " + relative
                     )
+                if relative == f"views/infra/{slug}/modules/form.vue":
+                    class_name = "Wb" + "".join(p.title() for p in entity.name.split("_"))
+                    body = adapt_generated_form(body, class_name)
             else:
                 raise ValueError("Unsupported native generated file: " + name)
             target.parent.mkdir(parents=True, exist_ok=True)
             atomic_text(target, body)
-            writes.append({"source": name, "path": str(target), "sha256": sha(target)})
+            writes.append(
+                {
+                    "source": name,
+                    "path": str(target),
+                    "source_sha256": sha(file),
+                    "sha256": sha(target),
+                    "compatibility_applied": sha(file) != sha(target),
+                }
+            )
     constants = (
         Path(backend)
         / "yudao-module-infra/yudao-module-infra-api/src/main/java/cn/iocoder/yudao/module/infra/enums/ErrorCodeConstants.java"
