@@ -20,11 +20,12 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
-      - name: Apply exact reviewed generated form compatibility
-        run: python .maintenance/generated_vben.py
+      - name: Apply reviewed generated field and import compatibility
+        run: python .maintenance/vben_fields.py
       - run: uv sync --locked --all-extras
       - run: uv run ruff format .
       - run: uv run ruff check .
+      - run: node --check scripts/native_browser.cjs
       - run: uv run python -m scripts.build_handbook
       - run: uv run python -m scripts.build_handbook --check
       - run: uv run pytest -m 'not postgres' -q --junitxml=reports/regression.xml
@@ -34,8 +35,8 @@ jobs:
           git diff --exit-code -- .github/workflows
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add workbench/native_vben.py workbench/native_modules.py tests/test_native_vben.py docs/native-baseline.md 从零实现AI研发平台_逐步实操手册_完整版_v3.md
-          git commit -m 'fix: adapt generated Vben forms and retain exact source receipts'
+          git add workbench/native_vben.py workbench/native_modules.py workbench/native_lab.py scripts/native_browser.cjs tests/test_native_vben.py docs/native-baseline.md 从零实现AI研发平台_逐步实操手册_完整版_v3.md
+          git commit -m 'fix: preserve generated field kinds and validate real Vben forms'
           git push origin HEAD:diagnostics/vben-build
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           git archive --format=zip --output=reports/candidate-source.zip HEAD
