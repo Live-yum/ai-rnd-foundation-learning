@@ -315,7 +315,14 @@ class NativeClient:
                 if len(payload) > 30_000_000:
                     raise PrerequisiteError("原生生成器响应超过 30 MB 限制")
             return httpx.Response(
-                response.status_code, headers=response.headers, content=bytes(payload)
+                response.status_code,
+                headers={
+                    k: v
+                    for k, v in response.headers.items()
+                    if k.lower() not in {"content-encoding", "content-length", "transfer-encoding"}
+                },
+                content=bytes(payload),
+                request=response.request,
             )
 
     def endpoint(self, suffix, method):
@@ -338,7 +345,9 @@ class NativeClient:
     def payload(response):
         value = response.json()
         if value.get("code", 200) not in {0, 200}:
-            raise PrerequisiteError("原生生成器拒绝请求；未公开含凭据的上游响应")
+            raise PrerequisiteError(
+                f"原生生成器拒绝请求 (code={value.get('code')})；未公开含凭据的上游响应"
+            )
         return value.get("data", value)
 
     def close(self):
@@ -384,7 +393,7 @@ def native_export(client, template, mapping, plan):
                 raise PrerequisiteError("原生生成器字段与批准规格不同")
             update = {k: detail[k] for k in ("table_name", "columns")}
             update.update(
-                module_name="rnd",
+                module_name=entity.name,
                 package_name="module_rnd",
                 business_name=entity.name,
                 class_name="".join(p.title() for p in entity.name.split("_")),

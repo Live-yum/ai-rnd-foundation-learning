@@ -18,6 +18,7 @@ EXCLUDED_DIRS = {
     ".data",
     "target",
     "dist",
+    "logs",
 }
 
 

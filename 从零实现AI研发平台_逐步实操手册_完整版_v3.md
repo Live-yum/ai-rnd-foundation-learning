@@ -1747,7 +1747,7 @@ def downgrade():
 
 ### `workbench/filesystem.py`
 
-<!-- source-file: workbench/filesystem.py sha256: b8835058a84897a4af6cfd80fc3964981857cbb7686e1ba32a9476fc5dbc0d0b -->
+<!-- source-file: workbench/filesystem.py sha256: 4e467c1cb084e4e6a6adf18322a537018a1b1e16c6fa449da4f2abc43226fe8c -->
 ````python
 """File boundaries, atomic writes, deterministic hashes, and safe ZIP extraction."""
 
@@ -1769,6 +1769,7 @@ EXCLUDED_DIRS = {
     ".data",
     "target",
     "dist",
+    "logs",
 }
 
 
@@ -2768,7 +2769,7 @@ def package_basic(plan, product, settings, report):
 
 ### `workbench/native.py`
 
-<!-- source-file: workbench/native.py sha256: 18c8e12d12a2014a9ebc14acf7ec86bd3865affecd31654ca32321c459fd78dd -->
+<!-- source-file: workbench/native.py sha256: 667ae2deadf28db4e0b51f720708a26e322c7d8fb7b757ae8d4b258aacf04397 -->
 ````python
 """Pinned upstream sources + their real HTTP code generators.
 
@@ -3087,7 +3088,14 @@ class NativeClient:
                 if len(payload) > 30_000_000:
                     raise PrerequisiteError("原生生成器响应超过 30 MB 限制")
             return httpx.Response(
-                response.status_code, headers=response.headers, content=bytes(payload)
+                response.status_code,
+                headers={
+                    k: v
+                    for k, v in response.headers.items()
+                    if k.lower() not in {"content-encoding", "content-length", "transfer-encoding"}
+                },
+                content=bytes(payload),
+                request=response.request,
             )
 
     def endpoint(self, suffix, method):
@@ -3110,7 +3118,9 @@ class NativeClient:
     def payload(response):
         value = response.json()
         if value.get("code", 200) not in {0, 200}:
-            raise PrerequisiteError("原生生成器拒绝请求；未公开含凭据的上游响应")
+            raise PrerequisiteError(
+                f"原生生成器拒绝请求 (code={value.get('code')})；未公开含凭据的上游响应"
+            )
         return value.get("data", value)
 
     def close(self):
@@ -3156,7 +3166,7 @@ def native_export(client, template, mapping, plan):
                 raise PrerequisiteError("原生生成器字段与批准规格不同")
             update = {k: detail[k] for k in ("table_name", "columns")}
             update.update(
-                module_name="rnd",
+                module_name=entity.name,
                 package_name="module_rnd",
                 business_name=entity.name,
                 class_name="".join(p.title() for p in entity.name.split("_")),
@@ -4307,16 +4317,19 @@ if __name__ == "__main__":
 
 ### `workbench/native_environment.py`
 
-<!-- source-file: workbench/native_environment.py sha256: 938b9da824dafe9c7cc0c995149909d00dd5c8ca7e3f05ebdc4ac3fd460e1c14 -->
+<!-- source-file: workbench/native_environment.py sha256: 865c6622c2e83190786c597f60c62e18f35ce436189bcc0bbab31566d94fa678 -->
 ````python
-"""Loopback native lab lifecycle. Never resets an existing database or mocks login."""
+"""Loopback native lab lifecycle. Never resets existing databases or mocks authentication."""
 
+import io
 import os
 import re
 import secrets
 import shutil
 import subprocess
 import time
+import xml.etree.ElementTree as ET
+import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 
@@ -4324,7 +4337,7 @@ import httpx
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import make_url
 
-from workbench.filesystem import atomic_text, files, inside, write_json
+from workbench.filesystem import atomic_text, files, inside, sha, write_json
 from workbench.tools import clean_env, process_options, run_command, stop_process
 
 
@@ -4338,7 +4351,6 @@ def checked_database(url):
 
 
 def copy_source(source, destination):
-    """Copy source only, never upstream environments, dependencies or credentials."""
     source, destination = Path(source), Path(destination)
     if destination.exists():
         raise FileExistsError(destination)
@@ -4350,15 +4362,23 @@ def copy_source(source, destination):
 
 
 def bootstrap_database(template, backend, url):
-    """YuDao seeds contain DROP statements: execute ONLY in an empty dedicated database."""
+    """Upstream seeds include DROP: execute ONLY in an empty dedicated development database."""
     parsed = checked_database(url)
     engine = create_engine(url)
     try:
         with engine.connect() as connection:
-            if inspect(connection).get_table_names():
-                raise ValueError(
-                    "Native bootstrap requires an EMPTY dedicated database; nothing was deleted"
-                )
+            inspector = inspect(connection)
+            for schema in inspector.get_schema_names():
+                if schema == "information_schema" or schema.startswith("pg_"):
+                    continue
+                if (
+                    inspector.get_table_names(schema=schema)
+                    or inspector.get_view_names(schema=schema)
+                    or inspector.get_sequence_names(schema=schema)
+                ):
+                    raise ValueError(
+                        "Native bootstrap requires an EMPTY dedicated database; nothing was deleted"
+                    )
         if template == "yudao-vben":
             import psycopg
 
@@ -4372,7 +4392,7 @@ def bootstrap_database(template, backend, url):
 
 
 def native_environment(template, backend, url, port, redis_port=6379):
-    """Development-only profile; no model/API secrets inherited by native processes."""
+    """Explicit local profile. External OAuth/WeChat features are not configured or tested."""
     parsed = checked_database(url)
     if not 1024 <= int(port) <= 65535:
         raise ValueError("Invalid native backend port")
@@ -4394,7 +4414,7 @@ def native_environment(template, backend, url, port, redis_port=6379):
             "REDIS_PASSWORD": "",
             "REDIS_DB_NAME": "1",
             "SECRET_KEY": secrets.token_hex(32),
-            "CAPTCHA_ENABLE": "False",
+            "CAPTCHA_ENABLE": "True",
             "SCHEDULER_ALLOW_CODE_EXEC": "False",
             "DEMO_ENABLE": "False",
             "LOGIN_RATE_LIMIT_MAX_ATTEMPTS": "100",
@@ -4432,11 +4452,19 @@ def native_environment(template, backend, url, port, redis_port=6379):
         "spring.cloud.nacos.discovery.enabled": "false",
         "spring.cloud.nacos.config.enabled": "false",
         "spring.cloud.sentinel.enabled": "false",
+        "spring.cloud.openfeign.client.config.yudao-system.url": f"http://127.0.0.1:{port}",
+        "spring.cloud.openfeign.client.config.yudao-infra.url": f"http://127.0.0.1:{port}",
         "spring.ai.vectorstore.qdrant.initialize-schema": "false",
         "management.endpoints.web.exposure.include": "health",
         "logging.file.name": "./logs/native-server.log",
         "yudao.access-log.enable": "false",
         "yudao.error-code.enable": "false",
+        "wx.mp.app-id": "native-lab-disabled",
+        "wx.mp.secret": "not-a-real-credential",
+        "wx.miniapp.appid": "native-lab-disabled",
+        "wx.miniapp.secret": "not-a-real-credential",
+        "wx.mp.config-storage.type": "Memory",
+        "wx.miniapp.config-storage.type": "Memory",
     }
     atomic_text(
         resource / "application-native.properties",
@@ -4450,13 +4478,82 @@ def native_environment(template, backend, url, port, redis_port=6379):
     }
 
 
+def prepare_yudao_postgres(backend, reports):
+    """Declare the selected JDBC runtime in the copied aggregate POM."""
+    pom = Path(backend) / "yudao-server/pom.xml"
+    before = sha(pom)
+    source = pom.read_text(encoding="utf-8")
+    ns = {"m": "http://maven.apache.org/POM/4.0.0"}
+    dependencies = ET.fromstring(source).find("m:dependencies", ns)
+    if dependencies is None:
+        raise ValueError("The pinned aggregate POM has no dependency section")
+    present = any(
+        item.findtext("m:groupId", namespaces=ns) == "org.postgresql"
+        and item.findtext("m:artifactId", namespaces=ns) == "postgresql"
+        for item in dependencies
+    )
+    if not present:
+        if source.count("<dependencies>") != 1:
+            raise ValueError("Unexpected aggregate POM structure")
+        declaration = "\n        <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>"
+        atomic_text(pom, source.replace("<dependencies>", "<dependencies>" + declaration, 1))
+    write_json(
+        Path(reports) / "jdbc-configuration.json",
+        {
+            "path": "yudao-server/pom.xml",
+            "before_sha256": before,
+            "after_sha256": sha(pom),
+            "driver": "org.postgresql",
+        },
+    )
+
+
+def verify_aggregate_jars(backend):
+    jar = Path(backend) / "yudao-server/target/yudao-server.jar"
+    with zipfile.ZipFile(jar) as archive:
+        for module in ("yudao-module-infra-server", "yudao-module-system-server"):
+            matches = [
+                name
+                for name in archive.namelist()
+                if name.startswith("BOOT-INF/lib/" + module) and name.endswith(".jar")
+            ]
+            if len(matches) != 1:
+                raise ValueError("Aggregate is missing one native service dependency")
+            with zipfile.ZipFile(io.BytesIO(archive.read(matches[0]))) as dependency:
+                if any(name.startswith("BOOT-INF/classes/") for name in dependency.namelist()):
+                    raise ValueError(
+                        "Nested executable service jar cannot be used as a library dependency"
+                    )
+                if not any(
+                    name.startswith("cn/iocoder/yudao/module/") and name.endswith(".class")
+                    for name in dependency.namelist()
+                ):
+                    raise ValueError("Native dependency contains no loadable module classes")
+        if not any(name.startswith("BOOT-INF/lib/postgresql-") for name in archive.namelist()):
+            raise ValueError("PostgreSQL JDBC driver is absent from aggregate")
+
+
 def install_backend(template, backend, reports):
     backend, reports = Path(backend), Path(reports)
     reports.mkdir(parents=True, exist_ok=True)
     if template == "fastapiadmin":
-        command = ["uv", "sync", "--python", "3.14"]
+        commands = [["uv", "sync", "--python", "3.14"]]
     else:
-        command = ["mvn", "-B", "-ntp", "-pl", "yudao-server", "-am", "package", "-DskipTests"]
+        prepare_yudao_postgres(backend, reports)
+        commands = [
+            [
+                "mvn",
+                "-B",
+                "-ntp",
+                "-pl",
+                "yudao-server",
+                "-am",
+                "install",
+                "-DskipTests",
+                "-Dspring-boot.repackage.skip=true",
+            ],
+            ["mvn", "-B", "-ntp", "-pl", "yudao-server", "package", "-DskipTests"],
+        ]
     environment = {
         "JAVA_HOME": os.environ.get("JAVA_HOME", ""),
         "LANG": "C.UTF-8",
@@ -4464,12 +4561,18 @@ def install_backend(template, backend, reports):
     }
     if os.environ.get("UV_CACHE_DIR"):
         environment["UV_CACHE_DIR"] = os.environ["UV_CACHE_DIR"]
-    try:
-        result = run_command(command, backend, 1500, environment)
-    except Exception as exc:
-        atomic_text(reports / "backend-build.log", getattr(exc, "log", str(exc)))
-        raise
-    atomic_text(reports / "backend-build.log", result["log"])
+    logs = []
+    for command in commands:
+        try:
+            result = run_command(command, backend, 1500, environment)
+        except Exception as exc:
+            logs.append(getattr(exc, "log", str(exc)))
+            atomic_text(reports / "backend-build.log", "\n".join(logs))
+            raise
+        logs.append(result["log"])
+    atomic_text(reports / "backend-build.log", "\n".join(logs))
+    if template == "yudao-vben":
+        verify_aggregate_jars(backend)
 
 
 @contextmanager
@@ -4540,7 +4643,7 @@ def running_backend(template, backend, env, reports):
                         break
                     if response.is_redirect:
                         raise RuntimeError(
-                            "Native readiness redirected; check the development profile and API prefix"
+                            "Native readiness redirected; check profile and API prefix"
                         )
                 except httpx.HTTPError, ValueError:
                     pass
@@ -4560,9 +4663,23 @@ def login(template, base_url, username=None, password=None):
         base_url=base_url, trust_env=False, timeout=30, headers={"tenant-id": "1"}
     ) as client:
         if template == "fastapiadmin":
+            challenge = client.get("/system/auth/captcha/get")
+            challenge.raise_for_status()
+            key = challenge.json()["data"]["key"]
+            time.sleep(0.3)
+            completed = client.post(
+                "/system/auth/captcha/slider/complete", json={"captcha_key": key}
+            )
+            completed.raise_for_status()
+            if completed.json().get("code") not in (0, 200):
+                raise RuntimeError("Native slider verification was rejected")
             response = client.post(
                 "/system/auth/login",
-                data={"username": username or "super", "password": password or "123456"},
+                data={
+                    "username": username or "super",
+                    "password": password or "123456",
+                    "captcha_key": key,
+                },
             )
         else:
             response = client.post(
@@ -4584,10 +4701,11 @@ def login(template, base_url, username=None, password=None):
 
 ### `workbench/native_checks.py`
 
-<!-- source-file: workbench/native_checks.py sha256: dec7f300631454931953cf8c979317b8df14d1f056573b5cfbe983316d600dda -->
+<!-- source-file: workbench/native_checks.py sha256: c66b1085e05241b87d80cce74af50cb80df838dbe0a2534a471e8cfa74984236 -->
 ````python
-"""Exercise ORIGINAL native role APIs in the disposable lab, not generated business modules."""
+"""Exercise original native authorization; generated modules have independent acceptance checks."""
 
+import time
 from urllib.parse import urlsplit
 
 import httpx
@@ -4651,8 +4769,24 @@ def read_menu_ids(rows, permission):
     return sorted(selected)
 
 
+def await_permission(client, path, headers, allowed, timeout=75):
+    """YuDao has a 60-second permission cache. Observe convergence; never clear it."""
+    started = time.monotonic()
+    while True:
+        response = client.get(path, headers=headers)
+        accepted = successful(response)
+        if not accepted:
+            denied(response)
+        if accepted is allowed:
+            return round(time.monotonic() - started, 3)
+        if time.monotonic() - started >= timeout:
+            raise AssertionError(
+                "Native permission did not converge within its declared cache bound"
+            )
+        time.sleep(2)
+
+
 def check_native_permissions(template, base_url, admin_token):
-    """Create lab users/roles through authorized APIs; never modify authentication source."""
     if urlsplit(base_url).hostname not in {"127.0.0.1", "localhost"}:
         raise ValueError("Native authorization tests require a loopback lab server")
     fastapi = template == "fastapiadmin"
@@ -4730,6 +4864,7 @@ def check_native_permissions(template, base_url, admin_token):
         assert not before.get("menus"), "Empty role unexpectedly receives native menus"
         assign(selected)
         reader = {"Authorization": "Bearer " + login(template, base_url, username, password)}
+        grant_seconds = await_permission(client, listing, reader, True) if not fastapi else 0
         payload(client.get(listing, headers=reader))
         after = payload(client.get(info, headers=reader))
         assert after.get("menus"), "Granted native page is absent from login/menu result"
@@ -4742,8 +4877,12 @@ def check_native_permissions(template, base_url, admin_token):
         )
         assign([])
         revoked = {"Authorization": "Bearer " + login(template, base_url, username, password)}
+        revoke_seconds = await_permission(client, listing, revoked, False) if not fastapi else 0
         denied(client.get(listing, headers=revoked))
     return {
+        "grant_convergence_seconds": grant_seconds,
+        "revoke_convergence_seconds": revoke_seconds,
+        "upstream_permission_cache_seconds": 0 if fastapi else 60,
         "unauthenticated_denied": True,
         "mock_token_denied": True,
         "empty_role_denied": True,
@@ -4926,6 +5065,768 @@ def browser_check(template, url, reports):
         },
     )
     atomic_text(Path(reports) / "browser.log", result["log"])
+````
+
+### `workbench/native_modules.py`
+
+<!-- source-file: workbench/native_modules.py sha256: 75c2079d9767cec942cc55a72b870f50fee48b6c1e4b8f133910bb770180f0de -->
+````python
+"""Native codegen -> deterministic mounting -> native menu metadata. No model-written CRUD."""
+
+import re
+import tempfile
+from pathlib import Path
+
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    MetaData,
+    Sequence,
+    String,
+    Table,
+    create_engine,
+    inspect,
+    text,
+)
+from sqlalchemy.schema import CreateSequence, CreateTable
+
+from workbench.domain import Plan, digest
+from workbench.filesystem import atomic_text, inside, sha, unpack, write_json
+from workbench.native import NativeClient, NativeConfig
+from workbench.native_checks import payload, record_id
+from workbench.native_environment import checked_database
+
+RESERVED = {
+    "id",
+    "uuid",
+    "status",
+    "description",
+    "creator",
+    "updater",
+    "create_time",
+    "update_time",
+    "created_time",
+    "updated_time",
+    "created_id",
+    "updated_id",
+    "deleted_id",
+    "is_deleted",
+    "deleted_time",
+    "deleted",
+    "tenant_id",
+}
+
+
+def validate_plan(plan):
+    plan = Plan.model_validate(plan)
+    if plan.custom_rules or plan.unsupported:
+        raise ValueError(
+            "Native runtime only accepts supported native CRUD, not custom Python rules"
+        )
+    if plan.data_scope != "shared":
+        raise ValueError(
+            "Native runtime currently requires explicitly approved shared data with role permissions"
+        )
+    if len({"wb" + e.name.replace("_", "") for e in plan.entities}) != len(plan.entities):
+        raise ValueError("Native normalized business names collide")
+    for entity in plan.entities:
+        if len(entity.name) > 20 or not re.fullmatch(r"[a-z][a-z0-9_]*", entity.name):
+            raise ValueError(
+                "Native entity identifiers must be lowercase and at most 20 characters"
+            )
+        if not re.fullmatch(r"[\w\s\-\u4e00-\u9fff]{1,100}", entity.description) or any(
+            c in entity.description for c in "\r\n\t"
+        ):
+            raise ValueError("Native labels cannot contain code delimiters or multiline text")
+        if any(field.name in RESERVED for field in entity.fields):
+            raise ValueError("Field conflicts with native framework audit columns")
+    return plan
+
+
+def native_metadata(template, plan, url, run_id):
+    """Include the framework audit columns and PG sequence used by the generated ORM."""
+    checked_database(url)
+    plan = validate_plan(plan)
+    metadata = MetaData()
+    if template == "fastapiadmin":
+        Table("sys_user", metadata, Column("id", Integer, primary_key=True))
+    tables, mapping = [], {}
+    for entity in plan.entities:
+        name = "wb_" + digest(run_id)[:8] + "_" + entity.name
+        mapping[entity.name] = name
+        if template == "fastapiadmin":
+            columns = [
+                Column("id", Integer, primary_key=True, autoincrement=True),
+                Column("uuid", String(64), nullable=False, unique=True),
+                Column("is_deleted", Boolean, nullable=False, server_default=text("false")),
+                Column(
+                    "created_time",
+                    DateTime(timezone=True),
+                    nullable=False,
+                    server_default=text("CURRENT_TIMESTAMP"),
+                ),
+                Column(
+                    "updated_time",
+                    DateTime(timezone=True),
+                    nullable=False,
+                    server_default=text("CURRENT_TIMESTAMP"),
+                ),
+                Column("deleted_time", DateTime(timezone=True)),
+                Column("status", Integer, nullable=False, server_default=text("0"), comment="状态"),
+                Column("description", String(500), comment="备注"),
+            ]
+            columns += [
+                Column(
+                    n, Integer, ForeignKey("sys_user.id", ondelete="SET NULL", onupdate="CASCADE")
+                )
+                for n in ("created_id", "updated_id", "deleted_id")
+            ]
+        elif template == "yudao-vben":
+            seq = Sequence(name + "_seq", metadata=metadata)
+            columns = [
+                Column("id", BigInteger, seq, primary_key=True, server_default=seq.next_value()),
+                Column("creator", String(64), server_default=""),
+                Column("updater", String(64), server_default=""),
+                Column(
+                    "create_time",
+                    DateTime(),
+                    nullable=False,
+                    server_default=text("CURRENT_TIMESTAMP"),
+                ),
+                Column(
+                    "update_time",
+                    DateTime(),
+                    nullable=False,
+                    server_default=text("CURRENT_TIMESTAMP"),
+                ),
+                Column("deleted", Boolean, nullable=False, server_default=text("false")),
+                Column("tenant_id", BigInteger, nullable=False, server_default=text("1")),
+            ]
+        else:
+            raise ValueError("Unknown native template")
+        for field in entity.fields:
+            kind = {"text": String(field.max_length), "integer": Integer(), "boolean": Boolean()}[
+                field.kind
+            ]
+            columns.append(
+                Column(field.name, kind, nullable=not field.required, comment=field.name)
+            )
+        for column in columns:
+            if not column.comment:
+                column.comment = column.name
+        tables.append(Table(name, metadata, *columns, comment=entity.description))
+    return metadata, tables, mapping
+
+
+def create_native_tables(template, plan, url, run_id, reports):
+    metadata, tables, mapping = native_metadata(template, plan, url, run_id)
+    engine = create_engine(url)
+    try:
+        with engine.begin() as connection:
+            existing = set(inspect(connection).get_table_names())
+            if existing.intersection(mapping.values()):
+                raise ValueError(
+                    "Business tables already exist; use a new run ID, never overwrite data"
+                )
+            metadata.create_all(connection, tables=tables)
+        ddl = []
+        for table in tables:
+            if template == "yudao-vben":
+                ddl.append(
+                    str(CreateSequence(table.c.id.default).compile(dialect=engine.dialect)) + ";"
+                )
+            ddl.append(str(CreateTable(table).compile(dialect=engine.dialect)) + ";")
+        atomic_text(Path(reports) / "business-schema.sql", "\n".join(ddl) + "\n")
+    finally:
+        engine.dispose()
+    return mapping
+
+
+def yudao_menu(client, data):
+    response = client.client.post("/admin-api/system/menu/create", json=data)
+    return record_id(payload(response))
+
+
+def mount_yudao_export(export, backend, frontend, entity, reports, used_errors):
+    """Mount only generated feature paths; resolve ErrorCodeConstants TODO deterministically."""
+    writes, snippets = [], []
+    with tempfile.TemporaryDirectory() as tmp:
+        archive = Path(tmp) / "export.zip"
+        archive.write_bytes(export)
+        root = Path(tmp) / "source"
+        unpack(archive, root)
+        for file in sorted(root.rglob("*")):
+            if not file.is_file():
+                continue
+            name = file.relative_to(root).as_posix()
+            body = file.read_text(encoding="utf-8")
+            if "ErrorCodeConstants_手动操作" in name:
+                snippets.append(body)
+                continue
+            if name.startswith("sql/"):
+                target = Path(reports) / "native-sql" / entity.name / name
+            elif name.startswith("yudao-module-infra/") and "/src/main/" in name:
+                slug = "wb" + entity.name.replace("_", "")
+                if not (f"/{slug}/" in name or f"/mapper/{slug}/" in name):
+                    raise ValueError("Unexpected generated Java target: " + name)
+                target = inside(backend, name)
+                if target.exists():
+                    raise FileExistsError("Refusing to overwrite native Java source: " + name)
+            elif "/src/" in name and (
+                name.startswith("yudao-ui-admin-vben/") or name.startswith("yudao-ui-admin-vben5/")
+            ):
+                relative = name.split("/src/", 1)[1]
+                slug = "wb" + entity.name.replace("_", "")
+                if not (
+                    relative.startswith(f"views/infra/{slug}/")
+                    or relative.startswith(f"api/infra/{slug}/")
+                ):
+                    raise ValueError("Unexpected generated Vben path: " + name)
+                target = inside(Path(frontend) / "apps/web-antd/src", relative)
+                if target.exists():
+                    raise FileExistsError(
+                        "Refusing to overwrite existing Vben feature: " + relative
+                    )
+            else:
+                raise ValueError("Unsupported native generated file: " + name)
+            target.parent.mkdir(parents=True, exist_ok=True)
+            atomic_text(target, body)
+            writes.append({"source": name, "path": str(target), "sha256": sha(target)})
+    constants = (
+        Path(backend)
+        / "yudao-module-infra/yudao-module-infra-api/src/main/java/cn/iocoder/yudao/module/infra/enums/ErrorCodeConstants.java"
+    )
+    source = constants.read_text(encoding="utf-8")
+    if not snippets:
+        raise ValueError("Native export omitted error code declarations")
+    added = []
+    for snippet in snippets:
+        matches = re.findall(
+            r'ErrorCode\s+([A-Z0-9_]+)\s*=\s*new ErrorCode\(TODO 补充编号,\s*("[^"\n]*")\);',
+            snippet,
+        )
+        if len(matches) != 1:
+            raise ValueError("Unsupported native error declaration")
+        name, message = matches[0]
+        if re.search(r"\b" + name + r"\s*=", source):
+            raise ValueError("Native error constant already exists")
+        number = 1_900_000_000 + int(digest(name)[:7], 16) % 100_000_000
+        while number in used_errors:
+            number += 1
+        used_errors.add(number)
+        declaration = f"    ErrorCode {name} = new ErrorCode({number}, {message});\n"
+        closing = source.rfind("}")
+        if closing < 0:
+            raise ValueError("Invalid native constant interface")
+        source = source[:closing] + declaration + source[closing:]
+        added.append({"name": name, "number": number})
+    atomic_text(constants, source)
+    return {"files": writes, "error_constants": added}
+
+
+def generate_modules(template, backend, frontend, base_url, openapi, token, mapping, plan, reports):
+    """Native APIs generate every feature. No fake controller replaces upstream codegen."""
+    plan = validate_plan(plan)
+    reports = Path(reports)
+    reports.mkdir(parents=True, exist_ok=True)
+    client = NativeClient(
+        NativeConfig(
+            base_url=base_url,
+            openapi_path=openapi,
+            token_env="NATIVE_TOKEN",
+            database_url_env="NATIVE_DATABASE",
+        ),
+        token,
+    )
+    targets, receipts = [], []
+    try:
+        if template == "fastapiadmin":
+            client.payload(client.request("POST", "/gencode/import", json=list(mapping.values())))
+            rows = client.payload(client.request("GET", "/gencode/list", params={"page_size": 100}))
+            rows = rows.get("items", rows.get("list", [])) if isinstance(rows, dict) else rows
+            known = {r["table_name"]: r["id"] for r in rows}
+            for entity in plan.entities:
+                table_id = known[mapping[entity.name]]
+                detail = client.payload(
+                    client.request(
+                        "GET", "/gencode/detail/{table_id}", replace={"table_id": table_id}
+                    )
+                )
+                update = {
+                    "table_name": mapping[entity.name],
+                    "columns": detail["columns"],
+                    "package_name": "module_rnd",
+                    "module_name": entity.name,
+                    "business_name": entity.name,
+                    "class_name": "".join(p.title() for p in entity.name.split("_")),
+                    "function_name": entity.description,
+                    "table_comment": entity.description,
+                }
+                client.payload(
+                    client.request(
+                        "PUT",
+                        "/gencode/update/{table_id}",
+                        replace={"table_id": table_id},
+                        json=update,
+                    )
+                )
+                export = client.request(
+                    "PATCH", "/gencode/batch/output", json=[mapping[entity.name]]
+                )
+                if export.headers.get("X-Skipped-Tables"):
+                    raise ValueError("Native generator skipped a business table")
+                archive = reports / (entity.name + "-native.zip")
+                archive.write_bytes(export.content)
+                client.payload(
+                    client.request(
+                        "POST",
+                        "/gencode/output/{table_name}",
+                        replace={"table_name": mapping[entity.name]},
+                    )
+                )
+                target = {
+                    "entity": entity.name,
+                    "api": "/rnd/" + entity.name,
+                    "list": "/rnd/" + entity.name + "/list",
+                    "route": "/module_rnd/" + entity.name,
+                    "permission": "module_rnd:" + entity.name,
+                    "table": mapping[entity.name],
+                }
+                targets.append(target)
+                receipts.append(
+                    {
+                        "entity": entity.name,
+                        "export_sha256": sha(archive),
+                        "native_local_mount": True,
+                    }
+                )
+        elif template == "yudao-vben":
+            parent = yudao_menu(
+                client,
+                {
+                    "name": "Workbench",
+                    "type": 1,
+                    "sort": 99,
+                    "parentId": 0,
+                    "path": "/workbench",
+                    "icon": "lucide:database",
+                    "component": "",
+                    "status": 0,
+                    "visible": True,
+                    "keepAlive": True,
+                    "alwaysShow": True,
+                },
+            )
+            ids = client.payload(
+                client.request(
+                    "POST",
+                    "/infra/codegen/create-list",
+                    json={"dataSourceConfigId": 0, "tableNames": list(mapping.values())},
+                )
+            )
+            if len(ids) != len(plan.entities):
+                raise ValueError("Native generator did not import every business table")
+            constants = (
+                Path(backend)
+                / "yudao-module-infra/yudao-module-infra-api/src/main/java/cn/iocoder/yudao/module/infra/enums/ErrorCodeConstants.java"
+            )
+            used_errors = {
+                int(n.replace("_", ""))
+                for n in re.findall(
+                    r"new ErrorCode\(([0-9_]+),", constants.read_text(encoding="utf-8")
+                )
+            }
+            for entity, table_id in zip(plan.entities, ids, strict=True):
+                detail = client.payload(
+                    client.request("GET", "/infra/codegen/detail", params={"tableId": table_id})
+                )
+                slug = "wb" + entity.name.replace("_", "")
+                class_name = "Wb" + "".join(p.title() for p in entity.name.split("_"))
+                kebab = "wb-" + entity.name.replace("_", "-")
+                if detail["table"]["tableName"] != mapping[entity.name]:
+                    raise ValueError("Native generator imported tables in unexpected order")
+                detail["table"].update(
+                    moduleName="infra",
+                    businessName=slug,
+                    className=class_name,
+                    classComment=entity.description,
+                    tableComment=entity.description,
+                    author="Workbench",
+                    frontType=40,
+                    scene=1,
+                    templateType=1,
+                    parentMenuId=parent,
+                )
+                fields = {f.name for f in entity.fields}
+                for column in detail["columns"]:
+                    if column["columnName"] == "tenant_id":
+                        column.update(
+                            createOperation=False,
+                            updateOperation=False,
+                            listOperation=False,
+                            listOperationResult=False,
+                        )
+                    if column["columnName"] in fields:
+                        column.update(
+                            columnComment=column["columnName"],
+                            createOperation=True,
+                            updateOperation=True,
+                            listOperationResult=True,
+                        )
+                client.payload(
+                    client.request(
+                        "PUT",
+                        "/infra/codegen/update",
+                        json={"table": detail["table"], "columns": detail["columns"]},
+                    )
+                )
+                response = client.request(
+                    "GET", "/infra/codegen/download", params={"tableId": table_id}
+                )
+                archive = reports / (entity.name + "-native.zip")
+                archive.write_bytes(response.content)
+                receipt = mount_yudao_export(
+                    response.content, backend, frontend, entity, reports, used_errors
+                )
+                menu = yudao_menu(
+                    client,
+                    {
+                        "name": entity.description,
+                        "type": 2,
+                        "sort": 1,
+                        "parentId": parent,
+                        "path": kebab,
+                        "icon": "lucide:database",
+                        "component": "infra/" + slug + "/index",
+                        "componentName": class_name,
+                        "permission": "",
+                        "status": 0,
+                        "visible": True,
+                        "keepAlive": True,
+                        "alwaysShow": True,
+                    },
+                )
+                for i, operation in enumerate(("query", "create", "update", "delete", "export")):
+                    yudao_menu(
+                        client,
+                        {
+                            "name": entity.description + " " + operation,
+                            "type": 3,
+                            "sort": i,
+                            "parentId": menu,
+                            "path": "",
+                            "component": "",
+                            "status": 0,
+                            "permission": f"infra:{kebab}:{operation}",
+                            "visible": True,
+                            "keepAlive": True,
+                            "alwaysShow": False,
+                        },
+                    )
+                targets.append(
+                    {
+                        "entity": entity.name,
+                        "api": "/admin-api/infra/" + kebab,
+                        "list": "/admin-api/infra/" + kebab + "/page",
+                        "route": "/workbench/" + kebab,
+                        "permission": "infra:" + kebab,
+                        "table": mapping[entity.name],
+                    }
+                )
+                receipts.append({"entity": entity.name, "export_sha256": sha(archive), **receipt})
+        else:
+            raise ValueError("Unknown native template")
+    finally:
+        client.close()
+    write_json(
+        reports / "generation.json",
+        {
+            "template": template,
+            "spec_digest": digest(plan.model_dump()),
+            "targets": targets,
+            "receipts": receipts,
+            "runtime_verified": False,
+        },
+    )
+    write_json(reports / "browser-targets.json", targets)
+    return targets
+````
+
+### `workbench/native_acceptance.py`
+
+<!-- source-file: workbench/native_acceptance.py sha256: de7430bc6d050c3b36163d967774a26d72b90ed2eda64032ed359d0ccaf26535 -->
+````python
+"""Independent HTTP checks for the ACTUAL generated modules and native RBAC APIs."""
+
+import time
+
+import httpx
+
+from workbench.native_checks import (
+    await_permission,
+    denied,
+    flatten,
+    payload,
+    read_menu_ids,
+    record_id,
+    successful,
+)
+from workbench.native_environment import login
+
+
+def sample_record(entity, suffix="original"):
+    return {
+        f.name: (
+            f"{entity.name}-{suffix}"[: f.max_length]
+            if f.kind == "text"
+            else 7
+            if f.kind == "integer"
+            else True
+        )
+        for f in entity.fields
+    }
+
+
+def list_rows(value):
+    if not isinstance(value, dict):
+        raise AssertionError("Generated paginated API returned no pagination object")
+    rows = value.get("items", value.get("list"))
+    if not isinstance(rows, list):
+        raise AssertionError("Generated paginated API omitted rows")
+    return rows
+
+
+def generated_crud(template, base_url, token, targets, plan):
+    fastapi = template == "fastapiadmin"
+    results = []
+    with httpx.Client(
+        base_url=base_url, timeout=30, trust_env=False, headers={"tenant-id": "1"}
+    ) as client:
+        admin = {"Authorization": "Bearer " + token}
+        for target, entity in zip(targets, plan.entities, strict=True):
+            listing = target["list"]
+            denied(client.get(listing))
+            denied(client.get(listing, headers={"Authorization": "Bearer test1"}))
+            data = sample_record(entity)
+            created = payload(client.post(target["api"] + "/create", json=data, headers=admin))
+            identifier = record_id(created)
+            assert isinstance(identifier, int) and identifier > 0
+
+            def get_item():
+                if fastapi:
+                    return payload(
+                        client.get(target["api"] + f"/detail/{identifier}", headers=admin)
+                    )
+                return payload(
+                    client.get(target["api"] + "/get", params={"id": identifier}, headers=admin)
+                )
+
+            saved = get_item()
+            for key, value in data.items():
+                assert saved[key] == value, f"Create/read mismatch for {key}"
+            changed = sample_record(entity, "updated")
+            if fastapi:
+                payload(
+                    client.put(target["api"] + f"/update/{identifier}", json=changed, headers=admin)
+                )
+            else:
+                payload(
+                    client.put(
+                        target["api"] + "/update", json={"id": identifier, **changed}, headers=admin
+                    )
+                )
+            updated = get_item()
+            for key, value in changed.items():
+                assert updated[key] == value, f"Update/read mismatch for {key}"
+            rows = list_rows(payload(client.get(listing, headers=admin)))
+            assert any(row["id"] == identifier for row in rows)
+            invalid = dict(data)
+            required = next(f for f in entity.fields if f.required and f.kind != "boolean")
+            invalid.pop(required.name)
+            response = client.post(target["api"] + "/create", json=invalid, headers=admin)
+            assert not successful(response) and response.status_code < 500
+            assert response.json().get("code", response.status_code) in (400, 422)
+            if fastapi:
+                payload(
+                    client.request(
+                        "DELETE", target["api"] + "/delete", json=[identifier], headers=admin
+                    )
+                )
+            else:
+                payload(
+                    client.delete(
+                        target["api"] + "/delete", params={"id": identifier}, headers=admin
+                    )
+                )
+            rows = list_rows(payload(client.get(listing, headers=admin)))
+            assert not any(row["id"] == identifier for row in rows), (
+                "Delete did not remove business item"
+            )
+            sample = sample_record(entity, "persistent")
+            persistent = record_id(
+                payload(client.post(target["api"] + "/create", json=sample, headers=admin))
+            )
+            target["sample"] = next(str(sample[f.name]) for f in entity.fields if f.kind == "text")
+            results.append(
+                {
+                    "entity": entity.name,
+                    "crud": True,
+                    "required_field_rejected": True,
+                    "persistent_id": persistent,
+                    "persistent_data": sample,
+                    "unauthenticated_denied": True,
+                    "mock_token_denied": True,
+                }
+            )
+    return results
+
+
+def check_generated_persistence(template, base_url, token, targets, records):
+    with httpx.Client(
+        base_url=base_url,
+        trust_env=False,
+        timeout=30,
+        headers={"Authorization": "Bearer " + token, "tenant-id": "1"},
+    ) as client:
+        for target, record in zip(targets, records, strict=True):
+            rows = list_rows(payload(client.get(target["list"])))
+            saved = next(row for row in rows if row["id"] == record["persistent_id"])
+            for key, value in record["persistent_data"].items():
+                assert saved[key] == value, "Native persistence changed across process restart"
+    return {"process_restart_preserves_records": True, "entity_count": len(records)}
+
+
+def generated_permissions(template, base_url, token, targets, plan):
+    """Grant/read/create/revoke using original role APIs, never by editing auth code."""
+    fastapi = template == "fastapiadmin"
+    prefix = "" if fastapi else "/admin-api"
+    info = prefix + ("/system/user/current/info" if fastapi else "/system/auth/get-permission-info")
+    admin = {"Authorization": "Bearer " + token}
+    with httpx.Client(
+        base_url=base_url, trust_env=False, timeout=30, headers={"tenant-id": "1"}
+    ) as client:
+        rows = list(
+            flatten(
+                payload(
+                    client.get(
+                        prefix + ("/system/menu/tree" if fastapi else "/system/menu/list"),
+                        headers=admin,
+                    )
+                )
+            )
+        )
+        read_ids, full_ids = set(), set()
+        for target in targets:
+            read_ids.update(read_menu_ids(rows, target["permission"] + ":query"))
+            for operation in ("query", "create", "update", "delete"):
+                full_ids.update(read_menu_ids(rows, target["permission"] + ":" + operation))
+        role = {"name": "Generated module reader", "code": "generated_reader", "status": 0}
+        role.update({"order": 1, "data_scope": 3} if fastapi else {"sort": 1})
+        role_id = record_id(
+            payload(client.post(prefix + "/system/role/create", json=role, headers=admin))
+        )
+        username, password = "generatedreader", "NativeTest123!"
+        user = {"username": username, "password": password}
+        user.update(
+            {"name": "Generated reader", "is_superuser": False, "role_ids": [role_id], "status": 0}
+            if fastapi
+            else {"nickname": "Generated reader"}
+        )
+        user_id = record_id(
+            payload(client.post(prefix + "/system/user/create", json=user, headers=admin))
+        )
+        if not fastapi:
+            payload(
+                client.post(
+                    prefix + "/system/permission/assign-user-role",
+                    json={"userId": user_id, "roleIds": [role_id]},
+                    headers=admin,
+                )
+            )
+
+        def assign(ids):
+            if fastapi:
+                response = client.put(
+                    "/system/role/permission",
+                    json={
+                        "role_ids": [role_id],
+                        "menu_ids": sorted(ids),
+                        "data_scope": 3,
+                        "dept_ids": [],
+                    },
+                    headers=admin,
+                )
+            else:
+                response = client.post(
+                    prefix + "/system/permission/assign-role-menu",
+                    json={"roleId": role_id, "menuIds": sorted(ids)},
+                    headers=admin,
+                )
+            payload(response)
+
+        def identity():
+            return {"Authorization": "Bearer " + login(template, base_url, username, password)}
+
+        assign([])
+        none = identity()
+        for target in targets:
+            denied(client.get(target["list"], headers=none))
+        assert not payload(client.get(info, headers=none)).get("menus")
+        assign(read_ids)
+        reader = identity()
+        if not fastapi:
+            for target in targets:
+                await_permission(client, target["list"], reader, True)
+        menus = list(flatten(payload(client.get(info, headers=reader))["menus"]))
+        assert menus, "No native menus for granted generated module"
+        for target, entity in zip(targets, plan.entities, strict=True):
+            assert list_rows(payload(client.get(target["list"], headers=reader))), (
+                "Reader cannot see shared sample"
+            )
+            marker = (
+                ("module_rnd/" + entity.name)
+                if fastapi
+                else ("infra/wb" + entity.name.replace("_", ""))
+            )
+            assert marker in str(menus), "Generated page is absent from native menus"
+            denied(
+                client.post(target["api"] + "/create", json=sample_record(entity), headers=reader)
+            )
+        assign(full_ids)
+        writer = identity()
+        if not fastapi:
+            time.sleep(
+                61
+            )  # Native CREATE decisions are cached for one minute; do not bypass the cache.
+        for target, entity in zip(targets, plan.entities, strict=True):
+            payload(
+                client.post(
+                    target["api"] + "/create", json=sample_record(entity, "writer"), headers=writer
+                )
+            )
+        assign([])
+        revoked = identity()
+        if not fastapi:
+            for target in targets:
+                await_permission(client, target["list"], revoked, False)
+        for target in targets:
+            denied(client.get(target["list"], headers=revoked))
+        assert not payload(client.get(info, headers=revoked)).get("menus")
+    return {
+        "empty_role_denied": True,
+        "read_grant_allowed": True,
+        "generated_pages_visible": True,
+        "write_without_permission_denied": True,
+        "write_grant_allowed": True,
+        "revoke_denied": True,
+        "native_auth_unmodified": True,
+        "upstream_permission_cache_seconds": 0 if fastapi else 60,
+        "entity_count": len(targets),
+    }
 ````
 
 ## 完整工作流与操作入口
@@ -6449,6 +7350,173 @@ def test_frontend_mock_services_are_disabled():
     assert env["VITE_APP_CAPTCHA_ENABLE"] == "false"  # Disposable local lab only.
 ````
 
+### `tests/test_native_modules.py`
+
+<!-- source-file: tests/test_native_modules.py sha256: 5160f76632a99c97ebe65414bd192974cf8af27c9c16a6434fdea8b15e0b4f11 -->
+````python
+"""Adapter contracts; real native services remain mandatory in native-runtime Actions."""
+
+import io
+import zipfile
+
+import pytest
+from sqlalchemy.dialects import postgresql
+from sqlalchemy.schema import CreateTable
+
+from scripts.ci_native_generated import acceptance_spec
+from workbench.native_modules import mount_yudao_export, native_metadata, validate_plan
+
+URL = "postgresql+psycopg://native:lab@127.0.0.1/native_codegen"
+
+
+def test_two_native_entities_have_distinct_tables():
+    for template in ("fastapiadmin", "yudao-vben"):
+        _, tables, mapping = native_metadata(template, acceptance_spec(), URL, "two-entities")
+        assert len(set(mapping.values())) == 2
+        assert len(tables) == 2
+        assert tables[0].name != tables[1].name
+        for table in tables:
+            sql = str(CreateTable(table).compile(dialect=postgresql.dialect()))
+            assert table.name in sql
+            assert table.c.name.nullable is False
+
+
+def test_framework_specific_audit_columns_and_sequences():
+    _, tables, _ = native_metadata("fastapiadmin", acceptance_spec(), URL, "audit")
+    assert {"uuid", "is_deleted", "created_time", "created_id", "status"} <= set(tables[0].c.keys())
+    _, tables, _ = native_metadata("yudao-vben", acceptance_spec(), URL, "audit")
+    assert {"creator", "create_time", "deleted", "tenant_id"} <= set(tables[0].c.keys())
+    assert tables[0].c.id.default.name == tables[0].name + "_seq"
+
+
+@pytest.mark.parametrize(
+    "label", ['bad"quote', "bad'quote", "line\nbreak", "tab\there", "../../path", "back\\slash"]
+)
+def test_native_label_cannot_be_code_or_path(label):
+    data = acceptance_spec().model_dump()
+    data["entities"][0]["description"] = label
+    with pytest.raises(ValueError):
+        validate_plan(data)
+
+
+def test_native_shared_scope_never_silently_replaces_user_isolation():
+    data = acceptance_spec().model_dump()
+    data["data_scope"] = "per_user"
+    with pytest.raises(ValueError, match="explicitly approved shared"):
+        validate_plan(data)
+
+
+def test_native_normalized_business_name_collision_rejected():
+    data = acceptance_spec().model_dump()
+    data["entities"][0]["name"] = "a_b"
+    data["entities"][1]["name"] = "ab"
+    with pytest.raises(ValueError, match="collide"):
+        validate_plan(data)
+
+
+@pytest.mark.parametrize("name", ["status", "uuid", "tenant_id", "creator", "is_deleted"])
+def test_native_audit_field_collision_rejected(name):
+    data = acceptance_spec().model_dump()
+    data["entities"][0]["fields"][0]["name"] = name
+    with pytest.raises(ValueError, match="audit"):
+        validate_plan(data)
+
+
+def zip_bytes(contents):
+    target = io.BytesIO()
+    with zipfile.ZipFile(target, "w") as archive:
+        for name, text in contents.items():
+            archive.writestr(name, text)
+    return target.getvalue()
+
+
+def constants_file(root):
+    path = (
+        root
+        / "yudao-module-infra/yudao-module-infra-api/src/main/java/cn/iocoder/yudao/module/infra/enums/ErrorCodeConstants.java"
+    )
+    path.parent.mkdir(parents=True)
+    path.write_text("public interface ErrorCodeConstants {\n}\n", encoding="utf-8")
+    return path
+
+
+def test_yudao_generated_source_is_mounted_in_real_native_modules(tmp_path):
+    backend, frontend, reports = (tmp_path / name for name in ("backend", "frontend", "reports"))
+    constants = constants_file(backend)
+    java = "yudao-module-infra/yudao-module-infra-server/src/main/java/cn/iocoder/yudao/module/infra/controller/admin/wbdevice/WbDeviceController.java"
+    exported = zip_bytes(
+        {
+            java: "class WbDeviceController {}",
+            "yudao-ui-admin-vben/src/views/infra/wbdevice/index.vue": "<template>Native</template>",
+            "yudao-module-infra/yudao-module-infra-api/src/main/java/cn/iocoder/yudao/module/infra/enums/ErrorCodeConstants_手动操作.java": 'ErrorCode WB_DEVICE_NOT_EXISTS = new ErrorCode(TODO 补充编号, "设备不存在");',
+            "sql/sql.sql": "-- Native menu SQL retained, not blindly executed",
+        }
+    )
+    result = mount_yudao_export(
+        exported, backend, frontend, acceptance_spec().entities[0], reports, set()
+    )
+    assert (backend / java).read_text() == "class WbDeviceController {}"
+    assert (frontend / "apps/web-antd/src/views/infra/wbdevice/index.vue").exists()
+    assert "WB_DEVICE_NOT_EXISTS" in constants.read_text(encoding="utf-8")
+    assert "TODO 补充编号" not in constants.read_text(encoding="utf-8")
+    assert result["error_constants"][0]["number"] > 1_900_000_000
+
+
+def test_yudao_export_cannot_overwrite_native_auth(tmp_path):
+    with pytest.raises(ValueError, match="Unexpected"):
+        mount_yudao_export(
+            zip_bytes(
+                {
+                    "yudao-module-infra/yudao-module-infra-server/src/main/java/security/Auth.java": "bad"
+                }
+            ),
+            tmp_path / "backend",
+            tmp_path / "frontend",
+            acceptance_spec().entities[0],
+            tmp_path / "reports",
+            set(),
+        )
+
+
+def test_native_http_response_is_decompressed_once():
+    import gzip
+    import json
+
+    import httpx
+
+    from workbench.native import NativeClient, NativeConfig
+
+    envelope = json.dumps({"openapi": "3.1.0", "paths": {}}).encode()
+
+    def handler(request):
+        return httpx.Response(
+            200,
+            headers={"content-encoding": "gzip", "content-type": "application/json"},
+            content=gzip.compress(envelope),
+        )
+
+    client = NativeClient(
+        NativeConfig(
+            base_url="http://127.0.0.1:8001",
+            openapi_path="/openapi.json",
+            token_env="NATIVE_TOKEN",
+            database_url_env="NATIVE_DATABASE_URL",
+        ),
+        "lab-token",
+        transport=httpx.MockTransport(handler),
+    )
+    try:
+        assert client.paths == {}
+    finally:
+        client.close()
+
+
+def test_every_native_column_has_a_codegen_comment():
+    for template in ("fastapiadmin", "yudao-vben"):
+        _, tables, _ = native_metadata(template, acceptance_spec(), URL, "comments")
+        assert all(column.comment for table in tables for column in table.c)
+````
+
 ### `tests/test_postgres.py`
 
 <!-- source-file: tests/test_postgres.py sha256: e69d89e40edd867759b1c969c8fca424117d4645f265d3e110a34c5c469dc07a -->
@@ -6841,7 +7909,7 @@ def test_tampered_delivery_not_released(settings, store, plan):
 
 ### `scripts/build_handbook.py`
 
-<!-- source-file: scripts/build_handbook.py sha256: 730ecb6bab41e1343078721993c93e46794917c1b2ae8a5051d287b4b70cb1b2 -->
+<!-- source-file: scripts/build_handbook.py sha256: 80c1c40e28eb60d769e568f886cf4f6865c634c69148514ad34ef71918cb2f86 -->
 ````python
 """Render a complete, reconstructable handbook from tracked source, never from memory."""
 
@@ -6902,6 +7970,8 @@ GROUPS = [
             "workbench/native_environment.py",
             "workbench/native_checks.py",
             "workbench/native_frontend.py",
+            "workbench/native_modules.py",
+            "workbench/native_acceptance.py",
         ],
     ),
     (
@@ -7082,6 +8152,212 @@ if __name__ == "__main__":
     main()
 ````
 
+### `scripts/ci_native_generated.py`
+
+<!-- source-file: scripts/ci_native_generated.py sha256: dcf06b54fea8463630233dc360a330594d03c0ab9429a45fd6a02f05346968f3 -->
+````python
+"""Actual native generation, mounting, RBAC, two-entity CRUD, restart and browser acceptance."""
+
+import argparse
+import os
+from pathlib import Path
+
+from workbench.domain import Plan, digest
+from workbench.filesystem import atomic_text, manifest, write_json
+from workbench.native_acceptance import (
+    check_generated_persistence,
+    generated_crud,
+    generated_permissions,
+)
+from workbench.native_environment import (
+    bootstrap_database,
+    copy_source,
+    install_backend,
+    login,
+    native_environment,
+    running_backend,
+)
+from workbench.native_frontend import build_frontend, frontend_environment, frontend_preview
+from workbench.native_modules import create_native_tables, generate_modules, validate_plan
+from workbench.settings import ROOT
+from workbench.tools import run_command
+
+
+def acceptance_spec():
+    return Plan(
+        title="Native generated management",
+        data_scope="shared",
+        entities=[
+            {
+                "name": "device",
+                "description": "设备台账",
+                "fields": [
+                    {"name": "name", "kind": "text"},
+                    {"name": "quantity", "kind": "integer"},
+                    {"name": "active", "kind": "boolean"},
+                ],
+            },
+            {
+                "name": "category",
+                "description": "分类台账",
+                "fields": [
+                    {"name": "name", "kind": "text"},
+                    {"name": "position", "kind": "integer"},
+                ],
+            },
+        ],
+        acceptance=[
+            "Two separate native modules support CRUD",
+            "Role grants and revocation are enforced",
+            "Native frontend renders both generated modules",
+            "Records persist across process restart",
+        ],
+    )
+
+
+def generated_browser(template, front_url, reports):
+    command = [
+        "node",
+        str(ROOT / "scripts/native_browser.cjs"),
+        template,
+        front_url,
+        str(reports.resolve()),
+        str(ROOT / ".native/browser/node_modules/playwright"),
+        str((reports / "browser-targets.json").resolve()),
+    ]
+    try:
+        result = run_command(
+            command,
+            ROOT,
+            240,
+            {
+                "NODE_OPTIONS": "--dns-result-order=ipv4first",
+                "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
+            },
+        )
+    except Exception as exc:
+        atomic_text(reports / "browser.log", getattr(exc, "log", str(exc)))
+        raise
+    atomic_text(reports / "browser.log", result["log"])
+
+
+def run_acceptance(template, source, output, frontend_source, url, reports, plan):
+    """Reusable by CLI and CI; never reset an existing database or workspace."""
+    plan = validate_plan(plan)
+    source, output, reports = (
+        Path(source).resolve(),
+        Path(output).resolve(),
+        Path(reports).resolve(),
+    )
+    reports.mkdir(parents=True, exist_ok=True)
+    before = manifest(source)
+    copy_source(source, output)
+    backend = output / "backend" if template == "fastapiadmin" else output
+    if template == "fastapiadmin":
+        frontend = output / "frontend/web"
+    else:
+        frontend = output.parent / "frontend-product"
+        copy_source(frontend_source, frontend)
+    env = native_environment(template, backend, url, 8001 if template == "fastapiadmin" else 48080)
+    write_json(reports / "approved-spec.json", plan.model_dump())
+    write_json(
+        reports / "acceptance.json", {"template": template, "generated_runtime_verified": False}
+    )
+    try:
+        bootstrap_database(template, backend, url)
+        install_backend(template, backend, reports / "baseline")
+        with running_backend(template, backend, env, reports / "baseline") as (base_url, openapi):
+            token = login(template, base_url)
+            write_json(reports / "baseline/login.json", {"native_login": True})
+            mapping = create_native_tables(template, plan, url, digest(plan.model_dump()), reports)
+            targets = generate_modules(
+                template, backend, frontend, base_url, openapi, token, mapping, plan, reports
+            )
+        if template == "yudao-vben":
+            install_backend(template, backend, reports / "generated-build")
+        with running_backend(template, backend, env, reports / "generated") as (base_url, _):
+            token = login(template, base_url)
+            records = generated_crud(template, base_url, token, targets, plan)
+            write_json(reports / "generated/crud.json", records)
+            write_json(
+                reports / "generated/permissions.json",
+                generated_permissions(template, base_url, token, targets, plan),
+            )
+        with running_backend(template, backend, env, reports / "restart") as (base_url, _):
+            token = login(template, base_url)
+            write_json(
+                reports / "restart/persistence.json",
+                check_generated_persistence(template, base_url, token, targets, records),
+            )
+            write_json(reports / "browser-targets.json", targets)
+            front_env = frontend_environment(template, base_url)
+            build_frontend(template, frontend, front_env, reports)
+            with frontend_preview(template, frontend, front_env, reports) as front_url:
+                generated_browser(template, front_url, reports)
+        assert before == manifest(source), "Original native source was modified"
+        write_json(
+            reports / "generated-manifest.json",
+            {"backend": manifest(backend), "frontend": manifest(frontend)},
+        )
+        report = {
+            "template": template,
+            "scope": "two-generated-native-modules",
+            "generated_runtime_verified": True,
+            "native_codegen": True,
+            "automatic_mount": True,
+            "menu_and_permissions": True,
+            "real_crud": True,
+            "restart_persistence": True,
+            "frontend_build": True,
+            "frontend_typecheck": True,
+            "real_browser": True,
+            "entities": [e.name for e in plan.entities],
+            "spec_digest": digest(plan.model_dump()),
+            "source_unmodified": True,
+            "data_scope": "shared-with-native-role-permissions",
+        }
+        write_json(reports / "acceptance.json", report)
+        print(
+            "Generated native modules, menus, permissions, CRUD, restart, frontend build and browser PASS"
+        )
+        return report
+    except Exception as exc:
+        atomic_text(
+            reports / "failure.log",
+            type(exc).__name__ + ": " + str(exc) + "\n" + getattr(exc, "log", ""),
+        )
+        raise
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("template", choices=["fastapiadmin", "yudao-vben"])
+    parser.add_argument("--source", type=Path, default=Path(".native/source"))
+    parser.add_argument("--output", type=Path, default=Path(".native/product"))
+    parser.add_argument("--frontend-source", type=Path, default=Path(".native/frontend"))
+    parser.add_argument("--reports", type=Path, default=Path("reports/native"))
+    parser.add_argument("--spec", type=Path)
+    args = parser.parse_args()
+    plan = (
+        Plan.model_validate_json(args.spec.read_text(encoding="utf-8"))
+        if args.spec
+        else acceptance_spec()
+    )
+    run_acceptance(
+        args.template,
+        args.source,
+        args.output,
+        args.frontend_source,
+        os.environ["NATIVE_TEST_DATABASE_URL"],
+        args.reports,
+        plan,
+    )
+
+
+if __name__ == "__main__":
+    main()
+````
+
 ### `scripts/ci_native_runtime.py`
 
 <!-- source-file: scripts/ci_native_runtime.py sha256: f63a2db322b62452d94aab4215a6ec8e39ee109ede89f29b92dfe8ce9b5c1aec -->
@@ -7215,15 +8491,15 @@ print(
 
 ### `scripts/native_browser.cjs`
 
-<!-- source-file: scripts/native_browser.cjs sha256: 1d07d61608e76571051639833069c269593bbbda2491546e133db9ddb50aaa15 -->
+<!-- source-file: scripts/native_browser.cjs sha256: 4f53299dd5fe3dc01ee3f05d20580ab521abfba8b220432a4c8afa8af7ce2165 -->
 ````javascript
-// Runs against our disposable loopback lab. No mocked requests or injected authentication state.
+// Real Chromium against the disposable loopback lab; no route mocks or injected tokens.
 const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 
 async function main() {
-  const [template, base, reportDir, playwrightPath] = process.argv.slice(2);
+  const [template, base, reportDir, playwrightPath, moduleFile] = process.argv.slice(2);
   assert(['fastapiadmin', 'yudao-vben'].includes(template));
   assert.equal(new URL(base).hostname, '127.0.0.1');
   const { chromium } = require(playwrightPath);
@@ -7233,62 +8509,73 @@ async function main() {
   page.setDefaultTimeout(45000);
   fs.mkdirSync(reportDir, { recursive: true });
   const errors = [];
+  const responses = [];
   page.on('pageerror', error => errors.push(error.message));
+  page.on('response', response => responses.push({ url: new URL(response.url()).pathname, status: response.status(), method: response.request().method() }));
   const fastapi = template === 'fastapiadmin';
-  const report = { template, scope: 'original-upstream-frontend', generated_modules_verified: false, passed: false };
+  const report = { template, scope: moduleFile ? 'generated-native-frontend' : 'original-upstream-frontend', passed: false };
+  const observe = (part, method = 'GET') => page.waitForResponse(r => r.url().includes(part) && r.request().method() === method).then(r => ({ response: r }), error => ({ error }));
+  const checked = async promise => {
+    const value = await promise;
+    if (value.error) throw value.error;
+    assert(value.response.ok(), `HTTP ${value.response.status()}`);
+    const body = await value.response.json();
+    assert([0, 200].includes(body.code), `Application code ${body.code}`);
+    return body.data;
+  };
   try {
+    const captcha = fastapi ? observe('/system/auth/captcha/get') : null;
     await page.goto(base + (fastapi ? '/#/login' : '/#/auth/login'), { waitUntil: 'domcontentloaded' });
+    if (captcha) await checked(captcha);
     await page.getByPlaceholder(/用户名|账号|username/i).first().fill(fastapi ? 'super' : 'admin');
     await page.locator('input[type="password"]').first().fill(fastapi ? '123456' : 'admin123');
     if (fastapi) {
-      // Exercise the local, visible demo drag widget; do not bypass server authentication.
       const handle = page.locator('.dv_handler').first();
       const track = page.locator('.drag_verify').first();
       await handle.waitFor({ state: 'visible' });
       const from = await handle.boundingBox();
       const to = await track.boundingBox();
       assert(from && to);
+      const slider = observe('/system/auth/captcha/slider/complete', 'POST');
       await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
       await page.mouse.down();
-      await page.mouse.move(to.x + to.width - 2, from.y + from.height / 2, { steps: 30 });
+      await page.mouse.move(to.x + to.width + 10, from.y + from.height / 2, { steps: 40 });
       await page.mouse.up();
+      await checked(slider);
     }
-    const infoPath = fastapi ? '/system/user/current/info' : '/system/auth/get-permission-info';
-    const loginPromise = page.waitForResponse(r => r.url().includes('/system/auth/login') && r.request().method() === 'POST');
-    const menuPromise = page.waitForResponse(r => r.url().includes(infoPath) && r.request().method() === 'GET');
+    const loginResponse = observe('/system/auth/login', 'POST');
+    const infoResponse = observe(fastapi ? '/system/user/current/info' : '/system/auth/get-permission-info');
     await page.getByRole('button', { name: /^登\s*录$|^sign in$|^login$/i }).first().click();
-    const response = await loginPromise;
-    assert(response.ok(), 'Native browser login HTTP failure');
-    const loginBody = await response.json();
-    assert([0, 200].includes(loginBody.code), 'Native browser login application failure');
-    const menuResponse = await menuPromise;
-    assert(menuResponse.ok());
-    const info = await menuResponse.json();
-    assert([0, 200].includes(info.code));
-    assert(info.data.menus && info.data.menus.length, 'Native server returned no menus');
-    const listPath = fastapi ? '/system/user/list' : '/system/user/page';
-    const listPromise = page.waitForResponse(r => r.url().includes(listPath) && r.request().method() === 'GET');
-    await page.goto(base + '/#/system/user', { waitUntil: 'domcontentloaded' });
-    const listResponse = await listPromise;
-    assert(listResponse.ok());
-    const data = await listResponse.json();
-    assert([0, 200].includes(data.code), 'Native user page API rejected the browser request');
-    await page.locator(fastapi ? '.el-table' : '.vxe-table').first().waitFor({ state: 'visible' });
-    await page.screenshot({ path: path.join(reportDir, 'native-user-page.png'), fullPage: true });
-    assert.equal(errors.length, 0, 'Frontend emitted uncaught runtime errors');
-    Object.assign(report, { passed: true, real_login: true, native_menu_received: true, original_user_page_rendered: true });
-    console.log('Original native frontend: real login, menus and user page PASS');
+    await checked(loginResponse);
+    const info = await checked(infoResponse);
+    await page.waitForURL(url => !url.hash.includes('login'));
+    assert(info.menus && info.menus.length, 'No native menus');
+    const targets = moduleFile ? JSON.parse(fs.readFileSync(moduleFile, 'utf8')) : [{ route: '/system/user', list: fastapi ? '/system/user/list' : '/system/user/page' }];
+    report.pages = [];
+    for (const target of targets) {
+      const listing = observe(target.list);
+      await page.goto(base + '/#' + target.route, { waitUntil: 'domcontentloaded' });
+      await checked(listing);
+      await page.locator(fastapi ? '.el-table' : '.vxe-table').first().waitFor({ state: 'visible' });
+      if (target.sample) await page.getByText(target.sample, { exact: true }).first().waitFor({ state: 'visible' });
+      await page.screenshot({ path: path.join(reportDir, (target.entity || 'system-user') + '.png'), fullPage: true });
+      report.pages.push({ route: target.route, real_list_request: true, rendered: true });
+    }
+    assert.equal(errors.length, 0, 'Uncaught frontend errors');
+    Object.assign(report, { passed: true, real_login: true, native_menu_received: true, generated_modules_verified: !!moduleFile });
+    console.log('Native frontend login, menus and tables PASS');
   } catch (error) {
     report.error = error.message;
     await page.screenshot({ path: path.join(reportDir, 'browser-failure.png'), fullPage: true }).catch(() => {});
     throw error;
   } finally {
     report.page_errors = errors;
+    report.responses = responses;
     fs.writeFileSync(path.join(reportDir, 'browser.json'), JSON.stringify(report, null, 2));
     await browser.close();
   }
 }
-main().catch(error => { console.error(error.message); process.exitCode = 1; });
+main().catch(error => { console.error(error.stack); process.exitCode = 1; });
 ````
 
 ### `scripts/rebuild_from_handbook.py`
@@ -7480,27 +8767,19 @@ jobs:
 
 ### `.github/workflows/native-runtime.yml`
 
-<!-- source-file: .github/workflows/native-runtime.yml sha256: 58c682184145f5f9e012d8cd76ff2161f5821b04987f76ddc1b04529c4189e06 -->
+<!-- source-file: .github/workflows/native-runtime.yml sha256: 1087535589def9b575755fa37f247ae658443a753b4488f1a8bf48e4ad880e2a -->
 ````yaml
-name: Native baseline acceptance
+name: Native generated full-stack acceptance
 on:
   push:
-    branches: [feat/python314-workbench]
-    paths:
-      - 'workbench/native*.py'
-      - 'scripts/ci_native*.py'
-      - 'scripts/native_browser.cjs'
-      - '.github/workflows/native-runtime.yml'
+    branches: [main]
+    paths: ['workbench/native*.py', 'scripts/ci_native*.py', 'scripts/native_browser.cjs', '.github/workflows/native-runtime.yml']
   pull_request:
-    paths:
-      - 'workbench/native*.py'
-      - 'scripts/ci_native*.py'
-      - 'scripts/native_browser.cjs'
-      - '.github/workflows/native-runtime.yml'
+    paths: ['workbench/native*.py', 'scripts/ci_native*.py', 'scripts/native_browser.cjs', '.github/workflows/native-runtime.yml']
 permissions:
   contents: read
 concurrency:
-  group: native-${{ github.event_name }}-${{ github.ref }}
+  group: native-generated-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   runtime:
@@ -7562,6 +8841,11 @@ jobs:
           java-version: '17'
           cache: maven
           cache-dependency-path: .native/source/**/pom.xml
+      - uses: actions/cache/restore@v4
+        if: matrix.template == 'yudao-vben'
+        with:
+          path: ~/.m2/repository
+          key: native-maven-v1-${{ runner.os }}-${{ matrix.revision }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -7572,11 +8856,16 @@ jobs:
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
           PLAYWRIGHT_BROWSERS_PATH=0 .native/browser/node_modules/.bin/playwright install --with-deps chromium
       - run: uv sync --locked --all-extras
-      - name: Verify original native backend, roles, build and browser
-        run: uv run python -m scripts.ci_native_runtime ${{ matrix.template }} --frontend
+      - name: Generate, mount, verify permissions, CRUD, restart and native browser
+        run: uv run python -m scripts.ci_native_generated ${{ matrix.template }}
         env:
           NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
           PLAYWRIGHT_BROWSERS_PATH: '0'
+      - uses: actions/cache/save@v4
+        if: always() && matrix.template == 'yudao-vben'
+        with:
+          path: ~/.m2/repository
+          key: native-maven-v1-${{ runner.os }}-${{ matrix.revision }}
       - name: Preserve revisions and actual evidence
         if: always()
         run: |

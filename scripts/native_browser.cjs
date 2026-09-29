@@ -53,6 +53,7 @@ async function main() {
     await page.getByRole('button', { name: /^登\s*录$|^sign in$|^login$/i }).first().click();
     await checked(loginResponse);
     const info = await checked(infoResponse);
+    await page.waitForURL(url => !url.hash.includes('login'));
     assert(info.menus && info.menus.length, 'No native menus');
     const targets = moduleFile ? JSON.parse(fs.readFileSync(moduleFile, 'utf8')) : [{ route: '/system/user', list: fastapi ? '/system/user/list' : '/system/user/page' }];
     report.pages = [];
