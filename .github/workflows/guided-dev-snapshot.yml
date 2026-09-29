@@ -1,0 +1,59 @@
+name: Guided workbench development snapshot
+on:
+  push:
+    branches: [diagnostics/guided-workbench]
+    paths: [.github/workflows/guided-dev-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - name: Create source and development runtime archives
+        shell: bash
+        run: |
+          mkdir -p /tmp/guided-snapshot
+          git archive --format=tar HEAD > /tmp/guided-snapshot/source.tar
+          uv run python - <<'PY'
+          import sys, sysconfig, pathlib, tarfile, shutil, json, subprocess
+          out=pathlib.Path('/tmp/guided-snapshot')
+          base=pathlib.Path(sys.base_prefix)
+          site=pathlib.Path(sysconfig.get_paths()['purelib'])
+          fonts={'.ttf','.otf','.woff','.woff2','.ttc','.eot'}
+          def filt(info):
+              return None if pathlib.Path(info.name).suffix.lower() in fonts or '/__pycache__/' in info.name else info
+          with tarfile.open(out/'runtime.tar.gz','w:gz') as tar:
+              tar.add(base,arcname='python',filter=filt)
+              tar.add(site,arcname='site-packages',filter=filt)
+          shutil.copyfile('.venv/bin/ruff',out/'ruff')
+          sources=[('fastapiadmin','https://github.com/fastapiadmin/FastapiAdmin.git','1cd12c726ad9032c17ef85ce805ce991be60fbdf'),('yudao-backend','https://github.com/yudaocode/yudao-cloud-mini.git','47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be'),('yudao-frontend','https://github.com/yudaocode/yudao-ui-admin-vben.git','1b14e889f529e245fd620daa720dcea6de0cc5e7')]
+          records=[]
+          for name,url,sha in sources:
+              dest=pathlib.Path('/tmp')/('source-'+name)
+              dest.mkdir()
+              subprocess.run(['git','init','-q',str(dest)],check=True)
+              subprocess.run(['git','-C',str(dest),'fetch','--depth','1',url,sha],check=True)
+              subprocess.run(['git','-C',str(dest),'checkout','--detach','FETCH_HEAD'],check=True)
+              assert subprocess.check_output(['git','-C',str(dest),'rev-parse','HEAD'],text=True).strip()==sha
+              def src_filter(info):
+                  parts=pathlib.Path(info.name).parts
+                  if '.git' in parts or pathlib.Path(info.name).suffix.lower() in fonts: return None
+                  return info
+              with tarfile.open(out/(name+'.tar.gz'),'w:gz') as tar:
+                  tar.add(dest,arcname=name,filter=src_filter)
+              records.append({'name':name,'url':url,'sha':sha})
+          (out/'sources.json').write_text(json.dumps(records,indent=2))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guided-development-snapshot
+          path: /tmp/guided-snapshot/
+          retention-days: 3
