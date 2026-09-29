@@ -18,7 +18,6 @@ def successful(response):
 
 def payload(response):
     if not successful(response):
-        # Do not put tokens, credentials or full login responses in public logs.
         raise AssertionError(f"Native API failed: {response.request.method} {response.request.url.path} HTTP {response.status_code}")
     body = response.json()
     return body.get("data", body)
@@ -43,10 +42,27 @@ def record_id(value):
     return value["id"] if isinstance(value, dict) else value
 
 
+def read_menu_ids(rows, permission):
+    by_id = {row["id"]: row for row in rows}
+    matching = [row for row in rows if row.get("permission") == permission]
+    if not matching:
+        raise AssertionError("Native read permission is absent from menu metadata")
+    selected = set()
+    for cursor in matching:
+        visited = set()
+        while cursor:
+            if cursor["id"] in visited:
+                raise AssertionError("Native menu parent cycle")
+            visited.add(cursor["id"])
+            selected.add(cursor["id"])
+            cursor = by_id.get(cursor.get("parent_id", cursor.get("parentId")))
+    return sorted(selected)
+
+
 def check_native_permissions(template, base_url, admin_token):
-    """Create only lab users/roles through real authorized APIs; never modify auth code."""
+    """Create lab users/roles through authorized APIs; never modify authentication source."""
     if urlsplit(base_url).hostname not in {"127.0.0.1", "localhost"}:
-        raise ValueError("Native authorization tests are restricted to loopback lab servers")
+        raise ValueError("Native authorization tests require a loopback lab server")
     fastapi = template == "fastapiadmin"
     prefix = "" if fastapi else "/admin-api"
     listing = prefix + ("/system/user/list" if fastapi else "/system/user/page")
@@ -58,16 +74,7 @@ def check_native_permissions(template, base_url, admin_token):
         admin = {"Authorization": "Bearer " + admin_token}
         payload(client.get(listing, headers=admin))
         menus = payload(client.get(prefix + ("/system/menu/tree" if fastapi else "/system/menu/list"), headers=admin))
-        rows = list(flatten(menus))
-        matching = [row for row in rows if row.get("permission") == permission]
-        if len(matching) != 1:
-            raise AssertionError("Native read permission was not uniquely present in menu metadata")
-        by_id = {row["id"]: row for row in rows}
-        selected = set()
-        cursor = matching[0]
-        while cursor:
-            selected.add(cursor["id"])
-            cursor = by_id.get(cursor.get("parent_id", cursor.get("parentId")))
+        selected = read_menu_ids(list(flatten(menus)), permission)
         role_data = {"name": "Workbench reader", "code": "workbench_reader", "status": 0}
         role_data.update({"order": 1, "data_scope": 1} if fastapi else {"sort": 1})
         role_id = record_id(payload(client.post(prefix + "/system/role/create", json=role_data, headers=admin)))
@@ -88,18 +95,16 @@ def check_native_permissions(template, base_url, admin_token):
                 response = client.post(prefix + "/system/permission/assign-role-menu", json={"roleId": role_id, "menuIds": menu_ids}, headers=admin)
             payload(response)
 
-        # Do not assume newly created roles lack defaults: explicitly set the lab role to empty.
         assign([])
         restricted = {"Authorization": "Bearer " + login(template, base_url, username, password)}
         denied(client.get(listing, headers=restricted))
         before = payload(client.get(info, headers=restricted))
         assert not before.get("menus"), "Empty role unexpectedly receives native menus"
-        assign(sorted(selected))
+        assign(selected)
         reader = {"Authorization": "Bearer " + login(template, base_url, username, password)}
         payload(client.get(listing, headers=reader))
         after = payload(client.get(info, headers=reader))
         assert after.get("menus"), "Granted native page is absent from login/menu result"
-        # A read-only role must still be unable to create roles.
         denied(client.post(prefix + "/system/role/create", json={**role_data, "code": "must_not_be_created"}, headers=reader))
         assign([])
         revoked = {"Authorization": "Bearer " + login(template, base_url, username, password)}
