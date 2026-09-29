@@ -286,6 +286,8 @@ uv run python -c "import json; d=json.load(open('reports/native-fastapiadmin/acc
 
 ### 19.11 兼容规则与排错
 
+FastapiAdmin 的工作副本在启动前，对原生角色控制器与代码生成控制器的 `db_getter` 依赖设置 `scope="function"`，保留原有认证、权限、CRUD 和事务实现。这样导入表结构、更新生成配置、挂载菜单及授予角色权限都会先提交事务再返回成功，避免下一次列表/导出/登录请求早于提交产生偶发缺失。生成业务控制器沿用同样的提交边界，修改记录写入 `native-compatibility.json` 和生成回执；不是靠固定等待或盲目重试掩盖失败。
+
 Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。生成器导出的新增表单也做精确兼容：将旧式 `modalApi.getData<DTO>()` 的泛型迁到 `useVbenModal<Partial<DTO>>`，保留新增时的空载荷和编辑时的 ID 检查。原始生成 ZIP 不改写，`generation.json` 同时记录原始文件与实际挂载文件的哈希。未使用的 `Dayjs`、`getDictOptions` 导入仅在确认没有引用时删除，不关闭编译器的未使用检查。整数编辑/查询控件使用 `InputNumber` 并限定零位小数；布尔编辑/查询控件使用有真实 `true/false` 选项的 `RadioGroup`，不提交字符串代替布尔值。Chromium 还会从两个生成页面实际新增记录，检查整数 `0`、布尔 `false` 的请求值和数据库返回值，并保存新增后的页面截图。
 
 工作副本不会复制上游 `.git`、令牌或环境文件。Vben 副本单独执行 `git init --quiet --template=` 建立本地扫描边界，没有上游 remote、提交历史或 hooks；此边界也不进入源码 ZIP。缺少边界时，构建扫描可能跨入平台和兄弟工作目录，导致日志停滞与内存异常增长。不要用扩大内存、删除业务路由或禁用类型检查代替修复。保留原始仓库不变，并保存 `vben-compatibility.json` 中逐文件的 before/after SHA-256。

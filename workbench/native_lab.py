@@ -11,7 +11,7 @@ from workbench.native_acceptance import (
     generated_crud,
     generated_permissions,
 )
-from workbench.native_compatibility import commit_before_response
+from workbench.native_compatibility import prepare_fastapi_transactions
 from workbench.native_environment import (
     bootstrap_database,
     copy_source,
@@ -82,12 +82,7 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
 
     try:
         if template == "fastapiadmin":
-            # The native grant endpoint also uses a yielded transaction. Commit it
-            # before returning success, not after a new login snapshots permissions.
-            role_controller = backend / "app/modules/system/role/controller.py"
-            receipt = commit_before_response(role_controller)
-            receipt["path"] = role_controller.relative_to(backend).as_posix()
-            write_json(reports / "native-compatibility.json", [receipt])
+            write_json(reports / "native-compatibility.json", prepare_fastapi_transactions(backend))
         stage("bootstrap-empty-database")
         bootstrap_database(template, backend, url)
         stage("baseline-install")

@@ -759,6 +759,8 @@ uv run python -c "import json; d=json.load(open('reports/native-fastapiadmin/acc
 
 ### 19.11 兼容规则与排错
 
+FastapiAdmin 的工作副本在启动前，对原生角色控制器与代码生成控制器的 `db_getter` 依赖设置 `scope="function"`，保留原有认证、权限、CRUD 和事务实现。这样导入表结构、更新生成配置、挂载菜单及授予角色权限都会先提交事务再返回成功，避免下一次列表/导出/登录请求早于提交产生偶发缺失。生成业务控制器沿用同样的提交边界，修改记录写入 `native-compatibility.json` 和生成回执；不是靠固定等待或盲目重试掩盖失败。
+
 Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。生成器导出的新增表单也做精确兼容：将旧式 `modalApi.getData<DTO>()` 的泛型迁到 `useVbenModal<Partial<DTO>>`，保留新增时的空载荷和编辑时的 ID 检查。原始生成 ZIP 不改写，`generation.json` 同时记录原始文件与实际挂载文件的哈希。未使用的 `Dayjs`、`getDictOptions` 导入仅在确认没有引用时删除，不关闭编译器的未使用检查。整数编辑/查询控件使用 `InputNumber` 并限定零位小数；布尔编辑/查询控件使用有真实 `true/false` 选项的 `RadioGroup`，不提交字符串代替布尔值。Chromium 还会从两个生成页面实际新增记录，检查整数 `0`、布尔 `false` 的请求值和数据库返回值，并保存新增后的页面截图。
 
 工作副本不会复制上游 `.git`、令牌或环境文件。Vben 副本单独执行 `git init --quiet --template=` 建立本地扫描边界，没有上游 remote、提交历史或 hooks；此边界也不进入源码 ZIP。缺少边界时，构建扫描可能跨入平台和兄弟工作目录，导致日志停滞与内存异常增长。不要用扩大内存、删除业务路由或禁用类型检查代替修复。保留原始仓库不变，并保存 `vben-compatibility.json` 中逐文件的 before/after SHA-256。
@@ -6081,7 +6083,7 @@ def generate_modules(template, backend, frontend, base_url, openapi, token, mapp
 
 ### `workbench/native_compatibility.py`
 
-<!-- source-file: workbench/native_compatibility.py sha256: edd2a6b06cad034116f5ebdba1f3b4086d28b3365853d5ddc37aa9639095dde6 -->
+<!-- source-file: workbench/native_compatibility.py sha256: 82549bed332407175e80f1274b8efc4d274f46fd10c336267b40cd72b58ec964 -->
 ````python
 """Small recorded compatibility edits in generated workspaces, never upstream checkouts."""
 
@@ -6126,6 +6128,24 @@ def commit_before_response(controller):
         "change": "commit-before-response",
         "dependencies": len(dependencies),
     }
+
+
+def prepare_fastapi_transactions(backend: Path) -> list[dict]:
+    """Commit native role grants AND codegen metadata before acknowledging success.
+
+    The generator imports, updates and mounts metadata across consecutive HTTP requests.
+    Its request-scoped yield otherwise allows an immediate list/export/login to race a commit.
+    No retry hides an import failure; preserve native auth, CRUD and transaction handling.
+    """
+    receipts = []
+    for relative in (
+        "app/modules/system/role/controller.py",
+        "app/modules/generator/gencode/controller.py",
+    ):
+        receipt = commit_before_response(Path(backend) / relative)
+        receipt["path"] = relative
+        receipts.append(receipt)
+    return receipts
 ````
 
 ### `workbench/native_acceptance.py`
@@ -6433,7 +6453,7 @@ def generated_permissions(template, base_url, token, targets, plan):
 
 ### `workbench/native_lab.py`
 
-<!-- source-file: workbench/native_lab.py sha256: cbaf8b0e1a82e790385ff9e0d4bede5293e59118ce618368bdae4b05d0d4b010 -->
+<!-- source-file: workbench/native_lab.py sha256: f35c032c3e97fb20e2b3401b4bde7f84c16c90fb243a116a52c97efefdc784e1 -->
 ````python
 """Actual native generation, mounting, permissions, CRUD, restart and browser acceptance."""
 
@@ -6448,7 +6468,7 @@ from workbench.native_acceptance import (
     generated_crud,
     generated_permissions,
 )
-from workbench.native_compatibility import commit_before_response
+from workbench.native_compatibility import prepare_fastapi_transactions
 from workbench.native_environment import (
     bootstrap_database,
     copy_source,
@@ -6519,12 +6539,7 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
 
     try:
         if template == "fastapiadmin":
-            # The native grant endpoint also uses a yielded transaction. Commit it
-            # before returning success, not after a new login snapshots permissions.
-            role_controller = backend / "app/modules/system/role/controller.py"
-            receipt = commit_before_response(role_controller)
-            receipt["path"] = role_controller.relative_to(backend).as_posix()
-            write_json(reports / "native-compatibility.json", [receipt])
+            write_json(reports / "native-compatibility.json", prepare_fastapi_transactions(backend))
         stage("bootstrap-empty-database")
         bootstrap_database(template, backend, url)
         stage("baseline-install")
@@ -8838,14 +8853,14 @@ def test_native_deleted_uses_upstream_smallint_and_active_remains_boolean():
 
 ### `tests/test_native_transaction.py`
 
-<!-- source-file: tests/test_native_transaction.py sha256: 9c8aaa10aa180ee7a083ee7029fb7314585cdda610167eab0496b0c0d1a545ec -->
+<!-- source-file: tests/test_native_transaction.py sha256: f12ff3d14b6f5bfb49e9bfe681dfd6169c00f68e875bbe171299a3616398a990 -->
 ````python
 import ast
 import sys
 
 import pytest
 
-from workbench.native_compatibility import commit_before_response
+from workbench.native_compatibility import commit_before_response, prepare_fastapi_transactions
 from workbench.tools import ToolFailure, run_command
 
 
@@ -8906,6 +8921,31 @@ def test_updates_exercise_integer_and_boolean_changes():
     assert initial["quantity"] != changed["quantity"]
     assert initial["active"] is True
     assert changed["active"] is False
+
+
+def test_native_role_and_codegen_both_commit_before_their_success_response(tmp_path):
+    paths = [
+        "app/modules/system/role/controller.py",
+        "app/modules/generator/gencode/controller.py",
+    ]
+    source = (
+        "from fastapi import Depends, Security\n"
+        "async def operation(auth=Security(native_auth), db=Depends(db_getter)):\n"
+        "    return await native_service(db)\n"
+    )
+    for relative in paths:
+        path = tmp_path / relative
+        path.parent.mkdir(parents=True)
+        path.write_text(source, encoding="utf-8")
+    receipts = prepare_fastapi_transactions(tmp_path)
+    assert [r["path"] for r in receipts] == paths
+    assert all(r["before_sha256"] != r["after_sha256"] for r in receipts)
+    for relative in paths:
+        actual = (tmp_path / relative).read_text(encoding="utf-8")
+        assert actual == source.replace(
+            "Depends(db_getter)", 'Depends(db_getter, scope="function")'
+        )
+        ast.parse(actual)
 ````
 
 ### `tests/test_native_vben.py`
@@ -12185,7 +12225,7 @@ uv sync --locked --extra postgres
 
 ### `docs/native-baseline.md`
 
-<!-- source-file: docs/native-baseline.md sha256: fb568a1d4dd4b92300bfe4b1a406a9a3e4cee41bbc7d4897f549b04c32788721 -->
+<!-- source-file: docs/native-baseline.md sha256: 555458be5753a50ee295aa33dd1589e19a52ea4e5199ced7830ef13a621a9f81 -->
 ````markdown
 ## 19. 原生生成产品：自动挂载、菜单权限和完整前后端验收
 
@@ -12474,6 +12514,8 @@ uv run python -c "import json; d=json.load(open('reports/native-fastapiadmin/acc
 最终还必须有 `native_codegen`、`automatic_mount`、`menu_and_permissions`、`real_crud`、`restart_persistence`、`frontend_build`、`frontend_typecheck`、`real_browser`、`source_unmodified`，全部为true。只看一个HTTP200或服务首页不够。
 
 ### 19.11 兼容规则与排错
+
+FastapiAdmin 的工作副本在启动前，对原生角色控制器与代码生成控制器的 `db_getter` 依赖设置 `scope="function"`，保留原有认证、权限、CRUD 和事务实现。这样导入表结构、更新生成配置、挂载菜单及授予角色权限都会先提交事务再返回成功，避免下一次列表/导出/登录请求早于提交产生偶发缺失。生成业务控制器沿用同样的提交边界，修改记录写入 `native-compatibility.json` 和生成回执；不是靠固定等待或盲目重试掩盖失败。
 
 Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。生成器导出的新增表单也做精确兼容：将旧式 `modalApi.getData<DTO>()` 的泛型迁到 `useVbenModal<Partial<DTO>>`，保留新增时的空载荷和编辑时的 ID 检查。原始生成 ZIP 不改写，`generation.json` 同时记录原始文件与实际挂载文件的哈希。未使用的 `Dayjs`、`getDictOptions` 导入仅在确认没有引用时删除，不关闭编译器的未使用检查。整数编辑/查询控件使用 `InputNumber` 并限定零位小数；布尔编辑/查询控件使用有真实 `true/false` 选项的 `RadioGroup`，不提交字符串代替布尔值。Chromium 还会从两个生成页面实际新增记录，检查整数 `0`、布尔 `false` 的请求值和数据库返回值，并保存新增后的页面截图。
 

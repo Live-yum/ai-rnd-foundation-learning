@@ -41,3 +41,21 @@ def commit_before_response(controller):
         "change": "commit-before-response",
         "dependencies": len(dependencies),
     }
+
+
+def prepare_fastapi_transactions(backend: Path) -> list[dict]:
+    """Commit native role grants AND codegen metadata before acknowledging success.
+
+    The generator imports, updates and mounts metadata across consecutive HTTP requests.
+    Its request-scoped yield otherwise allows an immediate list/export/login to race a commit.
+    No retry hides an import failure; preserve native auth, CRUD and transaction handling.
+    """
+    receipts = []
+    for relative in (
+        "app/modules/system/role/controller.py",
+        "app/modules/generator/gencode/controller.py",
+    ):
+        receipt = commit_before_response(Path(backend) / relative)
+        receipt["path"] = relative
+        receipts.append(receipt)
+    return receipts
