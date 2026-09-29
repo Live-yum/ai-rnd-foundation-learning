@@ -1,5 +1,4 @@
-"""Loopback native lab lifecycle. Never resets an existing database or mocks login."""
-
+"""Loopback native lab lifecycle. Never resets existing databases or mocks authentication."""
 import io
 import os
 import re
@@ -30,7 +29,6 @@ def checked_database(url):
 
 
 def copy_source(source, destination):
-    """Copy source only, never upstream environments, dependencies or credentials."""
     source, destination = Path(source), Path(destination)
     if destination.exists():
         raise FileExistsError(destination)
@@ -42,7 +40,7 @@ def copy_source(source, destination):
 
 
 def bootstrap_database(template, backend, url):
-    """YuDao seeds contain DROP statements: execute ONLY in an empty dedicated database."""
+    """Upstream seeds include DROP: execute ONLY in an empty dedicated development database."""
     parsed = checked_database(url)
     engine = create_engine(url)
     try:
@@ -64,7 +62,7 @@ def bootstrap_database(template, backend, url):
 
 
 def native_environment(template, backend, url, port, redis_port=6379):
-    """Development-only profile; no model/API secrets inherited by native processes."""
+    """Explicit local profile. External OAuth/WeChat features are not configured or tested."""
     parsed = checked_database(url)
     if not 1024 <= int(port) <= 65535:
         raise ValueError("Invalid native backend port")
@@ -76,7 +74,7 @@ def native_environment(template, backend, url, port, redis_port=6379):
             "DATABASE_USER": parsed.username or "", "DATABASE_PASSWORD": parsed.password or "",
             "DATABASE_NAME": parsed.database, "REDIS_HOST": "127.0.0.1",
             "REDIS_PORT": str(redis_port), "REDIS_PASSWORD": "", "REDIS_DB_NAME": "1",
-            "SECRET_KEY": secrets.token_hex(32), "CAPTCHA_ENABLE": "False",
+            "SECRET_KEY": secrets.token_hex(32), "CAPTCHA_ENABLE": "True",
             "SCHEDULER_ALLOW_CODE_EXEC": "False", "DEMO_ENABLE": "False",
             "LOGIN_RATE_LIMIT_MAX_ATTEMPTS": "100", "OPENAI_API_KEY": "",
             "PYTHONUTF8": "1", "UV_PYTHON": "3.14",
@@ -109,6 +107,10 @@ def native_environment(template, backend, url, port, redis_port=6379):
         "management.endpoints.web.exposure.include": "health",
         "logging.file.name": "./logs/native-server.log",
         "yudao.access-log.enable": "false", "yudao.error-code.enable": "false",
+        # Inert identifiers initialize unused social beans, never real third-party credentials.
+        "wx.mp.app-id": "native-lab-disabled", "wx.mp.secret": "not-a-real-credential",
+        "wx.miniapp.appid": "native-lab-disabled", "wx.miniapp.secret": "not-a-real-credential",
+        "wx.mp.config-storage.type": "Memory", "wx.miniapp.config-storage.type": "Memory",
     }
     atomic_text(resource / "application-native.properties", "\n".join(f"{k}={v}" for k, v in properties.items()) + "\n")
     return {"SPRING_PROFILES_ACTIVE": "native", "NATIVE_DB_USER": parsed.username or "",
@@ -116,13 +118,12 @@ def native_environment(template, backend, url, port, redis_port=6379):
 
 
 def prepare_yudao_postgres(backend, reports):
-    """Declare the selected JDBC runtime in the copied aggregate POM; retain upstream source."""
+    """Declare the selected JDBC runtime in the copied aggregate POM."""
     pom = Path(backend) / "yudao-server/pom.xml"
     before = sha(pom)
     source = pom.read_text(encoding="utf-8")
     ns = {"m": "http://maven.apache.org/POM/4.0.0"}
-    tree = ET.fromstring(source)
-    dependencies = tree.find("m:dependencies", ns)
+    dependencies = ET.fromstring(source).find("m:dependencies", ns)
     if dependencies is None:
         raise ValueError("The pinned aggregate POM has no dependency section")
     present = any(item.findtext("m:groupId", namespaces=ns) == "org.postgresql"
@@ -219,7 +220,7 @@ def running_backend(template, backend, env, reports):
                         write_json(reports / "openapi.json", response.json())
                         break
                     if response.is_redirect:
-                        raise RuntimeError("Native readiness redirected; check the development profile and API prefix")
+                        raise RuntimeError("Native readiness redirected; check profile and API prefix")
                 except (httpx.HTTPError, ValueError):
                     pass
                 time.sleep(2)
@@ -234,7 +235,15 @@ def running_backend(template, backend, env, reports):
 def login(template, base_url, username=None, password=None):
     with httpx.Client(base_url=base_url, trust_env=False, timeout=30, headers={"tenant-id": "1"}) as client:
         if template == "fastapiadmin":
-            response = client.post("/system/auth/login", data={"username": username or "super", "password": password or "123456"})
+            challenge = client.get("/system/auth/captcha/get")
+            challenge.raise_for_status()
+            key = challenge.json()["data"]["key"]
+            time.sleep(0.3)
+            completed = client.post("/system/auth/captcha/slider/complete", json={"captcha_key": key})
+            completed.raise_for_status()
+            if completed.json().get("code") != 200:
+                raise RuntimeError("Native slider verification was rejected")
+            response = client.post("/system/auth/login", data={"username": username or "super", "password": password or "123456", "captcha_key": key})
         else:
             response = client.post("/admin-api/system/auth/login", json={"username": username or "admin", "password": password or "admin123"})
         response.raise_for_status()
