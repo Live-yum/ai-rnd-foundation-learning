@@ -23,6 +23,7 @@ jobs:
       - name: Apply reviewed generated field and import compatibility
         run: python .maintenance/vben_fields.py
       - run: uv sync --locked --all-extras
+      - run: uv run ruff check --select I --fix workbench/native_vben.py tests/test_native_vben.py
       - run: uv run ruff format .
       - run: uv run ruff check .
       - run: node --check scripts/native_browser.cjs
