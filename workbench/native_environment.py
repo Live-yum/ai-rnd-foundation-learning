@@ -1,7 +1,7 @@
-"""Loopback-only native lab lifecycle. Never resets an existing database or mocks login."""
+"""Loopback native lab lifecycle. Never resets an existing database or mocks login."""
 
-import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -21,8 +21,8 @@ def checked_database(url):
     parsed = make_url(url)
     if parsed.get_backend_name() != "postgresql" or parsed.host not in {"127.0.0.1", "localhost"}:
         raise ValueError("Native runtime requires a loopback PostgreSQL database")
-    if not (parsed.database or "").endswith("_codegen"):
-        raise ValueError("Use a dedicated database ending in _codegen")
+    if not re.fullmatch(r"[a-z][a-z0-9_]{0,40}_codegen", parsed.database or ""):
+        raise ValueError("Use a dedicated lowercase database identifier ending in _codegen")
     return parsed
 
 
@@ -39,7 +39,7 @@ def copy_source(source, destination):
 
 
 def bootstrap_database(template, backend, url):
-    """The upstream YuDao seed contains DROP statements: execute ONLY in an empty database."""
+    """YuDao seeds contain DROP statements: execute ONLY in an empty dedicated database."""
     parsed = checked_database(url)
     engine = create_engine(url)
     try:
@@ -57,11 +57,13 @@ def bootstrap_database(template, backend, url):
 
 
 def native_environment(template, backend, url, port, redis_port=6379):
-    """No model/API secrets inherited by native application processes."""
+    """Development-only profile; no model/API secrets inherited by native processes."""
     parsed = checked_database(url)
+    if not 1024 <= int(port) <= 65535:
+        raise ValueError("Invalid native backend port")
     if template == "fastapiadmin":
         return {
-            "ENVIRONMENT": "test", "SERVER_HOST": "127.0.0.1", "SERVER_PORT": str(port),
+            "ENVIRONMENT": "dev", "SERVER_HOST": "127.0.0.1", "SERVER_PORT": str(port),
             "DEBUG": "False", "WORKERS": "1", "DATABASE_TYPE": "postgres",
             "DATABASE_HOST": parsed.host, "DATABASE_PORT": str(parsed.port or 5432),
             "DATABASE_USER": parsed.username or "", "DATABASE_PASSWORD": parsed.password or "",
@@ -72,7 +74,8 @@ def native_environment(template, backend, url, port, redis_port=6379):
             "LOGIN_RATE_LIMIT_MAX_ATTEMPTS": "100", "OPENAI_API_KEY": "",
             "PYTHONUTF8": "1", "UV_PYTHON": "3.14",
         }
-    # A distinct profile replaces the unsafe public demonstration-local defaults.
+    if template != "yudao-vben":
+        raise ValueError("Unknown native template")
     resource = Path(backend) / "yudao-server/src/main/resources"
     properties = {
         "server.address": "127.0.0.1", "server.port": str(port),
@@ -110,7 +113,14 @@ def install_backend(template, backend, reports):
         command = ["uv", "sync", "--python", "3.14"]
     else:
         command = ["mvn", "-B", "-ntp", "-pl", "yudao-server", "-am", "package", "-DskipTests"]
-    result = run_command(command, backend, 1500, {"JAVA_HOME": os.environ.get("JAVA_HOME", "")})
+    environment = {"JAVA_HOME": os.environ.get("JAVA_HOME", ""), "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8"}
+    if os.environ.get("UV_CACHE_DIR"):
+        environment["UV_CACHE_DIR"] = os.environ["UV_CACHE_DIR"]
+    try:
+        result = run_command(command, backend, 1500, environment)
+    except Exception as exc:
+        atomic_text(reports / "backend-build.log", getattr(exc, "log", str(exc)))
+        raise
     atomic_text(reports / "backend-build.log", result["log"])
 
 
@@ -124,7 +134,7 @@ def running_backend(template, backend, env, reports):
         command = [str(executable), "-m", "uvicorn", "app:create_app", "--factory", "--host", "127.0.0.1", "--port", str(port)]
         openapi = "/openapi.json"
     else:
-        properties = (backend / "yudao-server/src/main/resources/application-native.properties").read_text()
+        properties = (backend / "yudao-server/src/main/resources/application-native.properties").read_text(encoding="utf-8")
         port = int(next(line.split("=", 1)[1] for line in properties.splitlines() if line.startswith("server.port=")))
         jars = list((backend / "yudao-server/target").glob("*.jar"))
         if len(jars) != 1:
@@ -140,10 +150,10 @@ def running_backend(template, backend, env, reports):
         else:
             raise RuntimeError("Native backend port is already occupied; refusing to test another process")
     log = (reports / "backend-runtime.log").open("ab")
-    process = subprocess.Popen(command, cwd=backend, env=clean_env(env), stdout=log, stderr=subprocess.STDOUT, **process_options())
+    process = subprocess.Popen(command, cwd=backend, env=clean_env({"LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", **env}), stdout=log, stderr=subprocess.STDOUT, **process_options())
     try:
         with httpx.Client(trust_env=False, timeout=5) as client:
-            for _ in range(180):
+            for _ in range(90):
                 if process.poll() is not None:
                     raise RuntimeError("Native backend exited; inspect backend-runtime.log")
                 try:
@@ -151,6 +161,8 @@ def running_backend(template, backend, env, reports):
                     if response.status_code == 200 and "paths" in response.json():
                         write_json(reports / "openapi.json", response.json())
                         break
+                    if response.is_redirect:
+                        raise RuntimeError("Native readiness redirected; check the development profile and API prefix")
                 except (httpx.HTTPError, ValueError):
                     pass
                 time.sleep(2)
@@ -173,4 +185,7 @@ def login(template, base_url, username=None, password=None):
         if body.get("code", 200) not in (0, 200):
             raise RuntimeError(f"Native login rejected (code {body.get('code')}): {body.get('msg', '')}")
         value = body.get("data", body)
-        return value.get("access_token", value.get("accessToken")) or (_ for _ in ()).throw(RuntimeError("No native access token"))
+        token = value.get("access_token", value.get("accessToken"))
+        if not isinstance(token, str) or not token:
+            raise RuntimeError("No native access token")
+        return token
