@@ -458,6 +458,10 @@ def native_export(client, template, mapping, plan):
 
 
 def generate_native(settings, template, plan, destination):
+    from workbench.native_delivery import managed_generate, runtime_enabled
+
+    if runtime_enabled(settings, template):
+        return managed_generate(settings, template, plan, destination)
     config, token, db_url = load_config(settings, template)
     if plan.custom_rules or plan.unsupported:
         raise PrerequisiteError("原生源码导出不接受未实现的定制规则")
@@ -506,6 +510,10 @@ def verify_native(destination):
     receipt = json.loads(
         (destination.parent / "native-generation.json").read_text(encoding="utf-8")
     )
+    if receipt.get("execution") == "managed-runtime":
+        from workbench.native_delivery import managed_verify
+
+        return managed_verify(destination, receipt)
     current = manifest(destination)
     if current != receipt["files"] or not any(p.startswith("generated/") for p in current):
         raise PrerequisiteError("原生生成产物不完整或已被修改")
@@ -524,6 +532,10 @@ def verify_native(destination):
 
 
 def package_native(destination, report):
+    if report.get("validation_level") == "runtime":
+        from workbench.native_delivery import managed_package
+
+        return managed_package(destination, report)
     listing = manifest(destination)
     if report.get("passed") is not True or digest(listing) != report["source_digest"]:
         raise PrerequisiteError("原生源码包在验证后发生变化")

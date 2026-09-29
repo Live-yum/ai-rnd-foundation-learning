@@ -1,4 +1,5 @@
 """Explicitly authorized local native runtime delivery; source export is a separate mode."""
+
 import json
 import os
 import re
@@ -7,8 +8,10 @@ import uuid
 import zipfile
 from contextlib import ExitStack
 from pathlib import Path
+
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, StrictBool
+
 from workbench.domain import digest
 from workbench.filesystem import atomic_text, files, manifest, sha, write_json
 from workbench.generator import PrerequisiteError
@@ -20,15 +23,15 @@ from workbench.settings import ROOT
 
 
 class RuntimeConfig(BaseModel):
-    model_config = ConfigDict(extra='forbid')
+    model_config = ConfigDict(extra="forbid")
     database_url_env: str
     initialize_empty_database: StrictBool = False
 
 
 def runtime_path(settings, template):
-    if template not in {'fastapiadmin', 'yudao-vben'}:
-        raise ValueError('未知原生模板')
-    return settings.data_dir / 'native' / f'{template}.runtime.json'
+    if template not in {"fastapiadmin", "yudao-vben"}:
+        raise ValueError("未知原生模板")
+    return settings.data_dir / "native" / f"{template}.runtime.json"
 
 
 def runtime_enabled(settings, template):
@@ -38,128 +41,181 @@ def runtime_enabled(settings, template):
 def write_runtime_example(settings, template):
     path = runtime_path(settings, template)
     if path.exists():
-        raise FileExistsError('原生运行配置已存在，拒绝覆盖')
+        raise FileExistsError("原生运行配置已存在，拒绝覆盖")
     settings.prepare()
-    prefix = 'NATIVE_FASTAPIADMIN' if template == 'fastapiadmin' else 'NATIVE_YUDAO'
-    write_json(path, RuntimeConfig(database_url_env=prefix + '_DATABASE_URL').model_dump())
+    prefix = "NATIVE_FASTAPIADMIN" if template == "fastapiadmin" else "NATIVE_YUDAO"
+    write_json(path, RuntimeConfig(database_url_env=prefix + "_DATABASE_URL").model_dump())
     return path
 
 
 def runtime_config(settings, template, *, initialize=True):
     path = runtime_path(settings, template)
     if not path.is_file():
-        raise PrerequisiteError('先执行 rnd native runtime-config TEMPLATE 并授权专用空开发库')
-    config = RuntimeConfig.model_validate_json(path.read_text(encoding='utf-8'))
-    if not re.fullmatch(r'NATIVE_[A-Z0-9_]+', config.database_url_env):
-        raise PrerequisiteError('原生数据库只能读取明确的 NATIVE_* 环境变量')
+        raise PrerequisiteError("先执行 rnd native runtime-config TEMPLATE 并授权专用空开发库")
+    config = RuntimeConfig.model_validate_json(path.read_text(encoding="utf-8"))
+    if not re.fullmatch(r"NATIVE_[A-Z0-9_]+", config.database_url_env):
+        raise PrerequisiteError("原生数据库只能读取明确的 NATIVE_* 环境变量")
     if initialize and config.initialize_empty_database is not True:
-        raise PrerequisiteError('请明确批准仅在自己创建的专用空数据库初始化原生框架')
-    env = {**dotenv_values(ROOT / '.env'), **os.environ}
+        raise PrerequisiteError("请明确批准仅在自己创建的专用空数据库初始化原生框架")
+    env = {**dotenv_values(ROOT / ".env"), **os.environ}
     url = env.get(config.database_url_env)
     if not url:
-        raise PrerequisiteError('原生数据库环境变量未设置')
+        raise PrerequisiteError("原生数据库环境变量未设置")
     checked_database(url)
     return config, url
 
 
 def prerequisites(template):
-    if os.name == 'nt':
-        raise PrerequisiteError('原生全栈运行通道请在 WSL 2/Linux 使用；默认 Python 通道支持 Windows')
-    commands = ['git', 'uv', 'node', 'pnpm'] + (['java', 'mvn'] if template == 'yudao-vben' else [])
+    if os.name == "nt":
+        raise PrerequisiteError(
+            "原生全栈运行通道请在 WSL 2/Linux 使用；默认 Python 通道支持 Windows"
+        )
+    commands = ["git", "uv", "node", "pnpm"] + (["java", "mvn"] if template == "yudao-vben" else [])
     for name in commands:
         if not shutil.which(name):
-            raise PrerequisiteError(f'缺少原生运行工具：{name}，请按手册原生运行章节安装')
-    if not (ROOT / '.native/browser/node_modules/playwright').is_dir():
-        raise PrerequisiteError('尚未安装独立 Playwright/Chromium 验证工具，请按手册安装')
+            raise PrerequisiteError(f"缺少原生运行工具：{name}，请按手册原生运行章节安装")
+    if not (ROOT / ".native/browser/node_modules/playwright").is_dir():
+        raise PrerequisiteError("尚未安装独立 Playwright/Chromium 验证工具，请按手册安装")
 
 
 def managed_generate(settings, template, plan, destination):
     from workbench.native import prepare_sources
+
     plan = validate_plan(plan)
     destination = Path(destination).resolve()
     _, url = runtime_config(settings, template)
     prerequisites(template)
-    receipt_path = destination.parent / 'native-generation.json'
+    receipt_path = destination.parent / "native-generation.json"
     if receipt_path.is_file():
-        receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
-        if receipt.get('execution') == 'managed-runtime' and receipt.get('spec_digest') == digest(plan.model_dump()):
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        if receipt.get("execution") == "managed-runtime" and receipt.get("spec_digest") == digest(
+            plan.model_dump()
+        ):
             managed_verify(destination, receipt)
             return receipt
-        raise PrerequisiteError('已有产物不能被另一份设计或执行模式覆盖')
+        raise PrerequisiteError("已有产物不能被另一份设计或执行模式覆盖")
     if destination.exists():
-        raise PrerequisiteError('上次原生任务未完成；保留现场，新建运行和新的专用空库，不自动删除数据')
+        raise PrerequisiteError(
+            "上次原生任务未完成；保留现场，新建运行和新的专用空库，不自动删除数据"
+        )
     sources = prepare_sources(settings, template)
-    slots = {item['slot']: Path(item['path']) for item in sources}
-    reports = destination.parent / 'native-evidence'
-    source = slots['fastapiadmin'] if template == 'fastapiadmin' else slots['backend']
-    output = destination if template == 'fastapiadmin' else destination / 'backend'
-    report = run_acceptance(template, source, output, slots.get('frontend'), url, reports, plan)
-    if report.get('generated_runtime_verified') is not True:
-        raise PrerequisiteError('原生运行验收尚未完成')
-    atomic_text(destination / 'NATIVE_DELIVERY.md', '# 原生全栈开发交付\n\n'
-        f'模板：{template}。数据范围为共享业务数据 + 原生角色权限，非逐用户数据隔离。\n\n'
-        '产品依赖保留的专用 PostgreSQL 开发数据库（包含原生初始化、菜单、角色和业务表）与 Redis。'
-        '本源码包不是数据库备份；迁往空库前必须另行备份/迁移数据库与菜单。\n\n'
-        f'在生成它的平台目录运行 `uv run rnd native serve {destination.parent.name}` 可重新打开当前产品。'
-        '该命令不会重建或删除数据库。生产部署需修改示例密码、关闭测试账号并重新配置 HTTPS 和凭据。\n')
-    receipt = {'template': template, 'execution': 'managed-runtime', 'sources': [{k: v for k, v in item.items() if k != 'path'} for item in sources], 'spec_digest': digest(plan.model_dump()), 'files': manifest(destination), 'validation_level': 'runtime', 'runtime_verified': True, 'evidence_sha256': sha(reports / 'acceptance.json'), 'report': report}
+    slots = {item["slot"]: Path(item["path"]) for item in sources}
+    reports = destination.parent / "native-evidence"
+    source = slots["fastapiadmin"] if template == "fastapiadmin" else slots["backend"]
+    output = destination if template == "fastapiadmin" else destination / "backend"
+    report = run_acceptance(template, source, output, slots.get("frontend"), url, reports, plan)
+    if report.get("generated_runtime_verified") is not True:
+        raise PrerequisiteError("原生运行验收尚未完成")
+    atomic_text(
+        destination / "NATIVE_DELIVERY.md",
+        "# 原生全栈开发交付\n\n"
+        f"模板：{template}。数据范围为共享业务数据 + 原生角色权限，非逐用户数据隔离。\n\n"
+        "产品依赖保留的专用 PostgreSQL 开发数据库（包含原生初始化、菜单、角色和业务表）与 Redis。"
+        "本源码包不是数据库备份；迁往空库前必须另行备份/迁移数据库与菜单。\n\n"
+        f"在生成它的平台目录运行 `uv run rnd native serve {destination.parent.name}` 可重新打开当前产品。"
+        "该命令不会重建或删除数据库。生产部署需修改示例密码、关闭测试账号并重新配置 HTTPS 和凭据。\n",
+    )
+    receipt = {
+        "template": template,
+        "execution": "managed-runtime",
+        "sources": [{k: v for k, v in item.items() if k != "path"} for item in sources],
+        "spec_digest": digest(plan.model_dump()),
+        "files": manifest(destination),
+        "validation_level": "runtime",
+        "runtime_verified": True,
+        "evidence_sha256": sha(reports / "acceptance.json"),
+        "report": report,
+    }
     write_json(receipt_path, receipt)
     return receipt
 
 
 def managed_verify(destination, receipt):
     destination = Path(destination)
-    report_path = destination.parent / 'native-evidence/acceptance.json'
-    if not report_path.is_file() or sha(report_path) != receipt.get('evidence_sha256'):
-        raise PrerequisiteError('原生运行证据丢失或已改变')
-    report = json.loads(report_path.read_text(encoding='utf-8'))
-    gates = ('generated_runtime_verified', 'native_codegen', 'automatic_mount', 'menu_and_permissions', 'real_crud', 'restart_persistence', 'frontend_build', 'frontend_typecheck', 'real_browser', 'source_unmodified')
+    report_path = destination.parent / "native-evidence/acceptance.json"
+    if not report_path.is_file() or sha(report_path) != receipt.get("evidence_sha256"):
+        raise PrerequisiteError("原生运行证据丢失或已改变")
+    report = json.loads(report_path.read_text(encoding="utf-8"))
+    gates = (
+        "generated_runtime_verified",
+        "native_codegen",
+        "automatic_mount",
+        "menu_and_permissions",
+        "real_crud",
+        "restart_persistence",
+        "frontend_build",
+        "frontend_typecheck",
+        "real_browser",
+        "source_unmodified",
+    )
     if any(report.get(name) is not True for name in gates):
-        raise PrerequisiteError('原生运行未满足所有独立验收门槛')
+        raise PrerequisiteError("原生运行未满足所有独立验收门槛")
     current = manifest(destination)
-    if current != receipt['files'] or report.get('spec_digest') != receipt.get('spec_digest'):
-        raise PrerequisiteError('原生源码或设计在验收后发生变化，需要重新验证')
-    result = {'passed': True, 'validation_level': 'runtime', 'runtime_verified': True, 'production_ready': False, 'source_digest': digest(current), 'evidence_sha256': receipt['evidence_sha256'], 'checks': list(gates), 'database_delivery': 'existing-dedicated-lab-database-required'}
-    write_json(destination.parent / 'verification.json', result)
+    if current != receipt["files"] or report.get("spec_digest") != receipt.get("spec_digest"):
+        raise PrerequisiteError("原生源码或设计在验收后发生变化，需要重新验证")
+    result = {
+        "passed": True,
+        "validation_level": "runtime",
+        "runtime_verified": True,
+        "production_ready": False,
+        "source_digest": digest(current),
+        "evidence_sha256": receipt["evidence_sha256"],
+        "checks": list(gates),
+        "database_delivery": "existing-dedicated-lab-database-required",
+    }
+    write_json(destination.parent / "verification.json", result)
     return result
 
 
 def managed_package(destination, report):
     destination = Path(destination)
-    receipt = json.loads((destination.parent / 'native-generation.json').read_text(encoding='utf-8'))
+    receipt = json.loads(
+        (destination.parent / "native-generation.json").read_text(encoding="utf-8")
+    )
     verified = managed_verify(destination, receipt)
     if report != verified:
-        raise PrerequisiteError('交付的原生运行验证报告不匹配')
+        raise PrerequisiteError("交付的原生运行验证报告不匹配")
     listing = manifest(destination)
-    package = destination.parent / 'native-runtime.zip'
-    with zipfile.ZipFile(package, 'w', zipfile.ZIP_DEFLATED) as archive:
+    package = destination.parent / "native-runtime.zip"
+    with zipfile.ZipFile(package, "w", zipfile.ZIP_DEFLATED) as archive:
         for name, source in files(destination):
             archive.write(source, name)
-    result = {'package': package.name, 'sha256': sha(package), 'files': listing, 'validation_level': 'runtime', 'runtime_verified': True, 'production_ready': False, 'database_delivery': verified['database_delivery']}
-    write_json(destination.parent / 'delivery.json', result)
+    result = {
+        "package": package.name,
+        "sha256": sha(package),
+        "files": listing,
+        "validation_level": "runtime",
+        "runtime_verified": True,
+        "production_ready": False,
+        "database_delivery": verified["database_delivery"],
+    }
+    write_json(destination.parent / "delivery.json", result)
     return result
 
 
 def serve_managed(settings, run_id):
     run_id = str(uuid.UUID(run_id))
-    destination = settings.data_dir / 'runs' / run_id / 'product'
-    receipt_path = destination.parent / 'native-generation.json'
+    destination = settings.data_dir / "runs" / run_id / "product"
+    receipt_path = destination.parent / "native-generation.json"
     if not receipt_path.is_file():
-        raise PrerequisiteError('未找到此运行的原生全栈产品')
-    receipt = json.loads(receipt_path.read_text(encoding='utf-8'))
-    if receipt.get('execution') != 'managed-runtime':
-        raise PrerequisiteError('SOURCE_READY 源码导出不能直接作为已挂载产品启动')
+        raise PrerequisiteError("未找到此运行的原生全栈产品")
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    if receipt.get("execution") != "managed-runtime":
+        raise PrerequisiteError("SOURCE_READY 源码导出不能直接作为已挂载产品启动")
     managed_verify(destination, receipt)
-    template = receipt['template']
+    template = receipt["template"]
     _, url = runtime_config(settings, template, initialize=False)
-    backend = destination / 'backend'
-    frontend = destination / ('frontend/web' if template == 'fastapiadmin' else 'frontend-product')
-    env = native_environment(template, backend, url, 8001 if template == 'fastapiadmin' else 48080)
-    reports = destination.parent / 'native-live'
+    backend = destination / "backend"
+    frontend = destination / ("frontend/web" if template == "fastapiadmin" else "frontend-product")
+    env = native_environment(template, backend, url, 8001 if template == "fastapiadmin" else 48080)
+    reports = destination.parent / "native-live"
     with ExitStack() as stack:
         base, _ = stack.enter_context(running_backend(template, backend, env, reports))
-        front = stack.enter_context(frontend_preview(template, frontend, frontend_environment(template, base), reports))
-        print(f'Native backend: {base}; native frontend: {front}; Ctrl+C to stop', flush=True)
+        front = stack.enter_context(
+            frontend_preview(template, frontend, frontend_environment(template, base), reports)
+        )
+        print(f"Native backend: {base}; native frontend: {front}; Ctrl+C to stop", flush=True)
         import time
+
         while True:
             time.sleep(1)

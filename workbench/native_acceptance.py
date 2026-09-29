@@ -16,9 +16,16 @@ from workbench.native_checks import (
 from workbench.native_environment import login
 
 
-def sample_record(entity, suffix="original"):
+def wire_name(template, name):
+    if template == "fastapiadmin":
+        return name
+    first, *rest = name.split("_")
+    return first + "".join(piece[:1].upper() + piece[1:] for piece in rest)
+
+
+def sample_record(entity, suffix="original", template="fastapiadmin"):
     return {
-        f.name: (
+        wire_name(template, f.name): (
             f"{entity.name}-{suffix}"[: f.max_length]
             if f.kind == "text"
             else 7
@@ -49,7 +56,7 @@ def generated_crud(template, base_url, token, targets, plan):
             listing = target["list"]
             denied(client.get(listing))
             denied(client.get(listing, headers={"Authorization": "Bearer test1"}))
-            data = sample_record(entity)
+            data = sample_record(entity, template=template)
             created = payload(client.post(target["api"] + "/create", json=data, headers=admin))
             identifier = record_id(created)
             assert isinstance(identifier, int) and identifier > 0
@@ -66,7 +73,7 @@ def generated_crud(template, base_url, token, targets, plan):
             saved = get_item()
             for key, value in data.items():
                 assert saved[key] == value, f"Create/read mismatch for {key}"
-            changed = sample_record(entity, "updated")
+            changed = sample_record(entity, "updated", template)
             if fastapi:
                 payload(
                     client.put(target["api"] + f"/update/{identifier}", json=changed, headers=admin)
@@ -84,10 +91,13 @@ def generated_crud(template, base_url, token, targets, plan):
             assert any(row["id"] == identifier for row in rows)
             invalid = dict(data)
             required = next(f for f in entity.fields if f.required and f.kind != "boolean")
-            invalid.pop(required.name)
+            invalid.pop(wire_name(template, required.name))
             response = client.post(target["api"] + "/create", json=invalid, headers=admin)
             assert not successful(response) and response.status_code < 500
-            assert response.json().get("code", response.status_code) in (400, 422)
+            assert response.status_code in (400, 422) or response.json().get("code") in (
+                400,
+                422,
+            ), "Required-field validation must return a client validation error"
             if fastapi:
                 payload(
                     client.request(
@@ -104,11 +114,13 @@ def generated_crud(template, base_url, token, targets, plan):
             assert not any(row["id"] == identifier for row in rows), (
                 "Delete did not remove business item"
             )
-            sample = sample_record(entity, "persistent")
+            sample = sample_record(entity, "persistent", template)
             persistent = record_id(
                 payload(client.post(target["api"] + "/create", json=sample, headers=admin))
             )
-            target["sample"] = next(str(sample[f.name]) for f in entity.fields if f.kind == "text")
+            target["sample"] = next(
+                str(sample[wire_name(template, f.name)]) for f in entity.fields if f.kind == "text"
+            )
             results.append(
                 {
                     "entity": entity.name,
@@ -232,7 +244,11 @@ def generated_permissions(template, base_url, token, targets, plan):
             )
             assert marker in str(menus), "Generated page is absent from native menus"
             denied(
-                client.post(target["api"] + "/create", json=sample_record(entity), headers=reader)
+                client.post(
+                    target["api"] + "/create",
+                    json=sample_record(entity, template=template),
+                    headers=reader,
+                )
             )
         assign(full_ids)
         writer = identity()
@@ -243,7 +259,9 @@ def generated_permissions(template, base_url, token, targets, plan):
         for target, entity in zip(targets, plan.entities, strict=True):
             payload(
                 client.post(
-                    target["api"] + "/create", json=sample_record(entity, "writer"), headers=writer
+                    target["api"] + "/create",
+                    json=sample_record(entity, "writer", template),
+                    headers=writer,
                 )
             )
         assign([])

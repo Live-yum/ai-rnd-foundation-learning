@@ -159,3 +159,12 @@ def test_every_native_column_has_a_codegen_comment():
     for template in ("fastapiadmin", "yudao-vben"):
         _, tables, _ = native_metadata(template, acceptance_spec(), URL, "comments")
         assert all(column.comment for table in tables for column in table.c)
+
+
+def test_yudao_logic_delete_matches_pinned_postgres_seed():
+    from sqlalchemy import SmallInteger
+
+    _, tables, _ = native_metadata("yudao-vben", acceptance_spec(), URL, "logic-delete")
+    assert isinstance(tables[0].c.deleted.type, SmallInteger)
+    assert str(tables[0].c.deleted.server_default.arg) == "0"
+    assert "deleted SMALLINT" in str(CreateTable(tables[0]).compile(dialect=postgresql.dialect()))

@@ -248,5 +248,24 @@ def config_example(template: str):
     typer.echo(str(write_config_example(Settings(), template)))
 
 
+@native_app.command("runtime-config")
+def native_runtime_config(template: str):
+    """创建原生全栈运行配置；必须显式授权专用空 PostgreSQL 库。"""
+    from workbench.native_delivery import write_runtime_example
+
+    typer.echo(str(write_runtime_example(Settings(), template)))
+
+
+@native_app.command("serve")
+def native_serve(run: str):
+    """重新打开已验收原生产品；复用开发库，不删库、不重新生成。"""
+    from workbench.native_delivery import serve_managed
+
+    try:
+        serve_managed(Settings(), run)
+    except KeyboardInterrupt:
+        typer.echo("原生后端和前端预览已停止。")
+
+
 if __name__ == "__main__":
     app()
