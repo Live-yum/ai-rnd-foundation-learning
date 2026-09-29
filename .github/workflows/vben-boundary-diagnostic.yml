@@ -1,0 +1,86 @@
+name: Vben source boundary diagnostics
+on:
+  push:
+    branches: [diagnostics/vben-build]
+    paths: [.github/workflows/vben-boundary-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [git-boundary, public-dotenv, both]
+    runs-on: ubuntu-latest
+    timeout-minutes: 9
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: yudaocode/yudao-ui-admin-vben
+          ref: 1b14e889f529e245fd620daa720dcea6de0cc5e7
+          path: .native/source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: npm install --global pnpm@11.16.0
+      - run: uv sync --locked
+      - name: Prepare workspace without changing application routes
+        env:
+          DIAGNOSTIC_MODE: ${{ matrix.mode }}
+        run: |
+          uv run python - <<'PY'
+          import os, json, shutil, subprocess
+          from pathlib import Path
+          from workbench.native_environment import copy_source
+          from workbench.native_frontend import frontend_environment
+          root = Path('.native/product/frontend-product')
+          copy_source(Path('.native/source'), root)
+          app = root / 'apps/web-antd'
+          mode = os.environ['DIAGNOSTIC_MODE']
+          if mode in {'git-boundary','both'}:
+              subprocess.run(['git','init',str(root)],check=True)
+          if mode in {'public-dotenv','both'}:
+              shutil.copyfile('.native/source/apps/web-antd/.env',app/'.env')
+          env = frontend_environment('yudao-vben','http://127.0.0.1:48080')
+          (app/'.env.production').write_text('\n'.join(f'{k}={json.dumps(v)}' for k,v in env.items() if k.startswith('VITE_'))+'\n')
+          for file in app.glob('src/views/fms/**/*.vue'):
+              text = file.read_text()
+              if 'auxiliary-select-modal.vue' in text:
+                  file.write_text(text.replace('auxiliary-select-modal.vue','auxiliary-item-select.vue'))
+          Path('reports').mkdir(exist_ok=True)
+          Path('diagnostic-environment.json').write_text(json.dumps(env))
+          PY
+      - run: pnpm install --frozen-lockfile
+        working-directory: .native/product/frontend-product
+        env:
+          CI: 'true'
+          HUSKY: '0'
+      - name: Whole application build and typecheck
+        run: |
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+          from workbench.tools import run_command
+          app = Path('.native/product/frontend-product/apps/web-antd').resolve()
+          env = json.loads(Path('diagnostic-environment.json').read_text())
+          for label,command in [('build',['pnpm','exec','vite','build','--mode','production']),('typecheck',['pnpm','exec','vue-tsc','--noEmit','--skipLibCheck'])]:
+              try:
+                  result = run_command(command,app,125,env,heartbeat=label)
+                  Path(f'reports/{label}.log').write_text(result['log'])
+              except Exception as exc:
+                  Path(f'reports/{label}.log').write_text(getattr(exc,'log',str(exc)))
+                  raise
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vben-boundary-${{ matrix.mode }}
+          path: reports/
+          retention-days: 3
