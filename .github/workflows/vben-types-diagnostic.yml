@@ -1,0 +1,49 @@
+name: Vben complete typecheck diagnostics
+on:
+  push:
+    branches: [diagnostics/vben-build]
+    paths: [.github/workflows/vben-types-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: yudaocode/yudao-ui-admin-vben
+          ref: 1b14e889f529e245fd620daa720dcea6de0cc5e7
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --global pnpm@11.16.0
+      - name: Correct three stale imports to the existing component
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          for f in Path('apps/web-antd/src/views/fms').rglob('*.vue'):
+              s=f.read_text()
+              if 'auxiliary-select-modal.vue' in s:
+                  f.write_text(s.replace('auxiliary-select-modal.vue','auxiliary-item-select.vue'))
+          PY
+      - run: pnpm install --frozen-lockfile
+        env:
+          CI: 'true'
+          HUSKY: '0'
+      - name: Full production build
+        run: |
+          mkdir -p reports
+          cd apps/web-antd
+          CI=true RAYON_NUM_THREADS=2 NODE_OPTIONS=--max-old-space-size=8192 timeout 150s pnpm exec vite build --mode production > ../../reports/build.log 2>&1
+      - name: Full original application typecheck
+        run: |
+          cd apps/web-antd
+          CI=true NODE_OPTIONS=--max-old-space-size=8192 timeout 150s pnpm exec vue-tsc --noEmit --skipLibCheck > ../../reports/types.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vben-full-types
+          path: reports/
+          retention-days: 3
