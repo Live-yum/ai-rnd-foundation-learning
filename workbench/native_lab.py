@@ -125,6 +125,8 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
                 reports / "restart/persistence.json",
                 check_generated_persistence(template, base_url, token, targets, records),
             )
+            for target, entity in zip(targets, plan.entities, strict=True):
+                target["fields"] = [field.model_dump() for field in entity.fields]
             write_json(reports / "browser-targets.json", targets)
             with frontend_preview(template, frontend, front_env, reports) as front_url:
                 stage("native-browser")

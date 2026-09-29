@@ -759,7 +759,7 @@ uv run python -c "import json; d=json.load(open('reports/native-fastapiadmin/acc
 
 ### 19.11 兼容规则与排错
 
-Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。生成器导出的新增表单也做精确兼容：将旧式 `modalApi.getData<DTO>()` 的泛型迁到 `useVbenModal<Partial<DTO>>`，保留新增时的空载荷和编辑时的 ID 检查。原始生成 ZIP 不改写，`generation.json` 同时记录原始文件与实际挂载文件的哈希。
+Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。生成器导出的新增表单也做精确兼容：将旧式 `modalApi.getData<DTO>()` 的泛型迁到 `useVbenModal<Partial<DTO>>`，保留新增时的空载荷和编辑时的 ID 检查。原始生成 ZIP 不改写，`generation.json` 同时记录原始文件与实际挂载文件的哈希。未使用的 `Dayjs`、`getDictOptions` 导入仅在确认没有引用时删除，不关闭编译器的未使用检查。整数编辑/查询控件使用 `InputNumber` 并限定零位小数；布尔编辑/查询控件使用有真实 `true/false` 选项的 `RadioGroup`，不提交字符串代替布尔值。Chromium 还会从两个生成页面实际新增记录，检查整数 `0`、布尔 `false` 的请求值和数据库返回值，并保存新增后的页面截图。
 
 工作副本不会复制上游 `.git`、令牌或环境文件。Vben 副本单独执行 `git init --quiet --template=` 建立本地扫描边界，没有上游 remote、提交历史或 hooks；此边界也不进入源码 ZIP。缺少边界时，构建扫描可能跨入平台和兄弟工作目录，导致日志停滞与内存异常增长。不要用扩大内存、删除业务路由或禁用类型检查代替修复。保留原始仓库不变，并保存 `vben-compatibility.json` 中逐文件的 before/after SHA-256。
 
@@ -5288,12 +5288,15 @@ def browser_check(template, url, reports):
 
 ### `workbench/native_vben.py`
 
-<!-- source-file: workbench/native_vben.py sha256: f7d1685f65981dc0bbd866e4b1c73332cca9a706ce31d7b2ebb308fb1b68c6a4 -->
+<!-- source-file: workbench/native_vben.py sha256: 6f23a254bec972ffe29b71631f665929d5e9be60924479ba1f4e581b27d843d3 -->
 ````python
 """Reviewed compatibility for pinned Vben 1b14e889; no routes or type checks removed."""
 
+import re
+from collections.abc import Sequence
 from pathlib import Path
 
+from workbench.domain import FieldSpec
 from workbench.filesystem import atomic_text, sha, write_json
 from workbench.tools import run_command
 
@@ -5495,11 +5498,68 @@ def adapt_generated_form(source: str, class_name: str) -> str:
         1,
         "generated modal getter",
     )
+
+
+def prune_generated_import(source: str, identifier: str, declaration: str) -> str:
+    """Remove only an exact unused single import emitted by the pinned generator."""
+    if declaration not in source:
+        return source
+    if source.count(declaration) != 1:
+        raise ValueError("Duplicate generated import: " + identifier)
+    remaining = source.replace(declaration, "", 1)
+    if re.search(r"\b" + re.escape(identifier) + r"\b", remaining):
+        return source
+    return remaining
+
+
+def adapt_generated_schema(source: str, fields: Sequence[FieldSpec]) -> str:
+    """Preserve declared value kinds in both generated edit and search forms."""
+    source = prune_generated_import(
+        source, "getDictOptions", "import { getDictOptions } from '@vben/hooks';\n"
+    )
+    for field in fields:
+        if field.kind == "text":
+            continue
+        first, *rest = field.name.split("_")
+        name = first + "".join(piece[:1].upper() + piece[1:] for piece in rest)
+        # Guard the pinned template; never consume the next field on shape drift.
+        pattern = re.compile(
+            r"    \{\n      fieldName: '" + re.escape(name) + r"',\n(?:(?!fieldName:).)*?\n    \},",
+            re.DOTALL,
+        )
+        if not 1 <= len(list(pattern.finditer(source))) <= 2:
+            raise ValueError("Unsupported generated form field shape: " + name)
+
+        def transform(match):
+            block = match.group(0)
+            if field.kind == "integer":
+                block = checked_replacement(
+                    block, "component: 'Input',", "component: 'InputNumber',", 1, name
+                )
+                return checked_replacement(
+                    block, "componentProps: {", "componentProps: {\n        precision: 0,", 1, name
+                )
+            if "component: 'Select'," in block:
+                block = checked_replacement(
+                    block, "component: 'Select',", "component: 'RadioGroup',", 1, name
+                )
+            elif block.count("component: 'RadioGroup',") != 1:
+                raise ValueError("Unsupported generated boolean control: " + name)
+            return checked_replacement(
+                block,
+                "options: [],",
+                "options: [{ label: '是', value: true }, { label: '否', value: false }],",
+                1,
+                name,
+            )
+
+        source = pattern.sub(transform, source)
+    return source
 ````
 
 ### `workbench/native_modules.py`
 
-<!-- source-file: workbench/native_modules.py sha256: 3207e281fb569e0a383d851c82c1e58fb4873cafb322d6168fa3b4c3bad21dc1 -->
+<!-- source-file: workbench/native_modules.py sha256: 1fa0251aeb410f1934ef0b45f37d18c81c38ebac6edd510a2f367dfeef71c94e -->
 ````python
 """Native codegen -> deterministic mounting -> native menu metadata. No model-written CRUD."""
 
@@ -5530,7 +5590,11 @@ from workbench.filesystem import atomic_text, inside, sha, unpack, write_json
 from workbench.native import NativeClient, NativeConfig
 from workbench.native_checks import payload, record_id
 from workbench.native_environment import checked_database
-from workbench.native_vben import adapt_generated_form
+from workbench.native_vben import (
+    adapt_generated_form,
+    adapt_generated_schema,
+    prune_generated_import,
+)
 
 RESERVED = {
     "id",
@@ -5730,6 +5794,12 @@ def mount_yudao_export(export, backend, frontend, entity, reports, used_errors):
                 if relative == f"views/infra/{slug}/modules/form.vue":
                     class_name = "Wb" + "".join(p.title() for p in entity.name.split("_"))
                     body = adapt_generated_form(body, class_name)
+                elif relative == f"views/infra/{slug}/data.ts":
+                    body = adapt_generated_schema(body, entity.fields)
+                elif relative == f"api/infra/{slug}/index.ts":
+                    body = prune_generated_import(
+                        body, "Dayjs", "import type { Dayjs } from 'dayjs';\n"
+                    )
             else:
                 raise ValueError("Unsupported native generated file: " + name)
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -6363,7 +6433,7 @@ def generated_permissions(template, base_url, token, targets, plan):
 
 ### `workbench/native_lab.py`
 
-<!-- source-file: workbench/native_lab.py sha256: efef0299d63972b6e6389b3166ebca318e7041a3f43127c7bf38b930d942423c -->
+<!-- source-file: workbench/native_lab.py sha256: cbaf8b0e1a82e790385ff9e0d4bede5293e59118ce618368bdae4b05d0d4b010 -->
 ````python
 """Actual native generation, mounting, permissions, CRUD, restart and browser acceptance."""
 
@@ -6492,6 +6562,8 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
                 reports / "restart/persistence.json",
                 check_generated_persistence(template, base_url, token, targets, records),
             )
+            for target, entity in zip(targets, plan.entities, strict=True):
+                target["fields"] = [field.model_dump() for field in entity.fields]
             write_json(reports / "browser-targets.json", targets)
             with frontend_preview(template, frontend, front_env, reports) as front_url:
                 stage("native-browser")
@@ -8838,7 +8910,7 @@ def test_updates_exercise_integer_and_boolean_changes():
 
 ### `tests/test_native_vben.py`
 
-<!-- source-file: tests/test_native_vben.py sha256: 02bd54991e6beacce6bec362e3396d28736ed277cc855a0edddf8fa3586e6b58 -->
+<!-- source-file: tests/test_native_vben.py sha256: 3e9a9a109fa79e7ccd1dea7be31c1fb2c0e56da7c50dc72372d1f40cd6bffaa4 -->
 ````python
 """Small regression contracts; full Vben verification uses the real pinned application."""
 
@@ -8847,12 +8919,15 @@ from pathlib import Path
 
 import pytest
 
+from workbench.domain import FieldSpec
 from workbench.filesystem import manifest
 from workbench.native_environment import copy_source
 from workbench.native_vben import (
     adapt_generated_form,
+    adapt_generated_schema,
     checked_replacement,
     initialize_vben_boundary,
+    prune_generated_import,
 )
 from workbench.tools import run_command
 
@@ -8909,6 +8984,66 @@ def test_generated_modal_keeps_precise_dto_and_optional_create_payload(class_nam
 def test_generated_modal_contract_drift_is_not_silently_accepted():
     with pytest.raises(ValueError, match="compatibility contract changed"):
         adapt_generated_form("const [Modal, modalApi] = useVbenModal({});", "WbDevice")
+
+
+@pytest.mark.parametrize(
+    "identifier,line",
+    [
+        ("Dayjs", "import type { Dayjs } from 'dayjs';\n"),
+        ("getDictOptions", "import { getDictOptions } from '@vben/hooks';\n"),
+    ],
+)
+def test_pruning_never_removes_an_import_still_used(identifier, line):
+    assert (
+        prune_generated_import(line + "const unrelated = 1;", identifier, line)
+        == "const unrelated = 1;"
+    )
+    used = line + f"const value = {identifier};"
+    assert prune_generated_import(used, identifier, line) == used
+    with pytest.raises(ValueError, match="Duplicate"):
+        prune_generated_import(line + line, identifier, line)
+
+
+def schema_field(name, component, options=False):
+    return (
+        "    {\n"
+        + f"      fieldName: '{name}',\n      label: '{name}',\n"
+        + f"      component: '{component}',\n      componentProps: {{\n"
+        + ("        options: [],\n" if options else "        placeholder: 'value',\n")
+        + "      },\n    },"
+    )
+
+
+def test_generated_schema_preserves_zero_false_and_all_fields():
+    source = (
+        schema_field("itemCount", "Input")
+        + "\n"
+        + schema_field("enabled", "RadioGroup", True)
+        + "\n"
+        + schema_field("itemCount", "Input")
+        + "\n"
+        + schema_field("enabled", "Select", True)
+    )
+    result = adapt_generated_schema(
+        source,
+        [
+            FieldSpec(name="item_count", kind="integer"),
+            FieldSpec(name="enabled", kind="boolean"),
+        ],
+    )
+    assert result.count("fieldName:") == source.count("fieldName:") == 4
+    assert result.count("component: 'InputNumber'") == 2
+    assert result.count("precision: 0") == 2
+    assert result.count("component: 'RadioGroup'") == 2
+    assert result.count("value: false") == result.count("value: true") == 2
+    assert "value: 'false'" not in result
+    assert "options: []" in source and "options: []" not in result
+
+
+@pytest.mark.parametrize("source", ["", schema_field("enabled", "Switch", True)])
+def test_unknown_generated_boolean_shape_fails_closed(source):
+    with pytest.raises(ValueError, match="Unsupported generated"):
+        adapt_generated_schema(source, [FieldSpec(name="enabled", kind="boolean")])
 ````
 
 ### `tests/test_postgres.py`
@@ -9758,7 +9893,7 @@ print(
 
 ### `scripts/native_browser.cjs`
 
-<!-- source-file: scripts/native_browser.cjs sha256: d3bdd71b5b43eaaea71c06d476552b62451ceb94bc8c610e776369e33c42541a -->
+<!-- source-file: scripts/native_browser.cjs sha256: adf5722bc337daee75ebfe4f2d9416e97b8af56616186d670feeed672468406e -->
 ````javascript
 // Real Chromium against the disposable loopback lab; no route mocks or injected tokens.
 const fs = require('node:fs');
@@ -9838,7 +9973,43 @@ async function main() {
       await page.locator(fastapi ? '.el-table' : '.vxe-table').first().waitFor({ state: 'visible' });
       if (target.sample) await page.getByText(target.sample, { exact: true }).first().waitFor({ state: 'visible' });
       await page.screenshot({ path: path.join(reportDir, (target.entity || 'system-user') + '.png'), fullPage: true });
-      report.pages.push({ route: target.route, real_list_request: true, rendered: true });
+      const pageResult = { route: target.route, real_list_request: true, rendered: true };
+      if (!fastapi && target.fields) {
+        // Submit through the real generated UI; zero/false must not become strings or disappear.
+        await page.getByRole('button', { name: /^新增|^创建/ }).first().click();
+        const dialog = page.getByRole('dialog').last();
+        await dialog.waitFor({ state: 'visible' });
+        const expected = {};
+        let booleanIndex = 0;
+        for (const field of target.fields) {
+          const key = field.name.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+          if (field.kind === 'boolean') {
+            await dialog.getByRole('radio', { name: '否', exact: true }).nth(booleanIndex++).check();
+            expected[key] = false;
+          } else {
+            const value = field.kind === 'integer' ? 0 : (target.entity + '-browser').slice(0, field.max_length);
+            await dialog.getByPlaceholder('请输入' + field.name, { exact: true }).fill(String(value));
+            expected[key] = value;
+          }
+        }
+        const created = observe(target.api + '/create', 'POST');
+        const refreshed = observe(target.list);
+        await dialog.getByRole('button', { name: /^确\s*认$|^确\s*定$/ }).click();
+        const captured = await created;
+        if (captured.error) throw captured.error;
+        const sent = captured.response.request().postDataJSON();
+        for (const [key, value] of Object.entries(expected)) assert.equal(sent[key], value, 'Generated form kind: ' + key);
+        await checked(Promise.resolve(captured));
+        const listed = await checked(refreshed);
+        assert(listed.list.some(row => Object.entries(expected).every(([key, value]) => row[key] === value)), 'Submitted record was not returned by real list API');
+        await dialog.waitFor({ state: 'hidden' });
+        const text = Object.values(expected).find(value => typeof value === 'string');
+        if (text) await page.getByText(text, { exact: true }).first().waitFor({ state: 'visible' });
+        await page.screenshot({ path: path.join(reportDir, target.entity + '-created.png'), fullPage: true });
+        pageResult.real_form_create = true;
+        pageResult.typed_values_preserved = true;
+      }
+      report.pages.push(pageResult);
     }
     assert.equal(errors.length, 0, 'Uncaught frontend errors');
     Object.assign(report, { passed: true, real_login: true, native_menu_received: true, generated_modules_verified: !!moduleFile });
@@ -12011,7 +12182,7 @@ uv sync --locked --extra postgres
 
 ### `docs/native-baseline.md`
 
-<!-- source-file: docs/native-baseline.md sha256: 3923b82c77ac9b14988a6b78e101f9a0d462f6d51c2dff2f2e05730f335c73ca -->
+<!-- source-file: docs/native-baseline.md sha256: 095f58fc8007c6168d30b2f566d84e00c34b2b462abce79d2c7eeb2f1ab31943 -->
 ````markdown
 ## 19. 原生生成产品：自动挂载、菜单权限和完整前后端验收
 
@@ -12301,7 +12472,7 @@ uv run python -c "import json; d=json.load(open('reports/native-fastapiadmin/acc
 
 ### 19.11 兼容规则与排错
 
-Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。生成器导出的新增表单也做精确兼容：将旧式 `modalApi.getData<DTO>()` 的泛型迁到 `useVbenModal<Partial<DTO>>`，保留新增时的空载荷和编辑时的 ID 检查。原始生成 ZIP 不改写，`generation.json` 同时记录原始文件与实际挂载文件的哈希。
+Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。生成器导出的新增表单也做精确兼容：将旧式 `modalApi.getData<DTO>()` 的泛型迁到 `useVbenModal<Partial<DTO>>`，保留新增时的空载荷和编辑时的 ID 检查。原始生成 ZIP 不改写，`generation.json` 同时记录原始文件与实际挂载文件的哈希。未使用的 `Dayjs`、`getDictOptions` 导入仅在确认没有引用时删除，不关闭编译器的未使用检查。整数编辑/查询控件使用 `InputNumber` 并限定零位小数；布尔编辑/查询控件使用有真实 `true/false` 选项的 `RadioGroup`，不提交字符串代替布尔值。Chromium 还会从两个生成页面实际新增记录，检查整数 `0`、布尔 `false` 的请求值和数据库返回值，并保存新增后的页面截图。
 
 工作副本不会复制上游 `.git`、令牌或环境文件。Vben 副本单独执行 `git init --quiet --template=` 建立本地扫描边界，没有上游 remote、提交历史或 hooks；此边界也不进入源码 ZIP。缺少边界时，构建扫描可能跨入平台和兄弟工作目录，导致日志停滞与内存异常增长。不要用扩大内存、删除业务路由或禁用类型检查代替修复。保留原始仓库不变，并保存 `vben-compatibility.json` 中逐文件的 before/after SHA-256。
 

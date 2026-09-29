@@ -76,7 +76,43 @@ async function main() {
       await page.locator(fastapi ? '.el-table' : '.vxe-table').first().waitFor({ state: 'visible' });
       if (target.sample) await page.getByText(target.sample, { exact: true }).first().waitFor({ state: 'visible' });
       await page.screenshot({ path: path.join(reportDir, (target.entity || 'system-user') + '.png'), fullPage: true });
-      report.pages.push({ route: target.route, real_list_request: true, rendered: true });
+      const pageResult = { route: target.route, real_list_request: true, rendered: true };
+      if (!fastapi && target.fields) {
+        // Submit through the real generated UI; zero/false must not become strings or disappear.
+        await page.getByRole('button', { name: /^新增|^创建/ }).first().click();
+        const dialog = page.getByRole('dialog').last();
+        await dialog.waitFor({ state: 'visible' });
+        const expected = {};
+        let booleanIndex = 0;
+        for (const field of target.fields) {
+          const key = field.name.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+          if (field.kind === 'boolean') {
+            await dialog.getByRole('radio', { name: '否', exact: true }).nth(booleanIndex++).check();
+            expected[key] = false;
+          } else {
+            const value = field.kind === 'integer' ? 0 : (target.entity + '-browser').slice(0, field.max_length);
+            await dialog.getByPlaceholder('请输入' + field.name, { exact: true }).fill(String(value));
+            expected[key] = value;
+          }
+        }
+        const created = observe(target.api + '/create', 'POST');
+        const refreshed = observe(target.list);
+        await dialog.getByRole('button', { name: /^确\s*认$|^确\s*定$/ }).click();
+        const captured = await created;
+        if (captured.error) throw captured.error;
+        const sent = captured.response.request().postDataJSON();
+        for (const [key, value] of Object.entries(expected)) assert.equal(sent[key], value, 'Generated form kind: ' + key);
+        await checked(Promise.resolve(captured));
+        const listed = await checked(refreshed);
+        assert(listed.list.some(row => Object.entries(expected).every(([key, value]) => row[key] === value)), 'Submitted record was not returned by real list API');
+        await dialog.waitFor({ state: 'hidden' });
+        const text = Object.values(expected).find(value => typeof value === 'string');
+        if (text) await page.getByText(text, { exact: true }).first().waitFor({ state: 'visible' });
+        await page.screenshot({ path: path.join(reportDir, target.entity + '-created.png'), fullPage: true });
+        pageResult.real_form_create = true;
+        pageResult.typed_values_preserved = true;
+      }
+      report.pages.push(pageResult);
     }
     assert.equal(errors.length, 0, 'Uncaught frontend errors');
     Object.assign(report, { passed: true, real_login: true, native_menu_received: true, generated_modules_verified: !!moduleFile });

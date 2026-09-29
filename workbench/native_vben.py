@@ -1,7 +1,10 @@
 """Reviewed compatibility for pinned Vben 1b14e889; no routes or type checks removed."""
 
+import re
+from collections.abc import Sequence
 from pathlib import Path
 
+from workbench.domain import FieldSpec
 from workbench.filesystem import atomic_text, sha, write_json
 from workbench.tools import run_command
 
@@ -203,3 +206,60 @@ def adapt_generated_form(source: str, class_name: str) -> str:
         1,
         "generated modal getter",
     )
+
+
+def prune_generated_import(source: str, identifier: str, declaration: str) -> str:
+    """Remove only an exact unused single import emitted by the pinned generator."""
+    if declaration not in source:
+        return source
+    if source.count(declaration) != 1:
+        raise ValueError("Duplicate generated import: " + identifier)
+    remaining = source.replace(declaration, "", 1)
+    if re.search(r"\b" + re.escape(identifier) + r"\b", remaining):
+        return source
+    return remaining
+
+
+def adapt_generated_schema(source: str, fields: Sequence[FieldSpec]) -> str:
+    """Preserve declared value kinds in both generated edit and search forms."""
+    source = prune_generated_import(
+        source, "getDictOptions", "import { getDictOptions } from '@vben/hooks';\n"
+    )
+    for field in fields:
+        if field.kind == "text":
+            continue
+        first, *rest = field.name.split("_")
+        name = first + "".join(piece[:1].upper() + piece[1:] for piece in rest)
+        # Guard the pinned template; never consume the next field on shape drift.
+        pattern = re.compile(
+            r"    \{\n      fieldName: '" + re.escape(name) + r"',\n(?:(?!fieldName:).)*?\n    \},",
+            re.DOTALL,
+        )
+        if not 1 <= len(list(pattern.finditer(source))) <= 2:
+            raise ValueError("Unsupported generated form field shape: " + name)
+
+        def transform(match):
+            block = match.group(0)
+            if field.kind == "integer":
+                block = checked_replacement(
+                    block, "component: 'Input',", "component: 'InputNumber',", 1, name
+                )
+                return checked_replacement(
+                    block, "componentProps: {", "componentProps: {\n        precision: 0,", 1, name
+                )
+            if "component: 'Select'," in block:
+                block = checked_replacement(
+                    block, "component: 'Select',", "component: 'RadioGroup',", 1, name
+                )
+            elif block.count("component: 'RadioGroup',") != 1:
+                raise ValueError("Unsupported generated boolean control: " + name)
+            return checked_replacement(
+                block,
+                "options: [],",
+                "options: [{ label: '是', value: true }, { label: '否', value: false }],",
+                1,
+                name,
+            )
+
+        source = pattern.sub(transform, source)
+    return source

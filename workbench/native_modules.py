@@ -27,7 +27,11 @@ from workbench.filesystem import atomic_text, inside, sha, unpack, write_json
 from workbench.native import NativeClient, NativeConfig
 from workbench.native_checks import payload, record_id
 from workbench.native_environment import checked_database
-from workbench.native_vben import adapt_generated_form
+from workbench.native_vben import (
+    adapt_generated_form,
+    adapt_generated_schema,
+    prune_generated_import,
+)
 
 RESERVED = {
     "id",
@@ -227,6 +231,12 @@ def mount_yudao_export(export, backend, frontend, entity, reports, used_errors):
                 if relative == f"views/infra/{slug}/modules/form.vue":
                     class_name = "Wb" + "".join(p.title() for p in entity.name.split("_"))
                     body = adapt_generated_form(body, class_name)
+                elif relative == f"views/infra/{slug}/data.ts":
+                    body = adapt_generated_schema(body, entity.fields)
+                elif relative == f"api/infra/{slug}/index.ts":
+                    body = prune_generated_import(
+                        body, "Dayjs", "import type { Dayjs } from 'dayjs';\n"
+                    )
             else:
                 raise ValueError("Unsupported native generated file: " + name)
             target.parent.mkdir(parents=True, exist_ok=True)
