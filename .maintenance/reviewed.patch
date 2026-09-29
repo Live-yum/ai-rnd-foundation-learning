@@ -1,0 +1,80 @@
+diff --git a/scripts/ci_toolchain.py b/scripts/ci_toolchain.py
+index f149a6a..2b824fd 100644
+--- a/scripts/ci_toolchain.py
++++ b/scripts/ci_toolchain.py
+@@ -42,6 +42,7 @@ def main():
+     with tempfile.TemporaryDirectory(prefix="rnd-tools-ci-") as temporary:
+         root = Path(temporary)
+         settings = Settings(data_dir=root / "state", _env_file=None)
++        print("Index bundled Java/Vue source", flush=True)
+         rows = prepare(settings, "yudao-vben")
+         backend = Path(next(row["path"] for row in rows if row["slot"] == "backend"))
+         frontend = Path(next(row["path"] for row in rows if row["slot"] == "frontend"))
+@@ -51,9 +52,11 @@ def main():
+         java = query(backend, bindex, "RestController")
+         vue = query(frontend, findex, "useVbenForm")
+         assert java["matches"] and vue["matches"]
+-        assert any(hit["path"].endswith(".vue") for hit in vue["matches"])
++        assert any(hit["path"].endswith(".vue") for hit in vue["matches"]), vue
+         export_continue(root, backend, bindex)
++        print("Run real MCP stdio roundtrip", flush=True)
+         protocol = asyncio.run(mcp_roundtrip(backend, bindex))
++        print("Run real Aider maps and bounded Git edit", flush=True)
+         java_map = repo_map(backend, bindex, settings)
+         assert ".java" in java_map["text"], java_map
+         source = root / "aider-source"
+diff --git a/tests/test_toolchain.py b/tests/test_toolchain.py
+index a7c3693..c9475d1 100644
+--- a/tests/test_toolchain.py
++++ b/tests/test_toolchain.py
+@@ -346,3 +346,23 @@ def test_ast_packing_covers_every_line_without_one_chunk_per_variable(tmp_path):
+     assert len(packed) == 3
+     assert "\n".join(row[6] for row in packed) == text.rstrip("\n")
+     assert [(row[2], row[3]) for row in packed] == [(1, 60), (61, 120), (121, 180)]
++
++
++def test_exact_hook_usage_is_not_displaced_by_short_camel_case_matches(tmp_path):
++    source, index = tmp_path / "source", tmp_path / "index"
++    source.mkdir()
++    for number in range(100):
++        (source / f"decoy{number}.ts").write_text(
++            "export const use = 1; export const vben = 2; export const form = 3;\n",
++            encoding="utf-8",
++        )
++    (source / "usage.vue").write_text(
++        '<script setup lang="ts">\n'
++        "import { useVbenForm } from '@vben/common-ui';\n"
++        "const [Form, formApi] = useVbenForm({ schema: [] });\n"
++        '</script>\n<template><Form /></template>\n', encoding="utf-8",
++    )
++    build_index(source, index)
++    found = query(source, index, "useVbenForm", limit=3)
++    assert found["matches"][0]["path"] == "usage.vue"
++    assert "useVbenForm" in found["matches"][0]["content"]
+diff --git a/workbench/retrieval.py b/workbench/retrieval.py
+index 6364b1a..d9b520c 100644
+--- a/workbench/retrieval.py
++++ b/workbench/retrieval.py
+@@ -239,11 +239,20 @@ def query(source, index_dir, question, limit=8, max_chars=12000, settings=None,
+             0
+         ] != search_identity(index):
+             raise ValueError("符号索引与检索库版本不一致，请重建")
+-        lexical = db.execute(
++        # Keep the original identifiers ahead of camel-case fallback terms.
++        # Otherwise short "use" / "form" declarations can displace real Hook usages.
++        original_words = list(dict.fromkeys(re.findall(r"[\w]+", question, re.UNICODE)))[:40]
++        exact_expression = " OR ".join('"' + word.replace('"', '""') + '"' for word in original_words)
++        exact = db.execute(
++            "SELECT id FROM search WHERE search MATCH ? ORDER BY bm25(search) LIMIT 80",
++            (exact_expression,),
++        ).fetchall()
++        expanded = db.execute(
+             "SELECT id FROM search WHERE search MATCH ? ORDER BY bm25(search) LIMIT 80",
+             (expression,),
+         ).fetchall()
+-        ranks = [[r[0] for r in lexical]]
++        lexical = list(dict.fromkeys(row[0] for row in [*exact, *expanded]))[:80]
++        ranks = [lexical]
+         mode = "ast+fts5"
+         profile = embedding_profile(settings) if settings else None
+         if profile and settings.embedding_allow_upload:
