@@ -27,7 +27,7 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add workbench scripts tests migrations .github/workflows/native-runtime.yml 从零实现AI研发平台_逐步实操手册_完整版_v3.md
+          git add workbench scripts tests migrations 从零实现AI研发平台_逐步实操手册_完整版_v3.md
           if ! git diff --cached --quiet; then
             git commit -m 'fix: native HTTP decoding, complete table comments and reproducible source documentation'
             git push origin HEAD:feat/python314-workbench

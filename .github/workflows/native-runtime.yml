@@ -70,6 +70,11 @@ jobs:
           java-version: '17'
           cache: maven
           cache-dependency-path: .native/source/**/pom.xml
+      - uses: actions/cache/restore@v4
+        if: matrix.template == 'yudao-vben'
+        with:
+          path: ~/.m2/repository
+          key: native-maven-v1-${{ runner.os }}-${{ matrix.revision }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -85,6 +90,11 @@ jobs:
         env:
           NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
           PLAYWRIGHT_BROWSERS_PATH: '0'
+      - uses: actions/cache/save@v4
+        if: always() && matrix.template == 'yudao-vben'
+        with:
+          path: ~/.m2/repository
+          key: native-maven-v1-${{ runner.os }}-${{ matrix.revision }}
       - name: Preserve revisions and actual evidence
         if: always()
         run: |
