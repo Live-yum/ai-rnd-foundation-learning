@@ -65,6 +65,19 @@ def runtime_config(settings, template, *, initialize=True):
     return config, url
 
 
+def database_identity(url):
+    """Bind a retained product to its database without storing credentials."""
+    parsed = checked_database(url)
+    return digest({"host": parsed.host, "port": parsed.port or 5432, "database": parsed.database})
+
+
+def check_database_identity(receipt, url):
+    if receipt.get("database_identity") != database_identity(url):
+        raise PrerequisiteError(
+            "当前原生数据库不是该产品已验证的数据库；恢复原数据库配置，不自动迁移"
+        )
+
+
 def prerequisites(template):
     if os.name == "nt":
         raise PrerequisiteError(
@@ -91,6 +104,7 @@ def managed_generate(settings, template, plan, destination):
         if receipt.get("execution") == "managed-runtime" and receipt.get("spec_digest") == digest(
             plan.model_dump()
         ):
+            check_database_identity(receipt, url)
             managed_verify(destination, receipt)
             return receipt
         raise PrerequisiteError("已有产物不能被另一份设计或执行模式覆盖")
@@ -118,6 +132,7 @@ def managed_generate(settings, template, plan, destination):
     receipt = {
         "template": template,
         "execution": "managed-runtime",
+        "database_identity": database_identity(url),
         "sources": [{k: v for k, v in item.items() if k != "path"} for item in sources],
         "spec_digest": digest(plan.model_dump()),
         "files": manifest(destination),
@@ -205,6 +220,7 @@ def serve_managed(settings, run_id):
     managed_verify(destination, receipt)
     template = receipt["template"]
     _, url = runtime_config(settings, template, initialize=False)
+    check_database_identity(receipt, url)
     backend = destination / "backend"
     frontend = destination / ("frontend/web" if template == "fastapiadmin" else "frontend-product")
     env = native_environment(template, backend, url, 8001 if template == "fastapiadmin" else 48080)

@@ -62,6 +62,7 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
     )
     reports.mkdir(parents=True, exist_ok=True)
     before = manifest(source)
+    frontend_before = manifest(frontend_source) if template == "yudao-vben" else None
     copy_source(source, output)
     backend = output / "backend" if template == "fastapiadmin" else output
     if template == "fastapiadmin":
@@ -112,6 +113,11 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
                 reports / "generated/permissions.json",
                 generated_permissions(template, base_url, token, targets, plan),
             )
+        # Compile the large Vben application while the Java process is stopped.
+        # Running both heaps concurrently needlessly exhausts smaller CI/WSL hosts.
+        front_env = frontend_environment(template, base_url)
+        stage("native-frontend-build")
+        build_frontend(template, frontend, front_env, reports)
         stage("restart-persistence")
         with running_backend(template, backend, env, reports / "restart") as (base_url, _):
             token = login(template, base_url)
@@ -120,13 +126,12 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
                 check_generated_persistence(template, base_url, token, targets, records),
             )
             write_json(reports / "browser-targets.json", targets)
-            front_env = frontend_environment(template, base_url)
-            stage("native-frontend-build")
-            build_frontend(template, frontend, front_env, reports)
             with frontend_preview(template, frontend, front_env, reports) as front_url:
                 stage("native-browser")
                 generated_browser(template, front_url, reports)
         assert before == manifest(source), "Original native source was modified"
+        if frontend_before is not None:
+            assert frontend_before == manifest(frontend_source), "Original Vben source was modified"
         write_json(
             reports / "generated-manifest.json",
             {"backend": manifest(backend), "frontend": manifest(frontend)},

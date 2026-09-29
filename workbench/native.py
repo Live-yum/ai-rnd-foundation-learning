@@ -103,12 +103,14 @@ def catalog(settings):
         }
     ]
     for name, sources in SOURCES.items():
+        managed = (settings.data_dir / "native" / f"{name}.runtime.json").is_file()
         result.append(
             {
                 "id": name,
-                "level": "native-source-export",
+                "level": "managed-runtime" if managed else "native-source-export",
                 "sources": sources,
-                "configured": (settings.data_dir / "native" / f"{name}.json").exists(),
+                "configured": managed or (settings.data_dir / "native" / f"{name}.json").exists(),
+                "configuration_is_not_acceptance": True,
                 "requires": [
                     "git",
                     "native server",

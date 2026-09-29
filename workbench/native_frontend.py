@@ -1,5 +1,6 @@
 """Build the original native application with any generated modules already mounted."""
 
+import json
 import os
 import subprocess
 import time
@@ -69,6 +70,17 @@ def build_frontend(template, root, env, reports):
     app = frontend_app(template, root)
     if not (root / "pnpm-lock.yaml").is_file():
         raise ValueError("Native frontend lockfile is required")
+    if template == "yudao-vben":
+        # Vben's own loadAndConvertEnv / runtime-config plugin reads dotenv files,
+        # not process.env. Persist only explicitly public VITE_* values in the
+        # disposable workspace; never copy platform or database credentials.
+        public = {key: value for key, value in env.items() if key.startswith("VITE_")}
+        body = (
+            "\n".join(f"{key}={json.dumps(value)}" for key, value in sorted(public.items())) + "\n"
+        )
+        atomic_text(app / ".env.production", body)
+        atomic_text(app / ".env.production.example", body)
+        write_json(reports / "frontend-public-config.json", public)
     # Native Vite plugins produce auto-imports/components declarations on first build.
     # Checking a pristine checkout before generating them yields false missing-name errors.
     # Type checking remains mandatory, AFTER deterministic generation; no errors are ignored.

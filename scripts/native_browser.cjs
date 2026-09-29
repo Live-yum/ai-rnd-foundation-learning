@@ -37,14 +37,23 @@ async function main() {
     if (fastapi) {
       const handle = page.locator('.dv_handler').first();
       const track = page.locator('.drag_verify').first();
-      await handle.waitFor({ state: 'visible' });
+      // Hover uses Playwright's visibility/stability checks before sampling the
+      // animated native form. Keep the pointer INSIDE the parent: mouseleave
+      // resets this upstream slider before it can report success.
+      await handle.hover();
       const from = await handle.boundingBox();
       const to = await track.boundingBox();
       assert(from && to);
       const slider = observe('/system/auth/captcha/slider/complete', 'POST');
       await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
       await page.mouse.down();
-      await page.mouse.move(to.x + to.width + 10, from.y + from.height / 2, { steps: 40 });
+      const start = from.x + from.width / 2;
+      const finish = to.x + to.width - 2;
+      for (let step = 1; step <= 40; step++) {
+        await page.mouse.move(start + (finish - start) * step / 40, from.y + from.height / 2);
+        await page.waitForTimeout(20);
+      }
+      report.slider = { before: from, track: to, after: await handle.boundingBox() };
       await page.mouse.up();
       await checked(slider);
     }

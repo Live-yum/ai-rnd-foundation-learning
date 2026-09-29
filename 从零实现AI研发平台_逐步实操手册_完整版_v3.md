@@ -2801,7 +2801,7 @@ def package_basic(plan, product, settings, report):
 
 ### `workbench/native.py`
 
-<!-- source-file: workbench/native.py sha256: edacc99ee9f18dc9c6895eeca184ebc5f7d6f458c68b25083a9c7ad06170f321 -->
+<!-- source-file: workbench/native.py sha256: 6967fea93892bce3c10632082417e8cbf93510026d8b7eaa4dc1b72f492822ad -->
 ````python
 """Pinned upstream sources + their real HTTP code generators.
 
@@ -2908,12 +2908,14 @@ def catalog(settings):
         }
     ]
     for name, sources in SOURCES.items():
+        managed = (settings.data_dir / "native" / f"{name}.runtime.json").is_file()
         result.append(
             {
                 "id": name,
-                "level": "native-source-export",
+                "level": "managed-runtime" if managed else "native-source-export",
                 "sources": sources,
-                "configured": (settings.data_dir / "native" / f"{name}.json").exists(),
+                "configured": managed or (settings.data_dir / "native" / f"{name}.json").exists(),
+                "configuration_is_not_acceptance": True,
                 "requires": [
                     "git",
                     "native server",
@@ -4965,10 +4967,11 @@ def check_native_permissions(template, base_url, admin_token):
 
 ### `workbench/native_frontend.py`
 
-<!-- source-file: workbench/native_frontend.py sha256: 4283e1c31b79be7a575fdd07a15144622f193fd686e50c1827f6bbfbb896ac11 -->
+<!-- source-file: workbench/native_frontend.py sha256: 54bf38b7e1d53f0107019a626401f4b925c81d9197006530f3e7360aec792dec -->
 ````python
 """Build the original native application with any generated modules already mounted."""
 
+import json
 import os
 import subprocess
 import time
@@ -5038,6 +5041,17 @@ def build_frontend(template, root, env, reports):
     app = frontend_app(template, root)
     if not (root / "pnpm-lock.yaml").is_file():
         raise ValueError("Native frontend lockfile is required")
+    if template == "yudao-vben":
+        # Vben's own loadAndConvertEnv / runtime-config plugin reads dotenv files,
+        # not process.env. Persist only explicitly public VITE_* values in the
+        # disposable workspace; never copy platform or database credentials.
+        public = {key: value for key, value in env.items() if key.startswith("VITE_")}
+        body = (
+            "\n".join(f"{key}={json.dumps(value)}" for key, value in sorted(public.items())) + "\n"
+        )
+        atomic_text(app / ".env.production", body)
+        atomic_text(app / ".env.production.example", body)
+        write_json(reports / "frontend-public-config.json", public)
     # Native Vite plugins produce auto-imports/components declarations on first build.
     # Checking a pristine checkout before generating them yields false missing-name errors.
     # Type checking remains mandatory, AFTER deterministic generation; no errors are ignored.
@@ -5989,7 +6003,7 @@ def generated_permissions(template, base_url, token, targets, plan):
 
 ### `workbench/native_lab.py`
 
-<!-- source-file: workbench/native_lab.py sha256: 84574730cadf992205e50cb6c49cf31d3ed148aa28d834d9fe145e60e1319630 -->
+<!-- source-file: workbench/native_lab.py sha256: efef0299d63972b6e6389b3166ebca318e7041a3f43127c7bf38b930d942423c -->
 ````python
 """Actual native generation, mounting, permissions, CRUD, restart and browser acceptance."""
 
@@ -6055,6 +6069,7 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
     )
     reports.mkdir(parents=True, exist_ok=True)
     before = manifest(source)
+    frontend_before = manifest(frontend_source) if template == "yudao-vben" else None
     copy_source(source, output)
     backend = output / "backend" if template == "fastapiadmin" else output
     if template == "fastapiadmin":
@@ -6105,6 +6120,11 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
                 reports / "generated/permissions.json",
                 generated_permissions(template, base_url, token, targets, plan),
             )
+        # Compile the large Vben application while the Java process is stopped.
+        # Running both heaps concurrently needlessly exhausts smaller CI/WSL hosts.
+        front_env = frontend_environment(template, base_url)
+        stage("native-frontend-build")
+        build_frontend(template, frontend, front_env, reports)
         stage("restart-persistence")
         with running_backend(template, backend, env, reports / "restart") as (base_url, _):
             token = login(template, base_url)
@@ -6113,13 +6133,12 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
                 check_generated_persistence(template, base_url, token, targets, records),
             )
             write_json(reports / "browser-targets.json", targets)
-            front_env = frontend_environment(template, base_url)
-            stage("native-frontend-build")
-            build_frontend(template, frontend, front_env, reports)
             with frontend_preview(template, frontend, front_env, reports) as front_url:
                 stage("native-browser")
                 generated_browser(template, front_url, reports)
         assert before == manifest(source), "Original native source was modified"
+        if frontend_before is not None:
+            assert frontend_before == manifest(frontend_source), "Original Vben source was modified"
         write_json(
             reports / "generated-manifest.json",
             {"backend": manifest(backend), "frontend": manifest(frontend)},
@@ -6159,7 +6178,7 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
 
 ### `workbench/native_delivery.py`
 
-<!-- source-file: workbench/native_delivery.py sha256: 38d55b814a85d9493b99d9031c93897169df3a6bf10f1f3326cc489e39532943 -->
+<!-- source-file: workbench/native_delivery.py sha256: bc7d095be2f8c2e078b11ea910a575b1628ee0b580e93cbae5961c7c04a4153e -->
 ````python
 """Explicitly authorized local native runtime delivery; source export is a separate mode."""
 
@@ -6228,6 +6247,19 @@ def runtime_config(settings, template, *, initialize=True):
     return config, url
 
 
+def database_identity(url):
+    """Bind a retained product to its database without storing credentials."""
+    parsed = checked_database(url)
+    return digest({"host": parsed.host, "port": parsed.port or 5432, "database": parsed.database})
+
+
+def check_database_identity(receipt, url):
+    if receipt.get("database_identity") != database_identity(url):
+        raise PrerequisiteError(
+            "当前原生数据库不是该产品已验证的数据库；恢复原数据库配置，不自动迁移"
+        )
+
+
 def prerequisites(template):
     if os.name == "nt":
         raise PrerequisiteError(
@@ -6254,6 +6286,7 @@ def managed_generate(settings, template, plan, destination):
         if receipt.get("execution") == "managed-runtime" and receipt.get("spec_digest") == digest(
             plan.model_dump()
         ):
+            check_database_identity(receipt, url)
             managed_verify(destination, receipt)
             return receipt
         raise PrerequisiteError("已有产物不能被另一份设计或执行模式覆盖")
@@ -6281,6 +6314,7 @@ def managed_generate(settings, template, plan, destination):
     receipt = {
         "template": template,
         "execution": "managed-runtime",
+        "database_identity": database_identity(url),
         "sources": [{k: v for k, v in item.items() if k != "path"} for item in sources],
         "spec_digest": digest(plan.model_dump()),
         "files": manifest(destination),
@@ -6368,6 +6402,7 @@ def serve_managed(settings, run_id):
     managed_verify(destination, receipt)
     template = receipt["template"]
     _, url = runtime_config(settings, template, initialize=False)
+    check_database_identity(receipt, url)
     backend = destination / "backend"
     frontend = destination / ("frontend/web" if template == "fastapiadmin" else "frontend-product")
     env = native_environment(template, backend, url, 8001 if template == "fastapiadmin" else 48080)
@@ -7965,6 +8000,70 @@ def test_source_copy_is_independent_of_generated_edits(tmp_path):
     assert manifest(copied) != before
 ````
 
+### `tests/test_native_frontend_lifecycle.py`
+
+<!-- source-file: tests/test_native_frontend_lifecycle.py sha256: cc762efc4ca5dbc5f335b0eeff786362dc427a8dc284bcedd518995e28acf17c -->
+````python
+"""Local regressions are contracts, not native browser acceptance evidence."""
+
+import pytest
+from dotenv import dotenv_values
+
+from workbench import native_frontend
+from workbench.generator import PrerequisiteError
+from workbench.native import catalog
+from workbench.native_delivery import (
+    check_database_identity,
+    database_identity,
+    write_runtime_example,
+)
+from workbench.settings import Settings
+
+
+def test_database_identity_does_not_retain_credentials():
+    original = "postgresql+psycopg://alice:oldpassword@127.0.0.1:5432/product_codegen"
+    identity = database_identity(original)
+    assert "oldpassword" not in identity
+    receipt = {"database_identity": identity}
+    check_database_identity(receipt, original.replace("oldpassword", "newpassword"))
+    with pytest.raises(PrerequisiteError, match="数据库"):
+        check_database_identity(receipt, original.replace("product_codegen", "other_codegen"))
+
+
+def test_catalog_config_does_not_claim_acceptance(tmp_path):
+    settings = Settings(data_dir=tmp_path, _env_file=None)
+    write_runtime_example(settings, "fastapiadmin")
+    entry = next(item for item in catalog(settings) if item["id"] == "fastapiadmin")
+    assert entry["level"] == "managed-runtime"
+    assert entry["configured"] is True
+    assert entry["runtime_verified"] is False
+
+
+def test_vben_public_build_config_excludes_credentials(tmp_path, monkeypatch):
+    root = tmp_path / "frontend"
+    app = root / "apps/web-antd"
+    app.mkdir(parents=True)
+    (root / "pnpm-lock.yaml").write_text("lockfileVersion: '9.0'\n")
+    (app / "dist").mkdir()
+    (app / "dist/index.html").write_text("<html></html>")
+    commands = []
+
+    def tool(command, cwd, timeout, env, **kwargs):
+        commands.append(command)
+        return {"log": "fixture only", "returncode": 0}
+
+    monkeypatch.setattr(native_frontend, "run_command", tool)
+    env = native_frontend.frontend_environment("yudao-vben", "http://127.0.0.1:48080")
+    env["API_KEY"] = "never-serialize-this"
+    native_frontend.build_frontend("yudao-vben", root, env, tmp_path / "reports")
+    data = dotenv_values(app / ".env.production")
+    assert data["VITE_GLOB_API_URL"] == "/admin-api"
+    assert data["VITE_NITRO_MOCK"] == "false"
+    assert "API_KEY" not in data
+    assert "never-serialize-this" not in (app / ".env.production.example").read_text()
+    assert len(commands) == 3
+````
+
 ### `tests/test_native_managed.py`
 
 <!-- source-file: tests/test_native_managed.py sha256: 8f9a8993fad7c0ddc2bc1fd87f48ed1c9c8f2d0ba44607715408fe5b17f23d3a -->
@@ -9216,7 +9315,7 @@ print(
 
 ### `scripts/native_browser.cjs`
 
-<!-- source-file: scripts/native_browser.cjs sha256: 4f53299dd5fe3dc01ee3f05d20580ab521abfba8b220432a4c8afa8af7ce2165 -->
+<!-- source-file: scripts/native_browser.cjs sha256: 25adecf5f9186cc8b16c4ce1383953ba17673433277b24e7fce3a2773c1958fd -->
 ````javascript
 // Real Chromium against the disposable loopback lab; no route mocks or injected tokens.
 const fs = require('node:fs');
@@ -9257,14 +9356,23 @@ async function main() {
     if (fastapi) {
       const handle = page.locator('.dv_handler').first();
       const track = page.locator('.drag_verify').first();
-      await handle.waitFor({ state: 'visible' });
+      // Hover uses Playwright's visibility/stability checks before sampling the
+      // animated native form. Keep the pointer INSIDE the parent: mouseleave
+      // resets this upstream slider before it can report success.
+      await handle.hover();
       const from = await handle.boundingBox();
       const to = await track.boundingBox();
       assert(from && to);
       const slider = observe('/system/auth/captcha/slider/complete', 'POST');
       await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
       await page.mouse.down();
-      await page.mouse.move(to.x + to.width + 10, from.y + from.height / 2, { steps: 40 });
+      const start = from.x + from.width / 2;
+      const finish = to.x + to.width - 2;
+      for (let step = 1; step <= 40; step++) {
+        await page.mouse.move(start + (finish - start) * step / 40, from.y + from.height / 2);
+        await page.waitForTimeout(20);
+      }
+      report.slider = { before: from, track: to, after: await handle.boundingBox() };
       await page.mouse.up();
       await checked(slider);
     }
