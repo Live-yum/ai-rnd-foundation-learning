@@ -1,0 +1,93 @@
+name: Vben copied workspace diagnostics
+on:
+  push:
+    branches: [diagnostics/vben-build]
+    paths: [.github/workflows/vben-copy-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [copied-cli, copied-api, source-cli]
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: yudaocode/yudao-ui-admin-vben
+          ref: 1b14e889f529e245fd620daa720dcea6de0cc5e7
+          path: .native/source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: npm install --global pnpm@11.16.0
+      - run: uv sync --locked
+      - name: Prepare exact native copy and public configuration
+        env:
+          DIAGNOSTIC_MODE: ${{ matrix.mode }}
+        run: |
+          uv run python - <<'PY'
+          import os, json
+          from pathlib import Path
+          from workbench.native_environment import copy_source
+          from workbench.native_frontend import frontend_environment
+          mode = os.environ['DIAGNOSTIC_MODE']
+          root = Path('.native/source' if mode == 'source-cli' else '.native/product/frontend-product')
+          if mode != 'source-cli': copy_source(Path('.native/source'), root)
+          app = root / 'apps/web-antd'
+          env = frontend_environment('yudao-vben', 'http://127.0.0.1:48080')
+          (app / '.env.production').write_text('\n'.join(f'{k}={json.dumps(v)}' for k,v in env.items() if k.startswith('VITE_'))+'\n')
+          for file in app.glob('src/views/fms/**/*.vue'):
+              content = file.read_text()
+              if 'auxiliary-select-modal.vue' in content:
+                  file.write_text(content.replace('auxiliary-select-modal.vue','auxiliary-item-select.vue'))
+          Path('reports').mkdir(exist_ok=True)
+          Path('reports/workspace.txt').write_text(str(root.resolve()))
+          Path('diagnostic-environment.json').write_text(json.dumps(env))
+          PY
+      - run: pnpm install --frozen-lockfile
+        working-directory: ${{ matrix.mode == 'source-cli' && '.native/source' || '.native/product/frontend-product' }}
+        env:
+          CI: 'true'
+          HUSKY: '0'
+      - name: Bounded native production build
+        env:
+          DIAGNOSTIC_MODE: ${{ matrix.mode }}
+        run: |
+          uv run python - <<'PY'
+          import os,json
+          from pathlib import Path
+          from workbench.filesystem import atomic_text
+          from workbench.tools import run_command
+          root = Path('reports/workspace.txt').read_text()
+          app = Path(root) / 'apps/web-antd'
+          code = '''import fs from 'node:fs';
+          import {build} from 'vite';
+          let n=0;
+          const timer=setInterval(()=>console.log('MEMORY',JSON.stringify(process.memoryUsage()),n),10000);
+          try{await build({plugins:[{name:'diag',enforce:'pre',transform(code,id){n++;if(n%500===0)console.log('TRANSFORM',n,id)}}]})}finally{clearInterval(timer)}
+          '''
+          (app/'diagnostic.mjs').write_text(code)
+          command = ['node','diagnostic.mjs'] if os.environ['DIAGNOSTIC_MODE']=='copied-api' else ['pnpm','exec','vite','build','--mode','production']
+          try:
+              result = run_command(command,app,125,json.loads(Path('diagnostic-environment.json').read_text()),heartbeat='vben-isolation')
+              atomic_text(Path('reports/build.log'),result['log'])
+          except Exception as exc:
+              atomic_text(Path('reports/build.log'),getattr(exc,'log',str(exc)))
+              raise
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vben-copy-${{ matrix.mode }}
+          path: reports/
+          retention-days: 3
