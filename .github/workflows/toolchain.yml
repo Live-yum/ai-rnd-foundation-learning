@@ -1,0 +1,66 @@
+name: Structured code toolchain acceptance
+on:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      authorize_daytona_upload:
+        description: 'Explicitly authorize synthetic source upload and potentially billable Daytona sandbox creation'
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: toolchain-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  offline-tools:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - name: Install separately locked Aider on Python 3.12
+        run: uv run rnd tools install-aider
+      - name: Genuine tools, explicit model fixture, no provider keys and no cloud
+        run: uv run python -m scripts.ci_toolchain
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: structured-toolchain-${{ matrix.os }}
+          path: reports/toolchain/
+  authorized-daytona:
+    if: github.event_name == 'workflow_dispatch' && inputs.authorize_daytona_upload
+    environment: daytona-sandbox
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - name: Owner-authorized live sandbox, API/restart checks and confirmed cleanup
+        run: uv run python -m scripts.ci_daytona_live
+        env:
+          SANDBOX_BACKEND: daytona
+          DAYTONA_UPLOAD_AUTHORIZED: 'true'
+          DAYTONA_API_URL: ${{ vars.DAYTONA_API_URL }}
+          DAYTONA_SNAPSHOT: ${{ vars.DAYTONA_SNAPSHOT }}
+          DAYTONA_TARGET: ${{ vars.DAYTONA_TARGET }}
+          DAYTONA_API_KEY: ${{ secrets.DAYTONA_API_KEY }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: owner-authorized-daytona-evidence
+          path: reports/daytona-live/
