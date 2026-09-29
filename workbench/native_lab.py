@@ -11,6 +11,7 @@ from workbench.native_acceptance import (
     generated_crud,
     generated_permissions,
 )
+from workbench.native_compatibility import commit_before_response
 from workbench.native_environment import (
     bootstrap_database,
     copy_source,
@@ -73,10 +74,25 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
     write_json(
         reports / "acceptance.json", {"template": template, "generated_runtime_verified": False}
     )
+
+    def stage(name):
+        write_json(reports / "progress.json", {"template": template, "stage": name})
+        print(f"Native {template}: {name}", flush=True)
+
     try:
+        if template == "fastapiadmin":
+            # The native grant endpoint also uses a yielded transaction. Commit it
+            # before returning success, not after a new login snapshots permissions.
+            role_controller = backend / "app/modules/system/role/controller.py"
+            receipt = commit_before_response(role_controller)
+            receipt["path"] = role_controller.relative_to(backend).as_posix()
+            write_json(reports / "native-compatibility.json", [receipt])
+        stage("bootstrap-empty-database")
         bootstrap_database(template, backend, url)
+        stage("baseline-install")
         install_backend(template, backend, reports / "baseline")
         with running_backend(template, backend, env, reports / "baseline") as (base_url, openapi):
+            stage("native-generation")
             token = login(template, base_url)
             write_json(reports / "baseline/login.json", {"native_login": True})
             mapping = create_native_tables(template, plan, url, digest(plan.model_dump()), reports)
@@ -84,15 +100,19 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
                 template, backend, frontend, base_url, openapi, token, mapping, plan, reports
             )
         if template == "yudao-vben":
+            stage("generated-build")
             install_backend(template, backend, reports / "generated-build")
         with running_backend(template, backend, env, reports / "generated") as (base_url, _):
             token = login(template, base_url)
+            stage("generated-crud")
             records = generated_crud(template, base_url, token, targets, plan)
             write_json(reports / "generated/crud.json", records)
+            stage("generated-permissions")
             write_json(
                 reports / "generated/permissions.json",
                 generated_permissions(template, base_url, token, targets, plan),
             )
+        stage("restart-persistence")
         with running_backend(template, backend, env, reports / "restart") as (base_url, _):
             token = login(template, base_url)
             write_json(
@@ -101,8 +121,10 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
             )
             write_json(reports / "browser-targets.json", targets)
             front_env = frontend_environment(template, base_url)
+            stage("native-frontend-build")
             build_frontend(template, frontend, front_env, reports)
             with frontend_preview(template, frontend, front_env, reports) as front_url:
+                stage("native-browser")
                 generated_browser(template, front_url, reports)
         assert before == manifest(source), "Original native source was modified"
         write_json(
@@ -126,6 +148,7 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
             "source_unmodified": True,
             "data_scope": "shared-with-native-role-permissions",
         }
+        stage("accepted")
         write_json(reports / "acceptance.json", report)
         print(
             "Generated native modules, menus, permissions, CRUD, restart, frontend build and browser PASS"

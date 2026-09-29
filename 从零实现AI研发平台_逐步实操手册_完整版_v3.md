@@ -1870,7 +1870,7 @@ def unpack(archive, destination):
 
 ### `workbench/tools.py`
 
-<!-- source-file: workbench/tools.py sha256: 7a7d0be0807babed34e7c4d7f82a079ab9c11cbc4d736f938b869667e68d6255 -->
+<!-- source-file: workbench/tools.py sha256: 1ea58674cfc837553babe1fa7e32fe29a8053a09e5eb092f5e47787ad8f8f08c -->
 ````python
 """Fixed-command execution for trusted tools, not a sandbox for arbitrary model code."""
 
@@ -1878,6 +1878,7 @@ import os
 import signal
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -1932,7 +1933,7 @@ def process_options():
     )
 
 
-def run_command(command, cwd, timeout=120, extra_env=None):
+def run_command(command, cwd, timeout=120, extra_env=None, *, heartbeat=None):
     if not command or not all(isinstance(v, str) for v in command):
         raise ValueError("工具参数必须是明确的字符串数组")
     with tempfile.TemporaryFile() as output:
@@ -1951,7 +1952,22 @@ def run_command(command, cwd, timeout=120, extra_env=None):
             raise ToolFailure("无法启动已登记工具，请检查其安装和 PATH") from None
         timed_out = False
         try:
-            code = process.wait(timeout=timeout)
+            started = time.monotonic()
+            while True:
+                remaining = timeout - (time.monotonic() - started)
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(command[0], timeout)
+                try:
+                    code = process.wait(timeout=min(15, remaining) if heartbeat else remaining)
+                    break
+                except subprocess.TimeoutExpired:
+                    if not heartbeat:
+                        raise
+                    print(
+                        f"{heartbeat}: running {int(time.monotonic() - started)}s; "
+                        f"log bytes={os.fstat(output.fileno()).st_size}",
+                        flush=True,
+                    )
         except subprocess.TimeoutExpired:
             stop_process(process)
             code, timed_out = process.returncode, True
@@ -4345,7 +4361,7 @@ if __name__ == "__main__":
 
 ### `workbench/native_environment.py`
 
-<!-- source-file: workbench/native_environment.py sha256: 238f9c2aef699b4cb8e97c71b31e82438466274f3b2f42111f6a071a5b3857b1 -->
+<!-- source-file: workbench/native_environment.py sha256: d4e86e4af45ac8b566fd95277e571688cc6f9a9e8bb44d66fdf665f82acbede2 -->
 ````python
 """Loopback native lab lifecycle. Never resets existing databases or mocks authentication."""
 
@@ -4565,7 +4581,7 @@ def install_backend(template, backend, reports):
     backend, reports = Path(backend), Path(reports)
     reports.mkdir(parents=True, exist_ok=True)
     if template == "fastapiadmin":
-        commands = [["uv", "sync", "--python", "3.14"]]
+        commands = [["uv", "sync", "--locked", "--python", "3.14"]]
     else:
         prepare_yudao_postgres(backend, reports)
         # The upstream POM lists distant public mirrors before Central. Use one
@@ -4614,7 +4630,9 @@ def install_backend(template, backend, reports):
     logs = []
     for command in commands:
         try:
-            result = run_command(command, backend, 1500, environment)
+            result = run_command(
+                command, backend, 360, environment, heartbeat="native-backend-build"
+            )
         except Exception as exc:
             logs.append(getattr(exc, "log", str(exc)))
             atomic_text(reports / "backend-build.log", "\n".join(logs))
@@ -4947,9 +4965,9 @@ def check_native_permissions(template, base_url, admin_token):
 
 ### `workbench/native_frontend.py`
 
-<!-- source-file: workbench/native_frontend.py sha256: 11b022118ed710e1f92ed6b6badeafd75cd533b1042fdced6affe92e03ed0421 -->
+<!-- source-file: workbench/native_frontend.py sha256: 4283e1c31b79be7a575fdd07a15144622f193fd686e50c1827f6bbfbb896ac11 -->
 ````python
-"""Build ORIGINAL pinned frontend applications. This is not a generated-module verifier."""
+"""Build the original native application with any generated modules already mounted."""
 
 import os
 import subprocess
@@ -5031,7 +5049,7 @@ def build_frontend(template, root, env, reports):
     evidence = []
     for name, command, cwd in checks:
         try:
-            result = run_command(command, cwd, 1500, env)
+            result = run_command(command, cwd, 900, env, heartbeat=f"native-frontend-{name}")
         except Exception as exc:
             atomic_text(reports / f"frontend-{name}.log", getattr(exc, "log", str(exc)))
             raise
@@ -5044,7 +5062,7 @@ def build_frontend(template, root, env, reports):
         {
             "checks": evidence,
             "lock_sha256": sha(root / "pnpm-lock.yaml"),
-            "scope": "original-upstream-frontend",
+            "scope": "native-application",
         },
     )
 
@@ -5668,7 +5686,7 @@ def commit_before_response(controller):
 
 ### `workbench/native_acceptance.py`
 
-<!-- source-file: workbench/native_acceptance.py sha256: 9b6076f5ae984f61b3b58e596f8b56163c356b9153b575d499790751b0254d5b -->
+<!-- source-file: workbench/native_acceptance.py sha256: 5e2f0ee6fd6e57864d6d78e056ecbed58e27afc5c6ca795bbcfff48bc5de3104 -->
 ````python
 """Independent HTTP checks for the ACTUAL generated modules and native RBAC APIs."""
 
@@ -5700,9 +5718,9 @@ def sample_record(entity, suffix="original", template="fastapiadmin"):
         wire_name(template, f.name): (
             f"{entity.name}-{suffix}"[: f.max_length]
             if f.kind == "text"
-            else 7
+            else (11 if suffix == "updated" else 7)
             if f.kind == "integer"
-            else True
+            else suffix != "updated"
         )
         for f in entity.fields
     }
@@ -5889,6 +5907,10 @@ def generated_permissions(template, base_url, token, targets, plan):
                     headers=admin,
                 )
             payload(response)
+            if fastapi:
+                assigned = payload(client.get(f"/system/role/detail/{role_id}", headers=admin))
+                actual = {menu["id"] for menu in assigned["menus"]}
+                assert actual == set(ids), "Native role menu assignment was not committed"
 
         def identity():
             return {"Authorization": "Bearer " + login(template, base_url, username, password)}
@@ -5924,6 +5946,14 @@ def generated_permissions(template, base_url, token, targets, plan):
             )
         assign(full_ids)
         writer = identity()
+        if fastapi:
+            snapshot = payload(client.get(info, headers=writer))
+            permissions = {menu.get("permission") for menu in flatten(snapshot.get("menus", []))}
+            expected = {target["permission"] + ":create" for target in targets}
+            assert expected <= permissions, (
+                "Fresh native login did not receive granted CREATE permissions: "
+                + str(sorted(expected - permissions))
+            )
         if not fastapi:
             time.sleep(
                 61
@@ -5959,7 +5989,7 @@ def generated_permissions(template, base_url, token, targets, plan):
 
 ### `workbench/native_lab.py`
 
-<!-- source-file: workbench/native_lab.py sha256: 7dc354264c9be3a4e14f6f7e328329968c3a8ef8896fceb33f2436fca85aad39 -->
+<!-- source-file: workbench/native_lab.py sha256: 84574730cadf992205e50cb6c49cf31d3ed148aa28d834d9fe145e60e1319630 -->
 ````python
 """Actual native generation, mounting, permissions, CRUD, restart and browser acceptance."""
 
@@ -5974,6 +6004,7 @@ from workbench.native_acceptance import (
     generated_crud,
     generated_permissions,
 )
+from workbench.native_compatibility import commit_before_response
 from workbench.native_environment import (
     bootstrap_database,
     copy_source,
@@ -6036,10 +6067,25 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
     write_json(
         reports / "acceptance.json", {"template": template, "generated_runtime_verified": False}
     )
+
+    def stage(name):
+        write_json(reports / "progress.json", {"template": template, "stage": name})
+        print(f"Native {template}: {name}", flush=True)
+
     try:
+        if template == "fastapiadmin":
+            # The native grant endpoint also uses a yielded transaction. Commit it
+            # before returning success, not after a new login snapshots permissions.
+            role_controller = backend / "app/modules/system/role/controller.py"
+            receipt = commit_before_response(role_controller)
+            receipt["path"] = role_controller.relative_to(backend).as_posix()
+            write_json(reports / "native-compatibility.json", [receipt])
+        stage("bootstrap-empty-database")
         bootstrap_database(template, backend, url)
+        stage("baseline-install")
         install_backend(template, backend, reports / "baseline")
         with running_backend(template, backend, env, reports / "baseline") as (base_url, openapi):
+            stage("native-generation")
             token = login(template, base_url)
             write_json(reports / "baseline/login.json", {"native_login": True})
             mapping = create_native_tables(template, plan, url, digest(plan.model_dump()), reports)
@@ -6047,15 +6093,19 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
                 template, backend, frontend, base_url, openapi, token, mapping, plan, reports
             )
         if template == "yudao-vben":
+            stage("generated-build")
             install_backend(template, backend, reports / "generated-build")
         with running_backend(template, backend, env, reports / "generated") as (base_url, _):
             token = login(template, base_url)
+            stage("generated-crud")
             records = generated_crud(template, base_url, token, targets, plan)
             write_json(reports / "generated/crud.json", records)
+            stage("generated-permissions")
             write_json(
                 reports / "generated/permissions.json",
                 generated_permissions(template, base_url, token, targets, plan),
             )
+        stage("restart-persistence")
         with running_backend(template, backend, env, reports / "restart") as (base_url, _):
             token = login(template, base_url)
             write_json(
@@ -6064,8 +6114,10 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
             )
             write_json(reports / "browser-targets.json", targets)
             front_env = frontend_environment(template, base_url)
+            stage("native-frontend-build")
             build_frontend(template, frontend, front_env, reports)
             with frontend_preview(template, frontend, front_env, reports) as front_url:
+                stage("native-browser")
                 generated_browser(template, front_url, reports)
         assert before == manifest(source), "Original native source was modified"
         write_json(
@@ -6089,6 +6141,7 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
             "source_unmodified": True,
             "data_scope": "shared-with-native-role-permissions",
         }
+        stage("accepted")
         write_json(reports / "acceptance.json", report)
         print(
             "Generated native modules, menus, permissions, CRUD, restart, frontend build and browser PASS"
@@ -8247,7 +8300,7 @@ def test_native_deleted_uses_upstream_smallint_and_active_remains_boolean():
 
 ### `tests/test_native_transaction.py`
 
-<!-- source-file: tests/test_native_transaction.py sha256: 686f7d9e114262158367ab071b344030c863993b5ad38a619b2ca6552494f864 -->
+<!-- source-file: tests/test_native_transaction.py sha256: 9c8aaa10aa180ee7a083ee7029fb7314585cdda610167eab0496b0c0d1a545ec -->
 ````python
 import ast
 import sys
@@ -8302,6 +8355,19 @@ def test_timeout_preserves_diagnostics(tmp_path):
         )
     assert error.value.timed_out is True
     assert "before timeout" in error.value.log
+
+
+def test_updates_exercise_integer_and_boolean_changes():
+    from scripts.ci_native_generated import acceptance_spec
+    from workbench.native_acceptance import sample_record
+
+    entity = acceptance_spec().entities[0]
+    initial = sample_record(entity)
+    changed = sample_record(entity, "updated")
+    assert initial["name"] != changed["name"]
+    assert initial["quantity"] != changed["quantity"]
+    assert initial["active"] is True
+    assert changed["active"] is False
 ````
 
 ### `tests/test_postgres.py`

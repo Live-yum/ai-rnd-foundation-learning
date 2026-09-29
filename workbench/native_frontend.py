@@ -1,4 +1,4 @@
-"""Build ORIGINAL pinned frontend applications. This is not a generated-module verifier."""
+"""Build the original native application with any generated modules already mounted."""
 
 import os
 import subprocess
@@ -80,7 +80,7 @@ def build_frontend(template, root, env, reports):
     evidence = []
     for name, command, cwd in checks:
         try:
-            result = run_command(command, cwd, 1500, env)
+            result = run_command(command, cwd, 900, env, heartbeat=f"native-frontend-{name}")
         except Exception as exc:
             atomic_text(reports / f"frontend-{name}.log", getattr(exc, "log", str(exc)))
             raise
@@ -93,7 +93,7 @@ def build_frontend(template, root, env, reports):
         {
             "checks": evidence,
             "lock_sha256": sha(root / "pnpm-lock.yaml"),
-            "scope": "original-upstream-frontend",
+            "scope": "native-application",
         },
     )
 

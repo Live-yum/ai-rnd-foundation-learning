@@ -4,6 +4,7 @@ import os
 import signal
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 
@@ -58,7 +59,7 @@ def process_options():
     )
 
 
-def run_command(command, cwd, timeout=120, extra_env=None):
+def run_command(command, cwd, timeout=120, extra_env=None, *, heartbeat=None):
     if not command or not all(isinstance(v, str) for v in command):
         raise ValueError("工具参数必须是明确的字符串数组")
     with tempfile.TemporaryFile() as output:
@@ -77,7 +78,22 @@ def run_command(command, cwd, timeout=120, extra_env=None):
             raise ToolFailure("无法启动已登记工具，请检查其安装和 PATH") from None
         timed_out = False
         try:
-            code = process.wait(timeout=timeout)
+            started = time.monotonic()
+            while True:
+                remaining = timeout - (time.monotonic() - started)
+                if remaining <= 0:
+                    raise subprocess.TimeoutExpired(command[0], timeout)
+                try:
+                    code = process.wait(timeout=min(15, remaining) if heartbeat else remaining)
+                    break
+                except subprocess.TimeoutExpired:
+                    if not heartbeat:
+                        raise
+                    print(
+                        f"{heartbeat}: running {int(time.monotonic() - started)}s; "
+                        f"log bytes={os.fstat(output.fileno()).st_size}",
+                        flush=True,
+                    )
         except subprocess.TimeoutExpired:
             stop_process(process)
             code, timed_out = process.returncode, True

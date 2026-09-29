@@ -28,9 +28,9 @@ def sample_record(entity, suffix="original", template="fastapiadmin"):
         wire_name(template, f.name): (
             f"{entity.name}-{suffix}"[: f.max_length]
             if f.kind == "text"
-            else 7
+            else (11 if suffix == "updated" else 7)
             if f.kind == "integer"
-            else True
+            else suffix != "updated"
         )
         for f in entity.fields
     }
@@ -217,6 +217,10 @@ def generated_permissions(template, base_url, token, targets, plan):
                     headers=admin,
                 )
             payload(response)
+            if fastapi:
+                assigned = payload(client.get(f"/system/role/detail/{role_id}", headers=admin))
+                actual = {menu["id"] for menu in assigned["menus"]}
+                assert actual == set(ids), "Native role menu assignment was not committed"
 
         def identity():
             return {"Authorization": "Bearer " + login(template, base_url, username, password)}
@@ -252,6 +256,14 @@ def generated_permissions(template, base_url, token, targets, plan):
             )
         assign(full_ids)
         writer = identity()
+        if fastapi:
+            snapshot = payload(client.get(info, headers=writer))
+            permissions = {menu.get("permission") for menu in flatten(snapshot.get("menus", []))}
+            expected = {target["permission"] + ":create" for target in targets}
+            assert expected <= permissions, (
+                "Fresh native login did not receive granted CREATE permissions: "
+                + str(sorted(expected - permissions))
+            )
         if not fastapi:
             time.sleep(
                 61

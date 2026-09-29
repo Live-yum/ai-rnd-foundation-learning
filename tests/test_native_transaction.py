@@ -51,3 +51,16 @@ def test_timeout_preserves_diagnostics(tmp_path):
         )
     assert error.value.timed_out is True
     assert "before timeout" in error.value.log
+
+
+def test_updates_exercise_integer_and_boolean_changes():
+    from scripts.ci_native_generated import acceptance_spec
+    from workbench.native_acceptance import sample_record
+
+    entity = acceptance_spec().entities[0]
+    initial = sample_record(entity)
+    changed = sample_record(entity, "updated")
+    assert initial["name"] != changed["name"]
+    assert initial["quantity"] != changed["quantity"]
+    assert initial["active"] is True
+    assert changed["active"] is False

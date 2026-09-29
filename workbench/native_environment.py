@@ -216,7 +216,7 @@ def install_backend(template, backend, reports):
     backend, reports = Path(backend), Path(reports)
     reports.mkdir(parents=True, exist_ok=True)
     if template == "fastapiadmin":
-        commands = [["uv", "sync", "--python", "3.14"]]
+        commands = [["uv", "sync", "--locked", "--python", "3.14"]]
     else:
         prepare_yudao_postgres(backend, reports)
         # The upstream POM lists distant public mirrors before Central. Use one
@@ -265,7 +265,9 @@ def install_backend(template, backend, reports):
     logs = []
     for command in commands:
         try:
-            result = run_command(command, backend, 1500, environment)
+            result = run_command(
+                command, backend, 360, environment, heartbeat="native-backend-build"
+            )
         except Exception as exc:
             logs.append(getattr(exc, "log", str(exc)))
             atomic_text(reports / "backend-build.log", "\n".join(logs))
