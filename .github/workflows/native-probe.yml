@@ -1,80 +1,26 @@
-name: Native baseline discovery
+name: Bundled template integrity
 on:
-  push:
-    branches: [feat/python314-workbench]
-    paths: [.github/workflows/native-probe.yml]
+  workflow_dispatch:
+  pull_request:
+    paths: ['templates/vendor/**', 'workbench/vendor.py', '.github/workflows/native-probe.yml']
 permissions:
   contents: read
 jobs:
-  sources:
+  verify-bundles:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: fastapiadmin/FastapiAdmin
-          ref: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
-          path: upstream/fastapiadmin
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: yudaocode/yudao-cloud-mini
-          ref: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
-          path: upstream/backend
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: yudaocode/yudao-ui-admin-vben
-          ref: 1b14e889f529e245fd620daa720dcea6de0cc5e7
-          path: upstream/frontend
-          persist-credentials: false
-      - name: Export exact source for adapter development
-        run: |
-          mkdir -p archives
-          for slot in fastapiadmin backend frontend; do
-            git -C upstream/$slot archive HEAD | gzip > archives/$slot.tar.gz
-            git -C upstream/$slot rev-parse HEAD > archives/$slot.sha
-          done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: native-pinned-development-sources
-          path: archives/
-          retention-days: 3
-  fastapi-dependencies:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: fastapiadmin/FastapiAdmin
-          ref: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
           persist-credentials: false
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
-      - name: Resolve original backend with Python 3.14
-        working-directory: backend
-        run: uv sync
-      - name: Export resolved dependency lock
+      - run: uv sync --locked
+      - run: uv run pytest tests/test_vendor.py -q
+      - run: uv run python -m scripts.ci_native_sources
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: fastapi-native-dependency-lock
-          path: backend/uv.lock
-          retention-days: 3
-  java-build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: yudaocode/yudao-cloud-mini
-          ref: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
-          persist-credentials: false
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
-      - name: Compile the native aggregate server
-        run: mvn -B -ntp -pl yudao-server -am package -DskipTests
+          name: bundled-template-integrity
+          path: reports/
