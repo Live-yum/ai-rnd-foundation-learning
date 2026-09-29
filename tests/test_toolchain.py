@@ -346,3 +346,24 @@ def test_ast_packing_covers_every_line_without_one_chunk_per_variable(tmp_path):
     assert len(packed) == 3
     assert "\n".join(row[6] for row in packed) == text.rstrip("\n")
     assert [(row[2], row[3]) for row in packed] == [(1, 60), (61, 120), (121, 180)]
+
+
+def test_exact_hook_usage_is_not_displaced_by_short_camel_case_matches(tmp_path):
+    source, index = tmp_path / "source", tmp_path / "index"
+    source.mkdir()
+    for number in range(100):
+        (source / f"decoy{number}.ts").write_text(
+            "export const use = 1; export const vben = 2; export const form = 3;\n",
+            encoding="utf-8",
+        )
+    (source / "usage.vue").write_text(
+        '<script setup lang="ts">\n'
+        "import { useVbenForm } from '@vben/common-ui';\n"
+        "const [Form, formApi] = useVbenForm({ schema: [] });\n"
+        "</script>\n<template><Form /></template>\n",
+        encoding="utf-8",
+    )
+    build_index(source, index)
+    found = query(source, index, "useVbenForm", limit=3)
+    assert found["matches"][0]["path"] == "usage.vue"
+    assert "useVbenForm" in found["matches"][0]["content"]

@@ -239,11 +239,22 @@ def query(source, index_dir, question, limit=8, max_chars=12000, settings=None, 
             0
         ] != search_identity(index):
             raise ValueError("符号索引与检索库版本不一致，请重建")
-        lexical = db.execute(
+        # Keep the original identifiers ahead of camel-case fallback terms.
+        # Otherwise short "use" / "form" declarations can displace real Hook usages.
+        original_words = list(dict.fromkeys(re.findall(r"[\w]+", question, re.UNICODE)))[:40]
+        exact_expression = " OR ".join(
+            '"' + word.replace('"', '""') + '"' for word in original_words
+        )
+        exact = db.execute(
+            "SELECT id FROM search WHERE search MATCH ? ORDER BY bm25(search) LIMIT 80",
+            (exact_expression,),
+        ).fetchall()
+        expanded = db.execute(
             "SELECT id FROM search WHERE search MATCH ? ORDER BY bm25(search) LIMIT 80",
             (expression,),
         ).fetchall()
-        ranks = [[r[0] for r in lexical]]
+        lexical = list(dict.fromkeys(row[0] for row in [*exact, *expanded]))[:80]
+        ranks = [lexical]
         mode = "ast+fts5"
         profile = embedding_profile(settings) if settings else None
         if profile and settings.embedding_allow_upload:

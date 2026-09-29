@@ -7064,7 +7064,7 @@ def render(plan, destination):
 
 ### `workbench/retrieval.py`
 
-<!-- source-file: workbench/retrieval.py sha256: 098ec0a395067cdac93c8292b58c6dbfee08b346b35b2a287bcc51ea263eea0e -->
+<!-- source-file: workbench/retrieval.py sha256: bd4ad083eec8550c729eccd9a9a110f38a4af01fdde39f0360381c1139492c86 -->
 ````python
 """AST chunks + SQLite FTS5; optional explicit embeddings and rank fusion.
 
@@ -7307,11 +7307,22 @@ def query(source, index_dir, question, limit=8, max_chars=12000, settings=None, 
             0
         ] != search_identity(index):
             raise ValueError("符号索引与检索库版本不一致，请重建")
-        lexical = db.execute(
+        # Keep the original identifiers ahead of camel-case fallback terms.
+        # Otherwise short "use" / "form" declarations can displace real Hook usages.
+        original_words = list(dict.fromkeys(re.findall(r"[\w]+", question, re.UNICODE)))[:40]
+        exact_expression = " OR ".join(
+            '"' + word.replace('"', '""') + '"' for word in original_words
+        )
+        exact = db.execute(
+            "SELECT id FROM search WHERE search MATCH ? ORDER BY bm25(search) LIMIT 80",
+            (exact_expression,),
+        ).fetchall()
+        expanded = db.execute(
             "SELECT id FROM search WHERE search MATCH ? ORDER BY bm25(search) LIMIT 80",
             (expression,),
         ).fetchall()
-        ranks = [[r[0] for r in lexical]]
+        lexical = list(dict.fromkeys(row[0] for row in [*exact, *expanded]))[:80]
+        ranks = [lexical]
         mode = "ast+fts5"
         profile = embedding_profile(settings) if settings else None
         if profile and settings.embedding_allow_upload:
@@ -14913,7 +14924,7 @@ def test_model_budget(store):
 
 ### `tests/test_toolchain.py`
 
-<!-- source-file: tests/test_toolchain.py sha256: b4428b20d345067e6ddad1cd00a6e689156e9f7427b0667cf31fbf103ff5503e -->
+<!-- source-file: tests/test_toolchain.py sha256: 2baca83da9a841852fea2325fd06236b31b0e60c27bbc0736e4231fd1badfb9d -->
 ````python
 """Real parsers/SQLite/MCP; explicit fixtures only for paid external transports."""
 
@@ -15263,6 +15274,27 @@ def test_ast_packing_covers_every_line_without_one_chunk_per_variable(tmp_path):
     assert len(packed) == 3
     assert "\n".join(row[6] for row in packed) == text.rstrip("\n")
     assert [(row[2], row[3]) for row in packed] == [(1, 60), (61, 120), (121, 180)]
+
+
+def test_exact_hook_usage_is_not_displaced_by_short_camel_case_matches(tmp_path):
+    source, index = tmp_path / "source", tmp_path / "index"
+    source.mkdir()
+    for number in range(100):
+        (source / f"decoy{number}.ts").write_text(
+            "export const use = 1; export const vben = 2; export const form = 3;\n",
+            encoding="utf-8",
+        )
+    (source / "usage.vue").write_text(
+        '<script setup lang="ts">\n'
+        "import { useVbenForm } from '@vben/common-ui';\n"
+        "const [Form, formApi] = useVbenForm({ schema: [] });\n"
+        "</script>\n<template><Form /></template>\n",
+        encoding="utf-8",
+    )
+    build_index(source, index)
+    found = query(source, index, "useVbenForm", limit=3)
+    assert found["matches"][0]["path"] == "usage.vue"
+    assert "useVbenForm" in found["matches"][0]["content"]
 ````
 
 ### `tests/test_tools_cli.py`
@@ -16283,7 +16315,7 @@ print(
 
 ### `scripts/ci_toolchain.py`
 
-<!-- source-file: scripts/ci_toolchain.py sha256: 6d6504d02b618d562f56375deaee45e2f895205397c6524409e12d3df919e8aa -->
+<!-- source-file: scripts/ci_toolchain.py sha256: 833aeaa4df97d04514ee129d08fce1b35963284443895e056b2c94e5e3ac2c87 -->
 ````python
 """Real Aider CLI + real MCP stdio + real bundled Java/Vue sources, no model key."""
 
@@ -16329,6 +16361,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="rnd-tools-ci-") as temporary:
         root = Path(temporary)
         settings = Settings(data_dir=root / "state", _env_file=None)
+        print("Index bundled Java/Vue source", flush=True)
         rows = prepare(settings, "yudao-vben")
         backend = Path(next(row["path"] for row in rows if row["slot"] == "backend"))
         frontend = Path(next(row["path"] for row in rows if row["slot"] == "frontend"))
@@ -16338,9 +16371,11 @@ def main():
         java = query(backend, bindex, "RestController")
         vue = query(frontend, findex, "useVbenForm")
         assert java["matches"] and vue["matches"]
-        assert any(hit["path"].endswith(".vue") for hit in vue["matches"])
+        assert any(hit["path"].endswith(".vue") for hit in vue["matches"]), vue
         export_continue(root, backend, bindex)
+        print("Run real MCP stdio roundtrip", flush=True)
         protocol = asyncio.run(mcp_roundtrip(backend, bindex))
+        print("Run real Aider maps and bounded Git edit", flush=True)
         java_map = repo_map(backend, bindex, settings)
         assert ".java" in java_map["text"], java_map
         source = root / "aider-source"

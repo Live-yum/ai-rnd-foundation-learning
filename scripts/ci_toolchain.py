@@ -42,6 +42,7 @@ def main():
     with tempfile.TemporaryDirectory(prefix="rnd-tools-ci-") as temporary:
         root = Path(temporary)
         settings = Settings(data_dir=root / "state", _env_file=None)
+        print("Index bundled Java/Vue source", flush=True)
         rows = prepare(settings, "yudao-vben")
         backend = Path(next(row["path"] for row in rows if row["slot"] == "backend"))
         frontend = Path(next(row["path"] for row in rows if row["slot"] == "frontend"))
@@ -51,9 +52,11 @@ def main():
         java = query(backend, bindex, "RestController")
         vue = query(frontend, findex, "useVbenForm")
         assert java["matches"] and vue["matches"]
-        assert any(hit["path"].endswith(".vue") for hit in vue["matches"])
+        assert any(hit["path"].endswith(".vue") for hit in vue["matches"]), vue
         export_continue(root, backend, bindex)
+        print("Run real MCP stdio roundtrip", flush=True)
         protocol = asyncio.run(mcp_roundtrip(backend, bindex))
+        print("Run real Aider maps and bounded Git edit", flush=True)
         java_map = repo_map(backend, bindex, settings)
         assert ".java" in java_map["text"], java_map
         source = root / "aider-source"
