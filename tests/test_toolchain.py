@@ -367,3 +367,17 @@ def test_exact_hook_usage_is_not_displaced_by_short_camel_case_matches(tmp_path)
     found = query(source, index, "useVbenForm", limit=3)
     assert found["matches"][0]["path"] == "usage.vue"
     assert "useVbenForm" in found["matches"][0]["content"]
+
+
+def test_search_path_filters_apply_before_ranking(indexed):
+    source, index = indexed
+    assert not query(source, index, "useVbenForm", file_suffix=".java")["matches"]
+    assert (
+        query(source, index, "useVbenForm", file_suffix=".vue")["matches"][0]["path"]
+        == "Article.vue"
+    )
+    assert not query(source, index, "useVbenForm", path_prefix="other-app/")["matches"]
+    with pytest.raises(ValueError):
+        query(source, index, "useVbenForm", path_prefix="../outside/")
+    with pytest.raises(ValueError):
+        query(source, index, "useVbenForm", file_suffix=".env")

@@ -78,6 +78,8 @@ uv run rnd tools continue-config . templates/product .data/examples/product-inde
 
 正常创建 `.continue/mcpServers/rnd.json`，里面只有 uv 命令和明确的本机路径，没有 API_KEY。在 Continue 的 Agent 模式加载该工作区 MCP 配置，可看到 `search_code` 和 `repository_map`。客户端的模型仍可能把返回的上下文发送到其已配置的供应商，使用前必须确认 Continue 自己的模型配置和数据策略。平台不替第三方 IDE 作保密保证。
 
+查询具体 Vben Ant Design 页面用法时，在 search_code 参数中设置 `file_suffix=".vue"` 和 `path_prefix="apps/web-antd/"`；CLI 对应 `--file-suffix .vue --path-prefix apps/web-antd/`。筛选在数据库排名之前执行，避免其他前端适配器的同名 Hook 定义占满结果。
+
 已经存在 rnd.json 会报错，而不是覆盖你的配置。换机器后路径可能不同，应人工比较后重新生成。MCP 进程的 stdout 专用于 JSON-RPC，不要在 context-server 里添加 print 调试输出。源码根目录在启动时固定，调用者不能指定任意路径或执行命令。`.continue` 配置不进入源码索引和最终产品。
 
 ## 20.5 可选向量检索：独立地址、独立密钥、明确上传同意
@@ -146,7 +148,7 @@ uv run python -m scripts.build_handbook
 uv run python -m scripts.build_handbook --check
 ```
 
-第一关验证 AST 注解、Vue 行号、增量失效、文件边界、预算、独立密钥、向量返回校验、MCP 工具白名单、编辑原文匹配、Daytona 同意及清理。第二关用仓库内真实 Java/Vue 模板查询，启动真实 stdio MCP 客户端/服务端，运行锁定 Aider CLI 的地图和编辑，并检查 Git commits；不消耗真实 LLM Key。第三关回归平台整个流程，不能只跑新增测试。随后必须通过 PostgreSQL、真实浏览器、原生模板和干净产品交付的既有 Actions。
+第一关验证 AST 注解、Vue 行号、增量失效、文件边界、预算、独立密钥、向量返回校验、MCP 工具白名单、编辑原文匹配、Daytona 同意及清理。第二关先让真实 LangGraph 调用真实 Aider，从已批准业务规则一路完成独立依赖安装、HTTP、重启和干净解压交付（仅模型返回用明确测试夹具），然后用仓库内真实 Java/Vue 模板查询，启动真实 stdio MCP 客户端/服务端，运行锁定 Aider CLI 的地图和编辑，并检查 Git commits；不消耗真实 LLM Key。第三关回归平台整个流程，不能只跑新增测试。随后必须通过 PostgreSQL、真实浏览器、原生模板和干净产品交付的既有 Actions。
 
 `Toolchain integration acceptance` 会执行工具集成验证并上传报告；`Daytona live smoke (explicit opt-in)` 只能手动执行、必须显式勾选上传授权并提供账户 Secrets 和快照，不能在不可信 PR 上读取密钥。真实运行没有配置或失败，不能写成通过；报告中 daytona_live=false 只说明未使用账户，不等于测试跳过所有生命周期。
 

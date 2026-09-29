@@ -220,7 +220,17 @@ def add_embeddings(source, index_dir, settings, transport=None):
     }
 
 
-def query(source, index_dir, question, limit=8, max_chars=12000, settings=None, transport=None):
+def query(
+    source,
+    index_dir,
+    question,
+    limit=8,
+    max_chars=12000,
+    settings=None,
+    transport=None,
+    file_suffix="",
+    path_prefix="",
+):
     if (
         not question.strip()
         or len(question) > 2000
@@ -232,6 +242,13 @@ def query(source, index_dir, question, limit=8, max_chars=12000, settings=None, 
     words = terms(question)
     if not words:
         raise ValueError("查询需要至少一个关键词")
+    if file_suffix and file_suffix not in CODE_SUFFIXES:
+        raise ValueError("不支持的源码文件类型")
+    if path_prefix:
+        inside(source, path_prefix)
+        path_prefix = Path(path_prefix).as_posix().rstrip("/") + "/"
+    path_clause = " AND substr(path,1,?)=? AND (?='' OR substr(path,-length(?))=?)"
+    path_params = (len(path_prefix), path_prefix, file_suffix, file_suffix, file_suffix)
     expression = " OR ".join('"' + word.replace('"', '""') + '"' for word in words)
     with closing(sqlite3.connect(Path(index_dir) / "search.sqlite3")) as db, db:
         db.row_factory = sqlite3.Row
@@ -246,12 +263,16 @@ def query(source, index_dir, question, limit=8, max_chars=12000, settings=None, 
             '"' + word.replace('"', '""') + '"' for word in original_words
         )
         exact = db.execute(
-            "SELECT id FROM search WHERE search MATCH ? ORDER BY bm25(search) LIMIT 80",
-            (exact_expression,),
+            "SELECT id FROM search WHERE search MATCH ?"
+            + path_clause
+            + " ORDER BY bm25(search) LIMIT 80",
+            (exact_expression, *path_params),
         ).fetchall()
         expanded = db.execute(
-            "SELECT id FROM search WHERE search MATCH ? ORDER BY bm25(search) LIMIT 80",
-            (expression,),
+            "SELECT id FROM search WHERE search MATCH ?"
+            + path_clause
+            + " ORDER BY bm25(search) LIMIT 80",
+            (expression, *path_params),
         ).fetchall()
         lexical = list(dict.fromkeys(row[0] for row in [*exact, *expanded]))[:80]
         ranks = [lexical]
@@ -259,7 +280,9 @@ def query(source, index_dir, question, limit=8, max_chars=12000, settings=None, 
         profile = embedding_profile(settings) if settings else None
         if profile and settings.embedding_allow_upload:
             vectors = db.execute(
-                "SELECT id,values_json FROM vectors WHERE profile=?", (profile_id(profile),)
+                "SELECT vectors.id,values_json FROM vectors JOIN chunks ON chunks.id=vectors.id WHERE profile=?"
+                + path_clause,
+                (profile_id(profile), *path_params),
             ).fetchall()
             if vectors:
                 needle = embed(profile, [question], transport)[0]

@@ -39,6 +39,10 @@ async def mcp_roundtrip(source, index):
 
 
 def main():
+    from scripts.ci_aider_workflow import verify_workflow
+
+    print("Run actual Aider LangGraph delivery", flush=True)
+    workflow = verify_workflow()
     with tempfile.TemporaryDirectory(prefix="rnd-tools-ci-") as temporary:
         root = Path(temporary)
         settings = Settings(data_dir=root / "state", _env_file=None)
@@ -50,7 +54,9 @@ def main():
         build_index(backend, bindex)
         build_index(frontend, findex)
         java = query(backend, bindex, "RestController")
-        vue = query(frontend, findex, "useVbenForm")
+        vue = query(
+            frontend, findex, "useVbenForm", file_suffix=".vue", path_prefix="apps/web-antd/"
+        )
         assert java["matches"] and vue["matches"]
         assert any(hit["path"].endswith(".vue") for hit in vue["matches"]), vue
         export_continue(root, backend, bindex)
@@ -84,6 +90,7 @@ def main():
         assert edited["before_commit"] != edited["after_commit"]
         evidence = {
             "passed": True,
+            "aider_langgraph_delivery": workflow,
             "native_java_hits": len(java["matches"]),
             "native_vben_hits": len(vue["matches"]),
             "continue_mcp": protocol,

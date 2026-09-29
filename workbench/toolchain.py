@@ -45,11 +45,22 @@ def prepare_context(settings, template, requirement, destination):
 
 
 @app.command("search")
-def search_command(source: Path, index: Path, question: str):
+def search_command(
+    source: Path, index: Path, question: str, file_suffix: str = "", path_prefix: str = ""
+):
     """查询已建立的索引，不自动上传源码、不默认使用向量接口。"""
     typer.echo(
         json.dumps(
-            query(source, index, question, settings=Settings()), ensure_ascii=False, indent=2
+            query(
+                source,
+                index,
+                question,
+                settings=Settings(),
+                file_suffix=file_suffix,
+                path_prefix=path_prefix,
+            ),
+            ensure_ascii=False,
+            indent=2,
         )
     )
 
