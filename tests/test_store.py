@@ -12,7 +12,7 @@ from workbench.store import Conflict, Message, Project, Store
 def test_migration_and_foreign_key(store):
     with store.engine.connect() as c:
         assert c.scalar(text("PRAGMA foreign_keys")) == 1
-        assert c.scalar(text("SELECT version_num FROM alembic_version")) == "0001"
+        assert c.scalar(text("SELECT version_num FROM alembic_version")) == "0002"
     with pytest.raises(IntegrityError), store.tx() as s:
         s.add(Message(run_id=str(uuid.uuid4()), role="user", content="orphan"))
 
@@ -70,8 +70,11 @@ def test_gate_cannot_bypass_approval(store):
 
 
 def test_model_budget(store):
+    from workbench.errors import PausedLimit
+
+    store.settings.max_model_calls = 2
     run = new_run(store)
     for _ in range(store.settings.max_model_calls):
         store.reserve_model_call(run)
-    with pytest.raises(Conflict):
+    with pytest.raises(PausedLimit):
         store.reserve_model_call(run)

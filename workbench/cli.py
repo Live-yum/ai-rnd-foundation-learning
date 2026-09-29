@@ -9,7 +9,9 @@ from urllib.parse import urlsplit
 import httpx
 import typer
 
-from workbench.settings import ROOT, Settings
+from workbench.catalog import Selection, selections
+from workbench.conversation import command_word
+from workbench.settings import ROOT, STAGES, Settings
 from workbench.store import Store
 
 app = typer.Typer(no_args_is_help=True, help="本地 AI 研发平台（Python 3.14）")
@@ -58,7 +60,13 @@ def init():
         store.token()
     finally:
         store.engine.dispose()
-    typer.echo("已初始化 SQLite 和访问令牌。请填写 .env 的 BASE_URL、API_KEY、MODE。")
+    from workbench.vendor import prepare
+
+    for template in ("fastapiadmin", "yudao-vben"):
+        prepare(Settings(), template)
+    typer.echo(
+        "已初始化数据库、令牌并从本仓库解压全部模板。请填写 .env 的 BASE_URL、API_KEY、MODE。"
+    )
 
 
 @app.command()
@@ -75,7 +83,9 @@ def start(no_worker: bool = False):
         raise typer.BadParameter(str(exc)) from None
     if settings.host not in {"127.0.0.1", "localhost", "::1"}:
         raise typer.BadParameter("此版本只供本机体验，不绑定公网地址")
-    typer.echo(f"接口调试页：http://127.0.0.1:{settings.port}/docs；另开终端执行 uv run rnd chat")
+    typer.echo(
+        f"操作台：http://127.0.0.1:{settings.port}/  接口文档：/docs；令牌用 uv run rnd token 查看。CLI：uv run rnd chat"
+    )
     uvicorn.run(
         create_app(settings, start_worker=not no_worker),
         host=settings.host,
@@ -143,10 +153,41 @@ def templates():
 
 
 @app.command()
-def chat(run: str = "", template: str = "python-basic"):
+def chat(
+    run: str = "", template: str = "", frontend: str = "", database: str = "", smart: bool = False
+):
     """创建并体验整个流程，或用 --run 恢复已有运行。"""
     with client() as c:
         if not run:
+            available = selections()
+            if not template:
+                typer.echo("先选择交付的后端模板，再选择兼容前端与数据库：")
+                for i, item in enumerate(available, 1):
+                    typer.echo(f"{i}. {item['name']} ({item['template']})")
+                index = typer.prompt("模板编号", default=1, type=int)
+                if not 1 <= index <= len(available):
+                    raise typer.BadParameter("模板编号不存在")
+                template = available[index - 1]["template"]
+            item = next((x for x in available if x["template"] == template), None)
+            if item is None:
+                raise typer.BadParameter("未知模板")
+            if not frontend:
+                frontend = typer.prompt(
+                    "前端（" + ", ".join(item["frontends"]) + "）", default=item["frontends"][0]
+                )
+            if not database:
+                database = typer.prompt(
+                    "交付数据库（" + ", ".join(item["databases"]) + "）",
+                    default=item["databases"][0],
+                )
+            selection = Selection(template=template, frontend=frontend, database=database)
+            echo(selection.model_dump())
+            if template != "python-basic":
+                typer.echo("原生模板需要Linux/WSL及对应原生运行环境；交付包含初始化/迁移入口。")
+            elif database == "postgresql":
+                typer.echo(
+                    "PostgreSQL产品需要Docker或已配置的独立开发数据库；平台控制库仍可用SQLite。"
+                )
             title = typer.prompt("项目名称")
             requirement = typer.prompt("你希望做什么系统")
             project = api_call(c, "POST", "/projects", {"title": title})
@@ -154,10 +195,20 @@ def chat(run: str = "", template: str = "python-basic"):
                 c,
                 "POST",
                 f"/projects/{project['id']}/runs",
-                {"requirement": requirement, "template": template},
+                {
+                    "requirement": requirement,
+                    "template": template,
+                    "selection": selection.model_dump(),
+                    "intelligent": smart,
+                },
             )
             run = created["run_id"]
+        if smart:
+            api_call(c, "POST", f"/runs/{run}/automation", {"enabled": True, "accepted": True})
         typer.echo(f"运行 ID：{run}\n中断后使用 uv run rnd chat --run {run} 继续。")
+        typer.echo(
+            "任意等待阶段输入『智能推荐』：后续未确定细节由AI推荐并自动决定，不再逐项询问；独立验证不能跳过。"
+        )
         previous = None
         try:
             while True:
@@ -170,7 +221,7 @@ def chat(run: str = "", template: str = "python-basic"):
                     if state["status"] == "SOURCE_READY":
                         typer.echo("这是原生源码导出，不是已通过完整运行验收的产品。")
                     break
-                if state["status"] in {"FAILED", "REJECTED"}:
+                if state["status"] in {"FAILED", "REJECTED", "BLOCKED", "PAUSED_LIMIT"}:
                     typer.echo(state.get("error") or "操作已拒绝")
                     break
                 gate = state.get("pending")
@@ -179,10 +230,16 @@ def chat(run: str = "", template: str = "python-basic"):
                     continue
                 echo(gate["data"])
                 typer.echo("当前阶段：" + gate["stage"])
-                text = typer.prompt("填写回答/修改意见；批准请输入“批准”，拒绝请输入“拒绝”")
-                if text == "批准":
+                text = typer.prompt("答复 / 批准 / 拒绝 / 智能推荐")
+                word = command_word(text)
+                if word in {"智能推荐", "推荐", "smart", "recommend"}:
+                    api_call(
+                        c, "POST", f"/runs/{run}/automation", {"enabled": True, "accepted": True}
+                    )
+                    continue
+                if word in {"批准", "approve"}:
                     payload = {"gate_id": gate["gate_id"], "action": "approve", "approved": True}
-                elif text == "拒绝":
+                elif word in {"拒绝", "reject"}:
                     payload = {"gate_id": gate["gate_id"], "action": "reject", "approved": False}
                 else:
                     action = "answer" if "answer" in gate["actions"] else "revise"
@@ -190,11 +247,38 @@ def chat(run: str = "", template: str = "python-basic"):
                 if payload["action"] not in gate["actions"] or (
                     payload["action"] == "approve" and not gate["can_approve"]
                 ):
-                    typer.echo("当前条件不允许此动作，请先回答问题或修改范围。")
+                    typer.echo(
+                        "本轮尚有未确定事项：可回答，或输入『智能推荐』让AI决定后续。此次控制指令不会送给模型，也不会消耗轮数。"
+                    )
                     continue
                 api_call(c, "POST", f"/runs/{run}/resume", payload)
         except KeyboardInterrupt:
             typer.echo(f"已退出交互；运行仍保存。恢复：uv run rnd chat --run {run}")
+
+
+@app.command()
+def recommend(run: str):
+    """授权当前运行的后续未明确需求使用AI建议；不绕过测试与技术前提。"""
+    with client() as c:
+        echo(api_call(c, "POST", f"/runs/{run}/automation", {"enabled": True, "accepted": True}))
+
+
+@app.command()
+def manual(run: str):
+    """关闭后续自动决定；下一道门恢复人工确认。"""
+    with client() as c:
+        echo(api_call(c, "POST", f"/runs/{run}/automation", {"enabled": False, "accepted": False}))
+
+
+@app.command()
+def models():
+    """显示各阶段实际模型选择，不显示密钥；单模型配置自动回退。"""
+    settings = Settings()
+    for stage in STAGES:
+        try:
+            echo(settings.model_for(stage).public())
+        except ValueError as exc:
+            echo({"stage": stage, "error": settings.redact(str(exc))})
 
 
 @app.command()

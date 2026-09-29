@@ -5,7 +5,8 @@ import hashlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT = ROOT / "从零实现AI研发平台_逐步实操手册_完整版_v3.md"
+OUTPUT = ROOT / "从零实现AI研发平台_逐步实操手册_完整版.md"
+LEGACY = ROOT / "从零实现AI研发平台_逐步实操手册_完整版_v3.md"
 GUIDES = ["docs/guide.md", "docs/native-baseline.md"]
 GROUPS = [
     (
@@ -21,57 +22,22 @@ GROUPS = [
             "alembic.ini",
         ],
     ),
+    ("后端全部实现与控制台", ["workbench"]),
+    ("冻结数据库迁移", ["migrations"]),
+    ("默认产品与前端", ["templates/product", "templates/frontends"]),
+    ("独立原生交付启动器", ["templates/deployment"]),
     (
-        "数据库与输入契约",
+        "自带原生源码的版本与许可证",
         [
-            "workbench/__init__.py",
-            "workbench/settings.py",
-            "workbench/domain.py",
-            "workbench/store.py",
-            "migrations",
+            "templates/vendor/manifest.json",
+            "templates/vendor/fastapiadmin.LICENSE",
+            "templates/vendor/yudao-backend.LICENSE",
+            "templates/vendor/yudao-frontend.LICENSE",
         ],
     ),
+    ("全部测试", ["tests"]),
     (
-        "文件、模型、代码规则与知识包",
-        [
-            "workbench/filesystem.py",
-            "workbench/tools.py",
-            "workbench/llm.py",
-            "workbench/rules.py",
-            "workbench/knowledge.py",
-            "workbench/coding.py",
-        ],
-    ),
-    (
-        "默认产品与原生模板",
-        [
-            "workbench/generator.py",
-            "workbench/verification.py",
-            "workbench/native.py",
-            "templates/product",
-        ],
-    ),
-    (
-        "原生基线的实际运行与验证",
-        [
-            "workbench/native_environment.py",
-            "workbench/native_checks.py",
-            "workbench/native_frontend.py",
-            "workbench/native_vben.py",
-            "workbench/native_modules.py",
-            "workbench/native_compatibility.py",
-            "workbench/native_acceptance.py",
-            "workbench/native_lab.py",
-            "workbench/native_delivery.py",
-        ],
-    ),
-    (
-        "完整工作流与操作入口",
-        ["workbench/flow.py", "workbench/runtime.py", "workbench/api.py", "workbench/cli.py"],
-    ),
-    ("自动化测试", ["tests"]),
-    (
-        "构建与CI",
+        "工具及Actions",
         [
             "scripts",
             ".github/workflows/test.yml",
@@ -79,7 +45,7 @@ GROUPS = [
             ".github/workflows/native-probe.yml",
         ],
     ),
-    ("平台真实依赖锁", ["uv.lock"]),
+    ("平台依赖锁", ["uv.lock"]),
     ("手册正文源文件", GUIDES),
 ]
 
@@ -129,6 +95,10 @@ def render():
                 ".yml": "yaml",
                 ".json": "json",
                 ".cjs": "javascript",
+                ".js": "javascript",
+                ".html": "html",
+                ".css": "css",
+                ".yaml": "yaml",
             }.get(Path(name).suffix, "text")
             text += f"\n### `{name}`\n\n<!-- source-file: {name} sha256: {code_sha} -->\n{fence}{language}\n{content.rstrip(chr(10))}\n{fence}\n"
     return text
@@ -140,11 +110,17 @@ def main():
     args = parser.parse_args()
     expected = render()
     if args.check:
-        if not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != expected:
+        if (
+            not OUTPUT.exists()
+            or OUTPUT.read_text(encoding="utf-8") != expected
+            or not LEGACY.exists()
+            or LEGACY.read_text(encoding="utf-8") != expected
+        ):
             raise SystemExit("手册与源码不一致：执行 uv run python -m scripts.build_handbook")
         print("Handbook source consistency PASS")
     else:
         OUTPUT.write_text(expected, encoding="utf-8", newline="\n")
+        LEGACY.write_text(expected, encoding="utf-8", newline="\n")
         print("Handbook written successfully")
 
 

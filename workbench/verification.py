@@ -7,6 +7,7 @@ import shutil
 import sys
 import tempfile
 import zipfile
+from contextlib import nullcontext
 from pathlib import Path
 
 from workbench.domain import digest
@@ -23,9 +24,11 @@ def product_interpreter(product, settings):
     uv = shutil.which("uv")
     if not uv:
         raise PrerequisiteError("独立产品验收需要 uv，当前 PATH 中未找到")
+    selected = json.loads((Path(product) / "selection.json").read_text())["database"]
+    extras = ["--extra", "postgres"] if selected == "postgresql" else []
     try:
         run_command(
-            [uv, "sync", "--locked", "--no-dev", "--project", str(product)],
+            [uv, "sync", "--locked", "--no-dev", *extras, "--project", str(product)],
             product,
             timeout=settings.tool_timeout,
             extra_env={"UV_PYTHON": sys.executable},
@@ -33,6 +36,29 @@ def product_interpreter(product, settings):
     except ToolFailure as exc:
         raise PrerequisiteError("产品依赖安装失败；这是环境故障，不自动修改业务代码") from exc
     return str(product / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"))
+
+
+def run_probe(product, python, report_path, settings):
+    from workbench.postgres_lab import database
+
+    selection = json.loads((Path(product) / "selection.json").read_text(encoding="utf-8"))
+    scope = database(settings) if selection["database"] == "postgresql" else nullcontext(None)
+    with scope as url:
+        return run_command(
+            [
+                sys.executable,
+                str(ROOT / "templates/product/verify.py"),
+                "--product",
+                str(product),
+                "--python",
+                python,
+                "--report",
+                str(report_path),
+            ],
+            ROOT,
+            timeout=settings.tool_timeout,
+            extra_env={"VERIFY_DATABASE_URL": url} if url else {},
+        )
 
 
 def validate_rule_examples(plan, product):
@@ -69,20 +95,7 @@ def verify_basic(plan, product, settings, attempt=0):
     python = product_interpreter(product, settings)
     report_path = product.parent / f"runtime-{attempt}.json"
     try:
-        execution = run_command(
-            [
-                sys.executable,
-                str(ROOT / "templates/product/verify.py"),
-                "--product",
-                str(product),
-                "--python",
-                python,
-                "--report",
-                str(report_path),
-            ],
-            ROOT,
-            timeout=settings.tool_timeout,
-        )
+        execution = run_probe(product, python, report_path, settings)
     except ToolFailure as exc:
         if not report_path.exists():
             raise PrerequisiteError("运行验收未产生报告；检查本机工具环境与超时配置") from exc
@@ -133,20 +146,7 @@ def package_basic(plan, product, settings, report):
                 raise PrerequisiteError("ZIP 内文件与通过验收的源码不一致")
             python = product_interpreter(clean, settings)
             clean_report = Path(directory) / "cleanroom.json"
-            run_command(
-                [
-                    sys.executable,
-                    str(ROOT / "templates/product/verify.py"),
-                    "--product",
-                    str(clean),
-                    "--python",
-                    python,
-                    "--report",
-                    str(clean_report),
-                ],
-                ROOT,
-                settings.tool_timeout,
-            )
+            run_probe(clean, python, clean_report, settings)
             evidence = json.loads(clean_report.read_text(encoding="utf-8"))
             if manifest(clean) != listing:
                 raise PrerequisiteError("干净验收期间源码发生变化")

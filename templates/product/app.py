@@ -2,27 +2,27 @@
 
 import hashlib
 import hmac
+import json
 import secrets
 import time
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request, Response
+from fastapi.responses import FileResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from fields import input_model, validate_options
 from pydantic import (
     BaseModel,
     ConfigDict,
     Field,
-    StrictBool,
-    StrictInt,
-    StrictStr,
     ValidationError,
-    create_model,
 )
+from querying import conditions
 from rule_engine import Rules
 from schema import SPEC, engine, metadata
-from sqlalchemy import delete, insert, select, update
+from sqlalchemy import delete, func, insert, select, update
 from sqlalchemy.exc import IntegrityError
 
 RULES = Rules((Path(__file__).resolve().parent / "custom_rules.py").read_text(encoding="utf-8"))
@@ -38,27 +38,11 @@ async def lifespan(app):
 
 app = FastAPI(title=SPEC["title"], lifespan=lifespan)
 auth = HTTPBearer()
-models = {}
-for entity in SPEC["entities"]:
-    fields = {}
-    for field in entity["fields"]:
-        kind = {"text": StrictStr, "integer": StrictInt, "boolean": StrictBool}[field["kind"]]
-        settings = (
-            {"max_length": field["max_length"]}
-            if field["kind"] == "text"
-            else (
-                {"ge": -9223372036854775808, "le": 9223372036854775807}
-                if field["kind"] == "integer"
-                else {}
-            )
-        )
-        fields[field["name"]] = (
-            kind if field["required"] else kind | None,
-            Field(default=... if field["required"] else None, **settings),
-        )
-    models[entity["name"]] = create_model(
-        entity["name"] + "Input", __config__=ConfigDict(extra="forbid"), **fields
-    )
+ENTITIES = {entity["name"]: entity for entity in SPEC["entities"]}
+models = {name: input_model(entity) for name, entity in ENTITIES.items()}
+SELECTION = json.loads(
+    (Path(__file__).resolve().parent / "selection.json").read_text(encoding="utf-8")
+)
 
 
 class Credentials(BaseModel):
@@ -136,6 +120,7 @@ def validated(entity, data):
     business_table(entity)
     try:
         value = models[entity].model_validate(data).model_dump()
+        validate_options(ENTITIES[entity], value)
         RULES.validate(entity, value)
         return value
     except ValidationError, ValueError:
@@ -147,22 +132,58 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/")
+def index():
+    if SELECTION["frontend"] == "api-only":
+        return {"title": SPEC["title"], "docs": "/docs", "frontend": "api-only"}
+    return FileResponse(Path(__file__).resolve().parent / "web/index.html")
+
+
+@app.get("/web/{asset}")
+def asset(asset: str):
+    if asset not in {"app.js", "style.css"} or SELECTION["frontend"] == "api-only":
+        raise HTTPException(404)
+    return FileResponse(Path(__file__).resolve().parent / "web" / asset)
+
+
+@app.get("/schema")
+def product_schema(user=Depends(actor)):
+    return {"spec": SPEC, "selection": SELECTION}
+
+
 @app.get("/api/{entity}")
-def list_items(entity: str, limit: int = 50, offset: int = 0, user=Depends(actor)):
+def list_items(
+    entity: str,
+    request: Request,
+    response: Response,
+    limit: int = 50,
+    offset: int = 0,
+    user=Depends(actor),
+):
     table = business_table(entity)
+    try:
+        if len(request.query_params.multi_items()) != len(request.query_params):
+            raise ValueError("不接受重复查询参数")
+        expressions, ordering = conditions(table, ENTITIES[entity], request.query_params, user)
+        if not 1 <= limit <= 100 or offset < 0:
+            raise ValueError("分页参数超出范围")
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from None
     with engine.connect() as c:
+        count = c.scalar(select(func.count()).select_from(table).where(*expressions))
         rows = (
             c.execute(
                 select(table)
-                .where(table.c.owner_id == user)
-                .order_by(table.c.id)
-                .limit(max(1, min(limit, 100)))
-                .offset(max(0, offset))
+                .where(*expressions)
+                .order_by(ordering, table.c.id)
+                .limit(limit)
+                .offset(offset)
             )
             .mappings()
             .all()
         )
-        return [dict(row) for row in rows]
+    response.headers["X-Total-Count"] = str(count)
+    return [dict(row) for row in rows]
 
 
 @app.post("/api/{entity}", status_code=201)

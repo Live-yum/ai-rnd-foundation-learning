@@ -16,7 +16,6 @@ from urllib.parse import urlsplit
 
 import httpx
 from dotenv import dotenv_values
-from filelock import FileLock
 from pydantic import BaseModel, ConfigDict, Field, SecretStr
 from sqlalchemy import (
     BigInteger,
@@ -35,9 +34,7 @@ from sqlalchemy.schema import CreateTable
 from workbench.domain import digest
 from workbench.filesystem import atomic_text, files, inside, manifest, sha, unpack, write_json
 from workbench.generator import PrerequisiteError
-from workbench.knowledge import build_index
 from workbench.settings import ROOT
-from workbench.tools import ToolFailure, run_command
 
 SOURCES = {
     "fastapiadmin": [
@@ -93,7 +90,15 @@ def catalog(settings):
             "id": "python-basic",
             "level": "runtime",
             "requires": ["Python 3.14", "uv"],
-            "capabilities": ["typed-crud", "per-user-isolation", "bounded-record-validation"],
+            "capabilities": [
+                "typed-crud",
+                "per-user-isolation",
+                "bounded-record-validation",
+                "keyword-search",
+                "date-range",
+                "enum",
+                "simple-admin",
+            ],
             "not_supported": [
                 "relations",
                 "shared-data",
@@ -109,6 +114,7 @@ def catalog(settings):
                 "id": name,
                 "level": "managed-runtime" if managed else "native-source-export",
                 "sources": sources,
+                "bundled": True,
                 "configured": managed or (settings.data_dir / "native" / f"{name}.json").exists(),
                 "configuration_is_not_acceptance": True,
                 "requires": [
@@ -177,62 +183,12 @@ def load_config(settings, template):
 
 
 def prepare_sources(settings, template, prefer_github=False):
+    """Compatibility signature; every source is now in the clone, not fetched from a moving branch."""
+    from workbench.vendor import prepare
+
     if template not in SOURCES:
         raise PrerequisiteError("未知原生模板")
-    settings.prepare()
-    receipts = []
-    with FileLock(str(settings.data_dir / "sources" / f"{template}.lock"), timeout=30):
-        for entry in SOURCES[template]:
-            path = settings.data_dir / "sources" / template / entry["slot"] / entry["sha"]
-            path.parent.mkdir(parents=True, exist_ok=True)
-            used_url = None
-            if not (path / ".git").exists():
-                for url in sorted(
-                    entry["urls"], key=lambda u: prefer_github and "github.com" not in u
-                ):
-                    if path.exists():
-                        shutil.rmtree(path)
-                    path.mkdir()
-                    try:
-                        run_command(["git", "init", "--quiet"], path)
-                        run_command(
-                            ["git", "fetch", "--depth", "1", url, entry["sha"]],
-                            path,
-                            settings.tool_timeout,
-                            {"GIT_TERMINAL_PROMPT": "0"},
-                        )
-                        run_command(["git", "checkout", "--detach", "FETCH_HEAD"], path)
-                        used_url = url
-                        break
-                    except ToolFailure:
-                        continue
-                if used_url is None:
-                    shutil.rmtree(path)
-                    raise PrerequisiteError("无法取得已锁定的原生模板提交；未改用未知版本")
-            head = run_command(["git", "rev-parse", "HEAD"], path)["log"].strip()
-            dirty = run_command(["git", "status", "--porcelain"], path)["log"].strip()
-            if head != entry["sha"] or dirty:
-                raise PrerequisiteError("模板源码提交不匹配或已被修改；请保留原目录并重新准备")
-            for required in entry["required"]:
-                if not inside(path, required).exists():
-                    raise PrerequisiteError("固定模板缺少必要源码路径")
-            record_path = path.parent / (entry["sha"] + ".json")
-            if used_url is None and record_path.exists():
-                used_url = json.loads(record_path.read_text(encoding="utf-8")).get("url")
-            record = {
-                "template": template,
-                "slot": entry["slot"],
-                "sha": head,
-                "url": used_url,
-                "path": str(path),
-                "dirty": False,
-            }
-            write_json(record_path, record)
-            build_index(
-                path, settings.data_dir / "knowledge" / template / entry["slot"] / head, head
-            )
-            receipts.append(record)
-    return receipts
+    return prepare(settings, template)
 
 
 def create_codegen_tables(plan, url, run_id):
@@ -459,10 +415,10 @@ def native_export(client, template, mapping, plan):
     return exports
 
 
-def generate_native(settings, template, plan, destination):
+def generate_native(settings, template, plan, destination, *, managed=False):
     from workbench.native_delivery import managed_generate, runtime_enabled
 
-    if runtime_enabled(settings, template):
+    if managed or runtime_enabled(settings, template):
         return managed_generate(settings, template, plan, destination)
     config, token, db_url = load_config(settings, template)
     if plan.custom_rules or plan.unsupported:
