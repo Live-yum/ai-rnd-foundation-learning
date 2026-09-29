@@ -97,6 +97,7 @@ async function main() {
       );
       async function filter(values, count) {
         await page.locator("#reset").click();
+        assert.deepEqual(await page.locator("#filters").evaluate(form => [...new FormData(form).values()].filter(Boolean)), [], "Clear filters must clear all prior conditions");
         for (const [key, value] of Object.entries(values)) {
           const f = page.locator(`#filters [name=${key}]`);
           if (key === "filter_category") await f.selectOption(value);

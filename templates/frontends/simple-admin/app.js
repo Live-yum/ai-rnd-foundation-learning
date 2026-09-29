@@ -185,7 +185,8 @@ $("filters").onsubmit = (e) => {
   load().catch(inform);
 };
 $("reset").onclick = () => {
-  $("filters").reset();
+  // A child whose id is reset shadows the form.reset property in browsers.
+  HTMLFormElement.prototype.reset.call($("filters"));
   offset = 0;
   load().catch(inform);
 };

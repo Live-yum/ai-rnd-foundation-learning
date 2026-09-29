@@ -1,21 +1,33 @@
 """Apply reviewed complete documentation and two regression fixes; diagnostics only."""
+
 import base64
 import hashlib
 import json
 import lzma
 from pathlib import Path
 
-encoded = ''.join(Path(f'.reviewed/final-docs.{i}').read_text() for i in range(4))
+encoded = "".join(Path(f".reviewed/final-docs.{i}").read_text() for i in range(4))
 raw = lzma.decompress(base64.b64decode(encoded))
-assert hashlib.sha256(raw).hexdigest() == 'd92547d40b1103fe113f8fcd6d869e51bc5db438e051bf9a529e66a8c7066d5f'
+assert (
+    hashlib.sha256(raw).hexdigest()
+    == "d92547d40b1103fe113f8fcd6d869e51bc5db438e051bf9a529e66a8c7066d5f"
+)
 files = json.loads(raw)
-allowed = {'README.md', '.env.example', 'SECURITY.md', 'docs/guide.md', 'docs/native-baseline.md', 'templates/frontends/simple-admin/app.js', 'scripts/guided_browser.cjs'}
+allowed = {
+    "README.md",
+    ".env.example",
+    "SECURITY.md",
+    "docs/guide.md",
+    "docs/native-baseline.md",
+    "templates/frontends/simple-admin/app.js",
+    "scripts/guided_browser.cjs",
+}
 assert set(files) == allowed
 for name, item in files.items():
     path = Path(name)
-    if path.read_text(encoding='utf-8') == item['content']:
+    if path.read_text(encoding="utf-8") == item["content"]:
         continue
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == item['before'], name
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == item["before"], name
 for name, item in files.items():
-    Path(name).write_text(item['content'], encoding='utf-8', newline='\n')
-print('Reviewed README, complete guide and real filter-reset regression applied')
+    Path(name).write_text(item["content"], encoding="utf-8", newline="\n")
+print("Reviewed README, complete guide and real filter-reset regression applied")

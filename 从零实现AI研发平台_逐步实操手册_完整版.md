@@ -1,12 +1,39 @@
 # 从零实现 AI 研发平台：逐步实操手册
 
-这份手册对应本仓库 Python 3.14 源码。本文的完整文件内容由源码生成；测试会重新核对每一个文件，避免出现“文字让你调用一个并不存在的函数”。正文末尾包含所有代码、测试、配置、迁移和实际依赖锁。
+**Python 3.14 · uv · FastAPI · SQLite/可选PostgreSQL · LangGraph · 可选多模型 · 智能推荐 · 自带原生模板**
 
-## 1. 先启动体验，再按章节理解
+这是一份完整的实现与操作手册：前半部分按学习顺序说明创建什么、连接到哪里、如何运行与测试；后半部分直接包含同一提交中的全部文本源码、配置、数据库迁移、前端、测试和依赖锁。不要把旧手册里同名文件的部分代码混入当前实现。
 
-### 1.1 安装工具
+本手册的正式文件为 `从零实现AI研发平台_逐步实操手册_完整版.md`，保留兼容路径 `_完整版_v3.md`，两者内容完全一致。修改源码或正文后自动重新生成整本，不维护一堆互相矛盾的补丁章节。
 
-Windows 安装 Git 和 uv 后，重新打开 PowerShell。安装 uv 使用其官方安装器：
+## 1. 认识最终系统，再决定使用方式
+
+平台接收你的需求，帮助你澄清或推荐默认方案，确认设计，使用已验证的模板生成产品，再独立运行测试和打包。平台不是“一个提示词写出一切”的无限Agent：模型负责理解、规划及必要规则；程序负责迁移、文件、权限边界、生成器、测试和交付。
+
+你可以选择两种操作模式：
+
+- **人工模式**：重要节点由你确认；未明确的普通细节给推荐值，避免拆成十几轮追问。默认没有累计人工对话轮数上限。
+- **智能推荐模式**：在任意非终态点击“智能推荐”，或新建时启用。此后未明确的细节由AI推荐补齐，后续需求/设计/交付由受记录的委托决策自动推进，不再要求逐项回答。测试与安全边界不受这个开关影响。
+
+模型也有两种配置方式：只填一组默认模型就能运行；或给需求、规划、编码、语义审阅分别配置模型。没有必要的任务不调用模型，例如基础CRUD不会为了“多Agent”而额外生成一遍。
+
+### 1.1 能力矩阵是程序事实，不让模型随口改变
+
+| 后端模板 | 前端选择 | 交付数据库 | 数据范围与支持项 |
+|---|---|---|---|
+| `python-basic` / FastAPI | `simple-admin` 或 `api-only` | SQLite、PostgreSQL | 按登录用户隔离；text/integer/boolean/date/enum；长度、枚举、真实日期校验；关键词搜索、精确筛选、含两端日期区间；简单额外单记录规则 |
+| `fastapiadmin` | `fastapiadmin-vue` | PostgreSQL | 原生插件模块、菜单、角色权限和共享CRUD；text/integer/boolean；保留原框架 |
+| `yudao-vben` / Java | `vben-antd` | PostgreSQL | 原生Java模块、Vben5 Ant Design页面、菜单、角色权限与共享CRUD；text/integer/boolean |
+
+后端、前端、数据库必须先选，再输入需求。不同框架的登录与路由并不天然兼容，页面和API会拒绝未适配的混搭。产品数据库与平台控制数据库独立；平台即使用SQLite，也可以生成PostgreSQL产品。
+
+没有实现的外部采集、支付、跨实体事务等必须明确阻塞，不能换个模型就宣称完成。智能推荐允许补齐未明确细节，不允许删除你已经明确要求的功能或擅自把“各自数据”改成“共享数据”。
+
+## 2. 安装工具与取得代码
+
+### 2.1 Windows准备
+
+安装Git和VS Code。用PowerShell安装uv，关闭并重新打开终端后检查：
 
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
@@ -14,124 +41,199 @@ git --version
 uv --version
 ```
 
-平台初始不要求 Docker、PostgreSQL、Redis、Java、Node。原生 FastapiAdmin / 芋道模板有独立的运行前提，见第 12 章；不要把平台 SQLite 与模板数据库混在一起。
-
-### 1.2 取得本次实现
-
-PR 尚未合并时：
+本PR合并前使用实现分支：
 
 ```powershell
 cd D:\Code
-git clone --branch feat/python314-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
+git clone --branch feat/guided-multimodel-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
 cd ai-rnd-foundation-learning
 uv python install 3.14
+uv sync --locked
+uv run python -c "import sys; print(sys.executable); print(sys.version)"
+```
+
+预期为仓库 `.venv` 和 Python3.14.x。`uv run` 自动选择项目环境；终端显示Conda `(base)` 不足以判断实际运行解释器。不要在系统Python里pip一套、uv里又装一套，也不要因旧测试的import错误而降到3.12。
+
+合并后main具有同一功能时可直接clone main。已存在目录不要再clone覆盖；先`git status`检查并保存自己的改动。不要用`git reset --hard`、删除数据库或删除整个学习目录排错。
+
+### 2.2 普通clone已经带模板代码
+
+`templates/vendor/`包含三个实际源码ZIP：FastapiAdmin、芋道后端、Vben前端；同时包含 `manifest.json` 和各自LICENSE。它们是普通Git文件，不是submodule、Git LFS指针或只有URL的清单。
+
+```powershell
+uv run rnd init
+```
+
+这个命令创建 `.env`、平台数据库、本机访问令牌，并验证和解压仓库内的模板快照到 `.data/sources`。不重新从GitHub/Gitee克隆、不覆盖已有 `.env`、不清空数据库。默认只需Python/uv即可完成解压；真正运行Java或原生前端时才需要对应语言环境。
+
+锁文件安装、浏览器下载、Maven/pnpm依赖下载仍需要网络，不能把“源码已经在本地”描述成“全部离线”。源码快照排除依赖缓存、Git历史、密钥、数据库和字体二进制；许可证及原始commit保留。
+
+### 2.3 从已合并版本升级
+
+停止旧服务，备份 `.data/`、`.env` 和未提交的源码改动，随后在仓库根执行：
+
+```powershell
+git fetch origin
+git switch feat/guided-multimodel-workbench
 uv sync --locked
 uv run rnd init
 ```
 
-如果已经克隆，在现有仓库执行 `git status` 确认没有尚未保存的修改，再切换这个分支。不要删除你的数据、覆盖其他学习目录或使用 `git reset --hard` 排错。PR 合并后可以使用 main。
+数据库迁移给旧表新增必要列，旧项目、消息和运行ID保留；不通过删除库绕过迁移。如果旧 `.env` 中显式填写 `MAX_ROUNDS=10` 或 `MAX_MODEL_CALLS=16`，新默认不会覆盖它，请主动改成0。旧运行因为轮数失败时可修正配置并重启，再 `uv run rnd retry 原UUID`。没有生成到不可恢复外部副作用阶段的澄清运行可以继续；原生初始化中途失败则应保留现场并使用新的独立库，不自动DROP原数据。
 
-`uv sync --locked` 创建本项目 `.venv`，使用已经提交的真实锁文件，不会临时选择其他版本。统一执行 `uv run ...`，不需要手动激活 Conda 或 venv。确认解释器：
+## 3. 配置模型：单模型先跑通，多模型按需启用
 
-```powershell
-uv run python -c "import sys; print(sys.executable); print(sys.version)"
-```
-
-必须是 Python **3.14.x**。本项目不需要降级到 3.12。
-
-### 1.3 填写模型配置
-
-`rnd init` 只在缺少文件时复制 `.env.example`，自动升级本地数据库并生成访问令牌，不覆盖已有配置。
-
-用 VS Code 打开根目录的 `.env`，填写：
+编辑根目录 `.env`：
 
 ```dotenv
-BASE_URL=https://你的供应商兼容接口地址/v1
-API_KEY=你的真实密钥
-MODE=供应商提供的模型名称
+BASE_URL=https://你的服务商API根地址/v1
+API_KEY=真实密钥
+MODE=实际模型名称
+MAX_ROUNDS=0
+MAX_MODEL_CALLS=0
 ```
 
-`MODE` 是**模型名称**，不是 dev / prod，也不是“推理模式”；兼容别名 `MODEL`。`BASE_URL` 是 API 根地址，程序在后面拼接 `/chat/completions`，不要再次填入这个后缀。只支持返回 Chat Completions `choices[0].message.content` 格式的接口；不是网页聊天地址，也不自动适配仅提供其他协议的供应商。本地模型可以使用 loopback HTTP；远端必须 HTTPS。本地服务要求非空 API_KEY，可填写其规定的占位值。
+BASE_URL不要填网页聊天地址，不要带 `/chat/completions`；程序追加这个路径。MODE是模型ID，与MODEL别名兼容，不是dev/prod或推理强度。本实现使用OpenAI-compatible Chat Completions响应结构，不自动假装兼容完全不同的协议。远端使用HTTPS，本机服务只允许回环HTTP。
 
-不要把 `.env`、`.data/access-token`、数据库或者模型请求内容发到公开 PR。`.gitignore` 默认排除它们。
+### 3.1 有效模型的继承规则
 
-### 1.4 启动与交互
+| 阶段 | 环境变量前缀 | 何时调用 |
+|---|---|---|
+| 澄清、智能推荐 | `REQUIREMENTS_` | 提取事实、提出少量核心问题、补齐未明确内容 |
+| 设计/任务规划 | `PLANNING_` | 输出可校验Plan及字段/验收条件 |
+| 特殊规则编码 | `CODING_` | 仅在Plan确实需要额外单记录规则时 |
+| 语义审阅 | `REVIEW_` | 可选；只能解释已产生的独立测试证据，不伪装执行测试 |
 
-终端 A：
+每个前缀后都可接BASE_URL、API_KEY、MODE。未指定时逐字段继承默认；只改MODE就是同服务商换模型。更换BASE_URL却没给该阶段API_KEY会明确报错，防止把默认密钥泄漏给另一服务。
+
+```dotenv
+REQUIREMENTS_MODE=擅长需求理解的模型
+PLANNING_MODE=擅长结构化规划的模型
+CODING_BASE_URL=https://另一个兼容服务/v1
+CODING_API_KEY=该服务专用密钥
+CODING_MODE=规则编码模型
+MODEL_REVIEW=true
+REVIEW_MODE=审阅模型
+```
+
+如果不需要额外审阅，删除REVIEW_*并保持MODEL_REVIEW=false。配置了任一REVIEW覆盖项会启用审阅。普通数据库检查、编译、代码格式、浏览器验收、打包始终用工具，不因为配置REVIEW模型而绕开它们。
 
 ```powershell
 uv run rnd doctor
+uv run rnd models
+```
+
+两条命令只显示非敏感信息，不调用付费模型，不证明账号权限；首次实际请求会验证账号。`.env`修改后重新启动服务。已保存运行的模型用量回执保留实际阶段/地址/模型/usage，不公开API_KEY。
+
+### 3.2 限额与恢复
+
+MAX_ROUNDS=0和MAX_MODEL_CALLS=0表示不设累计上限，不是无限网络重试。每次HTTP/结构解析仍只有有界尝试，代码修复最多两轮。设置正整数时达到预算会PAUSED_LIMIT，原回答和checkpoint保留。
+
+上下文不能无限增长。数据库保留完整消息；模型上下文使用原始目标、当前结构化事实和最近修正。MAX_CONTEXT_CHARS控制请求大小，超出明确停止，不静默截断最关键需求。开放无限轮数不等于无限免费额度，供应商仍按实际调用收费。
+
+## 4. 启动平台与第一次完整体验
+
+终端一：
+
+```powershell
 uv run rnd start
 ```
 
-终端 B，**也在仓库根目录**：
+打开 `http://127.0.0.1:8000/`。另一个同目录终端：
+
+```powershell
+uv run rnd token
+```
+
+将输出填入平台页面的访问令牌。平台令牌、模型Key、产品用户token各自独立，不互相代用。程序仅绑定本机，Swagger在 `/docs`，不需要定制UI也能通过API使用。
+
+界面先展示后端/模板、对应前端、对应数据库。点“确认选择”以后才出现项目名称和需求输入框。选择后若重新换前端/数据库，必须再次确认，不把修改悄悄应用到旧运行。
+
+第一次输入：
+
+> 个人泰拉瑞亚游戏资讯管理。手工录入。标题250字、正文3000字、发布日期YYYY-MM-DD必填；分类可选，选项为资讯、攻略、大神。搜索标题和正文，按分类、单日及含起止日的日期区间筛选。需要增删改查，各用户只看自己的数据。
+
+选择 `python-basic / simple-admin / sqlite`。这个例子是回归目标：不能再一轮声称搜索支持、下一轮说不支持，也不要求把日期永远退化成未经校验的普通字符串。
+
+### 4.1 人工交互
+
+页面会显示结构化摘要、真正的问题、推荐默认值、状态和模型回执。必要时回答；完整以后可批准、修改或拒绝。控制指令`批准`、`“批准”`、`"批准"`会先被CLI识别，不被送进模型当成自然语言。一轮不能批准时不消耗轮数，保持原关卡。
+
+CLI同样可以使用：
 
 ```powershell
 uv run rnd chat
 ```
 
-输入项目名称和需求，例如：
-
-> 做一个个人任务管理后端，每个注册用户只看自己的任务。任务有必填标题、整数优先级、是否完成，支持增删改查。不需要共享、审批、附件和外部集成。
-
-程序通过真实模型澄清需求。看完每一道关卡展示的内容后，输入 `批准`、`拒绝` 或具体修改意见。必须分别批准**需求、设计、交付**，不会替你默认批准。标准 CRUD 的生成、测试、索引、打包不调用模型。
-
-服务运行时，浏览器可打开 `http://127.0.0.1:8000/docs`。执行 `uv run rnd token`，把令牌填入 Swagger 的 Authorize；这是平台本机操作令牌，不是 API_KEY。HTTP 修改接口还需要独立的 `Idempotency-Key`，一次业务提交使用一个 UUID，网络重试用原值，不同请求不能共用同一个键。CLI 会处理常规请求键。
-
-流程结束显示运行 ID。下载：
+依次选择模板编号、前端、数据库，然后才问项目名和需求。提前指定组合：
 
 ```powershell
-uv run rnd download 这里替换为运行ID
+uv run rnd chat --template python-basic --frontend simple-admin --database sqlite
 ```
 
-输出 `deliveries/<运行ID>.zip`。保留原 ID 可查询：
+### 4.2 智能推荐与撤销
+
+任何尚未完成的运行均可点“智能推荐”，新建时也有勾选项。等价CLI：
 
 ```powershell
-uv run rnd show 这里替换为运行ID
-uv run rnd chat --run 这里替换为运行ID
+uv run rnd recommend 运行UUID
+uv run rnd chat --smart
 ```
 
-停止聊天终端不会抹掉运行。停止服务用 Ctrl+C，再次 `rnd start` 后恢复。当前是本机单操作人版本，不是可公开部署的多租户平台。
+它是对后续未确定事项的持续委托：AI自行选择可支持的默认值、保存建议，后续需求/设计/交付自动决定，不再让你点击一串批准。审批审计记录为delegated-ai，不冒充你手动批准。一个模型既不会替你执行任意shell，也不会替你允许覆盖非空数据库。
 
-### 1.5 运行交付产品
+恢复人工：点击“恢复人工确认”，或 `uv run rnd manual UUID`。当前已经运行的工具不会因这个开关倒退，后续关卡恢复等待。退出浏览器或CLI并不取消后台保存的job；重新 `rnd chat --run UUID` 可继续。
 
-把 ZIP 解压到一个**新目录**。进入含 `manage.py`、`pyproject.toml` 的目录：
+确实不支持的要求不能被AI删除后假装完成。自动模式有小规模、有界的内部补全次数，仍不能形成可执行规格时BLOCKED并记录原因，不再次提问拖到无穷，也不标READY。人工可以调整或新建更合适的模板运行。
+
+## 5. 下载、启动、检查最终产品
+
+当本次验证和交付决定通过后显示READY。通过页面下载，或：
 
 ```powershell
-uv sync --locked
-uv run python manage.py init
-uv run python verify.py
-uv run python manage.py serve --port 8001
+uv run rnd show 运行UUID
+uv run rnd download 运行UUID
 ```
 
-产品不再需要平台源码、模型 Key 或平台访问令牌。产品 Swagger 位于 `http://127.0.0.1:8001/docs`。先 `/auth/register` 注册账号，再 `/auth/login`，将返回的 `access_token` 填入产品 Authorize。产品每个用户只能操作自己的记录。示例登录账号由你自行创建，不内置生产管理员密码。
+文件在 `deliveries/运行UUID.zip`。下载接口复核文件哈希；未批准或被篡改的包不能下载。
 
-平台和产品是两套独立数据库/令牌；不要把平台的 access-token 当产品用户令牌。
+### 5.1 默认FastAPI产品（SQLite）
 
-**本章通关：** 实际模型能够澄清 → 三次人工决定 → 状态 READY → 下载 → 在新目录启动产品。模型质量和外网依赖下载仍取决于你的供应商和网络；HTTP 401/429/超时不会自动切换成假模型。
+将ZIP解压到新的独立目录，进入包含 `start.py`、`pyproject.toml` 的产品根目录，执行：
 
-## 2. 能力范围与流程图
-
-默认 `python-basic` 完整闭环：注册/登录，逐用户数据隔离，text/integer/boolean 类型 CRUD，独立进程 HTTP 验收，进程重启数据保持，ZIP 干净解压再验收。可选字段验证由受限规则编码器实现，最多两轮修复。**不支持**关系表、共享业务数据、企业角色权限、付款、跨表事务、文件上传和任意 Python 包安装。
-
-FastapiAdmin、Yudao+Vben 使用固定真实源码与原生生成器。默认外部服务导出模式输出 **SOURCE_READY**；第19章的托管原生运行模式会自动挂载生成模块和菜单、验证原生角色权限、重启持久化、构建前端并运行真实浏览器，全部成功且人工批准后输出 **READY**。托管模式需要Linux/WSL 2、独立空PostgreSQL库与Redis，不能只靠三个模型参数启动Java全栈，也不静默退回基础模板。
-
-```text
-创建项目/运行 → 真实需求澄清 → 等待需求批准
-    → 结构化设计与任务/图表 → 等待设计批准
-    → 确定性生成 → 必要时编写受限规则 → 独立验证
-       → 失败且可修复：最多两轮 → 再验证
-    → ZIP + 独立目录复验 → 等待交付批准 → READY
-原生导出：原生生成器导出 → 源码验证 → 交付批准 → SOURCE_READY
-原生托管：原生生成器 → 自动挂载/菜单 → CRUD/角色权限 → 重启/前端构建/浏览器 → 交付批准 → READY
-拒绝 → REJECTED；真实错误/超限/条件未满足 → FAILED
+```powershell
+uv run --no-project --python 3.14 python start.py
 ```
 
-这是有限任务的软件工厂，不是能自行实现任意软件的无限自主 Agent。模型不拥有宿主机 shell，生成的规则不通过 Python `exec` 或 import 执行。
+启动器安装该产品的锁定依赖、应用Alembic迁移、启动产品。`simple-admin`前端在 `http://127.0.0.1:8001/`；api-only只提供接口及 `/docs`。先注册一个产品用户，再操作自己的实体。完成后退出并重启，记录与登录数据库仍保留。
 
-## 3. 从空目录逐个创建，而不是覆盖已有项目
+需要只初始化不启动：同一命令后追加 `--init-only`。需要换端口：追加 `--port 8002`。`--no-install`仅用于你确实已安装对应依赖的环境或测试，不推荐新手首次使用。
 
-第 1 章是体验路径；以下是学习路径。另建空目录，不在同一目录再次 `uv init`：
+包内 `database/schema.sqlite.sql`、冻结Alembic迁移、approved-spec.json说明表结构。SQL文件供检查和审计；正常启动走版本迁移，**不要手工执行一遍DDL后又让迁移重复建表**。后续产品结构升级应新增迁移，不覆盖已经部署的0001或删除库。
+
+### 5.2 默认FastAPI产品（PostgreSQL）
+
+首次任务开始前必须选择postgresql，这个选择写入selection.json。平台验证该产品需要Docker或PRODUCT_POSTGRES_URL指定的本机测试数据库管理连接。
+
+独立产品同样执行start.py。没有PRODUCT_DATABASE_URL时自动创建只属于该产品的Docker Compose项目、随机数据库密码、回环端口和持久卷。服务配置保存在产品`.data/deployment.json`，不是平台`.env`。已自行准备数据库时可显式设置PRODUCT_DATABASE_URL，再用start.py执行迁移。不要用生产库测试，也不默认覆盖已有业务表。
+
+PostgreSQL产品包还含 `database/schema.postgresql.sql` 与对应迁移。Ctrl+C只停止应用，不删数据库卷。再次启动复用相同配置。备份业务数据需另做数据库备份；源码ZIP不含你的实际记录。
+
+### 5.3 原生FastapiAdmin或芋道产品
+
+在Linux/WSL准备Python3.14、uv、Node22和该模板的pnpm，芋道另需JDK17/Maven。安装Docker Compose后同样执行：
+
+```bash
+uv run --no-project --python 3.14 python start.py
+```
+
+产品包包括自己的部署依赖锁、启动器、原生种子、业务建表SQL、菜单SQL和哈希清单。启动器不再依赖原平台数据库、模型Key或原开发库：创建独立PG/Redis → 验证空库/归属 → 初始化原框架 → 业务DDL → 菜单 → 后端 → 前端构建 → 前后端启动。详细步骤在第二部分。
+
+原生的 `--check` 必须到前后端都启动且新库菜单/CRUD通过后退出，不允许在前端之前提前报成功。首次完整安装可能较慢；已有同一产品的成功构建可用 `--skip-build`。更改默认管理员密码后普通重启不会要求旧密码或重置账号；显式`--check`用于开发验收，要使用其定义的测试身份前提。
+
+## 6. 从空目录逐组创建代码
+
+这是学习路径，与上面的clone体验路径分开。另建空目录，不在已安装项目内重复uv init：
 
 ```powershell
 mkdir D:\Code\rnd-rebuild
@@ -141,47 +243,28 @@ uv init --bare --no-package --no-workspace --python 3.14
 uv python pin 3.14
 ```
 
-在 VS Code 选择“打开文件夹”。按本章后面的源码清单，逐个右键“新建文件”，复制该文件的**完整代码块**。路径如 `workbench/settings.py` 表示先创建 `workbench` 文件夹，再创建 `settings.py`。保存为 UTF-8；确认不是 `settings.py.txt`。
+在VS Code中先创建 `.python-version`、`pyproject.toml`、`uv.lock`、`.gitignore`、`.gitattributes`、`.env.example`、`workbench/__init__.py`，逐字使用附录里的相应文件。确保 `.py` 不是 `.py.txt`，编码UTF-8。覆盖初始化的pyproject为本提交版本，再运行 `uv sync --locked`。
 
-先创建配置组：`.python-version`、`pyproject.toml`、`uv.lock`、`README.md`、`.gitignore`、`.gitattributes`、`.env.example`、`workbench/__init__.py`。README.md 是 pyproject 声明的构建输入，不能漏建。覆盖 `uv init` 的最小 pyproject 为本手册对应版本，再执行 `uv sync --locked`。`uv.lock` 是实际解析结果，不手工删依赖或凭空编版本。完整锁较长，在源码附录单独列出。
+文件路径有斜线意味着先创建目录，例如 `workbench/settings.py`。每个模块创建后可 `uv run python -m py_compile workbench/settings.py`；它只是语法检查。等其依赖组齐全再执行对应测试，不提前import尚未创建的API模块。
 
-本仓库采用安装式包 `workbench`，入口为 `rnd = workbench.cli:app`。不再有 `from main import app`、`from settings import ...` 这种扁平导入。每个 import 与实际包路径一致，不需要手工编辑 sys.path。
+二进制模板ZIP不能放进Markdown代码块；学习还原时从同一Git提交复制 `templates/vendor/*.zip`，随后用manifest核对。它们已经在clone内，不再要求对未来的上游master重新解析。纯源码附录还原脚本不执行代码、不会联网下载模板；复制三份已验证ZIP后即可使用完整仓库能力。
 
-各章按职责解释代码，实际创建与运行测试的先后顺序以第18章为准。每组测试必须在该组及其前置组的文件齐全后运行；不要提前复制尚未实现模块的测试。源码附录按职责列出最终一致版本；单个文件创建后先执行语法检查，相关依赖组齐全再运行该组测试：
+## 7. 第一组：配置、输入契约和数据库
 
-```powershell
-uv run python -m compileall -q workbench
-```
+创建 `workbench/settings.py`、`catalog.py`、`domain.py`、`errors.py`、`store.py`、`alembic.ini` 和 `migrations/`中的完整文件。settings依赖Pydantic Settings，domain和catalog不依赖HTTP；store读取配置并提供短事务，禁止反向import api。
 
-手册末尾可选重建工具能把附录还原到新的空目录，只还原文件，不执行源码，也不替你确认需求。学习时仍推荐逐组阅读。
-
-## 4. 配置与数据库
-
-创建 `workbench/settings.py`、`workbench/domain.py`、`workbench/store.py`、`alembic.ini`、迁移目录内的三个文件。
-
-| 文件 | 用途与连接 |
+| 文件 | 负责什么 |
 |---|---|
-| settings.py | 以自身位置定位仓库根和 `.data`；读取 `.env`；不根据终端工作目录猜数据库位置 |
-| domain.py | Pydantic 输入/模型输出契约；拒绝未知字段、越界名称、字符串伪装的批准值 |
-| store.py | SQLAlchemy 模型、事务与数据访问；建立连接工厂；每次短事务独立 Session |
-| migrations/env.py | Alembic 接入 Base.metadata；接收 Store 提供的连接 |
-| 0001_initial_control_plane_schema.py | 冻结的初始迁移；不依赖未来会变化的模型定义来修改旧版本 |
+| settings.py | 固定数据目录、默认/阶段模型、安全继承、预算；工作目录变化不能移动数据库 |
+| catalog.py | 真实后端/前端/数据库组合和支持能力；模型无法通过输出一个supported=true创造功能 |
+| domain.py | 输入、结构化需求、计划、规则补丁、智能委托和模型审阅格式；拒绝未知字段 |
+| errors.py | 可恢复预算暂停等错误类型，与不可恢复失败区分 |
+| store.py | 项目、运行、消息、审批、job、阶段回执、幂等键、委托状态、事件及模型调用记录 |
+| migrations | 冻结数据库演进；现有用户不删除库也能升级 |
 
-SQLite 位于 `.data/workbench.db`。数据库记录 projects、runs、messages、jobs、requests、revisions、approvals、steps、events。LangGraph 断点保存在另一份 `.data/checkpoints.db`。源码/ZIP/日志是文件，数据库保存归属、状态和回执。
+SQLite开启foreign_keys、WAL、busy_timeout；Python3.14显式事务设置。事务中只做数据库工作，不把LLM调用、Git或前端构建包进数据库事务。Engine长期复用、Session每次独立。时间使用明确带UTC偏移的字符串，避免读回无时区对象。
 
-SQLite 开启外键、busy timeout 和 WAL，Python 3.14 显式使用非 legacy 的事务设置。WAL 仍只有一个写者，不支持无上限并发。数据库放本地磁盘，不放网盘同步目录。测试使用 tmp_path，不污染你的真实数据库。
-
-时间字段保存明确带 UTC 偏移的 ISO 字符串，避免 SQLite ORM datetime 读回后丢时区。消息 role 只由平台设置，HTTP 请求没有 role 参数。
-
-添加 `tests/conftest.py`、`tests/test_contracts.py`、`tests/test_store.py` 后：
-
-```powershell
-uv run pytest tests/test_contracts.py tests/test_store.py -q
-```
-
-测试覆盖输入、持久化、真实外键、事务回滚、并发重复请求、模型预算。不要为了通过测试而改成 SQLite 内存假替身。
-
-首次安装使用已提交的冻结迁移，不再次生成 0001：
+迁移现有库：
 
 ```powershell
 uv run alembic upgrade head
@@ -189,201 +272,163 @@ uv run alembic current
 uv run alembic check
 ```
 
-以后修改模型才执行 `uv run alembic revision --autogenerate -m "具体变更"`，打开新文件审查，再 upgrade。重命名字段、数据搬迁不能盲信自动生成。**任何阶段都不要求删除现有数据库才能继续。**
+首次使用已提交revision，不再另造0001。改变模型才用 `revision --autogenerate -m "具体变更"`，人工阅读增加/删除项再upgrade。自动生成是候选，不自动理解数据重命名与搬迁。测试里可对临时库create_all，生产和真实学习数据用迁移。
 
-## 5. 幂等、审批与短事务
-
-Store.create_run 在同一事务保存运行、首条用户消息、待执行 job；不会“需求保存成功，但任务完全没入队”。Request 表记录请求指纹与响应：重复相同请求返回原结果；同一个键对应不同内容返回409。
-
-Revision 的 gate_id 由 run、阶段、轮次、内容摘要生成。审批必须绑定当前 gate_id，而且 approved 必须是真布尔值。通过 API 写入 Approval 后，LangGraph 恢复仍会再次检查这条记录。模型文本“我批准了”无效。
-
-SQLite API 修改由文件锁串行化，PostgreSQL 同时使用事务 advisory lock。外部模型/工具调用不放在数据库事务中。对已完成的工具操作保存 Step 回执，恢复时可复用。**这不是跨数据库/网络的“恰好一次”承诺**：进程在模型返回而回执尚未写入时退出，重试仍可能再次调用模型；调用预算预先记账，限制损失。
-
-通关：重复创建只出现一个项目；旧 gate409；无 Approval 记录无法从图层绕过；字符串 `"true"` 被422拒绝。
-
-## 6. 文件安全与真实代码生成
-
-创建 `workbench/filesystem.py`、`workbench/tools.py`、`workbench/generator.py`，以及 `templates/product/` 全部文件。
-
-filesystem 统一执行相对路径、链接、ZIP 限制、密钥排除、原子写入和 SHA-256。不能从 API 接收任意系统路径。tools 只运行平台固定参数数组，shell=False；复制子进程环境时排除 API_KEY、BASE_URL、MODE 和原生服务令牌，超时终止进程组。
-
-模板包含真实 FastAPI CRUD、SQLAlchemy schema、独立迁移启动器、注册登录和验收脚本。generator 只把已批准的 Plan 转成冻结迁移和元数据，并复制经审查的模板；不向 LLM 请求“写一套 CRUD”。生成环境仍是独立项目：自己的 pyproject、uv.lock、SQLite、README。
-
-平台环境与生成产品环境分离，因此附录同时给出 `uv.lock` 与 `templates/product/uv.lock`。不要把平台数据库、模型 Key 或完整工作环境复制进产品。
-
-## 7. 受限规则编码，不开放任意宿主代码执行
-
-创建 `workbench/rules.py` 和 `workbench/coding.py`。
-
-当设计存在 custom_rules 时，模型只能返回一个 SHA 前置条件补丁：`custom_rules.py`。内容只能是 `validate(entity, data)` 中的条件判断、布尔比较、data.get、len、raise ValueError、return None。所有规则先解析 AST；不允许 import、赋值、循环、任意属性/调用、文件/网络操作。执行由平台自己的小解释器完成，**不会 eval/exec 模型代码**。
-
-这适合“优先级不得小于0”“满足某个条件时字段必填”等逐记录校验。复杂事务、调用第三方服务、任意 Python Agent Server 不属于当前默认能力，遇到这类需求必须阻塞并重新确认范围。
-
-补丁的 before_sha256 不匹配就拒绝；已经应用的相同补丁可安全重放。AI 不能修改原生运行器、验证脚本、鉴权或依赖锁。设计中的正反例经过类型和字段校验，并在规则解释器及真实 HTTP 两层执行。
+创建 tests/conftest.py、test_contracts.py、test_store.py，运行：
 
 ```powershell
-uv run pytest tests/test_safety.py tests/test_tools_cli.py -q
+uv run pytest tests/test_contracts.py tests/test_store.py -q
 ```
 
-通关：路径越界、ZIP重复路径、私钥、危险 AST、过期补丁均被拒绝；允许的业务校验真实生效。
+通关：提交/回滚、真实外键、幂等、时间/路径、旧库升级、输入不伪造身份都通过。`test_learning_order.py`还验证这一数据库学习阶段不依赖未来的API或Agent模块。
 
-## 8. 模型网关
+## 8. 第二组：消息、长期会话、审批与智能委托
 
-创建 `workbench/llm.py`，然后 `tests/test_llm.py`。
+创建 `workbench/conversation.py`，继续阅读store的 `request/create_run/submit/set_automation/auto_approve`。
 
-ModelGateway 把 Pydantic JSON Schema 与明确任务一起送到兼容接口，完整校验响应。请求与响应有限长；401/403、404、429和超时有明确错误；结构错误最多重试一次；每次运行有 MAX_MODEL_CALLS 上限。失败不静默缩小需求或退回演示结果。
+一个请求在同一事务保存原始消息、运行和待处理job，不出现“成功保存了需求却没有任务”。Idempotency-Key绑定请求指纹：同一个请求重试返回同一结果，不同内容重用同键返回409。并发控制由文件锁/PG事务锁保证，而不是让模型决定。
 
-单元测试注入 httpx.MockTransport，明确不消耗用户模型费用。`rnd start` 没有测试模型模式，只使用 `.env` 的真实接口。CI 全绿证明程序与协议处理经过测试，不能证明任意供应商模型的回答质量。
+需求和设计的gate_id绑定run、阶段、轮次与内容摘要。普通审批必须来自当前等待点、显式布尔值。智能推荐是另一种显式授权，保存auto_mode、授权事件与delegated-ai审批；不能把“模型说批准”当作用户动作。
+
+conversation先识别去引号的控制词，再拼模型上下文。上下文保留原始目标、当前结构化需求、最近明确修正和真实模板能力。新的明确修正优先；日期区间边界、长度默认值等不再拆成很多不必要轮次。LLM仍可能给出不良问题，用户可持续委托或人工修正，不承诺任意模型永远一次正确。
 
 ```powershell
-uv run pytest tests/test_llm.py -q
+uv run pytest tests/test_guided_workflow.py tests/test_guided_completion.py -q
 ```
 
-通关：合法响应通过、错误 JSON 停止、鉴权错误不泄漏 Key、相同模型步骤已保存回执可复用。
+测试应覆盖超过13个人工轮次仍正常、四个不同关卡启用智能推荐后无后续人工输入、关闭并重开Runtime仍保留委托、正数预算暂停后同run恢复、真正不支持项BLOCKED而非无限循环、控制指令不能被当作新回答。
 
-## 9. 知识包和图表
+## 9. 第三组：多模型边界和运行回执
 
-创建 `workbench/knowledge.py`。
+创建 `workbench/llm.py`、阅读settings.ModelProfile与 `tests/test_guided_models.py`。
 
-`build_index` 扫描源码、计算文件 SHA，使用 Python AST 收集类、函数、位置和 imports。未变文件复用已有索引；变化或删除后重建对应条目。知识包输出必须在源码目录外，以免把自己越索引越大。
+调用key将任务映射到requirements/planning/coding/review，解析有效地址、密钥、模型名；缓存身份包括阶段/地址/模型，不包含明文密钥。更改模型不会错误复用另一模型的响应。响应必须经过Pydantic严格验证；未知字段、错误JSON、超长响应、鉴权失败或超时明确报错。调用前记录预算尝试，外部服务失败也不免费假装成功。
+
+每个完成调用的回执保存实际模型配置（不含密钥）、阶段、usage和结果引用。`GET /runs/{id}/models`及页面用于确认实际用了哪个模型，而不是只看.env猜。
+
+```powershell
+uv run pytest tests/test_llm.py tests/test_guided_models.py -q
+```
+
+单元测试用显式HTTP transport夹具验证不同服务/模型、Key隔离、默认继承和计数；真实供应商由自己的.env联调，CI不使用用户真实Key。
+
+## 10. 第四组：文件、模板快照、索引与规则
+
+创建filesystem.py、vendor.py、tools.py、knowledge.py、rules.py、coding.py。
+
+filesystem负责原子写、路径边界、普通文件与ZIP大小、符号链接/路径遍历/重复文件检查及哈希。API不能接收任意shell命令或任意主机路径。tools的命令来自可信代码参数数组，shell=False；环境只透传必需路径和显式配置，排除平台模型密钥；超时停止进程组并保留有界首尾日志。
+
+vendor读取manifest，核对ZIP整体SHA和解压后的文件指纹与LICENSE。重复init复用有效缓存，篡改立即拒绝。三份模板在仓库内，源码未变化就不反复解析。knowledge的AST索引记录Python符号起止行和imports，Java/TS目前是文件地图，不假称是精确全语言调用图。输出目录必须位于被索引源码之外。
 
 ```powershell
 uv run rnd index workbench .data/platform-knowledge
 ```
 
-输出 index.json、AGENTS.md、build-stats.json。第二次运行应能看到 reused 增加。`context_for` 在每次读取前对比当前源码摘要，旧索引失效时直接拒绝。只将目标文件与 approved-spec 送入编码步骤，不每次把全仓库送入模型。
+第二次应显示reused增长。读取任务上下文前再核对指纹，过期或超预算时明确失败；不把.env、数据库、依赖缓存或全仓库默认发给模型。
 
-设计阶段自动生成 tasks.json、approved-spec.json、design-er.mmd、architecture.mmd、diagram-source.json。Mermaid 是可版本控制的图源。ER/拓扑是设计图，注明来源规格摘要，不冒充线上数据库反射。
-
-Repomix 和 Serena 可作为后续更复杂仓库的补充工具，并非当前运行的必要依赖；本实现不会假称已连接它们的远程 Agent。当前 Python 索引是真实可用的本地 AST 索引，Java/TS 提供文件地图，不冒充精确调用图。
-
-## 10. LangGraph 与恢复
-
-创建 `workbench/flow.py`、`workbench/runtime.py`。
-
-Flow 中节点都是明确的普通函数：analyse、requirements、plan、design、generate、code、verify、repair、package、delivery。LLM 只参与需求、设计和必要的定制规则。State 只保存结构化状态、ID、摘要，不存 ZIP 和整仓库二进制。
-
-interrupt 会在恢复时重入当前节点，因此 gate 写入必须幂等。审批在 Store 保存，图层再次验证。Runtime 使用 run UUID 作为 thread_id，恢复使用 Command(resume=...)，不接受用户任意更改 State。
-
-API 默认内置一个 Worker。SQLite 用 worker.lock 保证单实例；PostgreSQL 加 session advisory lock 防止多主机重复 worker。启动后仅在拥有锁时回收 RUNNING 任务。每次 gate 消费记录 job_id：在“图已前进但 Store.finish 未执行”的崩溃窗口，重新领取相同 job 不会消费下一道审批。
+rules只解释白名单AST，不能import/exec模型文件。coding只修改custom_rules.py，携带当前原文件SHA；日期/枚举/搜索本来由模板支持，不能每个项目都交给编码Agent重写。类型不合或前像不匹配拒绝；不允许改认证、数据库迁移和可信测试来蒙混。
 
 ```powershell
-uv run pytest tests/test_workflow.py -q
+uv run pytest tests/test_safety.py tests/test_vendor.py tests/test_tools_cli.py -q
 ```
 
-包含完整闭环、需求修改、旧 gate、拒绝、checkpoint 重开、崩溃恢复、规则一次失败后修复、交付文件被篡改后的拒绝。
+设计图由规格生成。date/enum必须正确出现在ER图，所选PG产品不能画成SQLite。图旁标记设计来源，不冒充生产反射；`test_guided_completion`覆盖用户资讯规格。
 
-## 11. 独立验证、打包和发布
+## 11. 第五组：默认生成产品的完整后端与轻量前端
 
-创建 `workbench/verification.py`。它调用**平台侧经审查的** product/verify.py，而不是相信产品内可以自行修改的测试脚本。
+按附录创建 `templates/product/` 全部源码及锁文件、`templates/frontends/simple-admin/` HTML/CSS/JS，再创建generator.py。
 
-默认验收先 `uv sync --locked` 给产品建立独立 .venv，再启动真实 HTTP 服务：验证账号、登录、错误凭据、类型/必填约束、CRUD、两个用户的越权读改删、进程重启和数据保持。结构化正反例也经 HTTP 运行。
+schema读取冻结规格建立ORM结构，app提供登录、用户隔离、CRUD、搜索和筛选，manage/start负责迁移和运行。search/filter的字段来自已批准Plan白名单，不拼接任意用户SQL列名，所有值通过SQLAlchemy参数绑定。date用真实日历校验，YYYY-MM-DD只是格式不是闰日正确性的替代；enum验证固定选项，optional空值有明确含义。
 
-成功后比较所有源码 SHA，拒绝“测试完成之后代码又变了”。ZIP 使用稳定文件顺序与时间戳；在第二个新目录解压、核对清单、再次创建独立 .venv 并完整验收，最后才展示交付审批。审批后下载再验证 ZIP 哈希。
+schema-spec和SQL DDL由同一元数据生成，SQLite和PostgreSQL分别输出。分类和日期作为原生类型支持，长度限制在API和HTML表单双层体现。输入 `0` 或 `false` 不能因truthy判断变成空值。
 
-CI 快速测试为节省网络使用已安装的 Python3.14依赖（`install_products=False`，只在测试设置显式注入）；独立依赖验收 job 使用默认 True，分别新建产品环境和干净解压环境。两种证据不会混称。
+simple-admin不是框架原生UI的假替身，它是明确可选的轻量前端。用户可选择api-only不用它。页面通过真正fetch操作产品API，有登录、列表、新增/编辑、删除、搜索、分类/日期筛选和分页。采用textContent避免把需求文字当HTML执行。清除筛选必须恢复所有控件，并丢弃旧请求的晚到响应；浏览器回归会连续切换关键词、分类、单日和区间。
+
+```powershell
+uv run pytest tests/test_news_delivery.py tests/test_guided_selection.py -q
+```
+
+这组测试验证用户日志里的具体案例，不以一个最简单的hello接口替代复杂字段和过滤要求。
+
+## 12. 第六组：独立验证、修复、模型审阅与打包
+
+创建verification.py并阅读templates/product/verify.py、product_database.py。产品以独立进程真实启动，不从Agent的“我测过了”获取结论。测试账号、登录、越权、字段、CRUD、搜索筛选、进程重启全部通过才继续。
+
+平台默认给产品创建自己的uv环境；集成测试可显式用已有依赖减少下载，但另有ci_clean_install真实安装验证。PG产品验证用独立数据库，不能替换成SQLite后仍声称PG已测。
+
+测试失败归类：业务规则问题最多两轮修复，再失败停止；环境安装/密码/服务问题不交给模型乱改业务。审阅模型只看到需求、规格与已有测试证据；额外缺口报告不能伪造执行日志或覆盖failed结果。
+
+打包前冻结文件SHA，打包后在全新目录验证ZIP清单、安装/迁移/启动/再测，最后等待人工交付或已授权的智能推荐决定。默认产品下载不需要平台继续在线。产物包含源码及SQL，不包含测试用户或真实数据文件。
 
 ```powershell
 uv run python -m scripts.ci_clean_install
 ```
 
-这条命令会下载/安装依赖，但不调用付费模型，使用显式的 CI 规格夹具。成功报告在 reports/clean-install.json，模型模式标为fixture。
+这条集成命令不消费模型Key，但真的新建产品环境和干净解压环境。测试夹具的事实必须在报告中明确区分。
 
-## 12. 接入你指定的原生开源模板
+## 13. 第七组：LangGraph、Worker和HTTP
 
-### 12.1 源码版本与生成器
+创建flow.py、runtime.py、api.py、cli.py、workbench/web/所有页面文件。前面的已测试函数由图连接，不在一个庞大节点里混合调用模型、等待用户和扣费写库。
 
-创建 `workbench/native.py` 和 `tests/test_native.py`。SOURCES 是白名单注册表；每个上游锁定 commit，而不是每次跟随 master：
+流程节点：analyse → requirements gate → plan → design gate → generate → code（需要时）→ verify → repair（需要时）→ model_review（可选）→ package → delivery gate。状态主要保存runID、版本、结构化规格和回执路径，不保存ZIP字节或整个仓库。
 
-- FastapiAdmin：`1cd12c726ad9032c17ef85ce805ce991be60fbdf`
-- Yudao Cloud Mini master-jdk17：`47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be`
-- Yudao Vben：`1b14e889f529e245fd620daa720dcea6de0cc5e7`
+interrupt恢复时节点重入，所以副作用需要回执和幂等。runUUID是稳定thread_id；数据库已保存的授权再次在图层校验。Worker保存last_job_id，崩溃时不会把同一回答消费到下一道审批。单Worker由本地文件锁及PG锁限制；并行HTTP和多个原生重型任务不等于已经实现分布式执行器。
 
-```powershell
-uv run rnd native prepare fastapiadmin
-uv run rnd native prepare yudao-vben
-uv run rnd templates
-```
+API快速写入job然后返回，不让长时间Maven构建占住HTTP请求。lifespan启动和停止连接；`/health`表示进程活着，`/ready`检查数据库与Worker。所有用户数据、运行、模型回执和下载使用本机Bearer令牌。
 
-Git clone/fetch 由固定命令执行；记录实际URL、SHA、dirty状态和知识包。芋道优先Gitee，失败可用官方GitHub对应仓库，但仍必须匹配同一个锁定SHA。上游源码目录不用于直接开发。
-
-### 12.2 为什么原生模板还需要额外环境
-
-平台 SQLite 不代表 Java/Spring/Redis 等依赖消失。运行原生服务器仍须按固定提交的 README/SKILL、pyproject、pom、package.json、env 示例准备环境。FastapiAdmin后端也使用uv；芋道后端保留Java17与Maven，前端保留其Node/pnpm，uv不管理Java或Node依赖。
-
-生成器需访问与你配置一致的**专用开发数据库**，不能对线上库自动建表。适配器只允许绝对路径的 `*-codegen.db` SQLite 或本机以 `_codegen` 结尾的 PostgreSQL。默认 `allow_create_tables=false`，你明确改为true才创建本次运行前缀的业务表，不覆盖现有不同结构。
-
-### 12.3 配置原生服务器接口
-
-```powershell
-uv run rnd native config-example fastapiadmin
-```
-
-打开 `.data/native/fastapiadmin.json`。字段说明：base_url 是已运行的本机FastapiAdmin服务；openapi_path 是该服务实际导出的OpenAPI路径；token_env/database_url_env是读取环境变量的名称，不是凭据本身。
-
-在根 `.env` 追加：
-
-```dotenv
-NATIVE_FASTAPIADMIN_TOKEN=通过你自己部署的原生服务登录取得的管理员令牌
-NATIVE_FASTAPIADMIN_DATABASE_URL=sqlite:///D:/Code/native-dev/fastapi-codegen.db
-```
-
-**这个数据库必须与原生生成器读取的数据库相同。** 不能只改平台环境变量、不改原生后端。核对后将原生JSON配置的allow_create_tables改为true。
-
-芋道同理：
-
-```powershell
-uv run rnd native config-example yudao-vben
-```
-
-`.env` 示例：
-
-```dotenv
-NATIVE_YUDAO_TOKEN=你本机芋道管理员登录令牌
-NATIVE_YUDAO_DATABASE_URL=postgresql+psycopg://开发账号:开发密码@127.0.0.1:5432/yudao_codegen
-```
-
-使用PostgreSQL时先 `uv sync --locked --extra postgres`。原生JSON内data_source_config_id必须对应原生服务中的实际数据源编号；tenant_id与你登录租户一致；front_type只允许40/41，与锁定的Vben5 Ant Design Vue前端匹配，不使用Vben2或ElementPlus的生成代码冒充。
-
-程序从真实OpenAPI定位唯一的生成器操作，再调用导入、字段明细、更新、ZIP下载；未找到、缺权限、跳过部分表、字段不匹配都失败，不伪造输出。
-
-### 12.4 执行原生导出
-
-```powershell
-uv run rnd chat --template fastapiadmin
-uv run rnd chat --template yudao-vben
-```
-
-选择你已经准备好的那套，不要求两套同时运行。最终状态SOURCE_READY明确只代表源代码导出：包里 upstream/ 是锁定源码，generated/ 是原生生成器实际输出。先在新的开发分支检查目录映射、鉴权、菜单、初始化/迁移，再手动合入并执行原框架测试。**本段描述的是源码导出模式。需要自动挂载与实际全栈运行时，按第19章启用托管原生模式。额外的Java、Node、PostgreSQL与Redis依赖仍然需要准备。**
-
-测试分级：test_native.py为HTTP协议mock测试和真实SQLite建表测试；Actions native-sources 为真实仓库克隆/索引验证；两者都不等于原生服务器完整验收。
-
-## 13. API 与命令行入口
-
-创建 `workbench/api.py`、`workbench/cli.py` 和 `tests/test_api.py`。
-
-FastAPI lifespan 建立 Store、迁移、令牌和 Worker，关闭时等待当前任务完成再释放checkpoint连接。HTTPBearer保护所有项目、运行、消息、报告与下载；TrustedHost只允许本机主机名。公网多租户、账号计费和团队权限不是这个本地版本的功能。
-
-| 接口 | 作用 |
+| 接口 | 功能 |
 |---|---|
-| GET /health、/ready | 进程存活；数据库/内置Worker就绪 |
-| POST /projects | 创建项目，Idempotency-Key必填 |
-| POST /projects/{id}/runs | 保存原始需求并入队 |
-| GET /runs/{id} | 状态、pending关卡、结果、错误 |
-| POST /runs/{id}/resume | 回答/修改/明确批准或拒绝当前gate |
-| POST /runs/{id}/retry | 修复外部条件后重试FAILED任务 |
-| GET /runs/{id}/events | 按游标查看执行事件 |
-| GET /runs/{id}/report | 查看生成/验证/交付回执 |
-| GET /runs/{id}/download | 已批准的READY或SOURCE_READY才可下载 |
-| GET /templates | 查询真实能力与准备状态 |
+| GET /catalog、/models | 当前实际模板组合与阶段模型，无密钥 |
+| POST /projects、POST /projects/{id}/runs | 创建项目、选项/需求同事务入队 |
+| GET /runs/{id}、/messages、/events、/models | 状态、完整消息、事件、实际模型使用 |
+| POST /runs/{id}/resume | 当前gate的回答、批准、拒绝、修改 |
+| POST /runs/{id}/automation | 显式开启智能推荐或恢复人工 |
+| POST /runs/{id}/retry | 可恢复的失败/暂停保留原ID重试 |
+| GET /runs/{id}/report、/download | 真实验证证据及已批准且哈希正确的包 |
 
-不直接提供接受任意shell、URL、文件路径或Python代码的HTTP接口。测试命令与模型规则都有固定边界。
+```powershell
+uv run pytest tests/test_api.py tests/test_workflow.py tests/test_guided_workflow.py -q
+uv run python -m scripts.ci_guided_browser
+```
 
-## 14. GitHub Actions 验收
+浏览器集成需预先安装独立Playwright1.56.1/Chromium；普通使用轻量页面不需要本机安装Playwright。该脚本使用三个明确的本机HTTP模型夹具，真正打开平台页面，先选模板，再输入用户资讯需求，点智能推荐后不再人工确认，下载并打开独立产品，真实搜索筛选；不是mock页面请求。
 
-创建 `.github/workflows/test.yml`。CI没有用户模型Key也能运行，因为明确使用协议夹具；不是“真实账户验收已完成”。
+## 14. 运行状态、预算、恢复与升级
 
-CI任务包括：Linux/Windows Python3.14全套快速测试、PostgreSQL真实数据库与checkpoint恢复、产品独立依赖与干净解压HTTP验收、锁定原生源码克隆/索引、手册一致性和重建检查。日志和JUnit作为Actions artifacts上传。
+QUEUED/RUNNING是执行中；WAITING_CLARIFICATION/REQUIREMENTS/DESIGN/DELIVERY是人工等待；智能推荐可自动处理可支持的后续等待点。READY是当次工具验证与交付决定完成；SOURCE_READY是旧原生导出语义；REJECTED不继续；BLOCKED是明确能力冲突；PAUSED_LIMIT保留用户指定预算；FAILED是实际执行错误。
+
+旧日志中的最后答案会在数据库messages保存。升级后不要新建同名项目再重打全部需求。确认备份、迁移、去掉旧限额，重试原UUID后可以继续。将来大幅修改图结构时不保证所有历史checkpoint任意跨版本恢复；升级前备份，保留旧环境完成已运行任务。
+
+每个运行的前后端/数据库选择是冻结选项，防止拿新设置误解释旧产物；修改.env的模型用于后续尚未完成阶段，已落盘的结果和实际模型回执不被重写。API限额不是供应商余额控制，要自己管理供应商预算。
+
+## 15. 本地数据、目录和备份
+
+```text
+.data/
+  workbench.db / checkpoints.db    控制数据与工作流断点，职责不同
+  access-token                    平台本机令牌，不是模型Key
+  sources/ knowledge/             解压后的固定模板与可重建索引
+  runs/<UUID>/                    规格、产品、生成/测试/交付证据
+  native-services/<UUID>/          原生任务自己的服务配置与密码，勿共享
+  native/                         可选显式原生运行配置
+templates/vendor/                 clone自带的固定源码ZIP与许可证
+```
+
+停止平台和Worker后备份完整.data，不只复制正在写入的SQLite主文件而漏掉WAL。PostgreSQL备份还需其数据库备份工具。新交付包的`.deployment`或`.data`保存它自己生成的服务密码，不能加入Git或再分发。
+
+平台可使用PostgreSQL：`uv sync --locked --all-extras`后设置DATABASE_URL。CHECKPOINT_URL可分离图断点库。新空库有迁移和真实CI验证；旧SQLite历史数据并不会因改URL自动搬过去，需要另行数据迁移与恢复验证，不能承诺零操作切库。
+
+## 16. 原生源码、独立SQL与部署边界
+
+这部分详见下一章的逐条命令。核心区别：平台运行用专用开发库生成模块；**最终产品无需复用这个开发库**。它携带独立启动器和原生初始化/业务DDL/菜单SQL，可在另一专用空库真正启动。用户数据、开发测试账号数据不会从开发库导出到菜单脚本。
+
+`portable.py`先保存原生菜单快照，生成后只导出新增/变化菜单，使用SQL标识符和值转义，不拼模型原始SQL。`deployment/manifest.json`绑定规格和SQL哈希；原生SQL种子来自锁定的源码。数据库注释标记claimed/ready与此产品身份，拒绝非空的无关库，重复启动不会覆盖用户名密码。
+
+只有原生全链成功、独立新库启动检查也成功，托管结果才为runtime_verified。单元测试模拟边界只检查契约，不当作真实全栈证据。完整原生矩阵必须跑真实语言工具、数据库、后端、前端和浏览器。
+
+## 17. 正式Actions与手册一致性
+
+正式PR不能只包含“运行过的候选截图”。Actions对提交的源码运行：Linux/Windows回归、PG平台与产品测试、默认产品独立安装、真实工作台和资讯页面浏览器、原生两套生成与独立交付新库启动。CI无需真实模型Key，夹具是显式的；验证你的供应商只能用本机.env。
 
 ```powershell
 uv run ruff check .
@@ -392,169 +437,111 @@ uv run pytest -m "not postgres" -q
 uv run python -m scripts.build_handbook --check
 ```
 
-本地没有PostgreSQL时那组测试不运行；Actions postgres job必须设置TEST_DATABASE_URL并明确执行，不能因为缺配置skip了却声称PostgreSQL通过。TEST_DATABASE_URL只指向一次性测试库。
-
-如果需要更新依赖：`uv lock` → `uv sync --locked` → 全部CI → 提交新的uv.lock；产品依赖变更同样在templates/product内更新并复验。锁文件不由模型编写。
-
-## 15. 数据、备份、升级和恢复
-
-`.data` 内有需求和可能敏感的业务文字，即使不是密钥也不应公开。备份前停止API/Worker，用SQLite backup API或在停止后复制完整数据库；不要只复制活动中的WAL主文件。恢复后保留同一平台版本与checkpoint库，避免业务审批表和图断点不一致。
-
-API独立运行可用 `uv run rnd start --no-worker`，另一终端 `uv run rnd worker`；仍只允许一个worker。默认一条命令已经内置worker，不要重复启动。进程故障后Runtime会回收未完成job；代码版本更改导致图节点结构变化时不能假设旧checkpoint无限兼容，先保留旧环境完成/取消旧运行，备份后升级。
-
-FAILED会明确显示原因。模型配额/地址或原生前置环境修正后 `uv run rnd retry ID`。预算耗尽/不支持需求应重新整理并新建运行，不能无限重试消费费用。不会把故障状态自动改READY。
-
-## 16. PostgreSQL 可选路径
-
-默认路径不需要本章。需要服务器数据库时：
+源码或正文有改动时：
 
 ```powershell
-uv sync --locked --extra postgres
+uv run python -m scripts.build_handbook
 ```
 
-`.env`中配置 `DATABASE_URL=postgresql+psycopg://.../workbench`。平台业务迁移仍由Alembic执行，Runtime自动使用PostgresSaver，可用CHECKPOINT_URL指定另一库（必须配套备份）。只配置新URL不会自动把旧SQLite数据搬过去。
+生成器把docs正文与当前真实文件完整组合成两个相同手册路径。每个源码块带SHA；test_handbook验证逐块一致性与空目录还原后再次生成相同手册。二进制vendorZIP在Git中单独保存，附录用manifest和许可证描述，不把二进制伪装成代码块。
 
-本实现支持**PostgreSQL空库初始化和后端/断点运行**，有Actions真实验证；**不包含已有SQLite业务历史的自动数据搬迁器**。现有数据迁移须停机备份、数据转换、主外键/行数核验、重建对应审批和checkpoint历史并回归，不能说“改一个URL就无损迁移”。当前即使换PG也坚持单Worker，不伪装成分布式队列。
+手工学习创建顺序可照第7—13章；全部源码齐全后再执行全量测试。复现安装始终 `--locked`；依赖更新需提交真实新锁并重跑，不由AI随意修改锁内容。
 
-## 17. 常见问题
+## 18. 故障定位与通关清单
 
-**ModuleNotFoundError：** 确认在含pyproject.toml的仓库根执行，先`uv sync --locked`，再`uv run python -c "import workbench; print(workbench.__file__)"`。本手册没有根目录main.py，不再用旧的`from main import app`测试。
-
-**实际Python仍是3.12/3.14不一致：** 查看`.python-version`及pyproject.requires-python，执行`uv python install 3.14`、`uv sync --locked`。Conda提示符不代表uv实际解释器，使用sys.executable核实；不要直接删除旧环境和业务数据。
-
-**端口占用：** `.env`增加PORT=8010，两个终端均读取同一.env，重新启动；产品端口另行指定8001/其他空闲端口。
-
-**401：** 平台401需要rnd token；模型401检查API_KEY；产品401需要/auth/login的access_token。这三种令牌不是同一个。
-
-**模型404：** 检查BASE_URL是否已带/v1且未带/chat/completions，MODE是否是供应商认可的模型标识。
-
-**模型反复问问题：** 检查需求是否超出模板支持、数据共享/权限是否未确认。不能为了让界面继续而清空unsupported。确实不需要的功能由你明确删除后重新确认。
-
-**生成器能输出但没有运行产品：** 检查使用的是第12章SOURCE_READY导出模式，还是第19章托管运行模式。托管模式必须有本次完整acceptance证据，不可凭ZIP改成READY。
-
-**SQLite locked/Worker已存在：** 关闭重复运行的rnd start/rnd worker和长事务工具，保留一个。禁止以删除workbench.db解决。
-
-**产品依赖下载失败：** 这是网络/环境故障，不触发AI修改业务代码。确认同一终端中uv可用、索引可达，再retry。整个验证环境不继承模型凭据和任意代理变量。
-
-**修改代码后手册检查失败：** 执行`uv run python -m scripts.build_handbook`并一起提交源码与手册。不要删文档测试或关闭检查。
-
-## 18. 每阶段的停止条件与源码顺序
-
-| 顺序 | 本组新增文件（保留前组） | 本组验证 |
-|---|---|---|
-| 1 环境 | .python-version、pyproject.toml、uv.lock、README.md、.gitignore、.gitattributes、.env.example、workbench/__init__.py | uv sync --locked；uv run python -c "import workbench" |
-| 2 数据与审批 | workbench/settings.py、domain.py、store.py；alembic.ini、migrations 全部文件；tests/conftest.py、test_contracts.py、test_store.py | uv run pytest tests/test_contracts.py tests/test_store.py -q；alembic upgrade head/current/check |
-| 3 基础工具与模型协议 | workbench/filesystem.py、tools.py、rules.py、knowledge.py、llm.py；tests/test_llm.py | uv run pytest tests/test_llm.py -q；不调用真实模型 |
-| 4 默认产品与受限编码 | templates/product 全部文件（包括其独立 uv.lock）；workbench/generator.py、coding.py、verification.py；tests/test_safety.py | uv run pytest tests/test_safety.py -q |
-| 5 状态图 | workbench/native.py、flow.py、runtime.py；tests/test_workflow.py | uv run pytest tests/test_workflow.py -q；实际 SQLite/HTTP 验收，模型用显式夹具 |
-| 6 HTTP与交互 | workbench/api.py、cli.py；tests/test_api.py、test_tools_cli.py | uv run pytest tests/test_api.py tests/test_tools_cli.py -q；rnd init；填写三项配置；rnd start 与 rnd chat |
-| 7 独立安装与原生源码 | scripts/__init__.py、ci_clean_install.py、ci_native_sources.py；tests/test_native.py | test_native；python -m scripts.ci_clean_install；原生源码下载为可选扩展 |
-| 8 发布一致性 | .github/workflows/test.yml；scripts/build_handbook.py、rebuild_from_handbook.py；docs/guide.md；其余全部 tests 文件 | 生成手册；Ruff；pytest -m "not postgres"；手册 --check；GitHub Actions |
-
-表内未写全命令前缀的 Python/pytest/alembic 命令统一加 `uv run`，并始终在含 pyproject.toml 的根目录执行。第2组有独立测试把这些文件复制到新的空目录，并确认没有 API/runtime 文件也能运行该组测试。第4组必须先有第3组的 knowledge/rules；第5组必须先有第4组的 verification；不能按章节编号提前运行依赖尚未建立的测试。
-
-每组代码从下方对应路径的完整代码块复制，文件不存在就逐个创建；不是把所有代码拼进一个 main.py。第8组才复制剩余测试，避免 pytest 在收集阶段导入尚未创建的模块。原生模板导出仍不等于完整原生运行认证；导出见第12章，自动挂载、权限和前后端实测见第19章。
-
-下面按职责给出文件完整内容。不出现“此处自行实现”或省略函数体；能力未实现的部分已在对应章节说明，不会用假success蒙混过关。
-
-## 参考资料
-
-这些链接是核对工具行为的官方来源；实际可复现版本以本仓库uv.lock和SOURCES内commit为准。
-
-- uv项目管理与GitHub Actions： https://docs.astral.sh/uv/guides/projects/ 、 https://docs.astral.sh/uv/guides/integration/github/
-- Python3.14 sqlite3事务： https://docs.python.org/3.14/library/sqlite3.html
-- SQLAlchemy SQLite事务与外键： https://docs.sqlalchemy.org/en/20/dialects/sqlite.html
-- Alembic候选迁移： https://alembic.sqlalchemy.org/en/latest/autogenerate.html
-- LangGraph中断与恢复： https://docs.langchain.com/oss/python/langgraph/interrupts
-- Pydantic校验： https://docs.pydantic.dev/latest/concepts/models/
-- FastapiAdmin： https://github.com/fastapiadmin/FastapiAdmin
-- 芋道后端： https://gitee.com/yudaocode/yudao-cloud-mini
-- 芋道Vben： https://gitee.com/yudaocode/yudao-ui-admin-vben
-
-## 19. 原生生成产品：自动挂载、菜单权限和完整前后端验收
-
-本章使用真实 FastapiAdmin、芋道 Cloud Mini 和 Vben 固定源码。基础代码来自它们自己的生成器；平台只做规格转换、模块挂载、必要的有记录兼容修正、独立验证和交付。
-
-两种模式必须分清：第12章的外部服务模式只导出源码，结果是 `SOURCE_READY`；本章的托管原生模式会启动原生后端、调用生成器、挂载模块和菜单、验证角色权限、构建完整前端并运行真实浏览器。只有本次运行全部验收成功且你批准交付后才是 `READY`。配置文件存在不代表已经验收。
-
-支持范围是本机单操作人、Linux/WSL 2、共享业务数据加原生角色权限、简单文本/整数/布尔字段 CRUD。每个实体至少一个必填文本字段。不要把逐用户隔离需求改成共享数据；关联表、支付、跨表事务和任意业务编码仍不支持。本章不是公网多租户生产部署指南。
-
-### 19.1 按什么顺序创建文件
-
-先完成第18章的平台文件。在同一仓库根目录按下表创建文件，内容完整复制自本手册下方同名源码块。不要另猜 API 地址或补空函数。
-
-| 顺序 | 文件 | 工作及连接关系 |
-|---|---|---|
-| 1 | `workbench/native_environment.py` | 空库保护、源码副本、后端依赖构建、进程生命周期和真实登录；调用 filesystem/tools |
-| 2 | `workbench/native_compatibility.py` | 只在副本中修正事务依赖作用域，记录修改前后哈希 |
-| 3 | `workbench/native_modules.py` | Plan 转原生数据表；调用 NativeClient；生成、挂载代码和菜单 |
-| 4 | `workbench/native_checks.py`、`workbench/native_acceptance.py` | 独立 HTTP 检查真实生成实体、角色授权撤销和重启持久化 |
-| 5 | `workbench/native_vben.py`、`workbench/native_frontend.py`、`scripts/native_browser.cjs` | 冻结安装、完整应用构建与类型检查、Chromium 真实登录和生成页面 |
-| 6 | `workbench/native_lab.py`、`scripts/ci_native_generated.py` | 串联各阶段；平台、CLI、CI 使用同一份实现 |
-| 7 | `workbench/native_delivery.py` | 显式授权配置、交付等级、证据绑定、重新打开产品 |
-| 8 | `tests/test_native_*.py` | 路径、配置、元数据、挂载、权限、事务和交付证据回归 |
-| 9 | `.github/workflows/native-runtime.yml` | 在隔离 PostgreSQL/Redis 下真实运行两套原生产品和浏览器 |
-
-连接顺序：`rnd chat → API → Job/Worker → LangGraph → managed_generate → run_acceptance → 原生 codegen → CRUD/RBAC → 停止后端 → Vite/vue-tsc → 重启与持久化 → Chromium → managed_verify/package → 人工交付确认`。
-
-单文件创建后先运行 `uv run python -m py_compile 文件路径`。这只证明语法。相关依赖组齐全后，再运行：
-
-```bash
-uv run ruff check .
-uv run ruff format --check .
-uv run pytest tests/test_native_baseline.py tests/test_native_modules.py tests/test_native_managed.py tests/test_native_transaction.py tests/test_native_frontend_lifecycle.py tests/test_native_vben.py -q
-```
-
-这些本地测试不能代替真实原生全栈验收。后面的命令实际启动数据库、原生服务和浏览器。
-
-### 19.2 固定版本与运行条件
-
-| 部分 | 版本或固定提交 |
+| 问题 | 正确处理 |
 |---|---|
-| 平台、FastapiAdmin 后端 | Python 3.14；分别使用自身 uv.lock |
-| FastapiAdmin | `1cd12c726ad9032c17ef85ce805ce991be60fbdf` |
-| 芋道后端 | `47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be`，JDK 17 |
-| Vben 前端 | `1b14e889f529e245fd620daa720dcea6de0cc5e7` |
-| Node | 22 系列且至少22.18 |
-| FastapiAdmin / Vben 的 pnpm | 分别9.15.3 / 11.16.0 |
-| 浏览器 | Playwright 1.56.1 对应的 Chromium |
-| 原生数据库 / 缓存 | PostgreSQL 17 / Redis 7.4 |
+| ModuleNotFoundError | 回到含pyproject的根目录，uv sync --locked；使用包路径workbench，不混用旧from main |
+| 超轮数/调用上限 | 检查.env是否仍写旧正数；默认0；改好重启并retry同一UUID |
+| 智能推荐仍BLOCKED | 阅读真实unsupported/范围冲突；不为通过而删需求或修改权限 |
+| 平台401 / 模型401 / 产品401 | 分别检查rnd token / API_KEY / 产品登录token，不混用 |
+| 搜索筛选结果不对 | 核对Plan searchable/filterable/date_range、真实API与前端请求；先清除旧条件，检查日期格式 |
+| 原生数据库非空 | 保留现场，不取消保护或自动DROP；使用新的明确授权空库 |
+| 前端构建或类型失败 | 保留真实日志，不删页面、不跳过类型；按固定上游兼容适配核对 |
+| 独立包只有后台通过 | --check必须前端启动后才成功，不能减少验收项掩盖错误 |
+| 浏览器工作台显示KeyError | 现在错误含源码位置；日期/枚举图表有回归测试，检查你是否使用同提交完整源码 |
+| 手册不一致 | 修改正文源或代码后重新build_handbook，不手工只改生成文档或关闭测试 |
 
-平台本身仍默认 SQLite，三个模型参数足以体验默认 Python 通道；Java、Vue、PostgreSQL、Redis 不会因此消失。原生运行需要这些额外环境。Windows 请用 WSL 2 Ubuntu，在 Linux 用户目录创建新的克隆和 Linux `.venv`，不能复用 Windows `.venv`。
+通关顺序：配置单模型 → 可选阶段覆盖验证 → 选择组合后新建 → 人工13+轮不丢数据 → 任意关卡智能推荐后无后续提问 → 用户资讯案例完整字段与搜索筛选 → 独立产品启动 → 原生环境及独立新库交付 → Windows/Linux/PG/浏览器CI → 整本手册一致。实际结果必须有对应提交的报告，不凭README一句“已通过”。
 
-完整 Vben 前端较大，建议按16GB内存及约20GB可用磁盘规划，并预留交换空间。CI 为临时 runner 添加8GB交换文件；Node 堆上限8GB，Rust构建并行度2；构建前停止Java以降低峰值内存。没有删减页面或关闭类型检查。默认Python通道不要求这些资源。
+### 官方资料
 
-### 19.3 在 Ubuntu / WSL 2 安装工具
+uv项目与Actions：https://docs.astral.sh/uv/guides/projects/ 、https://docs.astral.sh/uv/guides/integration/github/
+Python3.14 sqlite3事务：https://docs.python.org/3.14/library/sqlite3.html
+SQLAlchemy SQLite：https://docs.sqlalchemy.org/en/20/dialects/sqlite.html
+Alembic候选迁移：https://alembic.sqlalchemy.org/en/latest/autogenerate.html
+LangGraph中断恢复：https://docs.langchain.com/oss/python/langgraph/interrupts
+Pydantic Settings：https://docs.pydantic.dev/latest/concepts/pydantic_settings/
+FastapiAdmin：https://github.com/fastapiadmin/FastapiAdmin
+芋道：https://gitee.com/yudaocode/yudao-cloud-mini 、https://gitee.com/yudaocode/yudao-ui-admin-vben
+这些文档解释工具行为；本项目可复现版本以同一提交的uv.lock、vendor manifest、代码及测试为准。
 
-Windows 用户先启动 Docker Desktop，在 Settings → Resources → WSL Integration 启用所用 Ubuntu。进入 Ubuntu 终端执行。以下不是 PowerShell 命令。
+## 19. 原生全栈：自带源码、自动生成与独立新数据库交付
+
+本章使用真实 FastapiAdmin / 芋道 Cloud Mini / Vben 固定源码，不另写一个简化后端冒充原框架。基础CRUD由原生生成器产生，平台负责受校验的表元数据、挂载、菜单、兼容修正、权限/浏览器验证以及独立部署包。
+
+现在普通clone即含模板源码；原生产品的交付包含新数据库初始化、业务DDL和菜单SQL，不要求依附当初生成它的平台数据库。原生语言运行时仍必须存在，不可能通过三个模型参数替代Java、Node、PostgreSQL和Redis。
+
+### 19.1 本章的真实范围
+
+| 通道 | 创建方式 | 成功标准 |
+|---|---|---|
+| 原生托管生成 | 页面/CLI先选择原生前后端、PostgreSQL | 当次原生生成、挂载、角色、CRUD、重启、前端构建/类型/浏览器以及独立新库启动通过，交付获授权后READY |
+| 旧的原生接口导出 | 为已部署生成器提供专用配置/令牌 | 只导出源码时仍是SOURCE_READY，不能冒充全栈已测 |
+| 独立交付启动 | 解压原生产品，在产品目录运行start.py | 自己的依赖锁、SQL、服务和数据库，无需原平台或模型Key |
+
+原生支持shared业务数据与原生角色权限、text/integer/boolean单表CRUD。它不是默认产品的per_user行隔离模型，不允许AI暗改数据归属。每个实体至少一个必填文本字段用于独立UI验收；额外Python规则不插入Java框架。复杂关系、支付和生产部署需另外实现与验证。
+
+### 19.2 文件、职责与完整代码位置
+
+附录逐个包含所有文件最终代码。按表顺序阅读和创建，不补占位函数、不把不同模板的代码文件混起来。
+
+| 文件组 | 职责 |
+|---|---|
+| `vendor.py`、`templates/vendor/manifest.json` | 读取仓库内固定ZIP，核对SHA/许可证/安全解压，提供源码知识包 |
+| `native_environment.py`、`native_resources.py` | 创建本次运行自己的服务或接受已授权的空开发库；原生安装、初始化、进程启停和真实登录 |
+| `native_modules.py`、`native_compatibility.py`、`native_vben.py` | 原生生成器调用、审计字段元数据、Java/Vue插件挂载、菜单与兼容变更回执 |
+| `native_checks.py`、`native_acceptance.py` | 普通角色授权/撤销、生成实体CRUD、必填验证与重启持久化 |
+| `native_frontend.py`、`scripts/native_browser.cjs` | 完整应用构建/类型检查，真实Chromium登录、菜单及两个生成页面 |
+| `native_lab.py`、`scripts/ci_native_bundled.py` | 平台和CI共用执行链；从随库模板开始，不再额外clone |
+| `portable.py`、`portable_checks.py` | 导出新库所需SQL及菜单，把独立启动器放进产品，再用另一新数据库实测 |
+| `templates/deployment/entry.py/run.py/services.yaml/uv.lock` | 最终用户拿到的独立启动与数据库生命周期，不依赖原平台安装 |
+| `native_delivery.py` | 绑定源码和验收证据，只有完整通过才发布，兼容重新打开原开发副本 |
+
+### 19.3 固定源码与环境
+
+| 组件 | 固定输入 |
+|---|---|
+| 平台、FastapiAdmin后端 | Python3.14，各用自己的uv.lock |
+| FastapiAdmin源码 | `1cd12c726ad9032c17ef85ce805ce991be60fbdf` |
+| 芋道Java源码 | `47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be`，JDK17/Maven |
+| Vben源码 | `1b14e889f529e245fd620daa720dcea6de0cc5e7` |
+| Node | 22系列，满足Vben的至少22.18要求 |
+| pnpm | FastapiAdmin9.15.3；Vben11.16.0 |
+| 原生服务 | PostgreSQL17、Redis7.4 |
+| 平台浏览器验收 | Playwright1.56.1对应Chromium |
+
+源码在 `templates/vendor/fastapiadmin.zip`、`yudao-backend.zip`、`yudao-frontend.zip`。运行 `uv run rnd init` 后本地解压；再执行 `uv run rnd native prepare 模板名`也只是验证/准备这些已包含的固定快照。安装依赖仍用网络，不等于离线构建。
+
+原生全栈在Linux验收。Windows使用WSL2 Ubuntu，重新clone和建立Linux `.venv`，不要复用Windows虚拟环境。默认Python产品仍在Windows/Linux分别测试。完整Vben较大，建议至少16GB主机内存和足够磁盘；平台错开Java和Vite构建，必要时明确配置交换空间，不删除业务页面来减负。
+
+### 19.4 在Linux/WSL准备工具
+
+Windows先启用WSL2及Docker Desktop的WSL Integration，进入Ubuntu终端。以下是Ubuntu x86-64命令，不是PowerShell：
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y git curl ca-certificates xz-utils openjdk-17-jdk maven
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
 java -version
 mvn -version
 docker version
 ```
 
-Maven显示的Java应是17。`docker version` 必须有 Server 部分。没有Docker的Linux主机也可以自行安装同版本数据库/Redis，但仍必须是回环地址与专用空库。
+FastapiAdmin不要求JDK/Maven。芋道的Maven实际使用Java必须为17。docker version必须显示Server，不只是安装了Client。原生运行只绑定回环，不应在公网暴露开发管理员或数据库。
 
-安装uv并克隆当前PR分支：
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-export PATH="$HOME/.local/bin:$PATH"
-mkdir -p "$HOME/Code"
-cd "$HOME/Code"
-git clone --branch feat/python314-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
-cd ai-rnd-foundation-learning
-uv python install 3.14
-uv sync --locked --all-extras
-uv run rnd init
-```
-
-已有目录不要重复覆盖，先 `git status` 检查自己的改动。`--all-extras` 安装 PostgreSQL 驱动但不启动数据库。编辑这个Linux项目自己的 `.env`，保留 `BASE_URL`、`API_KEY`、`MODE`。
-
-已有满足条件的 Node 22 时执行 `node --version` 和 `npm --version` 检查。没有时，可在用户目录安装官方22.18.0二进制并检查下载哈希：
+已有Node22.18+直接使用；没有时可安装官方用户目录二进制并核对哈希：
 
 ```bash
 mkdir -p "$HOME/.local/share/rnd-tools"
@@ -566,44 +553,25 @@ tar -xJf node-v22.18.0-linux-x64.tar.xz
 export PATH="$HOME/.local/share/rnd-tools/node-v22.18.0-linux-x64/bin:$PATH"
 node --version
 npm --version
-cd "$HOME/Code/ai-rnd-foundation-learning"
 ```
 
-新终端也要设置该PATH。上述二进制针对Linux x86-64；ARM设备需相应架构，不属于本章CI验证的体系。
+其他CPU架构使用匹配官方二进制。新终端要保留这个PATH或写入自己的shell配置。系统旧Node版本不能用来装Vben11系pnpm。
 
-### 19.4 创建专用空开发库
-
-下面命令首次创建新容器。已有同名容器或端口占用时先检查，不要删掉不认识的数据。
+克隆平台实现分支（合并后main也可）：
 
 ```bash
-export NATIVE_PG_PASSWORD="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(24))')"
-docker run -d --name rnd-native-pg \
-  -e POSTGRES_USER=native \
-  -e POSTGRES_PASSWORD="$NATIVE_PG_PASSWORD" \
-  -e POSTGRES_DB=fastapi_codegen \
-  -v rnd-native-pg-data:/var/lib/postgresql/data \
-  -p 127.0.0.1:5432:5432 postgres:17
-docker run -d --name rnd-native-redis \
-  -p 127.0.0.1:6379:6379 redis:7.4-alpine
+mkdir -p "$HOME/Code"
+cd "$HOME/Code"
+git clone --branch feat/guided-multimodel-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
+cd ai-rnd-foundation-learning
+uv python install 3.14
+uv sync --locked --all-extras
+uv run rnd init
 ```
 
-检查并等待健康，然后创建第二个库：
+不再执行另外三个上游git clone。原有目录先检查git状态再更新，不能覆盖你的旧源码和业务数据。
 
-```bash
-docker exec rnd-native-pg pg_isready -U native -d fastapi_codegen
-docker exec rnd-native-redis redis-cli ping
-docker exec rnd-native-pg psql -U native -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE yudao_codegen'
-```
-
-预期依次为 accepting connections、PONG、CREATE DATABASE。Redis无密码仅用于上述回环开发环境。将随机密码保存在自己的密码管理器，并写入本机 `.env` 的数据库URL，不要发到聊天、日志或Git。
-
-库名必须以 `_codegen` 结尾，主机限定127.0.0.1/localhost。初始化会检查所有非系统schema，发现已有表、视图、序列就停止。上游种子含DROP语句，不能取消空库保护。每个新原生生成运行需要新空库；失败也不会替你删除旧数据。
-
-正常停止服务用 `docker stop rnd-native-pg rnd-native-redis`；恢复用 `docker start rnd-native-pg rnd-native-redis`。不要把删除数据卷当排错办法。已有数据卷重启时不要重新生成并覆盖原密码。
-
-### 19.5 安装浏览器并固定源码
-
-始终在平台仓库根目录执行：
+安装平台的独立浏览器验证工具：
 
 ```bash
 npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
@@ -611,191 +579,163 @@ export PLAYWRIGHT_BROWSERS_PATH=0
 .native/browser/node_modules/.bin/playwright install --with-deps chromium
 ```
 
-浏览器系统库安装可能需要sudo。这些工具不加入平台Python依赖。
+仅平台做真实浏览器验收需要该目录；拿到最终产品的普通用户启动时不需要平台本身，也不需要导入CI模型夹具。
 
-独立验收使用三个只读来源目录，后续一律复制到新的工作副本：
+### 19.5 先选原生前后端/数据库，再描述需求
 
-```bash
-mkdir -p .native
-git clone https://github.com/fastapiadmin/FastapiAdmin.git .native/fa-source
-git -C .native/fa-source checkout --detach 1cd12c726ad9032c17ef85ce805ce991be60fbdf
-git clone https://github.com/yudaocode/yudao-cloud-mini.git .native/yudao-source
-git -C .native/yudao-source checkout --detach 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
-git clone https://github.com/yudaocode/yudao-ui-admin-vben.git .native/vben-source
-git -C .native/vben-source checkout --detach 1b14e889f529e245fd620daa720dcea6de0cc5e7
-```
-
-这里使用实际核验的GitHub固定提交。Gitee可以作为下载入口，但必须核对同一SHA确实存在，不能用镜像最新分支代替固定版本。平台 `rnd native prepare` 会从白名单克隆固定源码并建立知识包。
-
-### 19.6 实际验收 FastapiAdmin 的两个生成模块
-
-先不调用模型。此命令使用明确测试规格：设备与分类两个新实体，包含文本、整数、布尔字段；不是只打开原有用户管理页。
+FastapiAdmin先选择对应pnpm：
 
 ```bash
 npm install --global pnpm@9.15.3
-export NATIVE_TEST_DATABASE_URL="postgresql+psycopg://native:${NATIVE_PG_PASSWORD}@127.0.0.1:5432/fastapi_codegen"
-uv run python -m scripts.ci_native_generated fastapiadmin \
-  --source .native/fa-source --output .native/fa-product \
-  --reports reports/native-fastapiadmin
-```
-
-程序执行：复制 → 初始化空库 → 原生后端真实登录 → 建业务表 → 原生导入/配置/ZIP导出/本地写入 → 发现插件路由 → CRUD → 原生角色与菜单授权撤销 → 停止后端 → 冻结安装前端、完整Vite构建和类型检查 → 后端重启与持久化 → Chromium真实登录、打开两个生成页面。
-
-成功要求退出码0且 `reports/native-fastapiadmin/acceptance.json` 全部门槛为true。只有ZIP或部分日志不算通过。后端8001，前端预览5173；结束后停止所创建进程，数据库数据保留。
-
-### 19.7 实际验收芋道 + Vben 的两个生成模块
-
-使用另一个空库，切换对应pnpm：
-
-```bash
-npm install --global pnpm@11.16.0
-export NATIVE_TEST_DATABASE_URL="postgresql+psycopg://native:${NATIVE_PG_PASSWORD}@127.0.0.1:5432/yudao_codegen"
-uv run python -m scripts.ci_native_generated yudao-vben \
-  --source .native/yudao-source --output .native/yudao-product \
-  --frontend-source .native/vben-source \
-  --reports reports/native-yudao
-```
-
-后端使用 `yudao-server` 聚合应用，无需整个Nacos集群。保留原生Spring Security、密码登录、角色和租户处理，`mock-enable=false`。开发验收关闭滑动验证码，但不跳过账号认证。后端48080，前端预览5173，不要与另一套同时占用端口。
-
-原生生成器前端类型为40：Vben5 Ant Design Schema，不是Vben2或Element Plus。Controller/Service/DO/Mapper/VO由原生工具生成并挂入infra模块，前端挂入 `apps/web-antd`。调用原生菜单API建立目录、页面、按钮权限；对生成器要求手动加入的ErrorCode常量做确定性冲突检查与挂载。原生SQL导出仅保存，不盲目执行未知SQL。
-
-Java先安装普通模块JAR，再单独打包聚合启动JAR，检查依赖JAR结构与PostgreSQL驱动。构建命令包含 `-DskipTests`，所以不能称上游Java单测全过。真正的本章证明来自随后执行的生成业务HTTP、角色权限、完整前端构建/typecheck和Chromium验收。
-
-### 19.8 从平台需求进入原生全流程
-
-独立验收用过的库已经非空。为新的平台运行另建库：
-
-```bash
-docker exec rnd-native-pg psql -U native -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE my_fastapi_codegen'
-```
-
-在项目 `.env` 保留模型三项，并新增数据库URL：
-
-```dotenv
-NATIVE_FASTAPIADMIN_DATABASE_URL=postgresql+psycopg://native:填写自己的数据库密码@127.0.0.1:5432/my_fastapi_codegen
-```
-
-创建托管配置：
-
-```bash
-uv run rnd native runtime-config fastapiadmin
-```
-
-打开生成的 `.data/native/fastapiadmin.runtime.json`，只有确认是自己创建的空库后，才把初始化授权改成true：
-
-```json
-{
-  "database_url_env": "NATIVE_FASTAPIADMIN_DATABASE_URL",
-  "initialize_empty_database": true
-}
-```
-
-JSON不保存密码。新文件默认false，避免误初始化。再运行：
-
-```bash
-npm install --global pnpm@9.15.3
-uv run rnd native prepare fastapiadmin
 uv run rnd start
 ```
 
-另开同目录Linux终端，设置同一Node PATH后：
+另一个同目录终端设置同一Node PATH，运行：
 
 ```bash
-uv run rnd chat --template fastapiadmin
+uv run rnd chat --template fastapiadmin --frontend fastapiadmin-vue --database postgresql
 ```
 
-示例需求：共享设备台账，采用FastapiAdmin原生角色权限。设备包含必填name、quantity、active；分类包含必填name、position。两个模块支持增删改查，只读角色不可创建，写角色可创建，撤权后应拒绝访问。不要逐用户隔离、附件和关联表。
+芋道改用pnpm11.16.0及 `--template yudao-vben --frontend vben-antd --database postgresql`。浏览器首页同样先选择这三个组合，再写需求；不再默认锁死python-basic后不断要求删需求。
 
-分别批准需求、设计与交付。模型只提出结构化规格，不重新手写重复CRUD。
+示例原生需求：“设备和分类两个台账，数据按原生角色共享。设备包含必填名称、数量、启用状态；分类包含必填名称和排序。两个模块支持增删改查、必填校验、只读角色和写入角色。不需要逐用户隔离、关系或外部接口。”
 
-芋道流程相同：另建 `my_yudao_codegen`，`.env` 增加 `NATIVE_YUDAO_DATABASE_URL`，运行 `uv run rnd native runtime-config yudao-vben` 并显式授权，切换pnpm11.16.0，然后 `uv run rnd native prepare yudao-vben`、`uv run rnd chat --template yudao-vben`。
+手工确认或智能推荐均可。没有专门的runtime配置时，平台在设计获授权后为该run创建独立Docker Compose服务，随机密码、回环空闲端口、独立持久卷，防止共用已有生产数据库。服务凭据保存在 `.data/native-services/<run-id>/`，不进入Git或交付包。
 
-托管模式自动通过原生种子管理员正常登录，不要求手动复制管理员token。第12章外部服务令牌JSON是另一种模式，不要混写。
+### 19.6 可选：显式授权自己准备的开发服务
 
-### 19.9 重新打开已验证产品
+不使用自动Docker时，你可以在本机创建自己拥有的专用空PostgreSQL库和Redis。数据库名称必须以 `_codegen` 结尾，只允许回环地址；非空库会被拒绝，不取消检查。
 
-保存运行UUID。在平台目录执行：
+例如创建独立实验容器：
 
 ```bash
-uv run rnd show 运行UUID
-uv run rnd download 运行UUID
-uv run rnd native serve 运行UUID
+export NATIVE_PG_PASSWORD="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+docker run -d --name rnd-native-pg \
+  -e POSTGRES_USER=native -e POSTGRES_PASSWORD="$NATIVE_PG_PASSWORD" \
+  -e POSTGRES_DB=fastapi_codegen -v rnd-native-pg-data:/var/lib/postgresql/data \
+  -p 127.0.0.1:5432:5432 postgres:17
+docker run -d --name rnd-native-redis -p 127.0.0.1:6379:6379 redis:7.4-alpine
+docker exec rnd-native-pg pg_isready -U native -d fastapi_codegen
+docker exec rnd-native-redis redis-cli ping
 ```
 
-`serve`校验源码与验收哈希以及数据库身份后，启动后端和前端预览，不初始化、不删除数据。数据库身份绑定主机、端口、库名，允许密码轮换；切换新运行的数据库配置后，打开旧产品前要恢复它原来的库。
+预期接受连接和PONG。同名容器或端口已占用时先检查，不强制删除。密码只保存在你自己的安全位置/.env，不贴日志。Redis无密码仅用于这里的本机开发服务，不是生产模板。
 
-浏览器打开 `http://127.0.0.1:5173`。开发种子账号：FastapiAdmin `super`/`123456`；芋道 `admin`/`admin123`。生成过程还会建立权限测试角色和普通用户。这些都不能直接用于公网，部署前应修改密码并清理测试身份。
+在.env设置 `NATIVE_FASTAPIADMIN_DATABASE_URL=postgresql+psycopg://native:自己的密码@127.0.0.1:5432/fastapi_codegen`，执行 `uv run rnd native runtime-config fastapiadmin`，编辑打印的runtime.json，将initialize_empty_database改为JSON布尔true。芋道使用另一个新空库、NATIVE_YUDAO_DATABASE_URL和对应runtime-config命令。配置文件存在不代表已完成验证，每次仍按安全条件检查。
 
-**原生ZIP是已验证源码，不是数据库备份。** 它依赖保留的专用PG开发库，其中有原生种子、菜单、角色和业务表；还需要Redis和原生依赖。不能承诺解压到任意空库即可恢复数据。迁移机器时另行安全备份和迁移数据库，不能把真实数据库转储或密钥混入代码包。默认Python产品的干净空库ZIP验证是另一个通道。
+独立交付验收会创建另一个临时数据库，不复用生成源库，所以用于平台原生验收的本机账户需要CREATEDB权限。所有操作限定你授权的开发环境，不提供生产数据库自动维护。生成中途失败保留现场，修正后新建运行/空库，不DROP旧业务数据掩盖错误。
 
-### 19.10 查看实际证据
+### 19.7 原生生成怎样连接到真实框架
 
-独立测试使用传入的 `--reports` 目录；平台执行在 `.data/runs/运行UUID/native-evidence/`。
+FastapiAdmin使用原生导入、元数据更新、批量ZIP、本地输出接口。每个实体独立module_name，避免两个实体覆盖同一个模块。代码和菜单由原生生成器输出，平台重启后由原来的插件发现机制加载。原生API、角色和生成业务控制器的数据库依赖使用有记录的函数级提交修正：先提交成功，后返回响应，防止导入/授权成功响应早于数据可见。不会关闭原生权限或盲目sleep重试。
 
-| 路径 | 作用 |
+芋道以原生master数据源、Vben5 AntDesign类型40生成。平台元数据包含真实审计列、tenant_id、PostgreSQL序列和注释；逻辑删除字段按原始PG种子使用整数，与普通业务布尔字段区分。Controller/Service/DO/Mapper/VO挂载到infra模块，Vben导出挂到apps/web-antd。错误码常量只在明确原生模板格式下确定性补齐；菜单通过原生API创建，不执行模型自拟SQL。
+
+保留完整原生应用。固定Vben原始源码的兼容修正记录修改前后SHA，不删除旧页面或路由；生成表单的modal泛型、数值控件和布尔选项适配有单独测试。工作副本建立空的本地Git扫描边界，不复制上游历史/凭据，避免Tailwind扫描父目录；该.git不会进入交付。
+
+构建和完整应用vue-tsc检查都必须通过。构建在类型检查之前，因为Vite插件先生成自动导入声明。skipLibCheck仅针对第三方声明，不排除业务源码或新生成模块。Java两阶段构建保证模块为普通依赖JAR，聚合入口包含PG驱动；编译命令使用-DskipTests，不能因此声称上游所有Java单测通过。
+
+### 19.8 模块与菜单权限的实际验收
+
+每个生成实体必须经过：未登录/伪造token拒绝、创建、读取比较所有字段、修改后读取、分页包含记录、缺失必填被客户端错误拒绝、删除后消失、写入持久化样例、后端进程重启后仍能读取。
+
+普通原生角色测试：无权限拒绝、只读授权可读取共享记录且显示菜单、无写权限新增拒绝、写授权后新增成功、撤销后再次拒绝并移除菜单。芋道原版有一分钟权限缓存，测试等待有界收敛并记录，不清空缓存、不升级管理员去“通过”。需要即时撤权的生产需求另做实现。
+
+Chromium实际填写用户名密码、执行原生认证、读取真正菜单，打开设备与分类两个生成页面，等待真实列表请求并比较持久化样例。Vben额外真正提交新增表单并检查整数0和布尔false的请求/返回类型。不是只访问首页200，也不注入用户token或mock页面请求。
+
+### 19.9 最终产品为什么能在新数据库独立启动
+
+平台先保存生成前菜单快照，生成后仅导出新增/变化菜单；不会把开发用户、密码或业务记录当成菜单SQL打包。SQL标识符和值由psycopg安全转义，不是大模型自由输出的字符串。
+
+产品根目录包含：
+
+```text
+start.py
+START_HERE.md
+backend/                         真实原生后端
+frontend/web/ 或 frontend-product/  真实原生前端
+deployment/
+  pyproject.toml、uv.lock、.python-version
+  run.py、services.yaml
+  manifest.json
+  database/002-business.sql
+  database/003-menus.sql
+  workbench/                     独立启动所需的有限可信工具，不是原平台安装引用
+```
+
+原生初始化种子在已包含的后端源码中。启动顺序由run.py实现：校验SQL哈希 → 空库或本产品归属 → 原生种子 → 业务表/序列 → 菜单 → 原生依赖与后端 → 新库菜单/CRUD检查 → 停止后端构建完整前端 → 再启动后端和前端。
+
+交付之前，CI会将只有可分发文件的副本复制到一个新目录，在**另一个新的数据库**执行这个包自己的start.py --check；检查passed、frontend_started、菜单恢复、类型及CRUD，才记录独立交付成功。即使原开发副本已经通过浏览器，也不能跳过这次新库启动。
+
+### 19.10 拿到ZIP后的唯一入口
+
+在Linux/WSL安装本模板需要的语言工具和Docker Compose，解压ZIP，进入包含start.py的根目录：
+
+```bash
+uv run --no-project --python 3.14 python start.py
+```
+
+无需原平台、原开发库或模型API_KEY。首次自动创建本产品的服务，随机数据库密码，配置在`.deployment/services.json`，数据库卷持久化。控制台打印后端和前端地址，浏览器打开前端（默认5173）。默认后端FA为8001、芋道48080；可用NATIVE_DELIVERY_PORT调整后端端口，前端适配读取相应实际地址。
+
+只有自己已经准备好新的专用空数据库与Redis时，才显式设置：
+
+```bash
+export NATIVE_DELIVERY_DATABASE_URL='postgresql+psycopg://自己的账号:自己的密码@127.0.0.1:5432/new_product_codegen'
+export NATIVE_DELIVERY_REDIS_PORT=6379
+uv run --no-project --python 3.14 python start.py
+```
+
+这样的环境不需要自动Docker服务。库名以_codegen结尾，必须空或由同一产品认领；不能指向生产库。启动器的SQL清单和数据库注释防止误重复初始化另一产品。运行默认种子账号只供本机开发，首次成功后修改密码；普通重启不重置密码也不要求旧默认密码。
+
+首次安装完成后可 `start.py --skip-build` 复用该副本的构建输出；不要在全新目录跳过构建。`start.py --check` 完成后端和前端都启动并验证后退出，适合干净交付验收而非普通长时间使用。Ctrl+C停止应用但不删除数据库卷。
+
+源代码和初始化SQL不等于用户数据备份。产品使用后，迁往另一主机还要备份真实PG数据及必要配置；不要将`.deployment`密钥或数据库导出提交Git/源码ZIP。首启失败若数据库标为claimed，保留现场按日志修正后在同一产品恢复；未知/部分不一致业务表不自动覆盖。
+
+### 19.11 不调用真实模型的本地原生验收
+
+平台源代码和浏览器工具就绪后，为测试创建一个新的专用空数据库；不要用已经生成完产品的库。测试数据库管理账户可创建/删除仅此测试的临时新库。
+
+```bash
+export NATIVE_TEST_DATABASE_URL='postgresql+psycopg://native:自己的实验密码@127.0.0.1:5432/native_codegen'
+npm install --global pnpm@9.15.3
+uv run python -m scripts.ci_native_bundled fastapiadmin
+```
+
+芋道另用新的空库与对应pnpm：
+
+```bash
+export NATIVE_TEST_DATABASE_URL='postgresql+psycopg://native:自己的实验密码@127.0.0.1:5432/yudao_codegen'
+npm install --global pnpm@11.16.0
+uv run python -m scripts.ci_native_bundled yudao-vben
+```
+
+两套验收默认使用 `.native/product` 输出路径。同一checkout顺序跑时，第一套完成后将其整个工作产物目录**移动保留到别处**，确认没有占用进程，再跑另一套；也可使用两个干净平台checkout。脚本不无条件覆盖已有产品。每条命令的输入是显式的测试规格，不是你的真实模型回答。真实模型体验使用前述rnd chat。
+
+### 19.12 读取报告与故障定位
+
+平台run证据在 `.data/runs/<UUID>/native-evidence/`；独立脚本证据在 `reports/native/`。
+
+| 证据 | 含义 |
 |---|---|
-| `approved-spec.json`、`business-schema.sql` | 本次规格与业务DDL |
-| `baseline/backend-build.log`、`baseline/backend-runtime.log` | 原生依赖、编译和启动 |
-| `baseline/openapi.json` | 实际服务导出的接口契约 |
-| `device-native.zip`、`category-native.zip`、`generation.json` | 原生生成器输出及挂载回执 |
-| `native-compatibility.json`、`vben-compatibility.json` | 原生工作副本兼容修正的前后哈希与 Vben 独立扫描边界 |
-| `generated/crud.json` | 两个生成实体CRUD、必填校验、非法认证检查 |
-| `generated/permissions.json` | 普通角色授权、撤权及菜单检查 |
-| `restart/persistence.json` | 重启后实际业务数据存在 |
-| `frontend-install.log`、`frontend-build.log`、`frontend-typecheck.log` | 安装、生产构建、完整应用类型检查 |
-| `browser.json`、`device.png`、`category.png`、Vben 的 `device-created.png` / `category-created.png` | 真实登录、列表渲染、生成表单提交与截图 |
-| `generated-manifest.json` | 被验证源码哈希 |
-| `acceptance.json` | 全部门槛；失败时保留false |
-| `progress.json`、`failure.log`、`browser-failure.png` | 当前阶段与失败现场 |
+| bundled-sources.json、vendor manifest | 使用的随库源码、固定commit和整体哈希 |
+| approved-spec.json、business-schema.sql | 实际输入与原生业务DDL |
+| generation.json、原生ZIP | 原生生成器实际输出、挂载路径和修改回执 |
+| generated/crud.json、permissions.json | 真正生成模块及角色权限结果 |
+| restart/persistence.json | 后端进程重启后的记录比较 |
+| frontend-*日志 | 锁定安装、完整构建、业务源码类型检查 |
+| browser.json、PNG截图 | 实际登录、菜单、两个生成页及Vben表单 |
+| portable-start.log/json | 另一空库和独立交付启动器的结果，frontend_started不可缺失 |
+| acceptance.json、manifest | 全部阶段成功标识，与当前代码/规格/SQL哈希绑定 |
 
-检查报告：
+只看到部分成功文件不代表最终通过。失败时acceptance保持未完成，failure.log保留阶段和位置。工具超时保留有界首尾日志；账号密码不进入公共报告。
 
-```bash
-uv run python -c "import json; d=json.load(open('reports/native-fastapiadmin/acceptance.json',encoding='utf-8')); print(d); assert d['generated_runtime_verified'] is True"
-```
+遇到HTTP500不是权限拒绝；授权错误看真实角色和缓存，不关闭鉴权。前端缺类型先核对原生lock与固定兼容适配，不删路由/降低检查。独立启动只有后台成功时继续检查前端，不提前返回--check。数据库非空时不取消保护、不自动DROP，不通过“再跑一次删库”掩盖错误。
 
-最终还必须有 `native_codegen`、`automatic_mount`、`menu_and_permissions`、`real_crud`、`restart_persistence`、`frontend_build`、`frontend_typecheck`、`real_browser`、`source_unmodified`，全部为true。只看一个HTTP200或服务首页不够。
+### 19.13 原生验收的边界
 
-### 19.11 兼容规则与排错
+正式Actions原生矩阵使用真实PG/Redis/Java/Python/Node/Chromium；平台模型CI使用夹具，不能说已验证用户供应商账户。原生类型检查与HTTP验收不代表所有上游历史测试通过。普通共享CRUD权限不代表任意行级隔离或多租户生产安全。
 
-FastapiAdmin 的工作副本在启动前，对原生角色控制器与代码生成控制器的 `db_getter` 依赖设置 `scope="function"`，保留原有认证、权限、CRUD 和事务实现。这样导入表结构、更新生成配置、挂载菜单及授予角色权限都会先提交事务再返回成功，避免下一次列表/导出/登录请求早于提交产生偶发缺失。生成业务控制器沿用同样的提交边界，修改记录写入 `native-compatibility.json` 和生成回执；不是靠固定等待或盲目重试掩盖失败。
-
-Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。生成器导出的新增表单也做精确兼容：将旧式 `modalApi.getData<DTO>()` 的泛型迁到 `useVbenModal<Partial<DTO>>`，保留新增时的空载荷和编辑时的 ID 检查。原始生成 ZIP 不改写，`generation.json` 同时记录原始文件与实际挂载文件的哈希。未使用的 `Dayjs`、`getDictOptions` 导入仅在确认没有引用时删除，不关闭编译器的未使用检查。整数编辑/查询控件使用 `InputNumber` 并限定零位小数；布尔编辑/查询控件使用有真实 `true/false` 选项的 `RadioGroup`，不提交字符串代替布尔值。Chromium 还会从两个生成页面实际新增记录，检查整数 `0`、布尔 `false` 的请求值和数据库返回值，并保存新增后的页面截图。
-
-工作副本不会复制上游 `.git`、令牌或环境文件。Vben 副本单独执行 `git init --quiet --template=` 建立本地扫描边界，没有上游 remote、提交历史或 hooks；此边界也不进入源码 ZIP。缺少边界时，构建扫描可能跨入平台和兄弟工作目录，导致日志停滞与内存异常增长。不要用扩大内存、删除业务路由或禁用类型检查代替修复。保留原始仓库不变，并保存 `vben-compatibility.json` 中逐文件的 before/after SHA-256。
-
-前端使用原始 `apps/web-antd` 入口和完整应用配置。顺序为 `pnpm install --frozen-lockfile`、`vite build --mode production`、`vue-tsc --noEmit --skipLibCheck`；最后一项检查全部应用源码和生成模块，`skipLibCheck` 仅沿用第三方声明检查边界，不排除业务目录，不加入 `@ts-ignore`、`@ts-nocheck` 或宽泛 `any` 来掩盖错误。构建、类型检查、重启持久化和真实浏览器均成功才写入最终成功回执。
-
-FastapiAdmin生成服务使用flush，事务由yield依赖完成。在生成控制器和副本内的角色控制器中，将数据库依赖设为function scope，使提交在成功响应发送前完成。这样创建后立即查询和授权后立即登录不会看到未提交状态。保存前后哈希，不改鉴权逻辑、不放宽断言。官方说明：<https://fastapi.tiangolo.com/advanced/advanced-dependencies/>。
-
-芋道PG种子的逻辑删除字段是整数；不能与业务布尔字段混用。业务字段保留注释以供原生生成器识别。权限检查使用真实原生API，不直接插入管理员身份。验证无登录/伪造token/空角色拒绝、只读可查不可写、写授权可创建、撤权再拒绝。原生权限缓存存在传播时间，检查有明确等待上限，不以清缓存或改权限实现绕过。
-
-数据库非空：停止，保留数据，为新运行另建空库。原生生成中断后的部分数据库和文件不自动销毁。不要重复覆盖已经批准的工作目录。
-
-后端失败：先看对应构建日志尾部，再看运行日志。Maven环境问题不能交给编码模型乱改业务代码。每条后端构建命令360秒上限，前端900秒；超时停止进程组并保留有界首尾日志。进度每15秒输出耗时、日志字节量和可用内存，不输出密钥或进程环境。
-
-前端缺少ref/computed等自动声明：先让原生Vite插件生成声明，再运行完整应用vue-tsc，不能删除检查。Vben原生配置插件从dotenv文件读取，因此工作副本生成 `.env.production` 和可交付 `.env.production.example`；只包含公开VITE变量，不复制模型或数据库密码。
-
-浏览器失败：读 `browser.json` 的响应、状态和page_errors，再看截图。Ant Design 单选按钮内部 input 是隐藏的，真实自动操作点击对应可见 label，再验证 isChecked 和请求中的布尔值，不强制点击隐藏元素。FastapiAdmin采用真实鼠标滑块操作；先等布局稳定，再在轨道内拖至末端，移出轨道会触发原生重置。不能注入token、mock接口或删掉生成页面检查。Playwright定位器说明：<https://playwright.dev/docs/best-practices>。
-
-### 19.12 GitHub Actions 与完整手册同步
-
-`Native generated full-stack acceptance` 用两个Linux矩阵job分别创建临时PG17和Redis7.4，克隆固定源码、安装Chromium，并执行同一个 `ci_native_generated`。两个job各自成功才算两套原生生成模块验收通过。源码下载job、本地单测、另一提交的绿色结果不能代替它。
-
-`Python 3.14 acceptance`另外运行Windows/Linux平台回归、实际PG checkpoint、默认Python产品独立安装与干净解压。两套工作流范围不同。
-
-修改源码和本章正文后，在仓库根运行：
-
-```bash
-uv run ruff check .
-uv run ruff format --check .
-uv run python -m scripts.build_handbook
-uv run python -m scripts.build_handbook --check
-uv run pytest -m 'not postgres' -q
-```
-
-所有实现文件、迁移、依赖锁、测试、CI与说明会同步进入根目录完整Markdown。测试检查逐文件哈希、在空目录还原代码和重新生成手册，不需要读者拼接多份补丁。
+本手册第二部分使用的所有实现代码都在后面的整份源码附录；源码改变后用同一build_handbook命令重新生成，不把“待实现”函数藏在附录里。独立交付首次环境仍需互联网安装依赖，但不再需要重新拉取模板或原始开发数据。最终测试结果应以本次PR提交的Actions及portable-start报告为准。
 
 # 完整源码附录
 
@@ -842,24 +782,53 @@ htmlcov/
 
 ### `.env.example`
 
-<!-- source-file: .env.example sha256: a1b8a4208a7d9962341e0908b92bee088e2434c25eb8881e8dcfe15961cc03c0 -->
+<!-- source-file: .env.example sha256: 114d4b755d5b44cb6a1aae16496d2cce21800f290e13aedf4d586ec83e1f1e7b -->
 ````text
-# Only these three are needed for the default local experience.
+# Default model: MODE is the provider's model ID, not dev/prod or reasoning mode.
 BASE_URL=
 API_KEY=
-# MODE is the model ID; MODEL is accepted as an alias.
 MODE=
 
-# Optional; defaults below are local-only.
+# Optional stage overrides. Omitted fields inherit the default.
+# A DIFFERENT BASE_URL requires the stage's OWN API_KEY (no cross-provider key leakage).
+# REQUIREMENTS_BASE_URL=
+# REQUIREMENTS_API_KEY=
+# REQUIREMENTS_MODE=
+# PLANNING_BASE_URL=
+# PLANNING_API_KEY=
+# PLANNING_MODE=
+# CODING_BASE_URL=
+# CODING_API_KEY=
+# CODING_MODE=
+# REVIEW_BASE_URL=
+# REVIEW_API_KEY=
+# REVIEW_MODE=
+# MODEL_REVIEW=false
+
+# 0 = no cumulative manual-conversation/model-call limit.
+# HTTP attempts and automatic code repair remain bounded independently.
+MAX_ROUNDS=0
+MAX_MODEL_CALLS=0
+# MAX_CONTEXT_CHARS=100000
+# MAX_REPAIR_ATTEMPTS=2
+# LLM_TIMEOUT=90
+# TOOL_TIMEOUT=180
+# ENABLE_CODING=true
 # PORT=8000
 # DATA_DIR=.data
-# LLM_TIMEOUT=90
-# MAX_MODEL_CALLS=16
-# MAX_ROUNDS=10
-# MAX_REPAIR_ATTEMPTS=2
-# ENABLE_CODING=true
-# TOOL_TIMEOUT=120
+
+# Platform control database only (default SQLite, no server).
 # DATABASE_URL=postgresql+psycopg://user:password@127.0.0.1:5432/workbench
+# CHECKPOINT_URL=
+
+# Optional local PostgreSQL admin URL used for disposable generated-product TEST databases.
+# Omit to let selected PostgreSQL product validation use Docker.
+# PRODUCT_POSTGRES_URL=postgresql+psycopg://user:password@127.0.0.1:5432/postgres
+
+# Native platform-run overrides are optional. By default create owned per-run Docker services.
+# Follow the handbook before authorizing an existing dedicated EMPTY *_codegen database.
+# NATIVE_FASTAPIADMIN_DATABASE_URL=postgresql+psycopg://native:password@127.0.0.1:5432/project_codegen
+# NATIVE_YUDAO_DATABASE_URL=postgresql+psycopg://native:password@127.0.0.1:5432/project_codegen
 ````
 
 ### `pyproject.toml`
@@ -901,59 +870,193 @@ select = ["E4", "E7", "E9", "F", "I"]
 
 ### `README.md`
 
-<!-- source-file: README.md sha256: bfdc308f0ab5fc2f3fccce07c83724ee165c65e99f202bd854353fac1b2b0c65 -->
+<!-- source-file: README.md sha256: eb9ee30285a166c70e742c687d795fe8aece69c471615388c8f1577f8f5a5e97 -->
 ````markdown
-# 本地 AI 研发平台 · Python 3.14
+# AI 研发工作台 · Python 3.14
 
-Python + uv + FastAPI + SQLite + LangGraph。三项模型配置即可体验默认后端流程：真实需求澄清 → 需求审批 → 设计审批 → 确定性 CRUD 生成 → 可选受限规则编码 → 独立 HTTP 验收 → 干净解压复验 → 交付审批。
+从需求到可启动产品的本地工作台：**先选择后端、前端与数据库 → 描述需求 → 人工确认或一键智能推荐 → 原生/确定性生成 → 独立测试 → 可选模型审阅 → 打包下载**。
+
+平台使用 Python、uv、FastAPI、SQLite 和 LangGraph。只有真实模型接口会产生模型费用；基础代码、迁移、索引、测试与打包由工具执行。测试失败不能由模型“宣布通过”。
+
+## 1. 克隆并初始化
+
+本功能 PR 合并前使用功能分支；合并后可以使用 main。
 
 ```powershell
+cd D:\Code
+git clone --branch feat/guided-multimodel-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
+cd ai-rnd-foundation-learning
 uv python install 3.14
 uv sync --locked
 uv run rnd init
 ```
 
-编辑根目录 `.env`：
+需要先安装 Git、uv。Windows 的 uv 官方安装器：
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+`rnd init` 创建本地数据库和访问令牌，不覆盖已有 `.env` 或删除数据，并从仓库内的 `templates/vendor/` 解压 FastapiAdmin、芋道后端与 Vben 源码。**普通 git clone 已包含模板代码快照，不用再 clone 上游仓库、初始化 submodule 或下载 LFS 文件。** 源码压缩包、许可证、固定 commit 和 SHA-256 清单一起提交。安装第三方依赖、下载浏览器等仍需网络；包含源码不等于完全离线运行。
+
+## 2. 单模型配置：只填三项
+
+编辑仓库根 `.env`：
 
 ```dotenv
 BASE_URL=https://你的兼容服务/v1
 API_KEY=你的密钥
-MODE=模型名称
+MODE=你的模型名称
 ```
+
+`MODE` 是模型 ID，也兼容 `MODEL` 别名；不是运行模式。`BASE_URL` 是 Chat Completions API 根地址，不包含 `/chat/completions` 后缀。只支持兼容该协议的服务。远端必须 HTTPS，本机模型服务可以使用回环 HTTP。不要上传 `.env` 或分享密钥。
+
+## 3. 可选：不同阶段使用不同模型
+
+不配置阶段变量时全部继承上述默认模型。可以只改模型名称，也可以按阶段配置独立服务商：
+
+```dotenv
+# 需求澄清及智能推荐，未填则使用默认模型
+REQUIREMENTS_MODE=需求模型名
+
+# 设计/规划
+PLANNING_MODE=规划模型名
+
+# 仅在确实需要定制字段规则时调用
+CODING_BASE_URL=https://另一个服务商/v1
+CODING_API_KEY=该服务商密钥
+CODING_MODE=编码模型名
+
+# 可选语义审阅；不替代独立代码测试
+MODEL_REVIEW=true
+REVIEW_MODE=审阅模型名
+```
+
+四个前缀为 `REQUIREMENTS_`、`PLANNING_`、`CODING_`、`REVIEW_`，每个都支持 `BASE_URL`、`API_KEY`、`MODE`。同服务商可继承默认密钥；**更换地址必须显式填写该阶段 API_KEY**，不会把默认密钥发到另一个地址。修改 `.env` 后重启服务。
+
+```powershell
+uv run rnd doctor
+uv run rnd models
+```
+
+命令只显示有效阶段、地址、模型名和是否配置密钥，不显示密钥。运行详情也保留各阶段实际模型与用量回执。验证阶段中的编译、数据库、API、浏览器测试始终是确定性工具；`REVIEW_*` 负责额外语义审阅，不能篡改测试结果。
+
+## 4. 启动与操作
+
+终端 A：
 
 ```powershell
 uv run rnd start
 ```
 
-另开同目录终端：
+浏览器打开 **http://127.0.0.1:8000/**。另开同目录终端：
+
+```powershell
+uv run rnd token
+```
+
+将本机访问令牌填入页面。它不是模型 API_KEY，也不是生成产品的用户登录令牌。先选模板、兼容前端和数据库，点“确认选择”，之后才显示项目名称与需求表单。
+
+也可以只用 CLI：
 
 ```powershell
 uv run rnd chat
 ```
 
-按提示逐步回答，在需求、设计、交付关卡分别输入“批准”或“拒绝”。恢复用 `uv run rnd chat --run UUID`；下载用 `uv run rnd download UUID`。Swagger：`http://127.0.0.1:8000/docs`；访问令牌：`uv run rnd token`。
-
-默认产品无需外部数据库，支持逐用户 text/integer/boolean CRUD 和受限单记录规则。不支持任意软件、关系/共享/RBAC/支付/跨表事务。生成器不调用模型；规则不通过exec执行。
-
-FastapiAdmin、芋道 + Vben 有两种模式：外部服务原生导出输出 **SOURCE_READY**；托管原生模式在Linux/WSL 2的专用空PostgreSQL库、Redis和原生前后端环境中，执行真实生成器、自动挂载、菜单/角色权限、CRUD、重启持久化和Chromium验收，全部通过且人工确认后才为 **READY**。查看手册第19章；它不是仅凭三个模型参数就能省略Java/Node/数据库的功能。
-
-完整创建顺序、文件内容、测试、迁移、恢复和故障排查见根目录 **从零实现AI研发平台_逐步实操手册_完整版_v3.md**。手册从实际源码生成：
+CLI 同样先选择模板/前端/数据库，再描述需求。明确配置可直接传入：
 
 ```powershell
-uv run python -m scripts.build_handbook
-uv run python -m scripts.build_handbook --check
-uv run pytest -m "not postgres" -q
-uv run python -m scripts.ci_clean_install
+uv run rnd chat --template python-basic --frontend simple-admin --database sqlite
 ```
 
-最后一项为显式模型夹具 + 真实独立产品依赖/SQLite/HTTP/干净解压验收，不消耗模型费。真实模型验收请使用你本机的三项配置；CI不声称已验证用户账户。
+| 后端模板 | 可选前端 | 交付数据库 | 运行前提 |
+|---|---|---|---|
+| `python-basic` / FastAPI | `simple-admin`、`api-only` | SQLite 或 PostgreSQL | SQLite 只需 Python3.14/uv；PG另需数据库或Docker |
+| `fastapiadmin` | `fastapiadmin-vue` | PostgreSQL | Linux/WSL、Node22、pnpm9.15.3、Redis/PG、浏览器验证工具 |
+| `yudao-vben` / Java | `vben-antd` | PostgreSQL | 上述服务 + JDK17/Maven、pnpm11.16.0 |
 
-本机单操作人、单Worker，不绑定公网。不要分享 `.env`、`.data` 或本机访问令牌。
+界面只允许已适配的组合，不任意混接一个框架的前端和另一个框架的鉴权 API。**所选数据库是交付产品的数据库；平台控制库仍可用 SQLite。** 完整原生环境准备见手册第二部分。
+
+## 5. 不再被澄清轮数卡死
+
+默认 `MAX_ROUNDS=0`、`MAX_MODEL_CALLS=0`：没有累计人工会话轮数或模型调用数量上限。HTTP重试与自动代码修复仍有限，避免单次故障无限调用。按需设正整数限制预算，达到后为 `PAUSED_LIMIT`，保留原回答与断点，不要求新建项目。
+
+普通细节给推荐默认值；每轮最多要求模型提出两个阻塞问题，已经明确的事实随结构化需求保存。默认标题250字、正文3000字、日期YYYY-MM-DD、区间含两端、分类可选，用户指定优先。
+
+`批准`、`“批准”` 等控制指令不会被当作需求文本再次发送给模型。不满足批准条件时保持原等待点，提示回答或智能推荐，不消耗一轮。
+
+## 6. “智能推荐”是持续委托，不是再问一次
+
+页面任意非终态均可点击 **智能推荐**，或在新建时选择智能推荐；CLI 可输入 `智能推荐`，或者：
+
+```powershell
+uv run rnd recommend 运行UUID
+uv run rnd chat --smart
+```
+
+这是你授权：**从现在起，剩余不明确细节按 AI 推荐补齐；后续需求/设计/交付不再逐项询问。** 它保留你已明确的要求，记录推荐与 `delegated-ai` 决定。可以随时点“恢复人工确认”或执行 `uv run rnd manual UUID`，在后续关卡恢复人工模式。
+
+智能推荐不允许跳过独立测试、覆盖生产库、伪造成功或删掉你明确要求的功能。确实超出模板能力时明确 `BLOCKED`，不会再次陷入无限提问，也不会偷偷生成缩水产品。
+
+建议首次验证用真实示例：
+
+> 个人泰拉瑞亚资讯助手。手动录入，标题250字、正文3000字、发布日期必填且为YYYY-MM-DD。分类可选，只有资讯/攻略/大神。支持标题和正文搜索、分类和单日筛选、包含起止日的日期区间。数据按用户隔离。
+
+选择 `python-basic + simple-admin + SQLite`。这些能力已实现，不再反复将搜索、筛选或日期说成“不支持”。
+
+## 7. 得到和启动最终产品
+
+页面 `READY` 后点击下载，或：
+
+```powershell
+uv run rnd show 运行UUID
+uv run rnd download 运行UUID
+```
+
+ZIP 位于 `deliveries/`，解压到新目录。**在解压后的产品根目录**执行：
+
+```powershell
+uv run --no-project --python 3.14 python start.py
+```
+
+- 默认产品：自动安装产品自身锁定依赖、执行Alembic迁移、启动；轻量界面在 `http://127.0.0.1:8001/`，API文档在 `/docs`。先注册自己的产品账号。SQLite无需外部服务。
+- 默认产品选PostgreSQL：启动器使用该产品独立Docker Compose、随机密码、回环端口和持久卷；或显式提供 `PRODUCT_DATABASE_URL`。
+- 原生产品：包含原生源码、独立启动器、原生种子、业务DDL和菜单SQL。在Linux/WSL准备其语言工具和Docker后，同一启动命令自动初始化**新的独立数据库**并启动前后端；无需原研发平台、模型Key或原开发数据库。可用本机专用空库 `NATIVE_DELIVERY_DATABASE_URL` 和Redis替代Docker。浏览器地址由启动器打印。
+
+源码包含初始化/迁移语句，不包含用户实际业务数据。重复启动不重置记录或密码。原生 `--check` 会完整验证数据库、菜单、CRUD和前端启动后退出；`--skip-build` 仅用于之前已成功构建的同一产品。不要删除数据库排错，不把源码包当作用户数据备份。
+
+## 8. 从已合并的旧版本升级
+
+先停止旧服务，备份整个 `.data/` 和自己的 `.env`；在已有仓库保存/提交本地代码改动后切换新PR分支并更新依赖：
+
+```powershell
+git fetch origin
+git switch feat/guided-multimodel-workbench
+uv sync --locked
+uv run rnd init
+```
+
+`init` 不覆盖 `.env`。旧配置显式写了 `MAX_ROUNDS=10` 或 `MAX_MODEL_CALLS=16` 时，请改成0再重启。数据库迁移增加必要字段，不删除原记录。针对“超轮数”运行，修正配置后可 `uv run rnd retry UUID`，随后 `uv run rnd chat --run UUID` 或 `uv run rnd recommend UUID`。已有运行的模板选择被保留；更换技术栈应新建运行，不能覆盖已经生成的数据。
+
+## 9. 测试、证据、手册
+
+```powershell
+uv run ruff check .
+uv run ruff format --check .
+uv run pytest -m "not postgres" -q
+uv run python -m scripts.build_handbook --check
+```
+
+Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新数据库交付、真实Chromium智能推荐和资讯页面搜索筛选。CI模型采用显式协议夹具，不消耗真实Key，也不声称已验证你的供应商账号。
+
+详细从零实现手册：**`从零实现AI研发平台_逐步实操手册_完整版.md`**。兼容旧链接的 `_v3.md` 与它逐字一致。正文、完整代码、数据库迁移、前端、测试、CI、锁文件一起生成；修改代码后执行 `uv run python -m scripts.build_handbook`。模板ZIP二进制不嵌入Markdown，但已随普通clone包含，附录给出哈希、来源和许可证。
+
+当前是仅监听本机、单操作人和单Worker的研发工作台。没有公网生产身份体系。请勿公开 `.env`、`.data`、`.deployment` 或访问令牌。更多环境条件、SQL步骤、预算恢复、原生部署与故障定位见完整手册。
 ````
 
 ### `SECURITY.md`
 
-<!-- source-file: SECURITY.md sha256: 3a89c86752c4302c242b96b794221b985198b35709c7b27f0a9c7c3f2c030c53 -->
+<!-- source-file: SECURITY.md sha256: d2a5c8d86f1bc792f6ff0c5474a94df27a0a265c0e846fdb2b770ac06ec86982 -->
 ````markdown
 # 安全边界
 
@@ -966,6 +1069,13 @@ uv run python -m scripts.ci_clean_install
 仓库源码、上游注释、LLM响应均不能覆盖审批规则。测试夹具不允许进入真实启动模式。CI只使用一次性数据库和显式假模型输入；不能将绿色CI解读为任意供应商或原生全栈均已认证。
 
 本项目不会自动部署、合并PR或修改生产数据库。生产使用前需要独立安全审查、账号/权限、限流、完整备份恢复和更强隔离。
+
+
+## 智能推荐与可选模型
+智能推荐是明确的持续委托，记录实际委托审批者；可撤销，但不能跳过测试或安全检查。未支持的明确需求必须BLOCKED，不能自动删除。不同模型地址不得继承默认Key。阶段与usage回执无明文密钥。
+
+## 自带源码与独立部署
+原生模板ZIP随Git提供，固定SHA及许可证，排除凭据、依赖缓存、数据库和字体二进制。独立原生交付包含原生种子/业务DDL/菜单SQL，不包含开发用户数据。启动器只初始化空库或同一产品已认领的库，拒绝覆盖无关数据。新增本地管理UI使用Bearer令牌与同源请求，不将模型API_KEY下发给浏览器。默认无累计会话上限不等于无界HTTP重试或无限模型免费额度。
 ````
 
 ### `alembic.ini`
@@ -9920,7 +10030,7 @@ if __name__ == "__main__":
 
 ### `templates/frontends/simple-admin/app.js`
 
-<!-- source-file: templates/frontends/simple-admin/app.js sha256: ffa621eec1c79ec4b4b7c739ff4fa8446b8c433d9795dc3ae65927595ef7ac8e -->
+<!-- source-file: templates/frontends/simple-admin/app.js sha256: 7e9432b346d8a0ca51538581ca4b02ef98f84f99b4f9ad6061f1a5ab7e194d1b -->
 ````javascript
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -10109,7 +10219,8 @@ $("filters").onsubmit = (e) => {
   load().catch(inform);
 };
 $("reset").onclick = () => {
-  $("filters").reset();
+  // A child whose id is reset shadows the form.reset property in browsers.
+  HTMLFormElement.prototype.reset.call($("filters"));
   offset = 0;
   load().catch(inform);
 };
@@ -14282,7 +14393,7 @@ print(
 
 ### `scripts/guided_browser.cjs`
 
-<!-- source-file: scripts/guided_browser.cjs sha256: ec40a164b05a9d0d31e168b760cd12095d751ef9aa9948f7b1716686046b5e7a -->
+<!-- source-file: scripts/guided_browser.cjs sha256: 10af0fdebec6d356b5aa629d9c1b870f3e024a18306273ac25f79d457d351fb3 -->
 ````javascript
 // No mocked page routes, injected login tokens, or preapproved workflow gates.
 const fs = require("node:fs");
@@ -14383,6 +14494,7 @@ async function main() {
       );
       async function filter(values, count) {
         await page.locator("#reset").click();
+        assert.deepEqual(await page.locator("#filters").evaluate(form => [...new FormData(form).values()].filter(Boolean)), [], "Clear filters must clear all prior conditions");
         for (const [key, value] of Object.entries(values)) {
           const f = page.locator(`#filters [name=${key}]`);
           if (key === "filter_category") await f.selectOption(value);
@@ -14836,12 +14948,12 @@ if __name__ == "__main__":
 
 ### `.github/workflows/test.yml`
 
-<!-- source-file: .github/workflows/test.yml sha256: 64dce9a5913992daa8022e00010419b9ad7991680f979d6784ca79090940a7fc -->
+<!-- source-file: .github/workflows/test.yml sha256: 506ebba4c9581372864ac68a260149ae3192e35067ceb3552547d346f14003ad -->
 ````yaml
 name: Python 3.14 acceptance
 on:
   push:
-    branches: [main, feat/python314-workbench]
+    branches: [main, feat/guided-multimodel-workbench]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -14900,7 +15012,7 @@ jobs:
         with:
           python-version: '3.14'
       - run: uv sync --locked --all-extras
-      - run: uv run pytest tests/test_postgres.py -q --junitxml=reports/postgres.xml
+      - run: uv run pytest -m postgres -q --junitxml=reports/postgres.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -14944,8 +15056,32 @@ jobs:
         with:
           name: pinned-native-source-evidence
           path: reports/
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: uv sync --locked --all-extras
+      - name: Install isolated Chromium test tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          PLAYWRIGHT_BROWSERS_PATH=0 .native/browser/node_modules/.bin/playwright install --with-deps chromium
+      - run: uv run python -m scripts.ci_guided_browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: guided-workbench-and-news-browser
+          path: reports/
   delivery:
-    needs: [tests, postgres, clean-install, native-sources]
+    needs: [tests, postgres, clean-install, native-sources, browser]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -14958,20 +15094,21 @@ jobs:
           name: source-and-complete-handbook
           path: |
             workbench-source.zip
+            从零实现AI研发平台_逐步实操手册_完整版.md
             从零实现AI研发平台_逐步实操手册_完整版_v3.md
 ````
 
 ### `.github/workflows/native-runtime.yml`
 
-<!-- source-file: .github/workflows/native-runtime.yml sha256: 182bbf022a989fbcd39463865946ef0b45c7a5311c59b9b3c7ee0dbf36c15e84 -->
+<!-- source-file: .github/workflows/native-runtime.yml sha256: 26fd2edf408407d96d66c7bbba281236acb61fc5d2e9749069ddc71e935ebbe3 -->
 ````yaml
 name: Native generated full-stack acceptance
 on:
   push:
     branches: [main]
-    paths: ['workbench/native*.py', 'scripts/ci_native*.py', 'scripts/native_browser.cjs', '.github/workflows/native-runtime.yml']
+    paths: ['workbench/**', 'templates/deployment/**', 'templates/vendor/**', 'scripts/ci_native*.py', 'scripts/native_browser.cjs', '.github/workflows/native-runtime.yml']
   pull_request:
-    paths: ['workbench/native*.py', 'scripts/ci_native*.py', 'scripts/native_browser.cjs', '.github/workflows/native-runtime.yml']
+    paths: ['workbench/**', 'templates/deployment/**', 'templates/vendor/**', 'scripts/ci_native*.py', 'scripts/native_browser.cjs', '.github/workflows/native-runtime.yml']
 permissions:
   contents: read
 concurrency:
@@ -14992,7 +15129,7 @@ jobs:
             revision: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
             pnpm: '11.16.0'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 55
     services:
       postgres:
         image: postgres:17
@@ -15014,19 +15151,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: ${{ matrix.repository }}
-          ref: ${{ matrix.revision }}
-          path: .native/source
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        if: matrix.template == 'yudao-vben'
-        with:
-          repository: yudaocode/yudao-ui-admin-vben
-          ref: 1b14e889f529e245fd620daa720dcea6de0cc5e7
-          path: .native/frontend
-          persist-credentials: false
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
@@ -15035,8 +15159,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: maven
-          cache-dependency-path: .native/source/**/pom.xml
       - uses: actions/cache/restore@v4
         if: matrix.template == 'yudao-vben'
         with:
@@ -15062,9 +15184,9 @@ jobs:
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
           PLAYWRIGHT_BROWSERS_PATH=0 .native/browser/node_modules/.bin/playwright install --with-deps chromium
       - run: uv sync --locked --all-extras
-      - name: Generate, mount, verify permissions, CRUD, restart and native browser
-        timeout-minutes: 35
-        run: uv run python -m scripts.ci_native_generated ${{ matrix.template }}
+      - name: Bundled source, native generation and independent fresh-database delivery
+        timeout-minutes: 45
+        run: uv run python -m scripts.ci_native_bundled ${{ matrix.template }}
         env:
           NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
           PLAYWRIGHT_BROWSERS_PATH: '0'
@@ -15078,8 +15200,7 @@ jobs:
         run: |
           mkdir -p reports/native
           git rev-parse HEAD > reports/native/platform-sha.txt
-          git -C .native/source rev-parse HEAD > reports/native/upstream-sha.txt
-          if [ -d .native/frontend/.git ]; then git -C .native/frontend rev-parse HEAD > reports/native/frontend-sha.txt; fi
+          cp templates/vendor/manifest.json reports/native/bundled-template-manifest.json
           git archive --format=zip --output=reports/native/platform-source.zip HEAD
       - uses: actions/upload-artifact@v4
         if: always()
@@ -15091,88 +15212,34 @@ jobs:
 
 ### `.github/workflows/native-probe.yml`
 
-<!-- source-file: .github/workflows/native-probe.yml sha256: 9ae954b8562687714af1d4ff755a0a3cfb12e12289ec2c97f8d2bb64765b4536 -->
+<!-- source-file: .github/workflows/native-probe.yml sha256: 127fb6f75fabf5952a40b797100c79c53ae826f2237096935a362b9c48791ae0 -->
 ````yaml
-name: Native baseline discovery
+name: Bundled template integrity
 on:
-  push:
-    branches: [feat/python314-workbench]
-    paths: [.github/workflows/native-probe.yml]
+  workflow_dispatch:
+  pull_request:
+    paths: ['templates/vendor/**', 'workbench/vendor.py', '.github/workflows/native-probe.yml']
 permissions:
   contents: read
 jobs:
-  sources:
+  verify-bundles:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
         with:
-          repository: fastapiadmin/FastapiAdmin
-          ref: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
-          path: upstream/fastapiadmin
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: yudaocode/yudao-cloud-mini
-          ref: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
-          path: upstream/backend
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: yudaocode/yudao-ui-admin-vben
-          ref: 1b14e889f529e245fd620daa720dcea6de0cc5e7
-          path: upstream/frontend
-          persist-credentials: false
-      - name: Export exact source for adapter development
-        run: |
-          mkdir -p archives
-          for slot in fastapiadmin backend frontend; do
-            git -C upstream/$slot archive HEAD | gzip > archives/$slot.tar.gz
-            git -C upstream/$slot rev-parse HEAD > archives/$slot.sha
-          done
-      - uses: actions/upload-artifact@v4
-        with:
-          name: native-pinned-development-sources
-          path: archives/
-          retention-days: 3
-  fastapi-dependencies:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: fastapiadmin/FastapiAdmin
-          ref: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
           persist-credentials: false
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
-      - name: Resolve original backend with Python 3.14
-        working-directory: backend
-        run: uv sync
-      - name: Export resolved dependency lock
+      - run: uv sync --locked
+      - run: uv run pytest tests/test_vendor.py -q
+      - run: uv run python -m scripts.ci_native_sources
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: fastapi-native-dependency-lock
-          path: backend/uv.lock
-          retention-days: 3
-  java-build:
-    runs-on: ubuntu-latest
-    timeout-minutes: 25
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          repository: yudaocode/yudao-cloud-mini
-          ref: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
-          persist-credentials: false
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: maven
-      - name: Compile the native aggregate server
-        run: mvn -B -ntp -pl yudao-server -am package -DskipTests
+          name: bundled-template-integrity
+          path: reports/
 ````
 
 ## 平台依赖锁
@@ -16450,17 +16517,44 @@ wheels = [
 
 ### `docs/guide.md`
 
-<!-- source-file: docs/guide.md sha256: e0c3cacf847295d6a07bc8237d63e90d22e87d5fe7d6e83de6d8cf46fa7e0b5e -->
+<!-- source-file: docs/guide.md sha256: 851951a6bcd127839f1de95ea5c0e08ed1170258ad435105aa9c86cd4d3f2bf2 -->
 ````markdown
 # 从零实现 AI 研发平台：逐步实操手册
 
-这份手册对应本仓库 Python 3.14 源码。本文的完整文件内容由源码生成；测试会重新核对每一个文件，避免出现“文字让你调用一个并不存在的函数”。正文末尾包含所有代码、测试、配置、迁移和实际依赖锁。
+**Python 3.14 · uv · FastAPI · SQLite/可选PostgreSQL · LangGraph · 可选多模型 · 智能推荐 · 自带原生模板**
 
-## 1. 先启动体验，再按章节理解
+这是一份完整的实现与操作手册：前半部分按学习顺序说明创建什么、连接到哪里、如何运行与测试；后半部分直接包含同一提交中的全部文本源码、配置、数据库迁移、前端、测试和依赖锁。不要把旧手册里同名文件的部分代码混入当前实现。
 
-### 1.1 安装工具
+本手册的正式文件为 `从零实现AI研发平台_逐步实操手册_完整版.md`，保留兼容路径 `_完整版_v3.md`，两者内容完全一致。修改源码或正文后自动重新生成整本，不维护一堆互相矛盾的补丁章节。
 
-Windows 安装 Git 和 uv 后，重新打开 PowerShell。安装 uv 使用其官方安装器：
+## 1. 认识最终系统，再决定使用方式
+
+平台接收你的需求，帮助你澄清或推荐默认方案，确认设计，使用已验证的模板生成产品，再独立运行测试和打包。平台不是“一个提示词写出一切”的无限Agent：模型负责理解、规划及必要规则；程序负责迁移、文件、权限边界、生成器、测试和交付。
+
+你可以选择两种操作模式：
+
+- **人工模式**：重要节点由你确认；未明确的普通细节给推荐值，避免拆成十几轮追问。默认没有累计人工对话轮数上限。
+- **智能推荐模式**：在任意非终态点击“智能推荐”，或新建时启用。此后未明确的细节由AI推荐补齐，后续需求/设计/交付由受记录的委托决策自动推进，不再要求逐项回答。测试与安全边界不受这个开关影响。
+
+模型也有两种配置方式：只填一组默认模型就能运行；或给需求、规划、编码、语义审阅分别配置模型。没有必要的任务不调用模型，例如基础CRUD不会为了“多Agent”而额外生成一遍。
+
+### 1.1 能力矩阵是程序事实，不让模型随口改变
+
+| 后端模板 | 前端选择 | 交付数据库 | 数据范围与支持项 |
+|---|---|---|---|
+| `python-basic` / FastAPI | `simple-admin` 或 `api-only` | SQLite、PostgreSQL | 按登录用户隔离；text/integer/boolean/date/enum；长度、枚举、真实日期校验；关键词搜索、精确筛选、含两端日期区间；简单额外单记录规则 |
+| `fastapiadmin` | `fastapiadmin-vue` | PostgreSQL | 原生插件模块、菜单、角色权限和共享CRUD；text/integer/boolean；保留原框架 |
+| `yudao-vben` / Java | `vben-antd` | PostgreSQL | 原生Java模块、Vben5 Ant Design页面、菜单、角色权限与共享CRUD；text/integer/boolean |
+
+后端、前端、数据库必须先选，再输入需求。不同框架的登录与路由并不天然兼容，页面和API会拒绝未适配的混搭。产品数据库与平台控制数据库独立；平台即使用SQLite，也可以生成PostgreSQL产品。
+
+没有实现的外部采集、支付、跨实体事务等必须明确阻塞，不能换个模型就宣称完成。智能推荐允许补齐未明确细节，不允许删除你已经明确要求的功能或擅自把“各自数据”改成“共享数据”。
+
+## 2. 安装工具与取得代码
+
+### 2.1 Windows准备
+
+安装Git和VS Code。用PowerShell安装uv，关闭并重新打开终端后检查：
 
 ```powershell
 powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
@@ -16468,124 +16562,199 @@ git --version
 uv --version
 ```
 
-平台初始不要求 Docker、PostgreSQL、Redis、Java、Node。原生 FastapiAdmin / 芋道模板有独立的运行前提，见第 12 章；不要把平台 SQLite 与模板数据库混在一起。
-
-### 1.2 取得本次实现
-
-PR 尚未合并时：
+本PR合并前使用实现分支：
 
 ```powershell
 cd D:\Code
-git clone --branch feat/python314-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
+git clone --branch feat/guided-multimodel-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
 cd ai-rnd-foundation-learning
 uv python install 3.14
+uv sync --locked
+uv run python -c "import sys; print(sys.executable); print(sys.version)"
+```
+
+预期为仓库 `.venv` 和 Python3.14.x。`uv run` 自动选择项目环境；终端显示Conda `(base)` 不足以判断实际运行解释器。不要在系统Python里pip一套、uv里又装一套，也不要因旧测试的import错误而降到3.12。
+
+合并后main具有同一功能时可直接clone main。已存在目录不要再clone覆盖；先`git status`检查并保存自己的改动。不要用`git reset --hard`、删除数据库或删除整个学习目录排错。
+
+### 2.2 普通clone已经带模板代码
+
+`templates/vendor/`包含三个实际源码ZIP：FastapiAdmin、芋道后端、Vben前端；同时包含 `manifest.json` 和各自LICENSE。它们是普通Git文件，不是submodule、Git LFS指针或只有URL的清单。
+
+```powershell
+uv run rnd init
+```
+
+这个命令创建 `.env`、平台数据库、本机访问令牌，并验证和解压仓库内的模板快照到 `.data/sources`。不重新从GitHub/Gitee克隆、不覆盖已有 `.env`、不清空数据库。默认只需Python/uv即可完成解压；真正运行Java或原生前端时才需要对应语言环境。
+
+锁文件安装、浏览器下载、Maven/pnpm依赖下载仍需要网络，不能把“源码已经在本地”描述成“全部离线”。源码快照排除依赖缓存、Git历史、密钥、数据库和字体二进制；许可证及原始commit保留。
+
+### 2.3 从已合并版本升级
+
+停止旧服务，备份 `.data/`、`.env` 和未提交的源码改动，随后在仓库根执行：
+
+```powershell
+git fetch origin
+git switch feat/guided-multimodel-workbench
 uv sync --locked
 uv run rnd init
 ```
 
-如果已经克隆，在现有仓库执行 `git status` 确认没有尚未保存的修改，再切换这个分支。不要删除你的数据、覆盖其他学习目录或使用 `git reset --hard` 排错。PR 合并后可以使用 main。
+数据库迁移给旧表新增必要列，旧项目、消息和运行ID保留；不通过删除库绕过迁移。如果旧 `.env` 中显式填写 `MAX_ROUNDS=10` 或 `MAX_MODEL_CALLS=16`，新默认不会覆盖它，请主动改成0。旧运行因为轮数失败时可修正配置并重启，再 `uv run rnd retry 原UUID`。没有生成到不可恢复外部副作用阶段的澄清运行可以继续；原生初始化中途失败则应保留现场并使用新的独立库，不自动DROP原数据。
 
-`uv sync --locked` 创建本项目 `.venv`，使用已经提交的真实锁文件，不会临时选择其他版本。统一执行 `uv run ...`，不需要手动激活 Conda 或 venv。确认解释器：
+## 3. 配置模型：单模型先跑通，多模型按需启用
 
-```powershell
-uv run python -c "import sys; print(sys.executable); print(sys.version)"
-```
-
-必须是 Python **3.14.x**。本项目不需要降级到 3.12。
-
-### 1.3 填写模型配置
-
-`rnd init` 只在缺少文件时复制 `.env.example`，自动升级本地数据库并生成访问令牌，不覆盖已有配置。
-
-用 VS Code 打开根目录的 `.env`，填写：
+编辑根目录 `.env`：
 
 ```dotenv
-BASE_URL=https://你的供应商兼容接口地址/v1
-API_KEY=你的真实密钥
-MODE=供应商提供的模型名称
+BASE_URL=https://你的服务商API根地址/v1
+API_KEY=真实密钥
+MODE=实际模型名称
+MAX_ROUNDS=0
+MAX_MODEL_CALLS=0
 ```
 
-`MODE` 是**模型名称**，不是 dev / prod，也不是“推理模式”；兼容别名 `MODEL`。`BASE_URL` 是 API 根地址，程序在后面拼接 `/chat/completions`，不要再次填入这个后缀。只支持返回 Chat Completions `choices[0].message.content` 格式的接口；不是网页聊天地址，也不自动适配仅提供其他协议的供应商。本地模型可以使用 loopback HTTP；远端必须 HTTPS。本地服务要求非空 API_KEY，可填写其规定的占位值。
+BASE_URL不要填网页聊天地址，不要带 `/chat/completions`；程序追加这个路径。MODE是模型ID，与MODEL别名兼容，不是dev/prod或推理强度。本实现使用OpenAI-compatible Chat Completions响应结构，不自动假装兼容完全不同的协议。远端使用HTTPS，本机服务只允许回环HTTP。
 
-不要把 `.env`、`.data/access-token`、数据库或者模型请求内容发到公开 PR。`.gitignore` 默认排除它们。
+### 3.1 有效模型的继承规则
 
-### 1.4 启动与交互
+| 阶段 | 环境变量前缀 | 何时调用 |
+|---|---|---|
+| 澄清、智能推荐 | `REQUIREMENTS_` | 提取事实、提出少量核心问题、补齐未明确内容 |
+| 设计/任务规划 | `PLANNING_` | 输出可校验Plan及字段/验收条件 |
+| 特殊规则编码 | `CODING_` | 仅在Plan确实需要额外单记录规则时 |
+| 语义审阅 | `REVIEW_` | 可选；只能解释已产生的独立测试证据，不伪装执行测试 |
 
-终端 A：
+每个前缀后都可接BASE_URL、API_KEY、MODE。未指定时逐字段继承默认；只改MODE就是同服务商换模型。更换BASE_URL却没给该阶段API_KEY会明确报错，防止把默认密钥泄漏给另一服务。
+
+```dotenv
+REQUIREMENTS_MODE=擅长需求理解的模型
+PLANNING_MODE=擅长结构化规划的模型
+CODING_BASE_URL=https://另一个兼容服务/v1
+CODING_API_KEY=该服务专用密钥
+CODING_MODE=规则编码模型
+MODEL_REVIEW=true
+REVIEW_MODE=审阅模型
+```
+
+如果不需要额外审阅，删除REVIEW_*并保持MODEL_REVIEW=false。配置了任一REVIEW覆盖项会启用审阅。普通数据库检查、编译、代码格式、浏览器验收、打包始终用工具，不因为配置REVIEW模型而绕开它们。
 
 ```powershell
 uv run rnd doctor
+uv run rnd models
+```
+
+两条命令只显示非敏感信息，不调用付费模型，不证明账号权限；首次实际请求会验证账号。`.env`修改后重新启动服务。已保存运行的模型用量回执保留实际阶段/地址/模型/usage，不公开API_KEY。
+
+### 3.2 限额与恢复
+
+MAX_ROUNDS=0和MAX_MODEL_CALLS=0表示不设累计上限，不是无限网络重试。每次HTTP/结构解析仍只有有界尝试，代码修复最多两轮。设置正整数时达到预算会PAUSED_LIMIT，原回答和checkpoint保留。
+
+上下文不能无限增长。数据库保留完整消息；模型上下文使用原始目标、当前结构化事实和最近修正。MAX_CONTEXT_CHARS控制请求大小，超出明确停止，不静默截断最关键需求。开放无限轮数不等于无限免费额度，供应商仍按实际调用收费。
+
+## 4. 启动平台与第一次完整体验
+
+终端一：
+
+```powershell
 uv run rnd start
 ```
 
-终端 B，**也在仓库根目录**：
+打开 `http://127.0.0.1:8000/`。另一个同目录终端：
+
+```powershell
+uv run rnd token
+```
+
+将输出填入平台页面的访问令牌。平台令牌、模型Key、产品用户token各自独立，不互相代用。程序仅绑定本机，Swagger在 `/docs`，不需要定制UI也能通过API使用。
+
+界面先展示后端/模板、对应前端、对应数据库。点“确认选择”以后才出现项目名称和需求输入框。选择后若重新换前端/数据库，必须再次确认，不把修改悄悄应用到旧运行。
+
+第一次输入：
+
+> 个人泰拉瑞亚游戏资讯管理。手工录入。标题250字、正文3000字、发布日期YYYY-MM-DD必填；分类可选，选项为资讯、攻略、大神。搜索标题和正文，按分类、单日及含起止日的日期区间筛选。需要增删改查，各用户只看自己的数据。
+
+选择 `python-basic / simple-admin / sqlite`。这个例子是回归目标：不能再一轮声称搜索支持、下一轮说不支持，也不要求把日期永远退化成未经校验的普通字符串。
+
+### 4.1 人工交互
+
+页面会显示结构化摘要、真正的问题、推荐默认值、状态和模型回执。必要时回答；完整以后可批准、修改或拒绝。控制指令`批准`、`“批准”`、`"批准"`会先被CLI识别，不被送进模型当成自然语言。一轮不能批准时不消耗轮数，保持原关卡。
+
+CLI同样可以使用：
 
 ```powershell
 uv run rnd chat
 ```
 
-输入项目名称和需求，例如：
-
-> 做一个个人任务管理后端，每个注册用户只看自己的任务。任务有必填标题、整数优先级、是否完成，支持增删改查。不需要共享、审批、附件和外部集成。
-
-程序通过真实模型澄清需求。看完每一道关卡展示的内容后，输入 `批准`、`拒绝` 或具体修改意见。必须分别批准**需求、设计、交付**，不会替你默认批准。标准 CRUD 的生成、测试、索引、打包不调用模型。
-
-服务运行时，浏览器可打开 `http://127.0.0.1:8000/docs`。执行 `uv run rnd token`，把令牌填入 Swagger 的 Authorize；这是平台本机操作令牌，不是 API_KEY。HTTP 修改接口还需要独立的 `Idempotency-Key`，一次业务提交使用一个 UUID，网络重试用原值，不同请求不能共用同一个键。CLI 会处理常规请求键。
-
-流程结束显示运行 ID。下载：
+依次选择模板编号、前端、数据库，然后才问项目名和需求。提前指定组合：
 
 ```powershell
-uv run rnd download 这里替换为运行ID
+uv run rnd chat --template python-basic --frontend simple-admin --database sqlite
 ```
 
-输出 `deliveries/<运行ID>.zip`。保留原 ID 可查询：
+### 4.2 智能推荐与撤销
+
+任何尚未完成的运行均可点“智能推荐”，新建时也有勾选项。等价CLI：
 
 ```powershell
-uv run rnd show 这里替换为运行ID
-uv run rnd chat --run 这里替换为运行ID
+uv run rnd recommend 运行UUID
+uv run rnd chat --smart
 ```
 
-停止聊天终端不会抹掉运行。停止服务用 Ctrl+C，再次 `rnd start` 后恢复。当前是本机单操作人版本，不是可公开部署的多租户平台。
+它是对后续未确定事项的持续委托：AI自行选择可支持的默认值、保存建议，后续需求/设计/交付自动决定，不再让你点击一串批准。审批审计记录为delegated-ai，不冒充你手动批准。一个模型既不会替你执行任意shell，也不会替你允许覆盖非空数据库。
 
-### 1.5 运行交付产品
+恢复人工：点击“恢复人工确认”，或 `uv run rnd manual UUID`。当前已经运行的工具不会因这个开关倒退，后续关卡恢复等待。退出浏览器或CLI并不取消后台保存的job；重新 `rnd chat --run UUID` 可继续。
 
-把 ZIP 解压到一个**新目录**。进入含 `manage.py`、`pyproject.toml` 的目录：
+确实不支持的要求不能被AI删除后假装完成。自动模式有小规模、有界的内部补全次数，仍不能形成可执行规格时BLOCKED并记录原因，不再次提问拖到无穷，也不标READY。人工可以调整或新建更合适的模板运行。
+
+## 5. 下载、启动、检查最终产品
+
+当本次验证和交付决定通过后显示READY。通过页面下载，或：
 
 ```powershell
-uv sync --locked
-uv run python manage.py init
-uv run python verify.py
-uv run python manage.py serve --port 8001
+uv run rnd show 运行UUID
+uv run rnd download 运行UUID
 ```
 
-产品不再需要平台源码、模型 Key 或平台访问令牌。产品 Swagger 位于 `http://127.0.0.1:8001/docs`。先 `/auth/register` 注册账号，再 `/auth/login`，将返回的 `access_token` 填入产品 Authorize。产品每个用户只能操作自己的记录。示例登录账号由你自行创建，不内置生产管理员密码。
+文件在 `deliveries/运行UUID.zip`。下载接口复核文件哈希；未批准或被篡改的包不能下载。
 
-平台和产品是两套独立数据库/令牌；不要把平台的 access-token 当产品用户令牌。
+### 5.1 默认FastAPI产品（SQLite）
 
-**本章通关：** 实际模型能够澄清 → 三次人工决定 → 状态 READY → 下载 → 在新目录启动产品。模型质量和外网依赖下载仍取决于你的供应商和网络；HTTP 401/429/超时不会自动切换成假模型。
+将ZIP解压到新的独立目录，进入包含 `start.py`、`pyproject.toml` 的产品根目录，执行：
 
-## 2. 能力范围与流程图
-
-默认 `python-basic` 完整闭环：注册/登录，逐用户数据隔离，text/integer/boolean 类型 CRUD，独立进程 HTTP 验收，进程重启数据保持，ZIP 干净解压再验收。可选字段验证由受限规则编码器实现，最多两轮修复。**不支持**关系表、共享业务数据、企业角色权限、付款、跨表事务、文件上传和任意 Python 包安装。
-
-FastapiAdmin、Yudao+Vben 使用固定真实源码与原生生成器。默认外部服务导出模式输出 **SOURCE_READY**；第19章的托管原生运行模式会自动挂载生成模块和菜单、验证原生角色权限、重启持久化、构建前端并运行真实浏览器，全部成功且人工批准后输出 **READY**。托管模式需要Linux/WSL 2、独立空PostgreSQL库与Redis，不能只靠三个模型参数启动Java全栈，也不静默退回基础模板。
-
-```text
-创建项目/运行 → 真实需求澄清 → 等待需求批准
-    → 结构化设计与任务/图表 → 等待设计批准
-    → 确定性生成 → 必要时编写受限规则 → 独立验证
-       → 失败且可修复：最多两轮 → 再验证
-    → ZIP + 独立目录复验 → 等待交付批准 → READY
-原生导出：原生生成器导出 → 源码验证 → 交付批准 → SOURCE_READY
-原生托管：原生生成器 → 自动挂载/菜单 → CRUD/角色权限 → 重启/前端构建/浏览器 → 交付批准 → READY
-拒绝 → REJECTED；真实错误/超限/条件未满足 → FAILED
+```powershell
+uv run --no-project --python 3.14 python start.py
 ```
 
-这是有限任务的软件工厂，不是能自行实现任意软件的无限自主 Agent。模型不拥有宿主机 shell，生成的规则不通过 Python `exec` 或 import 执行。
+启动器安装该产品的锁定依赖、应用Alembic迁移、启动产品。`simple-admin`前端在 `http://127.0.0.1:8001/`；api-only只提供接口及 `/docs`。先注册一个产品用户，再操作自己的实体。完成后退出并重启，记录与登录数据库仍保留。
 
-## 3. 从空目录逐个创建，而不是覆盖已有项目
+需要只初始化不启动：同一命令后追加 `--init-only`。需要换端口：追加 `--port 8002`。`--no-install`仅用于你确实已安装对应依赖的环境或测试，不推荐新手首次使用。
 
-第 1 章是体验路径；以下是学习路径。另建空目录，不在同一目录再次 `uv init`：
+包内 `database/schema.sqlite.sql`、冻结Alembic迁移、approved-spec.json说明表结构。SQL文件供检查和审计；正常启动走版本迁移，**不要手工执行一遍DDL后又让迁移重复建表**。后续产品结构升级应新增迁移，不覆盖已经部署的0001或删除库。
+
+### 5.2 默认FastAPI产品（PostgreSQL）
+
+首次任务开始前必须选择postgresql，这个选择写入selection.json。平台验证该产品需要Docker或PRODUCT_POSTGRES_URL指定的本机测试数据库管理连接。
+
+独立产品同样执行start.py。没有PRODUCT_DATABASE_URL时自动创建只属于该产品的Docker Compose项目、随机数据库密码、回环端口和持久卷。服务配置保存在产品`.data/deployment.json`，不是平台`.env`。已自行准备数据库时可显式设置PRODUCT_DATABASE_URL，再用start.py执行迁移。不要用生产库测试，也不默认覆盖已有业务表。
+
+PostgreSQL产品包还含 `database/schema.postgresql.sql` 与对应迁移。Ctrl+C只停止应用，不删数据库卷。再次启动复用相同配置。备份业务数据需另做数据库备份；源码ZIP不含你的实际记录。
+
+### 5.3 原生FastapiAdmin或芋道产品
+
+在Linux/WSL准备Python3.14、uv、Node22和该模板的pnpm，芋道另需JDK17/Maven。安装Docker Compose后同样执行：
+
+```bash
+uv run --no-project --python 3.14 python start.py
+```
+
+产品包包括自己的部署依赖锁、启动器、原生种子、业务建表SQL、菜单SQL和哈希清单。启动器不再依赖原平台数据库、模型Key或原开发库：创建独立PG/Redis → 验证空库/归属 → 初始化原框架 → 业务DDL → 菜单 → 后端 → 前端构建 → 前后端启动。详细步骤在第二部分。
+
+原生的 `--check` 必须到前后端都启动且新库菜单/CRUD通过后退出，不允许在前端之前提前报成功。首次完整安装可能较慢；已有同一产品的成功构建可用 `--skip-build`。更改默认管理员密码后普通重启不会要求旧密码或重置账号；显式`--check`用于开发验收，要使用其定义的测试身份前提。
+
+## 6. 从空目录逐组创建代码
+
+这是学习路径，与上面的clone体验路径分开。另建空目录，不在已安装项目内重复uv init：
 
 ```powershell
 mkdir D:\Code\rnd-rebuild
@@ -16595,47 +16764,28 @@ uv init --bare --no-package --no-workspace --python 3.14
 uv python pin 3.14
 ```
 
-在 VS Code 选择“打开文件夹”。按本章后面的源码清单，逐个右键“新建文件”，复制该文件的**完整代码块**。路径如 `workbench/settings.py` 表示先创建 `workbench` 文件夹，再创建 `settings.py`。保存为 UTF-8；确认不是 `settings.py.txt`。
+在VS Code中先创建 `.python-version`、`pyproject.toml`、`uv.lock`、`.gitignore`、`.gitattributes`、`.env.example`、`workbench/__init__.py`，逐字使用附录里的相应文件。确保 `.py` 不是 `.py.txt`，编码UTF-8。覆盖初始化的pyproject为本提交版本，再运行 `uv sync --locked`。
 
-先创建配置组：`.python-version`、`pyproject.toml`、`uv.lock`、`README.md`、`.gitignore`、`.gitattributes`、`.env.example`、`workbench/__init__.py`。README.md 是 pyproject 声明的构建输入，不能漏建。覆盖 `uv init` 的最小 pyproject 为本手册对应版本，再执行 `uv sync --locked`。`uv.lock` 是实际解析结果，不手工删依赖或凭空编版本。完整锁较长，在源码附录单独列出。
+文件路径有斜线意味着先创建目录，例如 `workbench/settings.py`。每个模块创建后可 `uv run python -m py_compile workbench/settings.py`；它只是语法检查。等其依赖组齐全再执行对应测试，不提前import尚未创建的API模块。
 
-本仓库采用安装式包 `workbench`，入口为 `rnd = workbench.cli:app`。不再有 `from main import app`、`from settings import ...` 这种扁平导入。每个 import 与实际包路径一致，不需要手工编辑 sys.path。
+二进制模板ZIP不能放进Markdown代码块；学习还原时从同一Git提交复制 `templates/vendor/*.zip`，随后用manifest核对。它们已经在clone内，不再要求对未来的上游master重新解析。纯源码附录还原脚本不执行代码、不会联网下载模板；复制三份已验证ZIP后即可使用完整仓库能力。
 
-各章按职责解释代码，实际创建与运行测试的先后顺序以第18章为准。每组测试必须在该组及其前置组的文件齐全后运行；不要提前复制尚未实现模块的测试。源码附录按职责列出最终一致版本；单个文件创建后先执行语法检查，相关依赖组齐全再运行该组测试：
+## 7. 第一组：配置、输入契约和数据库
 
-```powershell
-uv run python -m compileall -q workbench
-```
+创建 `workbench/settings.py`、`catalog.py`、`domain.py`、`errors.py`、`store.py`、`alembic.ini` 和 `migrations/`中的完整文件。settings依赖Pydantic Settings，domain和catalog不依赖HTTP；store读取配置并提供短事务，禁止反向import api。
 
-手册末尾可选重建工具能把附录还原到新的空目录，只还原文件，不执行源码，也不替你确认需求。学习时仍推荐逐组阅读。
-
-## 4. 配置与数据库
-
-创建 `workbench/settings.py`、`workbench/domain.py`、`workbench/store.py`、`alembic.ini`、迁移目录内的三个文件。
-
-| 文件 | 用途与连接 |
+| 文件 | 负责什么 |
 |---|---|
-| settings.py | 以自身位置定位仓库根和 `.data`；读取 `.env`；不根据终端工作目录猜数据库位置 |
-| domain.py | Pydantic 输入/模型输出契约；拒绝未知字段、越界名称、字符串伪装的批准值 |
-| store.py | SQLAlchemy 模型、事务与数据访问；建立连接工厂；每次短事务独立 Session |
-| migrations/env.py | Alembic 接入 Base.metadata；接收 Store 提供的连接 |
-| 0001_initial_control_plane_schema.py | 冻结的初始迁移；不依赖未来会变化的模型定义来修改旧版本 |
+| settings.py | 固定数据目录、默认/阶段模型、安全继承、预算；工作目录变化不能移动数据库 |
+| catalog.py | 真实后端/前端/数据库组合和支持能力；模型无法通过输出一个supported=true创造功能 |
+| domain.py | 输入、结构化需求、计划、规则补丁、智能委托和模型审阅格式；拒绝未知字段 |
+| errors.py | 可恢复预算暂停等错误类型，与不可恢复失败区分 |
+| store.py | 项目、运行、消息、审批、job、阶段回执、幂等键、委托状态、事件及模型调用记录 |
+| migrations | 冻结数据库演进；现有用户不删除库也能升级 |
 
-SQLite 位于 `.data/workbench.db`。数据库记录 projects、runs、messages、jobs、requests、revisions、approvals、steps、events。LangGraph 断点保存在另一份 `.data/checkpoints.db`。源码/ZIP/日志是文件，数据库保存归属、状态和回执。
+SQLite开启foreign_keys、WAL、busy_timeout；Python3.14显式事务设置。事务中只做数据库工作，不把LLM调用、Git或前端构建包进数据库事务。Engine长期复用、Session每次独立。时间使用明确带UTC偏移的字符串，避免读回无时区对象。
 
-SQLite 开启外键、busy timeout 和 WAL，Python 3.14 显式使用非 legacy 的事务设置。WAL 仍只有一个写者，不支持无上限并发。数据库放本地磁盘，不放网盘同步目录。测试使用 tmp_path，不污染你的真实数据库。
-
-时间字段保存明确带 UTC 偏移的 ISO 字符串，避免 SQLite ORM datetime 读回后丢时区。消息 role 只由平台设置，HTTP 请求没有 role 参数。
-
-添加 `tests/conftest.py`、`tests/test_contracts.py`、`tests/test_store.py` 后：
-
-```powershell
-uv run pytest tests/test_contracts.py tests/test_store.py -q
-```
-
-测试覆盖输入、持久化、真实外键、事务回滚、并发重复请求、模型预算。不要为了通过测试而改成 SQLite 内存假替身。
-
-首次安装使用已提交的冻结迁移，不再次生成 0001：
+迁移现有库：
 
 ```powershell
 uv run alembic upgrade head
@@ -16643,201 +16793,163 @@ uv run alembic current
 uv run alembic check
 ```
 
-以后修改模型才执行 `uv run alembic revision --autogenerate -m "具体变更"`，打开新文件审查，再 upgrade。重命名字段、数据搬迁不能盲信自动生成。**任何阶段都不要求删除现有数据库才能继续。**
+首次使用已提交revision，不再另造0001。改变模型才用 `revision --autogenerate -m "具体变更"`，人工阅读增加/删除项再upgrade。自动生成是候选，不自动理解数据重命名与搬迁。测试里可对临时库create_all，生产和真实学习数据用迁移。
 
-## 5. 幂等、审批与短事务
-
-Store.create_run 在同一事务保存运行、首条用户消息、待执行 job；不会“需求保存成功，但任务完全没入队”。Request 表记录请求指纹与响应：重复相同请求返回原结果；同一个键对应不同内容返回409。
-
-Revision 的 gate_id 由 run、阶段、轮次、内容摘要生成。审批必须绑定当前 gate_id，而且 approved 必须是真布尔值。通过 API 写入 Approval 后，LangGraph 恢复仍会再次检查这条记录。模型文本“我批准了”无效。
-
-SQLite API 修改由文件锁串行化，PostgreSQL 同时使用事务 advisory lock。外部模型/工具调用不放在数据库事务中。对已完成的工具操作保存 Step 回执，恢复时可复用。**这不是跨数据库/网络的“恰好一次”承诺**：进程在模型返回而回执尚未写入时退出，重试仍可能再次调用模型；调用预算预先记账，限制损失。
-
-通关：重复创建只出现一个项目；旧 gate409；无 Approval 记录无法从图层绕过；字符串 `"true"` 被422拒绝。
-
-## 6. 文件安全与真实代码生成
-
-创建 `workbench/filesystem.py`、`workbench/tools.py`、`workbench/generator.py`，以及 `templates/product/` 全部文件。
-
-filesystem 统一执行相对路径、链接、ZIP 限制、密钥排除、原子写入和 SHA-256。不能从 API 接收任意系统路径。tools 只运行平台固定参数数组，shell=False；复制子进程环境时排除 API_KEY、BASE_URL、MODE 和原生服务令牌，超时终止进程组。
-
-模板包含真实 FastAPI CRUD、SQLAlchemy schema、独立迁移启动器、注册登录和验收脚本。generator 只把已批准的 Plan 转成冻结迁移和元数据，并复制经审查的模板；不向 LLM 请求“写一套 CRUD”。生成环境仍是独立项目：自己的 pyproject、uv.lock、SQLite、README。
-
-平台环境与生成产品环境分离，因此附录同时给出 `uv.lock` 与 `templates/product/uv.lock`。不要把平台数据库、模型 Key 或完整工作环境复制进产品。
-
-## 7. 受限规则编码，不开放任意宿主代码执行
-
-创建 `workbench/rules.py` 和 `workbench/coding.py`。
-
-当设计存在 custom_rules 时，模型只能返回一个 SHA 前置条件补丁：`custom_rules.py`。内容只能是 `validate(entity, data)` 中的条件判断、布尔比较、data.get、len、raise ValueError、return None。所有规则先解析 AST；不允许 import、赋值、循环、任意属性/调用、文件/网络操作。执行由平台自己的小解释器完成，**不会 eval/exec 模型代码**。
-
-这适合“优先级不得小于0”“满足某个条件时字段必填”等逐记录校验。复杂事务、调用第三方服务、任意 Python Agent Server 不属于当前默认能力，遇到这类需求必须阻塞并重新确认范围。
-
-补丁的 before_sha256 不匹配就拒绝；已经应用的相同补丁可安全重放。AI 不能修改原生运行器、验证脚本、鉴权或依赖锁。设计中的正反例经过类型和字段校验，并在规则解释器及真实 HTTP 两层执行。
+创建 tests/conftest.py、test_contracts.py、test_store.py，运行：
 
 ```powershell
-uv run pytest tests/test_safety.py tests/test_tools_cli.py -q
+uv run pytest tests/test_contracts.py tests/test_store.py -q
 ```
 
-通关：路径越界、ZIP重复路径、私钥、危险 AST、过期补丁均被拒绝；允许的业务校验真实生效。
+通关：提交/回滚、真实外键、幂等、时间/路径、旧库升级、输入不伪造身份都通过。`test_learning_order.py`还验证这一数据库学习阶段不依赖未来的API或Agent模块。
 
-## 8. 模型网关
+## 8. 第二组：消息、长期会话、审批与智能委托
 
-创建 `workbench/llm.py`，然后 `tests/test_llm.py`。
+创建 `workbench/conversation.py`，继续阅读store的 `request/create_run/submit/set_automation/auto_approve`。
 
-ModelGateway 把 Pydantic JSON Schema 与明确任务一起送到兼容接口，完整校验响应。请求与响应有限长；401/403、404、429和超时有明确错误；结构错误最多重试一次；每次运行有 MAX_MODEL_CALLS 上限。失败不静默缩小需求或退回演示结果。
+一个请求在同一事务保存原始消息、运行和待处理job，不出现“成功保存了需求却没有任务”。Idempotency-Key绑定请求指纹：同一个请求重试返回同一结果，不同内容重用同键返回409。并发控制由文件锁/PG事务锁保证，而不是让模型决定。
 
-单元测试注入 httpx.MockTransport，明确不消耗用户模型费用。`rnd start` 没有测试模型模式，只使用 `.env` 的真实接口。CI 全绿证明程序与协议处理经过测试，不能证明任意供应商模型的回答质量。
+需求和设计的gate_id绑定run、阶段、轮次与内容摘要。普通审批必须来自当前等待点、显式布尔值。智能推荐是另一种显式授权，保存auto_mode、授权事件与delegated-ai审批；不能把“模型说批准”当作用户动作。
+
+conversation先识别去引号的控制词，再拼模型上下文。上下文保留原始目标、当前结构化需求、最近明确修正和真实模板能力。新的明确修正优先；日期区间边界、长度默认值等不再拆成很多不必要轮次。LLM仍可能给出不良问题，用户可持续委托或人工修正，不承诺任意模型永远一次正确。
 
 ```powershell
-uv run pytest tests/test_llm.py -q
+uv run pytest tests/test_guided_workflow.py tests/test_guided_completion.py -q
 ```
 
-通关：合法响应通过、错误 JSON 停止、鉴权错误不泄漏 Key、相同模型步骤已保存回执可复用。
+测试应覆盖超过13个人工轮次仍正常、四个不同关卡启用智能推荐后无后续人工输入、关闭并重开Runtime仍保留委托、正数预算暂停后同run恢复、真正不支持项BLOCKED而非无限循环、控制指令不能被当作新回答。
 
-## 9. 知识包和图表
+## 9. 第三组：多模型边界和运行回执
 
-创建 `workbench/knowledge.py`。
+创建 `workbench/llm.py`、阅读settings.ModelProfile与 `tests/test_guided_models.py`。
 
-`build_index` 扫描源码、计算文件 SHA，使用 Python AST 收集类、函数、位置和 imports。未变文件复用已有索引；变化或删除后重建对应条目。知识包输出必须在源码目录外，以免把自己越索引越大。
+调用key将任务映射到requirements/planning/coding/review，解析有效地址、密钥、模型名；缓存身份包括阶段/地址/模型，不包含明文密钥。更改模型不会错误复用另一模型的响应。响应必须经过Pydantic严格验证；未知字段、错误JSON、超长响应、鉴权失败或超时明确报错。调用前记录预算尝试，外部服务失败也不免费假装成功。
+
+每个完成调用的回执保存实际模型配置（不含密钥）、阶段、usage和结果引用。`GET /runs/{id}/models`及页面用于确认实际用了哪个模型，而不是只看.env猜。
+
+```powershell
+uv run pytest tests/test_llm.py tests/test_guided_models.py -q
+```
+
+单元测试用显式HTTP transport夹具验证不同服务/模型、Key隔离、默认继承和计数；真实供应商由自己的.env联调，CI不使用用户真实Key。
+
+## 10. 第四组：文件、模板快照、索引与规则
+
+创建filesystem.py、vendor.py、tools.py、knowledge.py、rules.py、coding.py。
+
+filesystem负责原子写、路径边界、普通文件与ZIP大小、符号链接/路径遍历/重复文件检查及哈希。API不能接收任意shell命令或任意主机路径。tools的命令来自可信代码参数数组，shell=False；环境只透传必需路径和显式配置，排除平台模型密钥；超时停止进程组并保留有界首尾日志。
+
+vendor读取manifest，核对ZIP整体SHA和解压后的文件指纹与LICENSE。重复init复用有效缓存，篡改立即拒绝。三份模板在仓库内，源码未变化就不反复解析。knowledge的AST索引记录Python符号起止行和imports，Java/TS目前是文件地图，不假称是精确全语言调用图。输出目录必须位于被索引源码之外。
 
 ```powershell
 uv run rnd index workbench .data/platform-knowledge
 ```
 
-输出 index.json、AGENTS.md、build-stats.json。第二次运行应能看到 reused 增加。`context_for` 在每次读取前对比当前源码摘要，旧索引失效时直接拒绝。只将目标文件与 approved-spec 送入编码步骤，不每次把全仓库送入模型。
+第二次应显示reused增长。读取任务上下文前再核对指纹，过期或超预算时明确失败；不把.env、数据库、依赖缓存或全仓库默认发给模型。
 
-设计阶段自动生成 tasks.json、approved-spec.json、design-er.mmd、architecture.mmd、diagram-source.json。Mermaid 是可版本控制的图源。ER/拓扑是设计图，注明来源规格摘要，不冒充线上数据库反射。
-
-Repomix 和 Serena 可作为后续更复杂仓库的补充工具，并非当前运行的必要依赖；本实现不会假称已连接它们的远程 Agent。当前 Python 索引是真实可用的本地 AST 索引，Java/TS 提供文件地图，不冒充精确调用图。
-
-## 10. LangGraph 与恢复
-
-创建 `workbench/flow.py`、`workbench/runtime.py`。
-
-Flow 中节点都是明确的普通函数：analyse、requirements、plan、design、generate、code、verify、repair、package、delivery。LLM 只参与需求、设计和必要的定制规则。State 只保存结构化状态、ID、摘要，不存 ZIP 和整仓库二进制。
-
-interrupt 会在恢复时重入当前节点，因此 gate 写入必须幂等。审批在 Store 保存，图层再次验证。Runtime 使用 run UUID 作为 thread_id，恢复使用 Command(resume=...)，不接受用户任意更改 State。
-
-API 默认内置一个 Worker。SQLite 用 worker.lock 保证单实例；PostgreSQL 加 session advisory lock 防止多主机重复 worker。启动后仅在拥有锁时回收 RUNNING 任务。每次 gate 消费记录 job_id：在“图已前进但 Store.finish 未执行”的崩溃窗口，重新领取相同 job 不会消费下一道审批。
+rules只解释白名单AST，不能import/exec模型文件。coding只修改custom_rules.py，携带当前原文件SHA；日期/枚举/搜索本来由模板支持，不能每个项目都交给编码Agent重写。类型不合或前像不匹配拒绝；不允许改认证、数据库迁移和可信测试来蒙混。
 
 ```powershell
-uv run pytest tests/test_workflow.py -q
+uv run pytest tests/test_safety.py tests/test_vendor.py tests/test_tools_cli.py -q
 ```
 
-包含完整闭环、需求修改、旧 gate、拒绝、checkpoint 重开、崩溃恢复、规则一次失败后修复、交付文件被篡改后的拒绝。
+设计图由规格生成。date/enum必须正确出现在ER图，所选PG产品不能画成SQLite。图旁标记设计来源，不冒充生产反射；`test_guided_completion`覆盖用户资讯规格。
 
-## 11. 独立验证、打包和发布
+## 11. 第五组：默认生成产品的完整后端与轻量前端
 
-创建 `workbench/verification.py`。它调用**平台侧经审查的** product/verify.py，而不是相信产品内可以自行修改的测试脚本。
+按附录创建 `templates/product/` 全部源码及锁文件、`templates/frontends/simple-admin/` HTML/CSS/JS，再创建generator.py。
 
-默认验收先 `uv sync --locked` 给产品建立独立 .venv，再启动真实 HTTP 服务：验证账号、登录、错误凭据、类型/必填约束、CRUD、两个用户的越权读改删、进程重启和数据保持。结构化正反例也经 HTTP 运行。
+schema读取冻结规格建立ORM结构，app提供登录、用户隔离、CRUD、搜索和筛选，manage/start负责迁移和运行。search/filter的字段来自已批准Plan白名单，不拼接任意用户SQL列名，所有值通过SQLAlchemy参数绑定。date用真实日历校验，YYYY-MM-DD只是格式不是闰日正确性的替代；enum验证固定选项，optional空值有明确含义。
 
-成功后比较所有源码 SHA，拒绝“测试完成之后代码又变了”。ZIP 使用稳定文件顺序与时间戳；在第二个新目录解压、核对清单、再次创建独立 .venv 并完整验收，最后才展示交付审批。审批后下载再验证 ZIP 哈希。
+schema-spec和SQL DDL由同一元数据生成，SQLite和PostgreSQL分别输出。分类和日期作为原生类型支持，长度限制在API和HTML表单双层体现。输入 `0` 或 `false` 不能因truthy判断变成空值。
 
-CI 快速测试为节省网络使用已安装的 Python3.14依赖（`install_products=False`，只在测试设置显式注入）；独立依赖验收 job 使用默认 True，分别新建产品环境和干净解压环境。两种证据不会混称。
+simple-admin不是框架原生UI的假替身，它是明确可选的轻量前端。用户可选择api-only不用它。页面通过真正fetch操作产品API，有登录、列表、新增/编辑、删除、搜索、分类/日期筛选和分页。采用textContent避免把需求文字当HTML执行。清除筛选必须恢复所有控件，并丢弃旧请求的晚到响应；浏览器回归会连续切换关键词、分类、单日和区间。
+
+```powershell
+uv run pytest tests/test_news_delivery.py tests/test_guided_selection.py -q
+```
+
+这组测试验证用户日志里的具体案例，不以一个最简单的hello接口替代复杂字段和过滤要求。
+
+## 12. 第六组：独立验证、修复、模型审阅与打包
+
+创建verification.py并阅读templates/product/verify.py、product_database.py。产品以独立进程真实启动，不从Agent的“我测过了”获取结论。测试账号、登录、越权、字段、CRUD、搜索筛选、进程重启全部通过才继续。
+
+平台默认给产品创建自己的uv环境；集成测试可显式用已有依赖减少下载，但另有ci_clean_install真实安装验证。PG产品验证用独立数据库，不能替换成SQLite后仍声称PG已测。
+
+测试失败归类：业务规则问题最多两轮修复，再失败停止；环境安装/密码/服务问题不交给模型乱改业务。审阅模型只看到需求、规格与已有测试证据；额外缺口报告不能伪造执行日志或覆盖failed结果。
+
+打包前冻结文件SHA，打包后在全新目录验证ZIP清单、安装/迁移/启动/再测，最后等待人工交付或已授权的智能推荐决定。默认产品下载不需要平台继续在线。产物包含源码及SQL，不包含测试用户或真实数据文件。
 
 ```powershell
 uv run python -m scripts.ci_clean_install
 ```
 
-这条命令会下载/安装依赖，但不调用付费模型，使用显式的 CI 规格夹具。成功报告在 reports/clean-install.json，模型模式标为fixture。
+这条集成命令不消费模型Key，但真的新建产品环境和干净解压环境。测试夹具的事实必须在报告中明确区分。
 
-## 12. 接入你指定的原生开源模板
+## 13. 第七组：LangGraph、Worker和HTTP
 
-### 12.1 源码版本与生成器
+创建flow.py、runtime.py、api.py、cli.py、workbench/web/所有页面文件。前面的已测试函数由图连接，不在一个庞大节点里混合调用模型、等待用户和扣费写库。
 
-创建 `workbench/native.py` 和 `tests/test_native.py`。SOURCES 是白名单注册表；每个上游锁定 commit，而不是每次跟随 master：
+流程节点：analyse → requirements gate → plan → design gate → generate → code（需要时）→ verify → repair（需要时）→ model_review（可选）→ package → delivery gate。状态主要保存runID、版本、结构化规格和回执路径，不保存ZIP字节或整个仓库。
 
-- FastapiAdmin：`1cd12c726ad9032c17ef85ce805ce991be60fbdf`
-- Yudao Cloud Mini master-jdk17：`47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be`
-- Yudao Vben：`1b14e889f529e245fd620daa720dcea6de0cc5e7`
+interrupt恢复时节点重入，所以副作用需要回执和幂等。runUUID是稳定thread_id；数据库已保存的授权再次在图层校验。Worker保存last_job_id，崩溃时不会把同一回答消费到下一道审批。单Worker由本地文件锁及PG锁限制；并行HTTP和多个原生重型任务不等于已经实现分布式执行器。
 
-```powershell
-uv run rnd native prepare fastapiadmin
-uv run rnd native prepare yudao-vben
-uv run rnd templates
-```
+API快速写入job然后返回，不让长时间Maven构建占住HTTP请求。lifespan启动和停止连接；`/health`表示进程活着，`/ready`检查数据库与Worker。所有用户数据、运行、模型回执和下载使用本机Bearer令牌。
 
-Git clone/fetch 由固定命令执行；记录实际URL、SHA、dirty状态和知识包。芋道优先Gitee，失败可用官方GitHub对应仓库，但仍必须匹配同一个锁定SHA。上游源码目录不用于直接开发。
-
-### 12.2 为什么原生模板还需要额外环境
-
-平台 SQLite 不代表 Java/Spring/Redis 等依赖消失。运行原生服务器仍须按固定提交的 README/SKILL、pyproject、pom、package.json、env 示例准备环境。FastapiAdmin后端也使用uv；芋道后端保留Java17与Maven，前端保留其Node/pnpm，uv不管理Java或Node依赖。
-
-生成器需访问与你配置一致的**专用开发数据库**，不能对线上库自动建表。适配器只允许绝对路径的 `*-codegen.db` SQLite 或本机以 `_codegen` 结尾的 PostgreSQL。默认 `allow_create_tables=false`，你明确改为true才创建本次运行前缀的业务表，不覆盖现有不同结构。
-
-### 12.3 配置原生服务器接口
-
-```powershell
-uv run rnd native config-example fastapiadmin
-```
-
-打开 `.data/native/fastapiadmin.json`。字段说明：base_url 是已运行的本机FastapiAdmin服务；openapi_path 是该服务实际导出的OpenAPI路径；token_env/database_url_env是读取环境变量的名称，不是凭据本身。
-
-在根 `.env` 追加：
-
-```dotenv
-NATIVE_FASTAPIADMIN_TOKEN=通过你自己部署的原生服务登录取得的管理员令牌
-NATIVE_FASTAPIADMIN_DATABASE_URL=sqlite:///D:/Code/native-dev/fastapi-codegen.db
-```
-
-**这个数据库必须与原生生成器读取的数据库相同。** 不能只改平台环境变量、不改原生后端。核对后将原生JSON配置的allow_create_tables改为true。
-
-芋道同理：
-
-```powershell
-uv run rnd native config-example yudao-vben
-```
-
-`.env` 示例：
-
-```dotenv
-NATIVE_YUDAO_TOKEN=你本机芋道管理员登录令牌
-NATIVE_YUDAO_DATABASE_URL=postgresql+psycopg://开发账号:开发密码@127.0.0.1:5432/yudao_codegen
-```
-
-使用PostgreSQL时先 `uv sync --locked --extra postgres`。原生JSON内data_source_config_id必须对应原生服务中的实际数据源编号；tenant_id与你登录租户一致；front_type只允许40/41，与锁定的Vben5 Ant Design Vue前端匹配，不使用Vben2或ElementPlus的生成代码冒充。
-
-程序从真实OpenAPI定位唯一的生成器操作，再调用导入、字段明细、更新、ZIP下载；未找到、缺权限、跳过部分表、字段不匹配都失败，不伪造输出。
-
-### 12.4 执行原生导出
-
-```powershell
-uv run rnd chat --template fastapiadmin
-uv run rnd chat --template yudao-vben
-```
-
-选择你已经准备好的那套，不要求两套同时运行。最终状态SOURCE_READY明确只代表源代码导出：包里 upstream/ 是锁定源码，generated/ 是原生生成器实际输出。先在新的开发分支检查目录映射、鉴权、菜单、初始化/迁移，再手动合入并执行原框架测试。**本段描述的是源码导出模式。需要自动挂载与实际全栈运行时，按第19章启用托管原生模式。额外的Java、Node、PostgreSQL与Redis依赖仍然需要准备。**
-
-测试分级：test_native.py为HTTP协议mock测试和真实SQLite建表测试；Actions native-sources 为真实仓库克隆/索引验证；两者都不等于原生服务器完整验收。
-
-## 13. API 与命令行入口
-
-创建 `workbench/api.py`、`workbench/cli.py` 和 `tests/test_api.py`。
-
-FastAPI lifespan 建立 Store、迁移、令牌和 Worker，关闭时等待当前任务完成再释放checkpoint连接。HTTPBearer保护所有项目、运行、消息、报告与下载；TrustedHost只允许本机主机名。公网多租户、账号计费和团队权限不是这个本地版本的功能。
-
-| 接口 | 作用 |
+| 接口 | 功能 |
 |---|---|
-| GET /health、/ready | 进程存活；数据库/内置Worker就绪 |
-| POST /projects | 创建项目，Idempotency-Key必填 |
-| POST /projects/{id}/runs | 保存原始需求并入队 |
-| GET /runs/{id} | 状态、pending关卡、结果、错误 |
-| POST /runs/{id}/resume | 回答/修改/明确批准或拒绝当前gate |
-| POST /runs/{id}/retry | 修复外部条件后重试FAILED任务 |
-| GET /runs/{id}/events | 按游标查看执行事件 |
-| GET /runs/{id}/report | 查看生成/验证/交付回执 |
-| GET /runs/{id}/download | 已批准的READY或SOURCE_READY才可下载 |
-| GET /templates | 查询真实能力与准备状态 |
+| GET /catalog、/models | 当前实际模板组合与阶段模型，无密钥 |
+| POST /projects、POST /projects/{id}/runs | 创建项目、选项/需求同事务入队 |
+| GET /runs/{id}、/messages、/events、/models | 状态、完整消息、事件、实际模型使用 |
+| POST /runs/{id}/resume | 当前gate的回答、批准、拒绝、修改 |
+| POST /runs/{id}/automation | 显式开启智能推荐或恢复人工 |
+| POST /runs/{id}/retry | 可恢复的失败/暂停保留原ID重试 |
+| GET /runs/{id}/report、/download | 真实验证证据及已批准且哈希正确的包 |
 
-不直接提供接受任意shell、URL、文件路径或Python代码的HTTP接口。测试命令与模型规则都有固定边界。
+```powershell
+uv run pytest tests/test_api.py tests/test_workflow.py tests/test_guided_workflow.py -q
+uv run python -m scripts.ci_guided_browser
+```
 
-## 14. GitHub Actions 验收
+浏览器集成需预先安装独立Playwright1.56.1/Chromium；普通使用轻量页面不需要本机安装Playwright。该脚本使用三个明确的本机HTTP模型夹具，真正打开平台页面，先选模板，再输入用户资讯需求，点智能推荐后不再人工确认，下载并打开独立产品，真实搜索筛选；不是mock页面请求。
 
-创建 `.github/workflows/test.yml`。CI没有用户模型Key也能运行，因为明确使用协议夹具；不是“真实账户验收已完成”。
+## 14. 运行状态、预算、恢复与升级
 
-CI任务包括：Linux/Windows Python3.14全套快速测试、PostgreSQL真实数据库与checkpoint恢复、产品独立依赖与干净解压HTTP验收、锁定原生源码克隆/索引、手册一致性和重建检查。日志和JUnit作为Actions artifacts上传。
+QUEUED/RUNNING是执行中；WAITING_CLARIFICATION/REQUIREMENTS/DESIGN/DELIVERY是人工等待；智能推荐可自动处理可支持的后续等待点。READY是当次工具验证与交付决定完成；SOURCE_READY是旧原生导出语义；REJECTED不继续；BLOCKED是明确能力冲突；PAUSED_LIMIT保留用户指定预算；FAILED是实际执行错误。
+
+旧日志中的最后答案会在数据库messages保存。升级后不要新建同名项目再重打全部需求。确认备份、迁移、去掉旧限额，重试原UUID后可以继续。将来大幅修改图结构时不保证所有历史checkpoint任意跨版本恢复；升级前备份，保留旧环境完成已运行任务。
+
+每个运行的前后端/数据库选择是冻结选项，防止拿新设置误解释旧产物；修改.env的模型用于后续尚未完成阶段，已落盘的结果和实际模型回执不被重写。API限额不是供应商余额控制，要自己管理供应商预算。
+
+## 15. 本地数据、目录和备份
+
+```text
+.data/
+  workbench.db / checkpoints.db    控制数据与工作流断点，职责不同
+  access-token                    平台本机令牌，不是模型Key
+  sources/ knowledge/             解压后的固定模板与可重建索引
+  runs/<UUID>/                    规格、产品、生成/测试/交付证据
+  native-services/<UUID>/          原生任务自己的服务配置与密码，勿共享
+  native/                         可选显式原生运行配置
+templates/vendor/                 clone自带的固定源码ZIP与许可证
+```
+
+停止平台和Worker后备份完整.data，不只复制正在写入的SQLite主文件而漏掉WAL。PostgreSQL备份还需其数据库备份工具。新交付包的`.deployment`或`.data`保存它自己生成的服务密码，不能加入Git或再分发。
+
+平台可使用PostgreSQL：`uv sync --locked --all-extras`后设置DATABASE_URL。CHECKPOINT_URL可分离图断点库。新空库有迁移和真实CI验证；旧SQLite历史数据并不会因改URL自动搬过去，需要另行数据迁移与恢复验证，不能承诺零操作切库。
+
+## 16. 原生源码、独立SQL与部署边界
+
+这部分详见下一章的逐条命令。核心区别：平台运行用专用开发库生成模块；**最终产品无需复用这个开发库**。它携带独立启动器和原生初始化/业务DDL/菜单SQL，可在另一专用空库真正启动。用户数据、开发测试账号数据不会从开发库导出到菜单脚本。
+
+`portable.py`先保存原生菜单快照，生成后只导出新增/变化菜单，使用SQL标识符和值转义，不拼模型原始SQL。`deployment/manifest.json`绑定规格和SQL哈希；原生SQL种子来自锁定的源码。数据库注释标记claimed/ready与此产品身份，拒绝非空的无关库，重复启动不会覆盖用户名密码。
+
+只有原生全链成功、独立新库启动检查也成功，托管结果才为runtime_verified。单元测试模拟边界只检查契约，不当作真实全栈证据。完整原生矩阵必须跑真实语言工具、数据库、后端、前端和浏览器。
+
+## 17. 正式Actions与手册一致性
+
+正式PR不能只包含“运行过的候选截图”。Actions对提交的源码运行：Linux/Windows回归、PG平台与产品测试、默认产品独立安装、真实工作台和资讯页面浏览器、原生两套生成与独立交付新库启动。CI无需真实模型Key，夹具是显式的；验证你的供应商只能用本机.env。
 
 ```powershell
 uv run ruff check .
@@ -16846,174 +16958,116 @@ uv run pytest -m "not postgres" -q
 uv run python -m scripts.build_handbook --check
 ```
 
-本地没有PostgreSQL时那组测试不运行；Actions postgres job必须设置TEST_DATABASE_URL并明确执行，不能因为缺配置skip了却声称PostgreSQL通过。TEST_DATABASE_URL只指向一次性测试库。
-
-如果需要更新依赖：`uv lock` → `uv sync --locked` → 全部CI → 提交新的uv.lock；产品依赖变更同样在templates/product内更新并复验。锁文件不由模型编写。
-
-## 15. 数据、备份、升级和恢复
-
-`.data` 内有需求和可能敏感的业务文字，即使不是密钥也不应公开。备份前停止API/Worker，用SQLite backup API或在停止后复制完整数据库；不要只复制活动中的WAL主文件。恢复后保留同一平台版本与checkpoint库，避免业务审批表和图断点不一致。
-
-API独立运行可用 `uv run rnd start --no-worker`，另一终端 `uv run rnd worker`；仍只允许一个worker。默认一条命令已经内置worker，不要重复启动。进程故障后Runtime会回收未完成job；代码版本更改导致图节点结构变化时不能假设旧checkpoint无限兼容，先保留旧环境完成/取消旧运行，备份后升级。
-
-FAILED会明确显示原因。模型配额/地址或原生前置环境修正后 `uv run rnd retry ID`。预算耗尽/不支持需求应重新整理并新建运行，不能无限重试消费费用。不会把故障状态自动改READY。
-
-## 16. PostgreSQL 可选路径
-
-默认路径不需要本章。需要服务器数据库时：
+源码或正文有改动时：
 
 ```powershell
-uv sync --locked --extra postgres
+uv run python -m scripts.build_handbook
 ```
 
-`.env`中配置 `DATABASE_URL=postgresql+psycopg://.../workbench`。平台业务迁移仍由Alembic执行，Runtime自动使用PostgresSaver，可用CHECKPOINT_URL指定另一库（必须配套备份）。只配置新URL不会自动把旧SQLite数据搬过去。
+生成器把docs正文与当前真实文件完整组合成两个相同手册路径。每个源码块带SHA；test_handbook验证逐块一致性与空目录还原后再次生成相同手册。二进制vendorZIP在Git中单独保存，附录用manifest和许可证描述，不把二进制伪装成代码块。
 
-本实现支持**PostgreSQL空库初始化和后端/断点运行**，有Actions真实验证；**不包含已有SQLite业务历史的自动数据搬迁器**。现有数据迁移须停机备份、数据转换、主外键/行数核验、重建对应审批和checkpoint历史并回归，不能说“改一个URL就无损迁移”。当前即使换PG也坚持单Worker，不伪装成分布式队列。
+手工学习创建顺序可照第7—13章；全部源码齐全后再执行全量测试。复现安装始终 `--locked`；依赖更新需提交真实新锁并重跑，不由AI随意修改锁内容。
 
-## 17. 常见问题
+## 18. 故障定位与通关清单
 
-**ModuleNotFoundError：** 确认在含pyproject.toml的仓库根执行，先`uv sync --locked`，再`uv run python -c "import workbench; print(workbench.__file__)"`。本手册没有根目录main.py，不再用旧的`from main import app`测试。
+| 问题 | 正确处理 |
+|---|---|
+| ModuleNotFoundError | 回到含pyproject的根目录，uv sync --locked；使用包路径workbench，不混用旧from main |
+| 超轮数/调用上限 | 检查.env是否仍写旧正数；默认0；改好重启并retry同一UUID |
+| 智能推荐仍BLOCKED | 阅读真实unsupported/范围冲突；不为通过而删需求或修改权限 |
+| 平台401 / 模型401 / 产品401 | 分别检查rnd token / API_KEY / 产品登录token，不混用 |
+| 搜索筛选结果不对 | 核对Plan searchable/filterable/date_range、真实API与前端请求；先清除旧条件，检查日期格式 |
+| 原生数据库非空 | 保留现场，不取消保护或自动DROP；使用新的明确授权空库 |
+| 前端构建或类型失败 | 保留真实日志，不删页面、不跳过类型；按固定上游兼容适配核对 |
+| 独立包只有后台通过 | --check必须前端启动后才成功，不能减少验收项掩盖错误 |
+| 浏览器工作台显示KeyError | 现在错误含源码位置；日期/枚举图表有回归测试，检查你是否使用同提交完整源码 |
+| 手册不一致 | 修改正文源或代码后重新build_handbook，不手工只改生成文档或关闭测试 |
 
-**实际Python仍是3.12/3.14不一致：** 查看`.python-version`及pyproject.requires-python，执行`uv python install 3.14`、`uv sync --locked`。Conda提示符不代表uv实际解释器，使用sys.executable核实；不要直接删除旧环境和业务数据。
+通关顺序：配置单模型 → 可选阶段覆盖验证 → 选择组合后新建 → 人工13+轮不丢数据 → 任意关卡智能推荐后无后续提问 → 用户资讯案例完整字段与搜索筛选 → 独立产品启动 → 原生环境及独立新库交付 → Windows/Linux/PG/浏览器CI → 整本手册一致。实际结果必须有对应提交的报告，不凭README一句“已通过”。
 
-**端口占用：** `.env`增加PORT=8010，两个终端均读取同一.env，重新启动；产品端口另行指定8001/其他空闲端口。
+### 官方资料
 
-**401：** 平台401需要rnd token；模型401检查API_KEY；产品401需要/auth/login的access_token。这三种令牌不是同一个。
-
-**模型404：** 检查BASE_URL是否已带/v1且未带/chat/completions，MODE是否是供应商认可的模型标识。
-
-**模型反复问问题：** 检查需求是否超出模板支持、数据共享/权限是否未确认。不能为了让界面继续而清空unsupported。确实不需要的功能由你明确删除后重新确认。
-
-**生成器能输出但没有运行产品：** 检查使用的是第12章SOURCE_READY导出模式，还是第19章托管运行模式。托管模式必须有本次完整acceptance证据，不可凭ZIP改成READY。
-
-**SQLite locked/Worker已存在：** 关闭重复运行的rnd start/rnd worker和长事务工具，保留一个。禁止以删除workbench.db解决。
-
-**产品依赖下载失败：** 这是网络/环境故障，不触发AI修改业务代码。确认同一终端中uv可用、索引可达，再retry。整个验证环境不继承模型凭据和任意代理变量。
-
-**修改代码后手册检查失败：** 执行`uv run python -m scripts.build_handbook`并一起提交源码与手册。不要删文档测试或关闭检查。
-
-## 18. 每阶段的停止条件与源码顺序
-
-| 顺序 | 本组新增文件（保留前组） | 本组验证 |
-|---|---|---|
-| 1 环境 | .python-version、pyproject.toml、uv.lock、README.md、.gitignore、.gitattributes、.env.example、workbench/__init__.py | uv sync --locked；uv run python -c "import workbench" |
-| 2 数据与审批 | workbench/settings.py、domain.py、store.py；alembic.ini、migrations 全部文件；tests/conftest.py、test_contracts.py、test_store.py | uv run pytest tests/test_contracts.py tests/test_store.py -q；alembic upgrade head/current/check |
-| 3 基础工具与模型协议 | workbench/filesystem.py、tools.py、rules.py、knowledge.py、llm.py；tests/test_llm.py | uv run pytest tests/test_llm.py -q；不调用真实模型 |
-| 4 默认产品与受限编码 | templates/product 全部文件（包括其独立 uv.lock）；workbench/generator.py、coding.py、verification.py；tests/test_safety.py | uv run pytest tests/test_safety.py -q |
-| 5 状态图 | workbench/native.py、flow.py、runtime.py；tests/test_workflow.py | uv run pytest tests/test_workflow.py -q；实际 SQLite/HTTP 验收，模型用显式夹具 |
-| 6 HTTP与交互 | workbench/api.py、cli.py；tests/test_api.py、test_tools_cli.py | uv run pytest tests/test_api.py tests/test_tools_cli.py -q；rnd init；填写三项配置；rnd start 与 rnd chat |
-| 7 独立安装与原生源码 | scripts/__init__.py、ci_clean_install.py、ci_native_sources.py；tests/test_native.py | test_native；python -m scripts.ci_clean_install；原生源码下载为可选扩展 |
-| 8 发布一致性 | .github/workflows/test.yml；scripts/build_handbook.py、rebuild_from_handbook.py；docs/guide.md；其余全部 tests 文件 | 生成手册；Ruff；pytest -m "not postgres"；手册 --check；GitHub Actions |
-
-表内未写全命令前缀的 Python/pytest/alembic 命令统一加 `uv run`，并始终在含 pyproject.toml 的根目录执行。第2组有独立测试把这些文件复制到新的空目录，并确认没有 API/runtime 文件也能运行该组测试。第4组必须先有第3组的 knowledge/rules；第5组必须先有第4组的 verification；不能按章节编号提前运行依赖尚未建立的测试。
-
-每组代码从下方对应路径的完整代码块复制，文件不存在就逐个创建；不是把所有代码拼进一个 main.py。第8组才复制剩余测试，避免 pytest 在收集阶段导入尚未创建的模块。原生模板导出仍不等于完整原生运行认证；导出见第12章，自动挂载、权限和前后端实测见第19章。
-
-下面按职责给出文件完整内容。不出现“此处自行实现”或省略函数体；能力未实现的部分已在对应章节说明，不会用假success蒙混过关。
-
-## 参考资料
-
-这些链接是核对工具行为的官方来源；实际可复现版本以本仓库uv.lock和SOURCES内commit为准。
-
-- uv项目管理与GitHub Actions： https://docs.astral.sh/uv/guides/projects/ 、 https://docs.astral.sh/uv/guides/integration/github/
-- Python3.14 sqlite3事务： https://docs.python.org/3.14/library/sqlite3.html
-- SQLAlchemy SQLite事务与外键： https://docs.sqlalchemy.org/en/20/dialects/sqlite.html
-- Alembic候选迁移： https://alembic.sqlalchemy.org/en/latest/autogenerate.html
-- LangGraph中断与恢复： https://docs.langchain.com/oss/python/langgraph/interrupts
-- Pydantic校验： https://docs.pydantic.dev/latest/concepts/models/
-- FastapiAdmin： https://github.com/fastapiadmin/FastapiAdmin
-- 芋道后端： https://gitee.com/yudaocode/yudao-cloud-mini
-- 芋道Vben： https://gitee.com/yudaocode/yudao-ui-admin-vben
+uv项目与Actions：https://docs.astral.sh/uv/guides/projects/ 、https://docs.astral.sh/uv/guides/integration/github/
+Python3.14 sqlite3事务：https://docs.python.org/3.14/library/sqlite3.html
+SQLAlchemy SQLite：https://docs.sqlalchemy.org/en/20/dialects/sqlite.html
+Alembic候选迁移：https://alembic.sqlalchemy.org/en/latest/autogenerate.html
+LangGraph中断恢复：https://docs.langchain.com/oss/python/langgraph/interrupts
+Pydantic Settings：https://docs.pydantic.dev/latest/concepts/pydantic_settings/
+FastapiAdmin：https://github.com/fastapiadmin/FastapiAdmin
+芋道：https://gitee.com/yudaocode/yudao-cloud-mini 、https://gitee.com/yudaocode/yudao-ui-admin-vben
+这些文档解释工具行为；本项目可复现版本以同一提交的uv.lock、vendor manifest、代码及测试为准。
 ````
 
 ### `docs/native-baseline.md`
 
-<!-- source-file: docs/native-baseline.md sha256: 555458be5753a50ee295aa33dd1589e19a52ea4e5199ced7830ef13a621a9f81 -->
+<!-- source-file: docs/native-baseline.md sha256: 9fbac3f8a91e28f4b9032ff7d533708c630a530ab03b0772651fbecc3ea1dd7f -->
 ````markdown
-## 19. 原生生成产品：自动挂载、菜单权限和完整前后端验收
+## 19. 原生全栈：自带源码、自动生成与独立新数据库交付
 
-本章使用真实 FastapiAdmin、芋道 Cloud Mini 和 Vben 固定源码。基础代码来自它们自己的生成器；平台只做规格转换、模块挂载、必要的有记录兼容修正、独立验证和交付。
+本章使用真实 FastapiAdmin / 芋道 Cloud Mini / Vben 固定源码，不另写一个简化后端冒充原框架。基础CRUD由原生生成器产生，平台负责受校验的表元数据、挂载、菜单、兼容修正、权限/浏览器验证以及独立部署包。
 
-两种模式必须分清：第12章的外部服务模式只导出源码，结果是 `SOURCE_READY`；本章的托管原生模式会启动原生后端、调用生成器、挂载模块和菜单、验证角色权限、构建完整前端并运行真实浏览器。只有本次运行全部验收成功且你批准交付后才是 `READY`。配置文件存在不代表已经验收。
+现在普通clone即含模板源码；原生产品的交付包含新数据库初始化、业务DDL和菜单SQL，不要求依附当初生成它的平台数据库。原生语言运行时仍必须存在，不可能通过三个模型参数替代Java、Node、PostgreSQL和Redis。
 
-支持范围是本机单操作人、Linux/WSL 2、共享业务数据加原生角色权限、简单文本/整数/布尔字段 CRUD。每个实体至少一个必填文本字段。不要把逐用户隔离需求改成共享数据；关联表、支付、跨表事务和任意业务编码仍不支持。本章不是公网多租户生产部署指南。
+### 19.1 本章的真实范围
 
-### 19.1 按什么顺序创建文件
-
-先完成第18章的平台文件。在同一仓库根目录按下表创建文件，内容完整复制自本手册下方同名源码块。不要另猜 API 地址或补空函数。
-
-| 顺序 | 文件 | 工作及连接关系 |
+| 通道 | 创建方式 | 成功标准 |
 |---|---|---|
-| 1 | `workbench/native_environment.py` | 空库保护、源码副本、后端依赖构建、进程生命周期和真实登录；调用 filesystem/tools |
-| 2 | `workbench/native_compatibility.py` | 只在副本中修正事务依赖作用域，记录修改前后哈希 |
-| 3 | `workbench/native_modules.py` | Plan 转原生数据表；调用 NativeClient；生成、挂载代码和菜单 |
-| 4 | `workbench/native_checks.py`、`workbench/native_acceptance.py` | 独立 HTTP 检查真实生成实体、角色授权撤销和重启持久化 |
-| 5 | `workbench/native_vben.py`、`workbench/native_frontend.py`、`scripts/native_browser.cjs` | 冻结安装、完整应用构建与类型检查、Chromium 真实登录和生成页面 |
-| 6 | `workbench/native_lab.py`、`scripts/ci_native_generated.py` | 串联各阶段；平台、CLI、CI 使用同一份实现 |
-| 7 | `workbench/native_delivery.py` | 显式授权配置、交付等级、证据绑定、重新打开产品 |
-| 8 | `tests/test_native_*.py` | 路径、配置、元数据、挂载、权限、事务和交付证据回归 |
-| 9 | `.github/workflows/native-runtime.yml` | 在隔离 PostgreSQL/Redis 下真实运行两套原生产品和浏览器 |
+| 原生托管生成 | 页面/CLI先选择原生前后端、PostgreSQL | 当次原生生成、挂载、角色、CRUD、重启、前端构建/类型/浏览器以及独立新库启动通过，交付获授权后READY |
+| 旧的原生接口导出 | 为已部署生成器提供专用配置/令牌 | 只导出源码时仍是SOURCE_READY，不能冒充全栈已测 |
+| 独立交付启动 | 解压原生产品，在产品目录运行start.py | 自己的依赖锁、SQL、服务和数据库，无需原平台或模型Key |
 
-连接顺序：`rnd chat → API → Job/Worker → LangGraph → managed_generate → run_acceptance → 原生 codegen → CRUD/RBAC → 停止后端 → Vite/vue-tsc → 重启与持久化 → Chromium → managed_verify/package → 人工交付确认`。
+原生支持shared业务数据与原生角色权限、text/integer/boolean单表CRUD。它不是默认产品的per_user行隔离模型，不允许AI暗改数据归属。每个实体至少一个必填文本字段用于独立UI验收；额外Python规则不插入Java框架。复杂关系、支付和生产部署需另外实现与验证。
 
-单文件创建后先运行 `uv run python -m py_compile 文件路径`。这只证明语法。相关依赖组齐全后，再运行：
+### 19.2 文件、职责与完整代码位置
 
-```bash
-uv run ruff check .
-uv run ruff format --check .
-uv run pytest tests/test_native_baseline.py tests/test_native_modules.py tests/test_native_managed.py tests/test_native_transaction.py tests/test_native_frontend_lifecycle.py tests/test_native_vben.py -q
-```
+附录逐个包含所有文件最终代码。按表顺序阅读和创建，不补占位函数、不把不同模板的代码文件混起来。
 
-这些本地测试不能代替真实原生全栈验收。后面的命令实际启动数据库、原生服务和浏览器。
-
-### 19.2 固定版本与运行条件
-
-| 部分 | 版本或固定提交 |
+| 文件组 | 职责 |
 |---|---|
-| 平台、FastapiAdmin 后端 | Python 3.14；分别使用自身 uv.lock |
-| FastapiAdmin | `1cd12c726ad9032c17ef85ce805ce991be60fbdf` |
-| 芋道后端 | `47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be`，JDK 17 |
-| Vben 前端 | `1b14e889f529e245fd620daa720dcea6de0cc5e7` |
-| Node | 22 系列且至少22.18 |
-| FastapiAdmin / Vben 的 pnpm | 分别9.15.3 / 11.16.0 |
-| 浏览器 | Playwright 1.56.1 对应的 Chromium |
-| 原生数据库 / 缓存 | PostgreSQL 17 / Redis 7.4 |
+| `vendor.py`、`templates/vendor/manifest.json` | 读取仓库内固定ZIP，核对SHA/许可证/安全解压，提供源码知识包 |
+| `native_environment.py`、`native_resources.py` | 创建本次运行自己的服务或接受已授权的空开发库；原生安装、初始化、进程启停和真实登录 |
+| `native_modules.py`、`native_compatibility.py`、`native_vben.py` | 原生生成器调用、审计字段元数据、Java/Vue插件挂载、菜单与兼容变更回执 |
+| `native_checks.py`、`native_acceptance.py` | 普通角色授权/撤销、生成实体CRUD、必填验证与重启持久化 |
+| `native_frontend.py`、`scripts/native_browser.cjs` | 完整应用构建/类型检查，真实Chromium登录、菜单及两个生成页面 |
+| `native_lab.py`、`scripts/ci_native_bundled.py` | 平台和CI共用执行链；从随库模板开始，不再额外clone |
+| `portable.py`、`portable_checks.py` | 导出新库所需SQL及菜单，把独立启动器放进产品，再用另一新数据库实测 |
+| `templates/deployment/entry.py/run.py/services.yaml/uv.lock` | 最终用户拿到的独立启动与数据库生命周期，不依赖原平台安装 |
+| `native_delivery.py` | 绑定源码和验收证据，只有完整通过才发布，兼容重新打开原开发副本 |
 
-平台本身仍默认 SQLite，三个模型参数足以体验默认 Python 通道；Java、Vue、PostgreSQL、Redis 不会因此消失。原生运行需要这些额外环境。Windows 请用 WSL 2 Ubuntu，在 Linux 用户目录创建新的克隆和 Linux `.venv`，不能复用 Windows `.venv`。
+### 19.3 固定源码与环境
 
-完整 Vben 前端较大，建议按16GB内存及约20GB可用磁盘规划，并预留交换空间。CI 为临时 runner 添加8GB交换文件；Node 堆上限8GB，Rust构建并行度2；构建前停止Java以降低峰值内存。没有删减页面或关闭类型检查。默认Python通道不要求这些资源。
+| 组件 | 固定输入 |
+|---|---|
+| 平台、FastapiAdmin后端 | Python3.14，各用自己的uv.lock |
+| FastapiAdmin源码 | `1cd12c726ad9032c17ef85ce805ce991be60fbdf` |
+| 芋道Java源码 | `47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be`，JDK17/Maven |
+| Vben源码 | `1b14e889f529e245fd620daa720dcea6de0cc5e7` |
+| Node | 22系列，满足Vben的至少22.18要求 |
+| pnpm | FastapiAdmin9.15.3；Vben11.16.0 |
+| 原生服务 | PostgreSQL17、Redis7.4 |
+| 平台浏览器验收 | Playwright1.56.1对应Chromium |
 
-### 19.3 在 Ubuntu / WSL 2 安装工具
+源码在 `templates/vendor/fastapiadmin.zip`、`yudao-backend.zip`、`yudao-frontend.zip`。运行 `uv run rnd init` 后本地解压；再执行 `uv run rnd native prepare 模板名`也只是验证/准备这些已包含的固定快照。安装依赖仍用网络，不等于离线构建。
 
-Windows 用户先启动 Docker Desktop，在 Settings → Resources → WSL Integration 启用所用 Ubuntu。进入 Ubuntu 终端执行。以下不是 PowerShell 命令。
+原生全栈在Linux验收。Windows使用WSL2 Ubuntu，重新clone和建立Linux `.venv`，不要复用Windows虚拟环境。默认Python产品仍在Windows/Linux分别测试。完整Vben较大，建议至少16GB主机内存和足够磁盘；平台错开Java和Vite构建，必要时明确配置交换空间，不删除业务页面来减负。
+
+### 19.4 在Linux/WSL准备工具
+
+Windows先启用WSL2及Docker Desktop的WSL Integration，进入Ubuntu终端。以下是Ubuntu x86-64命令，不是PowerShell：
 
 ```bash
 sudo apt-get update
 sudo apt-get install -y git curl ca-certificates xz-utils openjdk-17-jdk maven
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
 java -version
 mvn -version
 docker version
 ```
 
-Maven显示的Java应是17。`docker version` 必须有 Server 部分。没有Docker的Linux主机也可以自行安装同版本数据库/Redis，但仍必须是回环地址与专用空库。
+FastapiAdmin不要求JDK/Maven。芋道的Maven实际使用Java必须为17。docker version必须显示Server，不只是安装了Client。原生运行只绑定回环，不应在公网暴露开发管理员或数据库。
 
-安装uv并克隆当前PR分支：
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh
-export PATH="$HOME/.local/bin:$PATH"
-mkdir -p "$HOME/Code"
-cd "$HOME/Code"
-git clone --branch feat/python314-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
-cd ai-rnd-foundation-learning
-uv python install 3.14
-uv sync --locked --all-extras
-uv run rnd init
-```
-
-已有目录不要重复覆盖，先 `git status` 检查自己的改动。`--all-extras` 安装 PostgreSQL 驱动但不启动数据库。编辑这个Linux项目自己的 `.env`，保留 `BASE_URL`、`API_KEY`、`MODE`。
-
-已有满足条件的 Node 22 时执行 `node --version` 和 `npm --version` 检查。没有时，可在用户目录安装官方22.18.0二进制并检查下载哈希：
+已有Node22.18+直接使用；没有时可安装官方用户目录二进制并核对哈希：
 
 ```bash
 mkdir -p "$HOME/.local/share/rnd-tools"
@@ -17025,44 +17079,25 @@ tar -xJf node-v22.18.0-linux-x64.tar.xz
 export PATH="$HOME/.local/share/rnd-tools/node-v22.18.0-linux-x64/bin:$PATH"
 node --version
 npm --version
-cd "$HOME/Code/ai-rnd-foundation-learning"
 ```
 
-新终端也要设置该PATH。上述二进制针对Linux x86-64；ARM设备需相应架构，不属于本章CI验证的体系。
+其他CPU架构使用匹配官方二进制。新终端要保留这个PATH或写入自己的shell配置。系统旧Node版本不能用来装Vben11系pnpm。
 
-### 19.4 创建专用空开发库
-
-下面命令首次创建新容器。已有同名容器或端口占用时先检查，不要删掉不认识的数据。
+克隆平台实现分支（合并后main也可）：
 
 ```bash
-export NATIVE_PG_PASSWORD="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(24))')"
-docker run -d --name rnd-native-pg \
-  -e POSTGRES_USER=native \
-  -e POSTGRES_PASSWORD="$NATIVE_PG_PASSWORD" \
-  -e POSTGRES_DB=fastapi_codegen \
-  -v rnd-native-pg-data:/var/lib/postgresql/data \
-  -p 127.0.0.1:5432:5432 postgres:17
-docker run -d --name rnd-native-redis \
-  -p 127.0.0.1:6379:6379 redis:7.4-alpine
+mkdir -p "$HOME/Code"
+cd "$HOME/Code"
+git clone --branch feat/guided-multimodel-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
+cd ai-rnd-foundation-learning
+uv python install 3.14
+uv sync --locked --all-extras
+uv run rnd init
 ```
 
-检查并等待健康，然后创建第二个库：
+不再执行另外三个上游git clone。原有目录先检查git状态再更新，不能覆盖你的旧源码和业务数据。
 
-```bash
-docker exec rnd-native-pg pg_isready -U native -d fastapi_codegen
-docker exec rnd-native-redis redis-cli ping
-docker exec rnd-native-pg psql -U native -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE yudao_codegen'
-```
-
-预期依次为 accepting connections、PONG、CREATE DATABASE。Redis无密码仅用于上述回环开发环境。将随机密码保存在自己的密码管理器，并写入本机 `.env` 的数据库URL，不要发到聊天、日志或Git。
-
-库名必须以 `_codegen` 结尾，主机限定127.0.0.1/localhost。初始化会检查所有非系统schema，发现已有表、视图、序列就停止。上游种子含DROP语句，不能取消空库保护。每个新原生生成运行需要新空库；失败也不会替你删除旧数据。
-
-正常停止服务用 `docker stop rnd-native-pg rnd-native-redis`；恢复用 `docker start rnd-native-pg rnd-native-redis`。不要把删除数据卷当排错办法。已有数据卷重启时不要重新生成并覆盖原密码。
-
-### 19.5 安装浏览器并固定源码
-
-始终在平台仓库根目录执行：
+安装平台的独立浏览器验证工具：
 
 ```bash
 npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
@@ -17070,189 +17105,161 @@ export PLAYWRIGHT_BROWSERS_PATH=0
 .native/browser/node_modules/.bin/playwright install --with-deps chromium
 ```
 
-浏览器系统库安装可能需要sudo。这些工具不加入平台Python依赖。
+仅平台做真实浏览器验收需要该目录；拿到最终产品的普通用户启动时不需要平台本身，也不需要导入CI模型夹具。
 
-独立验收使用三个只读来源目录，后续一律复制到新的工作副本：
+### 19.5 先选原生前后端/数据库，再描述需求
 
-```bash
-mkdir -p .native
-git clone https://github.com/fastapiadmin/FastapiAdmin.git .native/fa-source
-git -C .native/fa-source checkout --detach 1cd12c726ad9032c17ef85ce805ce991be60fbdf
-git clone https://github.com/yudaocode/yudao-cloud-mini.git .native/yudao-source
-git -C .native/yudao-source checkout --detach 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
-git clone https://github.com/yudaocode/yudao-ui-admin-vben.git .native/vben-source
-git -C .native/vben-source checkout --detach 1b14e889f529e245fd620daa720dcea6de0cc5e7
-```
-
-这里使用实际核验的GitHub固定提交。Gitee可以作为下载入口，但必须核对同一SHA确实存在，不能用镜像最新分支代替固定版本。平台 `rnd native prepare` 会从白名单克隆固定源码并建立知识包。
-
-### 19.6 实际验收 FastapiAdmin 的两个生成模块
-
-先不调用模型。此命令使用明确测试规格：设备与分类两个新实体，包含文本、整数、布尔字段；不是只打开原有用户管理页。
+FastapiAdmin先选择对应pnpm：
 
 ```bash
 npm install --global pnpm@9.15.3
-export NATIVE_TEST_DATABASE_URL="postgresql+psycopg://native:${NATIVE_PG_PASSWORD}@127.0.0.1:5432/fastapi_codegen"
-uv run python -m scripts.ci_native_generated fastapiadmin \
-  --source .native/fa-source --output .native/fa-product \
-  --reports reports/native-fastapiadmin
-```
-
-程序执行：复制 → 初始化空库 → 原生后端真实登录 → 建业务表 → 原生导入/配置/ZIP导出/本地写入 → 发现插件路由 → CRUD → 原生角色与菜单授权撤销 → 停止后端 → 冻结安装前端、完整Vite构建和类型检查 → 后端重启与持久化 → Chromium真实登录、打开两个生成页面。
-
-成功要求退出码0且 `reports/native-fastapiadmin/acceptance.json` 全部门槛为true。只有ZIP或部分日志不算通过。后端8001，前端预览5173；结束后停止所创建进程，数据库数据保留。
-
-### 19.7 实际验收芋道 + Vben 的两个生成模块
-
-使用另一个空库，切换对应pnpm：
-
-```bash
-npm install --global pnpm@11.16.0
-export NATIVE_TEST_DATABASE_URL="postgresql+psycopg://native:${NATIVE_PG_PASSWORD}@127.0.0.1:5432/yudao_codegen"
-uv run python -m scripts.ci_native_generated yudao-vben \
-  --source .native/yudao-source --output .native/yudao-product \
-  --frontend-source .native/vben-source \
-  --reports reports/native-yudao
-```
-
-后端使用 `yudao-server` 聚合应用，无需整个Nacos集群。保留原生Spring Security、密码登录、角色和租户处理，`mock-enable=false`。开发验收关闭滑动验证码，但不跳过账号认证。后端48080，前端预览5173，不要与另一套同时占用端口。
-
-原生生成器前端类型为40：Vben5 Ant Design Schema，不是Vben2或Element Plus。Controller/Service/DO/Mapper/VO由原生工具生成并挂入infra模块，前端挂入 `apps/web-antd`。调用原生菜单API建立目录、页面、按钮权限；对生成器要求手动加入的ErrorCode常量做确定性冲突检查与挂载。原生SQL导出仅保存，不盲目执行未知SQL。
-
-Java先安装普通模块JAR，再单独打包聚合启动JAR，检查依赖JAR结构与PostgreSQL驱动。构建命令包含 `-DskipTests`，所以不能称上游Java单测全过。真正的本章证明来自随后执行的生成业务HTTP、角色权限、完整前端构建/typecheck和Chromium验收。
-
-### 19.8 从平台需求进入原生全流程
-
-独立验收用过的库已经非空。为新的平台运行另建库：
-
-```bash
-docker exec rnd-native-pg psql -U native -d postgres -v ON_ERROR_STOP=1 -c 'CREATE DATABASE my_fastapi_codegen'
-```
-
-在项目 `.env` 保留模型三项，并新增数据库URL：
-
-```dotenv
-NATIVE_FASTAPIADMIN_DATABASE_URL=postgresql+psycopg://native:填写自己的数据库密码@127.0.0.1:5432/my_fastapi_codegen
-```
-
-创建托管配置：
-
-```bash
-uv run rnd native runtime-config fastapiadmin
-```
-
-打开生成的 `.data/native/fastapiadmin.runtime.json`，只有确认是自己创建的空库后，才把初始化授权改成true：
-
-```json
-{
-  "database_url_env": "NATIVE_FASTAPIADMIN_DATABASE_URL",
-  "initialize_empty_database": true
-}
-```
-
-JSON不保存密码。新文件默认false，避免误初始化。再运行：
-
-```bash
-npm install --global pnpm@9.15.3
-uv run rnd native prepare fastapiadmin
 uv run rnd start
 ```
 
-另开同目录Linux终端，设置同一Node PATH后：
+另一个同目录终端设置同一Node PATH，运行：
 
 ```bash
-uv run rnd chat --template fastapiadmin
+uv run rnd chat --template fastapiadmin --frontend fastapiadmin-vue --database postgresql
 ```
 
-示例需求：共享设备台账，采用FastapiAdmin原生角色权限。设备包含必填name、quantity、active；分类包含必填name、position。两个模块支持增删改查，只读角色不可创建，写角色可创建，撤权后应拒绝访问。不要逐用户隔离、附件和关联表。
+芋道改用pnpm11.16.0及 `--template yudao-vben --frontend vben-antd --database postgresql`。浏览器首页同样先选择这三个组合，再写需求；不再默认锁死python-basic后不断要求删需求。
 
-分别批准需求、设计与交付。模型只提出结构化规格，不重新手写重复CRUD。
+示例原生需求：“设备和分类两个台账，数据按原生角色共享。设备包含必填名称、数量、启用状态；分类包含必填名称和排序。两个模块支持增删改查、必填校验、只读角色和写入角色。不需要逐用户隔离、关系或外部接口。”
 
-芋道流程相同：另建 `my_yudao_codegen`，`.env` 增加 `NATIVE_YUDAO_DATABASE_URL`，运行 `uv run rnd native runtime-config yudao-vben` 并显式授权，切换pnpm11.16.0，然后 `uv run rnd native prepare yudao-vben`、`uv run rnd chat --template yudao-vben`。
+手工确认或智能推荐均可。没有专门的runtime配置时，平台在设计获授权后为该run创建独立Docker Compose服务，随机密码、回环空闲端口、独立持久卷，防止共用已有生产数据库。服务凭据保存在 `.data/native-services/<run-id>/`，不进入Git或交付包。
 
-托管模式自动通过原生种子管理员正常登录，不要求手动复制管理员token。第12章外部服务令牌JSON是另一种模式，不要混写。
+### 19.6 可选：显式授权自己准备的开发服务
 
-### 19.9 重新打开已验证产品
+不使用自动Docker时，你可以在本机创建自己拥有的专用空PostgreSQL库和Redis。数据库名称必须以 `_codegen` 结尾，只允许回环地址；非空库会被拒绝，不取消检查。
 
-保存运行UUID。在平台目录执行：
+例如创建独立实验容器：
 
 ```bash
-uv run rnd show 运行UUID
-uv run rnd download 运行UUID
-uv run rnd native serve 运行UUID
+export NATIVE_PG_PASSWORD="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+docker run -d --name rnd-native-pg \
+  -e POSTGRES_USER=native -e POSTGRES_PASSWORD="$NATIVE_PG_PASSWORD" \
+  -e POSTGRES_DB=fastapi_codegen -v rnd-native-pg-data:/var/lib/postgresql/data \
+  -p 127.0.0.1:5432:5432 postgres:17
+docker run -d --name rnd-native-redis -p 127.0.0.1:6379:6379 redis:7.4-alpine
+docker exec rnd-native-pg pg_isready -U native -d fastapi_codegen
+docker exec rnd-native-redis redis-cli ping
 ```
 
-`serve`校验源码与验收哈希以及数据库身份后，启动后端和前端预览，不初始化、不删除数据。数据库身份绑定主机、端口、库名，允许密码轮换；切换新运行的数据库配置后，打开旧产品前要恢复它原来的库。
+预期接受连接和PONG。同名容器或端口已占用时先检查，不强制删除。密码只保存在你自己的安全位置/.env，不贴日志。Redis无密码仅用于这里的本机开发服务，不是生产模板。
 
-浏览器打开 `http://127.0.0.1:5173`。开发种子账号：FastapiAdmin `super`/`123456`；芋道 `admin`/`admin123`。生成过程还会建立权限测试角色和普通用户。这些都不能直接用于公网，部署前应修改密码并清理测试身份。
+在.env设置 `NATIVE_FASTAPIADMIN_DATABASE_URL=postgresql+psycopg://native:自己的密码@127.0.0.1:5432/fastapi_codegen`，执行 `uv run rnd native runtime-config fastapiadmin`，编辑打印的runtime.json，将initialize_empty_database改为JSON布尔true。芋道使用另一个新空库、NATIVE_YUDAO_DATABASE_URL和对应runtime-config命令。配置文件存在不代表已完成验证，每次仍按安全条件检查。
 
-**原生ZIP是已验证源码，不是数据库备份。** 它依赖保留的专用PG开发库，其中有原生种子、菜单、角色和业务表；还需要Redis和原生依赖。不能承诺解压到任意空库即可恢复数据。迁移机器时另行安全备份和迁移数据库，不能把真实数据库转储或密钥混入代码包。默认Python产品的干净空库ZIP验证是另一个通道。
+独立交付验收会创建另一个临时数据库，不复用生成源库，所以用于平台原生验收的本机账户需要CREATEDB权限。所有操作限定你授权的开发环境，不提供生产数据库自动维护。生成中途失败保留现场，修正后新建运行/空库，不DROP旧业务数据掩盖错误。
 
-### 19.10 查看实际证据
+### 19.7 原生生成怎样连接到真实框架
 
-独立测试使用传入的 `--reports` 目录；平台执行在 `.data/runs/运行UUID/native-evidence/`。
+FastapiAdmin使用原生导入、元数据更新、批量ZIP、本地输出接口。每个实体独立module_name，避免两个实体覆盖同一个模块。代码和菜单由原生生成器输出，平台重启后由原来的插件发现机制加载。原生API、角色和生成业务控制器的数据库依赖使用有记录的函数级提交修正：先提交成功，后返回响应，防止导入/授权成功响应早于数据可见。不会关闭原生权限或盲目sleep重试。
 
-| 路径 | 作用 |
+芋道以原生master数据源、Vben5 AntDesign类型40生成。平台元数据包含真实审计列、tenant_id、PostgreSQL序列和注释；逻辑删除字段按原始PG种子使用整数，与普通业务布尔字段区分。Controller/Service/DO/Mapper/VO挂载到infra模块，Vben导出挂到apps/web-antd。错误码常量只在明确原生模板格式下确定性补齐；菜单通过原生API创建，不执行模型自拟SQL。
+
+保留完整原生应用。固定Vben原始源码的兼容修正记录修改前后SHA，不删除旧页面或路由；生成表单的modal泛型、数值控件和布尔选项适配有单独测试。工作副本建立空的本地Git扫描边界，不复制上游历史/凭据，避免Tailwind扫描父目录；该.git不会进入交付。
+
+构建和完整应用vue-tsc检查都必须通过。构建在类型检查之前，因为Vite插件先生成自动导入声明。skipLibCheck仅针对第三方声明，不排除业务源码或新生成模块。Java两阶段构建保证模块为普通依赖JAR，聚合入口包含PG驱动；编译命令使用-DskipTests，不能因此声称上游所有Java单测通过。
+
+### 19.8 模块与菜单权限的实际验收
+
+每个生成实体必须经过：未登录/伪造token拒绝、创建、读取比较所有字段、修改后读取、分页包含记录、缺失必填被客户端错误拒绝、删除后消失、写入持久化样例、后端进程重启后仍能读取。
+
+普通原生角色测试：无权限拒绝、只读授权可读取共享记录且显示菜单、无写权限新增拒绝、写授权后新增成功、撤销后再次拒绝并移除菜单。芋道原版有一分钟权限缓存，测试等待有界收敛并记录，不清空缓存、不升级管理员去“通过”。需要即时撤权的生产需求另做实现。
+
+Chromium实际填写用户名密码、执行原生认证、读取真正菜单，打开设备与分类两个生成页面，等待真实列表请求并比较持久化样例。Vben额外真正提交新增表单并检查整数0和布尔false的请求/返回类型。不是只访问首页200，也不注入用户token或mock页面请求。
+
+### 19.9 最终产品为什么能在新数据库独立启动
+
+平台先保存生成前菜单快照，生成后仅导出新增/变化菜单；不会把开发用户、密码或业务记录当成菜单SQL打包。SQL标识符和值由psycopg安全转义，不是大模型自由输出的字符串。
+
+产品根目录包含：
+
+```text
+start.py
+START_HERE.md
+backend/                         真实原生后端
+frontend/web/ 或 frontend-product/  真实原生前端
+deployment/
+  pyproject.toml、uv.lock、.python-version
+  run.py、services.yaml
+  manifest.json
+  database/002-business.sql
+  database/003-menus.sql
+  workbench/                     独立启动所需的有限可信工具，不是原平台安装引用
+```
+
+原生初始化种子在已包含的后端源码中。启动顺序由run.py实现：校验SQL哈希 → 空库或本产品归属 → 原生种子 → 业务表/序列 → 菜单 → 原生依赖与后端 → 新库菜单/CRUD检查 → 停止后端构建完整前端 → 再启动后端和前端。
+
+交付之前，CI会将只有可分发文件的副本复制到一个新目录，在**另一个新的数据库**执行这个包自己的start.py --check；检查passed、frontend_started、菜单恢复、类型及CRUD，才记录独立交付成功。即使原开发副本已经通过浏览器，也不能跳过这次新库启动。
+
+### 19.10 拿到ZIP后的唯一入口
+
+在Linux/WSL安装本模板需要的语言工具和Docker Compose，解压ZIP，进入包含start.py的根目录：
+
+```bash
+uv run --no-project --python 3.14 python start.py
+```
+
+无需原平台、原开发库或模型API_KEY。首次自动创建本产品的服务，随机数据库密码，配置在`.deployment/services.json`，数据库卷持久化。控制台打印后端和前端地址，浏览器打开前端（默认5173）。默认后端FA为8001、芋道48080；可用NATIVE_DELIVERY_PORT调整后端端口，前端适配读取相应实际地址。
+
+只有自己已经准备好新的专用空数据库与Redis时，才显式设置：
+
+```bash
+export NATIVE_DELIVERY_DATABASE_URL='postgresql+psycopg://自己的账号:自己的密码@127.0.0.1:5432/new_product_codegen'
+export NATIVE_DELIVERY_REDIS_PORT=6379
+uv run --no-project --python 3.14 python start.py
+```
+
+这样的环境不需要自动Docker服务。库名以_codegen结尾，必须空或由同一产品认领；不能指向生产库。启动器的SQL清单和数据库注释防止误重复初始化另一产品。运行默认种子账号只供本机开发，首次成功后修改密码；普通重启不重置密码也不要求旧默认密码。
+
+首次安装完成后可 `start.py --skip-build` 复用该副本的构建输出；不要在全新目录跳过构建。`start.py --check` 完成后端和前端都启动并验证后退出，适合干净交付验收而非普通长时间使用。Ctrl+C停止应用但不删除数据库卷。
+
+源代码和初始化SQL不等于用户数据备份。产品使用后，迁往另一主机还要备份真实PG数据及必要配置；不要将`.deployment`密钥或数据库导出提交Git/源码ZIP。首启失败若数据库标为claimed，保留现场按日志修正后在同一产品恢复；未知/部分不一致业务表不自动覆盖。
+
+### 19.11 不调用真实模型的本地原生验收
+
+平台源代码和浏览器工具就绪后，为测试创建一个新的专用空数据库；不要用已经生成完产品的库。测试数据库管理账户可创建/删除仅此测试的临时新库。
+
+```bash
+export NATIVE_TEST_DATABASE_URL='postgresql+psycopg://native:自己的实验密码@127.0.0.1:5432/native_codegen'
+npm install --global pnpm@9.15.3
+uv run python -m scripts.ci_native_bundled fastapiadmin
+```
+
+芋道另用新的空库与对应pnpm：
+
+```bash
+export NATIVE_TEST_DATABASE_URL='postgresql+psycopg://native:自己的实验密码@127.0.0.1:5432/yudao_codegen'
+npm install --global pnpm@11.16.0
+uv run python -m scripts.ci_native_bundled yudao-vben
+```
+
+两套验收默认使用 `.native/product` 输出路径。同一checkout顺序跑时，第一套完成后将其整个工作产物目录**移动保留到别处**，确认没有占用进程，再跑另一套；也可使用两个干净平台checkout。脚本不无条件覆盖已有产品。每条命令的输入是显式的测试规格，不是你的真实模型回答。真实模型体验使用前述rnd chat。
+
+### 19.12 读取报告与故障定位
+
+平台run证据在 `.data/runs/<UUID>/native-evidence/`；独立脚本证据在 `reports/native/`。
+
+| 证据 | 含义 |
 |---|---|
-| `approved-spec.json`、`business-schema.sql` | 本次规格与业务DDL |
-| `baseline/backend-build.log`、`baseline/backend-runtime.log` | 原生依赖、编译和启动 |
-| `baseline/openapi.json` | 实际服务导出的接口契约 |
-| `device-native.zip`、`category-native.zip`、`generation.json` | 原生生成器输出及挂载回执 |
-| `native-compatibility.json`、`vben-compatibility.json` | 原生工作副本兼容修正的前后哈希与 Vben 独立扫描边界 |
-| `generated/crud.json` | 两个生成实体CRUD、必填校验、非法认证检查 |
-| `generated/permissions.json` | 普通角色授权、撤权及菜单检查 |
-| `restart/persistence.json` | 重启后实际业务数据存在 |
-| `frontend-install.log`、`frontend-build.log`、`frontend-typecheck.log` | 安装、生产构建、完整应用类型检查 |
-| `browser.json`、`device.png`、`category.png`、Vben 的 `device-created.png` / `category-created.png` | 真实登录、列表渲染、生成表单提交与截图 |
-| `generated-manifest.json` | 被验证源码哈希 |
-| `acceptance.json` | 全部门槛；失败时保留false |
-| `progress.json`、`failure.log`、`browser-failure.png` | 当前阶段与失败现场 |
+| bundled-sources.json、vendor manifest | 使用的随库源码、固定commit和整体哈希 |
+| approved-spec.json、business-schema.sql | 实际输入与原生业务DDL |
+| generation.json、原生ZIP | 原生生成器实际输出、挂载路径和修改回执 |
+| generated/crud.json、permissions.json | 真正生成模块及角色权限结果 |
+| restart/persistence.json | 后端进程重启后的记录比较 |
+| frontend-*日志 | 锁定安装、完整构建、业务源码类型检查 |
+| browser.json、PNG截图 | 实际登录、菜单、两个生成页及Vben表单 |
+| portable-start.log/json | 另一空库和独立交付启动器的结果，frontend_started不可缺失 |
+| acceptance.json、manifest | 全部阶段成功标识，与当前代码/规格/SQL哈希绑定 |
 
-检查报告：
+只看到部分成功文件不代表最终通过。失败时acceptance保持未完成，failure.log保留阶段和位置。工具超时保留有界首尾日志；账号密码不进入公共报告。
 
-```bash
-uv run python -c "import json; d=json.load(open('reports/native-fastapiadmin/acceptance.json',encoding='utf-8')); print(d); assert d['generated_runtime_verified'] is True"
-```
+遇到HTTP500不是权限拒绝；授权错误看真实角色和缓存，不关闭鉴权。前端缺类型先核对原生lock与固定兼容适配，不删路由/降低检查。独立启动只有后台成功时继续检查前端，不提前返回--check。数据库非空时不取消保护、不自动DROP，不通过“再跑一次删库”掩盖错误。
 
-最终还必须有 `native_codegen`、`automatic_mount`、`menu_and_permissions`、`real_crud`、`restart_persistence`、`frontend_build`、`frontend_typecheck`、`real_browser`、`source_unmodified`，全部为true。只看一个HTTP200或服务首页不够。
+### 19.13 原生验收的边界
 
-### 19.11 兼容规则与排错
+正式Actions原生矩阵使用真实PG/Redis/Java/Python/Node/Chromium；平台模型CI使用夹具，不能说已验证用户供应商账户。原生类型检查与HTTP验收不代表所有上游历史测试通过。普通共享CRUD权限不代表任意行级隔离或多租户生产安全。
 
-FastapiAdmin 的工作副本在启动前，对原生角色控制器与代码生成控制器的 `db_getter` 依赖设置 `scope="function"`，保留原有认证、权限、CRUD 和事务实现。这样导入表结构、更新生成配置、挂载菜单及授予角色权限都会先提交事务再返回成功，避免下一次列表/导出/登录请求早于提交产生偶发缺失。生成业务控制器沿用同样的提交边界，修改记录写入 `native-compatibility.json` 和生成回执；不是靠固定等待或盲目重试掩盖失败。
-
-Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。生成器导出的新增表单也做精确兼容：将旧式 `modalApi.getData<DTO>()` 的泛型迁到 `useVbenModal<Partial<DTO>>`，保留新增时的空载荷和编辑时的 ID 检查。原始生成 ZIP 不改写，`generation.json` 同时记录原始文件与实际挂载文件的哈希。未使用的 `Dayjs`、`getDictOptions` 导入仅在确认没有引用时删除，不关闭编译器的未使用检查。整数编辑/查询控件使用 `InputNumber` 并限定零位小数；布尔编辑/查询控件使用有真实 `true/false` 选项的 `RadioGroup`，不提交字符串代替布尔值。Chromium 还会从两个生成页面实际新增记录，检查整数 `0`、布尔 `false` 的请求值和数据库返回值，并保存新增后的页面截图。
-
-工作副本不会复制上游 `.git`、令牌或环境文件。Vben 副本单独执行 `git init --quiet --template=` 建立本地扫描边界，没有上游 remote、提交历史或 hooks；此边界也不进入源码 ZIP。缺少边界时，构建扫描可能跨入平台和兄弟工作目录，导致日志停滞与内存异常增长。不要用扩大内存、删除业务路由或禁用类型检查代替修复。保留原始仓库不变，并保存 `vben-compatibility.json` 中逐文件的 before/after SHA-256。
-
-前端使用原始 `apps/web-antd` 入口和完整应用配置。顺序为 `pnpm install --frozen-lockfile`、`vite build --mode production`、`vue-tsc --noEmit --skipLibCheck`；最后一项检查全部应用源码和生成模块，`skipLibCheck` 仅沿用第三方声明检查边界，不排除业务目录，不加入 `@ts-ignore`、`@ts-nocheck` 或宽泛 `any` 来掩盖错误。构建、类型检查、重启持久化和真实浏览器均成功才写入最终成功回执。
-
-FastapiAdmin生成服务使用flush，事务由yield依赖完成。在生成控制器和副本内的角色控制器中，将数据库依赖设为function scope，使提交在成功响应发送前完成。这样创建后立即查询和授权后立即登录不会看到未提交状态。保存前后哈希，不改鉴权逻辑、不放宽断言。官方说明：<https://fastapi.tiangolo.com/advanced/advanced-dependencies/>。
-
-芋道PG种子的逻辑删除字段是整数；不能与业务布尔字段混用。业务字段保留注释以供原生生成器识别。权限检查使用真实原生API，不直接插入管理员身份。验证无登录/伪造token/空角色拒绝、只读可查不可写、写授权可创建、撤权再拒绝。原生权限缓存存在传播时间，检查有明确等待上限，不以清缓存或改权限实现绕过。
-
-数据库非空：停止，保留数据，为新运行另建空库。原生生成中断后的部分数据库和文件不自动销毁。不要重复覆盖已经批准的工作目录。
-
-后端失败：先看对应构建日志尾部，再看运行日志。Maven环境问题不能交给编码模型乱改业务代码。每条后端构建命令360秒上限，前端900秒；超时停止进程组并保留有界首尾日志。进度每15秒输出耗时、日志字节量和可用内存，不输出密钥或进程环境。
-
-前端缺少ref/computed等自动声明：先让原生Vite插件生成声明，再运行完整应用vue-tsc，不能删除检查。Vben原生配置插件从dotenv文件读取，因此工作副本生成 `.env.production` 和可交付 `.env.production.example`；只包含公开VITE变量，不复制模型或数据库密码。
-
-浏览器失败：读 `browser.json` 的响应、状态和page_errors，再看截图。Ant Design 单选按钮内部 input 是隐藏的，真实自动操作点击对应可见 label，再验证 isChecked 和请求中的布尔值，不强制点击隐藏元素。FastapiAdmin采用真实鼠标滑块操作；先等布局稳定，再在轨道内拖至末端，移出轨道会触发原生重置。不能注入token、mock接口或删掉生成页面检查。Playwright定位器说明：<https://playwright.dev/docs/best-practices>。
-
-### 19.12 GitHub Actions 与完整手册同步
-
-`Native generated full-stack acceptance` 用两个Linux矩阵job分别创建临时PG17和Redis7.4，克隆固定源码、安装Chromium，并执行同一个 `ci_native_generated`。两个job各自成功才算两套原生生成模块验收通过。源码下载job、本地单测、另一提交的绿色结果不能代替它。
-
-`Python 3.14 acceptance`另外运行Windows/Linux平台回归、实际PG checkpoint、默认Python产品独立安装与干净解压。两套工作流范围不同。
-
-修改源码和本章正文后，在仓库根运行：
-
-```bash
-uv run ruff check .
-uv run ruff format --check .
-uv run python -m scripts.build_handbook
-uv run python -m scripts.build_handbook --check
-uv run pytest -m 'not postgres' -q
-```
-
-所有实现文件、迁移、依赖锁、测试、CI与说明会同步进入根目录完整Markdown。测试检查逐文件哈希、在空目录还原代码和重新生成手册，不需要读者拼接多份补丁。
+本手册第二部分使用的所有实现代码都在后面的整份源码附录；源码改变后用同一build_handbook命令重新生成，不把“待实现”函数藏在附录里。独立交付首次环境仍需互联网安装依赖，但不再需要重新拉取模板或原始开发数据。最终测试结果应以本次PR提交的Actions及portable-start报告为准。
 ````

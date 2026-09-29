@@ -1,29 +1,53 @@
 """Exact reviewed repairs; this diagnostic helper is not part of the final PR."""
+
 from pathlib import Path
 
 
 def replace(name, old, new):
     path = Path(name)
-    value = path.read_text(encoding='utf-8')
+    value = path.read_text(encoding="utf-8")
     if new in value:
         return
     if value.count(old) != 1:
-        raise ValueError('Unexpected source shape: ' + name)
-    path.write_text(value.replace(old, new), encoding='utf-8')
+        raise ValueError("Unexpected source shape: " + name)
+    path.write_text(value.replace(old, new), encoding="utf-8")
 
 
-replace('workbench/knowledge.py', 'def design_pack(plan, destination, template="python-basic"):', 'def design_pack(plan, destination, template="python-basic", selection=None):')
-replace('workbench/knowledge.py', "{'text': 'string', 'integer': 'int', 'boolean': 'boolean'}[field.kind]", "{'text': 'string', 'integer': 'int', 'boolean': 'boolean', 'date': 'date', 'enum': 'string'}[field.kind]")
-replace('workbench/knowledge.py', '    atomic_text(destination / "architecture.mmd", topology)', '    if selection and selection.get("database") == "postgresql":\n        topology = topology.replace("Product SQLite", "Product PostgreSQL")\n    atomic_text(destination / "architecture.mmd", topology)')
-replace('workbench/flow.py', 'pack = design_pack(plan, self.product(state).parent / "design", state["template"])', 'pack = design_pack(plan, self.product(state).parent / "design", state["template"], selection.model_dump())')
-replace('templates/deployment/run.py', '        if args.check:\n            return\n    # Full frontend', '    # --check must reach frontend startup; do not report backend-only success.\n    # Full frontend')
-replace('templates/deployment/run.py', '''        token = login(template, base)
+replace(
+    "workbench/knowledge.py",
+    'def design_pack(plan, destination, template="python-basic"):',
+    'def design_pack(plan, destination, template="python-basic", selection=None):',
+)
+replace(
+    "workbench/knowledge.py",
+    "{'text': 'string', 'integer': 'int', 'boolean': 'boolean'}[field.kind]",
+    "{'text': 'string', 'integer': 'int', 'boolean': 'boolean', 'date': 'date', 'enum': 'string'}[field.kind]",
+)
+replace(
+    "workbench/knowledge.py",
+    '    atomic_text(destination / "architecture.mmd", topology)',
+    '    if selection and selection.get("database") == "postgresql":\n        topology = topology.replace("Product SQLite", "Product PostgreSQL")\n    atomic_text(destination / "architecture.mmd", topology)',
+)
+replace(
+    "workbench/flow.py",
+    'pack = design_pack(plan, self.product(state).parent / "design", state["template"])',
+    'pack = design_pack(plan, self.product(state).parent / "design", state["template"], selection.model_dump())',
+)
+replace(
+    "templates/deployment/run.py",
+    "        if args.check:\n            return\n    # Full frontend",
+    "    # --check must reach frontend startup; do not report backend-only success.\n    # Full frontend",
+)
+replace(
+    "templates/deployment/run.py",
+    """        token = login(template, base)
         from workbench.portable_checks import check_restored_product
 
         outcome = check_restored_product(
             template, base, token, manifest["targets"], manifest["plan"]
         )
-        write_json(reports / "portable-start.json", outcome)''', '''        if args.check or not ready:
+        write_json(reports / "portable-start.json", outcome)""",
+    """        if args.check or not ready:
             token = login(template, base)
             from workbench.portable_checks import check_restored_product
 
@@ -33,17 +57,31 @@ replace('templates/deployment/run.py', '''        token = login(template, base)
         else:
             # A regular restart must not require the seed admin's old password.
             outcome = {"database_initialized": True, "verification_rerun": False}
-        write_json(reports / "portable-start.json", outcome)''')
-replace('workbench/domain.py', '        if self.action == "approve" and self.approved is not True:', '''        if self.action in {"answer", "revise"}:
+        write_json(reports / "portable-start.json", outcome)""",
+)
+replace(
+    "workbench/domain.py",
+    '        if self.action == "approve" and self.approved is not True:',
+    """        if self.action in {"answer", "revise"}:
             from workbench.conversation import command_word
 
             if command_word(self.text) in {"批准", "approve", "拒绝", "reject", "智能推荐", "推荐", "smart", "recommend"}:
                 raise ValueError("这是控制指令，不是需求回答；请使用对应按钮或 CLI 命令，不消耗澄清轮数")
-        if self.action == "approve" and self.approved is not True:''')
-replace('workbench/runtime.py', 'import logging\n', 'import logging\nimport traceback\nfrom pathlib import Path\n')
-replace('workbench/runtime.py', 'error = f"{type(exc).__name__}：执行失败，请检查本地日志和验收报告"', '''frame = traceback.extract_tb(exc.__traceback__)[-1]
-                error = f"{type(exc).__name__}：{Path(frame.filename).name}:{frame.lineno}（{frame.name}），请检查本次运行报告"''')
-Path('tests/test_guided_completion.py').write_text('''"""Regression for real news fields and the entire delivered --check lifecycle."""
+        if self.action == "approve" and self.approved is not True:""",
+)
+replace(
+    "workbench/runtime.py",
+    "import logging\n",
+    "import logging\nimport traceback\nfrom pathlib import Path\n",
+)
+replace(
+    "workbench/runtime.py",
+    'error = f"{type(exc).__name__}：执行失败，请检查本地日志和验收报告"',
+    '''frame = traceback.extract_tb(exc.__traceback__)[-1]
+                error = f"{type(exc).__name__}：{Path(frame.filename).name}:{frame.lineno}（{frame.name}），请检查本次运行报告"''',
+)
+Path("tests/test_guided_completion.py").write_text(
+    '''"""Regression for real news fields and the entire delivered --check lifecycle."""
 import ast
 from contextlib import contextmanager
 from types import SimpleNamespace
@@ -104,5 +142,7 @@ def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, mon
     namespace["main"]()
     assert "frontend-build" in stages and "frontend-start" in stages
     assert writes[-1]["passed"] is True and writes[-1]["frontend_started"] is True
-''',encoding='utf-8')
-print('Reviewed guided workflow repairs applied')
+''',
+    encoding="utf-8",
+)
+print("Reviewed guided workflow repairs applied")
