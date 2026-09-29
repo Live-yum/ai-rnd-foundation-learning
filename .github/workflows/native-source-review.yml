@@ -1,4 +1,5 @@
 name: Native source review
+# Reproduce the pinned inputs without executing any upstream install scripts.
 on:
   push:
     branches: [feat/python314-workbench]
