@@ -1,4 +1,4 @@
-name: Native full-stack acceptance
+name: Native baseline acceptance
 on:
   push:
     branches: [feat/python314-workbench]
@@ -27,11 +27,13 @@ jobs:
           - template: fastapiadmin
             repository: fastapiadmin/FastapiAdmin
             revision: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
+            pnpm: '9.15.3'
           - template: yudao-vben
             repository: yudaocode/yudao-cloud-mini
             revision: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
+            pnpm: '11.16.0'
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 45
     services:
       postgres:
         image: postgres:17
@@ -79,17 +81,25 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install pinned native frontend package manager
+        run: npm install --global pnpm@${{ matrix.pnpm }}
+      - name: Install isolated browser test tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          PLAYWRIGHT_BROWSERS_PATH=0 .native/browser/node_modules/.bin/playwright install --with-deps chromium
       - run: uv sync --locked --all-extras
-      - name: Start native backend and verify real login
-        run: uv run python -m scripts.ci_native_runtime ${{ matrix.template }}
+      - name: Verify original native backend, roles, build and browser
+        run: uv run python -m scripts.ci_native_runtime ${{ matrix.template }} --frontend
         env:
           NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
-      - name: Preserve source revision for evidence
+          PLAYWRIGHT_BROWSERS_PATH: '0'
+      - name: Preserve revisions and actual evidence
         if: always()
         run: |
           mkdir -p reports/native
           git rev-parse HEAD > reports/native/platform-sha.txt
           git -C .native/source rev-parse HEAD > reports/native/upstream-sha.txt
+          if [ -d .native/frontend/.git ]; then git -C .native/frontend rev-parse HEAD > reports/native/frontend-sha.txt; fi
           git archive --format=zip --output=reports/native/platform-source.zip HEAD
       - uses: actions/upload-artifact@v4
         if: always()
