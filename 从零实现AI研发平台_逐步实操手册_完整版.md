@@ -11555,7 +11555,7 @@ def test_plan_duplicate_and_scope(plan):
 
 ### `tests/test_guided_completion.py`
 
-<!-- source-file: tests/test_guided_completion.py sha256: b220571dc247273e5b21c7817153bcba7d27c48b2733c56413735f2d96f9bcb1 -->
+<!-- source-file: tests/test_guided_completion.py sha256: de3f2b12198e9c2674795d1fe87c1036235041d1d4b482bef7f13c9b52056e01 -->
 ````python
 """Regression for real news fields and the entire delivered --check lifecycle."""
 
@@ -11634,7 +11634,7 @@ def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, mon
 
     monkeypatch.setattr(probes, "check_restored_product", lambda *a: {"passed": True})
     monkeypatch.setattr("sys.argv", ["run.py", "--check"])
-    tree = ast.parse((ROOT / "templates/deployment/run.py").read_text())
+    tree = ast.parse((ROOT / "templates/deployment/run.py").read_text(encoding="utf-8"))
     fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main")
     exec(compile(ast.Module(body=[fn], type_ignores=[]), "delivered main", "exec"), namespace)
     namespace["main"]()

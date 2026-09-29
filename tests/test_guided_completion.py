@@ -75,7 +75,7 @@ def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, mon
 
     monkeypatch.setattr(probes, "check_restored_product", lambda *a: {"passed": True})
     monkeypatch.setattr("sys.argv", ["run.py", "--check"])
-    tree = ast.parse((ROOT / "templates/deployment/run.py").read_text())
+    tree = ast.parse((ROOT / "templates/deployment/run.py").read_text(encoding="utf-8"))
     fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main")
     exec(compile(ast.Module(body=[fn], type_ignores=[]), "delivered main", "exec"), namespace)
     namespace["main"]()
