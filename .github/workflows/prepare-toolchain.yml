@@ -1,0 +1,61 @@
+name: Prepare reviewed toolchain source
+on:
+  push:
+    branches: [feat/controlled-toolchain-integration]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: prepare-toolchain-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  prepare:
+    if: github.repository == 'Live-yum/ai-rnd-foundation-learning' && github.ref == 'refs/heads/feat/controlled-toolchain-integration'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - name: Resolve isolated, pinned runtimes
+        run: |
+          uv lock
+          uv lock --project tools/aider
+          uv sync --locked --all-extras
+          uv sync --locked --project tools/aider
+          uv run python -c "from importlib.metadata import version; print({p: version(p) for p in ['tree-sitter', 'tree-sitter-java', 'tree-sitter-typescript', 'tree-sitter-html', 'daytona', 'mcp']})"
+          tools/aider/.venv/bin/aider --version
+      - name: Format and reconstruct complete handbook when sources are present
+        if: hashFiles('docs/toolchain.md') != ''
+        run: |
+          uv run ruff check --fix .
+          uv run ruff format .
+          uv run python -m scripts.build_handbook
+          uv run python -m scripts.build_handbook --check
+      - name: Commit generated files only to the review branch
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add uv.lock tools/aider/uv.lock
+          git add -u
+          if ! git diff --cached --quiet; then
+            git commit -m 'build: lock tested tool runtimes and synchronize complete handbook'
+            git push origin HEAD:feat/controlled-toolchain-integration
+          fi
+      - name: Focused contract tests
+        if: hashFiles('tests/test_toolchain.py') != ''
+        run: uv run pytest tests/test_toolchain.py -q --junitxml=reports/toolchain-contracts.xml
+      - name: Actual CLI, parser and MCP protocol tests
+        if: hashFiles('scripts/ci_toolchain.py') != ''
+        run: uv run python -m scripts.ci_toolchain
+      - name: Package the exact generated source for review
+        if: always()
+        run: |
+          mkdir -p reports
+          git archive --format=zip HEAD -o reports/review-source.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reviewed-toolchain-source
+          path: reports/
