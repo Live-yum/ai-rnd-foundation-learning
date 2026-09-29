@@ -30,7 +30,7 @@ uv run rnd chat
 
 默认产品无需外部数据库，支持逐用户 text/integer/boolean CRUD 和受限单记录规则。不支持任意软件、关系/共享/RBAC/支付/跨表事务。生成器不调用模型；规则不通过exec执行。
 
-FastapiAdmin、芋道 + Vben 原生接口导出已经提供适配器、固定源码和契约测试，但需额外原生服务/令牌/专用开发数据库。输出明确为 **SOURCE_READY（源码导出）**，不是完整原生运行验收成功。查看 `uv run rnd templates`。
+FastapiAdmin、芋道 + Vben 有两种模式：外部服务原生导出输出 **SOURCE_READY**；托管原生模式在Linux/WSL 2的专用空PostgreSQL库、Redis和原生前后端环境中，执行真实生成器、自动挂载、菜单/角色权限、CRUD、重启持久化和Chromium验收，全部通过且人工确认后才为 **READY**。查看手册第19章；它不是仅凭三个模型参数就能省略Java/Node/数据库的功能。
 
 完整创建顺序、文件内容、测试、迁移、恢复和故障排查见根目录 **从零实现AI研发平台_逐步实操手册_完整版_v3.md**。手册从实际源码生成：
 
