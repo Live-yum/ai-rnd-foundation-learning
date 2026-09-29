@@ -23,7 +23,8 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 
-from workbench.domain import ResumeInput, digest
+from workbench.domain import ResumeInput, RunInput, digest
+from workbench.errors import PausedLimit
 from workbench.settings import ROOT, Settings
 
 
@@ -64,6 +65,8 @@ class Run(Base):
     result: Mapped[dict] = mapped_column(JSON, default=dict)
     error: Mapped[str | None] = mapped_column(Text, nullable=True)
     model_calls: Mapped[int] = mapped_column(default=0)
+    options: Mapped[dict] = mapped_column(JSON, default=dict)
+    auto_mode: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[str] = mapped_column(String(40), default=now)
     updated_at: Mapped[str] = mapped_column(String(40), default=now, onupdate=now)
 
@@ -210,14 +213,33 @@ class Store:
         return self.request(key, {"operation": "create-project", "title": title}, operation)
 
     def create_run(self, project_id, data, key):
+        data = RunInput.model_validate(data).model_dump()
+
         def operation(session):
             if not session.get(Project, project_id):
                 raise Missing("项目不存在")
-            run = Run(project_id=project_id, template=data["template"])
+            run = Run(
+                project_id=project_id,
+                template=data["template"],
+                options=data["selection"],
+                auto_mode=data["intelligent"],
+            )
             session.add(run)
             session.flush()
             session.add(Message(run_id=run.id, role="user", content=data["requirement"]))
             session.add(Job(run_id=run.id, payload={"action": "start"}))
+            if run.auto_mode:
+                session.add(
+                    Event(
+                        run_id=run.id,
+                        kind="delegation",
+                        data={
+                            "enabled": True,
+                            "actor": "local-operator",
+                            "scope": "choose missing details and approve subsequent design/delivery; never bypass tests",
+                        },
+                    )
+                )
             return {"run_id": run.id, "status": "QUEUED"}
 
         return self.request(
@@ -234,10 +256,23 @@ class Store:
             pending = run.pending
             if not pending or pending["gate_id"] != data["gate_id"]:
                 raise Conflict("审批/回答版本已变化，请重新读取运行状态")
-            if data["action"] not in pending["actions"]:
+            if data["action"] not in pending["actions"] and data["action"] != "recommend":
                 raise Conflict("当前阶段不接受这个动作")
             if data["action"] == "approve" and not pending.get("can_approve", False):
                 raise Conflict("存在未支持项或先决条件尚未满足，不能批准")
+            if data["action"] == "recommend":
+                run.auto_mode = True
+                session.add(
+                    Event(
+                        run_id=run_id,
+                        kind="delegation",
+                        data={
+                            "enabled": True,
+                            "actor": "local-operator",
+                            "gate_id": pending["gate_id"],
+                        },
+                    )
+                )
             if data["action"] in {"answer", "revise"}:
                 session.add(Message(run_id=run_id, role="user", content=data["text"]))
             if data["action"] in {"approve", "reject"}:
@@ -256,8 +291,8 @@ class Store:
             run = session.get(Run, run_id)
             if not run:
                 raise Missing("运行不存在")
-            if run.status != "FAILED":
-                raise Conflict("只有 FAILED 状态可以重试")
+            if run.status not in {"FAILED", "BLOCKED", "PAUSED_LIMIT"}:
+                raise Conflict("只有 FAILED、BLOCKED 或 PAUSED_LIMIT 状态可以重试")
             session.add(Job(run_id=run_id, payload={"action": "retry"}))
             run.status, run.error = "QUEUED", None
             return {"run_id": run_id, "status": run.status}
@@ -292,13 +327,101 @@ class Store:
 
     def reserve_model_call(self, run_id):
         with self.tx() as session:
-            changed = session.execute(
-                update(Run)
-                .where(Run.id == run_id, Run.model_calls < self.settings.max_model_calls)
-                .values(model_calls=Run.model_calls + 1)
-            ).rowcount
+            statement = update(Run).where(Run.id == run_id)
+            if self.settings.max_model_calls:
+                statement = statement.where(Run.model_calls < self.settings.max_model_calls)
+            changed = session.execute(statement.values(model_calls=Run.model_calls + 1)).rowcount
             if changed != 1:
-                raise Conflict("已到达单次运行的模型调用预算上限")
+                raise PausedLimit(
+                    "已到达你配置的模型预算；回答已保存。调整 MAX_MODEL_CALLS 后重试同一运行，无需重建。"
+                )
+
+    def set_automation(self, run_id, enabled, key):
+        def operation(session):
+            run = session.get(Run, run_id)
+            if run is None:
+                raise Missing("运行不存在")
+            if run.status in {"READY", "SOURCE_READY", "REJECTED"}:
+                raise Conflict("已结束运行不能更改自动决策授权")
+            run.auto_mode = enabled
+            session.add(
+                Event(
+                    run_id=run_id,
+                    kind="delegation",
+                    data={
+                        "enabled": enabled,
+                        "actor": "local-operator",
+                        "scope": "remaining decisions; cannot bypass tests",
+                    },
+                )
+            )
+            if enabled and run.pending:
+                session.add(
+                    Job(
+                        run_id=run_id,
+                        payload={
+                            "action": "recommend",
+                            "gate_id": run.pending["gate_id"],
+                            "approved": True,
+                        },
+                    )
+                )
+                run.pending = None
+                run.status = "QUEUED"
+            elif enabled and run.status in {"FAILED", "BLOCKED", "PAUSED_LIMIT"}:
+                session.add(Job(run_id=run_id, payload={"action": "retry"}))
+                run.status, run.error = "QUEUED", None
+            return {"run_id": run_id, "auto_mode": enabled, "status": run.status}
+
+        return self.request(
+            key, {"operation": "automation", "run_id": run_id, "enabled": enabled}, operation
+        )
+
+    def auto_approve(self, run_id, gate):
+        with self.tx() as session:
+            run = session.get(Run, run_id)
+            if not run or not run.auto_mode or not gate["can_approve"]:
+                raise Conflict("没有有效智能推荐授权，或存在不能自动通过的阻塞项")
+            current = session.get(Approval, gate["gate_id"])
+            if current and not current.decision:
+                raise Conflict("已拒绝的版本不能被智能推荐重新批准")
+            if not current:
+                session.add(Approval(gate_id=gate["gate_id"], decision=True, actor="delegated-ai"))
+                session.add(
+                    Event(
+                        run_id=run_id,
+                        kind="auto-decision",
+                        data={
+                            "gate_id": gate["gate_id"],
+                            "stage": gate["stage"],
+                            "digest": gate["digest"],
+                        },
+                    )
+                )
+
+    def record_event(self, run_id, kind, data):
+        with self.tx() as session:
+            session.add(Event(run_id=run_id, kind=kind, data=data))
+
+    def model_records(self, run_id):
+        self.get_run(run_id)
+        with self.tx() as session:
+            rows = session.scalars(
+                select(Step)
+                .where(Step.run_id == run_id, Step.name.like("model:%"))
+                .order_by(Step.id)
+            )
+            return [
+                {
+                    "step": r.name,
+                    "stage": r.data.get("stage", "legacy"),
+                    "model": r.data.get("model"),
+                    "endpoint": r.data.get("endpoint"),
+                    "usage": r.data.get("usage"),
+                    "created_at": r.created_at,
+                }
+                for r in rows
+            ]
 
     def gate(self, run_id, stage, version, data, actions, can_approve=True):
         content_digest = digest(data)
@@ -327,8 +450,13 @@ class Store:
     def check_decision(self, run_id, gate, value):
         if not isinstance(value, dict):
             raise Conflict("工作流恢复需要结构化输入")
-        if value.get("gate_id") != gate["gate_id"] or value.get("action") not in gate["actions"]:
+        if value.get("gate_id") != gate["gate_id"] or (
+            value.get("action") not in gate["actions"] and value.get("action") != "recommend"
+        ):
             raise Conflict("工作流恢复凭据与等待点不一致")
+        if value["action"] == "recommend":
+            if value.get("approved") is not True or not self.get_run(run_id)["auto_mode"]:
+                raise Conflict("没有有效的智能推荐授权")
         if value["action"] == "approve" and not gate.get("can_approve", False):
             raise Conflict("不能批准被阻塞的版本")
         if value["action"] in {"approve", "reject"}:
@@ -409,6 +537,8 @@ class Store:
                     "project_id": r.project_id,
                     "status": r.status,
                     "template": r.template,
+                    "options": r.options,
+                    "auto_mode": r.auto_mode,
                     "updated_at": r.updated_at,
                 }
                 for r in session.scalars(statement)

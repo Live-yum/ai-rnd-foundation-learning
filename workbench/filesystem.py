@@ -16,6 +16,7 @@ EXCLUDED_DIRS = {
     ".pytest_cache",
     ".ruff_cache",
     ".data",
+    ".deployment",
     "target",
     "dist",
     "logs",

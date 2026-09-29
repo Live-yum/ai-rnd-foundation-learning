@@ -59,8 +59,12 @@ for entity in SPEC["entities"]:
         Column("owner_id", String(36), ForeignKey("users.id"), nullable=False),
     ]
     for field in entity["fields"]:
-        kind = {"text": String(field["max_length"]), "integer": Integer(), "boolean": Boolean()}[
-            field["kind"]
-        ]
+        kind = {
+            "text": String(field["max_length"]),
+            "integer": Integer(),
+            "boolean": Boolean(),
+            "date": String(10),
+            "enum": String(field["max_length"]),
+        }[field["kind"]]
         columns.append(Column(field["name"], kind, nullable=not field["required"]))
     Table(entity["name"], metadata, *columns)

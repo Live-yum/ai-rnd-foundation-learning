@@ -1,7 +1,7 @@
 name: Python 3.14 acceptance
 on:
   push:
-    branches: [main, feat/python314-workbench]
+    branches: [main, feat/guided-multimodel-workbench]
   pull_request:
   workflow_dispatch:
 permissions:
@@ -60,7 +60,7 @@ jobs:
         with:
           python-version: '3.14'
       - run: uv sync --locked --all-extras
-      - run: uv run pytest tests/test_postgres.py -q --junitxml=reports/postgres.xml
+      - run: uv run pytest -m postgres -q --junitxml=reports/postgres.xml
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -104,8 +104,32 @@ jobs:
         with:
           name: pinned-native-source-evidence
           path: reports/
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: uv sync --locked --all-extras
+      - name: Install isolated Chromium test tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          PLAYWRIGHT_BROWSERS_PATH=0 .native/browser/node_modules/.bin/playwright install --with-deps chromium
+      - run: uv run python -m scripts.ci_guided_browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: guided-workbench-and-news-browser
+          path: reports/
   delivery:
-    needs: [tests, postgres, clean-install, native-sources]
+    needs: [tests, postgres, clean-install, native-sources, browser]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -118,4 +142,5 @@ jobs:
           name: source-and-complete-handbook
           path: |
             workbench-source.zip
+            从零实现AI研发平台_逐步实操手册_完整版.md
             从零实现AI研发平台_逐步实操手册_完整版_v3.md

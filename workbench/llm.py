@@ -6,6 +6,7 @@ import time
 import httpx
 from pydantic import ValidationError
 
+from workbench.domain import digest
 from workbench.store import Conflict
 
 
@@ -18,11 +19,22 @@ class ModelGateway:
         self.settings, self.store, self.transport = settings, store, transport
 
     def complete(self, run_id, key, instruction, payload, schema):
+        stage = {
+            "requirement": "requirements",
+            "recommend": "requirements",
+            "plan": "planning",
+            "coding": "coding",
+            "review": "review",
+        }.get(key.split(":")[0], "requirements")
+        profile = self.settings.model_for(stage).validate_endpoint()
+        profile_id = digest({"stage": stage, "url": profile.base_url, "model": profile.model})[:12]
+
         def call():
-            self.settings.require_model()
             body = json.dumps(payload, ensure_ascii=False)
-            if len(body) > 120000:
-                raise ModelFailure("上下文超过 120000 字符，请拆分需求；未静默截断")
+            if len(body) > self.settings.max_context_chars:
+                raise ModelFailure(
+                    "本轮上下文过大，内容已保存；请缩小单条输入或调整 MAX_CONTEXT_CHARS，不要求重建项目"
+                )
             messages = [
                 {
                     "role": "system",
@@ -44,12 +56,11 @@ class ModelGateway:
                     ) as client:
                         with client.stream(
                             "POST",
-                            self.settings.base_url.rstrip("/") + "/chat/completions",
+                            profile.base_url + "/chat/completions",
                             headers={
-                                "Authorization": "Bearer "
-                                + self.settings.api_key.get_secret_value()
+                                "Authorization": "Bearer " + profile.api_key.get_secret_value()
                             },
-                            json={"model": self.settings.model, "messages": messages},
+                            json={"model": profile.model, "messages": messages},
                         ) as response:
                             if response.status_code in {401, 403}:
                                 raise ModelFailure("模型鉴权失败，请检查 API_KEY 与模型权限")
@@ -77,7 +88,9 @@ class ModelGateway:
                             k: usage.get(k)
                             for k in ("prompt_tokens", "completion_tokens", "total_tokens")
                         },
-                        "model": self.settings.model,
+                        "model": profile.model,
+                        "stage": stage,
+                        "endpoint": profile.base_url,
                     }
                 except ValidationError, ValueError, KeyError, IndexError, TypeError:
                     reason = "模型返回内容不符合结构化契约"
@@ -98,7 +111,7 @@ class ModelGateway:
             raise ModelFailure(reason + "；两次尝试后停止，未替换成演示结果")
 
         try:
-            result = self.store.step(run_id, f"model:{key}", call)
+            result = self.store.step(run_id, f"model:{stage}:{key}:{profile_id}", call)
         except Conflict as exc:
             raise ModelFailure(str(exc)) from None
         return schema.model_validate(result["value"])

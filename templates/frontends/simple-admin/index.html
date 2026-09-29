@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>业务管理</title>
+    <link rel="stylesheet" href="/web/style.css" />
+    <script defer src="/web/app.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1 id="title">业务管理</h1>
+      <button id="logout" hidden>退出登录</button>
+    </header>
+    <p id="notice" role="status"></p>
+    <section id="login">
+      <h2>注册 / 登录</h2>
+      <form id="auth">
+        <label
+          >用户名<input
+            name="username"
+            required
+            autocomplete="username"
+            maxlength="100" /></label
+        ><label
+          >密码<input
+            name="password"
+            type="password"
+            required
+            minlength="10"
+            autocomplete="current-password" /></label
+        ><button type="submit">登录</button
+        ><button type="button" id="register">注册</button>
+      </form>
+    </section>
+    <main id="workspace" hidden>
+      <nav id="entities"></nav>
+      <section>
+        <h2 id="entity-title"></h2>
+        <form id="filters">
+          <div id="filter-fields"></div>
+          <button type="submit">搜索 / 筛选</button
+          ><button type="button" id="reset">清除条件</button>
+        </form>
+        <button id="create">新增</button><span id="total"></span>
+        <div class="table">
+          <table>
+            <thead id="columns"></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <button id="previous">上一页</button><button id="next">下一页</button>
+      </section>
+    </main>
+    <dialog id="editor">
+      <form id="record">
+        <h2 id="edit-title"></h2>
+        <div id="record-fields"></div>
+        <button type="submit">保存</button
+        ><button type="button" id="cancel">取消</button>
+      </form>
+    </dialog>
+  </body>
+</html>

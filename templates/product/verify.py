@@ -57,6 +57,14 @@ def verify(product, python=sys.executable):
             for k, v in os.environ.items()
             if k.upper() in {"PATH", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP"}
         }
+        selection = json.loads((product / "selection.json").read_text(encoding="utf-8"))
+        if selection["database"] == "postgresql":
+            target = os.environ.get("VERIFY_DATABASE_URL")
+            need(
+                bool(target),
+                "Selected PostgreSQL requires an isolated PostgreSQL verification database",
+            )
+            env["PRODUCT_DATABASE_URL"] = target
         env.update(
             PRODUCT_DATA_DIR=directory,
             HOME=directory,
@@ -124,6 +132,12 @@ def verify(product, python=sys.executable):
         try:
             need(client.get("/openapi.json").status_code == 200, "OpenAPI unavailable")
             checks.extend(["http_start", "openapi"])
+            home = client.get("/")
+            need(home.status_code == 200, "selected frontend unavailable")
+            if selection["frontend"] == "simple-admin":
+                need('<form id="filters">' in home.text, "missing generated search frontend")
+                need(client.get("/web/app.js").status_code == 200, "frontend asset unavailable")
+                checks.append("generated_frontend_assets")
             password = "Test-only-strong-password-314"
             a = client.post("/auth/register", json={"username": "a" + suffix, "password": password})
             b = client.post("/auth/register", json={"username": "b" + suffix, "password": password})
@@ -149,7 +163,13 @@ def verify(product, python=sys.executable):
                 name = entity["name"]
                 path = "/api/" + name
                 sample = {
-                    f["name"]: {"text": "x", "integer": 1, "boolean": True}[f["kind"]]
+                    f["name"]: {
+                        "text": "x" * max(1, f.get("min_length", 0)),
+                        "integer": 1,
+                        "boolean": True,
+                        "date": "2026-01-15",
+                        "enum": (f.get("choices") or ["sample"])[0],
+                    }[f["kind"]]
                     for f in entity["fields"]
                 }
                 rules = [r for r in spec.get("custom_rules", []) if r["entity"] == name]
@@ -178,7 +198,13 @@ def verify(product, python=sys.executable):
                 for f in entity["fields"]:
                     invalid = {
                         **sample,
-                        f["name"]: {"text": 123, "integer": True, "boolean": "yes"}[f["kind"]],
+                        f["name"]: {
+                            "text": 123,
+                            "integer": True,
+                            "boolean": "yes",
+                            "date": "2026/01/15",
+                            "enum": "__invalid_choice__",
+                        }[f["kind"]],
                     }
                     need(
                         client.post(path, headers=auth_a, json=invalid).status_code == 422,
@@ -215,6 +241,49 @@ def verify(product, python=sys.executable):
                             client.post(path, headers=auth_a, json=candidate).status_code == 422,
                             "approved negative rule example accepted",
                         )
+                for field in entity["fields"]:
+                    value = sample.get(field["name"])
+                    if value is None:
+                        continue
+                    if field.get("searchable"):
+                        found = client.get(path, headers=auth_a, params={"q": str(value)})
+                        need(
+                            found.status_code == 200
+                            and any(row["id"] == item["id"] for row in found.json()),
+                            "configured search failed",
+                        )
+                        need(
+                            client.get(path, headers=auth_b, params={"q": str(value)}).json() == [],
+                            "search bypassed ownership",
+                        )
+                        checks.append("search:" + field["name"])
+                    if field.get("filterable"):
+                        wire = str(value).lower() if type(value) is bool else str(value)
+                        found = client.get(
+                            path, headers=auth_a, params={"filter_" + field["name"]: wire}
+                        )
+                        need(
+                            found.status_code == 200
+                            and any(row["id"] == item["id"] for row in found.json()),
+                            "configured exact filter failed",
+                        )
+                        checks.append("filter:" + field["name"])
+                    if field.get("date_range"):
+                        found = client.get(
+                            path,
+                            headers=auth_a,
+                            params={"from_" + field["name"]: value, "to_" + field["name"]: value},
+                        )
+                        need(
+                            found.status_code == 200
+                            and any(row["id"] == item["id"] for row in found.json()),
+                            "inclusive date boundary failed",
+                        )
+                        bad = client.post(
+                            path, headers=auth_a, json={**sample, field["name"]: "2026-02-30"}
+                        )
+                        need(bad.status_code == 422, "invalid calendar date accepted")
+                        checks.append("inclusive-date-range:" + field["name"])
                 saved.append(detail)
                 checks.extend([f"crud:{name}", f"isolation:{name}", f"types:{name}"])
                 if rules:
@@ -243,7 +312,7 @@ def verify(product, python=sys.executable):
         "checks": checks,
         "entities": len(spec["entities"]),
         "http": True,
-        "database": "real-isolated-sqlite",
+        "database": "real-isolated-" + selection["database"],
         "restart": True,
     }
 
