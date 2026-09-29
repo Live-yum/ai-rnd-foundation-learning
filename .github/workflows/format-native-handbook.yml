@@ -1,0 +1,59 @@
+name: Refresh native handbook
+on:
+  push:
+    branches: [feat/native-baseline-verification]
+    paths: [.github/workflows/format-native-handbook.yml]
+permissions:
+  contents: write
+jobs:
+  documentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/native-baseline-verification
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - name: Format already committed source
+        run: |
+          uv run ruff check --fix workbench scripts tests migrations
+          uv run ruff format workbench scripts tests migrations
+      - name: Keep the build order in documentation aligned
+        run: |
+          uv run python - <<'PY'
+          from pathlib import Path
+          path = Path('docs/native-baseline.md')
+          text = path.read_text(encoding='utf-8')
+          text = text.replace('前端安装/类型检查/构建', '前端安装/Vite 生成与构建/类型检查')
+          text = text.replace('冻结安装前端依赖、类型检查、构建、启动预览', '冻结安装依赖、Vite 构建生成声明、类型检查、启动预览')
+          text = text.replace('前端 `--frozen-lockfile` 失败：', '首次类型检查报 `ref`、`computed`、`ElMessage` 等名称不存在：先让上游 Vite 自动导入插件生成声明，再执行完整类型检查。脚本按安装→Vite 构建→类型检查执行，没有跳过类型门禁。\n\n前端 `--frozen-lockfile` 失败：')
+          path.write_text(text, encoding='utf-8', newline='\n')
+          PY
+      - run: uv run python -m scripts.build_handbook
+      - run: uv run python -m scripts.build_handbook --check
+      - run: uv run pytest -m "not postgres" -q --junitxml=reports/native-unit.xml
+      - name: Commit only formatted native source and synchronized handbook
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add workbench/native_environment.py workbench/native_checks.py workbench/native_frontend.py scripts/ci_native_runtime.py scripts/build_handbook.py tests/test_native_baseline.py docs/native-baseline.md 从零实现AI研发平台_逐步实操手册_完整版_v3.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'docs: synchronize native baseline instructions, complete source and tests'
+            git push origin HEAD:feat/native-baseline-verification
+          fi
+      - name: Export source and handbook for review
+        if: always()
+        run: |
+          mkdir -p reports
+          git archive --format=zip --output=reports/review-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reviewed-native-handbook
+          path: |
+            reports/
+            从零实现AI研发平台_逐步实操手册_完整版_v3.md
+          retention-days: 7
