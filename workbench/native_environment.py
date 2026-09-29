@@ -10,11 +10,9 @@ import xml.etree.ElementTree as ET
 import zipfile
 from contextlib import contextmanager
 from pathlib import Path
-
 import httpx
 from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import make_url
-
 from workbench.filesystem import atomic_text, files, inside, sha, write_json
 from workbench.tools import clean_env, process_options, run_command, stop_process
 
@@ -49,8 +47,7 @@ def bootstrap_database(template, backend, url):
             for schema in inspector.get_schema_names():
                 if schema == "information_schema" or schema.startswith("pg_"):
                     continue
-                if (inspector.get_table_names(schema=schema) or inspector.get_view_names(schema=schema)
-                        or inspector.get_sequence_names(schema=schema)):
+                if (inspector.get_table_names(schema=schema) or inspector.get_view_names(schema=schema) or inspector.get_sequence_names(schema=schema)):
                     raise ValueError("Native bootstrap requires an EMPTY dedicated database; nothing was deleted")
         if template == "yudao-vben":
             import psycopg
@@ -72,49 +69,39 @@ def native_environment(template, backend, url, port, redis_port=6379):
             "DEBUG": "False", "WORKERS": "1", "DATABASE_TYPE": "postgres",
             "DATABASE_HOST": parsed.host, "DATABASE_PORT": str(parsed.port or 5432),
             "DATABASE_USER": parsed.username or "", "DATABASE_PASSWORD": parsed.password or "",
-            "DATABASE_NAME": parsed.database, "REDIS_HOST": "127.0.0.1",
-            "REDIS_PORT": str(redis_port), "REDIS_PASSWORD": "", "REDIS_DB_NAME": "1",
-            "SECRET_KEY": secrets.token_hex(32), "CAPTCHA_ENABLE": "True",
-            "SCHEDULER_ALLOW_CODE_EXEC": "False", "DEMO_ENABLE": "False",
-            "LOGIN_RATE_LIMIT_MAX_ATTEMPTS": "100", "OPENAI_API_KEY": "",
-            "PYTHONUTF8": "1", "UV_PYTHON": "3.14",
+            "DATABASE_NAME": parsed.database, "REDIS_HOST": "127.0.0.1", "REDIS_PORT": str(redis_port),
+            "REDIS_PASSWORD": "", "REDIS_DB_NAME": "1", "SECRET_KEY": secrets.token_hex(32),
+            "CAPTCHA_ENABLE": "True", "SCHEDULER_ALLOW_CODE_EXEC": "False", "DEMO_ENABLE": "False",
+            "LOGIN_RATE_LIMIT_MAX_ATTEMPTS": "100", "OPENAI_API_KEY": "", "PYTHONUTF8": "1", "UV_PYTHON": "3.14",
         }
     if template != "yudao-vben":
         raise ValueError("Unknown native template")
     resource = Path(backend) / "yudao-server/src/main/resources"
     properties = {
-        "server.address": "127.0.0.1", "server.port": str(port),
-        "spring.datasource.dynamic.primary": "master",
+        "server.address": "127.0.0.1", "server.port": str(port), "spring.datasource.dynamic.primary": "master",
         "spring.datasource.dynamic.datasource.master.url": f"jdbc:postgresql://{parsed.host}:{parsed.port or 5432}/{parsed.database}",
         "spring.datasource.dynamic.datasource.master.username": "${NATIVE_DB_USER}",
         "spring.datasource.dynamic.datasource.master.password": "${NATIVE_DB_PASSWORD}",
         "spring.datasource.dynamic.datasource.master.name": "public",
         "spring.datasource.dynamic.datasource.master.driver-class-name": "org.postgresql.Driver",
-        "spring.datasource.dynamic.druid.initial-size": "1",
-        "spring.datasource.dynamic.druid.min-idle": "1",
-        "spring.datasource.dynamic.druid.max-active": "10",
-        "spring.datasource.dynamic.druid.validation-query": "SELECT 1",
-        "spring.data.redis.host": "127.0.0.1", "spring.data.redis.port": str(redis_port),
-        "spring.data.redis.database": "2", "xxl.job.enabled": "false",
-        "yudao.security.mock-enable": "false", "yudao.captcha.enable": "false",
-        "yudao.codegen.db-schemas": "public", "yudao.codegen.front-type": "40",
-        "yudao.codegen.unit-test-enable": "false", "yudao.codegen.import-enable": "false",
-        "spring.boot.admin.client.enabled": "false", "spring.cloud.nacos.discovery.enabled": "false",
-        "spring.cloud.nacos.config.enabled": "false", "spring.cloud.sentinel.enabled": "false",
+        "spring.datasource.dynamic.druid.initial-size": "1", "spring.datasource.dynamic.druid.min-idle": "1",
+        "spring.datasource.dynamic.druid.max-active": "10", "spring.datasource.dynamic.druid.validation-query": "SELECT 1",
+        "spring.data.redis.host": "127.0.0.1", "spring.data.redis.port": str(redis_port), "spring.data.redis.database": "2",
+        "xxl.job.enabled": "false", "yudao.security.mock-enable": "false", "yudao.captcha.enable": "false",
+        "yudao.codegen.db-schemas": "public", "yudao.codegen.front-type": "40", "yudao.codegen.unit-test-enable": "false",
+        "yudao.codegen.import-enable": "false", "spring.boot.admin.client.enabled": "false",
+        "spring.cloud.nacos.discovery.enabled": "false", "spring.cloud.nacos.config.enabled": "false",
+        "spring.cloud.sentinel.enabled": "false",
         "spring.cloud.openfeign.client.config.yudao-system.url": f"http://127.0.0.1:{port}",
         "spring.cloud.openfeign.client.config.yudao-infra.url": f"http://127.0.0.1:{port}",
-        "spring.ai.vectorstore.qdrant.initialize-schema": "false",
-        "management.endpoints.web.exposure.include": "health",
-        "logging.file.name": "./logs/native-server.log",
-        "yudao.access-log.enable": "false", "yudao.error-code.enable": "false",
-        # Inert identifiers initialize unused social beans, never real third-party credentials.
+        "spring.ai.vectorstore.qdrant.initialize-schema": "false", "management.endpoints.web.exposure.include": "health",
+        "logging.file.name": "./logs/native-server.log", "yudao.access-log.enable": "false", "yudao.error-code.enable": "false",
         "wx.mp.app-id": "native-lab-disabled", "wx.mp.secret": "not-a-real-credential",
         "wx.miniapp.appid": "native-lab-disabled", "wx.miniapp.secret": "not-a-real-credential",
         "wx.mp.config-storage.type": "Memory", "wx.miniapp.config-storage.type": "Memory",
     }
     atomic_text(resource / "application-native.properties", "\n".join(f"{k}={v}" for k, v in properties.items()) + "\n")
-    return {"SPRING_PROFILES_ACTIVE": "native", "NATIVE_DB_USER": parsed.username or "",
-            "NATIVE_DB_PASSWORD": parsed.password or "", "JAVA_HOME": os.environ.get("JAVA_HOME", "")}
+    return {"SPRING_PROFILES_ACTIVE": "native", "NATIVE_DB_USER": parsed.username or "", "NATIVE_DB_PASSWORD": parsed.password or "", "JAVA_HOME": os.environ.get("JAVA_HOME", "")}
 
 
 def prepare_yudao_postgres(backend, reports):
@@ -126,16 +113,13 @@ def prepare_yudao_postgres(backend, reports):
     dependencies = ET.fromstring(source).find("m:dependencies", ns)
     if dependencies is None:
         raise ValueError("The pinned aggregate POM has no dependency section")
-    present = any(item.findtext("m:groupId", namespaces=ns) == "org.postgresql"
-                  and item.findtext("m:artifactId", namespaces=ns) == "postgresql"
-                  for item in dependencies)
+    present = any(item.findtext("m:groupId", namespaces=ns) == "org.postgresql" and item.findtext("m:artifactId", namespaces=ns) == "postgresql" for item in dependencies)
     if not present:
         if source.count("<dependencies>") != 1:
             raise ValueError("Unexpected aggregate POM structure")
         declaration = "\n        <dependency><groupId>org.postgresql</groupId><artifactId>postgresql</artifactId><scope>runtime</scope></dependency>"
         atomic_text(pom, source.replace("<dependencies>", "<dependencies>" + declaration, 1))
-    write_json(Path(reports) / "jdbc-configuration.json", {"path": "yudao-server/pom.xml",
-               "before_sha256": before, "after_sha256": sha(pom), "driver": "org.postgresql"})
+    write_json(Path(reports) / "jdbc-configuration.json", {"path": "yudao-server/pom.xml", "before_sha256": before, "after_sha256": sha(pom), "driver": "org.postgresql"})
 
 
 def verify_aggregate_jars(backend):
@@ -241,7 +225,7 @@ def login(template, base_url, username=None, password=None):
             time.sleep(0.3)
             completed = client.post("/system/auth/captcha/slider/complete", json={"captcha_key": key})
             completed.raise_for_status()
-            if completed.json().get("code") != 200:
+            if completed.json().get("code") not in (0, 200):
                 raise RuntimeError("Native slider verification was rejected")
             response = client.post("/system/auth/login", data={"username": username or "super", "password": password or "123456", "captcha_key": key})
         else:

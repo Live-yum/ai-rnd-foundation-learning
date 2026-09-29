@@ -1,22 +1,14 @@
-name: Native baseline acceptance
+name: Native generated full-stack acceptance
 on:
   push:
     branches: [main]
-    paths:
-      - 'workbench/native*.py'
-      - 'scripts/ci_native*.py'
-      - 'scripts/native_browser.cjs'
-      - '.github/workflows/native-runtime.yml'
+    paths: ['workbench/native*.py', 'scripts/ci_native*.py', 'scripts/native_browser.cjs', '.github/workflows/native-runtime.yml']
   pull_request:
-    paths:
-      - 'workbench/native*.py'
-      - 'scripts/ci_native*.py'
-      - 'scripts/native_browser.cjs'
-      - '.github/workflows/native-runtime.yml'
+    paths: ['workbench/native*.py', 'scripts/ci_native*.py', 'scripts/native_browser.cjs', '.github/workflows/native-runtime.yml']
 permissions:
   contents: read
 concurrency:
-  group: native-${{ github.event_name }}-${{ github.ref }}
+  group: native-generated-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   runtime:
@@ -88,8 +80,8 @@ jobs:
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
           PLAYWRIGHT_BROWSERS_PATH=0 .native/browser/node_modules/.bin/playwright install --with-deps chromium
       - run: uv sync --locked --all-extras
-      - name: Verify original native backend, roles, build and browser
-        run: uv run python -m scripts.ci_native_runtime ${{ matrix.template }} --frontend
+      - name: Generate, mount, verify permissions, CRUD, restart and native browser
+        run: uv run python -m scripts.ci_native_generated ${{ matrix.template }}
         env:
           NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
           PLAYWRIGHT_BROWSERS_PATH: '0'
