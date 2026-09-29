@@ -314,11 +314,11 @@ uv run pytest tests/test_llm.py tests/test_guided_models.py -q
 
 ## 10. 第四组：文件、模板快照、索引与规则
 
-创建filesystem.py、vendor.py、tools.py、knowledge.py、rules.py、coding.py。
+在workbench目录创建filesystem.py、vendor.py、tools.py、symbols.py、knowledge.py、retrieval.py、context_mcp.py、toolchain.py、rules.py、coding.py、aider_tool.py和sandbox.py，全部内容见源码附录。第20章逐项说明解析、检索、Continue、Aider和Daytona的安装、接线与测试。
 
 filesystem负责原子写、路径边界、普通文件与ZIP大小、符号链接/路径遍历/重复文件检查及哈希。API不能接收任意shell命令或任意主机路径。tools的命令来自可信代码参数数组，shell=False；环境只透传必需路径和显式配置，排除平台模型密钥；超时停止进程组并保留有界首尾日志。
 
-vendor读取manifest，核对ZIP整体SHA和解压后的文件指纹与LICENSE。重复init复用有效缓存，篡改立即拒绝。三份模板在仓库内，源码未变化就不反复解析。knowledge的AST索引记录Python符号起止行和imports，Java/TS目前是文件地图，不假称是精确全语言调用图。输出目录必须位于被索引源码之外。
+vendor读取manifest，核对ZIP整体SHA和解压后的文件指纹与LICENSE。重复init复用有效缓存，篡改立即拒绝。三份模板在仓库内，源码未变化就不反复解析。knowledge记录文件SHA、符号起止行与增量状态；Python使用标准库AST，Java/TypeScript/JavaScript以及Vue内嵌script通过symbols中的Tree-sitter解析。Java类、方法、字段、注解和继承，TS声明，以及Vue组件标签与真实源码行号进入符号索引；这不是完整的跨模块类型推导或调用图，编译和类型检查仍然必需。retrieval提供SQLite FTS5与可选独立授权向量检索，context_mcp向Continue开放只读查询，toolchain把同一上下文接入规划。输出目录必须位于被索引源码之外。
 
 ```powershell
 uv run rnd index workbench .data/platform-knowledge
@@ -370,7 +370,7 @@ uv run python -m scripts.ci_clean_install
 
 创建flow.py、runtime.py、api.py、cli.py、workbench/web/所有页面文件。前面的已测试函数由图连接，不在一个庞大节点里混合调用模型、等待用户和扣费写库。
 
-流程节点：analyse → requirements gate → plan → design gate → generate → code（需要时）→ verify → repair（需要时）→ model_review（可选）→ package → delivery gate。状态主要保存runID、版本、结构化规格和回执路径，不保存ZIP字节或整个仓库。
+实际流程节点：analyse → requirements gate → source_context（索引、检索与Repo Map）→ plan → design gate → generate → code（需要时）→ verify；可修复失败经repair回到code，再次verify；验证通过后进入sandbox（已授权时执行Daytona，否则记录未启用）→ model_review（可选）→ package（含独立解压复验）→ delivery gate。source_context不调用聊天模型，也不默认上传向量；code按CODING_ENGINE使用原有受限引擎或真实Aider；sandbox失败不能跳到交付。状态主要保存runID、版本、结构化规格、有界上下文与回执，不保存ZIP字节或整个仓库。
 
 interrupt恢复时节点重入，所以副作用需要回执和幂等。runUUID是稳定thread_id；数据库已保存的授权再次在图层校验。Worker保存last_job_id，崩溃时不会把同一回答消费到下一道审批。单Worker由本地文件锁及PG锁限制；并行HTTP和多个原生重型任务不等于已经实现分布式执行器。
 
@@ -21824,7 +21824,7 @@ wheels = [
 
 ### `docs/guide.md`
 
-<!-- source-file: docs/guide.md sha256: f2410a2799248baf7c5bc6ee42c1c4383410f71711d9a4cf568e74624dbc3f07 -->
+<!-- source-file: docs/guide.md sha256: 584c016903081eb11cee1736f74b7f5e83679e151e2ecfe738abb6d0b4cbcf9d -->
 ````markdown
 # 从零实现 AI 研发平台：逐步实操手册
 
@@ -22142,11 +22142,11 @@ uv run pytest tests/test_llm.py tests/test_guided_models.py -q
 
 ## 10. 第四组：文件、模板快照、索引与规则
 
-创建filesystem.py、vendor.py、tools.py、knowledge.py、rules.py、coding.py。
+在workbench目录创建filesystem.py、vendor.py、tools.py、symbols.py、knowledge.py、retrieval.py、context_mcp.py、toolchain.py、rules.py、coding.py、aider_tool.py和sandbox.py，全部内容见源码附录。第20章逐项说明解析、检索、Continue、Aider和Daytona的安装、接线与测试。
 
 filesystem负责原子写、路径边界、普通文件与ZIP大小、符号链接/路径遍历/重复文件检查及哈希。API不能接收任意shell命令或任意主机路径。tools的命令来自可信代码参数数组，shell=False；环境只透传必需路径和显式配置，排除平台模型密钥；超时停止进程组并保留有界首尾日志。
 
-vendor读取manifest，核对ZIP整体SHA和解压后的文件指纹与LICENSE。重复init复用有效缓存，篡改立即拒绝。三份模板在仓库内，源码未变化就不反复解析。knowledge的AST索引记录Python符号起止行和imports，Java/TS目前是文件地图，不假称是精确全语言调用图。输出目录必须位于被索引源码之外。
+vendor读取manifest，核对ZIP整体SHA和解压后的文件指纹与LICENSE。重复init复用有效缓存，篡改立即拒绝。三份模板在仓库内，源码未变化就不反复解析。knowledge记录文件SHA、符号起止行与增量状态；Python使用标准库AST，Java/TypeScript/JavaScript以及Vue内嵌script通过symbols中的Tree-sitter解析。Java类、方法、字段、注解和继承，TS声明，以及Vue组件标签与真实源码行号进入符号索引；这不是完整的跨模块类型推导或调用图，编译和类型检查仍然必需。retrieval提供SQLite FTS5与可选独立授权向量检索，context_mcp向Continue开放只读查询，toolchain把同一上下文接入规划。输出目录必须位于被索引源码之外。
 
 ```powershell
 uv run rnd index workbench .data/platform-knowledge
@@ -22198,7 +22198,7 @@ uv run python -m scripts.ci_clean_install
 
 创建flow.py、runtime.py、api.py、cli.py、workbench/web/所有页面文件。前面的已测试函数由图连接，不在一个庞大节点里混合调用模型、等待用户和扣费写库。
 
-流程节点：analyse → requirements gate → plan → design gate → generate → code（需要时）→ verify → repair（需要时）→ model_review（可选）→ package → delivery gate。状态主要保存runID、版本、结构化规格和回执路径，不保存ZIP字节或整个仓库。
+实际流程节点：analyse → requirements gate → source_context（索引、检索与Repo Map）→ plan → design gate → generate → code（需要时）→ verify；可修复失败经repair回到code，再次verify；验证通过后进入sandbox（已授权时执行Daytona，否则记录未启用）→ model_review（可选）→ package（含独立解压复验）→ delivery gate。source_context不调用聊天模型，也不默认上传向量；code按CODING_ENGINE使用原有受限引擎或真实Aider；sandbox失败不能跳到交付。状态主要保存runID、版本、结构化规格、有界上下文与回执，不保存ZIP字节或整个仓库。
 
 interrupt恢复时节点重入，所以副作用需要回执和幂等。runUUID是稳定thread_id；数据库已保存的授权再次在图层校验。Worker保存last_job_id，崩溃时不会把同一回答消费到下一道审批。单Worker由本地文件锁及PG锁限制；并行HTTP和多个原生重型任务不等于已经实现分布式执行器。
 
