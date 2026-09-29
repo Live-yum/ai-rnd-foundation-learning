@@ -16,7 +16,7 @@
 | 2 | `workbench/native_compatibility.py` | 只在副本中修正事务依赖作用域，记录修改前后哈希 |
 | 3 | `workbench/native_modules.py` | Plan 转原生数据表；调用 NativeClient；生成、挂载代码和菜单 |
 | 4 | `workbench/native_checks.py`、`workbench/native_acceptance.py` | 独立 HTTP 检查真实生成实体、角色授权撤销和重启持久化 |
-| 5 | `workbench/native_frontend.py`、`scripts/native_browser.cjs` | 冻结安装、完整应用构建与类型检查、Chromium 真实登录和生成页面 |
+| 5 | `workbench/native_vben.py`、`workbench/native_frontend.py`、`scripts/native_browser.cjs` | 冻结安装、完整应用构建与类型检查、Chromium 真实登录和生成页面 |
 | 6 | `workbench/native_lab.py`、`scripts/ci_native_generated.py` | 串联各阶段；平台、CLI、CI 使用同一份实现 |
 | 7 | `workbench/native_delivery.py` | 显式授权配置、交付等级、证据绑定、重新打开产品 |
 | 8 | `tests/test_native_*.py` | 路径、配置、元数据、挂载、权限、事务和交付证据回归 |
@@ -29,7 +29,7 @@
 ```bash
 uv run ruff check .
 uv run ruff format --check .
-uv run pytest tests/test_native_baseline.py tests/test_native_modules.py tests/test_native_managed.py tests/test_native_transaction.py tests/test_native_frontend_lifecycle.py -q
+uv run pytest tests/test_native_baseline.py tests/test_native_modules.py tests/test_native_managed.py tests/test_native_transaction.py tests/test_native_frontend_lifecycle.py tests/test_native_vben.py -q
 ```
 
 这些本地测试不能代替真实原生全栈验收。后面的命令实际启动数据库、原生服务和浏览器。
@@ -271,7 +271,7 @@ uv run rnd native serve 运行UUID
 | `generated/permissions.json` | 普通角色授权、撤权及菜单检查 |
 | `restart/persistence.json` | 重启后实际业务数据存在 |
 | `frontend-install.log`、`frontend-build.log`、`frontend-typecheck.log` | 安装、生产构建、完整应用类型检查 |
-| `browser.json`、`device.png`、`category.png` | 真实登录、真实列表请求、页面渲染与截图 |
+| `browser.json`、`device.png`、`category.png`、Vben 的 `device-created.png` / `category-created.png` | 真实登录、列表渲染、生成表单提交与截图 |
 | `generated-manifest.json` | 被验证源码哈希 |
 | `acceptance.json` | 全部门槛；失败时保留false |
 | `progress.json`、`failure.log`、`browser-failure.png` | 当前阶段与失败现场 |
@@ -302,7 +302,7 @@ FastapiAdmin生成服务使用flush，事务由yield依赖完成。在生成控�
 
 前端缺少ref/computed等自动声明：先让原生Vite插件生成声明，再运行完整应用vue-tsc，不能删除检查。Vben原生配置插件从dotenv文件读取，因此工作副本生成 `.env.production` 和可交付 `.env.production.example`；只包含公开VITE变量，不复制模型或数据库密码。
 
-浏览器失败：读 `browser.json` 的响应、状态和page_errors，再看截图。FastapiAdmin采用真实鼠标滑块操作；先等布局稳定，再在轨道内拖至末端，移出轨道会触发原生重置。不能注入token、mock接口或删掉生成页面检查。Playwright定位器说明：<https://playwright.dev/docs/best-practices>。
+浏览器失败：读 `browser.json` 的响应、状态和page_errors，再看截图。Ant Design 单选按钮内部 input 是隐藏的，真实自动操作点击对应可见 label，再验证 isChecked 和请求中的布尔值，不强制点击隐藏元素。FastapiAdmin采用真实鼠标滑块操作；先等布局稳定，再在轨道内拖至末端，移出轨道会触发原生重置。不能注入token、mock接口或删掉生成页面检查。Playwright定位器说明：<https://playwright.dev/docs/best-practices>。
 
 ### 19.12 GitHub Actions 与完整手册同步
 

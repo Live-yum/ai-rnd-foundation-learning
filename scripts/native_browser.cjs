@@ -87,7 +87,10 @@ async function main() {
         for (const field of target.fields) {
           const key = field.name.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
           if (field.kind === 'boolean') {
-            await dialog.getByRole('radio', { name: '否', exact: true }).nth(booleanIndex++).check();
+            const radio = dialog.getByRole('radio', { name: '否', exact: true }).nth(booleanIndex++);
+            // Ant Design hides its input; users interact with the enclosing visible label.
+            await radio.locator('xpath=ancestor::label[1]').click();
+            assert(await radio.isChecked(), 'Native boolean option was not selected');
             expected[key] = false;
           } else {
             const value = field.kind === 'integer' ? 0 : (target.entity + '-browser').slice(0, field.max_length);
