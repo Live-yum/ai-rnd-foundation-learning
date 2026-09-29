@@ -1,0 +1,108 @@
+name: Confirm native generator transactions
+on:
+  push:
+    branches: [diagnostics/vben-build]
+    paths: [.github/workflows/fastapi-codegen-confirmation.yml]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: python .maintenance/fastapi_codegen_commit.py
+      - run: uv sync --locked --all-extras
+      - run: uv run ruff format .
+      - run: uv run ruff check .
+      - run: uv run python -m scripts.build_handbook
+      - run: uv run python -m scripts.build_handbook --check
+      - run: uv run pytest -m 'not postgres' -q --junitxml=reports/regression.xml
+      - name: Commit verified source and whole handbook only
+        id: commit
+        run: |
+          git diff --exit-code -- .github/workflows
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add workbench/native_compatibility.py workbench/native_lab.py tests/test_native_transaction.py docs/native-baseline.md 从零实现AI研发平台_逐步实操手册_完整版_v3.md
+          git commit -m 'fix: commit native codegen metadata before acknowledging success'
+          git push origin HEAD:diagnostics/vben-build
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          git archive --format=zip --output=reports/candidate-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: codegen-transaction-source-and-regression
+          path: reports/
+          retention-days: 7
+  runtime:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: native_codegen
+          POSTGRES_USER: native
+          POSTGRES_PASSWORD: native-ci-only
+        ports: ['127.0.0.1:5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U native -d native_codegen"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports: ['127.0.0.1:6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: fastapiadmin/FastapiAdmin
+          ref: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
+          path: .native/source
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --global pnpm@9.15.3
+      - name: Install real Chromium tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          PLAYWRIGHT_BROWSERS_PATH=0 .native/browser/node_modules/.bin/playwright install --with-deps chromium
+      - run: uv sync --locked --all-extras
+      - name: Native codegen, immediate metadata access, complete CRUD permissions restart frontend and browser
+        run: uv run python -m scripts.ci_native_generated fastapiadmin
+        env:
+          NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
+          PLAYWRIGHT_BROWSERS_PATH: '0'
+      - name: Preserve exact source and evidence
+        if: always()
+        run: |
+          mkdir -p reports/native
+          git rev-parse HEAD > reports/native/platform-sha.txt
+          git -C .native/source rev-parse HEAD > reports/native/upstream-sha.txt
+          git archive --format=zip --output=reports/native/platform-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: confirmed-native-fastapiadmin
+          path: reports/native/
+          retention-days: 7
