@@ -1,4 +1,4 @@
-"""Manual, explicit paid-cloud smoke: generated SQLite product, no LLM account."""
+"""Self-hosted local service smoke: generated SQLite product, no hosted account."""
 
 import json
 import tempfile
@@ -12,10 +12,10 @@ from workbench.settings import ROOT, Settings
 
 
 def main():
-    settings = Settings(_env_file=None)
+    settings = Settings(_env_file=ROOT / ".data/daytona-local/workbench.env")
     validate_configuration(settings, "python-basic", {"database": "sqlite"})
     if settings.sandbox_provider != "daytona":
-        raise ValueError("Live smoke requires explicit Daytona configuration")
+        raise ValueError("Self-hosted smoke requires explicit local Daytona configuration")
     plan = Plan.model_validate(
         {
             "title": "Sandbox smoke",
@@ -32,7 +32,7 @@ def main():
             "unsupported": [],
         }
     )
-    with tempfile.TemporaryDirectory(prefix="rnd-daytona-live-") as temp:
+    with tempfile.TemporaryDirectory(prefix="rnd-daytona-local-") as temp:
         root = Path(temp)
         product = root / "product"
         generate_basic(plan, product)
@@ -43,7 +43,7 @@ def main():
             path = root / "daytona-verification.json"
             if path.exists():
                 write_json(
-                    ROOT / "reports/daytona-live.json", json.loads(path.read_text(encoding="utf-8"))
+                    ROOT / "reports/daytona-local.json", json.loads(path.read_text(encoding="utf-8"))
                 )
 
 

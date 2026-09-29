@@ -16,7 +16,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
@@ -104,6 +104,23 @@ jobs:
         with:
           name: pinned-native-source-evidence
           path: reports/
+  handbook-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - run: uv run python -m scripts.ci_handbook
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: handbook-clean-room
+          path: reports/handbook-clean-room.json
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -129,7 +146,7 @@ jobs:
           name: guided-workbench-and-news-browser
           path: reports/
   delivery:
-    needs: [tests, postgres, clean-install, native-sources, browser]
+    needs: [tests, postgres, clean-install, native-sources, handbook-only, browser]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -143,4 +160,3 @@ jobs:
           path: |
             workbench-source.zip
             从零实现AI研发平台_逐步实操手册_完整版.md
-            从零实现AI研发平台_逐步实操手册_完整版_v3.md

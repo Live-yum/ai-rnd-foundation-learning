@@ -1,179 +1,194 @@
-# 第 20 章：把代码上下文、精确编辑和沙箱接入实际流水线
+## 20. 本机工具链：解析、检索、编辑、MCP与自托管Daytona
 
-这一章从已经完成第 0 至 19 章的平台继续，不新建另一套平台。全部文件的完整内容在本手册后面的“完整源码附录”；包括本章新文件、已有文件修改后的全文、两套 uv.lock、测试和 Actions，不需要从片段猜出剩余内容。创建文件时始终以仓库根目录为当前目录，按附录标题所示的相对路径新建父目录、粘贴完整文件，保存为 UTF-8。不要把 tools/aider 的依赖装进平台环境。
+所有操作从你按本书写出的项目根目录执行。除了四类聊天大模型推理端点，其他工具没有云端运行模式：工具URL只接受127.0.0.1、localhost或::1，localhost会规范化为数值回环；不接受公网、局域网、代理转发或驱动查询参数覆盖。数据库、本地容器、源码、索引、沙箱与回执均保留在本机。
 
-## 20.1 先理解新增的关卡
+安装软件仍要下载公开包、源码、镜像和模型权重。这与把用户源码上传到托管工具执行是两件事。本章不要求Daytona云账号、云端向量库、Auth0租户、托管MCP或在线代码编辑服务。
 
-现在实际连接是：选择技术栈和数据库 → 累积澄清 → 需求确认 → source_context（校验模板、解析、检索、仓库地图）→ 规划 → 设计确认 → 原生/确定性生成器 → 受限业务规则编辑 → 本机真实验收 → sandbox（可选 Daytona 附加关卡）→ 可选语义审阅 → 干净解压复验 → 交付确认。已有 checkpoint、人工批准、智能推荐、多模型隔离和失败恢复继续工作。
+### 20.1 先确认基础工具
 
-AI 不负责重复写 CRUD。Yudao 仍调用已集成的 yudao-module-infra 原生生成器，FastapiAdmin 仍调用其原生生成器；数据库初始化、迁移、业务表、菜单和权限仍走原有确定性流程。增加工具不是放开任意 shell 或允许模型改变验收测试。
-
-| 文件 | 在哪里创建、为什么需要 | 连接到哪里、下一步 |
-| --- | --- | --- |
-| `workbench/symbols.py` | workbench 目录；解析 Java、TS、JS、Vue 的声明、注解、继承和组件标签 | knowledge.build_index 调用；先通过解析测试再接检索 |
-| `workbench/retrieval.py` | 同目录；把带 SHA 的语法片段写入 SQLite FTS5，按预算返回真实行号 | source_context 和 MCP 共用；源码变化必须先重建 |
-| `workbench/knowledge.py` | 用附录全文更新原文件；保留 Python AST，增加语法版本及增量缓存 | rnd init、rnd index、编辑前后都会调用 |
-| `workbench/context_mcp.py` | 同目录；只公开查询和仓库地图两个工具 | Continue Agent 通过 stdio 调用；不提供 shell 或写文件接口 |
-| `tools/aider/pyproject.toml`、`.python-version`、`uv.lock` | 新建 tools/aider；把 Aider 冻结在独立 Python 3.12 环境 | 平台调用可执行文件，不 import Aider 私有 Python 实现 |
-| `workbench/aider_tool.py` | workbench 目录；调用真实 Aider CLI 的 Repo Map 和 apply | 模型输出经预验证后进入临时 Git 工作区；最后受控写回 |
-| `workbench/sandbox.py` | 同目录；明确同意上传后创建、上传、固定检查、收集结果、删除 Daytona | 本机通过后才执行；任何失败都不能自动变成 READY |
-| `workbench/toolchain.py` | 同目录；封装流水线 context 阶段与 rnd tools 命令 | CLI 与 flow 使用同一套实现，不另写演示程序 |
-| `workbench/settings.py`、`cli.py`、`flow.py`、`runtime.py`、`api.py` | 更新附录全文；接线、设置默认关闭外部服务、记录状态 | 与现有 API/GUI 共用工作流，不改变用户的批准语义 |
-| `tests/test_toolchain.py`、`scripts/ci_toolchain.py` | 分别在 tests、scripts 新建 | 前者测试边界与 SDK 契约；后者调用真实 Aider、MCP、原生源码 |
-
-Tree-sitter 是语法解析器，不是 Java/TS 的完整类型系统。这里能够提取语法结构和 Vue 内嵌 script 的真实行号，不声称做了跨模块完整类型推导；编译器、vue-tsc 和运行验收仍然不可省略。解析失败或超限会有诊断，检索返回的是不可信源码数据，不是对 Agent 的高优先级指令。
-
-## 20.2 默认安装与第一条查询：不需要新的模型账户
-
-在根目录执行：
-
-```bash
-uv sync --locked
+```powershell
+uv sync --locked --all-extras
+uv run rnd doctor
+uv run rnd models
 uv run rnd init
-uv run rnd index templates/product .data/examples/product-index
-uv run rnd tools search templates/product .data/examples/product-index "validate"
-uv run rnd tools repo-map templates/product .data/examples/product-index
 ```
 
-正常结果：第一条查询打印 JSON，包含 source_digest、mode=ast+fts5、matches；每条命中都有 path、start、end、sha256、content。仓库地图的 provider 默认是 local-symbol-map，并明确报告 omitted_symbols。这两条命令不会调用模型。索引目录必须放在被索引源码目录之外，不能把索引放入 templates/product 内。
+没有自己的真实模型配置时doctor可以指出缺项，但索引和工具契约测试不需要模型Key。`--all-extras`安装本机PostgreSQL驱动和固定Daytona SDK，不创建任何服务。真正创建本机Daytona资源还需要后面的显式准备与启用。
 
-打开 `.data/examples/product-index/index.json` 可以看文件哈希、符号和解析器版本；`search.sqlite3` 是生成的搜索数据库，不是用户的业务数据库，不应加入 Git 或交付包。第二次索引会复用未变化文件。文件删除会移除旧片段，文件变化会使旧查询直接报错，重新执行 rnd index 即可。解析器版本或分块规则变化也会触发搜索库重建；内容未改变的分块可以保留已有向量。
+### 20.2 Tree-sitter与本地代码检索
 
-原生模板在 rnd init/源上下文关卡从仓库内的固定 SHA 归档展开并索引，不需要运行任务时克隆上游。模板归档及许可证仍按 manifest 校验。依赖安装仍需要网络。
+```powershell
+uv run rnd index workbench .data/platform-index
+uv run rnd tools search workbench .data/platform-index "model_for"
+uv run rnd tools repo-map workbench .data/platform-index
+```
 
-## 20.3 真实 Aider Repo Map 与 SEARCH/REPLACE
+首次建立索引；第二次复用指纹未变的解析条目；源文件修改后要重建索引，否则检索拒绝过期行号。索引目录必须位于源目录之外。默认Repo Map来源是本机符号索引，不调用大模型。
 
-先单独安装工具，明确指定 Python，避免 CI 或终端中已有 UV_PYTHON=3.14 覆盖工具环境：
+Java类、方法、注解和继承通过Java grammar解析；TypeScript/JavaScript声明通过相应grammar；Vue脚本的行号会转换回原始SFC行号，并记录template中的组件标签。每个检索结果包含真实路径、起止行和片段。它不提供编译器级完整类型证明，因此最终仍要编译与运行。
 
-```bash
+原生源码在`rnd init`后由模板准备函数返回实际路径。运行详情的context-receipt.json记录slot和来源；使用回执中的目录建立自己的索引，不猜测另一个框架目录。CLI支持`--file-suffix .vue --path-prefix apps/web-antd/`，先限制候选再排名。
+
+### 20.3 可选本机向量模型
+
+不需要向量时保持`EMBEDDING_ENABLED=false`即可，FTS5与符号图已经可用。需要语义检索时，先安装并启动本机兼容`POST /v1/embeddings`的模型服务，例如本机Ollama，再下载它支持的embedding模型。模型权重下载属于准备阶段，推理不能转发到云端。
+
+以本机Ollama的nomic-embed-text模型为例：
+
+```text
+ollama pull nomic-embed-text
+ollama serve
+```
+
+若桌面应用已经启动本机服务，不要再占用相同端口启动第二个serve进程。记录`ollama list`显示的模型ID，保持同一模型权重；服务软件和模型权重是独立依赖，不包含在平台uv.lock中。
+
+项目`.env`使用：
+
+```dotenv
+EMBEDDING_BASE_URL=http://127.0.0.1:11434/v1
+EMBEDDING_API_KEY=local-no-auth
+EMBEDDING_MODE=nomic-embed-text
+EMBEDDING_ENABLED=true
+EMBEDDING_MAX_CHUNKS=500
+```
+
+local-no-auth只是无鉴权本机服务的非秘密占位值，不是云账号密钥。受本机鉴权保护的服务填其专用Key；绝不继承聊天Key。设置完成后：
+
+```powershell
+uv run rnd index workbench .data/platform-index
+uv run rnd tools embed workbench .data/platform-index
+uv run rnd tools search workbench .data/platform-index "如何选择每个阶段的模型"
+```
+
+建立向量时对文本、模型身份和源码指纹做增量缓存；重新运行不会无条件重算所有未变片段。启用后规划上下文和MCP也使用这一套本机融合检索。向量数量超过显式预算会停止并要求你调整范围或预算，不静默漏掉代码。HTTP客户端关闭环境代理与重定向，远端地址即使带HTTPS也被拒绝。
+
+### 20.4 Aider：独立Python环境中的真实本机工具
+
+```powershell
 uv sync --locked --project tools/aider --python 3.12
+uv run --locked --project tools/aider --python 3.12 aider --version
 ```
 
-在平台根目录 `.env` 中按需要设置：
+预期Aider版本为0.86.2。平台依然用Python3.14；不要把Aider的依赖装进平台环境。工具路径可以由程序发现，或在AIDER_EXECUTABLE中明确指定本机安装位置。
 
 ```dotenv
 REPO_MAP_PROVIDER=aider
 CODING_ENGINE=aider
 ```
 
-重启工作台后，新任务的规划上下文使用 Aider 实际 `--show-repo-map`；选择 `symbols` 可以恢复默认确定性语法地图。`rnd tools repo-map` 也使用同一个开关。Aider 版本不匹配或未安装时会报错，不会在你明确选择 Aider 后悄悄用另一个工具冒充。
+修改配置后重启平台。REPO_MAP_PROVIDER改变结构图的产生方式；CODING_ENGINE只影响Plan里确实存在额外单记录规则时的编辑步骤。普通CRUD不会为了展示工具而重复调用编码模型。
 
-只有计划中存在已批准、平台支持的业务规则时才调用编码模型。编码模型仍由现有 ModelGateway 调用，因此一个默认 BASE_URL/API_KEY/MODE 就能使用，也保留 CODING_* 分阶段覆盖和总量预算。Aider 不接收真实模型密钥；它只应用已经结构化返回的块，不自主运行模型、lint、测试、网页访问、shell 或 Git hooks。
+Aider在隔离HOME、有效空YAML配置、独立空env文件及临时Git副本中运行，关闭遥测、版本检查、自动lint/test和模型自动提交。真实模型请求只有平台ModelGateway执行，Aider不取得真实API Key。它使用CLI应用经过平台验证的SEARCH/REPLACE块；编辑后仍由平台检查唯一原文、允许文件、期望内容、规则示例与Git差异。
 
-精确编辑顺序是：读取 custom_rules.py 当前文本及 SHA → 模型返回 SEARCH/REPLACE 块 → 检查允许路径及唯一原文匹配 → Rules 语法白名单校验 → 临时 Git 仓库记录修改前 commit → 真实 Aider `--apply` → 比对实际结果与预期结果 → 再次校验 → 记录修改后 commit → 受控原子写回 → 重建索引 → 原有正反例、HTTP、重启、干净解压验收。失败重试仍有界，不能删除规则来让测试变绿。
-
-当前自动编辑白名单仍是 python-basic 产品的 `custom_rules.py`，不是放开任意 Java/Vue 文件修改。Yudao/Vben 已接入解析、地图、检索及原生生成器，但不能把此 PR 理解为已经支持所有复杂 Java/Vue 定制。要扩大白名单，需要独立批准任务类型、实现对应结构校验和真实运行验收；现有不支持项会继续 BLOCKED，不把源码生成当成成品验收。
-
-回执在 `.data/runs/<run-id>/coding-<attempt>.json`；记录前后 SHA、diff、Aider 版本和前后 Git commit。工具配置、缓存、Git 历史不进入产品 ZIP。修改历史保存在该 run 的 edits 子目录；交付前发现错误应恢复同一 run 修复并重新验收，不要手工更改已验收 ZIP 后沿用旧回执。
-
-## 20.4 Continue：公开 MCP 接口，共用本地索引
-
-维护状态核查：Continue 上游 README 已宣布不再主动维护，保留最终 2.0.0 版本。参考 https://github.com/continuedev/continue 。本平台因此只使用其公开 MCP 配置边界，不 import 上游私有索引内部实现，也不会自动替用户切换到其他编辑器。平台自有检索与交付流程不依赖 Continue 进程存活；CI 验证的是 MCP 协议和导出配置，不把协议通过写成已经验证你的 IDE、模型账号或所有扩展版本。安装/升级客户端后应检查实际加载的两项工具。
-
-这里没有伪造一个“Continue 独立索引 HTTP API”，也没有复制 Continue 私有向量数据库。平台实现自己的 AST + SQLite FTS5 + 可选向量检索，并通过 Continue 官方支持的 MCP 接口提供上下文。Continue 扩展是可选开发者界面；不懂编程的用户仍只用平台网页。
-
-假设把根目录作为 Continue 工作区，继续使用上面的示例索引：
-
-```bash
-uv run rnd tools continue-config . templates/product .data/examples/product-index
+```powershell
+uv run python -m scripts.ci_toolchain
 ```
 
-正常创建 `.continue/mcpServers/rnd.json`，里面只有 uv 命令和明确的本机路径，没有 API_KEY。在 Continue 的 Agent 模式加载该工作区 MCP 配置，可看到 `search_code` 和 `repository_map`。客户端的模型仍可能把返回的上下文发送到其已配置的供应商，使用前必须确认 Continue 自己的模型配置和数据策略。平台不替第三方 IDE 作保密保证。
+这个脚本真实调用Aider，真实启动MCP并索引固定Java/Vue源码；模型响应是显式本机测试夹具，不消耗付费模型。报告中的SDK契约测试和本机Daytona服务测试分开标记，不能把前者冒充后者。
 
-查询具体 Vben Ant Design 页面用法时，在 search_code 参数中设置 `file_suffix=".vue"` 和 `path_prefix="apps/web-antd/"`；CLI 对应 `--file-suffix .vue --path-prefix apps/web-antd/`。筛选在数据库排名之前执行，避免其他前端适配器的同名 Hook 定义占满结果。
+### 20.5 Continue通过本机stdio连接
 
-已经存在 rnd.json 会报错，而不是覆盖你的配置。换机器后路径可能不同，应人工比较后重新生成。MCP 进程的 stdout 专用于 JSON-RPC，不要在 context-server 里添加 print 调试输出。源码根目录在启动时固定，调用者不能指定任意路径或执行命令。`.continue` 配置不进入源码索引和最终产品。
+先建立索引，然后导出配置：
 
-## 20.5 可选向量检索：独立地址、独立密钥、明确上传同意
-
-默认 FTS5 + 符号查询已经可用。语义检索需要额外的 embedding 模型，不是把聊天模型名字塞入 /embeddings 就一定能工作。只有明确配置下面全部条件后才上传源码片段：
-
-```dotenv
-EMBEDDING_BASE_URL=https://your-approved-provider.example/v1
-EMBEDDING_API_KEY=replace-with-that-providers-own-key
-EMBEDDING_MODE=replace-with-your-embedding-model
-EMBEDDING_ALLOW_UPLOAD=true
-EMBEDDING_MAX_CHUNKS=500
+```powershell
+uv run rnd index workbench .data/platform-index
+uv run rnd tools continue-config . workbench .data/platform-index
 ```
 
-然后执行：
+这会创建`.continue/mcpServers/rnd.json`，已有文件会拒绝覆盖。配置中是本机uv命令、项目目录和源/索引路径，没有Key。Continue通过stdio启动`rnd tools context-server`；stdout只传MCP协议，诊断去stderr。两个只读工具是search_code和repository_map，没有任意文件写入、任意shell或上传工具。
 
-```bash
-uv run rnd tools embed templates/product .data/examples/product-index
-uv run rnd tools search templates/product .data/examples/product-index "where are input values validated"
-```
+Continue上游把仓库标为不再积极维护并发布最终2.0.0；本平台仅使用其公开MCP接口，不依赖托管Continue服务、不复制其私有索引实现，也不把协议测试称为IDE界面测试。IDE本身的聊天模型配置可按你的大模型服务填写；不要启用额外的云端检索或遥测扩展。
 
-向量建立成功后，CLI/MCP 查询的 mode 包含 vector-rrf。检索组合关键词和向量的排名，而不是把两个不兼容分数随意相加。默认规划关卡仍使用不收费的 AST/关键词/仓库地图；可选向量当前供显式 CLI/MCP 查询使用，不声称每次规划都调用向量模型。待嵌入块数超过预算时在调用前停止；重复执行会复用未变化的分块。
+### 20.6 Daytona v0.190.0：必须部署完整本机服务
 
-默认 API_KEY、CODING_API_KEY 不会隐式传给 embedding 地址。客户端不跟随重定向，不读取 HTTP 代理环境，检查响应尺寸、向量维度、有限数值和分块序号。改变 embedding 模型应重新建立对应向量；同名模型维度突然变化会拒绝混用。响应无效或网络错误应修复配置，不要改测试为跳过。
+固定版本为v0.190.0，源码SHA为`01c502bb1f1ff8f2885d0cd490e043736083dca8`。下载一个CLI或安装Python SDK并不等于已经运行Daytona；完整本地系统还有API、Runner、Proxy、PostgreSQL、Redis、Dex、本地镜像Registry和MinIO。
 
-## 20.6 Daytona：先明示同意，再执行额外验证
+上游的Docker Compose明确用于开发，不是生产安全部署。Runner使用privileged Docker-in-Docker；请只在你拥有的Linux/WSL开发环境使用，不暴露公网，不把它描述成抵御恶意内核攻击的强隔离。平台仍只执行登记的验证命令。
 
-默认 `SANDBOX_PROVIDER=local`，不创建任何云资源、不要求 Daytona 账户。启用前先安装 SDK：
+准备Linux/WSL的Docker Engine或Docker Desktop集成，确认本机`/var/run/docker.sock`可用。`docker version`必须同时显示Client和Server。Windows平台本身可以直接运行，但本章的自托管服务路径以Linux/WSL为准；不要把Windows与WSL的虚拟环境混用。
 
-```bash
-uv sync --locked --extra daytona
-```
-
-创建并审核你自己账户中的沙箱快照。python-basic 快照需要 Linux、Python 3、uv、可安装 Python 3.14、允许访问依赖源；原生构建还需要对应 JDK/Maven、Node/pnpm。快照名和目标区域由你决定，平台不会替你选择付费镜像或给出账户可用性保证。
-
-```dotenv
-SANDBOX_PROVIDER=daytona
-DAYTONA_API_URL=https://app.daytona.io/api
-DAYTONA_API_KEY=replace-with-your-daytona-key
-DAYTONA_TARGET=us
-DAYTONA_SNAPSHOT=replace-with-your-reviewed-snapshot
-DAYTONA_ALLOW_UPLOAD=true
-```
-
-这些配置表示允许把经过筛选的产品源码上传到所选 Daytona 服务，可能产生该账户费用。请先了解自己的费用和配额；不需要这一步的学习用户保持 local 即可。生产数据库、平台 `.env`、模型密钥和本机业务数据库不上传；`.npmrc` 出现认证字段会拒绝上传，而不是泄漏账户令牌。
-
-python-basic + SQLite 的远程关卡执行锁定依赖安装、可信迁移/HTTP/CRUD/重启验证，并读取实际 JSON 报告。可信 verify.py 从平台原始模板上传到产品之外，不接受模型改写的“总是成功”验收脚本。python-basic + PostgreSQL 的远程关卡当前明确阻止，因为没有获授权的远程测试数据库，不能把本机凭据发送到云端。
-
-Yudao 和 FastapiAdmin 的远程关卡是额外构建/类型/语法检查，不冒充远程完整原生数据库、浏览器验收；原有本机托管模式的真实数据库、权限、浏览器、独立新数据库恢复等门槛仍必须通过。本 PR 没有配置 E2B，也没有把它标为已接入。
-
-成功、命令失败、上传失败均进入 finally 删除沙箱。配置自动停止/删除兜底；删除失败会保留 sandbox_id 并阻止交付，请在你自己的 Daytona 控制台清理。`.data/runs/<run-id>/daytona-verification.json` 包含源码摘要、检查名称/退出码、脱敏日志、SDK 版本和 cleanup。不要把 SDK 契约测试当成已经在你的云账户执行：没有真实凭据时，CI 只验证真实 SDK 的接口和明确标注的模拟生命周期。
-
-## 20.7 从每个文件到 Actions 的验收顺序
-
-创建完本章文件、更新源码后，在根目录执行：
+在已经按本书创建的项目目录执行：
 
 ```bash
 uv sync --locked --all-extras
-uv sync --locked --project tools/aider --python 3.12
-uv run pytest tests/test_toolchain.py -q
-uv run python -m scripts.ci_toolchain
-uv run pytest -m "not postgres"
-uv run ruff check .
-uv run ruff format --check .
-uv run python -m scripts.build_handbook
-uv run python -m scripts.build_handbook --check
+uv run python -m scripts.daytona_local prepare
+uv run python -m scripts.daytona_local images
+uv run python -m scripts.daytona_local up
+uv run python -m scripts.daytona_local status
 ```
 
-第一关验证 AST 注解、Vue 行号、增量失效、文件边界、预算、独立密钥、向量返回校验、MCP 工具白名单、编辑原文匹配、Daytona 同意及清理。第二关先让真实 LangGraph 调用真实 Aider，从已批准业务规则一路完成独立依赖安装、HTTP、重启和干净解压交付（仅模型返回用明确测试夹具），然后用仓库内真实 Java/Vue 模板查询，启动真实 stdio MCP 客户端/服务端，运行锁定 Aider CLI 的地图和编辑，并检查 Git commits；不消耗真实 LLM Key。第三关回归平台整个流程，不能只跑新增测试。随后必须通过 PostgreSQL、真实浏览器、原生模板和干净产品交付的既有 Actions。
+prepare从固定SHA取得上游安装资源，生成本机配置和随机密码；目录非空时拒绝覆盖。它不是克隆本项目骨架。配置保存在`.data/daytona-local`，不得提交Git或共享。上游源码与许可证保存在upstream子目录，便于审查。
 
-`Toolchain integration acceptance` 会执行工具集成验证并上传报告；`Daytona live smoke (explicit opt-in)` 仅允许已审核合并的 main 分支手动执行、必须显式勾选上传授权并提供账户 Secrets 和快照，不能在不可信 PR 上读取密钥。真实运行没有配置或失败，不能写成通过；报告中 daytona_live=false 只说明未使用账户，不等于测试跳过所有生命周期。
+images下载指定版本镜像，再把实际仓库sha256摘要写入images.lock.json和compose.lock.yaml；没有对应镜像就停止，不回退latest。up使用`--pull never`和已锁定摘要启动。所有发布端口绑定127.0.0.1；Docker命令显式指向本机daemon，不跟随保存的远程Docker context。
 
-新增或修改文件后必须重建两份完整手册。Actions 继续用源码哈希校验全文，并在空目录还原源文件，不能只更新章节摘要。如果缺文件、锁文件过期、解析库未安装、Aider 版本不对，停在对应关卡修复后重跑；不要删除锁、放宽规则、伪造测试或将 SOURCE_READY 改名为 READY。
+服务之间使用本机Docker网络名称通信。身份认证由本机Dex完成，文件存储为本机MinIO，镜像在本机Registry。外部PostHog/OTEL配置被移除或关闭；没有Auth0或云端控制面。Daytona自己的开发数据库与平台控制数据库、产品业务数据库各自独立。
 
-## 20.8 官方接口依据与维护边界
-
-本实现参考的公开接口：Tree-sitter Python API（https://tree-sitter.github.io/py-tree-sitter/）、Aider CLI scripting（https://aider.chat/docs/scripting.html）及选项说明（https://aider.chat/docs/config/options.html）、Continue MCP 配置（https://docs.continue.dev/customize/deep-dives/mcp）、Daytona Python SDK（https://www.daytona.io/docs/en/python-sdk/）。实际受测版本以仓库两份 uv.lock 为准，不把上游 main 分支当固定接口。
-
-修改这些上游版本时需要同时测试 Java/Vue 真实源码、Aider CLI 行为、MCP 协议及 SDK 契约。更换实现不得改变“确定性生成优先、用户事实不丢失、不外传另一供应商密钥、测试先于 READY、产品独立启动”的原则。
-
-
-## 20.9 从失败报告恢复，而不是删除项目
-
-外部工具的退出码、超时标识和有长度上限的脱敏输出写在 `.data/runs/<run-id>/tool-failure.json`。网页的运行报告和已鉴权的 `GET /runs/<run-id>/report` 可以读取它，也能读取 `source-context/context-receipt.json` 与 `daytona-verification.json`。这些是上一次失败或检查的证据；先看 run 当前状态及报告的 job_id，不把旧失败当成重试后的最新结果。文件没有生成时不要假定该阶段通过。
-
-例如 Aider 使用 `--config` 时需要 YAML 对象。隔离配置文件必须是 `{}\n`，不能是空文件；dotenv 和 Git 配置继续使用另一个空文件。完整实现位于 `workbench/aider_tool.py`，不要把用户 `.env` 当成 Aider 配置。配置错误会在任何产品写回前停止，并保留实际诊断；`tests/test_toolchain.py` 同时校验 YAML 类型、配置文件分离和模型密钥不继承。
-
-修复工具安装或配置后，保留原数据目录和运行 ID，在平台根目录执行：
+### 20.7 创建本机身份和预热快照
 
 ```bash
-uv run rnd retry <run-id>
-uv run rnd chat --run <run-id>
+uv run python -m scripts.daytona_bootstrap auth
+uv run python -m scripts.daytona_local snapshot-image
+uv run python -m scripts.daytona_bootstrap snapshot
 ```
 
-`<run-id>` 必须替换为网页显示的运行 UUID。重试利用原 checkpoint 和批准记录，不重新创建项目；重新验证通过后才能获得交付资格。需要向他人提供诊断时仍应先人工检查：程序屏蔽的是平台已知的密钥，不保证识别你手工写入普通源码的所有私人内容。测试中的失败夹具会验证原密钥消失、日志长度有界、退出码保留；真实 Aider 流程失败时，Actions 还会上传 `aider-workflow-failure.json` 便于定位。
+auth使用本机Dex的独立bootstrap客户端及随机本机密码取得经过真实签名验证的身份，再为个人组织创建只含所需资源权限的API Key。它不伪造JWT、不登录云账号。这个密码授权流程只为回环绑定的开发环境提供确定性初始化，不建议照搬到公开OAuth产品。
+
+snapshot-image只向docker build传入Dockerfile、产品pyproject.toml和uv.lock三个公开输入，不传平台源码目录、.env或用户数据。构建阶段下载Python3.14.7、uv和产品锁定依赖，把缓存预热到镜像；之后推送到本机127.0.0.1:6000 Registry。snapshot把该本机镜像登记为本机Daytona快照。
+
+生成的`.data/daytona-local/workbench.env`包含可直接填入项目`.env`的六个Daytona字段及工具超时。打开文件在本机复制这些配置，不把Key贴到Issue、聊天或报告里。不要覆盖已有的BASE_URL/API_KEY/MODE；它们属于聊天大模型。
+
+```dotenv
+SANDBOX_PROVIDER=daytona
+DAYTONA_ALLOW_LOCAL_EXECUTION=true
+DAYTONA_API_URL=http://127.0.0.1:3000/api
+DAYTONA_API_KEY=本机生成的值
+DAYTONA_TARGET=local
+DAYTONA_SNAPSHOT=本机脚本登记的快照名
+```
+
+重启平台后，只有本机验收通过才会进入Daytona附加关卡。默认Python/SQLite预热镜像支持迁移、HTTP、CRUD与重启复验的检查命令。沙箱参数禁止外网，安装命令明确offline，因此缺失依赖不会偷偷联网补齐。
+
+原生Java/Vue的附加关卡需要准备包含Maven/pnpm离线缓存的本机快照；本书的默认Python预热镜像不冒充Java/Vue通用构建镜像。未准备原生快照时保持SANDBOX_PROVIDER=local即可完成原生完整本机验收。原生Daytona关卡只是额外构建/类型证据，不能替代原本的角色、数据库和浏览器验证。Python/PostgreSQL通道不会把本机数据库凭据复制到沙箱，选择这一组合并启用Daytona会明确阻止。
+
+### 20.8 实际测试、报告和清理
+
+```bash
+uv run python -m scripts.ci_daytona_local
+uv run python -m scripts.daytona_local status
+```
+
+ci_daytona_local生成一个独立SQLite产品，在本机Daytona中创建沙箱、传入可信源码/验证器、离线安装、执行HTTP/CRUD/重启检查并删除沙箱。最终读取reports/daytona-local.json。成功必须同时包含passed=true与cleanup=deleted；SDK响应模拟测试不产生这一实际服务证据。
+
+运行自己的项目后，页面“报告”或`GET /runs/{id}/report`显示context、编辑与Daytona回执。沙箱的唯一名称在创建前已落盘，失败时按该名称在本机控制台核查。创建超时、执行失败、报告缺失和删除失败都会阻止交付，不改用一个伪造passed的本机结果。
+
+本机服务停止：
+
+```bash
+uv run python -m scripts.daytona_local down
+```
+
+down不带-v，不删除持久卷、用户、Key或快照。已有安装用up继续，不再次prepare覆盖。确实要销毁实验环境时先确认没有需要保留的数据，再由你在Docker中明确处理该项目的卷；平台不自动删除未知资源。
+
+### 20.9 接线和验收对应关系
+
+| 能力 | 本机实现入口 | 对应证据 |
+|---|---|---|
+| 结构解析 | symbols.parse_file、knowledge.build_index | 固定Java/TS/Vue源码符号与行号；重复索引复用 |
+| 混合检索 | retrieval.query、add_embeddings | FTS5、可选本机向量、预算、过滤、过期拒绝 |
+| 精确编辑 | aider_tool.apply_blocks、code_rules_with_aider | CLI实际执行、唯一前像、文件范围、SHA、规则正反例、Git提交 |
+| IDE桥接 | context_mcp.make_server、export_continue | 真实stdio MCP初始化、工具列表和查询，不是云端服务 |
+| 本机沙箱 | sandbox、daytona_worker、daytona_local、daytona_bootstrap | URL/网络拒绝测试；另加本机完整服务生命周期报告 |
+| 唯一手册 | build_handbook、rebuild_from_handbook、ci_handbook | 全部文本源码哈希、空目录重建、第三方依赖重建与本地导入来源 |
+
+### 固定实现的官方来源
+
+Daytona发布：https://github.com/daytonaio/daytona/releases/tag/v0.190.0
+本地部署说明：https://github.com/daytonaio/daytona/blob/v0.190.0/docker/README.md
+上游Compose：https://github.com/daytonaio/daytona/blob/v0.190.0/docker/docker-compose.yaml
+镜像版本构建规则：https://github.com/daytonaio/daytona/blob/v0.190.0/nx.json
+固定Python SDK：https://github.com/daytonaio/daytona/tree/v0.190.0/libs/sdk-python
+Dex本机密码连接示例：https://github.com/dexidp/dex/blob/v2.42.0/examples/config-dev.yaml
+Continue状态与代码：https://github.com/continuedev/continue
+Aider本机CLI选项：https://aider.chat/docs/config/options.html
+
+这些链接用于查看第三方依据；完成本项目代码不要求读者从外部链接补齐本书遗漏的自有模块。

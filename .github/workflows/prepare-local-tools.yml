@@ -2,7 +2,7 @@ name: Prepare local-only toolchain (temporary)
 on:
   push:
     branches: [feat/controlled-toolchain-integration]
-    paths: ['.maintenance/local.patch', '.github/workflows/prepare-local-tools.yml']
+    paths: ['.maintenance/**', '.github/workflows/prepare-local-tools.yml']
 permissions:
   contents: write
 concurrency:
@@ -12,32 +12,23 @@ jobs:
   prepare:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
-      - name: Capture the pinned upstream implementation for review
-        run: |
-          mkdir -p reports/upstream
-          git init -q /tmp/daytona-review
-          git -C /tmp/daytona-review fetch --depth 1 https://github.com/daytonaio/daytona.git 01c502bb1f1ff8f2885d0cd490e043736083dca8
-          git -C /tmp/daytona-review checkout -q --detach FETCH_HEAD
-          python - <<'PY'
-          import pathlib, zipfile
-          root = pathlib.Path('/tmp/daytona-review')
-          with zipfile.ZipFile('reports/upstream/daytona-source.zip','w',zipfile.ZIP_DEFLATED) as z:
-              for folder in ['docker','libs/sdk-python','libs/api-client-python','libs/toolbox-api-client-python','apps/api/src','apps/runner','apps/daemon','apps/cli/cmd','apps/dashboard/src','apps/docs/src/content/docs','scripts','.github/workflows']:
-                  for p in (root/folder).rglob('*'):
-                      if p.is_file() and p.suffix in {'.py','.ts','.tsx','.go','.yaml','.yml','.md','.mdx','.json','.toml','.sh'}:
-                          z.write(p,p.relative_to(root))
-          PY
       - name: Materialize reviewed source against exact preimages
         if: hashFiles('.maintenance/local.patch') != ''
         run: |
-          git apply --check --index .maintenance/local.patch
-          git apply --index .maintenance/local.patch
+          sed -i 's/^ diff --git /diff --git /' .maintenance/local.patch
+          git apply --recount --check --index .maintenance/local.patch
+          git apply --recount --index .maintenance/local.patch
           rm .maintenance/local.patch
+      - name: Materialize complete tutorial against SHA-checked preimages
+        if: hashFiles('.maintenance/docs.py') != ''
+        run: python .maintenance/docs.py
       - name: Resolve and validate pinned runtimes
         run: |
           uv lock
@@ -48,6 +39,7 @@ jobs:
           uv run python -m scripts.build_handbook
           uv run python -m scripts.build_handbook --check
       - name: Commit generated source and single handbook
+        id: commit
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -56,15 +48,28 @@ jobs:
             git commit -m 'build: synchronize local-only runtimes and complete from-zero handbook'
             git push origin HEAD:feat/controlled-toolchain-integration
           fi
-      - name: Run platform and real local toolchain verification
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Platform and real local toolchain verification
         run: |
           uv run pytest -m 'not postgres' -q --junitxml=reports/tests.xml
           uv run python -m scripts.ci_toolchain
+      - name: Reconstruct the project using only the handbook
+        run: uv run python -m scripts.ci_handbook
       - name: Archive exact materialized source
         if: always()
-        run: git archive --format=zip HEAD -o reports/review-source.zip
+        run: |
+          mkdir -p reports
+          git archive --format=zip HEAD -o reports/review-source.zip
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: local-only-reviewed-source
           path: reports/
+  local-daytona:
+    needs: prepare
+    if: always() && needs.prepare.outputs.sha != ''
+    permissions:
+      contents: read
+    uses: ./.github/workflows/daytona-local.yml
+    with:
+      source-ref: ${{ needs.prepare.outputs.sha }}
