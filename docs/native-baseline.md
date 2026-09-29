@@ -10,13 +10,13 @@
 |---|---|---|
 | `workbench/native_environment.py` | 检查专用数据库、复制原生源码、安装依赖、启动和停止后端、真实登录 | 复用 `filesystem` 和 `tools`，不读取模型密钥 |
 | `workbench/native_checks.py` | 调用原生用户、角色和菜单接口测试授权与撤销 | 使用真实后端 HTTP，不修改鉴权实现 |
-| `workbench/native_frontend.py` | 冻结安装前端依赖、类型检查、构建、启动预览 | 使用上游原生目录和脚本 |
+| `workbench/native_frontend.py` | 冻结安装依赖、Vite 构建生成声明、类型检查、启动预览 | 使用上游原生目录和脚本 |
 | `scripts/native_browser.cjs` | Chromium 浏览器真实登录并打开原生用户管理页面 | 不注入 token、不伪造 HTTP 响应 |
 | `scripts/ci_native_runtime.py` | 串联整次原生基线验收，保存每一步证据 | 调用上面四个文件 |
 | `tests/test_native_baseline.py` | 单元测试路径、环境隔离、响应码与菜单树算法 | 不代替真实服务测试 |
 | `.github/workflows/native-runtime.yml` | 两套原生框架分别在 PostgreSQL、Redis 环境运行 | 独立于默认 Python 产品验收 |
 
-运行链：复制固定源码 → 检查空专用库 → 初始化原生数据库 → 安装/编译 → 启动原生后端 → 登录 → 最小权限测试 → 前端安装/类型检查/构建 → Chromium 登录与原生页面验证 → 保存报告。
+运行链：复制固定源码 → 检查空专用库 → 初始化原生数据库 → 安装/编译 → 启动原生后端 → 登录 → 最小权限测试 → 前端安装/Vite 生成与构建/类型检查 → Chromium 登录与原生页面验证 → 保存报告。
 
 ### 19.2 版本与环境
 
@@ -174,6 +174,8 @@ uv run python -m scripts.ci_native_runtime yudao-vben \
 后端就绪请求出现 HTTPS 跳转：检查 FastapiAdmin 是否仍被设为 prod；不要关闭正式生产安全配置来迎合测试。
 
 Java 报中文路径 `InvalidPathException`：检查子进程 UTF-8 locale。不要删除上游中文文件来掩盖环境错误。
+
+首次类型检查报 `ref`、`computed`、`ElMessage` 等名称不存在：先让上游 Vite 自动导入插件生成声明，再执行完整类型检查。脚本按安装→Vite 构建→类型检查执行，没有跳过类型门禁。
 
 前端 `--frozen-lockfile` 失败：记录真实锁文件与包管理器版本；不要静默改成无锁安装并继续宣称可复现。
 

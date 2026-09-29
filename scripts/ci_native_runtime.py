@@ -45,10 +45,16 @@ def main():
             token = login(args.template, base_url)
             if not isinstance(token, str) or len(token) < 10:
                 raise AssertionError("Native login did not return an access token")
-            write_json(reports / "baseline.json", {
-                "template": args.template, "database": "postgresql", "native_login": True,
-                "server_started": True, "generated_runtime_verified": False,
-            })
+            write_json(
+                reports / "baseline.json",
+                {
+                    "template": args.template,
+                    "database": "postgresql",
+                    "native_login": True,
+                    "server_started": True,
+                    "generated_runtime_verified": False,
+                },
+            )
             permissions = check_native_permissions(args.template, base_url, token)
             write_json(reports / "permissions.json", permissions)
             print("Original native backend: login and role permissions PASS")
@@ -62,13 +68,22 @@ def main():
                 build_frontend(args.template, frontend, front_env, reports)
                 with frontend_preview(args.template, frontend, front_env, reports) as front_url:
                     browser_check(args.template, front_url, reports)
-            write_json(reports / "acceptance.json", {
-                "template": args.template, "scope": "original-native-baseline",
-                "backend_login": True, "native_permissions": True,
-                "frontend_browser": args.frontend, "generated_runtime_verified": False,
-            })
+            write_json(
+                reports / "acceptance.json",
+                {
+                    "template": args.template,
+                    "scope": "original-native-baseline",
+                    "backend_login": True,
+                    "native_permissions": True,
+                    "frontend_browser": args.frontend,
+                    "generated_runtime_verified": False,
+                },
+            )
     except Exception as exc:
-        atomic_text(reports / "failure.log", type(exc).__name__ + ": " + str(exc) + "\n" + getattr(exc, "log", ""))
+        atomic_text(
+            reports / "failure.log",
+            type(exc).__name__ + ": " + str(exc) + "\n" + getattr(exc, "log", ""),
+        )
         raise
 
 

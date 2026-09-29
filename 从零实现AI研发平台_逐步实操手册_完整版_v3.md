@@ -470,6 +470,213 @@ uv sync --locked --extra postgres
 - 芋道后端： https://gitee.com/yudaocode/yudao-cloud-mini
 - 芋道Vben： https://gitee.com/yudaocode/yudao-ui-admin-vben
 
+## 19. 验证原生框架：启动、登录、角色权限与前端
+
+这一章验证固定上游版本自身的运行基线，不改变默认 Python 产品流程，也不把 `SOURCE_READY` 改为 `READY`。**原生生成文件自动挂载、生成模块菜单与权限集成、生成业务完整运行验收仍未完成。** 原框架自己的用户管理页面通过测试，不能代替生成业务验收。
+
+### 19.1 本章创建的文件及连接顺序
+
+本章所有文件的完整内容在下方源码附录；按下面顺序创建，不要根据名称自行补实现。
+
+| 文件 | 工作 | 连接到哪里 |
+|---|---|---|
+| `workbench/native_environment.py` | 检查专用数据库、复制原生源码、安装依赖、启动和停止后端、真实登录 | 复用 `filesystem` 和 `tools`，不读取模型密钥 |
+| `workbench/native_checks.py` | 调用原生用户、角色和菜单接口测试授权与撤销 | 使用真实后端 HTTP，不修改鉴权实现 |
+| `workbench/native_frontend.py` | 冻结安装依赖、Vite 构建生成声明、类型检查、启动预览 | 使用上游原生目录和脚本 |
+| `scripts/native_browser.cjs` | Chromium 浏览器真实登录并打开原生用户管理页面 | 不注入 token、不伪造 HTTP 响应 |
+| `scripts/ci_native_runtime.py` | 串联整次原生基线验收，保存每一步证据 | 调用上面四个文件 |
+| `tests/test_native_baseline.py` | 单元测试路径、环境隔离、响应码与菜单树算法 | 不代替真实服务测试 |
+| `.github/workflows/native-runtime.yml` | 两套原生框架分别在 PostgreSQL、Redis 环境运行 | 独立于默认 Python 产品验收 |
+
+运行链：复制固定源码 → 检查空专用库 → 初始化原生数据库 → 安装/编译 → 启动原生后端 → 登录 → 最小权限测试 → 前端安装/Vite 生成与构建/类型检查 → Chromium 登录与原生页面验证 → 保存报告。
+
+### 19.2 版本与环境
+
+| 部分 | 固定输入 |
+|---|---|
+| 平台及 FastapiAdmin 后端 | Python 3.14；平台依赖使用仓库 `uv.lock` |
+| FastapiAdmin 源码 | `1cd12c726ad9032c17ef85ce805ce991be60fbdf` |
+| 芋道后端源码 | `47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be`，JDK 17 |
+| Vben 源码 | `1b14e889f529e245fd620daa720dcea6de0cc5e7` |
+| Node | 22 系列，至少满足 Vben 的 22.18 要求 |
+| FastapiAdmin 的 pnpm | 9.15.3 |
+| Vben 的 pnpm | 11.16.0 |
+| 浏览器测试工具 | Playwright 1.56.1，Chromium |
+| 数据库与缓存 | 本机 PostgreSQL 17、Redis 7.4 |
+
+平台自身仍可用 SQLite。PostgreSQL 和 Redis 是本章原生框架运行的依赖，不是平台初次体验的前置条件。
+
+原生运行脚本当前在 Linux CI 验证。Windows 用户可以在 WSL 2 的 Linux 目录执行本章命令；不要把 Windows 的 `.venv` 复制到 WSL。默认 Python 产品的 Windows 验收和原生框架 Linux 验收是不同范围。
+
+### 19.3 先验证平台代码
+
+以下命令在仓库根目录执行：
+
+```bash
+uv python install 3.14
+uv sync --locked --all-extras
+uv run python --version
+uv run pytest tests/test_native_baseline.py -q
+```
+
+`--all-extras` 在这里安装 PostgreSQL 驱动，不会自动启动数据库。
+
+### 19.4 建立隔离的开发数据库
+
+只对你自己创建的空开发库执行。不要填写生产连接字符串，也不要为了通过测试删除现有数据库。
+
+下面示例需要已安装并启动 Docker。第一次执行：
+
+```bash
+export NATIVE_PG_PASSWORD="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+docker run -d --name rnd-native-pg \
+  -e POSTGRES_USER=native \
+  -e POSTGRES_PASSWORD="$NATIVE_PG_PASSWORD" \
+  -e POSTGRES_DB=fastapi_codegen \
+  -p 127.0.0.1:5432:5432 postgres:17
+docker run -d --name rnd-native-redis \
+  -p 127.0.0.1:6379:6379 redis:7.4-alpine
+```
+
+检查服务：
+
+```bash
+docker exec rnd-native-pg pg_isready -U native -d fastapi_codegen
+docker exec rnd-native-redis redis-cli ping
+```
+
+数据库应显示 accepting connections；Redis 应返回 PONG。端口被占用时先处理冲突，不要连接另一个未知服务。
+
+为第二套模板建立另一个空库：
+
+```bash
+docker exec rnd-native-pg psql -U native -d postgres -v ON_ERROR_STOP=1 \
+  -c 'CREATE DATABASE yudao_codegen'
+```
+
+本章使用无密码 Redis，仅限上述绑定回环地址的临时开发环境。不是公网部署配置。数据库名称必须匹配小写标识并以 `_codegen` 结尾；脚本检测到已有表会拒绝初始化，不会替你删库重建。芋道上游种子 SQL 含删除语句，因此空库检查是强制门禁。
+
+### 19.5 取得固定原生源码
+
+下面命令只运行一次。目录已存在时先确认版本，不要覆盖旧工作副本。
+
+```bash
+mkdir -p .native
+git clone https://github.com/fastapiadmin/FastapiAdmin.git .native/fa-source
+git -C .native/fa-source checkout --detach 1cd12c726ad9032c17ef85ce805ce991be60fbdf
+git clone https://github.com/yudaocode/yudao-cloud-mini.git .native/yudao-source
+git -C .native/yudao-source checkout --detach 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
+git clone https://github.com/yudaocode/yudao-ui-admin-vben.git .native/vben-source
+git -C .native/vben-source checkout --detach 1b14e889f529e245fd620daa720dcea6de0cc5e7
+```
+
+原生验证使用这三个已固定并实际下载的 GitHub 提交。使用 Gitee 时必须另外核对对应 SHA，不能假定镜像同步。
+
+### 19.6 安装浏览器测试工具
+
+先确认 `node --version` 满足前述要求，再执行：
+
+```bash
+npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+export PLAYWRIGHT_BROWSERS_PATH=0
+.native/browser/node_modules/.bin/playwright install --with-deps chromium
+```
+
+这只给验证脚本安装浏览器工具，没有将 Playwright 添加到平台运行依赖。Linux 浏览器系统库安装可能需要 sudo 权限。
+
+### 19.7 执行 FastapiAdmin 基线
+
+```bash
+npm install --global pnpm@9.15.3
+export NATIVE_TEST_DATABASE_URL="postgresql+psycopg://native:${NATIVE_PG_PASSWORD}@127.0.0.1:5432/fastapi_codegen"
+uv run python -m scripts.ci_native_runtime fastapiadmin \
+  --source .native/fa-source --output .native/fa-product --frontend
+```
+
+脚本复制原生源码到新工作目录，不修改原始 `.native/fa-source`。后端监听 8001，前端预览监听 5173。`ENVIRONMENT=dev` 用于回环 HTTP 测试，`DEBUG=False`；原生生产模式的 HTTPS 跳转不适用于这个直接 HTTP 的实验。不要把测试环境参数复制到生产部署。当前 FastapiAdmin 开发启动可能生成自身迁移，测试仅在空专用库执行；平台自己的 Alembic 不代管上游数据库。
+
+浏览器使用上游初始化的本地示例用户，执行页面上的真实登录与本地拖动校验。报告不保存访问令牌。后端不是 mock，API 返回的角色和菜单也不是前端伪造数据。
+
+### 19.8 执行芋道 + Vben 基线
+
+先确认 `java -version`、`mvn -version` 中是 JDK 17。第二套模板运行前先保存上一套报告，避免相同默认报告目录覆盖结果。
+
+```bash
+cp -r reports/native reports/native-fastapiadmin
+npm install --global pnpm@11.16.0
+export NATIVE_TEST_DATABASE_URL="postgresql+psycopg://native:${NATIVE_PG_PASSWORD}@127.0.0.1:5432/yudao_codegen"
+uv run python -m scripts.ci_native_runtime yudao-vben \
+  --source .native/yudao-source --output .native/yudao-product \
+  --frontend-source .native/vben-source --frontend
+```
+
+脚本先用原生 PostgreSQL 种子初始化空库，给复制后的 `yudao-server` 创建 `application-native.properties`。凭据由进程环境变量提供，不写进该文件。JDBC 检查语句是 PostgreSQL 的 `SELECT 1`，而不是 MySQL 示例的 `SELECT 1 FROM DUAL`。
+
+`yudao.security.mock-enable=false` 保持真实鉴权。验证码在临时实验环境显式关闭，浏览器仍必须用真实用户名密码获得原生 token。服务端监听 48080，Vben 使用原生 `/admin-api` 代理。Java 构建和启动显式设置 `LANG=C.UTF-8`、`LC_ALL=C.UTF-8`，防止清理子进程环境后中文文件名无法解析。
+
+当前 Maven 命令先用 `-DskipTests` 构建，这是**编译步骤**，不能被写成 Java 单元测试全部通过；紧接着执行的 HTTP 权限和浏览器检查才是本章运行验收。
+
+### 19.9 如何读取证据
+
+报告目录 `reports/native/`：
+
+| 文件 | 表示什么 |
+|---|---|
+| `backend-build.log` | 实际依赖安装或 Maven 编译日志 |
+| `backend-runtime.log` | 原生后端启动及请求日志 |
+| `openapi.json` | 本次真实运行服务导出的接口 |
+| `baseline.json` | 原生启动与登录已达到的结果 |
+| `permissions.json` | 无权限、授权、撤销等实际检查结果 |
+| `frontend-install.log` / `frontend-typecheck.log` / `frontend-build.log` | 各阶段真实工具输出 |
+| `frontend-build.json` | 构建命令、锁文件哈希和范围 |
+| `browser.json`、`native-user-page.png` | Chromium 实际登录及原生用户页面证据 |
+| `failure.log`、`browser-failure.png` | 失败位置；存在这些文件时先看失败原因 |
+| `acceptance.json` | 整次命令完成后的范围和结果 |
+
+命令退出码非零就是失败。只存在部分 JSON 不代表后续通过。每份最终报告都保留 `generated_runtime_verified=false`；原框架测试完成也不会把生成业务改成已验证。
+
+### 19.10 权限验收到底测试什么
+
+脚本通过真实管理员 API 创建专用测试用户和普通角色，只在临时数据库留下测试记录。按顺序确认：未登录拒绝；伪造示例 token 拒绝；空角色拒绝读取；管理员赋予用户管理读权限后可以读取；菜单出现在原生登录信息里；没有写权限时创建角色被拒绝；撤销读权限后重新登录仍被拒绝。
+
+菜单页和查询按钮可能使用同一权限标识。脚本收集所有匹配项及其父目录，而不是错误地假定一个权限只能对应一个菜单。授权的是原生用户管理页面，**不是新生成业务页面**。
+
+### 19.11 常见失败与停止条件
+
+后端就绪请求出现 HTTPS 跳转：检查 FastapiAdmin 是否仍被设为 prod；不要关闭正式生产安全配置来迎合测试。
+
+Java 报中文路径 `InvalidPathException`：检查子进程 UTF-8 locale。不要删除上游中文文件来掩盖环境错误。
+
+首次类型检查报 `ref`、`computed`、`ElMessage` 等名称不存在：先让上游 Vite 自动导入插件生成声明，再执行完整类型检查。脚本按安装→Vite 构建→类型检查执行，没有跳过类型门禁。
+
+前端 `--frozen-lockfile` 失败：记录真实锁文件与包管理器版本；不要静默改成无锁安装并继续宣称可复现。
+
+原生权限接口报 403：检查本章新建普通角色与管理员角色是否混用；不要把普通用户改成超级管理员来让断言通过。
+
+前端 API 404：检查 `/api/v1` 与 `/admin-api` 前缀、Vite 代理、实际端口；只看到首页 HTML 200 不等于前后端已联通。
+
+再次运行提示输出目录存在或数据库非空：这是数据保护。建立新的工作目录和新的空专用库；不删除其他项目的数据。
+
+**本章通关：** 原生启动、真实登录、角色读写边界、权限撤销、前端类型检查、构建、浏览器原生页面全部有通过证据。此后才具备继续排查生成业务集成的可靠基线；原生代码生成结果的挂载、菜单注册、生成 API/页面、两用户数据隔离和干净交付仍是独立且未完成的关卡。
+
+### 19.12 GitHub Actions 与手册同步
+
+`Native baseline acceptance` 在 Linux runner 上分别运行两套固定原生框架。PostgreSQL、Redis 是任务创建的临时服务，端口只绑定回环地址。工作流权限为 `contents: read`，不携带模型密钥。
+
+测试结果查看该工作流对应提交的 Jobs 和 `native-runtime-fastapiadmin`、`native-runtime-yudao-vben` artifacts；不要用另一个提交或只有 `native-sources` 的绿色结果代替这次运行。
+
+修改任一本章代码或说明后执行：
+
+```bash
+uv run ruff check --fix workbench scripts tests
+uv run ruff format workbench scripts tests
+uv run python -m scripts.build_handbook
+uv run python -m scripts.build_handbook --check
+uv run pytest -m 'not postgres' -q
+```
+
+根目录整份 Markdown 自动包含本章正文、相关源码和 CI 配置，不需要读者自己拼接多个补丁文件。
+
 # 完整源码附录
 
 ## 项目配置
@@ -483,13 +690,14 @@ uv sync --locked --extra postgres
 
 ### `.gitignore`
 
-<!-- source-file: .gitignore sha256: c6d1b311c6457d0ef415ad0042b770d12cc2c84f5b9b548b73fabdf42d6d6820 -->
+<!-- source-file: .gitignore sha256: 4f57aa9642b7d8685db28539a2715e3e66f59caf9e37737cdf1e74e29535fa40 -->
 ````text
 .venv/
 .env
 .env.*
 !.env.example
 .data/
+.native/
 __pycache__/
 .pytest_cache/
 .ruff_cache/
@@ -4095,6 +4303,631 @@ if __name__ == "__main__":
     main()
 ````
 
+## 原生基线的实际运行与验证
+
+### `workbench/native_environment.py`
+
+<!-- source-file: workbench/native_environment.py sha256: 938b9da824dafe9c7cc0c995149909d00dd5c8ca7e3f05ebdc4ac3fd460e1c14 -->
+````python
+"""Loopback native lab lifecycle. Never resets an existing database or mocks login."""
+
+import os
+import re
+import secrets
+import shutil
+import subprocess
+import time
+from contextlib import contextmanager
+from pathlib import Path
+
+import httpx
+from sqlalchemy import create_engine, inspect
+from sqlalchemy.engine import make_url
+
+from workbench.filesystem import atomic_text, files, inside, write_json
+from workbench.tools import clean_env, process_options, run_command, stop_process
+
+
+def checked_database(url):
+    parsed = make_url(url)
+    if parsed.get_backend_name() != "postgresql" or parsed.host not in {"127.0.0.1", "localhost"}:
+        raise ValueError("Native runtime requires a loopback PostgreSQL database")
+    if not re.fullmatch(r"[a-z][a-z0-9_]{0,40}_codegen", parsed.database or ""):
+        raise ValueError("Use a dedicated lowercase database identifier ending in _codegen")
+    return parsed
+
+
+def copy_source(source, destination):
+    """Copy source only, never upstream environments, dependencies or credentials."""
+    source, destination = Path(source), Path(destination)
+    if destination.exists():
+        raise FileExistsError(destination)
+    destination.mkdir(parents=True)
+    for name, path in files(source):
+        target = inside(destination, name)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(path, target)
+
+
+def bootstrap_database(template, backend, url):
+    """YuDao seeds contain DROP statements: execute ONLY in an empty dedicated database."""
+    parsed = checked_database(url)
+    engine = create_engine(url)
+    try:
+        with engine.connect() as connection:
+            if inspect(connection).get_table_names():
+                raise ValueError(
+                    "Native bootstrap requires an EMPTY dedicated database; nothing was deleted"
+                )
+        if template == "yudao-vben":
+            import psycopg
+
+            sql_path = Path(backend) / "sql/postgresql/ruoyi-vue-pro.sql"
+            with psycopg.connect(
+                parsed.set(drivername="postgresql").render_as_string(hide_password=False)
+            ) as connection:
+                connection.execute(sql_path.read_text(encoding="utf-8"))
+    finally:
+        engine.dispose()
+
+
+def native_environment(template, backend, url, port, redis_port=6379):
+    """Development-only profile; no model/API secrets inherited by native processes."""
+    parsed = checked_database(url)
+    if not 1024 <= int(port) <= 65535:
+        raise ValueError("Invalid native backend port")
+    if template == "fastapiadmin":
+        return {
+            "ENVIRONMENT": "dev",
+            "SERVER_HOST": "127.0.0.1",
+            "SERVER_PORT": str(port),
+            "DEBUG": "False",
+            "WORKERS": "1",
+            "DATABASE_TYPE": "postgres",
+            "DATABASE_HOST": parsed.host,
+            "DATABASE_PORT": str(parsed.port or 5432),
+            "DATABASE_USER": parsed.username or "",
+            "DATABASE_PASSWORD": parsed.password or "",
+            "DATABASE_NAME": parsed.database,
+            "REDIS_HOST": "127.0.0.1",
+            "REDIS_PORT": str(redis_port),
+            "REDIS_PASSWORD": "",
+            "REDIS_DB_NAME": "1",
+            "SECRET_KEY": secrets.token_hex(32),
+            "CAPTCHA_ENABLE": "False",
+            "SCHEDULER_ALLOW_CODE_EXEC": "False",
+            "DEMO_ENABLE": "False",
+            "LOGIN_RATE_LIMIT_MAX_ATTEMPTS": "100",
+            "OPENAI_API_KEY": "",
+            "PYTHONUTF8": "1",
+            "UV_PYTHON": "3.14",
+        }
+    if template != "yudao-vben":
+        raise ValueError("Unknown native template")
+    resource = Path(backend) / "yudao-server/src/main/resources"
+    properties = {
+        "server.address": "127.0.0.1",
+        "server.port": str(port),
+        "spring.datasource.dynamic.primary": "master",
+        "spring.datasource.dynamic.datasource.master.url": f"jdbc:postgresql://{parsed.host}:{parsed.port or 5432}/{parsed.database}",
+        "spring.datasource.dynamic.datasource.master.username": "${NATIVE_DB_USER}",
+        "spring.datasource.dynamic.datasource.master.password": "${NATIVE_DB_PASSWORD}",
+        "spring.datasource.dynamic.datasource.master.name": "public",
+        "spring.datasource.dynamic.datasource.master.driver-class-name": "org.postgresql.Driver",
+        "spring.datasource.dynamic.druid.initial-size": "1",
+        "spring.datasource.dynamic.druid.min-idle": "1",
+        "spring.datasource.dynamic.druid.max-active": "10",
+        "spring.datasource.dynamic.druid.validation-query": "SELECT 1",
+        "spring.data.redis.host": "127.0.0.1",
+        "spring.data.redis.port": str(redis_port),
+        "spring.data.redis.database": "2",
+        "xxl.job.enabled": "false",
+        "yudao.security.mock-enable": "false",
+        "yudao.captcha.enable": "false",
+        "yudao.codegen.db-schemas": "public",
+        "yudao.codegen.front-type": "40",
+        "yudao.codegen.unit-test-enable": "false",
+        "yudao.codegen.import-enable": "false",
+        "spring.boot.admin.client.enabled": "false",
+        "spring.cloud.nacos.discovery.enabled": "false",
+        "spring.cloud.nacos.config.enabled": "false",
+        "spring.cloud.sentinel.enabled": "false",
+        "spring.ai.vectorstore.qdrant.initialize-schema": "false",
+        "management.endpoints.web.exposure.include": "health",
+        "logging.file.name": "./logs/native-server.log",
+        "yudao.access-log.enable": "false",
+        "yudao.error-code.enable": "false",
+    }
+    atomic_text(
+        resource / "application-native.properties",
+        "\n".join(f"{k}={v}" for k, v in properties.items()) + "\n",
+    )
+    return {
+        "SPRING_PROFILES_ACTIVE": "native",
+        "NATIVE_DB_USER": parsed.username or "",
+        "NATIVE_DB_PASSWORD": parsed.password or "",
+        "JAVA_HOME": os.environ.get("JAVA_HOME", ""),
+    }
+
+
+def install_backend(template, backend, reports):
+    backend, reports = Path(backend), Path(reports)
+    reports.mkdir(parents=True, exist_ok=True)
+    if template == "fastapiadmin":
+        command = ["uv", "sync", "--python", "3.14"]
+    else:
+        command = ["mvn", "-B", "-ntp", "-pl", "yudao-server", "-am", "package", "-DskipTests"]
+    environment = {
+        "JAVA_HOME": os.environ.get("JAVA_HOME", ""),
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+    }
+    if os.environ.get("UV_CACHE_DIR"):
+        environment["UV_CACHE_DIR"] = os.environ["UV_CACHE_DIR"]
+    try:
+        result = run_command(command, backend, 1500, environment)
+    except Exception as exc:
+        atomic_text(reports / "backend-build.log", getattr(exc, "log", str(exc)))
+        raise
+    atomic_text(reports / "backend-build.log", result["log"])
+
+
+@contextmanager
+def running_backend(template, backend, env, reports):
+    backend, reports = Path(backend).resolve(), Path(reports).resolve()
+    reports.mkdir(parents=True, exist_ok=True)
+    if template == "fastapiadmin":
+        executable = backend / (
+            ".venv/Scripts/python.exe" if os.name == "nt" else ".venv/bin/python"
+        )
+        port = int(env["SERVER_PORT"])
+        command = [
+            str(executable),
+            "-m",
+            "uvicorn",
+            "app:create_app",
+            "--factory",
+            "--host",
+            "127.0.0.1",
+            "--port",
+            str(port),
+        ]
+        openapi = "/openapi.json"
+    else:
+        properties = (
+            backend / "yudao-server/src/main/resources/application-native.properties"
+        ).read_text(encoding="utf-8")
+        port = int(
+            next(
+                line.split("=", 1)[1]
+                for line in properties.splitlines()
+                if line.startswith("server.port=")
+            )
+        )
+        jars = list((backend / "yudao-server/target").glob("*.jar"))
+        if len(jars) != 1:
+            raise ValueError("Expected exactly one compiled native server jar")
+        command = ["java", "-Xmx1400m", "-jar", str(jars[0]), "--spring.profiles.active=native"]
+        openapi = "/v3/api-docs"
+    base_url = f"http://127.0.0.1:{port}"
+    with httpx.Client(trust_env=False, timeout=1) as client:
+        try:
+            client.get(base_url + openapi)
+        except httpx.HTTPError:
+            pass
+        else:
+            raise RuntimeError(
+                "Native backend port is already occupied; refusing to test another process"
+            )
+    log = (reports / "backend-runtime.log").open("ab")
+    process = subprocess.Popen(
+        command,
+        cwd=backend,
+        env=clean_env({"LANG": "C.UTF-8", "LC_ALL": "C.UTF-8", **env}),
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        **process_options(),
+    )
+    try:
+        with httpx.Client(trust_env=False, timeout=5) as client:
+            for _ in range(90):
+                if process.poll() is not None:
+                    raise RuntimeError("Native backend exited; inspect backend-runtime.log")
+                try:
+                    response = client.get(base_url + openapi)
+                    if response.status_code == 200 and "paths" in response.json():
+                        write_json(reports / "openapi.json", response.json())
+                        break
+                    if response.is_redirect:
+                        raise RuntimeError(
+                            "Native readiness redirected; check the development profile and API prefix"
+                        )
+                except httpx.HTTPError, ValueError:
+                    pass
+                time.sleep(2)
+            else:
+                raise TimeoutError(
+                    "Native backend did not become ready; inspect backend-runtime.log"
+                )
+        yield base_url, openapi
+    finally:
+        stop_process(process)
+        log.close()
+
+
+def login(template, base_url, username=None, password=None):
+    with httpx.Client(
+        base_url=base_url, trust_env=False, timeout=30, headers={"tenant-id": "1"}
+    ) as client:
+        if template == "fastapiadmin":
+            response = client.post(
+                "/system/auth/login",
+                data={"username": username or "super", "password": password or "123456"},
+            )
+        else:
+            response = client.post(
+                "/admin-api/system/auth/login",
+                json={"username": username or "admin", "password": password or "admin123"},
+            )
+        response.raise_for_status()
+        body = response.json()
+        if body.get("code", 200) not in (0, 200):
+            raise RuntimeError(
+                f"Native login rejected (code {body.get('code')}): {body.get('msg', '')}"
+            )
+        value = body.get("data", body)
+        token = value.get("access_token", value.get("accessToken"))
+        if not isinstance(token, str) or not token:
+            raise RuntimeError("No native access token")
+        return token
+````
+
+### `workbench/native_checks.py`
+
+<!-- source-file: workbench/native_checks.py sha256: dec7f300631454931953cf8c979317b8df14d1f056573b5cfbe983316d600dda -->
+````python
+"""Exercise ORIGINAL native role APIs in the disposable lab, not generated business modules."""
+
+from urllib.parse import urlsplit
+
+import httpx
+
+from workbench.native_environment import login
+
+
+def successful(response):
+    if response.status_code not in (200, 201):
+        return False
+    try:
+        return response.json().get("code", 200) in (0, 200)
+    except ValueError:
+        return False
+
+
+def payload(response):
+    if not successful(response):
+        raise AssertionError(
+            f"Native API failed: {response.request.method} {response.request.url.path} HTTP {response.status_code}"
+        )
+    body = response.json()
+    return body.get("data", body)
+
+
+def denied(response):
+    try:
+        code = response.json().get("code")
+    except ValueError:
+        code = None
+    if response.status_code not in (401, 403) and code not in (401, 403):
+        raise AssertionError(
+            f"Expected authorization denial: {response.request.url.path}, HTTP {response.status_code}, code {code}"
+        )
+
+
+def flatten(rows):
+    for item in rows:
+        yield item
+        yield from flatten(item.get("children") or [])
+
+
+def record_id(value):
+    return value["id"] if isinstance(value, dict) else value
+
+
+def read_menu_ids(rows, permission):
+    by_id = {row["id"]: row for row in rows}
+    matching = [row for row in rows if row.get("permission") == permission]
+    if not matching:
+        raise AssertionError("Native read permission is absent from menu metadata")
+    selected = set()
+    for cursor in matching:
+        visited = set()
+        while cursor:
+            if cursor["id"] in visited:
+                raise AssertionError("Native menu parent cycle")
+            visited.add(cursor["id"])
+            selected.add(cursor["id"])
+            cursor = by_id.get(cursor.get("parent_id", cursor.get("parentId")))
+    return sorted(selected)
+
+
+def check_native_permissions(template, base_url, admin_token):
+    """Create lab users/roles through authorized APIs; never modify authentication source."""
+    if urlsplit(base_url).hostname not in {"127.0.0.1", "localhost"}:
+        raise ValueError("Native authorization tests require a loopback lab server")
+    fastapi = template == "fastapiadmin"
+    prefix = "" if fastapi else "/admin-api"
+    listing = prefix + ("/system/user/list" if fastapi else "/system/user/page")
+    info = prefix + ("/system/user/current/info" if fastapi else "/system/auth/get-permission-info")
+    permission = "module_system:user:query" if fastapi else "system:user:query"
+    with httpx.Client(
+        base_url=base_url, trust_env=False, timeout=30, headers={"tenant-id": "1"}
+    ) as client:
+        denied(client.get(listing))
+        denied(client.get(listing, headers={"Authorization": "Bearer test1"}))
+        admin = {"Authorization": "Bearer " + admin_token}
+        payload(client.get(listing, headers=admin))
+        menus = payload(
+            client.get(
+                prefix + ("/system/menu/tree" if fastapi else "/system/menu/list"), headers=admin
+            )
+        )
+        selected = read_menu_ids(list(flatten(menus)), permission)
+        role_data = {"name": "Workbench reader", "code": "workbench_reader", "status": 0}
+        role_data.update({"order": 1, "data_scope": 1} if fastapi else {"sort": 1})
+        role_id = record_id(
+            payload(client.post(prefix + "/system/role/create", json=role_data, headers=admin))
+        )
+        username, password = "workbenchreader", "NativeTest123!"
+        user = {"username": username, "password": password}
+        if fastapi:
+            user.update(
+                {
+                    "name": "Workbench reader",
+                    "is_superuser": False,
+                    "role_ids": [role_id],
+                    "status": 0,
+                }
+            )
+        else:
+            user.update({"nickname": "Workbench reader"})
+        user_id = record_id(
+            payload(client.post(prefix + "/system/user/create", json=user, headers=admin))
+        )
+        if not fastapi:
+            payload(
+                client.post(
+                    prefix + "/system/permission/assign-user-role",
+                    json={"userId": user_id, "roleIds": [role_id]},
+                    headers=admin,
+                )
+            )
+
+        def assign(menu_ids):
+            if fastapi:
+                response = client.put(
+                    "/system/role/permission",
+                    json={
+                        "role_ids": [role_id],
+                        "menu_ids": menu_ids,
+                        "data_scope": 1,
+                        "dept_ids": [],
+                    },
+                    headers=admin,
+                )
+            else:
+                response = client.post(
+                    prefix + "/system/permission/assign-role-menu",
+                    json={"roleId": role_id, "menuIds": menu_ids},
+                    headers=admin,
+                )
+            payload(response)
+
+        assign([])
+        restricted = {"Authorization": "Bearer " + login(template, base_url, username, password)}
+        denied(client.get(listing, headers=restricted))
+        before = payload(client.get(info, headers=restricted))
+        assert not before.get("menus"), "Empty role unexpectedly receives native menus"
+        assign(selected)
+        reader = {"Authorization": "Bearer " + login(template, base_url, username, password)}
+        payload(client.get(listing, headers=reader))
+        after = payload(client.get(info, headers=reader))
+        assert after.get("menus"), "Granted native page is absent from login/menu result"
+        denied(
+            client.post(
+                prefix + "/system/role/create",
+                json={**role_data, "code": "must_not_be_created"},
+                headers=reader,
+            )
+        )
+        assign([])
+        revoked = {"Authorization": "Bearer " + login(template, base_url, username, password)}
+        denied(client.get(listing, headers=revoked))
+    return {
+        "unauthenticated_denied": True,
+        "mock_token_denied": True,
+        "empty_role_denied": True,
+        "granted_read_allowed": True,
+        "menu_visibility_after_grant": True,
+        "write_without_permission_denied": True,
+        "revoked_read_denied": True,
+        "scope": "upstream-native-system-user-page",
+        "generated_modules_verified": False,
+    }
+````
+
+### `workbench/native_frontend.py`
+
+<!-- source-file: workbench/native_frontend.py sha256: 11b022118ed710e1f92ed6b6badeafd75cd533b1042fdced6affe92e03ed0421 -->
+````python
+"""Build ORIGINAL pinned frontend applications. This is not a generated-module verifier."""
+
+import os
+import subprocess
+import time
+from contextlib import contextmanager
+from pathlib import Path
+
+import httpx
+
+from workbench.filesystem import atomic_text, sha, write_json
+from workbench.settings import ROOT
+from workbench.tools import clean_env, process_options, run_command, stop_process
+
+
+def frontend_environment(template, backend_url):
+    common = {
+        "CI": "true",
+        "HUSKY": "0",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_OPTIONS": "--max-old-space-size=4096 --dns-result-order=ipv4first",
+    }
+    if template == "fastapiadmin":
+        return {
+            **common,
+            "VITE_APP_TITLE": "Native lab",
+            "VITE_VERSION": "3.0.0",
+            "VITE_PORT": "5173",
+            "VITE_BASE_URL": "/",
+            "VITE_APP_BASE_API": "/api/v1",
+            "VITE_API_BASE_URL": backend_url,
+            "VITE_API_TIMEOUT": "120000",
+            "VITE_ACCESS_MODE": "mixed",
+            "VITE_WITH_CREDENTIALS": "false",
+            "VITE_LOCK_ENCRYPT_KEY": "native-lab-only",
+        }
+    if template != "yudao-vben":
+        raise ValueError("Unknown native frontend")
+    return {
+        **common,
+        "VITE_APP_TITLE": "Native lab",
+        "VITE_APP_NAMESPACE": "native-lab-vben",
+        "VITE_APP_STORE_SECURE_KEY": "native-lab-only",
+        "VITE_BASE": "/",
+        "VITE_BASE_URL": backend_url,
+        "VITE_GLOB_API_URL": "/admin-api",
+        "VITE_NITRO_MOCK": "false",
+        "VITE_APP_TENANT_ENABLE": "true",
+        "VITE_APP_CAPTCHA_ENABLE": "false",
+        "VITE_APP_API_ENCRYPT_ENABLE": "false",
+        "VITE_APP_BAIDU_CODE": "",
+        "VITE_ROUTER_HISTORY": "hash",
+        "VITE_PWA": "false",
+        "VITE_ARCHIVER": "false",
+        "VITE_COMPRESS": "none",
+        "VITE_UPLOAD_TYPE": "server",
+    }
+
+
+def frontend_app(template, root):
+    root = Path(root).resolve()
+    return root if template == "fastapiadmin" else root / "apps/web-antd"
+
+
+def build_frontend(template, root, env, reports):
+    root, reports = Path(root).resolve(), Path(reports).resolve()
+    reports.mkdir(parents=True, exist_ok=True)
+    app = frontend_app(template, root)
+    if not (root / "pnpm-lock.yaml").is_file():
+        raise ValueError("Native frontend lockfile is required")
+    # Native Vite plugins produce auto-imports/components declarations on first build.
+    # Checking a pristine checkout before generating them yields false missing-name errors.
+    # Type checking remains mandatory, AFTER deterministic generation; no errors are ignored.
+    checks = [
+        ("install", ["pnpm", "install", "--frozen-lockfile"], root),
+        ("build", ["pnpm", "exec", "vite", "build", "--mode", "production"], app),
+        ("typecheck", ["pnpm", "exec", "vue-tsc", "--noEmit", "--skipLibCheck"], app),
+    ]
+    evidence = []
+    for name, command, cwd in checks:
+        try:
+            result = run_command(command, cwd, 1500, env)
+        except Exception as exc:
+            atomic_text(reports / f"frontend-{name}.log", getattr(exc, "log", str(exc)))
+            raise
+        atomic_text(reports / f"frontend-{name}.log", result["log"])
+        evidence.append({"name": name, "command": command, "returncode": 0})
+    if not (app / "dist/index.html").is_file():
+        raise ValueError("Frontend build did not produce dist/index.html")
+    write_json(
+        reports / "frontend-build.json",
+        {
+            "checks": evidence,
+            "lock_sha256": sha(root / "pnpm-lock.yaml"),
+            "scope": "original-upstream-frontend",
+        },
+    )
+
+
+@contextmanager
+def frontend_preview(template, root, env, reports):
+    app, reports = frontend_app(template, root), Path(reports).resolve()
+    url = "http://127.0.0.1:5173"
+    command = [
+        "pnpm",
+        "exec",
+        "vite",
+        "preview",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5173",
+        "--strictPort",
+    ]
+    log = (reports / "frontend-runtime.log").open("ab")
+    process = subprocess.Popen(
+        command,
+        cwd=app,
+        env=clean_env(env),
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        **process_options(),
+    )
+    try:
+        with httpx.Client(trust_env=False, timeout=3) as client:
+            for _ in range(60):
+                if process.poll() is not None:
+                    raise RuntimeError("Frontend preview exited")
+                try:
+                    response = client.get(url)
+                    if response.status_code == 200 and "<html" in response.text.lower():
+                        break
+                except httpx.HTTPError:
+                    pass
+                time.sleep(1)
+            else:
+                raise TimeoutError("Frontend preview never became ready")
+        yield url
+    finally:
+        stop_process(process)
+        log.close()
+
+
+def browser_check(template, url, reports):
+    executable = ROOT / "scripts/native_browser.cjs"
+    playwright_module = ROOT / ".native/browser/node_modules/playwright"
+    if not playwright_module.exists():
+        raise ValueError("Install the pinned Playwright tooling described in the handbook")
+    result = run_command(
+        [
+            "node",
+            str(executable),
+            template,
+            url,
+            str(Path(reports).resolve()),
+            str(playwright_module),
+        ],
+        ROOT,
+        180,
+        {
+            "NODE_OPTIONS": "--dns-result-order=ipv4first",
+            "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
+        },
+    )
+    atomic_text(Path(reports) / "browser.log", result["log"])
+````
+
 ## 完整工作流与操作入口
 
 ### `workbench/flow.py`
@@ -5506,6 +6339,116 @@ def test_all_sources_pinned():
             assert source["required"]
 ````
 
+### `tests/test_native_baseline.py`
+
+<!-- source-file: tests/test_native_baseline.py sha256: 7fa5614b53fbeec7fed13616c663d913766db31732fe6f3b3a29eed2085412ee -->
+````python
+"""Unit contracts supplement, never replace, native services in the baseline Actions job."""
+
+import httpx
+import pytest
+
+from workbench.native_checks import denied, read_menu_ids, successful
+from workbench.native_environment import checked_database, copy_source, native_environment
+from workbench.native_frontend import frontend_environment
+from workbench.tools import clean_env
+
+URL = "postgresql+psycopg://native:example@127.0.0.1:5432/test_codegen"
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "sqlite:///example.db",
+        "postgresql://user:pass@database.example/test_codegen",
+        "postgresql://user:pass@127.0.0.1/production",
+        "postgresql://user:pass@127.0.0.1/test%0aname_codegen",
+    ],
+)
+def test_native_database_is_loopback_dedicated(url):
+    with pytest.raises(ValueError):
+        checked_database(url)
+
+
+def test_native_database_valid():
+    assert checked_database(URL).database == "test_codegen"
+
+
+def test_native_env_never_inherits_model_key(tmp_path, monkeypatch):
+    monkeypatch.setenv("API_KEY", "not-for-native-processes")
+    monkeypatch.setenv("BASE_URL", "https://private-model.example")
+    env = native_environment("fastapiadmin", tmp_path, URL, 8001)
+    assert env["ENVIRONMENT"] == "dev"
+    assert env["DEBUG"] == "False"
+    assert env["SCHEDULER_ALLOW_CODE_EXEC"] == "False"
+    assert "API_KEY" not in clean_env(env)
+    assert "BASE_URL" not in clean_env(env)
+
+
+def test_native_yudao_profile_uses_real_auth(tmp_path):
+    env = native_environment("yudao-vben", tmp_path, URL, 48080)
+    path = tmp_path / "yudao-server/src/main/resources/application-native.properties"
+    text = path.read_text(encoding="utf-8")
+    assert "yudao.security.mock-enable=false" in text
+    assert "spring.datasource.dynamic.druid.validation-query=SELECT 1" in text
+    assert "${NATIVE_DB_PASSWORD}" in text
+    assert "example" not in text
+    assert env["NATIVE_DB_PASSWORD"] == "example"
+
+
+def test_native_copy_excludes_environment_and_refuses_overwrite(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "main.py").write_text("print('native')\n")
+    (source / ".env").write_text("API_KEY=not-for-export\n")
+    destination = tmp_path / "copy"
+    copy_source(source, destination)
+    assert (destination / "main.py").exists()
+    assert not (destination / ".env").exists()
+    with pytest.raises(FileExistsError):
+        copy_source(source, destination)
+
+
+def test_menu_page_and_button_can_share_permission():
+    rows = [
+        {"id": 1, "parent_id": None},
+        {"id": 2, "parent_id": 1, "permission": "read"},
+        {"id": 3, "parent_id": 2, "permission": "read"},
+        {"id": 4, "parent_id": 2, "permission": "write"},
+    ]
+    assert read_menu_ids(rows, "read") == [1, 2, 3]
+
+
+def test_menu_parent_cycle_rejected():
+    rows = [{"id": 1, "parentId": 2, "permission": "read"}, {"id": 2, "parentId": 1}]
+    with pytest.raises(AssertionError):
+        read_menu_ids(rows, "read")
+
+
+@pytest.mark.parametrize("status,code", [(401, 401), (403, 403), (200, 401), (200, 403)])
+def test_native_denial_accepts_http_or_application_status(status, code):
+    response = httpx.Response(
+        status, json={"code": code}, request=httpx.Request("GET", "http://127.0.0.1/api")
+    )
+    denied(response)
+    assert not successful(response)
+
+
+def test_native_denial_does_not_accept_server_failure():
+    response = httpx.Response(
+        500, json={"code": 500}, request=httpx.Request("GET", "http://127.0.0.1/api")
+    )
+    with pytest.raises(AssertionError):
+        denied(response)
+
+
+def test_frontend_mock_services_are_disabled():
+    env = frontend_environment("yudao-vben", "http://127.0.0.1:48080")
+    assert env["VITE_NITRO_MOCK"] == "false"
+    assert env["VITE_GLOB_API_URL"] == "/admin-api"
+    assert env["VITE_APP_CAPTCHA_ENABLE"] == "false"  # Disposable local lab only.
+````
+
 ### `tests/test_postgres.py`
 
 <!-- source-file: tests/test_postgres.py sha256: e69d89e40edd867759b1c969c8fca424117d4645f265d3e110a34c5c469dc07a -->
@@ -5898,9 +6841,9 @@ def test_tampered_delivery_not_released(settings, store, plan):
 
 ### `scripts/build_handbook.py`
 
-<!-- source-file: scripts/build_handbook.py sha256: bb702832b7f4cbbf9c8e668fcb12e941c1c196278f645688f2218f9514acedf9 -->
+<!-- source-file: scripts/build_handbook.py sha256: 730ecb6bab41e1343078721993c93e46794917c1b2ae8a5051d287b4b70cb1b2 -->
 ````python
-"""Render a complete, reconstructable handbook from the tracked source; never from memory."""
+"""Render a complete, reconstructable handbook from tracked source, never from memory."""
 
 import argparse
 import hashlib
@@ -5908,6 +6851,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "从零实现AI研发平台_逐步实操手册_完整版_v3.md"
+GUIDES = ["docs/guide.md", "docs/native-baseline.md"]
 GROUPS = [
     (
         "项目配置",
@@ -5953,13 +6897,29 @@ GROUPS = [
         ],
     ),
     (
+        "原生基线的实际运行与验证",
+        [
+            "workbench/native_environment.py",
+            "workbench/native_checks.py",
+            "workbench/native_frontend.py",
+        ],
+    ),
+    (
         "完整工作流与操作入口",
         ["workbench/flow.py", "workbench/runtime.py", "workbench/api.py", "workbench/cli.py"],
     ),
     ("自动化测试", ["tests"]),
-    ("构建与CI", ["scripts", ".github/workflows/test.yml"]),
+    (
+        "构建与CI",
+        [
+            "scripts",
+            ".github/workflows/test.yml",
+            ".github/workflows/native-runtime.yml",
+            ".github/workflows/native-probe.yml",
+        ],
+    ),
     ("平台真实依赖锁", ["uv.lock"]),
-    ("手册正文源文件", ["docs/guide.md"]),
+    ("手册正文源文件", GUIDES),
 ]
 
 
@@ -5969,6 +6929,8 @@ def sources():
         rows = []
         for relative in paths:
             path = ROOT / relative
+            if not path.exists():
+                raise FileNotFoundError(f"Handbook source missing: {relative}")
             items = (
                 sorted(path.rglob("*"), key=lambda item: item.relative_to(ROOT).as_posix())
                 if path.is_dir()
@@ -5985,7 +6947,8 @@ def sources():
 
 
 def render():
-    text = (ROOT / "docs/guide.md").read_text(encoding="utf-8").rstrip() + "\n\n# 完整源码附录\n"
+    text = "\n\n".join((ROOT / name).read_text(encoding="utf-8").rstrip() for name in GUIDES)
+    text += "\n\n# 完整源码附录\n"
     for title, rows in sources():
         text += "\n## " + title + "\n"
         for name, content in rows:
@@ -6004,6 +6967,7 @@ def render():
                 ".toml": "toml",
                 ".yml": "yaml",
                 ".json": "json",
+                ".cjs": "javascript",
             }.get(Path(name).suffix, "text")
             text += f"\n### `{name}`\n\n<!-- source-file: {name} sha256: {code_sha} -->\n{fence}{language}\n{content.rstrip(chr(10))}\n{fence}\n"
     return text
@@ -6118,6 +7082,103 @@ if __name__ == "__main__":
     main()
 ````
 
+### `scripts/ci_native_runtime.py`
+
+<!-- source-file: scripts/ci_native_runtime.py sha256: f63a2db322b62452d94aab4215a6ec8e39ee109ede89f29b92dfe8ce9b5c1aec -->
+````python
+"""Native baseline acceptance against empty test databases, not generated-module acceptance."""
+
+import argparse
+import os
+from pathlib import Path
+
+from workbench.filesystem import atomic_text, write_json
+from workbench.native_checks import check_native_permissions
+from workbench.native_environment import (
+    bootstrap_database,
+    copy_source,
+    install_backend,
+    login,
+    native_environment,
+    running_backend,
+)
+from workbench.native_frontend import (
+    browser_check,
+    build_frontend,
+    frontend_environment,
+    frontend_preview,
+)
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("template", choices=["fastapiadmin", "yudao-vben"])
+    parser.add_argument("--source", type=Path, default=Path(".native/source"))
+    parser.add_argument("--output", type=Path, default=Path(".native/product"))
+    parser.add_argument("--frontend-source", type=Path, default=Path(".native/frontend"))
+    parser.add_argument("--frontend", action="store_true")
+    args = parser.parse_args()
+    reports = Path("reports/native").resolve()
+    reports.mkdir(parents=True, exist_ok=True)
+    url = os.environ["NATIVE_TEST_DATABASE_URL"]
+    copy_source(args.source, args.output)
+    backend = args.output / "backend" if args.template == "fastapiadmin" else args.output
+    env = native_environment(
+        args.template, backend, url, 8001 if args.template == "fastapiadmin" else 48080
+    )
+    try:
+        bootstrap_database(args.template, backend, url)
+        install_backend(args.template, backend, reports)
+        with running_backend(args.template, backend, env, reports) as (base_url, _):
+            token = login(args.template, base_url)
+            if not isinstance(token, str) or len(token) < 10:
+                raise AssertionError("Native login did not return an access token")
+            write_json(
+                reports / "baseline.json",
+                {
+                    "template": args.template,
+                    "database": "postgresql",
+                    "native_login": True,
+                    "server_started": True,
+                    "generated_runtime_verified": False,
+                },
+            )
+            permissions = check_native_permissions(args.template, base_url, token)
+            write_json(reports / "permissions.json", permissions)
+            print("Original native backend: login and role permissions PASS")
+            if args.frontend:
+                if args.template == "fastapiadmin":
+                    frontend = args.output / "frontend/web"
+                else:
+                    frontend = args.output.parent / "frontend-product"
+                    copy_source(args.frontend_source, frontend)
+                front_env = frontend_environment(args.template, base_url)
+                build_frontend(args.template, frontend, front_env, reports)
+                with frontend_preview(args.template, frontend, front_env, reports) as front_url:
+                    browser_check(args.template, front_url, reports)
+            write_json(
+                reports / "acceptance.json",
+                {
+                    "template": args.template,
+                    "scope": "original-native-baseline",
+                    "backend_login": True,
+                    "native_permissions": True,
+                    "frontend_browser": args.frontend,
+                    "generated_runtime_verified": False,
+                },
+            )
+    except Exception as exc:
+        atomic_text(
+            reports / "failure.log",
+            type(exc).__name__ + ": " + str(exc) + "\n" + getattr(exc, "log", ""),
+        )
+        raise
+
+
+if __name__ == "__main__":
+    main()
+````
+
 ### `scripts/ci_native_sources.py`
 
 <!-- source-file: scripts/ci_native_sources.py sha256: 023e7e7808dbaadba040cdce63afa31baa629a860fe1bbbb09635d1d07d10d85 -->
@@ -6150,6 +7211,84 @@ results = {
 print(
     "PASS: fixed source commits, required paths, clean checkout and local index; not runtime certification"
 )
+````
+
+### `scripts/native_browser.cjs`
+
+<!-- source-file: scripts/native_browser.cjs sha256: 1d07d61608e76571051639833069c269593bbbda2491546e133db9ddb50aaa15 -->
+````javascript
+// Runs against our disposable loopback lab. No mocked requests or injected authentication state.
+const fs = require('node:fs');
+const path = require('node:path');
+const assert = require('node:assert/strict');
+
+async function main() {
+  const [template, base, reportDir, playwrightPath] = process.argv.slice(2);
+  assert(['fastapiadmin', 'yudao-vben'].includes(template));
+  assert.equal(new URL(base).hostname, '127.0.0.1');
+  const { chromium } = require(playwrightPath);
+  const browser = await chromium.launch({ headless: true });
+  const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'zh-CN' });
+  const page = await context.newPage();
+  page.setDefaultTimeout(45000);
+  fs.mkdirSync(reportDir, { recursive: true });
+  const errors = [];
+  page.on('pageerror', error => errors.push(error.message));
+  const fastapi = template === 'fastapiadmin';
+  const report = { template, scope: 'original-upstream-frontend', generated_modules_verified: false, passed: false };
+  try {
+    await page.goto(base + (fastapi ? '/#/login' : '/#/auth/login'), { waitUntil: 'domcontentloaded' });
+    await page.getByPlaceholder(/用户名|账号|username/i).first().fill(fastapi ? 'super' : 'admin');
+    await page.locator('input[type="password"]').first().fill(fastapi ? '123456' : 'admin123');
+    if (fastapi) {
+      // Exercise the local, visible demo drag widget; do not bypass server authentication.
+      const handle = page.locator('.dv_handler').first();
+      const track = page.locator('.drag_verify').first();
+      await handle.waitFor({ state: 'visible' });
+      const from = await handle.boundingBox();
+      const to = await track.boundingBox();
+      assert(from && to);
+      await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(to.x + to.width - 2, from.y + from.height / 2, { steps: 30 });
+      await page.mouse.up();
+    }
+    const infoPath = fastapi ? '/system/user/current/info' : '/system/auth/get-permission-info';
+    const loginPromise = page.waitForResponse(r => r.url().includes('/system/auth/login') && r.request().method() === 'POST');
+    const menuPromise = page.waitForResponse(r => r.url().includes(infoPath) && r.request().method() === 'GET');
+    await page.getByRole('button', { name: /^登\s*录$|^sign in$|^login$/i }).first().click();
+    const response = await loginPromise;
+    assert(response.ok(), 'Native browser login HTTP failure');
+    const loginBody = await response.json();
+    assert([0, 200].includes(loginBody.code), 'Native browser login application failure');
+    const menuResponse = await menuPromise;
+    assert(menuResponse.ok());
+    const info = await menuResponse.json();
+    assert([0, 200].includes(info.code));
+    assert(info.data.menus && info.data.menus.length, 'Native server returned no menus');
+    const listPath = fastapi ? '/system/user/list' : '/system/user/page';
+    const listPromise = page.waitForResponse(r => r.url().includes(listPath) && r.request().method() === 'GET');
+    await page.goto(base + '/#/system/user', { waitUntil: 'domcontentloaded' });
+    const listResponse = await listPromise;
+    assert(listResponse.ok());
+    const data = await listResponse.json();
+    assert([0, 200].includes(data.code), 'Native user page API rejected the browser request');
+    await page.locator(fastapi ? '.el-table' : '.vxe-table').first().waitFor({ state: 'visible' });
+    await page.screenshot({ path: path.join(reportDir, 'native-user-page.png'), fullPage: true });
+    assert.equal(errors.length, 0, 'Frontend emitted uncaught runtime errors');
+    Object.assign(report, { passed: true, real_login: true, native_menu_received: true, original_user_page_rendered: true });
+    console.log('Original native frontend: real login, menus and user page PASS');
+  } catch (error) {
+    report.error = error.message;
+    await page.screenshot({ path: path.join(reportDir, 'browser-failure.png'), fullPage: true }).catch(() => {});
+    throw error;
+  } finally {
+    report.page_errors = errors;
+    fs.writeFileSync(path.join(reportDir, 'browser.json'), JSON.stringify(report, null, 2));
+    await browser.close();
+  }
+}
+main().catch(error => { console.error(error.message); process.exitCode = 1; });
 ````
 
 ### `scripts/rebuild_from_handbook.py`
@@ -6337,6 +7476,207 @@ jobs:
           path: |
             workbench-source.zip
             从零实现AI研发平台_逐步实操手册_完整版_v3.md
+````
+
+### `.github/workflows/native-runtime.yml`
+
+<!-- source-file: .github/workflows/native-runtime.yml sha256: 58c682184145f5f9e012d8cd76ff2161f5821b04987f76ddc1b04529c4189e06 -->
+````yaml
+name: Native baseline acceptance
+on:
+  push:
+    branches: [feat/python314-workbench]
+    paths:
+      - 'workbench/native*.py'
+      - 'scripts/ci_native*.py'
+      - 'scripts/native_browser.cjs'
+      - '.github/workflows/native-runtime.yml'
+  pull_request:
+    paths:
+      - 'workbench/native*.py'
+      - 'scripts/ci_native*.py'
+      - 'scripts/native_browser.cjs'
+      - '.github/workflows/native-runtime.yml'
+permissions:
+  contents: read
+concurrency:
+  group: native-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  runtime:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - template: fastapiadmin
+            repository: fastapiadmin/FastapiAdmin
+            revision: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
+            pnpm: '9.15.3'
+          - template: yudao-vben
+            repository: yudaocode/yudao-cloud-mini
+            revision: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
+            pnpm: '11.16.0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: native_codegen
+          POSTGRES_USER: native
+          POSTGRES_PASSWORD: native-ci-only
+        ports: ['127.0.0.1:5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U native -d native_codegen"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports: ['127.0.0.1:6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repository }}
+          ref: ${{ matrix.revision }}
+          path: .native/source
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: matrix.template == 'yudao-vben'
+        with:
+          repository: yudaocode/yudao-ui-admin-vben
+          ref: 1b14e889f529e245fd620daa720dcea6de0cc5e7
+          path: .native/frontend
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-java@v4
+        if: matrix.template == 'yudao-vben'
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+          cache-dependency-path: .native/source/**/pom.xml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install pinned native frontend package manager
+        run: npm install --global pnpm@${{ matrix.pnpm }}
+      - name: Install isolated browser test tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          PLAYWRIGHT_BROWSERS_PATH=0 .native/browser/node_modules/.bin/playwright install --with-deps chromium
+      - run: uv sync --locked --all-extras
+      - name: Verify original native backend, roles, build and browser
+        run: uv run python -m scripts.ci_native_runtime ${{ matrix.template }} --frontend
+        env:
+          NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
+          PLAYWRIGHT_BROWSERS_PATH: '0'
+      - name: Preserve revisions and actual evidence
+        if: always()
+        run: |
+          mkdir -p reports/native
+          git rev-parse HEAD > reports/native/platform-sha.txt
+          git -C .native/source rev-parse HEAD > reports/native/upstream-sha.txt
+          if [ -d .native/frontend/.git ]; then git -C .native/frontend rev-parse HEAD > reports/native/frontend-sha.txt; fi
+          git archive --format=zip --output=reports/native/platform-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: native-runtime-${{ matrix.template }}
+          path: reports/native/
+          retention-days: 7
+````
+
+### `.github/workflows/native-probe.yml`
+
+<!-- source-file: .github/workflows/native-probe.yml sha256: 9ae954b8562687714af1d4ff755a0a3cfb12e12289ec2c97f8d2bb64765b4536 -->
+````yaml
+name: Native baseline discovery
+on:
+  push:
+    branches: [feat/python314-workbench]
+    paths: [.github/workflows/native-probe.yml]
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: fastapiadmin/FastapiAdmin
+          ref: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
+          path: upstream/fastapiadmin
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: yudaocode/yudao-cloud-mini
+          ref: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
+          path: upstream/backend
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: yudaocode/yudao-ui-admin-vben
+          ref: 1b14e889f529e245fd620daa720dcea6de0cc5e7
+          path: upstream/frontend
+          persist-credentials: false
+      - name: Export exact source for adapter development
+        run: |
+          mkdir -p archives
+          for slot in fastapiadmin backend frontend; do
+            git -C upstream/$slot archive HEAD | gzip > archives/$slot.tar.gz
+            git -C upstream/$slot rev-parse HEAD > archives/$slot.sha
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: native-pinned-development-sources
+          path: archives/
+          retention-days: 3
+  fastapi-dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: fastapiadmin/FastapiAdmin
+          ref: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - name: Resolve original backend with Python 3.14
+        working-directory: backend
+        run: uv sync
+      - name: Export resolved dependency lock
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: fastapi-native-dependency-lock
+          path: backend/uv.lock
+          retention-days: 3
+  java-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: yudaocode/yudao-cloud-mini
+          ref: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Compile the native aggregate server
+        run: mvn -B -ntp -pl yudao-server -am package -DskipTests
 ````
 
 ## 平台真实依赖锁
@@ -8087,4 +9427,216 @@ uv sync --locked --extra postgres
 - FastapiAdmin： https://github.com/fastapiadmin/FastapiAdmin
 - 芋道后端： https://gitee.com/yudaocode/yudao-cloud-mini
 - 芋道Vben： https://gitee.com/yudaocode/yudao-ui-admin-vben
+````
+
+### `docs/native-baseline.md`
+
+<!-- source-file: docs/native-baseline.md sha256: 78e2370b585edb4d519b55ba0102127cd31c88104d04519cf6adb4730befb3a5 -->
+````markdown
+## 19. 验证原生框架：启动、登录、角色权限与前端
+
+这一章验证固定上游版本自身的运行基线，不改变默认 Python 产品流程，也不把 `SOURCE_READY` 改为 `READY`。**原生生成文件自动挂载、生成模块菜单与权限集成、生成业务完整运行验收仍未完成。** 原框架自己的用户管理页面通过测试，不能代替生成业务验收。
+
+### 19.1 本章创建的文件及连接顺序
+
+本章所有文件的完整内容在下方源码附录；按下面顺序创建，不要根据名称自行补实现。
+
+| 文件 | 工作 | 连接到哪里 |
+|---|---|---|
+| `workbench/native_environment.py` | 检查专用数据库、复制原生源码、安装依赖、启动和停止后端、真实登录 | 复用 `filesystem` 和 `tools`，不读取模型密钥 |
+| `workbench/native_checks.py` | 调用原生用户、角色和菜单接口测试授权与撤销 | 使用真实后端 HTTP，不修改鉴权实现 |
+| `workbench/native_frontend.py` | 冻结安装依赖、Vite 构建生成声明、类型检查、启动预览 | 使用上游原生目录和脚本 |
+| `scripts/native_browser.cjs` | Chromium 浏览器真实登录并打开原生用户管理页面 | 不注入 token、不伪造 HTTP 响应 |
+| `scripts/ci_native_runtime.py` | 串联整次原生基线验收，保存每一步证据 | 调用上面四个文件 |
+| `tests/test_native_baseline.py` | 单元测试路径、环境隔离、响应码与菜单树算法 | 不代替真实服务测试 |
+| `.github/workflows/native-runtime.yml` | 两套原生框架分别在 PostgreSQL、Redis 环境运行 | 独立于默认 Python 产品验收 |
+
+运行链：复制固定源码 → 检查空专用库 → 初始化原生数据库 → 安装/编译 → 启动原生后端 → 登录 → 最小权限测试 → 前端安装/Vite 生成与构建/类型检查 → Chromium 登录与原生页面验证 → 保存报告。
+
+### 19.2 版本与环境
+
+| 部分 | 固定输入 |
+|---|---|
+| 平台及 FastapiAdmin 后端 | Python 3.14；平台依赖使用仓库 `uv.lock` |
+| FastapiAdmin 源码 | `1cd12c726ad9032c17ef85ce805ce991be60fbdf` |
+| 芋道后端源码 | `47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be`，JDK 17 |
+| Vben 源码 | `1b14e889f529e245fd620daa720dcea6de0cc5e7` |
+| Node | 22 系列，至少满足 Vben 的 22.18 要求 |
+| FastapiAdmin 的 pnpm | 9.15.3 |
+| Vben 的 pnpm | 11.16.0 |
+| 浏览器测试工具 | Playwright 1.56.1，Chromium |
+| 数据库与缓存 | 本机 PostgreSQL 17、Redis 7.4 |
+
+平台自身仍可用 SQLite。PostgreSQL 和 Redis 是本章原生框架运行的依赖，不是平台初次体验的前置条件。
+
+原生运行脚本当前在 Linux CI 验证。Windows 用户可以在 WSL 2 的 Linux 目录执行本章命令；不要把 Windows 的 `.venv` 复制到 WSL。默认 Python 产品的 Windows 验收和原生框架 Linux 验收是不同范围。
+
+### 19.3 先验证平台代码
+
+以下命令在仓库根目录执行：
+
+```bash
+uv python install 3.14
+uv sync --locked --all-extras
+uv run python --version
+uv run pytest tests/test_native_baseline.py -q
+```
+
+`--all-extras` 在这里安装 PostgreSQL 驱动，不会自动启动数据库。
+
+### 19.4 建立隔离的开发数据库
+
+只对你自己创建的空开发库执行。不要填写生产连接字符串，也不要为了通过测试删除现有数据库。
+
+下面示例需要已安装并启动 Docker。第一次执行：
+
+```bash
+export NATIVE_PG_PASSWORD="$(uv run python -c 'import secrets; print(secrets.token_urlsafe(24))')"
+docker run -d --name rnd-native-pg \
+  -e POSTGRES_USER=native \
+  -e POSTGRES_PASSWORD="$NATIVE_PG_PASSWORD" \
+  -e POSTGRES_DB=fastapi_codegen \
+  -p 127.0.0.1:5432:5432 postgres:17
+docker run -d --name rnd-native-redis \
+  -p 127.0.0.1:6379:6379 redis:7.4-alpine
+```
+
+检查服务：
+
+```bash
+docker exec rnd-native-pg pg_isready -U native -d fastapi_codegen
+docker exec rnd-native-redis redis-cli ping
+```
+
+数据库应显示 accepting connections；Redis 应返回 PONG。端口被占用时先处理冲突，不要连接另一个未知服务。
+
+为第二套模板建立另一个空库：
+
+```bash
+docker exec rnd-native-pg psql -U native -d postgres -v ON_ERROR_STOP=1 \
+  -c 'CREATE DATABASE yudao_codegen'
+```
+
+本章使用无密码 Redis，仅限上述绑定回环地址的临时开发环境。不是公网部署配置。数据库名称必须匹配小写标识并以 `_codegen` 结尾；脚本检测到已有表会拒绝初始化，不会替你删库重建。芋道上游种子 SQL 含删除语句，因此空库检查是强制门禁。
+
+### 19.5 取得固定原生源码
+
+下面命令只运行一次。目录已存在时先确认版本，不要覆盖旧工作副本。
+
+```bash
+mkdir -p .native
+git clone https://github.com/fastapiadmin/FastapiAdmin.git .native/fa-source
+git -C .native/fa-source checkout --detach 1cd12c726ad9032c17ef85ce805ce991be60fbdf
+git clone https://github.com/yudaocode/yudao-cloud-mini.git .native/yudao-source
+git -C .native/yudao-source checkout --detach 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
+git clone https://github.com/yudaocode/yudao-ui-admin-vben.git .native/vben-source
+git -C .native/vben-source checkout --detach 1b14e889f529e245fd620daa720dcea6de0cc5e7
+```
+
+原生验证使用这三个已固定并实际下载的 GitHub 提交。使用 Gitee 时必须另外核对对应 SHA，不能假定镜像同步。
+
+### 19.6 安装浏览器测试工具
+
+先确认 `node --version` 满足前述要求，再执行：
+
+```bash
+npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+export PLAYWRIGHT_BROWSERS_PATH=0
+.native/browser/node_modules/.bin/playwright install --with-deps chromium
+```
+
+这只给验证脚本安装浏览器工具，没有将 Playwright 添加到平台运行依赖。Linux 浏览器系统库安装可能需要 sudo 权限。
+
+### 19.7 执行 FastapiAdmin 基线
+
+```bash
+npm install --global pnpm@9.15.3
+export NATIVE_TEST_DATABASE_URL="postgresql+psycopg://native:${NATIVE_PG_PASSWORD}@127.0.0.1:5432/fastapi_codegen"
+uv run python -m scripts.ci_native_runtime fastapiadmin \
+  --source .native/fa-source --output .native/fa-product --frontend
+```
+
+脚本复制原生源码到新工作目录，不修改原始 `.native/fa-source`。后端监听 8001，前端预览监听 5173。`ENVIRONMENT=dev` 用于回环 HTTP 测试，`DEBUG=False`；原生生产模式的 HTTPS 跳转不适用于这个直接 HTTP 的实验。不要把测试环境参数复制到生产部署。当前 FastapiAdmin 开发启动可能生成自身迁移，测试仅在空专用库执行；平台自己的 Alembic 不代管上游数据库。
+
+浏览器使用上游初始化的本地示例用户，执行页面上的真实登录与本地拖动校验。报告不保存访问令牌。后端不是 mock，API 返回的角色和菜单也不是前端伪造数据。
+
+### 19.8 执行芋道 + Vben 基线
+
+先确认 `java -version`、`mvn -version` 中是 JDK 17。第二套模板运行前先保存上一套报告，避免相同默认报告目录覆盖结果。
+
+```bash
+cp -r reports/native reports/native-fastapiadmin
+npm install --global pnpm@11.16.0
+export NATIVE_TEST_DATABASE_URL="postgresql+psycopg://native:${NATIVE_PG_PASSWORD}@127.0.0.1:5432/yudao_codegen"
+uv run python -m scripts.ci_native_runtime yudao-vben \
+  --source .native/yudao-source --output .native/yudao-product \
+  --frontend-source .native/vben-source --frontend
+```
+
+脚本先用原生 PostgreSQL 种子初始化空库，给复制后的 `yudao-server` 创建 `application-native.properties`。凭据由进程环境变量提供，不写进该文件。JDBC 检查语句是 PostgreSQL 的 `SELECT 1`，而不是 MySQL 示例的 `SELECT 1 FROM DUAL`。
+
+`yudao.security.mock-enable=false` 保持真实鉴权。验证码在临时实验环境显式关闭，浏览器仍必须用真实用户名密码获得原生 token。服务端监听 48080，Vben 使用原生 `/admin-api` 代理。Java 构建和启动显式设置 `LANG=C.UTF-8`、`LC_ALL=C.UTF-8`，防止清理子进程环境后中文文件名无法解析。
+
+当前 Maven 命令先用 `-DskipTests` 构建，这是**编译步骤**，不能被写成 Java 单元测试全部通过；紧接着执行的 HTTP 权限和浏览器检查才是本章运行验收。
+
+### 19.9 如何读取证据
+
+报告目录 `reports/native/`：
+
+| 文件 | 表示什么 |
+|---|---|
+| `backend-build.log` | 实际依赖安装或 Maven 编译日志 |
+| `backend-runtime.log` | 原生后端启动及请求日志 |
+| `openapi.json` | 本次真实运行服务导出的接口 |
+| `baseline.json` | 原生启动与登录已达到的结果 |
+| `permissions.json` | 无权限、授权、撤销等实际检查结果 |
+| `frontend-install.log` / `frontend-typecheck.log` / `frontend-build.log` | 各阶段真实工具输出 |
+| `frontend-build.json` | 构建命令、锁文件哈希和范围 |
+| `browser.json`、`native-user-page.png` | Chromium 实际登录及原生用户页面证据 |
+| `failure.log`、`browser-failure.png` | 失败位置；存在这些文件时先看失败原因 |
+| `acceptance.json` | 整次命令完成后的范围和结果 |
+
+命令退出码非零就是失败。只存在部分 JSON 不代表后续通过。每份最终报告都保留 `generated_runtime_verified=false`；原框架测试完成也不会把生成业务改成已验证。
+
+### 19.10 权限验收到底测试什么
+
+脚本通过真实管理员 API 创建专用测试用户和普通角色，只在临时数据库留下测试记录。按顺序确认：未登录拒绝；伪造示例 token 拒绝；空角色拒绝读取；管理员赋予用户管理读权限后可以读取；菜单出现在原生登录信息里；没有写权限时创建角色被拒绝；撤销读权限后重新登录仍被拒绝。
+
+菜单页和查询按钮可能使用同一权限标识。脚本收集所有匹配项及其父目录，而不是错误地假定一个权限只能对应一个菜单。授权的是原生用户管理页面，**不是新生成业务页面**。
+
+### 19.11 常见失败与停止条件
+
+后端就绪请求出现 HTTPS 跳转：检查 FastapiAdmin 是否仍被设为 prod；不要关闭正式生产安全配置来迎合测试。
+
+Java 报中文路径 `InvalidPathException`：检查子进程 UTF-8 locale。不要删除上游中文文件来掩盖环境错误。
+
+首次类型检查报 `ref`、`computed`、`ElMessage` 等名称不存在：先让上游 Vite 自动导入插件生成声明，再执行完整类型检查。脚本按安装→Vite 构建→类型检查执行，没有跳过类型门禁。
+
+前端 `--frozen-lockfile` 失败：记录真实锁文件与包管理器版本；不要静默改成无锁安装并继续宣称可复现。
+
+原生权限接口报 403：检查本章新建普通角色与管理员角色是否混用；不要把普通用户改成超级管理员来让断言通过。
+
+前端 API 404：检查 `/api/v1` 与 `/admin-api` 前缀、Vite 代理、实际端口；只看到首页 HTML 200 不等于前后端已联通。
+
+再次运行提示输出目录存在或数据库非空：这是数据保护。建立新的工作目录和新的空专用库；不删除其他项目的数据。
+
+**本章通关：** 原生启动、真实登录、角色读写边界、权限撤销、前端类型检查、构建、浏览器原生页面全部有通过证据。此后才具备继续排查生成业务集成的可靠基线；原生代码生成结果的挂载、菜单注册、生成 API/页面、两用户数据隔离和干净交付仍是独立且未完成的关卡。
+
+### 19.12 GitHub Actions 与手册同步
+
+`Native baseline acceptance` 在 Linux runner 上分别运行两套固定原生框架。PostgreSQL、Redis 是任务创建的临时服务，端口只绑定回环地址。工作流权限为 `contents: read`，不携带模型密钥。
+
+测试结果查看该工作流对应提交的 Jobs 和 `native-runtime-fastapiadmin`、`native-runtime-yudao-vben` artifacts；不要用另一个提交或只有 `native-sources` 的绿色结果代替这次运行。
+
+修改任一本章代码或说明后执行：
+
+```bash
+uv run ruff check --fix workbench scripts tests
+uv run ruff format workbench scripts tests
+uv run python -m scripts.build_handbook
+uv run python -m scripts.build_handbook --check
+uv run pytest -m 'not postgres' -q
+```
+
+根目录整份 Markdown 自动包含本章正文、相关源码和 CI 配置，不需要读者自己拼接多个补丁文件。
 ````

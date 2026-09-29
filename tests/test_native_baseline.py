@@ -11,12 +11,15 @@ from workbench.tools import clean_env
 URL = "postgresql+psycopg://native:example@127.0.0.1:5432/test_codegen"
 
 
-@pytest.mark.parametrize("url", [
-    "sqlite:///example.db",
-    "postgresql://user:pass@database.example/test_codegen",
-    "postgresql://user:pass@127.0.0.1/production",
-    "postgresql://user:pass@127.0.0.1/test%0aname_codegen",
-])
+@pytest.mark.parametrize(
+    "url",
+    [
+        "sqlite:///example.db",
+        "postgresql://user:pass@database.example/test_codegen",
+        "postgresql://user:pass@127.0.0.1/production",
+        "postgresql://user:pass@127.0.0.1/test%0aname_codegen",
+    ],
+)
 def test_native_database_is_loopback_dedicated(url):
     with pytest.raises(ValueError):
         checked_database(url)
@@ -79,13 +82,17 @@ def test_menu_parent_cycle_rejected():
 
 @pytest.mark.parametrize("status,code", [(401, 401), (403, 403), (200, 401), (200, 403)])
 def test_native_denial_accepts_http_or_application_status(status, code):
-    response = httpx.Response(status, json={"code": code}, request=httpx.Request("GET", "http://127.0.0.1/api"))
+    response = httpx.Response(
+        status, json={"code": code}, request=httpx.Request("GET", "http://127.0.0.1/api")
+    )
     denied(response)
     assert not successful(response)
 
 
 def test_native_denial_does_not_accept_server_failure():
-    response = httpx.Response(500, json={"code": 500}, request=httpx.Request("GET", "http://127.0.0.1/api"))
+    response = httpx.Response(
+        500, json={"code": 500}, request=httpx.Request("GET", "http://127.0.0.1/api")
+    )
     with pytest.raises(AssertionError):
         denied(response)
 

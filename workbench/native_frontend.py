@@ -14,23 +14,48 @@ from workbench.tools import clean_env, process_options, run_command, stop_proces
 
 
 def frontend_environment(template, backend_url):
-    common = {"CI": "true", "HUSKY": "0", "LANG": "C.UTF-8", "LC_ALL": "C.UTF-8",
-              "NODE_OPTIONS": "--max-old-space-size=4096 --dns-result-order=ipv4first"}
+    common = {
+        "CI": "true",
+        "HUSKY": "0",
+        "LANG": "C.UTF-8",
+        "LC_ALL": "C.UTF-8",
+        "NODE_OPTIONS": "--max-old-space-size=4096 --dns-result-order=ipv4first",
+    }
     if template == "fastapiadmin":
-        return {**common, "VITE_APP_TITLE": "Native lab", "VITE_VERSION": "3.0.0",
-                "VITE_PORT": "5173", "VITE_BASE_URL": "/", "VITE_APP_BASE_API": "/api/v1",
-                "VITE_API_BASE_URL": backend_url, "VITE_API_TIMEOUT": "120000",
-                "VITE_ACCESS_MODE": "mixed", "VITE_WITH_CREDENTIALS": "false",
-                "VITE_LOCK_ENCRYPT_KEY": "native-lab-only"}
+        return {
+            **common,
+            "VITE_APP_TITLE": "Native lab",
+            "VITE_VERSION": "3.0.0",
+            "VITE_PORT": "5173",
+            "VITE_BASE_URL": "/",
+            "VITE_APP_BASE_API": "/api/v1",
+            "VITE_API_BASE_URL": backend_url,
+            "VITE_API_TIMEOUT": "120000",
+            "VITE_ACCESS_MODE": "mixed",
+            "VITE_WITH_CREDENTIALS": "false",
+            "VITE_LOCK_ENCRYPT_KEY": "native-lab-only",
+        }
     if template != "yudao-vben":
         raise ValueError("Unknown native frontend")
-    return {**common, "VITE_APP_TITLE": "Native lab", "VITE_APP_NAMESPACE": "native-lab-vben",
-            "VITE_APP_STORE_SECURE_KEY": "native-lab-only", "VITE_BASE": "/",
-            "VITE_BASE_URL": backend_url, "VITE_GLOB_API_URL": "/admin-api",
-            "VITE_NITRO_MOCK": "false", "VITE_APP_TENANT_ENABLE": "true",
-            "VITE_APP_CAPTCHA_ENABLE": "false", "VITE_APP_API_ENCRYPT_ENABLE": "false",
-            "VITE_APP_BAIDU_CODE": "", "VITE_ROUTER_HISTORY": "hash", "VITE_PWA": "false",
-            "VITE_ARCHIVER": "false", "VITE_COMPRESS": "none", "VITE_UPLOAD_TYPE": "server"}
+    return {
+        **common,
+        "VITE_APP_TITLE": "Native lab",
+        "VITE_APP_NAMESPACE": "native-lab-vben",
+        "VITE_APP_STORE_SECURE_KEY": "native-lab-only",
+        "VITE_BASE": "/",
+        "VITE_BASE_URL": backend_url,
+        "VITE_GLOB_API_URL": "/admin-api",
+        "VITE_NITRO_MOCK": "false",
+        "VITE_APP_TENANT_ENABLE": "true",
+        "VITE_APP_CAPTCHA_ENABLE": "false",
+        "VITE_APP_API_ENCRYPT_ENABLE": "false",
+        "VITE_APP_BAIDU_CODE": "",
+        "VITE_ROUTER_HISTORY": "hash",
+        "VITE_PWA": "false",
+        "VITE_ARCHIVER": "false",
+        "VITE_COMPRESS": "none",
+        "VITE_UPLOAD_TYPE": "server",
+    }
 
 
 def frontend_app(template, root):
@@ -63,18 +88,40 @@ def build_frontend(template, root, env, reports):
         evidence.append({"name": name, "command": command, "returncode": 0})
     if not (app / "dist/index.html").is_file():
         raise ValueError("Frontend build did not produce dist/index.html")
-    write_json(reports / "frontend-build.json", {"checks": evidence,
-               "lock_sha256": sha(root / "pnpm-lock.yaml"), "scope": "original-upstream-frontend"})
+    write_json(
+        reports / "frontend-build.json",
+        {
+            "checks": evidence,
+            "lock_sha256": sha(root / "pnpm-lock.yaml"),
+            "scope": "original-upstream-frontend",
+        },
+    )
 
 
 @contextmanager
 def frontend_preview(template, root, env, reports):
     app, reports = frontend_app(template, root), Path(reports).resolve()
     url = "http://127.0.0.1:5173"
-    command = ["pnpm", "exec", "vite", "preview", "--host", "127.0.0.1", "--port", "5173", "--strictPort"]
+    command = [
+        "pnpm",
+        "exec",
+        "vite",
+        "preview",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "5173",
+        "--strictPort",
+    ]
     log = (reports / "frontend-runtime.log").open("ab")
-    process = subprocess.Popen(command, cwd=app, env=clean_env(env), stdout=log,
-                               stderr=subprocess.STDOUT, **process_options())
+    process = subprocess.Popen(
+        command,
+        cwd=app,
+        env=clean_env(env),
+        stdout=log,
+        stderr=subprocess.STDOUT,
+        **process_options(),
+    )
     try:
         with httpx.Client(trust_env=False, timeout=3) as client:
             for _ in range(60):
@@ -100,9 +147,20 @@ def browser_check(template, url, reports):
     playwright_module = ROOT / ".native/browser/node_modules/playwright"
     if not playwright_module.exists():
         raise ValueError("Install the pinned Playwright tooling described in the handbook")
-    result = run_command(["node", str(executable), template, url, str(Path(reports).resolve()),
-                          str(playwright_module)], ROOT, 180, {
-                              "NODE_OPTIONS": "--dns-result-order=ipv4first",
-                              "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
-                          })
+    result = run_command(
+        [
+            "node",
+            str(executable),
+            template,
+            url,
+            str(Path(reports).resolve()),
+            str(playwright_module),
+        ],
+        ROOT,
+        180,
+        {
+            "NODE_OPTIONS": "--dns-result-order=ipv4first",
+            "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
+        },
+    )
     atomic_text(Path(reports) / "browser.log", result["log"])
