@@ -18,16 +18,22 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
+      - name: Materialize the reviewed patch against its exact Git preimages
+        if: hashFiles('.maintenance/reviewed.patch') != ''
+        run: |
+          sed -i 's/^ diff --git /diff --git /' .maintenance/reviewed.patch
+          git apply --check --index .maintenance/reviewed.patch
+          git apply --index .maintenance/reviewed.patch
+          rm .maintenance/reviewed.patch
       - name: Resolve isolated, pinned runtimes
         run: |
           uv lock
-          uv lock --project tools/aider
+          uv lock --project tools/aider --python 3.12
           uv sync --locked --all-extras
-          uv sync --locked --project tools/aider
+          uv sync --locked --project tools/aider --python 3.12
           uv run python -c "from importlib.metadata import version; print({p: version(p) for p in ['tree-sitter', 'tree-sitter-java', 'tree-sitter-typescript', 'tree-sitter-html', 'daytona', 'mcp']})"
           tools/aider/.venv/bin/aider --version
-      - name: Format and reconstruct complete handbook when sources are present
-        if: hashFiles('docs/toolchain.md') != ''
+      - name: Format and reconstruct complete handbook
         run: |
           uv run ruff check --fix .
           uv run ruff format .
@@ -40,14 +46,12 @@ jobs:
           git add uv.lock tools/aider/uv.lock
           git add -u
           if ! git diff --cached --quiet; then
-            git commit -m 'build: lock tested tool runtimes and synchronize complete handbook'
+            git commit -m 'build: materialize reviewed integration, lock runtimes and synchronize full handbook'
             git push origin HEAD:feat/controlled-toolchain-integration
           fi
       - name: Focused contract tests
-        if: hashFiles('tests/test_toolchain.py') != ''
         run: uv run pytest tests/test_toolchain.py -q --junitxml=reports/toolchain-contracts.xml
       - name: Actual CLI, parser and MCP protocol tests
-        if: hashFiles('scripts/ci_toolchain.py') != ''
         run: uv run python -m scripts.ci_toolchain
       - name: Package the exact generated source for review
         if: always()

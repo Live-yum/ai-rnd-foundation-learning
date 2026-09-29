@@ -1,0 +1,39 @@
+name: Toolchain integration acceptance
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: toolchain-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  real-tools:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    env:
+      PYTHONUTF8: '1'
+      LITELLM_LOCAL_MODEL_COST_MAP: 'True'
+      AIDER_ANALYTICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - run: uv sync --locked --project tools/aider --python 3.12
+      - run: uv run pytest tests/test_toolchain.py -q --junitxml=reports/toolchain-contracts.xml
+      - run: uv run python -m scripts.ci_toolchain
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: toolchain-${{ matrix.os }}
+          path: reports/

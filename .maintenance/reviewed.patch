@@ -1,0 +1,354 @@
+diff --git a/.env.example b/.env.example
+index b33df6d..38f7da5 100644
+--- a/.env.example
++++ b/.env.example
+@@ -43,3 +43,22 @@ MAX_MODEL_CALLS=0
+ # Follow the handbook before authorizing an existing dedicated EMPTY *_codegen database.
+ # NATIVE_FASTAPIADMIN_DATABASE_URL=postgresql+psycopg://native:password@127.0.0.1:5432/project_codegen
+ # NATIVE_YUDAO_DATABASE_URL=postgresql+psycopg://native:password@127.0.0.1:5432/project_codegen
++
++# 本地上下文默认不调用模型；Aider在独立Python3.12环境安装
++REPO_MAP_PROVIDER=symbols
++REPO_MAP_CHARS=12000
++CODING_ENGINE=bounded
++AIDER_EXECUTABLE=
++# 可选embedding：独立端点/密钥；明确同意上传才调用
++EMBEDDING_BASE_URL=
++EMBEDDING_API_KEY=
++EMBEDDING_MODE=
++EMBEDDING_ALLOW_UPLOAD=false
++EMBEDDING_MAX_CHUNKS=500
++# Daytona默认关闭；不会自动创建收费资源或上传源码
++SANDBOX_PROVIDER=local
++DAYTONA_API_URL=https://app.daytona.io/api
++DAYTONA_API_KEY=
++DAYTONA_TARGET=us
++DAYTONA_SNAPSHOT=
++DAYTONA_ALLOW_UPLOAD=false
+ diff --git a/README.md b/README.md
+index f711768..4f25f46 100644
+--- a/README.md
++++ b/README.md
+@@ -178,3 +178,29 @@ Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新
+ 详细从零实现手册：**`从零实现AI研发平台_逐步实操手册_完整版.md`**。兼容旧链接的 `_v3.md` 与它逐字一致。正文、完整代码、数据库迁移、前端、测试、CI、锁文件一起生成；修改代码后执行 `uv run python -m scripts.build_handbook`。模板ZIP二进制不嵌入Markdown，但已随普通clone包含，附录给出哈希、来源和许可证。
+ 
+ 当前是仅监听本机、单操作人和单Worker的研发工作台。没有公网生产身份体系。请勿公开 `.env`、`.data`、`.deployment` 或访问令牌。更多环境条件、SQL步骤、预算恢复、原生部署与故障定位见完整手册。
++
++## 代码上下文、Aider、Continue 与 Daytona
++
++实际流程新增“需求确认 → 模板源码索引/检索/仓库地图 → 规划”，以及“本机验收 → 可选 Daytona 附加验收 → 原有打包/干净解压复验”。CRUD、迁移和菜单仍优先用现有确定性/原生生成器，不交给 LLM 重写。
++
++默认安装即包含 Java/TS/Vue Tree-sitter 解析与本地 SQLite FTS5 检索，不需要新账户：
++
++```bash
++uv run rnd index templates/product .data/examples/product-index
++uv run rnd tools search templates/product .data/examples/product-index "validate"
++uv run rnd tools continue-config . templates/product .data/examples/product-index
++```
++
++最后一条为 Continue 创建 `.continue/mcpServers/rnd.json`，只读查询与仓库地图通过真实 MCP 协议访问同一索引；没有复制或冒充 Continue 的私有索引引擎。配置已存在时拒绝覆盖。索引结果含路径、行号和 SHA，源码变化先重建，默认不上传向量。
++
++Aider 是可选独立工具环境，**平台仍是 Python 3.14**：
++
++```bash
++uv sync --locked --project tools/aider --python 3.12
++```
++
++设置 `.env` 的 `REPO_MAP_PROVIDER=aider` 使用真实 Repo Map；`CODING_ENGINE=aider` 使用真实 SEARCH/REPLACE 应用引擎。模型调用仍走平台安全的多模型配置和预算，Aider 不接收真实 Key。当前自动编辑只开放已批准的 Python 业务规则文件；不声称任意 Java/Vue 业务已经自动适配。前后文件哈希、diff、Git commit 和验证回执均保留。
++
++Daytona 默认 `SANDBOX_PROVIDER=local`（关闭）。启用需 `uv sync --locked --extra daytona`，独立 Daytona Key、已审核快照以及 `DAYTONA_ALLOW_UPLOAD=true`；会上传产品源码并可能产生账户费用。Python/SQLite 远程执行真实运行检查；原生通道是额外构建检查，不能替代现有数据库/浏览器/新库恢复。任何远程检查或清理失败都阻止交付，不偷偷回退到“成功”。
++
++完整安装、可选向量及独立密钥、Continue Agent 配置、Daytona 快照要求、失败处理和从零实现步骤见 [工具链实操章节](docs/toolchain.md)，也已纳入两份完整手册的正文及完整源码附录。凭据未提供时只可声明 SDK 契约测试，不可声明你的 Daytona 账户已经通过真实云验收。
+diff --git a/scripts/build_handbook.py b/scripts/build_handbook.py
+index d98d4b7..d99f885 100644
+--- a/scripts/build_handbook.py
++++ b/scripts/build_handbook.py
+@@ -7,7 +7,7 @@ from pathlib import Path
+ ROOT = Path(__file__).resolve().parents[1]
+ OUTPUT = ROOT / "从零实现AI研发平台_逐步实操手册_完整版.md"
+ LEGACY = ROOT / "从零实现AI研发平台_逐步实操手册_完整版_v3.md"
+-GUIDES = ["docs/guide.md", "docs/native-baseline.md"]
++GUIDES = ["docs/guide.md", "docs/native-baseline.md", "docs/toolchain.md"]
+ GROUPS = [
+     (
+         "项目配置",
+@@ -40,9 +40,10 @@ GROUPS = [
+         "工具及Actions",
+         [
+             "scripts",
+-            ".github/workflows/test.yml",
+-            ".github/workflows/native-runtime.yml",
+-            ".github/workflows/native-probe.yml",
++            ".github/workflows",
++            "tools/aider/pyproject.toml",
++            "tools/aider/.python-version",
++            "tools/aider/uv.lock",
+         ],
+     ),
+     ("平台依赖锁", ["uv.lock"]),
+diff --git a/workbench/cli.py b/workbench/cli.py
+index fd5e758..332cee4 100644
+--- a/workbench/cli.py
++++ b/workbench/cli.py
+@@ -13,10 +13,12 @@ from workbench.catalog import Selection, selections
+ from workbench.conversation import command_word
+ from workbench.settings import ROOT, STAGES, Settings
+ from workbench.store import Store
++from workbench.toolchain import app as tools_app
+ 
+ app = typer.Typer(no_args_is_help=True, help="本地 AI 研发平台（Python 3.14）")
+ native_app = typer.Typer(no_args_is_help=True)
+ app.add_typer(native_app, name="native")
++app.add_typer(tools_app, name="tools")
+ 
+ 
+ def echo(value):
+diff --git a/workbench/filesystem.py b/workbench/filesystem.py
+index 32a7780..9a765b6 100644
+--- a/workbench/filesystem.py
++++ b/workbench/filesystem.py
+@@ -17,6 +17,7 @@ EXCLUDED_DIRS = {
+     ".ruff_cache",
+     ".data",
+     ".deployment",
++    ".continue",
+     "target",
+     "dist",
+     "logs",
+@@ -28,8 +29,9 @@ def secret_name(path):
+     return (
+         name == ".env"
+         or (name.startswith(".env.") and not name.endswith(".example"))
+-        or name.endswith((".pem", ".key", ".p12", ".pfx", ".db", ".db-wal", ".db-shm"))
+-        or name in {"access-token", "id_rsa", "id_ed25519", "credentials.json"}
++        or name.startswith(".aider.")
++        or name.endswith((".sqlite3", ".sqlite", ".pem", ".key", ".p12", ".pfx", ".db", ".db-wal", ".db-shm"))
++        or name in {"access-token", "id_rsa", "id_ed25519", "credentials.json", ".pypirc", ".netrc", ".git-credentials"}
+     )
+ 
+ 
+diff --git a/workbench/flow.py b/workbench/flow.py
+index 71d0f30..17819df 100644
+--- a/workbench/flow.py
++++ b/workbench/flow.py
+@@ -50,6 +50,8 @@ class State(TypedDict, total=False):
+     delivery: dict
+     status: str
+     model_review: dict
++    code_context: dict
++    sandbox: dict
+ 
+ 
+ class Workflow:
+@@ -109,6 +111,13 @@ class Workflow:
+             outcome["status"] = "REJECTED"
+         return outcome
+ 
++    def source_context(self, state):
++        from workbench.toolchain import prepare_context
++
++        value = prepare_context(self.settings, state["template"], state["requirement"],
++                                self.product(state).parent / "source-context")
++        return {"code_context": value}
++
+     def plan(self, state):
+         value = self.gateway.complete(
+             state["run_id"],
+@@ -116,6 +125,7 @@ class Workflow:
+             PLAN,
+             {
+                 "approved_requirement": state["requirement"],
++                "code_context": state.get("code_context", {}),
+                 "template_capabilities": options_for_run(
+                     self.store.get_run(state["run_id"])
+                 ).capabilities(),
+@@ -150,6 +160,12 @@ class Workflow:
+                     runtime_config(self.settings, state["template"])
+             except (ValueError, PrerequisiteError) as exc:
+                 reasons.append(str(exc))
++        from workbench.sandbox import validate_configuration
++
++        try:
++            validate_configuration(self.settings, state["template"], selection.model_dump())
++        except (ValueError, PrerequisiteError) as exc:
++            reasons.append(str(exc))
+         pack = design_pack(
+             plan, self.product(state).parent / "design", state["template"], selection.model_dump()
+         )
+@@ -187,6 +203,16 @@ class Workflow:
+         self.store.step(state["run_id"], "generate:" + digest(state["plan"]), fn)
+         return {}
+ 
++    def run_coder(self, state, plan):
++        if self.settings.coding_engine == "aider":
++            from workbench.aider_tool import code_rules_with_aider
++
++            return code_rules_with_aider(state["run_id"], plan, self.product(state),
++                                         self.gateway, self.settings, state["attempt"],
++                                         state.get("verification", {}).get("error", ""))
++        return code_rules(state["run_id"], plan, self.product(state), self.gateway,
++                          state["attempt"], state.get("verification", {}).get("error", ""))
++
+     def code(self, state):
+         plan = Plan.model_validate(state["plan"])
+         if not plan.custom_rules:
+@@ -195,14 +221,7 @@ class Workflow:
+             self.store.step(
+                 state["run_id"],
+                 f"code:{digest(state['plan'])[:12]}:{state['attempt']}",
+-                lambda: code_rules(
+-                    state["run_id"],
+-                    plan,
+-                    self.product(state),
+-                    self.gateway,
+-                    state["attempt"],
+-                    state.get("verification", {}).get("error", ""),
+-                ),
++                lambda: self.run_coder(state, plan),
+             )
+         except (SyntaxError, ValueError) as exc:
+             return {"verification": {"passed": False, "kind": "code", "error": str(exc)[:500]}}
+@@ -224,7 +243,7 @@ class Workflow:
+ 
+     def after_verify(self, state):
+         if state["verification"]["passed"]:
+-            return "model_review"
++            return "sandbox"
+         if (
+             state["plan"].get("custom_rules")
+             and state["attempt"] < self.settings.max_repair_attempts
+@@ -235,6 +254,14 @@ class Workflow:
+             "独立验收未通过，已停止：" + state["verification"].get("error", "未知错误")
+         )
+ 
++    def sandbox(self, state):
++        if self.settings.sandbox_provider == "local":
++            return {"sandbox": {"enabled": False, "provider": "local", "remote_upload": False}}
++        from workbench.sandbox import verify_in_daytona
++
++        result = verify_in_daytona(self.product(state), state["template"], self.settings)
++        return {"sandbox": {"enabled": True, **result}}
++
+     def model_review(self, state):
+         if not self.settings.review_enabled:
+             return {
+@@ -293,6 +320,7 @@ class Workflow:
+         for name in (
+             "analyse",
+             "requirements",
++            "source_context",
+             "plan",
+             "design",
+             "generate",
+@@ -300,6 +328,7 @@ class Workflow:
+             "verify",
+             "repair",
+             "model_review",
++            "sandbox",
+             "package",
+             "delivery",
+         ):
+@@ -311,9 +340,10 @@ class Workflow:
+             lambda s: (
+                 END
+                 if s["decision"] == "reject"
+-                else ("plan" if s["decision"] == "approve" else "analyse")
++                else ("source_context" if s["decision"] == "approve" else "analyse")
+             ),
+         )
++        graph.add_edge("source_context", "plan")
+         graph.add_edge("plan", "design")
+         graph.add_conditional_edges(
+@@ -327,6 +357,7 @@ class Workflow:
+         graph.add_edge("code", "verify")
+         graph.add_conditional_edges("verify", self.after_verify)
+         graph.add_edge("repair", "code")
++        graph.add_edge("sandbox", "model_review")
+         graph.add_edge("model_review", "package")
+         graph.add_edge("package", "delivery")
+         graph.add_edge("delivery", END)
+diff --git a/workbench/knowledge.py b/workbench/knowledge.py
+index 3bedc4f..44b2879 100644
+--- a/workbench/knowledge.py
++++ b/workbench/knowledge.py
+@@ -7,17 +7,20 @@ from pathlib import Path
+ from workbench.domain import digest
+ from workbench.filesystem import atomic_text, files, inside, manifest, secret_name, write_json
+ 
+-INDEX_VERSION = 1
++INDEX_VERSION = 2
+ 
+ 
+ def build_index(source, output, source_version="local"):
+     source, output = Path(source).resolve(), Path(output).resolve()
+     if output == source or source in output.parents:
+         raise ValueError("知识包输出必须位于源码目录外，避免自我索引")
++    from workbench.symbols import parse_file, parser_identity
++
++    identity = parser_identity()
+     cached = {}
+     if (output / "index.json").exists():
+         old = json.loads((output / "index.json").read_text(encoding="utf-8"))
+-        if old.get("schema") == INDEX_VERSION:
++        if old.get("schema") == INDEX_VERSION and old.get("parsers") == identity:
+             cached = old.get("files", {})
+     hashes = manifest(source)
+     entries, parsed, reused = {}, 0, 0
+@@ -47,9 +50,12 @@ def build_index(source, output, source_version="local"):
+                 parsed += 1
+             except SyntaxError, UnicodeError:
+                 entry["parse_error"] = True
++        if path.suffix != ".py":
++            entry.update(parse_file(path))
+         entries[name] = entry
+     result = {
+         "schema": INDEX_VERSION,
++        "parsers": identity,
+         "source_version": source_version,
+         "source_digest": digest(hashes),
+         "files": entries,
+@@ -65,6 +71,9 @@ def build_index(source, output, source_version="local"):
+         output / "build-stats.json",
+         {"parsed_python": parsed, "reused": reused, "files": len(entries)},
+     )
++    from workbench.retrieval import write_search_index
++
++    write_search_index(source, output, result)
+     return {
+         "source_digest": result["source_digest"],
+         "parsed_python": parsed,
+diff --git a/workbench/settings.py b/workbench/settings.py
+index b137554..8d5e39d 100644
+--- a/workbench/settings.py
++++ b/workbench/settings.py
+@@ -88,6 +88,21 @@ class Settings(BaseSettings):
+     enable_coding: bool = True
+     max_repair_attempts: int = Field(default=2, ge=0, le=2)
+     tool_timeout: int = Field(default=180, ge=10, le=900)
++    coding_engine: Literal["bounded", "aider"] = "bounded"
++    aider_executable: str = ""
++    repo_map_provider: Literal["symbols", "aider"] = "symbols"
++    repo_map_chars: int = Field(default=12000, ge=1000, le=40000)
++    embedding_base_url: str = ""
++    embedding_api_key: SecretStr = SecretStr("")
++    embedding_model: str = Field(default="", validation_alias=AliasChoices("EMBEDDING_MODE", "embedding_model"))
++    embedding_allow_upload: bool = False
++    embedding_max_chunks: int = Field(default=500, ge=1, le=40000)
++    sandbox_provider: Literal["local", "daytona"] = "local"
++    daytona_api_url: str = "https://app.daytona.io/api"
++    daytona_api_key: SecretStr = SecretStr("")
++    daytona_target: str = "us"
++    daytona_snapshot: str = ""
++    daytona_allow_upload: bool = False
+     checkpoint_url: str = ""
+     host: str = "127.0.0.1"
+     port: int = Field(default=8000, ge=1024, le=65535)
+@@ -140,7 +155,7 @@ class Settings(BaseSettings):
+         )
+ 
+     def redact(self, text: str) -> str:
+-        for field in ("api_key", "product_postgres_url", *(stage + "_api_key" for stage in STAGES)):
++        for field in ("api_key", "product_postgres_url", "embedding_api_key", "daytona_api_key", *(stage + "_api_key" for stage in STAGES)):
+             secret = getattr(self, field).get_secret_value()
+             if secret:
+                 text = text.replace(secret, "[redacted]")
