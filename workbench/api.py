@@ -7,16 +7,17 @@ import threading
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from filelock import FileLock
 from sqlalchemy import text
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
-from workbench.domain import ProjectInput, ResumeInput, RunInput
+from workbench.catalog import selections
+from workbench.domain import AutomationInput, ProjectInput, ResumeInput, RunInput
 from workbench.filesystem import inside
 from workbench.runtime import Runtime
-from workbench.settings import Settings
+from workbench.settings import ROOT, STAGES, Settings
 from workbench.store import Conflict, Missing, Store
 
 
@@ -68,6 +69,48 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
     @app.exception_handler(Missing)
     async def missing_handler(request, exc):
         return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+    @app.get("/", include_in_schema=False)
+    def workspace_page():
+        return FileResponse(
+            ROOT / "workbench/web/index.html",
+            headers={"Cache-Control": "no-store", "Referrer-Policy": "no-referrer"},
+        )
+
+    @app.get("/ui/{asset}", include_in_schema=False)
+    def ui_asset(asset: str):
+        if asset not in {"app.js", "style.css"}:
+            raise HTTPException(404)
+        return FileResponse(ROOT / "workbench/web" / asset)
+
+    @app.get("/catalog")
+    def catalog(store=Depends(auth)):
+        return selections()
+
+    @app.get("/models")
+    def models(store=Depends(auth)):
+        result = []
+        for stage in STAGES:
+            try:
+                profile = settings.model_for(stage)
+                row = profile.public()
+                profile.validate_endpoint()
+                row["valid"] = True
+            except ValueError as exc:
+                row = {"stage": stage, "valid": False, "error": settings.redact(str(exc))}
+            row["enabled"] = stage != "review" or settings.review_enabled
+            result.append(row)
+        return result
+
+    @app.get("/runs/{run_id}/models")
+    def run_models(run_id: str, store=Depends(auth)):
+        return store.model_records(run_id)
+
+    @app.post("/runs/{run_id}/automation", status_code=202)
+    def automation(
+        run_id: str, body: AutomationInput, idempotency_key: str = Header(), store=Depends(auth)
+    ):
+        return store.set_automation(run_id, body.enabled, idempotency_key)
 
     @app.get("/health")
     def health():

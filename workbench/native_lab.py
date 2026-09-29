@@ -22,6 +22,12 @@ from workbench.native_environment import (
 )
 from workbench.native_frontend import build_frontend, frontend_environment, frontend_preview
 from workbench.native_modules import create_native_tables, generate_modules, validate_plan
+from workbench.portable import (
+    build_native_delivery,
+    export_menu_sql,
+    menu_snapshot,
+    verify_native_delivery,
+)
 from workbench.settings import ROOT
 from workbench.tools import run_command
 
@@ -52,7 +58,7 @@ def generated_browser(template, front_url, reports):
     atomic_text(reports / "browser.log", result["log"])
 
 
-def run_acceptance(template, source, output, frontend_source, url, reports, plan):
+def run_acceptance(template, source, output, frontend_source, url, reports, plan, redis_port=6379):
     """Shared by CLI and CI; never reset an existing database or workspace."""
     plan = validate_plan(plan)
     source, output, reports = (
@@ -70,7 +76,9 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
     else:
         frontend = output.parent / "frontend-product"
         copy_source(frontend_source, frontend)
-    env = native_environment(template, backend, url, 8001 if template == "fastapiadmin" else 48080)
+    env = native_environment(
+        template, backend, url, 8001 if template == "fastapiadmin" else 48080, redis_port=redis_port
+    )
     write_json(reports / "approved-spec.json", plan.model_dump())
     write_json(
         reports / "acceptance.json", {"template": template, "generated_runtime_verified": False}
@@ -91,10 +99,12 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
             stage("native-generation")
             token = login(template, base_url)
             write_json(reports / "baseline/login.json", {"native_login": True})
+            baseline_menus = menu_snapshot(template, url)
             mapping = create_native_tables(template, plan, url, digest(plan.model_dump()), reports)
             targets = generate_modules(
                 template, backend, frontend, base_url, openapi, token, mapping, plan, reports
             )
+            export_menu_sql(template, url, baseline_menus, reports / "menu-seed.sql")
         if template == "yudao-vben":
             stage("generated-build")
             install_backend(template, backend, reports / "generated-build")
@@ -150,6 +160,13 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
             "source_unmodified": True,
             "data_scope": "shared-with-native-role-permissions",
         }
+        stage("portable-startup-assets")
+        product_root = output if template == "fastapiadmin" else output.parent
+        report["portable_delivery"] = build_native_delivery(
+            template, product_root, reports, plan, targets, url
+        )
+        stage("independent-native-delivery")
+        report["portable_restored"] = verify_native_delivery(product_root, url, reports, redis_port)
         stage("accepted")
         write_json(reports / "acceptance.json", report)
         print(

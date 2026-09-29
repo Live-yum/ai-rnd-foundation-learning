@@ -68,14 +68,17 @@ def frontend_app(template, root):
     return root if template == "fastapiadmin" else root / "apps/web-antd"
 
 
-def build_frontend(template, root, env, reports):
+def build_frontend(template, root, env, reports, *, prepared=False):
     root, reports = Path(root).resolve(), Path(reports).resolve()
     reports.mkdir(parents=True, exist_ok=True)
     app = frontend_app(template, root)
     if not (root / "pnpm-lock.yaml").is_file():
         raise ValueError("Native frontend lockfile is required")
     if template == "yudao-vben":
-        prepare_vben_source(root, reports)
+        if not prepared:
+            prepare_vben_source(root, reports)
+        elif not (root / ".git").exists():
+            run_command(["git", "init", "--quiet", "--template=", str(root)], root, 30)
         # Vben's own loadAndConvertEnv / runtime-config plugin reads dotenv files,
         # not process.env. Persist only explicitly public VITE_* values in the
         # disposable workspace; never copy platform or database credentials.

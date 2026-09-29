@@ -2,7 +2,9 @@
 
 import logging
 import threading
+import traceback
 from contextlib import ExitStack
+from pathlib import Path
 
 from filelock import FileLock
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
@@ -11,6 +13,7 @@ from langgraph.types import Command
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
 
+from workbench.errors import PausedLimit, UnsupportedScope
 from workbench.flow import Workflow
 from workbench.generator import PrerequisiteError
 from workbench.llm import ModelFailure, ModelGateway
@@ -106,8 +109,28 @@ class Runtime:
             else:
                 # Resume may have been persisted just before the process died.
                 self.graph.invoke(None, config)
-            snapshot = self.graph.get_state(config)
-            pending = pending_interrupt(snapshot)
+            # Explicit delegation may be enabled before starting or at any human gate.
+            # Keep model/repair attempts bounded even though manual conversation rounds are unlimited.
+            resolutions = 0
+            while True:
+                snapshot = self.graph.get_state(config)
+                pending = pending_interrupt(snapshot)
+                if not pending or not self.store.get_run(run_id)["auto_mode"]:
+                    break
+                if pending["can_approve"]:
+                    self.store.auto_approve(run_id, pending)
+                    action = {"action": "approve", "approved": True}
+                else:
+                    if resolutions >= 2:
+                        raise UnsupportedScope(
+                            "智能推荐无法在当前模板能力内解决阻塞项；数据已保存且不会反复提问。查看最新需求/设计报告，可调整环境后重试或关闭自动模式。"
+                        )
+                    resolutions += 1
+                    action = {"action": "recommend", "approved": True}
+                self.graph.invoke(
+                    Command(resume={**action, "gate_id": pending["gate_id"], "job_id": job["id"]}),
+                    config,
+                )
             if pending:
                 self.store.finish(job, "WAITING_" + pending["stage"].upper(), pending=pending)
             else:
@@ -117,15 +140,25 @@ class Runtime:
                     result=snapshot.values.get("delivery", {}),
                 )
         except Exception as exc:
-            if isinstance(exc, (Conflict, ModelFailure, PrerequisiteError)):
+            if isinstance(
+                exc, (Conflict, ModelFailure, PrerequisiteError, PausedLimit, UnsupportedScope)
+            ):
                 error = str(exc)[:1000]
             else:
-                error = f"{type(exc).__name__}：执行失败，请检查本地日志和验收报告"
-            key = self.settings.api_key.get_secret_value()
-            if key:
-                error = error.replace(key, "[redacted]")
+                frame = traceback.extract_tb(exc.__traceback__)[-1]
+                error = f"{type(exc).__name__}：{Path(frame.filename).name}:{frame.lineno}（{frame.name}），请检查本次运行报告"
+            error = self.settings.redact(error)
             logger.error("Run %s failed (%s)", run_id, type(exc).__name__)
-            self.store.finish(job, "FAILED", error=error)
+            self.store.finish(
+                job,
+                "PAUSED_LIMIT"
+                if isinstance(exc, PausedLimit)
+                else "BLOCKED"
+                if isinstance(exc, UnsupportedScope)
+                else "FAILED",
+                error=error,
+                pending=pending if isinstance(exc, UnsupportedScope) else None,
+            )
         return True
 
     def loop(self):

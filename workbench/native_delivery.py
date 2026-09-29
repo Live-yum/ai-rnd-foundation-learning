@@ -13,7 +13,7 @@ from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, StrictBool
 
 from workbench.domain import digest
-from workbench.filesystem import atomic_text, files, manifest, sha, write_json
+from workbench.filesystem import files, manifest, sha, write_json
 from workbench.generator import PrerequisiteError
 from workbench.native_environment import checked_database, native_environment, running_backend
 from workbench.native_frontend import frontend_environment, frontend_preview
@@ -96,8 +96,14 @@ def managed_generate(settings, template, plan, destination):
 
     plan = validate_plan(plan)
     destination = Path(destination).resolve()
-    _, url = runtime_config(settings, template)
     prerequisites(template)
+    if runtime_enabled(settings, template):
+        _, url = runtime_config(settings, template)
+        redis_port = 6379
+    else:
+        from workbench.native_resources import for_run
+
+        url, redis_port = for_run(settings, destination.parent.name)
     receipt_path = destination.parent / "native-generation.json"
     if receipt_path.is_file():
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
@@ -117,18 +123,11 @@ def managed_generate(settings, template, plan, destination):
     reports = destination.parent / "native-evidence"
     source = slots["fastapiadmin"] if template == "fastapiadmin" else slots["backend"]
     output = destination if template == "fastapiadmin" else destination / "backend"
-    report = run_acceptance(template, source, output, slots.get("frontend"), url, reports, plan)
+    report = run_acceptance(
+        template, source, output, slots.get("frontend"), url, reports, plan, redis_port=redis_port
+    )
     if report.get("generated_runtime_verified") is not True:
         raise PrerequisiteError("原生运行验收尚未完成")
-    atomic_text(
-        destination / "NATIVE_DELIVERY.md",
-        "# 原生全栈开发交付\n\n"
-        f"模板：{template}。数据范围为共享业务数据 + 原生角色权限，非逐用户数据隔离。\n\n"
-        "产品依赖保留的专用 PostgreSQL 开发数据库（包含原生初始化、菜单、角色和业务表）与 Redis。"
-        "本源码包不是数据库备份；迁往空库前必须另行备份/迁移数据库与菜单。\n\n"
-        f"在生成它的平台目录运行 `uv run rnd native serve {destination.parent.name}` 可重新打开当前产品。"
-        "该命令不会重建或删除数据库。生产部署需修改示例密码、关闭测试账号并重新配置 HTTPS 和凭据。\n",
-    )
     receipt = {
         "template": template,
         "execution": "managed-runtime",
@@ -176,7 +175,10 @@ def managed_verify(destination, receipt):
         "source_digest": digest(current),
         "evidence_sha256": receipt["evidence_sha256"],
         "checks": list(gates),
-        "database_delivery": "existing-dedicated-lab-database-required",
+        "database_delivery": "standalone-fresh-database-bootstrap"
+        if report.get("portable_restored", {}).get("passed")
+        else "existing-dedicated-lab-database-required",
+        "startup": "uv run --no-project --python 3.14 python start.py",
     }
     write_json(destination.parent / "verification.json", result)
     return result

@@ -1,0 +1,72 @@
+:root {
+  font-family: system-ui, sans-serif;
+  color: #15243c;
+  background: #f3f5f9;
+}
+body {
+  margin: auto;
+  padding: 24px;
+  max-width: 1080px;
+}
+header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+}
+section {
+  background: white;
+  border: 1px solid #dce2ec;
+  padding: 22px;
+  margin: 15px 0;
+  border-radius: 10px;
+}
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  padding: 10px;
+  margin: 5px;
+  border: 1px solid #acb7ca;
+  border-radius: 5px;
+}
+label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+#new-run label {
+  display: flex;
+}
+textarea {
+  width: 95%;
+}
+button {
+  background: #e8f0ff;
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+#smart {
+  background: #153f88;
+  color: white;
+}
+#notice {
+  color: #9b203a;
+  min-height: 25px;
+}
+pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+code {
+  background: #edf1f7;
+  padding: 2px 5px;
+}
+[hidden] {
+  display: none !important;
+}

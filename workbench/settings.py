@@ -1,11 +1,49 @@
-"""Configuration is relative to the checkout, never the current working directory."""
+"""Local configuration and optional per-stage model profiles; no secrets in run receipts."""
 
 from pathlib import Path
+from typing import Literal
+from urllib.parse import urlsplit
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic import AliasChoices, BaseModel, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ROOT = Path(__file__).resolve().parent.parent
+Stage = Literal["requirements", "planning", "coding", "review"]
+STAGES = ("requirements", "planning", "coding", "review")
+
+
+class ModelProfile(BaseModel):
+    stage: str
+    base_url: str
+    model: str
+    api_key: SecretStr
+
+    def validate_endpoint(self):
+        url = urlsplit(self.base_url)
+        if (
+            url.scheme not in {"http", "https"}
+            or not url.hostname
+            or url.username
+            or url.password
+            or url.query
+            or url.fragment
+        ):
+            raise ValueError(f"{self.stage}: BASE_URL 必须是无凭据/查询参数的 HTTP(S) API 根地址")
+        if url.scheme == "http" and url.hostname not in {"127.0.0.1", "localhost", "::1"}:
+            raise ValueError(f"{self.stage}: 远程模型必须使用 HTTPS")
+        if not self.model or not self.api_key.get_secret_value():
+            raise ValueError(f"{self.stage}: 请填写 MODE/模型名称及 API_KEY")
+        if self.base_url.rstrip("/").endswith("/chat/completions"):
+            raise ValueError(f"{self.stage}: BASE_URL 只填 API 根地址，不要重复 /chat/completions")
+        return self
+
+    def public(self):
+        return {
+            "stage": self.stage,
+            "base_url": self.base_url,
+            "model": self.model,
+            "api_key": "configured" if self.api_key.get_secret_value() else "missing",
+        }
 
 
 class Settings(BaseSettings):
@@ -13,15 +51,43 @@ class Settings(BaseSettings):
     base_url: str = ""
     api_key: SecretStr = SecretStr("")
     model: str = Field(default="", validation_alias=AliasChoices("MODE", "MODEL", "model"))
+    requirements_base_url: str = ""
+    requirements_api_key: SecretStr = SecretStr("")
+    requirements_model: str = Field(
+        default="",
+        validation_alias=AliasChoices(
+            "REQUIREMENTS_MODE", "REQUIREMENTS_MODEL", "requirements_model"
+        ),
+    )
+    planning_base_url: str = ""
+    planning_api_key: SecretStr = SecretStr("")
+    planning_model: str = Field(
+        default="",
+        validation_alias=AliasChoices("PLANNING_MODE", "PLANNING_MODEL", "planning_model"),
+    )
+    coding_base_url: str = ""
+    coding_api_key: SecretStr = SecretStr("")
+    coding_model: str = Field(
+        default="", validation_alias=AliasChoices("CODING_MODE", "CODING_MODEL", "coding_model")
+    )
+    review_base_url: str = ""
+    review_api_key: SecretStr = SecretStr("")
+    review_model: str = Field(
+        default="", validation_alias=AliasChoices("REVIEW_MODE", "REVIEW_MODEL", "review_model")
+    )
+    model_review: bool = False
     data_dir: Path = ROOT / ".data"
     database_url: str = ""
+    product_postgres_url: SecretStr = SecretStr("")
     llm_timeout: float = Field(default=90, gt=0, le=600)
-    max_model_calls: int = Field(default=16, ge=1, le=100)
-    max_rounds: int = Field(default=10, ge=1, le=30)
+    # Zero means no lifetime limit; retry safety is separate and remains bounded.
+    max_model_calls: int = Field(default=0, ge=0, le=100000)
+    max_rounds: int = Field(default=0, ge=0, le=100000)
+    max_context_chars: int = Field(default=100000, ge=10000, le=300000)
     install_products: bool = True
     enable_coding: bool = True
     max_repair_attempts: int = Field(default=2, ge=0, le=2)
-    tool_timeout: int = Field(default=120, ge=10, le=600)
+    tool_timeout: int = Field(default=180, ge=10, le=900)
     checkpoint_url: str = ""
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1024, le=65535)
@@ -40,15 +106,42 @@ class Settings(BaseSettings):
         for name in ("runs", "sources", "knowledge", "native"):
             (self.data_dir / name).mkdir(exist_ok=True)
 
-    def require_model(self) -> None:
-        from urllib.parse import urlsplit
+    def model_for(self, stage: Stage) -> ModelProfile:
+        if stage not in STAGES:
+            raise ValueError("未知模型阶段")
+        endpoint = getattr(self, stage + "_base_url") or self.base_url
+        key = getattr(self, stage + "_api_key")
+        if not key.get_secret_value():
+            if endpoint.rstrip("/") != self.base_url.rstrip("/"):
+                raise ValueError(
+                    f"{stage}: 更换服务商地址时必须单独配置 {stage.upper()}_API_KEY，禁止发送默认密钥到新地址"
+                )
+            key = self.api_key
+        return ModelProfile(
+            stage=stage,
+            base_url=endpoint.rstrip("/"),
+            model=getattr(self, stage + "_model") or self.model,
+            api_key=key,
+        )
 
-        url = urlsplit(self.base_url)
-        if url.scheme not in {"http", "https"} or not url.hostname or url.username:
-            raise ValueError("BASE_URL 必须是有效的 HTTP(S) API 根地址，不包含用户名/密码")
-        if not self.api_key.get_secret_value() or not self.model:
-            raise ValueError("请在 .env 填写 BASE_URL、API_KEY、MODE；MODE 是模型名称")
-        if url.scheme == "http" and url.hostname not in {"127.0.0.1", "localhost", "::1"}:
-            raise ValueError("远程模型必须使用 HTTPS；HTTP 仅允许本机模型服务")
-        if url.query or url.fragment:
-            raise ValueError("BASE_URL 不得包含查询参数或片段")
+    def require_model(self) -> None:
+        for stage in STAGES[:3]:
+            self.model_for(stage).validate_endpoint()
+        if self.review_enabled:
+            self.model_for("review").validate_endpoint()
+
+    @property
+    def review_enabled(self) -> bool:
+        return bool(
+            self.model_review
+            or self.review_model
+            or self.review_base_url
+            or self.review_api_key.get_secret_value()
+        )
+
+    def redact(self, text: str) -> str:
+        for field in ("api_key", "product_postgres_url", *(stage + "_api_key" for stage in STAGES)):
+            secret = getattr(self, field).get_secret_value()
+            if secret:
+                text = text.replace(secret, "[redacted]")
+        return text

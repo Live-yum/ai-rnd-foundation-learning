@@ -70,7 +70,7 @@ def bootstrap_database(template, backend, url):
         engine.dispose()
 
 
-def native_environment(template, backend, url, port, redis_port=6379):
+def native_environment(template, backend, url, port, redis_port=6379, redis_database=None):
     """Explicit local profile. External OAuth/WeChat features are not configured or tested."""
     parsed = checked_database(url)
     if not 1024 <= int(port) <= 65535:
@@ -91,7 +91,7 @@ def native_environment(template, backend, url, port, redis_port=6379):
             "REDIS_HOST": "127.0.0.1",
             "REDIS_PORT": str(redis_port),
             "REDIS_PASSWORD": "",
-            "REDIS_DB_NAME": "1",
+            "REDIS_DB_NAME": str(redis_database if redis_database is not None else 1),
             "SECRET_KEY": secrets.token_hex(32),
             "CAPTCHA_ENABLE": "True",
             "SCHEDULER_ALLOW_CODE_EXEC": "False",
@@ -119,7 +119,7 @@ def native_environment(template, backend, url, port, redis_port=6379):
         "spring.datasource.dynamic.druid.validation-query": "SELECT 1",
         "spring.data.redis.host": "127.0.0.1",
         "spring.data.redis.port": str(redis_port),
-        "spring.data.redis.database": "2",
+        "spring.data.redis.database": str(redis_database if redis_database is not None else 2),
         "xxl.job.enabled": "false",
         "yudao.security.mock-enable": "false",
         "yudao.captcha.enable": "false",
