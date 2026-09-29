@@ -45,7 +45,7 @@ uv --version
 
 ```powershell
 cd D:\Code
-git clone --branch feat/guided-multimodel-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
+git clone --branch feat/controlled-toolchain-integration https://github.com/Live-yum/ai-rnd-foundation-learning.git
 cd ai-rnd-foundation-learning
 uv python install 3.14
 uv sync --locked
@@ -74,7 +74,7 @@ uv run rnd init
 
 ```powershell
 git fetch origin
-git switch feat/guided-multimodel-workbench
+git switch feat/controlled-toolchain-integration
 uv sync --locked
 uv run rnd init
 ```

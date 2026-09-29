@@ -20,7 +20,7 @@ permissions:
   contents: read
 jobs:
   live:
-    if: inputs.allow_upload && github.repository == 'Live-yum/ai-rnd-foundation-learning'
+    if: inputs.allow_upload && github.repository == 'Live-yum/ai-rnd-foundation-learning' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:

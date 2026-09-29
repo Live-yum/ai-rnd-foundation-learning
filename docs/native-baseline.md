@@ -84,7 +84,7 @@ npm --version
 ```bash
 mkdir -p "$HOME/Code"
 cd "$HOME/Code"
-git clone --branch feat/guided-multimodel-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
+git clone --branch feat/controlled-toolchain-integration https://github.com/Live-yum/ai-rnd-foundation-learning.git
 cd ai-rnd-foundation-learning
 uv python install 3.14
 uv sync --locked --all-extras

@@ -10,7 +10,7 @@
 
 ```powershell
 cd D:\Code
-git clone --branch feat/guided-multimodel-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
+git clone --branch feat/controlled-toolchain-integration https://github.com/Live-yum/ai-rnd-foundation-learning.git
 cd ai-rnd-foundation-learning
 uv python install 3.14
 uv sync --locked
@@ -157,7 +157,7 @@ uv run --no-project --python 3.14 python start.py
 
 ```powershell
 git fetch origin
-git switch feat/guided-multimodel-workbench
+git switch feat/controlled-toolchain-integration
 uv sync --locked
 uv run rnd init
 ```
@@ -191,7 +191,7 @@ uv run rnd tools search templates/product .data/examples/product-index "validate
 uv run rnd tools continue-config . templates/product .data/examples/product-index
 ```
 
-最后一条为 Continue 创建 `.continue/mcpServers/rnd.json`，只读查询与仓库地图通过真实 MCP 协议访问同一索引；没有复制或冒充 Continue 的私有索引引擎。配置已存在时拒绝覆盖。索引结果含路径、行号和 SHA，源码变化先重建，默认不上传向量。
+最后一条为 Continue 创建 `.continue/mcpServers/rnd.json`，只读查询与仓库地图通过真实 MCP 协议访问同一索引；没有复制或冒充 Continue 的私有索引引擎。Continue 上游已宣布停止主动维护，本平台不依赖其私有索引内部实现；客户端兼容性与维护边界见工具链章节。配置已存在时拒绝覆盖。索引结果含路径、行号和 SHA，源码变化先重建，默认不上传向量。
 
 Aider 是可选独立工具环境，**平台仍是 Python 3.14**：
 
@@ -201,6 +201,8 @@ uv sync --locked --project tools/aider --python 3.12
 
 设置 `.env` 的 `REPO_MAP_PROVIDER=aider` 使用真实 Repo Map；`CODING_ENGINE=aider` 使用真实 SEARCH/REPLACE 应用引擎。模型调用仍走平台安全的多模型配置和预算，Aider 不接收真实 Key。当前自动编辑只开放已批准的 Python 业务规则文件；不声称任意 Java/Vue 业务已经自动适配。前后文件哈希、diff、Git commit 和验证回执均保留。
 
-Daytona 默认 `SANDBOX_PROVIDER=local`（关闭）。启用需 `uv sync --locked --extra daytona`，独立 Daytona Key、已审核快照以及 `DAYTONA_ALLOW_UPLOAD=true`；会上传产品源码并可能产生账户费用。Python/SQLite 远程执行真实运行检查；原生通道是额外构建检查，不能替代现有数据库/浏览器/新库恢复。任何远程检查或清理失败都阻止交付，不偷偷回退到“成功”。
+Daytona 默认 `SANDBOX_PROVIDER=local`（关闭）。启用需 `uv sync --locked --extra daytona`，独立 Daytona Key、已审核快照以及 `DAYTONA_ALLOW_UPLOAD=true`；会上传产品源码并可能产生账户费用。Python/SQLite 远程执行真实运行检查；原生通道是额外构建检查，不能替代现有数据库/浏览器/新库恢复。任何远程检查或清理失败都阻止交付，不偷偷回退到“成功”。云端 smoke 仅在 main 分支显式授权后手动运行，不在普通 PR 中读取云密钥。
+
+工具失败时，网页运行报告可查看 `tool-failure.json`（退出码、超时、有限且脱敏的输出）；上下文回执和 Daytona 回执也可从报告读取。修复工具后重试同一 run，不要删除 `.data` 或重新创建项目。
 
 完整安装、可选向量及独立密钥、Continue Agent 配置、Daytona 快照要求、失败处理和从零实现步骤见 [工具链实操章节](docs/toolchain.md)，也已纳入两份完整手册的正文及完整源码附录。凭据未提供时只可声明 SDK 契约测试，不可声明你的 Daytona 账户已经通过真实云验收。

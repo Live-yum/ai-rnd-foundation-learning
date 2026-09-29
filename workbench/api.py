@@ -183,7 +183,7 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
             "verification.json",
             "delivery.json",
             "native-generation.json",
-            "context-receipt.json",
+            "source-context/context-receipt.json",
             "daytona-verification.json",
             "tool-failure.json",
         ):

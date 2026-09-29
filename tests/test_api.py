@@ -43,3 +43,28 @@ def test_project_run_idempotency_roles(client):
     assert client.get("/runs/" + run_id + "/download").status_code == 409
     assert client.get("/runs/missing").status_code == 404
     assert client.get("/templates").status_code == 200
+
+
+def test_report_exposes_bounded_toolchain_receipts_without_arbitrary_files(client, settings):
+    from conftest import new_run
+
+    from workbench.filesystem import write_json
+
+    run_id = new_run(client.app.state.store)
+    directory = settings.data_dir / "runs" / run_id
+    evidence = {
+        "source-context/context-receipt.json": {"source_is_untrusted_data": True},
+        "daytona-verification.json": {"passed": False, "cleanup": "deleted"},
+        "tool-failure.json": {"passed": False, "log": "redacted diagnostic"},
+    }
+    for name, value in evidence.items():
+        write_json(directory / name, value)
+    write_json(directory / "private.json", {"secret": "must-not-be-exposed"})
+    response = client.get(f"/runs/{run_id}/report")
+    assert response.status_code == 200
+    assert response.json() == evidence
+    assert "must-not-be-exposed" not in response.text
+    assert (
+        client.get(f"/runs/{run_id}/report", headers={"Authorization": "Bearer wrong"}).status_code
+        == 401
+    )
