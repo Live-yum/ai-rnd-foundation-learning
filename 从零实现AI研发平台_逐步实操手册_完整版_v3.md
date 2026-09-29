@@ -1310,7 +1310,7 @@ path_separator = os
 
 ### `workbench/aider_tool.py`
 
-<!-- source-file: workbench/aider_tool.py sha256: 564a579ef3ea7f10ab77c6b8e454f1ec92c31321bed60d89b7e33dbe3276299d -->
+<!-- source-file: workbench/aider_tool.py sha256: 7d06dcc750ba96cb438c162b5394269b7a59cacad43d36363d297c43a5b22192 -->
 ````python
 """Pinned Aider CLI, used only in a disposable local Git worktree with no keys.
 
@@ -1396,6 +1396,8 @@ def git(work, home, *args):
 
 def command(settings, work, home, *args):
     atomic_text(home / "empty", "")
+    # YAML config must be a mapping; Git and dotenv still use a separate empty file.
+    atomic_text(home / "aider.yml", "{}\n")
     env = isolated_environment(home)
     version = run_command([executable(settings), "--version"], work, timeout=30, extra_env=env)[
         "log"
@@ -1410,7 +1412,7 @@ def command(settings, work, home, *args):
             "--edit-format",
             "diff",
             "--config",
-            str(home / "empty"),
+            str(home / "aider.yml"),
             "--env-file",
             str(home / "empty"),
             "--input-history-file",
@@ -1580,7 +1582,7 @@ def repo_map(source, index_dir, settings):
 
 ### `workbench/api.py`
 
-<!-- source-file: workbench/api.py sha256: 6fb51cc5a036726c92883261a2f728aa9e2097f3e13e474e77eb35bfa4074fb3 -->
+<!-- source-file: workbench/api.py sha256: ddd97549f8417a2c65337f347ef124b6d6a82264fd00c2637a5330f13d8b64f5 -->
 ````python
 """Local operator API. Authentication protects every data endpoint, including downloads."""
 
@@ -1767,6 +1769,9 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
             "verification.json",
             "delivery.json",
             "native-generation.json",
+            "context-receipt.json",
+            "daytona-verification.json",
+            "tool-failure.json",
         ):
             path = inside(directory, name)
             if path.is_file():
@@ -7625,7 +7630,7 @@ class Rules:
 
 ### `workbench/runtime.py`
 
-<!-- source-file: workbench/runtime.py sha256: 6a917e5ef056f221d74154cc76052a93fcf3b554686f001f11a010266f0b6f42 -->
+<!-- source-file: workbench/runtime.py sha256: 8d9d963f6448ea7228c262a3a526d243dd208cc771b2db76461909dc2c187ebf -->
 ````python
 """Single durable worker. A recovered job never consumes a later approval gate."""
 
@@ -7643,10 +7648,12 @@ from sqlalchemy import text
 from sqlalchemy.engine import make_url
 
 from workbench.errors import PausedLimit, UnsupportedScope
+from workbench.filesystem import write_json
 from workbench.flow import Workflow
 from workbench.generator import PrerequisiteError
 from workbench.llm import ModelFailure, ModelGateway
 from workbench.store import Conflict
+from workbench.tools import ToolFailure
 
 logger = logging.getLogger(__name__)
 
@@ -7769,7 +7776,32 @@ class Runtime:
                     result=snapshot.values.get("delivery", {}),
                 )
         except Exception as exc:
-            if isinstance(
+            # Preserve bounded, redacted tool output even when an adapter wraps the error.
+            tool_error = exc
+            seen = set()
+            while not isinstance(tool_error, ToolFailure) and id(tool_error) not in seen:
+                seen.add(id(tool_error))
+                tool_error = tool_error.__cause__
+                if tool_error is None:
+                    break
+            if isinstance(tool_error, ToolFailure):
+                report = {
+                    "passed": False,
+                    "run_id": run_id,
+                    "job_id": job["id"],
+                    "error": self.settings.redact(str(tool_error))[:1000],
+                    "log": self.settings.redact(getattr(tool_error, "log", ""))[:65536],
+                    "returncode": getattr(tool_error, "returncode", None),
+                    "timed_out": getattr(tool_error, "timed_out", False),
+                }
+                try:
+                    write_json(
+                        self.settings.data_dir / "runs" / run_id / "tool-failure.json", report
+                    )
+                    error = "工具执行失败；查看运行报告 tool-failure.json：" + report["error"]
+                except OSError:
+                    error = "工具执行失败且无法写入报告；请检查数据目录的空间及权限"
+            elif isinstance(
                 exc, (Conflict, ModelFailure, PrerequisiteError, PausedLimit, UnsupportedScope)
             ):
                 error = str(exc)[:1000]
@@ -14971,7 +15003,7 @@ def test_model_budget(store):
 
 ### `tests/test_toolchain.py`
 
-<!-- source-file: tests/test_toolchain.py sha256: 9580f1d7936c5d9951fd3efd5cf63ff0683c0c1ec774b5e67b36c10f92964ea5 -->
+<!-- source-file: tests/test_toolchain.py sha256: 46b963d21ce122c790e806c6cc3da76fa15cb3f31c6b2c5037a9861d77531366 -->
 ````python
 """Real parsers/SQLite/MCP; explicit fixtures only for paid external transports."""
 
@@ -15356,6 +15388,74 @@ def test_search_path_filters_apply_before_ranking(indexed):
         query(source, index, "useVbenForm", path_prefix="../outside/")
     with pytest.raises(ValueError):
         query(source, index, "useVbenForm", file_suffix=".env")
+
+
+def test_aider_uses_mapping_config_and_separate_empty_env(tmp_path, settings, monkeypatch):
+    from pathlib import Path
+
+    import yaml
+
+    from workbench import aider_tool
+    from workbench.tools import clean_env
+
+    home, work = tmp_path / "home", tmp_path / "work"
+    home.mkdir()
+    work.mkdir()
+    monkeypatch.setenv("OPENAI_API_KEY", "must-not-leak")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "must-not-leak-either")
+    monkeypatch.setattr(aider_tool, "executable", lambda _: "pinned-aider")
+    calls = []
+
+    def invoke(argv, cwd, **kwargs):
+        calls.append(argv)
+        environment = clean_env(kwargs["extra_env"])
+        assert environment["OPENAI_API_KEY"] == "unused-local-editing-only"
+        assert "ANTHROPIC_API_KEY" not in environment
+        if "--version" in argv:
+            return {"log": "aider 0.86.2"}
+        config = Path(argv[argv.index("--config") + 1])
+        env_file = Path(argv[argv.index("--env-file") + 1])
+        assert config != env_file
+        assert yaml.safe_load(config.read_text(encoding="utf-8")) == {}
+        assert env_file.read_text(encoding="utf-8") == ""
+        assert Path(environment["GIT_CONFIG_GLOBAL"]).read_text(encoding="utf-8") == ""
+        return {"log": "actual CLI is exercised by ci_toolchain"}
+
+    monkeypatch.setattr(aider_tool, "run_command", invoke)
+    aider_tool.command(settings, work, home, "--show-repo-map")
+    assert len(calls) == 2
+
+
+def test_runtime_preserves_redacted_wrapped_tool_failure(settings, store):
+    from conftest import new_run
+
+    from workbench.runtime import Runtime
+    from workbench.tools import ToolFailure
+
+    settings.api_key = SecretStr("fixture-secret-token")
+
+    class FailingToolGateway:
+        def complete(self, *args, **kwargs):
+            error = ToolFailure("subprocess rejected configuration")
+            error.log = "diagnostic fixture-secret-token " + "x" * 70000
+            error.returncode = 2
+            error.timed_out = False
+            try:
+                raise error
+            except ToolFailure as exc:
+                raise ValueError("adapter error") from exc
+
+    run_id = new_run(store)
+    with Runtime(settings, store, FailingToolGateway()) as worker:
+        worker.tick()
+    run = store.get_run(run_id)
+    assert run["status"] == "FAILED" and "tool-failure.json" in run["error"]
+    path = settings.data_dir / "runs" / run_id / "tool-failure.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+    assert report["returncode"] == 2 and report["passed"] is False
+    assert report["run_id"] == run_id and report["job_id"]
+    assert "fixture-secret-token" not in path.read_text(encoding="utf-8")
+    assert "[redacted]" in report["log"] and len(report["log"]) <= 65536
 ````
 
 ### `tests/test_tools_cli.py`
@@ -15701,7 +15801,7 @@ if __name__ == "__main__":
 
 ### `scripts/ci_aider_workflow.py`
 
-<!-- source-file: scripts/ci_aider_workflow.py sha256: e0b92653769e94540434da7437ee17f50289994fc85b3b8814297cb925b2eacd -->
+<!-- source-file: scripts/ci_aider_workflow.py sha256: f29219aee3c7ada297badbad9fb637656a3fa4e042d4871e53cd38791df2adea -->
 ````python
 """Actual LangGraph -> Aider CLI -> independent product verification, fixture LLM only."""
 
@@ -15829,6 +15929,15 @@ def verify_workflow():
                 "model_transport": "explicit-fixture",
                 "model_api_calls": 0,
             }
+        except Exception:
+            directory = Path(directory)
+            reports = Path("reports")
+            reports.mkdir(exist_ok=True)
+            for failure in directory.glob("runs/*/tool-failure.json"):
+                text = failure.read_text(encoding="utf-8")
+                (reports / "aider-workflow-failure.json").write_text(text, encoding="utf-8")
+                print(text, flush=True)
+            raise
         finally:
             store.engine.dispose()
 

@@ -183,6 +183,9 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
             "verification.json",
             "delivery.json",
             "native-generation.json",
+            "context-receipt.json",
+            "daytona-verification.json",
+            "tool-failure.json",
         ):
             path = inside(directory, name)
             if path.is_file():

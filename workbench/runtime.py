@@ -14,10 +14,12 @@ from sqlalchemy import text
 from sqlalchemy.engine import make_url
 
 from workbench.errors import PausedLimit, UnsupportedScope
+from workbench.filesystem import write_json
 from workbench.flow import Workflow
 from workbench.generator import PrerequisiteError
 from workbench.llm import ModelFailure, ModelGateway
 from workbench.store import Conflict
+from workbench.tools import ToolFailure
 
 logger = logging.getLogger(__name__)
 
@@ -140,7 +142,32 @@ class Runtime:
                     result=snapshot.values.get("delivery", {}),
                 )
         except Exception as exc:
-            if isinstance(
+            # Preserve bounded, redacted tool output even when an adapter wraps the error.
+            tool_error = exc
+            seen = set()
+            while not isinstance(tool_error, ToolFailure) and id(tool_error) not in seen:
+                seen.add(id(tool_error))
+                tool_error = tool_error.__cause__
+                if tool_error is None:
+                    break
+            if isinstance(tool_error, ToolFailure):
+                report = {
+                    "passed": False,
+                    "run_id": run_id,
+                    "job_id": job["id"],
+                    "error": self.settings.redact(str(tool_error))[:1000],
+                    "log": self.settings.redact(getattr(tool_error, "log", ""))[:65536],
+                    "returncode": getattr(tool_error, "returncode", None),
+                    "timed_out": getattr(tool_error, "timed_out", False),
+                }
+                try:
+                    write_json(
+                        self.settings.data_dir / "runs" / run_id / "tool-failure.json", report
+                    )
+                    error = "工具执行失败；查看运行报告 tool-failure.json：" + report["error"]
+                except OSError:
+                    error = "工具执行失败且无法写入报告；请检查数据目录的空间及权限"
+            elif isinstance(
                 exc, (Conflict, ModelFailure, PrerequisiteError, PausedLimit, UnsupportedScope)
             ):
                 error = str(exc)[:1000]

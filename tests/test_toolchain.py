@@ -381,3 +381,71 @@ def test_search_path_filters_apply_before_ranking(indexed):
         query(source, index, "useVbenForm", path_prefix="../outside/")
     with pytest.raises(ValueError):
         query(source, index, "useVbenForm", file_suffix=".env")
+
+
+def test_aider_uses_mapping_config_and_separate_empty_env(tmp_path, settings, monkeypatch):
+    from pathlib import Path
+
+    import yaml
+
+    from workbench import aider_tool
+    from workbench.tools import clean_env
+
+    home, work = tmp_path / "home", tmp_path / "work"
+    home.mkdir()
+    work.mkdir()
+    monkeypatch.setenv("OPENAI_API_KEY", "must-not-leak")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "must-not-leak-either")
+    monkeypatch.setattr(aider_tool, "executable", lambda _: "pinned-aider")
+    calls = []
+
+    def invoke(argv, cwd, **kwargs):
+        calls.append(argv)
+        environment = clean_env(kwargs["extra_env"])
+        assert environment["OPENAI_API_KEY"] == "unused-local-editing-only"
+        assert "ANTHROPIC_API_KEY" not in environment
+        if "--version" in argv:
+            return {"log": "aider 0.86.2"}
+        config = Path(argv[argv.index("--config") + 1])
+        env_file = Path(argv[argv.index("--env-file") + 1])
+        assert config != env_file
+        assert yaml.safe_load(config.read_text(encoding="utf-8")) == {}
+        assert env_file.read_text(encoding="utf-8") == ""
+        assert Path(environment["GIT_CONFIG_GLOBAL"]).read_text(encoding="utf-8") == ""
+        return {"log": "actual CLI is exercised by ci_toolchain"}
+
+    monkeypatch.setattr(aider_tool, "run_command", invoke)
+    aider_tool.command(settings, work, home, "--show-repo-map")
+    assert len(calls) == 2
+
+
+def test_runtime_preserves_redacted_wrapped_tool_failure(settings, store):
+    from conftest import new_run
+
+    from workbench.runtime import Runtime
+    from workbench.tools import ToolFailure
+
+    settings.api_key = SecretStr("fixture-secret-token")
+
+    class FailingToolGateway:
+        def complete(self, *args, **kwargs):
+            error = ToolFailure("subprocess rejected configuration")
+            error.log = "diagnostic fixture-secret-token " + "x" * 70000
+            error.returncode = 2
+            error.timed_out = False
+            try:
+                raise error
+            except ToolFailure as exc:
+                raise ValueError("adapter error") from exc
+
+    run_id = new_run(store)
+    with Runtime(settings, store, FailingToolGateway()) as worker:
+        worker.tick()
+    run = store.get_run(run_id)
+    assert run["status"] == "FAILED" and "tool-failure.json" in run["error"]
+    path = settings.data_dir / "runs" / run_id / "tool-failure.json"
+    report = json.loads(path.read_text(encoding="utf-8"))
+    assert report["returncode"] == 2 and report["passed"] is False
+    assert report["run_id"] == run_id and report["job_id"]
+    assert "fixture-secret-token" not in path.read_text(encoding="utf-8")
+    assert "[redacted]" in report["log"] and len(report["log"]) <= 65536

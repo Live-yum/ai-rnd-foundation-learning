@@ -82,6 +82,8 @@ def git(work, home, *args):
 
 def command(settings, work, home, *args):
     atomic_text(home / "empty", "")
+    # YAML config must be a mapping; Git and dotenv still use a separate empty file.
+    atomic_text(home / "aider.yml", "{}\n")
     env = isolated_environment(home)
     version = run_command([executable(settings), "--version"], work, timeout=30, extra_env=env)[
         "log"
@@ -96,7 +98,7 @@ def command(settings, work, home, *args):
             "--edit-format",
             "diff",
             "--config",
-            str(home / "empty"),
+            str(home / "aider.yml"),
             "--env-file",
             str(home / "empty"),
             "--input-history-file",

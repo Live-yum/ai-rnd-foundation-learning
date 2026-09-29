@@ -124,6 +124,15 @@ def verify_workflow():
                 "model_transport": "explicit-fixture",
                 "model_api_calls": 0,
             }
+        except Exception:
+            directory = Path(directory)
+            reports = Path("reports")
+            reports.mkdir(exist_ok=True)
+            for failure in directory.glob("runs/*/tool-failure.json"):
+                text = failure.read_text(encoding="utf-8")
+                (reports / "aider-workflow-failure.json").write_text(text, encoding="utf-8")
+                print(text, flush=True)
+            raise
         finally:
             store.engine.dispose()
 
