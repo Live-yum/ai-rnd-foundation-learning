@@ -75,16 +75,32 @@ def run_command(command, cwd, timeout=120, extra_env=None):
             )
         except OSError:
             raise ToolFailure("无法启动已登记工具，请检查其安装和 PATH") from None
+        timed_out = False
         try:
             code = process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             stop_process(process)
-            raise ToolFailure("工具执行超时，已终止进程组") from None
+            code, timed_out = process.returncode, True
+        # Preserve the diagnostic tail (Maven/Vite usually print the failure last),
+        # without loading an unbounded tool log into the platform process.
+        size = output.seek(0, os.SEEK_END)
         output.seek(0)
-        log = output.read(64000).decode("utf-8", errors="replace")
-        if code:
-            error = ToolFailure(f"工具退出码 {code}；检查本次运行的工具日志")
+        head = output.read(32000)
+        if size > 64000:
+            output.seek(-32000, os.SEEK_END)
+            raw = head + b"\n... [middle omitted] ...\n" + output.read(32000)
+        else:
+            raw = head + output.read(32000)
+        log = raw.decode("utf-8", errors="replace")
+        if code or timed_out:
+            message = (
+                "工具执行超时，已终止进程组"
+                if timed_out
+                else f"工具退出码 {code}；检查本次运行的工具日志"
+            )
+            error = ToolFailure(message)
             error.log = log
             error.returncode = code
+            error.timed_out = timed_out
             raise error
         return {"command": command, "returncode": code, "log": log}

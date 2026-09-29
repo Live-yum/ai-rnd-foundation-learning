@@ -219,6 +219,16 @@ def install_backend(template, backend, reports):
         commands = [["uv", "sync", "--python", "3.14"]]
     else:
         prepare_yudao_postgres(backend, reports)
+        # The upstream POM lists distant public mirrors before Central. Use one
+        # explicit public repository for repeatable dependency resolution, not
+        # a runner-specific ~/.m2/settings.xml containing account credentials.
+        maven_settings = reports / "maven-settings.xml"
+        atomic_text(
+            maven_settings,
+            '<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0">'
+            "<mirrors><mirror><id>native-central</id><mirrorOf>*</mirrorOf>"
+            "<url>https://repo.maven.apache.org/maven2</url></mirror></mirrors></settings>",
+        )
         commands = [
             [
                 "mvn",
@@ -232,6 +242,18 @@ def install_backend(template, backend, reports):
                 "-Dspring-boot.repackage.skip=true",
             ],
             ["mvn", "-B", "-ntp", "-pl", "yudao-server", "package", "-DskipTests"],
+        ]
+    if template == "yudao-vben":
+        commands = [
+            command[:1]
+            + [
+                "-s",
+                str(maven_settings.resolve()),
+                "-Dmaven.wagon.http.retryHandler.count=2",
+                "-Dmaven.wagon.rto=30000",
+            ]
+            + command[1:]
+            for command in commands
         ]
     environment = {
         "JAVA_HOME": os.environ.get("JAVA_HOME", ""),

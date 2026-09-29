@@ -320,6 +320,11 @@ def generate_modules(template, backend, frontend, base_url, openapi, token, mapp
                         replace={"table_name": mapping[entity.name]},
                     )
                 )
+                from workbench.native_compatibility import commit_before_response
+
+                transaction_fix = commit_before_response(
+                    Path(backend) / "app/plugin/module_rnd" / entity.name / "controller.py"
+                )
                 target = {
                     "entity": entity.name,
                     "api": "/rnd/" + entity.name,
@@ -334,6 +339,7 @@ def generate_modules(template, backend, frontend, base_url, openapi, token, mapp
                         "entity": entity.name,
                         "export_sha256": sha(archive),
                         "native_local_mount": True,
+                        "compatibility": transaction_fix,
                     }
                 )
         elif template == "yudao-vben":

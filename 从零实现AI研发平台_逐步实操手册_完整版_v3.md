@@ -1870,7 +1870,7 @@ def unpack(archive, destination):
 
 ### `workbench/tools.py`
 
-<!-- source-file: workbench/tools.py sha256: f7bed07abe29db2eab422864f87be11588c012271c5ef443bdf59f4d781e7f17 -->
+<!-- source-file: workbench/tools.py sha256: 7a7d0be0807babed34e7c4d7f82a079ab9c11cbc4d736f938b869667e68d6255 -->
 ````python
 """Fixed-command execution for trusted tools, not a sandbox for arbitrary model code."""
 
@@ -1949,17 +1949,33 @@ def run_command(command, cwd, timeout=120, extra_env=None):
             )
         except OSError:
             raise ToolFailure("无法启动已登记工具，请检查其安装和 PATH") from None
+        timed_out = False
         try:
             code = process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
             stop_process(process)
-            raise ToolFailure("工具执行超时，已终止进程组") from None
+            code, timed_out = process.returncode, True
+        # Preserve the diagnostic tail (Maven/Vite usually print the failure last),
+        # without loading an unbounded tool log into the platform process.
+        size = output.seek(0, os.SEEK_END)
         output.seek(0)
-        log = output.read(64000).decode("utf-8", errors="replace")
-        if code:
-            error = ToolFailure(f"工具退出码 {code}；检查本次运行的工具日志")
+        head = output.read(32000)
+        if size > 64000:
+            output.seek(-32000, os.SEEK_END)
+            raw = head + b"\n... [middle omitted] ...\n" + output.read(32000)
+        else:
+            raw = head + output.read(32000)
+        log = raw.decode("utf-8", errors="replace")
+        if code or timed_out:
+            message = (
+                "工具执行超时，已终止进程组"
+                if timed_out
+                else f"工具退出码 {code}；检查本次运行的工具日志"
+            )
+            error = ToolFailure(message)
             error.log = log
             error.returncode = code
+            error.timed_out = timed_out
             raise error
         return {"command": command, "returncode": code, "log": log}
 ````
@@ -4329,7 +4345,7 @@ if __name__ == "__main__":
 
 ### `workbench/native_environment.py`
 
-<!-- source-file: workbench/native_environment.py sha256: 865c6622c2e83190786c597f60c62e18f35ce436189bcc0bbab31566d94fa678 -->
+<!-- source-file: workbench/native_environment.py sha256: 238f9c2aef699b4cb8e97c71b31e82438466274f3b2f42111f6a071a5b3857b1 -->
 ````python
 """Loopback native lab lifecycle. Never resets existing databases or mocks authentication."""
 
@@ -4552,6 +4568,16 @@ def install_backend(template, backend, reports):
         commands = [["uv", "sync", "--python", "3.14"]]
     else:
         prepare_yudao_postgres(backend, reports)
+        # The upstream POM lists distant public mirrors before Central. Use one
+        # explicit public repository for repeatable dependency resolution, not
+        # a runner-specific ~/.m2/settings.xml containing account credentials.
+        maven_settings = reports / "maven-settings.xml"
+        atomic_text(
+            maven_settings,
+            '<settings xmlns="http://maven.apache.org/SETTINGS/1.2.0">'
+            "<mirrors><mirror><id>native-central</id><mirrorOf>*</mirrorOf>"
+            "<url>https://repo.maven.apache.org/maven2</url></mirror></mirrors></settings>",
+        )
         commands = [
             [
                 "mvn",
@@ -4565,6 +4591,18 @@ def install_backend(template, backend, reports):
                 "-Dspring-boot.repackage.skip=true",
             ],
             ["mvn", "-B", "-ntp", "-pl", "yudao-server", "package", "-DskipTests"],
+        ]
+    if template == "yudao-vben":
+        commands = [
+            command[:1]
+            + [
+                "-s",
+                str(maven_settings.resolve()),
+                "-Dmaven.wagon.http.retryHandler.count=2",
+                "-Dmaven.wagon.rto=30000",
+            ]
+            + command[1:]
+            for command in commands
         ]
     environment = {
         "JAVA_HOME": os.environ.get("JAVA_HOME", ""),
@@ -5081,7 +5119,7 @@ def browser_check(template, url, reports):
 
 ### `workbench/native_modules.py`
 
-<!-- source-file: workbench/native_modules.py sha256: 091723345b1c584931a2bc7e07a7071f48cc55e15656b0df88c0572f13e3399e -->
+<!-- source-file: workbench/native_modules.py sha256: 4ffd4a27c14a12057353fcc5617a26424525b3f983a8a040f2985ebb4d5c8139 -->
 ````python
 """Native codegen -> deterministic mounting -> native menu metadata. No model-written CRUD."""
 
@@ -5405,6 +5443,11 @@ def generate_modules(template, backend, frontend, base_url, openapi, token, mapp
                         replace={"table_name": mapping[entity.name]},
                     )
                 )
+                from workbench.native_compatibility import commit_before_response
+
+                transaction_fix = commit_before_response(
+                    Path(backend) / "app/plugin/module_rnd" / entity.name / "controller.py"
+                )
                 target = {
                     "entity": entity.name,
                     "api": "/rnd/" + entity.name,
@@ -5419,6 +5462,7 @@ def generate_modules(template, backend, frontend, base_url, openapi, token, mapp
                         "entity": entity.name,
                         "export_sha256": sha(archive),
                         "native_local_mount": True,
+                        "compatibility": transaction_fix,
                     }
                 )
         elif template == "yudao-vben":
@@ -5573,9 +5617,58 @@ def generate_modules(template, backend, frontend, base_url, openapi, token, mapp
     return targets
 ````
 
+### `workbench/native_compatibility.py`
+
+<!-- source-file: workbench/native_compatibility.py sha256: edd2a6b06cad034116f5ebdba1f3b4086d28b3365853d5ddc37aa9639095dde6 -->
+````python
+"""Small recorded compatibility edits in generated workspaces, never upstream checkouts."""
+
+import ast
+from pathlib import Path
+
+from workbench.filesystem import atomic_text, sha
+
+
+def commit_before_response(controller):
+    """A yielded request-scoped transaction can otherwise commit after its success response.
+
+    Keep the upstream authentication, permission checks, CRUD and transaction implementation.
+    Only give the generated handler's database dependency function scope, so a commit error
+    cannot follow a successful response. Reject unfamiliar controller shapes rather than
+    silently doing a broad replacement in arbitrary source.
+    """
+    controller = Path(controller)
+    source = controller.read_text(encoding="utf-8")
+    tree = ast.parse(source)
+    dependencies = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "Depends"
+        and len(node.args) == 1
+        and isinstance(node.args[0], ast.Name)
+        and node.args[0].id == "db_getter"
+    ]
+    if not dependencies or any(node.keywords for node in dependencies):
+        raise ValueError("Unexpected native generated database dependency contract")
+    before = sha(controller)
+    old = "Depends(db_getter)"
+    if source.count(old) != len(dependencies):
+        raise ValueError("Unexpected generated controller formatting")
+    atomic_text(controller, source.replace(old, 'Depends(db_getter, scope="function")'))
+    return {
+        "path": controller.name,
+        "before_sha256": before,
+        "after_sha256": sha(controller),
+        "change": "commit-before-response",
+        "dependencies": len(dependencies),
+    }
+````
+
 ### `workbench/native_acceptance.py`
 
-<!-- source-file: workbench/native_acceptance.py sha256: ad025a258d661ce46bbd1ace575f00e9d21716fa4c96c9ba3bfdcc08ce13d025 -->
+<!-- source-file: workbench/native_acceptance.py sha256: 9b6076f5ae984f61b3b58e596f8b56163c356b9153b575d499790751b0254d5b -->
 ````python
 """Independent HTTP checks for the ACTUAL generated modules and native RBAC APIs."""
 
@@ -5638,7 +5731,7 @@ def generated_crud(template, base_url, token, targets, plan):
             data = sample_record(entity, template=template)
             created = payload(client.post(target["api"] + "/create", json=data, headers=admin))
             identifier = record_id(created)
-            assert isinstance(identifier, int) and identifier > 0
+            assert type(identifier) is int and identifier > 0
 
             def get_item():
                 if fastapi:
@@ -8127,6 +8220,90 @@ def test_yudao_logic_delete_matches_pinned_postgres_seed():
     assert "deleted SMALLINT" in str(CreateTable(tables[0]).compile(dialect=postgresql.dialect()))
 ````
 
+### `tests/test_native_postgres_contract.py`
+
+<!-- source-file: tests/test_native_postgres_contract.py sha256: 37d740e8910ee916220fe69ab6f0f7b52d9584867db1b9b38da6b8c9842d754a -->
+````python
+"""PostgreSQL must match the native audit convention without changing business booleans."""
+
+from sqlalchemy import Boolean, SmallInteger
+
+from scripts.ci_native_generated import acceptance_spec
+from workbench.native_modules import native_metadata
+
+
+def test_native_deleted_uses_upstream_smallint_and_active_remains_boolean():
+    _, tables, _ = native_metadata(
+        "yudao-vben",
+        acceptance_spec(),
+        "postgresql+psycopg://lab:lab@127.0.0.1/native_codegen",
+        "postgres-contract",
+    )
+    assert isinstance(tables[0].c.deleted.type, SmallInteger)
+    assert isinstance(tables[0].c.active.type, Boolean)
+    assert str(tables[0].c.deleted.server_default.arg) == "0"
+    assert tables[0].c.tenant_id.nullable is False
+````
+
+### `tests/test_native_transaction.py`
+
+<!-- source-file: tests/test_native_transaction.py sha256: 686f7d9e114262158367ab071b344030c863993b5ad38a619b2ca6552494f864 -->
+````python
+import ast
+import sys
+
+import pytest
+
+from workbench.native_compatibility import commit_before_response
+from workbench.tools import ToolFailure, run_command
+
+
+def test_generated_transaction_scope_is_recorded(tmp_path):
+    file = tmp_path / "controller.py"
+    file.write_text(
+        """from fastapi import Depends, Security
+async def create(auth=Security(AuthPermission(["module_rnd:device:create"])), db=Depends(db_getter)):
+    return await service.create(db)
+""",
+        encoding="utf-8",
+    )
+    receipt = commit_before_response(file)
+    text = file.read_text(encoding="utf-8")
+    ast.parse(text)
+    assert 'scope="function"' in text
+    assert 'Security(AuthPermission(["module_rnd:device:create"]))' in text
+    assert receipt["before_sha256"] != receipt["after_sha256"]
+    assert receipt["dependencies"] == 1
+    with pytest.raises(ValueError):
+        commit_before_response(file)
+
+
+def test_tool_failure_retains_end_of_large_log(tmp_path):
+    with pytest.raises(ToolFailure) as error:
+        run_command(
+            [
+                sys.executable,
+                "-c",
+                "print('start');print('x'*80000);print('specific failure');raise SystemExit(9)",
+            ],
+            tmp_path,
+        )
+    assert error.value.log.startswith("start")
+    assert "specific failure" in error.value.log
+    assert len(error.value.log) < 65000
+
+
+def test_timeout_preserves_diagnostics(tmp_path):
+    with pytest.raises(ToolFailure) as error:
+        run_command(
+            [sys.executable, "-u", "-c", "import time;print('before timeout');time.sleep(10)"],
+            tmp_path,
+            timeout=0.5,
+        )
+    assert error.value.timed_out is True
+    assert "before timeout" in error.value.log
+````
+
 ### `tests/test_postgres.py`
 
 <!-- source-file: tests/test_postgres.py sha256: e69d89e40edd867759b1c969c8fca424117d4645f265d3e110a34c5c469dc07a -->
@@ -8519,7 +8696,7 @@ def test_tampered_delivery_not_released(settings, store, plan):
 
 ### `scripts/build_handbook.py`
 
-<!-- source-file: scripts/build_handbook.py sha256: 43f8d61986e593a480e272163b77ab5b2603f019cacff33dcc0d7d85035f13e9 -->
+<!-- source-file: scripts/build_handbook.py sha256: 88ba6fceae3bbec61122f3441a93848d08053bcec4f07d9ac9b16fbb404ef360 -->
 ````python
 """Render a complete, reconstructable handbook from tracked source, never from memory."""
 
@@ -8581,6 +8758,7 @@ GROUPS = [
             "workbench/native_checks.py",
             "workbench/native_frontend.py",
             "workbench/native_modules.py",
+            "workbench/native_compatibility.py",
             "workbench/native_acceptance.py",
             "workbench/native_lab.py",
             "workbench/native_delivery.py",
@@ -9248,7 +9426,7 @@ jobs:
 
 ### `.github/workflows/native-runtime.yml`
 
-<!-- source-file: .github/workflows/native-runtime.yml sha256: 1087535589def9b575755fa37f247ae658443a753b4488f1a8bf48e4ad880e2a -->
+<!-- source-file: .github/workflows/native-runtime.yml sha256: d37e8de7d271749178254e56377344e5b40962fb93a9765e456c04309645edbd -->
 ````yaml
 name: Native generated full-stack acceptance
 on:
@@ -9326,7 +9504,7 @@ jobs:
         if: matrix.template == 'yudao-vben'
         with:
           path: ~/.m2/repository
-          key: native-maven-v1-${{ runner.os }}-${{ matrix.revision }}
+          key: native-maven-central-v2-${{ runner.os }}-${{ matrix.revision }}
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -9338,6 +9516,7 @@ jobs:
           PLAYWRIGHT_BROWSERS_PATH=0 .native/browser/node_modules/.bin/playwright install --with-deps chromium
       - run: uv sync --locked --all-extras
       - name: Generate, mount, verify permissions, CRUD, restart and native browser
+        timeout-minutes: 35
         run: uv run python -m scripts.ci_native_generated ${{ matrix.template }}
         env:
           NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
@@ -9346,7 +9525,7 @@ jobs:
         if: always() && matrix.template == 'yudao-vben'
         with:
           path: ~/.m2/repository
-          key: native-maven-v1-${{ runner.os }}-${{ matrix.revision }}
+          key: native-maven-central-v2-${{ runner.os }}-${{ matrix.revision }}
       - name: Preserve revisions and actual evidence
         if: always()
         run: |

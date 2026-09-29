@@ -59,7 +59,7 @@ def generated_crud(template, base_url, token, targets, plan):
             data = sample_record(entity, template=template)
             created = payload(client.post(target["api"] + "/create", json=data, headers=admin))
             identifier = record_id(created)
-            assert isinstance(identifier, int) and identifier > 0
+            assert type(identifier) is int and identifier > 0
 
             def get_item():
                 if fastapi:

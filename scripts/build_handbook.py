@@ -58,6 +58,7 @@ GROUPS = [
             "workbench/native_checks.py",
             "workbench/native_frontend.py",
             "workbench/native_modules.py",
+            "workbench/native_compatibility.py",
             "workbench/native_acceptance.py",
             "workbench/native_lab.py",
             "workbench/native_delivery.py",
