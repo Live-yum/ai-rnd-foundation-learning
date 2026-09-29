@@ -198,16 +198,19 @@ def main():
     with running_backend(template, backend, env, reports) as (base, _):
         if not ready and template == "fastapiadmin":
             apply_delivery_sql(url, manifest, marker)
-        token = login(template, base)
-        from workbench.portable_checks import check_restored_product
+        if args.check or not ready:
+            token = login(template, base)
+            from workbench.portable_checks import check_restored_product
 
-        outcome = check_restored_product(
-            template, base, token, manifest["targets"], manifest["plan"]
-        )
+            outcome = check_restored_product(
+                template, base, token, manifest["targets"], manifest["plan"]
+            )
+        else:
+            # A regular restart must not require the seed admin's old password.
+            outcome = {"database_initialized": True, "verification_rerun": False}
         write_json(reports / "portable-start.json", outcome)
         print("数据库、业务表、菜单和新业务CRUD已就绪。", flush=True)
-        if args.check:
-            return
+    # --check must reach frontend startup; do not report backend-only success.
     # Full frontend is built while Java is stopped, using already patched source.
     front_env = frontend_environment(template, f"http://127.0.0.1:{port}")
     if not args.skip_build:

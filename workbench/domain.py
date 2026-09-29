@@ -53,6 +53,22 @@ class ResumeInput(Contract):
     def action_matches(self):
         if self.action in {"answer", "revise"} and not self.text:
             raise ValueError("回答或修改意见不能为空")
+        if self.action in {"answer", "revise"}:
+            from workbench.conversation import command_word
+
+            if command_word(self.text) in {
+                "批准",
+                "approve",
+                "拒绝",
+                "reject",
+                "智能推荐",
+                "推荐",
+                "smart",
+                "recommend",
+            }:
+                raise ValueError(
+                    "这是控制指令，不是需求回答；请使用对应按钮或 CLI 命令，不消耗澄清轮数"
+                )
         if self.action == "approve" and self.approved is not True:
             raise ValueError("批准必须显式提交布尔值 true")
         if self.action == "recommend" and self.approved is not True:

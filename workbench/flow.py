@@ -150,7 +150,9 @@ class Workflow:
                     runtime_config(self.settings, state["template"])
             except (ValueError, PrerequisiteError) as exc:
                 reasons.append(str(exc))
-        pack = design_pack(plan, self.product(state).parent / "design", state["template"])
+        pack = design_pack(
+            plan, self.product(state).parent / "design", state["template"], selection.model_dump()
+        )
         outcome = self.gate(
             state,
             "design",

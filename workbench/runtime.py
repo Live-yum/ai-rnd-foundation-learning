@@ -2,7 +2,9 @@
 
 import logging
 import threading
+import traceback
 from contextlib import ExitStack
+from pathlib import Path
 
 from filelock import FileLock
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
@@ -143,7 +145,8 @@ class Runtime:
             ):
                 error = str(exc)[:1000]
             else:
-                error = f"{type(exc).__name__}：执行失败，请检查本地日志和验收报告"
+                frame = traceback.extract_tb(exc.__traceback__)[-1]
+                error = f"{type(exc).__name__}：{Path(frame.filename).name}:{frame.lineno}（{frame.name}），请检查本次运行报告"
             error = self.settings.redact(error)
             logger.error("Run %s failed (%s)", run_id, type(exc).__name__)
             self.store.finish(

@@ -1787,7 +1787,7 @@ def concise_requirements(requirement):
 
 ### `workbench/domain.py`
 
-<!-- source-file: workbench/domain.py sha256: 9ac7027349293bdd967107d07c54ebdc8602b1355eccd5da0918532f80c8fc84 -->
+<!-- source-file: workbench/domain.py sha256: 83cd6ae852be565c27b21603a059d92b34187abda36cb57eb910c479e0b88a50 -->
 ````python
 """Typed external contracts. Raw user input cannot choose roles, commands or approval state."""
 
@@ -1844,6 +1844,22 @@ class ResumeInput(Contract):
     def action_matches(self):
         if self.action in {"answer", "revise"} and not self.text:
             raise ValueError("回答或修改意见不能为空")
+        if self.action in {"answer", "revise"}:
+            from workbench.conversation import command_word
+
+            if command_word(self.text) in {
+                "批准",
+                "approve",
+                "拒绝",
+                "reject",
+                "智能推荐",
+                "推荐",
+                "smart",
+                "recommend",
+            }:
+                raise ValueError(
+                    "这是控制指令，不是需求回答；请使用对应按钮或 CLI 命令，不消耗澄清轮数"
+                )
         if self.action == "approve" and self.approved is not True:
             raise ValueError("批准必须显式提交布尔值 true")
         if self.action == "recommend" and self.approved is not True:
@@ -2157,7 +2173,7 @@ def unpack(archive, destination):
 
 ### `workbench/flow.py`
 
-<!-- source-file: workbench/flow.py sha256: a0d762bd735b2a49017dbb188e499444773653754836a459abd23a392374c887 -->
+<!-- source-file: workbench/flow.py sha256: 1191b1e63d3e2a5c635dd090f543142f5628feb1c3dbd5e120c3730267ad7739 -->
 ````python
 """One explicit LangGraph workflow. Durable approval records, not model prose, open gates."""
 
@@ -2311,7 +2327,9 @@ class Workflow:
                     runtime_config(self.settings, state["template"])
             except (ValueError, PrerequisiteError) as exc:
                 reasons.append(str(exc))
-        pack = design_pack(plan, self.product(state).parent / "design", state["template"])
+        pack = design_pack(
+            plan, self.product(state).parent / "design", state["template"], selection.model_dump()
+        )
         outcome = self.gate(
             state,
             "design",
@@ -2601,7 +2619,7 @@ def downgrade():
 
 ### `workbench/knowledge.py`
 
-<!-- source-file: workbench/knowledge.py sha256: 6792db44f3c9a042cc38fa2292e830e4db556edc101d093cbb2de1e717be1e3e -->
+<!-- source-file: workbench/knowledge.py sha256: c652bcc39927f4afc8292ead904631453b4da21598573382a5042b44bbadbce6 -->
 ````python
 """Local deterministic indexes, incremental AST cache, source-backed diagrams and context."""
 
@@ -2697,7 +2715,7 @@ def context_for(source, index_dir, paths, max_chars=60000):
     return {"source_digest": digest(current), "files": result}
 
 
-def design_pack(plan, destination, template="python-basic"):
+def design_pack(plan, destination, template="python-basic", selection=None):
     destination = Path(destination)
     tasks = [
         {
@@ -2731,7 +2749,7 @@ def design_pack(plan, destination, template="python-basic"):
         ]
         for field in entity.fields:
             lines.append(
-                f"        { {'text': 'string', 'integer': 'int', 'boolean': 'boolean'}[field.kind] } {field.name}"
+                f"        { {'text': 'string', 'integer': 'int', 'boolean': 'boolean', 'date': 'date', 'enum': 'string'}[field.kind] } {field.name}"
             )
         lines.append("    }")
     atomic_text(destination / "design-er.mmd", "\n".join(lines) + "\n")
@@ -2749,6 +2767,8 @@ def design_pack(plan, destination, template="python-basic"):
     else:
         backend = "Spring Boot" if template == "yudao-vben" else "FastAPI"
         topology = f"flowchart LR\n  User --> UI[Vue]\n  UI --> API[{backend}]\n  API --> DB[(Template database)]\n  API --> Redis[(Redis)]\n"
+    if selection and selection.get("database") == "postgresql":
+        topology = topology.replace("Product SQLite", "Product PostgreSQL")
     atomic_text(destination / "architecture.mmd", topology)
     return {"tasks": tasks, "spec_digest": digest(plan.model_dump())}
 ````
@@ -6506,13 +6526,15 @@ class Rules:
 
 ### `workbench/runtime.py`
 
-<!-- source-file: workbench/runtime.py sha256: 68fcf1e18b6f5a73911a60529889d8e96c3d4c404fda8d935bb2a99fe97926aa -->
+<!-- source-file: workbench/runtime.py sha256: 6a917e5ef056f221d74154cc76052a93fcf3b554686f001f11a010266f0b6f42 -->
 ````python
 """Single durable worker. A recovered job never consumes a later approval gate."""
 
 import logging
 import threading
+import traceback
 from contextlib import ExitStack
+from pathlib import Path
 
 from filelock import FileLock
 from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
@@ -6653,7 +6675,8 @@ class Runtime:
             ):
                 error = str(exc)[:1000]
             else:
-                error = f"{type(exc).__name__}：执行失败，请检查本地日志和验收报告"
+                frame = traceback.extract_tb(exc.__traceback__)[-1]
+                error = f"{type(exc).__name__}：{Path(frame.filename).name}:{frame.lineno}（{frame.name}），请检查本次运行报告"
             error = self.settings.redact(error)
             logger.error("Run %s failed (%s)", run_id, type(exc).__name__)
             self.store.finish(
@@ -10344,7 +10367,7 @@ package = false
 
 ### `templates/deployment/run.py`
 
-<!-- source-file: templates/deployment/run.py sha256: 25c3d3c32d357beb56f641240acc7ee25aad42d7b57f1478fea31bc31d8a9900 -->
+<!-- source-file: templates/deployment/run.py sha256: c57c46d0b7cbb06e8ce40af3aff5325c9feaf3c1a9c256213fac182fa5fcfd4a -->
 ````python
 """Initialize the delivered product into a NEW owned database, restore menus, then start.
 
@@ -10546,16 +10569,19 @@ def main():
     with running_backend(template, backend, env, reports) as (base, _):
         if not ready and template == "fastapiadmin":
             apply_delivery_sql(url, manifest, marker)
-        token = login(template, base)
-        from workbench.portable_checks import check_restored_product
+        if args.check or not ready:
+            token = login(template, base)
+            from workbench.portable_checks import check_restored_product
 
-        outcome = check_restored_product(
-            template, base, token, manifest["targets"], manifest["plan"]
-        )
+            outcome = check_restored_product(
+                template, base, token, manifest["targets"], manifest["plan"]
+            )
+        else:
+            # A regular restart must not require the seed admin's old password.
+            outcome = {"database_initialized": True, "verification_rerun": False}
         write_json(reports / "portable-start.json", outcome)
         print("数据库、业务表、菜单和新业务CRUD已就绪。", flush=True)
-        if args.check:
-            return
+    # --check must reach frontend startup; do not report backend-only success.
     # Full frontend is built while Java is stopped, using already patched source.
     front_env = frontend_environment(template, f"http://127.0.0.1:{port}")
     if not args.skip_build:
@@ -11414,6 +11440,95 @@ def test_plan_duplicate_and_scope(plan):
     data["entities"] *= 2
     with pytest.raises(ValidationError):
         Plan.model_validate(data)
+````
+
+### `tests/test_guided_completion.py`
+
+<!-- source-file: tests/test_guided_completion.py sha256: b220571dc247273e5b21c7817153bcba7d27c48b2733c56413735f2d96f9bcb1 -->
+````python
+"""Regression for real news fields and the entire delivered --check lifecycle."""
+
+import ast
+import json
+from contextlib import contextmanager
+from types import SimpleNamespace
+
+import pytest
+from pydantic import ValidationError
+
+from scripts.ci_guided_browser import news_spec
+from workbench.domain import Plan, ResumeInput
+from workbench.knowledge import design_pack
+from workbench.settings import ROOT
+
+
+def test_news_design_covers_date_enum_and_selected_postgres(tmp_path):
+    plan = Plan.model_validate(news_spec())
+    result = design_pack(plan, tmp_path, selection={"database": "postgresql"})
+    assert result["tasks"]
+    assert "date published_on" in (tmp_path / "design-er.mmd").read_text()
+    assert "string category" in (tmp_path / "design-er.mmd").read_text()
+    assert "Product PostgreSQL" in (tmp_path / "architecture.mmd").read_text()
+
+
+@pytest.mark.parametrize("value", ["批准", "“批准”", '"批准"', "拒绝", "智能推荐"])
+def test_http_control_words_cannot_turn_into_questions(value):
+    with pytest.raises(ValidationError, match="控制指令"):
+        ResumeInput(gate_id="a" * 64, action="answer", text=value)
+
+
+def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, monkeypatch):
+    # Execute the real delivered main with controlled boundaries. Native Actions
+    # separately execute its actual SQL, backends and frontends on fresh databases.
+    import argparse
+
+    stages = []
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"template": "fastapiadmin", "targets": [], "plan": {}})
+    )
+
+    @contextmanager
+    def backend(*args):
+        stages.append("backend-start")
+        yield "http://127.0.0.1:8001", "/openapi.json"
+        stages.append("backend-stop")
+
+    @contextmanager
+    def frontend(*args):
+        stages.append("frontend-start")
+        yield "http://127.0.0.1:5173"
+
+    writes = []
+    namespace = {
+        "argparse": argparse,
+        "json": json,
+        "os": SimpleNamespace(getenv=lambda name, default=None: default, environ={}),
+        "HERE": tmp_path,
+        "PRODUCT": tmp_path,
+        "verify_manifest": lambda *a: None,
+        "services": lambda: ("unused", 6379),
+        "ownership": lambda *a: ("marker", False),
+        "native_environment": lambda *a, **k: {},
+        "install_backend": lambda *a: stages.append("install"),
+        "apply_delivery_sql": lambda *a: stages.append("sql"),
+        "running_backend": backend,
+        "login": lambda *a: "test-token",
+        "write_json": lambda p, d: writes.append(dict(d)),
+        "frontend_environment": lambda *a: {},
+        "build_frontend": lambda *a, **k: stages.append("frontend-build"),
+        "frontend_preview": frontend,
+        "ExitStack": __import__("contextlib").ExitStack,
+    }
+    import workbench.portable_checks as probes
+
+    monkeypatch.setattr(probes, "check_restored_product", lambda *a: {"passed": True})
+    monkeypatch.setattr("sys.argv", ["run.py", "--check"])
+    tree = ast.parse((ROOT / "templates/deployment/run.py").read_text())
+    fn = next(n for n in tree.body if isinstance(n, ast.FunctionDef) and n.name == "main")
+    exec(compile(ast.Module(body=[fn], type_ignores=[]), "delivered main", "exec"), namespace)
+    namespace["main"]()
+    assert "frontend-build" in stages and "frontend-start" in stages
+    assert writes[-1]["passed"] is True and writes[-1]["frontend_started"] is True
 ````
 
 ### `tests/test_guided_models.py`

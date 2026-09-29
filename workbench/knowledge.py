@@ -92,7 +92,7 @@ def context_for(source, index_dir, paths, max_chars=60000):
     return {"source_digest": digest(current), "files": result}
 
 
-def design_pack(plan, destination, template="python-basic"):
+def design_pack(plan, destination, template="python-basic", selection=None):
     destination = Path(destination)
     tasks = [
         {
@@ -126,7 +126,7 @@ def design_pack(plan, destination, template="python-basic"):
         ]
         for field in entity.fields:
             lines.append(
-                f"        { {'text': 'string', 'integer': 'int', 'boolean': 'boolean'}[field.kind] } {field.name}"
+                f"        { {'text': 'string', 'integer': 'int', 'boolean': 'boolean', 'date': 'date', 'enum': 'string'}[field.kind] } {field.name}"
             )
         lines.append("    }")
     atomic_text(destination / "design-er.mmd", "\n".join(lines) + "\n")
@@ -144,5 +144,7 @@ def design_pack(plan, destination, template="python-basic"):
     else:
         backend = "Spring Boot" if template == "yudao-vben" else "FastAPI"
         topology = f"flowchart LR\n  User --> UI[Vue]\n  UI --> API[{backend}]\n  API --> DB[(Template database)]\n  API --> Redis[(Redis)]\n"
+    if selection and selection.get("database") == "postgresql":
+        topology = topology.replace("Product SQLite", "Product PostgreSQL")
     atomic_text(destination / "architecture.mmd", topology)
     return {"tasks": tasks, "spec_digest": digest(plan.model_dump())}
