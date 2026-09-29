@@ -1,0 +1,72 @@
+name: Pinned Vben build diagnostics
+on:
+  push:
+    branches: [diagnostics/vben-build]
+    paths: [.github/workflows/vben-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          repository: yudaocode/yudao-ui-admin-vben
+          ref: 1b14e889f529e245fd620daa720dcea6de0cc5e7
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --global pnpm@11.16.0
+      - run: pnpm install --frozen-lockfile
+        env:
+          CI: 'true'
+          HUSKY: '0'
+      - name: Profile whole app without removing routes or type checks
+        shell: bash
+        run: |
+          mkdir -p reports
+          cat > apps/web-antd/.env.production <<'ENV'
+          VITE_BASE=/
+          VITE_GLOB_API_URL=/admin-api
+          VITE_NITRO_MOCK=false
+          VITE_APP_TENANT_ENABLE=true
+          VITE_APP_CAPTCHA_ENABLE=false
+          VITE_PWA=false
+          VITE_ARCHIVER=false
+          VITE_COMPRESS=none
+          ENV
+          cat > apps/web-antd/build-diagnostic.mjs <<'JS'
+          import fs from 'node:fs';
+          import inspector from 'node:inspector';
+          import { promisify } from 'node:util';
+          import { build } from 'vite';
+          const session = new inspector.Session(); session.connect();
+          const post = promisify(session.post).bind(session);
+          await post('Profiler.enable'); await post('Profiler.start');
+          let before=0, after=0, finished=false;
+          const writeProfile = async () => {
+            if(finished)return;finished=true;
+            const {profile}=await post('Profiler.stop');
+            fs.writeFileSync('../../reports/build.cpuprofile',JSON.stringify(profile));
+          };
+          const timer=setTimeout(async()=>{await writeProfile();console.error('DIAGNOSTIC deadline reached');process.exit(124)},110000);
+          const heartbeat=setInterval(()=>console.log('MEMORY',JSON.stringify(process.memoryUsage()),'TRANSFORMS',before,after),10000);
+          try {
+            await build({
+              plugins:[
+                {name:'diagnostic-before',enforce:'pre',transform(code,id){before++;if(before%100===0)console.log('BEFORE',before,id);}},
+                {name:'diagnostic-after',enforce:'post',transform(code,id){after++;if(after%100===0)console.log('AFTER',after,id);}}
+              ]
+            });
+          } finally {clearTimeout(timer);clearInterval(heartbeat);await writeProfile();session.disconnect();}
+          JS
+          cd apps/web-antd
+          env -i HOME="$HOME" PATH="$PATH" CI=true HUSKY=0 RAYON_NUM_THREADS=2 NODE_OPTIONS='--max-old-space-size=6144' timeout 125s node build-diagnostic.mjs > ../../reports/build.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vben-build-diagnostics
+          path: reports/
+          retention-days: 3
