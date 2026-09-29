@@ -1,0 +1,140 @@
+name: Complete native Vben acceptance
+on:
+  push:
+    branches: [diagnostics/vben-build]
+    paths: [.github/workflows/vben-completion.yml]
+permissions:
+  contents: read
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - name: Apply exact reviewed compatibility and integration edits
+        run: python .maintenance/complete_vben.py
+      - run: uv sync --locked --all-extras
+      - run: uv run ruff format .
+      - run: uv run ruff check .
+      - run: uv run python -m scripts.build_handbook
+      - run: uv run python -m scripts.build_handbook --check
+      - run: uv run pytest -m 'not postgres' -q --junitxml=reports/regression.xml
+      - name: Commit tested candidate source and exact handbook on diagnostic branch only
+        id: commit
+        run: |
+          git diff --exit-code -- .github/workflows
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add workbench/native_vben.py workbench/native_frontend.py scripts/build_handbook.py tests/test_native_frontend_lifecycle.py tests/test_native_vben.py docs/native-baseline.md 从零实现AI研发平台_逐步实操手册_完整版_v3.md
+          git commit -m 'fix: complete Vben source compatibility and integrate exact handbook'
+          git push origin HEAD:diagnostics/vben-build
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          git archive --format=zip --output=reports/candidate-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vben-candidate-source-and-regression
+          path: reports/
+          retention-days: 7
+  runtime:
+    needs: prepare
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - template: fastapiadmin
+            repository: fastapiadmin/FastapiAdmin
+            revision: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
+            pnpm: '9.15.3'
+          - template: yudao-vben
+            repository: yudaocode/yudao-cloud-mini
+            revision: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
+            pnpm: '11.16.0'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: native_codegen
+          POSTGRES_USER: native
+          POSTGRES_PASSWORD: native-ci-only
+        ports: ['127.0.0.1:5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U native -d native_codegen"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports: ['127.0.0.1:6379:6379']
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ matrix.repository }}
+          ref: ${{ matrix.revision }}
+          path: .native/source
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        if: matrix.template == 'yudao-vben'
+        with:
+          repository: yudaocode/yudao-ui-admin-vben
+          ref: 1b14e889f529e245fd620daa720dcea6de0cc5e7
+          path: .native/frontend
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-java@v4
+        if: matrix.template == 'yudao-vben'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/cache/restore@v4
+        if: matrix.template == 'yudao-vben'
+        with:
+          path: ~/.m2/repository
+          key: native-maven-central-v2-${{ runner.os }}-${{ matrix.revision }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --global pnpm@${{ matrix.pnpm }}
+      - name: Install real Chromium tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          PLAYWRIGHT_BROWSERS_PATH=0 .native/browser/node_modules/.bin/playwright install --with-deps chromium
+      - run: uv sync --locked --all-extras
+      - name: Generate two modules, verify CRUD, roles, complete frontend types, persistence and browser
+        timeout-minutes: 24
+        run: uv run python -m scripts.ci_native_generated ${{ matrix.template }}
+        env:
+          NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
+          PLAYWRIGHT_BROWSERS_PATH: '0'
+      - name: Preserve exact revisions and generated-source evidence
+        if: always()
+        run: |
+          mkdir -p reports/native
+          git rev-parse HEAD > reports/native/platform-sha.txt
+          git -C .native/source rev-parse HEAD > reports/native/upstream-sha.txt
+          if [ -d .native/frontend/.git ]; then git -C .native/frontend rev-parse HEAD > reports/native/frontend-sha.txt; fi
+          git archive --format=zip --output=reports/native/platform-source.zip HEAD
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: completed-native-${{ matrix.template }}
+          path: reports/native/
+          retention-days: 7
