@@ -86,6 +86,14 @@ class Settings(BaseSettings):
     max_context_chars: int = Field(default=100000, ge=10000, le=300000)
     install_products: bool = True
     enable_coding: bool = True
+    coding_engine: Literal["bounded", "aider"] = "bounded"
+    repo_map_engine: Literal["symbols", "aider"] = "symbols"
+    sandbox_backend: Literal["local", "daytona"] = "local"
+    daytona_api_url: str = ""
+    daytona_api_key: SecretStr = SecretStr("")
+    daytona_target: str = ""
+    daytona_snapshot: str = ""
+    daytona_upload_authorized: bool = False
     max_repair_attempts: int = Field(default=2, ge=0, le=2)
     tool_timeout: int = Field(default=180, ge=10, le=900)
     checkpoint_url: str = ""
@@ -140,7 +148,12 @@ class Settings(BaseSettings):
         )
 
     def redact(self, text: str) -> str:
-        for field in ("api_key", "product_postgres_url", *(stage + "_api_key" for stage in STAGES)):
+        for field in (
+            "api_key",
+            "product_postgres_url",
+            "daytona_api_key",
+            *(stage + "_api_key" for stage in STAGES),
+        ):
             secret = getattr(self, field).get_secret_value()
             if secret:
                 text = text.replace(secret, "[redacted]")

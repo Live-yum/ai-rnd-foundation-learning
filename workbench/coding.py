@@ -51,18 +51,27 @@ def apply_patch(product, patch):
     }
 
 
-def code_rules(run_id, plan, product, gateway, attempt, error=""):
+def code_rules(run_id, plan, product, gateway, attempt, error="", *, settings=None):
     knowledge = Path(product).parent / "knowledge"
     build_index(product, knowledge, source_version="generated-product")
     context = context_for(product, knowledge, ["custom_rules.py", "approved-spec.json"])
-    result = gateway.complete(
-        run_id,
-        f"coding:{attempt}",
-        INSTRUCTION,
-        {"plan": plan.model_dump(), "context": context, "previous_error": error},
-        Patches,
-    )
-    receipt = apply_patch(product, result.patches[0])
+    payload = {"plan": plan.model_dump(), "context": context, "previous_error": error}
+    if settings and settings.coding_engine == "aider":
+        from workbench.aider_tools import Edits, apply_edits
+
+        result = gateway.complete(
+            run_id,
+            f"coding:{attempt}:aider",
+            INSTRUCTION.replace("必须返回 patches JSON", "必须返回 Edits JSON")
+            + "\n本次只返回before_sha256、edits(search/replace)、explanation；不返回完整文件。"
+            "每个search精确唯一匹配当前文件，search/replace均为完整行并保留末尾换行。",
+            payload,
+            Edits,
+        )
+        receipt = apply_edits(product, result, settings, attempt)
+    else:
+        result = gateway.complete(run_id, f"coding:{attempt}", INSTRUCTION, payload, Patches)
+        receipt = apply_patch(product, result.patches[0])
     receipt.update(attempt=attempt, explanation=result.explanation)
     write_json(Path(product).parent / f"coding-{attempt}.json", receipt)
     build_index(product, knowledge, source_version="generated-product")

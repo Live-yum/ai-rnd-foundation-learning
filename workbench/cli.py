@@ -13,10 +13,12 @@ from workbench.catalog import Selection, selections
 from workbench.conversation import command_word
 from workbench.settings import ROOT, STAGES, Settings
 from workbench.store import Store
+from workbench.toolchain_cli import app as toolchain_app
 
 app = typer.Typer(no_args_is_help=True, help="本地 AI 研发平台（Python 3.14）")
 native_app = typer.Typer(no_args_is_help=True)
 app.add_typer(native_app, name="native")
+app.add_typer(toolchain_app, name="tools")
 
 
 def echo(value):

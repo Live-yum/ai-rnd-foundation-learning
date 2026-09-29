@@ -2,7 +2,7 @@
 
 从需求到可启动产品的本地工作台：**先选择后端、前端与数据库 → 描述需求 → 人工确认或一键智能推荐 → 原生/确定性生成 → 独立测试 → 可选模型审阅 → 打包下载**。
 
-平台使用 Python、uv、FastAPI、SQLite 和 LangGraph。只有真实模型接口会产生模型费用；基础代码、迁移、索引、测试与打包由工具执行。测试失败不能由模型“宣布通过”。
+平台使用 Python、uv、FastAPI、SQLite 和 LangGraph。默认只需配置模型接口；显式启用Daytona可能另有沙箱费用；基础代码、迁移、索引、测试与打包由工具执行。测试失败不能由模型“宣布通过”。
 
 ## 1. 克隆并初始化
 
@@ -10,7 +10,7 @@
 
 ```powershell
 cd D:\Code
-git clone --branch feat/guided-multimodel-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
+git clone --branch feat/structured-code-tools https://github.com/Live-yum/ai-rnd-foundation-learning.git
 cd ai-rnd-foundation-learning
 uv python install 3.14
 uv sync --locked
@@ -157,7 +157,7 @@ uv run --no-project --python 3.14 python start.py
 
 ```powershell
 git fetch origin
-git switch feat/guided-multimodel-workbench
+git switch feat/structured-code-tools
 uv sync --locked
 uv run rnd init
 ```
@@ -178,3 +178,36 @@ Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新�
 详细从零实现手册：**`从零实现AI研发平台_逐步实操手册_完整版.md`**。兼容旧链接的 `_v3.md` 与它逐字一致。正文、完整代码、数据库迁移、前端、测试、CI、锁文件一起生成；修改代码后执行 `uv run python -m scripts.build_handbook`。模板ZIP二进制不嵌入Markdown，但已随普通clone包含，附录给出哈希、来源和许可证。
 
 当前是仅监听本机、单操作人和单Worker的研发工作台。没有公网生产身份体系。请勿公开 `.env`、`.data`、`.deployment` 或访问令牌。更多环境条件、SQL步骤、预算恢复、原生部署与故障定位见完整手册。
+
+
+## 10. Tree-sitter、Aider、Continue和Daytona怎样使用
+
+`uv sync --locked`已经包含固定Tree-sitter语法。`rnd init`对自带FastapiAdmin/Yudao/Vben源码建Python/Java/TypeScript/JavaScript/Vue结构索引；规划节点实际读取带文件名、行号和SHA的模板上下文，不把整个源码包发给模型。Vue索引是HTML外壳+TS/JS脚本，不替代vue-tsc。
+
+```powershell
+uv run rnd tools status
+uv run rnd index templates/product .data/example-index
+uv run rnd tools search templates/product .data/example-index validate
+```
+
+Aider是可选工具，固定0.86.2放在**单独Python3.12**环境；平台和交付产品保持Python3.14：
+
+```powershell
+uv run rnd tools install-aider
+uv run rnd tools repo-map templates/product .data/example-index --engine aider
+```
+
+需要在真实流程中使用时，在.env设置`REPO_MAP_ENGINE=aider`和`CODING_ENGINE=aider`后重启平台。RepoMap使用真实Aider算法；编码模型仍由原ModelGateway调用，Aider只离线应用精确SEARCH/REPLACE，不额外发起模型请求、不接收Key。只允许受限custom_rules.py，失败不改原文件；前后Git提交和回滚bundle保存在运行目录。Java/Vben CRUD仍由原生生成器完成，不擅自开放原生任意文件编辑。
+
+Continue通过当前MCP机制读取同一份平台索引：
+
+```powershell
+uv sync --locked --extra continue
+uv run rnd tools continue-config templates/product .data/example-index
+```
+
+将打印的mcpServers片段合并到你自己的Continue配置，保留原有模型配置。工具只读，不覆盖配置或复制密钥。本实现是平台AST/关键词/TF-IDF检索的MCP桥，不冒称内嵌Continue已弃用的`@Codebase`引擎，也不把词法向量声称为神经语义embedding。
+
+**Daytona默认不创建任何云端资源。**只有你自行选择HTTPS服务地址、独立Key、预热快照，并明确设置`DAYTONA_UPLOAD_AUTHORIZED=true`与`SANDBOX_BACKEND=daytona`后才接入验收。安装用`uv sync --locked --extra daytona`。当前远程配置支持FastAPI Basic+SQLite，原生框架继续原来的完整本机/Docker验收；禁止悄悄回退、操作生产数据库或把创建沙箱算作测试通过。删除未获确认也不能READY。
+
+详见[手册第20章](docs/toolchain.md)：从空目录创建每个模块、完整源码位置、安装与正常输出、实际流程接线、Continue合并配置、Daytona授权与清理、Git回滚、失败恢复及Actions。新的Structured code toolchain acceptance在Linux/Windows执行真实Aider编辑/修复/独立交付和MCP握手；PR的Daytona测试仅为SDK/安全契约，**云端真机必须另有人工授权执行证据**。

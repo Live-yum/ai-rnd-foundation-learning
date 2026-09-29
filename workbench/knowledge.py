@@ -4,23 +4,25 @@ import ast
 import json
 from pathlib import Path
 
+from workbench.code_index import GRAMMARS, extract, parser_identity
 from workbench.domain import digest
 from workbench.filesystem import atomic_text, files, inside, manifest, secret_name, write_json
 
-INDEX_VERSION = 1
+INDEX_VERSION = 2
 
 
 def build_index(source, output, source_version="local"):
     source, output = Path(source).resolve(), Path(output).resolve()
     if output == source or source in output.parents:
         raise ValueError("知识包输出必须位于源码目录外，避免自我索引")
+    identity = parser_identity()
     cached = {}
     if (output / "index.json").exists():
         old = json.loads((output / "index.json").read_text(encoding="utf-8"))
-        if old.get("schema") == INDEX_VERSION:
+        if old.get("schema") == INDEX_VERSION and old.get("parsers") == identity:
             cached = old.get("files", {})
     hashes = manifest(source)
-    entries, parsed, reused = {}, 0, 0
+    entries, parsed, reused, structural = {}, 0, 0, 0
     for name, path in files(source):
         if name in cached and cached[name].get("sha256") == hashes[name]:
             entries[name] = cached[name]
@@ -47,9 +49,16 @@ def build_index(source, output, source_version="local"):
                 parsed += 1
             except SyntaxError, UnicodeError:
                 entry["parse_error"] = True
+        elif path.suffix in GRAMMARS:
+            try:
+                entry.update(extract(path.read_bytes(), path.suffix))
+                structural += 1
+            except (UnicodeError, ValueError) as exc:
+                entry["parse_error"] = type(exc).__name__
         entries[name] = entry
     result = {
         "schema": INDEX_VERSION,
+        "parsers": identity,
         "source_version": source_version,
         "source_digest": digest(hashes),
         "files": entries,
@@ -63,11 +72,18 @@ def build_index(source, output, source_version="local"):
     )
     write_json(
         output / "build-stats.json",
-        {"parsed_python": parsed, "reused": reused, "files": len(entries)},
+        {
+            "parsed_python": parsed,
+            "parsed_tree_sitter": structural,
+            "reused": reused,
+            "files": len(entries),
+        },
     )
     return {
         "source_digest": result["source_digest"],
         "parsed_python": parsed,
+        "parsed_tree_sitter": structural,
+        "parse_errors": sum(bool(e.get("parse_error")) for e in entries.values()),
         "reused": reused,
         "files": len(entries),
     }

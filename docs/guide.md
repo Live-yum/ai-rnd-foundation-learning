@@ -45,7 +45,7 @@ uv --version
 
 ```powershell
 cd D:\Code
-git clone --branch feat/guided-multimodel-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
+git clone --branch feat/structured-code-tools https://github.com/Live-yum/ai-rnd-foundation-learning.git
 cd ai-rnd-foundation-learning
 uv python install 3.14
 uv sync --locked
@@ -74,7 +74,7 @@ uv run rnd init
 
 ```powershell
 git fetch origin
-git switch feat/guided-multimodel-workbench
+git switch feat/structured-code-tools
 uv sync --locked
 uv run rnd init
 ```
@@ -314,11 +314,11 @@ uv run pytest tests/test_llm.py tests/test_guided_models.py -q
 
 ## 10. 第四组：文件、模板快照、索引与规则
 
-创建filesystem.py、vendor.py、tools.py、knowledge.py、rules.py、coding.py。
+创建filesystem.py、vendor.py、tools.py、knowledge.py、rules.py、coding.py，以及第20章列出的code_index.py、retrieval.py和可选工具模块。完整源码均在附录。
 
 filesystem负责原子写、路径边界、普通文件与ZIP大小、符号链接/路径遍历/重复文件检查及哈希。API不能接收任意shell命令或任意主机路径。tools的命令来自可信代码参数数组，shell=False；环境只透传必需路径和显式配置，排除平台模型密钥；超时停止进程组并保留有界首尾日志。
 
-vendor读取manifest，核对ZIP整体SHA和解压后的文件指纹与LICENSE。重复init复用有效缓存，篡改立即拒绝。三份模板在仓库内，源码未变化就不反复解析。knowledge的AST索引记录Python符号起止行和imports，Java/TS目前是文件地图，不假称是精确全语言调用图。输出目录必须位于被索引源码之外。
+vendor读取manifest，核对ZIP整体SHA和解压后的文件指纹与LICENSE。重复init复用有效缓存，篡改立即拒绝。三份模板在仓库内，源码未变化就不反复解析。knowledge的索引记录Python标准库AST以及Tree-sitter解析的Java/TS/JS/Vue符号、注解和起止行，解析器版本变化时自动失效；它不是精确的跨语言调用图。输出目录必须位于被索引源码之外。
 
 ```powershell
 uv run rnd index workbench .data/platform-knowledge
