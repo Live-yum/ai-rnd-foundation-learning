@@ -78,6 +78,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Allocate ephemeral swap for the complete Vben build
+        if: matrix.template == 'yudao-vben'
+        run: |
+          free -m
+          df -h /mnt
+          sudo fallocate -l 8G /mnt/native-build.swap
+          sudo chmod 600 /mnt/native-build.swap
+          sudo mkswap /mnt/native-build.swap
+          sudo swapon /mnt/native-build.swap
+          free -m
       - name: Install pinned native frontend package manager
         run: npm install --global pnpm@${{ matrix.pnpm }}
       - name: Install isolated browser test tooling
