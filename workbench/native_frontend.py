@@ -44,10 +44,13 @@ def build_frontend(template, root, env, reports):
     app = frontend_app(template, root)
     if not (root / "pnpm-lock.yaml").is_file():
         raise ValueError("Native frontend lockfile is required")
+    # Native Vite plugins produce auto-imports/components declarations on first build.
+    # Checking a pristine checkout before generating them yields false missing-name errors.
+    # Type checking remains mandatory, AFTER deterministic generation; no errors are ignored.
     checks = [
         ("install", ["pnpm", "install", "--frozen-lockfile"], root),
-        ("typecheck", ["pnpm", "exec", "vue-tsc", "--noEmit", "--skipLibCheck"], app),
         ("build", ["pnpm", "exec", "vite", "build", "--mode", "production"], app),
+        ("typecheck", ["pnpm", "exec", "vue-tsc", "--noEmit", "--skipLibCheck"], app),
     ]
     evidence = []
     for name, command, cwd in checks:
