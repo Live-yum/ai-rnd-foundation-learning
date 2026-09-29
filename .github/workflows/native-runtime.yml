@@ -1,7 +1,7 @@
 name: Native baseline acceptance
 on:
   push:
-    branches: [feat/python314-workbench]
+    branches: [main]
     paths:
       - 'workbench/native*.py'
       - 'scripts/ci_native*.py'
