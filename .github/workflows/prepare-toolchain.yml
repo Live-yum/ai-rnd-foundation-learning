@@ -22,9 +22,12 @@ jobs:
         if: hashFiles('.maintenance/reviewed.patch') != ''
         run: |
           sed -i 's/^ diff --git /diff --git /' .maintenance/reviewed.patch
-          git apply --check --index .maintenance/reviewed.patch
-          git apply --index .maintenance/reviewed.patch
+          git apply --recount --check --index .maintenance/reviewed.patch
+          git apply --recount --index .maintenance/reviewed.patch
           rm .maintenance/reviewed.patch
+      - name: Close all SQLite connections before atomic index replacement
+        if: hashFiles('.maintenance/fix_review.py') != ''
+        run: python .maintenance/fix_review.py
       - name: Resolve isolated, pinned runtimes
         run: |
           uv lock
