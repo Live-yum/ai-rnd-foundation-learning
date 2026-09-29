@@ -1308,7 +1308,7 @@ path_separator = os
 
 ### `workbench/aider_tool.py`
 
-<!-- source-file: workbench/aider_tool.py sha256: 939766e13658d94a1e10415f6edc2a9aa90d37229e1c4ef486e6cde1bbd1db44 -->
+<!-- source-file: workbench/aider_tool.py sha256: 564a579ef3ea7f10ab77c6b8e454f1ec92c31321bed60d89b7e33dbe3276299d -->
 ````python
 """Pinned Aider CLI, used only in a disposable local Git worktree with no keys.
 
@@ -1540,7 +1540,7 @@ def repo_map(source, index_dir, settings):
         for name, path in files(source)
         if path.suffix in CODE_SUFFIXES and path.suffix != ".md"
     ]
-    if len(selected) > 10000 or sum(p.stat().st_size for _, p in selected) > 80_000_000:
+    if len(selected) > 20000 or sum(p.stat().st_size for _, p in selected) > 80_000_000:
         raise ValueError("Aider Repo Map 输入超出预算，请分模板slot索引")
     with tempfile.TemporaryDirectory(prefix="rnd-repomap-") as temporary:
         root = Path(temporary)
@@ -7064,7 +7064,7 @@ def render(plan, destination):
 
 ### `workbench/retrieval.py`
 
-<!-- source-file: workbench/retrieval.py sha256: 1077de154e04af2bf2fa216f6868a4c3af387a541ed20d36860ebbab489adaef -->
+<!-- source-file: workbench/retrieval.py sha256: 098ec0a395067cdac93c8292b58c6dbfee08b346b35b2a287bcc51ea263eea0e -->
 ````python
 """AST chunks + SQLite FTS5; optional explicit embeddings and rank fusion.
 
@@ -7077,6 +7077,7 @@ import math
 import re
 import sqlite3
 import tempfile
+from bisect import bisect_right
 from contextlib import closing
 from pathlib import Path
 
@@ -7088,7 +7089,7 @@ from workbench.filesystem import inside, manifest, sha, write_json
 from workbench.settings import ModelProfile
 
 CODE_SUFFIXES = {".py", ".java", ".ts", ".tsx", ".js", ".jsx", ".vue", ".sql", ".md"}
-MAX_CHUNKS = 40000
+MAX_CHUNKS = 60000
 
 
 def terms(value):
@@ -7107,17 +7108,24 @@ def chunks(source, index):
         except UnicodeError:
             continue
         anchors = sorted({1, *(s["line"] for s in entry["symbols"])})
-        spans = set()
-        for i, start in enumerate(anchors):
-            stop = anchors[i + 1] - 1 if i + 1 < len(anchors) else len(lines)
-            for first in range(start, stop + 1, 60):
-                spans.add((first, min(first + 59, stop)))
-        for first, last in sorted(spans):
+        # Pack adjacent declarations, preserving every line instead of making
+        # a separate tiny chunk for every local variable in large Vue workspaces.
+        spans = []
+        first = 1
+        while first <= len(lines):
+            last = min(first + 59, len(lines))
+            if last < len(lines):
+                boundary = anchors[bisect_right(anchors, last + 1) - 1] - 1
+                if boundary >= first + 39:
+                    last = boundary
+            spans.append((first, last))
+            first = last + 1
+        for first, last in spans:
             content = "\n".join(lines[first - 1 : last])[:8000]
             names = " ".join(s["name"] for s in entry["symbols"] if first <= s["line"] <= last)
             count += 1
             if count > MAX_CHUNKS:
-                raise ValueError("索引分块超过40000，需缩小源码范围；没有静默漏掉文件")
+                raise ValueError(f"索引分块超过{MAX_CHUNKS}，需缩小源码范围；没有静默漏掉文件")
             yield (
                 digest([name, first, content]),
                 name,
@@ -7136,7 +7144,7 @@ def search_identity(index):
             "source": index["source_digest"],
             "schema": index["schema"],
             "parsers": index["parsers"],
-            "chunker": 1,
+            "chunker": 2,
         }
     )
 
@@ -14905,7 +14913,7 @@ def test_model_budget(store):
 
 ### `tests/test_toolchain.py`
 
-<!-- source-file: tests/test_toolchain.py sha256: 0319fbe78451393836ade23929d1aa68b947688dd43c76b9dba805fb0571e718 -->
+<!-- source-file: tests/test_toolchain.py sha256: b4428b20d345067e6ddad1cd00a6e689156e9f7427b0667cf31fbf103ff5503e -->
 ````python
 """Real parsers/SQLite/MCP; explicit fixtures only for paid external transports."""
 
@@ -15239,6 +15247,22 @@ def test_workflow_daytona_gate_blocks_packaging(settings, store, monkeypatch):
     monkeypatch.setattr("workbench.sandbox.verify_in_daytona", failed)
     with pytest.raises(PrerequisiteError):
         workflow.sandbox({"run_id": "fixture", "template": "python-basic"})
+
+
+def test_ast_packing_covers_every_line_without_one_chunk_per_variable(tmp_path):
+    from workbench.retrieval import chunks
+
+    source, index = tmp_path / "source", tmp_path / "index"
+    source.mkdir()
+    text = "\n".join(f"export const value{i} = {i};" for i in range(180)) + "\n"
+    (source / "dense.ts").write_text(text, encoding="utf-8")
+    build_index(source, index)
+    data = json.loads((index / "index.json").read_text(encoding="utf-8"))
+    assert len(data["files"]["dense.ts"]["symbols"]) == 180
+    packed = list(chunks(source, data))
+    assert len(packed) == 3
+    assert "\n".join(row[6] for row in packed) == text.rstrip("\n")
+    assert [(row[2], row[3]) for row in packed] == [(1, 60), (61, 120), (121, 180)]
 ````
 
 ### `tests/test_tools_cli.py`
@@ -16259,7 +16283,7 @@ print(
 
 ### `scripts/ci_toolchain.py`
 
-<!-- source-file: scripts/ci_toolchain.py sha256: 6b3d4ea939dbe0f75e6c4c9ac783a42f874f69c9f428e7f16b97f59fc8cb5d6c -->
+<!-- source-file: scripts/ci_toolchain.py sha256: 6d6504d02b618d562f56375deaee45e2f895205397c6524409e12d3df919e8aa -->
 ````python
 """Real Aider CLI + real MCP stdio + real bundled Java/Vue sources, no model key."""
 
@@ -16276,6 +16300,7 @@ from workbench.filesystem import sha, write_json
 from workbench.knowledge import build_index
 from workbench.retrieval import query
 from workbench.settings import ROOT, Settings
+from workbench.tools import ToolFailure
 from workbench.vendor import prepare
 
 
@@ -16316,6 +16341,8 @@ def main():
         assert any(hit["path"].endswith(".vue") for hit in vue["matches"])
         export_continue(root, backend, bindex)
         protocol = asyncio.run(mcp_roundtrip(backend, bindex))
+        java_map = repo_map(backend, bindex, settings)
+        assert ".java" in java_map["text"], java_map
         source = root / "aider-source"
         source.mkdir()
         (source / "sample.py").write_text(
@@ -16345,6 +16372,7 @@ def main():
             "native_vben_hits": len(vue["matches"]),
             "continue_mcp": protocol,
             "aider_cli_map": True,
+            "aider_native_java_map": True,
             "aider_cli_edit": True,
             "git_commits": True,
             "model_calls": 0,
@@ -16356,7 +16384,11 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ToolFailure as exc:
+        print(exc.log)  # Isolated CI tool processes receive no real model credentials.
+        raise
 ````
 
 ### `scripts/guided_browser.cjs`

@@ -9,6 +9,7 @@ import math
 import re
 import sqlite3
 import tempfile
+from bisect import bisect_right
 from contextlib import closing
 from pathlib import Path
 
@@ -20,7 +21,7 @@ from workbench.filesystem import inside, manifest, sha, write_json
 from workbench.settings import ModelProfile
 
 CODE_SUFFIXES = {".py", ".java", ".ts", ".tsx", ".js", ".jsx", ".vue", ".sql", ".md"}
-MAX_CHUNKS = 40000
+MAX_CHUNKS = 60000
 
 
 def terms(value):
@@ -39,17 +40,24 @@ def chunks(source, index):
         except UnicodeError:
             continue
         anchors = sorted({1, *(s["line"] for s in entry["symbols"])})
-        spans = set()
-        for i, start in enumerate(anchors):
-            stop = anchors[i + 1] - 1 if i + 1 < len(anchors) else len(lines)
-            for first in range(start, stop + 1, 60):
-                spans.add((first, min(first + 59, stop)))
-        for first, last in sorted(spans):
+        # Pack adjacent declarations, preserving every line instead of making
+        # a separate tiny chunk for every local variable in large Vue workspaces.
+        spans = []
+        first = 1
+        while first <= len(lines):
+            last = min(first + 59, len(lines))
+            if last < len(lines):
+                boundary = anchors[bisect_right(anchors, last + 1) - 1] - 1
+                if boundary >= first + 39:
+                    last = boundary
+            spans.append((first, last))
+            first = last + 1
+        for first, last in spans:
             content = "\n".join(lines[first - 1 : last])[:8000]
             names = " ".join(s["name"] for s in entry["symbols"] if first <= s["line"] <= last)
             count += 1
             if count > MAX_CHUNKS:
-                raise ValueError("索引分块超过40000，需缩小源码范围；没有静默漏掉文件")
+                raise ValueError(f"索引分块超过{MAX_CHUNKS}，需缩小源码范围；没有静默漏掉文件")
             yield (
                 digest([name, first, content]),
                 name,
@@ -68,7 +76,7 @@ def search_identity(index):
             "source": index["source_digest"],
             "schema": index["schema"],
             "parsers": index["parsers"],
-            "chunker": 1,
+            "chunker": 2,
         }
     )
 

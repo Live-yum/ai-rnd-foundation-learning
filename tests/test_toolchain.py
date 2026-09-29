@@ -330,3 +330,19 @@ def test_workflow_daytona_gate_blocks_packaging(settings, store, monkeypatch):
     monkeypatch.setattr("workbench.sandbox.verify_in_daytona", failed)
     with pytest.raises(PrerequisiteError):
         workflow.sandbox({"run_id": "fixture", "template": "python-basic"})
+
+
+def test_ast_packing_covers_every_line_without_one_chunk_per_variable(tmp_path):
+    from workbench.retrieval import chunks
+
+    source, index = tmp_path / "source", tmp_path / "index"
+    source.mkdir()
+    text = "\n".join(f"export const value{i} = {i};" for i in range(180)) + "\n"
+    (source / "dense.ts").write_text(text, encoding="utf-8")
+    build_index(source, index)
+    data = json.loads((index / "index.json").read_text(encoding="utf-8"))
+    assert len(data["files"]["dense.ts"]["symbols"]) == 180
+    packed = list(chunks(source, data))
+    assert len(packed) == 3
+    assert "\n".join(row[6] for row in packed) == text.rstrip("\n")
+    assert [(row[2], row[3]) for row in packed] == [(1, 60), (61, 120), (121, 180)]

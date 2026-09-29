@@ -13,6 +13,7 @@ from workbench.filesystem import sha, write_json
 from workbench.knowledge import build_index
 from workbench.retrieval import query
 from workbench.settings import ROOT, Settings
+from workbench.tools import ToolFailure
 from workbench.vendor import prepare
 
 
@@ -53,6 +54,8 @@ def main():
         assert any(hit["path"].endswith(".vue") for hit in vue["matches"])
         export_continue(root, backend, bindex)
         protocol = asyncio.run(mcp_roundtrip(backend, bindex))
+        java_map = repo_map(backend, bindex, settings)
+        assert ".java" in java_map["text"], java_map
         source = root / "aider-source"
         source.mkdir()
         (source / "sample.py").write_text(
@@ -82,6 +85,7 @@ def main():
             "native_vben_hits": len(vue["matches"]),
             "continue_mcp": protocol,
             "aider_cli_map": True,
+            "aider_native_java_map": True,
             "aider_cli_edit": True,
             "git_commits": True,
             "model_calls": 0,
@@ -93,4 +97,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ToolFailure as exc:
+        print(exc.log)  # Isolated CI tool processes receive no real model credentials.
+        raise

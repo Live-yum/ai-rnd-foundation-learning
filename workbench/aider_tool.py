@@ -228,7 +228,7 @@ def repo_map(source, index_dir, settings):
         for name, path in files(source)
         if path.suffix in CODE_SUFFIXES and path.suffix != ".md"
     ]
-    if len(selected) > 10000 or sum(p.stat().st_size for _, p in selected) > 80_000_000:
+    if len(selected) > 20000 or sum(p.stat().st_size for _, p in selected) > 80_000_000:
         raise ValueError("Aider Repo Map 输入超出预算，请分模板slot索引")
     with tempfile.TemporaryDirectory(prefix="rnd-repomap-") as temporary:
         root = Path(temporary)
