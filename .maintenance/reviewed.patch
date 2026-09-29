@@ -1,0 +1,63 @@
+diff --git a/workbench/retrieval.py b/workbench/retrieval.py
+--- a/workbench/retrieval.py
++++ b/workbench/retrieval.py
+@@ -11,6 +11,7 @@
+ import sqlite3
+ import tempfile
++from bisect import bisect_right
+ from contextlib import closing
+ from pathlib import Path
+@@ -23,1 +24,1 @@
+-MAX_CHUNKS = 40000
++MAX_CHUNKS = 60000
+@@ -40,12 +41,21 @@ def chunks(source, index):
+         anchors = sorted({1, *(s["line"] for s in entry["symbols"])})
+-        spans = set()
+-        for i, start in enumerate(anchors):
+-            stop = anchors[i + 1] - 1 if i + 1 < len(anchors) else len(lines)
+-            for first in range(start, stop + 1, 60):
+-                spans.add((first, min(first + 59, stop)))
+-        for first, last in sorted(spans):
++        # Pack adjacent declarations. One tiny chunk per local variable explodes
++        # on the bundled 1.6-million-line multi-app Vue workspace.
++        spans = []
++        first = 1
++        while first <= len(lines):
++            last = min(first + 59, len(lines))
++            if last < len(lines):
++                boundary = anchors[bisect_right(anchors, last + 1) - 1] - 1
++                if boundary >= first + 39:
++                    last = boundary
++            spans.append((first, last))
++            first = last + 1
++        for first, last in spans:
+             content = "\n".join(lines[first - 1 : last])[:8000]
+             names = " ".join(s["name"] for s in entry["symbols"] if first <= s["line"] <= last)
+             count += 1
+             if count > MAX_CHUNKS:
+-                raise ValueError("索引分块超过40000，需缩小源码范围；没有静默漏掉文件")
++                raise ValueError(f"索引分块超过{MAX_CHUNKS}，需缩小源码范围；没有静默漏掉文件")
+@@ -70,1 +80,1 @@ def search_identity(index):
+-            "chunker": 1,
++            "chunker": 2,
+diff --git a/tests/test_toolchain.py b/tests/test_toolchain.py
+--- a/tests/test_toolchain.py
++++ b/tests/test_toolchain.py
+@@ -390,1 +390,17 @@
+         workflow.sandbox({"run_id": "fixture", "template": "python-basic"})
++
++
++def test_ast_packing_covers_every_line_without_one_chunk_per_variable(tmp_path):
++    from workbench.retrieval import chunks
++
++    source, index = tmp_path / "source", tmp_path / "index"
++    source.mkdir()
++    text = "\n".join(f"export const value{i} = {i};" for i in range(180)) + "\n"
++    (source / "dense.ts").write_text(text, encoding="utf-8")
++    build_index(source, index)
++    data = json.loads((index / "index.json").read_text(encoding="utf-8"))
++    assert len(data["files"]["dense.ts"]["symbols"]) == 180
++    packed = list(chunks(source, data))
++    assert len(packed) == 3
++    assert "\n".join(row[6] for row in packed) == text.rstrip("\n")
++    assert [(row[2], row[3]) for row in packed] == [(1, 60), (61, 120), (121, 180)]
