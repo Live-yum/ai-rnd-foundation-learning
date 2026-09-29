@@ -2,7 +2,7 @@ name: Apply reviewed native source fixes
 on:
   push:
     branches: [feat/python314-workbench]
-    paths: [.maintenance/apply_native_patch.py, .github/workflows/apply-reviewed-native.yml]
+    paths: [.maintenance/apply_native_patch.py, .maintenance/native_pg_fix.py, .github/workflows/apply-reviewed-native.yml]
 permissions:
   contents: write
 jobs:
@@ -16,7 +16,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
-      - run: python .maintenance/apply_native_patch.py
+      - run: python .maintenance/apply_native_patch.py && python .maintenance/native_pg_fix.py
       - run: uv sync --locked --all-extras
       - run: uv run ruff check --fix workbench scripts tests migrations
       - run: uv run ruff format workbench scripts tests migrations
@@ -29,13 +29,13 @@ jobs:
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add workbench scripts tests migrations 从零实现AI研发平台_逐步实操手册_完整版_v3.md
           if ! git diff --cached --quiet; then
-            git commit -m 'fix: native HTTP decoding, complete table comments and reproducible source documentation'
+            git commit -m 'feat: connect tested native runtime delivery and PostgreSQL-compatible generation'
             git push origin HEAD:feat/python314-workbench
           fi
       - name: Export actual working source for review
         if: always()
         run: |
-          mkdir -p /tmp/reviewed-native
+          mkdir -p /tmp/reviewed-native reports
           cp -r workbench scripts tests migrations docs templates .github /tmp/reviewed-native/
           cp pyproject.toml uv.lock alembic.ini README.md SECURITY.md .env.example .gitignore .gitattributes .python-version 从零实现AI研发平台_逐步实操手册_完整版_v3.md /tmp/reviewed-native/
           find /tmp/reviewed-native -name __pycache__ -type d -prune -exec rm -rf {} +
