@@ -1,0 +1,68 @@
+name: Vben reviewed full application verification
+on:
+  push:
+    branches: [diagnostics/vben-build]
+    paths: [.github/workflows/vben-fixed-diagnostic.yml]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: yudaocode/yudao-ui-admin-vben
+          ref: 1b14e889f529e245fd620daa720dcea6de0cc5e7
+          path: .native/source
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: npm install --global pnpm@11.16.0
+      - run: uv sync --locked
+      - name: Create clean independent source and apply reviewed compatibility
+        run: |
+          uv run python - <<'PY'
+          import json,subprocess
+          from pathlib import Path
+          from workbench.native_environment import copy_source
+          from workbench.native_frontend import frontend_environment
+          from workbench.native_vben import prepare_vben_source
+          root=Path('.native/product/frontend-product').resolve()
+          copy_source(Path('.native/source'), root)
+          subprocess.run(['git','init','--quiet','--template=',str(root)],check=True)
+          prepare_vben_source(root,Path('reports'))
+          env=frontend_environment('yudao-vben','http://127.0.0.1:48080')
+          (root/'apps/web-antd/.env.production').write_text('\n'.join(f'{k}={json.dumps(v)}' for k,v in env.items() if k.startswith('VITE_'))+'\n')
+          Path('diagnostic-environment.json').write_text(json.dumps(env))
+          PY
+      - name: Frozen install and full original Vite/vue-tsc
+        run: |
+          uv run python - <<'PY'
+          import json
+          from pathlib import Path
+          from workbench.tools import run_command
+          root=Path('.native/product/frontend-product').resolve()
+          env=json.loads(Path('diagnostic-environment.json').read_text())
+          commands=[('install',['pnpm','install','--frozen-lockfile'],root),('build',['pnpm','--filter','@vben/web-antd','exec','vite','build','--mode','production'],root),('types',['pnpm','--filter','@vben/web-antd','exec','vue-tsc','--noEmit','--skipLibCheck'],root)]
+          for label,cmd,cwd in commands:
+              try:
+                  result=run_command(cmd,cwd,180,env,heartbeat=label)
+                  Path(f'reports/{label}.log').write_text(result['log'])
+              except Exception as exc:
+                  Path(f'reports/{label}.log').write_text(getattr(exc,'log',str(exc)))
+                  raise
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vben-reviewed-full-application
+          path: reports/
+          retention-days: 3
