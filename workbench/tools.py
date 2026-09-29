@@ -59,6 +59,20 @@ def process_options():
     )
 
 
+def memory_status():
+    """Non-sensitive Linux build diagnostics; no process environment or command lines."""
+    path = Path("/proc/meminfo")
+    if not path.is_file():
+        return "memory unavailable"
+    try:
+        values = {
+            line.split(":")[0]: int(line.split()[1]) for line in path.read_text().splitlines()
+        }
+        return f"available MiB={values['MemAvailable'] // 1024}; swap free MiB={values['SwapFree'] // 1024}"
+    except OSError, ValueError, KeyError:
+        return "memory unavailable"
+
+
 def run_command(command, cwd, timeout=120, extra_env=None, *, heartbeat=None):
     if not command or not all(isinstance(v, str) for v in command):
         raise ValueError("工具参数必须是明确的字符串数组")
@@ -91,7 +105,7 @@ def run_command(command, cwd, timeout=120, extra_env=None, *, heartbeat=None):
                         raise
                     print(
                         f"{heartbeat}: running {int(time.monotonic() - started)}s; "
-                        f"log bytes={os.fstat(output.fileno()).st_size}",
+                        f"log bytes={os.fstat(output.fileno()).st_size}; {memory_status()}",
                         flush=True,
                     )
         except subprocess.TimeoutExpired:

@@ -64,6 +64,9 @@ async function main() {
     const info = await checked(infoResponse);
     await page.waitForURL(url => !url.hash.includes('login'));
     assert(info.menus && info.menus.length, 'No native menus');
+    // Dismiss the native first-login product tour through its visible UI.
+    const skipTour = page.getByRole('button', { name: '跳过', exact: true });
+    if (fastapi && await skipTour.isVisible()) await skipTour.click();
     const targets = moduleFile ? JSON.parse(fs.readFileSync(moduleFile, 'utf8')) : [{ route: '/system/user', list: fastapi ? '/system/user/list' : '/system/user/page' }];
     report.pages = [];
     for (const target of targets) {

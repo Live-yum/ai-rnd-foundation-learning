@@ -42,6 +42,9 @@ def frontend_environment(template, backend_url):
         **common,
         "VITE_APP_TITLE": "Native lab",
         "VITE_APP_NAMESPACE": "native-lab-vben",
+        # Bound Rust bundler parallelism; give the full Vben graph its native heap budget.
+        "RAYON_NUM_THREADS": "2",
+        "NODE_OPTIONS": "--max-old-space-size=8192 --dns-result-order=ipv4first",
         "VITE_APP_STORE_SECURE_KEY": "native-lab-only",
         "VITE_BASE": "/",
         "VITE_BASE_URL": backend_url,

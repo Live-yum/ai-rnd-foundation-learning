@@ -56,3 +56,9 @@ def test_vben_public_build_config_excludes_credentials(tmp_path, monkeypatch):
     assert "API_KEY" not in data
     assert "never-serialize-this" not in (app / ".env.production.example").read_text()
     assert len(commands) == 3
+
+
+def test_full_vben_build_has_bounded_rust_parallelism():
+    env = native_frontend.frontend_environment("yudao-vben", "http://127.0.0.1:48080")
+    assert env["RAYON_NUM_THREADS"] == "2"
+    assert "8192" in env["NODE_OPTIONS"]

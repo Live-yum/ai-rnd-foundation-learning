@@ -1870,7 +1870,7 @@ def unpack(archive, destination):
 
 ### `workbench/tools.py`
 
-<!-- source-file: workbench/tools.py sha256: 1ea58674cfc837553babe1fa7e32fe29a8053a09e5eb092f5e47787ad8f8f08c -->
+<!-- source-file: workbench/tools.py sha256: ff4f772383b783787645b6249e12c40538f64672eef4b2fe4e154f1e4ee15ade -->
 ````python
 """Fixed-command execution for trusted tools, not a sandbox for arbitrary model code."""
 
@@ -1933,6 +1933,20 @@ def process_options():
     )
 
 
+def memory_status():
+    """Non-sensitive Linux build diagnostics; no process environment or command lines."""
+    path = Path("/proc/meminfo")
+    if not path.is_file():
+        return "memory unavailable"
+    try:
+        values = {
+            line.split(":")[0]: int(line.split()[1]) for line in path.read_text().splitlines()
+        }
+        return f"available MiB={values['MemAvailable'] // 1024}; swap free MiB={values['SwapFree'] // 1024}"
+    except OSError, ValueError, KeyError:
+        return "memory unavailable"
+
+
 def run_command(command, cwd, timeout=120, extra_env=None, *, heartbeat=None):
     if not command or not all(isinstance(v, str) for v in command):
         raise ValueError("工具参数必须是明确的字符串数组")
@@ -1965,7 +1979,7 @@ def run_command(command, cwd, timeout=120, extra_env=None, *, heartbeat=None):
                         raise
                     print(
                         f"{heartbeat}: running {int(time.monotonic() - started)}s; "
-                        f"log bytes={os.fstat(output.fileno()).st_size}",
+                        f"log bytes={os.fstat(output.fileno()).st_size}; {memory_status()}",
                         flush=True,
                     )
         except subprocess.TimeoutExpired:
@@ -4967,7 +4981,7 @@ def check_native_permissions(template, base_url, admin_token):
 
 ### `workbench/native_frontend.py`
 
-<!-- source-file: workbench/native_frontend.py sha256: 54bf38b7e1d53f0107019a626401f4b925c81d9197006530f3e7360aec792dec -->
+<!-- source-file: workbench/native_frontend.py sha256: 6a496815d727717eac0e8cbc2ee31753ee36870664d5dbda773003c2a0df0fa0 -->
 ````python
 """Build the original native application with any generated modules already mounted."""
 
@@ -5013,6 +5027,9 @@ def frontend_environment(template, backend_url):
         **common,
         "VITE_APP_TITLE": "Native lab",
         "VITE_APP_NAMESPACE": "native-lab-vben",
+        # Bound Rust bundler parallelism; give the full Vben graph its native heap budget.
+        "RAYON_NUM_THREADS": "2",
+        "NODE_OPTIONS": "--max-old-space-size=8192 --dns-result-order=ipv4first",
         "VITE_APP_STORE_SECURE_KEY": "native-lab-only",
         "VITE_BASE": "/",
         "VITE_BASE_URL": backend_url,
@@ -8002,7 +8019,7 @@ def test_source_copy_is_independent_of_generated_edits(tmp_path):
 
 ### `tests/test_native_frontend_lifecycle.py`
 
-<!-- source-file: tests/test_native_frontend_lifecycle.py sha256: cc762efc4ca5dbc5f335b0eeff786362dc427a8dc284bcedd518995e28acf17c -->
+<!-- source-file: tests/test_native_frontend_lifecycle.py sha256: f07bce37794714c2fe5f764e67a99e9e0d9e34403875a15f5de5f5521c7fca5e -->
 ````python
 """Local regressions are contracts, not native browser acceptance evidence."""
 
@@ -8062,6 +8079,12 @@ def test_vben_public_build_config_excludes_credentials(tmp_path, monkeypatch):
     assert "API_KEY" not in data
     assert "never-serialize-this" not in (app / ".env.production.example").read_text()
     assert len(commands) == 3
+
+
+def test_full_vben_build_has_bounded_rust_parallelism():
+    env = native_frontend.frontend_environment("yudao-vben", "http://127.0.0.1:48080")
+    assert env["RAYON_NUM_THREADS"] == "2"
+    assert "8192" in env["NODE_OPTIONS"]
 ````
 
 ### `tests/test_native_managed.py`
@@ -9315,7 +9338,7 @@ print(
 
 ### `scripts/native_browser.cjs`
 
-<!-- source-file: scripts/native_browser.cjs sha256: 25adecf5f9186cc8b16c4ce1383953ba17673433277b24e7fce3a2773c1958fd -->
+<!-- source-file: scripts/native_browser.cjs sha256: d3bdd71b5b43eaaea71c06d476552b62451ceb94bc8c610e776369e33c42541a -->
 ````javascript
 // Real Chromium against the disposable loopback lab; no route mocks or injected tokens.
 const fs = require('node:fs');
@@ -9383,6 +9406,9 @@ async function main() {
     const info = await checked(infoResponse);
     await page.waitForURL(url => !url.hash.includes('login'));
     assert(info.menus && info.menus.length, 'No native menus');
+    // Dismiss the native first-login product tour through its visible UI.
+    const skipTour = page.getByRole('button', { name: '跳过', exact: true });
+    if (fastapi && await skipTour.isVisible()) await skipTour.click();
     const targets = moduleFile ? JSON.parse(fs.readFileSync(moduleFile, 'utf8')) : [{ route: '/system/user', list: fastapi ? '/system/user/list' : '/system/user/page' }];
     report.pages = [];
     for (const target of targets) {
@@ -9600,7 +9626,7 @@ jobs:
 
 ### `.github/workflows/native-runtime.yml`
 
-<!-- source-file: .github/workflows/native-runtime.yml sha256: d37e8de7d271749178254e56377344e5b40962fb93a9765e456c04309645edbd -->
+<!-- source-file: .github/workflows/native-runtime.yml sha256: 182bbf022a989fbcd39463865946ef0b45c7a5311c59b9b3c7ee0dbf36c15e84 -->
 ````yaml
 name: Native generated full-stack acceptance
 on:
@@ -9682,6 +9708,16 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Allocate ephemeral swap for the complete Vben build
+        if: matrix.template == 'yudao-vben'
+        run: |
+          free -m
+          df -h /mnt
+          sudo fallocate -l 8G /mnt/native-build.swap
+          sudo chmod 600 /mnt/native-build.swap
+          sudo mkswap /mnt/native-build.swap
+          sudo swapon /mnt/native-build.swap
+          free -m
       - name: Install pinned native frontend package manager
         run: npm install --global pnpm@${{ matrix.pnpm }}
       - name: Install isolated browser test tooling
