@@ -1,0 +1,70 @@
+name: Prepare local-only toolchain (temporary)
+on:
+  push:
+    branches: [feat/controlled-toolchain-integration]
+    paths: ['.maintenance/local.patch', '.github/workflows/prepare-local-tools.yml']
+permissions:
+  contents: write
+concurrency:
+  group: prepare-local-tools
+  cancel-in-progress: true
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - name: Capture the pinned upstream implementation for review
+        run: |
+          mkdir -p reports/upstream
+          git init -q /tmp/daytona-review
+          git -C /tmp/daytona-review fetch --depth 1 https://github.com/daytonaio/daytona.git 01c502bb1f1ff8f2885d0cd490e043736083dca8
+          git -C /tmp/daytona-review checkout -q --detach FETCH_HEAD
+          python - <<'PY'
+          import pathlib, zipfile
+          root = pathlib.Path('/tmp/daytona-review')
+          with zipfile.ZipFile('reports/upstream/daytona-source.zip','w',zipfile.ZIP_DEFLATED) as z:
+              for folder in ['docker','libs/sdk-python','libs/api-client-python','libs/toolbox-api-client-python','apps/api/src','apps/runner','apps/daemon','apps/cli/cmd','apps/dashboard/src','apps/docs/src/content/docs','scripts','.github/workflows']:
+                  for p in (root/folder).rglob('*'):
+                      if p.is_file() and p.suffix in {'.py','.ts','.tsx','.go','.yaml','.yml','.md','.mdx','.json','.toml','.sh'}:
+                          z.write(p,p.relative_to(root))
+          PY
+      - name: Materialize reviewed source against exact preimages
+        if: hashFiles('.maintenance/local.patch') != ''
+        run: |
+          git apply --check --index .maintenance/local.patch
+          git apply --index .maintenance/local.patch
+          rm .maintenance/local.patch
+      - name: Resolve and validate pinned runtimes
+        run: |
+          uv lock
+          uv sync --locked --all-extras
+          uv sync --locked --project tools/aider --python 3.12
+          uv run ruff check --fix .
+          uv run ruff format .
+          uv run python -m scripts.build_handbook
+          uv run python -m scripts.build_handbook --check
+      - name: Commit generated source and single handbook
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u
+          if ! git diff --cached --quiet; then
+            git commit -m 'build: synchronize local-only runtimes and complete from-zero handbook'
+            git push origin HEAD:feat/controlled-toolchain-integration
+          fi
+      - name: Run platform and real local toolchain verification
+        run: |
+          uv run pytest -m 'not postgres' -q --junitxml=reports/tests.xml
+          uv run python -m scripts.ci_toolchain
+      - name: Archive exact materialized source
+        if: always()
+        run: git archive --format=zip HEAD -o reports/review-source.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: local-only-reviewed-source
+          path: reports/
