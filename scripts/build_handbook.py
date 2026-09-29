@@ -57,6 +57,7 @@ GROUPS = [
             "workbench/native_environment.py",
             "workbench/native_checks.py",
             "workbench/native_frontend.py",
+            "workbench/native_vben.py",
             "workbench/native_modules.py",
             "workbench/native_compatibility.py",
             "workbench/native_acceptance.py",

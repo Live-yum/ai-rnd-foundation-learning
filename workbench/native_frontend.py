@@ -10,6 +10,7 @@ from pathlib import Path
 import httpx
 
 from workbench.filesystem import atomic_text, sha, write_json
+from workbench.native_vben import prepare_vben_source
 from workbench.settings import ROOT
 from workbench.tools import clean_env, process_options, run_command, stop_process
 
@@ -74,6 +75,7 @@ def build_frontend(template, root, env, reports):
     if not (root / "pnpm-lock.yaml").is_file():
         raise ValueError("Native frontend lockfile is required")
     if template == "yudao-vben":
+        prepare_vben_source(root, reports)
         # Vben's own loadAndConvertEnv / runtime-config plugin reads dotenv files,
         # not process.env. Persist only explicitly public VITE_* values in the
         # disposable workspace; never copy platform or database credentials.

@@ -489,7 +489,7 @@ uv sync --locked --extra postgres
 | 2 | `workbench/native_compatibility.py` | 只在副本中修正事务依赖作用域，记录修改前后哈希 |
 | 3 | `workbench/native_modules.py` | Plan 转原生数据表；调用 NativeClient；生成、挂载代码和菜单 |
 | 4 | `workbench/native_checks.py`、`workbench/native_acceptance.py` | 独立 HTTP 检查真实生成实体、角色授权撤销和重启持久化 |
-| 5 | `workbench/native_frontend.py`、`scripts/native_browser.cjs` | 冻结安装、完整应用构建与类型检查、Chromium 真实登录和生成页面 |
+| 5 | `workbench/native_vben.py`、`workbench/native_frontend.py`、`scripts/native_browser.cjs` | 冻结安装、完整应用构建与类型检查、Chromium 真实登录和生成页面 |
 | 6 | `workbench/native_lab.py`、`scripts/ci_native_generated.py` | 串联各阶段；平台、CLI、CI 使用同一份实现 |
 | 7 | `workbench/native_delivery.py` | 显式授权配置、交付等级、证据绑定、重新打开产品 |
 | 8 | `tests/test_native_*.py` | 路径、配置、元数据、挂载、权限、事务和交付证据回归 |
@@ -502,7 +502,7 @@ uv sync --locked --extra postgres
 ```bash
 uv run ruff check .
 uv run ruff format --check .
-uv run pytest tests/test_native_baseline.py tests/test_native_modules.py tests/test_native_managed.py tests/test_native_transaction.py tests/test_native_frontend_lifecycle.py -q
+uv run pytest tests/test_native_baseline.py tests/test_native_modules.py tests/test_native_managed.py tests/test_native_transaction.py tests/test_native_frontend_lifecycle.py tests/test_native_vben.py -q
 ```
 
 这些本地测试不能代替真实原生全栈验收。后面的命令实际启动数据库、原生服务和浏览器。
@@ -739,12 +739,12 @@ uv run rnd native serve 运行UUID
 | `baseline/backend-build.log`、`baseline/backend-runtime.log` | 原生依赖、编译和启动 |
 | `baseline/openapi.json` | 实际服务导出的接口契约 |
 | `device-native.zip`、`category-native.zip`、`generation.json` | 原生生成器输出及挂载回执 |
-| `native-compatibility.json` | 原生工作副本兼容修正的前后哈希 |
+| `native-compatibility.json`、`vben-compatibility.json` | 原生工作副本兼容修正的前后哈希与 Vben 独立扫描边界 |
 | `generated/crud.json` | 两个生成实体CRUD、必填校验、非法认证检查 |
 | `generated/permissions.json` | 普通角色授权、撤权及菜单检查 |
 | `restart/persistence.json` | 重启后实际业务数据存在 |
 | `frontend-install.log`、`frontend-build.log`、`frontend-typecheck.log` | 安装、生产构建、完整应用类型检查 |
-| `browser.json`、`device.png`、`category.png` | 真实登录、真实列表请求、页面渲染与截图 |
+| `browser.json`、`device.png`、`category.png`、Vben 的 `device-created.png` / `category-created.png` | 真实登录、列表渲染、生成表单提交与截图 |
 | `generated-manifest.json` | 被验证源码哈希 |
 | `acceptance.json` | 全部门槛；失败时保留false |
 | `progress.json`、`failure.log`、`browser-failure.png` | 当前阶段与失败现场 |
@@ -759,6 +759,12 @@ uv run python -c "import json; d=json.load(open('reports/native-fastapiadmin/acc
 
 ### 19.11 兼容规则与排错
 
+Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。生成器导出的新增表单也做精确兼容：将旧式 `modalApi.getData<DTO>()` 的泛型迁到 `useVbenModal<Partial<DTO>>`，保留新增时的空载荷和编辑时的 ID 检查。原始生成 ZIP 不改写，`generation.json` 同时记录原始文件与实际挂载文件的哈希。未使用的 `Dayjs`、`getDictOptions` 导入仅在确认没有引用时删除，不关闭编译器的未使用检查。整数编辑/查询控件使用 `InputNumber` 并限定零位小数；布尔编辑/查询控件使用有真实 `true/false` 选项的 `RadioGroup`，不提交字符串代替布尔值。Chromium 还会从两个生成页面实际新增记录，检查整数 `0`、布尔 `false` 的请求值和数据库返回值，并保存新增后的页面截图。
+
+工作副本不会复制上游 `.git`、令牌或环境文件。Vben 副本单独执行 `git init --quiet --template=` 建立本地扫描边界，没有上游 remote、提交历史或 hooks；此边界也不进入源码 ZIP。缺少边界时，构建扫描可能跨入平台和兄弟工作目录，导致日志停滞与内存异常增长。不要用扩大内存、删除业务路由或禁用类型检查代替修复。保留原始仓库不变，并保存 `vben-compatibility.json` 中逐文件的 before/after SHA-256。
+
+前端使用原始 `apps/web-antd` 入口和完整应用配置。顺序为 `pnpm install --frozen-lockfile`、`vite build --mode production`、`vue-tsc --noEmit --skipLibCheck`；最后一项检查全部应用源码和生成模块，`skipLibCheck` 仅沿用第三方声明检查边界，不排除业务目录，不加入 `@ts-ignore`、`@ts-nocheck` 或宽泛 `any` 来掩盖错误。构建、类型检查、重启持久化和真实浏览器均成功才写入最终成功回执。
+
 FastapiAdmin生成服务使用flush，事务由yield依赖完成。在生成控制器和副本内的角色控制器中，将数据库依赖设为function scope，使提交在成功响应发送前完成。这样创建后立即查询和授权后立即登录不会看到未提交状态。保存前后哈希，不改鉴权逻辑、不放宽断言。官方说明：<https://fastapi.tiangolo.com/advanced/advanced-dependencies/>。
 
 芋道PG种子的逻辑删除字段是整数；不能与业务布尔字段混用。业务字段保留注释以供原生生成器识别。权限检查使用真实原生API，不直接插入管理员身份。验证无登录/伪造token/空角色拒绝、只读可查不可写、写授权可创建、撤权再拒绝。原生权限缓存存在传播时间，检查有明确等待上限，不以清缓存或改权限实现绕过。
@@ -769,7 +775,7 @@ FastapiAdmin生成服务使用flush，事务由yield依赖完成。在生成控�
 
 前端缺少ref/computed等自动声明：先让原生Vite插件生成声明，再运行完整应用vue-tsc，不能删除检查。Vben原生配置插件从dotenv文件读取，因此工作副本生成 `.env.production` 和可交付 `.env.production.example`；只包含公开VITE变量，不复制模型或数据库密码。
 
-浏览器失败：读 `browser.json` 的响应、状态和page_errors，再看截图。FastapiAdmin采用真实鼠标滑块操作；先等布局稳定，再在轨道内拖至末端，移出轨道会触发原生重置。不能注入token、mock接口或删掉生成页面检查。Playwright定位器说明：<https://playwright.dev/docs/best-practices>。
+浏览器失败：读 `browser.json` 的响应、状态和page_errors，再看截图。Ant Design 单选按钮内部 input 是隐藏的，真实自动操作点击对应可见 label，再验证 isChecked 和请求中的布尔值，不强制点击隐藏元素。FastapiAdmin采用真实鼠标滑块操作；先等布局稳定，再在轨道内拖至末端，移出轨道会触发原生重置。不能注入token、mock接口或删掉生成页面检查。Playwright定位器说明：<https://playwright.dev/docs/best-practices>。
 
 ### 19.12 GitHub Actions 与完整手册同步
 
@@ -5093,7 +5099,7 @@ def check_native_permissions(template, base_url, admin_token):
 
 ### `workbench/native_frontend.py`
 
-<!-- source-file: workbench/native_frontend.py sha256: 6a496815d727717eac0e8cbc2ee31753ee36870664d5dbda773003c2a0df0fa0 -->
+<!-- source-file: workbench/native_frontend.py sha256: 67cdd4f0f83ff8127d972fd707cad593da201a87e3f456d1d3785fba79c27082 -->
 ````python
 """Build the original native application with any generated modules already mounted."""
 
@@ -5107,6 +5113,7 @@ from pathlib import Path
 import httpx
 
 from workbench.filesystem import atomic_text, sha, write_json
+from workbench.native_vben import prepare_vben_source
 from workbench.settings import ROOT
 from workbench.tools import clean_env, process_options, run_command, stop_process
 
@@ -5171,6 +5178,7 @@ def build_frontend(template, root, env, reports):
     if not (root / "pnpm-lock.yaml").is_file():
         raise ValueError("Native frontend lockfile is required")
     if template == "yudao-vben":
+        prepare_vben_source(root, reports)
         # Vben's own loadAndConvertEnv / runtime-config plugin reads dotenv files,
         # not process.env. Persist only explicitly public VITE_* values in the
         # disposable workspace; never copy platform or database credentials.
@@ -5278,9 +5286,280 @@ def browser_check(template, url, reports):
     atomic_text(Path(reports) / "browser.log", result["log"])
 ````
 
+### `workbench/native_vben.py`
+
+<!-- source-file: workbench/native_vben.py sha256: 6f23a254bec972ffe29b71631f665929d5e9be60924479ba1f4e581b27d843d3 -->
+````python
+"""Reviewed compatibility for pinned Vben 1b14e889; no routes or type checks removed."""
+
+import re
+from collections.abc import Sequence
+from pathlib import Path
+
+from workbench.domain import FieldSpec
+from workbench.filesystem import atomic_text, sha, write_json
+from workbench.tools import run_command
+
+
+def checked_replacement(source: str, old: str, new: str, count: int, name: str) -> str:
+    if source.count(old) != count:
+        raise ValueError("Pinned Vben compatibility contract changed: " + name)
+    return source.replace(old, new)
+
+
+def initialize_vben_boundary(root: Path) -> None:
+    """Create a new local scan boundary, with no upstream history/remotes/hooks."""
+    root = Path(root).resolve()
+    if (root / ".git").exists() or (root / ".git").is_symlink():
+        raise ValueError("Vben compatibility requires a fresh source copy without .git")
+    run_command(["git", "init", "--quiet", "--template=", str(root)], root, 30)
+
+
+def prepare_vben_source(root: Path, reports: Path):
+    root = Path(root).resolve()
+    originals = {}
+    changed = {}
+
+    def edit(relative, old, new, count=1):
+        name = "apps/web-antd/src/views/" + relative
+        path = root / name
+        if name not in originals:
+            originals[name] = path.read_text(encoding="utf-8")
+        source = changed.get(name, originals[name])
+        changed[name] = checked_replacement(source, old, new, count, name)
+
+    for name in [
+        "fms/config/subject/modules/form.vue",
+        "fms/config/initial-balance/modules/assist-form.vue",
+        "fms/ledger/auxiliary-balance/index.vue",
+    ]:
+        edit(name, "auxiliary-select-modal.vue", "auxiliary-item-select.vue")
+    for name, count in [
+        ("ai/model/model/data.ts", 1),
+        ("mall/product/property/data.ts", 1),
+        ("system/dict/data.ts", 2),
+    ]:
+        edit(name, "componentProps: (values) => {", "componentProps: ({ rootValues }) => {", count)
+        edit(name, "disabled: !!values.id", "disabled: !!rootValues?.id", count)
+    # Data is declared on useVbenModal<T>; getData() remains possibly undefined.
+    modals = {
+        "bpm/components/bpmn-process-designer/package/penal/task/task-components/HttpHeaderEditor.vue": "{ headers?: string }",
+        "bpm/components/simple-process-design/components/nodes-config/modules/condition-dialog.vue": "typeof conditionData.value",
+        "bpm/form/modules/detail.vue": "{ id: number }",
+        "crm/customer/detail/modules/distribute-form.vue": "{ id: number; ownerUserId?: number }",
+        "crm/permission/modules/form.vue": "CrmPermissionApi.Permission",
+        "mall/promotion/coupon/components/send-form.vue": "{ userIds: number[] }",
+        "mall/trade/brokerage/user/modules/order-list-modal.vue": "{ id: number }",
+        "mall/trade/brokerage/user/modules/user-list-modal.vue": "{ id: number }",
+        "system/dept/components/select-modal.vue": "{ selectedList?: SystemDeptApi.Dept[] }",
+        "system/social/user/modules/detail.vue": "{ id: number }",
+        "system/user/components/select-modal.vue": "{ userIds?: number[] }",
+    }
+    for name, typ in modals.items():
+        edit(name, "= useVbenModal({", f"= useVbenModal<{typ}>({{")
+    edit(
+        "bpm/components/bpmn-process-designer/package/penal/task/task-components/HttpHeaderEditor.vue",
+        "const { headers } = modalApi.getData();",
+        "const headers = modalApi.getData()?.headers ?? '';",
+    )
+    edit(
+        "bpm/components/bpmn-process-designer/package/penal/time-event-config/TimeEventConfig.vue",
+        "onConfirm: () => helpModalApi.close(),",
+        "onConfirm: (): void => {\n    helpModalApi.close();\n  },",
+    )
+    edit(
+        "bpm/components/simple-process-design/components/simple-process-designer.vue",
+        "const [ErrorModal, errorModalApi] = useVbenModal({",
+        "const [ErrorModal, errorModalApi] = useVbenModal<SimpleFlowNode[]>({",
+    )
+    edit(
+        "mall/promotion/coupon/components/send-form.vue",
+        "  modalApi.lock();\n  try {",
+        "  const data = modalApi.getData();\n  if (!data?.userIds.length) return;\n  modalApi.lock();\n  try {",
+    )
+    edit(
+        "mall/promotion/coupon/components/send-form.vue",
+        "userIds: modalApi.getData().userIds",
+        "userIds: data.userIds",
+    )
+    edit(
+        "mall/trade/brokerage/user/modules/user-list-modal.vue",
+        "query: async ({ page }, formValues) => {\n          return",
+        "query: async ({ page }, formValues) => {\n          const data = modalApi.getData();\n          if (!data) return { list: [], total: 0 };\n          return",
+    )
+    edit(
+        "mall/trade/brokerage/user/modules/user-list-modal.vue",
+        "bindUserId: modalApi.getData().id",
+        "bindUserId: data.id",
+    )
+    # Actions callbacks belong to the dependency resolver, not schema context.
+    edit(
+        "crm/contact/data.ts",
+        "      componentProps: (_values, form) => ({\n        api: getCustomerSimpleList,\n        labelField: 'name',\n        valueField: 'id',\n        placeholder: '请选择客户',\n        onChange: () => form.setFieldValue('parentId', undefined),\n      }),",
+        "      dependencies: {\n        triggerFields: ['customerId'],\n        componentProps: (_values, form) => ({\n          api: getCustomerSimpleList,\n          labelField: 'name',\n          valueField: 'id',\n          placeholder: '请选择客户',\n          onChange: () => form.setFieldValue('parentId', undefined),\n        }),\n      },",
+    )
+    edit(
+        "crm/receivable/data.ts",
+        "      componentProps: (_values, form) => ({\n        api: getCustomerSimpleList,\n        labelField: 'name',\n        valueField: 'id',\n        placeholder: '请选择客户',\n        onChange: () => {\n          form.setFieldValue('contractId', undefined);\n          form.setFieldValue('planId', undefined);\n          form.setFieldValue('price', undefined);\n          form.setFieldValue('returnTime', undefined);\n          form.setFieldValue('returnType', undefined);\n        },\n      }),\n      dependencies: {\n        triggerFields: ['id'],\n        disabled: (values) => values.id,\n      },",
+        "      dependencies: {\n        triggerFields: ['id', 'customerId'],\n        disabled: (values) => values.id,\n        componentProps: (_values, form) => ({\n          api: getCustomerSimpleList,\n          labelField: 'name',\n          valueField: 'id',\n          placeholder: '请选择客户',\n          onChange: () => {\n            form.setFieldValue('contractId', undefined);\n            form.setFieldValue('planId', undefined);\n            form.setFieldValue('price', undefined);\n            form.setFieldValue('returnTime', undefined);\n            form.setFieldValue('returnType', undefined);\n          },\n        }),\n      },",
+    )
+    edit(
+        "im/utils/constants.ts",
+        "const ImContentTypeNormals: number[] = new Set([",
+        "const ImContentTypeNormals: ReadonlySet<number> = new Set([",
+    )
+    edit(
+        "im/utils/constants.ts",
+        "const ImContentTypeMedia: number[] = new Set([",
+        "const ImContentTypeMedia: ReadonlySet<number> = new Set([",
+    )
+    edit("im/utils/message.ts", "[...mentions].toSort(", "mentions.toSorted(")
+    # Optional cursor fields can be undefined as well as null.
+    name = "im/utils/pull.ts"
+    edit(name, "let cursor =", "let cursor: PullCursor =")
+    edit(name, "storedCursor.lastUpdateTime === null", "storedCursor.lastUpdateTime == null")
+    edit(name, "last.updateTime === null", "last.updateTime == null")
+    edit(name, "highWater.lastUpdateTime === null", "highWater.lastUpdateTime == null")
+    edit(
+        name,
+        "cursor.lastUpdateTime > highWater.lastUpdateTime",
+        "last.updateTime > highWater.lastUpdateTime",
+    )
+    edit(
+        name,
+        "cursor.lastUpdateTime === highWater.lastUpdateTime",
+        "last.updateTime === highWater.lastUpdateTime",
+    )
+    edit(name, "cursor.lastId > (highWater.lastId ?? 0)", "last.id > (highWater.lastId ?? 0)")
+    edit(
+        name,
+        "highWater.lastUpdateTime = cursor.lastUpdateTime;",
+        "highWater.lastUpdateTime = last.updateTime;",
+    )
+    edit(name, "highWater.lastId = cursor.lastId;", "highWater.lastId = last.id;")
+    edit(
+        name,
+        ".filter((id): id is number => id !== null);",
+        ".filter((id): id is number => typeof id === 'number');",
+    )
+    edit(name, "nextMinId === null", "nextMinId == null")
+    edit(
+        "system/area/data.ts",
+        "z.string().ip({ message: '请输入正确的 IP 地址' })",
+        "z.union([z.ipv4(), z.ipv6()], { error: '请输入正确的 IP 地址' })",
+    )
+    edit(
+        "system/dept/components/select-modal.vue",
+        ".filter((id: number) => id !== undefined)",
+        ".filter((id): id is number => typeof id === 'number')",
+    )
+    # Validate every input shape before creating the boundary or changing any file.
+    initialize_vben_boundary(root)
+    receipts = []
+    for name, content in changed.items():
+        path = root / name
+        before = sha(path)
+        atomic_text(path, content)
+        receipts.append({"path": name, "before_sha256": before, "after_sha256": sha(path)})
+    write_json(
+        Path(reports) / "vben-compatibility.json",
+        {
+            "upstream": "1b14e889f529e245fd620daa720dcea6de0cc5e7",
+            "scope": "existing-component-imports-and-current-native-types",
+            "independent_git_boundary": True,
+            "routes_removed": False,
+            "type_checks_disabled": False,
+            "files": receipts,
+        },
+    )
+    return receipts
+
+
+def adapt_generated_form(source: str, class_name: str) -> str:
+    """Move the native generator's legacy getter generic onto the modal hook.
+
+    Create opens with no record and edit opens with an ID, so the payload is Partial<DTO>.
+    The original codegen ZIP remains unchanged; mounting records before/after hashes.
+    """
+    if not class_name.isidentifier() or not class_name.startswith("Wb"):
+        raise ValueError("Invalid generated Vben class name")
+    dto = f"Infra{class_name}Api.{class_name}"
+    source = checked_replacement(
+        source,
+        "= useVbenModal({",
+        f"= useVbenModal<Partial<{dto}>>({{",
+        1,
+        "generated modal hook",
+    )
+    return checked_replacement(
+        source,
+        f"modalApi.getData<{dto}>()",
+        "modalApi.getData()",
+        1,
+        "generated modal getter",
+    )
+
+
+def prune_generated_import(source: str, identifier: str, declaration: str) -> str:
+    """Remove only an exact unused single import emitted by the pinned generator."""
+    if declaration not in source:
+        return source
+    if source.count(declaration) != 1:
+        raise ValueError("Duplicate generated import: " + identifier)
+    remaining = source.replace(declaration, "", 1)
+    if re.search(r"\b" + re.escape(identifier) + r"\b", remaining):
+        return source
+    return remaining
+
+
+def adapt_generated_schema(source: str, fields: Sequence[FieldSpec]) -> str:
+    """Preserve declared value kinds in both generated edit and search forms."""
+    source = prune_generated_import(
+        source, "getDictOptions", "import { getDictOptions } from '@vben/hooks';\n"
+    )
+    for field in fields:
+        if field.kind == "text":
+            continue
+        first, *rest = field.name.split("_")
+        name = first + "".join(piece[:1].upper() + piece[1:] for piece in rest)
+        # Guard the pinned template; never consume the next field on shape drift.
+        pattern = re.compile(
+            r"    \{\n      fieldName: '" + re.escape(name) + r"',\n(?:(?!fieldName:).)*?\n    \},",
+            re.DOTALL,
+        )
+        if not 1 <= len(list(pattern.finditer(source))) <= 2:
+            raise ValueError("Unsupported generated form field shape: " + name)
+
+        def transform(match):
+            block = match.group(0)
+            if field.kind == "integer":
+                block = checked_replacement(
+                    block, "component: 'Input',", "component: 'InputNumber',", 1, name
+                )
+                return checked_replacement(
+                    block, "componentProps: {", "componentProps: {\n        precision: 0,", 1, name
+                )
+            if "component: 'Select'," in block:
+                block = checked_replacement(
+                    block, "component: 'Select',", "component: 'RadioGroup',", 1, name
+                )
+            elif block.count("component: 'RadioGroup',") != 1:
+                raise ValueError("Unsupported generated boolean control: " + name)
+            return checked_replacement(
+                block,
+                "options: [],",
+                "options: [{ label: '是', value: true }, { label: '否', value: false }],",
+                1,
+                name,
+            )
+
+        source = pattern.sub(transform, source)
+    return source
+````
+
 ### `workbench/native_modules.py`
 
-<!-- source-file: workbench/native_modules.py sha256: 4ffd4a27c14a12057353fcc5617a26424525b3f983a8a040f2985ebb4d5c8139 -->
+<!-- source-file: workbench/native_modules.py sha256: 1fa0251aeb410f1934ef0b45f37d18c81c38ebac6edd510a2f367dfeef71c94e -->
 ````python
 """Native codegen -> deterministic mounting -> native menu metadata. No model-written CRUD."""
 
@@ -5311,6 +5590,11 @@ from workbench.filesystem import atomic_text, inside, sha, unpack, write_json
 from workbench.native import NativeClient, NativeConfig
 from workbench.native_checks import payload, record_id
 from workbench.native_environment import checked_database
+from workbench.native_vben import (
+    adapt_generated_form,
+    adapt_generated_schema,
+    prune_generated_import,
+)
 
 RESERVED = {
     "id",
@@ -5507,11 +5791,28 @@ def mount_yudao_export(export, backend, frontend, entity, reports, used_errors):
                     raise FileExistsError(
                         "Refusing to overwrite existing Vben feature: " + relative
                     )
+                if relative == f"views/infra/{slug}/modules/form.vue":
+                    class_name = "Wb" + "".join(p.title() for p in entity.name.split("_"))
+                    body = adapt_generated_form(body, class_name)
+                elif relative == f"views/infra/{slug}/data.ts":
+                    body = adapt_generated_schema(body, entity.fields)
+                elif relative == f"api/infra/{slug}/index.ts":
+                    body = prune_generated_import(
+                        body, "Dayjs", "import type { Dayjs } from 'dayjs';\n"
+                    )
             else:
                 raise ValueError("Unsupported native generated file: " + name)
             target.parent.mkdir(parents=True, exist_ok=True)
             atomic_text(target, body)
-            writes.append({"source": name, "path": str(target), "sha256": sha(target)})
+            writes.append(
+                {
+                    "source": name,
+                    "path": str(target),
+                    "source_sha256": sha(file),
+                    "sha256": sha(target),
+                    "compatibility_applied": sha(file) != sha(target),
+                }
+            )
     constants = (
         Path(backend)
         / "yudao-module-infra/yudao-module-infra-api/src/main/java/cn/iocoder/yudao/module/infra/enums/ErrorCodeConstants.java"
@@ -6132,7 +6433,7 @@ def generated_permissions(template, base_url, token, targets, plan):
 
 ### `workbench/native_lab.py`
 
-<!-- source-file: workbench/native_lab.py sha256: efef0299d63972b6e6389b3166ebca318e7041a3f43127c7bf38b930d942423c -->
+<!-- source-file: workbench/native_lab.py sha256: cbaf8b0e1a82e790385ff9e0d4bede5293e59118ce618368bdae4b05d0d4b010 -->
 ````python
 """Actual native generation, mounting, permissions, CRUD, restart and browser acceptance."""
 
@@ -6261,6 +6562,8 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
                 reports / "restart/persistence.json",
                 check_generated_persistence(template, base_url, token, targets, records),
             )
+            for target, entity in zip(targets, plan.entities, strict=True):
+                target["fields"] = [field.model_dump() for field in entity.fields]
             write_json(reports / "browser-targets.json", targets)
             with frontend_preview(template, frontend, front_env, reports) as front_url:
                 stage("native-browser")
@@ -8131,7 +8434,7 @@ def test_source_copy_is_independent_of_generated_edits(tmp_path):
 
 ### `tests/test_native_frontend_lifecycle.py`
 
-<!-- source-file: tests/test_native_frontend_lifecycle.py sha256: f07bce37794714c2fe5f764e67a99e9e0d9e34403875a15f5de5f5521c7fca5e -->
+<!-- source-file: tests/test_native_frontend_lifecycle.py sha256: e6fafe1bbd34f2571909bbfeaee798244d87ed846a2e3ca27b82712b6aa432f4 -->
 ````python
 """Local regressions are contracts, not native browser acceptance evidence."""
 
@@ -8182,6 +8485,7 @@ def test_vben_public_build_config_excludes_credentials(tmp_path, monkeypatch):
         return {"log": "fixture only", "returncode": 0}
 
     monkeypatch.setattr(native_frontend, "run_command", tool)
+    monkeypatch.setattr(native_frontend, "prepare_vben_source", lambda *_: None)
     env = native_frontend.frontend_environment("yudao-vben", "http://127.0.0.1:48080")
     env["API_KEY"] = "never-serialize-this"
     native_frontend.build_frontend("yudao-vben", root, env, tmp_path / "reports")
@@ -8604,6 +8908,144 @@ def test_updates_exercise_integer_and_boolean_changes():
     assert changed["active"] is False
 ````
 
+### `tests/test_native_vben.py`
+
+<!-- source-file: tests/test_native_vben.py sha256: 3e9a9a109fa79e7ccd1dea7be31c1fb2c0e56da7c50dc72372d1f40cd6bffaa4 -->
+````python
+"""Small regression contracts; full Vben verification uses the real pinned application."""
+
+import json
+from pathlib import Path
+
+import pytest
+
+from workbench.domain import FieldSpec
+from workbench.filesystem import manifest
+from workbench.native_environment import copy_source
+from workbench.native_vben import (
+    adapt_generated_form,
+    adapt_generated_schema,
+    checked_replacement,
+    initialize_vben_boundary,
+    prune_generated_import,
+)
+from workbench.tools import run_command
+
+
+def test_checked_replacement_is_exact_and_preserves_unrelated_source():
+    source = "before; old; after;"
+    assert checked_replacement(source, "old", "new", 1, "fixture") == "before; new; after;"
+    assert source == "before; old; after;"
+
+
+@pytest.mark.parametrize("source", ["missing", "old old"])
+def test_changed_or_ambiguous_upstream_context_fails_closed(source):
+    with pytest.raises(ValueError, match="compatibility contract changed"):
+        checked_replacement(source, "old", "new", 1, "fixture")
+
+
+def test_vben_boundary_is_local_and_excluded_from_delivery(tmp_path):
+    source = tmp_path / "upstream"
+    (source / ".git").mkdir(parents=True)
+    (source / ".git/config").write_text("never-copy-upstream-credentials")
+    (source / ".env").write_text("API_KEY=never-copy-me")
+    (source / "package.json").write_text(json.dumps({"name": "boundary-fixture"}))
+    destination = tmp_path / "product"
+    copy_source(source, destination)
+    before = manifest(destination)
+    initialize_vben_boundary(destination)
+    assert manifest(destination) == before
+    assert not (destination / ".env").exists()
+    config = (destination / ".git/config").read_text()
+    assert "remote" not in config and "never-copy" not in config
+    assert not (destination / ".git/hooks").exists()
+    result = run_command(["git", "rev-parse", "--show-toplevel"], destination, 30)
+    assert Path(result["log"].strip()).resolve() == destination.resolve()
+    with pytest.raises(ValueError, match="fresh source copy"):
+        initialize_vben_boundary(destination)
+
+
+@pytest.mark.parametrize("class_name", ["WbDevice", "WbCategory", "WbAssetItem"])
+def test_generated_modal_keeps_precise_dto_and_optional_create_payload(class_name):
+    dto = f"Infra{class_name}Api.{class_name}"
+    source = (
+        "const [Modal, modalApi] = useVbenModal({\n"
+        f"const data = modalApi.getData<{dto}>();\n"
+        "if (!data || !data.id) return;\n});"
+    )
+    result = adapt_generated_form(source, class_name)
+    assert f"useVbenModal<Partial<{dto}>>(" in result
+    assert "modalApi.getData()" in result
+    assert "if (!data || !data.id) return;" in result
+    assert "getData<" in source
+    assert "@ts-ignore" not in result and "any" not in result
+
+
+def test_generated_modal_contract_drift_is_not_silently_accepted():
+    with pytest.raises(ValueError, match="compatibility contract changed"):
+        adapt_generated_form("const [Modal, modalApi] = useVbenModal({});", "WbDevice")
+
+
+@pytest.mark.parametrize(
+    "identifier,line",
+    [
+        ("Dayjs", "import type { Dayjs } from 'dayjs';\n"),
+        ("getDictOptions", "import { getDictOptions } from '@vben/hooks';\n"),
+    ],
+)
+def test_pruning_never_removes_an_import_still_used(identifier, line):
+    assert (
+        prune_generated_import(line + "const unrelated = 1;", identifier, line)
+        == "const unrelated = 1;"
+    )
+    used = line + f"const value = {identifier};"
+    assert prune_generated_import(used, identifier, line) == used
+    with pytest.raises(ValueError, match="Duplicate"):
+        prune_generated_import(line + line, identifier, line)
+
+
+def schema_field(name, component, options=False):
+    return (
+        "    {\n"
+        + f"      fieldName: '{name}',\n      label: '{name}',\n"
+        + f"      component: '{component}',\n      componentProps: {{\n"
+        + ("        options: [],\n" if options else "        placeholder: 'value',\n")
+        + "      },\n    },"
+    )
+
+
+def test_generated_schema_preserves_zero_false_and_all_fields():
+    source = (
+        schema_field("itemCount", "Input")
+        + "\n"
+        + schema_field("enabled", "RadioGroup", True)
+        + "\n"
+        + schema_field("itemCount", "Input")
+        + "\n"
+        + schema_field("enabled", "Select", True)
+    )
+    result = adapt_generated_schema(
+        source,
+        [
+            FieldSpec(name="item_count", kind="integer"),
+            FieldSpec(name="enabled", kind="boolean"),
+        ],
+    )
+    assert result.count("fieldName:") == source.count("fieldName:") == 4
+    assert result.count("component: 'InputNumber'") == 2
+    assert result.count("precision: 0") == 2
+    assert result.count("component: 'RadioGroup'") == 2
+    assert result.count("value: false") == result.count("value: true") == 2
+    assert "value: 'false'" not in result
+    assert "options: []" in source and "options: []" not in result
+
+
+@pytest.mark.parametrize("source", ["", schema_field("enabled", "Switch", True)])
+def test_unknown_generated_boolean_shape_fails_closed(source):
+    with pytest.raises(ValueError, match="Unsupported generated"):
+        adapt_generated_schema(source, [FieldSpec(name="enabled", kind="boolean")])
+````
+
 ### `tests/test_postgres.py`
 
 <!-- source-file: tests/test_postgres.py sha256: e69d89e40edd867759b1c969c8fca424117d4645f265d3e110a34c5c469dc07a -->
@@ -8996,7 +9438,7 @@ def test_tampered_delivery_not_released(settings, store, plan):
 
 ### `scripts/build_handbook.py`
 
-<!-- source-file: scripts/build_handbook.py sha256: 88ba6fceae3bbec61122f3441a93848d08053bcec4f07d9ac9b16fbb404ef360 -->
+<!-- source-file: scripts/build_handbook.py sha256: 11833f6fac096d81ea9bdd0ac04b20f01e4663207349fe9f17d5ae75e1711400 -->
 ````python
 """Render a complete, reconstructable handbook from tracked source, never from memory."""
 
@@ -9057,6 +9499,7 @@ GROUPS = [
             "workbench/native_environment.py",
             "workbench/native_checks.py",
             "workbench/native_frontend.py",
+            "workbench/native_vben.py",
             "workbench/native_modules.py",
             "workbench/native_compatibility.py",
             "workbench/native_acceptance.py",
@@ -9450,7 +9893,7 @@ print(
 
 ### `scripts/native_browser.cjs`
 
-<!-- source-file: scripts/native_browser.cjs sha256: d3bdd71b5b43eaaea71c06d476552b62451ceb94bc8c610e776369e33c42541a -->
+<!-- source-file: scripts/native_browser.cjs sha256: 14d3a794cba303d37c8a4315170a91b2436f9544199e76e00ace3406e0949864 -->
 ````javascript
 // Real Chromium against the disposable loopback lab; no route mocks or injected tokens.
 const fs = require('node:fs');
@@ -9530,7 +9973,46 @@ async function main() {
       await page.locator(fastapi ? '.el-table' : '.vxe-table').first().waitFor({ state: 'visible' });
       if (target.sample) await page.getByText(target.sample, { exact: true }).first().waitFor({ state: 'visible' });
       await page.screenshot({ path: path.join(reportDir, (target.entity || 'system-user') + '.png'), fullPage: true });
-      report.pages.push({ route: target.route, real_list_request: true, rendered: true });
+      const pageResult = { route: target.route, real_list_request: true, rendered: true };
+      if (!fastapi && target.fields) {
+        // Submit through the real generated UI; zero/false must not become strings or disappear.
+        await page.getByRole('button', { name: /^新增|^创建/ }).first().click();
+        const dialog = page.getByRole('dialog').last();
+        await dialog.waitFor({ state: 'visible' });
+        const expected = {};
+        let booleanIndex = 0;
+        for (const field of target.fields) {
+          const key = field.name.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+          if (field.kind === 'boolean') {
+            const radio = dialog.getByRole('radio', { name: '否', exact: true }).nth(booleanIndex++);
+            // Ant Design hides its input; users interact with the enclosing visible label.
+            await radio.locator('xpath=ancestor::label[1]').click();
+            assert(await radio.isChecked(), 'Native boolean option was not selected');
+            expected[key] = false;
+          } else {
+            const value = field.kind === 'integer' ? 0 : (target.entity + '-browser').slice(0, field.max_length);
+            await dialog.getByPlaceholder('请输入' + field.name, { exact: true }).fill(String(value));
+            expected[key] = value;
+          }
+        }
+        const created = observe(target.api + '/create', 'POST');
+        const refreshed = observe(target.list);
+        await dialog.getByRole('button', { name: /^确\s*认$|^确\s*定$/ }).click();
+        const captured = await created;
+        if (captured.error) throw captured.error;
+        const sent = captured.response.request().postDataJSON();
+        for (const [key, value] of Object.entries(expected)) assert.equal(sent[key], value, 'Generated form kind: ' + key);
+        await checked(Promise.resolve(captured));
+        const listed = await checked(refreshed);
+        assert(listed.list.some(row => Object.entries(expected).every(([key, value]) => row[key] === value)), 'Submitted record was not returned by real list API');
+        await dialog.waitFor({ state: 'hidden' });
+        const text = Object.values(expected).find(value => typeof value === 'string');
+        if (text) await page.getByText(text, { exact: true }).first().waitFor({ state: 'visible' });
+        await page.screenshot({ path: path.join(reportDir, target.entity + '-created.png'), fullPage: true });
+        pageResult.real_form_create = true;
+        pageResult.typed_values_preserved = true;
+      }
+      report.pages.push(pageResult);
     }
     assert.equal(errors.length, 0, 'Uncaught frontend errors');
     Object.assign(report, { passed: true, real_login: true, native_menu_received: true, generated_modules_verified: !!moduleFile });
@@ -11703,7 +12185,7 @@ uv sync --locked --extra postgres
 
 ### `docs/native-baseline.md`
 
-<!-- source-file: docs/native-baseline.md sha256: 09b9247b2fbd0238fd0be466b488806bd39420e7c6db21a92f6eb1d46864fa0f -->
+<!-- source-file: docs/native-baseline.md sha256: fb568a1d4dd4b92300bfe4b1a406a9a3e4cee41bbc7d4897f549b04c32788721 -->
 ````markdown
 ## 19. 原生生成产品：自动挂载、菜单权限和完整前后端验收
 
@@ -11723,7 +12205,7 @@ uv sync --locked --extra postgres
 | 2 | `workbench/native_compatibility.py` | 只在副本中修正事务依赖作用域，记录修改前后哈希 |
 | 3 | `workbench/native_modules.py` | Plan 转原生数据表；调用 NativeClient；生成、挂载代码和菜单 |
 | 4 | `workbench/native_checks.py`、`workbench/native_acceptance.py` | 独立 HTTP 检查真实生成实体、角色授权撤销和重启持久化 |
-| 5 | `workbench/native_frontend.py`、`scripts/native_browser.cjs` | 冻结安装、完整应用构建与类型检查、Chromium 真实登录和生成页面 |
+| 5 | `workbench/native_vben.py`、`workbench/native_frontend.py`、`scripts/native_browser.cjs` | 冻结安装、完整应用构建与类型检查、Chromium 真实登录和生成页面 |
 | 6 | `workbench/native_lab.py`、`scripts/ci_native_generated.py` | 串联各阶段；平台、CLI、CI 使用同一份实现 |
 | 7 | `workbench/native_delivery.py` | 显式授权配置、交付等级、证据绑定、重新打开产品 |
 | 8 | `tests/test_native_*.py` | 路径、配置、元数据、挂载、权限、事务和交付证据回归 |
@@ -11736,7 +12218,7 @@ uv sync --locked --extra postgres
 ```bash
 uv run ruff check .
 uv run ruff format --check .
-uv run pytest tests/test_native_baseline.py tests/test_native_modules.py tests/test_native_managed.py tests/test_native_transaction.py tests/test_native_frontend_lifecycle.py -q
+uv run pytest tests/test_native_baseline.py tests/test_native_modules.py tests/test_native_managed.py tests/test_native_transaction.py tests/test_native_frontend_lifecycle.py tests/test_native_vben.py -q
 ```
 
 这些本地测试不能代替真实原生全栈验收。后面的命令实际启动数据库、原生服务和浏览器。
@@ -11973,12 +12455,12 @@ uv run rnd native serve 运行UUID
 | `baseline/backend-build.log`、`baseline/backend-runtime.log` | 原生依赖、编译和启动 |
 | `baseline/openapi.json` | 实际服务导出的接口契约 |
 | `device-native.zip`、`category-native.zip`、`generation.json` | 原生生成器输出及挂载回执 |
-| `native-compatibility.json` | 原生工作副本兼容修正的前后哈希 |
+| `native-compatibility.json`、`vben-compatibility.json` | 原生工作副本兼容修正的前后哈希与 Vben 独立扫描边界 |
 | `generated/crud.json` | 两个生成实体CRUD、必填校验、非法认证检查 |
 | `generated/permissions.json` | 普通角色授权、撤权及菜单检查 |
 | `restart/persistence.json` | 重启后实际业务数据存在 |
 | `frontend-install.log`、`frontend-build.log`、`frontend-typecheck.log` | 安装、生产构建、完整应用类型检查 |
-| `browser.json`、`device.png`、`category.png` | 真实登录、真实列表请求、页面渲染与截图 |
+| `browser.json`、`device.png`、`category.png`、Vben 的 `device-created.png` / `category-created.png` | 真实登录、列表渲染、生成表单提交与截图 |
 | `generated-manifest.json` | 被验证源码哈希 |
 | `acceptance.json` | 全部门槛；失败时保留false |
 | `progress.json`、`failure.log`、`browser-failure.png` | 当前阶段与失败现场 |
@@ -11993,6 +12475,12 @@ uv run python -c "import json; d=json.load(open('reports/native-fastapiadmin/acc
 
 ### 19.11 兼容规则与排错
 
+Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。生成器导出的新增表单也做精确兼容：将旧式 `modalApi.getData<DTO>()` 的泛型迁到 `useVbenModal<Partial<DTO>>`，保留新增时的空载荷和编辑时的 ID 检查。原始生成 ZIP 不改写，`generation.json` 同时记录原始文件与实际挂载文件的哈希。未使用的 `Dayjs`、`getDictOptions` 导入仅在确认没有引用时删除，不关闭编译器的未使用检查。整数编辑/查询控件使用 `InputNumber` 并限定零位小数；布尔编辑/查询控件使用有真实 `true/false` 选项的 `RadioGroup`，不提交字符串代替布尔值。Chromium 还会从两个生成页面实际新增记录，检查整数 `0`、布尔 `false` 的请求值和数据库返回值，并保存新增后的页面截图。
+
+工作副本不会复制上游 `.git`、令牌或环境文件。Vben 副本单独执行 `git init --quiet --template=` 建立本地扫描边界，没有上游 remote、提交历史或 hooks；此边界也不进入源码 ZIP。缺少边界时，构建扫描可能跨入平台和兄弟工作目录，导致日志停滞与内存异常增长。不要用扩大内存、删除业务路由或禁用类型检查代替修复。保留原始仓库不变，并保存 `vben-compatibility.json` 中逐文件的 before/after SHA-256。
+
+前端使用原始 `apps/web-antd` 入口和完整应用配置。顺序为 `pnpm install --frozen-lockfile`、`vite build --mode production`、`vue-tsc --noEmit --skipLibCheck`；最后一项检查全部应用源码和生成模块，`skipLibCheck` 仅沿用第三方声明检查边界，不排除业务目录，不加入 `@ts-ignore`、`@ts-nocheck` 或宽泛 `any` 来掩盖错误。构建、类型检查、重启持久化和真实浏览器均成功才写入最终成功回执。
+
 FastapiAdmin生成服务使用flush，事务由yield依赖完成。在生成控制器和副本内的角色控制器中，将数据库依赖设为function scope，使提交在成功响应发送前完成。这样创建后立即查询和授权后立即登录不会看到未提交状态。保存前后哈希，不改鉴权逻辑、不放宽断言。官方说明：<https://fastapi.tiangolo.com/advanced/advanced-dependencies/>。
 
 芋道PG种子的逻辑删除字段是整数；不能与业务布尔字段混用。业务字段保留注释以供原生生成器识别。权限检查使用真实原生API，不直接插入管理员身份。验证无登录/伪造token/空角色拒绝、只读可查不可写、写授权可创建、撤权再拒绝。原生权限缓存存在传播时间，检查有明确等待上限，不以清缓存或改权限实现绕过。
@@ -12003,7 +12491,7 @@ FastapiAdmin生成服务使用flush，事务由yield依赖完成。在生成控�
 
 前端缺少ref/computed等自动声明：先让原生Vite插件生成声明，再运行完整应用vue-tsc，不能删除检查。Vben原生配置插件从dotenv文件读取，因此工作副本生成 `.env.production` 和可交付 `.env.production.example`；只包含公开VITE变量，不复制模型或数据库密码。
 
-浏览器失败：读 `browser.json` 的响应、状态和page_errors，再看截图。FastapiAdmin采用真实鼠标滑块操作；先等布局稳定，再在轨道内拖至末端，移出轨道会触发原生重置。不能注入token、mock接口或删掉生成页面检查。Playwright定位器说明：<https://playwright.dev/docs/best-practices>。
+浏览器失败：读 `browser.json` 的响应、状态和page_errors，再看截图。Ant Design 单选按钮内部 input 是隐藏的，真实自动操作点击对应可见 label，再验证 isChecked 和请求中的布尔值，不强制点击隐藏元素。FastapiAdmin采用真实鼠标滑块操作；先等布局稳定，再在轨道内拖至末端，移出轨道会触发原生重置。不能注入token、mock接口或删掉生成页面检查。Playwright定位器说明：<https://playwright.dev/docs/best-practices>。
 
 ### 19.12 GitHub Actions 与完整手册同步
 
