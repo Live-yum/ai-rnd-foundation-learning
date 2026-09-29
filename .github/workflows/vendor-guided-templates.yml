@@ -1,0 +1,72 @@
+name: Bundle pinned native templates
+on:
+  push:
+    branches: [diagnostics/guided-workbench]
+    paths: [.github/workflows/vendor-guided-templates.yml]
+permissions:
+  contents: write
+jobs:
+  bundle:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: diagnostics/guided-workbench
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked
+      - name: Vendor only pinned source trees and license notices
+        shell: bash
+        run: |
+          uv run python - <<'PY'
+          import hashlib,json,os,pathlib,stat,subprocess,tempfile,zipfile
+          out=pathlib.Path('templates/vendor');out.mkdir(parents=True,exist_ok=True)
+          sources=[('fastapiadmin','fastapiadmin','fastapiadmin','https://github.com/fastapiadmin/FastapiAdmin.git','1cd12c726ad9032c17ef85ce805ce991be60fbdf'),('yudao-backend','yudao-vben','backend','https://github.com/yudaocode/yudao-cloud-mini.git','47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be'),('yudao-frontend','yudao-vben','frontend','https://github.com/yudaocode/yudao-ui-admin-vben.git','1b14e889f529e245fd620daa720dcea6de0cc5e7')]
+          exclude_dirs={'.git','.venv','node_modules','__pycache__','.pytest_cache','.ruff_cache','.data','target','dist','logs'}
+          exclude_ext={'.ttf','.otf','.woff','.woff2','.ttc','.eot','.pem','.key','.p12','.pfx','.db','.db-wal','.db-shm'}
+          records=[]
+          for name,template,slot,url,sha in sources:
+              with tempfile.TemporaryDirectory() as temp:
+                  src=pathlib.Path(temp)
+                  subprocess.run(['git','init','--quiet','--template=',str(src)],check=True)
+                  subprocess.run(['git','-C',str(src),'fetch','--depth','1',url,sha],check=True)
+                  subprocess.run(['git','-C',str(src),'checkout','--detach','FETCH_HEAD'],check=True)
+                  assert subprocess.check_output(['git','-C',str(src),'rev-parse','HEAD'],text=True).strip()==sha
+                  license_text=(src/'LICENSE').read_text(encoding='utf-8');assert 'MIT' in license_text
+                  rows={};excluded=[];hashes={}
+                  for base,dirs,files in os.walk(src,followlinks=False):
+                      dirs[:]=sorted(d for d in dirs if d not in exclude_dirs)
+                      for filename in sorted(files):
+                          p=pathlib.Path(base)/filename;rel=p.relative_to(src).as_posix()
+                          assert not p.is_symlink() and stat.S_ISREG(p.stat().st_mode)
+                          if p.suffix.lower() in exclude_ext or (filename.startswith('.env') and not filename.endswith('.example')) or filename in {'access-token','id_rsa','id_ed25519','credentials.json'}:
+                              excluded.append(rel);continue
+                          assert p.stat().st_size<=32000000
+                          rows[rel]=p
+                  archive=out/(name+'.zip')
+                  with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED,compresslevel=9) as z:
+                      for rel,p in sorted(rows.items()):
+                          data=p.read_bytes();hashes[rel]=hashlib.sha256(data).hexdigest()
+                          info=zipfile.ZipInfo(rel,date_time=(1980,1,1,0,0,0));info.create_system=3;info.external_attr=0o100644<<16;info.compress_type=zipfile.ZIP_DEFLATED
+                          z.writestr(info,data,compresslevel=9)
+                  (out/(name+'.LICENSE')).write_text(license_text,encoding='utf-8',newline='\n')
+                  source_digest=hashlib.sha256(json.dumps(hashes,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode()).hexdigest()
+                  records.append({'name':name,'template':template,'slot':slot,'url':url,'sha':sha,'archive':name+'.zip','license':'MIT','archive_sha256':hashlib.sha256(archive.read_bytes()).hexdigest(),'source_digest':source_digest,'files':len(rows),'excluded_files':excluded})
+          manifest={'format':1,'storage':'ordinary-git-source-archives','sources':records,'exclusions':sorted(exclude_dirs|exclude_ext),'note':'Source code, schemas and dependency locks are included. Build caches, runtime secrets and font binaries are not redistributed.'}
+          (out/'manifest.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n',encoding='utf-8')
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add templates/vendor
+          git commit -m 'build: include fixed licensed native template code in every ordinary clone'
+          git push origin HEAD:diagnostics/guided-workbench
+          mkdir -p /tmp/vendor-receipt
+          cp templates/vendor/manifest.json /tmp/vendor-receipt/
+          git rev-parse HEAD > /tmp/vendor-receipt/commit.txt
+          git ls-tree -r HEAD templates/vendor > /tmp/vendor-receipt/tree.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: vendored-template-receipts
+          path: /tmp/vendor-receipt/
