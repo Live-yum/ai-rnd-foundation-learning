@@ -739,7 +739,7 @@ uv run rnd native serve 运行UUID
 | `baseline/backend-build.log`、`baseline/backend-runtime.log` | 原生依赖、编译和启动 |
 | `baseline/openapi.json` | 实际服务导出的接口契约 |
 | `device-native.zip`、`category-native.zip`、`generation.json` | 原生生成器输出及挂载回执 |
-| `native-compatibility.json` | 原生工作副本兼容修正的前后哈希 |
+| `native-compatibility.json`、`vben-compatibility.json` | 原生工作副本兼容修正的前后哈希与 Vben 独立扫描边界 |
 | `generated/crud.json` | 两个生成实体CRUD、必填校验、非法认证检查 |
 | `generated/permissions.json` | 普通角色授权、撤权及菜单检查 |
 | `restart/persistence.json` | 重启后实际业务数据存在 |
@@ -758,6 +758,12 @@ uv run python -c "import json; d=json.load(open('reports/native-fastapiadmin/acc
 最终还必须有 `native_codegen`、`automatic_mount`、`menu_and_permissions`、`real_crud`、`restart_persistence`、`frontend_build`、`frontend_typecheck`、`real_browser`、`source_unmodified`，全部为true。只看一个HTTP200或服务首页不够。
 
 ### 19.11 兼容规则与排错
+
+Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。
+
+工作副本不会复制上游 `.git`、令牌或环境文件。Vben 副本单独执行 `git init --quiet --template=` 建立本地扫描边界，没有上游 remote、提交历史或 hooks；此边界也不进入源码 ZIP。缺少边界时，构建扫描可能跨入平台和兄弟工作目录，导致日志停滞与内存异常增长。不要用扩大内存、删除业务路由或禁用类型检查代替修复。保留原始仓库不变，并保存 `vben-compatibility.json` 中逐文件的 before/after SHA-256。
+
+前端使用原始 `apps/web-antd` 入口和完整应用配置。顺序为 `pnpm install --frozen-lockfile`、`vite build --mode production`、`vue-tsc --noEmit --skipLibCheck`；最后一项检查全部应用源码和生成模块，`skipLibCheck` 仅沿用第三方声明检查边界，不排除业务目录，不加入 `@ts-ignore`、`@ts-nocheck` 或宽泛 `any` 来掩盖错误。构建、类型检查、重启持久化和真实浏览器均成功才写入最终成功回执。
 
 FastapiAdmin生成服务使用flush，事务由yield依赖完成。在生成控制器和副本内的角色控制器中，将数据库依赖设为function scope，使提交在成功响应发送前完成。这样创建后立即查询和授权后立即登录不会看到未提交状态。保存前后哈希，不改鉴权逻辑、不放宽断言。官方说明：<https://fastapi.tiangolo.com/advanced/advanced-dependencies/>。
 
@@ -5093,7 +5099,7 @@ def check_native_permissions(template, base_url, admin_token):
 
 ### `workbench/native_frontend.py`
 
-<!-- source-file: workbench/native_frontend.py sha256: 6a496815d727717eac0e8cbc2ee31753ee36870664d5dbda773003c2a0df0fa0 -->
+<!-- source-file: workbench/native_frontend.py sha256: 67cdd4f0f83ff8127d972fd707cad593da201a87e3f456d1d3785fba79c27082 -->
 ````python
 """Build the original native application with any generated modules already mounted."""
 
@@ -5107,6 +5113,7 @@ from pathlib import Path
 import httpx
 
 from workbench.filesystem import atomic_text, sha, write_json
+from workbench.native_vben import prepare_vben_source
 from workbench.settings import ROOT
 from workbench.tools import clean_env, process_options, run_command, stop_process
 
@@ -5171,6 +5178,7 @@ def build_frontend(template, root, env, reports):
     if not (root / "pnpm-lock.yaml").is_file():
         raise ValueError("Native frontend lockfile is required")
     if template == "yudao-vben":
+        prepare_vben_source(root, reports)
         # Vben's own loadAndConvertEnv / runtime-config plugin reads dotenv files,
         # not process.env. Persist only explicitly public VITE_* values in the
         # disposable workspace; never copy platform or database credentials.
@@ -5276,6 +5284,192 @@ def browser_check(template, url, reports):
         },
     )
     atomic_text(Path(reports) / "browser.log", result["log"])
+````
+
+### `workbench/native_vben.py`
+
+<!-- source-file: workbench/native_vben.py sha256: eb1e298c1d278e09357c7df1f2c88b26c55a25ef83733869abb1473f0fec0687 -->
+````python
+"""Reviewed compatibility for pinned Vben 1b14e889; no routes or type checks removed."""
+
+from pathlib import Path
+
+from workbench.filesystem import atomic_text, sha, write_json
+from workbench.tools import run_command
+
+
+def checked_replacement(source: str, old: str, new: str, count: int, name: str) -> str:
+    if source.count(old) != count:
+        raise ValueError("Pinned Vben compatibility contract changed: " + name)
+    return source.replace(old, new)
+
+
+def initialize_vben_boundary(root: Path) -> None:
+    """Create a new local scan boundary, with no upstream history/remotes/hooks."""
+    root = Path(root).resolve()
+    if (root / ".git").exists() or (root / ".git").is_symlink():
+        raise ValueError("Vben compatibility requires a fresh source copy without .git")
+    run_command(["git", "init", "--quiet", "--template=", str(root)], root, 30)
+
+
+def prepare_vben_source(root: Path, reports: Path):
+    root = Path(root).resolve()
+    originals = {}
+    changed = {}
+
+    def edit(relative, old, new, count=1):
+        name = "apps/web-antd/src/views/" + relative
+        path = root / name
+        if name not in originals:
+            originals[name] = path.read_text(encoding="utf-8")
+        source = changed.get(name, originals[name])
+        changed[name] = checked_replacement(source, old, new, count, name)
+
+    for name in [
+        "fms/config/subject/modules/form.vue",
+        "fms/config/initial-balance/modules/assist-form.vue",
+        "fms/ledger/auxiliary-balance/index.vue",
+    ]:
+        edit(name, "auxiliary-select-modal.vue", "auxiliary-item-select.vue")
+    for name, count in [
+        ("ai/model/model/data.ts", 1),
+        ("mall/product/property/data.ts", 1),
+        ("system/dict/data.ts", 2),
+    ]:
+        edit(name, "componentProps: (values) => {", "componentProps: ({ rootValues }) => {", count)
+        edit(name, "disabled: !!values.id", "disabled: !!rootValues?.id", count)
+    # Data is declared on useVbenModal<T>; getData() remains possibly undefined.
+    modals = {
+        "bpm/components/bpmn-process-designer/package/penal/task/task-components/HttpHeaderEditor.vue": "{ headers?: string }",
+        "bpm/components/simple-process-design/components/nodes-config/modules/condition-dialog.vue": "typeof conditionData.value",
+        "bpm/form/modules/detail.vue": "{ id: number }",
+        "crm/customer/detail/modules/distribute-form.vue": "{ id: number; ownerUserId?: number }",
+        "crm/permission/modules/form.vue": "CrmPermissionApi.Permission",
+        "mall/promotion/coupon/components/send-form.vue": "{ userIds: number[] }",
+        "mall/trade/brokerage/user/modules/order-list-modal.vue": "{ id: number }",
+        "mall/trade/brokerage/user/modules/user-list-modal.vue": "{ id: number }",
+        "system/dept/components/select-modal.vue": "{ selectedList?: SystemDeptApi.Dept[] }",
+        "system/social/user/modules/detail.vue": "{ id: number }",
+        "system/user/components/select-modal.vue": "{ userIds?: number[] }",
+    }
+    for name, typ in modals.items():
+        edit(name, "= useVbenModal({", f"= useVbenModal<{typ}>({{")
+    edit(
+        "bpm/components/bpmn-process-designer/package/penal/task/task-components/HttpHeaderEditor.vue",
+        "const { headers } = modalApi.getData();",
+        "const headers = modalApi.getData()?.headers ?? '';",
+    )
+    edit(
+        "bpm/components/bpmn-process-designer/package/penal/time-event-config/TimeEventConfig.vue",
+        "onConfirm: () => helpModalApi.close(),",
+        "onConfirm: (): void => {\n    helpModalApi.close();\n  },",
+    )
+    edit(
+        "bpm/components/simple-process-design/components/simple-process-designer.vue",
+        "const [ErrorModal, errorModalApi] = useVbenModal({",
+        "const [ErrorModal, errorModalApi] = useVbenModal<SimpleFlowNode[]>({",
+    )
+    edit(
+        "mall/promotion/coupon/components/send-form.vue",
+        "  modalApi.lock();\n  try {",
+        "  const data = modalApi.getData();\n  if (!data?.userIds.length) return;\n  modalApi.lock();\n  try {",
+    )
+    edit(
+        "mall/promotion/coupon/components/send-form.vue",
+        "userIds: modalApi.getData().userIds",
+        "userIds: data.userIds",
+    )
+    edit(
+        "mall/trade/brokerage/user/modules/user-list-modal.vue",
+        "query: async ({ page }, formValues) => {\n          return",
+        "query: async ({ page }, formValues) => {\n          const data = modalApi.getData();\n          if (!data) return { list: [], total: 0 };\n          return",
+    )
+    edit(
+        "mall/trade/brokerage/user/modules/user-list-modal.vue",
+        "bindUserId: modalApi.getData().id",
+        "bindUserId: data.id",
+    )
+    # Actions callbacks belong to the dependency resolver, not schema context.
+    edit(
+        "crm/contact/data.ts",
+        "      componentProps: (_values, form) => ({\n        api: getCustomerSimpleList,\n        labelField: 'name',\n        valueField: 'id',\n        placeholder: '请选择客户',\n        onChange: () => form.setFieldValue('parentId', undefined),\n      }),",
+        "      dependencies: {\n        triggerFields: ['customerId'],\n        componentProps: (_values, form) => ({\n          api: getCustomerSimpleList,\n          labelField: 'name',\n          valueField: 'id',\n          placeholder: '请选择客户',\n          onChange: () => form.setFieldValue('parentId', undefined),\n        }),\n      },",
+    )
+    edit(
+        "crm/receivable/data.ts",
+        "      componentProps: (_values, form) => ({\n        api: getCustomerSimpleList,\n        labelField: 'name',\n        valueField: 'id',\n        placeholder: '请选择客户',\n        onChange: () => {\n          form.setFieldValue('contractId', undefined);\n          form.setFieldValue('planId', undefined);\n          form.setFieldValue('price', undefined);\n          form.setFieldValue('returnTime', undefined);\n          form.setFieldValue('returnType', undefined);\n        },\n      }),\n      dependencies: {\n        triggerFields: ['id'],\n        disabled: (values) => values.id,\n      },",
+        "      dependencies: {\n        triggerFields: ['id', 'customerId'],\n        disabled: (values) => values.id,\n        componentProps: (_values, form) => ({\n          api: getCustomerSimpleList,\n          labelField: 'name',\n          valueField: 'id',\n          placeholder: '请选择客户',\n          onChange: () => {\n            form.setFieldValue('contractId', undefined);\n            form.setFieldValue('planId', undefined);\n            form.setFieldValue('price', undefined);\n            form.setFieldValue('returnTime', undefined);\n            form.setFieldValue('returnType', undefined);\n          },\n        }),\n      },",
+    )
+    edit(
+        "im/utils/constants.ts",
+        "const ImContentTypeNormals: number[] = new Set([",
+        "const ImContentTypeNormals: ReadonlySet<number> = new Set([",
+    )
+    edit(
+        "im/utils/constants.ts",
+        "const ImContentTypeMedia: number[] = new Set([",
+        "const ImContentTypeMedia: ReadonlySet<number> = new Set([",
+    )
+    edit("im/utils/message.ts", "[...mentions].toSort(", "mentions.toSorted(")
+    # Optional cursor fields can be undefined as well as null.
+    name = "im/utils/pull.ts"
+    edit(name, "let cursor =", "let cursor: PullCursor =")
+    edit(name, "storedCursor.lastUpdateTime === null", "storedCursor.lastUpdateTime == null")
+    edit(name, "last.updateTime === null", "last.updateTime == null")
+    edit(name, "highWater.lastUpdateTime === null", "highWater.lastUpdateTime == null")
+    edit(
+        name,
+        "cursor.lastUpdateTime > highWater.lastUpdateTime",
+        "last.updateTime > highWater.lastUpdateTime",
+    )
+    edit(
+        name,
+        "cursor.lastUpdateTime === highWater.lastUpdateTime",
+        "last.updateTime === highWater.lastUpdateTime",
+    )
+    edit(name, "cursor.lastId > (highWater.lastId ?? 0)", "last.id > (highWater.lastId ?? 0)")
+    edit(
+        name,
+        "highWater.lastUpdateTime = cursor.lastUpdateTime;",
+        "highWater.lastUpdateTime = last.updateTime;",
+    )
+    edit(name, "highWater.lastId = cursor.lastId;", "highWater.lastId = last.id;")
+    edit(
+        name,
+        ".filter((id): id is number => id !== null);",
+        ".filter((id): id is number => typeof id === 'number');",
+    )
+    edit(name, "nextMinId === null", "nextMinId == null")
+    edit(
+        "system/area/data.ts",
+        "z.string().ip({ message: '请输入正确的 IP 地址' })",
+        "z.union([z.ipv4(), z.ipv6()], { error: '请输入正确的 IP 地址' })",
+    )
+    edit(
+        "system/dept/components/select-modal.vue",
+        ".filter((id: number) => id !== undefined)",
+        ".filter((id): id is number => typeof id === 'number')",
+    )
+    # Validate every input shape before creating the boundary or changing any file.
+    initialize_vben_boundary(root)
+    receipts = []
+    for name, content in changed.items():
+        path = root / name
+        before = sha(path)
+        atomic_text(path, content)
+        receipts.append({"path": name, "before_sha256": before, "after_sha256": sha(path)})
+    write_json(
+        Path(reports) / "vben-compatibility.json",
+        {
+            "upstream": "1b14e889f529e245fd620daa720dcea6de0cc5e7",
+            "scope": "existing-component-imports-and-current-native-types",
+            "independent_git_boundary": True,
+            "routes_removed": False,
+            "type_checks_disabled": False,
+            "files": receipts,
+        },
+    )
+    return receipts
 ````
 
 ### `workbench/native_modules.py`
@@ -8131,7 +8325,7 @@ def test_source_copy_is_independent_of_generated_edits(tmp_path):
 
 ### `tests/test_native_frontend_lifecycle.py`
 
-<!-- source-file: tests/test_native_frontend_lifecycle.py sha256: f07bce37794714c2fe5f764e67a99e9e0d9e34403875a15f5de5f5521c7fca5e -->
+<!-- source-file: tests/test_native_frontend_lifecycle.py sha256: e6fafe1bbd34f2571909bbfeaee798244d87ed846a2e3ca27b82712b6aa432f4 -->
 ````python
 """Local regressions are contracts, not native browser acceptance evidence."""
 
@@ -8182,6 +8376,7 @@ def test_vben_public_build_config_excludes_credentials(tmp_path, monkeypatch):
         return {"log": "fixture only", "returncode": 0}
 
     monkeypatch.setattr(native_frontend, "run_command", tool)
+    monkeypatch.setattr(native_frontend, "prepare_vben_source", lambda *_: None)
     env = native_frontend.frontend_environment("yudao-vben", "http://127.0.0.1:48080")
     env["API_KEY"] = "never-serialize-this"
     native_frontend.build_frontend("yudao-vben", root, env, tmp_path / "reports")
@@ -8604,6 +8799,56 @@ def test_updates_exercise_integer_and_boolean_changes():
     assert changed["active"] is False
 ````
 
+### `tests/test_native_vben.py`
+
+<!-- source-file: tests/test_native_vben.py sha256: b1bddafc58727328aa27c87912127c3dad99283cf1627cd0a680abfb9f822987 -->
+````python
+"""Small regression contracts; full Vben verification uses the real pinned application."""
+
+import json
+from pathlib import Path
+
+import pytest
+
+from workbench.filesystem import manifest
+from workbench.native_environment import copy_source
+from workbench.native_vben import checked_replacement, initialize_vben_boundary
+from workbench.tools import run_command
+
+
+def test_checked_replacement_is_exact_and_preserves_unrelated_source():
+    source = "before; old; after;"
+    assert checked_replacement(source, "old", "new", 1, "fixture") == "before; new; after;"
+    assert source == "before; old; after;"
+
+
+@pytest.mark.parametrize("source", ["missing", "old old"])
+def test_changed_or_ambiguous_upstream_context_fails_closed(source):
+    with pytest.raises(ValueError, match="compatibility contract changed"):
+        checked_replacement(source, "old", "new", 1, "fixture")
+
+
+def test_vben_boundary_is_local_and_excluded_from_delivery(tmp_path):
+    source = tmp_path / "upstream"
+    (source / ".git").mkdir(parents=True)
+    (source / ".git/config").write_text("never-copy-upstream-credentials")
+    (source / ".env").write_text("API_KEY=never-copy-me")
+    (source / "package.json").write_text(json.dumps({"name": "boundary-fixture"}))
+    destination = tmp_path / "product"
+    copy_source(source, destination)
+    before = manifest(destination)
+    initialize_vben_boundary(destination)
+    assert manifest(destination) == before
+    assert not (destination / ".env").exists()
+    config = (destination / ".git/config").read_text()
+    assert "remote" not in config and "never-copy" not in config
+    assert not (destination / ".git/hooks").exists()
+    result = run_command(["git", "rev-parse", "--show-toplevel"], destination, 30)
+    assert Path(result["log"].strip()).resolve() == destination.resolve()
+    with pytest.raises(ValueError, match="fresh source copy"):
+        initialize_vben_boundary(destination)
+````
+
 ### `tests/test_postgres.py`
 
 <!-- source-file: tests/test_postgres.py sha256: e69d89e40edd867759b1c969c8fca424117d4645f265d3e110a34c5c469dc07a -->
@@ -8996,7 +9241,7 @@ def test_tampered_delivery_not_released(settings, store, plan):
 
 ### `scripts/build_handbook.py`
 
-<!-- source-file: scripts/build_handbook.py sha256: 88ba6fceae3bbec61122f3441a93848d08053bcec4f07d9ac9b16fbb404ef360 -->
+<!-- source-file: scripts/build_handbook.py sha256: 11833f6fac096d81ea9bdd0ac04b20f01e4663207349fe9f17d5ae75e1711400 -->
 ````python
 """Render a complete, reconstructable handbook from tracked source, never from memory."""
 
@@ -9057,6 +9302,7 @@ GROUPS = [
             "workbench/native_environment.py",
             "workbench/native_checks.py",
             "workbench/native_frontend.py",
+            "workbench/native_vben.py",
             "workbench/native_modules.py",
             "workbench/native_compatibility.py",
             "workbench/native_acceptance.py",
@@ -11703,7 +11949,7 @@ uv sync --locked --extra postgres
 
 ### `docs/native-baseline.md`
 
-<!-- source-file: docs/native-baseline.md sha256: 09b9247b2fbd0238fd0be466b488806bd39420e7c6db21a92f6eb1d46864fa0f -->
+<!-- source-file: docs/native-baseline.md sha256: a17740dd08de2ea0f8be40f13780a86422f8dc6b1427d071dfe23b6c29dfdec2 -->
 ````markdown
 ## 19. 原生生成产品：自动挂载、菜单权限和完整前后端验收
 
@@ -11973,7 +12219,7 @@ uv run rnd native serve 运行UUID
 | `baseline/backend-build.log`、`baseline/backend-runtime.log` | 原生依赖、编译和启动 |
 | `baseline/openapi.json` | 实际服务导出的接口契约 |
 | `device-native.zip`、`category-native.zip`、`generation.json` | 原生生成器输出及挂载回执 |
-| `native-compatibility.json` | 原生工作副本兼容修正的前后哈希 |
+| `native-compatibility.json`、`vben-compatibility.json` | 原生工作副本兼容修正的前后哈希与 Vben 独立扫描边界 |
 | `generated/crud.json` | 两个生成实体CRUD、必填校验、非法认证检查 |
 | `generated/permissions.json` | 普通角色授权、撤权及菜单检查 |
 | `restart/persistence.json` | 重启后实际业务数据存在 |
@@ -11992,6 +12238,12 @@ uv run python -c "import json; d=json.load(open('reports/native-fastapiadmin/acc
 最终还必须有 `native_codegen`、`automatic_mount`、`menu_and_permissions`、`real_crud`、`restart_persistence`、`frontend_build`、`frontend_typecheck`、`real_browser`、`source_unmodified`，全部为true。只看一个HTTP200或服务首页不够。
 
 ### 19.11 兼容规则与排错
+
+Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。
+
+工作副本不会复制上游 `.git`、令牌或环境文件。Vben 副本单独执行 `git init --quiet --template=` 建立本地扫描边界，没有上游 remote、提交历史或 hooks；此边界也不进入源码 ZIP。缺少边界时，构建扫描可能跨入平台和兄弟工作目录，导致日志停滞与内存异常增长。不要用扩大内存、删除业务路由或禁用类型检查代替修复。保留原始仓库不变，并保存 `vben-compatibility.json` 中逐文件的 before/after SHA-256。
+
+前端使用原始 `apps/web-antd` 入口和完整应用配置。顺序为 `pnpm install --frozen-lockfile`、`vite build --mode production`、`vue-tsc --noEmit --skipLibCheck`；最后一项检查全部应用源码和生成模块，`skipLibCheck` 仅沿用第三方声明检查边界，不排除业务目录，不加入 `@ts-ignore`、`@ts-nocheck` 或宽泛 `any` 来掩盖错误。构建、类型检查、重启持久化和真实浏览器均成功才写入最终成功回执。
 
 FastapiAdmin生成服务使用flush，事务由yield依赖完成。在生成控制器和副本内的角色控制器中，将数据库依赖设为function scope，使提交在成功响应发送前完成。这样创建后立即查询和授权后立即登录不会看到未提交状态。保存前后哈希，不改鉴权逻辑、不放宽断言。官方说明：<https://fastapi.tiangolo.com/advanced/advanced-dependencies/>。
 

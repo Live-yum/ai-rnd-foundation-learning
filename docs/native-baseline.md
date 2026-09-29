@@ -266,7 +266,7 @@ uv run rnd native serve 运行UUID
 | `baseline/backend-build.log`、`baseline/backend-runtime.log` | 原生依赖、编译和启动 |
 | `baseline/openapi.json` | 实际服务导出的接口契约 |
 | `device-native.zip`、`category-native.zip`、`generation.json` | 原生生成器输出及挂载回执 |
-| `native-compatibility.json` | 原生工作副本兼容修正的前后哈希 |
+| `native-compatibility.json`、`vben-compatibility.json` | 原生工作副本兼容修正的前后哈希与 Vben 独立扫描边界 |
 | `generated/crud.json` | 两个生成实体CRUD、必填校验、非法认证检查 |
 | `generated/permissions.json` | 普通角色授权、撤权及菜单检查 |
 | `restart/persistence.json` | 重启后实际业务数据存在 |
@@ -285,6 +285,12 @@ uv run python -c "import json; d=json.load(open('reports/native-fastapiadmin/acc
 最终还必须有 `native_codegen`、`automatic_mount`、`menu_and_permissions`、`real_crud`、`restart_persistence`、`frontend_build`、`frontend_typecheck`、`real_browser`、`source_unmodified`，全部为true。只看一个HTTP200或服务首页不够。
 
 ### 19.11 兼容规则与排错
+
+Vben 固定版本 `1b14e889f529e245fd620daa720dcea6de0cc5e7` 的兼容入口为 `workbench/native_vben.py`，在业务模块挂载完成后、前端冻结安装之前自动执行，不需要读者手工拼补丁。它核对全部预期源码片段后，修复已存在组件的失效引用、表单上下文、弹窗载荷和可选值、集合/排序声明、IP 校验 API，以及部门 ID 的类型收窄。任何输入片段不匹配都会报错，不盲目替换新版本源码。
+
+工作副本不会复制上游 `.git`、令牌或环境文件。Vben 副本单独执行 `git init --quiet --template=` 建立本地扫描边界，没有上游 remote、提交历史或 hooks；此边界也不进入源码 ZIP。缺少边界时，构建扫描可能跨入平台和兄弟工作目录，导致日志停滞与内存异常增长。不要用扩大内存、删除业务路由或禁用类型检查代替修复。保留原始仓库不变，并保存 `vben-compatibility.json` 中逐文件的 before/after SHA-256。
+
+前端使用原始 `apps/web-antd` 入口和完整应用配置。顺序为 `pnpm install --frozen-lockfile`、`vite build --mode production`、`vue-tsc --noEmit --skipLibCheck`；最后一项检查全部应用源码和生成模块，`skipLibCheck` 仅沿用第三方声明检查边界，不排除业务目录，不加入 `@ts-ignore`、`@ts-nocheck` 或宽泛 `any` 来掩盖错误。构建、类型检查、重启持久化和真实浏览器均成功才写入最终成功回执。
 
 FastapiAdmin生成服务使用flush，事务由yield依赖完成。在生成控制器和副本内的角色控制器中，将数据库依赖设为function scope，使提交在成功响应发送前完成。这样创建后立即查询和授权后立即登录不会看到未提交状态。保存前后哈希，不改鉴权逻辑、不放宽断言。官方说明：<https://fastapi.tiangolo.com/advanced/advanced-dependencies/>。
 

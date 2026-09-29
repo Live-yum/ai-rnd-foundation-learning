@@ -3,9 +3,24 @@
 from pathlib import Path
 
 from workbench.filesystem import atomic_text, sha, write_json
+from workbench.tools import run_command
 
 
-def prepare_vben_source(root, reports):
+def checked_replacement(source: str, old: str, new: str, count: int, name: str) -> str:
+    if source.count(old) != count:
+        raise ValueError("Pinned Vben compatibility contract changed: " + name)
+    return source.replace(old, new)
+
+
+def initialize_vben_boundary(root: Path) -> None:
+    """Create a new local scan boundary, with no upstream history/remotes/hooks."""
+    root = Path(root).resolve()
+    if (root / ".git").exists() or (root / ".git").is_symlink():
+        raise ValueError("Vben compatibility requires a fresh source copy without .git")
+    run_command(["git", "init", "--quiet", "--template=", str(root)], root, 30)
+
+
+def prepare_vben_source(root: Path, reports: Path):
     root = Path(root).resolve()
     originals = {}
     changed = {}
@@ -16,9 +31,7 @@ def prepare_vben_source(root, reports):
         if name not in originals:
             originals[name] = path.read_text(encoding="utf-8")
         source = changed.get(name, originals[name])
-        if source.count(old) != count:
-            raise ValueError("Pinned Vben compatibility contract changed: " + name)
-        changed[name] = source.replace(old, new)
+        changed[name] = checked_replacement(source, old, new, count, name)
 
     for name in [
         "fms/config/subject/modules/form.vue",
@@ -112,30 +125,56 @@ def prepare_vben_source(root, reports):
     edit(name, "storedCursor.lastUpdateTime === null", "storedCursor.lastUpdateTime == null")
     edit(name, "last.updateTime === null", "last.updateTime == null")
     edit(name, "highWater.lastUpdateTime === null", "highWater.lastUpdateTime == null")
-    edit(name, "cursor.lastUpdateTime > highWater.lastUpdateTime", "last.updateTime > highWater.lastUpdateTime")
-    edit(name, "cursor.lastUpdateTime === highWater.lastUpdateTime", "last.updateTime === highWater.lastUpdateTime")
+    edit(
+        name,
+        "cursor.lastUpdateTime > highWater.lastUpdateTime",
+        "last.updateTime > highWater.lastUpdateTime",
+    )
+    edit(
+        name,
+        "cursor.lastUpdateTime === highWater.lastUpdateTime",
+        "last.updateTime === highWater.lastUpdateTime",
+    )
     edit(name, "cursor.lastId > (highWater.lastId ?? 0)", "last.id > (highWater.lastId ?? 0)")
-    edit(name, "highWater.lastUpdateTime = cursor.lastUpdateTime;", "highWater.lastUpdateTime = last.updateTime;")
+    edit(
+        name,
+        "highWater.lastUpdateTime = cursor.lastUpdateTime;",
+        "highWater.lastUpdateTime = last.updateTime;",
+    )
     edit(name, "highWater.lastId = cursor.lastId;", "highWater.lastId = last.id;")
-    edit(name, ".filter((id): id is number => id !== null);", ".filter((id): id is number => typeof id === 'number');")
+    edit(
+        name,
+        ".filter((id): id is number => id !== null);",
+        ".filter((id): id is number => typeof id === 'number');",
+    )
     edit(name, "nextMinId === null", "nextMinId == null")
     edit(
         "system/area/data.ts",
         "z.string().ip({ message: '请输入正确的 IP 地址' })",
         "z.union([z.ipv4(), z.ipv6()], { error: '请输入正确的 IP 地址' })",
     )
-    # Validate all 25 input shapes before changing the first file.
+    edit(
+        "system/dept/components/select-modal.vue",
+        ".filter((id: number) => id !== undefined)",
+        ".filter((id): id is number => typeof id === 'number')",
+    )
+    # Validate every input shape before creating the boundary or changing any file.
+    initialize_vben_boundary(root)
     receipts = []
     for name, content in changed.items():
         path = root / name
         before = sha(path)
         atomic_text(path, content)
         receipts.append({"path": name, "before_sha256": before, "after_sha256": sha(path)})
-    write_json(Path(reports) / "vben-compatibility.json", {
-        "upstream": "1b14e889f529e245fd620daa720dcea6de0cc5e7",
-        "scope": "existing-component-imports-and-current-native-types",
-        "routes_removed": False,
-        "type_checks_disabled": False,
-        "files": receipts,
-    })
+    write_json(
+        Path(reports) / "vben-compatibility.json",
+        {
+            "upstream": "1b14e889f529e245fd620daa720dcea6de0cc5e7",
+            "scope": "existing-component-imports-and-current-native-types",
+            "independent_git_boundary": True,
+            "routes_removed": False,
+            "type_checks_disabled": False,
+            "files": receipts,
+        },
+    )
     return receipts

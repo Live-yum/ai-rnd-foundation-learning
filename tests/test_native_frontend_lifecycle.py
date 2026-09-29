@@ -47,6 +47,7 @@ def test_vben_public_build_config_excludes_credentials(tmp_path, monkeypatch):
         return {"log": "fixture only", "returncode": 0}
 
     monkeypatch.setattr(native_frontend, "run_command", tool)
+    monkeypatch.setattr(native_frontend, "prepare_vben_source", lambda *_: None)
     env = native_frontend.frontend_environment("yudao-vben", "http://127.0.0.1:48080")
     env["API_KEY"] = "never-serialize-this"
     native_frontend.build_frontend("yudao-vben", root, env, tmp_path / "reports")
