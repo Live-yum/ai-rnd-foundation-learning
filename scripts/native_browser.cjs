@@ -7,7 +7,7 @@ async function main() {
   const [template, base, reportDir, playwrightPath] = process.argv.slice(2);
   assert(['fastapiadmin', 'yudao-vben'].includes(template));
   assert.equal(new URL(base).hostname, '127.0.0.1');
-  const { chromium, expect } = require(playwrightPath);
+  const { chromium } = require(playwrightPath);
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, locale: 'zh-CN' });
   const page = await context.newPage();
@@ -26,7 +26,7 @@ async function main() {
   const report = { template, scope: 'original-upstream-frontend', generated_modules_verified: false, passed: false };
   try {
     await page.goto(base + (fastapi ? '/#/login' : '/#/auth/login'), { waitUntil: 'networkidle' });
-    const username = fastapi ? page.getByPlaceholder('请输入用户名', { exact: true }) : page.getByPlaceholder(/用户名|账号|username/i).first();
+    const username = fastapi ? page.getByPlaceholder('请输入账号', { exact: true }) : page.getByPlaceholder(/用户名|账号|username/i).first();
     await username.fill(fastapi ? 'super' : 'admin');
     await page.locator('input[type="password"]').first().fill(fastapi ? '123456' : 'admin123');
     if (fastapi) {
@@ -44,7 +44,6 @@ async function main() {
       await track.getByText('验证成功', { exact: true }).waitFor({ state: 'visible', timeout: 10000 });
     }
     const infoPath = fastapi ? '/system/user/current/info' : '/system/auth/get-permission-info';
-    // Promise.all attaches rejection handlers immediately, so timeout diagnostics are not lost.
     const [response, menuResponse] = await Promise.all([
       page.waitForResponse(r => r.url().includes('/system/auth/login') && r.request().method() === 'POST'),
       page.waitForResponse(r => r.url().includes(infoPath) && r.request().method() === 'GET'),
