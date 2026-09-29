@@ -32,49 +32,97 @@ class EditBlocks(BaseModel):
 
 
 def executable(settings):
-    candidate = Path(settings.aider_executable) if settings.aider_executable else (
-        ROOT / "tools/aider/.venv" / ("Scripts/aider.exe" if os.name == "nt" else "bin/aider")
+    candidate = (
+        Path(settings.aider_executable)
+        if settings.aider_executable
+        else (
+            ROOT / "tools/aider/.venv" / ("Scripts/aider.exe" if os.name == "nt" else "bin/aider")
+        )
     )
     if not candidate.is_absolute() or not candidate.is_file():
-        raise ValueError("Aider 未安装：执行 uv sync --locked --project tools/aider --python 3.12（独立工具环境）")
+        raise ValueError(
+            "Aider 未安装：执行 uv sync --locked --project tools/aider --python 3.12（独立工具环境）"
+        )
     return str(candidate)
 
 
 def isolated_environment(home):
     return {
-        "HOME": str(home), "USERPROFILE": str(home), "XDG_CONFIG_HOME": str(home),
-        "XDG_CACHE_HOME": str(home / "cache"), "APPDATA": str(home), "LOCALAPPDATA": str(home),
-        "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": str(home / "empty"),
-        "GIT_TERMINAL_PROMPT": "0", "OPENAI_API_KEY": "unused-local-editing-only",
-        "LITELLM_LOCAL_MODEL_COST_MAP": "True", "AIDER_ANALYTICS": "false",
+        "HOME": str(home),
+        "USERPROFILE": str(home),
+        "XDG_CONFIG_HOME": str(home),
+        "XDG_CACHE_HOME": str(home / "cache"),
+        "APPDATA": str(home),
+        "LOCALAPPDATA": str(home),
+        "GIT_CONFIG_NOSYSTEM": "1",
+        "GIT_CONFIG_GLOBAL": str(home / "empty"),
+        "GIT_TERMINAL_PROMPT": "0",
+        "OPENAI_API_KEY": "unused-local-editing-only",
+        "LITELLM_LOCAL_MODEL_COST_MAP": "True",
+        "AIDER_ANALYTICS": "false",
     }
 
 
 def git(work, home, *args):
-    return run_command(["git", "-c", "core.hooksPath=" + str(home / "hooks"),
-                        "-c", "user.name=RND bounded editor",
-                        "-c", "user.email=rnd@localhost", *args], work,
-                       extra_env=isolated_environment(home))
+    return run_command(
+        [
+            "git",
+            "-c",
+            "core.hooksPath=" + str(home / "hooks"),
+            "-c",
+            "user.name=RND bounded editor",
+            "-c",
+            "user.email=rnd@localhost",
+            *args,
+        ],
+        work,
+        extra_env=isolated_environment(home),
+    )
 
 
 def command(settings, work, home, *args):
     atomic_text(home / "empty", "")
     env = isolated_environment(home)
-    version = run_command([executable(settings), "--version"], work,
-                          timeout=30, extra_env=env)["log"]
+    version = run_command([executable(settings), "--version"], work, timeout=30, extra_env=env)[
+        "log"
+    ]
     if not re.search(r"\b" + re.escape(AIDER_VERSION) + r"\b", version):
         raise ValueError("Aider 版本与受测版本不一致，请使用仓库的 tools/aider/uv.lock")
-    return run_command([
-        executable(settings), "--model", "gpt-4o-mini", "--edit-format", "diff",
-        "--config", str(home / "empty"), "--env-file", str(home / "empty"),
-        "--input-history-file", str(home / "input"),
-        "--chat-history-file", str(home / "chat"),
-        "--no-auto-commits", "--no-dirty-commits", "--no-gitignore",
-        "--no-add-gitignore-files", "--no-auto-lint", "--no-auto-test",
-        "--no-suggest-shell-commands", "--no-detect-urls", "--no-check-update",
-        "--no-show-release-notes", "--no-analytics", "--no-pretty", "--no-stream",
-        "--yes-always", *args,
-    ], work, timeout=settings.tool_timeout, extra_env=env)
+    return run_command(
+        [
+            executable(settings),
+            "--model",
+            "gpt-4o-mini",
+            "--edit-format",
+            "diff",
+            "--config",
+            str(home / "empty"),
+            "--env-file",
+            str(home / "empty"),
+            "--input-history-file",
+            str(home / "input"),
+            "--chat-history-file",
+            str(home / "chat"),
+            "--no-auto-commits",
+            "--no-dirty-commits",
+            "--no-gitignore",
+            "--no-add-gitignore-files",
+            "--no-auto-lint",
+            "--no-auto-test",
+            "--no-suggest-shell-commands",
+            "--no-detect-urls",
+            "--no-check-update",
+            "--no-show-release-notes",
+            "--no-analytics",
+            "--no-pretty",
+            "--no-stream",
+            "--yes-always",
+            *args,
+        ],
+        work,
+        timeout=settings.tool_timeout,
+        extra_env=env,
+    )
 
 
 def preview_blocks(before, blocks):
@@ -128,12 +176,20 @@ def apply_blocks(product, value, settings, attempt=0):
         if evidence.exists():
             shutil.rmtree(evidence)
         shutil.copytree(work, evidence)
-        receipt = apply_patch(product, Patch(path="custom_rules.py", before_sha256=value.before_sha256,
-                                             content=actual))
-        receipt.update(provider="aider-cli-apply", version=AIDER_VERSION, attempt=attempt,
-                       before_commit=before_commit, after_commit=after_commit,
-                       journal=str(evidence.relative_to(product.parent)),
-                       model_called_by_aider=False, explanation=value.explanation)
+        receipt = apply_patch(
+            product,
+            Patch(path="custom_rules.py", before_sha256=value.before_sha256, content=actual),
+        )
+        receipt.update(
+            provider="aider-cli-apply",
+            version=AIDER_VERSION,
+            attempt=attempt,
+            before_commit=before_commit,
+            after_commit=after_commit,
+            journal=str(evidence.relative_to(product.parent)),
+            model_called_by_aider=False,
+            explanation=value.explanation,
+        )
         write_json(product.parent / f"coding-{attempt}.json", receipt)
     return receipt
 
@@ -143,12 +199,18 @@ def code_rules_with_aider(run_id, plan, product, gateway, settings, attempt, err
     build_index(product, knowledge, "generated-product")
     context = context_for(product, knowledge, ["custom_rules.py", "approved-spec.json"])
     instruction = INSTRUCTION.replace("必须返回 patches JSON", "必须返回 EditBlocks JSON")
-    instruction += ("\n只返回before_sha256、blocks、explanation。blocks不加Markdown围栏，格式："
-                    "custom_rules.py\\n<<<<<<< SEARCH\\n唯一匹配原文\\n=======\\n替换代码\\n>>>>>>> REPLACE\\n。"
-                    "不得使用空SEARCH，不得改变已批准的正反例。")
-    value = gateway.complete(run_id, f"coding:aider:{attempt}", instruction,
-                             {"plan": plan.model_dump(), "context": context, "previous_error": error},
-                             EditBlocks)
+    instruction += (
+        "\n只返回before_sha256、blocks、explanation。blocks不加Markdown围栏，格式："
+        "custom_rules.py\\n<<<<<<< SEARCH\\n唯一匹配原文\\n=======\\n替换代码\\n>>>>>>> REPLACE\\n。"
+        "不得使用空SEARCH，不得改变已批准的正反例。"
+    )
+    value = gateway.complete(
+        run_id,
+        f"coding:aider:{attempt}",
+        instruction,
+        {"plan": plan.model_dump(), "context": context, "previous_error": error},
+        EditBlocks,
+    )
     try:
         receipt = apply_blocks(product, value, settings, attempt)
     except ToolFailure as exc:
@@ -161,8 +223,11 @@ def repo_map(source, index_dir, settings):
     from workbench.retrieval import CODE_SUFFIXES, current_index
 
     index = current_index(source, index_dir)
-    selected = [(name, path) for name, path in files(source)
-                if path.suffix in CODE_SUFFIXES and path.suffix != ".md"]
+    selected = [
+        (name, path)
+        for name, path in files(source)
+        if path.suffix in CODE_SUFFIXES and path.suffix != ".md"
+    ]
     if len(selected) > 10000 or sum(p.stat().st_size for _, p in selected) > 80_000_000:
         raise ValueError("Aider Repo Map 输入超出预算，请分模板slot索引")
     with tempfile.TemporaryDirectory(prefix="rnd-repomap-") as temporary:
@@ -176,11 +241,24 @@ def repo_map(source, index_dir, settings):
             shutil.copyfile(path, target)
         git(work, home, "init", "-q")
         git(work, home, "add", "--all")
-        result = command(settings, work, home, "--show-repo-map", "--map-tokens", "2048",
-                         "--map-multiplier-no-files", "1")
+        result = command(
+            settings,
+            work,
+            home,
+            "--show-repo-map",
+            "--map-tokens",
+            "2048",
+            "--map-multiplier-no-files",
+            "1",
+        )
     raw = result["log"]
-    report = {"provider": "aider-cli-repo-map", "version": AIDER_VERSION,
-              "source_digest": index["source_digest"], "text": raw[:settings.repo_map_chars],
-              "truncated": len(raw) > settings.repo_map_chars, "model_called": False}
+    report = {
+        "provider": "aider-cli-repo-map",
+        "version": AIDER_VERSION,
+        "source_digest": index["source_digest"],
+        "text": raw[: settings.repo_map_chars],
+        "truncated": len(raw) > settings.repo_map_chars,
+        "model_called": False,
+    }
     write_json(Path(index_dir) / "repo-map.json", report)
     return report

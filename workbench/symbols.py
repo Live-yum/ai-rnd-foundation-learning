@@ -10,17 +10,36 @@ from importlib.metadata import version
 from pathlib import Path
 
 LANGUAGES = {
-    ".java": "java", ".ts": "typescript", ".tsx": "tsx",
-    ".js": "javascript", ".jsx": "javascript", ".vue": "vue",
+    ".java": "java",
+    ".ts": "typescript",
+    ".tsx": "tsx",
+    ".js": "javascript",
+    ".jsx": "javascript",
+    ".vue": "vue",
 }
-PACKAGES = ("tree-sitter", "tree-sitter-java", "tree-sitter-typescript",
-            "tree-sitter-javascript", "tree-sitter-html")
+PACKAGES = (
+    "tree-sitter",
+    "tree-sitter-java",
+    "tree-sitter-typescript",
+    "tree-sitter-javascript",
+    "tree-sitter-html",
+)
 DECLARATIONS = {
-    "class_declaration", "interface_declaration", "enum_declaration",
-    "record_declaration", "annotation_type_declaration", "method_declaration",
-    "constructor_declaration", "field_declaration", "function_declaration",
-    "generator_function_declaration", "method_definition", "abstract_method_signature",
-    "method_signature", "type_alias_declaration", "variable_declarator",
+    "class_declaration",
+    "interface_declaration",
+    "enum_declaration",
+    "record_declaration",
+    "annotation_type_declaration",
+    "method_declaration",
+    "constructor_declaration",
+    "field_declaration",
+    "function_declaration",
+    "generator_function_declaration",
+    "method_definition",
+    "abstract_method_signature",
+    "method_signature",
+    "type_alias_declaration",
+    "variable_declarator",
 }
 IMPORTS = {"import_declaration", "import_statement", "package_declaration"}
 
@@ -35,9 +54,7 @@ def parser(language):
 
     package = "typescript" if language == "tsx" else language
     module = importlib.import_module("tree_sitter_" + package)
-    factory = {"typescript": "language_typescript", "tsx": "language_tsx"}.get(
-        language, "language"
-    )
+    factory = {"typescript": "language_typescript", "tsx": "language_tsx"}.get(language, "language")
     return Parser(Language(getattr(module, factory)()))
 
 
@@ -52,7 +69,7 @@ def walk(node):
 def text(node, data, limit=500):
     if node is None:
         return ""
-    return data[node.start_byte:node.end_byte].decode("utf-8", errors="replace")[:limit]
+    return data[node.start_byte : node.end_byte].decode("utf-8", errors="replace")[:limit]
 
 
 def declarations(data, language, offset=0):
@@ -65,26 +82,41 @@ def declarations(data, language, offset=0):
             continue
         name = node.child_by_field_name("name")
         if node.type == "field_declaration":
-            declarator = next((n for n in node.named_children if n.type == "variable_declarator"), None)
+            declarator = next(
+                (n for n in node.named_children if n.type == "variable_declarator"), None
+            )
             name = declarator.child_by_field_name("name") if declarator else None
         if name is None:
             continue
         body = node.child_by_field_name("body")
         end = body.start_byte if body else node.end_byte
-        header = data[node.start_byte:end].decode("utf-8", errors="replace")
+        header = data[node.start_byte : end].decode("utf-8", errors="replace")
         modifiers = next((n for n in node.named_children if n.type == "modifiers"), None)
-        annotations = [text(n, data) for n in walk(modifiers)
-                       if n.type in {"annotation", "marker_annotation"}] if modifiers else []
-        symbols.append({
-            "name": text(name, data, 200), "kind": node.type,
-            "line": node.start_point.row + offset + 1,
-            "end_line": node.end_point.row + offset + 1,
-            "signature": " ".join(header.split())[:500],
-            "annotations": annotations[:16],
-            "bases": [text(n, data) for n in node.named_children
-                      if n.type in {"superclass", "super_interfaces", "extends_type_clause",
-                                    "class_heritage"}],
-        })
+        annotations = (
+            [
+                text(n, data)
+                for n in walk(modifiers)
+                if n.type in {"annotation", "marker_annotation"}
+            ]
+            if modifiers
+            else []
+        )
+        symbols.append(
+            {
+                "name": text(name, data, 200),
+                "kind": node.type,
+                "line": node.start_point.row + offset + 1,
+                "end_line": node.end_point.row + offset + 1,
+                "signature": " ".join(header.split())[:500],
+                "annotations": annotations[:16],
+                "bases": [
+                    text(n, data)
+                    for n in node.named_children
+                    if n.type
+                    in {"superclass", "super_interfaces", "extends_type_clause", "class_heritage"}
+                ],
+            }
+        )
     return {"symbols": symbols, "imports": imports, "parse_error": tree.root_node.has_error}
 
 
@@ -109,15 +141,20 @@ def parse_file(path):
                         parts = child.named_children
                         if parts:
                             attributes[text(parts[0], data)] = text(parts[-1], data).strip("\"'")
-            script_language = {"ts": "typescript", "tsx": "tsx", "js": "javascript",
-                               "jsx": "javascript"}.get(attributes.get("lang", "js"))
+            script_language = {
+                "ts": "typescript",
+                "tsx": "tsx",
+                "js": "javascript",
+                "jsx": "javascript",
+            }.get(attributes.get("lang", "js"))
             if not script_language:
                 errors.append("unsupported Vue script language")
                 continue
             body = next((n for n in node.named_children if n.type == "raw_text"), None)
             if body:
-                parsed = declarations(data[body.start_byte:body.end_byte], script_language,
-                                      body.start_point.row)
+                parsed = declarations(
+                    data[body.start_byte : body.end_byte], script_language, body.start_point.row
+                )
                 symbols.extend(parsed["symbols"])
                 imports.extend(parsed["imports"])
                 if parsed["parse_error"]:
@@ -128,10 +165,22 @@ def parse_file(path):
             tag = next((n for n in node.named_children if n.type == "tag_name"), None)
             name = text(tag, data)
             if name and (name[0].isupper() or "-" in name):
-                symbols.append({"name": name, "kind": "vue_component_usage",
-                                "line": node.start_point.row + 1,
-                                "end_line": node.end_point.row + 1,
-                                "signature": text(node, data), "annotations": [], "bases": []})
-    return {"language": "vue", "parser": "tree-sitter-html+script",
-            "symbols": symbols, "imports": imports,
-            "parse_error": bool(errors) or tree.root_node.has_error, "diagnostics": errors}
+                symbols.append(
+                    {
+                        "name": name,
+                        "kind": "vue_component_usage",
+                        "line": node.start_point.row + 1,
+                        "end_line": node.end_point.row + 1,
+                        "signature": text(node, data),
+                        "annotations": [],
+                        "bases": [],
+                    }
+                )
+    return {
+        "language": "vue",
+        "parser": "tree-sitter-html+script",
+        "symbols": symbols,
+        "imports": imports,
+        "parse_error": bool(errors) or tree.root_node.has_error,
+        "diagnostics": errors,
+    }

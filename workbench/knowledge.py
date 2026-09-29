@@ -7,17 +7,20 @@ from pathlib import Path
 from workbench.domain import digest
 from workbench.filesystem import atomic_text, files, inside, manifest, secret_name, write_json
 
-INDEX_VERSION = 1
+INDEX_VERSION = 2
 
 
 def build_index(source, output, source_version="local"):
     source, output = Path(source).resolve(), Path(output).resolve()
     if output == source or source in output.parents:
         raise ValueError("知识包输出必须位于源码目录外，避免自我索引")
+    from workbench.symbols import parse_file, parser_identity
+
+    identity = parser_identity()
     cached = {}
     if (output / "index.json").exists():
         old = json.loads((output / "index.json").read_text(encoding="utf-8"))
-        if old.get("schema") == INDEX_VERSION:
+        if old.get("schema") == INDEX_VERSION and old.get("parsers") == identity:
             cached = old.get("files", {})
     hashes = manifest(source)
     entries, parsed, reused = {}, 0, 0
@@ -47,9 +50,12 @@ def build_index(source, output, source_version="local"):
                 parsed += 1
             except SyntaxError, UnicodeError:
                 entry["parse_error"] = True
+        if path.suffix != ".py":
+            entry.update(parse_file(path))
         entries[name] = entry
     result = {
         "schema": INDEX_VERSION,
+        "parsers": identity,
         "source_version": source_version,
         "source_digest": digest(hashes),
         "files": entries,
@@ -65,6 +71,9 @@ def build_index(source, output, source_version="local"):
         output / "build-stats.json",
         {"parsed_python": parsed, "reused": reused, "files": len(entries)},
     )
+    from workbench.retrieval import write_search_index
+
+    write_search_index(source, output, result)
     return {
         "source_digest": result["source_digest"],
         "parsed_python": parsed,

@@ -88,6 +88,23 @@ class Settings(BaseSettings):
     enable_coding: bool = True
     max_repair_attempts: int = Field(default=2, ge=0, le=2)
     tool_timeout: int = Field(default=180, ge=10, le=900)
+    coding_engine: Literal["bounded", "aider"] = "bounded"
+    aider_executable: str = ""
+    repo_map_provider: Literal["symbols", "aider"] = "symbols"
+    repo_map_chars: int = Field(default=12000, ge=1000, le=40000)
+    embedding_base_url: str = ""
+    embedding_api_key: SecretStr = SecretStr("")
+    embedding_model: str = Field(
+        default="", validation_alias=AliasChoices("EMBEDDING_MODE", "embedding_model")
+    )
+    embedding_allow_upload: bool = False
+    embedding_max_chunks: int = Field(default=500, ge=1, le=40000)
+    sandbox_provider: Literal["local", "daytona"] = "local"
+    daytona_api_url: str = "https://app.daytona.io/api"
+    daytona_api_key: SecretStr = SecretStr("")
+    daytona_target: str = "us"
+    daytona_snapshot: str = ""
+    daytona_allow_upload: bool = False
     checkpoint_url: str = ""
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1024, le=65535)
@@ -140,7 +157,13 @@ class Settings(BaseSettings):
         )
 
     def redact(self, text: str) -> str:
-        for field in ("api_key", "product_postgres_url", *(stage + "_api_key" for stage in STAGES)):
+        for field in (
+            "api_key",
+            "product_postgres_url",
+            "embedding_api_key",
+            "daytona_api_key",
+            *(stage + "_api_key" for stage in STAGES),
+        ):
             secret = getattr(self, field).get_secret_value()
             if secret:
                 text = text.replace(secret, "[redacted]")

@@ -14,7 +14,7 @@ from pathlib import Path
 from workbench.domain import digest
 from workbench.filesystem import files, manifest, write_json
 from workbench.generator import PrerequisiteError
-from workbench.settings import ModelProfile, ROOT
+from workbench.settings import ROOT, ModelProfile
 
 REMOTE = "/tmp/rnd-verification"
 
@@ -23,29 +23,43 @@ def validate_configuration(settings, template, selection=None):
     if settings.sandbox_provider != "daytona":
         return
     if not settings.daytona_allow_upload:
-        raise PrerequisiteError("Daytona需要明确配置 DAYTONA_ALLOW_UPLOAD=true；不会默认上传项目或产生云端费用")
-    ModelProfile(stage="daytona", base_url=settings.daytona_api_url, model="sandbox",
-                 api_key=settings.daytona_api_key).validate_endpoint()
+        raise PrerequisiteError(
+            "Daytona需要明确配置 DAYTONA_ALLOW_UPLOAD=true；不会默认上传项目或产生云端费用"
+        )
+    ModelProfile(
+        stage="daytona",
+        base_url=settings.daytona_api_url,
+        model="sandbox",
+        api_key=settings.daytona_api_key,
+    ).validate_endpoint()
     if not settings.daytona_snapshot or not settings.daytona_target:
         raise PrerequisiteError("请配置已安装构建工具的 DAYTONA_SNAPSHOT 和 DAYTONA_TARGET")
     if template == "python-basic" and (selection or {}).get("database", "sqlite") != "sqlite":
-        raise PrerequisiteError("Daytona的Python运行复验当前只支持独立SQLite；不会把本机PostgreSQL凭据上传云端")
+        raise PrerequisiteError(
+            "Daytona的Python运行复验当前只支持独立SQLite；不会把本机PostgreSQL凭据上传云端"
+        )
 
 
 def client_for(settings):
     from daytona import Daytona, DaytonaConfig
 
-    return Daytona(DaytonaConfig(api_key=settings.daytona_api_key.get_secret_value(),
-                                 api_url=settings.daytona_api_url,
-                                 target=settings.daytona_target))
+    return Daytona(
+        DaytonaConfig(
+            api_key=settings.daytona_api_key.get_secret_value(),
+            api_url=settings.daytona_api_url,
+            target=settings.daytona_target,
+        )
+    )
 
 
 def params_for(settings):
     from daytona import CreateSandboxFromSnapshotParams
 
     return CreateSandboxFromSnapshotParams(
-        snapshot=settings.daytona_snapshot, public=False,
-        auto_stop_interval=5, auto_delete_interval=0,
+        snapshot=settings.daytona_snapshot,
+        public=False,
+        auto_stop_interval=5,
+        auto_delete_interval=0,
         env_vars={"PYTHONUTF8": "1", "PYTHONDONTWRITEBYTECODE": "1"},
         labels={"managed-by": "rnd-toolchain", "purpose": "disposable-verification"},
     )
@@ -54,15 +68,39 @@ def params_for(settings):
 def checks_for(template):
     if template == "python-basic":
         return [
-            ("locked-install", ["uv", "sync", "--locked", "--no-dev", "--python", "3.14"], "product"),
-            ("migration-http-crud-restart", ["./.venv/bin/python", "../trusted-verify.py",
-             "--product", ".", "--python", "./.venv/bin/python", "--report", "../runtime.json"], "product"),
+            (
+                "locked-install",
+                ["uv", "sync", "--locked", "--no-dev", "--python", "3.14"],
+                "product",
+            ),
+            (
+                "migration-http-crud-restart",
+                [
+                    "./.venv/bin/python",
+                    "../trusted-verify.py",
+                    "--product",
+                    ".",
+                    "--python",
+                    "./.venv/bin/python",
+                    "--report",
+                    "../runtime.json",
+                ],
+                "product",
+            ),
         ]
     if template == "yudao-vben":
         return [
             ("maven-test", ["mvn", "-B", "test"], "product/backend"),
-            ("frontend-install", ["pnpm", "install", "--frozen-lockfile"], "product/frontend-product"),
-            ("frontend-types", ["pnpm", "--dir", "apps/web-antd", "exec", "vue-tsc", "--noEmit", "--skipLibCheck"], "product/frontend-product"),
+            (
+                "frontend-install",
+                ["pnpm", "install", "--frozen-lockfile"],
+                "product/frontend-product",
+            ),
+            (
+                "frontend-types",
+                ["pnpm", "--dir", "apps/web-antd", "exec", "vue-tsc", "--noEmit", "--skipLibCheck"],
+                "product/frontend-product",
+            ),
         ]
     if template == "fastapiadmin":
         return [
@@ -92,15 +130,26 @@ def verify_in_daytona(product, template, settings, *, client=None):
     if settings.sandbox_provider != "daytona":
         raise PrerequisiteError("没有启用Daytona，拒绝创建远程资源")
     product = Path(product)
-    selected = json.loads((product / "selection.json").read_text(encoding="utf-8")) if (product / "selection.json").exists() else {}
+    selected = (
+        json.loads((product / "selection.json").read_text(encoding="utf-8"))
+        if (product / "selection.json").exists()
+        else {}
+    )
     validate_configuration(settings, template, selected)
     checks = checks_for(template)
     before = manifest(product)
     archive = source_archive(product)
-    receipt = {"provider": "daytona", "sdk_version": version("daytona"), "passed": False,
-               "source_digest": digest(before), "template": template, "checks": [],
-               "credentials_uploaded": False, "cleanup": "not-created",
-               "scope": "independent-runtime" if template == "python-basic" else "additional-build-checks"}
+    receipt = {
+        "provider": "daytona",
+        "sdk_version": version("daytona"),
+        "passed": False,
+        "source_digest": digest(before),
+        "template": template,
+        "checks": [],
+        "credentials_uploaded": False,
+        "cleanup": "not-created",
+        "scope": "independent-runtime" if template == "python-basic" else "additional-build-checks",
+    }
     owned = client is None
     client = client or client_for(settings)
     sandbox = None
@@ -110,17 +159,29 @@ def verify_in_daytona(product, template, settings, *, client=None):
         receipt.update(sandbox_id=sandbox.id, cleanup="pending")
         sandbox.fs.create_folder(REMOTE, "700")
         sandbox.fs.upload_file(archive, REMOTE + "/source.zip", timeout=settings.tool_timeout)
-        sandbox.fs.upload_file((ROOT / "templates/product/verify.py").read_bytes(),
-                               REMOTE + "/trusted-verify.py", timeout=settings.tool_timeout)
-        extraction = sandbox.process.exec("python3 -m zipfile -e " + REMOTE + "/source.zip " + REMOTE,
-                                           timeout=settings.tool_timeout)
+        sandbox.fs.upload_file(
+            (ROOT / "templates/product/verify.py").read_bytes(),
+            REMOTE + "/trusted-verify.py",
+            timeout=settings.tool_timeout,
+        )
+        extraction = sandbox.process.exec(
+            "python3 -m zipfile -e " + REMOTE + "/source.zip " + REMOTE,
+            timeout=settings.tool_timeout,
+        )
         if extraction.exit_code != 0:
             raise PrerequisiteError("Daytona源码解压失败")
         for name, argv, relative in checks:
-            result = sandbox.process.exec(shlex.join(argv), cwd=REMOTE + "/" + relative,
-                                           timeout=settings.tool_timeout)
-            receipt["checks"].append({"name": name, "argv": argv, "exit_code": result.exit_code,
-                                      "log": settings.redact(result.result or "")[:8000]})
+            result = sandbox.process.exec(
+                shlex.join(argv), cwd=REMOTE + "/" + relative, timeout=settings.tool_timeout
+            )
+            receipt["checks"].append(
+                {
+                    "name": name,
+                    "argv": argv,
+                    "exit_code": result.exit_code,
+                    "log": settings.redact(result.result or "")[:8000],
+                }
+            )
             if result.exit_code != 0:
                 raise PrerequisiteError("Daytona检查失败：" + name)
         if template == "python-basic":

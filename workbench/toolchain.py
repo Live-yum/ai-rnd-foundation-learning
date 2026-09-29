@@ -34,8 +34,12 @@ def prepare_context(settings, template, requirement, destination):
             mapping = compact_map(output, max_chars=settings.repo_map_chars)
         found = query(row["path"], output, query_text, limit=4, max_chars=6000)
         contexts.append({"slot": row["slot"], "repo_map": mapping, "retrieval": found})
-    result = {"template": template, "contexts": contexts, "model_calls": 0,
-              "source_is_untrusted_data": True}
+    result = {
+        "template": template,
+        "contexts": contexts,
+        "model_calls": 0,
+        "source_is_untrusted_data": True,
+    }
     write_json(Path(destination) / "context-receipt.json", result)
     return result
 
@@ -43,7 +47,11 @@ def prepare_context(settings, template, requirement, destination):
 @app.command("search")
 def search_command(source: Path, index: Path, question: str):
     """查询已建立的索引，不自动上传源码、不默认使用向量接口。"""
-    typer.echo(json.dumps(query(source, index, question, settings=Settings()), ensure_ascii=False, indent=2))
+    typer.echo(
+        json.dumps(
+            query(source, index, question, settings=Settings()), ensure_ascii=False, indent=2
+        )
+    )
 
 
 @app.command("embed")

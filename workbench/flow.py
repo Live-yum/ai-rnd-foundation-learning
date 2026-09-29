@@ -50,6 +50,8 @@ class State(TypedDict, total=False):
     delivery: dict
     status: str
     model_review: dict
+    code_context: dict
+    sandbox: dict
 
 
 class Workflow:
@@ -109,6 +111,17 @@ class Workflow:
             outcome["status"] = "REJECTED"
         return outcome
 
+    def source_context(self, state):
+        from workbench.toolchain import prepare_context
+
+        value = prepare_context(
+            self.settings,
+            state["template"],
+            state["requirement"],
+            self.product(state).parent / "source-context",
+        )
+        return {"code_context": value}
+
     def plan(self, state):
         value = self.gateway.complete(
             state["run_id"],
@@ -116,6 +129,7 @@ class Workflow:
             PLAN,
             {
                 "approved_requirement": state["requirement"],
+                "code_context": state.get("code_context", {}),
                 "template_capabilities": options_for_run(
                     self.store.get_run(state["run_id"])
                 ).capabilities(),
@@ -150,6 +164,12 @@ class Workflow:
                     runtime_config(self.settings, state["template"])
             except (ValueError, PrerequisiteError) as exc:
                 reasons.append(str(exc))
+        from workbench.sandbox import validate_configuration
+
+        try:
+            validate_configuration(self.settings, state["template"], selection.model_dump())
+        except (ValueError, PrerequisiteError) as exc:
+            reasons.append(str(exc))
         pack = design_pack(
             plan, self.product(state).parent / "design", state["template"], selection.model_dump()
         )
@@ -187,6 +207,28 @@ class Workflow:
         self.store.step(state["run_id"], "generate:" + digest(state["plan"]), fn)
         return {}
 
+    def run_coder(self, state, plan):
+        if self.settings.coding_engine == "aider":
+            from workbench.aider_tool import code_rules_with_aider
+
+            return code_rules_with_aider(
+                state["run_id"],
+                plan,
+                self.product(state),
+                self.gateway,
+                self.settings,
+                state["attempt"],
+                state.get("verification", {}).get("error", ""),
+            )
+        return code_rules(
+            state["run_id"],
+            plan,
+            self.product(state),
+            self.gateway,
+            state["attempt"],
+            state.get("verification", {}).get("error", ""),
+        )
+
     def code(self, state):
         plan = Plan.model_validate(state["plan"])
         if not plan.custom_rules:
@@ -195,14 +237,7 @@ class Workflow:
             self.store.step(
                 state["run_id"],
                 f"code:{digest(state['plan'])[:12]}:{state['attempt']}",
-                lambda: code_rules(
-                    state["run_id"],
-                    plan,
-                    self.product(state),
-                    self.gateway,
-                    state["attempt"],
-                    state.get("verification", {}).get("error", ""),
-                ),
+                lambda: self.run_coder(state, plan),
             )
         except (SyntaxError, ValueError) as exc:
             return {"verification": {"passed": False, "kind": "code", "error": str(exc)[:500]}}
@@ -224,7 +259,7 @@ class Workflow:
 
     def after_verify(self, state):
         if state["verification"]["passed"]:
-            return "model_review"
+            return "sandbox"
         if (
             state["plan"].get("custom_rules")
             and state["attempt"] < self.settings.max_repair_attempts
@@ -234,6 +269,14 @@ class Workflow:
         raise PrerequisiteError(
             "独立验收未通过，已停止：" + state["verification"].get("error", "未知错误")
         )
+
+    def sandbox(self, state):
+        if self.settings.sandbox_provider == "local":
+            return {"sandbox": {"enabled": False, "provider": "local", "remote_upload": False}}
+        from workbench.sandbox import verify_in_daytona
+
+        result = verify_in_daytona(self.product(state), state["template"], self.settings)
+        return {"sandbox": {"enabled": True, **result}}
 
     def model_review(self, state):
         if not self.settings.review_enabled:
@@ -293,6 +336,7 @@ class Workflow:
         for name in (
             "analyse",
             "requirements",
+            "source_context",
             "plan",
             "design",
             "generate",
@@ -300,6 +344,7 @@ class Workflow:
             "verify",
             "repair",
             "model_review",
+            "sandbox",
             "package",
             "delivery",
         ):
@@ -311,9 +356,10 @@ class Workflow:
             lambda s: (
                 END
                 if s["decision"] == "reject"
-                else ("plan" if s["decision"] == "approve" else "analyse")
+                else ("source_context" if s["decision"] == "approve" else "analyse")
             ),
         )
+        graph.add_edge("source_context", "plan")
         graph.add_edge("plan", "design")
         graph.add_conditional_edges(
             "design",
@@ -327,6 +373,7 @@ class Workflow:
         graph.add_edge("code", "verify")
         graph.add_conditional_edges("verify", self.after_verify)
         graph.add_edge("repair", "code")
+        graph.add_edge("sandbox", "model_review")
         graph.add_edge("model_review", "package")
         graph.add_edge("package", "delivery")
         graph.add_edge("delivery", END)

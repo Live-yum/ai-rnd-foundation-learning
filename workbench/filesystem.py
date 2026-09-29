@@ -17,6 +17,7 @@ EXCLUDED_DIRS = {
     ".ruff_cache",
     ".data",
     ".deployment",
+    ".continue",
     "target",
     "dist",
     "logs",
@@ -28,8 +29,20 @@ def secret_name(path):
     return (
         name == ".env"
         or (name.startswith(".env.") and not name.endswith(".example"))
-        or name.endswith((".pem", ".key", ".p12", ".pfx", ".db", ".db-wal", ".db-shm"))
-        or name in {"access-token", "id_rsa", "id_ed25519", "credentials.json"}
+        or name.startswith(".aider.")
+        or name.endswith(
+            (".sqlite3", ".sqlite", ".pem", ".key", ".p12", ".pfx", ".db", ".db-wal", ".db-shm")
+        )
+        or name
+        in {
+            "access-token",
+            "id_rsa",
+            "id_ed25519",
+            "credentials.json",
+            ".pypirc",
+            ".netrc",
+            ".git-credentials",
+        }
     )
 
 

@@ -178,3 +178,29 @@ Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新�
 详细从零实现手册：**`从零实现AI研发平台_逐步实操手册_完整版.md`**。兼容旧链接的 `_v3.md` 与它逐字一致。正文、完整代码、数据库迁移、前端、测试、CI、锁文件一起生成；修改代码后执行 `uv run python -m scripts.build_handbook`。模板ZIP二进制不嵌入Markdown，但已随普通clone包含，附录给出哈希、来源和许可证。
 
 当前是仅监听本机、单操作人和单Worker的研发工作台。没有公网生产身份体系。请勿公开 `.env`、`.data`、`.deployment` 或访问令牌。更多环境条件、SQL步骤、预算恢复、原生部署与故障定位见完整手册。
+
+## 代码上下文、Aider、Continue 与 Daytona
+
+实际流程新增“需求确认 → 模板源码索引/检索/仓库地图 → 规划”，以及“本机验收 → 可选 Daytona 附加验收 → 原有打包/干净解压复验”。CRUD、迁移和菜单仍优先用现有确定性/原生生成器，不交给 LLM 重写。
+
+默认安装即包含 Java/TS/Vue Tree-sitter 解析与本地 SQLite FTS5 检索，不需要新账户：
+
+```bash
+uv run rnd index templates/product .data/examples/product-index
+uv run rnd tools search templates/product .data/examples/product-index "validate"
+uv run rnd tools continue-config . templates/product .data/examples/product-index
+```
+
+最后一条为 Continue 创建 `.continue/mcpServers/rnd.json`，只读查询与仓库地图通过真实 MCP 协议访问同一索引；没有复制或冒充 Continue 的私有索引引擎。配置已存在时拒绝覆盖。索引结果含路径、行号和 SHA，源码变化先重建，默认不上传向量。
+
+Aider 是可选独立工具环境，**平台仍是 Python 3.14**：
+
+```bash
+uv sync --locked --project tools/aider --python 3.12
+```
+
+设置 `.env` 的 `REPO_MAP_PROVIDER=aider` 使用真实 Repo Map；`CODING_ENGINE=aider` 使用真实 SEARCH/REPLACE 应用引擎。模型调用仍走平台安全的多模型配置和预算，Aider 不接收真实 Key。当前自动编辑只开放已批准的 Python 业务规则文件；不声称任意 Java/Vue 业务已经自动适配。前后文件哈希、diff、Git commit 和验证回执均保留。
+
+Daytona 默认 `SANDBOX_PROVIDER=local`（关闭）。启用需 `uv sync --locked --extra daytona`，独立 Daytona Key、已审核快照以及 `DAYTONA_ALLOW_UPLOAD=true`；会上传产品源码并可能产生账户费用。Python/SQLite 远程执行真实运行检查；原生通道是额外构建检查，不能替代现有数据库/浏览器/新库恢复。任何远程检查或清理失败都阻止交付，不偷偷回退到“成功”。
+
+完整安装、可选向量及独立密钥、Continue Agent 配置、Daytona 快照要求、失败处理和从零实现步骤见 [工具链实操章节](docs/toolchain.md)，也已纳入两份完整手册的正文及完整源码附录。凭据未提供时只可声明 SDK 契约测试，不可声明你的 Daytona 账户已经通过真实云验收。

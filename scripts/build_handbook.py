@@ -7,7 +7,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "从零实现AI研发平台_逐步实操手册_完整版.md"
 LEGACY = ROOT / "从零实现AI研发平台_逐步实操手册_完整版_v3.md"
-GUIDES = ["docs/guide.md", "docs/native-baseline.md"]
+GUIDES = ["docs/guide.md", "docs/native-baseline.md", "docs/toolchain.md"]
 GROUPS = [
     (
         "项目配置",
@@ -40,9 +40,10 @@ GROUPS = [
         "工具及Actions",
         [
             "scripts",
-            ".github/workflows/test.yml",
-            ".github/workflows/native-runtime.yml",
-            ".github/workflows/native-probe.yml",
+            ".github/workflows",
+            "tools/aider/pyproject.toml",
+            "tools/aider/.python-version",
+            "tools/aider/uv.lock",
         ],
     ),
     ("平台依赖锁", ["uv.lock"]),

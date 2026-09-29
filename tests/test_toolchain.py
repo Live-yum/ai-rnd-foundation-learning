@@ -28,15 +28,21 @@ def indexed(tmp_path):
     (source / "ArticleController.java").write_text(
         "package demo;\nimport org.springframework.web.bind.annotation.RestController;\n"
         "@RestController\npublic class ArticleController extends BaseController {\n"
-        " @TableField(\"title\") private String title;\n"
-        " public String getArticle(int id) { return title; }\n}\n", encoding="utf-8")
+        ' @TableField("title") private String title;\n'
+        " public String getArticle(int id) { return title; }\n}\n",
+        encoding="utf-8",
+    )
     (source / "hooks.ts").write_text(
         "export interface FormSchema { title: string; }\n"
-        "export function useArticleForm() { return 'form'; }\n", encoding="utf-8")
+        "export function useArticleForm() { return 'form'; }\n",
+        encoding="utf-8",
+    )
     (source / "Article.vue").write_text(
         '<template><VbenForm /><p>中文</p></template>\n<script setup lang="ts">\n'
         "import { useVbenForm } from '@vben/common-ui';\n"
-        "function submitArticle(): void { }\n</script>\n", encoding="utf-8")
+        "function submitArticle(): void { }\n</script>\n",
+        encoding="utf-8",
+    )
     index = tmp_path / "index"
     build_index(source, index)
     return source, index
@@ -60,7 +66,9 @@ def test_typescript_and_vue_real_sfc_offsets(indexed):
     assert {"FormSchema", "useArticleForm"} <= {s["name"] for s in ts["symbols"]}
     vue = parse_file(source / "Article.vue")
     assert any(s["name"] == "submitArticle" and s["line"] == 4 for s in vue["symbols"])
-    assert any(s["name"] == "VbenForm" and s["kind"] == "vue_component_usage" for s in vue["symbols"])
+    assert any(
+        s["name"] == "VbenForm" and s["kind"] == "vue_component_usage" for s in vue["symbols"]
+    )
     assert "useVbenForm" in vue["imports"][0]
 
 
@@ -84,13 +92,15 @@ def test_search_is_bounded_source_backed_and_parameterized(indexed):
     assert hit["sha256"] == sha(source / hit["path"])
     assert hit["start"] <= 3 <= hit["end"]
     assert result["chars"] <= 12000
-    assert query(source, index, '\" OR 1=1 --')["mode"] == "ast+fts5"
+    assert query(source, index, '" OR 1=1 --')["mode"] == "ast+fts5"
     assert not query(source, index, "useVbenForm", max_chars=100)["matches"]
     with pytest.raises(ValueError):
         query(source, index, "", limit=30)
 
 
-@pytest.mark.parametrize("name", [".env", ".env.local", ".netrc", ".aider.chat.history.md", "secret.sqlite3"])
+@pytest.mark.parametrize(
+    "name", [".env", ".env.local", ".netrc", ".aider.chat.history.md", "secret.sqlite3"]
+)
 def test_tool_context_excludes_credentials(tmp_path, name):
     root = tmp_path / "src"
     root.mkdir()
@@ -144,10 +154,15 @@ def test_real_vector_fusion_with_explicit_transport(indexed, settings):
         assert request.headers["Authorization"] == "Bearer separate-key"
         body = json.loads(request.content)
         calls.append(body)
-        return httpx.Response(200, json={"data": [
-            {"index": i, "embedding": [1.0, 2.0 if "Vben" in text else 0.5]}
-            for i, text in enumerate(body["input"])
-        ]})
+        return httpx.Response(
+            200,
+            json={
+                "data": [
+                    {"index": i, "embedding": [1.0, 2.0 if "Vben" in text else 0.5]}
+                    for i, text in enumerate(body["input"])
+                ]
+            },
+        )
 
     transport = httpx.MockTransport(handler)
     assert add_embeddings(source, index, settings, transport)["embedded"] > 0
@@ -164,40 +179,58 @@ def test_real_vector_fusion_with_explicit_transport(indexed, settings):
 
 @pytest.mark.parametrize("vector", [[0, 0], [float("nan")], ["not-a-number"]])
 def test_embedding_rejects_invalid_vectors(vector):
-    profile = ModelProfile(stage="embedding", base_url="https://fixture.example", model="test",
-                           api_key=SecretStr("fixture"))
-    transport = httpx.MockTransport(lambda request: httpx.Response(200, content=json.dumps(
-        {"data": [{"index": 0, "embedding": vector}]}).encode()))
+    profile = ModelProfile(
+        stage="embedding",
+        base_url="https://fixture.example",
+        model="test",
+        api_key=SecretStr("fixture"),
+    )
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200, content=json.dumps({"data": [{"index": 0, "embedding": vector}]}).encode()
+        )
+    )
     with pytest.raises(ValueError):
         embed(profile, ["hello"], transport)
 
 
 def blocks():
-    return ("custom_rules.py\n<<<<<<< SEARCH\n    return None\n=======\n"
-            "    if data.get('priority', 0) < 0:\n        raise ValueError('nonnegative')\n"
-            "    return None\n>>>>>>> REPLACE\n")
+    return (
+        "custom_rules.py\n<<<<<<< SEARCH\n    return None\n=======\n"
+        "    if data.get('priority', 0) < 0:\n        raise ValueError('nonnegative')\n"
+        "    return None\n>>>>>>> REPLACE\n"
+    )
 
 
 def test_search_replace_preview_and_refusals():
     before = "def validate(entity, data):\n    return None\n"
     assert "nonnegative" in preview_blocks(before, blocks())
-    for value in [blocks().replace("custom_rules.py", "../app.py"),
-                  blocks().replace("    return None\n=======", "\n======="),
-                  blocks() + "rm -rf anything", blocks().replace("    return None\n=======", "missing\n=======")]:
+    for value in [
+        blocks().replace("custom_rules.py", "../app.py"),
+        blocks().replace("    return None\n=======", "\n======="),
+        blocks() + "rm -rf anything",
+        blocks().replace("    return None\n=======", "missing\n======="),
+    ]:
         with pytest.raises(ValueError):
             preview_blocks(before, value)
 
 
 def test_stale_aider_patch_does_not_call_tool(tmp_path, settings, monkeypatch):
-    (tmp_path / "custom_rules.py").write_text("def validate(entity, data):\n    return None\n", encoding="utf-8")
-    monkeypatch.setattr("workbench.aider_tool.command", lambda *a: pytest.fail("must not call aider"))
+    (tmp_path / "custom_rules.py").write_text(
+        "def validate(entity, data):\n    return None\n", encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        "workbench.aider_tool.command", lambda *a: pytest.fail("must not call aider")
+    )
     value = EditBlocks(before_sha256="0" * 64, blocks=blocks(), explanation="fixture")
     with pytest.raises(ValueError, match="SHA"):
         apply_blocks(tmp_path, value, settings)
 
 
 def test_context_is_actually_available_to_planning(settings, tmp_path):
-    context = prepare_context(settings, "python-basic", {"summary": "user CRUD"}, tmp_path / "context")
+    context = prepare_context(
+        settings, "python-basic", {"summary": "user CRUD"}, tmp_path / "context"
+    )
     assert context["model_calls"] == 0
     assert "app.py" in context["contexts"][0]["repo_map"]["text"]
     assert (tmp_path / "context/context-receipt.json").is_file()

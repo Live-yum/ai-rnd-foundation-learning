@@ -39,9 +39,30 @@ def export_continue(workspace, source, index_dir):
     target = inside(workspace, ".continue/mcpServers/rnd.json")
     if target.exists():
         raise ValueError("Continue配置已存在；先人工比较，不覆盖用户配置")
-    write_json(target, {"mcpServers": {"rnd-context": {
-        "command": "uv", "args": ["run", "--locked", "--directory", str(ROOT),
-                                    "rnd", "tools", "context-server", str(source), str(index_dir)]
-    }}})
-    return {"configuration": str(target), "transport": "stdio", "secrets_written": False,
-            "integration": "Continue public MCP interface, not private index internals"}
+    write_json(
+        target,
+        {
+            "mcpServers": {
+                "rnd-context": {
+                    "command": "uv",
+                    "args": [
+                        "run",
+                        "--locked",
+                        "--directory",
+                        str(ROOT),
+                        "rnd",
+                        "tools",
+                        "context-server",
+                        str(source),
+                        str(index_dir),
+                    ],
+                }
+            }
+        },
+    )
+    return {
+        "configuration": str(target),
+        "transport": "stdio",
+        "secrets_written": False,
+        "integration": "Continue public MCP interface, not private index internals",
+    }
