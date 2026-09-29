@@ -1,0 +1,201 @@
+name: Guided workflow completion
+on:
+  push:
+    branches: [diagnostics/guided-workbench]
+    paths: [.reviewed/finish_guided.py, .github/workflows/guided-finish.yml, .reviewed/update-docs.py]
+permissions:
+  contents: read
+concurrency:
+  group: guided-completion
+  cancel-in-progress: true
+jobs:
+  candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: diagnostics/guided-workbench
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: python .reviewed/finish_guided.py
+      - name: Apply reviewed documentation if supplied
+        run: |
+          if test -f .reviewed/update-docs.py; then python .reviewed/update-docs.py; fi
+      - run: uv sync --locked --all-extras
+      - run: |
+          uv run ruff check --fix workbench scripts tests migrations templates/product templates/deployment
+          uv run ruff format workbench scripts tests migrations templates/product templates/deployment
+          uv run python -m scripts.build_handbook
+          uv run pytest -m 'not postgres' --junitxml=reports/regression.xml
+      - name: Commit actual implementation and full manuals
+        id: commit
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add workbench templates/product templates/frontends templates/deployment scripts tests migrations docs README.md .env.example '从零实现AI研发平台_逐步实操手册_完整版.md' '从零实现AI研发平台_逐步实操手册_完整版_v3.md'
+          if ! git diff --cached --quiet; then git commit -m 'fix: complete guided diagrams, native standalone checks and synchronized handbook'; git push origin HEAD:diagnostics/guided-workbench; fi
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+      - name: Archive tested source
+        if: always()
+        run: |
+          mkdir -p reports
+          git archive --format=zip --output=reports/candidate-source.zip HEAD
+          git rev-parse HEAD > reports/candidate-sha.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: guided-completed-candidate
+          path: reports/
+          retention-days: 7
+      - name: Portable local review runtime, without user configuration
+        run: |
+          uv run python - <<'PY'
+          import pathlib,site,sys,tarfile,shutil
+          with tarfile.open('/tmp/review-runtime.tar.gz','w:gz') as archive:
+              archive.add(sys.base_prefix,arcname='python',recursive=True)
+              archive.add(site.getsitepackages()[0],arcname='site-packages',recursive=True)
+              archive.add(shutil.which('ruff'),arcname='ruff')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: guided-local-review-runtime
+          path: /tmp/review-runtime.tar.gz
+          retention-days: 1
+  platform:
+    needs: candidate
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.candidate.outputs.sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run python -m scripts.build_handbook --check
+      - run: uv run pytest -m 'not postgres' --junitxml=reports/tests.xml
+      - run: uv run python -m scripts.ci_clean_install
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: guided-platform-${{ matrix.os }}
+          path: reports/
+  browser-postgres:
+    needs: candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_DB: workbench_test
+        ports: ['127.0.0.1:5432:5432']
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      TEST_DATABASE_URL: postgresql+psycopg://postgres@127.0.0.1:5432/workbench_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.candidate.outputs.sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: uv sync --locked --all-extras
+      - run: uv run pytest -m postgres --junitxml=reports/postgres.xml
+      - run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          PLAYWRIGHT_BROWSERS_PATH=0 .native/browser/node_modules/.bin/playwright install --with-deps chromium
+      - run: uv run python -m scripts.ci_guided_browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: guided-browser-postgres
+          path: reports/
+  native:
+    needs: candidate
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - template: fastapiadmin
+            pnpm: '9.15.3'
+            revision: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
+          - template: yudao-vben
+            pnpm: '11.16.0'
+            revision: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: native
+          POSTGRES_PASSWORD: native-ci-only
+          POSTGRES_DB: native_codegen
+        ports: ['127.0.0.1:5432:5432']
+        options: --health-cmd "pg_isready -U native -d native_codegen" --health-interval 5s --health-timeout 5s --health-retries 20
+      redis:
+        image: redis:7.4-alpine
+        ports: ['127.0.0.1:6379:6379']
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
+      PLAYWRIGHT_BROWSERS_PATH: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.candidate.outputs.sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-java@v4
+        if: matrix.template == 'yudao-vben'
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/cache/restore@v4
+        if: matrix.template == 'yudao-vben'
+        with:
+          path: ~/.m2/repository
+          key: native-maven-central-v2-${{ runner.os }}-${{ matrix.revision }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm install --global pnpm@${{ matrix.pnpm }}
+      - run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          PLAYWRIGHT_BROWSERS_PATH=0 .native/browser/node_modules/.bin/playwright install --with-deps chromium
+      - run: uv sync --locked --all-extras
+      - name: Vendored native generation and truly independent full delivery
+        run: uv run python -m scripts.ci_native_bundled ${{ matrix.template }}
+      - uses: actions/cache/save@v4
+        if: always() && matrix.template == 'yudao-vben'
+        with:
+          path: ~/.m2/repository
+          key: native-maven-central-v2-${{ runner.os }}-${{ matrix.revision }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: guided-standalone-${{ matrix.template }}
+          path: reports/native/
+          retention-days: 7
