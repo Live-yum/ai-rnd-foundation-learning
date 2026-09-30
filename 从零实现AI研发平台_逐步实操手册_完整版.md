@@ -19699,40 +19699,41 @@ if SPEC.get("business"):
 - `LabelRequest`（L29–L30）：继承`StrictBody`。声明的数据项为`record_ids`；类型约束/数据库列参数以完整定义为准。
 - `UserBody`（L33–L36）：继承`StrictBody`。声明的数据项为`username`、`password`、`role`；类型约束/数据库列参数以完整定义为准。
 - `RoleBody`（L39–L40）：继承`StrictBody`。声明的数据项为`role`；类型约束/数据库列参数以完整定义为准。
-- `install_business`（L43–L783）：接收`app`、`actor_dependency`、`password_hash`、`issue_token`、`legacy_validate`。 调用`Policy`、`getattr(route, "path", "").startswith`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `install_business`（L43–L807）：接收`app`、`actor_dependency`、`password_hash`、`issue_token`、`legacy_validate`。 调用`Policy`、`getattr(route, "path", "").startswith`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `install_business.current`（L61–L70）：接收`user_id`。 控制顺序：L68按`not row or row["role"] not in policy.roles`分支；L69抛异常，停止当前正常路径。 调用`Depends`、`engine.connect`、`connection.execute(select(tables["users"]).where(tables["users"].…`、`connection.execute`、`select(tables["users"]).where`、`select`、`HTTPException`。 返回路径：L70的`{"id": row["id"], "username": row["username"], "role": row["role"]}`。
 - `install_business.grant`（L72–L76）：接收`actor`、`entity`、`action`。 控制顺序：L76抛异常，停止当前正常路径。 调用`policy.grant`、`HTTPException`、`str`。 返回路径：L74的`policy.grant(actor["role"], entity, action)`。
 - `install_business.table`（L78–L81）：接收`entity`。 控制顺序：L79按`entity not in entities`分支；L80抛异常，停止当前正常路径。 调用`HTTPException`。 返回路径：L81的`tables[entity]`。
 - `install_business.scope`（L83–L93）：接收`actor`、`entity`、`action`。 控制顺序：L86按`permission["scope"] == "all"`分支。 调用`grant`、`table`、`policy.resource`。 返回路径：L87的`[]`；L93的`[target.c[key] == actor["id"]]`。
 - `install_business.record`（L95–L105）：接收`connection`、`actor`、`entity`、`record_id`、`action`、`lock`、`archived`。 控制顺序：L98按`not archived`分支；L100按`lock`分支；L103按`row is None`分支；L104抛异常，停止当前正常路径。 调用`table`、`select(target).where`、`select`、`scope`、`stmt.where`、`target.c.archived_at.is_`、`stmt.with_for_update`、`connection.execute(stmt).mappings().first`、`connection.execute(stmt).mappings`等。 返回路径：L105的`dict(row)`。
 - `install_business.administrator`（L107–L109）：接收`actor`。 控制顺序：L108按`actor["role"] not in business["role_admin_roles"]`分支；L109抛异常，停止当前正常路径。 调用`HTTPException`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `install_business.serialize_administrator`（L111–L124）：接收`connection`、`actor`。 控制顺序：L118按`changed != 1`分支；L119抛异常，停止当前正常路径；L123按`role not in business["role_admin_roles"]`分支；L124抛异常，停止当前正常路径。 调用`connection.execute`、`update(marker).where(marker.c.key == "bootstrap_admin").values`、`update(marker).where`、`update`、`HTTPException`、`connection.scalar`、`select(tables["users"].c.role).where`、`select`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `install_business.event`（L126–L140）：接收`connection`、`actor`、`entity`、`record_id`、`action`、`before`、`after`。 调用`str`、`uuid.uuid4`、`connection.execute`、`insert(tables["business_audit"]).values`、`insert`、`utc`、`json.dumps`。 返回路径：L140的`identity`。
-- `install_business.notify`（L142–L178）：接收`connection`、`entity`、`row`、`name`、`identity`、`transition`、`notification`。 控制顺序：L143遍历`business["notifications"]`；L144按`notification is not None and item != notification`分支；L146按`item["entity"] != entity or item["event"] != name`分支；L148按`name == "transitioned" and item["transition"] != transition`分支；L155按`not recipient`分支；L158按`connection.scalar( select(tables["business_notifications"].c.id).where( tables["busin…`分支。 调用`row.get`、`policy.resource`、`hashlib.sha256(f"{identity}:{entity}:{recipient}:{name}".encode()…`、`hashlib.sha256`、`f"{identity}:{entity}:{recipient}:{name}".encode`、`connection.scalar`、`select(tables["business_notifications"].c.id).where`、`select`、`connection.begin_nested`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `install_business.reference_checks`（L180–L205）：接收`connection`、`actor`、`entity`、`values`、`before`。 控制顺序：L181遍历`policy.relations.items()`；L182按`source != entity or values.get(field) is None`分支；L184按`before is not None and values[field] == before.get(field)`分支；L187按`target == "$users"`分支；L193按`user is None`分支；L194抛异常，停止当前正常路径；L195按`field == policy.resource(entity).get("assignee_field")`分支；L197按`not permission or "read" not in permission["actions"] or permission["scope"] not in {…`分支。后续分支沿下方源码相同行号继续阅读。 调用`policy.relations.items`、`values.get`、`before.get`、`connection.execute(select(tables["users"]).where(tables["users"].…`、`connection.execute`、`select(tables["users"]).where`、`select`、`HTTPException`、`policy.resource(entity).get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `install_business.values_for`（L207–L229）：接收`actor`、`entity`、`data`、`old`。 控制顺序：L208按`not isinstance(data, dict)`分支；L209抛异常，停止当前正常路径；L211按`set(data) & protected`分支；L212抛异常，停止当前正常路径；L216按`workflow and old is None`分支；L218按`old is None`分支；L219遍历`entities[entity]["fields"]`；L220按`f["name"] in protected and f["name"] not in values`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`HTTPException`、`policy.protected`、`set`、`old.get`、`values.update`、`policy.workflow`、`policy.validate_fields`、`RULES.validate`。 返回路径：L227的`value`。
-- `install_business.me`（L232–L233）：接收`actor`。 调用`Depends`、`app.get`。 返回路径：L233的`actor`。
-- `install_business.schema`（L236–L252）：接收`actor`。 调用`Depends`、`json.loads`、`(ROOT / "selection.json").read_text`、`policy.permissions.get((actor["role"], name), {}).get`、`policy.permissions.get`、`app.get`。 返回路径：L245的`{ "spec": {**SPEC, "entities": [entities[name] for name in visible]}, "selection": selecti…`。
-- `install_business.users`（L255–L277）：接收`entity`、`actor`。 控制顺序：L256按`entity is None`分支；L268按`entity`分支。 调用`Depends`、`administrator`、`grant`、`engine.connect`、`connection.execute( select(tables["users"].c.id, tables["users"].…`、`connection.execute`、`select`、`policy.permissions.get((row["role"], entity), {}).get`、`policy.permissions.get`等。 返回路径：L277的`[dict(row) for row in rows]`。
-- `install_business.create_user`（L280–L307）：接收`data`、`actor`。 控制顺序：L282按`data.role not in policy.roles`分支；L283抛异常，停止当前正常路径；L306抛异常，停止当前正常路径。 调用`Depends`、`administrator`、`HTTPException`、`str`、`uuid.uuid4`、`engine.begin`、`serialize_administrator`、`connection.execute`、`insert(tables["users"]).values`等。 返回路径：L307的`{"id": identity, "username": data.username, "role": data.role}`。
-- `install_business.change_role`（L310–L348）：接收`identity`、`data`、`actor`。 控制顺序：L312按`data.role not in policy.roles`分支；L313抛异常，停止当前正常路径；L321按`old is None`分支；L322抛异常，停止当前正常路径；L323按`old["role"] in business["role_admin_roles"] and data.role not in business["role_admin…`分支；L332按`len(administrators) <= 1`分支；L333抛异常，停止当前正常路径。 调用`Depends`、`administrator`、`HTTPException`、`engine.begin`、`serialize_administrator`、`connection.execute(select(tables["users"]).where(tables["users"].…`、`connection.execute`、`select(tables["users"]).where`、`select`等。 返回路径：L348的`{"id": identity, "role": data.role}`。
-- `install_business.reference_labels`（L351–L397）：接收`entity`、`data`、`actor`。 源码说明：Resolve only references present in rows this actor can already read.。 控制顺序：L367遍历`business["relations"]`；L368按`relation["entity"] != entity`分支；L372按`not identities`分支；L374按`target_name == "$users"`分支；L380按`"read" in policy.permissions.get((actor["role"], target_name), {}).get( "actions", []…`分支。 调用`Depends`、`table`、`engine.connect`、`connection.execute( select(source).where( source.c.id.in_(data.re…`、`connection.execute`、`select(source).where`、`select`、`source.c.id.in_`、`source.c.archived_at.is_`等。 返回路径：L397的`result`。
-- `install_business.list_items`（L400–L438）：接收`entity`、`request`、`response`、`limit`、`offset`、`actor`。 控制顺序：L410按`len(request.query_params.multi_items()) != len(request.query_params) or not 1 <= limi…`分支；L415抛异常，停止当前正常路径；L420抛异常，停止当前正常路径。 调用`Depends`、`table`、`len`、`request.query_params.multi_items`、`ValueError`、`conditions`、`HTTPException`、`str`、`target.c.archived_at.is_`等。 返回路径：L438的`[dict(row) for row in rows]`。
-- `install_business.create`（L441–L467）：接收`entity`、`data`、`actor`。 控制顺序：L466抛异常，停止当前正常路径。 调用`Depends`、`grant`、`values_for`、`utc`、`values.update`、`str`、`uuid.uuid4`、`engine.begin`、`reference_checks`等。 返回路径：L467的`row`。
-- `install_business.get`（L470–L472）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.connect`、`record`、`app.get`。 返回路径：L472的`record(connection, actor, entity, identity, "read")`。
-- `install_business.edit`（L475–L493）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L489按`changed != 1`分支；L490抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`values_for`、`reference_checks`、`utc`、`connection.execute`、`update(table(entity)) .where( table(entity).c.id == identity, tab…`、`update(table(entity)) .where`等。 返回路径：L493的`after`。
-- `install_business.archive`（L496–L507）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.begin`、`record`、`utc`、`connection.execute`、`update(table(entity)) .where(table(entity).c.id == identity) .val…`、`update(table(entity)) .where`、`update`、`table`等。 返回路径：L507的`after`。
-- `install_business.assign`（L510–L533）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L514按`data.user_id is None and next(f for f in entities[entity]["fields"] if f["name"] == f…`分支；L518抛异常，停止当前正常路径；L529按`changed != 1`分支；L530抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`policy.resource`、`next`、`HTTPException`、`utc`、`reference_checks`、`connection.execute`等。 返回路径：L533的`after`。
-- `install_business.transition`（L536–L571）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L545抛异常，停止当前正常路径；L547按`operation.get("set_timestamp")`分支；L558按`changed != 1`分支；L559抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`policy.workflow`、`policy.transition`、`HTTPException`、`str`、`utc`、`operation.get`等。 返回路径：L571的`after`。
-- `install_business.add_note`（L574–L589）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L577按`not policy.resource(entity)["notes"]`分支；L578抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`policy.resource`、`HTTPException`、`str`、`uuid.uuid4`、`utc`、`connection.execute`等。 返回路径：L589的`note`。
-- `install_business.notes`（L592–L605）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.connect`、`record`、`dict`、`connection.execute( select(tables["business_notes"]) .where( tabl…`、`connection.execute`、`select(tables["business_notes"]) .where( tables["business_notes"]…`、`select(tables["business_notes"]) .where`、`select`等。 返回路径：L595的`[ dict(row) for row in connection.execute( select(tables["business_notes"]) .where( tables…`。
-- `install_business.history`（L608–L638）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.connect`、`record`、`connection.execute( select(tables["business_audit"]) .where( tabl…`、`connection.execute`、`select(tables["business_audit"]) .where( tables["business_audit"]…`、`select(tables["business_audit"]) .where`、`select`、`policy.permissions.get((actor["role"], entity), {}).get`等。 返回路径：L623的`[ { **{k: row[k] for k in ("id", "actor_id", "action", "created_at")}, **( { "before": jso…`。
-- `install_business.related`（L641–L673）：接收`entity`、`identity`、`actor`。 控制顺序：L645遍历`business["relations"]`；L647按`relation["target_entity"] != entity or "read" not in policy.permissions.get( (actor["…`分支。 调用`Depends`、`engine.connect`、`record`、`policy.permissions.get( (actor["role"], source), {} ).get`、`policy.permissions.get`、`table`、`connection.execute( select(target) .where( target.c[relation["fie…`、`connection.execute`、`select(target) .where( target.c[relation["field"]] == identity, t…`等。 返回路径：L673的`result`。
-- `install_business.metrics`（L676–L702）：接收`actor`。 控制顺序：L679遍历`business["metrics"]`；L680按`"read_metrics" not in policy.permissions.get( (actor["role"], metric["entity"]), {} )…`分支。 调用`Depends`、`engine.connect`、`policy.permissions.get( (actor["role"], metric["entity"]), {} ).g…`、`policy.permissions.get`、`table`、`connection.execute( select(target).where( target.c.archived_at.is…`、`connection.execute`、`select(target).where`、`select`等。 返回路径：L702的`result`。
-- `install_business.notifications`（L705–L760）：接收`actor`。 控制顺序：L707遍历`business["notifications"]`；L708按`item["event"] != "due"`分支；L711按`"read" not in policy.permissions.get((actor["role"], entity), {}).get( "actions", [] …`分支；L734遍历`rows`；L736按`workflow and row[workflow["status_field"]] not in { state for transition in workflow[…`分支。 调用`Depends`、`engine.begin`、`policy.permissions.get((actor["role"], entity), {}).get`、`policy.permissions.get`、`table`、`policy.resource`、`connection.execute( select(target).where( recipient == actor["id"…`、`connection.execute`、`select(target).where`等。 返回路径：L749的`[ dict(row) for row in connection.execute( select(tables["business_notifications"]) .where…`。
-- `install_business.mark_read`（L763–L783）：接收`identity`、`actor`。 控制顺序：L775按`row is None`分支；L776抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`connection.execute( select(target).where( target.c.id == identity…`、`connection.execute`、`select(target).where`、`select`、`HTTPException`、`utc`、`update(target) .where(target.c.id == identity, target.c.recipient…`等。 返回路径：L783的`{"id": identity, "read_at": timestamp}`。
+- `install_business.history_actor_names`（L111–L124）：接收`connection`、`rows`。 源码说明：Resolve only actors from already-authorized history, never arbitrary IDs.。 控制顺序：L116遍历`range(0, len(identities), 100)`。 调用`sorted`、`range`、`len`、`result.update`、`connection.execute( select(users.c.id, users.c.username).where( u…`、`connection.execute`、`select(users.c.id, users.c.username).where`、`select`、`users.c.id.in_`。 返回路径：L124的`result`。
+- `install_business.serialize_administrator`（L126–L139）：接收`connection`、`actor`。 控制顺序：L133按`changed != 1`分支；L134抛异常，停止当前正常路径；L138按`role not in business["role_admin_roles"]`分支；L139抛异常，停止当前正常路径。 调用`connection.execute`、`update(marker).where(marker.c.key == "bootstrap_admin").values`、`update(marker).where`、`update`、`HTTPException`、`connection.scalar`、`select(tables["users"].c.role).where`、`select`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `install_business.event`（L141–L155）：接收`connection`、`actor`、`entity`、`record_id`、`action`、`before`、`after`。 调用`str`、`uuid.uuid4`、`connection.execute`、`insert(tables["business_audit"]).values`、`insert`、`utc`、`json.dumps`。 返回路径：L155的`identity`。
+- `install_business.notify`（L157–L193）：接收`connection`、`entity`、`row`、`name`、`identity`、`transition`、`notification`。 控制顺序：L158遍历`business["notifications"]`；L159按`notification is not None and item != notification`分支；L161按`item["entity"] != entity or item["event"] != name`分支；L163按`name == "transitioned" and item["transition"] != transition`分支；L170按`not recipient`分支；L173按`connection.scalar( select(tables["business_notifications"].c.id).where( tables["busin…`分支。 调用`row.get`、`policy.resource`、`hashlib.sha256(f"{identity}:{entity}:{recipient}:{name}".encode()…`、`hashlib.sha256`、`f"{identity}:{entity}:{recipient}:{name}".encode`、`connection.scalar`、`select(tables["business_notifications"].c.id).where`、`select`、`connection.begin_nested`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `install_business.reference_checks`（L195–L220）：接收`connection`、`actor`、`entity`、`values`、`before`。 控制顺序：L196遍历`policy.relations.items()`；L197按`source != entity or values.get(field) is None`分支；L199按`before is not None and values[field] == before.get(field)`分支；L202按`target == "$users"`分支；L208按`user is None`分支；L209抛异常，停止当前正常路径；L210按`field == policy.resource(entity).get("assignee_field")`分支；L212按`not permission or "read" not in permission["actions"] or permission["scope"] not in {…`分支。后续分支沿下方源码相同行号继续阅读。 调用`policy.relations.items`、`values.get`、`before.get`、`connection.execute(select(tables["users"]).where(tables["users"].…`、`connection.execute`、`select(tables["users"]).where`、`select`、`HTTPException`、`policy.resource(entity).get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `install_business.values_for`（L222–L244）：接收`actor`、`entity`、`data`、`old`。 控制顺序：L223按`not isinstance(data, dict)`分支；L224抛异常，停止当前正常路径；L226按`set(data) & protected`分支；L227抛异常，停止当前正常路径；L231按`workflow and old is None`分支；L233按`old is None`分支；L234遍历`entities[entity]["fields"]`；L235按`f["name"] in protected and f["name"] not in values`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`HTTPException`、`policy.protected`、`set`、`old.get`、`values.update`、`policy.workflow`、`policy.validate_fields`、`RULES.validate`。 返回路径：L242的`value`。
+- `install_business.me`（L247–L248）：接收`actor`。 调用`Depends`、`app.get`。 返回路径：L248的`actor`。
+- `install_business.schema`（L251–L267）：接收`actor`。 调用`Depends`、`json.loads`、`(ROOT / "selection.json").read_text`、`policy.permissions.get((actor["role"], name), {}).get`、`policy.permissions.get`、`app.get`。 返回路径：L260的`{ "spec": {**SPEC, "entities": [entities[name] for name in visible]}, "selection": selecti…`。
+- `install_business.users`（L270–L292）：接收`entity`、`actor`。 控制顺序：L271按`entity is None`分支；L283按`entity`分支。 调用`Depends`、`administrator`、`grant`、`engine.connect`、`connection.execute( select(tables["users"].c.id, tables["users"].…`、`connection.execute`、`select`、`policy.permissions.get((row["role"], entity), {}).get`、`policy.permissions.get`等。 返回路径：L292的`[dict(row) for row in rows]`。
+- `install_business.create_user`（L295–L322）：接收`data`、`actor`。 控制顺序：L297按`data.role not in policy.roles`分支；L298抛异常，停止当前正常路径；L321抛异常，停止当前正常路径。 调用`Depends`、`administrator`、`HTTPException`、`str`、`uuid.uuid4`、`engine.begin`、`serialize_administrator`、`connection.execute`、`insert(tables["users"]).values`等。 返回路径：L322的`{"id": identity, "username": data.username, "role": data.role}`。
+- `install_business.change_role`（L325–L363）：接收`identity`、`data`、`actor`。 控制顺序：L327按`data.role not in policy.roles`分支；L328抛异常，停止当前正常路径；L336按`old is None`分支；L337抛异常，停止当前正常路径；L338按`old["role"] in business["role_admin_roles"] and data.role not in business["role_admin…`分支；L347按`len(administrators) <= 1`分支；L348抛异常，停止当前正常路径。 调用`Depends`、`administrator`、`HTTPException`、`engine.begin`、`serialize_administrator`、`connection.execute(select(tables["users"]).where(tables["users"].…`、`connection.execute`、`select(tables["users"]).where`、`select`等。 返回路径：L363的`{"id": identity, "role": data.role}`。
+- `install_business.reference_labels`（L366–L412）：接收`entity`、`data`、`actor`。 源码说明：Resolve only references present in rows this actor can already read.。 控制顺序：L382遍历`business["relations"]`；L383按`relation["entity"] != entity`分支；L387按`not identities`分支；L389按`target_name == "$users"`分支；L395按`"read" in policy.permissions.get((actor["role"], target_name), {}).get( "actions", []…`分支。 调用`Depends`、`table`、`engine.connect`、`connection.execute( select(source).where( source.c.id.in_(data.re…`、`connection.execute`、`select(source).where`、`select`、`source.c.id.in_`、`source.c.archived_at.is_`等。 返回路径：L412的`result`。
+- `install_business.list_items`（L415–L453）：接收`entity`、`request`、`response`、`limit`、`offset`、`actor`。 控制顺序：L425按`len(request.query_params.multi_items()) != len(request.query_params) or not 1 <= limi…`分支；L430抛异常，停止当前正常路径；L435抛异常，停止当前正常路径。 调用`Depends`、`table`、`len`、`request.query_params.multi_items`、`ValueError`、`conditions`、`HTTPException`、`str`、`target.c.archived_at.is_`等。 返回路径：L453的`[dict(row) for row in rows]`。
+- `install_business.create`（L456–L482）：接收`entity`、`data`、`actor`。 控制顺序：L481抛异常，停止当前正常路径。 调用`Depends`、`grant`、`values_for`、`utc`、`values.update`、`str`、`uuid.uuid4`、`engine.begin`、`reference_checks`等。 返回路径：L482的`row`。
+- `install_business.get`（L485–L487）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.connect`、`record`、`app.get`。 返回路径：L487的`record(connection, actor, entity, identity, "read")`。
+- `install_business.edit`（L490–L508）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L504按`changed != 1`分支；L505抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`values_for`、`reference_checks`、`utc`、`connection.execute`、`update(table(entity)) .where( table(entity).c.id == identity, tab…`、`update(table(entity)) .where`等。 返回路径：L508的`after`。
+- `install_business.archive`（L511–L522）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.begin`、`record`、`utc`、`connection.execute`、`update(table(entity)) .where(table(entity).c.id == identity) .val…`、`update(table(entity)) .where`、`update`、`table`等。 返回路径：L522的`after`。
+- `install_business.assign`（L525–L548）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L529按`data.user_id is None and next(f for f in entities[entity]["fields"] if f["name"] == f…`分支；L533抛异常，停止当前正常路径；L544按`changed != 1`分支；L545抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`policy.resource`、`next`、`HTTPException`、`utc`、`reference_checks`、`connection.execute`等。 返回路径：L548的`after`。
+- `install_business.transition`（L551–L586）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L560抛异常，停止当前正常路径；L562按`operation.get("set_timestamp")`分支；L573按`changed != 1`分支；L574抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`policy.workflow`、`policy.transition`、`HTTPException`、`str`、`utc`、`operation.get`等。 返回路径：L586的`after`。
+- `install_business.add_note`（L589–L604）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L592按`not policy.resource(entity)["notes"]`分支；L593抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`policy.resource`、`HTTPException`、`str`、`uuid.uuid4`、`utc`、`connection.execute`等。 返回路径：L604的`note`。
+- `install_business.notes`（L607–L623）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.connect`、`record`、`connection.execute( select(tables["business_notes"]) .where( tabl…`、`connection.execute`、`select(tables["business_notes"]) .where( tables["business_notes"]…`、`select(tables["business_notes"]) .where`、`select`、`history_actor_names`等。 返回路径：L623的`[{**dict(row), "actor_username": names.get(row["actor_id"])} for row in rows]`。
+- `install_business.history`（L626–L662）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.connect`、`record`、`connection.execute( select(tables["business_audit"]) .where( tabl…`、`connection.execute`、`select(tables["business_audit"]) .where( tables["business_audit"]…`、`select(tables["business_audit"]) .where`、`select`、`history_actor_names`等。 返回路径：L646的`[ { **{k: row[k] for k in ("id", "actor_id", "action", "created_at")}, "actor_username": n…`。
+- `install_business.related`（L665–L697）：接收`entity`、`identity`、`actor`。 控制顺序：L669遍历`business["relations"]`；L671按`relation["target_entity"] != entity or "read" not in policy.permissions.get( (actor["…`分支。 调用`Depends`、`engine.connect`、`record`、`policy.permissions.get( (actor["role"], source), {} ).get`、`policy.permissions.get`、`table`、`connection.execute( select(target) .where( target.c[relation["fie…`、`connection.execute`、`select(target) .where( target.c[relation["field"]] == identity, t…`等。 返回路径：L697的`result`。
+- `install_business.metrics`（L700–L726）：接收`actor`。 控制顺序：L703遍历`business["metrics"]`；L704按`"read_metrics" not in policy.permissions.get( (actor["role"], metric["entity"]), {} )…`分支。 调用`Depends`、`engine.connect`、`policy.permissions.get( (actor["role"], metric["entity"]), {} ).g…`、`policy.permissions.get`、`table`、`connection.execute( select(target).where( target.c.archived_at.is…`、`connection.execute`、`select(target).where`、`select`等。 返回路径：L726的`result`。
+- `install_business.notifications`（L729–L784）：接收`actor`。 控制顺序：L731遍历`business["notifications"]`；L732按`item["event"] != "due"`分支；L735按`"read" not in policy.permissions.get((actor["role"], entity), {}).get( "actions", [] …`分支；L758遍历`rows`；L760按`workflow and row[workflow["status_field"]] not in { state for transition in workflow[…`分支。 调用`Depends`、`engine.begin`、`policy.permissions.get((actor["role"], entity), {}).get`、`policy.permissions.get`、`table`、`policy.resource`、`connection.execute( select(target).where( recipient == actor["id"…`、`connection.execute`、`select(target).where`等。 返回路径：L773的`[ dict(row) for row in connection.execute( select(tables["business_notifications"]) .where…`。
+- `install_business.mark_read`（L787–L807）：接收`identity`、`actor`。 控制顺序：L799按`row is None`分支；L800抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`connection.execute( select(target).where( target.c.id == identity…`、`connection.execute`、`select(target).where`、`select`、`HTTPException`、`utc`、`update(target) .where(target.c.id == identity, target.c.recipient…`等。 返回路径：L807的`{"id": identity, "read_at": timestamp}`。
 
-<!-- source-file: templates/product/business_runtime.py sha256: 8095a53fcba9976b9be96971815b56df29419f2ed95c597e878dcf357f9f6751 -->
+<!-- source-file: templates/product/business_runtime.py sha256: d52f7777e416bf3f0d73d2fc6e64a9d5c24824dd0b856bfa62f1c20f954fe3ee -->
 ````python
 """Generated-product business runtime. Authorization and events are database-backed."""
 
@@ -19843,6 +19844,21 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
     def administrator(actor):
         if actor["role"] not in business["role_admin_roles"]:
             raise HTTPException(403, "只有已批准的角色管理员可以管理账号")
+
+    def history_actor_names(connection, rows):
+        """Resolve only actors from already-authorized history, never arbitrary IDs."""
+        identities = sorted({row["actor_id"] for row in rows})
+        users = tables["users"]
+        result = {}
+        for start in range(0, len(identities), 100):
+            result.update(
+                connection.execute(
+                    select(users.c.id, users.c.username).where(
+                        users.c.id.in_(identities[start : start + 100])
+                    )
+                ).all()
+            )
+        return result
 
     def serialize_administrator(connection, actor):
         # A real UPDATE serializes SQLite writers too (FOR UPDATE is ignored
@@ -20328,30 +20344,38 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
     def notes(entity: str, identity: str, actor=Depends(current)):
         with engine.connect() as connection:
             record(connection, actor, entity, identity, "read_history", archived=True)
-            return [
-                dict(row)
-                for row in connection.execute(
+            rows = (
+                connection.execute(
                     select(tables["business_notes"])
                     .where(
                         tables["business_notes"].c.entity == entity,
                         tables["business_notes"].c.record_id == identity,
                     )
                     .order_by(tables["business_notes"].c.created_at, tables["business_notes"].c.id)
-                ).mappings()
-            ]
+                )
+                .mappings()
+                .all()
+            )
+            names = history_actor_names(connection, rows)
+            return [{**dict(row), "actor_username": names.get(row["actor_id"])} for row in rows]
 
     @app.get("/api/{entity}/{identity}/history")
     def history(entity: str, identity: str, actor=Depends(current)):
         with engine.connect() as connection:
             record(connection, actor, entity, identity, "read_history", archived=True)
-            rows = connection.execute(
-                select(tables["business_audit"])
-                .where(
-                    tables["business_audit"].c.entity == entity,
-                    tables["business_audit"].c.record_id == identity,
+            rows = (
+                connection.execute(
+                    select(tables["business_audit"])
+                    .where(
+                        tables["business_audit"].c.entity == entity,
+                        tables["business_audit"].c.record_id == identity,
+                    )
+                    .order_by(tables["business_audit"].c.created_at, tables["business_audit"].c.id)
                 )
-                .order_by(tables["business_audit"].c.created_at, tables["business_audit"].c.id)
-            ).mappings()
+                .mappings()
+                .all()
+            )
+            names = history_actor_names(connection, rows)
             # History shows actors/actions/time; full snapshots require read_audit.
             full = "read_audit" in policy.permissions.get((actor["role"], entity), {}).get(
                 "actions", []
@@ -20359,6 +20383,7 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
             return [
                 {
                     **{k: row[k] for k in ("id", "actor_id", "action", "created_at")},
+                    "actor_username": names.get(row["actor_id"]),
                     **(
                         {
                             "before": json.loads(row["before_json"])
@@ -21887,7 +21912,7 @@ main().catch(error => { console.error(error.stack); process.exitCode=1; });
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: templates/product/verify-business-browser.cjs sha256: 33d5c2a103a487c007c63f9fb02c5918d9df5123aa804e0ccd9ff891b2834247 -->
+<!-- source-file: templates/product/verify-business-browser.cjs sha256: b8a06789ea310c761454a9b04e48648ce46604f09520196456f82f019835549b -->
 ````javascript
 // Real browser, real authentication and real generated business routes only.
 const fs = require('node:fs');
@@ -22022,7 +22047,9 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
         const response=page.waitForResponse(r=>r.url().endsWith('/notes')&&r.request().method()==='POST');
         await page.locator('#business-note-form button').click();assert.equal((await response).status(),201);
         await page.locator('#business-notes').getByText(/Browser business acceptance note/).waitFor();
-        await page.locator('#business-history').getByText(/note_added/).waitFor();
+        const noteEventLabel=await page.evaluate(()=>EVENT_LABELS.note_added);
+        assert.equal(typeof noteEventLabel,'string');assert(noteEventLabel.length>0);
+        await page.locator('#business-history > p').filter({hasText:noteEventLabel}).waitFor();
         checks.add('business-browser-notes-history');
       }
       if(workflow)await capture(actor,entity.name,'workflow');
@@ -23383,7 +23410,7 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: templates/frontends/simple-admin/app.js sha256: a62ca38222d9c7c08e1bc89380cd12e141389f87a3fd502123fdfba114d474ec -->
+<!-- source-file: templates/frontends/simple-admin/app.js sha256: 2952228f8fd36571c182aef7059701df7d3eff2406b959c79d1ca822df75ec5b -->
 ````javascript
 "use strict";
 const $ = (id) => document.getElementById(id);
@@ -23409,6 +23436,15 @@ const EVENT_LABELS = {created:"已创建", updated:"已更新", assigned:"已分
 function fieldLabel(name) { return entity?.fields.find(field=>field.name===name)?.label || name; }
 function entityLabel(name) { return spec?.entities.find(item => item.name === name)?.description || name; }
 function displayTime(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", {hour12:false,timeZone:"UTC"}) + " UTC"; }
+function actionLabel(action, chosen) {
+  if (action.startsWith("transitioned:")) {
+    const name = action.slice("transitioned:".length);
+    const transition = spec.business.workflows.find(item => item.entity === chosen.name)?.transitions.find(item => item.name === name);
+    return transition?.label || name;
+  }
+  return EVENT_LABELS[action] || action;
+}
+function actorLabel(item) { return item.actor_username || "未知用户"; }
 function inform(error) {
   $("notice").textContent = error.message || String(error);
 }
@@ -23742,7 +23778,9 @@ async function showBusinessDetail(row) {
   detailRecord = row; $("business-detail-title").textContent = row.name || row.title || row.id;
   $("business-actions").replaceChildren(); $("business-notes").replaceChildren(); $("business-history").replaceChildren(); $("business-related").replaceChildren();
   if(can("assign")) {
-    const assignees=await(await api(`/business/users?entity=${entity.name}`)).json(); const select=node("select",undefined,$("business-actions")); select.id="business-assignee";
+    const assignees=await(await api(`/business/users?entity=${chosen.name}`)).json();
+    if(sequence!==detailSequence || chosen!==entity) return;
+    const select=node("select",undefined,$("business-actions")); select.id="business-assignee";
     node("option","未分配",select).value=""; assignees.forEach(user=>node("option",user.username,select).value=user.id);
     const field=spec.business.resources.find(r=>r.entity===entity.name).assignee_field; select.value=row[field]||"";
     node("button","分配",$("business-actions")).onclick=async()=>{try{const updated=await(await api(`/api/${entity.name}/${row.id}/assign`,{method:"POST",body:JSON.stringify({user_id:select.value||null})})).json();await showBusinessDetail(updated);await load();}catch(error){inform(error);}};
@@ -23752,20 +23790,36 @@ async function showBusinessDetail(row) {
     node("button",action.label||action.name,$("business-actions")).onclick=async()=>{try{const updated=await(await api(`/api/${entity.name}/${row.id}/transition`,{method:"POST",body:JSON.stringify({transition:action.name})})).json();await showBusinessDetail(updated);await load();await refreshBusiness();}catch(error){inform(error);}};
   }
   if(can("read_history")) {
-    const notes=await(await api(`/api/${entity.name}/${row.id}/notes`)).json(); notes.forEach(note=>node("p",`${note.created_at} · ${note.actor_id}: ${note.body}`,$("business-notes")));
-    const history=await(await api(`/api/${entity.name}/${row.id}/history`)).json(); history.forEach(item=>{node("p",`${item.created_at} · ${item.actor_id} · ${item.action}`,$("business-history"));if(item.after)node("pre",JSON.stringify(item.after,null,2),$("business-history"));});
+    const notes=await(await api(`/api/${chosen.name}/${row.id}/notes`)).json();
+    if(sequence!==detailSequence || chosen!==entity) return;
+    notes.forEach(note=>node("p",`${displayTime(note.created_at)} · ${actorLabel(note)}：${note.body}`,$("business-notes")));
+    const history=await(await api(`/api/${chosen.name}/${row.id}/history`)).json();
+    if(sequence!==detailSequence || chosen!==entity) return;
+    history.forEach(item=>{
+      node("p",`${displayTime(item.created_at)} · ${actorLabel(item)} · ${actionLabel(item.action, chosen)}`,$("business-history"));
+      if(Object.hasOwn(item,"before") || Object.hasOwn(item,"after")) {
+        const details=node("details",undefined,$("business-history"));
+        node("summary","查看审计详情（原始 JSON）",details);
+        node("pre",JSON.stringify(item,null,2),details);
+      }
+    });
   }
-  const related=await(await api(`/business/related/${entity.name}/${row.id}`)).json(); for(const group of related) {node("h4",group.entity,$("business-related"));group.records.forEach(item=>{
+  const related=await(await api(`/business/related/${chosen.name}/${row.id}`)).json();
+  if(sequence!==detailSequence || chosen!==entity) return;
+  for(const group of related) {node("h4",entityLabel(group.entity),$("business-related"));group.records.forEach(item=>{
       const workflow=spec.business.workflows.find(w=>w.entity===group.entity);
-      const text=(item.name||item.title||item.id)+(workflow ? " · "+item[workflow.status_field] : "");
+      const field=spec.entities.find(target=>target.name===group.entity)?.fields.find(field=>field.name===workflow?.status_field);
+      const status=workflow ? item[workflow.status_field] : null;
+      const text=(item.name||item.title||item.id)+(workflow ? " · "+(field?.choice_labels?.[status]||status) : "");
       node("button",text,$("business-related")).onclick=async()=>{try{const target=spec.entities.find(e=>e.name===group.entity);if(target){choose(target);await showBusinessDetail(item);}}catch(error){inform(error);}};
-    });}
+    });if(!group.records.length)node("p","暂无关联记录",$("business-related"));}
   $("business-note-form").hidden=!can("add_note");
   if(sequence!==detailSequence || chosen!==entity) return;
   if(!$("business-detail").open) $("business-detail").showModal();
 }
 $("refresh-business").onclick=()=>refreshBusiness().catch(inform);
 $("business-close").onclick=()=>{++detailSequence;$("business-detail").close();};
+$("business-detail").addEventListener("cancel",()=>{++detailSequence;});
 $("business-note-form").onsubmit=async(event)=>{event.preventDefault();try{await api(`/api/${entity.name}/${detailRecord.id}/notes`,{method:"POST",body:JSON.stringify(Object.fromEntries(new FormData(event.target)))});event.target.reset();await showBusinessDetail(detailRecord);}catch(error){inform(error);}};
 $("business-create-user").onsubmit=async(event)=>{event.preventDefault();try{await api("/business/users",{method:"POST",body:JSON.stringify(Object.fromEntries(new FormData(event.target)))});event.target.reset();await refreshBusiness();}catch(error){inform(error);}};
 
@@ -28753,6 +28807,229 @@ def test_report_exposes_bounded_toolchain_receipts_without_arbitrary_files(clien
     )
 ````
 
+### `tests/test_business_audit_dialog.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.domain`、`workbench.generator`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_customer_audit_dialog_readable_and_permission_scoped`（L133–L205）：接收`tmp_path`。 控制顺序：L135按`not module or not Path(module).is_dir()`分支；L152遍历`[["manage.py", "init"], ["-c", SEED]]`；L162断言`result.returncode == 0`；L175遍历`range(100)`；L177按`httpx.get(url + "/health", trust_env=False).status_code == 200`分支；L201断言`result.returncode == 0`；L202断言`json.loads(result.stdout.splitlines()[-1])["passed"]`。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`generate_basic`、`clean_env`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_business_audit_dialog.py sha256: fe51a801eb365ab4d847c849fcc0594f0402512904646b8835e73958c6ffea72 -->
+````python
+"""Customer-only Chromium evidence for readable, permission-scoped audit details."""
+
+import json
+import os
+import socket
+import subprocess
+import sys
+import time
+from pathlib import Path
+
+import httpx
+import pytest
+
+from workbench.domain import Plan
+from workbench.generator import generate_basic
+from workbench.tools import clean_env
+
+SEED = r"""
+import getpass
+from fastapi.testclient import TestClient
+import manage
+getpass.getpass=lambda _: 'Example-Test-Password-123'
+manage.bootstrap_admin('manager')
+from app import app
+with TestClient(app) as client:
+ def call(method,path,token=None,**kwargs):
+  result=client.request(method,path,headers={'Authorization':'Bearer '+token} if token else {},**kwargs)
+  assert result.is_success,result.text
+  return result.json()
+ def login(name):return call('POST','/auth/login',json={'username':name,'password':'Example-Test-Password-123'})['access_token']
+ manager=login('manager');users={}
+ for name,role in [('service-demo','service'),('employee-demo','employee'),('outsider-demo','employee')]:
+  users[name]=call('POST','/business/users',manager,json={'username':name,'password':'Example-Test-Password-123','role':role})
+ service=login('service-demo');employee=login('employee-demo')
+ customer=call('POST','/api/customers',manager,json={'name':'演示客户','organization':'演示单位','contact':'合成测试数据','category':'企业'})
+ request=call('POST','/api/requests',employee,json={'title':'演示服务请求','detail':'合成测试：检查服务进度','customer_id':customer['id'],'priority':'普通','due_at':'2030-01-01T00:00:00Z'})
+ identity=request['id']
+ call('POST',f'/api/requests/{identity}/assign',manager,json={'user_id':users['service-demo']['id']})
+ call('POST',f'/api/requests/{identity}/transition',service,json={'transition':'start'})
+ call('POST',f'/api/requests/{identity}/notes',service,json={'body':'已联系演示客户，正在跟进处理'})
+ call('POST','/api/tasks',manager,json={'title':'演示协作任务','detail':'合成测试：关联跟进','request_id':identity,'due_at':'2030-01-01T00:00:00Z'})
+"""
+
+DRIVER = r"""
+const assert=require('node:assert/strict');
+const path=require('node:path');
+const [url,modulePath,output,beforeScript]=process.argv.slice(2);
+(async()=>{
+ const {chromium}=require(modulePath);
+ const browser=await chromium.launch({headless:true});
+ const page=await browser.newPage({viewport:{width:1440,height:1100}});
+ page.setDefaultTimeout(15000);
+ const errors=[];page.on('pageerror',error=>errors.push(error.message));
+ const uuid=/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i;
+ async function login(name){
+  if(await page.locator('#logout').isVisible()){
+   await Promise.all([page.waitForEvent('load'),page.locator('#logout').click()]);
+  }
+  await page.locator('#auth input[name=username]').fill(name);
+  await page.locator('#auth input[name=password]').fill('Example-Test-Password-123');
+  await page.locator('#auth button[type=submit]').click();
+  await page.locator('#workspace').waitFor({state:'visible'});
+ }
+ async function chooseRequests(){
+  await page.locator('#entities button').filter({hasText:'服务请求'}).click();
+  await page.waitForFunction(()=>document.getElementById('rows').dataset.entity==='requests'&&document.getElementById('rows').dataset.loading==='false');
+ }
+ async function open(){
+  const response=page.waitForResponse(r=>/\/api\/requests\/[^/]+\/history$/.test(r.url()));
+  await page.getByRole('button',{name:'详情 / 处理',exact:true}).click();
+  const events=await(await response).json();
+  await page.locator('#business-detail').waitFor({state:'visible'});
+  return events;
+ }
+ try {
+  if(beforeScript)await page.route('**/web/app.js',route=>route.fulfill({path:beforeScript,contentType:'text/javascript'}));
+  await page.goto(url);await login('manager');await chooseRequests();
+  if(beforeScript){
+   await open();await page.screenshot({path:path.join(output,'manager--requests--before.png')});
+   await page.unroute('**/web/app.js');await page.reload();
+   await page.locator('#workspace').waitFor({state:'visible'});await chooseRequests();
+  }
+  const events=await open();
+  const history=page.locator('#business-history');
+  const text=await history.innerText();
+  for(const label of ['已创建','已分配','开始处理','新增处理记录','employee-demo','manager','service-demo','UTC'])assert(text.includes(label),label);
+  assert(!uuid.test(text));assert(!text.includes('transitioned:'));assert(!text.includes('created'));assert(!/T\d\d:\d\d/.test(text));
+  const notes=await page.locator('#business-notes').innerText();
+  assert(notes.includes('service-demo'));assert(notes.includes('UTC'));assert(!uuid.test(notes));
+  assert.equal(await page.locator('#business-related h4').innerText(),'协作任务');
+  assert((await page.locator('#business-related').innerText()).includes('演示协作任务 · 待处理'));
+  const details=history.locator('details');
+  assert.equal(await details.count(),events.length);assert.equal(await history.locator('details[open]').count(),0);
+  for(let i=0;i<events.length;i++)assert(await details.nth(i).locator('pre').isHidden());
+  await page.screenshot({path:path.join(output,'manager--requests--collapsed.png')});
+  const first=details.first();await first.locator('summary').click();
+  assert(await first.locator('pre').isVisible());
+  assert.deepEqual(JSON.parse(await first.locator('pre').textContent()),events[0]);
+  await page.screenshot({path:path.join(output,'manager--requests--expanded.png')});
+  await first.locator('summary').click();assert(await first.locator('pre').isHidden());
+  await first.locator('summary').focus();await page.keyboard.press('Enter');assert(await first.locator('pre').isVisible());
+  await page.keyboard.press('Space');assert(await first.locator('pre').isHidden());
+  await page.keyboard.press('Escape');await page.locator('#business-detail').waitFor({state:'hidden'});
+  await open();assert.equal(await history.locator('details[open]').count(),0);
+  await page.locator('#business-close').click();await page.locator('#business-detail').waitFor({state:'hidden'});
+  await open();assert.equal(await history.locator('details[open]').count(),0);
+  await page.setViewportSize({width:390,height:844});
+  assert((await page.locator('#business-detail').boundingBox()).width<=390);
+  await page.screenshot({path:path.join(output,'manager--requests--mobile.png')});
+  await page.setViewportSize({width:1440,height:1100});
+  await page.locator('#business-related button').click();
+  await page.locator('#business-detail-title').getByText('演示协作任务',{exact:true}).waitFor();
+  await page.locator('#business-close').click();
+  for(const name of ['service-demo','employee-demo']){
+   await login(name);await chooseRequests();const limited=await open();
+   const full=name==='service-demo';
+   assert(limited.every(item=>Object.hasOwn(item,'after')===full&&Object.hasOwn(item,'before')===full));
+   assert.equal(await history.locator('details').count(),full?limited.length:0);
+   assert.equal(await history.locator('pre').count(),full?limited.length:0);
+   assert.equal(await history.locator('details[open]').count(),0);
+   assert(!(await history.innerText()).match(uuid));
+   await page.screenshot({path:path.join(output,`${name}--requests--history.png`)});
+   await page.locator('#business-close').click();
+  }
+  await login('outsider-demo');await chooseRequests();assert.equal(await page.locator('#rows tr').count(),0);
+  assert.deepEqual(errors,[]);
+  console.log(JSON.stringify({passed:true,actual_browser:true,roles:3,audit_toggle:true,exact_snapshots:true,row_isolation:true}));
+ }finally{await browser.close();}
+})().catch(error=>{console.error(error);process.exitCode=1});
+"""
+
+
+def test_customer_audit_dialog_readable_and_permission_scoped(tmp_path):
+    module = os.getenv("PRODUCT_VERIFY_PLAYWRIGHT")
+    if not module or not Path(module).is_dir():
+        pytest.skip("Actual browser tooling not configured; required in Actions")
+    plan = Plan.model_validate_json(
+        (Path(__file__).parents[1] / "examples/plans/customer-service.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    product = tmp_path / "product"
+    generate_basic(plan, product)
+    env = clean_env(
+        {
+            "PATH": os.environ.get("PATH", ""),
+            "PRODUCT_DATA_DIR": str(tmp_path / "db"),
+            "PYTHONUTF8": "1",
+            "PLAYWRIGHT_BROWSERS_PATH": "0",
+        }
+    )
+    for args in [["manage.py", "init"], ["-c", SEED]]:
+        result = subprocess.run(
+            [sys.executable, *args],
+            cwd=product,
+            env=env,
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+    with socket.socket() as listener:
+        listener.bind(("127.0.0.1", 0))
+        port = listener.getsockname()[1]
+    process = subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "app:app", "--host", "127.0.0.1", "--port", str(port)],
+        cwd=product,
+        env=env,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        url = f"http://127.0.0.1:{port}"
+        for _ in range(100):
+            try:
+                if httpx.get(url + "/health", trust_env=False).status_code == 200:
+                    break
+            except httpx.HTTPError:
+                pass
+            time.sleep(0.1)
+        output = Path(os.getenv("PRODUCT_AUDIT_SCREENSHOT_DIR", str(tmp_path / "screenshots")))
+        output.mkdir(parents=True, exist_ok=True)
+        script = tmp_path / "audit-browser.cjs"
+        script.write_text(DRIVER, encoding="utf-8")
+        result = subprocess.run(
+            [
+                "node",
+                str(script),
+                url,
+                module,
+                str(output),
+                os.getenv("PRODUCT_AUDIT_BEFORE_JS", ""),
+            ],
+            env=env,
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            timeout=120,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        assert json.loads(result.stdout.splitlines()[-1])["passed"]
+    finally:
+        process.terminate()
+        process.wait(timeout=10)
+````
+
 ### `tests/test_business_capabilities.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -30069,14 +30346,14 @@ def test_assignment_due_idempotency_and_read_recipient_are_required(template, vi
 **逐个入口与控制逻辑：**
 
 - `runtime_plan`（L16–L39）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L18遍历`raw["business"]["permissions"]`；L19按`permission["role"] == "manager"`分支；L30按`permission["role"] == "service"`分支；L32按`permission["role"] == "employee"`分支；L34遍历`["employee", "service"]`。 调用`business_plan`、`raw["business"]["permissions"].append`、`Plan.model_validate`。 返回路径：L39的`Plan.model_validate(raw)`。
-- `test_generated_business_api_transactions_and_permissions`（L146–L185）：接收`tmp_path`、`monkeypatch`。 控制顺序：L167断言`init.returncode == 0`；L177断言`result.returncode == 0`；L178断言`json.loads(result.stdout.splitlines()[-1])["passed"]`；L179遍历`["sqlite", "postgresql"]`；L181断言`"business_audit" in sql and "business_notifications" in sql and "FOREIGN KEY(customer…`。 调用`monkeypatch.setattr`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`、`json.loads`、`result.stdout.splitlines`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_common_metric_normalizes_datetime_predicate_offsets`（L188–L211）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L198遍历`["eq", "gte", "lte", "in"]`；L211断言`policy.metric(rows, metric)["value"] == 1`。 调用`Path`、`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`module.Policy`、`runtime_plan().model_dump`、`runtime_plan`、`policy.metric`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_generated_business_postgres_actual_fk_and_permissions`（L215–L261）：接收`tmp_path`。 控制顺序：L222按`not url`分支；L250断言`init.returncode == 0`；L260断言`result.returncode == 0`；L261断言`json.loads(result.stdout.splitlines()[-1])["passed"]`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`database`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_exact_customer_service_example_three_resources`（L327–L363）：接收`tmp_path`、`monkeypatch`。 控制顺序：L352断言`init.returncode == 0`；L362断言`result.returncode == 0`；L363断言`json.loads(result.stdout.splitlines()[-1])["three_resources"]`。 调用`monkeypatch.setattr`、`Path`、`Plan.model_validate_json`、`path.read_text`、`generate_basic`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_business_api_only_independent_receipt`（L366–L394）：接收`tmp_path`。 控制顺序：L389断言`result.returncode == 0`；L391断言`receipt["passed"] and receipt["http"] and receipt["restart"]`；L392断言`receipt["business"]["resources_checked"] == ["customers", "requests", "tasks"]`；L393断言`receipt["browser"]["applicable"] is False`；L394断言`not receipt["browser"].get("real_browser")`。 调用`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`generate_basic`、`clean_env`、`os.environ.get`、`subprocess.run`、`str`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_business_postgres_independent_receipt`（L398–L445）：接收`tmp_path`。 控制顺序：L407按`not url`分支；L441断言`result.returncode == 0`；L443断言`receipt["passed"] and receipt["business"]["passed"] and receipt["restart"]`；L444断言`receipt["database"] == "real-isolated-postgresql"`；L445断言`receipt["browser"]["applicable"] is False`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`database`、`generate_basic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generated_business_api_transactions_and_permissions`（L187–L226）：接收`tmp_path`、`monkeypatch`。 控制顺序：L208断言`init.returncode == 0`；L218断言`result.returncode == 0`；L219断言`json.loads(result.stdout.splitlines()[-1])["passed"]`；L220遍历`["sqlite", "postgresql"]`；L222断言`"business_audit" in sql and "business_notifications" in sql and "FOREIGN KEY(customer…`。 调用`monkeypatch.setattr`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`、`json.loads`、`result.stdout.splitlines`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_common_metric_normalizes_datetime_predicate_offsets`（L229–L252）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L239遍历`["eq", "gte", "lte", "in"]`；L252断言`policy.metric(rows, metric)["value"] == 1`。 调用`Path`、`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`module.Policy`、`runtime_plan().model_dump`、`runtime_plan`、`policy.metric`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generated_business_postgres_actual_fk_and_permissions`（L256–L302）：接收`tmp_path`。 控制顺序：L263按`not url`分支；L291断言`init.returncode == 0`；L301断言`result.returncode == 0`；L302断言`json.loads(result.stdout.splitlines()[-1])["passed"]`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`database`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_customer_service_example_three_resources`（L368–L404）：接收`tmp_path`、`monkeypatch`。 控制顺序：L393断言`init.returncode == 0`；L403断言`result.returncode == 0`；L404断言`json.loads(result.stdout.splitlines()[-1])["three_resources"]`。 调用`monkeypatch.setattr`、`Path`、`Plan.model_validate_json`、`path.read_text`、`generate_basic`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_business_api_only_independent_receipt`（L407–L435）：接收`tmp_path`。 控制顺序：L430断言`result.returncode == 0`；L432断言`receipt["passed"] and receipt["http"] and receipt["restart"]`；L433断言`receipt["business"]["resources_checked"] == ["customers", "requests", "tasks"]`；L434断言`receipt["browser"]["applicable"] is False`；L435断言`not receipt["browser"].get("real_browser")`。 调用`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`generate_basic`、`clean_env`、`os.environ.get`、`subprocess.run`、`str`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_business_postgres_independent_receipt`（L439–L486）：接收`tmp_path`。 控制顺序：L448按`not url`分支；L482断言`result.returncode == 0`；L484断言`receipt["passed"] and receipt["business"]["passed"] and receipt["restart"]`；L485断言`receipt["database"] == "real-isolated-postgresql"`；L486断言`receipt["browser"]["applicable"] is False`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`database`、`generate_basic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_business_python.py sha256: 489f2f53929eecf0e73c526ac2fce696b9620171b785b0dcf7f9ac2e59b745d8 -->
+<!-- source-file: tests/test_business_python.py sha256: 54ee5b9904c7225319484bae911a67661b80d1cfb45a0418db604dea0cb48f57 -->
 ````python
 """Real generated Python product HTTP/SQL behavior in an isolated interpreter."""
 
@@ -30199,7 +30476,27 @@ with TestClient(app) as c:
     events=call('GET',f'/api/requests/{identity}/history',manager).json()
     assert [e['action'] for e in events]==['created','assigned','transitioned:start','note_added','transitioned:resolve'],events
     assert all(e['actor_id'] and e['created_at'] for e in events)
-    assert all('after' not in e for e in call('GET',f'/api/requests/{identity}/history',employee).json())
+    assert [e['actor_username'] for e in events]==['employee-a','admin','service-a','service-a','service-a']
+    limited=call('GET',f'/api/requests/{identity}/history',employee).json()
+    assert all('after' not in e and 'before' not in e for e in limited)
+    assert [e['actor_username'] for e in limited]==[e['actor_username'] for e in events]
+    assert call('GET',f'/api/requests/{identity}/history',outsider).status_code==404
+    assert call('GET',f'/api/requests/{identity}/history',actors['service-b']['token']).status_code==404
+    notes=call('GET',f'/api/requests/{identity}/notes',employee).json()
+    assert [n['actor_username'] for n in notes]==['service-a']
+    assert not any('password' in row or 'role' in row for row in events+notes)
+    assert 'employee-b' not in json.dumps(events+notes)
+    # Label enrichment is presentation-only: exact stored snapshots and IDs survive reads.
+    with engine.connect() as conn:
+        audit=metadata.tables['business_audit']
+        stored={r['id']:dict(r) for r in conn.execute(select(audit).where(audit.c.record_id==identity)).mappings()}
+    for entry in events:
+        original=stored[entry['id']]
+        assert entry['actor_id']==original['actor_id'] and entry['action']==original['action']
+        assert entry['created_at']==original['created_at']
+        for key in ['before','after']:
+            assert entry[key]==(json.loads(original[key+'_json']) if original[key+'_json'] else None)
+    assert call('GET',f'/api/requests/{identity}/history',manager).json()==events
     assert 'transitioned' in [n['event'] for n in call('GET','/business/notifications',employee).json()]
     stats={x['name']:x for x in call('GET','/business/metrics',manager).json()}
     assert stats['total']['value']==1 and stats['resolution']['samples']==1 and stats['resolution']['value']>=0,stats
@@ -30219,6 +30516,27 @@ with TestClient(app) as c:
             raise AssertionError('actual FK did not restrict deletion')
     own=call('GET','/business/me',manager).json()['id']
     assert call('PUT',f'/business/users/{own}/role',manager,json={'role':'employee'}).status_code==409
+    # More than one lookup batch, with all IDs derived from this record's visible notes.
+    from sqlalchemy import event as sql_event
+    with engine.begin() as conn:
+        for index in range(105):
+            actor_id=f'history-actor-{index:03d}'
+            conn.execute(insert(metadata.tables['users']).values(id=actor_id,username=actor_id,password='synthetic-unused',role='employee'))
+            conn.execute(insert(metadata.tables['business_notes']).values(id=f'history-note-{index:03d}',entity='requests',record_id=identity,actor_id=actor_id,created_at='2026-01-01T00:00:00.000000Z',body='Synthetic batching check'))
+    lookups=[]
+    def capture_lookup(connection,cursor,statement,parameters,context,executemany):
+        if 'users.id IN (' in statement and 'users.username' in statement:
+            assert 'users.password' not in statement and 'users.role' not in statement
+            lookups.append(len(parameters))
+    sql_event.listen(engine,'before_cursor_execute',capture_lookup)
+    try:
+        assert call('GET',f'/api/requests/{identity}/notes',outsider).status_code==404
+        assert lookups==[]
+        authorized=call('GET',f'/api/requests/{identity}/notes',employee).json()
+        assert len(authorized)==106 and sorted(lookups)==[6,100],lookups
+        assert {n['actor_username'] for n in authorized}=={'service-a'}|{f'history-actor-{index:03d}' for index in range(105)}
+    finally:
+        sql_event.remove(engine,'before_cursor_execute',capture_lookup)
 print(json.dumps({'passed':True,'roles':3,'row_acl':True,'fk':True,'transitions':True,'audit':True,'notes':True,'notifications':True,'scoped_metrics':True}))
 """
 
@@ -30539,7 +30857,7 @@ def test_customer_business_postgres_independent_receipt(tmp_path):
 
 - `test_business_roles_in_actual_lightweight_ui`（L39–L127）：接收`tmp_path`。 控制顺序：L41按`not module or not Path(module).is_dir()`分支；L61断言`init.returncode == 0`；L82断言`result.returncode == 0`；L106遍历`range(100)`；L108按`httpx.get(url + "/health", trust_env=False).status_code == 200`分支；L123断言`result.returncode == 0`；L124断言`'"passed":true' in result.stdout`。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_business_python_browser.py sha256: a24043716e67a33f4dcefc4b547705f2c36ed3d771a3d085f8b8b1973c34ef47 -->
+<!-- source-file: tests/test_business_python_browser.py sha256: b4377bb7c84e19fdf54c010d5e1bbf86f8b5bbd91170d5968ed30d38c1cc75c5 -->
 ````python
 """Actual Chromium checks of the extended existing lightweight admin UI."""
 
@@ -30572,7 +30890,7 @@ const [url,modulePath]=process.argv.slice(2);
   await login('admin');await choose('Requests');await page.getByRole('button',{name:'详情 / 处理'}).click();await page.locator('#business-detail').waitFor({state:'visible'});await page.locator('#business-assignee').selectOption({label:'service-a'});await page.locator('#business-actions').getByRole('button',{name:'分配',exact:true}).click();await page.waitForTimeout(150);await page.locator('#business-close').click();
   await login('service-a');await choose('Requests');assert(await page.locator('#create').isHidden());await page.getByRole('button',{name:'详情 / 处理'}).click();await page.locator('#business-detail').waitFor({state:'visible'});await page.locator('#business-actions').getByRole('button',{name:'start',exact:true}).click();await page.locator('#business-actions').getByRole('button',{name:'resolve',exact:true}).waitFor();await page.locator('#business-note-form textarea').fill('Browser service note');await page.locator('#business-note-form button').click();await page.locator('#business-notes').getByText(/Browser service note/).waitFor();await page.locator('#business-actions').getByRole('button',{name:'resolve',exact:true}).click();await page.waitForTimeout(200);await page.locator('#business-close').click();
   await login('employee-a');await choose('Requests');assert((await page.locator('#rows').innerText()).includes('resolved'));await page.getByRole('button',{name:'详情 / 处理'}).click();await page.locator('#business-detail').waitFor({state:'visible'});assert.equal(await page.locator('#business-actions button').count(),0);assert((await page.locator('#business-notes').innerText()).includes('Browser service note'));await page.locator('#business-close').click();
-  await login('employee-b');await choose('Requests');assert.equal(await page.locator('#rows tr').count(),0);await choose('Customers');await page.getByRole('button',{name:'详情 / 处理'}).click();await page.locator('#business-detail').waitFor({state:'visible'});assert.equal(await page.locator('#business-related p').count(),0);assert.deepEqual(errors,[]);
+  await login('employee-b');await choose('Requests');assert.equal(await page.locator('#rows tr').count(),0);await choose('Customers');await page.getByRole('button',{name:'详情 / 处理'}).click();await page.locator('#business-detail').waitFor({state:'visible'});assert.equal(await page.locator('#business-related button').count(),0);assert((await page.locator('#business-related').innerText()).includes('暂无关联记录'));assert.deepEqual(errors,[]);
   console.log(JSON.stringify({passed:true,roles:3,actual_browser:true,assignment:true,transitions:true,notes:true,row_isolation:true}));
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exitCode=1});
@@ -36615,15 +36933,19 @@ def test_frontend_mock_services_are_disabled():
 
 **逐个入口与控制逻辑：**
 
-- `test_yudao_cached_tab_uses_actual_search_before_verifying_response`（L11–L59）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L13按`not node`分支；L59断言`result.returncode == 0`。 调用`shutil.which`、`pytest.skip`、`subprocess.run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_generated_yudao_pages_provide_entity_specific_navigation_scope`（L62–L72）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L68遍历`("customers", "requests", "tasks")`；L70断言`f'<Page data-rnd-business-entity="{entity}" auto-content-height>' in mounted`；L71断言`mounted.count("data-rnd-business-entity=") == 1`；L72断言`'<Grid class="rnd-business-grid"' in mounted`。 调用`_mount_panel`、`mounted.count`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_yudao_cached_tab_uses_actual_search_before_verifying_response`（L13–L61）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L15按`not node`分支；L61断言`result.returncode == 0`。 调用`shutil.which`、`pytest.skip`、`subprocess.run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generated_yudao_pages_provide_entity_specific_navigation_scope`（L64–L74）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L70遍历`("customers", "requests", "tasks")`；L72断言`f'<Page data-rnd-business-entity="{entity}" auto-content-height>' in mounted`；L73断言`mounted.count("data-rnd-business-entity=") == 1`；L74断言`'<Grid class="rnd-business-grid"' in mounted`。 调用`_mount_panel`、`mounted.count`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_vxe_fixed_action_table_selects_same_entity_and_record_in_real_browser`（L77–L118）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L79按`not module or not Path(module).is_dir()`分支；L118断言`result.returncode == 0`。 调用`os.environ.get`、`Path(module).is_dir`、`Path`、`pytest.skip`、`subprocess.run`、`shutil.which`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cached_selected_business_detail_requests_an_explicit_refresh`（L121–L128）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L126断言`"{ entity, id: identifier }" in details`；L127断言`"panel.getByRole('button', { name: '刷新', exact: true }).click()" in details`；L128断言`"String(metadata.record.id), identifier" in details`。 调用`(ROOT / "scripts/business_yudao_browser.cjs").read_text`、`source.split("async function detail(entity, label) {", 1)[1].spli…`、`source.split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_native_browser_navigation.py sha256: b2840f4d60ad2a06e01f5e95f4732a6c210ef18d0cc3fc6890ed486343b1152d -->
+<!-- source-file: tests/test_native_browser_navigation.py sha256: 2c2fb290306db4687d38a6d2baffc70eabfff778d51674f4804fb7a32e4242a4 -->
 ````python
 """Native cached tabs must be refreshed through the visible UI before list assertions."""
 
+import os
 import shutil
 import subprocess
+from pathlib import Path
 
 import pytest
 
@@ -36692,6 +37014,60 @@ def test_generated_yudao_pages_provide_entity_specific_navigation_scope():
         assert f'<Page data-rnd-business-entity="{entity}" auto-content-height>' in mounted
         assert mounted.count("data-rnd-business-entity=") == 1
         assert '<Grid class="rnd-business-grid"' in mounted
+
+
+def test_vxe_fixed_action_table_selects_same_entity_and_record_in_real_browser():
+    module = os.environ.get("PRODUCT_VERIFY_PLAYWRIGHT")
+    if not module or not Path(module).is_dir():
+        pytest.skip("Actual Playwright is mandatory in Actions")
+    from workbench.tools import clean_env
+
+    result = subprocess.run(
+        [
+            shutil.which("node"),
+            "-e",
+            r"""
+const assert = require('node:assert/strict');
+const { nativeDetailButton } = require('./scripts/business_yudao_browser.cjs');
+const { chromium } = require(process.argv[1]);
+(async () => {
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <section data-rnd-business-entity="customers"><table><tr class="vxe-body--row" rowid="2"><td><button onclick="window.selected='wrong-entity'">业务详情</button></td></tr></table></section>
+      <section data-rnd-business-entity="requests">
+        <table><tr class="vxe-body--row" rowid="2"><td>Visible request title</td></tr></table>
+        <table class="fixed-right"><tr class="vxe-body--row" rowid="1"><td><button onclick="window.selected='wrong-record'">业务详情</button></td></tr>
+          <tr class="vxe-body--row" rowid="2"><td><button onclick="window.selected='correct-record'">业务详情</button></td></tr></table>
+      </section>`);
+    await nativeDetailButton(page, 'requests', '2').click();
+    assert.equal(await page.evaluate(() => window.selected), 'correct-record');
+    assert.throws(() => nativeDetailButton(page, 'requests', 'unsafe\"row'), /integer identifier/);
+  } finally { await browser.close(); }
+})().catch(error => { console.error(error); process.exitCode = 1; });
+""",
+            module,
+        ],
+        cwd=ROOT,
+        env=clean_env({"PLAYWRIGHT_BROWSERS_PATH": "0"}),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_cached_selected_business_detail_requests_an_explicit_refresh():
+    source = (ROOT / "scripts/business_yudao_browser.cjs").read_text(encoding="utf-8")
+    details = source.split("async function detail(entity, label) {", 1)[1].split(
+        "async function select(", 1
+    )[0]
+    assert "{ entity, id: identifier }" in details
+    assert "panel.getByRole('button', { name: '刷新', exact: true }).click()" in details
+    assert "String(metadata.record.id), identifier" in details
 ````
 
 ### `tests/test_native_business_evidence.py`
@@ -38810,32 +39186,51 @@ def test_optional_text_omitted_in_approved_rule_sample_still_checks_limits(
 - `test_invalid_smoke_response_fails_closed`（L110–L115）：接收`body`。 调用`pytest.raises`、`smoke`、`config`、`httpx.MockTransport`、`httpx.Response`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_transport_rejects_substitution_and_bounds_tokens_and_calls`（L118–L153）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134断言`json.loads(requests[0].content)["max_tokens"] == 16000`。 调用`BoundedRealTransport`、`config`、`transport.transport.close`、`httpx.MockTransport`、`requests.append`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_actual_model_plan_must_preserve_explicit_customer_obligations`（L157–L171）：接收`mutation`。 控制顺序：L160按`mutation == "isolation"`分支；L162按`mutation == "roles"`分支；L164按`mutation == "metrics"`分支；L166按`mutation == "workflow"`分支。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`require_customer_spec`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_is_manual_environment_scoped_and_artifact_allowlisted`（L174–L247）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L181断言`set(doc["on"]) == {"workflow_dispatch"}`；L183断言`job["environment"] == "rnd"`；L184断言`"github.event_name == 'workflow_dispatch'" in job["if"]`；L185断言`REPOSITORY in job["if"]`；L187断言`len(secret_steps) == 2`；L188断言`secret_steps[0]["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"`；L189断言`secret_steps[0]["env"]["BASE_URL"] == "${{ vars.BASE_URL }}"`；L190断言`secret_steps[0]["env"]["MODE"] == "${{ vars.MODE }}"`。后续分支沿下方源码相同行号继续阅读。 调用`yaml.load`、`(ROOT / ".github/workflows/real-model.yml").read_text`、`set`、`step.get`、`len`、`step.get("uses", "").startswith`、`(ROOT / ".github/workflows/native-probe.yml").read_text`、`entry["jobs"]["verify-bundles"].get`、`entry.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_all_profiles_use_authorized_configuration_despite_hostile_ambient_overrides`（L250–L266）：接收`tmp_path`、`monkeypatch`。 控制顺序：L260遍历`STAGES`；L262断言`profile.base_url == ENDPOINT and profile.model == MODEL`；L263断言`profile.api_key.get_secret_value() == "test-only-secret"`；L264断言`settings.max_model_calls == 16`；L265断言`settings.install_products is True`；L266断言`settings.model_review is True`。 调用`monkeypatch.setenv`、`acceptance_settings`、`config`、`settings.require_model`、`settings.model_for`、`profile.api_key.get_secret_value`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_full_run_requires_matching_same_run_successful_smoke`（L269–L290）：接收`tmp_path`。 控制顺序：L287断言`verified_smoke_receipt(path, config(), env)["passed"] is True`。 调用`pytest.raises`、`verified_smoke_receipt`、`config`、`path.write_text`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_exact_user_smoke_payload_preserved_by_real_transport`（L293–L316）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L309断言`json.loads(requests[0].content) == SMOKE_PAYLOAD`；L310断言`"max_tokens" not in json.loads(requests[0].content)`。 调用`BoundedRealTransport`、`config`、`transport.transport.close`、`httpx.MockTransport`、`requests.append`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_actions_empty_secret_mapping_identifies_only_field_presence`（L319–L333）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L324断言`caught.value.code == "missing_configuration_API_KEY"`；L325断言`caught.value.details == { "BASE_URL_present": True, "MODE_present": True, "API_KEY_pr…`；L332断言`ENDPOINT not in json.dumps(caught.value.details)`；L333断言`MODEL not in json.dumps(caught.value.details)`。 调用`pytest.raises`、`configuration`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_non_string_mode_reports_field_name_not_value`（L337–L341）：接收`value`。 控制顺序：L340断言`caught.value.code == "invalid_configuration_type_MODE"`；L341断言`"test-only-secret" not in str(caught.value)`。 调用`pytest.raises`、`configuration`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_string_actions_values_and_exact_secret_mapping_are_accepted`（L344–L347）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L346断言`cfg.model == MODEL and cfg.base_url == ENDPOINT`；L347断言`cfg.key.get_secret_value() == "test-only-secret"`。 调用`configuration`、`cfg.key.get_secret_value`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_only_explicit_manual_runs_on_authorized_branches_can_use_provider`（L351–L376）：接收`tmp_path`、`ref`。 调用`trusted_dispatch`、`path.write_text`、`json.dumps`、`env.update`、`str`、`pytest.raises`、`pytest.mark.parametrize`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_provider_diagnostics_emit_only_schema_codes_counts_and_flags`（L379–L407）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L398断言`receipt["schema_valid"] is False`；L399断言`receipt["schema_error_types"] == ["extra_forbidden", "missing"]`；L400断言`receipt["usage"] == {"total_tokens": 42}`；L402遍历`( "test-only-secret", "private reasoning", "injected-private-fiel…`；L407断言`forbidden not in encoded`。 调用`json.dumps( { "choices": [ { "finish_reason": "stop", "message": …`、`json.dumps`、`response_receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_buffered_diagnostic_transport_preserves_client_response_and_secret_privacy`（L410–L424）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L419断言`smoke(config(), transport)["passed"] is True`；L420断言`transport.receipts[0]["finish_reason"] == "stop"`；L421断言`transport.receipts[0]["usage"] == {"total_tokens": 10}`；L422断言`"test-only-secret" not in json.dumps(transport.receipts)`。 调用`BoundedRealTransport`、`config`、`transport.transport.close`、`httpx.MockTransport`、`httpx.Response`、`smoke`、`json.dumps`、`transport.shutdown`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_prompt_is_prose_not_precomputed_plan`（L427–L437）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L431断言`"客户服务管理系统" in request`；L432断言`"不是模型响应" in request`。 调用`customer_request`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`require_customer_spec`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_paid_matrix_covers_three_native_ui_families`（L440–L456）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L443遍历`("native-probe.yml", "real-model.yml")`；L448断言`{row["template"] for row in job["strategy"]["matrix"]["include"]} == { "python-basic"…`；L453断言`"feat/customer-service-acceptance" in job["if"]`；L454断言`not any( "API_KEY" in step.get("env", {}) for step in job["steps"] if step.get("uses"…`。 调用`yaml.load`、`(ROOT / ".github/workflows" / name).read_text`、`any`、`step.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_requirement_snapshot_preserves_entity_mapping_without_text`（L459–L473）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L472断言`[item["entity"] for item in result] == ["requests", "tasks"]`；L473断言`"test-only-secret" not in json.dumps(result)`。 调用`contract_snapshot`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_safe_coverage_diagnostics_include_source_and_no_raw_prose_or_choices`（L476–L500）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L492断言`any(item["source"]["section"] == "features" for item in result)`；L493断言`any( item["source"]["encoding"] == "structured" for item in result if item["source"][…`；L498断言`any(item["targets"] == [{"entity": "customers", "field": "category"}] for item in res…`；L499断言`any(item.get("expected_count") == 1 for item in result)`；L500断言`"test-only-secret" not in json.dumps(result)`。 调用`Plan.model_validate`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`safe_coverage_details`、`requirement.model_dump`、`plan.model_dump`、`any`、`item.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_label_failure_is_exact_finite_code_with_no_description_export`（L503–L512）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L509断言`result["code"] == "native_label_contract"`；L510断言`result["entity_labels"][0]["allowed_characters"] is False`；L511断言`result["entity_labels"][0]["single_line"] is True`；L512断言`"test-only-secret" not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`safe_native_plan_details`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_every_native_plan_validation_message_has_a_finite_safe_code`（L515–L528）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L523遍历`(validate_plan, runtime_config)`；L525遍历`ast.walk(tree)`；L526按`isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call)`分支；L527断言`isinstance(node.exc.args[0], ast.Constant)`；L528断言`node.exc.args[0].value in DESIGN_REASON_CODES`。 调用`ast.parse`、`inspect.getsource`、`ast.walk`、`isinstance`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_diagnostics_separate_model_coverage_and_native_origins`（L531–L579）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L575断言`result["coverage_diagnostics"][0]["codes"] == ["planner_unsupported"]`；L576断言`result["coverage_diagnostics"][0]["origin"] == "planner_unsupported"`；L577断言`result["coverage_diagnostics"][1]["origin"] == "requirement_coverage"`；L578断言`result["unsupported_diagnostics"][0]["topics"] == ["date_range", "capability"]`；L579断言`"test-only-secret" not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`coverage_gaps`、`Plan.model_validate`、`safe_workflow_details`、`Store`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store`（L547–L570）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store.get_run`（L548–L563）：接收`run_id`。 调用`len`。 返回路径：L549的`{ "status": "BLOCKED", "template": "python-basic", "model_calls": 4, "pending": { "stage":…`。
-- `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store.latest_revision`（L565–L570）：接收`run_id`、`stage`。 调用`requirement.model_dump`。 返回路径：L566的`{"requirement": requirement.model_dump()} if stage == "requirements" else {"plan": plan}`。
-- `test_validation_excerpt_scrubs_credentials_headers_tokens_and_url_userinfo`（L598–L603）：接收`value`、`secret`。 控制顺序：L602断言`secret not in result`；L603断言`"REDACTED" in result`。 调用`DiagnosticTextBudget().excerpt`、`DiagnosticTextBudget`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_exact_key_redaction_precedes_truncation_and_total_budget_is_shared`（L606–L616）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L612断言`"exact" not in first and len(first) <= 600`；L614断言`len(first) + sum(map(len, rest)) == 6000`；L615断言`all(len(item) <= 600 for item in rest)`；L616断言`budget.excerpt("more") == ""`。 调用`DiagnosticTextBudget`、`budget.excerpt`、`len`、`budget.excerpts`、`sum`、`map`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_safe_coverage_excerpt_is_selected_and_redacted_without_full_requirement`（L619–L639）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L637断言`"必须支持精确筛选" in rendered`；L638断言`"opaque-private-canary" not in rendered`；L639断言`"private summary" not in rendered and "unrelated unselected" not in rendered`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`safe_coverage_details`、`requirement.model_dump`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_review_gap_diagnostics_preserve_blocking_count_and_omit_other_model_text`（L642–L658）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L654断言`result["uncovered_requirements_count"] == 1`；L655断言`"客户历史请求未验证" in result["uncovered_requirement_excerpts"][0]`；L657断言`"opaque-private-canary" not in encoded and "raw private provider" not in encoded`；L658断言`review.uncovered_requirements == ["客户历史请求未验证，opaque-private-canary"]`。 调用`ModelReview`、`completed_stage_details`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_is_manual_environment_scoped_and_artifact_allowlisted`（L174–L250）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L181断言`set(doc["on"]) == {"workflow_dispatch"}`；L183断言`job["environment"] == "rnd"`；L184断言`"github.event_name == 'workflow_dispatch'" in job["if"]`；L185断言`REPOSITORY in job["if"]`；L187断言`len(secret_steps) == 2`；L188断言`secret_steps[0]["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"`；L189断言`secret_steps[0]["env"]["BASE_URL"] == "${{ vars.BASE_URL }}"`；L190断言`secret_steps[0]["env"]["MODE"] == "${{ vars.MODE }}"`。后续分支沿下方源码相同行号继续阅读。 调用`yaml.load`、`(ROOT / ".github/workflows/real-model.yml").read_text`、`set`、`step.get`、`len`、`step.get("uses", "").startswith`、`(ROOT / ".github/workflows/native-probe.yml").read_text`、`entry["jobs"]["verify-bundles"].get`、`entry.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_all_profiles_use_authorized_configuration_despite_hostile_ambient_overrides`（L253–L269）：接收`tmp_path`、`monkeypatch`。 控制顺序：L263遍历`STAGES`；L265断言`profile.base_url == ENDPOINT and profile.model == MODEL`；L266断言`profile.api_key.get_secret_value() == "test-only-secret"`；L267断言`settings.max_model_calls == 16`；L268断言`settings.install_products is True`；L269断言`settings.model_review is True`。 调用`monkeypatch.setenv`、`acceptance_settings`、`config`、`settings.require_model`、`settings.model_for`、`profile.api_key.get_secret_value`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_full_run_requires_matching_same_run_successful_smoke`（L272–L293）：接收`tmp_path`。 控制顺序：L290断言`verified_smoke_receipt(path, config(), env)["passed"] is True`。 调用`pytest.raises`、`verified_smoke_receipt`、`config`、`path.write_text`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_user_smoke_payload_preserved_by_real_transport`（L296–L319）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L312断言`json.loads(requests[0].content) == SMOKE_PAYLOAD`；L313断言`"max_tokens" not in json.loads(requests[0].content)`。 调用`BoundedRealTransport`、`config`、`transport.transport.close`、`httpx.MockTransport`、`requests.append`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_actions_empty_secret_mapping_identifies_only_field_presence`（L322–L336）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L327断言`caught.value.code == "missing_configuration_API_KEY"`；L328断言`caught.value.details == { "BASE_URL_present": True, "MODE_present": True, "API_KEY_pr…`；L335断言`ENDPOINT not in json.dumps(caught.value.details)`；L336断言`MODEL not in json.dumps(caught.value.details)`。 调用`pytest.raises`、`configuration`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_non_string_mode_reports_field_name_not_value`（L340–L344）：接收`value`。 控制顺序：L343断言`caught.value.code == "invalid_configuration_type_MODE"`；L344断言`"test-only-secret" not in str(caught.value)`。 调用`pytest.raises`、`configuration`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_string_actions_values_and_exact_secret_mapping_are_accepted`（L347–L350）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L349断言`cfg.model == MODEL and cfg.base_url == ENDPOINT`；L350断言`cfg.key.get_secret_value() == "test-only-secret"`。 调用`configuration`、`cfg.key.get_secret_value`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_explicit_manual_runs_on_authorized_branches_can_use_provider`（L354–L379）：接收`tmp_path`、`ref`。 调用`trusted_dispatch`、`path.write_text`、`json.dumps`、`env.update`、`str`、`pytest.raises`、`pytest.mark.parametrize`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_provider_diagnostics_emit_only_schema_codes_counts_and_flags`（L382–L410）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L401断言`receipt["schema_valid"] is False`；L402断言`receipt["schema_error_types"] == ["extra_forbidden", "missing"]`；L403断言`receipt["usage"] == {"total_tokens": 42}`；L405遍历`( "test-only-secret", "private reasoning", "injected-private-fiel…`；L410断言`forbidden not in encoded`。 调用`json.dumps( { "choices": [ { "finish_reason": "stop", "message": …`、`json.dumps`、`response_receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_buffered_diagnostic_transport_preserves_client_response_and_secret_privacy`（L413–L427）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L422断言`smoke(config(), transport)["passed"] is True`；L423断言`transport.receipts[0]["finish_reason"] == "stop"`；L424断言`transport.receipts[0]["usage"] == {"total_tokens": 10}`；L425断言`"test-only-secret" not in json.dumps(transport.receipts)`。 调用`BoundedRealTransport`、`config`、`transport.transport.close`、`httpx.MockTransport`、`httpx.Response`、`smoke`、`json.dumps`、`transport.shutdown`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_prompt_is_prose_not_precomputed_plan`（L430–L440）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L434断言`"客户服务管理系统" in request`；L435断言`"不是模型响应" in request`。 调用`customer_request`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`require_customer_spec`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_paid_matrix_covers_three_native_ui_families`（L443–L459）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L446遍历`("native-probe.yml", "real-model.yml")`；L451断言`{row["template"] for row in job["strategy"]["matrix"]["include"]} == { "python-basic"…`；L456断言`"feat/customer-service-acceptance" in job["if"]`；L457断言`not any( "API_KEY" in step.get("env", {}) for step in job["steps"] if step.get("uses"…`。 调用`yaml.load`、`(ROOT / ".github/workflows" / name).read_text`、`any`、`step.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_requirement_snapshot_preserves_entity_mapping_without_text`（L462–L476）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L475断言`[item["entity"] for item in result] == ["requests", "tasks"]`；L476断言`"test-only-secret" not in json.dumps(result)`。 调用`contract_snapshot`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_safe_coverage_diagnostics_include_source_and_no_raw_prose_or_choices`（L479–L503）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L495断言`any(item["source"]["section"] == "features" for item in result)`；L496断言`any( item["source"]["encoding"] == "structured" for item in result if item["source"][…`；L501断言`any(item["targets"] == [{"entity": "customers", "field": "category"}] for item in res…`；L502断言`any(item.get("expected_count") == 1 for item in result)`；L503断言`"test-only-secret" not in json.dumps(result)`。 调用`Plan.model_validate`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`safe_coverage_details`、`requirement.model_dump`、`plan.model_dump`、`any`、`item.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_label_failure_is_exact_finite_code_with_no_description_export`（L506–L515）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L512断言`result["code"] == "native_label_contract"`；L513断言`result["entity_labels"][0]["allowed_characters"] is False`；L514断言`result["entity_labels"][0]["single_line"] is True`；L515断言`"test-only-secret" not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`safe_native_plan_details`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_every_native_plan_validation_message_has_a_finite_safe_code`（L518–L531）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L526遍历`(validate_plan, runtime_config)`；L528遍历`ast.walk(tree)`；L529按`isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call)`分支；L530断言`isinstance(node.exc.args[0], ast.Constant)`；L531断言`node.exc.args[0].value in DESIGN_REASON_CODES`。 调用`ast.parse`、`inspect.getsource`、`ast.walk`、`isinstance`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_diagnostics_separate_model_coverage_and_native_origins`（L534–L582）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L578断言`result["coverage_diagnostics"][0]["codes"] == ["planner_unsupported"]`；L579断言`result["coverage_diagnostics"][0]["origin"] == "planner_unsupported"`；L580断言`result["coverage_diagnostics"][1]["origin"] == "requirement_coverage"`；L581断言`result["unsupported_diagnostics"][0]["topics"] == ["date_range", "capability"]`；L582断言`"test-only-secret" not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`coverage_gaps`、`Plan.model_validate`、`safe_workflow_details`、`Store`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store`（L550–L573）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store.get_run`（L551–L566）：接收`run_id`。 调用`len`。 返回路径：L552的`{ "status": "BLOCKED", "template": "python-basic", "model_calls": 4, "pending": { "stage":…`。
+- `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store.latest_revision`（L568–L573）：接收`run_id`、`stage`。 调用`requirement.model_dump`。 返回路径：L569的`{"requirement": requirement.model_dump()} if stage == "requirements" else {"plan": plan}`。
+- `test_validation_excerpt_scrubs_credentials_headers_tokens_and_url_userinfo`（L601–L606）：接收`value`、`secret`。 控制顺序：L605断言`secret not in result`；L606断言`"REDACTED" in result`。 调用`DiagnosticTextBudget().excerpt`、`DiagnosticTextBudget`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_key_redaction_precedes_truncation_and_total_budget_is_shared`（L609–L619）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L615断言`"exact" not in first and len(first) <= 600`；L617断言`len(first) + sum(map(len, rest)) == 6000`；L618断言`all(len(item) <= 600 for item in rest)`；L619断言`budget.excerpt("more") == ""`。 调用`DiagnosticTextBudget`、`budget.excerpt`、`len`、`budget.excerpts`、`sum`、`map`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_safe_coverage_excerpt_is_selected_and_redacted_without_full_requirement`（L622–L642）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L640断言`"必须支持精确筛选" in rendered`；L641断言`"opaque-private-canary" not in rendered`；L642断言`"private summary" not in rendered and "unrelated unselected" not in rendered`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`safe_coverage_details`、`requirement.model_dump`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_review_gap_diagnostics_preserve_blocking_count_and_omit_other_model_text`（L645–L661）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L657断言`result["uncovered_requirements_count"] == 1`；L658断言`"客户历史请求未验证" in result["uncovered_requirement_excerpts"][0]`；L660断言`"opaque-private-canary" not in encoded and "raw private provider" not in encoded`；L661断言`review.uncovered_requirements == ["客户历史请求未验证，opaque-private-canary"]`。 调用`ModelReview`、`completed_stage_details`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_diagnostics_keep_exact_failure_stage_and_safe_headline`（L664–L700）：接收`tmp_path`。 控制顺序：L688断言`"business_probe.py:271" in result["error_excerpt"]`；L689断言`result["native_stage"] == "customer-service-http"`；L690断言`result["native_template"] == "fastapiadmin"`；L691断言`result["native_exception"] == { "exception_type": "AssertionError", "file": "business…`；L699遍历`("exact-key-canary", "second-secret", "unselected", "private envi…`；L700断言`value not in encoded`。 调用`(tmp_path / "progress.json").write_text`、`json.dumps`、`(tmp_path / "failure.log").write_text`、`safe_runtime_details`、`DiagnosticTextBudget`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_diagnostics_reject_unrecognized_report_values`（L712–L721）：接收`tmp_path`、`stage`、`headline`。 控制顺序：L718断言`"native_exception" not in result`；L719断言`result.get("native_stage") == ( "customer-service-http" if stage == "customer-service…`。 调用`(tmp_path / "progress.json").write_text`、`json.dumps`、`(tmp_path / "failure.log").write_text`、`safe_runtime_details`、`DiagnosticTextBudget`、`result.get`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_diagnostics_reject_symlinked_files_and_report_directory`（L724–L749）：接收`tmp_path`、`monkeypatch`。 控制顺序：L738遍历`("progress.json", "failure.log")`；L748遍历`(reports, linked_directory, linked_directory / "nested")`；L749断言`safe_runtime_details("", path, DiagnosticTextBudget()) == {}`。 调用`outside.mkdir`、`(outside / "progress.json").write_text`、`(outside / "failure.log").write_text`、`reports.mkdir`、`(reports / name).symlink_to`、`linked_directory.symlink_to`、`type`、`monkeypatch.setattr`、`original`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget`（L752–L773）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L768断言`result["terminal_state"] == "FAILED"`；L769断言`result["runtime_diagnostics"]["error_excerpt"].startswith( "RuntimeError：native_modul…`；L772断言`len(result["runtime_diagnostics"]["error_excerpt"]) == 40`；L773断言`budget.remaining == 0`。 调用`DiagnosticTextBudget`、`safe_workflow_details`、`Store`、`result["runtime_diagnostics"]["error_excerpt"].startswith`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget.Store`（L755–L764）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget.Store.get_run`（L756–L761）：接收`run_id`。 返回路径：L757的`{ "status": "FAILED", "template": "fastapiadmin", "error": "RuntimeError：native_modules.py…`。
+- `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget.Store.latest_revision`（L763–L764）：接收`run_id`、`stage`。 返回路径：L764的`{}`。
+- `test_native_progress_allowlist_covers_real_literal_stages`（L776–L791）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L791断言`stages == NATIVE_PROGRESS_STAGES`。 调用`ast.parse`、`inspect.getsource`、`ast.walk`、`isinstance`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_exception_headline_redaction_precedes_truncation_and_ignores_log`（L794–L810）：接收`tmp_path`。 控制顺序：L808断言`len(message) == 600`；L809断言`"private" not in json.dumps(result)`；L810断言`message.endswith("[REDA")`。 调用`(tmp_path / "failure.log").write_text`、`DiagnosticTextBudget`、`safe_runtime_details`、`len`、`json.dumps`、`message.endswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_preserves_exact_normalized_customer_contract`（L813–L833）：接收`tmp_path`。 控制顺序：L825断言`result["status"] == "saved" and result["exact_normalized_plan"] is True`；L826断言`result["file"] == destination.name`；L827断言`result["bytes"] == len(destination.read_bytes())`；L828断言`json.loads(destination.read_text(encoding="utf-8")) == Plan.model_validate(plan).mode…`；L832断言`list(destination.parent.iterdir()) == [destination]`；L833断言`"unselected secret" not in destination.read_text(encoding="utf-8")`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`reports.mkdir`、`(reports / "approved-spec.json").write_text`、`json.dumps`、`(reports / "raw-provider-response.json").write_text`、`DiagnosticTextBudget`、`preserve_approved_customer_plan`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_rejects_credentials_before_persistence`（L848–L860）：接收`tmp_path`、`secret_text`。 控制顺序：L858断言`result == {"status": "secret_scan_rejected"}`；L859断言`not destination.exists()`；L860断言`secret_text not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`plan["acceptance"].append`、`(tmp_path / "approved-spec.json").write_text`、`json.dumps`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`、`destination.exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_rejects_unknown_schema_and_does_not_read_other_files`（L863–L878）：接收`tmp_path`。 控制顺序：L869断言`preserve_approved_customer_plan(tmp_path, destination, budget) == { "status": "unavai…`；L875断言`preserve_approved_customer_plan(tmp_path, destination, budget) == { "status": "invali…`；L878断言`not destination.exists()`。 调用`DiagnosticTextBudget`、`(tmp_path / "design.json").write_text`、`preserve_approved_customer_plan`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`(tmp_path / "approved-spec.json").write_text`、`json.dumps`、`destination.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_size_is_bounded_on_read_and_normalized_write`（L881–L902）：接收`tmp_path`。 控制顺序：L891断言`preserve_approved_customer_plan(tmp_path, destination, DiagnosticTextBudget()) == { "…`；L897断言`len(compact.encode("utf-8")) > MAX_REPLAY_PLAN_BYTES`；L899断言`preserve_approved_customer_plan(tmp_path, destination, DiagnosticTextBudget()) == { "…`；L902断言`not destination.exists()`。 调用`source.write_bytes`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`json.dumps`、`len`、`compact.encode`、`source.write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_rejects_linked_input`（L905–L925）：接收`tmp_path`、`monkeypatch`。 控制顺序：L922断言`preserve_approved_customer_plan(reports, destination, DiagnosticTextBudget()) == { "s…`；L925断言`not destination.exists()`。 调用`real.write_bytes`、`(ROOT / "examples/plans/customer-service.json").read_bytes`、`reports.mkdir`、`(reports / "approved-spec.json").symlink_to`、`type`、`monkeypatch.setattr`、`original`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup`（L928–L995）：接收`tmp_path`、`monkeypatch`。 控制顺序：L986断言`details["terminal_state"] == "FAILED"`；L987断言`details["runtime_diagnostics"]["native_stage"] == "customer-service-http"`；L988断言`"HTTP 422" in details["runtime_diagnostics"]["native_exception"]["message_excerpt"]`；L989断言`details["approved_plan_replay"]["status"] == "saved"`；L990断言`"test-only-secret" not in json.dumps(details)`；L991断言`"raw log" not in json.dumps(details)`；L992断言`not directory.exists()`；L994断言`json.loads(replay.read_text(encoding="utf-8"))["business"] == plan["business"]`。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`public_root.mkdir`、`monkeypatch.setattr`、`SimpleNamespace`、`Store`、`tempfile.TemporaryDirectory`、`Path`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store`（L946–L956）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store.get_run`（L947–L953）：接收`run_id`。 控制顺序：L948断言`run_id == "test-run"`。 返回路径：L949的`{ "status": "FAILED", "template": "fastapiadmin", "error": "AssertionError：business_probe.…`。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store.latest_revision`（L955–L956）：接收`run_id`、`stage`。 返回路径：L956的`{"plan": plan} if stage == "design" else {}`。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup.failed_browser`（L967–L978）：接收`command`、`**kwargs`。 调用`write_json`、`(reports / "failure.log").write_text`、`SimpleNamespace`。 返回路径：L978的`SimpleNamespace(returncode=1)`。
 
-<!-- source-file: tests/test_real_model_ci.py sha256: 39f93abefc4dcb4bfc61f14de66b63af716b78e4d53a8f09bd3adbcf578ee43d -->
+<!-- source-file: tests/test_real_model_ci.py sha256: 00e1fc12c92723715fa4d89587ca96aa5d83c6df8135b26444d62ca83b85d859 -->
 ````python
 """No paid calls here: test doubles only test the real-run harness' safety boundaries."""
 
@@ -39082,8 +39477,11 @@ def test_workflow_is_manual_environment_scoped_and_artifact_allowlisted():
     ]
     assert [step["with"]["path"] for step in paid_uploads] == [
         "reports/real-model/summary.json",
+        "reports/real-model/approved-plan-replay.json",
         "reports/real-model/screenshots/*.png",
     ]
+    assert paid_uploads[1]["if"] == "failure()"
+    assert paid_uploads[1]["with"]["retention-days"] == "7"
 
 
 def test_all_profiles_use_authorized_configuration_despite_hostile_ambient_overrides(
@@ -39495,6 +39893,340 @@ def test_review_gap_diagnostics_preserve_blocking_count_and_omit_other_model_tex
     encoded = json.dumps(result, ensure_ascii=False)
     assert "opaque-private-canary" not in encoded and "raw private provider" not in encoded
     assert review.uncovered_requirements == ["客户历史请求未验证，opaque-private-canary"]
+
+
+def test_runtime_diagnostics_keep_exact_failure_stage_and_safe_headline(tmp_path):
+    from scripts.ci_real_model import DiagnosticTextBudget, safe_runtime_details
+
+    (tmp_path / "progress.json").write_text(
+        json.dumps(
+            {
+                "template": "fastapiadmin",
+                "stage": "customer-service-http",
+                "environment": "private environment not selected",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "failure.log").write_text(
+        "AssertionError at business_probe.py:271 (customer_service_acceptance): "
+        "Native API failed: POST /business/requests/create HTTP 422 exact-key-canary\n"
+        "unselected subprocess log and provider response\nAuthorization: Bearer second-secret\n",
+        encoding="utf-8",
+    )
+    result = safe_runtime_details(
+        "AssertionError：business_probe.py:271（customer_service_acceptance），请检查本次运行报告",
+        tmp_path,
+        DiagnosticTextBudget(secrets=("exact-key-canary",)),
+    )
+    assert "business_probe.py:271" in result["error_excerpt"]
+    assert result["native_stage"] == "customer-service-http"
+    assert result["native_template"] == "fastapiadmin"
+    assert result["native_exception"] == {
+        "exception_type": "AssertionError",
+        "file": "business_probe.py",
+        "function": "customer_service_acceptance",
+        "line": 271,
+        "message_excerpt": "Native API failed: POST /business/requests/create HTTP 422 [REDACTED]",
+    }
+    encoded = json.dumps(result)
+    for value in ("exact-key-canary", "second-secret", "unselected", "private environment"):
+        assert value not in encoded
+
+
+@pytest.mark.parametrize(
+    "stage,headline",
+    [
+        ("arbitrary model text", "raw provider response\n"),
+        (["customer-service-http"], "Authorization: Bearer secret\n"),
+        ("customer-service-http", "A" * 65537 + "\n"),
+        ("customer-service-http", "AssertionError at /private/path.py:2 (f): secret\n"),
+    ],
+)
+def test_runtime_diagnostics_reject_unrecognized_report_values(tmp_path, stage, headline):
+    from scripts.ci_real_model import DiagnosticTextBudget, safe_runtime_details
+
+    (tmp_path / "progress.json").write_text(json.dumps({"stage": stage}), encoding="utf-8")
+    (tmp_path / "failure.log").write_text(headline, encoding="utf-8")
+    result = safe_runtime_details("", tmp_path, DiagnosticTextBudget())
+    assert "native_exception" not in result
+    assert result.get("native_stage") == (
+        "customer-service-http" if stage == "customer-service-http" else None
+    )
+
+
+def test_runtime_diagnostics_reject_symlinked_files_and_report_directory(tmp_path, monkeypatch):
+    from scripts.ci_real_model import DiagnosticTextBudget, safe_runtime_details
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "progress.json").write_text('{"stage":"customer-service-http"}', encoding="utf-8")
+    (outside / "failure.log").write_text(
+        "AssertionError at hidden.py:1 (hidden): private canary\n", encoding="utf-8"
+    )
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    linked_directory = tmp_path / "linked"
+    linked_paths = {reports / "progress.json", reports / "failure.log", linked_directory}
+    try:
+        for name in ("progress.json", "failure.log"):
+            (reports / name).symlink_to(outside / name)
+        linked_directory.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        # Windows can deny unprivileged symlink creation. Still exercise the
+        # same rejection branch instead of silently skipping the safety check.
+        original = type(reports).is_symlink
+        monkeypatch.setattr(
+            type(reports), "is_symlink", lambda path: path in linked_paths or original(path)
+        )
+    for path in (reports, linked_directory, linked_directory / "nested"):
+        assert safe_runtime_details("", path, DiagnosticTextBudget()) == {}
+
+
+def test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget():
+    from scripts.ci_real_model import DiagnosticTextBudget, safe_workflow_details
+
+    class Store:
+        def get_run(self, run_id):
+            return {
+                "status": "FAILED",
+                "template": "fastapiadmin",
+                "error": "RuntimeError：native_modules.py:23（generate_modules），请检查本次运行报告",
+            }
+
+        def latest_revision(self, run_id, stage):
+            return {}
+
+    budget = DiagnosticTextBudget(limit=40)
+    result = safe_workflow_details(Store(), "run", [], text_budget=budget)
+    assert result["terminal_state"] == "FAILED"
+    assert result["runtime_diagnostics"]["error_excerpt"].startswith(
+        "RuntimeError：native_modules.py"
+    )
+    assert len(result["runtime_diagnostics"]["error_excerpt"]) == 40
+    assert budget.remaining == 0
+
+
+def test_native_progress_allowlist_covers_real_literal_stages():
+    import ast
+    import inspect
+
+    from scripts.ci_real_model import NATIVE_PROGRESS_STAGES
+    from workbench.native_lab import run_acceptance
+
+    tree = ast.parse(inspect.getsource(run_acceptance))
+    stages = {
+        node.args[0].value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "stage"
+    }
+    assert stages == NATIVE_PROGRESS_STAGES
+
+
+def test_native_exception_headline_redaction_precedes_truncation_and_ignores_log(tmp_path):
+    from scripts.ci_real_model import DiagnosticTextBudget, safe_runtime_details
+
+    secret = "private-exact-credential-canary"
+    (tmp_path / "failure.log").write_text(
+        "ValueError at native_modules.py:8 (generate_modules): "
+        + "x" * 595
+        + secret
+        + "\nsubprocess private output",
+        encoding="utf-8",
+    )
+    budget = DiagnosticTextBudget(secrets=(secret,))
+    result = safe_runtime_details("", tmp_path, budget)
+    message = result["native_exception"]["message_excerpt"]
+    assert len(message) == 600
+    assert "private" not in json.dumps(result)
+    assert message.endswith("[REDA")
+
+
+def test_approved_plan_replay_preserves_exact_normalized_customer_contract(tmp_path):
+    from scripts.ci_real_model import DiagnosticTextBudget, preserve_approved_customer_plan
+    from workbench.domain import Plan
+
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    reports = tmp_path / "native-evidence"
+    reports.mkdir()
+    (reports / "approved-spec.json").write_text(json.dumps(plan), encoding="utf-8")
+    (reports / "raw-provider-response.json").write_text("unselected secret", encoding="utf-8")
+    destination = tmp_path / "safe-artifacts/approved-plan-replay.json"
+    budget = DiagnosticTextBudget(secrets=("test-only-secret",), limit=0)
+    result = preserve_approved_customer_plan(reports, destination, budget)
+    assert result["status"] == "saved" and result["exact_normalized_plan"] is True
+    assert result["file"] == destination.name
+    assert result["bytes"] == len(destination.read_bytes())
+    assert (
+        json.loads(destination.read_text(encoding="utf-8"))
+        == Plan.model_validate(plan).model_dump()
+    )
+    assert list(destination.parent.iterdir()) == [destination]
+    assert "unselected secret" not in destination.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "secret_text",
+    [
+        "test-only-secret",
+        "password=credential_canary",
+        "Authorization: Bearer header_canary",
+        "https://alice:credential_canary@example.invalid",
+        "API_KEY=credential_canary",
+        "sk-credentialcanary12345",
+        'metadata {"password": "credential_canary"}',
+    ],
+)
+def test_approved_plan_replay_rejects_credentials_before_persistence(tmp_path, secret_text):
+    from scripts.ci_real_model import DiagnosticTextBudget, preserve_approved_customer_plan
+
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    plan["acceptance"].append(secret_text)
+    (tmp_path / "approved-spec.json").write_text(json.dumps(plan), encoding="utf-8")
+    destination = tmp_path / "safe-artifacts/approved-plan-replay.json"
+    result = preserve_approved_customer_plan(
+        tmp_path, destination, DiagnosticTextBudget(secrets=("test-only-secret",))
+    )
+    assert result == {"status": "secret_scan_rejected"}
+    assert not destination.exists()
+    assert secret_text not in json.dumps(result)
+
+
+def test_approved_plan_replay_rejects_unknown_schema_and_does_not_read_other_files(tmp_path):
+    from scripts.ci_real_model import DiagnosticTextBudget, preserve_approved_customer_plan
+
+    destination = tmp_path / "safe-artifacts/approved-plan-replay.json"
+    budget = DiagnosticTextBudget()
+    (tmp_path / "design.json").write_text('{"secret": "unapproved plan"}', encoding="utf-8")
+    assert preserve_approved_customer_plan(tmp_path, destination, budget) == {
+        "status": "unavailable"
+    }
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    plan["provider_headers"] = "private provider data"
+    (tmp_path / "approved-spec.json").write_text(json.dumps(plan), encoding="utf-8")
+    assert preserve_approved_customer_plan(tmp_path, destination, budget) == {
+        "status": "invalid_schema"
+    }
+    assert not destination.exists()
+
+
+def test_approved_plan_replay_size_is_bounded_on_read_and_normalized_write(tmp_path):
+    from scripts.ci_real_model import (
+        MAX_REPLAY_PLAN_BYTES,
+        DiagnosticTextBudget,
+        preserve_approved_customer_plan,
+    )
+
+    source = tmp_path / "approved-spec.json"
+    destination = tmp_path / "safe-artifacts/approved-plan-replay.json"
+    source.write_bytes(b" " * (MAX_REPLAY_PLAN_BYTES + 1))
+    assert preserve_approved_customer_plan(tmp_path, destination, DiagnosticTextBudget()) == {
+        "status": "size_limit"
+    }
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    plan["acceptance"] = ["中文" * 1000] * 21
+    compact = json.dumps(plan, ensure_ascii=False, separators=(",", ":"))
+    assert len(compact.encode("utf-8")) > MAX_REPLAY_PLAN_BYTES
+    source.write_text(compact, encoding="utf-8")
+    assert preserve_approved_customer_plan(tmp_path, destination, DiagnosticTextBudget()) == {
+        "status": "size_limit"
+    }
+    assert not destination.exists()
+
+
+def test_approved_plan_replay_rejects_linked_input(tmp_path, monkeypatch):
+    from scripts.ci_real_model import DiagnosticTextBudget, preserve_approved_customer_plan
+
+    real = tmp_path / "actual.json"
+    real.write_bytes((ROOT / "examples/plans/customer-service.json").read_bytes())
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    destination = tmp_path / "safe-artifacts/approved-plan-replay.json"
+    try:
+        (reports / "approved-spec.json").symlink_to(real)
+    except OSError:
+        original = type(reports).is_symlink
+        monkeypatch.setattr(
+            type(reports),
+            "is_symlink",
+            lambda path: path == reports / "approved-spec.json" or original(path),
+        )
+    assert preserve_approved_customer_plan(reports, destination, DiagnosticTextBudget()) == {
+        "status": "unsafe_path"
+    }
+    assert not destination.exists()
+
+
+def test_failed_native_harness_preserves_replay_before_private_cleanup(tmp_path, monkeypatch):
+    import tempfile
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    import uvicorn
+
+    from scripts import ci_real_model
+    from workbench import api
+    from workbench import settings as settings_module
+    from workbench.filesystem import write_json
+
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    public_root = tmp_path / "public"
+    public_root.mkdir()
+    monkeypatch.setattr(settings_module, "ROOT", public_root)
+    monkeypatch.setattr(ci_real_model, "customer_request", lambda: "Synthetic customer request")
+
+    class Store:
+        def get_run(self, run_id):
+            assert run_id == "test-run"
+            return {
+                "status": "FAILED",
+                "template": "fastapiadmin",
+                "error": "AssertionError：business_probe.py:123（customer_service_acceptance）",
+            }
+
+        def latest_revision(self, run_id, stage):
+            return {"plan": plan} if stage == "design" else {}
+
+    application = SimpleNamespace(state=SimpleNamespace(token="test-auth", store=Store()))
+    monkeypatch.setattr(api, "create_app", lambda *args, **kwargs: application)
+    monkeypatch.setattr(uvicorn, "Config", lambda *args, **kwargs: None)
+    server = SimpleNamespace(started=True, run=lambda: None, should_exit=False)
+    monkeypatch.setattr(uvicorn, "Server", lambda *args: server)
+
+    with tempfile.TemporaryDirectory(dir=tmp_path) as private:
+        directory = Path(private)
+
+        def failed_browser(command, **kwargs):
+            write_json(directory / "browser-result.json", {"run_id": "test-run"})
+            reports = directory / "private-platform/runs/test-run/native-evidence"
+            write_json(reports / "approved-spec.json", plan)
+            write_json(reports / "progress.json", {"stage": "customer-service-http"})
+            (reports / "failure.log").write_text(
+                "AssertionError at business_probe.py:123 (customer_service_acceptance): "
+                "Native API failed: POST /business/tasks/create HTTP 422 test-only-secret\n"
+                "raw log must remain private",
+                encoding="utf-8",
+            )
+            return SimpleNamespace(returncode=1)
+
+        monkeypatch.setattr(ci_real_model.subprocess, "run", failed_browser)
+        with pytest.raises(SafeFailure, match="workflow_not_ready") as caught:
+            ci_real_model.run_acceptance(
+                config(), SimpleNamespace(statuses=[200]), directory, "fastapiadmin"
+            )
+        details = caught.value.details
+        assert details["terminal_state"] == "FAILED"
+        assert details["runtime_diagnostics"]["native_stage"] == "customer-service-http"
+        assert "HTTP 422" in details["runtime_diagnostics"]["native_exception"]["message_excerpt"]
+        assert details["approved_plan_replay"]["status"] == "saved"
+        assert "test-only-secret" not in json.dumps(details)
+        assert "raw log" not in json.dumps(details)
+    assert not directory.exists()
+    replay = public_root / "reports/real-model/approved-plan-replay.json"
+    assert json.loads(replay.read_text(encoding="utf-8"))["business"] == plan["business"]
+    assert list(replay.parent.iterdir()) == [replay]
 ````
 
 ### `tests/test_recommendation_recovery.py`
@@ -42095,7 +42827,7 @@ main().catch(error => { console.error(error.name + ': native business UI accepta
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/business_yudao_browser.cjs sha256: 78aeb9832635584dfc08b9f9196ef585bc0646e098aa7a312ec7ef7788d2fd58 -->
+<!-- source-file: scripts/business_yudao_browser.cjs sha256: 499379e1b35301f1150b4f8c4e5dc7e7c949fd73cae41eade24acc895f37da59 -->
 ````javascript
 // Real Vben/Ant business journey. Only scenario-owned synthetic accounts; no mocks/token injection.
 'use strict';
@@ -42112,6 +42844,16 @@ async function refreshNativeList(page, entity, list, observe, checked) {
   const listing = observe(list);
   await search.click();
   return checked(listing);
+}
+
+// VXE renders fixed action columns in a separate table row with the same rowid.
+// The visible title cell and its action button need not share a DOM row.
+function nativeDetailButton(page, entity, identifier) {
+  assert(/^[a-z][a-z0-9_]*$/.test(entity));
+  assert(/^[0-9]+$/.test(String(identifier)), 'Native row key must be an integer identifier');
+  return page.locator(`[data-rnd-business-entity="${entity}"]:visible`)
+    .locator(`.vxe-body--row[rowid="${identifier}"]`)
+    .getByRole('button', { name: '业务详情', exact: true }).filter({ visible: true }).first();
 }
 
 async function main() {
@@ -42134,7 +42876,7 @@ async function main() {
     const found = scenario.targets.find(item => item.entity === entity);
     assert(found, `Missing target ${entity}`); return found;
   };
-  const observe = (part, method = 'GET') => page.waitForResponse(r => new URL(r.url()).pathname.endsWith(part) && r.request().method() === method)
+  const observe = (part, method = 'GET', query = {}) => page.waitForResponse(r => new URL(r.url()).pathname.endsWith(part) && r.request().method() === method && Object.entries(query).every(([key, value]) => new URL(r.url()).searchParams.get(key) === String(value)))
     .then(response => ({ response }), error => ({ error }));
   const checked = async promise => {
     const found = await promise; if (found.error) throw found.error;
@@ -42186,13 +42928,22 @@ async function main() {
     return { ...current, rows };
   }
   async function detail(entity, label) {
-    await openPage(entity);
-    const row = page.locator('.vxe-body--row').filter({ has: page.getByText(label, { exact: true }) }).first();
+    const current = await openPage(entity);
+    const matches = current.rows.list.filter(record => Object.values(record).includes(label));
+    assert.equal(matches.length, 1, 'Exactly one returned native record must match the visible label');
+    const identifier = String(matches[0].id);
+    const scope = page.locator(`[data-rnd-business-entity="${entity}"]:visible`);
+    const row = scope.locator('.vxe-body--row').filter({ has: page.getByText(label, { exact: true }) }).first();
     await row.waitFor({ state: 'visible' });
-    const meta = observe('/admin-api/infra/rnd-business/meta');
-    await row.getByRole('button', { name: '业务详情', exact: true }).click();
-    await checked(meta);
-    await page.locator('[data-rnd-business-panel]').scrollIntoViewIfNeeded();
+    await nativeDetailButton(page, entity, identifier).click();
+    const panel = scope.locator('[data-rnd-business-panel]');
+    await panel.scrollIntoViewIfNeeded();
+    // Selecting an already-open record in a kept-alive page is a valid no-op.
+    // Its native Refresh button provides a fresh, record-bound response every time.
+    const meta = observe('/admin-api/infra/rnd-business/meta', 'GET', { entity, id: identifier });
+    await panel.getByRole('button', { name: '刷新', exact: true }).click();
+    const metadata = await checked(meta);
+    assert.equal(String(metadata.record.id), identifier, 'Detail response must match the clicked row');
   }
   async function select(locator, label, screenshot) {
     await locator.click();
@@ -42336,7 +43087,7 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, refreshNativeList };
+module.exports = { main, refreshNativeList, nativeDetailButton };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
 ````
 
@@ -44041,46 +44792,51 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `SafeFailure`（L48–L53）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `SafeFailure.__init__`（L51–L53）：接收`code`、`status`、`details`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Config`（L57–L60）：继承`object`。声明的数据项为`base_url`、`model`、`key`；类型约束/数据库列参数以完整定义为准。
-- `configuration`（L63–L85）：接收`env`。 控制顺序：L76遍历`names`；L77按`not isinstance(raw[name], str)`分支；L78抛异常，停止当前正常路径；L79按`not values[name]`分支；L80抛异常，停止当前正常路径；L81按`not checks["BASE_URL_matches_authorized_destination"]`分支；L82抛异常，停止当前正常路径；L83按`not checks["MODE_matches_authorized_model"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`env.get`、`isinstance`、`value.strip`、`raw.items`、`bool`、`values["BASE_URL"].rstrip`、`SafeFailure`、`Config`、`SecretStr`。 返回路径：L85的`Config(values["BASE_URL"].rstrip("/"), values["MODE"], SecretStr(values["API_KEY"]))`。
-- `trusted_dispatch`（L88–L95）：接收`env`。 控制顺序：L89按`env.get("GITHUB_ACTIONS") != "true" or env.get("GITHUB_EVENT_NAME") != "workflow_disp…`分支；L95抛异常，停止当前正常路径。 调用`env.get`、`SafeFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedRealTransport`（L98–L163）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `BoundedRealTransport.__init__`（L101–L108）：接收`config`。 调用`httpx.HTTPTransport`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedRealTransport.handle_request`（L110–L156）：接收`request`。 控制顺序：L111按`request.method != "POST" or str(request.url) != self.config.base_url + "/chat/complet…`分支；L116抛异常，停止当前正常路径；L118按`body.get("model") != self.config.model`分支；L119抛异常，停止当前正常路径；L120按`not hmac.compare_digest( request.headers.get("Authorization", ""), "Bearer " + self.c…`分支；L124抛异常，停止当前正常路径；L127按`body != SMOKE_PAYLOAD`分支；L140遍历`response.iter_bytes()`。后续分支沿下方源码相同行号继续阅读。 调用`str`、`SafeFailure`、`json.loads`、`request.read`、`body.get`、`hmac.compare_digest`、`request.headers.get`、`self.config.key.get_secret_value`、`min`等。 返回路径：L154的`httpx.Response( response.status_code, headers=response_headers, content=bytes(body_bytes) …`。
-- `BoundedRealTransport.close`（L158–L160）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedRealTransport.shutdown`（L162–L163）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.transport.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `response_receipt`（L166–L223）：接收`status`、`data`、`stage`、`schema`。 控制顺序：L187按`schema is not None and isinstance(content, str)`分支；L189按`content.startswith("```json") and content.endswith("```")`分支。 调用`json.loads`、`choice.get`、`choice["message"].get`、`isinstance`、`bool`、`content.strip`、`envelope.get("usage", {}).items`、`envelope.get`、`type`等。 返回路径：L223的`receipt`。
-- `response_receipt.visit`（L201–L208）：接收`node`。 控制顺序：L202按`isinstance(node, dict)`分支；L204遍历`node.values()`；L206按`isinstance(node, list)`分支；L207遍历`node`。 调用`isinstance`、`names.update`、`node.get`、`node.values`、`visit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `DiagnosticTextBudget`（L226–L269）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `DiagnosticTextBudget.__init__`（L229–L231）：接收`secrets`、`limit`。 调用`tuple`、`isinstance`、`min`、`max`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `DiagnosticTextBudget.excerpt`（L233–L266）：接收`value`。 控制顺序：L234按`not isinstance(value, str) or not self.remaining`分支；L239遍历`sorted(self.secrets, key=len, reverse=True)`。 调用`isinstance`、`sorted`、`text.replace`、`re.sub`、`min`、`len`。 返回路径：L235的`""`；L266的`text`。
-- `DiagnosticTextBudget.excerpts`（L268–L269）：接收`values`。 调用`self.excerpt`。 返回路径：L269的`[text for value in values[:20] if (text := self.excerpt(value))]`。
-- `completed_stage_details`（L272–L282）：接收`value`、`text_budget`。 源码说明：Keep schema counts and selected review gaps, not complete model responses.。 控制顺序：L275遍历`("questions", "unsupported", "uncovered_requirements", "field_req…`；L276按`hasattr(value, name)`分支；L278按`hasattr(value, "uncovered_requirements")`分支。 调用`hasattr`、`len`、`getattr`、`text_budget.excerpts`。 返回路径：L282的`result`。
-- `contract_snapshot`（L285–L317）：接收`data`、`requirement`。 控制顺序：L309按`requirement`分支。 调用`field_summary`、`data.get`、`identifier`、`e.get`。 返回路径：L310的`[field_summary(f) for f in data.get("field_requirements", [])[:128]]`；L311的`[ { "name": identifier(e.get("name")), "fields": [field_summary(f) for f in e.get("fields"…`。
-- `contract_snapshot.identifier`（L286–L291）：接收`value`。 调用`isinstance`、`re.fullmatch`。 返回路径：L287的`value if isinstance(value, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,39}", value) else "unr…`。
-- `contract_snapshot.field_summary`（L293–L307）：接收`value`。 控制顺序：L295按`requirement`分支；L297遍历`("required", "searchable", "filterable", "date_range")`；L298按`type(value.get(name)) is bool`分支；L300遍历`("min_length", "max_length")`；L301按`type(value.get(name)) is int and 0 <= value[name] <= 20000`分支；L303按`value.get("kind") in {"text", "integer", "boolean", "date", "datetime", "enum"}`分支；L305按`isinstance(value.get("choices"), list)`分支。 调用`identifier`、`value.get`、`type`、`isinstance`、`len`。 返回路径：L307的`result`。
-- `safe_coverage_details`（L351–L411）：接收`requirement`、`plan`、`text_budget`。 源码说明：Export executable differences and source references, never requirement prose.。 控制顺序：L388遍历`items[:128]`；L393遍历`("expected", "actual")`；L395按`attribute == "choices" and isinstance(value, list)`分支；L401按`text_budget is not None and type(source.get("index")) is int and 0 <= source["index"]…`分支；L408按`excerpt`分支。 调用`requirement.get`、`list`、`_fact_texts`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`isinstance`、`len`、`scalar`等。 返回路径：L411的`result`。
-- `safe_coverage_details.scalar`（L366–L385）：接收`attribute`、`value`。 控制顺序：L367按`type(value) is bool or value is None`分支；L369按`attribute in {"min_length", "max_length"} and type(value) is int and 0 <= value <= 20…`分支；L371按`attribute == "kind" and isinstance(value, str) and value in { "text", "integer", "boo…`分支。 调用`type`、`isinstance`。 返回路径：L368的`value`；L370的`value`；L384的`value`。
-- `safe_native_plan_details`（L414–L439）：接收`plan`。 源码说明：Report the actual native-validator failure plus label-shape evidence.。 调用`Plan.model_validate`、`validate_plan`、`DESIGN_REASON_CODES.get`、`str`、`len`、`any`、`bool`、`re.fullmatch`。 返回路径：L425的`{ "code": code, "entity_labels": [ { "entity": entity.name, "length": len(entity.descripti…`。
-- `safe_workflow_details`（L442–L601）：接收`store`、`run_id`、`traces`、`text_budget`。 控制顺序：L445按`run_id`分支；L480按`requirement and plan`分支；L490按`run.get("template") in {"fastapiadmin", "yudao-vben"}`分支。 调用`DiagnosticTextBudget`、`store.get_run`、`run.get`、`pending.get`、`(store.latest_revision(run_id, "requirements") or {}).get`、`store.latest_revision`、`(store.latest_revision(run_id, "design") or {}).get`、`bool`、`plan.get`等。 返回路径：L601的`details`。
-- `smoke`（L604–L632）：接收`config`、`transport`。 源码说明：A single bounded genuine request. Provider error bodies are never emitted.。 控制顺序：L617按`status != 200`分支；L619抛异常，停止当前正常路径；L621遍历`response.iter_bytes()`；L623按`len(data) > 131072`分支；L624抛异常，停止当前正常路径；L626按`not isinstance(content, str) or not content.strip()`分支；L627抛异常，停止当前正常路径；L629抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`httpx.Client`、`client.stream`、`config.key.get_secret_value`、`SafeFailure`、`bytearray`、`response.iter_bytes`、`data.extend`、`len`、`json.loads`等。 返回路径：L632的`{"passed": True, "http_status": status, "actual_provider_request": True}`。
-- `customer_request`（L673–L683）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`"\n\n".join`、`(ROOT / "examples/requirements" / name).read_text`。 返回路径：L676的`"\n\n".join( (ROOT / "examples/requirements" / name).read_text(encoding="utf-8") for name …`。
-- `require_customer_spec`（L686–L783）：接收`spec`。 控制顺序：L692断言`plan.business is not None and plan.data_scope == "shared" and not plan.unsupported`；L693断言`{e.name for e in plan.entities} == {"customers", "requests", "tasks"}`；L694断言`{r.name for r in plan.business.roles} == {"manager", "service", "employee"}`；L702断言`not business_gaps(requirement, plan)`；L703断言`{m.kind for m in plan.business.metrics} >= { "count", "average_duration", "group_coun…`；L709断言`not plan.custom_rules`；L735断言`all(set(entities[name]) == fields for name, fields in expected.items())`；L736断言`all(field.label for fields in entities.values() for field in fields.values())`。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`Requirement`、`customer_request`、`business_gaps`、`all`、`set`、`expected.items`、`entities.values`、`fields.values`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `acceptance_settings`（L786–L818）：接收`config`、`directory`。 调用`Settings`。 返回路径：L789的`Settings( data_dir=directory / "private-platform", database_url="", checkpoint_url="", bas…`。
-- `run_acceptance`（L821–L999）：接收`config`、`transport`、`directory`、`template`。 控制顺序：L835按`template != "python-basic"`分支；L878遍历`range(150)`；L879按`server.started`分支；L883抛异常，停止当前正常路径；L912按`process.returncode or not result_path.is_file()`分支；L915按`result_path.is_file()`分支；L917抛异常，停止当前正常路径；L926按`run["status"] != "READY" or not run["auto_mode"] or not archive.is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_settings`、`Selection`、`settings.prepare`、`write_json`、`runtime_path`、`DiagnosticTextBudget`、`config.key.get_secret_value`、`create_app`、`ObservedGateway`等。 返回路径：L978的`{ "passed": True, "real_model": True, "single_initial_smart_consent": True, "explicit_cust…`。
-- `run_acceptance.ObservedGateway`（L849–L862）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `run_acceptance.ObservedGateway.complete`（L850–L862）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 调用`key.split`、`traces.append`、`super().complete`、`super`、`trace.update`、`completed_stage_details`。 返回路径：L862的`value`。
-- `verified_smoke_receipt`（L1002–L1018）：接收`path`、`config`、`env`。 控制顺序：L1005断言`saved["passed"] is True and saved["acceptance_scope"] == "smoke_only"`；L1006断言`saved["smoke"] == { "passed": True, "http_status": 200, "actual_provider_request": Tr…`；L1011断言`saved["actual_http_calls"] == 1 and saved["provider_statuses"] == [200]`；L1012断言`saved["model"] == config.model and saved["endpoint"] == config.base_url`；L1013断言`saved["run_identity"] == [ env.get(k, "") for k in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTE…`；L1018抛异常，停止当前正常路径。 调用`json.loads`、`path.read_text`、`env.get`、`SafeFailure`。 返回路径：L1016的`saved["smoke"]`。
-- `main`（L1021–L1099）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1056按`mode == "full"`分支；L1066按`mode == "smoke"`分支；L1077按`exc.status is not None`分支；L1079按`exc.details is not None`分支；L1086按`transport`分支；L1094按`config is not None`分支；L1098按`not result["passed"]`分支；L1099抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`trusted_dispatch`、`configuration`、`os.environ.pop`、`result.update`、`os.environ.get`、`verified_smoke_receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `SafeFailure`（L49–L54）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `SafeFailure.__init__`（L52–L54）：接收`code`、`status`、`details`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Config`（L58–L61）：继承`object`。声明的数据项为`base_url`、`model`、`key`；类型约束/数据库列参数以完整定义为准。
+- `configuration`（L64–L86）：接收`env`。 控制顺序：L77遍历`names`；L78按`not isinstance(raw[name], str)`分支；L79抛异常，停止当前正常路径；L80按`not values[name]`分支；L81抛异常，停止当前正常路径；L82按`not checks["BASE_URL_matches_authorized_destination"]`分支；L83抛异常，停止当前正常路径；L84按`not checks["MODE_matches_authorized_model"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`env.get`、`isinstance`、`value.strip`、`raw.items`、`bool`、`values["BASE_URL"].rstrip`、`SafeFailure`、`Config`、`SecretStr`。 返回路径：L86的`Config(values["BASE_URL"].rstrip("/"), values["MODE"], SecretStr(values["API_KEY"]))`。
+- `trusted_dispatch`（L89–L96）：接收`env`。 控制顺序：L90按`env.get("GITHUB_ACTIONS") != "true" or env.get("GITHUB_EVENT_NAME") != "workflow_disp…`分支；L96抛异常，停止当前正常路径。 调用`env.get`、`SafeFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedRealTransport`（L99–L164）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BoundedRealTransport.__init__`（L102–L109）：接收`config`。 调用`httpx.HTTPTransport`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedRealTransport.handle_request`（L111–L157）：接收`request`。 控制顺序：L112按`request.method != "POST" or str(request.url) != self.config.base_url + "/chat/complet…`分支；L117抛异常，停止当前正常路径；L119按`body.get("model") != self.config.model`分支；L120抛异常，停止当前正常路径；L121按`not hmac.compare_digest( request.headers.get("Authorization", ""), "Bearer " + self.c…`分支；L125抛异常，停止当前正常路径；L128按`body != SMOKE_PAYLOAD`分支；L141遍历`response.iter_bytes()`。后续分支沿下方源码相同行号继续阅读。 调用`str`、`SafeFailure`、`json.loads`、`request.read`、`body.get`、`hmac.compare_digest`、`request.headers.get`、`self.config.key.get_secret_value`、`min`等。 返回路径：L155的`httpx.Response( response.status_code, headers=response_headers, content=bytes(body_bytes) …`。
+- `BoundedRealTransport.close`（L159–L161）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedRealTransport.shutdown`（L163–L164）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.transport.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `response_receipt`（L167–L224）：接收`status`、`data`、`stage`、`schema`。 控制顺序：L188按`schema is not None and isinstance(content, str)`分支；L190按`content.startswith("```json") and content.endswith("```")`分支。 调用`json.loads`、`choice.get`、`choice["message"].get`、`isinstance`、`bool`、`content.strip`、`envelope.get("usage", {}).items`、`envelope.get`、`type`等。 返回路径：L224的`receipt`。
+- `response_receipt.visit`（L202–L209）：接收`node`。 控制顺序：L203按`isinstance(node, dict)`分支；L205遍历`node.values()`；L207按`isinstance(node, list)`分支；L208遍历`node`。 调用`isinstance`、`names.update`、`node.get`、`node.values`、`visit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `DiagnosticTextBudget`（L227–L273）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `DiagnosticTextBudget.__init__`（L230–L232）：接收`secrets`、`limit`。 调用`tuple`、`isinstance`、`min`、`max`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `DiagnosticTextBudget.scrub`（L234–L261）：接收`text`。 源码说明：Scrub complete selected strings before any truncation or persistence.。 控制顺序：L238遍历`sorted(self.secrets, key=len, reverse=True)`。 调用`sorted`、`text.replace`、`re.sub`。 返回路径：L261的`re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)`。
+- `DiagnosticTextBudget.excerpt`（L263–L270）：接收`value`。 控制顺序：L264按`not isinstance(value, str) or not self.remaining`分支。 调用`isinstance`、`self.scrub`、`min`、`len`。 返回路径：L265的`""`；L270的`text`。
+- `DiagnosticTextBudget.excerpts`（L272–L273）：接收`values`。 调用`self.excerpt`。 返回路径：L273的`[text for value in values[:20] if (text := self.excerpt(value))]`。
+- `completed_stage_details`（L276–L286）：接收`value`、`text_budget`。 源码说明：Keep schema counts and selected review gaps, not complete model responses.。 控制顺序：L279遍历`("questions", "unsupported", "uncovered_requirements", "field_req…`；L280按`hasattr(value, name)`分支；L282按`hasattr(value, "uncovered_requirements")`分支。 调用`hasattr`、`len`、`getattr`、`text_budget.excerpts`。 返回路径：L286的`result`。
+- `contract_snapshot`（L289–L321）：接收`data`、`requirement`。 控制顺序：L313按`requirement`分支。 调用`field_summary`、`data.get`、`identifier`、`e.get`。 返回路径：L314的`[field_summary(f) for f in data.get("field_requirements", [])[:128]]`；L315的`[ { "name": identifier(e.get("name")), "fields": [field_summary(f) for f in e.get("fields"…`。
+- `contract_snapshot.identifier`（L290–L295）：接收`value`。 调用`isinstance`、`re.fullmatch`。 返回路径：L291的`value if isinstance(value, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,39}", value) else "unr…`。
+- `contract_snapshot.field_summary`（L297–L311）：接收`value`。 控制顺序：L299按`requirement`分支；L301遍历`("required", "searchable", "filterable", "date_range")`；L302按`type(value.get(name)) is bool`分支；L304遍历`("min_length", "max_length")`；L305按`type(value.get(name)) is int and 0 <= value[name] <= 20000`分支；L307按`value.get("kind") in {"text", "integer", "boolean", "date", "datetime", "enum"}`分支；L309按`isinstance(value.get("choices"), list)`分支。 调用`identifier`、`value.get`、`type`、`isinstance`、`len`。 返回路径：L311的`result`。
+- `safe_coverage_details`（L355–L415）：接收`requirement`、`plan`、`text_budget`。 源码说明：Export executable differences and source references, never requirement prose.。 控制顺序：L392遍历`items[:128]`；L397遍历`("expected", "actual")`；L399按`attribute == "choices" and isinstance(value, list)`分支；L405按`text_budget is not None and type(source.get("index")) is int and 0 <= source["index"]…`分支；L412按`excerpt`分支。 调用`requirement.get`、`list`、`_fact_texts`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`isinstance`、`len`、`scalar`等。 返回路径：L415的`result`。
+- `safe_coverage_details.scalar`（L370–L389）：接收`attribute`、`value`。 控制顺序：L371按`type(value) is bool or value is None`分支；L373按`attribute in {"min_length", "max_length"} and type(value) is int and 0 <= value <= 20…`分支；L375按`attribute == "kind" and isinstance(value, str) and value in { "text", "integer", "boo…`分支。 调用`type`、`isinstance`。 返回路径：L372的`value`；L374的`value`；L388的`value`。
+- `safe_native_plan_details`（L418–L443）：接收`plan`。 源码说明：Report the actual native-validator failure plus label-shape evidence.。 调用`Plan.model_validate`、`validate_plan`、`DESIGN_REASON_CODES.get`、`str`、`len`、`any`、`bool`、`re.fullmatch`。 返回路径：L429的`{ "code": code, "entity_labels": [ { "entity": entity.name, "length": len(entity.descripti…`。
+- `safe_runtime_details`（L468–L520）：接收`error`、`native_reports`、`text_budget`。 源码说明：Select the runtime error, finite stage and one native exception headline. Never export native logs, environment, response bodies or tracebacks. These fixed local reports are read before the isolated w。 控制顺序：L477按`excerpt := text_budget.excerpt(error)`分支；L479按`native_reports is None`分支；L482按`any(path.is_symlink() for path in (reports, *reports.parents))`分支；L486按`not progress.is_symlink() and progress.is_file() and progress.stat().st_size <= 4096`分支；L488按`isinstance(value, dict)`分支；L489按`value.get("stage") in NATIVE_PROGRESS_STAGES`分支；L491按`value.get("template") in {"fastapiadmin", "yudao-vben"}`分支；L497按`failure.is_symlink() or not failure.is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`text_budget.excerpt`、`Path`、`any`、`path.is_symlink`、`progress.is_symlink`、`progress.is_file`、`progress.stat`、`json.loads`、`progress.read_text`等。 返回路径：L480的`result`；L483的`result`；L498的`result`。
+- `preserve_approved_customer_plan`（L526–L598）：接收`native_reports`、`destination`、`text_budget`。 源码说明：Retain only a validated, credential-free, synthetic approved Plan. native_lab writes approved-spec.json only after the design approval gate. Reject rather than alter credential-bearing contracts: a ch。 控制顺序：L537按`native_reports is None`分支；L541按`any( path.is_symlink() for path in (source, *source.parents, destination, *destinatio…`分支；L546按`not source.is_file()`分支；L548按`source.stat().st_size > MAX_REPLAY_PLAN_BYTES`分支；L551按`len(raw) > MAX_REPLAY_PLAN_BYTES`分支；L554按`{entity.name for entity in plan.entities} != {"customers", "requests", "tasks"} or no…`分支；L574按`not credential_free(normalized)`分支；L579按`text_budget.scrub(rendered) != rendered`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`any`、`path.is_symlink`、`source.is_file`、`source.stat`、`source.read_bytes`、`len`、`Plan.model_validate_json`、`plan.model_dump`等。 返回路径：L538的`{"status": "unavailable"}`；L544的`{"status": "unsafe_path"}`；L547的`{"status": "unavailable"}`。
+- `preserve_approved_customer_plan.credential_free`（L563–L572）：接收`value`。 控制顺序：L564按`isinstance(value, str)`分支；L566按`isinstance(value, list)`分支；L568按`isinstance(value, dict)`分支。 调用`isinstance`、`text_budget.scrub`、`all`、`credential_free`、`value.items`。 返回路径：L565的`text_budget.scrub(value) == value`；L567的`all(credential_free(item) for item in value)`；L569的`all( credential_free(key) and credential_free(item) for key, item in value.items() )`。
+- `safe_workflow_details`（L601–L765）：接收`store`、`run_id`、`traces`、`text_budget`、`native_reports`。 控制顺序：L604按`run_id`分支；L644按`requirement and plan`分支；L654按`run.get("template") in {"fastapiadmin", "yudao-vben"}`分支。 调用`DiagnosticTextBudget`、`store.get_run`、`run.get`、`safe_runtime_details`、`pending.get`、`(store.latest_revision(run_id, "requirements") or {}).get`、`store.latest_revision`、`(store.latest_revision(run_id, "design") or {}).get`、`bool`等。 返回路径：L765的`details`。
+- `smoke`（L768–L796）：接收`config`、`transport`。 源码说明：A single bounded genuine request. Provider error bodies are never emitted.。 控制顺序：L781按`status != 200`分支；L783抛异常，停止当前正常路径；L785遍历`response.iter_bytes()`；L787按`len(data) > 131072`分支；L788抛异常，停止当前正常路径；L790按`not isinstance(content, str) or not content.strip()`分支；L791抛异常，停止当前正常路径；L793抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`httpx.Client`、`client.stream`、`config.key.get_secret_value`、`SafeFailure`、`bytearray`、`response.iter_bytes`、`data.extend`、`len`、`json.loads`等。 返回路径：L796的`{"passed": True, "http_status": status, "actual_provider_request": True}`。
+- `customer_request`（L837–L847）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`"\n\n".join`、`(ROOT / "examples/requirements" / name).read_text`。 返回路径：L840的`"\n\n".join( (ROOT / "examples/requirements" / name).read_text(encoding="utf-8") for name …`。
+- `require_customer_spec`（L850–L947）：接收`spec`。 控制顺序：L856断言`plan.business is not None and plan.data_scope == "shared" and not plan.unsupported`；L857断言`{e.name for e in plan.entities} == {"customers", "requests", "tasks"}`；L858断言`{r.name for r in plan.business.roles} == {"manager", "service", "employee"}`；L866断言`not business_gaps(requirement, plan)`；L867断言`{m.kind for m in plan.business.metrics} >= { "count", "average_duration", "group_coun…`；L873断言`not plan.custom_rules`；L899断言`all(set(entities[name]) == fields for name, fields in expected.items())`；L900断言`all(field.label for fields in entities.values() for field in fields.values())`。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`Requirement`、`customer_request`、`business_gaps`、`all`、`set`、`expected.items`、`entities.values`、`fields.values`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `acceptance_settings`（L950–L982）：接收`config`、`directory`。 调用`Settings`。 返回路径：L953的`Settings( data_dir=directory / "private-platform", database_url="", checkpoint_url="", bas…`。
+- `run_acceptance`（L985–L1176）：接收`config`、`transport`、`directory`、`template`。 控制顺序：L999按`template != "python-basic"`分支；L1042遍历`range(150)`；L1043按`server.started`分支；L1047抛异常，停止当前正常路径；L1076按`process.returncode or not result_path.is_file()`分支；L1079按`result_path.is_file()`分支；L1100抛异常，停止当前正常路径；L1103按`run["status"] != "READY" or not run["auto_mode"] or not archive.is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_settings`、`Selection`、`settings.prepare`、`write_json`、`runtime_path`、`DiagnosticTextBudget`、`config.key.get_secret_value`、`create_app`、`ObservedGateway`等。 返回路径：L1155的`{ "passed": True, "real_model": True, "single_initial_smart_consent": True, "explicit_cust…`。
+- `run_acceptance.ObservedGateway`（L1013–L1026）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `run_acceptance.ObservedGateway.complete`（L1014–L1026）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 调用`key.split`、`traces.append`、`super().complete`、`super`、`trace.update`、`completed_stage_details`。 返回路径：L1026的`value`。
+- `verified_smoke_receipt`（L1179–L1195）：接收`path`、`config`、`env`。 控制顺序：L1182断言`saved["passed"] is True and saved["acceptance_scope"] == "smoke_only"`；L1183断言`saved["smoke"] == { "passed": True, "http_status": 200, "actual_provider_request": Tr…`；L1188断言`saved["actual_http_calls"] == 1 and saved["provider_statuses"] == [200]`；L1189断言`saved["model"] == config.model and saved["endpoint"] == config.base_url`；L1190断言`saved["run_identity"] == [ env.get(k, "") for k in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTE…`；L1195抛异常，停止当前正常路径。 调用`json.loads`、`path.read_text`、`env.get`、`SafeFailure`。 返回路径：L1193的`saved["smoke"]`。
+- `main`（L1198–L1277）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1233按`mode == "full"`分支；L1244按`mode == "smoke"`分支；L1255按`exc.status is not None`分支；L1257按`exc.details is not None`分支；L1264按`transport`分支；L1272按`config is not None`分支；L1276按`not result["passed"]`分支；L1277抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`trusted_dispatch`、`configuration`、`os.environ.pop`、`result.update`、`os.environ.get`、`(destination / "approved-plan-replay.json").unlink`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_real_model.py sha256: 9da6bf4db35c1c93aa279613e1420d68eeb2e1b0be8ba8c79f5f9c895543edc3 -->
+<!-- source-file: scripts/ci_real_model.py sha256: db1ee5888a456f74de7b3bd162a1e3adfffedd18221c4f2fa769de0546973a8b -->
 ````python
 """Opt-in real provider acceptance; only allowlisted evidence leaves the isolated job.
 
 No model fixtures, provider substitutions, secret discovery, or automatic scheduling.
-The source files and databases produced during the run are deliberately not artifacts.
+Generated source, databases and raw logs are never artifacts. A bounded, validated,
+secret-scanned approved customer Plan can be retained for deterministic replay.
 """
 
 import contextlib
@@ -44309,10 +45065,8 @@ class DiagnosticTextBudget:
         self.secrets = tuple(secret for secret in secrets if isinstance(secret, str) and secret)
         self.remaining = min(max(limit, 0), 6000)
 
-    def excerpt(self, value):
-        if not isinstance(value, str) or not self.remaining:
-            return ""
-        text = value
+    def scrub(self, text):
+        """Scrub complete selected strings before any truncation or persistence."""
         # Replace exact credentials before truncation so a boundary cannot leak
         # a credential fragment. The caller supplies only the authorized key.
         for secret in sorted(self.secrets, key=len, reverse=True):
@@ -44338,7 +45092,12 @@ class DiagnosticTextBudget:
             "[REDACTED TOKEN]",
             text,
         )
-        text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+        return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+
+    def excerpt(self, value):
+        if not isinstance(value, str) or not self.remaining:
+            return ""
+        text = self.scrub(value)
         limit = min(600, self.remaining)
         text = text[:limit]
         self.remaining -= len(text)
@@ -44518,7 +45277,162 @@ def safe_native_plan_details(plan):
     }
 
 
-def safe_workflow_details(store, run_id, traces, *, text_budget=None):
+NATIVE_PROGRESS_STAGES = frozenset(
+    {
+        "bootstrap-empty-database",
+        "baseline-install",
+        "native-generation",
+        "native-business-contract",
+        "resume-native-validation",
+        "plop-aider-native-business-rules",
+        "generated-build",
+        "customer-service-http",
+        "generated-crud",
+        "generated-permissions",
+        "native-frontend-build",
+        "restart-persistence",
+        "native-browser",
+        "portable-startup-assets",
+        "independent-native-delivery",
+        "accepted",
+    }
+)
+
+
+def safe_runtime_details(error, native_reports, text_budget):
+    """Select the runtime error, finite stage and one native exception headline.
+
+    Never export native logs, environment, response bodies or tracebacks. These
+    fixed local reports are read before the isolated work directory is destroyed.
+    A headline must match the format written by native_lab; appended tool output
+    is deliberately ignored, even when it would explain a subprocess failure.
+    """
+    result = {}
+    if excerpt := text_budget.excerpt(error):
+        result["error_excerpt"] = excerpt
+    if native_reports is None:
+        return result
+    reports = Path(native_reports)
+    if any(path.is_symlink() for path in (reports, *reports.parents)):
+        return result
+    progress = reports / "progress.json"
+    try:
+        if not progress.is_symlink() and progress.is_file() and progress.stat().st_size <= 4096:
+            value = json.loads(progress.read_text(encoding="utf-8"))
+            if isinstance(value, dict):
+                if value.get("stage") in NATIVE_PROGRESS_STAGES:
+                    result["native_stage"] = value["stage"]
+                if value.get("template") in {"fastapiadmin", "yudao-vben"}:
+                    result["native_template"] = value["template"]
+    except OSError, ValueError, TypeError:
+        pass
+    failure = reports / "failure.log"
+    try:
+        if failure.is_symlink() or not failure.is_file():
+            return result
+        with failure.open(encoding="utf-8") as source:
+            headline = source.readline(65537)
+        # Do not truncate prior to secret redaction or publish an arbitrary line.
+        if len(headline) > 65536:
+            return result
+        match = re.fullmatch(
+            r"(?P<exception_type>[A-Za-z_][A-Za-z0-9_]{0,79}) at "
+            r"(?P<file>[A-Za-z_][A-Za-z0-9_]{0,99}\.py):(?P<line>[0-9]{1,7}) "
+            r"\((?P<function>[A-Za-z_][A-Za-z0-9_]{0,99}|<module>)\): (?P<message>[^\r\n]*)\r?\n?",
+            headline,
+        )
+        if match:
+            failure_details = {
+                key: text_budget.excerpt(match[key])
+                for key in ("exception_type", "file", "function")
+            }
+            failure_details["line"] = int(match["line"])
+            failure_details["message_excerpt"] = text_budget.excerpt(match["message"])
+            result["native_exception"] = failure_details
+    except OSError, ValueError:
+        pass
+    return result
+
+
+MAX_REPLAY_PLAN_BYTES = 131072
+
+
+def preserve_approved_customer_plan(native_reports, destination, text_budget):
+    """Retain only a validated, credential-free, synthetic approved Plan.
+
+    native_lab writes approved-spec.json only after the design approval gate.
+    Reject rather than alter credential-bearing contracts: a changed Plan cannot
+    truthfully reproduce the failed run. Never fall back to a raw provider reply,
+    an unapproved design revision, generated source, a database, or a tool log.
+    """
+    from workbench.domain import Plan
+    from workbench.filesystem import atomic_text
+
+    if native_reports is None:
+        return {"status": "unavailable"}
+    source = Path(native_reports) / "approved-spec.json"
+    destination = Path(destination)
+    if any(
+        path.is_symlink() for path in (source, *source.parents, destination, *destination.parents)
+    ):
+        return {"status": "unsafe_path"}
+    try:
+        if not source.is_file():
+            return {"status": "unavailable"}
+        if source.stat().st_size > MAX_REPLAY_PLAN_BYTES:
+            return {"status": "size_limit"}
+        raw = source.read_bytes()
+        if len(raw) > MAX_REPLAY_PLAN_BYTES:
+            return {"status": "size_limit"}
+        plan = Plan.model_validate_json(raw)
+        if (
+            {entity.name for entity in plan.entities} != {"customers", "requests", "tasks"}
+            or not plan.business
+            or plan.custom_rules
+            or plan.unsupported
+        ):
+            return {"status": "outside_customer_scope"}
+        normalized = plan.model_dump(mode="json")
+
+        def credential_free(value):
+            if isinstance(value, str):
+                return text_budget.scrub(value) == value
+            if isinstance(value, list):
+                return all(credential_free(item) for item in value)
+            if isinstance(value, dict):
+                return all(
+                    credential_free(key) and credential_free(item) for key, item in value.items()
+                )
+            return True
+
+        if not credential_free(normalized):
+            return {"status": "secret_scan_rejected"}
+        rendered = json.dumps(normalized, ensure_ascii=False, indent=2) + "\n"
+        # Scan structural credential assignments too (e.g. a nested JSON value
+        # with a password key), not only individual string values.
+        if text_budget.scrub(rendered) != rendered:
+            return {"status": "secret_scan_rejected"}
+        data = rendered.encode("utf-8")
+        if len(data) > MAX_REPLAY_PLAN_BYTES:
+            return {"status": "size_limit"}
+        # This exact normalized contract regenerates code without paid model calls.
+        atomic_text(destination, rendered)
+        return {
+            "status": "saved",
+            "file": "approved-plan-replay.json",
+            "bytes": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "exact_normalized_plan": True,
+        }
+    except FileNotFoundError:
+        return {"status": "unavailable"}
+    except ValueError:
+        return {"status": "invalid_schema"}
+    except OSError:
+        return {"status": "io_error"}
+
+
+def safe_workflow_details(store, run_id, traces, *, text_budget=None, native_reports=None):
     text_budget = text_budget or DiagnosticTextBudget()
     details = {"model_stages": traces}
     if run_id:
@@ -44528,6 +45442,11 @@ def safe_workflow_details(store, run_id, traces, *, text_budget=None):
             state
             if state in {"READY", "SOURCE_READY", "FAILED", "BLOCKED", "PAUSED_LIMIT", "REJECTED"}
             else "not_terminal"
+        )
+        # Reserve the shared text budget for the actual runtime failure before
+        # lower-priority coverage/model wording can exhaust it.
+        details["runtime_diagnostics"] = safe_runtime_details(
+            run.get("error") or "", native_reports, text_budget
         )
         pending = run.get("pending") or {}
         stage = pending.get("stage")
@@ -44993,13 +45912,26 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             run_id = None
             if result_path.is_file():
                 run_id = json.loads(result_path.read_text(encoding="utf-8")).get("run_id")
-            raise SafeFailure(
-                "workflow_not_ready",
-                last,
-                safe_workflow_details(
-                    application.state.store, run_id, traces, text_budget=diagnostic_text
-                ),
+            native_reports = (
+                settings.data_dir / "runs" / run_id / "native-evidence"
+                if template != "python-basic"
+                and isinstance(run_id, str)
+                and re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", run_id)
+                else None
             )
+            details = safe_workflow_details(
+                application.state.store,
+                run_id,
+                traces,
+                text_budget=diagnostic_text,
+                native_reports=native_reports,
+            )
+            details["approved_plan_replay"] = preserve_approved_customer_plan(
+                native_reports,
+                ROOT / "reports/real-model/approved-plan-replay.json",
+                diagnostic_text,
+            )
+            raise SafeFailure("workflow_not_ready", last, details)
         browser = json.loads(result_path.read_text(encoding="utf-8"))
         run = application.state.store.get_run(browser["run_id"])
         if run["status"] != "READY" or not run["auto_mode"] or not archive.is_file():
@@ -45133,6 +46065,7 @@ def main():
             ],
         )
         if mode == "full":
+            (destination / "approved-plan-replay.json").unlink(missing_ok=True)
             result["smoke"] = verified_smoke_receipt(summary, config, os.environ)
             prior_calls = 1
         transport = BoundedRealTransport(config)
@@ -49301,7 +50234,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/native-probe.yml sha256: ae992f838d3bb196fabfa3ae6a9035248f041787d8b1a273ffb63f0414339891 -->
+<!-- source-file: .github/workflows/native-probe.yml sha256: f2339afe8d5d4e7fa7f760a15122d48f3ca6beedf57668f1c97553b71b87d029 -->
 ````yaml
 name: Bundled template integrity
 on:
@@ -49442,6 +50375,14 @@ jobs:
         with:
           name: real-model-sanitized-${{ matrix.template }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: reports/real-model/summary.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Retain only validated secret-scanned customer Plan for offline replay
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: customer-plan-replay-${{ matrix.template }}-${{ github.sha }}
+          path: reports/real-model/approved-plan-replay.json
           if-no-files-found: ignore
           retention-days: 7
       - name: Upload synthetic customer UI screenshots only
