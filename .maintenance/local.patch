@@ -1,0 +1,173 @@
+diff --git a/docs/recommendation-recovery.md b/docs/recommendation-recovery.md
+index 4850765..3c6fb56 100644
+--- a/docs/recommendation-recovery.md
++++ b/docs/recommendation-recovery.md
+@@ -14,7 +14,7 @@
+ 
+ 设计阶段的自动推荐回到 `plan`，不再通过重新分析需求来“解决”设计错误。已批准需求保持不变；例如规划器误把 `per_user` 改成 `shared`，下一次规划必须修复设计，不能改写需求的数据归属。人工明确提出修改意见时仍回到需求分析，经过重新确认再生成。
+ 
+-每个工作任务仍最多执行两轮自动修正；无法收敛会保留 `BLOCKED` 和对应 gate，而不是无限消耗模型调用。暂停并不总表示模板不支持，也可能只是模型没有决定完问题。错误信息展示具体原因，运行目录下的 `recommendation-blocked.json` 保留阶段、gate ID、尝试次数、问题和限制说明。该文件是一次暂停的诊断快照；恢复后以运行当前状态及最终验收报告为准。
++每个工作任务内，需求澄清和设计阶段分别最多执行两轮自动修正，需求阶段的修正不会消耗设计阶段的额度；全局模型调用和费用预算仍然生效。无法收敛会保留 `BLOCKED` 和对应 gate，而不是无限消耗模型调用。暂停并不总表示模板不支持，也可能只是模型没有决定完问题。错误信息展示具体原因，运行目录下的 `recommendation-blocked.json` 保留阶段、gate ID、该阶段尝试次数、问题和限制说明。该文件是一次暂停的诊断快照；恢复后以运行当前状态及最终验收报告为准。
+ 
+ 模型结果缓存同时绑定阶段、模型、提示词、输入和 JSON Schema。升级修复提示词、变更反馈或契约后，不会误用旧回答；完全相同的崩溃重放仍复用既有结果。预算统计不因缓存键更新而清零。
+ 
+diff --git a/docs/toolchain.md b/docs/toolchain.md
+index c4b6dcb..c970ffd 100644
+--- a/docs/toolchain.md
++++ b/docs/toolchain.md
+@@ -301,3 +301,10 @@ Docker端口发布：https://docs.docker.com/engine/network/port-publishing/
+ 
+ Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/runner/cmd/runner/main.go
+ 区域名称约束：https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/api/src/region/services/region.service.ts
++
++
++### 禁用可选 SSH 服务与 API 鉴权配置不是同一件事
++
++固定版本 v0.190.0 的 `apps/api/src/auth/api-key.strategy.ts` 在校验任意 API Key 前，先通过 `getOrThrow('sshGateway.apiKey')` 读取配置。删除可选 SSH 容器仍需给 API 提供该必需值，否则本机登录能够成功，但使用生成的 API Key 注册快照时会报临时鉴权服务错误。
++
++本机配置将 `SSH_GATEWAY_API_KEY` 从本次安装随机生成的管理密钥通过带用途标识的 HMAC-SHA256 派生为独立哨兵值。它不是固定公开密码，也不复用代理或健康检查密钥；没有 SSH 容器、地址或对外 SSH 端口，Runner 的 `SSH_GATEWAY_ENABLE` 仍为 `false`。密钥仅位于受限的本机配置，验收报告不包含环境配置和凭据文件。
+diff --git a/scripts/daytona_local.py b/scripts/daytona_local.py
+index 7ad8e9a..2cee101 100644
+--- a/scripts/daytona_local.py
++++ b/scripts/daytona_local.py
+@@ -8,6 +8,7 @@ Daytona account, Auth0 tenant, hosted runner or hosted telemetry is involved.
+ import argparse
+ import copy
+ import hashlib
++import hmac
+ import json
+ import os
+ import re
+@@ -137,6 +138,12 @@ def render_compose(original, credentials, directory):
+         PROXY_API_KEY=credentials["proxy_key"],
+         DEFAULT_RUNNER_API_KEY=credentials["runner_key"],
+         HEALTH_CHECK_API_KEY=credentials["health_key"],
++        # v0.190.0's API-key strategy requires this value even when the optional
++        # SSH service is absent. Derive a distinct, stable local sentinel; do
++        # not reuse a proxy/health key or re-enable any SSH service or URL.
++        SSH_GATEWAY_API_KEY=hmac.new(
++            credentials["admin_key"].encode(), b"rnd-local-unused-ssh-gateway", hashlib.sha256
++        ).hexdigest(),
+         ADMIN_API_KEY=credentials["admin_key"],
+         DEFAULT_REGION_ID="local",
+         DEFAULT_REGION_NAME="local-computer",
+diff --git a/tests/test_local_only.py b/tests/test_local_only.py
+index bf970d8..c4c005f 100644
+--- a/tests/test_local_only.py
++++ b/tests/test_local_only.py
+@@ -183,6 +183,16 @@ def test_deployment_transformation_has_no_cloud_services(tmp_path):
+     assert set(rendered["services"]) == KEEP
+     assert "cloud.example" not in json.dumps(rendered)
+     assert rendered["services"]["api"]["image"] == IMAGES["api"]
++    sentinel = rendered["services"]["api"]["environment"]["SSH_GATEWAY_API_KEY"]
++    assert len(sentinel) == 64 and int(sentinel, 16) >= 0
++    assert sentinel not in credentials.values()
++    assert "ssh-gateway" not in rendered["services"]
++    assert rendered["services"]["runner"]["environment"]["SSH_GATEWAY_ENABLE"] == "false"
++    assert "SSH_GATEWAY_URL" not in rendered["services"]["api"]["environment"]
++    repeated = render_compose(source, credentials, tmp_path)
++    assert repeated["services"]["api"]["environment"]["SSH_GATEWAY_API_KEY"] == sentinel
++    other = render_compose(source, {**credentials, "admin_key": "different-local-secret"}, tmp_path)
++    assert other["services"]["api"]["environment"]["SSH_GATEWAY_API_KEY"] != sentinel
+     assert all(
+         not service.get("ports")
+         for name, service in rendered["services"].items()
+diff --git a/tests/test_recommendation_stage_budget.py b/tests/test_recommendation_stage_budget.py
+new file mode 100644
+index 0000000..a18845b
+--- /dev/null
++++ b/tests/test_recommendation_stage_budget.py
+@@ -0,0 +1,50 @@
++"""One smart authorization covers both bounded clarification and design repair."""
++
++import pytest
++from conftest import FixtureGateway, new_run, requirement
++
++from workbench.domain import Plan, Requirement
++from workbench.runtime import Runtime
++
++
++@pytest.mark.parametrize("design_converges", [True, False])
++def test_clarification_does_not_spend_design_repair_allowance(
++    settings, store, plan, design_converges
++):
++    class StagedGateway(FixtureGateway):
++        def complete(self, run_id, key, instruction, payload, schema):
++            self.calls.append(key)
++            if schema is Requirement:
++                # Exercise both clarification repairs before any planning.
++                if key in {"recommend:1", "recommend:2"}:
++                    return requirement(["请决定一个尚未明确的细节"])
++                assert key == "recommend:3"
++                return requirement()
++            assert schema is Plan
++            assert payload["approved_requirement"]["data_scope"] == "per_user"
++            if key != "plan:3":
++                assert payload["resolution_feedback"]["stage"] == "design"
++                assert payload["previous_plan"]["data_scope"] == "shared"
++            if design_converges and key == "plan:4":
++                return plan
++            return plan.model_copy(update={"data_scope": "shared"})
++
++    run_id = new_run(store)
++    store.set_automation(run_id, True, "single-smart-authorization")
++    gateway = StagedGateway(plan)
++    with Runtime(settings, store, gateway) as runtime:
++        runtime.tick()
++    state = store.get_run(run_id)
++    assert gateway.calls[:4] == ["recommend:1", "recommend:2", "recommend:3", "plan:3"]
++    if design_converges:
++        assert gateway.calls[4:] == ["plan:4"]
++        assert state["status"] == "READY", state
++        assert state["result"]["cleanroom"]["passed"] is True
++        assert (settings.data_dir / "runs" / run_id / "delivery.zip").is_file()
++    else:
++        assert gateway.calls[4:] == ["plan:4", "plan:5"]
++        assert state["status"] == "BLOCKED", state
++        assert state["pending"]["stage"] == "design"
++        assert "本阶段两轮" in state["error"]
++        assert not (settings.data_dir / "runs" / run_id / "delivery.zip").exists()
++    assert len(store.messages(run_id)) == 1
+diff --git a/workbench/runtime.py b/workbench/runtime.py
+index 3047ede..7af3ff6 100644
+--- a/workbench/runtime.py
++++ b/workbench/runtime.py
+@@ -116,8 +116,9 @@ class Runtime:
+                 # Resume may have been persisted just before the process died.
+                 self.graph.invoke(None, config)
+             # Explicit delegation may be enabled before starting or at any human gate.
+-            # Keep model/repair attempts bounded even though manual conversation rounds are unlimited.
+-            resolutions = 0
++            # Each stage gets a bounded repair allowance. Clarification repairs
++            # must not consume design repairs; the global model budget still applies.
++            resolutions = {}
+             while True:
+                 snapshot = self.graph.get_state(config)
+                 pending = pending_interrupt(snapshot)
+@@ -127,8 +128,9 @@ class Runtime:
+                     self.store.auto_approve(run_id, pending)
+                     action = {"action": "approve", "approved": True}
+                 else:
+-                    if resolutions >= 2:
+-                        report = blocked_report(pending, resolutions)
++                    attempts = resolutions.get(pending["stage"], 0)
++                    if attempts >= 2:
++                        report = blocked_report(pending, attempts)
+                         report = json.loads(
+                             self.settings.redact(json.dumps(report, ensure_ascii=False))
+                         )
+@@ -146,12 +148,12 @@ class Runtime:
+                             + report["stage"]
+                             + "）："
+                             + "；".join(report["reasons"])[:500]
+-                            + "。两轮自动修正仍未通过，未跳过验收。"
++                            + "。本阶段两轮自动修正仍未通过，未跳过验收。"
+                             + "使用 uv run rnd chat --run "
+                             + run_id
+                             + " 查看阻塞详情，可继续推荐、补充要求或切换手动；无需新建运行。"
+                         )
+-                    resolutions += 1
++                    resolutions[pending["stage"]] = attempts + 1
+                     action = {"action": "recommend", "approved": True}
+                 self.graph.invoke(
+                     Command(resume={**action, "gate_id": pending["gate_id"], "job_id": job["id"]}),
