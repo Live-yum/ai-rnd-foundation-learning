@@ -91,11 +91,48 @@ def verified_fixture(tmp_path):
         "original_platform_imported": False,
         "model_required": False,
     }
+    # Explicit unit-test evidence; actual UI is exercised by native Actions.
+    from workbench.native_style import PROFILES
+
+    report["template"] = "fastapiadmin"
+    report["entities"] = [entity.name for entity in acceptance_spec().entities]
+    root = product / "frontend/web"
+    protected = {}
+    for prefix in PROFILES["fastapiadmin"]["protected"]:
+        name = prefix + "fixture.vue" if prefix.endswith("/") else prefix
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("explicit-unit-fixture", encoding="utf-8")
+        protected[name] = sha(path)
+    pages = []
+    for entity in report["entities"]:
+        name = f"src/views/module_rnd/{entity}/index.vue"
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("explicit-unit-page-fixture", encoding="utf-8")
+        pages.append(
+            {
+                "path": name,
+                "sha256": sha(path),
+                "native_components": ["FaSearchBar", "FaTable", "FaDialog", "FaForm"],
+            }
+        )
+    report["native_style"] = {
+        "template": "fastapiadmin",
+        "ui_family": PROFILES["fastapiadmin"]["family"],
+        "passed": True,
+        "shell_and_theme_unchanged": True,
+        "generic_frontend_substitution": False,
+        "protected_files": protected,
+        "protected_source_digest": digest(protected),
+        "generated_pages": pages,
+    }
     report["spec_digest"] = digest(acceptance_spec().model_dump())
     target = tmp_path / "native-evidence/acceptance.json"
     write_json(target, report)
     receipt = {
         "execution": "managed-runtime",
+        "template": "fastapiadmin",
         "files": manifest(product),
         "spec_digest": report["spec_digest"],
         "evidence_sha256": sha(target),

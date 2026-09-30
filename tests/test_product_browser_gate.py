@@ -68,7 +68,7 @@ def test_real_browser_spec_and_cleanroom_gate(tmp_path, settings):
     delivery = package_basic(plan, target, settings, report)
     assert delivery["cleanroom"]["browser"]["real_browser"] is True
     assert delivery["cleanroom"]["browser"]["entities"] == [e.name for e in plan.entities]
-    saved = json.loads((tmp_path / "verification.json").read_text())
+    saved = json.loads((tmp_path / "verification.json").read_text(encoding="utf-8"))
     assert saved["browser"]["errors"] == []
 
 
@@ -92,12 +92,12 @@ def test_real_browser_rejects_broken_generated_search_ui(tmp_path, settings):
     plan = Plan.model_validate(news_spec())
     target = product(tmp_path, plan)
     ui = target / "web/app.js"
-    original = ui.read_text()
+    original = ui.read_text(encoding="utf-8")
     broken = original.replace(
         "if (value) query.set(key, value);", "if (value && key !== 'q') query.set(key, value);"
     )
     assert broken != original
-    ui.write_text(broken)
+    ui.write_text(broken, encoding="utf-8")
     report_path = tmp_path / "broken-browser.json"
     # Probe directly to prove the browser itself detects a broken UI. The normal
     # gate additionally rejects this mutation against the generation manifest.
@@ -105,7 +105,7 @@ def test_real_browser_rejects_broken_generated_search_ui(tmp_path, settings):
 
     with pytest.raises(ToolFailure):
         run_probe(target, sys.executable, report_path, settings)
-    report = json.loads(report_path.read_text())
+    report = json.loads(report_path.read_text(encoding="utf-8"))
     assert report["passed"] is False
     assert "browser acceptance failed" in report["message"]
 

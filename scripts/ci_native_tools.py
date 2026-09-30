@@ -65,7 +65,8 @@ def main():
                 customization=interrupted,
             )
         except RuntimeError as exc:
-            assert str(exc) == "explicit-test-interruption-after-native-generation"
+            if str(exc) != "explicit-test-interruption-after-native-generation":
+                raise
         else:
             raise AssertionError("Native interruption fixture did not run")
         checkpoint = json.loads((reports / "recovery.json").read_text(encoding="utf-8"))
@@ -93,7 +94,8 @@ def main():
                 customization=actual_customization,
             )
         except RuntimeError as exc:
-            assert str(exc) == "explicit-test-interruption-after-native-permissions"
+            if str(exc) != "explicit-test-interruption-after-native-permissions":
+                raise
         else:
             raise AssertionError("Native permission interruption fixture did not run")
         finally:

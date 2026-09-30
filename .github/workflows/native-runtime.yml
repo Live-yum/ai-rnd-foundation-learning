@@ -100,7 +100,6 @@ jobs:
           mkdir -p reports/native
           git rev-parse HEAD > reports/native/platform-sha.txt
           cp templates/vendor/manifest.json reports/native/bundled-template-manifest.json
-          git archive --format=zip --output=reports/native/platform-source.zip HEAD
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -262,6 +262,23 @@ def native_probe(template, product, create, reports):
     }
 
 
+def basic_runtime_evidence(report, database):
+    if database not in {"sqlite", "postgresql"}:
+        raise ValueError("Unregistered Python database")
+    if any(report.get(name) is not True for name in ("passed", "http", "restart")):
+        raise ValueError("Python product did not complete runtime verification")
+    if report.get("database") != "real-isolated-" + database:
+        raise ValueError("Python runtime database evidence does not match selected database")
+    # The generic verifier describes its actual isolation mode. The matrix
+    # envelope reserves database for the registered sqlite/postgresql identity.
+    return {
+        **report,
+        "runtime_database": report["database"],
+        "database": database,
+        "fresh_database": True,
+    }
+
+
 def basic_probe(product, create, reports, database):
     extras = ["--extra", "postgres"] if database == "postgresql" else []
     run_command(
@@ -291,10 +308,8 @@ def basic_probe(product, create, reports, database):
         300,
         environment,
     )
-    report = json.loads((reports / "basic.json").read_text())
-    if any(report.get(name) is not True for name in ("passed", "http", "restart")):
-        raise ValueError("PostgreSQL product did not complete runtime verification")
-    return {**report, "fresh_database": True}
+    report = json.loads((reports / "basic.json").read_text(encoding="utf-8"))
+    return basic_runtime_evidence(report, database)
 
 
 def main():

@@ -148,6 +148,87 @@ def managed_generate(settings, template, plan, destination, *, customization=Non
     return receipt
 
 
+def require_native_style(report, receipt, current):
+    """A legacy runtime receipt is not evidence of native UI inheritance."""
+    from workbench.native_style import PROFILES
+
+    template = receipt.get("template")
+    style = report.get("native_style")
+    error = (
+        "原生UI风格验收证据缺失、过期或不匹配；保留运行目录与数据库，"
+        "需要重新执行原生UI、浏览器及独立新库验收，不能沿用旧回执或删除数据绕过"
+    )
+    if (
+        template not in PROFILES
+        or report.get("template") != template
+        or not isinstance(style, dict)
+        or style.get("template") != template
+        or style.get("ui_family") != PROFILES[template]["family"]
+        or style.get("passed") is not True
+        or style.get("shell_and_theme_unchanged") is not True
+        or style.get("generic_frontend_substitution") is not False
+    ):
+        raise PrerequisiteError(error)
+    root = "frontend/web/" if template == "fastapiadmin" else "frontend-product/"
+    frontend = {
+        name[len(root) :]: value for name, value in current.items() if name.startswith(root)
+    }
+    protected = {}
+    for prefix in PROFILES[template]["protected"]:
+        group = {
+            name: value
+            for name, value in frontend.items()
+            if name == prefix or (prefix.endswith("/") and name.startswith(prefix))
+        }
+        if not group:
+            raise PrerequisiteError(error)
+        protected.update(group)
+    if style.get("protected_files") != protected or style.get("protected_source_digest") != digest(
+        protected
+    ):
+        raise PrerequisiteError(error)
+    entities, pages = report.get("entities"), style.get("generated_pages")
+    if (
+        not isinstance(entities, list)
+        or not entities
+        or any(
+            not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", name)
+            for name in entities
+        )
+        or len(set(entities)) != len(entities)
+        or not isinstance(pages, list)
+    ):
+        raise PrerequisiteError(error)
+    expected = {}
+    for entity in entities:
+        if template == "fastapiadmin":
+            expected[f"src/views/module_rnd/{entity}/index.vue"] = {
+                "FaSearchBar",
+                "FaTable",
+                "FaDialog",
+                "FaForm",
+            }
+        else:
+            folder = "apps/web-antd/src/views/infra/wb" + entity.replace("_", "")
+            expected[folder + "/index.vue"] = {"Page", "Grid", "TableAction"}
+            expected[folder + "/modules/form.vue"] = {"Modal", "Form"}
+    if (
+        len(pages) != len(expected)
+        or any(
+            not isinstance(page, dict)
+            or not isinstance(page.get("path"), str)
+            or page["path"] not in expected
+            or not frontend.get(page["path"])
+            or page.get("sha256") != frontend.get(page["path"])
+            or not isinstance(page.get("native_components"), list)
+            or any(name not in page["native_components"] for name in expected[page["path"]])
+            for page in pages
+        )
+        or {page["path"] for page in pages} != set(expected)
+    ):
+        raise PrerequisiteError(error)
+
+
 def managed_verify(destination, receipt):
     destination = Path(destination)
     report_path = destination.parent / "native-evidence/acceptance.json"
@@ -188,6 +269,7 @@ def managed_verify(destination, receipt):
     current = manifest(destination)
     if current != receipt["files"] or report.get("spec_digest") != receipt.get("spec_digest"):
         raise PrerequisiteError("原生源码或设计在验收后发生变化，需要重新验证")
+    require_native_style(report, receipt, current)
     result = {
         "passed": True,
         "validation_level": "runtime",
@@ -195,7 +277,7 @@ def managed_verify(destination, receipt):
         "production_ready": False,
         "source_digest": digest(current),
         "evidence_sha256": receipt["evidence_sha256"],
-        "checks": list(gates),
+        "checks": [*gates, "native_template_ui_style"],
         "database_delivery": "standalone-fresh-database-bootstrap",
         "startup": "uv run --no-project --python 3.14 python start.py",
     }

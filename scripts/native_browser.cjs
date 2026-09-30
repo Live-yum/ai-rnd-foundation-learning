@@ -3,6 +3,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 
+function nativeComponentSelectors(fastapi) {
+  return {
+    button: fastapi ? '.el-button:visible' : '.ant-btn:visible',
+    form: fastapi ? '.el-input:visible, .el-switch:visible' : '.ant-input:visible, .ant-input-number:visible, .ant-radio:visible',
+  };
+}
+
 async function main() {
   const [template, base, reportDir, playwrightPath, moduleFile] = process.argv.slice(2);
   assert(['fastapiadmin', 'yudao-vben'].includes(template));
@@ -20,6 +27,7 @@ async function main() {
   page.on('pageerror', error => errors.push(error.message));
   page.on('response', response => responses.push({ url: new URL(response.url()).pathname, status: response.status(), method: response.request().method() }));
   const fastapi = template === 'fastapiadmin';
+  const components = nativeComponentSelectors(fastapi);
   const report = { template, scope: moduleFile ? 'generated-native-frontend' : 'original-upstream-frontend', passed: false };
   const observe = (part, method = 'GET') => page.waitForResponse(r => r.url().includes(part) && r.request().method() === method).then(r => ({ response: r }), error => ({ error }));
   const checked = async promise => {
@@ -93,7 +101,7 @@ async function main() {
       // A generic table with matching data is not a native frontend acceptance.
       const shell = fastapi ? ['#app-sidebar', '#app-header', '#app-content'] : ['aside:visible', 'header:visible', '#__vben_main_content'];
       for (const selector of shell) await page.locator(selector).first().waitFor({ state: 'visible' });
-      await page.locator(fastapi ? '.el-button' : '.ant-btn').first().waitFor({ state: 'visible' });
+      await page.locator(components.button).first().waitFor({ state: 'visible' });
       assert.equal(await page.locator('#workspace').count(), 0, 'Generic simple-admin cannot replace a native template');
       const theme = await page.evaluate(fast => {
         const style = getComputedStyle(document.documentElement);
@@ -109,7 +117,7 @@ async function main() {
         await page.getByRole('button', { name: /^新增|^创建/ }).first().click();
         const dialog = page.getByRole('dialog').last();
         await dialog.waitFor({ state: 'visible' });
-        await dialog.locator(fastapi ? '.el-input, .el-switch' : '.ant-input, .ant-input-number, .ant-radio').first().waitFor({ state: 'visible' });
+        await dialog.locator(components.form).first().waitFor({ state: 'visible' });
         await page.screenshot({ path: path.join(reportDir, target.entity + '-native-form.png'), fullPage: true });
         pageResult.native_form_components_visible = true;
 
@@ -182,4 +190,5 @@ async function main() {
     await browser.close();
   }
 }
-main().catch(error => { console.error(error.stack); process.exitCode = 1; });
+module.exports = { nativeComponentSelectors };
+if (require.main === module) main().catch(error => { console.error(error.stack); process.exitCode = 1; });

@@ -7,6 +7,16 @@ from pathlib import Path
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "native_style": (
+        "原生UI壳、主题和组件族的身份检查",
+        "先比较固定上游与生成目录中受保护布局/主题文件的内容清单，再解析生成Vue页应使用的真实框架组件；输出绑定模板、来源和Plan的回执。静态身份检查之后仍须真实浏览器检查，不能用一张通用页面替代原生风格。",
+        "native_lab → verify_native_style → native_style.json → 原生浏览器与managed_verify。",
+    ),
+    "recommendation": (
+        "解释智能推荐为何暂停",
+        "把当前gate中的明确阻塞、未回答问题和能力说明分开，记录阶段、尝试次数及门身份；不会把所有暂停一律解释成模板不支持，也不会自行宣布已完成。",
+        "runtime自动修正达到有界次数 → blocked_report → recommendation-blocked.json → 页面/CLI诊断。",
+    ),
     "local_only": (
         "工具的本机运行边界",
         "地址先校验再创建客户端；localhost规范成回环IP，数据库URL拒绝能覆盖主机的查询参数。Docker命令显式指定本机套接字，Daytona子进程同时限制DNS和连接目标。此处不限制用户明确配置的大模型服务。",
@@ -260,6 +270,13 @@ MODULES = {
 }
 
 PRODUCT = {
+    "fields.py": "按批准字段规则验证新增/修改载荷：必填、整数与布尔、文本长度、日期和枚举各自处理；可选空值不等于整数0或布尔False。业务规则在结构校验之后执行。",
+    "querying.py": "把搜索词、精确筛选、日期上下界转成受字段白名单约束的SQLAlchemy条件；类型和范围先验证，再通过参数绑定查询，不拼接用户SQL。",
+    "manage.py": "产品自己的数据库维护入口：按指定命令执行迁移等初始化工作；由start.py调用，导入时不启动网页，也不代替平台控制数据库迁移。",
+    "compose.yaml": "独立产品的本机PostgreSQL服务声明：服务、回环端口与持久卷属于该产品；启动器生成本机随机凭据并保留已有配置，应用退出不删除数据卷。",
+    "pyproject.toml": "独立产品的Python依赖清单，与平台环境分开；先由uv按对应uv.lock安装，再启动产品，不能依赖开发平台碰巧装过的库。",
+    "uv.lock": "该独立产品的精确Python依赖及分发哈希；与产品pyproject配套保存，由启动器--locked安装，不使用平台或Aider锁代替。",
+    "README.md": "交付包内的独立启动和使用说明模板；生成器还会写入规格、选择和SQL，使用户离开研发平台后仍知道运行哪个入口。",
     "app.py": "FastAPI产品路由：从spec.json建立实体接口；依赖先验证产品登录，再在每次查询中施加owner_id范围。网页不能直接访问数据库，也不能指定另一个用户作为owner。",
     "schema.py": "产品数据库及字段合同：按spec.json创建运行表模型与校验规则；独立产品也拒绝远程数据库。字段类型同时决定请求校验、SQL列类型、序列化和查询筛选行为。",
     "auth.py": "产品自己的账号密码与会话：加盐口令派生、会话令牌摘要、过期和身份读取；这里的产品登录不是工作台访问令牌，更不是大模型API Key。",
@@ -269,6 +286,149 @@ PRODUCT = {
     "start.py": "成品自包含入口：在产品目录安装自己的锁定依赖，准备本机SQLite或专用PostgreSQL，执行迁移后启动HTTP服务；不调用模型，不要求原工作台目录。",
     "custom_rules.py": "唯一允许自动定制的业务规则文件；生成前后的约束、例子与SHA由平台检查。其他身份、存储和启动代码不开放给模型任意编辑。",
     "spec.json": "该文件是模板示例规格，运行时由已批准Plan生成具体成品规格；不要把示例实体名称硬编码到平台通用生成流程。",
+}
+
+SCRIPT_ROLES = {
+    "build_handbook.py": (
+        "生成唯一完整教材",
+        "按GUIDES顺序拼正文，再按GROUPS枚举自有文本源，排除依赖/运行目录；附录写源码指纹、独立讲解和完整代码。--check比较全部文本与唯一输出，不改源码。",
+        "正文及真实源文件 → render → 单一Markdown；test_handbook验证独立重建。",
+    ),
+    "handbook_notes.py": (
+        "把源码变成逐文件教学提示",
+        "先按具体文件职责解释输入、调用方和结果，再解析Python AST列出类/函数、行号、参数、关键分支和返回。它不执行被讲解的业务代码；手写教学章节补充业务意图与练习。",
+        "build_handbook → purpose/notes → 每个源码块前的对应关系。",
+    ),
+    "rebuild_from_handbook.py": (
+        "从一本书还原安全的新项目",
+        "extract先验证全部标记、路径和SHA，再由restore写入新的空目录；任一源码块残缺就不动目标。只创建文件，不运行提取出的程序或下载依赖。",
+        "书中独立bootstrap或本脚本 → 完整自有文本项目 → ci_handbook。",
+    ),
+    "vendor_templates.py": (
+        "重建固定的第三方源码归档",
+        "按登记远端与提交取得公开依赖，保留许可证，排除密钥/缓存/数据库等不应打包内容，记录归档SHA与逐文件内容摘要。它不取得本平台骨架代码。",
+        "教材还原后--fetch → templates/vendor → workbench.vendor校验并解压。",
+    ),
+    "ci_handbook.py": (
+        "证明一本书足够重建平台",
+        "把教材单独复制进临时目录，恢复所有文本，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue，运行完整非PG回归并保留JUnit。",
+        "handbook-only工作流 → 本脚本 → reports/handbook-clean-room.json。",
+    ),
+    "ci_clean_install.py": (
+        "独立依赖环境与成品干净解压验收",
+        "显式需求/计划夹具只代替模型响应，Runtime与产品进程实际运行。批准三个关卡后必须READY，且isolated_dependencies、cleanroom真实通过；临时目录退出时清理。",
+        "双系统clean-install工作流 → Runtime → 生成/验证/解压 → clean-install.json。",
+    ),
+    "ci_aider_workflow.py": (
+        "基础产品实际Aider编排验收",
+        "固定响应提出批准业务规则，真实LangGraph调用真实Aider，然后运行独立产品验收。记录工具调用和结果，不能把夹具响应当作付费模型质量证据。",
+        "toolchain验收 → Runtime/ModelGateway替身 → 本机Aider → 基础产品验证。",
+    ),
+    "ci_toolchain.py": (
+        "实际解析、Continue、MCP和Aider串联验收",
+        "准备固定真实源码，建立符号/全文索引、启动只读MCP并执行真实Aider入口；每类工具的输出单独验证，再运行受控业务规则流程。",
+        "toolchain工作流 → 本脚本 → 本机工具报告；模型输出为明确夹具。",
+    ),
+    "ci_local_embeddings.py": (
+        "固定真实权重的本机推理验收和服务",
+        "prepare显式下载校验后的公开模型；serve在回环HTTP上用CPU推理且拒绝出站套接字；verify启动自有服务、取固定Vben样本、查缓存及真实融合检索，最后关闭服务。",
+        "独立tools/embeddings解释器 + 平台retrieval → local-embeddings.json。",
+    ),
+    "ci_guided_browser.py": (
+        "工作台到资讯产品的浏览器验收协调",
+        "启动实际工作台与浏览器，显式模型夹具提供资讯需求，检查智能推荐和产物；随后访问真正生成的产品，不将静态HTML当成功。",
+        "browser工作流 → guided_browser.cjs → 实际API/页面/独立交付。",
+    ),
+    "guided_browser.cjs": (
+        "在真实浏览器操作研发工作台",
+        "通过DOM选择技术栈、提交需求与控制智能推荐，等待真实状态/网络结果；操作生成资讯页面的登录、CRUD和查询，保存截图与错误。",
+        "ci_guided_browser启动服务 → 本文件驱动Chromium → 可复查界面证据。",
+    ),
+    "ci_native_sources.py": (
+        "固定原生模板源码完整性检查",
+        "核对所有已登记归档、许可证、固定提交及关键原生生成器文件，确认仓库真带框架源码。只检查来源的通过不代表服务器或浏览器通过。",
+        "native-sources/verify-bundles → vendor清单与归档 → 来源报告。",
+    ),
+    "ci_native_generated.py": (
+        "定义并运行原生模块集成样例",
+        "acceptance_spec给出多实体、文本/整数/布尔的确定性Plan；入口把模板、数据库和源码参数交给同一个native_lab，避免CI另写一套伪生成器。",
+        "原生CI入口 → acceptance_spec → native_lab.run_acceptance。",
+    ),
+    "ci_native_bundled.py": (
+        "从随附原生源码生成并独立新库恢复",
+        "从vendor清单取得固定源码，把真实Plan交给native_lab，启用完整原生运行和portable新库复验。没有前端或独立恢复证据不能通过。",
+        "native-runtime工作流 → 本脚本 → reports/native中的运行与恢复证据。",
+    ),
+    "ci_native_runtime.py": (
+        "原框架本身的运行基线验收",
+        "复制固定原生源码、初始化专用空库，安装并启动后端/前端，执行原框架登录和权限检查。它测原生基线，不代替新增业务模块和独立交付。",
+        "本机显式原生基线命令 → native_environment/native_frontend → 基线报告。",
+    ),
+    "ci_native_tools.py": (
+        "原生Plop/Aider修复与可恢复中断验收",
+        "真实生成后故意中断再恢复，权限验证后再中断再恢复；规则夹具先给错误候选，真实正反例拒绝并回滚，随后修复，最终完成浏览器/独立新库验收。",
+        "native-toolchain-daytona矩阵 → 原生工具验收 → 已验证产品供快照准备。",
+    ),
+    "native_browser.cjs": (
+        "真实原生登录、菜单、表单与规则浏览器检查",
+        "按FastapiAdmin或Vben的真实DOM操作，先登录再进入生成菜单；检查原生组件、表单正反例和真实HTTP结果。失败截图/网络错误用于诊断，不能注入令牌越过登录。",
+        "native_frontend.browser_check → 本文件 → browser.json与截图。",
+    ),
+    "native_coding_fixture.py": (
+        "故意先出错的原生编码测试模型",
+        "对已登记规则区域返回可审查SEARCH/REPLACE；首轮总为true，后轮是数量非负表达式。它不直接写代码，实际应用与失败回滚仍由Plop/Aider及平台执行。",
+        "ci_native_tools注入 → native_coding调用 → 真实工具和反例检查。",
+    ),
+    "news_fixture.py": (
+        "资讯需求与智能推荐的显式测试响应",
+        "保存固定资讯规格及能力说明，故意让首轮把无关限制误当阻塞，检查后续是否根据真实反馈修正并保留字段。它只被测试导入，不是生产未配模型时的默认响应。",
+        "ci_guided_browser/Daytona资讯验收 → 显式夹具 → 正常工作流。",
+    ),
+    "daytona_local.py": (
+        "安装和管理本机Daytona开发服务",
+        "prepare取得固定资源与随机本机配置，images构建并锁定镜像，up验证锁后启动，status读取状态；snapshot-image预热产品依赖。每一步分开执行，失败不跳下一步。",
+        "终端明确命令 → 本机Docker/Compose → .data/daytona-local配置与锁。",
+    ),
+    "daytona_build.py": (
+        "从固定来源构建并锁定本机镜像",
+        "验证源码Git对象、Runner发布字节与许可证，在干净构建上下文编译控制面和存储，记录不可变镜像身份；不猜测latest标签或切换云端服务。",
+        "daytona_local images → Docker本机构建 → images.lock/compose.lock。",
+    ),
+    "daytona_bootstrap.py": (
+        "真实本机身份认证与快照注册",
+        "auth通过本机Dex与API获取本机密钥；snapshot核对预热镜像/资源并限时等待active。准确名称和身份匹配后才写workbench.env，失败不写假就绪。",
+        "up健康后 → auth → snapshot → 平台本机Daytona配置。",
+    ),
+    "daytona_gateway.py": (
+        "固定端口的本机网络入口",
+        "TARGETS静态列出容器服务，异步转发只连接这些固定目标；不读取用户URL、代理主机或模型密钥，不把它当任意TCP代理。",
+        "本机Compose回环发布端口 → 只读网关容器 → 内部服务。",
+    ),
+    "daytona_diagnostics.py": (
+        "保留有界且脱敏的失败诊断",
+        "仅读取本次本机安装的状态和尾部日志，先收集本机秘密用于替换，再写报告；不打包credentials或env。诊断脚本不宣告业务通过。",
+        "工作流always失败/成功收尾 → reports/daytona诊断 → 人工定位。",
+    ),
+    "daytona_matrix_image.py": (
+        "为每个技术栈制作离线依赖快照",
+        "从已生成项目提取受限公开构建输入和依赖锁，排除运行数据与秘密，按profile预热工具后推到本机registry，记录来源/资源/锁身份。",
+        "真实原生产品 → matrix.Dockerfile/warm.py → snapshot-image.json。",
+    ),
+    "daytona_matrix_probe.py": (
+        "沙箱内独立数据库和产品验收",
+        "在沙箱内创建自有PG/Redis，离线安装/构建并通过独立启动器运行产品，执行HTTP、权限、浏览器及重启；检查服务退出后生成严格报告。",
+        "sandbox固定命令 → 本脚本 → 当前profile的运行证据；不复用主机库。",
+    ),
+    "ci_daytona_local.py": (
+        "真实本机Daytona中的资讯端到端验收",
+        "先用明确模型夹具完成智能资讯工作流，再创建实际本机沙箱并执行离线产品检查，确认删除和独立ZIP复验；SDK模拟测试不是这份报告。",
+        "daytona-local工作流 → Runtime/本机工具/Daytona → daytona-local.json。",
+    ),
+    "ci_daytona_matrix.py": (
+        "数据库与模板矩阵的沙箱验收入口",
+        "prepare-basic创建用于矩阵的基础PG产品；verify读取已登记同profile快照并运行真实沙箱，核对运行和清理证据。它不能用一种镜像冒充所有技术栈。",
+        "native-toolchain-daytona三行矩阵 → profile快照 → daytona-matrix.json。",
+    ),
 }
 
 FUNCTIONS = {
@@ -291,6 +451,18 @@ FUNCTIONS = {
     "wait_for_registry": "检测宿主机127.0.0.1上的真实Registry响应，而不是只检查容器存在；限时重试失败即停止，不上传到云端仓库。",
     "build_storage": "从MinIO独立的固定提交导出干净源码，在本机编译对象存储，镜像附上对应源码与许可证；返回来源指纹而不是信任可变的在线镜像标签。",
     "snapshot_image": "构建上下文只有Dockerfile与产品依赖文件，不含模型Key、平台源码或用户数据库。镜像进入本机Registry供本机Runner读取。",
+}
+
+
+FUNCTION_OVERRIDES = {
+    (
+        "workbench/api.py",
+        "auth",
+    ): "核对当前工作台HTTP请求的本机访问令牌；它不是产品用户登录，也不联系Dex或大模型供应商。",
+    (
+        "workbench/product_sql.py",
+        "render",
+    ): "根据同一Plan建立SQLAlchemy元数据，再分别编译SQLite/PostgreSQL的可读DDL；写出SQL用于审查，不在此函数中连接或修改数据库。",
 }
 
 
@@ -376,6 +548,8 @@ def purpose(name):
             "pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。",
             "阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。",
         )
+    if name.startswith("scripts/") and path.name in SCRIPT_ROLES:
+        return SCRIPT_ROLES[path.name]
     if name.startswith("scripts/"):
         return (
             "本机维护、构建或集成验收入口",
@@ -536,8 +710,7 @@ def notes(name, content):
             if params
             else "不接收显式业务参数，从已配置对象/模块读取依赖。"
         )
-        if node.name in FUNCTIONS:
-            out += FUNCTIONS[node.name]
+        out += FUNCTION_OVERRIDES.get((name, node.name), FUNCTIONS.get(node.name, ""))
         doc = ast.get_docstring(node)
         if doc:
             out += " 源码说明：" + " ".join(doc.split())[:200] + "。"

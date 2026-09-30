@@ -47,7 +47,7 @@ FastAPI的lifespan在服务启动和退出时管理数据库/Worker。LangGraph�
 | 0 工具与项目 | `.python-version`、`pyproject.toml`、`uv.lock`、`.env.example`、`.gitignore`、`.gitattributes`、`README.md`、`workbench/__init__.py`、`workbench/local_only.py` | uv创建独立`.venv`；尚未启动服务或调用模型 |
 | 1 数据契约 | `settings.py`、`catalog.py`、`domain.py`、`errors.py` | 能把合法字典转成Plan；非法字段、技术栈组合和非本机工具地址被拒绝 |
 | 2 数据库 | `store.py`、`alembic.ini`、`migrations/`全部文件；`tests/conftest.py`、`test_contracts.py`、`test_store.py` | 临时数据库能迁移、保存项目和事务回滚；此时完全不需要api.py或runtime.py |
-| 3 需求与模型 | `conversation.py`、`llm.py` | 长期会话保存原事实；模型请求有角色路由、预算、缓存和严格响应格式 |
+| 3 需求与模型 | `conversation.py`、`llm.py`、`requirement_coverage.py`、`recommendation.py` | 长期会话保存原事实；模型请求有角色路由、预算、缓存和严格响应格式 |
 | 4 安全与源代码 | `filesystem.py`、`tools.py`、`vendor.py`、`scripts/vendor_templates.py`、`templates/vendor/`文本清单/许可证 | 能从固定第三方源码生成本机ZIP，再安全解压；没有任意命令入口 |
 | 5 上下文 | `symbols.py`、`knowledge.py`、`retrieval.py`、`continue_index.py`、`context_mcp.py`、`toolchain.py`、`tools/node/`全部文本文件 | Java/TS/Vue/Python符号和源码行号可检索；只读MCP共享同一索引 |
 | 6 产品 | `templates/product/`全部文件、`templates/frontends/`全部文件、`generator.py`、`product_sql.py`、`rules.py`、`coding.py`、`aider_tool.py` | 已批准Plan可确定性生成独立产品；只有受限规则文件可以由模型参与修改 |

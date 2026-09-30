@@ -63,6 +63,33 @@ docker version
 
 FastapiAdmin不要求JDK/Maven。芋道的Maven实际使用Java必须为17。docker version必须显示Server，不只是安装了Client。原生运行只绑定回环，不应在公网暴露开发管理员或数据库。
 
+#### 19.4.1 Docker还没有安装时怎么办
+
+Windows读者先从[Docker Desktop官方Windows安装页](https://docs.docker.com/desktop/setup/install/windows-install/)按安装向导选择WSL2后端，安装后从开始菜单启动Desktop并自行阅读/决定接受其许可条款；商业组织须核对适用订阅。在Settings的Resources → WSL Integration启用本次Ubuntu。不要同时在同一个WSL发行版里另外安装第二个Docker Engine。回到Ubuntu运行`docker version`与`docker compose version`，两条都成功才继续。
+
+以下只适用于没有既有Docker/容器运行环境的受支持Ubuntu主机。若已有容器、镜像或冲突软件包，先按[官方Ubuntu安装说明](https://docs.docker.com/engine/install/ubuntu/)核对；不要为了跟教程自动卸载已有服务。新主机可按顺序配置官方软件源并安装：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y ca-certificates curl
+sudo install -d -m 0755 /etc/apt/keyrings
+sudo curl --fail --silent --show-error --location https://download.docker.com/linux/ubuntu/gpg --output /etc/apt/keyrings/docker.asc
+sudo chmod a+r /etc/apt/keyrings/docker.asc
+. /etc/os-release
+printf 'Types: deb\nURIs: https://download.docker.com/linux/ubuntu\nSuites: %s\nComponents: stable\nArchitectures: %s\nSigned-By: /etc/apt/keyrings/docker.asc\n' "${UBUNTU_CODENAME:-$VERSION_CODENAME}" "$(dpkg --print-architecture)" | sudo tee /etc/apt/sources.list.d/docker.sources
+sudo apt-get update
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+sudo systemctl start docker
+sudo docker version
+sudo docker compose version
+```
+
+先验证sudo下能连接服务，再决定让运行平台的本机账号使用Docker。Docker组拥有相当于root的主机权限；只在自己控制的开发机、理解这一后果后，依照[官方用户组说明](https://docs.docker.com/engine/install/linux-postinstall/)执行`sudo usermod -aG docker "$USER"`，退出系统会话后重新登录。最后不用sudo运行`docker version`，确认Client/Server都可见。不要用`chmod 666 /var/run/docker.sock`给所有账号开放权限，也不要开启公网TCP Docker管理端口。
+
+这一步修改的是主机软件与权限，不是项目Python环境。平台脚本不会替你提升权限；仍报Permission denied时停下来核对账号/服务，不把整个研发平台用sudo启动。记录`docker version`与`docker compose version`的实际版本，作为后续本机Daytona证据的环境信息。
+
+#### 19.4.2 Node与平台依赖
+
 已有Node22.18+直接使用；没有时可安装官方用户目录二进制并核对哈希：
 
 ```bash

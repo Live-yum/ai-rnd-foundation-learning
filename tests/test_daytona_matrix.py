@@ -257,3 +257,33 @@ def test_matrix_always_deletes_its_sandbox_and_never_falls_back(settings, tmp_pa
     assert events[-1] == "delete"
     saved = json.loads((tmp_path / "daytona-verification.json").read_text(encoding="utf-8"))
     assert saved["passed"] is (failure is None)
+
+
+@pytest.mark.parametrize("database", ["sqlite", "postgresql"])
+def test_python_runtime_descriptor_does_not_replace_matrix_database_identity(database):
+    from scripts.daytona_matrix_probe import basic_runtime_evidence
+
+    raw = {"passed": True, "http": True, "restart": True, "database": "real-isolated-" + database}
+    result = basic_runtime_evidence(raw, database)
+    assert result["database"] == database
+    assert result["runtime_database"] == "real-isolated-" + database
+    assert result["fresh_database"] is True
+    assert raw["database"] == "real-isolated-" + database
+    with pytest.raises(ValueError, match="does not match"):
+        basic_runtime_evidence({**raw, "database": "real-isolated-mysql"}, database)
+
+
+@pytest.mark.parametrize("key", ["passed", "http", "restart"])
+@pytest.mark.parametrize("bad", [False, "true", 1, None])
+def test_python_runtime_descriptor_normalization_never_hides_failed_checks(key, bad):
+    from scripts.daytona_matrix_probe import basic_runtime_evidence
+
+    raw = {
+        "passed": True,
+        "http": True,
+        "restart": True,
+        "database": "real-isolated-postgresql",
+        key: bad,
+    }
+    with pytest.raises(ValueError):
+        basic_runtime_evidence(raw, "postgresql")

@@ -116,3 +116,70 @@ def test_native_rejects_absent_or_partial_restore_report(tmp_path, restored):
     receipt["evidence_sha256"] = sha(target)
     with pytest.raises(PrerequisiteError, match="独立"):
         managed_verify(product, receipt)
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        "missing",
+        "partial",
+        "template",
+        "family",
+        "passed",
+        "truthy_passed",
+        "shell",
+        "truthy_shell",
+        "substitution",
+        "falsey_substitution",
+        "protected",
+        "digest",
+        "pages",
+        "page_hash",
+        "page_path",
+        "components",
+        "entities",
+        "wrong_components",
+        "unhashable_path",
+    ],
+)
+def test_native_style_receipt_cannot_be_skipped_or_forged(tmp_path, change):
+    product, receipt, target = verified_fixture(tmp_path)
+    data = json.loads(target.read_text(encoding="utf-8"))
+    style = data["native_style"]
+    if change == "missing":
+        data.pop("native_style")
+    elif change == "partial":
+        data["native_style"] = {"passed": True}
+    elif change == "template":
+        style["template"] = "yudao-vben"
+    elif change == "family":
+        style["ui_family"] = "simple-admin"
+    elif change in {"passed", "truthy_passed"}:
+        style["passed"] = False if change == "passed" else 1
+    elif change in {"shell", "truthy_shell"}:
+        style["shell_and_theme_unchanged"] = False if change == "shell" else "true"
+    elif change in {"substitution", "falsey_substitution"}:
+        style["generic_frontend_substitution"] = True if change == "substitution" else 0
+    elif change == "protected":
+        style["protected_files"] = {}
+    elif change == "digest":
+        style["protected_source_digest"] = "0" * 64
+    elif change == "pages":
+        style["generated_pages"] = []
+    elif change == "page_hash":
+        style["generated_pages"][0]["sha256"] = "0" * 64
+    elif change == "page_path":
+        style["generated_pages"][0]["path"] = "../../unrelated.vue"
+    elif change == "components":
+        style["generated_pages"][0]["native_components"] = []
+    elif change == "entities":
+        data["entities"] = []
+    elif change == "wrong_components":
+        style["generated_pages"][0]["native_components"] = ["GenericTable"]
+    elif change == "unhashable_path":
+        style["generated_pages"][0]["path"] = []
+    write_json(target, data)
+    receipt["evidence_sha256"] = sha(target)
+    with pytest.raises(PrerequisiteError, match="原生UI"):
+        managed_verify(product, receipt)
+    assert not (product.parent / "verification.json").exists()

@@ -155,16 +155,18 @@ def test_legacy_package_cannot_erase_persisted_review_gap(settings, store, plan)
     }
     path = workflow.product(state).parent / "model-review.json"
     path.parent.mkdir(parents=True)
-    path.write_text(json.dumps({"enabled": True, "uncovered_requirements": ["搜索未实现"]}))
+    path.write_text(
+        json.dumps({"enabled": True, "uncovered_requirements": ["搜索未实现"]}), encoding="utf-8"
+    )
     with pytest.raises(UnsupportedScope, match="搜索未实现"):
         workflow.package(state)
-    assert json.loads(path.read_text())["uncovered_requirements"] == ["搜索未实现"]
+    assert json.loads(path.read_text(encoding="utf-8"))["uncovered_requirements"] == ["搜索未实现"]
     with pytest.raises(UnsupportedScope):
         workflow.require_review_clearance(state, {"enabled": True, "uncovered_requirements": []})
     workflow.require_review_clearance(
         state, {"enabled": True, "uncovered_requirements": []}, fresh=True
     )
-    assert json.loads(path.read_text())["delivery_clearance"] is True
+    assert json.loads(path.read_text(encoding="utf-8"))["delivery_clearance"] is True
 
 
 @pytest.mark.parametrize(
@@ -264,7 +266,9 @@ def test_chinese_correction_reconciles_legacy_text_and_records_provenance(settin
         store.set_automation(run, True, "smart-after-correction")
         runtime.tick()
     assert store.get_run(run)["status"] == "READY", store.get_run(run)
-    ledger = json.loads((settings.data_dir / "runs" / run / "requirement-ledger.json").read_text())
+    ledger = json.loads(
+        (settings.data_dir / "runs" / run / "requirement-ledger.json").read_text(encoding="utf-8")
+    )
     entry = ledger[-1]
     assert entry["before"]["facts"]["title_max_length"] == 250
     assert entry["after"]["facts"]["title_max_length"] == 100
