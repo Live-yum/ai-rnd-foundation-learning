@@ -6,8 +6,9 @@ const assert = require('node:assert/strict');
 
 // Vben keeps visited tabs alive, so activating a tab need not issue a new list request.
 // Exercise its actual search control to refresh the list and verify the resulting HTTP response.
-async function refreshNativeList(page, list, observe, checked) {
-  const search = page.getByRole('button', { name: /^搜\s*索$/ });
+async function refreshNativeList(page, entity, list, observe, checked) {
+  const current = page.locator(`[data-rnd-business-entity="${entity}"]:visible`);
+  const search = current.getByRole('button', { name: /^搜\s*索$/ });
   await search.waitFor({ state: 'visible' });
   const listing = observe(list);
   await search.click();
@@ -72,7 +73,7 @@ async function main() {
   async function openPage(entity) {
     const current = target(entity);
     await page.goto(base + '/#' + current.route, { waitUntil: 'domcontentloaded' });
-    const rows = await refreshNativeList(page, current.list, observe, checked);
+    const rows = await refreshNativeList(page, entity, current.list, observe, checked);
     for (const selector of ['aside:visible', 'header:visible', '#__vben_main_content', '.vxe-table:visible', '[data-rnd-business-panel]']) await page.locator(selector).first().waitFor({ state: 'visible' });
     assert.equal(await page.locator('#workspace').count(), 0, 'Generic frontend is forbidden');
     const theme = await page.evaluate(() => {

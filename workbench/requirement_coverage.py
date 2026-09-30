@@ -513,6 +513,31 @@ def _legacy_clauses(text, fields):
                     continue
             previous_match = match
             prefix = sentence[start : match.start()]
+            if not seen_subject:
+                # Entity-level capability summaries before a comma are not
+                # predicates on the first field in the following declaration.
+                # An explicit operation-first subject list (搜索，按name) stays
+                # bound to its subject instead of becoming a generic query.
+                boundary = next(
+                    (
+                        index
+                        for index in range(match.start() - 1, start - 1, -1)
+                        if sentence[index] in ",，" and not depths[index]
+                    ),
+                    None,
+                )
+                if (
+                    boundary is not None
+                    and re.search(
+                        r"搜索|检索|筛选|过滤|search|filter", sentence[start:boundary], re.I
+                    )
+                    and not re.search(
+                        r"按|针对|依据|\bby\b", sentence[boundary + 1 : match.start()], re.I
+                    )
+                ):
+                    previous.append(sentence[start:boundary])
+                    start = boundary + 1
+                    prefix = sentence[start : match.start()]
             comma = next(
                 (
                     index
@@ -551,6 +576,124 @@ def _operation_parts(text):
             yield text[start : match.start()]
             start = match.end()
     yield text[start:]
+
+
+_METRIC_CONTEXT = re.compile(
+    r"(?<![a-z_])(?:count|group_count|time_count|average_duration|metrics?)(?![a-z_])"
+    r"|指标|统计|计数|已解决数|总数|平均.*时长|趋势|分组",
+    re.I,
+)
+_METRIC_KIND = re.compile(
+    r"(?<![a-z_])(?:group_count|time_count|average_duration|count)(?![a-z_])"
+    r"|已解决数|总数|平均.*?时长|趋势|分组",
+    re.I,
+)
+_QUERY_SURFACE = re.compile(
+    r"列表|表格|页面|界面|筛选器|搜索框|查询条件|查询参数|filterable|searchable|date_range"
+    r"|(?<![a-z_])(?:list|table|form|ui|search)(?![a-z_])",
+    re.I,
+)
+_METRIC_SCOPE = re.compile(r"权限|可见|角色|本人|负责范围|assigned|read_metrics", re.I)
+_METRIC_FILTER = re.compile(r"筛选|过滤|(?<![a-z_])filters?(?![a-z_])", re.I)
+
+
+def _metric_clauses(text, fields):
+    """Separate aggregate predicates from field-query declarations.
+
+    Only a recognized metric clause with named filter operands or permission
+    scope is consumed. Explicit UI/query flags always remain field obligations.
+    The caller checks consumed predicates against executable MetricSpec.filters.
+    """
+    obligations = []
+
+    def consume(fragment, context="", inherited=False):
+        combined = context + fragment
+        if (
+            not _METRIC_CONTEXT.search(combined)
+            or not _METRIC_FILTER.search(_legacy_operation_text(fragment, fields))
+            or _QUERY_SURFACE.search(fragment)
+        ):
+            return fragment
+        matches = list(
+            re.finditer(
+                r"(?<![a-z0-9_])(?:(?P<entity>[a-z][a-z0-9_]*)[.:])?"
+                r"(?P<field>[a-z][a-z0-9_]*)\s*(?P<op>!=|>=|<=|==|=)\s*"
+                r"(?P<value>\"[^\"]*\"|'[^']*'|[a-zA-Z0-9_.:+-]+|[\u4e00-\u9fff]+?(?=\s|[，,；;、（）()]|筛选|过滤|$))",
+                fragment,
+                re.I,
+            )
+        )
+        predicates = []
+        for match in matches:
+            name = match.group("field")
+            if name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}:
+                continue
+            value = match.group("value").strip("\"'")
+            target = next((field for _, field in fields if field.name == name), None)
+            if target is not None and target.kind in {"integer", "boolean"}:
+                try:
+                    value = json.loads(value.lower())
+                except ValueError:
+                    pass
+            predicates.append(
+                {
+                    "entity": match.group("entity"),
+                    "field": name,
+                    "op": {"=": "eq", "==": "eq", "!=": "ne", ">=": "gte", "<=": "lte"}[
+                        match.group("op")
+                    ],
+                    "value": value,
+                }
+            )
+        scope_only = not predicates and bool(_METRIC_SCOPE.search(fragment))
+        # A metric heading may scope a following predicate, never an unrelated
+        # bare field-filter declaration after a comma or conjunction.
+        if inherited and not predicates and not scope_only:
+            return fragment
+        targets = _fact_candidates(fragment, fields)
+        if not targets and not predicates and not scope_only:
+            return fragment
+        if not scope_only:
+            kinds = list(_METRIC_KIND.finditer(combined))
+            kind = kinds[-1].group().lower() if kinds else None
+            kind = {
+                "已解决数": "count",
+                "总数": "count",
+                "趋势": "time_count",
+                "分组": "group_count",
+            }.get(kind, "average_duration" if kind and "时长" in kind else kind)
+            obligations.append(
+                {
+                    "kind": kind,
+                    "entity": _fact_entity(combined, fields),
+                    "predicates": predicates,
+                    "targets": targets,
+                }
+            )
+        return ""
+
+    # Parenthesized metric definitions have their own scope, even alongside a
+    # list-filter requirement in the same sentence.
+    def parenthesis(match):
+        prefix = text[: match.start()]
+        label = re.split(r"[，,、；;。\n]", prefix)[-1]
+        body = match.group(1)
+        filtered = consume(body, label)
+        return match.group() if filtered == body else ""
+
+    text = re.sub(r"[（(]([^（）()]*)[）)]", parenthesis, text)
+    result, context = [], ""
+    for part in re.split(r"([，,；;。\n]|并且|并|且|和|与)", text):
+        if re.fullmatch(r"[；;。\n]", part):
+            context = ""
+        if _METRIC_CONTEXT.search(part):
+            context = part
+            result.append(consume(part))
+        else:
+            result.append(consume(part, context, inherited=True))
+        if _QUERY_SURFACE.search(part):
+            context = ""
+    return "".join(result), obligations
 
 
 def _legacy_operation_text(text, fields):
@@ -644,6 +787,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
                         for code, pattern in (
                             ("search", r"搜索|检索|search"),
                             ("filter", r"筛选|过滤|filter"),
+                            ("metric", _METRIC_CONTEXT.pattern),
                             ("date_range", r"日期区间|日期范围|date.?range"),
                             ("capability_catalog", r"可用能力|模板能力|template_capabilities"),
                             ("negation", r"无需|不需要|不要求|取消|禁用|不支持|false"),
@@ -727,6 +871,58 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
         "filterable": r"筛选|过滤|filter",
         "date_range": r"日期区间|日期范围|含边界.*(?:日期|范围)|date.?range",
     }
+    query_texts = []
+    for origin, text in texts:
+        query_text, metric_obligations = _metric_clauses(text, fields)
+        query_texts.append((origin, query_text))
+        for index, obligation in enumerate(metric_obligations):
+            source = {**origin, "metric_clause": index}
+            source_text = text
+            targets = obligation["targets"]
+            predicates = obligation["predicates"]
+            entities = {
+                entity for entity, field in fields if any(field is target for target in targets)
+            }
+            explicit = {item["entity"] for item in predicates if item["entity"]}
+            if obligation["entity"]:
+                explicit.add(obligation["entity"])
+            candidates = plan.business.metrics if plan.business else []
+            candidates = [
+                metric
+                for metric in candidates
+                if (not explicit or metric.entity in explicit)
+                and (not entities or metric.entity in entities)
+                and (obligation["kind"] is None or metric.kind == obligation["kind"])
+            ]
+            if not any(
+                all(
+                    any(
+                        predicate.field == requested["field"]
+                        and predicate.op == requested["op"]
+                        and type(predicate.value) is type(requested["value"])
+                        and predicate.value == requested["value"]
+                        for predicate in metric.filters
+                    )
+                    for requested in predicates
+                )
+                and (
+                    bool(predicates)
+                    or all(
+                        any(predicate.field == target.name for predicate in metric.filters)
+                        for target in targets
+                    )
+                )
+                for metric in candidates
+            ):
+                gap(
+                    "业务指标缺少已确认的筛选条件: " + text,
+                    "missing_metric_predicate",
+                    targets=targets,
+                    attribute="metric_filter",
+                    expected=True,
+                    actual=False,
+                )
+    texts = query_texts
     # A field-bound false assignment or prohibition is a real constraint.
     # Extract it before discarding merely unrequested operation phrases; a
     # typed ledger is helpful but is not required to preserve explicit intent.

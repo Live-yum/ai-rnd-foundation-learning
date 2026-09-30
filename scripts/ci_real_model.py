@@ -223,6 +223,65 @@ def response_receipt(status, data, stage, schema=None):
     return receipt
 
 
+class DiagnosticTextBudget:
+    """Bounded, selected validation wording, never full provider payloads/logs."""
+
+    def __init__(self, secrets=(), limit=6000):
+        self.secrets = tuple(secret for secret in secrets if isinstance(secret, str) and secret)
+        self.remaining = min(max(limit, 0), 6000)
+
+    def excerpt(self, value):
+        if not isinstance(value, str) or not self.remaining:
+            return ""
+        text = value
+        # Replace exact credentials before truncation so a boundary cannot leak
+        # a credential fragment. The caller supplies only the authorized key.
+        for secret in sorted(self.secrets, key=len, reverse=True):
+            text = text.replace(secret, "[REDACTED]")
+        text = re.sub(
+            r"(?im)\b(?:authorization|proxy-authorization|cookie|set-cookie|x-api-key)[\"']?\s*:.*$",
+            "[REDACTED HEADER]",
+            text,
+        )
+        text = re.sub(
+            r"(?i)\b[a-z][a-z0-9+.-]*://[^\s/@]+(?::[^\s/@]*)?@",
+            "[REDACTED URL CREDENTIALS]@",
+            text,
+        )
+        text = re.sub(
+            r"(?i)(?:\b(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|password|passwd|secret|credential|authorization|token)\b|密码|口令|密钥|令牌)[\"']?\s*[:：=]\s*[^\r\n]*",
+            "[REDACTED CREDENTIAL]",
+            text,
+        )
+        text = re.sub(r"(?i)\bbearer\s+[^\s,;]+", "[REDACTED TOKEN]", text)
+        text = re.sub(
+            r"\b(?:sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b",
+            "[REDACTED TOKEN]",
+            text,
+        )
+        text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+        limit = min(600, self.remaining)
+        text = text[:limit]
+        self.remaining -= len(text)
+        return text
+
+    def excerpts(self, values):
+        return [text for value in values[:20] if (text := self.excerpt(value))]
+
+
+def completed_stage_details(value, text_budget):
+    """Keep schema counts and selected review gaps, not complete model responses."""
+    result = {"completed": True}
+    for name in ("questions", "unsupported", "uncovered_requirements", "field_requirements"):
+        if hasattr(value, name):
+            result[name + "_count"] = len(getattr(value, name))
+    if hasattr(value, "uncovered_requirements"):
+        result["uncovered_requirement_excerpts"] = text_budget.excerpts(
+            value.uncovered_requirements
+        )
+    return result
+
+
 def contract_snapshot(data, requirement=False):
     def identifier(value):
         return (
@@ -289,11 +348,16 @@ DESIGN_REASON_CODES = {
 }
 
 
-def safe_coverage_details(requirement, plan):
+def safe_coverage_details(requirement, plan, *, text_budget=None):
     """Export executable differences and source references, never requirement prose."""
     from workbench.domain import Plan, Requirement
-    from workbench.requirement_coverage import coverage_gaps
+    from workbench.requirement_coverage import _fact_texts, coverage_gaps
 
+    source_texts = {
+        "features": requirement.get("features", []),
+        "acceptance": requirement.get("acceptance", []),
+        "facts": list(_fact_texts(requirement.get("facts", {}))),
+    }
     items = []
     coverage_gaps(
         Requirement.model_validate(requirement), Plan.model_validate(plan), diagnostics=items
@@ -332,6 +396,17 @@ def safe_coverage_details(requirement, plan):
                 entry[key + "_count"] = len(value)
             else:
                 entry[key] = scalar(attribute, value)
+        source = item["source"]
+        texts = source_texts.get(source["section"], [])
+        if (
+            text_budget is not None
+            and type(source.get("index")) is int
+            and 0 <= source["index"] < len(texts)
+            and (source["section"] != "facts" or source.get("encoding") == "legacy")
+        ):
+            excerpt = text_budget.excerpt(texts[source["index"]])
+            if excerpt:
+                entry["source_excerpt"] = excerpt
         result.append(entry)
     return result
 
@@ -364,7 +439,8 @@ def safe_native_plan_details(plan):
     }
 
 
-def safe_workflow_details(store, run_id, traces):
+def safe_workflow_details(store, run_id, traces, *, text_budget=None):
+    text_budget = text_budget or DiagnosticTextBudget()
     details = {"model_stages": traces}
     if run_id:
         run = store.get_run(run_id)
@@ -400,8 +476,17 @@ def safe_workflow_details(store, run_id, traces):
         }
         details["plan_contract"] = contract_snapshot(plan)
         details["requirement_contract"] = contract_snapshot(requirement, requirement=True)
+        details["unsupported_excerpts"] = text_budget.excerpts(plan.get("unsupported", []))
         if requirement and plan:
-            details["coverage_sources"] = safe_coverage_details(requirement, plan)
+            from workbench.domain import Plan, Requirement
+            from workbench.requirement_coverage import coverage_gaps
+
+            details["coverage_reason_excerpts"] = text_budget.excerpts(
+                coverage_gaps(Requirement.model_validate(requirement), Plan.model_validate(plan))
+            )
+            details["coverage_sources"] = safe_coverage_details(
+                requirement, plan, text_budget=text_budget
+            )
             if run.get("template") in {"fastapiadmin", "yudao-vben"}:
                 details["native_plan_validation"] = safe_native_plan_details(plan)
         error = run.get("error") or ""
@@ -429,6 +514,7 @@ def safe_workflow_details(store, run_id, traces):
             "date_kind": "真实日期类型",
             "uncovered_operation": "设计未覆盖已确认的",
             "constraint_mismatch": "设计不一致",
+            "missing_metric_predicate": "业务指标缺少已确认的筛选条件",
             "business_capability": "业务设计缺少",
         }
         attributes = (
@@ -758,6 +844,7 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             },
         )
     traces = []
+    diagnostic_text = DiagnosticTextBudget(secrets=(config.key.get_secret_value(),))
 
     class ObservedGateway(ModelGateway):
         def complete(self, run_id, key, instruction, payload, schema):
@@ -771,15 +858,7 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             trace = {"stage": stage, "completed": False}
             traces.append(trace)
             value = super().complete(run_id, key, instruction, payload, schema)
-            trace["completed"] = True
-            for name in (
-                "questions",
-                "unsupported",
-                "uncovered_requirements",
-                "field_requirements",
-            ):
-                if hasattr(value, name):
-                    trace[name + "_count"] = len(getattr(value, name))
+            trace.update(completed_stage_details(value, diagnostic_text))
             return value
 
     application = create_app(
@@ -838,7 +917,9 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             raise SafeFailure(
                 "workflow_not_ready",
                 last,
-                safe_workflow_details(application.state.store, run_id, traces),
+                safe_workflow_details(
+                    application.state.store, run_id, traces, text_budget=diagnostic_text
+                ),
             )
         browser = json.loads(result_path.read_text(encoding="utf-8"))
         run = application.state.store.get_run(browser["run_id"])

@@ -389,3 +389,159 @@ def test_textual_false_date_range_is_enforced_for_named_date_field():
     assert coverage_gaps(requirement, plan) == []
     plan.entities[0].fields[-1].date_range = True
     assert any("date_range" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def customer_metric_case(kind="count"):
+    import json
+
+    from workbench.business_contracts import MetricSpec
+    from workbench.settings import ROOT
+
+    plan = Plan.model_validate(
+        json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    )
+    field = next(
+        f
+        for e in plan.entities
+        if e.name == "requests"
+        for f in e.fields
+        if f.name == "request_state"
+    )
+    field.filterable = False
+    options = {
+        "count": {},
+        "group_count": {"group_by": "priority"},
+        "time_count": {"time_field": "created_at"},
+        "average_duration": {"start_field": "created_at", "end_field": "resolved_at"},
+    }[kind]
+    plan.business.metrics = [
+        MetricSpec(
+            name="matching",
+            label="条件指标",
+            entity="requests",
+            kind=kind,
+            filters=[{"field": "request_state", "op": "eq", "value": "resolved"}],
+            **options,
+        )
+    ]
+    requirement = Requirement(
+        summary="指标合同",
+        users=["管理人员", "服务人员"],
+        features=[],
+        acceptance=[],
+        data_scope="shared",
+        field_requirements=[
+            FieldRequirement(entity="requests", field="request_state", filterable=False)
+        ],
+    )
+    return requirement, plan
+
+
+@pytest.mark.parametrize("kind", ["count", "group_count", "time_count", "average_duration"])
+@pytest.mark.parametrize("section", ["features", "acceptance", "facts"])
+def test_metric_predicates_are_not_list_filter_flags(kind, section):
+    requirement, plan = customer_metric_case(kind)
+    text = f"requests：业务指标（{kind}，按 request_state=resolved 筛选）"
+    if section == "facts":
+        requirement.facts = {"统计条件": text}
+    else:
+        setattr(requirement, section, [text])
+    before = plan.model_dump()
+    assert coverage_gaps(requirement, plan) == []
+    assert plan.model_dump() == before
+    plan.business.metrics[0].filters = []
+    gaps = coverage_gaps(requirement, plan)
+    assert gaps and all("业务指标" in gap for gap in gaps)
+
+
+@pytest.mark.parametrize("mutation", ["entity", "kind", "value", "op", "missing_business"])
+def test_metric_predicate_still_requires_the_correct_executable_metric(mutation):
+    requirement, plan = customer_metric_case()
+    requirement.features = ["已解决数（count，按 requests.request_state=resolved 筛选）"]
+    assert coverage_gaps(requirement, plan) == []
+    if mutation == "missing_business":
+        plan.business = None
+    elif mutation in {"entity", "kind"}:
+        setattr(
+            plan.business.metrics[0], mutation, "tasks" if mutation == "entity" else "time_count"
+        )
+    else:
+        setattr(
+            plan.business.metrics[0].filters[0], mutation, "active" if mutation == "value" else "ne"
+        )
+    assert any("业务指标" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize("surface", ["列表", "表格", "页面", "查询参数", "list", "table", "UI"])
+def test_metric_context_does_not_override_explicit_list_filtering(surface):
+    requirement, plan = customer_metric_case()
+    requirement.features = [f"统计{surface}必须支持 request_state 筛选"]
+    assert any("filterable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_metric_predicate_and_unrelated_ui_filter_remain_separate():
+    requirement, plan = customer_metric_case()
+    requirement.features = [
+        "已解决数（count，按 request_state=resolved 筛选），客户列表支持 category 筛选"
+    ]
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[-1].filterable = False
+    assert any(
+        "filterable" in gap and "category" in gap for gap in coverage_gaps(requirement, plan)
+    )
+
+
+def test_metric_predicate_does_not_override_explicit_typed_legacy_conflict():
+    requirement, plan = customer_metric_case()
+    requirement.features = [
+        "已解决数（count，按 request_state=resolved 筛选）",
+        "requests.request_state filterable=true",
+    ]
+    assert any("filterable" in gap for gap in coverage_gaps(requirement, plan))
+    next(
+        f
+        for e in plan.entities
+        if e.name == "requests"
+        for f in e.fields
+        if f.name == "request_state"
+    ).filterable = True
+    assert any("filterable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "所有统计指标按本人可见权限范围过滤",
+        "服务人员的count指标按assigned负责范围筛选",
+        "manager/service的统计按角色权限筛选，只计算可见行",
+    ],
+)
+def test_metric_row_scope_does_not_require_global_ui_filter(text):
+    requirement, plan = customer_metric_case()
+    requirement.features = [text]
+    before = plan.business.model_dump()
+    assert coverage_gaps(requirement, plan) == []
+    assert plan.business.model_dump() == before
+
+
+@pytest.mark.parametrize("first", ["name", "organization", "contact"])
+@pytest.mark.parametrize("heading", ["客户管理", "customers：", "客户档案（customers）"])
+def test_entity_capability_heading_does_not_make_first_search_field_filterable(first, heading):
+    requirement, plan = customer_case()
+    names = [first, *[name for name in ("name", "organization", "contact") if name != first]]
+    requirement.features = [
+        heading
+        + "支持关键词搜索和精确筛选，字段包括"
+        + "、".join(name + "（可搜索）" for name in names)
+        + "、category（可精确筛选）"
+    ]
+    assert coverage_gaps(requirement, plan) == []
+    requirement.features.append(f"customers：{first}搜索和精确筛选")
+    assert any("filterable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_unrequested_metric_filter_does_not_become_a_positive_metric_predicate():
+    requirement, plan = customer_metric_case()
+    requirement.features = ["count统计无需request_state筛选"]
+    plan.business.metrics[0].filters = []
+    assert coverage_gaps(requirement, plan) == []

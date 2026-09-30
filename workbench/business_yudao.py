@@ -99,6 +99,12 @@ def _mount_panel(body, entity):
         '@changed="handleRefresh" />\n  </Page>'
     )
     body = body.replace("</Page>", panel)
+    body = re.sub(
+        r"<Page(?=[\s>])",
+        f'<Page data-rnd-business-entity="{entity}"',
+        body,
+        count=1,
+    )
     body = body.replace("<Grid", '<Grid class="rnd-business-grid"', 1)
     return (
         body

@@ -120,7 +120,8 @@ def test_mount_retains_real_mappers_and_binds_every_original_crud_route(tmp_path
     panel = (frontend / "apps/web-antd/src/views/infra/wbcustomers/index.vue").read_text(
         encoding="utf-8"
     )
-    assert "<Page>" in panel and "<Grid " in panel and "<TableAction" in panel
+    assert '<Page data-rnd-business-entity="customers">' in panel
+    assert "<Grid " in panel and "<TableAction" in panel
     assert "<RndBusinessPanel" in panel
     data = (frontend / "apps/web-antd/src/views/infra/wbcustomers/data.ts").read_text(
         encoding="utf-8"

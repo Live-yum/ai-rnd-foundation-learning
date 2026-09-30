@@ -529,7 +529,7 @@ def test_every_native_plan_validation_message_has_a_finite_safe_code():
 
 
 def test_workflow_diagnostics_separate_model_coverage_and_native_origins():
-    from scripts.ci_real_model import safe_workflow_details
+    from scripts.ci_real_model import DiagnosticTextBudget, safe_workflow_details
     from workbench.domain import Plan, Requirement
     from workbench.requirement_coverage import coverage_gaps
 
@@ -569,9 +569,90 @@ def test_workflow_diagnostics_separate_model_coverage_and_native_origins():
                 else {"plan": plan}
             )
 
-    result = safe_workflow_details(Store(), "run", [])
+    result = safe_workflow_details(
+        Store(), "run", [], text_budget=DiagnosticTextBudget(secrets=("test-only-secret",))
+    )
     assert result["coverage_diagnostics"][0]["codes"] == ["planner_unsupported"]
     assert result["coverage_diagnostics"][0]["origin"] == "planner_unsupported"
     assert result["coverage_diagnostics"][1]["origin"] == "requirement_coverage"
     assert result["unsupported_diagnostics"][0]["topics"] == ["date_range", "capability"]
     assert "test-only-secret" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "value,secret",
+    [
+        ("API_KEY=credential_canary", "credential_canary"),
+        ('{"password": "password_canary"}', "password_canary"),
+        ("诊断：密码：password_canary", "password_canary"),
+        ("request failed Authorization: Bearer header_canary", "header_canary"),
+        ('metadata "Cookie": "session=cookie_canary"', "cookie_canary"),
+        ("postgresql+psycopg://alice:url_canary@127.0.0.1/private", "url_canary"),
+        ("https://example.invalid/?access_token=query_canary", "query_canary"),
+        ("Bearer bearer_canary", "bearer_canary"),
+        ("sk-testcredentialcanary123", "sk-testcredentialcanary123"),
+        ("github_pat_credentialcanary123", "github_pat_credentialcanary123"),
+        ("eyJhbGciOiJIUzI1NiJ9.credentialcanary.signature", "credentialcanary"),
+    ],
+)
+def test_validation_excerpt_scrubs_credentials_headers_tokens_and_url_userinfo(value, secret):
+    from scripts.ci_real_model import DiagnosticTextBudget
+
+    result = DiagnosticTextBudget().excerpt(value)
+    assert secret not in result
+    assert "REDACTED" in result
+
+
+def test_exact_key_redaction_precedes_truncation_and_total_budget_is_shared():
+    from scripts.ci_real_model import DiagnosticTextBudget
+
+    secret = "exact-key-canary-private"
+    budget = DiagnosticTextBudget(secrets=(secret,))
+    first = budget.excerpt("x" * 595 + secret)
+    assert "exact" not in first and len(first) <= 600
+    rest = budget.excerpts(["y" * 1000] * 20)
+    assert len(first) + sum(map(len, rest)) == 6000
+    assert all(len(item) <= 600 for item in rest)
+    assert budget.excerpt("more") == ""
+
+
+def test_safe_coverage_excerpt_is_selected_and_redacted_without_full_requirement():
+    from scripts.ci_real_model import DiagnosticTextBudget, safe_coverage_details
+    from workbench.domain import Requirement
+
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    requirement = Requirement(
+        summary="private summary not selected",
+        users=["not selected"],
+        data_scope="shared",
+        features=["customers：name 必须支持精确筛选，opaque-private-canary"],
+        acceptance=["unrelated unselected wording"],
+    )
+    result = safe_coverage_details(
+        requirement.model_dump(),
+        plan,
+        text_budget=DiagnosticTextBudget(secrets=("opaque-private-canary",)),
+    )
+    rendered = json.dumps(result, ensure_ascii=False)
+    assert "必须支持精确筛选" in rendered
+    assert "opaque-private-canary" not in rendered
+    assert "private summary" not in rendered and "unrelated unselected" not in rendered
+
+
+def test_review_gap_diagnostics_preserve_blocking_count_and_omit_other_model_text():
+    from scripts.ci_real_model import DiagnosticTextBudget, completed_stage_details
+    from workbench.domain import ModelReview
+
+    review = ModelReview(
+        summary="raw private provider summary",
+        observations=["raw private provider observation"],
+        uncovered_requirements=["客户历史请求未验证，opaque-private-canary"],
+    )
+    result = completed_stage_details(
+        review, DiagnosticTextBudget(secrets=("opaque-private-canary",))
+    )
+    assert result["uncovered_requirements_count"] == 1
+    assert "客户历史请求未验证" in result["uncovered_requirement_excerpts"][0]
+    encoded = json.dumps(result, ensure_ascii=False)
+    assert "opaque-private-canary" not in encoded and "raw private provider" not in encoded
+    assert review.uncovered_requirements == ["客户历史请求未验证，opaque-private-canary"]

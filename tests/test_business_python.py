@@ -143,7 +143,10 @@ print(json.dumps({'passed':True,'roles':3,'row_acl':True,'fk':True,'transitions'
 """
 
 
-def test_generated_business_api_transactions_and_permissions(tmp_path):
+def test_generated_business_api_transactions_and_permissions(tmp_path, monkeypatch):
+    # Windows may default to cp1252 even though clean_env makes the child emit UTF-8.
+    # Force that parent default on every platform so missing wire encoding regresses locally.
+    monkeypatch.setattr(subprocess, "_text_encoding", lambda: "cp1252")
     product = tmp_path / "product"
     generate_basic(runtime_plan(), product)
     env = clean_env(
@@ -154,7 +157,12 @@ def test_generated_business_api_transactions_and_permissions(tmp_path):
         }
     )
     init = subprocess.run(
-        [sys.executable, "manage.py", "init"], cwd=product, env=env, text=True, capture_output=True
+        [sys.executable, "manage.py", "init"],
+        cwd=product,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
     )
     assert init.returncode == 0, init.stdout + init.stderr
     result = subprocess.run(
@@ -162,6 +170,7 @@ def test_generated_business_api_transactions_and_permissions(tmp_path):
         cwd=product,
         env=env,
         text=True,
+        encoding="utf-8",
         capture_output=True,
         timeout=120,
     )
@@ -235,6 +244,7 @@ def test_generated_business_postgres_actual_fk_and_permissions(tmp_path):
             cwd=product,
             env=env,
             text=True,
+            encoding="utf-8",
             capture_output=True,
         )
         assert init.returncode == 0, init.stdout + init.stderr
@@ -243,6 +253,7 @@ def test_generated_business_postgres_actual_fk_and_permissions(tmp_path):
             cwd=product,
             env=env,
             text=True,
+            encoding="utf-8",
             capture_output=True,
             timeout=120,
         )
@@ -313,7 +324,10 @@ print(json.dumps({'passed':True,'three_resources':True,'linked_row_acl':True,'ta
 """
 
 
-def test_exact_customer_service_example_three_resources(tmp_path):
+def test_exact_customer_service_example_three_resources(tmp_path, monkeypatch):
+    # Windows may default to cp1252 even though clean_env makes the child emit UTF-8.
+    # Force that parent default on every platform so missing wire encoding regresses locally.
+    monkeypatch.setattr(subprocess, "_text_encoding", lambda: "cp1252")
     from pathlib import Path
 
     path = Path(__file__).parents[1] / "examples/plans/customer-service.json"
@@ -328,7 +342,12 @@ def test_exact_customer_service_example_three_resources(tmp_path):
         }
     )
     init = subprocess.run(
-        [sys.executable, "manage.py", "init"], cwd=product, env=env, text=True, capture_output=True
+        [sys.executable, "manage.py", "init"],
+        cwd=product,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
     )
     assert init.returncode == 0, init.stdout + init.stderr
     result = subprocess.run(
@@ -336,6 +355,7 @@ def test_exact_customer_service_example_three_resources(tmp_path):
         cwd=product,
         env=env,
         text=True,
+        encoding="utf-8",
         capture_output=True,
         timeout=120,
     )
@@ -362,6 +382,7 @@ def test_customer_business_api_only_independent_receipt(tmp_path):
         cwd=product,
         env=env,
         text=True,
+        encoding="utf-8",
         capture_output=True,
         timeout=180,
     )
@@ -413,6 +434,7 @@ def test_customer_business_postgres_independent_receipt(tmp_path):
             cwd=product,
             env=env,
             text=True,
+            encoding="utf-8",
             capture_output=True,
             timeout=180,
         )

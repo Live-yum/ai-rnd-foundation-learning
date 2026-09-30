@@ -212,6 +212,7 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
             [python, "-c", bootstrap],
             input=json.dumps({"username": "verify-admin", "password": password}),
             text=True,
+            encoding="utf-8",
             cwd=product,
             env=env,
             capture_output=True,
@@ -740,6 +741,7 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                     env={**env, "PLAYWRIGHT_BROWSERS_PATH": "0"},
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
                     timeout=300,
                 )
                 check(result.returncode == 0, "Business browser failed: " + result.stderr[-1800:])

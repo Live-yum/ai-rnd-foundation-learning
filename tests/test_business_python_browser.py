@@ -51,7 +51,12 @@ def test_business_roles_in_actual_lightweight_ui(tmp_path):
         }
     )
     init = subprocess.run(
-        [sys.executable, "manage.py", "init"], cwd=product, env=env, text=True, capture_output=True
+        [sys.executable, "manage.py", "init"],
+        cwd=product,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
     )
     assert init.returncode == 0, init.stdout + init.stderr
     setup = """import getpass
@@ -67,7 +72,12 @@ with engine.begin() as connection:
   connection.execute(insert(metadata.tables['users']).values(id=str(uuid.uuid4()),username=name,password=password_hash('Example-Test-Password-123'),role=role))
 """
     result = subprocess.run(
-        [sys.executable, "-c", setup], cwd=product, env=env, text=True, capture_output=True
+        [sys.executable, "-c", setup],
+        cwd=product,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     with socket.socket() as listener:
@@ -103,7 +113,12 @@ with engine.begin() as connection:
         script = tmp_path / "business-browser.cjs"
         script.write_text(DRIVER, encoding="utf-8")
         result = subprocess.run(
-            ["node", str(script), url, module], env=env, text=True, capture_output=True, timeout=120
+            ["node", str(script), url, module],
+            env=env,
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            timeout=120,
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert '"passed":true' in result.stdout

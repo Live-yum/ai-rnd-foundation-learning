@@ -29,8 +29,11 @@ const { refreshNativeList } = require('./scripts/business_yudao_browser.cjs');
       resolveResponse({ list: [{ id: String(clicks) }] });
     },
   };
-  const page = { getByRole(role, options) {
-    assert.equal(role, 'button'); assert(options.name.test('搜 索')); return search;
+  const page = { locator(selector) {
+    assert.equal(selector, '[data-rnd-business-entity=\"requests\"]:visible');
+    return { getByRole(role, options) {
+      assert.equal(role, 'button'); assert(options.name.test('搜 索')); return search;
+    } };
   } };
   const observe = list => {
     assert.equal(list, '/admin-api/infra/wb-requests/page');
@@ -40,7 +43,7 @@ const { refreshNativeList } = require('./scripts/business_yudao_browser.cjs');
   // A kept-alive tab has no navigation-triggered network request. Each assertion
   // must be satisfied by a fresh response caused by clicking the actual UI control.
   for (let visit = 1; visit <= 2; visit++) {
-    const rows = await refreshNativeList(page, '/admin-api/infra/wb-requests/page', observe, async value => value);
+    const rows = await refreshNativeList(page, 'requests', '/admin-api/infra/wb-requests/page', observe, async value => value);
     assert.equal(rows.list[0].id, String(visit));
   }
   assert.equal(clicks, 2);
@@ -54,3 +57,16 @@ const { refreshNativeList } = require('./scripts/business_yudao_browser.cjs');
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_generated_yudao_pages_provide_entity_specific_navigation_scope():
+    from workbench.business_yudao import _mount_panel
+
+    source = """<script lang="ts" setup></script>
+<template><Page auto-content-height><Grid><template #actions="{ row }">
+<TableAction :actions="[]" /></template></Grid></Page></template>"""
+    for entity in ("customers", "requests", "tasks"):
+        mounted = _mount_panel(source, entity)
+        assert f'<Page data-rnd-business-entity="{entity}" auto-content-height>' in mounted
+        assert mounted.count("data-rnd-business-entity=") == 1
+        assert '<Grid class="rnd-business-grid"' in mounted
