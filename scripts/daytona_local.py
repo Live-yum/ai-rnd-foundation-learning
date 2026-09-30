@@ -137,8 +137,9 @@ def render_compose(original, credentials, directory):
         PROXY_API_KEY=credentials["proxy_key"],
         DEFAULT_RUNNER_API_KEY=credentials["runner_key"],
         HEALTH_CHECK_API_KEY=credentials["health_key"],
+        ADMIN_API_KEY=credentials["admin_key"],
         DEFAULT_REGION_ID="local",
-        DEFAULT_REGION_NAME="Local computer",
+        DEFAULT_REGION_NAME="local-computer",
         DEFAULT_RUNNER_NAME="local-docker",
         OIDC_MANAGEMENT_API_ENABLED="false",
         # Match Dex's signed issuer, but obtain JWKS via its private Docker hostname.
@@ -150,6 +151,7 @@ def render_compose(original, credentials, directory):
         DAYTONA_RUNNER_TOKEN=credentials["runner_key"],
         AWS_SECRET_ACCESS_KEY=credentials["storage_password"],
         SSH_GATEWAY_ENABLE="false",
+        INITIALIZE_DAEMON_TELEMETRY="false",
     )
     config["services"]["db"]["environment"]["POSTGRES_PASSWORD"] = credentials["database_password"]
     config["services"]["minio"]["environment"]["MINIO_ROOT_PASSWORD"] = credentials[
@@ -178,6 +180,9 @@ def assert_local_compose(config):
         raise ValueError("仅允许固定内部网络和本机入口网络")
     if set(config["services"]) != KEEP:
         raise ValueError("存在未登记服务")
+    region_name = environment(config["services"]["api"]).get("DEFAULT_REGION_NAME")
+    if region_name is not None and not re.fullmatch(r"[a-zA-Z0-9_.-]{2,255}", region_name):
+        raise ValueError("本机区域名称不能包含空格，必须满足固定上游约束")
     gateway = dict(config["services"]["gateway"])
     gateway.pop("image", None)
     expected_gateway = gateway_service()
@@ -248,6 +253,7 @@ def prepare(directory=HOME):
             "proxy_key",
             "runner_key",
             "health_key",
+            "admin_key",
             "bootstrap_secret",
         )
     }
@@ -396,6 +402,48 @@ def snapshot_image(directory=HOME):
     print("Python3.14与锁定依赖已预热到本机镜像；沙箱验收使用offline安装。")
 
 
+def up(directory=HOME):
+    """A started container is not a ready API; reject early exits before authentication."""
+    import httpx
+
+    compose(directory, "up", "-d", "--pull", "never")
+    endpoints = [
+        "http://127.0.0.1:3000/api/config",
+        "http://127.0.0.1:3003/",
+        "http://127.0.0.1:5556/dex/.well-known/openid-configuration",
+        "http://127.0.0.1:6000/v2/",
+    ]
+    with httpx.Client(timeout=3, trust_env=False, follow_redirects=False) as client:
+        for attempt in range(90):
+            raw = compose(directory, "ps", "--all", "--format", "json")
+            rows = (
+                json.loads(raw)
+                if raw.lstrip().startswith("[")
+                else [json.loads(line) for line in raw.splitlines() if line.strip()]
+            )
+            dead = [
+                row["Service"] for row in rows if row.get("State") in {"exited", "dead", "removing"}
+            ]
+            if dead:
+                raise RuntimeError("本机服务已退出，不能继续认证：" + ", ".join(sorted(dead)))
+            running = {
+                row["Service"]
+                for row in rows
+                if row.get("State") == "running" and row.get("Health", "") in {"", "healthy"}
+            }
+            if running == KEEP:
+                try:
+                    for endpoint in endpoints:
+                        client.get(endpoint).raise_for_status()
+                    print("本机服务、API、Runner与身份端点全部就绪；可以进入认证。")
+                    return
+                except httpx.HTTPError:
+                    pass
+            if attempt != 89:
+                time.sleep(2)
+    raise RuntimeError("本机服务健康检查超时；检查容器日志，未声明安装成功")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -409,8 +457,10 @@ def main():
         images(args.directory)
     elif args.action == "snapshot-image":
         snapshot_image(args.directory)
+    elif args.action == "up":
+        up(args.directory)
     else:
-        commands = {"up": ["up", "-d", "--pull", "never"], "status": ["ps"], "down": ["down"]}
+        commands = {"status": ["ps"], "down": ["down"]}
         print(compose(args.directory, *commands[args.action]))
     # `down` deliberately omits -v; no command here deletes persistent user volumes.
 

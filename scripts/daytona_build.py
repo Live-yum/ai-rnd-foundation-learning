@@ -122,6 +122,9 @@ def build_exported(directory, context, docker):
     runner_context = directory / "runner-context"
     runner_context.mkdir(exist_ok=True)
     download_runner(runner_context / "runner-amd64")
+    (runner_context / "runner-entry.sh").write_bytes(
+        (ROOT / "tools/daytona/runner-entry.sh").read_bytes()
+    )
     runner_recipe = ROOT / "tools/daytona/runner.Dockerfile"
     metadata = {}
     for service in ("api", "proxy", "runner"):

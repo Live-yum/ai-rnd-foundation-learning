@@ -84,7 +84,12 @@ def test_standalone_bootstrap_in_the_lesson_restores_all_files(tmp_path):
     script = tmp_path / "rebuild_book.py"
     script.write_text(bootstrap, encoding="utf-8")
     destination = tmp_path / "student-project"
-    subprocess.run([sys.executable, str(script), str(OUTPUT), str(destination)], check=True)
+    subprocess.run(
+        [sys.executable, str(script), str(OUTPUT), str(destination)],
+        check=True,
+        env={**__import__("os").environ, "PYTHONIOENCODING": "cp1252"},
+        capture_output=True,
+    )
     for _, files in sources():
         for name, content in files:
             assert (destination / name).read_text(encoding="utf-8") == content

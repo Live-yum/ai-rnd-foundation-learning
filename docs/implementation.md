@@ -258,6 +258,9 @@ import re
 import sys
 from pathlib import Path, PurePosixPath
 
+# Windows redirected terminals may otherwise use cp1252 instead of UTF-8.
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
 if len(sys.argv) != 3:
     raise SystemExit("用法: python rebuild_book.py 手册路径 新空目录")
 book = Path(sys.argv[1]).read_text(encoding="utf-8")

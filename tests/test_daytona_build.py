@@ -183,3 +183,53 @@ def test_gateway_cannot_be_reconfigured_as_a_general_proxy():
     config["services"]["api"]["networks"].append("loopback-entry")
     with pytest.raises(ValueError, match="内部网络"):
         local.assert_local_compose(config)
+
+
+def test_runner_runtime_requires_a_real_executable_and_local_daemon():
+    recipe = (local.ROOT / "tools/daytona/runner.Dockerfile").read_text()
+    entry = (local.ROOT / "tools/daytona/runner-entry.sh").read_text()
+    assert "FROM debian:trixie-slim AS runner" in recipe
+    assert "API_PORT=invalid" in recipe and "Failed to get config" in recipe
+    assert "dockerd --host=unix:///var/run/docker.sock" in entry
+    assert "tcp://" not in entry and "docker info" in entry
+
+
+def test_up_rejects_an_exited_service_before_making_any_http_calls(tmp_path, monkeypatch):
+    def compose(directory, *args):
+        return json.dumps([{"Service": "runner", "State": "exited"}]) if args[0] == "ps" else ""
+
+    monkeypatch.setattr(local, "compose", compose)
+    monkeypatch.setattr(local.time, "sleep", lambda *_: pytest.fail("Must stop immediately"))
+    with pytest.raises(RuntimeError, match="runner"):
+        local.up(tmp_path)
+
+
+def test_up_requires_all_services_and_real_endpoint_success(tmp_path, monkeypatch):
+    import httpx
+
+    seen = []
+
+    def compose(directory, *args):
+        return (
+            json.dumps(
+                [{"Service": name, "State": "running", "Health": "healthy"} for name in local.KEEP]
+            )
+            if args[0] == "ps"
+            else ""
+        )
+
+    def request(self, endpoint):
+        seen.append(endpoint)
+        return httpx.Response(200, request=httpx.Request("GET", endpoint))
+
+    monkeypatch.setattr(local, "compose", compose)
+    monkeypatch.setattr(httpx.Client, "get", request)
+    local.up(tmp_path)
+    assert len(seen) == 4 and all(url.startswith("http://127.0.0.1:") for url in seen)
+
+
+def test_invalid_region_name_is_rejected_before_installation():
+    config = local_config()
+    config["services"]["api"]["environment"]["DEFAULT_REGION_NAME"] = "Local computer"
+    with pytest.raises(ValueError, match="空格"):
+        local.assert_local_compose(config)

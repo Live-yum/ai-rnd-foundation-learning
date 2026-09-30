@@ -168,6 +168,7 @@ def test_deployment_transformation_has_no_cloud_services(tmp_path):
             "proxy_key",
             "runner_key",
             "health_key",
+            "admin_key",
         ],
         "fixture-random",
     )

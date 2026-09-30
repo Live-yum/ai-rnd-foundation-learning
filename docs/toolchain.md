@@ -195,7 +195,7 @@ uv run python -m scripts.daytona_local status
 
 prepare从固定SHA取得上游安装资源，生成本机配置和随机密码；目录非空时拒绝覆盖。它不是克隆本项目骨架。配置保存在`.data/daytona-local`，不得提交Git或共享。上游源码与许可证保存在upstream子目录，便于审查。
 
-images不是去猜测可用的在线Daytona镜像标签。`scripts/daytona_build.py`先从固定Git提交导出干净的构建输入：不带`.git`、未提交修改或本机`.env`。API与Proxy的上游Dockerfile还要逐字节验证Git对象哈希；只在已匹配的构建环境中显式关闭Nx云构建/远程缓存和遥测，实际编译在本机Docker中进行。Runner使用同一v0.190.0发布的`runner-amd64`，安装脚本把固定大小156006775字节和SHA256 `4265d2bb58ad6375b3c4c526ffa2bc2e1d197d94b92b431e532bf827c8f4dfa9`同时作为硬性条件，然后按完整给出的`tools/daytona/runner.Dockerfile`封装成自己的本机镜像。这不是下载其他版本替代，也不是使用在线Runner。该固定发布的Runner安装路径支持Linux x86_64，其他架构会明确停止；Windows请使用x86_64 WSL2 Docker。
+images不是去猜测可用的在线Daytona镜像标签。`scripts/daytona_build.py`先从固定Git提交导出干净的构建输入：不带`.git`、未提交修改或本机`.env`。API与Proxy的上游Dockerfile还要逐字节验证Git对象哈希；只在已匹配的构建环境中显式关闭Nx云构建/远程缓存和遥测，实际编译在本机Docker中进行。Runner的本机运行镜像使用兼容glibc的Debian环境，并从固定Docker版本复制Docker静态工具与DinD初始化脚本；Docker只监听容器内Unix socket，不开放TCP管理端口。构建时故意传入无效API_PORT，必须看到Runner自身的配置校验错误与退出码2，才能证明不是“文件存在但系统不能执行”。真正启动时先检查本机Docker daemon就绪，再启动Runner。Runner使用同一v0.190.0发布的`runner-amd64`，安装脚本把固定大小156006775字节和SHA256 `4265d2bb58ad6375b3c4c526ffa2bc2e1d197d94b92b431e532bf827c8f4dfa9`同时作为硬性条件，然后按完整给出的`tools/daytona/runner.Dockerfile`封装成自己的本机镜像。这不是下载其他版本替代，也不是使用在线Runner。该固定发布的Runner安装路径支持Linux x86_64，其他架构会明确停止；Windows请使用x86_64 WSL2 Docker。
 
 基础依赖先逐项拉取并检查可用性，再执行较重的本机源码构建；MinIO使用独立固定源码`9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a`（`RELEASE.2025-10-15T17-29-55Z`），由`tools/daytona/minio.Dockerfile`在本机编译；没有第三方重打包镜像、商业账户或latest回退。这个对象存储版本与Daytona版本是两个独立依赖，Daytona仍严格固定v0.190.0。Go编译器版本固定1.24.8，编译时使用已提交的go.mod/go.sum校验依赖并关闭Go遥测；镜像包含原始LICENSE、依赖清单及对应源码source.tar，下载的原始仓库也保留在upstream-minio目录。MinIO是AGPLv3软件，本机演示与任何再分发都应保留其许可、署名和对应源码；不要把第三方源码标成本项目原创。API不授予privileged权限，只有运行Docker-in-Docker的Runner需要它。
 
@@ -206,6 +206,8 @@ snapshot-image先只启动本机Registry与固定TCP入口，再构建并推送�
 `scripts/daytona_gateway.py`是一个只转发字节的本机入口：Docker的internal网络不负责宿主机端口映射，所以不能把“容器Up”当成127.0.0.1可达。入口容器同时连接普通入口网络与内部网络，宿主机发布地址全部为127.0.0.1；其余服务没有第二网络、没有直接发布端口。入口只接受源码中固定的七个端口/服务对应，不读用户提供的URL或环境代理，不提供任意目标转发。它以UID65534、只读文件系统、删除全部Linux capabilities和no-new-privileges运行，只挂载这一份标准库脚本，不挂载.env、Docker socket或产品源码。它保留TCP字节和半关闭行为，因此HTTP、WebSocket与Registry传输都不需要改写请求或泄露令牌。
 
 普通入口网络自身不是无出口网络；安全边界是入口代码只建立固定内部连接，而处理任务的API/Runner/存储仍只有internal网络。不要自行给这些后端添加普通网络来绕开连接错误。安装脚本先从127.0.0.1:6000取得真实Registry响应再推送快照；失败检查gateway与registry日志。这个拓扑也避免依赖Docker虚拟机内部IP，适用于本机Linux与WSL2的Docker。
+
+up命令既检查全部容器状态，也检查API/Runner/Dex/Registry的真实回环HTTP响应；任一服务退出立即停止，不进入认证。区域名固定为local-computer，不能填入含空格的显示名称；上游会拒绝这种名称。私有管理Key与其他本机凭据一起随机生成并按0600保存，日志归档必须脱敏。
 
 Dex在非privileged容器内用UID0读取只读挂载的0600配置，避免依赖开发电脑恰好使用UID1001；仅挂载自己的配置和身份数据库卷，并设置no-new-privileges。不能通过把密码文件改成公开可读来排错。
 
@@ -296,3 +298,6 @@ Ollama embedding兼容端点：https://docs.ollama.com/api/openai-compatibility
 
 Docker内部网络与端口依据：https://docs.docker.com/reference/cli/docker/network/create/
 Docker端口发布：https://docs.docker.com/engine/network/port-publishing/
+
+Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/runner/cmd/runner/main.go
+区域名称约束：https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/api/src/region/services/region.service.ts

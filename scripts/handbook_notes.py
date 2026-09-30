@@ -353,6 +353,12 @@ def purpose(name):
             "pyproject声明允许的依赖，uv.lock记录本次可复现安装的具体版本、平台条件及下载哈希。先抄写对应pyproject再完整保存此文件，使用uv sync --locked；不要为了跳过报错随意删锁。",
             "平台、Aider和产品各有独立环境与锁，不能混用Python3.12和3.14依赖。",
         )
+    if name == "tools/daytona/runner-entry.sh":
+        return (
+            "本机Runner启动顺序与退出清理",
+            "在DinD完成命名空间准备后，仅启动Unix socket上的本机Docker；限时检测daemon就绪再启动Runner，TERM/INT或Runner退出时清理子进程。没有远程Docker或云端回退。",
+            "runner.Dockerfile → dind → runner-entry.sh → dockerd就绪 → 固定版本Runner。",
+        )
     if name == "tools/daytona/runner.Dockerfile":
         return (
             "本机Runner服务镜像",
