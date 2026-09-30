@@ -16,6 +16,7 @@ GUIDES = [
     "docs/toolchain.md",
     "docs/recommendation-recovery.md",
     "docs/native-toolchain.md",
+    "docs/real-model-acceptance.md",
     "docs/from-zero-checkpoints.md",
     "docs/acceptance-checklist.md",
 ]

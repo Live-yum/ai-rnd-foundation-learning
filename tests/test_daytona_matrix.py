@@ -203,7 +203,9 @@ def test_trusted_harness_contains_only_allowlisted_source():
         )
 
 
-@pytest.mark.parametrize("failure", [None, "exec", "report", "cleanup"])
+@pytest.mark.parametrize(
+    "failure", [None, "exec", "report", "cleanup", "session", "timeout", "command"]
+)
 def test_matrix_always_deletes_its_sandbox_and_never_falls_back(settings, tmp_path, failure):
     product = tmp_path / "product"
     product.mkdir()
@@ -236,6 +238,24 @@ def test_matrix_always_deletes_its_sandbox_and_never_falls_back(settings, tmp_pa
                 exit_code=1 if failure == "exec" else 0, result="explicit-protocol-fixture"
             )
 
+        def create_session(self, session_id):
+            events.append("session-create")
+
+        def execute_session_command(self, session_id, request, **kwargs):
+            assert request.run_async is True
+            events.append("session-submit")
+            if failure == "session":
+                raise ConnectionError("lost submission response")
+            if failure == "timeout":
+                raise TimeoutError("session deadline")
+            return SimpleNamespace(cmd_id="command-fixture")
+
+        def get_session_command(self, session_id, command_id):
+            return SimpleNamespace(exit_code=3 if failure == "command" else 0)
+
+        def get_session_command_logs(self, session_id, command_id):
+            return SimpleNamespace(output="explicit-protocol-fixture")
+
     class Client:
         def create(self, params, **kwargs):
             assert params.network_block_all and params.snapshot == "registered-matrix"
@@ -257,6 +277,10 @@ def test_matrix_always_deletes_its_sandbox_and_never_falls_back(settings, tmp_pa
     assert events[-1] == "delete"
     saved = json.loads((tmp_path / "daytona-verification.json").read_text(encoding="utf-8"))
     assert saved["passed"] is (failure is None)
+    if failure in {"session", "timeout", "command"}:
+        assert events.count("session-submit") == 1
+        assert saved["checks"][0]["mode"] == "async-session"
+        assert saved["checks"][0]["session_id"].startswith("rnd-check-")
 
 
 @pytest.mark.parametrize("database", ["sqlite", "postgresql"])

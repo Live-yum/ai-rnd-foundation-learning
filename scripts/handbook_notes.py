@@ -7,6 +7,11 @@ from pathlib import Path
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "daytona_sessions": (
+        "长时间沙箱检查的单次异步提交",
+        "建立独立会话并仅提交一次异步命令，按总期限用有界GET轮询，终止后读一次日志。传输层关闭透明重试，单请求最多30秒；提交响应丢失立即失败，不能用同步exec重放。",
+        "sandbox非SQLite矩阵命令 → run_session_command → mode/session/command回执 → 可信运行报告与自有沙箱清理。",
+    ),
     "daytona_diagnostics": (
         "本次自有沙箱的有界启动诊断",
         "创建失败后仅按确切随机名称和UUID读取固定本机Runner内的状态及日志尾部；限制单项与总时间、过滤秘密后限长保存。不枚举其他容器、不改配置，诊断失败不阻止原清理，成功不替代验收。",
@@ -294,6 +299,11 @@ PRODUCT = {
 }
 
 SCRIPT_ROLES = {
+    "ci_real_model.py": (
+        "显式授权的真实模型完整验收",
+        "可信仓库/分支的手动任务从rnd环境取得专用配置，先校验Hello协议，再要求同提交同attempt的成功smoke回执。真实网页只一次初始智能推荐，随后必须READY、真实下载及独立新库HTTP/浏览器/重启通过；公开结果只保留白名单状态，不输出密钥或模型原文。",
+        "real-model.yml直接environment job → 平台ModelGateway真实请求 → UI与独立产品验证 → reports/real-model/summary.json；其他工具矩阵和旧BLOCKED恢复另验。",
+    ),
     "build_handbook.py": (
         "生成唯一完整教材",
         "按GUIDES顺序拼正文，再按GROUPS枚举自有文本源，排除依赖/运行目录；附录写源码指纹、独立讲解和完整代码。--check比较全部文本与唯一输出，不改源码。",

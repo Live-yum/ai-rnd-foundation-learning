@@ -4,6 +4,7 @@ Legacy free text is interpreted conservatively for known field vocabulary; new
 requirements can supply exact field_requirements for arbitrary domain fields.
 """
 
+import json
 import re
 from copy import deepcopy
 
@@ -239,6 +240,164 @@ def reconcile(previous, proposed, corrections, audit=None):
     return Requirement.model_validate(data)
 
 
+FACT_ATTRIBUTES = {
+    "kind",
+    "required",
+    "min_length",
+    "max_length",
+    "searchable",
+    "filterable",
+    "date_range",
+    "choices",
+}
+
+
+def _fact_constraints(facts, prefix=""):
+    """Decode JSON facts structurally; their repr is never natural-language input."""
+    for key, value in facts.items():
+        label = f"{prefix}.{key}" if prefix else key
+        if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
+            try:
+                decoded = json.loads(value)
+            except ValueError:
+                pass
+            else:
+                if isinstance(decoded, (dict, list)):
+                    value = decoded
+        if isinstance(value, dict):
+            descriptor = value.get("field", value.get("name"))
+            if isinstance(descriptor, str):
+                entity = value.get("entity")
+                label += "." + (entity + "::" if isinstance(entity, str) else "") + descriptor
+            attributes = {name: item for name, item in value.items() if name in FACT_ATTRIBUTES}
+            if attributes:
+                yield label, attributes
+            nested = {
+                name: item
+                for name, item in value.items()
+                if name not in FACT_ATTRIBUTES and name not in {"field", "name", "entity"}
+            }
+            yield from _fact_constraints(nested, label)
+        elif isinstance(value, list):
+            if not any(isinstance(item, (dict, list)) for item in value):
+                yield label, {"choices": value}
+            else:
+                # Lists of field descriptors are structural containers, not
+                # enum text. Mixed/null entries cannot turn into regex keywords.
+                for index, item in enumerate(value):
+                    if isinstance(item, (dict, list)):
+                        yield from _fact_constraints({str(index): item}, label)
+        else:
+            attribute = _fact_attribute(label)
+            if attribute == "optional":
+                if type(value) is bool:
+                    value = not value
+                elif isinstance(value, str) and value.lower() in {"true", "false", "是", "否"}:
+                    value = value.lower() in {"false", "否"}
+                yield label, {"required": value}
+            elif attribute is not None:
+                yield label, {attribute: value}
+
+
+def _fact_attribute(label):
+    attribute = next(
+        (
+            name
+            for name in FACT_ATTRIBUTES
+            if re.search(rf"(?:[._]|\s){re.escape(name)}$", label, re.I)
+        ),
+        None,
+    )
+    if attribute is None and re.search(r"(?:是否必填|必填)$", label):
+        attribute = "required"
+    if attribute is None and re.search(r"(?:是否可选|可选)$", label):
+        attribute = "optional"
+    if attribute is None:
+        # Order matters: 日期范围筛选 is a date-range obligation, not
+        # merely an exact-filter toggle. Explicit false stays false.
+        for pattern, name in (
+            (r"(?:日期|date).*(?:区间|范围|range)(?:筛选|过滤)?$", "date_range"),
+            (r"(?:搜索|检索)$", "searchable"),
+            (r"(?:筛选|过滤)$", "filterable"),
+        ):
+            if re.search(pattern, label, re.I):
+                attribute = name
+                break
+    return attribute
+
+
+def _fact_texts(facts, prefix=""):
+    """Retain legacy scalar descriptions without stringifying typed containers."""
+    for key, value in facts.items():
+        label = f"{prefix}.{key}" if prefix else key
+        if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
+            try:
+                decoded = json.loads(value)
+            except ValueError:
+                pass
+            else:
+                if isinstance(decoded, (dict, list)):
+                    value = decoded
+        if isinstance(value, dict):
+            descriptor = value.get("field", value.get("name"))
+            if isinstance(descriptor, str):
+                entity = value.get("entity")
+                label += "." + (entity + "::" if isinstance(entity, str) else "") + descriptor
+            yield from _fact_texts(
+                {
+                    name: item
+                    for name, item in value.items()
+                    if name not in FACT_ATTRIBUTES and name not in {"field", "name", "entity"}
+                },
+                label,
+            )
+        elif isinstance(value, list):
+            for index, item in enumerate(value):
+                if isinstance(item, (dict, list)):
+                    yield from _fact_texts({str(index): item}, label)
+        elif value is not None and not isinstance(value, bool) and _fact_attribute(label) is None:
+            yield f"{label}: {value}"
+
+
+def _fact_candidates(key, fields):
+    explicit_entity = key.split("::")[0].rsplit(".", 1)[-1] if "::" in key else None
+    return [
+        field
+        for entity, field in fields
+        if (explicit_entity is None or entity == explicit_entity)
+        and (
+            _mentions(key, [field.name])
+            or any(
+                field.name in aliases and _mentions(key, aliases) for aliases in ALIASES.values()
+            )
+        )
+    ]
+
+
+def _matches_constraint(attribute, expected, actual):
+    if attribute in {"required", "searchable", "filterable", "date_range"}:
+        if isinstance(expected, str):
+            word = expected.strip().lower()
+            if word in {"true", "是", "必填"}:
+                expected = True
+            elif word in {"false", "否", "可选", "非必填"}:
+                expected = False
+        return type(expected) is bool and actual is expected
+    if attribute in {"min_length", "max_length"}:
+        if isinstance(expected, str):
+            legacy = re.fullmatch(r"\s*(\d+)\s*(?:字符|字|characters?)?\s*", expected, re.I)
+            if legacy:
+                expected = int(legacy.group(1))
+        return type(expected) is int and actual == expected
+    if attribute == "choices":
+        return (
+            isinstance(expected, list)
+            and all(isinstance(item, str) for item in expected)
+            and set(actual) == set(expected)
+        )
+    return type(expected) is str and actual == expected
+
+
 def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
     gaps = []
     fields = [(entity.name, field) for entity in plan.entities for field in entity.fields]
@@ -259,13 +418,29 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
             if key in {"field", "entity"} or value is None:
                 continue
             actual = getattr(field, key)
-            if actual != value:
+            if not _matches_constraint(key, value, actual):
                 gaps.append(f"已确认字段 {label}.{key}={value!r}，设计为 {actual!r}")
 
     # Recognize legacy constraints even when a model has omitted the new typed
     # ledger. Do not inspect assumptions/limitations as if they were requirements.
     texts = [*requirement.features, *requirement.acceptance]
-    texts += [f"{key}: {value}" for key, value in requirement.facts.items()]
+    structured = list(_fact_constraints(requirement.facts))
+    for key, attributes in structured:
+        candidates = _fact_candidates(key, fields)
+        if not candidates and (
+            "::" in key or any(_mentions(key, aliases) for aliases in ALIASES.values())
+        ):
+            if any(value is not None for value in attributes.values()):
+                gaps.append(f"已确认条件缺少对应字段 {key}")
+        for field in candidates:
+            for attribute, expected in attributes.items():
+                if expected is None:
+                    continue
+                if (attribute == "choices" and field.kind != "enum") or not _matches_constraint(
+                    attribute, expected, getattr(field, attribute)
+                ):
+                    gaps.append(f"已确认字段 {field.name}.{attribute}={expected!r}，设计不一致")
+    texts.extend(_fact_texts(requirement.facts))
     operations = {
         "searchable": r"搜索|检索|search",
         "filterable": r"筛选|过滤|filter",
@@ -332,17 +507,4 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
         if re.search(r"真实日期|YYYY-MM-DD|日期格式", text):
             if not any(f.kind == "date" for f in mentioned):
                 gaps.append(f"设计未覆盖真实日期类型: {text}")
-    for key, value in requirement.facts.items():
-        if isinstance(value, list) and all(isinstance(x, str) for x in value):
-            candidates = [
-                f
-                for _, f in fields
-                if _mentions(key, [f.name])
-                or any(
-                    f.name in aliases and _mentions(key, aliases) for aliases in ALIASES.values()
-                )
-            ]
-            for field in candidates:
-                if field.kind != "enum" or set(field.choices) != set(value):
-                    gaps.append(f"已确认字段 {field.name} 枚举选项不一致")
     return list(dict.fromkeys(gaps))

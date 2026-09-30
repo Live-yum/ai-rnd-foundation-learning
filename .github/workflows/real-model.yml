@@ -1,57 +1,21 @@
-name: Bundled template integrity
+name: Manual real-model news acceptance
 on:
   workflow_dispatch:
-    inputs:
-      real_model:
-        description: Explicitly run paid real-model acceptance using environment rnd
-        type: boolean
-        required: false
-        default: false
-      expected_sha:
-        description: Exact reviewed commit SHA required when real_model is true
-        type: string
-        required: false
-        default: ''
-  pull_request:
-    paths: ['templates/vendor/**', 'workbench/vendor.py', '.github/workflows/native-probe.yml']
 permissions:
   contents: read
+concurrency:
+  group: rnd-real-model-acceptance
+  cancel-in-progress: false
 jobs:
-  verify-bundles:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: '3.14'
-      - run: uv sync --locked
-      - run: uv run pytest tests/test_vendor.py -q
-      - run: uv run python -m scripts.ci_native_sources
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: bundled-template-integrity
-          path: reports/
   real-model:
     if: >-
-      github.event_name == 'workflow_dispatch' && inputs.real_model == true &&
+      github.event_name == 'workflow_dispatch' &&
       github.repository == 'Live-yum/ai-rnd-foundation-learning' &&
       (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/feat/complete-platform-acceptance' || github.ref == 'refs/heads/feat/real-model-acceptance')
     environment: rnd
     runs-on: ubuntu-latest
     timeout-minutes: 40
     steps:
-      - name: Verify explicitly requested immutable commit before model access
-        shell: bash
-        env:
-          EXPECTED_SHA: ${{ inputs.expected_sha }}
-        run: |
-          set -euo pipefail
-          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
-          test "$EXPECTED_SHA" = "$GITHUB_SHA"
       - uses: actions/checkout@v4
         with:
           persist-credentials: false

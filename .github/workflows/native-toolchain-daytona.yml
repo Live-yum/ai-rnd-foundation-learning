@@ -52,6 +52,12 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Reuse public Maven dependencies for the exact pinned Yudao revision
+        uses: actions/cache/restore@v4
+        if: matrix.template == 'yudao-vben'
+        with:
+          path: ~/.m2/repository
+          key: native-maven-central-v2-${{ runner.os }}-47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
       - name: Provision ephemeral build capacity without removing verification
         run: |
           df -h

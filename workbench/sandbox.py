@@ -55,7 +55,7 @@ def client_for(settings):
 
     if version("daytona") != DAYTONA_VERSION:
         raise PrerequisiteError("请使用锁定的Daytona SDK " + DAYTONA_VERSION)
-    return Daytona(
+    client = Daytona(
         DaytonaConfig(
             api_key=settings.daytona_api_key.get_secret_value(),
             api_url=local_http_url(settings.daytona_api_url, "Daytona"),
@@ -63,6 +63,11 @@ def client_for(settings):
             otel_enabled=False,
         )
     )
+
+    from workbench.daytona_sessions import harden_toolbox_transport
+
+    harden_toolbox_transport(client)
+    return client
 
 
 def close_client(client):
@@ -306,20 +311,26 @@ def _verify_in_daytona(product, template, settings, *, client):
             if unpack.exit_code != 0:
                 raise PrerequisiteError("Daytona可信验收器解压失败")
         for name, argv, relative in checks:
-            result = sandbox.process.exec(
-                shlex.join(argv),
-                cwd=REMOTE + "/" + relative,
-                timeout=settings.daytona_runtime_timeout
-                if key != "python-basic/sqlite"
-                else settings.tool_timeout,
-            )
-            receipt["checks"].append(
-                {
-                    "name": name,
-                    "argv": argv,
-                    "exit_code": result.exit_code,
-                    "log": settings.redact(result.result or "")[:8000],
-                }
+            check = {"name": name, "argv": argv}
+            receipt["checks"].append(check)
+            if key != "python-basic/sqlite":
+                from workbench.daytona_sessions import run_session_command
+
+                result = run_session_command(
+                    sandbox.process,
+                    argv,
+                    REMOTE + "/" + relative,
+                    settings.daytona_runtime_timeout,
+                    check,
+                )
+            else:
+                result = sandbox.process.exec(
+                    shlex.join(argv),
+                    cwd=REMOTE + "/" + relative,
+                    timeout=settings.tool_timeout,
+                )
+            check.update(
+                exit_code=result.exit_code, log=settings.redact(result.result or "")[:8000]
             )
             if result.exit_code != 0:
                 raise PrerequisiteError("Daytona检查失败：" + name)
