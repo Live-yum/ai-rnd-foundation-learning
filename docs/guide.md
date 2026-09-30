@@ -45,6 +45,19 @@ git --version
 uv --version
 ```
 
+Linux/WSL的Ubuntu终端先安装本机Git、curl和uv，不运行PowerShell安装器：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git curl ca-certificates
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+git --version
+uv --version
+```
+
+VS Code从官方安装页按你的系统安装。Windows安装Git时保留命令行PATH选项，安装编辑器后重新打开终端；先看到git和uv版本号，再创建下面的目录。Windows需要原生Java/Vue或Daytona时，在管理员PowerShell执行`wsl --install -d Ubuntu`，按提示重新启动并设置Ubuntu本机用户名；随后所有Linux命令在Ubuntu中执行。默认Python/SQLite演示不需要WSL。
+
 ### 2.2 创建一个真正的空文件夹
 
 Windows打开PowerShell；先在文件资源管理器中打开“查看 → 显示 → 文件扩展名”，避免把`app.py`保存为`app.py.txt`。选择你有写权限的位置，例如：

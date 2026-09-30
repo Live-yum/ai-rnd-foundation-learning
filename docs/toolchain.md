@@ -88,6 +88,40 @@ uv run python -m scripts.ci_toolchain
 
 ### 20.5 Continue通过本机stdio连接
 
+先在本机安装VS Code，并在项目根目录终端安装固定Continue扩展：
+
+```powershell
+code --install-extension Continue.continue@2.0.0
+code --list-extensions --show-versions
+code .
+```
+
+第二条命令的输出应包含`continue.continue@2.0.0`。若系统找不到code，关闭并重新打开终端，或者在VS Code扩展面板搜索发布者Continue的Continue扩展，选择“安装另一个版本”中的2.0.0。不要在远程Codespaces、远程SSH或云端开发环境打开本课程目录。本节使用固定本机版本，不要求登录Continue账号或使用Hub配置。
+
+在VS Code命令面板打开“Preferences: Open User Settings (JSON)”，在现有对象内设置`"telemetry.telemetryLevel": "off"`；不要覆盖其他个人设置。安装时访问公开软件仓库不等于把项目交给远程工具执行。Continue自己的工具策略是独立的：本平台只提供下文两个只读MCP工具，不授权IDE任意修改平台文件。
+
+打开Continue侧边栏的配置入口，使用本机`config.yaml`。Windows路径为`%USERPROFILE%\.continue\config.yaml`，Linux/WSL为`~/.continue/config.yaml`。首次使用可以写入以下完整最小配置；已有配置先复制备份再人工合并，不能把已有模型密钥与另一供应商地址混用：
+
+```yaml
+name: RND local context
+version: 1.0.0
+schema: v1
+models:
+  - name: My selected chat model
+    provider: openai
+    model: "填写你选择的模型ID"
+    apiBase: "https://填写该模型服务地址/v1"
+    apiKey: "填写该服务专用密钥"
+    roles:
+      - chat
+    capabilities:
+      - tool_use
+context: []
+data: []
+```
+
+这里的model、apiBase、apiKey分别对应平台的MODE、BASE_URL、API_KEY，但本机IDE不会自动读取平台.env。apiBase与apiKey必须成对属于同一供应商。此文件只留在个人目录，不加入仓库或分享截图。只有聊天模型推理可用外部服务；不要添加云端embed/rerank模型、远程MCP地址、`uses`远程配置或data上传目标。`tool_use`只是声明模型支持工具调用，不会让不支持的模型凭空获得能力；模型服务必须实际支持。检索本身不需要这个模型或密钥。
+
 先建立索引，然后导出配置：
 
 ```powershell
@@ -96,6 +130,8 @@ uv run rnd tools continue-config . workbench .data/platform-index
 ```
 
 这会创建`.continue/mcpServers/rnd.json`，已有文件会拒绝覆盖。配置中是本机uv命令、项目目录和源/索引路径，没有Key。Continue通过stdio启动`rnd tools context-server`；stdout只传MCP协议，诊断去stderr。两个只读工具是search_code和repository_map，没有任意文件写入、任意shell或上传工具。
+
+保存配置并重新载入Continue，在工具列表中确认出现`search_code`和`repository_map`。先在只读的Plan模式提出：“调用repository_map，再用search_code查找model_for，回答中给出文件和行号。”允许这两个本机MCP调用，不授权无关终端或写文件工具。应该看到源码路径、行号及内容，而不是要求注册远程索引账号。若MCP未连接，检查VS Code终端能否运行`uv --version`、导出配置的绝对目录是否存在；索引过期时先重新执行rnd index。命令行`uv run rnd tools search workbench .data/platform-index model_for`可独立验证检索，不用付费模型。
 
 本平台仅使用Continue的公开MCP接口，不依赖托管Continue服务、不复制其私有索引实现，也不把协议测试称为IDE界面测试。IDE本身的聊天模型配置可按你的大模型服务填写；不要启用额外的云端检索或遥测扩展。
 
@@ -122,11 +158,13 @@ prepare从固定SHA取得上游安装资源，生成本机配置和随机密码�
 
 images不是去猜测可用的在线Daytona镜像标签。`scripts/daytona_build.py`先从固定Git提交导出干净的构建输入：不带`.git`、未提交修改或本机`.env`。API与Proxy的上游Dockerfile还要逐字节验证Git对象哈希；只在已匹配的构建环境中显式关闭Nx云构建/远程缓存和遥测，实际编译在本机Docker中进行。Runner使用同一v0.190.0发布的`runner-amd64`，安装脚本把固定大小156006775字节和SHA256 `4265d2bb58ad6375b3c4c526ffa2bc2e1d197d94b92b431e532bf827c8f4dfa9`同时作为硬性条件，然后按完整给出的`tools/daytona/runner.Dockerfile`封装成自己的本机镜像。这不是下载其他版本替代，也不是使用在线Runner。该固定发布的Runner安装路径支持Linux x86_64，其他架构会明确停止；Windows请使用x86_64 WSL2 Docker。
 
-基础依赖先逐项拉取并检查可用性，再执行较重的本机源码构建；MinIO固定使用上游公开的`quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z`，没有第三方重打包镜像或latest回退。API不授予privileged权限，只有运行Docker-in-Docker的Runner需要它。
+基础依赖先逐项拉取并检查可用性，再执行较重的本机源码构建；MinIO使用独立固定源码`9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a`（`RELEASE.2025-10-15T17-29-55Z`），由`tools/daytona/minio.Dockerfile`在本机编译；没有第三方重打包镜像、商业账户或latest回退。这个对象存储版本与Daytona版本是两个独立依赖，Daytona仍严格固定v0.190.0。Go编译器版本固定1.24.8，编译时使用已提交的go.mod/go.sum校验依赖并关闭Go遥测；镜像包含原始LICENSE、依赖清单及对应源码source.tar，下载的原始仓库也保留在upstream-minio目录。MinIO是AGPLv3软件，本机演示与任何再分发都应保留其许可、署名和对应源码；不要把第三方源码标成本项目原创。API不授予privileged权限，只有运行Docker-in-Docker的Runner需要它。
 
 构建镜像标签带版本与源码SHA，images.lock.json记录本机Image ID、构建文件SHA及Runner发布文件SHA；PostgreSQL等基础依赖拉取明确版本后记录实际Registry摘要。compose.lock.yaml只引用这些内容地址。重新启动前逐项对照两份锁，配置不一致就停止；没有任何latest或云端回退。构建失败看终端尾部和本机构建日志，不跳过images进入下一步。
 
 snapshot-image先只启动本机Registry，再构建并推送预热快照。之后up才启动完整控制面，默认快照也指向本机Registry，不在业务验证时临时从Docker Hub拉取。up使用`--pull never`和已锁定摘要。所有发布端口绑定127.0.0.1；服务Docker网络配置为internal，阻止外部出口；Docker命令显式指向本机daemon，不跟随保存的远程Docker context。
+
+Dex在非privileged容器内用UID0读取只读挂载的0600配置，避免依赖开发电脑恰好使用UID1001；仅挂载自己的配置和身份数据库卷，并设置no-new-privileges。不能通过把密码文件改成公开可读来排错。
 
 服务之间使用本机Docker网络名称通信。身份认证由本机Dex完成，文件存储为本机MinIO，镜像在本机Registry。外部PostHog/OTEL配置被移除或关闭；没有Auth0或云端控制面。Daytona自己的开发数据库与平台控制数据库、产品业务数据库各自独立。
 
@@ -196,9 +234,15 @@ API构建文件：https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d
 Runner发布文件：https://github.com/daytonaio/daytona/releases/download/v0.190.0/runner-amd64
 固定Python SDK：https://github.com/daytonaio/daytona/tree/v0.190.0/libs/sdk-python
 Dex本机密码连接示例：https://github.com/dexidp/dex/blob/v2.42.0/examples/config-dev.yaml
-Continue状态与代码：https://github.com/continuedev/continue
+Continue固定接口与代码：https://github.com/continuedev/continue
 Aider本机CLI选项：https://aider.chat/docs/config/options.html
 
 这些链接用于查看第三方依据；完成本项目代码不要求读者从外部链接补齐本书遗漏的自有模块。
 
-MinIO固定发行版的官方镜像仓库说明：https://github.com/minio/minio/blob/RELEASE.2025-04-22T22-12-26Z/README.md
+MinIO固定源码与构建说明：https://github.com/minio/minio/tree/9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a
+
+Continue固定扩展与配置依据：https://github.com/continuedev/continue/blob/v2.0.0-vscode/README.md
+Continue YAML字段：https://docs.continue.dev/reference
+VS Code固定扩展安装：https://code.visualstudio.com/docs/configure/command-line
+
+GitHub Actions按要求在测试Runner内部运行同样的本机服务，不调用Daytona托管API。用户启动产品和平台不依赖Actions；CI使用的临时身份与数据不代表用户的实际账户。

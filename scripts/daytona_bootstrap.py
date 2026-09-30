@@ -18,7 +18,7 @@ from scripts.daytona_local import HOME, private_json
 from workbench.local_only import install_loopback_guard
 from workbench.sandbox import client_for
 from workbench.settings import ROOT, Settings
-from workbench.tools import run_command
+from workbench.tools import ToolFailure, run_command
 
 PERMISSIONS = ["write:sandboxes", "delete:sandboxes", "write:snapshots", "delete:snapshots"]
 
@@ -158,4 +158,18 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except ToolFailure as error:
+        directory = HOME
+        if "--directory" in sys.argv:
+            directory = Path(sys.argv[sys.argv.index("--directory") + 1])
+        log = error.log
+        for name in ("credentials.json", "api-key.json"):
+            path = directory / name
+            if path.exists():
+                for value in json.loads(path.read_text(encoding="utf-8")).values():
+                    if isinstance(value, str) and len(value) > 5:
+                        log = log.replace(value, "[REDACTED]")
+        print(log[-12000:])
+        raise SystemExit("本机快照登记失败；未写入就绪回执") from None

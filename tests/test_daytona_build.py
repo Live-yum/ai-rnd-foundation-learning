@@ -138,7 +138,12 @@ def test_snapshot_identity_covers_all_dependency_inputs():
 
 
 def test_installation_repositories_and_non_runner_privileges_are_explicit():
-    assert local.IMAGES["minio"] == "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z"
+    assert local.IMAGES["minio"] == build.local_tag("minio")
+    assert build.MINIO_SOURCE == "9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a"
+    assert "minio" in build.BUILT
+    recipe = (local.ROOT / "tools/daytona/minio.Dockerfile").read_text()
+    assert "source.tar" in recipe and "-mod=readonly" in recipe and "GOTELEMETRY=off" in recipe
+    assert "minio/minio:latest" not in recipe
     assert all(not name.endswith(":latest") for name in local.IMAGES.values())
 
 

@@ -16,7 +16,9 @@ from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
 from workbench.settings import ROOT
 from workbench.tools import run_command
 
-BUILT = frozenset({"api", "proxy", "runner"})
+BUILT = frozenset({"api", "proxy", "runner", "minio"})
+MINIO_SOURCE = "9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a"
+MINIO_RELEASE = "RELEASE.2025-10-15T17-29-55Z"
 SOURCE_RECIPES = {
     "api": ("daytona", "2033dac0951f6e7aedb435824cfc1396959f8b5e"),
     "proxy": ("proxy", "bceb07f8bcad800fc5b32f0b2d6ebaab8c5b44f8"),
@@ -30,6 +32,8 @@ BUILD_ENV = (
 
 
 def local_tag(service):
+    if service == "minio":
+        return f"rnd-local/minio:{MINIO_RELEASE}-{MINIO_SOURCE[:12]}"
     if service not in BUILT:
         raise ValueError("Unknown locally built Daytona service")
     return f"rnd-local/daytona-{service}:{DAYTONA_VERSION}-{DAYTONA_SOURCE[:12]}"
@@ -77,15 +81,16 @@ def download_runner(destination):
         temporary.unlink(missing_ok=True)
 
 
-def export_source(directory, command, context):
+def export_source(directory, command, context, *, revision=None, source_name="upstream"):
     """Git archive excludes untracked files, local .env and .git credentials."""
     directory, context = Path(directory), Path(context)
-    source = directory / "upstream"
-    if command(["git", "rev-parse", "HEAD"], cwd=source) != DAYTONA_SOURCE:
+    revision = revision or DAYTONA_SOURCE
+    source = directory / source_name
+    if command(["git", "rev-parse", "HEAD"], cwd=source) != revision:
         raise ValueError("固定Daytona源码SHA不匹配")
     archive = directory / "build-source.tar"
     command(
-        ["git", "archive", "--format=tar", "--output=" + str(archive), DAYTONA_SOURCE],
+        ["git", "archive", "--format=tar", "--output=" + str(archive), revision],
         cwd=source,
     )
     try:
@@ -94,7 +99,8 @@ def export_source(directory, command, context):
     finally:
         archive.unlink(missing_ok=True)
     # Upstream release builds generate this workspace checksum file before Docker.
-    (context / "go.work.sum").touch(exist_ok=True)
+    if source_name == "upstream":
+        (context / "go.work.sum").touch(exist_ok=True)
     return context
 
 
@@ -104,9 +110,10 @@ def build_images(directory, command, docker):
     info = json.loads(docker("info", "--format", "{{json .}}"))
     if info.get("OSType") != "linux" or info.get("Architecture") not in {"x86_64", "amd64"}:
         raise ValueError("固定Runner发布文件仅支持Linux x86_64；Windows请使用WSL2的x86_64 Docker")
+    storage = build_storage(directory, command, docker)
     with tempfile.TemporaryDirectory(prefix="source-build-", dir=directory) as temporary:
         context = export_source(directory, command, temporary)
-        return build_exported(directory, context, docker)
+        return {"minio": storage, **build_exported(directory, context, docker)}
 
 
 def build_exported(directory, context, docker):
@@ -166,3 +173,67 @@ def build_exported(directory, context, docker):
         if service == "runner":
             metadata[service]["release_binary_sha256"] = RUNNER_SHA256
     return metadata
+
+
+def build_storage(directory, command, docker):
+    """Build the local object store from its own fixed release, not a mutable image."""
+    source = directory / "upstream-minio"
+    if not source.exists():
+        source.mkdir()
+        command(["git", "init", "--template=", "."], cwd=source)
+        command(
+            ["git", "fetch", "--depth", "1", "https://github.com/minio/minio.git", MINIO_SOURCE],
+            cwd=source,
+        )
+        command(["git", "checkout", "--detach", "FETCH_HEAD"], cwd=source)
+    dockerfile = ROOT / "tools/daytona/minio.Dockerfile"
+    with tempfile.TemporaryDirectory(prefix="storage-build-", dir=directory) as temporary:
+        context = export_source(
+            directory, command, temporary, revision=MINIO_SOURCE, source_name="upstream-minio"
+        )
+        # Include the exact corresponding source plus license in the locally built image.
+        command(
+            [
+                "git",
+                "archive",
+                "--format=tar",
+                "--output=" + str(context / "source.tar"),
+                MINIO_SOURCE,
+            ],
+            cwd=source,
+        )
+        result = run_command(
+            [
+                "docker",
+                "build",
+                "--platform=linux/amd64",
+                "--progress=plain",
+                "--file",
+                str(dockerfile),
+                "--tag",
+                local_tag("minio"),
+                "--label",
+                "org.opencontainers.image.revision=" + MINIO_SOURCE,
+                "--label",
+                "org.opencontainers.image.version=" + MINIO_RELEASE,
+                str(context),
+            ],
+            ROOT,
+            timeout=1800,
+            heartbeat="Local MinIO build",
+        )
+    (directory / "minio-build.log").write_text(result["log"], encoding="utf-8")
+    image = json.loads(docker("image", "inspect", local_tag("minio")))[0]
+    labels = image.get("Config", {}).get("Labels") or {}
+    if (
+        labels.get("org.opencontainers.image.revision") != MINIO_SOURCE
+        or labels.get("org.opencontainers.image.version") != MINIO_RELEASE
+    ):
+        raise ValueError("本机MinIO镜像来源标签不匹配")
+    return {
+        "tag": local_tag("minio"),
+        "image_id": image["Id"],
+        "source_sha": MINIO_SOURCE,
+        "release": MINIO_RELEASE,
+        "recipe_sha256": hashlib.sha256(dockerfile.read_bytes()).hexdigest(),
+    }

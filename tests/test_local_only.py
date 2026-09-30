@@ -176,6 +176,9 @@ def test_deployment_transformation_has_no_cloud_services(tmp_path):
     rendered = render_compose(source, credentials, tmp_path)
     assert not rendered["services"]["api"].get("privileged", False)
     assert rendered["services"]["runner"]["privileged"] is True
+    assert rendered["services"]["dex"]["user"] == "0:0"
+    assert "no-new-privileges:true" in rendered["services"]["dex"]["security_opt"]
+    assert rendered["services"]["minio"]["environment"]["MINIO_UPDATE"] == "off"
     assert set(rendered["services"]) == KEEP
     assert "cloud.example" not in json.dumps(rendered)
     assert rendered["services"]["api"]["image"] == IMAGES["api"]

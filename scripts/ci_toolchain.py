@@ -100,7 +100,7 @@ def main():
             "git_commits": True,
             "model_calls": 0,
             "daytona_self_hosted_service_tested": False,
-            "daytona_note": "SDK contract tested separately; no account provisioned",
+            "daytona_note": "Local service acceptance is a separate workflow; this report does not claim it passed",
         }
         write_json(ROOT / "reports/toolchain.json", evidence)
         print(json.dumps(evidence, ensure_ascii=False, indent=2))

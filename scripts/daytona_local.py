@@ -32,7 +32,6 @@ IMAGES = {
     "redis": "redis:7.4.2",
     "dex": "dexidp/dex:v2.42.0",
     "registry": "registry:2.8.2",
-    "minio": "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z",
     "maildev": "maildev/maildev:2.2.1",
 }
 
@@ -128,6 +127,12 @@ def render_compose(original, credentials, directory):
     config["services"]["minio"]["environment"]["MINIO_ROOT_PASSWORD"] = credentials[
         "storage_password"
     ]
+    # A host-owned 0600 credential file must work for any developer UID.
+    # This non-privileged container has only its config and its own data volume.
+    config["services"]["dex"]["user"] = "0:0"
+    config["services"]["dex"]["security_opt"] = ["no-new-privileges:true"]
+    config["services"]["minio"]["environment"]["MINIO_IDENTITY_STS_EXPIRY"] = "24h"
+    config["services"]["minio"]["environment"]["MINIO_UPDATE"] = "off"
     config["services"]["dex"]["volumes"] = [
         str(Path(directory).resolve() / "dex.yaml") + ":/etc/dex/config.yaml:ro",
         "dex_db:/var/dex",
