@@ -11364,14 +11364,15 @@ def blocked_report(gate, attempts):
 - `_authorized.stated`（L131–L150）：接收`value`。 控制顺序：L132按`isinstance(value, bool)`分支；L133按`re.search(r"false\|否\|可选\|非必填\|不必填\|关闭\|禁用", quote, re.I)`分支；L136按`isinstance(value, (int, float))`分支；L138按`value == "shared"`分支；L140按`value == "per_user"`分支；L142按`str(value).lower() in quote.lower()`分支；L144按`isinstance(value, str)`分支；L148按`numbers and re.search(r"长度\|字符\|字\|length", quote, re.I)`分支。 调用`isinstance`、`re.search`、`bool`、`re.escape`、`str`、`str(value).lower`、`quote.lower`、`re.findall`、`all`。 返回路径：L134的`not value`；L135的`value and bool(re.search(r"true\|是\|必填\|启用\|开启", quote, re.I))`；L137的`bool(re.search(rf"(?<![\d.]){re.escape(str(value))}(?![\d.])", quote))`。
 - `_propagate_fact_correction`（L155–L184）：接收`data`、`key`、`replacement`。 源码说明：Synchronize a source-backed numeric fact across unambiguous legacy text.。 控制顺序：L164按`not attribute or len(numbers) != 1 or len(targets) != 1`分支；L167遍历`("features", "acceptance")`；L168遍历`enumerate(data[section])`；L170按`mentioned == [aliases] and re.search( r"上限\|最大\|最多\|max_length" if attribute == "max_…`分支；L182遍历`data["field_requirements"]`；L183按`field["field"] in aliases`分支。 调用`re.search`、`re.findall`、`str`、`ALIASES.values`、`_mentions`、`len`、`enumerate`、`re.sub`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `reconcile`（L187–L240）：接收`previous`、`proposed`、`corrections`、`audit`。 源码说明：Omission isn't deletion; only source-backed fresh edits replace old intent.。 控制顺序：L189按`not previous`分支；L193遍历`("features", "acceptance", "users")`；L199按`old.data_scope != "unknown"`分支；L201遍历`proposed.changes`；L208按`audit is not None`分支；L210按`not authorized`分支；L214按`section == "facts"`分支；L215按`replacement is None`分支。后续分支沿下方源码相同行号继续阅读。 调用`proposed.model_copy`、`Requirement.model_validate`、`proposed.model_dump`、`list`、`dict.fromkeys`、`getattr`、`f.model_dump`、`fields.update`、`fields.values`等。 返回路径：L190的`proposed.model_copy(update={"changes": []})`；L240的`Requirement.model_validate(data)`。
-- `_fact_constraints`（L255–L299）：接收`facts`、`prefix`。 源码说明：Decode JSON facts structurally; their repr is never natural-language input.。 控制顺序：L257遍历`facts.items()`；L259按`isinstance(value, str) and value.lstrip().startswith(("{", "["))`分支；L265按`isinstance(decoded, (dict, list))`分支；L267按`isinstance(value, dict)`分支；L269按`isinstance(descriptor, str)`分支；L273按`attributes`分支；L281按`isinstance(value, list)`分支；L282按`not any(isinstance(item, (dict, list)) for item in value)`分支。后续分支沿下方源码相同行号继续阅读。 调用`facts.items`、`isinstance`、`value.lstrip().startswith`、`value.lstrip`、`json.loads`、`value.get`、`value.items`、`_fact_constraints`、`any`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_fact_attribute`（L302–L326）：接收`label`。 控制顺序：L311按`attribute is None and re.search(r"(?:是否必填\|必填)$", label)`分支；L313按`attribute is None and re.search(r"(?:是否可选\|可选)$", label)`分支；L315按`attribute is None`分支；L318遍历`( (r"(?:日期\|date).*(?:区间\|范围\|range)(?:筛选\|过滤)?$", "date_range"),…`；L323按`re.search(pattern, label, re.I)`分支。 调用`next`、`re.search`、`re.escape`。 返回路径：L326的`attribute`。
-- `_fact_texts`（L329–L359）：接收`facts`、`prefix`。 源码说明：Retain legacy scalar descriptions without stringifying typed containers.。 控制顺序：L331遍历`facts.items()`；L333按`isinstance(value, str) and value.lstrip().startswith(("{", "["))`分支；L339按`isinstance(decoded, (dict, list))`分支；L341按`isinstance(value, dict)`分支；L343按`isinstance(descriptor, str)`分支；L354按`isinstance(value, list)`分支；L355遍历`enumerate(value)`；L356按`isinstance(item, (dict, list))`分支。后续分支沿下方源码相同行号继续阅读。 调用`facts.items`、`isinstance`、`value.lstrip().startswith`、`value.lstrip`、`json.loads`、`value.get`、`_fact_texts`、`value.items`、`enumerate`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_fact_candidates`（L362–L374）：接收`key`、`fields`。 调用`key.split("::")[0].rsplit`、`key.split`、`_mentions`、`any`、`ALIASES.values`。 返回路径：L364的`[ field for entity, field in fields if (explicit_entity is None or entity == explicit_enti…`。
-- `_matches_constraint`（L377–L398）：接收`attribute`、`expected`、`actual`。 控制顺序：L378按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L379按`isinstance(expected, str)`分支；L381按`word in {"true", "是", "必填"}`分支；L383按`word in {"false", "否", "可选", "非必填"}`分支；L386按`attribute in {"min_length", "max_length"}`分支；L387按`isinstance(expected, str)`分支；L389按`legacy`分支；L392按`attribute == "choices"`分支。 调用`isinstance`、`expected.strip().lower`、`expected.strip`、`type`、`re.fullmatch`、`int`、`legacy.group`、`all`、`set`。 返回路径：L385的`type(expected) is bool and actual is expected`；L391的`type(expected) is int and actual == expected`；L393的`isinstance(expected, list) and all(isinstance(item, str) for item in expected) and set(act…`。
-- `coverage_gaps`（L401–L510）：接收`requirement`、`plan`。 控制顺序：L404按`plan.data_scope != requirement.data_scope`分支；L406遍历`requirement.field_requirements`；L413按`len(matches) != 1`分支；L417遍历`obligation.model_dump().items()`；L418按`key in {"field", "entity"} or value is None`分支；L421按`not _matches_constraint(key, value, actual)`分支；L428遍历`structured`；L430按`not candidates and ( "::" in key or any(_mentions(key, aliases) for aliases in ALIASE…`分支。后续分支沿下方源码相同行号继续阅读。 调用`gaps.append`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_matches_constraint`、`list`、`_fact_constraints`、`_fact_candidates`等。 返回路径：L510的`list(dict.fromkeys(gaps))`。
+- `_fact_constraints`（L260–L311）：接收`facts`、`prefix`。 源码说明：Decode JSON facts structurally; their repr is never natural-language input.。 控制顺序：L262遍历`facts.items()`；L263按`not prefix and key in FACT_METADATA_KEYS`分支；L266按`isinstance(value, str) and value.lstrip().startswith(("{", "["))`分支；L272按`isinstance(decoded, (dict, list))`分支；L274按`isinstance(value, dict)`分支；L276按`isinstance(descriptor, str)`分支；L280按`attributes`分支；L288按`isinstance(value, list)`分支。后续分支沿下方源码相同行号继续阅读。 调用`facts.items`、`isinstance`、`value.lstrip().startswith`、`value.lstrip`、`json.loads`、`value.get`、`value.items`、`_fact_constraints`、`any`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_fact_attribute`（L314–L338）：接收`label`。 控制顺序：L323按`attribute is None and re.search(r"(?:是否必填\|必填)$", label)`分支；L325按`attribute is None and re.search(r"(?:是否可选\|可选)$", label)`分支；L327按`attribute is None`分支；L330遍历`( (r"(?:日期\|date).*(?:区间\|范围\|range)(?:筛选\|过滤)?$", "date_range"),…`；L335按`re.search(pattern, label, re.I)`分支。 调用`next`、`re.search`、`re.escape`。 返回路径：L338的`attribute`。
+- `_scalar_fact_attribute`（L341–L357）：接收`label`、`value`。 控制顺序：L343按`attribute in {"required", "optional", "searchable", "filterable", "date_range"}`分支；L344按`isinstance(value, str) and value.strip().lower() not in { "true", "false", "是", "否", …`分支。 调用`_fact_attribute`、`isinstance`、`value.strip().lower`、`value.strip`。 返回路径：L356的`None`；L357的`attribute`。
+- `_fact_texts`（L360–L396）：接收`facts`、`prefix`。 源码说明：Retain legacy scalar descriptions without stringifying typed containers.。 控制顺序：L362遍历`facts.items()`；L363按`not prefix and key in FACT_METADATA_KEYS`分支；L366按`isinstance(value, str) and value.lstrip().startswith(("{", "["))`分支；L372按`isinstance(decoded, (dict, list))`分支；L374按`isinstance(value, dict)`分支；L376按`isinstance(descriptor, str)`分支；L387按`isinstance(value, list)`分支；L388遍历`enumerate(value)`。后续分支沿下方源码相同行号继续阅读。 调用`facts.items`、`isinstance`、`value.lstrip().startswith`、`value.lstrip`、`json.loads`、`value.get`、`_fact_texts`、`value.items`、`enumerate`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_fact_candidates`（L399–L411）：接收`key`、`fields`。 调用`key.split("::")[0].rsplit`、`key.split`、`_mentions`、`any`、`ALIASES.values`。 返回路径：L401的`[ field for entity, field in fields if (explicit_entity is None or entity == explicit_enti…`。
+- `_matches_constraint`（L414–L435）：接收`attribute`、`expected`、`actual`。 控制顺序：L415按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L416按`isinstance(expected, str)`分支；L418按`word in {"true", "是", "必填"}`分支；L420按`word in {"false", "否", "可选", "非必填"}`分支；L423按`attribute in {"min_length", "max_length"}`分支；L424按`isinstance(expected, str)`分支；L426按`legacy`分支；L429按`attribute == "choices"`分支。 调用`isinstance`、`expected.strip().lower`、`expected.strip`、`type`、`re.fullmatch`、`int`、`legacy.group`、`all`、`set`。 返回路径：L422的`type(expected) is bool and actual is expected`；L428的`type(expected) is int and actual == expected`；L430的`isinstance(expected, list) and all(isinstance(item, str) for item in expected) and set(act…`。
+- `coverage_gaps`（L438–L569）：接收`requirement`、`plan`。 控制顺序：L441按`plan.data_scope != requirement.data_scope`分支；L443遍历`requirement.field_requirements`；L450按`len(matches) != 1`分支；L454遍历`obligation.model_dump().items()`；L455按`key in {"field", "entity"} or value is None`分支；L458按`not _matches_constraint(key, value, actual)`分支；L465遍历`structured`；L467按`not candidates and ( "::" in key or any(_mentions(key, aliases) for aliases in ALIASE…`分支。后续分支沿下方源码相同行号继续阅读。 调用`gaps.append`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_matches_constraint`、`list`、`_fact_constraints`、`_fact_candidates`等。 返回路径：L569的`list(dict.fromkeys(gaps))`。
 
-<!-- source-file: workbench/requirement_coverage.py sha256: f7859767398df9624035e514026d51ee0799d2485136ca0852f2478a462a00b6 -->
+<!-- source-file: workbench/requirement_coverage.py sha256: 76298db5edad72d651df9dac507d30ff824ca0300d54414e0d09f322ea6893be -->
 ````python
 """Persist approved intent and check executable obligations without a model verdict.
 
@@ -11627,9 +11628,16 @@ FACT_ATTRIBUTES = {
 }
 
 
+# Recorded setup/capability catalogs describe the selected environment, not
+# requested field behavior. Retain them in Requirement/ledger untouched.
+FACT_METADATA_KEYS = {"可用能力", "模板", "前端", "数据库", "数据范围"}
+
+
 def _fact_constraints(facts, prefix=""):
     """Decode JSON facts structurally; their repr is never natural-language input."""
     for key, value in facts.items():
+        if not prefix and key in FACT_METADATA_KEYS:
+            continue
         label = f"{prefix}.{key}" if prefix else key
         if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
             try:
@@ -11663,12 +11671,17 @@ def _fact_constraints(facts, prefix=""):
                     if isinstance(item, (dict, list)):
                         yield from _fact_constraints({str(index): item}, label)
         else:
-            attribute = _fact_attribute(label)
+            attribute = _scalar_fact_attribute(label, value)
             if attribute == "optional":
                 if type(value) is bool:
                     value = not value
-                elif isinstance(value, str) and value.lower() in {"true", "false", "是", "否"}:
-                    value = value.lower() in {"false", "否"}
+                elif isinstance(value, str) and value.strip().lower() in {
+                    "true",
+                    "false",
+                    "是",
+                    "否",
+                }:
+                    value = value.strip().lower() in {"false", "否"}
                 yield label, {"required": value}
             elif attribute is not None:
                 yield label, {attribute: value}
@@ -11701,9 +11714,30 @@ def _fact_attribute(label):
     return attribute
 
 
+def _scalar_fact_attribute(label, value):
+    attribute = _fact_attribute(label)
+    if attribute in {"required", "optional", "searchable", "filterable", "date_range"}:
+        if isinstance(value, str) and value.strip().lower() not in {
+            "true",
+            "false",
+            "是",
+            "否",
+            "必填",
+            "可选",
+            "非必填",
+        }:
+            # A legacy label such as 日期区间 can carry descriptive prose,
+            # not a boolean. Keep that prose in the existing coverage checks;
+            # never stringify actual booleans or relax typed object attributes.
+            return None
+    return attribute
+
+
 def _fact_texts(facts, prefix=""):
     """Retain legacy scalar descriptions without stringifying typed containers."""
     for key, value in facts.items():
+        if not prefix and key in FACT_METADATA_KEYS:
+            continue
         label = f"{prefix}.{key}" if prefix else key
         if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
             try:
@@ -11730,7 +11764,11 @@ def _fact_texts(facts, prefix=""):
             for index, item in enumerate(value):
                 if isinstance(item, (dict, list)):
                     yield from _fact_texts({str(index): item}, label)
-        elif value is not None and not isinstance(value, bool) and _fact_attribute(label) is None:
+        elif (
+            value is not None
+            and not isinstance(value, bool)
+            and _scalar_fact_attribute(label, value) is None
+        ):
             yield f"{label}: {value}"
 
 
@@ -11845,22 +11883,44 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
         for _, field in fields:
             if _mentions(text, [field.name]) and field not in mentioned:
                 mentioned.append(field)
-        for flag, pattern in operations.items():
-            if not re.search(pattern, text, re.I):
-                continue
-            candidates = mentioned
-            if flag == "date_range":
-                candidates = [f for f in mentioned if f.kind == "date"] or [
-                    f for _, f in fields if f.kind == "date"
-                ]
-            # A combined category/date filtering sentence must not accidentally
-            # require unrelated title/body fields to be filterable.
-            if not mentioned:
-                candidates = [f for _, f in fields]
-                if not any(getattr(f, flag) for f in candidates):
-                    gaps.append(f"设计未覆盖已确认的 {flag}: {text}")
-            elif not candidates or any(not getattr(f, flag) for f in candidates):
-                gaps.append(f"设计未覆盖已确认的 {flag}: {text}")
+        operation_parts = [text]
+        if re.search(operations["searchable"], text, re.I) and re.search(
+            operations["filterable"], text, re.I
+        ):
+            # In a capability list, nouns in the filtering clause are not
+            # search targets. Carry noun-only pieces forward so "标题、正文
+            # 搜索" still binds both fields to search rather than losing one.
+            operation_parts, pending = [], []
+            for part in re.split(r"、|并且|并|且|和|与", text):
+                pending.append(part)
+                if any(re.search(pattern, part, re.I) for pattern in operations.values()):
+                    operation_parts.append("".join(pending))
+                    pending = []
+            if pending:
+                operation_parts.append("".join(pending))
+        previous_targets = []
+        for part in operation_parts:
+            targets = _fact_candidates(part, fields) if part != text else mentioned
+            # An operation-only continuation (标题搜索和精确筛选) inherits
+            # the previous named subject; another field cannot satisfy it.
+            if not targets and previous_targets:
+                targets = previous_targets
+            if targets:
+                previous_targets = targets
+            for flag, pattern in operations.items():
+                if not re.search(pattern, part, re.I):
+                    continue
+                candidates = targets
+                if flag == "date_range":
+                    candidates = [f for f in targets if f.kind == "date"] or [
+                        f for _, f in fields if f.kind == "date"
+                    ]
+                if not targets:
+                    candidates = [f for _, f in fields]
+                    if not any(getattr(f, flag) for f in candidates):
+                        gaps.append(f"设计未覆盖已确认的 {flag}: {part}")
+                elif not candidates or any(not getattr(f, flag) for f in candidates):
+                    gaps.append(f"设计未覆盖已确认的 {flag}: {part}")
         for field in mentioned:
             if re.search(r"必填|required", text, re.I) and not re.search(
                 r"非必填|不必填|是否必填.*否|optional", text, re.I
@@ -21686,6 +21746,282 @@ def test_native_style_receipt_cannot_be_skipped_or_forged(tmp_path, change):
     with pytest.raises(PrerequisiteError, match="原生UI"):
         managed_verify(product, receipt)
     assert not (product.parent / "verification.json").exists()
+````
+
+### `tests/test_description_facts.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts.news_fixture`、`workbench.domain`、`workbench.requirement_coverage`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_unmodified_guided_browser_news_fixture_has_no_coverage_gap`（L8–L13）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L11断言`coverage_gaps(requirement, plan) == []`；L13断言`any("date_range" in gap for gap in coverage_gaps(requirement, plan))`。 调用`Requirement.model_validate`、`news_requirement`、`Plan.model_validate`、`news_spec`、`coverage_gaps`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_descriptive_legacy_flags_still_require_executable_capability`（L24–L34）：接收`key`、`description`、`field`、`flag`。 控制顺序：L31断言`coverage_gaps(requirement, plan) == []`；L34断言`any(flag in gap for gap in coverage_gaps(requirement, plan))`。 调用`news_requirement`、`raw.update`、`Requirement.model_validate`、`Plan.model_validate`、`news_spec`、`coverage_gaps`、`next`、`setattr`、`any`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_malformed_typed_object_attribute_does_not_become_legacy_prose`（L37–L40）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L40断言`coverage_gaps(Requirement.model_validate(raw), Plan.model_validate(news_spec()))`。 调用`news_requirement`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`news_spec`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_optional_scalar_normalizes_boolean_literal_before_inversion`（L46–L54）：接收`value`、`required`。 控制顺序：L52断言`coverage_gaps(requirement, plan) == []`；L54断言`coverage_gaps(requirement, plan)`。 调用`news_requirement`、`raw.update`、`Requirement.model_validate`、`Plan.model_validate`、`news_spec`、`coverage_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_numeric_scalar_flag_remains_invalid_not_prose`（L57–L60）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L60断言`coverage_gaps(Requirement.model_validate(raw), Plan.model_validate(news_spec()))`。 调用`news_requirement`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`news_spec`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_original_setup_catalog_is_metadata_not_field_obligation`（L72–L85）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L78断言`coverage_gaps(requirement, plan) == []`；L79断言`requirement.model_dump() == before`；L80断言`not plan.entities[0].fields[2].searchable`；L82断言`any("searchable" in gap for gap in coverage_gaps(requirement, plan))`；L85断言`any("date_range" in gap for gap in coverage_gaps(requirement, plan))`。 调用`news_requirement`、`raw["facts"].update`、`Requirement.model_validate`、`requirement.model_dump`、`Plan.model_validate`、`news_spec`、`coverage_gaps`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_metadata_does_not_override_typed_required_obligation`（L88–L97）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L95断言`any( "required" in gap for gap in coverage_gaps(requirement, Plan.model_validate(news…`。 调用`news_requirement`、`raw["facts"].update`、`Requirement.model_validate`、`FieldRequirement`、`any`、`coverage_gaps`、`Plan.model_validate`、`news_spec`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `original_requirement`（L128–L131）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`news_requirement`、`raw.update`、`Requirement.model_validate`。 返回路径：L131的`Requirement.model_validate(raw)`。
+- `test_exact_original_requirement_matches_news_plan_without_mutation`（L134–L138）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L137断言`coverage_gaps(requirement, Plan.model_validate(news_spec())) == []`；L138断言`requirement.model_dump() == before`。 调用`original_requirement`、`requirement.model_dump`、`coverage_gaps`、`Plan.model_validate`、`news_spec`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_original_requirement_still_blocks_missing_query_obligations`（L151–L154）：接收`field`、`flag`。 控制顺序：L154断言`any(flag in gap for gap in coverage_gaps(original_requirement(), plan))`。 调用`Plan.model_validate`、`news_spec`、`setattr`、`next`、`any`、`coverage_gaps`、`original_requirement`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_combined_query_clause_retains_shared_search_targets`（L157–L166）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L162断言`coverage_gaps(requirement, plan) == []`；L163遍历`["title", "body"]`；L166断言`coverage_gaps(requirement, changed)`。 调用`news_requirement`、`raw.update`、`Requirement.model_validate`、`Plan.model_validate`、`news_spec`、`coverage_gaps`、`plan.model_copy`、`next`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts`（L169–L230）：接收`tmp_path`、`monkeypatch`。 控制顺序：L220断言`store.get_run(run)["status"] == "BLOCKED"`；L221断言`store.get_run(run)["pending"]["data"]["requirement"]["facts"] == FACTS`；L226断言`final["status"] == "READY"`；L227断言`final["result"]["cleanroom"]["passed"]`；L228断言`len(store.messages(run)) == 1`。 调用`Settings`、`Store`、`store.migrate`、`store.create_project`、`store.create_run`、`monkeypatch.context`、`patch.setattr`、`Runtime`、`Stale`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.old_requirements`（L175–L187）：接收`state`。 控制顺序：L185按`outcome["decision"] in {"answer", "revise", "recommend"}`分支。 调用`dict`、`raw.pop`、`self.gate`。 返回路径：L187的`outcome`。
+- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.Stale`（L189–L196）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.Stale.complete`（L190–L196）：接收`run`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L191断言`schema is Requirement`。 调用`original_requirement`。 返回路径：L196的`value`。
+- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.Fixed`（L198–L206）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_exact_original_legacy_blocked_run_recovers_without_losing_facts.Fixed.complete`（L199–L206）：接收`run`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L200按`schema is Requirement`分支；L204断言`schema is Plan`；L205断言`payload["approved_requirement"]["facts"] == FACTS`。 调用`original_requirement`、`Plan.model_validate`、`news_spec`。 返回路径：L203的`value`；L206的`Plan.model_validate(news_spec())`。
+- `test_operation_only_continuation_keeps_previous_field_target`（L233–L241）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L238断言`plan.entities[0].fields[-1].filterable`；L239断言`any("filterable" in gap for gap in coverage_gaps(requirement, plan))`；L241断言`coverage_gaps(requirement, plan) == []`。 调用`news_requirement`、`raw.update`、`Requirement.model_validate`、`Plan.model_validate`、`news_spec`、`any`、`coverage_gaps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_description_facts.py sha256: e0b96b15183e61fff1974951c42ada3fe1a5c17133d412f25c13be89761b1fd1 -->
+````python
+import pytest
+
+from scripts.news_fixture import news_requirement, news_spec
+from workbench.domain import Plan, Requirement
+from workbench.requirement_coverage import coverage_gaps
+
+
+def test_unmodified_guided_browser_news_fixture_has_no_coverage_gap():
+    requirement = Requirement.model_validate(news_requirement(True))
+    plan = Plan.model_validate(news_spec())
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[2].date_range = False
+    assert any("date_range" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize(
+    "key,description,field,flag",
+    [
+        ("日期区间", "包含起始日和结束日", "published_on", "date_range"),
+        ("标题支持搜索", "按标题关键词查询", "title", "searchable"),
+        ("分类可筛选", "按分类精确匹配", "category", "filterable"),
+    ],
+)
+def test_descriptive_legacy_flags_still_require_executable_capability(
+    key, description, field, flag
+):
+    raw = news_requirement(True)
+    raw.update(facts={key: description}, features=[], acceptance=[])
+    requirement = Requirement.model_validate(raw)
+    plan = Plan.model_validate(news_spec())
+    assert coverage_gaps(requirement, plan) == []
+    target = next(f for f in plan.entities[0].fields if f.name == field)
+    setattr(target, flag, False)
+    assert any(flag in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_malformed_typed_object_attribute_does_not_become_legacy_prose():
+    raw = news_requirement(True)
+    raw["facts"] = {"category": {"required": "not a boolean"}}
+    assert coverage_gaps(Requirement.model_validate(raw), Plan.model_validate(news_spec()))
+
+
+@pytest.mark.parametrize(
+    "value,required", [(" False ", True), (" TRUE ", False), ("可选", False), ("非必填", False)]
+)
+def test_optional_scalar_normalizes_boolean_literal_before_inversion(value, required):
+    raw = news_requirement(True)
+    raw.update(facts={"分类是否可选": value}, features=[], acceptance=[])
+    requirement = Requirement.model_validate(raw)
+    plan = Plan.model_validate(news_spec())
+    plan.entities[0].fields[-1].required = required
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[-1].required = not required
+    assert coverage_gaps(requirement, plan)
+
+
+def test_numeric_scalar_flag_remains_invalid_not_prose():
+    raw = news_requirement(True)
+    raw["facts"] = {"发布日期支持日期范围": 1}
+    assert coverage_gaps(Requirement.model_validate(raw), Plan.model_validate(news_spec()))
+
+
+ORIGINAL_SETUP_FACTS = {
+    "可用能力": "认证、用户隔离、增删改查、关键词搜索、精确筛选、日期范围筛选、枚举和字段长度校验",
+    "模板": "python-basic",
+    "前端": "simple-admin",
+    "数据库": "SQLite",
+    "数据范围": "per_user",
+}
+
+
+def test_original_setup_catalog_is_metadata_not_field_obligation():
+    raw = news_requirement(True)
+    raw["facts"].update(ORIGINAL_SETUP_FACTS)
+    requirement = Requirement.model_validate(raw)
+    before = requirement.model_dump()
+    plan = Plan.model_validate(news_spec())
+    assert coverage_gaps(requirement, plan) == []
+    assert requirement.model_dump() == before
+    assert not plan.entities[0].fields[2].searchable
+    plan.entities[0].fields[0].searchable = False
+    assert any("searchable" in gap for gap in coverage_gaps(requirement, plan))
+    plan.entities[0].fields[0].searchable = True
+    plan.entities[0].fields[2].date_range = False
+    assert any("date_range" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_metadata_does_not_override_typed_required_obligation():
+    from workbench.domain import FieldRequirement
+
+    raw = news_requirement(True)
+    raw["facts"].update(ORIGINAL_SETUP_FACTS)
+    requirement = Requirement.model_validate(raw)
+    requirement.field_requirements = [FieldRequirement(field="category", required=True)]
+    assert any(
+        "required" in gap for gap in coverage_gaps(requirement, Plan.model_validate(news_spec()))
+    )
+
+
+FEATURES = [
+    "用户注册或登录后管理资讯；每位用户只能查看、搜索、新增、编辑和删除自己的资讯。",
+    "资讯字段：标题、正文、发布日期、分类。标题和正文为必填文本；发布日期为必填日期；分类可选。",
+    "标题最多250字符，正文最多3000字符；日期格式为YYYY-MM-DD。",
+    "支持按标题或正文关键词搜索。",
+    "支持按分类精确筛选，并支持按发布日期范围筛选；日期区间包含起始日和结束日。",
+    "提供简单管理页面及对应的增删改查能力。",
+]
+ACCEPTANCE = [
+    "用户可以新增、查看、编辑和删除自己的资讯记录。",
+    "不同用户无法查看或操作彼此的资讯记录。",
+    "标题或正文超过长度限制、必填字段缺失或日期格式无效时，系统拒绝保存并提示错误。",
+    "关键词搜索、分类精确筛选和包含首尾日期的日期范围筛选均可正常使用，筛选条件可组合使用。",
+    "分类不填写时仍可保存资讯。",
+]
+FACTS = {
+    "模板": "FastAPI + 轻量管理页面",
+    "前端": "simple-admin",
+    "数据库": "sqlite",
+    "数据范围": "per_user",
+    "可用能力": "认证、用户隔离、增删改查、关键词搜索、精确筛选、日期范围筛选、枚举和字段长度校验",
+    "日期区间": "包含起始日和结束日",
+    "标题长度上限": "250字符",
+    "正文长度上限": "3000字符",
+    "分类是否必填": "否",
+}
+
+
+def original_requirement():
+    raw = news_requirement(True)
+    raw.update(features=FEATURES, acceptance=ACCEPTANCE, facts=FACTS)
+    return Requirement.model_validate(raw)
+
+
+def test_exact_original_requirement_matches_news_plan_without_mutation():
+    requirement = original_requirement()
+    before = requirement.model_dump()
+    assert coverage_gaps(requirement, Plan.model_validate(news_spec())) == []
+    assert requirement.model_dump() == before
+
+
+@pytest.mark.parametrize(
+    "field,flag",
+    [
+        ("title", "searchable"),
+        ("body", "searchable"),
+        ("category", "filterable"),
+        ("published_on", "filterable"),
+        ("published_on", "date_range"),
+    ],
+)
+def test_original_requirement_still_blocks_missing_query_obligations(field, flag):
+    plan = Plan.model_validate(news_spec())
+    setattr(next(f for f in plan.entities[0].fields if f.name == field), flag, False)
+    assert any(flag in gap for gap in coverage_gaps(original_requirement(), plan))
+
+
+def test_combined_query_clause_retains_shared_search_targets():
+    raw = news_requirement(True)
+    raw.update(features=["标题、正文搜索和分类筛选"], acceptance=[], facts={})
+    requirement = Requirement.model_validate(raw)
+    plan = Plan.model_validate(news_spec())
+    assert coverage_gaps(requirement, plan) == []
+    for field in ["title", "body"]:
+        changed = plan.model_copy(deep=True)
+        next(f for f in changed.entities[0].fields if f.name == field).searchable = False
+        assert coverage_gaps(requirement, changed)
+
+
+def test_exact_original_legacy_blocked_run_recovers_without_losing_facts(tmp_path, monkeypatch):
+    from workbench.flow import Workflow
+    from workbench.runtime import Runtime
+    from workbench.settings import Settings
+    from workbench.store import Store
+
+    def old_requirements(self, state):
+        raw = dict(state["requirement"])
+        raw.pop("limitations", None)
+        outcome = self.gate(
+            state,
+            "clarification",
+            {"requirement": raw, "ready": False},
+            ["answer", "reject"],
+            False,
+        )
+        if outcome["decision"] in {"answer", "revise", "recommend"}:
+            outcome["round"] = state["round"] + 1
+        return outcome
+
+    class Stale:
+        def complete(self, run, key, instruction, payload, schema):
+            assert schema is Requirement
+            value = original_requirement()
+            value.questions = ["需要个人资讯管理页面，还是无需登录的公众资讯网站？"]
+            value.unsupported = ["自动从外部网站采集资讯不受支持", "匿名公众网站不受支持"]
+            value.limitations = []
+            return value
+
+    class Fixed:
+        def complete(self, run, key, instruction, payload, schema):
+            if schema is Requirement:
+                value = original_requirement()
+                value.facts = {}  # Model omission must not erase persisted confirmed facts.
+                return value
+            assert schema is Plan
+            assert payload["approved_requirement"]["facts"] == FACTS
+            return Plan.model_validate(news_spec())
+
+    settings = Settings(data_dir=tmp_path / "state", install_products=False, _env_file=None)
+    store = Store(settings)
+    store.migrate()
+    try:
+        project = store.create_project("原资讯需求恢复", "project")
+        run = store.create_run(
+            project["id"], {"requirement": "游戏资讯", "intelligent": True}, "run"
+        )["run_id"]
+        with monkeypatch.context() as patch:
+            patch.setattr(Workflow, "requirements", old_requirements)
+            with Runtime(settings, store, Stale()) as runtime:
+                runtime.tick()
+        assert store.get_run(run)["status"] == "BLOCKED"
+        assert store.get_run(run)["pending"]["data"]["requirement"]["facts"] == FACTS
+        store.set_automation(run, True, "resume-existing")
+        with Runtime(settings, store, Fixed()) as runtime:
+            runtime.tick()
+        final = store.get_run(run)
+        assert final["status"] == "READY", final
+        assert final["result"]["cleanroom"]["passed"]
+        assert len(store.messages(run)) == 1
+    finally:
+        store.engine.dispose()
+
+
+def test_operation_only_continuation_keeps_previous_field_target():
+    raw = news_requirement(True)
+    raw.update(features=["标题支持关键词搜索和精确筛选"], acceptance=[], facts={})
+    requirement = Requirement.model_validate(raw)
+    plan = Plan.model_validate(news_spec())
+    assert plan.entities[0].fields[-1].filterable
+    assert any("filterable" in gap for gap in coverage_gaps(requirement, plan))
+    plan.entities[0].fields[0].filterable = True
+    assert coverage_gaps(requirement, plan) == []
 ````
 
 ### `tests/test_generation_preservation.py`
