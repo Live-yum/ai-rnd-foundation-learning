@@ -17,43 +17,39 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
-      - run: uv sync --locked --all-extras
-      - name: Save installed package source and isolated runtime, not credentials
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare independently pinned tool environments
         run: |
-          uv run python - <<'PY'
-          import inspect, json, pathlib, sys, tarfile
-          from daytona import Daytona, DaytonaConfig
-          root = pathlib.Path('reports/runtime-contract'); root.mkdir(parents=True, exist_ok=True)
-          client = Daytona(DaytonaConfig(api_key='local-contract-fixture', api_url='http://127.0.0.1:3000/api', target='local'))
-          def save_source(name, obj):
-              try:
-                  source = inspect.getsource(type(obj))
-              except (OSError, TypeError):
-                  source = '# Class alias or extension: consult the archived installed module.\n'
-              (root/(name+'.py')).write_text(source, encoding='utf-8')
-          shapes = {}
-          for name in ('_http_client', '_api_client', '_toolbox_api_client'):
-              obj = getattr(client, name, None)
-              if obj is None:
-                  shapes[name] = None
-                  continue
-              shapes[name] = {'type': type(obj).__module__+'.'+type(obj).__name__, 'attributes': sorted(vars(obj)), 'methods': [key for key in dir(obj) if key in ('close','clear','shutdown','__enter__','__exit__')]}
-              save_source(name, obj)
-              rest = getattr(obj, 'rest_client', None)
-              if rest is not None:
-                  shapes[name]['rest_type'] = type(rest).__module__+'.'+type(rest).__name__
-                  shapes[name]['rest_attributes'] = sorted(vars(rest))
-                  save_source(name+'-rest', rest)
-          (root/'shape.json').write_text(json.dumps(shapes, indent=2), encoding='utf-8')
-          print(json.dumps(shapes, indent=2))
-          with tarfile.open(root/'python-runtime.tar.gz', 'w:gz') as archive:
-              archive.add(sys.base_prefix, arcname='python', filter=lambda item: None if '__pycache__' in item.name else item)
-              packages = pathlib.Path(sys.prefix)/'lib/python3.14/site-packages'
-              archive.add(packages, arcname='site-packages', filter=lambda item: None if '__pycache__' in item.name else item)
+          uv sync --locked --project tools/aider --python 3.12 --managed-python
+          mkdir -p reports/tool-runtime/node
+          printf '%s\n' '{"name":"rnd-local-node-tools","private":true,"type":"module","version":"1.0.0","dependencies":{"esbuild":"0.25.9","node-plop":"0.32.3"}}' > reports/tool-runtime/node/package.json
+          npm install --prefix reports/tool-runtime/node --no-audit --no-fund
+      - name: Retain exact public source and dependency bytes, not user environments
+        run: |
+          tools/aider/.venv/bin/python - <<'PY'
+          import hashlib, pathlib, sys, tarfile, urllib.request
+          root=pathlib.Path('reports/tool-runtime')
+          revision='5522c6f44ca0ac3528b37244818fbfa39b5af470'
+          for name, path, sha in [('FullTextSearchCodebaseIndex.ts','core/indexing/FullTextSearchCodebaseIndex.ts','8016d04d3eddc84ec48ffa517ba96b2caba9b14e'),('LICENSE','LICENSE','c25dc1768217ba50d454fcc06290d66886512872')]:
+              with urllib.request.urlopen(f'https://raw.githubusercontent.com/continuedev/continue/{revision}/{path}', timeout=60) as response:
+                  data=response.read(1000000)
+              assert hashlib.sha1(f'blob {len(data)}\0'.encode()+data).hexdigest()==sha
+              (root/name).write_bytes(data)
+          with tarfile.open(root/'aider-runtime.tar.gz','w:gz') as archive:
+              archive.add(sys.base_prefix,arcname='python',filter=lambda item: None if '__pycache__' in item.name else item)
+              archive.add(pathlib.Path(sys.prefix)/'lib/python3.12/site-packages',arcname='site-packages',filter=lambda item: None if '__pycache__' in item.name else item)
+          with tarfile.open(root/'node-runtime.tar.gz','w:gz') as archive:
+              archive.add(root/'node',arcname='node')
           PY
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: installed-runtime-contract
-          path: reports/runtime-contract/
+          name: installed-tool-dependencies
+          path: |
+            reports/tool-runtime/*.tar.gz
+            reports/tool-runtime/*.ts
+            reports/tool-runtime/LICENSE
+            reports/tool-runtime/node/package*.json
           retention-days: 7
