@@ -506,3 +506,7 @@ Pydantic Settings：https://docs.pydantic.dev/latest/concepts/pydantic_settings/
 FastapiAdmin：https://github.com/fastapiadmin/FastapiAdmin
 芋道：https://gitee.com/yudaocode/yudao-cloud-mini 、https://gitee.com/yudaocode/yudao-ui-admin-vben
 这些文档解释工具行为；本项目可复现版本以同一提交的uv.lock、vendor manifest、代码及测试为准。
+
+## 已有生成目录和数据库的保护
+
+基础模板只在不存在的新目标目录中首次生成。已有目录只有在原 `generation.json` 的设计指纹、前端/数据库选择及文件清单有效且匹配时才可原样复用，交付前仍须单独验证源码。回执缺失、损坏或设计/选择不匹配时会停止，并保留全部原字节，包括 `.data/product.db`、`.env` 和你自行添加的源码；不会删除整个产品目录来“恢复成功”。先备份并核对原运行的真实回执和批准设计，不要手写一个成功回执或删除数据库绕过检查。新设计应在新的空目录/新运行中生成；若要把现有业务数据迁移到新结构，需要单独制定、备份并批准迁移方案。生成中断且没有有效回执时也保留现场，不承诺自动重建或自动迁移数据。
