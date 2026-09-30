@@ -9,7 +9,12 @@ import pytest
 from pydantic import SecretStr
 
 from scripts.daytona_bootstrap import snapshot_resources
-from workbench.daytona_profiles import dependency_identity, profile_key, require_runtime_report, snapshot_for
+from workbench.daytona_profiles import (
+    dependency_identity,
+    profile_key,
+    require_runtime_report,
+    snapshot_for,
+)
 from workbench.domain import digest
 from workbench.filesystem import atomic_text, manifest
 from workbench.generator import PrerequisiteError
@@ -17,7 +22,15 @@ from workbench.sandbox import checks_for, harness_archive, params_for, verify_in
 from workbench.tools import clean_env
 
 
-@pytest.mark.parametrize("template,database", [("python-basic", "sqlite"), ("python-basic", "postgresql"), ("fastapiadmin", "postgresql"), ("yudao-vben", "postgresql")])
+@pytest.mark.parametrize(
+    "template,database",
+    [
+        ("python-basic", "sqlite"),
+        ("python-basic", "postgresql"),
+        ("fastapiadmin", "postgresql"),
+        ("yudao-vben", "postgresql"),
+    ],
+)
 def test_exact_registered_profiles(template, database, settings):
     assert profile_key(template, {"database": database}) == template + "/" + database
     settings.daytona_snapshot = "fallback-local-snapshot"
@@ -26,10 +39,15 @@ def test_exact_registered_profiles(template, database, settings):
     params = params_for(settings, "test-local", template, {"database": database})
     assert params.network_block_all is True and params.public is False
     assert params.snapshot == "selected-local-snapshot"
-    assert params.auto_stop_interval >= (5 if database == "sqlite" else settings.daytona_runtime_timeout // 60)
+    assert params.auto_stop_interval >= (
+        5 if database == "sqlite" else settings.daytona_runtime_timeout // 60
+    )
 
 
-@pytest.mark.parametrize("template,database", [("yudao-vben", "sqlite"), ("fastapiadmin", "mysql"), ("shell", "postgresql")])
+@pytest.mark.parametrize(
+    "template,database",
+    [("yudao-vben", "sqlite"), ("fastapiadmin", "mysql"), ("shell", "postgresql")],
+)
 def test_unregistered_profiles_are_not_guessed(template, database):
     with pytest.raises(ValueError):
         profile_key(template, {"database": database})
@@ -38,20 +56,72 @@ def test_unregistered_profiles_are_not_guessed(template, database):
 
 
 def report(template="yudao-vben"):
-    return {key: True for key in ("passed", "http", "restart", "fresh_database", "locked_install", "offline", "services_stopped", "frontend_build", "frontend_typecheck", "browser", "permissions", "standalone_launcher", "business_rules")} | {"template": template, "database": "postgresql", "source_digest": "f" * 64, "host_database_used": False, "host_credentials_used": False}
+    return {
+        key: True
+        for key in (
+            "passed",
+            "http",
+            "restart",
+            "fresh_database",
+            "locked_install",
+            "offline",
+            "services_stopped",
+            "frontend_build",
+            "frontend_typecheck",
+            "browser",
+            "permissions",
+            "standalone_launcher",
+            "business_rules",
+        )
+    } | {
+        "template": template,
+        "database": "postgresql",
+        "source_digest": "f" * 64,
+        "host_database_used": False,
+        "host_credentials_used": False,
+    }
 
 
-@pytest.mark.parametrize("key", ["passed", "http", "restart", "fresh_database", "locked_install", "offline", "services_stopped", "frontend_build", "frontend_typecheck", "browser", "permissions", "standalone_launcher", "business_rules"])
+@pytest.mark.parametrize(
+    "key",
+    [
+        "passed",
+        "http",
+        "restart",
+        "fresh_database",
+        "locked_install",
+        "offline",
+        "services_stopped",
+        "frontend_build",
+        "frontend_typecheck",
+        "browser",
+        "permissions",
+        "standalone_launcher",
+        "business_rules",
+    ],
+)
 @pytest.mark.parametrize("bad", [None, False, "true", 1])
 def test_every_runtime_gate_requires_actual_boolean_success(key, bad):
-    value = report(); value[key] = bad
+    value = report()
+    value[key] = bad
     with pytest.raises(ValueError):
         require_runtime_report(value, "yudao-vben", {"database": "postgresql"}, "f" * 64)
 
 
-@pytest.mark.parametrize("key,bad", [("template", "fastapiadmin"), ("database", "sqlite"), ("source_digest", "wrong"), ("host_database_used", True), ("host_credentials_used", True), ("host_database_used", 0)])
+@pytest.mark.parametrize(
+    "key,bad",
+    [
+        ("template", "fastapiadmin"),
+        ("database", "sqlite"),
+        ("source_digest", "wrong"),
+        ("host_database_used", True),
+        ("host_credentials_used", True),
+        ("host_database_used", 0),
+    ],
+)
 def test_runtime_identity_and_no_host_database_must_match(key, bad):
-    value = report(); value[key] = bad
+    value = report()
+    value[key] = bad
     with pytest.raises(ValueError):
         require_runtime_report(value, "yudao-vben", {"database": "postgresql"}, "f" * 64)
 
@@ -72,9 +142,19 @@ def test_dependency_identity_does_not_use_host_keys_or_cached_binaries(tmp_path)
 
 
 def snapshot_metadata():
-    return {"image": "registry:6000/rnd-yudao-vben:" + "a" * 16, "snapshot": "rnd-yudao-vben-" + "a" * 16,
-            "source_hash": "a" * 16, "profile": {"template": "yudao-vben", "database": "postgresql", "dependency_identity": "b" * 64},
-            "resources": {"cpu": 2, "memory": 10, "disk": 30}, "wait_for_default": False, "image_id": "sha256:" + "c" * 64}
+    return {
+        "image": "registry:6000/rnd-yudao-vben:" + "a" * 16,
+        "snapshot": "rnd-yudao-vben-" + "a" * 16,
+        "source_hash": "a" * 16,
+        "profile": {
+            "template": "yudao-vben",
+            "database": "postgresql",
+            "dependency_identity": "b" * 64,
+        },
+        "resources": {"cpu": 2, "memory": 10, "disk": 30},
+        "wait_for_default": False,
+        "image_id": "sha256:" + "c" * 64,
+    }
 
 
 def test_matrix_snapshot_is_independent_of_the_default_python_warmup():
@@ -83,9 +163,20 @@ def test_matrix_snapshot_is_independent_of_the_default_python_warmup():
     assert wait is False
 
 
-@pytest.mark.parametrize("key,value", [("image", "docker.io/remote:latest"), ("snapshot", "rnd-python-old"), ("source_hash", "unlocked"), ("image_id", "latest"), ("resources", {"cpu": 999}), ("wait_for_default", 0)])
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("image", "docker.io/remote:latest"),
+        ("snapshot", "rnd-python-old"),
+        ("source_hash", "unlocked"),
+        ("image_id", "latest"),
+        ("resources", {"cpu": 999}),
+        ("wait_for_default", 0),
+    ],
+)
 def test_matrix_snapshot_cannot_select_cloud_or_unbounded_resources(key, value):
-    item = snapshot_metadata(); item[key] = value
+    item = snapshot_metadata()
+    item[key] = value
     with pytest.raises(ValueError):
         snapshot_resources(item)
 
@@ -107,36 +198,56 @@ def test_trusted_harness_contains_only_allowlisted_source():
         assert "harness/scripts/daytona_matrix_probe.py" in names
         assert "harness/scripts/native_browser.cjs" in names
         assert all(name.endswith((".py", ".cjs")) for name in names)
-        assert not any(".env" in name or "node_modules" in name or "/.git/" in name for name in names)
+        assert not any(
+            ".env" in name or "node_modules" in name or "/.git/" in name for name in names
+        )
 
 
 @pytest.mark.parametrize("failure", [None, "exec", "report", "cleanup"])
 def test_matrix_always_deletes_its_sandbox_and_never_falls_back(settings, tmp_path, failure):
-    product = tmp_path / "product"; product.mkdir()
+    product = tmp_path / "product"
+    product.mkdir()
     atomic_text(product / "pyproject.toml", "project")
-    settings.sandbox_provider = "daytona"; settings.daytona_allow_local_execution = True
-    settings.daytona_api_key = SecretStr("local-test-token"); settings.daytona_snapshot = "registered-matrix"
+    settings.sandbox_provider = "daytona"
+    settings.daytona_allow_local_execution = True
+    settings.daytona_api_key = SecretStr("local-test-token")
+    settings.daytona_snapshot = "registered-matrix"
     events = []
-    value = report("fastapiadmin"); value["source_digest"] = digest(manifest(product))
-    if failure == "report": value["browser"] = False
+    value = report("fastapiadmin")
+    value["source_digest"] = digest(manifest(product))
+    if failure == "report":
+        value["browser"] = False
+
     class Files:
-        def create_folder(self, *args): pass
+        def create_folder(self, *args):
+            pass
+
         def upload_file(self, data, path, **kwargs):
             assert b"local-test-token" not in data
             events.append("upload")
-        def download_file_stream(self, *args, **kwargs): yield json.dumps(value).encode()
+
+        def download_file_stream(self, *args, **kwargs):
+            yield json.dumps(value).encode()
+
     class Process:
         def exec(self, command, **kwargs):
             events.append(command)
-            return SimpleNamespace(exit_code=1 if failure == "exec" else 0, result="explicit-protocol-fixture")
+            return SimpleNamespace(
+                exit_code=1 if failure == "exec" else 0, result="explicit-protocol-fixture"
+            )
+
     class Client:
         def create(self, params, **kwargs):
             assert params.network_block_all and params.snapshot == "registered-matrix"
             events.append("create")
             return SimpleNamespace(id="owned", fs=Files(), process=Process())
+
         def delete(self, sandbox, **kwargs):
-            assert sandbox.id == "owned"; events.append("delete")
-            if failure == "cleanup": raise RuntimeError("explicit fixture cleanup failure")
+            assert sandbox.id == "owned"
+            events.append("delete")
+            if failure == "cleanup":
+                raise RuntimeError("explicit fixture cleanup failure")
+
     if failure:
         with pytest.raises(PrerequisiteError):
             verify_in_daytona(product, "fastapiadmin", settings, client=Client())

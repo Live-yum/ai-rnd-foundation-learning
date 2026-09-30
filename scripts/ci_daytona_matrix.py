@@ -24,7 +24,12 @@ def main():
         if args.template != "python-basic":
             raise ValueError("Only the native generator may prepare a native product")
         plan = Plan.model_validate(news_spec())
-        selection = Selection(template="python-basic", backend="fastapi", frontend="simple-admin", database="postgresql")
+        selection = Selection(
+            template="python-basic",
+            backend="fastapi",
+            frontend="simple-admin",
+            database="postgresql",
+        )
         generate_basic(plan, args.product, selection=selection)
         return
     settings = Settings(_env_file=HOME / "workbench.env", daytona_runtime_timeout=3600)
@@ -33,7 +38,17 @@ def main():
     assert result["runtime"]["host_credentials_used"] is False
     assert result["runtime"]["host_database_used"] is False
     write_json(ROOT / "reports/daytona-matrix.json", result)
-    print(json.dumps({"passed": True, "template": args.template, "database": result["database"], "cleanup": result["cleanup"], "network_block_all": True}))
+    print(
+        json.dumps(
+            {
+                "passed": True,
+                "template": args.template,
+                "database": result["database"],
+                "cleanup": result["cleanup"],
+                "network_block_all": True,
+            }
+        )
+    )
 
 
 if __name__ == "__main__":

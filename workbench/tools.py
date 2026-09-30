@@ -29,7 +29,22 @@ def clean_env(extra=None):
         "APPDATA",
         "SSL_CERT_FILE",
     }
+    # These controls are inherited only inside an explicitly prepared offline image.
+    # Keep cloud credentials, proxy variables and arbitrary model environment excluded.
+    if os.environ.get("RND_OFFLINE_TOOLS") == "1":
+        names.update(
+            {
+                "RND_OFFLINE_TOOLS",
+                "UV_CACHE_DIR",
+                "UV_PYTHON_INSTALL_DIR",
+                "UV_PYTHON_PREFERENCE",
+                "PLAYWRIGHT_BROWSERS_PATH",
+                "JAVA_HOME",
+            }
+        )
     env = {k: v for k, v in os.environ.items() if k.upper() in names}
+    if os.environ.get("RND_OFFLINE_TOOLS") == "1":
+        env.update(UV_OFFLINE="1", COREPACK_ENABLE_NETWORK="0")
     env.update(PYTHONUTF8="1", PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1")
     env.update(extra or {})
     env.update(TELEMETRY_OFF)

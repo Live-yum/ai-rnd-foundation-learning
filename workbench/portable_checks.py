@@ -48,6 +48,13 @@ def check_restored_product(template, base, token, targets, plan):
                     "integer": 0,
                     "boolean": False,
                 }[field["kind"]]
+            from workbench.native_business_checks import wire
+
+            rule = next(
+                (r for r in plan.get("custom_rules", []) if r["entity"] == entity["name"]), None
+            )
+            if rule:
+                body = wire(template, rule["accept_examples"][0])
             created = payload(client.post(target["api"] + "/create", json=body))
             identifier = created["id"] if isinstance(created, dict) else created
             got = payload(
@@ -70,4 +77,13 @@ def check_restored_product(template, base, token, targets, plan):
                     "zero_false_preserved": True,
                 }
             )
-    return {"passed": True, "fresh_database": True, "entities": checked, "model_required": False}
+    from workbench.native_business_checks import check_business_examples
+
+    business = check_business_examples(template, base, token, targets, plan)
+    return {
+        "passed": True,
+        "fresh_database": True,
+        "entities": checked,
+        "model_required": False,
+        "business_rules": business,
+    }

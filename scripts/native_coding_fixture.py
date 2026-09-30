@@ -25,9 +25,18 @@ class NativeCodingFixture:
                 result = "quantity == null || quantity >= 0"
             else:
                 result = "data.quantity == null || Number(data.quantity) >= 0"
-            position = source.index("# RND_RULE_BEGIN") if name.endswith(".py") else source.index("// RND_RULE_BEGIN")
-            before = source[source.rfind("\n", 0, position) + 1:]
+            position = (
+                source.index("# RND_RULE_BEGIN")
+                if name.endswith(".py")
+                else source.index("// RND_RULE_BEGIN")
+            )
+            before = source[source.rfind("\n", 0, position) + 1 :]
             after = before.replace(expression, result, 1)
-            rows.append({"path": name, "before_sha256": data["sha256"],
-                         "blocks": f"{name}\n<<<<<<< SEARCH\n{before.rstrip()}\n=======\n{after.rstrip()}\n>>>>>>> REPLACE\n"})
+            rows.append(
+                {
+                    "path": name,
+                    "before_sha256": data["sha256"],
+                    "blocks": f"{name}\n<<<<<<< SEARCH\n{before.rstrip()}\n=======\n{after.rstrip()}\n>>>>>>> REPLACE\n",
+                }
+            )
         return schema(files=rows, explanation="Explicit local test fixture: nonnegative quantity")

@@ -12,12 +12,26 @@ def main():
     for name in ["credentials.json", "api-key.json"]:
         path = HOME / name
         if path.is_file():
-            secrets.extend(v for v in json.loads(path.read_text()).values() if isinstance(v, str) and len(v) > 5)
+            secrets.extend(
+                v
+                for v in json.loads(path.read_text()).values()
+                if isinstance(v, str) and len(v) > 5
+            )
     logs = []
     for args in [["ps", "--all"], ["logs", "--no-color", "--tail", "80"]]:
         if (HOME / "compose.lock.yaml").is_file():
             try:
-                logs.append(docker("compose", "-p", PROJECT, "-f", str(HOME / "compose.lock.yaml"), *args, timeout=60)[-80000:])
+                logs.append(
+                    docker(
+                        "compose",
+                        "-p",
+                        PROJECT,
+                        "-f",
+                        str(HOME / "compose.lock.yaml"),
+                        *args,
+                        timeout=60,
+                    )[-80000:]
+                )
             except Exception as exc:
                 logs.append(type(exc).__name__)
     body = "\n".join(logs)

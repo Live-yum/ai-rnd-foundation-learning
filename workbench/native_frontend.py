@@ -93,7 +93,16 @@ def build_frontend(template, root, env, reports, *, prepared=False):
     # Checking a pristine checkout before generating them yields false missing-name errors.
     # Type checking remains mandatory, AFTER deterministic generation; no errors are ignored.
     checks = [
-        ("install", ["pnpm", "install", "--frozen-lockfile"], root),
+        (
+            "install",
+            [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                *(["--offline"] if os.environ.get("RND_OFFLINE_TOOLS") == "1" else []),
+            ],
+            root,
+        ),
         ("build", ["pnpm", "exec", "vite", "build", "--mode", "production"], app),
         ("typecheck", ["pnpm", "exec", "vue-tsc", "--noEmit", "--skipLibCheck"], app),
     ]

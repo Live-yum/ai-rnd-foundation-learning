@@ -14,6 +14,7 @@ GUIDES = [
     "docs/native-baseline.md",
     "docs/toolchain.md",
     "docs/recommendation-recovery.md",
+    "docs/native-toolchain.md",
 ]
 GROUPS = [
     (
@@ -64,6 +65,8 @@ GROUPS = [
             "tools/node/continue-host.mjs",
             "tools/node/continue-runner.mjs",
             "tools/node/no-network.cjs",
+            "tools/node/plop-runner.mjs",
+            "tools/node/templates",
             "tools/node/upstream/manifest.json",
             "tools/node/upstream/FullTextSearchCodebaseIndex.ts",
             "tools/node/upstream/LICENSE",

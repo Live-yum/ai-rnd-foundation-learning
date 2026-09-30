@@ -117,7 +117,9 @@ def design_pack(plan, destination, template="python-basic", selection=None):
             "id": f"rule:{i}",
             "title": r.description,
             "owner": "bounded-coding-agent",
-            "allowed_files": ["custom_rules.py"],
+            "allowed_files": ["custom_rules.py"]
+            if template == "python-basic"
+            else ["native Plop registered business guards only"],
             "accept": r.accept_examples,
             "reject": r.reject_examples,
         }

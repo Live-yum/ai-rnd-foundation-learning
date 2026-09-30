@@ -5,8 +5,8 @@ import json
 import os
 from pathlib import Path
 
-from scripts.native_coding_fixture import NativeCodingFixture
 from scripts.ci_native_generated import acceptance_spec
+from scripts.native_coding_fixture import NativeCodingFixture
 from workbench.domain import CustomRule
 from workbench.filesystem import write_json
 from workbench.native import prepare_sources
@@ -20,29 +20,72 @@ def main():
     parser.add_argument("template", choices=["fastapiadmin", "yudao-vben"])
     parser.add_argument("--output", type=Path, default=ROOT / ".native/tool-product")
     args = parser.parse_args()
-    settings = Settings(data_dir=ROOT / ".data/native-tools", coding_engine="aider", tool_timeout=900, _env_file=None)
+    settings = Settings(
+        data_dir=ROOT / ".data/native-tools",
+        coding_engine="aider",
+        tool_timeout=900,
+        _env_file=None,
+    )
     sources = {row["slot"]: Path(row["path"]) for row in prepare_sources(settings, args.template)}
     plan = acceptance_spec()
-    plan.custom_rules = [CustomRule(description="quantity不能为负；新增和修改都校验，前端也要提示。", entity="device",
-        accept_examples=[{"name": "device-rule", "quantity": 0, "active": False}, {"name": "device-rule-second", "quantity": 7, "active": True}],
-        reject_examples=[{"name": "device-rule", "quantity": -1, "active": False}])]
+    plan.custom_rules = [
+        CustomRule(
+            description="quantity不能为负；新增和修改都校验，前端也要提示。",
+            entity="device",
+            accept_examples=[
+                {"name": "device-rule", "quantity": 0, "active": False},
+                {"name": "device-rule-second", "quantity": 7, "active": True},
+            ],
+            reject_examples=[{"name": "device-rule", "quantity": -1, "active": False}],
+        )
+    ]
     fixture = NativeCodingFixture(fail_first=True)
     reports = ROOT / "reports/native-tools"
-    outcome = {"passed": False, "template": args.template, "model_transport": "explicit-fixture", "model_calls": 0}
+    outcome = {
+        "passed": False,
+        "template": args.template,
+        "model_transport": "explicit-fixture",
+        "model_calls": 0,
+    }
     try:
-        report = run_acceptance(args.template, sources["fastapiadmin"] if args.template == "fastapiadmin" else sources["backend"],
-            args.output if args.template == "fastapiadmin" else args.output / "backend", sources.get("frontend"), os.environ["NATIVE_TEST_DATABASE_URL"], reports, plan,
-            customization=native_rule_customizer(settings, fixture, "ci-native"))
+        report = run_acceptance(
+            args.template,
+            sources["fastapiadmin"] if args.template == "fastapiadmin" else sources["backend"],
+            args.output if args.template == "fastapiadmin" else args.output / "backend",
+            sources.get("frontend"),
+            os.environ["NATIVE_TEST_DATABASE_URL"],
+            reports,
+            plan,
+            customization=native_rule_customizer(settings, fixture, "ci-native"),
+        )
         edits = json.loads((reports / "native-coding.json").read_text())
         first = json.loads((reports / "coding-0.json").read_text())
         assert edits["passed"] and edits["repaired"] and edits["attempts"] == 2
         assert first["rolled_back"] and not first["verified"]
         assert report["portable_restored"]["business_rules"]["passed"]
-        outcome.update(passed=True, actual_aider=True, actual_plop=True, actual_browser=True, automatic_repair=True, rollback_verified=True,
-                       fresh_database=True, native_report=report)
+        outcome.update(
+            passed=True,
+            actual_aider=True,
+            actual_plop=True,
+            actual_browser=True,
+            automatic_repair=True,
+            rollback_verified=True,
+            fresh_database=True,
+            native_report=report,
+        )
     finally:
         write_json(reports / "toolchain-acceptance.json", outcome)
-    print(json.dumps({"passed": True, "template": args.template, "actual_aider": True, "actual_plop": True, "repair": True}))
+    print(
+        json.dumps(
+            {
+                "passed": True,
+                "template": args.template,
+                "actual_aider": True,
+                "actual_plop": True,
+                "repair": True,
+            }
+        )
+    )
 
 
 if __name__ == "__main__":

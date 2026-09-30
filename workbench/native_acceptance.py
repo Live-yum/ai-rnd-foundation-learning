@@ -23,7 +23,14 @@ def wire_name(template, name):
     return first + "".join(piece[:1].upper() + piece[1:] for piece in rest)
 
 
-def sample_record(entity, suffix="original", template="fastapiadmin"):
+def sample_record(entity, suffix="original", template="fastapiadmin", plan=None):
+    if plan is not None:
+        from workbench.native_business_checks import wire
+
+        rule = next((r for r in plan.custom_rules if r.entity == entity.name), None)
+        if rule:
+            index = -1 if suffix == "updated" else 0
+            return wire(template, rule.accept_examples[index])
     return {
         wire_name(template, f.name): (
             f"{entity.name}-{suffix}"[: f.max_length]
@@ -56,7 +63,7 @@ def generated_crud(template, base_url, token, targets, plan):
             listing = target["list"]
             denied(client.get(listing))
             denied(client.get(listing, headers={"Authorization": "Bearer test1"}))
-            data = sample_record(entity, template=template)
+            data = sample_record(entity, template=template, plan=plan)
             created = payload(client.post(target["api"] + "/create", json=data, headers=admin))
             identifier = record_id(created)
             assert type(identifier) is int and identifier > 0
@@ -73,7 +80,7 @@ def generated_crud(template, base_url, token, targets, plan):
             saved = get_item()
             for key, value in data.items():
                 assert saved[key] == value, f"Create/read mismatch for {key}"
-            changed = sample_record(entity, "updated", template)
+            changed = sample_record(entity, "updated", template, plan)
             if fastapi:
                 payload(
                     client.put(target["api"] + f"/update/{identifier}", json=changed, headers=admin)
@@ -114,7 +121,7 @@ def generated_crud(template, base_url, token, targets, plan):
             assert not any(row["id"] == identifier for row in rows), (
                 "Delete did not remove business item"
             )
-            sample = sample_record(entity, "persistent", template)
+            sample = sample_record(entity, "persistent", template, plan)
             persistent = record_id(
                 payload(client.post(target["api"] + "/create", json=sample, headers=admin))
             )
@@ -250,7 +257,7 @@ def generated_permissions(template, base_url, token, targets, plan):
             denied(
                 client.post(
                     target["api"] + "/create",
-                    json=sample_record(entity, template=template),
+                    json=sample_record(entity, template=template, plan=plan),
                     headers=reader,
                 )
             )
@@ -272,7 +279,7 @@ def generated_permissions(template, base_url, token, targets, plan):
             payload(
                 client.post(
                     target["api"] + "/create",
-                    json=sample_record(entity, "writer", template),
+                    json=sample_record(entity, "writer", template, plan),
                     headers=writer,
                 )
             )

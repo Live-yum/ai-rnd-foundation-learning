@@ -21,6 +21,8 @@ def run_isolated(product, template, settings):
             "daytona_api_url": settings.daytona_api_url,
             "daytona_api_key": settings.daytona_api_key.get_secret_value(),
             "daytona_snapshot": settings.daytona_snapshot,
+            "daytona_snapshots": settings.daytona_snapshots,
+            "daytona_runtime_timeout": settings.daytona_runtime_timeout,
             "daytona_target": settings.daytona_target,
             "tool_timeout": settings.tool_timeout,
         },
@@ -38,7 +40,8 @@ def run_isolated(product, template, settings):
         )
         try:
             process.communicate(
-                json.dumps(payload).encode(), timeout=settings.tool_timeout * 12 + 60
+                json.dumps(payload).encode(),
+                timeout=settings.daytona_runtime_timeout + settings.tool_timeout * 12 + 60,
             )
         except subprocess.TimeoutExpired:
             stop_process(process)
@@ -72,7 +75,11 @@ def main():
     from workbench.settings import Settings
 
     settings = Settings(_env_file=None, **payload["settings"])
-    validate_configuration(settings, payload["template"])
+    from workbench.daytona_profiles import selection_for
+
+    validate_configuration(
+        settings, payload["template"], selection_for(payload["product"], payload["template"])
+    )
     client = client_for(settings)
     try:
         _verify_in_daytona(payload["product"], payload["template"], settings, client=client)

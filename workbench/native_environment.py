@@ -244,6 +244,11 @@ def install_backend(template, backend, reports):
             ],
             ["mvn", "-B", "-ntp", "-pl", "yudao-server", "package", "-DskipTests"],
         ]
+    if os.environ.get("RND_OFFLINE_TOOLS") == "1":
+        commands = [
+            command[:1] + (["-o"] if command[0] == "mvn" else []) + command[1:]
+            for command in commands
+        ]
     if template == "yudao-vben":
         commands = [
             command[:1]

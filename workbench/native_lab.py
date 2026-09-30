@@ -58,9 +58,22 @@ def generated_browser(template, front_url, reports):
     atomic_text(reports / "browser.log", result["log"])
 
 
-def run_acceptance(template, source, output, frontend_source, url, reports, plan, redis_port=6379):
+def run_acceptance(
+    template,
+    source,
+    output,
+    frontend_source,
+    url,
+    reports,
+    plan,
+    redis_port=6379,
+    *,
+    customization=None,
+):
     """Shared by CLI and CI; never reset an existing database or workspace."""
     plan = validate_plan(plan)
+    if plan.custom_rules and customization is None:
+        raise ValueError("原生业务规则未接入Aider执行器；不允许忽略规则生成CRUD")
     source, output, reports = (
         Path(source).resolve(),
         Path(output).resolve(),
@@ -105,6 +118,10 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
                 template, backend, frontend, base_url, openapi, token, mapping, plan, reports
             )
             export_menu_sql(template, url, baseline_menus, reports / "menu-seed.sql")
+        product_root = output if template == "fastapiadmin" else output.parent
+        if plan.custom_rules:
+            stage("plop-aider-native-business-rules")
+            customization(template, plan, product_root, backend, frontend, env, targets, reports)
         if template == "yudao-vben":
             stage("generated-build")
             install_backend(template, backend, reports / "generated-build")
@@ -122,7 +139,7 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
         # Running both heaps concurrently needlessly exhausts smaller CI/WSL hosts.
         front_env = frontend_environment(template, base_url)
         stage("native-frontend-build")
-        build_frontend(template, frontend, front_env, reports)
+        build_frontend(template, frontend, front_env, reports, prepared=bool(plan.custom_rules))
         stage("restart-persistence")
         with running_backend(template, backend, env, reports / "restart") as (base_url, _):
             token = login(template, base_url)
@@ -132,6 +149,16 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
             )
             for target, entity in zip(targets, plan.entities, strict=True):
                 target["fields"] = [field.model_dump() for field in entity.fields]
+                from workbench.native_business_checks import wire
+
+                rule = next(
+                    (rule for rule in plan.custom_rules if rule.entity == entity.name), None
+                )
+                if rule:
+                    target["business_rule"] = {
+                        "accept": wire(template, rule.accept_examples[0]),
+                        "reject": wire(template, rule.reject_examples[0]),
+                    }
             write_json(reports / "browser-targets.json", targets)
             with frontend_preview(template, frontend, front_env, reports) as front_url:
                 stage("native-browser")
@@ -158,6 +185,7 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
             "entities": [e.name for e in plan.entities],
             "spec_digest": digest(plan.model_dump()),
             "source_unmodified": True,
+            "native_business_rules": bool(plan.custom_rules),
             "data_scope": "shared-with-native-role-permissions",
         }
         stage("portable-startup-assets")

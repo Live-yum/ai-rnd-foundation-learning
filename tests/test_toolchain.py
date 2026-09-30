@@ -318,7 +318,11 @@ def test_daytona_always_cleans_and_blocks_failed_checks(settings, plan, tmp_path
 
 
 def test_sandbox_commands_are_registered_not_model_chosen():
-    assert any("mvn" in argv for _, argv, _ in checks_for("yudao-vben"))
+    checks = checks_for("yudao-vben")
+    assert len(checks) == 1
+    assert checks[0][1][-4:] == ["--template", "yudao-vben", "--database", "postgresql"]
+    assert checks[0][1][2] == "/opt/rnd/harness/.venv/bin/python"
+    assert "daytona_matrix_probe.py" in checks[0][1][3]
     with pytest.raises(PrerequisiteError):
         checks_for("shell:rm-anything")
 

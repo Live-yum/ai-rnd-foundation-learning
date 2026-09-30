@@ -91,7 +91,7 @@ def prerequisites(template):
         raise PrerequisiteError("尚未安装独立 Playwright/Chromium 验证工具，请按手册安装")
 
 
-def managed_generate(settings, template, plan, destination):
+def managed_generate(settings, template, plan, destination, *, customization=None):
     from workbench.native import prepare_sources
 
     plan = validate_plan(plan)
@@ -124,7 +124,15 @@ def managed_generate(settings, template, plan, destination):
     source = slots["fastapiadmin"] if template == "fastapiadmin" else slots["backend"]
     output = destination if template == "fastapiadmin" else destination / "backend"
     report = run_acceptance(
-        template, source, output, slots.get("frontend"), url, reports, plan, redis_port=redis_port
+        template,
+        source,
+        output,
+        slots.get("frontend"),
+        url,
+        reports,
+        plan,
+        redis_port=redis_port,
+        customization=customization,
     )
     if report.get("generated_runtime_verified") is not True:
         raise PrerequisiteError("原生运行验收尚未完成")

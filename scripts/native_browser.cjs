@@ -15,6 +15,8 @@ async function main() {
   fs.mkdirSync(reportDir, { recursive: true });
   const errors = [];
   const responses = [];
+  const requests = [];
+  page.on('request', request => requests.push({ url: new URL(request.url()).pathname, method: request.method() }));
   page.on('pageerror', error => errors.push(error.message));
   page.on('response', response => responses.push({ url: new URL(response.url()).pathname, status: response.status(), method: response.request().method() }));
   const fastapi = template === 'fastapiadmin';
@@ -77,27 +79,45 @@ async function main() {
       if (target.sample) await page.getByText(target.sample, { exact: true }).first().waitFor({ state: 'visible' });
       await page.screenshot({ path: path.join(reportDir, (target.entity || 'system-user') + '.png'), fullPage: true });
       const pageResult = { route: target.route, real_list_request: true, rendered: true };
-      if (!fastapi && target.fields) {
+      if ((!fastapi && target.fields) || target.business_rule) {
         // Submit through the real generated UI; zero/false must not become strings or disappear.
         await page.getByRole('button', { name: /^新增|^创建/ }).first().click();
         const dialog = page.getByRole('dialog').last();
         await dialog.waitFor({ state: 'visible' });
-        const expected = {};
-        let booleanIndex = 0;
-        for (const field of target.fields) {
-          const key = field.name.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-          if (field.kind === 'boolean') {
-            const radio = dialog.getByRole('radio', { name: '否', exact: true }).nth(booleanIndex++);
-            // Ant Design hides its input; users interact with the enclosing visible label.
-            await radio.locator('xpath=ancestor::label[1]').click();
-            assert(await radio.isChecked(), 'Native boolean option was not selected');
-            expected[key] = false;
-          } else {
-            const value = field.kind === 'integer' ? 0 : (target.entity + '-browser').slice(0, field.max_length);
-            await dialog.getByPlaceholder('请输入' + field.name, { exact: true }).fill(String(value));
+        async function fill(sample) {
+          const expected = {};
+          let booleanIndex = 0;
+          for (const field of target.fields) {
+            const key = fastapi ? field.name : field.name.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+            const value = sample ? sample[key] : (field.kind === 'boolean' ? false : field.kind === 'integer' ? 0 : (target.entity + '-browser').slice(0, field.max_length));
+            if (field.kind === 'boolean') {
+              if (fastapi) {
+                const toggle = dialog.getByRole('switch').nth(booleanIndex++);
+                if ((await toggle.getAttribute('aria-checked') === 'true') !== value) await toggle.click();
+              } else {
+                const radio = dialog.getByRole('radio', { name: value ? '是' : '否', exact: true }).nth(booleanIndex++);
+                await radio.locator('xpath=ancestor::label[1]').click();
+                assert(await radio.isChecked(), 'Native boolean option was not selected');
+              }
+            } else {
+              await dialog.getByPlaceholder('请输入' + field.name, { exact: true }).fill(String(value));
+            }
             expected[key] = value;
           }
+          return expected;
         }
+        if (target.business_rule) {
+          await dialog.getByRole('note').waitFor({ state: 'visible' });
+          pageResult.plop_rule_component_rendered = true;
+          await fill(target.business_rule.reject);
+          const before = requests.filter(r => r.url.endsWith(target.api + '/create') && r.method === 'POST').length;
+          await dialog.getByRole('button', { name: /^确\s*认$|^确\s*定$/ }).click();
+          await page.getByText('RND_BUSINESS_RULE', { exact: true }).first().waitFor({ state: 'visible' });
+          assert.equal(requests.filter(r => r.url.endsWith(target.api + '/create') && r.method === 'POST').length, before, 'Frontend guard must reject before calling the backend');
+          assert(await dialog.isVisible(), 'Rejected business input closed the form');
+          pageResult.business_rule_rejected_before_http = true;
+        }
+        const expected = await fill(target.business_rule?.accept);
         const created = observe(target.api + '/create', 'POST');
         const refreshed = observe(target.list);
         await dialog.getByRole('button', { name: /^确\s*认$|^确\s*定$/ }).click();
@@ -107,7 +127,7 @@ async function main() {
         for (const [key, value] of Object.entries(expected)) assert.equal(sent[key], value, 'Generated form kind: ' + key);
         await checked(Promise.resolve(captured));
         const listed = await checked(refreshed);
-        assert(listed.list.some(row => Object.entries(expected).every(([key, value]) => row[key] === value)), 'Submitted record was not returned by real list API');
+        assert((listed.items || listed.list).some(row => Object.entries(expected).every(([key, value]) => row[key] === value)), 'Submitted record was not returned by real list API');
         await dialog.waitFor({ state: 'hidden' });
         const text = Object.values(expected).find(value => typeof value === 'string');
         if (text) await page.getByText(text, { exact: true }).first().waitFor({ state: 'visible' });

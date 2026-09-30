@@ -35,9 +35,13 @@ PAIRS = {
         "databases": ["postgresql"],
         "name": "FastapiAdmin 原生后端 + Vue 管理端",
         "scope": "shared",
-        "features": ["native-crud", "native-rbac", "menu-integration"],
+        "features": ["native-crud", "native-rbac", "menu-integration", "native-record-rules"],
         "field_kinds": ["text", "integer", "boolean"],
-        "not_supported": ["per-user-isolation", "custom-python-rules", "cross-entity-transactions"],
+        "not_supported": [
+            "per-user-isolation",
+            "arbitrary-code-execution",
+            "cross-entity-transactions",
+        ],
     },
     "yudao-vben": {
         "backend": "yudao-java",
@@ -45,9 +49,13 @@ PAIRS = {
         "databases": ["postgresql"],
         "name": "芋道 Java 后端 + Vben5 Ant Design",
         "scope": "shared",
-        "features": ["native-crud", "native-rbac", "menu-integration"],
+        "features": ["native-crud", "native-rbac", "menu-integration", "native-record-rules"],
         "field_kinds": ["text", "integer", "boolean"],
-        "not_supported": ["per-user-isolation", "custom-python-rules", "cross-entity-transactions"],
+        "not_supported": [
+            "per-user-isolation",
+            "arbitrary-code-execution",
+            "cross-entity-transactions",
+        ],
     },
 }
 

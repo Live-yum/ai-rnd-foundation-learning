@@ -18,8 +18,20 @@ def build(template, database, product, directory=HOME):
     profile_key(template, {"database": database})
     product, directory = Path(product).resolve(), Path(directory).resolve()
     before = manifest(product)
-    profile = {"template": template, "database": database, "dependency_identity": dependency_identity(product)}
-    inputs = {name: sha(ROOT / name) for name in ("tools/daytona/matrix.Dockerfile", "tools/daytona/warm.py", "pyproject.toml", "uv.lock")}
+    profile = {
+        "template": template,
+        "database": database,
+        "dependency_identity": dependency_identity(product),
+    }
+    inputs = {
+        name: sha(ROOT / name)
+        for name in (
+            "tools/daytona/matrix.Dockerfile",
+            "tools/daytona/warm.py",
+            "pyproject.toml",
+            "uv.lock",
+        )
+    }
     stamp = digest({"profile": profile, "inputs": inputs})[:16]
     family = "rnd-" + template
     tag = "127.0.0.1:6000/" + family + ":" + stamp
@@ -34,7 +46,10 @@ def build(template, database, product, directory=HOME):
         for name in ("pyproject.toml", "uv.lock"):
             shutil.copyfile(ROOT / name, context / "harness" / name)
         for name, source in files(product):
-            if source.name == ".npmrc" and any(word in source.read_text().lower() for word in ("_auth", "password", "username", "${")):
+            if source.name == ".npmrc" and any(
+                word in source.read_text().lower()
+                for word in ("_auth", "password", "username", "${")
+            ):
                 raise ValueError("Cannot copy authenticated npm configuration into a snapshot")
             target = inside(context / "product", name)
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -43,20 +58,38 @@ def build(template, database, product, directory=HOME):
             raise ValueError("Product changed while preparing a local snapshot")
         pnpm = "11.16.0" if template == "yudao-vben" else "9.15.3"
         try:
-            docker("build", "--build-arg", "PNPM_VERSION=" + pnpm, "--tag", tag, str(context), timeout=3600)
+            docker(
+                "build",
+                "--build-arg",
+                "PNPM_VERSION=" + pnpm,
+                "--tag",
+                tag,
+                str(context),
+                timeout=3600,
+            )
         except subprocess.CalledProcessError as exc:
             from workbench.filesystem import atomic_text
+
             output = (exc.stderr or b"").decode("utf-8", errors="replace")[-30000:]
             atomic_text(ROOT / "reports/daytona-matrix-image-build.log", output)
-            raise RuntimeError("Local matrix image build failed; see daytona-matrix-image-build.log") from None
+            raise RuntimeError(
+                "Local matrix image build failed; see daytona-matrix-image-build.log"
+            ) from None
     docker("push", tag, timeout=1200)
     inspected = json.loads(docker("image", "inspect", tag))[0]
     image_id = inspected["Id"]
     if not image_id.startswith("sha256:"):
         raise ValueError("Missing immutable local image identity")
-    value = {"image": "registry:6000/" + family + ":" + stamp, "snapshot": family + "-" + stamp,
-             "source_hash": stamp, "image_id": image_id, "profile": profile, "build_inputs": inputs,
-             "resources": {"cpu": 2, "memory": 10 if template == "yudao-vben" else 4, "disk": 30}, "wait_for_default": False}
+    value = {
+        "image": "registry:6000/" + family + ":" + stamp,
+        "snapshot": family + "-" + stamp,
+        "source_hash": stamp,
+        "image_id": image_id,
+        "profile": profile,
+        "build_inputs": inputs,
+        "resources": {"cpu": 2, "memory": 10 if template == "yudao-vben" else 4, "disk": 30},
+        "wait_for_default": False,
+    }
     private_json(directory / "snapshot-image.json", value)
     print(json.dumps({"snapshot": value["snapshot"], "profile": profile, "image_id": image_id}))
     return value

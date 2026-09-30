@@ -189,11 +189,39 @@ def wait_default_snapshot(service, image, timeout=300):
         time.sleep(min(2, remaining))
 
 
+def snapshot_resources(metadata):
+    import re
+
+    from workbench.daytona_profiles import profile_key
+
+    profile = metadata.get("profile")
+    if profile is None:
+        if not re.fullmatch(r"registry:6000/rnd-python:[a-f0-9]{16}", metadata["image"]):
+            raise ValueError("快照只能引用本机登记的预热镜像")
+        return {"cpu": 1, "memory": 2, "disk": 5}, True
+    profile_key(profile["template"], {"database": profile["database"]})
+    if not re.fullmatch(r"[a-f0-9]{64}", profile.get("dependency_identity", "")):
+        raise ValueError("快照缺少完整依赖身份")
+    family = "rnd-" + profile["template"]
+    stamp = metadata["source_hash"]
+    if (
+        not re.fullmatch(r"[a-f0-9]{16}", stamp)
+        or metadata["image"] != "registry:6000/" + family + ":" + stamp
+        or metadata["snapshot"] != family + "-" + stamp
+    ):
+        raise ValueError("本机矩阵快照来源或名称不符")
+    expected = {"cpu": 2, "memory": 10 if profile["template"] == "yudao-vben" else 4, "disk": 30}
+    if metadata.get("resources") != expected or metadata.get("wait_for_default") is not False:
+        raise ValueError("本机快照资源必须匹配登记的技术栈")
+    if not re.fullmatch(r"sha256:[a-f0-9]{64}", metadata.get("image_id", "")):
+        raise ValueError("缺少本机不可变镜像身份")
+    return expected, False
+
+
 def snapshot_worker(directory=HOME):
     directory = Path(directory)
     metadata = json.loads((directory / "snapshot-image.json").read_text(encoding="utf-8"))
-    if not metadata["image"].startswith("registry:6000/rnd-python:"):
-        raise ValueError("快照只能引用本机登记的预热镜像")
+    resources, wait_default = snapshot_resources(metadata)
     install_loopback_guard()
     from daytona import CreateSnapshotParams, Resources
 
@@ -205,14 +233,15 @@ def snapshot_worker(directory=HOME):
         if existing is None:
             # API/Runner health alone does not imply snapshot warm-up is complete.
             started = time.monotonic()
-            wait_default_snapshot(client.snapshot, metadata["image"])
+            if wait_default:
+                wait_default_snapshot(client.snapshot, metadata["image"])
             remaining = max(1, min(600, int(650 - (time.monotonic() - started))))
             existing = client.snapshot.create(
                 CreateSnapshotParams(
                     name=metadata["snapshot"],
                     image=metadata["image"],
                     region_id="local",
-                    resources=Resources(cpu=1, memory=2, disk=5),
+                    resources=Resources(**resources),
                 ),
                 timeout=remaining,
             )

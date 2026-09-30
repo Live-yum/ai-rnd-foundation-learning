@@ -56,10 +56,14 @@ RESERVED = {
 
 def validate_plan(plan):
     plan = Plan.model_validate(plan)
-    if plan.custom_rules or plan.unsupported:
-        raise ValueError(
-            "Native runtime only accepts supported native CRUD, not custom Python rules"
-        )
+    if plan.unsupported:
+        raise ValueError("Native runtime does not accept unsupported requirements")
+    if len({rule.entity for rule in plan.custom_rules}) != len(plan.custom_rules):
+        raise ValueError("每个原生实体只能有一个合并后的业务规则及完整正反例")
+    from workbench.native_coding import RESERVED as RULE_RESERVED
+
+    if any(field.name in RULE_RESERVED for entity in plan.entities for field in entity.fields):
+        raise ValueError("Native field uses a reserved runtime name")
     if plan.data_scope != "shared":
         raise ValueError(
             "Native runtime currently requires explicitly approved shared data with role permissions"

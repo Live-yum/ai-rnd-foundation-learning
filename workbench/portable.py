@@ -26,6 +26,7 @@ HELPERS = (
     "native_frontend.py",
     "native_vben.py",
     "portable_checks.py",
+    "native_business_checks.py",
 )
 
 

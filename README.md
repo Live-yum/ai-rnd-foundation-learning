@@ -227,3 +227,7 @@ uv run python -m scripts.ci_handbook
 ### 本机Daytona的安装边界
 
 Daytona固定v0.190.0；API/Proxy从固定SHA在本机Docker构建，Runner使用同版本、固定SHA256的发布文件。服务运行在本机internal网络，端口仅绑定回环，SDK也禁止非回环连接；不申请Daytona云账号。完整安装顺序为`prepare → images → snapshot-image → up → auth → snapshot → ci_daytona_local`，每一步的完整代码、用途、预期结果及失败处理见唯一手册第20章。此安装通道使用Linux x86_64或Windows x86_64 WSL2；默认平台与普通本机验收不要求安装Daytona。安装时下载公开依赖，不等于把生成代码交给云端运行。
+
+### 原生业务规则、Plop、Aider 与完整本机 Daytona
+
+原生新增/修改规则可由实际 Plop 挂载，再由独立 Aider 应用精确补丁；编译、正反例、浏览器失败会回滚候选并进入有界修复。原生与基础 PostgreSQL 使用单独的本机 Daytona 离线快照，数据库和 Redis 在沙箱内初始化，不复制主机数据库凭据。完整安装、文件对应关系、支持矩阵、配置与排错见 [原生工具链实操](docs/native-toolchain.md)。基础生成仍优先原生生成器；不是让 Agent 自由修改权限或执行 shell。
