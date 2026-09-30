@@ -23,6 +23,7 @@ from pydantic import SecretStr
 
 REPOSITORY = "Live-yum/ai-rnd-foundation-learning"
 REFS = {"refs/heads/feat/real-model-acceptance"}
+PUSH_MARKER = "test: run authorized real-model validation iteration"
 ENDPOINT = "https://api.deepseek.com"
 MODEL = "deepseek-flash"
 MAX_WORKFLOW_CALLS = 16
@@ -52,8 +53,8 @@ NEWS_REQUEST = (
 class SafeFailure(RuntimeError):
     """Only a code chosen by this harness and numeric HTTP status can be published."""
 
-    def __init__(self, code, status=None):
-        self.code, self.status = code, status
+    def __init__(self, code, status=None, details=None):
+        self.code, self.status, self.details = code, status, details
         super().__init__(code)
 
 
@@ -65,21 +66,53 @@ class Config:
 
 
 def configuration(env):
-    # A changed credential destination requires a new explicit authorization.
-    base, model, key = (env.get(name, "").strip() for name in ("BASE_URL", "MODE", "API_KEY"))
-    if base.rstrip("/") != ENDPOINT or model != MODEL or not key:
-        raise SafeFailure("invalid_configuration")
-    return Config(base.rstrip("/"), model, SecretStr(key))
+    # Presence/match booleans distinguish missing injection from provider errors;
+    # no credential value, length, fragment, hash, or raw configuration is exposed.
+    names = ("BASE_URL", "MODE", "API_KEY")
+    raw = {name: env.get(name, "") for name in names}
+    values = {name: value.strip() if isinstance(value, str) else "" for name, value in raw.items()}
+    checks = {
+        "BASE_URL_present": bool(values["BASE_URL"]),
+        "MODE_present": bool(values["MODE"]),
+        "API_KEY_present": bool(values["API_KEY"]),
+        "BASE_URL_matches_authorized_destination": values["BASE_URL"].rstrip("/") == ENDPOINT,
+        "MODE_matches_authorized_model": values["MODE"] == MODEL,
+    }
+    for name in names:
+        if not isinstance(raw[name], str):
+            raise SafeFailure("invalid_configuration_type_" + name, details=checks)
+        if not values[name]:
+            raise SafeFailure("missing_configuration_" + name, details=checks)
+    if not checks["BASE_URL_matches_authorized_destination"]:
+        raise SafeFailure("configuration_destination_mismatch", details=checks)
+    if not checks["MODE_matches_authorized_model"]:
+        raise SafeFailure("configuration_model_mismatch", details=checks)
+    return Config(values["BASE_URL"].rstrip("/"), values["MODE"], SecretStr(values["API_KEY"]))
 
 
 def trusted_dispatch(env):
     if (
         env.get("GITHUB_ACTIONS") != "true"
-        or env.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
         or env.get("GITHUB_REPOSITORY") != REPOSITORY
         or env.get("GITHUB_REF") not in REFS
     ):
         raise SafeFailure("untrusted_dispatch")
+    if env.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
+        return
+    if env.get("GITHUB_EVENT_NAME") == "push":
+        try:
+            event = json.loads(Path(env.get("GITHUB_EVENT_PATH", "")).read_text(encoding="utf-8"))
+            if (
+                event["head_commit"]["message"] == PUSH_MARKER
+                and event["after"] == env.get("GITHUB_SHA")
+                and event["head_commit"]["id"] == env.get("GITHUB_SHA")
+                and bool(env.get("GITHUB_SHA"))
+                and event["repository"]["full_name"] == REPOSITORY
+            ):
+                return
+        except OSError, ValueError, KeyError, TypeError:
+            pass
+    raise SafeFailure("untrusted_dispatch")
 
 
 class BoundedRealTransport(httpx.BaseTransport):
@@ -429,6 +462,8 @@ def main():
         result.update(failure_phase=phase, failure_code=exc.code)
         if exc.status is not None:
             result["provider_status"] = exc.status
+        if exc.details is not None:
+            result["configuration_checks"] = exc.details
     except Exception:
         result.update(failure_phase=phase, failure_code="acceptance_execution_failed")
     finally:

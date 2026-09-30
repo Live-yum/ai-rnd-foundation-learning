@@ -38,7 +38,7 @@ def config():
     ],
 )
 def test_invalid_configuration_fails_before_provider_access(values):
-    with pytest.raises(SafeFailure, match="invalid_configuration"):
+    with pytest.raises(SafeFailure, match="configuration"):
         configuration(values)
 
 
@@ -189,9 +189,16 @@ def test_workflow_is_manual_environment_scoped_and_artifact_allowlisted():
         (ROOT / ".github/workflows/native-probe.yml").read_text(encoding="utf-8"),
         Loader=yaml.BaseLoader,
     )
-    dispatch = entry["jobs"]["real-model-acceptance"]
-    assert "workflow_dispatch" in dispatch["if"]
-    assert dispatch["uses"] == "./.github/workflows/real-model.yml"
+    charged = [job for job in entry["jobs"].values() if job.get("environment") == "rnd"]
+    assert len(charged) == 1
+    direct = charged[0]
+    assert "uses" not in direct
+    assert "workflow_dispatch" in direct["if"] and "github.event_name == 'push'" in direct["if"]
+    assert "test: run authorized real-model validation iteration" in direct["if"]
+    assert REPOSITORY in direct["if"]
+    for step in direct["steps"]:
+        if "API_KEY" in step.get("env", {}):
+            assert step["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"
 
 
 def test_all_profiles_use_authorized_configuration_despite_hostile_ambient_overrides(
@@ -262,3 +269,73 @@ def test_exact_user_smoke_payload_preserved_by_real_transport():
             )
     finally:
         transport.shutdown()
+
+
+def test_actual_actions_empty_secret_mapping_identifies_only_field_presence():
+    # The failed Actions job provided correct vars and an empty API_KEY binding.
+    env = {"BASE_URL": ENDPOINT, "MODE": MODEL, "API_KEY": ""}
+    with pytest.raises(SafeFailure) as caught:
+        configuration(env)
+    assert caught.value.code == "missing_configuration_API_KEY"
+    assert caught.value.details == {
+        "BASE_URL_present": True,
+        "MODE_present": True,
+        "API_KEY_present": False,
+        "BASE_URL_matches_authorized_destination": True,
+        "MODE_matches_authorized_model": True,
+    }
+    assert ENDPOINT not in json.dumps(caught.value.details)
+    assert MODEL not in json.dumps(caught.value.details)
+
+
+@pytest.mark.parametrize("value", [None, 1, True, [], {}])
+def test_non_string_mode_reports_field_name_not_value(value):
+    with pytest.raises(SafeFailure) as caught:
+        configuration({"BASE_URL": ENDPOINT, "MODE": value, "API_KEY": "test-only-secret"})
+    assert caught.value.code == "invalid_configuration_type_MODE"
+    assert "test-only-secret" not in str(caught.value)
+
+
+def test_string_actions_values_and_exact_secret_mapping_are_accepted():
+    cfg = configuration({"BASE_URL": ENDPOINT, "MODE": MODEL, "API_KEY": "test-only-secret"})
+    assert cfg.model == MODEL and cfg.base_url == ENDPOINT
+    assert cfg.key.get_secret_value() == "test-only-secret"
+
+
+@pytest.mark.parametrize(
+    "message,sha,repository,allowed",
+    [
+        ("test: run authorized real-model validation iteration", "a" * 40, REPOSITORY, True),
+        ("ordinary push", "a" * 40, REPOSITORY, False),
+        ("test: run authorized real-model validation iteration extra", "a" * 40, REPOSITORY, False),
+        ("test: run authorized real-model validation iteration", "b" * 40, REPOSITORY, False),
+        ("test: run authorized real-model validation iteration", "a" * 40, "attacker/fork", False),
+    ],
+)
+def test_only_exact_authorized_current_iteration_push_can_use_provider(
+    tmp_path, message, sha, repository, allowed
+):
+    path = tmp_path / "event.json"
+    path.write_text(
+        json.dumps(
+            {
+                "head_commit": {"message": message, "id": sha},
+                "after": sha,
+                "repository": {"full_name": repository},
+            }
+        ),
+        encoding="utf-8",
+    )
+    env = {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_EVENT_NAME": "push",
+        "GITHUB_REPOSITORY": REPOSITORY,
+        "GITHUB_REF": next(iter(REFS)),
+        "GITHUB_SHA": "a" * 40,
+        "GITHUB_EVENT_PATH": str(path),
+    }
+    if allowed:
+        trusted_dispatch(env)
+    else:
+        with pytest.raises(SafeFailure, match="untrusted_dispatch"):
+            trusted_dispatch(env)

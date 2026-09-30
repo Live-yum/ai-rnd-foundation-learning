@@ -1,5 +1,7 @@
 name: Bundled template integrity
 on:
+  push:
+    branches: [feat/real-model-acceptance]
   workflow_dispatch:
   pull_request:
     paths: ['templates/vendor/**', 'workbench/vendor.py', '.github/workflows/native-probe.yml']
@@ -25,7 +27,53 @@ jobs:
           name: bundled-template-integrity
           path: reports/
   real-model:
-    if: github.event_name == 'workflow_dispatch' && github.repository == 'Live-yum/ai-rnd-foundation-learning' && github.ref == 'refs/heads/feat/real-model-acceptance'
-    uses: ./.github/workflows/real-model.yml
-    permissions:
-      contents: read
+    if: >-
+      (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit.message == 'test: run authorized real-model validation iteration')) &&
+      github.repository == 'Live-yum/ai-rnd-foundation-learning' &&
+      github.ref == 'refs/heads/feat/real-model-acceptance'
+    environment: rnd
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked platform without provider credentials
+        run: uv sync --locked
+      - name: Cheap real provider smoke before browser installation
+        env:
+          API_KEY: ${{ secrets.APK_KEY }}
+          BASE_URL: ${{ vars.BASE_URL }}
+          MODE: ${{ vars.MODE }}
+          PYTHONUTF8: '1'
+        run: uv run python -m scripts.ci_real_model --phase smoke
+      - name: Install isolated pinned browser
+        env:
+          PLAYWRIGHT_BROWSERS_PATH: '0'
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Verify actual smart news delivery after successful smoke
+        env:
+          API_KEY: ${{ secrets.APK_KEY }}
+          BASE_URL: ${{ vars.BASE_URL }}
+          MODE: ${{ vars.MODE }}
+          PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright
+          PLAYWRIGHT_BROWSERS_PATH: '0'
+          PYTHONUTF8: '1'
+        run: uv run python -m scripts.ci_real_model --phase full
+      - name: Upload only allowlisted non-secret acceptance receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: real-model-sanitized-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/real-model/summary.json
+          if-no-files-found: ignore
+          retention-days: 7
