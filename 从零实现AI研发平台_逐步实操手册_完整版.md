@@ -5248,10 +5248,10 @@ def verify_tables(connection, expected):
 - `_class`（L31–L32）：接收`entity`。 调用`"".join`、`part.title`、`entity.split`。 返回路径：L32的`"Wb" + "".join(part.title() for part in entity.split("_"))`。
 - `business_schema`（L35–L59）：接收`plan`、`targets`、`prefix`。 源码说明：Fresh, manifest-bound extension; duplicate installation is deliberately not hidden.。 控制顺序：L56遍历`targets`。 调用`_name`、`lines.append`、`"\n".join`。 返回路径：L59的`"\n".join(lines) + "\n"`。
 - `business_role_seed`（L62–L70）：接收`plan`、`targets`、`prefix`。 源码说明：The authenticated bootstrap endpoint installs approved roles transactionally.。 调用`_name`。 返回路径：L65的`"-- No implicit user-ID assignment or native-global-role mutation.\n" "-- POST /admin-api/…`。
-- `_mount_panel`（L73–L106）：接收`body`、`entity`。 控制顺序：L75按`not marker or body.count("</Page>") != 1`分支；L76抛异常，停止当前正常路径；L86按`slot < 0`分支；L87抛异常，停止当前正常路径；L89按`action < 0`分支；L90抛异常，停止当前正常路径。 调用`re.search`、`body.count`、`ValueError`、`marker.end`、`body.find`、`len`、`body.replace`。 返回路径：L103的`body + "\n<style scoped>\n.rnd-business-grid :deep(.vxe-header--column .vxe-cell) { white-…`。
-- `install_yudao_business`（L109–L400）：接收`plan`、`backend`、`frontend`、`targets`、`reports`。 源码说明：Mount policy source and emit ordered explicit SQL; caller executes SQL before restart.。 控制顺序：L112按`plan.business is None`分支；L113抛异常，停止当前正常路径；L115按`{target["entity"] for target in targets} != {entity.name for entity in plan.entities}`分支；L116抛异常，停止当前正常路径；L117按`len(targets) != len(plan.entities)`分支；L118抛异常，停止当前正常路径；L120遍历`targets`；L124按`match is None`分支。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`ValueError`、`Path`、`len`、`set`、`target.get`、`re.fullmatch`、`re.escape`、`table_prefixes.add`等。 返回路径：L150的`saved`；L400的`receipt`。
+- `_mount_panel`（L73–L112）：接收`body`、`entity`。 控制顺序：L75按`not marker or body.count("</Page>") != 1`分支；L76抛异常，停止当前正常路径；L86按`slot < 0`分支；L87抛异常，停止当前正常路径；L89按`action < 0`分支；L90抛异常，停止当前正常路径。 调用`re.search`、`body.count`、`ValueError`、`marker.end`、`body.find`、`len`、`body.replace`、`re.sub`。 返回路径：L109的`body + "\n<style scoped>\n.rnd-business-grid :deep(.vxe-header--column .vxe-cell) { white-…`。
+- `install_yudao_business`（L115–L406）：接收`plan`、`backend`、`frontend`、`targets`、`reports`。 源码说明：Mount policy source and emit ordered explicit SQL; caller executes SQL before restart.。 控制顺序：L118按`plan.business is None`分支；L119抛异常，停止当前正常路径；L121按`{target["entity"] for target in targets} != {entity.name for entity in plan.entities}`分支；L122抛异常，停止当前正常路径；L123按`len(targets) != len(plan.entities)`分支；L124抛异常，停止当前正常路径；L126遍历`targets`；L130按`match is None`分支。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`ValueError`、`Path`、`len`、`set`、`target.get`、`re.fullmatch`、`re.escape`、`table_prefixes.add`等。 返回路径：L156的`saved`；L406的`receipt`。
 
-<!-- source-file: workbench/business_yudao.py sha256: a09d774e126fb3cf3135df2b9e5472a70d2be64f0801eb4586f80f4d98e2eb5c -->
+<!-- source-file: workbench/business_yudao.py sha256: 7015cd605a3551fd3ceadbcc98cdcb39efe0afc9039f5516ff502e5ce330076f -->
 ````python
 """Declarative business policy mounted on genuine Yudao Infra/MyBatis and Vben scaffolds.
 
@@ -5354,6 +5354,12 @@ def _mount_panel(body, entity):
         '@changed="handleRefresh" />\n  </Page>'
     )
     body = body.replace("</Page>", panel)
+    body = re.sub(
+        r"<Page(?=[\s>])",
+        f'<Page data-rnd-business-entity="{entity}"',
+        body,
+        count=1,
+    )
     body = body.replace("<Grid", '<Grid class="rnd-business-grid"', 1)
     return (
         body
@@ -14147,14 +14153,17 @@ def blocked_report(gate, attempts):
 - `_field_mentions`（L416–L428）：接收`text`、`names`。 源码说明：Field identifiers are whole identifiers, not arbitrary underscore fragments.。 调用`re.sub`、`"\|".join`、`sorted`、`any`、`name.isascii`、`re.search`、`re.escape`。 返回路径：L423的`any( re.search(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])", text, re.I) if name.isasc…`。
 - `_fact_entity`（L431–L438）：接收`key`、`fields`。 控制顺序：L432按`"::" in key`分支。 调用`key.split("::")[0].rsplit`、`key.split`、`re.split`、`next`、`part.strip`、`reversed`。 返回路径：L433的`key.split("::")[0].rsplit(".", 1)[-1]`；L438的`next((part.strip() for part in reversed(path[:-1]) if part.strip() in entities), None)`。
 - `_fact_candidates`（L441–L454）：接收`key`、`fields`。 调用`_fact_entity`、`_field_mentions`、`any`、`ALIASES.values`。 返回路径：L443的`[ field for entity, field in fields if (explicit_entity is None or entity == explicit_enti…`。
-- `_legacy_clauses`（L463–L536）：接收`text`、`fields`。 源码说明：Bind predicates to top-level subjects, preserving bracketed target lists. Both name（必填，最长120）and 搜索（name、contact）are indivisible. A descriptive clause ending at a comma does not lend its subject to th。 控制顺序：L479遍历`re.split(r"[；;。\n]\|但是\|但\|不过", text)`；L481按`heading and heading.group(1) in {entity for entity, _ in fields}`分支；L485遍历`sentence`；L487按`char in "（([【"`分支；L489按`char in "）)]】"`分支；L495遍历`re.finditer(pattern, sentence, re.I)`；L498按`depths[match.start()]`分支；L501按`previous_match is not None and not sentence[previous_match.end() : match.start()].str…`分支。后续分支沿下方源码相同行号继续阅读。 调用`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`、`_fact_entity`、`re.split`、`re.match`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_operation_parts`（L539–L553）：接收`text`。 源码说明：Split coordinated operations, never the subjects inside a target list.。 控制顺序：L542遍历`text`；L544按`char in "（([【"`分支；L546按`char in "）)]】"`分支；L549遍历`re.finditer(r"、\|并且\|并\|且\|和\|与", text)`；L550按`not depths[match.start()]`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_legacy_operation_text`（L556–L589）：接收`text`、`fields`。 源码说明：Remove only negative operation predicates, not the rest of a mixed clause. 'name可搜索，category不支持搜索' retains the first requirement. A capability explicitly not requested cannot invent a missing date fie。 调用`re.sub`、`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`。 返回路径：L583的`re.sub( negative + r"\s*(?:任何\|额外的?\|新的?)?\s*" + targets + r"(?:" + operation + r")" r"(?:…`。
-- `_matches_constraint`（L592–L613）：接收`attribute`、`expected`、`actual`。 控制顺序：L593按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L594按`isinstance(expected, str)`分支；L596按`word in {"true", "是", "必填"}`分支；L598按`word in {"false", "否", "可选", "非必填"}`分支；L601按`attribute in {"min_length", "max_length"}`分支；L602按`isinstance(expected, str)`分支；L604按`legacy`分支；L607按`attribute == "choices"`分支。 调用`isinstance`、`expected.strip().lower`、`expected.strip`、`type`、`re.fullmatch`、`int`、`legacy.group`、`all`、`set`。 返回路径：L600的`type(expected) is bool and actual is expected`；L606的`type(expected) is int and actual == expected`；L608的`isinstance(expected, list) and all(isinstance(item, str) for item in expected) and set(act…`。
-- `coverage_gaps`（L616–L934）：接收`requirement`、`plan`、`diagnostics`。 源码说明：Return blocking messages; optionally record the exact deterministic provenance. Diagnostic source indices refer to the retained Requirement, never a model verdict. Consumers exporting diagnostics must。 控制顺序：L656按`plan.data_scope != requirement.data_scope`分支；L663遍历`enumerate(requirement.field_requirements)`；L671按`len(matches) != 1`分支；L675遍历`obligation.model_dump().items()`；L676按`key in {"field", "entity"} or value is None`分支；L679按`not _matches_constraint(key, value, actual)`分支；L697遍历`enumerate(structured)`；L701按`not candidates and ( "::" in key or any(_field_mentions(key, aliases) for aliases in …`分支。后续分支沿下方源码相同行号继续阅读。 调用`gap`、`enumerate`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_matches_constraint`、`list`、`_fact_constraints`等。 返回路径：L934的`list(dict.fromkeys(gaps))`。
-- `coverage_gaps.gap`（L627–L654）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L629按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_legacy_clauses`（L463–L561）：接收`text`、`fields`。 源码说明：Bind predicates to top-level subjects, preserving bracketed target lists. Both name（必填，最长120）and 搜索（name、contact）are indivisible. A descriptive clause ending at a comma does not lend its subject to th。 控制顺序：L479遍历`re.split(r"[；;。\n]\|但是\|但\|不过", text)`；L481按`heading and heading.group(1) in {entity for entity, _ in fields}`分支；L485遍历`sentence`；L487按`char in "（([【"`分支；L489按`char in "）)]】"`分支；L495遍历`re.finditer(pattern, sentence, re.I)`；L498按`depths[match.start()]`分支；L501按`previous_match is not None and not sentence[previous_match.end() : match.start()].str…`分支。后续分支沿下方源码相同行号继续阅读。 调用`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`、`_fact_entity`、`re.split`、`re.match`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_operation_parts`（L564–L578）：接收`text`。 源码说明：Split coordinated operations, never the subjects inside a target list.。 控制顺序：L567遍历`text`；L569按`char in "（([【"`分支；L571按`char in "）)]】"`分支；L574遍历`re.finditer(r"、\|并且\|并\|且\|和\|与", text)`；L575按`not depths[match.start()]`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_metric_clauses`（L600–L696）：接收`text`、`fields`。 源码说明：Separate aggregate predicates from field-query declarations. Only a recognized metric clause with named filter operands or permission scope is consumed. Explicit UI/query flags always remain field obl。 控制顺序：L686遍历`re.split(r"([，,；;。\n]\|并且\|并\|且\|和\|与)", text)`；L687按`re.fullmatch(r"[；;。\n]", part)`分支；L689按`_METRIC_CONTEXT.search(part)`分支；L694按`_QUERY_SURFACE.search(part)`分支。 调用`re.sub`、`re.split`、`re.fullmatch`、`_METRIC_CONTEXT.search`、`result.append`、`consume`、`_QUERY_SURFACE.search`、`"".join`。 返回路径：L696的`"".join(result), obligations`。
+- `_metric_clauses.consume`（L609–L673）：接收`fragment`、`context`、`inherited`。 控制顺序：L611按`not _METRIC_CONTEXT.search(combined) or not _METRIC_FILTER.search(_legacy_operation_t…`分支；L627遍历`matches`；L629按`name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}`分支；L633按`target is not None and target.kind in {"integer", "boolean"}`分支；L651按`inherited and not predicates and not scope_only`分支；L654按`not targets and not predicates and not scope_only`分支；L656按`not scope_only`分支。 调用`_METRIC_CONTEXT.search`、`_METRIC_FILTER.search`、`_legacy_operation_text`、`_QUERY_SURFACE.search`、`list`、`re.finditer`、`match.group`、`match.group("value").strip`、`next`等。 返回路径：L616的`fragment`；L652的`fragment`；L655的`fragment`。
+- `_metric_clauses.parenthesis`（L677–L682）：接收`match`。 调用`match.start`、`re.split`、`match.group`、`consume`。 返回路径：L682的`match.group() if filtered == body else ""`。
+- `_legacy_operation_text`（L699–L732）：接收`text`、`fields`。 源码说明：Remove only negative operation predicates, not the rest of a mixed clause. 'name可搜索，category不支持搜索' retains the first requirement. A capability explicitly not requested cannot invent a missing date fie。 调用`re.sub`、`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`。 返回路径：L726的`re.sub( negative + r"\s*(?:任何\|额外的?\|新的?)?\s*" + targets + r"(?:" + operation + r")" r"(?:…`。
+- `_matches_constraint`（L735–L756）：接收`attribute`、`expected`、`actual`。 控制顺序：L736按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L737按`isinstance(expected, str)`分支；L739按`word in {"true", "是", "必填"}`分支；L741按`word in {"false", "否", "可选", "非必填"}`分支；L744按`attribute in {"min_length", "max_length"}`分支；L745按`isinstance(expected, str)`分支；L747按`legacy`分支；L750按`attribute == "choices"`分支。 调用`isinstance`、`expected.strip().lower`、`expected.strip`、`type`、`re.fullmatch`、`int`、`legacy.group`、`all`、`set`。 返回路径：L743的`type(expected) is bool and actual is expected`；L749的`type(expected) is int and actual == expected`；L751的`isinstance(expected, list) and all(isinstance(item, str) for item in expected) and set(act…`。
+- `coverage_gaps`（L759–L1130）：接收`requirement`、`plan`、`diagnostics`。 源码说明：Return blocking messages; optionally record the exact deterministic provenance. Diagnostic source indices refer to the retained Requirement, never a model verdict. Consumers exporting diagnostics must。 控制顺序：L800按`plan.data_scope != requirement.data_scope`分支；L807遍历`enumerate(requirement.field_requirements)`；L815按`len(matches) != 1`分支；L819遍历`obligation.model_dump().items()`；L820按`key in {"field", "entity"} or value is None`分支；L823按`not _matches_constraint(key, value, actual)`分支；L841遍历`enumerate(structured)`；L845按`not candidates and ( "::" in key or any(_field_mentions(key, aliases) for aliases in …`分支。后续分支沿下方源码相同行号继续阅读。 调用`gap`、`enumerate`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_matches_constraint`、`list`、`_fact_constraints`等。 返回路径：L1130的`list(dict.fromkeys(gaps))`。
+- `coverage_gaps.gap`（L770–L798）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L772按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/requirement_coverage.py sha256: ebafe904b5a4ee5e4bf59f55e5155a9c5bf48e4bcaca971355d1453211ec63fa -->
+<!-- source-file: workbench/requirement_coverage.py sha256: 7ab0d8f6dd2c00771202ac2029d06b4d99e1866ae927e109961319587083707f -->
 ````python
 """Persist approved intent and check executable obligations without a model verdict.
 
@@ -14671,6 +14680,31 @@ def _legacy_clauses(text, fields):
                     continue
             previous_match = match
             prefix = sentence[start : match.start()]
+            if not seen_subject:
+                # Entity-level capability summaries before a comma are not
+                # predicates on the first field in the following declaration.
+                # An explicit operation-first subject list (搜索，按name) stays
+                # bound to its subject instead of becoming a generic query.
+                boundary = next(
+                    (
+                        index
+                        for index in range(match.start() - 1, start - 1, -1)
+                        if sentence[index] in ",，" and not depths[index]
+                    ),
+                    None,
+                )
+                if (
+                    boundary is not None
+                    and re.search(
+                        r"搜索|检索|筛选|过滤|search|filter", sentence[start:boundary], re.I
+                    )
+                    and not re.search(
+                        r"按|针对|依据|\bby\b", sentence[boundary + 1 : match.start()], re.I
+                    )
+                ):
+                    previous.append(sentence[start:boundary])
+                    start = boundary + 1
+                    prefix = sentence[start : match.start()]
             comma = next(
                 (
                     index
@@ -14709,6 +14743,124 @@ def _operation_parts(text):
             yield text[start : match.start()]
             start = match.end()
     yield text[start:]
+
+
+_METRIC_CONTEXT = re.compile(
+    r"(?<![a-z_])(?:count|group_count|time_count|average_duration|metrics?)(?![a-z_])"
+    r"|指标|统计|计数|已解决数|总数|平均.*时长|趋势|分组",
+    re.I,
+)
+_METRIC_KIND = re.compile(
+    r"(?<![a-z_])(?:group_count|time_count|average_duration|count)(?![a-z_])"
+    r"|已解决数|总数|平均.*?时长|趋势|分组",
+    re.I,
+)
+_QUERY_SURFACE = re.compile(
+    r"列表|表格|页面|界面|筛选器|搜索框|查询条件|查询参数|filterable|searchable|date_range"
+    r"|(?<![a-z_])(?:list|table|form|ui|search)(?![a-z_])",
+    re.I,
+)
+_METRIC_SCOPE = re.compile(r"权限|可见|角色|本人|负责范围|assigned|read_metrics", re.I)
+_METRIC_FILTER = re.compile(r"筛选|过滤|(?<![a-z_])filters?(?![a-z_])", re.I)
+
+
+def _metric_clauses(text, fields):
+    """Separate aggregate predicates from field-query declarations.
+
+    Only a recognized metric clause with named filter operands or permission
+    scope is consumed. Explicit UI/query flags always remain field obligations.
+    The caller checks consumed predicates against executable MetricSpec.filters.
+    """
+    obligations = []
+
+    def consume(fragment, context="", inherited=False):
+        combined = context + fragment
+        if (
+            not _METRIC_CONTEXT.search(combined)
+            or not _METRIC_FILTER.search(_legacy_operation_text(fragment, fields))
+            or _QUERY_SURFACE.search(fragment)
+        ):
+            return fragment
+        matches = list(
+            re.finditer(
+                r"(?<![a-z0-9_])(?:(?P<entity>[a-z][a-z0-9_]*)[.:])?"
+                r"(?P<field>[a-z][a-z0-9_]*)\s*(?P<op>!=|>=|<=|==|=)\s*"
+                r"(?P<value>\"[^\"]*\"|'[^']*'|[a-zA-Z0-9_.:+-]+|[\u4e00-\u9fff]+?(?=\s|[，,；;、（）()]|筛选|过滤|$))",
+                fragment,
+                re.I,
+            )
+        )
+        predicates = []
+        for match in matches:
+            name = match.group("field")
+            if name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}:
+                continue
+            value = match.group("value").strip("\"'")
+            target = next((field for _, field in fields if field.name == name), None)
+            if target is not None and target.kind in {"integer", "boolean"}:
+                try:
+                    value = json.loads(value.lower())
+                except ValueError:
+                    pass
+            predicates.append(
+                {
+                    "entity": match.group("entity"),
+                    "field": name,
+                    "op": {"=": "eq", "==": "eq", "!=": "ne", ">=": "gte", "<=": "lte"}[
+                        match.group("op")
+                    ],
+                    "value": value,
+                }
+            )
+        scope_only = not predicates and bool(_METRIC_SCOPE.search(fragment))
+        # A metric heading may scope a following predicate, never an unrelated
+        # bare field-filter declaration after a comma or conjunction.
+        if inherited and not predicates and not scope_only:
+            return fragment
+        targets = _fact_candidates(fragment, fields)
+        if not targets and not predicates and not scope_only:
+            return fragment
+        if not scope_only:
+            kinds = list(_METRIC_KIND.finditer(combined))
+            kind = kinds[-1].group().lower() if kinds else None
+            kind = {
+                "已解决数": "count",
+                "总数": "count",
+                "趋势": "time_count",
+                "分组": "group_count",
+            }.get(kind, "average_duration" if kind and "时长" in kind else kind)
+            obligations.append(
+                {
+                    "kind": kind,
+                    "entity": _fact_entity(combined, fields),
+                    "predicates": predicates,
+                    "targets": targets,
+                }
+            )
+        return ""
+
+    # Parenthesized metric definitions have their own scope, even alongside a
+    # list-filter requirement in the same sentence.
+    def parenthesis(match):
+        prefix = text[: match.start()]
+        label = re.split(r"[，,、；;。\n]", prefix)[-1]
+        body = match.group(1)
+        filtered = consume(body, label)
+        return match.group() if filtered == body else ""
+
+    text = re.sub(r"[（(]([^（）()]*)[）)]", parenthesis, text)
+    result, context = [], ""
+    for part in re.split(r"([，,；;。\n]|并且|并|且|和|与)", text):
+        if re.fullmatch(r"[；;。\n]", part):
+            context = ""
+        if _METRIC_CONTEXT.search(part):
+            context = part
+            result.append(consume(part))
+        else:
+            result.append(consume(part, context, inherited=True))
+        if _QUERY_SURFACE.search(part):
+            context = ""
+    return "".join(result), obligations
 
 
 def _legacy_operation_text(text, fields):
@@ -14802,6 +14954,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
                         for code, pattern in (
                             ("search", r"搜索|检索|search"),
                             ("filter", r"筛选|过滤|filter"),
+                            ("metric", _METRIC_CONTEXT.pattern),
                             ("date_range", r"日期区间|日期范围|date.?range"),
                             ("capability_catalog", r"可用能力|模板能力|template_capabilities"),
                             ("negation", r"无需|不需要|不要求|取消|禁用|不支持|false"),
@@ -14885,6 +15038,58 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
         "filterable": r"筛选|过滤|filter",
         "date_range": r"日期区间|日期范围|含边界.*(?:日期|范围)|date.?range",
     }
+    query_texts = []
+    for origin, text in texts:
+        query_text, metric_obligations = _metric_clauses(text, fields)
+        query_texts.append((origin, query_text))
+        for index, obligation in enumerate(metric_obligations):
+            source = {**origin, "metric_clause": index}
+            source_text = text
+            targets = obligation["targets"]
+            predicates = obligation["predicates"]
+            entities = {
+                entity for entity, field in fields if any(field is target for target in targets)
+            }
+            explicit = {item["entity"] for item in predicates if item["entity"]}
+            if obligation["entity"]:
+                explicit.add(obligation["entity"])
+            candidates = plan.business.metrics if plan.business else []
+            candidates = [
+                metric
+                for metric in candidates
+                if (not explicit or metric.entity in explicit)
+                and (not entities or metric.entity in entities)
+                and (obligation["kind"] is None or metric.kind == obligation["kind"])
+            ]
+            if not any(
+                all(
+                    any(
+                        predicate.field == requested["field"]
+                        and predicate.op == requested["op"]
+                        and type(predicate.value) is type(requested["value"])
+                        and predicate.value == requested["value"]
+                        for predicate in metric.filters
+                    )
+                    for requested in predicates
+                )
+                and (
+                    bool(predicates)
+                    or all(
+                        any(predicate.field == target.name for predicate in metric.filters)
+                        for target in targets
+                    )
+                )
+                for metric in candidates
+            ):
+                gap(
+                    "业务指标缺少已确认的筛选条件: " + text,
+                    "missing_metric_predicate",
+                    targets=targets,
+                    attribute="metric_filter",
+                    expected=True,
+                    actual=False,
+                )
+    texts = query_texts
     # A field-bound false assignment or prohibition is a real constraint.
     # Extract it before discarding merely unrequested operation phrases; a
     # typed ledger is helpful but is not required to preserve explicit intent.
@@ -21883,11 +22088,11 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
 - `BrowserPrerequisite`（L27–L28）：继承`CheckFailed`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `need`（L31–L33）：接收`condition`、`message`。 控制顺序：L32按`not condition`分支；L33抛异常，停止当前正常路径。 调用`CheckFailed`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `stop`（L36–L51）：接收`process`。 控制顺序：L37按`process.poll() is not None`分支；L39按`os.name == "nt"`分支。 调用`process.poll`、`subprocess.run`、`str`、`os.killpg`、`process.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify`（L54–L413）：接收`product`、`python`、`business_screenshots`。 控制顺序：L57按`spec.get("business")`分支；L71按`selection["database"] == "postgresql"`分支；L147按`selection["frontend"] == "simple-admin"`分支；L180遍历`spec["entities"]`；L194按`rules`分支；L209遍历`("GET", "PUT", "DELETE")`；L222遍历`entity["fields"]`；L237按`f["required"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`json.loads`、`(product / "approved-spec.json").read_text`、`spec.get`、`verify_business`、`uuid.uuid4`、`tempfile.TemporaryDirectory`、`os.environ.items`等。 返回路径：L60的`verify_business(product, python, stop, BrowserPrerequisite, business_screenshots)`；L405的`{ "passed": True, "checks": checks, "entities": len(spec["entities"]), "http": True, "data…`。
+- `verify`（L54–L414）：接收`product`、`python`、`business_screenshots`。 控制顺序：L57按`spec.get("business")`分支；L71按`selection["database"] == "postgresql"`分支；L147按`selection["frontend"] == "simple-admin"`分支；L180遍历`spec["entities"]`；L194按`rules`分支；L209遍历`("GET", "PUT", "DELETE")`；L222遍历`entity["fields"]`；L237按`f["required"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`json.loads`、`(product / "approved-spec.json").read_text`、`spec.get`、`verify_business`、`uuid.uuid4`、`tempfile.TemporaryDirectory`、`os.environ.items`等。 返回路径：L60的`verify_business(product, python, stop, BrowserPrerequisite, business_screenshots)`；L406的`{ "passed": True, "checks": checks, "entities": len(spec["entities"]), "http": True, "data…`。
 - `verify.start_server`（L97–L138）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L126遍历`range(150)`；L127按`process.poll() is not None`分支；L129抛异常，停止当前正常路径；L131按`client.get("/health").status_code == 200`分支；L138抛异常，停止当前正常路径。 调用`socket.socket`、`sock.bind`、`sock.getsockname`、`subprocess.Popen`、`str`、`httpx.Client`、`range`、`process.poll`、`client.close`等。 返回路径：L132的`process, client`。
-- `main`（L416–L447）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L442按`args.report`分支；L446按`not result["passed"]`分支；L447抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`Path(__file__).resolve`、`Path`、`parser.parse_args`、`verify`、`type`、`str`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L417–L448）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L443按`args.report`分支；L447按`not result["passed"]`分支；L448抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`Path(__file__).resolve`、`Path`、`parser.parse_args`、`verify`、`type`、`str`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: templates/product/verify.py sha256: 0b1d0dad171b6949beade2b7ece04ed6fdcecbd0393ed1ab62c72c35464f2058 -->
+<!-- source-file: templates/product/verify.py sha256: 37d89464ffdc0da1716bb38914943eb769a2bf84e1d129b5626e5e39f7816e76 -->
 ````python
 """Run real migrations and HTTP checks against an isolated product database.
 
@@ -22243,6 +22448,7 @@ def verify(product, python=sys.executable, business_screenshots=None):
                     env=browser_env,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
                     timeout=300,
                     check=False,
                 )
@@ -22355,13 +22561,13 @@ if __name__ == "__main__":
 - `check`（L22–L24）：接收`condition`、`message`。 控制顺序：L23按`not condition`分支；L24抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `validate_png`（L33–L92）：接收`payload`。 控制顺序：L50在`offset < len(payload)`成立时循环；L59按`header is None`分支；L62按`kind == b"IHDR"`分支；L63抛异常，停止当前正常路径；L64按`kind == b"IDAT"`分支；L66按`kind == b"IEND"`分支；L85抛异常，停止当前正常路径。 调用`check`、`payload.startswith`、`len`、`struct.unpack`、`zlib.crc32`、`ValueError`、`compressed.append`、`{0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get`、`zlib.decompressobj`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `validate_screenshots`（L95–L143）：接收`directory`、`entries`。 源码说明：Only bounded, named PNGs from the owned synthetic-product directory escape.。 控制顺序：L101按`directory is None`分支；L107遍历`entries`。 调用`check`、`isinstance`、`len`、`bool`、`Path(directory).resolve`、`Path`、`set`、`entry.get`、`re.fullmatch`等。 返回路径：L103的`[]`；L143的`result`。
-- `verify_business`（L146–L802）：接收`product`、`python`、`stop`、`browser_error`、`screenshot_dir`。 控制顺序：L149按`screenshot_dir is not None`分支；L200按`selection["database"] == "postgresql"`分支；L292遍历`business["roles"]`；L308按`business["registration"]["enabled"]`分支；L332在`pending`成立时循环；L334遍历`list(pending)`；L340按`any(r["target_entity"] not in base for r in relations)`分支；L364按`workflow`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(screenshot_dir).absolute`、`check`、`target.is_symlink`、`hasattr`、`target.is_junction`、`target.resolve().is_relative_to`、`target.resolve`等。 返回路径：L787的`{ "passed": True, "http": True, "restart": True, "database": "real-isolated-" + selection[…`。
+- `verify_business`（L146–L804）：接收`product`、`python`、`stop`、`browser_error`、`screenshot_dir`。 控制顺序：L149按`screenshot_dir is not None`分支；L200按`selection["database"] == "postgresql"`分支；L293遍历`business["roles"]`；L309按`business["registration"]["enabled"]`分支；L333在`pending`成立时循环；L335遍历`list(pending)`；L341按`any(r["target_entity"] not in base for r in relations)`分支；L365按`workflow`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(screenshot_dir).absolute`、`check`、`target.is_symlink`、`hasattr`、`target.is_junction`、`target.resolve().is_relative_to`、`target.resolve`等。 返回路径：L789的`{ "passed": True, "http": True, "restart": True, "database": "real-isolated-" + selection[…`。
 - `verify_business.allowed`（L176–L183）：接收`role`、`entity`、`action`、`row`、`identity`。 控制顺序：L178按`action not in grant.get("actions", [])`分支；L180按`row is None or grant["scope"] == "all"`分支。 调用`grants.get`、`grant.get`、`row.get`。 返回路径：L179的`False`；L181的`True`；L183的`row.get(key) == identity`。
-- `verify_business.start`（L223–L264）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L253遍历`range(150)`；L255按`client.get("/health").status_code == 200`分支；L259按`process.poll() is not None`分支；L264抛异常，停止当前正常路径。 调用`socket.socket`、`listener.bind`、`listener.getsockname`、`subprocess.Popen`、`str`、`httpx.Client`、`range`、`client.get`、`process.poll`等。 返回路径：L256的`process, client`。
-- `verify_business.request`（L274–L281）：接收`method`、`path`、`actor`、`status`、`**kw`。 调用`client.request`、`check`、`response.json`。 返回路径：L281的`response.json() if response.content else None`。
-- `verify_business.selected`（L638–L654）：接收`row`。 控制顺序：L639遍历`metric["filters"]`；L641按`op == "eq" and actual != want or op == "ne" and actual == want or op == "in" and actu…`分支；L650按`op in {"gte", "lte"} and ( actual is None or (actual < want if op == "gte" else actua…`分支。 调用`row.get`。 返回路径：L649的`False`；L653的`False`；L654的`True`。
+- `verify_business.start`（L224–L265）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L254遍历`range(150)`；L256按`client.get("/health").status_code == 200`分支；L260按`process.poll() is not None`分支；L265抛异常，停止当前正常路径。 调用`socket.socket`、`listener.bind`、`listener.getsockname`、`subprocess.Popen`、`str`、`httpx.Client`、`range`、`client.get`、`process.poll`等。 返回路径：L257的`process, client`。
+- `verify_business.request`（L275–L282）：接收`method`、`path`、`actor`、`status`、`**kw`。 调用`client.request`、`check`、`response.json`。 返回路径：L282的`response.json() if response.content else None`。
+- `verify_business.selected`（L639–L655）：接收`row`。 控制顺序：L640遍历`metric["filters"]`；L642按`op == "eq" and actual != want or op == "ne" and actual == want or op == "in" and actu…`分支；L651按`op in {"gte", "lte"} and ( actual is None or (actual < want if op == "gte" else actua…`分支。 调用`row.get`。 返回路径：L650的`False`；L654的`False`；L655的`True`。
 
-<!-- source-file: templates/product/verify_business.py sha256: ffcf2b1b60db3b95ea894e7c110919e46f2e52bbb6840a3c40a84891cdafc703 -->
+<!-- source-file: templates/product/verify_business.py sha256: 4b52ca1d1f8ff443cb9a3cd809d2b192606c46a0a75f1626633a54cabda27eb1 -->
 ````python
 """Independent HTTP/browser business verification against a new owned database."""
 
@@ -22577,6 +22783,7 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
             [python, "-c", bootstrap],
             input=json.dumps({"username": "verify-admin", "password": password}),
             text=True,
+            encoding="utf-8",
             cwd=product,
             env=env,
             capture_output=True,
@@ -23105,6 +23312,7 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                     env={**env, "PLAYWRIGHT_BROWSERS_PATH": "0"},
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
                     timeout=300,
                 )
                 check(result.returncode == 0, "Business browser failed: " + result.stderr[-1800:])
@@ -29861,14 +30069,14 @@ def test_assignment_due_idempotency_and_read_recipient_are_required(template, vi
 **逐个入口与控制逻辑：**
 
 - `runtime_plan`（L16–L39）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L18遍历`raw["business"]["permissions"]`；L19按`permission["role"] == "manager"`分支；L30按`permission["role"] == "service"`分支；L32按`permission["role"] == "employee"`分支；L34遍历`["employee", "service"]`。 调用`business_plan`、`raw["business"]["permissions"].append`、`Plan.model_validate`。 返回路径：L39的`Plan.model_validate(raw)`。
-- `test_generated_business_api_transactions_and_permissions`（L146–L176）：接收`tmp_path`。 控制顺序：L159断言`init.returncode == 0`；L168断言`result.returncode == 0`；L169断言`json.loads(result.stdout.splitlines()[-1])["passed"]`；L170遍历`["sqlite", "postgresql"]`；L172断言`"business_audit" in sql and "business_notifications" in sql and "FOREIGN KEY(customer…`。 调用`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`、`json.loads`、`result.stdout.splitlines`、`(product / "database" / f"schema.{dialect}.sql").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_common_metric_normalizes_datetime_predicate_offsets`（L179–L202）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L189遍历`["eq", "gte", "lte", "in"]`；L202断言`policy.metric(rows, metric)["value"] == 1`。 调用`Path`、`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`module.Policy`、`runtime_plan().model_dump`、`runtime_plan`、`policy.metric`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_generated_business_postgres_actual_fk_and_permissions`（L206–L250）：接收`tmp_path`。 控制顺序：L213按`not url`分支；L240断言`init.returncode == 0`；L249断言`result.returncode == 0`；L250断言`json.loads(result.stdout.splitlines()[-1])["passed"]`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`database`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_exact_customer_service_example_three_resources`（L316–L343）：接收`tmp_path`。 控制顺序：L333断言`init.returncode == 0`；L342断言`result.returncode == 0`；L343断言`json.loads(result.stdout.splitlines()[-1])["three_resources"]`。 调用`Path`、`Plan.model_validate_json`、`path.read_text`、`generate_basic`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_business_api_only_independent_receipt`（L346–L373）：接收`tmp_path`。 控制顺序：L368断言`result.returncode == 0`；L370断言`receipt["passed"] and receipt["http"] and receipt["restart"]`；L371断言`receipt["business"]["resources_checked"] == ["customers", "requests", "tasks"]`；L372断言`receipt["browser"]["applicable"] is False`；L373断言`not receipt["browser"].get("real_browser")`。 调用`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`generate_basic`、`clean_env`、`os.environ.get`、`subprocess.run`、`str`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_business_postgres_independent_receipt`（L377–L423）：接收`tmp_path`。 控制顺序：L386按`not url`分支；L419断言`result.returncode == 0`；L421断言`receipt["passed"] and receipt["business"]["passed"] and receipt["restart"]`；L422断言`receipt["database"] == "real-isolated-postgresql"`；L423断言`receipt["browser"]["applicable"] is False`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`database`、`generate_basic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generated_business_api_transactions_and_permissions`（L146–L185）：接收`tmp_path`、`monkeypatch`。 控制顺序：L167断言`init.returncode == 0`；L177断言`result.returncode == 0`；L178断言`json.loads(result.stdout.splitlines()[-1])["passed"]`；L179遍历`["sqlite", "postgresql"]`；L181断言`"business_audit" in sql and "business_notifications" in sql and "FOREIGN KEY(customer…`。 调用`monkeypatch.setattr`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`、`json.loads`、`result.stdout.splitlines`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_common_metric_normalizes_datetime_predicate_offsets`（L188–L211）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L198遍历`["eq", "gte", "lte", "in"]`；L211断言`policy.metric(rows, metric)["value"] == 1`。 调用`Path`、`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`module.Policy`、`runtime_plan().model_dump`、`runtime_plan`、`policy.metric`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generated_business_postgres_actual_fk_and_permissions`（L215–L261）：接收`tmp_path`。 控制顺序：L222按`not url`分支；L250断言`init.returncode == 0`；L260断言`result.returncode == 0`；L261断言`json.loads(result.stdout.splitlines()[-1])["passed"]`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`database`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_customer_service_example_three_resources`（L327–L363）：接收`tmp_path`、`monkeypatch`。 控制顺序：L352断言`init.returncode == 0`；L362断言`result.returncode == 0`；L363断言`json.loads(result.stdout.splitlines()[-1])["three_resources"]`。 调用`monkeypatch.setattr`、`Path`、`Plan.model_validate_json`、`path.read_text`、`generate_basic`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_business_api_only_independent_receipt`（L366–L394）：接收`tmp_path`。 控制顺序：L389断言`result.returncode == 0`；L391断言`receipt["passed"] and receipt["http"] and receipt["restart"]`；L392断言`receipt["business"]["resources_checked"] == ["customers", "requests", "tasks"]`；L393断言`receipt["browser"]["applicable"] is False`；L394断言`not receipt["browser"].get("real_browser")`。 调用`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`generate_basic`、`clean_env`、`os.environ.get`、`subprocess.run`、`str`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_business_postgres_independent_receipt`（L398–L445）：接收`tmp_path`。 控制顺序：L407按`not url`分支；L441断言`result.returncode == 0`；L443断言`receipt["passed"] and receipt["business"]["passed"] and receipt["restart"]`；L444断言`receipt["database"] == "real-isolated-postgresql"`；L445断言`receipt["browser"]["applicable"] is False`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`database`、`generate_basic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_business_python.py sha256: b1138f21659d1eacc1aaeac8e6d3cc7664c6ce39b0943bf60abe23679e0bd956 -->
+<!-- source-file: tests/test_business_python.py sha256: 489f2f53929eecf0e73c526ac2fce696b9620171b785b0dcf7f9ac2e59b745d8 -->
 ````python
 """Real generated Python product HTTP/SQL behavior in an isolated interpreter."""
 
@@ -30015,7 +30223,10 @@ print(json.dumps({'passed':True,'roles':3,'row_acl':True,'fk':True,'transitions'
 """
 
 
-def test_generated_business_api_transactions_and_permissions(tmp_path):
+def test_generated_business_api_transactions_and_permissions(tmp_path, monkeypatch):
+    # Windows may default to cp1252 even though clean_env makes the child emit UTF-8.
+    # Force that parent default on every platform so missing wire encoding regresses locally.
+    monkeypatch.setattr(subprocess, "_text_encoding", lambda: "cp1252")
     product = tmp_path / "product"
     generate_basic(runtime_plan(), product)
     env = clean_env(
@@ -30026,7 +30237,12 @@ def test_generated_business_api_transactions_and_permissions(tmp_path):
         }
     )
     init = subprocess.run(
-        [sys.executable, "manage.py", "init"], cwd=product, env=env, text=True, capture_output=True
+        [sys.executable, "manage.py", "init"],
+        cwd=product,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
     )
     assert init.returncode == 0, init.stdout + init.stderr
     result = subprocess.run(
@@ -30034,6 +30250,7 @@ def test_generated_business_api_transactions_and_permissions(tmp_path):
         cwd=product,
         env=env,
         text=True,
+        encoding="utf-8",
         capture_output=True,
         timeout=120,
     )
@@ -30107,6 +30324,7 @@ def test_generated_business_postgres_actual_fk_and_permissions(tmp_path):
             cwd=product,
             env=env,
             text=True,
+            encoding="utf-8",
             capture_output=True,
         )
         assert init.returncode == 0, init.stdout + init.stderr
@@ -30115,6 +30333,7 @@ def test_generated_business_postgres_actual_fk_and_permissions(tmp_path):
             cwd=product,
             env=env,
             text=True,
+            encoding="utf-8",
             capture_output=True,
             timeout=120,
         )
@@ -30185,7 +30404,10 @@ print(json.dumps({'passed':True,'three_resources':True,'linked_row_acl':True,'ta
 """
 
 
-def test_exact_customer_service_example_three_resources(tmp_path):
+def test_exact_customer_service_example_three_resources(tmp_path, monkeypatch):
+    # Windows may default to cp1252 even though clean_env makes the child emit UTF-8.
+    # Force that parent default on every platform so missing wire encoding regresses locally.
+    monkeypatch.setattr(subprocess, "_text_encoding", lambda: "cp1252")
     from pathlib import Path
 
     path = Path(__file__).parents[1] / "examples/plans/customer-service.json"
@@ -30200,7 +30422,12 @@ def test_exact_customer_service_example_three_resources(tmp_path):
         }
     )
     init = subprocess.run(
-        [sys.executable, "manage.py", "init"], cwd=product, env=env, text=True, capture_output=True
+        [sys.executable, "manage.py", "init"],
+        cwd=product,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
     )
     assert init.returncode == 0, init.stdout + init.stderr
     result = subprocess.run(
@@ -30208,6 +30435,7 @@ def test_exact_customer_service_example_three_resources(tmp_path):
         cwd=product,
         env=env,
         text=True,
+        encoding="utf-8",
         capture_output=True,
         timeout=120,
     )
@@ -30234,6 +30462,7 @@ def test_customer_business_api_only_independent_receipt(tmp_path):
         cwd=product,
         env=env,
         text=True,
+        encoding="utf-8",
         capture_output=True,
         timeout=180,
     )
@@ -30285,6 +30514,7 @@ def test_customer_business_postgres_independent_receipt(tmp_path):
             cwd=product,
             env=env,
             text=True,
+            encoding="utf-8",
             capture_output=True,
             timeout=180,
         )
@@ -30307,9 +30537,9 @@ def test_customer_business_postgres_independent_receipt(tmp_path):
 
 **逐个入口与控制逻辑：**
 
-- `test_business_roles_in_actual_lightweight_ui`（L39–L112）：接收`tmp_path`。 控制顺序：L41按`not module or not Path(module).is_dir()`分支；L56断言`init.returncode == 0`；L72断言`result.returncode == 0`；L96遍历`range(100)`；L98按`httpx.get(url + "/health", trust_env=False).status_code == 200`分支；L108断言`result.returncode == 0`；L109断言`'"passed":true' in result.stdout`。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_business_roles_in_actual_lightweight_ui`（L39–L127）：接收`tmp_path`。 控制顺序：L41按`not module or not Path(module).is_dir()`分支；L61断言`init.returncode == 0`；L82断言`result.returncode == 0`；L106遍历`range(100)`；L108按`httpx.get(url + "/health", trust_env=False).status_code == 200`分支；L123断言`result.returncode == 0`；L124断言`'"passed":true' in result.stdout`。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_business_python_browser.py sha256: d56e9a39a3c593a454dc17f519ed22cd26f8203e086ed54cbd88b03d79f6e9f7 -->
+<!-- source-file: tests/test_business_python_browser.py sha256: a24043716e67a33f4dcefc4b547705f2c36ed3d771a3d085f8b8b1973c34ef47 -->
 ````python
 """Actual Chromium checks of the extended existing lightweight admin UI."""
 
@@ -30364,7 +30594,12 @@ def test_business_roles_in_actual_lightweight_ui(tmp_path):
         }
     )
     init = subprocess.run(
-        [sys.executable, "manage.py", "init"], cwd=product, env=env, text=True, capture_output=True
+        [sys.executable, "manage.py", "init"],
+        cwd=product,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
     )
     assert init.returncode == 0, init.stdout + init.stderr
     setup = """import getpass
@@ -30380,7 +30615,12 @@ with engine.begin() as connection:
   connection.execute(insert(metadata.tables['users']).values(id=str(uuid.uuid4()),username=name,password=password_hash('Example-Test-Password-123'),role=role))
 """
     result = subprocess.run(
-        [sys.executable, "-c", setup], cwd=product, env=env, text=True, capture_output=True
+        [sys.executable, "-c", setup],
+        cwd=product,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
     )
     assert result.returncode == 0, result.stdout + result.stderr
     with socket.socket() as listener:
@@ -30416,7 +30656,12 @@ with engine.begin() as connection:
         script = tmp_path / "business-browser.cjs"
         script.write_text(DRIVER, encoding="utf-8")
         result = subprocess.run(
-            ["node", str(script), url, module], env=env, text=True, capture_output=True, timeout=120
+            ["node", str(script), url, module],
+            env=env,
+            text=True,
+            encoding="utf-8",
+            capture_output=True,
+            timeout=120,
         )
         assert result.returncode == 0, result.stdout + result.stderr
         assert '"passed":true' in result.stdout
@@ -30701,32 +30946,32 @@ def test_requested_screenshot_output_cannot_silently_be_empty(tmp_path):
 - `approved_plan`（L20–L24）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Plan.model_validate`、`business_plan`。 返回路径：L24的`Plan.model_validate(business_plan())`。
 - `test_native_registration_setting_maps_the_pinned_configuration_key`（L27–L42）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：BeanUtils cannot map the native configKey property to request key.。 控制顺序：L37断言`"private String configKey;" in stored`；L38断言`"private String key;" in request`；L41断言`mapping in service`；L42断言`service.index(mapping) < service.index("nativeConfiguration.updateConfig(request)")`。 调用`zipfile.ZipFile`、`archive.read(base + "/dal/dataobject/config/ConfigDO.java").decod…`、`archive.read`、`archive.read(base + "/controller/admin/config/vo/ConfigSaveReqVO.…`、`(TEMPLATES / "RndBusinessService.java").read_text`、`service.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `generated_native_source`（L45–L90）：接收`tmp_path`、`plan`。 控制顺序：L48遍历`enumerate(plan.entities)`。 调用`enumerate`、`entity.name.replace`、`"".join`、`part.title`、`entity.name.split`、`atomic_text`、`targets.append`。 返回路径：L90的`backend, frontend, targets, reports`。
-- `test_mount_retains_real_mappers_and_binds_every_original_crud_route`（L93–L133）：接收`tmp_path`。 控制顺序：L99断言`receipt["runtime_verified"] is False`；L100断言`mapper.read_bytes() == original_mapper`；L101断言`receipt["bootstrap_endpoint"].endswith("/bootstrap")`；L102断言`len(receipt["extension_tables"]) == 3`；L107遍历`("create", "update", "archive", "archiveBatch", "get", "page")`；L108断言`"business." + function + "(" in controller`；L109断言`"export-excel" not in controller`；L116断言`config["business"] == plan.business.model_dump()`。后续分支沿下方源码相同行号继续阅读。 调用`approved_plan`、`generated_native_source`、`mapper.read_bytes`、`install_yudao_business`、`receipt["bootstrap_endpoint"].endswith`、`len`、`( backend / f"{JAVA_ROOT}/{JAVA_PACKAGE}/controller/admin/wbcusto…`、`json.loads`、`( backend / "yudao-module-infra/yudao-module-infra-server/src/mai…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_vben_form_field_type_covers_the_exact_emitted_metadata`（L136–L151）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L144断言`fields == set(FieldSpec.model_fields)`；L145断言`"businessPayload<T extends object>" in source`；L146断言`"Reflect.deleteProperty(result, name)" in source`；L147断言`"as unknown" not in source and "as any" not in source`；L149断言`"row: Record<string, unknown>" in panel`；L150断言`"typeof record.id !== 'string'" in panel`；L151断言`"row.actions.includes('read_history')" in panel`。 调用`(TEMPLATES / "business-form.ts").read_text`、`re.search(r"interface Field \{([^}]+)\}", source).group`、`re.search`、`set`、`re.findall`、`(TEMPLATES / "panel.vue").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_reentry_is_hash_bound_and_tampering_never_overwrites`（L154–L163）：接收`tmp_path`。 控制顺序：L158断言`install_yudao_business(plan, *args) == first`；L163断言`source.read_text(encoding="utf-8") == "// user's inspection changes\n"`。 调用`approved_plan`、`generated_native_source`、`install_yudao_business`、`source.write_text`、`pytest.raises`、`source.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_native_mapper_fails_before_any_controller_is_changed`（L166–L178）：接收`tmp_path`。 控制顺序：L177断言`controller.read_bytes() == original`；L178断言`not (reports / "business-yudao.json").exists()`。 调用`approved_plan`、`generated_native_source`、`controller.read_bytes`、`(backend / f"{JAVA_ROOT}/{JAVA_PACKAGE}/dal/mysql/wbcustomers/WbC…`、`pytest.raises`、`install_yudao_business`、`(reports / "business-yudao.json").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_approved_business_plan_and_exact_targets_required`（L181–L190）：接收`tmp_path`。 调用`approved_plan`、`generated_native_source`、`deepcopy`、`bad_targets.pop`、`pytest.raises`、`install_yudao_business`、`plan.model_copy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_schema_is_append_only_and_never_seeds_implicit_user_ids`（L193–L204）：接收`tmp_path`。 控制顺序：L197断言`"BEFORE UPDATE OR DELETE" in schema`；L198断言`"ON CONFLICT" not in schema and "IF NOT EXISTS" not in schema`；L199断言`"DROP " not in schema and "TRUNCATE" not in schema`；L200断言`"rnd_archived_at" in schema`；L202断言`"INSERT INTO system_user_role" not in seed`；L203断言`"WHERE u.id=1" not in seed`；L204断言`"POST /admin-api/infra/rnd-business/bootstrap" in seed`。 调用`approved_plan`、`generated_native_source`、`business_schema`、`business_role_seed`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_untrusted_table_identifier_cannot_enter_schema`（L207–L209）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`business_schema`、`approved_plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_java_templates_have_valid_syntax`（L212–L227）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L217遍历`TEMPLATES.glob("*.java")`；L227断言`not tree.root_node.has_error`。 调用`Parser`、`Language`、`tree_sitter_java.language`、`TEMPLATES.glob`、`path.read_text(encoding="utf-8") .replace("__PREFIX__", "rndb_tes…`、`path.read_text(encoding="utf-8") .replace`、`path.read_text`、`parser.parse`、`text.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_contains_explicit_native_boundary_guards`（L253–L254）：接收`fragment`。 控制顺序：L254断言`fragment in (TEMPLATES / "RndBusinessService.java").read_text(encoding="utf-8")`。 调用`(TEMPLATES / "RndBusinessService.java").read_text`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_registration_keeps_real_service_and_single_transaction`（L257–L262）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L259断言`"AdminUserService.registerUser" in source`；L260断言`"TransactionTemplate" in source and "call.proceed()" in source`；L261断言`"business.registered" in source`；L262断言`"password" not in source.lower().replace("password hashing", "")`。 调用`(TEMPLATES / "RndBusinessRegistration.java").read_text`、`source.lower().replace`、`source.lower`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_role_mapper_cannot_grant_unrelated_global_roles`（L265–L273）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L267断言`'roleCode(String.valueOf(data.get("role")))' in source`；L268断言`"Role not declared by this product" in source`；L269断言`"sidecar.revoke" in source and "oldAdmin&&!newAdmin" in source`；L271断言`"pg_advisory_xact_lock" in mapper`；L272断言`"r.tenant_id=u.tenant_id" in mapper`；L273断言`"WHERE tenant_id=#{tenant} AND recipient_id=#{user}" in mapper`。 调用`(TEMPLATES / "RndBusinessService.java").read_text`、`(TEMPLATES / "RndBusinessMapper.java").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_frontend_retains_native_components_and_contract_driven_controls`（L276–L285）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L278断言`"useVbenForm" in source and "useVbenModal" in source`；L279断言`"TimelineItem" in source and "'ant-design-vue'" in source`；L280断言`"metrics" in source and "notifications" in source and "roleAdmin" in source`；L281断言`"requestClient" in source and "localStorage" not in source`；L282断言`"useEcharts" in (TEMPLATES / "metric-chart.vue").read_text(encoding="utf-8")`；L284断言`"spec.controlled.map(wire)" in fields`；L285断言`"valueField: 'id'" in fields and "ApiSelect" in fields`。 调用`(TEMPLATES / "panel.vue").read_text`、`(TEMPLATES / "metric-chart.vue").read_text`、`(TEMPLATES / "business-form.ts").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_target_cannot_redirect_schema_or_native_permission`（L301–L313）：接收`tmp_path`、`key`、`value`。 控制顺序：L312断言`controller.read_bytes() == original`；L313断言`not reports.exists()`。 调用`approved_plan`、`generated_native_source`、`controller.read_bytes`、`pytest.raises`、`install_yudao_business`、`reports.exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_targets_from_different_native_runs_are_rejected`（L316–L321）：接收`tmp_path`。 调用`approved_plan`、`generated_native_source`、`targets[1]["table"].replace`、`pytest.raises`、`install_yudao_business`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_duplicate_target_cannot_install_extra_tables`（L324–L329）：接收`tmp_path`。 调用`approved_plan`、`generated_native_source`、`targets.append`、`deepcopy`、`pytest.raises`、`install_yudao_business`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_action_modal_opens_before_waiting_for_lazy_form_mount`（L332–L337）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L337断言`body.index("actionModalApi.open()") < body.index("await actionFormApi.resetForm()")`。 调用`(TEMPLATES / "panel.vue").read_text`、`source.index`、`body.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_business_controller_uses_native_admin_package_prefix`（L340–L354）：接收`tmp_path`。 控制顺序：L349断言`"package cn.iocoder.yudao.module.infra.controller.admin.rndbusiness;" in text`；L350断言`'@RequestMapping("/infra/rnd-business")' in text`；L351断言`"import cn.iocoder.yudao.module.infra.business.RndBusinessService;" in text`；L352断言`not ( backend / f"{JAVA_ROOT}/{JAVA_PACKAGE}/business/RndBusinessController.java" ).e…`。 调用`approved_plan`、`generated_native_source`、`install_yudao_business`、`controller.read_text`、`( backend / f"{JAVA_ROOT}/{JAVA_PACKAGE}/business/RndBusinessCont…`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_related_history_checks_parent_and_each_child_scope`（L357–L367）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L360断言`'require(name,parent,"read")' in body`；L361断言`'if(!hasAction(child,"read")) continue' in body`；L362断言`".eq(field,id(parent))" in body`；L363断言`'if(!allowed(child,row,"read")) continue' in body`；L364断言`'allowed(child,row,"read_history")' in body`；L365断言`"candidates.size()>10000" in body`；L366断言`"rnd_archived_at" not in body`；L367断言`"target_entity" in body`。 调用`(TEMPLATES / "RndBusinessService.java").read_text`、`source.split("public Object related(", 1)[1].split`、`source.split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_related_history_uses_native_route_and_visible_timeline`（L370–L380）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L373断言`'@GetMapping("/related")' in controller`；L374断言`"business.related(entity,id)" in controller`；L375断言`"business-related-${group.entity}" in panel`；L376断言`"related-history-${group.entity}-${record.record.id}" in panel`；L377断言`"record.actions.includes('read_history')" in panel`；L378断言`"business-related-history" in panel`；L379断言`"request !== relatedRequest \|\| current !== generation" in panel`；L380断言`'<TimelineItem v-for="entry in relatedEvents"' in panel`。 调用`(TEMPLATES / "RndBusinessController.java").read_text`、`(TEMPLATES / "panel.vue").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_display_metadata_does_not_change_wire_audit_or_metric_serialization`（L383–L396）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L388断言`"_display" not in raw and "userLabel" not in raw and "referenceLabel" not in raw`；L390断言`"encode(out(name,row))" in event and "present(" not in event`；L394断言`'item.put("buckets",counts)' in metrics`；L395断言`'item.put("bucketLabels",labels)' in metrics`；L396断言`"present(" not in metrics`。 调用`(TEMPLATES / "RndBusinessService.java").read_text`、`source.split("private Map<String,Object> out(", 1)[1].split`、`source.split`、`source.split("private long event(", 1)[1].split`、`source.split("public Object metrics()", 1)[1].split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_reference_and_user_names_are_scoped_cached_and_non_recursive`（L399–L428）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L404断言`"display.references.computeIfAbsent" in relation`；L405断言`'allowed(target,linked,"read")' in relation`；L406断言`relation.index('allowed(target,linked,"read")') < relation.index( "recordLabel(target…`；L409断言`"present(" not in relation`；L413断言`"display.users.computeIfAbsent" in user`；L414断言`"rolesFor(number(key)).isEmpty()" in user`；L415断言`"sidecar.displayUser(tenant(),number(key))" in user`；L416断言`"sidecar.users(" not in user`。后续分支沿下方源码相同行号继续阅读。 调用`(TEMPLATES / "RndBusinessService.java").read_text`、`source.split("private String referenceLabel(", 1)[1].split`、`source.split`、`relation.index`、`source.split("private String userLabel(", 1)[1].split`、`(TEMPLATES / "RndBusinessMapper.java").read_text`、`source.split("public Object history(", 1)[1].split`、`history.index`、`source.split("public Object page(", 1)[1].split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_display_helpers_are_generic_labels_and_keep_native_grid_structure`（L431–L457）：接收`tmp_path`。 控制顺序：L437断言`"function nativeBusinessGridColumns(): VxeTableGridOptions<NativeData>['columns']" in…`；L440断言`"businessGridColumns('customers', nativeBusinessGridColumns())" in data`；L441断言`"businessSearchSchema('customers', nativeBusinessSearchSchema())" in data`；L443断言`"field.label \|\| field.name" in source`；L444断言`"field.choice_labels[value] \|\| value" in source`；L445断言`"showHeaderOverflow: true" in source and "minWidth:" in source`；L446断言`"date.toISOString().slice(0, 19)" in source`；L447断言`"Reflect.get(row, '_display')" in source`。后续分支沿下方源码相同行号继续阅读。 调用`approved_plan`、`generated_native_source`、`install_yudao_business`、`(root / "wbcustomers/data.ts").read_text`、`(root / "rnd-business/business-form.ts").read_text`、`(root / "rnd-business/panel.vue").read_text`、`(root / "wbcustomers/index.vue").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_grid_contract_change_fails_before_writing`（L460–L476）：接收`tmp_path`。 控制顺序：L475断言`controller.read_bytes() == before`；L476断言`not reports.exists()`。 调用`approved_plan`、`generated_native_source`、`data.write_text`、`data.read_text(encoding="utf-8").replace`、`data.read_text`、`controller.read_bytes`、`pytest.raises`、`install_yudao_business`、`reports.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_notification_display_preserves_raw_message_and_stable_read_controls`（L479–L490）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L482断言`'n.put("display_message"' in notices`；L483断言`'n.put("message"' not in notices`；L484断言`notices.index('allowed(n.get("entity").toString(),row,"read")') < notices.index( 'n.p…`；L488断言`"business-notice-read-${record.id}" in panel`；L489断言`"business-notice-read-state-${record.id}" in panel`；L490断言`"record.display_message \|\| record.message" in panel`。 调用`(TEMPLATES / "RndBusinessService.java").read_text`、`service.split`、`notices.index`、`(TEMPLATES / "panel.vue").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_mount_retains_real_mappers_and_binds_every_original_crud_route`（L93–L134）：接收`tmp_path`。 控制顺序：L99断言`receipt["runtime_verified"] is False`；L100断言`mapper.read_bytes() == original_mapper`；L101断言`receipt["bootstrap_endpoint"].endswith("/bootstrap")`；L102断言`len(receipt["extension_tables"]) == 3`；L107遍历`("create", "update", "archive", "archiveBatch", "get", "page")`；L108断言`"business." + function + "(" in controller`；L109断言`"export-excel" not in controller`；L116断言`config["business"] == plan.business.model_dump()`。后续分支沿下方源码相同行号继续阅读。 调用`approved_plan`、`generated_native_source`、`mapper.read_bytes`、`install_yudao_business`、`receipt["bootstrap_endpoint"].endswith`、`len`、`( backend / f"{JAVA_ROOT}/{JAVA_PACKAGE}/controller/admin/wbcusto…`、`json.loads`、`( backend / "yudao-module-infra/yudao-module-infra-server/src/mai…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_vben_form_field_type_covers_the_exact_emitted_metadata`（L137–L152）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L145断言`fields == set(FieldSpec.model_fields)`；L146断言`"businessPayload<T extends object>" in source`；L147断言`"Reflect.deleteProperty(result, name)" in source`；L148断言`"as unknown" not in source and "as any" not in source`；L150断言`"row: Record<string, unknown>" in panel`；L151断言`"typeof record.id !== 'string'" in panel`；L152断言`"row.actions.includes('read_history')" in panel`。 调用`(TEMPLATES / "business-form.ts").read_text`、`re.search(r"interface Field \{([^}]+)\}", source).group`、`re.search`、`set`、`re.findall`、`(TEMPLATES / "panel.vue").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_reentry_is_hash_bound_and_tampering_never_overwrites`（L155–L164）：接收`tmp_path`。 控制顺序：L159断言`install_yudao_business(plan, *args) == first`；L164断言`source.read_text(encoding="utf-8") == "// user's inspection changes\n"`。 调用`approved_plan`、`generated_native_source`、`install_yudao_business`、`source.write_text`、`pytest.raises`、`source.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_native_mapper_fails_before_any_controller_is_changed`（L167–L179）：接收`tmp_path`。 控制顺序：L178断言`controller.read_bytes() == original`；L179断言`not (reports / "business-yudao.json").exists()`。 调用`approved_plan`、`generated_native_source`、`controller.read_bytes`、`(backend / f"{JAVA_ROOT}/{JAVA_PACKAGE}/dal/mysql/wbcustomers/WbC…`、`pytest.raises`、`install_yudao_business`、`(reports / "business-yudao.json").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_business_plan_and_exact_targets_required`（L182–L191）：接收`tmp_path`。 调用`approved_plan`、`generated_native_source`、`deepcopy`、`bad_targets.pop`、`pytest.raises`、`install_yudao_business`、`plan.model_copy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_schema_is_append_only_and_never_seeds_implicit_user_ids`（L194–L205）：接收`tmp_path`。 控制顺序：L198断言`"BEFORE UPDATE OR DELETE" in schema`；L199断言`"ON CONFLICT" not in schema and "IF NOT EXISTS" not in schema`；L200断言`"DROP " not in schema and "TRUNCATE" not in schema`；L201断言`"rnd_archived_at" in schema`；L203断言`"INSERT INTO system_user_role" not in seed`；L204断言`"WHERE u.id=1" not in seed`；L205断言`"POST /admin-api/infra/rnd-business/bootstrap" in seed`。 调用`approved_plan`、`generated_native_source`、`business_schema`、`business_role_seed`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_untrusted_table_identifier_cannot_enter_schema`（L208–L210）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`business_schema`、`approved_plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_java_templates_have_valid_syntax`（L213–L228）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L218遍历`TEMPLATES.glob("*.java")`；L228断言`not tree.root_node.has_error`。 调用`Parser`、`Language`、`tree_sitter_java.language`、`TEMPLATES.glob`、`path.read_text(encoding="utf-8") .replace("__PREFIX__", "rndb_tes…`、`path.read_text(encoding="utf-8") .replace`、`path.read_text`、`parser.parse`、`text.encode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_contains_explicit_native_boundary_guards`（L254–L255）：接收`fragment`。 控制顺序：L255断言`fragment in (TEMPLATES / "RndBusinessService.java").read_text(encoding="utf-8")`。 调用`(TEMPLATES / "RndBusinessService.java").read_text`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_registration_keeps_real_service_and_single_transaction`（L258–L263）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L260断言`"AdminUserService.registerUser" in source`；L261断言`"TransactionTemplate" in source and "call.proceed()" in source`；L262断言`"business.registered" in source`；L263断言`"password" not in source.lower().replace("password hashing", "")`。 调用`(TEMPLATES / "RndBusinessRegistration.java").read_text`、`source.lower().replace`、`source.lower`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_role_mapper_cannot_grant_unrelated_global_roles`（L266–L274）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L268断言`'roleCode(String.valueOf(data.get("role")))' in source`；L269断言`"Role not declared by this product" in source`；L270断言`"sidecar.revoke" in source and "oldAdmin&&!newAdmin" in source`；L272断言`"pg_advisory_xact_lock" in mapper`；L273断言`"r.tenant_id=u.tenant_id" in mapper`；L274断言`"WHERE tenant_id=#{tenant} AND recipient_id=#{user}" in mapper`。 调用`(TEMPLATES / "RndBusinessService.java").read_text`、`(TEMPLATES / "RndBusinessMapper.java").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_frontend_retains_native_components_and_contract_driven_controls`（L277–L286）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L279断言`"useVbenForm" in source and "useVbenModal" in source`；L280断言`"TimelineItem" in source and "'ant-design-vue'" in source`；L281断言`"metrics" in source and "notifications" in source and "roleAdmin" in source`；L282断言`"requestClient" in source and "localStorage" not in source`；L283断言`"useEcharts" in (TEMPLATES / "metric-chart.vue").read_text(encoding="utf-8")`；L285断言`"spec.controlled.map(wire)" in fields`；L286断言`"valueField: 'id'" in fields and "ApiSelect" in fields`。 调用`(TEMPLATES / "panel.vue").read_text`、`(TEMPLATES / "metric-chart.vue").read_text`、`(TEMPLATES / "business-form.ts").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_target_cannot_redirect_schema_or_native_permission`（L302–L314）：接收`tmp_path`、`key`、`value`。 控制顺序：L313断言`controller.read_bytes() == original`；L314断言`not reports.exists()`。 调用`approved_plan`、`generated_native_source`、`controller.read_bytes`、`pytest.raises`、`install_yudao_business`、`reports.exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_targets_from_different_native_runs_are_rejected`（L317–L322）：接收`tmp_path`。 调用`approved_plan`、`generated_native_source`、`targets[1]["table"].replace`、`pytest.raises`、`install_yudao_business`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_duplicate_target_cannot_install_extra_tables`（L325–L330）：接收`tmp_path`。 调用`approved_plan`、`generated_native_source`、`targets.append`、`deepcopy`、`pytest.raises`、`install_yudao_business`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_action_modal_opens_before_waiting_for_lazy_form_mount`（L333–L338）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L338断言`body.index("actionModalApi.open()") < body.index("await actionFormApi.resetForm()")`。 调用`(TEMPLATES / "panel.vue").read_text`、`source.index`、`body.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_business_controller_uses_native_admin_package_prefix`（L341–L355）：接收`tmp_path`。 控制顺序：L350断言`"package cn.iocoder.yudao.module.infra.controller.admin.rndbusiness;" in text`；L351断言`'@RequestMapping("/infra/rnd-business")' in text`；L352断言`"import cn.iocoder.yudao.module.infra.business.RndBusinessService;" in text`；L353断言`not ( backend / f"{JAVA_ROOT}/{JAVA_PACKAGE}/business/RndBusinessController.java" ).e…`。 调用`approved_plan`、`generated_native_source`、`install_yudao_business`、`controller.read_text`、`( backend / f"{JAVA_ROOT}/{JAVA_PACKAGE}/business/RndBusinessCont…`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_related_history_checks_parent_and_each_child_scope`（L358–L368）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L361断言`'require(name,parent,"read")' in body`；L362断言`'if(!hasAction(child,"read")) continue' in body`；L363断言`".eq(field,id(parent))" in body`；L364断言`'if(!allowed(child,row,"read")) continue' in body`；L365断言`'allowed(child,row,"read_history")' in body`；L366断言`"candidates.size()>10000" in body`；L367断言`"rnd_archived_at" not in body`；L368断言`"target_entity" in body`。 调用`(TEMPLATES / "RndBusinessService.java").read_text`、`source.split("public Object related(", 1)[1].split`、`source.split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_related_history_uses_native_route_and_visible_timeline`（L371–L381）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L374断言`'@GetMapping("/related")' in controller`；L375断言`"business.related(entity,id)" in controller`；L376断言`"business-related-${group.entity}" in panel`；L377断言`"related-history-${group.entity}-${record.record.id}" in panel`；L378断言`"record.actions.includes('read_history')" in panel`；L379断言`"business-related-history" in panel`；L380断言`"request !== relatedRequest \|\| current !== generation" in panel`；L381断言`'<TimelineItem v-for="entry in relatedEvents"' in panel`。 调用`(TEMPLATES / "RndBusinessController.java").read_text`、`(TEMPLATES / "panel.vue").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_display_metadata_does_not_change_wire_audit_or_metric_serialization`（L384–L397）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L389断言`"_display" not in raw and "userLabel" not in raw and "referenceLabel" not in raw`；L391断言`"encode(out(name,row))" in event and "present(" not in event`；L395断言`'item.put("buckets",counts)' in metrics`；L396断言`'item.put("bucketLabels",labels)' in metrics`；L397断言`"present(" not in metrics`。 调用`(TEMPLATES / "RndBusinessService.java").read_text`、`source.split("private Map<String,Object> out(", 1)[1].split`、`source.split`、`source.split("private long event(", 1)[1].split`、`source.split("public Object metrics()", 1)[1].split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_reference_and_user_names_are_scoped_cached_and_non_recursive`（L400–L429）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L405断言`"display.references.computeIfAbsent" in relation`；L406断言`'allowed(target,linked,"read")' in relation`；L407断言`relation.index('allowed(target,linked,"read")') < relation.index( "recordLabel(target…`；L410断言`"present(" not in relation`；L414断言`"display.users.computeIfAbsent" in user`；L415断言`"rolesFor(number(key)).isEmpty()" in user`；L416断言`"sidecar.displayUser(tenant(),number(key))" in user`；L417断言`"sidecar.users(" not in user`。后续分支沿下方源码相同行号继续阅读。 调用`(TEMPLATES / "RndBusinessService.java").read_text`、`source.split("private String referenceLabel(", 1)[1].split`、`source.split`、`relation.index`、`source.split("private String userLabel(", 1)[1].split`、`(TEMPLATES / "RndBusinessMapper.java").read_text`、`source.split("public Object history(", 1)[1].split`、`history.index`、`source.split("public Object page(", 1)[1].split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_display_helpers_are_generic_labels_and_keep_native_grid_structure`（L432–L458）：接收`tmp_path`。 控制顺序：L438断言`"function nativeBusinessGridColumns(): VxeTableGridOptions<NativeData>['columns']" in…`；L441断言`"businessGridColumns('customers', nativeBusinessGridColumns())" in data`；L442断言`"businessSearchSchema('customers', nativeBusinessSearchSchema())" in data`；L444断言`"field.label \|\| field.name" in source`；L445断言`"field.choice_labels[value] \|\| value" in source`；L446断言`"showHeaderOverflow: true" in source and "minWidth:" in source`；L447断言`"date.toISOString().slice(0, 19)" in source`；L448断言`"Reflect.get(row, '_display')" in source`。后续分支沿下方源码相同行号继续阅读。 调用`approved_plan`、`generated_native_source`、`install_yudao_business`、`(root / "wbcustomers/data.ts").read_text`、`(root / "rnd-business/business-form.ts").read_text`、`(root / "rnd-business/panel.vue").read_text`、`(root / "wbcustomers/index.vue").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_grid_contract_change_fails_before_writing`（L461–L477）：接收`tmp_path`。 控制顺序：L476断言`controller.read_bytes() == before`；L477断言`not reports.exists()`。 调用`approved_plan`、`generated_native_source`、`data.write_text`、`data.read_text(encoding="utf-8").replace`、`data.read_text`、`controller.read_bytes`、`pytest.raises`、`install_yudao_business`、`reports.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_notification_display_preserves_raw_message_and_stable_read_controls`（L480–L491）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L483断言`'n.put("display_message"' in notices`；L484断言`'n.put("message"' not in notices`；L485断言`notices.index('allowed(n.get("entity").toString(),row,"read")') < notices.index( 'n.p…`；L489断言`"business-notice-read-${record.id}" in panel`；L490断言`"business-notice-read-state-${record.id}" in panel`；L491断言`"record.display_message \|\| record.message" in panel`。 调用`(TEMPLATES / "RndBusinessService.java").read_text`、`service.split`、`notices.index`、`(TEMPLATES / "panel.vue").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_business_yudao.py sha256: f88023951b23b54c875493a1592783cb99925c27e370085b020ed2f59d197d0c -->
+<!-- source-file: tests/test_business_yudao.py sha256: afb3183abcf1a9516e5d76cdb367012c075f9047bdb3d11bd6bc189d722460e4 -->
 ````python
 """Native adapter source/safety contracts. These do not claim a Maven/browser runtime pass."""
 
@@ -30850,7 +31095,8 @@ def test_mount_retains_real_mappers_and_binds_every_original_crud_route(tmp_path
     panel = (frontend / "apps/web-antd/src/views/infra/wbcustomers/index.vue").read_text(
         encoding="utf-8"
     )
-    assert "<Page>" in panel and "<Grid " in panel and "<TableAction" in panel
+    assert '<Page data-rnd-business-entity="customers">' in panel
+    assert "<Grid " in panel and "<TableAction" in panel
     assert "<RndBusinessPanel" in panel
     data = (frontend / "apps/web-antd/src/views/infra/wbcustomers/data.ts").read_text(
         encoding="utf-8"
@@ -31581,8 +31827,17 @@ def test_plan_duplicate_and_scope(plan):
 - `test_textual_false_and_true_conflict_is_never_silently_overridden`（L365–L373）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L371断言`coverage_gaps(requirement, plan)`；L373断言`coverage_gaps(requirement, plan)`。 调用`customer_case`、`coverage_gaps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_unrequested_capability_does_not_disable_other_requested_search`（L376–L380）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L379断言`plan.entities[0].fields[0].searchable is True`；L380断言`coverage_gaps(requirement, plan) == []`。 调用`customer_case`、`coverage_gaps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_textual_false_date_range_is_enforced_for_named_date_field`（L383–L391）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L389断言`coverage_gaps(requirement, plan) == []`；L391断言`any("date_range" in gap for gap in coverage_gaps(requirement, plan))`。 调用`customer_case`、`plan.entities[0].fields.append`、`FieldSpec`、`coverage_gaps`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `customer_metric_case`（L394–L437）：接收`kind`。 调用`Plan.model_validate`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`next`、`MetricSpec`、`Requirement`、`FieldRequirement`。 返回路径：L437的`requirement, plan`。
+- `test_metric_predicates_are_not_list_filter_flags`（L442–L454）：接收`kind`、`section`。 控制顺序：L445按`section == "facts"`分支；L450断言`coverage_gaps(requirement, plan) == []`；L451断言`plan.model_dump() == before`；L454断言`gaps and all("业务指标" in gap for gap in gaps)`。 调用`customer_metric_case`、`setattr`、`plan.model_dump`、`coverage_gaps`、`all`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_metric_predicate_still_requires_the_correct_executable_metric`（L458–L472）：接收`mutation`。 控制顺序：L461断言`coverage_gaps(requirement, plan) == []`；L462按`mutation == "missing_business"`分支；L464按`mutation in {"entity", "kind"}`分支；L472断言`any("业务指标" in gap for gap in coverage_gaps(requirement, plan))`。 调用`customer_metric_case`、`coverage_gaps`、`setattr`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_metric_context_does_not_override_explicit_list_filtering`（L476–L479）：接收`surface`。 控制顺序：L479断言`any("filterable" in gap for gap in coverage_gaps(requirement, plan))`。 调用`customer_metric_case`、`any`、`coverage_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_metric_predicate_and_unrelated_ui_filter_remain_separate`（L482–L491）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L487断言`coverage_gaps(requirement, plan) == []`；L489断言`any( "filterable" in gap and "category" in gap for gap in coverage_gaps(requirement, …`。 调用`customer_metric_case`、`coverage_gaps`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_metric_predicate_does_not_override_explicit_typed_legacy_conflict`（L494–L508）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L500断言`any("filterable" in gap for gap in coverage_gaps(requirement, plan))`；L508断言`any("filterable" in gap for gap in coverage_gaps(requirement, plan))`。 调用`customer_metric_case`、`any`、`coverage_gaps`、`next`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_metric_row_scope_does_not_require_global_ui_filter`（L519–L524）：接收`text`。 控制顺序：L523断言`coverage_gaps(requirement, plan) == []`；L524断言`plan.business.model_dump() == before`。 调用`customer_metric_case`、`plan.business.model_dump`、`coverage_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_entity_capability_heading_does_not_make_first_search_field_filterable`（L529–L540）：接收`first`、`heading`。 控制顺序：L538断言`coverage_gaps(requirement, plan) == []`；L540断言`any("filterable" in gap for gap in coverage_gaps(requirement, plan))`。 调用`customer_case`、`"、".join`、`coverage_gaps`、`requirement.features.append`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unrequested_metric_filter_does_not_become_a_positive_metric_predicate`（L543–L547）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L547断言`coverage_gaps(requirement, plan) == []`。 调用`customer_metric_case`、`coverage_gaps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_customer_coverage.py sha256: 79a4d9bf356ab818d7afaf18c53e077d85dc7422cc3d4a74a3901b881d8adca7 -->
+<!-- source-file: tests/test_customer_coverage.py sha256: 2ef6aa665f1079befadf31bcb190d0db375cef9436b5881d79474261bab979d7 -->
 ````python
 """Model-style summaries must preserve entity/field subjects without fixture substitution."""
 
@@ -31975,6 +32230,162 @@ def test_textual_false_date_range_is_enforced_for_named_date_field():
     assert coverage_gaps(requirement, plan) == []
     plan.entities[0].fields[-1].date_range = True
     assert any("date_range" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def customer_metric_case(kind="count"):
+    import json
+
+    from workbench.business_contracts import MetricSpec
+    from workbench.settings import ROOT
+
+    plan = Plan.model_validate(
+        json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    )
+    field = next(
+        f
+        for e in plan.entities
+        if e.name == "requests"
+        for f in e.fields
+        if f.name == "request_state"
+    )
+    field.filterable = False
+    options = {
+        "count": {},
+        "group_count": {"group_by": "priority"},
+        "time_count": {"time_field": "created_at"},
+        "average_duration": {"start_field": "created_at", "end_field": "resolved_at"},
+    }[kind]
+    plan.business.metrics = [
+        MetricSpec(
+            name="matching",
+            label="条件指标",
+            entity="requests",
+            kind=kind,
+            filters=[{"field": "request_state", "op": "eq", "value": "resolved"}],
+            **options,
+        )
+    ]
+    requirement = Requirement(
+        summary="指标合同",
+        users=["管理人员", "服务人员"],
+        features=[],
+        acceptance=[],
+        data_scope="shared",
+        field_requirements=[
+            FieldRequirement(entity="requests", field="request_state", filterable=False)
+        ],
+    )
+    return requirement, plan
+
+
+@pytest.mark.parametrize("kind", ["count", "group_count", "time_count", "average_duration"])
+@pytest.mark.parametrize("section", ["features", "acceptance", "facts"])
+def test_metric_predicates_are_not_list_filter_flags(kind, section):
+    requirement, plan = customer_metric_case(kind)
+    text = f"requests：业务指标（{kind}，按 request_state=resolved 筛选）"
+    if section == "facts":
+        requirement.facts = {"统计条件": text}
+    else:
+        setattr(requirement, section, [text])
+    before = plan.model_dump()
+    assert coverage_gaps(requirement, plan) == []
+    assert plan.model_dump() == before
+    plan.business.metrics[0].filters = []
+    gaps = coverage_gaps(requirement, plan)
+    assert gaps and all("业务指标" in gap for gap in gaps)
+
+
+@pytest.mark.parametrize("mutation", ["entity", "kind", "value", "op", "missing_business"])
+def test_metric_predicate_still_requires_the_correct_executable_metric(mutation):
+    requirement, plan = customer_metric_case()
+    requirement.features = ["已解决数（count，按 requests.request_state=resolved 筛选）"]
+    assert coverage_gaps(requirement, plan) == []
+    if mutation == "missing_business":
+        plan.business = None
+    elif mutation in {"entity", "kind"}:
+        setattr(
+            plan.business.metrics[0], mutation, "tasks" if mutation == "entity" else "time_count"
+        )
+    else:
+        setattr(
+            plan.business.metrics[0].filters[0], mutation, "active" if mutation == "value" else "ne"
+        )
+    assert any("业务指标" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize("surface", ["列表", "表格", "页面", "查询参数", "list", "table", "UI"])
+def test_metric_context_does_not_override_explicit_list_filtering(surface):
+    requirement, plan = customer_metric_case()
+    requirement.features = [f"统计{surface}必须支持 request_state 筛选"]
+    assert any("filterable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_metric_predicate_and_unrelated_ui_filter_remain_separate():
+    requirement, plan = customer_metric_case()
+    requirement.features = [
+        "已解决数（count，按 request_state=resolved 筛选），客户列表支持 category 筛选"
+    ]
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[-1].filterable = False
+    assert any(
+        "filterable" in gap and "category" in gap for gap in coverage_gaps(requirement, plan)
+    )
+
+
+def test_metric_predicate_does_not_override_explicit_typed_legacy_conflict():
+    requirement, plan = customer_metric_case()
+    requirement.features = [
+        "已解决数（count，按 request_state=resolved 筛选）",
+        "requests.request_state filterable=true",
+    ]
+    assert any("filterable" in gap for gap in coverage_gaps(requirement, plan))
+    next(
+        f
+        for e in plan.entities
+        if e.name == "requests"
+        for f in e.fields
+        if f.name == "request_state"
+    ).filterable = True
+    assert any("filterable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "所有统计指标按本人可见权限范围过滤",
+        "服务人员的count指标按assigned负责范围筛选",
+        "manager/service的统计按角色权限筛选，只计算可见行",
+    ],
+)
+def test_metric_row_scope_does_not_require_global_ui_filter(text):
+    requirement, plan = customer_metric_case()
+    requirement.features = [text]
+    before = plan.business.model_dump()
+    assert coverage_gaps(requirement, plan) == []
+    assert plan.business.model_dump() == before
+
+
+@pytest.mark.parametrize("first", ["name", "organization", "contact"])
+@pytest.mark.parametrize("heading", ["客户管理", "customers：", "客户档案（customers）"])
+def test_entity_capability_heading_does_not_make_first_search_field_filterable(first, heading):
+    requirement, plan = customer_case()
+    names = [first, *[name for name in ("name", "organization", "contact") if name != first]]
+    requirement.features = [
+        heading
+        + "支持关键词搜索和精确筛选，字段包括"
+        + "、".join(name + "（可搜索）" for name in names)
+        + "、category（可精确筛选）"
+    ]
+    assert coverage_gaps(requirement, plan) == []
+    requirement.features.append(f"customers：{first}搜索和精确筛选")
+    assert any("filterable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_unrequested_metric_filter_does_not_become_a_positive_metric_predicate():
+    requirement, plan = customer_metric_case()
+    requirement.features = ["count统计无需request_state筛选"]
+    plan.business.metrics[0].filters = []
+    assert coverage_gaps(requirement, plan) == []
 ````
 
 ### `tests/test_customer_workflow.py`
@@ -36204,9 +36615,10 @@ def test_frontend_mock_services_are_disabled():
 
 **逐个入口与控制逻辑：**
 
-- `test_yudao_cached_tab_uses_actual_search_before_verifying_response`（L11–L56）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L13按`not node`分支；L56断言`result.returncode == 0`。 调用`shutil.which`、`pytest.skip`、`subprocess.run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_yudao_cached_tab_uses_actual_search_before_verifying_response`（L11–L59）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L13按`not node`分支；L59断言`result.returncode == 0`。 调用`shutil.which`、`pytest.skip`、`subprocess.run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generated_yudao_pages_provide_entity_specific_navigation_scope`（L62–L72）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L68遍历`("customers", "requests", "tasks")`；L70断言`f'<Page data-rnd-business-entity="{entity}" auto-content-height>' in mounted`；L71断言`mounted.count("data-rnd-business-entity=") == 1`；L72断言`'<Grid class="rnd-business-grid"' in mounted`。 调用`_mount_panel`、`mounted.count`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_native_browser_navigation.py sha256: 96db1052a3fae1656fc4f264a94ba93a1d2b83e81acf8c786671bf7976380814 -->
+<!-- source-file: tests/test_native_browser_navigation.py sha256: b2840f4d60ad2a06e01f5e95f4732a6c210ef18d0cc3fc6890ed486343b1152d -->
 ````python
 """Native cached tabs must be refreshed through the visible UI before list assertions."""
 
@@ -36239,8 +36651,11 @@ const { refreshNativeList } = require('./scripts/business_yudao_browser.cjs');
       resolveResponse({ list: [{ id: String(clicks) }] });
     },
   };
-  const page = { getByRole(role, options) {
-    assert.equal(role, 'button'); assert(options.name.test('搜 索')); return search;
+  const page = { locator(selector) {
+    assert.equal(selector, '[data-rnd-business-entity=\"requests\"]:visible');
+    return { getByRole(role, options) {
+      assert.equal(role, 'button'); assert(options.name.test('搜 索')); return search;
+    } };
   } };
   const observe = list => {
     assert.equal(list, '/admin-api/infra/wb-requests/page');
@@ -36250,7 +36665,7 @@ const { refreshNativeList } = require('./scripts/business_yudao_browser.cjs');
   // A kept-alive tab has no navigation-triggered network request. Each assertion
   // must be satisfied by a fresh response caused by clicking the actual UI control.
   for (let visit = 1; visit <= 2; visit++) {
-    const rows = await refreshNativeList(page, '/admin-api/infra/wb-requests/page', observe, async value => value);
+    const rows = await refreshNativeList(page, 'requests', '/admin-api/infra/wb-requests/page', observe, async value => value);
     assert.equal(rows.list[0].id, String(visit));
   }
   assert.equal(clicks, 2);
@@ -36264,6 +36679,19 @@ const { refreshNativeList } = require('./scripts/business_yudao_browser.cjs');
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_generated_yudao_pages_provide_entity_specific_navigation_scope():
+    from workbench.business_yudao import _mount_panel
+
+    source = """<script lang="ts" setup></script>
+<template><Page auto-content-height><Grid><template #actions="{ row }">
+<TableAction :actions="[]" /></template></Grid></Page></template>"""
+    for entity in ("customers", "requests", "tasks"):
+        mounted = _mount_panel(source, entity)
+        assert f'<Page data-rnd-business-entity="{entity}" auto-content-height>' in mounted
+        assert mounted.count("data-rnd-business-entity=") == 1
+        assert '<Grid class="rnd-business-grid"' in mounted
 ````
 
 ### `tests/test_native_business_evidence.py`
@@ -38398,12 +38826,16 @@ def test_optional_text_omitted_in_approved_rule_sample_still_checks_limits(
 - `test_safe_coverage_diagnostics_include_source_and_no_raw_prose_or_choices`（L476–L500）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L492断言`any(item["source"]["section"] == "features" for item in result)`；L493断言`any( item["source"]["encoding"] == "structured" for item in result if item["source"][…`；L498断言`any(item["targets"] == [{"entity": "customers", "field": "category"}] for item in res…`；L499断言`any(item.get("expected_count") == 1 for item in result)`；L500断言`"test-only-secret" not in json.dumps(result)`。 调用`Plan.model_validate`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`safe_coverage_details`、`requirement.model_dump`、`plan.model_dump`、`any`、`item.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_native_label_failure_is_exact_finite_code_with_no_description_export`（L503–L512）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L509断言`result["code"] == "native_label_contract"`；L510断言`result["entity_labels"][0]["allowed_characters"] is False`；L511断言`result["entity_labels"][0]["single_line"] is True`；L512断言`"test-only-secret" not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`safe_native_plan_details`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_every_native_plan_validation_message_has_a_finite_safe_code`（L515–L528）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L523遍历`(validate_plan, runtime_config)`；L525遍历`ast.walk(tree)`；L526按`isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call)`分支；L527断言`isinstance(node.exc.args[0], ast.Constant)`；L528断言`node.exc.args[0].value in DESIGN_REASON_CODES`。 调用`ast.parse`、`inspect.getsource`、`ast.walk`、`isinstance`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_diagnostics_separate_model_coverage_and_native_origins`（L531–L577）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L573断言`result["coverage_diagnostics"][0]["codes"] == ["planner_unsupported"]`；L574断言`result["coverage_diagnostics"][0]["origin"] == "planner_unsupported"`；L575断言`result["coverage_diagnostics"][1]["origin"] == "requirement_coverage"`；L576断言`result["unsupported_diagnostics"][0]["topics"] == ["date_range", "capability"]`；L577断言`"test-only-secret" not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`coverage_gaps`、`Plan.model_validate`、`safe_workflow_details`、`Store`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_diagnostics_separate_model_coverage_and_native_origins`（L531–L579）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L575断言`result["coverage_diagnostics"][0]["codes"] == ["planner_unsupported"]`；L576断言`result["coverage_diagnostics"][0]["origin"] == "planner_unsupported"`；L577断言`result["coverage_diagnostics"][1]["origin"] == "requirement_coverage"`；L578断言`result["unsupported_diagnostics"][0]["topics"] == ["date_range", "capability"]`；L579断言`"test-only-secret" not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`coverage_gaps`、`Plan.model_validate`、`safe_workflow_details`、`Store`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store`（L547–L570）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store.get_run`（L548–L563）：接收`run_id`。 调用`len`。 返回路径：L549的`{ "status": "BLOCKED", "template": "python-basic", "model_calls": 4, "pending": { "stage":…`。
 - `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store.latest_revision`（L565–L570）：接收`run_id`、`stage`。 调用`requirement.model_dump`。 返回路径：L566的`{"requirement": requirement.model_dump()} if stage == "requirements" else {"plan": plan}`。
+- `test_validation_excerpt_scrubs_credentials_headers_tokens_and_url_userinfo`（L598–L603）：接收`value`、`secret`。 控制顺序：L602断言`secret not in result`；L603断言`"REDACTED" in result`。 调用`DiagnosticTextBudget().excerpt`、`DiagnosticTextBudget`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_key_redaction_precedes_truncation_and_total_budget_is_shared`（L606–L616）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L612断言`"exact" not in first and len(first) <= 600`；L614断言`len(first) + sum(map(len, rest)) == 6000`；L615断言`all(len(item) <= 600 for item in rest)`；L616断言`budget.excerpt("more") == ""`。 调用`DiagnosticTextBudget`、`budget.excerpt`、`len`、`budget.excerpts`、`sum`、`map`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_safe_coverage_excerpt_is_selected_and_redacted_without_full_requirement`（L619–L639）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L637断言`"必须支持精确筛选" in rendered`；L638断言`"opaque-private-canary" not in rendered`；L639断言`"private summary" not in rendered and "unrelated unselected" not in rendered`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`safe_coverage_details`、`requirement.model_dump`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_review_gap_diagnostics_preserve_blocking_count_and_omit_other_model_text`（L642–L658）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L654断言`result["uncovered_requirements_count"] == 1`；L655断言`"客户历史请求未验证" in result["uncovered_requirement_excerpts"][0]`；L657断言`"opaque-private-canary" not in encoded and "raw private provider" not in encoded`；L658断言`review.uncovered_requirements == ["客户历史请求未验证，opaque-private-canary"]`。 调用`ModelReview`、`completed_stage_details`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_real_model_ci.py sha256: 1f1d20c14744f12ab89e27afae19c510b6757b6c977303822a48f036cf0bc5cd -->
+<!-- source-file: tests/test_real_model_ci.py sha256: 39f93abefc4dcb4bfc61f14de66b63af716b78e4d53a8f09bd3adbcf578ee43d -->
 ````python
 """No paid calls here: test doubles only test the real-run harness' safety boundaries."""
 
@@ -38936,7 +39368,7 @@ def test_every_native_plan_validation_message_has_a_finite_safe_code():
 
 
 def test_workflow_diagnostics_separate_model_coverage_and_native_origins():
-    from scripts.ci_real_model import safe_workflow_details
+    from scripts.ci_real_model import DiagnosticTextBudget, safe_workflow_details
     from workbench.domain import Plan, Requirement
     from workbench.requirement_coverage import coverage_gaps
 
@@ -38976,12 +39408,93 @@ def test_workflow_diagnostics_separate_model_coverage_and_native_origins():
                 else {"plan": plan}
             )
 
-    result = safe_workflow_details(Store(), "run", [])
+    result = safe_workflow_details(
+        Store(), "run", [], text_budget=DiagnosticTextBudget(secrets=("test-only-secret",))
+    )
     assert result["coverage_diagnostics"][0]["codes"] == ["planner_unsupported"]
     assert result["coverage_diagnostics"][0]["origin"] == "planner_unsupported"
     assert result["coverage_diagnostics"][1]["origin"] == "requirement_coverage"
     assert result["unsupported_diagnostics"][0]["topics"] == ["date_range", "capability"]
     assert "test-only-secret" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "value,secret",
+    [
+        ("API_KEY=credential_canary", "credential_canary"),
+        ('{"password": "password_canary"}', "password_canary"),
+        ("诊断：密码：password_canary", "password_canary"),
+        ("request failed Authorization: Bearer header_canary", "header_canary"),
+        ('metadata "Cookie": "session=cookie_canary"', "cookie_canary"),
+        ("postgresql+psycopg://alice:url_canary@127.0.0.1/private", "url_canary"),
+        ("https://example.invalid/?access_token=query_canary", "query_canary"),
+        ("Bearer bearer_canary", "bearer_canary"),
+        ("sk-testcredentialcanary123", "sk-testcredentialcanary123"),
+        ("github_pat_credentialcanary123", "github_pat_credentialcanary123"),
+        ("eyJhbGciOiJIUzI1NiJ9.credentialcanary.signature", "credentialcanary"),
+    ],
+)
+def test_validation_excerpt_scrubs_credentials_headers_tokens_and_url_userinfo(value, secret):
+    from scripts.ci_real_model import DiagnosticTextBudget
+
+    result = DiagnosticTextBudget().excerpt(value)
+    assert secret not in result
+    assert "REDACTED" in result
+
+
+def test_exact_key_redaction_precedes_truncation_and_total_budget_is_shared():
+    from scripts.ci_real_model import DiagnosticTextBudget
+
+    secret = "exact-key-canary-private"
+    budget = DiagnosticTextBudget(secrets=(secret,))
+    first = budget.excerpt("x" * 595 + secret)
+    assert "exact" not in first and len(first) <= 600
+    rest = budget.excerpts(["y" * 1000] * 20)
+    assert len(first) + sum(map(len, rest)) == 6000
+    assert all(len(item) <= 600 for item in rest)
+    assert budget.excerpt("more") == ""
+
+
+def test_safe_coverage_excerpt_is_selected_and_redacted_without_full_requirement():
+    from scripts.ci_real_model import DiagnosticTextBudget, safe_coverage_details
+    from workbench.domain import Requirement
+
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    requirement = Requirement(
+        summary="private summary not selected",
+        users=["not selected"],
+        data_scope="shared",
+        features=["customers：name 必须支持精确筛选，opaque-private-canary"],
+        acceptance=["unrelated unselected wording"],
+    )
+    result = safe_coverage_details(
+        requirement.model_dump(),
+        plan,
+        text_budget=DiagnosticTextBudget(secrets=("opaque-private-canary",)),
+    )
+    rendered = json.dumps(result, ensure_ascii=False)
+    assert "必须支持精确筛选" in rendered
+    assert "opaque-private-canary" not in rendered
+    assert "private summary" not in rendered and "unrelated unselected" not in rendered
+
+
+def test_review_gap_diagnostics_preserve_blocking_count_and_omit_other_model_text():
+    from scripts.ci_real_model import DiagnosticTextBudget, completed_stage_details
+    from workbench.domain import ModelReview
+
+    review = ModelReview(
+        summary="raw private provider summary",
+        observations=["raw private provider observation"],
+        uncovered_requirements=["客户历史请求未验证，opaque-private-canary"],
+    )
+    result = completed_stage_details(
+        review, DiagnosticTextBudget(secrets=("opaque-private-canary",))
+    )
+    assert result["uncovered_requirements_count"] == 1
+    assert "客户历史请求未验证" in result["uncovered_requirement_excerpts"][0]
+    encoded = json.dumps(result, ensure_ascii=False)
+    assert "opaque-private-canary" not in encoded and "raw private provider" not in encoded
+    assert review.uncovered_requirements == ["客户历史请求未验证，opaque-private-canary"]
 ````
 
 ### `tests/test_recommendation_recovery.py`
@@ -41582,7 +42095,7 @@ main().catch(error => { console.error(error.name + ': native business UI accepta
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/business_yudao_browser.cjs sha256: b64a81079f786d80cb5fb2d0b78133e6b7198280e879e9552bdaee801abf3c4f -->
+<!-- source-file: scripts/business_yudao_browser.cjs sha256: 78aeb9832635584dfc08b9f9196ef585bc0646e098aa7a312ec7ef7788d2fd58 -->
 ````javascript
 // Real Vben/Ant business journey. Only scenario-owned synthetic accounts; no mocks/token injection.
 'use strict';
@@ -41592,8 +42105,9 @@ const assert = require('node:assert/strict');
 
 // Vben keeps visited tabs alive, so activating a tab need not issue a new list request.
 // Exercise its actual search control to refresh the list and verify the resulting HTTP response.
-async function refreshNativeList(page, list, observe, checked) {
-  const search = page.getByRole('button', { name: /^搜\s*索$/ });
+async function refreshNativeList(page, entity, list, observe, checked) {
+  const current = page.locator(`[data-rnd-business-entity="${entity}"]:visible`);
+  const search = current.getByRole('button', { name: /^搜\s*索$/ });
   await search.waitFor({ state: 'visible' });
   const listing = observe(list);
   await search.click();
@@ -41658,7 +42172,7 @@ async function main() {
   async function openPage(entity) {
     const current = target(entity);
     await page.goto(base + '/#' + current.route, { waitUntil: 'domcontentloaded' });
-    const rows = await refreshNativeList(page, current.list, observe, checked);
+    const rows = await refreshNativeList(page, entity, current.list, observe, checked);
     for (const selector of ['aside:visible', 'header:visible', '#__vben_main_content', '.vxe-table:visible', '[data-rnd-business-panel]']) await page.locator(selector).first().waitFor({ state: 'visible' });
     assert.equal(await page.locator('#workspace').count(), 0, 'Generic frontend is forbidden');
     const theme = await page.evaluate(() => {
@@ -43539,24 +44053,29 @@ if __name__ == "__main__":
 - `BoundedRealTransport.shutdown`（L162–L163）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.transport.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `response_receipt`（L166–L223）：接收`status`、`data`、`stage`、`schema`。 控制顺序：L187按`schema is not None and isinstance(content, str)`分支；L189按`content.startswith("```json") and content.endswith("```")`分支。 调用`json.loads`、`choice.get`、`choice["message"].get`、`isinstance`、`bool`、`content.strip`、`envelope.get("usage", {}).items`、`envelope.get`、`type`等。 返回路径：L223的`receipt`。
 - `response_receipt.visit`（L201–L208）：接收`node`。 控制顺序：L202按`isinstance(node, dict)`分支；L204遍历`node.values()`；L206按`isinstance(node, list)`分支；L207遍历`node`。 调用`isinstance`、`names.update`、`node.get`、`node.values`、`visit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `contract_snapshot`（L226–L258）：接收`data`、`requirement`。 控制顺序：L250按`requirement`分支。 调用`field_summary`、`data.get`、`identifier`、`e.get`。 返回路径：L251的`[field_summary(f) for f in data.get("field_requirements", [])[:128]]`；L252的`[ { "name": identifier(e.get("name")), "fields": [field_summary(f) for f in e.get("fields"…`。
-- `contract_snapshot.identifier`（L227–L232）：接收`value`。 调用`isinstance`、`re.fullmatch`。 返回路径：L228的`value if isinstance(value, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,39}", value) else "unr…`。
-- `contract_snapshot.field_summary`（L234–L248）：接收`value`。 控制顺序：L236按`requirement`分支；L238遍历`("required", "searchable", "filterable", "date_range")`；L239按`type(value.get(name)) is bool`分支；L241遍历`("min_length", "max_length")`；L242按`type(value.get(name)) is int and 0 <= value[name] <= 20000`分支；L244按`value.get("kind") in {"text", "integer", "boolean", "date", "datetime", "enum"}`分支；L246按`isinstance(value.get("choices"), list)`分支。 调用`identifier`、`value.get`、`type`、`isinstance`、`len`。 返回路径：L248的`result`。
-- `safe_coverage_details`（L292–L336）：接收`requirement`、`plan`。 源码说明：Export executable differences and source references, never requirement prose.。 控制顺序：L324遍历`items[:128]`；L329遍历`("expected", "actual")`；L331按`attribute == "choices" and isinstance(value, list)`分支。 调用`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`isinstance`、`len`、`scalar`、`result.append`。 返回路径：L336的`result`。
-- `safe_coverage_details.scalar`（L302–L321）：接收`attribute`、`value`。 控制顺序：L303按`type(value) is bool or value is None`分支；L305按`attribute in {"min_length", "max_length"} and type(value) is int and 0 <= value <= 20…`分支；L307按`attribute == "kind" and isinstance(value, str) and value in { "text", "integer", "boo…`分支。 调用`type`、`isinstance`。 返回路径：L304的`value`；L306的`value`；L320的`value`。
-- `safe_native_plan_details`（L339–L364）：接收`plan`。 源码说明：Report the actual native-validator failure plus label-shape evidence.。 调用`Plan.model_validate`、`validate_plan`、`DESIGN_REASON_CODES.get`、`str`、`len`、`any`、`bool`、`re.fullmatch`。 返回路径：L350的`{ "code": code, "entity_labels": [ { "entity": entity.name, "length": len(entity.descripti…`。
-- `safe_workflow_details`（L367–L515）：接收`store`、`run_id`、`traces`。 控制顺序：L369按`run_id`分支；L403按`requirement and plan`分支；L405按`run.get("template") in {"fastapiadmin", "yudao-vben"}`分支。 调用`store.get_run`、`run.get`、`pending.get`、`(store.latest_revision(run_id, "requirements") or {}).get`、`store.latest_revision`、`(store.latest_revision(run_id, "design") or {}).get`、`bool`、`plan.get`、`len`等。 返回路径：L515的`details`。
-- `smoke`（L518–L546）：接收`config`、`transport`。 源码说明：A single bounded genuine request. Provider error bodies are never emitted.。 控制顺序：L531按`status != 200`分支；L533抛异常，停止当前正常路径；L535遍历`response.iter_bytes()`；L537按`len(data) > 131072`分支；L538抛异常，停止当前正常路径；L540按`not isinstance(content, str) or not content.strip()`分支；L541抛异常，停止当前正常路径；L543抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`httpx.Client`、`client.stream`、`config.key.get_secret_value`、`SafeFailure`、`bytearray`、`response.iter_bytes`、`data.extend`、`len`、`json.loads`等。 返回路径：L546的`{"passed": True, "http_status": status, "actual_provider_request": True}`。
-- `customer_request`（L587–L597）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`"\n\n".join`、`(ROOT / "examples/requirements" / name).read_text`。 返回路径：L590的`"\n\n".join( (ROOT / "examples/requirements" / name).read_text(encoding="utf-8") for name …`。
-- `require_customer_spec`（L600–L697）：接收`spec`。 控制顺序：L606断言`plan.business is not None and plan.data_scope == "shared" and not plan.unsupported`；L607断言`{e.name for e in plan.entities} == {"customers", "requests", "tasks"}`；L608断言`{r.name for r in plan.business.roles} == {"manager", "service", "employee"}`；L616断言`not business_gaps(requirement, plan)`；L617断言`{m.kind for m in plan.business.metrics} >= { "count", "average_duration", "group_coun…`；L623断言`not plan.custom_rules`；L649断言`all(set(entities[name]) == fields for name, fields in expected.items())`；L650断言`all(field.label for fields in entities.values() for field in fields.values())`。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`Requirement`、`customer_request`、`business_gaps`、`all`、`set`、`expected.items`、`entities.values`、`fields.values`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `acceptance_settings`（L700–L732）：接收`config`、`directory`。 调用`Settings`。 返回路径：L703的`Settings( data_dir=directory / "private-platform", database_url="", checkpoint_url="", bas…`。
-- `run_acceptance`（L735–L918）：接收`config`、`transport`、`directory`、`template`。 控制顺序：L749按`template != "python-basic"`分支；L799遍历`range(150)`；L800按`server.started`分支；L804抛异常，停止当前正常路径；L833按`process.returncode or not result_path.is_file()`分支；L836按`result_path.is_file()`分支；L838抛异常，停止当前正常路径；L845按`run["status"] != "READY" or not run["auto_mode"] or not archive.is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_settings`、`Selection`、`settings.prepare`、`write_json`、`runtime_path`、`create_app`、`ObservedGateway`、`socket.socket`、`sock.bind`等。 返回路径：L897的`{ "passed": True, "real_model": True, "single_initial_smart_consent": True, "explicit_cust…`。
-- `run_acceptance.ObservedGateway`（L762–L783）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `run_acceptance.ObservedGateway.complete`（L763–L783）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L775遍历`( "questions", "unsupported", "uncovered_requirements", "field_re…`；L781按`hasattr(value, name)`分支。 调用`key.split`、`traces.append`、`super().complete`、`super`、`hasattr`、`len`、`getattr`。 返回路径：L783的`value`。
-- `verified_smoke_receipt`（L921–L937）：接收`path`、`config`、`env`。 控制顺序：L924断言`saved["passed"] is True and saved["acceptance_scope"] == "smoke_only"`；L925断言`saved["smoke"] == { "passed": True, "http_status": 200, "actual_provider_request": Tr…`；L930断言`saved["actual_http_calls"] == 1 and saved["provider_statuses"] == [200]`；L931断言`saved["model"] == config.model and saved["endpoint"] == config.base_url`；L932断言`saved["run_identity"] == [ env.get(k, "") for k in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTE…`；L937抛异常，停止当前正常路径。 调用`json.loads`、`path.read_text`、`env.get`、`SafeFailure`。 返回路径：L935的`saved["smoke"]`。
-- `main`（L940–L1018）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L975按`mode == "full"`分支；L985按`mode == "smoke"`分支；L996按`exc.status is not None`分支；L998按`exc.details is not None`分支；L1005按`transport`分支；L1013按`config is not None`分支；L1017按`not result["passed"]`分支；L1018抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`trusted_dispatch`、`configuration`、`os.environ.pop`、`result.update`、`os.environ.get`、`verified_smoke_receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `DiagnosticTextBudget`（L226–L269）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `DiagnosticTextBudget.__init__`（L229–L231）：接收`secrets`、`limit`。 调用`tuple`、`isinstance`、`min`、`max`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `DiagnosticTextBudget.excerpt`（L233–L266）：接收`value`。 控制顺序：L234按`not isinstance(value, str) or not self.remaining`分支；L239遍历`sorted(self.secrets, key=len, reverse=True)`。 调用`isinstance`、`sorted`、`text.replace`、`re.sub`、`min`、`len`。 返回路径：L235的`""`；L266的`text`。
+- `DiagnosticTextBudget.excerpts`（L268–L269）：接收`values`。 调用`self.excerpt`。 返回路径：L269的`[text for value in values[:20] if (text := self.excerpt(value))]`。
+- `completed_stage_details`（L272–L282）：接收`value`、`text_budget`。 源码说明：Keep schema counts and selected review gaps, not complete model responses.。 控制顺序：L275遍历`("questions", "unsupported", "uncovered_requirements", "field_req…`；L276按`hasattr(value, name)`分支；L278按`hasattr(value, "uncovered_requirements")`分支。 调用`hasattr`、`len`、`getattr`、`text_budget.excerpts`。 返回路径：L282的`result`。
+- `contract_snapshot`（L285–L317）：接收`data`、`requirement`。 控制顺序：L309按`requirement`分支。 调用`field_summary`、`data.get`、`identifier`、`e.get`。 返回路径：L310的`[field_summary(f) for f in data.get("field_requirements", [])[:128]]`；L311的`[ { "name": identifier(e.get("name")), "fields": [field_summary(f) for f in e.get("fields"…`。
+- `contract_snapshot.identifier`（L286–L291）：接收`value`。 调用`isinstance`、`re.fullmatch`。 返回路径：L287的`value if isinstance(value, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,39}", value) else "unr…`。
+- `contract_snapshot.field_summary`（L293–L307）：接收`value`。 控制顺序：L295按`requirement`分支；L297遍历`("required", "searchable", "filterable", "date_range")`；L298按`type(value.get(name)) is bool`分支；L300遍历`("min_length", "max_length")`；L301按`type(value.get(name)) is int and 0 <= value[name] <= 20000`分支；L303按`value.get("kind") in {"text", "integer", "boolean", "date", "datetime", "enum"}`分支；L305按`isinstance(value.get("choices"), list)`分支。 调用`identifier`、`value.get`、`type`、`isinstance`、`len`。 返回路径：L307的`result`。
+- `safe_coverage_details`（L351–L411）：接收`requirement`、`plan`、`text_budget`。 源码说明：Export executable differences and source references, never requirement prose.。 控制顺序：L388遍历`items[:128]`；L393遍历`("expected", "actual")`；L395按`attribute == "choices" and isinstance(value, list)`分支；L401按`text_budget is not None and type(source.get("index")) is int and 0 <= source["index"]…`分支；L408按`excerpt`分支。 调用`requirement.get`、`list`、`_fact_texts`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`isinstance`、`len`、`scalar`等。 返回路径：L411的`result`。
+- `safe_coverage_details.scalar`（L366–L385）：接收`attribute`、`value`。 控制顺序：L367按`type(value) is bool or value is None`分支；L369按`attribute in {"min_length", "max_length"} and type(value) is int and 0 <= value <= 20…`分支；L371按`attribute == "kind" and isinstance(value, str) and value in { "text", "integer", "boo…`分支。 调用`type`、`isinstance`。 返回路径：L368的`value`；L370的`value`；L384的`value`。
+- `safe_native_plan_details`（L414–L439）：接收`plan`。 源码说明：Report the actual native-validator failure plus label-shape evidence.。 调用`Plan.model_validate`、`validate_plan`、`DESIGN_REASON_CODES.get`、`str`、`len`、`any`、`bool`、`re.fullmatch`。 返回路径：L425的`{ "code": code, "entity_labels": [ { "entity": entity.name, "length": len(entity.descripti…`。
+- `safe_workflow_details`（L442–L601）：接收`store`、`run_id`、`traces`、`text_budget`。 控制顺序：L445按`run_id`分支；L480按`requirement and plan`分支；L490按`run.get("template") in {"fastapiadmin", "yudao-vben"}`分支。 调用`DiagnosticTextBudget`、`store.get_run`、`run.get`、`pending.get`、`(store.latest_revision(run_id, "requirements") or {}).get`、`store.latest_revision`、`(store.latest_revision(run_id, "design") or {}).get`、`bool`、`plan.get`等。 返回路径：L601的`details`。
+- `smoke`（L604–L632）：接收`config`、`transport`。 源码说明：A single bounded genuine request. Provider error bodies are never emitted.。 控制顺序：L617按`status != 200`分支；L619抛异常，停止当前正常路径；L621遍历`response.iter_bytes()`；L623按`len(data) > 131072`分支；L624抛异常，停止当前正常路径；L626按`not isinstance(content, str) or not content.strip()`分支；L627抛异常，停止当前正常路径；L629抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`httpx.Client`、`client.stream`、`config.key.get_secret_value`、`SafeFailure`、`bytearray`、`response.iter_bytes`、`data.extend`、`len`、`json.loads`等。 返回路径：L632的`{"passed": True, "http_status": status, "actual_provider_request": True}`。
+- `customer_request`（L673–L683）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`"\n\n".join`、`(ROOT / "examples/requirements" / name).read_text`。 返回路径：L676的`"\n\n".join( (ROOT / "examples/requirements" / name).read_text(encoding="utf-8") for name …`。
+- `require_customer_spec`（L686–L783）：接收`spec`。 控制顺序：L692断言`plan.business is not None and plan.data_scope == "shared" and not plan.unsupported`；L693断言`{e.name for e in plan.entities} == {"customers", "requests", "tasks"}`；L694断言`{r.name for r in plan.business.roles} == {"manager", "service", "employee"}`；L702断言`not business_gaps(requirement, plan)`；L703断言`{m.kind for m in plan.business.metrics} >= { "count", "average_duration", "group_coun…`；L709断言`not plan.custom_rules`；L735断言`all(set(entities[name]) == fields for name, fields in expected.items())`；L736断言`all(field.label for fields in entities.values() for field in fields.values())`。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`Requirement`、`customer_request`、`business_gaps`、`all`、`set`、`expected.items`、`entities.values`、`fields.values`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `acceptance_settings`（L786–L818）：接收`config`、`directory`。 调用`Settings`。 返回路径：L789的`Settings( data_dir=directory / "private-platform", database_url="", checkpoint_url="", bas…`。
+- `run_acceptance`（L821–L999）：接收`config`、`transport`、`directory`、`template`。 控制顺序：L835按`template != "python-basic"`分支；L878遍历`range(150)`；L879按`server.started`分支；L883抛异常，停止当前正常路径；L912按`process.returncode or not result_path.is_file()`分支；L915按`result_path.is_file()`分支；L917抛异常，停止当前正常路径；L926按`run["status"] != "READY" or not run["auto_mode"] or not archive.is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_settings`、`Selection`、`settings.prepare`、`write_json`、`runtime_path`、`DiagnosticTextBudget`、`config.key.get_secret_value`、`create_app`、`ObservedGateway`等。 返回路径：L978的`{ "passed": True, "real_model": True, "single_initial_smart_consent": True, "explicit_cust…`。
+- `run_acceptance.ObservedGateway`（L849–L862）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `run_acceptance.ObservedGateway.complete`（L850–L862）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 调用`key.split`、`traces.append`、`super().complete`、`super`、`trace.update`、`completed_stage_details`。 返回路径：L862的`value`。
+- `verified_smoke_receipt`（L1002–L1018）：接收`path`、`config`、`env`。 控制顺序：L1005断言`saved["passed"] is True and saved["acceptance_scope"] == "smoke_only"`；L1006断言`saved["smoke"] == { "passed": True, "http_status": 200, "actual_provider_request": Tr…`；L1011断言`saved["actual_http_calls"] == 1 and saved["provider_statuses"] == [200]`；L1012断言`saved["model"] == config.model and saved["endpoint"] == config.base_url`；L1013断言`saved["run_identity"] == [ env.get(k, "") for k in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTE…`；L1018抛异常，停止当前正常路径。 调用`json.loads`、`path.read_text`、`env.get`、`SafeFailure`。 返回路径：L1016的`saved["smoke"]`。
+- `main`（L1021–L1099）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1056按`mode == "full"`分支；L1066按`mode == "smoke"`分支；L1077按`exc.status is not None`分支；L1079按`exc.details is not None`分支；L1086按`transport`分支；L1094按`config is not None`分支；L1098按`not result["passed"]`分支；L1099抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`trusted_dispatch`、`configuration`、`os.environ.pop`、`result.update`、`os.environ.get`、`verified_smoke_receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_real_model.py sha256: 0db9542eb86d3dc1fb5ee00f203ebf7191d1c651dc25a674bab4f234c47764b0 -->
+<!-- source-file: scripts/ci_real_model.py sha256: 9da6bf4db35c1c93aa279613e1420d68eeb2e1b0be8ba8c79f5f9c895543edc3 -->
 ````python
 """Opt-in real provider acceptance; only allowlisted evidence leaves the isolated job.
 
@@ -43783,6 +44302,65 @@ def response_receipt(status, data, stage, schema=None):
     return receipt
 
 
+class DiagnosticTextBudget:
+    """Bounded, selected validation wording, never full provider payloads/logs."""
+
+    def __init__(self, secrets=(), limit=6000):
+        self.secrets = tuple(secret for secret in secrets if isinstance(secret, str) and secret)
+        self.remaining = min(max(limit, 0), 6000)
+
+    def excerpt(self, value):
+        if not isinstance(value, str) or not self.remaining:
+            return ""
+        text = value
+        # Replace exact credentials before truncation so a boundary cannot leak
+        # a credential fragment. The caller supplies only the authorized key.
+        for secret in sorted(self.secrets, key=len, reverse=True):
+            text = text.replace(secret, "[REDACTED]")
+        text = re.sub(
+            r"(?im)\b(?:authorization|proxy-authorization|cookie|set-cookie|x-api-key)[\"']?\s*:.*$",
+            "[REDACTED HEADER]",
+            text,
+        )
+        text = re.sub(
+            r"(?i)\b[a-z][a-z0-9+.-]*://[^\s/@]+(?::[^\s/@]*)?@",
+            "[REDACTED URL CREDENTIALS]@",
+            text,
+        )
+        text = re.sub(
+            r"(?i)(?:\b(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|password|passwd|secret|credential|authorization|token)\b|密码|口令|密钥|令牌)[\"']?\s*[:：=]\s*[^\r\n]*",
+            "[REDACTED CREDENTIAL]",
+            text,
+        )
+        text = re.sub(r"(?i)\bbearer\s+[^\s,;]+", "[REDACTED TOKEN]", text)
+        text = re.sub(
+            r"\b(?:sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b",
+            "[REDACTED TOKEN]",
+            text,
+        )
+        text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+        limit = min(600, self.remaining)
+        text = text[:limit]
+        self.remaining -= len(text)
+        return text
+
+    def excerpts(self, values):
+        return [text for value in values[:20] if (text := self.excerpt(value))]
+
+
+def completed_stage_details(value, text_budget):
+    """Keep schema counts and selected review gaps, not complete model responses."""
+    result = {"completed": True}
+    for name in ("questions", "unsupported", "uncovered_requirements", "field_requirements"):
+        if hasattr(value, name):
+            result[name + "_count"] = len(getattr(value, name))
+    if hasattr(value, "uncovered_requirements"):
+        result["uncovered_requirement_excerpts"] = text_budget.excerpts(
+            value.uncovered_requirements
+        )
+    return result
+
+
 def contract_snapshot(data, requirement=False):
     def identifier(value):
         return (
@@ -43849,11 +44427,16 @@ DESIGN_REASON_CODES = {
 }
 
 
-def safe_coverage_details(requirement, plan):
+def safe_coverage_details(requirement, plan, *, text_budget=None):
     """Export executable differences and source references, never requirement prose."""
     from workbench.domain import Plan, Requirement
-    from workbench.requirement_coverage import coverage_gaps
+    from workbench.requirement_coverage import _fact_texts, coverage_gaps
 
+    source_texts = {
+        "features": requirement.get("features", []),
+        "acceptance": requirement.get("acceptance", []),
+        "facts": list(_fact_texts(requirement.get("facts", {}))),
+    }
     items = []
     coverage_gaps(
         Requirement.model_validate(requirement), Plan.model_validate(plan), diagnostics=items
@@ -43892,6 +44475,17 @@ def safe_coverage_details(requirement, plan):
                 entry[key + "_count"] = len(value)
             else:
                 entry[key] = scalar(attribute, value)
+        source = item["source"]
+        texts = source_texts.get(source["section"], [])
+        if (
+            text_budget is not None
+            and type(source.get("index")) is int
+            and 0 <= source["index"] < len(texts)
+            and (source["section"] != "facts" or source.get("encoding") == "legacy")
+        ):
+            excerpt = text_budget.excerpt(texts[source["index"]])
+            if excerpt:
+                entry["source_excerpt"] = excerpt
         result.append(entry)
     return result
 
@@ -43924,7 +44518,8 @@ def safe_native_plan_details(plan):
     }
 
 
-def safe_workflow_details(store, run_id, traces):
+def safe_workflow_details(store, run_id, traces, *, text_budget=None):
+    text_budget = text_budget or DiagnosticTextBudget()
     details = {"model_stages": traces}
     if run_id:
         run = store.get_run(run_id)
@@ -43960,8 +44555,17 @@ def safe_workflow_details(store, run_id, traces):
         }
         details["plan_contract"] = contract_snapshot(plan)
         details["requirement_contract"] = contract_snapshot(requirement, requirement=True)
+        details["unsupported_excerpts"] = text_budget.excerpts(plan.get("unsupported", []))
         if requirement and plan:
-            details["coverage_sources"] = safe_coverage_details(requirement, plan)
+            from workbench.domain import Plan, Requirement
+            from workbench.requirement_coverage import coverage_gaps
+
+            details["coverage_reason_excerpts"] = text_budget.excerpts(
+                coverage_gaps(Requirement.model_validate(requirement), Plan.model_validate(plan))
+            )
+            details["coverage_sources"] = safe_coverage_details(
+                requirement, plan, text_budget=text_budget
+            )
             if run.get("template") in {"fastapiadmin", "yudao-vben"}:
                 details["native_plan_validation"] = safe_native_plan_details(plan)
         error = run.get("error") or ""
@@ -43989,6 +44593,7 @@ def safe_workflow_details(store, run_id, traces):
             "date_kind": "真实日期类型",
             "uncovered_operation": "设计未覆盖已确认的",
             "constraint_mismatch": "设计不一致",
+            "missing_metric_predicate": "业务指标缺少已确认的筛选条件",
             "business_capability": "业务设计缺少",
         }
         attributes = (
@@ -44318,6 +44923,7 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             },
         )
     traces = []
+    diagnostic_text = DiagnosticTextBudget(secrets=(config.key.get_secret_value(),))
 
     class ObservedGateway(ModelGateway):
         def complete(self, run_id, key, instruction, payload, schema):
@@ -44331,15 +44937,7 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             trace = {"stage": stage, "completed": False}
             traces.append(trace)
             value = super().complete(run_id, key, instruction, payload, schema)
-            trace["completed"] = True
-            for name in (
-                "questions",
-                "unsupported",
-                "uncovered_requirements",
-                "field_requirements",
-            ):
-                if hasattr(value, name):
-                    trace[name + "_count"] = len(getattr(value, name))
+            trace.update(completed_stage_details(value, diagnostic_text))
             return value
 
     application = create_app(
@@ -44398,7 +44996,9 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             raise SafeFailure(
                 "workflow_not_ready",
                 last,
-                safe_workflow_details(application.state.store, run_id, traces),
+                safe_workflow_details(
+                    application.state.store, run_id, traces, text_budget=diagnostic_text
+                ),
             )
         browser = json.loads(result_path.read_text(encoding="utf-8"))
         run = application.state.store.get_run(browser["run_id"])
