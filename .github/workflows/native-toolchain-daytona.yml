@@ -91,6 +91,8 @@ jobs:
         run: uv run python -m scripts.daytona_bootstrap snapshot
       - name: No-egress sandbox owns its database and validates independent native launch
         run: uv run python -m scripts.ci_daytona_matrix verify ${{ matrix.template }}
+        env:
+          DAYTONA_CAPTURE_STARTUP_DIAGNOSTICS: 'true'
       - name: Preserve bounded redacted failure evidence
         if: always()
         run: |

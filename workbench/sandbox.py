@@ -342,6 +342,19 @@ def _verify_in_daytona(product, template, settings, *, client):
                 sandbox = client.get(name)
             except Exception:
                 pass
+            if sandbox is not None:
+                receipt["sandbox_id"] = sandbox.id
+                if settings.daytona_capture_startup_diagnostics:
+                    try:
+                        from workbench.daytona_diagnostics import capture_startup
+
+                        receipt["startup_diagnostics"] = capture_startup(sandbox.id, name, settings)
+                    except Exception as diagnostic_error:
+                        receipt["startup_diagnostics"] = {
+                            "status": "unavailable",
+                            "affects_acceptance": False,
+                            "error_type": type(diagnostic_error).__name__,
+                        }
         receipt["error_type"] = type(exc).__name__
         receipt["error_detail"] = settings.redact(str(exc))[:2000]
         receipt["passed"] = False

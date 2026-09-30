@@ -7,6 +7,11 @@ from pathlib import Path
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "daytona_diagnostics": (
+        "本次自有沙箱的有界启动诊断",
+        "创建失败后仅按确切随机名称和UUID读取固定本机Runner内的状态及日志尾部；限制单项与总时间、过滤秘密后限长保存。不枚举其他容器、不改配置，诊断失败不阻止原清理，成功不替代验收。",
+        "sandbox失败创建路径的显式可选开关 → capture_startup → startup_diagnostics回执 → 原沙箱删除路径。",
+    ),
     "native_style": (
         "原生UI壳、主题和组件族的身份检查",
         "先比较固定上游与生成目录中受保护布局/主题文件的内容清单，再解析生成Vue页应使用的真实框架组件；输出绑定模板、来源和Plan的回执。静态身份检查之后仍须真实浏览器检查，不能用一张通用页面替代原生风格。",

@@ -110,6 +110,7 @@ class Settings(BaseSettings):
     daytona_snapshots: dict[str, str] = Field(default_factory=dict)
     daytona_runtime_timeout: int = Field(default=3600, ge=60, le=7200)
     daytona_allow_local_execution: bool = False
+    daytona_capture_startup_diagnostics: bool = False
     checkpoint_url: str = ""
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1024, le=65535)

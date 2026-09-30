@@ -18,6 +18,7 @@ def run_isolated(product, template, settings):
         "settings": {
             "sandbox_provider": settings.sandbox_provider,
             "daytona_allow_local_execution": settings.daytona_allow_local_execution,
+            "daytona_capture_startup_diagnostics": settings.daytona_capture_startup_diagnostics,
             "daytona_api_url": settings.daytona_api_url,
             "daytona_api_key": settings.daytona_api_key.get_secret_value(),
             "daytona_snapshot": settings.daytona_snapshot,
