@@ -131,7 +131,7 @@ def test_transport_rejects_substitution_and_bounds_tokens_and_calls():
                 json={"model": MODEL, "max_tokens": 90000},
             )
         )
-        assert json.loads(requests[0].content)["max_tokens"] == 16000
+        assert json.loads(requests[0].content)["max_tokens"] == 65536
         with pytest.raises(SafeFailure, match="model_substitution"):
             transport.handle_request(
                 httpx.Request("POST", ENDPOINT + "/chat/completions", json={"model": "fallback"})
@@ -912,6 +912,9 @@ def test_runtime_diagnostics_keep_exact_failure_stage_and_safe_headline(tmp_path
         ("customer-service-http", "A" * 65537 + "\n"),
         ("customer-service-http", "AssertionError at /private/path.py:2 (f): secret\n"),
     ],
+    # Pytest exports the node ID as PYTEST_CURRENT_TEST; never put the 64-KiB
+    # hostile payload there (Windows environment values are limited to 32767).
+    ids=["unknown-stage", "non-string-stage", "oversized-headline", "private-path"],
 )
 def test_runtime_diagnostics_reject_unrecognized_report_values(tmp_path, stage, headline):
     from scripts.ci_real_model import DiagnosticTextBudget, safe_runtime_details

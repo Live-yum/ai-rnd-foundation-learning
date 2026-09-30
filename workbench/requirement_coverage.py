@@ -454,10 +454,113 @@ def _fact_candidates(key, fields):
     ]
 
 
+_ALL_ENTITIES = re.compile(
+    r"(?:所有|全部|各个?|两个|两种)实体|\b(?:all|both|every)\s+entities\b", re.I
+)
+
+
+def _legacy_targets(text, fields):
+    """Do not turn an ambiguous prose subject into grants on every entity.
+
+    Exact typed obligations are checked independently. Unscoped repeated names
+    remain semantic-review context unless the prose explicitly says all entities.
+    """
+    candidates = _fact_candidates(text, fields)
+    if _fact_entity(text, fields) is not None or _ALL_ENTITIES.search(text):
+        return candidates
+    return [
+        field
+        for field in candidates
+        if len({entity for entity, item in fields if item.name == field.name}) == 1
+    ]
+
+
 LEGACY_PROPERTY = (
     r"必填|可选|required|optional|搜索|检索|search|筛选|过滤|filter|"
     r"上限|最大|最多|最长|max_length|最小|至少|最短|min_length|日期区间|日期范围"
 )
+
+
+def _section_entity(text, fields):
+    """Infer only an unambiguous owner of an explicitly named field inventory."""
+    declared = {field.name for _, field in fields if _field_mentions(text, [field.name])}
+    owners = [{entity for entity, field in fields if field.name == name} for name in declared]
+    common = set.intersection(*owners) if owners else set()
+    return next(iter(common)) if len(common) == 1 else None
+
+
+def _single_operation_heading(text):
+    """Only a bare single operation can predicate the list following a colon."""
+    remaining = text
+    operations = 0
+    for pattern in (
+        r"日期区间|日期范围(?:筛选|查询)?|date.?range",
+        r"搜索|检索|search(?:ing|able)?",
+        r"筛选|过滤|filter(?:s|ing|able)?",
+    ):
+        if re.search(pattern, remaining, re.I):
+            operations += 1
+            remaining = re.sub(pattern, "", remaining, flags=re.I)
+    remaining = re.sub(
+        r"关键词|关键字|精确|支持|允许|字段|keywords?|exact|fields?|true|false|是|否|and|和|与|并|[\W_]",
+        "",
+        remaining,
+        flags=re.I,
+    )
+    return operations == 1 and not remaining
+
+
+def _explicit_predicate_heading(text):
+    """Known property/value syntax is a predicate, not a contextual title."""
+    if _single_operation_heading(text):
+        return True
+    heading = text.strip().rstrip(":：").strip()
+    heading = re.sub(r"\s*(?:字段|fields?)$", "", heading, flags=re.I).strip()
+    return bool(
+        re.fullmatch(
+            r"(?:required|optional|必填|可选填?|非必填|不必填|是否必填|"
+            r"min_length|max_length|(?:长度)?(?:上限|下限)|最小(?:长度)?|最大(?:长度)?|"
+            r"至少|最多|最长|最短)"
+            r"(?:\s*[:=]?\s*(?:true|false|是|否|\d+))?",
+            heading,
+            re.I,
+        )
+    )
+
+
+def _explicit_query_sections(text, fields):
+    """Separate a new query subject from an earlier inventory or operation.
+
+    Commas inside descriptors and bare identifier lists remain untouched.
+    A direct by/using/按/对 clause must name its own fields and operation.
+    """
+    depth, depths = 0, []
+    for char in text:
+        depths.append(depth)
+        if char in "（([【":
+            depth += 1
+        elif char in "）)]】":
+            depth = max(0, depth - 1)
+    boundary = re.compile(
+        r"(?:[,，]\s*(?:(?:并且|并|且|and)\s*)?|(?:并且|并|且|\band\b)\s*)"
+        r"(?=按|对|针对|依据|\b(?:by|using|on)\b|(?:keyword\s+)?search|filter|关键词搜索|精确筛选)",
+        re.I,
+    )
+    start = 0
+    for match in boundary.finditer(text):
+        if (
+            not depths[match.start()]
+            and _fact_candidates(text[start : match.start()], fields)
+            and _fact_candidates(text[match.end() :], fields)
+            and re.search(
+                r"搜索|检索|筛选|过滤|search|filter|日期区间|日期范围|date.?range",
+                text[match.end() :],
+                re.I,
+            )
+        ):
+            yield text[start : match.start()]
+            start = match.end()
+    yield text[start:]
 
 
 def _legacy_clauses(text, fields):
@@ -497,25 +600,68 @@ def _legacy_clauses(text, fields):
         ):
             sentence = previous_subject + " " + sentence
         contrast = False
-        heading = re.match(r"\s*([a-z][a-z0-9_]*)\s*[：:]", sentence, re.I)
-        if heading and heading.group(1) in {entity for entity, _ in fields}:
-            scope = heading.group(1)
-            sentence = sentence[heading.end() :]
-        else:
-            heading = re.match(r"\s*[^：:\n]*(?:字段|fields)\s*[：:]", sentence, re.I)
-            if heading:
-                scope = None
-                body = sentence[heading.end() :]
-                declared = re.findall(r"(?<![a-z0-9_])([a-z][a-z0-9_]*)\s*[(（]", body, re.I)
-                owners = [
-                    {entity for entity, field in fields if field.name == name} for name in declared
-                ]
-                common = set.intersection(*owners) if owners and all(owners) else set()
-                # A localized heading is mapped by its executable descriptor
-                # list, never a hard-coded translation or the first entity.
-                if len(common) == 1:
-                    scope = common.pop()
-                    sentence = body
+        universal_scope = bool(_ALL_ENTITIES.search(sentence))
+        explicit_scope = False
+        while True:
+            original = sentence
+            heading = re.match(r"\s*([a-z][a-z0-9_]*)\s*[：:]", sentence, re.I)
+            if heading and heading.group(1) in {entity for entity, _ in fields}:
+                scope = heading.group(1)
+                explicit_scope = True
+                sentence = sentence[heading.end() :]
+            else:
+                heading = re.match(r"\s*[^：:\n]*(?:字段|fields)\s*[：:]", sentence, re.I)
+                if heading and not _explicit_predicate_heading(heading.group()):
+                    if not explicit_scope:
+                        scope = None
+                    body = sentence[heading.end() :]
+                    declared = re.findall(r"(?<![a-z0-9_])([a-z][a-z0-9_]*)\s*[(（]", body, re.I)
+                    if not declared:
+                        declared = list(
+                            {
+                                field.name
+                                for _, field in fields
+                                if _field_mentions(body, [field.name])
+                            }
+                        )
+                    owners = [
+                        {entity for entity, field in fields if field.name == name}
+                        for name in declared
+                    ]
+                    common = set.intersection(*owners) if owners and all(owners) else set()
+                    # A localized heading is mapped by its executable descriptor
+                    # list, never a hard-coded translation or the first entity.
+                    if len(common) == 1:
+                        if not explicit_scope:
+                            scope = common.pop()
+                        sentence = body
+                else:
+                    heading = re.match(r"\s*([^：:\n]+)[：:]", sentence)
+                    if heading and not _fact_candidates(heading.group(1), fields):
+                        body = sentence[heading.end() :]
+                        # A section title is context, not a predicate on its first
+                        # field. Keep an operation-only heading when its body is
+                        # merely the target list (e.g. 'search: title, detail').
+                        if re.search(LEGACY_PROPERTY, body, re.I) or (
+                            _fact_candidates(body, fields)
+                            and not _explicit_predicate_heading(heading.group(1))
+                        ):
+                            if not explicit_scope:
+                                scope = _section_entity(body, fields)
+                            sentence = body
+            if sentence == original:
+                break
+        sections = list(_explicit_query_sections(sentence, fields))
+        if len(sections) > 1:
+            for section in sections:
+                scoped = f"{scope}：{section}" if scope else section
+                if universal_scope and not scope:
+                    scoped = "所有实体：" + scoped
+                yield from _legacy_clauses(scoped, fields)
+                subjects = _fact_candidates(scoped, fields)
+                if subjects:
+                    previous_subject = "、".join(dict.fromkeys(field.name for field in subjects))
+            continue
         depths, depth = [], 0
         for char in sentence:
             depths.append(depth)
@@ -547,6 +693,7 @@ def _legacy_clauses(text, fields):
                     previous_match = match
                     continue
             completed_descriptor = False
+            prior_end = previous_match.end() if previous_match is not None else start
             if previous_match is not None:
                 opening = previous_match.end()
                 while opening < match.start() and sentence[opening].isspace():
@@ -593,15 +740,21 @@ def _legacy_clauses(text, fields):
             )
             descriptive_boundary = False
             if comma is not None:
-                before_comma = re.sub(pattern, "", sentence[start:comma], flags=re.I)
+                first_subject = re.search(pattern, sentence[start:comma], re.I)
+                described_from = start + first_subject.end() if first_subject else start
+                before_comma = re.sub(pattern, "", sentence[described_from:comma], flags=re.I)
                 descriptive_boundary = bool(re.search(r"[a-z0-9\u4e00-\u9fff]", before_comma))
             if seen_subject and (
-                re.search(LEGACY_PROPERTY, prefix, re.I)
+                re.search(LEGACY_PROPERTY, sentence[prior_end : match.start()], re.I)
                 or descriptive_boundary
                 or completed_descriptor
             ):
-                previous.append(prefix)
-                start = match.start()
+                leading = re.search(
+                    r"[,，]\s*((?:可选填|可选|必填|required|optional)\s*)$", prefix, re.I
+                )
+                cut = start + leading.start(1) if leading else match.start()
+                previous.append(sentence[start:cut])
+                start = cut
             seen_subject = True
         previous.append(sentence[start:])
         shared = re.search(r"[)）]\s*((?:均|都)\s*.*)$", sentence)
@@ -612,14 +765,23 @@ def _legacy_clauses(text, fields):
             and not _fact_candidates(shared.group(1), fields)
             else ""
         )
+        list_modifier = ""
         for clause in previous:
             if clause.strip():
+                if list_modifier and not re.search(r"必填|可选|required|optional", clause, re.I):
+                    clause = list_modifier + " " + clause
+                modifier = re.match(r"\s*(可选填|可选|必填|required|optional)\s*", clause, re.I)
+                list_modifier = (
+                    modifier.group(1) if modifier and re.search(r"[、,，]\s*$", clause) else ""
+                )
                 # A trailing explicit 'all/both' predicate is shared even when
                 # the individual fields have complete, independent descriptors.
                 if shared_suffix and re.search(r"[)）]", clause) and shared_suffix not in clause:
                     clause += " " + shared_suffix
                 local_scope = _fact_entity(clause, fields) or scope
                 scoped = f"{local_scope}::{clause}" if local_scope else clause
+                if universal_scope and not local_scope:
+                    scoped = "所有实体 " + scoped
                 subjects = _fact_candidates(scoped, fields)
                 if subjects:
                     previous_subject = "、".join(dict.fromkeys(field.name for field in subjects))
@@ -1021,7 +1183,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
         for index, clause in enumerate(_legacy_clauses(_legacy_boolean_text(text, fields), fields)):
             source = {**origin, "clause": index}
             source_text = clause
-            targets = _fact_candidates(clause, fields)
+            targets = _legacy_targets(clause, fields)
             constraints = [
                 (match.group(1).lower(), match.group(2).lower() in {"true", "是"})
                 for match in re.finditer(
@@ -1062,10 +1224,11 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
     ]
     for source, text in texts:
         source_text = text
-        mentioned = _fact_candidates(text, fields)
+        known_subjects = _fact_candidates(text, fields)
+        mentioned = _legacy_targets(text, fields)
         for canonical, aliases in ALIASES.items():
             if _field_mentions(text, aliases):
-                matches = [f for f in mentioned if f.name in aliases]
+                matches = [f for f in known_subjects if f.name in aliases]
                 # Generic words such as 内容/分类 in a business summary are
                 # not declarations of a missing field. An explicit identifier
                 # with its description (detail/内容) binds the real field.
@@ -1098,11 +1261,13 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
                 operation_parts.append("".join(pending))
         previous_targets = []
         for part in operation_parts:
-            targets = _fact_candidates(part, fields) if part != text else mentioned
+            targets = _legacy_targets(part, fields) if part != text else mentioned
+            ambiguous_subject = not targets and bool(_fact_candidates(part, fields))
             # An operation-only continuation (标题搜索和精确筛选) inherits
             # the previous named subject; another field cannot satisfy it.
             if (
                 not targets
+                and not ambiguous_subject
                 and previous_targets
                 # A named generic keyword search is its own capability, not
                 # a search obligation on the preceding exact-filter field.
@@ -1117,6 +1282,8 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
             ]
             for flag, pattern in operations.items():
                 if not re.search(pattern, part, re.I):
+                    continue
+                if ambiguous_subject:
                     continue
                 candidates = targets
                 if flag == "date_range":

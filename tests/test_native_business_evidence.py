@@ -64,6 +64,7 @@ def evidence(tmp_path, template="fastapiadmin"):
         checks += [
             "manager:customers:native-form-create",
             "manager:requests:native-form-create",
+            "employee:requests:native-form-create",
             "manager:tasks:native-form-create",
             "native-business-action:assign:",
             "native-business-action:transition:start",

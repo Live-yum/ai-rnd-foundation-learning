@@ -368,10 +368,14 @@ uv run python -m scripts.build_handbook --check
 
 ## M. 已确认的需求为什么不能在下一轮消失
 
-`Requirement.field_requirements`保存字段级义务，例如`article.title`的文本类型、必填、最大长度和可搜索标记；`features`、`acceptance`与`facts`保存用户明确表达的其他条件。它们来自需求阶段，不由设计Plan反向决定。设计中的一个字段存在，不等于它的长度、日期范围和查询能力都正确。
+`Requirement.field_requirements`保存字段级义务，例如`requests.priority`必须为必填枚举、`requests.title`的文本类型、最大长度和可搜索标记；`features`、`acceptance`与`facts`保存用户明确表达的其他条件。它们来自需求阶段，不由设计Plan反向决定。设计中的一个字段存在，不等于它的长度、日期范围和查询能力都正确。
 
 `requirement_coverage.reconcile`先合并前次事实。后一次模型响应漏掉一项，不代表用户同意删除；需要替换时使用`RequirementChange`，包含被改的section/key、replacement和来自新用户消息的source_quote。程序核对引用确实存在并表达这项更正；模型自己写一句“用户同意”不构成证据。
 
 需求确认后，`flow.plan`保留原验收条件，`flow.design`调用`coverage_gaps`逐项比较结构化义务与Plan。把per_user换成shared、把真实日期换成普通文字、遗漏筛选或改掉枚举，都应进入明确的设计阻塞/修正流程，不能一路生成到下载。数据归属更改尤其需要用户的实际更正。
+
+规划输入还包含确定性生成的`field_obligations`：每项保留`field_requirements/索引`来源ID、实体/字段目标以及明确指定的属性。`false`、`0`不能当作缺失值丢掉，未指定的属性也不能凭空变成要求。重试反馈携带同一目标、属性、期望值和实际值，并同时保留原需求与上轮Plan；程序不自动改写模型Plan来伪造符合。
+
+旧版文字条件按章节与语句绑定：标题只提供上下文，字段清单只在归属唯一时帮助确定实体；后面的“按字段搜索/筛选”只约束自己的字段列表。重复字段名如果没有明确实体范围，不推断成所有实体的共同义务。真正明确的文字条件与结构化条件冲突时仍应阻塞，不能把全部文字忽略。其余业务语义继续通过业务合同和独立审阅检查，不能靠字词命中宣称完整理解。
 
 手工追踪一个例子：“标题必填，最多80字，可关键词搜索”。先在Requirement找到这三个条件，再在Plan中找到同一实体同一字段，核对required、max_length、searchable；最后查看产品API和浏览器对同一条件的检查。自由文字识别只覆盖已登记词汇，不能宣称程序已理解任意自然语言业务；明确的字段义务应进入结构化合同，未支持的要求保留为阻塞项。

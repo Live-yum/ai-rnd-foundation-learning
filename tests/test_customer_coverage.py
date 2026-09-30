@@ -597,6 +597,9 @@ def test_explicit_nonparticipating_timestamp_operations_remain_false_constraints
 ):
     requirement, plan = actual_customer_field_case()
     requirement.acceptance = [text]
+    # The actual run also supplied per-entity false flags. An unscoped repeated
+    # name cannot independently establish that every entity shares one policy.
+    requirement.field_requirements = typed_field_ledger(plan)
     field = next(
         field
         for item in plan.entities
@@ -692,6 +695,8 @@ def test_explicit_shared_predicate_survives_completed_descriptor_boundaries():
 def test_ambiguous_localized_heading_does_not_inherit_the_previous_entity():
     requirement, plan = customer_case()
     requirement.features = ["tasks：title（可选）；另一组字段：title（可选）"]
+    assert coverage_gaps(requirement, plan) == []
+    requirement.features = ["tasks：title（可选）；所有实体：title（可选）"]
     assert any("title" in gap and "可选" in gap for gap in coverage_gaps(requirement, plan))
 
 
@@ -756,3 +761,309 @@ def test_unsupported_operations_remain_field_scoped(negative, kind, attribute, o
     assert coverage_gaps(requirement, plan) == []
     setattr(field, attribute, True)
     assert any(attribute in gap and "extra" in gap for gap in coverage_gaps(requirement, plan))
+
+
+FINAL_CUSTOMER_QUERY = (
+    "客户搜索与筛选：按 name、organization、contact 关键词搜索，"
+    "按 category（企业/个人/合作伙伴）精确筛选。"
+)
+FINAL_REQUEST_QUERY = (
+    "服务请求管理：创建服务请求，记录 title、detail、customer_id、priority、due_at，"
+    "并按 title、detail 关键词搜索。"
+)
+FINAL_REQUEST_FIELDS = (
+    "requests 服务请求：创建请求需填写 title（必填，≤200）、detail（必填，≤3000）、"
+    "customer_id（必填关联 customers）、priority（必填枚举：普通/紧急），"
+    "可选填 assignee_id（关联 $users）、due_at。"
+)
+
+
+def typed_field_ledger(plan):
+    return [
+        FieldRequirement(
+            entity=entity.name,
+            field=field.name,
+            **field.model_dump(include=set(FieldRequirement.model_fields) - {"entity", "field"}),
+        )
+        for entity in plan.entities
+        for field in entity.fields
+    ]
+
+
+@pytest.mark.parametrize("text", [FINAL_CUSTOMER_QUERY, FINAL_REQUEST_QUERY, FINAL_REQUEST_FIELDS])
+@pytest.mark.parametrize("section", ["features", "acceptance", "facts"])
+@pytest.mark.parametrize("typed", [False, True])
+def test_exact_final_model_clauses_respect_inventory_heading_and_typed_ledger(text, section, typed):
+    requirement, plan = actual_customer_field_case()
+    if section == "facts":
+        requirement.facts = {"功能说明": text}
+    else:
+        setattr(requirement, section, [text])
+    if typed:
+        requirement.field_requirements = typed_field_ledger(plan)
+    assert coverage_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "按 title、detail 关键词搜索",
+        "对 title、detail 进行关键词搜索",
+        "search using title, detail",
+        "search by detail and title",
+        "using title and detail for keyword search",
+    ],
+)
+@pytest.mark.parametrize(
+    "inventory",
+    [
+        "title、detail、customer_id、priority、due_at",
+        "due_at、priority、customer_id、detail、title",
+        "priority, title, due_at, customer_id, detail",
+    ],
+)
+@pytest.mark.parametrize("heading", ["服务请求管理", "Request management", "requests"])
+def test_direct_query_binds_its_own_list_and_unambiguous_section(query, inventory, heading):
+    requirement, plan = actual_customer_field_case()
+    tasks = next(entity for entity in plan.entities if entity.name == "tasks")
+    for field in tasks.fields:
+        field.searchable = False
+    requirement.features = [f"{heading}：记录 {inventory}，{query}。"]
+    requirement.field_requirements = typed_field_ledger(plan)
+    assert coverage_gaps(requirement, plan) == []
+    # Prove the explicit prose still carries an independent obligation.
+    requirement.field_requirements = []
+    requests = next(entity for entity in plan.entities if entity.name == "requests")
+    next(field for field in requests.fields if field.name == "title").searchable = False
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    query_gaps = [item for item in diagnostics if item["attribute"] == "searchable"]
+    assert query_gaps
+    assert all(
+        target["entity"] == "requests" and target["field"] in {"title", "detail"}
+        for item in query_gaps
+        for target in item["targets"]
+    )
+    assert all(
+        item["source"]["section"] == "features" and item["source"]["index"] == 0
+        for item in query_gaps
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        FINAL_CUSTOMER_QUERY,
+        "Customer search and filtering: search using contact, name, organization, filter by category.",
+        "客户查询：按 category 精确筛选，并对 organization、contact、name 关键词搜索。",
+        "customers: filter by category and search using organization, name, contact",
+    ],
+)
+def test_query_headings_and_operation_order_do_not_cross_assign_flags(text):
+    requirement, plan = actual_customer_field_case()
+    requirement.features = [text]
+    assert coverage_gaps(requirement, plan) == []
+    customers = plan.entities[0]
+    for field_name, attribute in (
+        ("name", "searchable"),
+        ("organization", "searchable"),
+        ("contact", "searchable"),
+        ("category", "filterable"),
+    ):
+        changed = plan.model_copy(deep=True)
+        target = next(field for field in changed.entities[0].fields if field.name == field_name)
+        setattr(target, attribute, False)
+        assert any(attribute in gap for gap in coverage_gaps(requirement, changed)), field_name
+    assert all(not field.filterable for field in customers.fields if field.name != "category")
+
+
+def test_final_python_required_priority_is_not_changed_by_next_optional_subject():
+    requirement, plan = actual_customer_field_case()
+    requirement.features = [FINAL_REQUEST_FIELDS]
+    requests = next(entity for entity in plan.entities if entity.name == "requests")
+    assert coverage_gaps(requirement, plan) == []
+    for name, invalid in (("priority", False), ("assignee_id", True), ("due_at", True)):
+        changed = plan.model_copy(deep=True)
+        field = next(
+            field
+            for entity in changed.entities
+            if entity.name == "requests"
+            for field in entity.fields
+            if field.name == name
+        )
+        field.required = invalid
+        diagnostics = []
+        assert coverage_gaps(requirement, changed, diagnostics=diagnostics)
+        assert any(
+            item["targets"] == [{"entity": "requests", "field": name}]
+            and item["attribute"] == "required"
+            for item in diagnostics
+        )
+    requirement.field_requirements = typed_field_ledger(plan)
+    next(field for field in requests.fields if field.name == "priority").required = False
+    assert coverage_gaps(requirement, plan)
+
+
+def test_explicit_query_conflict_with_typed_prohibition_keeps_both_provenances():
+    requirement, plan = actual_customer_field_case()
+    requirement.features = ["服务请求管理：记录 title、detail、customer_id，按 customer_id 搜索"]
+    requirement.field_requirements = [
+        FieldRequirement(entity="requests", field="customer_id", searchable=False)
+    ]
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        item["source"]["section"] == "features"
+        and item["targets"] == [{"entity": "requests", "field": "customer_id"}]
+        for item in diagnostics
+    )
+    next(
+        field
+        for entity in plan.entities
+        if entity.name == "requests"
+        for field in entity.fields
+        if field.name == "customer_id"
+    ).searchable = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(item["source"]["section"] == "field_requirements" for item in diagnostics)
+
+
+@pytest.mark.parametrize(
+    "heading", ["请求搜索与筛选", "Service request queries", "功能说明：请求查询"]
+)
+def test_ambiguous_duplicate_prose_does_not_override_typed_entity_policies(heading):
+    requirement, plan = actual_customer_field_case()
+    for entity in plan.entities:
+        if entity.name == "tasks":
+            for field in entity.fields:
+                if field.name in {"title", "detail"}:
+                    field.searchable = False
+    requirement.field_requirements = typed_field_ledger(plan)
+    requirement.features = [f"{heading}：按 title、detail 搜索"]
+    assert coverage_gaps(requirement, plan) == []
+    requests = next(entity for entity in plan.entities if entity.name == "requests")
+    next(field for field in requests.fields if field.name == "title").searchable = False
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert all(item["source"]["section"] == "field_requirements" for item in diagnostics)
+
+
+@pytest.mark.parametrize("scope", ["requests", "所有实体", "all entities", "both entities"])
+@pytest.mark.parametrize("negative", [False, True])
+def test_explicit_entity_or_universal_subject_preserves_positive_and_false_obligations(
+    scope, negative
+):
+    requirement, plan = actual_customer_field_case()
+    operation = "不提供搜索" if negative else "必须可搜索"
+    requirement.features = [f"{scope}：title{operation}"]
+    for entity in plan.entities:
+        for field in entity.fields:
+            if field.name == "title":
+                field.searchable = not negative
+    assert coverage_gaps(requirement, plan) == []
+    target_entity = "requests" if scope == "requests" else "tasks"
+    next(
+        field
+        for entity in plan.entities
+        if entity.name == target_entity
+        for field in entity.fields
+        if field.name == "title"
+    ).searchable = negative
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        target["entity"] == target_entity for item in diagnostics for target in item["targets"]
+    )
+
+
+@pytest.mark.parametrize(
+    "heading", ["客户搜索与筛选", "Customer search and filtering", "搜索和筛选"]
+)
+def test_combined_capability_heading_cannot_donate_operations_to_a_bare_list(heading):
+    requirement, plan = actual_customer_field_case()
+    requirement.field_requirements = typed_field_ledger(plan)
+    requirement.features = [f"{heading}：name、organization、contact"]
+    assert coverage_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize("heading", ["search", "搜索", "search fields", "关键词搜索"])
+def test_single_operation_heading_is_an_explicit_field_list_predicate(heading):
+    requirement, plan = actual_customer_field_case()
+    requirement.features = [f"customers：{heading}: name, organization, contact"]
+    assert coverage_gaps(requirement, plan) == []
+    next(
+        field for field in plan.entities[0].fields if field.name == "organization"
+    ).searchable = False
+    assert any("searchable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize("heading", ["searchable=false", "禁止搜索", "不提供搜索"])
+def test_explicit_false_operation_heading_is_not_discarded_as_context(heading):
+    requirement, plan = actual_customer_field_case()
+    requirement.features = [f"customers：{heading}: name"]
+    name = next(field for field in plan.entities[0].fields if field.name == "name")
+    assert coverage_gaps(requirement, plan)
+    name.searchable = False
+    assert coverage_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize("entity", ["requests", "tasks"])
+@pytest.mark.parametrize(
+    "heading,attribute,expected,invalid",
+    [
+        ("required", "required", True, False),
+        ("required=true", "required", True, False),
+        ("required=false", "required", False, True),
+        ("required: false", "required", False, True),
+        ("optional", "required", False, True),
+        ("required fields", "required", True, False),
+        ("必填", "required", True, False),
+        ("必填字段", "required", True, False),
+        ("可选", "required", False, True),
+        ("非必填", "required", False, True),
+        ("max_length=120", "max_length", 120, 200),
+        ("max_length: 120", "max_length", 120, 200),
+        ("min_length=1", "min_length", 1, 0),
+        ("min_length=0", "min_length", 0, 1),
+        ("长度上限120", "max_length", 120, 200),
+        ("最小长度0", "min_length", 0, 1),
+    ],
+)
+def test_explicit_property_headings_retain_values_and_entity_scope(
+    entity, heading, attribute, expected, invalid
+):
+    requirement, plan = actual_customer_field_case()
+    requirement.features = [f"{entity}: {heading}: title"]
+    target = next(
+        field
+        for item in plan.entities
+        if item.name == entity
+        for field in item.fields
+        if field.name == "title"
+    )
+    setattr(target, attribute, expected)
+    assert coverage_gaps(requirement, plan) == []
+    setattr(target, attribute, invalid)
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        item["attribute"] == attribute
+        and item["expected"] == expected
+        and item["targets"] == [{"entity": entity, "field": "title"}]
+        for item in diagnostics
+    )
+
+
+@pytest.mark.parametrize(
+    "heading,attribute,expected,invalid",
+    [("max_length=120", "max_length", 120, 200), ("min_length=1", "min_length", 1, 0)],
+)
+def test_unique_field_property_heading_is_not_discarded(heading, attribute, expected, invalid):
+    requirement, plan = actual_customer_field_case()
+    requirement.features = [f"customers: {heading}: name"]
+    name = next(field for field in plan.entities[0].fields if field.name == "name")
+    setattr(name, attribute, expected)
+    assert coverage_gaps(requirement, plan) == []
+    setattr(name, attribute, invalid)
+    assert coverage_gaps(requirement, plan)

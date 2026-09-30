@@ -33,7 +33,9 @@ REFS = {
 ENDPOINT = "https://api.deepseek.com"
 MODEL = "deepseek-flash"
 MAX_WORKFLOW_CALLS = 16
-MAX_COMPLETION_TOKENS = 16000
+# DeepSeek thinking defaults to 64K; 16K truncated complete customer plans.
+# Keep finite call/byte limits and preserve the separate exact smoke request.
+MAX_COMPLETION_TOKENS = 65536
 SMOKE_PAYLOAD = {
     "model": MODEL,
     "messages": [

@@ -129,3 +129,47 @@ def test_cached_selected_business_detail_requests_an_explicit_refresh():
     assert "{ entity, id: identifier }" in details
     assert "panel.getByRole('button', { name: /^刷\\s*新$/ }).click()" in details
     assert "String(metadata.record.id), identifier" in details
+
+
+def test_native_browser_creates_fresh_employee_request_before_recipient_reminder_proof():
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node is required for native browser helper execution")
+    result = subprocess.run(
+        [
+            node,
+            "-e",
+            r"""
+const assert = require('node:assert/strict');
+const { createBrowserOwnedRecords } = require('./scripts/business_yudao_browser.cjs');
+(async () => {
+  let role, sequence = 70;
+  const created = {}, rows = [], calls = [];
+  const login = async value => { role = value; calls.push(['login', role]); };
+  const create = async (entity, prefix = 'Browser proof') => {
+    const row = { id: String(++sequence), entity, creator: role, label: `${prefix} ${entity}` };
+    if (entity === 'requests') row.customer_id = created.customers;
+    if (entity === 'tasks') row.request_id = created.requests;
+    created[entity] = row.id; rows.push(row); calls.push(['create', role, entity]);
+  };
+  await createBrowserOwnedRecords(login, create, 'Browser proof');
+  assert.deepEqual(calls, [
+    ['login','manager'], ['create','manager','customers'], ['create','manager','requests'],
+    ['login','employee'], ['create','employee','requests'],
+    ['login','manager'], ['create','manager','tasks'],
+  ]);
+  const own = rows.find(row => row.id === created.requests);
+  assert.equal(own.creator, 'employee');
+  assert.notEqual(own.label, rows.find(row => row.entity === 'requests' && row.creator === 'manager').label);
+  assert.equal(rows.find(row => row.entity === 'tasks').request_id, own.id);
+  assert.notEqual(own.id, '1', 'Never reuse the HTTP fixture whose reminders were already read');
+})().catch(error => { console.error(error); process.exitCode = 1; });
+""",
+        ],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr

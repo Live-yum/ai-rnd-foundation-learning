@@ -25,6 +25,16 @@ function nativeDetailButton(page, entity, identifier) {
     .getByRole('button', { name: '业务详情', exact: true }).filter({ visible: true }).first();
 }
 
+async function createBrowserOwnedRecords(login, create, marker) {
+  await login('manager');
+  await create('customers');
+  await create('requests'); // Independently exercise manager creation.
+  await login('employee');
+  await create('requests', marker + ' employee');
+  await login('manager');
+  await create('tasks'); // Link to the fresh employee-created browser request.
+}
+
 async function main() {
   const [base, reportDir, playwrightPath, scenarioFile] = process.argv.slice(2);
   assert.equal(new URL(base).hostname, '127.0.0.1');
@@ -40,7 +50,7 @@ async function main() {
   const secrets = Object.values(scenario.actors).map(actor => actor.password);
   const redact = value => secrets.reduce((text, secret) => text.split(secret).join('[REDACTED]'), String(value));
   const errors = [];
-  let context, page;
+  let context, page, currentRole;
   const target = entity => {
     const found = scenario.targets.find(item => item.entity === entity);
     assert(found, `Missing target ${entity}`); return found;
@@ -62,6 +72,7 @@ async function main() {
     report.screenshots.push(name);
   }
   async function login(role) {
+    currentRole = role;
     if (context) await context.close();
     context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1500, height: 1100 }, reducedMotion: 'reduce' });
     page = await context.newPage(); page.setDefaultTimeout(45000);
@@ -122,7 +133,7 @@ async function main() {
   }
   const created = {}, labels = {};
   const marker = 'Browser ' + Date.now();
-  async function create(entity) {
+  async function create(entity, labelPrefix = marker) {
     const current = await openPage(entity);
     await page.getByRole('button', { name: /^新增|^创建/ }).first().click();
     const dialog = page.getByRole('dialog').last(); await dialog.waitFor({ state: 'visible' });
@@ -148,7 +159,7 @@ async function main() {
           await input.press('Enter');
         }
       } else {
-        const value = (marker + ' ' + entity + ' ' + field.name).slice(0, field.max_length || 200);
+        const value = (labelPrefix + ' ' + entity + ' ' + field.name).slice(0, field.max_length || 200);
         await input.fill(value); if (!labels[entity]) labels[entity] = value;
       }
     }
@@ -159,7 +170,7 @@ async function main() {
     await dialog.waitFor({ state: 'hidden' });
     await page.getByText(labels[entity], { exact: true }).first().waitFor({ state: 'visible' });
     await capture(`${entity}-native-list.png`);
-    report.checks.push(`manager:${entity}:native-form-create`);
+    report.checks.push(`${currentRole}:${entity}:native-form-create`);
   }
   async function action(kind, transition, note) {
     const id = kind === 'assign' ? 'business-assign' : kind === 'add_note' ? 'business-note' : 'business-transition-' + transition;
@@ -179,8 +190,7 @@ async function main() {
     return row;
   }
   try {
-    await login('manager');
-    for (const entity of ['customers', 'requests', 'tasks']) await create(entity);
+    await createBrowserOwnedRecords(login, create, marker);
     for (const entity of ['requests', 'tasks']) { await detail(entity, labels[entity]); await action('assign', null, 'Browser assignment'); await capture(`${entity}-manager-workflow-controls.png`); }
     for (const [parent, child] of [['customers', 'requests'], ['requests', 'tasks']]) {
       await detail(parent, labels[parent]);
@@ -212,7 +222,7 @@ async function main() {
     await capture('service-vben-timeline.png');
     report.journeys.push({ actor: 'service', assigned_records: true, transitions: true, handling_notes: true, timeline: true });
     await login('employee');
-    const employeeLabel = scenario.labels?.requests || 'Synthetic consultation ' + scenario.attempt;
+    const employeeLabel = labels.requests;
     const notifications = observe('/admin-api/infra/rnd-business/notifications');
     await detail('requests', employeeLabel);
     const notices = await checked(notifications);
@@ -224,7 +234,7 @@ async function main() {
     else assert.equal(await panel.locator('.ant-timeline-item').count(), 0, 'Unpermitted history must not be displayed');
     await capture(employeeHistory ? 'employee-owned-history.png' : 'employee-owned-record.png');
     await panel.getByText('站内提醒', { exact: true }).waitFor({ state: 'visible' });
-    const reminder = notices.find(notice => String(notice.record_id) === String(scenario.records.requests) && notice.message.endsWith(' transitioned'));
+    const reminder = notices.find(notice => String(notice.record_id) === String(created.requests) && notice.message.endsWith(' transitioned'));
     assert(reminder, 'Native recipient resolution reminder missing');
     const unread = panel.getByTestId(`business-notice-read-${reminder.id}`);
     await unread.waitFor({ state: 'visible' });
@@ -234,7 +244,7 @@ async function main() {
     await panel.getByTestId(`business-notice-read-state-${reminder.id}`).waitFor({ state: 'visible' });
     await capture('employee-vben-reminders.png');
     report.checks.push('employee:own_record_history_acl_and_read_reminder');
-    report.journeys.push({ actor: 'employee', own_history: employeeHistory, history_acl: true, recipient_reminders: true, unauthorized_controls_absent: true });
+    report.journeys.push({ actor: 'employee', real_create: ['requests'], own_history: employeeHistory, history_acl: true, recipient_reminders: true, unauthorized_controls_absent: true });
     for (const role of ['other_employee', 'other_service']) {
       await login(role);
       const current = await openPage('requests');
@@ -258,5 +268,5 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, refreshNativeList, nativeDetailButton };
+module.exports = { main, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
