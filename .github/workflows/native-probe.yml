@@ -1,7 +1,5 @@
 name: Bundled template integrity
 on:
-  push:
-    branches: [feat/real-model-acceptance]
   workflow_dispatch:
   pull_request:
     paths: ['templates/vendor/**', 'workbench/vendor.py', '.github/workflows/native-probe.yml']
@@ -28,7 +26,7 @@ jobs:
           path: reports/
   real-model:
     if: >-
-      (github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.event.head_commit.message == 'test: run authorized real-model validation iteration')) &&
+      github.event_name == 'workflow_dispatch' &&
       github.repository == 'Live-yum/ai-rnd-foundation-learning' &&
       github.ref == 'refs/heads/feat/real-model-acceptance'
     environment: rnd
