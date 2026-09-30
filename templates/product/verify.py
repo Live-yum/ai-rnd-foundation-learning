@@ -54,6 +54,10 @@ def stop(process):
 def verify(product, python=sys.executable):
     product = Path(product).resolve()
     spec = json.loads((product / "approved-spec.json").read_text(encoding="utf-8"))
+    if spec.get("business"):
+        from verify_business import verify_business
+
+        return verify_business(product, python, stop, BrowserPrerequisite)
     checks = []
     suffix = uuid.uuid4().hex[:10]
     browser_report = {"applicable": False, "reason": "api-only frontend"}

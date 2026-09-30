@@ -13,6 +13,14 @@ def payload(response):
 
 
 def check_restored_product(template, base, token, targets, plan):
+    if plan.get("business"):
+        from workbench.business_probe import customer_service_acceptance
+        from workbench.domain import Plan
+
+        result = customer_service_acceptance(
+            template, base, token, targets, Plan.model_validate(plan)
+        )
+        return {"passed": True, "fresh_database": True, "model_required": False, "business": result}
     fastapi = template == "fastapiadmin"
     prefix = "" if fastapi else "/admin-api"
     with httpx.Client(

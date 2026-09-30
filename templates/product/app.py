@@ -71,6 +71,8 @@ def issue_token(connection, user_id):
 
 @app.post("/auth/register", status_code=201)
 def register(data: Credentials):
+    if SPEC.get("business") and not SPEC["business"]["registration"]["enabled"]:
+        raise HTTPException(403, "本系统由管理员创建账号")
     try:
         with engine.begin() as c:
             user_id = str(uuid.uuid4())
@@ -79,6 +81,26 @@ def register(data: Credentials):
                     id=user_id, username=data.username, password=password_hash(data.password)
                 )
             )
+            if SPEC.get("business"):
+                from business_policy import utc
+
+                c.execute(
+                    insert(metadata.tables["business_audit"]).values(
+                        id=str(uuid.uuid4()),
+                        entity="$users",
+                        record_id=user_id,
+                        actor_id=user_id,
+                        action="registered",
+                        created_at=utc(),
+                        before_json=None,
+                        after_json=json.dumps(
+                            {
+                                "username": data.username,
+                                "role": SPEC["business"]["registration"]["default_role"],
+                            }
+                        ),
+                    )
+                )
             return issue_token(c, user_id)
     except IntegrityError:
         raise HTTPException(409, "用户名已经存在") from None
@@ -231,3 +253,9 @@ def delete_item(entity: str, item_id: str, user=Depends(actor)):
         ).rowcount
         if not changed:
             raise HTTPException(404, "记录不存在")
+
+
+if SPEC.get("business"):
+    from business_runtime import install_business
+
+    install_business(app, actor, password_hash, issue_token, validated)

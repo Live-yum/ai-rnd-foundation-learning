@@ -2,6 +2,11 @@
 const $ = (id) => document.getElementById(id);
 let token = sessionStorage.getItem("product-token") || "",
   spec,
+  businessActor,
+  businessPermissions = {},
+  detailRecord = null,
+  detailSequence = 0,
+  editorSequence = 0,
   entity,
   offset = 0,
   total = 0,
@@ -38,7 +43,7 @@ async function api(path, options = {}) {
 function control(field, mode = "record", name = field.name) {
   const label = node(
     "label",
-    field.name,
+    field.kind === "datetime" ? field.name + "（UTC）" : field.name,
     mode === "record" ? $("record-fields") : $("filter-fields"),
   );
   let input;
@@ -60,6 +65,7 @@ function control(field, mode = "record", name = field.name) {
       input.type = "number";
       input.step = "1";
     } else if (field.kind === "date") input.type = "date";
+    else if (field.kind === "datetime") input.type = "datetime-local";
     else {
       input.maxLength = field.max_length;
       input.minLength = field.min_length || 0;
@@ -71,7 +77,11 @@ function control(field, mode = "record", name = field.name) {
   return input;
 }
 function choose(current) {
+  ++detailSequence; ++editorSequence;
+  if ($("business-detail").open) $("business-detail").close();
+  if ($("editor").open) $("editor").close();
   entity = current;
+  if (spec?.business) $("create").hidden = !can("create");
   offset = 0;
   $("entity-title").textContent = entity.description || entity.name;
   $("filter-fields").replaceChildren();
@@ -118,9 +128,19 @@ async function load() {
   $("rows").replaceChildren();
   for (const row of rows) {
     const tr = node("tr", undefined, $("rows"));
+    tr.dataset.id = row.id;
     for (const field of entity.fields) node("td", row[field.name] ?? "", tr);
     const cell = node("td", undefined, tr);
-    node("button", "编辑", cell).onclick = () => edit(row);
+    if (!spec.business || can("update")) node("button", "编辑", cell).onclick = () => edit(row);
+    if (spec.business) {
+      node("button", "详情 / 处理", cell).onclick = () => showBusinessDetail(row).catch(inform);
+      if (can("archive")) node("button", "归档", cell).onclick = async () => {
+        if (!confirm("归档保留记录及历史，是否继续？")) return;
+        try { await api(`/api/${entity.name}/${row.id}/archive`, {method:"POST"}); await load(); }
+        catch(error) { inform(error); }
+      };
+      continue;
+    }
     node("button", "删除", cell).onclick = async () => {
       if (!confirm("删除这条记录？")) return;
       try {
@@ -132,19 +152,38 @@ async function load() {
     };
   }
 }
-function edit(row) {
+async function edit(row) {
+  const sequence = ++editorSequence, chosen = entity;
   editing = row?.id || null;
   $("edit-title").textContent = editing ? "编辑" : "新增";
   $("record-fields").replaceChildren();
-  for (const field of entity.fields) {
-    const input = control(field);
-    if (row && row[field.name] !== null) input.value = String(row[field.name]);
+  for (const field of chosen.fields) {
+    if (sequence !== editorSequence || chosen !== entity) return;
+    if (spec.business && protectedFields().has(field.name)) continue;
+    let input;
+    const relation = spec.business?.relations.find(r => r.entity === entity.name && r.field === field.name);
+    if (relation && relation.target_entity !== "$users") {
+      const label = node("label", field.name, $("record-fields"));
+      input = node("select", undefined, label); input.name = field.name; input.required = field.required;
+      node("option", "", input).value = "";
+      const related = await (await api(`/api/${relation.target_entity}?limit=100`)).json();
+      if (sequence !== editorSequence || chosen !== entity) return;
+      for (const item of related) node("option", item.name || item.title || item.id, input).value = item.id;
+    } else input = control(field);
+    if (row && row[field.name] !== null) input.value = field.kind === "datetime" ? String(row[field.name]).replace(/Z$/, "").slice(0,16) : String(row[field.name]);
   }
-  $("editor").showModal();
+  if (sequence === editorSequence && chosen === entity) $("editor").showModal();
 }
 async function signedIn() {
   const data = await (await api("/schema")).json();
   spec = data.spec;
+  businessActor = data.actor; businessPermissions = data.permissions || {};
+  $("business-panels").hidden = !spec.business;
+  if (spec.business) {
+    $("business-role").textContent = `${businessActor.username} · ${businessActor.role}`;
+    $("register").hidden = !spec.business.registration.enabled;
+    await refreshBusiness();
+  }
   $("title").textContent = spec.title;
   $("login").hidden = true;
   $("workspace").hidden = false;
@@ -153,7 +192,7 @@ async function signedIn() {
   for (const e of spec.entities)
     node("button", e.description || e.name, $("entities")).onclick = () =>
       choose(e);
-  choose(spec.entities[0]);
+  if (spec.entities.length) choose(spec.entities[0]);
 }
 async function authenticate(register) {
   try {
@@ -190,8 +229,8 @@ $("reset").onclick = () => {
   offset = 0;
   load().catch(inform);
 };
-$("create").onclick = () => edit(null);
-$("cancel").onclick = () => $("editor").close();
+$("create").onclick = () => edit(null).catch(inform);
+$("cancel").onclick = () => { ++editorSequence; $("editor").close(); };
 $("previous").onclick = () => {
   offset = Math.max(0, offset - 50);
   load().catch(inform);
@@ -208,10 +247,13 @@ $("record").onsubmit = async (e) => {
     const raw = Object.fromEntries(new FormData($("record")));
     const data = {};
     for (const field of entity.fields) {
+      if (spec.business && protectedFields().has(field.name)) continue;
       let v = raw[field.name];
       data[field.name] =
         v === "" && !field.required
           ? null
+          : field.kind === "datetime"
+            ? new Date(v + "Z").toISOString()
           : field.kind === "integer"
             ? Number(v)
             : field.kind === "boolean"
@@ -234,3 +276,68 @@ if (token)
     token = "";
     sessionStorage.removeItem("product-token");
   });
+
+
+function can(action) { return businessPermissions[entity?.name]?.actions.includes(action); }
+function protectedFields() {
+  const result = new Set(["id","owner_id","created_by","created_at","updated_at","archived_at"]);
+  const resource = spec.business.resources.find(r => r.entity === entity.name);
+  if (resource?.assignee_field) result.add(resource.assignee_field);
+  const workflow = spec.business.workflows.find(w => w.entity === entity.name);
+  if (workflow) { result.add(workflow.status_field); workflow.transitions.forEach(t => { if(t.set_timestamp) result.add(t.set_timestamp); }); }
+  return result;
+}
+async function refreshBusiness() {
+  const metrics = await (await api("/business/metrics")).json();
+  $("business-metrics").replaceChildren();
+  for (const metric of metrics) { const card = node("section", undefined, $("business-metrics")); node("h3", metric.label, card);
+    if (metric.groups) metric.groups.forEach(group => node("p", `${group.day ?? group.key ?? "未分类"}: ${group.count}`, card));
+    else node("p", metric.value === null ? "暂无已完成记录" : `${metric.value}${metric.unit === "seconds" ? " 秒" : ""}`, card);
+  }
+  const notifications = await (await api("/business/notifications")).json(); $("business-notifications").replaceChildren();
+  for (const item of notifications) { const line = node("p", `${item.event} · ${item.entity} · ${item.created_at}`, $("business-notifications"));
+    if (!item.read_at) node("button", "标记已读", line).onclick = async () => { try { await api(`/business/notifications/${item.id}/read`, {method:"POST"}); await refreshBusiness(); } catch(error) {inform(error);} };
+  }
+  const admin = spec.business.role_admin_roles.includes(businessActor.role); $("business-admin").hidden = !admin;
+  if (admin) {
+    $("business-new-role").replaceChildren(); spec.business.roles.forEach(role => node("option", role.label, $("business-new-role")).value = role.name);
+    const users = await (await api("/business/users")).json(); $("business-users").replaceChildren();
+    for (const user of users) { const line = node("p", user.username, $("business-users")); const roles=node("select", undefined,line);
+      spec.business.roles.forEach(role => node("option", role.label, roles).value=role.name); roles.value=user.role;
+      node("button", "更新角色",line).onclick=async()=>{try{await api(`/business/users/${user.id}/role`,{method:"PUT",body:JSON.stringify({role:roles.value})});await refreshBusiness();}catch(error){inform(error);}};
+    }
+  }
+}
+async function showBusinessDetail(row) {
+  const sequence=++detailSequence, chosen=entity;
+  detailRecord = row; $("business-detail-title").textContent = row.name || row.title || row.id;
+  $("business-actions").replaceChildren(); $("business-notes").replaceChildren(); $("business-history").replaceChildren(); $("business-related").replaceChildren();
+  if(can("assign")) {
+    const assignees=await(await api(`/business/users?entity=${entity.name}`)).json(); const select=node("select",undefined,$("business-actions")); select.id="business-assignee";
+    node("option","未分配",select).value=""; assignees.forEach(user=>node("option",user.username,select).value=user.id);
+    const field=spec.business.resources.find(r=>r.entity===entity.name).assignee_field; select.value=row[field]||"";
+    node("button","分配",$("business-actions")).onclick=async()=>{try{const updated=await(await api(`/api/${entity.name}/${row.id}/assign`,{method:"POST",body:JSON.stringify({user_id:select.value||null})})).json();await showBusinessDetail(updated);await load();}catch(error){inform(error);}};
+  }
+  const workflow=spec.business.workflows.find(w=>w.entity===entity.name);
+  if(workflow && can("transition")) for(const action of workflow.transitions.filter(t=>t.roles.includes(businessActor.role)&&t.from_states.includes(row[workflow.status_field]))) {
+    node("button",action.name,$("business-actions")).onclick=async()=>{try{const updated=await(await api(`/api/${entity.name}/${row.id}/transition`,{method:"POST",body:JSON.stringify({transition:action.name})})).json();await showBusinessDetail(updated);await load();await refreshBusiness();}catch(error){inform(error);}};
+  }
+  if(can("read_history")) {
+    const notes=await(await api(`/api/${entity.name}/${row.id}/notes`)).json(); notes.forEach(note=>node("p",`${note.created_at} · ${note.actor_id}: ${note.body}`,$("business-notes")));
+    const history=await(await api(`/api/${entity.name}/${row.id}/history`)).json(); history.forEach(item=>{node("p",`${item.created_at} · ${item.actor_id} · ${item.action}`,$("business-history"));if(item.after)node("pre",JSON.stringify(item.after,null,2),$("business-history"));});
+  }
+  const related=await(await api(`/business/related/${entity.name}/${row.id}`)).json(); for(const group of related) {node("h4",group.entity,$("business-related"));group.records.forEach(item=>{
+      const workflow=spec.business.workflows.find(w=>w.entity===group.entity);
+      const text=(item.name||item.title||item.id)+(workflow ? " · "+item[workflow.status_field] : "");
+      node("button",text,$("business-related")).onclick=async()=>{try{const target=spec.entities.find(e=>e.name===group.entity);if(target){choose(target);await showBusinessDetail(item);}}catch(error){inform(error);}};
+    });}
+  $("business-note-form").hidden=!can("add_note");
+  if(sequence!==detailSequence || chosen!==entity) return;
+  if(!$("business-detail").open) $("business-detail").showModal();
+}
+$("refresh-business").onclick=()=>refreshBusiness().catch(inform);
+$("business-close").onclick=()=>{++detailSequence;$("business-detail").close();};
+$("business-note-form").onsubmit=async(event)=>{event.preventDefault();try{await api(`/api/${entity.name}/${detailRecord.id}/notes`,{method:"POST",body:JSON.stringify(Object.fromEntries(new FormData(event.target)))});event.target.reset();await showBusinessDetail(detailRecord);}catch(error){inform(error);}};
+$("business-create-user").onsubmit=async(event)=>{event.preventDefault();try{await api("/business/users",{method:"POST",body:JSON.stringify(Object.fromEntries(new FormData(event.target)))});event.target.reset();await refreshBusiness();}catch(error){inform(error);}};
+
+setInterval(() => { if (spec?.business && token && !document.hidden) refreshBusiness().catch(inform); }, 60000);

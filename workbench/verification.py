@@ -70,9 +70,12 @@ def run_probe(product, python, report_path, settings):
 
 def require_browser_evidence(product, report):
     selection = json.loads((Path(product) / "selection.json").read_text(encoding="utf-8"))
+    spec = json.loads((Path(product) / "approved-spec.json").read_text(encoding="utf-8"))
+    if spec.get("business"):
+        require_business_evidence(spec, report, selection["frontend"] == "simple-admin")
+        return
     if selection["frontend"] != "simple-admin":
         return
-    spec = json.loads((Path(product) / "approved-spec.json").read_text(encoding="utf-8"))
     browser = report.get("browser")
     if (
         not isinstance(browser, dict)
@@ -105,6 +108,54 @@ def require_browser_evidence(product, report):
                 required.add(f"browser-overlength-rejected:{name}.{field['name']}")
     if not required.issubset(set(browser.get("checks", []))) or browser.get("errors") != []:
         raise PrerequisiteError("真实浏览器验收覆盖不完整或存在页面错误")
+
+
+def require_business_evidence(spec, report, with_browser):
+    business = report.get("business")
+    required = {
+        "business-bootstrap",
+        "business-role-default",
+        "business-row-permissions",
+        "business-protected-fields",
+        "business-relations",
+        "business-transitions",
+        "business-notes-history",
+        "business-notifications",
+        "business-scoped-metrics",
+        "business-archive",
+    }
+    if (
+        not isinstance(business, dict)
+        or business.get("passed") is not True
+        or business.get("spec_digest") != digest(spec)
+        or business.get("resources_checked") != [e["name"] for e in spec["entities"]]
+        or business.get("roles_checked") != [r["name"] for r in spec["business"]["roles"]]
+        or not required.issubset(set(business.get("checks", [])))
+    ):
+        raise PrerequisiteError("业务关系、流程、角色权限与统计验收证据缺失，不能交付")
+    if not with_browser:
+        return
+    browser = report.get("browser")
+    checks = {
+        "business-browser-auth",
+        "business-browser-role-navigation",
+        "business-browser-assignment",
+        "business-browser-transitions",
+        "business-browser-notes-history",
+        "business-browser-reminders",
+        "business-browser-metrics",
+        "business-browser-role-restrictions",
+        *["business-browser-records:" + e["name"] for e in spec["entities"]],
+    }
+    if (
+        not isinstance(browser, dict)
+        or any(browser.get(key) is not True for key in ("passed", "real_browser", "applicable"))
+        or browser.get("spec_digest") != digest(spec)
+        or browser.get("entities") != [e["name"] for e in spec["entities"]]
+        or browser.get("errors") != []
+        or not checks.issubset(set(browser.get("checks", [])))
+    ):
+        raise PrerequisiteError("业务页面的逐角色真实浏览器验收不完整")
 
 
 def validate_rule_examples(plan, product):

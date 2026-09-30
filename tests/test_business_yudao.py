@@ -1,0 +1,282 @@
+"""Native adapter source/safety contracts. These do not claim a Maven/browser runtime pass."""
+
+import json
+from copy import deepcopy
+
+import pytest
+
+from workbench.business_yudao import (
+    JAVA_PACKAGE,
+    JAVA_ROOT,
+    TEMPLATES,
+    business_role_seed,
+    business_schema,
+    install_yudao_business,
+)
+from workbench.domain import Plan
+from workbench.filesystem import atomic_text
+
+
+def approved_plan():
+    # Import the shared generic typed contract example, never a production fallback response.
+    from test_business_contracts import business_plan
+
+    return Plan.model_validate(business_plan())
+
+
+def generated_native_source(tmp_path, plan):
+    backend, frontend, reports = (tmp_path / name for name in ("backend", "frontend", "reports"))
+    targets = []
+    for index, entity in enumerate(plan.entities):
+        slug = "wb" + entity.name.replace("_", "")
+        name = "Wb" + "".join(part.title() for part in entity.name.split("_"))
+        controller = f"{JAVA_ROOT}/{JAVA_PACKAGE}/controller/admin/{slug}/{name}Controller.java"
+        atomic_text(
+            backend / controller,
+            f'@RequestMapping("/infra/wb-{entity.name.replace("_", "-")}")\npublic class {name}Controller {{}}\n',
+        )
+        atomic_text(
+            backend / f"{JAVA_ROOT}/{JAVA_PACKAGE}/dal/dataobject/{slug}/{name}DO.java",
+            f"public class {name}DO {{}}\n",
+        )
+        atomic_text(
+            backend / f"{JAVA_ROOT}/{JAVA_PACKAGE}/dal/mysql/{slug}/{name}Mapper.java",
+            f"public interface {name}Mapper {{}}\n",
+        )
+        atomic_text(
+            frontend / f"apps/web-antd/src/views/infra/{slug}/index.vue",
+            """<script lang="ts" setup>
+import { Page } from '@vben/common-ui';
+function handleRefresh() {}
+</script>
+<template><Page><Grid><template #actions="{ row }"><TableAction :actions="[]" /></template></Grid></Page></template>
+""",
+        )
+        atomic_text(
+            frontend / f"apps/web-antd/src/views/infra/{slug}/data.ts",
+            "export function useFormSchema(): VbenFormSchema[] { return []; }\n",
+        )
+        atomic_text(
+            frontend / f"apps/web-antd/src/views/infra/{slug}/modules/form.vue",
+            '<script lang="ts" setup>\nconst data = (await formApi.getValues()) as NativeData;\n</script>\n<template><Modal><Form /></Modal></template>\n',
+        )
+        targets.append(
+            {
+                "entity": entity.name,
+                "table": f"wb_12345678_{entity.name}",
+                "permission": "infra:wb-" + entity.name.replace("_", "-"),
+            }
+        )
+    return backend, frontend, targets, reports
+
+
+def test_mount_retains_real_mappers_and_binds_every_original_crud_route(tmp_path):
+    plan = approved_plan()
+    backend, frontend, targets, reports = generated_native_source(tmp_path, plan)
+    mapper = backend / f"{JAVA_ROOT}/{JAVA_PACKAGE}/dal/mysql/wbcustomers/WbCustomersMapper.java"
+    original_mapper = mapper.read_bytes()
+    receipt = install_yudao_business(plan, backend, frontend, targets, reports)
+    assert receipt["runtime_verified"] is False
+    assert mapper.read_bytes() == original_mapper
+    assert receipt["bootstrap_endpoint"].endswith("/bootstrap")
+    assert len(receipt["extension_tables"]) == 3
+    controller = (
+        backend
+        / f"{JAVA_ROOT}/{JAVA_PACKAGE}/controller/admin/wbcustomers/WbCustomersController.java"
+    ).read_text()
+    for function in ("create", "update", "archive", "archiveBatch", "get", "page"):
+        assert "business." + function + "(" in controller
+    assert "export-excel" not in controller
+    config = json.loads(
+        (
+            backend
+            / "yudao-module-infra/yudao-module-infra-server/src/main/resources/rnd-business-contract.json"
+        ).read_text()
+    )
+    assert config["business"] == plan.business.model_dump()
+    assert config["specDigest"] == receipt["spec_digest"]
+    assert all(binding["requestVO"].endswith("SaveReqVO") for binding in config["bindings"])
+    assert all(binding["permission"].startswith("infra:wb-") for binding in config["bindings"])
+    panel = (frontend / "apps/web-antd/src/views/infra/wbcustomers/index.vue").read_text()
+    assert "<Page>" in panel and "<Grid>" in panel and "<TableAction" in panel
+    assert "<RndBusinessPanel" in panel
+    data = (frontend / "apps/web-antd/src/views/infra/wbcustomers/data.ts").read_text()
+    assert "nativeBusinessFormSchema" in data and "businessFormSchema" in data
+
+
+def test_reentry_is_hash_bound_and_tampering_never_overwrites(tmp_path):
+    plan = approved_plan()
+    args = generated_native_source(tmp_path, plan)
+    first = install_yudao_business(plan, *args)
+    assert install_yudao_business(plan, *args) == first
+    source = args[0] / first["files"][0]["path"]
+    source.write_text("// user's inspection changes\n")
+    with pytest.raises(ValueError, match="source changed"):
+        install_yudao_business(plan, *args)
+    assert source.read_text() == "// user's inspection changes\n"
+
+
+def test_missing_native_mapper_fails_before_any_controller_is_changed(tmp_path):
+    plan = approved_plan()
+    backend, frontend, targets, reports = generated_native_source(tmp_path, plan)
+    controller = (
+        backend
+        / f"{JAVA_ROOT}/{JAVA_PACKAGE}/controller/admin/wbcustomers/WbCustomersController.java"
+    )
+    original = controller.read_bytes()
+    (backend / f"{JAVA_ROOT}/{JAVA_PACKAGE}/dal/mysql/wbcustomers/WbCustomersMapper.java").unlink()
+    with pytest.raises(ValueError, match="Actual Infra-generated mapper"):
+        install_yudao_business(plan, backend, frontend, targets, reports)
+    assert controller.read_bytes() == original
+    assert not (reports / "business-yudao.json").exists()
+
+
+def test_approved_business_plan_and_exact_targets_required(tmp_path):
+    plan = approved_plan()
+    args = generated_native_source(tmp_path, plan)
+    bad_targets = deepcopy(args[2])
+    bad_targets.pop()
+    with pytest.raises(ValueError, match="targets differ"):
+        install_yudao_business(plan, args[0], args[1], bad_targets, args[3])
+    plain = plan.model_copy(update={"business": None})
+    with pytest.raises(ValueError, match="approved business contract"):
+        install_yudao_business(plain, *args)
+
+
+def test_schema_is_append_only_and_never_seeds_implicit_user_ids(tmp_path):
+    plan = approved_plan()
+    _, _, targets, _ = generated_native_source(tmp_path, plan)
+    schema = business_schema(plan, targets, "rndb_aabbcc")
+    assert "BEFORE UPDATE OR DELETE" in schema
+    assert "ON CONFLICT" not in schema and "IF NOT EXISTS" not in schema
+    assert "DROP " not in schema and "TRUNCATE" not in schema
+    assert "rnd_archived_at" in schema
+    seed = business_role_seed(plan, targets, "rndb_aabbcc")
+    assert "INSERT INTO system_user_role" not in seed
+    assert "WHERE u.id=1" not in seed
+    assert "POST /admin-api/infra/rnd-business/bootstrap" in seed
+
+
+def test_untrusted_table_identifier_cannot_enter_schema():
+    with pytest.raises(ValueError, match="SQL identifier"):
+        business_schema(approved_plan(), [{"table": "x; DROP TABLE system_users"}], "rndb_safe")
+
+
+def test_java_templates_have_valid_syntax():
+    import tree_sitter_java
+    from tree_sitter import Language, Parser
+
+    parser = Parser(Language(tree_sitter_java.language()))
+    for path in TEMPLATES.glob("*.java"):
+        text = (
+            path.read_text(encoding="utf-8")
+            .replace("__PREFIX__", "rndb_test")
+            .replace("__SLUG__", "wbtest")
+            .replace("__CLASS__", "WbTest")
+            .replace("__ENTITY__", "test")
+            .replace("__KEBAB__", "wb-test")
+        )
+        tree = parser.parse(text.encode())
+        assert not tree.root_node.has_error, path.name
+
+
+@pytest.mark.parametrize(
+    "fragment",
+    [
+        "getLoginUserId()",
+        "getRequiredTenantId()",
+        "FOR UPDATE",
+        "Business permission denied",
+        "Unknown or server-owned field",
+        "Relation IDs must be wire strings",
+        "if(result.size()>1)",
+        "sidecar.lockProject(tenant())",
+        "administratorCount",
+        "Business bootstrap must complete before registration",
+        'sidecar.roles(tenant(),user).contains("super_admin")',
+        "Native generated request validation failed",
+        "validator.validate(request)",
+        "load(target,ref,true)",
+        "No workflow",
+        "Invalid state transition",
+        "sidecar.initialize(tenant()",
+        "nativeConfiguration.updateConfig(request)",
+    ],
+)
+def test_runtime_contains_explicit_native_boundary_guards(fragment):
+    assert fragment in (TEMPLATES / "RndBusinessService.java").read_text(encoding="utf-8")
+
+
+def test_native_registration_keeps_real_service_and_single_transaction():
+    source = (TEMPLATES / "RndBusinessRegistration.java").read_text(encoding="utf-8")
+    assert "AdminUserService.registerUser" in source
+    assert "TransactionTemplate" in source and "call.proceed()" in source
+    assert "business.registered" in source
+    assert "password" not in source.lower().replace("password hashing", "")
+
+
+def test_role_mapper_cannot_grant_unrelated_global_roles():
+    source = (TEMPLATES / "RndBusinessService.java").read_text(encoding="utf-8")
+    assert 'roleCode(String.valueOf(data.get("role")))' in source
+    assert "Role not declared by this product" in source
+    assert "sidecar.revoke" in source and "oldAdmin&&!newAdmin" in source
+    mapper = (TEMPLATES / "RndBusinessMapper.java").read_text(encoding="utf-8")
+    assert "pg_advisory_xact_lock" in mapper
+    assert "r.tenant_id=u.tenant_id" in mapper
+    assert "WHERE tenant_id=#{tenant} AND recipient_id=#{user}" in mapper
+
+
+def test_frontend_retains_native_components_and_contract_driven_controls():
+    source = (TEMPLATES / "panel.vue").read_text(encoding="utf-8")
+    assert "useVbenForm" in source and "useVbenModal" in source
+    assert "TimelineItem" in source and "'ant-design-vue'" in source
+    assert "metrics" in source and "notifications" in source and "roleAdmin" in source
+    assert "requestClient" in source and "localStorage" not in source
+    assert "useEcharts" in (TEMPLATES / "metric-chart.vue").read_text(encoding="utf-8")
+    fields = (TEMPLATES / "business-form.ts").read_text(encoding="utf-8")
+    assert "spec.controlled.map(wire)" in fields
+    assert "valueField: 'id'" in fields and "ApiSelect" in fields
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("table", "system_users"),
+        ("table", "wb_12345678_other"),
+        ("table", "wb_1234567_customers"),
+        ("permission", "system:user:create"),
+        ("permission", "infra:wb-requests"),
+        ("api", "/admin-api/system/user"),
+        ("list", "/admin-api/system/user/page"),
+        ("route", "/system/user"),
+    ],
+)
+def test_target_cannot_redirect_schema_or_native_permission(tmp_path, key, value):
+    plan = approved_plan()
+    backend, frontend, targets, reports = generated_native_source(tmp_path, plan)
+    controller = (
+        backend
+        / f"{JAVA_ROOT}/{JAVA_PACKAGE}/controller/admin/wbcustomers/WbCustomersController.java"
+    )
+    original = controller.read_bytes()
+    targets[0][key] = value
+    with pytest.raises(ValueError, match="native generated binding"):
+        install_yudao_business(plan, backend, frontend, targets, reports)
+    assert controller.read_bytes() == original
+    assert not reports.exists()
+
+
+def test_targets_from_different_native_runs_are_rejected(tmp_path):
+    plan = approved_plan()
+    backend, frontend, targets, reports = generated_native_source(tmp_path, plan)
+    targets[1]["table"] = targets[1]["table"].replace("12345678", "aabbccdd")
+    with pytest.raises(ValueError, match="one native generation"):
+        install_yudao_business(plan, backend, frontend, targets, reports)
+
+
+def test_duplicate_target_cannot_install_extra_tables(tmp_path):
+    plan = approved_plan()
+    backend, frontend, targets, reports = generated_native_source(tmp_path, plan)
+    targets.append(deepcopy(targets[0]))
+    with pytest.raises(ValueError, match="Duplicate native"):
+        install_yudao_business(plan, backend, frontend, targets, reports)

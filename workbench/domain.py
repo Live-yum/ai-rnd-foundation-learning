@@ -4,7 +4,7 @@ import hashlib
 import json
 import keyword
 import re
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from pydantic import (
@@ -16,6 +16,8 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+from workbench.business_contracts import BusinessSpec
 
 Text = Annotated[str, Field(min_length=1, max_length=20000)]
 Name = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,39}$")]
@@ -107,7 +109,7 @@ class FieldRequirement(Contract):
 
     field: Name
     entity: Name | None = None
-    kind: Literal["text", "integer", "boolean", "date", "enum"] | None = None
+    kind: Literal["text", "integer", "boolean", "date", "datetime", "enum"] | None = None
     required: bool | None = None
     min_length: int | None = Field(default=None, ge=0, le=20000)
     max_length: int | None = Field(default=None, ge=1, le=20000)
@@ -164,7 +166,7 @@ class Requirement(Contract):
 
 class FieldSpec(Contract):
     name: Name
-    kind: Literal["text", "integer", "boolean", "date", "enum"]
+    kind: Literal["text", "integer", "boolean", "date", "datetime", "enum"]
     required: bool = True
     max_length: int = Field(default=200, ge=1, le=20000)
     min_length: int = Field(default=0, ge=0, le=20000)
@@ -224,6 +226,7 @@ class Plan(Contract):
     entities: list[Entity] = Field(min_length=1, max_length=8)
     acceptance: list[Text] = Field(min_length=1)
     custom_rules: list[CustomRule] = Field(default_factory=list, max_length=6)
+    business: BusinessSpec | None = Field(default=None, exclude_if=lambda value: value is None)
     unsupported: list[Text] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -252,16 +255,27 @@ class Plan(Contract):
                         "integer": int,
                         "boolean": bool,
                         "date": str,
+                        "datetime": str,
                         "enum": str,
                     }[field.kind]
                     if type(value) is not expected:
                         raise ValueError("规则示例字段类型错误")
                     if field.kind == "date":
                         date.fromisoformat(value)
+                    if field.kind == "datetime":
+                        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                        if parsed.tzinfo is None:
+                            raise ValueError("datetime 必须包含时区")
                     if field.kind == "enum" and value not in field.choices:
                         raise ValueError("规则示例不在枚举选项内")
                     if field.kind in {"text", "enum"} and len(value) > field.max_length:
                         raise ValueError("规则示例文本过长")
+        if self.business is not None:
+            if self.custom_rules:
+                raise ValueError(
+                    "Business contracts cannot also use standalone custom_rules; express supported behavior in the business contract"
+                )
+            self.business.validate_plan(self)
         return self
 
 

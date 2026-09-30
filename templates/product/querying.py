@@ -4,9 +4,9 @@ from fields import date_string, filter_value
 from sqlalchemy import or_
 
 
-def conditions(table, entity, query, user_id):
+def conditions(table, entity, query, user_id, scoped=True):
     fields = {field["name"]: field for field in entity["fields"]}
-    expressions = [table.c.owner_id == user_id]
+    expressions = [table.c.owner_id == user_id] if scoped else []
     allowed = {"q", "limit", "offset", "sort", "direction"}
     for name, field in fields.items():
         if field.get("filterable"):

@@ -18,6 +18,11 @@ HELPERS = (
     "local_only.py",
     "settings.py",
     "domain.py",
+    "business_contracts.py",
+    "business_schema_receipt.py",
+    "business_probe.py",
+    "business_browser.py",
+    "native_checks.py",
     "catalog.py",
     "errors.py",
     "filesystem.py",
@@ -94,6 +99,13 @@ def build_native_delivery(template, product, reports, plan, targets, url):
     for name in ("pyproject.toml", "uv.lock", ".python-version", "services.yaml", "run.py"):
         shutil.copyfile(source / name, deployment / name)
     shutil.copyfile(source / "entry.py", product / "start.py")
+    if plan.business:
+        script = (
+            "business_fastapi_browser.cjs"
+            if template == "fastapiadmin"
+            else "business_yudao_browser.cjs"
+        )
+        shutil.copyfile(ROOT / "scripts" / script, deployment / "business-browser.cjs")
     helper_root = deployment / "workbench"
     helper_root.mkdir(exist_ok=True)
     for name in HELPERS:
@@ -102,6 +114,23 @@ def build_native_delivery(template, product, reports, plan, targets, url):
     sql_dir.mkdir(exist_ok=True)
     shutil.copyfile(reports / "business-schema.sql", sql_dir / "002-business.sql")
     shutil.copyfile(reports / "menu-seed.sql", sql_dir / "003-menus.sql")
+    if plan.business:
+        for source_name, target_name in (
+            ("business-extension-schema.sql", "004-business-extension.sql"),
+            ("business-role-seed.sql", "005-business-roles.sql"),
+        ):
+            source_file = reports / source_name
+            if source_file.is_file():
+                shutil.copyfile(source_file, sql_dir / target_name)
+    extension_tables = []
+    if plan.business:
+        if template == "fastapiadmin":
+            adapter = json.loads((reports / "business-extension.json").read_text(encoding="utf-8"))
+            extension_tables = [adapter["namespace"] + "_events"]
+        else:
+            adapter = json.loads((reports / "business-yudao.json").read_text(encoding="utf-8"))
+            extension_tables = list(adapter["extension_tables"])
+    schema_contract = {}
     metadata = create_engine(url)
     try:
         with metadata.connect() as c:
@@ -112,6 +141,14 @@ def build_native_delivery(template, product, reports, plan, targets, url):
                 ]
                 for target in targets
             }
+            if plan.business:
+                from workbench.business_schema_receipt import table_signature
+
+                schema_contract = {
+                    name: table_signature(c, name) for name in [*tables, *extension_tables]
+                }
+                if any(value is None for value in schema_contract.values()):
+                    raise ValueError("Missing installed business extension table")
     finally:
         metadata.dispose()
     sql_files = {"database/" + p.name: sha(p) for p in sorted(sql_dir.iterdir())}
@@ -122,6 +159,8 @@ def build_native_delivery(template, product, reports, plan, targets, url):
         "plan": plan.model_dump(),
         "targets": targets,
         "tables": tables,
+        "business_schema": schema_contract,
+        "extension_tables": extension_tables,
         "sql_files": sql_files,
         "sql_digest": digest(sql_files),
         "bootstrap": "native-seed-then-business-schema-and-menus",
@@ -176,6 +215,11 @@ def verify_native_delivery(product, url, reports, redis_port=6379):
                         "NATIVE_DELIVERY_REDIS_DB": "8",
                         "UV_PYTHON": sys.executable,
                         "JAVA_HOME": os.environ.get("JAVA_HOME", ""),
+                        "PRODUCT_VERIFY_PLAYWRIGHT": os.environ.get(
+                            "PRODUCT_VERIFY_PLAYWRIGHT",
+                            str(ROOT / ".native/browser/node_modules/playwright"),
+                        ),
+                        "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
                     },
                     heartbeat="independent-native-start",
                 )

@@ -139,6 +139,13 @@ def run_acceptance(
                     template, backend, frontend, base_url, openapi, token, mapping, plan, reports
                 )
                 export_menu_sql(template, url, baseline_menus, reports / "menu-seed.sql")
+                if plan.business:
+                    from workbench.business_native import install_native_business
+
+                    stage("native-business-contract")
+                    install_native_business(
+                        template, plan, backend, frontend, targets, reports, url
+                    )
             native_recovery.save(
                 checkpoint,
                 expected,
@@ -164,14 +171,21 @@ def run_acceptance(
             install_backend(template, backend, reports / "generated-build")
         with running_backend(template, backend, env, reports / "generated") as (base_url, _):
             token = login(template, base_url)
-            stage("generated-crud")
-            records = generated_crud(template, base_url, token, targets, plan)
-            write_json(reports / "generated/crud.json", records)
-            stage("generated-permissions")
-            write_json(
-                reports / "generated/permissions.json",
-                generated_permissions(template, base_url, token, targets, plan),
-            )
+            if plan.business:
+                from workbench.business_probe import customer_service_acceptance
+
+                stage("customer-service-http")
+                records = customer_service_acceptance(template, base_url, token, targets, plan)
+                write_json(reports / "generated/business.json", records)
+            else:
+                stage("generated-crud")
+                records = generated_crud(template, base_url, token, targets, plan)
+                write_json(reports / "generated/crud.json", records)
+                stage("generated-permissions")
+                write_json(
+                    reports / "generated/permissions.json",
+                    generated_permissions(template, base_url, token, targets, plan),
+                )
         # Compile the large Vben application while the Java process is stopped.
         # Running both heaps concurrently needlessly exhausts smaller CI/WSL hosts.
         front_env = frontend_environment(template, base_url)
@@ -194,10 +208,26 @@ def run_acceptance(
         stage("restart-persistence")
         with running_backend(template, backend, env, reports / "restart") as (base_url, _):
             token = login(template, base_url)
-            write_json(
-                reports / "restart/persistence.json",
-                check_generated_persistence(template, base_url, token, targets, records),
-            )
+            if plan.business:
+                from workbench.business_probe import BusinessClient
+
+                client = BusinessClient(template, base_url, token, targets)
+                try:
+                    for name, identifier in records["records"].items():
+                        assert any(str(row["id"]) == identifier for row in client.rows(name)), (
+                            "Business record missing after restart"
+                        )
+                finally:
+                    client.close()
+                write_json(
+                    reports / "restart/persistence.json",
+                    {"process_restart_preserves_records": True, "business": True},
+                )
+            else:
+                write_json(
+                    reports / "restart/persistence.json",
+                    check_generated_persistence(template, base_url, token, targets, records),
+                )
             for target, entity in zip(targets, plan.entities, strict=True):
                 target["fields"] = [field.model_dump() for field in entity.fields]
                 from workbench.native_business_checks import wire
@@ -213,7 +243,30 @@ def run_acceptance(
             write_json(reports / "browser-targets.json", targets)
             with frontend_preview(template, frontend, front_env, reports) as front_url:
                 stage("native-browser")
-                generated_browser(template, front_url, reports)
+                if plan.business:
+                    from workbench.business_browser import run_business_browser
+
+                    script = (
+                        ROOT
+                        / "scripts"
+                        / (
+                            "business_fastapi_browser.cjs"
+                            if template == "fastapiadmin"
+                            else "business_yudao_browser.cjs"
+                        )
+                    )
+                    browser_report = run_business_browser(
+                        template,
+                        script,
+                        front_url,
+                        reports,
+                        records,
+                        plan,
+                        ROOT / ".native/browser/node_modules/playwright",
+                    )
+                    write_json(reports / "browser.json", browser_report)
+                else:
+                    generated_browser(template, front_url, reports)
         assert before == manifest(source), "Original native source was modified"
         if frontend_before is not None:
             assert frontend_before == manifest(frontend_source), "Original Vben source was modified"
@@ -238,6 +291,7 @@ def run_acceptance(
             "source_unmodified": True,
             "native_business_rules": bool(plan.custom_rules),
             "native_style": style,
+            "business_contract": records if plan.business else None,
             "data_scope": "shared-with-native-role-permissions",
         }
         stage("portable-startup-assets")

@@ -18,7 +18,7 @@ def generate_basic(plan: Plan, destination: Path, selection=None):
     from workbench.catalog import Selection
 
     selection = Selection.model_validate(selection or {"template": "python-basic"}).model_dump()
-    if plan.data_scope != "per_user" or plan.unsupported:
+    if (plan.business is None and plan.data_scope != "per_user") or plan.unsupported:
         raise PrerequisiteError("免服务模板仅支持逐用户 CRUD；不允许静默替换共享数据或未支持项")
     destination = Path(destination)
     if destination.is_symlink() or (
@@ -107,9 +107,14 @@ def downgrade():
 '''.replace("SPEC_LITERAL", repr(json.dumps(plan.model_dump(), ensure_ascii=False)))
     ast.parse(text)
     atomic_text(destination / "migrations/versions/0001_initial.py", text)
-    from workbench.product_sql import render
+    if plan.business is not None:
+        from workbench.business_python import prepare_product
 
-    render(plan, destination)
+        prepare_product(plan, destination)
+    else:
+        from workbench.product_sql import render
+
+        render(plan, destination)
     receipt = {
         "generator": "reviewed-python-basic-v2",
         "spec_digest": digest(plan.model_dump()),
