@@ -2036,6 +2036,10 @@ DAYTONA_SNAPSHOTS={"python-basic/postgresql":"填写该profile实际快照名","
 
 学习时先运行`tests/test_native_recovery.py`理解身份和文件清单拒绝分支；真实原生CI还会分别在实际生成完成后、权限验证后故意中断，再在同一目录和数据库恢复。权限验证每次创建带随机标识的自有测试角色/用户，不接管或修改已存在的无关账号，避免重试碰撞。两次恢复都必须通过后续检查，才验证重试不会破坏已完成的生成。合同测试、可恢复阶段的真实中断验证与任意时刻硬杀恢复是不同范围，不能互相代称。
 
+## 本机沙箱启动失败时保留最少诊断
+
+`DAYTONA_CAPTURE_STARTUP_DIAGNOSTICS`默认关闭。明确启用后，只在创建失败且SDK按本次随机名称找到确切自有沙箱时，在删除前采集其有限容器状态（含OOM/退出码）、标准输出尾部及`/tmp/daytona-daemon.log`尾部。每项最多5秒、总计最多15秒，保存文本每项最多8192字符；先过滤配置中的秘密、Bearer/token/password字段和连接URL密码。诊断只写入该次`daytona-verification.json`的`startup_diagnostics`，不遍历其他容器、不转储环境、不改网络或容器配置。读取失败会标记不可用，随后仍执行原清理路径；诊断成功绝不会把创建超时或原验收失败改成通过。需要排查本机启动问题时才显式开启，普通运行不额外采集这些日志。
+
 # 从空目录到可信交付：逐站实操与证据阅读
 
 这一章是学习过程的检查路线。完整源码附录给出最终实现；这里说明每站先准备什么、亲手执行什么、看到什么才可以继续。命令默认在含`pyproject.toml`的项目根目录执行。终端出现绿色文字、页面出现下载按钮、模型说“完成”，都不能单独证明验收通过。
@@ -4278,6 +4282,144 @@ def concise_requirements(requirement):
     return json.dumps(requirement, ensure_ascii=False, indent=2)
 ````
 
+### `workbench/daytona_diagnostics.py`
+
+**作用：本次自有沙箱的有界启动诊断。** 创建失败后仅按确切随机名称和UUID读取固定本机Runner内的状态及日志尾部；限制单项与总时间、过滤秘密后限长保存。不枚举其他容器、不改配置，诊断失败不阻止原清理，成功不替代验收。
+
+**对应关系：** sandbox失败创建路径的显式可选开关 → capture_startup → startup_diagnostics回执 → 原沙箱删除路径。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `capture_startup`（L26–L119）：接收`sandbox_id`、`sandbox_name`、`settings`。 源码说明：Only called after SDK lookup by this attempt's unpredictable exact name.。 控制顺序：L30按`str(uuid.UUID(sandbox_id)) != sandbox_id or not re.fullmatch( r"rnd-verify-[0-9a-f]{3…`分支；L33抛异常，停止当前正常路径；L43按`not compose.is_file() or compose.is_symlink()`分支；L46遍历`("credentials.json", "api-key.json")`；L48按`path.is_file() and not path.is_symlink() and path.stat().st_size <= 16384`分支；L51按`isinstance(values, dict)`分支；L99遍历`commands.items()`；L101按`remaining <= 0`分支。 调用`str`、`uuid.UUID`、`re.fullmatch`、`ValueError`、`compose.is_file`、`compose.is_symlink`、`path.is_file`、`path.is_symlink`、`path.stat`等。 返回路径：L44的`{**report, "status": "fixed-local-compose-unavailable"}`；L119的`{**report, "status": "collected-before-delete"}`。
+- `capture_startup.redact`（L56–L67）：接收`text`。 控制顺序：L58遍历`sorted(secrets, key=len, reverse=True)`。 调用`settings.redact`、`sorted`、`text.replace`、`re.sub`。 返回路径：L67的`text[-MAX_CHARS:]`。
+
+<!-- source-file: workbench/daytona_diagnostics.py sha256: 16102ee5d05bfd7ffa8291cdd6aa84d171528caef5662765c13f7badfc1a9823 -->
+````python
+"""Optional, bounded startup diagnostics for one owned local sandbox before deletion.
+
+Never enumerate containers, dump environment variables, alter the failed sandbox,
+change network settings, or turn failed creation into successful acceptance.
+"""
+
+import json
+import os
+import re
+import time
+import uuid
+
+from workbench.settings import ROOT
+from workbench.tools import ToolFailure, run_command
+
+MAX_CHARS = 8192
+TOTAL_SECONDS = 15
+STATE_FORMAT = (
+    '{"Status":{{json .State.Status}},"Running":{{json .State.Running}},'
+    '"OOMKilled":{{json .State.OOMKilled}},"ExitCode":{{json .State.ExitCode}},'
+    '"Error":{{json .State.Error}},"StartedAt":{{json .State.StartedAt}},'
+    '"FinishedAt":{{json .State.FinishedAt}},"RestartCount":{{json .RestartCount}}}'
+)
+
+
+def capture_startup(sandbox_id, sandbox_name, settings):
+    """Only called after SDK lookup by this attempt's unpredictable exact name."""
+    from scripts.daytona_local import HOME, PROJECT
+
+    if str(uuid.UUID(sandbox_id)) != sandbox_id or not re.fullmatch(
+        r"rnd-verify-[0-9a-f]{32}", sandbox_name
+    ):
+        raise ValueError("Startup diagnostics require the exact owned sandbox UUID and name")
+    compose = HOME / "compose.lock.yaml"
+    report = {
+        "sandbox_id": sandbox_id,
+        "sandbox_name": sandbox_name,
+        "scope": "exact-owned-local-sandbox",
+        "passed": False,
+        "affects_acceptance": False,
+        "diagnostics": {},
+    }
+    if not compose.is_file() or compose.is_symlink():
+        return {**report, "status": "fixed-local-compose-unavailable"}
+    secrets = []
+    for filename in ("credentials.json", "api-key.json"):
+        path = HOME / filename
+        if path.is_file() and not path.is_symlink() and path.stat().st_size <= 16384:
+            try:
+                values = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(values, dict):
+                    secrets.extend(v for v in values.values() if isinstance(v, str) and len(v) > 5)
+            except OSError, UnicodeError, json.JSONDecodeError:
+                pass
+
+    def redact(text):
+        text = settings.redact(text)
+        for secret in sorted(secrets, key=len, reverse=True):
+            text = text.replace(secret, "[REDACTED]")
+        text = re.sub(r"(?i)(bearer\s+)[^\s\"']+", r"\1[REDACTED]", text)
+        text = re.sub(
+            r"(?i)((?:[\"']?)(?:password|api[_-]?key|auth[_-]?token|access[_-]?token|token|authorization|secret)(?:[\"']?)\s*[=:]\s*)(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)",
+            r"\1[REDACTED]",
+            text,
+        )
+        text = re.sub(r"(://[^/@:\s]+:)[^@\s]+@", r"\1[REDACTED]@", text)
+        return text[-MAX_CHARS:]
+
+    host = "npipe:////./pipe/docker_engine" if os.name == "nt" else "unix:///var/run/docker.sock"
+    prefix = [
+        "docker",
+        "--host",
+        host,
+        "compose",
+        "-p",
+        PROJECT,
+        "-f",
+        str(compose),
+        "exec",
+        "-T",
+        "runner",
+        "docker",
+        "--host",
+        "unix:///var/run/docker.sock",
+    ]
+    commands = {
+        "state": ["inspect", "--format", STATE_FORMAT, sandbox_id],
+        "daemon_stdout": ["logs", "--tail", "80", sandbox_id],
+        "daemon_file": [
+            "exec",
+            sandbox_id,
+            "tail",
+            "-c",
+            str(MAX_CHARS),
+            "/tmp/daytona-daemon.log",
+        ],
+    }
+    deadline = time.monotonic() + TOTAL_SECONDS
+    for label, argv in commands.items():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            report["diagnostics"][label] = {"status": "diagnostic-budget-exhausted"}
+            continue
+        try:
+            result = run_command(prefix + argv, ROOT, timeout=min(5, remaining))
+            report["diagnostics"][label] = {"status": "captured", "text": redact(result["log"])}
+        except ToolFailure as exc:
+            report["diagnostics"][label] = {
+                "status": "unavailable",
+                "error_type": type(exc).__name__,
+                "text": redact(getattr(exc, "log", "")),
+            }
+        except Exception as exc:
+            # Do not serialize unexpected exception messages that may contain secrets.
+            report["diagnostics"][label] = {
+                "status": "unavailable",
+                "error_type": type(exc).__name__,
+            }
+    return {**report, "status": "collected-before-delete"}
+````
+
 ### `workbench/daytona_profiles.py`
 
 **作用：按技术栈登记离线快照和验收合同。** 模板与数据库组成profile，依赖锁的内容摘要绑定预热镜像；报告必须属于当前源码及选择，并使用严格布尔值证明对应关卡和清理，不能复用主机数据库。
@@ -4393,10 +4535,10 @@ def require_runtime_report(report, template, selection, source_digest):
 
 **逐个入口与控制逻辑：**
 
-- `run_isolated`（L14–L60）：接收`product`、`template`、`settings`。 控制顺序：L48抛异常，停止当前正常路径；L51按`process.returncode`分支；L55抛异常，停止当前正常路径；L58按`receipt.get("passed") is not True or receipt.get("cleanup") != "deleted"`分支；L59抛异常，停止当前正常路径。 调用`str`、`Path(product).resolve`、`Path`、`settings.daytona_api_key.get_secret_value`、`tempfile.TemporaryFile`、`subprocess.Popen`、`clean_env`、`process_options`、`process.communicate`等。 返回路径：L60的`receipt`。
-- `main`（L63–L90）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L65按`len(data) > 65536`分支；L66抛异常，停止当前正常路径；L88抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`validate_configuration`、`selection_for`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_isolated`（L14–L61）：接收`product`、`template`、`settings`。 控制顺序：L49抛异常，停止当前正常路径；L52按`process.returncode`分支；L56抛异常，停止当前正常路径；L59按`receipt.get("passed") is not True or receipt.get("cleanup") != "deleted"`分支；L60抛异常，停止当前正常路径。 调用`str`、`Path(product).resolve`、`Path`、`settings.daytona_api_key.get_secret_value`、`tempfile.TemporaryFile`、`subprocess.Popen`、`clean_env`、`process_options`、`process.communicate`等。 返回路径：L61的`receipt`。
+- `main`（L64–L91）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L66按`len(data) > 65536`分支；L67抛异常，停止当前正常路径；L89抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`validate_configuration`、`selection_for`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/daytona_worker.py sha256: c35f1829453c7ec50d9aa17ce745e9b91f453dd6ebf9ef9f1659c2ef4ffeb538 -->
+<!-- source-file: workbench/daytona_worker.py sha256: f15b8fa6a533e3a3ae2131c0de9ab980217e9f8c2cb09d89ac125bec7f48940e -->
 ````python
 """Run the pinned Daytona SDK in an isolated, loopback-only child process."""
 
@@ -4418,6 +4560,7 @@ def run_isolated(product, template, settings):
         "settings": {
             "sandbox_provider": settings.sandbox_provider,
             "daytona_allow_local_execution": settings.daytona_allow_local_execution,
+            "daytona_capture_startup_diagnostics": settings.daytona_capture_startup_diagnostics,
             "daytona_api_url": settings.daytona_api_url,
             "daytona_api_key": settings.daytona_api_key.get_secret_value(),
             "daytona_snapshot": settings.daytona_snapshot,
@@ -12283,9 +12426,9 @@ class Runtime:
 - `source_archive`（L189–L201）：接收`product`。 控制顺序：L191按`len(rows) > 20000 or sum(p.stat().st_size for _, p in rows) > 150_000_000`分支；L192抛异常，停止当前正常路径；L195遍历`rows`；L196按`Path(name).name == ".npmrc"`分支；L198按`any(word in text.lower() for word in ("_auth", "password", "username", "${"))`分支；L199抛异常，停止当前正常路径。 调用`list`、`files`、`len`、`sum`、`p.stat`、`PrerequisiteError`、`io.BytesIO`、`zipfile.ZipFile`、`Path`等。 返回路径：L201的`buffer.getvalue()`。
 - `read_runtime_report`（L204–L231）：接收`filesystem`、`timeout`。 源码说明：Read the pinned SDK's real streaming API with a bounded body and deadline. In 0.190.0 download_file advertises timeout as a keyword in its overloads, but the actual implementation accepts only *args. 。 控制顺序：L217遍历`chunks`；L218按`not isinstance(chunk, bytes)`分支；L219抛异常，停止当前正常路径；L220按`len(body) + len(chunk) > MAX_RUNTIME_REPORT_BYTES`分支；L221抛异常，停止当前正常路径；L226抛异常，停止当前正常路径；L227按`not isinstance(runtime, dict) or not all( runtime.get(key) is True for key in ("passe…`分支；L230抛异常，停止当前正常路径。 调用`bytearray`、`closing`、`filesystem.download_file_stream`、`isinstance`、`PrerequisiteError`、`len`、`body.extend`、`json.loads`、`all`等。 返回路径：L231的`runtime`。
 - `verify_in_daytona`（L234–L240）：接收`product`、`template`、`settings`、`client`。 控制顺序：L236按`client is None`分支。 调用`validate_configuration`、`selection_for`、`run_isolated`、`_verify_in_daytona`。 返回路径：L239的`run_isolated(product, template, settings)`；L240的`_verify_in_daytona(product, template, settings, client=client)`。
-- `_verify_in_daytona`（L243–L362）：接收`product`、`template`、`settings`、`client`。成功不止看命令退出码，还要求本次沙箱成功删除；异常路径同样写回执并尝试清理。 控制顺序：L244按`settings.sandbox_provider != "daytona"`分支；L245抛异常，停止当前正常路径；L296按`extraction.exit_code != 0`分支；L297抛异常，停止当前正常路径；L298按`key != "python-basic/sqlite"`分支；L306按`unpack.exit_code != 0`分支；L307抛异常，停止当前正常路径；L308遍历`checks`。后续分支沿下方源码相同行号继续阅读。 调用`PrerequisiteError`、`Path`、`selection_for`、`validate_configuration`、`profile_key`、`checks_for`、`manifest`、`source_archive`、`local_http_url`等。 返回路径：L362的`receipt`。
+- `_verify_in_daytona`（L243–L375）：接收`product`、`template`、`settings`、`client`。成功不止看命令退出码，还要求本次沙箱成功删除；异常路径同样写回执并尝试清理。 控制顺序：L244按`settings.sandbox_provider != "daytona"`分支；L245抛异常，停止当前正常路径；L296按`extraction.exit_code != 0`分支；L297抛异常，停止当前正常路径；L298按`key != "python-basic/sqlite"`分支；L306按`unpack.exit_code != 0`分支；L307抛异常，停止当前正常路径；L308遍历`checks`。后续分支沿下方源码相同行号继续阅读。 调用`PrerequisiteError`、`Path`、`selection_for`、`validate_configuration`、`profile_key`、`checks_for`、`manifest`、`source_archive`、`local_http_url`等。 返回路径：L375的`receipt`。
 
-<!-- source-file: workbench/sandbox.py sha256: 4f9b7161ae663d29a994d29c8fc05ec2a973bee4edf86d97e4d1e046b36959df -->
+<!-- source-file: workbench/sandbox.py sha256: 1460ef89c7c32c228634b877f7554264492ea14e30443e3281cd2c8ff9d229c3 -->
 ````python
 """Opt-in self-hosted Daytona verification. No cloud control plane is allowed.
 
@@ -12631,6 +12774,19 @@ def _verify_in_daytona(product, template, settings, *, client):
                 sandbox = client.get(name)
             except Exception:
                 pass
+            if sandbox is not None:
+                receipt["sandbox_id"] = sandbox.id
+                if settings.daytona_capture_startup_diagnostics:
+                    try:
+                        from workbench.daytona_diagnostics import capture_startup
+
+                        receipt["startup_diagnostics"] = capture_startup(sandbox.id, name, settings)
+                    except Exception as diagnostic_error:
+                        receipt["startup_diagnostics"] = {
+                            "status": "unavailable",
+                            "affects_acceptance": False,
+                            "error_type": type(diagnostic_error).__name__,
+                        }
         receipt["error_type"] = type(exc).__name__
         receipt["error_detail"] = settings.redact(str(exc))[:2000]
         receipt["passed"] = False
@@ -12900,18 +13056,18 @@ def scaffold_native_rules(template, plan, product, reports):
 - `ModelProfile`（L17–L48）：继承`BaseModel`。声明的数据项为`stage`、`base_url`、`model`、`api_key`；类型约束/数据库列参数以完整定义为准。
 - `ModelProfile.validate_endpoint`（L23–L40）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L25按`url.scheme not in {"http", "https"} or not url.hostname or url.username or url.passwo…`分支；L33抛异常，停止当前正常路径；L34按`url.scheme == "http" and url.hostname not in {"127.0.0.1", "localhost", "::1"}`分支；L35抛异常，停止当前正常路径；L36按`not self.model or not self.api_key.get_secret_value()`分支；L37抛异常，停止当前正常路径；L38按`self.base_url.rstrip("/").endswith("/chat/completions")`分支；L39抛异常，停止当前正常路径。 调用`urlsplit`、`ValueError`、`self.api_key.get_secret_value`、`self.base_url.rstrip("/").endswith`、`self.base_url.rstrip`。 返回路径：L40的`self`。
 - `ModelProfile.public`（L42–L48）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.api_key.get_secret_value`。 返回路径：L43的`{ "stage": self.stage, "base_url": self.base_url, "model": self.model, "api_key": "configu…`。
-- `Settings`（L51–L188）：继承`BaseSettings`。声明的数据项为`base_url`、`api_key`、`model`、`requirements_base_url`、`requirements_api_key`、`requirements_model`、`planning_base_url`、`planning_api_key`、`planning_model`、`coding_base_url`、`coding_api_key`、`coding_model`、`review_base_url`、`review_api_key`、`review_model`、`model_review`、`data_dir`、`database_url`、`product_postgres_url`、`llm_timeout`、`max_model_calls`、`max_rounds`、`max_context_chars`、`install_products`、`enable_coding`、`max_repair_attempts`、`tool_timeout`、`coding_engine`、`aider_executable`、`repo_map_provider`、`retrieval_engine`、`repo_map_chars`、`embedding_base_url`、`embedding_api_key`、`embedding_model`、`embedding_enabled`、`embedding_max_chunks`、`sandbox_provider`、`daytona_api_url`、`daytona_api_key`、`daytona_target`、`daytona_snapshot`、`daytona_snapshots`、`daytona_runtime_timeout`、`daytona_allow_local_execution`、`checkpoint_url`、`host`、`port`；类型约束/数据库列参数以完整定义为准。
-- `Settings.only_local_tools`（L119–L120）：接收`value`。 调用`local_http_url`、`field_validator`。 返回路径：L120的`local_http_url(value)`。
-- `Settings.only_local_databases`（L124–L125）：接收`value`。 调用`local_database_url`、`field_validator`。 返回路径：L125的`local_database_url(value)`。
-- `Settings.absolute_data_dir`（L129–L130）：接收`value`。 调用`(value if value.is_absolute() else ROOT / value).resolve`、`value.is_absolute`、`field_validator`。 返回路径：L130的`(value if value.is_absolute() else ROOT / value).resolve()`。
-- `Settings.db_url`（L133–L137）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_database_url`、`(self.data_dir / 'workbench.db').as_posix`。 返回路径：L134的`local_database_url(self.database_url) or f"sqlite:///{(self.data_dir / 'workbench.db').as_…`。
-- `Settings.prepare`（L139–L142）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L141遍历`("runs", "sources", "knowledge", "native")`。 调用`self.data_dir.mkdir`、`(self.data_dir / name).mkdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.model_for`（L144–L160）：接收`stage`。 控制顺序：L145按`stage not in STAGES`分支；L146抛异常，停止当前正常路径；L149按`not key.get_secret_value()`分支；L150按`endpoint.rstrip("/") != self.base_url.rstrip("/")`分支；L151抛异常，停止当前正常路径。 调用`ValueError`、`getattr`、`key.get_secret_value`、`endpoint.rstrip`、`self.base_url.rstrip`、`stage.upper`、`ModelProfile`。 返回路径：L155的`ModelProfile( stage=stage, base_url=endpoint.rstrip("/"), model=getattr(self, stage + "_mo…`。
-- `Settings.require_model`（L162–L166）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L163遍历`STAGES[:3]`；L165按`self.review_enabled`分支。 调用`self.model_for(stage).validate_endpoint`、`self.model_for`、`self.model_for("review").validate_endpoint`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.review_enabled`（L169–L175）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`、`self.review_api_key.get_secret_value`。 返回路径：L170的`bool( self.model_review or self.review_model or self.review_base_url or self.review_api_ke…`。
-- `Settings.redact`（L177–L188）：接收`text`。 控制顺序：L178遍历`( "api_key", "product_postgres_url", "embedding_api_key", "dayton…`；L186按`secret`分支。 调用`getattr(self, field).get_secret_value`、`getattr`、`text.replace`。 返回路径：L188的`text`。
+- `Settings`（L51–L189）：继承`BaseSettings`。声明的数据项为`base_url`、`api_key`、`model`、`requirements_base_url`、`requirements_api_key`、`requirements_model`、`planning_base_url`、`planning_api_key`、`planning_model`、`coding_base_url`、`coding_api_key`、`coding_model`、`review_base_url`、`review_api_key`、`review_model`、`model_review`、`data_dir`、`database_url`、`product_postgres_url`、`llm_timeout`、`max_model_calls`、`max_rounds`、`max_context_chars`、`install_products`、`enable_coding`、`max_repair_attempts`、`tool_timeout`、`coding_engine`、`aider_executable`、`repo_map_provider`、`retrieval_engine`、`repo_map_chars`、`embedding_base_url`、`embedding_api_key`、`embedding_model`、`embedding_enabled`、`embedding_max_chunks`、`sandbox_provider`、`daytona_api_url`、`daytona_api_key`、`daytona_target`、`daytona_snapshot`、`daytona_snapshots`、`daytona_runtime_timeout`、`daytona_allow_local_execution`、`daytona_capture_startup_diagnostics`、`checkpoint_url`、`host`、`port`；类型约束/数据库列参数以完整定义为准。
+- `Settings.only_local_tools`（L120–L121）：接收`value`。 调用`local_http_url`、`field_validator`。 返回路径：L121的`local_http_url(value)`。
+- `Settings.only_local_databases`（L125–L126）：接收`value`。 调用`local_database_url`、`field_validator`。 返回路径：L126的`local_database_url(value)`。
+- `Settings.absolute_data_dir`（L130–L131）：接收`value`。 调用`(value if value.is_absolute() else ROOT / value).resolve`、`value.is_absolute`、`field_validator`。 返回路径：L131的`(value if value.is_absolute() else ROOT / value).resolve()`。
+- `Settings.db_url`（L134–L138）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_database_url`、`(self.data_dir / 'workbench.db').as_posix`。 返回路径：L135的`local_database_url(self.database_url) or f"sqlite:///{(self.data_dir / 'workbench.db').as_…`。
+- `Settings.prepare`（L140–L143）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L142遍历`("runs", "sources", "knowledge", "native")`。 调用`self.data_dir.mkdir`、`(self.data_dir / name).mkdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.model_for`（L145–L161）：接收`stage`。 控制顺序：L146按`stage not in STAGES`分支；L147抛异常，停止当前正常路径；L150按`not key.get_secret_value()`分支；L151按`endpoint.rstrip("/") != self.base_url.rstrip("/")`分支；L152抛异常，停止当前正常路径。 调用`ValueError`、`getattr`、`key.get_secret_value`、`endpoint.rstrip`、`self.base_url.rstrip`、`stage.upper`、`ModelProfile`。 返回路径：L156的`ModelProfile( stage=stage, base_url=endpoint.rstrip("/"), model=getattr(self, stage + "_mo…`。
+- `Settings.require_model`（L163–L167）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L164遍历`STAGES[:3]`；L166按`self.review_enabled`分支。 调用`self.model_for(stage).validate_endpoint`、`self.model_for`、`self.model_for("review").validate_endpoint`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.review_enabled`（L170–L176）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`、`self.review_api_key.get_secret_value`。 返回路径：L171的`bool( self.model_review or self.review_model or self.review_base_url or self.review_api_ke…`。
+- `Settings.redact`（L178–L189）：接收`text`。 控制顺序：L179遍历`( "api_key", "product_postgres_url", "embedding_api_key", "dayton…`；L187按`secret`分支。 调用`getattr(self, field).get_secret_value`、`getattr`、`text.replace`。 返回路径：L189的`text`。
 
-<!-- source-file: workbench/settings.py sha256: 8bef0b3f5ca89f7d06f4c1ae19e1d1bddd83d9ddf38fe64ad4e41268683f5847 -->
+<!-- source-file: workbench/settings.py sha256: c008048a3a3fa2921d5eb6b0095c8b18aad72a22c25135f0a34592952fee50d7 -->
 ````python
 """Local configuration and optional per-stage model profiles; no secrets in run receipts."""
 
@@ -13025,6 +13181,7 @@ class Settings(BaseSettings):
     daytona_snapshots: dict[str, str] = Field(default_factory=dict)
     daytona_runtime_timeout: int = Field(default=3600, ge=60, le=7200)
     daytona_allow_local_execution: bool = False
+    daytona_capture_startup_diagnostics: bool = False
     checkpoint_url: str = ""
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1024, le=65535)
@@ -20536,6 +20693,203 @@ def test_warmup_failure_leaves_config_untouched_and_closes_client(worker, monkey
     client.snapshot.create.assert_not_called()
     assert not (directory / "workbench.env").exists()
     assert client._http_client.is_closed
+````
+
+### `tests/test_daytona_startup_diagnostics.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench`、`workbench.filesystem`、`workbench.generator`、`workbench.sandbox`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `local_compose`（L19–L25）：接收`tmp_path`、`monkeypatch`。 调用`monkeypatch.setattr`、`atomic_text`、`json.dumps`。 返回路径：L25的`daytona_local`。
+- `test_diagnostics_only_exact_owned_id_fixed_daemons_and_no_environment_dump`（L28–L65）：接收`tmp_path`、`settings`、`monkeypatch`。 控制顺序：L50断言`len(calls) == 3 and report["affects_acceptance"] is False`；L52遍历`[ "api-secret-sentinel", "local-password-sentinel", "hidden-token…`；L60断言`secret not in body`；L61断言`all( len(value["text"]) <= diagnostics.MAX_CHARS for value in report["diagnostics"].v…`；L64断言`"OOMKilled" in calls[0][calls[0].index("--format") + 1]`；L65断言`calls[-1][-4:] == ["tail", "-c", "8192", "/tmp/daytona-daemon.log"]`。 调用`local_compose`、`SecretStr`、`monkeypatch.setattr`、`diagnostics.capture_startup`、`len`、`json.dumps`、`all`、`report["diagnostics"].values`、`calls[0].index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostics_only_exact_owned_id_fixed_daemons_and_no_environment_dump.command`（L35–L46）：接收`argv`、`cwd`、`timeout`。 控制顺序：L37断言`0 < timeout <= 5`；L38断言`argv[:2] == ["docker", "--host"]`；L39断言`"unix:///var/run/docker.sock" in argv`；L40断言`"runner" in argv and OWNED_ID in argv`；L41断言`"ps" not in argv and "Env" not in " ".join(argv)`。 调用`calls.append`、`" ".join`。 返回路径：L42的`{ "log": "x" * 10000 + " api-secret-sentinel local-password-sentinel Bearer hidden-token p…`。
+- `test_invalid_identity_never_invokes_docker`（L76–L83）：接收`identifier`、`name`、`settings`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`diagnostics.capture_startup`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_fixed_compose_does_not_discover_other_installations`（L86–L98）：接收`tmp_path`、`settings`、`monkeypatch`。 控制顺序：L95断言`diagnostics.capture_startup(OWNED_ID, OWNED_NAME, settings)["status"] == "fixed-local…`。 调用`monkeypatch.setattr`、`pytest.fail`、`diagnostics.capture_startup`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostic_errors_are_bounded_and_do_not_escape`（L101–L114）：接收`tmp_path`、`settings`、`monkeypatch`。 控制顺序：L111断言`len(report["diagnostics"]) == 3`；L112断言`all(row["status"] == "unavailable" for row in report["diagnostics"].values())`；L113断言`"hidden-secret" not in json.dumps(report)`；L114断言`"private exception" not in json.dumps(report)`。 调用`local_compose`、`monkeypatch.setattr`、`diagnostics.capture_startup`、`len`、`all`、`report["diagnostics"].values`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostic_errors_are_bounded_and_do_not_escape.fail`（L104–L107）：接收`*a`、`**kw`。 控制顺序：L107抛异常，停止当前正常路径。 调用`ToolFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failed_create_diagnostics_run_before_delete_and_never_skip_cleanup`（L120–L167）：接收`tmp_path`、`settings`、`monkeypatch`、`enabled`、`diagnostic_failure`。 控制顺序：L158断言`events == [ "create", "lookup-exact-name", *(["diagnostics"] if enabled else []), "de…`；L166断言`report["passed"] is False and report["cleanup"] == "deleted"`；L167断言`report["sandbox_id"] == OWNED_ID and "must-not-leak-private-exception" not in body`。 调用`product.mkdir`、`atomic_text`、`SecretStr`、`monkeypatch.setattr`、`pytest.raises`、`verify_in_daytona`、`Client`、`(tmp_path / "daytona-verification.json").read_text`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failed_create_diagnostics_run_before_delete_and_never_skip_cleanup.Client`（L133–L146）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_failed_create_diagnostics_run_before_delete_and_never_skip_cleanup.Client.create`（L134–L137）：接收`params`、`**kwargs`。 控制顺序：L137抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failed_create_diagnostics_run_before_delete_and_never_skip_cleanup.Client.get`（L139–L142）：接收`name`。 控制顺序：L140断言`name == self.name and name.startswith("rnd-verify-")`。 调用`name.startswith`、`events.append`、`SimpleNamespace`。 返回路径：L142的`SimpleNamespace(id=OWNED_ID)`。
+- `test_failed_create_diagnostics_run_before_delete_and_never_skip_cleanup.Client.delete`（L144–L146）：接收`sandbox`、`**kwargs`。 控制顺序：L145断言`sandbox.id == OWNED_ID`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failed_create_diagnostics_run_before_delete_and_never_skip_cleanup.capture`（L148–L153）：接收`identifier`、`name`、`configuration`。 控制顺序：L149断言`identifier == OWNED_ID and name.startswith("rnd-verify-")`；L151按`diagnostic_failure`分支；L152抛异常，停止当前正常路径。 调用`name.startswith`、`events.append`、`RuntimeError`。 返回路径：L153的`{"status": "captured", "affects_acceptance": False}`。
+
+<!-- source-file: tests/test_daytona_startup_diagnostics.py sha256: 54b3be0b0cc560d533c4cb0c99de8f2892bb8204273488d994f58d060d982c73 -->
+````python
+"""Read-only startup inspection must be scoped, redacted and cleanup-independent."""
+
+import json
+from types import SimpleNamespace
+
+import pytest
+from pydantic import SecretStr
+
+from workbench import daytona_diagnostics as diagnostics
+from workbench.filesystem import atomic_text
+from workbench.generator import PrerequisiteError
+from workbench.sandbox import verify_in_daytona
+from workbench.tools import ToolFailure
+
+OWNED_ID = "11111111-2222-4333-8444-555555555555"
+OWNED_NAME = "rnd-verify-" + "a" * 32
+
+
+def local_compose(tmp_path, monkeypatch):
+    from scripts import daytona_local
+
+    monkeypatch.setattr(daytona_local, "HOME", tmp_path)
+    atomic_text(tmp_path / "compose.lock.yaml", "fixture-only-compose")
+    atomic_text(tmp_path / "credentials.json", json.dumps({"password": "local-password-sentinel"}))
+    return daytona_local
+
+
+def test_diagnostics_only_exact_owned_id_fixed_daemons_and_no_environment_dump(
+    tmp_path, settings, monkeypatch
+):
+    local_compose(tmp_path, monkeypatch)
+    settings.daytona_api_key = SecretStr("api-secret-sentinel")
+    calls = []
+
+    def command(argv, cwd, timeout):
+        calls.append(argv)
+        assert 0 < timeout <= 5
+        assert argv[:2] == ["docker", "--host"]
+        assert "unix:///var/run/docker.sock" in argv
+        assert "runner" in argv and OWNED_ID in argv
+        assert "ps" not in argv and "Env" not in " ".join(argv)
+        return {
+            "log": "x" * 10000
+            + " api-secret-sentinel local-password-sentinel Bearer hidden-token password=other-secret"
+            + ' {"token":"json-private-token"} postgresql://u:db-private-password@127.0.0.1/test'
+        }
+
+    monkeypatch.setattr(diagnostics, "run_command", command)
+    report = diagnostics.capture_startup(OWNED_ID, OWNED_NAME, settings)
+    assert len(calls) == 3 and report["affects_acceptance"] is False
+    body = json.dumps(report)
+    for secret in [
+        "api-secret-sentinel",
+        "local-password-sentinel",
+        "hidden-token",
+        "other-secret",
+        "json-private-token",
+        "db-private-password",
+    ]:
+        assert secret not in body
+    assert all(
+        len(value["text"]) <= diagnostics.MAX_CHARS for value in report["diagnostics"].values()
+    )
+    assert "OOMKilled" in calls[0][calls[0].index("--format") + 1]
+    assert calls[-1][-4:] == ["tail", "-c", "8192", "/tmp/daytona-daemon.log"]
+
+
+@pytest.mark.parametrize(
+    "identifier,name",
+    [
+        ("other-container", OWNED_NAME),
+        (OWNED_ID, "user-sandbox"),
+        (OWNED_ID, "rnd-verify-../../other"),
+    ],
+)
+def test_invalid_identity_never_invokes_docker(identifier, name, settings, monkeypatch):
+    monkeypatch.setattr(
+        diagnostics,
+        "run_command",
+        lambda *a, **kw: pytest.fail("must not inspect another container"),
+    )
+    with pytest.raises(ValueError):
+        diagnostics.capture_startup(identifier, name, settings)
+
+
+def test_missing_fixed_compose_does_not_discover_other_installations(
+    tmp_path, settings, monkeypatch
+):
+    from scripts import daytona_local
+
+    monkeypatch.setattr(daytona_local, "HOME", tmp_path)
+    monkeypatch.setattr(
+        diagnostics, "run_command", lambda *a, **kw: pytest.fail("must not enumerate Docker")
+    )
+    assert (
+        diagnostics.capture_startup(OWNED_ID, OWNED_NAME, settings)["status"]
+        == "fixed-local-compose-unavailable"
+    )
+
+
+def test_diagnostic_errors_are_bounded_and_do_not_escape(tmp_path, settings, monkeypatch):
+    local_compose(tmp_path, monkeypatch)
+
+    def fail(*a, **kw):
+        error = ToolFailure("private exception must not be serialized")
+        error.log = "password=hidden-secret"
+        raise error
+
+    monkeypatch.setattr(diagnostics, "run_command", fail)
+    report = diagnostics.capture_startup(OWNED_ID, OWNED_NAME, settings)
+    assert len(report["diagnostics"]) == 3
+    assert all(row["status"] == "unavailable" for row in report["diagnostics"].values())
+    assert "hidden-secret" not in json.dumps(report)
+    assert "private exception" not in json.dumps(report)
+
+
+@pytest.mark.parametrize(
+    "enabled,diagnostic_failure", [(False, False), (True, False), (True, True)]
+)
+def test_failed_create_diagnostics_run_before_delete_and_never_skip_cleanup(
+    tmp_path, settings, monkeypatch, enabled, diagnostic_failure
+):
+    product = tmp_path / "product"
+    product.mkdir()
+    atomic_text(product / "pyproject.toml", "fixture")
+    settings.sandbox_provider = "daytona"
+    settings.daytona_allow_local_execution = True
+    settings.daytona_api_key = SecretStr("test-local-only")
+    settings.daytona_snapshot = "test-local-snapshot"
+    settings.daytona_capture_startup_diagnostics = enabled
+    events = []
+
+    class Client:
+        def create(self, params, **kwargs):
+            self.name = params.name
+            events.append("create")
+            raise RuntimeError("timeout waiting for daemon to start")
+
+        def get(self, name):
+            assert name == self.name and name.startswith("rnd-verify-")
+            events.append("lookup-exact-name")
+            return SimpleNamespace(id=OWNED_ID)
+
+        def delete(self, sandbox, **kwargs):
+            assert sandbox.id == OWNED_ID
+            events.append("delete")
+
+    def capture(identifier, name, configuration):
+        assert identifier == OWNED_ID and name.startswith("rnd-verify-")
+        events.append("diagnostics")
+        if diagnostic_failure:
+            raise RuntimeError("must-not-leak-private-exception")
+        return {"status": "captured", "affects_acceptance": False}
+
+    monkeypatch.setattr(diagnostics, "capture_startup", capture)
+    with pytest.raises(PrerequisiteError):
+        verify_in_daytona(product, "fastapiadmin", settings, client=Client())
+    assert events == [
+        "create",
+        "lookup-exact-name",
+        *(["diagnostics"] if enabled else []),
+        "delete",
+    ]
+    body = (tmp_path / "daytona-verification.json").read_text(encoding="utf-8")
+    report = json.loads(body)
+    assert report["passed"] is False and report["cleanup"] == "deleted"
+    assert report["sandbox_id"] == OWNED_ID and "must-not-leak-private-exception" not in body
 ````
 
 ### `tests/test_delivery_clearance.py`
@@ -30036,14 +30390,14 @@ main().catch((e) => {
 
 **逐个入口与控制逻辑：**
 
-- `parse`（L469–L475）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L475的`ast.parse(normalized)`。
-- `segment`（L478–L481）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L481的`value if len(value) <= limit else value[:limit] + "…"`。
-- `definitions`（L484–L491）：接收`node`、`prefix`。 控制顺序：L485遍历`ast.iter_child_nodes(node)`；L486按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `body_nodes`（L494–L499）：接收`node`。 控制顺序：L495遍历`ast.iter_child_nodes(node)`；L496按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `purpose`（L502–L647）：接收`name`。 控制顺序：L504按`name == "workbench/__init__.py"`分支；L510按`name.startswith("workbench/") and path.stem in MODULES`分支；L512按`name.startswith("templates/product/")`分支；L521按`name.startswith("workbench/web/")`分支；L527按`name.startswith("templates/frontends/")`分支；L533按`name.startswith("templates/deployment/")`分支；L539按`name.startswith("migrations/")`分支；L545按`name.startswith("tests/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L505的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L511的`MODULES[path.stem]`；L513的`( "独立基础产品的组成文件", PRODUCT.get( path.name, "这是成品自有的配置、迁移或页面；生成器把它复制到交付目录，由产品启动器和应用读取，不通过工作台动…`。
-- `notes`（L650–L760）：接收`name`、`content`。 控制顺序：L654按`not name.endswith(".py")`分支；L661遍历`tree.body`；L662按`isinstance(node, ast.ImportFrom) and node.module`分支；L664按`isinstance(node, ast.Import)`分支；L667按`own`分支；L674按`not rows`分支；L677遍历`rows`；L679按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L655的`out`；L659的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L675的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
+- `parse`（L474–L480）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L480的`ast.parse(normalized)`。
+- `segment`（L483–L486）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L486的`value if len(value) <= limit else value[:limit] + "…"`。
+- `definitions`（L489–L496）：接收`node`、`prefix`。 控制顺序：L490遍历`ast.iter_child_nodes(node)`；L491按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `body_nodes`（L499–L504）：接收`node`。 控制顺序：L500遍历`ast.iter_child_nodes(node)`；L501按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `purpose`（L507–L652）：接收`name`。 控制顺序：L509按`name == "workbench/__init__.py"`分支；L515按`name.startswith("workbench/") and path.stem in MODULES`分支；L517按`name.startswith("templates/product/")`分支；L526按`name.startswith("workbench/web/")`分支；L532按`name.startswith("templates/frontends/")`分支；L538按`name.startswith("templates/deployment/")`分支；L544按`name.startswith("migrations/")`分支；L550按`name.startswith("tests/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L510的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L516的`MODULES[path.stem]`；L518的`( "独立基础产品的组成文件", PRODUCT.get( path.name, "这是成品自有的配置、迁移或页面；生成器把它复制到交付目录，由产品启动器和应用读取，不通过工作台动…`。
+- `notes`（L655–L765）：接收`name`、`content`。 控制顺序：L659按`not name.endswith(".py")`分支；L666遍历`tree.body`；L667按`isinstance(node, ast.ImportFrom) and node.module`分支；L669按`isinstance(node, ast.Import)`分支；L672按`own`分支；L679按`not rows`分支；L682遍历`rows`；L684按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L660的`out`；L664的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L680的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
 
-<!-- source-file: scripts/handbook_notes.py sha256: 9dc649838046c372aa1c807c5ff92b65ce2ee8de4391755b9d527103e4e21672 -->
+<!-- source-file: scripts/handbook_notes.py sha256: b277c9b83371c8ff6436f80316900abadb4009f740ae850398e37ca6c0190faa -->
 ````python
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
 
@@ -30054,6 +30408,11 @@ from pathlib import Path
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "daytona_diagnostics": (
+        "本次自有沙箱的有界启动诊断",
+        "创建失败后仅按确切随机名称和UUID读取固定本机Runner内的状态及日志尾部；限制单项与总时间、过滤秘密后限长保存。不枚举其他容器、不改配置，诊断失败不阻止原清理，成功不替代验收。",
+        "sandbox失败创建路径的显式可选开关 → capture_startup → startup_diagnostics回执 → 原沙箱删除路径。",
+    ),
     "native_style": (
         "原生UI壳、主题和组件族的身份检查",
         "先比较固定上游与生成目录中受保护布局/主题文件的内容清单，再解析生成Vue页应使用的真实框架组件；输出绑定模板、来源和Plan的回执。静态身份检查之后仍须真实浏览器检查，不能用一张通用页面替代原生风格。",
@@ -31832,7 +32191,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/native-toolchain-daytona.yml sha256: c49a5b634cb961b13b64897f6c2c1ac48af3b33630c5a55f6065c50938a4c1bd -->
+<!-- source-file: .github/workflows/native-toolchain-daytona.yml sha256: 33fa3fa9dc44d0416af18e2cfb49e2e61638afdada1b5b9f6d5dfce0bd37951e -->
 ````yaml
 name: Native Plop Aider and Daytona database matrix
 on:
@@ -31927,6 +32286,8 @@ jobs:
         run: uv run python -m scripts.daytona_bootstrap snapshot
       - name: No-egress sandbox owns its database and validates independent native launch
         run: uv run python -m scripts.ci_daytona_matrix verify ${{ matrix.template }}
+        env:
+          DAYTONA_CAPTURE_STARTUP_DIAGNOSTICS: 'true'
       - name: Preserve bounded redacted failure evidence
         if: always()
         run: |
@@ -41203,7 +41564,7 @@ uv run python -m scripts.build_handbook --check
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/native-toolchain.md sha256: af30b06efd824e7e72fc9442fbec72debff66dfbd39a16923385bf0e89383100 -->
+<!-- source-file: docs/native-toolchain.md sha256: b9a4bef4f9276c1fb52a54a08a12ffab04994bd7e88f73887aac2c6e4fbd4167 -->
 ````markdown
 # 原生业务规则、Plop 与本机 Daytona 的完整实现
 
@@ -41312,6 +41673,10 @@ DAYTONA_SNAPSHOTS={"python-basic/postgresql":"填写该profile实际快照名","
 已有失败候选的日志和Git记录保留，继续尝试使用新的编号。只允许恢复程序明确标记可恢复的阶段。若进程在不可重放的生成步骤中被强制终止、检查点缺失、源码被手工改过或数据库/Plan已改变，就保留现场并明确阻塞，先检查该阶段；不能自动清库，也不要求靠新建任务掩盖旧现场。
 
 学习时先运行`tests/test_native_recovery.py`理解身份和文件清单拒绝分支；真实原生CI还会分别在实际生成完成后、权限验证后故意中断，再在同一目录和数据库恢复。权限验证每次创建带随机标识的自有测试角色/用户，不接管或修改已存在的无关账号，避免重试碰撞。两次恢复都必须通过后续检查，才验证重试不会破坏已完成的生成。合同测试、可恢复阶段的真实中断验证与任意时刻硬杀恢复是不同范围，不能互相代称。
+
+## 本机沙箱启动失败时保留最少诊断
+
+`DAYTONA_CAPTURE_STARTUP_DIAGNOSTICS`默认关闭。明确启用后，只在创建失败且SDK按本次随机名称找到确切自有沙箱时，在删除前采集其有限容器状态（含OOM/退出码）、标准输出尾部及`/tmp/daytona-daemon.log`尾部。每项最多5秒、总计最多15秒，保存文本每项最多8192字符；先过滤配置中的秘密、Bearer/token/password字段和连接URL密码。诊断只写入该次`daytona-verification.json`的`startup_diagnostics`，不遍历其他容器、不转储环境、不改网络或容器配置。读取失败会标记不可用，随后仍执行原清理路径；诊断成功绝不会把创建超时或原验收失败改成通过。需要排查本机启动问题时才显式开启，普通运行不额外采集这些日志。
 ````
 
 ### `docs/from-zero-checkpoints.md`
