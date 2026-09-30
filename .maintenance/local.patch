@@ -1,0 +1,169 @@
+diff --git a/README.md b/README.md
+index 6f9e275..983e4d1 100644
+--- a/README.md
++++ b/README.md
+@@ -150,7 +150,7 @@ uv run --no-project --python 3.14 python start.py
+ 
+ 源码包含初始化/迁移语句，不包含用户实际业务数据。重复启动不重置记录或密码。原生 `--check` 会完整验证数据库、菜单、CRUD和前端启动后退出；`--skip-build` 仅用于之前已成功构建的同一产品。不要删除数据库排错，不把源码包当作用户数据备份。
+ 
+-## 9. 测试、证据、手册
++## 8. 测试、证据、手册
+ 
+ ```powershell
+ uv run ruff check .
+@@ -165,7 +165,7 @@ Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新
+ 
+ 当前是仅监听本机、单操作人和单Worker的研发工作台。没有公网生产身份体系。请勿公开 `.env`、`.data`、`.deployment` 或访问令牌。更多环境条件、SQL步骤、预算恢复、原生部署与故障定位见完整手册。
+ 
+-## 10. 本机工具链与唯一完整教材
++## 9. 本机工具链与唯一完整教材
+ 
+ 默认使用本机Tree-sitter/Python AST、FTS5和符号Repo Map。Aider使用独立Python3.12环境：
+ 
+@@ -176,7 +176,7 @@ uv run rnd tools search workbench .data/platform-index "model_for"
+ uv run rnd tools continue-config . workbench .data/platform-index
+ ```
+ 
+-设置`CODING_ENGINE=aider`和`REPO_MAP_PROVIDER=aider`可启用实际本机编辑/Repo Map。真实模型Key只交给平台网关，Aider不取得它。Continue仅通过本机stdio MCP访问只读search_code/repository_map；上游已停止积极维护，本平台不依赖其云服务。
++设置`CODING_ENGINE=aider`和`REPO_MAP_PROVIDER=aider`可启用实际本机编辑/Repo Map。真实模型Key只交给平台网关，Aider不取得它。Continue仅通过本机stdio MCP访问只读search_code/repository_map，本平台不依赖其云服务。
+ 
+ 向量服务仅接受回环地址，使用本机模型并显式`EMBEDDING_ENABLED=true`。工具端点拒绝云端/局域网、代理与重定向，数据库和Docker执行也限定本机；继承的LangSmith/OTEL遥测关闭。公开依赖下载不等于云端执行工具。
+ 
+@@ -186,9 +186,9 @@ Daytona固定为**v0.190.0自托管开发部署**，没有云端模式。Linux/W
+ uv sync --locked --all-extras
+ uv run python -m scripts.daytona_local prepare
+ uv run python -m scripts.daytona_local images
++uv run python -m scripts.daytona_local snapshot-image
+ uv run python -m scripts.daytona_local up
+ uv run python -m scripts.daytona_bootstrap auth
+-uv run python -m scripts.daytona_local snapshot-image
+ uv run python -m scripts.daytona_bootstrap snapshot
+ uv run python -m scripts.ci_daytona_local
+ ```
+diff --git a/docs/implementation.md b/docs/implementation.md
+index 80ab309..e659185 100644
+--- a/docs/implementation.md
++++ b/docs/implementation.md
+@@ -265,8 +265,8 @@ target = Path(sys.argv[2])
+ if target.is_symlink() or (target.exists() and any(target.iterdir())):
+     raise SystemExit("目标必须是新的空目录，不覆盖任何已有项目")
+ pattern = re.compile(
+-    r"<!-- source-file: (.+?) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n",
+-    re.S,
++    r"^<!-- source-file: ([^\r\n]+) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n",
++    re.S | re.M,
+ )
+ files = {}
+ for name, expected, fence, code in pattern.findall(book):
+@@ -278,6 +278,9 @@ for name, expected, fence, code in pattern.findall(book):
+         or "\\" in name
+         or name in files
+         or ".git" in relative.parts
++        or not relative.parts
++        or relative.as_posix() != name
++        or any(ord(char) < 32 for char in name)
+     ):
+         raise SystemExit("不安全或重复路径: " + name)
+     content = code + "\n"
+diff --git a/scripts/rebuild_from_handbook.py b/scripts/rebuild_from_handbook.py
+index 653de6a..9a373bf 100644
+--- a/scripts/rebuild_from_handbook.py
++++ b/scripts/rebuild_from_handbook.py
+@@ -6,7 +6,8 @@ import re
+ from pathlib import Path, PurePosixPath
+ 
+ PATTERN = re.compile(
+-    r"<!-- source-file: (.+?) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n", re.S
++    r"^<!-- source-file: ([^\r\n]+) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n",
++    re.S | re.M
+ )
+ 
+ 
+@@ -21,6 +22,10 @@ def extract(text):
+             or ":" in name
+             or "\\" in name
+             or name in result
++            or not path.parts
++            or path.as_posix() != name
++            or ".git" in path.parts
++            or any(ord(char) < 32 for char in name)
+         ):
+             raise ValueError("附录文件路径不安全或重复")
+         # All committed sources use a final newline.
+@@ -30,12 +35,14 @@ def extract(text):
+         result[name] = content
+     if not result:
+         raise ValueError("没有找到完整源码块")
++    if len(result) != len(re.findall(r"^<!-- source-file: ", text, re.M)):
++        raise ValueError("源码块不完整，拒绝写入残缺项目")
+     return result
+ 
+ 
+ def restore(handbook, destination):
+     destination = Path(destination)
+-    if destination.exists() and any(destination.iterdir()):
++    if destination.is_symlink() or (destination.exists() and any(destination.iterdir())):
+         raise ValueError("目标必须是新的空目录，不覆盖已有项目")
+     rows = extract(Path(handbook).read_text(encoding="utf-8"))
+     destination.mkdir(parents=True, exist_ok=True)
+diff --git a/tests/test_handbook.py b/tests/test_handbook.py
+index 8cfa0f2..ab67fa1 100644
+--- a/tests/test_handbook.py
++++ b/tests/test_handbook.py
+@@ -27,3 +27,56 @@ def test_reconstruction_is_complete(tmp_path):
+         check=True,
+     )
+     assert (destination / OUTPUT.name).read_bytes() == OUTPUT.read_bytes(), result.stdout
++
++
++def block(name, content):
++    import hashlib
++
++    fingerprint = hashlib.sha256(content.encode()).hexdigest()
++    return f'<!-- source-file: {name} sha256: {fingerprint} -->\n````python\n{content}````\n'
++
++
++def test_inline_marker_example_is_not_a_source_record():
++    example = 'pattern = r"<!-- source-file: (.+?) sha256: ([0-9a-f]{64}) -->"\n'
++    assert extract(example + block("example.py", "answer = 42\n")) == {
++        "example.py": "answer = 42\n"
++    }
++
++
++def test_reject_partial_duplicate_or_unsafe_source_before_writing(tmp_path):
++    import pytest
++
++    valid = block("example.py", "answer = 42\n")
++    invalid = [
++        valid + valid,
++        valid + block("missing.py", "x = 1\n").removesuffix("````\n"),
++        valid + block("corrupt.py", "x = 1\n").replace("x = 1", "x = 2"),
++    ]
++    invalid += [
++        block(name, "x = 1\n")
++        for name in ("../escape.py", "/absolute.py", "a//alias.py", "./alias.py", ".", ".git/config", "C:drive.py")
++    ]
++    for number, text in enumerate(invalid):
++        book = tmp_path / f"bad-{number}.md"
++        book.write_text(text)
++        destination = tmp_path / f"must-stay-absent-{number}"
++        with pytest.raises(ValueError):
++            restore(book, destination)
++        assert not destination.exists()
++
++
++def test_standalone_bootstrap_in_the_lesson_restores_all_files(tmp_path):
++    import re
++
++    from scripts.build_handbook import ROOT
++
++    lesson = (ROOT / "docs/implementation.md").read_text(encoding="utf-8")
++    candidates = re.findall(r"```python\n(.*?)\n```", lesson, re.S)
++    bootstrap = next(code for code in candidates if "rebuild_book.py" in code)
++    script = tmp_path / "rebuild_book.py"
++    script.write_text(bootstrap, encoding="utf-8")
++    destination = tmp_path / "student-project"
++    subprocess.run([sys.executable, str(script), str(OUTPUT), str(destination)], check=True)
++    for _, files in sources():
++        for name, content in files:
++            assert (destination / name).read_text(encoding="utf-8") == content
