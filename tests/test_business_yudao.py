@@ -36,7 +36,7 @@ def test_native_registration_setting_maps_the_pinned_configuration_key():
         request = archive.read(base + "/controller/admin/config/vo/ConfigSaveReqVO.java").decode()
     assert "private String configKey;" in stored
     assert "private String key;" in request
-    service = (TEMPLATES / "RndBusinessService.java").read_text()
+    service = (TEMPLATES / "RndBusinessService.java").read_text(encoding="utf-8")
     mapping = "request.setKey(previous.getConfigKey());"
     assert mapping in service
     assert service.index(mapping) < service.index("nativeConfiguration.updateConfig(request)")
@@ -103,7 +103,7 @@ def test_mount_retains_real_mappers_and_binds_every_original_crud_route(tmp_path
     controller = (
         backend
         / f"{JAVA_ROOT}/{JAVA_PACKAGE}/controller/admin/wbcustomers/WbCustomersController.java"
-    ).read_text()
+    ).read_text(encoding="utf-8")
     for function in ("create", "update", "archive", "archiveBatch", "get", "page"):
         assert "business." + function + "(" in controller
     assert "export-excel" not in controller
@@ -111,18 +111,24 @@ def test_mount_retains_real_mappers_and_binds_every_original_crud_route(tmp_path
         (
             backend
             / "yudao-module-infra/yudao-module-infra-server/src/main/resources/rnd-business-contract.json"
-        ).read_text()
+        ).read_text(encoding="utf-8")
     )
     assert config["business"] == plan.business.model_dump()
     assert config["specDigest"] == receipt["spec_digest"]
     assert all(binding["requestVO"].endswith("SaveReqVO") for binding in config["bindings"])
     assert all(binding["permission"].startswith("infra:wb-") for binding in config["bindings"])
-    panel = (frontend / "apps/web-antd/src/views/infra/wbcustomers/index.vue").read_text()
+    panel = (frontend / "apps/web-antd/src/views/infra/wbcustomers/index.vue").read_text(
+        encoding="utf-8"
+    )
     assert "<Page>" in panel and "<Grid " in panel and "<TableAction" in panel
     assert "<RndBusinessPanel" in panel
-    data = (frontend / "apps/web-antd/src/views/infra/wbcustomers/data.ts").read_text()
+    data = (frontend / "apps/web-antd/src/views/infra/wbcustomers/data.ts").read_text(
+        encoding="utf-8"
+    )
     assert "nativeBusinessFormSchema" in data and "businessFormSchema" in data
-    form = (frontend / "apps/web-antd/src/views/infra/wbcustomers/modules/form.vue").read_text()
+    form = (frontend / "apps/web-antd/src/views/infra/wbcustomers/modules/form.vue").read_text(
+        encoding="utf-8"
+    )
     assert "businessPayload('customers', (await formApi.getValues()) as NativeData)" in form
     assert "as unknown" not in form
 
@@ -132,14 +138,14 @@ def test_vben_form_field_type_covers_the_exact_emitted_metadata():
 
     from workbench.domain import FieldSpec
 
-    source = (TEMPLATES / "business-form.ts").read_text()
+    source = (TEMPLATES / "business-form.ts").read_text(encoding="utf-8")
     declaration = re.search(r"interface Field \{([^}]+)\}", source).group(1)
     fields = set(re.findall(r"(\w+)\s*:", declaration))
     assert fields == set(FieldSpec.model_fields)
     assert "businessPayload<T extends object>" in source
     assert "Reflect.deleteProperty(result, name)" in source
     assert "as unknown" not in source and "as any" not in source
-    panel = (TEMPLATES / "panel.vue").read_text()
+    panel = (TEMPLATES / "panel.vue").read_text(encoding="utf-8")
     assert "row: Record<string, unknown>" in panel
     assert "typeof record.id !== 'string'" in panel
     assert "row.actions.includes('read_history')" in panel
@@ -151,10 +157,10 @@ def test_reentry_is_hash_bound_and_tampering_never_overwrites(tmp_path):
     first = install_yudao_business(plan, *args)
     assert install_yudao_business(plan, *args) == first
     source = args[0] / first["files"][0]["path"]
-    source.write_text("// user's inspection changes\n")
+    source.write_text("// user's inspection changes\n", encoding="utf-8")
     with pytest.raises(ValueError, match="source changed"):
         install_yudao_business(plan, *args)
-    assert source.read_text() == "// user's inspection changes\n"
+    assert source.read_text(encoding="utf-8") == "// user's inspection changes\n"
 
 
 def test_missing_native_mapper_fails_before_any_controller_is_changed(tmp_path):
@@ -427,33 +433,38 @@ def test_display_helpers_are_generic_labels_and_keep_native_grid_structure(tmp_p
     backend, frontend, targets, reports = generated_native_source(tmp_path, plan)
     install_yudao_business(plan, backend, frontend, targets, reports)
     root = frontend / "apps/web-antd/src/views/infra"
-    data = (root / "wbcustomers/data.ts").read_text()
+    data = (root / "wbcustomers/data.ts").read_text(encoding="utf-8")
     assert (
         "function nativeBusinessGridColumns(): VxeTableGridOptions<NativeData>['columns']" in data
     )
     assert "businessGridColumns('customers', nativeBusinessGridColumns())" in data
     assert "businessSearchSchema('customers', nativeBusinessSearchSchema())" in data
-    source = (root / "rnd-business/business-form.ts").read_text()
+    source = (root / "rnd-business/business-form.ts").read_text(encoding="utf-8")
     assert "field.label || field.name" in source
     assert "field.choice_labels[value] || value" in source
     assert "showHeaderOverflow: true" in source and "minWidth:" in source
     assert "date.toISOString().slice(0, 19)" in source
     assert "Reflect.get(row, '_display')" in source
     assert "field: 'customerId'" not in source and "field: 'requestState'" not in source
-    panel = (root / "rnd-business/panel.vue").read_text()
+    panel = (root / "rnd-business/panel.vue").read_text(encoding="utf-8")
     assert "transition.label || transition.name" in panel
     assert "entry.actor_name" in panel
     assert "businessDetails(props.entity, meta.value.record)" in panel
     assert ':bucket-labels="metric.bucketLabels"' in panel
     assert "white-space: nowrap" in panel
-    assert 'class="rnd-business-grid"' in (root / "wbcustomers/index.vue").read_text()
+    assert 'class="rnd-business-grid"' in (root / "wbcustomers/index.vue").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_native_grid_contract_change_fails_before_writing(tmp_path):
     plan = approved_plan()
     backend, frontend, targets, reports = generated_native_source(tmp_path, plan)
     data = frontend / "apps/web-antd/src/views/infra/wbcustomers/data.ts"
-    data.write_text(data.read_text().replace("useGridColumns", "changedGridColumns"))
+    data.write_text(
+        data.read_text(encoding="utf-8").replace("useGridColumns", "changedGridColumns"),
+        encoding="utf-8",
+    )
     controller = (
         backend
         / f"{JAVA_ROOT}/{JAVA_PACKAGE}/controller/admin/wbcustomers/WbCustomersController.java"
@@ -466,14 +477,14 @@ def test_native_grid_contract_change_fails_before_writing(tmp_path):
 
 
 def test_notification_display_preserves_raw_message_and_stable_read_controls():
-    service = (TEMPLATES / "RndBusinessService.java").read_text()
+    service = (TEMPLATES / "RndBusinessService.java").read_text(encoding="utf-8")
     notices = service.split("public Object notifications()", 1)[1]
     assert 'n.put("display_message"' in notices
     assert 'n.put("message"' not in notices
     assert notices.index('allowed(n.get("entity").toString(),row,"read")') < notices.index(
         'n.put("display_message"'
     )
-    panel = (TEMPLATES / "panel.vue").read_text()
+    panel = (TEMPLATES / "panel.vue").read_text(encoding="utf-8")
     assert "business-notice-read-${record.id}" in panel
     assert "business-notice-read-state-${record.id}" in panel
     assert "record.display_message || record.message" in panel

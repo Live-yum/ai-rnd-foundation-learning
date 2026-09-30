@@ -15,7 +15,7 @@ from workbench.settings import ROOT
 from workbench.tools import clean_env, process_options, run_command, stop_process
 
 
-def frontend_environment(template, backend_url):
+def frontend_environment(template, backend_url, title="Native lab"):
     common = {
         "CI": "true",
         "HUSKY": "0",
@@ -26,7 +26,7 @@ def frontend_environment(template, backend_url):
     if template == "fastapiadmin":
         return {
             **common,
-            "VITE_APP_TITLE": "Native lab",
+            "VITE_APP_TITLE": title,
             "VITE_VERSION": "3.0.0",
             "VITE_PORT": "5173",
             "VITE_BASE_URL": "/",
@@ -41,7 +41,7 @@ def frontend_environment(template, backend_url):
         raise ValueError("Unknown native frontend")
     return {
         **common,
-        "VITE_APP_TITLE": "Native lab",
+        "VITE_APP_TITLE": title,
         "VITE_APP_NAMESPACE": "native-lab-vben",
         # Bound Rust bundler parallelism; give the full Vben graph its native heap budget.
         "RAYON_NUM_THREADS": "2",

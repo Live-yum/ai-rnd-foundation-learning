@@ -90,21 +90,24 @@ def test_business_style_requires_actual_native_workflow_widgets(tmp_path, templa
     else:
         native_page = generated / page
         native_page.write_text(
-            native_page.read_text().replace("<Page>", "<Page><RndBusinessPanel/>")
+            native_page.read_text(encoding="utf-8").replace("<Page>", "<Page><RndBusinessPanel/>"),
+            encoding="utf-8",
         )
         root = "apps/web-antd/src/views/infra/rnd-business/"
         for name in ("panel.vue", "metric-chart.vue"):
             atomic_text(
-                generated / (root + name), (ROOT / "templates/business/yudao" / name).read_text()
+                generated / (root + name),
+                (ROOT / "templates/business/yudao" / name).read_text(encoding="utf-8"),
             )
         victim, component = root + "metric-chart.vue", "EchartsUI"
     report = verify_native_style(template, source, generated, plan, tmp_path / "reports")
     assert report["passed"] is True
     broken = generated / victim
     broken.write_text(
-        broken.read_text()
+        broken.read_text(encoding="utf-8")
         .replace("<" + component, "<GenericWidget")
-        .replace("</" + component, "</GenericWidget")
+        .replace("</" + component, "</GenericWidget"),
+        encoding="utf-8",
     )
     with pytest.raises(NativeIntegrityError):
         verify_native_style(template, source, generated, plan, tmp_path / "reports")

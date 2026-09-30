@@ -155,7 +155,7 @@ def test_transport_rejects_substitution_and_bounds_tokens_and_calls():
 
 @pytest.mark.parametrize("mutation", ["roles", "metrics", "isolation", "workflow", "category"])
 def test_actual_model_plan_must_preserve_explicit_customer_obligations(mutation):
-    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text())
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
     require_customer_spec(spec)
     if mutation == "isolation":
         spec["data_scope"] = "per_user"
@@ -430,7 +430,7 @@ def test_customer_prompt_is_prose_not_precomputed_plan():
     request = customer_request()
     assert "客户服务管理系统" in request
     assert "不是模型响应" in request
-    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text())
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
     require_customer_spec(plan)
     plan["business"]["metrics"] = []
     with pytest.raises(SafeFailure, match="customer_obligation"):
@@ -441,7 +441,9 @@ def test_paid_matrix_covers_three_native_ui_families():
     import yaml
 
     for name in ("native-probe.yml", "real-model.yml"):
-        doc = yaml.load((ROOT / ".github/workflows" / name).read_text(), Loader=yaml.BaseLoader)
+        doc = yaml.load(
+            (ROOT / ".github/workflows" / name).read_text(encoding="utf-8"), Loader=yaml.BaseLoader
+        )
         job = doc["jobs"]["real-model"]
         assert {row["template"] for row in job["strategy"]["matrix"]["include"]} == {
             "python-basic",
@@ -452,3 +454,124 @@ def test_paid_matrix_covers_three_native_ui_families():
         assert not any(
             "API_KEY" in step.get("env", {}) for step in job["steps"] if step.get("uses")
         )
+
+
+def test_requirement_snapshot_preserves_entity_mapping_without_text():
+    from scripts.ci_real_model import contract_snapshot
+
+    result = contract_snapshot(
+        {
+            "field_requirements": [
+                {"entity": "requests", "field": "title", "required": True},
+                {"entity": "tasks", "field": "title", "required": False},
+            ],
+            "features": ["test-only-secret"],
+        },
+        requirement=True,
+    )
+    assert [item["entity"] for item in result] == ["requests", "tasks"]
+    assert "test-only-secret" not in json.dumps(result)
+
+
+def test_safe_coverage_diagnostics_include_source_and_no_raw_prose_or_choices():
+    from scripts.ci_real_model import safe_coverage_details
+    from workbench.domain import Plan, Requirement
+
+    plan = Plan.model_validate(
+        json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    )
+    requirement = Requirement(
+        summary="test-only-secret",
+        users=["test-only-secret"],
+        features=["customers：category必须可搜索 test-only-secret"],
+        acceptance=[],
+        data_scope="shared",
+        facts={"customers": {"category": {"choices": ["test-only-secret"]}}},
+    )
+    result = safe_coverage_details(requirement.model_dump(), plan.model_dump())
+    assert any(item["source"]["section"] == "features" for item in result)
+    assert any(
+        item["source"]["encoding"] == "structured"
+        for item in result
+        if item["source"]["section"] == "facts"
+    )
+    assert any(item["targets"] == [{"entity": "customers", "field": "category"}] for item in result)
+    assert any(item.get("expected_count") == 1 for item in result)
+    assert "test-only-secret" not in json.dumps(result)
+
+
+def test_native_label_failure_is_exact_finite_code_with_no_description_export():
+    from scripts.ci_real_model import safe_native_plan_details
+
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    plan["entities"][0]["description"] = "客户管理，test-only-secret"
+    result = safe_native_plan_details(plan)
+    assert result["code"] == "native_label_contract"
+    assert result["entity_labels"][0]["allowed_characters"] is False
+    assert result["entity_labels"][0]["single_line"] is True
+    assert "test-only-secret" not in json.dumps(result)
+
+
+def test_every_native_plan_validation_message_has_a_finite_safe_code():
+    import ast
+    import inspect
+
+    from scripts.ci_real_model import DESIGN_REASON_CODES
+    from workbench.native_delivery import runtime_config
+    from workbench.native_modules import validate_plan
+
+    for function in (validate_plan, runtime_config):
+        tree = ast.parse(inspect.getsource(function))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call):
+                assert isinstance(node.exc.args[0], ast.Constant)
+                assert node.exc.args[0].value in DESIGN_REASON_CODES
+
+
+def test_workflow_diagnostics_separate_model_coverage_and_native_origins():
+    from scripts.ci_real_model import safe_workflow_details
+    from workbench.domain import Plan, Requirement
+    from workbench.requirement_coverage import coverage_gaps
+
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    plan["unsupported"] = ["模板日期范围能力不支持 test-only-secret"]
+    requirement = Requirement(
+        summary="test-only-secret",
+        users=["客服"],
+        data_scope="shared",
+        features=["customers：category可搜索 test-only-secret"],
+        acceptance=[],
+    )
+    coverage = coverage_gaps(requirement, Plan.model_validate(plan))
+
+    class Store:
+        def get_run(self, run_id):
+            return {
+                "status": "BLOCKED",
+                "template": "python-basic",
+                "model_calls": 4,
+                "pending": {
+                    "stage": "design",
+                    "data": {
+                        "blocked": [*plan["unsupported"], *coverage],
+                        "block_sources": [
+                            "planner_unsupported",
+                            *["requirement_coverage"] * len(coverage),
+                        ],
+                    },
+                },
+            }
+
+        def latest_revision(self, run_id, stage):
+            return (
+                {"requirement": requirement.model_dump()}
+                if stage == "requirements"
+                else {"plan": plan}
+            )
+
+    result = safe_workflow_details(Store(), "run", [])
+    assert result["coverage_diagnostics"][0]["codes"] == ["planner_unsupported"]
+    assert result["coverage_diagnostics"][0]["origin"] == "planner_unsupported"
+    assert result["coverage_diagnostics"][1]["origin"] == "requirement_coverage"
+    assert result["unsupported_diagnostics"][0]["topics"] == ["date_range", "capability"]
+    assert "test-only-secret" not in json.dumps(result)

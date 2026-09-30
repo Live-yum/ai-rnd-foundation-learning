@@ -12,7 +12,9 @@ from workbench.settings import ROOT
 
 
 def evidence(tmp_path, template="fastapiadmin"):
-    plan = Plan.model_validate_json((ROOT / "examples/plans/customer-service.json").read_text())
+    plan = Plan.model_validate_json(
+        (ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8")
+    )
     spec_path = tmp_path / "approved-spec.json"
     write_json(spec_path, plan.model_dump())
     identity = digest(plan.model_dump())

@@ -4,6 +4,16 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 
+// Vben keeps visited tabs alive, so activating a tab need not issue a new list request.
+// Exercise its actual search control to refresh the list and verify the resulting HTTP response.
+async function refreshNativeList(page, list, observe, checked) {
+  const search = page.getByRole('button', { name: /^搜\s*索$/ });
+  await search.waitFor({ state: 'visible' });
+  const listing = observe(list);
+  await search.click();
+  return checked(listing);
+}
+
 async function main() {
   const [base, reportDir, playwrightPath, scenarioFile] = process.argv.slice(2);
   assert.equal(new URL(base).hostname, '127.0.0.1');
@@ -60,9 +70,9 @@ async function main() {
     report.checks.push(`${role}:native-login-and-tenant`);
   }
   async function openPage(entity) {
-    const current = target(entity), listing = observe(current.list);
+    const current = target(entity);
     await page.goto(base + '/#' + current.route, { waitUntil: 'domcontentloaded' });
-    const rows = await checked(listing);
+    const rows = await refreshNativeList(page, current.list, observe, checked);
     for (const selector of ['aside:visible', 'header:visible', '#__vben_main_content', '.vxe-table:visible', '[data-rnd-business-panel]']) await page.locator(selector).first().waitFor({ state: 'visible' });
     assert.equal(await page.locator('#workspace').count(), 0, 'Generic frontend is forbidden');
     const theme = await page.evaluate(() => {
@@ -226,5 +236,5 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main };
+module.exports = { main, refreshNativeList };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });

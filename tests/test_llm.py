@@ -61,7 +61,7 @@ def test_schema_retry_contains_exact_validator_feedback_without_credentials(stor
     from workbench.domain import Plan
     from workbench.settings import ROOT
 
-    valid = json.loads((ROOT / "examples/plans/customer-service.json").read_text())
+    valid = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
     invalid = json.loads(json.dumps(valid))
     field = next(f for f in invalid["entities"][1]["fields"] if f["kind"] == "datetime")
     field["date_range"] = True

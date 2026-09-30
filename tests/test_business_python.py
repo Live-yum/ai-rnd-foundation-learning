@@ -10,6 +10,7 @@ from test_business_contracts import business_plan
 
 from workbench.domain import Plan
 from workbench.generator import generate_basic
+from workbench.tools import clean_env
 
 
 def runtime_plan():
@@ -145,11 +146,13 @@ print(json.dumps({'passed':True,'roles':3,'row_acl':True,'fk':True,'transitions'
 def test_generated_business_api_transactions_and_permissions(tmp_path):
     product = tmp_path / "product"
     generate_basic(runtime_plan(), product)
-    env = {
-        "PATH": os.environ.get("PATH", ""),
-        "PRODUCT_DATA_DIR": str(tmp_path / "db"),
-        "PYTHONUTF8": "1",
-    }
+    env = clean_env(
+        {
+            "PATH": os.environ.get("PATH", ""),
+            "PRODUCT_DATA_DIR": str(tmp_path / "db"),
+            "PYTHONUTF8": "1",
+        }
+    )
     init = subprocess.run(
         [sys.executable, "manage.py", "init"], cwd=product, env=env, text=True, capture_output=True
     )
@@ -219,12 +222,14 @@ def test_generated_business_postgres_actual_fk_and_permissions(tmp_path):
             product,
             {"template": "python-basic", "frontend": "simple-admin", "database": "postgresql"},
         )
-        env = {
-            "PATH": os.environ.get("PATH", ""),
-            "PRODUCT_DATA_DIR": str(tmp_path / "pg-data"),
-            "PRODUCT_DATABASE_URL": isolated_url,
-            "PYTHONUTF8": "1",
-        }
+        env = clean_env(
+            {
+                "PATH": os.environ.get("PATH", ""),
+                "PRODUCT_DATA_DIR": str(tmp_path / "pg-data"),
+                "PRODUCT_DATABASE_URL": isolated_url,
+                "PYTHONUTF8": "1",
+            }
+        )
         init = subprocess.run(
             [sys.executable, "manage.py", "init"],
             cwd=product,
@@ -315,11 +320,13 @@ def test_exact_customer_service_example_three_resources(tmp_path):
     plan = Plan.model_validate_json(path.read_text(encoding="utf-8"))
     product = tmp_path / "customer-product"
     generate_basic(plan, product)
-    env = {
-        "PATH": os.environ.get("PATH", ""),
-        "PRODUCT_DATA_DIR": str(tmp_path / "db"),
-        "PYTHONUTF8": "1",
-    }
+    env = clean_env(
+        {
+            "PATH": os.environ.get("PATH", ""),
+            "PRODUCT_DATA_DIR": str(tmp_path / "db"),
+            "PYTHONUTF8": "1",
+        }
+    )
     init = subprocess.run(
         [sys.executable, "manage.py", "init"], cwd=product, env=env, text=True, capture_output=True
     )
@@ -349,7 +356,7 @@ def test_customer_business_api_only_independent_receipt(tmp_path):
         plan, product, {"template": "python-basic", "frontend": "api-only", "database": "sqlite"}
     )
     report = tmp_path / "report.json"
-    env = {"PATH": os.environ.get("PATH", ""), "PYTHONUTF8": "1"}
+    env = clean_env({"PATH": os.environ.get("PATH", ""), "PYTHONUTF8": "1"})
     result = subprocess.run(
         [sys.executable, "verify.py", "--report", str(report)],
         cwd=product,
@@ -394,11 +401,13 @@ def test_customer_business_postgres_independent_receipt(tmp_path):
             {"template": "python-basic", "frontend": "api-only", "database": "postgresql"},
         )
         report = tmp_path / "report.json"
-        env = {
-            "PATH": os.environ.get("PATH", ""),
-            "PYTHONUTF8": "1",
-            "VERIFY_DATABASE_URL": isolated_url,
-        }
+        env = clean_env(
+            {
+                "PATH": os.environ.get("PATH", ""),
+                "PYTHONUTF8": "1",
+                "VERIFY_DATABASE_URL": isolated_url,
+            }
+        )
         result = subprocess.run(
             [sys.executable, "verify.py", "--report", str(report)],
             cwd=product,

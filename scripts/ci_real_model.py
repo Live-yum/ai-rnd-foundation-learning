@@ -233,6 +233,8 @@ def contract_snapshot(data, requirement=False):
 
     def field_summary(value):
         result = {"name": identifier(value.get("field" if requirement else "name"))}
+        if requirement:
+            result["entity"] = identifier(value.get("entity")) if value.get("entity") else None
         for name in ("required", "searchable", "filterable", "date_range"):
             if type(value.get(name)) is bool:
                 result[name] = value[name]
@@ -254,6 +256,112 @@ def contract_snapshot(data, requirement=False):
         }
         for e in data.get("entities", [])[:8]
     ]
+
+
+# Exact validator messages map to finite evidence codes. Never publish exception
+# text: prerequisite errors can contain paths, environment values or model prose.
+DESIGN_REASON_CODES = {
+    "设计改变了已批准的数据归属，必须修改后重新批准": "data_scope",
+    "设计使用了当前模板不支持的字段类型": "unsupported_field_kind",
+    "共享业务必须有完整关系、角色和动作的 business 契约": "business_contract_required",
+    "当前配置已禁用规则编码器": "coding_disabled",
+    "原生业务规则需要 CODING_ENGINE=aider；CRUD仍由原生生成器完成": "native_coding_engine",
+    "Native runtime does not accept unsupported requirements": "native_unsupported",
+    "每个原生实体只能有一个合并后的业务规则及完整正反例": "native_duplicate_rules",
+    "Native field uses a reserved runtime name": "native_reserved_runtime_field",
+    "Native runtime currently requires explicitly approved shared data with role permissions": "native_data_scope",
+    "Native normalized business names collide": "native_entity_collision",
+    "Native enum/date/datetime fields require a business contract": "native_business_field_kind",
+    "Native adapters do not yet execute searchable/filterable/date_range/min_length; "
+    "use a supported template or explicitly revise the requirement": "native_unsupported_field_option",
+    "Native runtime requires a required text field in each entity for independent UI acceptance": "native_required_text",
+    "Native entity identifiers must be lowercase and at most 20 characters": "native_entity_identifier",
+    "Native labels cannot contain code delimiters or multiline text": "native_label_contract",
+    "Field conflicts with native framework audit columns": "native_reserved_audit_field",
+    "先执行 rnd native runtime-config TEMPLATE 并授权专用空开发库": "native_runtime_config_missing",
+    "原生数据库只能读取明确的 NATIVE_* 环境变量": "native_database_env_name",
+    "请明确批准仅在自己创建的专用空数据库初始化原生框架": "native_database_not_authorized",
+    "原生数据库环境变量未设置": "native_database_env_missing",
+    "Native runtime requires a loopback PostgreSQL database": "native_database_not_loopback_postgres",
+    "Use a dedicated lowercase database identifier ending in _codegen": "native_database_identifier",
+    "本机Daytona需要 DAYTONA_ALLOW_LOCAL_EXECUTION=true；只在本机创建隔离验证环境": "sandbox_not_authorized",
+    "请配置当前技术栈的离线DAYTONA_SNAPSHOT或DAYTONA_SNAPSHOTS映射": "sandbox_snapshot_missing",
+}
+
+
+def safe_coverage_details(requirement, plan):
+    """Export executable differences and source references, never requirement prose."""
+    from workbench.domain import Plan, Requirement
+    from workbench.requirement_coverage import coverage_gaps
+
+    items = []
+    coverage_gaps(
+        Requirement.model_validate(requirement), Plan.model_validate(plan), diagnostics=items
+    )
+
+    def scalar(attribute, value):
+        if type(value) is bool or value is None:
+            return value
+        if attribute in {"min_length", "max_length"} and type(value) is int and 0 <= value <= 20000:
+            return value
+        if (
+            attribute == "kind"
+            and isinstance(value, str)
+            and value
+            in {
+                "text",
+                "integer",
+                "boolean",
+                "date",
+                "datetime",
+                "enum",
+            }
+        ):
+            return value
+        return "not_exported"
+
+    result = []
+    for item in items[:128]:
+        entry = {
+            key: item[key] for key in ("code", "source", "source_markers", "targets", "attribute")
+        }
+        attribute = item["attribute"]
+        for key in ("expected", "actual"):
+            value = item[key]
+            if attribute == "choices" and isinstance(value, list):
+                entry[key + "_count"] = len(value)
+            else:
+                entry[key] = scalar(attribute, value)
+        result.append(entry)
+    return result
+
+
+def safe_native_plan_details(plan):
+    """Report the actual native-validator failure plus label-shape evidence."""
+    from workbench.domain import Plan
+    from workbench.native_modules import validate_plan
+
+    value = Plan.model_validate(plan)
+    try:
+        validate_plan(value)
+        code = "valid"
+    except ValueError as exc:
+        code = DESIGN_REASON_CODES.get(str(exc), "unclassified_native_validation")
+    return {
+        "code": code,
+        "entity_labels": [
+            {
+                "entity": entity.name,
+                "length": len(entity.description),
+                "single_line": not any(char in entity.description for char in "\r\n\t"),
+                "allowed_characters": bool(
+                    re.fullmatch(r"[\w\s\-\u4e00-\u9fff]+", entity.description)
+                ),
+                "valid_length": 1 <= len(entity.description) <= 100,
+            }
+            for entity in value.entities
+        ],
+    }
 
 
 def safe_workflow_details(store, run_id, traces):
@@ -292,6 +400,10 @@ def safe_workflow_details(store, run_id, traces):
         }
         details["plan_contract"] = contract_snapshot(plan)
         details["requirement_contract"] = contract_snapshot(requirement, requirement=True)
+        if requirement and plan:
+            details["coverage_sources"] = safe_coverage_details(requirement, plan)
+            if run.get("template") in {"fastapiadmin", "yudao-vben"}:
+                details["native_plan_validation"] = safe_native_plan_details(plan)
         error = run.get("error") or ""
         categories = {
             "model_schema_invalid": ("结构化契约",),
@@ -315,6 +427,8 @@ def safe_workflow_details(store, run_id, traces):
             "max_length": "长度上限",
             "min_length": "最小长度",
             "date_kind": "真实日期类型",
+            "uncovered_operation": "设计未覆盖已确认的",
+            "constraint_mismatch": "设计不一致",
             "business_capability": "业务设计缺少",
         }
         attributes = (
@@ -330,9 +444,33 @@ def safe_workflow_details(store, run_id, traces):
         known_names = {
             field["name"] for entity in details["plan_contract"] for field in entity["fields"]
         }
+        sources = (pending.get("data") or {}).get("block_sources", [])
+        known_sources = {
+            "planner_unsupported",
+            "template_field_kind",
+            "requirement_coverage",
+            "business_coverage",
+            "business_contract",
+            "coding_disabled",
+            "native_coding_engine",
+            "native_validation_or_runtime",
+            "sandbox_configuration",
+        }
         details["coverage_diagnostics"] = [
             {
-                "codes": [code for code, marker in diagnostic_kinds.items() if marker in reason],
+                "codes": (
+                    [DESIGN_REASON_CODES[reason]]
+                    if reason in DESIGN_REASON_CODES
+                    else [code for code, marker in diagnostic_kinds.items() if marker in reason]
+                    or (
+                        ["planner_unsupported"]
+                        if reason in plan.get("unsupported", [])
+                        else ["unclassified_design_block"]
+                    )
+                ),
+                "origin": sources[index]
+                if index < len(sources) and sources[index] in known_sources
+                else "not_recorded",
                 "attributes": [attribute for attribute in attributes if attribute in reason],
                 "fields": sorted(
                     name
@@ -341,7 +479,26 @@ def safe_workflow_details(store, run_id, traces):
                     and re.search(r"(?<![a-z0-9_])" + re.escape(name) + r"(?![a-z0-9_])", reason)
                 ),
             }
-            for reason in (blocked if isinstance(blocked, list) else [])[:40]
+            for index, reason in enumerate((blocked if isinstance(blocked, list) else [])[:40])
+            if isinstance(reason, str)
+        ]
+        details["unsupported_diagnostics"] = [
+            {
+                "index": index,
+                "topics": [
+                    code
+                    for code, pattern in (
+                        ("search", r"搜索|检索|search"),
+                        ("filter", r"筛选|过滤|filter"),
+                        ("date_range", r"日期范围|日期区间|date.?range"),
+                        ("capability", r"模板|能力|capabilit"),
+                        ("external_service", r"外部|短信|邮件|支付|采集|external"),
+                        ("business", r"角色|关系|流程|统计|business"),
+                    )
+                    if re.search(pattern, reason, re.I)
+                ],
+            }
+            for index, reason in enumerate(plan.get("unsupported", [])[:40])
             if isinstance(reason, str)
         ]
         paths = {f["name"] for e in details["plan_contract"] for f in e["fields"]}

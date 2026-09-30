@@ -461,11 +461,11 @@ LEGACY_PROPERTY = (
 
 
 def _legacy_clauses(text, fields):
-    """Keep each field's predicates and entity scope together in model prose.
+    """Bind predicates to top-level subjects, preserving bracketed target lists.
 
-    A comma inside name（必填，最长120）doesn't end the subject. Conversely,
-    name必填、contact可选 must not apply both predicates to both fields.
-    Shared subjects such as 标题、正文搜索 remain one obligation.
+    Both name（必填，最长120）and 搜索（name、contact）are indivisible.
+    A descriptive clause ending at a comma does not lend its subject to the
+    next clause. Bare coordinated subjects still share their final predicate.
     """
     names = {field.name for _, field in fields}
     names.update(name for aliases in ALIASES.values() for name in aliases)
@@ -481,14 +481,52 @@ def _legacy_clauses(text, fields):
         if heading and heading.group(1) in {entity for entity, _ in fields}:
             scope = heading.group(1)
             sentence = sentence[heading.end() :]
-        # Keep comma-separated predicates with their subject, including the
-        # leading 可搜索）before the next field in a parenthesized descriptor.
+        depths, depth = [], 0
+        for char in sentence:
+            depths.append(depth)
+            if char in "（([【":
+                depth += 1
+            elif char in "）)]】":
+                depth = max(0, depth - 1)
         previous = []
         start = 0
         seen_subject = False
+        previous_match = None
         for match in re.finditer(pattern, sentence, re.I):
-            if seen_subject and re.search(LEGACY_PROPERTY, sentence[start : match.start()], re.I):
-                previous.append(sentence[start : match.start()])
+            # Field aliases inside a descriptor or operation-first target list
+            # are part of that group, not new top-level clauses.
+            if depths[match.start()]:
+                seen_subject = True
+                continue
+            if (
+                previous_match is not None
+                and not sentence[previous_match.end() : match.start()].strip()
+            ):
+                # Adjacent identifier/translation pairs (category分类) name
+                # one subject; a predicate before that subject cannot split it.
+                if any(
+                    _field_mentions(previous_match.group(), aliases)
+                    and _field_mentions(match.group(), aliases)
+                    for aliases in ALIASES.values()
+                ):
+                    previous_match = match
+                    continue
+            previous_match = match
+            prefix = sentence[start : match.start()]
+            comma = next(
+                (
+                    index
+                    for index in range(match.start() - 1, start - 1, -1)
+                    if sentence[index] in ",，" and not depths[index]
+                ),
+                None,
+            )
+            descriptive_boundary = False
+            if comma is not None:
+                before_comma = re.sub(pattern, "", sentence[start:comma], flags=re.I)
+                descriptive_boundary = bool(re.search(r"[a-z0-9\u4e00-\u9fff]", before_comma))
+            if seen_subject and (re.search(LEGACY_PROPERTY, prefix, re.I) or descriptive_boundary):
+                previous.append(prefix)
                 start = match.start()
             seen_subject = True
         previous.append(sentence[start:])
@@ -496,6 +534,59 @@ def _legacy_clauses(text, fields):
             if clause.strip():
                 local_scope = _fact_entity(clause, fields) or scope
                 yield f"{local_scope}::{clause}" if local_scope else clause
+
+
+def _operation_parts(text):
+    """Split coordinated operations, never the subjects inside a target list."""
+    depth, depths = 0, []
+    for char in text:
+        depths.append(depth)
+        if char in "（([【":
+            depth += 1
+        elif char in "）)]】":
+            depth = max(0, depth - 1)
+    start = 0
+    for match in re.finditer(r"、|并且|并|且|和|与", text):
+        if not depths[match.start()]:
+            yield text[start : match.start()]
+            start = match.end()
+    yield text[start:]
+
+
+def _legacy_operation_text(text, fields):
+    """Remove only negative operation predicates, not the rest of a mixed clause.
+
+    'name可搜索，category不支持搜索' retains the first requirement. A
+    capability explicitly not requested cannot invent a missing date field.
+    Structured boolean constraints are independently checked without this step.
+    """
+    text = re.sub(
+        r"(?:searchable|filterable|date_range)\s*[:=]\s*(?:false|否)(?![a-z])",
+        "",
+        text,
+        flags=re.I,
+    )
+    negative = (
+        r"(?:无需|不需要|不要求|取消|禁止|禁用|关闭|不得|不允许|不支持|不添加|不要|没有|无|不)"
+    )
+    operation = (
+        r"(?:(?:关键词|关键字|精确)\s*)?(?:搜索|检索|筛选|过滤)"
+        r"|(?:日期区间|日期范围)(?:筛选|过滤)?"
+        r"|search(?:able)?|filter(?:able)?|date.?range"
+    )
+    names = {field.name for _, field in fields}
+    names.update(name for aliases in ALIASES.values() for name in aliases)
+    name = (
+        "(?:" + "|".join(re.escape(value) for value in sorted(names, key=len, reverse=True)) + ")"
+    )
+    targets = "(?:" + name + r"(?:\s*[、和与]\s*" + name + r")*(?:的)?\s*)?"
+    return re.sub(
+        negative + r"\s*(?:任何|额外的?|新的?)?\s*" + targets + r"(?:" + operation + r")"
+        r"(?:\s*[、或和及]\s*(?:" + negative + r")?\s*(?:" + operation + r"))*",
+        "",
+        text,
+        flags=re.I,
+    )
 
 
 def _matches_constraint(attribute, expected, actual):
@@ -522,12 +613,55 @@ def _matches_constraint(attribute, expected, actual):
     return type(expected) is str and actual == expected
 
 
-def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
+def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> list[str]:
+    """Return blocking messages; optionally record the exact deterministic provenance.
+
+    Diagnostic source indices refer to the retained Requirement, never a model
+    verdict. Consumers exporting diagnostics must allowlist values separately.
+    """
     gaps = []
     fields = [(entity.name, field) for entity in plan.entities for field in entity.fields]
+    source = {"section": "data_scope"}
+    source_text = ""
+
+    def gap(message, code, *, targets=(), attribute=None, expected=None, actual=None):
+        gaps.append(message)
+        if diagnostics is not None:
+            diagnostics.append(
+                {
+                    "code": code,
+                    "source": dict(source),
+                    "targets": [
+                        {"entity": entity, "field": field.name}
+                        for entity, field in fields
+                        if any(field is target for target in targets)
+                    ],
+                    "attribute": attribute,
+                    "expected": expected,
+                    "actual": actual,
+                    "source_markers": [
+                        code
+                        for code, pattern in (
+                            ("search", r"搜索|检索|search"),
+                            ("filter", r"筛选|过滤|filter"),
+                            ("date_range", r"日期区间|日期范围|date.?range"),
+                            ("capability_catalog", r"可用能力|模板能力|template_capabilities"),
+                            ("negation", r"无需|不需要|不要求|取消|禁用|不支持|false"),
+                        )
+                        if re.search(pattern, source_text, re.I)
+                    ],
+                }
+            )
+
     if plan.data_scope != requirement.data_scope:
-        gaps.append("设计改变了已批准的数据归属，必须修改后重新批准")
-    for obligation in requirement.field_requirements:
+        gap(
+            "设计改变了已批准的数据归属，必须修改后重新批准",
+            "data_scope",
+            expected=requirement.data_scope,
+            actual=plan.data_scope,
+        )
+    for index, obligation in enumerate(requirement.field_requirements):
+        source = {"section": "field_requirements", "index": index}
         matches = [
             f
             for e, f in fields
@@ -535,7 +669,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
         ]
         label = f"{obligation.entity + '.' if obligation.entity else ''}{obligation.field}"
         if len(matches) != 1:
-            gaps.append(f"已确认字段 {label} 缺失或映射不唯一")
+            gap(f"已确认字段 {label} 缺失或映射不唯一", "missing_or_ambiguous", targets=matches)
             continue
         field = matches[0]
         for key, value in obligation.model_dump().items():
@@ -543,19 +677,32 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
                 continue
             actual = getattr(field, key)
             if not _matches_constraint(key, value, actual):
-                gaps.append(f"已确认字段 {label}.{key}={value!r}，设计为 {actual!r}")
+                gap(
+                    f"已确认字段 {label}.{key}={value!r}，设计为 {actual!r}",
+                    "constraint_mismatch",
+                    targets=[field],
+                    attribute=key,
+                    expected=value,
+                    actual=actual,
+                )
 
     # Recognize legacy constraints even when a model has omitted the new typed
     # ledger. Do not inspect assumptions/limitations as if they were requirements.
-    texts = [*requirement.features, *requirement.acceptance]
+    texts = [
+        ({"section": section, "index": index}, text)
+        for section in ("features", "acceptance")
+        for index, text in enumerate(getattr(requirement, section))
+    ]
     structured = list(_fact_constraints(requirement.facts))
-    for key, attributes in structured:
+    for index, (key, attributes) in enumerate(structured):
+        source = {"section": "facts", "index": index, "encoding": "structured"}
+        source_text = key
         candidates = _fact_candidates(key, fields)
         if not candidates and (
             "::" in key or any(_field_mentions(key, aliases) for aliases in ALIASES.values())
         ):
             if any(value is not None for value in attributes.values()):
-                gaps.append(f"已确认条件缺少对应字段 {key}")
+                gap(f"已确认条件缺少对应字段 {key}", "structured_missing_field")
         for field in candidates:
             for attribute, expected in attributes.items():
                 if expected is None:
@@ -563,22 +710,71 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
                 if (attribute == "choices" and field.kind != "enum") or not _matches_constraint(
                     attribute, expected, getattr(field, attribute)
                 ):
-                    gaps.append(f"已确认字段 {field.name}.{attribute}={expected!r}，设计不一致")
-    texts.extend(_fact_texts(requirement.facts))
+                    gap(
+                        f"已确认字段 {field.name}.{attribute}={expected!r}，设计不一致",
+                        "constraint_mismatch",
+                        targets=[field],
+                        attribute=attribute,
+                        expected=expected,
+                        actual=getattr(field, attribute),
+                    )
+    texts.extend(
+        ({"section": "facts", "index": index, "encoding": "legacy"}, text)
+        for index, text in enumerate(_fact_texts(requirement.facts))
+    )
     operations = {
         "searchable": r"搜索|检索|search",
         "filterable": r"筛选|过滤|filter",
         "date_range": r"日期区间|日期范围|含边界.*(?:日期|范围)|date.?range",
     }
-    texts = [clause for text in texts for clause in _legacy_clauses(text, fields)]
-    for text in texts:
-        if re.search(
-            r"(?:无需|不需要|不要求|取消|禁用|不支持).*(?:搜索|检索|筛选|过滤|日期区间|日期范围)",
-            text,
-        ):
-            continue
-        if re.search(r"(?:searchable|filterable|date_range)\s*:\s*(?:false|否)", text, re.I):
-            continue
+    # A field-bound false assignment or prohibition is a real constraint.
+    # Extract it before discarding merely unrequested operation phrases; a
+    # typed ledger is helpful but is not required to preserve explicit intent.
+    for origin, text in texts:
+        for index, clause in enumerate(_legacy_clauses(text, fields)):
+            source = {**origin, "clause": index}
+            source_text = clause
+            targets = _fact_candidates(clause, fields)
+            constraints = [
+                (match.group(1).lower(), match.group(2).lower() in {"true", "是"})
+                for match in re.finditer(
+                    r"(?<![a-z_])(searchable|filterable|date_range)\s*[:=]\s*(true|false|是|否)(?![a-z])",
+                    clause,
+                    re.I,
+                )
+            ]
+            constraints.extend(
+                (flag, False)
+                for flag, pattern in operations.items()
+                if re.search(
+                    r"(?:禁止|禁用|关闭|不得|不允许)\s*(?:关键词|关键字|精确)?\s*(?:"
+                    + pattern
+                    + ")",
+                    clause,
+                    re.I,
+                )
+            )
+            for attribute, expected in constraints:
+                for field in targets:
+                    actual = getattr(field, attribute)
+                    if actual is not expected:
+                        gap(
+                            f"已确认字段 {field.name}.{attribute}={expected!r}，设计不一致: {clause}",
+                            "constraint_mismatch",
+                            targets=[field],
+                            attribute=attribute,
+                            expected=expected,
+                            actual=actual,
+                        )
+    texts = [
+        ({**origin, "clause": index}, clause)
+        for origin, text in texts
+        for index, clause in enumerate(
+            _legacy_clauses(_legacy_operation_text(text, fields), fields)
+        )
+    ]
+    for source, text in texts:
+        source_text = text
         mentioned = _fact_candidates(text, fields)
         for canonical, aliases in ALIASES.items():
             if _field_mentions(text, aliases):
@@ -597,7 +793,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
                     and not description
                     and (explicit or re.search(LEGACY_PROPERTY, text, re.I))
                 ):
-                    gaps.append(f"已确认条件缺少对应字段 {canonical}: {text}")
+                    gap(f"已确认条件缺少对应字段 {canonical}: {text}", "legacy_missing_field")
         operation_parts = [text]
         if re.search(operations["searchable"], text, re.I) and re.search(
             operations["filterable"], text, re.I
@@ -606,7 +802,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
             # search targets. Carry noun-only pieces forward so "标题、正文
             # 搜索" still binds both fields to search rather than losing one.
             operation_parts, pending = [], []
-            for part in re.split(r"、|并且|并|且|和|与", text):
+            for part in _operation_parts(text):
                 pending.append(part)
                 if any(re.search(pattern, part, re.I) for pattern in operations.values()):
                     operation_parts.append("".join(pending))
@@ -618,24 +814,48 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
             targets = _fact_candidates(part, fields) if part != text else mentioned
             # An operation-only continuation (标题搜索和精确筛选) inherits
             # the previous named subject; another field cannot satisfy it.
-            if not targets and previous_targets:
+            if (
+                not targets
+                and previous_targets
+                # A named generic keyword search is its own capability, not
+                # a search obligation on the preceding exact-filter field.
+                and not re.search(r"关键词|关键字|keyword", part, re.I)
+            ):
                 targets = previous_targets
             if targets:
                 previous_targets = targets
+            entity_scope = _fact_entity(part, fields) or _fact_entity(text, fields)
+            available = [
+                f for entity, f in fields if entity_scope is None or entity == entity_scope
+            ]
             for flag, pattern in operations.items():
                 if not re.search(pattern, part, re.I):
                     continue
                 candidates = targets
                 if flag == "date_range":
                     candidates = [f for f in targets if f.kind == "date"] or [
-                        f for _, f in fields if f.kind == "date"
+                        f for f in available if f.kind == "date"
                     ]
                 if not targets:
-                    candidates = [f for _, f in fields]
+                    candidates = available
                     if not any(getattr(f, flag) for f in candidates):
-                        gaps.append(f"设计未覆盖已确认的 {flag}: {part}")
+                        gap(
+                            f"设计未覆盖已确认的 {flag}: {part}",
+                            "uncovered_operation",
+                            targets=candidates,
+                            attribute=flag,
+                            expected=True,
+                            actual=False,
+                        )
                 elif not candidates or any(not getattr(f, flag) for f in candidates):
-                    gaps.append(f"设计未覆盖已确认的 {flag}: {part}")
+                    gap(
+                        f"设计未覆盖已确认的 {flag}: {part}",
+                        "uncovered_operation",
+                        targets=candidates,
+                        attribute=flag,
+                        expected=True,
+                        actual=False,
+                    )
         for field in mentioned:
             # Validation summaries refer to the required/optional flags already
             # declared for each field; they don't make every listed field both.
@@ -654,7 +874,14 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
                 and not validation
             ):
                 if not field.required:
-                    gaps.append(f"已确认字段 {field.name} 必填: {text}")
+                    gap(
+                        f"已确认字段 {field.name} 必填: {text}",
+                        "constraint_mismatch",
+                        targets=[field],
+                        attribute="required",
+                        expected=True,
+                        actual=field.required,
+                    )
             if (
                 re.search(
                     r"可选|非必填|不必填|是否必填.*否|optional|required\s*[:=]\s*(?:false|否)",
@@ -664,17 +891,44 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
                 and not validation
             ):
                 if field.required:
-                    gaps.append(f"已确认字段 {field.name} 可选: {text}")
+                    gap(
+                        f"已确认字段 {field.name} 可选: {text}",
+                        "constraint_mismatch",
+                        targets=[field],
+                        attribute="required",
+                        expected=False,
+                        actual=field.required,
+                    )
             if re.search(r"上限|最大|max_length|最多|最长", text, re.I):
                 number = re.search(r"(?:上限|最大|max_length|最多|最长)[^\d]*?(\d+)", text, re.I)
                 if number and field.max_length != int(number.group(1)):
-                    gaps.append(f"已确认字段 {field.name} 长度上限为 {number.group(1)}: {text}")
+                    gap(
+                        f"已确认字段 {field.name} 长度上限为 {number.group(1)}: {text}",
+                        "constraint_mismatch",
+                        targets=[field],
+                        attribute="max_length",
+                        expected=int(number.group(1)),
+                        actual=field.max_length,
+                    )
             if re.search(r"最小|min_length|至少|最短", text, re.I):
                 number = re.search(r"(?:最小|min_length|至少|最短)[^\d]*?(\d+)", text, re.I)
                 if number and field.min_length != int(number.group(1)):
-                    gaps.append(f"已确认字段 {field.name} 最小长度为 {number.group(1)}: {text}")
+                    gap(
+                        f"已确认字段 {field.name} 最小长度为 {number.group(1)}: {text}",
+                        "constraint_mismatch",
+                        targets=[field],
+                        attribute="min_length",
+                        expected=int(number.group(1)),
+                        actual=field.min_length,
+                    )
         # A date field represented as text is not executable date validation.
         if re.search(r"真实日期|YYYY-MM-DD|日期格式", text):
             if not any(f.kind == "date" for f in mentioned):
-                gaps.append(f"设计未覆盖真实日期类型: {text}")
+                gap(
+                    f"设计未覆盖真实日期类型: {text}",
+                    "date_kind",
+                    targets=mentioned,
+                    attribute="kind",
+                    expected="date",
+                )
     return list(dict.fromkeys(gaps))

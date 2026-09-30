@@ -12,6 +12,7 @@ import pytest
 from test_business_python import runtime_plan
 
 from workbench.generator import generate_basic
+from workbench.tools import clean_env
 
 DRIVER = r"""
 const assert=require('node:assert/strict');
@@ -41,12 +42,14 @@ def test_business_roles_in_actual_lightweight_ui(tmp_path):
         pytest.skip("Actual browser tooling not configured; required in Actions")
     product = tmp_path / "product"
     generate_basic(runtime_plan(), product)
-    env = {
-        "PATH": os.environ.get("PATH", ""),
-        "PRODUCT_DATA_DIR": str(tmp_path / "db"),
-        "PYTHONUTF8": "1",
-        "PLAYWRIGHT_BROWSERS_PATH": "0",
-    }
+    env = clean_env(
+        {
+            "PATH": os.environ.get("PATH", ""),
+            "PRODUCT_DATA_DIR": str(tmp_path / "db"),
+            "PYTHONUTF8": "1",
+            "PLAYWRIGHT_BROWSERS_PATH": "0",
+        }
+    )
     init = subprocess.run(
         [sys.executable, "manage.py", "init"], cwd=product, env=env, text=True, capture_output=True
     )

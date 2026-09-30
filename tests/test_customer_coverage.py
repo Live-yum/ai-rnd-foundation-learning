@@ -229,3 +229,163 @@ def test_field_literally_named_name_is_not_descriptor_metadata(fact):
     plan.entities[0].fields[0].required = True
     plan.entities[0].fields[0].max_length = 200
     assert coverage_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "customers：支持分类筛选和关键词搜索",
+        "customers：支持关键词搜索和category分类筛选",
+        "category用于客户分类，name、organization、contact可搜索",
+        "客户支持关键词搜索（name、organization、contact）和按category精确筛选",
+        "客户支持关键词搜索(name、organization、contact)和按category精确筛选",
+    ],
+)
+def test_query_summary_does_not_invent_category_search(text):
+    requirement, plan = customer_case()
+    requirement.features = [text]
+    assert coverage_gaps(requirement, plan) == []
+    # A genuine category-search requirement must still conflict with this plan.
+    requirement.features.append("customers：category必须可搜索")
+    assert any("searchable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "datetime字段searchable=false、filterable=false、date_range=false",
+        "时间字段不搜索、不筛选、无日期范围",
+        "datetime仅存储时间戳，不添加搜索或日期范围",
+        "datetime 字段不支持 date_range",
+        "datetime仅存储，不要求日期范围筛选",
+    ],
+)
+def test_negative_date_capability_cannot_invent_a_date_field(text):
+    requirement, plan = customer_case()
+    requirement.features = [text]
+    assert coverage_gaps(requirement, plan) == []
+    requirement.features.append("必须支持日期范围筛选")
+    assert any("date_range" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_negative_clause_cannot_erase_positive_search_requirement():
+    requirement, plan = customer_case()
+    requirement.features = ["customers：name可搜索，category不支持搜索"]
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[0].searchable = False
+    assert any("searchable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_generic_query_clause_stays_in_its_entity_scope():
+    requirement, plan = customer_case()
+    requirement.features = ["customers：支持分类筛选和关键词搜索"]
+    assert coverage_gaps(requirement, plan) == []
+    for field in plan.entities[0].fields:
+        field.searchable = False
+    # requests.title still searches, but cannot satisfy customers' obligation.
+    assert plan.entities[1].fields[0].searchable
+    assert any("searchable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_parenthesized_operation_targets_all_remain_required():
+    requirement, plan = customer_case()
+    requirement.features = ["customers：关键词搜索（name、organization、contact）和category筛选"]
+    assert coverage_gaps(requirement, plan) == []
+    for name in ("name", "organization", "contact"):
+        changed = plan.model_copy(deep=True)
+        next(field for field in changed.entities[0].fields if field.name == name).searchable = False
+        assert any("searchable" in gap for gap in coverage_gaps(requirement, changed)), name
+
+
+def test_gap_diagnostics_trace_typed_and_legacy_conflict_without_overriding_either():
+    requirement, plan = customer_case()
+    requirement.field_requirements = [
+        FieldRequirement(entity="customers", field="category", searchable=False)
+    ]
+    requirement.features = ["customers：category必须可搜索"]
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert diagnostics[0]["source"] == {"section": "features", "index": 0, "clause": 0}
+    assert diagnostics[0]["targets"] == [{"entity": "customers", "field": "category"}]
+    assert diagnostics[0]["attribute"] == "searchable"
+    plan.entities[0].fields[-1].searchable = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert diagnostics[0]["source"] == {"section": "field_requirements", "index": 0}
+    assert diagnostics[0]["expected"] is False
+    assert diagnostics[0]["actual"] is True
+
+
+def test_exact_customer_field_contract_text_does_not_invent_query_flags():
+    import json
+
+    from workbench.settings import ROOT
+
+    # This fixture is a comparison target only; the real-provider harness still
+    # obtains every Requirement and Plan from the authorized provider.
+    plan = Plan.model_validate(
+        json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    )
+    text = (ROOT / "examples/requirements/customer-service-contract.md").read_text(encoding="utf-8")
+    requirement = Requirement(
+        summary="客服字段合同",
+        users=["客服"],
+        acceptance=[],
+        data_scope="shared",
+        features=[
+            line.removeprefix("- ")
+            for line in text.splitlines()
+            if line.startswith(("- customers：", "- requests：", "- tasks：", "字段的补充精确定义"))
+        ],
+    )
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[0].searchable = False
+    assert any("searchable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize(
+    "text,attribute",
+    [
+        ("customers.category searchable=false", "searchable"),
+        ("customers：category filterable=false", "filterable"),
+        ("customers：category 禁用搜索", "searchable"),
+        ("customers：category 禁止筛选", "filterable"),
+    ],
+)
+def test_explicit_field_prohibition_is_enforced_without_typed_ledger(text, attribute):
+    requirement, plan = customer_case()
+    requirement.features = [text]
+    target = plan.entities[0].fields[-1]
+    setattr(target, attribute, False)
+    assert coverage_gaps(requirement, plan) == []
+    setattr(target, attribute, True)
+    assert any(attribute in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_textual_false_and_true_conflict_is_never_silently_overridden():
+    requirement, plan = customer_case()
+    requirement.features = [
+        "customers.category searchable=false",
+        "customers.category searchable=true",
+    ]
+    assert coverage_gaps(requirement, plan)
+    plan.entities[0].fields[-1].searchable = True
+    assert coverage_gaps(requirement, plan)
+
+
+def test_unrequested_capability_does_not_disable_other_requested_search():
+    requirement, plan = customer_case()
+    requirement.features = ["customers：name 不要求搜索"]
+    assert plan.entities[0].fields[0].searchable is True
+    assert coverage_gaps(requirement, plan) == []
+
+
+def test_textual_false_date_range_is_enforced_for_named_date_field():
+    from workbench.domain import FieldSpec
+
+    requirement, plan = customer_case()
+    plan.entities[0].fields.append(FieldSpec(name="meeting_date", kind="date"))
+    requirement.features = ["customers.meeting_date date_range=false"]
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[-1].date_range = True
+    assert any("date_range" in gap for gap in coverage_gaps(requirement, plan))

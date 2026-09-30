@@ -188,7 +188,7 @@ def run_acceptance(
                 )
         # Compile the large Vben application while the Java process is stopped.
         # Running both heaps concurrently needlessly exhausts smaller CI/WSL hosts.
-        front_env = frontend_environment(template, base_url)
+        front_env = frontend_environment(template, base_url, plan.title)
         stage("native-frontend-build")
         build_frontend(
             template,

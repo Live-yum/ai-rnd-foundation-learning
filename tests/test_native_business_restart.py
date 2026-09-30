@@ -55,7 +55,7 @@ def test_restart_snapshot_uses_real_declared_ids_and_closes_client(monkeypatch):
 
 
 def test_delivered_launcher_captures_before_process_exit_and_checks_before_browser():
-    source = (ROOT / "templates/deployment/run.py").read_text()
+    source = (ROOT / "templates/deployment/run.py").read_text(encoding="utf-8")
     first = source.index("before_restart = snapshot_business_records(")
     second_process = source.index("base, _ = stack.enter_context(running_backend(")
     checked = source.index("require_preserved_business_records(before_restart, after_restart)")

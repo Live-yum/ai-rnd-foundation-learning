@@ -349,8 +349,8 @@ def test_namespaced_roles_pass_the_pinned_native_output_validator():
 def test_native_business_menus_follow_read_grants_without_admin_fallback():
     import json
 
-    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text())
-    source = (ROOT / "templates/business/fastapiadmin/runtime.py").read_text()
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    source = (ROOT / "templates/business/fastapiadmin/runtime.py").read_text(encoding="utf-8")
     function = next(
         node
         for node in ast.parse(source).body
@@ -375,7 +375,7 @@ def test_presentation_resolves_only_authorized_references_and_preserves_raw_valu
 
     from fastapi import HTTPException
 
-    source = (ROOT / "templates/business/fastapiadmin/runtime.py").read_text()
+    source = (ROOT / "templates/business/fastapiadmin/runtime.py").read_text(encoding="utf-8")
     selected = [
         node
         for node in ast.parse(source).body
@@ -443,7 +443,7 @@ def test_native_display_uses_contract_labels_and_keeps_parseable_original_compon
     from workbench.symbols import parse_file
 
     page = ROOT / "templates/business/fastapiadmin/index.vue"
-    source = page.read_text()
+    source = page.read_text(encoding="utf-8")
     assert "field.label || field.name" in source
     assert "field.choice_labels?.[choice] || choice" in source
     assert "transition.label || transition.name" in source
@@ -454,9 +454,11 @@ def test_native_display_uses_contract_labels_and_keeps_parseable_original_compon
 
 
 def test_assignee_selection_uses_unique_authorized_username_after_restart():
-    controller = (ROOT / "templates/business/fastapiadmin/controller.py").read_text()
-    page = (ROOT / "templates/business/fastapiadmin/index.vue").read_text()
-    browser = (ROOT / "scripts/business_fastapi_browser.cjs").read_text()
+    controller = (ROOT / "templates/business/fastapiadmin/controller.py").read_text(
+        encoding="utf-8"
+    )
+    page = (ROOT / "templates/business/fastapiadmin/index.vue").read_text(encoding="utf-8")
+    browser = (ROOT / "scripts/business_fastapi_browser.cjs").read_text(encoding="utf-8")
     assert "UserModel.name, UserModel.username, RoleModel.code" in controller
     assert '"username": username' in controller
     assert "${user.name} · ${user.username}" in page
