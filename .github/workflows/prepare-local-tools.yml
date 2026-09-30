@@ -1,0 +1,47 @@
+name: Prepare reviewed delivery gates (temporary)
+on:
+  push:
+    branches: [feat/controlled-toolchain-integration]
+    paths: ['.maintenance/audit.patch', '.github/workflows/prepare-local-tools.yml']
+permissions:
+  contents: write
+concurrency:
+  group: prepare-reviewed-delivery-gates
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - name: Apply exact reviewed patch without changing dependencies
+        run: |
+          git apply --check .maintenance/audit.patch
+          git apply .maintenance/audit.patch
+          uv sync --locked --all-extras
+      - name: Validate delivery gates and recommendation recovery
+        run: |
+          uv run ruff check --fix workbench/flow.py workbench/domain.py workbench/native_delivery.py workbench/runtime.py tests/test_delivery_clearance.py tests/test_native.py tests/test_native_managed.py
+          uv run ruff format workbench/flow.py workbench/domain.py workbench/native_delivery.py workbench/runtime.py tests/test_delivery_clearance.py tests/test_native.py tests/test_native_managed.py
+          uv run pytest tests/test_delivery_clearance.py tests/test_native_managed.py tests/test_native.py tests/test_recommendation_recovery.py tests/test_guided_workflow.py -q --junitxml=reports/audit-gates.xml
+          uv run python -m scripts.build_handbook
+          uv run python -m scripts.build_handbook --check
+      - name: Commit only reviewed formal source and the single handbook
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add docs/implementation.md workbench/flow.py workbench/domain.py workbench/native_delivery.py workbench/runtime.py tests/test_delivery_clearance.py tests/test_native.py tests/test_native_managed.py '从零实现AI研发平台_逐步实操手册_完整版.md'
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m 'fix: require review clearance and fresh native database restoration before delivery'
+            git push origin HEAD:feat/controlled-toolchain-integration
+          fi
+          git archive --format=zip HEAD -o reports/audit-reviewed-source.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reviewed-delivery-gates
+          path: reports/
