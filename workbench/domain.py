@@ -115,7 +115,10 @@ class FieldRequirement(Contract):
     max_length: int | None = Field(default=None, ge=1, le=20000)
     searchable: bool | None = None
     filterable: bool | None = None
-    date_range: bool | None = None
+    date_range: bool | None = Field(
+        default=None,
+        description="Only kind=date supports this; datetime must use false. Do not invent date ranges when none were requested.",
+    )
     choices: list[str] | None = None
 
 
@@ -166,6 +169,15 @@ class Requirement(Contract):
 
 class FieldSpec(Contract):
     name: Name
+    label: str = Field(
+        default="",
+        max_length=100,
+        description="Human-readable field label; use the user's interface language without changing the stable name.",
+    )
+    choice_labels: dict[str, Annotated[str, Field(min_length=1, max_length=100)]] = Field(
+        default_factory=dict,
+        description="Optional enum stored value to human-readable label. Keys must occur in choices.",
+    )
     kind: Literal["text", "integer", "boolean", "date", "datetime", "enum"]
     required: bool = True
     max_length: int = Field(default=200, ge=1, le=20000)
@@ -175,7 +187,10 @@ class FieldSpec(Contract):
     )
     searchable: bool = False
     filterable: bool = False
-    date_range: bool = False
+    date_range: bool = Field(
+        default=False,
+        description="Only kind=date supports inclusive date ranges; kind=datetime must set false.",
+    )
 
     @model_validator(mode="after")
     def field_options(self):
@@ -187,6 +202,10 @@ class FieldSpec(Contract):
             raise ValueError("枚举必须有不重复的选项")
         if self.kind != "enum" and self.choices:
             raise ValueError("只有 enum 类型可以声明 choices")
+        if self.choice_labels and (
+            self.kind != "enum" or not set(self.choice_labels) <= set(self.choices)
+        ):
+            raise ValueError("choice_labels只能映射已声明的enum选项")
         if self.searchable and self.kind not in {"text", "enum"}:
             raise ValueError("关键词搜索只能使用文本/枚举字段")
         if self.date_range and self.kind != "date":

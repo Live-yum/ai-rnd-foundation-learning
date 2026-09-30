@@ -286,8 +286,17 @@ for name, expected, fence, code in pattern.findall(book):
         or any(ord(char) < 32 for char in name)
     ):
         raise SystemExit("不安全或重复路径: " + name)
-    content = code + "\n"
-    if hashlib.sha256(content.encode("utf-8")).hexdigest() != expected:
+    # Fence separators are not necessarily source bytes: preserve empty files
+    # and sources with or without a final newline, using the exact source SHA.
+    content = next(
+        (
+            value
+            for value in (code + "\n", code)
+            if hashlib.sha256(value.encode("utf-8")).hexdigest() == expected
+        ),
+        None,
+    )
+    if content is None:
         raise SystemExit("代码块损坏: " + name)
     files[name] = content
 if not files:

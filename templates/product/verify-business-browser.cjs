@@ -23,8 +23,8 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
     assert(screenshots.size<48,'Screenshot evidence limit reached');
     assert(await page.locator('#workspace').isVisible());
     assert(await page.locator('#login').isHidden());
-    await page.screenshot({path:path.join(cfg.screenshot_dir,file),type:'png',fullPage:true,
-      mask:[page.locator('input[type=password]')]});
+    await page.screenshot({path:path.join(cfg.screenshot_dir,file),type:'png',fullPage:!['form','relations','workflow'].includes(view),animations:'disabled',
+      mask:[page.locator('input[type=password]:visible')]});
     screenshots.set(file,{file,role:actor.role,entity,view});
   }
   async function login(actor) {
@@ -38,7 +38,7 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
     await page.locator('#auth input[name=password]').fill(cfg.password);
     await page.locator('#auth button[type=submit]').click();
     await page.locator('#workspace').waitFor({state:'visible'});
-    assert((await page.locator('#business-role').innerText()).includes(actor.role));
+    assert((await page.locator('#business-role').innerText()).includes(business.roles.find(role=>role.name===actor.role)?.label||actor.role));
     checks.add('business-browser-auth');
     const permitted=cfg.spec.entities.filter(e=>allowed(actor.role,e.name,'read'));
     assert.equal(await page.locator('#entities button').count(),permitted.length);
@@ -47,7 +47,7 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
     const metrics=business.metrics.filter(m=>allowed(actor.role,m.entity,'read_metrics'));
     assert.equal(await page.locator('#business-metrics section').count(),metrics.length);
     for(const metric of metrics) assert((await page.locator('#business-metrics').innerText()).includes(metric.label));
-    if(metrics.length) checks.add('business-browser-metrics');
+    if(metrics.length) { assert.equal(await page.locator('#business-metrics').evaluate(el=>getComputedStyle(el).display),'grid'); checks.add('business-browser-metrics'); }
     await capture(actor,null,'dashboard');
     await capture(actor,null,'reminders');
     const mark=page.locator('#business-notifications button');
@@ -61,7 +61,21 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
     const response=page.waitForResponse(r=>r.url().includes('/api/'+entity.name+'?')&&r.request().method()==='GET');
     await page.locator('#entities button').filter({hasText:entity.description||entity.name}).click();
     assert.equal((await response).status(),200);
-    await page.waitForTimeout(50);
+    await page.waitForFunction(name=>document.querySelector('#rows').dataset.entity===name && document.querySelector('#rows').dataset.loading==='false',entity.name);
+    const actions=page.locator('#rows tr').first().locator('td:last-child button');
+    if(await actions.count()) {
+      for(const width of [1440,390]) {
+        await page.setViewportSize({width,height:1100});
+        for(const end of [false,true]) {
+          await page.locator('.table').evaluate((el,end)=>{el.scrollLeft=end?el.scrollWidth:0;},end);
+          const bounds=await page.locator('.table').boundingBox();
+          for(const button of await actions.all()) { const box=await button.boundingBox();assert(box && box.x>=bounds.x-1 && box.x+box.width<=bounds.x+bounds.width+1,'Action clipped at '+width+'px'); }
+        }
+      }
+      await page.setViewportSize({width:1440,height:1100});
+      await page.locator('.table').evaluate(el=>{el.scrollLeft=0;});
+      checks.add('business-browser-responsive-actions');
+    }
   }
   try {
     for(const entity of cfg.spec.entities) {
@@ -126,7 +140,7 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
         visited.add(row[workflow.status_field]);
         const operation=workflow.transitions.find(t=>t.roles.includes(actor.role)&&t.from_states.includes(row[workflow.status_field]));
         if(!operation)break;
-        const button=page.locator('#business-actions').getByRole('button',{name:operation.name,exact:true});await button.waitFor();
+        const button=page.locator('#business-actions').getByRole('button',{name:operation.label||operation.name,exact:true});await button.waitFor();
         const response=page.waitForResponse(r=>r.url().endsWith('/transition')&&r.request().method()==='POST');
         await button.click();const transition=await response;assert.equal(transition.status(),200);row=await transition.json();
         assert.equal(row[workflow.status_field],operation.to_state);checks.add('business-browser-transitions');await page.waitForTimeout(100);

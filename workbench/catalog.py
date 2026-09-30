@@ -114,4 +114,4 @@ def options_for_run(run):
 
 
 def selections():
-    return [{"template": k, **v} for k, v in PAIRS.items()]
+    return [Selection(template=template).capabilities() for template in PAIRS]

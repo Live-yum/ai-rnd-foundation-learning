@@ -254,6 +254,12 @@ def main():
             outcome = check_restored_product(
                 template, base, token, manifest["targets"], manifest["plan"]
             )
+            if manifest["plan"].get("business"):
+                from workbench.portable_checks import snapshot_business_records
+
+                before_restart = snapshot_business_records(
+                    template, base, token, manifest["targets"], outcome["business"]
+                )
         else:
             # A regular restart must not require the seed admin's old password.
             outcome = {"database_initialized": True, "verification_rerun": False}
@@ -267,6 +273,24 @@ def main():
     with ExitStack() as stack:
         base, _ = stack.enter_context(running_backend(template, backend, env, reports))
         frontend_url = stack.enter_context(frontend_preview(template, frontend, front_env, reports))
+        if args.check:
+            # The first running_backend context has stopped its process. Verify
+            # persisted rows through a newly authenticated, independently started
+            # delivered backend before any second-process browser mutation.
+            token = login(template, base)
+            if manifest["plan"].get("business"):
+                from workbench.portable_checks import (
+                    require_preserved_business_records,
+                    snapshot_business_records,
+                )
+
+                after_restart = snapshot_business_records(
+                    template, base, token, manifest["targets"], outcome["business"]
+                )
+                require_preserved_business_records(before_restart, after_restart)
+                outcome["restart_preserved_records"] = True
+                outcome["restart_records"] = after_restart
+            outcome["restart"] = True
         if args.check and manifest["plan"].get("business"):
             from workbench.business_browser import run_business_browser
             from workbench.domain import Plan

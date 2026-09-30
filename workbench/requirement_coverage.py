@@ -255,6 +255,7 @@ FACT_ATTRIBUTES = {
 # Recorded setup/capability catalogs describe the selected environment, not
 # requested field behavior. Retain them in Requirement/ledger untouched.
 FACT_METADATA_KEYS = {"可用能力", "模板", "前端", "数据库", "数据范围"}
+FACT_DESCRIPTOR_KEYS = {"field", "name", "entity", "label", "choice_labels"}
 
 
 def _fact_constraints(facts, prefix=""):
@@ -273,16 +274,22 @@ def _fact_constraints(facts, prefix=""):
                     value = decoded
         if isinstance(value, dict):
             descriptor = value.get("field", value.get("name"))
-            if isinstance(descriptor, str):
+            descriptor = (
+                descriptor
+                if isinstance(descriptor, str) and re.fullmatch(r"[a-z][a-z0-9_]*", descriptor)
+                else None
+            )
+            if descriptor:
                 entity = value.get("entity")
                 label += "." + (entity + "::" if isinstance(entity, str) else "") + descriptor
             attributes = {name: item for name, item in value.items() if name in FACT_ATTRIBUTES}
             if attributes:
                 yield label, attributes
+            metadata = FACT_DESCRIPTOR_KEYS if descriptor or attributes else set()
             nested = {
                 name: item
                 for name, item in value.items()
-                if name not in FACT_ATTRIBUTES and name not in {"field", "name", "entity"}
+                if name not in FACT_ATTRIBUTES and name not in metadata
             }
             yield from _fact_constraints(nested, label)
         elif isinstance(value, list):
@@ -373,14 +380,24 @@ def _fact_texts(facts, prefix=""):
                     value = decoded
         if isinstance(value, dict):
             descriptor = value.get("field", value.get("name"))
-            if isinstance(descriptor, str):
+            descriptor = (
+                descriptor
+                if isinstance(descriptor, str) and re.fullmatch(r"[a-z][a-z0-9_]*", descriptor)
+                else None
+            )
+            if descriptor:
                 entity = value.get("entity")
                 label += "." + (entity + "::" if isinstance(entity, str) else "") + descriptor
+            metadata = (
+                FACT_DESCRIPTOR_KEYS
+                if descriptor or any(name in FACT_ATTRIBUTES for name in value)
+                else set()
+            )
             yield from _fact_texts(
                 {
                     name: item
                     for name, item in value.items()
-                    if name not in FACT_ATTRIBUTES and name not in {"field", "name", "entity"}
+                    if name not in FACT_ATTRIBUTES and name not in metadata
                 },
                 label,
             )
@@ -396,19 +413,89 @@ def _fact_texts(facts, prefix=""):
             yield f"{label}: {value}"
 
 
+def _field_mentions(text, names):
+    """Field identifiers are whole identifiers, not arbitrary underscore fragments."""
+    # Flat legacy facts use a documented field_attribute spelling. Other keys
+    # such as entity_names and bootstrap_role are not fields named name/role.
+    text = re.sub(
+        r"_(?:" + "|".join(sorted(FACT_ATTRIBUTES)) + r"|format)(?=\s*:|$)", "", text, flags=re.I
+    )
+    return any(
+        re.search(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])", text, re.I)
+        if name.isascii()
+        else name in text
+        for name in names
+    )
+
+
+def _fact_entity(key, fields):
+    if "::" in key:
+        return key.split("::")[0].rsplit(".", 1)[-1]
+    # Nested objects and descriptor arrays retain their path. Bind constraints
+    # to the nearest entity in that path, not every similarly named field.
+    entities = {entity for entity, _ in fields}
+    path = re.split(r"[.：:]", key)
+    return next((part.strip() for part in reversed(path[:-1]) if part.strip() in entities), None)
+
+
 def _fact_candidates(key, fields):
-    explicit_entity = key.split("::")[0].rsplit(".", 1)[-1] if "::" in key else None
+    explicit_entity = _fact_entity(key, fields)
     return [
         field
         for entity, field in fields
         if (explicit_entity is None or entity == explicit_entity)
         and (
-            _mentions(key, [field.name])
+            _field_mentions(key, [field.name])
             or any(
-                field.name in aliases and _mentions(key, aliases) for aliases in ALIASES.values()
+                field.name in aliases and _field_mentions(key, aliases)
+                for aliases in ALIASES.values()
             )
         )
     ]
+
+
+LEGACY_PROPERTY = (
+    r"必填|可选|required|optional|搜索|检索|search|筛选|过滤|filter|"
+    r"上限|最大|最多|最长|max_length|最小|至少|最短|min_length|日期区间|日期范围"
+)
+
+
+def _legacy_clauses(text, fields):
+    """Keep each field's predicates and entity scope together in model prose.
+
+    A comma inside name（必填，最长120）doesn't end the subject. Conversely,
+    name必填、contact可选 must not apply both predicates to both fields.
+    Shared subjects such as 标题、正文搜索 remain one obligation.
+    """
+    names = {field.name for _, field in fields}
+    names.update(name for aliases in ALIASES.values() for name in aliases)
+    pattern = "|".join(
+        rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])" if name.isascii() else re.escape(name)
+        for name in sorted(names, key=len, reverse=True)
+    )
+    entity_names = "|".join(re.escape(entity) for entity, _ in fields)
+    pattern = rf"(?:(?:{entity_names})(?:::|\.))?(?:{pattern})"
+    scope = _fact_entity(text, fields)
+    for sentence in re.split(r"[；;。\n]|但是|但|不过", text):
+        heading = re.match(r"\s*([a-z][a-z0-9_]*)\s*[：:]", sentence, re.I)
+        if heading and heading.group(1) in {entity for entity, _ in fields}:
+            scope = heading.group(1)
+            sentence = sentence[heading.end() :]
+        # Keep comma-separated predicates with their subject, including the
+        # leading 可搜索）before the next field in a parenthesized descriptor.
+        previous = []
+        start = 0
+        seen_subject = False
+        for match in re.finditer(pattern, sentence, re.I):
+            if seen_subject and re.search(LEGACY_PROPERTY, sentence[start : match.start()], re.I):
+                previous.append(sentence[start : match.start()])
+                start = match.start()
+            seen_subject = True
+        previous.append(sentence[start:])
+        for clause in previous:
+            if clause.strip():
+                local_scope = _fact_entity(clause, fields) or scope
+                yield f"{local_scope}::{clause}" if local_scope else clause
 
 
 def _matches_constraint(attribute, expected, actual):
@@ -465,7 +552,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
     for key, attributes in structured:
         candidates = _fact_candidates(key, fields)
         if not candidates and (
-            "::" in key or any(_mentions(key, aliases) for aliases in ALIASES.values())
+            "::" in key or any(_field_mentions(key, aliases) for aliases in ALIASES.values())
         ):
             if any(value is not None for value in attributes.values()):
                 gaps.append(f"已确认条件缺少对应字段 {key}")
@@ -483,12 +570,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
         "filterable": r"筛选|过滤|filter",
         "date_range": r"日期区间|日期范围|含边界.*(?:日期|范围)|date.?range",
     }
-    texts = [
-        clause
-        for text in texts
-        for clause in re.split(r"[，,；;。\n]|但是|但|不过", text)
-        if clause.strip()
-    ]
+    texts = [clause for text in texts for clause in _legacy_clauses(text, fields)]
     for text in texts:
         if re.search(
             r"(?:无需|不需要|不要求|取消|禁用|不支持).*(?:搜索|检索|筛选|过滤|日期区间|日期范围)",
@@ -497,16 +579,25 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
             continue
         if re.search(r"(?:searchable|filterable|date_range)\s*:\s*(?:false|否)", text, re.I):
             continue
-        mentioned = []
+        mentioned = _fact_candidates(text, fields)
         for canonical, aliases in ALIASES.items():
-            if _mentions(text, aliases):
-                matches = [f for _, f in fields if f.name in aliases]
-                mentioned.extend(matches)
-                if not matches:
+            if _field_mentions(text, aliases):
+                matches = [f for f in mentioned if f.name in aliases]
+                # Generic words such as 内容/分类 in a business summary are
+                # not declarations of a missing field. An explicit identifier
+                # with its description (detail/内容) binds the real field.
+                explicit = any(_field_mentions(text, [name]) for name in aliases if name.isascii())
+                description = any(
+                    re.search(rf"{re.escape(field.name)}\s*[(（/]\s*{re.escape(alias)}", text, re.I)
+                    for field in mentioned
+                    for alias in aliases
+                )
+                if (
+                    not matches
+                    and not description
+                    and (explicit or re.search(LEGACY_PROPERTY, text, re.I))
+                ):
                     gaps.append(f"已确认条件缺少对应字段 {canonical}: {text}")
-        for _, field in fields:
-            if _mentions(text, [field.name]) and field not in mentioned:
-                mentioned.append(field)
         operation_parts = [text]
         if re.search(operations["searchable"], text, re.I) and re.search(
             operations["filterable"], text, re.I
@@ -546,22 +637,42 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
                 elif not candidates or any(not getattr(f, flag) for f in candidates):
                     gaps.append(f"设计未覆盖已确认的 {flag}: {part}")
         for field in mentioned:
-            if re.search(r"必填|required", text, re.I) and not re.search(
-                r"非必填|不必填|是否必填.*否|optional", text, re.I
+            # Validation summaries refer to the required/optional flags already
+            # declared for each field; they don't make every listed field both.
+            validation = bool(
+                re.search(
+                    r"必填(?:字段|项).*(?:缺失|为空)|(?:缺少|缺失)必填|必填.*可选.*校验", text
+                )
+            )
+            if (
+                re.search(r"必填|required", text, re.I)
+                and not re.search(
+                    r"非必填|不必填|是否必填.*否|optional|required\s*[:=]\s*(?:false|否)",
+                    text,
+                    re.I,
+                )
+                and not validation
             ):
                 if not field.required:
                     gaps.append(f"已确认字段 {field.name} 必填: {text}")
-            if re.search(r"可选|非必填|不必填|是否必填.*否|optional", text, re.I):
+            if (
+                re.search(
+                    r"可选|非必填|不必填|是否必填.*否|optional|required\s*[:=]\s*(?:false|否)",
+                    text,
+                    re.I,
+                )
+                and not validation
+            ):
                 if field.required:
                     gaps.append(f"已确认字段 {field.name} 可选: {text}")
-            if re.search(r"上限|最大|max_length|最多", text, re.I):
-                number = re.search(r"\d+", text)
-                if number and field.max_length != int(number.group()):
-                    gaps.append(f"已确认字段 {field.name} 长度上限为 {number.group()}: {text}")
-            if re.search(r"最小|min_length|至少", text, re.I):
-                number = re.search(r"\d+", text)
-                if number and field.min_length != int(number.group()):
-                    gaps.append(f"已确认字段 {field.name} 最小长度为 {number.group()}: {text}")
+            if re.search(r"上限|最大|max_length|最多|最长", text, re.I):
+                number = re.search(r"(?:上限|最大|max_length|最多|最长)[^\d]*?(\d+)", text, re.I)
+                if number and field.max_length != int(number.group(1)):
+                    gaps.append(f"已确认字段 {field.name} 长度上限为 {number.group(1)}: {text}")
+            if re.search(r"最小|min_length|至少|最短", text, re.I):
+                number = re.search(r"(?:最小|min_length|至少|最短)[^\d]*?(\d+)", text, re.I)
+                if number and field.min_length != int(number.group(1)):
+                    gaps.append(f"已确认字段 {field.name} 最小长度为 {number.group(1)}: {text}")
         # A date field represented as text is not executable date validation.
         if re.search(r"真实日期|YYYY-MM-DD|日期格式", text):
             if not any(f.kind == "date" for f in mentioned):

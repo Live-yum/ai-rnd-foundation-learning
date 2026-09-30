@@ -72,7 +72,9 @@ function handleRefresh() {}
         )
         atomic_text(
             frontend / f"apps/web-antd/src/views/infra/{slug}/data.ts",
-            "export function useFormSchema(): VbenFormSchema[] { return []; }\n",
+            "export function useFormSchema(): VbenFormSchema[] { return []; }\n"
+            "export function useGridFormSchema(): VbenFormSchema[] { return []; }\n"
+            "export function useGridColumns(): VxeTableGridOptions<NativeData>['columns'] { return []; }\n",
         )
         atomic_text(
             frontend / f"apps/web-antd/src/views/infra/{slug}/modules/form.vue",
@@ -116,10 +118,31 @@ def test_mount_retains_real_mappers_and_binds_every_original_crud_route(tmp_path
     assert all(binding["requestVO"].endswith("SaveReqVO") for binding in config["bindings"])
     assert all(binding["permission"].startswith("infra:wb-") for binding in config["bindings"])
     panel = (frontend / "apps/web-antd/src/views/infra/wbcustomers/index.vue").read_text()
-    assert "<Page>" in panel and "<Grid>" in panel and "<TableAction" in panel
+    assert "<Page>" in panel and "<Grid " in panel and "<TableAction" in panel
     assert "<RndBusinessPanel" in panel
     data = (frontend / "apps/web-antd/src/views/infra/wbcustomers/data.ts").read_text()
     assert "nativeBusinessFormSchema" in data and "businessFormSchema" in data
+    form = (frontend / "apps/web-antd/src/views/infra/wbcustomers/modules/form.vue").read_text()
+    assert "businessPayload('customers', (await formApi.getValues()) as NativeData)" in form
+    assert "as unknown" not in form
+
+
+def test_vben_form_field_type_covers_the_exact_emitted_metadata():
+    import re
+
+    from workbench.domain import FieldSpec
+
+    source = (TEMPLATES / "business-form.ts").read_text()
+    declaration = re.search(r"interface Field \{([^}]+)\}", source).group(1)
+    fields = set(re.findall(r"(\w+)\s*:", declaration))
+    assert fields == set(FieldSpec.model_fields)
+    assert "businessPayload<T extends object>" in source
+    assert "Reflect.deleteProperty(result, name)" in source
+    assert "as unknown" not in source and "as any" not in source
+    panel = (TEMPLATES / "panel.vue").read_text()
+    assert "row: Record<string, unknown>" in panel
+    assert "typeof record.id !== 'string'" in panel
+    assert "row.actions.includes('read_history')" in panel
 
 
 def test_reentry_is_hash_bound_and_tampering_never_overwrites(tmp_path):
@@ -349,3 +372,108 @@ def test_related_history_uses_native_route_and_visible_timeline():
     assert "business-related-history" in panel
     assert "request !== relatedRequest || current !== generation" in panel
     assert '<TimelineItem v-for="entry in relatedEvents"' in panel
+
+
+def test_native_display_metadata_does_not_change_wire_audit_or_metric_serialization():
+    source = (TEMPLATES / "RndBusinessService.java").read_text(encoding="utf-8")
+    raw = source.split("private Map<String,Object> out(", 1)[1].split(
+        "private static class Presentation", 1
+    )[0]
+    assert "_display" not in raw and "userLabel" not in raw and "referenceLabel" not in raw
+    event = source.split("private long event(", 1)[1].split("private void notify(", 1)[0]
+    assert "encode(out(name,row))" in event and "present(" not in event
+    metrics = source.split("public Object metrics()", 1)[1].split(
+        "public Object notifications()", 1
+    )[0]
+    assert 'item.put("buckets",counts)' in metrics
+    assert 'item.put("bucketLabels",labels)' in metrics
+    assert "present(" not in metrics
+
+
+def test_reference_and_user_names_are_scoped_cached_and_non_recursive():
+    source = (TEMPLATES / "RndBusinessService.java").read_text(encoding="utf-8")
+    relation = source.split("private String referenceLabel(", 1)[1].split(
+        "private Map<String,Object> present(", 1
+    )[0]
+    assert "display.references.computeIfAbsent" in relation
+    assert 'allowed(target,linked,"read")' in relation
+    assert relation.index('allowed(target,linked,"read")') < relation.index(
+        "recordLabel(target,linked)"
+    )
+    assert "present(" not in relation
+    user = source.split("private String userLabel(", 1)[1].split(
+        "private String referenceLabel(", 1
+    )[0]
+    assert "display.users.computeIfAbsent" in user
+    assert "rolesFor(number(key)).isEmpty()" in user
+    assert "sidecar.displayUser(tenant(),number(key))" in user
+    assert "sidecar.users(" not in user
+    mapper = (TEMPLATES / "RndBusinessMapper.java").read_text(encoding="utf-8")
+    assert (
+        "SELECT nickname, username FROM system_users WHERE tenant_id=#{tenant} AND id=#{user}"
+        in mapper
+    )
+    history = source.split("public Object history(", 1)[1].split("public void bootstrap(", 1)[0]
+    assert history.index('require(name,row,audit?"read_audit":"read_history")') < history.index(
+        'item.put("actor_name"'
+    )
+    page = source.split("public Object page(", 1)[1].split("public void archive(", 1)[0]
+    assert 'if(!allowed(name,row,"read")' in page
+    assert "for(Object row:rows.subList(start,end)) visible.add(present" in page
+
+
+def test_display_helpers_are_generic_labels_and_keep_native_grid_structure(tmp_path):
+    plan = approved_plan()
+    backend, frontend, targets, reports = generated_native_source(tmp_path, plan)
+    install_yudao_business(plan, backend, frontend, targets, reports)
+    root = frontend / "apps/web-antd/src/views/infra"
+    data = (root / "wbcustomers/data.ts").read_text()
+    assert (
+        "function nativeBusinessGridColumns(): VxeTableGridOptions<NativeData>['columns']" in data
+    )
+    assert "businessGridColumns('customers', nativeBusinessGridColumns())" in data
+    assert "businessSearchSchema('customers', nativeBusinessSearchSchema())" in data
+    source = (root / "rnd-business/business-form.ts").read_text()
+    assert "field.label || field.name" in source
+    assert "field.choice_labels[value] || value" in source
+    assert "showHeaderOverflow: true" in source and "minWidth:" in source
+    assert "date.toISOString().slice(0, 19)" in source
+    assert "Reflect.get(row, '_display')" in source
+    assert "field: 'customerId'" not in source and "field: 'requestState'" not in source
+    panel = (root / "rnd-business/panel.vue").read_text()
+    assert "transition.label || transition.name" in panel
+    assert "entry.actor_name" in panel
+    assert "businessDetails(props.entity, meta.value.record)" in panel
+    assert ':bucket-labels="metric.bucketLabels"' in panel
+    assert "white-space: nowrap" in panel
+    assert 'class="rnd-business-grid"' in (root / "wbcustomers/index.vue").read_text()
+
+
+def test_native_grid_contract_change_fails_before_writing(tmp_path):
+    plan = approved_plan()
+    backend, frontend, targets, reports = generated_native_source(tmp_path, plan)
+    data = frontend / "apps/web-antd/src/views/infra/wbcustomers/data.ts"
+    data.write_text(data.read_text().replace("useGridColumns", "changedGridColumns"))
+    controller = (
+        backend
+        / f"{JAVA_ROOT}/{JAVA_PACKAGE}/controller/admin/wbcustomers/WbCustomersController.java"
+    )
+    before = controller.read_bytes()
+    with pytest.raises(ValueError, match="Native Vben grid schema contract changed"):
+        install_yudao_business(plan, backend, frontend, targets, reports)
+    assert controller.read_bytes() == before
+    assert not reports.exists()
+
+
+def test_notification_display_preserves_raw_message_and_stable_read_controls():
+    service = (TEMPLATES / "RndBusinessService.java").read_text()
+    notices = service.split("public Object notifications()", 1)[1]
+    assert 'n.put("display_message"' in notices
+    assert 'n.put("message"' not in notices
+    assert notices.index('allowed(n.get("entity").toString(),row,"read")') < notices.index(
+        'n.put("display_message"'
+    )
+    panel = (TEMPLATES / "panel.vue").read_text()
+    assert "business-notice-read-${record.id}" in panel
+    assert "business-notice-read-state-${record.id}" in panel
+    assert "record.display_message || record.message" in panel

@@ -183,7 +183,10 @@ def test_native_adapters_fail_closed_for_unimplemented_options(plan, attribute, 
         field = plan.entities[0].fields[1]
         field.kind = "date"
     setattr(field, attribute, value)
-    with pytest.raises(ValueError, match="Native adapters do not yet execute"):
+    with pytest.raises(
+        ValueError,
+        match="Native adapters do not yet execute|Native enum/date/datetime fields require a business contract",
+    ):
         validate_plan(plan)
 
 

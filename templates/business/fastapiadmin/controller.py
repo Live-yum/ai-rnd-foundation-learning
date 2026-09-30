@@ -140,7 +140,7 @@ async def users(
     ):
         rt.fail()
     query = (
-        select(UserModel.id, UserModel.name, RoleModel.code)
+        select(UserModel.id, UserModel.name, UserModel.username, RoleModel.code)
         .join(UserRolesModel, UserModel.id == UserRolesModel.user_id)
         .join(RoleModel, RoleModel.id == UserRolesModel.role_id)
         .where(
@@ -152,8 +152,8 @@ async def users(
         )
     )
     result = [
-        {"id": str(uid), "name": name, "role": code[len(rt.ROLE_PREFIX) :]}
-        for uid, name, code in (await db.execute(query)).all()
+        {"id": str(uid), "name": name, "username": username, "role": code[len(rt.ROLE_PREFIX) :]}
+        for uid, name, username, code in (await db.execute(query)).all()
     ]
     return SuccessResponse(data=result)
 
@@ -171,7 +171,18 @@ async def metrics(
             continue
         rows = await rt.rows(db, who, metric["entity"], "read_metrics")
         value = rt.POLICY.metric([rt.serialize(row, metric["entity"]) for row in rows], metric)
-        result.append({"name": metric["name"], "label": metric["label"], "value": value})
+        item = {"name": metric["name"], "label": metric["label"], "value": value}
+        if metric["kind"] == "group_count":
+            cache, groups = {}, []
+            for group in value["groups"]:
+                shown = await rt.present_values(
+                    db, who, metric["entity"], {metric["group_by"]: group["key"]}, cache
+                )
+                groups.append(
+                    {**group, "key": shown["_display"].get(metric["group_by"], group["key"])}
+                )
+            item["display_groups"] = groups
+        result.append(item)
     return SuccessResponse(data=result)
 
 
@@ -179,7 +190,7 @@ async def metrics(
 async def inbox(
     auth: AuthSchema = Depends(get_current_user), db: AsyncSession = Depends(db_getter)
 ):
-    await rt.actor(db, auth)
+    who = await rt.actor(db, auth)
     # Recipient row lock makes due reminders idempotent without an external scheduler.
     await db.scalar(select(UserModel).where(UserModel.id == auth.user.id).with_for_update())
     now = datetime.now(UTC)
@@ -225,17 +236,26 @@ async def inbox(
             .order_by(BusinessEvent.id.desc())
         )
     ).all()
-    result = [
-        {
-            "id": str(n.id),
-            "entity": n.entity,
-            "record_id": str(n.record_id),
-            "event": n.payload["event"],
-            "created_at": n.created_at.isoformat(),
-            "read": n.read_at is not None,
-        }
-        for n in notices
-    ]
+    result = []
+    for n in notices:
+        title = "业务记录"
+        try:
+            row = await rt.record(db, who, n.entity, n.record_id, "read")
+            title = rt.record_title(n.entity, rt.serialize(row, n.entity))
+        except rt.HTTPException as error:
+            if error.status_code not in {403, 404}:
+                raise
+        result.append(
+            {
+                "id": str(n.id),
+                "entity": n.entity,
+                "record_id": str(n.record_id),
+                "event": n.payload["event"],
+                "record_title": title,
+                "created_at": n.created_at.isoformat(),
+                "read": n.read_at is not None,
+            }
+        )
     await db.commit()
     return SuccessResponse(data=result)
 
@@ -283,10 +303,12 @@ async def listing(
         rt.fail(422, "Invalid filters")
     who = await rt.actor(db, auth)
     rows = await rt.rows(db, who, entity, query=q, filters=filters, archived=archived)
+    cache = {}
     return SuccessResponse(
         data={
             "items": [
-                rt.serialize(r, entity) for r in rows[(page - 1) * page_size : page * page_size]
+                await rt.present_values(db, who, entity, rt.serialize(r, entity), cache)
+                for r in rows[(page - 1) * page_size : page * page_size]
             ],
             "total": len(rows),
         }
@@ -326,12 +348,19 @@ async def history(
             .order_by(BusinessEvent.id)
         )
     ).all()
+    cache = {}
     return SuccessResponse(
         data=[
             {
                 "id": str(e.id),
                 "event": e.event,
                 "actor": str(e.actor),
+                "actor_name": await rt.user_label(db, e.actor, cache),
+                "after_display": (
+                    await rt.present_values(db, who, entity, e.payload["after"], cache)
+                )["_display"]
+                if audit and isinstance(e.payload.get("after"), dict)
+                else {},
                 "created_at": e.created_at.isoformat(),
                 "data": e.payload
                 if audit
@@ -354,7 +383,7 @@ async def related(
 ):
     who = await rt.actor(db, auth)
     await rt.record(db, who, entity, row_id, "read")
-    result = {}
+    result, cache = {}, {}
     for relation in rt.SPEC["relations"]:
         if relation["target_entity"] != entity:
             continue
@@ -364,7 +393,7 @@ async def related(
         except rt.PolicyError:
             continue
         result[child] = [
-            rt.serialize(r, child)
+            await rt.present_values(db, who, child, rt.serialize(r, child), cache)
             for r in await rt.rows(db, who, child)
             if str(getattr(r, relation["field"])) == str(row_id)
         ]

@@ -98,7 +98,12 @@ def _mount_panel(body, entity):
         f'    <RndBusinessPanel entity="{entity}" :record-id="rndBusinessRecord" '
         '@changed="handleRefresh" />\n  </Page>'
     )
-    return body.replace("</Page>", panel)
+    body = body.replace("</Page>", panel)
+    body = body.replace("<Grid", '<Grid class="rnd-business-grid"', 1)
+    return (
+        body
+        + "\n<style scoped>\n.rnd-business-grid :deep(.vxe-header--column .vxe-cell) { white-space: nowrap; }\n</style>\n"
+    )
 
 
 def install_yudao_business(plan, backend, frontend, targets, reports):
@@ -203,24 +208,52 @@ def install_yudao_business(plan, backend, frontend, targets, reports):
         data_source = data_source.replace(
             signature, "function nativeBusinessFormSchema(): VbenFormSchema[] {", 1
         )
+        wrappers = [
+            f"export function useFormSchema(): VbenFormSchema[] {{ return businessFormSchema('{entity.name}', nativeBusinessFormSchema()); }}"
+        ]
+        for function, native, helper in (
+            ("useGridFormSchema", "nativeBusinessSearchSchema", "businessSearchSchema"),
+            ("useGridColumns", "nativeBusinessGridColumns", "businessGridColumns"),
+        ):
+            pattern = re.compile(r"export function " + function + r"\(\): ([^\n{]+)\s*\{")
+            matches = list(pattern.finditer(data_source))
+            if len(matches) != 1:
+                raise ValueError("Native Vben grid schema contract changed")
+            return_type = matches[0].group(1).strip()
+            data_source = pattern.sub(
+                lambda match: f"function {native}(): {return_type} {{", data_source, count=1
+            )
+            wrappers.append(
+                f"export function {function}(): {return_type} {{ return {helper}('{entity.name}', {native}()); }}"
+            )
         data_source = (
-            "import { businessFormSchema } from '../rnd-business/business-form';\n" + data_source
+            "import { businessFormSchema, businessSearchSchema, businessGridColumns } from '../rnd-business/business-form';\n"
+            + data_source
         )
-        data_source += f"\nexport function useFormSchema(): VbenFormSchema[] {{ return businessFormSchema('{entity.name}', nativeBusinessFormSchema()); }}\n"
+        data_source += "\n" + "\n".join(wrappers) + "\n"
         writes.append(("frontend", data_path, data_source, True))
         form_path = f"apps/web-antd/src/views/infra/{slug}/modules/form.vue"
         form_source = inside(frontend, form_path).read_text(encoding="utf-8")
         marker = re.search(r"<script\b[^>]*\bsetup\b[^>]*>", form_source)
         anchor = "(await formApi.getValues())"
-        if not marker or form_source.count(anchor) != 1:
+        typed_value = re.compile(
+            r"\(await formApi\.getValues\(\)\) as [A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*"
+        )
+        if (
+            not marker
+            or form_source.count(anchor) != 1
+            or len(typed_value.findall(form_source)) != 1
+        ):
             raise ValueError("Native Vben form submit contract changed")
         form_source = (
             form_source[: marker.end()]
             + "\nimport { businessPayload } from '../../rnd-business/business-form';\n"
             + form_source[marker.end() :]
         )
-        form_source = form_source.replace(
-            anchor, f"businessPayload('{entity.name}', await formApi.getValues())", 1
+        form_source = typed_value.sub(
+            lambda match: f"businessPayload('{entity.name}', {match.group(0)})",
+            form_source,
+            count=1,
         )
         writes.append(("frontend", form_path, form_source, True))
         page = f"apps/web-antd/src/views/infra/{slug}/index.vue"
@@ -275,33 +308,19 @@ def install_yudao_business(plan, backend, frontend, targets, reports):
             controlled.update(t.set_timestamp for t in workflow.transitions if t.set_timestamp)
         references = {}
         for relation in plan.business.relations:
-            if relation.entity == entity.name and relation.field not in controlled:
+            if relation.entity == entity.name:
                 if relation.target_entity == "$users":
-                    references[relation.field] = {"target": "$users", "label": "nickname"}
+                    references[relation.field] = {"target": "$users", "label": "displayName"}
                     continue
-                target = next(e for e in plan.entities if e.name == relation.target_entity)
-                label = next(
-                    (
-                        f.name
-                        for f in target.fields
-                        if f.kind == "text"
-                        and not any(
-                            r.entity == target.name and r.field == f.name
-                            for r in plan.business.relations
-                        )
-                    ),
-                    "id",
-                )
-                from workbench.native_acceptance import wire_name
-
                 references[relation.field] = {
-                    "target": target.name,
-                    "label": wire_name("yudao-vben", label),
+                    "target": relation.target_entity,
+                    "label": "_recordLabel",
                 }
         form_specs[entity.name] = {
             "fields": [f.model_dump() for f in entity.fields],
             "controlled": sorted(controlled),
             "references": references,
+            "statusField": workflow.status_field if workflow else "",
         }
     form_source = (
         (TEMPLATES / "business-form.ts")

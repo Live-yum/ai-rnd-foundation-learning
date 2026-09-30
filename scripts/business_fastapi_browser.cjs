@@ -16,7 +16,12 @@ async function main() {
   async function capture(p, label) {
     assert(/^[a-z0-9_-]+$/.test(label));
     const filename = label + '.png';
-    await p.screenshot({ path: path.join(reportDir, filename), fullPage: true });
+    for (const close of await p.locator('.el-notification__closeBtn:visible').all()) await close.click().catch(() => {});
+    await p.locator('.el-message:visible').first().waitFor({ state: 'hidden', timeout: 6000 });
+    const viewport = p.viewportSize();
+    if (viewport) await p.mouse.move(viewport.width - 20, viewport.height - 20);
+    await p.waitForTimeout(350);
+    await p.screenshot({ path: path.join(reportDir, filename), fullPage: true, animations: 'disabled' });
     report.screenshots.push(filename);
   }
   let page;
@@ -103,6 +108,8 @@ async function main() {
     await dialog.locator('.el-form').waitFor({ state: 'visible' });
     for (const [name, spec] of Object.entries(fields)) {
       const field = dialog.getByTestId('field-' + name);
+      const declared = scenario.plan.entities.find(item => item.name === entity)?.fields.find(item => item.name === name);
+      if (declared?.label) await dialog.locator('.el-form-item__label').filter({ hasText: declared.label }).first().waitFor({ state: 'visible' });
       if (spec.select) await choose(p, field.locator('.el-select'), spec.select);
       else await field.locator('input, textarea').first().fill(spec.text);
     }
@@ -152,10 +159,10 @@ async function main() {
     report.checks.push('employee:related_request_native_form_create');
     page = manager.p;
     await tab(page, manager.config, 'requests');
-    await assign(page, 'requests', request, scenario.actors.service.name || 'Synthetic service');
+    await assign(page, 'requests', request, scenario.actors.service.username);
     await tab(page, manager.config, 'tasks');
     const task = await create(page, 'tasks', { title: { text: marker + ' task' }, detail: { text: 'Browser follow-up' }, request_id: { select: marker + ' request' } });
-    await assign(page, 'tasks', task, scenario.actors.service.name || 'Synthetic service');
+    await assign(page, 'tasks', task, scenario.actors.service.username);
     report.checks.push('manager:linked_task_and_native_assignment');
     const service = await login('service'); page = service.p;
     await tab(page, service.config, 'tasks');

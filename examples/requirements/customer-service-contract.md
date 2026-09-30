@@ -12,3 +12,8 @@
 - 站内提醒持久化，包含负责人分配、处理备注、状态变化、解决和逾期提醒；解决请求后提交者可以在自己的通知收件箱看到提醒。
 - 指标至少包括 requests 总数（count）、已解决数（count，按 request_state=resolved 筛选）、创建至 resolved_at 的平均解决时长（average_duration，start_field=created_at）、customers 按 category 分类（group_count）、requests 按 created_at 的每日趋势（time_count）。角色只允许 manager/service，服务人员指标必须按本人可见行计算；不是预设数字或前端假图。
 - 不添加外部服务、支付、邮件短信、爬虫或自定义任意代码。以 business 可执行合同实现，custom_rules 留空。所有业务权限、关系、流程、提醒和指标均须明确声明，不能只写在中文说明中。
+
+字段的补充精确定义：所有文本的 min_length=0（必填由 required 负责，未另加字符下限）；datetime 字段仅存储时间戳，searchable=false、filterable=false、date_range=false。逻辑外键字段同样不添加搜索或日期范围。系统自动提供 id/created_at/updated_at/created_by/archived_at，不能在 entities.fields 重复声明；统计直接引用系统 created_at。
+
+界面字段使用可声明的 label 中文名称；请求/任务状态通过 choice_labels 声明 new=待处理、active=处理中、resolved=已解决，存储与动作仍使用原机器值。角色label分别为管理人员、服务人员、普通员工；所有统计label用中文。关联字段显示当前角色可读的客户名称、请求标题或负责人用户名，不能直接把UUID或整数ID当成人类可读名称。
+命名状态动作同时声明中文 label：start 为“开始处理”、resolve 为“标记解决”，动作 name 不变。

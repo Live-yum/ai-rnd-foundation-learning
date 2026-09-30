@@ -64,3 +64,10 @@ def test_broken_metric_values_do_not_count_as_functional_acceptance(name, value)
     values[name] = deepcopy(value)
     with pytest.raises(AssertionError):
         verify_scoped_metrics(client, plan)
+
+
+def test_service_cannot_silently_lose_its_approved_metrics():
+    client, plan, values = fixture()
+    values.pop("resolution")
+    with pytest.raises(AssertionError, match="Metric set"):
+        verify_scoped_metrics(client, plan, "service")

@@ -41,6 +41,9 @@ public interface RndBusinessMapper {
     @Select("SELECT id, nickname, username FROM system_users WHERE tenant_id=#{tenant} AND deleted=0 AND status=0 ORDER BY id")
     List<Map<String,Object>> users(@Param("tenant") Long tenant);
 
+    @Select("SELECT nickname, username FROM system_users WHERE tenant_id=#{tenant} AND id=#{user} AND deleted=0 AND status=0")
+    Map<String,Object> displayUser(@Param("tenant") Long tenant, @Param("user") Long user);
+
     @Select("SELECT id FROM system_role WHERE tenant_id=#{tenant} AND code=#{code} AND deleted=0 AND status=0")
     Long role(@Param("tenant") Long tenant, @Param("code") String code);
 

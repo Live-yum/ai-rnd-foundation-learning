@@ -69,7 +69,7 @@ async function main() {
         fields.forEach((field,n)=> { if (field.kind==='text') boundary[field.name] = String.fromCharCode(0x4e00+n*3).repeat(field.max_length); });
         samples.push(boundary);
       }
-      const display = values => values.map(s => fields.map(f => s[f.name] == null ? '' : String(s[f.name])));
+      const display = values => values.map(s => fields.map(f => s[f.name] == null ? '' : (f.choice_labels?.[String(s[f.name])] || String(s[f.name]))));
       const records = [];
       for (const sample of samples) {
         await page.locator('#create').click();

@@ -287,3 +287,23 @@ def test_assignee_is_nullable_before_authorized_assignment():
     raw["entities"][1]["fields"][1]["required"] = True
     with pytest.raises(ValidationError):
         Plan.model_validate(raw)
+
+
+def test_display_labels_preserve_stored_enum_contract():
+    from workbench.domain import FieldSpec
+
+    value = FieldSpec(
+        name="status",
+        kind="enum",
+        choices=["queued", "done"],
+        label="处理状态",
+        choice_labels={"queued": "待处理", "done": "已完成"},
+    )
+    assert value.choices == ["queued", "done"]
+    assert value.model_dump()["choice_labels"]["done"] == "已完成"
+    with pytest.raises(ValueError, match="choice_labels"):
+        FieldSpec(
+            name="status", kind="enum", choices=["queued"], choice_labels={"unknown": "不存在"}
+        )
+    with pytest.raises(ValueError, match="choice_labels"):
+        FieldSpec(name="description", kind="text", choice_labels={"queued": "待处理"})

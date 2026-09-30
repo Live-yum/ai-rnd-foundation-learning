@@ -78,6 +78,62 @@ def serialize(row, entity):
     }
 
 
+def record_title(entity, values):
+    references = {r["field"] for r in SPEC["relations"] if r["entity"] == entity}
+    for field in ENTITIES[entity]["fields"]:
+        if field["kind"] == "text" and field["name"] not in references:
+            value = values.get(field["name"])
+            if value:
+                return str(value)
+    return ENTITIES[entity].get("description") or "业务记录"
+
+
+async def user_label(db, user_id, cache):
+    key = ("$users", str(user_id))
+    if key not in cache:
+        name = await db.scalar(
+            select(UserModel.name)
+            .join(UserRolesModel, UserModel.id == UserRolesModel.user_id)
+            .join(RoleModel, RoleModel.id == UserRolesModel.role_id)
+            .where(
+                UserModel.id == identifier(user_id),
+                UserModel.is_deleted.is_(False),
+                RoleModel.is_deleted.is_(False),
+                RoleModel.code.startswith(ROLE_PREFIX, autoescape=True),
+            )
+            .limit(1)
+        )
+        cache[key] = name or "历史参与者"
+    return cache[key]
+
+
+async def present_values(db, who, entity, values, cache=None):
+    """Resolve only names referenced by already-authorized business rows/history."""
+    cache = {} if cache is None else cache
+    display = {}
+    for relation in SPEC["relations"]:
+        if relation["entity"] != entity or values.get(relation["field"]) is None:
+            continue
+        field, target = relation["field"], relation["target_entity"]
+        identifier = values[field]
+        if target == "$users":
+            display[field] = await user_label(db, identifier, cache)
+        else:
+            key = (target, str(identifier))
+            if key not in cache:
+                try:
+                    linked = await record(db, who, target, identifier, "read")
+                    cache[key] = record_title(target, serialize(linked, target))
+                except HTTPException as error:
+                    if error.status_code not in {403, 404}:
+                        raise
+                    cache[key] = "无权查看关联记录"
+            display[field] = cache[key]
+    if values.get("created_by") is not None:
+        display["created_by"] = await user_label(db, values["created_by"], cache)
+    return {**values, "_display": display, "_title": record_title(entity, values)}
+
+
 async def actor(db, auth):
     if not auth.user.id:
         fail(401)
@@ -400,6 +456,14 @@ async def rows(db, who, entity, action="read", query="", filters=None, archived=
     return list((await db.scalars(statement.order_by(model.id.desc()))).all())
 
 
+def readable_entities(role):
+    return {
+        permission["entity"]
+        for permission in SPEC["permissions"]
+        if permission["role"] == role and "read" in permission["actions"]
+    }
+
+
 async def set_role(db, user_id, role):
     if role not in {r["name"] for r in SPEC["roles"]}:
         fail(422, "Unknown business role")
@@ -429,7 +493,7 @@ async def set_role(db, user_id, role):
             for m in menus
             if any(
                 (m.component_path or "").lstrip("/") == "module_rnd/" + e + "/index"
-                for e in ENTITIES
+                for e in readable_entities(role)
             )
         }
         by_id = {m.id: m for m in menus}

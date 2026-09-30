@@ -239,7 +239,7 @@ def contract_snapshot(data, requirement=False):
         for name in ("min_length", "max_length"):
             if type(value.get(name)) is int and 0 <= value[name] <= 20000:
                 result[name] = value[name]
-        if value.get("kind") in {"text", "integer", "boolean", "date", "enum"}:
+        if value.get("kind") in {"text", "integer", "boolean", "date", "datetime", "enum"}:
             result["kind"] = value["kind"]
         if isinstance(value.get("choices"), list):
             result["choices_count"] = len(value["choices"])
@@ -275,6 +275,21 @@ def safe_workflow_details(store, run_id, traces):
         requirement = (store.latest_revision(run_id, "requirements") or {}).get("requirement", {})
         plan = (store.latest_revision(run_id, "design") or {}).get("plan", {})
         details["valid_plan_present"] = bool(plan)
+        business = plan.get("business") or {}
+        details["business_contract_present"] = bool(business)
+        details["business_counts"] = {
+            key: len(business.get(key, []))
+            for key in (
+                "roles",
+                "resources",
+                "relations",
+                "permissions",
+                "workflows",
+                "notifications",
+                "metrics",
+            )
+            if isinstance(business.get(key, []), list)
+        }
         details["plan_contract"] = contract_snapshot(plan)
         details["requirement_contract"] = contract_snapshot(requirement, requirement=True)
         error = run.get("error") or ""
@@ -292,6 +307,43 @@ def safe_workflow_details(store, run_id, traces):
         ]
         blocked = (pending.get("data") or {}).get("blocked", [])
         details["coverage_block_count"] = len(blocked) if isinstance(blocked, list) else 0
+        diagnostic_kinds = {
+            "missing_or_ambiguous": "缺失或映射不唯一",
+            "legacy_missing_field": "缺少对应字段",
+            "required": "必填",
+            "optional": "可选",
+            "max_length": "长度上限",
+            "min_length": "最小长度",
+            "date_kind": "真实日期类型",
+            "business_capability": "业务设计缺少",
+        }
+        attributes = (
+            "kind",
+            "required",
+            "searchable",
+            "filterable",
+            "date_range",
+            "min_length",
+            "max_length",
+            "choices",
+        )
+        known_names = {
+            field["name"] for entity in details["plan_contract"] for field in entity["fields"]
+        }
+        details["coverage_diagnostics"] = [
+            {
+                "codes": [code for code, marker in diagnostic_kinds.items() if marker in reason],
+                "attributes": [attribute for attribute in attributes if attribute in reason],
+                "fields": sorted(
+                    name
+                    for name in known_names
+                    if name != "unrecognized"
+                    and re.search(r"(?<![a-z0-9_])" + re.escape(name) + r"(?![a-z0-9_])", reason)
+                ),
+            }
+            for reason in (blocked if isinstance(blocked, list) else [])[:40]
+            if isinstance(reason, str)
+        ]
         paths = {f["name"] for e in details["plan_contract"] for f in e["fields"]}
         details["coverage_fields"] = (
             sorted(
@@ -438,6 +490,11 @@ def require_customer_spec(spec):
             },
         }
         assert all(set(entities[name]) == fields for name, fields in expected.items())
+        assert all(field.label for fields in entities.values() for field in fields.values())
+        for entity, field_name in (("requests", "request_state"), ("tasks", "task_state")):
+            field = entities[entity][field_name]
+            assert set(field.choice_labels) == set(field.choices)
+            assert all(field.choice_labels[value] != value for value in field.choices)
         assert set(entities["customers"]["category"].choices) == {"企业", "个人", "合作伙伴"}
         assert set(entities["requests"]["priority"].choices) == {"普通", "紧急"}
         relations = {(r.entity, r.field, r.target_entity) for r in plan.business.relations}
@@ -463,6 +520,7 @@ def require_customer_spec(spec):
             assert {"read", "add_note", "transition"} <= set(policies[("service", entity)].actions)
             workflow = next(w for w in plan.business.workflows if w.entity == entity)
             transitions = {t.name: t for t in workflow.transitions}
+            assert all(transition.label for transition in workflow.transitions)
             assert workflow.initial == "new"
             assert (
                 transitions["start"].from_states == ["new"]
@@ -504,7 +562,7 @@ def acceptance_settings(config, directory):
         install_products=True,
         tool_timeout=600,
         model_review=True,
-        llm_timeout=90,
+        llm_timeout=180,
         max_model_calls=MAX_WORKFLOW_CALLS,
         max_rounds=5,
         max_repair_attempts=1,
@@ -657,7 +715,12 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             evidence = verify_native_delivery(
                 product, os.environ["NATIVE_TEST_DATABASE_URL"], directory / "downloaded-evidence"
             )
-            if evidence.get("passed") is not True or evidence.get("fresh_database") is not True:
+            if (
+                evidence.get("passed") is not True
+                or evidence.get("fresh_database") is not True
+                or evidence.get("restart") is not True
+                or evidence.get("restart_preserved_records") is not True
+            ):
                 raise SafeFailure("downloaded_cleanroom_failed")
             # Only allowlisted synthetic UI PNGs, never full logs, credentials or product archives.
             import shutil

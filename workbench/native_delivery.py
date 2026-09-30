@@ -238,6 +238,21 @@ def require_native_business(report, receipt, spec_path):
         if report.get("business_contract") is not None:
             raise PrerequisiteError(error)
         return False
+    restored = report.get("portable_restored", {})
+    if restored.get("restart") is not True or restored.get("restart_preserved_records") is not True:
+        raise PrerequisiteError(error)
+    if not isinstance(restored.get("restart_records"), dict) or set(
+        restored["restart_records"]
+    ) != {entity.name for entity in plan.entities}:
+        raise PrerequisiteError(error)
+    for entity, record in restored["restart_records"].items():
+        if (
+            not isinstance(record, dict)
+            or record.get("id") != restored.get("business", {}).get("records", {}).get(entity)
+            or not isinstance(record.get("sha256"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", record["sha256"])
+        ):
+            raise PrerequisiteError(error)
     required = (
         "passed",
         "real_native_auth",
@@ -250,6 +265,8 @@ def require_native_business(report, receipt, spec_path):
         "handling_history",
         "audit",
         "in_app_reminders",
+        "due_reminders",
+        "reminder_read_isolation",
         "metrics",
         "row_isolation",
     )
@@ -309,6 +326,7 @@ def managed_verify(destination, receipt):
         "frontend_started",
         "installed_from_lock",
         "standalone_launcher",
+        "restart",
     )
     required_false = ("source_database_reused", "original_platform_imported", "model_required")
     if (

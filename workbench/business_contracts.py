@@ -65,6 +65,7 @@ class PermissionSpec(BusinessContract):
 
 class TransitionSpec(BusinessContract):
     name: Name
+    label: str = Field(default="", max_length=100)
     from_states: list[str] = Field(min_length=1, max_length=50)
     to_state: str = Field(min_length=1, max_length=200)
     roles: list[Name] = Field(min_length=1, max_length=20)

@@ -163,7 +163,10 @@ def render():
                 ".css": "css",
                 ".yaml": "yaml",
             }.get(Path(name).suffix, "text")
-            text += f"\n### `{name}`\n\n{notes(name, content)}<!-- source-file: {name} sha256: {code_sha} -->\n{fence}{language}\n{content.rstrip(chr(10))}\n{fence}\n"
+            # A fence needs its own line, but the source may be empty or omit its
+            # final newline. The extractor uses the SHA to recover that distinction.
+            body = content if content.endswith("\n") else content + "\n"
+            text += f"\n### `{name}`\n\n{notes(name, content)}<!-- source-file: {name} sha256: {code_sha} -->\n{fence}{language}\n{body}{fence}\n"
     return text
 
 

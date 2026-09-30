@@ -30,6 +30,8 @@ def evidence(tmp_path, template="fastapiadmin"):
             "handling_history",
             "audit",
             "in_app_reminders",
+            "due_reminders",
+            "reminder_read_isolation",
             "metrics",
             "row_isolation",
         )
@@ -97,7 +99,16 @@ def evidence(tmp_path, template="fastapiadmin"):
         "spec_digest": identity,
         "business_contract": contract,
         "business_browser": browser,
-        "portable_restored": {"business": deepcopy(contract), "browser": deepcopy(browser)},
+        "portable_restored": {
+            "business": deepcopy(contract),
+            "browser": deepcopy(browser),
+            "restart": True,
+            "restart_preserved_records": True,
+            "restart_records": {
+                entity: {"id": identifier, "sha256": "a" * 64}
+                for entity, identifier in contract["records"].items()
+            },
+        },
     }
     return report, {"spec_digest": identity, "template": template}, spec_path
 
@@ -139,4 +150,21 @@ def test_missing_or_replaced_approved_plan_cannot_reuse_business_receipt(tmp_pat
         require_native_business(report, receipt, spec_path)
     write_json(spec_path, {"title": "different"})
     with pytest.raises(PrerequisiteError, match="原生业务"):
+        require_native_business(report, receipt, spec_path)
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("restart", False),
+        ("restart", 1),
+        ("restart_preserved_records", False),
+        ("restart_records", {}),
+        ("restart_records", {"customers": {"id": "5", "sha256": "fake"}}),
+    ],
+)
+def test_business_restart_requires_positive_exact_record_proof(tmp_path, field, value):
+    report, receipt, spec_path = evidence(tmp_path)
+    report["portable_restored"][field] = value
+    with pytest.raises(PrerequisiteError):
         require_native_business(report, receipt, spec_path)

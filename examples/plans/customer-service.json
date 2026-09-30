@@ -15,7 +15,8 @@
           "choices": [],
           "searchable": true,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "客户名称"
         },
         {
           "name": "organization",
@@ -26,7 +27,8 @@
           "choices": [],
           "searchable": true,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "所属单位"
         },
         {
           "name": "contact",
@@ -37,7 +39,8 @@
           "choices": [],
           "searchable": true,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "联系信息"
         },
         {
           "name": "category",
@@ -52,7 +55,8 @@
           ],
           "searchable": false,
           "filterable": true,
-          "date_range": false
+          "date_range": false,
+          "label": "客户分类"
         }
       ]
     },
@@ -69,7 +73,8 @@
           "choices": [],
           "searchable": true,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "标题"
         },
         {
           "name": "detail",
@@ -80,7 +85,8 @@
           "choices": [],
           "searchable": true,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "详情"
         },
         {
           "name": "customer_id",
@@ -91,7 +97,8 @@
           "choices": [],
           "searchable": false,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "关联客户"
         },
         {
           "name": "assignee_id",
@@ -102,7 +109,8 @@
           "choices": [],
           "searchable": false,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "负责人"
         },
         {
           "name": "request_state",
@@ -117,7 +125,13 @@
           ],
           "searchable": false,
           "filterable": true,
-          "date_range": false
+          "date_range": false,
+          "label": "请求状态",
+          "choice_labels": {
+            "new": "待处理",
+            "active": "处理中",
+            "resolved": "已解决"
+          }
         },
         {
           "name": "resolved_at",
@@ -128,7 +142,8 @@
           "choices": [],
           "searchable": false,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "解决时间"
         },
         {
           "name": "due_at",
@@ -139,7 +154,8 @@
           "choices": [],
           "searchable": false,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "截止时间"
         },
         {
           "name": "priority",
@@ -153,7 +169,8 @@
           ],
           "searchable": false,
           "filterable": true,
-          "date_range": false
+          "date_range": false,
+          "label": "优先级"
         }
       ]
     },
@@ -170,7 +187,8 @@
           "choices": [],
           "searchable": true,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "标题"
         },
         {
           "name": "detail",
@@ -181,7 +199,8 @@
           "choices": [],
           "searchable": true,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "详情"
         },
         {
           "name": "assignee_id",
@@ -192,7 +211,8 @@
           "choices": [],
           "searchable": false,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "负责人"
         },
         {
           "name": "task_state",
@@ -207,7 +227,13 @@
           ],
           "searchable": false,
           "filterable": true,
-          "date_range": false
+          "date_range": false,
+          "label": "任务状态",
+          "choice_labels": {
+            "new": "待处理",
+            "active": "处理中",
+            "resolved": "已解决"
+          }
         },
         {
           "name": "resolved_at",
@@ -218,7 +244,8 @@
           "choices": [],
           "searchable": false,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "解决时间"
         },
         {
           "name": "due_at",
@@ -229,7 +256,8 @@
           "choices": [],
           "searchable": false,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "截止时间"
         },
         {
           "name": "request_id",
@@ -240,7 +268,8 @@
           "choices": [],
           "searchable": false,
           "filterable": false,
-          "date_range": false
+          "date_range": false,
+          "label": "关联请求"
         }
       ]
     }
@@ -258,15 +287,15 @@
     "roles": [
       {
         "name": "manager",
-        "label": "manager"
+        "label": "管理人员"
       },
       {
         "name": "service",
-        "label": "service"
+        "label": "服务人员"
       },
       {
         "name": "employee",
-        "label": "employee"
+        "label": "普通员工"
       }
     ],
     "registration": {
@@ -455,7 +484,8 @@
               "manager",
               "service"
             ],
-            "set_timestamp": null
+            "set_timestamp": null,
+            "label": "开始处理"
           },
           {
             "name": "resolve",
@@ -467,7 +497,8 @@
               "manager",
               "service"
             ],
-            "set_timestamp": "resolved_at"
+            "set_timestamp": "resolved_at",
+            "label": "标记解决"
           }
         ]
       },
@@ -486,7 +517,8 @@
               "manager",
               "service"
             ],
-            "set_timestamp": null
+            "set_timestamp": null,
+            "label": "开始处理"
           },
           {
             "name": "resolve",
@@ -498,7 +530,8 @@
               "manager",
               "service"
             ],
-            "set_timestamp": "resolved_at"
+            "set_timestamp": "resolved_at",
+            "label": "标记解决"
           }
         ]
       }
@@ -556,7 +589,7 @@
     "metrics": [
       {
         "name": "total",
-        "label": "Total",
+        "label": "服务请求总数",
         "entity": "requests",
         "kind": "count",
         "group_by": null,
@@ -570,7 +603,7 @@
       },
       {
         "name": "resolution",
-        "label": "Seconds",
+        "label": "平均解决时长",
         "entity": "requests",
         "kind": "average_duration",
         "group_by": null,
@@ -590,7 +623,7 @@
       },
       {
         "name": "by_customer",
-        "label": "Customers",
+        "label": "客户服务分布",
         "entity": "requests",
         "kind": "group_count",
         "group_by": "customer_id",
@@ -604,7 +637,7 @@
       },
       {
         "name": "daily",
-        "label": "Daily",
+        "label": "每日请求趋势",
         "entity": "requests",
         "kind": "time_count",
         "group_by": null,

@@ -32,6 +32,11 @@ async function main() {
     const value = await found.response.json(); assert.equal(value.code, 0, `Business application error ${value.code}`); return value.data;
   };
   async function capture(name) {
+    for (const close of await page.locator('.ant-notification-notice-close:visible').all()) await close.click().catch(() => {});
+    await page.locator('.ant-message-notice:visible').first().waitFor({ state: 'hidden', timeout: 6000 });
+    const viewport = page.viewportSize();
+    if (viewport) await page.mouse.move(viewport.width - 20, viewport.height - 20);
+    await page.waitForTimeout(350);
     await page.screenshot({ path: path.join(reportDir, name), fullPage: true, animations: 'disabled' });
     report.screenshots.push(name);
   }
@@ -104,7 +109,7 @@ async function main() {
       if (relation) {
         assert(labels[relation.target_entity], 'Create referenced browser record first');
         await select(input, labels[relation.target_entity], `${entity}-${field.name}-relation-picker.png`);
-      } else if (field.kind === 'enum') await select(input, field.choices[0]);
+      } else if (field.kind === 'enum') await select(input, field.choice_labels?.[field.choices[0]] || field.choices[0]);
       else if (field.kind === 'boolean') await select(input, '否');
       else if (field.kind === 'integer') await input.fill('1');
       else if (field.kind === 'datetime' || field.kind === 'date') {
@@ -132,7 +137,7 @@ async function main() {
     const dialog = page.getByRole('dialog').last(); await dialog.waitFor({ state: 'visible' });
     if (kind === 'assign') {
       await dialog.getByTestId('business-assignee').click();
-      await page.locator('.ant-select-dropdown:visible [title]').filter({ hasText: `(#${scenario.actors.service.id})` }).last().click();
+      await page.locator('.ant-select-dropdown:visible [title]').filter({ hasText: scenario.actors.service.username }).last().click();
     }
     if (note) await dialog.getByTestId('business-note-input').fill(note);
     const response = observe('/admin-api/infra/rnd-business/action', 'POST');
@@ -178,21 +183,23 @@ async function main() {
     report.journeys.push({ actor: 'service', assigned_records: true, transitions: true, handling_notes: true, timeline: true });
     await login('employee');
     const employeeLabel = scenario.labels?.requests || 'Synthetic consultation ' + scenario.attempt;
+    const notifications = observe('/admin-api/infra/rnd-business/notifications');
     await detail('requests', employeeLabel);
+    const notices = await checked(notifications);
     const panel = page.locator('[data-rnd-business-panel]');
     assert.equal(await panel.getByTestId('business-assign').count(), 0, 'Employee must not receive assignment controls');
     assert.equal(await panel.getByTestId('business-transition-start').count(), 0, 'Employee must not receive transition controls');
     await panel.locator('.ant-timeline-item').first().waitFor({ state: 'visible' });
     await capture('employee-owned-history.png');
     await panel.getByText('站内提醒', { exact: true }).waitFor({ state: 'visible' });
-    const reminder = panel.getByText('requests #' + scenario.records.requests + ' transitioned', { exact: true });
-    await reminder.first().waitFor({ state: 'visible' });
-    const reminderRow = page.locator('.ant-table-row').filter({ has: reminder }).first();
-    const unread = reminderRow.getByRole('button', { name: '标为已读', exact: true });
+    const reminder = notices.find(notice => String(notice.record_id) === String(scenario.records.requests) && notice.message.endsWith(' transitioned'));
+    assert(reminder, 'Native recipient resolution reminder missing');
+    const unread = panel.getByTestId(`business-notice-read-${reminder.id}`);
+    await unread.waitFor({ state: 'visible' });
     assert.equal(await unread.count(), 1, 'Fresh recipient reminder must be unread');
     const marked = observe('/admin-api/infra/rnd-business/notifications/read', 'POST');
     await unread.click(); await checked(marked);
-    await reminderRow.getByText('已读', { exact: true }).waitFor({ state: 'visible' });
+    await panel.getByTestId(`business-notice-read-state-${reminder.id}`).waitFor({ state: 'visible' });
     await capture('employee-vben-reminders.png');
     report.checks.push('employee:own_timeline_and_read_reminder');
     report.journeys.push({ actor: 'employee', own_history: true, recipient_reminders: true, unauthorized_controls_absent: true });

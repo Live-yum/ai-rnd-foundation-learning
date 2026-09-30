@@ -115,3 +115,22 @@ def test_handbook_ignores_nested_installed_dependencies(tmp_path, monkeypatch):
     monkeypatch.setattr(builder, "ROOT", tmp_path)
     monkeypatch.setattr(builder, "GROUPS", [("source", ["templates"])])
     assert list(builder.sources()) == [("source", [("templates/product/app.py", "# source")])]
+
+
+def test_roundtrip_preserves_empty_files_and_exact_trailing_newlines(tmp_path, monkeypatch):
+    import scripts.build_handbook as builder
+
+    original = {
+        "empty.py": "",
+        "one-newline.txt": "\n",
+        "no-newline.py": "answer = 42",
+        "regular.py": "answer = 42\n",
+        "trailing.py": "answer = 42\n\n\n",
+        "nested.md": "````\ninside a code fence\n````\n",
+    }
+    for name, content in original.items():
+        (tmp_path / name).write_text(content, encoding="utf-8")
+    monkeypatch.setattr(builder, "ROOT", tmp_path)
+    monkeypatch.setattr(builder, "GUIDES", [])
+    monkeypatch.setattr(builder, "GROUPS", [("source", list(original))])
+    assert extract(builder.render()) == original

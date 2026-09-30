@@ -5,7 +5,7 @@ import uuid
 import httpx
 
 from workbench.domain import digest
-from workbench.native_checks import payload, record_id
+from workbench.native_checks import flatten, payload, record_id
 from workbench.native_environment import login
 
 
@@ -99,6 +99,14 @@ class BusinessClient:
             json={"userId": str(identifier), "role": role, "grant": True},
         )
 
+    def inbox(self):
+        return self.call("GET", self.prefix + ("/inbox" if self.fastapi else "/notifications"))
+
+    def read_notice(self, identifier):
+        if self.fastapi:
+            return self.http.post(f"{self.prefix}/inbox/{identifier}/read", json={})
+        return self.http.post(self.prefix + "/notifications/read", json={"id": identifier})
+
 
 def register_fastapi_actor(base, username, password, targets):
     """Exercise the public native registration route without an administrator token."""
@@ -127,6 +135,18 @@ def register_fastapi_actor(base, username, password, targets):
         info = actor.call("GET", "/system/user/current/info")
         assert info.get("is_superuser") is False, "Public registration granted native administrator"
         assert info.get("menus"), "Default business role has no native menu"
+        if targets:
+            expected = {
+                "module_rnd/" + grant["entity"] + "/index"
+                for grant in config["permissions"]
+                if "read" in grant["actions"]
+            }
+            actual = {
+                (menu.get("component_path") or "").lstrip("/")
+                for menu in flatten(info["menus"])
+                if (menu.get("component_path") or "").lstrip("/").startswith("module_rnd/")
+            }
+            assert actual == expected, "Native business menus differ from approved read grants"
     except Exception:
         actor.close()
         raise
@@ -262,6 +282,7 @@ def customer_service_acceptance(template, base, token, targets, plan):
             },
         )
         manager.action("tasks", task, "assign", {"assignee": actors["service"][0]})
+        verify_reminders(service, actors["other_service"][1], request, task)
         service.action("tasks", task, "transition", {"transition": "start"})
         service.action("tasks", task, "add_note", {"text": "Follow-up complete"})
         service.action("tasks", task, "transition", {"transition": "resolve"})
@@ -281,12 +302,13 @@ def customer_service_acceptance(template, base, token, targets, plan):
         assert len(history) >= 4, "Handling timeline omitted actions"
         audit = manager.history("requests", request, True)
         assert len(audit) >= len(history), "Audit trail omitted history"
-        inbox = employee.call(
-            "GET", employee.prefix + ("/inbox" if employee.fastapi else "/notifications")
-        )
-        assert any(str(row["record_id"]) == request for row in inbox), "Resolution reminder missing"
-        metrics = verify_scoped_metrics(manager, plan)
-        verify_scoped_metrics(service, plan)
+        inbox = employee.inbox()
+        assert any(
+            str(row["record_id"]) == request and notice_event(row) == "transitioned"
+            for row in inbox
+        ), "Resolution reminder missing"
+        metrics = verify_scoped_metrics(manager, plan, "manager")
+        verify_scoped_metrics(service, plan, "service")
         assert employee.call("GET", employee.prefix + "/metrics") == [], (
             "Employee must not access team metrics"
         )
@@ -318,6 +340,8 @@ def customer_service_acceptance(template, base, token, targets, plan):
             "handling_history": True,
             "audit": True,
             "in_app_reminders": True,
+            "due_reminders": True,
+            "reminder_read_isolation": True,
             "metrics": True,
             "row_isolation": True,
             "records": {"customers": customer, "requests": request, "tasks": task},
@@ -331,13 +355,64 @@ def customer_service_acceptance(template, base, token, targets, plan):
             client.close()
 
 
-def verify_scoped_metrics(client, plan):
+def notice_event(row):
+    return row.get("event") or row.get("message", "").rsplit(" ", 1)[-1]
+
+
+def verify_reminders(service, outsider, request, task):
+    notices = service.inbox()
+    for entity, identifier in (("requests", request), ("tasks", task)):
+        own = [
+            row
+            for row in notices
+            if row["entity"] == entity and str(row["record_id"]) == identifier
+        ]
+        assert any(notice_event(row) == "assigned" for row in own), "Assignment reminder missing"
+        assert sum(notice_event(row) == "due" for row in own) == 1, (
+            "Due reminder missing or duplicated"
+        )
+    repeated = service.inbox()
+    assert {str(row["id"]) for row in repeated} == {str(row["id"]) for row in notices}, (
+        "Reading reminders generated duplicate notifications"
+    )
+    notice = next(
+        row
+        for row in notices
+        if row["entity"] == "requests"
+        and str(row["record_id"]) == request
+        and notice_event(row) == "due"
+    )
+    payload(service.read_notice(notice["id"]))
+    updated = next(row for row in service.inbox() if str(row["id"]) == str(notice["id"]))
+    assert updated.get("read") is True or updated.get("read_at") is not None, (
+        "Read state not persisted"
+    )
+    forbidden = outsider.read_notice(notice["id"])
+    assert forbidden.status_code in {401, 403, 404} or forbidden.json().get("code") in {
+        401,
+        403,
+        404,
+    }, "Other recipient changed reminder read state"
+
+
+def verify_scoped_metrics(client, plan, role="manager"):
     """Compare HTTP aggregates with independently counted visible rows, including values."""
     from collections import Counter
     from datetime import datetime, timezone
 
     results = client.call("GET", client.prefix + "/metrics")
     by_name = {item["name"]: item for item in results}
+    expected = {
+        metric.name
+        for metric in plan.business.metrics
+        if any(
+            grant.role == role and grant.entity == metric.entity and "read_metrics" in grant.actions
+            for grant in plan.business.permissions
+        )
+    }
+    assert set(by_name) == expected and len(by_name) == len(results), (
+        "Metric set differs from the role's approved permissions"
+    )
     for metric in plan.business.metrics:
         if metric.name not in by_name:
             continue

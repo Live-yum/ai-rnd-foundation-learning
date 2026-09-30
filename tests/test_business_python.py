@@ -298,6 +298,12 @@ with TestClient(app) as c:
  assert {x['name']:x for x in call('GET','/business/metrics',b).json()}['total']['value']==0
  assert call('GET','/business/metrics',first).json()==[]
  assert all(x['event']!='due' for x in call('GET','/business/notifications',b).json())
+ labels=call('POST','/business/labels/requests',first,json={'record_ids':[first_request,other_request]}).json()
+ assert labels['customer_id']=={customer['id']:'Enterprise customer'}
+ assert labels['assignee_id']=={actors['agent-a']['id']:'agent-a'}
+ assert call('POST','/business/labels/requests',b,json={'record_ids':[first_request]}).json()=={}
+ assert call('POST','/business/labels/tasks',first,json={'record_ids':[task_id]}).status_code==403
+ assert call('POST','/business/labels/requests',first,json={'record_ids':[first_request]*101}).status_code==422
 print(json.dumps({'passed':True,'three_resources':True,'linked_row_acl':True,'tasks':True,'metrics':5}))
 """
 

@@ -344,3 +344,121 @@ def test_namespaced_roles_pass_the_pinned_native_output_validator():
         assert scope["validate_required_code"](code) == code
     with pytest.raises(ValueError):
         scope["validate_required_code"](namespace + ":manager")
+
+
+def test_native_business_menus_follow_read_grants_without_admin_fallback():
+    import json
+
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text())
+    source = (ROOT / "templates/business/fastapiadmin/runtime.py").read_text()
+    function = next(
+        node
+        for node in ast.parse(source).body
+        if isinstance(node, ast.FunctionDef) and node.name == "readable_entities"
+    )
+    scope = {"SPEC": plan["business"]}
+    exec(compile(ast.Module(body=[function], type_ignores=[]), "native-role-menus", "exec"), scope)
+    readable = scope["readable_entities"]
+    assert readable("manager") == {"customers", "requests", "tasks"}
+    assert readable("service") == {"customers", "requests", "tasks"}
+    assert readable("employee") == {"customers", "requests"}
+    assert readable("unknown") == set()
+    plan["business"]["permissions"] = []
+    assert readable("manager") == set()
+    assert "for e in readable_entities(role)" in source
+    assert "while parent in by_id and parent not in chosen" in source
+
+
+def test_presentation_resolves_only_authorized_references_and_preserves_raw_values():
+    import asyncio
+    from copy import deepcopy
+
+    from fastapi import HTTPException
+
+    source = (ROOT / "templates/business/fastapiadmin/runtime.py").read_text()
+    selected = [
+        node
+        for node in ast.parse(source).body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name in {"record_title", "present_values"}
+    ]
+    called = []
+
+    async def record(db, who, entity, identifier, action):
+        called.append((entity, str(identifier), action))
+        if str(identifier) == "99":
+            raise HTTPException(404)
+        return {"display_name": "Authorized partner"}
+
+    async def user_label(db, identifier, cache):
+        called.append(("$users", str(identifier), "name"))
+        return "Business member"
+
+    scope = {
+        "SPEC": {
+            "relations": [
+                {"entity": "cases", "field": "partner", "target_entity": "partners"},
+                {"entity": "cases", "field": "assignee", "target_entity": "$users"},
+            ]
+        },
+        "ENTITIES": {
+            "cases": {
+                "description": "事项",
+                "fields": [
+                    {"name": "subject", "kind": "text"},
+                    {"name": "partner", "kind": "text"},
+                ],
+            },
+            "partners": {
+                "description": "合作方",
+                "fields": [{"name": "display_name", "kind": "text"}],
+            },
+        },
+        "record": record,
+        "serialize": lambda row, entity: row,
+        "user_label": user_label,
+        "HTTPException": HTTPException,
+    }
+    exec(compile(ast.Module(body=selected, type_ignores=[]), "native-display", "exec"), scope)
+    values = {"subject": "Synthetic subject", "partner": "7", "assignee": "6", "created_by": "2"}
+    original = deepcopy(values)
+    visible = asyncio.run(scope["present_values"](None, {"id": "2"}, "cases", values))
+    assert values == original
+    assert all(visible[key] == value for key, value in original.items())
+    assert visible["_display"] == {
+        "partner": "Authorized partner",
+        "assignee": "Business member",
+        "created_by": "Business member",
+    }
+    assert visible["_title"] == "Synthetic subject"
+    assert called == [("partners", "7", "read"), ("$users", "6", "name"), ("$users", "2", "name")]
+    denied = asyncio.run(
+        scope["present_values"](None, {"id": "2"}, "cases", {**values, "partner": "99"})
+    )
+    assert denied["_display"]["partner"] == "无权查看关联记录"
+    assert "Authorized partner" not in denied["_display"].values()
+
+
+def test_native_display_uses_contract_labels_and_keeps_parseable_original_components():
+    from workbench.symbols import parse_file
+
+    page = ROOT / "templates/business/fastapiadmin/index.vue"
+    source = page.read_text()
+    assert "field.label || field.name" in source
+    assert "field.choice_labels?.[choice] || choice" in source
+    assert "transition.label || transition.name" in source
+    assert "item.actor_name" in source and "row._display" in source
+    assert ':min-width="columnWidth(field)"' in source
+    assert "white-space: nowrap" in source and " + ' UTC'" in source
+    assert parse_file(page)["parse_error"] is False
+
+
+def test_assignee_selection_uses_unique_authorized_username_after_restart():
+    controller = (ROOT / "templates/business/fastapiadmin/controller.py").read_text()
+    page = (ROOT / "templates/business/fastapiadmin/index.vue").read_text()
+    browser = (ROOT / "scripts/business_fastapi_browser.cjs").read_text()
+    assert "UserModel.name, UserModel.username, RoleModel.code" in controller
+    assert '"username": username' in controller
+    assert "${user.name} · ${user.username}" in page
+    assert "assign(page, 'requests', request, scenario.actors.service.username)" in browser
+    assert "assign(page, 'tasks', task, scenario.actors.service.username)" in browser

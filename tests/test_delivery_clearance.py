@@ -80,6 +80,7 @@ def test_package_rechecks_review_from_older_checkpoint(settings, store, monkeypa
         "frontend_started",
         "installed_from_lock",
         "standalone_launcher",
+        "restart",
     ],
 )
 @pytest.mark.parametrize("value", [False, None, "true", 1])

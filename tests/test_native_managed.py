@@ -87,6 +87,7 @@ def verified_fixture(tmp_path):
         "frontend_started": True,
         "installed_from_lock": True,
         "standalone_launcher": True,
+        "restart": True,
         "source_database_reused": False,
         "original_platform_imported": False,
         "model_required": False,

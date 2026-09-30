@@ -5,17 +5,18 @@ import { Alert, Button, Card, Select, Space, Statistic, Table, Timeline, Timelin
 import { useVbenForm } from '#/adapter/form';
 import { requestClient } from '#/api/request';
 import MetricChart from './metric-chart.vue';
+import { businessActionLabel, businessDetails, businessDisplayValue, businessFieldLabel, businessStateLabel, businessTimestamp } from './business-form';
 
 interface Role { name: string; label: string }
-interface Transition { name: string; to_state: string }
+interface Transition { name: string; label?: string; to_state: string }
 interface Meta { bootstrapRequired?: boolean; actions: string[]; transitions: Transition[]; roleAdmin: boolean; roles: Role[]; record: Record<string, unknown> | null }
 interface User { id: string; nickname: string; username: string }
-interface Event { id: number; actor_id: string; action: string; note: string; created_at: string; before_data?: string; after_data?: string }
-interface Notice { id: number; message: string; entity: string; record_id: string; created_at: string; read_at: string | null }
+interface Event { id: number; actor_id: string; actor_name?: string; action: string; note: string; created_at: string; before_data?: string; after_data?: string }
+interface Notice { id: number; message: string; display_message?: string; entity: string; record_id: string; created_at: string; read_at: string | null }
 interface RelatedRow { record: Record<string, unknown> & { id: string }; actions: string[] }
 interface RelatedGroup { entity: string; label: string; field: string; columns: string[]; records: RelatedRow[] }
 interface Related { parent: { entity: string; id: string }; groups: RelatedGroup[] }
-interface Metric { name: string; label: string; kind: string; value?: number | null; samples?: number; unit?: string; buckets?: Record<string, number> }
+interface Metric { name: string; label: string; kind: string; value?: number | null; samples?: number; unit?: string; buckets?: Record<string, number>; bucketLabels?: Record<string, string> }
 const props = defineProps<{ entity: string; recordId?: string }>();
 const emit = defineEmits<{ changed: [] }>();
 const meta = ref<Meta>({ actions: [], transitions: [], roleAdmin: false, roles: [], record: null });
@@ -24,7 +25,8 @@ const relatedGroups = ref<RelatedGroup[]>([]), relatedEvents = ref<Event[]>([]),
 let relatedRequest = 0;
 const busy = ref(false), audit = ref(false), selectedAction = ref(''), selectedTransition = ref('');
 const assignee = ref<string>(), selectedUser = ref<string>(), selectedRole = ref<string>();
-const userOptions = computed(() => users.value.map(user => ({ label: `${user.nickname || user.username} (#${user.id})`, value: user.id })));
+const userOptions = computed(() => users.value.map(user => ({ label: user.nickname && user.nickname !== user.username ? `${user.nickname} · ${user.username}` : user.username, value: user.id })));
+const details = computed(() => businessDetails(props.entity, meta.value.record));
 const roleOptions = computed(() => meta.value.roles.map(role => ({ label: role.label, value: role.name })));
 let generation = 0;
 const [ActionForm, actionFormApi] = useVbenForm({
@@ -55,19 +57,26 @@ async function reload() {
   users.value = people; notices.value = reminders; metrics.value = values; relatedGroups.value = related.groups;
 }
 function relatedRowKey(row: RelatedRow) { return row.record.id; }
+function relatedData(group: RelatedGroup) {
+  return group.records.map(row => ({ ...row, display: Object.fromEntries(
+    [...group.columns, 'createdAt', 'archivedAt'].map(field => [field, businessDisplayValue(group.entity, field, row.record)]),
+  ) }));
+}
 function relatedColumns(group: RelatedGroup) {
-  const wire = (name: string) => name.replace(/_([a-z])/g, (_, char: string) => char.toUpperCase());
   return [{ title: '编号', dataIndex: ['record', 'id'], width: 100 },
-    ...group.columns.map(field => ({ title: field, dataIndex: ['record', wire(field)], ellipsis: true, width: 180 })),
-    { title: '创建时间', dataIndex: ['record', 'createdAt'], width: 200 },
-    { title: '归档时间', dataIndex: ['record', 'archivedAt'], width: 200 },
+    ...group.columns.map(field => ({ title: businessFieldLabel(group.entity, field), dataIndex: ['display', field], ellipsis: true, width: 200 })),
+    { title: '创建时间', dataIndex: ['display', 'createdAt'], width: 220 },
+    { title: '归档时间', dataIndex: ['display', 'archivedAt'], width: 220 },
     { title: '操作', key: 'history', width: 130 }];
 }
-async function showRelatedHistory(group: RelatedGroup, row: RelatedRow) {
+async function showRelatedHistory(group: RelatedGroup, row: Record<string, unknown>) {
+  const record = row.record;
+  if (!record || typeof record !== 'object' || !('id' in record) || typeof record.id !== 'string'
+    || !Array.isArray(row.actions) || !row.actions.includes('read_history')) throw new Error('Invalid related history row');
   const request = ++relatedRequest, current = generation;
-  const entries = await requestClient.get<Event[]>('/infra/rnd-business/history', { params: { entity: group.entity, id: row.record.id, audit: false } });
+  const entries = await requestClient.get<Event[]>('/infra/rnd-business/history', { params: { entity: group.entity, id: record.id, audit: false } });
   if (request !== relatedRequest || current !== generation) return;
-  relatedLabel.value = `${group.label} #${row.record.id}`; relatedEvents.value = entries;
+  relatedLabel.value = '_recordLabel' in record && typeof record._recordLabel === 'string' ? record._recordLabel : `${group.label} #${record.id}`; relatedEvents.value = entries;
 }
 async function openAction(action: string, transition = '') {
   selectedAction.value = action; selectedTransition.value = transition;
@@ -118,11 +127,11 @@ onMounted(reload);
       <Button data-testid="business-bootstrap" v-if="meta.bootstrapRequired" :loading="busy" @click="bootstrap">初始化本产品业务权限</Button>
       <Alert v-if="!recordId" message="点击表格中的“业务详情”处理分配、状态和备注" type="info" />
       <template v-else>
-        <dl class="mb-3 grid gap-2 md:grid-cols-2"><div v-for="(value, field) in meta.record" :key="field"><dt class="text-xs text-gray-500">{{ field }}</dt><dd>{{ value ?? '—' }}</dd></div></dl>
-        <p class="mb-3">记录 #{{ recordId }} · 创建人 {{ meta.record?.createdBy }} · {{ meta.record?.archivedAt ? '已归档' : '有效' }}</p>
+        <dl class="mb-3 grid gap-2 md:grid-cols-2"><div v-for="item in details" :key="item.field"><dt class="text-xs text-gray-500">{{ item.label }}</dt><dd class="break-words">{{ item.value }}</dd></div></dl>
+        <p class="mb-3">记录 #{{ recordId }} · 创建人 {{ businessDisplayValue(entity, 'createdBy', meta.record) }} · {{ meta.record?.archivedAt ? '已归档' : '有效' }}</p>
         <Space wrap>
           <Button data-testid="business-assign" v-if="meta.actions.includes('assign') && !meta.record?.archivedAt" @click="openAction('assign')">分配负责人</Button>
-          <Button :data-testid="`business-transition-${transition.name}`" v-for="transition in meta.transitions" :key="transition.name" @click="openAction('transition', transition.name)">{{ transition.name }} → {{ transition.to_state }}</Button>
+          <Button :data-testid="`business-transition-${transition.name}`" v-for="transition in meta.transitions" :key="transition.name" @click="openAction('transition', transition.name)">{{ transition.label || transition.name }} → {{ businessStateLabel(entity, transition.to_state) }}</Button>
           <Button data-testid="business-note" v-if="meta.actions.includes('add_note') && !meta.record?.archivedAt" @click="openAction('add_note')">添加处理备注</Button>
           <Button v-if="meta.actions.includes('archive') && !meta.record?.archivedAt" danger :loading="busy" @click="archive">归档</Button>
           <Button data-testid="business-audit" v-if="meta.actions.includes('read_audit')" @click="toggleAudit">{{ audit ? '查看历史' : '查看审计' }}</Button>
@@ -130,7 +139,7 @@ onMounted(reload);
         </Space>
         <Timeline class="mt-4">
           <TimelineItem v-for="entry in history" :key="entry.id">
-            <span>{{ entry.created_at }} · {{ entry.action }} · 用户 #{{ entry.actor_id }}</span>
+            <span>{{ businessTimestamp(entry.created_at) }} · {{ businessActionLabel(entry.action) }} · {{ entry.actor_name || `用户 #${entry.actor_id}` }}</span>
             <p>{{ entry.note }}</p>
             <pre v-if="audit && entry.before_data" class="overflow-auto text-xs">{{ entry.before_data }} → {{ entry.after_data }}</pre>
           </TimelineItem>
@@ -138,24 +147,24 @@ onMounted(reload);
       </template>
     </Card>
     <Card v-for="group in relatedGroups" :key="`${group.entity}:${group.field}`" :title="`关联${group.label}与历史记录`" :data-testid="`business-related-${group.entity}`">
-      <Table :data-source="group.records" :row-key="relatedRowKey" :columns="relatedColumns(group)" :pagination="{ pageSize: 5 }" :scroll="{ x: 'max-content' }">
+      <Table :data-source="relatedData(group)" :row-key="relatedRowKey" :columns="relatedColumns(group)" :pagination="{ pageSize: 5 }" :scroll="{ x: 'max-content' }">
         <template #bodyCell="{ column, record }"><Button v-if="column.key === 'history' && record.actions.includes('read_history')" :data-testid="`related-history-${group.entity}-${record.record.id}`" @click="showRelatedHistory(group, record)">处理历史</Button></template>
       </Table>
     </Card>
     <Card v-if="relatedLabel" :title="`${relatedLabel} · 处理历史`" data-testid="business-related-history">
-      <Timeline><TimelineItem v-for="entry in relatedEvents" :key="entry.id"><span>{{ entry.created_at }} · {{ entry.action }} · 用户 #{{ entry.actor_id }}</span><p>{{ entry.note }}</p></TimelineItem></Timeline>
+      <Timeline><TimelineItem v-for="entry in relatedEvents" :key="entry.id"><span>{{ businessTimestamp(entry.created_at) }} · {{ businessActionLabel(entry.action) }} · {{ entry.actor_name || `用户 #${entry.actor_id}` }}</span><p>{{ entry.note }}</p></TimelineItem></Timeline>
     </Card>
     <Card title="业务统计" v-if="metrics.length">
       <div class="grid gap-4 md:grid-cols-2">
         <template v-for="metric in metrics" :key="metric.name">
-          <MetricChart v-if="metric.buckets" :buckets="metric.buckets" :kind="metric.kind" :label="metric.label" />
+          <MetricChart v-if="metric.buckets" :buckets="metric.buckets" :bucket-labels="metric.bucketLabels" :kind="metric.kind" :label="metric.label" />
           <Statistic v-else :title="metric.label" :value="metric.value ?? '暂无样本'" :suffix="metric.unit === 'seconds' ? '秒' : ''" />
         </template>
       </div>
     </Card>
     <Card title="站内提醒">
-      <Table :data-source="notices" row-key="id" :pagination="{ pageSize: 5 }" :columns="[{ title: '提醒', dataIndex: 'message' }, { title: '时间', dataIndex: 'created_at' }, { title: '状态', key: 'read' }]">
-        <template #bodyCell="{ column, record }"><template v-if="column.key === 'read'"><span v-if="record.read_at">已读</span><Button v-else @click="markRead(record.id)">标为已读</Button></template></template>
+      <Table :data-source="notices" row-key="id" :pagination="{ pageSize: 5 }" :scroll="{ x: 'max-content' }" :columns="[{ title: '提醒', key: 'message', width: 300 }, { title: '时间', key: 'createdAt', width: 220 }, { title: '状态', key: 'read', width: 120 }]">
+        <template #bodyCell="{ column, record }"><template v-if="column.key === 'message'">{{ record.display_message || record.message }}</template><template v-else-if="column.key === 'createdAt'">{{ businessTimestamp(record.created_at) }}</template><template v-else-if="column.key === 'read'"><span :data-testid="`business-notice-read-state-${record.id}`" v-if="record.read_at">已读</span><Button :data-testid="`business-notice-read-${record.id}`" v-else @click="markRead(record.id)">标为已读</Button></template></template>
       </Table>
     </Card>
     <Card v-if="meta.roleAdmin" title="业务角色管理">
@@ -168,3 +177,7 @@ onMounted(reload);
     </ActionModal>
   </section>
 </template>
+
+<style scoped>
+:deep(.ant-table-thead > tr > th) { white-space: nowrap; }
+</style>

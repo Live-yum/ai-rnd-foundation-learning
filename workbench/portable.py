@@ -230,8 +230,14 @@ def verify_native_delivery(product, url, reports, redis_port=6379):
             result = json.loads(
                 (copy / ".deployment/reports/portable-start.json").read_text(encoding="utf-8")
             )
-            if result.get("passed") is not True or result.get("frontend_started") is not True:
-                raise ValueError("独立交付包未完成新库/菜单/CRUD/前端启动验收")
+            if (
+                result.get("passed") is not True
+                or result.get("frontend_started") is not True
+                or result.get("restart") is not True
+                or result.get("business")
+                and result.get("restart_preserved_records") is not True
+            ):
+                raise ValueError("独立交付包未完成新库/菜单/CRUD/前端启动与重启保留数据验收")
             result.update(
                 fresh_database=True,
                 standalone_launcher=True,

@@ -155,6 +155,54 @@ public class RndBusinessService {
         result.put("archivedAt",external(value(row,"rndArchivedAt")));
         return result;
     }
+    /** Request-local caches: presentation never changes audit/metric wire values or recursively expands rows. */
+    private static class Presentation {
+        final Map<String,String> users=new HashMap<>();
+        final Map<String,String> references=new HashMap<>();
+    }
+    private String recordLabel(String name,Object row) {
+        for(JsonNode field:entity(name).path("fields")) {
+            String key=field.path("name").asText();
+            if(field.path("kind").asText().equals("text")&&relation(name,key)==null) {
+                Object title=value(row,wire(key));
+                if(title!=null&&!title.toString().isBlank()) return title.toString();
+            }
+        }
+        return entity(name).path("description").asText(name)+" #"+id(row);
+    }
+    private String userLabel(Object identifier,Presentation display) {
+        if(identifier==null||!identifier.toString().matches("[1-9][0-9]{0,18}")) return "—";
+        String key=identifier.toString();
+        return display.users.computeIfAbsent(key,ignored->{
+            // Callers only supply creators, assignees, or actors of already authorized records/history.
+            if(rolesFor(number(key)).isEmpty()) return "用户 #"+key;
+            Map<String,Object> user=sidecar.displayUser(tenant(),number(key));
+            if(user==null) return "用户 #"+key;
+            for(String property:List.of("nickname","username")) {
+                Object label=user.get(property);if(label!=null&&!label.toString().isBlank()) return label.toString();
+            }
+            return "用户 #"+key;
+        });
+    }
+    private String referenceLabel(String target,Object identifier,Presentation display) {
+        if(identifier==null) return "—";
+        if(target.equals("$users")) return userLabel(identifier,display);
+        String key=target+":"+identifier;
+        return display.references.computeIfAbsent(key,ignored->{
+            Object linked=mapper(target).selectById(number(identifier));
+            if(linked==null||!allowed(target,linked,"read")) return "关联记录 #"+identifier;
+            return recordLabel(target,linked);
+        });
+    }
+    private Map<String,Object> present(String name,Object row,Presentation display) {
+        Map<String,Object> result=out(name,row);Map<String,String> labels=new LinkedHashMap<>();
+        for(JsonNode field:entity(name).path("fields")) {
+            String key=field.path("name").asText();JsonNode reference=relation(name,key);
+            if(reference!=null) labels.put(wire(key),referenceLabel(reference.path("target_entity").asText(),value(row,wire(key)),display));
+        }
+        labels.put("createdBy",userLabel(value(row,"creator"),display));
+        result.put("_display",labels);result.put("_recordLabel",recordLabel(name,row));return result;
+    }
     private Object metricValue(String name,Object row,String field) {
         return switch(field) {
             case "created_by" -> String.valueOf(value(row,"creator"));
@@ -263,12 +311,12 @@ public class RndBusinessService {
     public void update(String name,Map<String,Object> data) {
         Object row=load(name,data.get("id"),true); require(name,row,"update");active(row);Map<String,Object> before=out(name,row);apply(name,row,data,false);set(row,"updater",actor().toString());set(row,"updateTime",LocalDateTime.now(ZoneOffset.UTC));validateNative(name,row);persist(name,row);event(name,row,"updated",before,"");
     }
-    public Object get(String name,String identifier) { Object row=load(name,identifier,false);require(name,row,"read");return out(name,row); }
+    public Object get(String name,String identifier) { Object row=load(name,identifier,false);require(name,row,"read");return present(name,row,new Presentation()); }
     public Object page(String name,Map<String,String> query) {
         if(!hasAction(name,"read")) throw denied();
         int page=Math.max(1,Integer.parseInt(query.getOrDefault("pageNo","1"))),size=Integer.parseInt(query.getOrDefault("pageSize","20"));
         if(size<1||size>100) throw bad("Page size outside 1..100");
-        List<Map<String,Object>> rows=new ArrayList<>();
+        List<Object> rows=new ArrayList<>();
         for(Object row:all(name)) {
             if(!allowed(name,row,"read")||archived(row)!=Boolean.parseBoolean(query.getOrDefault("archived","false"))) continue;
             Map<String,Object> external=out(name,row);boolean matches=true;
@@ -276,10 +324,12 @@ public class RndBusinessService {
                 String key=wire(f.path("name").asText());String expected=query.get(key);
                 if(expected!=null&&!expected.isEmpty()&&!String.valueOf(external.get(key)).contains(expected)) matches=false;
             }
-            if(matches) rows.add(external);
+            if(matches) rows.add(row);
         }
         int start=Math.min(rows.size(),Math.multiplyExact(page-1,size)),end=Math.min(rows.size(),start+size);
-        return Map.of("list",rows.subList(start,end),"total",rows.size());
+        Presentation display=new Presentation();List<Map<String,Object>> visible=new ArrayList<>();
+        for(Object row:rows.subList(start,end)) visible.add(present(name,row,display));
+        return Map.of("list",visible,"total",rows.size());
     }
     public void archive(String name,String identifier) {
         Object row=load(name,identifier,true);require(name,row,"archive");active(row);
@@ -308,7 +358,7 @@ public class RndBusinessService {
     }
     public Object related(String name,String identifier) {
         Object parent=load(name,identifier,false);require(name,parent,"read");
-        List<Map<String,Object>> groups=new ArrayList<>();
+        List<Map<String,Object>> groups=new ArrayList<>();Presentation display=new Presentation();
         for(JsonNode relation:cfg.path("business").path("relations")) {
             if(!relation.path("target_entity").asText().equals(name)) continue;
             String child=relation.path("entity").asText(),field=relation.path("field").asText();
@@ -318,7 +368,7 @@ public class RndBusinessService {
             List<Map<String,Object>> records=new ArrayList<>();
             for(Object row:candidates) {
                 if(!allowed(child,row,"read")) continue;
-                records.add(Map.of("record",out(child,row),"actions",allowed(child,row,"read_history")?List.of("read_history"):List.of()));
+                records.add(Map.of("record",present(child,row,display),"actions",allowed(child,row,"read_history")?List.of("read_history"):List.of()));
             }
             List<String> columns=new ArrayList<>();boolean title=false;
             for(JsonNode f:entity(child).path("fields")) {
@@ -331,8 +381,8 @@ public class RndBusinessService {
     }
     public Object history(String name,String identifier,boolean audit) {
         Object row=load(name,identifier,false);require(name,row,audit?"read_audit":"read_history");
-        List<Map<String,Object>> result=sidecar.history(tenant(),name,id(row));
-        for(Map<String,Object> item:result) {item.put("created_at",external(item.get("created_at")));item.put("actor_id",String.valueOf(item.get("actor_id")));item.put("id",String.valueOf(item.get("id")));if(!audit){item.remove("before_data");item.remove("after_data");}}
+        List<Map<String,Object>> result=sidecar.history(tenant(),name,id(row));Presentation display=new Presentation();
+        for(Map<String,Object> item:result) {item.put("actor_name",userLabel(item.get("actor_id"),display));item.put("created_at",external(item.get("created_at")));item.put("actor_id",String.valueOf(item.get("actor_id")));item.put("id",String.valueOf(item.get("id")));if(!audit){item.remove("before_data");item.remove("after_data");}}
         return result;
     }
     public void bootstrap() {
@@ -372,12 +422,12 @@ public class RndBusinessService {
         List<JsonNode> transitions=new ArrayList<>();JsonNode w=workflow(name);Set<String> rs=roles();
         if(row!=null&&w!=null&&actions.contains("transition")&&!archived(row)) for(JsonNode t:w.path("transitions")) if(contains(t.path("from_states"),String.valueOf(value(row,wire(w.path("status_field").asText()))))) for(JsonNode role:t.path("roles")) if(rs.contains(role.asText())) {transitions.add(t);break;}
         boolean admin=false;for(JsonNode r:cfg.path("business").path("role_admin_roles")) if(rs.contains(r.asText())) admin=true;
-        Map<String,Object> result=new LinkedHashMap<>();result.put("actions",actions);result.put("transitions",transitions);result.put("roleAdmin",admin);result.put("roles",cfg.path("business").path("roles"));result.put("record",row==null?null:out(name,row));result.put("fields",entity(name).path("fields"));return result;
+        Map<String,Object> result=new LinkedHashMap<>();result.put("actions",actions);result.put("transitions",transitions);result.put("roleAdmin",admin);result.put("roles",cfg.path("business").path("roles"));result.put("record",row==null?null:present(name,row,new Presentation()));result.put("fields",entity(name).path("fields"));return result;
     }
     public Object me() { return Map.of("id",actor().toString(),"roles",roles(),"initialized",true); }
     public Object users() {
         actor();if(roles().isEmpty()) throw denied();List<Map<String,Object>> result=new ArrayList<>();
-        for(Map<String,Object> user:sidecar.users(tenant())) if(!rolesFor(number(user.get("id"))).isEmpty()) {user.put("id",user.get("id").toString());result.add(user);}return result;
+        for(Map<String,Object> user:sidecar.users(tenant())) if(!rolesFor(number(user.get("id"))).isEmpty()) {user.put("id",user.get("id").toString());Object nickname=user.get("nickname");user.put("displayName",nickname!=null&&!nickname.toString().isBlank()?nickname:user.get("username"));result.add(user);}return result;
     }
     public void changeRole(Map<String,Object> data) {
         actor();sidecar.lockProject(tenant());
@@ -401,7 +451,7 @@ public class RndBusinessService {
         Long role=sidecar.role(tenant(),roleCode(cfg.path("business").path("registration").path("default_role").asText()));if(role==null) throw bad("Default business role not installed");sidecar.grant(tenant(),user,role,"registration");
     }
     public Object references(String name) {
-        if(!hasAction(name,"read")) throw denied();List<Map<String,Object>> result=new ArrayList<>();for(Object row:all(name)) if(!archived(row)&&allowed(name,row,"read")) result.add(out(name,row));return result;
+        if(!hasAction(name,"read")) throw denied();List<Map<String,Object>> result=new ArrayList<>();Presentation display=new Presentation();for(Object row:all(name)) if(!archived(row)&&allowed(name,row,"read")) result.add(present(name,row,display));return result;
     }
     private boolean predicate(String name,Object row,JsonNode predicate) {
         Object actual=metricValue(name,row,predicate.path("field").asText());Object expected=json.convertValue(predicate.path("value"),Object.class);String operation=predicate.path("op").asText("eq");
@@ -420,7 +470,19 @@ public class RndBusinessService {
             String kind=m.path("kind").asText();
             if(kind.equals("count")) item.put("value",rows.size());
             else if(kind.equals("average_duration")) {double sum=0;int samples=0;for(Object row:rows) {Object start=metricValue(name,row,m.path("start_field").asText()),end=metricValue(name,row,m.path("end_field").asText());if(start!=null&&end!=null) {double seconds=Duration.between(instant(start),instant(end)).toMillis()/1000.0;if(seconds<0) throw bad("Invalid duration interval");sum+=seconds;samples++;}}item.put("value",samples==0?null:sum/samples);item.put("samples",samples);item.put("unit","seconds");}
-            else {Map<String,Long> counts=new TreeMap<>();for(Object row:rows) {Object v=metricValue(name,row,m.path(kind.equals("group_count")?"group_by":"time_field").asText());if(kind.equals("time_count")&&v==null) continue;String bucket=v==null?"(none)":kind.equals("time_count")?instant(v).atOffset(ZoneOffset.UTC).toLocalDate().toString():v.toString();counts.merge(bucket,1L,Long::sum);}item.put("buckets",counts);item.put("timezone","UTC");}result.add(item);
+            else {Map<String,Long> counts=new TreeMap<>();for(Object row:rows) {Object v=metricValue(name,row,m.path(kind.equals("group_count")?"group_by":"time_field").asText());if(kind.equals("time_count")&&v==null) continue;String bucket=v==null?"(none)":kind.equals("time_count")?instant(v).atOffset(ZoneOffset.UTC).toLocalDate().toString():v.toString();counts.merge(bucket,1L,Long::sum);}item.put("buckets",counts);item.put("timezone","UTC");
+                if(kind.equals("group_count")) {
+                    Map<String,String> labels=new LinkedHashMap<>();Presentation display=new Presentation();String field=m.path("group_by").asText();JsonNode reference=relation(name,field);
+                    for(String bucket:counts.keySet()) {
+                        String label=bucket.equals("(none)")?"未设置":bucket;
+                        if(!bucket.equals("(none)")&&reference!=null) label=referenceLabel(reference.path("target_entity").asText(),bucket,display);
+                        else if(!bucket.equals("(none)")&&field.equals("created_by")) label=userLabel(bucket,display);
+                        else for(JsonNode f:entity(name).path("fields")) if(f.path("name").asText().equals(field)) label=f.path("choice_labels").path(bucket).asText(label);
+                        labels.put(bucket,label);
+                    }
+                    item.put("bucketLabels",labels);
+                }
+            }result.add(item);
         }
         return result;
     }
@@ -431,7 +493,7 @@ public class RndBusinessService {
             for(Object row:all(name)) {if(archived(row)||!allowed(name,row,"read")) continue;Object recipient=n.path("recipient").asText().equals("creator")?value(row,"creator"):value(row,wire(resource(name).path("assignee_field").asText()));Object date=metricValue(name,row,field);
                 if(recipient!=null&&recipient.toString().equals(user.toString())&&date!=null&&!instant(date).isAfter(Instant.now())) notification(name,row,user,"due:"+name+":"+id(row)+":"+field+":"+instant(date),name+" #"+id(row)+" due");}
         }
-        List<Map<String,Object>> result=new ArrayList<>();for(Map<String,Object> n:sidecar.notifications(tenant(),user)) {try {Object row=load(n.get("entity").toString(),n.get("record_id"),false);if(allowed(n.get("entity").toString(),row,"read")) {n.put("created_at",external(n.get("created_at")));n.put("read_at",external(n.get("read_at")));n.put("record_id",String.valueOf(n.get("record_id")));result.add(n);}}catch(IllegalArgumentException ignored){}}
+        List<Map<String,Object>> result=new ArrayList<>();for(Map<String,Object> n:sidecar.notifications(tenant(),user)) {try {Object row=load(n.get("entity").toString(),n.get("record_id"),false);if(allowed(n.get("entity").toString(),row,"read")) {n.put("created_at",external(n.get("created_at")));n.put("read_at",external(n.get("read_at")));n.put("record_id",String.valueOf(n.get("record_id")));String message=String.valueOf(n.get("message"));String event=message.substring(message.lastIndexOf(' ')+1);String action=switch(event){case "created"->"已创建";case "assigned"->"已分配负责人";case "transitioned"->"状态已更新";case "due"->"已到期，请及时处理";default->"有新的提醒";};n.put("display_message",entity(n.get("entity").toString()).path("description").asText()+"「"+recordLabel(n.get("entity").toString(),row)+"」"+action);result.add(n);}}catch(IllegalArgumentException ignored){}}
         return result;
     }
     public void readNotification(Object identifier) {if(sidecar.readNotification(tenant(),actor(),number(identifier))!=1) throw denied();}

@@ -45,3 +45,44 @@ def test_bad_selection_mismatch_is_not_silently_replaced():
         RunInput(
             requirement="测试", template="python-basic", selection={"template": "fastapiadmin"}
         )
+
+
+def test_catalog_publishes_business_scope_without_losing_stack_choices(settings):
+    with TestClient(create_app(settings, start_worker=False)) as client:
+        client.headers["Authorization"] = "Bearer " + client.app.state.token
+        catalog = client.get("/catalog").json()
+    assert {row["template"] for row in catalog} == {
+        "python-basic",
+        "fastapiadmin",
+        "yudao-vben",
+    }
+    for row in catalog:
+        original = Selection(template=row["template"]).capabilities()
+        assert row == original
+        assert row["backend"]
+        assert row["frontends"] and row["databases"]
+        assert "shared" in row["scopes"]
+        assert row["business_contract"]["scope"] == "shared"
+        assert "named-state-transitions" in row["business_contract"]["features"]
+        assert "no arbitrary scripts or network side effects" in row["business_contract"]["limits"]
+    basic = next(row for row in catalog if row["template"] == "python-basic")
+    assert basic["scope"] == "per_user"
+    assert basic["scopes"] == ["per_user", "shared"]
+    assert basic["frontends"] == ["simple-admin", "api-only"]
+    assert basic["databases"] == ["sqlite", "postgresql"]
+
+
+def test_workbench_hints_use_customer_case_without_replacing_user_input(settings):
+    with TestClient(create_app(settings, start_worker=False)) as client:
+        html = client.get("/").text
+        javascript = client.get("/ui/app.js").text
+    assert "内部客户服务管理平台" in html
+    for name in (
+        "customer-service.md",
+        "customer-service-decisions.md",
+        "customer-service-contract.md",
+    ):
+        assert name in html
+    assert "chosen.scopes" in javascript
+    assert "声明式业务合同" in javascript
+    assert "新闻" not in html and "资讯" not in html

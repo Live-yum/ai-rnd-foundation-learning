@@ -26,6 +26,10 @@ class TransitionBody(StrictBody):
     transition: str = Field(min_length=1, max_length=40)
 
 
+class LabelRequest(StrictBody):
+    record_ids: list[str] = Field(min_length=1, max_length=100)
+
+
 class UserBody(StrictBody):
     username: str = Field(min_length=1, max_length=100)
     password: str = Field(min_length=10, max_length=200)
@@ -342,6 +346,55 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
                 {"role": data.role},
             )
         return {"id": identity, "role": data.role}
+
+    @app.post("/business/labels/{entity}")
+    def reference_labels(entity: str, data: LabelRequest, actor=Depends(current)):
+        """Resolve only references present in rows this actor can already read."""
+        source = table(entity)
+        result = {}
+        with engine.connect() as connection:
+            rows = (
+                connection.execute(
+                    select(source).where(
+                        source.c.id.in_(data.record_ids),
+                        source.c.archived_at.is_(None),
+                        *scope(actor, entity, "read"),
+                    )
+                )
+                .mappings()
+                .all()
+            )
+            for relation in business["relations"]:
+                if relation["entity"] != entity:
+                    continue
+                key, target_name = relation["field"], relation["target_entity"]
+                identities = {row[key] for row in rows if row[key] is not None}
+                if not identities:
+                    continue
+                if target_name == "$users":
+                    target = tables["users"]
+                    values = connection.execute(
+                        select(target.c.id, target.c.username).where(target.c.id.in_(identities))
+                    ).all()
+                    result[key] = {identity: username for identity, username in values}
+                elif "read" in policy.permissions.get((actor["role"], target_name), {}).get(
+                    "actions", []
+                ):
+                    target = table(target_name)
+                    values = (
+                        connection.execute(
+                            select(target).where(
+                                target.c.id.in_(identities), *scope(actor, target_name, "read")
+                            )
+                        )
+                        .mappings()
+                        .all()
+                    )
+                    result[key] = {
+                        row["id"]: row.get("name") or row.get("title") or "关联记录"
+                        for row in values
+                    }
+        return result
 
     @app.get("/api/{entity}")
     def list_items(

@@ -28,11 +28,20 @@ def extract(text):
             or any(ord(char) < 32 for char in name)
         ):
             raise ValueError("附录文件路径不安全或重复")
-        # All committed sources use a final newline.
-        content += "\n"
-        if hashlib.sha256(content.encode()).hexdigest() != fingerprint:
+        # The final fence separator can be a source newline or an added one.
+        # Recover only the exact form authorized by the original source SHA.
+        candidates = (content + "\n", content)
+        restored = next(
+            (
+                value
+                for value in candidates
+                if hashlib.sha256(value.encode()).hexdigest() == fingerprint
+            ),
+            None,
+        )
+        if restored is None:
             raise ValueError("源码块哈希不匹配: " + name)
-        result[name] = content
+        result[name] = restored
     if not result:
         raise ValueError("没有找到完整源码块")
     if len(result) != len(re.findall(r"^<!-- source-file: ", text, re.M)):
