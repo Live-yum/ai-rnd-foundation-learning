@@ -58,23 +58,40 @@ def client_for(settings):
 
 
 def close_client(client):
-    """Close owned transports of the pinned SDK, which has no Daytona.close().
+    """Release the exact v0.190.0 HTTPX client and urllib3 connection pools.
 
-    These names belong to our fixed SDK adapter, not a guessed public API.
-    Sandbox deletion is separate and must complete before transport shutdown.
-    All callers run in a bounded child process as an additional resource boundary.
+    Neither Daytona nor its generated ApiClient exposes close(); ApiClient's
+    context-manager exit is also a no-op. The synchronous worker is quiescent
+    here. Close every owned pool before clearing it, even when external Python
+    references would otherwise delay garbage collection. Sandbox deletion is
+    separate and must have been verified before this transport cleanup.
     """
     import sys
 
     original = sys.exception()
     failures = []
-    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
-        transport = getattr(client, name, None)
-        if transport is not None:
-            try:
-                transport.close()
-            except Exception as exc:
-                failures.append(type(exc).__name__)
+
+    def attempt(operation):
+        try:
+            operation()
+        except Exception as exc:
+            failures.append(type(exc).__name__)
+
+    http = getattr(client, "_http_client", None)
+    if http is not None:
+        attempt(http.close)
+    for name in ("_api_client", "_toolbox_api_client"):
+        api = getattr(client, name, None)
+        if api is None:
+            continue
+        try:
+            manager = api.rest_client.pool_manager
+            with manager.pools.lock:
+                for key in manager.pools.keys():
+                    attempt(manager.pools[key].close)
+                attempt(manager.clear)
+        except Exception as exc:
+            failures.append(type(exc).__name__)
     if failures:
         message = "本机Daytona传输资源关闭失败：" + ", ".join(failures)
         if original is not None:

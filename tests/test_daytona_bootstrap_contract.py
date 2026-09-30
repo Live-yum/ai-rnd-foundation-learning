@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 import httpx
 import pytest
+import urllib3
 from pydantic import SecretStr
 
 from scripts.daytona_bootstrap import configure_personal_region
@@ -88,13 +89,34 @@ def test_actual_installed_sdk_transports_can_be_closed_without_a_network_request
     settings.daytona_target = "local"
     client = client_for(settings)
     assert not hasattr(client, "close"), "Pinned SDK contract changed; review the transport adapter"
-    assert callable(client._api_client.close)
-    assert callable(client._toolbox_api_client.close)
+    assert client._http_client.is_closed is False
+    managers, pools = [], []
+    for api in (client._api_client, client._toolbox_api_client):
+        assert not hasattr(api, "close")
+        manager = api.rest_client.pool_manager
+        managers.append(manager)
+        # Construct real pools without opening sockets. Retain references so GC
+        # cannot accidentally make a broken explicit cleanup look successful.
+        pools.extend(
+            manager.connection_from_url(url)
+            for url in ("http://127.0.0.1:3000", "http://127.0.0.1:3001")
+        )
+        assert len(manager.pools) == 2
     close_client(client)
+    assert client._http_client.is_closed is True
+    assert all(len(manager.pools) == 0 for manager in managers)
+    assert all(pool.pool is None for pool in pools)
+    close_client(client)  # Repeat cleanup is safe and remains entirely local.
 
 
 def test_transport_cleanup_attempts_all_and_does_not_hide_the_original_failure():
-    client = SimpleNamespace(_http_client=Mock(), _api_client=Mock(), _toolbox_api_client=Mock())
+    managers = [urllib3.PoolManager(), urllib3.PoolManager()]
+    pools = [manager.connection_from_url("http://127.0.0.1:3000") for manager in managers]
+    client = SimpleNamespace(
+        _http_client=Mock(),
+        _api_client=SimpleNamespace(rest_client=SimpleNamespace(pool_manager=managers[0])),
+        _toolbox_api_client=SimpleNamespace(rest_client=SimpleNamespace(pool_manager=managers[1])),
+    )
     client._http_client.close.side_effect = RuntimeError("local cleanup fixture")
     original = ValueError("original snapshot failure")
     with pytest.raises(ValueError, match="original snapshot") as caught:
@@ -103,12 +125,27 @@ def test_transport_cleanup_attempts_all_and_does_not_hide_the_original_failure()
         finally:
             close_client(client)
     assert caught.value is original and "RuntimeError" in original.__notes__[0]
-    client._api_client.close.assert_called_once()
-    client._toolbox_api_client.close.assert_called_once()
+    assert all(pool.pool is None for pool in pools)
+    assert all(len(manager.pools) == 0 for manager in managers)
 
 
 def test_transport_failure_after_success_still_fails_the_operation():
-    client = SimpleNamespace(_api_client=Mock())
-    client._api_client.close.side_effect = RuntimeError("local cleanup fixture")
+    client = SimpleNamespace(_http_client=Mock())
+    client._http_client.close.side_effect = RuntimeError("local cleanup fixture")
     with pytest.raises(RuntimeError, match="传输资源关闭失败"):
         close_client(client)
+
+
+def test_pool_failure_does_not_prevent_other_pool_cleanup(monkeypatch):
+    manager = urllib3.PoolManager()
+    first = manager.connection_from_url("http://127.0.0.1:3000")
+    second = manager.connection_from_url("http://127.0.0.1:3001")
+    original_close = first.close
+    monkeypatch.setattr(first, "close", Mock(side_effect=OSError("local fixture")))
+    client = SimpleNamespace(
+        _api_client=SimpleNamespace(rest_client=SimpleNamespace(pool_manager=manager))
+    )
+    with pytest.raises(RuntimeError, match="传输资源关闭失败"):
+        close_client(client)
+    assert second.pool is None and len(manager.pools) == 0
+    original_close()

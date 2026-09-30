@@ -4,7 +4,9 @@ import json
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import httpx
 import pytest
+import urllib3
 
 from scripts import daytona_bootstrap as bootstrap
 
@@ -76,9 +78,18 @@ def worker(tmp_path, monkeypatch):
         json.dumps({"value": "local-test-key-not-a-real-credential"}), encoding="utf-8"
     )
     client = SimpleNamespace(
-        snapshot=Mock(), _http_client=Mock(), _api_client=Mock(), _toolbox_api_client=Mock()
+        snapshot=Mock(),
+        _http_client=httpx.Client(trust_env=False),
+        _api_client=SimpleNamespace(
+            rest_client=SimpleNamespace(pool_manager=urllib3.PoolManager())
+        ),
+        _toolbox_api_client=SimpleNamespace(
+            rest_client=SimpleNamespace(pool_manager=urllib3.PoolManager())
+        ),
     )
-    client.snapshot.list.return_value = page(1, [])
+    client.snapshot.list.return_value = page(
+        1, [SimpleNamespace(name=IMAGE, image_name=IMAGE, state="active")]
+    )
     client.snapshot.create.return_value = snapshot()
     monkeypatch.setattr(bootstrap, "install_loopback_guard", lambda: None)
     monkeypatch.setattr(bootstrap, "client_for", lambda settings: client)
@@ -101,8 +112,9 @@ def test_worker_creates_or_reuses_only_matching_active_local_snapshot(worker, re
     env = (directory / "workbench.env").read_text(encoding="utf-8")
     assert "DAYTONA_API_URL=http://127.0.0.1:3000/api" in env
     assert f"DAYTONA_SNAPSHOT={NAME}" in env
-    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
-        getattr(client, name).close.assert_called_once()
+    assert client._http_client.is_closed
+    for name in ("_api_client", "_toolbox_api_client"):
+        assert len(getattr(client, name).rest_client.pool_manager.pools) == 0
 
 
 @pytest.mark.parametrize("reuse", [False, True])
@@ -123,12 +135,14 @@ def test_worker_never_writes_ready_config_for_wrong_or_unready_snapshot(
     setattr(invalid, field, value)
     # Inject the lookup result to test validation independently of exact-name filtering.
     monkeypatch.setattr(bootstrap, "snapshot_named", lambda *args: invalid if reuse else None)
+    monkeypatch.setattr(bootstrap, "wait_default_snapshot", lambda *args: None)
     client.snapshot.create.return_value = invalid
     with pytest.raises(ValueError, match=message):
         bootstrap.snapshot_worker(directory)
     assert not (directory / "workbench.env").exists()
-    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
-        getattr(client, name).close.assert_called_once()
+    assert client._http_client.is_closed
+    for name in ("_api_client", "_toolbox_api_client"):
+        assert len(getattr(client, name).rest_client.pool_manager.pools) == 0
 
 
 def test_worker_preserves_existing_credentials_and_closes_on_list_failure(worker):
@@ -140,5 +154,62 @@ def test_worker_preserves_existing_credentials_and_closes_on_list_failure(worker
         bootstrap.snapshot_worker(directory)
     assert (directory / "workbench.env").read_text(encoding="utf-8") == existing
     client.snapshot.create.assert_not_called()
-    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
-        getattr(client, name).close.assert_called_once()
+    assert client._http_client.is_closed
+    for name in ("_api_client", "_toolbox_api_client"):
+        assert len(getattr(client, name).rest_client.pool_manager.pools) == 0
+
+
+@pytest.fixture
+def clock(monkeypatch):
+    now = [0.0]
+    monkeypatch.setattr(bootstrap.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(
+        bootstrap.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds)
+    )
+    return now
+
+
+def test_default_snapshot_warmup_is_observed_before_create(clock):
+    service = Mock()
+    ready = SimpleNamespace(name=IMAGE, image_name=IMAGE, state="active")
+    service.list.side_effect = [
+        page(1, []),
+        page(1, [SimpleNamespace(name=IMAGE, image_name=IMAGE, state="building")]),
+        page(1, [ready]),
+    ]
+    assert bootstrap.wait_default_snapshot(service, IMAGE, timeout=10) is ready
+    assert clock[0] == 4
+    service.create.assert_not_called()
+
+
+@pytest.mark.parametrize("state", ["error", "failed", "build_failed", "inactive", "removing"])
+def test_default_snapshot_failure_never_becomes_ready(state, clock):
+    service = Mock()
+    service.list.return_value = page(
+        1, [SimpleNamespace(name=IMAGE, image_name=IMAGE, state=state)]
+    )
+    with pytest.raises(ValueError, match="默认快照"):
+        bootstrap.wait_default_snapshot(service, IMAGE)
+    assert clock[0] == 0
+    service.create.assert_not_called()
+
+
+def test_default_snapshot_warmup_has_a_hard_deadline(clock):
+    service = Mock()
+    service.list.return_value = page(1, [])
+    with pytest.raises(TimeoutError, match="未就绪"):
+        bootstrap.wait_default_snapshot(service, IMAGE, timeout=5)
+    assert clock[0] == 5
+    service.create.assert_not_called()
+
+
+def test_warmup_failure_leaves_config_untouched_and_closes_client(worker, monkeypatch):
+    directory, client = worker
+    monkeypatch.setattr(
+        bootstrap, "wait_default_snapshot", Mock(side_effect=TimeoutError("warm-up"))
+    )
+    with pytest.raises(TimeoutError, match="warm-up"):
+        bootstrap.snapshot_worker(directory)
+    client.snapshot.create.assert_not_called()
+    assert not (directory / "workbench.env").exists()
+    assert client._http_client.is_closed

@@ -164,6 +164,31 @@ def snapshot_named(service, name):
     raise ValueError("本机快照分页未完成；没有创建快照")
 
 
+def wait_default_snapshot(service, image, timeout=300):
+    """Wait for the server's automatic image warm-up before a private snapshot.
+
+    The pinned server starts a general snapshot asynchronously after Runner
+    health. Two snapshots of that same image otherwise race on its unique
+    in-progress Runner job. Readiness is observed, never fabricated or retried
+    by deleting a failed snapshot. Listing/authentication errors propagate.
+    """
+    deadline = time.monotonic() + timeout
+    while True:
+        existing = snapshot_named(service, image)
+        if existing is not None:
+            if existing.image_name != image:
+                raise ValueError("默认快照镜像来源不符；没有创建私有快照")
+            state = str(getattr(existing.state, "value", existing.state)).lower()
+            if state == "active":
+                return existing
+            if state in {"error", "failed", "build_failed", "inactive", "removing"}:
+                raise ValueError("默认快照构建失败或不可用；检查本机Runner，不重复创建")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError("默认快照尚未就绪；没有创建私有快照或写入就绪回执")
+        time.sleep(min(2, remaining))
+
+
 def snapshot_worker(directory=HOME):
     directory = Path(directory)
     metadata = json.loads((directory / "snapshot-image.json").read_text(encoding="utf-8"))
@@ -178,6 +203,10 @@ def snapshot_worker(directory=HOME):
     try:
         existing = snapshot_named(client.snapshot, metadata["snapshot"])
         if existing is None:
+            # API/Runner health alone does not imply snapshot warm-up is complete.
+            started = time.monotonic()
+            wait_default_snapshot(client.snapshot, metadata["image"])
+            remaining = max(1, min(600, int(650 - (time.monotonic() - started))))
             existing = client.snapshot.create(
                 CreateSnapshotParams(
                     name=metadata["snapshot"],
@@ -185,7 +214,7 @@ def snapshot_worker(directory=HOME):
                     region_id="local",
                     resources=Resources(cpu=1, memory=2, disk=5),
                 ),
-                timeout=600,
+                timeout=remaining,
             )
         if existing.name != metadata["snapshot"] or existing.image_name != metadata["image"]:
             raise ValueError("同名快照的镜像来源不符；拒绝复用或覆盖")
