@@ -33,16 +33,16 @@ def test_changed_or_ambiguous_upstream_context_fails_closed(source):
 def test_vben_boundary_is_local_and_excluded_from_delivery(tmp_path):
     source = tmp_path / "upstream"
     (source / ".git").mkdir(parents=True)
-    (source / ".git/config").write_text("never-copy-upstream-credentials")
-    (source / ".env").write_text("API_KEY=never-copy-me")
-    (source / "package.json").write_text(json.dumps({"name": "boundary-fixture"}))
+    (source / ".git/config").write_text("never-copy-upstream-credentials", encoding="utf-8")
+    (source / ".env").write_text("API_KEY=never-copy-me", encoding="utf-8")
+    (source / "package.json").write_text(json.dumps({"name": "boundary-fixture"}), encoding="utf-8")
     destination = tmp_path / "product"
     copy_source(source, destination)
     before = manifest(destination)
     initialize_vben_boundary(destination)
     assert manifest(destination) == before
     assert not (destination / ".env").exists()
-    config = (destination / ".git/config").read_text()
+    config = (destination / ".git/config").read_text(encoding="utf-8")
     assert "remote" not in config and "never-copy" not in config
     assert not (destination / ".git/hooks").exists()
     result = run_command(["git", "rev-parse", "--show-toplevel"], destination, 30)

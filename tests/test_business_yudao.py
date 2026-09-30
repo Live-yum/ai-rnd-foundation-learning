@@ -24,6 +24,24 @@ def approved_plan():
     return Plan.model_validate(business_plan())
 
 
+def test_native_registration_setting_maps_the_pinned_configuration_key():
+    """BeanUtils cannot map the native configKey property to request key."""
+    import zipfile
+
+    from workbench.settings import ROOT
+
+    base = JAVA_ROOT + "/" + JAVA_PACKAGE
+    with zipfile.ZipFile(ROOT / "templates/vendor/yudao-backend.zip") as archive:
+        stored = archive.read(base + "/dal/dataobject/config/ConfigDO.java").decode()
+        request = archive.read(base + "/controller/admin/config/vo/ConfigSaveReqVO.java").decode()
+    assert "private String configKey;" in stored
+    assert "private String key;" in request
+    service = (TEMPLATES / "RndBusinessService.java").read_text()
+    mapping = "request.setKey(previous.getConfigKey());"
+    assert mapping in service
+    assert service.index(mapping) < service.index("nativeConfiguration.updateConfig(request)")
+
+
 def generated_native_source(tmp_path, plan):
     backend, frontend, reports = (tmp_path / name for name in ("backend", "frontend", "reports"))
     targets = []

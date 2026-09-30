@@ -40,15 +40,18 @@
       </section>
       <section id="request" hidden>
         <h2>2. 描述需求</h2>
+        <p>标准客服示例：按顺序输入 examples/requirements/ 下 customer-service.md、customer-service-decisions.md 与 customer-service-contract.md 的完整文本；也可以填写自己的需求。</p>
         <form id="new-run">
           <label
             >项目名称<input
               id="project-title"
+              placeholder="例如：内部客户服务管理平台"
               maxlength="200"
               required /></label
           ><label
             >需要实现什么<textarea
               id="requirement"
+              placeholder="描述客户档案、服务请求、协作任务、角色权限、处理提醒和运营统计等目标"
               required
               maxlength="20000"
               rows="5"

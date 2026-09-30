@@ -3,12 +3,15 @@
 import hashlib
 import json
 import os
+import re
 import secrets
 import shutil
 import socket
+import struct
 import subprocess
 import tempfile
 import time
+import zlib
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,8 +24,142 @@ def check(condition, message):
         raise ValueError(message)
 
 
-def verify_business(product, python, stop, browser_error):
+SCREENSHOT_VIEWS = {"list", "form", "relations", "workflow", "reminders", "dashboard"}
+SCREENSHOT_LIMIT = 48
+SCREENSHOT_FILE_BYTES = 5 * 1024 * 1024
+SCREENSHOT_TOTAL_BYTES = 40 * 1024 * 1024
+
+
+def validate_png(payload):
+    check(payload.startswith(b"\x89PNG\r\n\x1a\n"), "Screenshot must be PNG")
+    offset, header, compressed, ended = 8, None, [], False
+    safe_chunks = {
+        b"IHDR",
+        b"PLTE",
+        b"IDAT",
+        b"IEND",
+        b"sRGB",
+        b"gAMA",
+        b"cHRM",
+        b"iCCP",
+        b"pHYs",
+        b"sBIT",
+        b"bKGD",
+        b"tRNS",
+    }
+    while offset < len(payload):
+        check(offset + 12 <= len(payload), "Truncated PNG")
+        length = struct.unpack(">I", payload[offset : offset + 4])[0]
+        kind = payload[offset + 4 : offset + 8]
+        end = offset + 12 + length
+        check(end <= len(payload) and kind in safe_chunks, "Invalid PNG chunk")
+        data = payload[offset + 8 : offset + 8 + length]
+        checksum = struct.unpack(">I", payload[end - 4 : end])[0]
+        check(zlib.crc32(kind + data) & 0xFFFFFFFF == checksum, "Invalid PNG checksum")
+        if header is None:
+            check(kind == b"IHDR" and length == 13, "Invalid PNG header")
+            header = struct.unpack(">IIBBBBB", data)
+        elif kind == b"IHDR":
+            raise ValueError("Duplicate PNG header")
+        if kind == b"IDAT":
+            compressed.append(data)
+        if kind == b"IEND":
+            check(length == 0 and end == len(payload), "PNG has trailing data")
+            ended = True
+        offset = end
+    check(header is not None and ended and compressed, "Incomplete PNG")
+    width, height, depth, color, compression, filtering, interlace = header
+    check(
+        0 < width * height <= 16 * 1024 * 1024 and compression == filtering == interlace == 0,
+        "Unsupported or excessive PNG dimensions",
+    )
+    channels = {0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get(color)
+    check(channels is not None and depth in {1, 2, 4, 8, 16}, "Unsupported PNG pixels")
+    row_bytes = (width * channels * depth + 7) // 8 + 1
+    expected = row_bytes * height
+    check(expected <= 64 * 1024 * 1024, "PNG decompression limit exceeded")
+    decoder = zlib.decompressobj()
+    try:
+        pixels = decoder.decompress(b"".join(compressed), expected + 1)
+    except zlib.error:
+        raise ValueError("Invalid PNG compressed data") from None
+    check(
+        decoder.eof and not decoder.unused_data and len(pixels) == expected,
+        "Invalid PNG image data",
+    )
+    check(
+        all(pixels[index] <= 4 for index in range(0, len(pixels), row_bytes)), "Invalid PNG filter"
+    )
+
+
+def validate_screenshots(directory, entries):
+    """Only bounded, named PNGs from the owned synthetic-product directory escape."""
+    check(
+        isinstance(entries, list) and len(entries) <= SCREENSHOT_LIMIT,
+        "Invalid screenshot manifest",
+    )
+    if directory is None:
+        check(not entries, "Screenshots were not requested")
+        return []
+    check(bool(entries), "Requested screenshots were not captured")
+    root = Path(directory).resolve()
+    seen, result, total = set(), [], 0
+    for entry in entries:
+        check(
+            isinstance(entry, dict) and set(entry) == {"file", "role", "entity", "view"},
+            "Invalid screenshot entry",
+        )
+        name, role, entity, view = (entry.get(key) for key in ("file", "role", "entity", "view"))
+        check(
+            isinstance(role, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,39}", role),
+            "Invalid screenshot role",
+        )
+        check(
+            entity is None
+            or isinstance(entity, str)
+            and re.fullmatch(r"[a-z][a-z0-9_]{0,39}", entity),
+            "Invalid screenshot entity",
+        )
+        check(isinstance(view, str) and view in SCREENSHOT_VIEWS, "Invalid screenshot view")
+        expected = f"{role}--{entity or 'overview'}--{view}.png"
+        check(name == expected and name not in seen, "Invalid or duplicate screenshot filename")
+        path = root / name
+        check(
+            not path.is_symlink() and path.is_file() and path.resolve().parent == root,
+            "Screenshot file escaped owned directory",
+        )
+        size = path.stat().st_size
+        check(0 < size <= SCREENSHOT_FILE_BYTES, "Screenshot exceeds file limit")
+        total += size
+        check(total <= SCREENSHOT_TOTAL_BYTES, "Screenshots exceed total limit")
+        payload = path.read_bytes()
+        validate_png(payload)
+        seen.add(name)
+        result.append({**entry, "bytes": size, "sha256": hashlib.sha256(payload).hexdigest()})
+    check(
+        {path.name for path in root.iterdir()} == seen,
+        "Unlisted screenshot artifacts are forbidden",
+    )
+    return result
+
+
+def verify_business(product, python, stop, browser_error, screenshot_dir=None):
     product = Path(product).resolve()
+    screenshot_target = None
+    if screenshot_dir is not None:
+        target = Path(screenshot_dir).absolute()
+        check(
+            not target.is_symlink()
+            and not (hasattr(target, "is_junction") and target.is_junction()),
+            "Screenshot directory cannot be a link",
+        )
+        check(
+            not target.resolve().is_relative_to(product),
+            "Screenshot evidence must be outside immutable product source",
+        )
+        target.mkdir(parents=True, exist_ok=True, mode=0o700)
+        check(not any(target.iterdir()), "Screenshot output directory must be empty")
+        screenshot_target = target.resolve()
     spec = json.loads((product / "approved-spec.json").read_text(encoding="utf-8"))
     selection = json.loads((product / "selection.json").read_text(encoding="utf-8"))
     business = spec["business"]
@@ -584,8 +721,10 @@ def verify_business(product, python, stop, browser_error):
                             ],
                             "password": password,
                             "samples": samples,
+                            "base_records": {entity: row["id"] for entity, row in base.items()},
                             "create_roles": create_roles,
                             "output": str(output),
+                            "screenshot_dir": str(screenshot_target) if screenshot_target else None,
                         },
                         ensure_ascii=False,
                     ),
@@ -606,6 +745,9 @@ def verify_business(product, python, stop, browser_error):
                 check(result.returncode == 0, "Business browser failed: " + result.stderr[-1800:])
                 check(output.is_file(), "Missing business browser evidence")
                 browser = json.loads(output.read_text(encoding="utf-8"))
+                browser["screenshots"] = validate_screenshots(
+                    screenshot_target, browser.get("screenshots", [])
+                )
                 browser["applicable"] = True
                 check(
                     browser.get("passed") and browser.get("spec_digest") == digest,

@@ -65,21 +65,15 @@ async def bootstrap(
 
 
 @BusinessRouter.post("/join")
-async def join(
-    auth: AuthSchema = Depends(get_current_user), db: AsyncSession = Depends(db_getter)
-):
+async def join(auth: AuthSchema = Depends(get_current_user), db: AsyncSession = Depends(db_getter)):
     if not rt.SPEC["registration"]["enabled"]:
         rt.fail()
     initialized = await db.scalar(
-        select(BusinessEvent.id)
-        .where(BusinessEvent.source_key == "bootstrap")
-        .with_for_update()
+        select(BusinessEvent.id).where(BusinessEvent.source_key == "bootstrap").with_for_update()
     )
     if initialized is None:
         rt.fail(409, "A native administrator must initialize this project first")
-    await db.scalar(
-        select(UserModel).where(UserModel.id == auth.user.id).with_for_update()
-    )
+    await db.scalar(select(UserModel).where(UserModel.id == auth.user.id).with_for_update())
     existing = await db.scalar(
         select(RoleModel.id)
         .join(UserRolesModel, RoleModel.id == UserRolesModel.role_id)
@@ -113,9 +107,7 @@ async def role(
     db: AsyncSession = Depends(db_getter),
 ):
     marker = await db.scalar(
-        select(BusinessEvent)
-        .where(BusinessEvent.source_key == "bootstrap")
-        .with_for_update()
+        select(BusinessEvent).where(BusinessEvent.source_key == "bootstrap").with_for_update()
     )
     if marker is None:
         rt.fail(409, "Business project is not initialized")
@@ -144,8 +136,7 @@ async def users(
 ):
     who = await rt.actor(db, auth)
     if who["role"] not in rt.SPEC["role_admin_roles"] and not any(
-        p["role"] == who["role"] and "assign" in p["actions"]
-        for p in rt.SPEC["permissions"]
+        p["role"] == who["role"] and "assign" in p["actions"] for p in rt.SPEC["permissions"]
     ):
         rt.fail()
     query = (
@@ -179,12 +170,8 @@ async def metrics(
         except rt.PolicyError:
             continue
         rows = await rt.rows(db, who, metric["entity"], "read_metrics")
-        value = rt.POLICY.metric(
-            [rt.serialize(row, metric["entity"]) for row in rows], metric
-        )
-        result.append(
-            {"name": metric["name"], "label": metric["label"], "value": value}
-        )
+        value = rt.POLICY.metric([rt.serialize(row, metric["entity"]) for row in rows], metric)
+        result.append({"name": metric["name"], "label": metric["label"], "value": value})
     return SuccessResponse(data=result)
 
 
@@ -194,9 +181,7 @@ async def inbox(
 ):
     await rt.actor(db, auth)
     # Recipient row lock makes due reminders idempotent without an external scheduler.
-    await db.scalar(
-        select(UserModel).where(UserModel.id == auth.user.id).with_for_update()
-    )
+    await db.scalar(select(UserModel).where(UserModel.id == auth.user.id).with_for_update())
     now = datetime.now(UTC)
     for rule in rt.SPEC["notifications"]:
         if rule["event"] != "due":
@@ -218,9 +203,7 @@ async def inbox(
         for row in candidates:
             key = f"due:{rule['entity']}:{row.id}:{rule['due_field']}:{auth.user.id}"
             if (
-                await db.scalar(
-                    select(BusinessEvent.id).where(BusinessEvent.source_key == key)
-                )
+                await db.scalar(select(BusinessEvent.id).where(BusinessEvent.source_key == key))
                 is None
             ):
                 db.add(
@@ -303,8 +286,7 @@ async def listing(
     return SuccessResponse(
         data={
             "items": [
-                rt.serialize(r, entity)
-                for r in rows[(page - 1) * page_size : page * page_size]
+                rt.serialize(r, entity) for r in rows[(page - 1) * page_size : page * page_size]
             ],
             "total": len(rows),
         }
@@ -320,9 +302,7 @@ async def create(
 ):
     if entity not in rt.MODELS:
         rt.fail(404)
-    return SuccessResponse(
-        data=await rt.create(db, await rt.actor(db, auth), entity, data)
-    )
+    return SuccessResponse(data=await rt.create(db, await rt.actor(db, auth), entity, data))
 
 
 @BusinessRouter.get("/{entity}/{row_id}/history")

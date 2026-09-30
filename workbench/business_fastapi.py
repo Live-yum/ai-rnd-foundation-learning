@@ -70,6 +70,18 @@ def extend_business(plan, backend, frontend, targets, reports, **context):
         + anchor
         + "\n    await registration_completed(db, register_result.id)",
     )
+    # The pinned native service only flushes. Its request-scoped dependency commits
+    # after response/background logging, so an immediate role update can observe
+    # a successful create whose user row is still uncommitted. Publish creation
+    # atomically before returning the native success response.
+    create_anchor = "    result_dict: UserOutSchema = await UserService(auth, db).create(data=data)"
+    if registration_body.count(create_anchor) != 1:
+        raise ValueError(
+            "Unexpected native user creation controller; cannot ensure committed users"
+        )
+    registration_body = registration_body.replace(
+        create_anchor, create_anchor + "\n    await db.commit()", 1
+    )
     registration_body = (
         "from app.plugin.module_business.registration import before_registration, registration_completed\n"
         + registration_body

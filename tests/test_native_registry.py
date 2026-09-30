@@ -14,9 +14,9 @@ def test_pinned_registry_rewrite_preserves_versions_hashes_and_is_idempotent(tmp
         for name in ["pyproject.toml", "uv.lock"]:
             source = next(n for n in z.namelist() if n.endswith("backend/" + name))
             (backend / name).write_bytes(z.read(source))
-    before = (backend / "uv.lock").read_text()
+    before = (backend / "uv.lock").read_text(encoding="utf-8")
     prepare_fastapi_registry(backend, tmp_path / "reports")
-    after = (backend / "uv.lock").read_text()
+    after = (backend / "uv.lock").read_text(encoding="utf-8")
     assert "pypi.tuna.tsinghua.edu.cn" not in after
     assert "https://files.pythonhosted.org/packages/" in after
     assert re.findall(r'(?:version|hash) = "[^"]+"', before) == re.findall(

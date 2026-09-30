@@ -4,6 +4,7 @@ import uuid
 
 import httpx
 
+from workbench.domain import digest
 from workbench.native_checks import payload, record_id
 from workbench.native_environment import login
 
@@ -132,6 +133,41 @@ def register_fastapi_actor(base, username, password, targets):
     return identifier, actor
 
 
+def register_yudao_actor(base, username, password, targets):
+    """Keep the native anonymous registration, validation and default membership."""
+    with httpx.Client(
+        base_url=base, timeout=30, trust_env=False, headers={"tenant-id": "1"}
+    ) as public:
+        registered = payload(
+            public.post(
+                "/admin-api/system/auth/register",
+                json={
+                    "username": username,
+                    "password": password,
+                    "nickname": "Synthetic employee",
+                    "roleIds": [1],
+                    "roles": ["super_admin"],
+                },
+            )
+        )
+    identifier = str(registered["userId"])
+    actor = BusinessClient(
+        "yudao-vben", base, login("yudao-vben", base, username, password), targets
+    )
+    try:
+        membership = actor.call("GET", actor.prefix + "/me")
+        assert membership["id"] == identifier
+        assert membership["roles"] == ["employee"]
+        info = actor.call("GET", "/admin-api/system/auth/get-permission-info")
+        assert "super_admin" not in info.get("roles", [])
+        assert "*:*:*" not in info.get("permissions", [])
+        assert info.get("menus"), "Default business role has no native menu"
+    except Exception:
+        actor.close()
+        raise
+    return identifier, actor
+
+
 def customer_service_acceptance(template, base, token, targets, plan):
     """Use synthetic owned accounts/records; do not alter any pre-existing user."""
     names = {entity.name for entity in plan.entities}
@@ -172,8 +208,9 @@ def customer_service_acceptance(template, base, token, targets, plan):
                 else {"nickname": "Synthetic " + label}
             )
             prefix = "" if manager.fastapi else "/admin-api"
-            if manager.fastapi and label == "employee":
-                identifier, actor = register_fastapi_actor(base, username, password, targets)
+            if label == "employee":
+                register = register_fastapi_actor if manager.fastapi else register_yudao_actor
+                identifier, actor = register(base, username, password, targets)
             else:
                 identifier = record_id(
                     manager.call("POST", prefix + "/system/user/create", json=body)
@@ -270,8 +307,9 @@ def customer_service_acceptance(template, base, token, targets, plan):
             assert refused_code in {401, 403, 404}, "Outsider read another employee history"
         return {
             "passed": True,
+            "spec_digest": digest(plan.model_dump()),
             "real_native_auth": True,
-            "public_native_registration": manager.fastapi,
+            "public_native_registration": True,
             "three_roles": True,
             "relations": True,
             "related_history": True,

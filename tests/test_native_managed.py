@@ -129,6 +129,7 @@ def verified_fixture(tmp_path):
     }
     report["spec_digest"] = digest(acceptance_spec().model_dump())
     target = tmp_path / "native-evidence/acceptance.json"
+    write_json(target.with_name("approved-spec.json"), acceptance_spec().model_dump())
     write_json(target, report)
     receipt = {
         "execution": "managed-runtime",

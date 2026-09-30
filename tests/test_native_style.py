@@ -74,3 +74,37 @@ def test_native_style_rejects_substitutions(tmp_path, template, change):
         )
     with pytest.raises(NativeIntegrityError):
         verify_native_style(template, source, generated, plan, tmp_path / "reports")
+
+
+@pytest.mark.parametrize("template", list(PROFILES))
+def test_business_style_requires_actual_native_workflow_widgets(tmp_path, template):
+    import shutil
+
+    from workbench.settings import ROOT
+
+    source, generated, plan, page = sample(tmp_path, template)
+    plan.business = True
+    if template == "fastapiadmin":
+        shutil.copyfile(ROOT / "templates/business/fastapiadmin/index.vue", generated / page)
+        victim, component = page, "ElTimeline"
+    else:
+        native_page = generated / page
+        native_page.write_text(
+            native_page.read_text().replace("<Page>", "<Page><RndBusinessPanel/>")
+        )
+        root = "apps/web-antd/src/views/infra/rnd-business/"
+        for name in ("panel.vue", "metric-chart.vue"):
+            atomic_text(
+                generated / (root + name), (ROOT / "templates/business/yudao" / name).read_text()
+            )
+        victim, component = root + "metric-chart.vue", "EchartsUI"
+    report = verify_native_style(template, source, generated, plan, tmp_path / "reports")
+    assert report["passed"] is True
+    broken = generated / victim
+    broken.write_text(
+        broken.read_text()
+        .replace("<" + component, "<GenericWidget")
+        .replace("</" + component, "</GenericWidget")
+    )
+    with pytest.raises(NativeIntegrityError):
+        verify_native_style(template, source, generated, plan, tmp_path / "reports")

@@ -328,3 +328,81 @@ def test_exact_customer_service_example_three_resources(tmp_path):
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert json.loads(result.stdout.splitlines()[-1])["three_resources"]
+
+
+def test_customer_business_api_only_independent_receipt(tmp_path):
+    from pathlib import Path
+
+    plan = Plan.model_validate_json(
+        (Path(__file__).parents[1] / "examples/plans/customer-service.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    product = tmp_path / "api-product"
+    generate_basic(
+        plan, product, {"template": "python-basic", "frontend": "api-only", "database": "sqlite"}
+    )
+    report = tmp_path / "report.json"
+    env = {"PATH": os.environ.get("PATH", ""), "PYTHONUTF8": "1"}
+    result = subprocess.run(
+        [sys.executable, "verify.py", "--report", str(report)],
+        cwd=product,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=180,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    receipt = json.loads(report.read_text(encoding="utf-8"))
+    assert receipt["passed"] and receipt["http"] and receipt["restart"]
+    assert receipt["business"]["resources_checked"] == ["customers", "requests", "tasks"]
+    assert receipt["browser"]["applicable"] is False
+    assert not receipt["browser"].get("real_browser")
+
+
+@pytest.mark.postgres
+def test_customer_business_postgres_independent_receipt(tmp_path):
+    from pathlib import Path
+
+    from pydantic import SecretStr
+
+    from workbench.postgres_lab import database
+    from workbench.settings import Settings
+
+    url = os.getenv("TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL not set; mandatory in PostgreSQL Actions job")
+    settings = Settings(
+        data_dir=tmp_path / "state", product_postgres_url=SecretStr(url), _env_file=None
+    )
+    plan = Plan.model_validate_json(
+        (Path(__file__).parents[1] / "examples/plans/customer-service.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    with database(settings) as isolated_url:
+        product = tmp_path / "api-product"
+        generate_basic(
+            plan,
+            product,
+            {"template": "python-basic", "frontend": "api-only", "database": "postgresql"},
+        )
+        report = tmp_path / "report.json"
+        env = {
+            "PATH": os.environ.get("PATH", ""),
+            "PYTHONUTF8": "1",
+            "VERIFY_DATABASE_URL": isolated_url,
+        }
+        result = subprocess.run(
+            [sys.executable, "verify.py", "--report", str(report)],
+            cwd=product,
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=180,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        receipt = json.loads(report.read_text(encoding="utf-8"))
+        assert receipt["passed"] and receipt["business"]["passed"] and receipt["restart"]
+        assert receipt["database"] == "real-isolated-postgresql"
+        assert receipt["browser"]["applicable"] is False

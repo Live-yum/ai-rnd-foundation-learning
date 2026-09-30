@@ -33,7 +33,7 @@ uv run python -m scripts.build_handbook --check
 ## 三、站点1：先让合同与数据库独立成立
 
 ```powershell
-uv run pytest tests/test_contracts.py tests/test_store.py tests/test_learning_order.py -q
+uv run pytest tests/test_contracts.py tests/test_business_contracts.py tests/test_business_capabilities.py tests/test_store.py tests/test_learning_order.py -q
 ```
 
 看源码时跟随这条链：输入字典 → Pydantic合同 → Store事务 → 数据库记录。试着指出字段名拼错在哪里被拒绝、事务失败在哪里回滚、重复请求为什么不多创建一次任务。这里用临时数据库，不需要你的模型密钥。不要提前启动网页掩盖尚未写齐的数据库模块。
@@ -58,7 +58,7 @@ uv run rnd start
 
 ## 五、站点3：生成器、Plop、Aider各做一件可核查的事
 
-先学习确定性CRUD：已批准Plan → generator/native generator → 实际文件 → 独立验证。基础CRUD无须调用编码模型。只有额外的单记录业务规则需要编码时，才准备独立Aider环境：
+先学习客服确定性生成：已批准Plan.business → generator/native generator → 框架专用业务适配 → 实际文件 → 角色、关联、流程、提醒和统计的独立验证。声明式客服合同无须调用编码模型。只有额外的单记录业务规则需要编码时，才准备独立Aider环境：
 
 ```powershell
 uv sync --locked --project tools/aider --python 3.12
@@ -95,9 +95,9 @@ export PRODUCT_VERIFY_PLAYWRIGHT="$PWD/.native/browser/node_modules/playwright"
 
 产品独立验收也可以在产品根目录安装同一工具，或显式使用上述已安装模块的绝对路径。复用的是测试工具，不是平台业务代码或平台数据库。缺Node、模块或Chromium应明确失败；api-only没有前端，报告标记不适用，但不能把带前端的任务改成api-only以绕过验收。
 
-源码连接关系是`workbench.verification.run_probe → templates/product/verify.py → verify-browser.cjs`。`require_browser_evidence`再次按approved-spec核对全部实体、字段对应的检查名称以及零页面错误；缺少一个应有的检查也不能通过。`verify.py`和CJS脚本一同进入产品ZIP，干净解压后再次运行同一验证链。
+客服源码连接关系是`workbench.verification.run_probe → templates/product/verify.py → verify_business.py → verify-business-browser.cjs`；无business合同的普通实体测试使用`verify-browser.cjs`。`require_browser_evidence`再次按approved-spec核对全部实体、字段对应的检查名称以及零页面错误；缺少一个应有的检查也不能通过。`verify.py`和CJS脚本一同进入产品ZIP，干净解压后再次运行同一验证链。
 
-测试不仅看首屏，还应覆盖新增、编辑、删除、关键词、筛选、清除条件、分页及重启后的数据。真实表单测试要走页面操作，不靠注入登录令牌、替换接口结果或只截一张静态图。相同源码生成的独立解压目录需要再验证，不能拿生成目录的报告当作解压目录已经通过。
+客服测试不仅看首屏，还应覆盖客户/请求/任务新增编辑、关联选择、分配、状态转换、备注、归档、历史、提醒、统计、越权拒绝及重启后的数据；普通字段查询继续覆盖关键词、筛选、清除条件与分页。真实表单测试要走页面操作，不靠注入登录令牌、替换接口结果或只截一张静态图。相同源码生成的独立解压目录需要再验证，不能拿生成目录的报告当作解压目录已经通过。
 
 ## 七、站点5：启动原生框架，再准备对应Daytona快照
 

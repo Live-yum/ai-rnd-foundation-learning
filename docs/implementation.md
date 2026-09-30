@@ -6,9 +6,9 @@
 
 ### A.1 值、变量、列表与字典
 
-`title = "资讯"`把一段文字放到变量title中。`count = 3`是整数，`enabled = False`是布尔值，`None`表示没有值。它们不能随意互换：数量0不是空值，布尔False也不是“没填写”。本系统专门测试这两个边界。
+`title = "客服平台"`把一段文字放到变量title中。`count = 3`是整数，`enabled = False`是布尔值，`None`表示没有值。它们不能随意互换：数量0不是空值，布尔False也不是“没填写”。本系统专门测试这两个边界。
 
-`fields = ["title", "body"]`是有顺序的列表；`{"title": "资讯", "required": True}`是按键取值的字典。`data["title"]`要求键存在，缺少时会报错；`data.get("title", "")`允许不存在并提供默认值。不能为了避免报错，给本来必需的批准信息随意设True。
+`fields = ["title", "body"]`是有顺序的列表；`{"title": "客服请求", "required": True}`是按键取值的字典。`data["title"]`要求键存在，缺少时会报错；`data.get("title", "")`允许不存在并提供默认值。不能为了避免报错，给本来必需的批准信息随意设True。
 
 Python代码中的`if`是条件，冒号后缩进的行只有条件成立才执行。`for`逐个处理列表元素。`return`结束当前函数并返回结果，`raise`结束正常流程并发出错误。`try/except/finally`分别表示尝试执行、处理指定错误、无论成功失败都执行清理。本地Daytona删除沙箱就在finally里；它不是“仅成功时才清理”。
 
@@ -45,14 +45,14 @@ FastAPI的lifespan在服务启动和退出时管理数据库/Worker。LangGraph�
 | 组 | 先写的文件 | 这一组完成后的可观察结果 |
 |---|---|---|
 | 0 工具与项目 | `.python-version`、`pyproject.toml`、`uv.lock`、`.env.example`、`.gitignore`、`.gitattributes`、`README.md`、`workbench/__init__.py`、`workbench/local_only.py` | uv创建独立`.venv`；尚未启动服务或调用模型 |
-| 1 数据契约 | `settings.py`、`catalog.py`、`domain.py`、`errors.py` | 能把合法字典转成Plan；非法字段、技术栈组合和非本机工具地址被拒绝 |
+| 1 数据契约 | `settings.py`、`business_contracts.py`、`business_capabilities.py`、`catalog.py`、`domain.py`、`errors.py` | 能把合法字典转成Plan；非法字段、技术栈组合和非本机工具地址被拒绝 |
 | 2 数据库 | `store.py`、`alembic.ini`、`migrations/`全部文件；`tests/conftest.py`、`test_contracts.py`、`test_store.py` | 临时数据库能迁移、保存项目和事务回滚；此时完全不需要api.py或runtime.py |
 | 3 需求与模型 | `conversation.py`、`llm.py`、`requirement_coverage.py`、`recommendation.py` | 长期会话保存原事实；模型请求有角色路由、预算、缓存和严格响应格式 |
 | 4 安全与源代码 | `filesystem.py`、`tools.py`、`vendor.py`、`scripts/vendor_templates.py`、`templates/vendor/`文本清单/许可证 | 能从固定第三方源码生成本机ZIP，再安全解压；没有任意命令入口 |
 | 5 上下文 | `symbols.py`、`knowledge.py`、`retrieval.py`、`continue_index.py`、`context_mcp.py`、`toolchain.py`、`tools/node/`全部文本文件 | Java/TS/Vue/Python符号和源码行号可检索；只读MCP共享同一索引 |
-| 6 产品 | `templates/product/`全部文件、`templates/frontends/`全部文件、`generator.py`、`product_sql.py`、`rules.py`、`coding.py`、`aider_tool.py` | 已批准Plan可确定性生成独立产品；只有受限规则文件可以由模型参与修改 |
+| 6 产品 | `templates/product/`全部文件、`templates/frontends/`全部文件、`generator.py`、`product_sql.py`、`business_python.py`、`templates/business/common/policy.py`、`rules.py`、`coding.py`、`aider_tool.py` | 已批准Plan可确定性生成独立产品；只有受限规则文件可以由模型参与修改 |
 | 7 验收 | `verification.py`、`postgres_lab.py`、`sandbox.py`、`daytona_worker.py`、本机Daytona脚本和Dockerfile | 本机真实验收、可选隔离复验以及清理失败阻止交付 |
-| 8 原生全栈 | 全部`native*.py`、`portable.py`、`portable_checks.py`、`templates/deployment/`、原生浏览器脚本 | 原框架生成、菜单/权限挂载、前端/浏览器验证及独立新库启动 |
+| 8 原生全栈 | 全部`native*.py`、`business*.py`、`portable.py`、`portable_checks.py`、`templates/deployment/`、`templates/business/`、两套business浏览器脚本 | 原框架生成、菜单/权限挂载、前端/浏览器验证及独立新库启动 |
 | 9 串联 | `flow.py`、`runtime.py`、`api.py`、`cli.py`、`workbench/web/` | Web和CLI共用同一持久状态流程，能够从需求到下载 |
 | 10 可重复验证 | `tests/`剩余文件、`scripts/`剩余文件、`.github/workflows/`、`docs/`、手册构建脚本 | 能运行完整回归，能由本书重新建立代码，再生成字节一致的本书 |
 
@@ -87,7 +87,7 @@ uv sync --locked
 uv run pytest tests/test_contracts.py tests/test_store.py -q
 ```
 
-这一步不用填写模型Key、不启动Daytona、不需要浏览器。测试使用临时目录，验证外键、短事务、重复请求和门身份。出现ModuleNotFoundError先核对本组是否包含local_only.py和所有迁移文件，不要把未来的API文件复制进来掩盖依赖错误。
+这一步不用填写模型Key、不启动Daytona、不需要浏览器。测试使用临时目录，验证外键、短事务、重复请求和门身份。出现ModuleNotFoundError先核对本组是否包含local_only.py、business_contracts.py、business_capabilities.py和所有迁移文件，不要把未来的API文件复制进来掩盖依赖错误。
 
 ## D. 第二条数据流：从模糊需求到已批准Plan
 
@@ -113,7 +113,7 @@ Workflow.gate把当前run、阶段、内容版本与可选动作交给Store.gate
 
 ### D.4 Plan如何落到后端与前端
 
-Plan的entities是业务实体，FieldSpec描述每个字段的name/kind/required/长度/choices/检索与筛选属性。以资讯为例：title是可搜索文本、body是可搜索长文本、publish_date是可精确与区间筛选的date、category是可空的enum。数据范围per_user表示不同产品用户不能互看记录。
+Plan的entities是业务实体，FieldSpec描述每个字段的name/kind/required/长度/choices/检索与筛选属性。以客服为例：customers保存客户资料，requests的customer_id指向客户，tasks的request_id指向请求；request_state/task_state是受控枚举，resolved_at是由转换写入的时间。Plan.business声明共享资源上的角色/行权限，而不是仅设置shared就开放给所有用户。
 
 同一个Plan最终进入四个地方：generator产生approved-spec.json；schema/fields产生数据库结构与输入校验；前端按规格产生表单和筛选控件；verify按规格生成边界用例。若只改UI而不改Plan，后端仍拒绝；若只改后端而漏掉前端，浏览器回归会发现。对应关系由数据驱动，不由模型生成四份互相矛盾的业务定义。
 
@@ -240,7 +240,7 @@ Runtime在本机文件锁和可选PG advisory lock下启动单Worker。文件锁
 | 契约/数据库 | `uv run pytest tests/test_contracts.py tests/test_store.py -q` | 字段名、local_only依赖、迁移文件是否齐全 |
 | 模型 | `uv run pytest tests/test_llm.py tests/test_guided_models.py -q` | JSON响应契约、模型路由与密钥继承，不需要真实Key |
 | 安全/源码 | `uv run pytest tests/test_safety.py tests/test_vendor.py tests/test_toolchain.py tests/test_local_only.py -q` | 固定模板ZIP是否由脚本生成；所有工具地址是否回环 |
-| 产品 | `uv run pytest tests/test_news_delivery.py tests/test_guided_selection.py -q` | approved-spec与字段/查询/前端是否来自同一Plan |
+| 产品 | `uv run pytest tests/test_business_contracts.py tests/test_business_python.py tests/test_guided_selection.py -q` | approved-spec与字段/查询/前端是否来自同一Plan |
 | 流程/API | `uv run pytest tests/test_api.py tests/test_workflow.py tests/test_guided_workflow.py -q` | gate_id、显式布尔值、Job状态与幂等键 |
 | 全部文件 | `uv run python -m scripts.build_handbook`，然后`uv run pytest -m "not postgres" -q` | 先生成唯一手册，再检查源码块与当前文件的一致性 |
 | 真实工具 | `uv run python -m scripts.ci_toolchain` | Aider独立环境、实际MCP进程、源码索引，不是模型账号 |
@@ -357,7 +357,7 @@ uv run python -m scripts.build_handbook --check
 原生协议测试使用固定时间戳的ZIP夹具；它仍比较原始ZIP字节，只是不依赖运行时的时钟，避免跨越ZIP时间刻度产生随机误报。
 这些协议夹具不代替Actions中实际启动原生生成器、全栈应用及全新数据库的验收。
 
-## L. 已确认的需求为什么不能在下一轮消失
+## M. 已确认的需求为什么不能在下一轮消失
 
 `Requirement.field_requirements`保存字段级义务，例如`article.title`的文本类型、必填、最大长度和可搜索标记；`features`、`acceptance`与`facts`保存用户明确表达的其他条件。它们来自需求阶段，不由设计Plan反向决定。设计中的一个字段存在，不等于它的长度、日期范围和查询能力都正确。
 

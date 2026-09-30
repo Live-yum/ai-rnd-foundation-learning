@@ -27,11 +27,12 @@ REFS = {
     "refs/heads/main",
     "refs/heads/feat/complete-platform-acceptance",
     "refs/heads/feat/real-model-acceptance",
+    "refs/heads/feat/customer-service-acceptance",
 }
 ENDPOINT = "https://api.deepseek.com"
 MODEL = "deepseek-flash"
 MAX_WORKFLOW_CALLS = 16
-MAX_COMPLETION_TOKENS = 4096
+MAX_COMPLETION_TOKENS = 16000
 SMOKE_PAYLOAD = {
     "model": MODEL,
     "messages": [
@@ -42,16 +43,6 @@ SMOKE_PAYLOAD = {
     "reasoning_effort": "high",
     "stream": False,
 }
-NEWS_REQUEST = (
-    "泰拉瑞瑞亚游戏资讯。创建登录后逐用户隔离的个人资讯管理页面，手动录入，支持增删改查。"
-    "本次验收的明确字段契约：实体 news；title 为必填文本，1至250字符，可关键词搜索；"
-    "body 为必填文本，1至3000字符，也可关键词搜索；published_on 为必填真实日期，"
-    "支持单日精确筛选和包含起止日的日期区间；category 为可选枚举，选项资讯、攻略、大神，"
-    "可精确筛选。关键词、分类、日期条件必须可以组合，清除条件恢复完整列表。"
-    "用户注册登录后只能访问自己的记录，跨用户读写拒绝。"
-    "选择 python-basic、simple-admin、SQLite；未明确事项使用智能推荐。"
-    "不要增加网站采集、匿名公众访问、支付或其他未要求功能。"
-)
 
 
 class SafeFailure(RuntimeError):
@@ -360,17 +351,17 @@ async function main() {
     await page.goto(cfg.platform);
     await page.locator('#token').fill(cfg.token);
     await page.locator('#connect button').click();
-    await page.locator('#template').selectOption('python-basic');
-    await page.locator('#frontend').selectOption('simple-admin');
-    await page.locator('#database').selectOption('sqlite');
+    await page.locator('#template').selectOption(cfg.template);
+    await page.locator('#frontend').selectOption(cfg.frontend);
+    await page.locator('#database').selectOption(cfg.database);
     await page.locator('#choose').click();
-    await page.locator('#project-title').fill('Real-model Terraria acceptance');
+    await page.locator('#project-title').fill('真实 DeepSeek 客服完整验收');
     await page.locator('#requirement').fill(cfg.requirement);
     // Exactly one initial delegation, no subsequent approval or retry clicks.
     await page.locator('#initial-smart').check();
     await page.locator('#new-run button').click();
     await page.waitForFunction(() => ['READY','SOURCE_READY','FAILED','BLOCKED','PAUSED_LIMIT','REJECTED']
-      .some(s=>document.querySelector('#status').textContent === '状态：'+s), null, {timeout:1500000});
+      .some(s=>document.querySelector('#status').textContent === '状态：'+s), null, {timeout:6900000});
     const state=(await page.locator('#status').innerText()).replace('状态：','');
     const runId=(await page.locator('#run-title').innerText()).split(' ').at(-1);
     fs.writeFileSync(cfg.result, JSON.stringify({state,run_id:runId,page_errors:errors.length}));
@@ -384,28 +375,111 @@ main().catch(()=> { console.error('real-model browser acceptance did not complet
 """
 
 
-def require_news_spec(spec):
+def customer_request():
+    from workbench.settings import ROOT
+
+    return "\n\n".join(
+        (ROOT / "examples/requirements" / name).read_text(encoding="utf-8")
+        for name in (
+            "customer-service.md",
+            "customer-service-decisions.md",
+            "customer-service-contract.md",
+        )
+    )
+
+
+def require_customer_spec(spec):
+    from workbench.business_capabilities import business_gaps
+    from workbench.domain import Plan, Requirement
+
     try:
-        assert spec["data_scope"] == "per_user" and not spec["unsupported"]
-        assert len(spec["entities"]) == 1
-        entity = spec["entities"][0]
-        assert entity["name"] == "news"
-        fields = {item["name"]: item for item in entity["fields"]}
-        assert set(fields) == {"title", "body", "published_on", "category"}
-        for name, length in (("title", 250), ("body", 3000)):
-            f = fields[name]
-            assert f["kind"] == "text" and f["required"] is True
-            assert f["max_length"] == length and f["min_length"] == 1
-            assert f["searchable"] is True
-        date = fields["published_on"]
-        assert date["kind"] == "date" and date["required"] is True
-        assert date["filterable"] is True and date["date_range"] is True
-        category = fields["category"]
-        assert category["kind"] == "enum" and category["required"] is False
-        assert set(category["choices"]) == {"资讯", "攻略", "大神"}
-        assert category["filterable"] is True
-    except KeyError, TypeError, AssertionError:
-        raise SafeFailure("explicit_news_obligation_not_preserved") from None
+        plan = Plan.model_validate(spec)
+        assert plan.business is not None and plan.data_scope == "shared" and not plan.unsupported
+        assert {e.name for e in plan.entities} == {"customers", "requests", "tasks"}
+        assert {r.name for r in plan.business.roles} == {"manager", "service", "employee"}
+        requirement = Requirement(
+            summary=customer_request(),
+            users=["管理人员", "服务人员", "普通员工"],
+            features=[],
+            acceptance=[],
+            data_scope="shared",
+        )
+        assert not business_gaps(requirement, plan)
+        assert {m.kind for m in plan.business.metrics} >= {
+            "count",
+            "average_duration",
+            "group_count",
+            "time_count",
+        }
+        assert not plan.custom_rules
+        entities = {
+            entity.name: {field.name: field for field in entity.fields} for entity in plan.entities
+        }
+        expected = {
+            "customers": {"name", "organization", "contact", "category"},
+            "requests": {
+                "title",
+                "detail",
+                "customer_id",
+                "assignee_id",
+                "request_state",
+                "resolved_at",
+                "due_at",
+                "priority",
+            },
+            "tasks": {
+                "title",
+                "detail",
+                "request_id",
+                "assignee_id",
+                "task_state",
+                "resolved_at",
+                "due_at",
+            },
+        }
+        assert all(set(entities[name]) == fields for name, fields in expected.items())
+        assert set(entities["customers"]["category"].choices) == {"企业", "个人", "合作伙伴"}
+        assert set(entities["requests"]["priority"].choices) == {"普通", "紧急"}
+        relations = {(r.entity, r.field, r.target_entity) for r in plan.business.relations}
+        assert {
+            ("requests", "customer_id", "customers"),
+            ("tasks", "request_id", "requests"),
+            ("requests", "assignee_id", "$users"),
+            ("tasks", "assignee_id", "$users"),
+        } <= relations
+        assert plan.business.bootstrap_role == "manager"
+        assert (
+            plan.business.registration.enabled
+            and plan.business.registration.default_role == "employee"
+        )
+        policies = {(p.role, p.entity): p for p in plan.business.permissions}
+        for entity in ("requests", "tasks"):
+            if ("employee", entity) in policies:
+                assert policies[("employee", entity)].scope == "own"
+                assert not {"assign", "transition"} & set(policies[("employee", entity)].actions)
+            else:
+                assert entity == "tasks"
+            assert policies[("service", entity)].scope == "assigned"
+            assert {"read", "add_note", "transition"} <= set(policies[("service", entity)].actions)
+            workflow = next(w for w in plan.business.workflows if w.entity == entity)
+            transitions = {t.name: t for t in workflow.transitions}
+            assert workflow.initial == "new"
+            assert (
+                transitions["start"].from_states == ["new"]
+                and transitions["start"].to_state == "active"
+            )
+            assert (
+                transitions["resolve"].from_states == ["active"]
+                and transitions["resolve"].to_state == "resolved"
+            )
+            assert transitions["resolve"].set_timestamp == "resolved_at"
+        assert all(
+            "read_metrics" not in policy.actions
+            for policy in plan.business.permissions
+            if policy.role == "employee"
+        )
+    except ValueError, KeyError, TypeError, AssertionError, StopIteration:
+        raise SafeFailure("explicit_customer_obligation_not_preserved") from None
 
 
 def acceptance_settings(config, directory):
@@ -443,7 +517,7 @@ def acceptance_settings(config, directory):
     )
 
 
-def run_acceptance(config, transport, directory):
+def run_acceptance(config, transport, directory, template="python-basic"):
     import uvicorn
 
     from workbench.api import create_app
@@ -454,6 +528,20 @@ def run_acceptance(config, transport, directory):
     from workbench.verification import product_interpreter, require_browser_evidence, run_probe
 
     settings = acceptance_settings(config, directory)
+    from workbench.catalog import Selection
+
+    selection = Selection(template=template)
+    if template != "python-basic":
+        from workbench.native_delivery import runtime_path
+
+        settings.prepare()
+        write_json(
+            runtime_path(settings, template),
+            {
+                "database_url_env": "NATIVE_TEST_DATABASE_URL",
+                "initialize_empty_database": True,
+            },
+        )
     traces = []
 
     class ObservedGateway(ModelGateway):
@@ -508,7 +596,10 @@ def run_acceptance(config, transport, directory):
             {
                 "platform": f"http://127.0.0.1:{port}",
                 "token": application.state.token,
-                "requirement": NEWS_REQUEST,
+                "requirement": customer_request(),
+                "template": template,
+                "frontend": selection.frontend,
+                "database": selection.database,
                 "download": str(archive),
                 "result": str(result_path),
             },
@@ -521,7 +612,7 @@ def run_acceptance(config, transport, directory):
             cwd=ROOT,
             env=clean_env({"PLAYWRIGHT_BROWSERS_PATH": "0"}),
             capture_output=True,
-            timeout=1560,
+            timeout=6960,
             check=False,
         )
         if process.returncode or not result_path.is_file():
@@ -542,23 +633,53 @@ def run_acceptance(config, transport, directory):
             raise SafeFailure("download_integrity_failed")
         product = directory / "downloaded-product"
         unpack(archive, product)
-        require_news_spec(json.loads((product / "approved-spec.json").read_text(encoding="utf-8")))
-        if not run["result"]["cleanroom"].get("passed"):
-            raise SafeFailure("pipeline_cleanroom_failed")
-        require_browser_evidence(product, run["result"]["cleanroom"])
-        # A fresh environment and database validate the bytes actually downloaded through the UI.
-        python = product_interpreter(product, settings)
-        probe = directory / "downloaded-product-verification.json"
-        run_probe(product, python, probe, settings)
-        evidence = json.loads(probe.read_text(encoding="utf-8"))
-        require_browser_evidence(product, evidence)
-        if evidence.get("passed") is not True or evidence.get("restart") is not True:
-            raise SafeFailure("downloaded_cleanroom_failed")
+        screenshot_dir = ROOT / "reports/real-model/screenshots"
+        if template == "python-basic":
+            spec = json.loads((product / "approved-spec.json").read_text(encoding="utf-8"))
+            require_customer_spec(spec)
+            if not run["result"]["cleanroom"].get("passed"):
+                raise SafeFailure("pipeline_cleanroom_failed")
+            require_browser_evidence(product, run["result"]["cleanroom"])
+            python = product_interpreter(product, settings)
+            probe = directory / "downloaded-product-verification.json"
+            run_probe(product, python, probe, settings, business_screenshots=screenshot_dir)
+            evidence = json.loads(probe.read_text(encoding="utf-8"))
+            require_browser_evidence(product, evidence)
+            if evidence.get("passed") is not True or evidence.get("restart") is not True:
+                raise SafeFailure("downloaded_cleanroom_failed")
+        else:
+            from workbench.portable import verify_native_delivery
+
+            manifest = json.loads(
+                (product / "deployment/manifest.json").read_text(encoding="utf-8")
+            )
+            require_customer_spec(manifest["plan"])
+            evidence = verify_native_delivery(
+                product, os.environ["NATIVE_TEST_DATABASE_URL"], directory / "downloaded-evidence"
+            )
+            if evidence.get("passed") is not True or evidence.get("fresh_database") is not True:
+                raise SafeFailure("downloaded_cleanroom_failed")
+            # Only allowlisted synthetic UI PNGs, never full logs, credentials or product archives.
+            import shutil
+
+            native_reports = settings.data_dir / "runs" / browser["run_id"] / "native-evidence"
+            screenshot_dir.mkdir(parents=True, exist_ok=True)
+            for screenshot in native_reports.rglob("*.png"):
+                if screenshot.is_symlink() or screenshot.stat().st_size > 12_000_000:
+                    raise SafeFailure("invalid_screenshot_artifact")
+                if not re.fullmatch(r"[a-zA-Z0-9_-]+\.png", screenshot.name):
+                    raise SafeFailure("invalid_screenshot_name")
+                if not screenshot.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):
+                    raise SafeFailure("invalid_screenshot_png")
+                shutil.copyfile(screenshot, screenshot_dir / screenshot.name)
+            if not list(screenshot_dir.glob("*.png")):
+                raise SafeFailure("missing_native_screenshots")
         return {
             "passed": True,
             "real_model": True,
             "single_initial_smart_consent": True,
-            "explicit_news_obligations_preserved": True,
+            "explicit_customer_obligations_preserved": True,
+            "template": template,
             "ready": True,
             "ui_download": True,
             "download_hash_matches": True,
@@ -603,7 +724,11 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--phase", choices=["smoke", "full"], required=True)
-    mode = parser.parse_args().phase
+    parser.add_argument(
+        "--template", choices=["python-basic", "fastapiadmin", "yudao-vben"], default="python-basic"
+    )
+    args = parser.parse_args()
+    mode = args.phase
     destination = ROOT / "reports/real-model"
     summary = destination / "summary.json"
     result = {
@@ -642,7 +767,9 @@ def main():
                         result["smoke"] = smoke(config, transport)
                     else:
                         phase = "workflow"
-                        result["workflow"] = run_acceptance(config, transport, Path(private))
+                        result["workflow"] = run_acceptance(
+                            config, transport, Path(private), args.template
+                        )
         result["passed"] = True
     except SafeFailure as exc:
         result.update(failure_phase=phase, failure_code=exc.code)

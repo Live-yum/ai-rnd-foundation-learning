@@ -57,7 +57,7 @@ async function main() {
   async function openPage(entity) {
     const current = target(entity), listing = observe(current.list);
     await page.goto(base + '/#' + current.route, { waitUntil: 'domcontentloaded' });
-    await checked(listing);
+    const rows = await checked(listing);
     for (const selector of ['aside:visible', 'header:visible', '#__vben_main_content', '.vxe-table:visible', '[data-rnd-business-panel]']) await page.locator(selector).first().waitFor({ state: 'visible' });
     assert.equal(await page.locator('#workspace').count(), 0, 'Generic frontend is forbidden');
     const theme = await page.evaluate(() => {
@@ -68,7 +68,7 @@ async function main() {
     let proof = report.pages.find(item => item.entity === entity);
     if (!proof) { proof = { entity, route: current.route }; report.pages.push(proof); }
     Object.assign(proof, { native_shell_visible: true, native_component_family: 'Vben/Ant Design/VXE', native_theme_tokens: theme, rendered: true, real_list_request: true });
-    return current;
+    return { ...current, rows };
   }
   async function detail(entity, label) {
     await openPage(entity);
@@ -170,7 +170,7 @@ async function main() {
       await detail(entity, labels[entity]);
       await action('transition', 'start', 'Browser processing');
       await action('add_note', null, 'Browser work recorded');
-      await action('transition', 'resolve', 'Browser complete');
+      assert((await action('transition', 'resolve', 'Browser complete')).resolvedAt, 'Native resolution timestamp missing');
       await page.getByText('Browser work recorded', { exact: true }).first().waitFor({ state: 'visible' });
       await capture(`${entity}-service-handling-history.png`);
     }
@@ -189,13 +189,23 @@ async function main() {
     await reminder.first().waitFor({ state: 'visible' });
     const reminderRow = page.locator('.ant-table-row').filter({ has: reminder }).first();
     const unread = reminderRow.getByRole('button', { name: '标为已读', exact: true });
-    if (await unread.count()) {
-      const marked = observe('/admin-api/infra/rnd-business/notifications/read', 'POST');
-      await unread.click(); await checked(marked);
-      await reminderRow.getByText('已读', { exact: true }).waitFor({ state: 'visible' });
-    }
+    assert.equal(await unread.count(), 1, 'Fresh recipient reminder must be unread');
+    const marked = observe('/admin-api/infra/rnd-business/notifications/read', 'POST');
+    await unread.click(); await checked(marked);
+    await reminderRow.getByText('已读', { exact: true }).waitFor({ state: 'visible' });
     await capture('employee-vben-reminders.png');
+    report.checks.push('employee:own_timeline_and_read_reminder');
     report.journeys.push({ actor: 'employee', own_history: true, recipient_reminders: true, unauthorized_controls_absent: true });
+    for (const role of ['other_employee', 'other_service']) {
+      await login(role);
+      const current = await openPage('requests');
+      const rows = current.rows.list;
+      assert(Array.isArray(rows), 'Native paginated response missing list');
+      assert(!rows.some(row => [String(scenario.records.requests), created.requests].includes(String(row.id))), 'Other native account read a private or assigned request');
+      assert.equal(await page.getByText(labels.requests, { exact: true }).count(), 0);
+      await capture(role.replaceAll('_', '-') + '-row-isolation.png');
+      report.checks.push(`${role}:row_isolation`);
+    }
     assert.equal(errors.length, 0, 'Uncaught business frontend errors');
     Object.assign(report, { passed: true, real_login: true, native_component_family: 'Vben/Ant Design/VXE/Echarts', created_records: created });
   } catch (error) {

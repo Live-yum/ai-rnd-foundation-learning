@@ -6,9 +6,7 @@ from app.core.base_model import MappedBase
 from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
-CONFIG = json.loads(
-    Path(__file__).with_name("business.json").read_text(encoding="utf-8")
-)
+CONFIG = json.loads(Path(__file__).with_name("business.json").read_text(encoding="utf-8"))
 
 
 class BusinessEvent(MappedBase):
@@ -16,9 +14,7 @@ class BusinessEvent(MappedBase):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     entity: Mapped[str] = mapped_column(String(40), index=True)
     record_id: Mapped[int] = mapped_column(Integer, index=True)
-    actor: Mapped[int] = mapped_column(
-        Integer, ForeignKey("sys_user.id", ondelete="RESTRICT")
-    )
+    actor: Mapped[int] = mapped_column(Integer, ForeignKey("sys_user.id", ondelete="RESTRICT"))
     recipient: Mapped[int | None] = mapped_column(
         Integer, ForeignKey("sys_user.id", ondelete="RESTRICT"), index=True
     )

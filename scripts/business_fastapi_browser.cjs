@@ -206,7 +206,7 @@ async function main() {
     const metricResponse = response(page, '/business/metrics');
     await page.getByRole('tab', { name: '统计', exact: true }).click();
     const metrics = await checked(await metricResponse);
-    assert.equal(metrics.length, 5);
+    assert.equal(metrics.length, scenario.plan.business.metrics.length);
     for (const metric of metrics) await page.getByRole('heading', { name: metric.label, exact: true }).waitFor();
     report.checks.push('manager:five_native_metric_cards');
     assert.equal(report.errors.length, 0);

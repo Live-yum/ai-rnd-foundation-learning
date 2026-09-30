@@ -16,6 +16,7 @@ GUIDES = [
     "docs/toolchain.md",
     "docs/recommendation-recovery.md",
     "docs/native-toolchain.md",
+    "docs/business-platform.md",
     "docs/real-model-acceptance.md",
     "docs/from-zero-checkpoints.md",
     "docs/acceptance-checklist.md",
@@ -38,6 +39,8 @@ GROUPS = [
     ("冻结数据库迁移", ["migrations"]),
     ("默认产品与前端", ["templates/product", "templates/frontends"]),
     ("独立原生交付启动器", ["templates/deployment"]),
+    ("业务合同的原生适配模板", ["templates/business"]),
+    ("完整需求与结构化验收案例", ["examples"]),
     (
         "自带原生源码的版本与许可证",
         [
@@ -153,6 +156,8 @@ def render():
                 ".cjs": "javascript",
                 ".mjs": "javascript",
                 ".ts": "typescript",
+                ".java": "java",
+                ".vue": "vue",
                 ".js": "javascript",
                 ".html": "html",
                 ".css": "css",

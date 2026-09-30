@@ -64,3 +64,55 @@ def test_public_registration_is_anonymous_and_requires_native_default_role(monke
         actor.close()
     assert registered == [True]
     assert len(logins) == (0 if violation == "registration_denied" else 1)
+
+
+@pytest.mark.parametrize(
+    "violation",
+    [None, "role", "identity", "global_admin", "permissions", "menus", "registration_denied"],
+)
+def test_yudao_registration_requires_native_anonymous_default_membership(monkeypatch, violation):
+    import json
+
+    original_client = httpx.Client
+    clients = []
+
+    def handler(request):
+        if request.url.path == "/admin-api/system/auth/register":
+            assert "authorization" not in request.headers
+            assert request.headers["tenant-id"] == "1"
+            body = json.loads(request.content)
+            assert body["roleIds"] == [1] and body["roles"] == ["super_admin"]
+            if violation == "registration_denied":
+                return httpx.Response(200, json={"code": 403})
+            data = {"userId": 8}
+        elif request.url.path.endswith("/me"):
+            data = {
+                "id": "9" if violation == "identity" else "8",
+                "roles": ["manager" if violation == "role" else "employee"],
+            }
+        else:
+            assert request.url.path == "/admin-api/system/auth/get-permission-info"
+            data = {
+                "roles": ["super_admin"] if violation == "global_admin" else ["rnd_employee"],
+                "permissions": ["*:*:*"] if violation == "permissions" else ["infra:rnd:query"],
+                "menus": [] if violation == "menus" else [{"id": 20}],
+            }
+        return httpx.Response(200, json={"code": 0, "data": data})
+
+    def factory(**kwargs):
+        client = original_client(**kwargs, transport=httpx.MockTransport(handler))
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(probe.httpx, "Client", factory)
+    monkeypatch.setattr(probe, "login", lambda *args: "synthetic-test-token")
+    if violation:
+        with pytest.raises(AssertionError):
+            probe.register_yudao_actor("http://127.0.0.1", "syntheticuser", "Synthetic123!", [])
+    else:
+        identifier, actor = probe.register_yudao_actor(
+            "http://127.0.0.1", "syntheticuser", "Synthetic123!", []
+        )
+        assert identifier == "8"
+        actor.close()
+    assert all(client.is_closed for client in clients)

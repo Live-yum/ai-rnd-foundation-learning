@@ -362,7 +362,7 @@ public class RndBusinessService {
         sidecar.initialize(tenant(),cfg.path("specDigest").asText(),user);
         if(cfg.path("business").path("registration").path("enabled").asBoolean()) {
             var previous=nativeConfiguration.getConfigByKey("system.user.register-enabled");if(previous==null) throw bad("Native registration setting missing");
-            var request=new cn.iocoder.yudao.module.infra.controller.admin.config.vo.ConfigSaveReqVO();org.springframework.beans.BeanUtils.copyProperties(previous,request);request.setValue("true");nativeConfiguration.updateConfig(request);
+            var request=new cn.iocoder.yudao.module.infra.controller.admin.config.vo.ConfigSaveReqVO();org.springframework.beans.BeanUtils.copyProperties(previous,request);request.setKey(previous.getConfigKey());request.setValue("true");nativeConfiguration.updateConfig(request);
         }
     }
     public Object meta(String name,String identifier) {

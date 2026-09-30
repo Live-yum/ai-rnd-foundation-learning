@@ -10,9 +10,7 @@ async def before_registration(db):
     if not rt.SPEC["registration"]["enabled"]:
         rt.fail(403, "Business self-registration is disabled")
     marker = await db.scalar(
-        select(BusinessEvent)
-        .where(BusinessEvent.source_key == "bootstrap")
-        .with_for_update()
+        select(BusinessEvent).where(BusinessEvent.source_key == "bootstrap").with_for_update()
     )
     if marker is None:
         rt.fail(409, "A native administrator must initialize this project first")

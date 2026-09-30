@@ -7,6 +7,51 @@ from pathlib import Path
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "business_contracts": (
+        "业务合同的类型和交叉校验",
+        "将角色、资源、关联、状态、提醒与指标作为有限声明；检查实体/字段/角色引用、不可改系统字段和互相矛盾的权限，拒绝任意SQL或执行脚本。",
+        "Plan.business → validate_plan → 各模板适配器与独立验收。",
+    ),
+    "business_capabilities": (
+        "业务合同的可执行能力边界",
+        "按实际模板及已实现适配判断合同是否能执行，不根据模型声称动态开启能力；未登记功能保留阻塞。",
+        "选择器/规划门 → 合同检查 → 对应业务运行时。",
+    ),
+    "business_yudao": (
+        "在真实Yudao生成物上挂载业务策略",
+        "核对当前表名、权限、路由及生成文件身份，保留DO/Mapper/Service与原生Vben结构，将控制器全部交给统一事务策略；输出明确扩展DDL和可核查源清单，不执行用户SQL或重置数据。",
+        "native_lab → install_native_business → install_yudao_business → Spring/MyBatis/Vben产物 → 显式SQL安装。",
+    ),
+    "business_fastapi": (
+        "在真实FastapiAdmin产物上挂载业务策略",
+        "保留框架认证与生成模型、补齐关系，保护原CRUD入口并挂载带行权限的业务接口和原生组件页面；注册仍走原生校验，之后事务性附加默认业务角色。",
+        "native_lab → extend_business → module_business插件、Fa页面和扩展DDL。",
+    ),
+    "business_native": (
+        "事务安装明确的原生业务扩展",
+        "根据模板选适配器，再向已验证的专用本机库按顺序执行受信任扩展SQL；同一事务失败全部回滚，证据记录实际SQL哈希而非直接宣告运行成功。",
+        "生成器及菜单完成 → 本文件 → 后端重新构建/启动 → HTTP与浏览器验收。",
+    ),
+    "business_schema_receipt": (
+        "独立交付的真实数据库结构签名",
+        "从当前数据库读取列、外键与关键约束，形成可比较结构；恢复不能仅以表存在代替结构一致，也不能删除不匹配的数据。",
+        "portable创建清单 → 独立启动器校验新库/已有同产品库 → 结构一致性证据。",
+    ),
+    "business_probe": (
+        "三角色实际原生HTTP验收",
+        "使用明确合成账号和业务记录，通过原生登录取得身份，检查关联、分配、转换、历史、审计、提醒和统计，另以无权用户验证后端拒绝；不把隐藏按钮当权限证明。",
+        "native_lab/独立恢复 → customer_service_acceptance → business.json及临时浏览器场景。",
+    ),
+    "business_browser": (
+        "用临时场景连接真实原生浏览器验收",
+        "只把本次合成账号交给临时场景文件，启动对应浏览器脚本并要求passed及零错误；临时凭据不进入上传报告。",
+        "native_lab/portable → 模板专用CJS脚本 → business-browser.json与截图。",
+    ),
+    "business_python": (
+        "基础Python产品的业务合同挂载",
+        "把共享的有限业务策略与产品自身Schema/认证连接，生成独立运行所需配置及文件；不依赖开发工作台进程或真实模型服务。",
+        "generate_basic → 完整业务合同 → 产品自身运行时和独立验收。",
+    ),
     "daytona_sessions": (
         "长时间沙箱检查的单次异步提交",
         "建立独立会话并仅提交一次异步命令，按总期限用有界GET轮询，终止后读一次日志。传输层关闭透明重试，单请求最多30秒；提交响应丢失立即失败，不能用同步exec重放。",
@@ -524,6 +569,18 @@ def purpose(name):
         )
     if name.startswith("workbench/") and path.stem in MODULES:
         return MODULES[path.stem]
+    if name.startswith("templates/business/"):
+        return (
+            "合同驱动的业务运行与原生界面模板",
+            "此文件被对应适配器写入实际生成产品。通用策略解释有限合同，框架适配保留其认证/ORM/事务/组件；服务器控制状态与负责人，事件追加，提醒与统计按权限读取。模板占位符仅由受信任生成器填充，不由用户输入执行任意代码。",
+            "business_fastapi/business_yudao/business_python → 本文件 → 当前产品；完整链路由business_probe和真实浏览器验证。",
+        )
+    if name.startswith("examples/"):
+        return (
+            "可审查的需求与完整合同验收样例",
+            "自然语言说明目标，JSON计划逐项登记实体、字段、关系、角色、转换和指标。它用于确定性验收，不是生产模型失败后的隐藏答案；改需求需修改并重新批准相应合同。",
+            "按正文验证Plan → ci_native_bundled --spec → 真实原生工具验收；该文件随教材一并还原。",
+        )
     if name.startswith("templates/product/"):
         return (
             "独立基础产品的组成文件",

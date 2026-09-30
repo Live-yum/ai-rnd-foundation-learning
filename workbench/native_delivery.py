@@ -12,7 +12,7 @@ from pathlib import Path
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, StrictBool
 
-from workbench.domain import digest
+from workbench.domain import Plan, digest
 from workbench.filesystem import files, manifest, sha, write_json
 from workbench.generator import PrerequisiteError
 from workbench.native_environment import checked_database, native_environment, running_backend
@@ -150,7 +150,7 @@ def managed_generate(settings, template, plan, destination, *, customization=Non
 
 def require_native_style(report, receipt, current):
     """A legacy runtime receipt is not evidence of native UI inheritance."""
-    from workbench.native_style import PROFILES
+    from workbench.native_style import PROFILES, native_page_contracts
 
     template = receipt.get("template")
     style = report.get("native_style")
@@ -199,19 +199,12 @@ def require_native_style(report, receipt, current):
         or not isinstance(pages, list)
     ):
         raise PrerequisiteError(error)
-    expected = {}
-    for entity in entities:
-        if template == "fastapiadmin":
-            expected[f"src/views/module_rnd/{entity}/index.vue"] = {
-                "FaSearchBar",
-                "FaTable",
-                "FaDialog",
-                "FaForm",
-            }
-        else:
-            folder = "apps/web-antd/src/views/infra/wb" + entity.replace("_", "")
-            expected[folder + "/index.vue"] = {"Page", "Grid", "TableAction"}
-            expected[folder + "/modules/form.vue"] = {"Modal", "Form"}
+    expected = {
+        path: values[0]
+        for path, values in native_page_contracts(
+            template, entities, report.get("business_contract") is not None
+        ).items()
+    }
     if (
         len(pages) != len(expected)
         or any(
@@ -227,6 +220,66 @@ def require_native_style(report, receipt, current):
         or {page["path"] for page in pages} != set(expected)
     ):
         raise PrerequisiteError(error)
+
+
+def require_native_business(report, receipt, spec_path):
+    """Classic CRUD receipts cannot stand in for either business installation."""
+    from workbench.business_browser import require_business_browser
+
+    error = "原生业务验收缺失或与批准设计不匹配；需要真实角色、业务浏览器和独立新库证据"
+    try:
+        plan = Plan.model_validate_json(Path(spec_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise PrerequisiteError(error) from exc
+    identity = digest(plan.model_dump())
+    if identity != receipt.get("spec_digest") or identity != report.get("spec_digest"):
+        raise PrerequisiteError(error)
+    if not plan.business:
+        if report.get("business_contract") is not None:
+            raise PrerequisiteError(error)
+        return False
+    required = (
+        "passed",
+        "real_native_auth",
+        "public_native_registration",
+        "three_roles",
+        "relations",
+        "related_history",
+        "assignment",
+        "transitions",
+        "handling_history",
+        "audit",
+        "in_app_reminders",
+        "metrics",
+        "row_isolation",
+    )
+    for evidence in (
+        report.get("business_contract"),
+        report.get("portable_restored", {}).get("business"),
+    ):
+        if (
+            not isinstance(evidence, dict)
+            or evidence.get("spec_digest") != identity
+            or any(evidence.get(key) is not True for key in required)
+            or not isinstance(evidence.get("records"), dict)
+            or set(evidence["records"]) != {entity.name for entity in plan.entities}
+            or any(
+                not isinstance(value, str) or not re.fullmatch(r"[1-9][0-9]*", value)
+                for value in evidence["records"].values()
+            )
+        ):
+            raise PrerequisiteError(error)
+    for browser in (
+        report.get("business_browser"),
+        report.get("portable_restored", {}).get("browser"),
+    ):
+        try:
+            if not isinstance(browser, dict) or browser.get("spec_digest") != identity:
+                raise ValueError("Unbound browser evidence")
+            require_business_browser(browser, plan, receipt["template"])
+        except (KeyError, ValueError, TypeError) as exc:
+            raise PrerequisiteError(error) from exc
+    return True
 
 
 def managed_verify(destination, receipt):
@@ -270,6 +323,7 @@ def managed_verify(destination, receipt):
     if current != receipt["files"] or report.get("spec_digest") != receipt.get("spec_digest"):
         raise PrerequisiteError("原生源码或设计在验收后发生变化，需要重新验证")
     require_native_style(report, receipt, current)
+    business = require_native_business(report, receipt, report_path.with_name("approved-spec.json"))
     result = {
         "passed": True,
         "validation_level": "runtime",
@@ -277,7 +331,8 @@ def managed_verify(destination, receipt):
         "production_ready": False,
         "source_digest": digest(current),
         "evidence_sha256": receipt["evidence_sha256"],
-        "checks": [*gates, "native_template_ui_style"],
+        "checks": [*gates, "native_template_ui_style"]
+        + (["native_business_contract"] if business else []),
         "database_delivery": "standalone-fresh-database-bootstrap",
         "startup": "uv run --no-project --python 3.14 python start.py",
     }

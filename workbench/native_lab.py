@@ -292,6 +292,7 @@ def run_acceptance(
             "native_business_rules": bool(plan.custom_rules),
             "native_style": style,
             "business_contract": records if plan.business else None,
+            "business_browser": browser_report if plan.business else None,
             "data_scope": "shared-with-native-role-permissions",
         }
         stage("portable-startup-assets")

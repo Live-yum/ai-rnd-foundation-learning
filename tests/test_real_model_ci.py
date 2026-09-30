@@ -14,12 +14,10 @@ from scripts.ci_real_model import (
     BoundedRealTransport,
     SafeFailure,
     configuration,
-    require_news_spec,
+    require_customer_spec,
     smoke,
     trusted_dispatch,
 )
-from scripts.news_fixture import news_spec
-from workbench.domain import Plan
 from workbench.settings import ROOT
 
 
@@ -133,7 +131,7 @@ def test_transport_rejects_substitution_and_bounds_tokens_and_calls():
                 json={"model": MODEL, "max_tokens": 90000},
             )
         )
-        assert json.loads(requests[0].content)["max_tokens"] == 4096
+        assert json.loads(requests[0].content)["max_tokens"] == 16000
         with pytest.raises(SafeFailure, match="model_substitution"):
             transport.handle_request(
                 httpx.Request("POST", ENDPOINT + "/chat/completions", json={"model": "fallback"})
@@ -155,22 +153,22 @@ def test_transport_rejects_substitution_and_bounds_tokens_and_calls():
         transport.shutdown()
 
 
-@pytest.mark.parametrize("mutation", ["search", "length", "isolation", "date", "category"])
-def test_actual_model_plan_must_preserve_explicit_news_obligations(mutation):
-    spec = Plan.model_validate(news_spec()).model_dump()
-    require_news_spec(spec)
+@pytest.mark.parametrize("mutation", ["roles", "metrics", "isolation", "workflow", "category"])
+def test_actual_model_plan_must_preserve_explicit_customer_obligations(mutation):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text())
+    require_customer_spec(spec)
     if mutation == "isolation":
-        spec["data_scope"] = "shared"
-    elif mutation == "search":
-        spec["entities"][0]["fields"][0]["searchable"] = False
-    elif mutation == "length":
-        spec["entities"][0]["fields"][1]["max_length"] = 200
-    elif mutation == "date":
-        spec["entities"][0]["fields"][2]["date_range"] = False
+        spec["data_scope"] = "per_user"
+    elif mutation == "roles":
+        spec["business"]["registration"]["default_role"] = "manager"
+    elif mutation == "metrics":
+        spec["business"]["metrics"] = []
+    elif mutation == "workflow":
+        spec["business"]["workflows"] = []
     else:
-        spec["entities"][0]["fields"][3]["required"] = True
-    with pytest.raises(SafeFailure, match="obligation"):
-        require_news_spec(spec)
+        spec["entities"][0]["fields"][3]["choices"] = ["企业"]
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
 
 
 def test_workflow_is_manual_environment_scoped_and_artifact_allowlisted():
@@ -193,7 +191,10 @@ def test_workflow_is_manual_environment_scoped_and_artifact_allowlisted():
     uploads = [
         step for step in job["steps"] if step.get("uses", "").startswith("actions/upload-artifact")
     ]
-    assert [step["with"]["path"] for step in uploads] == ["reports/real-model/summary.json"]
+    assert [step["with"]["path"] for step in uploads] == [
+        "reports/real-model/summary.json",
+        "reports/real-model/screenshots/*.png",
+    ]
     entry = yaml.load(
         (ROOT / ".github/workflows/native-probe.yml").read_text(encoding="utf-8"),
         Loader=yaml.BaseLoader,
@@ -235,12 +236,15 @@ def test_workflow_is_manual_environment_scoped_and_artifact_allowlisted():
         assert step["env"]["MODE"] == "${{ vars.MODE }}"
     assert [step["run"] for step in paid_secret_steps] == [
         "uv run python -m scripts.ci_real_model --phase smoke",
-        "uv run python -m scripts.ci_real_model --phase full",
+        "uv run python -m scripts.ci_real_model --phase full --template ${{ matrix.template }}",
     ]
     paid_uploads = [
         step for step in paid["steps"] if step.get("uses", "").startswith("actions/upload-artifact")
     ]
-    assert [step["with"]["path"] for step in paid_uploads] == ["reports/real-model/summary.json"]
+    assert [step["with"]["path"] for step in paid_uploads] == [
+        "reports/real-model/summary.json",
+        "reports/real-model/screenshots/*.png",
+    ]
 
 
 def test_all_profiles_use_authorized_configuration_despite_hostile_ambient_overrides(
@@ -418,3 +422,33 @@ def test_buffered_diagnostic_transport_preserves_client_response_and_secret_priv
         assert "test-only-secret" not in json.dumps(transport.receipts)
     finally:
         transport.shutdown()
+
+
+def test_customer_prompt_is_prose_not_precomputed_plan():
+    from scripts.ci_real_model import customer_request
+
+    request = customer_request()
+    assert "客户服务管理系统" in request
+    assert "不是模型响应" in request
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text())
+    require_customer_spec(plan)
+    plan["business"]["metrics"] = []
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(plan)
+
+
+def test_paid_matrix_covers_three_native_ui_families():
+    import yaml
+
+    for name in ("native-probe.yml", "real-model.yml"):
+        doc = yaml.load((ROOT / ".github/workflows" / name).read_text(), Loader=yaml.BaseLoader)
+        job = doc["jobs"]["real-model"]
+        assert {row["template"] for row in job["strategy"]["matrix"]["include"]} == {
+            "python-basic",
+            "fastapiadmin",
+            "yudao-vben",
+        }
+        assert "feat/customer-service-acceptance" in job["if"]
+        assert not any(
+            "API_KEY" in step.get("env", {}) for step in job["steps"] if step.get("uses")
+        )

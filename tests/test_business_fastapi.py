@@ -122,7 +122,9 @@ def test_extension_preserves_actual_generated_model_and_backs_up_originals(tmp_p
     registration = backend / "app/modules/system/user/controller.py"
     registration.parent.mkdir(parents=True)
     registration.write_text(
-        "async def register_controller():\n    register_result: UserOutSchema = await UserService(auth, db).register(data=data)\n",
+        "async def register_controller():\n    register_result: UserOutSchema = await UserService(auth, db).register(data=data)\n"
+        "async def create_user_controller():\n    result_dict: UserOutSchema = await UserService(auth, db).create(data=data)\n"
+        "    return SuccessResponse(data=result_dict)\n",
         encoding="utf-8",
     )
     folder = backend / "app/plugin/module_rnd/cases"
@@ -155,6 +157,51 @@ def test_extension_preserves_actual_generated_model_and_backs_up_originals(tmp_p
         encoding="utf-8"
     )
     assert shell.read_text(encoding="utf-8") == "original shell"
+    patched_controller = registration.read_text(encoding="utf-8")
+    assert patched_controller.index("await db.commit()") < patched_controller.index(
+        "return SuccessResponse(data=result_dict)"
+    )
+    # Execute the mounted create handler, rather than merely matching its text.
+    # Native CRUD flushes and returns before the request dependency commits.
+    import asyncio
+
+    calls = []
+
+    class Service:
+        def __init__(self, auth, db):
+            pass
+
+        async def create(self, data):
+            calls.append("native_create_flushed")
+            return {"id": 6}
+
+    class Session:
+        async def commit(self):
+            calls.append("committed")
+
+    def response(**kwargs):
+        assert calls == ["native_create_flushed", "committed"]
+        calls.append("success_response")
+        return kwargs["data"]
+
+    create_function = next(
+        node
+        for node in ast.parse(patched_controller).body
+        if isinstance(node, ast.AsyncFunctionDef) and node.name == "create_user_controller"
+    )
+    scope = {
+        "UserService": Service,
+        "auth": None,
+        "db": Session(),
+        "data": {},
+        "SuccessResponse": response,
+    }
+    exec(
+        compile(ast.Module(body=[create_function], type_ignores=[]), "mounted-controller", "exec"),
+        scope,
+    )
+    assert asyncio.run(scope["create_user_controller"]()) == {"id": 6}
+    assert calls[-1] == "success_response"
     assert (reports / "business-extension-schema.sql").is_file()
     with pytest.raises(ValueError, match="already exists"):
         adapter.extend_business(

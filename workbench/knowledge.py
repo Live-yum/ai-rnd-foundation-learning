@@ -125,21 +125,45 @@ def design_pack(plan, destination, template="python-basic", selection=None):
         }
         for i, r in enumerate(plan.custom_rules)
     )
+    if plan.business:
+        tasks.extend(
+            {
+                "id": "business:" + resource.entity,
+                "title": resource.entity + " roles, workflow and history",
+                "owner": "deterministic-business-adapter",
+                "checks": [
+                    "row-permissions",
+                    "relations",
+                    "assignment",
+                    "transitions",
+                    "audit",
+                    "notes",
+                    "notifications",
+                    "scoped-metrics",
+                    "real-browser",
+                ],
+            }
+            for resource in plan.business.resources
+        )
     write_json(destination / "tasks.json", tasks)
     write_json(destination / "approved-spec.json", plan.model_dump())
     lines = ["erDiagram", "    users {", "        string id PK", "    }"]
     for entity in plan.entities:
         lines += [
-            f"    users ||--o{{ {entity.name} : owns",
+            f"    users ||--o{{ {entity.name} : {'creates' if plan.business else 'owns'}",
             f"    {entity.name} {{",
             "        string id PK",
-            "        string owner_id FK",
+            "        string created_by FK" if plan.business else "        string owner_id FK",
         ]
         for field in entity.fields:
             lines.append(
-                f"        { {'text': 'string', 'integer': 'int', 'boolean': 'boolean', 'date': 'date', 'enum': 'string'}[field.kind] } {field.name}"
+                f"        { {'text': 'string', 'integer': 'int', 'boolean': 'boolean', 'date': 'date', 'datetime': 'datetime', 'enum': 'string'}[field.kind] } {field.name}"
             )
         lines.append("    }")
+    if plan.business:
+        for relation in plan.business.relations:
+            target = "users" if relation.target_entity == "$users" else relation.target_entity
+            lines.append(f"    {target} ||--o{{ {relation.entity} : {relation.field}")
     atomic_text(destination / "design-er.mmd", "\n".join(lines) + "\n")
     write_json(
         destination / "diagram-source.json",
@@ -155,6 +179,8 @@ def design_pack(plan, destination, template="python-basic", selection=None):
     else:
         backend = "Spring Boot" if template == "yudao-vben" else "FastAPI"
         topology = f"flowchart LR\n  User --> UI[Vue]\n  UI --> API[{backend}]\n  API --> DB[(Template database)]\n  API --> Redis[(Redis)]\n"
+    if plan.business:
+        topology += "  API --> Policy[Role and row policy]\n  API --> Workflow[Named transitions]\n  API --> Audit[Append-only audit]\n  API --> Reminders[In-app reminders]\n  API --> Metrics[Scoped metrics]\n"
     if selection and selection.get("database") == "postgresql":
         topology = topology.replace("Product SQLite", "Product PostgreSQL")
     atomic_text(destination / "architecture.mmd", topology)

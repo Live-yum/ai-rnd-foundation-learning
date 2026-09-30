@@ -24,7 +24,9 @@ def product_interpreter(product, settings):
     uv = shutil.which("uv")
     if not uv:
         raise PrerequisiteError("独立产品验收需要 uv，当前 PATH 中未找到")
-    selected = json.loads((Path(product) / "selection.json").read_text())["database"]
+    selected = json.loads((Path(product) / "selection.json").read_text(encoding="utf-8"))[
+        "database"
+    ]
     extras = ["--extra", "postgres"] if selected == "postgresql" else []
     try:
         run_command(
@@ -38,7 +40,7 @@ def product_interpreter(product, settings):
     return str(product / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python"))
 
 
-def run_probe(product, python, report_path, settings):
+def run_probe(product, python, report_path, settings, *, business_screenshots=None):
     from workbench.postgres_lab import database
 
     selection = json.loads((Path(product) / "selection.json").read_text(encoding="utf-8"))
@@ -54,6 +56,11 @@ def run_probe(product, python, report_path, settings):
                 python,
                 "--report",
                 str(report_path),
+                *(
+                    ["--business-screenshots", str(business_screenshots)]
+                    if business_screenshots is not None
+                    else []
+                ),
             ],
             ROOT,
             timeout=settings.tool_timeout,

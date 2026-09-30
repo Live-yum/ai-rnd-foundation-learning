@@ -205,6 +205,8 @@ def native_probe(template, product, create, reports):
         "NATIVE_DELIVERY_DATABASE_URL": url,
         "NATIVE_DELIVERY_REDIS_PORT": "6379",
         "NATIVE_DELIVERY_REDIS_DB": "8",
+        "PRODUCT_VERIFY_PLAYWRIGHT": "/opt/rnd/browser/node_modules/playwright",
+        "PLAYWRIGHT_BROWSERS_PATH": "/opt/rnd/browsers",
     }
     run_command(
         [sys.executable, str(product / "start.py"), "--check"],
@@ -216,6 +218,42 @@ def native_probe(template, product, create, reports):
     restored = json.loads((product / ".deployment/reports/portable-start.json").read_text())
     if restored.get("passed") is not True or restored.get("frontend_started") is not True:
         raise ValueError("Daytona standalone restore did not reach both servers")
+    if plan.business:
+        from workbench.business_probe import BusinessClient
+
+        business = restored.get("business") or {}
+        browser = restored.get("browser") or {}
+        if (
+            business.get("passed") is not True
+            or browser.get("passed") is not True
+            or browser.get("errors") != []
+        ):
+            raise ValueError(
+                "Customer sandbox lacks complete independent business/browser evidence"
+            )
+        with native_process(product, url, template, reports) as base:
+            client = BusinessClient(template, base, login(template, base), targets)
+            try:
+                for entity, identity in business["records"].items():
+                    assert any(str(row["id"]) == identity for row in client.rows(entity)), (
+                        "Business data lost on sandbox restart"
+                    )
+            finally:
+                client.close()
+        return {
+            "http": True,
+            "restart": True,
+            "fresh_database": True,
+            "frontend_build": True,
+            "frontend_typecheck": True,
+            "browser": True,
+            "permissions": True,
+            "standalone_launcher": True,
+            "business_rules": True,
+            "native_business": business,
+            "browser_report": browser,
+            "original_platform_imported_by_product": False,
+        }
     with native_process(product, url, template, reports) as base:
         token = login(template, base)
         records = generated_crud(template, base, token, targets, plan)
