@@ -19981,8 +19981,9 @@ def test_production_targets_are_only_registered_docker_services():
 - `test_matrix_always_deletes_its_sandbox_and_never_falls_back.Client.delete`（L245–L249）：接收`sandbox`、`**kwargs`。 控制顺序：L246断言`sandbox.id == "owned"`；L248按`failure == "cleanup"`分支；L249抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_python_runtime_descriptor_does_not_replace_matrix_database_identity`（L263–L273）：接收`database`。 控制顺序：L268断言`result["database"] == database`；L269断言`result["runtime_database"] == "real-isolated-" + database`；L270断言`result["fresh_database"] is True`；L271断言`raw["database"] == "real-isolated-" + database`。 调用`basic_runtime_evidence`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_python_runtime_descriptor_normalization_never_hides_failed_checks`（L278–L289）：接收`key`、`bad`。 调用`pytest.raises`、`basic_runtime_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_matrix_pnpm_install_is_not_shadowed_by_base_nvm_prefix`（L292–L303）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L296断言`"/usr/local/bin/node /usr/local/lib/node_modules/npm/bin/npm-cli.js install" in docke…`；L299断言`"--global --prefix /usr/local" in dockerfile`；L303断言`user < assertion < warm`。 调用`(ROOT / "tools/daytona/matrix.Dockerfile").read_text`、`dockerfile.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_daytona_matrix.py sha256: 486ad0349ab64b9d59ee8b8201e940cefdddfe6a08231fc6831980063910b8fe -->
+<!-- source-file: tests/test_daytona_matrix.py sha256: 7ce747f7cfc8fb0f923df76335e058361adb6dc80a2b2780b6a2e8558d80e298 -->
 ````python
 """Fail-closed registered runtime profiles; actual services run in the matrix Action."""
 
@@ -20273,6 +20274,20 @@ def test_python_runtime_descriptor_normalization_never_hides_failed_checks(key, 
     }
     with pytest.raises(ValueError):
         basic_runtime_evidence(raw, "postgresql")
+
+
+def test_matrix_pnpm_install_is_not_shadowed_by_base_nvm_prefix():
+    from workbench.settings import ROOT
+
+    dockerfile = (ROOT / "tools/daytona/matrix.Dockerfile").read_text(encoding="utf-8")
+    assert (
+        "/usr/local/bin/node /usr/local/lib/node_modules/npm/bin/npm-cli.js install" in dockerfile
+    )
+    assert "--global --prefix /usr/local" in dockerfile
+    user = dockerfile.index("USER daytona")
+    warm = dockerfile.index(".venv/bin/python /opt/rnd/warm.py")
+    assertion = dockerfile.index('test "$(pnpm --version)" = "${PNPM_VERSION}"')
+    assert user < assertion < warm
 ````
 
 ### `tests/test_daytona_snapshot.py`
@@ -34060,7 +34075,7 @@ WORKDIR /home/daytona
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: tools/daytona/matrix.Dockerfile sha256: 55670cd285b638832252368c6032622816c3a8ad2d3cb7ebdc3891260db91be6 -->
+<!-- source-file: tools/daytona/matrix.Dockerfile sha256: 0a496fffe70635893cde06717c70cf1f13bfc98c5cb144825d9b4d597b7811ea -->
 ````text
 # Explicit local image preparation. Generated code is executed later without egress.
 FROM ghcr.io/astral-sh/uv:0.12.20 AS uv
@@ -34082,7 +34097,10 @@ RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && mkdir -p /opt/rnd/harness /opt/rnd/browser /opt/rnd/prewarm \
     && chown -R daytona:daytona /opt/rnd
 ARG PNPM_VERSION=9.15.3
-RUN npm install --global pnpm@${PNPM_VERSION}
+# The base image has its own NVM Node/npm on PATH. Install into the copied
+# official Node prefix explicitly so pnpm remains available after PATH is fixed.
+RUN /usr/local/bin/node /usr/local/lib/node_modules/npm/bin/npm-cli.js install \
+    --global --prefix /usr/local --no-audit --no-fund pnpm@${PNPM_VERSION}
 ENV UV_CACHE_DIR=/opt/rnd/uv-cache \
     UV_PYTHON_INSTALL_DIR=/opt/rnd/python \
     UV_PYTHON_PREFERENCE=only-managed \
@@ -34093,7 +34111,7 @@ ENV UV_CACHE_DIR=/opt/rnd/uv-cache \
     PRODUCT_VERIFY_PLAYWRIGHT=/opt/rnd/browser/node_modules/playwright \
     PLAYWRIGHT_BROWSERS_PATH=/opt/rnd/browsers \
     JAVA_HOME=/opt/java/openjdk \
-    PATH=/opt/java/openjdk/bin:/usr/lib/postgresql/17/bin:/usr/local/bin:/usr/bin:/bin
+    PATH=/opt/java/openjdk/bin:/usr/lib/postgresql/17/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
 COPY --chown=daytona:daytona harness/ /opt/rnd/harness/
 COPY --chown=daytona:daytona product/ /opt/rnd/prewarm/product/
 COPY --chown=daytona:daytona profile.json warm.py /opt/rnd/
@@ -34101,6 +34119,7 @@ RUN npm install --prefix /opt/rnd/browser --no-audit --no-fund --package-lock=fa
     && /opt/rnd/browser/node_modules/.bin/playwright install-deps chromium \
     && chown -R daytona:daytona /opt/rnd
 USER daytona
+RUN command -v pnpm && test "$(pnpm --version)" = "${PNPM_VERSION}"
 WORKDIR /opt/rnd/harness
 RUN uv python install 3.14.7 \
     && uv sync --locked --all-extras --no-install-project --python 3.14.7 \
