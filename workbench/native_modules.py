@@ -27,6 +27,7 @@ from workbench.domain import Plan, digest
 from workbench.filesystem import atomic_text, inside, sha, unpack, write_json
 from workbench.native import NativeClient, NativeConfig
 from workbench.native_checks import payload, record_id
+from workbench.native_compatibility import prepare_java_time_imports
 from workbench.native_environment import checked_database
 from workbench.native_vben import (
     adapt_generated_form,
@@ -273,6 +274,8 @@ def mount_yudao_export(export, backend, frontend, entity, reports, used_errors):
                 target = inside(backend, name)
                 if target.exists():
                     raise FileExistsError("Refusing to overwrite native Java source: " + name)
+                if name.endswith(".java"):
+                    body = prepare_java_time_imports(body)
             elif "/src/" in name and (
                 name.startswith("yudao-ui-admin-vben/") or name.startswith("yudao-ui-admin-vben5/")
             ):

@@ -1,4 +1,4 @@
-name: Reproduce approved customer Plan without model calls
+name: Verify native Java date imports with the exact approved Plan
 on:
   push:
     branches: [feat/customer-service-acceptance]
@@ -8,7 +8,7 @@ permissions:
   actions: read
 jobs:
   replay:
-    if: github.repository == 'Live-yum/ai-rnd-foundation-learning' && github.ref == 'refs/heads/feat/customer-service-acceptance' && github.event.before == '50b2e7bca6c9244865dc880e20e2c5633584e131'
+    if: github.repository == 'Live-yum/ai-rnd-foundation-learning' && github.ref == 'refs/heads/feat/customer-service-acceptance' && github.event.before == '003d86d0bcacb647b119edfb48688f46cdc0097a'
     runs-on: ubuntu-latest
     timeout-minutes: 50
     services:
@@ -28,7 +28,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: 50b2e7bca6c9244865dc880e20e2c5633584e131
+          ref: ${{ github.sha }}
           persist-credentials: false
       - name: Retrieve only the previously validated synthetic customer Plan
         uses: actions/download-artifact@v4
@@ -63,7 +63,7 @@ jobs:
         env:
           REPLAY_PLAN: ${{ runner.temp }}/customer-plan/approved-plan-replay.json
         run: |
-          test "$(git rev-parse HEAD)" = 50b2e7bca6c9244865dc880e20e2c5633584e131
+          test "$(git rev-parse HEAD)" = "${{ github.sha }}"
           uv run python - <<'PY'
           import hashlib, os
           from pathlib import Path
@@ -99,7 +99,7 @@ jobs:
           from scripts.ci_real_model import DiagnosticTextBudget
           root = Path('reports/native')
           budget = DiagnosticTextBudget()
-          result = {'source_sha':'50b2e7bca6c9244865dc880e20e2c5633584e131','provider_calls':0,'plan_sha256':'dc8c653056be6f68e520668161aa559ba4d3e3325830ad9064922d3f03c743c5','diagnostics':[]}
+          result = {'source_sha':'${{ github.sha }}','provider_calls':0,'plan_sha256':'dc8c653056be6f68e520668161aa559ba4d3e3325830ad9064922d3f03c743c5','diagnostics':[]}
           progress = root / 'progress.json'
           if progress.is_file():
               value = json.loads(progress.read_text(encoding='utf-8'))

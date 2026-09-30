@@ -1,9 +1,83 @@
 """Small recorded compatibility edits in generated workspaces, never upstream checkouts."""
 
 import ast
+import re
 from pathlib import Path
 
 from workbench.filesystem import atomic_text, sha
+
+
+def _java_code_mask(source: str) -> str:
+    """Keep code offsets while hiding Java comments, strings, chars and text blocks."""
+    out = list(source)
+    index = 0
+    while index < len(source):
+        start = index
+        if source.startswith("//", index):
+            end = source.find("\n", index + 2)
+            index = len(source) if end < 0 else end
+        elif source.startswith("/*", index):
+            end = source.find("*/", index + 2)
+            if end < 0:
+                raise ValueError("Unterminated generated Java comment")
+            index = end + 2
+        elif source[index] in "\"'":
+            quote = '"""' if source.startswith('"""', index) else source[index]
+            index += len(quote)
+            while index < len(source):
+                if source[index] == "\\":
+                    index += 2
+                elif source.startswith(quote, index):
+                    index += len(quote)
+                    break
+                else:
+                    index += 1
+            else:
+                raise ValueError("Unterminated generated Java literal")
+        else:
+            index += 1
+            continue
+        for offset in range(start, min(index, len(source))):
+            if source[offset] not in "\r\n":
+                out[offset] = " "
+    return "".join(out)
+
+
+def prepare_java_time_imports(source: str) -> str:
+    """Repair omitted native date imports, only for generated field declarations.
+
+    The pinned native generator can emit LocalDate fields while importing only
+    LocalDateTime. Keep all generated declarations and annotations unchanged;
+    exclude qualified types, comments/literals and existing/shadowing imports.
+    The mount receipt records both the original export and transformed hashes.
+    """
+    code = _java_code_mask(source)
+    types = set(
+        re.findall(
+            r"(?m)^\s*(?:(?:public|protected|private|static|final|transient|volatile)\s+)*"
+            r"(LocalDate|LocalDateTime)\b\s*(?:\[\s*\]\s*)*\s+"
+            r"[A-Za-z_$][\w$]*\s*(?=[;=])",
+            code,
+        )
+    )
+    if not types or re.search(r"\bimport\s+java\.time\.\*\s*;", code):
+        return source
+    missing = []
+    for name in sorted(types):
+        if re.search(r"\bimport\s+(?:[\w$]+\.)+" + name + r"\s*;", code):
+            continue
+        if re.search(r"\b(?:class|interface|enum|record)\s+" + name + r"\b", code):
+            continue
+        missing.append(name)
+    if not missing:
+        return source
+    packages = list(re.finditer(r"(?m)^\s*package\s+[\w$.]+\s*;", code))
+    if len(packages) != 1:
+        raise ValueError("Unexpected generated Java package for time import repair")
+    offset = packages[0].end()
+    newline = "\r\n" if "\r\n" in source else "\n"
+    imports = "".join(newline + f"import java.time.{name};" for name in missing)
+    return source[:offset] + imports + source[offset:]
 
 
 def commit_before_response(controller):
