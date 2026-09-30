@@ -1,0 +1,315 @@
+diff --git a/docs/implementation.md b/docs/implementation.md
+index e659185..63690d4 100644
+--- a/docs/implementation.md
++++ b/docs/implementation.md
+@@ -258,6 +258,9 @@ import re
+ import sys
+ from pathlib import Path, PurePosixPath
+ 
++# Windows redirected terminals may otherwise use cp1252 instead of UTF-8.
++sys.stdout.reconfigure(encoding="utf-8")
++sys.stderr.reconfigure(encoding="utf-8")
+ if len(sys.argv) != 3:
+     raise SystemExit("用法: python rebuild_book.py 手册路径 新空目录")
+ book = Path(sys.argv[1]).read_text(encoding="utf-8")
+diff --git a/docs/toolchain.md b/docs/toolchain.md
+index 46471c5..c4b6dcb 100644
+--- a/docs/toolchain.md
++++ b/docs/toolchain.md
+@@ -195,7 +195,7 @@ uv run python -m scripts.daytona_local status
+ 
+ prepare从固定SHA取得上游安装资源，生成本机配置和随机密码；目录非空时拒绝覆盖。它不是克隆本项目骨架。配置保存在`.data/daytona-local`，不得提交Git或共享。上游源码与许可证保存在upstream子目录，便于审查。
+ 
+-images不是去猜测可用的在线Daytona镜像标签。`scripts/daytona_build.py`先从固定Git提交导出干净的构建输入：不带`.git`、未提交修改或本机`.env`。API与Proxy的上游Dockerfile还要逐字节验证Git对象哈希；只在已匹配的构建环境中显式关闭Nx云构建/远程缓存和遥测，实际编译在本机Docker中进行。Runner使用同一v0.190.0发布的`runner-amd64`，安装脚本把固定大小156006775字节和SHA256 `4265d2bb58ad6375b3c4c526ffa2bc2e1d197d94b92b431e532bf827c8f4dfa9`同时作为硬性条件，然后按完整给出的`tools/daytona/runner.Dockerfile`封装成自己的本机镜像。这不是下载其他版本替代，也不是使用在线Runner。该固定发布的Runner安装路径支持Linux x86_64，其他架构会明确停止；Windows请使用x86_64 WSL2 Docker。
++images不是去猜测可用的在线Daytona镜像标签。`scripts/daytona_build.py`先从固定Git提交导出干净的构建输入：不带`.git`、未提交修改或本机`.env`。API与Proxy的上游Dockerfile还要逐字节验证Git对象哈希；只在已匹配的构建环境中显式关闭Nx云构建/远程缓存和遥测，实际编译在本机Docker中进行。Runner的本机运行镜像使用兼容glibc的Debian环境，并从固定Docker版本复制Docker静态工具与DinD初始化脚本；Docker只监听容器内Unix socket，不开放TCP管理端口。构建时故意传入无效API_PORT，必须看到Runner自身的配置校验错误与退出码2，才能证明不是“文件存在但系统不能执行”。真正启动时先检查本机Docker daemon就绪，再启动Runner。Runner使用同一v0.190.0发布的`runner-amd64`，安装脚本把固定大小156006775字节和SHA256 `4265d2bb58ad6375b3c4c526ffa2bc2e1d197d94b92b431e532bf827c8f4dfa9`同时作为硬性条件，然后按完整给出的`tools/daytona/runner.Dockerfile`封装成自己的本机镜像。这不是下载其他版本替代，也不是使用在线Runner。该固定发布的Runner安装路径支持Linux x86_64，其他架构会明确停止；Windows请使用x86_64 WSL2 Docker。
+ 
+ 基础依赖先逐项拉取并检查可用性，再执行较重的本机源码构建；MinIO使用独立固定源码`9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a`（`RELEASE.2025-10-15T17-29-55Z`），由`tools/daytona/minio.Dockerfile`在本机编译；没有第三方重打包镜像、商业账户或latest回退。这个对象存储版本与Daytona版本是两个独立依赖，Daytona仍严格固定v0.190.0。Go编译器版本固定1.24.8，编译时使用已提交的go.mod/go.sum校验依赖并关闭Go遥测；镜像包含原始LICENSE、依赖清单及对应源码source.tar，下载的原始仓库也保留在upstream-minio目录。MinIO是AGPLv3软件，本机演示与任何再分发都应保留其许可、署名和对应源码；不要把第三方源码标成本项目原创。API不授予privileged权限，只有运行Docker-in-Docker的Runner需要它。
+ 
+@@ -207,6 +207,8 @@ snapshot-image先只启动本机Registry与固定TCP入口，再构建并推送
+ 
+ 普通入口网络自身不是无出口网络；安全边界是入口代码只建立固定内部连接，而处理任务的API/Runner/存储仍只有internal网络。不要自行给这些后端添加普通网络来绕开连接错误。安装脚本先从127.0.0.1:6000取得真实Registry响应再推送快照；失败检查gateway与registry日志。这个拓扑也避免依赖Docker虚拟机内部IP，适用于本机Linux与WSL2的Docker。
+ 
++up命令既检查全部容器状态，也检查API/Runner/Dex/Registry的真实回环HTTP响应；任一服务退出立即停止，不进入认证。区域名固定为local-computer，不能填入含空格的显示名称；上游会拒绝这种名称。私有管理Key与其他本机凭据一起随机生成并按0600保存，日志归档必须脱敏。
++
+ Dex在非privileged容器内用UID0读取只读挂载的0600配置，避免依赖开发电脑恰好使用UID1001；仅挂载自己的配置和身份数据库卷，并设置no-new-privileges。不能通过把密码文件改成公开可读来排错。
+ 
+ 服务之间使用本机Docker网络名称通信。身份认证由本机Dex完成，文件存储为本机MinIO，镜像在本机Registry。外部PostHog/OTEL配置被移除或关闭；没有Auth0或云端控制面。Daytona自己的开发数据库与平台控制数据库、产品业务数据库各自独立。
+@@ -296,3 +298,6 @@ Ollama embedding兼容端点：https://docs.ollama.com/api/openai-compatibility
+ 
+ Docker内部网络与端口依据：https://docs.docker.com/reference/cli/docker/network/create/
+ Docker端口发布：https://docs.docker.com/engine/network/port-publishing/
++
++Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/runner/cmd/runner/main.go
++区域名称约束：https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/api/src/region/services/region.service.ts
+diff --git a/scripts/daytona_build.py b/scripts/daytona_build.py
+index c929da7..f5708f1 100644
+--- a/scripts/daytona_build.py
++++ b/scripts/daytona_build.py
+@@ -122,6 +122,7 @@ def build_exported(directory, context, docker):
+     runner_context = directory / "runner-context"
+     runner_context.mkdir(exist_ok=True)
+     download_runner(runner_context / "runner-amd64")
++    (runner_context / "runner-entry.sh").write_bytes((ROOT / "tools/daytona/runner-entry.sh").read_bytes())
+     runner_recipe = ROOT / "tools/daytona/runner.Dockerfile"
+     metadata = {}
+     for service in ("api", "proxy", "runner"):
+diff --git a/scripts/daytona_local.py b/scripts/daytona_local.py
+index 3ac08cd..5ff3a24 100644
+--- a/scripts/daytona_local.py
++++ b/scripts/daytona_local.py
+@@ -137,8 +137,9 @@ def render_compose(original, credentials, directory):
+         PROXY_API_KEY=credentials["proxy_key"],
+         DEFAULT_RUNNER_API_KEY=credentials["runner_key"],
+         HEALTH_CHECK_API_KEY=credentials["health_key"],
++        ADMIN_API_KEY=credentials["admin_key"],
+         DEFAULT_REGION_ID="local",
+-        DEFAULT_REGION_NAME="Local computer",
++        DEFAULT_REGION_NAME="local-computer",
+         DEFAULT_RUNNER_NAME="local-docker",
+         OIDC_MANAGEMENT_API_ENABLED="false",
+         # Match Dex's signed issuer, but obtain JWKS via its private Docker hostname.
+@@ -150,6 +151,7 @@ def render_compose(original, credentials, directory):
+         DAYTONA_RUNNER_TOKEN=credentials["runner_key"],
+         AWS_SECRET_ACCESS_KEY=credentials["storage_password"],
+         SSH_GATEWAY_ENABLE="false",
++        INITIALIZE_DAEMON_TELEMETRY="false",
+     )
+     config["services"]["db"]["environment"]["POSTGRES_PASSWORD"] = credentials["database_password"]
+     config["services"]["minio"]["environment"]["MINIO_ROOT_PASSWORD"] = credentials[
+@@ -178,6 +180,9 @@ def assert_local_compose(config):
+         raise ValueError("仅允许固定内部网络和本机入口网络")
+     if set(config["services"]) != KEEP:
+         raise ValueError("存在未登记服务")
++    region_name = environment(config["services"]["api"]).get("DEFAULT_REGION_NAME")
++    if region_name is not None and not re.fullmatch(r"[a-zA-Z0-9_.-]{2,255}", region_name):
++        raise ValueError("本机区域名称不能包含空格，必须满足固定上游约束")
+     gateway = dict(config["services"]["gateway"])
+     gateway.pop("image", None)
+     expected_gateway = gateway_service()
+@@ -248,6 +253,7 @@ def prepare(directory=HOME):
+             "proxy_key",
+             "runner_key",
+             "health_key",
++            "admin_key",
+             "bootstrap_secret",
+         )
+     }
+@@ -396,6 +402,38 @@ def snapshot_image(directory=HOME):
+     print("Python3.14与锁定依赖已预热到本机镜像；沙箱验收使用offline安装。")
+ 
+ 
++def up(directory=HOME):
++    """A started container is not a ready API; reject early exits before authentication."""
++    import httpx
++
++    compose(directory, "up", "-d", "--pull", "never")
++    endpoints = [
++        "http://127.0.0.1:3000/api/config",
++        "http://127.0.0.1:3003/",
++        "http://127.0.0.1:5556/dex/.well-known/openid-configuration",
++        "http://127.0.0.1:6000/v2/",
++    ]
++    with httpx.Client(timeout=3, trust_env=False, follow_redirects=False) as client:
++        for attempt in range(90):
++            raw = compose(directory, "ps", "--all", "--format", "json")
++            rows = json.loads(raw) if raw.lstrip().startswith("[") else [json.loads(line) for line in raw.splitlines() if line.strip()]
++            dead = [row["Service"] for row in rows if row.get("State") in {"exited", "dead", "removing"}]
++            if dead:
++                raise RuntimeError("本机服务已退出，不能继续认证：" + ", ".join(sorted(dead)))
++            running = {row["Service"] for row in rows if row.get("State") == "running" and row.get("Health", "") in {"", "healthy"}}
++            if running == KEEP:
++                try:
++                    for endpoint in endpoints:
++                        client.get(endpoint).raise_for_status()
++                    print("本机服务、API、Runner与身份端点全部就绪；可以进入认证。")
++                    return
++                except httpx.HTTPError:
++                    pass
++            if attempt != 89:
++                time.sleep(2)
++    raise RuntimeError("本机服务健康检查超时；检查容器日志，未声明安装成功")
++
++
+ def main():
+     parser = argparse.ArgumentParser(description=__doc__)
+     parser.add_argument(
+@@ -409,8 +447,10 @@ def main():
+         images(args.directory)
+     elif args.action == "snapshot-image":
+         snapshot_image(args.directory)
++    elif args.action == "up":
++        up(args.directory)
+     else:
+-        commands = {"up": ["up", "-d", "--pull", "never"], "status": ["ps"], "down": ["down"]}
++        commands = {"status": ["ps"], "down": ["down"]}
+         print(compose(args.directory, *commands[args.action]))
+     # `down` deliberately omits -v; no command here deletes persistent user volumes.
+ 
+diff --git a/scripts/handbook_notes.py b/scripts/handbook_notes.py
+index aa9384b..b6e4ca7 100644
+--- a/scripts/handbook_notes.py
++++ b/scripts/handbook_notes.py
+@@ -353,6 +353,12 @@ def purpose(name):
+             "pyproject声明允许的依赖，uv.lock记录本次可复现安装的具体版本、平台条件及下载哈希。先抄写对应pyproject再完整保存此文件，使用uv sync --locked；不要为了跳过报错随意删锁。",
+             "平台、Aider和产品各有独立环境与锁，不能混用Python3.12和3.14依赖。",
+         )
++    if name == "tools/daytona/runner-entry.sh":
++        return (
++            "本机Runner启动顺序与退出清理",
++            "在DinD完成命名空间准备后，仅启动Unix socket上的本机Docker；限时检测daemon就绪再启动Runner，TERM/INT或Runner退出时清理子进程。没有远程Docker或云端回退。",
++            "runner.Dockerfile → dind → runner-entry.sh → dockerd就绪 → 固定版本Runner。",
++        )
+     if name == "tools/daytona/runner.Dockerfile":
+         return (
+             "本机Runner服务镜像",
+diff --git a/tests/test_daytona_build.py b/tests/test_daytona_build.py
+index 28b6a94..5b365df 100644
+--- a/tests/test_daytona_build.py
++++ b/tests/test_daytona_build.py
+@@ -183,3 +183,42 @@ def test_gateway_cannot_be_reconfigured_as_a_general_proxy():
+     config["services"]["api"]["networks"].append("loopback-entry")
+     with pytest.raises(ValueError, match="内部网络"):
+         local.assert_local_compose(config)
++
++
++def test_runner_runtime_requires_a_real_executable_and_local_daemon():
++    recipe = (local.ROOT / "tools/daytona/runner.Dockerfile").read_text()
++    entry = (local.ROOT / "tools/daytona/runner-entry.sh").read_text()
++    assert "FROM debian:trixie-slim AS runner" in recipe
++    assert "API_PORT=invalid" in recipe and "Failed to get config" in recipe
++    assert "dockerd --host=unix:///var/run/docker.sock" in entry
++    assert "tcp://" not in entry and "docker info" in entry
++
++
++def test_up_rejects_an_exited_service_before_making_any_http_calls(tmp_path, monkeypatch):
++    def compose(directory, *args):
++        return json.dumps([{"Service": "runner", "State": "exited"}]) if args[0] == "ps" else ""
++    monkeypatch.setattr(local, "compose", compose)
++    monkeypatch.setattr(local.time, "sleep", lambda *_: pytest.fail("Must stop immediately"))
++    with pytest.raises(RuntimeError, match="runner"):
++        local.up(tmp_path)
++
++
++def test_up_requires_all_services_and_real_endpoint_success(tmp_path, monkeypatch):
++    import httpx
++    seen = []
++    def compose(directory, *args):
++        return json.dumps([{"Service": name, "State": "running", "Health": "healthy"} for name in local.KEEP]) if args[0] == "ps" else ""
++    def request(self, endpoint):
++        seen.append(endpoint)
++        return httpx.Response(200, request=httpx.Request("GET", endpoint))
++    monkeypatch.setattr(local, "compose", compose)
++    monkeypatch.setattr(httpx.Client, "get", request)
++    local.up(tmp_path)
++    assert len(seen) == 4 and all(url.startswith("http://127.0.0.1:") for url in seen)
++
++
++def test_invalid_region_name_is_rejected_before_installation():
++    config = local_config()
++    config["services"]["api"]["environment"]["DEFAULT_REGION_NAME"] = "Local computer"
++    with pytest.raises(ValueError, match="空格"):
++        local.assert_local_compose(config)
+diff --git a/tests/test_handbook.py b/tests/test_handbook.py
+index 7a0ecbf..1466331 100644
+--- a/tests/test_handbook.py
++++ b/tests/test_handbook.py
+@@ -84,7 +84,11 @@ def test_standalone_bootstrap_in_the_lesson_restores_all_files(tmp_path):
+     script = tmp_path / "rebuild_book.py"
+     script.write_text(bootstrap, encoding="utf-8")
+     destination = tmp_path / "student-project"
+-    subprocess.run([sys.executable, str(script), str(OUTPUT), str(destination)], check=True)
++    subprocess.run(
++        [sys.executable, str(script), str(OUTPUT), str(destination)], check=True,
++        env={**__import__("os").environ, "PYTHONIOENCODING": "cp1252"},
++        capture_output=True,
++    )
+     for _, files in sources():
+         for name, content in files:
+             assert (destination / name).read_text(encoding="utf-8") == content
+diff --git a/tests/test_local_only.py b/tests/test_local_only.py
+index af9130b..1071480 100644
+--- a/tests/test_local_only.py
++++ b/tests/test_local_only.py
+@@ -167,7 +167,7 @@ def test_deployment_transformation_has_no_cloud_services(tmp_path):
+             "storage_password",
+             "proxy_key",
+             "runner_key",
+-            "health_key",
++            "health_key", "admin_key",
+         ],
+         "fixture-random",
+     )
+diff --git a/tools/daytona/runner-entry.sh b/tools/daytona/runner-entry.sh
+new file mode 100644
+index 0000000..b512a05
+--- /dev/null
++++ b/tools/daytona/runner-entry.sh
+@@ -0,0 +1,32 @@
++#!/bin/sh
++# Local DinD only; never listen on a TCP socket or inherit a remote Docker context.
++set -eu
++export DOCKER_HOST=unix:///var/run/docker.sock
++unset DOCKER_CONTEXT DOCKER_TLS_VERIFY DOCKER_CERT_PATH
++dockerd --host=unix:///var/run/docker.sock &
++daemon_pid=$!
++runner_pid=
++cleanup() {
++    if [ -n "$runner_pid" ]; then kill -TERM "$runner_pid" 2>/dev/null || true; fi
++    kill -TERM "$daemon_pid" 2>/dev/null || true
++    wait "$daemon_pid" 2>/dev/null || true
++}
++trap cleanup EXIT
++trap 'exit 143' TERM
++trap 'exit 130' INT
++attempt=0
++until docker info >/dev/null 2>&1; do
++    if ! kill -0 "$daemon_pid" 2>/dev/null || [ "$attempt" -ge 60 ]; then
++        echo "Local Docker daemon did not become ready" >&2
++        exit 1
++    fi
++    attempt=$((attempt + 1))
++    sleep 1
++done
++/usr/local/bin/daytona-runner &
++runner_pid=$!
++set +e
++wait "$runner_pid"
++result=$?
++set -e
++exit "$result"
+diff --git a/tools/daytona/runner.Dockerfile b/tools/daytona/runner.Dockerfile
+index ab7e141..5e621ba 100644
+--- a/tools/daytona/runner.Dockerfile
++++ b/tools/daytona/runner.Dockerfile
+@@ -1,12 +1,23 @@
+-# Official v0.190.0 runner (including daemon); SHA256 checked BEFORE docker build.
+-# The upstream runner runtime also uses Docker-in-Docker. Development use only.
+-FROM docker:28.5.2-dind-alpine3.22 AS runner
+-RUN apk update && apk upgrade --no-cache openssl pcre2 \
+-    && apk add --no-cache curl rsync
++# Same verified v0.190.0 release binary, with a glibc-compatible local runtime.
++FROM docker:28.5.2-dind-alpine3.22 AS docker-tools
++FROM debian:trixie-slim AS runner
++RUN apt-get update && apt-get install -y --no-install-recommends \
++    ca-certificates curl rsync iptables iproute2 kmod procps openssl xz-utils \
++    && rm -rf /var/lib/apt/lists/*
++# Docker's static binaries and DinD initialization script; no hosted Docker daemon.
++COPY --from=docker-tools /usr/local/bin/ /usr/local/bin/
+ WORKDIR /usr/local/bin
+ COPY --chmod=0755 runner-amd64 daytona-runner
++COPY --chmod=0755 runner-entry.sh /usr/local/bin/rnd-runner-entry.sh
++# Prove the executable reaches its own config parser, without a running daemon.
++RUN set +e; API_PORT=invalid /usr/local/bin/daytona-runner >/tmp/runner-smoke.log 2>&1; \
++    result=$?; set -e; cat /tmp/runner-smoke.log; \
++    test "$result" = 2 && grep -q 'Failed to get config' /tmp/runner-smoke.log \
++    && rm /tmp/runner-smoke.log
+ RUN mkdir -p /etc/docker && \
+     printf '%s\n' '{"insecure-registries": ["registry:6000"]}' > /etc/docker/daemon.json
+-ENV DO_NOT_TRACK=1 OTEL_SDK_DISABLED=true
+-HEALTHCHECK CMD ["curl", "-f", "http://localhost:3003/"]
+-ENTRYPOINT ["sh", "-c", "/usr/local/bin/dockerd-entrypoint.sh & exec daytona-runner"]
++ENV DO_NOT_TRACK=1 OTEL_SDK_DISABLED=true DOCKER_HOST=unix:///var/run/docker.sock
++VOLUME ["/var/lib/docker"]
++HEALTHCHECK --interval=5s --timeout=3s --start-period=20s --retries=12 \
++    CMD docker info >/dev/null && curl -f http://localhost:3003/
++ENTRYPOINT ["/usr/local/bin/dind", "/usr/local/bin/rnd-runner-entry.sh"]
