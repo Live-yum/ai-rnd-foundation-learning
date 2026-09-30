@@ -9,6 +9,9 @@ permissions:
 concurrency:
   group: test-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+env:
+  PLAYWRIGHT_BROWSERS_PATH: '0'
+  PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright
 jobs:
   tests:
     strategy:
@@ -16,7 +19,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
@@ -27,6 +30,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - run: npm ci --prefix tools/node --no-audit --no-fund
       - run: npm run build --prefix tools/node
       - run: uv sync --locked --all-extras
@@ -44,7 +51,7 @@ jobs:
           path: reports/
   postgres:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17
@@ -66,6 +73,13 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - run: uv sync --locked --all-extras
       - run: uv run pytest -m postgres -q --junitxml=reports/postgres.xml
       - uses: actions/upload-artifact@v4
@@ -79,7 +93,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -87,6 +101,13 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - run: uv sync --locked
       - run: uv run python -m scripts.ci_clean_install
       - uses: actions/upload-artifact@v4
@@ -113,7 +134,7 @@ jobs:
           path: reports/
   handbook-only:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
@@ -125,6 +146,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - run: uv run python -m scripts.ci_handbook
       - uses: actions/upload-artifact@v4
         if: always()
@@ -152,7 +177,7 @@ jobs:
       - name: Install isolated Chromium test tooling
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
-          PLAYWRIGHT_BROWSERS_PATH=0 .native/browser/node_modules/.bin/playwright install --with-deps chromium
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - run: uv run python -m scripts.ci_guided_browser
       - uses: actions/upload-artifact@v4
         if: always()

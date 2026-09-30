@@ -129,7 +129,7 @@ MODULES = {
     ),
     "verification": (
         "基础产品的真实验收和干净解压复验",
-        "先用产品自己的锁安装独立环境，再运行产品的HTTP验收脚本，检查规则示例及报告。package_basic不只压缩源码：还要解压到新目录再次验证，避免仅在工作目录偶然可运行。",
+        "先用产品自己的锁安装独立环境，再运行产品HTTP和逐规格真实Chromium验收。require_browser_evidence核对当前实体、字段与检查名称，不接纳缺项报告；package_basic解压到新目录再次完整验证，避免仅在工作目录偶然可运行。",
         "flow → verify_basic/package_basic → templates/product/verify.py；test_news_delivery。",
     ),
     "sandbox": (
@@ -217,6 +217,41 @@ MODULES = {
         "导出原生种子、增量业务表和菜单SQL，复制启动器所需全部HELPERS，包括本机策略模块。verify_native_delivery在另一个新的本机数据库恢复并启动前后端，确认没有导入原工作台或复用原生成数据库。",
         "managed_package → portable → templates/deployment；test_native_delivery_boundaries。",
     ),
+    "requirement_coverage": (
+        "保留用户事实并检查可执行需求覆盖",
+        "reconcile合并已确认事实，后续模型省略不等于用户删除；替换要有当前真实用户更正原文。coverage_gaps把结构化字段义务、数据归属及可识别的明确约束与Plan逐项比较，设计漏项就阻塞，不让规划模型自行宣布已覆盖。",
+        "flow.analyse保留事实 → Requirement.field_requirements → flow.design → coverage_gaps；test_requirement_coverage。",
+    ),
+    "native_recovery": (
+        "身份绑定的原生中断检查点",
+        "identity绑定模板、批准Plan、数据库身份和前后端来源；save记录实际文件清单与可恢复阶段；load只接受同一身份、完整且未篡改的可恢复现场。不可重放阶段中断不能自动重置数据库。",
+        "native_lab保存/恢复 → 同一生成目录及本机数据库 → native_coding继续验证；test_native_recovery。",
+    ),
+    "scaffolding": (
+        "用真实Plop接入受限业务规则",
+        "从批准Plan和已生成原生模块计算白名单路径、精确锚点及模板参数；先在临时目录调用node-plop，再核对实际新增和修改文件，最后写回。失败恢复已有文件，模型不能提供自己的生成脚本。",
+        "native_coding → scaffolding → tools/node/plop-runner.mjs → 真实原生Python/Java/Vue规则入口；test_native_tools。",
+    ),
+    "native_coding": (
+        "原生业务规则的有界编辑与修复",
+        "平台网关提出SEARCH/REPLACE，Aider在独立Git副本实际应用；允许变更仅限已登记的规则表达式。真实后端、前端与浏览器拒绝错误候选，回滚后再把脱敏失败反馈交给下一轮，达到预算就停止。",
+        "native_lab的规则回调 → Plop → ModelGateway → Aider → native_business_checks/native_frontend；ci_native_tools。",
+    ),
+    "native_business_checks": (
+        "用批准的正反例验证原生业务约束",
+        "实际发送新增和修改请求，区分业务拒绝、鉴权失败和服务错误；拒绝新增不能留下记录，拒绝修改不能改变旧值，合法操作仍须成功。不能仅断言HTTP不等于200。",
+        "native_coding候选验证/原生整体验收 → 真实后端接口 → 保留业务证据。",
+    ),
+    "daytona_profiles": (
+        "按技术栈登记离线快照和验收合同",
+        "模板与数据库组成profile，依赖锁的内容摘要绑定预热镜像；报告必须属于当前源码及选择，并使用严格布尔值证明对应关卡和清理，不能复用主机数据库。",
+        "daytona_matrix_image准备 → snapshot_for选择 → sandbox运行 → require_runtime_report核验；test_daytona_matrix。",
+    ),
+    "owned_lifecycle": (
+        "只控制本次启动的服务并核实退出",
+        "启动器、进程与端口属于一次明确生命周期；结束时先等待和检查，再验证端口关闭。重启必须是新进程，不能让残留服务冒充成功，也不能为释放端口终止别人的应用。",
+        "Daytona矩阵和独立原生启动器复验 → 所拥有的进程 → services_stopped证据；test_owned_lifecycle。",
+    ),
     "portable_checks": (
         "独立原生产品的业务复验",
         "check_restored_product对新数据库启动后的产品执行实际认证和CRUD断言，输入来自产品随包规格。它不能依赖工作台的运行对象，否则在用户独立解压后就失效。",
@@ -229,7 +264,8 @@ PRODUCT = {
     "schema.py": "产品数据库及字段合同：按spec.json创建运行表模型与校验规则；独立产品也拒绝远程数据库。字段类型同时决定请求校验、SQL列类型、序列化和查询筛选行为。",
     "auth.py": "产品自己的账号密码与会话：加盐口令派生、会话令牌摘要、过期和身份读取；这里的产品登录不是工作台访问令牌，更不是大模型API Key。",
     "rules.py": "交付给用户的受限规则解释器：与生成时采用相同的允许表达式和输入输出合同，不使用eval或任意Python执行。",
-    "verify.py": "真实产品HTTP验收程序：创建测试账号并调用真实接口，验证正常与拒绝路径，输出JSON回执；它和app.py分离，不能因应用自称成功就通过。",
+    "verify.py": "真实产品验收程序：创建测试账号调用HTTP接口，再根据simple-admin选择启动同目录verify-browser.cjs；缺浏览器或逐规格检查缺项都失败，api-only明确记为不适用。与app.py分离，不能因应用自称成功就通过。",
+    "verify-browser.cjs": "逐规格真实Chromium验收：页面注册登录、遍历全部实体和字段，检查CRUD、长度拒绝、搜索/组合筛选/含边界日期、用户隔离和退出重新登录；不注入登录Token或mock接口，输出明确checks与页面错误。",
     "start.py": "成品自包含入口：在产品目录安装自己的锁定依赖，准备本机SQLite或专用PostgreSQL，执行迁移后启动HTTP服务；不调用模型，不要求原工作台目录。",
     "custom_rules.py": "唯一允许自动定制的业务规则文件；生成前后的约束、例子与SHA由平台检查。其他身份、存储和启动代码不开放给模型任意编辑。",
     "spec.json": "该文件是模板示例规格，运行时由已批准Plan生成具体成品规格；不要把示例实体名称硬编码到平台通用生成流程。",
@@ -388,6 +424,12 @@ def purpose(name):
             "校验独立Python版本、Aider版本、依赖中Token数据与模型元数据，再安装审计钩子并调用真实CLI；--check-local-deps只做离线自检。",
             "aider_tool.command → 本文件 → Aider Repo Map/apply；tests/test_aider_offline和ci_toolchain分别验证拒绝路径与实际工具。",
         )
+    if name == "tools/node/plop-runner.mjs" or name.startswith("tools/node/templates/"):
+        return (
+            "原生业务规则的真实Plop生成入口与模板",
+            "固定node-plop执行受信任的add/modify动作，模板定义Python、Java、Vue之间一致的规则入口。请求只提供受校验数据；已有文件、锚点数量和生成集合都要匹配，不能执行用户脚本。",
+            "workbench.scaffolding → no-network → plop-runner → 实际规则文件/表单挂载；native_coding接着验证候选。",
+        )
     if name.startswith("tools/node/upstream/"):
         return (
             "固定的Continue开源全文索引组件及许可证",
@@ -399,6 +441,12 @@ def purpose(name):
             "本机Node索引运行边界",
             "package-lock固定安装依赖；build校验上游源码并编译工具，host用Node内置SQLite提供数据库接口，runner只接受有界JSON文件协议，no-network在进程启动时拒绝网络接口。源码片段只写入检索库，不被执行。",
             "先npm ci再npm run build；Python continue_index校验构建回执并调用runner；test_continue_index与ci_toolchain。",
+        )
+    if name.startswith("tools/embeddings/"):
+        return (
+            "真实本机向量模型的独立验证环境",
+            "单独锁定向量模型运行依赖，避免大体积机器学习依赖混入平台与Aider环境。安装和公开模型权重下载是准备阶段，向量推理必须留在本机；不能用协议模拟响应冒充模型实际运行。",
+            "对应本机向量验收脚本 → 独立依赖环境与本地权重 → retrieval向量检索证据。",
         )
     if name.startswith("tools/aider/"):
         return (

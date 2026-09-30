@@ -48,6 +48,56 @@ def main():
         "model_calls": 0,
     }
     try:
+        actual_customization = native_rule_customizer(settings, fixture, "ci-native")
+
+        def interrupted(*args):
+            raise RuntimeError("explicit-test-interruption-after-native-generation")
+
+        try:
+            run_acceptance(
+                args.template,
+                sources["fastapiadmin"] if args.template == "fastapiadmin" else sources["backend"],
+                args.output if args.template == "fastapiadmin" else args.output / "backend",
+                sources.get("frontend"),
+                os.environ["NATIVE_TEST_DATABASE_URL"],
+                reports,
+                plan,
+                customization=interrupted,
+            )
+        except RuntimeError as exc:
+            assert str(exc) == "explicit-test-interruption-after-native-generation"
+        else:
+            raise AssertionError("Native interruption fixture did not run")
+        checkpoint = json.loads((reports / "recovery.json").read_text(encoding="utf-8"))
+        assert checkpoint["resumable"] and checkpoint["targets"]
+        import workbench.native_lab as native_lab
+
+        real_permissions = native_lab.generated_permissions
+        permission_attempts = []
+
+        def interrupt_after_permissions(*values):
+            result = real_permissions(*values)
+            permission_attempts.append(result["attempt_id"])
+            raise RuntimeError("explicit-test-interruption-after-native-permissions")
+
+        native_lab.generated_permissions = interrupt_after_permissions
+        try:
+            run_acceptance(
+                args.template,
+                sources["fastapiadmin"] if args.template == "fastapiadmin" else sources["backend"],
+                args.output if args.template == "fastapiadmin" else args.output / "backend",
+                sources.get("frontend"),
+                os.environ["NATIVE_TEST_DATABASE_URL"],
+                reports,
+                plan,
+                customization=actual_customization,
+            )
+        except RuntimeError as exc:
+            assert str(exc) == "explicit-test-interruption-after-native-permissions"
+        else:
+            raise AssertionError("Native permission interruption fixture did not run")
+        finally:
+            native_lab.generated_permissions = real_permissions
         report = run_acceptance(
             args.template,
             sources["fastapiadmin"] if args.template == "fastapiadmin" else sources["backend"],
@@ -56,8 +106,12 @@ def main():
             os.environ["NATIVE_TEST_DATABASE_URL"],
             reports,
             plan,
-            customization=native_rule_customizer(settings, fixture, "ci-native"),
+            customization=actual_customization,
         )
+        final_permissions = json.loads(
+            (reports / "generated/permissions.json").read_text(encoding="utf-8")
+        )
+        assert final_permissions["attempt_id"] not in permission_attempts
         edits = json.loads((reports / "native-coding.json").read_text())
         first = json.loads((reports / "coding-0.json").read_text())
         assert edits["passed"] and edits["repaired"] and edits["attempts"] == 2
@@ -70,6 +124,8 @@ def main():
             actual_browser=True,
             automatic_repair=True,
             rollback_verified=True,
+            same_run_resume=True,
+            source_database_preserved=True,
             fresh_database=True,
             native_report=report,
         )

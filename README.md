@@ -31,6 +31,8 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 
 `rnd init` 创建本地数据库和访问令牌，不覆盖已有 `.env` 或删除数据，并从仓库内的 `templates/vendor/` 解压 FastapiAdmin、芋道后端与 Vben 源码。**普通 git clone 已包含模板代码快照，不用再 clone 上游仓库、初始化 submodule 或下载 LFS 文件。** 源码压缩包、许可证、固定 commit 和 SHA-256 清单一起提交。安装第三方依赖、下载浏览器等仍需网络；包含源码不等于完全离线运行。
 
+带`simple-admin`的产品在交付前必须通过真实浏览器验收。先按完整手册“从空目录到可信交付”的站点4安装本机Node22、Playwright1.56.1及Chromium，再从同一终端启动平台；缺少浏览器会明确阻塞，不能只用HTTP测试代替。原生框架同样保留真实浏览器关卡。
+
 ## 2. 单模型配置：只填三项
 
 编辑仓库根 `.env`：

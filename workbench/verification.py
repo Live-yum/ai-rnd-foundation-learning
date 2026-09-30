@@ -57,8 +57,54 @@ def run_probe(product, python, report_path, settings):
             ],
             ROOT,
             timeout=settings.tool_timeout,
-            extra_env={"VERIFY_DATABASE_URL": url} if url else {},
+            extra_env={
+                **({"VERIFY_DATABASE_URL": url} if url else {}),
+                "PRODUCT_VERIFY_PLAYWRIGHT": os.environ.get(
+                    "PRODUCT_VERIFY_PLAYWRIGHT",
+                    str(ROOT / ".native/browser/node_modules/playwright"),
+                ),
+                "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
+            },
         )
+
+
+def require_browser_evidence(product, report):
+    selection = json.loads((Path(product) / "selection.json").read_text(encoding="utf-8"))
+    if selection["frontend"] != "simple-admin":
+        return
+    spec = json.loads((Path(product) / "approved-spec.json").read_text(encoding="utf-8"))
+    browser = report.get("browser")
+    if (
+        not isinstance(browser, dict)
+        or any(browser.get(key) is not True for key in ("passed", "real_browser", "applicable"))
+        or browser.get("entities") != [entity["name"] for entity in spec["entities"]]
+    ):
+        raise PrerequisiteError("simple-admin 缺少逐产品真实浏览器验收，不能交付")
+    required = {"browser-registration", "browser-login-invalid-password-logout-reload"}
+    for entity in spec["entities"]:
+        name = entity["name"]
+        required.update(
+            f"{check}:{name}"
+            for check in (
+                "browser-create",
+                "browser-field-lengths",
+                "browser-combined-filter",
+                "browser-user-isolation",
+                "browser-update-delete",
+            )
+        )
+        for field in entity["fields"]:
+            for flag, check in (
+                ("searchable", "browser-search"),
+                ("filterable", "browser-filter"),
+                ("date_range", "browser-inclusive-date"),
+            ):
+                if field.get(flag):
+                    required.add(f"{check}:{name}.{field['name']}")
+            if field["kind"] == "text":
+                required.add(f"browser-overlength-rejected:{name}.{field['name']}")
+    if not required.issubset(set(browser.get("checks", []))) or browser.get("errors") != []:
+        raise PrerequisiteError("真实浏览器验收覆盖不完整或存在页面错误")
 
 
 def validate_rule_examples(plan, product):
@@ -91,7 +137,12 @@ def verify_basic(plan, product, settings, attempt=0):
                 ast.parse(path.read_text(encoding="utf-8"), filename=name)
         validate_rule_examples(plan, product)
     except (SyntaxError, ValueError, UnsafeRule) as exc:
-        return {"passed": False, "kind": "code", "error": str(exc)[:500], "attempt": attempt}
+        return {
+            "passed": False,
+            "kind": "code",
+            "error": str(exc)[:500],
+            "attempt": attempt,
+        }
     python = product_interpreter(product, settings)
     report_path = product.parent / f"runtime-{attempt}.json"
     try:
@@ -100,6 +151,8 @@ def verify_basic(plan, product, settings, attempt=0):
         if not report_path.exists():
             raise PrerequisiteError("运行验收未产生报告；检查本机工具环境与超时配置") from exc
         report = json.loads(report_path.read_text(encoding="utf-8"))
+        if report.get("kind") == "environment":
+            raise PrerequisiteError(report.get("message", "浏览器验收环境不可用")) from exc
         if report.get("passed") is True:
             raise PrerequisiteError("验证进程失败但报告声称成功；拒绝使用该报告") from exc
         return {
@@ -114,6 +167,7 @@ def verify_basic(plan, product, settings, attempt=0):
         raise PrerequisiteError("验收期间源码发生变化")
     if report.get("passed") is not True or not report.get("restart") or not report.get("http"):
         raise PrerequisiteError("运行验收证据不完整")
+    require_browser_evidence(product, report)
     report.update(
         source_digest=digest(current),
         spec_digest=digest(plan.model_dump()),
@@ -130,6 +184,7 @@ def package_basic(plan, product, settings, report):
     listing = manifest(product)
     if report.get("passed") is not True or report.get("source_digest") != digest(listing):
         raise PrerequisiteError("源码在测试后发生变化，必须重新验证")
+    require_browser_evidence(product, report)
     archive = product.parent / "delivery.zip"
     temporary = archive.with_suffix(".zip.tmp")
     try:
@@ -150,6 +205,7 @@ def package_basic(plan, product, settings, report):
             evidence = json.loads(clean_report.read_text(encoding="utf-8"))
             if manifest(clean) != listing:
                 raise PrerequisiteError("干净验收期间源码发生变化")
+            require_browser_evidence(clean, evidence)
             if evidence.get("passed") is not True:
                 raise PrerequisiteError("干净解压验收失败")
         os.replace(temporary, archive)

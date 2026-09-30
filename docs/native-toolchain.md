@@ -64,7 +64,7 @@ uv run pytest tests/test_native_tools.py tests/test_daytona_matrix.py tests/test
 
 “其他数据库”指当前选择器实际支持的 PostgreSQL，不代表已经支持 MySQL、Oracle 等未登记产品选项。原生模板不支持 SQLite；不能绕过模板兼容性。
 
-Daytona 控制面仍固定 v0.190.0。Windows 使用 Linux x86_64 的 WSL2/Docker。Java/Vue 构建需要足够内存、交换空间和磁盘；大型快照资源为明确登记值，不在失败后静默取消检查。上游开发架构使用 privileged Docker-in-Docker，不是面向恶意内核攻击的强隔离生产平台。所有端口绑定本机，镜像 registry、数据库、身份认证和存储都在本机。
+Daytona 控制面固定 v0.190.0。Windows 使用 Linux x86_64 的 WSL2/Docker。Java/Vue 构建需要足够内存、交换空间和磁盘；大型快照资源为明确登记值，不在失败后静默取消检查。上游开发架构使用 privileged Docker-in-Docker，不是面向恶意内核攻击的强隔离生产平台。所有端口绑定本机，镜像 registry、数据库、身份认证和存储都在本机。
 
 先按照前章完成基本本机服务的 `prepare → images → snapshot-image → up → auth → snapshot`。对于已完成本机生成验收的原生项目，用它的实际输出目录准备快照；下面把路径写成 `生成项目目录`，执行时替换为你的真实目录，而不是复制这几个汉字：
 
@@ -92,8 +92,16 @@ DAYTONA_SNAPSHOTS={"python-basic/postgresql":"填写该profile实际快照名","
 
 ## 完整验收与排错
 
-执行 `.github/workflows/native-toolchain-daytona.yml` 的三组矩阵，加上原有 SQLite Daytona 工作流，才覆盖上述四种组合。原生矩阵故意先输出总为 true 的错误候选，真实反例必须失败、候选必须回滚；第二轮输出合法规则，必须通过编译、真实接口和浏览器，然后在另一个新数据库恢复。随后才准备快照，在 Daytona 内再从全新数据库验证交付项目。
+执行 `.github/workflows/native-toolchain-daytona.yml` 的三组矩阵，加上 SQLite Daytona 工作流，才覆盖上述四种组合。原生矩阵故意先输出总为 true 的错误候选，真实反例必须失败、候选必须回滚；第二轮输出合法规则，必须通过编译、真实接口和浏览器，然后在另一个新数据库恢复。随后才准备快照，在 Daytona 内再从全新数据库验证交付项目。
 
 `reports/native-tools/plop.json` 是实际模板动作，`coding-0.json` 记录失败回滚，`native-coding.json` 记录修复结果；`toolchain-acceptance.json` 是原生整体验收；`daytona-matrix.json` 包含沙箱运行及删除结果。`daytona-verification.json` 在创建沙箱前就保存随机名称，因此创建超时也能定向检查自己的资源；不删除别人的沙箱。
 
 构建失败先看 `daytona-matrix-image-build.log`；运行失败看 `daytona-verification.json` 中具体命令和脱敏输出；浏览器失败看 `browser.json` 与 `browser-failure.png`。快照依赖身份不符时重新显式准备对应 profile，不关闭校验。代码失败时修改规则实现，不修改批准的反例、不删除权限测试。只有证据真实通过，才进入打包和交付。
+
+## 原生生成中断后如何恢复
+
+原生初始化包含建表、菜单挂载和源码写入，不能把整个过程无条件重跑。`workbench/native_recovery.py`把批准Plan、模板来源、专用数据库身份以及生成文件清单绑定到检查点。实际生成完成后保存可恢复阶段；后续规则编辑、构建或验收失败，再次重试先核对这份检查点，复用同一生成目录和数据库，不重新初始化种子或创建第二套菜单。
+
+已有失败候选的日志和Git记录保留，继续尝试使用新的编号。只允许恢复程序明确标记可恢复的阶段。若进程在不可重放的生成步骤中被强制终止、检查点缺失、源码被手工改过或数据库/Plan已改变，就保留现场并明确阻塞，先检查该阶段；不能自动清库，也不要求靠新建任务掩盖旧现场。
+
+学习时先运行`tests/test_native_recovery.py`理解身份和文件清单拒绝分支；真实原生CI还会分别在实际生成完成后、权限验证后故意中断，再在同一目录和数据库恢复。权限验证每次创建带随机标识的自有测试角色/用户，不接管或修改已存在的无关账号，避免重试碰撞。两次恢复都必须通过后续检查，才验证重试不会破坏已完成的生成。合同测试、可恢复阶段的真实中断验证与任意时刻硬杀恢复是不同范围，不能互相代称。

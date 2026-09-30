@@ -272,6 +272,10 @@ def basic_probe(product, create, reports, database):
     environment = (
         {"VERIFY_DATABASE_URL": create("sandbox_basic_codegen")} if database == "postgresql" else {}
     )
+    environment.update(
+        PRODUCT_VERIFY_PLAYWRIGHT="/opt/rnd/browser/node_modules/playwright",
+        PLAYWRIGHT_BROWSERS_PATH="/opt/rnd/browsers",
+    )
     run_command(
         [
             sys.executable,

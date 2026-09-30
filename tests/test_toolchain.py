@@ -301,7 +301,8 @@ def fake_daytona(settings, *, fail=None):
 @pytest.mark.parametrize("failure", [None, "upload", "exec", "download", "delete"])
 def test_daytona_always_cleans_and_blocks_failed_checks(settings, plan, tmp_path, failure):
     product = tmp_path / "product"
-    generate_basic(plan, product)
+    # This fixture validates the SDK cleanup protocol, not browser execution.
+    generate_basic(plan, product, {"template": "python-basic", "frontend": "api-only"})
     client, events = fake_daytona(settings, fail=failure)
     before = manifest(product)
     if failure:
@@ -462,3 +463,14 @@ def test_runtime_preserves_redacted_wrapped_tool_failure(settings, store):
     assert report["run_id"] == run_id and report["job_id"]
     assert "fixture-secret-token" not in path.read_text(encoding="utf-8")
     assert "[redacted]" in report["log"] and len(report["log"]) <= 65536
+
+
+def test_daytona_does_not_accept_http_only_receipt_for_generated_ui(settings, plan, tmp_path):
+    product = tmp_path / "product"
+    generate_basic(plan, product)
+    client, events = fake_daytona(settings)
+    with pytest.raises(PrerequisiteError):
+        verify_in_daytona(product, "python-basic", settings, client=client)
+    assert events[-1] == ("delete", "fixture-sandbox")
+    receipt = json.loads((tmp_path / "daytona-verification.json").read_text(encoding="utf-8"))
+    assert receipt["passed"] is False and "浏览器" in receipt["error_detail"]

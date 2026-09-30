@@ -356,3 +356,13 @@ uv run python -m scripts.build_handbook --check
 正常结果必须是全部通过。失败时先阅读断言指向的具体门槛，不得通过删除反例、跳过恢复测试或把布尔值改成固定true来继续。
 原生协议测试使用固定时间戳的ZIP夹具；它仍比较原始ZIP字节，只是不依赖运行时的时钟，避免跨越ZIP时间刻度产生随机误报。
 这些协议夹具不代替Actions中实际启动原生生成器、全栈应用及全新数据库的验收。
+
+## L. 已确认的需求为什么不能在下一轮消失
+
+`Requirement.field_requirements`保存字段级义务，例如`article.title`的文本类型、必填、最大长度和可搜索标记；`features`、`acceptance`与`facts`保存用户明确表达的其他条件。它们来自需求阶段，不由设计Plan反向决定。设计中的一个字段存在，不等于它的长度、日期范围和查询能力都正确。
+
+`requirement_coverage.reconcile`先合并前次事实。后一次模型响应漏掉一项，不代表用户同意删除；需要替换时使用`RequirementChange`，包含被改的section/key、replacement和来自新用户消息的source_quote。程序核对引用确实存在并表达这项更正；模型自己写一句“用户同意”不构成证据。
+
+需求确认后，`flow.plan`保留原验收条件，`flow.design`调用`coverage_gaps`逐项比较结构化义务与Plan。把per_user换成shared、把真实日期换成普通文字、遗漏筛选或改掉枚举，都应进入明确的设计阻塞/修正流程，不能一路生成到下载。数据归属更改尤其需要用户的实际更正。
+
+手工追踪一个例子：“标题必填，最多80字，可关键词搜索”。先在Requirement找到这三个条件，再在Plan中找到同一实体同一字段，核对required、max_length、searchable；最后查看产品API和浏览器对同一条件的检查。自由文字识别只覆盖已登记词汇，不能宣称程序已理解任意自然语言业务；明确的字段义务应进入结构化合同，未支持的要求保留为阻塞项。

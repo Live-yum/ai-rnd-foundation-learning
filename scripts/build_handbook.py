@@ -15,6 +15,8 @@ GUIDES = [
     "docs/toolchain.md",
     "docs/recommendation-recovery.md",
     "docs/native-toolchain.md",
+    "docs/from-zero-checkpoints.md",
+    "docs/acceptance-checklist.md",
 ]
 GROUPS = [
     (
@@ -54,6 +56,8 @@ GROUPS = [
             "tools/aider/.python-version",
             "tools/aider/uv.lock",
             "tools/daytona",
+            "tools/embeddings/pyproject.toml",
+            "tools/embeddings/uv.lock",
         ],
     ),
     (
@@ -91,7 +95,25 @@ def sources():
                 else [path]
             )
             for item in items:
-                if not item.is_file() or "__pycache__" in item.parts or item.suffix == ".pyc":
+                if (
+                    not item.is_file()
+                    or item.suffix == ".pyc"
+                    or any(
+                        part
+                        in {
+                            "__pycache__",
+                            ".venv",
+                            "node_modules",
+                            ".git",
+                            ".data",
+                            ".native",
+                            ".built",
+                            ".pytest_cache",
+                            ".ruff_cache",
+                        }
+                        for part in item.relative_to(ROOT).parts
+                    )
+                ):
                     continue
                 name = item.relative_to(ROOT).as_posix()
                 if name in {

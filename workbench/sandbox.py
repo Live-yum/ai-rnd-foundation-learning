@@ -177,6 +177,7 @@ def harness_archive():
         "scripts/daytona_matrix_probe.py",
         "scripts/native_browser.cjs",
         "templates/product/verify.py",
+        "templates/product/verify-browser.cjs",
     ]
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
@@ -283,6 +284,11 @@ def _verify_in_daytona(product, template, settings, *, client):
             REMOTE + "/trusted-verify.py",
             timeout=settings.tool_timeout,
         )
+        sandbox.fs.upload_file(
+            (ROOT / "templates/product/verify-browser.cjs").read_bytes(),
+            REMOTE + "/verify-browser.cjs",
+            timeout=settings.tool_timeout,
+        )
         extraction = sandbox.process.exec(
             "python3 -m zipfile -e " + REMOTE + "/source.zip " + REMOTE,
             timeout=settings.tool_timeout,
@@ -318,6 +324,10 @@ def _verify_in_daytona(product, template, settings, *, client):
             if result.exit_code != 0:
                 raise PrerequisiteError("Daytona检查失败：" + name)
         receipt["runtime"] = read_runtime_report(sandbox.fs, settings.tool_timeout)
+        if template == "python-basic":
+            from workbench.verification import require_browser_evidence
+
+            require_browser_evidence(product, receipt["runtime"])
         if key != "python-basic/sqlite":
             require_runtime_report(receipt["runtime"], template, selected, digest(before))
         if manifest(product) != before:

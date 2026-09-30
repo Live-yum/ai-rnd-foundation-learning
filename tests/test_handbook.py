@@ -101,3 +101,17 @@ def test_daytona_recipes_have_distinct_teaching_roles():
     assert "Runner服务" in purpose("tools/daytona/runner.Dockerfile")[0]
     assert "对象存储" in purpose("tools/daytona/minio.Dockerfile")[0]
     assert "预热" in purpose("tools/daytona/Dockerfile")[0]
+
+
+def test_handbook_ignores_nested_installed_dependencies(tmp_path, monkeypatch):
+    import scripts.build_handbook as builder
+
+    source = tmp_path / "templates/product"
+    source.mkdir(parents=True)
+    (source / "app.py").write_text("# source", encoding="utf-8")
+    for cache in (".venv", "node_modules", ".git", ".data"):
+        (source / cache).mkdir()
+        (source / cache / "native.so").write_bytes(b"\xff\x00")
+    monkeypatch.setattr(builder, "ROOT", tmp_path)
+    monkeypatch.setattr(builder, "GROUPS", [("source", ["templates"])])
+    assert list(builder.sources()) == [("source", [("templates/product/app.py", "# source")])]

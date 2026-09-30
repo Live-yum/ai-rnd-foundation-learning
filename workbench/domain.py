@@ -7,7 +7,15 @@ import re
 from datetime import date
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StrictBool, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    StrictBool,
+    field_validator,
+    model_validator,
+)
 
 Text = Annotated[str, Field(min_length=1, max_length=20000)]
 Name = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,39}$")]
@@ -85,6 +93,30 @@ class ResumeInput(Contract):
         return self
 
 
+class RequirementChange(Contract):
+    """A proposed correction; the workflow checks the quote against fresh user input."""
+
+    section: Literal["facts", "features", "acceptance", "users", "data_scope", "field_requirements"]
+    key: str
+    replacement: JsonValue = None
+    source_quote: Text
+
+
+class FieldRequirement(Contract):
+    """Executable obligations, independent from a planner's implementation choices."""
+
+    field: Name
+    entity: Name | None = None
+    kind: Literal["text", "integer", "boolean", "date", "enum"] | None = None
+    required: bool | None = None
+    min_length: int | None = Field(default=None, ge=0, le=20000)
+    max_length: int | None = Field(default=None, ge=1, le=20000)
+    searchable: bool | None = None
+    filterable: bool | None = None
+    date_range: bool | None = None
+    choices: list[str] | None = None
+
+
 class Requirement(Contract):
     summary: str = Field(max_length=4000)
     users: list[Text] = Field(max_length=20)
@@ -102,12 +134,20 @@ class Requirement(Contract):
         description="本次未要求或已明确排除的模板能力边界；仅说明，不阻塞交付",
     )
     recommendations: list[Text] = Field(default_factory=list)
-    facts: dict[str, str] = Field(default_factory=dict)
+    facts: dict[str, JsonValue] = Field(default_factory=dict)
+    field_requirements: list[FieldRequirement] = Field(default_factory=list, max_length=128)
+    changes: list[RequirementChange] = Field(default_factory=list, max_length=128)
 
     def gate_dump(self) -> dict:
         # Resuming a pre-upgrade interrupt reruns its node. Do not change the
         # digest of a legacy gate just by adding an empty optional schema field.
-        return self.model_dump(exclude={"limitations"} if not self.limitations else set())
+        return self.model_dump(
+            exclude={
+                name
+                for name in ("limitations", "field_requirements", "changes")
+                if not getattr(self, name)
+            }
+        )
 
     @property
     def ready(self) -> bool:

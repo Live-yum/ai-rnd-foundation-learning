@@ -255,5 +255,5 @@ def test_matrix_always_deletes_its_sandbox_and_never_falls_back(settings, tmp_pa
         result = verify_in_daytona(product, "fastapiadmin", settings, client=Client())
         assert result["passed"] and result["scope"] == "independent-runtime"
     assert events[-1] == "delete"
-    saved = json.loads((tmp_path / "daytona-verification.json").read_text())
+    saved = json.loads((tmp_path / "daytona-verification.json").read_text(encoding="utf-8"))
     assert saved["passed"] is (failure is None)

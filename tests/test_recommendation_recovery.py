@@ -59,7 +59,7 @@ def test_limitations_are_advisory_but_unsupported_still_blocks():
 
 
 def test_legacy_gate_digest_does_not_change_for_empty_optional_fields():
-    old = requirement().model_dump(exclude={"limitations"})
+    old = requirement().model_dump(exclude={"limitations", "field_requirements", "changes"})
     reconstructed = Requirement.model_validate(old)
     assert reconstructed.gate_dump() == old
     assert digest({"requirement": old, "ready": True}) == digest(

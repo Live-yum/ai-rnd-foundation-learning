@@ -71,6 +71,12 @@ def validate_plan(plan):
     if len({"wb" + e.name.replace("_", "") for e in plan.entities}) != len(plan.entities):
         raise ValueError("Native normalized business names collide")
     for entity in plan.entities:
+        for field in entity.fields:
+            if field.searchable or field.filterable or field.date_range or field.min_length:
+                raise ValueError(
+                    "Native adapters do not yet execute searchable/filterable/date_range/min_length; "
+                    "use a supported template or explicitly revise the requirement"
+                )
         if not any(field.kind == "text" and field.required for field in entity.fields):
             raise ValueError(
                 "Native runtime requires a required text field in each entity for independent UI acceptance"

@@ -1,6 +1,7 @@
 """Independent HTTP checks for the ACTUAL generated modules and native RBAC APIs."""
 
 import time
+import uuid
 
 import httpx
 
@@ -181,12 +182,15 @@ def generated_permissions(template, base_url, token, targets, plan):
             read_ids.update(read_menu_ids(rows, target["permission"] + ":query"))
             for operation in ("query", "create", "update", "delete"):
                 full_ids.update(read_menu_ids(rows, target["permission"] + ":" + operation))
-        role = {"name": "Generated module reader", "code": "generated_reader", "status": 0}
+        # A retry never adopts, deletes or changes an unrelated existing account.
+        # Each disposable acceptance attempt owns a new bounded identifier.
+        attempt_id = uuid.uuid4().hex[:12]
+        role = {"name": "RND reader " + attempt_id, "code": "rnd_" + attempt_id, "status": 0}
         role.update({"order": 1, "data_scope": 3} if fastapi else {"sort": 1})
         role_id = record_id(
             payload(client.post(prefix + "/system/role/create", json=role, headers=admin))
         )
-        username, password = "generatedreader", "NativeTest123!"
+        username, password = "rnd" + attempt_id, "NativeTest123!"
         user = {"username": username, "password": password}
         user.update(
             {"name": "Generated reader", "is_superuser": False, "role_ids": [role_id], "status": 0}
@@ -292,6 +296,9 @@ def generated_permissions(template, base_url, token, targets, plan):
             denied(client.get(target["list"], headers=revoked))
         assert not payload(client.get(info, headers=revoked)).get("menus")
     return {
+        "owned_user_id": user_id,
+        "owned_role_id": role_id,
+        "attempt_id": attempt_id,
         "empty_role_denied": True,
         "read_grant_allowed": True,
         "generated_pages_visible": True,

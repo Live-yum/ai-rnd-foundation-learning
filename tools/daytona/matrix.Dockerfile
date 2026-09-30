@@ -1,13 +1,15 @@
 # Explicit local image preparation. Generated code is executed later without egress.
 FROM ghcr.io/astral-sh/uv:0.12.20 AS uv
 FROM node:22.23.2-bookworm-slim AS node
+FROM eclipse-temurin:17-jdk-jammy AS java
 FROM daytonaio/sandbox:0.5.0-slim
 USER root
+COPY --from=java /opt/java/openjdk /opt/java/openjdk
 COPY --from=uv /uv /uvx /usr/local/bin/
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
 RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
-    && apt-get update && apt-get install -y --no-install-recommends ca-certificates curl gnupg git redis-server openjdk-17-jdk-headless maven \
+    && apt-get update && apt-get install -y --no-install-recommends ca-certificates curl gnupg git redis-server maven \
     && install -d /usr/share/postgresql-common/pgdg \
     && curl --fail --silent --show-error https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
     && . /etc/os-release && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt ${VERSION_CODENAME}-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
@@ -24,9 +26,10 @@ ENV UV_CACHE_DIR=/opt/rnd/uv-cache \
     UV_NO_PROGRESS=1 \
     PYTHONUTF8=1 \
     DO_NOT_TRACK=1 \
+    PRODUCT_VERIFY_PLAYWRIGHT=/opt/rnd/browser/node_modules/playwright \
     PLAYWRIGHT_BROWSERS_PATH=/opt/rnd/browsers \
-    JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
-    PATH=/usr/lib/postgresql/17/bin:/usr/local/bin:/usr/bin:/bin
+    JAVA_HOME=/opt/java/openjdk \
+    PATH=/opt/java/openjdk/bin:/usr/lib/postgresql/17/bin:/usr/local/bin:/usr/bin:/bin
 COPY --chown=daytona:daytona harness/ /opt/rnd/harness/
 COPY --chown=daytona:daytona product/ /opt/rnd/prewarm/product/
 COPY --chown=daytona:daytona profile.json warm.py /opt/rnd/

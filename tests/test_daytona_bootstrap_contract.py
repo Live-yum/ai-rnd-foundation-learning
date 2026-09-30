@@ -83,6 +83,17 @@ def test_actual_installed_sdk_transports_can_be_closed_without_a_network_request
     def no_network(*args, **kwargs):
         raise AssertionError("SDK construction/transport cleanup must not use a network")
 
+    # Production client construction runs inside clean_env()'s isolated child.
+    # Mirror that boundary instead of inheriting the test runner's HTTP/SOCKS proxy.
+    for variable in (
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "ALL_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "all_proxy",
+    ):
+        monkeypatch.delenv(variable, raising=False)
     monkeypatch.setattr(socket, "getaddrinfo", no_network)
     monkeypatch.setattr(socket.socket, "connect", no_network)
     settings.daytona_api_key = SecretStr("local-test-key")

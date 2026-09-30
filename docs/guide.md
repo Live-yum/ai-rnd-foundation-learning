@@ -98,6 +98,10 @@ uv run python -m scripts.vendor_templates --fetch
 
 安装依赖、模型权重、浏览器、Maven/pnpm包及Daytona镜像需要网络。准备完成以后索引和工具执行不调用云端服务；这不等于无需安装任何软件的完全离线发行版。
 
+### 2.4 在生成带界面的产品前安装浏览器验收工具
+
+`simple-admin`产品需要Node22与本机Playwright1.56.1/Chromium。请先完成本书“从空目录到可信交付”站点4中的Windows或Linux安装与环境变量设置，再在同一终端启动平台。缺少这些工具会阻止交付，不会将浏览器验收记为跳过。api-only没有页面，才允许浏览器项标记不适用。
+
 ## 3. 配置模型：单模型先跑通，多模型按需启用
 
 编辑根目录 `.env`：
@@ -385,7 +389,7 @@ uv run python -m scripts.ci_clean_install
 
 创建flow.py、runtime.py、api.py、cli.py、workbench/web/所有页面文件。前面的已测试函数由图连接，不在一个庞大节点里混合调用模型、等待用户和扣费写库。
 
-实际流程节点：analyse → requirements gate → source_context（索引、检索与Repo Map）→ plan → design gate → generate → code（需要时）→ verify；可修复失败经repair回到code，再次verify；验证通过后进入sandbox（已显式启用时执行本机自托管Daytona，否则记录未启用）→ model_review（可选）→ package（含独立解压复验）→ delivery gate。source_context不调用聊天模型，也不默认计算向量；code按CODING_ENGINE使用原有受限引擎或真实Aider；sandbox失败不能跳到交付。状态主要保存runID、版本、结构化规格、有界上下文与回执，不保存ZIP字节或整个仓库。
+实际流程节点：analyse → requirements gate → source_context（索引、检索与Repo Map）→ plan → design gate → generate → code（需要时）→ verify；可修复失败经repair回到code，再次verify；验证通过后进入sandbox（已显式启用时执行本机自托管Daytona，否则记录未启用）→ model_review（可选）→ package（含独立解压复验）→ delivery gate。source_context不调用聊天模型，也不默认计算向量；code按CODING_ENGINE使用受限表达式引擎或真实Aider；sandbox失败不能跳到交付。状态主要保存runID、版本、结构化规格、有界上下文与回执，不保存ZIP字节或整个仓库。
 
 interrupt恢复时节点重入，所以副作用需要回执和幂等。runUUID是稳定thread_id；数据库已保存的授权再次在图层校验。Worker保存last_job_id，崩溃时不会把同一回答消费到下一道审批。单Worker由本地文件锁及PG锁限制；并行HTTP和多个原生重型任务不等于已经实现分布式执行器。
 

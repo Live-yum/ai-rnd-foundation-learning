@@ -101,6 +101,28 @@ uv run rnd tools search workbench .data/platform-index "如何选择每个阶段
 
 建立向量时对文本、模型身份和源码指纹做增量缓存；重新运行不会无条件重算所有未变片段。启用后规划上下文和MCP也使用这一套本机融合检索。向量数量超过显式预算会停止并要求你调整范围或预算，不静默漏掉代码。HTTP客户端关闭环境代理与重定向，远端地址即使带HTTPS也被拒绝。
 
+#### 20.3.1 用固定真实权重验证本机向量与Continue融合
+
+教材还提供不依赖Ollama安装的独立CPU验证路径。先写出`tools/embeddings/pyproject.toml`、`uv.lock`与`scripts/ci_local_embeddings.py`，完成20.5.1的Node组件构建；教材源码归档也须已重建。使用独立Python3.12环境，不能把ONNX依赖直接装进平台：
+
+```bash
+uv sync --locked --project tools/embeddings --python 3.12
+tools/embeddings/.venv/bin/python scripts/ci_local_embeddings.py prepare
+uv run python -m scripts.ci_local_embeddings verify
+```
+
+Windows PowerShell中，第二条解释器改为`tools/embeddings/.venv/Scripts/python.exe`，第三条追加`--python tools/embeddings/.venv/Scripts/python.exe`。`prepare`显式下载公开的`sentence-transformers/all-MiniLM-L6-v2`权重，固定revision为`1110a243fdf4706b3f48f1d95db1a4f5529b4d41`，模型约90MB，不需要模型账号Token。加载前核对ONNX的SHA-256及tokenizer的Git对象指纹；不接受名称相同但字节不同的本机文件。
+
+`verify`用独立解释器启动临时127.0.0.1 HTTP服务，由ONNX Runtime在本机CPU实际推理；出站Python套接字被拒绝，平台以正常embedding协议调用它。它从固定Vben归档取三份真实表单/认证源码，检查向量计算、缓存复用、实际Continue+AST+FTS+vector RRF、Vue范围过滤和过期源码拒绝。结果在`reports/local-embeddings.json`；报告应包含`passed=true`、`inference=real-public-weights-local-cpu`以及上述融合模式。此有限样本验证接线和真实推理，不代表对全部模板文件或中文语义准确率做了全面评估。
+
+想把这套模型用于自己的本机平台，先完成prepare，再在单独终端启动服务：
+
+```bash
+tools/embeddings/.venv/bin/python scripts/ci_local_embeddings.py serve --weights .data/embedding-model --ready .data/embedding-ready.json
+```
+
+Windows仍替换为Scripts目录下的python.exe。打开ready JSON读取本次实际URL，把它填入平台`.env`的`EMBEDDING_BASE_URL`，设置`EMBEDDING_MODE=sentence-transformers/all-MiniLM-L6-v2`、`EMBEDDING_API_KEY=local-no-auth`、`EMBEDDING_ENABLED=true`及适合源码范围的`EMBEDDING_MAX_CHUNKS`，重启平台后再执行`rnd tools embed`。该服务无鉴权，只绑定回环地址，不开放给局域网或公网。退出时在它的终端Ctrl+C；重新启动的端口可能变化，应读取新ready文件，不能沿用旧URL猜测服务仍在。
+
 ### 20.4 Aider：独立Python环境中的真实本机工具
 
 ```powershell
@@ -281,7 +303,7 @@ DAYTONA_SNAPSHOT=本机脚本登记的快照名
 
 重启平台后，只有本机验收通过才会进入Daytona附加关卡。默认Python/SQLite预热镜像支持迁移、HTTP、CRUD与重启复验的检查命令。沙箱参数禁止外网，安装命令明确offline，因此缺失依赖不会偷偷联网补齐。
 
-原生Java/Vue的附加关卡需要准备包含Maven/pnpm离线缓存的本机快照；本书的默认Python预热镜像不冒充Java/Vue通用构建镜像。未准备原生快照时保持SANDBOX_PROVIDER=local即可完成原生完整本机验收。原生Daytona关卡只是额外构建/类型证据，不能替代原本的角色、数据库和浏览器验证。Python/PostgreSQL通道不会把本机数据库凭据复制到沙箱，选择这一组合并启用Daytona会明确阻止。
+Daytona按模板与数据库选择已登记的离线快照：python-basic/sqlite、python-basic/postgresql、fastapiadmin/postgresql、yudao-vben/postgresql。默认Python/SQLite预热镜像不能冒充其余三种快照。后面的“原生业务规则、Plop与本机Daytona”章节给出matrix-image的准备命令；原生快照预热Maven/pnpm/Chromium，PostgreSQL快照在沙箱内建立全新数据库，绝不复制主机数据库凭据。完整原生关卡包括独立启动器、编译、类型检查、权限、业务规则、浏览器与重启，不只检查构建。未准备匹配快照时应停止并补齐准备，不能关闭原先明确选择的验收关卡。SANDBOX_PROVIDER=local是明确选择仅本机验收的配置，不是Daytona失败后的自动后备。
 
 ### 20.8 实际测试、报告和清理
 

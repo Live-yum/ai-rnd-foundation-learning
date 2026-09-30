@@ -114,10 +114,6 @@ def managed_generate(settings, template, plan, destination, *, customization=Non
             managed_verify(destination, receipt)
             return receipt
         raise PrerequisiteError("已有产物不能被另一份设计或执行模式覆盖")
-    if destination.exists():
-        raise PrerequisiteError(
-            "上次原生任务未完成；保留现场，新建运行和新的专用空库，不自动删除数据"
-        )
     sources = prepare_sources(settings, template)
     slots = {item["slot"]: Path(item["path"]) for item in sources}
     reports = destination.parent / "native-evidence"

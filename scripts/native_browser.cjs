@@ -32,8 +32,20 @@ async function main() {
   };
   try {
     const captcha = fastapi ? observe('/system/auth/captcha/get') : null;
+    const tenants = fastapi ? null : observe('/system/tenant/simple-list');
     await page.goto(base + (fastapi ? '/#/login' : '/#/auth/login'), { waitUntil: 'domcontentloaded' });
     if (captcha) await checked(captcha);
+    if (tenants) {
+      const available = await checked(tenants);
+      assert(Array.isArray(available) && available.length, 'No selectable native tenant');
+      const tenant = available.find(item => item.id === 1);
+      assert(tenant, 'The seeded native tenant 1 is unavailable');
+      // The asynchronous default label is not proof of a validated form value.
+      // Select the actual tenant via the UI before submitting, never inject tokens.
+      await page.getByRole('combobox').first().click();
+      await page.getByRole('option', { name: tenant.name, exact: true }).click();
+      report.tenant_selected = tenant.id;
+    }
     await page.getByPlaceholder(/用户名|账号|username/i).first().fill(fastapi ? 'super' : 'admin');
     await page.locator('input[type="password"]').first().fill(fastapi ? '123456' : 'admin123');
     if (fastapi) {
@@ -77,13 +89,30 @@ async function main() {
       await checked(listing);
       await page.locator(fastapi ? '.el-table' : '.vxe-table').first().waitFor({ state: 'visible' });
       if (target.sample) await page.getByText(target.sample, { exact: true }).first().waitFor({ state: 'visible' });
+      // Verify the selected template's actual rendered shell and component system.
+      // A generic table with matching data is not a native frontend acceptance.
+      const shell = fastapi ? ['#app-sidebar', '#app-header', '#app-content'] : ['aside:visible', 'header:visible', '#__vben_main_content'];
+      for (const selector of shell) await page.locator(selector).first().waitFor({ state: 'visible' });
+      await page.locator(fastapi ? '.el-button' : '.ant-btn').first().waitFor({ state: 'visible' });
+      assert.equal(await page.locator('#workspace').count(), 0, 'Generic simple-admin cannot replace a native template');
+      const theme = await page.evaluate(fast => {
+        const style = getComputedStyle(document.documentElement);
+        const variables = fast ? ['--el-color-primary', '--el-font-size-base'] : ['--primary', '--background', '--font-family'];
+        return Object.fromEntries(variables.map(name => [name, style.getPropertyValue(name).trim()]));
+      }, fastapi);
+      assert(Object.values(theme).every(Boolean), 'Native theme tokens were not loaded');
+
       await page.screenshot({ path: path.join(reportDir, (target.entity || 'system-user') + '.png'), fullPage: true });
-      const pageResult = { route: target.route, real_list_request: true, rendered: true };
-      if ((!fastapi && target.fields) || target.business_rule) {
+      const pageResult = { route: target.route, real_list_request: true, rendered: true, native_shell_visible: true, native_component_family: fastapi ? 'Fa/Element Plus' : 'Vben/Ant Design/VXE', native_theme_tokens: theme };
+      if (target.fields || target.business_rule) {
         // Submit through the real generated UI; zero/false must not become strings or disappear.
         await page.getByRole('button', { name: /^新增|^创建/ }).first().click();
         const dialog = page.getByRole('dialog').last();
         await dialog.waitFor({ state: 'visible' });
+        await dialog.locator(fastapi ? '.el-input, .el-switch' : '.ant-input, .ant-input-number, .ant-radio').first().waitFor({ state: 'visible' });
+        await page.screenshot({ path: path.join(reportDir, target.entity + '-native-form.png'), fullPage: true });
+        pageResult.native_form_components_visible = true;
+
         async function fill(sample) {
           const expected = {};
           let booleanIndex = 0;
@@ -147,6 +176,8 @@ async function main() {
   } finally {
     report.page_errors = errors;
     report.responses = responses;
+    report.requests = requests;
+    report.final_url = page.url();
     fs.writeFileSync(path.join(reportDir, 'browser.json'), JSON.stringify(report, null, 2));
     await browser.close();
   }
