@@ -745,8 +745,8 @@ target = Path(sys.argv[2])
 if target.is_symlink() or (target.exists() and any(target.iterdir())):
     raise SystemExit("目标必须是新的空目录，不覆盖任何已有项目")
 pattern = re.compile(
-    r"<!-- source-file: (.+?) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n",
-    re.S,
+    r"^<!-- source-file: ([^\r\n]+) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n",
+    re.S | re.M,
 )
 files = {}
 for name, expected, fence, code in pattern.findall(book):
@@ -758,6 +758,9 @@ for name, expected, fence, code in pattern.findall(book):
         or "\\" in name
         or name in files
         or ".git" in relative.parts
+        or not relative.parts
+        or relative.as_posix() != name
+        or any(ord(char) < 32 for char in name)
     ):
         raise SystemExit("不安全或重复路径: " + name)
     content = code + "\n"
@@ -1449,7 +1452,7 @@ select = ["E4", "E7", "E9", "F", "I"]
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: README.md sha256: 708b0f184065095f0a1b82a435e269fa60c9faed0451f23af32da10e77f031c6 -->
+<!-- source-file: README.md sha256: 7fffbafb9cd5ff4a556ec696f90e50b9730dbf8dbbb43ce05fd0355202b50d06 -->
 ````markdown
 # AI 研发工作台 · Python 3.14
 
@@ -1603,7 +1606,7 @@ uv run --no-project --python 3.14 python start.py
 
 源码包含初始化/迁移语句，不包含用户实际业务数据。重复启动不重置记录或密码。原生 `--check` 会完整验证数据库、菜单、CRUD和前端启动后退出；`--skip-build` 仅用于之前已成功构建的同一产品。不要删除数据库排错，不把源码包当作用户数据备份。
 
-## 9. 测试、证据、手册
+## 8. 测试、证据、手册
 
 ```powershell
 uv run ruff check .
@@ -1618,7 +1621,7 @@ Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新�
 
 当前是仅监听本机、单操作人和单Worker的研发工作台。没有公网生产身份体系。请勿公开 `.env`、`.data`、`.deployment` 或访问令牌。更多环境条件、SQL步骤、预算恢复、原生部署与故障定位见完整手册。
 
-## 10. 本机工具链与唯一完整教材
+## 9. 本机工具链与唯一完整教材
 
 默认使用本机Tree-sitter/Python AST、FTS5和符号Repo Map。Aider使用独立Python3.12环境：
 
@@ -1629,7 +1632,7 @@ uv run rnd tools search workbench .data/platform-index "model_for"
 uv run rnd tools continue-config . workbench .data/platform-index
 ```
 
-设置`CODING_ENGINE=aider`和`REPO_MAP_PROVIDER=aider`可启用实际本机编辑/Repo Map。真实模型Key只交给平台网关，Aider不取得它。Continue仅通过本机stdio MCP访问只读search_code/repository_map；上游已停止积极维护，本平台不依赖其云服务。
+设置`CODING_ENGINE=aider`和`REPO_MAP_PROVIDER=aider`可启用实际本机编辑/Repo Map。真实模型Key只交给平台网关，Aider不取得它。Continue仅通过本机stdio MCP访问只读search_code/repository_map，本平台不依赖其云服务。
 
 向量服务仅接受回环地址，使用本机模型并显式`EMBEDDING_ENABLED=true`。工具端点拒绝云端/局域网、代理与重定向，数据库和Docker执行也限定本机；继承的LangSmith/OTEL遥测关闭。公开依赖下载不等于云端执行工具。
 
@@ -1639,9 +1642,9 @@ Daytona固定为**v0.190.0自托管开发部署**，没有云端模式。Linux/W
 uv sync --locked --all-extras
 uv run python -m scripts.daytona_local prepare
 uv run python -m scripts.daytona_local images
+uv run python -m scripts.daytona_local snapshot-image
 uv run python -m scripts.daytona_local up
 uv run python -m scripts.daytona_bootstrap auth
-uv run python -m scripts.daytona_local snapshot-image
 uv run python -m scripts.daytona_bootstrap snapshot
 uv run python -m scripts.ci_daytona_local
 ```
@@ -15798,8 +15801,12 @@ def test_optional_review_model_does_not_replace_executable_tests(settings, store
 
 - `test_document_matches_every_source`（L8–L13）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L9断言`OUTPUT.read_text(encoding="utf-8") == render()`；L11遍历`sources()`；L12遍历`files`；L13断言`rows[name] == content`。 调用`OUTPUT.read_text`、`render`、`extract`、`sources`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_reconstruction_is_complete`（L16–L29）：接收`tmp_path`。 控制顺序：L29断言`(destination / OUTPUT.name).read_bytes() == OUTPUT.read_bytes()`。 调用`restore`、`subprocess.run`、`str`、`(destination / OUTPUT.name).read_bytes`、`OUTPUT.read_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `block`（L32–L36）：接收`name`、`content`。 调用`hashlib.sha256(content.encode()).hexdigest`、`hashlib.sha256`、`content.encode`。 返回路径：L36的`f"<!-- source-file: {name} sha256: {fingerprint} -->\n````python\n{content}````\n"`。
+- `test_inline_marker_example_is_not_a_source_record`（L39–L43）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L41断言`extract(example + block("example.py", "answer = 42\n")) == { "example.py": "answer = …`。 调用`extract`、`block`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_reject_partial_duplicate_or_unsafe_source_before_writing`（L46–L73）：接收`tmp_path`。 控制顺序：L67遍历`enumerate(invalid)`；L73断言`not destination.exists()`。 调用`block`、`block("missing.py", "x = 1\n").removesuffix`、`block("corrupt.py", "x = 1\n").replace`、`enumerate`、`book.write_text`、`pytest.raises`、`restore`、`destination.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_standalone_bootstrap_in_the_lesson_restores_all_files`（L76–L90）：接收`tmp_path`。 控制顺序：L88遍历`sources()`；L89遍历`files`；L90断言`(destination / name).read_text(encoding="utf-8") == content`。 调用`(ROOT / "docs/implementation.md").read_text`、`re.findall`、`next`、`script.write_text`、`subprocess.run`、`str`、`sources`、`(destination / name).read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_handbook.py sha256: 3a1bb2017d933ceedca19d78a8343ba0ec634c2824a1adedfb655dfce814ff83 -->
+<!-- source-file: tests/test_handbook.py sha256: c71a4e5938f3f883621a001d3276a792089b3ea58a98469034c6b5de31d34698 -->
 ````python
 import subprocess
 import sys
@@ -15830,6 +15837,67 @@ def test_reconstruction_is_complete(tmp_path):
         check=True,
     )
     assert (destination / OUTPUT.name).read_bytes() == OUTPUT.read_bytes(), result.stdout
+
+
+def block(name, content):
+    import hashlib
+
+    fingerprint = hashlib.sha256(content.encode()).hexdigest()
+    return f"<!-- source-file: {name} sha256: {fingerprint} -->\n````python\n{content}````\n"
+
+
+def test_inline_marker_example_is_not_a_source_record():
+    example = 'pattern = r"<!-- source-file: (.+?) sha256: ([0-9a-f]{64}) -->"\n'
+    assert extract(example + block("example.py", "answer = 42\n")) == {
+        "example.py": "answer = 42\n"
+    }
+
+
+def test_reject_partial_duplicate_or_unsafe_source_before_writing(tmp_path):
+    import pytest
+
+    valid = block("example.py", "answer = 42\n")
+    invalid = [
+        valid + valid,
+        valid + block("missing.py", "x = 1\n").removesuffix("````\n"),
+        valid + block("corrupt.py", "x = 1\n").replace("x = 1", "x = 2"),
+    ]
+    invalid += [
+        block(name, "x = 1\n")
+        for name in (
+            "../escape.py",
+            "/absolute.py",
+            "a//alias.py",
+            "./alias.py",
+            ".",
+            ".git/config",
+            "C:drive.py",
+        )
+    ]
+    for number, text in enumerate(invalid):
+        book = tmp_path / f"bad-{number}.md"
+        book.write_text(text)
+        destination = tmp_path / f"must-stay-absent-{number}"
+        with pytest.raises(ValueError):
+            restore(book, destination)
+        assert not destination.exists()
+
+
+def test_standalone_bootstrap_in_the_lesson_restores_all_files(tmp_path):
+    import re
+
+    from scripts.build_handbook import ROOT
+
+    lesson = (ROOT / "docs/implementation.md").read_text(encoding="utf-8")
+    candidates = re.findall(r"```python\n(.*?)\n```", lesson, re.S)
+    bootstrap = next(code for code in candidates if "rebuild_book.py" in code)
+    script = tmp_path / "rebuild_book.py"
+    script.write_text(bootstrap, encoding="utf-8")
+    destination = tmp_path / "student-project"
+    subprocess.run([sys.executable, str(script), str(OUTPUT), str(destination)], check=True)
+    for _, files in sources():
+        for name, content in files:
+            assert (destination / name).read_text(encoding="utf-8") == content
 ````
 
 ### `tests/test_handbook_order.py`
@@ -21338,10 +21406,10 @@ main().catch(error => { console.error(error.stack); process.exitCode = 1; });
 
 **逐个入口与控制逻辑：**
 
-- `extract`（L13–L33）：接收`text`。 控制顺序：L15遍历`PATTERN.finditer(text)`；L18按`path.is_absolute() or ".." in path.parts or ":" in name or "\\" in name or name in re…`分支；L25抛异常，停止当前正常路径；L28按`hashlib.sha256(content.encode()).hexdigest() != fingerprint`分支；L29抛异常，停止当前正常路径；L31按`not result`分支；L32抛异常，停止当前正常路径。 调用`PATTERN.finditer`、`match.groups`、`PurePosixPath`、`path.is_absolute`、`ValueError`、`hashlib.sha256(content.encode()).hexdigest`、`hashlib.sha256`、`content.encode`。 返回路径：L33的`result`。
-- `restore`（L36–L46）：接收`handbook`、`destination`。先验证所有源码块与目标路径，再向空目录写入；这一步本身不执行任何写出的项目代码。 控制顺序：L38按`destination.exists() and any(destination.iterdir())`分支；L39抛异常，停止当前正常路径；L42遍历`rows.items()`。 调用`Path`、`destination.exists`、`any`、`destination.iterdir`、`ValueError`、`extract`、`Path(handbook).read_text`、`destination.mkdir`、`rows.items`等。 返回路径：L46的`len(rows)`。
+- `extract`（L14–L40）：接收`text`。 控制顺序：L16遍历`PATTERN.finditer(text)`；L19按`path.is_absolute() or ".." in path.parts or ":" in name or "\\" in name or name in re…`分支；L30抛异常，停止当前正常路径；L33按`hashlib.sha256(content.encode()).hexdigest() != fingerprint`分支；L34抛异常，停止当前正常路径；L36按`not result`分支；L37抛异常，停止当前正常路径；L38按`len(result) != len(re.findall(r"^<!-- source-file: ", text, re.M))`分支。后续分支沿下方源码相同行号继续阅读。 调用`PATTERN.finditer`、`match.groups`、`PurePosixPath`、`path.is_absolute`、`path.as_posix`、`any`、`ord`、`ValueError`、`hashlib.sha256(content.encode()).hexdigest`等。 返回路径：L40的`result`。
+- `restore`（L43–L53）：接收`handbook`、`destination`。先验证所有源码块与目标路径，再向空目录写入；这一步本身不执行任何写出的项目代码。 控制顺序：L45按`destination.is_symlink() or (destination.exists() and any(destination.iterdir()))`分支；L46抛异常，停止当前正常路径；L49遍历`rows.items()`。 调用`Path`、`destination.is_symlink`、`destination.exists`、`any`、`destination.iterdir`、`ValueError`、`extract`、`Path(handbook).read_text`、`destination.mkdir`等。 返回路径：L53的`len(rows)`。
 
-<!-- source-file: scripts/rebuild_from_handbook.py sha256: d1908a47651a636382f85b5e6ba1144632c96858bac51475e5378b7cba5c4029 -->
+<!-- source-file: scripts/rebuild_from_handbook.py sha256: c2066348e29e1ee8f0604ae2a6fb551060da183f3e87893094d190ab96ea6a30 -->
 ````python
 """Restore source blocks to an EMPTY directory. Writes only; does not execute anything."""
 
@@ -21351,7 +21419,8 @@ import re
 from pathlib import Path, PurePosixPath
 
 PATTERN = re.compile(
-    r"<!-- source-file: (.+?) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n", re.S
+    r"^<!-- source-file: ([^\r\n]+) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n",
+    re.S | re.M,
 )
 
 
@@ -21366,6 +21435,10 @@ def extract(text):
             or ":" in name
             or "\\" in name
             or name in result
+            or not path.parts
+            or path.as_posix() != name
+            or ".git" in path.parts
+            or any(ord(char) < 32 for char in name)
         ):
             raise ValueError("附录文件路径不安全或重复")
         # All committed sources use a final newline.
@@ -21375,12 +21448,14 @@ def extract(text):
         result[name] = content
     if not result:
         raise ValueError("没有找到完整源码块")
+    if len(result) != len(re.findall(r"^<!-- source-file: ", text, re.M)):
+        raise ValueError("源码块不完整，拒绝写入残缺项目")
     return result
 
 
 def restore(handbook, destination):
     destination = Path(destination)
-    if destination.exists() and any(destination.iterdir()):
+    if destination.is_symlink() or (destination.exists() and any(destination.iterdir())):
         raise ValueError("目标必须是新的空目录，不覆盖已有项目")
     rows = extract(Path(handbook).read_text(encoding="utf-8"))
     destination.mkdir(parents=True, exist_ok=True)
@@ -26675,7 +26750,7 @@ FastapiAdmin：https://github.com/fastapiadmin/FastapiAdmin
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/implementation.md sha256: 8b8e0ab3673505f23a92e7dd051c8a276d300fa402e51b0bc81c9cffaa2d1058 -->
+<!-- source-file: docs/implementation.md sha256: 274e4d29893fc8385e3ee29eadab912e447d3f814e76b5c7b5d706be0b6f2065 -->
 ````markdown
 # 逐文件实现讲解：把空文件夹变成完整系统
 
@@ -26944,8 +27019,8 @@ target = Path(sys.argv[2])
 if target.is_symlink() or (target.exists() and any(target.iterdir())):
     raise SystemExit("目标必须是新的空目录，不覆盖任何已有项目")
 pattern = re.compile(
-    r"<!-- source-file: (.+?) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n",
-    re.S,
+    r"^<!-- source-file: ([^\r\n]+) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n",
+    re.S | re.M,
 )
 files = {}
 for name, expected, fence, code in pattern.findall(book):
@@ -26957,6 +27032,9 @@ for name, expected, fence, code in pattern.findall(book):
         or "\\" in name
         or name in files
         or ".git" in relative.parts
+        or not relative.parts
+        or relative.as_posix() != name
+        or any(ord(char) < 32 for char in name)
     ):
         raise SystemExit("不安全或重复路径: " + name)
     content = code + "\n"

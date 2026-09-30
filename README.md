@@ -150,7 +150,7 @@ uv run --no-project --python 3.14 python start.py
 
 源码包含初始化/迁移语句，不包含用户实际业务数据。重复启动不重置记录或密码。原生 `--check` 会完整验证数据库、菜单、CRUD和前端启动后退出；`--skip-build` 仅用于之前已成功构建的同一产品。不要删除数据库排错，不把源码包当作用户数据备份。
 
-## 9. 测试、证据、手册
+## 8. 测试、证据、手册
 
 ```powershell
 uv run ruff check .
@@ -165,7 +165,7 @@ Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新�
 
 当前是仅监听本机、单操作人和单Worker的研发工作台。没有公网生产身份体系。请勿公开 `.env`、`.data`、`.deployment` 或访问令牌。更多环境条件、SQL步骤、预算恢复、原生部署与故障定位见完整手册。
 
-## 10. 本机工具链与唯一完整教材
+## 9. 本机工具链与唯一完整教材
 
 默认使用本机Tree-sitter/Python AST、FTS5和符号Repo Map。Aider使用独立Python3.12环境：
 
@@ -176,7 +176,7 @@ uv run rnd tools search workbench .data/platform-index "model_for"
 uv run rnd tools continue-config . workbench .data/platform-index
 ```
 
-设置`CODING_ENGINE=aider`和`REPO_MAP_PROVIDER=aider`可启用实际本机编辑/Repo Map。真实模型Key只交给平台网关，Aider不取得它。Continue仅通过本机stdio MCP访问只读search_code/repository_map；上游已停止积极维护，本平台不依赖其云服务。
+设置`CODING_ENGINE=aider`和`REPO_MAP_PROVIDER=aider`可启用实际本机编辑/Repo Map。真实模型Key只交给平台网关，Aider不取得它。Continue仅通过本机stdio MCP访问只读search_code/repository_map，本平台不依赖其云服务。
 
 向量服务仅接受回环地址，使用本机模型并显式`EMBEDDING_ENABLED=true`。工具端点拒绝云端/局域网、代理与重定向，数据库和Docker执行也限定本机；继承的LangSmith/OTEL遥测关闭。公开依赖下载不等于云端执行工具。
 
@@ -186,9 +186,9 @@ Daytona固定为**v0.190.0自托管开发部署**，没有云端模式。Linux/W
 uv sync --locked --all-extras
 uv run python -m scripts.daytona_local prepare
 uv run python -m scripts.daytona_local images
+uv run python -m scripts.daytona_local snapshot-image
 uv run python -m scripts.daytona_local up
 uv run python -m scripts.daytona_bootstrap auth
-uv run python -m scripts.daytona_local snapshot-image
 uv run python -m scripts.daytona_bootstrap snapshot
 uv run python -m scripts.ci_daytona_local
 ```

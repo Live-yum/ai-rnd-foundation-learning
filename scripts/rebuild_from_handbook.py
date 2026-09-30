@@ -6,7 +6,8 @@ import re
 from pathlib import Path, PurePosixPath
 
 PATTERN = re.compile(
-    r"<!-- source-file: (.+?) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n", re.S
+    r"^<!-- source-file: ([^\r\n]+) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n",
+    re.S | re.M,
 )
 
 
@@ -21,6 +22,10 @@ def extract(text):
             or ":" in name
             or "\\" in name
             or name in result
+            or not path.parts
+            or path.as_posix() != name
+            or ".git" in path.parts
+            or any(ord(char) < 32 for char in name)
         ):
             raise ValueError("附录文件路径不安全或重复")
         # All committed sources use a final newline.
@@ -30,12 +35,14 @@ def extract(text):
         result[name] = content
     if not result:
         raise ValueError("没有找到完整源码块")
+    if len(result) != len(re.findall(r"^<!-- source-file: ", text, re.M)):
+        raise ValueError("源码块不完整，拒绝写入残缺项目")
     return result
 
 
 def restore(handbook, destination):
     destination = Path(destination)
-    if destination.exists() and any(destination.iterdir()):
+    if destination.is_symlink() or (destination.exists() and any(destination.iterdir())):
         raise ValueError("目标必须是新的空目录，不覆盖已有项目")
     rows = extract(Path(handbook).read_text(encoding="utf-8"))
     destination.mkdir(parents=True, exist_ok=True)

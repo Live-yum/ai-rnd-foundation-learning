@@ -265,8 +265,8 @@ target = Path(sys.argv[2])
 if target.is_symlink() or (target.exists() and any(target.iterdir())):
     raise SystemExit("目标必须是新的空目录，不覆盖任何已有项目")
 pattern = re.compile(
-    r"<!-- source-file: (.+?) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n",
-    re.S,
+    r"^<!-- source-file: ([^\r\n]+) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n",
+    re.S | re.M,
 )
 files = {}
 for name, expected, fence, code in pattern.findall(book):
@@ -278,6 +278,9 @@ for name, expected, fence, code in pattern.findall(book):
         or "\\" in name
         or name in files
         or ".git" in relative.parts
+        or not relative.parts
+        or relative.as_posix() != name
+        or any(ord(char) < 32 for char in name)
     ):
         raise SystemExit("不安全或重复路径: " + name)
     content = code + "\n"
