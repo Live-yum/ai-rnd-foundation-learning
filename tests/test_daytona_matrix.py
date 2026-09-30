@@ -287,3 +287,17 @@ def test_python_runtime_descriptor_normalization_never_hides_failed_checks(key, 
     }
     with pytest.raises(ValueError):
         basic_runtime_evidence(raw, "postgresql")
+
+
+def test_matrix_pnpm_install_is_not_shadowed_by_base_nvm_prefix():
+    from workbench.settings import ROOT
+
+    dockerfile = (ROOT / "tools/daytona/matrix.Dockerfile").read_text(encoding="utf-8")
+    assert (
+        "/usr/local/bin/node /usr/local/lib/node_modules/npm/bin/npm-cli.js install" in dockerfile
+    )
+    assert "--global --prefix /usr/local" in dockerfile
+    user = dockerfile.index("USER daytona")
+    warm = dockerfile.index(".venv/bin/python /opt/rnd/warm.py")
+    assertion = dockerfile.index('test "$(pnpm --version)" = "${PNPM_VERSION}"')
+    assert user < assertion < warm

@@ -18,7 +18,10 @@ RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm \
     && mkdir -p /opt/rnd/harness /opt/rnd/browser /opt/rnd/prewarm \
     && chown -R daytona:daytona /opt/rnd
 ARG PNPM_VERSION=9.15.3
-RUN npm install --global pnpm@${PNPM_VERSION}
+# The base image has its own NVM Node/npm on PATH. Install into the copied
+# official Node prefix explicitly so pnpm remains available after PATH is fixed.
+RUN /usr/local/bin/node /usr/local/lib/node_modules/npm/bin/npm-cli.js install \
+    --global --prefix /usr/local --no-audit --no-fund pnpm@${PNPM_VERSION}
 ENV UV_CACHE_DIR=/opt/rnd/uv-cache \
     UV_PYTHON_INSTALL_DIR=/opt/rnd/python \
     UV_PYTHON_PREFERENCE=only-managed \
@@ -29,7 +32,7 @@ ENV UV_CACHE_DIR=/opt/rnd/uv-cache \
     PRODUCT_VERIFY_PLAYWRIGHT=/opt/rnd/browser/node_modules/playwright \
     PLAYWRIGHT_BROWSERS_PATH=/opt/rnd/browsers \
     JAVA_HOME=/opt/java/openjdk \
-    PATH=/opt/java/openjdk/bin:/usr/lib/postgresql/17/bin:/usr/local/bin:/usr/bin:/bin
+    PATH=/opt/java/openjdk/bin:/usr/lib/postgresql/17/bin:/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
 COPY --chown=daytona:daytona harness/ /opt/rnd/harness/
 COPY --chown=daytona:daytona product/ /opt/rnd/prewarm/product/
 COPY --chown=daytona:daytona profile.json warm.py /opt/rnd/
@@ -37,6 +40,7 @@ RUN npm install --prefix /opt/rnd/browser --no-audit --no-fund --package-lock=fa
     && /opt/rnd/browser/node_modules/.bin/playwright install-deps chromium \
     && chown -R daytona:daytona /opt/rnd
 USER daytona
+RUN command -v pnpm && test "$(pnpm --version)" = "${PNPM_VERSION}"
 WORKDIR /opt/rnd/harness
 RUN uv python install 3.14.7 \
     && uv sync --locked --all-extras --no-install-project --python 3.14.7 \
