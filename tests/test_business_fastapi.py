@@ -262,3 +262,38 @@ def test_model_extension_rejects_unrecognized_native_shapes(change):
         )
     with pytest.raises(ValueError):
         extend_model(source, *relation_contract())
+
+
+def test_namespaced_roles_pass_the_pinned_native_output_validator():
+    import re
+    import zipfile
+
+    runtime = (ROOT / "templates/business/fastapiadmin/runtime.py").read_text(encoding="utf-8")
+    prefix = next(
+        node.value
+        for node in ast.parse(runtime).body
+        if isinstance(node, ast.Assign)
+        and any(isinstance(t, ast.Name) and t.id == "ROLE_PREFIX" for t in node.targets)
+    )
+    namespace = "wb_6e02530c6239"
+    actual = eval(
+        compile(ast.Expression(prefix), "runtime-prefix", "eval"),
+        {"CONFIG": {"namespace": namespace}},
+    )
+    with zipfile.ZipFile(ROOT / "templates/vendor/fastapiadmin.zip") as archive:
+        source = archive.read("backend/app/core/validator.py").decode("utf-8")
+    validator = next(
+        node
+        for node in ast.parse(source).body
+        if isinstance(node, ast.FunctionDef) and node.name == "validate_required_code"
+    )
+    scope = {"re": re}
+    exec(
+        compile(ast.Module(body=[validator], type_ignores=[]), "pinned-native-validator", "exec"),
+        scope,
+    )
+    for role in ("manager", "service", "employee", "a" * 40):
+        code = actual + role
+        assert scope["validate_required_code"](code) == code
+    with pytest.raises(ValueError):
+        scope["validate_required_code"](namespace + ":manager")

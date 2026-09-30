@@ -213,10 +213,41 @@ def verify_aggregate_jars(backend):
             raise ValueError("PostgreSQL JDBC driver is absent from aggregate")
 
 
+def prepare_fastapi_registry(backend, reports):
+    """Use canonical PyPI URLs without changing any locked package version/hash."""
+    import tomllib
+
+    from workbench.filesystem import sha, write_json
+
+    backend, reports = Path(backend), Path(reports)
+    replacements = {
+        "https://pypi.tuna.tsinghua.edu.cn/simple": "https://pypi.org/simple",
+        "https://pypi.tuna.tsinghua.edu.cn/packages/": "https://files.pythonhosted.org/packages/",
+    }
+    receipt = {}
+    for name in ("pyproject.toml", "uv.lock"):
+        path = backend / name
+        original = path.read_text(encoding="utf-8")
+        before = sha(path)
+        updated = original
+        for old, new in replacements.items():
+            updated = updated.replace(old, new)
+        # Parsing both documents detects malformed source. Only the literal,
+        # known public mirror URLs can change; hashes and versions are retained.
+        tomllib.loads(original)
+        tomllib.loads(updated)
+        if updated != original:
+            atomic_text(path, updated)
+        receipt[name] = {"before_sha256": before, "after_sha256": sha(path), "url_only": True}
+    write_json(reports / "official-python-registry.json", receipt)
+    return receipt
+
+
 def install_backend(template, backend, reports):
     backend, reports = Path(backend), Path(reports)
     reports.mkdir(parents=True, exist_ok=True)
     if template == "fastapiadmin":
+        prepare_fastapi_registry(backend, reports)
         commands = [["uv", "sync", "--locked", "--python", "3.14"]]
     else:
         prepare_yudao_postgres(backend, reports)

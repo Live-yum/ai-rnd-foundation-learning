@@ -23,7 +23,7 @@ MODELS = {
     )
     for name in ENTITIES
 }
-ROLE_PREFIX = CONFIG["namespace"] + ":"
+ROLE_PREFIX = CONFIG["namespace"] + "_"
 
 
 def fail(code=403, reason="Business permission denied"):
@@ -42,7 +42,7 @@ def date_value(value):
         if parsed.isoformat() != value:
             fail(422, "Date must use YYYY-MM-DD")
         return parsed
-    except (ValueError, TypeError):
+    except ValueError, TypeError:
         fail(422, "Invalid date")
 
 
@@ -69,9 +69,7 @@ def serialize(row, entity):
         archived_at=row.deleted_time if row.is_deleted else None,
     )
     return {
-        k: (
-            v.replace(tzinfo=UTC) if v.tzinfo is None else v.astimezone(UTC)
-        ).isoformat()
+        k: (v.replace(tzinfo=UTC) if v.tzinfo is None else v.astimezone(UTC)).isoformat()
         if isinstance(v, datetime)
         else v.isoformat()
         if isinstance(v, date)
@@ -98,11 +96,7 @@ async def actor(db, auth):
         ).all()
     )
     declared = {r["name"] for r in SPEC["roles"]}
-    roles = [
-        code[len(ROLE_PREFIX) :]
-        for code in codes
-        if code[len(ROLE_PREFIX) :] in declared
-    ]
+    roles = [code[len(ROLE_PREFIX) :] for code in codes if code[len(ROLE_PREFIX) :] in declared]
     if len(roles) != 1:
         fail(403, "Exactly one project business role is required")
     return {"id": str(auth.user.id), "role": roles[0]}
@@ -122,18 +116,14 @@ def scope(who, entity, action):
         return model.id > 0
     if permission["scope"] == "own":
         return model.created_id == identifier(who["id"])
-    return getattr(model, POLICY.resource(entity)["assignee_field"]) == identifier(
-        who["id"]
-    )
+    return getattr(model, POLICY.resource(entity)["assignee_field"]) == identifier(who["id"])
 
 
 async def record(db, who, entity, row_id, action, lock=False):
     if entity not in MODELS:
         fail(404)
     model = MODELS[entity]
-    query = select(model).where(
-        model.id == identifier(row_id), scope(who, entity, action)
-    )
+    query = select(model).where(model.id == identifier(row_id), scope(who, entity, action))
     if lock:
         query = query.with_for_update()
     row = await db.scalar(query)
@@ -169,8 +159,7 @@ async def validate(db, who, entity, data, creation=False):
             if (
                 not isinstance(value, str)
                 or len(value.strip()) > spec["max_length"]
-                or len(value.strip())
-                < max(spec["min_length"], 1 if spec["required"] else 0)
+                or len(value.strip()) < max(spec["min_length"], 1 if spec["required"] else 0)
             ):
                 fail(422, "Invalid text length: " + name)
             if spec["kind"] == "enum" and value not in spec["choices"]:
@@ -186,7 +175,7 @@ async def validate(db, who, entity, data, creation=False):
         elif spec["kind"] == "date":
             try:
                 value = date.fromisoformat(value)
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 fail(422, "Invalid date: " + name)
         result[name] = value
     for relation in SPEC["relations"]:
@@ -358,9 +347,7 @@ async def mutate(db, who, entity, row_id, action, data):
     row.updated_id, row.updated_time = identifier(who["id"]), datetime.now(UTC)
     await db.flush()
     after = serialize(row, entity)
-    await event(
-        db, who, entity, row, event_name, {"before": before, "after": after, **extra}
-    )
+    await event(db, who, entity, row, event_name, {"before": before, "after": after, **extra})
     await db.commit()
     return after
 
@@ -369,9 +356,7 @@ async def rows(db, who, entity, action="read", query="", filters=None, archived=
     if entity not in MODELS:
         fail(404)
     model = MODELS[entity]
-    statement = select(model).where(
-        scope(who, entity, action), model.is_deleted.is_(archived)
-    )
+    statement = select(model).where(scope(who, entity, action), model.is_deleted.is_(archived))
     fields = {f["name"]: f for f in ENTITIES[entity]["fields"]}
     if query:
         searched = [
@@ -387,29 +372,21 @@ async def rows(db, who, entity, action="read", query="", filters=None, archived=
             field, suffix = name.rsplit("_", 1)
             if field not in fields or not fields[field]["date_range"]:
                 fail(422, "Unknown range filter")
-            bound = (
-                instant(value)
-                if fields[field]["kind"] == "datetime"
-                else date_value(value)
-            )
+            bound = instant(value) if fields[field]["kind"] == "datetime" else date_value(value)
             column = getattr(model, field)
-            statement = statement.where(
-                column >= bound if suffix == "from" else column <= bound
-            )
+            statement = statement.where(column >= bound if suffix == "from" else column <= bound)
         else:
             if name not in fields or not fields[name]["filterable"]:
                 fail(422, "Unknown exact filter")
             column = getattr(model, name)
             kind = fields[name]["kind"]
-            relation = any(
-                r["entity"] == entity and r["field"] == name for r in SPEC["relations"]
-            )
+            relation = any(r["entity"] == entity and r["field"] == name for r in SPEC["relations"])
             if relation:
                 value = identifier(value)
             elif kind == "integer":
                 try:
                     value = int(value)
-                except (ValueError, TypeError):
+                except ValueError, TypeError:
                     fail(422, "Invalid integer filter")
             elif kind == "boolean":
                 if value not in (True, False, "true", "false"):
@@ -434,9 +411,7 @@ async def set_role(db, user_id, role):
     )
     if target is None:
         fail(404)
-    native_role = await db.scalar(
-        select(RoleModel).where(RoleModel.code == ROLE_PREFIX + role)
-    )
+    native_role = await db.scalar(select(RoleModel).where(RoleModel.code == ROLE_PREFIX + role))
     if native_role is None:
         native_role = RoleModel(
             code=ROLE_PREFIX + role,
@@ -447,11 +422,7 @@ async def set_role(db, user_id, role):
         await db.flush()
         # Only business menu tree, never native user/role administration permissions.
         menus = list(
-            (
-                await db.scalars(
-                    select(MenuModel).where(MenuModel.is_deleted.is_(False))
-                )
-            ).all()
+            (await db.scalars(select(MenuModel).where(MenuModel.is_deleted.is_(False)))).all()
         )
         chosen = {
             m.id
@@ -469,9 +440,7 @@ async def set_role(db, user_id, role):
                 parent = by_id[parent].parent_id
         for mid in chosen:
             db.add(RoleMenusModel(role_id=native_role.id, menu_id=mid))
-    owned = select(RoleModel.id).where(
-        RoleModel.code.startswith(ROLE_PREFIX, autoescape=True)
-    )
+    owned = select(RoleModel.id).where(RoleModel.code.startswith(ROLE_PREFIX, autoescape=True))
     await db.execute(
         delete(UserRolesModel).where(
             UserRolesModel.user_id == user_id, UserRolesModel.role_id.in_(owned)

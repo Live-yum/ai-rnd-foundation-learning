@@ -73,6 +73,8 @@ def validate_plan(plan):
         raise ValueError("Native normalized business names collide")
     for entity in plan.entities:
         for field in entity.fields:
+            if plan.business is None and field.kind not in {"text", "integer", "boolean"}:
+                raise ValueError("Native enum/date/datetime fields require a business contract")
             if plan.business is None and (
                 field.searchable or field.filterable or field.date_range or field.min_length
             ):

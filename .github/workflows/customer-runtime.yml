@@ -7,7 +7,7 @@ permissions:
   contents: read
 concurrency:
   group: customer-native-${{ github.event_name }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 env:
   PLAYWRIGHT_BROWSERS_PATH: '0'
   PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright
