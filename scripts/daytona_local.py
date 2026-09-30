@@ -10,6 +10,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 import secrets
 import shutil
 import subprocess
@@ -17,6 +18,7 @@ from pathlib import Path
 
 import yaml
 
+from scripts.daytona_build import BUILT, build_images, local_tag
 from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
 from workbench.settings import ROOT
 from workbench.tools import clean_env
@@ -25,9 +27,7 @@ HOME = ROOT / ".data/daytona-local"
 PROJECT = "rnd-daytona-local"
 KEEP = {"api", "proxy", "runner", "db", "redis", "dex", "registry", "minio", "maildev"}
 IMAGES = {
-    "api": f"ghcr.io/daytonaio/daytona-api:v{DAYTONA_VERSION}",
-    "proxy": f"ghcr.io/daytonaio/daytona-proxy:v{DAYTONA_VERSION}",
-    "runner": f"ghcr.io/daytonaio/daytona-runner:v{DAYTONA_VERSION}",
+    **{name: local_tag(name) for name in BUILT},
     "db": "postgres:18",
     "redis": "redis:7.4.2",
     "dex": "dexidp/dex:v2.42.0",
@@ -78,7 +78,7 @@ def render_compose(original, credentials, directory):
     config["services"] = {name: value for name, value in config["services"].items() if name in KEEP}
     if set(config["services"]) != KEEP:
         raise ValueError("固定Daytona源码的服务集合不符，拒绝套用不兼容配置")
-    config["networks"] = {"daytona-network": {"driver": "bridge"}}
+    config["networks"] = {"daytona-network": {"driver": "bridge", "internal": True}}
     for name, service in config["services"].items():
         service["image"] = IMAGES[name]
         service["restart"] = "no"
@@ -114,7 +114,7 @@ def render_compose(original, credentials, directory):
         OIDC_MANAGEMENT_API_ENABLED="false",
         # Match Dex's signed issuer, but obtain JWKS via its private Docker hostname.
         PUBLIC_OIDC_DOMAIN="http://localhost:5556/dex",
-        DEFAULT_SNAPSHOT="daytonaio/sandbox:0.5.0-slim",
+        DEFAULT_SNAPSHOT="registry:6000/rnd-python:" + snapshot_stamp(),
     )
     config["services"]["proxy"]["environment"].update(PROXY_API_KEY=credentials["proxy_key"])
     config["services"]["runner"]["environment"].update(
@@ -136,10 +136,20 @@ def render_compose(original, credentials, directory):
 
 
 def assert_local_compose(config):
+    if config.get("networks", {}).get("daytona-network", {}).get("internal") is not True:
+        raise ValueError("Daytona运行网络必须禁止外部出口")
     if set(config["services"]) != KEEP:
         raise ValueError("存在未登记服务")
     for name, service in config["services"].items():
-        if service["image"] != IMAGES[name] and "@sha256:" not in service["image"]:
+        image = service["image"]
+        pinned = (
+            re.fullmatch(r"sha256:[0-9a-f]{64}", image)
+            if name in BUILT
+            else re.fullmatch(
+                re.escape(IMAGES[name].rsplit(":", 1)[0]) + r"@sha256:[0-9a-f]{64}", image
+            )
+        )
+        if image != IMAGES[name] and not pinned:
             raise ValueError("镜像未固定")
         if any(not str(port).startswith("127.0.0.1:") for port in service.get("ports", [])):
             raise ValueError("服务端口不能暴露到局域网/公网")
@@ -240,8 +250,11 @@ def images(directory=HOME):
     locked = directory / "compose.lock.yaml"
     if locked.exists():
         raise ValueError("镜像已锁定；不自动更新镜像或重写摘要")
-    result = {}
+    result = build_images(directory, command, docker)
     for name, service in config["services"].items():
+        if name in BUILT:
+            service["image"] = result[name]["image_id"]
+            continue
         docker("pull", service["image"])
         details = json.loads(docker("image", "inspect", service["image"]))[0]
         digests = details.get("RepoDigests") or []
@@ -255,14 +268,28 @@ def images(directory=HOME):
     if os.name != "nt":
         locked.chmod(0o600)
     private_json(directory / "images.lock.json", result)
-    print("镜像下载并按实际sha256锁定；未使用latest回退。")
+    print("固定源码API/Proxy及校验后的Runner已在本机构建；镜像按实际sha256锁定。")
 
 
 def compose(directory, *args, timeout=900):
     path = Path(directory) / "compose.lock.yaml"
     config = yaml.safe_load(path.read_text(encoding="utf-8"))
     assert_local_compose(config)
+    records = json.loads((Path(directory) / "images.lock.json").read_text(encoding="utf-8"))
+    for name, service in config["services"].items():
+        record = records[name]
+        expected = record.get("image_id") if name in BUILT else record.get("digest")
+        if service["image"] != expected or record["tag"] != IMAGES[name]:
+            raise ValueError("本机镜像锁与Compose不一致：" + name)
     return docker("compose", "--project-name", PROJECT, "--file", str(path), *args, timeout=timeout)
+
+
+def snapshot_stamp():
+    return hashlib.sha256(
+        (ROOT / "tools/daytona/Dockerfile").read_bytes()
+        + (ROOT / "templates/product/uv.lock").read_bytes()
+        + (ROOT / "templates/product/pyproject.toml").read_bytes()
+    ).hexdigest()[:16]
 
 
 def snapshot_image(directory=HOME):
@@ -279,6 +306,10 @@ def snapshot_image(directory=HOME):
         )
     ).hexdigest()[:16]
     local_image = "127.0.0.1:6000/rnd-python:" + stamp
+    if stamp != snapshot_stamp():
+        raise ValueError("快照构建上下文与固定输入不一致")
+    # Start ONLY the private registry. Build and publish before starting the control plane.
+    compose(directory, "up", "-d", "--pull", "never", "registry")
     docker("build", "--tag", local_image, str(context), timeout=1800)
     docker("push", local_image)
     # The runner's own Docker daemon resolves `registry` on the local Compose network.
@@ -313,4 +344,15 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    from workbench.tools import ToolFailure
+
+    try:
+        main()
+    except ToolFailure as error:
+        print(error.log[-12000:])  # Only public installation inputs; no runtime credentials.
+        raise
+    except subprocess.CalledProcessError as error:
+        # Avoid a bare exit status hiding the actual installation failure.
+        text = (error.stderr or b"").decode("utf-8", errors="replace")
+        print(text[-12000:])
+        raise

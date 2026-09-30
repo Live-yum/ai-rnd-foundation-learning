@@ -97,7 +97,7 @@ uv run rnd tools continue-config . workbench .data/platform-index
 
 这会创建`.continue/mcpServers/rnd.json`，已有文件会拒绝覆盖。配置中是本机uv命令、项目目录和源/索引路径，没有Key。Continue通过stdio启动`rnd tools context-server`；stdout只传MCP协议，诊断去stderr。两个只读工具是search_code和repository_map，没有任意文件写入、任意shell或上传工具。
 
-Continue上游把仓库标为不再积极维护并发布最终2.0.0；本平台仅使用其公开MCP接口，不依赖托管Continue服务、不复制其私有索引实现，也不把协议测试称为IDE界面测试。IDE本身的聊天模型配置可按你的大模型服务填写；不要启用额外的云端检索或遥测扩展。
+本平台仅使用Continue的公开MCP接口，不依赖托管Continue服务、不复制其私有索引实现，也不把协议测试称为IDE界面测试。IDE本身的聊天模型配置可按你的大模型服务填写；不要启用额外的云端检索或遥测扩展。
 
 ### 20.6 Daytona v0.190.0：必须部署完整本机服务
 
@@ -105,7 +105,7 @@ Continue上游把仓库标为不再积极维护并发布最终2.0.0；本平台�
 
 上游的Docker Compose明确用于开发，不是生产安全部署。Runner使用privileged Docker-in-Docker；请只在你拥有的Linux/WSL开发环境使用，不暴露公网，不把它描述成抵御恶意内核攻击的强隔离。平台仍只执行登记的验证命令。
 
-准备Linux/WSL的Docker Engine或Docker Desktop集成，确认本机`/var/run/docker.sock`可用。`docker version`必须同时显示Client和Server。Windows平台本身可以直接运行，但本章的自托管服务路径以Linux/WSL为准；不要把Windows与WSL的虚拟环境混用。
+准备Linux x86_64/WSL2的Docker Engine或Docker Desktop集成，确认本机`/var/run/docker.sock`可用。`docker version`必须同时显示Client和Server。Windows平台本身可以直接运行，但本章的自托管服务路径以Linux/WSL为准；不要把Windows与WSL的虚拟环境混用。
 
 在已经按本书创建的项目目录执行：
 
@@ -113,27 +113,31 @@ Continue上游把仓库标为不再积极维护并发布最终2.0.0；本平台�
 uv sync --locked --all-extras
 uv run python -m scripts.daytona_local prepare
 uv run python -m scripts.daytona_local images
+uv run python -m scripts.daytona_local snapshot-image
 uv run python -m scripts.daytona_local up
 uv run python -m scripts.daytona_local status
 ```
 
 prepare从固定SHA取得上游安装资源，生成本机配置和随机密码；目录非空时拒绝覆盖。它不是克隆本项目骨架。配置保存在`.data/daytona-local`，不得提交Git或共享。上游源码与许可证保存在upstream子目录，便于审查。
 
-images下载指定版本镜像，再把实际仓库sha256摘要写入images.lock.json和compose.lock.yaml；没有对应镜像就停止，不回退latest。up使用`--pull never`和已锁定摘要启动。所有发布端口绑定127.0.0.1；Docker命令显式指向本机daemon，不跟随保存的远程Docker context。
+images不是去猜测可用的在线Daytona镜像标签。`scripts/daytona_build.py`先从固定Git提交导出干净的构建输入：不带`.git`、未提交修改或本机`.env`。API与Proxy的上游Dockerfile还要逐字节验证Git对象哈希；只在已匹配的构建环境中显式关闭Nx云构建/远程缓存和遥测，实际编译在本机Docker中进行。Runner使用同一v0.190.0发布的`runner-amd64`，安装脚本把固定大小156006775字节和SHA256 `4265d2bb58ad6375b3c4c526ffa2bc2e1d197d94b92b431e532bf827c8f4dfa9`同时作为硬性条件，然后按完整给出的`tools/daytona/runner.Dockerfile`封装成自己的本机镜像。这不是下载其他版本替代，也不是使用在线Runner。该固定发布的Runner安装路径支持Linux x86_64，其他架构会明确停止；Windows请使用x86_64 WSL2 Docker。
+
+构建镜像标签带版本与源码SHA，images.lock.json记录本机Image ID、构建文件SHA及Runner发布文件SHA；PostgreSQL等基础依赖拉取明确版本后记录实际Registry摘要。compose.lock.yaml只引用这些内容地址。重新启动前逐项对照两份锁，配置不一致就停止；没有任何latest或云端回退。构建失败看终端尾部和本机构建日志，不跳过images进入下一步。
+
+snapshot-image先只启动本机Registry，再构建并推送预热快照。之后up才启动完整控制面，默认快照也指向本机Registry，不在业务验证时临时从Docker Hub拉取。up使用`--pull never`和已锁定摘要。所有发布端口绑定127.0.0.1；服务Docker网络配置为internal，阻止外部出口；Docker命令显式指向本机daemon，不跟随保存的远程Docker context。
 
 服务之间使用本机Docker网络名称通信。身份认证由本机Dex完成，文件存储为本机MinIO，镜像在本机Registry。外部PostHog/OTEL配置被移除或关闭；没有Auth0或云端控制面。Daytona自己的开发数据库与平台控制数据库、产品业务数据库各自独立。
 
-### 20.7 创建本机身份和预热快照
+### 20.7 创建本机身份并登记预热快照
 
 ```bash
 uv run python -m scripts.daytona_bootstrap auth
-uv run python -m scripts.daytona_local snapshot-image
 uv run python -m scripts.daytona_bootstrap snapshot
 ```
 
 auth使用本机Dex的独立bootstrap客户端及随机本机密码取得经过真实签名验证的身份，再为个人组织创建只含所需资源权限的API Key。它不伪造JWT、不登录云账号。这个密码授权流程只为回环绑定的开发环境提供确定性初始化，不建议照搬到公开OAuth产品。
 
-snapshot-image只向docker build传入Dockerfile、产品pyproject.toml和uv.lock三个公开输入，不传平台源码目录、.env或用户数据。构建阶段下载Python3.14.7、uv和产品锁定依赖，把缓存预热到镜像；之后推送到本机127.0.0.1:6000 Registry。snapshot把该本机镜像登记为本机Daytona快照。
+上一节的snapshot-image只向docker build传入Dockerfile、产品pyproject.toml和uv.lock三个公开输入，不传平台源码目录、.env或用户数据。构建阶段下载Python3.14.7、uv和产品锁定依赖，把缓存预热到镜像；之后推送到本机127.0.0.1:6000 Registry。snapshot把该本机镜像登记为本机Daytona快照。
 
 生成的`.data/daytona-local/workbench.env`包含可直接填入项目`.env`的六个Daytona字段及工具超时。打开文件在本机复制这些配置，不把Key贴到Issue、聊天或报告里。不要覆盖已有的BASE_URL/API_KEY/MODE；它们属于聊天大模型。
 
@@ -186,6 +190,8 @@ Daytona发布：https://github.com/daytonaio/daytona/releases/tag/v0.190.0
 本地部署说明：https://github.com/daytonaio/daytona/blob/v0.190.0/docker/README.md
 上游Compose：https://github.com/daytonaio/daytona/blob/v0.190.0/docker/docker-compose.yaml
 镜像版本构建规则：https://github.com/daytonaio/daytona/blob/v0.190.0/nx.json
+API构建文件：https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/api/Dockerfile
+Runner发布文件：https://github.com/daytonaio/daytona/releases/download/v0.190.0/runner-amd64
 固定Python SDK：https://github.com/daytonaio/daytona/tree/v0.190.0/libs/sdk-python
 Dex本机密码连接示例：https://github.com/dexidp/dex/blob/v2.42.0/examples/config-dev.yaml
 Continue状态与代码：https://github.com/continuedev/continue

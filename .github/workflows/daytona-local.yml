@@ -12,7 +12,7 @@ permissions:
 jobs:
   local-service:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,16 +24,16 @@ jobs:
       - run: uv sync --locked --all-extras
       - name: Create the local control plane with random local credentials
         run: uv run python -m scripts.daytona_local prepare
-      - name: Pull explicit versions and record immutable image digests
+      - name: Build pinned release locally and lock immutable images
         run: uv run python -m scripts.daytona_local images
+      - name: Build the offline snapshot in the local registry
+        run: uv run python -m scripts.daytona_local snapshot-image
       - name: Start local API, Runner, Dex, database, registry and storage
         run: uv run python -m scripts.daytona_local up
       - name: Authenticate through real local Dex and API
         run: uv run python -m scripts.daytona_bootstrap auth
-      - name: Build and register an offline Python snapshot on this runner
-        run: |
-          uv run python -m scripts.daytona_local snapshot-image
-          uv run python -m scripts.daytona_bootstrap snapshot
+      - name: Register the prebuilt snapshot without any hosted service
+        run: uv run python -m scripts.daytona_bootstrap snapshot
       - name: Verify real sandbox runtime and deletion
         run: uv run python -m scripts.ci_daytona_local
       - name: Preserve bounded redacted diagnostics only

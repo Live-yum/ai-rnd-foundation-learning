@@ -174,7 +174,7 @@ def test_deployment_transformation_has_no_cloud_services(tmp_path):
     rendered = render_compose(source, credentials, tmp_path)
     assert set(rendered["services"]) == KEEP
     assert "cloud.example" not in json.dumps(rendered)
-    assert rendered["services"]["api"]["image"] == "ghcr.io/daytonaio/daytona-api:v0.190.0"
+    assert rendered["services"]["api"]["image"] == IMAGES["api"]
     assert all(s["ports"][0].startswith("127.0.0.1:") for s in rendered["services"].values())
     assert len(IMAGES) == len(KEEP)
     rendered["services"]["api"]["ports"] = ["0.0.0.0:3000:3000"]
