@@ -1,5 +1,6 @@
 """Single durable worker. A recovered job never consumes a later approval gate."""
 
+import json
 import logging
 import threading
 import traceback
@@ -19,6 +20,7 @@ from workbench.flow import Workflow
 from workbench.generator import PrerequisiteError
 from workbench.llm import ModelFailure, ModelGateway
 from workbench.local_only import local_database_url
+from workbench.recommendation import blocked_report
 from workbench.store import Conflict
 from workbench.tools import ToolFailure
 
@@ -83,6 +85,7 @@ class Runtime:
             return False
         run_id, payload = job["run_id"], job["payload"]
         config = {"configurable": {"thread_id": run_id}, "recursion_limit": 150}
+        pending = None
         try:
             snapshot = self.graph.get_state(config)
             waiting = pending_interrupt(snapshot)
@@ -125,8 +128,28 @@ class Runtime:
                     action = {"action": "approve", "approved": True}
                 else:
                     if resolutions >= 2:
+                        report = blocked_report(pending, resolutions)
+                        report = json.loads(
+                            self.settings.redact(json.dumps(report, ensure_ascii=False))
+                        )
+                        report_path = (
+                            self.settings.data_dir / "runs" / run_id / "recommendation-blocked.json"
+                        )
+                        try:
+                            write_json(report_path, report)
+                        except OSError:
+                            logger.warning(
+                                "Could not write recommendation diagnostic for %s", run_id
+                            )
                         raise UnsupportedScope(
-                            "智能推荐无法在当前模板能力内解决阻塞项；数据已保存且不会反复提问。查看最新需求/设计报告，可调整环境后重试或关闭自动模式。"
+                            "智能推荐已暂停（"
+                            + report["stage"]
+                            + "）："
+                            + "；".join(report["reasons"])[:500]
+                            + "。两轮自动修正仍未通过，未跳过验收。"
+                            + "使用 uv run rnd chat --run "
+                            + run_id
+                            + " 查看阻塞详情，可继续推荐、补充要求或切换手动；无需新建运行。"
                         )
                     resolutions += 1
                     action = {"action": "recommend", "approved": True}

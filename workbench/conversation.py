@@ -17,6 +17,12 @@ def context(store, state, capabilities):
         "current_requirement": state.get("requirement", {}),
         "recent_user_corrections": [r["content"] for r in human[-8:]],
         "template_capabilities": capabilities,
+        "resolution_feedback": state.get("resolution_feedback", {}),
+        "scope_policy": (
+            "Only original_request and explicit user corrections establish requested scope. "
+            "Previous model assumptions, questions and template not_supported are not user requests. "
+            "Resolve unspecified choices within capabilities when delegated; never drop explicit requirements."
+        ),
         "autonomous": store.get_run(state["run_id"])["auto_mode"],
         "policy": "Use prior explicit facts unchanged. Latest explicit correction wins. Never re-ask answered facts.",
     }

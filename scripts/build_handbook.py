@@ -8,7 +8,13 @@ from scripts.handbook_notes import notes
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "从零实现AI研发平台_逐步实操手册_完整版.md"
-GUIDES = ["docs/guide.md", "docs/implementation.md", "docs/native-baseline.md", "docs/toolchain.md"]
+GUIDES = [
+    "docs/guide.md",
+    "docs/implementation.md",
+    "docs/native-baseline.md",
+    "docs/toolchain.md",
+    "docs/recommendation-recovery.md",
+]
 GROUPS = [
     (
         "项目配置",

@@ -28,6 +28,11 @@ class ModelGateway:
         }.get(key.split(":")[0], "requirements")
         profile = self.settings.model_for(stage).validate_endpoint()
         profile_id = digest({"stage": stage, "url": profile.base_url, "model": profile.model})[:12]
+        # A repaired prompt/schema or a changed gate's feedback must not reuse a
+        # stale answer. Exact replays still share the same durable cache entry.
+        request_id = digest(
+            {"instruction": instruction, "payload": payload, "schema": schema.model_json_schema()}
+        )[:16]
 
         def call():
             body = json.dumps(payload, ensure_ascii=False)
@@ -111,7 +116,7 @@ class ModelGateway:
             raise ModelFailure(reason + "；两次尝试后停止，未替换成演示结果")
 
         try:
-            result = self.store.step(run_id, f"model:{stage}:{key}:{profile_id}", call)
+            result = self.store.step(run_id, f"model:{stage}:{key}:{profile_id}:{request_id}", call)
         except Conflict as exc:
             raise ModelFailure(str(exc)) from None
         return schema.model_validate(result["value"])

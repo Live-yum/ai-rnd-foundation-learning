@@ -281,7 +281,7 @@ class Store:
             session.add(job)
             session.flush()
             run.pending = None
-            run.status = "QUEUED"
+            run.status, run.error = "QUEUED", None
             return {"run_id": run_id, "job_id": job.id, "status": "QUEUED"}
 
         return self.request(key, {"operation": "submit", "run_id": run_id, **data}, operation)
@@ -294,6 +294,9 @@ class Store:
             if run.status not in {"FAILED", "BLOCKED", "PAUSED_LIMIT"}:
                 raise Conflict("只有 FAILED、BLOCKED 或 PAUSED_LIMIT 状态可以重试")
             session.add(Job(run_id=run_id, payload={"action": "retry"}))
+            # The graph owns the saved interrupt. Hide the stale Store copy
+            # while queued so a second request cannot consume it concurrently.
+            run.pending = None
             run.status, run.error = "QUEUED", None
             return {"run_id": run_id, "status": run.status}
 
@@ -367,7 +370,10 @@ class Store:
                     )
                 )
                 run.pending = None
-                run.status = "QUEUED"
+                run.status, run.error = "QUEUED", None
+            elif not enabled and run.status == "BLOCKED" and run.pending:
+                run.status = "WAITING_" + run.pending["stage"].upper()
+                run.error = None
             elif enabled and run.status in {"FAILED", "BLOCKED", "PAUSED_LIMIT"}:
                 session.add(Job(run_id=run_id, payload={"action": "retry"}))
                 run.status, run.error = "QUEUED", None

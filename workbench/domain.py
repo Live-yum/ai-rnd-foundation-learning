@@ -65,6 +65,13 @@ class ResumeInput(Contract):
                 "推荐",
                 "smart",
                 "recommend",
+                "手动",
+                "manual",
+                "重试",
+                "retry",
+                "退出",
+                "quit",
+                "exit",
             }:
                 raise ValueError(
                     "这是控制指令，不是需求回答；请使用对应按钮或 CLI 命令，不消耗澄清轮数"
@@ -86,9 +93,21 @@ class Requirement(Contract):
     acceptance: list[Text]
     questions: list[Text] = Field(default_factory=list, max_length=6)
     assumptions: list[Text] = Field(default_factory=list)
-    unsupported: list[Text] = Field(default_factory=list)
+    unsupported: list[Text] = Field(
+        default_factory=list,
+        description="用户明确要求且仍需实现、但模板无法实现的阻塞项；不是模板全部限制的清单",
+    )
+    limitations: list[Text] = Field(
+        default_factory=list,
+        description="本次未要求或已明确排除的模板能力边界；仅说明，不阻塞交付",
+    )
     recommendations: list[Text] = Field(default_factory=list)
     facts: dict[str, str] = Field(default_factory=dict)
+
+    def gate_dump(self) -> dict:
+        # Resuming a pre-upgrade interrupt reruns its node. Do not change the
+        # digest of a legacy gate just by adding an empty optional schema field.
+        return self.model_dump(exclude={"limitations"} if not self.limitations else set())
 
     @property
     def ready(self) -> bool:
