@@ -376,11 +376,7 @@
         "entity": "customers",
         "actions": [
           "read",
-          "create",
-          "update",
-          "add_note",
           "read_history",
-          "read_audit",
           "read_metrics"
         ],
         "scope": "all"
@@ -584,6 +580,38 @@
         "transition": null,
         "due_field": "due_at",
         "channel": "in_app"
+      },
+      {
+        "entity": "requests",
+        "event": "note_added",
+        "recipient": "creator",
+        "transition": null,
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "requests",
+        "event": "transitioned",
+        "recipient": "creator",
+        "transition": "start",
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "tasks",
+        "event": "note_added",
+        "recipient": "creator",
+        "transition": null,
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "tasks",
+        "event": "transitioned",
+        "recipient": "creator",
+        "transition": "start",
+        "due_field": null,
+        "channel": "in_app"
       }
     ],
     "metrics": [
@@ -597,6 +625,26 @@
         "end_field": null,
         "time_field": null,
         "filters": [],
+        "unit": "seconds",
+        "bucket": "day",
+        "timezone": "UTC"
+      },
+      {
+        "name": "resolved_total",
+        "label": "已解决请求数",
+        "entity": "requests",
+        "kind": "count",
+        "group_by": null,
+        "start_field": null,
+        "end_field": null,
+        "time_field": null,
+        "filters": [
+          {
+            "field": "request_state",
+            "op": "eq",
+            "value": "resolved"
+          }
+        ],
         "unit": "seconds",
         "bucket": "day",
         "timezone": "UTC"
@@ -655,6 +703,20 @@
         "entity": "customers",
         "kind": "count",
         "group_by": null,
+        "start_field": null,
+        "end_field": null,
+        "time_field": null,
+        "filters": [],
+        "unit": "seconds",
+        "bucket": "day",
+        "timezone": "UTC"
+      },
+      {
+        "name": "customer_categories",
+        "label": "客户分类分布",
+        "entity": "customers",
+        "kind": "group_count",
+        "group_by": "category",
         "start_field": null,
         "end_field": null,
         "time_field": null,

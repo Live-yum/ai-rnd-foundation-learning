@@ -92,10 +92,10 @@ def require_business_browser(report, plan, template):
             "employee:related_request_native_form_create",
             "manager:linked_task_and_native_assignment",
             "service:assigned_workflows_notes_timestamps",
-            "employee:own_timeline_and_read_reminder",
+            "employee:own_record_history_acl_and_read_reminder",
             "other_employee:row_isolation",
             "other_service:row_isolation",
-            "manager:five_native_metric_cards",
+            "manager:all_declared_native_metric_cards",
         }
     else:
         journeys = {
@@ -109,7 +109,7 @@ def require_business_browser(report, plan, template):
             "manager:customers:requests:related-record-and-history",
             "manager:requests:tasks:related-record-and-history",
             "manager:real-native-echarts-metrics",
-            "employee:own_timeline_and_read_reminder",
+            "employee:own_record_history_acl_and_read_reminder",
             "other_employee:row_isolation",
             "other_service:row_isolation",
         }

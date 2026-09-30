@@ -53,6 +53,8 @@ def test_no_imports_from_non_code_or_qualified_types(body):
         "import java.time.LocalDate;",
         "import java.time.*;",
         "import example.LocalDate;",
+        "import java.time./* native comment */LocalDate;",
+        "import static example.Types.LocalDate;",
         "class LocalDate {}",
     ],
 )
@@ -73,3 +75,20 @@ def test_crlf_is_preserved_and_missing_package_fails_closed():
     )
     with pytest.raises(ValueError, match="package"):
         prepare_java_time_imports("class Entry {\nprivate LocalDate value;\n}")
+
+
+def test_ast_handles_inline_declarations_and_multibyte_prefix_offsets():
+    source = "/* 客服 */ package demo; class Entry { private LocalDate value; }"
+    assert prepare_java_time_imports(source) == source.replace(
+        "package demo;", "package demo;\nimport java.time.LocalDate;"
+    )
+
+
+def test_generic_type_shadow_is_not_rebound_to_java_time():
+    source = "package demo; class Entry<LocalDate> { private LocalDate value; }"
+    assert prepare_java_time_imports(source) == source
+
+
+def test_invalid_generated_java_does_not_get_silently_repaired():
+    with pytest.raises(ValueError, match="syntax"):
+        prepare_java_time_imports("package demo; class Entry { private LocalDate value;")

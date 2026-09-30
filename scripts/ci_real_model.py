@@ -864,12 +864,73 @@ def require_customer_spec(spec):
             data_scope="shared",
         )
         assert not business_gaps(requirement, plan)
-        assert {m.kind for m in plan.business.metrics} >= {
-            "count",
-            "average_duration",
-            "group_count",
-            "time_count",
-        }
+
+        # Match the public metric meanings, never provider-selected names/labels.
+        # Extra supported metrics remain valid, but cannot substitute for these five.
+        def resolved_only(metric):
+            return bool(metric.filters) and all(
+                rule.field == "request_state"
+                and (
+                    (rule.op == "eq" and rule.value == "resolved")
+                    or (rule.op == "in" and rule.value == ["resolved"])
+                )
+                for rule in metric.filters
+            )
+
+        metrics = plan.business.metrics
+        assert any(
+            metric.entity == "requests" and metric.kind == "count" and not metric.filters
+            for metric in metrics
+        )
+        assert any(
+            metric.entity == "requests" and metric.kind == "count" and resolved_only(metric)
+            for metric in metrics
+        )
+        assert any(
+            metric.entity == "requests"
+            and metric.kind == "average_duration"
+            and metric.start_field == "created_at"
+            and metric.end_field == "resolved_at"
+            and (not metric.filters or resolved_only(metric))
+            for metric in metrics
+        )
+        assert any(
+            metric.entity == "customers"
+            and metric.kind == "group_count"
+            and metric.group_by == "category"
+            and not metric.filters
+            for metric in metrics
+        )
+        assert any(
+            metric.entity == "requests"
+            and metric.kind == "time_count"
+            and metric.time_field == "created_at"
+            and not metric.filters
+            for metric in metrics
+        )
+        notices = plan.business.notifications
+        for entity in ("requests", "tasks"):
+            for event, transition, due_field in (
+                ("assigned", None, None),
+                ("note_added", None, None),
+                ("transitioned", "start", None),
+                ("transitioned", "resolve", None),
+                ("due", None, "due_at"),
+            ):
+                assert any(
+                    notice.entity == entity
+                    and notice.event == event
+                    and notice.transition == transition
+                    and notice.due_field == due_field
+                    for notice in notices
+                )
+        assert any(
+            notice.entity == "requests"
+            and notice.event == "transitioned"
+            and notice.transition == "resolve"
+            and notice.recipient == "creator"
+            for notice in notices
+        )
         assert not plan.custom_rules
         entities = {
             entity.name: {field.name: field for field in entity.fields} for entity in plan.entities
@@ -912,23 +973,73 @@ def require_customer_spec(spec):
             ("tasks", "assignee_id", "$users"),
         } <= relations
         assert plan.business.bootstrap_role == "manager"
+        assert set(plan.business.role_admin_roles) == {"manager"}
         assert (
             plan.business.registration.enabled
             and plan.business.registration.default_role == "employee"
         )
         policies = {(p.role, p.entity): p for p in plan.business.permissions}
+        # Minimum capabilities explicitly promised for this customer case.
+        # Keep optional actions separate from these obligations; query access alone
+        # must neither imply a grant nor excuse a missing processing action.
+        customer_manager_actions = {"create", "read", "update", "archive", "read_audit"}
+        processing_actions = {
+            "read",
+            "update",
+            "add_note",
+            "transition",
+            "read_history",
+            "read_audit",
+        }
+        manager_processing_actions = processing_actions | {"create", "archive", "assign"}
+        required_actions = {
+            ("manager", "customers"): customer_manager_actions,
+            ("manager", "requests"): manager_processing_actions,
+            ("manager", "tasks"): manager_processing_actions,
+            ("service", "requests"): processing_actions,
+            ("service", "tasks"): processing_actions,
+            ("employee", "requests"): {"create", "read"},
+        }
+        for identity, actions in required_actions.items():
+            assert actions <= set(policies[identity].actions)
+        assert all(policies[("manager", entity)].scope == "all" for entity in expected)
+        assert all(
+            not {"create", "assign"} & set(policy.actions)
+            for policy in plan.business.permissions
+            if policy.entity == "tasks" and policy.role != "manager"
+        )
+        for role in ("manager", "service"):
+            for entity in ("customers", "requests"):
+                assert {"read", "read_metrics"} <= set(policies[(role, entity)].actions)
+        for role in ("service", "employee"):
+            customer_policy = policies[(role, "customers")]
+            assert customer_policy.scope == "all" and "read" in customer_policy.actions
+            assert not {"create", "update", "archive", "add_note", "read_audit"} & set(
+                customer_policy.actions
+            )
+        resources = {resource.entity: resource for resource in plan.business.resources}
+        assert all(resources[entity].audit for entity in ("customers", "requests", "tasks"))
         for entity in ("requests", "tasks"):
+            assert resources[entity].notes and resources[entity].archive
+            assert resources[entity].assignee_field == "assignee_id"
             if ("employee", entity) in policies:
                 assert policies[("employee", entity)].scope == "own"
                 assert not {"assign", "transition"} & set(policies[("employee", entity)].actions)
             else:
                 assert entity == "tasks"
             assert policies[("service", entity)].scope == "assigned"
-            assert {"read", "add_note", "transition"} <= set(policies[("service", entity)].actions)
             workflow = next(w for w in plan.business.workflows if w.entity == entity)
             transitions = {t.name: t for t in workflow.transitions}
             assert all(transition.label for transition in workflow.transitions)
             assert workflow.initial == "new"
+            assert (
+                workflow.status_field
+                == {"requests": "request_state", "tasks": "task_state"}[entity]
+            )
+            assert all(
+                set(transition.roles) == {"manager", "service"}
+                for transition in transitions.values()
+            )
             assert (
                 transitions["start"].from_states == ["new"]
                 and transitions["start"].to_state == "active"

@@ -1,83 +1,79 @@
 """Small recorded compatibility edits in generated workspaces, never upstream checkouts."""
 
 import ast
-import re
 from pathlib import Path
 
 from workbench.filesystem import atomic_text, sha
 
 
-def _java_code_mask(source: str) -> str:
-    """Keep code offsets while hiding Java comments, strings, chars and text blocks."""
-    out = list(source)
-    index = 0
-    while index < len(source):
-        start = index
-        if source.startswith("//", index):
-            end = source.find("\n", index + 2)
-            index = len(source) if end < 0 else end
-        elif source.startswith("/*", index):
-            end = source.find("*/", index + 2)
-            if end < 0:
-                raise ValueError("Unterminated generated Java comment")
-            index = end + 2
-        elif source[index] in "\"'":
-            quote = '"""' if source.startswith('"""', index) else source[index]
-            index += len(quote)
-            while index < len(source):
-                if source[index] == "\\":
-                    index += 2
-                elif source.startswith(quote, index):
-                    index += len(quote)
-                    break
-                else:
-                    index += 1
-            else:
-                raise ValueError("Unterminated generated Java literal")
-        else:
-            index += 1
-            continue
-        for offset in range(start, min(index, len(source))):
-            if source[offset] not in "\r\n":
-                out[offset] = " "
-    return "".join(out)
-
-
 def prepare_java_time_imports(source: str) -> str:
-    """Repair omitted native date imports, only for generated field declarations.
+    """Repair omitted time imports using only generated field type syntax nodes.
 
-    The pinned native generator can emit LocalDate fields while importing only
-    LocalDateTime. Keep all generated declarations and annotations unchanged;
-    exclude qualified types, comments/literals and existing/shadowing imports.
-    The mount receipt records both the original export and transformed hashes.
+    The pinned generator emits LocalDate fields while importing LocalDateTime.
+    Preserve every generated declaration/annotation; the mount receipt retains
+    both original export and adapted hashes. Comments and literals are not types.
     """
-    code = _java_code_mask(source)
-    types = set(
-        re.findall(
-            r"(?m)^\s*(?:(?:public|protected|private|static|final|transient|volatile)\s+)*"
-            r"(LocalDate|LocalDateTime)\b\s*(?:\[\s*\]\s*)*\s+"
-            r"[A-Za-z_$][\w$]*\s*(?=[;=])",
-            code,
-        )
-    )
-    if not types or re.search(r"\bimport\s+java\.time\.\*\s*;", code):
+    import tree_sitter_java
+    from tree_sitter import Language, Parser
+
+    encoded = source.encode("utf-8")
+    tree = Parser(Language(tree_sitter_java.language())).parse(encoded)
+    types, declared = set(), set()
+    stack = [tree.root_node]
+    while stack:
+        node = stack.pop()
+        stack.extend(node.named_children)
+        if node.type == "field_declaration":
+            field_type = node.child_by_field_name("type")
+            if field_type and field_type.type == "array_type":
+                field_type = field_type.child_by_field_name("element")
+            if field_type and field_type.type == "type_identifier":
+                types.add(field_type.text.decode("utf-8"))
+        elif node.type in {
+            "class_declaration",
+            "interface_declaration",
+            "enum_declaration",
+            "record_declaration",
+            "type_parameter",
+        }:
+            name = node.child_by_field_name("name")
+            if name is None and node.type == "type_parameter":
+                name = next((n for n in node.named_children if n.type == "type_identifier"), None)
+            if name:
+                declared.add(name.text.decode("utf-8"))
+    types &= {"LocalDate", "LocalDateTime"}
+    if not types:
         return source
-    missing = []
-    for name in sorted(types):
-        if re.search(r"\bimport\s+(?:[\w$]+\.)+" + name + r"\s*;", code):
+    if tree.root_node.has_error:
+        raise ValueError("Invalid generated Java syntax for time import repair")
+    imports = []
+    for declaration in tree.root_node.named_children:
+        if declaration.type != "import_declaration":
             continue
-        if re.search(r"\b(?:class|interface|enum|record)\s+" + name + r"\b", code):
-            continue
-        missing.append(name)
+        parts, pending = [], [declaration]
+        while pending:
+            node = pending.pop()
+            if node.type in {"identifier", "asterisk"}:
+                parts.append(node.text.decode("utf-8"))
+            else:
+                pending.extend(reversed(node.named_children))
+        imports.append(parts)
+    if ["java", "time", "*"] in imports:
+        return source
+    missing = [
+        name
+        for name in sorted(types - declared)
+        if not any(parts and parts[-1] == name for parts in imports)
+    ]
     if not missing:
         return source
-    packages = list(re.finditer(r"(?m)^\s*package\s+[\w$.]+\s*;", code))
+    packages = [n for n in tree.root_node.named_children if n.type == "package_declaration"]
     if len(packages) != 1:
         raise ValueError("Unexpected generated Java package for time import repair")
-    offset = packages[0].end()
+    offset = packages[0].end_byte
     newline = "\r\n" if "\r\n" in source else "\n"
-    imports = "".join(newline + f"import java.time.{name};" for name in missing)
-    return source[:offset] + imports + source[offset:]
+    additions = "".join(newline + f"import java.time.{name};" for name in missing).encode("utf-8")
+    return (encoded[:offset] + additions + encoded[offset:]).decode("utf-8")
 
 
 def commit_before_response(controller):

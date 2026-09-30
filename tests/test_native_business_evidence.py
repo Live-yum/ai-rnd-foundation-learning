@@ -33,6 +33,8 @@ def evidence(tmp_path, template="fastapiadmin"):
             "audit",
             "in_app_reminders",
             "due_reminders",
+            "note_reminders",
+            "status_change_reminders",
             "reminder_read_isolation",
             "metrics",
             "row_isolation",
@@ -45,7 +47,7 @@ def evidence(tmp_path, template="fastapiadmin"):
         for role in ("manager", "service", "employee")
     ]
     checks += [
-        "employee:own_timeline_and_read_reminder",
+        "employee:own_record_history_acl_and_read_reminder",
         "other_employee:row_isolation",
         "other_service:row_isolation",
     ]
@@ -56,7 +58,7 @@ def evidence(tmp_path, template="fastapiadmin"):
             "employee:related_request_native_form_create",
             "manager:linked_task_and_native_assignment",
             "service:assigned_workflows_notes_timestamps",
-            "manager:five_native_metric_cards",
+            "manager:all_declared_native_metric_cards",
         ]
     else:
         checks += [
@@ -169,4 +171,17 @@ def test_business_restart_requires_positive_exact_record_proof(tmp_path, field, 
     report, receipt, spec_path = evidence(tmp_path)
     report["portable_restored"][field] = value
     with pytest.raises(PrerequisiteError):
+        require_native_business(report, receipt, spec_path)
+
+
+@pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])
+@pytest.mark.parametrize("field", ["note_reminders", "status_change_reminders"])
+@pytest.mark.parametrize("restored", [False, True])
+def test_requested_note_and_status_reminders_require_independent_runtime_evidence(
+    tmp_path, template, field, restored
+):
+    report, receipt, spec_path = evidence(tmp_path, template)
+    contract = report["portable_restored"]["business"] if restored else report["business_contract"]
+    contract.pop(field)
+    with pytest.raises(PrerequisiteError, match="原生业务"):
         require_native_business(report, receipt, spec_path)

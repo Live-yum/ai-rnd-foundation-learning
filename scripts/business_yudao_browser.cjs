@@ -110,7 +110,7 @@ async function main() {
     // Selecting an already-open record in a kept-alive page is a valid no-op.
     // Its native Refresh button provides a fresh, record-bound response every time.
     const meta = observe('/admin-api/infra/rnd-business/meta', 'GET', { entity, id: identifier });
-    await panel.getByRole('button', { name: '刷新', exact: true }).click();
+    await panel.getByRole('button', { name: /^刷\s*新$/ }).click();
     const metadata = await checked(meta);
     assert.equal(String(metadata.record.id), identifier, 'Detail response must match the clicked row');
   }
@@ -219,8 +219,10 @@ async function main() {
     const panel = page.locator('[data-rnd-business-panel]');
     assert.equal(await panel.getByTestId('business-assign').count(), 0, 'Employee must not receive assignment controls');
     assert.equal(await panel.getByTestId('business-transition-start').count(), 0, 'Employee must not receive transition controls');
-    await panel.locator('.ant-timeline-item').first().waitFor({ state: 'visible' });
-    await capture('employee-owned-history.png');
+    const employeeHistory = scenario.plan.business.permissions.some(rule => rule.role === 'employee' && rule.entity === 'requests' && rule.actions.includes('read_history'));
+    if (employeeHistory) await panel.locator('.ant-timeline-item').first().waitFor({ state: 'visible' });
+    else assert.equal(await panel.locator('.ant-timeline-item').count(), 0, 'Unpermitted history must not be displayed');
+    await capture(employeeHistory ? 'employee-owned-history.png' : 'employee-owned-record.png');
     await panel.getByText('站内提醒', { exact: true }).waitFor({ state: 'visible' });
     const reminder = notices.find(notice => String(notice.record_id) === String(scenario.records.requests) && notice.message.endsWith(' transitioned'));
     assert(reminder, 'Native recipient resolution reminder missing');
@@ -231,8 +233,8 @@ async function main() {
     await unread.click(); await checked(marked);
     await panel.getByTestId(`business-notice-read-state-${reminder.id}`).waitFor({ state: 'visible' });
     await capture('employee-vben-reminders.png');
-    report.checks.push('employee:own_timeline_and_read_reminder');
-    report.journeys.push({ actor: 'employee', own_history: true, recipient_reminders: true, unauthorized_controls_absent: true });
+    report.checks.push('employee:own_record_history_acl_and_read_reminder');
+    report.journeys.push({ actor: 'employee', own_history: employeeHistory, history_acl: true, recipient_reminders: true, unauthorized_controls_absent: true });
     for (const role of ['other_employee', 'other_service']) {
       await login(role);
       const current = await openPage('requests');

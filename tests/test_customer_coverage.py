@@ -545,3 +545,214 @@ def test_unrequested_metric_filter_does_not_become_a_positive_metric_predicate()
     requirement.features = ["count统计无需request_state筛选"]
     plan.business.metrics[0].filters = []
     assert coverage_gaps(requirement, plan) == []
+
+
+ACTUAL_TIMESTAMP_EXCLUSIONS = [
+    "resolved_at 与 due_at 仅作为时间戳存储，不提供关键词搜索、精确筛选或日期范围筛选。",
+    "datetime 字段（resolved_at、due_at）仅存储时间戳，不参与搜索、筛选或日期范围查询；关系键字段不参与关键词搜索与日期范围。",
+]
+ACTUAL_REQUEST_DESCRIPTORS = (
+    "请求字段：title（必填，≤200，可搜索）、detail（必填，≤3000，可搜索）、"
+    "customer_id（必填关系键→customers）、assignee_id（可选关系键→$users）、"
+    "request_state（必填枚举 new/active/resolved）、resolved_at（datetime）、due_at（datetime）、"
+    "priority（必填枚举 普通/紧急，可精确筛选）"
+)
+
+
+def actual_customer_field_case():
+    import json
+
+    from workbench.settings import ROOT
+
+    # Public deterministic contract is only the unit-test comparison target.
+    # These exact Requirement excerpts came from the sanitized real-run report.
+    source = Plan.model_validate(
+        json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    )
+    plan = Plan(
+        title="字段合同", data_scope="shared", entities=source.entities, acceptance=["字段合同验证"]
+    )
+    requirement = Requirement(
+        summary="客服字段", users=["客服"], data_scope="shared", features=[], acceptance=[]
+    )
+    return requirement, plan
+
+
+@pytest.mark.parametrize("text", ACTUAL_TIMESTAMP_EXCLUSIONS)
+@pytest.mark.parametrize("section", ["features", "acceptance", "facts"])
+def test_exact_real_model_timestamp_exclusions_do_not_invent_query_obligations(text, section):
+    requirement, plan = actual_customer_field_case()
+    if section == "facts":
+        requirement.facts = {"字段查询约束": text}
+    else:
+        setattr(requirement, section, [text])
+    assert coverage_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize("text", ACTUAL_TIMESTAMP_EXCLUSIONS)
+@pytest.mark.parametrize("attribute", ["searchable", "filterable", "date_range"])
+@pytest.mark.parametrize("entity", ["requests", "tasks"])
+def test_explicit_nonparticipating_timestamp_operations_remain_false_constraints(
+    text, attribute, entity
+):
+    requirement, plan = actual_customer_field_case()
+    requirement.acceptance = [text]
+    field = next(
+        field
+        for item in plan.entities
+        if item.name == entity
+        for field in item.fields
+        if field.name == "due_at"
+    )
+    setattr(field, attribute, True)
+    assert any(attribute in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_exact_descriptor_list_keeps_bare_datetime_fields_separate_and_scoped():
+    requirement, plan = actual_customer_field_case()
+    requirement.features = [ACTUAL_REQUEST_DESCRIPTORS]
+    tasks = next(entity for entity in plan.entities if entity.name == "tasks")
+    next(field for field in tasks.fields if field.name == "title").required = False
+    next(field for field in tasks.fields if field.name == "detail").required = False
+    next(field for field in tasks.fields if field.name == "assignee_id").required = True
+    assert coverage_gaps(requirement, plan) == []
+    priority = next(
+        field
+        for entity in plan.entities
+        if entity.name == "requests"
+        for field in entity.fields
+        if field.name == "priority"
+    )
+    priority.filterable = False
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert diagnostics[0]["targets"] == [{"entity": "requests", "field": "priority"}]
+    priority.filterable = True
+    priority.required = False
+    assert any("priority" in gap and "必填" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize("kind", ["datetime", "text", "integer", "boolean"])
+def test_completed_type_only_descriptor_cannot_inherit_next_fields_predicates(kind):
+    from workbench.domain import FieldSpec
+
+    requirement, plan = customer_case()
+    plan.entities[0].fields.insert(0, FieldSpec(name="extra", kind=kind, required=False))
+    requirement.features = [f"customers：extra（{kind}）、category（必填枚举，可精确筛选）"]
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[-1].filterable = False
+    assert any("filterable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize("negative", ["不参与", "不提供"])
+@pytest.mark.parametrize("separator", ["、", "与", "和", "或", "以及"])
+def test_negative_operation_coordination_stops_at_later_positive_field_clause(negative, separator):
+    requirement, plan = customer_case()
+    requirement.features = [
+        f"requests：resolved_at{negative}搜索{separator}日期范围查询，但title必须可搜索"
+    ]
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[1].fields[0].searchable = False
+    assert any("searchable" in gap and "title" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_optional_negative_wording_does_not_disable_an_existing_search_capability():
+    requirement, plan = customer_case()
+    requirement.features = ["customers：name不要求搜索与日期范围查询"]
+    assert plan.entities[0].fields[0].searchable
+    assert coverage_gaps(requirement, plan) == []
+
+
+def test_prohibition_before_field_name_retains_its_false_constraint():
+    requirement, plan = customer_case()
+    requirement.features = ["customers：禁止category搜索"]
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[-1].searchable = True
+    assert any("searchable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_positive_operation_after_negative_contrast_keeps_its_field_subject():
+    requirement, plan = customer_case()
+    requirement.features = ["customers：name不提供搜索，但必须支持精确筛选"]
+    plan.entities[0].fields[0].searchable = False
+    assert plan.entities[0].fields[-1].filterable  # Another field cannot satisfy name's filter.
+    assert any("filterable" in gap and "name" in gap for gap in coverage_gaps(requirement, plan))
+    plan.entities[0].fields[0].filterable = True
+    assert coverage_gaps(requirement, plan) == []
+
+
+def test_explicit_shared_predicate_survives_completed_descriptor_boundaries():
+    requirement, plan = customer_case()
+    requirement.features = ["customers：name（必填文本）、contact（可选文本）均可搜索"]
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[0].searchable = False
+    assert any("searchable" in gap and "name" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_ambiguous_localized_heading_does_not_inherit_the_previous_entity():
+    requirement, plan = customer_case()
+    requirement.features = ["tasks：title（可选）；另一组字段：title（可选）"]
+    assert any("title" in gap and "可选" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize("negative", ["不可", "不可以", "不支持"])
+@pytest.mark.parametrize("section", ["features", "acceptance", "facts"])
+@pytest.mark.parametrize("descriptor", ["name（{negative}搜索）", "name{negative}搜索"])
+def test_explicit_unsupported_search_is_false_constraint(negative, section, descriptor):
+    requirement, plan = customer_case()
+    text = "customers：" + descriptor.format(negative=negative)
+    if section == "facts":
+        requirement.facts = {"查询限制": text}
+    else:
+        setattr(requirement, section, [text])
+    field = plan.entities[0].fields[0]
+    field.searchable = False
+    assert coverage_gaps(requirement, plan) == []
+    field.searchable = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        item["attribute"] == "searchable"
+        and item["expected"] is False
+        and item["targets"] == [{"entity": "customers", "field": "name"}]
+        for item in diagnostics
+    )
+
+
+@pytest.mark.parametrize("negative", ["不可", "不可以", "不支持"])
+@pytest.mark.parametrize("separator", ["，", "；", "，但", "。"])
+def test_unsupported_search_does_not_negate_adjacent_positive_field(negative, separator):
+    requirement, plan = customer_case()
+    requirement.features = [f"customers：name{negative}搜索{separator}contact必须可搜索"]
+    name, contact = plan.entities[0].fields[0], plan.entities[0].fields[2]
+    name.searchable = False
+    assert contact.searchable
+    assert coverage_gaps(requirement, plan) == []
+    contact.searchable = False
+    assert any("searchable" in gap and "contact" in gap for gap in coverage_gaps(requirement, plan))
+    contact.searchable = True
+    name.searchable = True
+    assert any(
+        "searchable=False" in gap and "name" in gap for gap in coverage_gaps(requirement, plan)
+    )
+
+
+@pytest.mark.parametrize("negative", ["不可", "不可以", "不支持"])
+@pytest.mark.parametrize(
+    "kind,attribute,operation",
+    [
+        ("text", "searchable", "关键词搜索"),
+        ("text", "filterable", "精确筛选"),
+        ("date", "date_range", "日期范围查询"),
+    ],
+)
+def test_unsupported_operations_remain_field_scoped(negative, kind, attribute, operation):
+    from workbench.domain import FieldSpec
+
+    requirement, plan = customer_case()
+    field = FieldSpec(name="extra", kind=kind)
+    plan.entities[0].fields.append(field)
+    requirement.features = [f"customers：extra{negative}{operation}，name必须可搜索"]
+    assert coverage_gaps(requirement, plan) == []
+    setattr(field, attribute, True)
+    assert any(attribute in gap and "extra" in gap for gap in coverage_gaps(requirement, plan))

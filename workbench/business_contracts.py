@@ -81,7 +81,7 @@ class WorkflowSpec(BusinessContract):
 
 class NotificationSpec(BusinessContract):
     entity: Name
-    event: Literal["created", "assigned", "transitioned", "due"]
+    event: Literal["created", "assigned", "transitioned", "note_added", "due"]
     recipient: Literal["creator", "assignee"]
     transition: Name | None = None
     due_field: Name | None = None
@@ -262,6 +262,8 @@ class BusinessSpec(BusinessContract):
         for notification in self.notifications:
             if notification.entity not in resources:
                 raise ValueError("Unknown notification entity")
+            if notification.event == "note_added" and not resources[notification.entity].notes:
+                raise ValueError("Note notification requires enabled notes")
             if (
                 notification.recipient == "assignee" or notification.event == "assigned"
             ) and not resources[notification.entity].assignee_field:

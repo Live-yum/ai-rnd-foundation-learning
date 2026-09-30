@@ -476,11 +476,46 @@ def _legacy_clauses(text, fields):
     entity_names = "|".join(re.escape(entity) for entity, _ in fields)
     pattern = rf"(?:(?:{entity_names})(?:::|\.))?(?:{pattern})"
     scope = _fact_entity(text, fields)
-    for sentence in re.split(r"[；;。\n]|但是|但|不过", text):
+    previous_subject = ""
+    contrast = False
+    for sentence in re.split(r"([；;。\n]|但是|但|不过)", text):
+        if sentence in {"但是", "但", "不过"}:
+            contrast = True
+            continue
+        if re.fullmatch(r"[；;。\n]", sentence):
+            contrast = False
+            previous_subject = ""
+            continue
+        if (
+            contrast
+            and previous_subject
+            and not _fact_candidates(sentence, fields)
+            and re.match(
+                r"\s*(?:仍|却|可以|可|必须|需要|要求|支持|允许|不能|禁止|禁用|不)", sentence
+            )
+            and re.search(LEGACY_PROPERTY, sentence, re.I)
+        ):
+            sentence = previous_subject + " " + sentence
+        contrast = False
         heading = re.match(r"\s*([a-z][a-z0-9_]*)\s*[：:]", sentence, re.I)
         if heading and heading.group(1) in {entity for entity, _ in fields}:
             scope = heading.group(1)
             sentence = sentence[heading.end() :]
+        else:
+            heading = re.match(r"\s*[^：:\n]*(?:字段|fields)\s*[：:]", sentence, re.I)
+            if heading:
+                scope = None
+                body = sentence[heading.end() :]
+                declared = re.findall(r"(?<![a-z0-9_])([a-z][a-z0-9_]*)\s*[(（]", body, re.I)
+                owners = [
+                    {entity for entity, field in fields if field.name == name} for name in declared
+                ]
+                common = set.intersection(*owners) if owners and all(owners) else set()
+                # A localized heading is mapped by its executable descriptor
+                # list, never a hard-coded translation or the first entity.
+                if len(common) == 1:
+                    scope = common.pop()
+                    sentence = body
         depths, depth = [], 0
         for char in sentence:
             depths.append(depth)
@@ -511,6 +546,16 @@ def _legacy_clauses(text, fields):
                 ):
                     previous_match = match
                     continue
+            completed_descriptor = False
+            if previous_match is not None:
+                opening = previous_match.end()
+                while opening < match.start() and sentence[opening].isspace():
+                    opening += 1
+                if opening < match.start() and sentence[opening] in "（([【":
+                    completed_descriptor = any(
+                        sentence[index] in "）)]】" and depths[index] == 1
+                        for index in range(opening + 1, match.start())
+                    )
             previous_match = match
             prefix = sentence[start : match.start()]
             if not seen_subject:
@@ -550,15 +595,35 @@ def _legacy_clauses(text, fields):
             if comma is not None:
                 before_comma = re.sub(pattern, "", sentence[start:comma], flags=re.I)
                 descriptive_boundary = bool(re.search(r"[a-z0-9\u4e00-\u9fff]", before_comma))
-            if seen_subject and (re.search(LEGACY_PROPERTY, prefix, re.I) or descriptive_boundary):
+            if seen_subject and (
+                re.search(LEGACY_PROPERTY, prefix, re.I)
+                or descriptive_boundary
+                or completed_descriptor
+            ):
                 previous.append(prefix)
                 start = match.start()
             seen_subject = True
         previous.append(sentence[start:])
+        shared = re.search(r"[)）]\s*((?:均|都)\s*.*)$", sentence)
+        shared_suffix = (
+            shared.group(1)
+            if shared
+            and re.search(LEGACY_PROPERTY, shared.group(1), re.I)
+            and not _fact_candidates(shared.group(1), fields)
+            else ""
+        )
         for clause in previous:
             if clause.strip():
+                # A trailing explicit 'all/both' predicate is shared even when
+                # the individual fields have complete, independent descriptors.
+                if shared_suffix and re.search(r"[)）]", clause) and shared_suffix not in clause:
+                    clause += " " + shared_suffix
                 local_scope = _fact_entity(clause, fields) or scope
-                yield f"{local_scope}::{clause}" if local_scope else clause
+                scoped = f"{local_scope}::{clause}" if local_scope else clause
+                subjects = _fact_candidates(scoped, fields)
+                if subjects:
+                    previous_subject = "、".join(dict.fromkeys(field.name for field in subjects))
+                yield scoped
 
 
 def _operation_parts(text):
@@ -696,25 +761,11 @@ def _metric_clauses(text, fields):
     return "".join(result), obligations
 
 
-def _legacy_operation_text(text, fields):
-    """Remove only negative operation predicates, not the rest of a mixed clause.
-
-    'name可搜索，category不支持搜索' retains the first requirement. A
-    capability explicitly not requested cannot invent a missing date field.
-    Structured boolean constraints are independently checked without this step.
-    """
-    text = re.sub(
-        r"(?:searchable|filterable|date_range)\s*[:=]\s*(?:false|否)(?![a-z])",
-        "",
-        text,
-        flags=re.I,
-    )
-    negative = (
-        r"(?:无需|不需要|不要求|取消|禁止|禁用|关闭|不得|不允许|不支持|不添加|不要|没有|无|不)"
-    )
+def _negative_operation_pattern(fields):
+    negative = r"(?:无需|不需要|不要求|取消|禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不添加|不提供|不参与|不要|没有|无|不)"
     operation = (
         r"(?:(?:关键词|关键字|精确)\s*)?(?:搜索|检索|筛选|过滤)"
-        r"|(?:日期区间|日期范围)(?:筛选|过滤)?"
+        r"|(?:日期区间|日期范围)(?:筛选|过滤|查询)?"
         r"|search(?:able)?|filter(?:able)?|date.?range"
     )
     names = {field.name for _, field in fields}
@@ -722,14 +773,54 @@ def _legacy_operation_text(text, fields):
     name = (
         "(?:" + "|".join(re.escape(value) for value in sorted(names, key=len, reverse=True)) + ")"
     )
-    targets = "(?:" + name + r"(?:\s*[、和与]\s*" + name + r")*(?:的)?\s*)?"
-    return re.sub(
+    targets = "(?P<targets>" + name + r"(?:\s*[、和与]\s*" + name + r")*(?:的)?\s*)?"
+    return re.compile(
         negative + r"\s*(?:任何|额外的?|新的?)?\s*" + targets + r"(?:" + operation + r")"
-        r"(?:\s*[、或和及]\s*(?:" + negative + r")?\s*(?:" + operation + r"))*",
-        "",
+        r"(?:\s*(?:以及|[、或和及与])\s*(?:" + negative + r")?\s*(?:" + operation + r"))*",
+        re.I,
+    )
+
+
+def _legacy_boolean_text(text, fields):
+    """Lower explicit negative capability lists before field-clause splitting.
+
+    不可/不支持/不提供/不参与 describe disabled behavior; 无需/不要求 merely
+    decline a requirement. Coordination ends before a new field or a positive predicate.
+    """
+
+    def replace(match):
+        phrase = match.group()
+        if not re.match(r"禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不提供|不参与", phrase):
+            return ""
+        attributes = []
+        if re.search(r"搜索|检索|search", phrase, re.I):
+            attributes.append("searchable=false")
+        # A date-range operation is not a separate exact-filter toggle.
+        exact = re.sub(
+            r"(?:日期区间|日期范围)(?:筛选|过滤|查询)?|date.?range", "", phrase, flags=re.I
+        )
+        if re.search(r"筛选|过滤|filter", exact, re.I):
+            attributes.append("filterable=false")
+        if re.search(r"日期区间|日期范围|date.?range", phrase, re.I):
+            attributes.append("date_range=false")
+        return " " + (match.group("targets") or "") + " " + " ".join(attributes) + " "
+
+    return _negative_operation_pattern(fields).sub(replace, text)
+
+
+def _legacy_operation_text(text, fields):
+    """Remove checked negatives without merging their subjects into the next clause.
+
+    An empty descriptor preserves the field boundary, while keeping coordinated
+    negated date-range terms out of the positive field-alias parser.
+    """
+    text = re.sub(
+        r"(?:searchable|filterable|date_range)\s*[:=]\s*(?:false|否)(?![a-z])",
+        "（）",
         text,
         flags=re.I,
     )
+    return _negative_operation_pattern(fields).sub("（）", text)
 
 
 def _matches_constraint(attribute, expected, actual):
@@ -927,7 +1018,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
     # Extract it before discarding merely unrequested operation phrases; a
     # typed ledger is helpful but is not required to preserve explicit intent.
     for origin, text in texts:
-        for index, clause in enumerate(_legacy_clauses(text, fields)):
+        for index, clause in enumerate(_legacy_clauses(_legacy_boolean_text(text, fields), fields)):
             source = {**origin, "clause": index}
             source_text = clause
             targets = _fact_candidates(clause, fields)

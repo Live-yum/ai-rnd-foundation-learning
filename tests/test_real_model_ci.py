@@ -171,6 +171,210 @@ def test_actual_model_plan_must_preserve_explicit_customer_obligations(mutation)
         require_customer_spec(spec)
 
 
+@pytest.mark.parametrize(
+    "name,change",
+    [
+        ("total", {"filters": [{"field": "request_state", "value": "resolved"}]}),
+        ("resolved_total", {"filters": []}),
+        (
+            "resolved_total",
+            {"filters": [{"field": "request_state", "op": "ne", "value": "resolved"}]},
+        ),
+        (
+            "resolved_total",
+            {"entity": "tasks", "filters": [{"field": "task_state", "value": "resolved"}]},
+        ),
+        (
+            "resolved_total",
+            {
+                "filters": [
+                    {"field": "request_state", "value": "resolved"},
+                    {"field": "priority", "value": "紧急"},
+                ]
+            },
+        ),
+        ("resolution", {"start_field": "due_at"}),
+        ("resolution", {"end_field": "due_at"}),
+        ("resolution", {"filters": [{"field": "priority", "value": "紧急"}]}),
+        ("customer_categories", {"entity": "requests", "group_by": "customer_id"}),
+        ("customer_categories", {"group_by": "organization"}),
+        ("customer_categories", {"filters": [{"field": "category", "value": "企业"}]}),
+        ("daily", {"time_field": "due_at"}),
+        ("daily", {"entity": "customers"}),
+        ("daily", {"filters": [{"field": "request_state", "value": "resolved"}]}),
+    ],
+)
+def test_customer_gate_requires_each_metric_meaning_not_just_four_kinds(name, change):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    next(metric for metric in spec["business"]["metrics"] if metric["name"] == name).update(change)
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+def test_customer_gate_accepts_provider_metric_names_extra_metrics_and_equivalent_resolution_filter():
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    for number, metric in enumerate(spec["business"]["metrics"]):
+        metric["name"] = f"provider_metric_{number}"
+        if metric["kind"] == "average_duration":
+            metric["filters"] = []
+        elif metric["filters"]:
+            metric["filters"] = [{"field": "request_state", "op": "in", "value": ["resolved"]}]
+    assert len(spec["business"]["metrics"]) > 5
+    require_customer_spec(spec)
+
+
+@pytest.mark.parametrize("entity", ["requests", "tasks"])
+@pytest.mark.parametrize(
+    "event,transition",
+    [
+        ("assigned", None),
+        ("note_added", None),
+        ("transitioned", "start"),
+        ("transitioned", "resolve"),
+        ("due", None),
+    ],
+)
+def test_customer_gate_requires_every_requested_reminder(entity, event, transition):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    spec["business"]["notifications"] = [
+        notice
+        for notice in spec["business"]["notifications"]
+        if (notice["entity"], notice["event"], notice["transition"]) != (entity, event, transition)
+    ]
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+def test_customer_gate_only_pins_the_explicit_resolution_recipient():
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    for notice in spec["business"]["notifications"]:
+        if (notice["entity"], notice["transition"]) != ("requests", "resolve"):
+            notice["recipient"] = "creator" if notice["recipient"] == "assignee" else "assignee"
+    require_customer_spec(spec)
+    for notice in spec["business"]["notifications"]:
+        if (notice["entity"], notice["transition"]) == ("requests", "resolve"):
+            notice["recipient"] = "assignee"
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+@pytest.mark.parametrize("role", ["service", "employee"])
+@pytest.mark.parametrize("action", ["create", "update", "archive", "add_note", "read_audit"])
+def test_customer_query_access_never_implies_customer_write_or_audit_permissions(role, action):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    next(
+        grant
+        for grant in spec["business"]["permissions"]
+        if grant["role"] == role and grant["entity"] == "customers"
+    )["actions"].append(action)
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+@pytest.mark.parametrize("role", ["service", "employee"])
+def test_customer_role_administration_is_manager_only(role):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    spec["business"]["role_admin_roles"].append(role)
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+@pytest.mark.parametrize("role,scope", [("service", "assigned"), ("employee", "own")])
+def test_customer_collaboration_tasks_are_created_only_by_managers(role, scope):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    permission = next(
+        (
+            grant
+            for grant in spec["business"]["permissions"]
+            if grant["role"] == role and grant["entity"] == "tasks"
+        ),
+        None,
+    )
+    if permission is None:
+        spec["business"]["permissions"].append(
+            {"role": role, "entity": "tasks", "actions": ["read", "create"], "scope": scope}
+        )
+    else:
+        permission["actions"].append("create")
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+@pytest.mark.parametrize(
+    "role,entity,action",
+    [
+        ("manager", "customers", action)
+        for action in ("create", "read", "update", "archive", "read_audit")
+    ]
+    + [
+        ("manager", entity, action)
+        for entity in ("requests", "tasks")
+        for action in (
+            "create",
+            "read",
+            "update",
+            "archive",
+            "add_note",
+            "read_history",
+            "read_audit",
+            "assign",
+            "transition",
+        )
+    ]
+    + [
+        ("service", entity, action)
+        for entity in ("requests", "tasks")
+        for action in ("read", "update", "add_note", "transition", "read_history", "read_audit")
+    ]
+    + [("employee", "requests", action) for action in ("create", "read")],
+)
+def test_customer_gate_rejects_each_explicit_role_action_omission(role, entity, action):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    permission = next(
+        grant
+        for grant in spec["business"]["permissions"]
+        if (grant["role"], grant["entity"]) == (role, entity)
+    )
+    permission["actions"].remove(action)
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+@pytest.mark.parametrize("entity", ["customers", "requests", "tasks"])
+@pytest.mark.parametrize("scope", ["own", "assigned"])
+def test_customer_managers_require_all_record_scope(entity, scope):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    permission = next(
+        grant
+        for grant in spec["business"]["permissions"]
+        if grant["role"] == "manager" and grant["entity"] == entity
+    )
+    permission["scope"] = scope
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+@pytest.mark.parametrize("role,scope", [("service", "assigned"), ("employee", "own")])
+def test_customer_collaboration_task_assignment_is_manager_only(role, scope):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    permission = next(
+        (
+            grant
+            for grant in spec["business"]["permissions"]
+            if grant["role"] == role and grant["entity"] == "tasks"
+        ),
+        None,
+    )
+    if permission is None:
+        spec["business"]["permissions"].append(
+            {"role": role, "entity": "tasks", "actions": ["read", "assign"], "scope": scope}
+        )
+    else:
+        permission["actions"].append("assign")
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
 def test_workflow_is_manual_environment_scoped_and_artifact_allowlisted():
     import yaml
 

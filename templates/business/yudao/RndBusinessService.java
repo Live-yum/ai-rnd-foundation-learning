@@ -354,7 +354,7 @@ public class RndBusinessService {
         } else if(action.equals("add_note")) {if(!resource(name).path("notes").asBoolean()||note.isBlank()) throw bad("A nonempty note is required");}
         else throw bad("Unknown named action");
         set(row,"updater",actor().toString());set(row,"updateTime",LocalDateTime.now(ZoneOffset.UTC));validateNative(name,row);persist(name,row);
-        long audit=event(name,row,action,before,note);notify(name,row,action.equals("assign")?"assigned":action.equals("transition")?"transitioned":"notified",transition,audit);return out(name,row);
+        long audit=event(name,row,action,before,note);String notificationEvent=switch(action){case "assign"->"assigned";case "transition"->"transitioned";case "add_note"->"note_added";default->throw bad("Unknown named action");};notify(name,row,notificationEvent,transition,audit);return out(name,row);
     }
     public Object related(String name,String identifier) {
         Object parent=load(name,identifier,false);require(name,parent,"read");
@@ -493,7 +493,7 @@ public class RndBusinessService {
             for(Object row:all(name)) {if(archived(row)||!allowed(name,row,"read")) continue;Object recipient=n.path("recipient").asText().equals("creator")?value(row,"creator"):value(row,wire(resource(name).path("assignee_field").asText()));Object date=metricValue(name,row,field);
                 if(recipient!=null&&recipient.toString().equals(user.toString())&&date!=null&&!instant(date).isAfter(Instant.now())) notification(name,row,user,"due:"+name+":"+id(row)+":"+field+":"+instant(date),name+" #"+id(row)+" due");}
         }
-        List<Map<String,Object>> result=new ArrayList<>();for(Map<String,Object> n:sidecar.notifications(tenant(),user)) {try {Object row=load(n.get("entity").toString(),n.get("record_id"),false);if(allowed(n.get("entity").toString(),row,"read")) {n.put("created_at",external(n.get("created_at")));n.put("read_at",external(n.get("read_at")));n.put("record_id",String.valueOf(n.get("record_id")));String message=String.valueOf(n.get("message"));String event=message.substring(message.lastIndexOf(' ')+1);String action=switch(event){case "created"->"已创建";case "assigned"->"已分配负责人";case "transitioned"->"状态已更新";case "due"->"已到期，请及时处理";default->"有新的提醒";};n.put("display_message",entity(n.get("entity").toString()).path("description").asText()+"「"+recordLabel(n.get("entity").toString(),row)+"」"+action);result.add(n);}}catch(IllegalArgumentException ignored){}}
+        List<Map<String,Object>> result=new ArrayList<>();for(Map<String,Object> n:sidecar.notifications(tenant(),user)) {try {Object row=load(n.get("entity").toString(),n.get("record_id"),false);if(allowed(n.get("entity").toString(),row,"read")) {n.put("created_at",external(n.get("created_at")));n.put("read_at",external(n.get("read_at")));n.put("record_id",String.valueOf(n.get("record_id")));String message=String.valueOf(n.get("message"));String event=message.substring(message.lastIndexOf(' ')+1);String action=switch(event){case "created"->"已创建";case "assigned"->"已分配负责人";case "transitioned"->"状态已更新";case "note_added"->"有新的备注";case "due"->"已到期，请及时处理";default->"有新的提醒";};n.put("display_message",entity(n.get("entity").toString()).path("description").asText()+"「"+recordLabel(n.get("entity").toString(),row)+"」"+action);result.add(n);}}catch(IllegalArgumentException ignored){}}
         return result;
     }
     public void readNotification(Object identifier) {if(sidecar.readNotification(tenant(),actor(),number(identifier))!=1) throw denied();}

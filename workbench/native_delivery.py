@@ -266,6 +266,8 @@ def require_native_business(report, receipt, spec_path):
         "audit",
         "in_app_reminders",
         "due_reminders",
+        "note_reminders",
+        "status_change_reminders",
         "reminder_read_isolation",
         "metrics",
         "row_isolation",

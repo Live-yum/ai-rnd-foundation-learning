@@ -265,13 +265,51 @@ def customer_service_acceptance(template, base, token, targets, plan):
                 "due_at": "2020-01-01T00:00:00Z",
             },
         )
+        # Distinct categories and an unresolved request make the required metric
+        # meanings observably different from each other on the live database.
+        other_customer = manager.create(
+            "customers", {"name": "Comparison " + attempt, "category": "个人"}
+        )
+        other_request = outsider.create(
+            "requests",
+            {
+                "title": "Unresolved comparison " + attempt,
+                "detail": "Control row for scoped operational metrics",
+                "customer_id": other_customer,
+                "priority": "紧急",
+            },
+        )
+        manager.action(
+            "requests", other_request, "assign", {"assignee": actors["other_service"][0]}
+        )
         assert not any(str(r["id"]) == request for r in outsider.rows("requests"))
         assert not any(str(r["id"]) == request for r in service.rows("requests"))
-        manager.action("requests", request, "assign", {"assignee": actors["service"][0]})
+
+        def checked_action(entity, identifier, creator, action, data, transition=None):
+            return verify_event_reminders(
+                plan,
+                entity,
+                identifier,
+                {"assign": "assigned", "add_note": "note_added", "transition": "transitioned"}[
+                    action
+                ],
+                {"creator": creator, "assignee": service},
+                [outsider, actors["other_service"][1]],
+                lambda: (manager if action == "assign" else service).action(
+                    entity, identifier, action, data
+                ),
+                transition,
+            )
+
+        checked_action("requests", request, employee, "assign", {"assignee": actors["service"][0]})
         assert any(str(r["id"]) == request for r in service.rows("requests"))
         assert not any(str(r["id"]) == request for r in actors["other_service"][1].rows("requests"))
-        service.action("requests", request, "add_note", {"text": "Investigated synthetic request"})
-        service.action("requests", request, "transition", {"transition": "start"})
+        checked_action(
+            "requests", request, employee, "add_note", {"text": "Investigated synthetic request"}
+        )
+        checked_action(
+            "requests", request, employee, "transition", {"transition": "start"}, "start"
+        )
         task = manager.create(
             "tasks",
             {
@@ -281,11 +319,15 @@ def customer_service_acceptance(template, base, token, targets, plan):
                 "due_at": "2020-01-01T00:00:00Z",
             },
         )
-        manager.action("tasks", task, "assign", {"assignee": actors["service"][0]})
-        verify_reminders(service, actors["other_service"][1], request, task)
-        service.action("tasks", task, "transition", {"transition": "start"})
-        service.action("tasks", task, "add_note", {"text": "Follow-up complete"})
-        service.action("tasks", task, "transition", {"transition": "resolve"})
+        checked_action("tasks", task, manager, "assign", {"assignee": actors["service"][0]})
+        verify_reminders(
+            plan,
+            [("requests", request, employee, service), ("tasks", task, manager, service)],
+            [outsider, actors["other_service"][1]],
+        )
+        checked_action("tasks", task, manager, "transition", {"transition": "start"}, "start")
+        checked_action("tasks", task, manager, "add_note", {"text": "Follow-up complete"})
+        checked_action("tasks", task, manager, "transition", {"transition": "resolve"}, "resolve")
         assert any(
             str(row["id"]) == request
             for row in manager.related("customers", customer).get("requests", [])
@@ -297,11 +339,10 @@ def customer_service_acceptance(template, base, token, targets, plan):
             str(row["id"]) == request
             for row in outsider.related("customers", customer).get("requests", [])
         ), "Related history leaked another employee request"
-        service.action("requests", request, "transition", {"transition": "resolve"})
-        history = employee.history("requests", request)
-        assert len(history) >= 4, "Handling timeline omitted actions"
-        audit = manager.history("requests", request, True)
-        assert len(audit) >= len(history), "Audit trail omitted history"
+        checked_action(
+            "requests", request, employee, "transition", {"transition": "resolve"}, "resolve"
+        )
+        verify_handling_history(plan, manager, service, employee, outsider, "requests", request)
         inbox = employee.inbox()
         assert any(
             str(row["record_id"]) == request and notice_event(row) == "transitioned"
@@ -309,24 +350,11 @@ def customer_service_acceptance(template, base, token, targets, plan):
         ), "Resolution reminder missing"
         metrics = verify_scoped_metrics(manager, plan, "manager")
         verify_scoped_metrics(service, plan, "service")
+        verify_scoped_metrics(actors["other_service"][1], plan, "service")
         assert employee.call("GET", employee.prefix + "/metrics") == [], (
             "Employee must not access team metrics"
         )
         assert {item.name for item in plan.business.metrics} <= {item["name"] for item in metrics}
-        # Authorization must be enforced on the API, not merely hidden in native UI.
-        forbidden = (
-            outsider.http.get(
-                outsider.prefix + "/history", params={"entity": "requests", "id": request}
-            )
-            if not outsider.fastapi
-            else outsider.http.get(f"{outsider.prefix}/requests/{request}/history")
-        )
-        if forbidden.status_code not in {401, 403, 404}:
-            try:
-                refused_code = forbidden.json().get("code")
-            except ValueError:
-                refused_code = None
-            assert refused_code in {401, 403, 404}, "Outsider read another employee history"
         return {
             "passed": True,
             "spec_digest": digest(plan.model_dump()),
@@ -341,6 +369,8 @@ def customer_service_acceptance(template, base, token, targets, plan):
             "audit": True,
             "in_app_reminders": True,
             "due_reminders": True,
+            "note_reminders": True,
+            "status_change_reminders": True,
             "reminder_read_isolation": True,
             "metrics": True,
             "row_isolation": True,
@@ -355,44 +385,132 @@ def customer_service_acceptance(template, base, token, targets, plan):
             client.close()
 
 
+def assert_history_denied(client, entity, identifier):
+    # Both native wire protocols must deny the API call, not merely hide its UI.
+    forbidden = (
+        client.http.get(f"{client.prefix}/{entity}/{identifier}/history")
+        if client.fastapi
+        else client.http.get(
+            client.prefix + "/history", params={"entity": entity, "id": identifier}
+        )
+    )
+    if forbidden.status_code not in {401, 403, 404}:
+        try:
+            refused_code = forbidden.json().get("code")
+        except ValueError:
+            refused_code = None
+        assert refused_code in {401, 403, 404}, "Unpermitted actor read handling history"
+
+
+def verify_handling_history(plan, manager, service, employee, outsider, entity, identifier):
+    # The public contract guarantees assigned service history and manager audit.
+    # An employee's read grant does not implicitly grant read_history.
+    history = service.history(entity, identifier)
+    assert len(history) >= 4, "Handling timeline omitted actions"
+    audit = manager.history(entity, identifier, True)
+    assert len(audit) >= len(history), "Audit trail omitted history"
+    employee_history = any(
+        grant.role == "employee" and grant.entity == entity and "read_history" in grant.actions
+        for grant in plan.business.permissions
+    )
+    if employee_history:
+        assert len(employee.history(entity, identifier)) >= len(history), (
+            "Employee handling history omitted permitted actions"
+        )
+    else:
+        assert_history_denied(employee, entity, identifier)
+    assert_history_denied(outsider, entity, identifier)
+
+
 def notice_event(row):
     return row.get("event") or row.get("message", "").rsplit(" ", 1)[-1]
 
 
-def verify_reminders(service, outsider, request, task):
-    notices = service.inbox()
-    for entity, identifier in (("requests", request), ("tasks", task)):
-        own = [
-            row
-            for row in notices
-            if row["entity"] == entity and str(row["record_id"]) == identifier
-        ]
-        assert any(notice_event(row) == "assigned" for row in own), "Assignment reminder missing"
-        assert sum(notice_event(row) == "due" for row in own) == 1, (
-            "Due reminder missing or duplicated"
+def record_notices(client, entity, identifier, event):
+    return {
+        str(row["id"]): row
+        for row in client.inbox()
+        if row["entity"] == entity
+        and str(row["record_id"]) == str(identifier)
+        and notice_event(row) == event
+    }
+
+
+def reminder_recipients(plan, entity, event, recipients, transition=None):
+    # Only resolve→request creator is fixed by the public contract. All other
+    # recipients come from the approved plan, not an implicit test preference.
+    return {
+        recipients[notice.recipient]
+        for notice in plan.business.notifications
+        if notice.entity == entity and notice.event == event and notice.transition == transition
+    }
+
+
+def verify_event_reminders(
+    plan, entity, identifier, event, recipients, outsiders, action, transition=None
+):
+    """Prove every declared notification comes from this action to its intended inbox."""
+    expected = reminder_recipients(plan, entity, event, recipients, transition)
+    clients = set(recipients.values()) | set(outsiders)
+    before = {client: record_notices(client, entity, identifier, event) for client in clients}
+    result = action()
+    for client in clients:
+        after = record_notices(client, entity, identifier, event)
+        added = set(after) - set(before[client])
+        assert len(added) == int(client in expected), (
+            f"{entity} {event} {transition or ''} reminder missing, duplicated or misrouted"
         )
-    repeated = service.inbox()
-    assert {str(row["id"]) for row in repeated} == {str(row["id"]) for row in notices}, (
-        "Reading reminders generated duplicate notifications"
-    )
-    notice = next(
-        row
-        for row in notices
-        if row["entity"] == "requests"
-        and str(row["record_id"]) == request
-        and notice_event(row) == "due"
-    )
-    payload(service.read_notice(notice["id"]))
-    updated = next(row for row in service.inbox() if str(row["id"]) == str(notice["id"]))
-    assert updated.get("read") is True or updated.get("read_at") is not None, (
-        "Read state not persisted"
-    )
-    forbidden = outsider.read_notice(notice["id"])
-    assert forbidden.status_code in {401, 403, 404} or forbidden.json().get("code") in {
-        401,
-        403,
-        404,
-    }, "Other recipient changed reminder read state"
+        assert set(record_notices(client, entity, identifier, event)) == set(after), (
+            "Reading reminders generated duplicate notifications"
+        )
+        for notice_id in added:
+            payload(client.read_notice(notice_id))
+            updated = record_notices(client, entity, identifier, event)[notice_id]
+            assert updated.get("read") is True or updated.get("read_at") is not None, (
+                "Read state not persisted"
+            )
+            for other in clients - {client}:
+                forbidden = other.read_notice(notice_id)
+                assert forbidden.status_code in {401, 403, 404} or forbidden.json().get("code") in {
+                    401,
+                    403,
+                    404,
+                }, "Other recipient changed reminder read state"
+    return result
+
+
+def verify_reminders(plan, records, outsiders):
+    """Check assignment/due routing, idempotency and recipient-private read persistence."""
+    for entity, identifier, creator, assignee in records:
+        recipients = {"creator": creator, "assignee": assignee}
+        clients = set(recipients.values()) | set(outsiders)
+        for event in ("assigned", "due"):
+            expected = reminder_recipients(plan, entity, event, recipients)
+            for client in clients:
+                notices = record_notices(client, entity, identifier, event)
+                assert len(notices) == int(client in expected), (
+                    f"{entity} {event} reminder missing, duplicated or misrouted"
+                )
+                assert set(record_notices(client, entity, identifier, event)) == set(notices), (
+                    "Reading reminders generated duplicate notifications"
+                )
+                if not notices:
+                    continue
+                notice = next(iter(notices.values()))
+                payload(client.read_notice(notice["id"]))
+                updated = record_notices(client, entity, identifier, event)[str(notice["id"])]
+                assert updated.get("read") is True or updated.get("read_at") is not None, (
+                    "Read state not persisted"
+                )
+                for other in clients - {client}:
+                    forbidden = other.read_notice(notice["id"])
+                    assert forbidden.status_code in {401, 403, 404} or forbidden.json().get(
+                        "code"
+                    ) in {
+                        401,
+                        403,
+                        404,
+                    }, "Other recipient changed reminder read state"
 
 
 def verify_scoped_metrics(client, plan, role="manager"):

@@ -190,7 +190,14 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
                         )
                     )
             except IntegrityError:
-                pass  # A concurrent request already emitted this exact event.
+                # Only an exact event/recipient duplicate is safe to suppress. Other
+                # constraint failures must roll back the originating mutation too.
+                if not connection.scalar(
+                    select(tables["business_notifications"].c.id).where(
+                        tables["business_notifications"].c.dedupe_key == key
+                    )
+                ):
+                    raise
 
     def reference_checks(connection, actor, entity, values, before=None):
         for (source, field), relation in policy.relations.items():
@@ -588,7 +595,7 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
     @app.post("/api/{entity}/{identity}/notes", status_code=201)
     def add_note(entity: str, identity: str, data: NoteBody, actor=Depends(current)):
         with engine.begin() as connection:
-            record(connection, actor, entity, identity, "add_note")
+            row = record(connection, actor, entity, identity, "add_note", lock=True)
             if not policy.resource(entity)["notes"]:
                 raise HTTPException(403, "记录未启用备注")
             note = {
@@ -600,7 +607,8 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
                 "body": data.body,
             }
             connection.execute(insert(tables["business_notes"]).values(**note))
-            event(connection, actor, entity, identity, "note_added", None, note)
+            eid = event(connection, actor, entity, identity, "note_added", None, note)
+            notify(connection, entity, row, "note_added", eid)
             return note
 
     @app.get("/api/{entity}/{identity}/notes")

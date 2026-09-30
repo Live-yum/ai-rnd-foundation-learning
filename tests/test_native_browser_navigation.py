@@ -98,9 +98,12 @@ const { chromium } = require(process.argv[1]);
         <table><tr class="vxe-body--row" rowid="2"><td>Visible request title</td></tr></table>
         <table class="fixed-right"><tr class="vxe-body--row" rowid="1"><td><button onclick="window.selected='wrong-record'">业务详情</button></td></tr>
           <tr class="vxe-body--row" rowid="2"><td><button onclick="window.selected='correct-record'">业务详情</button></td></tr></table>
+        <section data-rnd-business-panel><button onclick="window.refreshed=true"><span>刷 新</span></button></section>
       </section>`);
     await nativeDetailButton(page, 'requests', '2').click();
     assert.equal(await page.evaluate(() => window.selected), 'correct-record');
+    await page.locator('[data-rnd-business-entity=\"requests\"] [data-rnd-business-panel]').getByRole('button', { name: /^刷\s*新$/ }).click();
+    assert.equal(await page.evaluate(() => window.refreshed), true);
     assert.throws(() => nativeDetailButton(page, 'requests', 'unsafe\"row'), /integer identifier/);
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
@@ -124,5 +127,5 @@ def test_cached_selected_business_detail_requests_an_explicit_refresh():
         "async function select(", 1
     )[0]
     assert "{ entity, id: identifier }" in details
-    assert "panel.getByRole('button', { name: '刷新', exact: true }).click()" in details
+    assert "panel.getByRole('button', { name: /^刷\\s*新$/ }).click()" in details
     assert "String(metadata.record.id), identifier" in details

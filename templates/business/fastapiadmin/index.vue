@@ -139,7 +139,7 @@ function displayValue(entity: string, key: string, value: unknown, row: Item = {
   if (config.value?.business.relations.some((r: Item) => r.entity === entity && r.field === key)) return '关联记录';
   return String(value);
 }
-function eventLabel(event: string) { return ({ created: '创建记录', updated: '编辑记录', update: '编辑记录', assigned: '分配负责人', transitioned: '状态更新', add_note: '添加备注', archived: '归档记录', due: '已到截止时间' } as Record<string, string>)[event] || event; }
+function eventLabel(event: string) { return ({ created: '创建记录', updated: '编辑记录', update: '编辑记录', assigned: '分配负责人', transitioned: '状态更新', add_note: '添加备注', note_added: '添加备注', archived: '归档记录', due: '已到截止时间' } as Record<string, string>)[event] || event; }
 function transitionLabel(name: string) { return workflow.value?.transitions.find((t: Item) => t.name === name)?.label || name; }
 function can(action: string) { return config.value?.permissions.some((p: Item) => p.entity === tab.value && p.actions.includes(action)); }
 function relation(field: Item) { return config.value?.business.relations.find((r: Item) => r.entity === tab.value && r.field === field.name); }

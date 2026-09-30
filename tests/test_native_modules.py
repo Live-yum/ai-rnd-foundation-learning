@@ -122,6 +122,36 @@ def test_yudao_export_cannot_overwrite_native_auth(tmp_path):
         )
 
 
+def test_yudao_time_import_repair_records_original_export_hash(tmp_path):
+    from hashlib import sha256
+
+    backend, frontend, reports = (tmp_path / name for name in ("backend", "frontend", "reports"))
+    constants_file(backend)
+    java = (
+        "yudao-module-infra/yudao-module-infra-server/src/main/java/demo/wbdevice/WbDeviceDO.java"
+    )
+    original = "package demo.wbdevice;\nclass WbDeviceDO { private LocalDate day; }\n"
+    result = mount_yudao_export(
+        zip_bytes(
+            {
+                java: original,
+                "yudao-module-infra/yudao-module-infra-api/src/main/java/demo/ErrorCodeConstants_手动操作.java": 'ErrorCode WB_DEVICE_NOT_EXISTS = new ErrorCode(TODO 补充编号, "设备不存在");',
+            }
+        ),
+        backend,
+        frontend,
+        acceptance_spec().entities[0],
+        reports,
+        set(),
+    )
+    receipt = result["files"][0]
+    assert receipt["source_sha256"] == sha256(original.encode()).hexdigest()
+    assert receipt["sha256"] == sha256((backend / java).read_bytes()).hexdigest()
+    assert receipt["source_sha256"] != receipt["sha256"]
+    assert receipt["compatibility_applied"] is True
+    assert (backend / java).read_text().replace("\nimport java.time.LocalDate;", "") == original
+
+
 def test_native_http_response_is_decompressed_once():
     import gzip
     import json

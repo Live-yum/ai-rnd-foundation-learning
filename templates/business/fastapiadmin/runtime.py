@@ -267,17 +267,21 @@ async def event(db, who, entity, row, name, data):
     )
     db.add(audit)
     await db.flush()
+    # Keep native audit actions stable while dispatching canonical contract events.
+    notification_name = "note_added" if name == "add_note" else name
+    recipients = set()
     for rule in SPEC["notifications"]:
-        if rule["entity"] != entity or rule["event"] != name:
+        if rule["entity"] != entity or rule["event"] != notification_name:
             continue
-        if name == "transitioned" and rule["transition"] != data.get("transition"):
+        if notification_name == "transitioned" and rule["transition"] != data.get("transition"):
             continue
         recipient = (
             row.created_id
             if rule["recipient"] == "creator"
             else getattr(row, POLICY.resource(entity)["assignee_field"])
         )
-        if recipient:
+        if recipient and identifier(recipient) not in recipients:
+            recipients.add(identifier(recipient))
             db.add(
                 BusinessEvent(
                     entity=entity,
@@ -285,7 +289,7 @@ async def event(db, who, entity, row, name, data):
                     actor=identifier(who["id"]),
                     recipient=identifier(recipient),
                     event="notification",
-                    payload={"event": name},
+                    payload={"event": notification_name},
                     source_key=f"{audit.id}:{recipient}",
                 )
             )
@@ -391,6 +395,8 @@ async def mutate(db, who, entity, row_id, action, data):
         row.is_deleted, row.deleted_time = True, datetime.now(UTC)
         row.deleted_id = identifier(who["id"])
     elif action == "add_note":
+        if not POLICY.resource(entity)["notes"]:
+            fail(403, "Notes are disabled for this resource")
         if (
             set(data) != {"text"}
             or not isinstance(data["text"], str)

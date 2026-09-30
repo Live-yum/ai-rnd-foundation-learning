@@ -178,15 +178,25 @@ async function main() {
     await note.getByRole('button', { name: '确定', exact: true }).click();
     await checked(await savedNote);
     assert((await transition(page, 'requests', request.id, 'resolve')).resolved_at);
+    await page.getByTestId('history-' + request.id).click();
+    await page.getByRole('dialog', { name: '记录历史' }).getByText('Browser handling note', { exact: true }).waitFor();
+    await capture(page, 'service-handling-history');
+    await closeNativeDialog(page.getByRole('dialog', { name: '记录历史' }));
     await capture(page, 'service-handled-request');
     report.checks.push('service:assigned_workflows_notes_timestamps');
     page = employee.p;
     await page.reload();
     await tab(page, employee.config, 'requests');
-    await page.getByTestId('history-' + request.id).click();
-    await page.getByRole('dialog', { name: '记录历史' }).getByText('Browser handling note', { exact: true }).waitFor();
-    await capture(page, 'employee-request-timeline');
-    await closeNativeDialog(page.getByRole('dialog', { name: '记录历史' }));
+    const employeeHistory = scenario.plan.business.permissions.some(rule => rule.role === 'employee' && rule.entity === 'requests' && rule.actions.includes('read_history'));
+    if (employeeHistory) {
+      await page.getByTestId('history-' + request.id).click();
+      await page.getByRole('dialog', { name: '记录历史' }).getByText('Browser handling note', { exact: true }).waitFor();
+      await capture(page, 'employee-request-timeline');
+      await closeNativeDialog(page.getByRole('dialog', { name: '记录历史' }));
+    } else {
+      assert.equal(await page.getByTestId('history-' + request.id).count(), 0, 'Unpermitted history control must not be displayed');
+      await capture(page, 'employee-owned-record');
+    }
     const inbox = response(page, '/business/inbox');
     await page.getByRole('tab', { name: '提醒', exact: true }).click();
     const notices = await checked(await inbox);
@@ -195,7 +205,7 @@ async function main() {
     await capture(page, 'employee-resolution-reminders');
     const marked = response(page, `/business/inbox/${own.id}/read`, 'POST');
     await page.getByTestId('read-notice-' + own.id).click(); await checked(await marked);
-    report.checks.push('employee:own_timeline_and_read_reminder');
+    report.checks.push('employee:own_record_history_acl_and_read_reminder');
     for (const role of ['other_employee', 'other_service']) {
       const outsider = await login(role); page = outsider.p;
       const listing = await tab(page, outsider.config, 'requests');
@@ -215,7 +225,7 @@ async function main() {
     const metrics = await checked(await metricResponse);
     assert.equal(metrics.length, scenario.plan.business.metrics.length);
     for (const metric of metrics) await page.getByRole('heading', { name: metric.label, exact: true }).waitFor();
-    report.checks.push('manager:five_native_metric_cards');
+    report.checks.push('manager:all_declared_native_metric_cards');
     assert.equal(report.errors.length, 0);
     await capture(page, 'manager-native-dashboard');
     report.records = { customers: customer.id, requests: request.id, tasks: task.id };

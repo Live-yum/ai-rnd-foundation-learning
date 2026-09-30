@@ -318,6 +318,10 @@ with TestClient(app) as c:
   actors[name]={'id':r.json()['id'],'token':login(name)}
  first,second,a,b=[actors[name]['token'] for name in ['first','second','agent-a','agent-b']]
  customer=call('POST','/api/customers',manager,json={'name':'Enterprise customer','organization':'Org','contact':'internal test','category':'企业'}).json()
+ assert call('POST','/api/customers',a,json={'name':'Forbidden','category':'个人'}).status_code==403
+ assert call('PUT',f'/api/customers/{customer["id"]}',a,json={'name':'Forbidden'}).status_code==403
+ assert call('POST',f'/api/customers/{customer["id"]}/notes',a,json={'body':'Forbidden'}).status_code==403
+ personal=call('POST','/api/customers',manager,json={'name':'Personal customer','category':'个人'}).json()
  requests=[]
  for owner,title in [(first,'First request'),(second,'Other request')]:
   r=call('POST','/api/requests',owner,json={'title':title,'detail':'Needs service','customer_id':customer['id'],'priority':'普通','due_at':'2020-01-01T00:00:00Z'});assert r.status_code==201,r.text
@@ -337,31 +341,54 @@ with TestClient(app) as c:
  assert len(call('GET',f'/business/related/customers/{customer["id"]}',first).json()[0]['records'])==1
  assert call('GET',f'/business/related/requests/{first_request}',first).json()==[]
  assert len(call('GET',f'/business/related/requests/{first_request}',manager).json()[0]['records'])==1
- note=call('POST',f'/api/tasks/{task_id}/notes',b,json={'body':'Task progress'})
- assert note.status_code==201,note.text
- assert call('GET',f'/api/tasks/{task_id}/notes',a).status_code==404
- for entity,identity,actor in [('tasks',task_id,b),('requests',first_request,a)]:
-  assert call('POST',f'/api/{entity}/{identity}/transition',actor,json={'transition':'start'}).status_code==200
-  assert call('POST',f'/api/{entity}/{identity}/transition',actor,json={'transition':'resolve'}).status_code==200
+ def notices(token,entity,identity,event):
+  return {n['id']:n for n in call('GET','/business/notifications',token).json() if n['entity']==entity and n['record_id']==identity and n['event']==event}
+ for entity,identity,actor,creator,other in [('tasks',task_id,b,manager,a),('requests',first_request,a,first,b)]:
+  for event in ['assigned','due']:
+   received=notices(actor,entity,identity,event)
+   assert len(received)==1,(entity,event,received)
+   assert set(notices(actor,entity,identity,event))==set(received)
+   notice_id=next(iter(received))
+   assert call('POST',f'/business/notifications/{notice_id}/read',other).status_code==404
+   assert call('POST',f'/business/notifications/{notice_id}/read',actor).status_code==200
+   assert notices(actor,entity,identity,event)[notice_id]['read_at']
+  before=set(notices(creator,entity,identity,'note_added'))
+  note=call('POST',f'/api/{entity}/{identity}/notes',actor,json={'body':'Handling progress'})
+  assert note.status_code==201,note.text
+  received=notices(creator,entity,identity,'note_added')
+  assert len(set(received)-before)==1,(entity,received)
+  assert set(notices(creator,entity,identity,'note_added'))==set(received)
+  notice_id=next(iter(set(received)-before))
+  assert call('POST',f'/business/notifications/{notice_id}/read',other).status_code==404
+  assert call('POST',f'/business/notifications/{notice_id}/read',creator).status_code==200
+  assert notices(creator,entity,identity,'note_added')[notice_id]['read_at']
+  assert not notices(other,entity,identity,'note_added')
+  for transition in ['start','resolve']:
+   before=set(notices(creator,entity,identity,'transitioned'))
+   assert call('POST',f'/api/{entity}/{identity}/transition',actor,json={'transition':transition}).status_code==200
+   assert len(set(notices(creator,entity,identity,'transitioned'))-before)==1,(entity,transition)
   history=call('GET',f'/api/{entity}/{identity}/history',manager).json()
   assert history[-1]['action']=='transitioned:resolve'
   assert history[-1]['after']['resolved_at']
  metrics={x['name']:x for x in call('GET','/business/metrics',manager).json()}
- assert metrics['total']['value']==2 and metrics['customer_total']['value']==1
+ assert metrics['total']['value']==2 and metrics['customer_total']['value']==2
+ assert metrics['resolved_total']['value']==1
+ assert sorted(metrics['customer_categories']['groups'],key=lambda x:x['key'])==sorted([{'key':'企业','count':1},{'key':'个人','count':1}],key=lambda x:x['key'])
  assert metrics['resolution']['samples']==1 and metrics['resolution']['value']>=0
  assert metrics['by_customer']['groups']==[{'key':customer['id'],'count':2}]
  assert sum(x['count'] for x in metrics['daily']['groups'])==2
  assert {x['name']:x for x in call('GET','/business/metrics',a).json()}['total']['value']==1
  assert {x['name']:x for x in call('GET','/business/metrics',b).json()}['total']['value']==0
  assert call('GET','/business/metrics',first).json()==[]
- assert all(x['event']!='due' for x in call('GET','/business/notifications',b).json())
+ assert len(notices(b,'tasks',task_id,'due'))==1
+ assert not notices(b,'requests',first_request,'due')
  labels=call('POST','/business/labels/requests',first,json={'record_ids':[first_request,other_request]}).json()
  assert labels['customer_id']=={customer['id']:'Enterprise customer'}
  assert labels['assignee_id']=={actors['agent-a']['id']:'agent-a'}
  assert call('POST','/business/labels/requests',b,json={'record_ids':[first_request]}).json()=={}
  assert call('POST','/business/labels/tasks',first,json={'record_ids':[task_id]}).status_code==403
  assert call('POST','/business/labels/requests',first,json={'record_ids':[first_request]*101}).status_code==422
-print(json.dumps({'passed':True,'three_resources':True,'linked_row_acl':True,'tasks':True,'metrics':5}))
+print(json.dumps({'passed':True,'three_resources':True,'linked_row_acl':True,'tasks':True,'metrics':len(metrics)}))
 """
 
 

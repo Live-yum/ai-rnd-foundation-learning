@@ -24,6 +24,96 @@ def check(condition, message):
         raise ValueError(message)
 
 
+class NotificationEvidence:
+    """Expected reminders come from successful actions and the approved contract."""
+
+    def __init__(self, business):
+        self.rules = business["notifications"]
+        self.resources = {r["entity"]: r for r in business["resources"]}
+        self.workflows = {w["entity"]: w for w in business["workflows"]}
+        self.expected = Counter()
+        self.covered = set()
+        self.due_seen = set()
+
+    def recipient(self, rule, row):
+        field = (
+            "created_by"
+            if rule["recipient"] == "creator"
+            else self.resources[rule["entity"]]["assignee_field"]
+        )
+        return row.get(field)
+
+    def event(self, entity, row, event, transition=None):
+        recipients = set()
+        for index, rule in enumerate(self.rules):
+            if rule["entity"] != entity or rule["event"] != event:
+                continue
+            if event == "transitioned" and rule["transition"] != transition:
+                continue
+            recipient = self.recipient(rule, row)
+            if recipient:
+                self.covered.add(index)
+                recipients.add(recipient)
+        self.expected.update((recipient, entity, row["id"], event) for recipient in recipients)
+
+    def due(self, rows, actor, allowed):
+        now = datetime.now(timezone.utc)
+        for index, rule in enumerate(self.rules):
+            if rule["event"] != "due":
+                continue
+            entity, field = rule["entity"], rule["due_field"]
+            for row in rows[entity]:
+                value = row.get(field)
+                if (
+                    not value
+                    or row.get("archived_at")
+                    or self.recipient(rule, row) != actor["id"]
+                    or not allowed(actor["role"], entity, "read", row, actor["id"])
+                    or datetime.fromisoformat(value.replace("Z", "+00:00")) > now
+                ):
+                    continue
+                workflow = self.workflows.get(entity)
+                if workflow and row[workflow["status_field"]] not in {
+                    state for t in workflow["transitions"] for state in t["from_states"]
+                }:
+                    continue
+                self.covered.add(index)
+                key = (actor["id"], entity, row["id"], field, value)
+                if key not in self.due_seen:
+                    self.due_seen.add(key)
+                    self.expected[actor["id"], entity, row["id"], "due"] += 1
+
+    def inbox(self, actor, notices, event=None):
+        check(
+            len({n["id"] for n in notices}) == len(notices),
+            "Duplicate notification identifiers",
+        )
+        check(
+            all(n["recipient_id"] == actor["id"] for n in notices),
+            "Notification recipient leak",
+        )
+        actual = Counter(
+            (n["recipient_id"], n["entity"], n["record_id"], n["event"])
+            for n in notices
+            if event is None or n["event"] == event
+        )
+        expected = Counter(
+            {
+                k: v
+                for k, v in self.expected.items()
+                if k[0] == actor["id"] and (event is None or k[3] == event)
+            }
+        )
+        check(actual == expected, "Missing, duplicated or unexpected declared notifications")
+        check(all(n["created_at"] for n in notices), "Notification timestamp missing")
+
+    def complete(self):
+        check(
+            self.covered == set(range(len(self.rules))),
+            "Declared notification rule was not exercised by the approved workflow",
+        )
+
+
 SCREENSHOT_VIEWS = {"list", "form", "relations", "workflow", "reminders", "dashboard"}
 SCREENSHOT_LIMIT = 48
 SCREENSHOT_FILE_BYTES = 5 * 1024 * 1024
@@ -171,6 +261,8 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
     workflows = {w["entity"]: w for w in business["workflows"]}
     fields = {e["name"]: e["fields"] for e in spec["entities"]}
     checks = []
+    notification_evidence = NotificationEvidence(business)
+    persisted_notifications = {}
     password = secrets.token_urlsafe(24)
 
     def allowed(role, entity, action, row=None, identity=None):
@@ -279,7 +371,38 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                     response.status_code == status,
                     f"Business check failed: {method} {path} expected {status}, got {response.status_code}",
                 )
-                return response.json() if response.content else None
+                result = response.json() if response.content else None
+                if method == "GET" and path == "/business/notifications":
+                    notification_evidence.due(rows, actor, allowed)
+                if method == "POST" and status in {200, 201} and path.startswith("/api/"):
+                    parts = path.strip("/").split("/")
+                    entity = parts[1]
+                    event = None
+                    if len(parts) == 2:
+                        event = "created"
+                        notification_evidence.event(entity, result, event)
+                    elif len(parts) == 4:
+                        event = {
+                            "assign": "assigned",
+                            "transition": "transitioned",
+                            "notes": "note_added",
+                        }.get(parts[3])
+                        if event:
+                            row = (
+                                next(r for r in rows[entity] if r["id"] == parts[2])
+                                if event == "note_added"
+                                else result
+                            )
+                            notification_evidence.event(
+                                entity, row, event, kw.get("json", {}).get("transition")
+                            )
+                    if event:
+                        # Check each action before a later transition can mask an omitted
+                        # reminder with an extra reminder of the same canonical event.
+                        for recipient in actors.values():
+                            notices = request("GET", "/business/notifications", recipient)
+                            notification_evidence.inbox(recipient, notices, event)
+                return result
 
             token = request(
                 "POST", "/auth/login", json={"username": "verify-admin", "password": password}
@@ -443,7 +566,9 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                                 json=sample,
                             )
                             if response.status_code == 201:
-                                rows[entity].append(response.json())
+                                created = response.json()
+                                rows[entity].append(created)
+                                notification_evidence.event(entity, created, "created")
                             else:
                                 check(
                                     response.status_code in {403, 404},
@@ -537,7 +662,7 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                         request(
                             "POST", f"/business/notifications/{note['id']}/read", other, status=404
                         )
-            checks.extend(["business-row-permissions", "business-notifications"])
+            checks.append("business-row-permissions")
             for entity, row in base.items():
                 workflow = workflows.get(entity)
                 visited = set()
@@ -620,6 +745,12 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                         "Immutable history missing",
                     )
             checks.extend(["business-transitions", "business-notes-history"])
+            notification_evidence.complete()
+            for actor in actors.values():
+                notices = request("GET", "/business/notifications", actor)
+                notification_evidence.inbox(actor, notices)
+                repeated = request("GET", "/business/notifications", actor)
+                check(notices == repeated, "Repeated inbox reads changed notification evidence")
             for actor in actors.values():
                 metrics = request("GET", "/business/metrics", actor)
                 expected_names = {
@@ -755,6 +886,35 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                     browser.get("passed") and browser.get("spec_digest") == digest,
                     "Invalid business browser evidence",
                 )
+            # Keep unread reminders available for the real browser interaction first.
+            # Browser-created records may add legitimate events beyond the HTTP ledger.
+            for actor in actors.values():
+                notices = request("GET", "/business/notifications", actor)
+                check(
+                    all(n["recipient_id"] == actor["id"] for n in notices),
+                    "Notification recipient leak after browser actions",
+                )
+                read_times = {}
+                for notice in notices:
+                    outsider = next(a for a in actors.values() if a["id"] != actor["id"])
+                    path = f"/business/notifications/{notice['id']}/read"
+                    request("POST", path, outsider, status=404)
+                    marked = request("POST", path, actor)
+                    check(bool(marked["read_at"]), "Notification was not marked read")
+                    read_times[notice["id"]] = marked["read_at"]
+                    check(
+                        request("POST", path, actor) == marked,
+                        "Repeated mark-read changed the original read timestamp",
+                    )
+                persisted_notifications[actor["id"]] = request(
+                    "GET", "/business/notifications", actor
+                )
+                expected_notices = {n["id"]: {**n, "read_at": read_times[n["id"]]} for n in notices}
+                check(
+                    {n["id"]: n for n in persisted_notifications[actor["id"]]} == expected_notices,
+                    "Notification or read state was not persisted unchanged",
+                )
+            checks.append("business-notifications")
             for entity, row in base.items():
                 actor = next(
                     (
@@ -782,6 +942,14 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                 response.json()["id"] == bootstrap_actor["id"],
                 "Business actor changed after restart",
             )
+            for actor in actors.values():
+                notices = request("GET", "/business/notifications", actor)
+                previous = {n["id"]: n for n in persisted_notifications[actor["id"]]}
+                restored = {n["id"]: n for n in notices}
+                check(
+                    all(restored.get(key) == value for key, value in previous.items()),
+                    "Notification event or read state changed after restart",
+                )
         finally:
             client.close()
             stop(process)
