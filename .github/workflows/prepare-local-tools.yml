@@ -32,6 +32,7 @@ jobs:
         env:
           RND_REQUIRE_NODE_TESTS: '1'
         run: |
+          uv run ruff format .
           uv run ruff check --fix .
           uv run ruff format .
           uv run python -m scripts.build_handbook
@@ -51,6 +52,7 @@ jobs:
         run: |
           mkdir -p reports
           git archive --format=zip HEAD -o reports/native-tools-source.zip
+          cp .venv/bin/ruff reports/ruff-linux
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -58,4 +60,5 @@ jobs:
           path: |
             reports/*.xml
             reports/native-tools-source.zip
+            reports/ruff-linux
           retention-days: 14
