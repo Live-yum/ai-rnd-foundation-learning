@@ -32,7 +32,7 @@ IMAGES = {
     "redis": "redis:7.4.2",
     "dex": "dexidp/dex:v2.42.0",
     "registry": "registry:2.8.2",
-    "minio": "minio/minio:RELEASE.2025-04-22T22-12-26Z",
+    "minio": "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z",
     "maildev": "maildev/maildev:2.2.1",
 }
 
@@ -83,6 +83,8 @@ def render_compose(original, credentials, directory):
         service["image"] = IMAGES[name]
         service["restart"] = "no"
         service.pop("build", None)
+        if name != "runner":
+            service.pop("privileged", None)
         service["ports"] = ["127.0.0.1:" + str(port) for port in service.get("ports", [])]
         service["depends_on"] = [n for n in service.get("depends_on", []) if n in KEEP]
         env = environment(service)
@@ -250,10 +252,10 @@ def images(directory=HOME):
     locked = directory / "compose.lock.yaml"
     if locked.exists():
         raise ValueError("镜像已锁定；不自动更新镜像或重写摘要")
-    result = build_images(directory, command, docker)
+    # Resolve installation dependencies before the expensive local source builds.
+    result = {}
     for name, service in config["services"].items():
         if name in BUILT:
-            service["image"] = result[name]["image_id"]
             continue
         docker("pull", service["image"])
         details = json.loads(docker("image", "inspect", service["image"]))[0]
@@ -264,6 +266,9 @@ def images(directory=HOME):
             raise ValueError("镜像没有匹配的仓库摘要，拒绝漂移：" + name)
         result[name] = {"tag": service["image"], "digest": matching[0]}
         service["image"] = matching[0]
+    result.update(build_images(directory, command, docker))
+    for name in BUILT:
+        config["services"][name]["image"] = result[name]["image_id"]
     locked.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
     if os.name != "nt":
         locked.chmod(0o600)

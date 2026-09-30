@@ -6,7 +6,14 @@
 
 ## 1. 初始化完整演示源码
 
-从当前所查看源码分支的Code菜单取得完整源码并解压，进入含pyproject.toml的根目录执行：
+安装下方的Git和uv后，在准备存放项目的文件夹打开终端。取得完整演示源码：
+
+```powershell
+git clone https://github.com/Live-yum/ai-rnd-foundation-learning.git
+cd ai-rnd-foundation-learning
+```
+
+也可以使用GitHub的Code菜单下载ZIP并解压。以下命令均在含`pyproject.toml`的项目根目录执行：
 
 ```powershell
 uv python install 3.14

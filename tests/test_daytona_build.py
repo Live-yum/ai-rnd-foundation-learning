@@ -135,3 +135,33 @@ def test_snapshot_identity_covers_all_dependency_inputs():
     recipe = (Path(local.ROOT) / "tools/daytona/runner.Dockerfile").read_text()
     assert "28.5.2-dind-alpine3.22" in recipe
     assert "latest" not in recipe and "runner-amd64" in recipe
+
+
+def test_installation_repositories_and_non_runner_privileges_are_explicit():
+    assert local.IMAGES["minio"] == "quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z"
+    assert all(not name.endswith(":latest") for name in local.IMAGES.values())
+
+
+def test_snapshot_registration_uses_a_bounded_child_without_key_arguments(tmp_path, monkeypatch):
+    from scripts import daytona_bootstrap as bootstrap
+    from workbench.tools import ToolFailure
+
+    seen = []
+
+    def run(argv, cwd, **kwargs):
+        seen.append((argv, cwd, kwargs))
+        return {"log": ""}
+
+    monkeypatch.setattr(bootstrap, "run_command", run)
+    bootstrap.snapshot(tmp_path)
+    argv, cwd, options = seen[0]
+    assert argv[3] == "snapshot-worker" and argv[-1] == str(tmp_path.resolve())
+    assert cwd == local.ROOT and options["timeout"] == 720
+    assert not any("key" in value.lower() for value in argv)
+
+    def failed(*args, **kwargs):
+        raise ToolFailure("explicit timeout fixture")
+
+    monkeypatch.setattr(bootstrap, "run_command", failed)
+    with pytest.raises(ToolFailure, match="timeout"):
+        bootstrap.snapshot(tmp_path)

@@ -171,7 +171,11 @@ def test_deployment_transformation_has_no_cloud_services(tmp_path):
         ],
         "fixture-random",
     )
+    source["services"]["api"]["privileged"] = True
+    source["services"]["runner"]["privileged"] = True
     rendered = render_compose(source, credentials, tmp_path)
+    assert not rendered["services"]["api"].get("privileged", False)
+    assert rendered["services"]["runner"]["privileged"] is True
     assert set(rendered["services"]) == KEEP
     assert "cloud.example" not in json.dumps(rendered)
     assert rendered["services"]["api"]["image"] == IMAGES["api"]

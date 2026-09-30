@@ -122,6 +122,8 @@ prepare从固定SHA取得上游安装资源，生成本机配置和随机密码�
 
 images不是去猜测可用的在线Daytona镜像标签。`scripts/daytona_build.py`先从固定Git提交导出干净的构建输入：不带`.git`、未提交修改或本机`.env`。API与Proxy的上游Dockerfile还要逐字节验证Git对象哈希；只在已匹配的构建环境中显式关闭Nx云构建/远程缓存和遥测，实际编译在本机Docker中进行。Runner使用同一v0.190.0发布的`runner-amd64`，安装脚本把固定大小156006775字节和SHA256 `4265d2bb58ad6375b3c4c526ffa2bc2e1d197d94b92b431e532bf827c8f4dfa9`同时作为硬性条件，然后按完整给出的`tools/daytona/runner.Dockerfile`封装成自己的本机镜像。这不是下载其他版本替代，也不是使用在线Runner。该固定发布的Runner安装路径支持Linux x86_64，其他架构会明确停止；Windows请使用x86_64 WSL2 Docker。
 
+基础依赖先逐项拉取并检查可用性，再执行较重的本机源码构建；MinIO固定使用上游公开的`quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z`，没有第三方重打包镜像或latest回退。API不授予privileged权限，只有运行Docker-in-Docker的Runner需要它。
+
 构建镜像标签带版本与源码SHA，images.lock.json记录本机Image ID、构建文件SHA及Runner发布文件SHA；PostgreSQL等基础依赖拉取明确版本后记录实际Registry摘要。compose.lock.yaml只引用这些内容地址。重新启动前逐项对照两份锁，配置不一致就停止；没有任何latest或云端回退。构建失败看终端尾部和本机构建日志，不跳过images进入下一步。
 
 snapshot-image先只启动本机Registry，再构建并推送预热快照。之后up才启动完整控制面，默认快照也指向本机Registry，不在业务验证时临时从Docker Hub拉取。up使用`--pull never`和已锁定摘要。所有发布端口绑定127.0.0.1；服务Docker网络配置为internal，阻止外部出口；Docker命令显式指向本机daemon，不跟随保存的远程Docker context。
@@ -137,7 +139,7 @@ uv run python -m scripts.daytona_bootstrap snapshot
 
 auth使用本机Dex的独立bootstrap客户端及随机本机密码取得经过真实签名验证的身份，再为个人组织创建只含所需资源权限的API Key。它不伪造JWT、不登录云账号。这个密码授权流程只为回环绑定的开发环境提供确定性初始化，不建议照搬到公开OAuth产品。
 
-上一节的snapshot-image只向docker build传入Dockerfile、产品pyproject.toml和uv.lock三个公开输入，不传平台源码目录、.env或用户数据。构建阶段下载Python3.14.7、uv和产品锁定依赖，把缓存预热到镜像；之后推送到本机127.0.0.1:6000 Registry。snapshot把该本机镜像登记为本机Daytona快照。
+上一节的snapshot-image只向docker build传入Dockerfile、产品pyproject.toml和uv.lock三个公开输入，不传平台源码目录、.env或用户数据。构建阶段下载Python3.14.7、uv和产品锁定依赖，把缓存预热到镜像；之后推送到本机127.0.0.1:6000 Registry。snapshot把该本机镜像登记为本机Daytona快照。注册操作在最长720秒的独立本机子进程中完成，超时终止而不是无限等待；失败不能写成已就绪。检查本机API/Runner日志和快照状态后再运行snapshot，不删除数据库或更换云端服务。
 
 生成的`.data/daytona-local/workbench.env`包含可直接填入项目`.env`的六个Daytona字段及工具超时。打开文件在本机复制这些配置，不把Key贴到Issue、聊天或报告里。不要覆盖已有的BASE_URL/API_KEY/MODE；它们属于聊天大模型。
 
@@ -198,3 +200,5 @@ Continue状态与代码：https://github.com/continuedev/continue
 Aider本机CLI选项：https://aider.chat/docs/config/options.html
 
 这些链接用于查看第三方依据；完成本项目代码不要求读者从外部链接补齐本书遗漏的自有模块。
+
+MinIO固定发行版的官方镜像仓库说明：https://github.com/minio/minio/blob/RELEASE.2025-04-22T22-12-26Z/README.md

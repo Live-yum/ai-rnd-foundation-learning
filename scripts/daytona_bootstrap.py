@@ -7,6 +7,7 @@ It is not a recommendation for public OAuth deployments. Tokens are never printe
 import argparse
 import json
 import os
+import sys
 import time
 from pathlib import Path
 
@@ -16,7 +17,8 @@ from pydantic import SecretStr
 from scripts.daytona_local import HOME, private_json
 from workbench.local_only import install_loopback_guard
 from workbench.sandbox import client_for
-from workbench.settings import Settings
+from workbench.settings import ROOT, Settings
+from workbench.tools import run_command
 
 PERMISSIONS = ["write:sandboxes", "delete:sandboxes", "write:snapshots", "delete:snapshots"]
 
@@ -95,6 +97,24 @@ def write_environment(path, key, snapshot):
 
 
 def snapshot(directory=HOME):
+    """Bound the whole operation: this fixed SDK does not enforce create(timeout)."""
+    run_command(
+        [
+            sys.executable,
+            "-m",
+            "scripts.daytona_bootstrap",
+            "snapshot-worker",
+            "--directory",
+            str(Path(directory).resolve()),
+        ],
+        ROOT,
+        timeout=720,
+        heartbeat="Local snapshot registration",
+    )
+    print("本机快照已就绪；全部操作在限时本机进程内完成。")
+
+
+def snapshot_worker(directory=HOME):
     directory = Path(directory)
     metadata = json.loads((directory / "snapshot-image.json").read_text(encoding="utf-8"))
     if not metadata["image"].startswith("registry:6000/rnd-python:"):
@@ -129,10 +149,12 @@ def snapshot(directory=HOME):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["auth", "snapshot"])
+    parser.add_argument("action", choices=["auth", "snapshot", "snapshot-worker"])
     parser.add_argument("--directory", type=Path, default=HOME)
     args = parser.parse_args()
-    (bootstrap if args.action == "auth" else snapshot)(args.directory)
+    {"auth": bootstrap, "snapshot": snapshot, "snapshot-worker": snapshot_worker}[args.action](
+        args.directory
+    )
 
 
 if __name__ == "__main__":
