@@ -4,9 +4,6 @@ import json
 
 import httpx
 import pytest
-from scripts.news_fixture import news_spec
-from workbench.domain import Plan
-from workbench.settings import ROOT
 
 from scripts.ci_real_model import (
     ENDPOINT,
@@ -21,6 +18,9 @@ from scripts.ci_real_model import (
     smoke,
     trusted_dispatch,
 )
+from scripts.news_fixture import news_spec
+from workbench.domain import Plan
+from workbench.settings import ROOT
 
 
 def config():
@@ -171,7 +171,7 @@ def test_workflow_is_manual_environment_scoped_and_artifact_allowlisted():
         (ROOT / ".github/workflows/real-model.yml").read_text(encoding="utf-8"),
         Loader=yaml.BaseLoader,
     )
-    assert set(doc["on"]) == {"workflow_dispatch", "workflow_call"}
+    assert set(doc["on"]) == {"workflow_dispatch"}
     job = doc["jobs"]["real-model"]
     assert job["environment"] == "rnd"
     assert "github.event_name == 'workflow_dispatch'" in job["if"]
@@ -189,24 +189,16 @@ def test_workflow_is_manual_environment_scoped_and_artifact_allowlisted():
         (ROOT / ".github/workflows/native-probe.yml").read_text(encoding="utf-8"),
         Loader=yaml.BaseLoader,
     )
-    charged = [job for job in entry["jobs"].values() if job.get("environment") == "rnd"]
-    assert len(charged) == 1
-    direct = charged[0]
-    assert "uses" not in direct
-    assert "workflow_dispatch" in direct["if"] and "github.event_name == 'push'" in direct["if"]
-    assert "test: run authorized real-model validation iteration" in direct["if"]
-    assert REPOSITORY in direct["if"]
-    for step in direct["steps"]:
-        if "API_KEY" in step.get("env", {}):
-            assert step["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"
+    assert set(entry["jobs"]) == {"verify-bundles"}
+    assert all(job.get("environment") != "rnd" for job in entry["jobs"].values())
+    assert "push" not in entry["on"]
 
 
 def test_all_profiles_use_authorized_configuration_despite_hostile_ambient_overrides(
     tmp_path, monkeypatch
 ):
-    from workbench.settings import STAGES
-
     from scripts.ci_real_model import acceptance_settings
+    from workbench.settings import STAGES
 
     monkeypatch.setenv("PLANNING_BASE_URL", "https://evil.example")
     monkeypatch.setenv("CODING_MODE", "silent-fallback")
@@ -302,49 +294,38 @@ def test_string_actions_values_and_exact_secret_mapping_are_accepted():
     assert cfg.key.get_secret_value() == "test-only-secret"
 
 
-@pytest.mark.parametrize(
-    "message,sha,repository,allowed",
-    [
-        ("test: run authorized real-model validation iteration", "a" * 40, REPOSITORY, True),
-        ("ordinary push", "a" * 40, REPOSITORY, False),
-        ("test: run authorized real-model validation iteration extra", "a" * 40, REPOSITORY, False),
-        ("test: run authorized real-model validation iteration", "b" * 40, REPOSITORY, False),
-        ("test: run authorized real-model validation iteration", "a" * 40, "attacker/fork", False),
-    ],
-)
-def test_only_exact_authorized_current_iteration_push_can_use_provider(
-    tmp_path, message, sha, repository, allowed
-):
+@pytest.mark.parametrize("ref", sorted(REFS))
+def test_only_explicit_manual_runs_on_authorized_branches_can_use_provider(tmp_path, ref):
+    env = {
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_EVENT_NAME": "workflow_dispatch",
+        "GITHUB_REPOSITORY": REPOSITORY,
+        "GITHUB_REF": ref,
+    }
+    trusted_dispatch(env)
+    # The former iteration marker cannot re-enable automatic paid calls.
     path = tmp_path / "event.json"
     path.write_text(
         json.dumps(
             {
-                "head_commit": {"message": message, "id": sha},
-                "after": sha,
-                "repository": {"full_name": repository},
+                "head_commit": {
+                    "message": "test: run authorized real-model validation iteration",
+                    "id": "a" * 40,
+                },
+                "after": "a" * 40,
+                "repository": {"full_name": REPOSITORY},
             }
         ),
         encoding="utf-8",
     )
-    env = {
-        "GITHUB_ACTIONS": "true",
-        "GITHUB_EVENT_NAME": "push",
-        "GITHUB_REPOSITORY": REPOSITORY,
-        "GITHUB_REF": next(iter(REFS)),
-        "GITHUB_SHA": "a" * 40,
-        "GITHUB_EVENT_PATH": str(path),
-    }
-    if allowed:
+    env.update(GITHUB_EVENT_NAME="push", GITHUB_SHA="a" * 40, GITHUB_EVENT_PATH=str(path))
+    with pytest.raises(SafeFailure, match="untrusted_dispatch"):
         trusted_dispatch(env)
-    else:
-        with pytest.raises(SafeFailure, match="untrusted_dispatch"):
-            trusted_dispatch(env)
 
 
 def test_provider_diagnostics_emit_only_schema_codes_counts_and_flags():
-    from workbench.domain import Requirement
-
     from scripts.ci_real_model import response_receipt
+    from workbench.domain import Requirement
 
     raw = json.dumps(
         {

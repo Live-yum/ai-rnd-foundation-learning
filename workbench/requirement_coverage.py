@@ -304,7 +304,7 @@ def _fact_attribute(label):
         (
             name
             for name in FACT_ATTRIBUTES
-            if label.endswith("_" + name) or label.endswith("." + name)
+            if re.search(rf"(?:[._]|\s){re.escape(name)}$", label, re.I)
         ),
         None,
     )

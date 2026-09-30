@@ -23,8 +23,11 @@ import httpx
 from pydantic import SecretStr
 
 REPOSITORY = "Live-yum/ai-rnd-foundation-learning"
-REFS = {"refs/heads/feat/real-model-acceptance"}
-PUSH_MARKER = "test: run authorized real-model validation iteration"
+REFS = {
+    "refs/heads/main",
+    "refs/heads/feat/complete-platform-acceptance",
+    "refs/heads/feat/real-model-acceptance",
+}
 ENDPOINT = "https://api.deepseek.com"
 MODEL = "deepseek-flash"
 MAX_WORKFLOW_CALLS = 16
@@ -94,26 +97,11 @@ def configuration(env):
 def trusted_dispatch(env):
     if (
         env.get("GITHUB_ACTIONS") != "true"
+        or env.get("GITHUB_EVENT_NAME") != "workflow_dispatch"
         or env.get("GITHUB_REPOSITORY") != REPOSITORY
         or env.get("GITHUB_REF") not in REFS
     ):
         raise SafeFailure("untrusted_dispatch")
-    if env.get("GITHUB_EVENT_NAME") == "workflow_dispatch":
-        return
-    if env.get("GITHUB_EVENT_NAME") == "push":
-        try:
-            event = json.loads(Path(env.get("GITHUB_EVENT_PATH", "")).read_text(encoding="utf-8"))
-            if (
-                event["head_commit"]["message"] == PUSH_MARKER
-                and event["after"] == env.get("GITHUB_SHA")
-                and event["head_commit"]["id"] == env.get("GITHUB_SHA")
-                and bool(env.get("GITHUB_SHA"))
-                and event["repository"]["full_name"] == REPOSITORY
-            ):
-                return
-        except OSError, ValueError, KeyError, TypeError:
-            pass
-    raise SafeFailure("untrusted_dispatch")
 
 
 class BoundedRealTransport(httpx.BaseTransport):
@@ -457,6 +445,7 @@ def acceptance_settings(config, directory):
 
 def run_acceptance(config, transport, directory):
     import uvicorn
+
     from workbench.api import create_app
     from workbench.filesystem import unpack, write_json
     from workbench.llm import ModelGateway

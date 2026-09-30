@@ -186,3 +186,26 @@ def test_legacy_chinese_boolean_query_flags_keep_polarity(key, field, attribute,
     assert coverage_gaps(requirement, plan) == []
     setattr(item, attribute, not enabled)
     assert any("." + attribute + "=" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize(
+    "key,field,attribute",
+    [
+        ("category required", "category", "required"),
+        ("category REQUIRED", "category", "required"),
+        ("title searchable", "title", "searchable"),
+        ("category filterable", "category", "filterable"),
+        ("published_on date_range", "published_on", "date_range"),
+        ("category\trequired", "category", "required"),
+    ],
+)
+@pytest.mark.parametrize("enabled", [True, False])
+def test_legacy_whitespace_canonical_flags_keep_polarity(key, field, attribute, enabled):
+    requirement, plan = case({key: enabled})
+    requirement.features = []
+    requirement.acceptance = []
+    item = next(item for item in plan.entities[0].fields if item.name == field)
+    setattr(item, attribute, enabled)
+    assert coverage_gaps(requirement, plan) == []
+    setattr(item, attribute, not enabled)
+    assert any("." + attribute + "=" in gap for gap in coverage_gaps(requirement, plan))
