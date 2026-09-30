@@ -507,6 +507,10 @@ FastapiAdmin：https://github.com/fastapiadmin/FastapiAdmin
 芋道：https://gitee.com/yudaocode/yudao-cloud-mini 、https://gitee.com/yudaocode/yudao-ui-admin-vben
 这些文档解释工具行为；本项目可复现版本以同一提交的uv.lock、vendor manifest、代码及测试为准。
 
+## 已有生成目录和数据库的保护
+
+基础模板只在不存在的新目标目录中首次生成。已有目录只有在原 `generation.json` 的设计指纹、前端/数据库选择及文件清单有效且匹配时才可原样复用，交付前仍须单独验证源码。回执缺失、损坏或设计/选择不匹配时会停止，并保留全部原字节，包括 `.data/product.db`、`.env` 和你自行添加的源码；不会删除整个产品目录来“恢复成功”。先备份并核对原运行的真实回执和批准设计，不要手写一个成功回执或删除数据库绕过检查。新设计应在新的空目录/新运行中生成；若要把现有业务数据迁移到新结构，需要单独制定、备份并批准迁移方案。生成中断且没有有效回执时也保留现场，不承诺自动重建或自动迁移数据。
+
 # 逐文件实现讲解：把空文件夹变成完整系统
 
 这一部分回答“为什么要这样写”，完整源码区回答“到底写哪些字符”。两者描述同一份实现。不要先寻找一个骨架项目，也不要把文件名当作下载链接：每个文件都在完整源码区给出全文。文件很多不是因为需要许多个智能体，而是把用户输入、数据库事务、模型推理、文件操作和真实验收分开，避免一个环节的错误变成另一个环节的假成功。
@@ -1117,7 +1121,7 @@ print("正例、反例、安全拒绝三条路径通过")
 
 ## 第6课：确定性生成器究竟写了什么
 
-**先完成**组0—6所有自有文件及完整产品模板。这一步不需要模型Key、不启动产品服务、不安装原生Java环境。生成器会重建传入的目标，所以本课只传新临时目录，绝不能传你已有工作的目录。新建`learning/lesson_06.py`：
+**先完成**组0—6所有自有文件及完整产品模板。这一步不需要模型Key、不启动产品服务、不安装原生Java环境。生成器只在新目标目录创建产品；已有目录只有同一计划与技术选择的有效回执才可幂等复用，回执缺失、损坏或不匹配会保留原文件并停止。本课只传新临时目录，不拿已有工作目录做实验。新建`learning/lesson_06.py`：
 
 ```python
 # lesson: 06
@@ -5597,9 +5601,9 @@ class Workflow:
 **逐个入口与控制逻辑：**
 
 - `PrerequisiteError`（L13–L14）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `generate_basic`（L17–L101）：接收`plan`、`destination`、`selection`。 控制顺序：L21按`plan.data_scope != "per_user" or plan.unsupported`分支；L22抛异常，停止当前正常路径；L23按`destination.exists()`分支；L25按`receipt.exists()`分支；L27按`previous["spec_digest"] == digest(plan.model_dump()) and previous.get("selection") ==…`分支；L34遍历`files(ROOT / "templates" / "product")`；L41按`selection["frontend"] == "simple-admin"`分支；L42遍历`files(ROOT / "templates/frontends/simple-admin")`。 调用`Selection.model_validate(selection or {"template": "python-basic"…`、`Selection.model_validate`、`PrerequisiteError`、`destination.exists`、`receipt.exists`、`json.loads`、`receipt.read_text`、`digest`、`plan.model_dump`等。 返回路径：L31的`previous`；L101的`receipt`。
+- `generate_basic`（L17–L120）：接收`plan`、`destination`、`selection`。 控制顺序：L21按`plan.data_scope != "per_user" or plan.unsupported`分支；L22抛异常，停止当前正常路径；L24按`destination.is_symlink() or ( hasattr(destination, "is_junction") and destination.is_…`分支；L27抛异常，停止当前正常路径；L28按`destination.exists()`分支；L35按`not destination.is_dir() or receipt.is_symlink() or not receipt.is_file()`分支；L36抛异常，停止当前正常路径；L40抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Selection.model_validate(selection or {"template": "python-basic"…`、`Selection.model_validate`、`PrerequisiteError`、`Path`、`destination.is_symlink`、`hasattr`、`destination.is_junction`、`destination.exists`、`destination.is_dir`等。 返回路径：L51的`previous`；L120的`receipt`。
 
-<!-- source-file: workbench/generator.py sha256: 0632fa4e8825fe38f5d253d9f76c563daa95b33c4533ca641ccb026989639c21 -->
+<!-- source-file: workbench/generator.py sha256: e7e3dd9940cd1be49cb82767755eaf13947b9b1da2d53cd2c0b0abf49c238653 -->
 ````python
 """Deterministic generation: approved metadata -> reviewed golden files, never LLM boilerplate."""
 
@@ -5623,16 +5627,35 @@ def generate_basic(plan: Plan, destination: Path, selection=None):
     selection = Selection.model_validate(selection or {"template": "python-basic"}).model_dump()
     if plan.data_scope != "per_user" or plan.unsupported:
         raise PrerequisiteError("免服务模板仅支持逐用户 CRUD；不允许静默替换共享数据或未支持项")
+    destination = Path(destination)
+    if destination.is_symlink() or (
+        hasattr(destination, "is_junction") and destination.is_junction()
+    ):
+        raise PrerequisiteError("生成目录不能是符号链接或 junction；原路径未修改")
     if destination.exists():
+        error = (
+            "现有产品目录缺少有效且匹配的生成回执；已保留源码、用户文件和.data数据库。"
+            "请恢复此运行原有的generation.json及批准设计，或使用新的空目录生成；"
+            "不自动删除、覆盖或迁移现有产品数据"
+        )
         receipt = destination.parent / "generation.json"
-        if receipt.exists():
+        if not destination.is_dir() or receipt.is_symlink() or not receipt.is_file():
+            raise PrerequisiteError(error)
+        try:
             previous = json.loads(receipt.read_text(encoding="utf-8"))
-            if (
-                previous["spec_digest"] == digest(plan.model_dump())
-                and previous.get("selection") == selection
-            ):
-                return previous
-        shutil.rmtree(destination)
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise PrerequisiteError(error) from exc
+        if (
+            not isinstance(previous, dict)
+            or previous.get("spec_digest") != digest(plan.model_dump())
+            or previous.get("selection") != selection
+            or not isinstance(previous.get("files"), dict)
+            or not previous["files"]
+        ):
+            raise PrerequisiteError(error)
+        # Idempotence never authorizes resetting an existing product. Runtime
+        # verification separately binds its source hashes before any delivery.
+        return previous
     destination.mkdir(parents=True)
     for name, source in files(ROOT / "templates" / "product"):
         target = destination / name
@@ -20709,6 +20732,138 @@ def test_native_style_receipt_cannot_be_skipped_or_forged(tmp_path, change):
     with pytest.raises(PrerequisiteError, match="原生UI"):
         managed_verify(product, receipt)
     assert not (product.parent / "verification.json").exists()
+````
+
+### `tests/test_generation_preservation.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.domain`、`workbench.generator`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `snapshot`（L11–L14）：接收`root`。 调用`str`、`path.relative_to`、`path.read_bytes`、`root.rglob`、`path.is_file`。 返回路径：L12的`{ str(path.relative_to(root)): path.read_bytes() for path in root.rglob("*") if path.is_fi…`。
+- `existing`（L17–L26）：接收`tmp_path`、`plan`。 调用`generate_basic`、`(product / ".data").mkdir`、`(product / ".data/product.db").write_bytes`、`(product / ".data/deployment.env").write_bytes`、`(product / "user-notes.txt").write_text`、`(product / ".env").write_bytes`、`(product / "user_module.py").write_bytes`。 返回路径：L26的`product, receipt`。
+- `test_existing_generation_without_matching_receipt_preserves_every_byte`（L45–L76）：接收`tmp_path`、`plan`、`failure`。 控制顺序：L48按`failure in {"missing", "receipt_directory"}`分支；L50按`failure == "receipt_directory"`分支；L52按`failure == "malformed"`分支；L54按`failure == "invalid_utf8"`分支；L58按`failure == "null"`分支；L60按`failure == "list"`分支；L62按`failure == "partial"`分支；L64按`failure == "spec"`分支。后续分支沿下方源码相同行号继续阅读。 调用`existing`、`path.unlink`、`path.mkdir`、`path.write_text`、`path.write_bytes`、`digest`、`value.pop`、`json.dumps`、`snapshot`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_changed_design_cannot_reset_existing_product`（L79–L85）：接收`tmp_path`、`plan`。 控制顺序：L85断言`snapshot(tmp_path) == before`。 调用`existing`、`snapshot`、`plan.model_copy`、`pytest.raises`、`generate_basic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_matching_generation_is_idempotent_and_preserves_user_data`（L88–L92）：接收`tmp_path`、`plan`。 控制顺序：L91断言`generate_basic(plan, product) == receipt`；L92断言`snapshot(tmp_path) == before`。 调用`existing`、`snapshot`、`generate_basic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unknown_existing_empty_directory_is_not_adopted`（L95–L100）：接收`tmp_path`、`plan`。 控制顺序：L100断言`product.is_dir() and list(product.iterdir()) == []`。 调用`product.mkdir`、`pytest.raises`、`generate_basic`、`product.is_dir`、`list`、`product.iterdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_non_directory_is_not_removed`（L103–L108）：接收`tmp_path`、`plan`。 控制顺序：L108断言`product.read_bytes() == b"user-file"`。 调用`product.write_bytes`、`pytest.raises`、`generate_basic`、`product.read_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_generation_preservation.py sha256: d60fe978bc9800432c0639d1db0031cd7a0674817d301bb32974b24abb610a92 -->
+````python
+"""Generator retries must not remove product databases, credentials or user files."""
+
+import json
+
+import pytest
+
+from workbench.domain import digest
+from workbench.generator import PrerequisiteError, generate_basic
+
+
+def snapshot(root):
+    return {
+        str(path.relative_to(root)): path.read_bytes() for path in root.rglob("*") if path.is_file()
+    }
+
+
+def existing(tmp_path, plan):
+    product = tmp_path / "product"
+    receipt = generate_basic(plan, product)
+    (product / ".data").mkdir()
+    (product / ".data/product.db").write_bytes(b"user-owned-database-sentinel\x00\xff")
+    (product / ".data/deployment.env").write_bytes(b"test-only-local-data")
+    (product / "user-notes.txt").write_text("用户保存的内容", encoding="utf-8")
+    (product / ".env").write_bytes(b"USER_SETTING=test-only-sentinel\n")
+    (product / "user_module.py").write_bytes(b"# user-maintained code\nvalue = 42\n")
+    return product, receipt
+
+
+@pytest.mark.parametrize(
+    "failure",
+    [
+        "missing",
+        "malformed",
+        "invalid_utf8",
+        "null",
+        "list",
+        "partial",
+        "spec",
+        "selection",
+        "missing_files",
+        "empty_files",
+        "receipt_directory",
+    ],
+)
+def test_existing_generation_without_matching_receipt_preserves_every_byte(tmp_path, plan, failure):
+    product, receipt = existing(tmp_path, plan)
+    path = tmp_path / "generation.json"
+    if failure in {"missing", "receipt_directory"}:
+        path.unlink()
+        if failure == "receipt_directory":
+            path.mkdir()
+    elif failure == "malformed":
+        path.write_text("{broken", encoding="utf-8")
+    elif failure == "invalid_utf8":
+        path.write_bytes(b"\xff\xfeinvalid")
+    else:
+        value = receipt
+        if failure == "null":
+            value = None
+        elif failure == "list":
+            value = []
+        elif failure == "partial":
+            value = {}
+        elif failure == "spec":
+            value["spec_digest"] = digest({"other": "design"})
+        elif failure == "selection":
+            value["selection"]["database"] = "postgresql"
+        elif failure == "missing_files":
+            value.pop("files")
+        elif failure == "empty_files":
+            value["files"] = {}
+        path.write_text(json.dumps(value), encoding="utf-8")
+    before = snapshot(tmp_path)
+    with pytest.raises(PrerequisiteError, match="已保留"):
+        generate_basic(plan, product)
+    assert snapshot(tmp_path) == before
+
+
+def test_changed_design_cannot_reset_existing_product(tmp_path, plan):
+    product, _ = existing(tmp_path, plan)
+    before = snapshot(tmp_path)
+    changed = plan.model_copy(update={"title": plan.title + " changed"})
+    with pytest.raises(PrerequisiteError, match="已保留"):
+        generate_basic(changed, product)
+    assert snapshot(tmp_path) == before
+
+
+def test_matching_generation_is_idempotent_and_preserves_user_data(tmp_path, plan):
+    product, receipt = existing(tmp_path, plan)
+    before = snapshot(tmp_path)
+    assert generate_basic(plan, product) == receipt
+    assert snapshot(tmp_path) == before
+
+
+def test_unknown_existing_empty_directory_is_not_adopted(tmp_path, plan):
+    product = tmp_path / "product"
+    product.mkdir()
+    with pytest.raises(PrerequisiteError, match="已保留"):
+        generate_basic(plan, product)
+    assert product.is_dir() and list(product.iterdir()) == []
+
+
+def test_existing_non_directory_is_not_removed(tmp_path, plan):
+    product = tmp_path / "product"
+    product.write_bytes(b"user-file")
+    with pytest.raises(PrerequisiteError, match="已保留"):
+        generate_basic(plan, product)
+    assert product.read_bytes() == b"user-file"
 ````
 
 ### `tests/test_guided_completion.py`
@@ -39033,7 +39188,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/guide.md sha256: 4314df5bf9277d613618dca5c44b77086c45ae283047e9735edc8dfc874eebed -->
+<!-- source-file: docs/guide.md sha256: 6e669b8bb5b6393e7d6997a97e15afa8037933b1e895c7790f05ee55fed8fbfb -->
 ````markdown
 # 从零实现 AI 研发平台：逐步实操手册
 
@@ -39543,6 +39698,10 @@ Pydantic Settings：https://docs.pydantic.dev/latest/concepts/pydantic_settings/
 FastapiAdmin：https://github.com/fastapiadmin/FastapiAdmin
 芋道：https://gitee.com/yudaocode/yudao-cloud-mini 、https://gitee.com/yudaocode/yudao-ui-admin-vben
 这些文档解释工具行为；本项目可复现版本以同一提交的uv.lock、vendor manifest、代码及测试为准。
+
+## 已有生成目录和数据库的保护
+
+基础模板只在不存在的新目标目录中首次生成。已有目录只有在原 `generation.json` 的设计指纹、前端/数据库选择及文件清单有效且匹配时才可原样复用，交付前仍须单独验证源码。回执缺失、损坏或设计/选择不匹配时会停止，并保留全部原字节，包括 `.data/product.db`、`.env` 和你自行添加的源码；不会删除整个产品目录来“恢复成功”。先备份并核对原运行的真实回执和批准设计，不要手写一个成功回执或删除数据库绕过检查。新设计应在新的空目录/新运行中生成；若要把现有业务数据迁移到新结构，需要单独制定、备份并批准迁移方案。生成中断且没有有效回执时也保留现场，不承诺自动重建或自动迁移数据。
 ````
 
 ### `docs/implementation.md`
@@ -39933,7 +40092,7 @@ uv run python -m scripts.build_handbook --check
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/implementation-labs.md sha256: 116b71df9b05b27b961e47c85992d1898b6e347e72c2f49bfed85e0e3f83bb19 -->
+<!-- source-file: docs/implementation-labs.md sha256: 6878606d8011669709a88f83c89b4665319f83905dabe289dedda8259c68f9be -->
 ````markdown
 # 动手写与跑：从第一行Python到完整调用链
 
@@ -40176,7 +40335,7 @@ print("正例、反例、安全拒绝三条路径通过")
 
 ## 第6课：确定性生成器究竟写了什么
 
-**先完成**组0—6所有自有文件及完整产品模板。这一步不需要模型Key、不启动产品服务、不安装原生Java环境。生成器会重建传入的目标，所以本课只传新临时目录，绝不能传你已有工作的目录。新建`learning/lesson_06.py`：
+**先完成**组0—6所有自有文件及完整产品模板。这一步不需要模型Key、不启动产品服务、不安装原生Java环境。生成器只在新目标目录创建产品；已有目录只有同一计划与技术选择的有效回执才可幂等复用，回执缺失、损坏或不匹配会保留原文件并停止。本课只传新临时目录，不拿已有工作目录做实验。新建`learning/lesson_06.py`：
 
 ```python
 # lesson: 06
