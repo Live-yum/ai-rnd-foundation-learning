@@ -1,0 +1,97 @@
+diff --git a/workbench/native_lab.py b/workbench/native_lab.py
+index 23f7d69..2f90f63 100644
+--- a/workbench/native_lab.py
++++ b/workbench/native_lab.py
+@@ -59,7 +59,9 @@ def generated_browser(template, front_url, reports):
+ 
+ 
+-def run_acceptance(template, source, output, frontend_source, url, reports, plan, redis_port=6379):
++def run_acceptance(template, source, output, frontend_source, url, reports, plan, redis_port=6379, *, customization=None):
+     """Shared by CLI and CI; never reset an existing database or workspace."""
+     plan = validate_plan(plan)
++    if plan.custom_rules and customization is None:
++        raise ValueError("原生业务规则未接入Aider执行器；不允许忽略规则生成CRUD")
+     source, output, reports = (
+         Path(source).resolve(),
+@@ -106,4 +108,8 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
+             )
+             export_menu_sql(template, url, baseline_menus, reports / "menu-seed.sql")
++        product_root = output if template == "fastapiadmin" else output.parent
++        if plan.custom_rules:
++            stage("plop-aider-native-business-rules")
++            customization(template, plan, product_root, backend, frontend, env, targets, reports)
+         if template == "yudao-vben":
+             stage("generated-build")
+@@ -123,5 +129,5 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
+         front_env = frontend_environment(template, base_url)
+         stage("native-frontend-build")
+-        build_frontend(template, frontend, front_env, reports)
++        build_frontend(template, frontend, front_env, reports, prepared=bool(plan.custom_rules))
+         stage("restart-persistence")
+         with running_backend(template, backend, env, reports / "restart") as (base_url, _):
+@@ -133,4 +139,8 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
+             for target, entity in zip(targets, plan.entities, strict=True):
+                 target["fields"] = [field.model_dump() for field in entity.fields]
++                from workbench.native_business_checks import wire
++                rule = next((rule for rule in plan.custom_rules if rule.entity == entity.name), None)
++                if rule:
++                    target["business_rule"] = {"accept": wire(template, rule.accept_examples[0]), "reject": wire(template, rule.reject_examples[0])}
+             write_json(reports / "browser-targets.json", targets)
+             with frontend_preview(template, frontend, front_env, reports) as front_url:
+@@ -159,4 +169,5 @@ def run_acceptance(template, source, output, frontend_source, url, reports, plan
+             "spec_digest": digest(plan.model_dump()),
+             "source_unmodified": True,
++            "native_business_rules": bool(plan.custom_rules),
+             "data_scope": "shared-with-native-role-permissions",
+         }
+diff --git a/workbench/native_modules.py b/workbench/native_modules.py
+index ce32b34..bf5b96c 100644
+--- a/workbench/native_modules.py
++++ b/workbench/native_modules.py
+@@ -57,8 +57,12 @@ RESERVED = {
+ def validate_plan(plan):
+     plan = Plan.model_validate(plan)
+-    if plan.custom_rules or plan.unsupported:
+-        raise ValueError(
+-            "Native runtime only accepts supported native CRUD, not custom Python rules"
+-        )
++    if plan.unsupported:
++        raise ValueError("Native runtime does not accept unsupported requirements")
++    if len({rule.entity for rule in plan.custom_rules}) != len(plan.custom_rules):
++        raise ValueError("每个原生实体只能有一个合并后的业务规则及完整正反例")
++    from workbench.native_coding import RESERVED as RULE_RESERVED
++
++    if any(field.name in RULE_RESERVED for entity in plan.entities for field in entity.fields):
++        raise ValueError("Native field uses a reserved runtime name")
+     if plan.data_scope != "shared":
+         raise ValueError(
+diff --git a/workbench/portable.py b/workbench/portable.py
+index d97f5da..1438232 100644
+--- a/workbench/portable.py
++++ b/workbench/portable.py
+@@ -27,4 +27,5 @@ HELPERS = (
+     "native_vben.py",
+     "portable_checks.py",
++    "native_business_checks.py",
+ )
+ 
+diff --git a/workbench/portable_checks.py b/workbench/portable_checks.py
+index 9eeab56..84a714a 100644
+--- a/workbench/portable_checks.py
++++ b/workbench/portable_checks.py
+@@ -49,4 +49,8 @@ def check_restored_product(template, base, token, targets, plan):
+                     "boolean": False,
+                 }[field["kind"]]
++            from workbench.native_business_checks import wire
++            rule = next((r for r in plan.get("custom_rules", []) if r["entity"] == entity["name"]), None)
++            if rule:
++                body = wire(template, rule["accept_examples"][0])
+             created = payload(client.post(target["api"] + "/create", json=body))
+             identifier = created["id"] if isinstance(created, dict) else created
+@@ -71,3 +75,5 @@ def check_restored_product(template, base, token, targets, plan):
+                 }
+             )
+-    return {"passed": True, "fresh_database": True, "entities": checked, "model_required": False}
++    from workbench.native_business_checks import check_business_examples
++    business = check_business_examples(template, base, token, targets, plan)
++    return {"passed": True, "fresh_database": True, "entities": checked, "model_required": False, "business_rules": business}

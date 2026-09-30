@@ -1,0 +1,208 @@
+diff --git a/workbench/sandbox.py b/workbench/sandbox.py
+index 26dd699..85a8d03 100644
+--- a/workbench/sandbox.py
++++ b/workbench/sandbox.py
+@@ -14,4 +14,5 @@ from importlib.metadata import version
+ from pathlib import Path
+ 
++from workbench.daytona_profiles import profile_key, require_runtime_report, selection_for, snapshot_for
+ from workbench.domain import digest
+ from workbench.filesystem import files, manifest, write_json
+@@ -37,10 +38,10 @@ def validate_configuration(settings, template, selection=None):
+         api_key=settings.daytona_api_key,
+     ).validate_endpoint()
+-    if not settings.daytona_snapshot or not settings.daytona_target:
+-        raise PrerequisiteError("请配置已安装构建工具的 DAYTONA_SNAPSHOT 和 DAYTONA_TARGET")
+-    if template == "python-basic" and (selection or {}).get("database", "sqlite") != "sqlite":
+-        raise PrerequisiteError(
+-            "Daytona的Python运行复验当前只支持独立SQLite；不会把本机PostgreSQL凭据复制进沙箱"
+-        )
++    try:
++        profile_key(template, selection)
++    except ValueError as exc:
++        raise PrerequisiteError(str(exc)) from exc
++    if not snapshot_for(settings, template, selection) or not settings.daytona_target:
++        raise PrerequisiteError("请配置当前技术栈的离线DAYTONA_SNAPSHOT或DAYTONA_SNAPSHOTS映射")
+ 
+ 
+@@ -103,13 +104,13 @@ def close_client(client):
+ 
+ 
+-def params_for(settings, name=None):
++def params_for(settings, name=None, template="python-basic", selection=None):
+     from daytona import CreateSandboxFromSnapshotParams
+ 
+     return CreateSandboxFromSnapshotParams(
+-        snapshot=settings.daytona_snapshot,
++        snapshot=snapshot_for(settings, template, selection),
+         name=name,
+         network_block_all=True,
+         public=False,
+-        auto_stop_interval=5,
++        auto_stop_interval=5 if profile_key(template, selection) == "python-basic/sqlite" else settings.daytona_runtime_timeout // 60 + 5,
+         auto_delete_interval=0,
+         env_vars={"PYTHONUTF8": "1", "PYTHONDONTWRITEBYTECODE": "1"},
+@@ -118,52 +119,28 @@ def params_for(settings, name=None):
+ 
+ 
+-def checks_for(template):
+-    if template == "python-basic":
+-        return [
+-            (
+-                "locked-install",
+-                ["uv", "sync", "--locked", "--offline", "--no-dev", "--python", "3.14"],
+-                "product",
+-            ),
+-            (
+-                "migration-http-crud-restart",
+-                [
+-                    "./.venv/bin/python",
+-                    "../trusted-verify.py",
+-                    "--product",
+-                    ".",
+-                    "--python",
+-                    "./.venv/bin/python",
+-                    "--report",
+-                    "../runtime.json",
+-                ],
+-                "product",
+-            ),
+-        ]
+-    if template == "yudao-vben":
+-        return [
+-            ("maven-test", ["mvn", "-B", "-o", "test"], "product/backend"),
+-            (
+-                "frontend-install",
+-                ["pnpm", "install", "--offline", "--frozen-lockfile"],
+-                "product/frontend-product",
+-            ),
+-            (
+-                "frontend-types",
+-                ["pnpm", "--dir", "apps/web-antd", "exec", "vue-tsc", "--noEmit", "--skipLibCheck"],
+-                "product/frontend-product",
+-            ),
+-        ]
+-    if template == "fastapiadmin":
++def checks_for(template, selection=None):
++    try:
++        key = profile_key(template, selection)
++    except ValueError as exc:
++        raise PrerequisiteError(str(exc)) from exc
++    if key == "python-basic/sqlite":
+         return [
+-            ("python-syntax", ["python3", "-m", "compileall", "-q", "app"], "product/backend"),
+-            (
+-                "frontend-install",
+-                ["pnpm", "install", "--offline", "--frozen-lockfile"],
+-                "product/frontend/web",
+-            ),
+-            ("frontend-types", ["pnpm", "exec", "vue-tsc", "--noEmit"], "product/frontend/web"),
++            ("locked-install", ["uv", "sync", "--locked", "--offline", "--no-dev", "--python", "3.14"], "product"),
++            ("migration-http-crud-restart", ["./.venv/bin/python", "../trusted-verify.py", "--product", ".", "--python", "./.venv/bin/python", "--report", "../runtime.json"], "product"),
+         ]
+-    raise PrerequisiteError("没有这个模板的已登记Daytona检查；不接受任意shell命令")
++    return [("independent-database-build-http-browser-restart",
++             ["env", "PYTHONPATH=" + REMOTE + "/harness", "/opt/rnd/harness/.venv/bin/python",
++              REMOTE + "/harness/scripts/daytona_matrix_probe.py", "--template", template, "--database", key.split("/")[1]], "product")]
++
++
++def harness_archive():
++    """Only trusted, committed verifier code; never user files, keys or host caches."""
++    names = [path.relative_to(ROOT).as_posix() for path in (ROOT / "workbench").glob("*.py")]
++    names += ["scripts/daytona_matrix_probe.py", "scripts/native_browser.cjs", "templates/product/verify.py"]
++    buffer = io.BytesIO()
++    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
++        for name in sorted(names):
++            archive.writestr("harness/" + name, (ROOT / name).read_bytes())
++    return buffer.getvalue()
+ 
+ 
+@@ -214,5 +191,5 @@ def read_runtime_report(filesystem, timeout):
+ 
+ def verify_in_daytona(product, template, settings, *, client=None):
+-    validate_configuration(settings, template)
++    validate_configuration(settings, template, selection_for(product, template))
+     if client is None:
+         from workbench.daytona_worker import run_isolated
+@@ -226,11 +203,8 @@ def _verify_in_daytona(product, template, settings, *, client):
+         raise PrerequisiteError("没有启用本机Daytona，拒绝创建资源")
+     product = Path(product)
+-    selected = (
+-        json.loads((product / "selection.json").read_text(encoding="utf-8"))
+-        if (product / "selection.json").exists()
+-        else {}
+-    )
++    selected = selection_for(product, template)
+     validate_configuration(settings, template, selected)
+-    checks = checks_for(template)
++    key = profile_key(template, selected)
++    checks = checks_for(template, selected)
+     before = manifest(product)
+     archive = source_archive(product)
+@@ -247,5 +221,7 @@ def _verify_in_daytona(product, template, settings, *, client):
+         "credentials_uploaded": False,
+         "cleanup": "not-created",
+-        "scope": "independent-runtime" if template == "python-basic" else "additional-build-checks",
++        "scope": "independent-runtime",
++        "database": selected["database"],
++        "snapshot": snapshot_for(settings, template, selected),
+     }
+     name = "rnd-verify-" + uuid.uuid4().hex
+@@ -255,5 +231,5 @@ def _verify_in_daytona(product, template, settings, *, client):
+     write_json(product.parent / "daytona-verification.json", receipt)
+     try:
+-        sandbox = client.create(params_for(settings, name), timeout=settings.tool_timeout)
++        sandbox = client.create(params_for(settings, name, template, selected), timeout=settings.tool_timeout)
+         receipt.update(sandbox_id=sandbox.id, cleanup="pending")
+         write_json(product.parent / "daytona-verification.json", receipt)
+@@ -271,7 +247,12 @@ def _verify_in_daytona(product, template, settings, *, client):
+         if extraction.exit_code != 0:
+             raise PrerequisiteError("Daytona源码解压失败")
++        if key != "python-basic/sqlite":
++            sandbox.fs.upload_file(harness_archive(), REMOTE + "/harness.zip", timeout=settings.tool_timeout)
++            unpack = sandbox.process.exec("python3 -m zipfile -e " + REMOTE + "/harness.zip " + REMOTE, timeout=settings.tool_timeout)
++            if unpack.exit_code != 0:
++                raise PrerequisiteError("Daytona可信验收器解压失败")
+         for name, argv, relative in checks:
+             result = sandbox.process.exec(
+-                shlex.join(argv), cwd=REMOTE + "/" + relative, timeout=settings.tool_timeout
++                shlex.join(argv), cwd=REMOTE + "/" + relative, timeout=settings.daytona_runtime_timeout if key != "python-basic/sqlite" else settings.tool_timeout
+             )
+             receipt["checks"].append(
+@@ -285,6 +266,7 @@ def _verify_in_daytona(product, template, settings, *, client):
+             if result.exit_code != 0:
+                 raise PrerequisiteError("Daytona检查失败：" + name)
+-        if template == "python-basic":
+-            receipt["runtime"] = read_runtime_report(sandbox.fs, settings.tool_timeout)
++        receipt["runtime"] = read_runtime_report(sandbox.fs, settings.tool_timeout)
++        if key != "python-basic/sqlite":
++            require_runtime_report(receipt["runtime"], template, selected, digest(before))
+         if manifest(product) != before:
+             raise PrerequisiteError("Daytona验收期间本机源码改变")
+diff --git a/workbench/settings.py b/workbench/settings.py
+index 21113ea..18d4566 100644
+--- a/workbench/settings.py
++++ b/workbench/settings.py
+@@ -108,4 +108,6 @@ class Settings(BaseSettings):
+     daytona_target: str = "local"
+     daytona_snapshot: str = ""
++    daytona_snapshots: dict[str, str] = Field(default_factory=dict)
++    daytona_runtime_timeout: int = Field(default=3600, ge=60, le=7200)
+     daytona_allow_local_execution: bool = False
+     checkpoint_url: str = ""
+diff --git a/workbench/tools.py b/workbench/tools.py
+index 49a4530..0072aa9 100644
+--- a/workbench/tools.py
++++ b/workbench/tools.py
+@@ -30,5 +30,11 @@ def clean_env(extra=None):
+         "SSL_CERT_FILE",
+     }
++    # These controls are inherited only inside an explicitly prepared offline image.
++    # Keep cloud credentials, proxy variables and arbitrary model environment excluded.
++    if os.environ.get("RND_OFFLINE_TOOLS") == "1":
++        names.update({"RND_OFFLINE_TOOLS", "UV_CACHE_DIR", "UV_PYTHON_INSTALL_DIR", "UV_PYTHON_PREFERENCE", "PLAYWRIGHT_BROWSERS_PATH", "JAVA_HOME"})
+     env = {k: v for k, v in os.environ.items() if k.upper() in names}
++    if os.environ.get("RND_OFFLINE_TOOLS") == "1":
++        env.update(UV_OFFLINE="1", COREPACK_ENABLE_NETWORK="0")
+     env.update(PYTHONUTF8="1", PYTHONIOENCODING="utf-8", PYTHONDONTWRITEBYTECODE="1")
+     env.update(extra or {})

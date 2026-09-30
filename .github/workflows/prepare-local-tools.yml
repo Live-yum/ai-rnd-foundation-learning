@@ -1,0 +1,61 @@
+name: Prepare reviewed native tool integration (temporary)
+on:
+  push:
+    branches: [feat/controlled-toolchain-integration]
+    paths: ['.maintenance/**', '.github/workflows/prepare-local-tools.yml']
+permissions:
+  contents: write
+concurrency:
+  group: prepare-reviewed-native-tools
+  cancel-in-progress: true
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Apply reviewed integration source
+        run: python .maintenance/apply.py
+      - name: Materialize pinned local Plop dependency lock
+        run: |
+          uv sync --locked --all-extras
+          npm install --package-lock-only --prefix tools/node --ignore-scripts --no-audit --no-fund
+          npm ci --prefix tools/node --no-audit --no-fund
+          npm run build --prefix tools/node
+      - name: Format, regenerate complete textbook and test all contracts
+        env:
+          RND_REQUIRE_NODE_TESTS: '1'
+        run: |
+          uv run ruff check --fix .
+          uv run ruff format .
+          uv run python -m scripts.build_handbook
+          uv run python -m scripts.build_handbook --check
+          uv run pytest -m 'not postgres' -q --junitxml=reports/tests.xml
+      - name: Commit only formal reviewed source and the unique textbook
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add workbench scripts tests tools docs .env.example README.md 从零实现AI研发平台_逐步实操手册_完整版.md
+          if ! git diff --cached --quiet; then
+            git commit -m 'feat: integrate native Plop, bounded Aider repair and independent Daytona database profiles'
+            git push origin HEAD:feat/controlled-toolchain-integration
+          fi
+      - name: Preserve exact materialized source and validation
+        if: always()
+        run: |
+          mkdir -p reports
+          git archive --format=zip HEAD -o reports/native-tools-source.zip
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: reviewed-native-tool-integration
+          path: |
+            reports/*.xml
+            reports/native-tools-source.zip
+          retention-days: 14

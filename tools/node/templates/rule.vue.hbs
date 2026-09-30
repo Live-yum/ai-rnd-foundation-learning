@@ -1,0 +1,14 @@
+<script lang="ts">
+// No service, storage, eval or shell access: only this expression is editable.
+export function rndBusinessValid(data: Record<string, unknown>): boolean {
+  return (
+    // RND_RULE_BEGIN
+    true
+    // RND_RULE_END
+  );
+}
+</script>
+<script lang="ts" setup>
+const description = {{{ descriptionJson }}};
+</script>
+<template><p role="note" class="rnd-business-rule" v-text="description" /></template>

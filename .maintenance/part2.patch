@@ -1,0 +1,199 @@
+diff --git a/workbench/daytona_worker.py b/workbench/daytona_worker.py
+index a771fe6..75b7d75 100644
+--- a/workbench/daytona_worker.py
++++ b/workbench/daytona_worker.py
+@@ -22,4 +22,6 @@ def run_isolated(product, template, settings):
+             "daytona_api_key": settings.daytona_api_key.get_secret_value(),
+             "daytona_snapshot": settings.daytona_snapshot,
++            "daytona_snapshots": settings.daytona_snapshots,
++            "daytona_runtime_timeout": settings.daytona_runtime_timeout,
+             "daytona_target": settings.daytona_target,
+             "tool_timeout": settings.tool_timeout,
+@@ -39,5 +41,5 @@ def run_isolated(product, template, settings):
+         try:
+             process.communicate(
+-                json.dumps(payload).encode(), timeout=settings.tool_timeout * 12 + 60
++                json.dumps(payload).encode(), timeout=settings.daytona_runtime_timeout + settings.tool_timeout * 12 + 60
+             )
+         except subprocess.TimeoutExpired:
+@@ -73,5 +75,6 @@ def main():
+ 
+     settings = Settings(_env_file=None, **payload["settings"])
+-    validate_configuration(settings, payload["template"])
++    from workbench.daytona_profiles import selection_for
++    validate_configuration(settings, payload["template"], selection_for(payload["product"], payload["template"]))
+     client = client_for(settings)
+     try:
+diff --git a/workbench/flow.py b/workbench/flow.py
+index 93b37b2..4dbff2a 100644
+--- a/workbench/flow.py
++++ b/workbench/flow.py
+@@ -43,5 +43,5 @@ resolution_feedback 是上次设计被确定性校验拦住的具体原因；结
+ approved_requirement.limitations 是已排除的边界说明，不得复制进 Plan.unsupported。
+ Plan.unsupported 仅为已批准需求中仍无法实现的功能，不是模板限制清单。runtime_constraints 是实际配置约束，不能假称环境已满足。
+-原生FastapiAdmin和芋道只允许它们在能力表内列出的字段与权限范围；不能把逐用户隔离改成共享。"""
++原生FastapiAdmin和芋道支持custom_rules表示纯单记录业务校验，由Plop挂载Java/Python/Vue校验入口、Aider修改表达式；每实体最多一条规则，合并所有条件并给完整正反例。原生规则必须在runtime_constraints中coding_engine=aider时使用。不接受网络、跨记录事务、任意脚本或任意命令。不能把逐用户隔离改成共享。"""
+ REVIEW = """你是交付审阅模型。根据已批准需求、规格和独立测试证据提供简洁审阅。
+ 不要声称执行了代码；不能把失败的工具测试改为通过。返回summary、observations、uncovered_requirements。
+@@ -157,5 +157,5 @@ class Workflow:
+                     else {}
+                 ),
+-                "runtime_constraints": {"coding_enabled": self.settings.enable_coding},
++                "runtime_constraints": {"coding_enabled": self.settings.enable_coding, "coding_engine": self.settings.coding_engine},
+                 "code_context": state.get("code_context", {}),
+                 "template_capabilities": options_for_run(
+@@ -181,6 +181,6 @@ class Workflow:
+         if plan.custom_rules and not self.settings.enable_coding:
+             reasons.append("当前配置已禁用规则编码器")
+-        if state["template"] != "python-basic" and plan.custom_rules:
+-            reasons.append("原生模板使用原生 CRUD 生成器；不接受 Python 规则插件")
++        if state["template"] != "python-basic" and plan.custom_rules and self.settings.coding_engine != "aider":
++            reasons.append("原生业务规则需要 CODING_ENGINE=aider；CRUD仍由原生生成器完成")
+         if state["template"] != "python-basic":
+             from workbench.native_delivery import runtime_config, runtime_enabled
+@@ -236,5 +236,6 @@ class Workflow:
+             def fn():
+                 return generate_native(
+-                    self.settings, state["template"], plan, self.product(state), managed=True
++                    self.settings, state["template"], plan, self.product(state), managed=True,
++                    customization=self.native_customization(state, plan)
+                 )
+ 
+@@ -242,4 +243,10 @@ class Workflow:
+         return {}
+ 
++    def native_customization(self, state, plan):
++        if not plan.custom_rules:
++            return None
++        from workbench.native_coding import native_rule_customizer
++        return native_rule_customizer(self.settings, self.gateway, state["run_id"])
++
+     def run_coder(self, state, plan):
+         if self.settings.coding_engine == "aider":
+@@ -266,5 +273,5 @@ class Workflow:
+     def code(self, state):
+         plan = Plan.model_validate(state["plan"])
+-        if not plan.custom_rules:
++        if not plan.custom_rules or state["template"] != "python-basic":
+             return {}
+         try:
+diff --git a/workbench/knowledge.py b/workbench/knowledge.py
+index 44b2879..e26cdb5 100644
+--- a/workbench/knowledge.py
++++ b/workbench/knowledge.py
+@@ -118,5 +118,5 @@ def design_pack(plan, destination, template="python-basic", selection=None):
+             "title": r.description,
+             "owner": "bounded-coding-agent",
+-            "allowed_files": ["custom_rules.py"],
++            "allowed_files": ["custom_rules.py"] if template == "python-basic" else ["native Plop registered business guards only"],
+             "accept": r.accept_examples,
+             "reject": r.reject_examples,
+diff --git a/workbench/native.py b/workbench/native.py
+index 62f5d86..91f8323 100644
+--- a/workbench/native.py
++++ b/workbench/native.py
+@@ -416,9 +416,9 @@ def native_export(client, template, mapping, plan):
+ 
+ 
+-def generate_native(settings, template, plan, destination, *, managed=False):
++def generate_native(settings, template, plan, destination, *, managed=False, customization=None):
+     from workbench.native_delivery import managed_generate, runtime_enabled
+ 
+     if managed or runtime_enabled(settings, template):
+-        return managed_generate(settings, template, plan, destination)
++        return managed_generate(settings, template, plan, destination, customization=customization)
+     config, token, db_url = load_config(settings, template)
+     if plan.custom_rules or plan.unsupported:
+diff --git a/workbench/native_acceptance.py b/workbench/native_acceptance.py
+index fc6620d..54491af 100644
+--- a/workbench/native_acceptance.py
++++ b/workbench/native_acceptance.py
+@@ -24,5 +24,11 @@ def wire_name(template, name):
+ 
+ 
+-def sample_record(entity, suffix="original", template="fastapiadmin"):
++def sample_record(entity, suffix="original", template="fastapiadmin", plan=None):
++    if plan is not None:
++        from workbench.native_business_checks import wire
++        rule = next((r for r in plan.custom_rules if r.entity == entity.name), None)
++        if rule:
++            index = -1 if suffix == "updated" else 0
++            return wire(template, rule.accept_examples[index])
+     return {
+         wire_name(template, f.name): (
+@@ -57,5 +63,5 @@ def generated_crud(template, base_url, token, targets, plan):
+             denied(client.get(listing))
+             denied(client.get(listing, headers={"Authorization": "Bearer test1"}))
+-            data = sample_record(entity, template=template)
++            data = sample_record(entity, template=template, plan=plan)
+             created = payload(client.post(target["api"] + "/create", json=data, headers=admin))
+             identifier = record_id(created)
+@@ -74,5 +80,5 @@ def generated_crud(template, base_url, token, targets, plan):
+             for key, value in data.items():
+                 assert saved[key] == value, f"Create/read mismatch for {key}"
+-            changed = sample_record(entity, "updated", template)
++            changed = sample_record(entity, "updated", template, plan)
+             if fastapi:
+                 payload(
+@@ -115,5 +121,5 @@ def generated_crud(template, base_url, token, targets, plan):
+                 "Delete did not remove business item"
+             )
+-            sample = sample_record(entity, "persistent", template)
++            sample = sample_record(entity, "persistent", template, plan)
+             persistent = record_id(
+                 payload(client.post(target["api"] + "/create", json=sample, headers=admin))
+@@ -251,5 +257,5 @@ def generated_permissions(template, base_url, token, targets, plan):
+                 client.post(
+                     target["api"] + "/create",
+-                    json=sample_record(entity, template=template),
++                    json=sample_record(entity, template=template, plan=plan),
+                     headers=reader,
+                 )
+@@ -273,5 +279,5 @@ def generated_permissions(template, base_url, token, targets, plan):
+                 client.post(
+                     target["api"] + "/create",
+-                    json=sample_record(entity, "writer", template),
++                    json=sample_record(entity, "writer", template, plan),
+                     headers=writer,
+                 )
+diff --git a/workbench/native_delivery.py b/workbench/native_delivery.py
+index e734ab8..9b4182a 100644
+--- a/workbench/native_delivery.py
++++ b/workbench/native_delivery.py
+@@ -92,5 +92,5 @@ def prerequisites(template):
+ 
+ 
+-def managed_generate(settings, template, plan, destination):
++def managed_generate(settings, template, plan, destination, *, customization=None):
+     from workbench.native import prepare_sources
+ 
+@@ -125,5 +125,6 @@ def managed_generate(settings, template, plan, destination):
+     output = destination if template == "fastapiadmin" else destination / "backend"
+     report = run_acceptance(
+-        template, source, output, slots.get("frontend"), url, reports, plan, redis_port=redis_port
++        template, source, output, slots.get("frontend"), url, reports, plan, redis_port=redis_port,
++        customization=customization
+     )
+     if report.get("generated_runtime_verified") is not True:
+diff --git a/workbench/native_environment.py b/workbench/native_environment.py
+index c71c9af..76bdae2 100644
+--- a/workbench/native_environment.py
++++ b/workbench/native_environment.py
+@@ -245,4 +245,6 @@ def install_backend(template, backend, reports):
+             ["mvn", "-B", "-ntp", "-pl", "yudao-server", "package", "-DskipTests"],
+         ]
++    if os.environ.get("RND_OFFLINE_TOOLS") == "1":
++        commands = [command[:1] + (["-o"] if command[0] == "mvn" else []) + command[1:] for command in commands]
+     if template == "yudao-vben":
+         commands = [
+diff --git a/workbench/native_frontend.py b/workbench/native_frontend.py
+index 59c48c9..727d9c3 100644
+--- a/workbench/native_frontend.py
++++ b/workbench/native_frontend.py
+@@ -94,5 +94,5 @@ def build_frontend(template, root, env, reports, *, prepared=False):
+     # Type checking remains mandatory, AFTER deterministic generation; no errors are ignored.
+     checks = [
+-        ("install", ["pnpm", "install", "--frozen-lockfile"], root),
++        ("install", ["pnpm", "install", "--frozen-lockfile", *(["--offline"] if os.environ.get("RND_OFFLINE_TOOLS") == "1" else [])], root),
+         ("build", ["pnpm", "exec", "vite", "build", "--mode", "production"], app),
+         ("typecheck", ["pnpm", "exec", "vue-tsc", "--noEmit", "--skipLibCheck"], app),
