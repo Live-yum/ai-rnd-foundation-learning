@@ -1,61 +1,30 @@
 """Business packaging cannot reuse classic CRUD or mismatched browser evidence."""
 
+import json
 from copy import deepcopy
 
 import pytest
-from test_business_contracts import business_plan
 
-from workbench.domain import Plan, digest
+from workbench.domain import Plan
 from workbench.generator import PrerequisiteError
+from workbench.settings import ROOT
 from workbench.verification import require_business_evidence
 
 
 def receipt():
-    spec = Plan.model_validate(business_plan()).model_dump()
-    business = {
-        "passed": True,
-        "spec_digest": digest(spec),
-        "resources_checked": [e["name"] for e in spec["entities"]],
-        "roles_checked": [r["name"] for r in spec["business"]["roles"]],
-        "checks": [
-            "business-" + s
-            for s in [
-                "bootstrap",
-                "role-default",
-                "row-permissions",
-                "protected-fields",
-                "relations",
-                "transitions",
-                "notes-history",
-                "notifications",
-                "scoped-metrics",
-                "archive",
-            ]
-        ],
-    }
-    browser = {
-        "applicable": True,
-        "real_browser": True,
-        "passed": True,
-        "spec_digest": digest(spec),
-        "entities": business["resources_checked"],
-        "errors": [],
-        "checks": [
-            "business-browser-" + s
-            for s in [
-                "auth",
-                "role-navigation",
-                "assignment",
-                "transitions",
-                "notes-history",
-                "reminders",
-                "metrics",
-                "role-restrictions",
-            ]
-        ]
-        + ["business-browser-records:" + e["name"] for e in spec["entities"]],
-    }
-    return spec, {"business": business, "browser": browser}
+    # This fixture only exercises receipt validation; live generated HTTP/browser
+    # tests separately execute the complete workflow and reject injected faults.
+    spec = Plan.model_validate_json(
+        (ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8")
+    ).model_dump()
+    report = json.loads(
+        (ROOT / "tests/fixtures/customer_evidence_receipt_unit_only.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert report.pop("unit_test_fixture_only") is True
+    report.pop("source")
+    return spec, report
 
 
 def test_complete_business_receipt_and_api_only():

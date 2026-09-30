@@ -10,6 +10,192 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
   const page = await browser.newPage({viewport:{width:1440,height:1100}});
   page.setDefaultTimeout(20000);
   const errors=[], checks=new Set(), business=cfg.spec.business, screenshots=new Map();
+  // These summaries contain only approved contract names, booleans and bounded counts.
+  // Expected identities and display values stay in this isolated verifier process.
+  const evidence={version:1,relation_labels:[],related_views:[],related_sources:[],datetime_controls:[]};
+  const labelEvidence=new Map(), relatedEvidence=new Map(), sourceEvidence=new Map();
+  const entities=new Map(cfg.spec.entities.map(entity=>[entity.name,entity]));
+  const roles=new Set(business.roles.map(role=>role.name));
+  const limit=100;
+  const verify=(condition,code)=>assert(condition,'business-browser-'+code);
+  const rowSelector=id=>`#rows tr[data-id=${JSON.stringify(String(id))}]`;
+  const tuple=(...parts)=>JSON.stringify(parts);
+  const summary=(map,key,initial)=>{if(!map.has(key))map.set(key,initial);return map.get(key);};
+  const relationFor=(entity,field)=>business.relations.find(r=>r.entity===entity&&r.field===field);
+  function validateExpectations() {
+    verify(Array.isArray(cfg.relation_labels),'label-expectations-missing');
+    verify(Array.isArray(cfg.related_expectations),'related-expectations-missing');
+    verify(cfg.relation_labels.length<=roles.size*business.relations.length*limit,'label-expectations-limit');
+    verify(cfg.related_expectations.length<=roles.size*entities.size*limit,'related-expectations-limit');
+    const labels=new Set(),sources=new Set(),labelCounts=new Map(),sourceCounts=new Map();
+    for(const item of cfg.relation_labels) {
+      verify(roles.has(item.role)&&entities.has(item.entity)&&allowed(item.role,item.entity,'read'),'label-expectations-scope');
+      verify(!!relationFor(item.entity,item.field),'label-expectations-relation');
+      verify(typeof item.record_id==='string'&&typeof item.target_id==='string','label-expectations-identity');
+      verify(typeof item.visible==='boolean'&&(item.visible?typeof item.label==='string'&&!!item.label:item.label===null),'label-expectations-value');
+      const key=tuple(item.role,item.entity,item.record_id,item.field);
+      verify(!labels.has(key),'label-expectations-duplicate');labels.add(key);
+      const countKey=tuple(item.role,item.entity,item.field);
+      labelCounts.set(countKey,(labelCounts.get(countKey)||0)+1);
+      verify(labelCounts.get(countKey)<=limit,'label-expectations-field-limit');
+    }
+    for(const item of cfg.related_expectations) {
+      verify(roles.has(item.role)&&entities.has(item.entity)&&allowed(item.role,item.entity,'read'),'related-expectations-scope');
+      verify(typeof item.record_id==='string'&&Array.isArray(item.groups),'related-expectations-value');
+      const key=tuple(item.role,item.entity,item.record_id);
+      verify(!sources.has(key),'related-expectations-duplicate');sources.add(key);
+      const countKey=tuple(item.role,item.entity);
+      sourceCounts.set(countKey,(sourceCounts.get(countKey)||0)+1);
+      verify(sourceCounts.get(countKey)<=limit,'related-expectations-source-limit');
+      const expected=business.relations.filter(r=>r.target_entity===item.entity&&allowed(item.role,r.entity,'read'));
+      verify(item.groups.length===expected.length,'related-expectations-groups');
+      const groups=new Set();
+      for(const group of item.groups) {
+        const relation=expected.find(r=>r.entity===group.entity&&r.field===group.field);
+        verify(!!relation&&!groups.has(tuple(group.entity,group.field)),'related-expectations-relation');
+        groups.add(tuple(group.entity,group.field));
+        verify(Array.isArray(group.record_ids)&&Array.isArray(group.labels)&&group.record_ids.length===group.labels.length&&group.record_ids.length<=limit,'related-expectations-records');
+        verify(new Set(group.record_ids).size===group.record_ids.length&&group.record_ids.every(id=>typeof id==='string')&&group.labels.every(label=>typeof label==='string'&&!!label),'related-expectations-labels');
+      }
+    }
+    verify(cfg.relation_labels.every(item=>sources.has(tuple(item.role,item.entity,item.record_id))),'label-expectations-source');
+  }
+  async function verifyFilterControls(actor,entity) {
+    const actual=await page.locator('#filters input[name],#filters select[name],#filters textarea[name]').evaluateAll(nodes=>nodes.map(node=>node.name).sort());
+    const expected=entity.fields.some(field=>field.searchable)?['q']:[];
+    for(const field of entity.fields) {
+      if(field.filterable)expected.push('filter_'+field.name);
+      if(field.date_range)expected.push('from_'+field.name,'to_'+field.name);
+    }
+    verify(JSON.stringify(actual)===JSON.stringify(expected.sort()),'filter-controls-contract');
+    for(const field of entity.fields.filter(field=>field.kind==='datetime')) {
+      evidence.datetime_controls.push({role:actor.role,entity:entity.name,field:field.name,searchable:!!field.searchable,date_range:!!field.date_range,filterable:!!field.filterable,controls_absent:!field.searchable&&!field.date_range&&!field.filterable});
+    }
+    checks.add('business-browser-datetime-controls');
+  }
+  async function verifyListLabels(actor,entity,expectations) {
+    for(const item of expectations) {
+      const line=page.locator(rowSelector(item.record_id));
+      verify(await line.count()===1,'label-source-visible');
+      const index=entity.fields.findIndex(field=>field.name===item.field);
+      const cell=line.locator('td').nth(index);
+      const label=await cell.innerText();
+      verify(label===(item.visible?item.label:'关联记录不可见')&&label!==item.target_id,'relation-list-label');
+      verify(await cell.getAttribute('title')===label,'relation-list-title');
+      const entry=summary(labelEvidence,tuple(actor.role,entity.name,item.field),{role:actor.role,entity:entity.name,field:item.field,list:true,select:null,detail:null,records_checked:0});
+      entry.records_checked++;
+    }
+  }
+  async function verifySelectLabels(actor,entity,expectations) {
+    const resource=business.resources.find(resource=>resource.entity===entity.name);
+    const workflow=business.workflows.find(workflow=>workflow.entity===entity.name);
+    const protectedFields=new Set([resource.assignee_field,workflow?.status_field,...(workflow?.transitions||[]).map(t=>t.set_timestamp)]);
+    const applicable=expectations.filter(item=>relationFor(item.entity,item.field).target_entity!=='$users'&&!protectedFields.has(item.field));
+    if(!applicable.length||(!allowed(actor.role,entity.name,'create')&&!allowed(actor.role,entity.name,'update')))return;
+    if(allowed(actor.role,entity.name,'create'))await page.locator('#create').click();
+    else await page.locator(rowSelector(applicable[0].record_id)).getByRole('button',{name:'编辑',exact:true}).click();
+    await page.locator('#editor').waitFor({state:'visible'});
+    for(const item of applicable) {
+      const select=page.locator(`#record select[name="${item.field}"]`);
+      verify(await select.count()===1,'relation-select-control');
+      const options=await select.locator('option').evaluateAll(nodes=>nodes.map(node=>({value:node.value,label:node.textContent})));
+      const option=options.find(option=>option.value===item.target_id);
+      const target=entities.get(relationFor(item.entity,item.field).target_entity);
+      const hasDisplayField=target.fields.some(field=>['name','title'].includes(field.name));
+      const expectedLabel=hasDisplayField?item.label:item.target_id;
+      verify(item.visible?!!option&&option.label===expectedLabel&&(!hasDisplayField||option.label!==item.target_id):!option,'relation-select-label');
+      labelEvidence.get(tuple(actor.role,entity.name,item.field)).select=true;
+    }
+    await page.locator('#cancel').click();
+  }
+  async function openDetail(entity,recordId) {
+    const response=page.waitForResponse(r=>new URL(r.url()).pathname===`/business/related/${entity.name}/${recordId}`&&r.request().method()==='GET');
+    await page.locator(rowSelector(recordId)).getByRole('button',{name:'详情 / 处理',exact:true}).click();
+    const result=await response;verify(result.status()===200,'related-http-status');
+    const groups=await result.json();
+    await page.locator('#business-detail').waitFor({state:'visible'});
+    return groups;
+  }
+  async function verifyRelated(actor,entity,item,labels) {
+    const groups=await openDetail(entity,item.record_id);
+    verify(Array.isArray(groups)&&groups.length===item.groups.length,'related-group-count');
+    const expectedKeys=item.groups.map(group=>tuple(group.entity,group.field)).sort();
+    verify(JSON.stringify(groups.map(group=>tuple(group.entity,group.field)).sort())===JSON.stringify(expectedKeys),'related-group-scope');
+    const headers=await page.locator('#business-related h4').allTextContents();
+    verify(JSON.stringify(headers.sort())===JSON.stringify(item.groups.map(group=>entities.get(group.entity).description||group.entity).sort()),'related-headings');
+    const expectedButtons=[];
+    for(const group of item.groups) {
+      const actual=groups.find(actual=>actual.entity===group.entity&&actual.field===group.field);
+      verify(Array.isArray(actual.records)&&actual.records.length<=limit,'related-records-shape');
+      verify(JSON.stringify(actual.records.map(row=>row.id).sort())===JSON.stringify([...group.record_ids].sort()),'related-target-row-acl');
+      const workflow=business.workflows.find(workflow=>workflow.entity===group.entity);
+      const stateField=entities.get(group.entity).fields.find(field=>field.name===workflow?.status_field);
+      for(let index=0;index<group.record_ids.length;index++) {
+        const record=actual.records.find(row=>row.id===group.record_ids[index]);
+        const label=group.labels[index];
+        const text=label+(workflow?' · '+(stateField?.choice_labels?.[record[workflow.status_field]]||record[workflow.status_field]):'');
+        const hasDisplayField=entities.get(group.entity).fields.some(field=>['name','title'].includes(field.name));
+        verify(!hasDisplayField||label!==record.id,'related-readable-label');
+        expectedButtons.push({text,label,entity:group.entity,recordId:record.id,field:group.field});
+      }
+      const entry=summary(relatedEvidence,tuple(actor.role,entity.name,group.entity,group.field),{role:actor.role,entity:entity.name,target_entity:group.entity,field:group.field,source_records:0,expected_records:0,visible_records:0,target_acl:true,navigation:null});
+      entry.source_records++;entry.expected_records+=group.record_ids.length;entry.visible_records+=actual.records.length;
+    }
+    const orderedButtons=groups.flatMap(group=>group.records.map(record=>expectedButtons.find(button=>button.entity===group.entity&&button.field===group.field&&button.recordId===record.id)));
+    const buttons=await page.locator('#business-related button').allTextContents();
+    verify(JSON.stringify(buttons)===JSON.stringify(orderedButtons.map(button=>button.text)),'related-rendered-records');
+    verify(await page.locator('#business-related p').count()===item.groups.filter(group=>!group.record_ids.length).length,'related-empty-groups');
+    // read_history is independent of read/add_note. Do not invent a grant for employees.
+    if(!allowed(actor.role,entity.name,'read_history')) {
+      verify(await page.locator('#business-notes > *,#business-history > *').count()===0,'history-permission');
+    }
+    const resource=business.resources.find(resource=>resource.entity===entity.name);
+    for(const label of labels.filter(label=>label.record_id===item.record_id&&label.field===resource.assignee_field)) {
+      if(!allowed(actor.role,entity.name,'assign'))continue;
+      const select=page.locator('#business-assignee');
+      verify(await select.inputValue()===label.target_id,'assignee-detail-value');
+      const text=await select.locator('option:checked').innerText();
+      verify(text===label.label&&text!==label.target_id,'assignee-detail-label');
+      const entry=labelEvidence.get(tuple(actor.role,entity.name,label.field));entry.select=true;entry.detail=true;
+    }
+    const source=summary(sourceEvidence,tuple(actor.role,entity.name),{role:actor.role,entity:entity.name,source_records:0,groups_checked:0,target_acl:true});
+    source.source_records++;source.groups_checked+=item.groups.length;
+    await capture(actor,entity.name,'relations');
+    // One real navigation for every nonempty role/relation proves the labelled cards work.
+    for(const button of expectedButtons) {
+      const entry=relatedEvidence.get(tuple(actor.role,entity.name,button.entity,button.field));
+      if(entry.navigation)continue;
+      const response=page.waitForResponse(r=>new URL(r.url()).pathname===`/business/related/${button.entity}/${button.recordId}`&&r.request().method()==='GET');
+      await page.locator('#business-related button').nth(orderedButtons.indexOf(button)).click();
+      verify((await response).status()===200,'related-navigation-status');
+      await page.locator('#business-detail').waitFor({state:'visible'});
+      verify(await page.locator('#business-detail-title').innerText()===button.label,'related-detail-label');
+      await page.waitForFunction(name=>document.querySelector('#rows').dataset.entity===name&&document.querySelector('#rows').dataset.loading==='false',button.entity);
+      entry.navigation=true;
+      await page.locator('#business-close').click();await choose(entity);await openDetail(entity,item.record_id);
+    }
+    await page.locator('#business-close').click();
+  }
+  async function verifySnapshot() {
+    validateExpectations();
+    for(const actor of cfg.actors) {
+      await login(actor);
+      for(const entity of cfg.spec.entities.filter(entity=>allowed(actor.role,entity.name,'read'))) {
+        await choose(entity);await verifyFilterControls(actor,entity);
+        const sources=cfg.related_expectations.filter(item=>item.role===actor.role&&item.entity===entity.name);
+        const visibleIds=await page.locator('#rows tr').evaluateAll(nodes=>nodes.map(node=>node.dataset.id).sort());
+        verify(JSON.stringify(visibleIds)===JSON.stringify(sources.map(item=>item.record_id).sort()),'source-list-row-acl');
+        const labels=cfg.relation_labels.filter(item=>item.role===actor.role&&item.entity===entity.name);
+        await verifyListLabels(actor,entity,labels);await verifySelectLabels(actor,entity,labels);
+        for(const item of sources)await verifyRelated(actor,entity,item,labels);
+      }
+    }
+    evidence.relation_labels=[...labelEvidence.values()];evidence.related_views=[...relatedEvidence.values()];evidence.related_sources=[...sourceEvidence.values()];
+    verify(evidence.relation_labels.length<=roles.size*business.relations.length&&evidence.related_views.length<=roles.size*business.relations.length&&evidence.related_sources.length<=roles.size*entities.size,'evidence-contract-bound');
+    verify(evidence.datetime_controls.length<=roles.size*cfg.spec.entities.reduce((count,entity)=>count+entity.fields.filter(field=>field.kind==='datetime').length,0),'datetime-evidence-bound');
+    if(evidence.relation_labels.length)checks.add('business-browser-relation-labels');
+    checks.add('business-browser-related-views');checks.add('business-browser-related-row-acl');
+  }
   page.on('pageerror', error=>errors.push(error.message));
   const grant=(role,entity)=>business.permissions.find(p=>p.role===role&&p.entity===entity);
   const allowed=(role,entity,action)=>grant(role,entity)?.actions.includes(action);
@@ -78,6 +264,7 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
     }
   }
   try {
+    await verifySnapshot();
     for(const entity of cfg.spec.entities) {
       const actor=cfg.actors.find(a=>a.role===cfg.create_roles[entity.name]);
       await login(actor);await choose(entity);
@@ -130,10 +317,12 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
         await page.locator('#business-note-form textarea').fill('Browser business acceptance note');
         const response=page.waitForResponse(r=>r.url().endsWith('/notes')&&r.request().method()==='POST');
         await page.locator('#business-note-form button').click();assert.equal((await response).status(),201);
-        await page.locator('#business-notes').getByText(/Browser business acceptance note/).waitFor();
-        const noteEventLabel=await page.evaluate(()=>EVENT_LABELS.note_added);
-        assert.equal(typeof noteEventLabel,'string');assert(noteEventLabel.length>0);
-        await page.locator('#business-history > p').filter({hasText:noteEventLabel}).waitFor();
+        if(allowed(actor.role,entity.name,'read_history')) {
+          await page.locator('#business-notes').getByText(/Browser business acceptance note/).waitFor();
+          const noteEventLabel=await page.evaluate(()=>EVENT_LABELS.note_added);
+          assert.equal(typeof noteEventLabel,'string');assert(noteEventLabel.length>0);
+          await page.locator('#business-history > p').filter({hasText:noteEventLabel}).waitFor();
+        }
         checks.add('business-browser-notes-history');
       }
       if(workflow)await capture(actor,entity.name,'workflow');
@@ -180,6 +369,6 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
     }
     checks.add('business-browser-role-restrictions');checks.add('business-browser-actions');
     assert.deepEqual(errors,[]);
-    fs.writeFileSync(cfg.output,JSON.stringify({passed:true,real_browser:true,entities:cfg.spec.entities.map(e=>e.name),spec_digest:cfg.spec_digest,checks:[...checks],errors,screenshots:[...screenshots.values()]}));
+    fs.writeFileSync(cfg.output,JSON.stringify({passed:true,real_browser:true,entities:cfg.spec.entities.map(e=>e.name),spec_digest:cfg.spec_digest,checks:[...checks],errors,evidence,screenshots:[...screenshots.values()]}));
   }finally{await browser.close();}
-})().catch(error=>{console.error(error?.name||'BusinessBrowserFailure');process.exitCode=1;});
+})().catch(error=>{console.error(/^business-browser-[a-z0-9-]+$/.test(error?.message||'')?error.message:error?.name||'BusinessBrowserFailure');process.exitCode=1;});

@@ -147,6 +147,14 @@ jobs:
           path: reports/real-model/approved-plan-replay.json
           if-no-files-found: ignore
           retention-days: 7
+      - name: Retain unapproved normalized design for offline diagnostics only
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: customer-design-replay-${{ matrix.template }}-${{ github.sha }}
+          path: reports/real-model/unapproved-design-contract.json
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload synthetic customer UI screenshots only
         if: success()
         uses: actions/upload-artifact@v4

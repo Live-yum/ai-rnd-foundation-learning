@@ -66,6 +66,8 @@ uv run python -m scripts.ci_native_bundled yudao-vben --spec /absolute/path/appr
 
 FastapiAdmin将模板参数换成`fastapiadmin`。该路径直接验证保存的Plan并调用原生生成器，不调用模型；编译器错误与原生浏览器错误应先用它复现，不为补日志重复付费。代码修复后仍须在最终同一提交重新执行完整真实模型三模板矩阵，确定性重放成功不能替代它。
 
+如果失败发生在设计或审阅阶段，本公开合成案例可另存`customer-design-replay-${template}-${sha}`中的`unapproved-design-contract.json`，用于离线检查字段与业务义务。该信封只选择并重新校验规范化的Requirement与候选Plan，标记`approval_status=unapproved`、`execution_authorized=false`，整体不超过128 KiB；凭据、无效schema、越界或过大的内容直接拒绝，保留7天。它不是Plan输入，不能传给生成器，不能当作批准或绕过审阅；不包含完整服务商响应、环境、数据库或原始日志。可从中读取明确的结构化事实值并调用纯合同校验器重现误判，无需为补诊断再调用模型。
+
 真实产品页面使用合成客户和验收账号；经过路径、名称、大小及PNG校验的截图位于`reports/real-model/screenshots/*.png`，单独保存为`customer-ui-${template}-${sha}`产物。它们只用于查看该行实际页面，不公开实际客户数据或临时密码。下载后应真正打开列表、表单、关联、处理、提醒和统计画面，结合业务章节的视觉清单检查；有截图文件不等于已完成视觉审阅。
 
 只有某行`acceptance_scope=full_workflow`、整体`passed=true`且模板/commit/attempt吻合，才能将该行标为真实模型完整流程通过；三个模板各自满足才可称三模板通过。`smoke_only`、固定计划测试、之前其他案例或其他提交的成功都不能替代。原来`BLOCKED`的任务恢复、Aider编辑、Continue原生索引和Daytona是另外的验证范围；当前真实模型路径明确记录这些未覆盖项，不借用旧报告填充它们。

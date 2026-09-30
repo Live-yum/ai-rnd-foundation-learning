@@ -1067,3 +1067,341 @@ def test_unique_field_property_heading_is_not_discarded(heading, attribute, expe
     assert coverage_gaps(requirement, plan) == []
     setattr(name, attribute, invalid)
     assert coverage_gaps(requirement, plan)
+
+
+STRUCTURED_BUSINESS_METADATA = [
+    {
+        "metrics": [
+            {
+                "name": "requests_total",
+                "entity": "requests",
+                "kind": "count",
+                "role_scope": ["manager", "service"],
+            }
+        ]
+    },
+    {
+        "metrics": [
+            {
+                "name": "title",
+                "entity": "requests",
+                "kind": "average_duration",
+                "start_field": "created_at",
+                "end_field": "resolved_at",
+                "role_scope": ["manager"],
+                "filters": [{"field": "request_state", "op": "in", "value": ["resolved"]}],
+            }
+        ]
+    },
+    {
+        "relations": [
+            {
+                "entity": "requests",
+                "field": "customer_id",
+                "target_entity": "customers",
+                "roles": ["manager", "service"],
+            }
+        ]
+    },
+    {
+        "permissions": [
+            {
+                "entity": "requests",
+                "role": "service",
+                "scope": "assigned",
+                "actions": ["read", "update", "add_note"],
+            }
+        ]
+    },
+    {
+        "notifications": [
+            {
+                "entity": "requests",
+                "event": "transitioned",
+                "transition": "resolve",
+                "recipient": "creator",
+                "role_scope": ["employee"],
+            }
+        ]
+    },
+    {
+        "roles": [
+            {
+                "name": "category",
+                "label": "可选分类",
+                "actions": ["read"],
+                "role_scope": ["manager"],
+            }
+        ]
+    },
+    {
+        "resources": [
+            {"entity": "requests", "assignee_field": "assignee_id", "notes": True, "required": True}
+        ]
+    },
+    {
+        "workflows": [
+            {
+                "entity": "requests",
+                "status_field": "request_state",
+                "transitions": [
+                    {
+                        "name": "title",
+                        "from_states": ["new"],
+                        "to_state": "active",
+                        "roles": ["manager", "service"],
+                    }
+                ],
+            }
+        ]
+    },
+    {
+        "entities": [
+            {
+                "name": "requests",
+                "fields": ["title", "detail"],
+                "role_scope": ["manager", "service"],
+            }
+        ]
+    },
+]
+
+
+def encode_fact_shapes(facts, encoding):
+    import json
+    from copy import deepcopy
+
+    facts = deepcopy(facts)
+    if encoding == "json":
+        return {key: json.dumps(value, ensure_ascii=False) for key, value in facts.items()}
+    if encoding == "items":
+        return {
+            key: [json.dumps(item, ensure_ascii=False) for item in value]
+            for key, value in facts.items()
+        }
+    return facts
+
+
+@pytest.mark.parametrize("facts", STRUCTURED_BUSINESS_METADATA)
+@pytest.mark.parametrize("encoding", ["native", "json", "items"])
+def test_business_structures_are_not_field_names_kinds_or_enum_lists(facts, encoding):
+    requirement, plan = actual_customer_field_case()
+    requirement.facts = encode_fact_shapes(facts, encoding)
+    before = requirement.model_dump()
+    assert coverage_gaps(requirement, plan) == []
+    assert requirement.model_dump() == before
+
+
+@pytest.mark.parametrize(
+    "namespace",
+    ["metrics", "relations", "permissions", "notifications", "roles", "resources", "workflows"],
+)
+@pytest.mark.parametrize("encoding", ["native", "json", "items"])
+def test_explicit_field_constraints_nested_in_metadata_cannot_disappear(namespace, encoding):
+    requirement, plan = actual_customer_field_case()
+    facts = {
+        namespace: [
+            {
+                "name": "business_definition",
+                "entity": "requests",
+                "role_scope": ["manager"],
+                "field_constraints": [{"entity": "requests", "field": "title", "required": False}],
+            }
+        ]
+    }
+    requirement.facts = encode_fact_shapes(facts, encoding)
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        item["attribute"] == "required"
+        and item["targets"] == [{"entity": "requests", "field": "title"}]
+        and item["source"]["path"] == f"{namespace}.0.field_constraints.0"
+        for item in diagnostics
+    )
+    next(
+        field
+        for entity in plan.entities
+        if entity.name == "requests"
+        for field in entity.fields
+        if field.name == "title"
+    ).required = False
+    assert coverage_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize("encoding", ["native", "json", "items"])
+def test_relation_field_attributes_are_preserved_without_treating_roles_as_choices(encoding):
+    requirement, plan = actual_customer_field_case()
+    requirement.facts = encode_fact_shapes(
+        {
+            "relations": [
+                {
+                    "entity": "requests",
+                    "field": "customer_id",
+                    "target_entity": "customers",
+                    "required": True,
+                    "roles": ["manager", "employee"],
+                }
+            ]
+        },
+        encoding,
+    )
+    assert coverage_gaps(requirement, plan) == []
+    next(
+        field
+        for entity in plan.entities
+        if entity.name == "requests"
+        for field in entity.fields
+        if field.name == "customer_id"
+    ).required = False
+    assert any("required" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize("encoding", ["native", "json", "items"])
+def test_explicit_enum_descriptor_preserves_membership_inside_json(encoding):
+    requirement, plan = actual_customer_field_case()
+    requirement.facts = encode_fact_shapes(
+        {
+            "fields": [
+                {"entity": "customers", "name": "category", "choices": ["个人", "企业", "合作伙伴"]}
+            ]
+        },
+        encoding,
+    )
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[-1].choices = ["个人", "企业"]
+    assert any("choices" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize(
+    "facts",
+    [
+        {"fields": [{"field": "missing", "required": True}]},
+        {"fields": [{"entity": "requests", "field": "missing"}]},
+        {"requests": {"missing": {"required": True}}},
+        {"fields": {"missing": {"choices": ["a", "b"]}}},
+        {"title": {"entity": "requests", "field": "missing", "required": True}},
+    ],
+)
+def test_genuine_missing_field_declaration_is_not_satisfied_by_metadata_or_ancestor(facts):
+    requirement, plan = actual_customer_field_case()
+    requirement.facts = facts
+    diagnostics = []
+    assert any(
+        "missing" in gap for gap in coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    )
+    assert any(
+        item["code"] == "structured_missing_field"
+        and item["source"]["path"]
+        and not item["targets"]
+        for item in diagnostics
+    )
+
+
+@pytest.mark.parametrize("name", ["metrics", "permissions", "fields", "entities", "role_scope"])
+def test_field_identifier_can_equal_a_metadata_namespace(name):
+    from workbench.domain import FieldSpec
+
+    requirement, plan = actual_customer_field_case()
+    plan.entities[0].fields.append(FieldSpec(name=name, kind="text", required=True))
+    requirement.facts = {"fields": {name: {"entity": "customers", "required": False}}}
+    assert any("required" in gap for gap in coverage_gaps(requirement, plan))
+    plan.entities[0].fields[-1].required = False
+    assert coverage_gaps(requirement, plan) == []
+
+
+def test_structured_subject_identity_does_not_match_wrapper_field_names():
+    requirement, plan = actual_customer_field_case()
+    requirement.facts = {"title": {"entity": "tasks", "field": "resolved_at", "required": False}}
+    assert coverage_gaps(requirement, plan) == []
+    next(
+        field
+        for entity in plan.entities
+        if entity.name == "tasks"
+        for field in entity.fields
+        if field.name == "resolved_at"
+    ).required = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert diagnostics[0]["targets"] == [{"entity": "tasks", "field": "resolved_at"}]
+    assert diagnostics[0]["source"]["path"] == "title"
+
+
+def test_structured_field_fact_and_typed_opposite_constraint_both_remain_blocking():
+    requirement, plan = actual_customer_field_case()
+    requirement.field_requirements = [
+        FieldRequirement(entity="requests", field="title", required=True)
+    ]
+    requirement.facts = {"fields": [{"entity": "requests", "name": "title", "required": False}]}
+    for value, source in [(True, "facts"), (False, "field_requirements")]:
+        next(
+            field
+            for entity in plan.entities
+            if entity.name == "requests"
+            for field in entity.fields
+            if field.name == "title"
+        ).required = value
+        diagnostics = []
+        assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+        assert any(
+            item["source"]["section"] == source
+            and item["targets"] == [{"entity": "requests", "field": "title"}]
+            for item in diagnostics
+        )
+
+
+@pytest.mark.parametrize("kind", [{"type": "text"}, ["text"], True, None])
+def test_malformed_explicit_field_kind_blocks_without_parser_crash(kind):
+    requirement, plan = actual_customer_field_case()
+    requirement.facts = {"fields": [{"entity": "requests", "field": "title", "kind": kind}]}
+    gaps = coverage_gaps(requirement, plan)
+    assert bool(gaps) is (kind is not None)
+
+
+@pytest.mark.parametrize("entity", [17, {}, "not an identifier"])
+def test_invalid_explicit_field_entity_cannot_fall_back_to_another_target(entity):
+    requirement, plan = actual_customer_field_case()
+    requirement.facts = {"fields": [{"entity": entity, "field": "title", "required": True}]}
+    assert coverage_gaps(requirement, plan)
+
+
+def test_keyed_field_constraints_honor_their_explicit_entity_identity():
+    requirement, plan = actual_customer_field_case()
+    requirement.facts = {"title": {"entity": "tasks", "required": False}}
+    next(
+        field
+        for entity in plan.entities
+        if entity.name == "tasks"
+        for field in entity.fields
+        if field.name == "title"
+    ).required = False
+    assert coverage_gaps(requirement, plan) == []
+    next(
+        field
+        for entity in plan.entities
+        if entity.name == "tasks"
+        for field in entity.fields
+        if field.name == "title"
+    ).required = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert diagnostics[0]["targets"] == [{"entity": "tasks", "field": "title"}]
+
+
+def test_json_encoded_enum_attribute_keeps_membership_and_raw_source():
+    import json
+
+    requirement, plan = actual_customer_field_case()
+    requirement.facts = {
+        "fields": [
+            {
+                "entity": "customers",
+                "field": "category",
+                "choices": json.dumps(["个人", "企业", "合作伙伴"]),
+            }
+        ]
+    }
+    before = requirement.model_dump()
+    assert coverage_gaps(requirement, plan) == []
+    assert requirement.model_dump() == before
+    plan.entities[0].fields[-1].choices = ["企业"]
+    assert any("choices" in gap for gap in coverage_gaps(requirement, plan))

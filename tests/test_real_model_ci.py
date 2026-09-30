@@ -448,10 +448,13 @@ def test_workflow_is_manual_environment_scoped_and_artifact_allowlisted():
     assert [step["with"]["path"] for step in paid_uploads] == [
         "reports/real-model/summary.json",
         "reports/real-model/approved-plan-replay.json",
+        "reports/real-model/unapproved-design-contract.json",
         "reports/real-model/screenshots/*.png",
     ]
     assert paid_uploads[1]["if"] == "failure()"
     assert paid_uploads[1]["with"]["retention-days"] == "7"
+    assert paid_uploads[2]["if"] == "failure()"
+    assert paid_uploads[2]["with"]["retention-days"] == "7"
 
 
 def test_all_profiles_use_authorized_configuration_despite_hostile_ambient_overrides(

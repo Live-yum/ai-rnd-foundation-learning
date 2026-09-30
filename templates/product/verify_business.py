@@ -24,6 +24,115 @@ def check(condition, message):
         raise ValueError(message)
 
 
+def verify_field_constraints(client, actor, entity, fields, sample, row, protected, can_update):
+    """Reject concrete invalid requests through the generated server, not metadata alone."""
+    headers = {"Authorization": "Bearer " + actor["token"]}
+    route = "/api/" + entity
+    before = client.get(route, headers=headers, params={"limit": 100}).json()
+    evidence = []
+    for field in fields:
+        name, kind = field["name"], field["kind"]
+        proof = {"entity": entity, "field": name, "kind": kind, "required": field["required"]}
+        if name in protected:
+            response = client.post(route, headers=headers, json={**sample, name: "forged"})
+            check(response.status_code == 422, f"Protected create field accepted: {entity}.{name}")
+            proof["protected_create_rejected"] = True
+            if can_update:
+                response = client.put(
+                    route + "/" + row["id"], headers=headers, json={name: "forged"}
+                )
+                check(
+                    response.status_code == 422, f"Protected update field accepted: {entity}.{name}"
+                )
+                proof["protected_update_rejected"] = True
+            evidence.append(proof)
+            continue
+        invalid = []
+        if field["required"]:
+            missing = {key: value for key, value in sample.items() if key != name}
+            response = client.post(route, headers=headers, json=missing)
+            check(response.status_code == 422, f"Missing required field accepted: {entity}.{name}")
+            proof["missing_required_rejected"] = True
+            invalid.append(("null_rejected", None))
+            if kind in {"text", "enum"}:
+                invalid.append(("blank_rejected", ""))
+        if kind == "text":
+            invalid.append(("over_max_length_rejected", "x" * (field["max_length"] + 1)))
+            proof["max_length"] = field["max_length"]
+            if field.get("min_length", 0) > 0:
+                invalid.append(("under_min_length_rejected", "x" * (field["min_length"] - 1)))
+                proof["min_length"] = field["min_length"]
+        if kind == "enum":
+            invalid_choice = next(
+                char * max(1, field.get("min_length", 0))
+                for char in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+                if char * max(1, field.get("min_length", 0)) not in field["choices"]
+            )
+            invalid.append(("invalid_enum_rejected", invalid_choice))
+            proof["declared_choices"] = len(field["choices"])
+        if kind == "datetime":
+            invalid.append(("invalid_timestamp_rejected", "not-a-timestamp"))
+        for check_name, value in invalid:
+            response = client.post(route, headers=headers, json={**sample, name: value})
+            check(response.status_code == 422, f"{check_name} failed for {entity}.{name}")
+            proof[check_name] = True
+            if can_update:
+                response = client.put(route + "/" + row["id"], headers=headers, json={name: value})
+                check(
+                    response.status_code == 422, f"Update {check_name} failed for {entity}.{name}"
+                )
+        if invalid and can_update:
+            proof["invalid_updates_rejected"] = len(invalid)
+        evidence.append(proof)
+    after = client.get(route, headers=headers, params={"limit": 100}).json()
+    check(before == after, "Rejected field input changed stored records")
+    return evidence
+
+
+def verify_audit_immutability(client, actor, entity, row, actor_ids):
+    headers = {"Authorization": "Bearer " + actor["token"]}
+    route = f"/api/{entity}/{row['id']}/history"
+    response = client.get(route, headers=headers)
+    check(response.status_code == 200, "Audit history unavailable")
+    original = response.json()
+    check(bool(original), "Audit history is empty")
+    for entry in original:
+        check(
+            entry.get("id") and entry.get("action") and entry.get("actor_id") in actor_ids,
+            "Audit action/actor missing",
+        )
+        check(bool(entry.get("created_at")), "Audit timestamp missing")
+        check(
+            datetime.fromisoformat(entry["created_at"].replace("Z", "+00:00")).tzinfo is not None,
+            "Audit timestamp is not timezone-aware",
+        )
+    forged = {
+        "action": "forged",
+        "actor_id": "forged",
+        "created_at": "2000-01-01T00:00:00Z",
+        "before": {},
+        "after": {},
+    }
+    attempts = 0
+    for path in (route, route + "/" + original[0]["id"]):
+        for method in ("PUT", "PATCH", "DELETE"):
+            denied = client.request(method, path, headers=headers, json=forged)
+            check(denied.status_code in {403, 404, 405}, "Audit mutation/deletion route accepted")
+            check(
+                client.get(route, headers=headers).json() == original,
+                "Audit changed after rejected mutation",
+            )
+            attempts += 1
+    return original, {
+        "entity": entity,
+        "entries_checked": len(original),
+        "action_actor_timestamp": True,
+        "mutation_delete_attempts_rejected": attempts,
+        "surface": "http_history_collection_and_entry",
+        "unchanged_after_attempts": True,
+    }
+
+
 class NotificationEvidence:
     """Expected reminders come from successful actions and the approved contract."""
 
@@ -263,6 +372,17 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
     checks = []
     notification_evidence = NotificationEvidence(business)
     persisted_notifications = {}
+    persisted_audit = {}
+    evidence = {
+        "version": 1,
+        "field_validation": [],
+        "related_views": [],
+        "relation_labels": [],
+        "datetime_policy": [],
+        "due_notifications": [],
+        "audit_immutability": [],
+    }
+    related_expectations, relation_labels = [], []
     password = secrets.token_urlsafe(24)
 
     def allowed(role, entity, action, row=None, identity=None):
@@ -537,6 +657,18 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                         row["created_by"] == creator["id"] and row["created_at"],
                         "Immutable creator missing",
                     )
+                    evidence["field_validation"].extend(
+                        verify_field_constraints(
+                            client,
+                            creator,
+                            entity,
+                            fields[entity],
+                            sample,
+                            row,
+                            protected,
+                            allowed(creator["role"], entity, "update", row, creator["id"]),
+                        )
+                    )
                     for relation in relations:
                         invalid = {
                             **sample,
@@ -583,7 +715,9 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                             )
                             check(response.status_code == 422, "Protected field mutation accepted")
                 check(progress, "Required relation cycle cannot be constructed by approved APIs")
-            checks.extend(["business-relations", "business-protected-fields"])
+            checks.extend(
+                ["business-relations", "business-protected-fields", "business-field-validation"]
+            )
             for entity, row in base.items():
                 assignee = resources[entity].get("assignee_field")
                 if assignee:
@@ -620,6 +754,38 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                         json={"user_id": target["id"]},
                     )
                     row.update(changed)
+            future_due_rows = []
+            for entity in dict.fromkeys(
+                n["entity"] for n in business["notifications"] if n["event"] == "due"
+            ):
+                creator = actors[create_roles[entity]]
+                due_fields = {
+                    n["due_field"]
+                    for n in business["notifications"]
+                    if n["entity"] == entity and n["event"] == "due"
+                }
+                future_sample = {
+                    **samples[entity],
+                    **{field: "2099-01-01T00:00:00Z" for field in due_fields},
+                }
+                future = request("POST", "/api/" + entity, creator, status=201, json=future_sample)
+                rows[entity].append(future)
+                assignee_field = resources[entity].get("assignee_field")
+                if assignee_field and base[entity].get(assignee_field):
+                    assigner = next(
+                        a
+                        for a in actors.values()
+                        if allowed(a["role"], entity, "assign", future, a["id"])
+                    )
+                    future.update(
+                        request(
+                            "POST",
+                            f"/api/{entity}/{future['id']}/assign",
+                            assigner,
+                            json={"user_id": base[entity][assignee_field]},
+                        )
+                    )
+                future_due_rows.append((entity, future["id"]))
             for actor in actors.values():
                 for entity, row in base.items():
                     response = client.get(
@@ -751,6 +917,38 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                 notification_evidence.inbox(actor, notices)
                 repeated = request("GET", "/business/notifications", actor)
                 check(notices == repeated, "Repeated inbox reads changed notification evidence")
+                check(
+                    not any(
+                        n["event"] == "due" and (n["entity"], n["record_id"]) in future_due_rows
+                        for n in notices
+                    ),
+                    "Future deadline generated an overdue reminder",
+                )
+            for rule in business["notifications"]:
+                if rule["event"] != "due":
+                    continue
+                count = sum(
+                    1
+                    for recipient, entity, record, field, value in notification_evidence.due_seen
+                    if entity == rule["entity"]
+                    and field == rule["due_field"]
+                    and recipient
+                    == notification_evidence.recipient(
+                        rule, next(row for row in rows[entity] if row["id"] == record)
+                    )
+                )
+                check(count > 0, "Declared overdue reminder was not exercised")
+                evidence["due_notifications"].append(
+                    {
+                        "entity": rule["entity"],
+                        "field": rule["due_field"],
+                        "recipient": rule["recipient"],
+                        "past_due_events_verified": count,
+                        "future_deadline_no_event": True,
+                        "repeated_reads_deduplicated": True,
+                    }
+                )
+            checks.append("business-due-reminders")
             for actor in actors.values():
                 metrics = request("GET", "/business/metrics", actor)
                 expected_names = {
@@ -834,6 +1032,243 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                             "Incorrect scoped grouping or day buckets",
                         )
             checks.append("business-scoped-metrics")
+            actor_ids = {a["id"] for a in actors.values()} | {bootstrap_actor["id"]}
+            for entity, row in base.items():
+                auditor = next(
+                    (
+                        a
+                        for a in actors.values()
+                        if allowed(a["role"], entity, "read_history", row, a["id"])
+                        and allowed(a["role"], entity, "read_audit", row, a["id"])
+                    ),
+                    None,
+                )
+                if resources[entity]["audit"]:
+                    check(
+                        auditor is not None,
+                        "Audited resource has no permitted audit/history reader",
+                    )
+                    original, proof = verify_audit_immutability(
+                        client, auditor, entity, row, actor_ids
+                    )
+                    persisted_audit[entity] = (auditor, row["id"], original)
+                    evidence["audit_immutability"].append(proof)
+                reader = next(
+                    a for a in actors.values() if allowed(a["role"], entity, "read", row, a["id"])
+                )
+                for field in fields[entity]:
+                    if field["kind"] != "datetime":
+                        continue
+                    name = field["name"]
+                    value = row.get(name)
+                    proof = {
+                        "entity": entity,
+                        "field": name,
+                        "searchable": field["searchable"],
+                        "filterable": field["filterable"],
+                        "date_range": field["date_range"],
+                    }
+                    if value:
+                        check(
+                            datetime.fromisoformat(value.replace("Z", "+00:00")).tzinfo is not None,
+                            "Stored datetime lost its timezone",
+                        )
+                        proof["timestamp_stored"] = True
+                    if not field["searchable"] and value:
+                        matching = request(
+                            "GET",
+                            "/api/" + entity,
+                            reader,
+                            status=200 if any(f["searchable"] for f in fields[entity]) else 422,
+                            params={"q": value, "limit": 100},
+                        )
+                        if isinstance(matching, list):
+                            expected_ids = {
+                                r["id"]
+                                for r in rows[entity]
+                                if allowed(reader["role"], entity, "read", r, reader["id"])
+                                and any(
+                                    f["searchable"]
+                                    and value.lower() in str(r.get(f["name"]) or "").lower()
+                                    for f in fields[entity]
+                                )
+                            }
+                            check(
+                                {r["id"] for r in matching} == expected_ids,
+                                "Nonsearchable datetime participated in keyword matching",
+                            )
+                        proof["excluded_from_keyword_search"] = True
+                    excluded = []
+                    for prefix, prohibited in (
+                        ("filter_", not field["filterable"]),
+                        ("from_", not field["date_range"]),
+                        ("to_", not field["date_range"]),
+                    ):
+                        if prohibited:
+                            request(
+                                "GET",
+                                "/api/" + entity,
+                                reader,
+                                status=422,
+                                params={prefix + name: "2020-01-01"},
+                            )
+                            excluded.append(prefix.rstrip("_"))
+                    proof["undeclared_query_parameters_rejected"] = excluded
+                    evidence["datetime_policy"].append(proof)
+            for actor in actors.values():
+                for entity, items in rows.items():
+                    readable = [
+                        row
+                        for row in items
+                        if allowed(actor["role"], entity, "read", row, actor["id"])
+                    ]
+                    for row in readable:
+                        groups = []
+                        for relation in business["relations"]:
+                            target = relation["entity"]
+                            if relation["target_entity"] != entity or not allowed(
+                                actor["role"], target, "read"
+                            ):
+                                continue
+                            visible = [
+                                r
+                                for r in rows[target]
+                                if r.get(relation["field"]) == row["id"]
+                                and allowed(actor["role"], target, "read", r, actor["id"])
+                            ]
+                            groups.append(
+                                {
+                                    "entity": target,
+                                    "field": relation["field"],
+                                    "record_ids": [r["id"] for r in visible],
+                                    "labels": [
+                                        r.get("name") or r.get("title") or r["id"] for r in visible
+                                    ],
+                                }
+                            )
+                        actual = request("GET", f"/business/related/{entity}/{row['id']}", actor)
+                        expected_keys = {(g["entity"], g["field"]) for g in groups}
+                        check(
+                            {(g["entity"], g["field"]) for g in actual} == expected_keys
+                            and len(actual) == len(groups),
+                            "Related view omitted or leaked a target entity",
+                        )
+                        for group in groups:
+                            found = next(
+                                g
+                                for g in actual
+                                if (g["entity"], g["field"]) == (group["entity"], group["field"])
+                            )
+                            check(
+                                {r["id"] for r in found["records"]} == set(group["record_ids"])
+                                and len(found["records"]) == len(group["record_ids"]),
+                                "Related view violated target row ACL",
+                            )
+                        related_expectations.append(
+                            {
+                                "role": actor["role"],
+                                "entity": entity,
+                                "record_id": row["id"],
+                                "groups": groups,
+                            }
+                        )
+                    if readable:
+                        evidence["related_views"].append(
+                            {
+                                "role": actor["role"],
+                                "entity": entity,
+                                "source_records_checked": len(readable),
+                                "target_entities": sorted(
+                                    {
+                                        g["entity"]
+                                        for expected in related_expectations
+                                        if expected["role"] == actor["role"]
+                                        and expected["entity"] == entity
+                                        for g in expected["groups"]
+                                    }
+                                ),
+                                "target_row_acl": True,
+                            }
+                        )
+                        actual_labels = request(
+                            "POST",
+                            "/business/labels/" + entity,
+                            actor,
+                            json={"record_ids": [r["id"] for r in readable]},
+                        )
+                        for relation in business["relations"]:
+                            if relation["entity"] != entity:
+                                continue
+                            name, target = relation["field"], relation["target_entity"]
+                            expected_labels = {}
+                            checked_refs = 0
+                            for row in readable:
+                                identifier = row.get(name)
+                                if not identifier:
+                                    continue
+                                if target == "$users":
+                                    target_row = next(
+                                        (a for a in actors.values() if a["id"] == identifier), None
+                                    )
+                                    label = target_row["username"] if target_row else None
+                                else:
+                                    target_row = next(
+                                        (
+                                            r
+                                            for r in rows[target]
+                                            if r["id"] == identifier
+                                            and allowed(
+                                                actor["role"], target, "read", r, actor["id"]
+                                            )
+                                        ),
+                                        None,
+                                    )
+                                    label = (
+                                        (
+                                            target_row.get("name")
+                                            or target_row.get("title")
+                                            or "关联记录"
+                                        )
+                                        if target_row
+                                        else None
+                                    )
+                                if label is not None:
+                                    expected_labels[str(identifier)] = label
+                                relation_labels.append(
+                                    {
+                                        "role": actor["role"],
+                                        "entity": entity,
+                                        "record_id": row["id"],
+                                        "field": name,
+                                        "target_id": identifier,
+                                        "label": label,
+                                        "visible": label is not None,
+                                    }
+                                )
+                                checked_refs += 1
+                            check(
+                                actual_labels.get(name, {}) == expected_labels,
+                                "Reference labels leaked hidden rows or exposed raw identifiers",
+                            )
+                            if checked_refs:
+                                evidence["relation_labels"].append(
+                                    {
+                                        "role": actor["role"],
+                                        "entity": entity,
+                                        "field": name,
+                                        "references_checked": checked_refs,
+                                        "readable_labels_verified": True,
+                                        "target_row_acl": True,
+                                    }
+                                )
+            checks.extend(
+                [
+                    "business-related-views",
+                    "business-readable-relation-labels",
+                    "business-datetime-policy",
+                    "business-audit-immutability",
+                ]
+            )
             browser = {"applicable": False, "reason": "api-only frontend"}
             if selection["frontend"] == "simple-admin":
                 module = os.environ.get("PRODUCT_VERIFY_PLAYWRIGHT")
@@ -854,6 +1289,8 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                             "password": password,
                             "samples": samples,
                             "base_records": {entity: row["id"] for entity, row in base.items()},
+                            "related_expectations": related_expectations,
+                            "relation_labels": relation_labels,
                             "create_roles": create_roles,
                             "output": str(output),
                             "screenshot_dir": str(screenshot_target) if screenshot_target else None,
@@ -929,6 +1366,13 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                     if allowed(actor["role"], entity, "read", row, actor["id"]):
                         request("GET", f"/api/{entity}/{row['id']}", actor, status=404)
             checks.append("business-archive")
+            for entity, (auditor, identifier, original) in list(persisted_audit.items()):
+                archived = request("GET", f"/api/{entity}/{identifier}/history", auditor)
+                check(
+                    archived[: len(original)] == original,
+                    "Archive rewrote or removed audit history",
+                )
+                persisted_audit[entity] = (auditor, identifier, archived)
         finally:
             client.close()
             stop(process)
@@ -950,6 +1394,16 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                     all(restored.get(key) == value for key, value in previous.items()),
                     "Notification event or read state changed after restart",
                 )
+            for entity, (auditor, identifier, original) in persisted_audit.items():
+                check(
+                    request("GET", f"/api/{entity}/{identifier}/history", auditor) == original,
+                    "Audit history changed after restart",
+                )
+                next(item for item in evidence["audit_immutability"] if item["entity"] == entity)[
+                    "archive_and_restart_preserved"
+                ] = True
+            for proof in evidence["due_notifications"]:
+                proof["event_and_read_state_persisted_after_restart"] = True
         finally:
             client.close()
             stop(process)
@@ -967,6 +1421,7 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
             "resources_checked": list(fields),
             "roles_checked": [r["name"] for r in business["roles"]],
             "checks": [c for c in checks if c.startswith("business-")],
+            "evidence": evidence,
         },
         "browser": browser,
     }

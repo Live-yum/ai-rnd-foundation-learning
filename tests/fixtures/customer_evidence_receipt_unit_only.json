@@ -1,0 +1,804 @@
+{
+  "unit_test_fixture_only": true,
+  "source": "Executed synthetic customer product; receipt-validator tests only, never a real-model response",
+  "business": {
+    "passed": true,
+    "spec_digest": "3bc2b4e1f21eb0de450c6992b9ed07ee47584543b63a2efb9b1d20e7305e6782",
+    "resources_checked": [
+      "customers",
+      "requests",
+      "tasks"
+    ],
+    "roles_checked": [
+      "manager",
+      "service",
+      "employee"
+    ],
+    "checks": [
+      "business-bootstrap",
+      "business-role-default",
+      "business-relations",
+      "business-protected-fields",
+      "business-field-validation",
+      "business-row-permissions",
+      "business-transitions",
+      "business-notes-history",
+      "business-due-reminders",
+      "business-scoped-metrics",
+      "business-related-views",
+      "business-readable-relation-labels",
+      "business-datetime-policy",
+      "business-audit-immutability",
+      "business-notifications",
+      "business-archive"
+    ],
+    "evidence": {
+      "version": 1,
+      "field_validation": [
+        {
+          "entity": "customers",
+          "field": "name",
+          "kind": "text",
+          "required": true,
+          "missing_required_rejected": true,
+          "max_length": 120,
+          "null_rejected": true,
+          "blank_rejected": true,
+          "over_max_length_rejected": true,
+          "invalid_updates_rejected": 3
+        },
+        {
+          "entity": "customers",
+          "field": "organization",
+          "kind": "text",
+          "required": false,
+          "max_length": 160,
+          "over_max_length_rejected": true,
+          "invalid_updates_rejected": 1
+        },
+        {
+          "entity": "customers",
+          "field": "contact",
+          "kind": "text",
+          "required": false,
+          "max_length": 200,
+          "over_max_length_rejected": true,
+          "invalid_updates_rejected": 1
+        },
+        {
+          "entity": "customers",
+          "field": "category",
+          "kind": "enum",
+          "required": true,
+          "missing_required_rejected": true,
+          "declared_choices": 3,
+          "null_rejected": true,
+          "blank_rejected": true,
+          "invalid_enum_rejected": true,
+          "invalid_updates_rejected": 3
+        },
+        {
+          "entity": "requests",
+          "field": "title",
+          "kind": "text",
+          "required": true,
+          "missing_required_rejected": true,
+          "max_length": 200,
+          "null_rejected": true,
+          "blank_rejected": true,
+          "over_max_length_rejected": true,
+          "invalid_updates_rejected": 3
+        },
+        {
+          "entity": "requests",
+          "field": "detail",
+          "kind": "text",
+          "required": true,
+          "missing_required_rejected": true,
+          "max_length": 3000,
+          "null_rejected": true,
+          "blank_rejected": true,
+          "over_max_length_rejected": true,
+          "invalid_updates_rejected": 3
+        },
+        {
+          "entity": "requests",
+          "field": "customer_id",
+          "kind": "text",
+          "required": true,
+          "missing_required_rejected": true,
+          "max_length": 200,
+          "null_rejected": true,
+          "blank_rejected": true,
+          "over_max_length_rejected": true,
+          "invalid_updates_rejected": 3
+        },
+        {
+          "entity": "requests",
+          "field": "assignee_id",
+          "kind": "text",
+          "required": false,
+          "protected_create_rejected": true,
+          "protected_update_rejected": true
+        },
+        {
+          "entity": "requests",
+          "field": "request_state",
+          "kind": "enum",
+          "required": true,
+          "protected_create_rejected": true,
+          "protected_update_rejected": true
+        },
+        {
+          "entity": "requests",
+          "field": "resolved_at",
+          "kind": "datetime",
+          "required": false,
+          "protected_create_rejected": true,
+          "protected_update_rejected": true
+        },
+        {
+          "entity": "requests",
+          "field": "due_at",
+          "kind": "datetime",
+          "required": false,
+          "invalid_timestamp_rejected": true,
+          "invalid_updates_rejected": 1
+        },
+        {
+          "entity": "requests",
+          "field": "priority",
+          "kind": "enum",
+          "required": true,
+          "missing_required_rejected": true,
+          "declared_choices": 2,
+          "null_rejected": true,
+          "blank_rejected": true,
+          "invalid_enum_rejected": true,
+          "invalid_updates_rejected": 3
+        },
+        {
+          "entity": "tasks",
+          "field": "title",
+          "kind": "text",
+          "required": true,
+          "missing_required_rejected": true,
+          "max_length": 200,
+          "null_rejected": true,
+          "blank_rejected": true,
+          "over_max_length_rejected": true,
+          "invalid_updates_rejected": 3
+        },
+        {
+          "entity": "tasks",
+          "field": "detail",
+          "kind": "text",
+          "required": true,
+          "missing_required_rejected": true,
+          "max_length": 3000,
+          "null_rejected": true,
+          "blank_rejected": true,
+          "over_max_length_rejected": true,
+          "invalid_updates_rejected": 3
+        },
+        {
+          "entity": "tasks",
+          "field": "assignee_id",
+          "kind": "text",
+          "required": false,
+          "protected_create_rejected": true,
+          "protected_update_rejected": true
+        },
+        {
+          "entity": "tasks",
+          "field": "task_state",
+          "kind": "enum",
+          "required": true,
+          "protected_create_rejected": true,
+          "protected_update_rejected": true
+        },
+        {
+          "entity": "tasks",
+          "field": "resolved_at",
+          "kind": "datetime",
+          "required": false,
+          "protected_create_rejected": true,
+          "protected_update_rejected": true
+        },
+        {
+          "entity": "tasks",
+          "field": "due_at",
+          "kind": "datetime",
+          "required": false,
+          "invalid_timestamp_rejected": true,
+          "invalid_updates_rejected": 1
+        },
+        {
+          "entity": "tasks",
+          "field": "request_id",
+          "kind": "text",
+          "required": true,
+          "missing_required_rejected": true,
+          "max_length": 200,
+          "null_rejected": true,
+          "blank_rejected": true,
+          "over_max_length_rejected": true,
+          "invalid_updates_rejected": 3
+        }
+      ],
+      "related_views": [
+        {
+          "role": "manager",
+          "entity": "customers",
+          "source_records_checked": 1,
+          "target_entities": [
+            "requests"
+          ],
+          "target_row_acl": true
+        },
+        {
+          "role": "manager",
+          "entity": "requests",
+          "source_records_checked": 3,
+          "target_entities": [
+            "tasks"
+          ],
+          "target_row_acl": true
+        },
+        {
+          "role": "manager",
+          "entity": "tasks",
+          "source_records_checked": 2,
+          "target_entities": [],
+          "target_row_acl": true
+        },
+        {
+          "role": "service",
+          "entity": "customers",
+          "source_records_checked": 1,
+          "target_entities": [
+            "requests"
+          ],
+          "target_row_acl": true
+        },
+        {
+          "role": "service",
+          "entity": "requests",
+          "source_records_checked": 2,
+          "target_entities": [
+            "tasks"
+          ],
+          "target_row_acl": true
+        },
+        {
+          "role": "service",
+          "entity": "tasks",
+          "source_records_checked": 2,
+          "target_entities": [],
+          "target_row_acl": true
+        },
+        {
+          "role": "employee",
+          "entity": "customers",
+          "source_records_checked": 1,
+          "target_entities": [
+            "requests"
+          ],
+          "target_row_acl": true
+        },
+        {
+          "role": "employee",
+          "entity": "requests",
+          "source_records_checked": 1,
+          "target_entities": [],
+          "target_row_acl": true
+        }
+      ],
+      "relation_labels": [
+        {
+          "role": "manager",
+          "entity": "requests",
+          "field": "customer_id",
+          "references_checked": 3,
+          "readable_labels_verified": true,
+          "target_row_acl": true
+        },
+        {
+          "role": "manager",
+          "entity": "requests",
+          "field": "assignee_id",
+          "references_checked": 2,
+          "readable_labels_verified": true,
+          "target_row_acl": true
+        },
+        {
+          "role": "manager",
+          "entity": "tasks",
+          "field": "request_id",
+          "references_checked": 2,
+          "readable_labels_verified": true,
+          "target_row_acl": true
+        },
+        {
+          "role": "manager",
+          "entity": "tasks",
+          "field": "assignee_id",
+          "references_checked": 2,
+          "readable_labels_verified": true,
+          "target_row_acl": true
+        },
+        {
+          "role": "service",
+          "entity": "requests",
+          "field": "customer_id",
+          "references_checked": 2,
+          "readable_labels_verified": true,
+          "target_row_acl": true
+        },
+        {
+          "role": "service",
+          "entity": "requests",
+          "field": "assignee_id",
+          "references_checked": 2,
+          "readable_labels_verified": true,
+          "target_row_acl": true
+        },
+        {
+          "role": "service",
+          "entity": "tasks",
+          "field": "request_id",
+          "references_checked": 2,
+          "readable_labels_verified": true,
+          "target_row_acl": true
+        },
+        {
+          "role": "service",
+          "entity": "tasks",
+          "field": "assignee_id",
+          "references_checked": 2,
+          "readable_labels_verified": true,
+          "target_row_acl": true
+        },
+        {
+          "role": "employee",
+          "entity": "requests",
+          "field": "customer_id",
+          "references_checked": 1,
+          "readable_labels_verified": true,
+          "target_row_acl": true
+        }
+      ],
+      "datetime_policy": [
+        {
+          "entity": "requests",
+          "field": "resolved_at",
+          "searchable": false,
+          "filterable": false,
+          "date_range": false,
+          "timestamp_stored": true,
+          "excluded_from_keyword_search": true,
+          "undeclared_query_parameters_rejected": [
+            "filter",
+            "from",
+            "to"
+          ]
+        },
+        {
+          "entity": "requests",
+          "field": "due_at",
+          "searchable": false,
+          "filterable": false,
+          "date_range": false,
+          "timestamp_stored": true,
+          "excluded_from_keyword_search": true,
+          "undeclared_query_parameters_rejected": [
+            "filter",
+            "from",
+            "to"
+          ]
+        },
+        {
+          "entity": "tasks",
+          "field": "resolved_at",
+          "searchable": false,
+          "filterable": false,
+          "date_range": false,
+          "timestamp_stored": true,
+          "excluded_from_keyword_search": true,
+          "undeclared_query_parameters_rejected": [
+            "filter",
+            "from",
+            "to"
+          ]
+        },
+        {
+          "entity": "tasks",
+          "field": "due_at",
+          "searchable": false,
+          "filterable": false,
+          "date_range": false,
+          "timestamp_stored": true,
+          "excluded_from_keyword_search": true,
+          "undeclared_query_parameters_rejected": [
+            "filter",
+            "from",
+            "to"
+          ]
+        }
+      ],
+      "due_notifications": [
+        {
+          "entity": "requests",
+          "field": "due_at",
+          "recipient": "assignee",
+          "past_due_events_verified": 1,
+          "future_deadline_no_event": true,
+          "repeated_reads_deduplicated": true,
+          "event_and_read_state_persisted_after_restart": true
+        },
+        {
+          "entity": "tasks",
+          "field": "due_at",
+          "recipient": "assignee",
+          "past_due_events_verified": 1,
+          "future_deadline_no_event": true,
+          "repeated_reads_deduplicated": true,
+          "event_and_read_state_persisted_after_restart": true
+        }
+      ],
+      "audit_immutability": [
+        {
+          "entity": "customers",
+          "entries_checked": 2,
+          "action_actor_timestamp": true,
+          "mutation_delete_attempts_rejected": 6,
+          "surface": "http_history_collection_and_entry",
+          "unchanged_after_attempts": true,
+          "archive_and_restart_preserved": true
+        },
+        {
+          "entity": "requests",
+          "entries_checked": 5,
+          "action_actor_timestamp": true,
+          "mutation_delete_attempts_rejected": 6,
+          "surface": "http_history_collection_and_entry",
+          "unchanged_after_attempts": true,
+          "archive_and_restart_preserved": true
+        },
+        {
+          "entity": "tasks",
+          "entries_checked": 5,
+          "action_actor_timestamp": true,
+          "mutation_delete_attempts_rejected": 6,
+          "surface": "http_history_collection_and_entry",
+          "unchanged_after_attempts": true,
+          "archive_and_restart_preserved": true
+        }
+      ]
+    }
+  },
+  "browser": {
+    "passed": true,
+    "real_browser": true,
+    "entities": [
+      "customers",
+      "requests",
+      "tasks"
+    ],
+    "spec_digest": "3bc2b4e1f21eb0de450c6992b9ed07ee47584543b63a2efb9b1d20e7305e6782",
+    "checks": [
+      "business-browser-auth",
+      "business-browser-role-navigation",
+      "business-browser-metrics",
+      "business-browser-reminders",
+      "business-browser-responsive-actions",
+      "business-browser-datetime-controls",
+      "business-browser-relation-labels",
+      "business-browser-related-views",
+      "business-browser-related-row-acl",
+      "business-browser-records:customers",
+      "business-browser-notes-history",
+      "business-browser-records:requests",
+      "business-browser-assignment",
+      "business-browser-transitions",
+      "business-browser-records:tasks",
+      "business-browser-role-restrictions",
+      "business-browser-actions"
+    ],
+    "errors": [],
+    "evidence": {
+      "version": 1,
+      "relation_labels": [
+        {
+          "role": "manager",
+          "entity": "requests",
+          "field": "customer_id",
+          "list": true,
+          "select": true,
+          "detail": null,
+          "records_checked": 3
+        },
+        {
+          "role": "manager",
+          "entity": "requests",
+          "field": "assignee_id",
+          "list": true,
+          "select": true,
+          "detail": true,
+          "records_checked": 2
+        },
+        {
+          "role": "manager",
+          "entity": "tasks",
+          "field": "request_id",
+          "list": true,
+          "select": true,
+          "detail": null,
+          "records_checked": 2
+        },
+        {
+          "role": "manager",
+          "entity": "tasks",
+          "field": "assignee_id",
+          "list": true,
+          "select": true,
+          "detail": true,
+          "records_checked": 2
+        },
+        {
+          "role": "service",
+          "entity": "requests",
+          "field": "customer_id",
+          "list": true,
+          "select": true,
+          "detail": null,
+          "records_checked": 2
+        },
+        {
+          "role": "service",
+          "entity": "requests",
+          "field": "assignee_id",
+          "list": true,
+          "select": null,
+          "detail": null,
+          "records_checked": 2
+        },
+        {
+          "role": "service",
+          "entity": "tasks",
+          "field": "request_id",
+          "list": true,
+          "select": true,
+          "detail": null,
+          "records_checked": 2
+        },
+        {
+          "role": "service",
+          "entity": "tasks",
+          "field": "assignee_id",
+          "list": true,
+          "select": null,
+          "detail": null,
+          "records_checked": 2
+        },
+        {
+          "role": "employee",
+          "entity": "requests",
+          "field": "customer_id",
+          "list": true,
+          "select": true,
+          "detail": null,
+          "records_checked": 1
+        }
+      ],
+      "related_views": [
+        {
+          "role": "manager",
+          "entity": "customers",
+          "target_entity": "requests",
+          "field": "customer_id",
+          "source_records": 1,
+          "expected_records": 3,
+          "visible_records": 3,
+          "target_acl": true,
+          "navigation": true
+        },
+        {
+          "role": "manager",
+          "entity": "requests",
+          "target_entity": "tasks",
+          "field": "request_id",
+          "source_records": 3,
+          "expected_records": 2,
+          "visible_records": 2,
+          "target_acl": true,
+          "navigation": true
+        },
+        {
+          "role": "service",
+          "entity": "customers",
+          "target_entity": "requests",
+          "field": "customer_id",
+          "source_records": 1,
+          "expected_records": 2,
+          "visible_records": 2,
+          "target_acl": true,
+          "navigation": true
+        },
+        {
+          "role": "service",
+          "entity": "requests",
+          "target_entity": "tasks",
+          "field": "request_id",
+          "source_records": 2,
+          "expected_records": 2,
+          "visible_records": 2,
+          "target_acl": true,
+          "navigation": true
+        },
+        {
+          "role": "employee",
+          "entity": "customers",
+          "target_entity": "requests",
+          "field": "customer_id",
+          "source_records": 1,
+          "expected_records": 1,
+          "visible_records": 1,
+          "target_acl": true,
+          "navigation": true
+        }
+      ],
+      "related_sources": [
+        {
+          "role": "manager",
+          "entity": "customers",
+          "source_records": 1,
+          "groups_checked": 1,
+          "target_acl": true
+        },
+        {
+          "role": "manager",
+          "entity": "requests",
+          "source_records": 3,
+          "groups_checked": 3,
+          "target_acl": true
+        },
+        {
+          "role": "manager",
+          "entity": "tasks",
+          "source_records": 2,
+          "groups_checked": 0,
+          "target_acl": true
+        },
+        {
+          "role": "service",
+          "entity": "customers",
+          "source_records": 1,
+          "groups_checked": 1,
+          "target_acl": true
+        },
+        {
+          "role": "service",
+          "entity": "requests",
+          "source_records": 2,
+          "groups_checked": 2,
+          "target_acl": true
+        },
+        {
+          "role": "service",
+          "entity": "tasks",
+          "source_records": 2,
+          "groups_checked": 0,
+          "target_acl": true
+        },
+        {
+          "role": "employee",
+          "entity": "customers",
+          "source_records": 1,
+          "groups_checked": 1,
+          "target_acl": true
+        },
+        {
+          "role": "employee",
+          "entity": "requests",
+          "source_records": 1,
+          "groups_checked": 0,
+          "target_acl": true
+        }
+      ],
+      "datetime_controls": [
+        {
+          "role": "manager",
+          "entity": "requests",
+          "field": "resolved_at",
+          "searchable": false,
+          "date_range": false,
+          "filterable": false,
+          "controls_absent": true
+        },
+        {
+          "role": "manager",
+          "entity": "requests",
+          "field": "due_at",
+          "searchable": false,
+          "date_range": false,
+          "filterable": false,
+          "controls_absent": true
+        },
+        {
+          "role": "manager",
+          "entity": "tasks",
+          "field": "resolved_at",
+          "searchable": false,
+          "date_range": false,
+          "filterable": false,
+          "controls_absent": true
+        },
+        {
+          "role": "manager",
+          "entity": "tasks",
+          "field": "due_at",
+          "searchable": false,
+          "date_range": false,
+          "filterable": false,
+          "controls_absent": true
+        },
+        {
+          "role": "service",
+          "entity": "requests",
+          "field": "resolved_at",
+          "searchable": false,
+          "date_range": false,
+          "filterable": false,
+          "controls_absent": true
+        },
+        {
+          "role": "service",
+          "entity": "requests",
+          "field": "due_at",
+          "searchable": false,
+          "date_range": false,
+          "filterable": false,
+          "controls_absent": true
+        },
+        {
+          "role": "service",
+          "entity": "tasks",
+          "field": "resolved_at",
+          "searchable": false,
+          "date_range": false,
+          "filterable": false,
+          "controls_absent": true
+        },
+        {
+          "role": "service",
+          "entity": "tasks",
+          "field": "due_at",
+          "searchable": false,
+          "date_range": false,
+          "filterable": false,
+          "controls_absent": true
+        },
+        {
+          "role": "employee",
+          "entity": "requests",
+          "field": "resolved_at",
+          "searchable": false,
+          "date_range": false,
+          "filterable": false,
+          "controls_absent": true
+        },
+        {
+          "role": "employee",
+          "entity": "requests",
+          "field": "due_at",
+          "searchable": false,
+          "date_range": false,
+          "filterable": false,
+          "controls_absent": true
+        }
+      ]
+    },
+    "applicable": true
+  }
+}

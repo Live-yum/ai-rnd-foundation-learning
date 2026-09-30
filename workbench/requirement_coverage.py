@@ -258,64 +258,282 @@ FACT_METADATA_KEYS = {"可用能力", "模板", "前端", "数据库", "数据�
 FACT_DESCRIPTOR_KEYS = {"field", "name", "entity", "label", "choice_labels"}
 
 
-def _fact_constraints(facts, prefix=""):
-    """Decode JSON facts structurally; their repr is never natural-language input."""
-    for key, value in facts.items():
-        if not prefix and key in FACT_METADATA_KEYS:
-            continue
-        label = f"{prefix}.{key}" if prefix else key
-        if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
-            try:
-                decoded = json.loads(value)
-            except ValueError:
-                pass
-            else:
-                if isinstance(decoded, (dict, list)):
-                    value = decoded
+FIELD_FACT_CONTAINERS = {"fields", "field_requirements", "field_constraints", "字段", "字段约束"}
+BUSINESS_FACT_CONTAINERS = {
+    "metrics",
+    "relations",
+    "permissions",
+    "notifications",
+    "reminders",
+    "roles",
+    "resources",
+    "workflows",
+    "transitions",
+    "registration",
+    "指标",
+    "关系",
+    "权限",
+    "提醒",
+    "角色",
+    "流程",
+}
+BUSINESS_FACT_KEYS = {
+    "role_scope",
+    "roles",
+    "actions",
+    "scope",
+    "recipient",
+    "event",
+    "transition",
+    "due_field",
+    "target_entity",
+    "target",
+    "op",
+    "group_by",
+    "start_field",
+    "end_field",
+    "time_field",
+    "from_states",
+    "to_state",
+    "assignee_field",
+    "filters",
+}
+FACT_DESCRIPTION_KEYS = {"description", "说明", "描述", "requirements", "requirement", "notes"}
+FIELD_KINDS = {"text", "integer", "boolean", "date", "datetime", "enum"}
+
+
+def _decode_fact(value):
+    if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
+        try:
+            decoded = json.loads(value)
+        except ValueError:
+            pass
+        else:
+            if isinstance(decoded, (dict, list)):
+                return decoded
+    return value
+
+
+def _fact_subject(key, fields, entity=None, *, declared=False):
+    """Resolve a field position, never a substring of an ancestor's business name."""
+    if entity is not None and (
+        not isinstance(entity, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", entity)
+    ):
+        entity = "<invalid entity>"
+    if not isinstance(key, str):
+        return (entity, "<invalid field>") if declared else None
+    qualified = re.fullmatch(r"([a-z][a-z0-9_]*)(?:::|\.)([a-z][a-z0-9_]*)", key)
+    if qualified:
+        entity, key = qualified.groups()
+        declared = True
+    if re.fullmatch(r"[a-z][a-z0-9_]*", key) and (
+        declared or any(field.name == key for _, field in fields)
+    ):
+        return entity, key
+    for canonical, aliases in ALIASES.items():
+        if key in aliases:
+            names = {field.name for _, field in fields if field.name in aliases}
+            return entity, next(iter(names)) if len(names) == 1 else canonical
+    return None
+
+
+def _field_kind(value):
+    return isinstance(value, str) and value in FIELD_KINDS
+
+
+def _scalar_subject(key, fields, entity=None):
+    # Legacy flat spellings remain supported only when they actually name a
+    # field, not because an ancestor happened to share a field identifier.
+    matches = _fact_candidates(key, fields)
+    names = {field.name for field in matches}
+    if len(names) == 1:
+        return entity or _fact_entity(key, fields), next(iter(names))
+    return None
+
+
+def _optional_fact(value):
+    if type(value) is bool:
+        return not value
+    if isinstance(value, str) and value.strip().lower() in {"true", "false", "是", "否"}:
+        return value.strip().lower() in {"false", "否"}
+    return value
+
+
+def _fact_records(facts, fields):
+    """Classify structural facts before projecting field constraints or prose.
+
+    A name/entity pair alone is not a field declaration. Field definitions have
+    an explicit field position and attributes; business schemas own their own
+    names, kinds, reference fields and scalar lists. We still descend into every
+    structural object so nested explicit field definitions cannot disappear.
+    """
+    entities = {entity for entity, _ in fields}
+
+    def walk(key, value, path, entity=None, subject=None, business=False, container=None):
+        value = _decode_fact(value)
+        label = ".".join(path)
+        field_container = key in FIELD_FACT_CONTAINERS and subject is None and container != "fields"
+        entity_container = key == "entities" and subject is None and container != "fields"
+        declared = container == "fields"
+        direct = _fact_subject(key, fields, entity, declared=declared and not key.isdigit())
+        attributes = (
+            {name: _decode_fact(item) for name, item in value.items() if name in FACT_ATTRIBUTES}
+            if isinstance(value, dict)
+            else {}
+        )
+        if field_container or entity_container:
+            direct = None
+        if not business and key in entities and direct is None:
+            entity = key
+        if (
+            not direct
+            and not business
+            and entity
+            and key not in entities
+            and attributes
+            and subject is None
+        ):
+            direct = _fact_subject(key, fields, entity, declared=True)
         if isinstance(value, dict):
             descriptor = value.get("field", value.get("name"))
-            descriptor = (
-                descriptor
-                if isinstance(descriptor, str) and re.fullmatch(r"[a-z][a-z0-9_]*", descriptor)
-                else None
+            identifier = isinstance(descriptor, str) and re.fullmatch(
+                r"[a-z][a-z0-9_]*", descriptor
             )
-            if descriptor:
-                entity = value.get("entity")
-                label += "." + (entity + "::" if isinstance(entity, str) else "") + descriptor
-            attributes = {name: item for name, item in value.items() if name in FACT_ATTRIBUTES}
-            if attributes:
-                yield label, attributes
-            metadata = FACT_DESCRIPTOR_KEYS if descriptor or attributes else set()
-            nested = {
-                name: item
-                for name, item in value.items()
-                if name not in FACT_ATTRIBUTES and name not in metadata
-            }
-            yield from _fact_constraints(nested, label)
+            entity_record = container == "entities" or (
+                "fields" in value
+                and isinstance(value.get("name"), str)
+                and "field" not in value
+                and not attributes
+            )
+            business_record = not declared and (
+                business
+                or (
+                    key in BUSINESS_FACT_CONTAINERS
+                    and not (direct and attributes and not (set(value) & BUSINESS_FACT_KEYS))
+                )
+                or bool(set(value) & BUSINESS_FACT_KEYS)
+                or (
+                    isinstance(value.get("kind"), str)
+                    and value.get("kind")
+                    in {"count", "group_count", "time_count", "average_duration"}
+                )
+            )
+            if entity_record:
+                entity = (
+                    value.get("name", key) if isinstance(value.get("name", key), str) else entity
+                )
+                subject = None
+            elif (
+                declared
+                and ("field" in value or (key.isdigit() and "name" in value))
+                and not identifier
+            ):
+                subject = _fact_subject(None, fields, value.get("entity", entity), declared=True)
+            elif identifier and (
+                declared
+                or (
+                    attributes
+                    and not business_record
+                    and (
+                        "field" in value
+                        or bool(set(attributes) - {"kind"})
+                        or _field_kind(attributes.get("kind"))
+                    )
+                )
+                or ("field" in value and bool(set(attributes) - {"kind"}))
+            ):
+                subject = _fact_subject(
+                    descriptor, fields, value.get("entity", entity), declared=True
+                )
+                if business_record and not declared and not _field_kind(attributes.get("kind")):
+                    attributes.pop("kind", None)
+            elif direct and not business_record and (declared or attributes or subject is None):
+                subject = _fact_subject(
+                    direct[1], fields, value.get("entity", direct[0]), declared=True
+                )
+            elif business_record:
+                subject = None
+            if subject and (attributes or declared):
+                yield "constraint", label, attributes, subject
+            for name, item in value.items():
+                if subject and (name in FACT_ATTRIBUTES or name in FACT_DESCRIPTOR_KEYS):
+                    continue
+                if entity_record and name in {"name", "entity", "label"}:
+                    continue
+                if business_record and name in FACT_DESCRIPTOR_KEYS:
+                    continue
+                if field_container:
+                    child_container = "fields"
+                elif entity_container:
+                    child_container = "entities"
+                else:
+                    child_container = None
+                yield from walk(
+                    name,
+                    item,
+                    [*path, name],
+                    entity,
+                    subject,
+                    business_record and not field_container,
+                    child_container,
+                )
         elif isinstance(value, list):
-            if not any(isinstance(item, (dict, list)) for item in value):
-                yield label, {"choices": value}
+            if not any(isinstance(_decode_fact(item), (dict, list)) for item in value):
+                attribute = _fact_attribute(key)
+                target = subject if attribute == "choices" else None
+                if not business:
+                    target = (
+                        target
+                        or direct
+                        or (
+                            _scalar_subject(key, fields, entity) if attribute == "choices" else None
+                        )
+                    )
+                if target and not field_container and not entity_container:
+                    yield "constraint", label, {"choices": value}, target
             else:
-                # Lists of field descriptors are structural containers, not
-                # enum text. Mixed/null entries cannot turn into regex keywords.
+                child_container = (
+                    "fields" if field_container else "entities" if entity_container else container
+                )
                 for index, item in enumerate(value):
-                    if isinstance(item, (dict, list)):
-                        yield from _fact_constraints({str(index): item}, label)
+                    if isinstance(_decode_fact(item), (dict, list)):
+                        yield from walk(
+                            str(index),
+                            item,
+                            [*path, str(index)],
+                            entity,
+                            subject,
+                            (business or key in BUSINESS_FACT_CONTAINERS) and not field_container,
+                            child_container,
+                        )
         else:
-            attribute = _scalar_fact_attribute(label, value)
-            if attribute == "optional":
-                if type(value) is bool:
-                    value = not value
-                elif isinstance(value, str) and value.strip().lower() in {
-                    "true",
-                    "false",
-                    "是",
-                    "否",
-                }:
-                    value = value.strip().lower() in {"false", "否"}
-                yield label, {"required": value}
-            elif attribute is not None:
-                yield label, {attribute: value}
+            attribute = _scalar_fact_attribute(key, value)
+            target = subject or (
+                None if business else direct or _scalar_subject(key, fields, entity)
+            )
+            if attribute is not None and target:
+                if attribute == "optional":
+                    attribute, value = "required", _optional_fact(value)
+                yield "constraint", label, {attribute: value}, target
+            elif value is not None and not isinstance(value, bool) and attribute is None:
+                if business and key not in FACT_DESCRIPTION_KEYS:
+                    return
+                prefix = (f"{target[0]}::" if target and target[0] else "") + (
+                    target[1] + "." + key if target else label
+                )
+                if not target and entity:
+                    prefix = f"{entity}::{prefix}"
+                yield "text", label, f"{prefix}: {value}", target
+
+    for key, value in facts.items():
+        if key not in FACT_METADATA_KEYS:
+            yield from walk(key, value, [key])
+
+
+def _fact_constraints(facts, fields=()):
+    for kind, path, value, subject in _fact_records(facts, fields):
+        if kind == "constraint":
+            yield path, value, subject
 
 
 def _fact_attribute(label):
@@ -364,53 +582,10 @@ def _scalar_fact_attribute(label, value):
     return attribute
 
 
-def _fact_texts(facts, prefix=""):
-    """Retain legacy scalar descriptions without stringifying typed containers."""
-    for key, value in facts.items():
-        if not prefix and key in FACT_METADATA_KEYS:
-            continue
-        label = f"{prefix}.{key}" if prefix else key
-        if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
-            try:
-                decoded = json.loads(value)
-            except ValueError:
-                pass
-            else:
-                if isinstance(decoded, (dict, list)):
-                    value = decoded
-        if isinstance(value, dict):
-            descriptor = value.get("field", value.get("name"))
-            descriptor = (
-                descriptor
-                if isinstance(descriptor, str) and re.fullmatch(r"[a-z][a-z0-9_]*", descriptor)
-                else None
-            )
-            if descriptor:
-                entity = value.get("entity")
-                label += "." + (entity + "::" if isinstance(entity, str) else "") + descriptor
-            metadata = (
-                FACT_DESCRIPTOR_KEYS
-                if descriptor or any(name in FACT_ATTRIBUTES for name in value)
-                else set()
-            )
-            yield from _fact_texts(
-                {
-                    name: item
-                    for name, item in value.items()
-                    if name not in FACT_ATTRIBUTES and name not in metadata
-                },
-                label,
-            )
-        elif isinstance(value, list):
-            for index, item in enumerate(value):
-                if isinstance(item, (dict, list)):
-                    yield from _fact_texts({str(index): item}, label)
-        elif (
-            value is not None
-            and not isinstance(value, bool)
-            and _scalar_fact_attribute(label, value) is None
-        ):
-            yield f"{label}: {value}"
+def _fact_texts(facts, fields=()):
+    for kind, path, value, _ in _fact_records(facts, fields):
+        if kind == "text":
+            yield path, value
 
 
 def _field_mentions(text, names):
@@ -1090,16 +1265,26 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
         for section in ("features", "acceptance")
         for index, text in enumerate(getattr(requirement, section))
     ]
-    structured = list(_fact_constraints(requirement.facts))
-    for index, (key, attributes) in enumerate(structured):
-        source = {"section": "facts", "index": index, "encoding": "structured"}
+    structured = list(_fact_constraints(requirement.facts, fields))
+    for index, (key, attributes, subject) in enumerate(structured):
+        source = {"section": "facts", "index": index, "encoding": "structured", "path": key}
         source_text = key
-        candidates = _fact_candidates(key, fields)
-        if not candidates and (
-            "::" in key or any(_field_mentions(key, aliases) for aliases in ALIASES.values())
-        ):
-            if any(value is not None for value in attributes.values()):
-                gap(f"已确认条件缺少对应字段 {key}", "structured_missing_field")
+        entity_name, field_name = subject
+        identity = f"{entity_name + '.' if entity_name else ''}{field_name}"
+        candidates = [
+            field
+            for entity, field in fields
+            if field.name == field_name and (entity_name is None or entity == entity_name)
+        ]
+        if not candidates:
+            gap(f"已确认条件缺少对应字段 {identity}（来源 {key}）", "structured_missing_field")
+        elif len(candidates) > 1:
+            gap(
+                f"已确认字段 {identity} 映射不唯一（来源 {key}）",
+                "missing_or_ambiguous",
+                targets=candidates,
+            )
+            continue
         for field in candidates:
             for attribute, expected in attributes.items():
                 if expected is None:
@@ -1116,8 +1301,8 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
                         actual=getattr(field, attribute),
                     )
     texts.extend(
-        ({"section": "facts", "index": index, "encoding": "legacy"}, text)
-        for index, text in enumerate(_fact_texts(requirement.facts))
+        ({"section": "facts", "index": index, "encoding": "legacy", "path": path}, text)
+        for index, (path, text) in enumerate(_fact_texts(requirement.facts, fields))
     )
     operations = {
         "searchable": r"搜索|检索|search",

@@ -35,6 +35,19 @@ async function createBrowserOwnedRecords(login, create, marker) {
   await create('tasks'); // Link to the fresh employee-created browser request.
 }
 
+async function captureNativeScreenshot(page, file) {
+  // Capturing an open picker must not click, focus, blur, scroll or move the pointer.
+  // Dismissing a login notification here used to close the already-visible picker.
+  await page.screenshot({ path: file, fullPage: true, animations: 'disabled' });
+}
+
+function rememberCreatedRecord(created, labels, entity, identifier, label) {
+  assert.equal(typeof label, 'string');
+  assert(label.length > 0, 'A newly created record needs its own visible label');
+  created[entity] = String(identifier);
+  labels[entity] = label;
+}
+
 async function main() {
   const [base, reportDir, playwrightPath, scenarioFile] = process.argv.slice(2);
   assert.equal(new URL(base).hostname, '127.0.0.1');
@@ -63,12 +76,7 @@ async function main() {
     const value = await found.response.json(); assert.equal(value.code, 0, `Business application error ${value.code}`); return value.data;
   };
   async function capture(name) {
-    for (const close of await page.locator('.ant-notification-notice-close:visible').all()) await close.click().catch(() => {});
-    await page.locator('.ant-message-notice:visible').first().waitFor({ state: 'hidden', timeout: 6000 });
-    const viewport = page.viewportSize();
-    if (viewport) await page.mouse.move(viewport.width - 20, viewport.height - 20);
-    await page.waitForTimeout(350);
-    await page.screenshot({ path: path.join(reportDir, name), fullPage: true, animations: 'disabled' });
+    await captureNativeScreenshot(page, path.join(reportDir, name));
     report.screenshots.push(name);
   }
   async function login(role) {
@@ -134,6 +142,7 @@ async function main() {
   const created = {}, labels = {};
   const marker = 'Browser ' + Date.now();
   async function create(entity, labelPrefix = marker) {
+    let newLabel = null;
     const current = await openPage(entity);
     await page.getByRole('button', { name: /^新增|^创建/ }).first().click();
     const dialog = page.getByRole('dialog').last(); await dialog.waitFor({ state: 'visible' });
@@ -149,7 +158,7 @@ async function main() {
       const input = dialog.getByTestId('business-field-' + field.name);
       if (relation) {
         assert(labels[relation.target_entity], 'Create referenced browser record first');
-        await select(input, labels[relation.target_entity], `${entity}-${field.name}-relation-picker.png`);
+        await select(input, labels[relation.target_entity], `${currentRole}-${entity}-${field.name}-relation-picker.png`);
       } else if (field.kind === 'enum') await select(input, field.choice_labels?.[field.choices[0]] || field.choices[0]);
       else if (field.kind === 'boolean') await select(input, '否');
       else if (field.kind === 'integer') await input.fill('1');
@@ -160,16 +169,16 @@ async function main() {
         }
       } else {
         const value = (labelPrefix + ' ' + entity + ' ' + field.name).slice(0, field.max_length || 200);
-        await input.fill(value); if (!labels[entity]) labels[entity] = value;
+        await input.fill(value); if (newLabel === null) newLabel = value;
       }
     }
-    await capture(`${entity}-filled-native-form.png`);
+    await capture(`${currentRole}-${entity}-filled-native-form.png`);
     const response = observe(current.api + '/create', 'POST');
     await dialog.getByRole('button', { name: /^确\s*认$|^确\s*定$/ }).click();
-    created[entity] = String(await checked(response));
+    rememberCreatedRecord(created, labels, entity, await checked(response), newLabel);
     await dialog.waitFor({ state: 'hidden' });
     await page.getByText(labels[entity], { exact: true }).first().waitFor({ state: 'visible' });
-    await capture(`${entity}-native-list.png`);
+    await capture(`${currentRole}-${entity}-native-list.png`);
     report.checks.push(`${currentRole}:${entity}:native-form-create`);
   }
   async function action(kind, transition, note) {
@@ -268,5 +277,5 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords };
+module.exports = { main, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, rememberCreatedRecord };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });

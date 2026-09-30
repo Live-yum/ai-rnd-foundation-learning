@@ -117,6 +117,284 @@ def require_browser_evidence(product, report):
         raise PrerequisiteError("真实浏览器验收覆盖不完整或存在页面错误")
 
 
+def require_business_proof(spec, report, with_browser):
+    """Bind detailed executed proof to this Plan; aggregate success markers alone fail closed."""
+    try:
+        contract = spec["business"]
+        fields = {(e["name"], f["name"]): f for e in spec["entities"] for f in e["fields"]}
+        resources = {r["entity"]: r for r in contract["resources"]}
+        permissions = {(p["role"], p["entity"]): set(p["actions"]) for p in contract["permissions"]}
+        relations = {(r["entity"], r["field"]): r["target_entity"] for r in contract["relations"]}
+        role_count = len(contract["roles"])
+
+        def indexed(values, keys, limit):
+            assert isinstance(values, list) and len(values) <= limit
+            assert all(isinstance(value, dict) for value in values)
+            result = {tuple(value[key] for key in keys): value for value in values}
+            assert len(result) == len(values)
+            return result
+
+        def positive(value, limit=10000):
+            assert type(value) is int and 0 < value <= limit
+
+        def read(role, entity):
+            return "read" in permissions.get((role, entity), set())
+
+        proof = report["business"]["evidence"]
+        assert type(proof["version"]) is int and proof["version"] == 1
+        assert set(proof) == {
+            "version",
+            "field_validation",
+            "related_views",
+            "relation_labels",
+            "datetime_policy",
+            "due_notifications",
+            "audit_immutability",
+        }
+        validations = indexed(proof["field_validation"], ("entity", "field"), len(fields))
+        assert set(validations) == set(fields)
+        protected = {
+            (r["entity"], r["assignee_field"])
+            for r in resources.values()
+            if r.get("assignee_field")
+        }
+        for workflow in contract["workflows"]:
+            protected.add((workflow["entity"], workflow["status_field"]))
+            protected.update(
+                (workflow["entity"], t["set_timestamp"])
+                for t in workflow["transitions"]
+                if t.get("set_timestamp")
+            )
+        for identity, field in fields.items():
+            entity, name = identity
+            creators = [
+                role["name"]
+                for role in contract["roles"]
+                if {"create", "read"} <= permissions.get((role["name"], entity), set())
+            ]
+            creator = (
+                contract["bootstrap_role"]
+                if contract["bootstrap_role"] in creators
+                else creators[0]
+            )
+            creator_policy = next(
+                p for p in contract["permissions"] if (p["role"], p["entity"]) == (creator, entity)
+            )
+            update = "update" in creator_policy["actions"] and creator_policy["scope"] in {
+                "all",
+                "own",
+            }
+            item = validations[identity]
+            assert item["kind"] == field["kind"] and item["required"] is field["required"]
+            if identity in protected:
+                assert item["protected_create_rejected"] is True
+                if update:
+                    assert item["protected_update_rejected"] is True
+            else:
+                if field["required"]:
+                    assert (
+                        item["missing_required_rejected"] is True and item["null_rejected"] is True
+                    )
+                    if field["kind"] in {"text", "enum"}:
+                        assert item["blank_rejected"] is True
+                if field["kind"] == "text":
+                    assert (
+                        type(item["max_length"]) is int
+                        and item["max_length"] == field["max_length"]
+                    )
+                    assert item["over_max_length_rejected"] is True
+                    if field.get("min_length", 0):
+                        assert (
+                            type(item["min_length"]) is int
+                            and item["min_length"] == field["min_length"]
+                        )
+                        assert item["under_min_length_rejected"] is True
+                if field["kind"] == "enum":
+                    assert type(item["declared_choices"]) is int and item[
+                        "declared_choices"
+                    ] == len(field["choices"])
+                    assert item["invalid_enum_rejected"] is True
+                if field["kind"] == "datetime":
+                    assert item["invalid_timestamp_rejected"] is True
+                invalid_count = (
+                    int(field["required"])
+                    + int(field["required"] and field["kind"] in {"text", "enum"})
+                    + int(field["kind"] == "text")
+                    + int(field["kind"] == "text" and bool(field.get("min_length")))
+                    + int(field["kind"] == "enum")
+                    + int(field["kind"] == "datetime")
+                )
+                if update and invalid_count:
+                    assert (
+                        type(item["invalid_updates_rejected"]) is int
+                        and item["invalid_updates_rejected"] == invalid_count
+                    )
+            if "protected_update_rejected" in item:
+                assert item["protected_update_rejected"] is True
+            if "invalid_updates_rejected" in item:
+                positive(item["invalid_updates_rejected"], 6)
+        dated = {
+            identity: field for identity, field in fields.items() if field["kind"] == "datetime"
+        }
+        timestamps = indexed(proof["datetime_policy"], ("entity", "field"), len(dated))
+        assert set(timestamps) == set(dated)
+        for identity, field in dated.items():
+            item = timestamps[identity]
+            assert all(
+                item[key] is field[key] for key in ("searchable", "filterable", "date_range")
+            )
+            assert item["timestamp_stored"] is True
+            if not field["searchable"]:
+                assert item["excluded_from_keyword_search"] is True
+            expected = ([] if field["filterable"] else ["filter"]) + (
+                [] if field["date_range"] else ["from", "to"]
+            )
+            assert item["undeclared_query_parameters_rejected"] == expected
+        due_rules = {
+            (n["entity"], n["due_field"], n["recipient"])
+            for n in contract["notifications"]
+            if n["event"] == "due"
+        }
+        due = indexed(proof["due_notifications"], ("entity", "field", "recipient"), len(due_rules))
+        assert set(due) == due_rules
+        for item in due.values():
+            positive(item["past_due_events_verified"])
+            assert all(
+                item[key] is True
+                for key in (
+                    "future_deadline_no_event",
+                    "repeated_reads_deduplicated",
+                    "event_and_read_state_persisted_after_restart",
+                )
+            )
+        audits = indexed(proof["audit_immutability"], ("entity",), len(resources))
+        assert set(audits) == {(name,) for name, resource in resources.items() if resource["audit"]}
+        for item in audits.values():
+            positive(item["entries_checked"])
+            assert (
+                type(item["mutation_delete_attempts_rejected"]) is int
+                and item["mutation_delete_attempts_rejected"] == 6
+            )
+            assert item["surface"] == "http_history_collection_and_entry"
+            assert all(
+                item[key] is True
+                for key in (
+                    "action_actor_timestamp",
+                    "unchanged_after_attempts",
+                    "archive_and_restart_preserved",
+                )
+            )
+        views = indexed(proof["related_views"], ("role", "entity"), role_count * len(resources))
+        assert {entity for role, entity in views} == set(resources)
+        for (role, entity), item in views.items():
+            assert read(role, entity) and item["target_row_acl"] is True
+            positive(item["source_records_checked"], 100)
+            expected = {
+                source
+                for (source, field), target in relations.items()
+                if target == entity and read(role, source)
+            }
+            assert sorted(item["target_entities"]) == sorted(expected)
+        labels = indexed(
+            proof["relation_labels"], ("role", "entity", "field"), role_count * len(relations)
+        )
+        assert {(entity, field) for role, entity, field in labels} == set(relations)
+        for (role, entity, field), item in labels.items():
+            assert read(role, entity) and (entity, field) in relations
+            assert (role, entity) in views
+            positive(item["references_checked"], 100)
+            assert all(item[key] is True for key in ("readable_labels_verified", "target_row_acl"))
+        if not with_browser:
+            return
+        browser = report["browser"]["evidence"]
+        assert type(browser["version"]) is int and browser["version"] == 1
+        assert set(browser) == {
+            "version",
+            "relation_labels",
+            "related_views",
+            "related_sources",
+            "datetime_controls",
+        }
+        ui_labels = indexed(
+            browser["relation_labels"], ("role", "entity", "field"), role_count * len(relations)
+        )
+        assert set(ui_labels) == set(labels)
+        for identity, item in ui_labels.items():
+            assert (
+                type(item["records_checked"]) is int
+                and item["records_checked"] == labels[identity]["references_checked"]
+            )
+            assert item["list"] is True
+            assert all(item[key] is None or item[key] is True for key in ("select", "detail"))
+            role, entity, field = identity
+            actions = permissions[role, entity]
+            if relations[entity, field] == "$users":
+                if field == resources[entity].get("assignee_field") and "assign" in actions:
+                    assert item["select"] is True and item["detail"] is True
+            elif {"create", "update"} & actions:
+                assert item["select"] is True
+        ui_sources = indexed(
+            browser["related_sources"], ("role", "entity"), role_count * len(resources)
+        )
+        assert set(ui_sources) == set(views)
+        expected_views = set()
+        for (role, entity), item in ui_sources.items():
+            expected = {
+                (role, entity, source, field)
+                for (source, field), target in relations.items()
+                if target == entity and read(role, source)
+            }
+            expected_views.update(expected)
+            assert (
+                type(item["source_records"]) is int
+                and item["source_records"] == views[role, entity]["source_records_checked"]
+            )
+            assert (
+                type(item["groups_checked"]) is int
+                and item["groups_checked"] == len(expected) * item["source_records"]
+            )
+            assert item["target_acl"] is True
+        ui_views = indexed(
+            browser["related_views"],
+            ("role", "entity", "target_entity", "field"),
+            role_count * len(relations),
+        )
+        assert set(ui_views) == expected_views
+        for (role, entity, target, field), item in ui_views.items():
+            assert (
+                type(item["source_records"]) is int
+                and item["source_records"] == views[role, entity]["source_records_checked"]
+            )
+            assert type(item["expected_records"]) is int and 0 <= item["expected_records"] <= 10000
+            assert (
+                type(item["visible_records"]) is int
+                and item["visible_records"] == item["expected_records"]
+            )
+            assert item["target_acl"] is True
+            assert item["navigation"] is (True if item["visible_records"] else None)
+        controls = indexed(
+            browser["datetime_controls"], ("role", "entity", "field"), role_count * len(dated)
+        )
+        assert set(controls) == {
+            (role["name"], entity, field)
+            for role in contract["roles"]
+            for entity, field in dated
+            if read(role["name"], entity)
+        }
+        for (role, entity, field), item in controls.items():
+            declared = dated[entity, field]
+            assert all(
+                item[key] is declared[key] for key in ("searchable", "filterable", "date_range")
+            )
+            assert item["controls_absent"] is (
+                not any(declared[key] for key in ("searchable", "filterable", "date_range"))
+            )
+    except AssertionError, KeyError, TypeError, ValueError, AttributeError:
+        raise PrerequisiteError(
+            "逐字段约束、关联权限、时间戳、逾期与不可改写审计的独立业务证据缺失或不匹配"
+        ) from None
+
+
 def require_business_evidence(spec, report, with_browser):
     business = report.get("business")
     required = {
@@ -130,6 +408,12 @@ def require_business_evidence(spec, report, with_browser):
         "business-notifications",
         "business-scoped-metrics",
         "business-archive",
+        "business-field-validation",
+        "business-related-views",
+        "business-readable-relation-labels",
+        "business-datetime-policy",
+        "business-due-reminders",
+        "business-audit-immutability",
     }
     if (
         not isinstance(business, dict)
@@ -140,6 +424,7 @@ def require_business_evidence(spec, report, with_browser):
         or not required.issubset(set(business.get("checks", [])))
     ):
         raise PrerequisiteError("业务关系、流程、角色权限与统计验收证据缺失，不能交付")
+    require_business_proof(spec, report, with_browser)
     if not with_browser:
         return
     browser = report.get("browser")
@@ -152,6 +437,10 @@ def require_business_evidence(spec, report, with_browser):
         "business-browser-reminders",
         "business-browser-metrics",
         "business-browser-role-restrictions",
+        "business-browser-related-views",
+        "business-browser-related-row-acl",
+        "business-browser-datetime-controls",
+        *(["business-browser-relation-labels"] if spec["business"]["relations"] else []),
         *["business-browser-records:" + e["name"] for e in spec["entities"]],
     }
     if (

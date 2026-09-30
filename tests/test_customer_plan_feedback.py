@@ -1,10 +1,26 @@
 """Deterministic customer obligation feedback reaches the next planner unchanged."""
 
+from pathlib import Path
+
+import pytest
 from conftest import new_run
 
 from workbench.domain import FieldRequirement, Plan, Requirement
 from workbench.flow import Workflow
 from workbench.settings import ROOT
+
+
+@pytest.fixture(autouse=True)
+def windows_fixture_encoding_default(monkeypatch):
+    """Exercise Windows' legacy locale on Linux unless the fixture is explicit UTF-8."""
+    original = Path.read_text
+
+    def read_text(path, encoding=None, errors=None, newline=None):
+        if path.name == "customer-service.json" and encoding is None:
+            encoding = "cp1252"
+        return original(path, encoding=encoding, errors=errors, newline=newline)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
 
 
 def test_required_priority_retry_receives_exact_typed_expected_and_actual(settings, store):
@@ -16,7 +32,9 @@ def test_required_priority_retry_receives_exact_typed_expected_and_actual(settin
         acceptance=["服务请求的优先级必填"],
         field_requirements=[FieldRequirement(entity="requests", field="priority", required=True)],
     )
-    valid = Plan.model_validate_json((ROOT / "examples/plans/customer-service.json").read_text())
+    valid = Plan.model_validate_json(
+        (ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8")
+    )
     invalid = valid.model_copy(deep=True)
     next(
         field
@@ -91,7 +109,9 @@ def test_planner_obligation_projection_preserves_scope_false_zero_and_unspecifie
             ),
         ],
     )
-    plan = Plan.model_validate_json((ROOT / "examples/plans/customer-service.json").read_text())
+    plan = Plan.model_validate_json(
+        (ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8")
+    )
     seen = []
 
     class CaptureGateway:

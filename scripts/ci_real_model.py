@@ -3,6 +3,8 @@
 No model fixtures, provider substitutions, secret discovery, or automatic scheduling.
 Generated source, databases and raw logs are never artifacts. A bounded, validated,
 secret-scanned approved customer Plan can be retained for deterministic replay.
+Failure-only normalized Requirement/candidate Plan envelopes are diagnostics,
+explicitly unapproved and unusable as generation inputs.
 """
 
 import contextlib
@@ -595,6 +597,86 @@ def preserve_approved_customer_plan(native_reports, destination, text_budget):
     except FileNotFoundError:
         return {"status": "unavailable"}
     except ValueError:
+        return {"status": "invalid_schema"}
+    except OSError:
+        return {"status": "io_error"}
+
+
+def preserve_unapproved_design_contract(store, run_id, destination, text_budget):
+    """Failure-only diagnostic contract; this envelope carries no execution approval.
+
+    Only normalized Requirement/Plan revisions from this synthetic customer run
+    are selected. No provider response, runtime environment, database or log is
+    read. The envelope is deliberately not a valid Plan/generation input.
+    """
+    from workbench.domain import Plan, Requirement
+    from workbench.filesystem import atomic_text
+
+    destination = Path(destination)
+    if any(path.is_symlink() for path in (destination, *destination.parents)):
+        return {"status": "unsafe_path"}
+    if not isinstance(run_id, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", run_id):
+        return {"status": "unavailable"}
+    try:
+        run = store.get_run(run_id)
+        if run.get("status") not in {"FAILED", "BLOCKED"}:
+            return {"status": "not_failure"}
+        if run.get("template") not in {"python-basic", "fastapiadmin", "yudao-vben"}:
+            return {"status": "outside_customer_scope"}
+        requirement = (store.latest_revision(run_id, "requirements") or {}).get("requirement")
+        plan = (store.latest_revision(run_id, "design") or {}).get("plan")
+        if not requirement or not plan:
+            return {"status": "unavailable"}
+        selected = {"requirement": requirement, "candidate_plan": plan}
+        if len(json.dumps(selected, ensure_ascii=False).encode("utf-8")) > MAX_REPLAY_PLAN_BYTES:
+            return {"status": "size_limit"}
+        requirement = Requirement.model_validate(requirement)
+        plan = Plan.model_validate(plan)
+        if (
+            {entity.name for entity in plan.entities} != {"customers", "requests", "tasks"}
+            or not plan.business
+            or plan.custom_rules
+        ):
+            return {"status": "outside_customer_scope"}
+        payload = {
+            "format": "customer-design-diagnostic-v1",
+            "approval_status": "unapproved",
+            "execution_authorized": False,
+            "purpose": "offline_contract_validation_only",
+            "template": run["template"],
+            "requirement": requirement.model_dump(mode="json"),
+            "candidate_plan": plan.model_dump(mode="json"),
+        }
+
+        def credential_free(value):
+            if isinstance(value, str):
+                return text_budget.scrub(value) == value
+            if isinstance(value, list):
+                return all(credential_free(item) for item in value)
+            if isinstance(value, dict):
+                return all(
+                    credential_free(key) and credential_free(item) for key, item in value.items()
+                )
+            return True
+
+        if not credential_free(payload):
+            return {"status": "secret_scan_rejected"}
+        rendered = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+        if text_budget.scrub(rendered) != rendered:
+            return {"status": "secret_scan_rejected"}
+        data = rendered.encode("utf-8")
+        if len(data) > MAX_REPLAY_PLAN_BYTES:
+            return {"status": "size_limit"}
+        atomic_text(destination, rendered)
+        return {
+            "status": "saved",
+            "file": "unapproved-design-contract.json",
+            "approval_status": "unapproved",
+            "execution_authorized": False,
+            "bytes": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+        }
+    except ValueError, TypeError:
         return {"status": "invalid_schema"}
     except OSError:
         return {"status": "io_error"}
@@ -1208,6 +1290,12 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             details["approved_plan_replay"] = preserve_approved_customer_plan(
                 native_reports,
                 ROOT / "reports/real-model/approved-plan-replay.json",
+                diagnostic_text,
+            )
+            details["unapproved_design_replay"] = preserve_unapproved_design_contract(
+                application.state.store,
+                run_id,
+                ROOT / "reports/real-model/unapproved-design-contract.json",
                 diagnostic_text,
             )
             raise SafeFailure("workflow_not_ready", last, details)

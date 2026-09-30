@@ -105,5 +105,5 @@ dialog::backdrop { background: rgba(23,32,51,.28); }
 .table th { white-space: nowrap; }
 .table td { min-width: 90px; max-width: 240px; overflow-wrap: normal; word-break: normal; }
 .table td:last-child { min-width: 200px; }
-.table th:last-child, .table td:last-child { position: sticky; right: 0; background: white; box-shadow: -4px 0 6px rgba(23,32,51,.05); z-index: 1; }
+.table th:last-child, .table td:last-child { width: 235px; position: sticky; right: 0; background: white; box-shadow: -4px 0 6px rgba(23,32,51,.05); z-index: 1; }
 .table td:last-child { min-width: 235px; white-space: nowrap; }
