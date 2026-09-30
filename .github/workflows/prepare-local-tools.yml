@@ -17,53 +17,42 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
-      - name: Materialize reviewed source against exact preimages
-        if: hashFiles('.maintenance/local.patch') != ''
-        run: |
-          sed -i 's/^ diff --git /diff --git /' .maintenance/local.patch
-          git apply --recount --check --index .maintenance/local.patch
-          git apply --recount --index .maintenance/local.patch
-          rm .maintenance/local.patch
-      - name: Materialize complete tutorial against SHA-checked preimages
-        if: hashFiles('.maintenance/docs.py') != ''
-        run: python .maintenance/docs.py
-      - name: Resolve and validate pinned runtimes
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Import exact reviewed sources and verified upstream component
+        run: python .maintenance/apply.py
+      - name: Resolve locked local dependencies
         run: |
           uv lock
           uv sync --locked --all-extras
           uv sync --locked --project tools/aider --python 3.12
+          npm install --package-lock-only --prefix tools/node --ignore-scripts --no-audit --no-fund
+          npm ci --prefix tools/node --no-audit --no-fund
+          npm run build --prefix tools/node
+          git add tools/node/package-lock.json
+      - name: Validate complete final-state textbook
+        run: |
           uv run ruff check --fix .
           uv run ruff format .
           uv run python -m scripts.build_handbook
           uv run python -m scripts.build_handbook --check
-      - name: Archive public installed Python dependencies for independent review
-        run: |
-          uv run python - <<'PYTHON'
-          import pathlib, sys, tarfile
-          target = pathlib.Path('reports/review-runtime'); target.mkdir(parents=True, exist_ok=True)
-          with tarfile.open(target / 'platform-runtime.tar.gz', 'w:gz') as archive:
-              archive.add(sys.base_prefix, arcname='python', filter=lambda item: None if '__pycache__' in item.name else item)
-              archive.add(pathlib.Path(sys.prefix) / 'lib/python3.14/site-packages', arcname='site-packages', filter=lambda item: None if '__pycache__' in item.name else item)
-          PYTHON
-      - uses: actions/upload-artifact@v4
-        with:
-          name: platform-runtime-for-review
-          path: reports/review-runtime/platform-runtime.tar.gz
-          retention-days: 3
-      - name: Commit generated source and single handbook
+      - name: Commit materialized source and single handbook
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -u
           if ! git diff --cached --quiet; then
-            git commit -m 'fix: bounded Daytona SDK report streaming with contract tests and handbook'
+            git commit -m 'feat: actual Continue indexing, offline Aider and smart-to-Daytona delivery acceptance'
             git push origin HEAD:feat/controlled-toolchain-integration
           fi
-      - name: Platform and real local toolchain verification
+      - name: Platform and actual local toolchain verification
+        env:
+          RND_REQUIRE_NODE_TESTS: '1'
         run: |
           uv run pytest -m 'not postgres' -q --junitxml=reports/tests.xml
           uv run python -m scripts.ci_toolchain
-      - name: Reconstruct the project using only the handbook
+      - name: Reconstruct and test from only the handbook
         run: uv run python -m scripts.ci_handbook
       - name: Archive exact materialized source
         if: always()
@@ -73,9 +62,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: local-only-reviewed-source
+          name: actual-continue-reviewed-source
           path: |
             reports/*.json
             reports/*.xml
             reports/review-source.zip
-# Temporary source synchronization, removed from the reviewed final tree.
+# One-time reviewed source synchronization; removed from the final PR tree.

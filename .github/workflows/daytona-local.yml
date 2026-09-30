@@ -22,6 +22,14 @@ jobs:
         with:
           python-version: '3.14'
       - run: uv sync --locked --all-extras
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare locked local Aider and Continue tools
+        run: |
+          uv sync --locked --project tools/aider --python 3.12
+          npm ci --prefix tools/node --no-audit --no-fund
+          npm run build --prefix tools/node
       - name: Create the local control plane with random local credentials
         run: uv run python -m scripts.daytona_local prepare
       - name: Build pinned release locally and lock immutable images
@@ -34,7 +42,7 @@ jobs:
         run: uv run python -m scripts.daytona_bootstrap auth
       - name: Register the prebuilt snapshot without any hosted service
         run: uv run python -m scripts.daytona_bootstrap snapshot
-      - name: Verify real sandbox runtime and deletion
+      - name: Verify smart-news workflow, local tools, sandbox, cleanup and independent ZIP
         run: uv run python -m scripts.ci_daytona_local
       - name: Preserve bounded redacted diagnostics only
         if: always()
