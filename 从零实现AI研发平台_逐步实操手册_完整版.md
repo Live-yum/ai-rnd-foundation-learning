@@ -2269,7 +2269,17 @@ full通过真实工作台网页选择当前行的模板/前端/数据库，按�
 
 ### 只上传允许公开的机器证据与合成页面截图
 
-每行的`reports/real-model/summary.json`只保留白名单回执：运行身份、模板、阶段、错误代码、数值HTTP状态、有限token用量、合同有效性和必要字段标记、浏览器/下载/新库/重启结果。该文件位于`real-model-sanitized-${template}-${runid}-${attempt}`产物中。不上传密钥正文、片段或哈希，不上传模型原文、推理、原始服务商错误体、生成源码包或运行数据库。真实密钥不继续传给浏览器、uv或产品子进程。
+每行的`reports/real-model/summary.json`保留白名单回执：运行身份、模板、阶段、错误代码、数值HTTP状态、有限token用量、合同有效性和必要字段标记、浏览器/下载/新库/重启结果。失败时还保留具体义务的来源位置、期望/实际属性，以及有限的未支持说明、审阅缺口、运行异常首行和原生阶段。相关文字每段最多600字符、共用6000字符预算；先替换完整已知密钥，并过滤凭据、令牌、认证头和URL用户信息，再截断。该文件位于`real-model-sanitized-${template}-${runid}-${attempt}`产物中。不上传密钥正文、片段或哈希，不上传完整模型响应、推理、原始服务商错误体、原始工具日志、生成源码包或运行数据库。真实密钥不继续传给浏览器、uv或产品子进程。
+
+本公开合成客服案例的原生运行失败时，还可单独保留`customer-plan-replay-${template}-${sha}`中的`approved-plan-replay.json`。它只能来自已经通过当时设计门的规范，须重新通过Plan schema校验、客服实体范围检查和凭据扫描，大小不超过128 KiB。含凭据或不符合范围的规范直接拒绝保存，不通过修改规范来冒充原失败输入；文件记录精确哈希，保留7天。这个规范用于复现失败，不代表其满足全部用户义务，更不能作为下一次真实模型的替代输出。
+
+下载该规范并核对回执哈希后，在具备同一锁定依赖、独立空PostgreSQL/Redis和原生构建工具的环境中，可运行：
+
+```bash
+uv run python -m scripts.ci_native_bundled yudao-vben --spec /absolute/path/approved-plan-replay.json
+```
+
+FastapiAdmin将模板参数换成`fastapiadmin`。该路径直接验证保存的Plan并调用原生生成器，不调用模型；编译器错误与原生浏览器错误应先用它复现，不为补日志重复付费。代码修复后仍须在最终同一提交重新执行完整真实模型三模板矩阵，确定性重放成功不能替代它。
 
 真实产品页面使用合成客户和验收账号；经过路径、名称、大小及PNG校验的截图位于`reports/real-model/screenshots/*.png`，单独保存为`customer-ui-${template}-${sha}`产物。它们只用于查看该行实际页面，不公开实际客户数据或临时密码。下载后应真正打开列表、表单、关联、处理、提醒和统计画面，结合业务章节的视觉清单检查；有截图文件不等于已完成视觉审阅。
 
@@ -2457,6 +2467,8 @@ Python/SQLite用基础快照；Python/PostgreSQL、FastapiAdmin/PostgreSQL、Yud
 ## 业务合同路径的附加验收
 
 `Plan.business`的关联、角色、指派、命名转换、备注/审计、站内提醒和四类统计，另由`tests/test_business_contracts.py`、各模板适配测试、`business_probe.py`及对应真实业务浏览器脚本验证。确定性完整样例是`examples/plans/customer-service.json`；`.github/workflows/customer-runtime.yml`负责真实原生生成、SQL、编译、三角色HTTP/浏览器和独立新库启动。该路径的结果必须读取它自己当前提交的报告，不能沿用普通CRUD、其他旧案例或独立工具矩阵的通过状态。
+
+客服提醒必须分别验证请求与任务的分配、`note_added`备注、start状态变化、resolve解决以及due逾期事件；接收方按已批准规则确定，请求解决必须通知提交者。新增备注、审计与提醒在同一事务中写入；重复读取收件箱不能生成重复提醒，其他用户不能代标已读。统计不能只数“有几个卡片”：必须分别核对请求总数、已解决请求数、创建至解决的平均时长、客户分类分组和每日请求趋势；通过未解决对照请求和第二类客户，区分错误的全量统计或分组。其他已声明指标也应真实计算并完整显示。
 
 # 完整源码附录
 
@@ -3578,7 +3590,7 @@ app = create_app()
 - `run_business_browser`（L13–L66）：接收`template`、`script`、`front_url`、`reports`、`scenario`、`plan`、`playwright`。 控制顺序：L59抛异常，停止当前正常路径。 调用`Path`、`scenario["browser_actors"].items`、`tempfile.TemporaryDirectory`、`write_json`、`next`、`plan.model_dump`、`run_command`、`str`、`reports.resolve`等。 返回路径：L66的`report`。
 - `require_business_browser`（L69–L135）：接收`report`、`plan`、`template`。 控制顺序：L70按`report.get("passed") is not True or report.get("errors") != [] or report.get("templat…`分支；L75抛异常，停止当前正常路径；L84按`not {role + ":" + login for role in ("manager", "service", "employee")} <= set( repor…`分支；L87抛异常，停止当前正常路径；L88按`fastapi`分支；L116按`not journeys <= set(report.get("checks", []))`分支；L117抛异常，停止当前正常路径；L118遍历`plan.entities`。后续分支沿下方源码相同行号继续阅读。 调用`report.get`、`ValueError`、`set`、`page.get`、`any`、`all`、`isinstance`、`page.get("native_theme_tokens", {}).get`、`page["native_theme_tokens"][token].strip`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/business_browser.py sha256: b18700eda28d3bd89e54e4bc4c47692037a77b0e1857afa0c39755a23728cc54 -->
+<!-- source-file: workbench/business_browser.py sha256: edbae0f068b45fcd748065251dec5763d25969c6a742d36f28bfca2606591c31 -->
 ````python
 """Run native three-role UI acceptance with temporary synthetic credentials only."""
 
@@ -3674,10 +3686,10 @@ def require_business_browser(report, plan, template):
             "employee:related_request_native_form_create",
             "manager:linked_task_and_native_assignment",
             "service:assigned_workflows_notes_timestamps",
-            "employee:own_timeline_and_read_reminder",
+            "employee:own_record_history_acl_and_read_reminder",
             "other_employee:row_isolation",
             "other_service:row_isolation",
-            "manager:five_native_metric_cards",
+            "manager:all_declared_native_metric_cards",
         }
     else:
         journeys = {
@@ -3691,7 +3703,7 @@ def require_business_browser(report, plan, template):
             "manager:customers:requests:related-record-and-history",
             "manager:requests:tasks:related-record-and-history",
             "manager:real-native-echarts-metrics",
-            "employee:own_timeline_and_read_reminder",
+            "employee:own_record_history_acl_and_read_reminder",
             "other_employee:row_isolation",
             "other_service:row_isolation",
         }
@@ -3831,14 +3843,14 @@ def business_gaps(requirement, plan):
 - `NotificationSpec`（L82–L88）：继承`BusinessContract`。声明的数据项为`entity`、`event`、`recipient`、`transition`、`due_field`、`channel`；类型约束/数据库列参数以完整定义为准。
 - `MetricPredicate`（L91–L94）：继承`BusinessContract`。声明的数据项为`field`、`op`、`value`；类型约束/数据库列参数以完整定义为准。
 - `MetricSpec`（L97–L109）：继承`BusinessContract`。声明的数据项为`name`、`label`、`entity`、`kind`、`group_by`、`start_field`、`end_field`、`time_field`、`filters`、`unit`、`bucket`、`timezone`；类型约束/数据库列参数以完整定义为准。
-- `BusinessSpec`（L112–L327）：继承`BusinessContract`。声明的数据项为`roles`、`registration`、`bootstrap_role`、`role_admin_roles`、`resources`、`relations`、`permissions`、`workflows`、`notifications`、`metrics`；类型约束/数据库列参数以完整定义为准。
+- `BusinessSpec`（L112–L329）：继承`BusinessContract`。声明的数据项为`roles`、`registration`、`bootstrap_role`、`role_admin_roles`、`resources`、`relations`、`permissions`、`workflows`、`notifications`、`metrics`；类型约束/数据库列参数以完整定义为准。
 - `BusinessSpec.unique_declarations`（L135–L154）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L148遍历`collections`；L149按`len({key(item) for item in items}) != len(items)`分支；L150抛异常，停止当前正常路径；L151遍历`self.permissions`；L152按`len(set(permission.actions)) != len(permission.actions)`分支；L153抛异常，停止当前正常路径。 调用`len`、`key`、`ValueError`、`set`、`model_validator`。 返回路径：L154的`self`。
-- `BusinessSpec.validate_plan`（L156–L327）：接收`plan`。 控制顺序：L158按`set(entities) & { "business_audit", "business_notes", "business_notifications", "busi…`分支；L164抛异常，停止当前正常路径；L167按`self.registration.default_role not in roles or self.bootstrap_role not in roles`分支；L168抛异常，停止当前正常路径；L169按`len(set(self.role_admin_roles)) != len(self.role_admin_roles) or not set(self.role_ad…`分支；L174抛异常，停止当前正常路径；L175按`self.registration.default_role in self.role_admin_roles`分支；L176抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`set`、`ValueError`、`len`、`entities.values`、`any`、`field`、`relations.get`、`grants.get`、`workflows.get`等。 返回路径：L327的`self`。
+- `BusinessSpec.validate_plan`（L156–L329）：接收`plan`。 控制顺序：L158按`set(entities) & { "business_audit", "business_notes", "business_notifications", "busi…`分支；L164抛异常，停止当前正常路径；L167按`self.registration.default_role not in roles or self.bootstrap_role not in roles`分支；L168抛异常，停止当前正常路径；L169按`len(set(self.role_admin_roles)) != len(self.role_admin_roles) or not set(self.role_ad…`分支；L174抛异常，停止当前正常路径；L175按`self.registration.default_role in self.role_admin_roles`分支；L176抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`set`、`ValueError`、`len`、`entities.values`、`any`、`field`、`relations.get`、`grants.get`、`workflows.get`等。 返回路径：L329的`self`。
 - `BusinessSpec.validate_plan.field`（L185–L191）：接收`entity`、`name`。 控制顺序：L186按`entity not in entities`分支；L187抛异常，停止当前正常路径；L189按`found is None`分支；L190抛异常，停止当前正常路径。 调用`ValueError`、`next`。 返回路径：L191的`found`。
 - `BusinessSpec.validate_plan.kind`（L193–L194）：接收`entity`、`name`。 调用`field`。 返回路径：L194的`SYSTEM_FIELDS[name] if name in SYSTEM_FIELDS else field(entity, name).kind`。
 - `BusinessSpec.validate_plan.timestamp`（L196–L198）：接收`entity`、`name`。 控制顺序：L197按`name is None or kind(entity, name) != "datetime"`分支；L198抛异常，停止当前正常路径。 调用`kind`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/business_contracts.py sha256: 7516b35526075556af0afb936972da8ab507574b87ee007b9ead555384e13424 -->
+<!-- source-file: workbench/business_contracts.py sha256: 313ccf0cf705a67c9a4a6702c759683ada2674530b4bf78c8c115a67f81c79bf -->
 ````python
 """Declarative business behavior: no SQL, executable scripts or claimed support flags."""
 
@@ -3923,7 +3935,7 @@ class WorkflowSpec(BusinessContract):
 
 class NotificationSpec(BusinessContract):
     entity: Name
-    event: Literal["created", "assigned", "transitioned", "due"]
+    event: Literal["created", "assigned", "transitioned", "note_added", "due"]
     recipient: Literal["creator", "assignee"]
     transition: Name | None = None
     due_field: Name | None = None
@@ -4104,6 +4116,8 @@ class BusinessSpec(BusinessContract):
         for notification in self.notifications:
             if notification.entity not in resources:
                 raise ValueError("Unknown notification entity")
+            if notification.event == "note_added" and not resources[notification.entity].notes:
+                raise ValueError("Note notification requires enabled notes")
             if (
                 notification.recipient == "assignee" or notification.event == "assigned"
             ) and not resources[notification.entity].assignee_field:
@@ -4593,15 +4607,21 @@ def install_native_business(template, plan, backend, frontend, targets, reports,
 - `BusinessClient.read_notice`（L105–L108）：接收`identifier`。 控制顺序：L106按`self.fastapi`分支。 调用`self.http.post`。 返回路径：L107的`self.http.post(f"{self.prefix}/inbox/{identifier}/read", json={})`；L108的`self.http.post(self.prefix + "/notifications/read", json={"id": identifier})`。
 - `register_fastapi_actor`（L111–L153）：接收`base`、`username`、`password`、`targets`。 源码说明：Exercise the public native registration route without an administrator token.。 控制顺序：L133断言`config["actor"] == {"id": identifier, "role": "employee"}`；L134断言`config["can_manage_roles"] is False`；L136断言`info.get("is_superuser") is False`；L137断言`info.get("menus")`；L138按`targets`分支；L149断言`actual == expected`；L152抛异常，停止当前正常路径。 调用`httpx.Client`、`payload`、`public.post`、`str`、`record_id`、`BusinessClient`、`login`、`actor.call`、`info.get`等。 返回路径：L153的`identifier, actor`。
 - `register_yudao_actor`（L156–L188）：接收`base`、`username`、`password`、`targets`。 源码说明：Keep the native anonymous registration, validation and default membership.。 控制顺序：L179断言`membership["id"] == identifier`；L180断言`membership["roles"] == ["employee"]`；L182断言`"super_admin" not in info.get("roles", [])`；L183断言`"*:*:*" not in info.get("permissions", [])`；L184断言`info.get("menus")`；L187抛异常，停止当前正常路径。 调用`httpx.Client`、`payload`、`public.post`、`str`、`BusinessClient`、`login`、`actor.call`、`info.get`、`actor.close`。 返回路径：L188的`identifier, actor`。
-- `customer_service_acceptance`（L191–L355）：接收`template`、`base`、`token`、`targets`、`plan`。 源码说明：Use synthetic owned accounts/records; do not alter any pre-existing user.。 控制顺序：L194按`names != {"customers", "requests", "tasks"} or plan.business is None`分支；L195抛异常，停止当前正常路径；L212按`state.get("bootstrapRequired")`分支；L214遍历`[ ("employee", "employee"), ("other_employee", "employee"), ("ser…`；L231按`label == "employee"`分支；L257断言`any(str(r["id"]) == customer for r in employee.rows("customers", q=attempt))`；L268断言`not any(str(r["id"]) == request for r in outsider.rows("requests"))`；L269断言`not any(str(r["id"]) == request for r in service.rows("requests"))`。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`BusinessClient`、`uuid.uuid4`、`manager.http.get`、`payload`、`state.get`、`manager.call`、`label.replace`、`str`等。 返回路径：L330的`{ "passed": True, "spec_digest": digest(plan.model_dump()), "real_native_auth": True, "pub…`。
-- `notice_event`（L358–L359）：接收`row`。 调用`row.get`、`row.get("message", "").rsplit`。 返回路径：L359的`row.get("event") or row.get("message", "").rsplit(" ", 1)[-1]`。
-- `verify_reminders`（L362–L395）：接收`service`、`outsider`、`request`、`task`。 控制顺序：L364遍历`(("requests", request), ("tasks", task))`；L370断言`any(notice_event(row) == "assigned" for row in own)`；L371断言`sum(notice_event(row) == "due" for row in own) == 1`；L375断言`{str(row["id"]) for row in repeated} == {str(row["id"]) for row in notices}`；L387断言`updated.get("read") is True or updated.get("read_at") is not None`；L391断言`forbidden.status_code in {401, 403, 404} or forbidden.json().get("code") in { 401, 40…`。 调用`service.inbox`、`str`、`any`、`notice_event`、`sum`、`next`、`payload`、`service.read_notice`、`updated.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify_scoped_metrics`（L398–L484）：接收`client`、`plan`、`role`。 源码说明：Compare HTTP aggregates with independently counted visible rows, including values.。 控制顺序：L413断言`set(by_name) == expected and len(by_name) == len(results)`；L416遍历`plan.business.metrics`；L417按`metric.name not in by_name`分支；L449按`isinstance(result.get("value"), dict)`分支；L451按`metric.kind == "count"`分支；L452断言`type(result["value"]) is int and result["value"] == len(rows)`；L455按`metric.kind == "average_duration"`分支；L463断言`type(result["samples"]) is int and result["samples"] == len(samples)`。后续分支沿下方源码相同行号继续阅读。 调用`client.call`、`any`、`set`、`len`、`client.rows`、`matches`、`isinstance`、`result.get`、`type`等。 返回路径：L484的`results`。
-- `verify_scoped_metrics.value`（L421–L422）：接收`row`、`field`。 调用`row.get`、`wire_name`。 返回路径：L422的`row.get(wire_name(client.template, field))`。
-- `verify_scoped_metrics.moment`（L424–L430）：接收`value`。 调用`datetime.fromisoformat`、`str(value).replace`、`str`、`parsed.replace`、`parsed.astimezone`。 返回路径：L426的`parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezo…`。
-- `verify_scoped_metrics.matches`（L432–L445）：接收`row`。 控制顺序：L433遍历`metric.filters`；L435按`rule.op == "eq" and actual != rule.value`分支；L437按`rule.op == "ne" and actual == rule.value`分支；L439按`rule.op == "in" and actual not in rule.value`分支；L441按`rule.op == "gte" and (actual is None or actual < rule.value)`分支；L443按`rule.op == "lte" and (actual is None or actual > rule.value)`分支。 调用`value`。 返回路径：L436的`False`；L438的`False`；L440的`False`。
+- `customer_service_acceptance`（L191–L385）：接收`template`、`base`、`token`、`targets`、`plan`。 源码说明：Use synthetic owned accounts/records; do not alter any pre-existing user.。 控制顺序：L194按`names != {"customers", "requests", "tasks"} or plan.business is None`分支；L195抛异常，停止当前正常路径；L212按`state.get("bootstrapRequired")`分支；L214遍历`[ ("employee", "employee"), ("other_employee", "employee"), ("ser…`；L231按`label == "employee"`分支；L257断言`any(str(r["id"]) == customer for r in employee.rows("customers", q=attempt))`；L285断言`not any(str(r["id"]) == request for r in outsider.rows("requests"))`；L286断言`not any(str(r["id"]) == request for r in service.rows("requests"))`。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`BusinessClient`、`uuid.uuid4`、`manager.http.get`、`payload`、`state.get`、`manager.call`、`label.replace`、`str`等。 返回路径：L358的`{ "passed": True, "spec_digest": digest(plan.model_dump()), "real_native_auth": True, "pub…`。
+- `customer_service_acceptance.checked_action`（L288–L302）：接收`entity`、`identifier`、`creator`、`action`、`data`、`transition`。 调用`verify_event_reminders`、`(manager if action == "assign" else service).action`。 返回路径：L289的`verify_event_reminders( plan, entity, identifier, {"assign": "assigned", "add_note": "note…`。
+- `assert_history_denied`（L388–L402）：接收`client`、`entity`、`identifier`。 控制顺序：L397按`forbidden.status_code not in {401, 403, 404}`分支；L402断言`refused_code in {401, 403, 404}`。 调用`client.http.get`、`forbidden.json().get`、`forbidden.json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_handling_history`（L405–L422）：接收`plan`、`manager`、`service`、`employee`、`outsider`、`entity`、`identifier`。 控制顺序：L409断言`len(history) >= 4`；L411断言`len(audit) >= len(history)`；L416按`employee_history`分支；L417断言`len(employee.history(entity, identifier)) >= len(history)`。 调用`service.history`、`len`、`manager.history`、`any`、`employee.history`、`assert_history_denied`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `notice_event`（L425–L426）：接收`row`。 调用`row.get`、`row.get("message", "").rsplit`。 返回路径：L426的`row.get("event") or row.get("message", "").rsplit(" ", 1)[-1]`。
+- `record_notices`（L429–L436）：接收`client`、`entity`、`identifier`、`event`。 调用`str`、`client.inbox`、`notice_event`。 返回路径：L430的`{ str(row["id"]): row for row in client.inbox() if row["entity"] == entity and str(row["re…`。
+- `reminder_recipients`（L439–L446）：接收`plan`、`entity`、`event`、`recipients`、`transition`。 返回路径：L442的`{ recipients[notice.recipient] for notice in plan.business.notifications if notice.entity …`。
+- `verify_event_reminders`（L449–L479）：接收`plan`、`entity`、`identifier`、`event`、`recipients`、`outsiders`、`action`、`transition`。 源码说明：Prove every declared notification comes from this action to its intended inbox.。 控制顺序：L457遍历`clients`；L460断言`len(added) == int(client in expected)`；L463断言`set(record_notices(client, entity, identifier, event)) == set(after)`；L466遍历`added`；L469断言`updated.get("read") is True or updated.get("read_at") is not None`；L472遍历`clients - {client}`；L474断言`forbidden.status_code in {401, 403, 404} or forbidden.json().get("code") in { 401, 40…`。 调用`reminder_recipients`、`set`、`recipients.values`、`record_notices`、`action`、`len`、`int`、`payload`、`client.read_notice`等。 返回路径：L479的`result`。
+- `verify_reminders`（L482–L513）：接收`plan`、`records`、`outsiders`。 源码说明：Check assignment/due routing, idempotency and recipient-private read persistence.。 控制顺序：L484遍历`records`；L487遍历`("assigned", "due")`；L489遍历`clients`；L491断言`len(notices) == int(client in expected)`；L494断言`set(record_notices(client, entity, identifier, event)) == set(notices)`；L497按`not notices`分支；L502断言`updated.get("read") is True or updated.get("read_at") is not None`；L505遍历`clients - {client}`。后续分支沿下方源码相同行号继续阅读。 调用`set`、`recipients.values`、`reminder_recipients`、`record_notices`、`len`、`int`、`next`、`iter`、`notices.values`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_scoped_metrics`（L516–L602）：接收`client`、`plan`、`role`。 源码说明：Compare HTTP aggregates with independently counted visible rows, including values.。 控制顺序：L531断言`set(by_name) == expected and len(by_name) == len(results)`；L534遍历`plan.business.metrics`；L535按`metric.name not in by_name`分支；L567按`isinstance(result.get("value"), dict)`分支；L569按`metric.kind == "count"`分支；L570断言`type(result["value"]) is int and result["value"] == len(rows)`；L573按`metric.kind == "average_duration"`分支；L581断言`type(result["samples"]) is int and result["samples"] == len(samples)`。后续分支沿下方源码相同行号继续阅读。 调用`client.call`、`any`、`set`、`len`、`client.rows`、`matches`、`isinstance`、`result.get`、`type`等。 返回路径：L602的`results`。
+- `verify_scoped_metrics.value`（L539–L540）：接收`row`、`field`。 调用`row.get`、`wire_name`。 返回路径：L540的`row.get(wire_name(client.template, field))`。
+- `verify_scoped_metrics.moment`（L542–L548）：接收`value`。 调用`datetime.fromisoformat`、`str(value).replace`、`str`、`parsed.replace`、`parsed.astimezone`。 返回路径：L544的`parsed.replace(tzinfo=timezone.utc) if parsed.tzinfo is None else parsed.astimezone(timezo…`。
+- `verify_scoped_metrics.matches`（L550–L563）：接收`row`。 控制顺序：L551遍历`metric.filters`；L553按`rule.op == "eq" and actual != rule.value`分支；L555按`rule.op == "ne" and actual == rule.value`分支；L557按`rule.op == "in" and actual not in rule.value`分支；L559按`rule.op == "gte" and (actual is None or actual < rule.value)`分支；L561按`rule.op == "lte" and (actual is None or actual > rule.value)`分支。 调用`value`。 返回路径：L554的`False`；L556的`False`；L558的`False`。
 
-<!-- source-file: workbench/business_probe.py sha256: bc7bb6549666ca2ee4a2dfd7059a071ec1d1b10d82618487d7768defbddbef73 -->
+<!-- source-file: workbench/business_probe.py sha256: deae83867435499a35ae054d2e33acc6b92054c3a598a6a08082fd9ca3c3db6e -->
 ````python
 """Independent customer-service acceptance over real native HTTP authentication."""
 
@@ -4870,13 +4890,51 @@ def customer_service_acceptance(template, base, token, targets, plan):
                 "due_at": "2020-01-01T00:00:00Z",
             },
         )
+        # Distinct categories and an unresolved request make the required metric
+        # meanings observably different from each other on the live database.
+        other_customer = manager.create(
+            "customers", {"name": "Comparison " + attempt, "category": "个人"}
+        )
+        other_request = outsider.create(
+            "requests",
+            {
+                "title": "Unresolved comparison " + attempt,
+                "detail": "Control row for scoped operational metrics",
+                "customer_id": other_customer,
+                "priority": "紧急",
+            },
+        )
+        manager.action(
+            "requests", other_request, "assign", {"assignee": actors["other_service"][0]}
+        )
         assert not any(str(r["id"]) == request for r in outsider.rows("requests"))
         assert not any(str(r["id"]) == request for r in service.rows("requests"))
-        manager.action("requests", request, "assign", {"assignee": actors["service"][0]})
+
+        def checked_action(entity, identifier, creator, action, data, transition=None):
+            return verify_event_reminders(
+                plan,
+                entity,
+                identifier,
+                {"assign": "assigned", "add_note": "note_added", "transition": "transitioned"}[
+                    action
+                ],
+                {"creator": creator, "assignee": service},
+                [outsider, actors["other_service"][1]],
+                lambda: (manager if action == "assign" else service).action(
+                    entity, identifier, action, data
+                ),
+                transition,
+            )
+
+        checked_action("requests", request, employee, "assign", {"assignee": actors["service"][0]})
         assert any(str(r["id"]) == request for r in service.rows("requests"))
         assert not any(str(r["id"]) == request for r in actors["other_service"][1].rows("requests"))
-        service.action("requests", request, "add_note", {"text": "Investigated synthetic request"})
-        service.action("requests", request, "transition", {"transition": "start"})
+        checked_action(
+            "requests", request, employee, "add_note", {"text": "Investigated synthetic request"}
+        )
+        checked_action(
+            "requests", request, employee, "transition", {"transition": "start"}, "start"
+        )
         task = manager.create(
             "tasks",
             {
@@ -4886,11 +4944,15 @@ def customer_service_acceptance(template, base, token, targets, plan):
                 "due_at": "2020-01-01T00:00:00Z",
             },
         )
-        manager.action("tasks", task, "assign", {"assignee": actors["service"][0]})
-        verify_reminders(service, actors["other_service"][1], request, task)
-        service.action("tasks", task, "transition", {"transition": "start"})
-        service.action("tasks", task, "add_note", {"text": "Follow-up complete"})
-        service.action("tasks", task, "transition", {"transition": "resolve"})
+        checked_action("tasks", task, manager, "assign", {"assignee": actors["service"][0]})
+        verify_reminders(
+            plan,
+            [("requests", request, employee, service), ("tasks", task, manager, service)],
+            [outsider, actors["other_service"][1]],
+        )
+        checked_action("tasks", task, manager, "transition", {"transition": "start"}, "start")
+        checked_action("tasks", task, manager, "add_note", {"text": "Follow-up complete"})
+        checked_action("tasks", task, manager, "transition", {"transition": "resolve"}, "resolve")
         assert any(
             str(row["id"]) == request
             for row in manager.related("customers", customer).get("requests", [])
@@ -4902,11 +4964,10 @@ def customer_service_acceptance(template, base, token, targets, plan):
             str(row["id"]) == request
             for row in outsider.related("customers", customer).get("requests", [])
         ), "Related history leaked another employee request"
-        service.action("requests", request, "transition", {"transition": "resolve"})
-        history = employee.history("requests", request)
-        assert len(history) >= 4, "Handling timeline omitted actions"
-        audit = manager.history("requests", request, True)
-        assert len(audit) >= len(history), "Audit trail omitted history"
+        checked_action(
+            "requests", request, employee, "transition", {"transition": "resolve"}, "resolve"
+        )
+        verify_handling_history(plan, manager, service, employee, outsider, "requests", request)
         inbox = employee.inbox()
         assert any(
             str(row["record_id"]) == request and notice_event(row) == "transitioned"
@@ -4914,24 +4975,11 @@ def customer_service_acceptance(template, base, token, targets, plan):
         ), "Resolution reminder missing"
         metrics = verify_scoped_metrics(manager, plan, "manager")
         verify_scoped_metrics(service, plan, "service")
+        verify_scoped_metrics(actors["other_service"][1], plan, "service")
         assert employee.call("GET", employee.prefix + "/metrics") == [], (
             "Employee must not access team metrics"
         )
         assert {item.name for item in plan.business.metrics} <= {item["name"] for item in metrics}
-        # Authorization must be enforced on the API, not merely hidden in native UI.
-        forbidden = (
-            outsider.http.get(
-                outsider.prefix + "/history", params={"entity": "requests", "id": request}
-            )
-            if not outsider.fastapi
-            else outsider.http.get(f"{outsider.prefix}/requests/{request}/history")
-        )
-        if forbidden.status_code not in {401, 403, 404}:
-            try:
-                refused_code = forbidden.json().get("code")
-            except ValueError:
-                refused_code = None
-            assert refused_code in {401, 403, 404}, "Outsider read another employee history"
         return {
             "passed": True,
             "spec_digest": digest(plan.model_dump()),
@@ -4946,6 +4994,8 @@ def customer_service_acceptance(template, base, token, targets, plan):
             "audit": True,
             "in_app_reminders": True,
             "due_reminders": True,
+            "note_reminders": True,
+            "status_change_reminders": True,
             "reminder_read_isolation": True,
             "metrics": True,
             "row_isolation": True,
@@ -4960,44 +5010,132 @@ def customer_service_acceptance(template, base, token, targets, plan):
             client.close()
 
 
+def assert_history_denied(client, entity, identifier):
+    # Both native wire protocols must deny the API call, not merely hide its UI.
+    forbidden = (
+        client.http.get(f"{client.prefix}/{entity}/{identifier}/history")
+        if client.fastapi
+        else client.http.get(
+            client.prefix + "/history", params={"entity": entity, "id": identifier}
+        )
+    )
+    if forbidden.status_code not in {401, 403, 404}:
+        try:
+            refused_code = forbidden.json().get("code")
+        except ValueError:
+            refused_code = None
+        assert refused_code in {401, 403, 404}, "Unpermitted actor read handling history"
+
+
+def verify_handling_history(plan, manager, service, employee, outsider, entity, identifier):
+    # The public contract guarantees assigned service history and manager audit.
+    # An employee's read grant does not implicitly grant read_history.
+    history = service.history(entity, identifier)
+    assert len(history) >= 4, "Handling timeline omitted actions"
+    audit = manager.history(entity, identifier, True)
+    assert len(audit) >= len(history), "Audit trail omitted history"
+    employee_history = any(
+        grant.role == "employee" and grant.entity == entity and "read_history" in grant.actions
+        for grant in plan.business.permissions
+    )
+    if employee_history:
+        assert len(employee.history(entity, identifier)) >= len(history), (
+            "Employee handling history omitted permitted actions"
+        )
+    else:
+        assert_history_denied(employee, entity, identifier)
+    assert_history_denied(outsider, entity, identifier)
+
+
 def notice_event(row):
     return row.get("event") or row.get("message", "").rsplit(" ", 1)[-1]
 
 
-def verify_reminders(service, outsider, request, task):
-    notices = service.inbox()
-    for entity, identifier in (("requests", request), ("tasks", task)):
-        own = [
-            row
-            for row in notices
-            if row["entity"] == entity and str(row["record_id"]) == identifier
-        ]
-        assert any(notice_event(row) == "assigned" for row in own), "Assignment reminder missing"
-        assert sum(notice_event(row) == "due" for row in own) == 1, (
-            "Due reminder missing or duplicated"
+def record_notices(client, entity, identifier, event):
+    return {
+        str(row["id"]): row
+        for row in client.inbox()
+        if row["entity"] == entity
+        and str(row["record_id"]) == str(identifier)
+        and notice_event(row) == event
+    }
+
+
+def reminder_recipients(plan, entity, event, recipients, transition=None):
+    # Only resolve→request creator is fixed by the public contract. All other
+    # recipients come from the approved plan, not an implicit test preference.
+    return {
+        recipients[notice.recipient]
+        for notice in plan.business.notifications
+        if notice.entity == entity and notice.event == event and notice.transition == transition
+    }
+
+
+def verify_event_reminders(
+    plan, entity, identifier, event, recipients, outsiders, action, transition=None
+):
+    """Prove every declared notification comes from this action to its intended inbox."""
+    expected = reminder_recipients(plan, entity, event, recipients, transition)
+    clients = set(recipients.values()) | set(outsiders)
+    before = {client: record_notices(client, entity, identifier, event) for client in clients}
+    result = action()
+    for client in clients:
+        after = record_notices(client, entity, identifier, event)
+        added = set(after) - set(before[client])
+        assert len(added) == int(client in expected), (
+            f"{entity} {event} {transition or ''} reminder missing, duplicated or misrouted"
         )
-    repeated = service.inbox()
-    assert {str(row["id"]) for row in repeated} == {str(row["id"]) for row in notices}, (
-        "Reading reminders generated duplicate notifications"
-    )
-    notice = next(
-        row
-        for row in notices
-        if row["entity"] == "requests"
-        and str(row["record_id"]) == request
-        and notice_event(row) == "due"
-    )
-    payload(service.read_notice(notice["id"]))
-    updated = next(row for row in service.inbox() if str(row["id"]) == str(notice["id"]))
-    assert updated.get("read") is True or updated.get("read_at") is not None, (
-        "Read state not persisted"
-    )
-    forbidden = outsider.read_notice(notice["id"])
-    assert forbidden.status_code in {401, 403, 404} or forbidden.json().get("code") in {
-        401,
-        403,
-        404,
-    }, "Other recipient changed reminder read state"
+        assert set(record_notices(client, entity, identifier, event)) == set(after), (
+            "Reading reminders generated duplicate notifications"
+        )
+        for notice_id in added:
+            payload(client.read_notice(notice_id))
+            updated = record_notices(client, entity, identifier, event)[notice_id]
+            assert updated.get("read") is True or updated.get("read_at") is not None, (
+                "Read state not persisted"
+            )
+            for other in clients - {client}:
+                forbidden = other.read_notice(notice_id)
+                assert forbidden.status_code in {401, 403, 404} or forbidden.json().get("code") in {
+                    401,
+                    403,
+                    404,
+                }, "Other recipient changed reminder read state"
+    return result
+
+
+def verify_reminders(plan, records, outsiders):
+    """Check assignment/due routing, idempotency and recipient-private read persistence."""
+    for entity, identifier, creator, assignee in records:
+        recipients = {"creator": creator, "assignee": assignee}
+        clients = set(recipients.values()) | set(outsiders)
+        for event in ("assigned", "due"):
+            expected = reminder_recipients(plan, entity, event, recipients)
+            for client in clients:
+                notices = record_notices(client, entity, identifier, event)
+                assert len(notices) == int(client in expected), (
+                    f"{entity} {event} reminder missing, duplicated or misrouted"
+                )
+                assert set(record_notices(client, entity, identifier, event)) == set(notices), (
+                    "Reading reminders generated duplicate notifications"
+                )
+                if not notices:
+                    continue
+                notice = next(iter(notices.values()))
+                payload(client.read_notice(notice["id"]))
+                updated = record_notices(client, entity, identifier, event)[str(notice["id"])]
+                assert updated.get("read") is True or updated.get("read_at") is not None, (
+                    "Read state not persisted"
+                )
+                for other in clients - {client}:
+                    forbidden = other.read_notice(notice["id"])
+                    assert forbidden.status_code in {401, 403, 404} or forbidden.json().get(
+                        "code"
+                    ) in {
+                        401,
+                        403,
+                        404,
+                    }, "Other recipient changed reminder read state"
 
 
 def verify_scoped_metrics(client, plan, role="manager"):
@@ -10677,10 +10815,11 @@ def native_rule_customizer(settings, gateway, run_id):
 
 **逐个入口与控制逻辑：**
 
-- `commit_before_response`（L9–L43）：接收`controller`。 源码说明：A yielded request-scoped transaction can otherwise commit after its success response. Keep the upstream authentication, permission checks, CRUD and transaction implementation. Only give the generated 。 控制顺序：L30按`not dependencies or any(node.keywords for node in dependencies)`分支；L31抛异常，停止当前正常路径；L34按`source.count(old) != len(dependencies)`分支；L35抛异常，停止当前正常路径。 调用`Path`、`controller.read_text`、`ast.parse`、`ast.walk`、`isinstance`、`len`、`any`、`ValueError`、`sha`等。 返回路径：L37的`{ "path": controller.name, "before_sha256": before, "after_sha256": sha(controller), "chan…`。
-- `prepare_fastapi_transactions`（L46–L61）：接收`backend`。 源码说明：Commit native role grants AND codegen metadata before acknowledging success. The generator imports, updates and mounts metadata across consecutive HTTP requests. Its request-scoped yield otherwise all。 控制顺序：L54遍历`( "app/modules/system/role/controller.py", "app/modules/generator…`。 调用`commit_before_response`、`Path`、`receipts.append`。 返回路径：L61的`receipts`。
+- `prepare_java_time_imports`（L9–L76）：接收`source`。 源码说明：Repair omitted time imports using only generated field type syntax nodes. The pinned generator emits LocalDate fields while importing LocalDateTime. Preserve every generated declaration/annotation; th。 控制顺序：L23在`stack`成立时循环；L26按`node.type == "field_declaration"`分支；L28按`field_type and field_type.type == "array_type"`分支；L30按`field_type and field_type.type == "type_identifier"`分支；L32按`node.type in { "class_declaration", "interface_declaration", "enum_declaration", "rec…`分支；L40按`name is None and node.type == "type_parameter"`分支；L42按`name`分支；L45按`not types`分支。后续分支沿下方源码相同行号继续阅读。 调用`source.encode`、`Parser(Language(tree_sitter_java.language())).parse`、`Parser`、`Language`、`tree_sitter_java.language`、`set`、`stack.pop`、`stack.extend`、`node.child_by_field_name`等。 返回路径：L46的`source`；L62的`source`；L69的`source`。
+- `commit_before_response`（L79–L113）：接收`controller`。 源码说明：A yielded request-scoped transaction can otherwise commit after its success response. Keep the upstream authentication, permission checks, CRUD and transaction implementation. Only give the generated 。 控制顺序：L100按`not dependencies or any(node.keywords for node in dependencies)`分支；L101抛异常，停止当前正常路径；L104按`source.count(old) != len(dependencies)`分支；L105抛异常，停止当前正常路径。 调用`Path`、`controller.read_text`、`ast.parse`、`ast.walk`、`isinstance`、`len`、`any`、`ValueError`、`sha`等。 返回路径：L107的`{ "path": controller.name, "before_sha256": before, "after_sha256": sha(controller), "chan…`。
+- `prepare_fastapi_transactions`（L116–L131）：接收`backend`。 源码说明：Commit native role grants AND codegen metadata before acknowledging success. The generator imports, updates and mounts metadata across consecutive HTTP requests. Its request-scoped yield otherwise all。 控制顺序：L124遍历`( "app/modules/system/role/controller.py", "app/modules/generator…`。 调用`commit_before_response`、`Path`、`receipts.append`。 返回路径：L131的`receipts`。
 
-<!-- source-file: workbench/native_compatibility.py sha256: 82549bed332407175e80f1274b8efc4d274f46fd10c336267b40cd72b58ec964 -->
+<!-- source-file: workbench/native_compatibility.py sha256: 686218781494dd34d5909b253fd3f6fc4992d0b2a6835cf5221ef9f825f11cd9 -->
 ````python
 """Small recorded compatibility edits in generated workspaces, never upstream checkouts."""
 
@@ -10688,6 +10827,76 @@ import ast
 from pathlib import Path
 
 from workbench.filesystem import atomic_text, sha
+
+
+def prepare_java_time_imports(source: str) -> str:
+    """Repair omitted time imports using only generated field type syntax nodes.
+
+    The pinned generator emits LocalDate fields while importing LocalDateTime.
+    Preserve every generated declaration/annotation; the mount receipt retains
+    both original export and adapted hashes. Comments and literals are not types.
+    """
+    import tree_sitter_java
+    from tree_sitter import Language, Parser
+
+    encoded = source.encode("utf-8")
+    tree = Parser(Language(tree_sitter_java.language())).parse(encoded)
+    types, declared = set(), set()
+    stack = [tree.root_node]
+    while stack:
+        node = stack.pop()
+        stack.extend(node.named_children)
+        if node.type == "field_declaration":
+            field_type = node.child_by_field_name("type")
+            if field_type and field_type.type == "array_type":
+                field_type = field_type.child_by_field_name("element")
+            if field_type and field_type.type == "type_identifier":
+                types.add(field_type.text.decode("utf-8"))
+        elif node.type in {
+            "class_declaration",
+            "interface_declaration",
+            "enum_declaration",
+            "record_declaration",
+            "type_parameter",
+        }:
+            name = node.child_by_field_name("name")
+            if name is None and node.type == "type_parameter":
+                name = next((n for n in node.named_children if n.type == "type_identifier"), None)
+            if name:
+                declared.add(name.text.decode("utf-8"))
+    types &= {"LocalDate", "LocalDateTime"}
+    if not types:
+        return source
+    if tree.root_node.has_error:
+        raise ValueError("Invalid generated Java syntax for time import repair")
+    imports = []
+    for declaration in tree.root_node.named_children:
+        if declaration.type != "import_declaration":
+            continue
+        parts, pending = [], [declaration]
+        while pending:
+            node = pending.pop()
+            if node.type in {"identifier", "asterisk"}:
+                parts.append(node.text.decode("utf-8"))
+            else:
+                pending.extend(reversed(node.named_children))
+        imports.append(parts)
+    if ["java", "time", "*"] in imports:
+        return source
+    missing = [
+        name
+        for name in sorted(types - declared)
+        if not any(parts and parts[-1] == name for parts in imports)
+    ]
+    if not missing:
+        return source
+    packages = [n for n in tree.root_node.named_children if n.type == "package_declaration"]
+    if len(packages) != 1:
+        raise ValueError("Unexpected generated Java package for time import repair")
+    offset = packages[0].end_byte
+    newline = "\r\n" if "\r\n" in source else "\n"
+    additions = "".join(newline + f"import java.time.{name};" for name in missing).encode("utf-8")
+    return (encoded[:offset] + additions + encoded[offset:]).decode("utf-8")
 
 
 def commit_before_response(controller):
@@ -10767,12 +10976,12 @@ def prepare_fastapi_transactions(backend: Path) -> list[dict]:
 - `prerequisites`（L81–L91）：接收`template`。 控制顺序：L82按`os.name == "nt"`分支；L83抛异常，停止当前正常路径；L87遍历`commands`；L88按`not shutil.which(name)`分支；L89抛异常，停止当前正常路径；L90按`not (ROOT / ".native/browser/node_modules/playwright").is_dir()`分支；L91抛异常，停止当前正常路径。 调用`PrerequisiteError`、`shutil.which`、`(ROOT / ".native/browser/node_modules/playwright").is_dir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `managed_generate`（L94–L148）：接收`settings`、`template`、`plan`、`destination`、`customization`。 控制顺序：L100按`runtime_enabled(settings, template)`分支；L108按`receipt_path.is_file()`分支；L110按`receipt.get("execution") == "managed-runtime" and receipt.get("spec_digest") == diges…`分支；L116抛异常，停止当前正常路径；L133按`report.get("generated_runtime_verified") is not True`分支；L134抛异常，停止当前正常路径。 调用`validate_plan`、`Path(destination).resolve`、`Path`、`prerequisites`、`runtime_enabled`、`runtime_config`、`for_run`、`receipt_path.is_file`、`json.loads`等。 返回路径：L115的`receipt`；L148的`receipt`。
 - `require_native_style`（L151–L222）：接收`report`、`receipt`、`current`。 源码说明：A legacy runtime receipt is not evidence of native UI inheritance.。 控制顺序：L161按`template not in PROFILES or report.get("template") != template or not isinstance(styl…`分支；L171抛异常，停止当前正常路径；L177遍历`PROFILES[template]["protected"]`；L183按`not group`分支；L184抛异常，停止当前正常路径；L186按`style.get("protected_files") != protected or style.get("protected_source_digest") != …`分支；L189抛异常，停止当前正常路径；L191按`not isinstance(entities, list) or not entities or any( not isinstance(name, str) or n…`分支。后续分支沿下方源码相同行号继续阅读。 调用`receipt.get`、`report.get`、`isinstance`、`style.get`、`PrerequisiteError`、`len`、`current.items`、`name.startswith`、`frontend.items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `require_native_business`（L225–L299）：接收`report`、`receipt`、`spec_path`。 源码说明：Classic CRUD receipts cannot stand in for either business installation.。 控制顺序：L233抛异常，停止当前正常路径；L235按`identity != receipt.get("spec_digest") or identity != report.get("spec_digest")`分支；L236抛异常，停止当前正常路径；L237按`not plan.business`分支；L238按`report.get("business_contract") is not None`分支；L239抛异常，停止当前正常路径；L242按`restored.get("restart") is not True or restored.get("restart_preserved_records") is n…`分支；L243抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate_json`、`Path(spec_path).read_text`、`Path`、`PrerequisiteError`、`digest`、`plan.model_dump`、`receipt.get`、`report.get`、`restored.get`等。 返回路径：L240的`False`；L299的`True`。
-- `managed_verify`（L302–L358）：接收`destination`、`receipt`。 控制顺序：L305按`not report_path.is_file() or sha(report_path) != receipt.get("evidence_sha256")`分支；L306抛异常，停止当前正常路径；L320按`any(report.get(name) is not True for name in gates)`分支；L321抛异常，停止当前正常路径；L332按`not isinstance(restored, dict) or any(restored.get(key) is not True for key in requir…`分支；L337抛异常，停止当前正常路径；L341按`current != receipt["files"] or report.get("spec_digest") != receipt.get("spec_digest"…`分支；L342抛异常，停止当前正常路径。 调用`Path`、`report_path.is_file`、`sha`、`receipt.get`、`PrerequisiteError`、`json.loads`、`report_path.read_text`、`any`、`report.get`等。 返回路径：L358的`result`。
-- `managed_package`（L361–L384）：接收`destination`、`report`。 控制顺序：L367按`report != verified`分支；L368抛异常，停止当前正常路径；L372遍历`files(destination)`。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`managed_verify`、`PrerequisiteError`、`manifest`、`zipfile.ZipFile`、`files`、`archive.write`等。 返回路径：L384的`result`。
-- `serve_managed`（L387–L413）：接收`settings`、`run_id`。 控制顺序：L391按`not receipt_path.is_file()`分支；L392抛异常，停止当前正常路径；L394按`receipt.get("execution") != "managed-runtime"`分支；L395抛异常，停止当前正常路径；L412在`True`成立时循环。 调用`str`、`uuid.UUID`、`receipt_path.is_file`、`PrerequisiteError`、`json.loads`、`receipt_path.read_text`、`receipt.get`、`managed_verify`、`runtime_config`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_native_business`（L225–L301）：接收`report`、`receipt`、`spec_path`。 源码说明：Classic CRUD receipts cannot stand in for either business installation.。 控制顺序：L233抛异常，停止当前正常路径；L235按`identity != receipt.get("spec_digest") or identity != report.get("spec_digest")`分支；L236抛异常，停止当前正常路径；L237按`not plan.business`分支；L238按`report.get("business_contract") is not None`分支；L239抛异常，停止当前正常路径；L242按`restored.get("restart") is not True or restored.get("restart_preserved_records") is n…`分支；L243抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate_json`、`Path(spec_path).read_text`、`Path`、`PrerequisiteError`、`digest`、`plan.model_dump`、`receipt.get`、`report.get`、`restored.get`等。 返回路径：L240的`False`；L301的`True`。
+- `managed_verify`（L304–L360）：接收`destination`、`receipt`。 控制顺序：L307按`not report_path.is_file() or sha(report_path) != receipt.get("evidence_sha256")`分支；L308抛异常，停止当前正常路径；L322按`any(report.get(name) is not True for name in gates)`分支；L323抛异常，停止当前正常路径；L334按`not isinstance(restored, dict) or any(restored.get(key) is not True for key in requir…`分支；L339抛异常，停止当前正常路径；L343按`current != receipt["files"] or report.get("spec_digest") != receipt.get("spec_digest"…`分支；L344抛异常，停止当前正常路径。 调用`Path`、`report_path.is_file`、`sha`、`receipt.get`、`PrerequisiteError`、`json.loads`、`report_path.read_text`、`any`、`report.get`等。 返回路径：L360的`result`。
+- `managed_package`（L363–L386）：接收`destination`、`report`。 控制顺序：L369按`report != verified`分支；L370抛异常，停止当前正常路径；L374遍历`files(destination)`。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`managed_verify`、`PrerequisiteError`、`manifest`、`zipfile.ZipFile`、`files`、`archive.write`等。 返回路径：L386的`result`。
+- `serve_managed`（L389–L415）：接收`settings`、`run_id`。 控制顺序：L393按`not receipt_path.is_file()`分支；L394抛异常，停止当前正常路径；L396按`receipt.get("execution") != "managed-runtime"`分支；L397抛异常，停止当前正常路径；L414在`True`成立时循环。 调用`str`、`uuid.UUID`、`receipt_path.is_file`、`PrerequisiteError`、`json.loads`、`receipt_path.read_text`、`receipt.get`、`managed_verify`、`runtime_config`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/native_delivery.py sha256: d0cea54a3df3fa3bce5f693a21805b8640d749784d31ccba245b85fb22651d32 -->
+<!-- source-file: workbench/native_delivery.py sha256: e07145f0e3fdf6b9c6d7654168de09ffdf767b2a33d3b35a00d98049e65aaee0 -->
 ````python
 """Explicitly authorized local native runtime delivery; source export is a separate mode."""
 
@@ -11042,6 +11251,8 @@ def require_native_business(report, receipt, spec_path):
         "audit",
         "in_app_reminders",
         "due_reminders",
+        "note_reminders",
+        "status_change_reminders",
         "reminder_read_isolation",
         "metrics",
         "row_isolation",
@@ -12229,18 +12440,18 @@ def run_acceptance(
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `workbench.domain`、`workbench.filesystem`、`workbench.native`、`workbench.native_checks`、`workbench.native_environment`、`workbench.native_vben`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.domain`、`workbench.filesystem`、`workbench.native`、`workbench.native_checks`、`workbench.native_compatibility`、`workbench.native_environment`、`workbench.native_vben`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `validate_plan`（L58–L99）：接收`plan`。 控制顺序：L60按`plan.unsupported`分支；L61抛异常，停止当前正常路径；L62按`len({rule.entity for rule in plan.custom_rules}) != len(plan.custom_rules)`分支；L63抛异常，停止当前正常路径；L66按`any(field.name in RULE_RESERVED for entity in plan.entities for field in entity.field…`分支；L67抛异常，停止当前正常路径；L68按`plan.data_scope != "shared"`分支；L69抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`ValueError`、`len`、`any`、`e.name.replace`、`re.fullmatch`。 返回路径：L99的`plan`。
-- `native_metadata`（L102–L215）：接收`template`、`plan`、`url`、`run_id`。 源码说明：Include the framework audit columns and PG sequence used by the generated ORM.。 控制顺序：L107按`template == "fastapiadmin"`分支；L109按`template == "yudao-vben" and plan.business`分支；L120遍历`plan.entities`；L122按`template == "fastapiadmin"`分支；L149按`template == "yudao-vben"`分支；L171抛异常，停止当前正常路径；L172遍历`entity.fields`；L183按`relation`分支。后续分支沿下方源码相同行号继续阅读。 调用`checked_database`、`validate_plan`、`MetaData`、`Table`、`Column`、`digest`、`String`、`text`、`DateTime`等。 返回路径：L215的`metadata, tables, mapping`。
-- `create_native_tables`（L218–L243）：接收`template`、`plan`、`url`、`run_id`、`reports`。 控制顺序：L224按`existing.intersection(mapping.values())`分支；L225抛异常，停止当前正常路径；L230遍历`metadata.sorted_tables`；L231按`table not in tables`分支；L233按`template == "yudao-vben"`分支；L238遍历`sorted(table.indexes, key=lambda item: item.name)`。 调用`native_metadata`、`create_engine`、`engine.begin`、`set`、`inspect(connection).get_table_names`、`inspect`、`existing.intersection`、`mapping.values`、`ValueError`等。 返回路径：L243的`mapping`。
-- `yudao_menu`（L246–L248）：接收`client`、`data`。 调用`client.client.post`、`record_id`、`payload`。 返回路径：L248的`record_id(payload(response))`。
-- `mount_yudao_export`（L251–L342）：接收`export`、`backend`、`frontend`、`entity`、`reports`、`used_errors`。 源码说明：Mount only generated feature paths; resolve ErrorCodeConstants TODO deterministically.。 控制顺序：L259遍历`sorted(root.rglob("*"))`；L260按`not file.is_file()`分支；L264按`"ErrorCodeConstants_手动操作" in name`分支；L267按`name.startswith("sql/")`分支；L269按`name.startswith("yudao-module-infra/") and "/src/main/" in name`分支；L271按`not (f"/{slug}/" in name or f"/mapper/{slug}/" in name)`分支；L272抛异常，停止当前正常路径；L274按`target.exists()`分支。后续分支沿下方源码相同行号继续阅读。 调用`tempfile.TemporaryDirectory`、`Path`、`archive.write_bytes`、`unpack`、`sorted`、`root.rglob`、`file.is_file`、`file.relative_to(root).as_posix`、`file.relative_to`等。 返回路径：L342的`{"files": writes, "error_constants": added}`。
-- `generate_modules`（L345–L576）：接收`template`、`backend`、`frontend`、`base_url`、`openapi`、`token`、`mapping`、`plan`、`reports`。 源码说明：Native APIs generate every feature. No fake controller replaces upstream codegen.。 控制顺序：L361按`template == "fastapiadmin"`分支；L366遍历`plan.entities`；L394按`export.headers.get("X-Skipped-Tables")`分支；L395抛异常，停止当前正常路径；L427按`template == "yudao-vben"`分支；L451按`len(ids) != len(plan.entities)`分支；L452抛异常，停止当前正常路径；L463遍历`zip(plan.entities, ids, strict=True)`。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`Path`、`reports.mkdir`、`NativeClient`、`NativeConfig`、`client.payload`、`client.request`、`list`、`mapping.values`等。 返回路径：L576的`targets`。
+- `validate_plan`（L59–L100）：接收`plan`。 控制顺序：L61按`plan.unsupported`分支；L62抛异常，停止当前正常路径；L63按`len({rule.entity for rule in plan.custom_rules}) != len(plan.custom_rules)`分支；L64抛异常，停止当前正常路径；L67按`any(field.name in RULE_RESERVED for entity in plan.entities for field in entity.field…`分支；L68抛异常，停止当前正常路径；L69按`plan.data_scope != "shared"`分支；L70抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`ValueError`、`len`、`any`、`e.name.replace`、`re.fullmatch`。 返回路径：L100的`plan`。
+- `native_metadata`（L103–L216）：接收`template`、`plan`、`url`、`run_id`。 源码说明：Include the framework audit columns and PG sequence used by the generated ORM.。 控制顺序：L108按`template == "fastapiadmin"`分支；L110按`template == "yudao-vben" and plan.business`分支；L121遍历`plan.entities`；L123按`template == "fastapiadmin"`分支；L150按`template == "yudao-vben"`分支；L172抛异常，停止当前正常路径；L173遍历`entity.fields`；L184按`relation`分支。后续分支沿下方源码相同行号继续阅读。 调用`checked_database`、`validate_plan`、`MetaData`、`Table`、`Column`、`digest`、`String`、`text`、`DateTime`等。 返回路径：L216的`metadata, tables, mapping`。
+- `create_native_tables`（L219–L244）：接收`template`、`plan`、`url`、`run_id`、`reports`。 控制顺序：L225按`existing.intersection(mapping.values())`分支；L226抛异常，停止当前正常路径；L231遍历`metadata.sorted_tables`；L232按`table not in tables`分支；L234按`template == "yudao-vben"`分支；L239遍历`sorted(table.indexes, key=lambda item: item.name)`。 调用`native_metadata`、`create_engine`、`engine.begin`、`set`、`inspect(connection).get_table_names`、`inspect`、`existing.intersection`、`mapping.values`、`ValueError`等。 返回路径：L244的`mapping`。
+- `yudao_menu`（L247–L249）：接收`client`、`data`。 调用`client.client.post`、`record_id`、`payload`。 返回路径：L249的`record_id(payload(response))`。
+- `mount_yudao_export`（L252–L345）：接收`export`、`backend`、`frontend`、`entity`、`reports`、`used_errors`。 源码说明：Mount only generated feature paths; resolve ErrorCodeConstants TODO deterministically.。 控制顺序：L260遍历`sorted(root.rglob("*"))`；L261按`not file.is_file()`分支；L265按`"ErrorCodeConstants_手动操作" in name`分支；L268按`name.startswith("sql/")`分支；L270按`name.startswith("yudao-module-infra/") and "/src/main/" in name`分支；L272按`not (f"/{slug}/" in name or f"/mapper/{slug}/" in name)`分支；L273抛异常，停止当前正常路径；L275按`target.exists()`分支。后续分支沿下方源码相同行号继续阅读。 调用`tempfile.TemporaryDirectory`、`Path`、`archive.write_bytes`、`unpack`、`sorted`、`root.rglob`、`file.is_file`、`file.relative_to(root).as_posix`、`file.relative_to`等。 返回路径：L345的`{"files": writes, "error_constants": added}`。
+- `generate_modules`（L348–L579）：接收`template`、`backend`、`frontend`、`base_url`、`openapi`、`token`、`mapping`、`plan`、`reports`。 源码说明：Native APIs generate every feature. No fake controller replaces upstream codegen.。 控制顺序：L364按`template == "fastapiadmin"`分支；L369遍历`plan.entities`；L397按`export.headers.get("X-Skipped-Tables")`分支；L398抛异常，停止当前正常路径；L430按`template == "yudao-vben"`分支；L454按`len(ids) != len(plan.entities)`分支；L455抛异常，停止当前正常路径；L466遍历`zip(plan.entities, ids, strict=True)`。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`Path`、`reports.mkdir`、`NativeClient`、`NativeConfig`、`client.payload`、`client.request`、`list`、`mapping.values`等。 返回路径：L579的`targets`。
 
-<!-- source-file: workbench/native_modules.py sha256: 60256c5a856962e0406429ee24e95c739ac0d8fc4b438e640a36a28b0b71c84c -->
+<!-- source-file: workbench/native_modules.py sha256: 78c7aea7893d42830dccc1fb62843f7a26c58cb8d437075ad2846232208db3c0 -->
 ````python
 """Native codegen -> deterministic mounting -> native menu metadata. No model-written CRUD."""
 
@@ -12271,6 +12482,7 @@ from workbench.domain import Plan, digest
 from workbench.filesystem import atomic_text, inside, sha, unpack, write_json
 from workbench.native import NativeClient, NativeConfig
 from workbench.native_checks import payload, record_id
+from workbench.native_compatibility import prepare_java_time_imports
 from workbench.native_environment import checked_database
 from workbench.native_vben import (
     adapt_generated_form,
@@ -12517,6 +12729,8 @@ def mount_yudao_export(export, backend, frontend, entity, reports, used_errors):
                 target = inside(backend, name)
                 if target.exists():
                     raise FileExistsError("Refusing to overwrite native Java source: " + name)
+                if name.endswith(".java"):
+                    body = prepare_java_time_imports(body)
             elif "/src/" in name and (
                 name.startswith("yudao-ui-admin-vben/") or name.startswith("yudao-ui-admin-vben5/")
             ):
@@ -14153,17 +14367,20 @@ def blocked_report(gate, attempts):
 - `_field_mentions`（L416–L428）：接收`text`、`names`。 源码说明：Field identifiers are whole identifiers, not arbitrary underscore fragments.。 调用`re.sub`、`"\|".join`、`sorted`、`any`、`name.isascii`、`re.search`、`re.escape`。 返回路径：L423的`any( re.search(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])", text, re.I) if name.isasc…`。
 - `_fact_entity`（L431–L438）：接收`key`、`fields`。 控制顺序：L432按`"::" in key`分支。 调用`key.split("::")[0].rsplit`、`key.split`、`re.split`、`next`、`part.strip`、`reversed`。 返回路径：L433的`key.split("::")[0].rsplit(".", 1)[-1]`；L438的`next((part.strip() for part in reversed(path[:-1]) if part.strip() in entities), None)`。
 - `_fact_candidates`（L441–L454）：接收`key`、`fields`。 调用`_fact_entity`、`_field_mentions`、`any`、`ALIASES.values`。 返回路径：L443的`[ field for entity, field in fields if (explicit_entity is None or entity == explicit_enti…`。
-- `_legacy_clauses`（L463–L561）：接收`text`、`fields`。 源码说明：Bind predicates to top-level subjects, preserving bracketed target lists. Both name（必填，最长120）and 搜索（name、contact）are indivisible. A descriptive clause ending at a comma does not lend its subject to th。 控制顺序：L479遍历`re.split(r"[；;。\n]\|但是\|但\|不过", text)`；L481按`heading and heading.group(1) in {entity for entity, _ in fields}`分支；L485遍历`sentence`；L487按`char in "（([【"`分支；L489按`char in "）)]】"`分支；L495遍历`re.finditer(pattern, sentence, re.I)`；L498按`depths[match.start()]`分支；L501按`previous_match is not None and not sentence[previous_match.end() : match.start()].str…`分支。后续分支沿下方源码相同行号继续阅读。 调用`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`、`_fact_entity`、`re.split`、`re.match`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_operation_parts`（L564–L578）：接收`text`。 源码说明：Split coordinated operations, never the subjects inside a target list.。 控制顺序：L567遍历`text`；L569按`char in "（([【"`分支；L571按`char in "）)]】"`分支；L574遍历`re.finditer(r"、\|并且\|并\|且\|和\|与", text)`；L575按`not depths[match.start()]`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_metric_clauses`（L600–L696）：接收`text`、`fields`。 源码说明：Separate aggregate predicates from field-query declarations. Only a recognized metric clause with named filter operands or permission scope is consumed. Explicit UI/query flags always remain field obl。 控制顺序：L686遍历`re.split(r"([，,；;。\n]\|并且\|并\|且\|和\|与)", text)`；L687按`re.fullmatch(r"[；;。\n]", part)`分支；L689按`_METRIC_CONTEXT.search(part)`分支；L694按`_QUERY_SURFACE.search(part)`分支。 调用`re.sub`、`re.split`、`re.fullmatch`、`_METRIC_CONTEXT.search`、`result.append`、`consume`、`_QUERY_SURFACE.search`、`"".join`。 返回路径：L696的`"".join(result), obligations`。
-- `_metric_clauses.consume`（L609–L673）：接收`fragment`、`context`、`inherited`。 控制顺序：L611按`not _METRIC_CONTEXT.search(combined) or not _METRIC_FILTER.search(_legacy_operation_t…`分支；L627遍历`matches`；L629按`name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}`分支；L633按`target is not None and target.kind in {"integer", "boolean"}`分支；L651按`inherited and not predicates and not scope_only`分支；L654按`not targets and not predicates and not scope_only`分支；L656按`not scope_only`分支。 调用`_METRIC_CONTEXT.search`、`_METRIC_FILTER.search`、`_legacy_operation_text`、`_QUERY_SURFACE.search`、`list`、`re.finditer`、`match.group`、`match.group("value").strip`、`next`等。 返回路径：L616的`fragment`；L652的`fragment`；L655的`fragment`。
-- `_metric_clauses.parenthesis`（L677–L682）：接收`match`。 调用`match.start`、`re.split`、`match.group`、`consume`。 返回路径：L682的`match.group() if filtered == body else ""`。
-- `_legacy_operation_text`（L699–L732）：接收`text`、`fields`。 源码说明：Remove only negative operation predicates, not the rest of a mixed clause. 'name可搜索，category不支持搜索' retains the first requirement. A capability explicitly not requested cannot invent a missing date fie。 调用`re.sub`、`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`。 返回路径：L726的`re.sub( negative + r"\s*(?:任何\|额外的?\|新的?)?\s*" + targets + r"(?:" + operation + r")" r"(?:…`。
-- `_matches_constraint`（L735–L756）：接收`attribute`、`expected`、`actual`。 控制顺序：L736按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L737按`isinstance(expected, str)`分支；L739按`word in {"true", "是", "必填"}`分支；L741按`word in {"false", "否", "可选", "非必填"}`分支；L744按`attribute in {"min_length", "max_length"}`分支；L745按`isinstance(expected, str)`分支；L747按`legacy`分支；L750按`attribute == "choices"`分支。 调用`isinstance`、`expected.strip().lower`、`expected.strip`、`type`、`re.fullmatch`、`int`、`legacy.group`、`all`、`set`。 返回路径：L743的`type(expected) is bool and actual is expected`；L749的`type(expected) is int and actual == expected`；L751的`isinstance(expected, list) and all(isinstance(item, str) for item in expected) and set(act…`。
-- `coverage_gaps`（L759–L1130）：接收`requirement`、`plan`、`diagnostics`。 源码说明：Return blocking messages; optionally record the exact deterministic provenance. Diagnostic source indices refer to the retained Requirement, never a model verdict. Consumers exporting diagnostics must。 控制顺序：L800按`plan.data_scope != requirement.data_scope`分支；L807遍历`enumerate(requirement.field_requirements)`；L815按`len(matches) != 1`分支；L819遍历`obligation.model_dump().items()`；L820按`key in {"field", "entity"} or value is None`分支；L823按`not _matches_constraint(key, value, actual)`分支；L841遍历`enumerate(structured)`；L845按`not candidates and ( "::" in key or any(_field_mentions(key, aliases) for aliases in …`分支。后续分支沿下方源码相同行号继续阅读。 调用`gap`、`enumerate`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_matches_constraint`、`list`、`_fact_constraints`等。 返回路径：L1130的`list(dict.fromkeys(gaps))`。
-- `coverage_gaps.gap`（L770–L798）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L772按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_legacy_clauses`（L463–L626）：接收`text`、`fields`。 源码说明：Bind predicates to top-level subjects, preserving bracketed target lists. Both name（必填，最长120）and 搜索（name、contact）are indivisible. A descriptive clause ending at a comma does not lend its subject to th。 控制顺序：L481遍历`re.split(r"([；;。\n]\|但是\|但\|不过)", text)`；L482按`sentence in {"但是", "但", "不过"}`分支；L485按`re.fullmatch(r"[；;。\n]", sentence)`分支；L489按`contrast and previous_subject and not _fact_candidates(sentence, fields) and re.match…`分支；L501按`heading and heading.group(1) in {entity for entity, _ in fields}`分支；L506按`heading`分支；L516按`len(common) == 1`分支；L520遍历`sentence`。后续分支沿下方源码相同行号继续阅读。 调用`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`、`_fact_entity`、`re.split`、`re.fullmatch`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_operation_parts`（L629–L643）：接收`text`。 源码说明：Split coordinated operations, never the subjects inside a target list.。 控制顺序：L632遍历`text`；L634按`char in "（([【"`分支；L636按`char in "）)]】"`分支；L639遍历`re.finditer(r"、\|并且\|并\|且\|和\|与", text)`；L640按`not depths[match.start()]`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_metric_clauses`（L665–L761）：接收`text`、`fields`。 源码说明：Separate aggregate predicates from field-query declarations. Only a recognized metric clause with named filter operands or permission scope is consumed. Explicit UI/query flags always remain field obl。 控制顺序：L751遍历`re.split(r"([，,；;。\n]\|并且\|并\|且\|和\|与)", text)`；L752按`re.fullmatch(r"[；;。\n]", part)`分支；L754按`_METRIC_CONTEXT.search(part)`分支；L759按`_QUERY_SURFACE.search(part)`分支。 调用`re.sub`、`re.split`、`re.fullmatch`、`_METRIC_CONTEXT.search`、`result.append`、`consume`、`_QUERY_SURFACE.search`、`"".join`。 返回路径：L761的`"".join(result), obligations`。
+- `_metric_clauses.consume`（L674–L738）：接收`fragment`、`context`、`inherited`。 控制顺序：L676按`not _METRIC_CONTEXT.search(combined) or not _METRIC_FILTER.search(_legacy_operation_t…`分支；L692遍历`matches`；L694按`name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}`分支；L698按`target is not None and target.kind in {"integer", "boolean"}`分支；L716按`inherited and not predicates and not scope_only`分支；L719按`not targets and not predicates and not scope_only`分支；L721按`not scope_only`分支。 调用`_METRIC_CONTEXT.search`、`_METRIC_FILTER.search`、`_legacy_operation_text`、`_QUERY_SURFACE.search`、`list`、`re.finditer`、`match.group`、`match.group("value").strip`、`next`等。 返回路径：L681的`fragment`；L717的`fragment`；L720的`fragment`。
+- `_metric_clauses.parenthesis`（L742–L747）：接收`match`。 调用`match.start`、`re.split`、`match.group`、`consume`。 返回路径：L747的`match.group() if filtered == body else ""`。
+- `_negative_operation_pattern`（L764–L781）：接收`fields`。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`re.compile`。 返回路径：L777的`re.compile( negative + r"\s*(?:任何\|额外的?\|新的?)?\s*" + targets + r"(?:" + operation + r")" r…`。
+- `_legacy_boolean_text`（L784–L808）：接收`text`、`fields`。 源码说明：Lower explicit negative capability lists before field-clause splitting. 不可/不支持/不提供/不参与 describe disabled behavior; 无需/不要求 merely decline a requirement. Coordination ends before a new field or a positi。 调用`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L808的`_negative_operation_pattern(fields).sub(replace, text)`。
+- `_legacy_boolean_text.replace`（L791–L806）：接收`match`。 控制顺序：L793按`not re.match(r"禁止\|禁用\|关闭\|不得\|不允许\|不可(?:以)?\|不支持\|不提供\|不参与", phrase)`分支；L796按`re.search(r"搜索\|检索\|search", phrase, re.I)`分支；L802按`re.search(r"筛选\|过滤\|filter", exact, re.I)`分支；L804按`re.search(r"日期区间\|日期范围\|date.?range", phrase, re.I)`分支。 调用`match.group`、`re.match`、`re.search`、`attributes.append`、`re.sub`、`" ".join`。 返回路径：L794的`""`；L806的`" " + (match.group("targets") or "") + " " + " ".join(attributes) + " "`。
+- `_legacy_operation_text`（L811–L823）：接收`text`、`fields`。 源码说明：Remove checked negatives without merging their subjects into the next clause. An empty descriptor preserves the field boundary, while keeping coordinated negated date-range terms out of the positive f。 调用`re.sub`、`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L823的`_negative_operation_pattern(fields).sub("（）", text)`。
+- `_matches_constraint`（L826–L847）：接收`attribute`、`expected`、`actual`。 控制顺序：L827按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L828按`isinstance(expected, str)`分支；L830按`word in {"true", "是", "必填"}`分支；L832按`word in {"false", "否", "可选", "非必填"}`分支；L835按`attribute in {"min_length", "max_length"}`分支；L836按`isinstance(expected, str)`分支；L838按`legacy`分支；L841按`attribute == "choices"`分支。 调用`isinstance`、`expected.strip().lower`、`expected.strip`、`type`、`re.fullmatch`、`int`、`legacy.group`、`all`、`set`。 返回路径：L834的`type(expected) is bool and actual is expected`；L840的`type(expected) is int and actual == expected`；L842的`isinstance(expected, list) and all(isinstance(item, str) for item in expected) and set(act…`。
+- `coverage_gaps`（L850–L1221）：接收`requirement`、`plan`、`diagnostics`。 源码说明：Return blocking messages; optionally record the exact deterministic provenance. Diagnostic source indices refer to the retained Requirement, never a model verdict. Consumers exporting diagnostics must。 控制顺序：L891按`plan.data_scope != requirement.data_scope`分支；L898遍历`enumerate(requirement.field_requirements)`；L906按`len(matches) != 1`分支；L910遍历`obligation.model_dump().items()`；L911按`key in {"field", "entity"} or value is None`分支；L914按`not _matches_constraint(key, value, actual)`分支；L932遍历`enumerate(structured)`；L936按`not candidates and ( "::" in key or any(_field_mentions(key, aliases) for aliases in …`分支。后续分支沿下方源码相同行号继续阅读。 调用`gap`、`enumerate`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_matches_constraint`、`list`、`_fact_constraints`等。 返回路径：L1221的`list(dict.fromkeys(gaps))`。
+- `coverage_gaps.gap`（L861–L889）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L863按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/requirement_coverage.py sha256: 7ab0d8f6dd2c00771202ac2029d06b4d99e1866ae927e109961319587083707f -->
+<!-- source-file: workbench/requirement_coverage.py sha256: 59fbbe807182d28d55afdc9bdf59a9cd1d14344114ddec3cf155a97c0d0b9d57 -->
 ````python
 """Persist approved intent and check executable obligations without a model verdict.
 
@@ -14643,11 +14860,46 @@ def _legacy_clauses(text, fields):
     entity_names = "|".join(re.escape(entity) for entity, _ in fields)
     pattern = rf"(?:(?:{entity_names})(?:::|\.))?(?:{pattern})"
     scope = _fact_entity(text, fields)
-    for sentence in re.split(r"[；;。\n]|但是|但|不过", text):
+    previous_subject = ""
+    contrast = False
+    for sentence in re.split(r"([；;。\n]|但是|但|不过)", text):
+        if sentence in {"但是", "但", "不过"}:
+            contrast = True
+            continue
+        if re.fullmatch(r"[；;。\n]", sentence):
+            contrast = False
+            previous_subject = ""
+            continue
+        if (
+            contrast
+            and previous_subject
+            and not _fact_candidates(sentence, fields)
+            and re.match(
+                r"\s*(?:仍|却|可以|可|必须|需要|要求|支持|允许|不能|禁止|禁用|不)", sentence
+            )
+            and re.search(LEGACY_PROPERTY, sentence, re.I)
+        ):
+            sentence = previous_subject + " " + sentence
+        contrast = False
         heading = re.match(r"\s*([a-z][a-z0-9_]*)\s*[：:]", sentence, re.I)
         if heading and heading.group(1) in {entity for entity, _ in fields}:
             scope = heading.group(1)
             sentence = sentence[heading.end() :]
+        else:
+            heading = re.match(r"\s*[^：:\n]*(?:字段|fields)\s*[：:]", sentence, re.I)
+            if heading:
+                scope = None
+                body = sentence[heading.end() :]
+                declared = re.findall(r"(?<![a-z0-9_])([a-z][a-z0-9_]*)\s*[(（]", body, re.I)
+                owners = [
+                    {entity for entity, field in fields if field.name == name} for name in declared
+                ]
+                common = set.intersection(*owners) if owners and all(owners) else set()
+                # A localized heading is mapped by its executable descriptor
+                # list, never a hard-coded translation or the first entity.
+                if len(common) == 1:
+                    scope = common.pop()
+                    sentence = body
         depths, depth = [], 0
         for char in sentence:
             depths.append(depth)
@@ -14678,6 +14930,16 @@ def _legacy_clauses(text, fields):
                 ):
                     previous_match = match
                     continue
+            completed_descriptor = False
+            if previous_match is not None:
+                opening = previous_match.end()
+                while opening < match.start() and sentence[opening].isspace():
+                    opening += 1
+                if opening < match.start() and sentence[opening] in "（([【":
+                    completed_descriptor = any(
+                        sentence[index] in "）)]】" and depths[index] == 1
+                        for index in range(opening + 1, match.start())
+                    )
             previous_match = match
             prefix = sentence[start : match.start()]
             if not seen_subject:
@@ -14717,15 +14979,35 @@ def _legacy_clauses(text, fields):
             if comma is not None:
                 before_comma = re.sub(pattern, "", sentence[start:comma], flags=re.I)
                 descriptive_boundary = bool(re.search(r"[a-z0-9\u4e00-\u9fff]", before_comma))
-            if seen_subject and (re.search(LEGACY_PROPERTY, prefix, re.I) or descriptive_boundary):
+            if seen_subject and (
+                re.search(LEGACY_PROPERTY, prefix, re.I)
+                or descriptive_boundary
+                or completed_descriptor
+            ):
                 previous.append(prefix)
                 start = match.start()
             seen_subject = True
         previous.append(sentence[start:])
+        shared = re.search(r"[)）]\s*((?:均|都)\s*.*)$", sentence)
+        shared_suffix = (
+            shared.group(1)
+            if shared
+            and re.search(LEGACY_PROPERTY, shared.group(1), re.I)
+            and not _fact_candidates(shared.group(1), fields)
+            else ""
+        )
         for clause in previous:
             if clause.strip():
+                # A trailing explicit 'all/both' predicate is shared even when
+                # the individual fields have complete, independent descriptors.
+                if shared_suffix and re.search(r"[)）]", clause) and shared_suffix not in clause:
+                    clause += " " + shared_suffix
                 local_scope = _fact_entity(clause, fields) or scope
-                yield f"{local_scope}::{clause}" if local_scope else clause
+                scoped = f"{local_scope}::{clause}" if local_scope else clause
+                subjects = _fact_candidates(scoped, fields)
+                if subjects:
+                    previous_subject = "、".join(dict.fromkeys(field.name for field in subjects))
+                yield scoped
 
 
 def _operation_parts(text):
@@ -14863,25 +15145,11 @@ def _metric_clauses(text, fields):
     return "".join(result), obligations
 
 
-def _legacy_operation_text(text, fields):
-    """Remove only negative operation predicates, not the rest of a mixed clause.
-
-    'name可搜索，category不支持搜索' retains the first requirement. A
-    capability explicitly not requested cannot invent a missing date field.
-    Structured boolean constraints are independently checked without this step.
-    """
-    text = re.sub(
-        r"(?:searchable|filterable|date_range)\s*[:=]\s*(?:false|否)(?![a-z])",
-        "",
-        text,
-        flags=re.I,
-    )
-    negative = (
-        r"(?:无需|不需要|不要求|取消|禁止|禁用|关闭|不得|不允许|不支持|不添加|不要|没有|无|不)"
-    )
+def _negative_operation_pattern(fields):
+    negative = r"(?:无需|不需要|不要求|取消|禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不添加|不提供|不参与|不要|没有|无|不)"
     operation = (
         r"(?:(?:关键词|关键字|精确)\s*)?(?:搜索|检索|筛选|过滤)"
-        r"|(?:日期区间|日期范围)(?:筛选|过滤)?"
+        r"|(?:日期区间|日期范围)(?:筛选|过滤|查询)?"
         r"|search(?:able)?|filter(?:able)?|date.?range"
     )
     names = {field.name for _, field in fields}
@@ -14889,14 +15157,54 @@ def _legacy_operation_text(text, fields):
     name = (
         "(?:" + "|".join(re.escape(value) for value in sorted(names, key=len, reverse=True)) + ")"
     )
-    targets = "(?:" + name + r"(?:\s*[、和与]\s*" + name + r")*(?:的)?\s*)?"
-    return re.sub(
+    targets = "(?P<targets>" + name + r"(?:\s*[、和与]\s*" + name + r")*(?:的)?\s*)?"
+    return re.compile(
         negative + r"\s*(?:任何|额外的?|新的?)?\s*" + targets + r"(?:" + operation + r")"
-        r"(?:\s*[、或和及]\s*(?:" + negative + r")?\s*(?:" + operation + r"))*",
-        "",
+        r"(?:\s*(?:以及|[、或和及与])\s*(?:" + negative + r")?\s*(?:" + operation + r"))*",
+        re.I,
+    )
+
+
+def _legacy_boolean_text(text, fields):
+    """Lower explicit negative capability lists before field-clause splitting.
+
+    不可/不支持/不提供/不参与 describe disabled behavior; 无需/不要求 merely
+    decline a requirement. Coordination ends before a new field or a positive predicate.
+    """
+
+    def replace(match):
+        phrase = match.group()
+        if not re.match(r"禁止|禁用|关闭|不得|不允许|不可(?:以)?|不支持|不提供|不参与", phrase):
+            return ""
+        attributes = []
+        if re.search(r"搜索|检索|search", phrase, re.I):
+            attributes.append("searchable=false")
+        # A date-range operation is not a separate exact-filter toggle.
+        exact = re.sub(
+            r"(?:日期区间|日期范围)(?:筛选|过滤|查询)?|date.?range", "", phrase, flags=re.I
+        )
+        if re.search(r"筛选|过滤|filter", exact, re.I):
+            attributes.append("filterable=false")
+        if re.search(r"日期区间|日期范围|date.?range", phrase, re.I):
+            attributes.append("date_range=false")
+        return " " + (match.group("targets") or "") + " " + " ".join(attributes) + " "
+
+    return _negative_operation_pattern(fields).sub(replace, text)
+
+
+def _legacy_operation_text(text, fields):
+    """Remove checked negatives without merging their subjects into the next clause.
+
+    An empty descriptor preserves the field boundary, while keeping coordinated
+    negated date-range terms out of the positive field-alias parser.
+    """
+    text = re.sub(
+        r"(?:searchable|filterable|date_range)\s*[:=]\s*(?:false|否)(?![a-z])",
+        "（）",
         text,
         flags=re.I,
     )
+    return _negative_operation_pattern(fields).sub("（）", text)
 
 
 def _matches_constraint(attribute, expected, actual):
@@ -15094,7 +15402,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
     # Extract it before discarding merely unrequested operation phrases; a
     # typed ledger is helpful but is not required to preserve explicit intent.
     for origin, text in texts:
-        for index, clause in enumerate(_legacy_clauses(text, fields)):
+        for index, clause in enumerate(_legacy_clauses(_legacy_boolean_text(text, fields), fields)):
             source = {**origin, "clause": index}
             source_text = clause
             targets = _fact_candidates(clause, fields)
@@ -19699,7 +20007,7 @@ if SPEC.get("business"):
 - `LabelRequest`（L29–L30）：继承`StrictBody`。声明的数据项为`record_ids`；类型约束/数据库列参数以完整定义为准。
 - `UserBody`（L33–L36）：继承`StrictBody`。声明的数据项为`username`、`password`、`role`；类型约束/数据库列参数以完整定义为准。
 - `RoleBody`（L39–L40）：继承`StrictBody`。声明的数据项为`role`；类型约束/数据库列参数以完整定义为准。
-- `install_business`（L43–L807）：接收`app`、`actor_dependency`、`password_hash`、`issue_token`、`legacy_validate`。 调用`Policy`、`getattr(route, "path", "").startswith`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `install_business`（L43–L815）：接收`app`、`actor_dependency`、`password_hash`、`issue_token`、`legacy_validate`。 调用`Policy`、`getattr(route, "path", "").startswith`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `install_business.current`（L61–L70）：接收`user_id`。 控制顺序：L68按`not row or row["role"] not in policy.roles`分支；L69抛异常，停止当前正常路径。 调用`Depends`、`engine.connect`、`connection.execute(select(tables["users"]).where(tables["users"].…`、`connection.execute`、`select(tables["users"]).where`、`select`、`HTTPException`。 返回路径：L70的`{"id": row["id"], "username": row["username"], "role": row["role"]}`。
 - `install_business.grant`（L72–L76）：接收`actor`、`entity`、`action`。 控制顺序：L76抛异常，停止当前正常路径。 调用`policy.grant`、`HTTPException`、`str`。 返回路径：L74的`policy.grant(actor["role"], entity, action)`。
 - `install_business.table`（L78–L81）：接收`entity`。 控制顺序：L79按`entity not in entities`分支；L80抛异常，停止当前正常路径。 调用`HTTPException`。 返回路径：L81的`tables[entity]`。
@@ -19709,31 +20017,31 @@ if SPEC.get("business"):
 - `install_business.history_actor_names`（L111–L124）：接收`connection`、`rows`。 源码说明：Resolve only actors from already-authorized history, never arbitrary IDs.。 控制顺序：L116遍历`range(0, len(identities), 100)`。 调用`sorted`、`range`、`len`、`result.update`、`connection.execute( select(users.c.id, users.c.username).where( u…`、`connection.execute`、`select(users.c.id, users.c.username).where`、`select`、`users.c.id.in_`。 返回路径：L124的`result`。
 - `install_business.serialize_administrator`（L126–L139）：接收`connection`、`actor`。 控制顺序：L133按`changed != 1`分支；L134抛异常，停止当前正常路径；L138按`role not in business["role_admin_roles"]`分支；L139抛异常，停止当前正常路径。 调用`connection.execute`、`update(marker).where(marker.c.key == "bootstrap_admin").values`、`update(marker).where`、`update`、`HTTPException`、`connection.scalar`、`select(tables["users"].c.role).where`、`select`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `install_business.event`（L141–L155）：接收`connection`、`actor`、`entity`、`record_id`、`action`、`before`、`after`。 调用`str`、`uuid.uuid4`、`connection.execute`、`insert(tables["business_audit"]).values`、`insert`、`utc`、`json.dumps`。 返回路径：L155的`identity`。
-- `install_business.notify`（L157–L193）：接收`connection`、`entity`、`row`、`name`、`identity`、`transition`、`notification`。 控制顺序：L158遍历`business["notifications"]`；L159按`notification is not None and item != notification`分支；L161按`item["entity"] != entity or item["event"] != name`分支；L163按`name == "transitioned" and item["transition"] != transition`分支；L170按`not recipient`分支；L173按`connection.scalar( select(tables["business_notifications"].c.id).where( tables["busin…`分支。 调用`row.get`、`policy.resource`、`hashlib.sha256(f"{identity}:{entity}:{recipient}:{name}".encode()…`、`hashlib.sha256`、`f"{identity}:{entity}:{recipient}:{name}".encode`、`connection.scalar`、`select(tables["business_notifications"].c.id).where`、`select`、`connection.begin_nested`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `install_business.reference_checks`（L195–L220）：接收`connection`、`actor`、`entity`、`values`、`before`。 控制顺序：L196遍历`policy.relations.items()`；L197按`source != entity or values.get(field) is None`分支；L199按`before is not None and values[field] == before.get(field)`分支；L202按`target == "$users"`分支；L208按`user is None`分支；L209抛异常，停止当前正常路径；L210按`field == policy.resource(entity).get("assignee_field")`分支；L212按`not permission or "read" not in permission["actions"] or permission["scope"] not in {…`分支。后续分支沿下方源码相同行号继续阅读。 调用`policy.relations.items`、`values.get`、`before.get`、`connection.execute(select(tables["users"]).where(tables["users"].…`、`connection.execute`、`select(tables["users"]).where`、`select`、`HTTPException`、`policy.resource(entity).get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `install_business.values_for`（L222–L244）：接收`actor`、`entity`、`data`、`old`。 控制顺序：L223按`not isinstance(data, dict)`分支；L224抛异常，停止当前正常路径；L226按`set(data) & protected`分支；L227抛异常，停止当前正常路径；L231按`workflow and old is None`分支；L233按`old is None`分支；L234遍历`entities[entity]["fields"]`；L235按`f["name"] in protected and f["name"] not in values`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`HTTPException`、`policy.protected`、`set`、`old.get`、`values.update`、`policy.workflow`、`policy.validate_fields`、`RULES.validate`。 返回路径：L242的`value`。
-- `install_business.me`（L247–L248）：接收`actor`。 调用`Depends`、`app.get`。 返回路径：L248的`actor`。
-- `install_business.schema`（L251–L267）：接收`actor`。 调用`Depends`、`json.loads`、`(ROOT / "selection.json").read_text`、`policy.permissions.get((actor["role"], name), {}).get`、`policy.permissions.get`、`app.get`。 返回路径：L260的`{ "spec": {**SPEC, "entities": [entities[name] for name in visible]}, "selection": selecti…`。
-- `install_business.users`（L270–L292）：接收`entity`、`actor`。 控制顺序：L271按`entity is None`分支；L283按`entity`分支。 调用`Depends`、`administrator`、`grant`、`engine.connect`、`connection.execute( select(tables["users"].c.id, tables["users"].…`、`connection.execute`、`select`、`policy.permissions.get((row["role"], entity), {}).get`、`policy.permissions.get`等。 返回路径：L292的`[dict(row) for row in rows]`。
-- `install_business.create_user`（L295–L322）：接收`data`、`actor`。 控制顺序：L297按`data.role not in policy.roles`分支；L298抛异常，停止当前正常路径；L321抛异常，停止当前正常路径。 调用`Depends`、`administrator`、`HTTPException`、`str`、`uuid.uuid4`、`engine.begin`、`serialize_administrator`、`connection.execute`、`insert(tables["users"]).values`等。 返回路径：L322的`{"id": identity, "username": data.username, "role": data.role}`。
-- `install_business.change_role`（L325–L363）：接收`identity`、`data`、`actor`。 控制顺序：L327按`data.role not in policy.roles`分支；L328抛异常，停止当前正常路径；L336按`old is None`分支；L337抛异常，停止当前正常路径；L338按`old["role"] in business["role_admin_roles"] and data.role not in business["role_admin…`分支；L347按`len(administrators) <= 1`分支；L348抛异常，停止当前正常路径。 调用`Depends`、`administrator`、`HTTPException`、`engine.begin`、`serialize_administrator`、`connection.execute(select(tables["users"]).where(tables["users"].…`、`connection.execute`、`select(tables["users"]).where`、`select`等。 返回路径：L363的`{"id": identity, "role": data.role}`。
-- `install_business.reference_labels`（L366–L412）：接收`entity`、`data`、`actor`。 源码说明：Resolve only references present in rows this actor can already read.。 控制顺序：L382遍历`business["relations"]`；L383按`relation["entity"] != entity`分支；L387按`not identities`分支；L389按`target_name == "$users"`分支；L395按`"read" in policy.permissions.get((actor["role"], target_name), {}).get( "actions", []…`分支。 调用`Depends`、`table`、`engine.connect`、`connection.execute( select(source).where( source.c.id.in_(data.re…`、`connection.execute`、`select(source).where`、`select`、`source.c.id.in_`、`source.c.archived_at.is_`等。 返回路径：L412的`result`。
-- `install_business.list_items`（L415–L453）：接收`entity`、`request`、`response`、`limit`、`offset`、`actor`。 控制顺序：L425按`len(request.query_params.multi_items()) != len(request.query_params) or not 1 <= limi…`分支；L430抛异常，停止当前正常路径；L435抛异常，停止当前正常路径。 调用`Depends`、`table`、`len`、`request.query_params.multi_items`、`ValueError`、`conditions`、`HTTPException`、`str`、`target.c.archived_at.is_`等。 返回路径：L453的`[dict(row) for row in rows]`。
-- `install_business.create`（L456–L482）：接收`entity`、`data`、`actor`。 控制顺序：L481抛异常，停止当前正常路径。 调用`Depends`、`grant`、`values_for`、`utc`、`values.update`、`str`、`uuid.uuid4`、`engine.begin`、`reference_checks`等。 返回路径：L482的`row`。
-- `install_business.get`（L485–L487）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.connect`、`record`、`app.get`。 返回路径：L487的`record(connection, actor, entity, identity, "read")`。
-- `install_business.edit`（L490–L508）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L504按`changed != 1`分支；L505抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`values_for`、`reference_checks`、`utc`、`connection.execute`、`update(table(entity)) .where( table(entity).c.id == identity, tab…`、`update(table(entity)) .where`等。 返回路径：L508的`after`。
-- `install_business.archive`（L511–L522）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.begin`、`record`、`utc`、`connection.execute`、`update(table(entity)) .where(table(entity).c.id == identity) .val…`、`update(table(entity)) .where`、`update`、`table`等。 返回路径：L522的`after`。
-- `install_business.assign`（L525–L548）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L529按`data.user_id is None and next(f for f in entities[entity]["fields"] if f["name"] == f…`分支；L533抛异常，停止当前正常路径；L544按`changed != 1`分支；L545抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`policy.resource`、`next`、`HTTPException`、`utc`、`reference_checks`、`connection.execute`等。 返回路径：L548的`after`。
-- `install_business.transition`（L551–L586）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L560抛异常，停止当前正常路径；L562按`operation.get("set_timestamp")`分支；L573按`changed != 1`分支；L574抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`policy.workflow`、`policy.transition`、`HTTPException`、`str`、`utc`、`operation.get`等。 返回路径：L586的`after`。
-- `install_business.add_note`（L589–L604）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L592按`not policy.resource(entity)["notes"]`分支；L593抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`policy.resource`、`HTTPException`、`str`、`uuid.uuid4`、`utc`、`connection.execute`等。 返回路径：L604的`note`。
-- `install_business.notes`（L607–L623）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.connect`、`record`、`connection.execute( select(tables["business_notes"]) .where( tabl…`、`connection.execute`、`select(tables["business_notes"]) .where( tables["business_notes"]…`、`select(tables["business_notes"]) .where`、`select`、`history_actor_names`等。 返回路径：L623的`[{**dict(row), "actor_username": names.get(row["actor_id"])} for row in rows]`。
-- `install_business.history`（L626–L662）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.connect`、`record`、`connection.execute( select(tables["business_audit"]) .where( tabl…`、`connection.execute`、`select(tables["business_audit"]) .where( tables["business_audit"]…`、`select(tables["business_audit"]) .where`、`select`、`history_actor_names`等。 返回路径：L646的`[ { **{k: row[k] for k in ("id", "actor_id", "action", "created_at")}, "actor_username": n…`。
-- `install_business.related`（L665–L697）：接收`entity`、`identity`、`actor`。 控制顺序：L669遍历`business["relations"]`；L671按`relation["target_entity"] != entity or "read" not in policy.permissions.get( (actor["…`分支。 调用`Depends`、`engine.connect`、`record`、`policy.permissions.get( (actor["role"], source), {} ).get`、`policy.permissions.get`、`table`、`connection.execute( select(target) .where( target.c[relation["fie…`、`connection.execute`、`select(target) .where( target.c[relation["field"]] == identity, t…`等。 返回路径：L697的`result`。
-- `install_business.metrics`（L700–L726）：接收`actor`。 控制顺序：L703遍历`business["metrics"]`；L704按`"read_metrics" not in policy.permissions.get( (actor["role"], metric["entity"]), {} )…`分支。 调用`Depends`、`engine.connect`、`policy.permissions.get( (actor["role"], metric["entity"]), {} ).g…`、`policy.permissions.get`、`table`、`connection.execute( select(target).where( target.c.archived_at.is…`、`connection.execute`、`select(target).where`、`select`等。 返回路径：L726的`result`。
-- `install_business.notifications`（L729–L784）：接收`actor`。 控制顺序：L731遍历`business["notifications"]`；L732按`item["event"] != "due"`分支；L735按`"read" not in policy.permissions.get((actor["role"], entity), {}).get( "actions", [] …`分支；L758遍历`rows`；L760按`workflow and row[workflow["status_field"]] not in { state for transition in workflow[…`分支。 调用`Depends`、`engine.begin`、`policy.permissions.get((actor["role"], entity), {}).get`、`policy.permissions.get`、`table`、`policy.resource`、`connection.execute( select(target).where( recipient == actor["id"…`、`connection.execute`、`select(target).where`等。 返回路径：L773的`[ dict(row) for row in connection.execute( select(tables["business_notifications"]) .where…`。
-- `install_business.mark_read`（L787–L807）：接收`identity`、`actor`。 控制顺序：L799按`row is None`分支；L800抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`connection.execute( select(target).where( target.c.id == identity…`、`connection.execute`、`select(target).where`、`select`、`HTTPException`、`utc`、`update(target) .where(target.c.id == identity, target.c.recipient…`等。 返回路径：L807的`{"id": identity, "read_at": timestamp}`。
+- `install_business.notify`（L157–L200）：接收`connection`、`entity`、`row`、`name`、`identity`、`transition`、`notification`。 控制顺序：L158遍历`business["notifications"]`；L159按`notification is not None and item != notification`分支；L161按`item["entity"] != entity or item["event"] != name`分支；L163按`name == "transitioned" and item["transition"] != transition`分支；L170按`not recipient`分支；L173按`connection.scalar( select(tables["business_notifications"].c.id).where( tables["busin…`分支；L195按`not connection.scalar( select(tables["business_notifications"].c.id).where( tables["b…`分支；L200抛异常，停止当前正常路径。 调用`row.get`、`policy.resource`、`hashlib.sha256(f"{identity}:{entity}:{recipient}:{name}".encode()…`、`hashlib.sha256`、`f"{identity}:{entity}:{recipient}:{name}".encode`、`connection.scalar`、`select(tables["business_notifications"].c.id).where`、`select`、`connection.begin_nested`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `install_business.reference_checks`（L202–L227）：接收`connection`、`actor`、`entity`、`values`、`before`。 控制顺序：L203遍历`policy.relations.items()`；L204按`source != entity or values.get(field) is None`分支；L206按`before is not None and values[field] == before.get(field)`分支；L209按`target == "$users"`分支；L215按`user is None`分支；L216抛异常，停止当前正常路径；L217按`field == policy.resource(entity).get("assignee_field")`分支；L219按`not permission or "read" not in permission["actions"] or permission["scope"] not in {…`分支。后续分支沿下方源码相同行号继续阅读。 调用`policy.relations.items`、`values.get`、`before.get`、`connection.execute(select(tables["users"]).where(tables["users"].…`、`connection.execute`、`select(tables["users"]).where`、`select`、`HTTPException`、`policy.resource(entity).get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `install_business.values_for`（L229–L251）：接收`actor`、`entity`、`data`、`old`。 控制顺序：L230按`not isinstance(data, dict)`分支；L231抛异常，停止当前正常路径；L233按`set(data) & protected`分支；L234抛异常，停止当前正常路径；L238按`workflow and old is None`分支；L240按`old is None`分支；L241遍历`entities[entity]["fields"]`；L242按`f["name"] in protected and f["name"] not in values`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`HTTPException`、`policy.protected`、`set`、`old.get`、`values.update`、`policy.workflow`、`policy.validate_fields`、`RULES.validate`。 返回路径：L249的`value`。
+- `install_business.me`（L254–L255）：接收`actor`。 调用`Depends`、`app.get`。 返回路径：L255的`actor`。
+- `install_business.schema`（L258–L274）：接收`actor`。 调用`Depends`、`json.loads`、`(ROOT / "selection.json").read_text`、`policy.permissions.get((actor["role"], name), {}).get`、`policy.permissions.get`、`app.get`。 返回路径：L267的`{ "spec": {**SPEC, "entities": [entities[name] for name in visible]}, "selection": selecti…`。
+- `install_business.users`（L277–L299）：接收`entity`、`actor`。 控制顺序：L278按`entity is None`分支；L290按`entity`分支。 调用`Depends`、`administrator`、`grant`、`engine.connect`、`connection.execute( select(tables["users"].c.id, tables["users"].…`、`connection.execute`、`select`、`policy.permissions.get((row["role"], entity), {}).get`、`policy.permissions.get`等。 返回路径：L299的`[dict(row) for row in rows]`。
+- `install_business.create_user`（L302–L329）：接收`data`、`actor`。 控制顺序：L304按`data.role not in policy.roles`分支；L305抛异常，停止当前正常路径；L328抛异常，停止当前正常路径。 调用`Depends`、`administrator`、`HTTPException`、`str`、`uuid.uuid4`、`engine.begin`、`serialize_administrator`、`connection.execute`、`insert(tables["users"]).values`等。 返回路径：L329的`{"id": identity, "username": data.username, "role": data.role}`。
+- `install_business.change_role`（L332–L370）：接收`identity`、`data`、`actor`。 控制顺序：L334按`data.role not in policy.roles`分支；L335抛异常，停止当前正常路径；L343按`old is None`分支；L344抛异常，停止当前正常路径；L345按`old["role"] in business["role_admin_roles"] and data.role not in business["role_admin…`分支；L354按`len(administrators) <= 1`分支；L355抛异常，停止当前正常路径。 调用`Depends`、`administrator`、`HTTPException`、`engine.begin`、`serialize_administrator`、`connection.execute(select(tables["users"]).where(tables["users"].…`、`connection.execute`、`select(tables["users"]).where`、`select`等。 返回路径：L370的`{"id": identity, "role": data.role}`。
+- `install_business.reference_labels`（L373–L419）：接收`entity`、`data`、`actor`。 源码说明：Resolve only references present in rows this actor can already read.。 控制顺序：L389遍历`business["relations"]`；L390按`relation["entity"] != entity`分支；L394按`not identities`分支；L396按`target_name == "$users"`分支；L402按`"read" in policy.permissions.get((actor["role"], target_name), {}).get( "actions", []…`分支。 调用`Depends`、`table`、`engine.connect`、`connection.execute( select(source).where( source.c.id.in_(data.re…`、`connection.execute`、`select(source).where`、`select`、`source.c.id.in_`、`source.c.archived_at.is_`等。 返回路径：L419的`result`。
+- `install_business.list_items`（L422–L460）：接收`entity`、`request`、`response`、`limit`、`offset`、`actor`。 控制顺序：L432按`len(request.query_params.multi_items()) != len(request.query_params) or not 1 <= limi…`分支；L437抛异常，停止当前正常路径；L442抛异常，停止当前正常路径。 调用`Depends`、`table`、`len`、`request.query_params.multi_items`、`ValueError`、`conditions`、`HTTPException`、`str`、`target.c.archived_at.is_`等。 返回路径：L460的`[dict(row) for row in rows]`。
+- `install_business.create`（L463–L489）：接收`entity`、`data`、`actor`。 控制顺序：L488抛异常，停止当前正常路径。 调用`Depends`、`grant`、`values_for`、`utc`、`values.update`、`str`、`uuid.uuid4`、`engine.begin`、`reference_checks`等。 返回路径：L489的`row`。
+- `install_business.get`（L492–L494）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.connect`、`record`、`app.get`。 返回路径：L494的`record(connection, actor, entity, identity, "read")`。
+- `install_business.edit`（L497–L515）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L511按`changed != 1`分支；L512抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`values_for`、`reference_checks`、`utc`、`connection.execute`、`update(table(entity)) .where( table(entity).c.id == identity, tab…`、`update(table(entity)) .where`等。 返回路径：L515的`after`。
+- `install_business.archive`（L518–L529）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.begin`、`record`、`utc`、`connection.execute`、`update(table(entity)) .where(table(entity).c.id == identity) .val…`、`update(table(entity)) .where`、`update`、`table`等。 返回路径：L529的`after`。
+- `install_business.assign`（L532–L555）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L536按`data.user_id is None and next(f for f in entities[entity]["fields"] if f["name"] == f…`分支；L540抛异常，停止当前正常路径；L551按`changed != 1`分支；L552抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`policy.resource`、`next`、`HTTPException`、`utc`、`reference_checks`、`connection.execute`等。 返回路径：L555的`after`。
+- `install_business.transition`（L558–L593）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L567抛异常，停止当前正常路径；L569按`operation.get("set_timestamp")`分支；L580按`changed != 1`分支；L581抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`policy.workflow`、`policy.transition`、`HTTPException`、`str`、`utc`、`operation.get`等。 返回路径：L593的`after`。
+- `install_business.add_note`（L596–L612）：接收`entity`、`identity`、`data`、`actor`。 控制顺序：L599按`not policy.resource(entity)["notes"]`分支；L600抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`record`、`policy.resource`、`HTTPException`、`str`、`uuid.uuid4`、`utc`、`connection.execute`等。 返回路径：L612的`note`。
+- `install_business.notes`（L615–L631）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.connect`、`record`、`connection.execute( select(tables["business_notes"]) .where( tabl…`、`connection.execute`、`select(tables["business_notes"]) .where( tables["business_notes"]…`、`select(tables["business_notes"]) .where`、`select`、`history_actor_names`等。 返回路径：L631的`[{**dict(row), "actor_username": names.get(row["actor_id"])} for row in rows]`。
+- `install_business.history`（L634–L670）：接收`entity`、`identity`、`actor`。 调用`Depends`、`engine.connect`、`record`、`connection.execute( select(tables["business_audit"]) .where( tabl…`、`connection.execute`、`select(tables["business_audit"]) .where( tables["business_audit"]…`、`select(tables["business_audit"]) .where`、`select`、`history_actor_names`等。 返回路径：L654的`[ { **{k: row[k] for k in ("id", "actor_id", "action", "created_at")}, "actor_username": n…`。
+- `install_business.related`（L673–L705）：接收`entity`、`identity`、`actor`。 控制顺序：L677遍历`business["relations"]`；L679按`relation["target_entity"] != entity or "read" not in policy.permissions.get( (actor["…`分支。 调用`Depends`、`engine.connect`、`record`、`policy.permissions.get( (actor["role"], source), {} ).get`、`policy.permissions.get`、`table`、`connection.execute( select(target) .where( target.c[relation["fie…`、`connection.execute`、`select(target) .where( target.c[relation["field"]] == identity, t…`等。 返回路径：L705的`result`。
+- `install_business.metrics`（L708–L734）：接收`actor`。 控制顺序：L711遍历`business["metrics"]`；L712按`"read_metrics" not in policy.permissions.get( (actor["role"], metric["entity"]), {} )…`分支。 调用`Depends`、`engine.connect`、`policy.permissions.get( (actor["role"], metric["entity"]), {} ).g…`、`policy.permissions.get`、`table`、`connection.execute( select(target).where( target.c.archived_at.is…`、`connection.execute`、`select(target).where`、`select`等。 返回路径：L734的`result`。
+- `install_business.notifications`（L737–L792）：接收`actor`。 控制顺序：L739遍历`business["notifications"]`；L740按`item["event"] != "due"`分支；L743按`"read" not in policy.permissions.get((actor["role"], entity), {}).get( "actions", [] …`分支；L766遍历`rows`；L768按`workflow and row[workflow["status_field"]] not in { state for transition in workflow[…`分支。 调用`Depends`、`engine.begin`、`policy.permissions.get((actor["role"], entity), {}).get`、`policy.permissions.get`、`table`、`policy.resource`、`connection.execute( select(target).where( recipient == actor["id"…`、`connection.execute`、`select(target).where`等。 返回路径：L781的`[ dict(row) for row in connection.execute( select(tables["business_notifications"]) .where…`。
+- `install_business.mark_read`（L795–L815）：接收`identity`、`actor`。 控制顺序：L807按`row is None`分支；L808抛异常，停止当前正常路径。 调用`Depends`、`engine.begin`、`connection.execute( select(target).where( target.c.id == identity…`、`connection.execute`、`select(target).where`、`select`、`HTTPException`、`utc`、`update(target) .where(target.c.id == identity, target.c.recipient…`等。 返回路径：L815的`{"id": identity, "read_at": timestamp}`。
 
-<!-- source-file: templates/product/business_runtime.py sha256: d52f7777e416bf3f0d73d2fc6e64a9d5c24824dd0b856bfa62f1c20f954fe3ee -->
+<!-- source-file: templates/product/business_runtime.py sha256: 7fd36ea519d79c3d80903913ce44a1b85496236bdaf8dc3ae8f88062b2428491 -->
 ````python
 """Generated-product business runtime. Authorization and events are database-backed."""
 
@@ -19927,7 +20235,14 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
                         )
                     )
             except IntegrityError:
-                pass  # A concurrent request already emitted this exact event.
+                # Only an exact event/recipient duplicate is safe to suppress. Other
+                # constraint failures must roll back the originating mutation too.
+                if not connection.scalar(
+                    select(tables["business_notifications"].c.id).where(
+                        tables["business_notifications"].c.dedupe_key == key
+                    )
+                ):
+                    raise
 
     def reference_checks(connection, actor, entity, values, before=None):
         for (source, field), relation in policy.relations.items():
@@ -20325,7 +20640,7 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
     @app.post("/api/{entity}/{identity}/notes", status_code=201)
     def add_note(entity: str, identity: str, data: NoteBody, actor=Depends(current)):
         with engine.begin() as connection:
-            record(connection, actor, entity, identity, "add_note")
+            row = record(connection, actor, entity, identity, "add_note", lock=True)
             if not policy.resource(entity)["notes"]:
                 raise HTTPException(403, "记录未启用备注")
             note = {
@@ -20337,7 +20652,8 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
                 "body": data.body,
             }
             connection.execute(insert(tables["business_notes"]).values(**note))
-            event(connection, actor, entity, identity, "note_added", None, note)
+            eid = event(connection, actor, entity, identity, "note_added", None, note)
+            notify(connection, entity, row, "note_added", eid)
             return note
 
     @app.get("/api/{entity}/{identity}/notes")
@@ -22586,15 +22902,22 @@ if __name__ == "__main__":
 **逐个入口与控制逻辑：**
 
 - `check`（L22–L24）：接收`condition`、`message`。 控制顺序：L23按`not condition`分支；L24抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `validate_png`（L33–L92）：接收`payload`。 控制顺序：L50在`offset < len(payload)`成立时循环；L59按`header is None`分支；L62按`kind == b"IHDR"`分支；L63抛异常，停止当前正常路径；L64按`kind == b"IDAT"`分支；L66按`kind == b"IEND"`分支；L85抛异常，停止当前正常路径。 调用`check`、`payload.startswith`、`len`、`struct.unpack`、`zlib.crc32`、`ValueError`、`compressed.append`、`{0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get`、`zlib.decompressobj`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `validate_screenshots`（L95–L143）：接收`directory`、`entries`。 源码说明：Only bounded, named PNGs from the owned synthetic-product directory escape.。 控制顺序：L101按`directory is None`分支；L107遍历`entries`。 调用`check`、`isinstance`、`len`、`bool`、`Path(directory).resolve`、`Path`、`set`、`entry.get`、`re.fullmatch`等。 返回路径：L103的`[]`；L143的`result`。
-- `verify_business`（L146–L804）：接收`product`、`python`、`stop`、`browser_error`、`screenshot_dir`。 控制顺序：L149按`screenshot_dir is not None`分支；L200按`selection["database"] == "postgresql"`分支；L293遍历`business["roles"]`；L309按`business["registration"]["enabled"]`分支；L333在`pending`成立时循环；L335遍历`list(pending)`；L341按`any(r["target_entity"] not in base for r in relations)`分支；L365按`workflow`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(screenshot_dir).absolute`、`check`、`target.is_symlink`、`hasattr`、`target.is_junction`、`target.resolve().is_relative_to`、`target.resolve`等。 返回路径：L789的`{ "passed": True, "http": True, "restart": True, "database": "real-isolated-" + selection[…`。
-- `verify_business.allowed`（L176–L183）：接收`role`、`entity`、`action`、`row`、`identity`。 控制顺序：L178按`action not in grant.get("actions", [])`分支；L180按`row is None or grant["scope"] == "all"`分支。 调用`grants.get`、`grant.get`、`row.get`。 返回路径：L179的`False`；L181的`True`；L183的`row.get(key) == identity`。
-- `verify_business.start`（L224–L265）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L254遍历`range(150)`；L256按`client.get("/health").status_code == 200`分支；L260按`process.poll() is not None`分支；L265抛异常，停止当前正常路径。 调用`socket.socket`、`listener.bind`、`listener.getsockname`、`subprocess.Popen`、`str`、`httpx.Client`、`range`、`client.get`、`process.poll`等。 返回路径：L257的`process, client`。
-- `verify_business.request`（L275–L282）：接收`method`、`path`、`actor`、`status`、`**kw`。 调用`client.request`、`check`、`response.json`。 返回路径：L282的`response.json() if response.content else None`。
-- `verify_business.selected`（L639–L655）：接收`row`。 控制顺序：L640遍历`metric["filters"]`；L642按`op == "eq" and actual != want or op == "ne" and actual == want or op == "in" and actu…`分支；L651按`op in {"gte", "lte"} and ( actual is None or (actual < want if op == "gte" else actua…`分支。 调用`row.get`。 返回路径：L650的`False`；L654的`False`；L655的`True`。
+- `NotificationEvidence`（L27–L114）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `NotificationEvidence.__init__`（L30–L36）：接收`business`。 调用`Counter`、`set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NotificationEvidence.recipient`（L38–L44）：接收`rule`、`row`。 调用`row.get`。 返回路径：L44的`row.get(field)`。
+- `NotificationEvidence.event`（L46–L57）：接收`entity`、`row`、`event`、`transition`。 控制顺序：L48遍历`enumerate(self.rules)`；L49按`rule["entity"] != entity or rule["event"] != event`分支；L51按`event == "transitioned" and rule["transition"] != transition`分支；L54按`recipient`分支。 调用`set`、`enumerate`、`self.recipient`、`self.covered.add`、`recipients.add`、`self.expected.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NotificationEvidence.due`（L59–L84）：接收`rows`、`actor`、`allowed`。 控制顺序：L61遍历`enumerate(self.rules)`；L62按`rule["event"] != "due"`分支；L65遍历`rows[entity]`；L67按`not value or row.get("archived_at") or self.recipient(rule, row) != actor["id"] or no…`分支；L76按`workflow and row[workflow["status_field"]] not in { state for t in workflow["transiti…`分支；L82按`key not in self.due_seen`分支。 调用`datetime.now`、`enumerate`、`row.get`、`self.recipient`、`allowed`、`datetime.fromisoformat`、`value.replace`、`self.workflows.get`、`self.covered.add`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NotificationEvidence.inbox`（L86–L108）：接收`actor`、`notices`、`event`。 调用`check`、`len`、`all`、`Counter`、`self.expected.items`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NotificationEvidence.complete`（L110–L114）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`check`、`set`、`range`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `validate_png`（L123–L182）：接收`payload`。 控制顺序：L140在`offset < len(payload)`成立时循环；L149按`header is None`分支；L152按`kind == b"IHDR"`分支；L153抛异常，停止当前正常路径；L154按`kind == b"IDAT"`分支；L156按`kind == b"IEND"`分支；L175抛异常，停止当前正常路径。 调用`check`、`payload.startswith`、`len`、`struct.unpack`、`zlib.crc32`、`ValueError`、`compressed.append`、`{0: 1, 2: 3, 3: 1, 4: 2, 6: 4}.get`、`zlib.decompressobj`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `validate_screenshots`（L185–L233）：接收`directory`、`entries`。 源码说明：Only bounded, named PNGs from the owned synthetic-product directory escape.。 控制顺序：L191按`directory is None`分支；L197遍历`entries`。 调用`check`、`isinstance`、`len`、`bool`、`Path(directory).resolve`、`Path`、`set`、`entry.get`、`re.fullmatch`等。 返回路径：L193的`[]`；L233的`result`。
+- `verify_business`（L236–L972）：接收`product`、`python`、`stop`、`browser_error`、`screenshot_dir`。 控制顺序：L239按`screenshot_dir is not None`分支；L292按`selection["database"] == "postgresql"`分支；L416遍历`business["roles"]`；L432按`business["registration"]["enabled"]`分支；L456在`pending`成立时循环；L458遍历`list(pending)`；L464按`any(r["target_entity"] not in base for r in relations)`分支；L488按`workflow`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(screenshot_dir).absolute`、`check`、`target.is_symlink`、`hasattr`、`target.is_junction`、`target.resolve().is_relative_to`、`target.resolve`等。 返回路径：L957的`{ "passed": True, "http": True, "restart": True, "database": "real-isolated-" + selection[…`。
+- `verify_business.allowed`（L268–L275）：接收`role`、`entity`、`action`、`row`、`identity`。 控制顺序：L270按`action not in grant.get("actions", [])`分支；L272按`row is None or grant["scope"] == "all"`分支。 调用`grants.get`、`grant.get`、`row.get`。 返回路径：L271的`False`；L273的`True`；L275的`row.get(key) == identity`。
+- `verify_business.start`（L316–L357）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L346遍历`range(150)`；L348按`client.get("/health").status_code == 200`分支；L352按`process.poll() is not None`分支；L357抛异常，停止当前正常路径。 调用`socket.socket`、`listener.bind`、`listener.getsockname`、`subprocess.Popen`、`str`、`httpx.Client`、`range`、`client.get`、`process.poll`等。 返回路径：L349的`process, client`。
+- `verify_business.request`（L367–L405）：接收`method`、`path`、`actor`、`status`、`**kw`。 控制顺序：L375按`method == "GET" and path == "/business/notifications"`分支；L377按`method == "POST" and status in {200, 201} and path.startswith("/api/")`分支；L381按`len(parts) == 2`分支；L384按`len(parts) == 4`分支；L390按`event`分支；L399按`event`分支；L402遍历`actors.values()`。 调用`client.request`、`check`、`response.json`、`notification_evidence.due`、`path.startswith`、`path.strip("/").split`、`path.strip`、`len`、`notification_evidence.event`等。 返回路径：L405的`result`。
+- `verify_business.selected`（L770–L786）：接收`row`。 控制顺序：L771遍历`metric["filters"]`；L773按`op == "eq" and actual != want or op == "ne" and actual == want or op == "in" and actu…`分支；L782按`op in {"gte", "lte"} and ( actual is None or (actual < want if op == "gte" else actua…`分支。 调用`row.get`。 返回路径：L781的`False`；L785的`False`；L786的`True`。
 
-<!-- source-file: templates/product/verify_business.py sha256: 4b52ca1d1f8ff443cb9a3cd809d2b192606c46a0a75f1626633a54cabda27eb1 -->
+<!-- source-file: templates/product/verify_business.py sha256: f72337210036ea48163940b6a5377d6ef089b17191852c72bd9cb293cd2a78ce -->
 ````python
 """Independent HTTP/browser business verification against a new owned database."""
 
@@ -22620,6 +22943,96 @@ import httpx
 def check(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+class NotificationEvidence:
+    """Expected reminders come from successful actions and the approved contract."""
+
+    def __init__(self, business):
+        self.rules = business["notifications"]
+        self.resources = {r["entity"]: r for r in business["resources"]}
+        self.workflows = {w["entity"]: w for w in business["workflows"]}
+        self.expected = Counter()
+        self.covered = set()
+        self.due_seen = set()
+
+    def recipient(self, rule, row):
+        field = (
+            "created_by"
+            if rule["recipient"] == "creator"
+            else self.resources[rule["entity"]]["assignee_field"]
+        )
+        return row.get(field)
+
+    def event(self, entity, row, event, transition=None):
+        recipients = set()
+        for index, rule in enumerate(self.rules):
+            if rule["entity"] != entity or rule["event"] != event:
+                continue
+            if event == "transitioned" and rule["transition"] != transition:
+                continue
+            recipient = self.recipient(rule, row)
+            if recipient:
+                self.covered.add(index)
+                recipients.add(recipient)
+        self.expected.update((recipient, entity, row["id"], event) for recipient in recipients)
+
+    def due(self, rows, actor, allowed):
+        now = datetime.now(timezone.utc)
+        for index, rule in enumerate(self.rules):
+            if rule["event"] != "due":
+                continue
+            entity, field = rule["entity"], rule["due_field"]
+            for row in rows[entity]:
+                value = row.get(field)
+                if (
+                    not value
+                    or row.get("archived_at")
+                    or self.recipient(rule, row) != actor["id"]
+                    or not allowed(actor["role"], entity, "read", row, actor["id"])
+                    or datetime.fromisoformat(value.replace("Z", "+00:00")) > now
+                ):
+                    continue
+                workflow = self.workflows.get(entity)
+                if workflow and row[workflow["status_field"]] not in {
+                    state for t in workflow["transitions"] for state in t["from_states"]
+                }:
+                    continue
+                self.covered.add(index)
+                key = (actor["id"], entity, row["id"], field, value)
+                if key not in self.due_seen:
+                    self.due_seen.add(key)
+                    self.expected[actor["id"], entity, row["id"], "due"] += 1
+
+    def inbox(self, actor, notices, event=None):
+        check(
+            len({n["id"] for n in notices}) == len(notices),
+            "Duplicate notification identifiers",
+        )
+        check(
+            all(n["recipient_id"] == actor["id"] for n in notices),
+            "Notification recipient leak",
+        )
+        actual = Counter(
+            (n["recipient_id"], n["entity"], n["record_id"], n["event"])
+            for n in notices
+            if event is None or n["event"] == event
+        )
+        expected = Counter(
+            {
+                k: v
+                for k, v in self.expected.items()
+                if k[0] == actor["id"] and (event is None or k[3] == event)
+            }
+        )
+        check(actual == expected, "Missing, duplicated or unexpected declared notifications")
+        check(all(n["created_at"] for n in notices), "Notification timestamp missing")
+
+    def complete(self):
+        check(
+            self.covered == set(range(len(self.rules))),
+            "Declared notification rule was not exercised by the approved workflow",
+        )
 
 
 SCREENSHOT_VIEWS = {"list", "form", "relations", "workflow", "reminders", "dashboard"}
@@ -22769,6 +23182,8 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
     workflows = {w["entity"]: w for w in business["workflows"]}
     fields = {e["name"]: e["fields"] for e in spec["entities"]}
     checks = []
+    notification_evidence = NotificationEvidence(business)
+    persisted_notifications = {}
     password = secrets.token_urlsafe(24)
 
     def allowed(role, entity, action, row=None, identity=None):
@@ -22877,7 +23292,38 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                     response.status_code == status,
                     f"Business check failed: {method} {path} expected {status}, got {response.status_code}",
                 )
-                return response.json() if response.content else None
+                result = response.json() if response.content else None
+                if method == "GET" and path == "/business/notifications":
+                    notification_evidence.due(rows, actor, allowed)
+                if method == "POST" and status in {200, 201} and path.startswith("/api/"):
+                    parts = path.strip("/").split("/")
+                    entity = parts[1]
+                    event = None
+                    if len(parts) == 2:
+                        event = "created"
+                        notification_evidence.event(entity, result, event)
+                    elif len(parts) == 4:
+                        event = {
+                            "assign": "assigned",
+                            "transition": "transitioned",
+                            "notes": "note_added",
+                        }.get(parts[3])
+                        if event:
+                            row = (
+                                next(r for r in rows[entity] if r["id"] == parts[2])
+                                if event == "note_added"
+                                else result
+                            )
+                            notification_evidence.event(
+                                entity, row, event, kw.get("json", {}).get("transition")
+                            )
+                    if event:
+                        # Check each action before a later transition can mask an omitted
+                        # reminder with an extra reminder of the same canonical event.
+                        for recipient in actors.values():
+                            notices = request("GET", "/business/notifications", recipient)
+                            notification_evidence.inbox(recipient, notices, event)
+                return result
 
             token = request(
                 "POST", "/auth/login", json={"username": "verify-admin", "password": password}
@@ -23041,7 +23487,9 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                                 json=sample,
                             )
                             if response.status_code == 201:
-                                rows[entity].append(response.json())
+                                created = response.json()
+                                rows[entity].append(created)
+                                notification_evidence.event(entity, created, "created")
                             else:
                                 check(
                                     response.status_code in {403, 404},
@@ -23135,7 +23583,7 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                         request(
                             "POST", f"/business/notifications/{note['id']}/read", other, status=404
                         )
-            checks.extend(["business-row-permissions", "business-notifications"])
+            checks.append("business-row-permissions")
             for entity, row in base.items():
                 workflow = workflows.get(entity)
                 visited = set()
@@ -23218,6 +23666,12 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                         "Immutable history missing",
                     )
             checks.extend(["business-transitions", "business-notes-history"])
+            notification_evidence.complete()
+            for actor in actors.values():
+                notices = request("GET", "/business/notifications", actor)
+                notification_evidence.inbox(actor, notices)
+                repeated = request("GET", "/business/notifications", actor)
+                check(notices == repeated, "Repeated inbox reads changed notification evidence")
             for actor in actors.values():
                 metrics = request("GET", "/business/metrics", actor)
                 expected_names = {
@@ -23353,6 +23807,35 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                     browser.get("passed") and browser.get("spec_digest") == digest,
                     "Invalid business browser evidence",
                 )
+            # Keep unread reminders available for the real browser interaction first.
+            # Browser-created records may add legitimate events beyond the HTTP ledger.
+            for actor in actors.values():
+                notices = request("GET", "/business/notifications", actor)
+                check(
+                    all(n["recipient_id"] == actor["id"] for n in notices),
+                    "Notification recipient leak after browser actions",
+                )
+                read_times = {}
+                for notice in notices:
+                    outsider = next(a for a in actors.values() if a["id"] != actor["id"])
+                    path = f"/business/notifications/{notice['id']}/read"
+                    request("POST", path, outsider, status=404)
+                    marked = request("POST", path, actor)
+                    check(bool(marked["read_at"]), "Notification was not marked read")
+                    read_times[notice["id"]] = marked["read_at"]
+                    check(
+                        request("POST", path, actor) == marked,
+                        "Repeated mark-read changed the original read timestamp",
+                    )
+                persisted_notifications[actor["id"]] = request(
+                    "GET", "/business/notifications", actor
+                )
+                expected_notices = {n["id"]: {**n, "read_at": read_times[n["id"]]} for n in notices}
+                check(
+                    {n["id"]: n for n in persisted_notifications[actor["id"]]} == expected_notices,
+                    "Notification or read state was not persisted unchanged",
+                )
+            checks.append("business-notifications")
             for entity, row in base.items():
                 actor = next(
                     (
@@ -23380,6 +23863,14 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                 response.json()["id"] == bootstrap_actor["id"],
                 "Business actor changed after restart",
             )
+            for actor in actors.values():
+                notices = request("GET", "/business/notifications", actor)
+                previous = {n["id"]: n for n in persisted_notifications[actor["id"]]}
+                restored = {n["id"]: n for n in notices}
+                check(
+                    all(restored.get(key) == value for key, value in previous.items()),
+                    "Notification event or read state changed after restart",
+                )
         finally:
             client.close()
             stop(process)
@@ -25532,7 +26023,7 @@ async def block_generated_crud():
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: templates/business/fastapiadmin/index.vue sha256: 0ea7a80c7b76496d27284d3355ae6b503f5cee14f41c4e0370cda43a15383d48 -->
+<!-- source-file: templates/business/fastapiadmin/index.vue sha256: aad0cb49df4e114ce0672bf77bcaf577c201a673dcd080ceb399ca9299477775 -->
 ````vue
 <template>
   <div class="fa-full-height business-native-page">
@@ -25675,7 +26166,7 @@ function displayValue(entity: string, key: string, value: unknown, row: Item = {
   if (config.value?.business.relations.some((r: Item) => r.entity === entity && r.field === key)) return '关联记录';
   return String(value);
 }
-function eventLabel(event: string) { return ({ created: '创建记录', updated: '编辑记录', update: '编辑记录', assigned: '分配负责人', transitioned: '状态更新', add_note: '添加备注', archived: '归档记录', due: '已到截止时间' } as Record<string, string>)[event] || event; }
+function eventLabel(event: string) { return ({ created: '创建记录', updated: '编辑记录', update: '编辑记录', assigned: '分配负责人', transitioned: '状态更新', add_note: '添加备注', note_added: '添加备注', archived: '归档记录', due: '已到截止时间' } as Record<string, string>)[event] || event; }
 function transitionLabel(name: string) { return workflow.value?.transitions.find((t: Item) => t.name === name)?.label || name; }
 function can(action: string) { return config.value?.permissions.some((p: Item) => p.entity === tab.value && p.actions.includes(action)); }
 function relation(field: Item) { return config.value?.business.relations.find((r: Item) => r.entity === tab.value && r.field === field.name); }
@@ -25845,14 +26336,14 @@ async def registration_completed(db, user_id):
 - `scope`（L168–L175）：接收`who`、`entity`、`action`。 控制顺序：L171按`permission["scope"] == "all"`分支；L173按`permission["scope"] == "own"`分支。 调用`grant`、`identifier`、`getattr`、`POLICY.resource`。 返回路径：L172的`model.id > 0`；L174的`model.created_id == identifier(who["id"])`；L175的`getattr(model, POLICY.resource(entity)["assignee_field"]) == identifier(who["id"])`。
 - `record`（L178–L190）：接收`db`、`who`、`entity`、`row_id`、`action`、`lock`。 控制顺序：L179按`entity not in MODELS`分支；L183按`lock`分支；L186按`row is None`分支；L188按`lock and row.is_deleted`分支。 调用`fail`、`select(model).where`、`select`、`identifier`、`scope`、`query.with_for_update`、`db.scalar`。 返回路径：L190的`row`。
 - `validate`（L193–L257）：接收`db`、`who`、`entity`、`data`、`creation`。 控制顺序：L194按`not isinstance(data, dict)`分支；L198按`set(data) - set(fields) or set(data) & protected`分支；L201遍历`fields.items()`；L202按`name in protected`分支；L204按`name not in data`分支；L205按`creation and spec["required"]`分支；L209按`value is None`分支；L210按`spec["required"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`fail`、`POLICY.protected`、`set`、`fields.items`、`value.strip`、`len`、`max`、`type`等。 返回路径：L257的`result`。
-- `event`（L260–L291）：接收`db`、`who`、`entity`、`row`、`name`、`data`。 控制顺序：L270遍历`SPEC["notifications"]`；L271按`rule["entity"] != entity or rule["event"] != name`分支；L273按`name == "transitioned" and rule["transition"] != data.get("transition")`分支；L280按`recipient`分支。 调用`BusinessEvent`、`identifier`、`db.add`、`db.flush`、`data.get`、`getattr`、`POLICY.resource`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `create`（L294–L314）：接收`db`、`who`、`entity`、`data`。 控制顺序：L298按`workflow`分支；L301按`resource.get("assignee_field")`分支；L303按`hasattr(MODELS[entity], "status")`分支。 调用`grant`、`validate`、`POLICY.workflow`、`POLICY.resource`、`resource.get`、`hasattr`、`MODELS[entity]`、`identifier`、`db.add`等。 返回路径：L314的`result`。
-- `mutate`（L317–L408）：接收`db`、`who`、`entity`、`row_id`、`action`、`data`。 控制顺序：L322按`action == "update"`分支；L323遍历`(await validate(db, who, entity, data)).items()`；L325按`action == "assign"`分支；L326按`set(data) != {"assignee"}`分支；L350按`target is None or len(memberships) != 1`分支；L361按`not eligible or eligible["scope"] not in {"all", "assigned"} or "read" not in eligibl…`分支；L370按`action == "transition"`分支；L371按`set(data) != {"transition"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`record`、`serialize`、`(await validate(db, who, entity, data)).items`、`validate`、`setattr`、`set`、`fail`、`identifier`、`db.scalar`等。 返回路径：L408的`after`。
-- `rows`（L411–L456）：接收`db`、`who`、`entity`、`action`、`query`、`filters`、`archived`。 控制顺序：L412按`entity not in MODELS`分支；L417按`query`分支；L423按`not searched`分支；L426遍历`(filters or {}).items()`；L427按`name.endswith(("_from", "_to"))`分支；L429按`field not in fields or not fields[field]["date_range"]`分支；L435按`name not in fields or not fields[name]["filterable"]`分支；L440按`relation`分支。后续分支沿下方源码相同行号继续阅读。 调用`fail`、`select(model).where`、`select`、`scope`、`model.is_deleted.is_`、`getattr(model, name).icontains`、`getattr`、`fields.items`、`statement.where`等。 返回路径：L456的`list((await db.scalars(statement.order_by(model.id.desc()))).all())`。
-- `readable_entities`（L459–L464）：接收`role`。 返回路径：L460的`{ permission["entity"] for permission in SPEC["permissions"] if permission["role"] == role…`。
-- `set_role`（L467–L514）：接收`db`、`user_id`、`role`。 控制顺序：L468按`role not in {r["name"] for r in SPEC["roles"]}`分支；L476按`target is None`分支；L479按`native_role is None`分支；L500遍历`list(chosen)`；L502在`parent in by_id and parent not in chosen`成立时循环；L505遍历`chosen`。 调用`fail`、`identifier`、`db.scalar`、`select(UserModel) .where(UserModel.id == user_id, UserModel.is_de…`、`select(UserModel) .where`、`select`、`UserModel.is_deleted.is_`、`select(RoleModel).where`、`RoleModel`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `event`（L260–L295）：接收`db`、`who`、`entity`、`row`、`name`、`data`。 控制顺序：L273遍历`SPEC["notifications"]`；L274按`rule["entity"] != entity or rule["event"] != notification_name`分支；L276按`notification_name == "transitioned" and rule["transition"] != data.get("transition")`分支；L283按`recipient and identifier(recipient) not in recipients`分支。 调用`BusinessEvent`、`identifier`、`db.add`、`db.flush`、`set`、`data.get`、`getattr`、`POLICY.resource`、`recipients.add`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `create`（L298–L318）：接收`db`、`who`、`entity`、`data`。 控制顺序：L302按`workflow`分支；L305按`resource.get("assignee_field")`分支；L307按`hasattr(MODELS[entity], "status")`分支。 调用`grant`、`validate`、`POLICY.workflow`、`POLICY.resource`、`resource.get`、`hasattr`、`MODELS[entity]`、`identifier`、`db.add`等。 返回路径：L318的`result`。
+- `mutate`（L321–L414）：接收`db`、`who`、`entity`、`row_id`、`action`、`data`。 控制顺序：L326按`action == "update"`分支；L327遍历`(await validate(db, who, entity, data)).items()`；L329按`action == "assign"`分支；L330按`set(data) != {"assignee"}`分支；L354按`target is None or len(memberships) != 1`分支；L365按`not eligible or eligible["scope"] not in {"all", "assigned"} or "read" not in eligibl…`分支；L374按`action == "transition"`分支；L375按`set(data) != {"transition"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`record`、`serialize`、`(await validate(db, who, entity, data)).items`、`validate`、`setattr`、`set`、`fail`、`identifier`、`db.scalar`等。 返回路径：L414的`after`。
+- `rows`（L417–L462）：接收`db`、`who`、`entity`、`action`、`query`、`filters`、`archived`。 控制顺序：L418按`entity not in MODELS`分支；L423按`query`分支；L429按`not searched`分支；L432遍历`(filters or {}).items()`；L433按`name.endswith(("_from", "_to"))`分支；L435按`field not in fields or not fields[field]["date_range"]`分支；L441按`name not in fields or not fields[name]["filterable"]`分支；L446按`relation`分支。后续分支沿下方源码相同行号继续阅读。 调用`fail`、`select(model).where`、`select`、`scope`、`model.is_deleted.is_`、`getattr(model, name).icontains`、`getattr`、`fields.items`、`statement.where`等。 返回路径：L462的`list((await db.scalars(statement.order_by(model.id.desc()))).all())`。
+- `readable_entities`（L465–L470）：接收`role`。 返回路径：L466的`{ permission["entity"] for permission in SPEC["permissions"] if permission["role"] == role…`。
+- `set_role`（L473–L520）：接收`db`、`user_id`、`role`。 控制顺序：L474按`role not in {r["name"] for r in SPEC["roles"]}`分支；L482按`target is None`分支；L485按`native_role is None`分支；L506遍历`list(chosen)`；L508在`parent in by_id and parent not in chosen`成立时循环；L511遍历`chosen`。 调用`fail`、`identifier`、`db.scalar`、`select(UserModel) .where(UserModel.id == user_id, UserModel.is_de…`、`select(UserModel) .where`、`select`、`UserModel.is_deleted.is_`、`select(RoleModel).where`、`RoleModel`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: templates/business/fastapiadmin/runtime.py sha256: 685615276cb017076fbe0e330abb9f1cd22cc116b9ab3124d2cab08cf2c6d762 -->
+<!-- source-file: templates/business/fastapiadmin/runtime.py sha256: 6d3aaed90103b7c586060401bd8d6be4a6e3381abd36ae96de4caa9072f3141a -->
 ````python
 """Transactional native ORM business services; all authorization is server-side."""
 
@@ -26123,17 +26614,21 @@ async def event(db, who, entity, row, name, data):
     )
     db.add(audit)
     await db.flush()
+    # Keep native audit actions stable while dispatching canonical contract events.
+    notification_name = "note_added" if name == "add_note" else name
+    recipients = set()
     for rule in SPEC["notifications"]:
-        if rule["entity"] != entity or rule["event"] != name:
+        if rule["entity"] != entity or rule["event"] != notification_name:
             continue
-        if name == "transitioned" and rule["transition"] != data.get("transition"):
+        if notification_name == "transitioned" and rule["transition"] != data.get("transition"):
             continue
         recipient = (
             row.created_id
             if rule["recipient"] == "creator"
             else getattr(row, POLICY.resource(entity)["assignee_field"])
         )
-        if recipient:
+        if recipient and identifier(recipient) not in recipients:
+            recipients.add(identifier(recipient))
             db.add(
                 BusinessEvent(
                     entity=entity,
@@ -26141,7 +26636,7 @@ async def event(db, who, entity, row, name, data):
                     actor=identifier(who["id"]),
                     recipient=identifier(recipient),
                     event="notification",
-                    payload={"event": name},
+                    payload={"event": notification_name},
                     source_key=f"{audit.id}:{recipient}",
                 )
             )
@@ -26247,6 +26742,8 @@ async def mutate(db, who, entity, row_id, action, data):
         row.is_deleted, row.deleted_time = True, datetime.now(UTC)
         row.deleted_id = identifier(who["id"])
     elif action == "add_note":
+        if not POLICY.resource(entity)["notes"]:
+            fail(403, "Notes are disabled for this resource")
         if (
             set(data) != {"text"}
             or not isinstance(data["text"], str)
@@ -26582,7 +27079,7 @@ public class RndBusinessRegistration {
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: templates/business/yudao/RndBusinessService.java sha256: 434af655c13a6e426be0e65f6b69d74bcc282c6041d24b6b788d75a9db5ca407 -->
+<!-- source-file: templates/business/yudao/RndBusinessService.java sha256: c428bfaa3ae48e60176eefc4fce639e54fb1dfd70b5f7bc3e916d55ad1085b70 -->
 ````java
 package cn.iocoder.yudao.module.infra.business;
 
@@ -26940,7 +27437,7 @@ public class RndBusinessService {
         } else if(action.equals("add_note")) {if(!resource(name).path("notes").asBoolean()||note.isBlank()) throw bad("A nonempty note is required");}
         else throw bad("Unknown named action");
         set(row,"updater",actor().toString());set(row,"updateTime",LocalDateTime.now(ZoneOffset.UTC));validateNative(name,row);persist(name,row);
-        long audit=event(name,row,action,before,note);notify(name,row,action.equals("assign")?"assigned":action.equals("transition")?"transitioned":"notified",transition,audit);return out(name,row);
+        long audit=event(name,row,action,before,note);String notificationEvent=switch(action){case "assign"->"assigned";case "transition"->"transitioned";case "add_note"->"note_added";default->throw bad("Unknown named action");};notify(name,row,notificationEvent,transition,audit);return out(name,row);
     }
     public Object related(String name,String identifier) {
         Object parent=load(name,identifier,false);require(name,parent,"read");
@@ -27079,7 +27576,7 @@ public class RndBusinessService {
             for(Object row:all(name)) {if(archived(row)||!allowed(name,row,"read")) continue;Object recipient=n.path("recipient").asText().equals("creator")?value(row,"creator"):value(row,wire(resource(name).path("assignee_field").asText()));Object date=metricValue(name,row,field);
                 if(recipient!=null&&recipient.toString().equals(user.toString())&&date!=null&&!instant(date).isAfter(Instant.now())) notification(name,row,user,"due:"+name+":"+id(row)+":"+field+":"+instant(date),name+" #"+id(row)+" due");}
         }
-        List<Map<String,Object>> result=new ArrayList<>();for(Map<String,Object> n:sidecar.notifications(tenant(),user)) {try {Object row=load(n.get("entity").toString(),n.get("record_id"),false);if(allowed(n.get("entity").toString(),row,"read")) {n.put("created_at",external(n.get("created_at")));n.put("read_at",external(n.get("read_at")));n.put("record_id",String.valueOf(n.get("record_id")));String message=String.valueOf(n.get("message"));String event=message.substring(message.lastIndexOf(' ')+1);String action=switch(event){case "created"->"已创建";case "assigned"->"已分配负责人";case "transitioned"->"状态已更新";case "due"->"已到期，请及时处理";default->"有新的提醒";};n.put("display_message",entity(n.get("entity").toString()).path("description").asText()+"「"+recordLabel(n.get("entity").toString(),row)+"」"+action);result.add(n);}}catch(IllegalArgumentException ignored){}}
+        List<Map<String,Object>> result=new ArrayList<>();for(Map<String,Object> n:sidecar.notifications(tenant(),user)) {try {Object row=load(n.get("entity").toString(),n.get("record_id"),false);if(allowed(n.get("entity").toString(),row,"read")) {n.put("created_at",external(n.get("created_at")));n.put("read_at",external(n.get("read_at")));n.put("record_id",String.valueOf(n.get("record_id")));String message=String.valueOf(n.get("message"));String event=message.substring(message.lastIndexOf(' ')+1);String action=switch(event){case "created"->"已创建";case "assigned"->"已分配负责人";case "transitioned"->"状态已更新";case "note_added"->"有新的备注";case "due"->"已到期，请及时处理";default->"有新的提醒";};n.put("display_message",entity(n.get("entity").toString()).path("description").asText()+"「"+recordLabel(n.get("entity").toString(),row)+"」"+action);result.add(n);}}catch(IllegalArgumentException ignored){}}
         return result;
     }
     public void readNotification(Object identifier) {if(sidecar.readNotification(tenant(),actor(),number(identifier))!=1) throw denied();}
@@ -27447,7 +27944,7 @@ onMounted(reload);
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: examples/plans/customer-service.json sha256: f77e1ba335efbd6ac86635201dac21c4b41470cda14eece1206885e1f818491d -->
+<!-- source-file: examples/plans/customer-service.json sha256: 170d91d811b28b1f2b27ce251c00ea004f001db60f79dfa0f799694cae73a42c -->
 ````json
 {
   "title": "内部客户服务管理系统",
@@ -27827,11 +28324,7 @@ onMounted(reload);
         "entity": "customers",
         "actions": [
           "read",
-          "create",
-          "update",
-          "add_note",
           "read_history",
-          "read_audit",
           "read_metrics"
         ],
         "scope": "all"
@@ -28035,6 +28528,38 @@ onMounted(reload);
         "transition": null,
         "due_field": "due_at",
         "channel": "in_app"
+      },
+      {
+        "entity": "requests",
+        "event": "note_added",
+        "recipient": "creator",
+        "transition": null,
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "requests",
+        "event": "transitioned",
+        "recipient": "creator",
+        "transition": "start",
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "tasks",
+        "event": "note_added",
+        "recipient": "creator",
+        "transition": null,
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "tasks",
+        "event": "transitioned",
+        "recipient": "creator",
+        "transition": "start",
+        "due_field": null,
+        "channel": "in_app"
       }
     ],
     "metrics": [
@@ -28048,6 +28573,26 @@ onMounted(reload);
         "end_field": null,
         "time_field": null,
         "filters": [],
+        "unit": "seconds",
+        "bucket": "day",
+        "timezone": "UTC"
+      },
+      {
+        "name": "resolved_total",
+        "label": "已解决请求数",
+        "entity": "requests",
+        "kind": "count",
+        "group_by": null,
+        "start_field": null,
+        "end_field": null,
+        "time_field": null,
+        "filters": [
+          {
+            "field": "request_state",
+            "op": "eq",
+            "value": "resolved"
+          }
+        ],
         "unit": "seconds",
         "bucket": "day",
         "timezone": "UTC"
@@ -28106,6 +28651,20 @@ onMounted(reload);
         "entity": "customers",
         "kind": "count",
         "group_by": null,
+        "start_field": null,
+        "end_field": null,
+        "time_field": null,
+        "filters": [],
+        "unit": "seconds",
+        "bucket": "day",
+        "timezone": "UTC"
+      },
+      {
+        "name": "customer_categories",
+        "label": "客户分类分布",
+        "entity": "customers",
+        "kind": "group_count",
+        "group_by": "category",
         "start_field": null,
         "end_field": null,
         "time_field": null,
@@ -28582,6 +29141,279 @@ def decision(store, run_id, action="approve", text=""):
         },
         str(uuid.uuid4()),
     )
+````
+
+### `tests/fixtures/yudao-native-date/WbRequestsDO.java`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tests/fixtures/yudao-native-date/WbRequestsDO.java sha256: 135b456126ac65b24c9a914cbf84323f42afc0797ea0671c8182b5e17ac81a5e -->
+````java
+package cn.iocoder.yudao.module.infra.dal.dataobject.wbrequests;
+
+import lombok.*;
+import java.util.*;
+import java.time.LocalDateTime;
+import java.time.LocalDateTime;
+import java.time.LocalDateTime;
+import java.time.LocalDateTime;
+import com.baomidou.mybatisplus.annotation.*;
+import cn.iocoder.yudao.framework.mybatis.core.dataobject.BaseDO;
+
+/**
+ * 服务请求管理 DO
+ *
+ * @author Workbench
+ */
+@TableName("wb_e9ad81c0_requests")
+@KeySequence("wb_e9ad81c0_requests_seq") // 用于 Oracle、PostgreSQL、Kingbase、DB2、H2 数据库的主键自增。如果是 MySQL 等数据库，可不写。
+@Data
+@EqualsAndHashCode(callSuper = true)
+@ToString(callSuper = true)
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class WbRequestsDO extends BaseDO {
+
+    /**
+     * id
+     */
+    @TableId
+    private Long id;
+    /**
+     * title
+     */
+    private String title;
+    /**
+     * detail
+     */
+    private String detail;
+    /**
+     * customer_id
+     */
+    private Long customerId;
+    /**
+     * assignee_id
+     */
+    private Long assigneeId;
+    /**
+     * request_state
+     */
+    private String requestState;
+    /**
+     * priority
+     */
+    private String priority;
+    /**
+     * published_on
+     */
+    private LocalDate publishedOn;
+    /**
+     * resolved_at
+     */
+    private LocalDateTime resolvedAt;
+    /**
+     * due_at
+     */
+    private LocalDateTime dueAt;
+
+
+}
+````
+
+### `tests/fixtures/yudao-native-date/WbRequestsPageReqVO.java`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tests/fixtures/yudao-native-date/WbRequestsPageReqVO.java sha256: 67700525e7f96eb0dbd4cbda78f7d290453449f01e6f96a9875b266042c25966 -->
+````java
+package cn.iocoder.yudao.module.infra.controller.admin.wbrequests.vo;
+
+import lombok.*;
+import java.util.*;
+import io.swagger.v3.oas.annotations.media.Schema;
+import cn.iocoder.yudao.framework.common.pojo.PageParam;
+import org.springframework.format.annotation.DateTimeFormat;
+import java.time.LocalDateTime;
+
+import static cn.iocoder.yudao.framework.common.util.date.DateUtils.FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND;
+
+@Schema(description = "管理后台 - 服务请求管理分页 Request VO")
+@Data
+public class WbRequestsPageReqVO extends PageParam {
+
+    @Schema(description = "create_time")
+    @DateTimeFormat(pattern = FORMAT_YEAR_MONTH_DAY_HOUR_MINUTE_SECOND)
+    private LocalDateTime[] createTime;
+
+    @Schema(description = "title")
+    private String title;
+
+    @Schema(description = "detail")
+    private String detail;
+
+    @Schema(description = "customer_id", example = "30016")
+    private Long customerId;
+
+    @Schema(description = "assignee_id", example = "10985")
+    private Long assigneeId;
+
+    @Schema(description = "request_state")
+    private String requestState;
+
+    @Schema(description = "priority")
+    private String priority;
+
+    @Schema(description = "published_on")
+    private LocalDate publishedOn;
+
+    @Schema(description = "resolved_at")
+    private LocalDateTime resolvedAt;
+
+    @Schema(description = "due_at")
+    private LocalDateTime dueAt;
+
+}
+````
+
+### `tests/fixtures/yudao-native-date/WbRequestsRespVO.java`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tests/fixtures/yudao-native-date/WbRequestsRespVO.java sha256: b51142ff93e8b621b34f43a4bcd4fccd39856fb80bc15933a1928cf3246b14bc -->
+````java
+package cn.iocoder.yudao.module.infra.controller.admin.wbrequests.vo;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.*;
+import java.util.*;
+import org.springframework.format.annotation.DateTimeFormat;
+import java.time.LocalDateTime;
+import cn.idev.excel.annotation.*;
+
+@Schema(description = "管理后台 - 服务请求管理 Response VO")
+@Data
+@ExcelIgnoreUnannotated
+public class WbRequestsRespVO {
+
+    @Schema(description = "id", requiredMode = Schema.RequiredMode.REQUIRED, example = "6061")
+    @ExcelProperty("id")
+    private Long id;
+
+    @Schema(description = "create_time", requiredMode = Schema.RequiredMode.REQUIRED)
+    @ExcelProperty("create_time")
+    private LocalDateTime createTime;
+
+    @Schema(description = "title", requiredMode = Schema.RequiredMode.REQUIRED)
+    @ExcelProperty("title")
+    private String title;
+
+    @Schema(description = "detail", requiredMode = Schema.RequiredMode.REQUIRED)
+    @ExcelProperty("detail")
+    private String detail;
+
+    @Schema(description = "customer_id", requiredMode = Schema.RequiredMode.REQUIRED, example = "30016")
+    @ExcelProperty("customer_id")
+    private Long customerId;
+
+    @Schema(description = "assignee_id", example = "10985")
+    @ExcelProperty("assignee_id")
+    private Long assigneeId;
+
+    @Schema(description = "request_state", requiredMode = Schema.RequiredMode.REQUIRED)
+    @ExcelProperty("request_state")
+    private String requestState;
+
+    @Schema(description = "priority", requiredMode = Schema.RequiredMode.REQUIRED)
+    @ExcelProperty("priority")
+    private String priority;
+
+    @Schema(description = "published_on")
+    @ExcelProperty("published_on")
+    private LocalDate publishedOn;
+
+    @Schema(description = "resolved_at")
+    @ExcelProperty("resolved_at")
+    private LocalDateTime resolvedAt;
+
+    @Schema(description = "due_at")
+    @ExcelProperty("due_at")
+    private LocalDateTime dueAt;
+
+}
+````
+
+### `tests/fixtures/yudao-native-date/WbRequestsSaveReqVO.java`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tests/fixtures/yudao-native-date/WbRequestsSaveReqVO.java sha256: b32d0892cbe6a7c1b1794ec277cd0f50939054db7dda3576a8198e1c2862bdc0 -->
+````java
+package cn.iocoder.yudao.module.infra.controller.admin.wbrequests.vo;
+
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.*;
+import java.util.*;
+import jakarta.validation.constraints.*;
+import org.springframework.format.annotation.DateTimeFormat;
+import java.time.LocalDateTime;
+
+@Schema(description = "管理后台 - 服务请求管理新增/修改 Request VO")
+@Data
+public class WbRequestsSaveReqVO {
+
+    @Schema(description = "id", requiredMode = Schema.RequiredMode.REQUIRED, example = "6061")
+    private Long id;
+
+    @Schema(description = "title", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotEmpty(message = "title不能为空")
+    private String title;
+
+    @Schema(description = "detail", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotEmpty(message = "detail不能为空")
+    private String detail;
+
+    @Schema(description = "customer_id", requiredMode = Schema.RequiredMode.REQUIRED, example = "30016")
+    @NotNull(message = "customer_id不能为空")
+    private Long customerId;
+
+    @Schema(description = "assignee_id", example = "10985")
+    private Long assigneeId;
+
+    @Schema(description = "request_state", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotEmpty(message = "request_state不能为空")
+    private String requestState;
+
+    @Schema(description = "priority", requiredMode = Schema.RequiredMode.REQUIRED)
+    @NotEmpty(message = "priority不能为空")
+    private String priority;
+
+    @Schema(description = "published_on")
+    private LocalDate publishedOn;
+
+    @Schema(description = "resolved_at")
+    private LocalDateTime resolvedAt;
+
+    @Schema(description = "due_at")
+    private LocalDateTime dueAt;
+
+}
 ````
 
 ### `tests/news_case.py`
@@ -29962,15 +30794,16 @@ def test_assignee_selection_uses_unique_authorized_username_after_restart():
 
 **逐个入口与控制逻辑：**
 
-- `fixture`（L10–L44）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Plan.model_validate_json`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Client`。 返回路径：L44的`Client(), plan, values`。
-- `fixture.Client`（L34–L42）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `fixture.Client.rows`（L38–L39）：接收`entity`、`**kwargs`。 返回路径：L39的`rows[entity]`。
-- `fixture.Client.call`（L41–L42）：接收`*args`、`**kwargs`。 调用`values.items`。 返回路径：L42的`[{"name": name, "value": value} for name, value in values.items()]`。
-- `test_independent_metric_values_use_authorized_http_rows`（L47–L49）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L49断言`len(verify_scoped_metrics(client, plan)) == 5`。 调用`fixture`、`len`、`verify_scoped_metrics`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_broken_metric_values_do_not_count_as_functional_acceptance`（L62–L66）：接收`name`、`value`。 调用`fixture`、`deepcopy`、`pytest.raises`、`verify_scoped_metrics`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_service_cannot_silently_lose_its_approved_metrics`（L69–L73）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`fixture`、`values.pop`、`pytest.raises`、`verify_scoped_metrics`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `fixture`（L10–L66）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Plan.model_validate_json`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Client`。 返回路径：L66的`Client(), plan, values`。
+- `fixture.Client`（L56–L64）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `fixture.Client.rows`（L60–L61）：接收`entity`、`**kwargs`。 返回路径：L61的`rows[entity]`。
+- `fixture.Client.call`（L63–L64）：接收`*args`、`**kwargs`。 调用`values.items`。 返回路径：L64的`[{"name": name, "value": value} for name, value in values.items()]`。
+- `test_independent_metric_values_use_authorized_http_rows`（L69–L71）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L71断言`len(verify_scoped_metrics(client, plan)) == len(plan.business.metrics) == 7`。 调用`fixture`、`len`、`verify_scoped_metrics`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_broken_metric_values_do_not_count_as_functional_acceptance`（L87–L91）：接收`name`、`value`。 调用`fixture`、`deepcopy`、`pytest.raises`、`verify_scoped_metrics`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_service_cannot_silently_lose_its_approved_metrics`（L94–L98）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`fixture`、`values.pop`、`pytest.raises`、`verify_scoped_metrics`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_metric_oracle_accepts_provider_names_and_yudao_wire_format`（L101–L114）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L103遍历`enumerate(plan.business.metrics)`；L114断言`len(verify_scoped_metrics(client, plan)) == len(values)`。 调用`fixture`、`enumerate`、`values.pop`、`wire_name`、`row.items`、`original_rows`、`len`、`verify_scoped_metrics`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_business_metric_probe.py sha256: eb076e75078b61a6665214809fc7d6443bc5ace0b35a6fbc371fabb796a6eceb -->
+<!-- source-file: tests/test_business_metric_probe.py sha256: 6b0bbac106272e58b67e38cc36d93b7b28917ae74bbbef86a6766b54156eda94 -->
 ````python
 from copy import deepcopy
 
@@ -29986,23 +30819,45 @@ def fixture():
         (ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8")
     )
     rows = {
-        "customers": [{"id": "1"}],
+        "customers": [
+            {"id": "1", "category": "企业"},
+            {"id": "2", "category": "企业"},
+            {"id": "3", "category": "个人"},
+        ],
         "requests": [
             {
-                "id": "2",
+                "id": "4",
                 "customer_id": "1",
                 "request_state": "resolved",
                 "created_at": "2026-01-01T00:00:00Z",
                 "resolved_at": "2026-01-01T00:01:00Z",
-            }
+            },
+            {
+                "id": "5",
+                "customer_id": "1",
+                "request_state": "resolved",
+                "created_at": "2026-01-02T00:00:00Z",
+                "resolved_at": "2026-01-02T00:03:00Z",
+            },
+            {
+                "id": "6",
+                "customer_id": "3",
+                "request_state": "new",
+                "created_at": "2026-01-02T00:00:00Z",
+                "resolved_at": None,
+            },
         ],
     }
     values = {
-        "total": {"value": 1},
-        "resolution": {"value": 60, "samples": 1},
-        "by_customer": {"groups": [{"key": "1", "count": 1}]},
-        "daily": {"groups": [{"day": "2026-01-01", "count": 1}]},
-        "customer_total": {"value": 1},
+        "total": {"value": 3},
+        "resolved_total": {"value": 2},
+        "resolution": {"value": 120, "samples": 2},
+        "by_customer": {"groups": [{"key": "1", "count": 2}, {"key": "3", "count": 1}]},
+        "daily": {"groups": [{"day": "2026-01-01", "count": 1}, {"day": "2026-01-02", "count": 2}]},
+        "customer_total": {"value": 3},
+        "customer_categories": {
+            "groups": [{"key": "企业", "count": 2}, {"key": "个人", "count": 1}]
+        },
     }
 
     class Client:
@@ -30020,7 +30875,7 @@ def fixture():
 
 def test_independent_metric_values_use_authorized_http_rows():
     client, plan, _ = fixture()
-    assert len(verify_scoped_metrics(client, plan)) == 5
+    assert len(verify_scoped_metrics(client, plan)) == len(plan.business.metrics) == 7
 
 
 @pytest.mark.parametrize(
@@ -30028,9 +30883,12 @@ def test_independent_metric_values_use_authorized_http_rows():
     [
         ("total", {"value": True}),
         ("total", {"value": 2}),
-        ("resolution", {"value": 1, "samples": 1}),
-        ("by_customer", {"groups": [{"key": "other", "count": 1}]}),
-        ("daily", {"groups": [{"day": "2026-01-02", "count": 1}]}),
+        ("resolved_total", {"value": 3}),
+        ("resolution", {"value": 60, "samples": 2}),
+        ("resolution", {"value": 120, "samples": 3}),
+        ("by_customer", {"groups": [{"key": "other", "count": 3}]}),
+        ("customer_categories", {"groups": [{"key": "企业", "count": 3}]}),
+        ("daily", {"groups": [{"day": "2026-01-02", "count": 3}]}),
     ],
 )
 def test_broken_metric_values_do_not_count_as_functional_acceptance(name, value):
@@ -30045,6 +30903,22 @@ def test_service_cannot_silently_lose_its_approved_metrics():
     values.pop("resolution")
     with pytest.raises(AssertionError, match="Metric set"):
         verify_scoped_metrics(client, plan, "service")
+
+
+def test_metric_oracle_accepts_provider_names_and_yudao_wire_format():
+    client, plan, values = fixture()
+    for number, metric in enumerate(plan.business.metrics):
+        values[f"provider_metric_{number}"] = values.pop(metric.name)
+        metric.name = f"provider_metric_{number}"
+    original_rows = client.rows
+    from workbench.business_probe import wire_name
+
+    client.template = "yudao-vben"
+    client.rows = lambda entity, **kwargs: [
+        {wire_name(client.template, key): value for key, value in row.items()}
+        for row in original_rows(entity)
+    ]
+    assert len(verify_scoped_metrics(client, plan)) == len(values)
 ````
 
 ### `tests/test_business_native_schema.py`
@@ -30125,6 +30999,590 @@ def test_fastapi_business_indexes_match_original_mixins():
         )
 ````
 
+### `tests/test_business_note_notifications.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.domain`、`workbench.generator`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `load_template`（L39–L43）：接收`name`、`filename`。 调用`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`。 返回路径：L43的`module`。
+- `notification_plan`（L46–L60）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`runtime_plan().model_dump`、`runtime_plan`、`Plan.model_validate`。 返回路径：L60的`Plan.model_validate(raw)`。
+- `test_note_notification_contract_accepts_declared_recipients`（L64–L71）：接收`recipient`。 控制顺序：L70断言`plan.business.notifications[-1].event == "note_added"`；L71断言`Plan.model_validate_json(plan.model_dump_json()) == plan`。 调用`business_plan`、`raw["business"]["notifications"].append`、`Plan.model_validate`、`Plan.model_validate_json`、`plan.model_dump_json`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_note_notification_contract_rejects_inapplicable_capabilities_and_selectors`（L75–L86）：接收`change`。 控制顺序：L79按`change == "disabled"`分支；L81按`change == "unassigned"`分支。 调用`business_plan`、`raw["business"]["notifications"].append`、`pytest.raises`、`Plan.model_validate`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `extract_functions`（L89–L100）：接收`path`、`names`、`namespace`。 控制顺序：L91遍历`ast.parse(path.read_text(encoding="utf-8")).body`；L92按`isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in names`分支；L95遍历`node.args.args + node.args.kwonlyargs`。 调用`ast.parse`、`path.read_text`、`isinstance`、`ast.Constant`、`nodes.append`、`ast.fix_missing_locations`、`ast.Module`、`exec`、`compile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_fastapi_note_reminders_are_atomic_scoped_and_idempotent`（L104–L303）：接收`tmp_path`、`same_recipient`。 调用`dict`、`next`、`ast.parse`、`model.read_text`、`isinstance`、`exec`、`compile`、`ast.Module`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_fastapi_note_reminders_are_atomic_scoped_and_idempotent.Base`（L105–L106）：继承`DeclarativeBase`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_native_fastapi_note_reminders_are_atomic_scoped_and_idempotent.User`（L108–L110）：继承`Base`。声明的数据项为`id`；类型约束/数据库列参数以完整定义为准。
+- `test_native_fastapi_note_reminders_are_atomic_scoped_and_idempotent.Request`（L112–L125）：继承`Base`。声明的数据项为`id`、`customer_id`、`assignee_id`、`request_state`、`resolved_at`、`due_at`、`created_id`、`created_time`、`updated_id`、`updated_time`、`is_deleted`、`deleted_time`；类型约束/数据库列参数以完整定义为准。
+- `test_native_fastapi_note_reminders_are_atomic_scoped_and_idempotent.actor`（L181–L182）：接收`db`、`auth`。 调用`str`。 返回路径：L182的`{"id": str(auth.user.id), "role": auth.role}`。
+- `test_native_fastapi_note_reminders_are_atomic_scoped_and_idempotent.auth`（L198–L199）：接收`identifier`、`role`。用本机Dex真实签发的JWT访问本机API创建密钥，不伪造token，也不向云身份服务注册账号。 调用`SimpleNamespace`。 返回路径：L199的`SimpleNamespace(user=SimpleNamespace(id=identifier), role=role)`。
+- `test_native_fastapi_note_reminders_are_atomic_scoped_and_idempotent.scenario`（L201–L301）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L245断言`list((await db.scalars(select(BusinessEvent))).all()) == []`；L246断言`(await db.get(Request, 7)).updated_time == original_time`；L256断言`denied.value.status_code == 404`；L269断言`[e.event for e in stored] == ["add_note"] + ["notification"] * ( 1 if same_recipient …`；L273断言`audit.payload["text"] == "Actual native note"`；L274断言`audit.payload["before"]["updated_at"] != audit.payload["after"]["updated_at"]`；L275断言`{e.recipient for e in stored[1:]} == {creator, assignee}`；L276断言`all(e.payload == {"event": "note_added"} for e in stored[1:])`。后续分支沿下方源码相同行号继续阅读。 调用`create_async_engine`、`async_sessionmaker`、`engine.begin`、`connection.run_sync`、`datetime`、`sessions`、`db.add_all`、`User`、`db.add`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_fastapi_note_reminders_are_atomic_scoped_and_idempotent.scenario.reject_notification`（L226–L228）：接收`mapper`、`connection`、`target`。 控制顺序：L227按`target.event == "notification"`分支；L228抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_yudao_note_dispatch_preserves_audit_transaction_recipient_and_read_guards`（L306–L322）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L309断言`"event(name,row,action,before,note)" in action`；L310断言`'case "add_note"->"note_added"' in action`；L311断言`"notify(name,row,notificationEvent,transition,audit)" in action`；L312断言`action.index("require(name,row,action)") < action.index( "event(name,row,action,befor…`；L315断言`"@Transactional(rollbackFor = Exception.class)" in source`；L316断言`'case "note_added"->"有新的备注"' in source`；L318断言`"ON CONFLICT(tenant_id,recipient_id,event_key) DO NOTHING" in mapper`；L319断言`"WHERE tenant_id=#{tenant} AND recipient_id=#{user}" in mapper`。后续分支沿下方源码相同行号继续阅读。 调用`(ROOT / "templates/business/yudao/RndBusinessService.java").read_…`、`source.split("public Object action(", 1)[1].split`、`source.split`、`action.index`、`(ROOT / "templates/business/yudao/RndBusinessMapper.java").read_t…`、`(ROOT / "templates/business/fastapiadmin/index.vue").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_notification_oracle_derives_every_recipient_and_deduplicates_one_source`（L325–L338）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L331断言`ledger.expected == { ("creator", "requests", "record", "note_added"): 1, ("assignee",…`；L336断言`ledger.expected["creator", "requests", "record", "note_added"] == 2`。 调用`load_template`、`notification_plan().model_dump`、`notification_plan`、`module.NotificationEvidence`、`ledger.event`、`pytest.raises`、`ledger.complete`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_notification_oracle_rejects_incomplete_or_misrouted_reminders`（L344–L372）：接收`corruption`。 控制顺序：L359按`corruption == "missing"`分支；L361按`corruption == "duplicated"`分支。 调用`load_template`、`module.NotificationEvidence`、`notification_plan().model_dump`、`notification_plan`、`ledger.event`、`ledger.inbox`、`deepcopy`、`notices.append`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generated_python_acceptance_requires_action_notifications_and_durable_reads`（L376–L424）：接收`tmp_path`、`fault`。 控制顺序：L387按`fault == "missing_note"`分支；L392按`fault == "missing_transition"`分支；L397按`fault == "read_reset"`分支；L399按`fault`分支；L400断言`text != source.read_text(encoding="utf-8")`；L415按`fault`分支；L416断言`result.returncode == 1 and evidence["passed"] is False`；L417断言`"notification" in evidence["message"].lower() or "read timestamp" in evidence["messag…`。后续分支沿下方源码相同行号继续阅读。 调用`generate_basic`、`notification_plan`、`source.read_text`、`text.replace`、`source.write_text`、`clean_env`、`os.environ.get`、`subprocess.run`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generated_python_notification_integrity_failure_rolls_back_whole_note`（L514–L549）：接收`tmp_path`、`failing_recipient`。 控制顺序：L539断言`initialized.returncode == 0`；L549断言`result.returncode == 0`。 调用`generate_basic`、`notification_plan`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_business_note_notifications.py sha256: e015a24f678599dc80bf22b857fcf9e4ce6ab7c3eb7c7b67fedd84f7887d3640 -->
+````python
+"""Canonical note reminders preserve native audit events and transactional boundaries."""
+
+import ast
+import asyncio
+import importlib.util
+import os
+import subprocess
+import sys
+from copy import deepcopy
+from datetime import UTC, datetime
+from types import SimpleNamespace
+
+import pytest
+from fastapi import HTTPException
+from pydantic import ValidationError
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Integer,
+    String,
+    select,
+)
+from sqlalchemy import (
+    event as sql_event,
+)
+from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from test_business_contracts import business_plan
+from test_business_python import runtime_plan
+
+from workbench.domain import Plan
+from workbench.generator import generate_basic
+from workbench.settings import ROOT
+from workbench.tools import clean_env
+
+
+def load_template(name, filename):
+    spec = importlib.util.spec_from_file_location(name, ROOT / filename)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def notification_plan():
+    raw = runtime_plan().model_dump()
+    raw["business"]["notifications"] = [
+        {"entity": "requests", "event": event, "recipient": recipient, **extra}
+        for event, extra in [
+            ("created", {}),
+            ("assigned", {}),
+            ("note_added", {}),
+            ("transitioned", {"transition": "start"}),
+            ("transitioned", {"transition": "resolve"}),
+            ("due", {"due_field": "due_at"}),
+        ]
+        for recipient in (["creator"] if event == "created" else ["creator", "assignee"])
+    ]
+    return Plan.model_validate(raw)
+
+
+@pytest.mark.parametrize("recipient", ["creator", "assignee"])
+def test_note_notification_contract_accepts_declared_recipients(recipient):
+    raw = business_plan()
+    raw["business"]["notifications"].append(
+        {"entity": "requests", "event": "note_added", "recipient": recipient}
+    )
+    plan = Plan.model_validate(raw)
+    assert plan.business.notifications[-1].event == "note_added"
+    assert Plan.model_validate_json(plan.model_dump_json()) == plan
+
+
+@pytest.mark.parametrize("change", ["disabled", "transition", "due_field", "unassigned"])
+def test_note_notification_contract_rejects_inapplicable_capabilities_and_selectors(change):
+    raw = business_plan()
+    rule = {"entity": "customers", "event": "note_added", "recipient": "creator"}
+    raw["business"]["notifications"].append(rule)
+    if change == "disabled":
+        raw["business"]["resources"][0]["notes"] = False
+    elif change == "unassigned":
+        rule["recipient"] = "assignee"
+    else:
+        rule[change] = "resolve" if change == "transition" else "created_at"
+    with pytest.raises(ValidationError):
+        Plan.model_validate(raw)
+
+
+def extract_functions(path, names, namespace):
+    nodes = []
+    for node in ast.parse(path.read_text(encoding="utf-8")).body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name in names:
+            node.decorator_list = []
+            node.returns = None
+            for arg in node.args.args + node.args.kwonlyargs:
+                arg.annotation = None
+            node.args.defaults = [ast.Constant(None) for _ in node.args.defaults]
+            nodes.append(node)
+    tree = ast.fix_missing_locations(ast.Module(body=nodes, type_ignores=[]))
+    exec(compile(tree, str(path), "exec"), namespace)
+
+
+@pytest.mark.parametrize("same_recipient", [False, True])
+def test_native_fastapi_note_reminders_are_atomic_scoped_and_idempotent(tmp_path, same_recipient):
+    class Base(DeclarativeBase):
+        pass
+
+    class User(Base):
+        __tablename__ = "sys_user"
+        id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    class Request(Base):
+        __tablename__ = "requests"
+        id: Mapped[int] = mapped_column(Integer, primary_key=True)
+        customer_id: Mapped[str] = mapped_column(String)
+        assignee_id: Mapped[int] = mapped_column(Integer)
+        request_state: Mapped[str] = mapped_column(String)
+        resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
+        due_at: Mapped[datetime | None] = mapped_column(DateTime)
+        created_id: Mapped[int] = mapped_column(Integer)
+        created_time: Mapped[datetime] = mapped_column(DateTime)
+        updated_id: Mapped[int] = mapped_column(Integer)
+        updated_time: Mapped[datetime] = mapped_column(DateTime)
+        is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+        deleted_time: Mapped[datetime | None] = mapped_column(DateTime)
+
+    model_scope = dict(
+        MappedBase=Base,
+        Mapped=Mapped,
+        mapped_column=mapped_column,
+        CONFIG={"namespace": "note_test"},
+        Integer=Integer,
+        String=String,
+        ForeignKey=ForeignKey,
+        JSON=JSON,
+        DateTime=DateTime,
+        datetime=datetime,
+        UTC=UTC,
+    )
+    model = ROOT / "templates/business/fastapiadmin/model.py"
+    event_class = next(
+        node for node in ast.parse(model.read_text()).body if isinstance(node, ast.ClassDef)
+    )
+    exec(compile(ast.Module(body=[event_class], type_ignores=[]), str(model), "exec"), model_scope)
+    BusinessEvent = model_scope["BusinessEvent"]
+    plan = notification_plan().model_dump()
+    plan["business"]["notifications"] = [
+        n for n in plan["business"]["notifications"] if n["event"] == "note_added"
+    ]
+    policy = load_template("note_policy", "templates/business/common/policy.py")
+    scope = dict(
+        SPEC=plan["business"],
+        ENTITIES={e["name"]: e for e in plan["entities"]},
+        POLICY=policy.Policy(plan),
+        PolicyError=policy.PolicyError,
+        MODELS={"requests": Request},
+        HTTPException=HTTPException,
+        select=select,
+        BusinessEvent=BusinessEvent,
+        datetime=datetime,
+        UTC=UTC,
+        date=__import__("datetime").date,
+    )
+    extract_functions(
+        ROOT / "templates/business/fastapiadmin/runtime.py",
+        {
+            "fail",
+            "identifier",
+            "serialize",
+            "grant",
+            "scope",
+            "record",
+            "record_title",
+            "event",
+            "mutate",
+        },
+        scope,
+    )
+    rt = SimpleNamespace(**scope)
+
+    async def actor(db, auth):
+        return {"id": str(auth.user.id), "role": auth.role}
+
+    rt.actor = actor
+    controller = dict(
+        rt=rt,
+        select=select,
+        UserModel=User,
+        BusinessEvent=BusinessEvent,
+        datetime=datetime,
+        UTC=UTC,
+        SuccessResponse=lambda **kw: kw["data"],
+    )
+    extract_functions(
+        ROOT / "templates/business/fastapiadmin/controller.py", {"inbox", "read_notice"}, controller
+    )
+
+    def auth(identifier, role):
+        return SimpleNamespace(user=SimpleNamespace(id=identifier), role=role)
+
+    async def scenario():
+        engine = create_async_engine(f"sqlite+aiosqlite:///{tmp_path / 'native.db'}")
+        sessions = async_sessionmaker(engine, expire_on_commit=False)
+        try:
+            async with engine.begin() as connection:
+                await connection.run_sync(Base.metadata.create_all)
+            creator, assignee = 1, 1 if same_recipient else 2
+            original_time = datetime(2020, 1, 1)
+            async with sessions() as db:
+                db.add_all(User(id=i) for i in [1, 2, 3])
+                db.add(
+                    Request(
+                        id=7,
+                        customer_id="9",
+                        assignee_id=assignee,
+                        request_state="active",
+                        created_id=creator,
+                        created_time=original_time,
+                        updated_id=creator,
+                        updated_time=original_time,
+                    )
+                )
+                await db.commit()
+
+            # Inject a notification write failure: the note/audit/row mutation must roll back.
+            def reject_notification(mapper, connection, target):
+                if target.event == "notification":
+                    raise RuntimeError("synthetic reminder storage failure")
+
+            sql_event.listen(BusinessEvent, "before_insert", reject_notification)
+            try:
+                async with sessions() as db:
+                    with pytest.raises(RuntimeError, match="synthetic reminder storage failure"):
+                        await rt.mutate(
+                            db,
+                            {"id": "1", "role": "manager"},
+                            "requests",
+                            7,
+                            "add_note",
+                            {"text": "Must roll back"},
+                        )
+            finally:
+                sql_event.remove(BusinessEvent, "before_insert", reject_notification)
+            async with sessions() as db:
+                assert list((await db.scalars(select(BusinessEvent))).all()) == []
+                assert (await db.get(Request, 7)).updated_time == original_time
+                with pytest.raises(HTTPException) as denied:
+                    await rt.mutate(
+                        db,
+                        {"id": "3", "role": "employee"},
+                        "requests",
+                        7,
+                        "add_note",
+                        {"text": "Denied"},
+                    )
+                assert denied.value.status_code == 404
+                await rt.mutate(
+                    db,
+                    {"id": "1", "role": "manager"},
+                    "requests",
+                    7,
+                    "add_note",
+                    {"text": "Actual native note"},
+                )
+            async with sessions() as db:
+                stored = list(
+                    (await db.scalars(select(BusinessEvent).order_by(BusinessEvent.id))).all()
+                )
+                assert [e.event for e in stored] == ["add_note"] + ["notification"] * (
+                    1 if same_recipient else 2
+                )
+                audit = stored[0]
+                assert audit.payload["text"] == "Actual native note"
+                assert audit.payload["before"]["updated_at"] != audit.payload["after"]["updated_at"]
+                assert {e.recipient for e in stored[1:]} == {creator, assignee}
+                assert all(e.payload == {"event": "note_added"} for e in stored[1:])
+                assert all(e.source_key == f"{audit.id}:{e.recipient}" for e in stored[1:])
+            for recipient in {creator, assignee}:
+                who = auth(recipient, "manager" if recipient == creator else "service")
+                async with sessions() as db:
+                    notices = await controller["inbox"](who, db)
+                    assert len(notices) == 1 and notices[0]["event"] == "note_added"
+                    assert notices == await controller["inbox"](who, db)
+                    with pytest.raises(HTTPException) as denied:
+                        await controller["read_notice"](notices[0]["id"], auth(3, "employee"), db)
+                    assert denied.value.status_code == 404
+                    await controller["read_notice"](notices[0]["id"], who, db)
+                    first_read = (await db.get(BusinessEvent, int(notices[0]["id"]))).read_at
+                    await controller["read_notice"](notices[0]["id"], who, db)
+                    assert (
+                        await db.get(BusinessEvent, int(notices[0]["id"]))
+                    ).read_at == first_read
+                async with sessions() as db:
+                    assert (await controller["inbox"](who, db))[0]["read"] is True
+            async with sessions() as db:
+                assert await controller["inbox"](auth(3, "employee"), db) == []
+                assert len((await db.scalars(select(BusinessEvent))).all()) == 2 + (
+                    not same_recipient
+                )
+        finally:
+            await engine.dispose()
+
+    asyncio.run(scenario())
+
+
+def test_yudao_note_dispatch_preserves_audit_transaction_recipient_and_read_guards():
+    source = (ROOT / "templates/business/yudao/RndBusinessService.java").read_text(encoding="utf-8")
+    action = source.split("public Object action(", 1)[1].split("public Object related(", 1)[0]
+    assert "event(name,row,action,before,note)" in action
+    assert 'case "add_note"->"note_added"' in action
+    assert "notify(name,row,notificationEvent,transition,audit)" in action
+    assert action.index("require(name,row,action)") < action.index(
+        "event(name,row,action,before,note)"
+    )
+    assert "@Transactional(rollbackFor = Exception.class)" in source
+    assert 'case "note_added"->"有新的备注"' in source
+    mapper = (ROOT / "templates/business/yudao/RndBusinessMapper.java").read_text(encoding="utf-8")
+    assert "ON CONFLICT(tenant_id,recipient_id,event_key) DO NOTHING" in mapper
+    assert "WHERE tenant_id=#{tenant} AND recipient_id=#{user}" in mapper
+    assert "read_at=COALESCE(read_at,CURRENT_TIMESTAMP)" in mapper
+    page = (ROOT / "templates/business/fastapiadmin/index.vue").read_text(encoding="utf-8")
+    assert "note_added: '添加备注'" in page
+
+
+def test_notification_oracle_derives_every_recipient_and_deduplicates_one_source():
+    module = load_template("note_verifier", "templates/product/verify_business.py")
+    plan = notification_plan().model_dump()
+    ledger = module.NotificationEvidence(plan["business"])
+    row = {"id": "record", "created_by": "creator", "assignee_id": "assignee"}
+    ledger.event("requests", row, "note_added")
+    assert ledger.expected == {
+        ("creator", "requests", "record", "note_added"): 1,
+        ("assignee", "requests", "record", "note_added"): 1,
+    }
+    ledger.event("requests", {**row, "assignee_id": "creator"}, "note_added")
+    assert ledger.expected["creator", "requests", "record", "note_added"] == 2
+    with pytest.raises(ValueError, match="not exercised"):
+        ledger.complete()
+
+
+@pytest.mark.parametrize(
+    "corruption", ["missing", "duplicated", "recipient", "event", "record", "timestamp"]
+)
+def test_notification_oracle_rejects_incomplete_or_misrouted_reminders(corruption):
+    module = load_template("note_verifier_negative", "templates/product/verify_business.py")
+    ledger = module.NotificationEvidence(notification_plan().model_dump()["business"])
+    row = {"id": "record", "created_by": "creator", "assignee_id": "assignee"}
+    ledger.event("requests", row, "note_added")
+    notice = {
+        "id": "notice",
+        "recipient_id": "creator",
+        "entity": "requests",
+        "record_id": "record",
+        "event": "note_added",
+        "created_at": "2026-01-01T00:00:00Z",
+    }
+    ledger.inbox({"id": "creator"}, [notice])
+    notices = [deepcopy(notice)]
+    if corruption == "missing":
+        notices = []
+    elif corruption == "duplicated":
+        notices.append({**notice, "id": "duplicate"})
+    else:
+        field = {
+            "recipient": "recipient_id",
+            "event": "event",
+            "record": "record_id",
+            "timestamp": "created_at",
+        }[corruption]
+        notices[0][field] = "wrong" if corruption != "timestamp" else None
+    with pytest.raises(ValueError):
+        ledger.inbox({"id": "creator"}, notices)
+
+
+@pytest.mark.parametrize("fault", [None, "missing_note", "missing_transition", "read_reset"])
+def test_generated_python_acceptance_requires_action_notifications_and_durable_reads(
+    tmp_path, fault
+):
+    product = tmp_path / "product"
+    generate_basic(
+        notification_plan(),
+        product,
+        {"template": "python-basic", "frontend": "api-only", "database": "sqlite"},
+    )
+    source = product / "business_runtime.py"
+    text = source.read_text(encoding="utf-8")
+    if fault == "missing_note":
+        text = text.replace(
+            'notify(connection, entity, row, "note_added", eid)',
+            "pass  # omitted notification fault",
+        )
+    elif fault == "missing_transition":
+        text = text.replace(
+            'notify(connection, entity, after, "transitioned", event_id, data.transition)',
+            "pass  # omitted notification fault",
+        )
+    elif fault == "read_reset":
+        text = text.replace('timestamp = row["read_at"] or utc()', "timestamp = utc()")
+    if fault:
+        assert text != source.read_text(encoding="utf-8")
+        source.write_text(text, encoding="utf-8")
+    env = clean_env({"PATH": os.environ.get("PATH", ""), "PYTHONUTF8": "1"})
+    result = subprocess.run(
+        [sys.executable, "verify.py", "--python", sys.executable],
+        cwd=product,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        timeout=120,
+    )
+    import json
+
+    evidence = json.loads(result.stdout.splitlines()[-1])
+    if fault:
+        assert result.returncode == 1 and evidence["passed"] is False, result.stdout + result.stderr
+        assert (
+            "notification" in evidence["message"].lower()
+            or "read timestamp" in evidence["message"].lower()
+        ), evidence
+    else:
+        assert result.returncode == 0 and evidence["passed"] is True, result.stdout + result.stderr
+        assert "business-notifications" in evidence["checks"]
+        assert "process_restart_persistence" in evidence["checks"]
+
+
+NOTE_ATOMICITY_SCENARIO = r"""
+import getpass
+import inspect
+import json
+import sys
+
+from fastapi.testclient import TestClient
+from sqlalchemy import select, text
+
+import manage
+
+getpass.getpass = lambda _: "Example-Test-Password-123"
+manage.bootstrap_admin("admin")
+from app import app
+from schema import engine, metadata
+
+with TestClient(app, raise_server_exceptions=False) as client:
+    login = client.post("/auth/login", json={"username": "admin", "password": "Example-Test-Password-123"})
+    assert login.status_code == 200, login.text
+    headers = {"Authorization": "Bearer " + login.json()["access_token"]}
+
+    def post(path, data, status=200):
+        response = client.post(path, headers=headers, json=data)
+        assert response.status_code == status, response.text
+        return response.json()
+
+    admin = client.get("/business/me", headers=headers).json()
+    service = post("/business/users", {"username": "service", "password": "Example-Test-Password-123", "role": "service"}, 201)
+    customer = post("/api/customers", {"name": "Atomic customer"}, 201)
+    row = post("/api/requests", {"customer_id": customer["id"]}, 201)
+    row = post(f"/api/requests/{row['id']}/assign", {"user_id": service["id"]})
+    blocked = admin["id"] if sys.argv[1] == "creator" else service["id"]
+    tables = metadata.tables
+    notes, audit, notices = (tables[name] for name in ("business_notes", "business_audit", "business_notifications"))
+
+    def snapshots():
+        with engine.connect() as connection:
+            return {
+                "notes": [dict(r) for r in connection.execute(select(notes).where(notes.c.record_id == row["id"])).mappings()],
+                "audit": [dict(r) for r in connection.execute(select(audit).where(audit.c.record_id == row["id"], audit.c.action == "note_added")).mappings()],
+                "notifications": [dict(r) for r in connection.execute(select(notices).where(notices.c.record_id == row["id"], notices.c.event == "note_added")).mappings()],
+            }
+
+    before = snapshots()
+    assert before == {"notes": [], "audit": [], "notifications": []}
+    with engine.begin() as connection:
+        connection.execute(text(f"CREATE TRIGGER fail_note_reminder BEFORE INSERT ON business_notifications WHEN NEW.event = 'note_added' AND NEW.recipient_id = '{blocked}' BEGIN SELECT RAISE(ABORT, 'synthetic notification constraint failure'); END"))
+    failed = client.post(f"/api/requests/{row['id']}/notes", headers=headers, json={"body": "Must roll back"})
+    assert failed.status_code == 500, failed.text
+    assert snapshots() == before, snapshots()
+    with engine.begin() as connection:
+        connection.execute(text("DROP TRIGGER fail_note_reminder"))
+    note = post(f"/api/requests/{row['id']}/notes", {"body": "Confirmed atomic note"}, 201)
+    stored = snapshots()
+    assert len(stored["notes"]) == len(stored["audit"]) == 1, stored
+    assert len(stored["notifications"]) == 2, stored
+    assert {n["recipient_id"] for n in stored["notifications"]} == {admin["id"], service["id"]}
+    assert stored["audit"][0]["action"] == "note_added"
+    assert json.loads(stored["audit"][0]["after_json"]) == note
+
+    # Model an exact duplicate becoming visible between precheck and insertion.
+    # A real unique-key violation must remain harmless after its savepoint rollback.
+    endpoint = next(route.endpoint for route in app.routes if getattr(route, "path", "") == "/api/{entity}/{identity}/notes" and "POST" in getattr(route, "methods", set()))
+    notify = inspect.getclosurevars(endpoint).nonlocals["notify"]
+
+    class StalePrecheck:
+        def __init__(self, connection):
+            self.connection = connection
+            self.calls = 0
+        def scalar(self, statement):
+            self.calls += 1
+            return None if self.calls == 1 else self.connection.scalar(statement)
+        def execute(self, statement):
+            return self.connection.execute(statement)
+        def begin_nested(self):
+            return self.connection.begin_nested()
+
+    with engine.begin() as connection:
+        raced = StalePrecheck(connection)
+        notify(raced, "requests", row, "note_added", stored["audit"][0]["id"])
+        assert raced.calls >= 3
+    assert snapshots() == stored
+print(json.dumps({"passed": True, "atomic_rollback": True, "exact_duplicate_preserved": True}))
+"""
+
+
+@pytest.mark.parametrize("failing_recipient", ["creator", "assignee"])
+def test_generated_python_notification_integrity_failure_rolls_back_whole_note(
+    tmp_path, failing_recipient
+):
+    product = tmp_path / "product"
+    generate_basic(
+        notification_plan(),
+        product,
+        {"template": "python-basic", "frontend": "api-only", "database": "sqlite"},
+    )
+    env = clean_env(
+        {
+            "PATH": os.environ.get("PATH", ""),
+            "PRODUCT_DATA_DIR": str(tmp_path / "db"),
+            "PYTHONUTF8": "1",
+        }
+    )
+    initialized = subprocess.run(
+        [sys.executable, "manage.py", "init"],
+        cwd=product,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        timeout=60,
+    )
+    assert initialized.returncode == 0, initialized.stdout + initialized.stderr
+    result = subprocess.run(
+        [sys.executable, "-c", NOTE_ATOMICITY_SCENARIO, failing_recipient],
+        cwd=product,
+        env=env,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+````
+
 ### `tests/test_business_probe.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -30144,13 +31602,20 @@ def test_fastapi_business_indexes_match_original_mixins():
 - `test_yudao_registration_requires_native_anonymous_default_membership`（L85–L130）：接收`monkeypatch`、`violation`。 控制顺序：L121按`violation`分支；L128断言`identifier == "8"`；L130断言`all(client.is_closed for client in clients)`。 调用`monkeypatch.setattr`、`pytest.raises`、`probe.register_yudao_actor`、`actor.close`、`all`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_yudao_registration_requires_native_anonymous_default_membership.handler`（L91–L112）：接收`request`。 控制顺序：L92按`request.url.path == "/admin-api/system/auth/register"`分支；L93断言`"authorization" not in request.headers`；L94断言`request.headers["tenant-id"] == "1"`；L96断言`body["roleIds"] == [1] and body["roles"] == ["super_admin"]`；L97按`violation == "registration_denied"`分支；L100按`request.url.path.endswith("/me")`分支；L106断言`request.url.path == "/admin-api/system/auth/get-permission-info"`。 调用`json.loads`、`httpx.Response`、`request.url.path.endswith`。 返回路径：L98的`httpx.Response(200, json={"code": 403})`；L112的`httpx.Response(200, json={"code": 0, "data": data})`。
 - `test_yudao_registration_requires_native_anonymous_default_membership.factory`（L114–L117）：接收`**kwargs`。 调用`original_client`、`httpx.MockTransport`、`clients.append`。 返回路径：L117的`client`。
-- `test_assignment_due_idempotency_and_read_recipient_are_required`（L137–L179）：接收`template`、`violation`。 控制顺序：L140遍历`[("requests", "2"), ("tasks", "3")]`；L141遍历`["assigned", "due"]`；L142按`violation == "missing_due" and event == "due"`分支；L151按`violation == "duplicated_due"`分支；L175按`violation`分支。 调用`str`、`len`、`row.update`、`notices.append`、`pytest.raises`、`probe.verify_reminders`、`Client`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_assignment_due_idempotency_and_read_recipient_are_required.Client`（L154–L173）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_assignment_due_idempotency_and_read_recipient_are_required.Client.__init__`（L155–L156）：接收`outsider`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_assignment_due_idempotency_and_read_recipient_are_required.Client.inbox`（L158–L159）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L159的`notices`。
-- `test_assignment_due_idempotency_and_read_recipient_are_required.Client.read_notice`（L161–L173）：接收`identifier`。 控制顺序：L162按`self.outsider and violation != "wrong_recipient"`分支；L166按`violation != "unread"`分支。 调用`next`、`row.update`、`httpx.Response`、`httpx.Request`。 返回路径：L169的`httpx.Response( 200, json={"code": code, "data": True}, request=httpx.Request("POST", "htt…`。
+- `reminder_case`（L133–L194）：接收`template`、`violation`。 调用`Plan.model_validate`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Client`。 返回路径：L194的`plan, recipients, outsider, emit`。
+- `reminder_case.Client`（L145–L168）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `reminder_case.Client.__init__`（L146–L147）：接收`role`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `reminder_case.Client.inbox`（L149–L150）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L150的`[row for recipient, row in store if recipient is self]`。
+- `reminder_case.Client.read_notice`（L152–L168）：接收`identifier`。 控制顺序：L156按`not matches and violation != "wrong_recipient"`分支；L160按`matches and violation != "unread"`分支。 调用`matches[0].update`、`httpx.Response`、`httpx.Request`。 返回路径：L164的`httpx.Response( 200, json={"code": code, "data": True}, request=httpx.Request("POST", "htt…`。
+- `reminder_case.emit`（L173–L192）：接收`entity`、`identifier`、`event`、`transition`。 控制顺序：L175遍历`expected`；L176按`violation in {"missing_due", "missing"} and ( event == "due" or violation == "missing…`分支；L180遍历`range( 2 if violation == "duplicated_due" and event == "due" or v…`。 调用`probe.reminder_recipients`、`range`、`str`、`len`、`row.update`、`store.append`。 返回路径：L192的`"action result"`。
+- `test_assignment_due_idempotency_and_read_recipient_are_required`（L202–L216）：接收`template`、`violation`、`recipient`。 控制顺序：L204遍历`plan.business.notifications`；L205按`notice.event in {"assigned", "due"}`分支；L208遍历`[("requests", "2"), ("tasks", "3")]`；L210遍历`["assigned", "due"]`；L212按`violation`分支。 调用`reminder_case`、`records.append`、`emit`、`pytest.raises`、`probe.verify_reminders`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_each_note_or_transition_requires_its_own_persisted_routed_reminder`（L228–L246）：接收`template`、`event`、`transition`、`recipient`、`violation`。 控制顺序：L232遍历`plan.business.notifications`；L233按`(notice.entity, notice.event, notice.transition) == ("requests", event, transition)`分支；L242按`violation`分支；L246断言`probe.verify_event_reminders(*args) == "action result"`。 调用`reminder_case`、`emit`、`pytest.raises`、`probe.verify_event_reminders`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_each_note_or_transition_requires_its_own_persisted_routed_reminder.action`（L238–L239）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`emit`。 返回路径：L239的`emit("requests", "2", event, transition)`。
+- `test_handling_history_uses_required_service_grant_and_exact_employee_permissions`（L254–L338）：接收`template`、`employee_grant`、`violation`。 控制顺序：L270按`not employee_grant`分支；L326按`violation`分支；L335断言`{role for role, _ in calls} == {"manager", "service", "employee", "outsider"}`；L337遍历`clients`。 调用`Plan.model_validate`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`next`、`permission.actions.remove`、`client`、`pytest.raises`、`probe.verify_handling_history`、`actor.close`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_handling_history_uses_required_service_grant_and_exact_employee_permissions.client`（L276–L320）：接收`role`。 调用`object.__new__`、`httpx.Client`、`httpx.MockTransport`、`clients.append`。 返回路径：L320的`actor`。
+- `test_handling_history_uses_required_service_grant_and_exact_employee_permissions.client.handler`（L277–L311）：接收`request`。 控制顺序：L284断言`request.url.path == expected`；L285按`not fastapi`分支；L286断言`request.url.params["entity"] == "requests" and request.url.params["id"] == "2"`；L289按`role == "manager"`分支；L290断言`request.url.params["audit"] == "true"`；L292按`role == "employee" and not employee_grant and violation == "employee_history"`分支；L294按`role == "outsider" and violation == "outsider_history"`分支；L296按`not permitted`分支。后续分支沿下方源码相同行号继续阅读。 调用`calls.append`、`httpx.Response`、`{ "service": "service_history", "manager": "manager_audit", "empl…`、`str`、`range`。 返回路径：L297的`httpx.Response(403 if fastapi else 200, json={"code": 403})`；L305的`httpx.Response( 200, json={ "code": 200 if fastapi else 0, "data": [{"id": str(i)} for i i…`。
 
-<!-- source-file: tests/test_business_probe.py sha256: e813aa42b8b9d9ddf0e281c2b8671103ee1d709628ce33ac1a27be1b8746bce8 -->
+<!-- source-file: tests/test_business_probe.py sha256: 5c122e09b0d2fbaf9c485b519e70cf5f021f1986adad9c51629b196d428ed0db -->
 ````python
 import httpx
 import pytest
@@ -30284,53 +31749,212 @@ def test_yudao_registration_requires_native_anonymous_default_membership(monkeyp
     assert all(client.is_closed for client in clients)
 
 
-@pytest.mark.parametrize(
-    "violation", [None, "missing_due", "duplicated_due", "unread", "wrong_recipient"]
-)
-@pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])
-def test_assignment_due_idempotency_and_read_recipient_are_required(template, violation):
+def reminder_case(template, violation=None):
+    import json
+
+    from workbench.domain import Plan
+    from workbench.settings import ROOT
+
+    plan = Plan.model_validate(
+        json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    )
     fastapi = template == "fastapiadmin"
-    notices = []
-    for entity, identifier in [("requests", "2"), ("tasks", "3")]:
-        for event in ["assigned", "due"]:
-            if violation == "missing_due" and event == "due":
-                continue
-            row = {"id": str(len(notices) + 1), "entity": entity, "record_id": identifier}
-            row.update(
-                {"event": event, "read": False}
-                if fastapi
-                else {"message": f"{entity} #{identifier} {event}", "read_at": None}
-            )
-            notices.append(row)
-    if violation == "duplicated_due":
-        notices.append({**notices[-1], "id": "5"})
+    store = []
 
     class Client:
-        def __init__(self, outsider=False):
-            self.outsider = outsider
+        def __init__(self, role):
+            self.role = role
 
         def inbox(self):
-            return notices
+            return [row for recipient, row in store if recipient is self]
 
         def read_notice(self, identifier):
-            if self.outsider and violation != "wrong_recipient":
+            matches = [
+                row for recipient, row in store if row["id"] == identifier and recipient is self
+            ]
+            if not matches and violation != "wrong_recipient":
                 code = 403
             else:
                 code = 200 if fastapi else 0
-                if violation != "unread":
-                    row = next(row for row in notices if row["id"] == identifier)
-                    row.update({"read": True} if fastapi else {"read_at": "2026-09-30T00:00:00Z"})
+                if matches and violation != "unread":
+                    matches[0].update(
+                        {"read": True} if fastapi else {"read_at": "2026-09-30T00:00:00Z"}
+                    )
             return httpx.Response(
                 200,
                 json={"code": code, "data": True},
                 request=httpx.Request("POST", "http://127.0.0.1/read"),
             )
 
+    creator, assignee, outsider = [Client(role) for role in ["creator", "assignee", "outsider"]]
+    recipients = {"creator": creator, "assignee": assignee}
+
+    def emit(entity, identifier, event, transition=None):
+        expected = probe.reminder_recipients(plan, entity, event, recipients, transition)
+        for recipient in expected:
+            if violation in {"missing_due", "missing"} and (
+                event == "due" or violation == "missing"
+            ):
+                continue
+            for _ in range(
+                2
+                if violation == "duplicated_due" and event == "due" or violation == "duplicated"
+                else 1
+            ):
+                row = {"id": str(len(store) + 1), "entity": entity, "record_id": identifier}
+                row.update(
+                    {"event": event, "read": False}
+                    if fastapi
+                    else {"message": f"{entity} #{identifier} {event}", "read_at": None}
+                )
+                store.append((outsider if violation == "misrouted" else recipient, row))
+        return "action result"
+
+    return plan, recipients, outsider, emit
+
+
+@pytest.mark.parametrize(
+    "violation", [None, "missing_due", "duplicated_due", "unread", "wrong_recipient", "misrouted"]
+)
+@pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])
+@pytest.mark.parametrize("recipient", ["creator", "assignee"])
+def test_assignment_due_idempotency_and_read_recipient_are_required(template, violation, recipient):
+    plan, recipients, outsider, emit = reminder_case(template, violation)
+    for notice in plan.business.notifications:
+        if notice.event in {"assigned", "due"}:
+            notice.recipient = recipient
+    records = []
+    for entity, identifier in [("requests", "2"), ("tasks", "3")]:
+        records.append((entity, identifier, recipients["creator"], recipients["assignee"]))
+        for event in ["assigned", "due"]:
+            emit(entity, identifier, event)
     if violation:
         with pytest.raises(AssertionError):
-            probe.verify_reminders(Client(), Client(True), "2", "3")
+            probe.verify_reminders(plan, records, [outsider])
     else:
-        probe.verify_reminders(Client(), Client(True), "2", "3")
+        probe.verify_reminders(plan, records, [outsider])
+
+
+@pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])
+@pytest.mark.parametrize(
+    "event,transition",
+    [("note_added", None), ("transitioned", "start"), ("transitioned", "resolve")],
+)
+@pytest.mark.parametrize("recipient", ["creator", "assignee"])
+@pytest.mark.parametrize(
+    "violation", [None, "missing", "duplicated", "misrouted", "unread", "wrong_recipient"]
+)
+def test_each_note_or_transition_requires_its_own_persisted_routed_reminder(
+    template, event, transition, recipient, violation
+):
+    plan, recipients, outsider, emit = reminder_case(template, violation)
+    for notice in plan.business.notifications:
+        if (notice.entity, notice.event, notice.transition) == ("requests", event, transition):
+            notice.recipient = recipient
+    # Pre-existing notifications cannot stand in for a missing current event.
+    emit("requests", "2", event, transition)
+
+    def action():
+        return emit("requests", "2", event, transition)
+
+    args = (plan, "requests", "2", event, recipients, [outsider], action, transition)
+    if violation:
+        with pytest.raises(AssertionError):
+            probe.verify_event_reminders(*args)
+    else:
+        assert probe.verify_event_reminders(*args) == "action result"
+
+
+@pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])
+@pytest.mark.parametrize("employee_grant", [False, True])
+@pytest.mark.parametrize(
+    "violation", [None, "service_history", "manager_audit", "employee_history", "outsider_history"]
+)
+def test_handling_history_uses_required_service_grant_and_exact_employee_permissions(
+    template, employee_grant, violation
+):
+    import json
+
+    from workbench.domain import Plan
+    from workbench.settings import ROOT
+
+    plan = Plan.model_validate(
+        json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    )
+    permission = next(
+        grant
+        for grant in plan.business.permissions
+        if grant.role == "employee" and grant.entity == "requests"
+    )
+    if not employee_grant:
+        permission.actions.remove("read_history")
+    fastapi = template == "fastapiadmin"
+    calls = []
+    clients = []
+
+    def client(role):
+        def handler(request):
+            calls.append((role, request.url))
+            expected = (
+                "/business/requests/2/history"
+                if fastapi
+                else "/admin-api/infra/rnd-business/history"
+            )
+            assert request.url.path == expected
+            if not fastapi:
+                assert (
+                    request.url.params["entity"] == "requests" and request.url.params["id"] == "2"
+                )
+            if role == "manager":
+                assert request.url.params["audit"] == "true"
+            permitted = role in {"manager", "service"} or role == "employee" and employee_grant
+            if role == "employee" and not employee_grant and violation == "employee_history":
+                permitted = True
+            if role == "outsider" and violation == "outsider_history":
+                permitted = True
+            if not permitted:
+                return httpx.Response(403 if fastapi else 200, json={"code": 403})
+            count = 4
+            if violation == {
+                "service": "service_history",
+                "manager": "manager_audit",
+                "employee": "employee_history",
+            }.get(role):
+                count = 3
+            return httpx.Response(
+                200,
+                json={
+                    "code": 200 if fastapi else 0,
+                    "data": [{"id": str(i)} for i in range(count)],
+                },
+            )
+
+        actor = object.__new__(probe.BusinessClient)
+        actor.fastapi = fastapi
+        actor.prefix = "/business" if fastapi else "/admin-api/infra/rnd-business"
+        actor.http = httpx.Client(
+            base_url="http://127.0.0.1", transport=httpx.MockTransport(handler)
+        )
+        clients.append(actor)
+        return actor
+
+    manager, service, employee, outsider = [
+        client(role) for role in ["manager", "service", "employee", "outsider"]
+    ]
+    try:
+        if violation:
+            with pytest.raises(AssertionError):
+                probe.verify_handling_history(
+                    plan, manager, service, employee, outsider, "requests", "2"
+                )
+        else:
+            probe.verify_handling_history(
+                plan, manager, service, employee, outsider, "requests", "2"
+            )
+            assert {role for role, _ in calls} == {"manager", "service", "employee", "outsider"}
+    finally:
+        for actor in clients:
+            actor.close()
 ````
 
 ### `tests/test_business_python.py`
@@ -30349,11 +31973,11 @@ def test_assignment_due_idempotency_and_read_recipient_are_required(template, vi
 - `test_generated_business_api_transactions_and_permissions`（L187–L226）：接收`tmp_path`、`monkeypatch`。 控制顺序：L208断言`init.returncode == 0`；L218断言`result.returncode == 0`；L219断言`json.loads(result.stdout.splitlines()[-1])["passed"]`；L220遍历`["sqlite", "postgresql"]`；L222断言`"business_audit" in sql and "business_notifications" in sql and "FOREIGN KEY(customer…`。 调用`monkeypatch.setattr`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`、`json.loads`、`result.stdout.splitlines`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_common_metric_normalizes_datetime_predicate_offsets`（L229–L252）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L239遍历`["eq", "gte", "lte", "in"]`；L252断言`policy.metric(rows, metric)["value"] == 1`。 调用`Path`、`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`module.Policy`、`runtime_plan().model_dump`、`runtime_plan`、`policy.metric`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_generated_business_postgres_actual_fk_and_permissions`（L256–L302）：接收`tmp_path`。 控制顺序：L263按`not url`分支；L291断言`init.returncode == 0`；L301断言`result.returncode == 0`；L302断言`json.loads(result.stdout.splitlines()[-1])["passed"]`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`database`、`generate_basic`、`runtime_plan`、`clean_env`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_exact_customer_service_example_three_resources`（L368–L404）：接收`tmp_path`、`monkeypatch`。 控制顺序：L393断言`init.returncode == 0`；L403断言`result.returncode == 0`；L404断言`json.loads(result.stdout.splitlines()[-1])["three_resources"]`。 调用`monkeypatch.setattr`、`Path`、`Plan.model_validate_json`、`path.read_text`、`generate_basic`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_business_api_only_independent_receipt`（L407–L435）：接收`tmp_path`。 控制顺序：L430断言`result.returncode == 0`；L432断言`receipt["passed"] and receipt["http"] and receipt["restart"]`；L433断言`receipt["business"]["resources_checked"] == ["customers", "requests", "tasks"]`；L434断言`receipt["browser"]["applicable"] is False`；L435断言`not receipt["browser"].get("real_browser")`。 调用`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`generate_basic`、`clean_env`、`os.environ.get`、`subprocess.run`、`str`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_business_postgres_independent_receipt`（L439–L486）：接收`tmp_path`。 控制顺序：L448按`not url`分支；L482断言`result.returncode == 0`；L484断言`receipt["passed"] and receipt["business"]["passed"] and receipt["restart"]`；L485断言`receipt["database"] == "real-isolated-postgresql"`；L486断言`receipt["browser"]["applicable"] is False`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`database`、`generate_basic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_customer_service_example_three_resources`（L395–L431）：接收`tmp_path`、`monkeypatch`。 控制顺序：L420断言`init.returncode == 0`；L430断言`result.returncode == 0`；L431断言`json.loads(result.stdout.splitlines()[-1])["three_resources"]`。 调用`monkeypatch.setattr`、`Path`、`Plan.model_validate_json`、`path.read_text`、`generate_basic`、`clean_env`、`os.environ.get`、`str`、`subprocess.run`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_business_api_only_independent_receipt`（L434–L462）：接收`tmp_path`。 控制顺序：L457断言`result.returncode == 0`；L459断言`receipt["passed"] and receipt["http"] and receipt["restart"]`；L460断言`receipt["business"]["resources_checked"] == ["customers", "requests", "tasks"]`；L461断言`receipt["browser"]["applicable"] is False`；L462断言`not receipt["browser"].get("real_browser")`。 调用`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`generate_basic`、`clean_env`、`os.environ.get`、`subprocess.run`、`str`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_business_postgres_independent_receipt`（L466–L513）：接收`tmp_path`。 控制顺序：L475按`not url`分支；L509断言`result.returncode == 0`；L511断言`receipt["passed"] and receipt["business"]["passed"] and receipt["restart"]`；L512断言`receipt["database"] == "real-isolated-postgresql"`；L513断言`receipt["browser"]["applicable"] is False`。 调用`os.getenv`、`pytest.skip`、`Settings`、`SecretStr`、`Plan.model_validate_json`、`(Path(__file__).parents[1] / "examples/plans/customer-service.jso…`、`Path`、`database`、`generate_basic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_business_python.py sha256: 54ee5b9904c7225319484bae911a67661b80d1cfb45a0418db604dea0cb48f57 -->
+<!-- source-file: tests/test_business_python.py sha256: 1aa0c9d1ac9abae1d22ec805f73094ca5c3fd5eab4334eac9d7a145e1be9b400 -->
 ````python
 """Real generated Python product HTTP/SQL behavior in an isolated interpreter."""
 
@@ -30675,6 +32299,10 @@ with TestClient(app) as c:
   actors[name]={'id':r.json()['id'],'token':login(name)}
  first,second,a,b=[actors[name]['token'] for name in ['first','second','agent-a','agent-b']]
  customer=call('POST','/api/customers',manager,json={'name':'Enterprise customer','organization':'Org','contact':'internal test','category':'企业'}).json()
+ assert call('POST','/api/customers',a,json={'name':'Forbidden','category':'个人'}).status_code==403
+ assert call('PUT',f'/api/customers/{customer["id"]}',a,json={'name':'Forbidden'}).status_code==403
+ assert call('POST',f'/api/customers/{customer["id"]}/notes',a,json={'body':'Forbidden'}).status_code==403
+ personal=call('POST','/api/customers',manager,json={'name':'Personal customer','category':'个人'}).json()
  requests=[]
  for owner,title in [(first,'First request'),(second,'Other request')]:
   r=call('POST','/api/requests',owner,json={'title':title,'detail':'Needs service','customer_id':customer['id'],'priority':'普通','due_at':'2020-01-01T00:00:00Z'});assert r.status_code==201,r.text
@@ -30694,31 +32322,54 @@ with TestClient(app) as c:
  assert len(call('GET',f'/business/related/customers/{customer["id"]}',first).json()[0]['records'])==1
  assert call('GET',f'/business/related/requests/{first_request}',first).json()==[]
  assert len(call('GET',f'/business/related/requests/{first_request}',manager).json()[0]['records'])==1
- note=call('POST',f'/api/tasks/{task_id}/notes',b,json={'body':'Task progress'})
- assert note.status_code==201,note.text
- assert call('GET',f'/api/tasks/{task_id}/notes',a).status_code==404
- for entity,identity,actor in [('tasks',task_id,b),('requests',first_request,a)]:
-  assert call('POST',f'/api/{entity}/{identity}/transition',actor,json={'transition':'start'}).status_code==200
-  assert call('POST',f'/api/{entity}/{identity}/transition',actor,json={'transition':'resolve'}).status_code==200
+ def notices(token,entity,identity,event):
+  return {n['id']:n for n in call('GET','/business/notifications',token).json() if n['entity']==entity and n['record_id']==identity and n['event']==event}
+ for entity,identity,actor,creator,other in [('tasks',task_id,b,manager,a),('requests',first_request,a,first,b)]:
+  for event in ['assigned','due']:
+   received=notices(actor,entity,identity,event)
+   assert len(received)==1,(entity,event,received)
+   assert set(notices(actor,entity,identity,event))==set(received)
+   notice_id=next(iter(received))
+   assert call('POST',f'/business/notifications/{notice_id}/read',other).status_code==404
+   assert call('POST',f'/business/notifications/{notice_id}/read',actor).status_code==200
+   assert notices(actor,entity,identity,event)[notice_id]['read_at']
+  before=set(notices(creator,entity,identity,'note_added'))
+  note=call('POST',f'/api/{entity}/{identity}/notes',actor,json={'body':'Handling progress'})
+  assert note.status_code==201,note.text
+  received=notices(creator,entity,identity,'note_added')
+  assert len(set(received)-before)==1,(entity,received)
+  assert set(notices(creator,entity,identity,'note_added'))==set(received)
+  notice_id=next(iter(set(received)-before))
+  assert call('POST',f'/business/notifications/{notice_id}/read',other).status_code==404
+  assert call('POST',f'/business/notifications/{notice_id}/read',creator).status_code==200
+  assert notices(creator,entity,identity,'note_added')[notice_id]['read_at']
+  assert not notices(other,entity,identity,'note_added')
+  for transition in ['start','resolve']:
+   before=set(notices(creator,entity,identity,'transitioned'))
+   assert call('POST',f'/api/{entity}/{identity}/transition',actor,json={'transition':transition}).status_code==200
+   assert len(set(notices(creator,entity,identity,'transitioned'))-before)==1,(entity,transition)
   history=call('GET',f'/api/{entity}/{identity}/history',manager).json()
   assert history[-1]['action']=='transitioned:resolve'
   assert history[-1]['after']['resolved_at']
  metrics={x['name']:x for x in call('GET','/business/metrics',manager).json()}
- assert metrics['total']['value']==2 and metrics['customer_total']['value']==1
+ assert metrics['total']['value']==2 and metrics['customer_total']['value']==2
+ assert metrics['resolved_total']['value']==1
+ assert sorted(metrics['customer_categories']['groups'],key=lambda x:x['key'])==sorted([{'key':'企业','count':1},{'key':'个人','count':1}],key=lambda x:x['key'])
  assert metrics['resolution']['samples']==1 and metrics['resolution']['value']>=0
  assert metrics['by_customer']['groups']==[{'key':customer['id'],'count':2}]
  assert sum(x['count'] for x in metrics['daily']['groups'])==2
  assert {x['name']:x for x in call('GET','/business/metrics',a).json()}['total']['value']==1
  assert {x['name']:x for x in call('GET','/business/metrics',b).json()}['total']['value']==0
  assert call('GET','/business/metrics',first).json()==[]
- assert all(x['event']!='due' for x in call('GET','/business/notifications',b).json())
+ assert len(notices(b,'tasks',task_id,'due'))==1
+ assert not notices(b,'requests',first_request,'due')
  labels=call('POST','/business/labels/requests',first,json={'record_ids':[first_request,other_request]}).json()
  assert labels['customer_id']=={customer['id']:'Enterprise customer'}
  assert labels['assignee_id']=={actors['agent-a']['id']:'agent-a'}
  assert call('POST','/business/labels/requests',b,json={'record_ids':[first_request]}).json()=={}
  assert call('POST','/business/labels/tasks',first,json={'record_ids':[task_id]}).status_code==403
  assert call('POST','/business/labels/requests',first,json={'record_ids':[first_request]*101}).status_code==422
-print(json.dumps({'passed':True,'three_resources':True,'linked_row_acl':True,'tasks':True,'metrics':5}))
+print(json.dumps({'passed':True,'three_resources':True,'linked_row_acl':True,'tasks':True,'metrics':len(metrics)}))
 """
 
 
@@ -32154,8 +33805,22 @@ def test_plan_duplicate_and_scope(plan):
 - `test_metric_row_scope_does_not_require_global_ui_filter`（L519–L524）：接收`text`。 控制顺序：L523断言`coverage_gaps(requirement, plan) == []`；L524断言`plan.business.model_dump() == before`。 调用`customer_metric_case`、`plan.business.model_dump`、`coverage_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_entity_capability_heading_does_not_make_first_search_field_filterable`（L529–L540）：接收`first`、`heading`。 控制顺序：L538断言`coverage_gaps(requirement, plan) == []`；L540断言`any("filterable" in gap for gap in coverage_gaps(requirement, plan))`。 调用`customer_case`、`"、".join`、`coverage_gaps`、`requirement.features.append`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_unrequested_metric_filter_does_not_become_a_positive_metric_predicate`（L543–L547）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L547断言`coverage_gaps(requirement, plan) == []`。 调用`customer_metric_case`、`coverage_gaps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `actual_customer_field_case`（L562–L578）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Plan.model_validate`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Plan`、`Requirement`。 返回路径：L578的`requirement, plan`。
+- `test_exact_real_model_timestamp_exclusions_do_not_invent_query_obligations`（L583–L589）：接收`text`、`section`。 控制顺序：L585按`section == "facts"`分支；L589断言`coverage_gaps(requirement, plan) == []`。 调用`actual_customer_field_case`、`setattr`、`coverage_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_nonparticipating_timestamp_operations_remain_false_constraints`（L595–L608）：接收`text`、`attribute`、`entity`。 控制顺序：L608断言`any(attribute in gap for gap in coverage_gaps(requirement, plan))`。 调用`actual_customer_field_case`、`next`、`setattr`、`any`、`coverage_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_descriptor_list_keeps_bare_datetime_fields_separate_and_scoped`（L611–L632）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L618断言`coverage_gaps(requirement, plan) == []`；L628断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L629断言`diagnostics[0]["targets"] == [{"entity": "requests", "field": "priority"}]`；L632断言`any("priority" in gap and "必填" in gap for gap in coverage_gaps(requirement, plan))`。 调用`actual_customer_field_case`、`next`、`coverage_gaps`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_completed_type_only_descriptor_cannot_inherit_next_fields_predicates`（L636–L644）：接收`kind`。 控制顺序：L642断言`coverage_gaps(requirement, plan) == []`；L644断言`any("filterable" in gap for gap in coverage_gaps(requirement, plan))`。 调用`customer_case`、`plan.entities[0].fields.insert`、`FieldSpec`、`coverage_gaps`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_negative_operation_coordination_stops_at_later_positive_field_clause`（L649–L656）：接收`negative`、`separator`。 控制顺序：L654断言`coverage_gaps(requirement, plan) == []`；L656断言`any("searchable" in gap and "title" in gap for gap in coverage_gaps(requirement, plan…`。 调用`customer_case`、`coverage_gaps`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_optional_negative_wording_does_not_disable_an_existing_search_capability`（L659–L663）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L662断言`plan.entities[0].fields[0].searchable`；L663断言`coverage_gaps(requirement, plan) == []`。 调用`customer_case`、`coverage_gaps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_prohibition_before_field_name_retains_its_false_constraint`（L666–L671）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L669断言`coverage_gaps(requirement, plan) == []`；L671断言`any("searchable" in gap for gap in coverage_gaps(requirement, plan))`。 调用`customer_case`、`coverage_gaps`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_positive_operation_after_negative_contrast_keeps_its_field_subject`（L674–L681）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L678断言`plan.entities[0].fields[-1].filterable`；L679断言`any("filterable" in gap and "name" in gap for gap in coverage_gaps(requirement, plan)…`；L681断言`coverage_gaps(requirement, plan) == []`。 调用`customer_case`、`any`、`coverage_gaps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_shared_predicate_survives_completed_descriptor_boundaries`（L684–L689）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L687断言`coverage_gaps(requirement, plan) == []`；L689断言`any("searchable" in gap and "name" in gap for gap in coverage_gaps(requirement, plan)…`。 调用`customer_case`、`coverage_gaps`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_ambiguous_localized_heading_does_not_inherit_the_previous_entity`（L692–L695）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L695断言`any("title" in gap and "可选" in gap for gap in coverage_gaps(requirement, plan))`。 调用`customer_case`、`any`、`coverage_gaps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_unsupported_search_is_false_constraint`（L701–L719）：接收`negative`、`section`、`descriptor`。 控制顺序：L704按`section == "facts"`分支；L710断言`coverage_gaps(requirement, plan) == []`；L713断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L714断言`any( item["attribute"] == "searchable" and item["expected"] is False and item["target…`。 调用`customer_case`、`descriptor.format`、`setattr`、`coverage_gaps`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unsupported_search_does_not_negate_adjacent_positive_field`（L724–L737）：接收`negative`、`separator`。 控制顺序：L729断言`contact.searchable`；L730断言`coverage_gaps(requirement, plan) == []`；L732断言`any("searchable" in gap and "contact" in gap for gap in coverage_gaps(requirement, pl…`；L735断言`any( "searchable=False" in gap and "name" in gap for gap in coverage_gaps(requirement…`。 调用`customer_case`、`coverage_gaps`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unsupported_operations_remain_field_scoped`（L749–L758）：接收`negative`、`kind`、`attribute`、`operation`。 控制顺序：L756断言`coverage_gaps(requirement, plan) == []`；L758断言`any(attribute in gap and "extra" in gap for gap in coverage_gaps(requirement, plan))`。 调用`customer_case`、`FieldSpec`、`plan.entities[0].fields.append`、`coverage_gaps`、`setattr`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_customer_coverage.py sha256: 2ef6aa665f1079befadf31bcb190d0db375cef9436b5881d79474261bab979d7 -->
+<!-- source-file: tests/test_customer_coverage.py sha256: db9a18b2eeb7cf5f39b7263df3e91251032ebbbc03d7484736e707f0199fa2d7 -->
 ````python
 """Model-style summaries must preserve entity/field subjects without fixture substitution."""
 
@@ -32704,6 +34369,217 @@ def test_unrequested_metric_filter_does_not_become_a_positive_metric_predicate()
     requirement.features = ["count统计无需request_state筛选"]
     plan.business.metrics[0].filters = []
     assert coverage_gaps(requirement, plan) == []
+
+
+ACTUAL_TIMESTAMP_EXCLUSIONS = [
+    "resolved_at 与 due_at 仅作为时间戳存储，不提供关键词搜索、精确筛选或日期范围筛选。",
+    "datetime 字段（resolved_at、due_at）仅存储时间戳，不参与搜索、筛选或日期范围查询；关系键字段不参与关键词搜索与日期范围。",
+]
+ACTUAL_REQUEST_DESCRIPTORS = (
+    "请求字段：title（必填，≤200，可搜索）、detail（必填，≤3000，可搜索）、"
+    "customer_id（必填关系键→customers）、assignee_id（可选关系键→$users）、"
+    "request_state（必填枚举 new/active/resolved）、resolved_at（datetime）、due_at（datetime）、"
+    "priority（必填枚举 普通/紧急，可精确筛选）"
+)
+
+
+def actual_customer_field_case():
+    import json
+
+    from workbench.settings import ROOT
+
+    # Public deterministic contract is only the unit-test comparison target.
+    # These exact Requirement excerpts came from the sanitized real-run report.
+    source = Plan.model_validate(
+        json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    )
+    plan = Plan(
+        title="字段合同", data_scope="shared", entities=source.entities, acceptance=["字段合同验证"]
+    )
+    requirement = Requirement(
+        summary="客服字段", users=["客服"], data_scope="shared", features=[], acceptance=[]
+    )
+    return requirement, plan
+
+
+@pytest.mark.parametrize("text", ACTUAL_TIMESTAMP_EXCLUSIONS)
+@pytest.mark.parametrize("section", ["features", "acceptance", "facts"])
+def test_exact_real_model_timestamp_exclusions_do_not_invent_query_obligations(text, section):
+    requirement, plan = actual_customer_field_case()
+    if section == "facts":
+        requirement.facts = {"字段查询约束": text}
+    else:
+        setattr(requirement, section, [text])
+    assert coverage_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize("text", ACTUAL_TIMESTAMP_EXCLUSIONS)
+@pytest.mark.parametrize("attribute", ["searchable", "filterable", "date_range"])
+@pytest.mark.parametrize("entity", ["requests", "tasks"])
+def test_explicit_nonparticipating_timestamp_operations_remain_false_constraints(
+    text, attribute, entity
+):
+    requirement, plan = actual_customer_field_case()
+    requirement.acceptance = [text]
+    field = next(
+        field
+        for item in plan.entities
+        if item.name == entity
+        for field in item.fields
+        if field.name == "due_at"
+    )
+    setattr(field, attribute, True)
+    assert any(attribute in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_exact_descriptor_list_keeps_bare_datetime_fields_separate_and_scoped():
+    requirement, plan = actual_customer_field_case()
+    requirement.features = [ACTUAL_REQUEST_DESCRIPTORS]
+    tasks = next(entity for entity in plan.entities if entity.name == "tasks")
+    next(field for field in tasks.fields if field.name == "title").required = False
+    next(field for field in tasks.fields if field.name == "detail").required = False
+    next(field for field in tasks.fields if field.name == "assignee_id").required = True
+    assert coverage_gaps(requirement, plan) == []
+    priority = next(
+        field
+        for entity in plan.entities
+        if entity.name == "requests"
+        for field in entity.fields
+        if field.name == "priority"
+    )
+    priority.filterable = False
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert diagnostics[0]["targets"] == [{"entity": "requests", "field": "priority"}]
+    priority.filterable = True
+    priority.required = False
+    assert any("priority" in gap and "必填" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize("kind", ["datetime", "text", "integer", "boolean"])
+def test_completed_type_only_descriptor_cannot_inherit_next_fields_predicates(kind):
+    from workbench.domain import FieldSpec
+
+    requirement, plan = customer_case()
+    plan.entities[0].fields.insert(0, FieldSpec(name="extra", kind=kind, required=False))
+    requirement.features = [f"customers：extra（{kind}）、category（必填枚举，可精确筛选）"]
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[-1].filterable = False
+    assert any("filterable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize("negative", ["不参与", "不提供"])
+@pytest.mark.parametrize("separator", ["、", "与", "和", "或", "以及"])
+def test_negative_operation_coordination_stops_at_later_positive_field_clause(negative, separator):
+    requirement, plan = customer_case()
+    requirement.features = [
+        f"requests：resolved_at{negative}搜索{separator}日期范围查询，但title必须可搜索"
+    ]
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[1].fields[0].searchable = False
+    assert any("searchable" in gap and "title" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_optional_negative_wording_does_not_disable_an_existing_search_capability():
+    requirement, plan = customer_case()
+    requirement.features = ["customers：name不要求搜索与日期范围查询"]
+    assert plan.entities[0].fields[0].searchable
+    assert coverage_gaps(requirement, plan) == []
+
+
+def test_prohibition_before_field_name_retains_its_false_constraint():
+    requirement, plan = customer_case()
+    requirement.features = ["customers：禁止category搜索"]
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[-1].searchable = True
+    assert any("searchable" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_positive_operation_after_negative_contrast_keeps_its_field_subject():
+    requirement, plan = customer_case()
+    requirement.features = ["customers：name不提供搜索，但必须支持精确筛选"]
+    plan.entities[0].fields[0].searchable = False
+    assert plan.entities[0].fields[-1].filterable  # Another field cannot satisfy name's filter.
+    assert any("filterable" in gap and "name" in gap for gap in coverage_gaps(requirement, plan))
+    plan.entities[0].fields[0].filterable = True
+    assert coverage_gaps(requirement, plan) == []
+
+
+def test_explicit_shared_predicate_survives_completed_descriptor_boundaries():
+    requirement, plan = customer_case()
+    requirement.features = ["customers：name（必填文本）、contact（可选文本）均可搜索"]
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[0].searchable = False
+    assert any("searchable" in gap and "name" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def test_ambiguous_localized_heading_does_not_inherit_the_previous_entity():
+    requirement, plan = customer_case()
+    requirement.features = ["tasks：title（可选）；另一组字段：title（可选）"]
+    assert any("title" in gap and "可选" in gap for gap in coverage_gaps(requirement, plan))
+
+
+@pytest.mark.parametrize("negative", ["不可", "不可以", "不支持"])
+@pytest.mark.parametrize("section", ["features", "acceptance", "facts"])
+@pytest.mark.parametrize("descriptor", ["name（{negative}搜索）", "name{negative}搜索"])
+def test_explicit_unsupported_search_is_false_constraint(negative, section, descriptor):
+    requirement, plan = customer_case()
+    text = "customers：" + descriptor.format(negative=negative)
+    if section == "facts":
+        requirement.facts = {"查询限制": text}
+    else:
+        setattr(requirement, section, [text])
+    field = plan.entities[0].fields[0]
+    field.searchable = False
+    assert coverage_gaps(requirement, plan) == []
+    field.searchable = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        item["attribute"] == "searchable"
+        and item["expected"] is False
+        and item["targets"] == [{"entity": "customers", "field": "name"}]
+        for item in diagnostics
+    )
+
+
+@pytest.mark.parametrize("negative", ["不可", "不可以", "不支持"])
+@pytest.mark.parametrize("separator", ["，", "；", "，但", "。"])
+def test_unsupported_search_does_not_negate_adjacent_positive_field(negative, separator):
+    requirement, plan = customer_case()
+    requirement.features = [f"customers：name{negative}搜索{separator}contact必须可搜索"]
+    name, contact = plan.entities[0].fields[0], plan.entities[0].fields[2]
+    name.searchable = False
+    assert contact.searchable
+    assert coverage_gaps(requirement, plan) == []
+    contact.searchable = False
+    assert any("searchable" in gap and "contact" in gap for gap in coverage_gaps(requirement, plan))
+    contact.searchable = True
+    name.searchable = True
+    assert any(
+        "searchable=False" in gap and "name" in gap for gap in coverage_gaps(requirement, plan)
+    )
+
+
+@pytest.mark.parametrize("negative", ["不可", "不可以", "不支持"])
+@pytest.mark.parametrize(
+    "kind,attribute,operation",
+    [
+        ("text", "searchable", "关键词搜索"),
+        ("text", "filterable", "精确筛选"),
+        ("date", "date_range", "日期范围查询"),
+    ],
+)
+def test_unsupported_operations_remain_field_scoped(negative, kind, attribute, operation):
+    from workbench.domain import FieldSpec
+
+    requirement, plan = customer_case()
+    field = FieldSpec(name="extra", kind=kind)
+    plan.entities[0].fields.append(field)
+    requirement.features = [f"customers：extra{negative}{operation}，name必须可搜索"]
+    assert coverage_gaps(requirement, plan) == []
+    setattr(field, attribute, True)
+    assert any(attribute in gap and "extra" in gap for gap in coverage_gaps(requirement, plan))
 ````
 
 ### `tests/test_customer_workflow.py`
@@ -36935,10 +38811,10 @@ def test_frontend_mock_services_are_disabled():
 
 - `test_yudao_cached_tab_uses_actual_search_before_verifying_response`（L13–L61）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L15按`not node`分支；L61断言`result.returncode == 0`。 调用`shutil.which`、`pytest.skip`、`subprocess.run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_generated_yudao_pages_provide_entity_specific_navigation_scope`（L64–L74）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L70遍历`("customers", "requests", "tasks")`；L72断言`f'<Page data-rnd-business-entity="{entity}" auto-content-height>' in mounted`；L73断言`mounted.count("data-rnd-business-entity=") == 1`；L74断言`'<Grid class="rnd-business-grid"' in mounted`。 调用`_mount_panel`、`mounted.count`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_vxe_fixed_action_table_selects_same_entity_and_record_in_real_browser`（L77–L118）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L79按`not module or not Path(module).is_dir()`分支；L118断言`result.returncode == 0`。 调用`os.environ.get`、`Path(module).is_dir`、`Path`、`pytest.skip`、`subprocess.run`、`shutil.which`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_cached_selected_business_detail_requests_an_explicit_refresh`（L121–L128）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L126断言`"{ entity, id: identifier }" in details`；L127断言`"panel.getByRole('button', { name: '刷新', exact: true }).click()" in details`；L128断言`"String(metadata.record.id), identifier" in details`。 调用`(ROOT / "scripts/business_yudao_browser.cjs").read_text`、`source.split("async function detail(entity, label) {", 1)[1].spli…`、`source.split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_vxe_fixed_action_table_selects_same_entity_and_record_in_real_browser`（L77–L121）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L79按`not module or not Path(module).is_dir()`分支；L121断言`result.returncode == 0`。 调用`os.environ.get`、`Path(module).is_dir`、`Path`、`pytest.skip`、`subprocess.run`、`shutil.which`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cached_selected_business_detail_requests_an_explicit_refresh`（L124–L131）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L129断言`"{ entity, id: identifier }" in details`；L130断言`"panel.getByRole('button', { name: /^刷\\s*新$/ }).click()" in details`；L131断言`"String(metadata.record.id), identifier" in details`。 调用`(ROOT / "scripts/business_yudao_browser.cjs").read_text`、`source.split("async function detail(entity, label) {", 1)[1].spli…`、`source.split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_native_browser_navigation.py sha256: 2c2fb290306db4687d38a6d2baffc70eabfff778d51674f4804fb7a32e4242a4 -->
+<!-- source-file: tests/test_native_browser_navigation.py sha256: 625a295d093dbc7c9223e7f2d2da1340a11570694e8f08131ef4b19dc59ffd7f -->
 ````python
 """Native cached tabs must be refreshed through the visible UI before list assertions."""
 
@@ -37040,9 +38916,12 @@ const { chromium } = require(process.argv[1]);
         <table><tr class="vxe-body--row" rowid="2"><td>Visible request title</td></tr></table>
         <table class="fixed-right"><tr class="vxe-body--row" rowid="1"><td><button onclick="window.selected='wrong-record'">业务详情</button></td></tr>
           <tr class="vxe-body--row" rowid="2"><td><button onclick="window.selected='correct-record'">业务详情</button></td></tr></table>
+        <section data-rnd-business-panel><button onclick="window.refreshed=true"><span>刷 新</span></button></section>
       </section>`);
     await nativeDetailButton(page, 'requests', '2').click();
     assert.equal(await page.evaluate(() => window.selected), 'correct-record');
+    await page.locator('[data-rnd-business-entity=\"requests\"] [data-rnd-business-panel]').getByRole('button', { name: /^刷\s*新$/ }).click();
+    assert.equal(await page.evaluate(() => window.refreshed), true);
     assert.throws(() => nativeDetailButton(page, 'requests', 'unsafe\"row'), /integer identifier/);
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
@@ -37066,7 +38945,7 @@ def test_cached_selected_business_detail_requests_an_explicit_refresh():
         "async function select(", 1
     )[0]
     assert "{ entity, id: identifier }" in details
-    assert "panel.getByRole('button', { name: '刷新', exact: true }).click()" in details
+    assert "panel.getByRole('button', { name: /^刷\\s*新$/ }).click()" in details
     assert "String(metadata.record.id), identifier" in details
 ````
 
@@ -37082,13 +38961,14 @@ def test_cached_selected_business_detail_requests_an_explicit_refresh():
 
 **逐个入口与控制逻辑：**
 
-- `evidence`（L14–L115）：接收`tmp_path`、`template`。 控制顺序：L52按`fastapi`分支；L82遍历`plan.entities`。 调用`Plan.model_validate_json`、`(ROOT / "examples/plans/customer-service.json").read_text`、`write_json`、`plan.model_dump`、`digest`、`contract.update`、`browser["pages"].append`、`deepcopy`、`contract["records"].items`。 返回路径：L115的`report, {"spec_digest": identity, "template": template}, spec_path`。
-- `test_both_original_and_fresh_database_business_evidence_pass`（L119–L120）：接收`tmp_path`、`template`。 控制顺序：L120断言`require_native_business(*evidence(tmp_path, template)) is True`。 调用`require_native_business`、`evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_legacy_or_partial_business_receipts_fail_closed`（L127–L145）：接收`tmp_path`、`location`、`change`。 控制顺序：L134按`change == "missing"`分支；L136按`change == "false_positive"`分支；L138按`change == "digest"`分支；L140按`"browser" in location`分支。 调用`evidence`、`location.startswith`、`location.removeprefix`、`container.pop`、`container[key]["checks"].remove`、`pytest.raises`、`require_native_business`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_or_replaced_approved_plan_cannot_reuse_business_receipt`（L148–L155）：接收`tmp_path`。 调用`evidence`、`spec_path.unlink`、`pytest.raises`、`require_native_business`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_business_restart_requires_positive_exact_record_proof`（L168–L172）：接收`tmp_path`、`field`、`value`。 调用`evidence`、`pytest.raises`、`require_native_business`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `evidence`（L14–L117）：接收`tmp_path`、`template`。 控制顺序：L54按`fastapi`分支；L84遍历`plan.entities`。 调用`Plan.model_validate_json`、`(ROOT / "examples/plans/customer-service.json").read_text`、`write_json`、`plan.model_dump`、`digest`、`contract.update`、`browser["pages"].append`、`deepcopy`、`contract["records"].items`。 返回路径：L117的`report, {"spec_digest": identity, "template": template}, spec_path`。
+- `test_both_original_and_fresh_database_business_evidence_pass`（L121–L122）：接收`tmp_path`、`template`。 控制顺序：L122断言`require_native_business(*evidence(tmp_path, template)) is True`。 调用`require_native_business`、`evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_legacy_or_partial_business_receipts_fail_closed`（L129–L147）：接收`tmp_path`、`location`、`change`。 控制顺序：L136按`change == "missing"`分支；L138按`change == "false_positive"`分支；L140按`change == "digest"`分支；L142按`"browser" in location`分支。 调用`evidence`、`location.startswith`、`location.removeprefix`、`container.pop`、`container[key]["checks"].remove`、`pytest.raises`、`require_native_business`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_or_replaced_approved_plan_cannot_reuse_business_receipt`（L150–L157）：接收`tmp_path`。 调用`evidence`、`spec_path.unlink`、`pytest.raises`、`require_native_business`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_business_restart_requires_positive_exact_record_proof`（L170–L174）：接收`tmp_path`、`field`、`value`。 调用`evidence`、`pytest.raises`、`require_native_business`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_requested_note_and_status_reminders_require_independent_runtime_evidence`（L180–L187）：接收`tmp_path`、`template`、`field`、`restored`。 调用`evidence`、`contract.pop`、`pytest.raises`、`require_native_business`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_native_business_evidence.py sha256: 3d136da553ff8257e36f6b8c9a6577edeb3a65f34ae2016285955530c3f3196d -->
+<!-- source-file: tests/test_native_business_evidence.py sha256: 6fb74fa34cd961a89c207fe1b8e1f81b7efaf27df0eb65f0d932f03b4ddd1153 -->
 ````python
 """Business delivery must prove both native installations against the exact plan."""
 
@@ -37125,6 +39005,8 @@ def evidence(tmp_path, template="fastapiadmin"):
             "audit",
             "in_app_reminders",
             "due_reminders",
+            "note_reminders",
+            "status_change_reminders",
             "reminder_read_isolation",
             "metrics",
             "row_isolation",
@@ -37137,7 +39019,7 @@ def evidence(tmp_path, template="fastapiadmin"):
         for role in ("manager", "service", "employee")
     ]
     checks += [
-        "employee:own_timeline_and_read_reminder",
+        "employee:own_record_history_acl_and_read_reminder",
         "other_employee:row_isolation",
         "other_service:row_isolation",
     ]
@@ -37148,7 +39030,7 @@ def evidence(tmp_path, template="fastapiadmin"):
             "employee:related_request_native_form_create",
             "manager:linked_task_and_native_assignment",
             "service:assigned_workflows_notes_timestamps",
-            "manager:five_native_metric_cards",
+            "manager:all_declared_native_metric_cards",
         ]
     else:
         checks += [
@@ -37261,6 +39143,19 @@ def test_business_restart_requires_positive_exact_record_proof(tmp_path, field, 
     report, receipt, spec_path = evidence(tmp_path)
     report["portable_restored"][field] = value
     with pytest.raises(PrerequisiteError):
+        require_native_business(report, receipt, spec_path)
+
+
+@pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])
+@pytest.mark.parametrize("field", ["note_reminders", "status_change_reminders"])
+@pytest.mark.parametrize("restored", [False, True])
+def test_requested_note_and_status_reminders_require_independent_runtime_evidence(
+    tmp_path, template, field, restored
+):
+    report, receipt, spec_path = evidence(tmp_path, template)
+    contract = report["portable_restored"]["business"] if restored else report["business_contract"]
+    contract.pop(field)
+    with pytest.raises(PrerequisiteError, match="原生业务"):
         require_native_business(report, receipt, spec_path)
 ````
 
@@ -37492,6 +39387,126 @@ def test_generated_native_product_uses_approved_project_title(template):
     assert env["VITE_APP_TITLE"] != "Native lab"
 ````
 
+### `tests/test_native_java_imports.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.native_compatibility`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_actual_native_date_exports_keep_provenance_and_declarations`（L13–L20）：接收`path`。 控制顺序：L15断言`"private LocalDate publishedOn;" in source`；L16断言`"import java.time.LocalDate;" not in source`；L18断言`fixed.count("import java.time.LocalDate;") == 1`；L19断言`fixed.replace("\nimport java.time.LocalDate;", "") == source`；L20断言`prepare_java_time_imports(fixed) == fixed`。 调用`path.read_text`、`prepare_java_time_imports`、`fixed.count`、`fixed.replace`、`pytest.mark.parametrize`、`sorted`、`FIXTURES.glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_date_types_are_repaired_only_as_unqualified_field_declarations`（L25–L30）：接收`type_name`、`array`。 控制顺序：L28断言`f"import java.time.{type_name};" in fixed`；L29断言`fixed.replace(f"\nimport java.time.{type_name};", "") == source`；L30断言`prepare_java_time_imports(fixed) == fixed`。 调用`prepare_java_time_imports`、`fixed.replace`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_no_imports_from_non_code_or_qualified_types`（L45–L47）：接收`body`。 控制顺序：L47断言`prepare_java_time_imports(source) == source`。 调用`prepare_java_time_imports`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_or_shadowed_types_are_not_overridden`（L61–L63）：接收`imports`。 控制顺序：L63断言`prepare_java_time_imports(source) == source`。 调用`prepare_java_time_imports`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_literal_with_escaped_quotes_does_not_introduce_import`（L66–L68）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L68断言`prepare_java_time_imports(source) == source`。 调用`prepare_java_time_imports`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_crlf_is_preserved_and_missing_package_fails_closed`（L71–L77）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L73断言`prepare_java_time_imports(source) == source.replace( "package demo;", "package demo;\…`。 调用`prepare_java_time_imports`、`source.replace`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_ast_handles_inline_declarations_and_multibyte_prefix_offsets`（L80–L84）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L82断言`prepare_java_time_imports(source) == source.replace( "package demo;", "package demo;\…`。 调用`prepare_java_time_imports`、`source.replace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generic_type_shadow_is_not_rebound_to_java_time`（L87–L89）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L89断言`prepare_java_time_imports(source) == source`。 调用`prepare_java_time_imports`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_generated_java_does_not_get_silently_repaired`（L92–L94）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`prepare_java_time_imports`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_native_java_imports.py sha256: 90bdff600d22f499be1a4aab80216388662f6cb0811af9a4e4165061fa787c28 -->
+````python
+"""Actual native date export and lexical boundaries for a recorded import repair."""
+
+from pathlib import Path
+
+import pytest
+
+from workbench.native_compatibility import prepare_java_time_imports
+
+FIXTURES = Path(__file__).parent / "fixtures/yudao-native-date"
+
+
+@pytest.mark.parametrize("path", sorted(FIXTURES.glob("*.java")), ids=lambda p: p.name)
+def test_actual_native_date_exports_keep_provenance_and_declarations(path):
+    source = path.read_text(encoding="utf-8")
+    assert "private LocalDate publishedOn;" in source
+    assert "import java.time.LocalDate;" not in source
+    fixed = prepare_java_time_imports(source)
+    assert fixed.count("import java.time.LocalDate;") == 1
+    assert fixed.replace("\nimport java.time.LocalDate;", "") == source
+    assert prepare_java_time_imports(fixed) == fixed
+
+
+@pytest.mark.parametrize("type_name", ["LocalDate", "LocalDateTime"])
+@pytest.mark.parametrize("array", ["", "[]", " [] "])
+def test_date_types_are_repaired_only_as_unqualified_field_declarations(type_name, array):
+    source = f"package demo;\nclass Entry {{\n    private {type_name}{array} value;\n}}\n"
+    fixed = prepare_java_time_imports(source)
+    assert f"import java.time.{type_name};" in fixed
+    assert fixed.replace(f"\nimport java.time.{type_name};", "") == source
+    assert prepare_java_time_imports(fixed) == fixed
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        "// private LocalDate value;",
+        "/*\nprivate LocalDate value;\n*/",
+        'String text = "private LocalDate value;";',
+        'String text = """\nprivate LocalDate value;\n""";',
+        "char quote = '\"'; // LocalDate value;",
+        "private java.time.LocalDate value;",
+        "private LocalDateTime value;",
+    ],
+)
+def test_no_imports_from_non_code_or_qualified_types(body):
+    source = "package demo;\nimport java.time.LocalDateTime;\nclass Entry {\n" + body + "\n}\n"
+    assert prepare_java_time_imports(source) == source
+
+
+@pytest.mark.parametrize(
+    "imports",
+    [
+        "import java.time.LocalDate;",
+        "import java.time.*;",
+        "import example.LocalDate;",
+        "import java.time./* native comment */LocalDate;",
+        "import static example.Types.LocalDate;",
+        "class LocalDate {}",
+    ],
+)
+def test_existing_or_shadowed_types_are_not_overridden(imports):
+    source = f"package demo;\n{imports}\nclass Entry {{\nprivate LocalDate value;\n}}"
+    assert prepare_java_time_imports(source) == source
+
+
+def test_literal_with_escaped_quotes_does_not_introduce_import():
+    source = 'package demo;\nclass Entry { String x = "\\"\\nprivate LocalDate value;"; }'
+    assert prepare_java_time_imports(source) == source
+
+
+def test_crlf_is_preserved_and_missing_package_fails_closed():
+    source = "package demo;\r\nclass Entry {\r\nprivate LocalDate value;\r\n}\r\n"
+    assert prepare_java_time_imports(source) == source.replace(
+        "package demo;", "package demo;\r\nimport java.time.LocalDate;"
+    )
+    with pytest.raises(ValueError, match="package"):
+        prepare_java_time_imports("class Entry {\nprivate LocalDate value;\n}")
+
+
+def test_ast_handles_inline_declarations_and_multibyte_prefix_offsets():
+    source = "/* 客服 */ package demo; class Entry { private LocalDate value; }"
+    assert prepare_java_time_imports(source) == source.replace(
+        "package demo;", "package demo;\nimport java.time.LocalDate;"
+    )
+
+
+def test_generic_type_shadow_is_not_rebound_to_java_time():
+    source = "package demo; class Entry<LocalDate> { private LocalDate value; }"
+    assert prepare_java_time_imports(source) == source
+
+
+def test_invalid_generated_java_does_not_get_silently_repaired():
+    with pytest.raises(ValueError, match="syntax"):
+        prepare_java_time_imports("package demo; class Entry { private LocalDate value;")
+````
+
 ### `tests/test_native_managed.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -37714,12 +39729,13 @@ def test_native_runtime_package_preserves_validation_level(tmp_path):
 - `constants_file`（L77–L84）：接收`root`。 调用`path.parent.mkdir`、`path.write_text`。 返回路径：L84的`path`。
 - `test_yudao_generated_source_is_mounted_in_real_native_modules`（L87–L106）：接收`tmp_path`。 控制顺序：L102断言`(backend / java).read_text() == "class WbDeviceController {}"`；L103断言`(frontend / "apps/web-antd/src/views/infra/wbdevice/index.vue").exists()`；L104断言`"WB_DEVICE_NOT_EXISTS" in constants.read_text(encoding="utf-8")`；L105断言`"TODO 补充编号" not in constants.read_text(encoding="utf-8")`；L106断言`result["error_constants"][0]["number"] > 1_900_000_000`。 调用`constants_file`、`zip_bytes`、`mount_yudao_export`、`acceptance_spec`、`set`、`(backend / java).read_text`、`(frontend / "apps/web-antd/src/views/infra/wbdevice/index.vue").e…`、`constants.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_yudao_export_cannot_overwrite_native_auth`（L109–L122）：接收`tmp_path`。 调用`pytest.raises`、`mount_yudao_export`、`zip_bytes`、`acceptance_spec`、`set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_http_response_is_decompressed_once`（L125–L155）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L153断言`client.paths == {}`。 调用`json.dumps({"openapi": "3.1.0", "paths": {}}).encode`、`json.dumps`、`NativeClient`、`NativeConfig`、`httpx.MockTransport`、`client.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_http_response_is_decompressed_once.handler`（L135–L140）：接收`request`。 调用`httpx.Response`、`gzip.compress`。 返回路径：L136的`httpx.Response( 200, headers={"content-encoding": "gzip", "content-type": "application/jso…`。
-- `test_every_native_column_has_a_codegen_comment`（L158–L161）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L159遍历`("fastapiadmin", "yudao-vben")`；L161断言`all(column.comment for table in tables for column in table.c)`。 调用`native_metadata`、`acceptance_spec`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_yudao_logic_delete_matches_pinned_postgres_seed`（L164–L170）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L168断言`isinstance(tables[0].c.deleted.type, SmallInteger)`；L169断言`str(tables[0].c.deleted.server_default.arg) == "0"`；L170断言`"deleted SMALLINT" in str(CreateTable(tables[0]).compile(dialect=postgresql.dialect()…`。 调用`native_metadata`、`acceptance_spec`、`isinstance`、`str`、`CreateTable(tables[0]).compile`、`CreateTable`、`postgresql.dialect`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_yudao_time_import_repair_records_original_export_hash`（L125–L152）：接收`tmp_path`。 控制顺序：L148断言`receipt["source_sha256"] == sha256(original.encode()).hexdigest()`；L149断言`receipt["sha256"] == sha256((backend / java).read_bytes()).hexdigest()`；L150断言`receipt["source_sha256"] != receipt["sha256"]`；L151断言`receipt["compatibility_applied"] is True`；L152断言`(backend / java).read_text().replace("\nimport java.time.LocalDate;", "") == original`。 调用`constants_file`、`mount_yudao_export`、`zip_bytes`、`acceptance_spec`、`set`、`sha256(original.encode()).hexdigest`、`sha256`、`original.encode`、`sha256((backend / java).read_bytes()).hexdigest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_http_response_is_decompressed_once`（L155–L185）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L183断言`client.paths == {}`。 调用`json.dumps({"openapi": "3.1.0", "paths": {}}).encode`、`json.dumps`、`NativeClient`、`NativeConfig`、`httpx.MockTransport`、`client.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_http_response_is_decompressed_once.handler`（L165–L170）：接收`request`。 调用`httpx.Response`、`gzip.compress`。 返回路径：L166的`httpx.Response( 200, headers={"content-encoding": "gzip", "content-type": "application/jso…`。
+- `test_every_native_column_has_a_codegen_comment`（L188–L191）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L189遍历`("fastapiadmin", "yudao-vben")`；L191断言`all(column.comment for table in tables for column in table.c)`。 调用`native_metadata`、`acceptance_spec`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_yudao_logic_delete_matches_pinned_postgres_seed`（L194–L200）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L198断言`isinstance(tables[0].c.deleted.type, SmallInteger)`；L199断言`str(tables[0].c.deleted.server_default.arg) == "0"`；L200断言`"deleted SMALLINT" in str(CreateTable(tables[0]).compile(dialect=postgresql.dialect()…`。 调用`native_metadata`、`acceptance_spec`、`isinstance`、`str`、`CreateTable(tables[0]).compile`、`CreateTable`、`postgresql.dialect`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_native_modules.py sha256: 5417ea871f0e2c8907bb283c5d551e5e16b3424d62cb3f014c47978a9e783f33 -->
+<!-- source-file: tests/test_native_modules.py sha256: 4b75fee83b8186e5d633e4d0bb7e544a308a719298512fb643ff19ae51a77e32 -->
 ````python
 """Adapter contracts; real native services remain mandatory in native-runtime Actions."""
 
@@ -37843,6 +39859,36 @@ def test_yudao_export_cannot_overwrite_native_auth(tmp_path):
             tmp_path / "reports",
             set(),
         )
+
+
+def test_yudao_time_import_repair_records_original_export_hash(tmp_path):
+    from hashlib import sha256
+
+    backend, frontend, reports = (tmp_path / name for name in ("backend", "frontend", "reports"))
+    constants_file(backend)
+    java = (
+        "yudao-module-infra/yudao-module-infra-server/src/main/java/demo/wbdevice/WbDeviceDO.java"
+    )
+    original = "package demo.wbdevice;\nclass WbDeviceDO { private LocalDate day; }\n"
+    result = mount_yudao_export(
+        zip_bytes(
+            {
+                java: original,
+                "yudao-module-infra/yudao-module-infra-api/src/main/java/demo/ErrorCodeConstants_手动操作.java": 'ErrorCode WB_DEVICE_NOT_EXISTS = new ErrorCode(TODO 补充编号, "设备不存在");',
+            }
+        ),
+        backend,
+        frontend,
+        acceptance_spec().entities[0],
+        reports,
+        set(),
+    )
+    receipt = result["files"][0]
+    assert receipt["source_sha256"] == sha256(original.encode()).hexdigest()
+    assert receipt["sha256"] == sha256((backend / java).read_bytes()).hexdigest()
+    assert receipt["source_sha256"] != receipt["sha256"]
+    assert receipt["compatibility_applied"] is True
+    assert (backend / java).read_text().replace("\nimport java.time.LocalDate;", "") == original
 
 
 def test_native_http_response_is_decompressed_once():
@@ -39186,51 +41232,61 @@ def test_optional_text_omitted_in_approved_rule_sample_still_checks_limits(
 - `test_invalid_smoke_response_fails_closed`（L110–L115）：接收`body`。 调用`pytest.raises`、`smoke`、`config`、`httpx.MockTransport`、`httpx.Response`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_transport_rejects_substitution_and_bounds_tokens_and_calls`（L118–L153）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134断言`json.loads(requests[0].content)["max_tokens"] == 16000`。 调用`BoundedRealTransport`、`config`、`transport.transport.close`、`httpx.MockTransport`、`requests.append`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_actual_model_plan_must_preserve_explicit_customer_obligations`（L157–L171）：接收`mutation`。 控制顺序：L160按`mutation == "isolation"`分支；L162按`mutation == "roles"`分支；L164按`mutation == "metrics"`分支；L166按`mutation == "workflow"`分支。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`require_customer_spec`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_is_manual_environment_scoped_and_artifact_allowlisted`（L174–L250）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L181断言`set(doc["on"]) == {"workflow_dispatch"}`；L183断言`job["environment"] == "rnd"`；L184断言`"github.event_name == 'workflow_dispatch'" in job["if"]`；L185断言`REPOSITORY in job["if"]`；L187断言`len(secret_steps) == 2`；L188断言`secret_steps[0]["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"`；L189断言`secret_steps[0]["env"]["BASE_URL"] == "${{ vars.BASE_URL }}"`；L190断言`secret_steps[0]["env"]["MODE"] == "${{ vars.MODE }}"`。后续分支沿下方源码相同行号继续阅读。 调用`yaml.load`、`(ROOT / ".github/workflows/real-model.yml").read_text`、`set`、`step.get`、`len`、`step.get("uses", "").startswith`、`(ROOT / ".github/workflows/native-probe.yml").read_text`、`entry["jobs"]["verify-bundles"].get`、`entry.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_all_profiles_use_authorized_configuration_despite_hostile_ambient_overrides`（L253–L269）：接收`tmp_path`、`monkeypatch`。 控制顺序：L263遍历`STAGES`；L265断言`profile.base_url == ENDPOINT and profile.model == MODEL`；L266断言`profile.api_key.get_secret_value() == "test-only-secret"`；L267断言`settings.max_model_calls == 16`；L268断言`settings.install_products is True`；L269断言`settings.model_review is True`。 调用`monkeypatch.setenv`、`acceptance_settings`、`config`、`settings.require_model`、`settings.model_for`、`profile.api_key.get_secret_value`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_full_run_requires_matching_same_run_successful_smoke`（L272–L293）：接收`tmp_path`。 控制顺序：L290断言`verified_smoke_receipt(path, config(), env)["passed"] is True`。 调用`pytest.raises`、`verified_smoke_receipt`、`config`、`path.write_text`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_exact_user_smoke_payload_preserved_by_real_transport`（L296–L319）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L312断言`json.loads(requests[0].content) == SMOKE_PAYLOAD`；L313断言`"max_tokens" not in json.loads(requests[0].content)`。 调用`BoundedRealTransport`、`config`、`transport.transport.close`、`httpx.MockTransport`、`requests.append`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_actions_empty_secret_mapping_identifies_only_field_presence`（L322–L336）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L327断言`caught.value.code == "missing_configuration_API_KEY"`；L328断言`caught.value.details == { "BASE_URL_present": True, "MODE_present": True, "API_KEY_pr…`；L335断言`ENDPOINT not in json.dumps(caught.value.details)`；L336断言`MODEL not in json.dumps(caught.value.details)`。 调用`pytest.raises`、`configuration`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_non_string_mode_reports_field_name_not_value`（L340–L344）：接收`value`。 控制顺序：L343断言`caught.value.code == "invalid_configuration_type_MODE"`；L344断言`"test-only-secret" not in str(caught.value)`。 调用`pytest.raises`、`configuration`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_string_actions_values_and_exact_secret_mapping_are_accepted`（L347–L350）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L349断言`cfg.model == MODEL and cfg.base_url == ENDPOINT`；L350断言`cfg.key.get_secret_value() == "test-only-secret"`。 调用`configuration`、`cfg.key.get_secret_value`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_only_explicit_manual_runs_on_authorized_branches_can_use_provider`（L354–L379）：接收`tmp_path`、`ref`。 调用`trusted_dispatch`、`path.write_text`、`json.dumps`、`env.update`、`str`、`pytest.raises`、`pytest.mark.parametrize`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_provider_diagnostics_emit_only_schema_codes_counts_and_flags`（L382–L410）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L401断言`receipt["schema_valid"] is False`；L402断言`receipt["schema_error_types"] == ["extra_forbidden", "missing"]`；L403断言`receipt["usage"] == {"total_tokens": 42}`；L405遍历`( "test-only-secret", "private reasoning", "injected-private-fiel…`；L410断言`forbidden not in encoded`。 调用`json.dumps( { "choices": [ { "finish_reason": "stop", "message": …`、`json.dumps`、`response_receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_buffered_diagnostic_transport_preserves_client_response_and_secret_privacy`（L413–L427）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L422断言`smoke(config(), transport)["passed"] is True`；L423断言`transport.receipts[0]["finish_reason"] == "stop"`；L424断言`transport.receipts[0]["usage"] == {"total_tokens": 10}`；L425断言`"test-only-secret" not in json.dumps(transport.receipts)`。 调用`BoundedRealTransport`、`config`、`transport.transport.close`、`httpx.MockTransport`、`httpx.Response`、`smoke`、`json.dumps`、`transport.shutdown`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_prompt_is_prose_not_precomputed_plan`（L430–L440）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L434断言`"客户服务管理系统" in request`；L435断言`"不是模型响应" in request`。 调用`customer_request`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`require_customer_spec`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_paid_matrix_covers_three_native_ui_families`（L443–L459）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L446遍历`("native-probe.yml", "real-model.yml")`；L451断言`{row["template"] for row in job["strategy"]["matrix"]["include"]} == { "python-basic"…`；L456断言`"feat/customer-service-acceptance" in job["if"]`；L457断言`not any( "API_KEY" in step.get("env", {}) for step in job["steps"] if step.get("uses"…`。 调用`yaml.load`、`(ROOT / ".github/workflows" / name).read_text`、`any`、`step.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_requirement_snapshot_preserves_entity_mapping_without_text`（L462–L476）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L475断言`[item["entity"] for item in result] == ["requests", "tasks"]`；L476断言`"test-only-secret" not in json.dumps(result)`。 调用`contract_snapshot`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_safe_coverage_diagnostics_include_source_and_no_raw_prose_or_choices`（L479–L503）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L495断言`any(item["source"]["section"] == "features" for item in result)`；L496断言`any( item["source"]["encoding"] == "structured" for item in result if item["source"][…`；L501断言`any(item["targets"] == [{"entity": "customers", "field": "category"}] for item in res…`；L502断言`any(item.get("expected_count") == 1 for item in result)`；L503断言`"test-only-secret" not in json.dumps(result)`。 调用`Plan.model_validate`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`safe_coverage_details`、`requirement.model_dump`、`plan.model_dump`、`any`、`item.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_label_failure_is_exact_finite_code_with_no_description_export`（L506–L515）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L512断言`result["code"] == "native_label_contract"`；L513断言`result["entity_labels"][0]["allowed_characters"] is False`；L514断言`result["entity_labels"][0]["single_line"] is True`；L515断言`"test-only-secret" not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`safe_native_plan_details`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_every_native_plan_validation_message_has_a_finite_safe_code`（L518–L531）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L526遍历`(validate_plan, runtime_config)`；L528遍历`ast.walk(tree)`；L529按`isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call)`分支；L530断言`isinstance(node.exc.args[0], ast.Constant)`；L531断言`node.exc.args[0].value in DESIGN_REASON_CODES`。 调用`ast.parse`、`inspect.getsource`、`ast.walk`、`isinstance`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_diagnostics_separate_model_coverage_and_native_origins`（L534–L582）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L578断言`result["coverage_diagnostics"][0]["codes"] == ["planner_unsupported"]`；L579断言`result["coverage_diagnostics"][0]["origin"] == "planner_unsupported"`；L580断言`result["coverage_diagnostics"][1]["origin"] == "requirement_coverage"`；L581断言`result["unsupported_diagnostics"][0]["topics"] == ["date_range", "capability"]`；L582断言`"test-only-secret" not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`coverage_gaps`、`Plan.model_validate`、`safe_workflow_details`、`Store`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store`（L550–L573）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store.get_run`（L551–L566）：接收`run_id`。 调用`len`。 返回路径：L552的`{ "status": "BLOCKED", "template": "python-basic", "model_calls": 4, "pending": { "stage":…`。
-- `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store.latest_revision`（L568–L573）：接收`run_id`、`stage`。 调用`requirement.model_dump`。 返回路径：L569的`{"requirement": requirement.model_dump()} if stage == "requirements" else {"plan": plan}`。
-- `test_validation_excerpt_scrubs_credentials_headers_tokens_and_url_userinfo`（L601–L606）：接收`value`、`secret`。 控制顺序：L605断言`secret not in result`；L606断言`"REDACTED" in result`。 调用`DiagnosticTextBudget().excerpt`、`DiagnosticTextBudget`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_exact_key_redaction_precedes_truncation_and_total_budget_is_shared`（L609–L619）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L615断言`"exact" not in first and len(first) <= 600`；L617断言`len(first) + sum(map(len, rest)) == 6000`；L618断言`all(len(item) <= 600 for item in rest)`；L619断言`budget.excerpt("more") == ""`。 调用`DiagnosticTextBudget`、`budget.excerpt`、`len`、`budget.excerpts`、`sum`、`map`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_safe_coverage_excerpt_is_selected_and_redacted_without_full_requirement`（L622–L642）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L640断言`"必须支持精确筛选" in rendered`；L641断言`"opaque-private-canary" not in rendered`；L642断言`"private summary" not in rendered and "unrelated unselected" not in rendered`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`safe_coverage_details`、`requirement.model_dump`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_review_gap_diagnostics_preserve_blocking_count_and_omit_other_model_text`（L645–L661）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L657断言`result["uncovered_requirements_count"] == 1`；L658断言`"客户历史请求未验证" in result["uncovered_requirement_excerpts"][0]`；L660断言`"opaque-private-canary" not in encoded and "raw private provider" not in encoded`；L661断言`review.uncovered_requirements == ["客户历史请求未验证，opaque-private-canary"]`。 调用`ModelReview`、`completed_stage_details`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_diagnostics_keep_exact_failure_stage_and_safe_headline`（L664–L700）：接收`tmp_path`。 控制顺序：L688断言`"business_probe.py:271" in result["error_excerpt"]`；L689断言`result["native_stage"] == "customer-service-http"`；L690断言`result["native_template"] == "fastapiadmin"`；L691断言`result["native_exception"] == { "exception_type": "AssertionError", "file": "business…`；L699遍历`("exact-key-canary", "second-secret", "unselected", "private envi…`；L700断言`value not in encoded`。 调用`(tmp_path / "progress.json").write_text`、`json.dumps`、`(tmp_path / "failure.log").write_text`、`safe_runtime_details`、`DiagnosticTextBudget`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_diagnostics_reject_unrecognized_report_values`（L712–L721）：接收`tmp_path`、`stage`、`headline`。 控制顺序：L718断言`"native_exception" not in result`；L719断言`result.get("native_stage") == ( "customer-service-http" if stage == "customer-service…`。 调用`(tmp_path / "progress.json").write_text`、`json.dumps`、`(tmp_path / "failure.log").write_text`、`safe_runtime_details`、`DiagnosticTextBudget`、`result.get`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_diagnostics_reject_symlinked_files_and_report_directory`（L724–L749）：接收`tmp_path`、`monkeypatch`。 控制顺序：L738遍历`("progress.json", "failure.log")`；L748遍历`(reports, linked_directory, linked_directory / "nested")`；L749断言`safe_runtime_details("", path, DiagnosticTextBudget()) == {}`。 调用`outside.mkdir`、`(outside / "progress.json").write_text`、`(outside / "failure.log").write_text`、`reports.mkdir`、`(reports / name).symlink_to`、`linked_directory.symlink_to`、`type`、`monkeypatch.setattr`、`original`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget`（L752–L773）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L768断言`result["terminal_state"] == "FAILED"`；L769断言`result["runtime_diagnostics"]["error_excerpt"].startswith( "RuntimeError：native_modul…`；L772断言`len(result["runtime_diagnostics"]["error_excerpt"]) == 40`；L773断言`budget.remaining == 0`。 调用`DiagnosticTextBudget`、`safe_workflow_details`、`Store`、`result["runtime_diagnostics"]["error_excerpt"].startswith`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget.Store`（L755–L764）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget.Store.get_run`（L756–L761）：接收`run_id`。 返回路径：L757的`{ "status": "FAILED", "template": "fastapiadmin", "error": "RuntimeError：native_modules.py…`。
-- `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget.Store.latest_revision`（L763–L764）：接收`run_id`、`stage`。 返回路径：L764的`{}`。
-- `test_native_progress_allowlist_covers_real_literal_stages`（L776–L791）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L791断言`stages == NATIVE_PROGRESS_STAGES`。 调用`ast.parse`、`inspect.getsource`、`ast.walk`、`isinstance`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_exception_headline_redaction_precedes_truncation_and_ignores_log`（L794–L810）：接收`tmp_path`。 控制顺序：L808断言`len(message) == 600`；L809断言`"private" not in json.dumps(result)`；L810断言`message.endswith("[REDA")`。 调用`(tmp_path / "failure.log").write_text`、`DiagnosticTextBudget`、`safe_runtime_details`、`len`、`json.dumps`、`message.endswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_approved_plan_replay_preserves_exact_normalized_customer_contract`（L813–L833）：接收`tmp_path`。 控制顺序：L825断言`result["status"] == "saved" and result["exact_normalized_plan"] is True`；L826断言`result["file"] == destination.name`；L827断言`result["bytes"] == len(destination.read_bytes())`；L828断言`json.loads(destination.read_text(encoding="utf-8")) == Plan.model_validate(plan).mode…`；L832断言`list(destination.parent.iterdir()) == [destination]`；L833断言`"unselected secret" not in destination.read_text(encoding="utf-8")`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`reports.mkdir`、`(reports / "approved-spec.json").write_text`、`json.dumps`、`(reports / "raw-provider-response.json").write_text`、`DiagnosticTextBudget`、`preserve_approved_customer_plan`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_approved_plan_replay_rejects_credentials_before_persistence`（L848–L860）：接收`tmp_path`、`secret_text`。 控制顺序：L858断言`result == {"status": "secret_scan_rejected"}`；L859断言`not destination.exists()`；L860断言`secret_text not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`plan["acceptance"].append`、`(tmp_path / "approved-spec.json").write_text`、`json.dumps`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`、`destination.exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_approved_plan_replay_rejects_unknown_schema_and_does_not_read_other_files`（L863–L878）：接收`tmp_path`。 控制顺序：L869断言`preserve_approved_customer_plan(tmp_path, destination, budget) == { "status": "unavai…`；L875断言`preserve_approved_customer_plan(tmp_path, destination, budget) == { "status": "invali…`；L878断言`not destination.exists()`。 调用`DiagnosticTextBudget`、`(tmp_path / "design.json").write_text`、`preserve_approved_customer_plan`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`(tmp_path / "approved-spec.json").write_text`、`json.dumps`、`destination.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_approved_plan_replay_size_is_bounded_on_read_and_normalized_write`（L881–L902）：接收`tmp_path`。 控制顺序：L891断言`preserve_approved_customer_plan(tmp_path, destination, DiagnosticTextBudget()) == { "…`；L897断言`len(compact.encode("utf-8")) > MAX_REPLAY_PLAN_BYTES`；L899断言`preserve_approved_customer_plan(tmp_path, destination, DiagnosticTextBudget()) == { "…`；L902断言`not destination.exists()`。 调用`source.write_bytes`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`json.dumps`、`len`、`compact.encode`、`source.write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_approved_plan_replay_rejects_linked_input`（L905–L925）：接收`tmp_path`、`monkeypatch`。 控制顺序：L922断言`preserve_approved_customer_plan(reports, destination, DiagnosticTextBudget()) == { "s…`；L925断言`not destination.exists()`。 调用`real.write_bytes`、`(ROOT / "examples/plans/customer-service.json").read_bytes`、`reports.mkdir`、`(reports / "approved-spec.json").symlink_to`、`type`、`monkeypatch.setattr`、`original`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_failed_native_harness_preserves_replay_before_private_cleanup`（L928–L995）：接收`tmp_path`、`monkeypatch`。 控制顺序：L986断言`details["terminal_state"] == "FAILED"`；L987断言`details["runtime_diagnostics"]["native_stage"] == "customer-service-http"`；L988断言`"HTTP 422" in details["runtime_diagnostics"]["native_exception"]["message_excerpt"]`；L989断言`details["approved_plan_replay"]["status"] == "saved"`；L990断言`"test-only-secret" not in json.dumps(details)`；L991断言`"raw log" not in json.dumps(details)`；L992断言`not directory.exists()`；L994断言`json.loads(replay.read_text(encoding="utf-8"))["business"] == plan["business"]`。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`public_root.mkdir`、`monkeypatch.setattr`、`SimpleNamespace`、`Store`、`tempfile.TemporaryDirectory`、`Path`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store`（L946–L956）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store.get_run`（L947–L953）：接收`run_id`。 控制顺序：L948断言`run_id == "test-run"`。 返回路径：L949的`{ "status": "FAILED", "template": "fastapiadmin", "error": "AssertionError：business_probe.…`。
-- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store.latest_revision`（L955–L956）：接收`run_id`、`stage`。 返回路径：L956的`{"plan": plan} if stage == "design" else {}`。
-- `test_failed_native_harness_preserves_replay_before_private_cleanup.failed_browser`（L967–L978）：接收`command`、`**kwargs`。 调用`write_json`、`(reports / "failure.log").write_text`、`SimpleNamespace`。 返回路径：L978的`SimpleNamespace(returncode=1)`。
+- `test_customer_gate_requires_each_metric_meaning_not_just_four_kinds`（L207–L211）：接收`name`、`change`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`next(metric for metric in spec["business"]["metrics"] if metric["…`、`next`、`pytest.raises`、`require_customer_spec`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_gate_accepts_provider_metric_names_extra_metrics_and_equivalent_resolution_filter`（L214–L223）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L216遍历`enumerate(spec["business"]["metrics"])`；L218按`metric["kind"] == "average_duration"`分支；L220按`metric["filters"]`分支；L222断言`len(spec["business"]["metrics"]) > 5`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`enumerate`、`len`、`require_customer_spec`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_gate_requires_every_requested_reminder`（L237–L245）：接收`entity`、`event`、`transition`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`pytest.raises`、`require_customer_spec`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_gate_only_pins_the_explicit_resolution_recipient`（L248–L258）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L250遍历`spec["business"]["notifications"]`；L251按`(notice["entity"], notice["transition"]) != ("requests", "resolve")`分支；L254遍历`spec["business"]["notifications"]`；L255按`(notice["entity"], notice["transition"]) == ("requests", "resolve")`分支。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`require_customer_spec`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_query_access_never_implies_customer_write_or_audit_permissions`（L263–L271）：接收`role`、`action`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`next( grant for grant in spec["business"]["permissions"] if grant…`、`next`、`pytest.raises`、`require_customer_spec`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_role_administration_is_manager_only`（L275–L279）：接收`role`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`spec["business"]["role_admin_roles"].append`、`pytest.raises`、`require_customer_spec`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_collaboration_tasks_are_created_only_by_managers`（L283–L300）：接收`role`、`scope`。 控制顺序：L293按`permission is None`分支。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`next`、`spec["business"]["permissions"].append`、`permission["actions"].append`、`pytest.raises`、`require_customer_spec`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_gate_rejects_each_explicit_role_action_omission`（L331–L340）：接收`role`、`entity`、`action`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`next`、`permission["actions"].remove`、`pytest.raises`、`require_customer_spec`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_managers_require_all_record_scope`（L345–L354）：接收`entity`、`scope`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`next`、`pytest.raises`、`require_customer_spec`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_collaboration_task_assignment_is_manager_only`（L358–L375）：接收`role`、`scope`。 控制顺序：L368按`permission is None`分支。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`next`、`spec["business"]["permissions"].append`、`permission["actions"].append`、`pytest.raises`、`require_customer_spec`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_is_manual_environment_scoped_and_artifact_allowlisted`（L378–L454）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L385断言`set(doc["on"]) == {"workflow_dispatch"}`；L387断言`job["environment"] == "rnd"`；L388断言`"github.event_name == 'workflow_dispatch'" in job["if"]`；L389断言`REPOSITORY in job["if"]`；L391断言`len(secret_steps) == 2`；L392断言`secret_steps[0]["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"`；L393断言`secret_steps[0]["env"]["BASE_URL"] == "${{ vars.BASE_URL }}"`；L394断言`secret_steps[0]["env"]["MODE"] == "${{ vars.MODE }}"`。后续分支沿下方源码相同行号继续阅读。 调用`yaml.load`、`(ROOT / ".github/workflows/real-model.yml").read_text`、`set`、`step.get`、`len`、`step.get("uses", "").startswith`、`(ROOT / ".github/workflows/native-probe.yml").read_text`、`entry["jobs"]["verify-bundles"].get`、`entry.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_all_profiles_use_authorized_configuration_despite_hostile_ambient_overrides`（L457–L473）：接收`tmp_path`、`monkeypatch`。 控制顺序：L467遍历`STAGES`；L469断言`profile.base_url == ENDPOINT and profile.model == MODEL`；L470断言`profile.api_key.get_secret_value() == "test-only-secret"`；L471断言`settings.max_model_calls == 16`；L472断言`settings.install_products is True`；L473断言`settings.model_review is True`。 调用`monkeypatch.setenv`、`acceptance_settings`、`config`、`settings.require_model`、`settings.model_for`、`profile.api_key.get_secret_value`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_full_run_requires_matching_same_run_successful_smoke`（L476–L497）：接收`tmp_path`。 控制顺序：L494断言`verified_smoke_receipt(path, config(), env)["passed"] is True`。 调用`pytest.raises`、`verified_smoke_receipt`、`config`、`path.write_text`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_user_smoke_payload_preserved_by_real_transport`（L500–L523）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L516断言`json.loads(requests[0].content) == SMOKE_PAYLOAD`；L517断言`"max_tokens" not in json.loads(requests[0].content)`。 调用`BoundedRealTransport`、`config`、`transport.transport.close`、`httpx.MockTransport`、`requests.append`、`httpx.Response`、`transport.handle_request`、`httpx.Request`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_actions_empty_secret_mapping_identifies_only_field_presence`（L526–L540）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L531断言`caught.value.code == "missing_configuration_API_KEY"`；L532断言`caught.value.details == { "BASE_URL_present": True, "MODE_present": True, "API_KEY_pr…`；L539断言`ENDPOINT not in json.dumps(caught.value.details)`；L540断言`MODEL not in json.dumps(caught.value.details)`。 调用`pytest.raises`、`configuration`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_non_string_mode_reports_field_name_not_value`（L544–L548）：接收`value`。 控制顺序：L547断言`caught.value.code == "invalid_configuration_type_MODE"`；L548断言`"test-only-secret" not in str(caught.value)`。 调用`pytest.raises`、`configuration`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_string_actions_values_and_exact_secret_mapping_are_accepted`（L551–L554）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L553断言`cfg.model == MODEL and cfg.base_url == ENDPOINT`；L554断言`cfg.key.get_secret_value() == "test-only-secret"`。 调用`configuration`、`cfg.key.get_secret_value`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_explicit_manual_runs_on_authorized_branches_can_use_provider`（L558–L583）：接收`tmp_path`、`ref`。 调用`trusted_dispatch`、`path.write_text`、`json.dumps`、`env.update`、`str`、`pytest.raises`、`pytest.mark.parametrize`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_provider_diagnostics_emit_only_schema_codes_counts_and_flags`（L586–L614）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L605断言`receipt["schema_valid"] is False`；L606断言`receipt["schema_error_types"] == ["extra_forbidden", "missing"]`；L607断言`receipt["usage"] == {"total_tokens": 42}`；L609遍历`( "test-only-secret", "private reasoning", "injected-private-fiel…`；L614断言`forbidden not in encoded`。 调用`json.dumps( { "choices": [ { "finish_reason": "stop", "message": …`、`json.dumps`、`response_receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_buffered_diagnostic_transport_preserves_client_response_and_secret_privacy`（L617–L631）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L626断言`smoke(config(), transport)["passed"] is True`；L627断言`transport.receipts[0]["finish_reason"] == "stop"`；L628断言`transport.receipts[0]["usage"] == {"total_tokens": 10}`；L629断言`"test-only-secret" not in json.dumps(transport.receipts)`。 调用`BoundedRealTransport`、`config`、`transport.transport.close`、`httpx.MockTransport`、`httpx.Response`、`smoke`、`json.dumps`、`transport.shutdown`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_prompt_is_prose_not_precomputed_plan`（L634–L644）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L638断言`"客户服务管理系统" in request`；L639断言`"不是模型响应" in request`。 调用`customer_request`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`require_customer_spec`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_paid_matrix_covers_three_native_ui_families`（L647–L663）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L650遍历`("native-probe.yml", "real-model.yml")`；L655断言`{row["template"] for row in job["strategy"]["matrix"]["include"]} == { "python-basic"…`；L660断言`"feat/customer-service-acceptance" in job["if"]`；L661断言`not any( "API_KEY" in step.get("env", {}) for step in job["steps"] if step.get("uses"…`。 调用`yaml.load`、`(ROOT / ".github/workflows" / name).read_text`、`any`、`step.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_requirement_snapshot_preserves_entity_mapping_without_text`（L666–L680）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L679断言`[item["entity"] for item in result] == ["requests", "tasks"]`；L680断言`"test-only-secret" not in json.dumps(result)`。 调用`contract_snapshot`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_safe_coverage_diagnostics_include_source_and_no_raw_prose_or_choices`（L683–L707）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L699断言`any(item["source"]["section"] == "features" for item in result)`；L700断言`any( item["source"]["encoding"] == "structured" for item in result if item["source"][…`；L705断言`any(item["targets"] == [{"entity": "customers", "field": "category"}] for item in res…`；L706断言`any(item.get("expected_count") == 1 for item in result)`；L707断言`"test-only-secret" not in json.dumps(result)`。 调用`Plan.model_validate`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`safe_coverage_details`、`requirement.model_dump`、`plan.model_dump`、`any`、`item.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_label_failure_is_exact_finite_code_with_no_description_export`（L710–L719）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L716断言`result["code"] == "native_label_contract"`；L717断言`result["entity_labels"][0]["allowed_characters"] is False`；L718断言`result["entity_labels"][0]["single_line"] is True`；L719断言`"test-only-secret" not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`safe_native_plan_details`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_every_native_plan_validation_message_has_a_finite_safe_code`（L722–L735）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L730遍历`(validate_plan, runtime_config)`；L732遍历`ast.walk(tree)`；L733按`isinstance(node, ast.Raise) and isinstance(node.exc, ast.Call)`分支；L734断言`isinstance(node.exc.args[0], ast.Constant)`；L735断言`node.exc.args[0].value in DESIGN_REASON_CODES`。 调用`ast.parse`、`inspect.getsource`、`ast.walk`、`isinstance`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_diagnostics_separate_model_coverage_and_native_origins`（L738–L786）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L782断言`result["coverage_diagnostics"][0]["codes"] == ["planner_unsupported"]`；L783断言`result["coverage_diagnostics"][0]["origin"] == "planner_unsupported"`；L784断言`result["coverage_diagnostics"][1]["origin"] == "requirement_coverage"`；L785断言`result["unsupported_diagnostics"][0]["topics"] == ["date_range", "capability"]`；L786断言`"test-only-secret" not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`coverage_gaps`、`Plan.model_validate`、`safe_workflow_details`、`Store`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store`（L754–L777）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store.get_run`（L755–L770）：接收`run_id`。 调用`len`。 返回路径：L756的`{ "status": "BLOCKED", "template": "python-basic", "model_calls": 4, "pending": { "stage":…`。
+- `test_workflow_diagnostics_separate_model_coverage_and_native_origins.Store.latest_revision`（L772–L777）：接收`run_id`、`stage`。 调用`requirement.model_dump`。 返回路径：L773的`{"requirement": requirement.model_dump()} if stage == "requirements" else {"plan": plan}`。
+- `test_validation_excerpt_scrubs_credentials_headers_tokens_and_url_userinfo`（L805–L810）：接收`value`、`secret`。 控制顺序：L809断言`secret not in result`；L810断言`"REDACTED" in result`。 调用`DiagnosticTextBudget().excerpt`、`DiagnosticTextBudget`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_key_redaction_precedes_truncation_and_total_budget_is_shared`（L813–L823）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L819断言`"exact" not in first and len(first) <= 600`；L821断言`len(first) + sum(map(len, rest)) == 6000`；L822断言`all(len(item) <= 600 for item in rest)`；L823断言`budget.excerpt("more") == ""`。 调用`DiagnosticTextBudget`、`budget.excerpt`、`len`、`budget.excerpts`、`sum`、`map`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_safe_coverage_excerpt_is_selected_and_redacted_without_full_requirement`（L826–L846）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L844断言`"必须支持精确筛选" in rendered`；L845断言`"opaque-private-canary" not in rendered`；L846断言`"private summary" not in rendered and "unrelated unselected" not in rendered`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`Requirement`、`safe_coverage_details`、`requirement.model_dump`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_review_gap_diagnostics_preserve_blocking_count_and_omit_other_model_text`（L849–L865）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L861断言`result["uncovered_requirements_count"] == 1`；L862断言`"客户历史请求未验证" in result["uncovered_requirement_excerpts"][0]`；L864断言`"opaque-private-canary" not in encoded and "raw private provider" not in encoded`；L865断言`review.uncovered_requirements == ["客户历史请求未验证，opaque-private-canary"]`。 调用`ModelReview`、`completed_stage_details`、`DiagnosticTextBudget`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_diagnostics_keep_exact_failure_stage_and_safe_headline`（L868–L904）：接收`tmp_path`。 控制顺序：L892断言`"business_probe.py:271" in result["error_excerpt"]`；L893断言`result["native_stage"] == "customer-service-http"`；L894断言`result["native_template"] == "fastapiadmin"`；L895断言`result["native_exception"] == { "exception_type": "AssertionError", "file": "business…`；L903遍历`("exact-key-canary", "second-secret", "unselected", "private envi…`；L904断言`value not in encoded`。 调用`(tmp_path / "progress.json").write_text`、`json.dumps`、`(tmp_path / "failure.log").write_text`、`safe_runtime_details`、`DiagnosticTextBudget`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_diagnostics_reject_unrecognized_report_values`（L916–L925）：接收`tmp_path`、`stage`、`headline`。 控制顺序：L922断言`"native_exception" not in result`；L923断言`result.get("native_stage") == ( "customer-service-http" if stage == "customer-service…`。 调用`(tmp_path / "progress.json").write_text`、`json.dumps`、`(tmp_path / "failure.log").write_text`、`safe_runtime_details`、`DiagnosticTextBudget`、`result.get`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_diagnostics_reject_symlinked_files_and_report_directory`（L928–L953）：接收`tmp_path`、`monkeypatch`。 控制顺序：L942遍历`("progress.json", "failure.log")`；L952遍历`(reports, linked_directory, linked_directory / "nested")`；L953断言`safe_runtime_details("", path, DiagnosticTextBudget()) == {}`。 调用`outside.mkdir`、`(outside / "progress.json").write_text`、`(outside / "failure.log").write_text`、`reports.mkdir`、`(reports / name).symlink_to`、`linked_directory.symlink_to`、`type`、`monkeypatch.setattr`、`original`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget`（L956–L977）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L972断言`result["terminal_state"] == "FAILED"`；L973断言`result["runtime_diagnostics"]["error_excerpt"].startswith( "RuntimeError：native_modul…`；L976断言`len(result["runtime_diagnostics"]["error_excerpt"]) == 40`；L977断言`budget.remaining == 0`。 调用`DiagnosticTextBudget`、`safe_workflow_details`、`Store`、`result["runtime_diagnostics"]["error_excerpt"].startswith`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget.Store`（L959–L968）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget.Store.get_run`（L960–L965）：接收`run_id`。 返回路径：L961的`{ "status": "FAILED", "template": "fastapiadmin", "error": "RuntimeError：native_modules.py…`。
+- `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget.Store.latest_revision`（L967–L968）：接收`run_id`、`stage`。 返回路径：L968的`{}`。
+- `test_native_progress_allowlist_covers_real_literal_stages`（L980–L995）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L995断言`stages == NATIVE_PROGRESS_STAGES`。 调用`ast.parse`、`inspect.getsource`、`ast.walk`、`isinstance`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_exception_headline_redaction_precedes_truncation_and_ignores_log`（L998–L1014）：接收`tmp_path`。 控制顺序：L1012断言`len(message) == 600`；L1013断言`"private" not in json.dumps(result)`；L1014断言`message.endswith("[REDA")`。 调用`(tmp_path / "failure.log").write_text`、`DiagnosticTextBudget`、`safe_runtime_details`、`len`、`json.dumps`、`message.endswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_preserves_exact_normalized_customer_contract`（L1017–L1037）：接收`tmp_path`。 控制顺序：L1029断言`result["status"] == "saved" and result["exact_normalized_plan"] is True`；L1030断言`result["file"] == destination.name`；L1031断言`result["bytes"] == len(destination.read_bytes())`；L1032断言`json.loads(destination.read_text(encoding="utf-8")) == Plan.model_validate(plan).mode…`；L1036断言`list(destination.parent.iterdir()) == [destination]`；L1037断言`"unselected secret" not in destination.read_text(encoding="utf-8")`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`reports.mkdir`、`(reports / "approved-spec.json").write_text`、`json.dumps`、`(reports / "raw-provider-response.json").write_text`、`DiagnosticTextBudget`、`preserve_approved_customer_plan`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_rejects_credentials_before_persistence`（L1052–L1064）：接收`tmp_path`、`secret_text`。 控制顺序：L1062断言`result == {"status": "secret_scan_rejected"}`；L1063断言`not destination.exists()`；L1064断言`secret_text not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`plan["acceptance"].append`、`(tmp_path / "approved-spec.json").write_text`、`json.dumps`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`、`destination.exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_rejects_unknown_schema_and_does_not_read_other_files`（L1067–L1082）：接收`tmp_path`。 控制顺序：L1073断言`preserve_approved_customer_plan(tmp_path, destination, budget) == { "status": "unavai…`；L1079断言`preserve_approved_customer_plan(tmp_path, destination, budget) == { "status": "invali…`；L1082断言`not destination.exists()`。 调用`DiagnosticTextBudget`、`(tmp_path / "design.json").write_text`、`preserve_approved_customer_plan`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`(tmp_path / "approved-spec.json").write_text`、`json.dumps`、`destination.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_size_is_bounded_on_read_and_normalized_write`（L1085–L1106）：接收`tmp_path`。 控制顺序：L1095断言`preserve_approved_customer_plan(tmp_path, destination, DiagnosticTextBudget()) == { "…`；L1101断言`len(compact.encode("utf-8")) > MAX_REPLAY_PLAN_BYTES`；L1103断言`preserve_approved_customer_plan(tmp_path, destination, DiagnosticTextBudget()) == { "…`；L1106断言`not destination.exists()`。 调用`source.write_bytes`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`json.dumps`、`len`、`compact.encode`、`source.write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_rejects_linked_input`（L1109–L1129）：接收`tmp_path`、`monkeypatch`。 控制顺序：L1126断言`preserve_approved_customer_plan(reports, destination, DiagnosticTextBudget()) == { "s…`；L1129断言`not destination.exists()`。 调用`real.write_bytes`、`(ROOT / "examples/plans/customer-service.json").read_bytes`、`reports.mkdir`、`(reports / "approved-spec.json").symlink_to`、`type`、`monkeypatch.setattr`、`original`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup`（L1132–L1199）：接收`tmp_path`、`monkeypatch`。 控制顺序：L1190断言`details["terminal_state"] == "FAILED"`；L1191断言`details["runtime_diagnostics"]["native_stage"] == "customer-service-http"`；L1192断言`"HTTP 422" in details["runtime_diagnostics"]["native_exception"]["message_excerpt"]`；L1193断言`details["approved_plan_replay"]["status"] == "saved"`；L1194断言`"test-only-secret" not in json.dumps(details)`；L1195断言`"raw log" not in json.dumps(details)`；L1196断言`not directory.exists()`；L1198断言`json.loads(replay.read_text(encoding="utf-8"))["business"] == plan["business"]`。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`public_root.mkdir`、`monkeypatch.setattr`、`SimpleNamespace`、`Store`、`tempfile.TemporaryDirectory`、`Path`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store`（L1150–L1160）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store.get_run`（L1151–L1157）：接收`run_id`。 控制顺序：L1152断言`run_id == "test-run"`。 返回路径：L1153的`{ "status": "FAILED", "template": "fastapiadmin", "error": "AssertionError：business_probe.…`。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store.latest_revision`（L1159–L1160）：接收`run_id`、`stage`。 返回路径：L1160的`{"plan": plan} if stage == "design" else {}`。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup.failed_browser`（L1171–L1182）：接收`command`、`**kwargs`。 调用`write_json`、`(reports / "failure.log").write_text`、`SimpleNamespace`。 返回路径：L1182的`SimpleNamespace(returncode=1)`。
 
-<!-- source-file: tests/test_real_model_ci.py sha256: 00e1fc12c92723715fa4d89587ca96aa5d83c6df8135b26444d62ca83b85d859 -->
+<!-- source-file: tests/test_real_model_ci.py sha256: 991a3dde33ab3222db396f98b3833a0750ba183d534431ce75424f4ac67b4e51 -->
 ````python
 """No paid calls here: test doubles only test the real-run harness' safety boundaries."""
 
@@ -39401,6 +41457,210 @@ def test_actual_model_plan_must_preserve_explicit_customer_obligations(mutation)
         spec["business"]["workflows"] = []
     else:
         spec["entities"][0]["fields"][3]["choices"] = ["企业"]
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+@pytest.mark.parametrize(
+    "name,change",
+    [
+        ("total", {"filters": [{"field": "request_state", "value": "resolved"}]}),
+        ("resolved_total", {"filters": []}),
+        (
+            "resolved_total",
+            {"filters": [{"field": "request_state", "op": "ne", "value": "resolved"}]},
+        ),
+        (
+            "resolved_total",
+            {"entity": "tasks", "filters": [{"field": "task_state", "value": "resolved"}]},
+        ),
+        (
+            "resolved_total",
+            {
+                "filters": [
+                    {"field": "request_state", "value": "resolved"},
+                    {"field": "priority", "value": "紧急"},
+                ]
+            },
+        ),
+        ("resolution", {"start_field": "due_at"}),
+        ("resolution", {"end_field": "due_at"}),
+        ("resolution", {"filters": [{"field": "priority", "value": "紧急"}]}),
+        ("customer_categories", {"entity": "requests", "group_by": "customer_id"}),
+        ("customer_categories", {"group_by": "organization"}),
+        ("customer_categories", {"filters": [{"field": "category", "value": "企业"}]}),
+        ("daily", {"time_field": "due_at"}),
+        ("daily", {"entity": "customers"}),
+        ("daily", {"filters": [{"field": "request_state", "value": "resolved"}]}),
+    ],
+)
+def test_customer_gate_requires_each_metric_meaning_not_just_four_kinds(name, change):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    next(metric for metric in spec["business"]["metrics"] if metric["name"] == name).update(change)
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+def test_customer_gate_accepts_provider_metric_names_extra_metrics_and_equivalent_resolution_filter():
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    for number, metric in enumerate(spec["business"]["metrics"]):
+        metric["name"] = f"provider_metric_{number}"
+        if metric["kind"] == "average_duration":
+            metric["filters"] = []
+        elif metric["filters"]:
+            metric["filters"] = [{"field": "request_state", "op": "in", "value": ["resolved"]}]
+    assert len(spec["business"]["metrics"]) > 5
+    require_customer_spec(spec)
+
+
+@pytest.mark.parametrize("entity", ["requests", "tasks"])
+@pytest.mark.parametrize(
+    "event,transition",
+    [
+        ("assigned", None),
+        ("note_added", None),
+        ("transitioned", "start"),
+        ("transitioned", "resolve"),
+        ("due", None),
+    ],
+)
+def test_customer_gate_requires_every_requested_reminder(entity, event, transition):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    spec["business"]["notifications"] = [
+        notice
+        for notice in spec["business"]["notifications"]
+        if (notice["entity"], notice["event"], notice["transition"]) != (entity, event, transition)
+    ]
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+def test_customer_gate_only_pins_the_explicit_resolution_recipient():
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    for notice in spec["business"]["notifications"]:
+        if (notice["entity"], notice["transition"]) != ("requests", "resolve"):
+            notice["recipient"] = "creator" if notice["recipient"] == "assignee" else "assignee"
+    require_customer_spec(spec)
+    for notice in spec["business"]["notifications"]:
+        if (notice["entity"], notice["transition"]) == ("requests", "resolve"):
+            notice["recipient"] = "assignee"
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+@pytest.mark.parametrize("role", ["service", "employee"])
+@pytest.mark.parametrize("action", ["create", "update", "archive", "add_note", "read_audit"])
+def test_customer_query_access_never_implies_customer_write_or_audit_permissions(role, action):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    next(
+        grant
+        for grant in spec["business"]["permissions"]
+        if grant["role"] == role and grant["entity"] == "customers"
+    )["actions"].append(action)
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+@pytest.mark.parametrize("role", ["service", "employee"])
+def test_customer_role_administration_is_manager_only(role):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    spec["business"]["role_admin_roles"].append(role)
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+@pytest.mark.parametrize("role,scope", [("service", "assigned"), ("employee", "own")])
+def test_customer_collaboration_tasks_are_created_only_by_managers(role, scope):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    permission = next(
+        (
+            grant
+            for grant in spec["business"]["permissions"]
+            if grant["role"] == role and grant["entity"] == "tasks"
+        ),
+        None,
+    )
+    if permission is None:
+        spec["business"]["permissions"].append(
+            {"role": role, "entity": "tasks", "actions": ["read", "create"], "scope": scope}
+        )
+    else:
+        permission["actions"].append("create")
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+@pytest.mark.parametrize(
+    "role,entity,action",
+    [
+        ("manager", "customers", action)
+        for action in ("create", "read", "update", "archive", "read_audit")
+    ]
+    + [
+        ("manager", entity, action)
+        for entity in ("requests", "tasks")
+        for action in (
+            "create",
+            "read",
+            "update",
+            "archive",
+            "add_note",
+            "read_history",
+            "read_audit",
+            "assign",
+            "transition",
+        )
+    ]
+    + [
+        ("service", entity, action)
+        for entity in ("requests", "tasks")
+        for action in ("read", "update", "add_note", "transition", "read_history", "read_audit")
+    ]
+    + [("employee", "requests", action) for action in ("create", "read")],
+)
+def test_customer_gate_rejects_each_explicit_role_action_omission(role, entity, action):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    permission = next(
+        grant
+        for grant in spec["business"]["permissions"]
+        if (grant["role"], grant["entity"]) == (role, entity)
+    )
+    permission["actions"].remove(action)
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+@pytest.mark.parametrize("entity", ["customers", "requests", "tasks"])
+@pytest.mark.parametrize("scope", ["own", "assigned"])
+def test_customer_managers_require_all_record_scope(entity, scope):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    permission = next(
+        grant
+        for grant in spec["business"]["permissions"]
+        if grant["role"] == "manager" and grant["entity"] == entity
+    )
+    permission["scope"] = scope
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+@pytest.mark.parametrize("role,scope", [("service", "assigned"), ("employee", "own")])
+def test_customer_collaboration_task_assignment_is_manager_only(role, scope):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    permission = next(
+        (
+            grant
+            for grant in spec["business"]["permissions"]
+            if grant["role"] == role and grant["entity"] == "tasks"
+        ),
+        None,
+    )
+    if permission is None:
+        spec["business"]["permissions"].append(
+            {"role": role, "entity": "tasks", "actions": ["read", "assign"], "scope": scope}
+        )
+    else:
+        permission["actions"].append("assign")
     with pytest.raises(SafeFailure, match="customer_obligation"):
         require_customer_spec(spec)
 
@@ -42582,7 +44842,7 @@ if __name__ == "__main__":
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/business_fastapi_browser.cjs sha256: 23c0a68c32fe5782895e75827b4bb5d7a479538c78e2ed8bfc8d2e7da0f2dd29 -->
+<!-- source-file: scripts/business_fastapi_browser.cjs sha256: 4119a13ce67af0cd39c744fbbd5ada22745a7710b61ae9aeedb7c07633eb1a33 -->
 ````javascript
 // Actual native sessions and rendered Fa/ElementPlus UI. No injected tokens or mocked routes.
 const fs = require('node:fs');
@@ -42764,15 +45024,25 @@ async function main() {
     await note.getByRole('button', { name: '确定', exact: true }).click();
     await checked(await savedNote);
     assert((await transition(page, 'requests', request.id, 'resolve')).resolved_at);
+    await page.getByTestId('history-' + request.id).click();
+    await page.getByRole('dialog', { name: '记录历史' }).getByText('Browser handling note', { exact: true }).waitFor();
+    await capture(page, 'service-handling-history');
+    await closeNativeDialog(page.getByRole('dialog', { name: '记录历史' }));
     await capture(page, 'service-handled-request');
     report.checks.push('service:assigned_workflows_notes_timestamps');
     page = employee.p;
     await page.reload();
     await tab(page, employee.config, 'requests');
-    await page.getByTestId('history-' + request.id).click();
-    await page.getByRole('dialog', { name: '记录历史' }).getByText('Browser handling note', { exact: true }).waitFor();
-    await capture(page, 'employee-request-timeline');
-    await closeNativeDialog(page.getByRole('dialog', { name: '记录历史' }));
+    const employeeHistory = scenario.plan.business.permissions.some(rule => rule.role === 'employee' && rule.entity === 'requests' && rule.actions.includes('read_history'));
+    if (employeeHistory) {
+      await page.getByTestId('history-' + request.id).click();
+      await page.getByRole('dialog', { name: '记录历史' }).getByText('Browser handling note', { exact: true }).waitFor();
+      await capture(page, 'employee-request-timeline');
+      await closeNativeDialog(page.getByRole('dialog', { name: '记录历史' }));
+    } else {
+      assert.equal(await page.getByTestId('history-' + request.id).count(), 0, 'Unpermitted history control must not be displayed');
+      await capture(page, 'employee-owned-record');
+    }
     const inbox = response(page, '/business/inbox');
     await page.getByRole('tab', { name: '提醒', exact: true }).click();
     const notices = await checked(await inbox);
@@ -42781,7 +45051,7 @@ async function main() {
     await capture(page, 'employee-resolution-reminders');
     const marked = response(page, `/business/inbox/${own.id}/read`, 'POST');
     await page.getByTestId('read-notice-' + own.id).click(); await checked(await marked);
-    report.checks.push('employee:own_timeline_and_read_reminder');
+    report.checks.push('employee:own_record_history_acl_and_read_reminder');
     for (const role of ['other_employee', 'other_service']) {
       const outsider = await login(role); page = outsider.p;
       const listing = await tab(page, outsider.config, 'requests');
@@ -42801,7 +45071,7 @@ async function main() {
     const metrics = await checked(await metricResponse);
     assert.equal(metrics.length, scenario.plan.business.metrics.length);
     for (const metric of metrics) await page.getByRole('heading', { name: metric.label, exact: true }).waitFor();
-    report.checks.push('manager:five_native_metric_cards');
+    report.checks.push('manager:all_declared_native_metric_cards');
     assert.equal(report.errors.length, 0);
     await capture(page, 'manager-native-dashboard');
     report.records = { customers: customer.id, requests: request.id, tasks: task.id };
@@ -42827,7 +45097,7 @@ main().catch(error => { console.error(error.name + ': native business UI accepta
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/business_yudao_browser.cjs sha256: 499379e1b35301f1150b4f8c4e5dc7e7c949fd73cae41eade24acc895f37da59 -->
+<!-- source-file: scripts/business_yudao_browser.cjs sha256: e1cf29f3a03680b3964b2a4352a20c4070bd2f5346fdaace133bc63490db5b4e -->
 ````javascript
 // Real Vben/Ant business journey. Only scenario-owned synthetic accounts; no mocks/token injection.
 'use strict';
@@ -42941,7 +45211,7 @@ async function main() {
     // Selecting an already-open record in a kept-alive page is a valid no-op.
     // Its native Refresh button provides a fresh, record-bound response every time.
     const meta = observe('/admin-api/infra/rnd-business/meta', 'GET', { entity, id: identifier });
-    await panel.getByRole('button', { name: '刷新', exact: true }).click();
+    await panel.getByRole('button', { name: /^刷\s*新$/ }).click();
     const metadata = await checked(meta);
     assert.equal(String(metadata.record.id), identifier, 'Detail response must match the clicked row');
   }
@@ -43050,8 +45320,10 @@ async function main() {
     const panel = page.locator('[data-rnd-business-panel]');
     assert.equal(await panel.getByTestId('business-assign').count(), 0, 'Employee must not receive assignment controls');
     assert.equal(await panel.getByTestId('business-transition-start').count(), 0, 'Employee must not receive transition controls');
-    await panel.locator('.ant-timeline-item').first().waitFor({ state: 'visible' });
-    await capture('employee-owned-history.png');
+    const employeeHistory = scenario.plan.business.permissions.some(rule => rule.role === 'employee' && rule.entity === 'requests' && rule.actions.includes('read_history'));
+    if (employeeHistory) await panel.locator('.ant-timeline-item').first().waitFor({ state: 'visible' });
+    else assert.equal(await panel.locator('.ant-timeline-item').count(), 0, 'Unpermitted history must not be displayed');
+    await capture(employeeHistory ? 'employee-owned-history.png' : 'employee-owned-record.png');
     await panel.getByText('站内提醒', { exact: true }).waitFor({ state: 'visible' });
     const reminder = notices.find(notice => String(notice.record_id) === String(scenario.records.requests) && notice.message.endsWith(' transitioned'));
     assert(reminder, 'Native recipient resolution reminder missing');
@@ -43062,8 +45334,8 @@ async function main() {
     await unread.click(); await checked(marked);
     await panel.getByTestId(`business-notice-read-state-${reminder.id}`).waitFor({ state: 'visible' });
     await capture('employee-vben-reminders.png');
-    report.checks.push('employee:own_timeline_and_read_reminder');
-    report.journeys.push({ actor: 'employee', own_history: true, recipient_reminders: true, unauthorized_controls_absent: true });
+    report.checks.push('employee:own_record_history_acl_and_read_reminder');
+    report.journeys.push({ actor: 'employee', own_history: employeeHistory, history_acl: true, recipient_reminders: true, unauthorized_controls_absent: true });
     for (const role of ['other_employee', 'other_service']) {
       await login(role);
       const current = await openPage('requests');
@@ -44822,15 +47094,16 @@ if __name__ == "__main__":
 - `safe_workflow_details`（L601–L765）：接收`store`、`run_id`、`traces`、`text_budget`、`native_reports`。 控制顺序：L604按`run_id`分支；L644按`requirement and plan`分支；L654按`run.get("template") in {"fastapiadmin", "yudao-vben"}`分支。 调用`DiagnosticTextBudget`、`store.get_run`、`run.get`、`safe_runtime_details`、`pending.get`、`(store.latest_revision(run_id, "requirements") or {}).get`、`store.latest_revision`、`(store.latest_revision(run_id, "design") or {}).get`、`bool`等。 返回路径：L765的`details`。
 - `smoke`（L768–L796）：接收`config`、`transport`。 源码说明：A single bounded genuine request. Provider error bodies are never emitted.。 控制顺序：L781按`status != 200`分支；L783抛异常，停止当前正常路径；L785遍历`response.iter_bytes()`；L787按`len(data) > 131072`分支；L788抛异常，停止当前正常路径；L790按`not isinstance(content, str) or not content.strip()`分支；L791抛异常，停止当前正常路径；L793抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`httpx.Client`、`client.stream`、`config.key.get_secret_value`、`SafeFailure`、`bytearray`、`response.iter_bytes`、`data.extend`、`len`、`json.loads`等。 返回路径：L796的`{"passed": True, "http_status": status, "actual_provider_request": True}`。
 - `customer_request`（L837–L847）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`"\n\n".join`、`(ROOT / "examples/requirements" / name).read_text`。 返回路径：L840的`"\n\n".join( (ROOT / "examples/requirements" / name).read_text(encoding="utf-8") for name …`。
-- `require_customer_spec`（L850–L947）：接收`spec`。 控制顺序：L856断言`plan.business is not None and plan.data_scope == "shared" and not plan.unsupported`；L857断言`{e.name for e in plan.entities} == {"customers", "requests", "tasks"}`；L858断言`{r.name for r in plan.business.roles} == {"manager", "service", "employee"}`；L866断言`not business_gaps(requirement, plan)`；L867断言`{m.kind for m in plan.business.metrics} >= { "count", "average_duration", "group_coun…`；L873断言`not plan.custom_rules`；L899断言`all(set(entities[name]) == fields for name, fields in expected.items())`；L900断言`all(field.label for fields in entities.values() for field in fields.values())`。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`Requirement`、`customer_request`、`business_gaps`、`all`、`set`、`expected.items`、`entities.values`、`fields.values`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `acceptance_settings`（L950–L982）：接收`config`、`directory`。 调用`Settings`。 返回路径：L953的`Settings( data_dir=directory / "private-platform", database_url="", checkpoint_url="", bas…`。
-- `run_acceptance`（L985–L1176）：接收`config`、`transport`、`directory`、`template`。 控制顺序：L999按`template != "python-basic"`分支；L1042遍历`range(150)`；L1043按`server.started`分支；L1047抛异常，停止当前正常路径；L1076按`process.returncode or not result_path.is_file()`分支；L1079按`result_path.is_file()`分支；L1100抛异常，停止当前正常路径；L1103按`run["status"] != "READY" or not run["auto_mode"] or not archive.is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_settings`、`Selection`、`settings.prepare`、`write_json`、`runtime_path`、`DiagnosticTextBudget`、`config.key.get_secret_value`、`create_app`、`ObservedGateway`等。 返回路径：L1155的`{ "passed": True, "real_model": True, "single_initial_smart_consent": True, "explicit_cust…`。
-- `run_acceptance.ObservedGateway`（L1013–L1026）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `run_acceptance.ObservedGateway.complete`（L1014–L1026）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 调用`key.split`、`traces.append`、`super().complete`、`super`、`trace.update`、`completed_stage_details`。 返回路径：L1026的`value`。
-- `verified_smoke_receipt`（L1179–L1195）：接收`path`、`config`、`env`。 控制顺序：L1182断言`saved["passed"] is True and saved["acceptance_scope"] == "smoke_only"`；L1183断言`saved["smoke"] == { "passed": True, "http_status": 200, "actual_provider_request": Tr…`；L1188断言`saved["actual_http_calls"] == 1 and saved["provider_statuses"] == [200]`；L1189断言`saved["model"] == config.model and saved["endpoint"] == config.base_url`；L1190断言`saved["run_identity"] == [ env.get(k, "") for k in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTE…`；L1195抛异常，停止当前正常路径。 调用`json.loads`、`path.read_text`、`env.get`、`SafeFailure`。 返回路径：L1193的`saved["smoke"]`。
-- `main`（L1198–L1277）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1233按`mode == "full"`分支；L1244按`mode == "smoke"`分支；L1255按`exc.status is not None`分支；L1257按`exc.details is not None`分支；L1264按`transport`分支；L1272按`config is not None`分支；L1276按`not result["passed"]`分支；L1277抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`trusted_dispatch`、`configuration`、`os.environ.pop`、`result.update`、`os.environ.get`、`(destination / "approved-plan-replay.json").unlink`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_customer_spec`（L850–L1058）：接收`spec`。 控制顺序：L856断言`plan.business is not None and plan.data_scope == "shared" and not plan.unsupported`；L857断言`{e.name for e in plan.entities} == {"customers", "requests", "tasks"}`；L858断言`{r.name for r in plan.business.roles} == {"manager", "service", "employee"}`；L866断言`not business_gaps(requirement, plan)`；L881断言`any( metric.entity == "requests" and metric.kind == "count" and not metric.filters fo…`；L885断言`any( metric.entity == "requests" and metric.kind == "count" and resolved_only(metric)…`；L889断言`any( metric.entity == "requests" and metric.kind == "average_duration" and metric.sta…`；L897断言`any( metric.entity == "customers" and metric.kind == "group_count" and metric.group_b…`。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`Requirement`、`customer_request`、`business_gaps`、`any`、`resolved_only`、`all`、`set`、`expected.items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_customer_spec.resolved_only`（L870–L878）：接收`metric`。 调用`bool`、`all`。 返回路径：L871的`bool(metric.filters) and all( rule.field == "request_state" and ( (rule.op == "eq" and rul…`。
+- `acceptance_settings`（L1061–L1093）：接收`config`、`directory`。 调用`Settings`。 返回路径：L1064的`Settings( data_dir=directory / "private-platform", database_url="", checkpoint_url="", bas…`。
+- `run_acceptance`（L1096–L1287）：接收`config`、`transport`、`directory`、`template`。 控制顺序：L1110按`template != "python-basic"`分支；L1153遍历`range(150)`；L1154按`server.started`分支；L1158抛异常，停止当前正常路径；L1187按`process.returncode or not result_path.is_file()`分支；L1190按`result_path.is_file()`分支；L1211抛异常，停止当前正常路径；L1214按`run["status"] != "READY" or not run["auto_mode"] or not archive.is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_settings`、`Selection`、`settings.prepare`、`write_json`、`runtime_path`、`DiagnosticTextBudget`、`config.key.get_secret_value`、`create_app`、`ObservedGateway`等。 返回路径：L1266的`{ "passed": True, "real_model": True, "single_initial_smart_consent": True, "explicit_cust…`。
+- `run_acceptance.ObservedGateway`（L1124–L1137）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `run_acceptance.ObservedGateway.complete`（L1125–L1137）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 调用`key.split`、`traces.append`、`super().complete`、`super`、`trace.update`、`completed_stage_details`。 返回路径：L1137的`value`。
+- `verified_smoke_receipt`（L1290–L1306）：接收`path`、`config`、`env`。 控制顺序：L1293断言`saved["passed"] is True and saved["acceptance_scope"] == "smoke_only"`；L1294断言`saved["smoke"] == { "passed": True, "http_status": 200, "actual_provider_request": Tr…`；L1299断言`saved["actual_http_calls"] == 1 and saved["provider_statuses"] == [200]`；L1300断言`saved["model"] == config.model and saved["endpoint"] == config.base_url`；L1301断言`saved["run_identity"] == [ env.get(k, "") for k in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTE…`；L1306抛异常，停止当前正常路径。 调用`json.loads`、`path.read_text`、`env.get`、`SafeFailure`。 返回路径：L1304的`saved["smoke"]`。
+- `main`（L1309–L1388）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1344按`mode == "full"`分支；L1355按`mode == "smoke"`分支；L1366按`exc.status is not None`分支；L1368按`exc.details is not None`分支；L1375按`transport`分支；L1383按`config is not None`分支；L1387按`not result["passed"]`分支；L1388抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`trusted_dispatch`、`configuration`、`os.environ.pop`、`result.update`、`os.environ.get`、`(destination / "approved-plan-replay.json").unlink`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_real_model.py sha256: db1ee5888a456f74de7b3bd162a1e3adfffedd18221c4f2fa769de0546973a8b -->
+<!-- source-file: scripts/ci_real_model.py sha256: a4c1bb31b82ad11ee256859e92d7ff936d714f9b767f16b7e386542f506cdfa1 -->
 ````python
 """Opt-in real provider acceptance; only allowlisted evidence leaves the isolated job.
 
@@ -45698,12 +47971,73 @@ def require_customer_spec(spec):
             data_scope="shared",
         )
         assert not business_gaps(requirement, plan)
-        assert {m.kind for m in plan.business.metrics} >= {
-            "count",
-            "average_duration",
-            "group_count",
-            "time_count",
-        }
+
+        # Match the public metric meanings, never provider-selected names/labels.
+        # Extra supported metrics remain valid, but cannot substitute for these five.
+        def resolved_only(metric):
+            return bool(metric.filters) and all(
+                rule.field == "request_state"
+                and (
+                    (rule.op == "eq" and rule.value == "resolved")
+                    or (rule.op == "in" and rule.value == ["resolved"])
+                )
+                for rule in metric.filters
+            )
+
+        metrics = plan.business.metrics
+        assert any(
+            metric.entity == "requests" and metric.kind == "count" and not metric.filters
+            for metric in metrics
+        )
+        assert any(
+            metric.entity == "requests" and metric.kind == "count" and resolved_only(metric)
+            for metric in metrics
+        )
+        assert any(
+            metric.entity == "requests"
+            and metric.kind == "average_duration"
+            and metric.start_field == "created_at"
+            and metric.end_field == "resolved_at"
+            and (not metric.filters or resolved_only(metric))
+            for metric in metrics
+        )
+        assert any(
+            metric.entity == "customers"
+            and metric.kind == "group_count"
+            and metric.group_by == "category"
+            and not metric.filters
+            for metric in metrics
+        )
+        assert any(
+            metric.entity == "requests"
+            and metric.kind == "time_count"
+            and metric.time_field == "created_at"
+            and not metric.filters
+            for metric in metrics
+        )
+        notices = plan.business.notifications
+        for entity in ("requests", "tasks"):
+            for event, transition, due_field in (
+                ("assigned", None, None),
+                ("note_added", None, None),
+                ("transitioned", "start", None),
+                ("transitioned", "resolve", None),
+                ("due", None, "due_at"),
+            ):
+                assert any(
+                    notice.entity == entity
+                    and notice.event == event
+                    and notice.transition == transition
+                    and notice.due_field == due_field
+                    for notice in notices
+                )
+        assert any(
+            notice.entity == "requests"
+            and notice.event == "transitioned"
+            and notice.transition == "resolve"
+            and notice.recipient == "creator"
+            for notice in notices
+        )
         assert not plan.custom_rules
         entities = {
             entity.name: {field.name: field for field in entity.fields} for entity in plan.entities
@@ -45746,23 +48080,73 @@ def require_customer_spec(spec):
             ("tasks", "assignee_id", "$users"),
         } <= relations
         assert plan.business.bootstrap_role == "manager"
+        assert set(plan.business.role_admin_roles) == {"manager"}
         assert (
             plan.business.registration.enabled
             and plan.business.registration.default_role == "employee"
         )
         policies = {(p.role, p.entity): p for p in plan.business.permissions}
+        # Minimum capabilities explicitly promised for this customer case.
+        # Keep optional actions separate from these obligations; query access alone
+        # must neither imply a grant nor excuse a missing processing action.
+        customer_manager_actions = {"create", "read", "update", "archive", "read_audit"}
+        processing_actions = {
+            "read",
+            "update",
+            "add_note",
+            "transition",
+            "read_history",
+            "read_audit",
+        }
+        manager_processing_actions = processing_actions | {"create", "archive", "assign"}
+        required_actions = {
+            ("manager", "customers"): customer_manager_actions,
+            ("manager", "requests"): manager_processing_actions,
+            ("manager", "tasks"): manager_processing_actions,
+            ("service", "requests"): processing_actions,
+            ("service", "tasks"): processing_actions,
+            ("employee", "requests"): {"create", "read"},
+        }
+        for identity, actions in required_actions.items():
+            assert actions <= set(policies[identity].actions)
+        assert all(policies[("manager", entity)].scope == "all" for entity in expected)
+        assert all(
+            not {"create", "assign"} & set(policy.actions)
+            for policy in plan.business.permissions
+            if policy.entity == "tasks" and policy.role != "manager"
+        )
+        for role in ("manager", "service"):
+            for entity in ("customers", "requests"):
+                assert {"read", "read_metrics"} <= set(policies[(role, entity)].actions)
+        for role in ("service", "employee"):
+            customer_policy = policies[(role, "customers")]
+            assert customer_policy.scope == "all" and "read" in customer_policy.actions
+            assert not {"create", "update", "archive", "add_note", "read_audit"} & set(
+                customer_policy.actions
+            )
+        resources = {resource.entity: resource for resource in plan.business.resources}
+        assert all(resources[entity].audit for entity in ("customers", "requests", "tasks"))
         for entity in ("requests", "tasks"):
+            assert resources[entity].notes and resources[entity].archive
+            assert resources[entity].assignee_field == "assignee_id"
             if ("employee", entity) in policies:
                 assert policies[("employee", entity)].scope == "own"
                 assert not {"assign", "transition"} & set(policies[("employee", entity)].actions)
             else:
                 assert entity == "tasks"
             assert policies[("service", entity)].scope == "assigned"
-            assert {"read", "add_note", "transition"} <= set(policies[("service", entity)].actions)
             workflow = next(w for w in plan.business.workflows if w.entity == entity)
             transitions = {t.name: t for t in workflow.transitions}
             assert all(transition.label for transition in workflow.transitions)
             assert workflow.initial == "new"
+            assert (
+                workflow.status_field
+                == {"requests": "request_state", "tasks": "task_state"}[entity]
+            )
+            assert all(
+                set(transition.roles) == {"manager", "service"}
+                for transition in transitions.values()
+            )
             assert (
                 transitions["start"].from_states == ["new"]
                 and transitions["start"].to_state == "active"
@@ -60334,7 +62718,7 @@ FastapiAdmin应继续体现Fa/Element Plus，Yudao应继续体现Vben/Ant Design
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/real-model-acceptance.md sha256: c588a6bff82a3184a64e13f67b7c6b067345516e33bc20f9fc7a568b41922b57 -->
+<!-- source-file: docs/real-model-acceptance.md sha256: 3970e6f1e3edfd1be9223255a68a1f9e66acd90241ef114471c4bbcbdadde043 -->
 ````markdown
 ## 显式授权的真实模型客服端到端验收
 
@@ -60392,7 +62776,17 @@ full通过真实工作台网页选择当前行的模板/前端/数据库，按�
 
 ### 只上传允许公开的机器证据与合成页面截图
 
-每行的`reports/real-model/summary.json`只保留白名单回执：运行身份、模板、阶段、错误代码、数值HTTP状态、有限token用量、合同有效性和必要字段标记、浏览器/下载/新库/重启结果。该文件位于`real-model-sanitized-${template}-${runid}-${attempt}`产物中。不上传密钥正文、片段或哈希，不上传模型原文、推理、原始服务商错误体、生成源码包或运行数据库。真实密钥不继续传给浏览器、uv或产品子进程。
+每行的`reports/real-model/summary.json`保留白名单回执：运行身份、模板、阶段、错误代码、数值HTTP状态、有限token用量、合同有效性和必要字段标记、浏览器/下载/新库/重启结果。失败时还保留具体义务的来源位置、期望/实际属性，以及有限的未支持说明、审阅缺口、运行异常首行和原生阶段。相关文字每段最多600字符、共用6000字符预算；先替换完整已知密钥，并过滤凭据、令牌、认证头和URL用户信息，再截断。该文件位于`real-model-sanitized-${template}-${runid}-${attempt}`产物中。不上传密钥正文、片段或哈希，不上传完整模型响应、推理、原始服务商错误体、原始工具日志、生成源码包或运行数据库。真实密钥不继续传给浏览器、uv或产品子进程。
+
+本公开合成客服案例的原生运行失败时，还可单独保留`customer-plan-replay-${template}-${sha}`中的`approved-plan-replay.json`。它只能来自已经通过当时设计门的规范，须重新通过Plan schema校验、客服实体范围检查和凭据扫描，大小不超过128 KiB。含凭据或不符合范围的规范直接拒绝保存，不通过修改规范来冒充原失败输入；文件记录精确哈希，保留7天。这个规范用于复现失败，不代表其满足全部用户义务，更不能作为下一次真实模型的替代输出。
+
+下载该规范并核对回执哈希后，在具备同一锁定依赖、独立空PostgreSQL/Redis和原生构建工具的环境中，可运行：
+
+```bash
+uv run python -m scripts.ci_native_bundled yudao-vben --spec /absolute/path/approved-plan-replay.json
+```
+
+FastapiAdmin将模板参数换成`fastapiadmin`。该路径直接验证保存的Plan并调用原生生成器，不调用模型；编译器错误与原生浏览器错误应先用它复现，不为补日志重复付费。代码修复后仍须在最终同一提交重新执行完整真实模型三模板矩阵，确定性重放成功不能替代它。
 
 真实产品页面使用合成客户和验收账号；经过路径、名称、大小及PNG校验的截图位于`reports/real-model/screenshots/*.png`，单独保存为`customer-ui-${template}-${sha}`产物。它们只用于查看该行实际页面，不公开实际客户数据或临时密码。下载后应真正打开列表、表单、关联、处理、提醒和统计画面，结合业务章节的视觉清单检查；有截图文件不等于已完成视觉审阅。
 
@@ -60545,7 +62939,7 @@ Python/SQLite用基础快照；Python/PostgreSQL、FastapiAdmin/PostgreSQL、Yud
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/acceptance-checklist.md sha256: 1815e4dbedaddebdf4a3193339a9c3fc73c9a233e03199292abce2dd6f6d327b -->
+<!-- source-file: docs/acceptance-checklist.md sha256: 705a393f79b60d89dbbb8620472e021fadd1d0928e05a6e233b59b8df01e5c7c -->
 ````markdown
 # 功能与验收对照清单
 
@@ -60602,4 +62996,6 @@ Python/SQLite用基础快照；Python/PostgreSQL、FastapiAdmin/PostgreSQL、Yud
 ## 业务合同路径的附加验收
 
 `Plan.business`的关联、角色、指派、命名转换、备注/审计、站内提醒和四类统计，另由`tests/test_business_contracts.py`、各模板适配测试、`business_probe.py`及对应真实业务浏览器脚本验证。确定性完整样例是`examples/plans/customer-service.json`；`.github/workflows/customer-runtime.yml`负责真实原生生成、SQL、编译、三角色HTTP/浏览器和独立新库启动。该路径的结果必须读取它自己当前提交的报告，不能沿用普通CRUD、其他旧案例或独立工具矩阵的通过状态。
+
+客服提醒必须分别验证请求与任务的分配、`note_added`备注、start状态变化、resolve解决以及due逾期事件；接收方按已批准规则确定，请求解决必须通知提交者。新增备注、审计与提醒在同一事务中写入；重复读取收件箱不能生成重复提醒，其他用户不能代标已读。统计不能只数“有几个卡片”：必须分别核对请求总数、已解决请求数、创建至解决的平均时长、客户分类分组和每日请求趋势；通过未解决对照请求和第二类客户，区分错误的全量统计或分组。其他已声明指标也应真实计算并完整显示。
 ````
