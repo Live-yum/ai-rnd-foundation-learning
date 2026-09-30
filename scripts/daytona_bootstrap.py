@@ -114,6 +114,28 @@ def snapshot(directory=HOME):
     print("本机快照已就绪；全部操作在限时本机进程内完成。")
 
 
+def snapshot_named(service, name):
+    """Resolve an exact name through the pinned SDK's paginated listing.
+
+    In v0.190.0 get(name) forwards the name to a UUID-only API route. Never
+    interpret that server error as a missing snapshot or create a duplicate.
+    A bounded scan must finish before absence can be established.
+    """
+    found = None
+    for page in range(1, 101):
+        result = service.list(page=page, limit=100)
+        if result.page != page or not 0 <= result.total_pages <= 100:
+            raise ValueError("本机快照分页结果异常；拒绝猜测快照是否存在")
+        for item in result.items:
+            if item.name == name:
+                if found is not None:
+                    raise ValueError("存在多个同名本机快照；拒绝猜测或覆盖")
+                found = item
+        if page >= result.total_pages:
+            return found
+    raise ValueError("本机快照分页未完成；没有创建快照")
+
+
 def snapshot_worker(directory=HOME):
     directory = Path(directory)
     metadata = json.loads((directory / "snapshot-image.json").read_text(encoding="utf-8"))
@@ -121,18 +143,14 @@ def snapshot_worker(directory=HOME):
         raise ValueError("快照只能引用本机登记的预热镜像")
     install_loopback_guard()
     from daytona import CreateSnapshotParams, Resources
-    from daytona.common.errors import DaytonaNotFoundError
 
     key = json.loads((directory / "api-key.json").read_text(encoding="utf-8"))["value"]
     settings = Settings(_env_file=None, daytona_api_key=SecretStr(key), daytona_target="local")
     client = client_for(settings)
     try:
-        try:
-            existing = client.snapshot.get(metadata["snapshot"])
-            if str(getattr(existing.state, "value", existing.state)).lower() != "active":
-                raise ValueError("已存在同名但未就绪的本机快照，请检查状态；不静默覆盖")
-        except DaytonaNotFoundError:
-            client.snapshot.create(
+        existing = snapshot_named(client.snapshot, metadata["snapshot"])
+        if existing is None:
+            existing = client.snapshot.create(
                 CreateSnapshotParams(
                     name=metadata["snapshot"],
                     image=metadata["image"],
@@ -141,6 +159,10 @@ def snapshot_worker(directory=HOME):
                 ),
                 timeout=600,
             )
+        if existing.name != metadata["snapshot"] or existing.image_name != metadata["image"]:
+            raise ValueError("同名快照的镜像来源不符；拒绝复用或覆盖")
+        if str(getattr(existing.state, "value", existing.state)).lower() != "active":
+            raise ValueError("同名本机快照尚未就绪，请检查状态；不静默覆盖")
         write_environment(directory / "workbench.env", key, metadata["snapshot"])
         print("本机快照已就绪；沙箱关卡禁止外网并使用离线依赖。")
     finally:

@@ -15755,6 +15755,173 @@ def test_production_targets_are_only_registered_docker_services():
     assert set(gateway.TARGETS) == {3000, 4000, 3003, 5556, 6000, 9001, 1080}
 ````
 
+### `tests/test_daytona_snapshot.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `snapshot`（L15–L16）：接收`**overrides`。 调用`SimpleNamespace`。 返回路径：L16的`SimpleNamespace(name=NAME, image_name=IMAGE, state="active", **overrides)`。
+- `page`（L19–L20）：接收`number`、`items`、`total_pages`。 调用`SimpleNamespace`。 返回路径：L20的`SimpleNamespace(page=number, items=items, total_pages=total_pages)`。
+- `test_exact_name_lookup_reads_every_page_and_never_uses_uuid_route`（L23–L36）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L31断言`bootstrap.snapshot_named(service, NAME) is wanted`；L32断言`[call.kwargs for call in service.list.call_args_list] == [ {"page": number, "limit": …`。 调用`snapshot`、`Mock`、`page`、`SimpleNamespace`、`bootstrap.snapshot_named`、`range`、`service.get.assert_not_called`、`service.create.assert_not_called`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_confirmed_empty_listing_means_absent`（L40–L43）：接收`total_pages`。 控制顺序：L43断言`bootstrap.snapshot_named(service, NAME) is None`。 调用`Mock`、`page`、`bootstrap.snapshot_named`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_or_excessive_pagination_fails_closed`（L47–L52）：接收`result`。 调用`Mock`、`pytest.raises`、`bootstrap.snapshot_named`、`service.create.assert_not_called`、`pytest.mark.parametrize`、`page`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_duplicate_names_across_pages_are_not_guessed`（L55–L59）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Mock`、`page`、`snapshot`、`pytest.raises`、`bootstrap.snapshot_named`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_listing_failure_is_not_interpreted_as_absence`（L62–L67）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Mock`、`RuntimeError`、`pytest.raises`、`bootstrap.snapshot_named`、`service.create.assert_not_called`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `worker`（L71–L83）：接收`tmp_path`、`monkeypatch`。 调用`(tmp_path / "snapshot-image.json").write_text`、`json.dumps`、`(tmp_path / "api-key.json").write_text`、`Mock`、`page`、`snapshot`、`monkeypatch.setattr`。 返回路径：L83的`tmp_path, client`。
+- `test_worker_creates_or_reuses_only_matching_active_local_snapshot`（L87–L102）：接收`worker`、`reuse`。 控制顺序：L89按`reuse`分支；L93按`reuse`分支；L97断言`params.name == NAME and params.image == IMAGE and params.region_id == "local"`；L98断言`client.snapshot.create.call_args.kwargs == {"timeout": 600}`；L100断言`"DAYTONA_API_URL=http://127.0.0.1:3000/api" in env`；L101断言`f"DAYTONA_SNAPSHOT={NAME}" in env`。 调用`page`、`snapshot`、`bootstrap.snapshot_worker`、`client.snapshot.get.assert_not_called`、`client.snapshot.create.assert_not_called`、`(directory / "workbench.env").read_text`、`client.close.assert_called_once`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_worker_never_writes_ready_config_for_wrong_or_unready_snapshot`（L115–L127）：接收`worker`、`monkeypatch`、`reuse`、`field`、`value`、`message`。 控制顺序：L126断言`not (directory / "workbench.env").exists()`。 调用`snapshot`、`setattr`、`monkeypatch.setattr`、`pytest.raises`、`bootstrap.snapshot_worker`、`(directory / "workbench.env").exists`、`client.close.assert_called_once`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_worker_preserves_existing_credentials_and_closes_on_list_failure`（L130–L139）：接收`worker`。 控制顺序：L137断言`(directory / "workbench.env").read_text(encoding="utf-8") == existing`。 调用`(directory / "workbench.env").write_text`、`RuntimeError`、`pytest.raises`、`bootstrap.snapshot_worker`、`(directory / "workbench.env").read_text`、`client.snapshot.create.assert_not_called`、`client.close.assert_called_once`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_daytona_snapshot.py sha256: 589a2df52fd1d1b871d364b098d2494dbb1f7bf1d4f77eb3894dac2a9f1767d8 -->
+````python
+"""Pinned local snapshot lookup contracts; real service acceptance runs separately."""
+
+import json
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import pytest
+
+from scripts import daytona_bootstrap as bootstrap
+
+NAME = "rnd-python-0123456789abcdef"
+IMAGE = "registry:6000/rnd-python:0123456789abcdef"
+
+
+def snapshot(**overrides):
+    return SimpleNamespace(name=NAME, image_name=IMAGE, state="active", **overrides)
+
+
+def page(number, items, total_pages=1):
+    return SimpleNamespace(page=number, items=items, total_pages=total_pages)
+
+
+def test_exact_name_lookup_reads_every_page_and_never_uses_uuid_route():
+    wanted = snapshot()
+    service = Mock()
+    service.list.side_effect = [
+        page(1, [SimpleNamespace(name=NAME + "-other")], 3),
+        page(2, [wanted], 3),
+        page(3, [], 3),
+    ]
+    assert bootstrap.snapshot_named(service, NAME) is wanted
+    assert [call.kwargs for call in service.list.call_args_list] == [
+        {"page": number, "limit": 100} for number in range(1, 4)
+    ]
+    service.get.assert_not_called()
+    service.create.assert_not_called()
+
+
+@pytest.mark.parametrize("total_pages", [0, 1])
+def test_confirmed_empty_listing_means_absent(total_pages):
+    service = Mock()
+    service.list.return_value = page(1, [], total_pages)
+    assert bootstrap.snapshot_named(service, NAME) is None
+
+
+@pytest.mark.parametrize("result", [page(2, []), page(1, [], -1), page(1, [], 101)])
+def test_invalid_or_excessive_pagination_fails_closed(result):
+    service = Mock()
+    service.list.return_value = result
+    with pytest.raises(ValueError, match="分页"):
+        bootstrap.snapshot_named(service, NAME)
+    service.create.assert_not_called()
+
+
+def test_duplicate_names_across_pages_are_not_guessed():
+    service = Mock()
+    service.list.side_effect = [page(1, [snapshot()], 2), page(2, [snapshot()], 2)]
+    with pytest.raises(ValueError, match="多个同名"):
+        bootstrap.snapshot_named(service, NAME)
+
+
+def test_listing_failure_is_not_interpreted_as_absence():
+    service = Mock()
+    service.list.side_effect = RuntimeError("explicit local authentication failure")
+    with pytest.raises(RuntimeError, match="authentication"):
+        bootstrap.snapshot_named(service, NAME)
+    service.create.assert_not_called()
+
+
+@pytest.fixture
+def worker(tmp_path, monkeypatch):
+    (tmp_path / "snapshot-image.json").write_text(
+        json.dumps({"image": IMAGE, "snapshot": NAME}), encoding="utf-8"
+    )
+    (tmp_path / "api-key.json").write_text(
+        json.dumps({"value": "local-test-key-not-a-real-credential"}), encoding="utf-8"
+    )
+    client = Mock()
+    client.snapshot.list.return_value = page(1, [])
+    client.snapshot.create.return_value = snapshot()
+    monkeypatch.setattr(bootstrap, "install_loopback_guard", lambda: None)
+    monkeypatch.setattr(bootstrap, "client_for", lambda settings: client)
+    return tmp_path, client
+
+
+@pytest.mark.parametrize("reuse", [False, True])
+def test_worker_creates_or_reuses_only_matching_active_local_snapshot(worker, reuse):
+    directory, client = worker
+    if reuse:
+        client.snapshot.list.return_value = page(1, [snapshot()])
+    bootstrap.snapshot_worker(directory)
+    client.snapshot.get.assert_not_called()
+    if reuse:
+        client.snapshot.create.assert_not_called()
+    else:
+        params = client.snapshot.create.call_args.args[0]
+        assert params.name == NAME and params.image == IMAGE and params.region_id == "local"
+        assert client.snapshot.create.call_args.kwargs == {"timeout": 600}
+    env = (directory / "workbench.env").read_text(encoding="utf-8")
+    assert "DAYTONA_API_URL=http://127.0.0.1:3000/api" in env
+    assert f"DAYTONA_SNAPSHOT={NAME}" in env
+    client.close.assert_called_once()
+
+
+@pytest.mark.parametrize("reuse", [False, True])
+@pytest.mark.parametrize(
+    ("field", "value", "message"),
+    [
+        ("name", "other", "来源"),
+        ("image_name", "other:image", "来源"),
+        ("state", "building", "尚未就绪"),
+        ("state", "build_failed", "尚未就绪"),
+    ],
+)
+def test_worker_never_writes_ready_config_for_wrong_or_unready_snapshot(
+    worker, monkeypatch, reuse, field, value, message
+):
+    directory, client = worker
+    invalid = snapshot()
+    setattr(invalid, field, value)
+    # Inject the lookup result to test validation independently of exact-name filtering.
+    monkeypatch.setattr(bootstrap, "snapshot_named", lambda *args: invalid if reuse else None)
+    client.snapshot.create.return_value = invalid
+    with pytest.raises(ValueError, match=message):
+        bootstrap.snapshot_worker(directory)
+    assert not (directory / "workbench.env").exists()
+    client.close.assert_called_once()
+
+
+def test_worker_preserves_existing_credentials_and_closes_on_list_failure(worker):
+    directory, client = worker
+    existing = "DAYTONA_API_KEY=existing-local-test-key\n"
+    (directory / "workbench.env").write_text(existing, encoding="utf-8")
+    client.snapshot.list.side_effect = RuntimeError("explicit local service failure")
+    with pytest.raises(RuntimeError, match="service"):
+        bootstrap.snapshot_worker(directory)
+    assert (directory / "workbench.env").read_text(encoding="utf-8") == existing
+    client.snapshot.create.assert_not_called()
+    client.close.assert_called_once()
+````
+
 ### `tests/test_guided_completion.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -18127,26 +18294,26 @@ def test_postgres_migrations_transactions_and_checkpoint(tmp_path, plan):
 - `test_design_recommendation_receives_blockers_without_reanalysing_approved_scope`（L172–L195）：接收`settings`、`store`、`plan`。 控制顺序：L194断言`store.get_run(run)["status"] == "READY"`；L195断言`gateway.calls == ["recommend:1", "plan:1", "plan:2"]`。 调用`new_run`、`Repair`、`store.set_automation`、`Runtime`、`worker.tick`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_design_recommendation_receives_blockers_without_reanalysing_approved_scope.Repair`（L175–L187）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `test_design_recommendation_receives_blockers_without_reanalysing_approved_scope.Repair.complete`（L176–L187）：接收`run`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L177按`schema is Plan`分支；L179按`key == "plan:1"`分支；L181断言`payload["approved_requirement"]["data_scope"] == "per_user"`；L182断言`payload["previous_plan"]["data_scope"] == "shared"`；L183断言`payload["resolution_feedback"]["stage"] == "design"`；L184断言`any("数据归属" in x for x in payload["resolution_feedback"]["blocked"])`；L185断言`payload["runtime_constraints"]["coding_enabled"] is True`。 调用`self.calls.append`、`plan.model_copy`、`any`、`super().complete`、`super`。 返回路径：L180的`plan.model_copy(update={"data_scope": "shared"})`；L186的`plan`；L187的`super().complete(run, key, instruction, payload, schema)`。
-- `test_explicit_unsupported_request_remains_blocked_with_actionable_report`（L199–L226）：接收`settings`、`store`、`plan`、`requested`。 控制顺序：L216断言`state["status"] == "BLOCKED"`；L217断言`requested in state["error"]`；L218断言`state["pending"]["can_approve"] is False`；L219断言`len(gateway.calls) == 3`；L223断言`report["reasons"] == [requested] and report["passed"] is False`；L224断言`not (settings.data_dir / "runs" / run / "delivery.zip").exists()`。 调用`store.create_project`、`store.create_run`、`Unsupported`、`Runtime`、`worker.tick`、`store.get_run`、`len`、`json.loads`、`(settings.data_dir / "runs" / run / "recommendation-blocked.json"…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_unsupported_request_remains_blocked_with_actionable_report`（L199–L228）：接收`settings`、`store`、`plan`、`requested`。 控制顺序：L216断言`state["status"] == "BLOCKED"`；L217断言`requested in state["error"]`；L218断言`state["pending"]["can_approve"] is False`；L219断言`len(gateway.calls) == 3`；L225断言`report["reasons"] == [requested] and report["passed"] is False`；L226断言`not (settings.data_dir / "runs" / run / "delivery.zip").exists()`。 调用`store.create_project`、`store.create_run`、`Unsupported`、`Runtime`、`worker.tick`、`store.get_run`、`len`、`json.loads`、`(settings.data_dir / "runs" / run / "recommendation-blocked.json"…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_explicit_unsupported_request_remains_blocked_with_actionable_report.Unsupported`（L202–L206）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `test_explicit_unsupported_request_remains_blocked_with_actionable_report.Unsupported.complete`（L203–L206）：接收`run`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L205断言`schema is Requirement`。 调用`self.calls.append`、`requirement().model_copy`、`requirement`。 返回路径：L206的`requirement().model_copy(update={"unsupported": [requested]})`。
-- `test_blocked_manual_and_retry_keep_saved_gate_and_clear_stale_error`（L229–L260）：接收`settings`、`store`、`plan`。 控制顺序：L239断言`state["status"] == "BLOCKED"`；L242断言`store.get_run(run)["pending"] is None`；L250断言`store.get_run(run)["status"] == "WAITING_CLARIFICATION"`；L251断言`pending_interrupt(worker.graph.get_state({"configurable": {"thread_id": run}}))[ "gat…`；L259断言`store.get_run(run)["status"] == "WAITING_REQUIREMENTS"`；L260断言`store.get_run(run)["error"] is None`。 调用`new_run`、`store.set_automation`、`Runtime`、`Unresolved`、`worker.tick`、`store.get_run`、`store.retry`、`pytest.raises`、`store.submit`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_blocked_manual_and_retry_keep_saved_gate_and_clear_stale_error.Unresolved`（L230–L232）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_blocked_manual_and_retry_keep_saved_gate_and_clear_stale_error.Unresolved.complete`（L231–L232）：接收`*args`。 调用`requirement`。 返回路径：L232的`requirement(["仍未决定"])`。
-- `test_manual_switch_on_blocked_restores_visible_waiting_gate`（L263–L276）：接收`settings`、`store`、`plan`。 控制顺序：L275断言`state["status"] == "WAITING_CLARIFICATION"`；L276断言`state["pending"] == pending and state["error"] is None`。 调用`new_run`、`store.set_automation`、`Runtime`、`Unresolved`、`worker.tick`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_manual_switch_on_blocked_restores_visible_waiting_gate.Unresolved`（L264–L266）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_manual_switch_on_blocked_restores_visible_waiting_gate.Unresolved.complete`（L265–L266）：接收`*args`。 调用`requirement`。 返回路径：L266的`requirement(["仍未决定"])`。
-- `test_question_only_pause_is_not_misreported_as_unsupported_scope`（L279–L289）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L288断言`report["reasons"] == ["尚未自动决定：" + QUESTION]`；L289断言`report["recoverable"] and not report["can_approve"]`。 调用`blocked_report`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_recovery_control_words_never_become_model_answers`（L293–L295）：接收`word`。 调用`pytest.raises`、`ResumeInput`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_chat_run_can_operate_on_existing_blocked_gate`（L299–L348）：接收`monkeypatch`、`command`。 控制顺序：L332断言`result.exit_code == 0`；L333断言`LIMITATIONS[0] in result.output`；L335按`command == "退出"`分支；L336断言`writes == []`；L338断言`len(writes) == 1`；L339断言`writes[0][1].startswith(f"/runs/{run}/")`；L340按`command == "智能推荐"`分支；L341断言`writes[0][2] == {"enabled": True, "accepted": True}`。后续分支沿下方源码相同行号继续阅读。 调用`str`、`uuid.uuid4`、`monkeypatch.setattr`、`CliRunner().invoke`、`CliRunner`、`len`、`writes[0][1].startswith`、`writes[0][1].endswith`、`any`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_chat_run_can_operate_on_existing_blocked_gate.client`（L314–L315）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`object`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_chat_run_can_operate_on_existing_blocked_gate.api_call`（L317–L327）：接收`c`、`method`、`path`、`body`。 控制顺序：L320按`method == "GET"`分支。 调用`calls.append`。 返回路径：L321的`{ "status": status, "error": "可恢复的阻塞", "pending": gate if status == "BLOCKED" else None, }`；L327的`{}`。
-- `test_cache_binds_prompt_payload_and_schema_but_reuses_exact_replay`（L351–L377）：接收`settings`、`store`。 控制顺序：L367断言`len(sent) == 1`；L370断言`len(sent) == 3`；L371断言`store.get_run(run)["model_calls"] == 3`；L377断言`len(sent) == 4`。 调用`SecretStr`、`new_run`、`ModelGateway`、`httpx.MockTransport`、`gateway.complete`、`len`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_cache_binds_prompt_payload_and_schema_but_reuses_exact_replay.handler`（L357–L361）：接收`request`。 调用`sent.append`、`json.loads`、`httpx.Response`、`requirement().model_dump_json`、`requirement`。 返回路径：L359的`httpx.Response( 200, json={"choices": [{"message": {"content": requirement().model_dump_js…`。
-- `test_cache_binds_prompt_payload_and_schema_but_reuses_exact_replay.ExtendedRequirement`（L373–L374）：继承`Requirement`。声明的数据项为`schema_revision_note`；类型约束/数据库列参数以完整定义为准。
-- `test_smart_recovery_never_overrides_failed_independent_verification`（L380–L393）：接收`settings`、`store`、`plan`、`monkeypatch`。 控制顺序：L391断言`state["status"] == "FAILED"`；L392断言`"真实验收失败" in state["error"]`；L393断言`not (settings.data_dir / "runs" / run / "delivery.zip").exists()`。 调用`monkeypatch.setattr`、`new_run`、`store.set_automation`、`Runtime`、`FixtureGateway`、`worker.tick`、`store.get_run`、`(settings.data_dir / "runs" / run / "delivery.zip").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_blocked_manual_and_retry_keep_saved_gate_and_clear_stale_error`（L231–L262）：接收`settings`、`store`、`plan`。 控制顺序：L241断言`state["status"] == "BLOCKED"`；L244断言`store.get_run(run)["pending"] is None`；L252断言`store.get_run(run)["status"] == "WAITING_CLARIFICATION"`；L253断言`pending_interrupt(worker.graph.get_state({"configurable": {"thread_id": run}}))[ "gat…`；L261断言`store.get_run(run)["status"] == "WAITING_REQUIREMENTS"`；L262断言`store.get_run(run)["error"] is None`。 调用`new_run`、`store.set_automation`、`Runtime`、`Unresolved`、`worker.tick`、`store.get_run`、`store.retry`、`pytest.raises`、`store.submit`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_blocked_manual_and_retry_keep_saved_gate_and_clear_stale_error.Unresolved`（L232–L234）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_blocked_manual_and_retry_keep_saved_gate_and_clear_stale_error.Unresolved.complete`（L233–L234）：接收`*args`。 调用`requirement`。 返回路径：L234的`requirement(["仍未决定"])`。
+- `test_manual_switch_on_blocked_restores_visible_waiting_gate`（L265–L278）：接收`settings`、`store`、`plan`。 控制顺序：L277断言`state["status"] == "WAITING_CLARIFICATION"`；L278断言`state["pending"] == pending and state["error"] is None`。 调用`new_run`、`store.set_automation`、`Runtime`、`Unresolved`、`worker.tick`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_manual_switch_on_blocked_restores_visible_waiting_gate.Unresolved`（L266–L268）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_manual_switch_on_blocked_restores_visible_waiting_gate.Unresolved.complete`（L267–L268）：接收`*args`。 调用`requirement`。 返回路径：L268的`requirement(["仍未决定"])`。
+- `test_question_only_pause_is_not_misreported_as_unsupported_scope`（L281–L291）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L290断言`report["reasons"] == ["尚未自动决定：" + QUESTION]`；L291断言`report["recoverable"] and not report["can_approve"]`。 调用`blocked_report`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_recovery_control_words_never_become_model_answers`（L295–L297）：接收`word`。 调用`pytest.raises`、`ResumeInput`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_chat_run_can_operate_on_existing_blocked_gate`（L301–L350）：接收`monkeypatch`、`command`。 控制顺序：L334断言`result.exit_code == 0`；L335断言`LIMITATIONS[0] in result.output`；L337按`command == "退出"`分支；L338断言`writes == []`；L340断言`len(writes) == 1`；L341断言`writes[0][1].startswith(f"/runs/{run}/")`；L342按`command == "智能推荐"`分支；L343断言`writes[0][2] == {"enabled": True, "accepted": True}`。后续分支沿下方源码相同行号继续阅读。 调用`str`、`uuid.uuid4`、`monkeypatch.setattr`、`CliRunner().invoke`、`CliRunner`、`len`、`writes[0][1].startswith`、`writes[0][1].endswith`、`any`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_chat_run_can_operate_on_existing_blocked_gate.client`（L316–L317）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`object`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_chat_run_can_operate_on_existing_blocked_gate.api_call`（L319–L329）：接收`c`、`method`、`path`、`body`。 控制顺序：L322按`method == "GET"`分支。 调用`calls.append`。 返回路径：L323的`{ "status": status, "error": "可恢复的阻塞", "pending": gate if status == "BLOCKED" else None, }`；L329的`{}`。
+- `test_cache_binds_prompt_payload_and_schema_but_reuses_exact_replay`（L353–L379）：接收`settings`、`store`。 控制顺序：L369断言`len(sent) == 1`；L372断言`len(sent) == 3`；L373断言`store.get_run(run)["model_calls"] == 3`；L379断言`len(sent) == 4`。 调用`SecretStr`、`new_run`、`ModelGateway`、`httpx.MockTransport`、`gateway.complete`、`len`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cache_binds_prompt_payload_and_schema_but_reuses_exact_replay.handler`（L359–L363）：接收`request`。 调用`sent.append`、`json.loads`、`httpx.Response`、`requirement().model_dump_json`、`requirement`。 返回路径：L361的`httpx.Response( 200, json={"choices": [{"message": {"content": requirement().model_dump_js…`。
+- `test_cache_binds_prompt_payload_and_schema_but_reuses_exact_replay.ExtendedRequirement`（L375–L376）：继承`Requirement`。声明的数据项为`schema_revision_note`；类型约束/数据库列参数以完整定义为准。
+- `test_smart_recovery_never_overrides_failed_independent_verification`（L382–L395）：接收`settings`、`store`、`plan`、`monkeypatch`。 控制顺序：L393断言`state["status"] == "FAILED"`；L394断言`"真实验收失败" in state["error"]`；L395断言`not (settings.data_dir / "runs" / run / "delivery.zip").exists()`。 调用`monkeypatch.setattr`、`new_run`、`store.set_automation`、`Runtime`、`FixtureGateway`、`worker.tick`、`store.get_run`、`(settings.data_dir / "runs" / run / "delivery.zip").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_recommendation_recovery.py sha256: ab69a51710dce0688bf31205bc04134b92bb1f818a7ea44819056af6c569cf27 -->
+<!-- source-file: tests/test_recommendation_recovery.py sha256: 2bd1df1d17366212e5a7d707c3b0b23d0037b377a647724837c4d52c7cda098a -->
 ````python
 """Reported smart-news dead end: real graph/storage/product, explicit model fixtures."""
 
@@ -18368,7 +18535,9 @@ def test_explicit_unsupported_request_remains_blocked_with_actionable_report(
     assert state["pending"]["can_approve"] is False
     assert len(gateway.calls) == 3
     report = json.loads(
-        (settings.data_dir / "runs" / run / "recommendation-blocked.json").read_text()
+        (settings.data_dir / "runs" / run / "recommendation-blocked.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert report["reasons"] == [requested] and report["passed"] is False
     assert not (settings.data_dir / "runs" / run / "delivery.zip").exists()
@@ -20934,10 +21103,11 @@ if __name__ == "__main__":
 - `bootstrap`（L26–L83）：接收`directory`。 控制顺序：L29按`destination.exists()`分支；L30抛异常，停止当前正常路径；L34遍历`range(90)`；L40按`attempt == 89`分支；L41抛异常，停止当前正常路径；L56遍历`range(120)`；L61按`not organizations`分支；L62抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`destination.exists`、`ValueError`、`json.loads`、`(directory / "credentials.json").read_text`、`install_loopback_guard`、`httpx.Client`、`range`、`http.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `write_environment`（L86–L96）：接收`path`、`key`、`snapshot`。 控制顺序：L87按`any(char in key + snapshot for char in "\n\r\"'")`分支；L88抛异常，停止当前正常路径；L95按`os.name != "nt"`分支。 调用`any`、`ValueError`、`Path(path).write_text`、`Path`、`Path(path).chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `snapshot`（L99–L114）：接收`directory`。 源码说明：Bound setup, SDK calls and cleanup in addition to the SDK operation timeout.。 调用`run_command`、`str`、`Path(directory).resolve`、`Path`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `snapshot_worker`（L117–L147）：接收`directory`。 控制顺序：L120按`not metadata["image"].startswith("registry:6000/rnd-python:")`分支；L121抛异常，停止当前正常路径；L132按`str(getattr(existing.state, "value", existing.state)).lower() != "active"`分支；L133抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(directory / "snapshot-image.json").read_text`、`metadata["image"].startswith`、`ValueError`、`install_loopback_guard`、`(directory / "api-key.json").read_text`、`Settings`、`SecretStr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L150–L157）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`{"auth": bootstrap, "snapshot": snapshot, "snapshot-worker": snap…`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `snapshot_named`（L117–L136）：接收`service`、`name`。 源码说明：Resolve an exact name through the pinned SDK's paginated listing. In v0.190.0 get(name) forwards the name to a UUID-only API route. Never interpret that server error as a missing snapshot or create a 。 控制顺序：L125遍历`range(1, 101)`；L127按`result.page != page or not 0 <= result.total_pages <= 100`分支；L128抛异常，停止当前正常路径；L129遍历`result.items`；L130按`item.name == name`分支；L131按`found is not None`分支；L132抛异常，停止当前正常路径；L134按`page >= result.total_pages`分支。后续分支沿下方源码相同行号继续阅读。 调用`range`、`service.list`、`ValueError`。 返回路径：L135的`found`。
+- `snapshot_worker`（L139–L169）：接收`directory`。 控制顺序：L142按`not metadata["image"].startswith("registry:6000/rnd-python:")`分支；L143抛异常，停止当前正常路径；L152按`existing is None`分支；L162按`existing.name != metadata["snapshot"] or existing.image_name != metadata["image"]`分支；L163抛异常，停止当前正常路径；L164按`str(getattr(existing.state, "value", existing.state)).lower() != "active"`分支；L165抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(directory / "snapshot-image.json").read_text`、`metadata["image"].startswith`、`ValueError`、`install_loopback_guard`、`(directory / "api-key.json").read_text`、`Settings`、`SecretStr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L172–L179）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`{"auth": bootstrap, "snapshot": snapshot, "snapshot-worker": snap…`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/daytona_bootstrap.py sha256: 77906a8fa048073b412f8687692e1c07161d92a4e074c56fa2776afe7bee0f60 -->
+<!-- source-file: scripts/daytona_bootstrap.py sha256: b058fbc24a7dfe1b511fb2347deeee8e47212b88e4fb3f19ddc17e4bd6855e26 -->
 ````python
 """Authenticate against local Dex, create a local API key and register a warm snapshot.
 
@@ -21055,6 +21225,28 @@ def snapshot(directory=HOME):
     print("本机快照已就绪；全部操作在限时本机进程内完成。")
 
 
+def snapshot_named(service, name):
+    """Resolve an exact name through the pinned SDK's paginated listing.
+
+    In v0.190.0 get(name) forwards the name to a UUID-only API route. Never
+    interpret that server error as a missing snapshot or create a duplicate.
+    A bounded scan must finish before absence can be established.
+    """
+    found = None
+    for page in range(1, 101):
+        result = service.list(page=page, limit=100)
+        if result.page != page or not 0 <= result.total_pages <= 100:
+            raise ValueError("本机快照分页结果异常；拒绝猜测快照是否存在")
+        for item in result.items:
+            if item.name == name:
+                if found is not None:
+                    raise ValueError("存在多个同名本机快照；拒绝猜测或覆盖")
+                found = item
+        if page >= result.total_pages:
+            return found
+    raise ValueError("本机快照分页未完成；没有创建快照")
+
+
 def snapshot_worker(directory=HOME):
     directory = Path(directory)
     metadata = json.loads((directory / "snapshot-image.json").read_text(encoding="utf-8"))
@@ -21062,18 +21254,14 @@ def snapshot_worker(directory=HOME):
         raise ValueError("快照只能引用本机登记的预热镜像")
     install_loopback_guard()
     from daytona import CreateSnapshotParams, Resources
-    from daytona.common.errors import DaytonaNotFoundError
 
     key = json.loads((directory / "api-key.json").read_text(encoding="utf-8"))["value"]
     settings = Settings(_env_file=None, daytona_api_key=SecretStr(key), daytona_target="local")
     client = client_for(settings)
     try:
-        try:
-            existing = client.snapshot.get(metadata["snapshot"])
-            if str(getattr(existing.state, "value", existing.state)).lower() != "active":
-                raise ValueError("已存在同名但未就绪的本机快照，请检查状态；不静默覆盖")
-        except DaytonaNotFoundError:
-            client.snapshot.create(
+        existing = snapshot_named(client.snapshot, metadata["snapshot"])
+        if existing is None:
+            existing = client.snapshot.create(
                 CreateSnapshotParams(
                     name=metadata["snapshot"],
                     image=metadata["image"],
@@ -21082,6 +21270,10 @@ def snapshot_worker(directory=HOME):
                 ),
                 timeout=600,
             )
+        if existing.name != metadata["snapshot"] or existing.image_name != metadata["image"]:
+            raise ValueError("同名快照的镜像来源不符；拒绝复用或覆盖")
+        if str(getattr(existing.state, "value", existing.state)).lower() != "active":
+            raise ValueError("同名本机快照尚未就绪，请检查状态；不静默覆盖")
         write_environment(directory / "workbench.env", key, metadata["snapshot"])
         print("本机快照已就绪；沙箱关卡禁止外网并使用离线依赖。")
     finally:

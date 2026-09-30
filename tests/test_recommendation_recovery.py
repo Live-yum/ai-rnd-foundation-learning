@@ -218,7 +218,9 @@ def test_explicit_unsupported_request_remains_blocked_with_actionable_report(
     assert state["pending"]["can_approve"] is False
     assert len(gateway.calls) == 3
     report = json.loads(
-        (settings.data_dir / "runs" / run / "recommendation-blocked.json").read_text()
+        (settings.data_dir / "runs" / run / "recommendation-blocked.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert report["reasons"] == [requested] and report["passed"] is False
     assert not (settings.data_dir / "runs" / run / "delivery.zip").exists()
