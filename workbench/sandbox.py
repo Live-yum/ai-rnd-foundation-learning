@@ -9,6 +9,7 @@ import json
 import shlex
 import uuid
 import zipfile
+from contextlib import closing
 from importlib.metadata import version
 from pathlib import Path
 
@@ -19,6 +20,7 @@ from workbench.local_only import DAYTONA_VERSION, local_http_url
 from workbench.settings import ROOT, ModelProfile
 
 REMOTE = "/tmp/rnd-verification"
+MAX_RUNTIME_REPORT_BYTES = 1_000_000
 
 
 def validate_configuration(settings, template, selection=None):
@@ -180,6 +182,36 @@ def source_archive(product):
     return buffer.getvalue()
 
 
+def read_runtime_report(filesystem, timeout):
+    """Read the pinned SDK's real streaming API with a bounded body and deadline.
+
+    In 0.190.0 download_file advertises timeout as a keyword in its overloads,
+    but the actual implementation accepts only *args. The streaming method
+    really accepts timeout= and lets us enforce the size limit before buffering
+    the entire report. Closing the iterator also closes the HTTP response on
+    malformed, oversized or interrupted downloads.
+    """
+    body = bytearray()
+    with closing(
+        filesystem.download_file_stream(REMOTE + "/runtime.json", timeout=timeout)
+    ) as chunks:
+        for chunk in chunks:
+            if not isinstance(chunk, bytes):
+                raise PrerequisiteError("Daytona验收报告不是字节流")
+            if len(body) + len(chunk) > MAX_RUNTIME_REPORT_BYTES:
+                raise PrerequisiteError("Daytona验收报告过大")
+            body.extend(chunk)
+    try:
+        runtime = json.loads(body)
+    except (ValueError, UnicodeError) as exc:
+        raise PrerequisiteError("Daytona验收报告不是有效JSON") from exc
+    if not isinstance(runtime, dict) or not all(
+        runtime.get(key) is True for key in ("passed", "http", "restart")
+    ):
+        raise PrerequisiteError("Daytona运行报告缺少真实HTTP/重启验收")
+    return runtime
+
+
 def verify_in_daytona(product, template, settings, *, client=None):
     validate_configuration(settings, template)
     if client is None:
@@ -253,13 +285,7 @@ def _verify_in_daytona(product, template, settings, *, client):
             if result.exit_code != 0:
                 raise PrerequisiteError("Daytona检查失败：" + name)
         if template == "python-basic":
-            raw = sandbox.fs.download_file(REMOTE + "/runtime.json", timeout=settings.tool_timeout)
-            if len(raw) > 1_000_000:
-                raise PrerequisiteError("Daytona验收报告过大")
-            runtime = json.loads(raw)
-            if not all(runtime.get(k) is True for k in ("passed", "http", "restart")):
-                raise PrerequisiteError("Daytona运行报告缺少真实HTTP/重启验收")
-            receipt["runtime"] = runtime
+            receipt["runtime"] = read_runtime_report(sandbox.fs, settings.tool_timeout)
         if manifest(product) != before:
             raise PrerequisiteError("Daytona验收期间本机源码改变")
         receipt["passed"] = True

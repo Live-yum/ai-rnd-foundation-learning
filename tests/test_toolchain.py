@@ -272,8 +272,11 @@ def fake_daytona(settings, *, fail=None):
             if fail == "upload":
                 raise RuntimeError("test upload failure")
 
-        def download_file(self, *args, **kwargs):
-            return json.dumps({"passed": True, "http": True, "restart": True}).encode()
+        def download_file_stream(self, path, timeout=1800):
+            assert path.endswith("/runtime.json") and timeout == settings.tool_timeout
+            if fail == "download":
+                raise RuntimeError("test interrupted download")
+            yield json.dumps({"passed": True, "http": True, "restart": True}).encode()
 
     class Process:
         def exec(self, command, **kwargs):
@@ -295,7 +298,7 @@ def fake_daytona(settings, *, fail=None):
     return Client(), events
 
 
-@pytest.mark.parametrize("failure", [None, "upload", "exec", "delete"])
+@pytest.mark.parametrize("failure", [None, "upload", "exec", "download", "delete"])
 def test_daytona_always_cleans_and_blocks_failed_checks(settings, plan, tmp_path, failure):
     product = tmp_path / "product"
     generate_basic(plan, product)

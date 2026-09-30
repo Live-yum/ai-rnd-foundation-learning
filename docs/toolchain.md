@@ -178,6 +178,8 @@ uv run rnd tools continue-config . workbench .data/platform-index
 
 固定版本为v0.190.0，源码SHA为`01c502bb1f1ff8f2885d0cd490e043736083dca8`。下载一个CLI或安装Python SDK并不等于已经运行Daytona；完整本地系统还有API、Runner、Proxy、PostgreSQL、Redis、Dex、本地镜像Registry和MinIO。
 
+沙箱程序退出码为0仍不足以交付。`sandbox.read_runtime_report`通过SDK真实流式下载方法读取可信验证器的JSON回执，限制读取超时和最多1,000,000字节；中断、非法JSON、缺少HTTP/重启成功标记、文件过大都判失败，并关闭流。随后仍须删除本次沙箱、保存清理回执；删除失败同样阻止交付。`tests/test_daytona_download.py`调用实际安装的0.190.0文件系统实现和multipart解析器，只有HTTP对端使用明确的本机协议夹具；`daytona-local.yml`另以真实本机服务验证沙箱建立、断网运行和删除，二者不能互相替代。
+
 上游的Docker Compose明确用于开发，不是生产安全部署。Runner使用privileged Docker-in-Docker；请只在你拥有的Linux/WSL开发环境使用，不暴露公网，不把它描述成抵御恶意内核攻击的强隔离。平台仍只执行登记的验证命令。
 
 准备Linux x86_64/WSL2的Docker Engine或Docker Desktop集成，确认本机`/var/run/docker.sock`可用。`docker version`必须同时显示Client和Server。Windows平台本身可以直接运行，但本章的自托管服务路径以Linux/WSL为准；不要把Windows与WSL的虚拟环境混用。

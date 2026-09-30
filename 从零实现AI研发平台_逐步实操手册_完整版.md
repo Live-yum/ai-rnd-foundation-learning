@@ -1255,6 +1255,8 @@ uv run rnd tools continue-config . workbench .data/platform-index
 
 固定版本为v0.190.0，源码SHA为`01c502bb1f1ff8f2885d0cd490e043736083dca8`。下载一个CLI或安装Python SDK并不等于已经运行Daytona；完整本地系统还有API、Runner、Proxy、PostgreSQL、Redis、Dex、本地镜像Registry和MinIO。
 
+沙箱程序退出码为0仍不足以交付。`sandbox.read_runtime_report`通过SDK真实流式下载方法读取可信验证器的JSON回执，限制读取超时和最多1,000,000字节；中断、非法JSON、缺少HTTP/重启成功标记、文件过大都判失败，并关闭流。随后仍须删除本次沙箱、保存清理回执；删除失败同样阻止交付。`tests/test_daytona_download.py`调用实际安装的0.190.0文件系统实现和multipart解析器，只有HTTP对端使用明确的本机协议夹具；`daytona-local.yml`另以真实本机服务验证沙箱建立、断网运行和删除，二者不能互相替代。
+
 上游的Docker Compose明确用于开发，不是生产安全部署。Runner使用privileged Docker-in-Docker；请只在你拥有的Linux/WSL开发环境使用，不暴露公网，不把它描述成抵御恶意内核攻击的强隔离。平台仍只执行登记的验证命令。
 
 准备Linux x86_64/WSL2的Docker Engine或Docker Desktop集成，确认本机`/var/run/docker.sock`可用。`docker version`必须同时显示Client和Server。Windows平台本身可以直接运行，但本章的自托管服务路径以Linux/WSL为准；不要把Windows与WSL的虚拟环境混用。
@@ -9488,17 +9490,18 @@ class Runtime:
 
 **逐个入口与控制逻辑：**
 
-- `validate_configuration`（L24–L42）：接收`settings`、`template`、`selection`。 控制顺序：L25按`settings.sandbox_provider != "daytona"`分支；L27按`not settings.daytona_allow_local_execution`分支；L28抛异常，停止当前正常路径；L37按`not settings.daytona_snapshot or not settings.daytona_target`分支；L38抛异常，停止当前正常路径；L39按`template == "python-basic" and (selection or {}).get("database", "sqlite") != "sqlite…`分支；L40抛异常，停止当前正常路径。 调用`PrerequisiteError`、`ModelProfile( stage="daytona", base_url=local_http_url(settings.d…`、`ModelProfile`、`local_http_url`、`(selection or {}).get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `client_for`（L45–L57）：接收`settings`。 控制顺序：L48按`version("daytona") != DAYTONA_VERSION`分支；L49抛异常，停止当前正常路径。 调用`version`、`PrerequisiteError`、`Daytona`、`DaytonaConfig`、`settings.daytona_api_key.get_secret_value`、`local_http_url`。 返回路径：L50的`Daytona( DaytonaConfig( api_key=settings.daytona_api_key.get_secret_value(), api_url=local…`。
-- `close_client`（L60–L100）：接收`client`。 源码说明：Release the exact v0.190.0 HTTPX client and urllib3 connection pools. Neither Daytona nor its generated ApiClient exposes close(); ApiClient's context-manager exit is also a no-op. The synchronous wor。 控制顺序：L81按`http is not None`分支；L83遍历`("_api_client", "_toolbox_api_client")`；L85按`api is None`分支；L90遍历`manager.pools.keys()`；L95按`failures`分支；L97按`original is not None`分支；L100抛异常，停止当前正常路径。 调用`sys.exception`、`getattr`、`attempt`、`manager.pools.keys`、`failures.append`、`type`、`", ".join`、`original.add_note`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `close_client.attempt`（L74–L78）：接收`operation`。 调用`operation`、`failures.append`、`type`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `params_for`（L103–L115）：接收`settings`、`name`。 调用`CreateSandboxFromSnapshotParams`。 返回路径：L106的`CreateSandboxFromSnapshotParams( snapshot=settings.daytona_snapshot, name=name, network_bl…`。
-- `checks_for`（L118–L165）：接收`template`。 控制顺序：L119按`template == "python-basic"`分支；L141按`template == "yudao-vben"`分支；L155按`template == "fastapiadmin"`分支；L165抛异常，停止当前正常路径。 调用`PrerequisiteError`。 返回路径：L120的`[ ( "locked-install", ["uv", "sync", "--locked", "--offline", "--no-dev", "--python", "3.1…`；L142的`[ ("maven-test", ["mvn", "-B", "-o", "test"], "product/backend"), ( "frontend-install", ["…`；L156的`[ ("python-syntax", ["python3", "-m", "compileall", "-q", "app"], "product/backend"), ( "f…`。
-- `source_archive`（L168–L180）：接收`product`。 控制顺序：L170按`len(rows) > 20000 or sum(p.stat().st_size for _, p in rows) > 150_000_000`分支；L171抛异常，停止当前正常路径；L174遍历`rows`；L175按`Path(name).name == ".npmrc"`分支；L177按`any(word in text.lower() for word in ("_auth", "password", "username", "${"))`分支；L178抛异常，停止当前正常路径。 调用`list`、`files`、`len`、`sum`、`p.stat`、`PrerequisiteError`、`io.BytesIO`、`zipfile.ZipFile`、`Path`等。 返回路径：L180的`buffer.getvalue()`。
-- `verify_in_daytona`（L183–L189）：接收`product`、`template`、`settings`、`client`。 控制顺序：L185按`client is None`分支。 调用`validate_configuration`、`run_isolated`、`_verify_in_daytona`。 返回路径：L188的`run_isolated(product, template, settings)`；L189的`_verify_in_daytona(product, template, settings, client=client)`。
-- `_verify_in_daytona`（L192–L292）：接收`product`、`template`、`settings`、`client`。成功不止看命令退出码，还要求本次沙箱成功删除；异常路径同样写回执并尝试清理。 控制顺序：L193按`settings.sandbox_provider != "daytona"`分支；L194抛异常，停止当前正常路径；L239按`extraction.exit_code != 0`分支；L240抛异常，停止当前正常路径；L241遍历`checks`；L253按`result.exit_code != 0`分支；L254抛异常，停止当前正常路径；L255按`template == "python-basic"`分支。后续分支沿下方源码相同行号继续阅读。 调用`PrerequisiteError`、`Path`、`(product / "selection.json").exists`、`json.loads`、`(product / "selection.json").read_text`、`validate_configuration`、`checks_for`、`manifest`、`source_archive`等。 返回路径：L292的`receipt`。
+- `validate_configuration`（L26–L44）：接收`settings`、`template`、`selection`。 控制顺序：L27按`settings.sandbox_provider != "daytona"`分支；L29按`not settings.daytona_allow_local_execution`分支；L30抛异常，停止当前正常路径；L39按`not settings.daytona_snapshot or not settings.daytona_target`分支；L40抛异常，停止当前正常路径；L41按`template == "python-basic" and (selection or {}).get("database", "sqlite") != "sqlite…`分支；L42抛异常，停止当前正常路径。 调用`PrerequisiteError`、`ModelProfile( stage="daytona", base_url=local_http_url(settings.d…`、`ModelProfile`、`local_http_url`、`(selection or {}).get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `client_for`（L47–L59）：接收`settings`。 控制顺序：L50按`version("daytona") != DAYTONA_VERSION`分支；L51抛异常，停止当前正常路径。 调用`version`、`PrerequisiteError`、`Daytona`、`DaytonaConfig`、`settings.daytona_api_key.get_secret_value`、`local_http_url`。 返回路径：L52的`Daytona( DaytonaConfig( api_key=settings.daytona_api_key.get_secret_value(), api_url=local…`。
+- `close_client`（L62–L102）：接收`client`。 源码说明：Release the exact v0.190.0 HTTPX client and urllib3 connection pools. Neither Daytona nor its generated ApiClient exposes close(); ApiClient's context-manager exit is also a no-op. The synchronous wor。 控制顺序：L83按`http is not None`分支；L85遍历`("_api_client", "_toolbox_api_client")`；L87按`api is None`分支；L92遍历`manager.pools.keys()`；L97按`failures`分支；L99按`original is not None`分支；L102抛异常，停止当前正常路径。 调用`sys.exception`、`getattr`、`attempt`、`manager.pools.keys`、`failures.append`、`type`、`", ".join`、`original.add_note`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `close_client.attempt`（L76–L80）：接收`operation`。 调用`operation`、`failures.append`、`type`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `params_for`（L105–L117）：接收`settings`、`name`。 调用`CreateSandboxFromSnapshotParams`。 返回路径：L108的`CreateSandboxFromSnapshotParams( snapshot=settings.daytona_snapshot, name=name, network_bl…`。
+- `checks_for`（L120–L167）：接收`template`。 控制顺序：L121按`template == "python-basic"`分支；L143按`template == "yudao-vben"`分支；L157按`template == "fastapiadmin"`分支；L167抛异常，停止当前正常路径。 调用`PrerequisiteError`。 返回路径：L122的`[ ( "locked-install", ["uv", "sync", "--locked", "--offline", "--no-dev", "--python", "3.1…`；L144的`[ ("maven-test", ["mvn", "-B", "-o", "test"], "product/backend"), ( "frontend-install", ["…`；L158的`[ ("python-syntax", ["python3", "-m", "compileall", "-q", "app"], "product/backend"), ( "f…`。
+- `source_archive`（L170–L182）：接收`product`。 控制顺序：L172按`len(rows) > 20000 or sum(p.stat().st_size for _, p in rows) > 150_000_000`分支；L173抛异常，停止当前正常路径；L176遍历`rows`；L177按`Path(name).name == ".npmrc"`分支；L179按`any(word in text.lower() for word in ("_auth", "password", "username", "${"))`分支；L180抛异常，停止当前正常路径。 调用`list`、`files`、`len`、`sum`、`p.stat`、`PrerequisiteError`、`io.BytesIO`、`zipfile.ZipFile`、`Path`等。 返回路径：L182的`buffer.getvalue()`。
+- `read_runtime_report`（L185–L212）：接收`filesystem`、`timeout`。 源码说明：Read the pinned SDK's real streaming API with a bounded body and deadline. In 0.190.0 download_file advertises timeout as a keyword in its overloads, but the actual implementation accepts only *args. 。 控制顺序：L198遍历`chunks`；L199按`not isinstance(chunk, bytes)`分支；L200抛异常，停止当前正常路径；L201按`len(body) + len(chunk) > MAX_RUNTIME_REPORT_BYTES`分支；L202抛异常，停止当前正常路径；L207抛异常，停止当前正常路径；L208按`not isinstance(runtime, dict) or not all( runtime.get(key) is True for key in ("passe…`分支；L211抛异常，停止当前正常路径。 调用`bytearray`、`closing`、`filesystem.download_file_stream`、`isinstance`、`PrerequisiteError`、`len`、`body.extend`、`json.loads`、`all`等。 返回路径：L212的`runtime`。
+- `verify_in_daytona`（L215–L221）：接收`product`、`template`、`settings`、`client`。 控制顺序：L217按`client is None`分支。 调用`validate_configuration`、`run_isolated`、`_verify_in_daytona`。 返回路径：L220的`run_isolated(product, template, settings)`；L221的`_verify_in_daytona(product, template, settings, client=client)`。
+- `_verify_in_daytona`（L224–L318）：接收`product`、`template`、`settings`、`client`。成功不止看命令退出码，还要求本次沙箱成功删除；异常路径同样写回执并尝试清理。 控制顺序：L225按`settings.sandbox_provider != "daytona"`分支；L226抛异常，停止当前正常路径；L271按`extraction.exit_code != 0`分支；L272抛异常，停止当前正常路径；L273遍历`checks`；L285按`result.exit_code != 0`分支；L286抛异常，停止当前正常路径；L287按`template == "python-basic"`分支。后续分支沿下方源码相同行号继续阅读。 调用`PrerequisiteError`、`Path`、`(product / "selection.json").exists`、`json.loads`、`(product / "selection.json").read_text`、`validate_configuration`、`checks_for`、`manifest`、`source_archive`等。 返回路径：L318的`receipt`。
 
-<!-- source-file: workbench/sandbox.py sha256: cc2bc962381521a5dfd8c02c492a65eccb2fbc37ad457025b68b0eb043d9c0fb -->
+<!-- source-file: workbench/sandbox.py sha256: 0fc4aca0c9431e44ea9fe6f15a33a7aeb54799eb0a74e3681af263b90d3b7fad -->
 ````python
 """Opt-in self-hosted Daytona verification. No cloud control plane is allowed.
 
@@ -9511,6 +9514,7 @@ import json
 import shlex
 import uuid
 import zipfile
+from contextlib import closing
 from importlib.metadata import version
 from pathlib import Path
 
@@ -9521,6 +9525,7 @@ from workbench.local_only import DAYTONA_VERSION, local_http_url
 from workbench.settings import ROOT, ModelProfile
 
 REMOTE = "/tmp/rnd-verification"
+MAX_RUNTIME_REPORT_BYTES = 1_000_000
 
 
 def validate_configuration(settings, template, selection=None):
@@ -9682,6 +9687,36 @@ def source_archive(product):
     return buffer.getvalue()
 
 
+def read_runtime_report(filesystem, timeout):
+    """Read the pinned SDK's real streaming API with a bounded body and deadline.
+
+    In 0.190.0 download_file advertises timeout as a keyword in its overloads,
+    but the actual implementation accepts only *args. The streaming method
+    really accepts timeout= and lets us enforce the size limit before buffering
+    the entire report. Closing the iterator also closes the HTTP response on
+    malformed, oversized or interrupted downloads.
+    """
+    body = bytearray()
+    with closing(
+        filesystem.download_file_stream(REMOTE + "/runtime.json", timeout=timeout)
+    ) as chunks:
+        for chunk in chunks:
+            if not isinstance(chunk, bytes):
+                raise PrerequisiteError("Daytona验收报告不是字节流")
+            if len(body) + len(chunk) > MAX_RUNTIME_REPORT_BYTES:
+                raise PrerequisiteError("Daytona验收报告过大")
+            body.extend(chunk)
+    try:
+        runtime = json.loads(body)
+    except (ValueError, UnicodeError) as exc:
+        raise PrerequisiteError("Daytona验收报告不是有效JSON") from exc
+    if not isinstance(runtime, dict) or not all(
+        runtime.get(key) is True for key in ("passed", "http", "restart")
+    ):
+        raise PrerequisiteError("Daytona运行报告缺少真实HTTP/重启验收")
+    return runtime
+
+
 def verify_in_daytona(product, template, settings, *, client=None):
     validate_configuration(settings, template)
     if client is None:
@@ -9755,13 +9790,7 @@ def _verify_in_daytona(product, template, settings, *, client):
             if result.exit_code != 0:
                 raise PrerequisiteError("Daytona检查失败：" + name)
         if template == "python-basic":
-            raw = sandbox.fs.download_file(REMOTE + "/runtime.json", timeout=settings.tool_timeout)
-            if len(raw) > 1_000_000:
-                raise PrerequisiteError("Daytona验收报告过大")
-            runtime = json.loads(raw)
-            if not all(runtime.get(k) is True for k in ("passed", "http", "restart")):
-                raise PrerequisiteError("Daytona运行报告缺少真实HTTP/重启验收")
-            receipt["runtime"] = runtime
+            receipt["runtime"] = read_runtime_report(sandbox.fs, settings.tool_timeout)
         if manifest(product) != before:
             raise PrerequisiteError("Daytona验收期间本机源码改变")
         receipt["passed"] = True
@@ -15910,6 +15939,151 @@ def test_invalid_region_name_is_rejected_before_installation():
         local.assert_local_compose(config)
 ````
 
+### `tests/test_daytona_download.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.generator`、`workbench.sandbox`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `TrackedStream`（L16–L29）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `TrackedStream.__init__`（L17–L20）：接收`body`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `TrackedStream.__iter__`（L22–L26）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L23遍历`range(0, len(self.body), 4096)`。 调用`range`、`len`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `TrackedStream.close`（L28–L29）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `multipart`（L32–L38）：接收`payload`、`complete`。 返回路径：L38的`body + (b"\r\n--rnd-boundary--\r\n" if complete else b"")`。
+- `sdk_reader`（L41–L64）：接收`payload`、`complete`、`status`。 调用`TrackedStream`、`multipart`、`httpx.Client`、`httpx.MockTransport`、`FileSystem`、`SimpleNamespace`。 返回路径：L64的`FileSystem(SimpleNamespace(_download_files_serialize=serialize), http), http, stream`。
+- `sdk_reader.serialize`（L44–L51）：接收`**kwargs`。 控制顺序：L45断言`kwargs["download_files"].paths == [REMOTE + "/runtime.json"]`。 返回路径：L46的`( "POST", "http://127.0.0.1:3000/download", {}, {"paths": kwargs["download_files"].paths},…`。
+- `sdk_reader.handler`（L53–L61）：接收`request`。 控制顺序：L54断言`request.url.host == "127.0.0.1"`；L55断言`request.extensions["timeout"]["read"] == 7`；L56断言`request.extensions["timeout"]["write"] == 7`。 调用`httpx.Response`。 返回路径：L57的`httpx.Response( status, headers={"Content-Type": "multipart/form-data; boundary=rnd-bounda…`。
+- `test_actual_sdk_stream_timeout_and_report_are_consumed_and_closed`（L67–L71）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L70断言`read_runtime_report(filesystem, 7) == REPORT`；L71断言`stream.closed`。 调用`sdk_reader`、`json.dumps(REPORT).encode`、`json.dumps`、`read_runtime_report`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_or_nonobject_reports_never_pass`（L88–L92）：接收`payload`。 控制顺序：L92断言`stream.closed`。 调用`sdk_reader`、`pytest.raises`、`read_runtime_report`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_oversize_stops_reading_early_and_closes_real_sdk_stream`（L95–L100）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L100断言`stream.closed and stream.read_bytes < len(payload)`。 调用`sdk_reader`、`pytest.raises`、`read_runtime_report`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_valid_json_inside_truncated_multipart_is_not_a_success`（L103–L107）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L107断言`stream.closed`。 调用`sdk_reader`、`json.dumps(REPORT).encode`、`json.dumps`、`pytest.raises`、`read_runtime_report`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_http_failures_cannot_be_reported_as_passed`（L111–L115）：接收`status`。 控制顺序：L115断言`stream.closed`。 调用`sdk_reader`、`json.dumps(REPORT).encode`、`json.dumps`、`pytest.raises`、`read_runtime_report`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_daytona_download.py sha256: a1e10ac9d93f320a173da0e9d6a5f508eb35ff2efaf25cb35e06848e857ce618 -->
+````python
+"""Actual pinned SDK multipart reader; only the HTTP peer is a local protocol fixture."""
+
+import json
+from types import SimpleNamespace
+
+import httpx
+import pytest
+from daytona._sync.filesystem import FileSystem
+
+from workbench.generator import PrerequisiteError
+from workbench.sandbox import MAX_RUNTIME_REPORT_BYTES, REMOTE, read_runtime_report
+
+REPORT = {"passed": True, "http": True, "restart": True}
+
+
+class TrackedStream(httpx.SyncByteStream):
+    def __init__(self, body):
+        self.body = body
+        self.closed = False
+        self.read_bytes = 0
+
+    def __iter__(self):
+        for offset in range(0, len(self.body), 4096):
+            chunk = self.body[offset : offset + 4096]
+            self.read_bytes += len(chunk)
+            yield chunk
+
+    def close(self):
+        self.closed = True
+
+
+def multipart(payload, *, complete=True):
+    body = (
+        b'--rnd-boundary\r\nContent-Disposition: form-data; name="file"; '
+        b'filename="/tmp/rnd-verification/runtime.json"\r\n'
+        b"Content-Type: application/octet-stream\r\n\r\n" + payload
+    )
+    return body + (b"\r\n--rnd-boundary--\r\n" if complete else b"")
+
+
+def sdk_reader(payload, *, complete=True, status=200):
+    stream = TrackedStream(multipart(payload, complete=complete))
+
+    def serialize(**kwargs):
+        assert kwargs["download_files"].paths == [REMOTE + "/runtime.json"]
+        return (
+            "POST",
+            "http://127.0.0.1:3000/download",
+            {},
+            {"paths": kwargs["download_files"].paths},
+        )
+
+    def handler(request):
+        assert request.url.host == "127.0.0.1"
+        assert request.extensions["timeout"]["read"] == 7
+        assert request.extensions["timeout"]["write"] == 7
+        return httpx.Response(
+            status,
+            headers={"Content-Type": "multipart/form-data; boundary=rnd-boundary"},
+            stream=stream,
+        )
+
+    http = httpx.Client(transport=httpx.MockTransport(handler), trust_env=False)
+    return FileSystem(SimpleNamespace(_download_files_serialize=serialize), http), http, stream
+
+
+def test_actual_sdk_stream_timeout_and_report_are_consumed_and_closed():
+    filesystem, http, stream = sdk_reader(json.dumps(REPORT).encode())
+    with http:
+        assert read_runtime_report(filesystem, 7) == REPORT
+    assert stream.closed
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"",
+        b"broken",
+        b"[]",
+        b"null",
+        b"true",
+        b'"text"',
+        b"{}",
+        b'{"passed":1,"http":true,"restart":true}',
+        b"\xff",
+    ],
+)
+def test_invalid_or_nonobject_reports_never_pass(payload):
+    filesystem, http, stream = sdk_reader(payload)
+    with http, pytest.raises(Exception):
+        read_runtime_report(filesystem, 7)
+    assert stream.closed
+
+
+def test_oversize_stops_reading_early_and_closes_real_sdk_stream():
+    payload = b" " * (MAX_RUNTIME_REPORT_BYTES * 3)
+    filesystem, http, stream = sdk_reader(payload)
+    with http, pytest.raises(PrerequisiteError, match="报告过大"):
+        read_runtime_report(filesystem, 7)
+    assert stream.closed and stream.read_bytes < len(payload)
+
+
+def test_valid_json_inside_truncated_multipart_is_not_a_success():
+    filesystem, http, stream = sdk_reader(json.dumps(REPORT).encode(), complete=False)
+    with http, pytest.raises(Exception, match="Truncated"):
+        read_runtime_report(filesystem, 7)
+    assert stream.closed
+
+
+@pytest.mark.parametrize("status", [401, 403, 404, 500])
+def test_http_failures_cannot_be_reported_as_passed(status):
+    filesystem, http, stream = sdk_reader(json.dumps(REPORT).encode(), status=status)
+    with http, pytest.raises(Exception):
+        read_runtime_report(filesystem, 7)
+    assert stream.closed
+````
+
 ### `tests/test_daytona_gateway.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -19348,30 +19522,30 @@ def test_model_budget(store):
 - `test_stale_aider_patch_does_not_call_tool`（L228–L237）：接收`tmp_path`、`settings`、`monkeypatch`。 调用`(tmp_path / "custom_rules.py").write_text`、`monkeypatch.setattr`、`pytest.fail`、`EditBlocks`、`blocks`、`pytest.raises`、`apply_blocks`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_context_is_actually_available_to_planning`（L240–L246）：接收`settings`、`tmp_path`。 控制顺序：L244断言`context["model_calls"] == 0`；L245断言`"app.py" in context["contexts"][0]["repo_map"]["text"]`；L246断言`(tmp_path / "context/context-receipt.json").is_file()`。 调用`prepare_context`、`(tmp_path / "context/context-receipt.json").is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_daytona_requires_consent_and_never_inherits_model_key`（L249–L255）：接收`settings`。 调用`pytest.raises`、`validate_configuration`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `fake_daytona`（L258–L295）：接收`settings`、`fail`。 调用`SecretStr`、`Client`。 返回路径：L295的`Client(), events`。
-- `fake_daytona.Files`（L265–L276）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `fake_daytona`（L258–L298）：接收`settings`、`fail`。 调用`SecretStr`、`Client`。 返回路径：L298的`Client(), events`。
+- `fake_daytona.Files`（L265–L279）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `fake_daytona.Files.create_folder`（L266–L267）：接收`*args`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `fake_daytona.Files.upload_file`（L269–L273）：接收`data`、`path`、`**kwargs`。 控制顺序：L270断言`b"daytona-test-key" not in data`；L272按`fail == "upload"`分支；L273抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `fake_daytona.Files.download_file`（L275–L276）：接收`*args`、`**kwargs`。 调用`json.dumps({"passed": True, "http": True, "restart": True}).encod…`、`json.dumps`。 返回路径：L276的`json.dumps({"passed": True, "http": True, "restart": True}).encode()`。
-- `fake_daytona.Process`（L278–L281）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `fake_daytona.Process.exec`（L279–L281）：接收`command`、`**kwargs`。 调用`events.append`、`SimpleNamespace`。 返回路径：L281的`SimpleNamespace(exit_code=1 if fail == "exec" else 0, result="fixture")`。
-- `fake_daytona.Client`（L283–L293）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `fake_daytona.Client.create`（L284–L288）：接收`params`、`**kwargs`。 控制顺序：L285断言`"daytona-test-key" not in json.dumps(params.model_dump(), default=str)`；L286断言`params.public is False and params.auto_stop_interval == 5`。 调用`json.dumps`、`params.model_dump`、`events.append`、`SimpleNamespace`、`Files`、`Process`。 返回路径：L288的`SimpleNamespace(id="fixture-sandbox", fs=Files(), process=Process())`。
-- `fake_daytona.Client.delete`（L290–L293）：接收`sandbox`、`**kwargs`。 控制顺序：L292按`fail == "delete"`分支；L293抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_daytona_always_cleans_and_blocks_failed_checks`（L299–L314）：接收`settings`、`plan`、`tmp_path`、`failure`。 控制顺序：L304按`failure`分支；L309断言`result["passed"] and result["cleanup"] == "deleted"`；L310断言`events[-1] == ("delete", "fixture-sandbox")`；L312断言`receipt["passed"] is (failure is None)`；L313断言`receipt["source_digest"] == digest(before)`；L314断言`manifest(product) == before`。 调用`generate_basic`、`fake_daytona`、`manifest`、`pytest.raises`、`verify_in_daytona`、`json.loads`、`(tmp_path / "daytona-verification.json").read_text`、`digest`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_sandbox_commands_are_registered_not_model_chosen`（L317–L320）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L318断言`any("mvn" in argv for _, argv, _ in checks_for("yudao-vben"))`。 调用`any`、`checks_for`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_daytona_gate_blocks_packaging`（L323–L335）：接收`settings`、`store`、`monkeypatch`。 控制顺序：L327断言`workflow.after_verify({"verification": {"passed": True}}) == "sandbox"`。 调用`Workflow`、`workflow.after_verify`、`monkeypatch.setattr`、`pytest.raises`、`workflow.sandbox`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workflow_daytona_gate_blocks_packaging.failed`（L330–L331）：接收`*args`。 控制顺序：L331抛异常，停止当前正常路径。 调用`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_ast_packing_covers_every_line_without_one_chunk_per_variable`（L338–L351）：接收`tmp_path`。 控制顺序：L347断言`len(data["files"]["dense.ts"]["symbols"]) == 180`；L349断言`len(packed) == 3`；L350断言`"\n".join(row[6] for row in packed) == text.rstrip("\n")`；L351断言`[(row[2], row[3]) for row in packed] == [(1, 60), (61, 120), (121, 180)]`。 调用`source.mkdir`、`"\n".join`、`range`、`(source / "dense.ts").write_text`、`build_index`、`json.loads`、`(index / "index.json").read_text`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_exact_hook_usage_is_not_displaced_by_short_camel_case_matches`（L354–L372）：接收`tmp_path`。 控制顺序：L357遍历`range(100)`；L371断言`found["matches"][0]["path"] == "usage.vue"`；L372断言`"useVbenForm" in found["matches"][0]["content"]`。 调用`source.mkdir`、`range`、`(source / f"decoy{number}.ts").write_text`、`(source / "usage.vue").write_text`、`build_index`、`query`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_search_path_filters_apply_before_ranking`（L375–L386）：接收`indexed`。 控制顺序：L377断言`not query(source, index, "useVbenForm", file_suffix=".java")["matches"]`；L378断言`query(source, index, "useVbenForm", file_suffix=".vue")["matches"][0]["path"] == "Art…`；L382断言`not query(source, index, "useVbenForm", path_prefix="other-app/")["matches"]`。 调用`query`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_aider_uses_mapping_config_and_separate_empty_env`（L389–L422）：接收`tmp_path`、`settings`、`monkeypatch`。 控制顺序：L422断言`len(calls) == 2`。 调用`home.mkdir`、`work.mkdir`、`monkeypatch.setenv`、`monkeypatch.setattr`、`aider_tool.command`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_aider_uses_mapping_config_and_separate_empty_env.invoke`（L405–L418）：接收`argv`、`cwd`、`**kwargs`。 控制顺序：L408断言`environment["OPENAI_API_KEY"] == "unused-local-editing-only"`；L409断言`"ANTHROPIC_API_KEY" not in environment`；L410按`"--version" in argv`分支；L414断言`config != env_file`；L415断言`yaml.safe_load(config.read_text(encoding="utf-8")) == {}`；L416断言`env_file.read_text(encoding="utf-8") == ""`；L417断言`Path(environment["GIT_CONFIG_GLOBAL"]).read_text(encoding="utf-8") == ""`。 调用`calls.append`、`clean_env`、`Path`、`argv.index`、`yaml.safe_load`、`config.read_text`、`env_file.read_text`、`Path(environment["GIT_CONFIG_GLOBAL"]).read_text`。 返回路径：L411的`{"log": "aider 0.86.2"}`；L418的`{"log": "actual CLI is exercised by ci_toolchain"}`。
-- `test_runtime_preserves_redacted_wrapped_tool_failure`（L425–L454）：接收`settings`、`store`。 控制顺序：L448断言`run["status"] == "FAILED" and "tool-failure.json" in run["error"]`；L451断言`report["returncode"] == 2 and report["passed"] is False`；L452断言`report["run_id"] == run_id and report["job_id"]`；L453断言`"fixture-secret-token" not in path.read_text(encoding="utf-8")`；L454断言`"[redacted]" in report["log"] and len(report["log"]) <= 65536`。 调用`SecretStr`、`new_run`、`Runtime`、`FailingToolGateway`、`worker.tick`、`store.get_run`、`json.loads`、`path.read_text`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_preserves_redacted_wrapped_tool_failure.FailingToolGateway`（L433–L442）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_runtime_preserves_redacted_wrapped_tool_failure.FailingToolGateway.complete`（L434–L442）：接收`*args`、`**kwargs`。 控制顺序：L440抛异常，停止当前正常路径；L442抛异常，停止当前正常路径。 调用`ToolFailure`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `fake_daytona.Files.download_file_stream`（L275–L279）：接收`path`、`timeout`。 控制顺序：L276断言`path.endswith("/runtime.json") and timeout == settings.tool_timeout`；L277按`fail == "download"`分支；L278抛异常，停止当前正常路径。 调用`path.endswith`、`RuntimeError`、`json.dumps({"passed": True, "http": True, "restart": True}).encod…`、`json.dumps`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `fake_daytona.Process`（L281–L284）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `fake_daytona.Process.exec`（L282–L284）：接收`command`、`**kwargs`。 调用`events.append`、`SimpleNamespace`。 返回路径：L284的`SimpleNamespace(exit_code=1 if fail == "exec" else 0, result="fixture")`。
+- `fake_daytona.Client`（L286–L296）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `fake_daytona.Client.create`（L287–L291）：接收`params`、`**kwargs`。 控制顺序：L288断言`"daytona-test-key" not in json.dumps(params.model_dump(), default=str)`；L289断言`params.public is False and params.auto_stop_interval == 5`。 调用`json.dumps`、`params.model_dump`、`events.append`、`SimpleNamespace`、`Files`、`Process`。 返回路径：L291的`SimpleNamespace(id="fixture-sandbox", fs=Files(), process=Process())`。
+- `fake_daytona.Client.delete`（L293–L296）：接收`sandbox`、`**kwargs`。 控制顺序：L295按`fail == "delete"`分支；L296抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_daytona_always_cleans_and_blocks_failed_checks`（L302–L317）：接收`settings`、`plan`、`tmp_path`、`failure`。 控制顺序：L307按`failure`分支；L312断言`result["passed"] and result["cleanup"] == "deleted"`；L313断言`events[-1] == ("delete", "fixture-sandbox")`；L315断言`receipt["passed"] is (failure is None)`；L316断言`receipt["source_digest"] == digest(before)`；L317断言`manifest(product) == before`。 调用`generate_basic`、`fake_daytona`、`manifest`、`pytest.raises`、`verify_in_daytona`、`json.loads`、`(tmp_path / "daytona-verification.json").read_text`、`digest`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_sandbox_commands_are_registered_not_model_chosen`（L320–L323）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L321断言`any("mvn" in argv for _, argv, _ in checks_for("yudao-vben"))`。 调用`any`、`checks_for`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_daytona_gate_blocks_packaging`（L326–L338）：接收`settings`、`store`、`monkeypatch`。 控制顺序：L330断言`workflow.after_verify({"verification": {"passed": True}}) == "sandbox"`。 调用`Workflow`、`workflow.after_verify`、`monkeypatch.setattr`、`pytest.raises`、`workflow.sandbox`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workflow_daytona_gate_blocks_packaging.failed`（L333–L334）：接收`*args`。 控制顺序：L334抛异常，停止当前正常路径。 调用`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_ast_packing_covers_every_line_without_one_chunk_per_variable`（L341–L354）：接收`tmp_path`。 控制顺序：L350断言`len(data["files"]["dense.ts"]["symbols"]) == 180`；L352断言`len(packed) == 3`；L353断言`"\n".join(row[6] for row in packed) == text.rstrip("\n")`；L354断言`[(row[2], row[3]) for row in packed] == [(1, 60), (61, 120), (121, 180)]`。 调用`source.mkdir`、`"\n".join`、`range`、`(source / "dense.ts").write_text`、`build_index`、`json.loads`、`(index / "index.json").read_text`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_hook_usage_is_not_displaced_by_short_camel_case_matches`（L357–L375）：接收`tmp_path`。 控制顺序：L360遍历`range(100)`；L374断言`found["matches"][0]["path"] == "usage.vue"`；L375断言`"useVbenForm" in found["matches"][0]["content"]`。 调用`source.mkdir`、`range`、`(source / f"decoy{number}.ts").write_text`、`(source / "usage.vue").write_text`、`build_index`、`query`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_search_path_filters_apply_before_ranking`（L378–L389）：接收`indexed`。 控制顺序：L380断言`not query(source, index, "useVbenForm", file_suffix=".java")["matches"]`；L381断言`query(source, index, "useVbenForm", file_suffix=".vue")["matches"][0]["path"] == "Art…`；L385断言`not query(source, index, "useVbenForm", path_prefix="other-app/")["matches"]`。 调用`query`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_aider_uses_mapping_config_and_separate_empty_env`（L392–L425）：接收`tmp_path`、`settings`、`monkeypatch`。 控制顺序：L425断言`len(calls) == 2`。 调用`home.mkdir`、`work.mkdir`、`monkeypatch.setenv`、`monkeypatch.setattr`、`aider_tool.command`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_aider_uses_mapping_config_and_separate_empty_env.invoke`（L408–L421）：接收`argv`、`cwd`、`**kwargs`。 控制顺序：L411断言`environment["OPENAI_API_KEY"] == "unused-local-editing-only"`；L412断言`"ANTHROPIC_API_KEY" not in environment`；L413按`"--version" in argv`分支；L417断言`config != env_file`；L418断言`yaml.safe_load(config.read_text(encoding="utf-8")) == {}`；L419断言`env_file.read_text(encoding="utf-8") == ""`；L420断言`Path(environment["GIT_CONFIG_GLOBAL"]).read_text(encoding="utf-8") == ""`。 调用`calls.append`、`clean_env`、`Path`、`argv.index`、`yaml.safe_load`、`config.read_text`、`env_file.read_text`、`Path(environment["GIT_CONFIG_GLOBAL"]).read_text`。 返回路径：L414的`{"log": "aider 0.86.2"}`；L421的`{"log": "actual CLI is exercised by ci_toolchain"}`。
+- `test_runtime_preserves_redacted_wrapped_tool_failure`（L428–L457）：接收`settings`、`store`。 控制顺序：L451断言`run["status"] == "FAILED" and "tool-failure.json" in run["error"]`；L454断言`report["returncode"] == 2 and report["passed"] is False`；L455断言`report["run_id"] == run_id and report["job_id"]`；L456断言`"fixture-secret-token" not in path.read_text(encoding="utf-8")`；L457断言`"[redacted]" in report["log"] and len(report["log"]) <= 65536`。 调用`SecretStr`、`new_run`、`Runtime`、`FailingToolGateway`、`worker.tick`、`store.get_run`、`json.loads`、`path.read_text`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_preserves_redacted_wrapped_tool_failure.FailingToolGateway`（L436–L445）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_runtime_preserves_redacted_wrapped_tool_failure.FailingToolGateway.complete`（L437–L445）：接收`*args`、`**kwargs`。 控制顺序：L443抛异常，停止当前正常路径；L445抛异常，停止当前正常路径。 调用`ToolFailure`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_toolchain.py sha256: ba592cc71189ce3f99be40a3c77988661ddc1653124ede824eca80df7d6f6f2c -->
+<!-- source-file: tests/test_toolchain.py sha256: f6b5f40b9bef88cfae694d447ddaece68a552443ef12e82bca49216533820796 -->
 ````python
 """Real parsers/SQLite/MCP; explicit fixtures only for paid external transports."""
 
@@ -19647,8 +19821,11 @@ def fake_daytona(settings, *, fail=None):
             if fail == "upload":
                 raise RuntimeError("test upload failure")
 
-        def download_file(self, *args, **kwargs):
-            return json.dumps({"passed": True, "http": True, "restart": True}).encode()
+        def download_file_stream(self, path, timeout=1800):
+            assert path.endswith("/runtime.json") and timeout == settings.tool_timeout
+            if fail == "download":
+                raise RuntimeError("test interrupted download")
+            yield json.dumps({"passed": True, "http": True, "restart": True}).encode()
 
     class Process:
         def exec(self, command, **kwargs):
@@ -19670,7 +19847,7 @@ def fake_daytona(settings, *, fail=None):
     return Client(), events
 
 
-@pytest.mark.parametrize("failure", [None, "upload", "exec", "delete"])
+@pytest.mark.parametrize("failure", [None, "upload", "exec", "download", "delete"])
 def test_daytona_always_cleans_and_blocks_failed_checks(settings, plan, tmp_path, failure):
     product = tmp_path / "product"
     generate_basic(plan, product)
@@ -29566,7 +29743,7 @@ uv run python -m scripts.ci_native_bundled yudao-vben
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/toolchain.md sha256: 6e5958d0ab251ad6dda400e08807fd1554caf1aac5109feb5657aa06177ab82d -->
+<!-- source-file: docs/toolchain.md sha256: 719b78ee9278e8cb30090ee6084fa00f869a09c75e1d35bcaa0fd21f9f410748 -->
 ````markdown
 ## 20. 本机工具链：解析、检索、编辑、MCP与自托管Daytona
 
@@ -29747,6 +29924,8 @@ uv run rnd tools continue-config . workbench .data/platform-index
 ### 20.6 Daytona v0.190.0：必须部署完整本机服务
 
 固定版本为v0.190.0，源码SHA为`01c502bb1f1ff8f2885d0cd490e043736083dca8`。下载一个CLI或安装Python SDK并不等于已经运行Daytona；完整本地系统还有API、Runner、Proxy、PostgreSQL、Redis、Dex、本地镜像Registry和MinIO。
+
+沙箱程序退出码为0仍不足以交付。`sandbox.read_runtime_report`通过SDK真实流式下载方法读取可信验证器的JSON回执，限制读取超时和最多1,000,000字节；中断、非法JSON、缺少HTTP/重启成功标记、文件过大都判失败，并关闭流。随后仍须删除本次沙箱、保存清理回执；删除失败同样阻止交付。`tests/test_daytona_download.py`调用实际安装的0.190.0文件系统实现和multipart解析器，只有HTTP对端使用明确的本机协议夹具；`daytona-local.yml`另以真实本机服务验证沙箱建立、断网运行和删除，二者不能互相替代。
 
 上游的Docker Compose明确用于开发，不是生产安全部署。Runner使用privileged Docker-in-Docker；请只在你拥有的Linux/WSL开发环境使用，不暴露公网，不把它描述成抵御恶意内核攻击的强隔离。平台仍只执行登记的验证命令。
 
