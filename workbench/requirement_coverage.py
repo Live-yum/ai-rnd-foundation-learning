@@ -252,9 +252,16 @@ FACT_ATTRIBUTES = {
 }
 
 
+# Recorded setup/capability catalogs describe the selected environment, not
+# requested field behavior. Retain them in Requirement/ledger untouched.
+FACT_METADATA_KEYS = {"可用能力", "模板", "前端", "数据库", "数据范围"}
+
+
 def _fact_constraints(facts, prefix=""):
     """Decode JSON facts structurally; their repr is never natural-language input."""
     for key, value in facts.items():
+        if not prefix and key in FACT_METADATA_KEYS:
+            continue
         label = f"{prefix}.{key}" if prefix else key
         if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
             try:
@@ -288,12 +295,17 @@ def _fact_constraints(facts, prefix=""):
                     if isinstance(item, (dict, list)):
                         yield from _fact_constraints({str(index): item}, label)
         else:
-            attribute = _fact_attribute(label)
+            attribute = _scalar_fact_attribute(label, value)
             if attribute == "optional":
                 if type(value) is bool:
                     value = not value
-                elif isinstance(value, str) and value.lower() in {"true", "false", "是", "否"}:
-                    value = value.lower() in {"false", "否"}
+                elif isinstance(value, str) and value.strip().lower() in {
+                    "true",
+                    "false",
+                    "是",
+                    "否",
+                }:
+                    value = value.strip().lower() in {"false", "否"}
                 yield label, {"required": value}
             elif attribute is not None:
                 yield label, {attribute: value}
@@ -326,9 +338,30 @@ def _fact_attribute(label):
     return attribute
 
 
+def _scalar_fact_attribute(label, value):
+    attribute = _fact_attribute(label)
+    if attribute in {"required", "optional", "searchable", "filterable", "date_range"}:
+        if isinstance(value, str) and value.strip().lower() not in {
+            "true",
+            "false",
+            "是",
+            "否",
+            "必填",
+            "可选",
+            "非必填",
+        }:
+            # A legacy label such as 日期区间 can carry descriptive prose,
+            # not a boolean. Keep that prose in the existing coverage checks;
+            # never stringify actual booleans or relax typed object attributes.
+            return None
+    return attribute
+
+
 def _fact_texts(facts, prefix=""):
     """Retain legacy scalar descriptions without stringifying typed containers."""
     for key, value in facts.items():
+        if not prefix and key in FACT_METADATA_KEYS:
+            continue
         label = f"{prefix}.{key}" if prefix else key
         if isinstance(value, str) and value.lstrip().startswith(("{", "[")):
             try:
@@ -355,7 +388,11 @@ def _fact_texts(facts, prefix=""):
             for index, item in enumerate(value):
                 if isinstance(item, (dict, list)):
                     yield from _fact_texts({str(index): item}, label)
-        elif value is not None and not isinstance(value, bool) and _fact_attribute(label) is None:
+        elif (
+            value is not None
+            and not isinstance(value, bool)
+            and _scalar_fact_attribute(label, value) is None
+        ):
             yield f"{label}: {value}"
 
 
@@ -470,22 +507,44 @@ def coverage_gaps(requirement: Requirement, plan: Plan) -> list[str]:
         for _, field in fields:
             if _mentions(text, [field.name]) and field not in mentioned:
                 mentioned.append(field)
-        for flag, pattern in operations.items():
-            if not re.search(pattern, text, re.I):
-                continue
-            candidates = mentioned
-            if flag == "date_range":
-                candidates = [f for f in mentioned if f.kind == "date"] or [
-                    f for _, f in fields if f.kind == "date"
-                ]
-            # A combined category/date filtering sentence must not accidentally
-            # require unrelated title/body fields to be filterable.
-            if not mentioned:
-                candidates = [f for _, f in fields]
-                if not any(getattr(f, flag) for f in candidates):
-                    gaps.append(f"设计未覆盖已确认的 {flag}: {text}")
-            elif not candidates or any(not getattr(f, flag) for f in candidates):
-                gaps.append(f"设计未覆盖已确认的 {flag}: {text}")
+        operation_parts = [text]
+        if re.search(operations["searchable"], text, re.I) and re.search(
+            operations["filterable"], text, re.I
+        ):
+            # In a capability list, nouns in the filtering clause are not
+            # search targets. Carry noun-only pieces forward so "标题、正文
+            # 搜索" still binds both fields to search rather than losing one.
+            operation_parts, pending = [], []
+            for part in re.split(r"、|并且|并|且|和|与", text):
+                pending.append(part)
+                if any(re.search(pattern, part, re.I) for pattern in operations.values()):
+                    operation_parts.append("".join(pending))
+                    pending = []
+            if pending:
+                operation_parts.append("".join(pending))
+        previous_targets = []
+        for part in operation_parts:
+            targets = _fact_candidates(part, fields) if part != text else mentioned
+            # An operation-only continuation (标题搜索和精确筛选) inherits
+            # the previous named subject; another field cannot satisfy it.
+            if not targets and previous_targets:
+                targets = previous_targets
+            if targets:
+                previous_targets = targets
+            for flag, pattern in operations.items():
+                if not re.search(pattern, part, re.I):
+                    continue
+                candidates = targets
+                if flag == "date_range":
+                    candidates = [f for f in targets if f.kind == "date"] or [
+                        f for _, f in fields if f.kind == "date"
+                    ]
+                if not targets:
+                    candidates = [f for _, f in fields]
+                    if not any(getattr(f, flag) for f in candidates):
+                        gaps.append(f"设计未覆盖已确认的 {flag}: {part}")
+                elif not candidates or any(not getattr(f, flag) for f in candidates):
+                    gaps.append(f"设计未覆盖已确认的 {flag}: {part}")
         for field in mentioned:
             if re.search(r"必填|required", text, re.I) and not re.search(
                 r"非必填|不必填|是否必填.*否|optional", text, re.I

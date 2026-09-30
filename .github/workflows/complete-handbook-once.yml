@@ -1,0 +1,65 @@
+name: Rebuild complete handbook on dedicated branch
+on:
+  push:
+    branches: [feat/complete-platform-acceptance]
+permissions:
+  contents: read
+jobs:
+  regenerate:
+    if: github.repository == 'Live-yum/ai-rnd-foundation-learning' && github.ref == 'refs/heads/feat/complete-platform-acceptance'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 2
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - name: Verify exact branch head, remove one-time helper, rebuild final textbook
+        id: regenerate
+        env:
+          EXPECTED_SHA: ${{ github.sha }}
+          EXPECTED_PARENT: 7bd2cbd5074e80746e93506f1041357a1a3496f7
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REF" = refs/heads/feat/complete-platform-acceptance
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_PARENT"
+          git fetch origin feat/complete-platform-acceptance
+          test "$(git rev-parse FETCH_HEAD)" = "$EXPECTED_SHA"
+          git rm .github/workflows/complete-handbook-once.yml
+          uv run --no-project --python 3.14 python -m scripts.build_handbook
+          uv run --no-project --python 3.14 python -m scripts.build_handbook --check
+          git add -- '从零实现AI研发平台_逐步实操手册_完整版.md'
+          python - <<'PY'
+          import subprocess
+          changed = set(subprocess.check_output(['git','diff','--cached','--name-only','-z']).decode().strip('\0').split('\0'))
+          assert changed <= {'.github/workflows/complete-handbook-once.yml','从零实现AI研发平台_逐步实操手册_完整版.md'}, changed
+          PY
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m 'docs: regenerate final standalone handbook from accepted source'
+          git push origin HEAD:refs/heads/feat/complete-platform-acceptance
+          FINAL_SHA=$(git rev-parse HEAD)
+          test "$(git rev-parse HEAD^)" = "$EXPECTED_SHA"
+          echo "sha=$FINAL_SHA" >> "$GITHUB_OUTPUT"
+      - name: Dispatch explicit real-model acceptance on the identical final commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FINAL_SHA: ${{ steps.regenerate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          test "$GITHUB_REPOSITORY" = Live-yum/ai-rnd-foundation-learning
+          test "$GITHUB_REF" = refs/heads/feat/complete-platform-acceptance
+          [[ "$FINAL_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git ls-remote origin refs/heads/feat/complete-platform-acceptance | cut -f1)" = "$FINAL_SHA"
+          python - <<'PYCODE' > "$RUNNER_TEMP/rnd-exact-dispatch.json"
+          import json, os
+          print(json.dumps({"ref":"feat/complete-platform-acceptance","inputs":{"real_model":True,"expected_sha":os.environ["FINAL_SHA"]}}))
+          PYCODE
+          gh api --method POST repos/Live-yum/ai-rnd-foundation-learning/actions/workflows/native-probe.yml/dispatches --input "$RUNNER_TEMP/rnd-exact-dispatch.json"
