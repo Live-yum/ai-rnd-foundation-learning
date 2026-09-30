@@ -1,0 +1,53 @@
+name: Installed runtime contract inspection
+on:
+  push:
+    branches: [feat/controlled-toolchain-integration]
+    paths: [.github/workflows/runtime-contract.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - name: Save installed package source and isolated runtime, not credentials
+        run: |
+          uv run python - <<'PY'
+          import inspect, json, pathlib, sys, tarfile
+          from daytona import Daytona, DaytonaConfig
+          root = pathlib.Path('reports/runtime-contract'); root.mkdir(parents=True, exist_ok=True)
+          client = Daytona(DaytonaConfig(api_key='local-contract-fixture', api_url='http://127.0.0.1:3000/api', target='local'))
+          shapes = {}
+          for name in ('_http_client', '_api_client', '_toolbox_api_client'):
+              obj = getattr(client, name, None)
+              if obj is None:
+                  shapes[name] = None
+                  continue
+              shapes[name] = {'type': type(obj).__module__+'.'+type(obj).__name__, 'attributes': sorted(vars(obj)), 'methods': [key for key in dir(obj) if key in ('close','clear','shutdown','__enter__','__exit__')]}
+              (root/(name+'.py')).write_text(inspect.getsource(type(obj)), encoding='utf-8')
+              rest = getattr(obj, 'rest_client', None)
+              if rest is not None:
+                  shapes[name]['rest_type'] = type(rest).__module__+'.'+type(rest).__name__
+                  shapes[name]['rest_attributes'] = sorted(vars(rest))
+                  (root/(name+'-rest.py')).write_text(inspect.getsource(type(rest)), encoding='utf-8')
+          (root/'shape.json').write_text(json.dumps(shapes, indent=2), encoding='utf-8')
+          print(json.dumps(shapes, indent=2))
+          # Installed third-party files only. Exclude project, caches and environment files.
+          with tarfile.open(root/'python-runtime.tar.gz', 'w:gz') as archive:
+              archive.add(sys.base_prefix, arcname='python', filter=lambda item: None if '__pycache__' in item.name else item)
+              packages = pathlib.Path(sys.prefix)/'lib/python3.14/site-packages'
+              archive.add(packages, arcname='site-packages', filter=lambda item: None if '__pycache__' in item.name else item)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installed-runtime-contract
+          path: reports/runtime-contract/
+          retention-days: 7
