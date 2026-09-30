@@ -1107,14 +1107,53 @@ Java类、方法、注解和继承通过Java grammar解析；TypeScript/JavaScri
 
 不需要向量时保持`EMBEDDING_ENABLED=false`即可，FTS5与符号图已经可用。需要语义检索时，先安装并启动本机兼容`POST /v1/embeddings`的模型服务，例如本机Ollama，再下载它支持的embedding模型。模型权重下载属于准备阶段，推理不能转发到云端。
 
-以本机Ollama的nomic-embed-text模型为例：
+Windows先从官方`https://ollama.com/download/windows`安装Ollama，退出任务栏中的Ollama，再在PowerShell设置仅本机运行：
 
-```text
-ollama pull nomic-embed-text
-ollama serve
+```powershell
+[Environment]::SetEnvironmentVariable('OLLAMA_NO_CLOUD', '1', 'User')
+[Environment]::SetEnvironmentVariable('OLLAMA_HOST', '127.0.0.1:11434', 'User')
 ```
 
-若桌面应用已经启动本机服务，不要再占用相同端口启动第二个serve进程。记录`ollama list`显示的模型ID，保持同一模型权重；服务软件和模型权重是独立依赖，不包含在平台uv.lock中。
+从开始菜单重新打开Ollama并重新开终端。Linux/WSL的Ubuntu执行以下安装与配置命令：
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+sudo systemctl edit ollama.service
+```
+
+编辑器中在有效配置区写入下面完整的覆盖配置；已有覆盖项则合并，不能删掉其他用途的配置。使用nano时按Ctrl+O、回车保存，再按Ctrl+X退出：
+
+```ini
+[Service]
+Environment="OLLAMA_NO_CLOUD=1"
+Environment="OLLAMA_HOST=127.0.0.1:11434"
+```
+
+然后执行：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart ollama
+sudo systemctl status ollama --no-pager
+```
+
+没有systemd的手动开发环境，先停止占用11434端口的另一个Ollama，再在单独终端执行`OLLAMA_NO_CLOUD=1 OLLAMA_HOST=127.0.0.1:11434 ollama serve`。本机服务日志应显示`Ollama cloud disabled: true`；不登录云账号、不启用cloud模型或网络搜索。这些设置是Ollama进程自己的环境，不是只填在平台.env里就会生效。
+
+服务启动后，Windows/Linux都在另一终端下载本机nomic-embed-text模型并记录版本：
+
+```text
+ollama --version
+ollama pull nomic-embed-text
+ollama list
+```
+
+先用不涉及私有源码的输入检查本机端点。在已经安装平台依赖的项目目录执行：
+
+```powershell
+uv run python -c "import httpx; r=httpx.post('http://127.0.0.1:11434/v1/embeddings',json={'model':'nomic-embed-text','input':['local indexing']},timeout=120,trust_env=False); r.raise_for_status(); print('vector dimensions:',len(r.json()['data'][0]['embedding']))"
+```
+
+成功会显示一个正整数维度；连接失败先检查服务，模型不存在则检查ollama list，不能把URL改成云端来绕过。记录ollama list显示的模型ID并保持同一权重；服务软件与模型是独立依赖，不在平台uv.lock中。下面的检索协议测试不冒充你的机器已加载了这个真实模型。
 
 项目`.env`使用：
 
@@ -1236,7 +1275,11 @@ images不是去猜测可用的在线Daytona镜像标签。`scripts/daytona_build
 
 构建镜像标签带版本与源码SHA，images.lock.json记录本机Image ID、构建文件SHA及Runner发布文件SHA；PostgreSQL等基础依赖拉取明确版本后记录实际Registry摘要。compose.lock.yaml只引用这些内容地址。重新启动前逐项对照两份锁，配置不一致就停止；没有任何latest或云端回退。构建失败看终端尾部和本机构建日志，不跳过images进入下一步。
 
-snapshot-image先只启动本机Registry，再构建并推送预热快照。之后up才启动完整控制面，默认快照也指向本机Registry，不在业务验证时临时从Docker Hub拉取。up使用`--pull never`和已锁定摘要。所有发布端口绑定127.0.0.1；服务Docker网络配置为internal，阻止外部出口；Docker命令显式指向本机daemon，不跟随保存的远程Docker context。
+snapshot-image先只启动本机Registry与固定TCP入口，再构建并推送预热快照。之后up才启动完整控制面，默认快照也指向本机Registry，不在业务验证时临时从Docker Hub拉取。up使用`--pull never`和已锁定摘要。所有发布端口绑定127.0.0.1；API、Runner、数据库、存储等后端仅连接internal网络，阻止外部出口；Docker命令显式指向本机daemon，不跟随保存的远程Docker context。
+
+`scripts/daytona_gateway.py`是一个只转发字节的本机入口：Docker的internal网络不负责宿主机端口映射，所以不能把“容器Up”当成127.0.0.1可达。入口容器同时连接普通入口网络与内部网络，宿主机发布地址全部为127.0.0.1；其余服务没有第二网络、没有直接发布端口。入口只接受源码中固定的七个端口/服务对应，不读用户提供的URL或环境代理，不提供任意目标转发。它以UID65534、只读文件系统、删除全部Linux capabilities和no-new-privileges运行，只挂载这一份标准库脚本，不挂载.env、Docker socket或产品源码。它保留TCP字节和半关闭行为，因此HTTP、WebSocket与Registry传输都不需要改写请求或泄露令牌。
+
+普通入口网络自身不是无出口网络；安全边界是入口代码只建立固定内部连接，而处理任务的API/Runner/存储仍只有internal网络。不要自行给这些后端添加普通网络来绕开连接错误。安装脚本先从127.0.0.1:6000取得真实Registry响应再推送快照；失败检查gateway与registry日志。这个拓扑也避免依赖Docker虚拟机内部IP，适用于本机Linux与WSL2的Docker。
 
 Dex在非privileged容器内用UID0读取只读挂载的0600配置，避免依赖开发电脑恰好使用UID1001；仅挂载自己的配置和身份数据库卷，并设置no-new-privileges。不能通过把密码文件改成公开可读来排错。
 
@@ -1320,6 +1363,13 @@ Continue YAML字段：https://docs.continue.dev/reference
 VS Code固定扩展安装：https://code.visualstudio.com/docs/configure/command-line
 
 GitHub Actions按要求在测试Runner内部运行同样的本机服务，不调用Daytona托管API。用户启动产品和平台不依赖Actions；CI使用的临时身份与数据不代表用户的实际账户。
+
+Ollama本机安装：https://docs.ollama.com/linux
+Ollama关闭云功能与回环绑定：https://docs.ollama.com/faq
+Ollama embedding兼容端点：https://docs.ollama.com/api/openai-compatibility
+
+Docker内部网络与端口依据：https://docs.docker.com/reference/cli/docker/network/create/
+Docker端口发布：https://docs.docker.com/engine/network/port-publishing/
 
 # 完整源码附录
 
@@ -15133,16 +15183,18 @@ def test_plan_duplicate_and_scope(plan):
 - `test_existing_verified_runner_does_not_download_again`（L42–L51）：接收`tmp_path`、`monkeypatch`。 调用`destination.write_bytes`、`monkeypatch.setattr`、`len`、`hashlib.sha256(content).hexdigest`、`hashlib.sha256`、`pytest.fail`、`build.download_runner`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_git_export_ignores_worktree_changes_and_untracked_credentials`（L54–L76）：接收`tmp_path`、`monkeypatch`。 控制顺序：L74断言`(context / "code.txt").read_text() == "committed\n"`；L75断言`not (context / ".env").exists() and not (context / ".git").exists()`；L76断言`not (tmp_path / "build-source.tar").exists()`。 调用`source.mkdir`、`command`、`(source / "code.txt").write_text`、`monkeypatch.setattr`、`(source / ".env").write_text`、`context.mkdir`、`build.export_source`、`(context / "code.txt").read_text`、`(context / ".env").exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_git_export_ignores_worktree_changes_and_untracked_credentials.command`（L58–L59）：接收`argv`、`cwd`。 调用`subprocess.check_output(argv, cwd=cwd, text=True).strip`、`subprocess.check_output`。 返回路径：L59的`subprocess.check_output(argv, cwd=cwd, text=True).strip()`。
-- `test_images_build_locally_and_lock_service_ids`（L79–L112）：接收`tmp_path`、`monkeypatch`。 控制顺序：L105断言`all(not args[1].startswith("rnd-local/") for args in calls if args[0] == "pull")`；L107断言`locked["services"]["api"]["image"] == "sha256:" + "a" * 64`。 调用`local.IMAGES.items`、`(tmp_path / "compose.yaml").write_text`、`yaml.safe_dump`、`monkeypatch.setattr`、`build.local_tag`、`built.copy`、`local.images`、`all`、`args[1].startswith`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_images_build_locally_and_lock_service_ids.docker`（L91–L96）：接收`*args`、`**kwargs`。 控制顺序：L93按`args[:2] == ("image", "inspect")`分支。 调用`calls.append`、`args[2].rsplit`、`json.dumps`。 返回路径：L95的`json.dumps([{"RepoDigests": [prefix + "@sha256:" + "b" * 64]}])`；L96的`""`。
-- `test_nonlocal_registry_and_runtime_egress_are_rejected`（L115–L130）：接收`tmp_path`。 调用`local.IMAGES.items`、`local.assert_local_compose`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_snapshot_identity_covers_all_dependency_inputs`（L133–L137）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134断言`len(local.snapshot_stamp()) == 16`；L136断言`"28.5.2-dind-alpine3.22" in recipe`；L137断言`"latest" not in recipe and "runner-amd64" in recipe`。 调用`len`、`local.snapshot_stamp`、`(Path(local.ROOT) / "tools/daytona/runner.Dockerfile").read_text`、`Path`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_installation_repositories_and_non_runner_privileges_are_explicit`（L140–L147）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L141断言`local.IMAGES["minio"] == build.local_tag("minio")`；L142断言`build.MINIO_SOURCE == "9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a"`；L143断言`"minio" in build.BUILT`；L145断言`"source.tar" in recipe and "-mod=readonly" in recipe and "GOTELEMETRY=off" in recipe`；L146断言`"minio/minio:latest" not in recipe`；L147断言`all(not name.endswith(":latest") for name in local.IMAGES.values())`。 调用`build.local_tag`、`(local.ROOT / "tools/daytona/minio.Dockerfile").read_text`、`all`、`name.endswith`、`local.IMAGES.values`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_snapshot_registration_uses_a_bounded_child_without_key_arguments`（L150–L172）：接收`tmp_path`、`monkeypatch`。 控制顺序：L163断言`argv[3] == "snapshot-worker" and argv[-1] == str(tmp_path.resolve())`；L164断言`cwd == local.ROOT and options["timeout"] == 720`；L165断言`not any("key" in value.lower() for value in argv)`。 调用`monkeypatch.setattr`、`bootstrap.snapshot`、`str`、`tmp_path.resolve`、`any`、`value.lower`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_snapshot_registration_uses_a_bounded_child_without_key_arguments.run`（L156–L158）：接收`argv`、`cwd`、`**kwargs`。 调用`seen.append`。 返回路径：L158的`{"log": ""}`。
-- `test_snapshot_registration_uses_a_bounded_child_without_key_arguments.failed`（L167–L168）：接收`*args`、`**kwargs`。 控制顺序：L168抛异常，停止当前正常路径。 调用`ToolFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `local_config`（L79–L91）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local.IMAGES.items`、`local.gateway_service`、`copy.deepcopy`。 返回路径：L91的`{"services": services, "networks": copy.deepcopy(local.NETWORKS)}`。
+- `test_images_build_locally_and_lock_service_ids`（L94–L120）：接收`tmp_path`、`monkeypatch`。 控制顺序：L113断言`all(not args[1].startswith("rnd-local/") for args in calls if args[0] == "pull")`；L115断言`locked["services"]["api"]["image"] == "sha256:" + "a" * 64`。 调用`local_config`、`(tmp_path / "compose.yaml").write_text`、`yaml.safe_dump`、`monkeypatch.setattr`、`build.local_tag`、`built.copy`、`local.images`、`all`、`args[1].startswith`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_images_build_locally_and_lock_service_ids.docker`（L99–L104）：接收`*args`、`**kwargs`。 控制顺序：L101按`args[:2] == ("image", "inspect")`分支。 调用`calls.append`、`args[2].rsplit`、`json.dumps`。 返回路径：L103的`json.dumps([{"RepoDigests": [prefix + "@sha256:" + "b" * 64]}])`；L104的`""`。
+- `test_nonlocal_registry_and_runtime_egress_are_rejected`（L123–L132）：接收`tmp_path`。 调用`local_config`、`local.assert_local_compose`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_snapshot_identity_covers_all_dependency_inputs`（L135–L139）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L136断言`len(local.snapshot_stamp()) == 16`；L138断言`"28.5.2-dind-alpine3.22" in recipe`；L139断言`"latest" not in recipe and "runner-amd64" in recipe`。 调用`len`、`local.snapshot_stamp`、`(Path(local.ROOT) / "tools/daytona/runner.Dockerfile").read_text`、`Path`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_installation_repositories_and_non_runner_privileges_are_explicit`（L142–L149）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L143断言`local.IMAGES["minio"] == build.local_tag("minio")`；L144断言`build.MINIO_SOURCE == "9e49d5e7a648f00e26f2246f4dc28e6b07f8c84a"`；L145断言`"minio" in build.BUILT`；L147断言`"source.tar" in recipe and "-mod=readonly" in recipe and "GOTELEMETRY=off" in recipe`；L148断言`"minio/minio:latest" not in recipe`；L149断言`all(not name.endswith(":latest") for name in local.IMAGES.values())`。 调用`build.local_tag`、`(local.ROOT / "tools/daytona/minio.Dockerfile").read_text`、`all`、`name.endswith`、`local.IMAGES.values`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_snapshot_registration_uses_a_bounded_child_without_key_arguments`（L152–L174）：接收`tmp_path`、`monkeypatch`。 控制顺序：L165断言`argv[3] == "snapshot-worker" and argv[-1] == str(tmp_path.resolve())`；L166断言`cwd == local.ROOT and options["timeout"] == 720`；L167断言`not any("key" in value.lower() for value in argv)`。 调用`monkeypatch.setattr`、`bootstrap.snapshot`、`str`、`tmp_path.resolve`、`any`、`value.lower`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_snapshot_registration_uses_a_bounded_child_without_key_arguments.run`（L158–L160）：接收`argv`、`cwd`、`**kwargs`。 调用`seen.append`。 返回路径：L160的`{"log": ""}`。
+- `test_snapshot_registration_uses_a_bounded_child_without_key_arguments.failed`（L169–L170）：接收`*args`、`**kwargs`。 控制顺序：L170抛异常，停止当前正常路径。 调用`ToolFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_gateway_cannot_be_reconfigured_as_a_general_proxy`（L177–L185）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_config`、`config["services"]["gateway"]["command"].append`、`pytest.raises`、`local.assert_local_compose`、`config["services"]["api"]["networks"].append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_daytona_build.py sha256: a29ce79d2b9a94b0510d921149c180eee9a3ec1cbd0dc04d212f135f2dccd13c -->
+<!-- source-file: tests/test_daytona_build.py sha256: 98d48478fe3aba5f19d6964ba327b89c79057c0969e89072a4f583e6cb3a4a0b -->
 ````python
 """Installation contracts; live service evidence is produced by ci_daytona_local."""
 
@@ -15222,15 +15274,23 @@ def test_git_export_ignores_worktree_changes_and_untracked_credentials(tmp_path,
     assert not (tmp_path / "build-source.tar").exists()
 
 
-def test_images_build_locally_and_lock_service_ids(tmp_path, monkeypatch):
+def local_config():
+    import copy
+
     services = {
-        name: {"image": tag, "environment": {"OTEL_ENABLED": "false"}}
+        name: {
+            "image": tag,
+            "environment": {"OTEL_ENABLED": "false"},
+            "networks": ["daytona-network"],
+        }
         for name, tag in local.IMAGES.items()
     }
-    config = {
-        "services": services,
-        "networks": {"daytona-network": {"driver": "bridge", "internal": True}},
-    }
+    services["gateway"] = local.gateway_service()
+    return {"services": services, "networks": copy.deepcopy(local.NETWORKS)}
+
+
+def test_images_build_locally_and_lock_service_ids(tmp_path, monkeypatch):
+    config = local_config()
     (tmp_path / "compose.yaml").write_text(yaml.safe_dump(config))
     calls = []
 
@@ -15259,13 +15319,7 @@ def test_images_build_locally_and_lock_service_ids(tmp_path, monkeypatch):
 
 
 def test_nonlocal_registry_and_runtime_egress_are_rejected(tmp_path):
-    config = {
-        "services": {
-            name: {"image": tag, "environment": {"OTEL_ENABLED": "false"}}
-            for name, tag in local.IMAGES.items()
-        },
-        "networks": {"daytona-network": {"internal": True}},
-    }
+    config = local_config()
     local.assert_local_compose(config)
     config["services"]["db"]["image"] = "unapproved.example/postgres@sha256:" + "d" * 64
     with pytest.raises(ValueError, match="镜像未固定"):
@@ -15316,6 +15370,91 @@ def test_snapshot_registration_uses_a_bounded_child_without_key_arguments(tmp_pa
     monkeypatch.setattr(bootstrap, "run_command", failed)
     with pytest.raises(ToolFailure, match="timeout"):
         bootstrap.snapshot(tmp_path)
+
+
+def test_gateway_cannot_be_reconfigured_as_a_general_proxy():
+    config = local_config()
+    config["services"]["gateway"]["command"].append("unapproved.example")
+    with pytest.raises(ValueError, match="入口配置"):
+        local.assert_local_compose(config)
+    config = local_config()
+    config["services"]["api"]["networks"].append("loopback-entry")
+    with pytest.raises(ValueError, match="内部网络"):
+        local.assert_local_compose(config)
+````
+
+### `tests/test_daytona_gateway.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_fixed_ingress_preserves_bytes_and_half_close`（L8–L40）：接收`monkeypatch`。 调用`asyncio.run`、`exercise`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fixed_ingress_preserves_bytes_and_half_close.exercise`（L9–L38）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L31断言`await asyncio.wait_for(reader.read(), timeout=10) == b"echo:" + payload`。 调用`asyncio.start_server`、`upstream.sockets[0].getsockname`、`monkeypatch.setitem`、`gateway.relay`、`asyncio.open_connection`、`ingress.sockets[0].getsockname`、`writer.write`、`writer.drain`、`writer.write_eof`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fixed_ingress_preserves_bytes_and_half_close.exercise.echo`（L10–L15）：接收`reader`、`writer`。 调用`reader.read`、`writer.write`、`writer.drain`、`writer.close`、`writer.wait_closed`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_production_targets_are_only_registered_docker_services`（L43–L53）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L44断言`set(gateway.TARGETS.values()) == { "api", "proxy", "runner", "dex", "registry", "mini…`；L53断言`set(gateway.TARGETS) == {3000, 4000, 3003, 5556, 6000, 9001, 1080}`。 调用`set`、`gateway.TARGETS.values`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_daytona_gateway.py sha256: 6adeaf768dc38769ad81e48faea8a5cee6f8dd83c281af03d52efb7ff4052437 -->
+````python
+"""Real local TCP transport, including half-close; no cloud or SDK fixture involved."""
+
+import asyncio
+
+from scripts import daytona_gateway as gateway
+
+
+def test_fixed_ingress_preserves_bytes_and_half_close(monkeypatch):
+    async def exercise():
+        async def echo(reader, writer):
+            payload = await reader.read()
+            writer.write(b"echo:" + payload)
+            await writer.drain()
+            writer.close()
+            await writer.wait_closed()
+
+        upstream = await asyncio.start_server(echo, "127.0.0.1", 0)
+        upstream_port = upstream.sockets[0].getsockname()[1]
+        monkeypatch.setitem(gateway.TARGETS, upstream_port, "127.0.0.1")
+        ingress = await asyncio.start_server(
+            lambda r, w: gateway.relay(r, w, upstream_port), "127.0.0.1", 0
+        )
+        try:
+            reader, writer = await asyncio.open_connection(
+                "127.0.0.1", ingress.sockets[0].getsockname()[1]
+            )
+            payload = b"explicit test bytes\x00" * 10000
+            writer.write(payload)
+            await writer.drain()
+            writer.write_eof()
+            assert await asyncio.wait_for(reader.read(), timeout=10) == b"echo:" + payload
+            writer.close()
+            await writer.wait_closed()
+        finally:
+            ingress.close()
+            upstream.close()
+            await ingress.wait_closed()
+            await upstream.wait_closed()
+
+    asyncio.run(exercise())
+
+
+def test_production_targets_are_only_registered_docker_services():
+    assert set(gateway.TARGETS.values()) == {
+        "api",
+        "proxy",
+        "runner",
+        "dex",
+        "registry",
+        "minio",
+        "maildev",
+    }
+    assert set(gateway.TARGETS) == {3000, 4000, 3003, 5556, 6000, 9001, 1080}
 ````
 
 ### `tests/test_guided_completion.py`
@@ -15912,8 +16051,9 @@ def test_optional_review_model_does_not_replace_executable_tests(settings, store
 - `test_inline_marker_example_is_not_a_source_record`（L39–L43）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L41断言`extract(example + block("example.py", "answer = 42\n")) == { "example.py": "answer = …`。 调用`extract`、`block`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_reject_partial_duplicate_or_unsafe_source_before_writing`（L46–L73）：接收`tmp_path`。 控制顺序：L67遍历`enumerate(invalid)`；L73断言`not destination.exists()`。 调用`block`、`block("missing.py", "x = 1\n").removesuffix`、`block("corrupt.py", "x = 1\n").replace`、`enumerate`、`book.write_text`、`pytest.raises`、`restore`、`destination.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_standalone_bootstrap_in_the_lesson_restores_all_files`（L76–L90）：接收`tmp_path`。 控制顺序：L88遍历`sources()`；L89遍历`files`；L90断言`(destination / name).read_text(encoding="utf-8") == content`。 调用`(ROOT / "docs/implementation.md").read_text`、`re.findall`、`next`、`script.write_text`、`subprocess.run`、`str`、`sources`、`(destination / name).read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_daytona_recipes_have_distinct_teaching_roles`（L93–L98）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L96断言`"Runner服务" in purpose("tools/daytona/runner.Dockerfile")[0]`；L97断言`"对象存储" in purpose("tools/daytona/minio.Dockerfile")[0]`；L98断言`"预热" in purpose("tools/daytona/Dockerfile")[0]`。 调用`purpose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_handbook.py sha256: c71a4e5938f3f883621a001d3276a792089b3ea58a98469034c6b5de31d34698 -->
+<!-- source-file: tests/test_handbook.py sha256: e794b16689e2d7fa63832576711ebc0fbcd6677a1dde9b9d67d0331e96623ae5 -->
 ````python
 import subprocess
 import sys
@@ -16005,6 +16145,14 @@ def test_standalone_bootstrap_in_the_lesson_restores_all_files(tmp_path):
     for _, files in sources():
         for name, content in files:
             assert (destination / name).read_text(encoding="utf-8") == content
+
+
+def test_daytona_recipes_have_distinct_teaching_roles():
+    from scripts.handbook_notes import purpose
+
+    assert "Runner服务" in purpose("tools/daytona/runner.Dockerfile")[0]
+    assert "对象存储" in purpose("tools/daytona/minio.Dockerfile")[0]
+    assert "预热" in purpose("tools/daytona/Dockerfile")[0]
 ````
 
 ### `tests/test_handbook_order.py`
@@ -16213,11 +16361,11 @@ def test_invalid_json_bounded(store):
 - `test_inherited_tracing_and_cloud_context_cannot_be_reenabled`（L83–L91）：接收`monkeypatch`。 控制顺序：L87断言`env["LANGSMITH_TRACING"] == "false" and env["DAYTONA_OTEL_ENABLED"] == "false"`；L88断言`"LANGSMITH_API_KEY" not in env and "DOCKER_HOST" not in env`；L89断言`local_docker_command(["docker", "ps"])[1] == "--host"`。 调用`monkeypatch.setenv`、`clean_env`、`local_docker_command`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_daytona_child_blocks_external_dns_tcp_udp_and_redirect`（L94–L134）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L133断言`result.returncode == 0`；L134断言`"loopback-only PASS" in result.stdout`。 调用`subprocess.run`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_daytona_sdk_and_params_are_pinned`（L137–L146）：接收`settings`、`monkeypatch`。 控制顺序：L142断言`params.network_block_all is True and params.public is False`；L143断言`params.name == "rnd-test"`。 调用`params_for`、`monkeypatch.setattr`、`pytest.raises`、`client_for`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_deployment_transformation_has_no_cloud_services`（L149–L189）：接收`tmp_path`。 控制顺序：L177断言`not rendered["services"]["api"].get("privileged", False)`；L178断言`rendered["services"]["runner"]["privileged"] is True`；L179断言`rendered["services"]["dex"]["user"] == "0:0"`；L180断言`"no-new-privileges:true" in rendered["services"]["dex"]["security_opt"]`；L181断言`rendered["services"]["minio"]["environment"]["MINIO_UPDATE"] == "off"`；L182断言`set(rendered["services"]) == KEEP`；L183断言`"cloud.example" not in json.dumps(rendered)`；L184断言`rendered["services"]["api"]["image"] == IMAGES["api"]`。后续分支沿下方源码相同行号继续阅读。 调用`dict.fromkeys`、`render_compose`、`rendered["services"]["api"].get`、`set`、`json.dumps`、`all`、`s["ports"][0].startswith`、`rendered["services"].values`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_portable_launcher_carries_local_policy`（L192–L196）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L195断言`"local_only.py" in HELPERS`；L196断言`(ROOT / "workbench/local_only.py").is_file()`。 调用`(ROOT / "workbench/local_only.py").is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_only_one_complete_handbook_is_generated`（L199–L206）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L202断言`OUTPUT.name == "从零实现AI研发平台_逐步实操手册_完整版.md"`；L203断言`"LEGACY" not in (ROOT / "scripts/build_handbook.py").read_text(encoding="utf-8")`；L205断言`"空文件夹" in text and "source-file: workbench/local_only.py" in text`；L206断言`len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) == 1`。 调用`(ROOT / "scripts/build_handbook.py").read_text`、`render`、`len`、`list`、`ROOT.glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_deployment_transformation_has_no_cloud_services`（L149–L195）：接收`tmp_path`。 控制顺序：L177断言`not rendered["services"]["api"].get("privileged", False)`；L178断言`rendered["services"]["runner"]["privileged"] is True`；L179断言`rendered["services"]["dex"]["user"] == "0:0"`；L180断言`"no-new-privileges:true" in rendered["services"]["dex"]["security_opt"]`；L181断言`rendered["services"]["minio"]["environment"]["MINIO_UPDATE"] == "off"`；L182断言`set(rendered["services"]) == KEEP`；L183断言`"cloud.example" not in json.dumps(rendered)`；L184断言`rendered["services"]["api"]["image"] == IMAGES["api"]`。后续分支沿下方源码相同行号继续阅读。 调用`dict.fromkeys`、`render_compose`、`rendered["services"]["api"].get`、`set`、`json.dumps`、`all`、`service.get`、`rendered["services"].items`、`port.startswith`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_portable_launcher_carries_local_policy`（L198–L202）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L201断言`"local_only.py" in HELPERS`；L202断言`(ROOT / "workbench/local_only.py").is_file()`。 调用`(ROOT / "workbench/local_only.py").is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_one_complete_handbook_is_generated`（L205–L212）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L208断言`OUTPUT.name == "从零实现AI研发平台_逐步实操手册_完整版.md"`；L209断言`"LEGACY" not in (ROOT / "scripts/build_handbook.py").read_text(encoding="utf-8")`；L211断言`"空文件夹" in text and "source-file: workbench/local_only.py" in text`；L212断言`len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) == 1`。 调用`(ROOT / "scripts/build_handbook.py").read_text`、`render`、`len`、`list`、`ROOT.glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_local_only.py sha256: c150456b97bc0ccb84fd1c1f4ba4ee3d07caf804e00f43069ea352c2be5cf248 -->
+<!-- source-file: tests/test_local_only.py sha256: 86f2458553dd2174bd57d150caee0fbeb7a02d0077d372e85bd51e5019116a76 -->
 ````python
 """Local policy tests; these do not pretend that a mocked SDK is a live service."""
 
@@ -16403,7 +16551,13 @@ def test_deployment_transformation_has_no_cloud_services(tmp_path):
     assert set(rendered["services"]) == KEEP
     assert "cloud.example" not in json.dumps(rendered)
     assert rendered["services"]["api"]["image"] == IMAGES["api"]
-    assert all(s["ports"][0].startswith("127.0.0.1:") for s in rendered["services"].values())
+    assert all(
+        not service.get("ports")
+        for name, service in rendered["services"].items()
+        if name != "gateway"
+    )
+    assert all(port.startswith("127.0.0.1:") for port in rendered["services"]["gateway"]["ports"])
+    assert rendered["services"]["gateway"]["cap_drop"] == ["ALL"]
     assert len(IMAGES) == len(KEEP)
     rendered["services"]["api"]["ports"] = ["0.0.0.0:3000:3000"]
     with pytest.raises(ValueError):
@@ -19946,11 +20100,11 @@ if __name__ == "__main__":
 
 - `bootstrap`（L26–L83）：接收`directory`。 控制顺序：L29按`destination.exists()`分支；L30抛异常，停止当前正常路径；L34遍历`range(90)`；L40按`attempt == 89`分支；L41抛异常，停止当前正常路径；L56遍历`range(120)`；L61按`not organizations`分支；L62抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`destination.exists`、`ValueError`、`json.loads`、`(directory / "credentials.json").read_text`、`install_loopback_guard`、`httpx.Client`、`range`、`http.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `write_environment`（L86–L96）：接收`path`、`key`、`snapshot`。 控制顺序：L87按`any(char in key + snapshot for char in "\n\r\"'")`分支；L88抛异常，停止当前正常路径；L95按`os.name != "nt"`分支。 调用`any`、`ValueError`、`Path(path).write_text`、`Path`、`Path(path).chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `snapshot`（L99–L114）：接收`directory`。 源码说明：Bound the whole operation: this fixed SDK does not enforce create(timeout).。 调用`run_command`、`str`、`Path(directory).resolve`、`Path`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `snapshot_worker`（L117–L147）：接收`directory`。 控制顺序：L120按`not metadata["image"].startswith("registry:6000/rnd-python:")`分支；L121抛异常，停止当前正常路径；L132按`str(existing.state).lower() != "active"`分支；L133抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(directory / "snapshot-image.json").read_text`、`metadata["image"].startswith`、`ValueError`、`install_loopback_guard`、`(directory / "api-key.json").read_text`、`Settings`、`SecretStr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `snapshot`（L99–L114）：接收`directory`。 源码说明：Bound setup, SDK calls and cleanup in addition to the SDK operation timeout.。 调用`run_command`、`str`、`Path(directory).resolve`、`Path`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `snapshot_worker`（L117–L147）：接收`directory`。 控制顺序：L120按`not metadata["image"].startswith("registry:6000/rnd-python:")`分支；L121抛异常，停止当前正常路径；L132按`str(getattr(existing.state, "value", existing.state)).lower() != "active"`分支；L133抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(directory / "snapshot-image.json").read_text`、`metadata["image"].startswith`、`ValueError`、`install_loopback_guard`、`(directory / "api-key.json").read_text`、`Settings`、`SecretStr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `main`（L150–L157）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`{"auth": bootstrap, "snapshot": snapshot, "snapshot-worker": snap…`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/daytona_bootstrap.py sha256: e795c8b1d2926076573e32f9a50820690c7790e755a5b3f1335f5555332cc9ff -->
+<!-- source-file: scripts/daytona_bootstrap.py sha256: 77906a8fa048073b412f8687692e1c07161d92a4e074c56fa2776afe7bee0f60 -->
 ````python
 """Authenticate against local Dex, create a local API key and register a warm snapshot.
 
@@ -20051,7 +20205,7 @@ def write_environment(path, key, snapshot):
 
 
 def snapshot(directory=HOME):
-    """Bound the whole operation: this fixed SDK does not enforce create(timeout)."""
+    """Bound setup, SDK calls and cleanup in addition to the SDK operation timeout."""
     run_command(
         [
             sys.executable,
@@ -20083,7 +20237,7 @@ def snapshot_worker(directory=HOME):
     try:
         try:
             existing = client.snapshot.get(metadata["snapshot"])
-            if str(existing.state).lower() != "active":
+            if str(getattr(existing.state, "value", existing.state)).lower() != "active":
                 raise ValueError("已存在同名但未就绪的本机快照，请检查状态；不静默覆盖")
         except DaytonaNotFoundError:
             client.snapshot.create(
@@ -20118,7 +20272,7 @@ if __name__ == "__main__":
         directory = HOME
         if "--directory" in sys.argv:
             directory = Path(sys.argv[sys.argv.index("--directory") + 1])
-        log = error.log
+        log = getattr(error, "log", str(error))
         for name in ("credentials.json", "api-key.json"):
             path = directory / name
             if path.exists():
@@ -20147,7 +20301,7 @@ if __name__ == "__main__":
 - `export_source`（L84–L104）：接收`directory`、`command`、`context`、`revision`、`source_name`。 源码说明：Git archive excludes untracked files, local .env and .git credentials.。 控制顺序：L89按`command(["git", "rev-parse", "HEAD"], cwd=source) != revision`分支；L90抛异常，停止当前正常路径；L102按`source_name == "upstream"`分支。 调用`Path`、`command`、`ValueError`、`str`、`tarfile.open`、`stream.extractall`、`archive.unlink`、`(context / "go.work.sum").touch`。 返回路径：L104的`context`。
 - `build_images`（L107–L116）：接收`directory`、`command`、`docker`。确认Docker是本机Linux x86_64后，从固定Git对象导出临时上下文；构建在本机进行，返回可审计的镜像ID与来源哈希。 源码说明：All builds execute on the explicitly selected local Docker daemon.。 控制顺序：L111按`info.get("OSType") != "linux" or info.get("Architecture") not in {"x86_64", "amd64"}`分支；L112抛异常，停止当前正常路径。 调用`Path(directory).resolve`、`Path`、`json.loads`、`docker`、`info.get`、`ValueError`、`build_storage`、`tempfile.TemporaryDirectory`、`export_source`等。 返回路径：L116的`{"minio": storage, **build_exported(directory, context, docker)}`。
 - `build_exported`（L119–L175）：接收`directory`、`context`、`docker`。 控制顺序：L127遍历`("api", "proxy", "runner")`；L128按`service in SOURCE_RECIPES`分支；L162按`labels.get("org.opencontainers.image.revision") != DAYTONA_SOURCE or labels.get("org.…`分支；L166抛异常，停止当前正常路径；L173按`service == "runner"`分支。 调用`recipes.mkdir`、`runner_context.mkdir`、`download_runner`、`recipe`、`dockerfile.write_text`、`run_command`、`str`、`local_tag`、`(directory / (service + "-build.log")).write_text`等。 返回路径：L175的`metadata`。
-- `build_storage`（L178–L239）：接收`directory`、`command`、`docker`。 源码说明：Build the local object store from its own fixed release, not a mutable image.。 控制顺序：L181按`not source.exists()`分支；L228按`labels.get("org.opencontainers.image.revision") != MINIO_SOURCE or labels.get("org.op…`分支；L232抛异常，停止当前正常路径。 调用`source.exists`、`source.mkdir`、`command`、`tempfile.TemporaryDirectory`、`export_source`、`str`、`run_command`、`local_tag`、`(directory / "minio-build.log").write_text`等。 返回路径：L233的`{ "tag": local_tag("minio"), "image_id": image["Id"], "source_sha": MINIO_SOURCE, "release…`。
+- `build_storage`（L178–L239）：接收`directory`、`command`、`docker`。从MinIO独立的固定提交导出干净源码，在本机编译对象存储，镜像附上对应源码与许可证；返回来源指纹而不是信任可变的在线镜像标签。 源码说明：Build the local object store from its own fixed release, not a mutable image.。 控制顺序：L181按`not source.exists()`分支；L228按`labels.get("org.opencontainers.image.revision") != MINIO_SOURCE or labels.get("org.op…`分支；L232抛异常，停止当前正常路径。 调用`source.exists`、`source.mkdir`、`command`、`tempfile.TemporaryDirectory`、`export_source`、`str`、`run_command`、`local_tag`、`(directory / "minio-build.log").write_text`等。 返回路径：L233的`{ "tag": local_tag("minio"), "image_id": image["Id"], "source_sha": MINIO_SOURCE, "release…`。
 
 <!-- source-file: scripts/daytona_build.py sha256: e2eb074d3587979f56729a007aa11cb133574a8c5d386ea6ece270e463e8ed74 -->
 ````python
@@ -20392,6 +20546,103 @@ def build_storage(directory, command, docker):
     }
 ````
 
+### `scripts/daytona_gateway.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.daytona_gateway；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**逐个入口与控制逻辑：**
+
+- `pipe`（L21–L28）：接收`reader`、`writer`。 源码说明：Preserve bytes and half-close semantics; never interpret HTTP credentials.。 控制顺序：L23在`block := await asyncio.wait_for(reader.read(65536), timeout=300)`成立时循环；L26按`writer.can_write_eof()`分支。 调用`asyncio.wait_for`、`reader.read`、`writer.write`、`writer.drain`、`writer.can_write_eof`、`writer.write_eof`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `relay`（L31–L59）：接收`reader`、`writer`、`port`。本机入口只按固定端口选择内部服务，逐字节转发并保留半关闭语义；不解析用户传入URL、目标地址或模型密钥，超时与退出时关闭两侧连接。 控制顺序：L35按`port not in TARGETS`分支；L36抛异常，停止当前正常路径；L49遍历`tasks`；L51按`tasks`分支；L53遍历`(writer, upstream)`；L54按`stream is not None`分支。 调用`ValueError`、`asyncio.wait_for`、`asyncio.open_connection`、`asyncio.create_task`、`pipe`、`asyncio.gather`、`print`、`task.cancel`、`stream.close`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L62–L75）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L65遍历`TARGETS`；L73遍历`servers`。 调用`asyncio.start_server`、`relay`、`servers.append`、`print`、`asyncio.gather`、`server.serve_forever`、`server.close`、`server.wait_closed`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: scripts/daytona_gateway.py sha256: d20ba6745a61ba57913e8728034d78bd160f832e8b0c0252adc5eb07f9e1f6a3 -->
+````python
+"""Fixed TCP ingress for an otherwise internal-only Daytona Docker network.
+
+This file runs alone in a read-only, unprivileged local container. It does not
+read URLs, environment configuration, model keys or requested upstream names.
+Only the Docker host's loopback-published ports can reach these listeners.
+"""
+
+import asyncio
+
+TARGETS = {
+    3000: "api",
+    4000: "proxy",
+    3003: "runner",
+    5556: "dex",
+    6000: "registry",
+    9001: "minio",
+    1080: "maildev",
+}
+
+
+async def pipe(reader, writer):
+    """Preserve bytes and half-close semantics; never interpret HTTP credentials."""
+    while block := await asyncio.wait_for(reader.read(65536), timeout=300):
+        writer.write(block)
+        await writer.drain()
+    if writer.can_write_eof():
+        writer.write_eof()
+        await writer.drain()
+
+
+async def relay(reader, writer, port):
+    upstream = None
+    tasks = []
+    try:
+        if port not in TARGETS:
+            raise ValueError("Unregistered local ingress port")
+        incoming, upstream = await asyncio.wait_for(
+            asyncio.open_connection(TARGETS[port], port), timeout=10
+        )
+        tasks = [
+            asyncio.create_task(pipe(reader, upstream)),
+            asyncio.create_task(pipe(incoming, writer)),
+        ]
+        await asyncio.wait_for(asyncio.gather(*tasks), timeout=3600)
+    except OSError, TimeoutError, ValueError:
+        # Do not log request bodies, tokens or source content.
+        print("Local ingress connection closed on registered port", port, flush=True)
+    finally:
+        for task in tasks:
+            task.cancel()
+        if tasks:
+            await asyncio.gather(*tasks, return_exceptions=True)
+        for stream in (writer, upstream):
+            if stream is not None:
+                stream.close()
+                try:
+                    await stream.wait_closed()
+                except OSError:
+                    pass
+
+
+async def main():
+    servers = []
+    try:
+        for port in TARGETS:
+            server = await asyncio.start_server(
+                lambda reader, writer, p=port: relay(reader, writer, p), "0.0.0.0", port
+            )
+            servers.append(server)
+        print("Local ingress ready; fixed internal targets only", flush=True)
+        await asyncio.gather(*(server.serve_forever() for server in servers))
+    finally:
+        for server in servers:
+            server.close()
+        await asyncio.gather(*(server.wait_closed() for server in servers))
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+````
+
 ### `scripts/daytona_local.py`
 
 **作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
@@ -20400,24 +20651,26 @@ def build_storage(directory, command, docker):
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `scripts.daytona_build`、`workbench.local_only`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.daytona_build`、`scripts.daytona_gateway`、`workbench.local_only`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `private_json`（L39–L43）：接收`path`、`data`。 控制顺序：L42按`os.name != "nt"`分支。 调用`Path`、`path.write_text`、`json.dumps`、`path.chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `command`（L46–L57）：接收`argv`、`cwd`、`timeout`。 源码说明：Never forward a model key, proxy, remote Docker context or shell string.。 调用`subprocess.run`、`clean_env`、`result.stdout.decode("utf-8", errors="replace").strip`、`result.stdout.decode`。 返回路径：L57的`result.stdout.decode("utf-8", errors="replace").strip()`。
-- `docker`（L60–L63）：接收`timeout`、`*args`。 调用`command`。 返回路径：L63的`command(["docker", "--host", host, *args], timeout=timeout)`。
-- `environment`（L66–L70）：接收`service`。 控制顺序：L68按`isinstance(original, list)`分支。 调用`service.get`、`isinstance`、`dict`、`item.split`。 返回路径：L69的`dict(item.split("=", 1) for item in original)`；L70的`dict(original)`。
-- `render_compose`（L73–L142）：接收`original`、`credentials`、`directory`。 源码说明：Transform upstream configuration; never execute instructions from its README.。 控制顺序：L78按`set(config["services"]) != KEEP`分支；L79抛异常，停止当前正常路径；L81遍历`config["services"].items()`；L85按`name != "runner"`分支；L92遍历`tuple(env)`；L93按`any(word in key for word in ("POSTHOG", "SENTRY", "ANALYTICS", "OTEL", "SSH_"))`分支。 调用`copy.deepcopy`、`config["services"].items`、`set`、`ValueError`、`service.pop`、`str`、`service.get`、`environment`、`tuple`等。 返回路径：L142的`config`。
-- `assert_local_compose`（L145–L170）：接收`config`。 控制顺序：L146按`config.get("networks", {}).get("daytona-network", {}).get("internal") is not True`分支；L147抛异常，停止当前正常路径；L148按`set(config["services"]) != KEEP`分支；L149抛异常，停止当前正常路径；L150遍历`config["services"].items()`；L159按`image != IMAGES[name] and not pinned`分支；L160抛异常，停止当前正常路径；L161按`any(not str(port).startswith("127.0.0.1:") for port in service.get("ports", []))`分支。后续分支沿下方源码相同行号继续阅读。 调用`config.get("networks", {}).get("daytona-network", {}).get`、`config.get("networks", {}).get`、`config.get`、`ValueError`、`set`、`config["services"].items`、`re.fullmatch`、`re.escape`、`IMAGES[name].rsplit`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `prepare`（L173–L250）：接收`directory`。 控制顺序：L175按`directory.exists() and any(directory.iterdir())`分支；L176抛异常，停止当前正常路径；L178按`os.name != "nt"`分支；L195按`command(["git", "rev-parse", "HEAD"], cwd=source) != DAYTONA_SOURCE`分支；L196抛异常，停止当前正常路径；L235遍历`(("compose.yaml", config), ("dex.yaml", dex))`；L238按`os.name != "nt"`分支。 调用`Path(directory).resolve`、`Path`、`directory.exists`、`any`、`directory.iterdir`、`ValueError`、`directory.mkdir`、`directory.chmod`、`source.mkdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `images`（L253–L281）：接收`directory`。先在本机从固定源码或校验后的同版本发布文件构建Daytona，再锁定Image ID；其他基础依赖记录Registry摘要。启动对照两份锁且禁止自动拉取替代版本。 控制顺序：L258按`locked.exists()`分支；L259抛异常，停止当前正常路径；L262遍历`config["services"].items()`；L263按`name in BUILT`分支；L270按`not matching`分支；L271抛异常，停止当前正常路径；L275遍历`BUILT`；L278按`os.name != "nt"`分支。 调用`Path`、`yaml.safe_load`、`(directory / "compose.yaml").read_text`、`assert_local_compose`、`locked.exists`、`ValueError`、`config["services"].items`、`docker`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `compose`（L284–L294）：接收`directory`、`timeout`、`*args`。 控制顺序：L289遍历`config["services"].items()`；L292按`service["image"] != expected or record["tag"] != IMAGES[name]`分支；L293抛异常，停止当前正常路径。 调用`Path`、`yaml.safe_load`、`path.read_text`、`assert_local_compose`、`json.loads`、`(Path(directory) / "images.lock.json").read_text`、`config["services"].items`、`record.get`、`ValueError`等。 返回路径：L294的`docker("compose", "--project-name", PROJECT, "--file", str(path), *args, timeout=timeout)`。
-- `snapshot_stamp`（L297–L302）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`hashlib.sha256( (ROOT / "tools/daytona/Dockerfile").read_bytes() …`、`hashlib.sha256`、`(ROOT / "tools/daytona/Dockerfile").read_bytes`、`(ROOT / "templates/product/uv.lock").read_bytes`、`(ROOT / "templates/product/pyproject.toml").read_bytes`。 返回路径：L298的`hashlib.sha256( (ROOT / "tools/daytona/Dockerfile").read_bytes() + (ROOT / "templates/prod…`。
-- `snapshot_image`（L305–L334）：接收`directory`。构建上下文只有Dockerfile与产品依赖文件，不含模型Key、平台源码或用户数据库。镜像进入本机Registry供本机Runner读取。 控制顺序：L310遍历`("pyproject.toml", "uv.lock")`；L319按`stamp != snapshot_stamp()`分支；L320抛异常，停止当前正常路径。 调用`Path`、`context.mkdir`、`shutil.copyfile`、`hashlib.sha256( b"".join( (context / name).read_bytes() for name …`、`hashlib.sha256`、`b"".join`、`(context / name).read_bytes`、`snapshot_stamp`、`ValueError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L337–L352）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L344按`args.action == "prepare"`分支；L346按`args.action == "images"`分支；L348按`args.action == "snapshot-image"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`images`、`snapshot_image`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `private_json`（L47–L51）：接收`path`、`data`。 控制顺序：L50按`os.name != "nt"`分支。 调用`Path`、`path.write_text`、`json.dumps`、`path.chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `command`（L54–L65）：接收`argv`、`cwd`、`timeout`。 源码说明：Never forward a model key, proxy, remote Docker context or shell string.。 调用`subprocess.run`、`clean_env`、`result.stdout.decode("utf-8", errors="replace").strip`、`result.stdout.decode`。 返回路径：L65的`result.stdout.decode("utf-8", errors="replace").strip()`。
+- `docker`（L68–L71）：接收`timeout`、`*args`。 调用`command`。 返回路径：L71的`command(["docker", "--host", host, *args], timeout=timeout)`。
+- `environment`（L74–L78）：接收`service`。 控制顺序：L76按`isinstance(original, list)`分支。 调用`service.get`、`isinstance`、`dict`、`item.split`。 返回路径：L77的`dict(item.split("=", 1) for item in original)`；L78的`dict(original)`。
+- `gateway_service`（L81–L95）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Only this fixed byte-forwarder has a publishing network; backends have none.。 调用`str`。 返回路径：L83的`{ "image": IMAGES["gateway"], "command": ["python", "-I", "/opt/rnd/gateway.py"], "user": …`。
+- `render_compose`（L98–L171）：接收`original`、`credentials`、`directory`。 源码说明：Transform upstream configuration; never execute instructions from its README.。 控制顺序：L105按`set(config["services"]) != UPSTREAM_SERVICES`分支；L106抛异常，停止当前正常路径；L108遍历`config["services"].items()`；L112按`name != "runner"`分支；L120遍历`tuple(env)`；L121按`any(word in key for word in ("POSTHOG", "SENTRY", "ANALYTICS", "OTEL", "SSH_"))`分支。 调用`copy.deepcopy`、`config["services"].items`、`set`、`ValueError`、`service.pop`、`service.get`、`environment`、`tuple`、`any`等。 返回路径：L171的`config`。
+- `assert_local_compose`（L174–L211）：接收`config`。 控制顺序：L175按`config.get("networks", {}).get("daytona-network", {}).get("internal") is not True`分支；L176抛异常，停止当前正常路径；L177按`config.get("networks") != NETWORKS`分支；L178抛异常，停止当前正常路径；L179按`set(config["services"]) != KEEP`分支；L180抛异常，停止当前正常路径；L185按`gateway != expected_gateway`分支；L186抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`config.get("networks", {}).get("daytona-network", {}).get`、`config.get("networks", {}).get`、`config.get`、`ValueError`、`set`、`dict`、`gateway.pop`、`gateway_service`、`expected_gateway.pop`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `prepare`（L214–L291）：接收`directory`。 控制顺序：L216按`directory.exists() and any(directory.iterdir())`分支；L217抛异常，停止当前正常路径；L219按`os.name != "nt"`分支；L236按`command(["git", "rev-parse", "HEAD"], cwd=source) != DAYTONA_SOURCE`分支；L237抛异常，停止当前正常路径；L276遍历`(("compose.yaml", config), ("dex.yaml", dex))`；L279按`os.name != "nt"`分支。 调用`Path(directory).resolve`、`Path`、`directory.exists`、`any`、`directory.iterdir`、`ValueError`、`directory.mkdir`、`directory.chmod`、`source.mkdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `images`（L294–L322）：接收`directory`。先在本机从固定源码或校验后的同版本发布文件构建Daytona，再锁定Image ID；其他基础依赖记录Registry摘要。启动对照两份锁且禁止自动拉取替代版本。 控制顺序：L299按`locked.exists()`分支；L300抛异常，停止当前正常路径；L303遍历`config["services"].items()`；L304按`name in BUILT`分支；L311按`not matching`分支；L312抛异常，停止当前正常路径；L316遍历`BUILT`；L319按`os.name != "nt"`分支。 调用`Path`、`yaml.safe_load`、`(directory / "compose.yaml").read_text`、`assert_local_compose`、`locked.exists`、`ValueError`、`config["services"].items`、`docker`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `compose`（L325–L335）：接收`directory`、`timeout`、`*args`。 控制顺序：L330遍历`config["services"].items()`；L333按`service["image"] != expected or record["tag"] != IMAGES[name]`分支；L334抛异常，停止当前正常路径。 调用`Path`、`yaml.safe_load`、`path.read_text`、`assert_local_compose`、`json.loads`、`(Path(directory) / "images.lock.json").read_text`、`config["services"].items`、`record.get`、`ValueError`等。 返回路径：L335的`docker("compose", "--project-name", PROJECT, "--file", str(path), *args, timeout=timeout)`。
+- `snapshot_stamp`（L338–L343）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`hashlib.sha256( (ROOT / "tools/daytona/Dockerfile").read_bytes() …`、`hashlib.sha256`、`(ROOT / "tools/daytona/Dockerfile").read_bytes`、`(ROOT / "templates/product/uv.lock").read_bytes`、`(ROOT / "templates/product/pyproject.toml").read_bytes`。 返回路径：L339的`hashlib.sha256( (ROOT / "tools/daytona/Dockerfile").read_bytes() + (ROOT / "templates/prod…`。
+- `wait_for_registry`（L346–L363）：不接收显式业务参数，从已配置对象/模块读取依赖。检测宿主机127.0.0.1上的真实Registry响应，而不是只检查容器存在；限时重试失败即停止，不上传到云端仓库。 源码说明：Check real host-loopback reachability, not merely a running container state.。 控制顺序：L351遍历`range(30)`；L355按`response.json() != {}`分支；L356抛异常，停止当前正常路径；L359按`attempt == 29`分支；L360抛异常，停止当前正常路径。 调用`httpx.Client`、`range`、`client.get`、`response.raise_for_status`、`response.json`、`ValueError`、`RuntimeError`、`time.sleep`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `snapshot_image`（L366–L396）：接收`directory`。构建上下文只有Dockerfile与产品依赖文件，不含模型Key、平台源码或用户数据库。镜像进入本机Registry供本机Runner读取。 控制顺序：L371遍历`("pyproject.toml", "uv.lock")`；L380按`stamp != snapshot_stamp()`分支；L381抛异常，停止当前正常路径。 调用`Path`、`context.mkdir`、`shutil.copyfile`、`hashlib.sha256( b"".join( (context / name).read_bytes() for name …`、`hashlib.sha256`、`b"".join`、`(context / name).read_bytes`、`snapshot_stamp`、`ValueError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L399–L414）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L406按`args.action == "prepare"`分支；L408按`args.action == "images"`分支；L410按`args.action == "snapshot-image"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`images`、`snapshot_image`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/daytona_local.py sha256: 6cecda502f558340ff25505bc6f576dd2d4faa29dfcf6d862ed8827e0ffca8c5 -->
+<!-- source-file: scripts/daytona_local.py sha256: d410b8710c64e36a5141b09aa5bd9f5c072e18ee4d522172388848769ac05c39 -->
 ````python
 """Install the pinned, development-only Daytona stack on this machine.
 
@@ -20435,18 +20688,25 @@ import re
 import secrets
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import yaml
 
 from scripts.daytona_build import BUILT, build_images, local_tag
+from scripts.daytona_gateway import TARGETS
 from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
 from workbench.settings import ROOT
 from workbench.tools import clean_env
 
 HOME = ROOT / ".data/daytona-local"
 PROJECT = "rnd-daytona-local"
-KEEP = {"api", "proxy", "runner", "db", "redis", "dex", "registry", "minio", "maildev"}
+UPSTREAM_SERVICES = {"api", "proxy", "runner", "db", "redis", "dex", "registry", "minio", "maildev"}
+KEEP = UPSTREAM_SERVICES | {"gateway"}
+NETWORKS = {
+    "daytona-network": {"driver": "bridge", "internal": True},
+    "loopback-entry": {"driver": "bridge", "internal": False},
+}
 IMAGES = {
     **{name: local_tag(name) for name in BUILT},
     "db": "postgres:18",
@@ -20454,6 +20714,7 @@ IMAGES = {
     "dex": "dexidp/dex:v2.42.0",
     "registry": "registry:2.8.2",
     "maildev": "maildev/maildev:2.2.1",
+    "gateway": "python:3.14.7-slim",
 }
 
 
@@ -20491,21 +20752,41 @@ def environment(service):
     return dict(original)
 
 
+def gateway_service():
+    """Only this fixed byte-forwarder has a publishing network; backends have none."""
+    return {
+        "image": IMAGES["gateway"],
+        "command": ["python", "-I", "/opt/rnd/gateway.py"],
+        "user": "65534:65534",
+        "read_only": True,
+        "cap_drop": ["ALL"],
+        "security_opt": ["no-new-privileges:true"],
+        "restart": "no",
+        "networks": ["daytona-network", "loopback-entry"],
+        "ports": [f"127.0.0.1:{port}:{port}" for port in TARGETS],
+        "volumes": [str(ROOT / "scripts/daytona_gateway.py") + ":/opt/rnd/gateway.py:ro"],
+        "environment": {"OTEL_ENABLED": "false", "DO_NOT_TRACK": "1", "OTEL_SDK_DISABLED": "true"},
+    }
+
+
 def render_compose(original, credentials, directory):
     """Transform upstream configuration; never execute instructions from its README."""
     config = copy.deepcopy(original)
     config["name"] = PROJECT
-    config["services"] = {name: value for name, value in config["services"].items() if name in KEEP}
-    if set(config["services"]) != KEEP:
+    config["services"] = {
+        name: value for name, value in config["services"].items() if name in UPSTREAM_SERVICES
+    }
+    if set(config["services"]) != UPSTREAM_SERVICES:
         raise ValueError("固定Daytona源码的服务集合不符，拒绝套用不兼容配置")
-    config["networks"] = {"daytona-network": {"driver": "bridge", "internal": True}}
+    config["networks"] = copy.deepcopy(NETWORKS)
     for name, service in config["services"].items():
         service["image"] = IMAGES[name]
         service["restart"] = "no"
         service.pop("build", None)
         if name != "runner":
             service.pop("privileged", None)
-        service["ports"] = ["127.0.0.1:" + str(port) for port in service.get("ports", [])]
+        service.pop("ports", None)
+        service["networks"] = ["daytona-network"]
         service["depends_on"] = [n for n in service.get("depends_on", []) if n in KEEP]
         env = environment(service)
         # Disable both backend and browser telemetry. Empty keys alone are insufficient
@@ -20558,6 +20839,7 @@ def render_compose(original, credentials, directory):
         str(Path(directory).resolve() / "dex.yaml") + ":/etc/dex/config.yaml:ro",
         "dex_db:/var/dex",
     ]
+    config["services"]["gateway"] = gateway_service()
     # Do not persist unneeded optional SSH/observability services or their test keys.
     assert_local_compose(config)
     return config
@@ -20566,9 +20848,21 @@ def render_compose(original, credentials, directory):
 def assert_local_compose(config):
     if config.get("networks", {}).get("daytona-network", {}).get("internal") is not True:
         raise ValueError("Daytona运行网络必须禁止外部出口")
+    if config.get("networks") != NETWORKS:
+        raise ValueError("仅允许固定内部网络和本机入口网络")
     if set(config["services"]) != KEEP:
         raise ValueError("存在未登记服务")
+    gateway = dict(config["services"]["gateway"])
+    gateway.pop("image", None)
+    expected_gateway = gateway_service()
+    expected_gateway.pop("image")
+    if gateway != expected_gateway:
+        raise ValueError("本机入口配置不匹配；不能添加代理目标、可写文件或权限")
     for name, service in config["services"].items():
+        if name != "gateway" and (
+            service.get("ports") or service.get("networks") != ["daytona-network"]
+        ):
+            raise ValueError("后端只能连接内部网络，不能直接发布端口")
         image = service["image"]
         pinned = (
             re.fullmatch(r"sha256:[0-9a-f]{64}", image)
@@ -20723,6 +21017,26 @@ def snapshot_stamp():
     ).hexdigest()[:16]
 
 
+def wait_for_registry():
+    """Check real host-loopback reachability, not merely a running container state."""
+    import httpx
+
+    with httpx.Client(timeout=3, trust_env=False, follow_redirects=False) as client:
+        for attempt in range(30):
+            try:
+                response = client.get("http://127.0.0.1:6000/v2/")
+                response.raise_for_status()
+                if response.json() != {}:
+                    raise ValueError("Unexpected local registry response")
+                return
+            except httpx.HTTPError, ValueError:
+                if attempt == 29:
+                    raise RuntimeError(
+                        "本机Registry不可达；检查gateway与registry日志，不切换云服务"
+                    ) from None
+                time.sleep(1)
+
+
 def snapshot_image(directory=HOME):
     # Use a minimal build context: the platform, .env and user data cannot reach docker build.
     directory = Path(directory)
@@ -20740,7 +21054,8 @@ def snapshot_image(directory=HOME):
     if stamp != snapshot_stamp():
         raise ValueError("快照构建上下文与固定输入不一致")
     # Start ONLY the private registry. Build and publish before starting the control plane.
-    compose(directory, "up", "-d", "--pull", "never", "registry")
+    compose(directory, "up", "-d", "--pull", "never", "registry", "gateway")
+    wait_for_registry()
     docker("build", "--tag", local_image, str(context), timeout=1800)
     docker("push", local_image)
     # The runner's own Docker daemon resolves `registry` on the local Compose network.
@@ -20780,7 +21095,9 @@ if __name__ == "__main__":
     try:
         main()
     except ToolFailure as error:
-        print(error.log[-12000:])  # Only public installation inputs; no runtime credentials.
+        print(
+            getattr(error, "log", str(error))[-12000:]
+        )  # Only public installation inputs; no runtime credentials.
         raise
     except subprocess.CalledProcessError as error:
         # Avoid a bare exit status hiding the actual installation failure.
@@ -20977,14 +21294,14 @@ main().catch((e) => {
 
 **逐个入口与控制逻辑：**
 
-- `parse`（L253–L259）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L259的`ast.parse(normalized)`。
-- `segment`（L262–L265）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L265的`value if len(value) <= limit else value[:limit] + "…"`。
-- `definitions`（L268–L275）：接收`node`、`prefix`。 控制顺序：L269遍历`ast.iter_child_nodes(node)`；L270按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `body_nodes`（L278–L283）：接收`node`。 控制顺序：L279遍历`ast.iter_child_nodes(node)`；L280按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `purpose`（L286–L381）：接收`name`。 控制顺序：L288按`name == "workbench/__init__.py"`分支；L294按`name.startswith("workbench/") and path.stem in MODULES`分支；L296按`name.startswith("templates/product/")`分支；L305按`name.startswith("workbench/web/")`分支；L311按`name.startswith("templates/frontends/")`分支；L317按`name.startswith("templates/deployment/")`分支；L323按`name.startswith("migrations/")`分支；L329按`name.startswith("tests/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L289的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L295的`MODULES[path.stem]`；L297的`( "独立基础产品的组成文件", PRODUCT.get( path.name, "这是成品自有的配置、迁移或页面；生成器把它复制到交付目录，由产品启动器和应用读取，不通过工作台动…`。
-- `notes`（L384–L495）：接收`name`、`content`。 控制顺序：L388按`not name.endswith(".py")`分支；L395遍历`tree.body`；L396按`isinstance(node, ast.ImportFrom) and node.module`分支；L398按`isinstance(node, ast.Import)`分支；L401按`own`分支；L408按`not rows`分支；L411遍历`rows`；L413按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L389的`out`；L393的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L409的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
+- `parse`（L256–L262）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L262的`ast.parse(normalized)`。
+- `segment`（L265–L268）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L268的`value if len(value) <= limit else value[:limit] + "…"`。
+- `definitions`（L271–L278）：接收`node`、`prefix`。 控制顺序：L272遍历`ast.iter_child_nodes(node)`；L273按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `body_nodes`（L281–L286）：接收`node`。 控制顺序：L282遍历`ast.iter_child_nodes(node)`；L283按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `purpose`（L289–L396）：接收`name`。 控制顺序：L291按`name == "workbench/__init__.py"`分支；L297按`name.startswith("workbench/") and path.stem in MODULES`分支；L299按`name.startswith("templates/product/")`分支；L308按`name.startswith("workbench/web/")`分支；L314按`name.startswith("templates/frontends/")`分支；L320按`name.startswith("templates/deployment/")`分支；L326按`name.startswith("migrations/")`分支；L332按`name.startswith("tests/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L292的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L298的`MODULES[path.stem]`；L300的`( "独立基础产品的组成文件", PRODUCT.get( path.name, "这是成品自有的配置、迁移或页面；生成器把它复制到交付目录，由产品启动器和应用读取，不通过工作台动…`。
+- `notes`（L399–L510）：接收`name`、`content`。 控制顺序：L403按`not name.endswith(".py")`分支；L410遍历`tree.body`；L411按`isinstance(node, ast.ImportFrom) and node.module`分支；L413按`isinstance(node, ast.Import)`分支；L416按`own`分支；L423按`not rows`分支；L426遍历`rows`；L428按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L404的`out`；L408的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L424的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
 
-<!-- source-file: scripts/handbook_notes.py sha256: 9a564fbf8dbada155b0aee4034bfa9073f32dd3d075c55b18ee508a4d07dc7b1 -->
+<!-- source-file: scripts/handbook_notes.py sha256: b8782397e718dbb1beadd3956416563ce04539c7c6ebceaf43411e3b942f7635 -->
 ````python
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
 
@@ -21234,6 +21551,9 @@ FUNCTIONS = {
     "build_images": "确认Docker是本机Linux x86_64后，从固定Git对象导出临时上下文；构建在本机进行，返回可审计的镜像ID与来源哈希。",
     "recipe": "先验证上游Dockerfile完整前像的Git对象哈希，再加入禁用云构建、远程缓存和遥测的环境变量；不匹配即停止。",
     "download_runner": "发布文件大小与SHA256固定写在源码中，下载时逐块累计、校验通过才原子落盘；已有损坏文件不能执行。",
+    "relay": "本机入口只按固定端口选择内部服务，逐字节转发并保留半关闭语义；不解析用户传入URL、目标地址或模型密钥，超时与退出时关闭两侧连接。",
+    "wait_for_registry": "检测宿主机127.0.0.1上的真实Registry响应，而不是只检查容器存在；限时重试失败即停止，不上传到云端仓库。",
+    "build_storage": "从MinIO独立的固定提交导出干净源码，在本机编译对象存储，镜像附上对应源码与许可证；返回来源指纹而不是信任可变的在线镜像标签。",
     "snapshot_image": "构建上下文只有Dockerfile与产品依赖文件，不含模型Key、平台源码或用户数据库。镜像进入本机Registry供本机Runner读取。",
 }
 
@@ -21337,6 +21657,18 @@ def purpose(name):
             "精确依赖锁",
             "pyproject声明允许的依赖，uv.lock记录本次可复现安装的具体版本、平台条件及下载哈希。先抄写对应pyproject再完整保存此文件，使用uv sync --locked；不要为了跳过报错随意删锁。",
             "平台、Aider和产品各有独立环境与锁，不能混用Python3.12和3.14依赖。",
+        )
+    if name == "tools/daytona/runner.Dockerfile":
+        return (
+            "本机Runner服务镜像",
+            "以固定Docker-in-Docker运行环境装入已经验证大小和SHA256的v0.190.0 Runner发布文件；入口同时启动本机Docker daemon与Runner。私有registry登记为本机不安全HTTP仓库，不指向公网。它不是产品快照。",
+            "daytona_build.download_runner → build_exported → daytona_local.images/up → Runner管理本机沙箱。",
+        )
+    if name == "tools/daytona/minio.Dockerfile":
+        return (
+            "本机对象存储服务镜像",
+            "第一阶段在固定Go编译器中校验并编译固定MinIO源码；第二阶段只复制运行二进制、对应源码、许可证和依赖清单。数据写入独立持久卷；更新检查关闭，端点仅供本机开发网络使用。",
+            "daytona_build.build_storage → images.lock → daytona_local.up → API/Runner使用本机S3存储。",
         )
     if name.startswith("tools/daytona/"):
         return (
@@ -24101,9 +24433,9 @@ WORKDIR /home/daytona
 
 ### `tools/daytona/minio.Dockerfile`
 
-**作用：本机Daytona的预热镜像。** Dockerfile逐层准备Python运行时和产品锁定依赖；只在显式构建时下载软件。网络封锁后的沙箱使用已有缓存离线安装，创建的是本机镜像而非云端工作区。
+**作用：本机对象存储服务镜像。** 第一阶段在固定Go编译器中校验并编译固定MinIO源码；第二阶段只复制运行二进制、对应源码、许可证和依赖清单。数据写入独立持久卷；更新检查关闭，端点仅供本机开发网络使用。
 
-**对应关系：** scripts.daytona_local snapshot-image → 本机Registry → scripts.daytona_bootstrap snapshot。
+**对应关系：** daytona_build.build_storage → images.lock → daytona_local.up → API/Runner使用本机S3存储。
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
@@ -24133,9 +24465,9 @@ CMD ["server", "/data", "--console-address", ":9001"]
 
 ### `tools/daytona/runner.Dockerfile`
 
-**作用：本机Daytona的预热镜像。** Dockerfile逐层准备Python运行时和产品锁定依赖；只在显式构建时下载软件。网络封锁后的沙箱使用已有缓存离线安装，创建的是本机镜像而非云端工作区。
+**作用：本机Runner服务镜像。** 以固定Docker-in-Docker运行环境装入已经验证大小和SHA256的v0.190.0 Runner发布文件；入口同时启动本机Docker daemon与Runner。私有registry登记为本机不安全HTTP仓库，不指向公网。它不是产品快照。
 
-**对应关系：** scripts.daytona_local snapshot-image → 本机Registry → scripts.daytona_bootstrap snapshot。
+**对应关系：** daytona_build.download_runner → build_exported → daytona_local.images/up → Runner管理本机沙箱。
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
@@ -27631,7 +27963,7 @@ uv run python -m scripts.ci_native_bundled yudao-vben
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/toolchain.md sha256: 88e918bb53ba65b2dda6533f0ce123dd6242412b0fbf3a6c32ae4a9f61a9035a -->
+<!-- source-file: docs/toolchain.md sha256: 15296d54248a2dbe0138ed86863c025389a6a1fd2f80f1618ff16a5f0b08cadc -->
 ````markdown
 ## 20. 本机工具链：解析、检索、编辑、MCP与自托管Daytona
 
@@ -27668,14 +28000,53 @@ Java类、方法、注解和继承通过Java grammar解析；TypeScript/JavaScri
 
 不需要向量时保持`EMBEDDING_ENABLED=false`即可，FTS5与符号图已经可用。需要语义检索时，先安装并启动本机兼容`POST /v1/embeddings`的模型服务，例如本机Ollama，再下载它支持的embedding模型。模型权重下载属于准备阶段，推理不能转发到云端。
 
-以本机Ollama的nomic-embed-text模型为例：
+Windows先从官方`https://ollama.com/download/windows`安装Ollama，退出任务栏中的Ollama，再在PowerShell设置仅本机运行：
 
-```text
-ollama pull nomic-embed-text
-ollama serve
+```powershell
+[Environment]::SetEnvironmentVariable('OLLAMA_NO_CLOUD', '1', 'User')
+[Environment]::SetEnvironmentVariable('OLLAMA_HOST', '127.0.0.1:11434', 'User')
 ```
 
-若桌面应用已经启动本机服务，不要再占用相同端口启动第二个serve进程。记录`ollama list`显示的模型ID，保持同一模型权重；服务软件和模型权重是独立依赖，不包含在平台uv.lock中。
+从开始菜单重新打开Ollama并重新开终端。Linux/WSL的Ubuntu执行以下安装与配置命令：
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+sudo systemctl edit ollama.service
+```
+
+编辑器中在有效配置区写入下面完整的覆盖配置；已有覆盖项则合并，不能删掉其他用途的配置。使用nano时按Ctrl+O、回车保存，再按Ctrl+X退出：
+
+```ini
+[Service]
+Environment="OLLAMA_NO_CLOUD=1"
+Environment="OLLAMA_HOST=127.0.0.1:11434"
+```
+
+然后执行：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart ollama
+sudo systemctl status ollama --no-pager
+```
+
+没有systemd的手动开发环境，先停止占用11434端口的另一个Ollama，再在单独终端执行`OLLAMA_NO_CLOUD=1 OLLAMA_HOST=127.0.0.1:11434 ollama serve`。本机服务日志应显示`Ollama cloud disabled: true`；不登录云账号、不启用cloud模型或网络搜索。这些设置是Ollama进程自己的环境，不是只填在平台.env里就会生效。
+
+服务启动后，Windows/Linux都在另一终端下载本机nomic-embed-text模型并记录版本：
+
+```text
+ollama --version
+ollama pull nomic-embed-text
+ollama list
+```
+
+先用不涉及私有源码的输入检查本机端点。在已经安装平台依赖的项目目录执行：
+
+```powershell
+uv run python -c "import httpx; r=httpx.post('http://127.0.0.1:11434/v1/embeddings',json={'model':'nomic-embed-text','input':['local indexing']},timeout=120,trust_env=False); r.raise_for_status(); print('vector dimensions:',len(r.json()['data'][0]['embedding']))"
+```
+
+成功会显示一个正整数维度；连接失败先检查服务，模型不存在则检查ollama list，不能把URL改成云端来绕过。记录ollama list显示的模型ID并保持同一权重；服务软件与模型是独立依赖，不在平台uv.lock中。下面的检索协议测试不冒充你的机器已加载了这个真实模型。
 
 项目`.env`使用：
 
@@ -27797,7 +28168,11 @@ images不是去猜测可用的在线Daytona镜像标签。`scripts/daytona_build
 
 构建镜像标签带版本与源码SHA，images.lock.json记录本机Image ID、构建文件SHA及Runner发布文件SHA；PostgreSQL等基础依赖拉取明确版本后记录实际Registry摘要。compose.lock.yaml只引用这些内容地址。重新启动前逐项对照两份锁，配置不一致就停止；没有任何latest或云端回退。构建失败看终端尾部和本机构建日志，不跳过images进入下一步。
 
-snapshot-image先只启动本机Registry，再构建并推送预热快照。之后up才启动完整控制面，默认快照也指向本机Registry，不在业务验证时临时从Docker Hub拉取。up使用`--pull never`和已锁定摘要。所有发布端口绑定127.0.0.1；服务Docker网络配置为internal，阻止外部出口；Docker命令显式指向本机daemon，不跟随保存的远程Docker context。
+snapshot-image先只启动本机Registry与固定TCP入口，再构建并推送预热快照。之后up才启动完整控制面，默认快照也指向本机Registry，不在业务验证时临时从Docker Hub拉取。up使用`--pull never`和已锁定摘要。所有发布端口绑定127.0.0.1；API、Runner、数据库、存储等后端仅连接internal网络，阻止外部出口；Docker命令显式指向本机daemon，不跟随保存的远程Docker context。
+
+`scripts/daytona_gateway.py`是一个只转发字节的本机入口：Docker的internal网络不负责宿主机端口映射，所以不能把“容器Up”当成127.0.0.1可达。入口容器同时连接普通入口网络与内部网络，宿主机发布地址全部为127.0.0.1；其余服务没有第二网络、没有直接发布端口。入口只接受源码中固定的七个端口/服务对应，不读用户提供的URL或环境代理，不提供任意目标转发。它以UID65534、只读文件系统、删除全部Linux capabilities和no-new-privileges运行，只挂载这一份标准库脚本，不挂载.env、Docker socket或产品源码。它保留TCP字节和半关闭行为，因此HTTP、WebSocket与Registry传输都不需要改写请求或泄露令牌。
+
+普通入口网络自身不是无出口网络；安全边界是入口代码只建立固定内部连接，而处理任务的API/Runner/存储仍只有internal网络。不要自行给这些后端添加普通网络来绕开连接错误。安装脚本先从127.0.0.1:6000取得真实Registry响应再推送快照；失败检查gateway与registry日志。这个拓扑也避免依赖Docker虚拟机内部IP，适用于本机Linux与WSL2的Docker。
 
 Dex在非privileged容器内用UID0读取只读挂载的0600配置，避免依赖开发电脑恰好使用UID1001；仅挂载自己的配置和身份数据库卷，并设置no-new-privileges。不能通过把密码文件改成公开可读来排错。
 
@@ -27881,4 +28256,11 @@ Continue YAML字段：https://docs.continue.dev/reference
 VS Code固定扩展安装：https://code.visualstudio.com/docs/configure/command-line
 
 GitHub Actions按要求在测试Runner内部运行同样的本机服务，不调用Daytona托管API。用户启动产品和平台不依赖Actions；CI使用的临时身份与数据不代表用户的实际账户。
+
+Ollama本机安装：https://docs.ollama.com/linux
+Ollama关闭云功能与回环绑定：https://docs.ollama.com/faq
+Ollama embedding兼容端点：https://docs.ollama.com/api/openai-compatibility
+
+Docker内部网络与端口依据：https://docs.docker.com/reference/cli/docker/network/create/
+Docker端口发布：https://docs.docker.com/engine/network/port-publishing/
 ````

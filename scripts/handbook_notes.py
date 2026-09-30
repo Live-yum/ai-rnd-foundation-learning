@@ -246,6 +246,9 @@ FUNCTIONS = {
     "build_images": "确认Docker是本机Linux x86_64后，从固定Git对象导出临时上下文；构建在本机进行，返回可审计的镜像ID与来源哈希。",
     "recipe": "先验证上游Dockerfile完整前像的Git对象哈希，再加入禁用云构建、远程缓存和遥测的环境变量；不匹配即停止。",
     "download_runner": "发布文件大小与SHA256固定写在源码中，下载时逐块累计、校验通过才原子落盘；已有损坏文件不能执行。",
+    "relay": "本机入口只按固定端口选择内部服务，逐字节转发并保留半关闭语义；不解析用户传入URL、目标地址或模型密钥，超时与退出时关闭两侧连接。",
+    "wait_for_registry": "检测宿主机127.0.0.1上的真实Registry响应，而不是只检查容器存在；限时重试失败即停止，不上传到云端仓库。",
+    "build_storage": "从MinIO独立的固定提交导出干净源码，在本机编译对象存储，镜像附上对应源码与许可证；返回来源指纹而不是信任可变的在线镜像标签。",
     "snapshot_image": "构建上下文只有Dockerfile与产品依赖文件，不含模型Key、平台源码或用户数据库。镜像进入本机Registry供本机Runner读取。",
 }
 
@@ -349,6 +352,18 @@ def purpose(name):
             "精确依赖锁",
             "pyproject声明允许的依赖，uv.lock记录本次可复现安装的具体版本、平台条件及下载哈希。先抄写对应pyproject再完整保存此文件，使用uv sync --locked；不要为了跳过报错随意删锁。",
             "平台、Aider和产品各有独立环境与锁，不能混用Python3.12和3.14依赖。",
+        )
+    if name == "tools/daytona/runner.Dockerfile":
+        return (
+            "本机Runner服务镜像",
+            "以固定Docker-in-Docker运行环境装入已经验证大小和SHA256的v0.190.0 Runner发布文件；入口同时启动本机Docker daemon与Runner。私有registry登记为本机不安全HTTP仓库，不指向公网。它不是产品快照。",
+            "daytona_build.download_runner → build_exported → daytona_local.images/up → Runner管理本机沙箱。",
+        )
+    if name == "tools/daytona/minio.Dockerfile":
+        return (
+            "本机对象存储服务镜像",
+            "第一阶段在固定Go编译器中校验并编译固定MinIO源码；第二阶段只复制运行二进制、对应源码、许可证和依赖清单。数据写入独立持久卷；更新检查关闭，端点仅供本机开发网络使用。",
+            "daytona_build.build_storage → images.lock → daytona_local.up → API/Runner使用本机S3存储。",
         )
     if name.startswith("tools/daytona/"):
         return (

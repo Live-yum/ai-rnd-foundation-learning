@@ -76,15 +76,23 @@ def test_git_export_ignores_worktree_changes_and_untracked_credentials(tmp_path,
     assert not (tmp_path / "build-source.tar").exists()
 
 
-def test_images_build_locally_and_lock_service_ids(tmp_path, monkeypatch):
+def local_config():
+    import copy
+
     services = {
-        name: {"image": tag, "environment": {"OTEL_ENABLED": "false"}}
+        name: {
+            "image": tag,
+            "environment": {"OTEL_ENABLED": "false"},
+            "networks": ["daytona-network"],
+        }
         for name, tag in local.IMAGES.items()
     }
-    config = {
-        "services": services,
-        "networks": {"daytona-network": {"driver": "bridge", "internal": True}},
-    }
+    services["gateway"] = local.gateway_service()
+    return {"services": services, "networks": copy.deepcopy(local.NETWORKS)}
+
+
+def test_images_build_locally_and_lock_service_ids(tmp_path, monkeypatch):
+    config = local_config()
     (tmp_path / "compose.yaml").write_text(yaml.safe_dump(config))
     calls = []
 
@@ -113,13 +121,7 @@ def test_images_build_locally_and_lock_service_ids(tmp_path, monkeypatch):
 
 
 def test_nonlocal_registry_and_runtime_egress_are_rejected(tmp_path):
-    config = {
-        "services": {
-            name: {"image": tag, "environment": {"OTEL_ENABLED": "false"}}
-            for name, tag in local.IMAGES.items()
-        },
-        "networks": {"daytona-network": {"internal": True}},
-    }
+    config = local_config()
     local.assert_local_compose(config)
     config["services"]["db"]["image"] = "unapproved.example/postgres@sha256:" + "d" * 64
     with pytest.raises(ValueError, match="镜像未固定"):
@@ -170,3 +172,14 @@ def test_snapshot_registration_uses_a_bounded_child_without_key_arguments(tmp_pa
     monkeypatch.setattr(bootstrap, "run_command", failed)
     with pytest.raises(ToolFailure, match="timeout"):
         bootstrap.snapshot(tmp_path)
+
+
+def test_gateway_cannot_be_reconfigured_as_a_general_proxy():
+    config = local_config()
+    config["services"]["gateway"]["command"].append("unapproved.example")
+    with pytest.raises(ValueError, match="入口配置"):
+        local.assert_local_compose(config)
+    config = local_config()
+    config["services"]["api"]["networks"].append("loopback-entry")
+    with pytest.raises(ValueError, match="内部网络"):
+        local.assert_local_compose(config)

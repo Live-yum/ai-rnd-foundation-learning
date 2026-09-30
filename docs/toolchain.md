@@ -33,14 +33,53 @@ Java类、方法、注解和继承通过Java grammar解析；TypeScript/JavaScri
 
 不需要向量时保持`EMBEDDING_ENABLED=false`即可，FTS5与符号图已经可用。需要语义检索时，先安装并启动本机兼容`POST /v1/embeddings`的模型服务，例如本机Ollama，再下载它支持的embedding模型。模型权重下载属于准备阶段，推理不能转发到云端。
 
-以本机Ollama的nomic-embed-text模型为例：
+Windows先从官方`https://ollama.com/download/windows`安装Ollama，退出任务栏中的Ollama，再在PowerShell设置仅本机运行：
 
-```text
-ollama pull nomic-embed-text
-ollama serve
+```powershell
+[Environment]::SetEnvironmentVariable('OLLAMA_NO_CLOUD', '1', 'User')
+[Environment]::SetEnvironmentVariable('OLLAMA_HOST', '127.0.0.1:11434', 'User')
 ```
 
-若桌面应用已经启动本机服务，不要再占用相同端口启动第二个serve进程。记录`ollama list`显示的模型ID，保持同一模型权重；服务软件和模型权重是独立依赖，不包含在平台uv.lock中。
+从开始菜单重新打开Ollama并重新开终端。Linux/WSL的Ubuntu执行以下安装与配置命令：
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+sudo systemctl edit ollama.service
+```
+
+编辑器中在有效配置区写入下面完整的覆盖配置；已有覆盖项则合并，不能删掉其他用途的配置。使用nano时按Ctrl+O、回车保存，再按Ctrl+X退出：
+
+```ini
+[Service]
+Environment="OLLAMA_NO_CLOUD=1"
+Environment="OLLAMA_HOST=127.0.0.1:11434"
+```
+
+然后执行：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl restart ollama
+sudo systemctl status ollama --no-pager
+```
+
+没有systemd的手动开发环境，先停止占用11434端口的另一个Ollama，再在单独终端执行`OLLAMA_NO_CLOUD=1 OLLAMA_HOST=127.0.0.1:11434 ollama serve`。本机服务日志应显示`Ollama cloud disabled: true`；不登录云账号、不启用cloud模型或网络搜索。这些设置是Ollama进程自己的环境，不是只填在平台.env里就会生效。
+
+服务启动后，Windows/Linux都在另一终端下载本机nomic-embed-text模型并记录版本：
+
+```text
+ollama --version
+ollama pull nomic-embed-text
+ollama list
+```
+
+先用不涉及私有源码的输入检查本机端点。在已经安装平台依赖的项目目录执行：
+
+```powershell
+uv run python -c "import httpx; r=httpx.post('http://127.0.0.1:11434/v1/embeddings',json={'model':'nomic-embed-text','input':['local indexing']},timeout=120,trust_env=False); r.raise_for_status(); print('vector dimensions:',len(r.json()['data'][0]['embedding']))"
+```
+
+成功会显示一个正整数维度；连接失败先检查服务，模型不存在则检查ollama list，不能把URL改成云端来绕过。记录ollama list显示的模型ID并保持同一权重；服务软件与模型是独立依赖，不在平台uv.lock中。下面的检索协议测试不冒充你的机器已加载了这个真实模型。
 
 项目`.env`使用：
 
@@ -162,7 +201,11 @@ images不是去猜测可用的在线Daytona镜像标签。`scripts/daytona_build
 
 构建镜像标签带版本与源码SHA，images.lock.json记录本机Image ID、构建文件SHA及Runner发布文件SHA；PostgreSQL等基础依赖拉取明确版本后记录实际Registry摘要。compose.lock.yaml只引用这些内容地址。重新启动前逐项对照两份锁，配置不一致就停止；没有任何latest或云端回退。构建失败看终端尾部和本机构建日志，不跳过images进入下一步。
 
-snapshot-image先只启动本机Registry，再构建并推送预热快照。之后up才启动完整控制面，默认快照也指向本机Registry，不在业务验证时临时从Docker Hub拉取。up使用`--pull never`和已锁定摘要。所有发布端口绑定127.0.0.1；服务Docker网络配置为internal，阻止外部出口；Docker命令显式指向本机daemon，不跟随保存的远程Docker context。
+snapshot-image先只启动本机Registry与固定TCP入口，再构建并推送预热快照。之后up才启动完整控制面，默认快照也指向本机Registry，不在业务验证时临时从Docker Hub拉取。up使用`--pull never`和已锁定摘要。所有发布端口绑定127.0.0.1；API、Runner、数据库、存储等后端仅连接internal网络，阻止外部出口；Docker命令显式指向本机daemon，不跟随保存的远程Docker context。
+
+`scripts/daytona_gateway.py`是一个只转发字节的本机入口：Docker的internal网络不负责宿主机端口映射，所以不能把“容器Up”当成127.0.0.1可达。入口容器同时连接普通入口网络与内部网络，宿主机发布地址全部为127.0.0.1；其余服务没有第二网络、没有直接发布端口。入口只接受源码中固定的七个端口/服务对应，不读用户提供的URL或环境代理，不提供任意目标转发。它以UID65534、只读文件系统、删除全部Linux capabilities和no-new-privileges运行，只挂载这一份标准库脚本，不挂载.env、Docker socket或产品源码。它保留TCP字节和半关闭行为，因此HTTP、WebSocket与Registry传输都不需要改写请求或泄露令牌。
+
+普通入口网络自身不是无出口网络；安全边界是入口代码只建立固定内部连接，而处理任务的API/Runner/存储仍只有internal网络。不要自行给这些后端添加普通网络来绕开连接错误。安装脚本先从127.0.0.1:6000取得真实Registry响应再推送快照；失败检查gateway与registry日志。这个拓扑也避免依赖Docker虚拟机内部IP，适用于本机Linux与WSL2的Docker。
 
 Dex在非privileged容器内用UID0读取只读挂载的0600配置，避免依赖开发电脑恰好使用UID1001；仅挂载自己的配置和身份数据库卷，并设置no-new-privileges。不能通过把密码文件改成公开可读来排错。
 
@@ -246,3 +289,10 @@ Continue YAML字段：https://docs.continue.dev/reference
 VS Code固定扩展安装：https://code.visualstudio.com/docs/configure/command-line
 
 GitHub Actions按要求在测试Runner内部运行同样的本机服务，不调用Daytona托管API。用户启动产品和平台不依赖Actions；CI使用的临时身份与数据不代表用户的实际账户。
+
+Ollama本机安装：https://docs.ollama.com/linux
+Ollama关闭云功能与回环绑定：https://docs.ollama.com/faq
+Ollama embedding兼容端点：https://docs.ollama.com/api/openai-compatibility
+
+Docker内部网络与端口依据：https://docs.docker.com/reference/cli/docker/network/create/
+Docker端口发布：https://docs.docker.com/engine/network/port-publishing/

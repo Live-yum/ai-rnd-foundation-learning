@@ -97,7 +97,7 @@ def write_environment(path, key, snapshot):
 
 
 def snapshot(directory=HOME):
-    """Bound the whole operation: this fixed SDK does not enforce create(timeout)."""
+    """Bound setup, SDK calls and cleanup in addition to the SDK operation timeout."""
     run_command(
         [
             sys.executable,
@@ -129,7 +129,7 @@ def snapshot_worker(directory=HOME):
     try:
         try:
             existing = client.snapshot.get(metadata["snapshot"])
-            if str(existing.state).lower() != "active":
+            if str(getattr(existing.state, "value", existing.state)).lower() != "active":
                 raise ValueError("已存在同名但未就绪的本机快照，请检查状态；不静默覆盖")
         except DaytonaNotFoundError:
             client.snapshot.create(
@@ -164,7 +164,7 @@ if __name__ == "__main__":
         directory = HOME
         if "--directory" in sys.argv:
             directory = Path(sys.argv[sys.argv.index("--directory") + 1])
-        log = error.log
+        log = getattr(error, "log", str(error))
         for name in ("credentials.json", "api-key.json"):
             path = directory / name
             if path.exists():

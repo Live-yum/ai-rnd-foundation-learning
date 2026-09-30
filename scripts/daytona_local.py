@@ -14,18 +14,25 @@ import re
 import secrets
 import shutil
 import subprocess
+import time
 from pathlib import Path
 
 import yaml
 
 from scripts.daytona_build import BUILT, build_images, local_tag
+from scripts.daytona_gateway import TARGETS
 from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
 from workbench.settings import ROOT
 from workbench.tools import clean_env
 
 HOME = ROOT / ".data/daytona-local"
 PROJECT = "rnd-daytona-local"
-KEEP = {"api", "proxy", "runner", "db", "redis", "dex", "registry", "minio", "maildev"}
+UPSTREAM_SERVICES = {"api", "proxy", "runner", "db", "redis", "dex", "registry", "minio", "maildev"}
+KEEP = UPSTREAM_SERVICES | {"gateway"}
+NETWORKS = {
+    "daytona-network": {"driver": "bridge", "internal": True},
+    "loopback-entry": {"driver": "bridge", "internal": False},
+}
 IMAGES = {
     **{name: local_tag(name) for name in BUILT},
     "db": "postgres:18",
@@ -33,6 +40,7 @@ IMAGES = {
     "dex": "dexidp/dex:v2.42.0",
     "registry": "registry:2.8.2",
     "maildev": "maildev/maildev:2.2.1",
+    "gateway": "python:3.14.7-slim",
 }
 
 
@@ -70,21 +78,41 @@ def environment(service):
     return dict(original)
 
 
+def gateway_service():
+    """Only this fixed byte-forwarder has a publishing network; backends have none."""
+    return {
+        "image": IMAGES["gateway"],
+        "command": ["python", "-I", "/opt/rnd/gateway.py"],
+        "user": "65534:65534",
+        "read_only": True,
+        "cap_drop": ["ALL"],
+        "security_opt": ["no-new-privileges:true"],
+        "restart": "no",
+        "networks": ["daytona-network", "loopback-entry"],
+        "ports": [f"127.0.0.1:{port}:{port}" for port in TARGETS],
+        "volumes": [str(ROOT / "scripts/daytona_gateway.py") + ":/opt/rnd/gateway.py:ro"],
+        "environment": {"OTEL_ENABLED": "false", "DO_NOT_TRACK": "1", "OTEL_SDK_DISABLED": "true"},
+    }
+
+
 def render_compose(original, credentials, directory):
     """Transform upstream configuration; never execute instructions from its README."""
     config = copy.deepcopy(original)
     config["name"] = PROJECT
-    config["services"] = {name: value for name, value in config["services"].items() if name in KEEP}
-    if set(config["services"]) != KEEP:
+    config["services"] = {
+        name: value for name, value in config["services"].items() if name in UPSTREAM_SERVICES
+    }
+    if set(config["services"]) != UPSTREAM_SERVICES:
         raise ValueError("固定Daytona源码的服务集合不符，拒绝套用不兼容配置")
-    config["networks"] = {"daytona-network": {"driver": "bridge", "internal": True}}
+    config["networks"] = copy.deepcopy(NETWORKS)
     for name, service in config["services"].items():
         service["image"] = IMAGES[name]
         service["restart"] = "no"
         service.pop("build", None)
         if name != "runner":
             service.pop("privileged", None)
-        service["ports"] = ["127.0.0.1:" + str(port) for port in service.get("ports", [])]
+        service.pop("ports", None)
+        service["networks"] = ["daytona-network"]
         service["depends_on"] = [n for n in service.get("depends_on", []) if n in KEEP]
         env = environment(service)
         # Disable both backend and browser telemetry. Empty keys alone are insufficient
@@ -137,6 +165,7 @@ def render_compose(original, credentials, directory):
         str(Path(directory).resolve() / "dex.yaml") + ":/etc/dex/config.yaml:ro",
         "dex_db:/var/dex",
     ]
+    config["services"]["gateway"] = gateway_service()
     # Do not persist unneeded optional SSH/observability services or their test keys.
     assert_local_compose(config)
     return config
@@ -145,9 +174,21 @@ def render_compose(original, credentials, directory):
 def assert_local_compose(config):
     if config.get("networks", {}).get("daytona-network", {}).get("internal") is not True:
         raise ValueError("Daytona运行网络必须禁止外部出口")
+    if config.get("networks") != NETWORKS:
+        raise ValueError("仅允许固定内部网络和本机入口网络")
     if set(config["services"]) != KEEP:
         raise ValueError("存在未登记服务")
+    gateway = dict(config["services"]["gateway"])
+    gateway.pop("image", None)
+    expected_gateway = gateway_service()
+    expected_gateway.pop("image")
+    if gateway != expected_gateway:
+        raise ValueError("本机入口配置不匹配；不能添加代理目标、可写文件或权限")
     for name, service in config["services"].items():
+        if name != "gateway" and (
+            service.get("ports") or service.get("networks") != ["daytona-network"]
+        ):
+            raise ValueError("后端只能连接内部网络，不能直接发布端口")
         image = service["image"]
         pinned = (
             re.fullmatch(r"sha256:[0-9a-f]{64}", image)
@@ -302,6 +343,26 @@ def snapshot_stamp():
     ).hexdigest()[:16]
 
 
+def wait_for_registry():
+    """Check real host-loopback reachability, not merely a running container state."""
+    import httpx
+
+    with httpx.Client(timeout=3, trust_env=False, follow_redirects=False) as client:
+        for attempt in range(30):
+            try:
+                response = client.get("http://127.0.0.1:6000/v2/")
+                response.raise_for_status()
+                if response.json() != {}:
+                    raise ValueError("Unexpected local registry response")
+                return
+            except httpx.HTTPError, ValueError:
+                if attempt == 29:
+                    raise RuntimeError(
+                        "本机Registry不可达；检查gateway与registry日志，不切换云服务"
+                    ) from None
+                time.sleep(1)
+
+
 def snapshot_image(directory=HOME):
     # Use a minimal build context: the platform, .env and user data cannot reach docker build.
     directory = Path(directory)
@@ -319,7 +380,8 @@ def snapshot_image(directory=HOME):
     if stamp != snapshot_stamp():
         raise ValueError("快照构建上下文与固定输入不一致")
     # Start ONLY the private registry. Build and publish before starting the control plane.
-    compose(directory, "up", "-d", "--pull", "never", "registry")
+    compose(directory, "up", "-d", "--pull", "never", "registry", "gateway")
+    wait_for_registry()
     docker("build", "--tag", local_image, str(context), timeout=1800)
     docker("push", local_image)
     # The runner's own Docker daemon resolves `registry` on the local Compose network.
@@ -359,7 +421,9 @@ if __name__ == "__main__":
     try:
         main()
     except ToolFailure as error:
-        print(error.log[-12000:])  # Only public installation inputs; no runtime credentials.
+        print(
+            getattr(error, "log", str(error))[-12000:]
+        )  # Only public installation inputs; no runtime credentials.
         raise
     except subprocess.CalledProcessError as error:
         # Avoid a bare exit status hiding the actual installation failure.

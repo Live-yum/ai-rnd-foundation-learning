@@ -182,7 +182,13 @@ def test_deployment_transformation_has_no_cloud_services(tmp_path):
     assert set(rendered["services"]) == KEEP
     assert "cloud.example" not in json.dumps(rendered)
     assert rendered["services"]["api"]["image"] == IMAGES["api"]
-    assert all(s["ports"][0].startswith("127.0.0.1:") for s in rendered["services"].values())
+    assert all(
+        not service.get("ports")
+        for name, service in rendered["services"].items()
+        if name != "gateway"
+    )
+    assert all(port.startswith("127.0.0.1:") for port in rendered["services"]["gateway"]["ports"])
+    assert rendered["services"]["gateway"]["cap_drop"] == ["ALL"]
     assert len(IMAGES) == len(KEEP)
     rendered["services"]["api"]["ports"] = ["0.0.0.0:3000:3000"]
     with pytest.raises(ValueError):

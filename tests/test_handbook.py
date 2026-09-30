@@ -88,3 +88,11 @@ def test_standalone_bootstrap_in_the_lesson_restores_all_files(tmp_path):
     for _, files in sources():
         for name, content in files:
             assert (destination / name).read_text(encoding="utf-8") == content
+
+
+def test_daytona_recipes_have_distinct_teaching_roles():
+    from scripts.handbook_notes import purpose
+
+    assert "Runner服务" in purpose("tools/daytona/runner.Dockerfile")[0]
+    assert "对象存储" in purpose("tools/daytona/minio.Dockerfile")[0]
+    assert "预热" in purpose("tools/daytona/Dockerfile")[0]
