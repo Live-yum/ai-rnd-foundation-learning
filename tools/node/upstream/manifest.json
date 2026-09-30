@@ -1,0 +1,16 @@
+{
+  "repository": "https://github.com/continuedev/continue",
+  "revision": "5522c6f44ca0ac3528b37244818fbfa39b5af470",
+  "files": {
+    "FullTextSearchCodebaseIndex.ts": {
+      "path": "core/indexing/FullTextSearchCodebaseIndex.ts",
+      "git_blob_sha1": "8016d04d3eddc84ec48ffa517ba96b2caba9b14e",
+      "sha256": "ef2e80c7db63f3148fe8894f2ea4fbd23e57148f2f33b7cec55620c51ec16c60"
+    },
+    "LICENSE": {
+      "path": "LICENSE",
+      "git_blob_sha1": "c25dc1768217ba50d454fcc06290d66886512872",
+      "sha256": "b14a17598cb08c4c7c82c070731126304e0a75d001ed59fb9ea3955a0b561802"
+    }
+  }
+}

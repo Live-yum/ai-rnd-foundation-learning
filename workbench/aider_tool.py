@@ -43,7 +43,10 @@ def executable(settings):
         raise ValueError(
             "Aider 未安装：执行 uv sync --locked --project tools/aider --python 3.12（独立工具环境）"
         )
-    return str(candidate)
+    interpreter = candidate.parent / ("python.exe" if os.name == "nt" else "python")
+    if not interpreter.is_file():
+        raise ValueError("Aider路径旁没有对应Python解释器；请使用tools/aider的独立uv环境")
+    return str(interpreter)
 
 
 def isolated_environment(home):
@@ -85,14 +88,18 @@ def command(settings, work, home, *args):
     # YAML config must be a mapping; Git and dotenv still use a separate empty file.
     atomic_text(home / "aider.yml", "{}\n")
     env = isolated_environment(home)
-    version = run_command([executable(settings), "--version"], work, timeout=30, extra_env=env)[
-        "log"
-    ]
+    version = run_command(
+        [executable(settings), str(ROOT / "tools/aider/offline_runner.py"), "--version"],
+        work,
+        timeout=30,
+        extra_env=env,
+    )["log"]
     if not re.search(r"\b" + re.escape(AIDER_VERSION) + r"\b", version):
         raise ValueError("Aider 版本与受测版本不一致，请使用仓库的 tools/aider/uv.lock")
     return run_command(
         [
             executable(settings),
+            str(ROOT / "tools/aider/offline_runner.py"),
             "--model",
             "gpt-4o-mini",
             "--edit-format",
@@ -190,6 +197,7 @@ def apply_blocks(product, value, settings, attempt=0):
             after_commit=after_commit,
             journal=str(evidence.relative_to(product.parent)),
             model_called_by_aider=False,
+            network="disabled",
             explanation=value.explanation,
         )
         write_json(product.parent / f"coding-{attempt}.json", receipt)
@@ -261,6 +269,7 @@ def repo_map(source, index_dir, settings):
         "text": raw[: settings.repo_map_chars],
         "truncated": len(raw) > settings.repo_map_chars,
         "model_called": False,
+        "network": "disabled",
     }
     write_json(Path(index_dir) / "repo-map.json", report)
     return report

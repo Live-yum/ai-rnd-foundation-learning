@@ -3,6 +3,7 @@
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -57,6 +58,16 @@ def main():
         # The exact original text roundtrip and all upstream source digests above
         # have already been independently checked, not weakened to fit new output.
         run([sys.executable, "-m", "scripts.build_handbook"], destination, env)
+        # Build the optional real Continue component from the textbook's restored files,
+        # not from the original project's generated bundle or installed node_modules.
+        npm = shutil.which("npm")
+        if not npm:
+            raise RuntimeError(
+                "Complete handbook acceptance requires Node 22/npm; see the Node environment step"
+            )
+        run([npm, "ci", "--prefix", "tools/node", "--no-audit", "--no-fund"], destination, env)
+        run([npm, "run", "build", "--prefix", "tools/node"], destination, env)
+        env["RND_REQUIRE_NODE_TESTS"] = "1"
         junit = base / "handbook-tests.xml"
         try:
             run(
@@ -82,6 +93,7 @@ def main():
             "text_files_restored": count,
             "original_project_imported": False,
             "original_archives_copied": False,
+            "continue_component_rebuilt_from_handbook": True,
             "test_selection": "all non-PostgreSQL tests, including smart recommendation and independent delivery",
             "tests_passed": sum(case.find("skipped") is None for case in cases),
             "tests_skipped": sum(case.find("skipped") is not None for case in cases),

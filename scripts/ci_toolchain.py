@@ -7,13 +7,13 @@ import sys
 import tempfile
 from pathlib import Path
 
-from workbench.aider_tool import EditBlocks, apply_blocks, repo_map
+from workbench.aider_tool import EditBlocks, apply_blocks, executable, repo_map
 from workbench.context_mcp import export_continue
 from workbench.filesystem import sha, write_json
 from workbench.knowledge import build_index
 from workbench.retrieval import query
 from workbench.settings import ROOT, Settings
-from workbench.tools import ToolFailure
+from workbench.tools import ToolFailure, run_command
 from workbench.vendor import prepare
 
 
@@ -25,7 +25,7 @@ async def mcp_roundtrip(source, index):
         command=sys.executable,
         args=["-m", "workbench.cli", "tools", "context-server", str(source), str(index)],
         cwd=str(ROOT),
-        env={**os.environ, "PYTHONUTF8": "1"},
+        env={**os.environ, "PYTHONUTF8": "1", "RETRIEVAL_ENGINE": "continue"},
     )
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
@@ -41,11 +41,21 @@ async def mcp_roundtrip(source, index):
 def main():
     from scripts.ci_aider_workflow import verify_workflow
 
+    ready = run_command(
+        [
+            executable(Settings(_env_file=None)),
+            str(ROOT / "tools/aider/offline_runner.py"),
+            "--check-local-deps",
+        ],
+        ROOT,
+        60,
+    )
+    assert json.loads(ready["log"])["packaged_encodings_verified"] is True
     print("Run actual Aider LangGraph delivery", flush=True)
     workflow = verify_workflow()
     with tempfile.TemporaryDirectory(prefix="rnd-tools-ci-") as temporary:
         root = Path(temporary)
-        settings = Settings(data_dir=root / "state", _env_file=None)
+        settings = Settings(data_dir=root / "state", retrieval_engine="continue", _env_file=None)
         print("Index bundled Java/Vue source", flush=True)
         rows = prepare(settings, "yudao-vben")
         backend = Path(next(row["path"] for row in rows if row["slot"] == "backend"))
@@ -53,9 +63,14 @@ def main():
         bindex, findex = root / "backend-index", root / "frontend-index"
         build_index(backend, bindex)
         build_index(frontend, findex)
-        java = query(backend, bindex, "RestController")
+        java = query(backend, bindex, "RestController", settings=settings)
         vue = query(
-            frontend, findex, "useVbenForm", file_suffix=".vue", path_prefix="apps/web-antd/"
+            frontend,
+            findex,
+            "useVbenForm",
+            file_suffix=".vue",
+            path_prefix="apps/web-antd/",
+            settings=settings,
         )
         assert java["matches"] and vue["matches"]
         assert any(hit["path"].endswith(".vue") for hit in vue["matches"]), vue
@@ -94,6 +109,9 @@ def main():
             "native_java_hits": len(java["matches"]),
             "native_vben_hits": len(vue["matches"]),
             "continue_mcp": protocol,
+            "continue_upstream_index": json.loads(
+                (findex / "continue-index.json").read_text(encoding="utf-8")
+            ),
             "aider_cli_map": True,
             "aider_native_java_map": True,
             "aider_cli_edit": True,

@@ -30,6 +30,9 @@ class ApprovedFixture:
                 payload["code_context"]["contexts"][0]["repo_map"]["provider"]
                 == "aider-cli-repo-map"
             )
+            assert payload["code_context"]["contexts"][0]["retrieval"]["mode"].startswith(
+                "ast+continue-fts5"
+            )
             return Plan.model_validate(
                 {
                     "title": "任务",
@@ -74,6 +77,7 @@ def verify_workflow():
             tool_timeout=600,
             coding_engine="aider",
             repo_map_provider="aider",
+            retrieval_engine="continue",
             _env_file=None,
         )
         store = Store(settings)
@@ -120,6 +124,7 @@ def verify_workflow():
                 "cleanroom_passed": True,
                 "restart_passed": True,
                 "actual_aider_edit": True,
+                "actual_continue_index": True,
                 "actual_langgraph": True,
                 "model_transport": "explicit-fixture",
                 "model_api_calls": 0,

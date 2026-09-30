@@ -49,9 +49,24 @@ GROUPS = [
             "scripts",
             ".github/workflows",
             "tools/aider/pyproject.toml",
+            "tools/aider/offline_runner.py",
             "tools/aider/.python-version",
             "tools/aider/uv.lock",
             "tools/daytona",
+        ],
+    ),
+    (
+        "本机Continue组件、适配器及Node依赖锁",
+        [
+            "tools/node/package.json",
+            "tools/node/package-lock.json",
+            "tools/node/build.mjs",
+            "tools/node/continue-host.mjs",
+            "tools/node/continue-runner.mjs",
+            "tools/node/no-network.cjs",
+            "tools/node/upstream/manifest.json",
+            "tools/node/upstream/FullTextSearchCodebaseIndex.ts",
+            "tools/node/upstream/LICENSE",
         ],
     ),
     ("平台依赖锁", ["uv.lock"]),
@@ -76,7 +91,10 @@ def sources():
                 if not item.is_file() or "__pycache__" in item.parts or item.suffix == ".pyc":
                     continue
                 name = item.relative_to(ROOT).as_posix()
-                if name == ".github/workflows/prepare-local-tools.yml":
+                if name in {
+                    ".github/workflows/prepare-local-tools.yml",
+                    ".github/workflows/runtime-contract.yml",
+                }:
                     continue  # Temporary review infrastructure is not part of the product.
                 if name not in seen:
                     rows.append((name, item.read_text(encoding="utf-8")))
@@ -106,6 +124,8 @@ def render():
                 ".yml": "yaml",
                 ".json": "json",
                 ".cjs": "javascript",
+                ".mjs": "javascript",
+                ".ts": "typescript",
                 ".js": "javascript",
                 ".html": "html",
                 ".css": "css",

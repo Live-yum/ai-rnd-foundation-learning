@@ -93,6 +93,7 @@ class Settings(BaseSettings):
     coding_engine: Literal["bounded", "aider"] = "bounded"
     aider_executable: str = ""
     repo_map_provider: Literal["symbols", "aider"] = "symbols"
+    retrieval_engine: Literal["local", "continue"] = "local"
     repo_map_chars: int = Field(default=12000, ge=1000, le=40000)
     embedding_base_url: str = "http://127.0.0.1:11434/v1"
     embedding_api_key: SecretStr = SecretStr("local-no-auth")

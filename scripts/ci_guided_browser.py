@@ -13,58 +13,17 @@ from pathlib import Path
 import httpx
 import uvicorn
 
+from scripts.news_fixture import (
+    ORIGINAL_REQUEST,
+    assert_approved,
+    assert_resolution,
+    news_requirement,
+    news_spec,
+)
 from workbench.api import create_app
 from workbench.filesystem import unpack, write_json
 from workbench.settings import ROOT, Settings
 from workbench.tools import clean_env, process_options, stop_process
-
-
-def news_spec():
-    return {
-        "title": "游戏资讯助手",
-        "data_scope": "per_user",
-        "entities": [
-            {
-                "name": "news",
-                "description": "游戏资讯",
-                "fields": [
-                    {
-                        "name": "title",
-                        "kind": "text",
-                        "required": True,
-                        "min_length": 1,
-                        "max_length": 250,
-                        "searchable": True,
-                    },
-                    {
-                        "name": "body",
-                        "kind": "text",
-                        "required": True,
-                        "min_length": 1,
-                        "max_length": 3000,
-                        "searchable": True,
-                    },
-                    {
-                        "name": "published_on",
-                        "kind": "date",
-                        "required": True,
-                        "filterable": True,
-                        "date_range": True,
-                    },
-                    {
-                        "name": "category",
-                        "kind": "enum",
-                        "required": False,
-                        "choices": ["资讯", "攻略", "大神"],
-                        "filterable": True,
-                    },
-                ],
-            }
-        ],
-        "acceptance": ["标题正文搜索", "分类筛选", "真实日期及含边界日期区间", "逐用户隔离"],
-        "custom_rules": [],
-        "unsupported": [],
-    }
 
 
 def free_port():
@@ -87,18 +46,11 @@ def main():
             payload = json.loads(body["messages"][1]["content"])
             calls.append({"model": model, "path": self.path})
             if model == "requirements-fixture":
-                value = {
-                    "summary": "个人游戏资讯，保留用户的搜索与筛选要求",
-                    "users": ["个人用户"],
-                    "data_scope": "per_user",
-                    "features": ["资讯CRUD", "搜索", "日期和分类筛选"],
-                    "acceptance": news_spec()["acceptance"],
-                    "questions": [] if payload.get("autonomous") else ["是否采用建议默认值？"],
-                    "recommendations": ["标题250字，正文3000字，日期区间含边界"],
-                    "assumptions": [],
-                    "unsupported": [],
-                }
+                if payload.get("autonomous"):
+                    assert_resolution(payload)
+                value = news_requirement(payload.get("autonomous", False))
             elif model == "planning-fixture":
+                assert_approved(payload)
                 value = news_spec()
             elif model == "review-fixture":
                 value = {
@@ -136,6 +88,7 @@ def main():
             PLANNING_MODE="planning-fixture",
             REVIEW_MODE="review-fixture",
             install_products=False,
+            retrieval_engine="continue",
             _env_file=None,
         )
         application = create_app(settings)
@@ -153,6 +106,7 @@ def main():
         browser = ROOT / ".native/browser/node_modules/playwright"
         evidence = directory / "browser-input.json"
         config = {
+            "requirement": ORIGINAL_REQUEST,
             "platform": f"http://127.0.0.1:{port}",
             "token": application.state.token,
             "output": str(directory / "download.zip"),
@@ -260,6 +214,8 @@ def main():
                     "real_browser": True,
                     "smart_without_further_questions": True,
                     "generated_news_search_filter": True,
+                    "reported_boundary_list_regression": True,
+                    "explicit_facts_preserved": True,
                 },
             )
         finally:

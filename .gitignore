@@ -16,3 +16,7 @@ dist/
 deliveries/
 htmlcov/
 *.egg-info/
+
+# Optional local Node tools; never ship installed dependencies or generated bundles.
+node_modules/
+tools/node/.built/

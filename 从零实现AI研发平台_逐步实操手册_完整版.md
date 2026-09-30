@@ -542,7 +542,7 @@ FastAPI的lifespan在服务启动和退出时管理数据库/Worker。LangGraph�
 | 2 数据库 | `store.py`、`alembic.ini`、`migrations/`全部文件；`tests/conftest.py`、`test_contracts.py`、`test_store.py` | 临时数据库能迁移、保存项目和事务回滚；此时完全不需要api.py或runtime.py |
 | 3 需求与模型 | `conversation.py`、`llm.py` | 长期会话保存原事实；模型请求有角色路由、预算、缓存和严格响应格式 |
 | 4 安全与源代码 | `filesystem.py`、`tools.py`、`vendor.py`、`scripts/vendor_templates.py`、`templates/vendor/`文本清单/许可证 | 能从固定第三方源码生成本机ZIP，再安全解压；没有任意命令入口 |
-| 5 上下文 | `symbols.py`、`knowledge.py`、`retrieval.py`、`context_mcp.py`、`toolchain.py` | Java/TS/Vue/Python符号和源码行号可检索；只读MCP共享同一索引 |
+| 5 上下文 | `symbols.py`、`knowledge.py`、`retrieval.py`、`continue_index.py`、`context_mcp.py`、`toolchain.py`、`tools/node/`全部文本文件 | Java/TS/Vue/Python符号和源码行号可检索；只读MCP共享同一索引 |
 | 6 产品 | `templates/product/`全部文件、`templates/frontends/`全部文件、`generator.py`、`product_sql.py`、`rules.py`、`coding.py`、`aider_tool.py` | 已批准Plan可确定性生成独立产品；只有受限规则文件可以由模型参与修改 |
 | 7 验收 | `verification.py`、`postgres_lab.py`、`sandbox.py`、`daytona_worker.py`、本机Daytona脚本和Dockerfile | 本机真实验收、可选隔离复验以及清理失败阻止交付 |
 | 8 原生全栈 | 全部`native*.py`、`portable.py`、`portable_checks.py`、`templates/deployment/`、原生浏览器脚本 | 原框架生成、菜单/权限挂载、前端/浏览器验证及独立新库启动 |
@@ -634,7 +634,7 @@ FTS5在本地SQLite中对分块文本检索。路径/扩展名筛选先应用到
 
 不开启EMBEDDING_ENABLED时AST/FTS5照常工作。开启后，本机embedding模型把文本转换成数字向量，增量缓存按文本与模型身份复用，检索用融合排名结合词法和向量结果。端点只能是本机回环地址，HTTP代理和重定向关闭，响应大小与批次数受限。
 
-这是本机模型推理，不能配置托管向量数据库或云端embedding API，也不继承聊天模型Key。prepare_context把同一检索结果接到规划阶段；CLI和Continue的MCP读取的也是这套索引，而不是另造一个叫Continue的私有索引引擎。
+这是本机模型推理，不能配置托管向量数据库或云端embedding API，也不继承聊天模型Key。prepare_context把同一检索结果接到规划阶段；CLI和Continue的MCP读取的也是这套索引。RETRIEVAL_ENGINE=continue时，continue_index桥接固定的上游FullTextSearchCodebaseIndex组件，seed_cache创建它的本机片段输入，Node适配器实际调用update/retrieve，返回结果交给融合器。未选择时保留无需Node的默认实现；不要把MCP桥接误称为索引算法，也不要把组件测试称为IDE界面测试。
 
 ## F. 第四条数据流：生成代码但不执行任意模型程序
 
@@ -652,7 +652,7 @@ rules不是`import custom_rules`后执行任意Python。它解析有限AST，只
 
 ### F.3 Aider是一台本机编辑工具，不是第二条云端通道
 
-Aider安装在tools/aider独立Python3.12环境，平台保持Python3.14，避免依赖相互覆盖。平台网关取得经过验证的SEARCH/REPLACE块；Aider CLI在临时独立Git目录执行本机应用操作，不接收真实模型Key。
+Aider安装在tools/aider独立Python3.12环境，平台保持Python3.14，避免依赖相互覆盖。平台网关取得经过验证的SEARCH/REPLACE块；Aider CLI在临时独立Git目录执行本机应用操作，不接收真实模型Key。它由tools/aider/offline_runner.py启动，先验证锁定依赖携带的编码和元数据，再禁用联网入口；运行中的版本查询、Repo Map和编辑均不临时下载数据。依赖安装仍是明确单独的uv步骤。
 
 编辑前检查允许路径、文件前像SHA和SEARCH原文唯一匹配。编辑后核对实际内容与平台计算的期望结果，检查没有额外业务文件被改，重新解释规则并验证正反示例，最后保留Git提交与前后指纹。模糊匹配成功、退出码0或Git产生一个commit都不是充分验收条件。
 
@@ -1182,15 +1182,17 @@ uv run rnd tools search workbench .data/platform-index "如何选择每个阶段
 
 ```powershell
 uv sync --locked --project tools/aider --python 3.12
-uv run --locked --project tools/aider --python 3.12 aider --version
+uv run --locked --project tools/aider --python 3.12 python tools/aider/offline_runner.py --check-local-deps
 ```
 
-预期Aider版本为0.86.2。平台依然用Python3.14；不要把Aider的依赖装进平台环境。工具路径可以由程序发现，或在AIDER_EXECUTABLE中明确指定本机安装位置。
+预期JSON中aider为0.86.2，packaged_encodings_verified为true，network为disabled。平台依然用Python3.14；不要把Aider的依赖装进平台环境。工具路径可以由程序发现，或在AIDER_EXECUTABLE中明确指定本机安装位置。
 
 ```dotenv
 REPO_MAP_PROVIDER=aider
 CODING_ENGINE=aider
 ```
+
+先按附录写出tools/aider/offline_runner.py。它由独立3.12解释器运行，验证Aider版本和LiteLLM安装包内的两份Token数据；通过Python审计钩子拒绝DNS、TCP/UDP连接和网络监听，再导入真实Aider。运行时还向Aider提供本地模型元数据文件，避免隐式查询远程价格表。校验失败应按锁文件重新安装，不能删除校验；登记入口不是任意Python的强安全沙箱。
 
 修改配置后重启平台。REPO_MAP_PROVIDER改变结构图的产生方式；CODING_ENGINE只影响Plan里确实存在额外单记录规则时的编辑步骤。普通CRUD不会为了展示工具而重复调用编码模型。
 
@@ -1200,9 +1202,49 @@ Aider在隔离HOME、有效空YAML配置、独立空env文件及临时Git副本�
 uv run python -m scripts.ci_toolchain
 ```
 
-这个脚本真实调用Aider，真实启动MCP并索引固定Java/Vue源码；模型响应是显式本机测试夹具，不消耗付费模型。报告中的SDK契约测试和本机Daytona服务测试分开标记，不能把前者冒充后者。
+运行该脚本前先完成20.5.1的Node准备。它真实调用Aider，真实执行Continue组件与MCP并索引固定Java/Vue源码；模型响应是显式本机测试夹具，不消耗付费模型。报告中的SDK契约测试和本机Daytona服务测试分开标记，不能把前者冒充后者。
 
-### 20.5 Continue通过本机stdio连接
+### 20.5 Continue原生索引与本机stdio连接
+
+#### 20.5.1 先建立能独立运行的真实索引组件
+
+先按附录写出`tools/node/package.json`、`package-lock.json`、`build.mjs`、`continue-host.mjs`、`continue-runner.mjs`、`no-network.cjs`和`upstream/`中的三个文件，再写`workbench/continue_index.py`。全部内容均在书内，不需要先下载本项目骨架。`upstream/FullTextSearchCodebaseIndex.ts`是固定提交`5522c6f44ca0ac3528b37244818fbfa39b5af470`的完整原文件，不能自己删改；LICENSE随它保留，manifest同时记录Git对象指纹及SHA-256。这里使用该公开组件，不声称复制了Continue整个IDE索引生命周期。
+
+本模块需要Node22，至少22.13。没有Node时从Node.js官方历史发布页选择22.x的本机安装包；Windows安装器完成后重新打开终端，WSL使用Linux版本而非Windows可执行文件。先用`node --version`确认版本，再按顺序执行：
+
+```powershell
+node --version
+npm --version
+npm ci --prefix tools/node --no-audit --no-fund
+npm run build --prefix tools/node
+```
+
+npm ci是安装步骤，只安装package-lock中校验过的依赖；不是索引步骤。build.mjs先检查原组件和许可证指纹，再用固定esbuild将原组件与本机适配器编译到`.built/continue.cjs`，最后记录每份输入及输出的SHA。预期出现`Verified Continue source compiled locally`。生成目录和node_modules不入Git；如果原文件被修改，构建失败而不是从网络取另一版。修改自有适配器后需要重新build；对上游组件的变更必须重新审查来源，不能随手改清单绕过校验。
+
+项目.env写入：
+
+```dotenv
+RETRIEVAL_ENGINE=continue
+```
+
+然后重启平台，运行：
+
+```powershell
+uv run rnd index workbench .data/platform-index
+uv run rnd tools search workbench .data/platform-index "model_for"
+uv run pytest tests/test_continue_index.py -q
+```
+
+检索报告的mode应为`ast+continue-fts5+fts5`；启用本机向量则还带`+vector-rrf`。索引目录产生`continue.sqlite3`和`continue-index.json`，后者包含真实组件名称、文件/片段数量、固定revision、源码摘要和禁网标记。测试中Node未安装会明确跳过可选工具测试；正式Actions设置`RND_REQUIRE_NODE_TESTS=1`，缺少工具会失败而非通过。缺少`.built`时应执行上述安装/构建，索引过期则重建源码索引；不能把配置改成远程URL绕过。
+
+接下来理解每个文件如何连接：retrieval.query先完成模板源码和行号校验，continue_index.rank用源指纹加工具指纹判断缓存是否有效。seed_cache将原有AST片段转换成组件所需的chunks/chunk_tags表；只有缓存库涉及此转换，不修改产品数据库。invoke通过固定Node命令传递临时JSON请求，子进程只读这些请求和缓存。continue-runner调用上游update写真实FTS表，随后调用上游retrieve做BM25查询。continue-host只提供SQLite、标签和文件名接口，不重新实现上游索引算法。返回值只有已知片段ID，Python再从已校验的本机片段库取内容。
+
+限定路径时先筛选候选，空路径集不会变成“全仓库”；短于三字符的符号仍可由平台原有FTS/符号检索贡献结果。融合器合并Continue排名、平台词法排名和可选本机向量排名，并再次执行输出预算。源码改变或文件删除后，旧Continue库整体按新片段身份原子重建，不保留失效行号。上游读取结果用IN查询不保证排名顺序，本机适配器恢复它自己的BM25顺序，不用另一个模型重排。
+
+`no-network.cjs`在登记的Node程序载入前禁用DNS、TCP、UDP、HTTP、HTTPS、HTTP2和fetch入口；请求环境不传模型Key、代理或遥测变量。被索引源码只是文本，不执行其import或脚本。此钩子保护已审阅的索引程序，不是对恶意原生程序的操作系统沙箱。无需这些能力时保持`RETRIEVAL_ENGINE=local`，平台仍可用默认AST/FTS完成生成。
+
+#### 20.5.2 再连接可选的本机IDE
+
 
 先在本机安装VS Code，并在项目根目录终端安装固定Continue扩展：
 
@@ -1249,7 +1291,7 @@ uv run rnd tools continue-config . workbench .data/platform-index
 
 保存配置并重新载入Continue，在工具列表中确认出现`search_code`和`repository_map`。先在只读的Plan模式提出：“调用repository_map，再用search_code查找model_for，回答中给出文件和行号。”允许这两个本机MCP调用，不授权无关终端或写文件工具。应该看到源码路径、行号及内容，而不是要求注册远程索引账号。若MCP未连接，检查VS Code终端能否运行`uv --version`、导出配置的绝对目录是否存在；索引过期时先重新执行rnd index。命令行`uv run rnd tools search workbench .data/platform-index model_for`可独立验证检索，不用付费模型。
 
-本平台仅使用Continue的公开MCP接口，不依赖托管Continue服务、不复制其私有索引实现，也不把协议测试称为IDE界面测试。IDE本身的聊天模型配置可按你的大模型服务填写；不要启用额外的云端检索或遥测扩展。
+MCP是IDE接入方式，原生FTS是上一节独立运行的索引组件，两者不是同一个概念。CI既测试真实上游组件，也测试真实stdio初始化/工具查询；这些不是自动操作IDE界面的测试。IDE聊天模型可按你的服务填写；不启用云端检索、远程配置和额外遥测。
 
 ### 20.6 Daytona v0.190.0：必须部署完整本机服务
 
@@ -1342,10 +1384,10 @@ down不带-v，不删除持久卷、用户、Key或快照。已有安装用up继
 | 能力 | 本机实现入口 | 对应证据 |
 |---|---|---|
 | 结构解析 | symbols.parse_file、knowledge.build_index | 固定Java/TS/Vue源码符号与行号；重复索引复用 |
-| 混合检索 | retrieval.query、add_embeddings | FTS5、可选本机向量、预算、过滤、过期拒绝 |
+| 混合检索 | retrieval.query、continue_index.rank、Continue原生update/retrieve、add_embeddings | 实际组件SQLite表与BM25、可选本机向量、预算、过滤、过期拒绝 |
 | 精确编辑 | aider_tool.apply_blocks、code_rules_with_aider | CLI实际执行、唯一前像、文件范围、SHA、规则正反例、Git提交 |
 | IDE桥接 | context_mcp.make_server、export_continue | 真实stdio MCP初始化、工具列表和查询，不是云端服务 |
-| 本机沙箱 | sandbox、daytona_worker、daytona_local、daytona_bootstrap | URL/网络拒绝测试；另加本机完整服务生命周期报告 |
+| 本机沙箱 | sandbox、daytona_worker、daytona_local、daytona_bootstrap、ci_daytona_local | 从一次智能推荐经真实上下文/验收/沙箱/清理/独立解压到READY的同一运行；LLM仅显式测试夹具 |
 | 唯一手册 | build_handbook、rebuild_from_handbook、ci_handbook | 全部文本源码哈希、空目录重建、第三方依赖重建、本地导入来源及完整非PostgreSQL回归 |
 
 ### 固定实现的官方来源
@@ -1387,6 +1429,9 @@ Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01
 固定版本 v0.190.0 的 `apps/api/src/auth/api-key.strategy.ts` 在校验任意 API Key 前，先通过 `getOrThrow('sshGateway.apiKey')` 读取配置。删除可选 SSH 容器仍需给 API 提供该必需值，否则本机登录能够成功，但使用生成的 API Key 注册快照时会报临时鉴权服务错误。
 
 本机配置将 `SSH_GATEWAY_API_KEY` 从本次安装随机生成的管理密钥通过带用途标识的 HMAC-SHA256 派生为独立哨兵值。它不是固定公开密码，也不复用代理或健康检查密钥；没有 SSH 容器、地址或对外 SSH 端口，Runner 的 `SSH_GATEWAY_ENABLE` 仍为 `false`。密钥仅位于受限的本机配置，验收报告不包含环境配置和凭据文件。
+
+Continue固定全文组件：https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/indexing/FullTextSearchCodebaseIndex.ts
+Node本机SQLite接口：https://nodejs.org/download/release/v22.16.0/docs/api/sqlite.html
 
 # 智能推荐的范围判断、自动修正与原运行恢复
 
@@ -1449,6 +1494,15 @@ uv run python -m scripts.build_handbook --check
 
 端到端测试使用明确标注的模型协议夹具，不调用用户付费模型账号；图执行、数据库存储、产品生成、独立产品进程和干净解压复验使用实际实现。这样的测试证明控制流程与交付验证可以走通，不证明任意模型供应商的任意一次回答都能正确收敛；真实模型持续给出错误范围时，系统仍应有限暂停并允许恢复。
 
+
+## 同一资讯任务的跨工具证据
+
+`scripts/news_fixture.py`只是CI注入的模型夹具，不是生产模型失败后的兜底。第一条响应故意把未要求的爬虫和公众网站写进unsupported，模拟报告中的错误。授权一次后，夹具必须收到原始请求、原facts和具体resolution_feedback，第二条响应才把未要求的边界放回limitations。设计响应还核对已批准facts未丢失；真正的生成、数据库、HTTP、浏览器和沙箱程序并不被替换。
+
+浏览器验收从只填写“泰拉瑞瑞亚游戏资讯”开始，真实点击一次智能推荐到下载，再在新产品中验证标题/正文搜索、分类、单日、含两端日期区间以及组合过滤。Daytona验收则在同一真实Runtime中同时启用Aider Repo Map和Continue原生索引，确认本机产品验收、真实Daytona运行及删除、独立ZIP解压复验全部通过后才允许READY。额外业务规则的实际Aider编辑由ci_aider_workflow单独覆盖，普通资讯CRUD不为展示工具而调用编码模型。
+
+以上能证明状态恢复、工具接线与交付验证正常，不能证明所有模型供应商都能理解同一句自然语言。真实供应商的结构化输出、余额和权限仍需用用户自己的配置联调；测试不得偷偷使用用户Key。
+
 # 完整源码附录
 
 ## 项目配置
@@ -1474,7 +1528,7 @@ uv run python -m scripts.build_handbook --check
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .gitignore sha256: 4f57aa9642b7d8685db28539a2715e3e66f59caf9e37737cdf1e74e29535fa40 -->
+<!-- source-file: .gitignore sha256: 40215040282ddb9d064a10efc05b227c4e2baff936a75731ccd9b280c90eccf9 -->
 ````text
 .venv/
 .env
@@ -1494,6 +1548,10 @@ dist/
 deliveries/
 htmlcov/
 *.egg-info/
+
+# Optional local Node tools; never ship installed dependencies or generated bundles.
+node_modules/
+tools/node/.built/
 ````
 
 ### `.gitattributes`
@@ -1518,7 +1576,7 @@ htmlcov/
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .env.example sha256: c903ca76073590f1aa267891c06fe10cd43930ec6d6246868eb382f2445ff5d1 -->
+<!-- source-file: .env.example sha256: 578e94cfeb75391bdb8c5a00c0c3684c4a1ecac0f80c771f2b0be7753c343999 -->
 ````text
 # Default model: MODE is the provider's model ID, not dev/prod or reasoning mode.
 BASE_URL=
@@ -1584,6 +1642,10 @@ DAYTONA_API_KEY=
 DAYTONA_TARGET=local
 DAYTONA_SNAPSHOT=
 DAYTONA_ALLOW_LOCAL_EXECUTION=false
+
+# Optional actual Continue FTS component (local by default: no Node required).
+# Install/build tools/node first, then select continue to combine its FTS with AST/vector retrieval.
+RETRIEVAL_ENGINE=local
 ````
 
 ### `pyproject.toml`
@@ -1594,7 +1656,7 @@ DAYTONA_ALLOW_LOCAL_EXECUTION=false
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: pyproject.toml sha256: 4d1bdbd93469d750912ccf9129d084471f9818e969393b6d742a6eb0764ce1d4 -->
+<!-- source-file: pyproject.toml sha256: abf2977730622231494cc43971dd1b72cd52119b370667be58633471392b5680 -->
 ````toml
 [project]
 name = "ai-rnd-workbench"
@@ -1626,7 +1688,7 @@ packages = ["workbench"]
 testpaths = ["tests"]
 pythonpath = ["."]
 addopts = "-ra --strict-markers"
-markers = ["postgres: PostgreSQL integration requires TEST_DATABASE_URL"]
+markers = ["postgres: PostgreSQL integration requires TEST_DATABASE_URL", "node_tools: real optional local Node tools; required in toolchain CI"]
 [tool.ruff]
 line-length = 100
 [tool.ruff.lint]
@@ -1641,7 +1703,7 @@ select = ["E4", "E7", "E9", "F", "I"]
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: README.md sha256: 0fac0c7f99eec9a2cb4a17e1f5d0fc45d56a5f433bc9fd5e459eafb9d0ca031b -->
+<!-- source-file: README.md sha256: 506e4fdc03cc56655a9e04749f02f21c50a38e89c39b0b22bb8daae85971afd3 -->
 ````markdown
 # AI 研发工作台 · Python 3.14
 
@@ -1828,7 +1890,17 @@ uv run rnd tools search workbench .data/platform-index "model_for"
 uv run rnd tools continue-config . workbench .data/platform-index
 ```
 
-设置`CODING_ENGINE=aider`和`REPO_MAP_PROVIDER=aider`可启用实际本机编辑/Repo Map。真实模型Key只交给平台网关，Aider不取得它。Continue仅通过本机stdio MCP访问只读search_code/repository_map，本平台不依赖其云服务。
+设置`CODING_ENGINE=aider`和`REPO_MAP_PROVIDER=aider`可启用实际本机编辑/Repo Map。真实模型Key只交给平台网关，Aider不取得它；登记的CLI入口禁用网络，Token编码和模型元数据来自经过SHA校验的锁定依赖，不在生成任务中下载。
+
+实际Continue全文索引组件已随仓库包含源码和Apache-2.0许可证，固定提交为`5522c6f44ca0ac3528b37244818fbfa39b5af470`。使用Node22（至少22.13）在本机准备：
+
+```powershell
+node --version
+npm ci --prefix tools/node --no-audit --no-fund
+npm run build --prefix tools/node
+```
+
+在项目`.env`设置`RETRIEVAL_ENGINE=continue`并重启平台。规划、CLI和只读MCP都会实际执行上游`FullTextSearchCodebaseIndex.update/retrieve`，与本机AST、FTS5和可选向量融合；不是把自写索引重命名为Continue。查询进程禁用网络，不读取IDE私有缓存。`RETRIEVAL_ENGINE=local`仍是无需Node的默认基础方案。Continue IDE可以通过本机stdio MCP访问同一套只读search_code/repository_map，不要求云账号。
 
 向量服务仅接受回环地址，使用本机模型并显式`EMBEDDING_ENABLED=true`。工具端点拒绝云端/局域网、代理与重定向，数据库和Docker执行也限定本机；继承的LangSmith/OTEL遥测关闭。公开依赖下载不等于云端执行工具。
 
@@ -1844,6 +1916,8 @@ uv run python -m scripts.daytona_bootstrap auth
 uv run python -m scripts.daytona_bootstrap snapshot
 uv run python -m scripts.ci_daytona_local
 ```
+
+最后一条是完整资讯测试：复现“模板说明被误作需求阻塞”的初始问答，授权一次智能推荐，经真实Continue/Aider上下文、本机HTTP/数据库验收、真实Daytona与删除沙箱、独立ZIP重新解压验收到READY。模型响应是明确测试夹具，不代表实际供应商账号联调已通过。需先按上方准备Node组件与Aider环境。
 
 本机随机凭据及平台配置保存在`.data/daytona-local`，不得提交Git。完整教材第20章解释Dex、API、Runner、镜像摘要、离线快照、每一步预期结果和清理。默认Python/SQLite快照不冒充Java/Vue通用镜像；原生完整验收仍在本机进行。Daytona上游Compose仅供开发，privileged Runner不是生产强隔离保证。
 
@@ -1952,16 +2026,16 @@ disable_telemetry()
 **逐个入口与控制逻辑：**
 
 - `EditBlocks`（L27–L31）：继承`BaseModel`。声明的数据项为`before_sha256`、`blocks`、`explanation`；类型约束/数据库列参数以完整定义为准。
-- `executable`（L34–L46）：接收`settings`。 控制顺序：L42按`not candidate.is_absolute() or not candidate.is_file()`分支；L43抛异常，停止当前正常路径。 调用`Path`、`candidate.is_absolute`、`candidate.is_file`、`ValueError`、`str`。 返回路径：L46的`str(candidate)`。
-- `isolated_environment`（L49–L63）：接收`home`。 调用`str`。 返回路径：L50的`{ "HOME": str(home), "USERPROFILE": str(home), "XDG_CONFIG_HOME": str(home), "XDG_CACHE_HO…`。
-- `git`（L66–L80）：接收`work`、`home`、`*args`。 调用`run_command`、`str`、`isolated_environment`。 返回路径：L67的`run_command( [ "git", "-c", "core.hooksPath=" + str(home / "hooks"), "-c", "user.name=RND …`。
-- `command`（L83–L127）：接收`settings`、`work`、`home`、`*args`。 控制顺序：L91按`not re.search(r"\b" + re.escape(AIDER_VERSION) + r"\b", version)`分支；L92抛异常，停止当前正常路径。 调用`atomic_text`、`isolated_environment`、`run_command`、`executable`、`re.search`、`re.escape`、`ValueError`、`str`。 返回路径：L93的`run_command( [ executable(settings), "--model", "gpt-4o-mini", "--edit-format", "diff", "-…`。
-- `preview_blocks`（L130–L145）：接收`before`、`blocks`。每段SEARCH必须与原文唯一匹配；预先算出的完整新文本是检查Aider实际执行结果的依据。 控制顺序：L136按`not 1 <= len(matches) <= 8 or pattern.sub("", blocks).strip()`分支；L137抛异常，停止当前正常路径；L139遍历`matches`；L141按`not old or current.count(old) != 1`分支；L142抛异常，停止当前正常路径。 调用`re.compile`、`list`、`pattern.finditer`、`len`、`pattern.sub("", blocks).strip`、`pattern.sub`、`ValueError`、`match.groups`、`current.count`等。 返回路径：L145的`current`。
-- `apply_blocks`（L148–L196）：接收`product`、`value`、`settings`、`attempt`。保护对象是原产品目录：先在隔离副本验证全部变更，只把批准且校验通过的结果复制回去。 控制顺序：L152按`sha(path) != value.before_sha256`分支；L153抛异常，停止当前正常路径；L170按`actual != expected`分支；L171抛异常，停止当前正常路径；L176按`manifest(product) != original`分支；L177抛异常，停止当前正常路径；L178按`evidence.exists()`分支。 调用`Path`、`manifest`、`sha`、`ValueError`、`preview_blocks`、`path.read_text`、`digest`、`value.model_dump`、`evidence.parent.mkdir`等。 返回路径：L196的`receipt`。
-- `code_rules_with_aider`（L199–L221）：接收`run_id`、`plan`、`product`、`gateway`、`settings`、`attempt`、`error`。 控制顺序：L219抛异常，停止当前正常路径。 调用`Path`、`build_index`、`context_for`、`INSTRUCTION.replace`、`gateway.complete`、`plan.model_dump`、`apply_blocks`、`ValueError`。 返回路径：L221的`receipt`。
-- `repo_map`（L224–L266）：接收`source`、`index_dir`、`settings`。 控制顺序：L233按`len(selected) > 20000 or sum(p.stat().st_size for _, p in selected) > 80_000_000`分支；L234抛异常，停止当前正常路径；L240遍历`selected`。 调用`current_index`、`files`、`len`、`sum`、`p.stat`、`ValueError`、`tempfile.TemporaryDirectory`、`Path`、`work.mkdir`等。 返回路径：L266的`report`。
+- `executable`（L34–L49）：接收`settings`。 控制顺序：L42按`not candidate.is_absolute() or not candidate.is_file()`分支；L43抛异常，停止当前正常路径；L47按`not interpreter.is_file()`分支；L48抛异常，停止当前正常路径。 调用`Path`、`candidate.is_absolute`、`candidate.is_file`、`ValueError`、`interpreter.is_file`、`str`。 返回路径：L49的`str(interpreter)`。
+- `isolated_environment`（L52–L66）：接收`home`。 调用`str`。 返回路径：L53的`{ "HOME": str(home), "USERPROFILE": str(home), "XDG_CONFIG_HOME": str(home), "XDG_CACHE_HO…`。
+- `git`（L69–L83）：接收`work`、`home`、`*args`。 调用`run_command`、`str`、`isolated_environment`。 返回路径：L70的`run_command( [ "git", "-c", "core.hooksPath=" + str(home / "hooks"), "-c", "user.name=RND …`。
+- `command`（L86–L134）：接收`settings`、`work`、`home`、`*args`。 控制顺序：L97按`not re.search(r"\b" + re.escape(AIDER_VERSION) + r"\b", version)`分支；L98抛异常，停止当前正常路径。 调用`atomic_text`、`isolated_environment`、`run_command`、`executable`、`str`、`re.search`、`re.escape`、`ValueError`。 返回路径：L99的`run_command( [ executable(settings), str(ROOT / "tools/aider/offline_runner.py"), "--model…`。
+- `preview_blocks`（L137–L152）：接收`before`、`blocks`。每段SEARCH必须与原文唯一匹配；预先算出的完整新文本是检查Aider实际执行结果的依据。 控制顺序：L143按`not 1 <= len(matches) <= 8 or pattern.sub("", blocks).strip()`分支；L144抛异常，停止当前正常路径；L146遍历`matches`；L148按`not old or current.count(old) != 1`分支；L149抛异常，停止当前正常路径。 调用`re.compile`、`list`、`pattern.finditer`、`len`、`pattern.sub("", blocks).strip`、`pattern.sub`、`ValueError`、`match.groups`、`current.count`等。 返回路径：L152的`current`。
+- `apply_blocks`（L155–L204）：接收`product`、`value`、`settings`、`attempt`。保护对象是原产品目录：先在隔离副本验证全部变更，只把批准且校验通过的结果复制回去。 控制顺序：L159按`sha(path) != value.before_sha256`分支；L160抛异常，停止当前正常路径；L177按`actual != expected`分支；L178抛异常，停止当前正常路径；L183按`manifest(product) != original`分支；L184抛异常，停止当前正常路径；L185按`evidence.exists()`分支。 调用`Path`、`manifest`、`sha`、`ValueError`、`preview_blocks`、`path.read_text`、`digest`、`value.model_dump`、`evidence.parent.mkdir`等。 返回路径：L204的`receipt`。
+- `code_rules_with_aider`（L207–L229）：接收`run_id`、`plan`、`product`、`gateway`、`settings`、`attempt`、`error`。 控制顺序：L227抛异常，停止当前正常路径。 调用`Path`、`build_index`、`context_for`、`INSTRUCTION.replace`、`gateway.complete`、`plan.model_dump`、`apply_blocks`、`ValueError`。 返回路径：L229的`receipt`。
+- `repo_map`（L232–L275）：接收`source`、`index_dir`、`settings`。 控制顺序：L241按`len(selected) > 20000 or sum(p.stat().st_size for _, p in selected) > 80_000_000`分支；L242抛异常，停止当前正常路径；L248遍历`selected`。 调用`current_index`、`files`、`len`、`sum`、`p.stat`、`ValueError`、`tempfile.TemporaryDirectory`、`Path`、`work.mkdir`等。 返回路径：L275的`report`。
 
-<!-- source-file: workbench/aider_tool.py sha256: 7d06dcc750ba96cb438c162b5394269b7a59cacad43d36363d297c43a5b22192 -->
+<!-- source-file: workbench/aider_tool.py sha256: 50110f44951f1c598eeac6b5b7ba94918842e1154ab276661a9e10fcffd44022 -->
 ````python
 """Pinned Aider CLI, used only in a disposable local Git worktree with no keys.
 
@@ -2008,7 +2082,10 @@ def executable(settings):
         raise ValueError(
             "Aider 未安装：执行 uv sync --locked --project tools/aider --python 3.12（独立工具环境）"
         )
-    return str(candidate)
+    interpreter = candidate.parent / ("python.exe" if os.name == "nt" else "python")
+    if not interpreter.is_file():
+        raise ValueError("Aider路径旁没有对应Python解释器；请使用tools/aider的独立uv环境")
+    return str(interpreter)
 
 
 def isolated_environment(home):
@@ -2050,14 +2127,18 @@ def command(settings, work, home, *args):
     # YAML config must be a mapping; Git and dotenv still use a separate empty file.
     atomic_text(home / "aider.yml", "{}\n")
     env = isolated_environment(home)
-    version = run_command([executable(settings), "--version"], work, timeout=30, extra_env=env)[
-        "log"
-    ]
+    version = run_command(
+        [executable(settings), str(ROOT / "tools/aider/offline_runner.py"), "--version"],
+        work,
+        timeout=30,
+        extra_env=env,
+    )["log"]
     if not re.search(r"\b" + re.escape(AIDER_VERSION) + r"\b", version):
         raise ValueError("Aider 版本与受测版本不一致，请使用仓库的 tools/aider/uv.lock")
     return run_command(
         [
             executable(settings),
+            str(ROOT / "tools/aider/offline_runner.py"),
             "--model",
             "gpt-4o-mini",
             "--edit-format",
@@ -2155,6 +2236,7 @@ def apply_blocks(product, value, settings, attempt=0):
             after_commit=after_commit,
             journal=str(evidence.relative_to(product.parent)),
             model_called_by_aider=False,
+            network="disabled",
             explanation=value.explanation,
         )
         write_json(product.parent / f"coding-{attempt}.json", receipt)
@@ -2226,6 +2308,7 @@ def repo_map(source, index_dir, settings):
         "text": raw[: settings.repo_map_chars],
         "truncated": len(raw) > settings.repo_map_chars,
         "model_called": False,
+        "network": "disabled",
     }
     write_json(Path(index_dir) / "repo-map.json", report)
     return report
@@ -3125,7 +3208,7 @@ def code_rules(run_id, plan, product, gateway, attempt, error=""):
 
 ### `workbench/context_mcp.py`
 
-**作用：只读本机MCP适配器。** make_server将search_code和repository_map包装成MCP工具，结果仍来自本平台索引。export_continue只写明确的stdio启动配置，已有配置拒绝覆盖；服务不开放HTTP云入口，也没有复制Continue私有索引。
+**作用：只读本机MCP适配器。** make_server将search_code和repository_map包装成MCP工具，结果仍来自本平台索引。export_continue只写明确的stdio启动配置，已有配置拒绝覆盖；服务不开放HTTP云入口；启用Continue引擎时，查询会交给固定上游全文组件及本机适配器，而非IDE全局缓存。
 
 **对应关系：** Continue本机Agent → stdio → context_mcp → retrieval。
 
@@ -3221,6 +3304,199 @@ def export_continue(workspace, source, index_dir):
         "secrets_written": False,
         "integration": "Continue public MCP interface, not private index internals",
     }
+````
+
+### `workbench/continue_index.py`
+
+**作用：固定Continue全文索引组件的本机适配器。** bridge_identity校验源码与已编译工具；seed_cache把Tree-sitter分块转换为上游组件需要的表列。rank按索引身份原子重建并运行实际update/retrieve，再把结果限制在平台已验证的分块范围。缺少工具时报出安装命令，绝不连接云端替代。
+
+**对应关系：** retrieval.query → continue_index → 固定Continue组件 → 独立本机SQLite缓存；test_continue_index。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.domain`、`workbench.filesystem`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `bridge_identity`（L31–L47）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Reject missing/stale compiled tools; never download dependencies during a query.。 控制顺序：L36按`receipt["inputs"] != expected or receipt["revision"] != CONTINUE_REVISION or sha(NODE…`分支；L41抛异常，停止当前正常路径；L43抛异常，停止当前正常路径。 调用`json.loads`、`(NODE_ROOT / ".built/manifest.json").read_text`、`sha`、`ValueError`、`ToolFailure`、`digest`。 返回路径：L47的`digest(expected)`。
+- `invoke`（L50–L72）：接收`request`、`folder`、`timeout`。 源码说明：Only the fixed registered executable is run, with no model keys or proxy env.。 控制顺序：L67按`not target.is_file() or target.stat().st_size > 100000`分支；L68抛异常，停止当前正常路径；L70按`result.get("passed") is not True or result.get("identity") != request["identity"]`分支；L71抛异常，停止当前正常路径。 调用`tempfile.TemporaryDirectory`、`Path`、`write_json`、`run_command`、`str`、`target.is_file`、`target.stat`、`ToolFailure`、`json.loads`等。 返回路径：L72的`result`。
+- `seed_cache`（L75–L99）：接收`search`、`target`、`identity`。 源码说明：Translate our AST chunks to the upstream component's documented cache columns.。 调用`closing`、`sqlite3.connect`、`db.execute`、`source.execute`、`db.executemany`、`enumerate`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `rank`（L102–L172）：接收`index_dir`、`index`、`expression`、`filter_paths`、`timeout`。 源码说明：Rebuild atomically on changed chunk identity, then query the real Continue engine.。 控制顺序：L109按`filter_paths is not None and not filter_paths`分支；L111按`filter_paths is not None and len(filter_paths) > 20000`分支；L112抛异常，停止当前正常路径；L115按`target.exists()`分支；L123按`not valid`分支；L166按`not isinstance(keys, list) or len(keys) > 80 or any(not isinstance(key, str) for key …`分支；L171抛异常，停止当前正常路径。 调用`Path`、`digest`、`search_identity`、`bridge_identity`、`len`、`ValueError`、`FileLock`、`str`、`target.exists`等。 返回路径：L110的`[]`；L172的`list(dict.fromkeys(keys))`。
+
+<!-- source-file: workbench/continue_index.py sha256: 42b57094f8a7b30537f26961d140b193d296510a525e0610dee1a5e38d719412 -->
+````python
+"""Actual pinned Continue FTS component with a local SQLite host, not an IDE emulator."""
+
+import json
+import sqlite3
+import tempfile
+from contextlib import closing
+from pathlib import Path
+
+from filelock import FileLock
+
+from workbench.domain import digest
+from workbench.filesystem import sha, write_json
+from workbench.settings import ROOT
+from workbench.tools import ToolFailure, run_command
+
+CONTINUE_REVISION = "5522c6f44ca0ac3528b37244818fbfa39b5af470"
+NODE_ROOT = ROOT / "tools/node"
+INPUTS = (
+    "package.json",
+    "package-lock.json",
+    "build.mjs",
+    "continue-runner.mjs",
+    "continue-host.mjs",
+    "no-network.cjs",
+    "upstream/manifest.json",
+    "upstream/FullTextSearchCodebaseIndex.ts",
+    "upstream/LICENSE",
+)
+
+
+def bridge_identity():
+    """Reject missing/stale compiled tools; never download dependencies during a query."""
+    try:
+        receipt = json.loads((NODE_ROOT / ".built/manifest.json").read_text(encoding="utf-8"))
+        expected = {name: sha(NODE_ROOT / name) for name in INPUTS}
+        if (
+            receipt["inputs"] != expected
+            or receipt["revision"] != CONTINUE_REVISION
+            or sha(NODE_ROOT / ".built/continue.cjs") != receipt["output_sha256"]
+        ):
+            raise ValueError("stale build")
+    except (OSError, KeyError, ValueError) as exc:
+        raise ToolFailure(
+            "Continue本机组件缺失或过期；在仓库根目录执行 npm ci --prefix tools/node --no-audit --no-fund "
+            "与 npm run build --prefix tools/node；需要Node 22.13或更高版本"
+        ) from exc
+    return digest(expected)
+
+
+def invoke(request, folder, timeout):
+    """Only the fixed registered executable is run, with no model keys or proxy env."""
+    with tempfile.TemporaryDirectory(prefix="continue-request-", dir=folder) as temp:
+        source, target = Path(temp) / "request.json", Path(temp) / "result.json"
+        write_json(source, request)
+        run_command(
+            [
+                "node",
+                "--require",
+                str(NODE_ROOT / "no-network.cjs"),
+                str(NODE_ROOT / ".built/continue.cjs"),
+                str(source),
+                str(target),
+            ],
+            NODE_ROOT,
+            timeout,
+        )
+        if not target.is_file() or target.stat().st_size > 100000:
+            raise ToolFailure("Continue本机索引没有返回有界回执")
+        result = json.loads(target.read_text(encoding="utf-8"))
+        if result.get("passed") is not True or result.get("identity") != request["identity"]:
+            raise ToolFailure("Continue回执与当前源码索引不一致")
+        return result
+
+
+def seed_cache(search, target, identity):
+    """Translate our AST chunks to the upstream component's documented cache columns."""
+    with closing(sqlite3.connect(search)) as source, closing(sqlite3.connect(target)) as db, db:
+        db.execute("CREATE TABLE meta(key TEXT PRIMARY KEY,value TEXT NOT NULL)")
+        db.execute("INSERT INTO meta VALUES('identity',?)", (identity,))
+        db.execute(
+            "CREATE TABLE chunks(id INTEGER PRIMARY KEY,source_id TEXT UNIQUE NOT NULL,"
+            "path TEXT NOT NULL,cacheKey TEXT NOT NULL,content TEXT NOT NULL,"
+            '"index" INTEGER NOT NULL,startLine INTEGER NOT NULL,endLine INTEGER NOT NULL)'
+        )
+        db.execute(
+            "CREATE TABLE chunk_tags(chunkId INTEGER NOT NULL,tag TEXT NOT NULL,UNIQUE(chunkId,tag))"
+        )
+        rows = source.execute(
+            "SELECT id,path,sha256,content,start,end FROM chunks ORDER BY path,start"
+        )
+        db.executemany(
+            'INSERT INTO chunks(source_id,path,cacheKey,content,"index",startLine,endLine) VALUES(?,?,?,?,?,?,?)',
+            (
+                (key, path, checksum, content, i, first, last)
+                for i, (key, path, checksum, content, first, last) in enumerate(rows)
+            ),
+        )
+        db.execute("CREATE INDEX chunks_file ON chunks(path,cacheKey)")
+        db.execute("CREATE INDEX chunk_tags_tag ON chunk_tags(tag)")
+
+
+def rank(index_dir, index, expression, filter_paths, timeout=180):
+    """Rebuild atomically on changed chunk identity, then query the real Continue engine."""
+    from workbench.retrieval import search_identity
+
+    folder = Path(index_dir)
+    identity = digest([search_identity(index), bridge_identity(), "continue-host-v1"])
+    target = folder / "continue.sqlite3"
+    if filter_paths is not None and not filter_paths:
+        return []  # Upstream treats an empty filter as no filter; never broaden caller scope.
+    if filter_paths is not None and len(filter_paths) > 20000:
+        raise ValueError("Continue路径筛选超过20000个文件，请缩小索引；没有静默扩大范围")
+    with FileLock(str(folder / "continue.lock"), timeout=60):
+        valid = False
+        if target.exists():
+            with closing(sqlite3.connect(target)) as db:
+                try:
+                    valid = db.execute(
+                        "SELECT value FROM meta WHERE key='identity'"
+                    ).fetchone() == (identity,)
+                except sqlite3.DatabaseError:
+                    valid = False
+        if not valid:
+            with tempfile.NamedTemporaryFile(
+                dir=folder, suffix=".sqlite3", delete=False
+            ) as temporary:
+                filename = Path(temporary.name)
+            try:
+                seed_cache(folder / "search.sqlite3", filename, identity)
+                receipt = invoke(
+                    {
+                        "operation": "build",
+                        "database": str(filename.resolve()),
+                        "identity": identity,
+                    },
+                    folder,
+                    timeout,
+                )
+                filename.replace(target)
+                write_json(
+                    folder / "continue-index.json",
+                    {
+                        **receipt,
+                        "revision": CONTINUE_REVISION,
+                        "source_digest": index["source_digest"],
+                        "network": "disabled",
+                        "host": "local-node-sqlite",
+                        "model_calls": 0,
+                    },
+                )
+            finally:
+                filename.unlink(missing_ok=True)
+        result = invoke(
+            {
+                "operation": "query",
+                "database": str(target.resolve()),
+                "identity": identity,
+                "text": expression,
+                "filterPaths": filter_paths,
+                "limit": 80,
+            },
+            folder,
+            timeout,
+        )
+    keys = result.get("ids")
+    if (
+        not isinstance(keys, list)
+        or len(keys) > 80
+        or any(not isinstance(key, str) for key in keys)
+    ):
+        raise ToolFailure("Continue返回了无效检索结果")
+    return list(dict.fromkeys(keys))
 ````
 
 ### `workbench/conversation.py`
@@ -8657,24 +8933,25 @@ def blocked_report(gate, attempts):
 
 **逐个入口与控制逻辑：**
 
-- `terms`（L28–L30）：接收`value`。 调用`re.sub`、`list`、`dict.fromkeys`、`re.findall`。 返回路径：L30的`list(dict.fromkeys(re.findall(r"[\w]+", value + " " + expanded, re.UNICODE)))[:40]`。
-- `chunks`（L33–L71）：接收`source`、`index`。 控制顺序：L35遍历`sorted(index["files"].items())`；L36按`Path(name).suffix not in CODE_SUFFIXES or entry["bytes"] > 2_000_000`分支；L48在`first <= len(lines)`成立时循环；L50按`last < len(lines)`分支；L52按`boundary >= first + 39`分支；L56遍历`spans`；L60按`count > MAX_CHUNKS`分支；L61抛异常，停止当前正常路径。 调用`sorted`、`index["files"].items`、`Path`、`inside`、`path.read_text(encoding="utf-8").splitlines`、`path.read_text`、`len`、`min`、`bisect_right`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `search_identity`（L74–L82）：接收`index`。 调用`digest`。 返回路径：L75的`digest( { "source": index["source_digest"], "schema": index["schema"], "parsers": index["p…`。
-- `write_search_index`（L85–L131）：接收`source`、`output`、`index`。 控制顺序：L89按`target.exists()`分支；L93按`old and old[0] == search_identity(index)`分支；L116按`target.exists()`分支。 调用`Path`、`FileLock`、`str`、`target.exists`、`closing`、`sqlite3.connect`、`db.execute("SELECT value FROM meta WHERE key='identity'").fetchon…`、`db.execute`、`search_identity`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `current_index`（L134–L138）：接收`source`、`index_dir`。 控制顺序：L136按`digest(manifest(source)) != index["source_digest"]`分支；L137抛异常，停止当前正常路径。 调用`json.loads`、`(Path(index_dir) / "index.json").read_text`、`Path`、`digest`、`manifest`、`ValueError`。 返回路径：L138的`index`。
-- `embedding_profile`（L141–L149）：接收`settings`。 控制顺序：L142按`not settings.embedding_model`分支。 调用`ModelProfile( stage="embedding", base_url=local_http_url(settings…`、`ModelProfile`、`local_http_url`。 返回路径：L143的`None`；L144的`ModelProfile( stage="embedding", base_url=local_http_url(settings.embedding_base_url, "向量服…`。
-- `embed`（L152–L185）：接收`profile`、`texts`、`transport`。 控制顺序：L154按`not texts or len(texts) > 32 or sum(map(len, texts)) > 100000`分支；L155抛异常，停止当前正常路径；L167遍历`response.iter_bytes()`；L169按`len(body) > 4_000_000`分支；L170抛异常，停止当前正常路径；L172按`[r["index"] for r in rows] != list(range(len(texts)))`分支；L173抛异常，停止当前正常路径；L176按`not 1 <= dimension <= 8192`分支。后续分支沿下方源码相同行号继续阅读。 调用`local_http_url`、`len`、`sum`、`map`、`ValueError`、`httpx.Client`、`client.stream`、`endpoint.rstrip`、`profile.api_key.get_secret_value`等。 返回路径：L185的`vectors`。
-- `profile_id`（L188–L189）：接收`profile`。 调用`digest`、`profile.base_url.rstrip`。 返回路径：L189的`digest({"url": profile.base_url.rstrip("/"), "model": profile.model})`。
-- `add_embeddings`（L192–L222）：接收`source`、`index_dir`、`settings`、`transport`。 控制顺序：L195按`profile is None or not settings.embedding_enabled`分支；L196抛异常，停止当前正常路径；L206按`len(rows) > settings.embedding_max_chunks`分支；L207抛异常，停止当前正常路径；L208遍历`range(0, len(rows), 12)`。 调用`current_index`、`embedding_profile`、`ValueError`、`FileLock`、`str`、`Path`、`closing`、`sqlite3.connect`、`db.execute( "SELECT id,content FROM chunks WHERE id NOT IN " "(SE…`等。 返回路径：L218的`{ "embedded": len(rows), "profile": profile_id(profile), "provider": "explicit-embeddings"…`。
-- `query`（L225–L327）：接收`source`、`index_dir`、`question`、`limit`、`max_chars`、`settings`、`transport`、`file_suffix`、`path_prefix`。 控制顺序：L236按`not question.strip() or len(question) > 2000 or not 1 <= limit <= 20 or not 100 <= ma…`分支；L242抛异常，停止当前正常路径；L245按`not words`分支；L246抛异常，停止当前正常路径；L247按`file_suffix and file_suffix not in CODE_SUFFIXES`分支；L248抛异常，停止当前正常路径；L249按`path_prefix`分支；L257按`db.execute("SELECT value FROM meta WHERE key='identity'").fetchone()[ 0 ] != search_i…`分支。后续分支沿下方源码相同行号继续阅读。 调用`question.strip`、`len`、`ValueError`、`current_index`、`terms`、`inside`、`Path(path_prefix).as_posix().rstrip`、`Path(path_prefix).as_posix`、`Path`等。 返回路径：L321的`{ "source_digest": index["source_digest"], "mode": mode, "matches": result, "chars": used,…`。
-- `compact_map`（L330–L348）：接收`index_dir`、`max_chars`。 控制顺序：L333遍历`sorted(index["files"].items())`；L334遍历`entry["symbols"]`；L336按`used + len(line) + 1 > max_chars`分支。 调用`json.loads`、`(Path(index_dir) / "index.json").read_text`、`Path`、`sorted`、`index["files"].items`、`symbol.get`、`len`、`lines.append`、`"\n".join`等。 返回路径：L348的`result`。
+- `terms`（L29–L31）：接收`value`。 调用`re.sub`、`list`、`dict.fromkeys`、`re.findall`。 返回路径：L31的`list(dict.fromkeys(re.findall(r"[\w]+", value + " " + expanded, re.UNICODE)))[:40]`。
+- `chunks`（L34–L72）：接收`source`、`index`。 控制顺序：L36遍历`sorted(index["files"].items())`；L37按`Path(name).suffix not in CODE_SUFFIXES or entry["bytes"] > 2_000_000`分支；L49在`first <= len(lines)`成立时循环；L51按`last < len(lines)`分支；L53按`boundary >= first + 39`分支；L57遍历`spans`；L61按`count > MAX_CHUNKS`分支；L62抛异常，停止当前正常路径。 调用`sorted`、`index["files"].items`、`Path`、`inside`、`path.read_text(encoding="utf-8").splitlines`、`path.read_text`、`len`、`min`、`bisect_right`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `search_identity`（L75–L83）：接收`index`。 调用`digest`。 返回路径：L76的`digest( { "source": index["source_digest"], "schema": index["schema"], "parsers": index["p…`。
+- `write_search_index`（L86–L132）：接收`source`、`output`、`index`。 控制顺序：L90按`target.exists()`分支；L94按`old and old[0] == search_identity(index)`分支；L117按`target.exists()`分支。 调用`Path`、`FileLock`、`str`、`target.exists`、`closing`、`sqlite3.connect`、`db.execute("SELECT value FROM meta WHERE key='identity'").fetchon…`、`db.execute`、`search_identity`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `current_index`（L135–L139）：接收`source`、`index_dir`。 控制顺序：L137按`digest(manifest(source)) != index["source_digest"]`分支；L138抛异常，停止当前正常路径。 调用`json.loads`、`(Path(index_dir) / "index.json").read_text`、`Path`、`digest`、`manifest`、`ValueError`。 返回路径：L139的`index`。
+- `embedding_profile`（L142–L150）：接收`settings`。 控制顺序：L143按`not settings.embedding_model`分支。 调用`ModelProfile( stage="embedding", base_url=local_http_url(settings…`、`ModelProfile`、`local_http_url`。 返回路径：L144的`None`；L145的`ModelProfile( stage="embedding", base_url=local_http_url(settings.embedding_base_url, "向量服…`。
+- `embed`（L153–L186）：接收`profile`、`texts`、`transport`。 控制顺序：L155按`not texts or len(texts) > 32 or sum(map(len, texts)) > 100000`分支；L156抛异常，停止当前正常路径；L168遍历`response.iter_bytes()`；L170按`len(body) > 4_000_000`分支；L171抛异常，停止当前正常路径；L173按`[r["index"] for r in rows] != list(range(len(texts)))`分支；L174抛异常，停止当前正常路径；L177按`not 1 <= dimension <= 8192`分支。后续分支沿下方源码相同行号继续阅读。 调用`local_http_url`、`len`、`sum`、`map`、`ValueError`、`httpx.Client`、`client.stream`、`endpoint.rstrip`、`profile.api_key.get_secret_value`等。 返回路径：L186的`vectors`。
+- `profile_id`（L189–L190）：接收`profile`。 调用`digest`、`profile.base_url.rstrip`。 返回路径：L190的`digest({"url": profile.base_url.rstrip("/"), "model": profile.model})`。
+- `add_embeddings`（L193–L223）：接收`source`、`index_dir`、`settings`、`transport`。 控制顺序：L196按`profile is None or not settings.embedding_enabled`分支；L197抛异常，停止当前正常路径；L207按`len(rows) > settings.embedding_max_chunks`分支；L208抛异常，停止当前正常路径；L209遍历`range(0, len(rows), 12)`。 调用`current_index`、`embedding_profile`、`ValueError`、`FileLock`、`str`、`Path`、`closing`、`sqlite3.connect`、`db.execute( "SELECT id,content FROM chunks WHERE id NOT IN " "(SE…`等。 返回路径：L219的`{ "embedded": len(rows), "profile": profile_id(profile), "provider": "explicit-embeddings"…`。
+- `query`（L226–L348）：接收`source`、`index_dir`、`question`、`limit`、`max_chars`、`settings`、`transport`、`file_suffix`、`path_prefix`。 控制顺序：L237按`not question.strip() or len(question) > 2000 or not 1 <= limit <= 20 or not 100 <= ma…`分支；L243抛异常，停止当前正常路径；L246按`not words`分支；L247抛异常，停止当前正常路径；L248按`file_suffix and file_suffix not in CODE_SUFFIXES`分支；L249抛异常，停止当前正常路径；L250按`path_prefix`分支；L258按`db.execute("SELECT value FROM meta WHERE key='identity'").fetchone()[ 0 ] != search_i…`分支。后续分支沿下方源码相同行号继续阅读。 调用`question.strip`、`len`、`ValueError`、`current_index`、`terms`、`inside`、`Path(path_prefix).as_posix().rstrip`、`Path(path_prefix).as_posix`、`Path`等。 返回路径：L342的`{ "source_digest": index["source_digest"], "mode": mode, "matches": result, "chars": used,…`。
+- `compact_map`（L351–L369）：接收`index_dir`、`max_chars`。 控制顺序：L354遍历`sorted(index["files"].items())`；L355遍历`entry["symbols"]`；L357按`used + len(line) + 1 > max_chars`分支。 调用`json.loads`、`(Path(index_dir) / "index.json").read_text`、`Path`、`sorted`、`index["files"].items`、`symbol.get`、`len`、`lines.append`、`"\n".join`等。 返回路径：L369的`result`。
 
-<!-- source-file: workbench/retrieval.py sha256: 33faa01ae8362be903b8694d4836fb02418fe628a70510dd69dbf14616124deb -->
+<!-- source-file: workbench/retrieval.py sha256: 83da454daf503b6ffe7c2d0be8b570dca955b081d17076aa31f092a25a522103 -->
 ````python
 """AST chunks + SQLite FTS5; optional explicit embeddings and rank fusion.
 
-The local index is shared by LangGraph and Continue via MCP. It is NOT Continue's
-private indexing implementation. No API key is inherited from the coding model.
+The AST/vector index is shared by LangGraph and Continue via MCP. The optional
+Continue engine runs its pinned upstream FTS component, with a separate local
+host cache. No API key is inherited from the coding model.
 """
 
 import json
@@ -8952,6 +9229,26 @@ def query(
         lexical = list(dict.fromkeys(row[0] for row in [*exact, *expanded]))[:80]
         ranks = [lexical]
         mode = "ast+fts5"
+        if settings and settings.retrieval_engine == "continue":
+            from workbench.continue_index import rank
+
+            scoped = None
+            if file_suffix or path_prefix:
+                scoped = [
+                    row[0]
+                    for row in db.execute(
+                        "SELECT DISTINCT path FROM chunks WHERE 1=1" + path_clause, path_params
+                    )
+                ]
+            native = rank(index_dir, index, exact_expression, scoped, settings.tool_timeout)
+            valid_keys = {
+                row[0]
+                for row in db.execute("SELECT id FROM chunks WHERE 1=1" + path_clause, path_params)
+            }
+            if any(key not in valid_keys for key in native):
+                raise ValueError("Continue检索结果超出已验证分块或路径范围")
+            ranks.insert(0, native)
+            mode = "ast+continue-fts5+fts5"
         profile = embedding_profile(settings) if settings else None
         if profile and settings.embedding_enabled:
             vectors = db.execute(
@@ -9838,18 +10135,18 @@ def _verify_in_daytona(product, template, settings, *, client):
 - `ModelProfile`（L17–L48）：继承`BaseModel`。声明的数据项为`stage`、`base_url`、`model`、`api_key`；类型约束/数据库列参数以完整定义为准。
 - `ModelProfile.validate_endpoint`（L23–L40）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L25按`url.scheme not in {"http", "https"} or not url.hostname or url.username or url.passwo…`分支；L33抛异常，停止当前正常路径；L34按`url.scheme == "http" and url.hostname not in {"127.0.0.1", "localhost", "::1"}`分支；L35抛异常，停止当前正常路径；L36按`not self.model or not self.api_key.get_secret_value()`分支；L37抛异常，停止当前正常路径；L38按`self.base_url.rstrip("/").endswith("/chat/completions")`分支；L39抛异常，停止当前正常路径。 调用`urlsplit`、`ValueError`、`self.api_key.get_secret_value`、`self.base_url.rstrip("/").endswith`、`self.base_url.rstrip`。 返回路径：L40的`self`。
 - `ModelProfile.public`（L42–L48）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.api_key.get_secret_value`。 返回路径：L43的`{ "stage": self.stage, "base_url": self.base_url, "model": self.model, "api_key": "configu…`。
-- `Settings`（L51–L185）：继承`BaseSettings`。声明的数据项为`base_url`、`api_key`、`model`、`requirements_base_url`、`requirements_api_key`、`requirements_model`、`planning_base_url`、`planning_api_key`、`planning_model`、`coding_base_url`、`coding_api_key`、`coding_model`、`review_base_url`、`review_api_key`、`review_model`、`model_review`、`data_dir`、`database_url`、`product_postgres_url`、`llm_timeout`、`max_model_calls`、`max_rounds`、`max_context_chars`、`install_products`、`enable_coding`、`max_repair_attempts`、`tool_timeout`、`coding_engine`、`aider_executable`、`repo_map_provider`、`repo_map_chars`、`embedding_base_url`、`embedding_api_key`、`embedding_model`、`embedding_enabled`、`embedding_max_chunks`、`sandbox_provider`、`daytona_api_url`、`daytona_api_key`、`daytona_target`、`daytona_snapshot`、`daytona_allow_local_execution`、`checkpoint_url`、`host`、`port`；类型约束/数据库列参数以完整定义为准。
-- `Settings.only_local_tools`（L116–L117）：接收`value`。 调用`local_http_url`、`field_validator`。 返回路径：L117的`local_http_url(value)`。
-- `Settings.only_local_databases`（L121–L122）：接收`value`。 调用`local_database_url`、`field_validator`。 返回路径：L122的`local_database_url(value)`。
-- `Settings.absolute_data_dir`（L126–L127）：接收`value`。 调用`(value if value.is_absolute() else ROOT / value).resolve`、`value.is_absolute`、`field_validator`。 返回路径：L127的`(value if value.is_absolute() else ROOT / value).resolve()`。
-- `Settings.db_url`（L130–L134）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_database_url`、`(self.data_dir / 'workbench.db').as_posix`。 返回路径：L131的`local_database_url(self.database_url) or f"sqlite:///{(self.data_dir / 'workbench.db').as_…`。
-- `Settings.prepare`（L136–L139）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L138遍历`("runs", "sources", "knowledge", "native")`。 调用`self.data_dir.mkdir`、`(self.data_dir / name).mkdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.model_for`（L141–L157）：接收`stage`。 控制顺序：L142按`stage not in STAGES`分支；L143抛异常，停止当前正常路径；L146按`not key.get_secret_value()`分支；L147按`endpoint.rstrip("/") != self.base_url.rstrip("/")`分支；L148抛异常，停止当前正常路径。 调用`ValueError`、`getattr`、`key.get_secret_value`、`endpoint.rstrip`、`self.base_url.rstrip`、`stage.upper`、`ModelProfile`。 返回路径：L152的`ModelProfile( stage=stage, base_url=endpoint.rstrip("/"), model=getattr(self, stage + "_mo…`。
-- `Settings.require_model`（L159–L163）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L160遍历`STAGES[:3]`；L162按`self.review_enabled`分支。 调用`self.model_for(stage).validate_endpoint`、`self.model_for`、`self.model_for("review").validate_endpoint`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.review_enabled`（L166–L172）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`、`self.review_api_key.get_secret_value`。 返回路径：L167的`bool( self.model_review or self.review_model or self.review_base_url or self.review_api_ke…`。
-- `Settings.redact`（L174–L185）：接收`text`。 控制顺序：L175遍历`( "api_key", "product_postgres_url", "embedding_api_key", "dayton…`；L183按`secret`分支。 调用`getattr(self, field).get_secret_value`、`getattr`、`text.replace`。 返回路径：L185的`text`。
+- `Settings`（L51–L186）：继承`BaseSettings`。声明的数据项为`base_url`、`api_key`、`model`、`requirements_base_url`、`requirements_api_key`、`requirements_model`、`planning_base_url`、`planning_api_key`、`planning_model`、`coding_base_url`、`coding_api_key`、`coding_model`、`review_base_url`、`review_api_key`、`review_model`、`model_review`、`data_dir`、`database_url`、`product_postgres_url`、`llm_timeout`、`max_model_calls`、`max_rounds`、`max_context_chars`、`install_products`、`enable_coding`、`max_repair_attempts`、`tool_timeout`、`coding_engine`、`aider_executable`、`repo_map_provider`、`retrieval_engine`、`repo_map_chars`、`embedding_base_url`、`embedding_api_key`、`embedding_model`、`embedding_enabled`、`embedding_max_chunks`、`sandbox_provider`、`daytona_api_url`、`daytona_api_key`、`daytona_target`、`daytona_snapshot`、`daytona_allow_local_execution`、`checkpoint_url`、`host`、`port`；类型约束/数据库列参数以完整定义为准。
+- `Settings.only_local_tools`（L117–L118）：接收`value`。 调用`local_http_url`、`field_validator`。 返回路径：L118的`local_http_url(value)`。
+- `Settings.only_local_databases`（L122–L123）：接收`value`。 调用`local_database_url`、`field_validator`。 返回路径：L123的`local_database_url(value)`。
+- `Settings.absolute_data_dir`（L127–L128）：接收`value`。 调用`(value if value.is_absolute() else ROOT / value).resolve`、`value.is_absolute`、`field_validator`。 返回路径：L128的`(value if value.is_absolute() else ROOT / value).resolve()`。
+- `Settings.db_url`（L131–L135）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_database_url`、`(self.data_dir / 'workbench.db').as_posix`。 返回路径：L132的`local_database_url(self.database_url) or f"sqlite:///{(self.data_dir / 'workbench.db').as_…`。
+- `Settings.prepare`（L137–L140）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L139遍历`("runs", "sources", "knowledge", "native")`。 调用`self.data_dir.mkdir`、`(self.data_dir / name).mkdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.model_for`（L142–L158）：接收`stage`。 控制顺序：L143按`stage not in STAGES`分支；L144抛异常，停止当前正常路径；L147按`not key.get_secret_value()`分支；L148按`endpoint.rstrip("/") != self.base_url.rstrip("/")`分支；L149抛异常，停止当前正常路径。 调用`ValueError`、`getattr`、`key.get_secret_value`、`endpoint.rstrip`、`self.base_url.rstrip`、`stage.upper`、`ModelProfile`。 返回路径：L153的`ModelProfile( stage=stage, base_url=endpoint.rstrip("/"), model=getattr(self, stage + "_mo…`。
+- `Settings.require_model`（L160–L164）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L161遍历`STAGES[:3]`；L163按`self.review_enabled`分支。 调用`self.model_for(stage).validate_endpoint`、`self.model_for`、`self.model_for("review").validate_endpoint`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.review_enabled`（L167–L173）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`、`self.review_api_key.get_secret_value`。 返回路径：L168的`bool( self.model_review or self.review_model or self.review_base_url or self.review_api_ke…`。
+- `Settings.redact`（L175–L186）：接收`text`。 控制顺序：L176遍历`( "api_key", "product_postgres_url", "embedding_api_key", "dayton…`；L184按`secret`分支。 调用`getattr(self, field).get_secret_value`、`getattr`、`text.replace`。 返回路径：L186的`text`。
 
-<!-- source-file: workbench/settings.py sha256: b31051f5cef3e2ed3d97b1dd0135043b46ecaafdbc66adb1d2f33e19dcbebf2c -->
+<!-- source-file: workbench/settings.py sha256: 67a876f4d6e09e6af77ed46ad6fd3cd1437e0c457f99afe2c0ad461ba1a63ae8 -->
 ````python
 """Local configuration and optional per-stage model profiles; no secrets in run receipts."""
 
@@ -9946,6 +10243,7 @@ class Settings(BaseSettings):
     coding_engine: Literal["bounded", "aider"] = "bounded"
     aider_executable: str = ""
     repo_map_provider: Literal["symbols", "aider"] = "symbols"
+    retrieval_engine: Literal["local", "continue"] = "local"
     repo_map_chars: int = Field(default=12000, ge=1000, le=40000)
     embedding_base_url: str = "http://127.0.0.1:11434/v1"
     embedding_api_key: SecretStr = SecretStr("local-no-auth")
@@ -15305,6 +15603,53 @@ def news_requirement():
     )
 ````
 
+### `tests/test_aider_offline.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_aider_guard_blocks_dns_tcp_udp_and_listening`（L21–L29）：接收`operation`。 控制顺序：L29断言`run_command([sys.executable, "-c", script], ROOT, 20)["returncode"] == 0`。 调用`str`、`run_command`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_aider_offline.py sha256: 9367bda3bdd082920851db152120cad025642cf52f4877cdace677c1aec0441f -->
+````python
+"""The child guard is tested in a fresh interpreter; it never changes pytest's networking."""
+
+import sys
+
+import pytest
+
+from workbench.settings import ROOT
+from workbench.tools import run_command
+
+
+@pytest.mark.parametrize(
+    "operation",
+    [
+        "socket.getaddrinfo('example.com',443)",
+        "socket.gethostbyname('localhost')",
+        "socket.socket().connect(('127.0.0.1',80))",
+        "socket.socket(socket.AF_INET,socket.SOCK_DGRAM).sendto(b'x',('127.0.0.1',9))",
+        "socket.socket().bind(('127.0.0.1',0))",
+    ],
+)
+def test_aider_guard_blocks_dns_tcp_udp_and_listening(operation):
+    runner = ROOT / "tools/aider/offline_runner.py"
+    script = (
+        f"import runpy,socket; ns=runpy.run_path({str(runner)!r},run_name='guard-test'); "
+        "ns['install_offline_guard']()\n"
+        f"try:\n {operation}\nexcept PermissionError as e:\n assert 'network access is disabled' in str(e)\n"
+        "else:\n raise AssertionError('unguarded network operation')\n"
+    )
+    assert run_command([sys.executable, "-c", script], ROOT, 20)["returncode"] == 0
+````
+
 ### `tests/test_api.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -15393,6 +15738,242 @@ def test_report_exposes_bounded_toolchain_receipts_without_arbitrary_files(clien
     assert (
         client.get(f"/runs/{run_id}/report", headers={"Authorization": "Bearer wrong"}).status_code
         == 401
+    )
+````
+
+### `tests/test_continue_index.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench`、`workbench.continue_index`、`workbench.knowledge`、`workbench.retrieval`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `actual_node`（L21–L27）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L22按`not (NODE_ROOT / ".built/manifest.json").is_file() or not shutil.which("node")`分支；L24按`os.environ.get("RND_REQUIRE_NODE_TESTS") == "1"`分支。 调用`(NODE_ROOT / ".built/manifest.json").is_file`、`shutil.which`、`os.environ.get`、`pytest.fail`、`pytest.skip`、`bridge_identity`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `source_index`（L31–L48）：接收`tmp_path`。 控制顺序：L38遍历`["apps/web-antd/Article.vue", "apps/web-ele/Decoy.vue"]`。 调用`source.mkdir`、`(source / "Article.java").write_text`、`path.parent.mkdir`、`path.write_text`、`(source / "short.py").write_text`、`build_index`。 返回路径：L48的`source, index`。
+- `test_vendored_continue_component_and_license_match_pinned_git_blobs`（L51–L61）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L57断言`manifest["revision"] == CONTINUE_REVISION`；L58遍历`expected.items()`；L60断言`hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest() == checksum`；L61断言`hashlib.sha256(data).hexdigest() == manifest["files"][name]["sha256"]`。 调用`json.loads`、`(NODE_ROOT / "upstream/manifest.json").read_text`、`expected.items`、`(NODE_ROOT / "upstream" / name).read_bytes`、`hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest`、`hashlib.sha1`、`f"blob {len(data)}\0".encode`、`len`、`hashlib.sha256(data).hexdigest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_opted_in_engine_is_actionable_not_a_cloud_or_fake_fallback`（L64–L72）：接收`settings`、`source_index`、`tmp_path`、`monkeypatch`。 控制顺序：L67断言`settings.retrieval_engine == "local"`；L68断言`query(*source_index, "RestController", settings=settings)["matches"]`。 调用`query`、`monkeypatch.setattr`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_component_indexes_and_queries_java_vue_without_source_execution`（L76–L113）：接收`actual_node`、`settings`、`source_index`。 控制顺序：L85断言`result["matches"][0]["path"] == "Article.java"`；L86断言`result["matches"][0]["score"] > 1 / 61`；L89断言`result["mode"] == "ast+continue-fts5+fts5"`；L91断言`report["engine"] == "Continue.FullTextSearchCodebaseIndex"`；L92断言`report["revision"] == CONTINUE_REVISION and report["network"] == "disabled"`；L93断言`report["chunks"] == 4 and report["model_calls"] == 0`；L95断言`db.execute("SELECT COUNT(*) FROM fts_metadata").fetchone()[0] == 4`；L96断言`db.execute("SELECT COUNT(*) FROM fts WHERE fts MATCH 'RestController'").fetchone()[0]…`。后续分支沿下方源码相同行号继续阅读。 调用`p.relative_to(source).as_posix`、`p.relative_to`、`p.read_bytes`、`source.rglob`、`p.is_file`、`query`、`json.loads`、`(index / "continue-index.json").read_text`、`closing`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_no_hits_empty_scope_and_short_tokens_do_not_broaden_or_crash`（L117–L128）：接收`actual_node`、`settings`、`source_index`。 控制顺序：L121断言`not query(*source_index, "CompletelyMissingSymbol", settings=settings)["matches"]`；L122断言`not query(*source_index, "useVbenForm", settings=settings, path_prefix="absent")[ "ma…`；L125断言`not query(*source_index, "RestController", settings=settings, file_suffix=".vue")[ "m…`；L128断言`query(*source_index, "go", settings=settings)["matches"][0]["path"] == "short.py"`。 调用`query`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_changed_or_deleted_files_invalidate_actual_continue_cache`（L132–L151）：接收`actual_node`、`settings`、`source_index`。 控制顺序：L145断言`[row["path"] for row in result["matches"]] == ["Added.java"]`；L146断言`json.loads((index / "continue-index.json").read_text())["identity"] != old`；L148断言`db.execute("SELECT COUNT(*) FROM fts_metadata WHERE path='Article.java'").fetchone()[…`。 调用`query`、`json.loads`、`(index / "continue-index.json").read_text`、`(source / "Article.java").unlink`、`(source / "Added.java").write_text`、`pytest.raises`、`build_index`、`closing`、`sqlite3.connect`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_continue_can_fuse_explicit_local_embedding_protocol`（L155–L188）：接收`actual_node`、`settings`、`source_index`。 控制顺序：L186断言`result["mode"].endswith("+vector-rrf")`；L187断言`[row["path"] for row in result["matches"]] == ["apps/web-antd/Article.vue"]`；L188断言`len(seen) == 2`。 调用`httpx.MockTransport`、`add_embeddings`、`query`、`result["mode"].endswith`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_continue_can_fuse_explicit_local_embedding_protocol.peer`（L164–L174）：接收`request`。 控制顺序：L165断言`request.url.host == "127.0.0.1"`；L166断言`request.headers["Authorization"] == "Bearer local-no-auth"`。 调用`json.loads`、`seen.append`、`httpx.Response`、`range`、`len`。 返回路径：L169的`httpx.Response( 200, json={ "data": [{"index": i, "embedding": [1.0, 0.5]} for i in range(…`。
+- `test_registered_node_process_rejects_network_apis_before_connect`（L202–L209）：接收`actual_node`、`statement`。 控制顺序：L204断言`run_command( ["node", "--require", str(NODE_ROOT / "no-network.cjs"), "-e", script], …`。 调用`run_command`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_continue_index.py sha256: 2707d7ed6890ef4229ed0cf672de67e563514f2c8b55823d87cf3ccd53a98d1a -->
+````python
+"""Run the real pinned Continue TypeScript component, with its local SQLite host."""
+
+import hashlib
+import json
+import os
+import shutil
+import sqlite3
+from contextlib import closing
+
+import httpx
+import pytest
+
+from workbench import continue_index
+from workbench.continue_index import CONTINUE_REVISION, NODE_ROOT, bridge_identity
+from workbench.knowledge import build_index
+from workbench.retrieval import add_embeddings, query
+from workbench.tools import ToolFailure, run_command
+
+
+@pytest.fixture
+def actual_node():
+    if not (NODE_ROOT / ".built/manifest.json").is_file() or not shutil.which("node"):
+        message = "Optional Continue engine: install Node 22 and run npm ci/build in tools/node"
+        if os.environ.get("RND_REQUIRE_NODE_TESTS") == "1":
+            pytest.fail(message)
+        pytest.skip(message)
+    bridge_identity()
+
+
+@pytest.fixture
+def source_index(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "Article.java").write_text(
+        '@RestController\npublic class Article { public String title() { return "hello"; } }\n',
+        encoding="utf-8",
+    )
+    for name in ["apps/web-antd/Article.vue", "apps/web-ele/Decoy.vue"]:
+        path = source / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            '<script setup lang="ts">\nconst form = useVbenForm();\n</script>\n<template><Form/></template>\n',
+            encoding="utf-8",
+        )
+    (source / "short.py").write_text("def go():\n    return 0\n", encoding="utf-8")
+    index = tmp_path / "index"
+    build_index(source, index)
+    return source, index
+
+
+def test_vendored_continue_component_and_license_match_pinned_git_blobs():
+    expected = {
+        "FullTextSearchCodebaseIndex.ts": "8016d04d3eddc84ec48ffa517ba96b2caba9b14e",
+        "LICENSE": "c25dc1768217ba50d454fcc06290d66886512872",
+    }
+    manifest = json.loads((NODE_ROOT / "upstream/manifest.json").read_text())
+    assert manifest["revision"] == CONTINUE_REVISION
+    for name, checksum in expected.items():
+        data = (NODE_ROOT / "upstream" / name).read_bytes()
+        assert hashlib.sha1(f"blob {len(data)}\0".encode() + data).hexdigest() == checksum
+        assert hashlib.sha256(data).hexdigest() == manifest["files"][name]["sha256"]
+
+
+def test_missing_opted_in_engine_is_actionable_not_a_cloud_or_fake_fallback(
+    settings, source_index, tmp_path, monkeypatch
+):
+    assert settings.retrieval_engine == "local"
+    assert query(*source_index, "RestController", settings=settings)["matches"]
+    monkeypatch.setattr(continue_index, "NODE_ROOT", tmp_path / "missing-tool")
+    settings.retrieval_engine = "continue"
+    with pytest.raises(ToolFailure, match="npm ci"):
+        query(*source_index, "RestController", settings=settings)
+
+
+@pytest.mark.node_tools
+def test_actual_component_indexes_and_queries_java_vue_without_source_execution(
+    actual_node, settings, source_index
+):
+    settings.retrieval_engine = "continue"
+    source, index = source_index
+    before = {
+        p.relative_to(source).as_posix(): p.read_bytes() for p in source.rglob("*") if p.is_file()
+    }
+    result = query(source, index, "RestController", settings=settings)
+    assert result["matches"][0]["path"] == "Article.java"
+    assert (
+        result["matches"][0]["score"] > 1 / 61
+    )  # Both actual Continue and local symbol/FTS rankings contributed.
+    assert result["mode"] == "ast+continue-fts5+fts5"
+    report = json.loads((index / "continue-index.json").read_text())
+    assert report["engine"] == "Continue.FullTextSearchCodebaseIndex"
+    assert report["revision"] == CONTINUE_REVISION and report["network"] == "disabled"
+    assert report["chunks"] == 4 and report["model_calls"] == 0
+    with closing(sqlite3.connect(index / "continue.sqlite3")) as db:
+        assert db.execute("SELECT COUNT(*) FROM fts_metadata").fetchone()[0] == 4
+        assert (
+            db.execute("SELECT COUNT(*) FROM fts WHERE fts MATCH 'RestController'").fetchone()[0]
+            == 1
+        )
+    cached = (index / "continue.sqlite3").stat().st_mtime_ns
+    result = query(
+        source,
+        index,
+        "useVbenForm",
+        settings=settings,
+        file_suffix=".vue",
+        path_prefix="apps/web-antd",
+    )
+    assert [row["path"] for row in result["matches"]] == ["apps/web-antd/Article.vue"]
+    assert (index / "continue.sqlite3").stat().st_mtime_ns == cached
+    assert before == {
+        p.relative_to(source).as_posix(): p.read_bytes() for p in source.rglob("*") if p.is_file()
+    }
+
+
+@pytest.mark.node_tools
+def test_no_hits_empty_scope_and_short_tokens_do_not_broaden_or_crash(
+    actual_node, settings, source_index
+):
+    settings.retrieval_engine = "continue"
+    assert not query(*source_index, "CompletelyMissingSymbol", settings=settings)["matches"]
+    assert not query(*source_index, "useVbenForm", settings=settings, path_prefix="absent")[
+        "matches"
+    ]
+    assert not query(*source_index, "RestController", settings=settings, file_suffix=".vue")[
+        "matches"
+    ]
+    assert query(*source_index, "go", settings=settings)["matches"][0]["path"] == "short.py"
+
+
+@pytest.mark.node_tools
+def test_changed_or_deleted_files_invalidate_actual_continue_cache(
+    actual_node, settings, source_index
+):
+    settings.retrieval_engine = "continue"
+    source, index = source_index
+    query(source, index, "RestController", settings=settings)
+    old = json.loads((index / "continue-index.json").read_text())["identity"]
+    (source / "Article.java").unlink()
+    (source / "Added.java").write_text("@RestController\nclass Added {}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="源码已改变"):
+        query(source, index, "RestController", settings=settings)
+    build_index(source, index)
+    result = query(source, index, "RestController", settings=settings)
+    assert [row["path"] for row in result["matches"]] == ["Added.java"]
+    assert json.loads((index / "continue-index.json").read_text())["identity"] != old
+    with closing(sqlite3.connect(index / "continue.sqlite3")) as db:
+        assert (
+            db.execute("SELECT COUNT(*) FROM fts_metadata WHERE path='Article.java'").fetchone()[0]
+            == 0
+        )
+
+
+@pytest.mark.node_tools
+def test_actual_continue_can_fuse_explicit_local_embedding_protocol(
+    actual_node, settings, source_index
+):
+    settings.retrieval_engine = "continue"
+    settings.embedding_enabled = True
+    settings.embedding_model = "local-protocol-fixture"
+    settings.embedding_base_url = "http://127.0.0.1:11434/v1"
+    seen = []
+
+    def peer(request):
+        assert request.url.host == "127.0.0.1"
+        assert request.headers["Authorization"] == "Bearer local-no-auth"
+        body = json.loads(request.content)
+        seen.append(body)
+        return httpx.Response(
+            200,
+            json={
+                "data": [{"index": i, "embedding": [1.0, 0.5]} for i in range(len(body["input"]))]
+            },
+        )
+
+    transport = httpx.MockTransport(peer)
+    add_embeddings(*source_index, settings, transport)
+    result = query(
+        *source_index,
+        "useVbenForm",
+        settings=settings,
+        transport=transport,
+        file_suffix=".vue",
+        path_prefix="apps/web-antd",
+    )
+    assert result["mode"].endswith("+vector-rrf")
+    assert [row["path"] for row in result["matches"]] == ["apps/web-antd/Article.vue"]
+    assert len(seen) == 2
+
+
+@pytest.mark.node_tools
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "require('node:net').connect(80,'127.0.0.1')",
+        "require('node:https').get('https://example.com')",
+        "require('node:dns').lookup('example.com',()=>{})",
+        "require('node:dgram').createSocket('udp4')",
+        "require('node:http2').connect('https://example.com')",
+    ],
+)
+def test_registered_node_process_rejects_network_apis_before_connect(actual_node, statement):
+    script = f"try {{ {statement}; process.exitCode=2; }} catch(e) {{ if(!e.message.includes('network access is disabled')) throw e; }}"
+    assert (
+        run_command(
+            ["node", "--require", str(NODE_ROOT / "no-network.cjs"), "-e", script], NODE_ROOT, 20
+        )["returncode"]
+        == 0
     )
 ````
 
@@ -19539,13 +20120,13 @@ def test_model_budget(store):
 - `test_ast_packing_covers_every_line_without_one_chunk_per_variable`（L341–L354）：接收`tmp_path`。 控制顺序：L350断言`len(data["files"]["dense.ts"]["symbols"]) == 180`；L352断言`len(packed) == 3`；L353断言`"\n".join(row[6] for row in packed) == text.rstrip("\n")`；L354断言`[(row[2], row[3]) for row in packed] == [(1, 60), (61, 120), (121, 180)]`。 调用`source.mkdir`、`"\n".join`、`range`、`(source / "dense.ts").write_text`、`build_index`、`json.loads`、`(index / "index.json").read_text`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_exact_hook_usage_is_not_displaced_by_short_camel_case_matches`（L357–L375）：接收`tmp_path`。 控制顺序：L360遍历`range(100)`；L374断言`found["matches"][0]["path"] == "usage.vue"`；L375断言`"useVbenForm" in found["matches"][0]["content"]`。 调用`source.mkdir`、`range`、`(source / f"decoy{number}.ts").write_text`、`(source / "usage.vue").write_text`、`build_index`、`query`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_search_path_filters_apply_before_ranking`（L378–L389）：接收`indexed`。 控制顺序：L380断言`not query(source, index, "useVbenForm", file_suffix=".java")["matches"]`；L381断言`query(source, index, "useVbenForm", file_suffix=".vue")["matches"][0]["path"] == "Art…`；L385断言`not query(source, index, "useVbenForm", path_prefix="other-app/")["matches"]`。 调用`query`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_aider_uses_mapping_config_and_separate_empty_env`（L392–L425）：接收`tmp_path`、`settings`、`monkeypatch`。 控制顺序：L425断言`len(calls) == 2`。 调用`home.mkdir`、`work.mkdir`、`monkeypatch.setenv`、`monkeypatch.setattr`、`aider_tool.command`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_aider_uses_mapping_config_and_separate_empty_env.invoke`（L408–L421）：接收`argv`、`cwd`、`**kwargs`。 控制顺序：L411断言`environment["OPENAI_API_KEY"] == "unused-local-editing-only"`；L412断言`"ANTHROPIC_API_KEY" not in environment`；L413按`"--version" in argv`分支；L417断言`config != env_file`；L418断言`yaml.safe_load(config.read_text(encoding="utf-8")) == {}`；L419断言`env_file.read_text(encoding="utf-8") == ""`；L420断言`Path(environment["GIT_CONFIG_GLOBAL"]).read_text(encoding="utf-8") == ""`。 调用`calls.append`、`clean_env`、`Path`、`argv.index`、`yaml.safe_load`、`config.read_text`、`env_file.read_text`、`Path(environment["GIT_CONFIG_GLOBAL"]).read_text`。 返回路径：L414的`{"log": "aider 0.86.2"}`；L421的`{"log": "actual CLI is exercised by ci_toolchain"}`。
-- `test_runtime_preserves_redacted_wrapped_tool_failure`（L428–L457）：接收`settings`、`store`。 控制顺序：L451断言`run["status"] == "FAILED" and "tool-failure.json" in run["error"]`；L454断言`report["returncode"] == 2 and report["passed"] is False`；L455断言`report["run_id"] == run_id and report["job_id"]`；L456断言`"fixture-secret-token" not in path.read_text(encoding="utf-8")`；L457断言`"[redacted]" in report["log"] and len(report["log"]) <= 65536`。 调用`SecretStr`、`new_run`、`Runtime`、`FailingToolGateway`、`worker.tick`、`store.get_run`、`json.loads`、`path.read_text`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_preserves_redacted_wrapped_tool_failure.FailingToolGateway`（L436–L445）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_runtime_preserves_redacted_wrapped_tool_failure.FailingToolGateway.complete`（L437–L445）：接收`*args`、`**kwargs`。 控制顺序：L443抛异常，停止当前正常路径；L445抛异常，停止当前正常路径。 调用`ToolFailure`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_aider_uses_mapping_config_and_separate_empty_env`（L392–L428）：接收`tmp_path`、`settings`、`monkeypatch`。 控制顺序：L428断言`len(calls) == 2`。 调用`home.mkdir`、`work.mkdir`、`monkeypatch.setenv`、`monkeypatch.setattr`、`aider_tool.command`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_aider_uses_mapping_config_and_separate_empty_env.invoke`（L408–L424）：接收`argv`、`cwd`、`**kwargs`。 控制顺序：L410断言`argv[1].endswith("tools/aider/offline_runner.py") or argv[1].endswith( "tools\\aider\…`；L414断言`environment["OPENAI_API_KEY"] == "unused-local-editing-only"`；L415断言`"ANTHROPIC_API_KEY" not in environment`；L416按`"--version" in argv`分支；L420断言`config != env_file`；L421断言`yaml.safe_load(config.read_text(encoding="utf-8")) == {}`；L422断言`env_file.read_text(encoding="utf-8") == ""`；L423断言`Path(environment["GIT_CONFIG_GLOBAL"]).read_text(encoding="utf-8") == ""`。 调用`calls.append`、`argv[1].endswith`、`clean_env`、`Path`、`argv.index`、`yaml.safe_load`、`config.read_text`、`env_file.read_text`、`Path(environment["GIT_CONFIG_GLOBAL"]).read_text`。 返回路径：L417的`{"log": "aider 0.86.2"}`；L424的`{"log": "actual CLI is exercised by ci_toolchain"}`。
+- `test_runtime_preserves_redacted_wrapped_tool_failure`（L431–L460）：接收`settings`、`store`。 控制顺序：L454断言`run["status"] == "FAILED" and "tool-failure.json" in run["error"]`；L457断言`report["returncode"] == 2 and report["passed"] is False`；L458断言`report["run_id"] == run_id and report["job_id"]`；L459断言`"fixture-secret-token" not in path.read_text(encoding="utf-8")`；L460断言`"[redacted]" in report["log"] and len(report["log"]) <= 65536`。 调用`SecretStr`、`new_run`、`Runtime`、`FailingToolGateway`、`worker.tick`、`store.get_run`、`json.loads`、`path.read_text`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_preserves_redacted_wrapped_tool_failure.FailingToolGateway`（L439–L448）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_runtime_preserves_redacted_wrapped_tool_failure.FailingToolGateway.complete`（L440–L448）：接收`*args`、`**kwargs`。 控制顺序：L446抛异常，停止当前正常路径；L448抛异常，停止当前正常路径。 调用`ToolFailure`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_toolchain.py sha256: f6b5f40b9bef88cfae694d447ddaece68a552443ef12e82bca49216533820796 -->
+<!-- source-file: tests/test_toolchain.py sha256: be2e84e83cef0318692351a69f33cd4a65b394da2c28c57bae28a217a18c85e8 -->
 ````python
 """Real parsers/SQLite/MCP; explicit fixtures only for paid external transports."""
 
@@ -19956,6 +20537,9 @@ def test_aider_uses_mapping_config_and_separate_empty_env(tmp_path, settings, mo
 
     def invoke(argv, cwd, **kwargs):
         calls.append(argv)
+        assert argv[1].endswith("tools/aider/offline_runner.py") or argv[1].endswith(
+            "tools\\aider\\offline_runner.py"
+        )
         environment = clean_env(kwargs["extra_env"])
         assert environment["OPENAI_API_KEY"] == "unused-local-editing-only"
         assert "ANTHROPIC_API_KEY" not in environment
@@ -20268,11 +20852,11 @@ def test_tampered_delivery_not_released(settings, store, plan):
 
 **逐个入口与控制逻辑：**
 
-- `sources`（L62–L84）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L64遍历`GROUPS`；L66遍历`paths`；L68按`not path.exists()`分支；L69抛异常，停止当前正常路径；L75遍历`items`；L76按`not item.is_file() or "__pycache__" in item.parts or item.suffix == ".pyc"`分支；L79按`name == ".github/workflows/prepare-local-tools.yml"`分支；L81按`name not in seen`分支。 调用`set`、`path.exists`、`FileNotFoundError`、`path.is_dir`、`sorted`、`path.rglob`、`item.relative_to(ROOT).as_posix`、`item.relative_to`、`item.is_file`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `render`（L87–L115）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L90遍历`sources()`；L92遍历`rows`。 调用`"\n\n".join`、`(ROOT / name).read_text(encoding="utf-8").rstrip`、`(ROOT / name).read_text`、`sources`、`hashlib.sha256(content.encode()).hexdigest`、`hashlib.sha256`、`content.encode`、`max`、`len`等。 返回路径：L115的`text`。
-- `main`（L118–L131）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L123按`args.check`分支；L124按`not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != expected`分支；L125抛异常，停止当前正常路径；L126按`len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) != 1`分支；L127抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`OUTPUT.read_text`、`SystemExit`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `sources`（L77–L102）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L79遍历`GROUPS`；L81遍历`paths`；L83按`not path.exists()`分支；L84抛异常，停止当前正常路径；L90遍历`items`；L91按`not item.is_file() or "__pycache__" in item.parts or item.suffix == ".pyc"`分支；L94按`name in { ".github/workflows/prepare-local-tools.yml", ".github/workflows/runtime-con…`分支；L99按`name not in seen`分支。 调用`set`、`path.exists`、`FileNotFoundError`、`path.is_dir`、`sorted`、`path.rglob`、`item.relative_to(ROOT).as_posix`、`item.relative_to`、`item.is_file`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `render`（L105–L135）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L108遍历`sources()`；L110遍历`rows`。 调用`"\n\n".join`、`(ROOT / name).read_text(encoding="utf-8").rstrip`、`(ROOT / name).read_text`、`sources`、`hashlib.sha256(content.encode()).hexdigest`、`hashlib.sha256`、`content.encode`、`max`、`len`等。 返回路径：L135的`text`。
+- `main`（L138–L151）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L143按`args.check`分支；L144按`not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != expected`分支；L145抛异常，停止当前正常路径；L146按`len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) != 1`分支；L147抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`OUTPUT.read_text`、`SystemExit`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/build_handbook.py sha256: 2bdc1afec9c93aa13aad144a2a0794e45146ff5866384e6b7a0869bd077178a3 -->
+<!-- source-file: scripts/build_handbook.py sha256: 174a383723640227d6b7a0ce578cc5e3ef4c324bd0b963066741754cd8bf4f6e -->
 ````python
 """Render a complete, reconstructable handbook from tracked source, never from memory."""
 
@@ -20325,9 +20909,24 @@ GROUPS = [
             "scripts",
             ".github/workflows",
             "tools/aider/pyproject.toml",
+            "tools/aider/offline_runner.py",
             "tools/aider/.python-version",
             "tools/aider/uv.lock",
             "tools/daytona",
+        ],
+    ),
+    (
+        "本机Continue组件、适配器及Node依赖锁",
+        [
+            "tools/node/package.json",
+            "tools/node/package-lock.json",
+            "tools/node/build.mjs",
+            "tools/node/continue-host.mjs",
+            "tools/node/continue-runner.mjs",
+            "tools/node/no-network.cjs",
+            "tools/node/upstream/manifest.json",
+            "tools/node/upstream/FullTextSearchCodebaseIndex.ts",
+            "tools/node/upstream/LICENSE",
         ],
     ),
     ("平台依赖锁", ["uv.lock"]),
@@ -20352,7 +20951,10 @@ def sources():
                 if not item.is_file() or "__pycache__" in item.parts or item.suffix == ".pyc":
                     continue
                 name = item.relative_to(ROOT).as_posix()
-                if name == ".github/workflows/prepare-local-tools.yml":
+                if name in {
+                    ".github/workflows/prepare-local-tools.yml",
+                    ".github/workflows/runtime-contract.yml",
+                }:
                     continue  # Temporary review infrastructure is not part of the product.
                 if name not in seen:
                     rows.append((name, item.read_text(encoding="utf-8")))
@@ -20382,6 +20984,8 @@ def render():
                 ".yml": "yaml",
                 ".json": "json",
                 ".cjs": "javascript",
+                ".mjs": "javascript",
+                ".ts": "typescript",
                 ".js": "javascript",
                 ".html": "html",
                 ".css": "css",
@@ -20423,12 +21027,12 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `ApprovedFixture`（L14–L66）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ApprovedFixture`（L14–L69）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `ApprovedFixture.__init__`（L15–L16）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ApprovedFixture.complete`（L18–L66）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L20按`schema is Requirement`分支；L28按`schema is Plan`分支；L29断言`payload["code_context"]["contexts"][0]["repo_map"]["provider"] == "aider-cli-repo-map…`；L58按`schema is EditBlocks`分支；L66抛异常，停止当前正常路径。 调用`self.calls.append`、`Requirement`、`Plan.model_validate`、`EditBlocks`、`AssertionError`。 返回路径：L21的`Requirement( summary="个人任务", users=["个人"], data_scope="per_user", features=["CRUD", "prior…`；L33的`Plan.model_validate( { "title": "任务", "data_scope": "per_user", "acceptance": ["CRUD与非负校验"…`；L59的`EditBlocks( before_sha256=payload["context"]["files"]["custom_rules.py"]["sha256"], explan…`。
-- `verify_workflow`（L69–L137）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L90遍历`("requirements", "design", "delivery")`；L93断言`run["pending"] and run["pending"]["stage"] == stage`；L105断言`result["status"] == "READY"`；L106断言`result["result"]["isolated_dependencies"] is True`；L107断言`result["result"]["cleanroom"]["passed"] is True`；L108断言`result["result"]["cleanroom"]["restart"] is True`；L109断言`fixture.calls == ["requirement:1", "plan:1", "coding:aider:0"]`；L113断言`edit["provider"] == "aider-cli-apply" and edit["before_commit"] != edit["after_commit…`。后续分支沿下方源码相同行号继续阅读。 调用`tempfile.TemporaryDirectory`、`Settings`、`Path`、`Store`、`ApprovedFixture`、`store.migrate`、`store.create_project`、`store.create_run`、`Runtime`等。 返回路径：L117的`{ "ready": True, "isolated_dependencies": True, "cleanroom_passed": True, "restart_passed"…`。
+- `ApprovedFixture.complete`（L18–L69）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L20按`schema is Requirement`分支；L28按`schema is Plan`分支；L29断言`payload["code_context"]["contexts"][0]["repo_map"]["provider"] == "aider-cli-repo-map…`；L33断言`payload["code_context"]["contexts"][0]["retrieval"]["mode"].startswith( "ast+continue…`；L61按`schema is EditBlocks`分支；L69抛异常，停止当前正常路径。 调用`self.calls.append`、`Requirement`、`payload["code_context"]["contexts"][0]["retrieval"]["mode"].start…`、`Plan.model_validate`、`EditBlocks`、`AssertionError`。 返回路径：L21的`Requirement( summary="个人任务", users=["个人"], data_scope="per_user", features=["CRUD", "prior…`；L36的`Plan.model_validate( { "title": "任务", "data_scope": "per_user", "acceptance": ["CRUD与非负校验"…`；L62的`EditBlocks( before_sha256=payload["context"]["files"]["custom_rules.py"]["sha256"], explan…`。
+- `verify_workflow`（L72–L142）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L94遍历`("requirements", "design", "delivery")`；L97断言`run["pending"] and run["pending"]["stage"] == stage`；L109断言`result["status"] == "READY"`；L110断言`result["result"]["isolated_dependencies"] is True`；L111断言`result["result"]["cleanroom"]["passed"] is True`；L112断言`result["result"]["cleanroom"]["restart"] is True`；L113断言`fixture.calls == ["requirement:1", "plan:1", "coding:aider:0"]`；L117断言`edit["provider"] == "aider-cli-apply" and edit["before_commit"] != edit["after_commit…`。后续分支沿下方源码相同行号继续阅读。 调用`tempfile.TemporaryDirectory`、`Settings`、`Path`、`Store`、`ApprovedFixture`、`store.migrate`、`store.create_project`、`store.create_run`、`Runtime`等。 返回路径：L121的`{ "ready": True, "isolated_dependencies": True, "cleanroom_passed": True, "restart_passed"…`。
 
-<!-- source-file: scripts/ci_aider_workflow.py sha256: f29219aee3c7ada297badbad9fb637656a3fa4e042d4871e53cd38791df2adea -->
+<!-- source-file: scripts/ci_aider_workflow.py sha256: da04a678c3b9af9ba6ea62387dd4db5a568f70e2a627d188ecc9271fe1d00c12 -->
 ````python
 """Actual LangGraph -> Aider CLI -> independent product verification, fixture LLM only."""
 
@@ -20461,6 +21065,9 @@ class ApprovedFixture:
             assert (
                 payload["code_context"]["contexts"][0]["repo_map"]["provider"]
                 == "aider-cli-repo-map"
+            )
+            assert payload["code_context"]["contexts"][0]["retrieval"]["mode"].startswith(
+                "ast+continue-fts5"
             )
             return Plan.model_validate(
                 {
@@ -20506,6 +21113,7 @@ def verify_workflow():
             tool_timeout=600,
             coding_engine="aider",
             repo_map_provider="aider",
+            retrieval_engine="continue",
             _env_file=None,
         )
         store = Store(settings)
@@ -20552,6 +21160,7 @@ def verify_workflow():
                 "cleanroom_passed": True,
                 "restart_passed": True,
                 "actual_aider_edit": True,
+                "actual_continue_index": True,
                 "actual_langgraph": True,
                 "model_transport": "explicit-fixture",
                 "model_api_calls": 0,
@@ -20686,62 +21295,107 @@ if __name__ == "__main__":
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `workbench.domain`、`workbench.filesystem`、`workbench.generator`、`workbench.sandbox`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.news_fixture`、`workbench.filesystem`、`workbench.runtime`、`workbench.sandbox`、`workbench.settings`、`workbench.store`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `main`（L14–L48）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L17按`settings.sandbox_provider != "daytona"`分支；L18抛异常，停止当前正常路径；L44按`path.exists()`分支。 调用`Settings`、`validate_configuration`、`ValueError`、`Plan.model_validate`、`tempfile.TemporaryDirectory`、`Path`、`generate_basic`、`verify_in_daytona`、`print`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L15–L93）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L27按`settings.sandbox_provider != "daytona"`分支；L28抛异常，停止当前正常路径；L49断言`worker.tick()`；L51断言`run["status"] == "WAITING_CLARIFICATION"`；L52断言`run["pending"]["data"]["requirement"]["unsupported"] == LIMITATIONS`；L54断言`worker.tick()`；L56断言`run["status"] == "READY"`；L58断言`snapshot.values["sandbox"]["enabled"] is True`。后续分支沿下方源码相同行号继续阅读。 调用`tempfile.TemporaryDirectory`、`Settings`、`Path`、`validate_configuration`、`ValueError`、`Store`、`NewsFixture`、`store.migrate`、`store.create_project`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_daytona_local.py sha256: c667e7ad040568b769ae46d9d9202c4dbc6bf795dbd8af2339b04c75bfa8e3a1 -->
+<!-- source-file: scripts/ci_daytona_local.py sha256: 8607eff3445c34286886e8f09fc47a84a93b3fdefc4db6d194f4be60bb82a696 -->
 ````python
-"""Self-hosted local service smoke: generated SQLite product, no hosted account."""
+"""Real smart-news workflow through all local tools and Daytona, fixture LLM only."""
 
 import json
 import tempfile
 from pathlib import Path
 
-from workbench.domain import Plan
+from scripts.news_fixture import LIMITATIONS, ORIGINAL_REQUEST, NewsFixture
 from workbench.filesystem import write_json
-from workbench.generator import generate_basic
-from workbench.sandbox import validate_configuration, verify_in_daytona
+from workbench.runtime import Runtime
+from workbench.sandbox import validate_configuration
 from workbench.settings import ROOT, Settings
+from workbench.store import Store
 
 
 def main():
-    settings = Settings(_env_file=ROOT / ".data/daytona-local/workbench.env")
-    validate_configuration(settings, "python-basic", {"database": "sqlite"})
-    if settings.sandbox_provider != "daytona":
-        raise ValueError("Self-hosted smoke requires explicit local Daytona configuration")
-    plan = Plan.model_validate(
-        {
-            "title": "Sandbox smoke",
-            "acceptance": ["CRUD and restart succeed"],
-            "data_scope": "per_user",
-            "entities": [
-                {
-                    "name": "note",
-                    "description": "Notes",
-                    "fields": [{"name": "title", "kind": "text", "required": True}],
-                }
-            ],
-            "custom_rules": [],
-            "unsupported": [],
-        }
-    )
-    with tempfile.TemporaryDirectory(prefix="rnd-daytona-local-") as temp:
-        root = Path(temp)
-        product = root / "product"
-        generate_basic(plan, product)
+    report = {"passed": False, "model_transport": "explicit-fixture", "model_api_calls": 0}
+    with tempfile.TemporaryDirectory(prefix="rnd-daytona-workflow-") as temp:
+        settings = Settings(
+            data_dir=Path(temp),
+            install_products=True,
+            tool_timeout=600,
+            repo_map_provider="aider",
+            retrieval_engine="continue",
+            _env_file=ROOT / ".data/daytona-local/workbench.env",
+        )
+        validate_configuration(settings, "python-basic", {"database": "sqlite"})
+        if settings.sandbox_provider != "daytona":
+            raise ValueError("Acceptance requires explicit local Daytona configuration")
+        store = Store(settings)
+        fixture = NewsFixture()
+        run_id = None
         try:
-            receipt = verify_in_daytona(product, "python-basic", settings)
-            print(json.dumps({"passed": receipt["passed"], "cleanup": receipt["cleanup"]}))
+            store.migrate()
+            project = store.create_project("泰拉瑞亚游戏小助手", "project")
+            run_id = store.create_run(
+                project["id"],
+                {
+                    "template": "python-basic",
+                    "selection": {
+                        "template": "python-basic",
+                        "frontend": "simple-admin",
+                        "database": "sqlite",
+                    },
+                    "requirement": ORIGINAL_REQUEST,
+                },
+                "run",
+            )["run_id"]
+            with Runtime(settings, store, fixture) as worker:
+                assert worker.tick()
+                run = store.get_run(run_id)
+                assert run["status"] == "WAITING_CLARIFICATION", run
+                assert run["pending"]["data"]["requirement"]["unsupported"] == LIMITATIONS
+                store.set_automation(run_id, True, "authorize-once")
+                assert worker.tick()
+                run = store.get_run(run_id)
+                assert run["status"] == "READY", run
+                snapshot = worker.graph.get_state({"configurable": {"thread_id": run_id}})
+                assert snapshot.values["sandbox"]["enabled"] is True
+            assert run["auto_mode"] and not run["pending"] and not run["error"]
+            result = run["result"]
+            assert result["isolated_dependencies"] is True
+            assert result["cleanroom"]["passed"] is True and result["cleanroom"]["restart"] is True
+            assert (settings.data_dir / "runs" / run_id / "delivery.zip").is_file()
+            assert fixture.calls == ["requirement:1", "recommend:2", "plan:2"], fixture.calls
+            assert [row["content"] for row in store.messages(run_id)] == [ORIGINAL_REQUEST]
+            report.update(
+                passed=True,
+                status="READY",
+                initial_status="WAITING_CLARIFICATION",
+                smart_authorizations=1,
+                subsequent_manual_actions=0,
+                explicit_facts_preserved=True,
+                reported_boundary_list_regression=True,
+                actual_continue_index=True,
+                actual_aider_repo_map=True,
+                isolated_dependencies=True,
+                independent_zip=True,
+                cleanroom=result["cleanroom"],
+                model_fixture_calls=fixture.calls,
+            )
         finally:
-            path = root / "daytona-verification.json"
-            if path.exists():
-                write_json(
-                    ROOT / "reports/daytona-local.json",
-                    json.loads(path.read_text(encoding="utf-8")),
-                )
+            if run_id:
+                run = store.get_run(run_id)
+                report["last_status"] = run["status"]
+                report["error"] = settings.redact(run["error"] or "")
+                root = settings.data_dir / "runs" / run_id
+                for name in ("daytona-verification.json", "tool-failure.json"):
+                    path = root / name
+                    if path.is_file():
+                        report[name] = json.loads(settings.redact(path.read_text(encoding="utf-8")))
+            write_json(ROOT / "reports/daytona-local.json", report)
+            store.engine.dispose()
+    print(json.dumps({"passed": report["passed"], "status": report["last_status"]}))
 
 
 if __name__ == "__main__":
@@ -20756,18 +21410,17 @@ if __name__ == "__main__":
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `workbench.api`、`workbench.filesystem`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.news_fixture`、`workbench.api`、`workbench.filesystem`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `news_spec`（L22–L67）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L23的`{ "title": "游戏资讯助手", "data_scope": "per_user", "entities": [ { "name": "news", "descriptio…`。
-- `free_port`（L70–L73）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`socket.socket`、`sock.bind`、`sock.getsockname`。 返回路径：L73的`sock.getsockname()[1]`。
-- `main`（L76–L269）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L147遍历`range(100)`；L148按`server.started`分支；L152抛异常，停止当前正常路径；L178断言`first.returncode == 0`；L181断言`run["status"] == "READY" and run["auto_mode"]`；L182断言`run["options"]["frontend"] == "simple-admin" and run["options"]["database"] == "sqlit…`；L186断言`{c["model"] for c in calls} == { "requirements-fixture", "planning-fixture", "review-…`；L224遍历`range(100)`。后续分支沿下方源码相同行号继续阅读。 调用`ThreadingHTTPServer`、`threading.Thread(target=provider.serve_forever, daemon=True).star…`、`threading.Thread`、`reports.mkdir`、`tempfile.TemporaryDirectory`、`Path`、`free_port`、`Settings`、`create_app`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.Provider`（L79–L122）：继承`BaseHTTPRequestHandler`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `main.Provider.log_message`（L80–L81）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.Provider.do_POST`（L83–L122）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L85断言`self.headers["Authorization"] == "Bearer explicit-ci-only"`；L89按`model == "requirements-fixture"`分支；L101按`model == "planning-fixture"`分支；L103按`model == "review-fixture"`分支；L110抛异常，停止当前正常路径。 调用`json.loads`、`self.rfile.read`、`int`、`calls.append`、`news_spec`、`payload.get`、`AssertionError`、`json.dumps( { "choices": [{"message": {"content": json.dumps(valu…`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `free_port`（L29–L32）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`socket.socket`、`sock.bind`、`sock.getsockname`。 返回路径：L32的`sock.getsockname()[1]`。
+- `main`（L35–L225）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L100遍历`range(100)`；L101按`server.started`分支；L105抛异常，停止当前正常路径；L132断言`first.returncode == 0`；L135断言`run["status"] == "READY" and run["auto_mode"]`；L136断言`run["options"]["frontend"] == "simple-admin" and run["options"]["database"] == "sqlit…`；L140断言`{c["model"] for c in calls} == { "requirements-fixture", "planning-fixture", "review-…`；L178遍历`range(100)`。后续分支沿下方源码相同行号继续阅读。 调用`ThreadingHTTPServer`、`threading.Thread(target=provider.serve_forever, daemon=True).star…`、`threading.Thread`、`reports.mkdir`、`tempfile.TemporaryDirectory`、`Path`、`free_port`、`Settings`、`create_app`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.Provider`（L38–L74）：继承`BaseHTTPRequestHandler`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `main.Provider.log_message`（L39–L40）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.Provider.do_POST`（L42–L74）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L44断言`self.headers["Authorization"] == "Bearer explicit-ci-only"`；L48按`model == "requirements-fixture"`分支；L49按`payload.get("autonomous")`分支；L52按`model == "planning-fixture"`分支；L55按`model == "review-fixture"`分支；L62抛异常，停止当前正常路径。 调用`json.loads`、`self.rfile.read`、`int`、`calls.append`、`payload.get`、`assert_resolution`、`news_requirement`、`assert_approved`、`news_spec`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_guided_browser.py sha256: a5d960165496d52cb676907a31d33e9dcdc92bb535d014e13f720facaf9130a3 -->
+<!-- source-file: scripts/ci_guided_browser.py sha256: 32c8788926ca52af4e467fae12d81b9d099f405967c862f31c03c05b2903c6e4 -->
 ````python
 """Real local HTTP and Chromium regression; model servers are explicit test fixtures only."""
 
@@ -20784,58 +21437,17 @@ from pathlib import Path
 import httpx
 import uvicorn
 
+from scripts.news_fixture import (
+    ORIGINAL_REQUEST,
+    assert_approved,
+    assert_resolution,
+    news_requirement,
+    news_spec,
+)
 from workbench.api import create_app
 from workbench.filesystem import unpack, write_json
 from workbench.settings import ROOT, Settings
 from workbench.tools import clean_env, process_options, stop_process
-
-
-def news_spec():
-    return {
-        "title": "游戏资讯助手",
-        "data_scope": "per_user",
-        "entities": [
-            {
-                "name": "news",
-                "description": "游戏资讯",
-                "fields": [
-                    {
-                        "name": "title",
-                        "kind": "text",
-                        "required": True,
-                        "min_length": 1,
-                        "max_length": 250,
-                        "searchable": True,
-                    },
-                    {
-                        "name": "body",
-                        "kind": "text",
-                        "required": True,
-                        "min_length": 1,
-                        "max_length": 3000,
-                        "searchable": True,
-                    },
-                    {
-                        "name": "published_on",
-                        "kind": "date",
-                        "required": True,
-                        "filterable": True,
-                        "date_range": True,
-                    },
-                    {
-                        "name": "category",
-                        "kind": "enum",
-                        "required": False,
-                        "choices": ["资讯", "攻略", "大神"],
-                        "filterable": True,
-                    },
-                ],
-            }
-        ],
-        "acceptance": ["标题正文搜索", "分类筛选", "真实日期及含边界日期区间", "逐用户隔离"],
-        "custom_rules": [],
-        "unsupported": [],
-    }
 
 
 def free_port():
@@ -20858,18 +21470,11 @@ def main():
             payload = json.loads(body["messages"][1]["content"])
             calls.append({"model": model, "path": self.path})
             if model == "requirements-fixture":
-                value = {
-                    "summary": "个人游戏资讯，保留用户的搜索与筛选要求",
-                    "users": ["个人用户"],
-                    "data_scope": "per_user",
-                    "features": ["资讯CRUD", "搜索", "日期和分类筛选"],
-                    "acceptance": news_spec()["acceptance"],
-                    "questions": [] if payload.get("autonomous") else ["是否采用建议默认值？"],
-                    "recommendations": ["标题250字，正文3000字，日期区间含边界"],
-                    "assumptions": [],
-                    "unsupported": [],
-                }
+                if payload.get("autonomous"):
+                    assert_resolution(payload)
+                value = news_requirement(payload.get("autonomous", False))
             elif model == "planning-fixture":
+                assert_approved(payload)
                 value = news_spec()
             elif model == "review-fixture":
                 value = {
@@ -20907,6 +21512,7 @@ def main():
             PLANNING_MODE="planning-fixture",
             REVIEW_MODE="review-fixture",
             install_products=False,
+            retrieval_engine="continue",
             _env_file=None,
         )
         application = create_app(settings)
@@ -20924,6 +21530,7 @@ def main():
         browser = ROOT / ".native/browser/node_modules/playwright"
         evidence = directory / "browser-input.json"
         config = {
+            "requirement": ORIGINAL_REQUEST,
             "platform": f"http://127.0.0.1:{port}",
             "token": application.state.token,
             "output": str(directory / "download.zip"),
@@ -21031,6 +21638,8 @@ def main():
                     "real_browser": True,
                     "smart_without_further_questions": True,
                     "generated_news_search_filter": True,
+                    "reported_boundary_list_regression": True,
+                    "explicit_facts_preserved": True,
                 },
             )
         finally:
@@ -21056,16 +21665,17 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `run`（L16–L18）：接收`argv`、`directory`、`env`、`timeout`。 调用`subprocess.run`。 返回路径：L18的`result.returncode`。
-- `main`（L21–L95）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L30断言`not list((destination / "templates/vendor").glob("*.zip"))`；L46断言`(destination / OUTPUT.name).read_bytes() == text`；L51遍历`zip(expected["sources"], actual["sources"], strict=True)`；L53遍历`("name", "sha", "source_digest", "files")`；L54断言`want[field] == got[field]`；L70按`junit.exists()`分支；L74按`not cases or any( case.find("failure") is not None or case.find("error") is not None …`分支；L77抛异常，停止当前正常路径。 调用`OUTPUT.read_bytes`、`json.loads`、`(ROOT / "templates/vendor/manifest.json").read_text`、`tempfile.TemporaryDirectory`、`Path`、`book.write_bytes`、`restore`、`list`、`(destination / "templates/vendor").glob`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run`（L17–L19）：接收`argv`、`directory`、`env`、`timeout`。 调用`subprocess.run`。 返回路径：L19的`result.returncode`。
+- `main`（L22–L107）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L31断言`not list((destination / "templates/vendor").glob("*.zip"))`；L47断言`(destination / OUTPUT.name).read_bytes() == text`；L52遍历`zip(expected["sources"], actual["sources"], strict=True)`；L54遍历`("name", "sha", "source_digest", "files")`；L55断言`want[field] == got[field]`；L64按`not npm`分支；L65抛异常，停止当前正常路径；L81按`junit.exists()`分支。后续分支沿下方源码相同行号继续阅读。 调用`OUTPUT.read_bytes`、`json.loads`、`(ROOT / "templates/vendor/manifest.json").read_text`、`tempfile.TemporaryDirectory`、`Path`、`book.write_bytes`、`restore`、`list`、`(destination / "templates/vendor").glob`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_handbook.py sha256: 52077c22e364bc782a997d1d435c42065162551b1b5359270bc28a3abf280f59 -->
+<!-- source-file: scripts/ci_handbook.py sha256: c21548e3d7abc4f49933ae1c2c150ce25bfa82e03b93dfc39b2e0d6b08ced67e -->
 ````python
 """Verify construction from the handbook alone, without original source/archive access."""
 
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -21120,6 +21730,16 @@ def main():
         # The exact original text roundtrip and all upstream source digests above
         # have already been independently checked, not weakened to fit new output.
         run([sys.executable, "-m", "scripts.build_handbook"], destination, env)
+        # Build the optional real Continue component from the textbook's restored files,
+        # not from the original project's generated bundle or installed node_modules.
+        npm = shutil.which("npm")
+        if not npm:
+            raise RuntimeError(
+                "Complete handbook acceptance requires Node 22/npm; see the Node environment step"
+            )
+        run([npm, "ci", "--prefix", "tools/node", "--no-audit", "--no-fund"], destination, env)
+        run([npm, "run", "build", "--prefix", "tools/node"], destination, env)
+        env["RND_REQUIRE_NODE_TESTS"] = "1"
         junit = base / "handbook-tests.xml"
         try:
             run(
@@ -21145,6 +21765,7 @@ def main():
             "text_files_restored": count,
             "original_project_imported": False,
             "original_archives_copied": False,
+            "continue_component_rebuilt_from_handbook": True,
             "test_selection": "all non-PostgreSQL tests, including smart recommendation and independent delivery",
             "tests_passed": sum(case.find("skipped") is None for case in cases),
             "tests_skipped": sum(case.find("skipped") is not None for case in cases),
@@ -21470,9 +22091,9 @@ print(
 **逐个入口与控制逻辑：**
 
 - `mcp_roundtrip`（L20–L38）：接收`source`、`index`。 控制顺序：L34断言`names == {"search_code", "repository_map"}`；L36断言`not result.isError`；L37断言`".java" in str(result.content)`。 调用`StdioServerParameters`、`str`、`stdio_client`、`ClientSession`、`session.initialize`、`session.list_tools`、`session.call_tool`、`sorted`。 返回路径：L38的`{"protocol": "real-stdio", "tools": sorted(names), "query_passed": True}`。
-- `main`（L41–L106）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L60断言`java["matches"] and vue["matches"]`；L61断言`any(hit["path"].endswith(".vue") for hit in vue["matches"])`；L67断言`".java" in java_map["text"]`；L76断言`"Article" in mapped["text"]`；L89断言`"nonnegative" in rule.read_text(encoding="utf-8")`；L90断言`edited["before_commit"] != edited["after_commit"]`。 调用`print`、`verify_workflow`、`tempfile.TemporaryDirectory`、`Path`、`Settings`、`prepare`、`next`、`build_index`、`query`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L41–L124）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L53断言`json.loads(ready["log"])["packaged_encodings_verified"] is True`；L75断言`java["matches"] and vue["matches"]`；L76断言`any(hit["path"].endswith(".vue") for hit in vue["matches"])`；L82断言`".java" in java_map["text"]`；L91断言`"Article" in mapped["text"]`；L104断言`"nonnegative" in rule.read_text(encoding="utf-8")`；L105断言`edited["before_commit"] != edited["after_commit"]`。 调用`run_command`、`executable`、`Settings`、`str`、`json.loads`、`print`、`verify_workflow`、`tempfile.TemporaryDirectory`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_toolchain.py sha256: 7f51e0b1ffb02de51d146a19fd018291bf7203daab39c16be3cb84285caf2afe -->
+<!-- source-file: scripts/ci_toolchain.py sha256: e71deb3b0fb07c9666618188725b6a615fe4b3761f62f06073ef0aa601a51c03 -->
 ````python
 """Real Aider CLI + real MCP stdio + real bundled Java/Vue sources, no model key."""
 
@@ -21483,13 +22104,13 @@ import sys
 import tempfile
 from pathlib import Path
 
-from workbench.aider_tool import EditBlocks, apply_blocks, repo_map
+from workbench.aider_tool import EditBlocks, apply_blocks, executable, repo_map
 from workbench.context_mcp import export_continue
 from workbench.filesystem import sha, write_json
 from workbench.knowledge import build_index
 from workbench.retrieval import query
 from workbench.settings import ROOT, Settings
-from workbench.tools import ToolFailure
+from workbench.tools import ToolFailure, run_command
 from workbench.vendor import prepare
 
 
@@ -21501,7 +22122,7 @@ async def mcp_roundtrip(source, index):
         command=sys.executable,
         args=["-m", "workbench.cli", "tools", "context-server", str(source), str(index)],
         cwd=str(ROOT),
-        env={**os.environ, "PYTHONUTF8": "1"},
+        env={**os.environ, "PYTHONUTF8": "1", "RETRIEVAL_ENGINE": "continue"},
     )
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
@@ -21517,11 +22138,21 @@ async def mcp_roundtrip(source, index):
 def main():
     from scripts.ci_aider_workflow import verify_workflow
 
+    ready = run_command(
+        [
+            executable(Settings(_env_file=None)),
+            str(ROOT / "tools/aider/offline_runner.py"),
+            "--check-local-deps",
+        ],
+        ROOT,
+        60,
+    )
+    assert json.loads(ready["log"])["packaged_encodings_verified"] is True
     print("Run actual Aider LangGraph delivery", flush=True)
     workflow = verify_workflow()
     with tempfile.TemporaryDirectory(prefix="rnd-tools-ci-") as temporary:
         root = Path(temporary)
-        settings = Settings(data_dir=root / "state", _env_file=None)
+        settings = Settings(data_dir=root / "state", retrieval_engine="continue", _env_file=None)
         print("Index bundled Java/Vue source", flush=True)
         rows = prepare(settings, "yudao-vben")
         backend = Path(next(row["path"] for row in rows if row["slot"] == "backend"))
@@ -21529,9 +22160,14 @@ def main():
         bindex, findex = root / "backend-index", root / "frontend-index"
         build_index(backend, bindex)
         build_index(frontend, findex)
-        java = query(backend, bindex, "RestController")
+        java = query(backend, bindex, "RestController", settings=settings)
         vue = query(
-            frontend, findex, "useVbenForm", file_suffix=".vue", path_prefix="apps/web-antd/"
+            frontend,
+            findex,
+            "useVbenForm",
+            file_suffix=".vue",
+            path_prefix="apps/web-antd/",
+            settings=settings,
         )
         assert java["matches"] and vue["matches"]
         assert any(hit["path"].endswith(".vue") for hit in vue["matches"]), vue
@@ -21570,6 +22206,9 @@ def main():
             "native_java_hits": len(java["matches"]),
             "native_vben_hits": len(vue["matches"]),
             "continue_mcp": protocol,
+            "continue_upstream_index": json.loads(
+                (findex / "continue-index.json").read_text(encoding="utf-8")
+            ),
             "aider_cli_map": True,
             "aider_native_java_map": True,
             "aider_cli_edit": True,
@@ -22761,7 +23400,7 @@ if __name__ == "__main__":
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/guided_browser.cjs sha256: 10af0fdebec6d356b5aa629d9c1b870f3e024a18306273ac25f79d457d351fb3 -->
+<!-- source-file: scripts/guided_browser.cjs sha256: ef6fba4efcbc3c69be53ddb3b79f218a6bcee17613d24db3cbe4c954f6e584b6 -->
 ````javascript
 // No mocked page routes, injected login tokens, or preapproved workflow gates.
 const fs = require("node:fs");
@@ -22791,11 +23430,7 @@ async function main() {
       assert(await page.locator("#request").isHidden());
       await page.locator("#choose").click();
       await page.locator("#project-title").fill("游戏资讯助手");
-      await page
-        .locator("#requirement")
-        .fill(
-          "仅本人手动录入资讯。标题250字、正文3000字，发布日期YYYY-MM-DD。搜索标题正文，分类资讯/攻略/大神可选，日期支持单日和包含两端的区间筛选。",
-        );
+      await page.locator("#requirement").fill(cfg.requirement);
       await page.locator("#new-run button").click();
       await page.waitForFunction(
         () =>
@@ -22875,7 +23510,9 @@ async function main() {
         );
       }
       await filter({ q: "泰拉瑞亚" }, 2);
+      await filter({ q: "矿石" }, 1);
       await filter({ filter_category: "攻略" }, 1);
+      await filter({ q: "泰拉瑞亚", filter_category: "攻略", from_published_on: "2026-03-09", to_published_on: "2026-03-09" }, 1);
       await filter({ filter_published_on: "2026-03-08" }, 1);
       await filter(
         { from_published_on: "2026-03-08", to_published_on: "2026-03-09" },
@@ -22904,6 +23541,7 @@ async function main() {
             created_records: 3,
             title_and_body_search: true,
             category_filter: true,
+            combined_search_category_date_filter: true,
             exact_date: true,
             inclusive_date_range: true,
             field_lengths: true,
@@ -22941,14 +23579,14 @@ main().catch((e) => {
 
 **逐个入口与控制逻辑：**
 
-- `parse`（L256–L262）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L262的`ast.parse(normalized)`。
-- `segment`（L265–L268）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L268的`value if len(value) <= limit else value[:limit] + "…"`。
-- `definitions`（L271–L278）：接收`node`、`prefix`。 控制顺序：L272遍历`ast.iter_child_nodes(node)`；L273按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `body_nodes`（L281–L286）：接收`node`。 控制顺序：L282遍历`ast.iter_child_nodes(node)`；L283按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `purpose`（L289–L402）：接收`name`。 控制顺序：L291按`name == "workbench/__init__.py"`分支；L297按`name.startswith("workbench/") and path.stem in MODULES`分支；L299按`name.startswith("templates/product/")`分支；L308按`name.startswith("workbench/web/")`分支；L314按`name.startswith("templates/frontends/")`分支；L320按`name.startswith("templates/deployment/")`分支；L326按`name.startswith("migrations/")`分支；L332按`name.startswith("tests/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L292的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L298的`MODULES[path.stem]`；L300的`( "独立基础产品的组成文件", PRODUCT.get( path.name, "这是成品自有的配置、迁移或页面；生成器把它复制到交付目录，由产品启动器和应用读取，不通过工作台动…`。
-- `notes`（L405–L516）：接收`name`、`content`。 控制顺序：L409按`not name.endswith(".py")`分支；L416遍历`tree.body`；L417按`isinstance(node, ast.ImportFrom) and node.module`分支；L419按`isinstance(node, ast.Import)`分支；L422按`own`分支；L429按`not rows`分支；L432遍历`rows`；L434按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L410的`out`；L414的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L430的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
+- `parse`（L261–L267）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L267的`ast.parse(normalized)`。
+- `segment`（L270–L273）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L273的`value if len(value) <= limit else value[:limit] + "…"`。
+- `definitions`（L276–L283）：接收`node`、`prefix`。 控制顺序：L277遍历`ast.iter_child_nodes(node)`；L278按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `body_nodes`（L286–L291）：接收`node`。 控制顺序：L287遍历`ast.iter_child_nodes(node)`；L288按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `purpose`（L294–L425）：接收`name`。 控制顺序：L296按`name == "workbench/__init__.py"`分支；L302按`name.startswith("workbench/") and path.stem in MODULES`分支；L304按`name.startswith("templates/product/")`分支；L313按`name.startswith("workbench/web/")`分支；L319按`name.startswith("templates/frontends/")`分支；L325按`name.startswith("templates/deployment/")`分支；L331按`name.startswith("migrations/")`分支；L337按`name.startswith("tests/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L297的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L303的`MODULES[path.stem]`；L305的`( "独立基础产品的组成文件", PRODUCT.get( path.name, "这是成品自有的配置、迁移或页面；生成器把它复制到交付目录，由产品启动器和应用读取，不通过工作台动…`。
+- `notes`（L428–L539）：接收`name`、`content`。 控制顺序：L432按`not name.endswith(".py")`分支；L439遍历`tree.body`；L440按`isinstance(node, ast.ImportFrom) and node.module`分支；L442按`isinstance(node, ast.Import)`分支；L445按`own`分支；L452按`not rows`分支；L455遍历`rows`；L457按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L433的`out`；L437的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L453的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
 
-<!-- source-file: scripts/handbook_notes.py sha256: e14369b5f99018af33295aad690e6194ca726eb7822984207a887ca57469883f -->
+<!-- source-file: scripts/handbook_notes.py sha256: 0641b66770cec8dcffae622f5c66dbc2e9d0df83df17382f087c3ea05af9e451 -->
 ````python
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
 
@@ -23034,6 +23672,11 @@ MODULES = {
         "build_index对比文件SHA，只重新解析变化的文件，并处理已删除文件；索引与FTS检索库对应同一源码摘要。context_for按路径和字符预算读取源码。design_pack把经批准的Plan转成供人审阅的规格、测试要求与SQL设计。",
         "toolchain → knowledge → symbols/retrieval；flow → design_pack。",
     ),
+    "continue_index": (
+        "固定Continue全文索引组件的本机适配器",
+        "bridge_identity校验源码与已编译工具；seed_cache把Tree-sitter分块转换为上游组件需要的表列。rank按索引身份原子重建并运行实际update/retrieve，再把结果限制在平台已验证的分块范围。缺少工具时报出安装命令，绝不连接云端替代。",
+        "retrieval.query → continue_index → 固定Continue组件 → 独立本机SQLite缓存；test_continue_index。",
+    ),
     "retrieval": (
         "本机代码检索及可选本机向量融合",
         "chunks给片段附上文件和行号，FTS5负责关键词排序。query先核对源码摘要，防止返回过期行号，再应用路径/扩展名与预算限制；启用本机embedding时以独立配置生成和复用向量，采用倒数排名融合而非直接相加不同尺度的分数。",
@@ -23046,7 +23689,7 @@ MODULES = {
     ),
     "context_mcp": (
         "只读本机MCP适配器",
-        "make_server将search_code和repository_map包装成MCP工具，结果仍来自本平台索引。export_continue只写明确的stdio启动配置，已有配置拒绝覆盖；服务不开放HTTP云入口，也没有复制Continue私有索引。",
+        "make_server将search_code和repository_map包装成MCP工具，结果仍来自本平台索引。export_continue只写明确的stdio启动配置，已有配置拒绝覆盖；服务不开放HTTP云入口；启用Continue引擎时，查询会交给固定上游全文组件及本机适配器，而非IDE全局缓存。",
         "Continue本机Agent → stdio → context_mcp → retrieval。",
     ),
     "generator": (
@@ -23328,6 +23971,24 @@ def purpose(name):
             "本机Daytona的预热镜像",
             "Dockerfile逐层准备Python运行时和产品锁定依赖；只在显式构建时下载软件。网络封锁后的沙箱使用已有缓存离线安装，创建的是本机镜像而非云端工作区。",
             "scripts.daytona_local snapshot-image → 本机Registry → scripts.daytona_bootstrap snapshot。",
+        )
+    if name == "tools/aider/offline_runner.py":
+        return (
+            "Aider本机禁网入口",
+            "校验独立Python版本、Aider版本、依赖中Token数据与模型元数据，再安装审计钩子并调用真实CLI；--check-local-deps只做离线自检。",
+            "aider_tool.command → 本文件 → Aider Repo Map/apply；tests/test_aider_offline和ci_toolchain分别验证拒绝路径与实际工具。",
+        )
+    if name.startswith("tools/node/upstream/"):
+        return (
+            "固定的Continue开源全文索引组件及许可证",
+            "TypeScript源码原样保留，manifest记录上游提交、Git对象哈希与SHA256，构建前逐个验证。这里只嵌入全文索引组件，不加载Continue的IDE、账户或托管服务；LICENSE必须随源码保留。",
+            "npm run build --prefix tools/node → esbuild绑定本机host → continue_index调用；独立SQLite缓存。",
+        )
+    if name.startswith("tools/node/"):
+        return (
+            "本机Node索引运行边界",
+            "package-lock固定安装依赖；build校验上游源码并编译工具，host用Node内置SQLite提供数据库接口，runner只接受有界JSON文件协议，no-network在进程启动时拒绝网络接口。源码片段只写入检索库，不被执行。",
+            "先npm ci再npm run build；Python continue_index校验构建回执并调用runner；test_continue_index与ci_toolchain。",
         )
     if name.startswith("tools/aider/"):
         return (
@@ -23612,6 +24273,156 @@ async function main() {
   }
 }
 main().catch(error => { console.error(error.stack); process.exitCode = 1; });
+````
+
+### `scripts/news_fixture.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.news_fixture；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**逐个入口与控制逻辑：**
+
+- `news_spec`（L16–L61）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L17的`{ "title": "游戏资讯助手", "data_scope": "per_user", "entities": [ { "name": "news", "descriptio…`。
+- `news_requirement`（L64–L91）：接收`autonomous`。 调用`news_spec`。 返回路径：L65的`{ "summary": "泰拉瑞瑞亚游戏资讯的登录后个人管理页面", "users": ["登录后管理自己资讯的用户"], "data_scope": "per_user", "…`。
+- `assert_resolution`（L94–L99）：接收`payload`。 控制顺序：L95断言`payload["autonomous"] is True`；L96断言`payload["original_request"]`；L97断言`payload["resolution_feedback"]["unsupported"] == LIMITATIONS`；L98断言`payload["resolution_feedback"]["questions"] == [QUESTION]`；L99断言`payload["current_requirement"]["facts"] == news_requirement()["facts"]`。 调用`news_requirement`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `assert_approved`（L102–L106）：接收`payload`。 控制顺序：L104断言`approved["unsupported"] == [] and approved["questions"] == []`；L105断言`approved["limitations"] == LIMITATIONS`；L106断言`approved["facts"] == news_requirement()["facts"]`。 调用`news_requirement`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NewsFixture`（L109–L128）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `NewsFixture.__init__`（L110–L111）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `NewsFixture.complete`（L113–L128）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L117按`schema is Requirement`分支；L118按`payload["autonomous"]`分支；L121按`schema is Plan`分支；L124断言`context["repo_map"]["provider"] == "aider-cli-repo-map"`；L125断言`context["repo_map"]["network"] == "disabled"`；L126断言`context["retrieval"]["mode"].startswith("ast+continue-fts5")`；L128抛异常，停止当前正常路径。 调用`self.calls.append`、`assert_resolution`、`Requirement.model_validate`、`news_requirement`、`assert_approved`、`context["retrieval"]["mode"].startswith`、`Plan.model_validate`、`news_spec`、`AssertionError`。 返回路径：L120的`Requirement.model_validate(news_requirement(payload["autonomous"]))`；L127的`Plan.model_validate(news_spec())`。
+
+<!-- source-file: scripts/news_fixture.py sha256: 5a95d665f086237cbdd9f2711e74abfd4145731e3f95c2d72ca51b65d31e072f -->
+````python
+"""Explicit deterministic model fixtures for CI, never production fallback models.
+
+The first response deliberately reproduces the reported erroneous template-boundary
+list. The next response can resolve it only after receiving stored scope and
+recommendation feedback. Real processes, databases and tools remain unmocked.
+"""
+
+LIMITATIONS = [
+    "自动从外部网站采集或抓取游戏资讯不受当前模板支持。",
+    "面向无需登录的公众开放浏览不受当前模板支持。",
+]
+QUESTION = "需要个人资讯管理页面，还是无需登录的公众网站？如无特别说明，按个人管理页面规划。"
+ORIGINAL_REQUEST = "泰拉瑞瑞亚游戏资讯"
+
+
+def news_spec():
+    return {
+        "title": "游戏资讯助手",
+        "data_scope": "per_user",
+        "entities": [
+            {
+                "name": "news",
+                "description": "游戏资讯",
+                "fields": [
+                    {
+                        "name": "title",
+                        "kind": "text",
+                        "required": True,
+                        "min_length": 1,
+                        "max_length": 250,
+                        "searchable": True,
+                    },
+                    {
+                        "name": "body",
+                        "kind": "text",
+                        "required": True,
+                        "min_length": 1,
+                        "max_length": 3000,
+                        "searchable": True,
+                    },
+                    {
+                        "name": "published_on",
+                        "kind": "date",
+                        "required": True,
+                        "filterable": True,
+                        "date_range": True,
+                    },
+                    {
+                        "name": "category",
+                        "kind": "enum",
+                        "required": False,
+                        "choices": ["资讯", "攻略", "大神"],
+                        "filterable": True,
+                    },
+                ],
+            }
+        ],
+        "acceptance": ["标题正文搜索", "分类筛选", "真实日期及含边界日期区间", "逐用户隔离"],
+        "custom_rules": [],
+        "unsupported": [],
+    }
+
+
+def news_requirement(autonomous=False):
+    return {
+        "summary": "泰拉瑞瑞亚游戏资讯的登录后个人管理页面",
+        "users": ["登录后管理自己资讯的用户"],
+        "data_scope": "per_user",
+        "features": [
+            "标题与正文必填",
+            "发布日期是真实日期",
+            "分类可选",
+            "资讯增删改查",
+            "标题正文搜索",
+            "分类与含边界日期区间组合筛选",
+        ],
+        "acceptance": news_spec()["acceptance"],
+        "questions": [] if autonomous else [QUESTION],
+        "unsupported": [] if autonomous else LIMITATIONS,
+        "limitations": LIMITATIONS if autonomous else [],
+        "recommendations": [
+            "未要求采集或公众浏览，采用登录后个人手动录入管理；标题250字，正文3000字，日期区间含边界"
+        ],
+        "assumptions": ["用户没有明确要求采集或匿名公开网站"],
+        "facts": {
+            "标题长度上限": "250字符",
+            "正文长度上限": "3000字符",
+            "分类是否必填": "否",
+            "日期区间": "包含起始日和结束日",
+        },
+    }
+
+
+def assert_resolution(payload):
+    assert payload["autonomous"] is True
+    assert payload["original_request"]
+    assert payload["resolution_feedback"]["unsupported"] == LIMITATIONS
+    assert payload["resolution_feedback"]["questions"] == [QUESTION]
+    assert payload["current_requirement"]["facts"] == news_requirement()["facts"]
+
+
+def assert_approved(payload):
+    approved = payload["approved_requirement"]
+    assert approved["unsupported"] == [] and approved["questions"] == []
+    assert approved["limitations"] == LIMITATIONS
+    assert approved["facts"] == news_requirement()["facts"]
+
+
+class NewsFixture:
+    def __init__(self):
+        self.calls = []
+
+    def complete(self, run_id, key, instruction, payload, schema):
+        from workbench.domain import Plan, Requirement
+
+        self.calls.append(key)
+        if schema is Requirement:
+            if payload["autonomous"]:
+                assert_resolution(payload)
+            return Requirement.model_validate(news_requirement(payload["autonomous"]))
+        if schema is Plan:
+            assert_approved(payload)
+            context = payload["code_context"]["contexts"][0]
+            assert context["repo_map"]["provider"] == "aider-cli-repo-map"
+            assert context["repo_map"]["network"] == "disabled"
+            assert context["retrieval"]["mode"].startswith("ast+continue-fts5")
+            return Plan.model_validate(news_spec())
+        raise AssertionError("Deterministic news CRUD needs no coding model: " + key)
 ````
 
 ### `scripts/rebuild_from_handbook.py`
@@ -23899,7 +24710,7 @@ if __name__ == "__main__":
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/daytona-local.yml sha256: 6f0f8d95a407a960ed833398c5124a037a8d3e0f2cfe916980eb1aebe87ce94d -->
+<!-- source-file: .github/workflows/daytona-local.yml sha256: fd901e4740ad5b3e519dc6c79f72a3baf5256eaf8b555019cd0e97f36edeafab -->
 ````yaml
 name: Self-hosted Daytona local acceptance
 on:
@@ -23925,6 +24736,14 @@ jobs:
         with:
           python-version: '3.14'
       - run: uv sync --locked --all-extras
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare locked local Aider and Continue tools
+        run: |
+          uv sync --locked --project tools/aider --python 3.12
+          npm ci --prefix tools/node --no-audit --no-fund
+          npm run build --prefix tools/node
       - name: Create the local control plane with random local credentials
         run: uv run python -m scripts.daytona_local prepare
       - name: Build pinned release locally and lock immutable images
@@ -23937,7 +24756,7 @@ jobs:
         run: uv run python -m scripts.daytona_bootstrap auth
       - name: Register the prebuilt snapshot without any hosted service
         run: uv run python -m scripts.daytona_bootstrap snapshot
-      - name: Verify real sandbox runtime and deletion
+      - name: Verify smart-news workflow, local tools, sandbox, cleanup and independent ZIP
         run: uv run python -m scripts.ci_daytona_local
       - name: Preserve bounded redacted diagnostics only
         if: always()
@@ -24137,73 +24956,6 @@ jobs:
           retention-days: 7
 ````
 
-### `.github/workflows/runtime-contract.yml`
-
-**作用：可复现的自动化验收配置。** on决定何时触发，jobs定义隔离机器，steps按顺序安装锁定依赖并运行上文相同脚本。矩阵是不同操作系统/模板的重复验证，不能重复计算为新增独立用例；上传的报告不应含凭据。
-
-**对应关系：** 与本机同一脚本；GitHub Actions仅作为开发验收服务，不是产品运行依赖。
-
-**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
-
-<!-- source-file: .github/workflows/runtime-contract.yml sha256: 964a560aa82c15bffd0d6cd00eb0a23cd5f3042e383c125407cbf4aa2be490fa -->
-````yaml
-name: Installed runtime contract inspection
-on:
-  push:
-    branches: [feat/controlled-toolchain-integration]
-    paths: [.github/workflows/runtime-contract.yml]
-  workflow_dispatch:
-permissions:
-  contents: read
-jobs:
-  inspect:
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: '3.14'
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Prepare independently pinned tool environments
-        run: |
-          uv sync --locked --project tools/aider --python 3.12 --managed-python
-          mkdir -p reports/tool-runtime/node
-          printf '%s\n' '{"name":"rnd-local-node-tools","private":true,"type":"module","version":"1.0.0","dependencies":{"esbuild":"0.25.9","node-plop":"0.32.3"}}' > reports/tool-runtime/node/package.json
-          npm install --prefix reports/tool-runtime/node --no-audit --no-fund
-      - name: Retain exact public source and dependency bytes, not user environments
-        run: |
-          tools/aider/.venv/bin/python - <<'PY'
-          import hashlib, pathlib, sys, tarfile, urllib.request
-          root=pathlib.Path('reports/tool-runtime')
-          revision='5522c6f44ca0ac3528b37244818fbfa39b5af470'
-          for name, path, sha in [('FullTextSearchCodebaseIndex.ts','core/indexing/FullTextSearchCodebaseIndex.ts','8016d04d3eddc84ec48ffa517ba96b2caba9b14e'),('LICENSE','LICENSE','c25dc1768217ba50d454fcc06290d66886512872')]:
-              with urllib.request.urlopen(f'https://raw.githubusercontent.com/continuedev/continue/{revision}/{path}', timeout=60) as response:
-                  data=response.read(1000000)
-              assert hashlib.sha1(f'blob {len(data)}\0'.encode()+data).hexdigest()==sha
-              (root/name).write_bytes(data)
-          with tarfile.open(root/'aider-runtime.tar.gz','w:gz') as archive:
-              archive.add(sys.base_prefix,arcname='python',filter=lambda item: None if '__pycache__' in item.name else item)
-              archive.add(pathlib.Path(sys.prefix)/'lib/python3.12/site-packages',arcname='site-packages',filter=lambda item: None if '__pycache__' in item.name else item)
-          with tarfile.open(root/'node-runtime.tar.gz','w:gz') as archive:
-              archive.add(root/'node',arcname='node')
-          PY
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: installed-tool-dependencies
-          path: |
-            reports/tool-runtime/*.tar.gz
-            reports/tool-runtime/*.ts
-            reports/tool-runtime/LICENSE
-            reports/tool-runtime/node/package*.json
-          retention-days: 7
-````
-
 ### `.github/workflows/test.yml`
 
 **作用：可复现的自动化验收配置。** on决定何时触发，jobs定义隔离机器，steps按顺序安装锁定依赖并运行上文相同脚本。矩阵是不同操作系统/模板的重复验证，不能重复计算为新增独立用例；上传的报告不应含凭据。
@@ -24212,7 +24964,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/test.yml sha256: a1ec175e8bac9d475432f0144d40ef7c88bdf87f266e14f13b6412387423e111 -->
+<!-- source-file: .github/workflows/test.yml sha256: 0fcd79754e3955627edb4a1e66a61ddf4128c9e5b8544e3d79a0fb4306f2335b -->
 ````yaml
 name: Python 3.14 acceptance
 on:
@@ -24240,12 +24992,19 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix tools/node --no-audit --no-fund
+      - run: npm run build --prefix tools/node
       - run: uv sync --locked --all-extras
       - run: uv run python --version
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run python -m scripts.build_handbook --check
       - run: uv run pytest -m "not postgres" --junitxml=reports/tests.xml --cov=workbench --cov-report=term-missing
+        env:
+          RND_REQUIRE_NODE_TESTS: '1'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -24331,6 +25090,9 @@ jobs:
         with:
           python-version: '3.14'
       - run: uv sync --locked --all-extras
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - run: uv run python -m scripts.ci_handbook
       - uses: actions/upload-artifact@v4
         if: always()
@@ -24353,6 +25115,8 @@ jobs:
         with:
           node-version: '22'
       - run: uv sync --locked --all-extras
+      - run: npm ci --prefix tools/node --no-audit --no-fund
+      - run: npm run build --prefix tools/node
       - name: Install isolated Chromium test tooling
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
@@ -24388,7 +25152,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/toolchain.yml sha256: e4edfcfe074ec4fc2239d941d4da3c7dbcff0d356f386da76a677924792a2a6c -->
+<!-- source-file: .github/workflows/toolchain.yml sha256: 8a995e5e12585e3e86992e085d125cc9f8446ea541d9f270301a6c1d0c189cbf -->
 ````yaml
 name: Toolchain integration acceptance
 on:
@@ -24413,6 +25177,7 @@ jobs:
       PYTHONUTF8: '1'
       LITELLM_LOCAL_MODEL_COST_MAP: 'True'
       AIDER_ANALYTICS: 'false'
+      RND_REQUIRE_NODE_TESTS: '1'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24420,9 +25185,14 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix tools/node --no-audit --no-fund
+      - run: npm run build --prefix tools/node
       - run: uv sync --locked --all-extras
       - run: uv sync --locked --project tools/aider --python 3.12
-      - run: uv run pytest tests/test_toolchain.py -q --junitxml=reports/toolchain-contracts.xml
+      - run: uv run pytest tests/test_toolchain.py tests/test_continue_index.py -q --junitxml=reports/toolchain-contracts.xml
       - run: uv run python -m scripts.ci_toolchain
       - uses: actions/upload-artifact@v4
         if: always()
@@ -24448,6 +25218,113 @@ requires-python = ">=3.12,<3.13"
 dependencies = ["aider-chat==0.86.2"]
 [tool.uv]
 package = false
+````
+
+### `tools/aider/offline_runner.py`
+
+**作用：Aider本机禁网入口。** 校验独立Python版本、Aider版本、依赖中Token数据与模型元数据，再安装审计钩子并调用真实CLI；--check-local-deps只做离线自检。
+
+**对应关系：** aider_tool.command → 本文件 → Aider Repo Map/apply；tests/test_aider_offline和ci_toolchain分别验证拒绝路径与实际工具。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**逐个入口与控制逻辑：**
+
+- `packaged_encodings`（L21–L29）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L23遍历`ENCODINGS.items()`；L25按`not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected`分支；L26抛异常，停止当前正常路径。 调用`Path`、`distribution("litellm").locate_file`、`distribution`、`ENCODINGS.items`、`path.is_file`、`hashlib.sha256(path.read_bytes()).hexdigest`、`hashlib.sha256`、`path.read_bytes`、`RuntimeError`。 返回路径：L29的`cache`。
+- `install_offline_guard`（L32–L40）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sys.addaudithook`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `install_offline_guard.audit`（L33–L38）：接收`event`、`args`。 控制顺序：L34按`event.startswith(("socket.getaddrinfo", "socket.gethostby", "socket.getnameinfo"))`分支；L35抛异常，停止当前正常路径；L36按`event in {"socket.connect", "socket.sendto", "socket.bind"}`分支；L37按`args[0].family in {socket.AF_INET, socket.AF_INET6}`分支；L38抛异常，停止当前正常路径。 调用`event.startswith`、`PermissionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L43–L84）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L44按`sys.version_info[:2] != (3, 12) or version("aider-chat") != "0.86.2"`分支；L45抛异常，停止当前正常路径；L55按`sys.argv[1:] == ["--check-local-deps"]`分支；L58遍历`("cl100k_base", "o200k_base")`；L59断言`tiktoken.get_encoding(name).encode("本机编码检查")`；L76按`hashlib.sha256(metadata.read_bytes()).hexdigest() != "e8da995ddcffc05a8dcbe4a8504326a…`分支；L80抛异常，停止当前正常路径。 调用`version`、`RuntimeError`、`packaged_encodings`、`os.environ.update`、`str`、`install_offline_guard`、`tiktoken.get_encoding(name).encode`、`tiktoken.get_encoding`、`print`等。 返回路径：L70的`0`；L84的`aider_main()`。
+
+<!-- source-file: tools/aider/offline_runner.py sha256: eb22fd95ca5844c5a7c05dc9f09b2c26fee1274b6267bc23a4f7d3fa0c132193 -->
+````python
+"""Python 3.12 entry for real Aider, with packaged token data and no network.
+
+This guards the registered Repo Map/apply CLI modes. It is not a sandbox for
+arbitrary Python supplied by a model. Installation is a separate uv operation.
+"""
+
+import hashlib
+import json
+import os
+import socket
+import sys
+from importlib.metadata import distribution, version
+from pathlib import Path
+
+ENCODINGS = {
+    "9b5ad71b2ce5302211f9c61530b329a4922fc6a4": "223921b76ee99bde995b7ff738513eef100fb51d18c93597a113bcffe865b2a7",
+    "fb374d419588a4632f3f557e76b4b70aebbca790": "446a9538cb6c348e3516120d7c08b09f57c36495e2acfffe59a5bf8b0cfb1a2d",
+}
+
+
+def packaged_encodings():
+    cache = Path(distribution("litellm").locate_file("litellm/litellm_core_utils/tokenizers"))
+    for name, expected in ENCODINGS.items():
+        path = cache / name
+        if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != expected:
+            raise RuntimeError(
+                "Aider packaged tokenizer integrity failure; reinstall tools/aider with uv sync --locked"
+            )
+    return cache
+
+
+def install_offline_guard():
+    def audit(event, args):
+        if event.startswith(("socket.getaddrinfo", "socket.gethostby", "socket.getnameinfo")):
+            raise PermissionError("Aider local tool network access is disabled")
+        if event in {"socket.connect", "socket.sendto", "socket.bind"}:
+            if args[0].family in {socket.AF_INET, socket.AF_INET6}:
+                raise PermissionError("Aider local tool network access is disabled")
+
+    sys.addaudithook(audit)
+
+
+def main():
+    if sys.version_info[:2] != (3, 12) or version("aider-chat") != "0.86.2":
+        raise RuntimeError("Use the pinned Python 3.12 tools/aider environment")
+    cache = packaged_encodings()
+    os.environ.update(
+        CUSTOM_TIKTOKEN_CACHE_DIR=str(cache),
+        TIKTOKEN_CACHE_DIR=str(cache),
+        LITELLM_LOCAL_MODEL_COST_MAP="True",
+        AIDER_ANALYTICS="false",
+        DO_NOT_TRACK="1",
+    )
+    install_offline_guard()
+    if sys.argv[1:] == ["--check-local-deps"]:
+        import tiktoken
+
+        for name in ("cl100k_base", "o200k_base"):
+            assert tiktoken.get_encoding(name).encode("本机编码检查")
+        print(
+            json.dumps(
+                {
+                    "aider": "0.86.2",
+                    "python": "3.12",
+                    "packaged_encodings_verified": True,
+                    "network": "disabled",
+                }
+            )
+        )
+        return 0
+    # Aider accepts a local metadata file. Use the locked package's own data,
+    # instead of its otherwise automatic model-price URL lookup.
+    metadata = Path(
+        distribution("litellm").locate_file("litellm/model_prices_and_context_window_backup.json")
+    )
+    if (
+        hashlib.sha256(metadata.read_bytes()).hexdigest()
+        != "e8da995ddcffc05a8dcbe4a8504326a6e352ba9e38151e147cbb5b4b694c937d"
+    ):
+        raise RuntimeError("Aider packaged model metadata integrity failure")
+    sys.argv.extend(["--model-metadata-file", str(metadata)])
+    from aider.main import main as aider_main
+
+    return aider_main()
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
 ````
 
 ### `tools/aider/.python-version`
@@ -26262,6 +27139,1170 @@ VOLUME ["/var/lib/docker"]
 HEALTHCHECK --interval=5s --timeout=3s --start-period=20s --retries=12 \
     CMD docker info >/dev/null && curl -f http://localhost:3003/
 ENTRYPOINT ["/usr/local/bin/dind", "/usr/local/bin/rnd-runner-entry.sh"]
+````
+
+## 本机Continue组件、适配器及Node依赖锁
+
+### `tools/node/package.json`
+
+**作用：本机Node索引运行边界。** package-lock固定安装依赖；build校验上游源码并编译工具，host用Node内置SQLite提供数据库接口，runner只接受有界JSON文件协议，no-network在进程启动时拒绝网络接口。源码片段只写入检索库，不被执行。
+
+**对应关系：** 先npm ci再npm run build；Python continue_index校验构建回执并调用runner；test_continue_index与ci_toolchain。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/node/package.json sha256: 0be2e7ce231e0760c7bc0a69a25360144cd6870dba029114b7b0ab76f04d9236 -->
+````json
+{
+  "name": "rnd-local-node-tools",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "dependencies": {
+    "esbuild": "0.25.9"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "node build.mjs"
+  }
+}
+````
+
+### `tools/node/package-lock.json`
+
+**作用：本机Node索引运行边界。** package-lock固定安装依赖；build校验上游源码并编译工具，host用Node内置SQLite提供数据库接口，runner只接受有界JSON文件协议，no-network在进程启动时拒绝网络接口。源码片段只写入检索库，不被执行。
+
+**对应关系：** 先npm ci再npm run build；Python continue_index校验构建回执并调用runner；test_continue_index与ci_toolchain。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/node/package-lock.json sha256: 486b9a28a3296a97b56e90bd92efb93f920f34a45b1231bd16abe9eec0f3440d -->
+````json
+{
+  "name": "rnd-local-node-tools",
+  "version": "1.0.0",
+  "lockfileVersion": 3,
+  "requires": true,
+  "packages": {
+    "": {
+      "name": "rnd-local-node-tools",
+      "version": "1.0.0",
+      "dependencies": {
+        "esbuild": "0.25.9"
+      },
+      "engines": {
+        "node": ">=22.13.0"
+      }
+    },
+    "node_modules/@esbuild/aix-ppc64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/aix-ppc64/-/aix-ppc64-0.25.9.tgz",
+      "integrity": "sha512-OaGtL73Jck6pBKjNIe24BnFE6agGl+6KxDtTfHhy1HmhthfKouEcOhqpSL64K4/0WCtbKFLOdzD/44cJ4k9opA==",
+      "cpu": [
+        "ppc64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "aix"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/android-arm": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/android-arm/-/android-arm-0.25.9.tgz",
+      "integrity": "sha512-5WNI1DaMtxQ7t7B6xa572XMXpHAaI/9Hnhk8lcxF4zVN4xstUgTlvuGDorBguKEnZO70qwEcLpfifMLoxiPqHQ==",
+      "cpu": [
+        "arm"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "android"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/android-arm64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/android-arm64/-/android-arm64-0.25.9.tgz",
+      "integrity": "sha512-IDrddSmpSv51ftWslJMvl3Q2ZT98fUSL2/rlUXuVqRXHCs5EUF1/f+jbjF5+NG9UffUDMCiTyh8iec7u8RlTLg==",
+      "cpu": [
+        "arm64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "android"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/android-x64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/android-x64/-/android-x64-0.25.9.tgz",
+      "integrity": "sha512-I853iMZ1hWZdNllhVZKm34f4wErd4lMyeV7BLzEExGEIZYsOzqDWDf+y082izYUE8gtJnYHdeDpN/6tUdwvfiw==",
+      "cpu": [
+        "x64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "android"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/darwin-arm64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/darwin-arm64/-/darwin-arm64-0.25.9.tgz",
+      "integrity": "sha512-XIpIDMAjOELi/9PB30vEbVMs3GV1v2zkkPnuyRRURbhqjyzIINwj+nbQATh4H9GxUgH1kFsEyQMxwiLFKUS6Rg==",
+      "cpu": [
+        "arm64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/darwin-x64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/darwin-x64/-/darwin-x64-0.25.9.tgz",
+      "integrity": "sha512-jhHfBzjYTA1IQu8VyrjCX4ApJDnH+ez+IYVEoJHeqJm9VhG9Dh2BYaJritkYK3vMaXrf7Ogr/0MQ8/MeIefsPQ==",
+      "cpu": [
+        "x64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "darwin"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/freebsd-arm64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/freebsd-arm64/-/freebsd-arm64-0.25.9.tgz",
+      "integrity": "sha512-z93DmbnY6fX9+KdD4Ue/H6sYs+bhFQJNCPZsi4XWJoYblUqT06MQUdBCpcSfuiN72AbqeBFu5LVQTjfXDE2A6Q==",
+      "cpu": [
+        "arm64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "freebsd"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/freebsd-x64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/freebsd-x64/-/freebsd-x64-0.25.9.tgz",
+      "integrity": "sha512-mrKX6H/vOyo5v71YfXWJxLVxgy1kyt1MQaD8wZJgJfG4gq4DpQGpgTB74e5yBeQdyMTbgxp0YtNj7NuHN0PoZg==",
+      "cpu": [
+        "x64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "freebsd"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/linux-arm": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-arm/-/linux-arm-0.25.9.tgz",
+      "integrity": "sha512-HBU2Xv78SMgaydBmdor38lg8YDnFKSARg1Q6AT0/y2ezUAKiZvc211RDFHlEZRFNRVhcMamiToo7bDx3VEOYQw==",
+      "cpu": [
+        "arm"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/linux-arm64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-arm64/-/linux-arm64-0.25.9.tgz",
+      "integrity": "sha512-BlB7bIcLT3G26urh5Dmse7fiLmLXnRlopw4s8DalgZ8ef79Jj4aUcYbk90g8iCa2467HX8SAIidbL7gsqXHdRw==",
+      "cpu": [
+        "arm64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/linux-ia32": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-ia32/-/linux-ia32-0.25.9.tgz",
+      "integrity": "sha512-e7S3MOJPZGp2QW6AK6+Ly81rC7oOSerQ+P8L0ta4FhVi+/j/v2yZzx5CqqDaWjtPFfYz21Vi1S0auHrap3Ma3A==",
+      "cpu": [
+        "ia32"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/linux-loong64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-loong64/-/linux-loong64-0.25.9.tgz",
+      "integrity": "sha512-Sbe10Bnn0oUAB2AalYztvGcK+o6YFFA/9829PhOCUS9vkJElXGdphz0A3DbMdP8gmKkqPmPcMJmJOrI3VYB1JQ==",
+      "cpu": [
+        "loong64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/linux-mips64el": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-mips64el/-/linux-mips64el-0.25.9.tgz",
+      "integrity": "sha512-YcM5br0mVyZw2jcQeLIkhWtKPeVfAerES5PvOzaDxVtIyZ2NUBZKNLjC5z3/fUlDgT6w89VsxP2qzNipOaaDyA==",
+      "cpu": [
+        "mips64el"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/linux-ppc64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-ppc64/-/linux-ppc64-0.25.9.tgz",
+      "integrity": "sha512-++0HQvasdo20JytyDpFvQtNrEsAgNG2CY1CLMwGXfFTKGBGQT3bOeLSYE2l1fYdvML5KUuwn9Z8L1EWe2tzs1w==",
+      "cpu": [
+        "ppc64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/linux-riscv64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-riscv64/-/linux-riscv64-0.25.9.tgz",
+      "integrity": "sha512-uNIBa279Y3fkjV+2cUjx36xkx7eSjb8IvnL01eXUKXez/CBHNRw5ekCGMPM0BcmqBxBcdgUWuUXmVWwm4CH9kg==",
+      "cpu": [
+        "riscv64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/linux-s390x": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-s390x/-/linux-s390x-0.25.9.tgz",
+      "integrity": "sha512-Mfiphvp3MjC/lctb+7D287Xw1DGzqJPb/J2aHHcHxflUo+8tmN/6d4k6I2yFR7BVo5/g7x2Monq4+Yew0EHRIA==",
+      "cpu": [
+        "s390x"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/linux-x64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/linux-x64/-/linux-x64-0.25.9.tgz",
+      "integrity": "sha512-iSwByxzRe48YVkmpbgoxVzn76BXjlYFXC7NvLYq+b+kDjyyk30J0JY47DIn8z1MO3K0oSl9fZoRmZPQI4Hklzg==",
+      "cpu": [
+        "x64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "linux"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/netbsd-arm64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/netbsd-arm64/-/netbsd-arm64-0.25.9.tgz",
+      "integrity": "sha512-9jNJl6FqaUG+COdQMjSCGW4QiMHH88xWbvZ+kRVblZsWrkXlABuGdFJ1E9L7HK+T0Yqd4akKNa/lO0+jDxQD4Q==",
+      "cpu": [
+        "arm64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "netbsd"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/netbsd-x64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/netbsd-x64/-/netbsd-x64-0.25.9.tgz",
+      "integrity": "sha512-RLLdkflmqRG8KanPGOU7Rpg829ZHu8nFy5Pqdi9U01VYtG9Y0zOG6Vr2z4/S+/3zIyOxiK6cCeYNWOFR9QP87g==",
+      "cpu": [
+        "x64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "netbsd"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/openbsd-arm64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/openbsd-arm64/-/openbsd-arm64-0.25.9.tgz",
+      "integrity": "sha512-YaFBlPGeDasft5IIM+CQAhJAqS3St3nJzDEgsgFixcfZeyGPCd6eJBWzke5piZuZ7CtL656eOSYKk4Ls2C0FRQ==",
+      "cpu": [
+        "arm64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "openbsd"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/openbsd-x64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/openbsd-x64/-/openbsd-x64-0.25.9.tgz",
+      "integrity": "sha512-1MkgTCuvMGWuqVtAvkpkXFmtL8XhWy+j4jaSO2wxfJtilVCi0ZE37b8uOdMItIHz4I6z1bWWtEX4CJwcKYLcuA==",
+      "cpu": [
+        "x64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "openbsd"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/openharmony-arm64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/openharmony-arm64/-/openharmony-arm64-0.25.9.tgz",
+      "integrity": "sha512-4Xd0xNiMVXKh6Fa7HEJQbrpP3m3DDn43jKxMjxLLRjWnRsfxjORYJlXPO4JNcXtOyfajXorRKY9NkOpTHptErg==",
+      "cpu": [
+        "arm64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "openharmony"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/sunos-x64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/sunos-x64/-/sunos-x64-0.25.9.tgz",
+      "integrity": "sha512-WjH4s6hzo00nNezhp3wFIAfmGZ8U7KtrJNlFMRKxiI9mxEK1scOMAaa9i4crUtu+tBr+0IN6JCuAcSBJZfnphw==",
+      "cpu": [
+        "x64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "sunos"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/win32-arm64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/win32-arm64/-/win32-arm64-0.25.9.tgz",
+      "integrity": "sha512-mGFrVJHmZiRqmP8xFOc6b84/7xa5y5YvR1x8djzXpJBSv/UsNK6aqec+6JDjConTgvvQefdGhFDAs2DLAds6gQ==",
+      "cpu": [
+        "arm64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/win32-ia32": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/win32-ia32/-/win32-ia32-0.25.9.tgz",
+      "integrity": "sha512-b33gLVU2k11nVx1OhX3C8QQP6UHQK4ZtN56oFWvVXvz2VkDoe6fbG8TOgHFxEvqeqohmRnIHe5A1+HADk4OQww==",
+      "cpu": [
+        "ia32"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/@esbuild/win32-x64": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/@esbuild/win32-x64/-/win32-x64-0.25.9.tgz",
+      "integrity": "sha512-PPOl1mi6lpLNQxnGoyAfschAodRFYXJ+9fs6WHXz7CSWKbOqiMZsubC+BQsVKuul+3vKLuwTHsS2c2y9EoKwxQ==",
+      "cpu": [
+        "x64"
+      ],
+      "license": "MIT",
+      "optional": true,
+      "os": [
+        "win32"
+      ],
+      "engines": {
+        "node": ">=18"
+      }
+    },
+    "node_modules/esbuild": {
+      "version": "0.25.9",
+      "resolved": "https://registry.npmjs.org/esbuild/-/esbuild-0.25.9.tgz",
+      "integrity": "sha512-CRbODhYyQx3qp7ZEwzxOk4JBqmD/seJrzPa/cGjY1VtIn5E09Oi9/dB4JwctnfZ8Q8iT7rioVv5k/FNT/uf54g==",
+      "hasInstallScript": true,
+      "license": "MIT",
+      "bin": {
+        "esbuild": "bin/esbuild"
+      },
+      "engines": {
+        "node": ">=18"
+      },
+      "optionalDependencies": {
+        "@esbuild/aix-ppc64": "0.25.9",
+        "@esbuild/android-arm": "0.25.9",
+        "@esbuild/android-arm64": "0.25.9",
+        "@esbuild/android-x64": "0.25.9",
+        "@esbuild/darwin-arm64": "0.25.9",
+        "@esbuild/darwin-x64": "0.25.9",
+        "@esbuild/freebsd-arm64": "0.25.9",
+        "@esbuild/freebsd-x64": "0.25.9",
+        "@esbuild/linux-arm": "0.25.9",
+        "@esbuild/linux-arm64": "0.25.9",
+        "@esbuild/linux-ia32": "0.25.9",
+        "@esbuild/linux-loong64": "0.25.9",
+        "@esbuild/linux-mips64el": "0.25.9",
+        "@esbuild/linux-ppc64": "0.25.9",
+        "@esbuild/linux-riscv64": "0.25.9",
+        "@esbuild/linux-s390x": "0.25.9",
+        "@esbuild/linux-x64": "0.25.9",
+        "@esbuild/netbsd-arm64": "0.25.9",
+        "@esbuild/netbsd-x64": "0.25.9",
+        "@esbuild/openbsd-arm64": "0.25.9",
+        "@esbuild/openbsd-x64": "0.25.9",
+        "@esbuild/openharmony-arm64": "0.25.9",
+        "@esbuild/sunos-x64": "0.25.9",
+        "@esbuild/win32-arm64": "0.25.9",
+        "@esbuild/win32-ia32": "0.25.9",
+        "@esbuild/win32-x64": "0.25.9"
+      }
+    }
+  }
+}
+````
+
+### `tools/node/build.mjs`
+
+**作用：本机Node索引运行边界。** package-lock固定安装依赖；build校验上游源码并编译工具，host用Node内置SQLite提供数据库接口，runner只接受有界JSON文件协议，no-network在进程启动时拒绝网络接口。源码片段只写入检索库，不被执行。
+
+**对应关系：** 先npm ci再npm run build；Python continue_index校验构建回执并调用runner；test_continue_index与ci_toolchain。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/node/build.mjs sha256: e4efeec6a1e868740407c62f3e9b21a71557162c858a3f12532a31512ec43c96 -->
+````javascript
+// Compile the unmodified, licensed Continue index with explicit local host adapters.
+import { build } from 'esbuild';
+import { createHash } from 'node:crypto';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+const root = path.dirname(fileURLToPath(import.meta.url));
+const hash = (data, kind = 'sha256') => createHash(kind).update(data).digest('hex');
+const manifest = JSON.parse(fs.readFileSync(path.join(root, 'upstream/manifest.json'), 'utf8'));
+for (const [name, expected] of Object.entries(manifest.files)) {
+  const data = fs.readFileSync(path.join(root, 'upstream', name));
+  const blob = Buffer.concat([Buffer.from(`blob ${data.length}\0`), data]);
+  if (hash(data) !== expected.sha256 || hash(blob, 'sha1') !== expected.git_blob_sha1) {
+    throw new Error(`Pinned Continue source integrity mismatch: ${name}`);
+  }
+}
+const output = path.join(root, '.built');
+fs.mkdirSync(output, { recursive: true });
+await build({
+  entryPoints: [path.join(root, 'continue-runner.mjs')],
+  bundle: true,
+  platform: 'node',
+  target: 'node22',
+  format: 'cjs',
+  outfile: path.join(output, 'continue.cjs'),
+  plugins: [{
+    name: 'explicit-local-continue-host',
+    setup(builder) {
+      builder.onResolve({ filter: /^\.\.?\// }, (args) => {
+        if (args.importer.endsWith('upstream/FullTextSearchCodebaseIndex.ts') || args.importer.endsWith('upstream\\FullTextSearchCodebaseIndex.ts')) {
+          return { path: path.join(root, 'continue-host.mjs') };
+        }
+        return null;
+      });
+    },
+  }],
+});
+const inputs = {};
+for (const name of ['package.json', 'package-lock.json', 'build.mjs', 'continue-runner.mjs', 'continue-host.mjs', 'no-network.cjs', 'upstream/manifest.json', 'upstream/FullTextSearchCodebaseIndex.ts', 'upstream/LICENSE']) {
+  inputs[name] = hash(fs.readFileSync(path.join(root, name)));
+}
+fs.writeFileSync(path.join(output, 'manifest.json'), JSON.stringify({ inputs, output_sha256: hash(fs.readFileSync(path.join(output, 'continue.cjs'))), revision: manifest.revision }, null, 2) + '\n');
+console.log('Verified Continue source compiled locally; no index, source code or credentials uploaded.');
+````
+
+### `tools/node/continue-host.mjs`
+
+**作用：本机Node索引运行边界。** package-lock固定安装依赖；build校验上游源码并编译工具，host用Node内置SQLite提供数据库接口，runner只接受有界JSON文件协议，no-network在进程启动时拒绝网络接口。源码片段只写入检索库，不被执行。
+
+**对应关系：** 先npm ci再npm run build；Python continue_index校验构建回执并调用runner；test_continue_index与ci_toolchain。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/node/continue-host.mjs sha256: 305f5e1d1a7784069da7a047fa2a52173f2c2e1eb4455743292c9eb4ca721b93 -->
+````javascript
+// Host services for the actual Continue component; no Continue IDE/global-cache emulation.
+import { DatabaseSync } from 'node:sqlite';
+import path from 'node:path';
+let handle;
+let rankIds = [];
+export const RETRIEVAL_PARAMS = { bm25Threshold: 0 };
+export const ChunkCodebaseIndex = { artifactId: 'chunks' };
+export const IndexResultType = { Compute: 'compute', AddTag: 'addTag', RemoveTag: 'removeTag', Delete: 'delete' };
+export const getUriPathBasename = (value) => path.basename(value);
+export function tagToString(tag) {
+  // Our tag uses a fixed short directory plus a digest, never a long filesystem URI.
+  const result = `${tag.directory}::${tag.branch}::${tag.artifactId}`;
+  if (result.length > 240) throw new Error('Local Continue tag exceeds its supported bound');
+  return result;
+}
+export function openDatabase(filename, readonly) {
+  if (handle) throw new Error('Only one local index per process');
+  // The upstream FTS metadata refers to virtual tables; FK enforcement is inapplicable
+  // to that cache schema. This never opens or modifies an application database.
+  handle = new DatabaseSync(filename, { readOnly: readonly, enableForeignKeyConstraints: false });
+}
+export function closeDatabase() { if (handle) handle.close(); handle = undefined; }
+export function nativeHandle() { return handle; }
+export function ranking() { return rankIds; }
+export const SqliteDb = {
+  async get() {
+    if (!handle) throw new Error('Local cache not opened');
+    return {
+      async exec(sql) { handle.exec(sql); },
+      async all(sql, parameters = []) {
+        const rows = handle.prepare(sql).all(...parameters);
+        if (sql.includes('SELECT fts_metadata.chunkId')) rankIds = rows.map((row) => Number(row.chunkId));
+        return rows;
+      },
+      async run(sql, parameters = []) {
+        const result = handle.prepare(sql).run(...parameters);
+        return { lastID: Number(result.lastInsertRowid), changes: Number(result.changes) };
+      },
+    };
+  },
+};
+````
+
+### `tools/node/continue-runner.mjs`
+
+**作用：本机Node索引运行边界。** package-lock固定安装依赖；build校验上游源码并编译工具，host用Node内置SQLite提供数据库接口，runner只接受有界JSON文件协议，no-network在进程启动时拒绝网络接口。源码片段只写入检索库，不被执行。
+
+**对应关系：** 先npm ci再npm run build；Python continue_index校验构建回执并调用runner；test_continue_index与ci_toolchain。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/node/continue-runner.mjs sha256: 5f780758babfb246db6a780359f5638a7360e9ffbaca3d48e41b685f26031a5a -->
+````javascript
+// Fixed JSON-file protocol. Indexed source is data; it is never imported or executed.
+import fs from 'node:fs';
+import { FullTextSearchCodebaseIndex } from './upstream/FullTextSearchCodebaseIndex.ts';
+import { openDatabase, closeDatabase, nativeHandle, ranking, tagToString } from './continue-host.mjs';
+async function main() {
+const [requestFile, outputFile] = process.argv.slice(2);
+if (!requestFile || !outputFile || fs.statSync(requestFile).size > 16_000_000) throw new Error('Invalid local index request');
+const request = JSON.parse(fs.readFileSync(requestFile, 'utf8'));
+if (!['build', 'query'].includes(request.operation) || !/^[a-f0-9]{64}$/.test(request.identity)) throw new Error('Invalid index operation or identity');
+const tag = { directory: 'rnd-source', branch: request.identity, artifactId: 'sqliteFts' };
+let response;
+openDatabase(request.database, request.operation === 'query');
+try {
+  const db = nativeHandle();
+  if (db.prepare("SELECT value FROM meta WHERE key='identity'").get()?.value !== request.identity) throw new Error('Continue cache identity mismatch');
+  const index = new FullTextSearchCodebaseIndex();
+  if (request.operation === 'build') {
+    const items = db.prepare('SELECT DISTINCT path,cacheKey FROM chunks ORDER BY path').all();
+    let completed = 0;
+    db.exec('BEGIN');
+    try {
+      const addTag = db.prepare('INSERT INTO chunk_tags(chunkId,tag) SELECT id,? FROM chunks');
+      addTag.run(tagToString({ ...tag, artifactId: 'chunks' }));
+      const results = { compute: items, addTag: [], removeTag: [], del: [] };
+      for await (const progress of index.update(tag, results, async (rows) => { completed += rows.length; }, undefined)) {
+        if (progress.status !== 'indexing') throw new Error('Unexpected Continue indexing status');
+      }
+      const chunks = Number(db.prepare('SELECT COUNT(*) AS n FROM chunks').get().n);
+      const indexed = Number(db.prepare('SELECT COUNT(*) AS n FROM fts_metadata').get().n);
+      if (chunks !== indexed || completed !== items.length) throw new Error('Continue omitted source chunks');
+      db.exec('COMMIT');
+      response = { passed: true, files: completed, chunks: indexed, engine: 'Continue.FullTextSearchCodebaseIndex', identity: request.identity };
+    } catch (error) { db.exec('ROLLBACK'); throw error; }
+  } else {
+    if (typeof request.text !== 'string' || request.text.length > 10000 || !Number.isInteger(request.limit) || request.limit < 1 || request.limit > 80) throw new Error('Invalid retrieval budget');
+    if (request.filterPaths && (!Array.isArray(request.filterPaths) || request.filterPaths.length > 20000 || request.filterPaths.some((value) => typeof value !== 'string'))) throw new Error('Invalid retrieval path scope');
+    const rows = await index.retrieve({ tags: [tag], text: request.text, n: request.limit, bm25Threshold: 0, filterPaths: request.filterPaths });
+    const locate = db.prepare('SELECT id,source_id FROM chunks WHERE path=? AND cacheKey=? AND startLine=? AND endLine=?');
+    const hits = rows.map((row) => {
+      const result = locate.get(row.filepath, row.digest, row.startLine, row.endLine);
+      if (!result) throw new Error('Continue returned a chunk outside the approved cache');
+      return { id: result.source_id, position: ranking().indexOf(Number(result.id)) };
+    });
+    if (hits.some((row) => row.position < 0)) throw new Error('Continue result was not ranked by FTS');
+    // retrieve() fetches chunks with an IN clause, which does not retain SQL rank order.
+    // Restore the exact order produced by its own BM25 query, not a second ranking model.
+    hits.sort((a, b) => a.position - b.position);
+    response = { passed: true, ids: hits.map((row) => row.id), engine: 'Continue.FullTextSearchCodebaseIndex', identity: request.identity };
+  }
+} finally { closeDatabase(); }
+fs.writeFileSync(outputFile, JSON.stringify(response), { encoding: 'utf8', flag: 'wx', mode: 0o600 });
+
+}
+main().catch((error) => { console.error(error.message); process.exitCode = 1; });
+````
+
+### `tools/node/no-network.cjs`
+
+**作用：本机Node索引运行边界。** package-lock固定安装依赖；build校验上游源码并编译工具，host用Node内置SQLite提供数据库接口，runner只接受有界JSON文件协议，no-network在进程启动时拒绝网络接口。源码片段只写入检索库，不被执行。
+
+**对应关系：** 先npm ci再npm run build；Python continue_index校验构建回执并调用runner；test_continue_index与ci_toolchain。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/node/no-network.cjs sha256: 03c704db1a7b4aad522555f50eaa18991dee8024395d024aeb7fb147089cd907 -->
+````javascript
+// Fail closed for network APIs used by these trusted local tools. Not a hostile-JS sandbox.
+const deny = () => { throw new Error('RND local tool network access is disabled'); };
+const net = require('node:net');
+net.connect = net.createConnection = deny;
+net.Socket.prototype.connect = deny;
+require('node:tls').connect = deny;
+require('node:dgram').createSocket = deny;
+for (const kind of ['node:http', 'node:https']) {
+  const module = require(kind); module.request = module.get = deny;
+}
+require('node:http2').connect = deny;
+const dns = require('node:dns');
+for (const key of Object.keys(dns)) {
+  if (/^(lookup|resolve|reverse)/.test(key) && typeof dns[key] === 'function') dns[key] = deny;
+}
+for (const key of Object.keys(dns.promises)) {
+  if (/^(lookup|resolve|reverse)/.test(key) && typeof dns.promises[key] === 'function') dns.promises[key] = deny;
+}
+globalThis.fetch = async () => deny();
+require('node:module').syncBuiltinESMExports();
+````
+
+### `tools/node/upstream/manifest.json`
+
+**作用：固定的Continue开源全文索引组件及许可证。** TypeScript源码原样保留，manifest记录上游提交、Git对象哈希与SHA256，构建前逐个验证。这里只嵌入全文索引组件，不加载Continue的IDE、账户或托管服务；LICENSE必须随源码保留。
+
+**对应关系：** npm run build --prefix tools/node → esbuild绑定本机host → continue_index调用；独立SQLite缓存。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/node/upstream/manifest.json sha256: 448350d48dfdcebe11d52b3ad59c44cae01f22bf4e0b2170eb8cc779bbc2369a -->
+````json
+{
+  "repository": "https://github.com/continuedev/continue",
+  "revision": "5522c6f44ca0ac3528b37244818fbfa39b5af470",
+  "files": {
+    "FullTextSearchCodebaseIndex.ts": {
+      "path": "core/indexing/FullTextSearchCodebaseIndex.ts",
+      "git_blob_sha1": "8016d04d3eddc84ec48ffa517ba96b2caba9b14e",
+      "sha256": "ef2e80c7db63f3148fe8894f2ea4fbd23e57148f2f33b7cec55620c51ec16c60"
+    },
+    "LICENSE": {
+      "path": "LICENSE",
+      "git_blob_sha1": "c25dc1768217ba50d454fcc06290d66886512872",
+      "sha256": "b14a17598cb08c4c7c82c070731126304e0a75d001ed59fb9ea3955a0b561802"
+    }
+  }
+}
+````
+
+### `tools/node/upstream/FullTextSearchCodebaseIndex.ts`
+
+**作用：固定的Continue开源全文索引组件及许可证。** TypeScript源码原样保留，manifest记录上游提交、Git对象哈希与SHA256，构建前逐个验证。这里只嵌入全文索引组件，不加载Continue的IDE、账户或托管服务；LICENSE必须随源码保留。
+
+**对应关系：** npm run build --prefix tools/node → esbuild绑定本机host → continue_index调用；独立SQLite缓存。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/node/upstream/FullTextSearchCodebaseIndex.ts sha256: ef2e80c7db63f3148fe8894f2ea4fbd23e57148f2f33b7cec55620c51ec16c60 -->
+````typescript
+import { BranchAndDir, Chunk, IndexTag, IndexingProgressUpdate } from "../";
+import { RETRIEVAL_PARAMS } from "../util/parameters";
+import { getUriPathBasename } from "../util/uri";
+
+import { ChunkCodebaseIndex } from "./chunk/ChunkCodebaseIndex";
+import { DatabaseConnection, SqliteDb } from "./refreshIndex";
+import {
+  IndexResultType,
+  MarkCompleteCallback,
+  RefreshIndexResults,
+  type CodebaseIndex,
+} from "./types";
+import { tagToString } from "./utils";
+
+export interface RetrieveConfig {
+  tags: BranchAndDir[];
+  text: string;
+  n: number;
+  directory?: string;
+  filterPaths?: string[];
+  bm25Threshold?: number;
+}
+
+export class FullTextSearchCodebaseIndex implements CodebaseIndex {
+  relativeExpectedTime: number = 0.2;
+  static artifactId = "sqliteFts";
+  artifactId: string = FullTextSearchCodebaseIndex.artifactId;
+  pathWeightMultiplier = 10.0;
+
+  private async _createTables(db: DatabaseConnection) {
+    await db.exec(`CREATE VIRTUAL TABLE IF NOT EXISTS fts USING fts5(
+        path,
+        content,
+        tokenize = 'trigram'
+    )`);
+
+    await db.exec(`CREATE TABLE IF NOT EXISTS fts_metadata (
+        id INTEGER PRIMARY KEY,
+        path TEXT NOT NULL,
+        cacheKey TEXT NOT NULL,
+        chunkId INTEGER NOT NULL,
+        FOREIGN KEY (chunkId) REFERENCES chunks (id),
+        FOREIGN KEY (id) REFERENCES fts (rowid)
+    )`);
+  }
+
+  async *update(
+    tag: IndexTag,
+    results: RefreshIndexResults,
+    markComplete: MarkCompleteCallback,
+    repoName: string | undefined,
+  ): AsyncGenerator<IndexingProgressUpdate, any, unknown> {
+    const db = await SqliteDb.get();
+    await this._createTables(db);
+
+    for (let i = 0; i < results.compute.length; i++) {
+      const item = results.compute[i];
+      // Insert chunks
+      const chunks = await db.all(
+        "SELECT * FROM chunks WHERE path = ? AND cacheKey = ?",
+        [item.path, item.cacheKey],
+      );
+
+      for (const chunk of chunks) {
+        const { lastID } = await db.run(
+          "INSERT INTO fts (path, content) VALUES (?, ?)",
+          [item.path, chunk.content],
+        );
+        await db.run(
+          `INSERT INTO fts_metadata (id, path, cacheKey, chunkId)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(id) DO UPDATE SET
+           path = excluded.path,
+           cacheKey = excluded.cacheKey,
+           chunkId = excluded.chunkId`,
+          [lastID, item.path, item.cacheKey, chunk.id],
+        );
+      }
+
+      yield {
+        progress: i / results.compute.length,
+        desc: `Indexing ${getUriPathBasename(item.path)}`,
+        status: "indexing",
+      };
+      await markComplete([item], IndexResultType.Compute);
+    }
+
+    // Add tag
+    for (const item of results.addTag) {
+      await markComplete([item], IndexResultType.AddTag);
+    }
+
+    // Remove tag
+    for (const item of results.removeTag) {
+      await markComplete([item], IndexResultType.RemoveTag);
+    }
+
+    // Delete
+    for (const item of results.del) {
+      await db.run(
+        `
+        DELETE FROM fts WHERE rowid IN (
+          SELECT id FROM fts_metadata WHERE path = ? AND cacheKey = ?
+        )
+      `,
+        [item.path, item.cacheKey],
+      );
+      await db.run("DELETE FROM fts_metadata WHERE path = ? AND cacheKey = ?", [
+        item.path,
+        item.cacheKey,
+      ]);
+      await markComplete([item], IndexResultType.Delete);
+    }
+  }
+
+  async retrieve(config: RetrieveConfig): Promise<Chunk[]> {
+    const db = await SqliteDb.get();
+
+    const query = this.buildRetrieveQuery(config);
+    const parameters = this.getRetrieveQueryParameters(config);
+
+    let results = await db.all(query, parameters);
+
+    results = results.filter(
+      (result) =>
+        result.rank <= (config.bm25Threshold ?? RETRIEVAL_PARAMS.bm25Threshold),
+    );
+
+    const chunks = await db.all(
+      `SELECT * FROM chunks WHERE id IN (${results.map(() => "?").join(",")})`,
+      results.map((result) => result.chunkId),
+    );
+
+    return chunks.map((chunk) => ({
+      filepath: chunk.path,
+      index: chunk.index,
+      startLine: chunk.startLine,
+      endLine: chunk.endLine,
+      content: chunk.content,
+      digest: chunk.cacheKey,
+    }));
+  }
+
+  private buildTagFilter(tags: BranchAndDir[]): string {
+    const tagStrings = this.convertTags(tags);
+
+    return `AND chunk_tags.tag IN (${tagStrings.map(() => "?").join(",")})`;
+  }
+
+  private buildPathFilter(filterPaths: string[] | undefined): string {
+    if (!filterPaths || filterPaths.length === 0) {
+      return "";
+    }
+    return `AND fts_metadata.path IN (${filterPaths.map(() => "?").join(",")})`;
+  }
+
+  private buildRetrieveQuery(config: RetrieveConfig): string {
+    return `
+      SELECT fts_metadata.chunkId, fts_metadata.path, fts.content, rank
+      FROM fts
+      JOIN fts_metadata ON fts.rowid = fts_metadata.id
+      JOIN chunk_tags ON fts_metadata.chunkId = chunk_tags.chunkId
+      WHERE fts MATCH ?
+      ${this.buildTagFilter(config.tags)}
+      ${this.buildPathFilter(config.filterPaths)}
+      ORDER BY bm25(fts, ${this.pathWeightMultiplier})
+      LIMIT ?
+    `;
+  }
+
+  private getRetrieveQueryParameters(config: RetrieveConfig) {
+    const { text, tags, filterPaths, n } = config;
+    const tagStrings = this.convertTags(tags);
+
+    return [
+      text.replace(/\?/g, ""),
+      ...tagStrings,
+      ...(filterPaths || []),
+      Math.ceil(n),
+    ];
+  }
+
+  private convertTags(tags: BranchAndDir[]): string[] {
+    // Notice that the "chunks" artifactId is used because of linking between tables
+    return tags.map((tag) =>
+      tagToString({ ...tag, artifactId: ChunkCodebaseIndex.artifactId }),
+    );
+  }
+}
+````
+
+### `tools/node/upstream/LICENSE`
+
+**作用：固定的Continue开源全文索引组件及许可证。** TypeScript源码原样保留，manifest记录上游提交、Git对象哈希与SHA256，构建前逐个验证。这里只嵌入全文索引组件，不加载Continue的IDE、账户或托管服务；LICENSE必须随源码保留。
+
+**对应关系：** npm run build --prefix tools/node → esbuild绑定本机host → continue_index调用；独立SQLite缓存。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/node/upstream/LICENSE sha256: b14a17598cb08c4c7c82c070731126304e0a75d001ed59fb9ea3955a0b561802 -->
+````text
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright 2023 Continue Dev, Inc.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
 ````
 
 ## 平台依赖锁
@@ -29137,7 +31178,7 @@ FastapiAdmin：https://github.com/fastapiadmin/FastapiAdmin
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/implementation.md sha256: f9b49dc5ff4ec5cd894ec5045618e2cbaa03844a999c1832db660bc2641b2d77 -->
+<!-- source-file: docs/implementation.md sha256: 90e410906866d10a04a880de012f51ebf25e401f525e8f65986e4723097ae324 -->
 ````markdown
 # 逐文件实现讲解：把空文件夹变成完整系统
 
@@ -29190,7 +31231,7 @@ FastAPI的lifespan在服务启动和退出时管理数据库/Worker。LangGraph�
 | 2 数据库 | `store.py`、`alembic.ini`、`migrations/`全部文件；`tests/conftest.py`、`test_contracts.py`、`test_store.py` | 临时数据库能迁移、保存项目和事务回滚；此时完全不需要api.py或runtime.py |
 | 3 需求与模型 | `conversation.py`、`llm.py` | 长期会话保存原事实；模型请求有角色路由、预算、缓存和严格响应格式 |
 | 4 安全与源代码 | `filesystem.py`、`tools.py`、`vendor.py`、`scripts/vendor_templates.py`、`templates/vendor/`文本清单/许可证 | 能从固定第三方源码生成本机ZIP，再安全解压；没有任意命令入口 |
-| 5 上下文 | `symbols.py`、`knowledge.py`、`retrieval.py`、`context_mcp.py`、`toolchain.py` | Java/TS/Vue/Python符号和源码行号可检索；只读MCP共享同一索引 |
+| 5 上下文 | `symbols.py`、`knowledge.py`、`retrieval.py`、`continue_index.py`、`context_mcp.py`、`toolchain.py`、`tools/node/`全部文本文件 | Java/TS/Vue/Python符号和源码行号可检索；只读MCP共享同一索引 |
 | 6 产品 | `templates/product/`全部文件、`templates/frontends/`全部文件、`generator.py`、`product_sql.py`、`rules.py`、`coding.py`、`aider_tool.py` | 已批准Plan可确定性生成独立产品；只有受限规则文件可以由模型参与修改 |
 | 7 验收 | `verification.py`、`postgres_lab.py`、`sandbox.py`、`daytona_worker.py`、本机Daytona脚本和Dockerfile | 本机真实验收、可选隔离复验以及清理失败阻止交付 |
 | 8 原生全栈 | 全部`native*.py`、`portable.py`、`portable_checks.py`、`templates/deployment/`、原生浏览器脚本 | 原框架生成、菜单/权限挂载、前端/浏览器验证及独立新库启动 |
@@ -29282,7 +31323,7 @@ FTS5在本地SQLite中对分块文本检索。路径/扩展名筛选先应用到
 
 不开启EMBEDDING_ENABLED时AST/FTS5照常工作。开启后，本机embedding模型把文本转换成数字向量，增量缓存按文本与模型身份复用，检索用融合排名结合词法和向量结果。端点只能是本机回环地址，HTTP代理和重定向关闭，响应大小与批次数受限。
 
-这是本机模型推理，不能配置托管向量数据库或云端embedding API，也不继承聊天模型Key。prepare_context把同一检索结果接到规划阶段；CLI和Continue的MCP读取的也是这套索引，而不是另造一个叫Continue的私有索引引擎。
+这是本机模型推理，不能配置托管向量数据库或云端embedding API，也不继承聊天模型Key。prepare_context把同一检索结果接到规划阶段；CLI和Continue的MCP读取的也是这套索引。RETRIEVAL_ENGINE=continue时，continue_index桥接固定的上游FullTextSearchCodebaseIndex组件，seed_cache创建它的本机片段输入，Node适配器实际调用update/retrieve，返回结果交给融合器。未选择时保留无需Node的默认实现；不要把MCP桥接误称为索引算法，也不要把组件测试称为IDE界面测试。
 
 ## F. 第四条数据流：生成代码但不执行任意模型程序
 
@@ -29300,7 +31341,7 @@ rules不是`import custom_rules`后执行任意Python。它解析有限AST，只
 
 ### F.3 Aider是一台本机编辑工具，不是第二条云端通道
 
-Aider安装在tools/aider独立Python3.12环境，平台保持Python3.14，避免依赖相互覆盖。平台网关取得经过验证的SEARCH/REPLACE块；Aider CLI在临时独立Git目录执行本机应用操作，不接收真实模型Key。
+Aider安装在tools/aider独立Python3.12环境，平台保持Python3.14，避免依赖相互覆盖。平台网关取得经过验证的SEARCH/REPLACE块；Aider CLI在临时独立Git目录执行本机应用操作，不接收真实模型Key。它由tools/aider/offline_runner.py启动，先验证锁定依赖携带的编码和元数据，再禁用联网入口；运行中的版本查询、Repo Map和编辑均不临时下载数据。依赖安装仍是明确单独的uv步骤。
 
 编辑前检查允许路径、文件前像SHA和SEARCH原文唯一匹配。编辑后核对实际内容与平台计算的期望结果，检查没有额外业务文件被改，重新解释规则并验证正反示例，最后保留Git提交与前后指纹。模糊匹配成功、退出码0或Git产生一个commit都不是充分验收条件。
 
@@ -29743,7 +31784,7 @@ uv run python -m scripts.ci_native_bundled yudao-vben
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/toolchain.md sha256: 719b78ee9278e8cb30090ee6084fa00f869a09c75e1d35bcaa0fd21f9f410748 -->
+<!-- source-file: docs/toolchain.md sha256: a0dcca98efe2c53d25d907676a1d76e771cc9d6613fac790dc8dddbef85dad5c -->
 ````markdown
 ## 20. 本机工具链：解析、检索、编辑、MCP与自托管Daytona
 
@@ -29852,15 +31893,17 @@ uv run rnd tools search workbench .data/platform-index "如何选择每个阶段
 
 ```powershell
 uv sync --locked --project tools/aider --python 3.12
-uv run --locked --project tools/aider --python 3.12 aider --version
+uv run --locked --project tools/aider --python 3.12 python tools/aider/offline_runner.py --check-local-deps
 ```
 
-预期Aider版本为0.86.2。平台依然用Python3.14；不要把Aider的依赖装进平台环境。工具路径可以由程序发现，或在AIDER_EXECUTABLE中明确指定本机安装位置。
+预期JSON中aider为0.86.2，packaged_encodings_verified为true，network为disabled。平台依然用Python3.14；不要把Aider的依赖装进平台环境。工具路径可以由程序发现，或在AIDER_EXECUTABLE中明确指定本机安装位置。
 
 ```dotenv
 REPO_MAP_PROVIDER=aider
 CODING_ENGINE=aider
 ```
+
+先按附录写出tools/aider/offline_runner.py。它由独立3.12解释器运行，验证Aider版本和LiteLLM安装包内的两份Token数据；通过Python审计钩子拒绝DNS、TCP/UDP连接和网络监听，再导入真实Aider。运行时还向Aider提供本地模型元数据文件，避免隐式查询远程价格表。校验失败应按锁文件重新安装，不能删除校验；登记入口不是任意Python的强安全沙箱。
 
 修改配置后重启平台。REPO_MAP_PROVIDER改变结构图的产生方式；CODING_ENGINE只影响Plan里确实存在额外单记录规则时的编辑步骤。普通CRUD不会为了展示工具而重复调用编码模型。
 
@@ -29870,9 +31913,49 @@ Aider在隔离HOME、有效空YAML配置、独立空env文件及临时Git副本�
 uv run python -m scripts.ci_toolchain
 ```
 
-这个脚本真实调用Aider，真实启动MCP并索引固定Java/Vue源码；模型响应是显式本机测试夹具，不消耗付费模型。报告中的SDK契约测试和本机Daytona服务测试分开标记，不能把前者冒充后者。
+运行该脚本前先完成20.5.1的Node准备。它真实调用Aider，真实执行Continue组件与MCP并索引固定Java/Vue源码；模型响应是显式本机测试夹具，不消耗付费模型。报告中的SDK契约测试和本机Daytona服务测试分开标记，不能把前者冒充后者。
 
-### 20.5 Continue通过本机stdio连接
+### 20.5 Continue原生索引与本机stdio连接
+
+#### 20.5.1 先建立能独立运行的真实索引组件
+
+先按附录写出`tools/node/package.json`、`package-lock.json`、`build.mjs`、`continue-host.mjs`、`continue-runner.mjs`、`no-network.cjs`和`upstream/`中的三个文件，再写`workbench/continue_index.py`。全部内容均在书内，不需要先下载本项目骨架。`upstream/FullTextSearchCodebaseIndex.ts`是固定提交`5522c6f44ca0ac3528b37244818fbfa39b5af470`的完整原文件，不能自己删改；LICENSE随它保留，manifest同时记录Git对象指纹及SHA-256。这里使用该公开组件，不声称复制了Continue整个IDE索引生命周期。
+
+本模块需要Node22，至少22.13。没有Node时从Node.js官方历史发布页选择22.x的本机安装包；Windows安装器完成后重新打开终端，WSL使用Linux版本而非Windows可执行文件。先用`node --version`确认版本，再按顺序执行：
+
+```powershell
+node --version
+npm --version
+npm ci --prefix tools/node --no-audit --no-fund
+npm run build --prefix tools/node
+```
+
+npm ci是安装步骤，只安装package-lock中校验过的依赖；不是索引步骤。build.mjs先检查原组件和许可证指纹，再用固定esbuild将原组件与本机适配器编译到`.built/continue.cjs`，最后记录每份输入及输出的SHA。预期出现`Verified Continue source compiled locally`。生成目录和node_modules不入Git；如果原文件被修改，构建失败而不是从网络取另一版。修改自有适配器后需要重新build；对上游组件的变更必须重新审查来源，不能随手改清单绕过校验。
+
+项目.env写入：
+
+```dotenv
+RETRIEVAL_ENGINE=continue
+```
+
+然后重启平台，运行：
+
+```powershell
+uv run rnd index workbench .data/platform-index
+uv run rnd tools search workbench .data/platform-index "model_for"
+uv run pytest tests/test_continue_index.py -q
+```
+
+检索报告的mode应为`ast+continue-fts5+fts5`；启用本机向量则还带`+vector-rrf`。索引目录产生`continue.sqlite3`和`continue-index.json`，后者包含真实组件名称、文件/片段数量、固定revision、源码摘要和禁网标记。测试中Node未安装会明确跳过可选工具测试；正式Actions设置`RND_REQUIRE_NODE_TESTS=1`，缺少工具会失败而非通过。缺少`.built`时应执行上述安装/构建，索引过期则重建源码索引；不能把配置改成远程URL绕过。
+
+接下来理解每个文件如何连接：retrieval.query先完成模板源码和行号校验，continue_index.rank用源指纹加工具指纹判断缓存是否有效。seed_cache将原有AST片段转换成组件所需的chunks/chunk_tags表；只有缓存库涉及此转换，不修改产品数据库。invoke通过固定Node命令传递临时JSON请求，子进程只读这些请求和缓存。continue-runner调用上游update写真实FTS表，随后调用上游retrieve做BM25查询。continue-host只提供SQLite、标签和文件名接口，不重新实现上游索引算法。返回值只有已知片段ID，Python再从已校验的本机片段库取内容。
+
+限定路径时先筛选候选，空路径集不会变成“全仓库”；短于三字符的符号仍可由平台原有FTS/符号检索贡献结果。融合器合并Continue排名、平台词法排名和可选本机向量排名，并再次执行输出预算。源码改变或文件删除后，旧Continue库整体按新片段身份原子重建，不保留失效行号。上游读取结果用IN查询不保证排名顺序，本机适配器恢复它自己的BM25顺序，不用另一个模型重排。
+
+`no-network.cjs`在登记的Node程序载入前禁用DNS、TCP、UDP、HTTP、HTTPS、HTTP2和fetch入口；请求环境不传模型Key、代理或遥测变量。被索引源码只是文本，不执行其import或脚本。此钩子保护已审阅的索引程序，不是对恶意原生程序的操作系统沙箱。无需这些能力时保持`RETRIEVAL_ENGINE=local`，平台仍可用默认AST/FTS完成生成。
+
+#### 20.5.2 再连接可选的本机IDE
+
 
 先在本机安装VS Code，并在项目根目录终端安装固定Continue扩展：
 
@@ -29919,7 +32002,7 @@ uv run rnd tools continue-config . workbench .data/platform-index
 
 保存配置并重新载入Continue，在工具列表中确认出现`search_code`和`repository_map`。先在只读的Plan模式提出：“调用repository_map，再用search_code查找model_for，回答中给出文件和行号。”允许这两个本机MCP调用，不授权无关终端或写文件工具。应该看到源码路径、行号及内容，而不是要求注册远程索引账号。若MCP未连接，检查VS Code终端能否运行`uv --version`、导出配置的绝对目录是否存在；索引过期时先重新执行rnd index。命令行`uv run rnd tools search workbench .data/platform-index model_for`可独立验证检索，不用付费模型。
 
-本平台仅使用Continue的公开MCP接口，不依赖托管Continue服务、不复制其私有索引实现，也不把协议测试称为IDE界面测试。IDE本身的聊天模型配置可按你的大模型服务填写；不要启用额外的云端检索或遥测扩展。
+MCP是IDE接入方式，原生FTS是上一节独立运行的索引组件，两者不是同一个概念。CI既测试真实上游组件，也测试真实stdio初始化/工具查询；这些不是自动操作IDE界面的测试。IDE聊天模型可按你的服务填写；不启用云端检索、远程配置和额外遥测。
 
 ### 20.6 Daytona v0.190.0：必须部署完整本机服务
 
@@ -30012,10 +32095,10 @@ down不带-v，不删除持久卷、用户、Key或快照。已有安装用up继
 | 能力 | 本机实现入口 | 对应证据 |
 |---|---|---|
 | 结构解析 | symbols.parse_file、knowledge.build_index | 固定Java/TS/Vue源码符号与行号；重复索引复用 |
-| 混合检索 | retrieval.query、add_embeddings | FTS5、可选本机向量、预算、过滤、过期拒绝 |
+| 混合检索 | retrieval.query、continue_index.rank、Continue原生update/retrieve、add_embeddings | 实际组件SQLite表与BM25、可选本机向量、预算、过滤、过期拒绝 |
 | 精确编辑 | aider_tool.apply_blocks、code_rules_with_aider | CLI实际执行、唯一前像、文件范围、SHA、规则正反例、Git提交 |
 | IDE桥接 | context_mcp.make_server、export_continue | 真实stdio MCP初始化、工具列表和查询，不是云端服务 |
-| 本机沙箱 | sandbox、daytona_worker、daytona_local、daytona_bootstrap | URL/网络拒绝测试；另加本机完整服务生命周期报告 |
+| 本机沙箱 | sandbox、daytona_worker、daytona_local、daytona_bootstrap、ci_daytona_local | 从一次智能推荐经真实上下文/验收/沙箱/清理/独立解压到READY的同一运行；LLM仅显式测试夹具 |
 | 唯一手册 | build_handbook、rebuild_from_handbook、ci_handbook | 全部文本源码哈希、空目录重建、第三方依赖重建、本地导入来源及完整非PostgreSQL回归 |
 
 ### 固定实现的官方来源
@@ -30057,6 +32140,9 @@ Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01
 固定版本 v0.190.0 的 `apps/api/src/auth/api-key.strategy.ts` 在校验任意 API Key 前，先通过 `getOrThrow('sshGateway.apiKey')` 读取配置。删除可选 SSH 容器仍需给 API 提供该必需值，否则本机登录能够成功，但使用生成的 API Key 注册快照时会报临时鉴权服务错误。
 
 本机配置将 `SSH_GATEWAY_API_KEY` 从本次安装随机生成的管理密钥通过带用途标识的 HMAC-SHA256 派生为独立哨兵值。它不是固定公开密码，也不复用代理或健康检查密钥；没有 SSH 容器、地址或对外 SSH 端口，Runner 的 `SSH_GATEWAY_ENABLE` 仍为 `false`。密钥仅位于受限的本机配置，验收报告不包含环境配置和凭据文件。
+
+Continue固定全文组件：https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/indexing/FullTextSearchCodebaseIndex.ts
+Node本机SQLite接口：https://nodejs.org/download/release/v22.16.0/docs/api/sqlite.html
 ````
 
 ### `docs/recommendation-recovery.md`
@@ -30067,7 +32153,7 @@ Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/recommendation-recovery.md sha256: 4aaf51f0249e201f83c0b19d572381378c1d41373e91b0bda6646d0e32916ebe -->
+<!-- source-file: docs/recommendation-recovery.md sha256: 47cc61cf82c64214747118da069f7c53ab7dc7e839765f3af271c0fa56416da0 -->
 ````markdown
 # 智能推荐的范围判断、自动修正与原运行恢复
 
@@ -30129,4 +32215,13 @@ uv run python -m scripts.build_handbook --check
 回归测试分别覆盖初始智能模式、澄清后授权、旧格式 BLOCKED 检查点重启恢复、设计反馈、真实不支持需求的有限停止、手动和重试控制、模型缓存更新以及不能覆盖失败的独立验收。
 
 端到端测试使用明确标注的模型协议夹具，不调用用户付费模型账号；图执行、数据库存储、产品生成、独立产品进程和干净解压复验使用实际实现。这样的测试证明控制流程与交付验证可以走通，不证明任意模型供应商的任意一次回答都能正确收敛；真实模型持续给出错误范围时，系统仍应有限暂停并允许恢复。
+
+
+## 同一资讯任务的跨工具证据
+
+`scripts/news_fixture.py`只是CI注入的模型夹具，不是生产模型失败后的兜底。第一条响应故意把未要求的爬虫和公众网站写进unsupported，模拟报告中的错误。授权一次后，夹具必须收到原始请求、原facts和具体resolution_feedback，第二条响应才把未要求的边界放回limitations。设计响应还核对已批准facts未丢失；真正的生成、数据库、HTTP、浏览器和沙箱程序并不被替换。
+
+浏览器验收从只填写“泰拉瑞瑞亚游戏资讯”开始，真实点击一次智能推荐到下载，再在新产品中验证标题/正文搜索、分类、单日、含两端日期区间以及组合过滤。Daytona验收则在同一真实Runtime中同时启用Aider Repo Map和Continue原生索引，确认本机产品验收、真实Daytona运行及删除、独立ZIP解压复验全部通过后才允许READY。额外业务规则的实际Aider编辑由ci_aider_workflow单独覆盖，普通资讯CRUD不为展示工具而调用编码模型。
+
+以上能证明状态恢复、工具接线与交付验证正常，不能证明所有模型供应商都能理解同一句自然语言。真实供应商的结构化输出、余额和权限仍需用用户自己的配置联调；测试不得偷偷使用用户Key。
 ````

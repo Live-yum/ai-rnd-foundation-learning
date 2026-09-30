@@ -82,6 +82,11 @@ MODULES = {
         "build_index对比文件SHA，只重新解析变化的文件，并处理已删除文件；索引与FTS检索库对应同一源码摘要。context_for按路径和字符预算读取源码。design_pack把经批准的Plan转成供人审阅的规格、测试要求与SQL设计。",
         "toolchain → knowledge → symbols/retrieval；flow → design_pack。",
     ),
+    "continue_index": (
+        "固定Continue全文索引组件的本机适配器",
+        "bridge_identity校验源码与已编译工具；seed_cache把Tree-sitter分块转换为上游组件需要的表列。rank按索引身份原子重建并运行实际update/retrieve，再把结果限制在平台已验证的分块范围。缺少工具时报出安装命令，绝不连接云端替代。",
+        "retrieval.query → continue_index → 固定Continue组件 → 独立本机SQLite缓存；test_continue_index。",
+    ),
     "retrieval": (
         "本机代码检索及可选本机向量融合",
         "chunks给片段附上文件和行号，FTS5负责关键词排序。query先核对源码摘要，防止返回过期行号，再应用路径/扩展名与预算限制；启用本机embedding时以独立配置生成和复用向量，采用倒数排名融合而非直接相加不同尺度的分数。",
@@ -94,7 +99,7 @@ MODULES = {
     ),
     "context_mcp": (
         "只读本机MCP适配器",
-        "make_server将search_code和repository_map包装成MCP工具，结果仍来自本平台索引。export_continue只写明确的stdio启动配置，已有配置拒绝覆盖；服务不开放HTTP云入口，也没有复制Continue私有索引。",
+        "make_server将search_code和repository_map包装成MCP工具，结果仍来自本平台索引。export_continue只写明确的stdio启动配置，已有配置拒绝覆盖；服务不开放HTTP云入口；启用Continue引擎时，查询会交给固定上游全文组件及本机适配器，而非IDE全局缓存。",
         "Continue本机Agent → stdio → context_mcp → retrieval。",
     ),
     "generator": (
@@ -376,6 +381,24 @@ def purpose(name):
             "本机Daytona的预热镜像",
             "Dockerfile逐层准备Python运行时和产品锁定依赖；只在显式构建时下载软件。网络封锁后的沙箱使用已有缓存离线安装，创建的是本机镜像而非云端工作区。",
             "scripts.daytona_local snapshot-image → 本机Registry → scripts.daytona_bootstrap snapshot。",
+        )
+    if name == "tools/aider/offline_runner.py":
+        return (
+            "Aider本机禁网入口",
+            "校验独立Python版本、Aider版本、依赖中Token数据与模型元数据，再安装审计钩子并调用真实CLI；--check-local-deps只做离线自检。",
+            "aider_tool.command → 本文件 → Aider Repo Map/apply；tests/test_aider_offline和ci_toolchain分别验证拒绝路径与实际工具。",
+        )
+    if name.startswith("tools/node/upstream/"):
+        return (
+            "固定的Continue开源全文索引组件及许可证",
+            "TypeScript源码原样保留，manifest记录上游提交、Git对象哈希与SHA256，构建前逐个验证。这里只嵌入全文索引组件，不加载Continue的IDE、账户或托管服务；LICENSE必须随源码保留。",
+            "npm run build --prefix tools/node → esbuild绑定本机host → continue_index调用；独立SQLite缓存。",
+        )
+    if name.startswith("tools/node/"):
+        return (
+            "本机Node索引运行边界",
+            "package-lock固定安装依赖；build校验上游源码并编译工具，host用Node内置SQLite提供数据库接口，runner只接受有界JSON文件协议，no-network在进程启动时拒绝网络接口。源码片段只写入检索库，不被执行。",
+            "先npm ci再npm run build；Python continue_index校验构建回执并调用runner；test_continue_index与ci_toolchain。",
         )
     if name.startswith("tools/aider/"):
         return (

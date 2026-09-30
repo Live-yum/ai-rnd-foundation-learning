@@ -105,15 +105,17 @@ uv run rnd tools search workbench .data/platform-index "如何选择每个阶段
 
 ```powershell
 uv sync --locked --project tools/aider --python 3.12
-uv run --locked --project tools/aider --python 3.12 aider --version
+uv run --locked --project tools/aider --python 3.12 python tools/aider/offline_runner.py --check-local-deps
 ```
 
-预期Aider版本为0.86.2。平台依然用Python3.14；不要把Aider的依赖装进平台环境。工具路径可以由程序发现，或在AIDER_EXECUTABLE中明确指定本机安装位置。
+预期JSON中aider为0.86.2，packaged_encodings_verified为true，network为disabled。平台依然用Python3.14；不要把Aider的依赖装进平台环境。工具路径可以由程序发现，或在AIDER_EXECUTABLE中明确指定本机安装位置。
 
 ```dotenv
 REPO_MAP_PROVIDER=aider
 CODING_ENGINE=aider
 ```
+
+先按附录写出tools/aider/offline_runner.py。它由独立3.12解释器运行，验证Aider版本和LiteLLM安装包内的两份Token数据；通过Python审计钩子拒绝DNS、TCP/UDP连接和网络监听，再导入真实Aider。运行时还向Aider提供本地模型元数据文件，避免隐式查询远程价格表。校验失败应按锁文件重新安装，不能删除校验；登记入口不是任意Python的强安全沙箱。
 
 修改配置后重启平台。REPO_MAP_PROVIDER改变结构图的产生方式；CODING_ENGINE只影响Plan里确实存在额外单记录规则时的编辑步骤。普通CRUD不会为了展示工具而重复调用编码模型。
 
@@ -123,9 +125,49 @@ Aider在隔离HOME、有效空YAML配置、独立空env文件及临时Git副本�
 uv run python -m scripts.ci_toolchain
 ```
 
-这个脚本真实调用Aider，真实启动MCP并索引固定Java/Vue源码；模型响应是显式本机测试夹具，不消耗付费模型。报告中的SDK契约测试和本机Daytona服务测试分开标记，不能把前者冒充后者。
+运行该脚本前先完成20.5.1的Node准备。它真实调用Aider，真实执行Continue组件与MCP并索引固定Java/Vue源码；模型响应是显式本机测试夹具，不消耗付费模型。报告中的SDK契约测试和本机Daytona服务测试分开标记，不能把前者冒充后者。
 
-### 20.5 Continue通过本机stdio连接
+### 20.5 Continue原生索引与本机stdio连接
+
+#### 20.5.1 先建立能独立运行的真实索引组件
+
+先按附录写出`tools/node/package.json`、`package-lock.json`、`build.mjs`、`continue-host.mjs`、`continue-runner.mjs`、`no-network.cjs`和`upstream/`中的三个文件，再写`workbench/continue_index.py`。全部内容均在书内，不需要先下载本项目骨架。`upstream/FullTextSearchCodebaseIndex.ts`是固定提交`5522c6f44ca0ac3528b37244818fbfa39b5af470`的完整原文件，不能自己删改；LICENSE随它保留，manifest同时记录Git对象指纹及SHA-256。这里使用该公开组件，不声称复制了Continue整个IDE索引生命周期。
+
+本模块需要Node22，至少22.13。没有Node时从Node.js官方历史发布页选择22.x的本机安装包；Windows安装器完成后重新打开终端，WSL使用Linux版本而非Windows可执行文件。先用`node --version`确认版本，再按顺序执行：
+
+```powershell
+node --version
+npm --version
+npm ci --prefix tools/node --no-audit --no-fund
+npm run build --prefix tools/node
+```
+
+npm ci是安装步骤，只安装package-lock中校验过的依赖；不是索引步骤。build.mjs先检查原组件和许可证指纹，再用固定esbuild将原组件与本机适配器编译到`.built/continue.cjs`，最后记录每份输入及输出的SHA。预期出现`Verified Continue source compiled locally`。生成目录和node_modules不入Git；如果原文件被修改，构建失败而不是从网络取另一版。修改自有适配器后需要重新build；对上游组件的变更必须重新审查来源，不能随手改清单绕过校验。
+
+项目.env写入：
+
+```dotenv
+RETRIEVAL_ENGINE=continue
+```
+
+然后重启平台，运行：
+
+```powershell
+uv run rnd index workbench .data/platform-index
+uv run rnd tools search workbench .data/platform-index "model_for"
+uv run pytest tests/test_continue_index.py -q
+```
+
+检索报告的mode应为`ast+continue-fts5+fts5`；启用本机向量则还带`+vector-rrf`。索引目录产生`continue.sqlite3`和`continue-index.json`，后者包含真实组件名称、文件/片段数量、固定revision、源码摘要和禁网标记。测试中Node未安装会明确跳过可选工具测试；正式Actions设置`RND_REQUIRE_NODE_TESTS=1`，缺少工具会失败而非通过。缺少`.built`时应执行上述安装/构建，索引过期则重建源码索引；不能把配置改成远程URL绕过。
+
+接下来理解每个文件如何连接：retrieval.query先完成模板源码和行号校验，continue_index.rank用源指纹加工具指纹判断缓存是否有效。seed_cache将原有AST片段转换成组件所需的chunks/chunk_tags表；只有缓存库涉及此转换，不修改产品数据库。invoke通过固定Node命令传递临时JSON请求，子进程只读这些请求和缓存。continue-runner调用上游update写真实FTS表，随后调用上游retrieve做BM25查询。continue-host只提供SQLite、标签和文件名接口，不重新实现上游索引算法。返回值只有已知片段ID，Python再从已校验的本机片段库取内容。
+
+限定路径时先筛选候选，空路径集不会变成“全仓库”；短于三字符的符号仍可由平台原有FTS/符号检索贡献结果。融合器合并Continue排名、平台词法排名和可选本机向量排名，并再次执行输出预算。源码改变或文件删除后，旧Continue库整体按新片段身份原子重建，不保留失效行号。上游读取结果用IN查询不保证排名顺序，本机适配器恢复它自己的BM25顺序，不用另一个模型重排。
+
+`no-network.cjs`在登记的Node程序载入前禁用DNS、TCP、UDP、HTTP、HTTPS、HTTP2和fetch入口；请求环境不传模型Key、代理或遥测变量。被索引源码只是文本，不执行其import或脚本。此钩子保护已审阅的索引程序，不是对恶意原生程序的操作系统沙箱。无需这些能力时保持`RETRIEVAL_ENGINE=local`，平台仍可用默认AST/FTS完成生成。
+
+#### 20.5.2 再连接可选的本机IDE
+
 
 先在本机安装VS Code，并在项目根目录终端安装固定Continue扩展：
 
@@ -172,7 +214,7 @@ uv run rnd tools continue-config . workbench .data/platform-index
 
 保存配置并重新载入Continue，在工具列表中确认出现`search_code`和`repository_map`。先在只读的Plan模式提出：“调用repository_map，再用search_code查找model_for，回答中给出文件和行号。”允许这两个本机MCP调用，不授权无关终端或写文件工具。应该看到源码路径、行号及内容，而不是要求注册远程索引账号。若MCP未连接，检查VS Code终端能否运行`uv --version`、导出配置的绝对目录是否存在；索引过期时先重新执行rnd index。命令行`uv run rnd tools search workbench .data/platform-index model_for`可独立验证检索，不用付费模型。
 
-本平台仅使用Continue的公开MCP接口，不依赖托管Continue服务、不复制其私有索引实现，也不把协议测试称为IDE界面测试。IDE本身的聊天模型配置可按你的大模型服务填写；不要启用额外的云端检索或遥测扩展。
+MCP是IDE接入方式，原生FTS是上一节独立运行的索引组件，两者不是同一个概念。CI既测试真实上游组件，也测试真实stdio初始化/工具查询；这些不是自动操作IDE界面的测试。IDE聊天模型可按你的服务填写；不启用云端检索、远程配置和额外遥测。
 
 ### 20.6 Daytona v0.190.0：必须部署完整本机服务
 
@@ -265,10 +307,10 @@ down不带-v，不删除持久卷、用户、Key或快照。已有安装用up继
 | 能力 | 本机实现入口 | 对应证据 |
 |---|---|---|
 | 结构解析 | symbols.parse_file、knowledge.build_index | 固定Java/TS/Vue源码符号与行号；重复索引复用 |
-| 混合检索 | retrieval.query、add_embeddings | FTS5、可选本机向量、预算、过滤、过期拒绝 |
+| 混合检索 | retrieval.query、continue_index.rank、Continue原生update/retrieve、add_embeddings | 实际组件SQLite表与BM25、可选本机向量、预算、过滤、过期拒绝 |
 | 精确编辑 | aider_tool.apply_blocks、code_rules_with_aider | CLI实际执行、唯一前像、文件范围、SHA、规则正反例、Git提交 |
 | IDE桥接 | context_mcp.make_server、export_continue | 真实stdio MCP初始化、工具列表和查询，不是云端服务 |
-| 本机沙箱 | sandbox、daytona_worker、daytona_local、daytona_bootstrap | URL/网络拒绝测试；另加本机完整服务生命周期报告 |
+| 本机沙箱 | sandbox、daytona_worker、daytona_local、daytona_bootstrap、ci_daytona_local | 从一次智能推荐经真实上下文/验收/沙箱/清理/独立解压到READY的同一运行；LLM仅显式测试夹具 |
 | 唯一手册 | build_handbook、rebuild_from_handbook、ci_handbook | 全部文本源码哈希、空目录重建、第三方依赖重建、本地导入来源及完整非PostgreSQL回归 |
 
 ### 固定实现的官方来源
@@ -310,3 +352,6 @@ Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01
 固定版本 v0.190.0 的 `apps/api/src/auth/api-key.strategy.ts` 在校验任意 API Key 前，先通过 `getOrThrow('sshGateway.apiKey')` 读取配置。删除可选 SSH 容器仍需给 API 提供该必需值，否则本机登录能够成功，但使用生成的 API Key 注册快照时会报临时鉴权服务错误。
 
 本机配置将 `SSH_GATEWAY_API_KEY` 从本次安装随机生成的管理密钥通过带用途标识的 HMAC-SHA256 派生为独立哨兵值。它不是固定公开密码，也不复用代理或健康检查密钥；没有 SSH 容器、地址或对外 SSH 端口，Runner 的 `SSH_GATEWAY_ENABLE` 仍为 `false`。密钥仅位于受限的本机配置，验收报告不包含环境配置和凭据文件。
+
+Continue固定全文组件：https://github.com/continuedev/continue/blob/5522c6f44ca0ac3528b37244818fbfa39b5af470/core/indexing/FullTextSearchCodebaseIndex.ts
+Node本机SQLite接口：https://nodejs.org/download/release/v22.16.0/docs/api/sqlite.html

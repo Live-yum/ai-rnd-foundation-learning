@@ -49,7 +49,7 @@ FastAPI的lifespan在服务启动和退出时管理数据库/Worker。LangGraph�
 | 2 数据库 | `store.py`、`alembic.ini`、`migrations/`全部文件；`tests/conftest.py`、`test_contracts.py`、`test_store.py` | 临时数据库能迁移、保存项目和事务回滚；此时完全不需要api.py或runtime.py |
 | 3 需求与模型 | `conversation.py`、`llm.py` | 长期会话保存原事实；模型请求有角色路由、预算、缓存和严格响应格式 |
 | 4 安全与源代码 | `filesystem.py`、`tools.py`、`vendor.py`、`scripts/vendor_templates.py`、`templates/vendor/`文本清单/许可证 | 能从固定第三方源码生成本机ZIP，再安全解压；没有任意命令入口 |
-| 5 上下文 | `symbols.py`、`knowledge.py`、`retrieval.py`、`context_mcp.py`、`toolchain.py` | Java/TS/Vue/Python符号和源码行号可检索；只读MCP共享同一索引 |
+| 5 上下文 | `symbols.py`、`knowledge.py`、`retrieval.py`、`continue_index.py`、`context_mcp.py`、`toolchain.py`、`tools/node/`全部文本文件 | Java/TS/Vue/Python符号和源码行号可检索；只读MCP共享同一索引 |
 | 6 产品 | `templates/product/`全部文件、`templates/frontends/`全部文件、`generator.py`、`product_sql.py`、`rules.py`、`coding.py`、`aider_tool.py` | 已批准Plan可确定性生成独立产品；只有受限规则文件可以由模型参与修改 |
 | 7 验收 | `verification.py`、`postgres_lab.py`、`sandbox.py`、`daytona_worker.py`、本机Daytona脚本和Dockerfile | 本机真实验收、可选隔离复验以及清理失败阻止交付 |
 | 8 原生全栈 | 全部`native*.py`、`portable.py`、`portable_checks.py`、`templates/deployment/`、原生浏览器脚本 | 原框架生成、菜单/权限挂载、前端/浏览器验证及独立新库启动 |
@@ -141,7 +141,7 @@ FTS5在本地SQLite中对分块文本检索。路径/扩展名筛选先应用到
 
 不开启EMBEDDING_ENABLED时AST/FTS5照常工作。开启后，本机embedding模型把文本转换成数字向量，增量缓存按文本与模型身份复用，检索用融合排名结合词法和向量结果。端点只能是本机回环地址，HTTP代理和重定向关闭，响应大小与批次数受限。
 
-这是本机模型推理，不能配置托管向量数据库或云端embedding API，也不继承聊天模型Key。prepare_context把同一检索结果接到规划阶段；CLI和Continue的MCP读取的也是这套索引，而不是另造一个叫Continue的私有索引引擎。
+这是本机模型推理，不能配置托管向量数据库或云端embedding API，也不继承聊天模型Key。prepare_context把同一检索结果接到规划阶段；CLI和Continue的MCP读取的也是这套索引。RETRIEVAL_ENGINE=continue时，continue_index桥接固定的上游FullTextSearchCodebaseIndex组件，seed_cache创建它的本机片段输入，Node适配器实际调用update/retrieve，返回结果交给融合器。未选择时保留无需Node的默认实现；不要把MCP桥接误称为索引算法，也不要把组件测试称为IDE界面测试。
 
 ## F. 第四条数据流：生成代码但不执行任意模型程序
 
@@ -159,7 +159,7 @@ rules不是`import custom_rules`后执行任意Python。它解析有限AST，只
 
 ### F.3 Aider是一台本机编辑工具，不是第二条云端通道
 
-Aider安装在tools/aider独立Python3.12环境，平台保持Python3.14，避免依赖相互覆盖。平台网关取得经过验证的SEARCH/REPLACE块；Aider CLI在临时独立Git目录执行本机应用操作，不接收真实模型Key。
+Aider安装在tools/aider独立Python3.12环境，平台保持Python3.14，避免依赖相互覆盖。平台网关取得经过验证的SEARCH/REPLACE块；Aider CLI在临时独立Git目录执行本机应用操作，不接收真实模型Key。它由tools/aider/offline_runner.py启动，先验证锁定依赖携带的编码和元数据，再禁用联网入口；运行中的版本查询、Repo Map和编辑均不临时下载数据。依赖安装仍是明确单独的uv步骤。
 
 编辑前检查允许路径、文件前像SHA和SEARCH原文唯一匹配。编辑后核对实际内容与平台计算的期望结果，检查没有额外业务文件被改，重新解释规则并验证正反示例，最后保留Git提交与前后指纹。模糊匹配成功、退出码0或Git产生一个commit都不是充分验收条件。
 

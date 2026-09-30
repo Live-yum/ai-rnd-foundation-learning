@@ -1,0 +1,15 @@
+{
+  "name": "rnd-local-node-tools",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "dependencies": {
+    "esbuild": "0.25.9"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "node build.mjs"
+  }
+}

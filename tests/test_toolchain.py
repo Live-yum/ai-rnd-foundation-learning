@@ -407,6 +407,9 @@ def test_aider_uses_mapping_config_and_separate_empty_env(tmp_path, settings, mo
 
     def invoke(argv, cwd, **kwargs):
         calls.append(argv)
+        assert argv[1].endswith("tools/aider/offline_runner.py") or argv[1].endswith(
+            "tools\\aider\\offline_runner.py"
+        )
         environment = clean_env(kwargs["extra_env"])
         assert environment["OPENAI_API_KEY"] == "unused-local-editing-only"
         assert "ANTHROPIC_API_KEY" not in environment

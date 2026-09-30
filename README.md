@@ -183,7 +183,17 @@ uv run rnd tools search workbench .data/platform-index "model_for"
 uv run rnd tools continue-config . workbench .data/platform-index
 ```
 
-设置`CODING_ENGINE=aider`和`REPO_MAP_PROVIDER=aider`可启用实际本机编辑/Repo Map。真实模型Key只交给平台网关，Aider不取得它。Continue仅通过本机stdio MCP访问只读search_code/repository_map，本平台不依赖其云服务。
+设置`CODING_ENGINE=aider`和`REPO_MAP_PROVIDER=aider`可启用实际本机编辑/Repo Map。真实模型Key只交给平台网关，Aider不取得它；登记的CLI入口禁用网络，Token编码和模型元数据来自经过SHA校验的锁定依赖，不在生成任务中下载。
+
+实际Continue全文索引组件已随仓库包含源码和Apache-2.0许可证，固定提交为`5522c6f44ca0ac3528b37244818fbfa39b5af470`。使用Node22（至少22.13）在本机准备：
+
+```powershell
+node --version
+npm ci --prefix tools/node --no-audit --no-fund
+npm run build --prefix tools/node
+```
+
+在项目`.env`设置`RETRIEVAL_ENGINE=continue`并重启平台。规划、CLI和只读MCP都会实际执行上游`FullTextSearchCodebaseIndex.update/retrieve`，与本机AST、FTS5和可选向量融合；不是把自写索引重命名为Continue。查询进程禁用网络，不读取IDE私有缓存。`RETRIEVAL_ENGINE=local`仍是无需Node的默认基础方案。Continue IDE可以通过本机stdio MCP访问同一套只读search_code/repository_map，不要求云账号。
 
 向量服务仅接受回环地址，使用本机模型并显式`EMBEDDING_ENABLED=true`。工具端点拒绝云端/局域网、代理与重定向，数据库和Docker执行也限定本机；继承的LangSmith/OTEL遥测关闭。公开依赖下载不等于云端执行工具。
 
@@ -199,6 +209,8 @@ uv run python -m scripts.daytona_bootstrap auth
 uv run python -m scripts.daytona_bootstrap snapshot
 uv run python -m scripts.ci_daytona_local
 ```
+
+最后一条是完整资讯测试：复现“模板说明被误作需求阻塞”的初始问答，授权一次智能推荐，经真实Continue/Aider上下文、本机HTTP/数据库验收、真实Daytona与删除沙箱、独立ZIP重新解压验收到READY。模型响应是明确测试夹具，不代表实际供应商账号联调已通过。需先按上方准备Node组件与Aider环境。
 
 本机随机凭据及平台配置保存在`.data/daytona-local`，不得提交Git。完整教材第20章解释Dex、API、Runner、镜像摘要、离线快照、每一步预期结果和清理。默认Python/SQLite快照不冒充Java/Vue通用镜像；原生完整验收仍在本机进行。Daytona上游Compose仅供开发，privileged Runner不是生产强隔离保证。
 

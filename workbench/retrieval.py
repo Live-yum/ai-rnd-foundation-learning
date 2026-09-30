@@ -1,7 +1,8 @@
 """AST chunks + SQLite FTS5; optional explicit embeddings and rank fusion.
 
-The local index is shared by LangGraph and Continue via MCP. It is NOT Continue's
-private indexing implementation. No API key is inherited from the coding model.
+The AST/vector index is shared by LangGraph and Continue via MCP. The optional
+Continue engine runs its pinned upstream FTS component, with a separate local
+host cache. No API key is inherited from the coding model.
 """
 
 import json
@@ -279,6 +280,26 @@ def query(
         lexical = list(dict.fromkeys(row[0] for row in [*exact, *expanded]))[:80]
         ranks = [lexical]
         mode = "ast+fts5"
+        if settings and settings.retrieval_engine == "continue":
+            from workbench.continue_index import rank
+
+            scoped = None
+            if file_suffix or path_prefix:
+                scoped = [
+                    row[0]
+                    for row in db.execute(
+                        "SELECT DISTINCT path FROM chunks WHERE 1=1" + path_clause, path_params
+                    )
+                ]
+            native = rank(index_dir, index, exact_expression, scoped, settings.tool_timeout)
+            valid_keys = {
+                row[0]
+                for row in db.execute("SELECT id FROM chunks WHERE 1=1" + path_clause, path_params)
+            }
+            if any(key not in valid_keys for key in native):
+                raise ValueError("Continue检索结果超出已验证分块或路径范围")
+            ranks.insert(0, native)
+            mode = "ast+continue-fts5+fts5"
         profile = embedding_profile(settings) if settings else None
         if profile and settings.embedding_enabled:
             vectors = db.execute(
