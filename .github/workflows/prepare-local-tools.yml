@@ -36,13 +36,27 @@ jobs:
           uv run ruff format .
           uv run python -m scripts.build_handbook
           uv run python -m scripts.build_handbook --check
+      - name: Archive public installed Python dependencies for independent review
+        run: |
+          uv run python - <<'PYTHON'
+          import pathlib, sys, tarfile
+          target = pathlib.Path('reports/review-runtime'); target.mkdir(parents=True, exist_ok=True)
+          with tarfile.open(target / 'platform-runtime.tar.gz', 'w:gz') as archive:
+              archive.add(sys.base_prefix, arcname='python', filter=lambda item: None if '__pycache__' in item.name else item)
+              archive.add(pathlib.Path(sys.prefix) / 'lib/python3.14/site-packages', arcname='site-packages', filter=lambda item: None if '__pycache__' in item.name else item)
+          PYTHON
+      - uses: actions/upload-artifact@v4
+        with:
+          name: platform-runtime-for-review
+          path: reports/review-runtime/platform-runtime.tar.gz
+          retention-days: 3
       - name: Commit generated source and single handbook
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -u
           if ! git diff --cached --quiet; then
-            git commit -m 'build: synchronize local-only runtimes and complete from-zero handbook'
+            git commit -m 'fix: bounded Daytona SDK report streaming with contract tests and handbook'
             git push origin HEAD:feat/controlled-toolchain-integration
           fi
       - name: Platform and real local toolchain verification
@@ -60,8 +74,8 @@ jobs:
         if: always()
         with:
           name: local-only-reviewed-source
-          path: reports/
-# The normal daytona-local.yml pull_request workflow remains the independent
-# live-service gate. Do not attach an always()-guarded heavyweight deployment
-# to this source-writer's concurrency group: it can prevent cancellation and
-# block subsequent source fixes from materializing.
+          path: |
+            reports/*.json
+            reports/*.xml
+            reports/review-source.zip
+# Temporary source synchronization, removed from the reviewed final tree.

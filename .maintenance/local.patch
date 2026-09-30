@@ -1,0 +1,214 @@
+diff --git a/docs/toolchain.md b/docs/toolchain.md
+index ecdc018..5619bbb 100644
+--- a/docs/toolchain.md
++++ b/docs/toolchain.md
+@@ -178,6 +178,8 @@ uv run rnd tools continue-config . workbench .data/platform-index
+ 
+ 固定版本为v0.190.0，源码SHA为`01c502bb1f1ff8f2885d0cd490e043736083dca8`。下载一个CLI或安装Python SDK并不等于已经运行Daytona；完整本地系统还有API、Runner、Proxy、PostgreSQL、Redis、Dex、本地镜像Registry和MinIO。
+ 
++沙箱程序退出码为0仍不足以交付。`sandbox.read_runtime_report`通过SDK真实流式下载方法读取可信验证器的JSON回执，限制读取超时和最多1,000,000字节；中断、非法JSON、缺少HTTP/重启成功标记、文件过大都判失败，并关闭流。随后仍须删除本次沙箱、保存清理回执；删除失败同样阻止交付。`tests/test_daytona_download.py`调用实际安装的0.190.0文件系统实现和multipart解析器，只有HTTP对端使用明确的本机协议夹具；`daytona-local.yml`另以真实本机服务验证沙箱建立、断网运行和删除，二者不能互相替代。
++
+ 上游的Docker Compose明确用于开发，不是生产安全部署。Runner使用privileged Docker-in-Docker；请只在你拥有的Linux/WSL开发环境使用，不暴露公网，不把它描述成抵御恶意内核攻击的强隔离。平台仍只执行登记的验证命令。
+ 
+ 准备Linux x86_64/WSL2的Docker Engine或Docker Desktop集成，确认本机`/var/run/docker.sock`可用。`docker version`必须同时显示Client和Server。Windows平台本身可以直接运行，但本章的自托管服务路径以Linux/WSL为准；不要把Windows与WSL的虚拟环境混用。
+diff --git a/tests/test_daytona_download.py b/tests/test_daytona_download.py
+new file mode 100644
+index 0000000..93e4005
+--- /dev/null
++++ b/tests/test_daytona_download.py
+@@ -0,0 +1,98 @@
++"""Actual pinned SDK multipart reader; only the HTTP peer is a local protocol fixture."""
++
++import json
++from types import SimpleNamespace
++
++import httpx
++import pytest
++from daytona._sync.filesystem import FileSystem
++
++from workbench.generator import PrerequisiteError
++from workbench.sandbox import MAX_RUNTIME_REPORT_BYTES, REMOTE, read_runtime_report
++
++REPORT = {"passed": True, "http": True, "restart": True}
++
++
++class TrackedStream(httpx.SyncByteStream):
++    def __init__(self, body):
++        self.body = body
++        self.closed = False
++        self.read_bytes = 0
++
++    def __iter__(self):
++        for offset in range(0, len(self.body), 4096):
++            chunk = self.body[offset : offset + 4096]
++            self.read_bytes += len(chunk)
++            yield chunk
++
++    def close(self):
++        self.closed = True
++
++
++def multipart(payload, *, complete=True):
++    body = (
++        b'--rnd-boundary\r\nContent-Disposition: form-data; name="file"; '
++        b'filename="/tmp/rnd-verification/runtime.json"\r\n'
++        b'Content-Type: application/octet-stream\r\n\r\n'
++        + payload
++    )
++    return body + (b"\r\n--rnd-boundary--\r\n" if complete else b"")
++
++
++def sdk_reader(payload, *, complete=True, status=200):
++    stream = TrackedStream(multipart(payload, complete=complete))
++
++    def serialize(**kwargs):
++        assert kwargs["download_files"].paths == [REMOTE + "/runtime.json"]
++        return "POST", "http://127.0.0.1:3000/download", {}, {"paths": kwargs["download_files"].paths}
++
++    def handler(request):
++        assert request.url.host == "127.0.0.1"
++        assert request.extensions["timeout"]["read"] == 7
++        assert request.extensions["timeout"]["write"] == 7
++        return httpx.Response(
++            status,
++            headers={"Content-Type": "multipart/form-data; boundary=rnd-boundary"},
++            stream=stream,
++        )
++
++    http = httpx.Client(transport=httpx.MockTransport(handler), trust_env=False)
++    return FileSystem(SimpleNamespace(_download_files_serialize=serialize), http), http, stream
++
++
++def test_actual_sdk_stream_timeout_and_report_are_consumed_and_closed():
++    filesystem, http, stream = sdk_reader(json.dumps(REPORT).encode())
++    with http:
++        assert read_runtime_report(filesystem, 7) == REPORT
++    assert stream.closed
++
++
++@pytest.mark.parametrize("payload", [b"", b"broken", b"[]", b"null", b"true", b'"text"', b"{}", b'{"passed":1,"http":true,"restart":true}', b"\xff"])
++def test_invalid_or_nonobject_reports_never_pass(payload):
++    filesystem, http, stream = sdk_reader(payload)
++    with http, pytest.raises(Exception):
++        read_runtime_report(filesystem, 7)
++    assert stream.closed
++
++
++def test_oversize_stops_reading_early_and_closes_real_sdk_stream():
++    payload = b" " * (MAX_RUNTIME_REPORT_BYTES * 3)
++    filesystem, http, stream = sdk_reader(payload)
++    with http, pytest.raises(PrerequisiteError, match="报告过大"):
++        read_runtime_report(filesystem, 7)
++    assert stream.closed and stream.read_bytes < len(payload)
++
++
++def test_valid_json_inside_truncated_multipart_is_not_a_success():
++    filesystem, http, stream = sdk_reader(json.dumps(REPORT).encode(), complete=False)
++    with http, pytest.raises(Exception, match="Truncated"):
++        read_runtime_report(filesystem, 7)
++    assert stream.closed
++
++
++@pytest.mark.parametrize("status", [401, 403, 404, 500])
++def test_http_failures_cannot_be_reported_as_passed(status):
++    filesystem, http, stream = sdk_reader(json.dumps(REPORT).encode(), status=status)
++    with http, pytest.raises(Exception):
++        read_runtime_report(filesystem, 7)
++    assert stream.closed
+diff --git a/tests/test_toolchain.py b/tests/test_toolchain.py
+index 054e643..0920a9c 100644
+--- a/tests/test_toolchain.py
++++ b/tests/test_toolchain.py
+@@ -272,8 +272,11 @@ def fake_daytona(settings, *, fail=None):
+             if fail == "upload":
+                 raise RuntimeError("test upload failure")
+ 
+-        def download_file(self, *args, **kwargs):
+-            return json.dumps({"passed": True, "http": True, "restart": True}).encode()
++        def download_file_stream(self, path, timeout=1800):
++            assert path.endswith("/runtime.json") and timeout == settings.tool_timeout
++            if fail == "download":
++                raise RuntimeError("test interrupted download")
++            yield json.dumps({"passed": True, "http": True, "restart": True}).encode()
+ 
+     class Process:
+         def exec(self, command, **kwargs):
+@@ -295,7 +298,7 @@ def fake_daytona(settings, *, fail=None):
+     return Client(), events
+ 
+ 
+-@pytest.mark.parametrize("failure", [None, "upload", "exec", "delete"])
++@pytest.mark.parametrize("failure", [None, "upload", "exec", "download", "delete"])
+ def test_daytona_always_cleans_and_blocks_failed_checks(settings, plan, tmp_path, failure):
+     product = tmp_path / "product"
+     generate_basic(plan, product)
+diff --git a/workbench/sandbox.py b/workbench/sandbox.py
+index b3cd31d..a0da2a1 100644
+--- a/workbench/sandbox.py
++++ b/workbench/sandbox.py
+@@ -9,6 +9,7 @@ import json
+ import shlex
+ import uuid
+ import zipfile
++from contextlib import closing
+ from importlib.metadata import version
+ from pathlib import Path
+ 
+@@ -19,6 +20,7 @@ from workbench.local_only import DAYTONA_VERSION, local_http_url
+ from workbench.settings import ROOT, ModelProfile
+ 
+ REMOTE = "/tmp/rnd-verification"
++MAX_RUNTIME_REPORT_BYTES = 1_000_000
+ 
+ 
+ def validate_configuration(settings, template, selection=None):
+@@ -180,6 +182,34 @@ def source_archive(product):
+     return buffer.getvalue()
+ 
+ 
++def read_runtime_report(filesystem, timeout):
++    """Read the pinned SDK's real streaming API with a bounded body and deadline.
++
++    In 0.190.0 download_file advertises timeout as a keyword in its overloads,
++    but the actual implementation accepts only *args. The streaming method
++    really accepts timeout= and lets us enforce the size limit before buffering
++    the entire report. Closing the iterator also closes the HTTP response on
++    malformed, oversized or interrupted downloads.
++    """
++    body = bytearray()
++    with closing(filesystem.download_file_stream(REMOTE + "/runtime.json", timeout=timeout)) as chunks:
++        for chunk in chunks:
++            if not isinstance(chunk, bytes):
++                raise PrerequisiteError("Daytona验收报告不是字节流")
++            if len(body) + len(chunk) > MAX_RUNTIME_REPORT_BYTES:
++                raise PrerequisiteError("Daytona验收报告过大")
++            body.extend(chunk)
++    try:
++        runtime = json.loads(body)
++    except (ValueError, UnicodeError) as exc:
++        raise PrerequisiteError("Daytona验收报告不是有效JSON") from exc
++    if not isinstance(runtime, dict) or not all(
++        runtime.get(key) is True for key in ("passed", "http", "restart")
++    ):
++        raise PrerequisiteError("Daytona运行报告缺少真实HTTP/重启验收")
++    return runtime
++
++
+ def verify_in_daytona(product, template, settings, *, client=None):
+     validate_configuration(settings, template)
+     if client is None:
+@@ -253,13 +283,7 @@ def _verify_in_daytona(product, template, settings, *, client):
+             if result.exit_code != 0:
+                 raise PrerequisiteError("Daytona检查失败：" + name)
+         if template == "python-basic":
+-            raw = sandbox.fs.download_file(REMOTE + "/runtime.json", timeout=settings.tool_timeout)
+-            if len(raw) > 1_000_000:
+-                raise PrerequisiteError("Daytona验收报告过大")
+-            runtime = json.loads(raw)
+-            if not all(runtime.get(k) is True for k in ("passed", "http", "restart")):
+-                raise PrerequisiteError("Daytona运行报告缺少真实HTTP/重启验收")
+-            receipt["runtime"] = runtime
++            receipt["runtime"] = read_runtime_report(sandbox.fs, settings.tool_timeout)
+         if manifest(product) != before:
+             raise PrerequisiteError("Daytona验收期间本机源码改变")
+         receipt["passed"] = True
