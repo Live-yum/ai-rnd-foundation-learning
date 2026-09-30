@@ -220,7 +220,6 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
                         not permission
                         or "read" not in permission["actions"]
                         or permission["scope"] not in {"all", "assigned"}
-                        or not ({"update", "transition"} & set(permission["actions"]))
                     ):
                         raise HTTPException(422, "该用户的业务角色不能处理此资源")
             else:
@@ -293,8 +292,6 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
                 for row in rows
                 if "read" in policy.permissions.get((row["role"], entity), {}).get("actions", [])
                 and policy.permissions[row["role"], entity]["scope"] in {"all", "assigned"}
-                and {"update", "transition"}
-                & set(policy.permissions[row["role"], entity]["actions"])
             ]
         return [dict(row) for row in rows]
 

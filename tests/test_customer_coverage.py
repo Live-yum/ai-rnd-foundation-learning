@@ -1405,3 +1405,493 @@ def test_json_encoded_enum_attribute_keeps_membership_and_raw_source():
     assert requirement.model_dump() == before
     plan.entities[0].fields[-1].choices = ["企业"]
     assert any("choices" in gap for gap in coverage_gaps(requirement, plan))
+
+
+def scoped_resource_field_case(attribute, expected, other, kind):
+    """Repeated identifiers with deliberately different per-entity properties."""
+    requirement, _ = customer_case()
+    plan = Plan(
+        title="Scoped fields",
+        data_scope="shared",
+        entities=[
+            {
+                "name": entity,
+                "description": entity,
+                "fields": [
+                    {
+                        "name": "value",
+                        "kind": kind,
+                        **({"choices": ["a", "b"]} if kind == "enum" else {}),
+                        attribute: value,
+                    }
+                ],
+            }
+            for entity, value in [("alpha", expected), ("beta", other)]
+        ],
+        acceptance=["Scoped field constraints"],
+    )
+    return requirement, plan
+
+
+def encode_resource_collection(collection, encoding):
+    import json
+
+    if encoding == "json":
+        return json.dumps(collection)
+    if encoding == "items":
+        if isinstance(collection, list):
+            return [json.dumps(item) for item in collection]
+        return {
+            key: json.dumps(value) if isinstance(value, (dict, list)) else value
+            for key, value in collection.items()
+        }
+    return collection
+
+
+@pytest.mark.parametrize(
+    "attribute,expected,other,kind",
+    [
+        ("required", False, True, "text"),
+        ("min_length", 0, 1, "text"),
+        ("max_length", 120, 160, "text"),
+        ("searchable", True, False, "text"),
+        ("filterable", False, True, "text"),
+        ("date_range", False, True, "date"),
+        ("choices", ["a", "b"], ["a", "c"], "enum"),
+        ("kind", "text", "integer", "text"),
+    ],
+)
+@pytest.mark.parametrize("shape", ["entity_list", "name_list", "keyed", "aliased_key", "single"])
+@pytest.mark.parametrize("encoding", ["native", "json", "items"])
+def test_resource_namespace_scopes_every_field_property_without_cross_binding(
+    attribute, expected, other, kind, shape, encoding
+):
+    requirement, plan = scoped_resource_field_case(attribute, expected, other, kind)
+    record = {
+        "fields": [{"name": "value", attribute: expected}],
+        "label": "A resource whose field name also exists elsewhere",
+        "capabilities": ["search", "filter", "value"],
+        "role_scope": ["manager"],
+    }
+    if shape == "entity_list":
+        collection = [{"entity": "alpha", **record}]
+        path = "business.resources.0.fields.0"
+    elif shape == "name_list":
+        collection = [{"name": "alpha", **record}]
+        path = "business.resources.0.fields.0"
+    elif shape == "keyed":
+        collection = {"alpha": {**record, "fields": {"value": {attribute: expected}}}}
+        path = "business.resources.alpha.fields.value"
+    elif shape == "aliased_key":
+        collection = {"value": {"entity": "alpha", **record}}
+        path = "business.resources.value.fields.0"
+    else:
+        collection = {"entity": "alpha", **record}
+        path = "business.resources.fields.0"
+    requirement.facts = {
+        "business": {"resources": encode_resource_collection(collection, encoding)}
+    }
+    before = requirement.model_dump()
+    assert coverage_gaps(requirement, plan) == []
+    assert requirement.model_dump() == before
+    setattr(plan.entities[0].fields[0], attribute, other)
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert len(diagnostics) == 1
+    assert diagnostics[0]["targets"] == [{"entity": "alpha", "field": "value"}]
+    assert diagnostics[0]["attribute"] == attribute
+    assert diagnostics[0]["source"]["path"] == path
+
+
+@pytest.mark.parametrize("shape", ["list", "keyed", "source_group", "resource_nested", "single"])
+@pytest.mark.parametrize("encoding", ["native", "json", "items"])
+def test_relation_namespace_uses_source_scope_and_never_target_or_wrapper_scope(shape, encoding):
+    requirement, plan = scoped_resource_field_case("required", False, True, "text")
+    record = {"field": "value", "to": "beta", "required": False, "kind": "foreign_key"}
+    if shape == "list":
+        collection = [{"from": "alpha", **record}]
+        path = "business.relations.0"
+    elif shape == "keyed":
+        collection = {"value": {"from": "alpha", **record}}
+        path = "business.relations.value"
+    elif shape == "source_group":
+        collection = {"alpha": [record]}
+        path = "business.relations.alpha.0"
+    elif shape == "single":
+        collection = {"from": "alpha", **record}
+        path = "business.relations"
+    else:
+        collection = [record]
+        path = "business.resources.0.relations.0"
+    facts = {"relations": encode_resource_collection(collection, encoding)}
+    if shape == "resource_nested":
+        facts = {"resources": [{"entity": "alpha", **facts}]}
+    requirement.facts = {"business": facts}
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[0].required = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert len(diagnostics) == 1
+    assert diagnostics[0]["targets"] == [{"entity": "alpha", "field": "value"}]
+    assert diagnostics[0]["source"]["path"] == path
+
+
+@pytest.mark.parametrize("namespace", ["resources", "entities", "资源", "实体"])
+def test_leaf_explicit_entity_overrides_resource_context_and_keeps_typed_conflict(namespace):
+    requirement, plan = scoped_resource_field_case("required", False, True, "text")
+    requirement.field_requirements = [FieldRequirement(entity="beta", field="value", required=True)]
+    requirement.facts = {
+        namespace: {"alpha": {"fields": [{"entity": "beta", "name": "value", "required": False}]}}
+    }
+    for value, section in [(True, "facts"), (False, "field_requirements")]:
+        plan.entities[1].fields[0].required = value
+        diagnostics = []
+        assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+        assert len(diagnostics) == 1
+        assert diagnostics[0]["source"]["section"] == section
+        assert diagnostics[0]["targets"] == [{"entity": "beta", "field": "value"}]
+
+
+@pytest.mark.parametrize("scope", ["missing", 12, {}, "not an identifier"])
+@pytest.mark.parametrize("namespace", ["resources", "relations"])
+def test_invalid_resource_or_relation_scope_cannot_fall_back_to_matching_field(scope, namespace):
+    requirement, plan = scoped_resource_field_case("required", False, True, "text")
+    record = (
+        {"entity": scope, "fields": [{"name": "value", "required": False}]}
+        if namespace == "resources"
+        else {"from": scope, "field": "value", "to": "beta", "required": False}
+    )
+    requirement.facts = {namespace: [record]}
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert diagnostics[0]["code"] == "structured_missing_field"
+    assert diagnostics[0]["source"]["path"].startswith(namespace)
+
+
+def test_conflicting_relation_source_identifiers_block_instead_of_picking_one():
+    requirement, plan = scoped_resource_field_case("required", False, True, "text")
+    requirement.facts = {
+        "relations": [{"from": "alpha", "entity": "beta", "field": "value", "required": True}]
+    }
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert diagnostics[0]["code"] == "structured_missing_field"
+
+
+@pytest.mark.parametrize("name", ["value", "alpha", "resources", "relations"])
+def test_business_names_and_prose_do_not_supply_implicit_field_scope(name):
+    requirement, plan = scoped_resource_field_case("required", False, True, "text")
+    requirement.field_requirements = typed_field_ledger(plan)
+    requirement.facts = {
+        "business": {
+            "resources": [{"name": name, "required": True, "capabilities": ["value", "filter"]}],
+            "metrics": [
+                {
+                    "name": name,
+                    "kind": "count",
+                    "from": "beta",
+                    "to": "alpha",
+                    "role_scope": ["manager"],
+                }
+            ],
+            "metadata": {"name": name, "label": "value", "from": "beta"},
+        }
+    }
+    assert coverage_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize("entity", ["resources", "entities", "relations", "fields"])
+@pytest.mark.parametrize("field", ["resources", "relations", "fields", "name"])
+def test_resource_and_field_identifiers_can_collide_with_namespace_names(entity, field):
+    requirement, plan = scoped_resource_field_case("required", False, True, "text")
+    plan.entities[0].name = entity
+    for item in plan.entities:
+        item.fields[0].name = field
+    requirement.facts = {"resources": {entity: {"fields": {field: {"required": False}}}}}
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[0].required = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert diagnostics[0]["targets"] == [{"entity": entity, "field": field}]
+    assert diagnostics[0]["source"]["path"] == f"resources.{entity}.fields.{field}"
+
+
+@pytest.mark.parametrize("kind", ["foreign_key", "many-to-one"])
+@pytest.mark.parametrize("entity,index", [("requests", 1), ("tasks", 3)])
+def test_exact_f6b_python_yudao_relation_facts_keep_assignee_scope(kind, entity, index):
+    requirement, plan = actual_customer_field_case()
+    requirement.facts = {
+        "business": {
+            "relations": [
+                {
+                    "from": "requests",
+                    "field": "customer_id",
+                    "to": "customers",
+                    "required": True,
+                    "kind": kind,
+                },
+                {
+                    "from": "requests",
+                    "field": "assignee_id",
+                    "to": "$users",
+                    "required": False,
+                    "kind": kind,
+                },
+                {
+                    "from": "tasks",
+                    "field": "request_id",
+                    "to": "requests",
+                    "required": True,
+                    "kind": kind,
+                },
+                {
+                    "from": "tasks",
+                    "field": "assignee_id",
+                    "to": "$users",
+                    "required": False,
+                    "kind": kind,
+                },
+            ]
+        }
+    }
+    assert coverage_gaps(requirement, plan) == []
+    next(
+        field
+        for item in plan.entities
+        if item.name == entity
+        for field in item.fields
+        if field.name == "assignee_id"
+    ).required = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert len(diagnostics) == 1
+    assert diagnostics[0]["targets"] == [{"entity": entity, "field": "assignee_id"}]
+    assert diagnostics[0]["source"]["path"] == f"business.relations.{index}"
+
+
+@pytest.mark.parametrize("entity,index", [("requests", 1), ("tasks", 2)])
+@pytest.mark.parametrize(
+    "field_name,attribute,wrong,field_index",
+    [
+        ("title", "required", False, 0),
+        ("detail", "max_length", 200, 1),
+        ("assignee_id", "required", True, 3),
+        ("resolved_at", "searchable", True, 5),
+        ("due_at", "filterable", True, 6),
+    ],
+)
+def test_exact_f6b_fastapi_nested_resource_fields_keep_scope_and_provenance(
+    entity, index, field_name, attribute, wrong, field_index
+):
+    requirement, plan = actual_customer_field_case()
+    requirement.facts = {"business": {"resources": ACTUAL_F6B_FASTAPI_RESOURCES}}
+    assert coverage_gaps(requirement, plan) == []
+    target = next(
+        field
+        for item in plan.entities
+        if item.name == entity
+        for field in item.fields
+        if field.name == field_name
+    )
+    setattr(target, attribute, wrong)
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert len(diagnostics) == 1
+    assert diagnostics[0]["targets"] == [{"entity": entity, "field": field_name}]
+    assert diagnostics[0]["source"]["path"] == f"business.resources.{index}.fields.{field_index}"
+
+
+# Exact diagnostic-only facts from final f6b; no candidate Plan is used as a fixture.
+ACTUAL_F6B_FASTAPI_RESOURCES = [
+    {
+        "entity": "customers",
+        "label": "客户",
+        "features": ["native-crud", "append-only-audit", "archive-history"],
+        "fields": [
+            {
+                "name": "name",
+                "label": "客户名称",
+                "kind": "text",
+                "required": True,
+                "max_length": 120,
+                "searchable": True,
+            },
+            {
+                "name": "organization",
+                "label": "所属组织",
+                "kind": "text",
+                "required": False,
+                "max_length": 160,
+                "searchable": True,
+            },
+            {
+                "name": "contact",
+                "label": "联系方式",
+                "kind": "text",
+                "required": False,
+                "max_length": 200,
+                "searchable": True,
+            },
+            {
+                "name": "category",
+                "label": "客户分类",
+                "kind": "enum",
+                "required": True,
+                "choices": ["企业", "个人", "合作伙伴"],
+                "filterable": True,
+            },
+        ],
+    },
+    {
+        "entity": "requests",
+        "label": "服务请求",
+        "features": [
+            "native-crud",
+            "foreign-key-relations",
+            "assignment",
+            "named-state-transitions",
+            "handling-notes",
+            "append-only-audit",
+            "archive-history",
+            "in-app-reminders",
+        ],
+        "fields": [
+            {
+                "name": "title",
+                "label": "请求标题",
+                "kind": "text",
+                "required": True,
+                "max_length": 200,
+                "searchable": True,
+            },
+            {
+                "name": "detail",
+                "label": "请求详情",
+                "kind": "text",
+                "required": True,
+                "max_length": 3000,
+                "searchable": True,
+            },
+            {
+                "name": "customer_id",
+                "label": "关联客户",
+                "kind": "text",
+                "required": True,
+                "relation": "customers",
+            },
+            {
+                "name": "assignee_id",
+                "label": "负责人",
+                "kind": "text",
+                "required": False,
+                "relation": "$users",
+            },
+            {
+                "name": "request_state",
+                "label": "请求状态",
+                "kind": "enum",
+                "required": True,
+                "choices": ["new", "active", "resolved"],
+                "choice_labels": {"new": "待处理", "active": "处理中", "resolved": "已解决"},
+            },
+            {
+                "name": "resolved_at",
+                "label": "解决时间",
+                "kind": "datetime",
+                "required": False,
+                "searchable": False,
+                "filterable": False,
+                "date_range": False,
+            },
+            {
+                "name": "due_at",
+                "label": "截止时间",
+                "kind": "datetime",
+                "required": False,
+                "searchable": False,
+                "filterable": False,
+                "date_range": False,
+            },
+            {
+                "name": "priority",
+                "label": "优先级",
+                "kind": "enum",
+                "required": True,
+                "choices": ["普通", "紧急"],
+                "filterable": True,
+            },
+        ],
+    },
+    {
+        "entity": "tasks",
+        "label": "协作任务",
+        "features": [
+            "native-crud",
+            "foreign-key-relations",
+            "assignment",
+            "named-state-transitions",
+            "handling-notes",
+            "append-only-audit",
+            "archive-history",
+            "in-app-reminders",
+        ],
+        "fields": [
+            {
+                "name": "title",
+                "label": "任务标题",
+                "kind": "text",
+                "required": True,
+                "max_length": 200,
+                "searchable": True,
+            },
+            {
+                "name": "detail",
+                "label": "任务详情",
+                "kind": "text",
+                "required": True,
+                "max_length": 3000,
+                "searchable": True,
+            },
+            {
+                "name": "request_id",
+                "label": "关联请求",
+                "kind": "text",
+                "required": True,
+                "relation": "requests",
+            },
+            {
+                "name": "assignee_id",
+                "label": "负责人",
+                "kind": "text",
+                "required": False,
+                "relation": "$users",
+            },
+            {
+                "name": "task_state",
+                "label": "任务状态",
+                "kind": "enum",
+                "required": True,
+                "choices": ["new", "active", "resolved"],
+                "choice_labels": {"new": "待处理", "active": "处理中", "resolved": "已解决"},
+            },
+            {
+                "name": "resolved_at",
+                "label": "解决时间",
+                "kind": "datetime",
+                "required": False,
+                "searchable": False,
+                "filterable": False,
+                "date_range": False,
+            },
+            {
+                "name": "due_at",
+                "label": "截止时间",
+                "kind": "datetime",
+                "required": False,
+                "searchable": False,
+                "filterable": False,
+                "date_range": False,
+            },
+        ],
+    },
+]

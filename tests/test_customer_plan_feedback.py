@@ -136,3 +136,114 @@ def test_planner_obligation_projection_preserves_scope_false_zero_and_unspecifie
     ]
     assert "filterable" not in seen[0]["field_obligations"][1]["expected"]
     assert seen[0]["approved_requirement"] == approved.model_dump()
+
+
+def test_analysis_receives_actual_business_schema_without_rewriting_approved_facts(settings, store):
+    from workbench.business_contracts import BusinessSpec
+
+    approved = Requirement(
+        summary="保留结构化业务需求",
+        users=["服务人员"],
+        data_scope="shared",
+        facts={
+            "business": {
+                "permissions": [
+                    {"role": "service", "entity": "customers", "actions": ["read"], "scope": "all"}
+                ]
+            }
+        },
+        features=[],
+        acceptance=[],
+    )
+    seen = []
+
+    class CaptureGateway:
+        def complete(self, run, key, instruction, payload, schema):
+            seen.append((instruction, payload))
+            assert schema is Requirement
+            return approved.model_copy(deep=True)
+
+    flow = Workflow(settings, store, CaptureGateway())
+    outcome = flow.analyse(
+        {
+            "run_id": new_run(store),
+            "round": 1,
+            "template": "python-basic",
+            "requirement": approved.gate_dump(),
+        }
+    )
+    instruction, payload = seen[0]
+    assert "business_contract_schema" in instruction
+    assert payload["business_contract_schema"] == BusinessSpec.model_json_schema()
+    assert payload["business_contract_schema"]["$defs"]["PermissionSpec"]["properties"]["actions"][
+        "items"
+    ]["enum"] == [
+        "create",
+        "read",
+        "update",
+        "archive",
+        "assign",
+        "transition",
+        "add_note",
+        "read_history",
+        "read_audit",
+        "read_metrics",
+    ]
+    assert outcome["requirement"]["facts"] == approved.facts
+
+
+def test_actual_recorded_business_gap_reaches_planner_with_exact_scope_and_action(settings, store):
+    import json
+
+    recorded = json.loads(
+        (ROOT / "tests/fixtures/customer_design_diagnostics/python-basic.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    approved = Requirement.model_validate(recorded["requirement"])
+    candidate = Plan.model_validate(recorded["candidate_plan"])
+    seen = []
+
+    class CaptureGateway:
+        def complete(self, run, key, instruction, payload, schema):
+            seen.append(payload)
+            assert schema is Plan
+            assert "business_diagnostics" in instruction
+            return candidate.model_copy(deep=True)
+
+    flow = Workflow(settings, store, CaptureGateway())
+    gates = []
+
+    def gate(state, stage, data, actions, can_approve=True):
+        gates.append((stage, data, can_approve))
+        return {"decision": "revise"}
+
+    flow.gate = gate
+    state = {
+        "run_id": new_run(store),
+        "round": 1,
+        "template": "python-basic",
+        "requirement": approved.gate_dump(),
+        "plan": candidate.model_dump(),
+    }
+    outcome = flow.design(state)
+    assert gates[0][0] == "design" and gates[0][2] is False
+    feedback = outcome["resolution_feedback"]
+    diagnostic = next(
+        d
+        for d in feedback["business_diagnostics"]
+        if d["source"]["path"] == "business.metrics.3.role_scope"
+    )
+    assert diagnostic["expected"] == [
+        {"role": role, "entity": "customers", "action": "read_metrics", "scope": "all"}
+        for role in ("manager", "service")
+    ]
+    assert all(
+        "read_metrics" not in p["actions"]
+        for p in diagnostic["actual"]
+        if p["role"] in {"manager", "service"}
+    )
+    flow.plan({**state, **outcome})
+    assert seen[0]["resolution_feedback"] == feedback
+    assert seen[0]["approved_requirement"] == approved.gate_dump()
+    assert seen[0]["previous_plan"] == candidate.model_dump()

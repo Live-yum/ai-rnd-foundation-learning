@@ -10,7 +10,7 @@ import { businessActionLabel, businessDetails, businessDisplayValue, businessFie
 interface Role { name: string; label: string }
 interface Transition { name: string; label?: string; to_state: string }
 interface Meta { bootstrapRequired?: boolean; actions: string[]; transitions: Transition[]; roleAdmin: boolean; roles: Role[]; record: Record<string, unknown> | null }
-interface User { id: string; nickname: string; username: string }
+interface User { id: string; nickname: string; username: string; eligibleEntities: string[] }
 interface Event { id: number; actor_id: string; actor_name?: string; action: string; note: string; created_at: string; before_data?: string; after_data?: string }
 interface Notice { id: number; message: string; display_message?: string; entity: string; record_id: string; created_at: string; read_at: string | null }
 interface RelatedRow { record: Record<string, unknown> & { id: string }; actions: string[] }
@@ -26,6 +26,10 @@ let relatedRequest = 0;
 const busy = ref(false), audit = ref(false), selectedAction = ref(''), selectedTransition = ref('');
 const assignee = ref<string>(), selectedUser = ref<string>(), selectedRole = ref<string>();
 const userOptions = computed(() => users.value.map(user => ({ label: user.nickname && user.nickname !== user.username ? `${user.nickname} · ${user.username}` : user.username, value: user.id })));
+const assigneeOptions = computed(() => {
+  const eligible = new Set(users.value.filter(user => user.eligibleEntities?.includes(props.entity)).map(user => user.id));
+  return userOptions.value.filter(option => eligible.has(option.value));
+});
 const details = computed(() => businessDetails(props.entity, meta.value.record));
 const roleOptions = computed(() => meta.value.roles.map(role => ({ label: role.label, value: role.name })));
 let generation = 0;
@@ -129,7 +133,7 @@ onMounted(reload);
       <template v-else>
         <dl class="mb-3 grid gap-2 md:grid-cols-2"><div v-for="item in details" :key="item.field"><dt class="text-xs text-gray-500">{{ item.label }}</dt><dd class="break-words">{{ item.value }}</dd></div></dl>
         <p class="mb-3">记录 #{{ recordId }} · 创建人 {{ businessDisplayValue(entity, 'createdBy', meta.record) }} · {{ meta.record?.archivedAt ? '已归档' : '有效' }}</p>
-        <Space wrap>
+        <Space wrap data-testid="business-actions">
           <Button data-testid="business-assign" v-if="meta.actions.includes('assign') && !meta.record?.archivedAt" @click="openAction('assign')">分配负责人</Button>
           <Button :data-testid="`business-transition-${transition.name}`" v-for="transition in meta.transitions" :key="transition.name" @click="openAction('transition', transition.name)">{{ transition.label || transition.name }} → {{ businessStateLabel(entity, transition.to_state) }}</Button>
           <Button data-testid="business-note" v-if="meta.actions.includes('add_note') && !meta.record?.archivedAt" @click="openAction('add_note')">添加处理备注</Button>
@@ -137,7 +141,7 @@ onMounted(reload);
           <Button data-testid="business-audit" v-if="meta.actions.includes('read_audit')" @click="toggleAudit">{{ audit ? '查看历史' : '查看审计' }}</Button>
           <Button @click="reload">刷新</Button>
         </Space>
-        <Timeline class="mt-4">
+        <Timeline class="rnd-business-timeline" data-testid="business-history">
           <TimelineItem v-for="entry in history" :key="entry.id">
             <span>{{ businessTimestamp(entry.created_at) }} · {{ businessActionLabel(entry.action) }} · {{ entry.actor_name || `用户 #${entry.actor_id}` }}</span>
             <p>{{ entry.note }}</p>
@@ -154,7 +158,7 @@ onMounted(reload);
     <Card v-if="relatedLabel" :title="`${relatedLabel} · 处理历史`" data-testid="business-related-history">
       <Timeline><TimelineItem v-for="entry in relatedEvents" :key="entry.id"><span>{{ businessTimestamp(entry.created_at) }} · {{ businessActionLabel(entry.action) }} · {{ entry.actor_name || `用户 #${entry.actor_id}` }}</span><p>{{ entry.note }}</p></TimelineItem></Timeline>
     </Card>
-    <Card title="业务统计" v-if="metrics.length">
+    <Card title="业务统计" v-if="metrics.length" data-testid="business-metrics">
       <div class="grid gap-4 md:grid-cols-2">
         <template v-for="metric in metrics" :key="metric.name">
           <MetricChart v-if="metric.buckets" :buckets="metric.buckets" :bucket-labels="metric.bucketLabels" :kind="metric.kind" :label="metric.label" />
@@ -172,12 +176,13 @@ onMounted(reload);
       <p class="mt-2 text-sm">只管理本产品声明的业务角色，不授予平台全局管理员权限</p>
     </Card>
     <ActionModal :title="selectedAction === 'assign' ? '分配负责人' : selectedAction === 'transition' ? '执行状态操作' : '处理备注'">
-      <Select data-testid="business-assignee" v-if="selectedAction === 'assign'" v-model:value="assignee" :options="userOptions" allow-clear placeholder="选择负责人，留空取消分配" class="mb-4 w-full" />
+      <Select data-testid="business-assignee" v-if="selectedAction === 'assign'" v-model:value="assignee" :options="assigneeOptions" allow-clear placeholder="选择负责人，留空取消分配" class="mb-4 w-full" />
       <ActionForm />
     </ActionModal>
   </section>
 </template>
 
 <style scoped>
+.rnd-business-timeline { margin-top: 24px; }
 :deep(.ant-table-thead > tr > th) { white-space: nowrap; }
 </style>

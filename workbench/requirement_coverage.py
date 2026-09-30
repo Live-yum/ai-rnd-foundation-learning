@@ -259,6 +259,8 @@ FACT_DESCRIPTOR_KEYS = {"field", "name", "entity", "label", "choice_labels"}
 
 
 FIELD_FACT_CONTAINERS = {"fields", "field_requirements", "field_constraints", "字段", "字段约束"}
+RESOURCE_FACT_CONTAINERS = {"resources", "entities", "资源", "实体"}
+RELATION_FACT_CONTAINERS = {"relations", "关系"}
 BUSINESS_FACT_CONTAINERS = {
     "metrics",
     "relations",
@@ -372,8 +374,22 @@ def _fact_records(facts, fields):
     def walk(key, value, path, entity=None, subject=None, business=False, container=None):
         value = _decode_fact(value)
         label = ".".join(path)
-        field_container = key in FIELD_FACT_CONTAINERS and subject is None and container != "fields"
-        entity_container = key == "entities" and subject is None and container != "fields"
+        field_container = key in FIELD_FACT_CONTAINERS and subject is None and container is None
+        resource_container = (
+            key in RESOURCE_FACT_CONTAINERS and subject is None and container is None
+        )
+        relation_container = (
+            key in RELATION_FACT_CONTAINERS and subject is None and container is None
+        )
+        collection = (
+            "fields"
+            if field_container
+            else "resources"
+            if resource_container
+            else "relations"
+            if relation_container
+            else None
+        )
         declared = container == "fields"
         direct = _fact_subject(key, fields, entity, declared=declared and not key.isdigit())
         attributes = (
@@ -381,7 +397,7 @@ def _fact_records(facts, fields):
             if isinstance(value, dict)
             else {}
         )
-        if field_container or entity_container:
+        if collection:
             direct = None
         if not business and key in entities and direct is None:
             entity = key
@@ -399,14 +415,27 @@ def _fact_records(facts, fields):
             identifier = isinstance(descriptor, str) and re.fullmatch(
                 r"[a-z][a-z0-9_]*", descriptor
             )
-            entity_record = container == "entities" or (
-                "fields" in value
-                and isinstance(value.get("name"), str)
+            # Collection membership establishes what name/key means. A resource's
+            # identity scopes its children, while a relation's from scopes its
+            # explicit field. Neither target entities nor business names donate
+            # field identities. Leaves can override inherited scope explicitly.
+            relation_record = (
+                not declared
+                and "field" in value
+                and (
+                    container == "relations" or relation_container or {"from", "to"} <= value.keys()
+                )
+            )
+            entity_record = (container == "resources" and not collection) or (
+                bool(set(value) & FIELD_FACT_CONTAINERS)
+                and ("entity" in value or ("name" in value and not business))
                 and "field" not in value
                 and not attributes
             )
             business_record = not declared and (
                 business
+                or relation_record
+                or container in {"resources", "relations"}
                 or (
                     key in BUSINESS_FACT_CONTAINERS
                     and not (direct and attributes and not (set(value) & BUSINESS_FACT_KEYS))
@@ -419,35 +448,53 @@ def _fact_records(facts, fields):
                 )
             )
             if entity_record:
-                entity = (
-                    value.get("name", key) if isinstance(value.get("name", key), str) else entity
-                )
+                entity = value.get("entity", value.get("name", entity if key.isdigit() else key))
                 subject = None
-            elif (
+            elif relation_record:
+                entity = value.get("entity", value.get("from", entity))
+                if "entity" in value and "from" in value and value["entity"] != value["from"]:
+                    entity = "<conflicting entity>"
+            elif container == "relations" and not key.isdigit():
+                # A keyed relation group can declare its source once for all
+                # records: relations: {tickets: [{field: owner_id, ...}]}.
+                entity = key
+            if not entity_record and (
                 declared
                 and ("field" in value or (key.isdigit() and "name" in value))
                 and not identifier
             ):
                 subject = _fact_subject(None, fields, value.get("entity", entity), declared=True)
-            elif identifier and (
-                declared
-                or (
-                    attributes
-                    and not business_record
-                    and (
-                        "field" in value
-                        or bool(set(attributes) - {"kind"})
-                        or _field_kind(attributes.get("kind"))
+            elif (
+                not entity_record
+                and identifier
+                and (
+                    declared
+                    or (
+                        attributes
+                        and not business_record
+                        and (
+                            "field" in value
+                            or bool(set(attributes) - {"kind"})
+                            or _field_kind(attributes.get("kind"))
+                        )
                     )
+                    or ("field" in value and bool(set(attributes) - {"kind"}))
                 )
-                or ("field" in value and bool(set(attributes) - {"kind"}))
             ):
                 subject = _fact_subject(
-                    descriptor, fields, value.get("entity", entity), declared=True
+                    descriptor,
+                    fields,
+                    entity if relation_record else value.get("entity", entity),
+                    declared=True,
                 )
                 if business_record and not declared and not _field_kind(attributes.get("kind")):
                     attributes.pop("kind", None)
-            elif direct and not business_record and (declared or attributes or subject is None):
+            elif (
+                not entity_record
+                and direct
+                and not business_record
+                and (declared or attributes or subject is None)
+            ):
                 subject = _fact_subject(
                     direct[1], fields, value.get("entity", direct[0]), declared=True
                 )
@@ -460,14 +507,16 @@ def _fact_records(facts, fields):
                     continue
                 if entity_record and name in {"name", "entity", "label"}:
                     continue
-                if business_record and name in FACT_DESCRIPTOR_KEYS:
+                if business_record and name in FACT_DESCRIPTOR_KEYS and not collection:
                     continue
-                if field_container:
-                    child_container = "fields"
-                elif entity_container:
-                    child_container = "entities"
-                else:
-                    child_container = None
+                child_container = (
+                    None
+                    if (resource_container and entity_record)
+                    or (relation_container and relation_record)
+                    else collection
+                )
+                if container == "relations" and not relation_record:
+                    child_container = "relations"
                 yield from walk(
                     name,
                     item,
@@ -489,12 +538,12 @@ def _fact_records(facts, fields):
                             _scalar_subject(key, fields, entity) if attribute == "choices" else None
                         )
                     )
-                if target and not field_container and not entity_container:
+                if target and not collection:
                     yield "constraint", label, {"choices": value}, target
             else:
-                child_container = (
-                    "fields" if field_container else "entities" if entity_container else container
-                )
+                child_container = collection or container
+                if container == "relations" and not key.isdigit():
+                    entity = key
                 for index, item in enumerate(value):
                     if isinstance(_decode_fact(item), (dict, list)):
                         yield from walk(

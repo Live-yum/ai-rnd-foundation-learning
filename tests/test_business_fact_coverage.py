@@ -229,6 +229,439 @@ def test_scalar_business_prose_is_not_flattened_into_field_or_business_descripto
     assert business_gaps(requirement, plan) == []
 
 
+@pytest.mark.parametrize(
+    "domain,index,aliases",
+    [
+        ("relations", 0, {"entity": "from", "target_entity": "to"}),
+        ("relations", 0, {"target_entity": "target"}),
+        ("workflows", 0, {"status_field": "field", "initial": "initial_state"}),
+        ("metrics", 3, {"kind": "type", "group_by": "group_field"}),
+        ("metrics", 4, {"kind": "type", "bucket": "interval"}),
+        ("resources", 1, {"entity": "name", "notes": "handling_notes"}),
+    ],
+)
+@pytest.mark.parametrize("encoded", [False, True])
+def test_structural_aliases_preserve_exact_domain_meaning(domain, index, aliases, encoded):
+    requirement, plan = case({})
+    descriptor = getattr(plan.business, domain)[index].model_dump()
+    for canonical, alias in aliases.items():
+        descriptor[alias] = descriptor.pop(canonical)
+    requirement.facts = {domain: [json.dumps(descriptor) if encoded else descriptor]}
+    before = requirement.model_dump_json()
+    assert business_gaps(requirement, plan) == []
+    getattr(plan.business, domain).pop(index)
+    assert business_gaps(requirement, plan)
+    assert requirement.model_dump_json() == before
+
+
+@pytest.mark.parametrize("alias", ["set", "sets", "set_fields"])
+def test_workflow_state_and_timestamp_aliases_are_checked(alias):
+    requirement, plan = case({})
+    descriptor = plan.business.workflows[0].model_dump()
+    for transition in descriptor["transitions"]:
+        transition["from"] = transition.pop("from_states")[0]
+        transition["to"] = transition.pop("to_state")
+        timestamp = transition.pop("set_timestamp")
+        if timestamp:
+            transition[alias] = {timestamp: "now"}
+    requirement.facts = {"workflows": [descriptor]}
+    assert business_gaps(requirement, plan) == []
+    plan.business.workflows[0].transitions[-1].set_timestamp = None
+    assert business_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize(
+    "predicate", [{"field": "request_state", "value": "resolved"}, {"request_state": "resolved"}]
+)
+def test_metric_filter_aliases_cannot_lose_the_actual_predicate(predicate):
+    requirement, plan = case(
+        {"metrics": [{"name": "resolved_total", "type": "count", "filter": predicate}]}
+    )
+    assert business_gaps(requirement, plan) == []
+    plan.business.metrics[1].filters = []
+    assert business_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize(
+    "alias,action",
+    [
+        ("comment", "add_note"),
+        ("note", "add_note"),
+        ("view_audit", "read_audit"),
+        ("view_metrics", "read_metrics"),
+        ("view_history", "read_history"),
+    ],
+)
+def test_permission_action_aliases_still_require_real_action(alias, action):
+    requirement, plan = case({})
+    permission = next(
+        item
+        for item in plan.business.permissions
+        if item.role == "service" and item.entity == "requests"
+    )
+    descriptor = permission.model_dump()
+    descriptor["actions"] = [alias if item == action else item for item in descriptor["actions"]]
+    requirement.facts = {"permissions": [descriptor]}
+    assert business_gaps(requirement, plan) == []
+    permission.actions.remove(action)
+    assert business_gaps(requirement, plan)
+
+
+def test_read_only_allows_independently_approved_metrics_but_never_writes():
+    requirement, plan = case(
+        {
+            "permissions": [
+                {
+                    "role": "service",
+                    "entity": "customers",
+                    "scope": "all",
+                    "actions": ["read"],
+                    "read_only": True,
+                }
+            ],
+            "metrics": [
+                {
+                    "name": "customer_total",
+                    "entity": "customers",
+                    "allowed_roles": ["manager", "service"],
+                }
+            ],
+        }
+    )
+    permission = next(
+        item
+        for item in plan.business.permissions
+        if item.role == "service" and item.entity == "customers"
+    )
+    permission.actions = ["read", "read_metrics"]
+    assert business_gaps(requirement, plan) == []
+    permission.actions.append("update")
+    assert business_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize(
+    "restriction",
+    [
+        {"only_actions": ["read"]},
+        {"denied_actions": ["read_metrics"]},
+        {"forbidden_actions": ["view_metrics"]},
+    ],
+)
+def test_explicit_action_restrictions_override_other_positive_grants(restriction):
+    requirement, plan = case(
+        {
+            "permissions": [
+                {
+                    "role": "service",
+                    "entity": "customers",
+                    "scope": "all",
+                    "actions": ["read"],
+                    **restriction,
+                }
+            ],
+            "metrics": [
+                {"name": "customer_total", "entity": "customers", "role_scope": ["service"]}
+            ],
+        }
+    )
+    permission = next(
+        item
+        for item in plan.business.permissions
+        if item.role == "service" and item.entity == "customers"
+    )
+    permission.actions = ["read", "read_metrics"]
+    assert business_gaps(requirement, plan)
+
+
+def complete_policy_case():
+    requirement, plan = case({})
+    requirement.facts = {
+        "business": {
+            "roles": [item.model_dump() for item in plan.business.roles],
+            "resources": [item.model_dump() for item in plan.business.resources],
+            "permissions": [item.model_dump() for item in plan.business.permissions],
+            "bootstrap_role": "manager",
+            "role_admin_roles": ["manager"],
+        }
+    }
+    return requirement, plan
+
+
+@pytest.mark.parametrize(
+    "mutation", ["extra_row", "extra_role", "admin_role", "scope", "extra_write"]
+)
+def test_complete_policy_rejects_new_rows_roles_admins_and_privilege_expansion(mutation):
+    from workbench.business_contracts import BusinessRole, PermissionSpec
+
+    requirement, plan = complete_policy_case()
+    assert business_gaps(requirement, plan) == []
+    if mutation == "extra_row":
+        plan.business.permissions.append(
+            PermissionSpec(role="employee", entity="tasks", actions=["read"], scope="all")
+        )
+    elif mutation == "extra_role":
+        plan.business.roles.append(BusinessRole(name="intruder", label="其他角色"))
+    elif mutation == "admin_role":
+        plan.business.role_admin_roles.append("service")
+    elif mutation == "scope":
+        next(
+            item
+            for item in plan.business.permissions
+            if item.role == "service" and item.entity == "requests"
+        ).scope = "all"
+    else:
+        next(
+            item
+            for item in plan.business.permissions
+            if item.role == "employee" and item.entity == "customers"
+        ).actions.append("update")
+    diagnostics = []
+    assert business_gaps(requirement, plan, diagnostics=diagnostics)
+    assert diagnostics and diagnostics[0]["expected"] != diagnostics[0]["actual"]
+
+
+def test_audit_derives_only_information_subset_history_not_other_permissions():
+    requirement, plan = case({})
+    permission = next(
+        item
+        for item in plan.business.permissions
+        if item.role == "service" and item.entity == "requests"
+    )
+    permission.actions = ["read", "read_audit", "read_history"]
+    requirement.facts = {
+        "permissions": [
+            {
+                "role": "service",
+                "entity": "requests",
+                "actions": ["read", "view_audit"],
+                "scope": "assigned",
+            }
+        ]
+    }
+    assert business_gaps(requirement, plan) == []
+    permission.actions.append("assign")
+    assert business_gaps(requirement, plan)
+
+
+def test_virtual_metrics_permissions_use_explicit_resource_scopes():
+    requirement, plan = case(
+        {
+            "business": {
+                "permissions": [
+                    {"role": "service", "entity": "customers", "actions": ["read"], "scope": "all"},
+                    {
+                        "role": "service",
+                        "entity": "requests",
+                        "actions": ["read"],
+                        "scope": "assigned",
+                    },
+                    {
+                        "role": "service",
+                        "entity": "metrics",
+                        "actions": ["read"],
+                        "scope": "assigned",
+                    },
+                ],
+                "metrics": [
+                    {"name": "customer_total", "entity": "customers"},
+                    {"name": "total", "entity": "requests"},
+                ],
+            }
+        }
+    )
+    for permission in plan.business.permissions:
+        if permission.role == "service" and permission.entity in {"customers", "requests"}:
+            permission.actions = ["read", "read_metrics"]
+    assert business_gaps(requirement, plan) == []
+    next(
+        item
+        for item in plan.business.permissions
+        if item.role == "service" and item.entity == "requests"
+    ).scope = "all"
+    assert business_gaps(requirement, plan)
+
+
+def test_reverse_relation_is_implemented_by_correct_child_foreign_key():
+    requirement, plan = case(
+        {
+            "relations": [
+                {
+                    "entity": "customers",
+                    "field": "requests",
+                    "target": "requests",
+                    "kind": "reverse",
+                }
+            ]
+        }
+    )
+    assert business_gaps(requirement, plan) == []
+    plan.business.relations[0].target_entity = "tasks"
+    assert business_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize("alias", ["in-app", "in_app_persistent", "in_app"])
+def test_aggregate_notification_catalog_is_not_a_cartesian_recipient_policy(alias):
+    requirement, plan = case(
+        {
+            "notifications": {
+                "channel": alias,
+                "persistent": True,
+                "triggers": ["assignment", "handling_note", "state_change", "resolved", "overdue"],
+                "recipients": ["assignee", "request_submitter"],
+            }
+        }
+    )
+    assert business_gaps(requirement, plan) == []
+    plan.business.notifications = [
+        item
+        for item in plan.business.notifications
+        if not (
+            item.event == "transitioned"
+            and item.transition == "resolve"
+            and item.recipient == "creator"
+        )
+    ]
+    assert business_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize(
+    "event,canonical",
+    [
+        ("assignment", "assigned"),
+        ("comment_added", "note_added"),
+        ("handling_note", "note_added"),
+        ("overdue", "due"),
+    ],
+)
+def test_event_aliases_preserve_explicit_entity_and_recipient(event, canonical):
+    recipient = "created_by" if canonical == "note_added" else "assignee_id"
+    requirement, plan = case(
+        {"notifications": [{"entity": "requests", "event": event, "recipients": [recipient]}]}
+    )
+    assert business_gaps(requirement, plan) == []
+    plan.business.notifications = [
+        item
+        for item in plan.business.notifications
+        if not (item.entity == "requests" and item.event == canonical)
+    ]
+    assert business_gaps(requirement, plan)
+
+
+def test_resolved_notification_uses_target_state_not_a_hard_coded_action_name():
+    requirement, plan = case(
+        {"reminders": [{"entity": "requests", "event": "resolved", "recipient": "creator"}]}
+    )
+    plan.business.workflows[0].transitions[-1].name = "finish"
+    for notice in plan.business.notifications:
+        if notice.entity == "requests" and notice.transition == "resolve":
+            notice.transition = "finish"
+    assert business_gaps(requirement, plan) == []
+    plan.business.workflows[0].transitions[-1].to_state = "closed"
+    assert business_gaps(requirement, plan)
+
+
+def test_event_specific_recipient_list_requires_all_on_same_resource():
+    requirement, plan = case(
+        {
+            "notifications": [
+                {
+                    "entity": "requests",
+                    "event": "note_added",
+                    "recipients": ["created_by", "assignee_id"],
+                }
+            ]
+        }
+    )
+    assert business_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize(
+    "descriptor",
+    [
+        {"name": "total", "type": "count", "kind": "time_count"},
+        {"name": "total", "allowed_roles": ["manager"], "role_scope": ["service"]},
+    ],
+)
+def test_conflicting_aliases_block_without_crashing_or_changing_facts(descriptor):
+    requirement, plan = case({"metrics": [descriptor]})
+    diagnostics = []
+    assert business_gaps(requirement, plan, diagnostics=diagnostics)
+    assert diagnostics[0]["code"] == "business_unsupported_shape"
+
+
+def test_handling_history_requirement_keeps_entity_scope_and_independent_action():
+    requirement, plan = case(
+        {
+            "resources": [
+                {"entity": "requests", "label": "服务请求"},
+                {"entity": "tasks", "label": "协作任务"},
+            ]
+        }
+    )
+    requirement.features = ["服务请求：查看处理过程"]
+    for permission in plan.business.permissions:
+        if "read_history" in permission.actions:
+            permission.actions.remove("read_history")
+    diagnostics = []
+    assert business_gaps(requirement, plan, diagnostics=diagnostics)
+    history = [item for item in diagnostics if item["code"] == "business_missing_history_grant"]
+    assert history and {item["expected"]["entity"] for item in history} == {"requests"}
+
+
+@pytest.mark.parametrize(
+    "capability,attribute", [("keyword_search", "searchable"), ("exact_filter", "filterable")]
+)
+def test_resource_query_capabilities_are_scoped_without_inventing_target_fields(
+    capability, attribute
+):
+    requirement, plan = case({"resources": [{"name": "customers", "capabilities": [capability]}]})
+    assert business_gaps(requirement, plan) == []
+    for field in plan.entities[0].fields:
+        setattr(field, attribute, False)
+    assert business_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize("entity", [None, [], {}, True])
+def test_malformed_resource_scope_cannot_crash_history_review(entity):
+    requirement, plan = case(
+        {"resources": [{"entity": entity, "label": "服务请求", "notes": True}]}
+    )
+    requirement.features = ["查看处理过程"]
+    assert business_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize(
+    "entity,name,explicit_scope",
+    [("customers", "customer_total", "own"), ("requests", "total", "all")],
+)
+def test_global_metric_scope_cannot_overwrite_explicit_per_metric_scope(
+    entity, name, explicit_scope
+):
+    requirement, plan = case({})
+    permissions = [
+        item.model_dump()
+        for item in plan.business.permissions
+        if item.entity == entity and item.role in {"manager", "service"}
+    ]
+    requirement.facts = {
+        "business": {
+            "permissions": permissions,
+            "metrics_roles": ["manager", "service"],
+            "metrics_scope": "manager=all；service=assigned（只按本人可见行计算）",
+            "metrics": [
+                {
+                    "name": name,
+                    "entity": entity,
+                    "role_scope": {"manager": "all", "service": explicit_scope},
+                }
+            ],
+        }
+    }
+    diagnostics = []
+    assert business_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(item["code"] == "business_unsupported_shape" for item in diagnostics)
+
+
 @pytest.mark.parametrize("name", DOMAINS)
 @pytest.mark.parametrize("encoded", [False, True])
 def test_entity_keyed_kind_only_fields_do_not_become_business_collections(name, encoded):

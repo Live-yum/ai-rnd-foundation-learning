@@ -199,7 +199,7 @@ const { captureNativeScreenshot } = require('./scripts/business_yudao_browser.cj
     const page=await browser.newPage();
     await page.setContent(`<button id="select">Customer</button>
       <div class="ant-select-dropdown" hidden><button id="option">Readable customer</button></div>
-      <button class="ant-notification-notice-close">Close notice</button><input id="selected">
+      <div class="ant-notification-notice"><button class="ant-notification-notice-close">Close notice</button></div><input id="selected">
       <script>
       document.querySelector('#select').onclick=()=>document.querySelector('.ant-select-dropdown').hidden=false;
       document.addEventListener('mousedown',e=>{if(!e.target.closest('.ant-select-dropdown')&&e.target.id!=='select')document.querySelector('.ant-select-dropdown').hidden=true;});
@@ -210,16 +210,96 @@ const { captureNativeScreenshot } = require('./scripts/business_yudao_browser.cj
       await page.locator('#select').click();
       await page.getByText('Readable customer',{exact:true}).waitFor({state:'visible'});
       const file=path.join(process.argv[2],`${role}-requests-customer_id-relation-picker.png`);
-      await captureNativeScreenshot(page,file);
+      await captureNativeScreenshot(page,file,100);
       assert(fs.existsSync(file));
       assert(await page.locator('.ant-select-dropdown').isVisible(), 'Screenshot must not dismiss the open picker');
       assert(await page.locator('.ant-notification-notice-close').isVisible(), 'Screenshot must not click a notice close button');
       await page.getByText('Readable customer',{exact:true}).click();
       assert.equal(await page.locator('#selected').inputValue(),'Readable customer');
     }
-    assert.equal(fs.readdirSync(process.argv[2]).filter(n=>n.endsWith('.png')).length,2);
+    await page.locator('#select').click();
+    await page.evaluate(() => {
+      const toast = document.createElement('div'); toast.className = 'ant-message-notice'; toast.textContent = 'Saved'; document.body.append(toast);
+      setTimeout(() => document.querySelector('.ant-notification-notice').remove(), 120);
+      setTimeout(() => toast.remove(), 240);
+    });
+    await captureNativeScreenshot(page,path.join(process.argv[2],'settled-notices.png'));
+    assert.equal(await page.locator('.ant-notification-notice, .ant-message-notice').count(),0,
+      'Capture must await both natural notice and toast expiry');
+    assert(await page.locator('.ant-select-dropdown').isVisible(), 'Passive waiting must preserve the open picker');
+    assert.equal(fs.readdirSync(process.argv[2]).filter(n=>n.endsWith('.png')).length,3);
   } finally { await browser.close(); }
 })().catch(error=>{console.error(error);process.exitCode=1;});
+""",
+            module,
+            str(tmp_path),
+        ],
+        cwd=ROOT,
+        env=clean_env({"PLAYWRIGHT_BROWSERS_PATH": "0"}),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_native_dashboard_scrolls_statistics_and_history_clears_wrapped_actions(tmp_path):
+    module = os.environ.get("PRODUCT_VERIFY_PLAYWRIGHT")
+    if not module or not Path(module).is_dir():
+        pytest.skip("Actual Playwright is mandatory in Actions")
+    from workbench.tools import clean_env
+
+    result = subprocess.run(
+        [
+            "node",
+            "-e",
+            r"""
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const { chromium } = require(process.argv[1]);
+const { showNativeDashboard, verifyNativeHistorySpacing, captureNativeScreenshot } = require('./scripts/business_yudao_browser.cjs');
+(async () => {
+  const source = fs.readFileSync('templates/business/yudao/panel.vue','utf8');
+  const spacing = source.match(/\.rnd-business-timeline\s*\{[^}]+\}/)[0];
+  assert(source.includes('<Timeline class="rnd-business-timeline" data-testid="business-history">'));
+  assert(source.includes('<Space wrap data-testid="business-actions">'));
+  assert(source.includes('<Card title="业务统计" v-if="metrics.length" data-testid="business-metrics">'));
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage({ viewport: { width: 1500, height: 1100 } });
+    await page.setContent(`<style>
+      body { margin:0; } header { height:88px; } main { height:1012px; overflow:auto; }
+      .actions { display:inline-flex; flex-wrap:wrap; gap:8px; } button { width:100px; height:32px; }
+      .ant-timeline-item-content { position:relative; top:-7px; } ${spacing}
+      .ant-card-head { height:56px; } canvas { display:block; width:500px; height:300px; }
+      </style><header>Native shell test fixture</header><main>
+      <section data-rnd-business-entity="customers" hidden><section data-testid="business-metrics"><div class="ant-card-head">Wrong cached dashboard</div><canvas></canvas></section></section>
+      <section data-rnd-business-entity="requests"><section data-rnd-business-panel>
+        <div data-testid="business-actions" class="actions"><button>Assign</button><button>Start</button><button>Note</button><button>Audit</button><button>Refresh</button></div>
+        <div data-testid="business-history" class="rnd-business-timeline"><div class="ant-timeline-item-content">First history event</div></div>
+        <div style="height:1800px">Related record history</div>
+        <section data-testid="business-metrics"><div class="ant-card-head">业务统计</div><div>Total requests 4</div><canvas></canvas></section>
+        <div style="height:1100px">Reminders</div>
+      </section></section></main>`);
+    for (const width of [1500,420]) {
+      await page.setViewportSize({ width, height:1100 });
+      await verifyNativeHistorySpacing(page);
+    }
+    await page.locator('[data-testid="business-history"]').evaluate(element => element.style.marginTop='0px');
+    await assert.rejects(verifyNativeHistorySpacing(page), /separated from the bottom/);
+    await page.locator('[data-testid="business-history"]').evaluate(element => element.style.removeProperty('margin-top'));
+    await page.setViewportSize({ width:1500, height:1100 });
+    await showNativeDashboard(page);
+    assert(await page.locator('main').evaluate(element => element.scrollTop > 1000));
+    const heading = await page.locator('[data-rnd-business-entity="requests"] .ant-card-head').boundingBox();
+    assert.equal(heading.y,88, 'Statistics must align below the actual native shell');
+    await captureNativeScreenshot(page,path.join(process.argv[2],'dashboard.png'));
+    assert.equal(await page.locator('[data-rnd-business-entity="requests"] .ant-card-head').textContent(),'业务统计');
+  } finally { await browser.close(); }
+})().catch(error => { console.error(error); process.exitCode=1; });
 """,
             module,
             str(tmp_path),

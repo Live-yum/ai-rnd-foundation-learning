@@ -366,7 +366,6 @@ async def mutate(db, who, entity, row_id, action, data):
             not eligible
             or eligible["scope"] not in {"all", "assigned"}
             or "read" not in eligible["actions"]
-            or not {"update", "transition"}.intersection(eligible["actions"])
         ):
             fail(422, "Assignee cannot handle this resource")
         setattr(row, POLICY.resource(entity)["assignee_field"], user_id)

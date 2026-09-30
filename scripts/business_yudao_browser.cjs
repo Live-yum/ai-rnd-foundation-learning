@@ -35,10 +35,39 @@ async function createBrowserOwnedRecords(login, create, marker) {
   await create('tasks'); // Link to the fresh employee-created browser request.
 }
 
-async function captureNativeScreenshot(page, file) {
+async function captureNativeScreenshot(page, file, noticeTimeout = 6000) {
   // Capturing an open picker must not click, focus, blur, scroll or move the pointer.
   // Dismissing a login notification here used to close the already-visible picker.
+  try {
+    await page.locator('.ant-notification-notice:visible, .ant-message-notice:visible').first()
+      .waitFor({ state: 'hidden', timeout: noticeTimeout });
+  } catch (error) {
+    // Persistent notices are legitimate UI; bounded waiting must never dismiss them.
+    if (error.name !== 'TimeoutError') throw error;
+  }
   await page.screenshot({ path: file, fullPage: true, animations: 'disabled' });
+}
+
+async function showNativeDashboard(page) {
+  const dashboard = page.locator('[data-rnd-business-entity]:visible').getByTestId('business-metrics');
+  await dashboard.locator('canvas').first().waitFor({ state: 'visible' });
+  const heading = dashboard.locator('.ant-card-head');
+  // Vben scrolls its native main-content container, not the document. Move the
+  // real stats heading into view explicitly, outside the noninteractive capture helper.
+  await heading.evaluate(element => element.scrollIntoView({ block: 'start', inline: 'nearest' }));
+  const box = await heading.boundingBox();
+  assert(box && box.y >= 0 && box.y + box.height <= page.viewportSize().height,
+    'Native statistics heading must be in the dashboard screenshot viewport');
+}
+
+async function verifyNativeHistorySpacing(page) {
+  const panel = page.locator('[data-rnd-business-entity]:visible [data-rnd-business-panel]');
+  const actions = await panel.getByTestId('business-actions').boundingBox();
+  const first = panel.getByTestId('business-history').locator('.ant-timeline-item-content').first();
+  await first.waitFor({ state: 'visible' });
+  const history = await first.boundingBox();
+  assert(actions && history && history.y >= actions.y + actions.height + 8,
+    'Native history must be separated from the bottom of the wrapped action buttons');
 }
 
 function rememberCreatedRecord(created, labels, entity, identifier, label) {
@@ -200,7 +229,7 @@ async function main() {
   }
   try {
     await createBrowserOwnedRecords(login, create, marker);
-    for (const entity of ['requests', 'tasks']) { await detail(entity, labels[entity]); await action('assign', null, 'Browser assignment'); await capture(`${entity}-manager-workflow-controls.png`); }
+    for (const entity of ['requests', 'tasks']) { await detail(entity, labels[entity]); await action('assign', null, 'Browser assignment'); await verifyNativeHistorySpacing(page); await capture(`${entity}-manager-workflow-controls.png`); }
     for (const [parent, child] of [['customers', 'requests'], ['requests', 'tasks']]) {
       await detail(parent, labels[parent]);
       const group = page.getByTestId('business-related-' + child);
@@ -214,9 +243,9 @@ async function main() {
       await capture(`${parent}-${child}-related-history.png`);
       report.checks.push(`manager:${parent}:${child}:related-record-and-history`);
     }
-    await page.locator('[data-rnd-business-panel] canvas').first().waitFor({ state: 'visible' });
-    report.checks.push('manager:real-native-echarts-metrics');
     await capture('manager-vben-business.png');
+    await showNativeDashboard(page);
+    report.checks.push('manager:real-native-echarts-metrics');
     await capture('manager-business-dashboard.png');
     report.journeys.push({ actor: 'manager', real_create: ['customers', 'requests', 'tasks'], real_assignment: true, native_form_modal: true });
     await login('service');
@@ -226,6 +255,7 @@ async function main() {
       await action('add_note', null, 'Browser work recorded');
       assert((await action('transition', 'resolve', 'Browser complete')).resolvedAt, 'Native resolution timestamp missing');
       await page.getByText('Browser work recorded', { exact: true }).first().waitFor({ state: 'visible' });
+      await verifyNativeHistorySpacing(page);
       await capture(`${entity}-service-handling-history.png`);
     }
     await capture('service-vben-timeline.png');
@@ -239,7 +269,7 @@ async function main() {
     assert.equal(await panel.getByTestId('business-assign').count(), 0, 'Employee must not receive assignment controls');
     assert.equal(await panel.getByTestId('business-transition-start').count(), 0, 'Employee must not receive transition controls');
     const employeeHistory = scenario.plan.business.permissions.some(rule => rule.role === 'employee' && rule.entity === 'requests' && rule.actions.includes('read_history'));
-    if (employeeHistory) await panel.locator('.ant-timeline-item').first().waitFor({ state: 'visible' });
+    if (employeeHistory) await verifyNativeHistorySpacing(page);
     else assert.equal(await panel.locator('.ant-timeline-item').count(), 0, 'Unpermitted history must not be displayed');
     await capture(employeeHistory ? 'employee-owned-history.png' : 'employee-owned-record.png');
     await panel.getByText('站内提醒', { exact: true }).waitFor({ state: 'visible' });
@@ -277,5 +307,5 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, rememberCreatedRecord };
+module.exports = { main, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });

@@ -1203,3 +1203,87 @@ def test_failed_native_harness_preserves_replay_before_private_cleanup(tmp_path,
     replay = public_root / "reports/real-model/approved-plan-replay.json"
     assert json.loads(replay.read_text(encoding="utf-8"))["business"] == plan["business"]
     assert list(replay.parent.iterdir()) == [replay]
+
+
+def test_schema_root_validation_reason_is_bounded_redacted_without_input():
+    from pydantic import BaseModel, model_validator
+
+    from scripts.ci_real_model import DiagnosticTextBudget, response_receipt
+
+    class Contract(BaseModel):
+        value: str
+
+        @model_validator(mode="after")
+        def validate_contract(self):
+            raise ValueError("Known transition required; exact-private-canary " + "x" * 2000)
+
+    raw = json.dumps(
+        {
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {
+                        "content": json.dumps({"value": "provider-input-never-exported"}),
+                        "reasoning_content": "reasoning-never-exported",
+                    },
+                }
+            ]
+        }
+    ).encode()
+    budget = DiagnosticTextBudget(secrets=("exact-private-canary",), limit=800)
+    first = response_receipt(200, raw, "plan", Contract, text_budget=budget)
+    second = response_receipt(200, raw, "plan", Contract, text_budget=budget)
+    assert first["schema_errors"][0]["field_path"] == []
+    assert first["schema_errors"][0]["message"].startswith("Value error, Known transition required")
+    assert len(first["schema_errors"][0]["message"]) == 600
+    assert len(second["schema_errors"][0]["message"]) == 200
+    encoded = json.dumps([first, second])
+    for forbidden in (
+        "exact-private-canary",
+        "provider-input-never-exported",
+        "reasoning-never-exported",
+    ):
+        assert forbidden not in encoded
+    assert "[REDACTED]" in encoded
+
+
+@pytest.mark.parametrize("scope", ["own", "assigned"])
+def test_customer_employee_task_scope_binds_approved_requirement(scope):
+    from copy import deepcopy
+
+    from workbench.domain import Requirement
+
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    permissions = spec["business"]["permissions"]
+    permissions[:] = [p for p in permissions if (p["role"], p["entity"]) != ("employee", "tasks")]
+    permissions.append({"role": "employee", "entity": "tasks", "actions": ["read"], "scope": scope})
+    approved = Requirement(
+        summary="已确认角色合同",
+        users=["普通员工"],
+        data_scope="shared",
+        features=[],
+        acceptance=[],
+        facts={"business": deepcopy(spec["business"])},
+    )
+    require_customer_spec(spec, approved_requirement=approved.model_dump())
+    permissions[-1]["scope"] = "assigned" if scope == "own" else "own"
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec, approved_requirement=approved.model_dump())
+    permissions[-1]["scope"] = "all"
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)
+
+
+@pytest.mark.parametrize("scope", ["own", "assigned"])
+@pytest.mark.parametrize(
+    "action", ["create", "update", "archive", "add_note", "assign", "transition", "read_metrics"]
+)
+def test_customer_employee_tasks_remain_read_only_under_each_allowed_scope(scope, action):
+    spec = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    permissions = spec["business"]["permissions"]
+    permissions[:] = [p for p in permissions if (p["role"], p["entity"]) != ("employee", "tasks")]
+    permissions.append(
+        {"role": "employee", "entity": "tasks", "actions": ["read", action], "scope": scope}
+    )
+    with pytest.raises(SafeFailure, match="customer_obligation"):
+        require_customer_spec(spec)

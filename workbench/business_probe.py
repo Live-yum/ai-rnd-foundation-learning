@@ -55,8 +55,16 @@ class BusinessClient:
         return value.get("items", value.get("list"))
 
     def action(self, entity, identifier, action, data):
+        return payload(self.action_response(entity, identifier, action, data))
+
+    def action_response(self, entity, identifier, action, data):
+        """Keep the real native response available for negative authorization probes."""
         if self.fastapi:
-            return self.call("POST", f"{self.prefix}/{entity}/{identifier}/{action}", json=data)
+            return self.http.post(f"{self.prefix}/{entity}/{identifier}/{action}", json=data)
+        if action == "update":
+            return self.http.put(
+                self.targets[entity]["api"] + "/update", json={"id": identifier, **self.wire(data)}
+            )
         value = {"entity": entity, "id": identifier, "action": action}
         value.update(
             {
@@ -64,7 +72,7 @@ class BusinessClient:
                 for k, v in data.items()
             }
         )
-        return self.call("POST", self.prefix + "/action", json=value)
+        return self.http.post(self.prefix + "/action", json=value)
 
     def history(self, entity, identifier, audit=False):
         route = (
@@ -355,6 +363,9 @@ def customer_service_acceptance(template, base, token, targets, plan):
             "Employee must not access team metrics"
         )
         assert {item.name for item in plan.business.metrics} <= {item["name"] for item in metrics}
+        assignment_boundaries = verify_assignment_boundaries(
+            plan, manager, actors, {"requests": request, "tasks": task}
+        )
         return {
             "passed": True,
             "spec_digest": digest(plan.model_dump()),
@@ -364,6 +375,7 @@ def customer_service_acceptance(template, base, token, targets, plan):
             "relations": True,
             "related_history": True,
             "assignment": True,
+            "assignment_boundaries": assignment_boundaries,
             "transitions": True,
             "handling_history": True,
             "audit": True,
@@ -383,6 +395,265 @@ def customer_service_acceptance(template, base, token, targets, plan):
     finally:
         for client in clients:
             client.close()
+
+
+def verify_assignment_boundaries(plan, manager, actors, records):
+    """Exercise only existing actors and grants from this exact approved Plan.
+
+    Run after reminder cardinality checks: the conditional positive assignment is
+    restored, but its legitimate audit/notification events must remain persisted.
+    """
+    approved_digest = digest(plan.model_dump())
+    grants = {(p.role, p.entity): p for p in plan.business.permissions}
+    roster = [
+        (label, label.removeprefix("other_"), str(identifier), client)
+        for label, (identifier, client) in actors.items()
+    ]
+    clients = [manager, *(actor[3] for actor in roster)]
+    checks = []
+    mutations = {"create", "update", "archive", "assign", "transition", "add_note"}
+
+    def read_grant(role, entity):
+        grant = grants.get((role, entity))
+        return grant if grant and "read" in grant.actions else None
+
+    def row(client, entity, identifier):
+        found = [
+            item
+            for item in client.rows(entity, page_size=100, pageSize=100)
+            if str(item["id"]) == str(identifier)
+        ]
+        assert len(found) == 1, "Assigned record missing from authorized HTTP rows"
+        return found[0]
+
+    def visible(grant, actor_id, record, assignee_field):
+        if grant is None:
+            return False
+        return (
+            grant.scope == "all"
+            or str(
+                record.get(
+                    wire_name(manager.template, "created_by")
+                    if grant.scope == "own"
+                    else assignee_field
+                )
+            )
+            == actor_id
+        )
+
+    def snapshot(entity, identifier):
+        return {
+            "row": row(manager, entity, identifier),
+            "audit": manager.history(entity, identifier, True),
+            "notifications": [
+                [
+                    notice
+                    for notice in client.inbox()
+                    if notice["entity"] == entity and str(notice["record_id"]) == str(identifier)
+                ]
+                for client in clients
+            ],
+        }
+
+    def absent(entity, case, reason):
+        checks.append({"entity": entity, "case": case, "status": "absent", "reason": reason})
+
+    def rejected(entity, identifier, case, actor, recipient, statuses, action="assign", data=None):
+        before = snapshot(entity, identifier)
+        response = actor[3].action_response(
+            entity, identifier, action, {"assignee": recipient[2]} if data is None else data
+        )
+        try:
+            code = response.json().get("code")
+        except ValueError, AttributeError:
+            code = None
+        assert response.status_code in statuses or (
+            response.status_code == 200 and code in statuses
+        ), f"{case}: native assignment was accepted, crashed, or failed for an unrelated reason"
+        after = snapshot(entity, identifier)
+        assert after == before, f"{case}: rejected assignment changed row, audit, or notifications"
+        checks.append(
+            {
+                "entity": entity,
+                "case": case,
+                "status": "exercised",
+                "action": action,
+                "actor_role": actor[1],
+                **(
+                    {
+                        "assignee_role": next(
+                            item[1]
+                            for item in roster
+                            if item[2] == str(recipient[2] if data is None else data["assignee"])
+                        )
+                    }
+                    if action == "assign"
+                    else {}
+                ),
+                "http_status": response.status_code,
+                "response_code": code,
+                "row_audit_notifications_unchanged": True,
+            }
+        )
+
+    for entity, identifier in records.items():
+        resource = next(item for item in plan.business.resources if item.entity == entity)
+        assignee_field = wire_name(manager.template, resource.assignee_field)
+        baseline = row(manager, entity, identifier)
+        assigning_actor = ("manager", "manager", "", manager)
+        eligible = [
+            actor
+            for actor in roster
+            if (grant := read_grant(actor[1], entity)) and grant.scope in {"assigned", "all"}
+        ]
+        assert eligible, "No existing approved assignee for assignment boundary probes"
+        for case, candidates in (
+            (
+                "own_only_assignee_denied",
+                [
+                    actor
+                    for actor in roster
+                    if (grant := read_grant(actor[1], entity)) and grant.scope == "own"
+                ],
+            ),
+            (
+                "no_read_assignee_denied",
+                [actor for actor in roster if read_grant(actor[1], entity) is None],
+            ),
+        ):
+            if candidates:
+                rejected(entity, identifier, case, assigning_actor, candidates[0], {400, 422})
+            else:
+                absent(entity, case, "No existing actor has this approved read-permission boundary")
+
+        unauthorized = [
+            actor
+            for actor in roster
+            if not (grant := grants.get((actor[1], entity))) or "assign" not in grant.actions
+        ]
+        if unauthorized:
+            # Prefer a visible row, so denial proves the action gate independently
+            # of the row-scope gate whenever the approved actors allow it.
+            unauthorized.sort(
+                key=lambda actor: (
+                    not visible(read_grant(actor[1], entity), actor[2], baseline, assignee_field)
+                )
+            )
+            rejected(
+                entity, identifier, "unauthorized_actor_denied", unauthorized[0], eligible[0], {403}
+            )
+        else:
+            absent(entity, "unauthorized_actor_denied", "Every existing actor has approved assign")
+
+        foreign = [
+            actor
+            for actor in roster
+            if (grant := grants.get((actor[1], entity)))
+            and "assign" in grant.actions
+            and grant.scope in {"own", "assigned"}
+            and not visible(grant, actor[2], baseline, assignee_field)
+        ]
+        if foreign:
+            rejected(entity, identifier, "foreign_row_denied", foreign[0], eligible[0], {403, 404})
+        else:
+            absent(
+                entity,
+                "foreign_row_denied",
+                "No existing approved own/assigned assign actor is outside this row's scope",
+            )
+
+        readonly = [
+            actor
+            for actor in eligible
+            if not mutations.intersection(grants[actor[1], entity].actions)
+        ]
+        if not readonly:
+            absent(
+                entity,
+                "read_only_recipient_accepted",
+                "No existing actor has approved read-only assigned/all permission",
+            )
+            continue
+        recipient = readonly[0]
+        original_assignee = baseline[assignee_field]
+        assert original_assignee is not None, (
+            "Assignment restoration requires the existing assignee"
+        )
+        manager.action(entity, identifier, "assign", {"assignee": recipient[2]})
+        try:
+            assert str(row(manager, entity, identifier)[assignee_field]) == recipient[2], (
+                "Read-only recipient assignment did not persist"
+            )
+            assert str(row(recipient[3], entity, identifier)[assignee_field]) == recipient[2], (
+                "Read-only assigned/all recipient cannot read their assigned row"
+            )
+            workflow = next(item for item in plan.business.workflows if item.entity == entity)
+            for action, data in (
+                ("assign", {"assignee": original_assignee}),
+                ("update", {"title": baseline["title"]}),
+                ("transition", {"transition": workflow.transitions[0].name}),
+            ):
+                rejected(
+                    entity,
+                    identifier,
+                    "read_only_recipient_" + action + "_denied",
+                    recipient,
+                    recipient,
+                    {403},
+                    action,
+                    data,
+                )
+            peers = [actor for actor in roster if actor[1] == recipient[1] and actor != recipient]
+            isolation = {
+                "status": "absent",
+                "reason": "Approved all scope allows peer reads or no same-role peer exists",
+            }
+            if peers and grants[recipient[1], entity].scope == "assigned":
+                peer = peers[0][3]
+                assert not any(
+                    str(item["id"]) == str(identifier)
+                    for item in peer.rows(entity, page_size=100, pageSize=100)
+                ), "Read-only assignment leaked into another actor's assigned list"
+                if peer.fastapi:
+                    # Fastapi detail uses list-row data plus the related endpoint;
+                    # there is no independent business detail GET route.
+                    response = peer.http.get(f"{peer.prefix}/{entity}/{identifier}/related")
+                    endpoint = "related"
+                else:
+                    response = peer.http.get(
+                        peer.targets[entity]["api"] + "/get", params={"id": identifier}
+                    )
+                    endpoint = "get"
+                assert response.status_code in {403, 404} or (
+                    response.status_code == 200 and response.json().get("code") in {403, 404}
+                ), "Read-only assignment leaked through direct record access"
+                isolation = {
+                    "status": "exercised",
+                    "list_denied": True,
+                    "record_endpoint": endpoint,
+                }
+        finally:
+            manager.action(entity, identifier, "assign", {"assignee": str(original_assignee)})
+        assert str(row(manager, entity, identifier)[assignee_field]) == str(original_assignee), (
+            "Original assignee was not restored for subsequent native browser acceptance"
+        )
+        checks.append(
+            {
+                "entity": entity,
+                "case": "read_only_recipient_accepted",
+                "status": "exercised",
+                "actor_role": "manager",
+                "assignee_role": recipient[1],
+                "assignee_scope": grants[recipient[1], entity].scope,
+                "persisted_and_recipient_readable": True,
+                "original_assignee_restored": True,
+                "peer_isolation": isolation,
+            }
+        )
+    assert digest(plan.model_dump()) == approved_digest, (
+        "Assignment probe changed the approved Plan"
+    )
+    return {"version": 1, "spec_digest": approved_digest, "checks": checks}
 
 
 def assert_history_denied(client, entity, identifier):

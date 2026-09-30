@@ -112,7 +112,7 @@ const metrics = ref<Item[]>([]), inbox = ref<Item[]>([]), users = ref<Item[]>([]
 const searchForm = ref<Item>({}), dialog = ref(false), form = ref<Item>({}), editing = ref<Item | null>(null);
 const historyOpen = ref(false), history = ref<Item[]>([]), relatedOpen = ref(false), related = ref<Item>({});
 const assignmentOpen = ref(false), selectedAssignee = ref(''), assignmentRow = ref<Item | null>(null);
-const eligibleUsers = computed(() => users.value.filter(u => config.value?.business.permissions.some((p: Item) => p.role === u.role && p.entity === tab.value && ['all', 'assigned'].includes(p.scope) && p.actions.includes('read') && (p.actions.includes('update') || p.actions.includes('transition')))));
+const eligibleUsers = computed(() => users.value.filter(u => config.value?.business.permissions.some((p: Item) => p.role === u.role && p.entity === tab.value && ['all', 'assigned'].includes(p.scope) && p.actions.includes('read'))));
 const optionQueries = ref<Record<string, string>>({}), optionPages = ref<Record<string, number>>({}), optionMore = ref<Record<string, boolean>>({});
 const options = ref<Record<string, Item[]>>({});
 const visibleEntities = computed(() => config.value?.entities.filter((e: Item) => config.value?.permissions.some((p: Item) => p.entity === e.name && p.actions.includes('read'))) || []);

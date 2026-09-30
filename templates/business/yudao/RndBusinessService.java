@@ -131,6 +131,15 @@ public class RndBusinessService {
         for(JsonNode p:cfg.path("business").path("permissions")) if(p.path("entity").asText().equals(name)&&roleSet.contains(p.path("role").asText())&&contains(p.path("actions"),action)) return true;
         return false;
     }
+    private boolean eligibleAssignee(String name,Long user) {
+        Set<String> roleSet=rolesFor(user);
+        for(JsonNode p:cfg.path("business").path("permissions")) {
+            if(!p.path("entity").asText().equals(name)||!roleSet.contains(p.path("role").asText())||!contains(p.path("actions"),"read")) continue;
+            String scope=p.path("scope").asText();
+            if(scope.equals("all")||scope.equals("assigned")) return true;
+        }
+        return false;
+    }
     private void require(String name,Object row,String action) { if(!allowed(name,row,action)) throw denied(); }
     private Instant instant(Object value) {
         if(value instanceof LocalDateTime t) return t.toInstant(ZoneOffset.UTC);
@@ -343,7 +352,7 @@ public class RndBusinessService {
         String note=data.get("note")==null?"":String.valueOf(data.get("note"));if(note.length()>4000) throw bad("Note too long");
         if(action.equals("assign")) {
             String field=resource(name).path("assignee_field").asText("");if(field.isEmpty()) throw bad("No assignee field");Object recipient=data.get("assigneeId");
-            if(recipient!=null&&!recipient.toString().isEmpty()) {Long user=number(recipient);if(sidecar.activeUser(tenant(),user)==null||rolesFor(user).isEmpty()) throw bad("Unknown active business assignee");set(row,wire(field),user);} else set(row,wire(field),null);
+            if(recipient!=null&&!recipient.toString().isEmpty()) {Long user=number(recipient);if(sidecar.activeUser(tenant(),user)==null) throw bad("Unknown active business assignee");if(!eligibleAssignee(name,user)) throw bad("Assignee cannot handle this resource");set(row,wire(field),user);} else set(row,wire(field),null);
         } else if(action.equals("transition")) {
             JsonNode w=workflow(name);if(w==null) throw bad("No workflow");transition=String.valueOf(data.get("transition"));JsonNode selected=null;
             for(JsonNode t:w.path("transitions")) if(t.path("name").asText().equals(transition)) selected=t;
@@ -427,7 +436,7 @@ public class RndBusinessService {
     public Object me() { return Map.of("id",actor().toString(),"roles",roles(),"initialized",true); }
     public Object users() {
         actor();if(roles().isEmpty()) throw denied();List<Map<String,Object>> result=new ArrayList<>();
-        for(Map<String,Object> user:sidecar.users(tenant())) if(!rolesFor(number(user.get("id"))).isEmpty()) {user.put("id",user.get("id").toString());Object nickname=user.get("nickname");user.put("displayName",nickname!=null&&!nickname.toString().isBlank()?nickname:user.get("username"));result.add(user);}return result;
+        for(Map<String,Object> user:sidecar.users(tenant())) if(!rolesFor(number(user.get("id"))).isEmpty()) {user.put("id",user.get("id").toString());Object nickname=user.get("nickname");user.put("displayName",nickname!=null&&!nickname.toString().isBlank()?nickname:user.get("username"));List<String> eligibleEntities=new ArrayList<>();for(JsonNode r:cfg.path("business").path("resources")) {String name=r.path("entity").asText();if(!r.path("assignee_field").asText("").isEmpty()&&eligibleAssignee(name,number(user.get("id")))) eligibleEntities.add(name);}user.put("eligibleEntities",eligibleEntities);result.add(user);}return result;
     }
     public void changeRole(Map<String,Object> data) {
         actor();sidecar.lockProject(tenant());

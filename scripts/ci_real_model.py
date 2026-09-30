@@ -111,6 +111,7 @@ class BoundedRealTransport(httpx.BaseTransport):
         self.receipts = []
         self.current_schema = None
         self.current_stage = "smoke"
+        self.diagnostic_text = DiagnosticTextBudget(secrets=(config.key.get_secret_value(),))
 
     def handle_request(self, request):
         if (
@@ -150,7 +151,11 @@ class BoundedRealTransport(httpx.BaseTransport):
         response.close()
         self.receipts.append(
             response_receipt(
-                response.status_code, bytes(body_bytes), self.current_stage, self.current_schema
+                response.status_code,
+                bytes(body_bytes),
+                self.current_stage,
+                self.current_schema,
+                text_budget=self.diagnostic_text,
             )
         )
         response_headers = dict(response.headers)
@@ -168,10 +173,11 @@ class BoundedRealTransport(httpx.BaseTransport):
         self.transport.close()
 
 
-def response_receipt(status, data, stage, schema=None):
+def response_receipt(status, data, stage, schema=None, *, text_budget=None):
     from pydantic import ValidationError
 
     receipt = {"http_status": status, "stage": stage}
+    text_budget = text_budget or DiagnosticTextBudget()
     try:
         envelope = json.loads(data)
         choice = envelope["choices"][0]
@@ -216,6 +222,7 @@ def response_receipt(status, data, stage, schema=None):
                 receipt["schema_errors"] = [
                     {
                         "type": e["type"],
+                        "message": text_budget.excerpt(e.get("msg", "")),
                         "field_path": [
                             part if type(part) is int or part in names else "additional_field"
                             for part in e["loc"]
@@ -931,7 +938,7 @@ def customer_request():
     )
 
 
-def require_customer_spec(spec):
+def require_customer_spec(spec, *, approved_requirement=None):
     from workbench.business_capabilities import business_gaps
     from workbench.domain import Plan, Requirement
 
@@ -948,6 +955,9 @@ def require_customer_spec(spec):
             data_scope="shared",
         )
         assert not business_gaps(requirement, plan)
+        if approved_requirement is not None:
+            approved = Requirement.model_validate(approved_requirement)
+            assert not business_gaps(approved, plan)
 
         # Match the public metric meanings, never provider-selected names/labels.
         # Extra supported metrics remain valid, but cannot substitute for these five.
@@ -1107,8 +1117,13 @@ def require_customer_spec(spec):
             assert resources[entity].notes and resources[entity].archive
             assert resources[entity].assignee_field == "assignee_id"
             if ("employee", entity) in policies:
-                assert policies[("employee", entity)].scope == "own"
-                assert not {"assign", "transition"} & set(policies[("employee", entity)].actions)
+                assert policies[("employee", entity)].scope in (
+                    {"own"} if entity == "requests" else {"own", "assigned"}
+                )
+                forbidden = {"assign", "transition", "read_metrics"}
+                if entity == "tasks":
+                    forbidden |= {"create", "update", "archive", "add_note"}
+                assert not forbidden & set(policies[("employee", entity)].actions)
             else:
                 assert entity == "tasks"
             assert policies[("service", entity)].scope == "assigned"
@@ -1308,9 +1323,12 @@ def run_acceptance(config, transport, directory, template="python-basic"):
         product = directory / "downloaded-product"
         unpack(archive, product)
         screenshot_dir = ROOT / "reports/real-model/screenshots"
+        approved_requirement = application.state.store.latest_revision(
+            browser["run_id"], "requirements"
+        )["requirement"]
         if template == "python-basic":
             spec = json.loads((product / "approved-spec.json").read_text(encoding="utf-8"))
-            require_customer_spec(spec)
+            require_customer_spec(spec, approved_requirement=approved_requirement)
             if not run["result"]["cleanroom"].get("passed"):
                 raise SafeFailure("pipeline_cleanroom_failed")
             require_browser_evidence(product, run["result"]["cleanroom"])
@@ -1327,7 +1345,7 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             manifest = json.loads(
                 (product / "deployment/manifest.json").read_text(encoding="utf-8")
             )
-            require_customer_spec(manifest["plan"])
+            require_customer_spec(manifest["plan"], approved_requirement=approved_requirement)
             evidence = verify_native_delivery(
                 product, os.environ["NATIVE_TEST_DATABASE_URL"], directory / "downloaded-evidence"
             )
