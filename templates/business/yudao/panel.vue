@@ -51,8 +51,9 @@ async function reload() {
 async function openAction(action: string, transition = '') {
   selectedAction.value = action; selectedTransition.value = transition;
   assignee.value = undefined;
-  await actionFormApi.resetForm();
+  // The pinned native modal mounts its Form only after the first open.
   actionModalApi.open();
+  await actionFormApi.resetForm();
 }
 async function submitAction() {
   if (!props.recordId || busy.value) return;

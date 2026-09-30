@@ -85,6 +85,39 @@ class BusinessClient:
         )
 
 
+def register_fastapi_actor(base, username, password, targets):
+    """Exercise the public native registration route without an administrator token."""
+    with httpx.Client(base_url=base, timeout=30, trust_env=False) as public:
+        registered = payload(
+            public.post(
+                "/system/user/register",
+                json={
+                    "username": username,
+                    "password": password,
+                    "name": "Synthetic employee",
+                    # Native registration must not accept forged administrative claims.
+                    "is_superuser": True,
+                    "role_ids": [1],
+                },
+            )
+        )
+    identifier = str(record_id(registered))
+    actor = BusinessClient(
+        "fastapiadmin", base, login("fastapiadmin", base, username, password), targets
+    )
+    try:
+        config = actor.call("GET", "/business/configuration")
+        assert config["actor"] == {"id": identifier, "role": "employee"}
+        assert config["can_manage_roles"] is False
+        info = actor.call("GET", "/system/user/current/info")
+        assert info.get("is_superuser") is False, "Public registration granted native administrator"
+        assert info.get("menus"), "Default business role has no native menu"
+    except Exception:
+        actor.close()
+        raise
+    return identifier, actor
+
+
 def customer_service_acceptance(template, base, token, targets, plan):
     """Use synthetic owned accounts/records; do not alter any pre-existing user."""
     names = {entity.name for entity in plan.entities}
@@ -125,11 +158,16 @@ def customer_service_acceptance(template, base, token, targets, plan):
                 else {"nickname": "Synthetic " + label}
             )
             prefix = "" if manager.fastapi else "/admin-api"
-            identifier = record_id(manager.call("POST", prefix + "/system/user/create", json=body))
-            manager.role(identifier, role)
-            actor = BusinessClient(
-                template, base, login(template, base, username, password), targets
-            )
+            if manager.fastapi and label == "employee":
+                identifier, actor = register_fastapi_actor(base, username, password, targets)
+            else:
+                identifier = record_id(
+                    manager.call("POST", prefix + "/system/user/create", json=body)
+                )
+                manager.role(identifier, role)
+                actor = BusinessClient(
+                    template, base, login(template, base, username, password), targets
+                )
             clients.append(actor)
             actors[label] = (str(identifier), actor)
             browser_actors[label] = {"username": username, "id": str(identifier), "role": role}
@@ -204,6 +242,7 @@ def customer_service_acceptance(template, base, token, targets, plan):
         return {
             "passed": True,
             "real_native_auth": True,
+            "public_native_registration": manager.fastapi,
             "three_roles": True,
             "relations": True,
             "assignment": True,

@@ -280,3 +280,11 @@ def test_duplicate_target_cannot_install_extra_tables(tmp_path):
     targets.append(deepcopy(targets[0]))
     with pytest.raises(ValueError, match="Duplicate native"):
         install_yudao_business(plan, backend, frontend, targets, reports)
+
+
+def test_action_modal_opens_before_waiting_for_lazy_form_mount():
+    source = (TEMPLATES / "panel.vue").read_text(encoding="utf-8")
+    start = source.index("async function openAction(")
+    end = source.index("async function submitAction(", start)
+    body = source[start:end]
+    assert body.index("actionModalApi.open()") < body.index("await actionFormApi.resetForm()")
