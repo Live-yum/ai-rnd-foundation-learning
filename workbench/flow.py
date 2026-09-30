@@ -1,5 +1,6 @@
 """One explicit LangGraph workflow. Durable approval records, not model prose, open gates."""
 
+import json
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -9,8 +10,8 @@ from workbench.catalog import options_for_run
 from workbench.coding import code_rules
 from workbench.conversation import context
 from workbench.domain import ModelReview, Plan, Requirement, digest
-from workbench.errors import PausedLimit
-from workbench.filesystem import sha
+from workbench.errors import PausedLimit, UnsupportedScope
+from workbench.filesystem import sha, write_json
 from workbench.generator import PrerequisiteError, generate_basic
 from workbench.knowledge import design_pack
 from workbench.verification import package_basic, verify_basic
@@ -44,7 +45,8 @@ Plan.unsupported 仅为已批准需求中仍无法实现的功能，不是模板
 原生FastapiAdmin和芋道只允许它们在能力表内列出的字段与权限范围；不能把逐用户隔离改成共享。"""
 REVIEW = """你是交付审阅模型。根据已批准需求、规格和独立测试证据提供简洁审阅。
 不要声称执行了代码；不能把失败的工具测试改为通过。返回summary、observations、uncovered_requirements。
-这是额外的可选审阅，不替代确定性测试。只报告具体有依据的缺口，不要求用户再回答无关细节。"""
+这是额外的可选审阅，不替代确定性测试。只报告具体有依据的缺口，不要求用户再回答无关细节。
+一般建议放observations；已批准但未实现的功能放uncovered_requirements。后者会阻止打包，不能把模板边界或新建议冒充已批准需求。"""
 
 
 class State(TypedDict, total=False):
@@ -311,7 +313,14 @@ class Workflow:
         return {"sandbox": {"enabled": True, **result}}
 
     def model_review(self, state):
+        previous_path = self.product(state).parent / "model-review.json"
+        previous = (
+            json.loads(previous_path.read_text(encoding="utf-8")) if previous_path.is_file() else {}
+        )
         if not self.settings.review_enabled:
+            # Disabling an optional reviewer is not permission to waive a recorded gap.
+            if previous.get("uncovered_requirements"):
+                self.require_review_clearance(state, previous)
             return {
                 "model_review": {
                     "enabled": False,
@@ -326,15 +335,35 @@ class Workflow:
                 "requirement": state["requirement"],
                 "plan": state["plan"],
                 "independent_evidence": state["verification"],
+                "previous_review": previous,
             },
             ModelReview,
         )
-        return {"model_review": {"enabled": True, **review.model_dump()}}
+        result = {"enabled": True, **review.model_dump()}
+        self.require_review_clearance(state, result)
+        return {"model_review": result}
+
+    def require_review_clearance(self, state, review):
+        """A review cannot override failed tools or silently waive an explicit gap."""
+        gaps = review.get("uncovered_requirements", [])
+        report = {**review, "delivery_clearance": not gaps}
+        write_json(
+            self.product(state).parent / "model-review.json",
+            json.loads(self.settings.redact(json.dumps(report, ensure_ascii=False))),
+        )
+        if gaps:
+            raise UnsupportedScope(
+                "审阅发现已批准但未覆盖的需求，已暂停交付："
+                + "；".join(gaps)[:500]
+                + "。查看 model-review.json；修复实现并重新验收，不能直接忽略报告。"
+            )
 
     def repair(self, state):
         return {"attempt": state["attempt"] + 1}
 
     def package(self, state):
+        # Also protects a checkpoint created before the review gate was enforced.
+        self.require_review_clearance(state, state.get("model_review", {"enabled": False}))
         if state["template"] == "python-basic":
             result = package_basic(
                 Plan.model_validate(state["plan"]),

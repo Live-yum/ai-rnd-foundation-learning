@@ -246,7 +246,8 @@ class ModelReview(Contract):
     summary: Text
     observations: list[Text] = Field(default_factory=list, max_length=20)
     uncovered_requirements: list[Text] = Field(default_factory=list, max_length=20)
-    # Advisory only: never gives permission to override a failed executable test.
+    # Observations are advisory; uncovered approved requirements block delivery.
+    # No model verdict can override a failed executable test.
 
 
 class AutomationInput(Contract):

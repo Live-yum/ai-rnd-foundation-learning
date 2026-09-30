@@ -321,3 +321,38 @@ uv run rnd init
 每个文件先给出用途、与其他模块的关系和验证方向，再给出完整文件。Python文件的函数目录标注实际起止行，列出源码中的条件、调用与返回值，帮助你把本章的业务流程定位到实现。行号由当前文件解析生成，不靠手工维护旧行号。
 
 阅读顺序是“先懂职责，再找到函数，最后逐行看实现”。例如从Workflow.sandbox进入verify_in_daytona，再进入daytona_worker，最后到SDK；从Store.submit进入当前gate校验，再到Job入队；从产品列表接口进入querying.conditions，再回到SQLAlchemy查询。标准库/第三方库的内部实现不在本书重写，但本平台如何调用它们、传什么值、信任什么结果均给出。
+
+
+## 交付前的审阅与独立恢复门禁
+
+工具测试通过只说明这些测试实际检查的内容通过，不能证明没有遗漏已批准需求。
+`Workflow.model_review`把额外语义审阅保存在运行目录的`model-review.json`中。
+`observations`用于一般建议，不要求用户继续回答；`uncovered_requirements`专门记录已批准但没有实现的功能。
+`require_review_clearance`只要发现后一列表非空，就记录`delivery_clearance=false`并暂停为`BLOCKED`，不生成ZIP。
+即使恢复的是已经越过审阅节点的检查点，`package`入口也会再次检查，不能靠重试跳过。
+关闭可选审阅不会抹去已记录的缺口；同一运行重新启用审阅并重试时，会把前一份报告连同独立验收证据交给审阅器复核。
+模型审阅仍不能将失败的编译、HTTP或浏览器测试改为通过，也不保证能发现所有语义遗漏。
+目前自动代码修复限于已批准的单记录规则；任意Java/Vue语义缺口尚未形成自动修复闭环，不能把“阻止错误交付”称为“自动修复全部功能”。
+
+异常发生在两个审批节点之间时，`Runtime.tick`从实际检查点重新读取尚未消费的interrupt。
+没有interrupt就保存`pending=None`，而不是复用已经批准过的设计gate。
+有真实阻塞gate时仍保留它，因此需求澄清的答复和智能推荐恢复不会丢失。
+
+原生交付的调用关系为`managed_generate → run_acceptance → managed_verify → managed_package`。
+`managed_verify`既核对源码清单和验收报告的SHA，也要求`portable_restored`明确证明：
+新数据库、前端启动、锁定依赖安装、独立启动器均通过，且没有复用生成数据库、导入工作台或要求模型服务。
+这些值必须是JSON布尔值；缺失、字符串和整数不能冒充通过。
+仅“原生成环境里能启动”不能取得运行级交付资格；依赖原数据库的产品必须停止，不能发出READY。
+
+编写顺序是先在`tests/test_delivery_clearance.py`构造“工具通过但审阅缺口仍在”和“原生恢复证据缺失”的反例，
+再实现上述两个门禁，然后执行：
+
+```powershell
+uv run pytest tests/test_delivery_clearance.py tests/test_native_managed.py tests/test_guided_workflow.py -q
+uv run pytest tests/test_recommendation_recovery.py tests/test_recommendation_stage_budget.py -q
+uv run python -m scripts.build_handbook --check
+```
+
+正常结果必须是全部通过。失败时先阅读断言指向的具体门槛，不得通过删除反例、跳过恢复测试或把布尔值改成固定true来继续。
+原生协议测试使用固定时间戳的ZIP夹具；它仍比较原始ZIP字节，只是不依赖运行时的时钟，避免跨越ZIP时间刻度产生随机误报。
+这些协议夹具不代替Actions中实际启动原生生成器、全栈应用及全新数据库的验收。

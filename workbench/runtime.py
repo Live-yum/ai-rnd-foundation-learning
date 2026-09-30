@@ -168,6 +168,10 @@ class Runtime:
                     result=snapshot.values.get("delivery", {}),
                 )
         except Exception as exc:
+            if isinstance(exc, UnsupportedScope):
+                # An exception between gates (for example review clearance) must not
+                # recycle the already-consumed design gate from the automatic loop.
+                pending = pending_interrupt(self.graph.get_state(config))
             # Preserve bounded, redacted tool output even when an adapter wraps the error.
             tool_error = exc
             seen = set()

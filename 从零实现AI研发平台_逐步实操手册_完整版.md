@@ -815,6 +815,41 @@ uv run rnd init
 
 阅读顺序是“先懂职责，再找到函数，最后逐行看实现”。例如从Workflow.sandbox进入verify_in_daytona，再进入daytona_worker，最后到SDK；从Store.submit进入当前gate校验，再到Job入队；从产品列表接口进入querying.conditions，再回到SQLAlchemy查询。标准库/第三方库的内部实现不在本书重写，但本平台如何调用它们、传什么值、信任什么结果均给出。
 
+
+## 交付前的审阅与独立恢复门禁
+
+工具测试通过只说明这些测试实际检查的内容通过，不能证明没有遗漏已批准需求。
+`Workflow.model_review`把额外语义审阅保存在运行目录的`model-review.json`中。
+`observations`用于一般建议，不要求用户继续回答；`uncovered_requirements`专门记录已批准但没有实现的功能。
+`require_review_clearance`只要发现后一列表非空，就记录`delivery_clearance=false`并暂停为`BLOCKED`，不生成ZIP。
+即使恢复的是已经越过审阅节点的检查点，`package`入口也会再次检查，不能靠重试跳过。
+关闭可选审阅不会抹去已记录的缺口；同一运行重新启用审阅并重试时，会把前一份报告连同独立验收证据交给审阅器复核。
+模型审阅仍不能将失败的编译、HTTP或浏览器测试改为通过，也不保证能发现所有语义遗漏。
+目前自动代码修复限于已批准的单记录规则；任意Java/Vue语义缺口尚未形成自动修复闭环，不能把“阻止错误交付”称为“自动修复全部功能”。
+
+异常发生在两个审批节点之间时，`Runtime.tick`从实际检查点重新读取尚未消费的interrupt。
+没有interrupt就保存`pending=None`，而不是复用已经批准过的设计gate。
+有真实阻塞gate时仍保留它，因此需求澄清的答复和智能推荐恢复不会丢失。
+
+原生交付的调用关系为`managed_generate → run_acceptance → managed_verify → managed_package`。
+`managed_verify`既核对源码清单和验收报告的SHA，也要求`portable_restored`明确证明：
+新数据库、前端启动、锁定依赖安装、独立启动器均通过，且没有复用生成数据库、导入工作台或要求模型服务。
+这些值必须是JSON布尔值；缺失、字符串和整数不能冒充通过。
+仅“原生成环境里能启动”不能取得运行级交付资格；依赖原数据库的产品必须停止，不能发出READY。
+
+编写顺序是先在`tests/test_delivery_clearance.py`构造“工具通过但审阅缺口仍在”和“原生恢复证据缺失”的反例，
+再实现上述两个门禁，然后执行：
+
+```powershell
+uv run pytest tests/test_delivery_clearance.py tests/test_native_managed.py tests/test_guided_workflow.py -q
+uv run pytest tests/test_recommendation_recovery.py tests/test_recommendation_stage_budget.py -q
+uv run python -m scripts.build_handbook --check
+```
+
+正常结果必须是全部通过。失败时先阅读断言指向的具体门槛，不得通过删除反例、跳过恢复测试或把布尔值改成固定true来继续。
+原生协议测试使用固定时间戳的ZIP夹具；它仍比较原始ZIP字节，只是不依赖运行时的时钟，避免跨越ZIP时间刻度产生随机误报。
+这些协议夹具不代替Actions中实际启动原生生成器、全栈应用及全新数据库的验收。
+
 ## 19. 原生全栈：自带源码、自动生成与独立新数据库交付
 
 本章使用真实 FastapiAdmin / 芋道 Cloud Mini / Vben 固定源码，不另写一个简化后端冒充原框架。基础CRUD由原生生成器产生，平台负责受校验的表元数据、挂载、菜单、兼容修正、权限/浏览器验证以及独立部署包。
@@ -3687,10 +3722,10 @@ if __name__ == "__main__":
 - `Patches`（L234–L236）：继承`Contract`。声明的数据项为`explanation`、`patches`；类型约束/数据库列参数以完整定义为准。
 - `safe_component`（L239–L242）：接收`value`。 控制顺序：L240按`not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", value)`分支；L241抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`。 返回路径：L242的`value`。
 - `ModelReview`（L245–L248）：继承`Contract`。声明的数据项为`summary`、`observations`、`uncovered_requirements`；类型约束/数据库列参数以完整定义为准。
-- `AutomationInput`（L252–L260）：继承`Contract`。声明的数据项为`enabled`、`accepted`；类型约束/数据库列参数以完整定义为准。
-- `AutomationInput.consent`（L257–L260）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L258按`self.enabled and not self.accepted`分支；L259抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L260的`self`。
+- `AutomationInput`（L253–L261）：继承`Contract`。声明的数据项为`enabled`、`accepted`；类型约束/数据库列参数以完整定义为准。
+- `AutomationInput.consent`（L258–L261）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L259按`self.enabled and not self.accepted`分支；L260抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L261的`self`。
 
-<!-- source-file: workbench/domain.py sha256: bf3459b3e65802ae7805acc7fbb47f7da2dd59c3976950240828eead9056dc72 -->
+<!-- source-file: workbench/domain.py sha256: 6496c2fa78b0afcf1a5993f547a6ab5c7a4dd425448b21c7335085f922095830 -->
 ````python
 """Typed external contracts. Raw user input cannot choose roles, commands or approval state."""
 
@@ -3940,7 +3975,8 @@ class ModelReview(Contract):
     summary: Text
     observations: list[Text] = Field(default_factory=list, max_length=20)
     uncovered_requirements: list[Text] = Field(default_factory=list, max_length=20)
-    # Advisory only: never gives permission to override a failed executable test.
+    # Observations are advisory; uncovered approved requirements block delivery.
+    # No model verdict can override a failed executable test.
 
 
 class AutomationInput(Contract):
@@ -4146,34 +4182,36 @@ def unpack(archive, destination):
 
 **逐个入口与控制逻辑：**
 
-- `State`（L50–L65）：继承`TypedDict`。声明的数据项为`run_id`、`template`、`round`、`requirement`、`resolution_feedback`、`plan`、`decision`、`last_job_id`、`attempt`、`verification`、`delivery`、`status`、`model_review`、`code_context`、`sandbox`；类型约束/数据库列参数以完整定义为准。
-- `Workflow`（L68–L418）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `Workflow.__init__`（L69–L70）：接收`settings`、`store`、`gateway`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Workflow.product`（L72–L73）：接收`state`。 返回路径：L73的`self.settings.data_dir / "runs" / state["run_id"] / "product"`。
-- `Workflow.gate`（L75–L84）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 控制顺序：L81按`action == "recommend" and can_approve`分支。 调用`list`、`dict.fromkeys`、`self.store.gate`、`interrupt`、`self.store.check_decision`、`self.store.auto_approve`。 返回路径：L84的`{"decision": action, "last_job_id": value["job_id"]}`。
-- `Workflow.analyse`（L86–L100）：接收`state`。 控制顺序：L87按`self.settings.max_rounds and state["round"] > self.settings.max_rounds`分支；L88抛异常，停止当前正常路径。 调用`PausedLimit`、`self.store.get_run`、`options_for_run(run).capabilities`、`options_for_run`、`self.gateway.complete`、`context`、`requirement.gate_dump`。 返回路径：L100的`{"requirement": requirement.gate_dump()}`。
-- `Workflow.requirements`（L102–L131）：接收`state`。 控制顺序：L108按`not supported`分支；L120按`outcome["decision"] in {"answer", "revise", "recommend"}`分支；L129按`outcome["decision"] == "reject"`分支。 调用`Requirement.model_validate`、`options_for_run`、`self.store.get_run`、`selection.capabilities`、`requirement.gate_dump`、`self.gate`。 返回路径：L131的`outcome`。
-- `Workflow.source_context`（L133–L142）：接收`state`。 调用`prepare_context`、`self.product`。 返回路径：L142的`{"code_context": value}`。
-- `Workflow.plan`（L144–L166）：接收`state`。 调用`self.gateway.complete`、`state.get`、`state.get("resolution_feedback", {}).get`、`options_for_run( self.store.get_run(state["run_id"]) ).capabiliti…`、`options_for_run`、`self.store.get_run`、`value.model_dump`。 返回路径：L166的`{"plan": value.model_dump(), "attempt": 0}`。
-- `Workflow.design`（L168–L219）：接收`state`。 控制顺序：L173按`any(field.kind not in kinds for entity in plan.entities for field in entity.fields)`分支；L175按`plan.data_scope != state["requirement"]["data_scope"]`分支；L177按`state["template"] == "python-basic" and plan.data_scope != "per_user"`分支；L179按`plan.custom_rules and not self.settings.enable_coding`分支；L181按`state["template"] != "python-basic" and plan.custom_rules`分支；L183按`state["template"] != "python-basic"`分支；L189按`runtime_enabled(self.settings, state["template"])`分支；L210按`outcome["decision"] in {"revise", "recommend"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`list`、`options_for_run`、`self.store.get_run`、`set`、`selection.capabilities`、`any`、`reasons.append`、`validate_plan`等。 返回路径：L219的`outcome`。
-- `Workflow.generate`（L221–L240）：接收`state`。 控制顺序：L223按`state["template"] == "python-basic"`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`。 返回路径：L240的`{}`。
-- `Workflow.generate.fn`（L225–L230）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_basic`、`self.product`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`。 返回路径：L226的`generate_basic( plan, self.product(state), selection=options_for_run(self.store.get_run(st…`。
-- `Workflow.generate.fn`（L234–L237）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_native`、`self.product`。 返回路径：L235的`generate_native( self.settings, state["template"], plan, self.product(state), managed=True…`。
-- `Workflow.run_coder`（L242–L262）：接收`state`、`plan`。 控制顺序：L243按`self.settings.coding_engine == "aider"`分支。 调用`code_rules_with_aider`、`self.product`、`state.get("verification", {}).get`、`state.get`、`code_rules`。 返回路径：L246的`code_rules_with_aider( state["run_id"], plan, self.product(state), self.gateway, self.sett…`；L255的`code_rules( state["run_id"], plan, self.product(state), self.gateway, state["attempt"], st…`。
-- `Workflow.code`（L264–L276）：接收`state`。 控制顺序：L266按`not plan.custom_rules`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`、`self.run_coder`、`str`。 返回路径：L267的`{}`；L275的`{"verification": {"passed": False, "kind": "code", "error": str(exc)[:500]}}`；L276的`{}`。
-- `Workflow.verify`（L278–L290）：接收`state`。 控制顺序：L279按`state["template"] != "python-basic"`分支。 调用`verify_native`、`self.product`、`verify_basic`、`Plan.model_validate`。 返回路径：L290的`{"verification": result}`。
-- `Workflow.after_verify`（L292–L303）：接收`state`。 控制顺序：L293按`state["verification"]["passed"]`分支；L295按`state["plan"].get("custom_rules") and state["attempt"] < self.settings.max_repair_att…`分支；L301抛异常，停止当前正常路径。 调用`state["plan"].get`、`state["verification"].get`、`PrerequisiteError`。 返回路径：L294的`"sandbox"`；L300的`"repair"`。
-- `Workflow.sandbox`（L305–L311）：接收`state`。 控制顺序：L306按`self.settings.sandbox_provider == "local"`分支。 调用`verify_in_daytona`、`self.product`。 返回路径：L307的`{"sandbox": {"enabled": False, "provider": "local", "remote_upload": False}}`；L311的`{"sandbox": {"enabled": True, **result}}`。
-- `Workflow.model_review`（L313–L332）：接收`state`。 控制顺序：L314按`not self.settings.review_enabled`分支。 调用`self.gateway.complete`、`digest`、`review.model_dump`。 返回路径：L315的`{ "model_review": { "enabled": False, "note": "Executable test results remain the authorit…`；L332的`{"model_review": {"enabled": True, **review.model_dump()}}`。
-- `Workflow.repair`（L334–L335）：接收`state`。 返回路径：L335的`{"attempt": state["attempt"] + 1}`。
-- `Workflow.package`（L337–L350）：接收`state`。 控制顺序：L338按`state["template"] == "python-basic"`分支。 调用`package_basic`、`Plan.model_validate`、`self.product`、`package_native`、`state.get`。 返回路径：L350的`{"delivery": result}`。
-- `Workflow.delivery`（L352–L364）：接收`state`。 控制顺序：L357按`sha(self.product(state).parent / result["package"]) != result["sha256"]`分支；L358抛异常，停止当前正常路径。 调用`result.items`、`len`、`self.gate`、`sha`、`self.product`、`PrerequisiteError`。 返回路径：L364的`decision`。
-- `Workflow.compile`（L366–L418）：接收`checkpointer`。 控制顺序：L368遍历`( "analyse", "requirements", "source_context", "plan", "design", …`。 调用`StateGraph`、`graph.add_node`、`getattr`、`graph.add_edge`、`graph.add_conditional_edges`、`graph.compile`。 返回路径：L418的`graph.compile(checkpointer=checkpointer)`。
+- `State`（L52–L67）：继承`TypedDict`。声明的数据项为`run_id`、`template`、`round`、`requirement`、`resolution_feedback`、`plan`、`decision`、`last_job_id`、`attempt`、`verification`、`delivery`、`status`、`model_review`、`code_context`、`sandbox`；类型约束/数据库列参数以完整定义为准。
+- `Workflow`（L70–L447）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Workflow.__init__`（L71–L72）：接收`settings`、`store`、`gateway`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Workflow.product`（L74–L75）：接收`state`。 返回路径：L75的`self.settings.data_dir / "runs" / state["run_id"] / "product"`。
+- `Workflow.gate`（L77–L86）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 控制顺序：L83按`action == "recommend" and can_approve`分支。 调用`list`、`dict.fromkeys`、`self.store.gate`、`interrupt`、`self.store.check_decision`、`self.store.auto_approve`。 返回路径：L86的`{"decision": action, "last_job_id": value["job_id"]}`。
+- `Workflow.analyse`（L88–L102）：接收`state`。 控制顺序：L89按`self.settings.max_rounds and state["round"] > self.settings.max_rounds`分支；L90抛异常，停止当前正常路径。 调用`PausedLimit`、`self.store.get_run`、`options_for_run(run).capabilities`、`options_for_run`、`self.gateway.complete`、`context`、`requirement.gate_dump`。 返回路径：L102的`{"requirement": requirement.gate_dump()}`。
+- `Workflow.requirements`（L104–L133）：接收`state`。 控制顺序：L110按`not supported`分支；L122按`outcome["decision"] in {"answer", "revise", "recommend"}`分支；L131按`outcome["decision"] == "reject"`分支。 调用`Requirement.model_validate`、`options_for_run`、`self.store.get_run`、`selection.capabilities`、`requirement.gate_dump`、`self.gate`。 返回路径：L133的`outcome`。
+- `Workflow.source_context`（L135–L144）：接收`state`。 调用`prepare_context`、`self.product`。 返回路径：L144的`{"code_context": value}`。
+- `Workflow.plan`（L146–L168）：接收`state`。 调用`self.gateway.complete`、`state.get`、`state.get("resolution_feedback", {}).get`、`options_for_run( self.store.get_run(state["run_id"]) ).capabiliti…`、`options_for_run`、`self.store.get_run`、`value.model_dump`。 返回路径：L168的`{"plan": value.model_dump(), "attempt": 0}`。
+- `Workflow.design`（L170–L221）：接收`state`。 控制顺序：L175按`any(field.kind not in kinds for entity in plan.entities for field in entity.fields)`分支；L177按`plan.data_scope != state["requirement"]["data_scope"]`分支；L179按`state["template"] == "python-basic" and plan.data_scope != "per_user"`分支；L181按`plan.custom_rules and not self.settings.enable_coding`分支；L183按`state["template"] != "python-basic" and plan.custom_rules`分支；L185按`state["template"] != "python-basic"`分支；L191按`runtime_enabled(self.settings, state["template"])`分支；L212按`outcome["decision"] in {"revise", "recommend"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`list`、`options_for_run`、`self.store.get_run`、`set`、`selection.capabilities`、`any`、`reasons.append`、`validate_plan`等。 返回路径：L221的`outcome`。
+- `Workflow.generate`（L223–L242）：接收`state`。 控制顺序：L225按`state["template"] == "python-basic"`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`。 返回路径：L242的`{}`。
+- `Workflow.generate.fn`（L227–L232）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_basic`、`self.product`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`。 返回路径：L228的`generate_basic( plan, self.product(state), selection=options_for_run(self.store.get_run(st…`。
+- `Workflow.generate.fn`（L236–L239）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_native`、`self.product`。 返回路径：L237的`generate_native( self.settings, state["template"], plan, self.product(state), managed=True…`。
+- `Workflow.run_coder`（L244–L264）：接收`state`、`plan`。 控制顺序：L245按`self.settings.coding_engine == "aider"`分支。 调用`code_rules_with_aider`、`self.product`、`state.get("verification", {}).get`、`state.get`、`code_rules`。 返回路径：L248的`code_rules_with_aider( state["run_id"], plan, self.product(state), self.gateway, self.sett…`；L257的`code_rules( state["run_id"], plan, self.product(state), self.gateway, state["attempt"], st…`。
+- `Workflow.code`（L266–L278）：接收`state`。 控制顺序：L268按`not plan.custom_rules`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`、`self.run_coder`、`str`。 返回路径：L269的`{}`；L277的`{"verification": {"passed": False, "kind": "code", "error": str(exc)[:500]}}`；L278的`{}`。
+- `Workflow.verify`（L280–L292）：接收`state`。 控制顺序：L281按`state["template"] != "python-basic"`分支。 调用`verify_native`、`self.product`、`verify_basic`、`Plan.model_validate`。 返回路径：L292的`{"verification": result}`。
+- `Workflow.after_verify`（L294–L305）：接收`state`。 控制顺序：L295按`state["verification"]["passed"]`分支；L297按`state["plan"].get("custom_rules") and state["attempt"] < self.settings.max_repair_att…`分支；L303抛异常，停止当前正常路径。 调用`state["plan"].get`、`state["verification"].get`、`PrerequisiteError`。 返回路径：L296的`"sandbox"`；L302的`"repair"`。
+- `Workflow.sandbox`（L307–L313）：接收`state`。 控制顺序：L308按`self.settings.sandbox_provider == "local"`分支。 调用`verify_in_daytona`、`self.product`。 返回路径：L309的`{"sandbox": {"enabled": False, "provider": "local", "remote_upload": False}}`；L313的`{"sandbox": {"enabled": True, **result}}`。
+- `Workflow.model_review`（L315–L344）：接收`state`。 控制顺序：L320按`not self.settings.review_enabled`分支；L322按`previous.get("uncovered_requirements")`分支。 调用`self.product`、`previous_path.is_file`、`json.loads`、`previous_path.read_text`、`previous.get`、`self.require_review_clearance`、`self.gateway.complete`、`digest`、`review.model_dump`。 返回路径：L324的`{ "model_review": { "enabled": False, "note": "Executable test results remain the authorit…`；L344的`{"model_review": result}`。
+- `Workflow.require_review_clearance`（L346–L359）：接收`state`、`review`。 源码说明：A review cannot override failed tools or silently waive an explicit gap.。 控制顺序：L354按`gaps`分支；L355抛异常，停止当前正常路径。 调用`review.get`、`write_json`、`self.product`、`json.loads`、`self.settings.redact`、`json.dumps`、`UnsupportedScope`、`"；".join`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Workflow.repair`（L361–L362）：接收`state`。 返回路径：L362的`{"attempt": state["attempt"] + 1}`。
+- `Workflow.package`（L364–L379）：接收`state`。 控制顺序：L367按`state["template"] == "python-basic"`分支。 调用`self.require_review_clearance`、`state.get`、`package_basic`、`Plan.model_validate`、`self.product`、`package_native`。 返回路径：L379的`{"delivery": result}`。
+- `Workflow.delivery`（L381–L393）：接收`state`。 控制顺序：L386按`sha(self.product(state).parent / result["package"]) != result["sha256"]`分支；L387抛异常，停止当前正常路径。 调用`result.items`、`len`、`self.gate`、`sha`、`self.product`、`PrerequisiteError`。 返回路径：L393的`decision`。
+- `Workflow.compile`（L395–L447）：接收`checkpointer`。 控制顺序：L397遍历`( "analyse", "requirements", "source_context", "plan", "design", …`。 调用`StateGraph`、`graph.add_node`、`getattr`、`graph.add_edge`、`graph.add_conditional_edges`、`graph.compile`。 返回路径：L447的`graph.compile(checkpointer=checkpointer)`。
 
-<!-- source-file: workbench/flow.py sha256: f67276f55b22edc6c49268f2c655e0a4d651bc314864b0e898a92fe2fd7b9a5c -->
+<!-- source-file: workbench/flow.py sha256: a71cdaa5242386c7ba153914bff0a3188cd3b564c411e9c42d5e567a50fb9f7b -->
 ````python
 """One explicit LangGraph workflow. Durable approval records, not model prose, open gates."""
 
+import json
 from typing import TypedDict
 
 from langgraph.graph import END, START, StateGraph
@@ -4183,8 +4221,8 @@ from workbench.catalog import options_for_run
 from workbench.coding import code_rules
 from workbench.conversation import context
 from workbench.domain import ModelReview, Plan, Requirement, digest
-from workbench.errors import PausedLimit
-from workbench.filesystem import sha
+from workbench.errors import PausedLimit, UnsupportedScope
+from workbench.filesystem import sha, write_json
 from workbench.generator import PrerequisiteError, generate_basic
 from workbench.knowledge import design_pack
 from workbench.verification import package_basic, verify_basic
@@ -4218,7 +4256,8 @@ Plan.unsupported 仅为已批准需求中仍无法实现的功能，不是模板
 原生FastapiAdmin和芋道只允许它们在能力表内列出的字段与权限范围；不能把逐用户隔离改成共享。"""
 REVIEW = """你是交付审阅模型。根据已批准需求、规格和独立测试证据提供简洁审阅。
 不要声称执行了代码；不能把失败的工具测试改为通过。返回summary、observations、uncovered_requirements。
-这是额外的可选审阅，不替代确定性测试。只报告具体有依据的缺口，不要求用户再回答无关细节。"""
+这是额外的可选审阅，不替代确定性测试。只报告具体有依据的缺口，不要求用户再回答无关细节。
+一般建议放observations；已批准但未实现的功能放uncovered_requirements。后者会阻止打包，不能把模板边界或新建议冒充已批准需求。"""
 
 
 class State(TypedDict, total=False):
@@ -4485,7 +4524,14 @@ class Workflow:
         return {"sandbox": {"enabled": True, **result}}
 
     def model_review(self, state):
+        previous_path = self.product(state).parent / "model-review.json"
+        previous = (
+            json.loads(previous_path.read_text(encoding="utf-8")) if previous_path.is_file() else {}
+        )
         if not self.settings.review_enabled:
+            # Disabling an optional reviewer is not permission to waive a recorded gap.
+            if previous.get("uncovered_requirements"):
+                self.require_review_clearance(state, previous)
             return {
                 "model_review": {
                     "enabled": False,
@@ -4500,15 +4546,35 @@ class Workflow:
                 "requirement": state["requirement"],
                 "plan": state["plan"],
                 "independent_evidence": state["verification"],
+                "previous_review": previous,
             },
             ModelReview,
         )
-        return {"model_review": {"enabled": True, **review.model_dump()}}
+        result = {"enabled": True, **review.model_dump()}
+        self.require_review_clearance(state, result)
+        return {"model_review": result}
+
+    def require_review_clearance(self, state, review):
+        """A review cannot override failed tools or silently waive an explicit gap."""
+        gaps = review.get("uncovered_requirements", [])
+        report = {**review, "delivery_clearance": not gaps}
+        write_json(
+            self.product(state).parent / "model-review.json",
+            json.loads(self.settings.redact(json.dumps(report, ensure_ascii=False))),
+        )
+        if gaps:
+            raise UnsupportedScope(
+                "审阅发现已批准但未覆盖的需求，已暂停交付："
+                + "；".join(gaps)[:500]
+                + "。查看 model-review.json；修复实现并重新验收，不能直接忽略报告。"
+            )
 
     def repair(self, state):
         return {"attempt": state["attempt"] + 1}
 
     def package(self, state):
+        # Also protects a checkpoint created before the review gate was enforced.
+        self.require_review_clearance(state, state.get("model_review", {"enabled": False}))
         if state["template"] == "python-basic":
             result = package_basic(
                 Plan.model_validate(state["plan"]),
@@ -6377,11 +6443,11 @@ def prepare_fastapi_transactions(backend: Path) -> list[dict]:
 - `check_database_identity`（L74–L78）：接收`receipt`、`url`。 控制顺序：L75按`receipt.get("database_identity") != database_identity(url)`分支；L76抛异常，停止当前正常路径。 调用`receipt.get`、`database_identity`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `prerequisites`（L81–L91）：接收`template`。 控制顺序：L82按`os.name == "nt"`分支；L83抛异常，停止当前正常路径；L87遍历`commands`；L88按`not shutil.which(name)`分支；L89抛异常，停止当前正常路径；L90按`not (ROOT / ".native/browser/node_modules/playwright").is_dir()`分支；L91抛异常，停止当前正常路径。 调用`PrerequisiteError`、`shutil.which`、`(ROOT / ".native/browser/node_modules/playwright").is_dir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `managed_generate`（L94–L144）：接收`settings`、`template`、`plan`、`destination`。 控制顺序：L100按`runtime_enabled(settings, template)`分支；L108按`receipt_path.is_file()`分支；L110按`receipt.get("execution") == "managed-runtime" and receipt.get("spec_digest") == diges…`分支；L116抛异常，停止当前正常路径；L117按`destination.exists()`分支；L118抛异常，停止当前正常路径；L129按`report.get("generated_runtime_verified") is not True`分支；L130抛异常，停止当前正常路径。 调用`validate_plan`、`Path(destination).resolve`、`Path`、`prerequisites`、`runtime_enabled`、`runtime_config`、`for_run`、`receipt_path.is_file`、`json.loads`等。 返回路径：L115的`receipt`；L144的`receipt`。
-- `managed_verify`（L147–L184）：接收`destination`、`receipt`。 控制顺序：L150按`not report_path.is_file() or sha(report_path) != receipt.get("evidence_sha256")`分支；L151抛异常，停止当前正常路径；L165按`any(report.get(name) is not True for name in gates)`分支；L166抛异常，停止当前正常路径；L168按`current != receipt["files"] or report.get("spec_digest") != receipt.get("spec_digest"…`分支；L169抛异常，停止当前正常路径。 调用`Path`、`report_path.is_file`、`sha`、`receipt.get`、`PrerequisiteError`、`json.loads`、`report_path.read_text`、`any`、`report.get`等。 返回路径：L184的`result`。
-- `managed_package`（L187–L210）：接收`destination`、`report`。 控制顺序：L193按`report != verified`分支；L194抛异常，停止当前正常路径；L198遍历`files(destination)`。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`managed_verify`、`PrerequisiteError`、`manifest`、`zipfile.ZipFile`、`files`、`archive.write`等。 返回路径：L210的`result`。
-- `serve_managed`（L213–L239）：接收`settings`、`run_id`。 控制顺序：L217按`not receipt_path.is_file()`分支；L218抛异常，停止当前正常路径；L220按`receipt.get("execution") != "managed-runtime"`分支；L221抛异常，停止当前正常路径；L238在`True`成立时循环。 调用`str`、`uuid.UUID`、`receipt_path.is_file`、`PrerequisiteError`、`json.loads`、`receipt_path.read_text`、`receipt.get`、`managed_verify`、`runtime_config`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `managed_verify`（L147–L199）：接收`destination`、`receipt`。 控制顺序：L150按`not report_path.is_file() or sha(report_path) != receipt.get("evidence_sha256")`分支；L151抛异常，停止当前正常路径；L165按`any(report.get(name) is not True for name in gates)`分支；L166抛异常，停止当前正常路径；L176按`not isinstance(restored, dict) or any(restored.get(key) is not True for key in requir…`分支；L181抛异常，停止当前正常路径；L185按`current != receipt["files"] or report.get("spec_digest") != receipt.get("spec_digest"…`分支；L186抛异常，停止当前正常路径。 调用`Path`、`report_path.is_file`、`sha`、`receipt.get`、`PrerequisiteError`、`json.loads`、`report_path.read_text`、`any`、`report.get`等。 返回路径：L199的`result`。
+- `managed_package`（L202–L225）：接收`destination`、`report`。 控制顺序：L208按`report != verified`分支；L209抛异常，停止当前正常路径；L213遍历`files(destination)`。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`managed_verify`、`PrerequisiteError`、`manifest`、`zipfile.ZipFile`、`files`、`archive.write`等。 返回路径：L225的`result`。
+- `serve_managed`（L228–L254）：接收`settings`、`run_id`。 控制顺序：L232按`not receipt_path.is_file()`分支；L233抛异常，停止当前正常路径；L235按`receipt.get("execution") != "managed-runtime"`分支；L236抛异常，停止当前正常路径；L253在`True`成立时循环。 调用`str`、`uuid.UUID`、`receipt_path.is_file`、`PrerequisiteError`、`json.loads`、`receipt_path.read_text`、`receipt.get`、`managed_verify`、`runtime_config`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/native_delivery.py sha256: 1acb44709dcc512a408e47e8b1a741e3a5061e99d50f0aff440277ed83d8a024 -->
+<!-- source-file: workbench/native_delivery.py sha256: ffd27234bff3c07fb1990ca8c84aec9369babd1c03a6a5a6ef7dc625b1faa49e -->
 ````python
 """Explicitly authorized local native runtime delivery; source export is a separate mode."""
 
@@ -6549,6 +6615,23 @@ def managed_verify(destination, receipt):
     )
     if any(report.get(name) is not True for name in gates):
         raise PrerequisiteError("原生运行未满足所有独立验收门槛")
+    restored = report.get("portable_restored")
+    required_true = (
+        "passed",
+        "fresh_database",
+        "frontend_started",
+        "installed_from_lock",
+        "standalone_launcher",
+    )
+    required_false = ("source_database_reused", "original_platform_imported", "model_required")
+    if (
+        not isinstance(restored, dict)
+        or any(restored.get(key) is not True for key in required_true)
+        or any(restored.get(key) is not False for key in required_false)
+    ):
+        raise PrerequisiteError(
+            "原生独立交付缺少通过的新数据库恢复证据；不得以原生成数据库可启动代替独立交付"
+        )
     current = manifest(destination)
     if current != receipt["files"] or report.get("spec_digest") != receipt.get("spec_digest"):
         raise PrerequisiteError("原生源码或设计在验收后发生变化，需要重新验证")
@@ -6560,9 +6643,7 @@ def managed_verify(destination, receipt):
         "source_digest": digest(current),
         "evidence_sha256": receipt["evidence_sha256"],
         "checks": list(gates),
-        "database_delivery": "standalone-fresh-database-bootstrap"
-        if report.get("portable_restored", {}).get("passed")
-        else "existing-dedicated-lab-database-required",
+        "database_delivery": "standalone-fresh-database-bootstrap",
         "startup": "uv run --no-project --python 3.14 python start.py",
     }
     write_json(destination.parent / "verification.json", result)
@@ -9544,14 +9625,14 @@ class Rules:
 **逐个入口与控制逻辑：**
 
 - `pending_interrupt`（L30–L34）：接收`snapshot`。 控制顺序：L31遍历`snapshot.tasks`；L32按`task.interrupts`分支。 返回路径：L33的`task.interrupts[0].value`；L34的`None`。
-- `Runtime`（L37–L220）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Runtime`（L37–L224）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `Runtime.__init__`（L38–L42）：接收`settings`、`store`、`gateway`。 调用`ModelGateway`、`threading.Event`、`ExitStack`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Runtime.__enter__`（L44–L77）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L49按`self.store.engine.dialect.name == "postgresql"`分支；L53按`not connection.scalar(text("SELECT pg_try_advisory_lock(728194602)"))`分支；L54抛异常，停止当前正常路径；L77抛异常，停止当前正常路径。 调用`self.stack.enter_context`、`FileLock`、`str`、`self.store.engine.connect().execution_options`、`self.store.engine.connect`、`connection.scalar`、`text`、`PrerequisiteError`、`self.stack.callback`等。 返回路径：L74的`self`。
 - `Runtime.__exit__`（L79–L80）：接收`*args`。 调用`self.stack.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Runtime.tick`（L82–L215）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L84按`job is None`分支；L92按`not snapshot.values`分支；L104按`payload["action"] in {"start", "retry"} or snapshot.values.get("last_job_id") == job[…`分支；L109按`snapshot.next and not waiting`分支；L111按`waiting`分支；L112按`waiting["gate_id"] != payload.get("gate_id")`分支；L113抛异常，停止当前正常路径；L122在`True`成立时循环。后续分支沿下方源码相同行号继续阅读。 调用`self.store.claim`、`self.graph.get_state`、`pending_interrupt`、`self.store.get_run`、`self.graph.invoke`、`snapshot.values.get`、`payload.get`、`Conflict`、`Command`等。 返回路径：L85的`False`；L215的`True`。
-- `Runtime.loop`（L217–L220）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L218在`not self.stop.is_set()`成立时循环；L219按`not self.tick()`分支。 调用`self.stop.is_set`、`self.tick`、`self.stop.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Runtime.tick`（L82–L219）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L84按`job is None`分支；L92按`not snapshot.values`分支；L104按`payload["action"] in {"start", "retry"} or snapshot.values.get("last_job_id") == job[…`分支；L109按`snapshot.next and not waiting`分支；L111按`waiting`分支；L112按`waiting["gate_id"] != payload.get("gate_id")`分支；L113抛异常，停止当前正常路径；L122在`True`成立时循环。后续分支沿下方源码相同行号继续阅读。 调用`self.store.claim`、`self.graph.get_state`、`pending_interrupt`、`self.store.get_run`、`self.graph.invoke`、`snapshot.values.get`、`payload.get`、`Conflict`、`Command`等。 返回路径：L85的`False`；L219的`True`。
+- `Runtime.loop`（L221–L224）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L222在`not self.stop.is_set()`成立时循环；L223按`not self.tick()`分支。 调用`self.stop.is_set`、`self.tick`、`self.stop.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/runtime.py sha256: e8ca03de7b8c7060a96f10c3521febee55a20e6efb1cca08f9e9eb33080472ab -->
+<!-- source-file: workbench/runtime.py sha256: 0d4b06190f2c2148b2d22c1a6dcb83278b322a30561e27092e136f516b0fc0e9 -->
 ````python
 """Single durable worker. A recovered job never consumes a later approval gate."""
 
@@ -9723,6 +9804,10 @@ class Runtime:
                     result=snapshot.values.get("delivery", {}),
                 )
         except Exception as exc:
+            if isinstance(exc, UnsupportedScope):
+                # An exception between gates (for example review clearance) must not
+                # recycle the already-consumed design gate from the automatic loop.
+                pending = pending_interrupt(self.graph.get_state(config))
             # Preserve bounded, redacted tool output even when an adapter wraps the error.
             tool_error = exc
             seen = set()
@@ -16987,6 +17072,149 @@ def test_warmup_failure_leaves_config_untouched_and_closes_client(worker, monkey
     assert client._http_client.is_closed
 ````
 
+### `tests/test_delivery_clearance.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.domain`、`workbench.errors`、`workbench.filesystem`、`workbench.flow`、`workbench.generator`、`workbench.native_delivery`、`workbench.runtime`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_explicit_review_gap_blocks_smart_delivery`（L18–L51）：接收`settings`、`store`、`plan`。 控制顺序：L36断言`current["status"] == "BLOCKED"`；L37断言`"组合筛选" in current["error"]`；L38断言`current["pending"] is None`；L40断言`not (root / "delivery.zip").exists()`；L41断言`not (root / "delivery.json").exists()`；L43断言`report["delivery_clearance"] is False`；L44断言`report["uncovered_requirements"] == ["已批准的组合筛选尚未实现"]`；L45断言`len(store.messages(run)) == 1`。后续分支沿下方源码相同行号继续阅读。 调用`new_run`、`store.set_automation`、`Runtime`、`Reviewer`、`worker.tick`、`store.get_run`、`(root / "delivery.zip").exists`、`(root / "delivery.json").exists`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_review_gap_blocks_smart_delivery.Reviewer`（L21–L29）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_explicit_review_gap_blocks_smart_delivery.Reviewer.complete`（L22–L29）：接收`run`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L23按`schema is ModelReview`分支；L24断言`payload["independent_evidence"]["passed"] is True`。 调用`ModelReview`、`super().complete`、`super`。 返回路径：L25的`ModelReview( summary="发现缺口，不能交付", uncovered_requirements=["已批准的组合筛选尚未实现"], )`；L29的`super().complete(run, key, instruction, payload, schema)`。
+- `test_package_rechecks_review_from_older_checkpoint`（L54–L72）：接收`settings`、`store`、`monkeypatch`。 调用`monkeypatch.setattr`、`Workflow`、`pytest.raises`、`workflow.package`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_package_rechecks_review_from_older_checkpoint.must_not_package`（L57–L58）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_requires_exact_positive_restore_evidence`（L86–L93）：接收`tmp_path`、`field`、`value`。 调用`verified_fixture`、`json.loads`、`target.read_text`、`data.setdefault`、`write_json`、`sha`、`pytest.raises`、`managed_verify`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_cannot_depend_on_generation_environment`（L100–L107）：接收`tmp_path`、`field`、`value`。 调用`verified_fixture`、`json.loads`、`target.read_text`、`data.setdefault`、`write_json`、`sha`、`pytest.raises`、`managed_verify`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_rejects_absent_or_partial_restore_report`（L111–L118）：接收`tmp_path`、`restored`。 调用`verified_fixture`、`json.loads`、`target.read_text`、`write_json`、`sha`、`pytest.raises`、`managed_verify`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_delivery_clearance.py sha256: c38063451d43f1b08ed92e9dfe91e39b0c41c140403deda96a9a78fc892f46cd -->
+````python
+"""Missing acceptance evidence must never become READY, even with green unit tests."""
+
+import json
+
+import pytest
+from conftest import FixtureGateway, new_run
+from test_native_managed import verified_fixture
+
+from workbench.domain import ModelReview
+from workbench.errors import UnsupportedScope
+from workbench.filesystem import sha, write_json
+from workbench.flow import Workflow
+from workbench.generator import PrerequisiteError
+from workbench.native_delivery import managed_verify
+from workbench.runtime import Runtime
+
+
+def test_explicit_review_gap_blocks_smart_delivery(settings, store, plan):
+    settings.model_review = True
+
+    class Reviewer(FixtureGateway):
+        def complete(self, run, key, instruction, payload, schema):
+            if schema is ModelReview:
+                assert payload["independent_evidence"]["passed"] is True
+                return ModelReview(
+                    summary="发现缺口，不能交付",
+                    uncovered_requirements=["已批准的组合筛选尚未实现"],
+                )
+            return super().complete(run, key, instruction, payload, schema)
+
+    run = new_run(store)
+    store.set_automation(run, True, "one-consent")
+    with Runtime(settings, store, Reviewer(plan)) as worker:
+        worker.tick()
+    current = store.get_run(run)
+    assert current["status"] == "BLOCKED", current
+    assert "组合筛选" in current["error"]
+    assert current["pending"] is None
+    root = settings.data_dir / "runs" / run
+    assert not (root / "delivery.zip").exists()
+    assert not (root / "delivery.json").exists()
+    report = json.loads((root / "model-review.json").read_text(encoding="utf-8"))
+    assert report["delivery_clearance"] is False
+    assert report["uncovered_requirements"] == ["已批准的组合筛选尚未实现"]
+    assert len(store.messages(run)) == 1
+    settings.model_review = False
+    store.retry(run, "cannot-waive-review")
+    with Runtime(settings, store, Reviewer(plan)) as worker:
+        worker.tick()
+    assert store.get_run(run)["status"] == "BLOCKED"
+    assert not (root / "delivery.zip").exists()
+
+
+def test_package_rechecks_review_from_older_checkpoint(settings, store, monkeypatch):
+    import workbench.flow as flow
+
+    def must_not_package(*args, **kwargs):
+        pytest.fail("A saved review with missing requirements must not reach packaging")
+
+    monkeypatch.setattr(flow, "package_basic", must_not_package)
+    workflow = Workflow(settings, store, None)
+    with pytest.raises(UnsupportedScope, match="审阅"):
+        workflow.package(
+            {
+                "run_id": "saved-review",
+                "template": "python-basic",
+                "model_review": {
+                    "enabled": True,
+                    "uncovered_requirements": ["未实现已批准功能"],
+                },
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "passed",
+        "fresh_database",
+        "frontend_started",
+        "installed_from_lock",
+        "standalone_launcher",
+    ],
+)
+@pytest.mark.parametrize("value", [False, None, "true", 1])
+def test_native_requires_exact_positive_restore_evidence(tmp_path, field, value):
+    product, receipt, target = verified_fixture(tmp_path)
+    data = json.loads(target.read_text(encoding="utf-8"))
+    data.setdefault("portable_restored", {})[field] = value
+    write_json(target, data)
+    receipt["evidence_sha256"] = sha(target)
+    with pytest.raises(PrerequisiteError, match="独立"):
+        managed_verify(product, receipt)
+
+
+@pytest.mark.parametrize(
+    "field", ["source_database_reused", "original_platform_imported", "model_required"]
+)
+@pytest.mark.parametrize("value", [True, None, "false", 0])
+def test_native_cannot_depend_on_generation_environment(tmp_path, field, value):
+    product, receipt, target = verified_fixture(tmp_path)
+    data = json.loads(target.read_text(encoding="utf-8"))
+    data.setdefault("portable_restored", {})[field] = value
+    write_json(target, data)
+    receipt["evidence_sha256"] = sha(target)
+    with pytest.raises(PrerequisiteError, match="独立"):
+        managed_verify(product, receipt)
+
+
+@pytest.mark.parametrize("restored", [None, {}, True, {"passed": True}])
+def test_native_rejects_absent_or_partial_restore_report(tmp_path, restored):
+    product, receipt, target = verified_fixture(tmp_path)
+    data = json.loads(target.read_text(encoding="utf-8"))
+    data["portable_restored"] = restored
+    write_json(target, data)
+    receipt["evidence_sha256"] = sha(target)
+    with pytest.raises(PrerequisiteError, match="独立"):
+        managed_verify(product, receipt)
+````
+
 ### `tests/test_guided_completion.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -18139,14 +18367,16 @@ def test_only_one_complete_handbook_is_generated():
 
 **逐个入口与控制逻辑：**
 
-- `zip_bytes`（L19–L23）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`io.BytesIO`、`zipfile.ZipFile`、`archive.writestr`、`buffer.getvalue`。 返回路径：L23的`buffer.getvalue()`。
-- `test_real_protocol_adapter_with_mock_server`（L27–L103）：接收`template`、`plan`。 源码说明：Only protocol tested here, NOT native runtime certification.。 控制顺序：L100断言`result[0][1] == zip_bytes()`；L103断言`any(c[0] == "PUT" for c in calls)`。 调用`NativeConfig`、`NativeClient`、`httpx.MockTransport`、`native_export`、`zip_bytes`、`client.close`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_protocol_adapter_with_mock_server.handler`（L47–L89）：接收`request`。 控制顺序：L52断言`request.headers["authorization"] == "Bearer test-token"`；L53按`path == "/openapi.json"`分支；L57按`path.endswith("/list")`分支；L71按`path.endswith(("/import", "/create-list"))`分支；L74按`"/detail" in path`分支；L79按`template == "yudao-vben"`分支；L85按`"/update" in path`分支；L86按`template == "yudao-vben"`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`calls.append`、`httpx.Response`、`path.endswith`、`zip_bytes`。 返回路径：L54的`httpx.Response( 200, json={"paths": fastapi if template == "fastapiadmin" else yudao} )`；L67的`httpx.Response( 200, json={"code": 0, "data": {"items": rows} if template == "fastapiadmin…`；L73的`httpx.Response(200, json={"code": 0, "data": [1]})`。
-- `test_dedicated_database_and_replay`（L106–L116）：接收`tmp_path`、`plan`。 控制顺序：L110断言`"CREATE TABLE" in ddl`；L111断言`create_codegen_tables(plan, url, "run-1")[0] == mapping`；L114断言`set(inspect(engine).get_table_names()) == set(mapping.values())`。 调用`database.as_posix`、`create_codegen_tables`、`create_engine`、`set`、`inspect(engine).get_table_names`、`inspect`、`mapping.values`、`engine.dispose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_production_database_denied`（L128–L130）：接收`plan`、`url`。 调用`pytest.raises`、`create_codegen_tables`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_all_sources_pinned`（L133–L137）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134遍历`SOURCES.values()`；L135遍历`sources`；L136断言`len(source["sha"]) == 40`；L137断言`source["required"]`。 调用`SOURCES.values`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `zip_bytes`（L19–L27）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`io.BytesIO`、`zipfile.ZipFile`、`archive.writestr`、`zipfile.ZipInfo`、`buffer.getvalue`。 返回路径：L27的`buffer.getvalue()`。
+- `test_native_zip_fixture_does_not_read_wall_clock`（L30–L40）：接收`monkeypatch`。 控制顺序：L36断言`first == zip_bytes()`；L38断言`archive.namelist() == ["sample.py"]`；L39断言`archive.getinfo("sample.py").date_time == (1980, 1, 1, 0, 0, 0)`；L40断言`archive.read("sample.py") == b"value = 1\n"`。 调用`monkeypatch.setattr`、`zip_bytes`、`zipfile.ZipFile`、`io.BytesIO`、`archive.namelist`、`archive.getinfo`、`archive.read`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_zip_fixture_does_not_read_wall_clock.forbidden_clock`（L31–L32）：接收`*args`。 控制顺序：L32抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_protocol_adapter_with_mock_server`（L44–L120）：接收`template`、`plan`。 源码说明：Only protocol tested here, NOT native runtime certification.。 控制顺序：L117断言`result[0][1] == zip_bytes()`；L120断言`any(c[0] == "PUT" for c in calls)`。 调用`NativeConfig`、`NativeClient`、`httpx.MockTransport`、`native_export`、`zip_bytes`、`client.close`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_protocol_adapter_with_mock_server.handler`（L64–L106）：接收`request`。 控制顺序：L69断言`request.headers["authorization"] == "Bearer test-token"`；L70按`path == "/openapi.json"`分支；L74按`path.endswith("/list")`分支；L88按`path.endswith(("/import", "/create-list"))`分支；L91按`"/detail" in path`分支；L96按`template == "yudao-vben"`分支；L102按`"/update" in path`分支；L103按`template == "yudao-vben"`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`calls.append`、`httpx.Response`、`path.endswith`、`zip_bytes`。 返回路径：L71的`httpx.Response( 200, json={"paths": fastapi if template == "fastapiadmin" else yudao} )`；L84的`httpx.Response( 200, json={"code": 0, "data": {"items": rows} if template == "fastapiadmin…`；L90的`httpx.Response(200, json={"code": 0, "data": [1]})`。
+- `test_dedicated_database_and_replay`（L123–L133）：接收`tmp_path`、`plan`。 控制顺序：L127断言`"CREATE TABLE" in ddl`；L128断言`create_codegen_tables(plan, url, "run-1")[0] == mapping`；L131断言`set(inspect(engine).get_table_names()) == set(mapping.values())`。 调用`database.as_posix`、`create_codegen_tables`、`create_engine`、`set`、`inspect(engine).get_table_names`、`inspect`、`mapping.values`、`engine.dispose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_production_database_denied`（L145–L147）：接收`plan`、`url`。 调用`pytest.raises`、`create_codegen_tables`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_all_sources_pinned`（L150–L154）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L151遍历`SOURCES.values()`；L152遍历`sources`；L153断言`len(source["sha"]) == 40`；L154断言`source["required"]`。 调用`SOURCES.values`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_native.py sha256: e7f5b864d387a82f5f6d76d5b5cfdeac1512467dc58ed6a48553c8bdc3519c7f -->
+<!-- source-file: tests/test_native.py sha256: 3f63dcdcd41f3e575efcf43c8eb9f0ec4250033145759133c56315ede79c6b28 -->
 ````python
 import io
 import json
@@ -18169,8 +18399,25 @@ from workbench.native import (
 def zip_bytes():
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
-        archive.writestr("sample.py", "value = 1\n")
+        # The protocol test compares raw export bytes, not just extracted text.
+        # Explicit metadata avoids flaky failures across ZIP two-second clock ticks.
+        archive.writestr(
+            zipfile.ZipInfo("sample.py", date_time=(1980, 1, 1, 0, 0, 0)), "value = 1\n"
+        )
     return buffer.getvalue()
+
+
+def test_native_zip_fixture_does_not_read_wall_clock(monkeypatch):
+    def forbidden_clock(*args):
+        raise AssertionError("ZIP protocol fixtures must have deterministic metadata")
+
+    monkeypatch.setattr(zipfile.time, "localtime", forbidden_clock)
+    first = zip_bytes()
+    assert first == zip_bytes()
+    with zipfile.ZipFile(io.BytesIO(first)) as archive:
+        assert archive.namelist() == ["sample.py"]
+        assert archive.getinfo("sample.py").date_time == (1980, 1, 1, 0, 0, 0)
+        assert archive.read("sample.py") == b"value = 1\n"
 
 
 @pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])
@@ -18565,12 +18812,12 @@ def test_full_vben_build_has_bounded_rust_parallelism():
 - `test_source_export_is_not_implicitly_managed`（L42–L46）：接收`tmp_path`。 控制顺序：L46断言`not runtime_enabled(settings, "fastapiadmin")`。 调用`Settings`、`settings.prepare`、`write_json`、`runtime_enabled`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_runtime_cannot_read_arbitrary_secret_environment`（L49–L54）：接收`tmp_path`。 调用`Settings`、`write_runtime_example`、`write_json`、`pytest.raises`、`runtime_config`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_java_json_field_names_follow_generator_camel_case`（L57–L62）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L58断言`wire_name("yudao-vben", "display_name") == "displayName"`；L59断言`wire_name("fastapiadmin", "display_name") == "display_name"`；L62断言`"displayName" in sample_record(entity, template="yudao-vben")`。 调用`wire_name`、`acceptance_spec().entities[0].model_copy`、`acceptance_spec`、`sample_record`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verified_fixture`（L65–L94）：接收`tmp_path`。 调用`product.mkdir`、`(product / "example.py").write_text`、`digest`、`acceptance_spec().model_dump`、`acceptance_spec`、`write_json`、`manifest`、`sha`。 返回路径：L94的`product, receipt, target`。
-- `test_managed_verify_binds_exact_source_and_evidence`（L97–L104）：接收`tmp_path`。 控制顺序：L100断言`report["validation_level"] == "runtime"`；L101断言`report["production_ready"] is False`。 调用`verified_fixture`、`managed_verify`、`(product / "example.py").write_text`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_managed_verify_rejects_incomplete_or_modified_evidence`（L107–L116）：接收`tmp_path`。 调用`verified_fixture`、`json.loads`、`target.read_text`、`write_json`、`pytest.raises`、`managed_verify`、`sha`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_runtime_package_preserves_validation_level`（L119–L126）：接收`tmp_path`。 控制顺序：L123断言`result["runtime_verified"] is True`；L124断言`result["package"] == "native-runtime.zip"`；L125断言`result["database_delivery"] == "existing-dedicated-lab-database-required"`；L126断言`(tmp_path / result["package"]).is_file()`。 调用`verified_fixture`、`managed_verify`、`managed_package`、`(tmp_path / result["package"]).is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verified_fixture`（L65–L104）：接收`tmp_path`。 调用`product.mkdir`、`(product / "example.py").write_text`、`digest`、`acceptance_spec().model_dump`、`acceptance_spec`、`write_json`、`manifest`、`sha`。 返回路径：L104的`product, receipt, target`。
+- `test_managed_verify_binds_exact_source_and_evidence`（L107–L114）：接收`tmp_path`。 控制顺序：L110断言`report["validation_level"] == "runtime"`；L111断言`report["production_ready"] is False`。 调用`verified_fixture`、`managed_verify`、`(product / "example.py").write_text`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_managed_verify_rejects_incomplete_or_modified_evidence`（L117–L126）：接收`tmp_path`。 调用`verified_fixture`、`json.loads`、`target.read_text`、`write_json`、`pytest.raises`、`managed_verify`、`sha`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_runtime_package_preserves_validation_level`（L129–L136）：接收`tmp_path`。 控制顺序：L133断言`result["runtime_verified"] is True`；L134断言`result["package"] == "native-runtime.zip"`；L135断言`result["database_delivery"] == "standalone-fresh-database-bootstrap"`；L136断言`(tmp_path / result["package"]).is_file()`。 调用`verified_fixture`、`managed_verify`、`managed_package`、`(tmp_path / result["package"]).is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_native_managed.py sha256: 8f9a8993fad7c0ddc2bc1fd87f48ed1c9c8f2d0ba44607715408fe5b17f23d3a -->
+<!-- source-file: tests/test_native_managed.py sha256: 0a2fee9e3bff5092aedfb03f6b5913a8e7bef7dfbbe45b2aa108a9f6a30baf5a -->
 ````python
 """Local unit checks are not native runtime evidence; Actions executes the real engines."""
 
@@ -18655,6 +18902,16 @@ def verified_fixture(tmp_path):
             "source_unmodified",
         )
     }
+    report["portable_restored"] = {
+        "passed": True,
+        "fresh_database": True,
+        "frontend_started": True,
+        "installed_from_lock": True,
+        "standalone_launcher": True,
+        "source_database_reused": False,
+        "original_platform_imported": False,
+        "model_required": False,
+    }
     report["spec_digest"] = digest(acceptance_spec().model_dump())
     target = tmp_path / "native-evidence/acceptance.json"
     write_json(target, report)
@@ -18696,7 +18953,7 @@ def test_native_runtime_package_preserves_validation_level(tmp_path):
     result = managed_package(product, report)
     assert result["runtime_verified"] is True
     assert result["package"] == "native-runtime.zip"
-    assert result["database_delivery"] == "existing-dedicated-lab-database-required"
+    assert result["database_delivery"] == "standalone-fresh-database-bootstrap"
     assert (tmp_path / result["package"]).is_file()
 ````
 
@@ -31178,7 +31435,7 @@ FastapiAdmin：https://github.com/fastapiadmin/FastapiAdmin
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/implementation.md sha256: 90e410906866d10a04a880de012f51ebf25e401f525e8f65986e4723097ae324 -->
+<!-- source-file: docs/implementation.md sha256: ef46b81a232784dc01372a5a634d98e2c0f48cd320b3ac590df6c7767e3c72be -->
 ````markdown
 # 逐文件实现讲解：把空文件夹变成完整系统
 
@@ -31503,6 +31760,41 @@ uv run rnd init
 每个文件先给出用途、与其他模块的关系和验证方向，再给出完整文件。Python文件的函数目录标注实际起止行，列出源码中的条件、调用与返回值，帮助你把本章的业务流程定位到实现。行号由当前文件解析生成，不靠手工维护旧行号。
 
 阅读顺序是“先懂职责，再找到函数，最后逐行看实现”。例如从Workflow.sandbox进入verify_in_daytona，再进入daytona_worker，最后到SDK；从Store.submit进入当前gate校验，再到Job入队；从产品列表接口进入querying.conditions，再回到SQLAlchemy查询。标准库/第三方库的内部实现不在本书重写，但本平台如何调用它们、传什么值、信任什么结果均给出。
+
+
+## 交付前的审阅与独立恢复门禁
+
+工具测试通过只说明这些测试实际检查的内容通过，不能证明没有遗漏已批准需求。
+`Workflow.model_review`把额外语义审阅保存在运行目录的`model-review.json`中。
+`observations`用于一般建议，不要求用户继续回答；`uncovered_requirements`专门记录已批准但没有实现的功能。
+`require_review_clearance`只要发现后一列表非空，就记录`delivery_clearance=false`并暂停为`BLOCKED`，不生成ZIP。
+即使恢复的是已经越过审阅节点的检查点，`package`入口也会再次检查，不能靠重试跳过。
+关闭可选审阅不会抹去已记录的缺口；同一运行重新启用审阅并重试时，会把前一份报告连同独立验收证据交给审阅器复核。
+模型审阅仍不能将失败的编译、HTTP或浏览器测试改为通过，也不保证能发现所有语义遗漏。
+目前自动代码修复限于已批准的单记录规则；任意Java/Vue语义缺口尚未形成自动修复闭环，不能把“阻止错误交付”称为“自动修复全部功能”。
+
+异常发生在两个审批节点之间时，`Runtime.tick`从实际检查点重新读取尚未消费的interrupt。
+没有interrupt就保存`pending=None`，而不是复用已经批准过的设计gate。
+有真实阻塞gate时仍保留它，因此需求澄清的答复和智能推荐恢复不会丢失。
+
+原生交付的调用关系为`managed_generate → run_acceptance → managed_verify → managed_package`。
+`managed_verify`既核对源码清单和验收报告的SHA，也要求`portable_restored`明确证明：
+新数据库、前端启动、锁定依赖安装、独立启动器均通过，且没有复用生成数据库、导入工作台或要求模型服务。
+这些值必须是JSON布尔值；缺失、字符串和整数不能冒充通过。
+仅“原生成环境里能启动”不能取得运行级交付资格；依赖原数据库的产品必须停止，不能发出READY。
+
+编写顺序是先在`tests/test_delivery_clearance.py`构造“工具通过但审阅缺口仍在”和“原生恢复证据缺失”的反例，
+再实现上述两个门禁，然后执行：
+
+```powershell
+uv run pytest tests/test_delivery_clearance.py tests/test_native_managed.py tests/test_guided_workflow.py -q
+uv run pytest tests/test_recommendation_recovery.py tests/test_recommendation_stage_budget.py -q
+uv run python -m scripts.build_handbook --check
+```
+
+正常结果必须是全部通过。失败时先阅读断言指向的具体门槛，不得通过删除反例、跳过恢复测试或把布尔值改成固定true来继续。
+原生协议测试使用固定时间戳的ZIP夹具；它仍比较原始ZIP字节，只是不依赖运行时的时钟，避免跨越ZIP时间刻度产生随机误报。
+这些协议夹具不代替Actions中实际启动原生生成器、全栈应用及全新数据库的验收。
 ````
 
 ### `docs/native-baseline.md`

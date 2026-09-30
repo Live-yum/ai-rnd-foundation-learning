@@ -164,6 +164,23 @@ def managed_verify(destination, receipt):
     )
     if any(report.get(name) is not True for name in gates):
         raise PrerequisiteError("原生运行未满足所有独立验收门槛")
+    restored = report.get("portable_restored")
+    required_true = (
+        "passed",
+        "fresh_database",
+        "frontend_started",
+        "installed_from_lock",
+        "standalone_launcher",
+    )
+    required_false = ("source_database_reused", "original_platform_imported", "model_required")
+    if (
+        not isinstance(restored, dict)
+        or any(restored.get(key) is not True for key in required_true)
+        or any(restored.get(key) is not False for key in required_false)
+    ):
+        raise PrerequisiteError(
+            "原生独立交付缺少通过的新数据库恢复证据；不得以原生成数据库可启动代替独立交付"
+        )
     current = manifest(destination)
     if current != receipt["files"] or report.get("spec_digest") != receipt.get("spec_digest"):
         raise PrerequisiteError("原生源码或设计在验收后发生变化，需要重新验证")
@@ -175,9 +192,7 @@ def managed_verify(destination, receipt):
         "source_digest": digest(current),
         "evidence_sha256": receipt["evidence_sha256"],
         "checks": list(gates),
-        "database_delivery": "standalone-fresh-database-bootstrap"
-        if report.get("portable_restored", {}).get("passed")
-        else "existing-dedicated-lab-database-required",
+        "database_delivery": "standalone-fresh-database-bootstrap",
         "startup": "uv run --no-project --python 3.14 python start.py",
     }
     write_json(destination.parent / "verification.json", result)

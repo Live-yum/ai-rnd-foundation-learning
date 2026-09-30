@@ -81,6 +81,16 @@ def verified_fixture(tmp_path):
             "source_unmodified",
         )
     }
+    report["portable_restored"] = {
+        "passed": True,
+        "fresh_database": True,
+        "frontend_started": True,
+        "installed_from_lock": True,
+        "standalone_launcher": True,
+        "source_database_reused": False,
+        "original_platform_imported": False,
+        "model_required": False,
+    }
     report["spec_digest"] = digest(acceptance_spec().model_dump())
     target = tmp_path / "native-evidence/acceptance.json"
     write_json(target, report)
@@ -122,5 +132,5 @@ def test_native_runtime_package_preserves_validation_level(tmp_path):
     result = managed_package(product, report)
     assert result["runtime_verified"] is True
     assert result["package"] == "native-runtime.zip"
-    assert result["database_delivery"] == "existing-dedicated-lab-database-required"
+    assert result["database_delivery"] == "standalone-fresh-database-bootstrap"
     assert (tmp_path / result["package"]).is_file()
