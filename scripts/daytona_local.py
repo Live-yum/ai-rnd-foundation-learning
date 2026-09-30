@@ -8,6 +8,7 @@ Daytona account, Auth0 tenant, hosted runner or hosted telemetry is involved.
 import argparse
 import copy
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -137,6 +138,12 @@ def render_compose(original, credentials, directory):
         PROXY_API_KEY=credentials["proxy_key"],
         DEFAULT_RUNNER_API_KEY=credentials["runner_key"],
         HEALTH_CHECK_API_KEY=credentials["health_key"],
+        # v0.190.0's API-key strategy requires this value even when the optional
+        # SSH service is absent. Derive a distinct, stable local sentinel; do
+        # not reuse a proxy/health key or re-enable any SSH service or URL.
+        SSH_GATEWAY_API_KEY=hmac.new(
+            credentials["admin_key"].encode(), b"rnd-local-unused-ssh-gateway", hashlib.sha256
+        ).hexdigest(),
         ADMIN_API_KEY=credentials["admin_key"],
         DEFAULT_REGION_ID="local",
         DEFAULT_REGION_NAME="local-computer",

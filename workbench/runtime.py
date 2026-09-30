@@ -116,8 +116,9 @@ class Runtime:
                 # Resume may have been persisted just before the process died.
                 self.graph.invoke(None, config)
             # Explicit delegation may be enabled before starting or at any human gate.
-            # Keep model/repair attempts bounded even though manual conversation rounds are unlimited.
-            resolutions = 0
+            # Each stage gets a bounded repair allowance. Clarification repairs
+            # must not consume design repairs; the global model budget still applies.
+            resolutions = {}
             while True:
                 snapshot = self.graph.get_state(config)
                 pending = pending_interrupt(snapshot)
@@ -127,8 +128,9 @@ class Runtime:
                     self.store.auto_approve(run_id, pending)
                     action = {"action": "approve", "approved": True}
                 else:
-                    if resolutions >= 2:
-                        report = blocked_report(pending, resolutions)
+                    attempts = resolutions.get(pending["stage"], 0)
+                    if attempts >= 2:
+                        report = blocked_report(pending, attempts)
                         report = json.loads(
                             self.settings.redact(json.dumps(report, ensure_ascii=False))
                         )
@@ -146,12 +148,12 @@ class Runtime:
                             + report["stage"]
                             + "）："
                             + "；".join(report["reasons"])[:500]
-                            + "。两轮自动修正仍未通过，未跳过验收。"
+                            + "。本阶段两轮自动修正仍未通过，未跳过验收。"
                             + "使用 uv run rnd chat --run "
                             + run_id
                             + " 查看阻塞详情，可继续推荐、补充要求或切换手动；无需新建运行。"
                         )
-                    resolutions += 1
+                    resolutions[pending["stage"]] = attempts + 1
                     action = {"action": "recommend", "approved": True}
                 self.graph.invoke(
                     Command(resume={**action, "gate_id": pending["gate_id"], "job_id": job["id"]}),

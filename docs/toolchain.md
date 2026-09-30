@@ -301,3 +301,10 @@ Docker端口发布：https://docs.docker.com/engine/network/port-publishing/
 
 Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/runner/cmd/runner/main.go
 区域名称约束：https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/api/src/region/services/region.service.ts
+
+
+### 禁用可选 SSH 服务与 API 鉴权配置不是同一件事
+
+固定版本 v0.190.0 的 `apps/api/src/auth/api-key.strategy.ts` 在校验任意 API Key 前，先通过 `getOrThrow('sshGateway.apiKey')` 读取配置。删除可选 SSH 容器仍需给 API 提供该必需值，否则本机登录能够成功，但使用生成的 API Key 注册快照时会报临时鉴权服务错误。
+
+本机配置将 `SSH_GATEWAY_API_KEY` 从本次安装随机生成的管理密钥通过带用途标识的 HMAC-SHA256 派生为独立哨兵值。它不是固定公开密码，也不复用代理或健康检查密钥；没有 SSH 容器、地址或对外 SSH 端口，Runner 的 `SSH_GATEWAY_ENABLE` 仍为 `false`。密钥仅位于受限的本机配置，验收报告不包含环境配置和凭据文件。

@@ -183,6 +183,16 @@ def test_deployment_transformation_has_no_cloud_services(tmp_path):
     assert set(rendered["services"]) == KEEP
     assert "cloud.example" not in json.dumps(rendered)
     assert rendered["services"]["api"]["image"] == IMAGES["api"]
+    sentinel = rendered["services"]["api"]["environment"]["SSH_GATEWAY_API_KEY"]
+    assert len(sentinel) == 64 and int(sentinel, 16) >= 0
+    assert sentinel not in credentials.values()
+    assert "ssh-gateway" not in rendered["services"]
+    assert rendered["services"]["runner"]["environment"]["SSH_GATEWAY_ENABLE"] == "false"
+    assert "SSH_GATEWAY_URL" not in rendered["services"]["api"]["environment"]
+    repeated = render_compose(source, credentials, tmp_path)
+    assert repeated["services"]["api"]["environment"]["SSH_GATEWAY_API_KEY"] == sentinel
+    other = render_compose(source, {**credentials, "admin_key": "different-local-secret"}, tmp_path)
+    assert other["services"]["api"]["environment"]["SSH_GATEWAY_API_KEY"] != sentinel
     assert all(
         not service.get("ports")
         for name, service in rendered["services"].items()

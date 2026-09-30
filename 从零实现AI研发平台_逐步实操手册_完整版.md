@@ -1379,6 +1379,13 @@ Docker端口发布：https://docs.docker.com/engine/network/port-publishing/
 Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/runner/cmd/runner/main.go
 区域名称约束：https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/api/src/region/services/region.service.ts
 
+
+### 禁用可选 SSH 服务与 API 鉴权配置不是同一件事
+
+固定版本 v0.190.0 的 `apps/api/src/auth/api-key.strategy.ts` 在校验任意 API Key 前，先通过 `getOrThrow('sshGateway.apiKey')` 读取配置。删除可选 SSH 容器仍需给 API 提供该必需值，否则本机登录能够成功，但使用生成的 API Key 注册快照时会报临时鉴权服务错误。
+
+本机配置将 `SSH_GATEWAY_API_KEY` 从本次安装随机生成的管理密钥通过带用途标识的 HMAC-SHA256 派生为独立哨兵值。它不是固定公开密码，也不复用代理或健康检查密钥；没有 SSH 容器、地址或对外 SSH 端口，Runner 的 `SSH_GATEWAY_ENABLE` 仍为 `false`。密钥仅位于受限的本机配置，验收报告不包含环境配置和凭据文件。
+
 # 智能推荐的范围判断、自动修正与原运行恢复
 
 ## 从含糊目标到可交付需求
@@ -1395,7 +1402,7 @@ Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01
 
 设计阶段的自动推荐回到 `plan`，不再通过重新分析需求来“解决”设计错误。已批准需求保持不变；例如规划器误把 `per_user` 改成 `shared`，下一次规划必须修复设计，不能改写需求的数据归属。人工明确提出修改意见时仍回到需求分析，经过重新确认再生成。
 
-每个工作任务仍最多执行两轮自动修正；无法收敛会保留 `BLOCKED` 和对应 gate，而不是无限消耗模型调用。暂停并不总表示模板不支持，也可能只是模型没有决定完问题。错误信息展示具体原因，运行目录下的 `recommendation-blocked.json` 保留阶段、gate ID、尝试次数、问题和限制说明。该文件是一次暂停的诊断快照；恢复后以运行当前状态及最终验收报告为准。
+每个工作任务内，需求澄清和设计阶段分别最多执行两轮自动修正，需求阶段的修正不会消耗设计阶段的额度；全局模型调用和费用预算仍然生效。无法收敛会保留 `BLOCKED` 和对应 gate，而不是无限消耗模型调用。暂停并不总表示模板不支持，也可能只是模型没有决定完问题。错误信息展示具体原因，运行目录下的 `recommendation-blocked.json` 保留阶段、gate ID、该阶段尝试次数、问题和限制说明。该文件是一次暂停的诊断快照；恢复后以运行当前状态及最终验收报告为准。
 
 模型结果缓存同时绑定阶段、模型、提示词、输入和 JSON Schema。升级修复提示词、变更反馈或契约后，不会误用旧回答；完全相同的崩溃重放仍复用既有结果。预算统计不因缓存键更新而清零。
 
@@ -9234,14 +9241,14 @@ class Rules:
 **逐个入口与控制逻辑：**
 
 - `pending_interrupt`（L30–L34）：接收`snapshot`。 控制顺序：L31遍历`snapshot.tasks`；L32按`task.interrupts`分支。 返回路径：L33的`task.interrupts[0].value`；L34的`None`。
-- `Runtime`（L37–L218）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Runtime`（L37–L220）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `Runtime.__init__`（L38–L42）：接收`settings`、`store`、`gateway`。 调用`ModelGateway`、`threading.Event`、`ExitStack`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Runtime.__enter__`（L44–L77）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L49按`self.store.engine.dialect.name == "postgresql"`分支；L53按`not connection.scalar(text("SELECT pg_try_advisory_lock(728194602)"))`分支；L54抛异常，停止当前正常路径；L77抛异常，停止当前正常路径。 调用`self.stack.enter_context`、`FileLock`、`str`、`self.store.engine.connect().execution_options`、`self.store.engine.connect`、`connection.scalar`、`text`、`PrerequisiteError`、`self.stack.callback`等。 返回路径：L74的`self`。
 - `Runtime.__exit__`（L79–L80）：接收`*args`。 调用`self.stack.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Runtime.tick`（L82–L213）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L84按`job is None`分支；L92按`not snapshot.values`分支；L104按`payload["action"] in {"start", "retry"} or snapshot.values.get("last_job_id") == job[…`分支；L109按`snapshot.next and not waiting`分支；L111按`waiting`分支；L112按`waiting["gate_id"] != payload.get("gate_id")`分支；L113抛异常，停止当前正常路径；L121在`True`成立时循环。后续分支沿下方源码相同行号继续阅读。 调用`self.store.claim`、`self.graph.get_state`、`pending_interrupt`、`self.store.get_run`、`self.graph.invoke`、`snapshot.values.get`、`payload.get`、`Conflict`、`Command`等。 返回路径：L85的`False`；L213的`True`。
-- `Runtime.loop`（L215–L218）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L216在`not self.stop.is_set()`成立时循环；L217按`not self.tick()`分支。 调用`self.stop.is_set`、`self.tick`、`self.stop.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Runtime.tick`（L82–L215）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L84按`job is None`分支；L92按`not snapshot.values`分支；L104按`payload["action"] in {"start", "retry"} or snapshot.values.get("last_job_id") == job[…`分支；L109按`snapshot.next and not waiting`分支；L111按`waiting`分支；L112按`waiting["gate_id"] != payload.get("gate_id")`分支；L113抛异常，停止当前正常路径；L122在`True`成立时循环。后续分支沿下方源码相同行号继续阅读。 调用`self.store.claim`、`self.graph.get_state`、`pending_interrupt`、`self.store.get_run`、`self.graph.invoke`、`snapshot.values.get`、`payload.get`、`Conflict`、`Command`等。 返回路径：L85的`False`；L215的`True`。
+- `Runtime.loop`（L217–L220）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L218在`not self.stop.is_set()`成立时循环；L219按`not self.tick()`分支。 调用`self.stop.is_set`、`self.tick`、`self.stop.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/runtime.py sha256: b868828f14fd0ae489e5262d84cbdb5d061145491c97a1c2d608470e50a27e31 -->
+<!-- source-file: workbench/runtime.py sha256: e8ca03de7b8c7060a96f10c3521febee55a20e6efb1cca08f9e9eb33080472ab -->
 ````python
 """Single durable worker. A recovered job never consumes a later approval gate."""
 
@@ -9361,8 +9368,9 @@ class Runtime:
                 # Resume may have been persisted just before the process died.
                 self.graph.invoke(None, config)
             # Explicit delegation may be enabled before starting or at any human gate.
-            # Keep model/repair attempts bounded even though manual conversation rounds are unlimited.
-            resolutions = 0
+            # Each stage gets a bounded repair allowance. Clarification repairs
+            # must not consume design repairs; the global model budget still applies.
+            resolutions = {}
             while True:
                 snapshot = self.graph.get_state(config)
                 pending = pending_interrupt(snapshot)
@@ -9372,8 +9380,9 @@ class Runtime:
                     self.store.auto_approve(run_id, pending)
                     action = {"action": "approve", "approved": True}
                 else:
-                    if resolutions >= 2:
-                        report = blocked_report(pending, resolutions)
+                    attempts = resolutions.get(pending["stage"], 0)
+                    if attempts >= 2:
+                        report = blocked_report(pending, attempts)
                         report = json.loads(
                             self.settings.redact(json.dumps(report, ensure_ascii=False))
                         )
@@ -9391,12 +9400,12 @@ class Runtime:
                             + report["stage"]
                             + "）："
                             + "；".join(report["reasons"])[:500]
-                            + "。两轮自动修正仍未通过，未跳过验收。"
+                            + "。本阶段两轮自动修正仍未通过，未跳过验收。"
                             + "使用 uv run rnd chat --run "
                             + run_id
                             + " 查看阻塞详情，可继续推荐、补充要求或切换手动；无需新建运行。"
                         )
-                    resolutions += 1
+                    resolutions[pending["stage"]] = attempts + 1
                     action = {"action": "recommend", "approved": True}
                 self.graph.invoke(
                     Command(resume={**action, "gate_id": pending["gate_id"], "job_id": job["id"]}),
@@ -16655,11 +16664,11 @@ def test_invalid_json_bounded(store):
 - `test_inherited_tracing_and_cloud_context_cannot_be_reenabled`（L83–L91）：接收`monkeypatch`。 控制顺序：L87断言`env["LANGSMITH_TRACING"] == "false" and env["DAYTONA_OTEL_ENABLED"] == "false"`；L88断言`"LANGSMITH_API_KEY" not in env and "DOCKER_HOST" not in env`；L89断言`local_docker_command(["docker", "ps"])[1] == "--host"`。 调用`monkeypatch.setenv`、`clean_env`、`local_docker_command`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_daytona_child_blocks_external_dns_tcp_udp_and_redirect`（L94–L134）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L133断言`result.returncode == 0`；L134断言`"loopback-only PASS" in result.stdout`。 调用`subprocess.run`、`clean_env`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_daytona_sdk_and_params_are_pinned`（L137–L146）：接收`settings`、`monkeypatch`。 控制顺序：L142断言`params.network_block_all is True and params.public is False`；L143断言`params.name == "rnd-test"`。 调用`params_for`、`monkeypatch.setattr`、`pytest.raises`、`client_for`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_deployment_transformation_has_no_cloud_services`（L149–L196）：接收`tmp_path`。 控制顺序：L178断言`not rendered["services"]["api"].get("privileged", False)`；L179断言`rendered["services"]["runner"]["privileged"] is True`；L180断言`rendered["services"]["dex"]["user"] == "0:0"`；L181断言`"no-new-privileges:true" in rendered["services"]["dex"]["security_opt"]`；L182断言`rendered["services"]["minio"]["environment"]["MINIO_UPDATE"] == "off"`；L183断言`set(rendered["services"]) == KEEP`；L184断言`"cloud.example" not in json.dumps(rendered)`；L185断言`rendered["services"]["api"]["image"] == IMAGES["api"]`。后续分支沿下方源码相同行号继续阅读。 调用`dict.fromkeys`、`render_compose`、`rendered["services"]["api"].get`、`set`、`json.dumps`、`all`、`service.get`、`rendered["services"].items`、`port.startswith`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_portable_launcher_carries_local_policy`（L199–L203）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L202断言`"local_only.py" in HELPERS`；L203断言`(ROOT / "workbench/local_only.py").is_file()`。 调用`(ROOT / "workbench/local_only.py").is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_only_one_complete_handbook_is_generated`（L206–L213）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L209断言`OUTPUT.name == "从零实现AI研发平台_逐步实操手册_完整版.md"`；L210断言`"LEGACY" not in (ROOT / "scripts/build_handbook.py").read_text(encoding="utf-8")`；L212断言`"空文件夹" in text and "source-file: workbench/local_only.py" in text`；L213断言`len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) == 1`。 调用`(ROOT / "scripts/build_handbook.py").read_text`、`render`、`len`、`list`、`ROOT.glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_deployment_transformation_has_no_cloud_services`（L149–L206）：接收`tmp_path`。 控制顺序：L178断言`not rendered["services"]["api"].get("privileged", False)`；L179断言`rendered["services"]["runner"]["privileged"] is True`；L180断言`rendered["services"]["dex"]["user"] == "0:0"`；L181断言`"no-new-privileges:true" in rendered["services"]["dex"]["security_opt"]`；L182断言`rendered["services"]["minio"]["environment"]["MINIO_UPDATE"] == "off"`；L183断言`set(rendered["services"]) == KEEP`；L184断言`"cloud.example" not in json.dumps(rendered)`；L185断言`rendered["services"]["api"]["image"] == IMAGES["api"]`。后续分支沿下方源码相同行号继续阅读。 调用`dict.fromkeys`、`render_compose`、`rendered["services"]["api"].get`、`set`、`json.dumps`、`len`、`int`、`credentials.values`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_portable_launcher_carries_local_policy`（L209–L213）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L212断言`"local_only.py" in HELPERS`；L213断言`(ROOT / "workbench/local_only.py").is_file()`。 调用`(ROOT / "workbench/local_only.py").is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_one_complete_handbook_is_generated`（L216–L223）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L219断言`OUTPUT.name == "从零实现AI研发平台_逐步实操手册_完整版.md"`；L220断言`"LEGACY" not in (ROOT / "scripts/build_handbook.py").read_text(encoding="utf-8")`；L222断言`"空文件夹" in text and "source-file: workbench/local_only.py" in text`；L223断言`len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) == 1`。 调用`(ROOT / "scripts/build_handbook.py").read_text`、`render`、`len`、`list`、`ROOT.glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_local_only.py sha256: bc2d2d4677f2341a653b08a5bdec3c61d239715c360dcddcb0f5cde67399cce9 -->
+<!-- source-file: tests/test_local_only.py sha256: 2c58dff865077fc1cc5733712e3d915598bdc17ae2407cda0a052019997609b7 -->
 ````python
 """Local policy tests; these do not pretend that a mocked SDK is a live service."""
 
@@ -16846,6 +16855,16 @@ def test_deployment_transformation_has_no_cloud_services(tmp_path):
     assert set(rendered["services"]) == KEEP
     assert "cloud.example" not in json.dumps(rendered)
     assert rendered["services"]["api"]["image"] == IMAGES["api"]
+    sentinel = rendered["services"]["api"]["environment"]["SSH_GATEWAY_API_KEY"]
+    assert len(sentinel) == 64 and int(sentinel, 16) >= 0
+    assert sentinel not in credentials.values()
+    assert "ssh-gateway" not in rendered["services"]
+    assert rendered["services"]["runner"]["environment"]["SSH_GATEWAY_ENABLE"] == "false"
+    assert "SSH_GATEWAY_URL" not in rendered["services"]["api"]["environment"]
+    repeated = render_compose(source, credentials, tmp_path)
+    assert repeated["services"]["api"]["environment"]["SSH_GATEWAY_API_KEY"] == sentinel
+    other = render_compose(source, {**credentials, "admin_key": "different-local-secret"}, tmp_path)
+    assert other["services"]["api"]["environment"]["SSH_GATEWAY_API_KEY"] != sentinel
     assert all(
         not service.get("ports")
         for name, service in rendered["services"].items()
@@ -18522,6 +18541,76 @@ def test_smart_recovery_never_overrides_failed_independent_verification(
     assert state["status"] == "FAILED"
     assert "真实验收失败" in state["error"]
     assert not (settings.data_dir / "runs" / run / "delivery.zip").exists()
+````
+
+### `tests/test_recommendation_stage_budget.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.domain`、`workbench.runtime`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_clarification_does_not_spend_design_repair_allowance`（L11–L50）：接收`settings`、`store`、`plan`、`design_converges`。 控制顺序：L38断言`gateway.calls[:4] == ["recommend:1", "recommend:2", "recommend:3", "plan:3"]`；L39按`design_converges`分支；L40断言`gateway.calls[4:] == ["plan:4"]`；L41断言`state["status"] == "READY"`；L42断言`state["result"]["cleanroom"]["passed"] is True`；L43断言`(settings.data_dir / "runs" / run_id / "delivery.zip").is_file()`；L45断言`gateway.calls[4:] == ["plan:4", "plan:5"]`；L46断言`state["status"] == "BLOCKED"`。后续分支沿下方源码相同行号继续阅读。 调用`new_run`、`store.set_automation`、`StagedGateway`、`Runtime`、`runtime.tick`、`store.get_run`、`(settings.data_dir / "runs" / run_id / "delivery.zip").is_file`、`(settings.data_dir / "runs" / run_id / "delivery.zip").exists`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_clarification_does_not_spend_design_repair_allowance.StagedGateway`（L14–L30）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_clarification_does_not_spend_design_repair_allowance.StagedGateway.complete`（L15–L30）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L17按`schema is Requirement`分支；L19按`key in {"recommend:1", "recommend:2"}`分支；L21断言`key == "recommend:3"`；L23断言`schema is Plan`；L24断言`payload["approved_requirement"]["data_scope"] == "per_user"`；L25按`key != "plan:3"`分支；L26断言`payload["resolution_feedback"]["stage"] == "design"`；L27断言`payload["previous_plan"]["data_scope"] == "shared"`。后续分支沿下方源码相同行号继续阅读。 调用`self.calls.append`、`requirement`、`plan.model_copy`。 返回路径：L20的`requirement(["请决定一个尚未明确的细节"])`；L22的`requirement()`；L29的`plan`。
+
+<!-- source-file: tests/test_recommendation_stage_budget.py sha256: 7975cdc11de135bb94f8d1559857928cd52a0a5421ac18dd08a99f5d17b1079b -->
+````python
+"""One smart authorization covers both bounded clarification and design repair."""
+
+import pytest
+from conftest import FixtureGateway, new_run, requirement
+
+from workbench.domain import Plan, Requirement
+from workbench.runtime import Runtime
+
+
+@pytest.mark.parametrize("design_converges", [True, False])
+def test_clarification_does_not_spend_design_repair_allowance(
+    settings, store, plan, design_converges
+):
+    class StagedGateway(FixtureGateway):
+        def complete(self, run_id, key, instruction, payload, schema):
+            self.calls.append(key)
+            if schema is Requirement:
+                # Exercise both clarification repairs before any planning.
+                if key in {"recommend:1", "recommend:2"}:
+                    return requirement(["请决定一个尚未明确的细节"])
+                assert key == "recommend:3"
+                return requirement()
+            assert schema is Plan
+            assert payload["approved_requirement"]["data_scope"] == "per_user"
+            if key != "plan:3":
+                assert payload["resolution_feedback"]["stage"] == "design"
+                assert payload["previous_plan"]["data_scope"] == "shared"
+            if design_converges and key == "plan:4":
+                return plan
+            return plan.model_copy(update={"data_scope": "shared"})
+
+    run_id = new_run(store)
+    store.set_automation(run_id, True, "single-smart-authorization")
+    gateway = StagedGateway(plan)
+    with Runtime(settings, store, gateway) as runtime:
+        runtime.tick()
+    state = store.get_run(run_id)
+    assert gateway.calls[:4] == ["recommend:1", "recommend:2", "recommend:3", "plan:3"]
+    if design_converges:
+        assert gateway.calls[4:] == ["plan:4"]
+        assert state["status"] == "READY", state
+        assert state["result"]["cleanroom"]["passed"] is True
+        assert (settings.data_dir / "runs" / run_id / "delivery.zip").is_file()
+    else:
+        assert gateway.calls[4:] == ["plan:4", "plan:5"]
+        assert state["status"] == "BLOCKED", state
+        assert state["pending"]["stage"] == "design"
+        assert "本阶段两轮" in state["error"]
+        assert not (settings.data_dir / "runs" / run_id / "delivery.zip").exists()
+    assert len(store.messages(run_id)) == 1
 ````
 
 ### `tests/test_safety.py`
@@ -21402,23 +21491,23 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `private_json`（L47–L51）：接收`path`、`data`。 控制顺序：L50按`os.name != "nt"`分支。 调用`Path`、`path.write_text`、`json.dumps`、`path.chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `command`（L54–L65）：接收`argv`、`cwd`、`timeout`。 源码说明：Never forward a model key, proxy, remote Docker context or shell string.。 调用`subprocess.run`、`clean_env`、`result.stdout.decode("utf-8", errors="replace").strip`、`result.stdout.decode`。 返回路径：L65的`result.stdout.decode("utf-8", errors="replace").strip()`。
-- `docker`（L68–L71）：接收`timeout`、`*args`。 调用`command`。 返回路径：L71的`command(["docker", "--host", host, *args], timeout=timeout)`。
-- `environment`（L74–L78）：接收`service`。 控制顺序：L76按`isinstance(original, list)`分支。 调用`service.get`、`isinstance`、`dict`、`item.split`。 返回路径：L77的`dict(item.split("=", 1) for item in original)`；L78的`dict(original)`。
-- `gateway_service`（L81–L95）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Only this fixed byte-forwarder has a publishing network; backends have none.。 调用`str`。 返回路径：L83的`{ "image": IMAGES["gateway"], "command": ["python", "-I", "/opt/rnd/gateway.py"], "user": …`。
-- `render_compose`（L98–L173）：接收`original`、`credentials`、`directory`。 源码说明：Transform upstream configuration; never execute instructions from its README.。 控制顺序：L105按`set(config["services"]) != UPSTREAM_SERVICES`分支；L106抛异常，停止当前正常路径；L108遍历`config["services"].items()`；L112按`name != "runner"`分支；L120遍历`tuple(env)`；L121按`any(word in key for word in ("POSTHOG", "SENTRY", "ANALYTICS", "OTEL", "SSH_"))`分支。 调用`copy.deepcopy`、`config["services"].items`、`set`、`ValueError`、`service.pop`、`service.get`、`environment`、`tuple`、`any`等。 返回路径：L173的`config`。
-- `assert_local_compose`（L176–L216）：接收`config`。 控制顺序：L177按`config.get("networks", {}).get("daytona-network", {}).get("internal") is not True`分支；L178抛异常，停止当前正常路径；L179按`config.get("networks") != NETWORKS`分支；L180抛异常，停止当前正常路径；L181按`set(config["services"]) != KEEP`分支；L182抛异常，停止当前正常路径；L184按`region_name is not None and not re.fullmatch(r"[a-zA-Z0-9_.-]{2,255}", region_name)`分支；L185抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`config.get("networks", {}).get("daytona-network", {}).get`、`config.get("networks", {}).get`、`config.get`、`ValueError`、`set`、`environment(config["services"]["api"]).get`、`environment`、`re.fullmatch`、`dict`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `prepare`（L219–L297）：接收`directory`。 控制顺序：L221按`directory.exists() and any(directory.iterdir())`分支；L222抛异常，停止当前正常路径；L224按`os.name != "nt"`分支；L241按`command(["git", "rev-parse", "HEAD"], cwd=source) != DAYTONA_SOURCE`分支；L242抛异常，停止当前正常路径；L282遍历`(("compose.yaml", config), ("dex.yaml", dex))`；L285按`os.name != "nt"`分支。 调用`Path(directory).resolve`、`Path`、`directory.exists`、`any`、`directory.iterdir`、`ValueError`、`directory.mkdir`、`directory.chmod`、`source.mkdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `images`（L300–L328）：接收`directory`。先在本机从固定源码或校验后的同版本发布文件构建Daytona，再锁定Image ID；其他基础依赖记录Registry摘要。启动对照两份锁且禁止自动拉取替代版本。 控制顺序：L305按`locked.exists()`分支；L306抛异常，停止当前正常路径；L309遍历`config["services"].items()`；L310按`name in BUILT`分支；L317按`not matching`分支；L318抛异常，停止当前正常路径；L322遍历`BUILT`；L325按`os.name != "nt"`分支。 调用`Path`、`yaml.safe_load`、`(directory / "compose.yaml").read_text`、`assert_local_compose`、`locked.exists`、`ValueError`、`config["services"].items`、`docker`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `compose`（L331–L341）：接收`directory`、`timeout`、`*args`。 控制顺序：L336遍历`config["services"].items()`；L339按`service["image"] != expected or record["tag"] != IMAGES[name]`分支；L340抛异常，停止当前正常路径。 调用`Path`、`yaml.safe_load`、`path.read_text`、`assert_local_compose`、`json.loads`、`(Path(directory) / "images.lock.json").read_text`、`config["services"].items`、`record.get`、`ValueError`等。 返回路径：L341的`docker("compose", "--project-name", PROJECT, "--file", str(path), *args, timeout=timeout)`。
-- `snapshot_stamp`（L344–L349）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`hashlib.sha256( (ROOT / "tools/daytona/Dockerfile").read_bytes() …`、`hashlib.sha256`、`(ROOT / "tools/daytona/Dockerfile").read_bytes`、`(ROOT / "templates/product/uv.lock").read_bytes`、`(ROOT / "templates/product/pyproject.toml").read_bytes`。 返回路径：L345的`hashlib.sha256( (ROOT / "tools/daytona/Dockerfile").read_bytes() + (ROOT / "templates/prod…`。
-- `wait_for_registry`（L352–L369）：不接收显式业务参数，从已配置对象/模块读取依赖。检测宿主机127.0.0.1上的真实Registry响应，而不是只检查容器存在；限时重试失败即停止，不上传到云端仓库。 源码说明：Check real host-loopback reachability, not merely a running container state.。 控制顺序：L357遍历`range(30)`；L361按`response.json() != {}`分支；L362抛异常，停止当前正常路径；L365按`attempt == 29`分支；L366抛异常，停止当前正常路径。 调用`httpx.Client`、`range`、`client.get`、`response.raise_for_status`、`response.json`、`ValueError`、`RuntimeError`、`time.sleep`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `snapshot_image`（L372–L402）：接收`directory`。构建上下文只有Dockerfile与产品依赖文件，不含模型Key、平台源码或用户数据库。镜像进入本机Registry供本机Runner读取。 控制顺序：L377遍历`("pyproject.toml", "uv.lock")`；L386按`stamp != snapshot_stamp()`分支；L387抛异常，停止当前正常路径。 调用`Path`、`context.mkdir`、`shutil.copyfile`、`hashlib.sha256( b"".join( (context / name).read_bytes() for name …`、`hashlib.sha256`、`b"".join`、`(context / name).read_bytes`、`snapshot_stamp`、`ValueError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `up`（L405–L444）：接收`directory`。 源码说明：A started container is not a ready API; reject early exits before authentication.。 控制顺序：L417遍历`range(90)`；L427按`dead`分支；L428抛异常，停止当前正常路径；L434按`running == KEEP`分支；L436遍历`endpoints`；L442按`attempt != 89`分支；L444抛异常，停止当前正常路径。 调用`compose`、`httpx.Client`、`range`、`raw.lstrip().startswith`、`raw.lstrip`、`json.loads`、`raw.splitlines`、`line.strip`、`row.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L447–L464）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L454按`args.action == "prepare"`分支；L456按`args.action == "images"`分支；L458按`args.action == "snapshot-image"`分支；L460按`args.action == "up"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`images`、`snapshot_image`、`up`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `private_json`（L48–L52）：接收`path`、`data`。 控制顺序：L51按`os.name != "nt"`分支。 调用`Path`、`path.write_text`、`json.dumps`、`path.chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `command`（L55–L66）：接收`argv`、`cwd`、`timeout`。 源码说明：Never forward a model key, proxy, remote Docker context or shell string.。 调用`subprocess.run`、`clean_env`、`result.stdout.decode("utf-8", errors="replace").strip`、`result.stdout.decode`。 返回路径：L66的`result.stdout.decode("utf-8", errors="replace").strip()`。
+- `docker`（L69–L72）：接收`timeout`、`*args`。 调用`command`。 返回路径：L72的`command(["docker", "--host", host, *args], timeout=timeout)`。
+- `environment`（L75–L79）：接收`service`。 控制顺序：L77按`isinstance(original, list)`分支。 调用`service.get`、`isinstance`、`dict`、`item.split`。 返回路径：L78的`dict(item.split("=", 1) for item in original)`；L79的`dict(original)`。
+- `gateway_service`（L82–L96）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Only this fixed byte-forwarder has a publishing network; backends have none.。 调用`str`。 返回路径：L84的`{ "image": IMAGES["gateway"], "command": ["python", "-I", "/opt/rnd/gateway.py"], "user": …`。
+- `render_compose`（L99–L180）：接收`original`、`credentials`、`directory`。 源码说明：Transform upstream configuration; never execute instructions from its README.。 控制顺序：L106按`set(config["services"]) != UPSTREAM_SERVICES`分支；L107抛异常，停止当前正常路径；L109遍历`config["services"].items()`；L113按`name != "runner"`分支；L121遍历`tuple(env)`；L122按`any(word in key for word in ("POSTHOG", "SENTRY", "ANALYTICS", "OTEL", "SSH_"))`分支。 调用`copy.deepcopy`、`config["services"].items`、`set`、`ValueError`、`service.pop`、`service.get`、`environment`、`tuple`、`any`等。 返回路径：L180的`config`。
+- `assert_local_compose`（L183–L223）：接收`config`。 控制顺序：L184按`config.get("networks", {}).get("daytona-network", {}).get("internal") is not True`分支；L185抛异常，停止当前正常路径；L186按`config.get("networks") != NETWORKS`分支；L187抛异常，停止当前正常路径；L188按`set(config["services"]) != KEEP`分支；L189抛异常，停止当前正常路径；L191按`region_name is not None and not re.fullmatch(r"[a-zA-Z0-9_.-]{2,255}", region_name)`分支；L192抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`config.get("networks", {}).get("daytona-network", {}).get`、`config.get("networks", {}).get`、`config.get`、`ValueError`、`set`、`environment(config["services"]["api"]).get`、`environment`、`re.fullmatch`、`dict`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `prepare`（L226–L304）：接收`directory`。 控制顺序：L228按`directory.exists() and any(directory.iterdir())`分支；L229抛异常，停止当前正常路径；L231按`os.name != "nt"`分支；L248按`command(["git", "rev-parse", "HEAD"], cwd=source) != DAYTONA_SOURCE`分支；L249抛异常，停止当前正常路径；L289遍历`(("compose.yaml", config), ("dex.yaml", dex))`；L292按`os.name != "nt"`分支。 调用`Path(directory).resolve`、`Path`、`directory.exists`、`any`、`directory.iterdir`、`ValueError`、`directory.mkdir`、`directory.chmod`、`source.mkdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `images`（L307–L335）：接收`directory`。先在本机从固定源码或校验后的同版本发布文件构建Daytona，再锁定Image ID；其他基础依赖记录Registry摘要。启动对照两份锁且禁止自动拉取替代版本。 控制顺序：L312按`locked.exists()`分支；L313抛异常，停止当前正常路径；L316遍历`config["services"].items()`；L317按`name in BUILT`分支；L324按`not matching`分支；L325抛异常，停止当前正常路径；L329遍历`BUILT`；L332按`os.name != "nt"`分支。 调用`Path`、`yaml.safe_load`、`(directory / "compose.yaml").read_text`、`assert_local_compose`、`locked.exists`、`ValueError`、`config["services"].items`、`docker`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `compose`（L338–L348）：接收`directory`、`timeout`、`*args`。 控制顺序：L343遍历`config["services"].items()`；L346按`service["image"] != expected or record["tag"] != IMAGES[name]`分支；L347抛异常，停止当前正常路径。 调用`Path`、`yaml.safe_load`、`path.read_text`、`assert_local_compose`、`json.loads`、`(Path(directory) / "images.lock.json").read_text`、`config["services"].items`、`record.get`、`ValueError`等。 返回路径：L348的`docker("compose", "--project-name", PROJECT, "--file", str(path), *args, timeout=timeout)`。
+- `snapshot_stamp`（L351–L356）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`hashlib.sha256( (ROOT / "tools/daytona/Dockerfile").read_bytes() …`、`hashlib.sha256`、`(ROOT / "tools/daytona/Dockerfile").read_bytes`、`(ROOT / "templates/product/uv.lock").read_bytes`、`(ROOT / "templates/product/pyproject.toml").read_bytes`。 返回路径：L352的`hashlib.sha256( (ROOT / "tools/daytona/Dockerfile").read_bytes() + (ROOT / "templates/prod…`。
+- `wait_for_registry`（L359–L376）：不接收显式业务参数，从已配置对象/模块读取依赖。检测宿主机127.0.0.1上的真实Registry响应，而不是只检查容器存在；限时重试失败即停止，不上传到云端仓库。 源码说明：Check real host-loopback reachability, not merely a running container state.。 控制顺序：L364遍历`range(30)`；L368按`response.json() != {}`分支；L369抛异常，停止当前正常路径；L372按`attempt == 29`分支；L373抛异常，停止当前正常路径。 调用`httpx.Client`、`range`、`client.get`、`response.raise_for_status`、`response.json`、`ValueError`、`RuntimeError`、`time.sleep`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `snapshot_image`（L379–L409）：接收`directory`。构建上下文只有Dockerfile与产品依赖文件，不含模型Key、平台源码或用户数据库。镜像进入本机Registry供本机Runner读取。 控制顺序：L384遍历`("pyproject.toml", "uv.lock")`；L393按`stamp != snapshot_stamp()`分支；L394抛异常，停止当前正常路径。 调用`Path`、`context.mkdir`、`shutil.copyfile`、`hashlib.sha256( b"".join( (context / name).read_bytes() for name …`、`hashlib.sha256`、`b"".join`、`(context / name).read_bytes`、`snapshot_stamp`、`ValueError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `up`（L412–L451）：接收`directory`。 源码说明：A started container is not a ready API; reject early exits before authentication.。 控制顺序：L424遍历`range(90)`；L434按`dead`分支；L435抛异常，停止当前正常路径；L441按`running == KEEP`分支；L443遍历`endpoints`；L449按`attempt != 89`分支；L451抛异常，停止当前正常路径。 调用`compose`、`httpx.Client`、`range`、`raw.lstrip().startswith`、`raw.lstrip`、`json.loads`、`raw.splitlines`、`line.strip`、`row.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L454–L471）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L461按`args.action == "prepare"`分支；L463按`args.action == "images"`分支；L465按`args.action == "snapshot-image"`分支；L467按`args.action == "up"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`images`、`snapshot_image`、`up`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/daytona_local.py sha256: acf3ae0017a75dc7f8f66484f616ebd538c44d9b22f0bd83d3b829a8f3fa779a -->
+<!-- source-file: scripts/daytona_local.py sha256: 4795c4195e8fc4842079b61042300ab88c58137c0e7289db9d81f73f43b7f4a7 -->
 ````python
 """Install the pinned, development-only Daytona stack on this machine.
 
@@ -21430,6 +21519,7 @@ Daytona account, Auth0 tenant, hosted runner or hosted telemetry is involved.
 import argparse
 import copy
 import hashlib
+import hmac
 import json
 import os
 import re
@@ -21559,6 +21649,12 @@ def render_compose(original, credentials, directory):
         PROXY_API_KEY=credentials["proxy_key"],
         DEFAULT_RUNNER_API_KEY=credentials["runner_key"],
         HEALTH_CHECK_API_KEY=credentials["health_key"],
+        # v0.190.0's API-key strategy requires this value even when the optional
+        # SSH service is absent. Derive a distinct, stable local sentinel; do
+        # not reuse a proxy/health key or re-enable any SSH service or URL.
+        SSH_GATEWAY_API_KEY=hmac.new(
+            credentials["admin_key"].encode(), b"rnd-local-unused-ssh-gateway", hashlib.sha256
+        ).hexdigest(),
         ADMIN_API_KEY=credentials["admin_key"],
         DEFAULT_REGION_ID="local",
         DEFAULT_REGION_NAME="local-computer",
@@ -28825,7 +28921,7 @@ uv run python -m scripts.ci_native_bundled yudao-vben
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/toolchain.md sha256: 2e176d732403385fc9482f65536da274cf568eb92d64d2faff035889e3b08732 -->
+<!-- source-file: docs/toolchain.md sha256: c88fe424f7131f5975154ffcf3b12f14e32f437f0211c595989df087ec882789 -->
 ````markdown
 ## 20. 本机工具链：解析、检索、编辑、MCP与自托管Daytona
 
@@ -29130,6 +29226,13 @@ Docker端口发布：https://docs.docker.com/engine/network/port-publishing/
 
 Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/runner/cmd/runner/main.go
 区域名称约束：https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/api/src/region/services/region.service.ts
+
+
+### 禁用可选 SSH 服务与 API 鉴权配置不是同一件事
+
+固定版本 v0.190.0 的 `apps/api/src/auth/api-key.strategy.ts` 在校验任意 API Key 前，先通过 `getOrThrow('sshGateway.apiKey')` 读取配置。删除可选 SSH 容器仍需给 API 提供该必需值，否则本机登录能够成功，但使用生成的 API Key 注册快照时会报临时鉴权服务错误。
+
+本机配置将 `SSH_GATEWAY_API_KEY` 从本次安装随机生成的管理密钥通过带用途标识的 HMAC-SHA256 派生为独立哨兵值。它不是固定公开密码，也不复用代理或健康检查密钥；没有 SSH 容器、地址或对外 SSH 端口，Runner 的 `SSH_GATEWAY_ENABLE` 仍为 `false`。密钥仅位于受限的本机配置，验收报告不包含环境配置和凭据文件。
 ````
 
 ### `docs/recommendation-recovery.md`
@@ -29140,7 +29243,7 @@ Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/recommendation-recovery.md sha256: eb6e91cbfb88b8ee0a528852d75eccc71802b6be1f6510c5b84ade0a3c8f823b -->
+<!-- source-file: docs/recommendation-recovery.md sha256: 2fadd09358196339052d43ba06454b93ab8f9c53bf91271af42174661ed495d1 -->
 ````markdown
 # 智能推荐的范围判断、自动修正与原运行恢复
 
@@ -29158,7 +29261,7 @@ Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01
 
 设计阶段的自动推荐回到 `plan`，不再通过重新分析需求来“解决”设计错误。已批准需求保持不变；例如规划器误把 `per_user` 改成 `shared`，下一次规划必须修复设计，不能改写需求的数据归属。人工明确提出修改意见时仍回到需求分析，经过重新确认再生成。
 
-每个工作任务仍最多执行两轮自动修正；无法收敛会保留 `BLOCKED` 和对应 gate，而不是无限消耗模型调用。暂停并不总表示模板不支持，也可能只是模型没有决定完问题。错误信息展示具体原因，运行目录下的 `recommendation-blocked.json` 保留阶段、gate ID、尝试次数、问题和限制说明。该文件是一次暂停的诊断快照；恢复后以运行当前状态及最终验收报告为准。
+每个工作任务内，需求澄清和设计阶段分别最多执行两轮自动修正，需求阶段的修正不会消耗设计阶段的额度；全局模型调用和费用预算仍然生效。无法收敛会保留 `BLOCKED` 和对应 gate，而不是无限消耗模型调用。暂停并不总表示模板不支持，也可能只是模型没有决定完问题。错误信息展示具体原因，运行目录下的 `recommendation-blocked.json` 保留阶段、gate ID、该阶段尝试次数、问题和限制说明。该文件是一次暂停的诊断快照；恢复后以运行当前状态及最终验收报告为准。
 
 模型结果缓存同时绑定阶段、模型、提示词、输入和 JSON Schema。升级修复提示词、变更反馈或契约后，不会误用旧回答；完全相同的崩溃重放仍复用既有结果。预算统计不因缓存键更新而清零。
 
