@@ -6,14 +6,12 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: prepare-local-tools
+  group: prepare-local-source-v2
   cancel-in-progress: true
 jobs:
   prepare:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    outputs:
-      sha: ${{ steps.commit.outputs.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
@@ -39,7 +37,6 @@ jobs:
           uv run python -m scripts.build_handbook
           uv run python -m scripts.build_handbook --check
       - name: Commit generated source and single handbook
-        id: commit
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
@@ -48,7 +45,6 @@ jobs:
             git commit -m 'build: synchronize local-only runtimes and complete from-zero handbook'
             git push origin HEAD:feat/controlled-toolchain-integration
           fi
-          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
       - name: Platform and real local toolchain verification
         run: |
           uv run pytest -m 'not postgres' -q --junitxml=reports/tests.xml
@@ -65,11 +61,7 @@ jobs:
         with:
           name: local-only-reviewed-source
           path: reports/
-  local-daytona:
-    needs: prepare
-    if: always() && needs.prepare.outputs.sha != ''
-    permissions:
-      contents: read
-    uses: ./.github/workflows/daytona-local.yml
-    with:
-      source-ref: ${{ needs.prepare.outputs.sha }}
+# The normal daytona-local.yml pull_request workflow remains the independent
+# live-service gate. Do not attach an always()-guarded heavyweight deployment
+# to this source-writer's concurrency group: it can prevent cancellation and
+# block subsequent source fixes from materializing.
