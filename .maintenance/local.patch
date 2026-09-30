@@ -1,0 +1,314 @@
+diff --git a/docs/toolchain.md b/docs/toolchain.md
+index 6cc56d3..ecdc018 100644
+--- a/docs/toolchain.md
++++ b/docs/toolchain.md
+@@ -222,7 +222,7 @@ uv run python -m scripts.daytona_bootstrap snapshot
+ 
+ auth使用本机Dex的独立bootstrap客户端及随机本机密码取得经过真实签名验证的身份，通过签名身份把本机个人组织的默认区域设为local并重新读取核对，再创建只含所需资源权限的API Key。服务端已有local区域并不意味着新个人组织已经选择它；已有其他默认区域时脚本会停止，不会擅自覆盖。它不伪造JWT、不登录云账号。这个密码授权流程只为回环绑定的开发环境提供确定性初始化，不建议照搬到公开OAuth产品。
+ 
+-上一节的snapshot-image只向docker build传入Dockerfile、产品pyproject.toml和uv.lock三个公开输入，不传平台源码目录、.env或用户数据。构建阶段下载Python3.14.7、uv和产品锁定依赖，把缓存预热到镜像；之后推送到本机127.0.0.1:6000 Registry。snapshot把该本机镜像登记为本机Daytona快照。脚本通过有限分页列表精确匹配名称，避免固定服务版本的名称查询进入UUID校验路径；不能把查询失败当成快照不存在。只有名称、镜像来源和active状态同时匹配才写入就绪配置；重复名称、未完成的分页、认证失败和未就绪快照都会停止，且不会覆盖已有凭据。注册操作在最长720秒的独立本机子进程中完成，超时终止而不是无限等待；失败不能写成已就绪。固定SDK没有Daytona.close()，适配器在独立进程结束前逐一关闭其实际HTTP/API传输资源；这不能代替删除沙箱。检查本机API/Runner日志和快照状态后再运行snapshot，不删除数据库或更换云端服务。
++上一节的snapshot-image只向docker build传入Dockerfile、产品pyproject.toml和uv.lock三个公开输入，不传平台源码目录、.env或用户数据。构建阶段下载Python3.14.7、uv和产品锁定依赖，把缓存预热到镜像；之后推送到本机127.0.0.1:6000 Registry。snapshot把该本机镜像登记为本机Daytona快照。API健康检查通过后，默认通用快照可能仍在预热；脚本先有限等待同一镜像的默认快照达到active，避免两个注册任务竞争同一Runner资源。构建失败或等待超时会保留诊断并停止，不删除或伪造就绪状态。脚本通过有限分页列表精确匹配名称，避免固定服务版本的名称查询进入UUID校验路径；不能把查询失败当成快照不存在。只有名称、镜像来源和active状态同时匹配才写入就绪配置；重复名称、未完成的分页、认证失败和未就绪快照都会停止，且不会覆盖已有凭据。注册操作在最长720秒的独立本机子进程中完成，超时终止而不是无限等待；失败不能写成已就绪。固定SDK没有Daytona.close()，生成的ApiClient的上下文退出也不释放连接池。适配器在独立进程结束前关闭HTTPX客户端，锁住各urllib3池容器，逐一关闭连接池后清空容器；这不能代替删除沙箱。检查本机API/Runner日志和快照状态后再运行snapshot，不删除数据库或更换云端服务。
+ 
+ 生成的`.data/daytona-local/workbench.env`包含可直接填入项目`.env`的六个Daytona字段及工具超时。打开文件在本机复制这些配置，不把Key贴到Issue、聊天或报告里。不要覆盖已有的BASE_URL/API_KEY/MODE；它们属于聊天大模型。
+ 
+diff --git a/scripts/daytona_bootstrap.py b/scripts/daytona_bootstrap.py
+index 3b4e289..679f0bb 100644
+--- a/scripts/daytona_bootstrap.py
++++ b/scripts/daytona_bootstrap.py
+@@ -164,6 +164,31 @@ def snapshot_named(service, name):
+     raise ValueError("本机快照分页未完成；没有创建快照")
+ 
+ 
++def wait_default_snapshot(service, image, timeout=300):
++    """Wait for the server's automatic image warm-up before a private snapshot.
++
++    The pinned server starts a general snapshot asynchronously after Runner
++    health. Two snapshots of that same image otherwise race on its unique
++    in-progress Runner job. Readiness is observed, never fabricated or retried
++    by deleting a failed snapshot. Listing/authentication errors propagate.
++    """
++    deadline = time.monotonic() + timeout
++    while True:
++        existing = snapshot_named(service, image)
++        if existing is not None:
++            if existing.image_name != image:
++                raise ValueError("默认快照镜像来源不符；没有创建私有快照")
++            state = str(getattr(existing.state, "value", existing.state)).lower()
++            if state == "active":
++                return existing
++            if state in {"error", "failed", "build_failed", "inactive", "removing"}:
++                raise ValueError("默认快照构建失败或不可用；检查本机Runner，不重复创建")
++        remaining = deadline - time.monotonic()
++        if remaining <= 0:
++            raise TimeoutError("默认快照尚未就绪；没有创建私有快照或写入就绪回执")
++        time.sleep(min(2, remaining))
++
++
+ def snapshot_worker(directory=HOME):
+     directory = Path(directory)
+     metadata = json.loads((directory / "snapshot-image.json").read_text(encoding="utf-8"))
+@@ -178,6 +203,10 @@ def snapshot_worker(directory=HOME):
+     try:
+         existing = snapshot_named(client.snapshot, metadata["snapshot"])
+         if existing is None:
++            # API/Runner health alone does not imply snapshot warm-up is complete.
++            started = time.monotonic()
++            wait_default_snapshot(client.snapshot, metadata["image"])
++            remaining = max(1, min(600, int(650 - (time.monotonic() - started))))
+             existing = client.snapshot.create(
+                 CreateSnapshotParams(
+                     name=metadata["snapshot"],
+@@ -185,7 +214,7 @@ def snapshot_worker(directory=HOME):
+                     region_id="local",
+                     resources=Resources(cpu=1, memory=2, disk=5),
+                 ),
+-                timeout=600,
++                timeout=remaining,
+             )
+         if existing.name != metadata["snapshot"] or existing.image_name != metadata["image"]:
+             raise ValueError("同名快照的镜像来源不符；拒绝复用或覆盖")
+diff --git a/tests/test_daytona_bootstrap_contract.py b/tests/test_daytona_bootstrap_contract.py
+index 2e7d755..d9b78c5 100644
+--- a/tests/test_daytona_bootstrap_contract.py
++++ b/tests/test_daytona_bootstrap_contract.py
+@@ -6,6 +6,7 @@ from unittest.mock import Mock
+ 
+ import httpx
+ import pytest
++import urllib3
+ from pydantic import SecretStr
+ 
+ from scripts.daytona_bootstrap import configure_personal_region
+@@ -88,13 +89,32 @@ def test_actual_installed_sdk_transports_can_be_closed_without_a_network_request
+     settings.daytona_target = "local"
+     client = client_for(settings)
+     assert not hasattr(client, "close"), "Pinned SDK contract changed; review the transport adapter"
+-    assert callable(client._api_client.close)
+-    assert callable(client._toolbox_api_client.close)
++    assert client._http_client.is_closed is False
++    managers, pools = [], []
++    for api in (client._api_client, client._toolbox_api_client):
++        assert not hasattr(api, "close")
++        manager = api.rest_client.pool_manager
++        managers.append(manager)
++        # Construct real pools without opening sockets. Retain references so GC
++        # cannot accidentally make a broken explicit cleanup look successful.
++        pools.extend(manager.connection_from_url(url) for url in
++                     ("http://127.0.0.1:3000", "http://127.0.0.1:3001"))
++        assert len(manager.pools) == 2
+     close_client(client)
++    assert client._http_client.is_closed is True
++    assert all(len(manager.pools) == 0 for manager in managers)
++    assert all(pool.pool is None for pool in pools)
++    close_client(client)  # Repeat cleanup is safe and remains entirely local.
+ 
+ 
+ def test_transport_cleanup_attempts_all_and_does_not_hide_the_original_failure():
+-    client = SimpleNamespace(_http_client=Mock(), _api_client=Mock(), _toolbox_api_client=Mock())
++    managers = [urllib3.PoolManager(), urllib3.PoolManager()]
++    pools = [manager.connection_from_url("http://127.0.0.1:3000") for manager in managers]
++    client = SimpleNamespace(
++        _http_client=Mock(),
++        _api_client=SimpleNamespace(rest_client=SimpleNamespace(pool_manager=managers[0])),
++        _toolbox_api_client=SimpleNamespace(rest_client=SimpleNamespace(pool_manager=managers[1])),
++    )
+     client._http_client.close.side_effect = RuntimeError("local cleanup fixture")
+     original = ValueError("original snapshot failure")
+     with pytest.raises(ValueError, match="original snapshot") as caught:
+@@ -103,12 +123,25 @@ def test_transport_cleanup_attempts_all_and_does_not_hide_the_original_failure()
+         finally:
+             close_client(client)
+     assert caught.value is original and "RuntimeError" in original.__notes__[0]
+-    client._api_client.close.assert_called_once()
+-    client._toolbox_api_client.close.assert_called_once()
++    assert all(pool.pool is None for pool in pools)
++    assert all(len(manager.pools) == 0 for manager in managers)
+ 
+ 
+ def test_transport_failure_after_success_still_fails_the_operation():
+-    client = SimpleNamespace(_api_client=Mock())
+-    client._api_client.close.side_effect = RuntimeError("local cleanup fixture")
++    client = SimpleNamespace(_http_client=Mock())
++    client._http_client.close.side_effect = RuntimeError("local cleanup fixture")
++    with pytest.raises(RuntimeError, match="传输资源关闭失败"):
++        close_client(client)
++
++
++def test_pool_failure_does_not_prevent_other_pool_cleanup(monkeypatch):
++    manager = urllib3.PoolManager()
++    first = manager.connection_from_url("http://127.0.0.1:3000")
++    second = manager.connection_from_url("http://127.0.0.1:3001")
++    original_close = first.close
++    monkeypatch.setattr(first, "close", Mock(side_effect=OSError("local fixture")))
++    client = SimpleNamespace(_api_client=SimpleNamespace(rest_client=SimpleNamespace(pool_manager=manager)))
+     with pytest.raises(RuntimeError, match="传输资源关闭失败"):
+         close_client(client)
++    assert second.pool is None and len(manager.pools) == 0
++    original_close()
+diff --git a/tests/test_daytona_snapshot.py b/tests/test_daytona_snapshot.py
+index 32a0946..e0419f6 100644
+--- a/tests/test_daytona_snapshot.py
++++ b/tests/test_daytona_snapshot.py
+@@ -5,6 +5,8 @@ from types import SimpleNamespace
+ from unittest.mock import Mock
+ 
+ import pytest
++import httpx
++import urllib3
+ 
+ from scripts import daytona_bootstrap as bootstrap
+ 
+@@ -76,9 +78,11 @@ def worker(tmp_path, monkeypatch):
+         json.dumps({"value": "local-test-key-not-a-real-credential"}), encoding="utf-8"
+     )
+     client = SimpleNamespace(
+-        snapshot=Mock(), _http_client=Mock(), _api_client=Mock(), _toolbox_api_client=Mock()
++        snapshot=Mock(), _http_client=httpx.Client(trust_env=False),
++        _api_client=SimpleNamespace(rest_client=SimpleNamespace(pool_manager=urllib3.PoolManager())),
++        _toolbox_api_client=SimpleNamespace(rest_client=SimpleNamespace(pool_manager=urllib3.PoolManager())),
+     )
+-    client.snapshot.list.return_value = page(1, [])
++    client.snapshot.list.return_value = page(1, [SimpleNamespace(name=IMAGE, image_name=IMAGE, state="active")])
+     client.snapshot.create.return_value = snapshot()
+     monkeypatch.setattr(bootstrap, "install_loopback_guard", lambda: None)
+     monkeypatch.setattr(bootstrap, "client_for", lambda settings: client)
+@@ -101,8 +105,9 @@ def test_worker_creates_or_reuses_only_matching_active_local_snapshot(worker, re
+     env = (directory / "workbench.env").read_text(encoding="utf-8")
+     assert "DAYTONA_API_URL=http://127.0.0.1:3000/api" in env
+     assert f"DAYTONA_SNAPSHOT={NAME}" in env
+-    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
+-        getattr(client, name).close.assert_called_once()
++    assert client._http_client.is_closed
++    for name in ("_api_client", "_toolbox_api_client"):
++        assert len(getattr(client, name).rest_client.pool_manager.pools) == 0
+ 
+ 
+ @pytest.mark.parametrize("reuse", [False, True])
+@@ -123,12 +128,14 @@ def test_worker_never_writes_ready_config_for_wrong_or_unready_snapshot(
+     setattr(invalid, field, value)
+     # Inject the lookup result to test validation independently of exact-name filtering.
+     monkeypatch.setattr(bootstrap, "snapshot_named", lambda *args: invalid if reuse else None)
++    monkeypatch.setattr(bootstrap, "wait_default_snapshot", lambda *args: None)
+     client.snapshot.create.return_value = invalid
+     with pytest.raises(ValueError, match=message):
+         bootstrap.snapshot_worker(directory)
+     assert not (directory / "workbench.env").exists()
+-    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
+-        getattr(client, name).close.assert_called_once()
++    assert client._http_client.is_closed
++    for name in ("_api_client", "_toolbox_api_client"):
++        assert len(getattr(client, name).rest_client.pool_manager.pools) == 0
+ 
+ 
+ def test_worker_preserves_existing_credentials_and_closes_on_list_failure(worker):
+@@ -140,5 +147,52 @@ def test_worker_preserves_existing_credentials_and_closes_on_list_failure(worker
+         bootstrap.snapshot_worker(directory)
+     assert (directory / "workbench.env").read_text(encoding="utf-8") == existing
+     client.snapshot.create.assert_not_called()
+-    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
+-        getattr(client, name).close.assert_called_once()
++    assert client._http_client.is_closed
++    for name in ("_api_client", "_toolbox_api_client"):
++        assert len(getattr(client, name).rest_client.pool_manager.pools) == 0
++
++
++@pytest.fixture
++def clock(monkeypatch):
++    now = [0.0]
++    monkeypatch.setattr(bootstrap.time, "monotonic", lambda: now[0])
++    monkeypatch.setattr(bootstrap.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds))
++    return now
++
++
++def test_default_snapshot_warmup_is_observed_before_create(clock):
++    service = Mock()
++    ready = SimpleNamespace(name=IMAGE, image_name=IMAGE, state="active")
++    service.list.side_effect = [page(1, []), page(1, [SimpleNamespace(name=IMAGE, image_name=IMAGE, state="building")]), page(1, [ready])]
++    assert bootstrap.wait_default_snapshot(service, IMAGE, timeout=10) is ready
++    assert clock[0] == 4
++    service.create.assert_not_called()
++
++
++@pytest.mark.parametrize("state", ["error", "failed", "build_failed", "inactive", "removing"])
++def test_default_snapshot_failure_never_becomes_ready(state, clock):
++    service = Mock()
++    service.list.return_value = page(1, [SimpleNamespace(name=IMAGE, image_name=IMAGE, state=state)])
++    with pytest.raises(ValueError, match="默认快照"):
++        bootstrap.wait_default_snapshot(service, IMAGE)
++    assert clock[0] == 0
++    service.create.assert_not_called()
++
++
++def test_default_snapshot_warmup_has_a_hard_deadline(clock):
++    service = Mock()
++    service.list.return_value = page(1, [])
++    with pytest.raises(TimeoutError, match="未就绪"):
++        bootstrap.wait_default_snapshot(service, IMAGE, timeout=5)
++    assert clock[0] == 5
++    service.create.assert_not_called()
++
++
++def test_warmup_failure_leaves_config_untouched_and_closes_client(worker, monkeypatch):
++    directory, client = worker
++    monkeypatch.setattr(bootstrap, "wait_default_snapshot", Mock(side_effect=TimeoutError("warm-up")))
++    with pytest.raises(TimeoutError, match="warm-up"):
++        bootstrap.snapshot_worker(directory)
++    client.snapshot.create.assert_not_called()
++    assert not (directory / "workbench.env").exists()
++    assert client._http_client.is_closed
+diff --git a/workbench/sandbox.py b/workbench/sandbox.py
+index baa75a7..b3cd31d 100644
+--- a/workbench/sandbox.py
++++ b/workbench/sandbox.py
+@@ -58,23 +58,40 @@ def client_for(settings):
+ 
+ 
+ def close_client(client):
+-    """Close owned transports of the pinned SDK, which has no Daytona.close().
++    """Release the exact v0.190.0 HTTPX client and urllib3 connection pools.
+ 
+-    These names belong to our fixed SDK adapter, not a guessed public API.
+-    Sandbox deletion is separate and must complete before transport shutdown.
+-    All callers run in a bounded child process as an additional resource boundary.
++    Neither Daytona nor its generated ApiClient exposes close(); ApiClient's
++    context-manager exit is also a no-op. The synchronous worker is quiescent
++    here. Close every owned pool before clearing it, even when external Python
++    references would otherwise delay garbage collection. Sandbox deletion is
++    separate and must have been verified before this transport cleanup.
+     """
+     import sys
+ 
+     original = sys.exception()
+     failures = []
+-    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
+-        transport = getattr(client, name, None)
+-        if transport is not None:
+-            try:
+-                transport.close()
+-            except Exception as exc:
+-                failures.append(type(exc).__name__)
++
++    def attempt(operation):
++        try:
++            operation()
++        except Exception as exc:
++            failures.append(type(exc).__name__)
++
++    http = getattr(client, "_http_client", None)
++    if http is not None:
++        attempt(http.close)
++    for name in ("_api_client", "_toolbox_api_client"):
++        api = getattr(client, name, None)
++        if api is None:
++            continue
++        try:
++            manager = api.rest_client.pool_manager
++            with manager.pools.lock:
++                for key in manager.pools.keys():
++                    attempt(manager.pools[key].close)
++                attempt(manager.clear)
++        except Exception as exc:
++            failures.append(type(exc).__name__)
+     if failures:
+         message = "本机Daytona传输资源关闭失败：" + ", ".join(failures)
+         if original is not None:
