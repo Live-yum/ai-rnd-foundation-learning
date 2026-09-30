@@ -467,9 +467,16 @@ def verify_assignment_boundaries(plan, manager, actors, records):
             code = response.json().get("code")
         except ValueError, AttributeError:
             code = None
+        # Native application codes are bounded integers. Never echo arbitrary
+        # response strings, bodies, headers, or credentials in failure reports.
+        if type(code) is not int or not -(2**31) <= code < 2**31:
+            code = None
         assert response.status_code in statuses or (
             response.status_code == 200 and code in statuses
-        ), f"{case}: native assignment was accepted, crashed, or failed for an unrelated reason"
+        ), (
+            f"{case}: native assignment was accepted, crashed, or failed for an unrelated reason "
+            f"(entity={entity}, http_status={response.status_code}, response_code={code})"
+        )
         after = snapshot(entity, identifier)
         assert after == before, f"{case}: rejected assignment changed row, audit, or notifications"
         checks.append(

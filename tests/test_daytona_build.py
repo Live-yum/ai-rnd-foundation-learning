@@ -1,6 +1,7 @@
 """Installation contracts; live service evidence is produced by ci_daytona_local."""
 
 import hashlib
+import ipaddress
 import json
 import subprocess
 from pathlib import Path
@@ -233,3 +234,71 @@ def test_invalid_region_name_is_rejected_before_installation():
     config["services"]["api"]["environment"]["DEFAULT_REGION_NAME"] = "Local computer"
     with pytest.raises(ValueError, match="空格"):
         local.assert_local_compose(config)
+
+
+def test_control_plane_ipam_is_disjoint_without_changing_isolation(tmp_path):
+    source = local_config()
+    source["services"]["runner"]["environment"]["INTER_SANDBOX_NETWORK_ENABLED"] = "false"
+    credentials = dict.fromkeys(
+        [
+            "encryption_key",
+            "salt",
+            "database_password",
+            "storage_password",
+            "proxy_key",
+            "runner_key",
+            "health_key",
+            "admin_key",
+        ],
+        "fixture-random",
+    )
+    rendered = local.render_compose(source, credentials, tmp_path)
+    network = rendered["networks"]["daytona-network"]
+    assert network == {
+        "driver": "bridge",
+        "internal": True,
+        "ipam": {"config": [{"subnet": "172.30.240.0/24"}]},
+    }
+    assert local.RUNNER_BRIDGE_SUBNET == "172.20.0.0/16"
+    assert not ipaddress.ip_network(local.CONTROL_PLANE_SUBNET).overlaps(
+        ipaddress.ip_network(local.RUNNER_BRIDGE_SUBNET)
+    )
+    assert rendered["services"]["runner"]["environment"]["INTER_SANDBOX_NETWORK_ENABLED"] == "false"
+    for name, service in rendered["services"].items():
+        if name != "gateway":
+            assert service["networks"] == ["daytona-network"]
+            assert not service.get("ports")
+    assert rendered["services"]["gateway"]["networks"] == ["daytona-network", "loopback-entry"]
+    assert all(port.startswith("127.0.0.1:") for port in rendered["services"]["gateway"]["ports"])
+    assert rendered["networks"]["loopback-entry"] == {"driver": "bridge", "internal": False}
+    local.assert_local_compose(rendered)
+
+
+@pytest.mark.parametrize(
+    "ipam",
+    [
+        None,
+        {},
+        {"config": []},
+        {"config": [{"subnet": "172.20.0.0/16"}]},
+        {"config": [{"subnet": "172.20.4.0/24"}]},
+        {"config": [{"subnet": "172.16.0.0/12"}]},
+        {"config": [{"subnet": "172.30.241.0/24"}]},
+        {"config": [{"subnet": "invalid"}]},
+        {"config": [{"subnet": "8.8.8.0/24"}]},
+        {"config": [{"subnet": "fd00::/64"}]},
+        {"config": [{"subnet": "172.30.240.0/24", "gateway": "172.30.240.2"}]},
+    ],
+)
+def test_invalid_or_overlapping_control_plane_ipam_fails_before_docker(ipam, tmp_path, monkeypatch):
+    config = local_config()
+    if ipam is None:
+        config["networks"]["daytona-network"].pop("ipam")
+    else:
+        config["networks"]["daytona-network"]["ipam"] = ipam
+    (tmp_path / "compose.lock.yaml").write_text(yaml.safe_dump(config))
+    monkeypatch.setattr(
+        local, "docker", lambda *a, **kw: pytest.fail("invalid IPAM reached Docker")
+    )
+    with pytest.raises(ValueError):
+        local.compose(tmp_path, "up", "-d", "--pull", "never")

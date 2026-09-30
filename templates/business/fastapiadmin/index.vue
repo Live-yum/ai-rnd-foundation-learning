@@ -49,7 +49,7 @@
           <FaTable :columns="[]" :data="rows" v-loading="busy" row-key="id">
             <ElTableColumn v-for="field in current.fields" :key="field.name" :prop="field.name" :label="field.label || field.name" :min-width="columnWidth(field)" show-overflow-tooltip><template #default="{ row }">{{ displayValue(tab, field.name, row[field.name], row) }}</template></ElTableColumn>
             <ElTableColumn label="操作" width="360" fixed="right"><template #default="{ row }">
-              <ElButton v-if="can('read_history')" :data-testid="'history-' + row.id" @click="showHistory(row)">历史</ElButton>
+              <ElButton v-if="can('read_history') || can('read_audit')" :data-testid="'history-' + row.id" @click="showHistory(row)">历史</ElButton>
               <ElButton :data-testid="'related-' + row.id" @click="showRelated(row)">关联记录</ElButton>
               <template v-if="!row.archived_at">
                 <ElButton v-if="can('update')" :data-testid="'update-' + row.id" @click="edit(row)">编辑</ElButton>

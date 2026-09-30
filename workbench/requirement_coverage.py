@@ -705,6 +705,98 @@ LEGACY_PROPERTY = (
 )
 
 
+def _query_predicate_text(text, fields):
+    """Exclude operation-derived nouns unless an explicit predicate binds fields.
+
+    Search results and filter conditions describe query output or context; they
+    do not independently enable a field capability. Keep declarations such as
+    'title is a search criterion' and imperatives such as 'filter results by title'.
+    Other verbs in the same clause remain available for ordinary subject binding.
+    """
+    nouns = re.compile(
+        r"(?P<operation>"
+        r"(?:日期区间|日期范围)(?:筛选|过滤|查询)?|"
+        r"(?:关键词|关键字|精确)?(?:搜索|检索|筛选|过滤)|"
+        r"\b(?:date[-_\s]?range(?:\s+(?:search|filter(?:ing)?|quer(?:y|ies)))?|"
+        r"search(?:ing|ed|es)?|filter(?:ing|ed|s)?)\b)"
+        r"\s*(?:的|后(?:的)?|所得(?:的)?|(?:返回|得到|产生)的|['’]s)?[-\s]*"
+        r"(?P<noun>结果集?|效果|输出|返回值|条件|"
+        r"results?|outcomes?|outputs?|effects?|conditions?|criteria|criterion)"
+        r"(?![a-z_])",
+        re.I,
+    )
+    names = {field.name for _, field in fields}
+    names.update(name for aliases in ALIASES.values() for name in aliases)
+    subjects = re.compile(
+        "|".join(
+            rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])" if name.isascii() else re.escape(name)
+            for name in sorted(names, key=len, reverse=True)
+        ),
+        re.I,
+    )
+
+    def replace(match):
+        before = re.split(r"[，,；;。\n]", text[: match.start()])[-1]
+        after = re.split(r"[，,；;。\n]", text[match.end() :])[0]
+        condition = bool(re.fullmatch(r"条件|conditions?|criteria|criterion", match["noun"], re.I))
+        mentions = list(subjects.finditer(before))
+        tail = before[mentions[-1].end() :] if mentions else ""
+        binds_before = (
+            condition
+            and mentions
+            and re.fullmatch(
+                r"\s*(?:(?:字段)?\s*(?:可|必须|应|可以|不可|不可以|不得|不能)?\s*"
+                r"(?:作为|用作|用于|设置为|设为|是|为)|"
+                r"(?:fields?\s+)?(?:is|are|as|(?:must|should)\s+(?:not\s+)?be|"
+                r"(?:is|are)\s+not|(?:is|are)\s+(?:not\s+)?used\s+as|"
+                r"cannot\s+be\s+used\s+as|serves?\s+as))\s*(?:a|an|the)?\s*",
+                tail,
+                re.I,
+            )
+        )
+        binds_after = (
+            condition
+            and re.match(
+                r"\s*(?:[：:]|为|是|不?包括|不?包含|使用|采用|"
+                r"\b(?:(?:do|does)\s+not\s+include|include|includes|are|is|use|uses)\b)",
+                after,
+                re.I,
+            )
+            and subjects.search(after)
+        )
+        imperative = (
+            re.fullmatch(r"search(?:ing)?|filter(?:ing)?", match["operation"], re.I)
+            and re.match(r"\s+(?:by|using|on)\s+", after, re.I)
+            and subjects.search(after)
+        )
+        if binds_before or binds_after or imperative:
+            operation = match["operation"]
+            negative = (
+                binds_before and re.search(r"不可|不得|不能|\bnot\b|\bcannot\b", tail, re.I)
+            ) or (binds_after and re.match(r"\s*(?:不|(?:do|does)\s+not\b)", after, re.I))
+            if re.search(r"日期区间|日期范围|date[-_\s]?range", operation, re.I):
+                # Here 日期/date is part of an explicit capability predicate,
+                # not a second field named published_on.
+                operation = "date_range"
+            if negative:
+                attribute = (
+                    "date_range"
+                    if operation == "date_range"
+                    else (
+                        "searchable"
+                        if re.search(r"搜索|检索|search", operation, re.I)
+                        else "filterable"
+                    )
+                )
+                operation = attribute + "=false"
+            return operation + " "
+        # Whitespace preserves token boundaries without manufacturing a new
+        # subject, predicate or field alias from the noun phrase.
+        return " " * len(match.group())
+
+    return nouns.sub(replace, text)
+
+
 def _section_entity(text, fields):
     """Infer only an unambiguous owner of an explicitly named field inventory."""
     declared = {field.name for _, field in fields if _field_mentions(text, [field.name])}
@@ -785,6 +877,55 @@ def _explicit_query_sections(text, fields):
             yield text[start : match.start()]
             start = match.end()
     yield text[start:]
+
+
+def _descriptor_inventory_groups(text, subject_pattern):
+    """Project bracketed per-field declarations separately from their wrapper.
+
+    A bare search(title, detail) target list stays intact. In contrast, a list
+    such as create(title max_length=200, detail max_length=3000) has independent
+    predicates. Keep the wrapper with its bare targets so a genuine outer
+    capability still binds them, and check the declarations as separate clauses.
+    """
+    stack, spans = [], []
+    for index, char in enumerate(text):
+        if char in "（([【":
+            stack.append(index)
+        elif char in "）)]】" and stack:
+            start = stack.pop()
+            if not stack:
+                spans.append((start, index))
+    parts, declarations, previous = [], [], 0
+    for start, end in spans:
+        body = text[start + 1 : end]
+        depth, depths = 0, []
+        for char in body:
+            depths.append(depth)
+            if char in "（([【":
+                depth += 1
+            elif char in "）)]】":
+                depth = max(0, depth - 1)
+        subjects = [
+            match for match in re.finditer(subject_pattern, body, re.I) if not depths[match.start()]
+        ]
+        inventory = len(subjects) > 1 and any(
+            re.search(LEGACY_PROPERTY, body[left.end() : right.start()], re.I)
+            or (
+                re.match(r"\s*[（(\[【]", body[left.end() : right.start()])
+                and re.search(r"[）)\]】]", body[left.end() : right.start()])
+            )
+            for left, right in zip(subjects, subjects[1:])
+        )
+        if inventory:
+            declarations.append(body)
+            replacement = "、".join(dict.fromkeys(match.group() for match in subjects))
+        else:
+            replacement, nested = _descriptor_inventory_groups(body, subject_pattern)
+            declarations.extend(nested)
+        parts.append(text[previous : start + 1] + replacement + text[end])
+        previous = end + 1
+    parts.append(text[previous:])
+    return "".join(parts), declarations
 
 
 def _legacy_clauses(text, fields):
@@ -875,6 +1016,17 @@ def _legacy_clauses(text, fields):
                             sentence = body
             if sentence == original:
                 break
+        wrapper, inventories = _descriptor_inventory_groups(sentence, pattern)
+        if inventories:
+            for part in [wrapper, *inventories]:
+                scoped = f"{scope}：{part}" if scope else part
+                if universal_scope and not scope:
+                    scoped = "所有实体：" + scoped
+                yield from _legacy_clauses(scoped, fields)
+            subjects = _fact_candidates(sentence, fields)
+            if subjects:
+                previous_subject = "、".join(dict.fromkeys(field.name for field in subjects))
+            continue
         sections = list(_explicit_query_sections(sentence, fields))
         if len(sections) > 1:
             for section in sections:
@@ -1361,7 +1513,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
     query_texts = []
     for origin, text in texts:
         query_text, metric_obligations = _metric_clauses(text, fields)
-        query_texts.append((origin, query_text))
+        query_texts.append((origin, _query_predicate_text(query_text, fields)))
         for index, obligation in enumerate(metric_obligations):
             source = {**origin, "metric_clause": index}
             source_text = text

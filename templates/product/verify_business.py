@@ -98,6 +98,13 @@ def verify_audit_immutability(client, actor, entity, row, actor_ids):
     check(bool(original), "Audit history is empty")
     for entry in original:
         check(
+            {"before", "after"} <= entry.keys()
+            and all(
+                entry[key] is None or isinstance(entry[key], dict) for key in ("before", "after")
+            ),
+            "Audit snapshots unavailable",
+        )
+        check(
             entry.get("id") and entry.get("action") and entry.get("actor_id") in actor_ids,
             "Audit action/actor missing",
         )
@@ -1038,15 +1045,14 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                     (
                         a
                         for a in actors.values()
-                        if allowed(a["role"], entity, "read_history", row, a["id"])
-                        and allowed(a["role"], entity, "read_audit", row, a["id"])
+                        if allowed(a["role"], entity, "read_audit", row, a["id"])
                     ),
                     None,
                 )
                 if resources[entity]["audit"]:
                     check(
                         auditor is not None,
-                        "Audited resource has no permitted audit/history reader",
+                        "Audited resource has no permitted audit reader",
                     )
                     original, proof = verify_audit_immutability(
                         client, auditor, entity, row, actor_ids

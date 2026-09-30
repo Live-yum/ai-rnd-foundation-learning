@@ -1616,6 +1616,305 @@ def test_resource_and_field_identifiers_can_collide_with_namespace_names(entity,
     assert diagnostics[0]["source"]["path"] == f"resources.{entity}.fields.{field}"
 
 
+@pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize(
+    "attribute,kind,operation",
+    [
+        ("searchable", "text", "搜索"),
+        ("searchable", "text", "检索"),
+        ("filterable", "text", "精确筛选"),
+        ("filterable", "text", "过滤"),
+        ("date_range", "date", "日期范围查询"),
+        ("date_range", "date", "日期区间筛选"),
+    ],
+)
+@pytest.mark.parametrize(
+    "noun", ["结果", "结果集", "的效果", "后的结果", "返回的结果", "输出", "条件"]
+)
+def test_chinese_query_result_nouns_never_declare_field_operations(
+    enabled, attribute, kind, operation, noun
+):
+    requirement, plan = scoped_resource_field_case(attribute, enabled, not enabled, kind)
+    requirement.field_requirements = typed_field_ledger(plan)
+    requirement.acceptance = [
+        f"alpha: value 的{operation}{noun}由系统展示，没有{operation}{noun}时显示空列表"
+    ]
+    assert coverage_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize("enabled", [False, True])
+@pytest.mark.parametrize(
+    "attribute,kind,operation",
+    [
+        ("searchable", "text", "search"),
+        ("filterable", "text", "filter"),
+        ("date_range", "date", "date range"),
+    ],
+)
+@pytest.mark.parametrize("noun", ["results", "outcomes", "outputs", "conditions", "criteria"])
+def test_english_query_result_nouns_never_declare_field_operations(
+    enabled, attribute, kind, operation, noun
+):
+    requirement, plan = scoped_resource_field_case(attribute, enabled, not enabled, kind)
+    requirement.field_requirements = typed_field_ledger(plan)
+    requirement.acceptance = [
+        f"alpha: value appears in the {operation} {noun}; no {operation} {noun} are available"
+    ]
+    assert coverage_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize(
+    "attribute,kind,text",
+    [
+        ("searchable", "text", "搜索结果中 value 必须支持搜索"),
+        ("searchable", "text", "value 的搜索结果应正确；value 必须支持搜索"),
+        ("filterable", "text", "按 value 筛选搜索结果"),
+        ("filterable", "text", "filter results by value"),
+        ("searchable", "text", "search results using value"),
+        ("searchable", "text", "value 作为搜索条件"),
+        ("filterable", "text", "value 用作精确筛选条件"),
+        ("searchable", "text", "搜索条件包括 value"),
+        ("filterable", "text", "value is a filter condition"),
+        ("searchable", "text", "search criteria: value"),
+        ("date_range", "date", "value 作为日期范围查询条件"),
+        ("date_range", "date", "date range conditions include value"),
+    ],
+)
+def test_explicit_operation_predicates_with_result_nouns_preserve_typed_contradictions(
+    attribute, kind, text
+):
+    requirement, plan = scoped_resource_field_case(attribute, False, False, kind)
+    requirement.field_requirements = typed_field_ledger(plan)
+    requirement.acceptance = ["alpha: " + text]
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        item["source"]["section"] == "acceptance"
+        and item["attribute"] == attribute
+        and item["targets"] == [{"entity": "alpha", "field": "value"}]
+        for item in diagnostics
+    )
+    setattr(plan.entities[0].fields[0], attribute, True)
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert all(item["source"]["section"] == "field_requirements" for item in diagnostics)
+
+
+@pytest.mark.parametrize("operation", ["searched", "filtered", "searching", "filtering"])
+def test_inflected_operation_result_nouns_do_not_create_query_flags(operation):
+    requirement, plan = scoped_resource_field_case("filterable", False, False, "text")
+    requirement.field_requirements = typed_field_ledger(plan)
+    requirement.features = [f"alpha: value is displayed in the {operation} results"]
+    assert coverage_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize(
+    "attribute,kind,text",
+    [
+        ("searchable", "text", "value 不可作为搜索条件"),
+        ("filterable", "text", "value is not a filter condition"),
+        ("date_range", "date", "value 不得用作日期范围查询条件"),
+        ("searchable", "text", "搜索条件不包括 value"),
+        ("searchable", "text", "search criteria do not include value"),
+    ],
+)
+def test_explicit_negated_condition_bindings_are_still_false_obligations(attribute, kind, text):
+    requirement, plan = scoped_resource_field_case(attribute, True, False, kind)
+    requirement.field_requirements = typed_field_ledger(plan)
+    requirement.features = ["alpha: " + text]
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        item["source"]["section"] == "features"
+        and item["attribute"] == attribute
+        and item["expected"] is False
+        for item in diagnostics
+    )
+    setattr(plan.entities[0].fields[0], attribute, False)
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert all(item["source"]["section"] == "field_requirements" for item in diagnostics)
+
+
+def test_exact_2a4_fastapi_search_result_acceptance_preserves_independent_query_flags():
+    requirement, plan = actual_customer_field_case()
+    requirement.field_requirements = typed_field_ledger(plan)
+    requirement.acceptance = [
+        "客户列表支持按 name、organization、contact 关键词搜索，并可按 category（企业/个人/合作伙伴）精确筛选，搜索结果符合筛选条件。"
+    ]
+    assert coverage_gaps(requirement, plan) == []
+    for field_name, flag in [("name", "searchable"), ("category", "filterable")]:
+        changed = plan.model_copy(deep=True)
+        setattr(
+            next(field for field in changed.entities[0].fields if field.name == field_name),
+            flag,
+            False,
+        )
+        diagnostics = []
+        assert coverage_gaps(requirement, changed, diagnostics=diagnostics)
+        assert any(
+            item["source"]["section"] == "acceptance" and item["attribute"] == flag
+            for item in diagnostics
+        )
+
+
+def scoped_inventory_case():
+    requirement, _ = customer_case()
+    plan = Plan(
+        title="Nested inventory",
+        data_scope="shared",
+        entities=[
+            {
+                "name": entity,
+                "description": entity,
+                "fields": [
+                    {
+                        "name": "short_text",
+                        "kind": "text",
+                        "required": True,
+                        "min_length": 0,
+                        "max_length": 200,
+                        "searchable": True,
+                    },
+                    {
+                        "name": "long_text",
+                        "kind": "text",
+                        "required": False,
+                        "min_length": 1,
+                        "max_length": 3000,
+                        "searchable": True,
+                    },
+                ],
+            }
+            for entity in ["alpha", "beta"]
+        ],
+        acceptance=["Independent field descriptors"],
+    )
+    requirement.field_requirements = typed_field_ledger(plan)
+    return requirement, plan
+
+
+@pytest.mark.parametrize("brackets", ["（）", "()", "[]", "【】"])
+@pytest.mark.parametrize("separator", ["、", "，", ", ", " and "])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_nested_field_inventory_constraints_bind_nearest_subject(brackets, separator, reverse):
+    requirement, plan = scoped_inventory_case()
+    descriptors = ["short_text 必填 最长200 最小0", "long_text 可选 最长3000 最小1"]
+    if reverse:
+        descriptors.reverse()
+    requirement.features = [
+        f"alpha: 创建对象{brackets[0]}{separator.join(descriptors)}{brackets[1]}、编辑、归档"
+    ]
+    assert coverage_gaps(requirement, plan) == []
+    for name, attribute, wrong in [
+        ("short_text", "max_length", 3000),
+        ("long_text", "max_length", 200),
+        ("long_text", "min_length", 0),
+        ("long_text", "required", True),
+    ]:
+        changed = plan.model_copy(deep=True)
+        setattr(
+            next(field for field in changed.entities[0].fields if field.name == name),
+            attribute,
+            wrong,
+        )
+        diagnostics = []
+        assert coverage_gaps(requirement, changed, diagnostics=diagnostics)
+        assert any(
+            item["source"]["section"] == "features"
+            and item["attribute"] == attribute
+            and item["targets"] == [{"entity": "alpha", "field": name}]
+            for item in diagnostics
+        )
+
+
+@pytest.mark.parametrize("wrapper", ["define({body})", "define(fields({body}))", "search({body})"])
+def test_nested_inventory_keeps_outer_capability_and_inner_explicit_conflicts(wrapper):
+    requirement, plan = scoped_inventory_case()
+    body = "short_text(required max_length=200), long_text(optional max_length=3000)"
+    requirement.features = ["alpha: " + wrapper.format(body=body)]
+    assert coverage_gaps(requirement, plan) == []
+    requirement.features = ["alpha: " + wrapper.format(body=body.replace("3000", "200"))]
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert all(
+        item["targets"] == [{"entity": "alpha", "field": "long_text"}] for item in diagnostics
+    )
+    assert all(item["source"]["section"] == "features" for item in diagnostics)
+    plan.entities[0].fields[1].max_length = 200
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert all(item["source"]["section"] == "field_requirements" for item in diagnostics)
+    if wrapper.startswith("search"):
+        plan.entities[0].fields[0].searchable = False
+        diagnostics = []
+        assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+        assert any(
+            item["source"]["section"] == "features" and item["attribute"] == "searchable"
+            for item in diagnostics
+        )
+
+
+def test_nested_inventory_preserves_adjacent_disabled_and_enabled_query_predicates():
+    requirement, plan = scoped_inventory_case()
+    plan.entities[0].fields[0].searchable = False
+    requirement.field_requirements = typed_field_ledger(plan)
+    requirement.features = ["alpha: 定义字段（short_text 不可搜索、long_text 必须可搜索）"]
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[0].searchable = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert any(
+        item["source"]["section"] == "features" and item["expected"] is False
+        for item in diagnostics
+    )
+
+
+def test_repeated_subject_in_nested_inventory_keeps_contradictory_limits():
+    requirement, plan = scoped_inventory_case()
+    requirement.features = ["alpha: define(short_text max_length=200, short_text max_length=3000)"]
+    for value, expected in [(200, 3000), (3000, 200)]:
+        plan.entities[0].fields[0].max_length = value
+        diagnostics = []
+        assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+        assert any(
+            item["source"]["section"] == "features" and item["expected"] == expected
+            for item in diagnostics
+        )
+
+
+@pytest.mark.parametrize(
+    "entity,text",
+    [
+        (
+            "requests",
+            "requests::创建请求（title 必填最长200、detail 必填最长3000、customer_id 必填外键、priority 必填枚举 普通/紧急）、编辑、归档",
+        ),
+        (
+            "tasks",
+            "tasks::创建任务（title 最长200、detail 最长3000、request_id 关联 requests）、分配",
+        ),
+    ],
+)
+def test_exact_2a4_yudao_parenthesized_numeric_inventory_keeps_each_field_limit(entity, text):
+    requirement, plan = actual_customer_field_case()
+    requirement.field_requirements = typed_field_ledger(plan)
+    requirement.features = [text]
+    assert coverage_gaps(requirement, plan) == []
+    requirement.features = [
+        text.replace("detail 必填最长3000", "detail 必填最长200").replace(
+            "detail 最长3000", "detail 最长200"
+        )
+    ]
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert all(item["source"]["section"] == "features" for item in diagnostics)
+    assert all(item["targets"] == [{"entity": entity, "field": "detail"}] for item in diagnostics)
+    assert all(
+        item["attribute"] == "max_length" and item["expected"] == 200 for item in diagnostics
+    )
+
+
 @pytest.mark.parametrize("kind", ["foreign_key", "many-to-one"])
 @pytest.mark.parametrize("entity,index", [("requests", 1), ("tasks", 3)])
 def test_exact_f6b_python_yudao_relation_facts_keep_assignee_scope(kind, entity, index):

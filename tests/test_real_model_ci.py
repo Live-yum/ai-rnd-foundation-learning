@@ -1287,3 +1287,52 @@ def test_customer_employee_tasks_remain_read_only_under_each_allowed_scope(scope
     )
     with pytest.raises(SafeFailure, match="customer_obligation"):
         require_customer_spec(spec)
+
+
+@pytest.mark.parametrize(
+    "template,leaf",
+    [
+        ("python-basic", "product"),
+        ("fastapiadmin", "native-evidence"),
+        ("yudao-vben", "native-evidence"),
+    ],
+)
+def test_approved_replay_uses_only_registered_generated_artifact(tmp_path, template, leaf):
+    from scripts.ci_real_model import (
+        DiagnosticTextBudget,
+        approved_plan_artifact_directory,
+        preserve_approved_customer_plan,
+    )
+
+    source = approved_plan_artifact_directory(tmp_path, "synthetic-run", template)
+    assert source == tmp_path / "runs/synthetic-run" / leaf
+    source.mkdir(parents=True)
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    (source / "candidate-plan.json").write_text(json.dumps(plan), encoding="utf-8")
+    destination = tmp_path / "public/approved-plan-replay.json"
+    assert (
+        preserve_approved_customer_plan(source, destination, DiagnosticTextBudget())["status"]
+        == "unavailable"
+    )
+    (source / "approved-spec.json").write_text(json.dumps(plan), encoding="utf-8")
+    assert (
+        preserve_approved_customer_plan(source, destination, DiagnosticTextBudget())["status"]
+        == "saved"
+    )
+    assert json.loads(destination.read_text(encoding="utf-8"))["business"] == plan["business"]
+
+
+@pytest.mark.parametrize("run_id", [None, "../outside", "a/b", "a\\b", "", "a" * 101])
+def test_approved_replay_rejects_invalid_run_artifact_identity(tmp_path, run_id):
+    from scripts.ci_real_model import approved_plan_artifact_directory
+
+    assert approved_plan_artifact_directory(tmp_path, run_id, "python-basic") is None
+
+
+def test_notification_schema_exposes_existing_cross_field_invariants():
+    from workbench.business_contracts import NotificationSpec
+
+    fields = NotificationSpec.model_json_schema()["properties"]
+    assert "never null or a wildcard" in fields["transition"]["description"]
+    assert "per named transition and recipient" in fields["transition"]["description"]
+    assert "other events require null" in fields["due_field"]["description"]

@@ -83,8 +83,18 @@ class NotificationSpec(BusinessContract):
     entity: Name
     event: Literal["created", "assigned", "transitioned", "note_added", "due"]
     recipient: Literal["creator", "assignee"]
-    transition: Name | None = None
-    due_field: Name | None = None
+    transition: Name | None = Field(
+        default=None,
+        description=(
+            "For event=transitioned this must name an existing transition in the same entity's "
+            "workflow, never null or a wildcard. An all-state-changes requirement needs one "
+            "notification per named transition and recipient. Other events require null."
+        ),
+    )
+    due_field: Name | None = Field(
+        default=None,
+        description="For event=due name an optional date/datetime field on this entity; other events require null.",
+    )
     channel: Literal["in_app"] = "in_app"
 
 

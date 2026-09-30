@@ -5,6 +5,7 @@ import asyncio
 import runpy
 from datetime import UTC, datetime
 from types import SimpleNamespace
+from zipfile import ZipFile
 
 import pytest
 from fastapi import HTTPException
@@ -256,11 +257,55 @@ def test_yudao_source_guards_target_receiving_scope_and_actor_row_acl():
     assert (
         action.index("if(sidecar.activeUser(tenant(),user)==null)")
         < action.index(
-            'if(!eligibleAssignee(name,user)) throw bad("Assignee cannot handle this resource")'
+            "if(!eligibleAssignee(name,user)) throw new ServiceException("
+            'BAD_REQUEST.getCode(),"Assignee cannot handle this resource")'
         )
         < action.index("set(row,wire(field),user)")
+        < action.index("persist(name,row)")
+        < action.index("event(name,row,action,before,note)")
+        < action.index("notify(name,row,notificationEvent,transition,audit)")
     )
     users = source.split("public Object users()", 1)[1].split("public void changeRole(", 1)[0]
     assert 'eligibleAssignee(name,number(user.get("id")))' in users
     assert 'user.put("eligibleEntities",eligibleEntities)' in users
     assert parse_file(path)["parse_error"] is False
+
+
+def test_yudao_ineligible_assignee_uses_pinned_native_client_error_mapping():
+    """Source contract only; real HTTP status and rollback are checked by native CI."""
+    source = (ROOT / "templates/business/yudao/RndBusinessService.java").read_text()
+    assert "import cn.iocoder.yudao.framework.common.exception.ServiceException;" in source
+    assert (
+        "import static cn.iocoder.yudao.framework.common.exception.enums."
+        "GlobalErrorCodeConstants.BAD_REQUEST;"
+    ) in source
+    assert source.count("new ServiceException(") == 1
+    assert (
+        "private IllegalArgumentException bad(String detail) "
+        "{ return new IllegalArgumentException(detail); }"
+    ) in source
+    assert (
+        "private AccessDeniedException denied() { return new AccessDeniedException("
+        '"Business permission denied"); }'
+    ) in source
+    assert "catch(IllegalArgumentException ignored)" in source
+
+    common = "yudao-framework/yudao-common/src/main/java/cn/iocoder/yudao/framework/common/"
+    web = (
+        "yudao-framework/yudao-spring-boot-starter-web/src/main/java/"
+        "cn/iocoder/yudao/framework/web/core/handler/"
+    )
+    with ZipFile(ROOT / "templates/vendor/yudao-backend.zip") as archive:
+        exception = archive.read(common + "exception/ServiceException.java").decode()
+        codes = archive.read(common + "exception/enums/GlobalErrorCodeConstants.java").decode()
+        handler = archive.read(web + "GlobalExceptionHandler.java").decode()
+    constructor = exception.split("public ServiceException(Integer code, String message)", 1)[1]
+    constructor = constructor.split("}", 1)[0]
+    assert "this.code = code;" in constructor and "this.message = message;" in constructor
+    assert "ErrorCode BAD_REQUEST = new ErrorCode(400," in codes
+    assert "@ExceptionHandler(value = ServiceException.class)" in handler
+    mapping = handler.split(
+        "public CommonResult<?> serviceExceptionHandler(ServiceException ex)", 1
+    )[1]
+    mapping = mapping.split("@ExceptionHandler(value = Exception.class)", 1)[0]
+    assert "return CommonResult.error(ex.getCode(), ex.getMessage());" in mapping

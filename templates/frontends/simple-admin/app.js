@@ -379,6 +379,8 @@ async function showBusinessDetail(row) {
     const notes=await(await api(`/api/${chosen.name}/${row.id}/notes`)).json();
     if(sequence!==detailSequence || chosen!==entity) return;
     notes.forEach(note=>node("p",`${displayTime(note.created_at)} · ${actorLabel(note)}：${note.body}`,$("business-notes")));
+  }
+  if(can("read_history") || can("read_audit")) {
     const history=await(await api(`/api/${chosen.name}/${row.id}/history`)).json();
     if(sequence!==detailSequence || chosen!==entity) return;
     history.forEach(item=>{

@@ -1,5 +1,6 @@
 package cn.iocoder.yudao.module.infra.business;
 
+import cn.iocoder.yudao.framework.common.exception.ServiceException;
 import cn.iocoder.yudao.framework.security.core.util.SecurityFrameworkUtils;
 import cn.iocoder.yudao.framework.tenant.core.context.TenantContextHolder;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -18,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.*;
 import java.util.*;
 import java.util.stream.Collectors;
+import static cn.iocoder.yudao.framework.common.exception.enums.GlobalErrorCodeConstants.BAD_REQUEST;
 
 /** Generic approved-contract runtime over the real Infra-generated MyBatis entities. */
 @Service
@@ -352,7 +354,7 @@ public class RndBusinessService {
         String note=data.get("note")==null?"":String.valueOf(data.get("note"));if(note.length()>4000) throw bad("Note too long");
         if(action.equals("assign")) {
             String field=resource(name).path("assignee_field").asText("");if(field.isEmpty()) throw bad("No assignee field");Object recipient=data.get("assigneeId");
-            if(recipient!=null&&!recipient.toString().isEmpty()) {Long user=number(recipient);if(sidecar.activeUser(tenant(),user)==null) throw bad("Unknown active business assignee");if(!eligibleAssignee(name,user)) throw bad("Assignee cannot handle this resource");set(row,wire(field),user);} else set(row,wire(field),null);
+            if(recipient!=null&&!recipient.toString().isEmpty()) {Long user=number(recipient);if(sidecar.activeUser(tenant(),user)==null) throw bad("Unknown active business assignee");if(!eligibleAssignee(name,user)) throw new ServiceException(BAD_REQUEST.getCode(),"Assignee cannot handle this resource");set(row,wire(field),user);} else set(row,wire(field),null);
         } else if(action.equals("transition")) {
             JsonNode w=workflow(name);if(w==null) throw bad("No workflow");transition=String.valueOf(data.get("transition"));JsonNode selected=null;
             for(JsonNode t:w.path("transitions")) if(t.path("name").asText().equals(transition)) selected=t;

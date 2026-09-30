@@ -17,7 +17,9 @@ from workbench.settings import ROOT
 
 
 @contextmanager
-def assignment_case(template, read_scope=None, assign_scope=None, violation=None):
+def assignment_case(
+    template, read_scope=None, assign_scope=None, violation=None, denial_response=None
+):
     plan = Plan.model_validate_json(
         (ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8")
     )
@@ -150,6 +152,8 @@ def assignment_case(template, read_scope=None, assign_scope=None, violation=None
             if not eligible and violation != "ineligible_assignee":
                 error = 422 if fastapi else 400
         if error is not None:
+            if denial_response is not None:
+                return denial_response
             if violation == "server_error":
                 return answer(code=500)
             if violation == "unrelated_denial":
@@ -304,3 +308,55 @@ def test_approved_restricted_assign_cannot_escape_its_row_scope(template):
     ) as (args, _, _):
         with pytest.raises(AssertionError, match="foreign_row_denied"):
             probe.verify_assignment_boundaries(*args)
+
+
+@pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])
+def test_native_denial_server_error_diagnostics_remain_safe_and_fail_closed(template):
+    status = 500 if template == "fastapiadmin" else 200
+    response = httpx.Response(
+        status,
+        headers={"X-Debug-Token": "header-secret"},
+        json={
+            "code": 500,
+            "msg": "系统异常 body-secret",
+            "detail": "exception-secret",
+            "data": {"token": "data-secret"},
+        },
+    )
+    with assignment_case(template, denial_response=response) as (args, _, _):
+        with pytest.raises(AssertionError) as error:
+            probe.verify_assignment_boundaries(*args)
+    message = str(error.value)
+    assert "own_only_assignee_denied" in message and "entity=requests" in message
+    assert f"http_status={status}, response_code=500" in message
+    assert len(message) < 240
+    assert all(part not in message for part in ["secret", "系统异常", "X-Debug-Token", "Bearer"])
+
+
+@pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])
+@pytest.mark.parametrize(
+    "code",
+    [True, False, "400", "token-secret", 400.0, None, [400], {"token": "secret"}, 10**500],
+)
+def test_native_denial_diagnostics_do_not_echo_noninteger_or_unbounded_codes(template, code):
+    response = httpx.Response(200, json={"code": code, "msg": "message-secret"})
+    with assignment_case(template, denial_response=response) as (args, _, _):
+        with pytest.raises(AssertionError) as error:
+            probe.verify_assignment_boundaries(*args)
+    message = str(error.value)
+    assert "http_status=200, response_code=None" in message
+    assert "secret" not in message
+    assert len(message) < 240
+
+
+@pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])
+@pytest.mark.parametrize("body", [b"<html>body-secret</html>", b"[400]", b"null", b'"secret"'])
+def test_native_denial_diagnostics_handle_malformed_or_nonobject_bodies(template, body):
+    response = httpx.Response(200, content=body)
+    with assignment_case(template, denial_response=response) as (args, _, _):
+        with pytest.raises(AssertionError) as error:
+            probe.verify_assignment_boundaries(*args)
+    message = str(error.value)
+    assert "http_status=200, response_code=None" in message
+    assert "secret" not in message and "html" not in message
+    assert len(message) < 240

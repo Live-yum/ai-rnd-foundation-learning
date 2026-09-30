@@ -534,10 +534,22 @@ def safe_runtime_details(error, native_reports, text_budget):
 MAX_REPLAY_PLAN_BYTES = 131072
 
 
+def approved_plan_artifact_directory(data_dir, run_id, template):
+    """Select only a registered generated approval artifact, never a revision."""
+    if (
+        template not in {"python-basic", "fastapiadmin", "yudao-vben"}
+        or not isinstance(run_id, str)
+        or not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", run_id)
+    ):
+        return None
+    leaf = "product" if template == "python-basic" else "native-evidence"
+    return Path(data_dir) / "runs" / run_id / leaf
+
+
 def preserve_approved_customer_plan(native_reports, destination, text_budget):
     """Retain only a validated, credential-free, synthetic approved Plan.
 
-    native_lab writes approved-spec.json only after the design approval gate.
+    The Python generator and native_lab write approved-spec.json only after the design approval gate.
     Reject rather than alter credential-bearing contracts: a changed Plan cannot
     truthfully reproduce the failed run. Never fall back to a raw provider reply,
     an unapproved design revision, generated source, a database, or a tool log.
@@ -1303,7 +1315,7 @@ def run_acceptance(config, transport, directory, template="python-basic"):
                 native_reports=native_reports,
             )
             details["approved_plan_replay"] = preserve_approved_customer_plan(
-                native_reports,
+                approved_plan_artifact_directory(settings.data_dir, run_id, template),
                 ROOT / "reports/real-model/approved-plan-replay.json",
                 diagnostic_text,
             )

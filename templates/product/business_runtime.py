@@ -630,7 +630,18 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
     @app.get("/api/{entity}/{identity}/history")
     def history(entity: str, identity: str, actor=Depends(current)):
         with engine.connect() as connection:
-            record(connection, actor, entity, identity, "read_history", archived=True)
+            # Audit is an independent grant, not a history permission add-on.
+            full = "read_audit" in policy.permissions.get((actor["role"], entity), {}).get(
+                "actions", []
+            )
+            record(
+                connection,
+                actor,
+                entity,
+                identity,
+                "read_audit" if full else "read_history",
+                archived=True,
+            )
             rows = (
                 connection.execute(
                     select(tables["business_audit"])
@@ -645,9 +656,6 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
             )
             names = history_actor_names(connection, rows)
             # History shows actors/actions/time; full snapshots require read_audit.
-            full = "read_audit" in policy.permissions.get((actor["role"], entity), {}).get(
-                "actions", []
-            )
             return [
                 {
                     **{k: row[k] for k in ("id", "actor_id", "action", "created_at")},

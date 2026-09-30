@@ -678,3 +678,181 @@ def test_entity_keyed_kind_only_fields_do_not_become_business_collections(name, 
     assert coverage_gaps(requirement, plan), "The field kind obligation must stay binding"
     plan.entities[0].fields.pop()
     assert coverage_gaps(requirement, plan), "A missing explicit field must still block"
+
+
+def transition_notification_case(descriptor):
+    requirement, plan = case({"notifications": [descriptor]})
+    raw = plan.model_dump()
+    raw["business"]["notifications"] = [
+        {
+            "entity": workflow.entity,
+            "event": "transitioned",
+            "recipient": recipient,
+            "transition": transition.name,
+        }
+        for workflow in plan.business.workflows
+        for transition in workflow.transitions
+        for recipient in ("assignee", "creator")
+    ]
+    return requirement, Plan.model_validate(raw)
+
+
+@pytest.mark.parametrize("event", ["transitioned", "state_change", "state_changed"])
+@pytest.mark.parametrize("selector", ["omitted", None, "*"])
+@pytest.mark.parametrize("encoded", [False, True])
+@pytest.mark.parametrize("missing", ["start", "resolve"])
+def test_generic_state_change_facts_require_every_declared_transition(
+    event, selector, encoded, missing
+):
+    descriptor = {
+        "entity": "requests",
+        "event": event,
+        "recipient": "assignee",
+        "due_field": None,
+        "channel": "in_app",
+    }
+    if selector != "omitted":
+        descriptor["transition"] = selector
+    requirement, plan = transition_notification_case(descriptor)
+    if encoded:
+        requirement.facts = {"notifications": json.dumps([descriptor])}
+    before = requirement.model_dump_json()
+    assert business_gaps(requirement, plan) == []
+    plan.business.notifications = [
+        item
+        for item in plan.business.notifications
+        if not (
+            item.entity == "requests"
+            and item.recipient == "assignee"
+            and item.transition == missing
+        )
+    ]
+    # The same transition remains on the wrong entity and wrong recipient.
+    assert business_gaps(requirement, plan)
+    assert requirement.model_dump_json() == before
+
+
+@pytest.mark.parametrize("event", ["transitioned", "state_change", "state_changed"])
+@pytest.mark.parametrize("selected", ["start", "resolve"])
+def test_explicit_state_change_selector_is_exact_not_all_transitions(event, selected):
+    requirement, plan = transition_notification_case(
+        {"entity": "requests", "event": event, "recipient": "assignee", "transition": selected}
+    )
+    plan.business.notifications = [
+        item
+        for item in plan.business.notifications
+        if item.entity != "requests" or item.recipient != "assignee" or item.transition == selected
+    ]
+    assert business_gaps(requirement, plan) == []
+    requirement.facts["notifications"][0]["transition"] = (
+        "resolve" if selected == "start" else "start"
+    )
+    assert business_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize("selected", ["all", "any"])
+def test_ordinary_transition_identifiers_are_not_invented_wildcards(selected):
+    requirement, plan = transition_notification_case(
+        {
+            "entity": "requests",
+            "event": "transitioned",
+            "recipient": "assignee",
+            "transition": selected,
+        }
+    )
+    plan.business.workflows[0].transitions[0].name = selected
+    for item in plan.business.notifications:
+        if item.entity == "requests" and item.transition == "start":
+            item.transition = selected
+    plan.business.notifications = [
+        item
+        for item in plan.business.notifications
+        if not (item.entity == "requests" and item.transition == "resolve")
+    ]
+    assert business_gaps(requirement, plan) == []
+
+
+def test_generic_state_change_obligation_expands_when_workflow_gains_transition():
+    from workbench.business_contracts import NotificationSpec, TransitionSpec
+
+    requirement, plan = transition_notification_case(
+        {
+            "entity": "requests",
+            "event": "transitioned",
+            "recipients": ["assignee", "creator"],
+            "transition": None,
+        }
+    )
+    assert business_gaps(requirement, plan) == []
+    plan.business.workflows[0].transitions.append(
+        TransitionSpec(
+            name="reopen", from_states=["resolved"], to_state="active", roles=["manager"]
+        )
+    )
+    assert business_gaps(requirement, plan)
+    plan.business.notifications.append(
+        NotificationSpec(
+            entity="requests", event="transitioned", recipient="assignee", transition="reopen"
+        )
+    )
+    assert business_gaps(requirement, plan), (
+        "Every explicitly named recipient needs the new transition"
+    )
+    plan.business.notifications.append(
+        NotificationSpec(
+            entity="requests", event="transitioned", recipient="creator", transition="reopen"
+        )
+    )
+    assert business_gaps(requirement, plan) == []
+
+
+def test_generic_requirement_never_relaxes_executable_notification_validator():
+    requirement, plan = transition_notification_case(
+        {"entity": "requests", "event": "transitioned", "recipient": "assignee", "transition": None}
+    )
+    assert business_gaps(requirement, plan) == []
+    raw = plan.model_dump()
+    raw["business"]["notifications"][0]["transition"] = None
+    with pytest.raises(ValueError, match="Notification requires a known transition"):
+        Plan.model_validate(raw)
+
+
+@pytest.mark.parametrize("selector", ["missing", "", [], {}, False])
+def test_invalid_or_unknown_specific_transition_is_not_a_generic_requirement(selector):
+    requirement, plan = transition_notification_case(
+        {
+            "entity": "requests",
+            "event": "transitioned",
+            "recipient": "assignee",
+            "transition": selector,
+        }
+    )
+    assert business_gaps(requirement, plan)
+
+
+def test_transition_wildcard_does_not_change_non_transition_event_semantics():
+    requirement, plan = case(
+        {
+            "notifications": [
+                {
+                    "entity": "requests",
+                    "event": "assigned",
+                    "recipient": "assignee",
+                    "transition": "*",
+                }
+            ]
+        }
+    )
+    assert business_gaps(requirement, plan)
+
+
+def test_unscoped_generic_transition_does_not_invent_notifications_on_every_entity():
+    requirement, plan = transition_notification_case(
+        {"event": "transitioned", "recipient": "assignee", "transition": None}
+    )
+    plan.business.notifications = [
+        item for item in plan.business.notifications if item.entity == "requests"
+    ]
+    assert business_gaps(requirement, plan) == []
+    requirement.facts["notifications"][0]["entity"] = "tasks"
+    assert business_gaps(requirement, plan)

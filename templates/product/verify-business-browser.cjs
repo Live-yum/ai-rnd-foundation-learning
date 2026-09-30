@@ -145,9 +145,16 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
     const buttons=await page.locator('#business-related button').allTextContents();
     verify(JSON.stringify(buttons)===JSON.stringify(orderedButtons.map(button=>button.text)),'related-rendered-records');
     verify(await page.locator('#business-related p').count()===item.groups.filter(group=>!group.record_ids.length).length,'related-empty-groups');
-    // read_history is independent of read/add_note. Do not invent a grant for employees.
+    // Notes require history; full audit is an independent approved capability.
     if(!allowed(actor.role,entity.name,'read_history')) {
-      verify(await page.locator('#business-notes > *,#business-history > *').count()===0,'history-permission');
+      verify(await page.locator('#business-notes > *').count()===0,'notes-permission');
+    }
+    if(!allowed(actor.role,entity.name,'read_history')&&!allowed(actor.role,entity.name,'read_audit')) {
+      verify(await page.locator('#business-history > *').count()===0,'history-permission');
+    } else {
+      verify(await page.locator('#business-history > p').count()>0,'history-visible');
+      const auditDetails=await page.locator('#business-history > details').count();
+      verify(allowed(actor.role,entity.name,'read_audit')?auditDetails>0:auditDetails===0,'audit-permission');
     }
     const resource=business.resources.find(resource=>resource.entity===entity.name);
     for(const label of labels.filter(label=>label.record_id===item.record_id&&label.field===resource.assignee_field)) {

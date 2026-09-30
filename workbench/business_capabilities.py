@@ -401,12 +401,18 @@ def _notification_match(descriptor, business):
             event = "transitioned"
         if event not in {None, "created", "assigned", "transitioned", "note_added", "due"}:
             raise ValueError("未知通知事件 " + str(trigger))
+        selector = value.get("transition")
+        # Requirement facts may describe every state change with no selector.
+        # The executable contract still needs one concrete notification per
+        # declared transition; a nullable fact must never become a null runtime
+        # rule or weaken an explicitly named transition.
+        generic_transition = event == "transitioned" and (selector is None or selector == "*")
         candidates = [
             item
             for item in notices
             if (event is None or item.event == event)
             and ("entity" not in value or item.entity == value["entity"])
-            and ("transition" not in value or item.transition == value["transition"])
+            and (generic_transition or "transition" not in value or item.transition == selector)
             and ("due_field" not in value or item.due_field == value["due_field"])
         ]
         for entity in {item.entity for item in candidates}:
@@ -419,8 +425,14 @@ def _notification_match(descriptor, business):
                     if workflow
                     else []
                 )
-            elif trigger in {"state_change", "state_changed"}:
+            elif generic_transition:
                 transitions = [item.name for item in workflow.transitions] if workflow else []
+            elif event == "transitioned":
+                transitions = (
+                    [selector]
+                    if workflow and any(item.name == selector for item in workflow.transitions)
+                    else []
+                )
             if condition_field and event == "due":
                 if not workflow:
                     continue
