@@ -75,7 +75,9 @@ def worker(tmp_path, monkeypatch):
     (tmp_path / "api-key.json").write_text(
         json.dumps({"value": "local-test-key-not-a-real-credential"}), encoding="utf-8"
     )
-    client = Mock()
+    client = SimpleNamespace(
+        snapshot=Mock(), _http_client=Mock(), _api_client=Mock(), _toolbox_api_client=Mock()
+    )
     client.snapshot.list.return_value = page(1, [])
     client.snapshot.create.return_value = snapshot()
     monkeypatch.setattr(bootstrap, "install_loopback_guard", lambda: None)
@@ -99,7 +101,8 @@ def test_worker_creates_or_reuses_only_matching_active_local_snapshot(worker, re
     env = (directory / "workbench.env").read_text(encoding="utf-8")
     assert "DAYTONA_API_URL=http://127.0.0.1:3000/api" in env
     assert f"DAYTONA_SNAPSHOT={NAME}" in env
-    client.close.assert_called_once()
+    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
+        getattr(client, name).close.assert_called_once()
 
 
 @pytest.mark.parametrize("reuse", [False, True])
@@ -124,7 +127,8 @@ def test_worker_never_writes_ready_config_for_wrong_or_unready_snapshot(
     with pytest.raises(ValueError, match=message):
         bootstrap.snapshot_worker(directory)
     assert not (directory / "workbench.env").exists()
-    client.close.assert_called_once()
+    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
+        getattr(client, name).close.assert_called_once()
 
 
 def test_worker_preserves_existing_credentials_and_closes_on_list_failure(worker):
@@ -136,4 +140,5 @@ def test_worker_preserves_existing_credentials_and_closes_on_list_failure(worker
         bootstrap.snapshot_worker(directory)
     assert (directory / "workbench.env").read_text(encoding="utf-8") == existing
     client.snapshot.create.assert_not_called()
-    client.close.assert_called_once()
+    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
+        getattr(client, name).close.assert_called_once()

@@ -57,6 +57,32 @@ def client_for(settings):
     )
 
 
+def close_client(client):
+    """Close owned transports of the pinned SDK, which has no Daytona.close().
+
+    These names belong to our fixed SDK adapter, not a guessed public API.
+    Sandbox deletion is separate and must complete before transport shutdown.
+    All callers run in a bounded child process as an additional resource boundary.
+    """
+    import sys
+
+    original = sys.exception()
+    failures = []
+    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
+        transport = getattr(client, name, None)
+        if transport is not None:
+            try:
+                transport.close()
+            except Exception as exc:
+                failures.append(type(exc).__name__)
+    if failures:
+        message = "本机Daytona传输资源关闭失败：" + ", ".join(failures)
+        if original is not None:
+            original.add_note(message)
+        else:
+            raise PrerequisiteError(message)
+
+
 def params_for(settings, name=None):
     from daytona import CreateSandboxFromSnapshotParams
 

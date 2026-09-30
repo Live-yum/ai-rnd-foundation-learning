@@ -220,9 +220,9 @@ uv run python -m scripts.daytona_bootstrap auth
 uv run python -m scripts.daytona_bootstrap snapshot
 ```
 
-auth使用本机Dex的独立bootstrap客户端及随机本机密码取得经过真实签名验证的身份，再为个人组织创建只含所需资源权限的API Key。它不伪造JWT、不登录云账号。这个密码授权流程只为回环绑定的开发环境提供确定性初始化，不建议照搬到公开OAuth产品。
+auth使用本机Dex的独立bootstrap客户端及随机本机密码取得经过真实签名验证的身份，通过签名身份把本机个人组织的默认区域设为local并重新读取核对，再创建只含所需资源权限的API Key。服务端已有local区域并不意味着新个人组织已经选择它；已有其他默认区域时脚本会停止，不会擅自覆盖。它不伪造JWT、不登录云账号。这个密码授权流程只为回环绑定的开发环境提供确定性初始化，不建议照搬到公开OAuth产品。
 
-上一节的snapshot-image只向docker build传入Dockerfile、产品pyproject.toml和uv.lock三个公开输入，不传平台源码目录、.env或用户数据。构建阶段下载Python3.14.7、uv和产品锁定依赖，把缓存预热到镜像；之后推送到本机127.0.0.1:6000 Registry。snapshot把该本机镜像登记为本机Daytona快照。注册操作在最长720秒的独立本机子进程中完成，超时终止而不是无限等待；失败不能写成已就绪。检查本机API/Runner日志和快照状态后再运行snapshot，不删除数据库或更换云端服务。
+上一节的snapshot-image只向docker build传入Dockerfile、产品pyproject.toml和uv.lock三个公开输入，不传平台源码目录、.env或用户数据。构建阶段下载Python3.14.7、uv和产品锁定依赖，把缓存预热到镜像；之后推送到本机127.0.0.1:6000 Registry。snapshot把该本机镜像登记为本机Daytona快照。脚本通过有限分页列表精确匹配名称，避免固定服务版本的名称查询进入UUID校验路径；不能把查询失败当成快照不存在。只有名称、镜像来源和active状态同时匹配才写入就绪配置；重复名称、未完成的分页、认证失败和未就绪快照都会停止，且不会覆盖已有凭据。注册操作在最长720秒的独立本机子进程中完成，超时终止而不是无限等待；失败不能写成已就绪。固定SDK没有Daytona.close()，适配器在独立进程结束前逐一关闭其实际HTTP/API传输资源；这不能代替删除沙箱。检查本机API/Runner日志和快照状态后再运行snapshot，不删除数据库或更换云端服务。
 
 生成的`.data/daytona-local/workbench.env`包含可直接填入项目`.env`的六个Daytona字段及工具超时。打开文件在本机复制这些配置，不把Key贴到Issue、聊天或报告里。不要覆盖已有的BASE_URL/API_KEY/MODE；它们属于聊天大模型。
 
@@ -267,7 +267,7 @@ down不带-v，不删除持久卷、用户、Key或快照。已有安装用up继
 | 精确编辑 | aider_tool.apply_blocks、code_rules_with_aider | CLI实际执行、唯一前像、文件范围、SHA、规则正反例、Git提交 |
 | IDE桥接 | context_mcp.make_server、export_continue | 真实stdio MCP初始化、工具列表和查询，不是云端服务 |
 | 本机沙箱 | sandbox、daytona_worker、daytona_local、daytona_bootstrap | URL/网络拒绝测试；另加本机完整服务生命周期报告 |
-| 唯一手册 | build_handbook、rebuild_from_handbook、ci_handbook | 全部文本源码哈希、空目录重建、第三方依赖重建与本地导入来源 |
+| 唯一手册 | build_handbook、rebuild_from_handbook、ci_handbook | 全部文本源码哈希、空目录重建、第三方依赖重建、本地导入来源及完整非PostgreSQL回归 |
 
 ### 固定实现的官方来源
 

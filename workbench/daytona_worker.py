@@ -63,7 +63,12 @@ def main():
         raise ValueError("Daytona控制参数过大")
     payload = json.loads(data)
     install_loopback_guard()
-    from workbench.sandbox import _verify_in_daytona, client_for, validate_configuration
+    from workbench.sandbox import (
+        _verify_in_daytona,
+        client_for,
+        close_client,
+        validate_configuration,
+    )
     from workbench.settings import Settings
 
     settings = Settings(_env_file=None, **payload["settings"])
@@ -75,8 +80,7 @@ def main():
         print(settings.redact(str(exc)), file=sys.stderr)
         raise SystemExit(1) from None
     finally:
-        if hasattr(client, "close"):
-            client.close()
+        close_client(client)
 
 
 if __name__ == "__main__":

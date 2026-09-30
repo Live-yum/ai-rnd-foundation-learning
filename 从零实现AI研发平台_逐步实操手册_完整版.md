@@ -737,7 +737,7 @@ Runtime在本机文件锁和可选PG advisory lock下启动单Worker。文件锁
 | 流程/API | `uv run pytest tests/test_api.py tests/test_workflow.py tests/test_guided_workflow.py -q` | gate_id、显式布尔值、Job状态与幂等键 |
 | 全部文件 | `uv run python -m scripts.build_handbook`，然后`uv run pytest -m "not postgres" -q` | 先生成唯一手册，再检查源码块与当前文件的一致性 |
 | 真实工具 | `uv run python -m scripts.ci_toolchain` | Aider独立环境、实际MCP进程、源码索引，不是模型账号 |
-| 手册独立重建 | `uv run python -m scripts.ci_handbook` | 文档源码块、固定第三方依赖重建和本地导入来源 |
+| 手册独立重建 | `uv run python -m scripts.ci_handbook` | 文档源码块、固定第三方依赖重建、本地导入来源及重建后的完整非PostgreSQL回归 |
 
 测试名不是“全部功能一定正确”的证明。单元测试验证契约和分支；HTTP、数据库、真实CLI、浏览器和本机自托管服务测试验证实际连接。不同证据在报告中分开，未运行的检查不得填passed=true。
 
@@ -1297,9 +1297,9 @@ uv run python -m scripts.daytona_bootstrap auth
 uv run python -m scripts.daytona_bootstrap snapshot
 ```
 
-auth使用本机Dex的独立bootstrap客户端及随机本机密码取得经过真实签名验证的身份，再为个人组织创建只含所需资源权限的API Key。它不伪造JWT、不登录云账号。这个密码授权流程只为回环绑定的开发环境提供确定性初始化，不建议照搬到公开OAuth产品。
+auth使用本机Dex的独立bootstrap客户端及随机本机密码取得经过真实签名验证的身份，通过签名身份把本机个人组织的默认区域设为local并重新读取核对，再创建只含所需资源权限的API Key。服务端已有local区域并不意味着新个人组织已经选择它；已有其他默认区域时脚本会停止，不会擅自覆盖。它不伪造JWT、不登录云账号。这个密码授权流程只为回环绑定的开发环境提供确定性初始化，不建议照搬到公开OAuth产品。
 
-上一节的snapshot-image只向docker build传入Dockerfile、产品pyproject.toml和uv.lock三个公开输入，不传平台源码目录、.env或用户数据。构建阶段下载Python3.14.7、uv和产品锁定依赖，把缓存预热到镜像；之后推送到本机127.0.0.1:6000 Registry。snapshot把该本机镜像登记为本机Daytona快照。注册操作在最长720秒的独立本机子进程中完成，超时终止而不是无限等待；失败不能写成已就绪。检查本机API/Runner日志和快照状态后再运行snapshot，不删除数据库或更换云端服务。
+上一节的snapshot-image只向docker build传入Dockerfile、产品pyproject.toml和uv.lock三个公开输入，不传平台源码目录、.env或用户数据。构建阶段下载Python3.14.7、uv和产品锁定依赖，把缓存预热到镜像；之后推送到本机127.0.0.1:6000 Registry。snapshot把该本机镜像登记为本机Daytona快照。脚本通过有限分页列表精确匹配名称，避免固定服务版本的名称查询进入UUID校验路径；不能把查询失败当成快照不存在。只有名称、镜像来源和active状态同时匹配才写入就绪配置；重复名称、未完成的分页、认证失败和未就绪快照都会停止，且不会覆盖已有凭据。注册操作在最长720秒的独立本机子进程中完成，超时终止而不是无限等待；失败不能写成已就绪。固定SDK没有Daytona.close()，适配器在独立进程结束前逐一关闭其实际HTTP/API传输资源；这不能代替删除沙箱。检查本机API/Runner日志和快照状态后再运行snapshot，不删除数据库或更换云端服务。
 
 生成的`.data/daytona-local/workbench.env`包含可直接填入项目`.env`的六个Daytona字段及工具超时。打开文件在本机复制这些配置，不把Key贴到Issue、聊天或报告里。不要覆盖已有的BASE_URL/API_KEY/MODE；它们属于聊天大模型。
 
@@ -1344,7 +1344,7 @@ down不带-v，不删除持久卷、用户、Key或快照。已有安装用up继
 | 精确编辑 | aider_tool.apply_blocks、code_rules_with_aider | CLI实际执行、唯一前像、文件范围、SHA、规则正反例、Git提交 |
 | IDE桥接 | context_mcp.make_server、export_continue | 真实stdio MCP初始化、工具列表和查询，不是云端服务 |
 | 本机沙箱 | sandbox、daytona_worker、daytona_local、daytona_bootstrap | URL/网络拒绝测试；另加本机完整服务生命周期报告 |
-| 唯一手册 | build_handbook、rebuild_from_handbook、ci_handbook | 全部文本源码哈希、空目录重建、第三方依赖重建与本地导入来源 |
+| 唯一手册 | build_handbook、rebuild_from_handbook、ci_handbook | 全部文本源码哈希、空目录重建、第三方依赖重建、本地导入来源及完整非PostgreSQL回归 |
 
 ### 固定实现的官方来源
 
@@ -1404,11 +1404,11 @@ Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01
 
 每个工作任务内，需求澄清和设计阶段分别最多执行两轮自动修正，需求阶段的修正不会消耗设计阶段的额度；全局模型调用和费用预算仍然生效。无法收敛会保留 `BLOCKED` 和对应 gate，而不是无限消耗模型调用。暂停并不总表示模板不支持，也可能只是模型没有决定完问题。错误信息展示具体原因，运行目录下的 `recommendation-blocked.json` 保留阶段、gate ID、该阶段尝试次数、问题和限制说明。该文件是一次暂停的诊断快照；恢复后以运行当前状态及最终验收报告为准。
 
-模型结果缓存同时绑定阶段、模型、提示词、输入和 JSON Schema。升级修复提示词、变更反馈或契约后，不会误用旧回答；完全相同的崩溃重放仍复用既有结果。预算统计不因缓存键更新而清零。
+模型结果缓存同时绑定阶段、模型、提示词、输入和 JSON Schema。提示词、反馈或契约发生变动时，不会误用旧回答；完全相同的崩溃重放仍复用既有结果。预算统计不因缓存键更新而清零。
 
 ## 从 BLOCKED 恢复，不创建新项目
 
-升级代码后先停止并重启原 `rnd start` 进程，保持原来的 `.env`、数据目录和数据库。不要删除 `.data`，不要手改检查点、审批记录或运行状态；删除它们会丢失本来可以恢复的历史。
+恢复已有运行时，先确认只运行一个使用当前代码的 `rnd start` 进程，保持原来的 `.env`、数据目录和数据库。不要删除 `.data`，不要手改检查点、审批记录或运行状态；删除它们会丢失本来可以恢复的历史。
 
 使用原 ID 打开交互：
 
@@ -1433,7 +1433,7 @@ uv run rnd chat --run <原运行ID>
 
 关闭自主决策使用 `uv run rnd manual <原运行ID>`。对保留 gate 的 `BLOCKED`，状态变为相应的 `WAITING_*`，下一次交互可直接答复。模型认证、预算或工具执行失败且没有 gate 时，先修复实际原因，再执行 `uv run rnd retry <原运行ID>`，然后重新打开交互。重试不会绕过鉴权、费用预算、数据隔离或测试要求。
 
-旧版本的需求检查点没有 `limitations` 字段。`Requirement.gate_dump` 在此字段为空时保留原来的 gate 内容摘要，避免升级后 `Command(resume=...)` 重放同一节点时造成审批版本不匹配。非空说明仍纳入新版本摘要，不能复用旧批准。
+检查点必须容忍可选字段缺省。`Requirement.gate_dump` 在 `limitations` 字段为空时不将其纳入 gate 内容摘要，因此有无显式空字段都代表同一份审批内容；`Command(resume=...)` 重放同一节点时仍能核对原批准。非空说明会改变摘要，不能复用不对应内容的批准。
 
 ## 如何验证这条流程
 
@@ -2642,12 +2642,12 @@ def selections():
 - `retry`（L318–L320）：接收`run`。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `download`（L324–L335）：接收`run`、`output`。 控制顺序：L329按`target.exists()`分支；L330抛异常，停止当前正常路径。 调用`Path`、`output.mkdir`、`str`、`uuid.UUID`、`target.exists`、`typer.BadParameter`、`client`、`c.get`、`response.raise_for_status`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `index`（L339–L343）：接收`source`、`output`。 源码说明：在源码目录外创建增量 AST/文件哈希知识包。。 调用`echo`、`build_index`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `native_prepare`（L347–L351）：接收`template`。 源码说明：克隆白名单中的固定开源提交，建立原生模板源码知识包。。 调用`echo`、`prepare_sources`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_prepare`（L347–L351）：接收`template`。 源码说明：校验并展开仓库内固定源码归档，建立原生模板源码知识包；不在线克隆。。 调用`echo`、`prepare_sources`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `config_example`（L355–L359）：接收`template`。 源码说明：创建本机原生服务配置示例，不覆盖已有配置。。 调用`typer.echo`、`str`、`write_config_example`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `native_runtime_config`（L363–L367）：接收`template`。 源码说明：创建原生全栈运行配置；必须显式授权专用空 PostgreSQL 库。。 调用`typer.echo`、`str`、`write_runtime_example`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `native_serve`（L371–L378）：接收`run`。 源码说明：重新打开已验收原生产品；复用开发库，不删库、不重新生成。。 调用`serve_managed`、`Settings`、`typer.echo`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/cli.py sha256: e8ad631698d2fc520e00f6ba08a743be6571bf32bd409fd3c8edd057c66a962e -->
+<!-- source-file: workbench/cli.py sha256: 240d263751d3ad6d68ff01986e8dfac0c0fec1898cfb783e6ca96f2c1c1de07e -->
 ````python
 """Operator commands: init/start/chat/show/download/index/native. No custom UI needed."""
 
@@ -2996,7 +2996,7 @@ def index(source: Path, output: Path):
 
 @native_app.command("prepare")
 def native_prepare(template: str):
-    """克隆白名单中的固定开源提交，建立原生模板源码知识包。"""
+    """校验并展开仓库内固定源码归档，建立原生模板源码知识包；不在线克隆。"""
     from workbench.native import prepare_sources
 
     echo(prepare_sources(Settings(), template))
@@ -3284,9 +3284,9 @@ def concise_requirements(requirement):
 **逐个入口与控制逻辑：**
 
 - `run_isolated`（L14–L57）：接收`product`、`template`、`settings`。 控制顺序：L45抛异常，停止当前正常路径；L48按`process.returncode`分支；L52抛异常，停止当前正常路径；L55按`receipt.get("passed") is not True or receipt.get("cleanup") != "deleted"`分支；L56抛异常，停止当前正常路径。 调用`str`、`Path(product).resolve`、`Path`、`settings.daytona_api_key.get_secret_value`、`tempfile.TemporaryFile`、`subprocess.Popen`、`clean_env`、`process_options`、`process.communicate`等。 返回路径：L57的`receipt`。
-- `main`（L60–L79）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L62按`len(data) > 65536`分支；L63抛异常，停止当前正常路径；L76抛异常，停止当前正常路径；L78按`hasattr(client, "close")`分支。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`validate_configuration`、`client_for`、`_verify_in_daytona`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L60–L83）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L62按`len(data) > 65536`分支；L63抛异常，停止当前正常路径；L81抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`validate_configuration`、`client_for`、`_verify_in_daytona`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/daytona_worker.py sha256: d458578419d911fe79eb52e3fb05620792a9301c0a34f2e921fab3edd7f93304 -->
+<!-- source-file: workbench/daytona_worker.py sha256: 81410c686c4f15f4c7a1f6eefb0c120baf40b74be35bc5193c48d2fee84a82a4 -->
 ````python
 """Run the pinned Daytona SDK in an isolated, loopback-only child process."""
 
@@ -3353,7 +3353,12 @@ def main():
         raise ValueError("Daytona控制参数过大")
     payload = json.loads(data)
     install_loopback_guard()
-    from workbench.sandbox import _verify_in_daytona, client_for, validate_configuration
+    from workbench.sandbox import (
+        _verify_in_daytona,
+        client_for,
+        close_client,
+        validate_configuration,
+    )
     from workbench.settings import Settings
 
     settings = Settings(_env_file=None, **payload["settings"])
@@ -3365,8 +3370,7 @@ def main():
         print(settings.redact(str(exc)), file=sys.stderr)
         raise SystemExit(1) from None
     finally:
-        if hasattr(client, "close"):
-            client.close()
+        close_client(client)
 
 
 if __name__ == "__main__":
@@ -9486,13 +9490,14 @@ class Runtime:
 
 - `validate_configuration`（L24–L42）：接收`settings`、`template`、`selection`。 控制顺序：L25按`settings.sandbox_provider != "daytona"`分支；L27按`not settings.daytona_allow_local_execution`分支；L28抛异常，停止当前正常路径；L37按`not settings.daytona_snapshot or not settings.daytona_target`分支；L38抛异常，停止当前正常路径；L39按`template == "python-basic" and (selection or {}).get("database", "sqlite") != "sqlite…`分支；L40抛异常，停止当前正常路径。 调用`PrerequisiteError`、`ModelProfile( stage="daytona", base_url=local_http_url(settings.d…`、`ModelProfile`、`local_http_url`、`(selection or {}).get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `client_for`（L45–L57）：接收`settings`。 控制顺序：L48按`version("daytona") != DAYTONA_VERSION`分支；L49抛异常，停止当前正常路径。 调用`version`、`PrerequisiteError`、`Daytona`、`DaytonaConfig`、`settings.daytona_api_key.get_secret_value`、`local_http_url`。 返回路径：L50的`Daytona( DaytonaConfig( api_key=settings.daytona_api_key.get_secret_value(), api_url=local…`。
-- `params_for`（L60–L72）：接收`settings`、`name`。 调用`CreateSandboxFromSnapshotParams`。 返回路径：L63的`CreateSandboxFromSnapshotParams( snapshot=settings.daytona_snapshot, name=name, network_bl…`。
-- `checks_for`（L75–L122）：接收`template`。 控制顺序：L76按`template == "python-basic"`分支；L98按`template == "yudao-vben"`分支；L112按`template == "fastapiadmin"`分支；L122抛异常，停止当前正常路径。 调用`PrerequisiteError`。 返回路径：L77的`[ ( "locked-install", ["uv", "sync", "--locked", "--offline", "--no-dev", "--python", "3.1…`；L99的`[ ("maven-test", ["mvn", "-B", "-o", "test"], "product/backend"), ( "frontend-install", ["…`；L113的`[ ("python-syntax", ["python3", "-m", "compileall", "-q", "app"], "product/backend"), ( "f…`。
-- `source_archive`（L125–L137）：接收`product`。 控制顺序：L127按`len(rows) > 20000 or sum(p.stat().st_size for _, p in rows) > 150_000_000`分支；L128抛异常，停止当前正常路径；L131遍历`rows`；L132按`Path(name).name == ".npmrc"`分支；L134按`any(word in text.lower() for word in ("_auth", "password", "username", "${"))`分支；L135抛异常，停止当前正常路径。 调用`list`、`files`、`len`、`sum`、`p.stat`、`PrerequisiteError`、`io.BytesIO`、`zipfile.ZipFile`、`Path`等。 返回路径：L137的`buffer.getvalue()`。
-- `verify_in_daytona`（L140–L146）：接收`product`、`template`、`settings`、`client`。 控制顺序：L142按`client is None`分支。 调用`validate_configuration`、`run_isolated`、`_verify_in_daytona`。 返回路径：L145的`run_isolated(product, template, settings)`；L146的`_verify_in_daytona(product, template, settings, client=client)`。
-- `_verify_in_daytona`（L149–L249）：接收`product`、`template`、`settings`、`client`。成功不止看命令退出码，还要求本次沙箱成功删除；异常路径同样写回执并尝试清理。 控制顺序：L150按`settings.sandbox_provider != "daytona"`分支；L151抛异常，停止当前正常路径；L196按`extraction.exit_code != 0`分支；L197抛异常，停止当前正常路径；L198遍历`checks`；L210按`result.exit_code != 0`分支；L211抛异常，停止当前正常路径；L212按`template == "python-basic"`分支。后续分支沿下方源码相同行号继续阅读。 调用`PrerequisiteError`、`Path`、`(product / "selection.json").exists`、`json.loads`、`(product / "selection.json").read_text`、`validate_configuration`、`checks_for`、`manifest`、`source_archive`等。 返回路径：L249的`receipt`。
+- `close_client`（L60–L83）：接收`client`。 源码说明：Close owned transports of the pinned SDK, which has no Daytona.close(). These names belong to our fixed SDK adapter, not a guessed public API. Sandbox deletion is separate and must complete before tra。 控制顺序：L71遍历`("_http_client", "_api_client", "_toolbox_api_client")`；L73按`transport is not None`分支；L78按`failures`分支；L80按`original is not None`分支；L83抛异常，停止当前正常路径。 调用`sys.exception`、`getattr`、`transport.close`、`failures.append`、`type`、`", ".join`、`original.add_note`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `params_for`（L86–L98）：接收`settings`、`name`。 调用`CreateSandboxFromSnapshotParams`。 返回路径：L89的`CreateSandboxFromSnapshotParams( snapshot=settings.daytona_snapshot, name=name, network_bl…`。
+- `checks_for`（L101–L148）：接收`template`。 控制顺序：L102按`template == "python-basic"`分支；L124按`template == "yudao-vben"`分支；L138按`template == "fastapiadmin"`分支；L148抛异常，停止当前正常路径。 调用`PrerequisiteError`。 返回路径：L103的`[ ( "locked-install", ["uv", "sync", "--locked", "--offline", "--no-dev", "--python", "3.1…`；L125的`[ ("maven-test", ["mvn", "-B", "-o", "test"], "product/backend"), ( "frontend-install", ["…`；L139的`[ ("python-syntax", ["python3", "-m", "compileall", "-q", "app"], "product/backend"), ( "f…`。
+- `source_archive`（L151–L163）：接收`product`。 控制顺序：L153按`len(rows) > 20000 or sum(p.stat().st_size for _, p in rows) > 150_000_000`分支；L154抛异常，停止当前正常路径；L157遍历`rows`；L158按`Path(name).name == ".npmrc"`分支；L160按`any(word in text.lower() for word in ("_auth", "password", "username", "${"))`分支；L161抛异常，停止当前正常路径。 调用`list`、`files`、`len`、`sum`、`p.stat`、`PrerequisiteError`、`io.BytesIO`、`zipfile.ZipFile`、`Path`等。 返回路径：L163的`buffer.getvalue()`。
+- `verify_in_daytona`（L166–L172）：接收`product`、`template`、`settings`、`client`。 控制顺序：L168按`client is None`分支。 调用`validate_configuration`、`run_isolated`、`_verify_in_daytona`。 返回路径：L171的`run_isolated(product, template, settings)`；L172的`_verify_in_daytona(product, template, settings, client=client)`。
+- `_verify_in_daytona`（L175–L275）：接收`product`、`template`、`settings`、`client`。成功不止看命令退出码，还要求本次沙箱成功删除；异常路径同样写回执并尝试清理。 控制顺序：L176按`settings.sandbox_provider != "daytona"`分支；L177抛异常，停止当前正常路径；L222按`extraction.exit_code != 0`分支；L223抛异常，停止当前正常路径；L224遍历`checks`；L236按`result.exit_code != 0`分支；L237抛异常，停止当前正常路径；L238按`template == "python-basic"`分支。后续分支沿下方源码相同行号继续阅读。 调用`PrerequisiteError`、`Path`、`(product / "selection.json").exists`、`json.loads`、`(product / "selection.json").read_text`、`validate_configuration`、`checks_for`、`manifest`、`source_archive`等。 返回路径：L275的`receipt`。
 
-<!-- source-file: workbench/sandbox.py sha256: d48003e8f47e3b408c8cd70d2c3f1a17598e16ee5151f43aad08d00a57929bbe -->
+<!-- source-file: workbench/sandbox.py sha256: 437da19fc86bfc78bb4d0ea9b1d1e330725b6390adadd44fa6b1f103aa7549c1 -->
 ````python
 """Opt-in self-hosted Daytona verification. No cloud control plane is allowed.
 
@@ -9551,6 +9556,32 @@ def client_for(settings):
             otel_enabled=False,
         )
     )
+
+
+def close_client(client):
+    """Close owned transports of the pinned SDK, which has no Daytona.close().
+
+    These names belong to our fixed SDK adapter, not a guessed public API.
+    Sandbox deletion is separate and must complete before transport shutdown.
+    All callers run in a bounded child process as an additional resource boundary.
+    """
+    import sys
+
+    original = sys.exception()
+    failures = []
+    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
+        transport = getattr(client, name, None)
+        if transport is not None:
+            try:
+                transport.close()
+            except Exception as exc:
+                failures.append(type(exc).__name__)
+    if failures:
+        message = "本机Daytona传输资源关闭失败：" + ", ".join(failures)
+        if original is not None:
+            original.add_note(message)
+        else:
+            raise PrerequisiteError(message)
 
 
 def params_for(settings, name=None):
@@ -15407,6 +15438,148 @@ def test_plan_duplicate_and_scope(plan):
         Plan.model_validate(data)
 ````
 
+### `tests/test_daytona_bootstrap_contract.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts.daytona_bootstrap`、`workbench.sandbox`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `organization`（L18–L19）：接收`region`。 返回路径：L19的`{"id": ORG, "personal": True, "defaultRegionId": region}`。
+- `test_region_initialization_uses_signed_local_api_and_confirms_write`（L23–L42）：接收`current`。 控制顺序：L40断言`[request.method for request in seen] == ( ["GET"] if current == "local" else ["PATCH"…`。 调用`httpx.Client`、`httpx.MockTransport`、`configure_personal_region`、`organization`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_region_initialization_uses_signed_local_api_and_confirms_write.handler`（L26–L36）：接收`request`。 控制顺序：L28断言`request.url.host == "127.0.0.1" and request.url.port == 3000`；L29断言`request.headers["Authorization"] == HEADERS["Authorization"]`；L30断言`request.headers["X-Daytona-Organization-ID"] == ORG`；L31按`request.method == "PATCH"`分支；L32断言`request.url.path == f"/api/organizations/{ORG}/default-region"`；L33断言`json.loads(request.content) == {"defaultRegionId": "local"}`；L35断言`request.method == "GET" and request.url.path == "/api/organizations"`。 调用`seen.append`、`json.loads`、`httpx.Response`、`organization`。 返回路径：L34的`httpx.Response(204)`；L36的`httpx.Response(200, json=[organization("local")])`。
+- `test_other_region_nonpersonal_or_malformed_organization_never_written`（L48–L53）：接收`change`。 调用`Mock`、`pytest.raises`、`configure_personal_region`、`organization`、`client.patch.assert_not_called`、`client.get.assert_not_called`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_region_auth_or_server_failure_propagates`（L57–L62）：接收`status`。 调用`httpx.Client`、`httpx.MockTransport`、`httpx.Response`、`pytest.raises`、`configure_personal_region`、`organization`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_region_is_not_ready_until_server_confirms_exact_organization`（L68–L74）：接收`rows`。 调用`httpx.Client`、`httpx.MockTransport`、`pytest.raises`、`configure_personal_region`、`organization`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_region_is_not_ready_until_server_confirms_exact_organization.handler`（L69–L70）：接收`request`。 调用`httpx.Response`。 返回路径：L70的`httpx.Response(204) if request.method == "PATCH" else httpx.Response(200, json=rows)`。
+- `test_actual_installed_sdk_transports_can_be_closed_without_a_network_request`（L77–L93）：接收`settings`、`monkeypatch`。 控制顺序：L90断言`not hasattr(client, "close")`；L91断言`callable(client._api_client.close)`；L92断言`callable(client._toolbox_api_client.close)`。 调用`monkeypatch.setattr`、`SecretStr`、`client_for`、`hasattr`、`callable`、`close_client`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_installed_sdk_transports_can_be_closed_without_a_network_request.no_network`（L82–L83）：接收`*args`、`**kwargs`。 控制顺序：L83抛异常，停止当前正常路径。 调用`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_transport_cleanup_attempts_all_and_does_not_hide_the_original_failure`（L96–L107）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L102抛异常，停止当前正常路径；L105断言`caught.value is original and "RuntimeError" in original.__notes__[0]`。 调用`SimpleNamespace`、`Mock`、`RuntimeError`、`ValueError`、`pytest.raises`、`close_client`、`client._api_client.close.assert_called_once`、`client._toolbox_api_client.close.assert_called_once`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_transport_failure_after_success_still_fails_the_operation`（L110–L114）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`Mock`、`RuntimeError`、`pytest.raises`、`close_client`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_daytona_bootstrap_contract.py sha256: ce638e9dd82a6a71cd1e5d1136d0205e9c65144ca235d6acf8f29d8373e1fe20 -->
+````python
+"""Real installed SDK shape plus local bootstrap HTTP contracts; no cloud calls."""
+
+import json
+from types import SimpleNamespace
+from unittest.mock import Mock
+
+import httpx
+import pytest
+from pydantic import SecretStr
+
+from scripts.daytona_bootstrap import configure_personal_region
+from workbench.sandbox import client_for, close_client
+
+ORG = "717b182c-a636-45f0-893c-37499a1b9e32"
+HEADERS = {"Authorization": "Bearer local-test-only", "X-Daytona-Organization-ID": ORG}
+
+
+def organization(region=None):
+    return {"id": ORG, "personal": True, "defaultRegionId": region}
+
+
+@pytest.mark.parametrize("current", [None, "", "local"])
+def test_region_initialization_uses_signed_local_api_and_confirms_write(current):
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        assert request.url.host == "127.0.0.1" and request.url.port == 3000
+        assert request.headers["Authorization"] == HEADERS["Authorization"]
+        assert request.headers["X-Daytona-Organization-ID"] == ORG
+        if request.method == "PATCH":
+            assert request.url.path == f"/api/organizations/{ORG}/default-region"
+            assert json.loads(request.content) == {"defaultRegionId": "local"}
+            return httpx.Response(204)
+        assert request.method == "GET" and request.url.path == "/api/organizations"
+        return httpx.Response(200, json=[organization("local")])
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        configure_personal_region(client, HEADERS, organization(current))
+    assert [request.method for request in seen] == (
+        ["GET"] if current == "local" else ["PATCH", "GET"]
+    )
+
+
+@pytest.mark.parametrize(
+    "change", [{"defaultRegionId": "us"}, {"personal": False}, {"id": "../other"}]
+)
+def test_other_region_nonpersonal_or_malformed_organization_never_written(change):
+    client = Mock()
+    with pytest.raises(ValueError):
+        configure_personal_region(client, HEADERS, organization() | change)
+    client.patch.assert_not_called()
+    client.get.assert_not_called()
+
+
+@pytest.mark.parametrize("status", [401, 403, 500])
+def test_region_auth_or_server_failure_propagates(status):
+    with httpx.Client(
+        transport=httpx.MockTransport(lambda request: httpx.Response(status))
+    ) as client:
+        with pytest.raises(httpx.HTTPStatusError):
+            configure_personal_region(client, HEADERS, organization())
+
+
+@pytest.mark.parametrize(
+    "rows", [[], [organization()], [organization("local"), organization("local")]]
+)
+def test_region_is_not_ready_until_server_confirms_exact_organization(rows):
+    def handler(request):
+        return httpx.Response(204) if request.method == "PATCH" else httpx.Response(200, json=rows)
+
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        with pytest.raises(ValueError, match="未保存"):
+            configure_personal_region(client, HEADERS, organization())
+
+
+def test_actual_installed_sdk_transports_can_be_closed_without_a_network_request(
+    settings, monkeypatch
+):
+    import socket
+
+    def no_network(*args, **kwargs):
+        raise AssertionError("SDK construction/transport cleanup must not use a network")
+
+    monkeypatch.setattr(socket, "getaddrinfo", no_network)
+    monkeypatch.setattr(socket.socket, "connect", no_network)
+    settings.daytona_api_key = SecretStr("local-test-key")
+    settings.daytona_target = "local"
+    client = client_for(settings)
+    assert not hasattr(client, "close"), "Pinned SDK contract changed; review the transport adapter"
+    assert callable(client._api_client.close)
+    assert callable(client._toolbox_api_client.close)
+    close_client(client)
+
+
+def test_transport_cleanup_attempts_all_and_does_not_hide_the_original_failure():
+    client = SimpleNamespace(_http_client=Mock(), _api_client=Mock(), _toolbox_api_client=Mock())
+    client._http_client.close.side_effect = RuntimeError("local cleanup fixture")
+    original = ValueError("original snapshot failure")
+    with pytest.raises(ValueError, match="original snapshot") as caught:
+        try:
+            raise original
+        finally:
+            close_client(client)
+    assert caught.value is original and "RuntimeError" in original.__notes__[0]
+    client._api_client.close.assert_called_once()
+    client._toolbox_api_client.close.assert_called_once()
+
+
+def test_transport_failure_after_success_still_fails_the_operation():
+    client = SimpleNamespace(_api_client=Mock())
+    client._api_client.close.side_effect = RuntimeError("local cleanup fixture")
+    with pytest.raises(RuntimeError, match="传输资源关闭失败"):
+        close_client(client)
+````
+
 ### `tests/test_daytona_build.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -15774,12 +15947,12 @@ def test_production_targets_are_only_registered_docker_services():
 - `test_invalid_or_excessive_pagination_fails_closed`（L47–L52）：接收`result`。 调用`Mock`、`pytest.raises`、`bootstrap.snapshot_named`、`service.create.assert_not_called`、`pytest.mark.parametrize`、`page`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_duplicate_names_across_pages_are_not_guessed`（L55–L59）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Mock`、`page`、`snapshot`、`pytest.raises`、`bootstrap.snapshot_named`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_listing_failure_is_not_interpreted_as_absence`（L62–L67）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Mock`、`RuntimeError`、`pytest.raises`、`bootstrap.snapshot_named`、`service.create.assert_not_called`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `worker`（L71–L83）：接收`tmp_path`、`monkeypatch`。 调用`(tmp_path / "snapshot-image.json").write_text`、`json.dumps`、`(tmp_path / "api-key.json").write_text`、`Mock`、`page`、`snapshot`、`monkeypatch.setattr`。 返回路径：L83的`tmp_path, client`。
-- `test_worker_creates_or_reuses_only_matching_active_local_snapshot`（L87–L102）：接收`worker`、`reuse`。 控制顺序：L89按`reuse`分支；L93按`reuse`分支；L97断言`params.name == NAME and params.image == IMAGE and params.region_id == "local"`；L98断言`client.snapshot.create.call_args.kwargs == {"timeout": 600}`；L100断言`"DAYTONA_API_URL=http://127.0.0.1:3000/api" in env`；L101断言`f"DAYTONA_SNAPSHOT={NAME}" in env`。 调用`page`、`snapshot`、`bootstrap.snapshot_worker`、`client.snapshot.get.assert_not_called`、`client.snapshot.create.assert_not_called`、`(directory / "workbench.env").read_text`、`client.close.assert_called_once`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_worker_never_writes_ready_config_for_wrong_or_unready_snapshot`（L115–L127）：接收`worker`、`monkeypatch`、`reuse`、`field`、`value`、`message`。 控制顺序：L126断言`not (directory / "workbench.env").exists()`。 调用`snapshot`、`setattr`、`monkeypatch.setattr`、`pytest.raises`、`bootstrap.snapshot_worker`、`(directory / "workbench.env").exists`、`client.close.assert_called_once`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_worker_preserves_existing_credentials_and_closes_on_list_failure`（L130–L139）：接收`worker`。 控制顺序：L137断言`(directory / "workbench.env").read_text(encoding="utf-8") == existing`。 调用`(directory / "workbench.env").write_text`、`RuntimeError`、`pytest.raises`、`bootstrap.snapshot_worker`、`(directory / "workbench.env").read_text`、`client.snapshot.create.assert_not_called`、`client.close.assert_called_once`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `worker`（L71–L85）：接收`tmp_path`、`monkeypatch`。 调用`(tmp_path / "snapshot-image.json").write_text`、`json.dumps`、`(tmp_path / "api-key.json").write_text`、`SimpleNamespace`、`Mock`、`page`、`snapshot`、`monkeypatch.setattr`。 返回路径：L85的`tmp_path, client`。
+- `test_worker_creates_or_reuses_only_matching_active_local_snapshot`（L89–L105）：接收`worker`、`reuse`。 控制顺序：L91按`reuse`分支；L95按`reuse`分支；L99断言`params.name == NAME and params.image == IMAGE and params.region_id == "local"`；L100断言`client.snapshot.create.call_args.kwargs == {"timeout": 600}`；L102断言`"DAYTONA_API_URL=http://127.0.0.1:3000/api" in env`；L103断言`f"DAYTONA_SNAPSHOT={NAME}" in env`；L104遍历`("_http_client", "_api_client", "_toolbox_api_client")`。 调用`page`、`snapshot`、`bootstrap.snapshot_worker`、`client.snapshot.get.assert_not_called`、`client.snapshot.create.assert_not_called`、`(directory / "workbench.env").read_text`、`getattr(client, name).close.assert_called_once`、`getattr`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_worker_never_writes_ready_config_for_wrong_or_unready_snapshot`（L118–L131）：接收`worker`、`monkeypatch`、`reuse`、`field`、`value`、`message`。 控制顺序：L129断言`not (directory / "workbench.env").exists()`；L130遍历`("_http_client", "_api_client", "_toolbox_api_client")`。 调用`snapshot`、`setattr`、`monkeypatch.setattr`、`pytest.raises`、`bootstrap.snapshot_worker`、`(directory / "workbench.env").exists`、`getattr(client, name).close.assert_called_once`、`getattr`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_worker_preserves_existing_credentials_and_closes_on_list_failure`（L134–L144）：接收`worker`。 控制顺序：L141断言`(directory / "workbench.env").read_text(encoding="utf-8") == existing`；L143遍历`("_http_client", "_api_client", "_toolbox_api_client")`。 调用`(directory / "workbench.env").write_text`、`RuntimeError`、`pytest.raises`、`bootstrap.snapshot_worker`、`(directory / "workbench.env").read_text`、`client.snapshot.create.assert_not_called`、`getattr(client, name).close.assert_called_once`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_daytona_snapshot.py sha256: 589a2df52fd1d1b871d364b098d2494dbb1f7bf1d4f77eb3894dac2a9f1767d8 -->
+<!-- source-file: tests/test_daytona_snapshot.py sha256: 45dad414477ee10955ac7f196a80377a0423735f2dffce09ae6bad2d564e3989 -->
 ````python
 """Pinned local snapshot lookup contracts; real service acceptance runs separately."""
 
@@ -15858,7 +16031,9 @@ def worker(tmp_path, monkeypatch):
     (tmp_path / "api-key.json").write_text(
         json.dumps({"value": "local-test-key-not-a-real-credential"}), encoding="utf-8"
     )
-    client = Mock()
+    client = SimpleNamespace(
+        snapshot=Mock(), _http_client=Mock(), _api_client=Mock(), _toolbox_api_client=Mock()
+    )
     client.snapshot.list.return_value = page(1, [])
     client.snapshot.create.return_value = snapshot()
     monkeypatch.setattr(bootstrap, "install_loopback_guard", lambda: None)
@@ -15882,7 +16057,8 @@ def test_worker_creates_or_reuses_only_matching_active_local_snapshot(worker, re
     env = (directory / "workbench.env").read_text(encoding="utf-8")
     assert "DAYTONA_API_URL=http://127.0.0.1:3000/api" in env
     assert f"DAYTONA_SNAPSHOT={NAME}" in env
-    client.close.assert_called_once()
+    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
+        getattr(client, name).close.assert_called_once()
 
 
 @pytest.mark.parametrize("reuse", [False, True])
@@ -15907,7 +16083,8 @@ def test_worker_never_writes_ready_config_for_wrong_or_unready_snapshot(
     with pytest.raises(ValueError, match=message):
         bootstrap.snapshot_worker(directory)
     assert not (directory / "workbench.env").exists()
-    client.close.assert_called_once()
+    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
+        getattr(client, name).close.assert_called_once()
 
 
 def test_worker_preserves_existing_credentials_and_closes_on_list_failure(worker):
@@ -15919,7 +16096,8 @@ def test_worker_preserves_existing_credentials_and_closes_on_list_failure(worker
         bootstrap.snapshot_worker(directory)
     assert (directory / "workbench.env").read_text(encoding="utf-8") == existing
     client.snapshot.create.assert_not_called()
-    client.close.assert_called_once()
+    for name in ("_http_client", "_api_client", "_toolbox_api_client"):
+        getattr(client, name).close.assert_called_once()
 ````
 
 ### `tests/test_guided_completion.py`
@@ -20569,10 +20747,10 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `run`（L15–L17）：接收`argv`、`directory`、`env`、`timeout`。 调用`subprocess.run`。 返回路径：L17的`result.returncode`。
-- `main`（L20–L80）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L29断言`not list((destination / "templates/vendor").glob("*.zip"))`；L45断言`(destination / OUTPUT.name).read_bytes() == text`；L50遍历`zip(expected["sources"], actual["sources"], strict=True)`；L52遍历`("name", "sha", "source_digest", "files")`；L53断言`want[field] == got[field]`。 调用`OUTPUT.read_bytes`、`json.loads`、`(ROOT / "templates/vendor/manifest.json").read_text`、`tempfile.TemporaryDirectory`、`Path`、`book.write_bytes`、`restore`、`list`、`(destination / "templates/vendor").glob`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run`（L16–L18）：接收`argv`、`directory`、`env`、`timeout`。 调用`subprocess.run`。 返回路径：L18的`result.returncode`。
+- `main`（L21–L95）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L30断言`not list((destination / "templates/vendor").glob("*.zip"))`；L46断言`(destination / OUTPUT.name).read_bytes() == text`；L51遍历`zip(expected["sources"], actual["sources"], strict=True)`；L53遍历`("name", "sha", "source_digest", "files")`；L54断言`want[field] == got[field]`；L70按`junit.exists()`分支；L74按`not cases or any( case.find("failure") is not None or case.find("error") is not None …`分支；L77抛异常，停止当前正常路径。 调用`OUTPUT.read_bytes`、`json.loads`、`(ROOT / "templates/vendor/manifest.json").read_text`、`tempfile.TemporaryDirectory`、`Path`、`book.write_bytes`、`restore`、`list`、`(destination / "templates/vendor").glob`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_handbook.py sha256: 709491951f2ad4807c382d94490bbbd65f0a125b7bb837f8469d22fe11677c20 -->
+<!-- source-file: scripts/ci_handbook.py sha256: 52077c22e364bc782a997d1d435c42065162551b1b5359270bc28a3abf280f59 -->
 ````python
 """Verify construction from the handbook alone, without original source/archive access."""
 
@@ -20582,6 +20760,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from scripts.build_handbook import OUTPUT, ROOT
@@ -20627,25 +20806,39 @@ def main():
             # ZIP deflate bytes can differ across zlib versions. Source digests verify content.
             for field in ("name", "sha", "source_digest", "files"):
                 assert want[field] == got[field], (field, want["name"])
-        run(
-            [
-                sys.executable,
-                "-m",
-                "pytest",
-                "tests/test_contracts.py",
-                "tests/test_store.py",
-                "tests/test_vendor.py",
-                "tests/test_local_only.py",
-                "-q",
-            ],
-            destination,
-            env,
-        )
+        # Repacking can change only archive compression metadata; synchronize that
+        # locally before running the complete suite, including handbook consistency.
+        # The exact original text roundtrip and all upstream source digests above
+        # have already been independently checked, not weakened to fit new output.
+        run([sys.executable, "-m", "scripts.build_handbook"], destination, env)
+        junit = base / "handbook-tests.xml"
+        try:
+            run(
+                [sys.executable, "-m", "pytest", "-m", "not postgres", "-q", f"--junitxml={junit}"],
+                destination,
+                env,
+            )
+        finally:
+            # Keep failed-test evidence even when the temporary student tree is removed.
+            (ROOT / "reports").mkdir(exist_ok=True)
+            if junit.exists():
+                (ROOT / "reports/handbook-tests.xml").write_bytes(junit.read_bytes())
+        suites = ET.parse(junit).getroot()
+        cases = suites.findall(".//testcase")
+        if not cases or any(
+            case.find("failure") is not None or case.find("error") is not None for case in cases
+        ):
+            raise AssertionError(
+                "Handbook reconstruction must pass the actual full non-PostgreSQL suite"
+            )
         report = {
             "passed": True,
             "text_files_restored": count,
             "original_project_imported": False,
             "original_archives_copied": False,
+            "test_selection": "all non-PostgreSQL tests, including smart recommendation and independent delivery",
+            "tests_passed": sum(case.find("skipped") is None for case in cases),
+            "tests_skipped": sum(case.find("skipped") is not None for case in cases),
             "third_party_fixed_revisions_rebuilt": len(actual["sources"]),
             "handbook_sha256": hashlib.sha256(text).hexdigest(),
         }
@@ -21100,14 +21293,15 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `bootstrap`（L26–L83）：接收`directory`。 控制顺序：L29按`destination.exists()`分支；L30抛异常，停止当前正常路径；L34遍历`range(90)`；L40按`attempt == 89`分支；L41抛异常，停止当前正常路径；L56遍历`range(120)`；L61按`not organizations`分支；L62抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`destination.exists`、`ValueError`、`json.loads`、`(directory / "credentials.json").read_text`、`install_loopback_guard`、`httpx.Client`、`range`、`http.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `write_environment`（L86–L96）：接收`path`、`key`、`snapshot`。 控制顺序：L87按`any(char in key + snapshot for char in "\n\r\"'")`分支；L88抛异常，停止当前正常路径；L95按`os.name != "nt"`分支。 调用`any`、`ValueError`、`Path(path).write_text`、`Path`、`Path(path).chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `snapshot`（L99–L114）：接收`directory`。 源码说明：Bound setup, SDK calls and cleanup in addition to the SDK operation timeout.。 调用`run_command`、`str`、`Path(directory).resolve`、`Path`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `snapshot_named`（L117–L136）：接收`service`、`name`。 源码说明：Resolve an exact name through the pinned SDK's paginated listing. In v0.190.0 get(name) forwards the name to a UUID-only API route. Never interpret that server error as a missing snapshot or create a 。 控制顺序：L125遍历`range(1, 101)`；L127按`result.page != page or not 0 <= result.total_pages <= 100`分支；L128抛异常，停止当前正常路径；L129遍历`result.items`；L130按`item.name == name`分支；L131按`found is not None`分支；L132抛异常，停止当前正常路径；L134按`page >= result.total_pages`分支。后续分支沿下方源码相同行号继续阅读。 调用`range`、`service.list`、`ValueError`。 返回路径：L135的`found`。
-- `snapshot_worker`（L139–L169）：接收`directory`。 控制顺序：L142按`not metadata["image"].startswith("registry:6000/rnd-python:")`分支；L143抛异常，停止当前正常路径；L152按`existing is None`分支；L162按`existing.name != metadata["snapshot"] or existing.image_name != metadata["image"]`分支；L163抛异常，停止当前正常路径；L164按`str(getattr(existing.state, "value", existing.state)).lower() != "active"`分支；L165抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(directory / "snapshot-image.json").read_text`、`metadata["image"].startswith`、`ValueError`、`install_loopback_guard`、`(directory / "api-key.json").read_text`、`Settings`、`SecretStr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L172–L179）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`{"auth": bootstrap, "snapshot": snapshot, "snapshot-worker": snap…`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `bootstrap`（L27–L85）：接收`directory`。 控制顺序：L30按`destination.exists()`分支；L31抛异常，停止当前正常路径；L35遍历`range(90)`；L41按`attempt == 89`分支；L42抛异常，停止当前正常路径；L57遍历`range(120)`；L62按`not organizations`分支；L63抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`destination.exists`、`ValueError`、`json.loads`、`(directory / "credentials.json").read_text`、`install_loopback_guard`、`httpx.Client`、`range`、`http.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `configure_personal_region`（L88–L111）：接收`http`、`headers`、`organization`。 源码说明：Select only our local region through the authenticated public API. The server's DEFAULT_REGION_ID creates a region, but does not assign it to each new personal organization. Snapshot creation requires。 控制顺序：L95按`organization.get("personal") is not True`分支；L96抛异常，停止当前正常路径；L98按`current not in (None, "", "local")`分支；L99抛异常，停止当前正常路径；L100按`current != "local"`分支；L110按`len(confirmed) != 1 or confirmed[0].get("defaultRegionId") != "local"`分支；L111抛异常，停止当前正常路径。 调用`str`、`UUID`、`organization.get`、`ValueError`、`http.patch`、`response.raise_for_status`、`http.get`、`response.json`、`row.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `write_environment`（L114–L124）：接收`path`、`key`、`snapshot`。 控制顺序：L115按`any(char in key + snapshot for char in "\n\r\"'")`分支；L116抛异常，停止当前正常路径；L123按`os.name != "nt"`分支。 调用`any`、`ValueError`、`Path(path).write_text`、`Path`、`Path(path).chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `snapshot`（L127–L142）：接收`directory`。 源码说明：Bound setup, SDK calls and cleanup in addition to the SDK operation timeout.。 调用`run_command`、`str`、`Path(directory).resolve`、`Path`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `snapshot_named`（L145–L164）：接收`service`、`name`。 源码说明：Resolve an exact name through the pinned SDK's paginated listing. In v0.190.0 get(name) forwards the name to a UUID-only API route. Never interpret that server error as a missing snapshot or create a 。 控制顺序：L153遍历`range(1, 101)`；L155按`result.page != page or not 0 <= result.total_pages <= 100`分支；L156抛异常，停止当前正常路径；L157遍历`result.items`；L158按`item.name == name`分支；L159按`found is not None`分支；L160抛异常，停止当前正常路径；L162按`page >= result.total_pages`分支。后续分支沿下方源码相同行号继续阅读。 调用`range`、`service.list`、`ValueError`。 返回路径：L163的`found`。
+- `snapshot_worker`（L167–L197）：接收`directory`。 控制顺序：L170按`not metadata["image"].startswith("registry:6000/rnd-python:")`分支；L171抛异常，停止当前正常路径；L180按`existing is None`分支；L190按`existing.name != metadata["snapshot"] or existing.image_name != metadata["image"]`分支；L191抛异常，停止当前正常路径；L192按`str(getattr(existing.state, "value", existing.state)).lower() != "active"`分支；L193抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(directory / "snapshot-image.json").read_text`、`metadata["image"].startswith`、`ValueError`、`install_loopback_guard`、`(directory / "api-key.json").read_text`、`Settings`、`SecretStr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L200–L207）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`{"auth": bootstrap, "snapshot": snapshot, "snapshot-worker": snap…`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/daytona_bootstrap.py sha256: b058fbc24a7dfe1b511fb2347deeee8e47212b88e4fb3f19ddc17e4bd6855e26 -->
+<!-- source-file: scripts/daytona_bootstrap.py sha256: 233663e247fb5f4810973d5ae83d79d0034c17eea35a615955e355d78a36389b -->
 ````python
 """Authenticate against local Dex, create a local API key and register a warm snapshot.
 
@@ -21121,13 +21315,14 @@ import os
 import sys
 import time
 from pathlib import Path
+from uuid import UUID
 
 import httpx
 from pydantic import SecretStr
 
 from scripts.daytona_local import HOME, private_json
 from workbench.local_only import install_loopback_guard
-from workbench.sandbox import client_for
+from workbench.sandbox import client_for, close_client
 from workbench.settings import ROOT, Settings
 from workbench.tools import ToolFailure, run_command
 
@@ -21180,6 +21375,7 @@ def bootstrap(directory=HOME):
         if len(personal) != 1:
             raise ValueError("个人组织不唯一，拒绝猜测密钥所属组织")
         headers["X-Daytona-Organization-ID"] = personal[0]["id"]
+        configure_personal_region(http, headers, personal[0])
         response = http.post(
             "http://127.0.0.1:3000/api/api-keys",
             headers=headers,
@@ -21192,6 +21388,32 @@ def bootstrap(directory=HOME):
     private_json(directory / "api-key.json", {"value": key, "organization_id": personal[0]["id"]})
     write_environment(destination, key, "")
     print("本机认证通过，API密钥只写入本机受限文件；没有模型调用。")
+
+
+def configure_personal_region(http, headers, organization):
+    """Select only our local region through the authenticated public API.
+
+    The server's DEFAULT_REGION_ID creates a region, but does not assign it to
+    each new personal organization. Snapshot creation requires both settings.
+    """
+    organization_id = str(UUID(organization["id"]))
+    if organization.get("personal") is not True:
+        raise ValueError("只允许初始化当前本机用户的个人组织")
+    current = organization.get("defaultRegionId")
+    if current not in (None, "", "local"):
+        raise ValueError("个人组织已选择其他区域；拒绝静默覆盖")
+    if current != "local":
+        response = http.patch(
+            f"http://127.0.0.1:3000/api/organizations/{organization_id}/default-region",
+            headers=headers,
+            json={"defaultRegionId": "local"},
+        )
+        response.raise_for_status()
+    response = http.get("http://127.0.0.1:3000/api/organizations", headers=headers)
+    response.raise_for_status()
+    confirmed = [row for row in response.json() if row.get("id") == organization_id]
+    if len(confirmed) != 1 or confirmed[0].get("defaultRegionId") != "local":
+        raise ValueError("本机个人组织默认区域未保存；没有创建API密钥")
 
 
 def write_environment(path, key, snapshot):
@@ -21277,7 +21499,7 @@ def snapshot_worker(directory=HOME):
         write_environment(directory / "workbench.env", key, metadata["snapshot"])
         print("本机快照已就绪；沙箱关卡禁止外网并使用离线依赖。")
     finally:
-        client.close()
+        close_client(client)
 
 
 def main():
@@ -23584,7 +23806,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/test.yml sha256: 59e757e4cdecbaadd3fc25c475518d61fbbf423716a32b585378279cb4dac3db -->
+<!-- source-file: .github/workflows/test.yml sha256: a1ec175e8bac9d475432f0144d40ef7c88bdf87f266e14f13b6412387423e111 -->
 ````yaml
 name: Python 3.14 acceptance
 on:
@@ -23708,7 +23930,9 @@ jobs:
         if: always()
         with:
           name: handbook-clean-room
-          path: reports/handbook-clean-room.json
+          path: |
+            reports/handbook-clean-room.json
+            reports/handbook-tests.xml
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -28507,7 +28731,7 @@ FastapiAdmin：https://github.com/fastapiadmin/FastapiAdmin
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/implementation.md sha256: 5314d8a996656f7add13c1ba1cc633b02ddebcb7892c121651bf4009f3cd2654 -->
+<!-- source-file: docs/implementation.md sha256: f9b49dc5ff4ec5cd894ec5045618e2cbaa03844a999c1832db660bc2641b2d77 -->
 ````markdown
 # 逐文件实现讲解：把空文件夹变成完整系统
 
@@ -28755,7 +28979,7 @@ Runtime在本机文件锁和可选PG advisory lock下启动单Worker。文件锁
 | 流程/API | `uv run pytest tests/test_api.py tests/test_workflow.py tests/test_guided_workflow.py -q` | gate_id、显式布尔值、Job状态与幂等键 |
 | 全部文件 | `uv run python -m scripts.build_handbook`，然后`uv run pytest -m "not postgres" -q` | 先生成唯一手册，再检查源码块与当前文件的一致性 |
 | 真实工具 | `uv run python -m scripts.ci_toolchain` | Aider独立环境、实际MCP进程、源码索引，不是模型账号 |
-| 手册独立重建 | `uv run python -m scripts.ci_handbook` | 文档源码块、固定第三方依赖重建和本地导入来源 |
+| 手册独立重建 | `uv run python -m scripts.ci_handbook` | 文档源码块、固定第三方依赖重建、本地导入来源及重建后的完整非PostgreSQL回归 |
 
 测试名不是“全部功能一定正确”的证明。单元测试验证契约和分支；HTTP、数据库、真实CLI、浏览器和本机自托管服务测试验证实际连接。不同证据在报告中分开，未运行的检查不得填passed=true。
 
@@ -29113,7 +29337,7 @@ uv run python -m scripts.ci_native_bundled yudao-vben
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/toolchain.md sha256: c88fe424f7131f5975154ffcf3b12f14e32f437f0211c595989df087ec882789 -->
+<!-- source-file: docs/toolchain.md sha256: 14d3651b0e4dc9e8947ff49fc2215e8cd3a3c6ab97903647fd2308e8bf159f0a -->
 ````markdown
 ## 20. 本机工具链：解析、检索、编辑、MCP与自托管Daytona
 
@@ -29337,9 +29561,9 @@ uv run python -m scripts.daytona_bootstrap auth
 uv run python -m scripts.daytona_bootstrap snapshot
 ```
 
-auth使用本机Dex的独立bootstrap客户端及随机本机密码取得经过真实签名验证的身份，再为个人组织创建只含所需资源权限的API Key。它不伪造JWT、不登录云账号。这个密码授权流程只为回环绑定的开发环境提供确定性初始化，不建议照搬到公开OAuth产品。
+auth使用本机Dex的独立bootstrap客户端及随机本机密码取得经过真实签名验证的身份，通过签名身份把本机个人组织的默认区域设为local并重新读取核对，再创建只含所需资源权限的API Key。服务端已有local区域并不意味着新个人组织已经选择它；已有其他默认区域时脚本会停止，不会擅自覆盖。它不伪造JWT、不登录云账号。这个密码授权流程只为回环绑定的开发环境提供确定性初始化，不建议照搬到公开OAuth产品。
 
-上一节的snapshot-image只向docker build传入Dockerfile、产品pyproject.toml和uv.lock三个公开输入，不传平台源码目录、.env或用户数据。构建阶段下载Python3.14.7、uv和产品锁定依赖，把缓存预热到镜像；之后推送到本机127.0.0.1:6000 Registry。snapshot把该本机镜像登记为本机Daytona快照。注册操作在最长720秒的独立本机子进程中完成，超时终止而不是无限等待；失败不能写成已就绪。检查本机API/Runner日志和快照状态后再运行snapshot，不删除数据库或更换云端服务。
+上一节的snapshot-image只向docker build传入Dockerfile、产品pyproject.toml和uv.lock三个公开输入，不传平台源码目录、.env或用户数据。构建阶段下载Python3.14.7、uv和产品锁定依赖，把缓存预热到镜像；之后推送到本机127.0.0.1:6000 Registry。snapshot把该本机镜像登记为本机Daytona快照。脚本通过有限分页列表精确匹配名称，避免固定服务版本的名称查询进入UUID校验路径；不能把查询失败当成快照不存在。只有名称、镜像来源和active状态同时匹配才写入就绪配置；重复名称、未完成的分页、认证失败和未就绪快照都会停止，且不会覆盖已有凭据。注册操作在最长720秒的独立本机子进程中完成，超时终止而不是无限等待；失败不能写成已就绪。固定SDK没有Daytona.close()，适配器在独立进程结束前逐一关闭其实际HTTP/API传输资源；这不能代替删除沙箱。检查本机API/Runner日志和快照状态后再运行snapshot，不删除数据库或更换云端服务。
 
 生成的`.data/daytona-local/workbench.env`包含可直接填入项目`.env`的六个Daytona字段及工具超时。打开文件在本机复制这些配置，不把Key贴到Issue、聊天或报告里。不要覆盖已有的BASE_URL/API_KEY/MODE；它们属于聊天大模型。
 
@@ -29384,7 +29608,7 @@ down不带-v，不删除持久卷、用户、Key或快照。已有安装用up继
 | 精确编辑 | aider_tool.apply_blocks、code_rules_with_aider | CLI实际执行、唯一前像、文件范围、SHA、规则正反例、Git提交 |
 | IDE桥接 | context_mcp.make_server、export_continue | 真实stdio MCP初始化、工具列表和查询，不是云端服务 |
 | 本机沙箱 | sandbox、daytona_worker、daytona_local、daytona_bootstrap | URL/网络拒绝测试；另加本机完整服务生命周期报告 |
-| 唯一手册 | build_handbook、rebuild_from_handbook、ci_handbook | 全部文本源码哈希、空目录重建、第三方依赖重建与本地导入来源 |
+| 唯一手册 | build_handbook、rebuild_from_handbook、ci_handbook | 全部文本源码哈希、空目录重建、第三方依赖重建、本地导入来源及完整非PostgreSQL回归 |
 
 ### 固定实现的官方来源
 
@@ -29435,7 +29659,7 @@ Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/recommendation-recovery.md sha256: 2fadd09358196339052d43ba06454b93ab8f9c53bf91271af42174661ed495d1 -->
+<!-- source-file: docs/recommendation-recovery.md sha256: 4aaf51f0249e201f83c0b19d572381378c1d41373e91b0bda6646d0e32916ebe -->
 ````markdown
 # 智能推荐的范围判断、自动修正与原运行恢复
 
@@ -29455,11 +29679,11 @@ Runner程序入口与配置校验：https://github.com/daytonaio/daytona/blob/01
 
 每个工作任务内，需求澄清和设计阶段分别最多执行两轮自动修正，需求阶段的修正不会消耗设计阶段的额度；全局模型调用和费用预算仍然生效。无法收敛会保留 `BLOCKED` 和对应 gate，而不是无限消耗模型调用。暂停并不总表示模板不支持，也可能只是模型没有决定完问题。错误信息展示具体原因，运行目录下的 `recommendation-blocked.json` 保留阶段、gate ID、该阶段尝试次数、问题和限制说明。该文件是一次暂停的诊断快照；恢复后以运行当前状态及最终验收报告为准。
 
-模型结果缓存同时绑定阶段、模型、提示词、输入和 JSON Schema。升级修复提示词、变更反馈或契约后，不会误用旧回答；完全相同的崩溃重放仍复用既有结果。预算统计不因缓存键更新而清零。
+模型结果缓存同时绑定阶段、模型、提示词、输入和 JSON Schema。提示词、反馈或契约发生变动时，不会误用旧回答；完全相同的崩溃重放仍复用既有结果。预算统计不因缓存键更新而清零。
 
 ## 从 BLOCKED 恢复，不创建新项目
 
-升级代码后先停止并重启原 `rnd start` 进程，保持原来的 `.env`、数据目录和数据库。不要删除 `.data`，不要手改检查点、审批记录或运行状态；删除它们会丢失本来可以恢复的历史。
+恢复已有运行时，先确认只运行一个使用当前代码的 `rnd start` 进程，保持原来的 `.env`、数据目录和数据库。不要删除 `.data`，不要手改检查点、审批记录或运行状态；删除它们会丢失本来可以恢复的历史。
 
 使用原 ID 打开交互：
 
@@ -29484,7 +29708,7 @@ uv run rnd chat --run <原运行ID>
 
 关闭自主决策使用 `uv run rnd manual <原运行ID>`。对保留 gate 的 `BLOCKED`，状态变为相应的 `WAITING_*`，下一次交互可直接答复。模型认证、预算或工具执行失败且没有 gate 时，先修复实际原因，再执行 `uv run rnd retry <原运行ID>`，然后重新打开交互。重试不会绕过鉴权、费用预算、数据隔离或测试要求。
 
-旧版本的需求检查点没有 `limitations` 字段。`Requirement.gate_dump` 在此字段为空时保留原来的 gate 内容摘要，避免升级后 `Command(resume=...)` 重放同一节点时造成审批版本不匹配。非空说明仍纳入新版本摘要，不能复用旧批准。
+检查点必须容忍可选字段缺省。`Requirement.gate_dump` 在 `limitations` 字段为空时不将其纳入 gate 内容摘要，因此有无显式空字段都代表同一份审批内容；`Command(resume=...)` 重放同一节点时仍能核对原批准。非空说明会改变摘要，不能复用不对应内容的批准。
 
 ## 如何验证这条流程
 

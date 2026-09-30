@@ -244,7 +244,7 @@ Runtime在本机文件锁和可选PG advisory lock下启动单Worker。文件锁
 | 流程/API | `uv run pytest tests/test_api.py tests/test_workflow.py tests/test_guided_workflow.py -q` | gate_id、显式布尔值、Job状态与幂等键 |
 | 全部文件 | `uv run python -m scripts.build_handbook`，然后`uv run pytest -m "not postgres" -q` | 先生成唯一手册，再检查源码块与当前文件的一致性 |
 | 真实工具 | `uv run python -m scripts.ci_toolchain` | Aider独立环境、实际MCP进程、源码索引，不是模型账号 |
-| 手册独立重建 | `uv run python -m scripts.ci_handbook` | 文档源码块、固定第三方依赖重建和本地导入来源 |
+| 手册独立重建 | `uv run python -m scripts.ci_handbook` | 文档源码块、固定第三方依赖重建、本地导入来源及重建后的完整非PostgreSQL回归 |
 
 测试名不是“全部功能一定正确”的证明。单元测试验证契约和分支；HTTP、数据库、真实CLI、浏览器和本机自托管服务测试验证实际连接。不同证据在报告中分开，未运行的检查不得填passed=true。
 

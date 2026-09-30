@@ -10,13 +10,14 @@ import os
 import sys
 import time
 from pathlib import Path
+from uuid import UUID
 
 import httpx
 from pydantic import SecretStr
 
 from scripts.daytona_local import HOME, private_json
 from workbench.local_only import install_loopback_guard
-from workbench.sandbox import client_for
+from workbench.sandbox import client_for, close_client
 from workbench.settings import ROOT, Settings
 from workbench.tools import ToolFailure, run_command
 
@@ -69,6 +70,7 @@ def bootstrap(directory=HOME):
         if len(personal) != 1:
             raise ValueError("个人组织不唯一，拒绝猜测密钥所属组织")
         headers["X-Daytona-Organization-ID"] = personal[0]["id"]
+        configure_personal_region(http, headers, personal[0])
         response = http.post(
             "http://127.0.0.1:3000/api/api-keys",
             headers=headers,
@@ -81,6 +83,32 @@ def bootstrap(directory=HOME):
     private_json(directory / "api-key.json", {"value": key, "organization_id": personal[0]["id"]})
     write_environment(destination, key, "")
     print("本机认证通过，API密钥只写入本机受限文件；没有模型调用。")
+
+
+def configure_personal_region(http, headers, organization):
+    """Select only our local region through the authenticated public API.
+
+    The server's DEFAULT_REGION_ID creates a region, but does not assign it to
+    each new personal organization. Snapshot creation requires both settings.
+    """
+    organization_id = str(UUID(organization["id"]))
+    if organization.get("personal") is not True:
+        raise ValueError("只允许初始化当前本机用户的个人组织")
+    current = organization.get("defaultRegionId")
+    if current not in (None, "", "local"):
+        raise ValueError("个人组织已选择其他区域；拒绝静默覆盖")
+    if current != "local":
+        response = http.patch(
+            f"http://127.0.0.1:3000/api/organizations/{organization_id}/default-region",
+            headers=headers,
+            json={"defaultRegionId": "local"},
+        )
+        response.raise_for_status()
+    response = http.get("http://127.0.0.1:3000/api/organizations", headers=headers)
+    response.raise_for_status()
+    confirmed = [row for row in response.json() if row.get("id") == organization_id]
+    if len(confirmed) != 1 or confirmed[0].get("defaultRegionId") != "local":
+        raise ValueError("本机个人组织默认区域未保存；没有创建API密钥")
 
 
 def write_environment(path, key, snapshot):
@@ -166,7 +194,7 @@ def snapshot_worker(directory=HOME):
         write_environment(directory / "workbench.env", key, metadata["snapshot"])
         print("本机快照已就绪；沙箱关卡禁止外网并使用离线依赖。")
     finally:
-        client.close()
+        close_client(client)
 
 
 def main():

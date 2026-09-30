@@ -345,7 +345,7 @@ def index(source: Path, output: Path):
 
 @native_app.command("prepare")
 def native_prepare(template: str):
-    """克隆白名单中的固定开源提交，建立原生模板源码知识包。"""
+    """校验并展开仓库内固定源码归档，建立原生模板源码知识包；不在线克隆。"""
     from workbench.native import prepare_sources
 
     echo(prepare_sources(Settings(), template))
