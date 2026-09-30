@@ -24,20 +24,8 @@ jobs:
         with:
           name: bundled-template-integrity
           path: reports/
-  model-smoke:
+  real-model:
     if: github.event_name == 'workflow_dispatch' && github.repository == 'Live-yum/ai-rnd-foundation-learning' && github.ref == 'refs/heads/feat/real-model-acceptance'
-    environment: rnd
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    uses: ./.github/workflows/real-model.yml
     permissions:
       contents: read
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: User-requested exact DeepSeek Hello request
-        env:
-          DEEPSEEK_API_KEY: ${{ secrets.APK_KEY }}
-          BASE_URL: ${{ vars.BASE_URL }}
-          MODE: ${{ vars.MODE }}
-        run: python3 scripts/ci_model_smoke.py
