@@ -22,6 +22,15 @@ const EVENT_LABELS = {created:"已创建", updated:"已更新", assigned:"已分
 function fieldLabel(name) { return entity?.fields.find(field=>field.name===name)?.label || name; }
 function entityLabel(name) { return spec?.entities.find(item => item.name === name)?.description || name; }
 function displayTime(value) { const date = new Date(value); return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", {hour12:false,timeZone:"UTC"}) + " UTC"; }
+function actionLabel(action, chosen) {
+  if (action.startsWith("transitioned:")) {
+    const name = action.slice("transitioned:".length);
+    const transition = spec.business.workflows.find(item => item.entity === chosen.name)?.transitions.find(item => item.name === name);
+    return transition?.label || name;
+  }
+  return EVENT_LABELS[action] || action;
+}
+function actorLabel(item) { return item.actor_username || "未知用户"; }
 function inform(error) {
   $("notice").textContent = error.message || String(error);
 }
@@ -355,7 +364,9 @@ async function showBusinessDetail(row) {
   detailRecord = row; $("business-detail-title").textContent = row.name || row.title || row.id;
   $("business-actions").replaceChildren(); $("business-notes").replaceChildren(); $("business-history").replaceChildren(); $("business-related").replaceChildren();
   if(can("assign")) {
-    const assignees=await(await api(`/business/users?entity=${entity.name}`)).json(); const select=node("select",undefined,$("business-actions")); select.id="business-assignee";
+    const assignees=await(await api(`/business/users?entity=${chosen.name}`)).json();
+    if(sequence!==detailSequence || chosen!==entity) return;
+    const select=node("select",undefined,$("business-actions")); select.id="business-assignee";
     node("option","未分配",select).value=""; assignees.forEach(user=>node("option",user.username,select).value=user.id);
     const field=spec.business.resources.find(r=>r.entity===entity.name).assignee_field; select.value=row[field]||"";
     node("button","分配",$("business-actions")).onclick=async()=>{try{const updated=await(await api(`/api/${entity.name}/${row.id}/assign`,{method:"POST",body:JSON.stringify({user_id:select.value||null})})).json();await showBusinessDetail(updated);await load();}catch(error){inform(error);}};
@@ -365,20 +376,36 @@ async function showBusinessDetail(row) {
     node("button",action.label||action.name,$("business-actions")).onclick=async()=>{try{const updated=await(await api(`/api/${entity.name}/${row.id}/transition`,{method:"POST",body:JSON.stringify({transition:action.name})})).json();await showBusinessDetail(updated);await load();await refreshBusiness();}catch(error){inform(error);}};
   }
   if(can("read_history")) {
-    const notes=await(await api(`/api/${entity.name}/${row.id}/notes`)).json(); notes.forEach(note=>node("p",`${note.created_at} · ${note.actor_id}: ${note.body}`,$("business-notes")));
-    const history=await(await api(`/api/${entity.name}/${row.id}/history`)).json(); history.forEach(item=>{node("p",`${item.created_at} · ${item.actor_id} · ${item.action}`,$("business-history"));if(item.after)node("pre",JSON.stringify(item.after,null,2),$("business-history"));});
+    const notes=await(await api(`/api/${chosen.name}/${row.id}/notes`)).json();
+    if(sequence!==detailSequence || chosen!==entity) return;
+    notes.forEach(note=>node("p",`${displayTime(note.created_at)} · ${actorLabel(note)}：${note.body}`,$("business-notes")));
+    const history=await(await api(`/api/${chosen.name}/${row.id}/history`)).json();
+    if(sequence!==detailSequence || chosen!==entity) return;
+    history.forEach(item=>{
+      node("p",`${displayTime(item.created_at)} · ${actorLabel(item)} · ${actionLabel(item.action, chosen)}`,$("business-history"));
+      if(Object.hasOwn(item,"before") || Object.hasOwn(item,"after")) {
+        const details=node("details",undefined,$("business-history"));
+        node("summary","查看审计详情（原始 JSON）",details);
+        node("pre",JSON.stringify(item,null,2),details);
+      }
+    });
   }
-  const related=await(await api(`/business/related/${entity.name}/${row.id}`)).json(); for(const group of related) {node("h4",group.entity,$("business-related"));group.records.forEach(item=>{
+  const related=await(await api(`/business/related/${chosen.name}/${row.id}`)).json();
+  if(sequence!==detailSequence || chosen!==entity) return;
+  for(const group of related) {node("h4",entityLabel(group.entity),$("business-related"));group.records.forEach(item=>{
       const workflow=spec.business.workflows.find(w=>w.entity===group.entity);
-      const text=(item.name||item.title||item.id)+(workflow ? " · "+item[workflow.status_field] : "");
+      const field=spec.entities.find(target=>target.name===group.entity)?.fields.find(field=>field.name===workflow?.status_field);
+      const status=workflow ? item[workflow.status_field] : null;
+      const text=(item.name||item.title||item.id)+(workflow ? " · "+(field?.choice_labels?.[status]||status) : "");
       node("button",text,$("business-related")).onclick=async()=>{try{const target=spec.entities.find(e=>e.name===group.entity);if(target){choose(target);await showBusinessDetail(item);}}catch(error){inform(error);}};
-    });}
+    });if(!group.records.length)node("p","暂无关联记录",$("business-related"));}
   $("business-note-form").hidden=!can("add_note");
   if(sequence!==detailSequence || chosen!==entity) return;
   if(!$("business-detail").open) $("business-detail").showModal();
 }
 $("refresh-business").onclick=()=>refreshBusiness().catch(inform);
 $("business-close").onclick=()=>{++detailSequence;$("business-detail").close();};
+$("business-detail").addEventListener("cancel",()=>{++detailSequence;});
 $("business-note-form").onsubmit=async(event)=>{event.preventDefault();try{await api(`/api/${entity.name}/${detailRecord.id}/notes`,{method:"POST",body:JSON.stringify(Object.fromEntries(new FormData(event.target)))});event.target.reset();await showBusinessDetail(detailRecord);}catch(error){inform(error);}};
 $("business-create-user").onsubmit=async(event)=>{event.preventDefault();try{await api("/business/users",{method:"POST",body:JSON.stringify(Object.fromEntries(new FormData(event.target)))});event.target.reset();await refreshBusiness();}catch(error){inform(error);}};
 

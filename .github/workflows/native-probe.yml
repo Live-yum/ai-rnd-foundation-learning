@@ -139,6 +139,14 @@ jobs:
           path: reports/real-model/summary.json
           if-no-files-found: ignore
           retention-days: 7
+      - name: Retain only validated secret-scanned customer Plan for offline replay
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: customer-plan-replay-${{ matrix.template }}-${{ github.sha }}
+          path: reports/real-model/approved-plan-replay.json
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Upload synthetic customer UI screenshots only
         if: success()
         uses: actions/upload-artifact@v4

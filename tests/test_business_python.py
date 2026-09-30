@@ -119,7 +119,27 @@ with TestClient(app) as c:
     events=call('GET',f'/api/requests/{identity}/history',manager).json()
     assert [e['action'] for e in events]==['created','assigned','transitioned:start','note_added','transitioned:resolve'],events
     assert all(e['actor_id'] and e['created_at'] for e in events)
-    assert all('after' not in e for e in call('GET',f'/api/requests/{identity}/history',employee).json())
+    assert [e['actor_username'] for e in events]==['employee-a','admin','service-a','service-a','service-a']
+    limited=call('GET',f'/api/requests/{identity}/history',employee).json()
+    assert all('after' not in e and 'before' not in e for e in limited)
+    assert [e['actor_username'] for e in limited]==[e['actor_username'] for e in events]
+    assert call('GET',f'/api/requests/{identity}/history',outsider).status_code==404
+    assert call('GET',f'/api/requests/{identity}/history',actors['service-b']['token']).status_code==404
+    notes=call('GET',f'/api/requests/{identity}/notes',employee).json()
+    assert [n['actor_username'] for n in notes]==['service-a']
+    assert not any('password' in row or 'role' in row for row in events+notes)
+    assert 'employee-b' not in json.dumps(events+notes)
+    # Label enrichment is presentation-only: exact stored snapshots and IDs survive reads.
+    with engine.connect() as conn:
+        audit=metadata.tables['business_audit']
+        stored={r['id']:dict(r) for r in conn.execute(select(audit).where(audit.c.record_id==identity)).mappings()}
+    for entry in events:
+        original=stored[entry['id']]
+        assert entry['actor_id']==original['actor_id'] and entry['action']==original['action']
+        assert entry['created_at']==original['created_at']
+        for key in ['before','after']:
+            assert entry[key]==(json.loads(original[key+'_json']) if original[key+'_json'] else None)
+    assert call('GET',f'/api/requests/{identity}/history',manager).json()==events
     assert 'transitioned' in [n['event'] for n in call('GET','/business/notifications',employee).json()]
     stats={x['name']:x for x in call('GET','/business/metrics',manager).json()}
     assert stats['total']['value']==1 and stats['resolution']['samples']==1 and stats['resolution']['value']>=0,stats
@@ -139,6 +159,27 @@ with TestClient(app) as c:
             raise AssertionError('actual FK did not restrict deletion')
     own=call('GET','/business/me',manager).json()['id']
     assert call('PUT',f'/business/users/{own}/role',manager,json={'role':'employee'}).status_code==409
+    # More than one lookup batch, with all IDs derived from this record's visible notes.
+    from sqlalchemy import event as sql_event
+    with engine.begin() as conn:
+        for index in range(105):
+            actor_id=f'history-actor-{index:03d}'
+            conn.execute(insert(metadata.tables['users']).values(id=actor_id,username=actor_id,password='synthetic-unused',role='employee'))
+            conn.execute(insert(metadata.tables['business_notes']).values(id=f'history-note-{index:03d}',entity='requests',record_id=identity,actor_id=actor_id,created_at='2026-01-01T00:00:00.000000Z',body='Synthetic batching check'))
+    lookups=[]
+    def capture_lookup(connection,cursor,statement,parameters,context,executemany):
+        if 'users.id IN (' in statement and 'users.username' in statement:
+            assert 'users.password' not in statement and 'users.role' not in statement
+            lookups.append(len(parameters))
+    sql_event.listen(engine,'before_cursor_execute',capture_lookup)
+    try:
+        assert call('GET',f'/api/requests/{identity}/notes',outsider).status_code==404
+        assert lookups==[]
+        authorized=call('GET',f'/api/requests/{identity}/notes',employee).json()
+        assert len(authorized)==106 and sorted(lookups)==[6,100],lookups
+        assert {n['actor_username'] for n in authorized}=={'service-a'}|{f'history-actor-{index:03d}' for index in range(105)}
+    finally:
+        sql_event.remove(engine,'before_cursor_execute',capture_lookup)
 print(json.dumps({'passed':True,'roles':3,'row_acl':True,'fk':True,'transitions':True,'audit':True,'notes':True,'notifications':True,'scoped_metrics':True}))
 """
 

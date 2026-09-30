@@ -15,6 +15,16 @@ async function refreshNativeList(page, entity, list, observe, checked) {
   return checked(listing);
 }
 
+// VXE renders fixed action columns in a separate table row with the same rowid.
+// The visible title cell and its action button need not share a DOM row.
+function nativeDetailButton(page, entity, identifier) {
+  assert(/^[a-z][a-z0-9_]*$/.test(entity));
+  assert(/^[0-9]+$/.test(String(identifier)), 'Native row key must be an integer identifier');
+  return page.locator(`[data-rnd-business-entity="${entity}"]:visible`)
+    .locator(`.vxe-body--row[rowid="${identifier}"]`)
+    .getByRole('button', { name: '业务详情', exact: true }).filter({ visible: true }).first();
+}
+
 async function main() {
   const [base, reportDir, playwrightPath, scenarioFile] = process.argv.slice(2);
   assert.equal(new URL(base).hostname, '127.0.0.1');
@@ -35,7 +45,7 @@ async function main() {
     const found = scenario.targets.find(item => item.entity === entity);
     assert(found, `Missing target ${entity}`); return found;
   };
-  const observe = (part, method = 'GET') => page.waitForResponse(r => new URL(r.url()).pathname.endsWith(part) && r.request().method() === method)
+  const observe = (part, method = 'GET', query = {}) => page.waitForResponse(r => new URL(r.url()).pathname.endsWith(part) && r.request().method() === method && Object.entries(query).every(([key, value]) => new URL(r.url()).searchParams.get(key) === String(value)))
     .then(response => ({ response }), error => ({ error }));
   const checked = async promise => {
     const found = await promise; if (found.error) throw found.error;
@@ -87,13 +97,22 @@ async function main() {
     return { ...current, rows };
   }
   async function detail(entity, label) {
-    await openPage(entity);
-    const row = page.locator('.vxe-body--row').filter({ has: page.getByText(label, { exact: true }) }).first();
+    const current = await openPage(entity);
+    const matches = current.rows.list.filter(record => Object.values(record).includes(label));
+    assert.equal(matches.length, 1, 'Exactly one returned native record must match the visible label');
+    const identifier = String(matches[0].id);
+    const scope = page.locator(`[data-rnd-business-entity="${entity}"]:visible`);
+    const row = scope.locator('.vxe-body--row').filter({ has: page.getByText(label, { exact: true }) }).first();
     await row.waitFor({ state: 'visible' });
-    const meta = observe('/admin-api/infra/rnd-business/meta');
-    await row.getByRole('button', { name: '业务详情', exact: true }).click();
-    await checked(meta);
-    await page.locator('[data-rnd-business-panel]').scrollIntoViewIfNeeded();
+    await nativeDetailButton(page, entity, identifier).click();
+    const panel = scope.locator('[data-rnd-business-panel]');
+    await panel.scrollIntoViewIfNeeded();
+    // Selecting an already-open record in a kept-alive page is a valid no-op.
+    // Its native Refresh button provides a fresh, record-bound response every time.
+    const meta = observe('/admin-api/infra/rnd-business/meta', 'GET', { entity, id: identifier });
+    await panel.getByRole('button', { name: '刷新', exact: true }).click();
+    const metadata = await checked(meta);
+    assert.equal(String(metadata.record.id), identifier, 'Detail response must match the clicked row');
   }
   async function select(locator, label, screenshot) {
     await locator.click();
@@ -237,5 +256,5 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, refreshNativeList };
+module.exports = { main, refreshNativeList, nativeDetailButton };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });

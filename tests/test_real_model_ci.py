@@ -243,8 +243,11 @@ def test_workflow_is_manual_environment_scoped_and_artifact_allowlisted():
     ]
     assert [step["with"]["path"] for step in paid_uploads] == [
         "reports/real-model/summary.json",
+        "reports/real-model/approved-plan-replay.json",
         "reports/real-model/screenshots/*.png",
     ]
+    assert paid_uploads[1]["if"] == "failure()"
+    assert paid_uploads[1]["with"]["retention-days"] == "7"
 
 
 def test_all_profiles_use_authorized_configuration_despite_hostile_ambient_overrides(
@@ -656,3 +659,337 @@ def test_review_gap_diagnostics_preserve_blocking_count_and_omit_other_model_tex
     encoded = json.dumps(result, ensure_ascii=False)
     assert "opaque-private-canary" not in encoded and "raw private provider" not in encoded
     assert review.uncovered_requirements == ["客户历史请求未验证，opaque-private-canary"]
+
+
+def test_runtime_diagnostics_keep_exact_failure_stage_and_safe_headline(tmp_path):
+    from scripts.ci_real_model import DiagnosticTextBudget, safe_runtime_details
+
+    (tmp_path / "progress.json").write_text(
+        json.dumps(
+            {
+                "template": "fastapiadmin",
+                "stage": "customer-service-http",
+                "environment": "private environment not selected",
+            }
+        ),
+        encoding="utf-8",
+    )
+    (tmp_path / "failure.log").write_text(
+        "AssertionError at business_probe.py:271 (customer_service_acceptance): "
+        "Native API failed: POST /business/requests/create HTTP 422 exact-key-canary\n"
+        "unselected subprocess log and provider response\nAuthorization: Bearer second-secret\n",
+        encoding="utf-8",
+    )
+    result = safe_runtime_details(
+        "AssertionError：business_probe.py:271（customer_service_acceptance），请检查本次运行报告",
+        tmp_path,
+        DiagnosticTextBudget(secrets=("exact-key-canary",)),
+    )
+    assert "business_probe.py:271" in result["error_excerpt"]
+    assert result["native_stage"] == "customer-service-http"
+    assert result["native_template"] == "fastapiadmin"
+    assert result["native_exception"] == {
+        "exception_type": "AssertionError",
+        "file": "business_probe.py",
+        "function": "customer_service_acceptance",
+        "line": 271,
+        "message_excerpt": "Native API failed: POST /business/requests/create HTTP 422 [REDACTED]",
+    }
+    encoded = json.dumps(result)
+    for value in ("exact-key-canary", "second-secret", "unselected", "private environment"):
+        assert value not in encoded
+
+
+@pytest.mark.parametrize(
+    "stage,headline",
+    [
+        ("arbitrary model text", "raw provider response\n"),
+        (["customer-service-http"], "Authorization: Bearer secret\n"),
+        ("customer-service-http", "A" * 65537 + "\n"),
+        ("customer-service-http", "AssertionError at /private/path.py:2 (f): secret\n"),
+    ],
+)
+def test_runtime_diagnostics_reject_unrecognized_report_values(tmp_path, stage, headline):
+    from scripts.ci_real_model import DiagnosticTextBudget, safe_runtime_details
+
+    (tmp_path / "progress.json").write_text(json.dumps({"stage": stage}), encoding="utf-8")
+    (tmp_path / "failure.log").write_text(headline, encoding="utf-8")
+    result = safe_runtime_details("", tmp_path, DiagnosticTextBudget())
+    assert "native_exception" not in result
+    assert result.get("native_stage") == (
+        "customer-service-http" if stage == "customer-service-http" else None
+    )
+
+
+def test_runtime_diagnostics_reject_symlinked_files_and_report_directory(tmp_path, monkeypatch):
+    from scripts.ci_real_model import DiagnosticTextBudget, safe_runtime_details
+
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    (outside / "progress.json").write_text('{"stage":"customer-service-http"}', encoding="utf-8")
+    (outside / "failure.log").write_text(
+        "AssertionError at hidden.py:1 (hidden): private canary\n", encoding="utf-8"
+    )
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    linked_directory = tmp_path / "linked"
+    linked_paths = {reports / "progress.json", reports / "failure.log", linked_directory}
+    try:
+        for name in ("progress.json", "failure.log"):
+            (reports / name).symlink_to(outside / name)
+        linked_directory.symlink_to(outside, target_is_directory=True)
+    except OSError:
+        # Windows can deny unprivileged symlink creation. Still exercise the
+        # same rejection branch instead of silently skipping the safety check.
+        original = type(reports).is_symlink
+        monkeypatch.setattr(
+            type(reports), "is_symlink", lambda path: path in linked_paths or original(path)
+        )
+    for path in (reports, linked_directory, linked_directory / "nested"):
+        assert safe_runtime_details("", path, DiagnosticTextBudget()) == {}
+
+
+def test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget():
+    from scripts.ci_real_model import DiagnosticTextBudget, safe_workflow_details
+
+    class Store:
+        def get_run(self, run_id):
+            return {
+                "status": "FAILED",
+                "template": "fastapiadmin",
+                "error": "RuntimeError：native_modules.py:23（generate_modules），请检查本次运行报告",
+            }
+
+        def latest_revision(self, run_id, stage):
+            return {}
+
+    budget = DiagnosticTextBudget(limit=40)
+    result = safe_workflow_details(Store(), "run", [], text_budget=budget)
+    assert result["terminal_state"] == "FAILED"
+    assert result["runtime_diagnostics"]["error_excerpt"].startswith(
+        "RuntimeError：native_modules.py"
+    )
+    assert len(result["runtime_diagnostics"]["error_excerpt"]) == 40
+    assert budget.remaining == 0
+
+
+def test_native_progress_allowlist_covers_real_literal_stages():
+    import ast
+    import inspect
+
+    from scripts.ci_real_model import NATIVE_PROGRESS_STAGES
+    from workbench.native_lab import run_acceptance
+
+    tree = ast.parse(inspect.getsource(run_acceptance))
+    stages = {
+        node.args[0].value
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "stage"
+    }
+    assert stages == NATIVE_PROGRESS_STAGES
+
+
+def test_native_exception_headline_redaction_precedes_truncation_and_ignores_log(tmp_path):
+    from scripts.ci_real_model import DiagnosticTextBudget, safe_runtime_details
+
+    secret = "private-exact-credential-canary"
+    (tmp_path / "failure.log").write_text(
+        "ValueError at native_modules.py:8 (generate_modules): "
+        + "x" * 595
+        + secret
+        + "\nsubprocess private output",
+        encoding="utf-8",
+    )
+    budget = DiagnosticTextBudget(secrets=(secret,))
+    result = safe_runtime_details("", tmp_path, budget)
+    message = result["native_exception"]["message_excerpt"]
+    assert len(message) == 600
+    assert "private" not in json.dumps(result)
+    assert message.endswith("[REDA")
+
+
+def test_approved_plan_replay_preserves_exact_normalized_customer_contract(tmp_path):
+    from scripts.ci_real_model import DiagnosticTextBudget, preserve_approved_customer_plan
+    from workbench.domain import Plan
+
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    reports = tmp_path / "native-evidence"
+    reports.mkdir()
+    (reports / "approved-spec.json").write_text(json.dumps(plan), encoding="utf-8")
+    (reports / "raw-provider-response.json").write_text("unselected secret", encoding="utf-8")
+    destination = tmp_path / "safe-artifacts/approved-plan-replay.json"
+    budget = DiagnosticTextBudget(secrets=("test-only-secret",), limit=0)
+    result = preserve_approved_customer_plan(reports, destination, budget)
+    assert result["status"] == "saved" and result["exact_normalized_plan"] is True
+    assert result["file"] == destination.name
+    assert result["bytes"] == len(destination.read_bytes())
+    assert (
+        json.loads(destination.read_text(encoding="utf-8"))
+        == Plan.model_validate(plan).model_dump()
+    )
+    assert list(destination.parent.iterdir()) == [destination]
+    assert "unselected secret" not in destination.read_text(encoding="utf-8")
+
+
+@pytest.mark.parametrize(
+    "secret_text",
+    [
+        "test-only-secret",
+        "password=credential_canary",
+        "Authorization: Bearer header_canary",
+        "https://alice:credential_canary@example.invalid",
+        "API_KEY=credential_canary",
+        "sk-credentialcanary12345",
+        'metadata {"password": "credential_canary"}',
+    ],
+)
+def test_approved_plan_replay_rejects_credentials_before_persistence(tmp_path, secret_text):
+    from scripts.ci_real_model import DiagnosticTextBudget, preserve_approved_customer_plan
+
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    plan["acceptance"].append(secret_text)
+    (tmp_path / "approved-spec.json").write_text(json.dumps(plan), encoding="utf-8")
+    destination = tmp_path / "safe-artifacts/approved-plan-replay.json"
+    result = preserve_approved_customer_plan(
+        tmp_path, destination, DiagnosticTextBudget(secrets=("test-only-secret",))
+    )
+    assert result == {"status": "secret_scan_rejected"}
+    assert not destination.exists()
+    assert secret_text not in json.dumps(result)
+
+
+def test_approved_plan_replay_rejects_unknown_schema_and_does_not_read_other_files(tmp_path):
+    from scripts.ci_real_model import DiagnosticTextBudget, preserve_approved_customer_plan
+
+    destination = tmp_path / "safe-artifacts/approved-plan-replay.json"
+    budget = DiagnosticTextBudget()
+    (tmp_path / "design.json").write_text('{"secret": "unapproved plan"}', encoding="utf-8")
+    assert preserve_approved_customer_plan(tmp_path, destination, budget) == {
+        "status": "unavailable"
+    }
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    plan["provider_headers"] = "private provider data"
+    (tmp_path / "approved-spec.json").write_text(json.dumps(plan), encoding="utf-8")
+    assert preserve_approved_customer_plan(tmp_path, destination, budget) == {
+        "status": "invalid_schema"
+    }
+    assert not destination.exists()
+
+
+def test_approved_plan_replay_size_is_bounded_on_read_and_normalized_write(tmp_path):
+    from scripts.ci_real_model import (
+        MAX_REPLAY_PLAN_BYTES,
+        DiagnosticTextBudget,
+        preserve_approved_customer_plan,
+    )
+
+    source = tmp_path / "approved-spec.json"
+    destination = tmp_path / "safe-artifacts/approved-plan-replay.json"
+    source.write_bytes(b" " * (MAX_REPLAY_PLAN_BYTES + 1))
+    assert preserve_approved_customer_plan(tmp_path, destination, DiagnosticTextBudget()) == {
+        "status": "size_limit"
+    }
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    plan["acceptance"] = ["中文" * 1000] * 21
+    compact = json.dumps(plan, ensure_ascii=False, separators=(",", ":"))
+    assert len(compact.encode("utf-8")) > MAX_REPLAY_PLAN_BYTES
+    source.write_text(compact, encoding="utf-8")
+    assert preserve_approved_customer_plan(tmp_path, destination, DiagnosticTextBudget()) == {
+        "status": "size_limit"
+    }
+    assert not destination.exists()
+
+
+def test_approved_plan_replay_rejects_linked_input(tmp_path, monkeypatch):
+    from scripts.ci_real_model import DiagnosticTextBudget, preserve_approved_customer_plan
+
+    real = tmp_path / "actual.json"
+    real.write_bytes((ROOT / "examples/plans/customer-service.json").read_bytes())
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    destination = tmp_path / "safe-artifacts/approved-plan-replay.json"
+    try:
+        (reports / "approved-spec.json").symlink_to(real)
+    except OSError:
+        original = type(reports).is_symlink
+        monkeypatch.setattr(
+            type(reports),
+            "is_symlink",
+            lambda path: path == reports / "approved-spec.json" or original(path),
+        )
+    assert preserve_approved_customer_plan(reports, destination, DiagnosticTextBudget()) == {
+        "status": "unsafe_path"
+    }
+    assert not destination.exists()
+
+
+def test_failed_native_harness_preserves_replay_before_private_cleanup(tmp_path, monkeypatch):
+    import tempfile
+    from pathlib import Path
+    from types import SimpleNamespace
+
+    import uvicorn
+
+    from scripts import ci_real_model
+    from workbench import api
+    from workbench import settings as settings_module
+    from workbench.filesystem import write_json
+
+    plan = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    public_root = tmp_path / "public"
+    public_root.mkdir()
+    monkeypatch.setattr(settings_module, "ROOT", public_root)
+    monkeypatch.setattr(ci_real_model, "customer_request", lambda: "Synthetic customer request")
+
+    class Store:
+        def get_run(self, run_id):
+            assert run_id == "test-run"
+            return {
+                "status": "FAILED",
+                "template": "fastapiadmin",
+                "error": "AssertionError：business_probe.py:123（customer_service_acceptance）",
+            }
+
+        def latest_revision(self, run_id, stage):
+            return {"plan": plan} if stage == "design" else {}
+
+    application = SimpleNamespace(state=SimpleNamespace(token="test-auth", store=Store()))
+    monkeypatch.setattr(api, "create_app", lambda *args, **kwargs: application)
+    monkeypatch.setattr(uvicorn, "Config", lambda *args, **kwargs: None)
+    server = SimpleNamespace(started=True, run=lambda: None, should_exit=False)
+    monkeypatch.setattr(uvicorn, "Server", lambda *args: server)
+
+    with tempfile.TemporaryDirectory(dir=tmp_path) as private:
+        directory = Path(private)
+
+        def failed_browser(command, **kwargs):
+            write_json(directory / "browser-result.json", {"run_id": "test-run"})
+            reports = directory / "private-platform/runs/test-run/native-evidence"
+            write_json(reports / "approved-spec.json", plan)
+            write_json(reports / "progress.json", {"stage": "customer-service-http"})
+            (reports / "failure.log").write_text(
+                "AssertionError at business_probe.py:123 (customer_service_acceptance): "
+                "Native API failed: POST /business/tasks/create HTTP 422 test-only-secret\n"
+                "raw log must remain private",
+                encoding="utf-8",
+            )
+            return SimpleNamespace(returncode=1)
+
+        monkeypatch.setattr(ci_real_model.subprocess, "run", failed_browser)
+        with pytest.raises(SafeFailure, match="workflow_not_ready") as caught:
+            ci_real_model.run_acceptance(
+                config(), SimpleNamespace(statuses=[200]), directory, "fastapiadmin"
+            )
+        details = caught.value.details
+        assert details["terminal_state"] == "FAILED"
+        assert details["runtime_diagnostics"]["native_stage"] == "customer-service-http"
+        assert "HTTP 422" in details["runtime_diagnostics"]["native_exception"]["message_excerpt"]
+        assert details["approved_plan_replay"]["status"] == "saved"
+        assert "test-only-secret" not in json.dumps(details)
+        assert "raw log" not in json.dumps(details)
+    assert not directory.exists()
+    replay = public_root / "reports/real-model/approved-plan-replay.json"
+    assert json.loads(replay.read_text(encoding="utf-8"))["business"] == plan["business"]
+    assert list(replay.parent.iterdir()) == [replay]

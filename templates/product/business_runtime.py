@@ -108,6 +108,21 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
         if actor["role"] not in business["role_admin_roles"]:
             raise HTTPException(403, "只有已批准的角色管理员可以管理账号")
 
+    def history_actor_names(connection, rows):
+        """Resolve only actors from already-authorized history, never arbitrary IDs."""
+        identities = sorted({row["actor_id"] for row in rows})
+        users = tables["users"]
+        result = {}
+        for start in range(0, len(identities), 100):
+            result.update(
+                connection.execute(
+                    select(users.c.id, users.c.username).where(
+                        users.c.id.in_(identities[start : start + 100])
+                    )
+                ).all()
+            )
+        return result
+
     def serialize_administrator(connection, actor):
         # A real UPDATE serializes SQLite writers too (FOR UPDATE is ignored
         # there). Recheck the caller after the lock, not only at request start.
@@ -592,30 +607,38 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
     def notes(entity: str, identity: str, actor=Depends(current)):
         with engine.connect() as connection:
             record(connection, actor, entity, identity, "read_history", archived=True)
-            return [
-                dict(row)
-                for row in connection.execute(
+            rows = (
+                connection.execute(
                     select(tables["business_notes"])
                     .where(
                         tables["business_notes"].c.entity == entity,
                         tables["business_notes"].c.record_id == identity,
                     )
                     .order_by(tables["business_notes"].c.created_at, tables["business_notes"].c.id)
-                ).mappings()
-            ]
+                )
+                .mappings()
+                .all()
+            )
+            names = history_actor_names(connection, rows)
+            return [{**dict(row), "actor_username": names.get(row["actor_id"])} for row in rows]
 
     @app.get("/api/{entity}/{identity}/history")
     def history(entity: str, identity: str, actor=Depends(current)):
         with engine.connect() as connection:
             record(connection, actor, entity, identity, "read_history", archived=True)
-            rows = connection.execute(
-                select(tables["business_audit"])
-                .where(
-                    tables["business_audit"].c.entity == entity,
-                    tables["business_audit"].c.record_id == identity,
+            rows = (
+                connection.execute(
+                    select(tables["business_audit"])
+                    .where(
+                        tables["business_audit"].c.entity == entity,
+                        tables["business_audit"].c.record_id == identity,
+                    )
+                    .order_by(tables["business_audit"].c.created_at, tables["business_audit"].c.id)
                 )
-                .order_by(tables["business_audit"].c.created_at, tables["business_audit"].c.id)
-            ).mappings()
+                .mappings()
+                .all()
+            )
+            names = history_actor_names(connection, rows)
             # History shows actors/actions/time; full snapshots require read_audit.
             full = "read_audit" in policy.permissions.get((actor["role"], entity), {}).get(
                 "actions", []
@@ -623,6 +646,7 @@ def install_business(app, actor_dependency, password_hash, issue_token, legacy_v
             return [
                 {
                     **{k: row[k] for k in ("id", "actor_id", "action", "created_at")},
+                    "actor_username": names.get(row["actor_id"]),
                     **(
                         {
                             "before": json.loads(row["before_json"])

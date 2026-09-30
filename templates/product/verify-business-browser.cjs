@@ -131,7 +131,9 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
         const response=page.waitForResponse(r=>r.url().endsWith('/notes')&&r.request().method()==='POST');
         await page.locator('#business-note-form button').click();assert.equal((await response).status(),201);
         await page.locator('#business-notes').getByText(/Browser business acceptance note/).waitFor();
-        await page.locator('#business-history').getByText(/note_added/).waitFor();
+        const noteEventLabel=await page.evaluate(()=>EVENT_LABELS.note_added);
+        assert.equal(typeof noteEventLabel,'string');assert(noteEventLabel.length>0);
+        await page.locator('#business-history > p').filter({hasText:noteEventLabel}).waitFor();
         checks.add('business-browser-notes-history');
       }
       if(workflow)await capture(actor,entity.name,'workflow');

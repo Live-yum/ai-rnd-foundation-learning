@@ -1,7 +1,8 @@
 """Opt-in real provider acceptance; only allowlisted evidence leaves the isolated job.
 
 No model fixtures, provider substitutions, secret discovery, or automatic scheduling.
-The source files and databases produced during the run are deliberately not artifacts.
+Generated source, databases and raw logs are never artifacts. A bounded, validated,
+secret-scanned approved customer Plan can be retained for deterministic replay.
 """
 
 import contextlib
@@ -230,10 +231,8 @@ class DiagnosticTextBudget:
         self.secrets = tuple(secret for secret in secrets if isinstance(secret, str) and secret)
         self.remaining = min(max(limit, 0), 6000)
 
-    def excerpt(self, value):
-        if not isinstance(value, str) or not self.remaining:
-            return ""
-        text = value
+    def scrub(self, text):
+        """Scrub complete selected strings before any truncation or persistence."""
         # Replace exact credentials before truncation so a boundary cannot leak
         # a credential fragment. The caller supplies only the authorized key.
         for secret in sorted(self.secrets, key=len, reverse=True):
@@ -259,7 +258,12 @@ class DiagnosticTextBudget:
             "[REDACTED TOKEN]",
             text,
         )
-        text = re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+        return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+
+    def excerpt(self, value):
+        if not isinstance(value, str) or not self.remaining:
+            return ""
+        text = self.scrub(value)
         limit = min(600, self.remaining)
         text = text[:limit]
         self.remaining -= len(text)
@@ -439,7 +443,162 @@ def safe_native_plan_details(plan):
     }
 
 
-def safe_workflow_details(store, run_id, traces, *, text_budget=None):
+NATIVE_PROGRESS_STAGES = frozenset(
+    {
+        "bootstrap-empty-database",
+        "baseline-install",
+        "native-generation",
+        "native-business-contract",
+        "resume-native-validation",
+        "plop-aider-native-business-rules",
+        "generated-build",
+        "customer-service-http",
+        "generated-crud",
+        "generated-permissions",
+        "native-frontend-build",
+        "restart-persistence",
+        "native-browser",
+        "portable-startup-assets",
+        "independent-native-delivery",
+        "accepted",
+    }
+)
+
+
+def safe_runtime_details(error, native_reports, text_budget):
+    """Select the runtime error, finite stage and one native exception headline.
+
+    Never export native logs, environment, response bodies or tracebacks. These
+    fixed local reports are read before the isolated work directory is destroyed.
+    A headline must match the format written by native_lab; appended tool output
+    is deliberately ignored, even when it would explain a subprocess failure.
+    """
+    result = {}
+    if excerpt := text_budget.excerpt(error):
+        result["error_excerpt"] = excerpt
+    if native_reports is None:
+        return result
+    reports = Path(native_reports)
+    if any(path.is_symlink() for path in (reports, *reports.parents)):
+        return result
+    progress = reports / "progress.json"
+    try:
+        if not progress.is_symlink() and progress.is_file() and progress.stat().st_size <= 4096:
+            value = json.loads(progress.read_text(encoding="utf-8"))
+            if isinstance(value, dict):
+                if value.get("stage") in NATIVE_PROGRESS_STAGES:
+                    result["native_stage"] = value["stage"]
+                if value.get("template") in {"fastapiadmin", "yudao-vben"}:
+                    result["native_template"] = value["template"]
+    except OSError, ValueError, TypeError:
+        pass
+    failure = reports / "failure.log"
+    try:
+        if failure.is_symlink() or not failure.is_file():
+            return result
+        with failure.open(encoding="utf-8") as source:
+            headline = source.readline(65537)
+        # Do not truncate prior to secret redaction or publish an arbitrary line.
+        if len(headline) > 65536:
+            return result
+        match = re.fullmatch(
+            r"(?P<exception_type>[A-Za-z_][A-Za-z0-9_]{0,79}) at "
+            r"(?P<file>[A-Za-z_][A-Za-z0-9_]{0,99}\.py):(?P<line>[0-9]{1,7}) "
+            r"\((?P<function>[A-Za-z_][A-Za-z0-9_]{0,99}|<module>)\): (?P<message>[^\r\n]*)\r?\n?",
+            headline,
+        )
+        if match:
+            failure_details = {
+                key: text_budget.excerpt(match[key])
+                for key in ("exception_type", "file", "function")
+            }
+            failure_details["line"] = int(match["line"])
+            failure_details["message_excerpt"] = text_budget.excerpt(match["message"])
+            result["native_exception"] = failure_details
+    except OSError, ValueError:
+        pass
+    return result
+
+
+MAX_REPLAY_PLAN_BYTES = 131072
+
+
+def preserve_approved_customer_plan(native_reports, destination, text_budget):
+    """Retain only a validated, credential-free, synthetic approved Plan.
+
+    native_lab writes approved-spec.json only after the design approval gate.
+    Reject rather than alter credential-bearing contracts: a changed Plan cannot
+    truthfully reproduce the failed run. Never fall back to a raw provider reply,
+    an unapproved design revision, generated source, a database, or a tool log.
+    """
+    from workbench.domain import Plan
+    from workbench.filesystem import atomic_text
+
+    if native_reports is None:
+        return {"status": "unavailable"}
+    source = Path(native_reports) / "approved-spec.json"
+    destination = Path(destination)
+    if any(
+        path.is_symlink() for path in (source, *source.parents, destination, *destination.parents)
+    ):
+        return {"status": "unsafe_path"}
+    try:
+        if not source.is_file():
+            return {"status": "unavailable"}
+        if source.stat().st_size > MAX_REPLAY_PLAN_BYTES:
+            return {"status": "size_limit"}
+        raw = source.read_bytes()
+        if len(raw) > MAX_REPLAY_PLAN_BYTES:
+            return {"status": "size_limit"}
+        plan = Plan.model_validate_json(raw)
+        if (
+            {entity.name for entity in plan.entities} != {"customers", "requests", "tasks"}
+            or not plan.business
+            or plan.custom_rules
+            or plan.unsupported
+        ):
+            return {"status": "outside_customer_scope"}
+        normalized = plan.model_dump(mode="json")
+
+        def credential_free(value):
+            if isinstance(value, str):
+                return text_budget.scrub(value) == value
+            if isinstance(value, list):
+                return all(credential_free(item) for item in value)
+            if isinstance(value, dict):
+                return all(
+                    credential_free(key) and credential_free(item) for key, item in value.items()
+                )
+            return True
+
+        if not credential_free(normalized):
+            return {"status": "secret_scan_rejected"}
+        rendered = json.dumps(normalized, ensure_ascii=False, indent=2) + "\n"
+        # Scan structural credential assignments too (e.g. a nested JSON value
+        # with a password key), not only individual string values.
+        if text_budget.scrub(rendered) != rendered:
+            return {"status": "secret_scan_rejected"}
+        data = rendered.encode("utf-8")
+        if len(data) > MAX_REPLAY_PLAN_BYTES:
+            return {"status": "size_limit"}
+        # This exact normalized contract regenerates code without paid model calls.
+        atomic_text(destination, rendered)
+        return {
+            "status": "saved",
+            "file": "approved-plan-replay.json",
+            "bytes": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "exact_normalized_plan": True,
+        }
+    except FileNotFoundError:
+        return {"status": "unavailable"}
+    except ValueError:
+        return {"status": "invalid_schema"}
+    except OSError:
+        return {"status": "io_error"}
+
+
+def safe_workflow_details(store, run_id, traces, *, text_budget=None, native_reports=None):
     text_budget = text_budget or DiagnosticTextBudget()
     details = {"model_stages": traces}
     if run_id:
@@ -449,6 +608,11 @@ def safe_workflow_details(store, run_id, traces, *, text_budget=None):
             state
             if state in {"READY", "SOURCE_READY", "FAILED", "BLOCKED", "PAUSED_LIMIT", "REJECTED"}
             else "not_terminal"
+        )
+        # Reserve the shared text budget for the actual runtime failure before
+        # lower-priority coverage/model wording can exhaust it.
+        details["runtime_diagnostics"] = safe_runtime_details(
+            run.get("error") or "", native_reports, text_budget
         )
         pending = run.get("pending") or {}
         stage = pending.get("stage")
@@ -914,13 +1078,26 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             run_id = None
             if result_path.is_file():
                 run_id = json.loads(result_path.read_text(encoding="utf-8")).get("run_id")
-            raise SafeFailure(
-                "workflow_not_ready",
-                last,
-                safe_workflow_details(
-                    application.state.store, run_id, traces, text_budget=diagnostic_text
-                ),
+            native_reports = (
+                settings.data_dir / "runs" / run_id / "native-evidence"
+                if template != "python-basic"
+                and isinstance(run_id, str)
+                and re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", run_id)
+                else None
             )
+            details = safe_workflow_details(
+                application.state.store,
+                run_id,
+                traces,
+                text_budget=diagnostic_text,
+                native_reports=native_reports,
+            )
+            details["approved_plan_replay"] = preserve_approved_customer_plan(
+                native_reports,
+                ROOT / "reports/real-model/approved-plan-replay.json",
+                diagnostic_text,
+            )
+            raise SafeFailure("workflow_not_ready", last, details)
         browser = json.loads(result_path.read_text(encoding="utf-8"))
         run = application.state.store.get_run(browser["run_id"])
         if run["status"] != "READY" or not run["auto_mode"] or not archive.is_file():
@@ -1054,6 +1231,7 @@ def main():
             ],
         )
         if mode == "full":
+            (destination / "approved-plan-replay.json").unlink(missing_ok=True)
             result["smoke"] = verified_smoke_receipt(summary, config, os.environ)
             prior_calls = 1
         transport = BoundedRealTransport(config)
