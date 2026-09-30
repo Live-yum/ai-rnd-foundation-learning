@@ -1,0 +1,221 @@
+diff --git a/scripts/daytona_bootstrap.py b/scripts/daytona_bootstrap.py
+index da340e6..5f1b79f 100644
+--- a/scripts/daytona_bootstrap.py
++++ b/scripts/daytona_bootstrap.py
+@@ -114,6 +114,28 @@ def snapshot(directory=HOME):
+     print("本机快照已就绪；全部操作在限时本机进程内完成。")
+ 
+ 
++def snapshot_named(service, name):
++    """Resolve an exact name through the pinned SDK's paginated listing.
++
++    In v0.190.0 get(name) forwards the name to a UUID-only API route. Never
++    interpret that server error as a missing snapshot or create a duplicate.
++    A bounded scan must finish before absence can be established.
++    """
++    found = None
++    for page in range(1, 101):
++        result = service.list(page=page, limit=100)
++        if result.page != page or not 0 <= result.total_pages <= 100:
++            raise ValueError("本机快照分页结果异常；拒绝猜测快照是否存在")
++        for item in result.items:
++            if item.name == name:
++                if found is not None:
++                    raise ValueError("存在多个同名本机快照；拒绝猜测或覆盖")
++                found = item
++        if page >= result.total_pages:
++            return found
++    raise ValueError("本机快照分页未完成；没有创建快照")
++
++
+ def snapshot_worker(directory=HOME):
+     directory = Path(directory)
+     metadata = json.loads((directory / "snapshot-image.json").read_text(encoding="utf-8"))
+@@ -121,18 +143,14 @@ def snapshot_worker(directory=HOME):
+         raise ValueError("快照只能引用本机登记的预热镜像")
+     install_loopback_guard()
+     from daytona import CreateSnapshotParams, Resources
+-    from daytona.common.errors import DaytonaNotFoundError
+ 
+     key = json.loads((directory / "api-key.json").read_text(encoding="utf-8"))["value"]
+     settings = Settings(_env_file=None, daytona_api_key=SecretStr(key), daytona_target="local")
+     client = client_for(settings)
+     try:
+-        try:
+-            existing = client.snapshot.get(metadata["snapshot"])
+-            if str(getattr(existing.state, "value", existing.state)).lower() != "active":
+-                raise ValueError("已存在同名但未就绪的本机快照，请检查状态；不静默覆盖")
+-        except DaytonaNotFoundError:
+-            client.snapshot.create(
++        existing = snapshot_named(client.snapshot, metadata["snapshot"])
++        if existing is None:
++            existing = client.snapshot.create(
+                 CreateSnapshotParams(
+                     name=metadata["snapshot"],
+                     image=metadata["image"],
+@@ -141,6 +159,10 @@ def snapshot_worker(directory=HOME):
+                 ),
+                 timeout=600,
+             )
++        if existing.name != metadata["snapshot"] or existing.image_name != metadata["image"]:
++            raise ValueError("同名快照的镜像来源不符；拒绝复用或覆盖")
++        if str(getattr(existing.state, "value", existing.state)).lower() != "active":
++            raise ValueError("同名本机快照尚未就绪，请检查状态；不静默覆盖")
+         write_environment(directory / "workbench.env", key, metadata["snapshot"])
+         print("本机快照已就绪；沙箱关卡禁止外网并使用离线依赖。")
+     finally:
+diff --git a/tests/test_daytona_snapshot.py b/tests/test_daytona_snapshot.py
+new file mode 100644
+index 0000000..2e19c88
+--- /dev/null
++++ b/tests/test_daytona_snapshot.py
+@@ -0,0 +1,136 @@
++"""Pinned local snapshot lookup contracts; real service acceptance runs separately."""
++
++import json
++from types import SimpleNamespace
++from unittest.mock import Mock
++
++import pytest
++
++from scripts import daytona_bootstrap as bootstrap
++
++
++NAME = "rnd-python-0123456789abcdef"
++IMAGE = "registry:6000/rnd-python:0123456789abcdef"
++
++
++def snapshot(**overrides):
++    return SimpleNamespace(name=NAME, image_name=IMAGE, state="active", **overrides)
++
++
++def page(number, items, total_pages=1):
++    return SimpleNamespace(page=number, items=items, total_pages=total_pages)
++
++
++def test_exact_name_lookup_reads_every_page_and_never_uses_uuid_route():
++    wanted = snapshot()
++    service = Mock()
++    service.list.side_effect = [
++        page(1, [SimpleNamespace(name=NAME + "-other")], 3),
++        page(2, [wanted], 3),
++        page(3, [], 3),
++    ]
++    assert bootstrap.snapshot_named(service, NAME) is wanted
++    assert [call.kwargs for call in service.list.call_args_list] == [
++        {"page": number, "limit": 100} for number in range(1, 4)
++    ]
++    service.get.assert_not_called()
++    service.create.assert_not_called()
++
++
++@pytest.mark.parametrize("total_pages", [0, 1])
++def test_confirmed_empty_listing_means_absent(total_pages):
++    service = Mock()
++    service.list.return_value = page(1, [], total_pages)
++    assert bootstrap.snapshot_named(service, NAME) is None
++
++
++@pytest.mark.parametrize("result", [page(2, []), page(1, [], -1), page(1, [], 101)])
++def test_invalid_or_excessive_pagination_fails_closed(result):
++    service = Mock()
++    service.list.return_value = result
++    with pytest.raises(ValueError, match="分页"):
++        bootstrap.snapshot_named(service, NAME)
++    service.create.assert_not_called()
++
++
++def test_duplicate_names_across_pages_are_not_guessed():
++    service = Mock()
++    service.list.side_effect = [page(1, [snapshot()], 2), page(2, [snapshot()], 2)]
++    with pytest.raises(ValueError, match="多个同名"):
++        bootstrap.snapshot_named(service, NAME)
++
++
++def test_listing_failure_is_not_interpreted_as_absence():
++    service = Mock()
++    service.list.side_effect = RuntimeError("explicit local authentication failure")
++    with pytest.raises(RuntimeError, match="authentication"):
++        bootstrap.snapshot_named(service, NAME)
++    service.create.assert_not_called()
++
++
++@pytest.fixture
++def worker(tmp_path, monkeypatch):
++    (tmp_path / "snapshot-image.json").write_text(
++        json.dumps({"image": IMAGE, "snapshot": NAME}), encoding="utf-8"
++    )
++    (tmp_path / "api-key.json").write_text(
++        json.dumps({"value": "local-test-key-not-a-real-credential"}), encoding="utf-8"
++    )
++    client = Mock()
++    client.snapshot.list.return_value = page(1, [])
++    client.snapshot.create.return_value = snapshot()
++    monkeypatch.setattr(bootstrap, "install_loopback_guard", lambda: None)
++    monkeypatch.setattr(bootstrap, "client_for", lambda settings: client)
++    return tmp_path, client
++
++
++@pytest.mark.parametrize("reuse", [False, True])
++def test_worker_creates_or_reuses_only_matching_active_local_snapshot(worker, reuse):
++    directory, client = worker
++    if reuse:
++        client.snapshot.list.return_value = page(1, [snapshot()])
++    bootstrap.snapshot_worker(directory)
++    client.snapshot.get.assert_not_called()
++    if reuse:
++        client.snapshot.create.assert_not_called()
++    else:
++        params = client.snapshot.create.call_args.args[0]
++        assert params.name == NAME and params.image == IMAGE and params.region_id == "local"
++        assert client.snapshot.create.call_args.kwargs == {"timeout": 600}
++    env = (directory / "workbench.env").read_text(encoding="utf-8")
++    assert "DAYTONA_API_URL=http://127.0.0.1:3000/api" in env
++    assert f"DAYTONA_SNAPSHOT={NAME}" in env
++    client.close.assert_called_once()
++
++
++@pytest.mark.parametrize("reuse", [False, True])
++@pytest.mark.parametrize(
++    ("field", "value", "message"),
++    [("name", "other", "来源"), ("image_name", "other:image", "来源"),
++     ("state", "building", "尚未就绪"), ("state", "build_failed", "尚未就绪")],
++)
++def test_worker_never_writes_ready_config_for_wrong_or_unready_snapshot(
++    worker, monkeypatch, reuse, field, value, message
++):
++    directory, client = worker
++    invalid = snapshot()
++    setattr(invalid, field, value)
++    # Inject the lookup result to test validation independently of exact-name filtering.
++    monkeypatch.setattr(bootstrap, "snapshot_named", lambda *args: invalid if reuse else None)
++    client.snapshot.create.return_value = invalid
++    with pytest.raises(ValueError, match=message):
++        bootstrap.snapshot_worker(directory)
++    assert not (directory / "workbench.env").exists()
++    client.close.assert_called_once()
++
++
++def test_worker_preserves_existing_credentials_and_closes_on_list_failure(worker):
++    directory, client = worker
++    existing = "DAYTONA_API_KEY=existing-local-test-key\n"
++    (directory / "workbench.env").write_text(existing, encoding="utf-8")
++    client.snapshot.list.side_effect = RuntimeError("explicit local service failure")
++    with pytest.raises(RuntimeError, match="service"):
++        bootstrap.snapshot_worker(directory)
++    assert (directory / "workbench.env").read_text(encoding="utf-8") == existing
++    client.snapshot.create.assert_not_called()
++    client.close.assert_called_once()
+diff --git a/tests/test_recommendation_recovery.py b/tests/test_recommendation_recovery.py
+index e8847d1..6a51349 100644
+--- a/tests/test_recommendation_recovery.py
++++ b/tests/test_recommendation_recovery.py
+@@ -218,7 +218,7 @@ def test_explicit_unsupported_request_remains_blocked_with_actionable_report(
+     assert state["pending"]["can_approve"] is False
+     assert len(gateway.calls) == 3
+     report = json.loads(
+-        (settings.data_dir / "runs" / run / "recommendation-blocked.json").read_text()
++        (settings.data_dir / "runs" / run / "recommendation-blocked.json").read_text(encoding="utf-8")
+     )
+     assert report["reasons"] == [requested] and report["passed"] is False
+     assert not (settings.data_dir / "runs" / run / "delivery.zip").exists()
