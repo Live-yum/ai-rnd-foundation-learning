@@ -339,3 +339,48 @@ def test_only_exact_authorized_current_iteration_push_can_use_provider(
     else:
         with pytest.raises(SafeFailure, match="untrusted_dispatch"):
             trusted_dispatch(env)
+
+
+def test_provider_diagnostics_emit_only_schema_codes_counts_and_flags():
+    from workbench.domain import Requirement
+
+    from scripts.ci_real_model import response_receipt
+
+    raw = json.dumps(
+        {
+            "choices": [
+                {
+                    "finish_reason": "stop",
+                    "message": {
+                        "content": json.dumps({"injected-private-field": "test-only-secret"}),
+                        "reasoning_content": "private reasoning must never leave",
+                    },
+                }
+            ],
+            "usage": {"total_tokens": 42, "secret": "test-only-secret"},
+        }
+    ).encode()
+    receipt = response_receipt(200, raw, "requirement", Requirement)
+    assert receipt["schema_valid"] is False
+    assert receipt["schema_error_types"] == ["extra_forbidden", "missing"]
+    assert receipt["usage"] == {"total_tokens": 42}
+    encoded = json.dumps(receipt)
+    for forbidden in ("test-only-secret", "private reasoning", "injected-private-field"):
+        assert forbidden not in encoded
+
+
+def test_buffered_diagnostic_transport_preserves_client_response_and_secret_privacy():
+    transport = BoundedRealTransport(config())
+    transport.transport.close()
+    body = {
+        "choices": [{"finish_reason": "stop", "message": {"content": "OK"}}],
+        "usage": {"total_tokens": 10},
+    }
+    transport.transport = httpx.MockTransport(lambda request: httpx.Response(200, json=body))
+    try:
+        assert smoke(config(), transport)["passed"] is True
+        assert transport.receipts[0]["finish_reason"] == "stop"
+        assert transport.receipts[0]["usage"] == {"total_tokens": 10}
+        assert "test-only-secret" not in json.dumps(transport.receipts)
+    finally:
+        transport.shutdown()

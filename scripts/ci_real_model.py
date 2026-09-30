@@ -10,6 +10,7 @@ import hmac
 import json
 import logging
 import os
+import re
 import socket
 import subprocess
 import tempfile
@@ -123,6 +124,9 @@ class BoundedRealTransport(httpx.BaseTransport):
         self.transport = httpx.HTTPTransport(retries=0)
         self.statuses = []
         self.calls = 0
+        self.receipts = []
+        self.current_schema = None
+        self.current_stage = "smoke"
 
     def handle_request(self, request):
         if (
@@ -153,7 +157,24 @@ class BoundedRealTransport(httpx.BaseTransport):
         self.calls += 1
         response = self.transport.handle_request(bounded)
         self.statuses.append(response.status_code)
-        return response
+        body_bytes = bytearray()
+        for chunk in response.iter_bytes():
+            body_bytes.extend(chunk)
+            if len(body_bytes) > 2_000_000:
+                response.close()
+                raise SafeFailure("provider_response_too_large", response.status_code)
+        response.close()
+        self.receipts.append(
+            response_receipt(
+                response.status_code, bytes(body_bytes), self.current_stage, self.current_schema
+            )
+        )
+        response_headers = dict(response.headers)
+        response_headers.pop("content-encoding", None)
+        response_headers.pop("content-length", None)
+        return httpx.Response(
+            response.status_code, headers=response_headers, content=bytes(body_bytes)
+        )
 
     def close(self):
         # ModelGateway creates a Client per attempt; the owning harness closes the pool.
@@ -161,6 +182,149 @@ class BoundedRealTransport(httpx.BaseTransport):
 
     def shutdown(self):
         self.transport.close()
+
+
+def response_receipt(status, data, stage, schema=None):
+    from pydantic import ValidationError
+
+    receipt = {"http_status": status, "stage": stage}
+    try:
+        envelope = json.loads(data)
+        choice = envelope["choices"][0]
+        reason = choice.get("finish_reason")
+        receipt["finish_reason"] = (
+            reason if reason in {"stop", "length", "content_filter", "tool_calls"} else "unknown"
+        )
+        content = choice["message"].get("content")
+        receipt["content_present"] = isinstance(content, str) and bool(content.strip())
+        receipt["reasoning_present"] = bool(choice["message"].get("reasoning_content"))
+        receipt["usage"] = {
+            key: value
+            for key, value in envelope.get("usage", {}).items()
+            if key in {"prompt_tokens", "completion_tokens", "total_tokens"}
+            and type(value) is int
+            and 0 <= value <= 100_000_000
+        }
+        if schema is not None and isinstance(content, str):
+            content = content.strip()
+            if content.startswith("```json") and content.endswith("```"):
+                content = content[7:-3].strip()
+            try:
+                schema.model_validate_json(content)
+                receipt["schema_valid"] = True
+            except ValidationError as exc:
+                receipt["schema_valid"] = False
+                # Pydantic error types are library-defined codes, never model text or inputs.
+                errors = exc.errors(include_input=False, include_url=False)
+                receipt["schema_error_types"] = sorted({e["type"] for e in errors})
+                names = set()
+
+                def visit(node):
+                    if isinstance(node, dict):
+                        names.update(node.get("properties", {}))
+                        for value in node.values():
+                            visit(value)
+                    elif isinstance(node, list):
+                        for value in node:
+                            visit(value)
+
+                visit(schema.model_json_schema())
+                receipt["schema_errors"] = [
+                    {
+                        "type": e["type"],
+                        "field_path": [
+                            part if type(part) is int or part in names else "additional_field"
+                            for part in e["loc"]
+                        ],
+                    }
+                    for e in errors[:20]
+                ]
+    except ValueError, KeyError, IndexError, TypeError:
+        receipt["response_envelope_valid"] = False
+    return receipt
+
+
+def contract_snapshot(data, requirement=False):
+    def identifier(value):
+        return (
+            value
+            if isinstance(value, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,39}", value)
+            else "unrecognized"
+        )
+
+    def field_summary(value):
+        result = {"name": identifier(value.get("field" if requirement else "name"))}
+        for name in ("required", "searchable", "filterable", "date_range"):
+            if type(value.get(name)) is bool:
+                result[name] = value[name]
+        for name in ("min_length", "max_length"):
+            if type(value.get(name)) is int and 0 <= value[name] <= 20000:
+                result[name] = value[name]
+        if value.get("kind") in {"text", "integer", "boolean", "date", "enum"}:
+            result["kind"] = value["kind"]
+        if isinstance(value.get("choices"), list):
+            result["choices_count"] = len(value["choices"])
+        return result
+
+    if requirement:
+        return [field_summary(f) for f in data.get("field_requirements", [])[:128]]
+    return [
+        {
+            "name": identifier(e.get("name")),
+            "fields": [field_summary(f) for f in e.get("fields", [])],
+        }
+        for e in data.get("entities", [])[:8]
+    ]
+
+
+def safe_workflow_details(store, run_id, traces):
+    details = {"model_stages": traces}
+    if run_id:
+        run = store.get_run(run_id)
+        state = run.get("status")
+        details["terminal_state"] = (
+            state
+            if state in {"READY", "SOURCE_READY", "FAILED", "BLOCKED", "PAUSED_LIMIT", "REJECTED"}
+            else "not_terminal"
+        )
+        pending = run.get("pending") or {}
+        stage = pending.get("stage")
+        details["pending_stage"] = (
+            stage if stage in {"clarification", "requirements", "design", "delivery"} else None
+        )
+        details["model_calls"] = run.get("model_calls", 0)
+        requirement = (store.latest_revision(run_id, "requirements") or {}).get("requirement", {})
+        plan = (store.latest_revision(run_id, "design") or {}).get("plan", {})
+        details["valid_plan_present"] = bool(plan)
+        details["plan_contract"] = contract_snapshot(plan)
+        details["requirement_contract"] = contract_snapshot(requirement, requirement=True)
+        error = run.get("error") or ""
+        categories = {
+            "model_schema_invalid": ("结构化契约",),
+            "context_limit": ("上下文过大",),
+            "provider_error": ("模型鉴权", "模型地址", "模型请求被拒绝", "模型服务超时"),
+            "requirement_coverage": ("设计未覆盖", "已确认字段", "已确认条件", "覆盖不足"),
+            "tool_failure": ("工具执行失败",),
+            "browser_acceptance": ("浏览器", "browser"),
+            "model_budget": ("调用次数", "模型调用预算"),
+        }
+        details["error_categories"] = [
+            code for code, tokens in categories.items() if any(t in error for t in tokens)
+        ]
+        blocked = (pending.get("data") or {}).get("blocked", [])
+        details["coverage_block_count"] = len(blocked) if isinstance(blocked, list) else 0
+        paths = {f["name"] for e in details["plan_contract"] for f in e["fields"]}
+        details["coverage_fields"] = (
+            sorted(
+                name
+                for name in paths
+                if name != "unrecognized"
+                and any(name in reason for reason in blocked if isinstance(reason, str))
+            )
+            if isinstance(blocked, list)
+            else []
+        )
+    return details
 
 
 def smoke(config, transport):
@@ -301,8 +465,33 @@ def run_acceptance(config, transport, directory):
     from workbench.verification import product_interpreter, require_browser_evidence, run_probe
 
     settings = acceptance_settings(config, directory)
+    traces = []
+
+    class ObservedGateway(ModelGateway):
+        def complete(self, run_id, key, instruction, payload, schema):
+            stage = key.split(":")[0]
+            stage = (
+                stage
+                if stage in {"requirement", "recommend", "plan", "coding", "review"}
+                else "unknown"
+            )
+            transport.current_schema, transport.current_stage = schema, stage
+            trace = {"stage": stage, "completed": False}
+            traces.append(trace)
+            value = super().complete(run_id, key, instruction, payload, schema)
+            trace["completed"] = True
+            for name in (
+                "questions",
+                "unsupported",
+                "uncovered_requirements",
+                "field_requirements",
+            ):
+                if hasattr(value, name):
+                    trace[name + "_count"] = len(getattr(value, name))
+            return value
+
     application = create_app(
-        settings, gateway_factory=lambda store: ModelGateway(settings, store, transport)
+        settings, gateway_factory=lambda store: ObservedGateway(settings, store, transport)
     )
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
@@ -348,7 +537,14 @@ def run_acceptance(config, transport, directory):
         )
         if process.returncode or not result_path.is_file():
             last = next((s for s in reversed(transport.statuses) if s >= 400), None)
-            raise SafeFailure("workflow_not_ready", last)
+            run_id = None
+            if result_path.is_file():
+                run_id = json.loads(result_path.read_text(encoding="utf-8")).get("run_id")
+            raise SafeFailure(
+                "workflow_not_ready",
+                last,
+                safe_workflow_details(application.state.store, run_id, traces),
+            )
         browser = json.loads(result_path.read_text(encoding="utf-8"))
         run = application.state.store.get_run(browser["run_id"])
         if run["status"] != "READY" or not run["auto_mode"] or not archive.is_file():
@@ -427,6 +623,7 @@ def main():
         "acceptance_scope": "smoke_only" if mode == "smoke" else "full_workflow",
     }
     transport = None
+    config = None
     phase = "configuration"
     prior_calls = 0
     try:
@@ -463,18 +660,24 @@ def main():
         if exc.status is not None:
             result["provider_status"] = exc.status
         if exc.details is not None:
-            result["configuration_checks"] = exc.details
+            result["configuration_checks" if "configuration" in exc.code else "failure_details"] = (
+                exc.details
+            )
     except Exception:
         result.update(failure_phase=phase, failure_code="acceptance_execution_failed")
     finally:
         if transport:
             result["actual_http_calls"] = prior_calls + transport.calls
             result["provider_statuses"] = ([200] if prior_calls else []) + transport.statuses
+            result["provider_receipts"] = transport.receipts
             with contextlib.suppress(Exception):
                 transport.shutdown()
         destination.mkdir(parents=True, exist_ok=True)
-        summary.write_text(json.dumps(result, indent=2), encoding="utf-8")
-    print(json.dumps(result, indent=2))
+        rendered = json.dumps(result, indent=2)
+        if config is not None:
+            rendered = rendered.replace(config.key.get_secret_value(), "[REDACTED]")
+        summary.write_text(rendered, encoding="utf-8")
+    print(rendered)
     if not result["passed"]:
         raise SystemExit(1)
 
