@@ -288,3 +288,46 @@ def test_action_modal_opens_before_waiting_for_lazy_form_mount():
     end = source.index("async function submitAction(", start)
     body = source[start:end]
     assert body.index("actionModalApi.open()") < body.index("await actionFormApi.resetForm()")
+
+
+def test_business_controller_uses_native_admin_package_prefix(tmp_path):
+    plan = approved_plan()
+    backend, frontend, targets, reports = generated_native_source(tmp_path, plan)
+    install_yudao_business(plan, backend, frontend, targets, reports)
+    controller = (
+        backend
+        / f"{JAVA_ROOT}/{JAVA_PACKAGE}/controller/admin/rndbusiness/RndBusinessController.java"
+    )
+    text = controller.read_text(encoding="utf-8")
+    assert "package cn.iocoder.yudao.module.infra.controller.admin.rndbusiness;" in text
+    assert '@RequestMapping("/infra/rnd-business")' in text
+    assert "import cn.iocoder.yudao.module.infra.business.RndBusinessService;" in text
+    assert not (
+        backend / f"{JAVA_ROOT}/{JAVA_PACKAGE}/business/RndBusinessController.java"
+    ).exists()
+
+
+def test_related_history_checks_parent_and_each_child_scope():
+    source = (TEMPLATES / "RndBusinessService.java").read_text(encoding="utf-8")
+    body = source.split("public Object related(", 1)[1].split("public Object history(", 1)[0]
+    assert 'require(name,parent,"read")' in body
+    assert 'if(!hasAction(child,"read")) continue' in body
+    assert ".eq(field,id(parent))" in body
+    assert 'if(!allowed(child,row,"read")) continue' in body
+    assert 'allowed(child,row,"read_history")' in body
+    assert "candidates.size()>10000" in body
+    assert "rnd_archived_at" not in body  # Archived child records remain historical.
+    assert "target_entity" in body
+
+
+def test_related_history_uses_native_route_and_visible_timeline():
+    controller = (TEMPLATES / "RndBusinessController.java").read_text(encoding="utf-8")
+    panel = (TEMPLATES / "panel.vue").read_text(encoding="utf-8")
+    assert '@GetMapping("/related")' in controller
+    assert "business.related(entity,id)" in controller
+    assert "business-related-${group.entity}" in panel
+    assert "related-history-${group.entity}-${record.record.id}" in panel
+    assert "record.actions.includes('read_history')" in panel
+    assert "business-related-history" in panel
+    assert "request !== relatedRequest || current !== generation" in panel
+    assert '<TimelineItem v-for="entry in relatedEvents"' in panel

@@ -15,7 +15,7 @@ async function main() {
   const { chromium } = require(playwrightPath);
   const browser = await chromium.launch({ headless: true });
   fs.mkdirSync(reportDir, { recursive: true });
-  const report = { passed: false, template: 'yudao-vben', real_login: false, native_shell: false, pages: [], journeys: [], checks: [] };
+  const report = { passed: false, template: 'yudao-vben', real_login: false, native_shell: false, pages: [], journeys: [], checks: [], screenshots: [] };
   const secrets = Object.values(scenario.actors).map(actor => actor.password);
   const redact = value => secrets.reduce((text, secret) => text.split(secret).join('[REDACTED]'), String(value));
   const errors = [];
@@ -31,9 +31,13 @@ async function main() {
     assert(found.response.ok(), `Business browser HTTP ${found.response.status()}`);
     const value = await found.response.json(); assert.equal(value.code, 0, `Business application error ${value.code}`); return value.data;
   };
+  async function capture(name) {
+    await page.screenshot({ path: path.join(reportDir, name), fullPage: true, animations: 'disabled' });
+    report.screenshots.push(name);
+  }
   async function login(role) {
     if (context) await context.close();
-    context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1500, height: 1100 } });
+    context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1500, height: 1100 }, reducedMotion: 'reduce' });
     page = await context.newPage(); page.setDefaultTimeout(45000);
     page.on('pageerror', error => errors.push(redact(error.message)));
     const tenants = observe('/admin-api/system/tenant/simple-list');
@@ -75,9 +79,11 @@ async function main() {
     await checked(meta);
     await page.locator('[data-rnd-business-panel]').scrollIntoViewIfNeeded();
   }
-  async function select(locator, label) {
+  async function select(locator, label, screenshot) {
     await locator.click();
-    await page.locator('.ant-select-dropdown:visible').getByText(label, { exact: true }).last().click();
+    const option = page.locator('.ant-select-dropdown:visible').getByText(label, { exact: true }).last();
+    if (screenshot) { await option.waitFor({ state: 'visible' }); await capture(screenshot); }
+    await option.click();
   }
   const created = {}, labels = {};
   const marker = 'Browser ' + Date.now();
@@ -97,7 +103,7 @@ async function main() {
       const input = dialog.getByTestId('business-field-' + field.name);
       if (relation) {
         assert(labels[relation.target_entity], 'Create referenced browser record first');
-        await select(input, labels[relation.target_entity]);
+        await select(input, labels[relation.target_entity], `${entity}-${field.name}-relation-picker.png`);
       } else if (field.kind === 'enum') await select(input, field.choices[0]);
       else if (field.kind === 'boolean') await select(input, '否');
       else if (field.kind === 'integer') await input.fill('1');
@@ -111,11 +117,13 @@ async function main() {
         await input.fill(value); if (!labels[entity]) labels[entity] = value;
       }
     }
+    await capture(`${entity}-filled-native-form.png`);
     const response = observe(current.api + '/create', 'POST');
     await dialog.getByRole('button', { name: /^确\s*认$|^确\s*定$/ }).click();
     created[entity] = String(await checked(response));
     await dialog.waitFor({ state: 'hidden' });
     await page.getByText(labels[entity], { exact: true }).first().waitFor({ state: 'visible' });
+    await capture(`${entity}-native-list.png`);
     report.checks.push(`manager:${entity}:native-form-create`);
   }
   async function action(kind, transition, note) {
@@ -138,10 +146,24 @@ async function main() {
   try {
     await login('manager');
     for (const entity of ['customers', 'requests', 'tasks']) await create(entity);
-    for (const entity of ['requests', 'tasks']) { await detail(entity, labels[entity]); await action('assign', null, 'Browser assignment'); }
+    for (const entity of ['requests', 'tasks']) { await detail(entity, labels[entity]); await action('assign', null, 'Browser assignment'); await capture(`${entity}-manager-workflow-controls.png`); }
+    for (const [parent, child] of [['customers', 'requests'], ['requests', 'tasks']]) {
+      await detail(parent, labels[parent]);
+      const group = page.getByTestId('business-related-' + child);
+      await group.waitFor({ state: 'visible' });
+      await group.getByText(labels[child], { exact: true }).waitFor({ state: 'visible' });
+      const historyResponse = observe('/admin-api/infra/rnd-business/history');
+      await group.getByTestId(`related-history-${child}-${created[child]}`).click();
+      const events = await checked(historyResponse);
+      assert(events.some(event => event.action === 'assign'), 'Related child assignment history missing');
+      await page.getByTestId('business-related-history').locator('.ant-timeline-item').first().waitFor({ state: 'visible' });
+      await capture(`${parent}-${child}-related-history.png`);
+      report.checks.push(`manager:${parent}:${child}:related-record-and-history`);
+    }
     await page.locator('[data-rnd-business-panel] canvas').first().waitFor({ state: 'visible' });
     report.checks.push('manager:real-native-echarts-metrics');
-    await page.screenshot({ path: path.join(reportDir, 'manager-vben-business.png'), fullPage: true });
+    await capture('manager-vben-business.png');
+    await capture('manager-business-dashboard.png');
     report.journeys.push({ actor: 'manager', real_create: ['customers', 'requests', 'tasks'], real_assignment: true, native_form_modal: true });
     await login('service');
     for (const entity of ['requests', 'tasks']) {
@@ -150,8 +172,9 @@ async function main() {
       await action('add_note', null, 'Browser work recorded');
       await action('transition', 'resolve', 'Browser complete');
       await page.getByText('Browser work recorded', { exact: true }).first().waitFor({ state: 'visible' });
+      await capture(`${entity}-service-handling-history.png`);
     }
-    await page.screenshot({ path: path.join(reportDir, 'service-vben-timeline.png'), fullPage: true });
+    await capture('service-vben-timeline.png');
     report.journeys.push({ actor: 'service', assigned_records: true, transitions: true, handling_notes: true, timeline: true });
     await login('employee');
     const employeeLabel = scenario.labels?.requests || 'Synthetic consultation ' + scenario.attempt;
@@ -160,6 +183,7 @@ async function main() {
     assert.equal(await panel.getByTestId('business-assign').count(), 0, 'Employee must not receive assignment controls');
     assert.equal(await panel.getByTestId('business-transition-start').count(), 0, 'Employee must not receive transition controls');
     await panel.locator('.ant-timeline-item').first().waitFor({ state: 'visible' });
+    await capture('employee-owned-history.png');
     await panel.getByText('站内提醒', { exact: true }).waitFor({ state: 'visible' });
     const reminder = panel.getByText('requests #' + scenario.records.requests + ' transitioned', { exact: true });
     await reminder.first().waitFor({ state: 'visible' });
@@ -170,13 +194,13 @@ async function main() {
       await unread.click(); await checked(marked);
       await reminderRow.getByText('已读', { exact: true }).waitFor({ state: 'visible' });
     }
-    await page.screenshot({ path: path.join(reportDir, 'employee-vben-reminders.png'), fullPage: true });
+    await capture('employee-vben-reminders.png');
     report.journeys.push({ actor: 'employee', own_history: true, recipient_reminders: true, unauthorized_controls_absent: true });
     assert.equal(errors.length, 0, 'Uncaught business frontend errors');
     Object.assign(report, { passed: true, real_login: true, native_component_family: 'Vben/Ant Design/VXE/Echarts', created_records: created });
   } catch (error) {
     report.error = redact(error.message);
-    if (page) await page.screenshot({ path: path.join(reportDir, 'business-browser-failure.png'), fullPage: true }).catch(() => {});
+    if (page) await page.screenshot({ path: path.join(reportDir, 'business-browser-failure.png'), fullPage: true, animations: 'disabled' }).catch(() => {});
     throw new Error(report.error);
   } finally {
     report.errors = errors;

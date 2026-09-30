@@ -306,6 +306,29 @@ public class RndBusinessService {
         set(row,"updater",actor().toString());set(row,"updateTime",LocalDateTime.now(ZoneOffset.UTC));validateNative(name,row);persist(name,row);
         long audit=event(name,row,action,before,note);notify(name,row,action.equals("assign")?"assigned":action.equals("transition")?"transitioned":"notified",transition,audit);return out(name,row);
     }
+    public Object related(String name,String identifier) {
+        Object parent=load(name,identifier,false);require(name,parent,"read");
+        List<Map<String,Object>> groups=new ArrayList<>();
+        for(JsonNode relation:cfg.path("business").path("relations")) {
+            if(!relation.path("target_entity").asText().equals(name)) continue;
+            String child=relation.path("entity").asText(),field=relation.path("field").asText();
+            if(!hasAction(child,"read")) continue;
+            List<Object> candidates=mapper(child).selectList(new QueryWrapper<Object>().eq(field,id(parent)).orderByDesc("id").last("LIMIT 10001"));
+            if(candidates.size()>10000) throw bad("Related history exceeds explicit 10000-record execution budget");
+            List<Map<String,Object>> records=new ArrayList<>();
+            for(Object row:candidates) {
+                if(!allowed(child,row,"read")) continue;
+                records.add(Map.of("record",out(child,row),"actions",allowed(child,row,"read_history")?List.of("read_history"):List.of()));
+            }
+            List<String> columns=new ArrayList<>();boolean title=false;
+            for(JsonNode f:entity(child).path("fields")) {
+                String key=f.path("name").asText();
+                if(f.path("kind").asText().equals("enum")||(!title&&f.path("kind").asText().equals("text")&&relation(child,key)==null)) {columns.add(key);if(f.path("kind").asText().equals("text")) title=true;}
+            }
+            groups.add(Map.of("entity",child,"label",entity(child).path("description").asText(),"field",field,"columns",columns,"records",records));
+        }
+        return Map.of("parent",Map.of("entity",name,"id",String.valueOf(id(parent))),"groups",groups);
+    }
     public Object history(String name,String identifier,boolean audit) {
         Object row=load(name,identifier,false);require(name,row,audit?"read_audit":"read_history");
         List<Map<String,Object>> result=sidecar.history(tenant(),name,id(row));

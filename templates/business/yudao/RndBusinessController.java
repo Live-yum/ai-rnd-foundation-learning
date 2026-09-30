@@ -1,4 +1,6 @@
-package cn.iocoder.yudao.module.infra.business;
+package cn.iocoder.yudao.module.infra.controller.admin.rndbusiness;
+
+import cn.iocoder.yudao.module.infra.business.RndBusinessService;
 
 import cn.iocoder.yudao.framework.common.pojo.CommonResult;
 import jakarta.annotation.Resource;
@@ -14,6 +16,7 @@ public class RndBusinessController {
     @PostMapping("/bootstrap") public CommonResult<Boolean> bootstrap() { business.bootstrap(); return success(true); }
     @GetMapping("/meta") public CommonResult<Object> meta(@RequestParam String entity, @RequestParam(required=false) String id) { return success(business.meta(entity,id)); }
     @PostMapping("/action") public CommonResult<Object> action(@RequestBody Map<String,Object> data) { return success(business.action(data)); }
+    @GetMapping("/related") public CommonResult<Object> related(@RequestParam String entity,@RequestParam String id) { return success(business.related(entity,id)); }
     @GetMapping("/history") public CommonResult<Object> history(@RequestParam String entity,@RequestParam String id,@RequestParam(defaultValue="false") boolean audit) { return success(business.history(entity,id,audit)); }
     @GetMapping("/metrics") public CommonResult<Object> metrics() { return success(business.metrics()); }
     @GetMapping("/notifications") public CommonResult<Object> notifications() { return success(business.notifications()); }

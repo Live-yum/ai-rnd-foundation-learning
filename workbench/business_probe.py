@@ -75,6 +75,20 @@ class BusinessClient:
             "GET", route, params={"entity": entity, "id": identifier, "audit": str(audit).lower()}
         )
 
+    def related(self, entity, identifier):
+        route = (
+            f"{self.prefix}/{entity}/{identifier}/related"
+            if self.fastapi
+            else self.prefix + "/related"
+        )
+        value = self.call("GET", route, params={"entity": entity, "id": identifier})
+        if self.fastapi:
+            return value
+        return {
+            group["entity"]: [entry["record"] for entry in group["records"]]
+            for group in value["groups"]
+        }
+
     def role(self, identifier, role):
         if self.fastapi:
             return self.call("PUT", f"{self.prefix}/users/{identifier}/role", json={"role": role})
@@ -214,6 +228,17 @@ def customer_service_acceptance(template, base, token, targets, plan):
         service.action("tasks", task, "transition", {"transition": "start"})
         service.action("tasks", task, "add_note", {"text": "Follow-up complete"})
         service.action("tasks", task, "transition", {"transition": "resolve"})
+        assert any(
+            str(row["id"]) == request
+            for row in manager.related("customers", customer).get("requests", [])
+        ), "Customer service history missing"
+        assert any(
+            str(row["id"]) == task for row in manager.related("requests", request).get("tasks", [])
+        ), "Request collaboration history missing"
+        assert not any(
+            str(row["id"]) == request
+            for row in outsider.related("customers", customer).get("requests", [])
+        ), "Related history leaked another employee request"
         service.action("requests", request, "transition", {"transition": "resolve"})
         history = employee.history("requests", request)
         assert len(history) >= 4, "Handling timeline omitted actions"
@@ -223,7 +248,11 @@ def customer_service_acceptance(template, base, token, targets, plan):
             "GET", employee.prefix + ("/inbox" if employee.fastapi else "/notifications")
         )
         assert any(str(row["record_id"]) == request for row in inbox), "Resolution reminder missing"
-        metrics = manager.call("GET", manager.prefix + "/metrics")
+        metrics = verify_scoped_metrics(manager, plan)
+        verify_scoped_metrics(service, plan)
+        assert employee.call("GET", employee.prefix + "/metrics") == [], (
+            "Employee must not access team metrics"
+        )
         assert {item.name for item in plan.business.metrics} <= {item["name"] for item in metrics}
         # Authorization must be enforced on the API, not merely hidden in native UI.
         forbidden = (
@@ -245,6 +274,7 @@ def customer_service_acceptance(template, base, token, targets, plan):
             "public_native_registration": manager.fastapi,
             "three_roles": True,
             "relations": True,
+            "related_history": True,
             "assignment": True,
             "transitions": True,
             "handling_history": True,
@@ -261,3 +291,81 @@ def customer_service_acceptance(template, base, token, targets, plan):
     finally:
         for client in clients:
             client.close()
+
+
+def verify_scoped_metrics(client, plan):
+    """Compare HTTP aggregates with independently counted visible rows, including values."""
+    from collections import Counter
+    from datetime import datetime, timezone
+
+    results = client.call("GET", client.prefix + "/metrics")
+    by_name = {item["name"]: item for item in results}
+    for metric in plan.business.metrics:
+        if metric.name not in by_name:
+            continue
+        rows = client.rows(metric.entity, page_size=100, pageSize=100)
+
+        def value(row, field):
+            return row.get(wire_name(client.template, field))
+
+        def moment(value):
+            parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+            return (
+                parsed.replace(tzinfo=timezone.utc)
+                if parsed.tzinfo is None
+                else parsed.astimezone(timezone.utc)
+            )
+
+        def matches(row):
+            for rule in metric.filters:
+                actual = value(row, rule.field)
+                if rule.op == "eq" and actual != rule.value:
+                    return False
+                if rule.op == "ne" and actual == rule.value:
+                    return False
+                if rule.op == "in" and actual not in rule.value:
+                    return False
+                if rule.op == "gte" and (actual is None or actual < rule.value):
+                    return False
+                if rule.op == "lte" and (actual is None or actual > rule.value):
+                    return False
+            return True
+
+        rows = [row for row in rows if matches(row)]
+        result = by_name[metric.name]
+        if isinstance(result.get("value"), dict):
+            result = result["value"]
+        if metric.kind == "count":
+            assert type(result["value"]) is int and result["value"] == len(rows), (
+                "Metric count differs from authorized rows"
+            )
+        elif metric.kind == "average_duration":
+            samples = [
+                (
+                    moment(value(row, metric.end_field)) - moment(value(row, metric.start_field))
+                ).total_seconds()
+                for row in rows
+                if value(row, metric.end_field) and value(row, metric.start_field)
+            ]
+            assert type(result["samples"]) is int and result["samples"] == len(samples)
+            if samples:
+                assert abs(result["value"] - sum(samples) / len(samples)) < 0.01
+            else:
+                assert result["value"] is None
+        else:
+            counts = Counter(
+                str(value(row, metric.group_by))
+                if metric.kind == "group_count"
+                else moment(value(row, metric.time_field)).date().isoformat()
+                for row in rows
+            )
+            actual = result.get("buckets")
+            if actual is None:
+                actual = {
+                    str(group.get("key", group.get("day"))): group["count"]
+                    for group in result["groups"]
+                }
+            assert all(type(value) is int for value in actual.values()) and actual == dict(
+                counts
+            ), "Metric buckets differ from authorized rows"
+    return results

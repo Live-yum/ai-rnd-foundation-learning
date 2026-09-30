@@ -12,6 +12,13 @@ async function main() {
   const report = { passed: false, template: 'fastapiadmin', scope: 'native-business-ui', checks: [], errors: [], pages: [] };
   fs.mkdirSync(reportDir, { recursive: true });
   const contexts = [];
+  report.screenshots = [];
+  async function capture(p, label) {
+    assert(/^[a-z0-9_-]+$/.test(label));
+    const filename = label + '.png';
+    await p.screenshot({ path: path.join(reportDir, filename), fullPage: true });
+    report.screenshots.push(filename);
+  }
   let page;
   async function checked(response) {
     assert(response.ok(), `Native business HTTP ${response.status()}`);
@@ -69,6 +76,7 @@ async function main() {
     assert(Object.values(theme).every(Boolean), 'Native theme tokens missing');
     p.businessProof = { role, route: scenario.route || '/module_rnd/customers', rendered: true, native_shell_visible: true, native_component_family: 'Fa/Element Plus', native_theme_tokens: theme, real_login: true, native_menu_received: true };
     report.pages.push({ ...p.businessProof });
+    await capture(p, role + "-native-list");
     report.checks.push(`${role}:real_native_login_menu_shell`);
     return { p, config };
   }
@@ -77,6 +85,13 @@ async function main() {
     const loaded = response(p, `/business/${entity}/list`);
     await p.getByRole('tab', { name: label, exact: true }).click();
     return checked(await loaded);
+  }
+  async function closeNativeDialog(dialog) {
+    // Pinned FaDialog uses icon DIVs, not named button elements. The final icon is Close.
+    const actions = dialog.locator('.core-overlay-dialog__actions .core-overlay-icon-btn');
+    assert.equal(await actions.count(), 2, 'Pinned native dialog header changed');
+    await actions.last().click();
+    await dialog.waitFor({ state: 'hidden' });
   }
   async function choose(p, locator, value) {
     await locator.click();
@@ -91,6 +106,7 @@ async function main() {
       if (spec.select) await choose(p, field.locator('.el-select'), spec.select);
       else await field.locator('input, textarea').first().fill(spec.text);
     }
+    await capture(p, p.businessProof.role + "-" + entity + "-native-form");
     const created = response(p, `/business/${entity}/create`, 'POST');
     const refreshed = response(p, `/business/${entity}/list`);
     await dialog.getByTestId('business-save').click();
@@ -105,6 +121,7 @@ async function main() {
     const dialog = p.getByRole('dialog', { name: '分配负责人' });
     await dialog.locator('.el-select').click();
     await p.getByRole('option', { name: new RegExp(name) }).click();
+    await capture(p, "manager-" + entity + "-assignment");
     const assigned = response(p, `/business/${entity}/${row.id}/assign`, 'POST');
     await dialog.getByRole('button', { name: '确定', exact: true }).click();
     await checked(await assigned);
@@ -124,6 +141,7 @@ async function main() {
     await page.getByTestId('update-' + customer.id).click();
     const edit = page.getByRole('dialog', { name: '编辑记录' });
     await edit.getByTestId('field-organization').locator('input').fill('Changed team');
+    await capture(page, 'manager-customer-edit');
     const updated = response(page, `/business/customers/${customer.id}/update`, 'POST');
     await edit.getByTestId('business-save').click();
     assert.equal((await checked(await updated)).organization, 'Changed team');
@@ -153,18 +171,21 @@ async function main() {
     await note.getByRole('button', { name: '确定', exact: true }).click();
     await checked(await savedNote);
     assert((await transition(page, 'requests', request.id, 'resolve')).resolved_at);
+    await capture(page, 'service-handled-request');
     report.checks.push('service:assigned_workflows_notes_timestamps');
     page = employee.p;
     await page.reload();
     await tab(page, employee.config, 'requests');
     await page.getByTestId('history-' + request.id).click();
     await page.getByRole('dialog', { name: '记录历史' }).getByText('Browser handling note', { exact: true }).waitFor();
-    await page.getByRole('dialog', { name: '记录历史' }).getByRole('button', { name: /close|关闭/i }).click();
+    await capture(page, 'employee-request-timeline');
+    await closeNativeDialog(page.getByRole('dialog', { name: '记录历史' }));
     const inbox = response(page, '/business/inbox');
     await page.getByRole('tab', { name: '提醒', exact: true }).click();
     const notices = await checked(await inbox);
     const own = notices.find(n => n.record_id === request.id && n.event === 'transitioned');
     assert(own, 'Own resolution reminder missing');
+    await capture(page, 'employee-resolution-reminders');
     const marked = response(page, `/business/inbox/${own.id}/read`, 'POST');
     await page.getByTestId('read-notice-' + own.id).click(); await checked(await marked);
     report.checks.push('employee:own_timeline_and_read_reminder');
@@ -176,6 +197,12 @@ async function main() {
       report.checks.push(`${role}:row_isolation`);
     }
     page = manager.p;
+    await tab(page, manager.config, 'customers');
+    await page.getByTestId('related-' + customer.id).click();
+    const relations = page.getByRole('dialog', { name: '关联历史' });
+    await relations.getByText(marker + ' request', { exact: true }).waitFor();
+    await capture(page, 'manager-customer-related-history');
+    await closeNativeDialog(relations);
     const metricResponse = response(page, '/business/metrics');
     await page.getByRole('tab', { name: '统计', exact: true }).click();
     const metrics = await checked(await metricResponse);
@@ -183,7 +210,7 @@ async function main() {
     for (const metric of metrics) await page.getByRole('heading', { name: metric.label, exact: true }).waitFor();
     report.checks.push('manager:five_native_metric_cards');
     assert.equal(report.errors.length, 0);
-    await page.screenshot({ path: path.join(reportDir, 'business-native-dashboard.png'), fullPage: true });
+    await capture(page, 'manager-native-dashboard');
     report.records = { customers: customer.id, requests: request.id, tasks: task.id };
     report.passed = true;
   } catch (error) {

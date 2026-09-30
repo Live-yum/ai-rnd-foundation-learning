@@ -248,7 +248,14 @@ def install_yudao_business(plan, backend, frontend, targets, reports):
     )
     for file in TEMPLATES.glob("Rnd*.java"):
         text = file.read_text(encoding="utf-8").replace("__PREFIX__", prefix)
-        writes.append(("backend", f"{JAVA_ROOT}/{JAVA_PACKAGE}/business/{file.name}", text, False))
+        package_path = (
+            "controller/admin/rndbusiness"
+            if file.name == "RndBusinessController.java"
+            else "business"
+        )
+        writes.append(
+            ("backend", f"{JAVA_ROOT}/{JAVA_PACKAGE}/{package_path}/{file.name}", text, False)
+        )
     for file in TEMPLATES.glob("*.vue"):
         writes.append(
             (

@@ -12,11 +12,16 @@ interface Meta { bootstrapRequired?: boolean; actions: string[]; transitions: Tr
 interface User { id: string; nickname: string; username: string }
 interface Event { id: number; actor_id: string; action: string; note: string; created_at: string; before_data?: string; after_data?: string }
 interface Notice { id: number; message: string; entity: string; record_id: string; created_at: string; read_at: string | null }
+interface RelatedRow { record: Record<string, unknown> & { id: string }; actions: string[] }
+interface RelatedGroup { entity: string; label: string; field: string; columns: string[]; records: RelatedRow[] }
+interface Related { parent: { entity: string; id: string }; groups: RelatedGroup[] }
 interface Metric { name: string; label: string; kind: string; value?: number | null; samples?: number; unit?: string; buckets?: Record<string, number> }
 const props = defineProps<{ entity: string; recordId?: string }>();
 const emit = defineEmits<{ changed: [] }>();
 const meta = ref<Meta>({ actions: [], transitions: [], roleAdmin: false, roles: [], record: null });
 const users = ref<User[]>([]), history = ref<Event[]>([]), notices = ref<Notice[]>([]), metrics = ref<Metric[]>([]);
+const relatedGroups = ref<RelatedGroup[]>([]), relatedEvents = ref<Event[]>([]), relatedLabel = ref('');
+let relatedRequest = 0;
 const busy = ref(false), audit = ref(false), selectedAction = ref(''), selectedTransition = ref('');
 const assignee = ref<string>(), selectedUser = ref<string>(), selectedRole = ref<string>();
 const userOptions = computed(() => users.value.map(user => ({ label: `${user.nickname || user.username} (#${user.id})`, value: user.id })));
@@ -34,19 +39,35 @@ async function reload() {
   const result = await requestClient.get<Meta>('/infra/rnd-business/meta', { params: { entity: props.entity, id: props.recordId } });
   if (current !== generation) return;
   meta.value = result;
-  history.value = [];
+  history.value = []; relatedGroups.value = []; relatedEvents.value = []; relatedLabel.value = ''; relatedRequest++;
   if (result.bootstrapRequired) return;
   if (props.recordId && result.actions.includes(audit.value ? 'read_audit' : 'read_history')) {
     const rows = await requestClient.get<Event[]>('/infra/rnd-business/history', { params: { entity: props.entity, id: props.recordId, audit: audit.value } });
     if (current === generation) history.value = rows;
   }
-  const [people, reminders, values] = await Promise.all([
+  const [people, reminders, values, related] = await Promise.all([
     requestClient.get<User[]>('/infra/rnd-business/users'),
     requestClient.get<Notice[]>('/infra/rnd-business/notifications'),
     requestClient.get<Metric[]>('/infra/rnd-business/metrics'),
+    props.recordId ? requestClient.get<Related>('/infra/rnd-business/related', { params: { entity: props.entity, id: props.recordId } }) : Promise.resolve({ groups: [] } as Pick<Related, 'groups'>),
   ]);
   if (current !== generation) return;
-  users.value = people; notices.value = reminders; metrics.value = values;
+  users.value = people; notices.value = reminders; metrics.value = values; relatedGroups.value = related.groups;
+}
+function relatedRowKey(row: RelatedRow) { return row.record.id; }
+function relatedColumns(group: RelatedGroup) {
+  const wire = (name: string) => name.replace(/_([a-z])/g, (_, char: string) => char.toUpperCase());
+  return [{ title: '编号', dataIndex: ['record', 'id'], width: 100 },
+    ...group.columns.map(field => ({ title: field, dataIndex: ['record', wire(field)], ellipsis: true, width: 180 })),
+    { title: '创建时间', dataIndex: ['record', 'createdAt'], width: 200 },
+    { title: '归档时间', dataIndex: ['record', 'archivedAt'], width: 200 },
+    { title: '操作', key: 'history', width: 130 }];
+}
+async function showRelatedHistory(group: RelatedGroup, row: RelatedRow) {
+  const request = ++relatedRequest, current = generation;
+  const entries = await requestClient.get<Event[]>('/infra/rnd-business/history', { params: { entity: group.entity, id: row.record.id, audit: false } });
+  if (request !== relatedRequest || current !== generation) return;
+  relatedLabel.value = `${group.label} #${row.record.id}`; relatedEvents.value = entries;
 }
 async function openAction(action: string, transition = '') {
   selectedAction.value = action; selectedTransition.value = transition;
@@ -115,6 +136,14 @@ onMounted(reload);
           </TimelineItem>
         </Timeline>
       </template>
+    </Card>
+    <Card v-for="group in relatedGroups" :key="`${group.entity}:${group.field}`" :title="`关联${group.label}与历史记录`" :data-testid="`business-related-${group.entity}`">
+      <Table :data-source="group.records" :row-key="relatedRowKey" :columns="relatedColumns(group)" :pagination="{ pageSize: 5 }" :scroll="{ x: 'max-content' }">
+        <template #bodyCell="{ column, record }"><Button v-if="column.key === 'history' && record.actions.includes('read_history')" :data-testid="`related-history-${group.entity}-${record.record.id}`" @click="showRelatedHistory(group, record)">处理历史</Button></template>
+      </Table>
+    </Card>
+    <Card v-if="relatedLabel" :title="`${relatedLabel} · 处理历史`" data-testid="business-related-history">
+      <Timeline><TimelineItem v-for="entry in relatedEvents" :key="entry.id"><span>{{ entry.created_at }} · {{ entry.action }} · 用户 #{{ entry.actor_id }}</span><p>{{ entry.note }}</p></TimelineItem></Timeline>
     </Card>
     <Card title="业务统计" v-if="metrics.length">
       <div class="grid gap-4 md:grid-cols-2">
