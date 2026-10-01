@@ -34,6 +34,11 @@ SOURCE_READERS = (
     "tests/test_semantic_fact_domains.py",
     "tests/test_semantic_fact_namespace_aliases.py",
     "workbench/model_protocol.py",
+    "workbench/native_business_probe.py",
+    "workbench/native_evidence.py",
+    "tests/test_native_business_probes.py",
+    "tests/test_native_review_evidence.py",
+    "tests/test_yudao_business_queries.py",
     "workbench/llm.py",
 )
 

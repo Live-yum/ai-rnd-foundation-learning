@@ -66,6 +66,34 @@ def run_business_browser(template, script, front_url, reports, scenario, plan, p
     return report
 
 
+def query_journey_evidence(report):
+    """A marker alone cannot prove native widgets serialized a discriminating query."""
+    expected = {
+        "entity": "customers",
+        "keyword_field": "name",
+        "filter_field": "category",
+        "cases": 3,
+        "keyword": True,
+        "combined_positive": True,
+        "combined_mismatch": True,
+        "request_values_verified": True,
+        "response_ids_exact": True,
+        "rendered_ids_exact": True,
+        "controls_reset": True,
+    }
+    value = report.get("query_journey")
+    if (
+        not isinstance(value, dict)
+        or set(value) != set(expected)
+        or any(
+            type(value[key]) is not type(item) or value[key] != item
+            for key, item in expected.items()
+        )
+    ):
+        raise ValueError("Native browser query journey is missing or incomplete")
+    return dict(expected)
+
+
 def require_business_browser(report, plan, template):
     if (
         report.get("passed") is not True
@@ -114,8 +142,10 @@ def require_business_browser(report, plan, template):
             "other_employee:row_isolation",
             "other_service:row_isolation",
         }
+    journeys.add("manager:customers:native-query-and-exact-filter")
     if not journeys <= set(report.get("checks", [])):
         raise ValueError("Native business browser omitted required workflow or isolation checks")
+    query_journey_evidence(report)
     for entity in plan.entities:
         proofs = [page for page in report.get("pages", []) if page.get("entity") == entity.name]
         if not any(

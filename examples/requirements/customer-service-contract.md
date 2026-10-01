@@ -15,5 +15,7 @@
 
 字段的补充精确定义：所有文本的 min_length=0（必填由 required 负责，未另加字符下限）；datetime 字段仅存储时间戳，searchable=false、filterable=false、date_range=false。逻辑外键字段同样不添加搜索或日期范围。系统自动提供 id/created_at/updated_at/created_by/archived_at，不能在 entities.fields 重复声明；统计直接引用系统 created_at。
 
+本例只能包含 customers、requests、tasks 三个实体，Requirement.additional_entities=false。三个实体的上述业务字段清单是穷尽且封闭的，不允许增加字段，也不能遗漏字段。需求分析须在 entity_requirements 完整记录如下清单并设 additional_fields=false：customers=[name, organization, contact, category]；requests=[title, detail, customer_id, assignee_id, request_state, resolved_at, due_at, priority]；tasks=[title, detail, request_id, assignee_id, task_state, resolved_at, due_at]。日期格式说明和模板能力不构成额外业务要求；本客服案例没有新闻、发布或客户档案发布日期字段，不得引入 published_on 等其他案例字段。不得用新增字段替代已有的系统 created_at 或业务 datetime 时间戳。
+
 界面字段使用可声明的 label 中文名称；请求/任务状态通过 choice_labels 声明 new=待处理、active=处理中、resolved=已解决，存储与动作仍使用原机器值。角色label分别为管理人员、服务人员、普通员工；所有统计label用中文。关联字段显示当前角色可读的客户名称、请求标题或负责人用户名，不能直接把UUID或整数ID当成人类可读名称。
 命名状态动作同时声明中文 label：start 为“开始处理”、resolve 为“标记解决”，动作 name 不变。

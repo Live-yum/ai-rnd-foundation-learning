@@ -47,6 +47,7 @@ def evidence(tmp_path, template="fastapiadmin"):
         for role in ("manager", "service", "employee")
     ]
     checks += [
+        "manager:customers:native-query-and-exact-filter",
         "employee:own_record_history_acl_and_read_reminder",
         "other_employee:row_isolation",
         "other_service:row_isolation",
@@ -81,6 +82,19 @@ def evidence(tmp_path, template="fastapiadmin"):
         "template": template,
         "checks": checks,
         "pages": [],
+        "query_journey": {
+            "entity": "customers",
+            "keyword_field": "name",
+            "filter_field": "category",
+            "cases": 3,
+            "keyword": True,
+            "combined_positive": True,
+            "combined_mismatch": True,
+            "request_values_verified": True,
+            "response_ids_exact": True,
+            "rendered_ids_exact": True,
+            "controls_reset": True,
+        },
     }
     for entity in plan.entities:
         browser["pages"].append(
@@ -121,6 +135,31 @@ def evidence(tmp_path, template="fastapiadmin"):
 @pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])
 def test_both_original_and_fresh_database_business_evidence_pass(tmp_path, template):
     assert require_native_business(*evidence(tmp_path, template)) is True
+
+
+@pytest.mark.parametrize("location", ["business_browser", "restored_browser"])
+@pytest.mark.parametrize(
+    "change", ["missing", "marker_only", "wrong_keys", "false_count", "false_flag"]
+)
+def test_native_query_ui_journey_must_be_complete_and_strict(tmp_path, location, change):
+    report, receipt, spec_path = evidence(tmp_path)
+    browser = (
+        report["business_browser"]
+        if location == "business_browser"
+        else report["portable_restored"]["browser"]
+    )
+    if change == "missing":
+        browser["checks"].remove("manager:customers:native-query-and-exact-filter")
+    elif change == "marker_only":
+        browser.pop("query_journey")
+    elif change == "wrong_keys":
+        browser["query_journey"]["filter_field"] = "organization"
+    elif change == "false_count":
+        browser["query_journey"]["cases"] = 1
+    else:
+        browser["query_journey"]["request_values_verified"] = 1
+    with pytest.raises(PrerequisiteError):
+        require_native_business(report, receipt, spec_path)
 
 
 @pytest.mark.parametrize(

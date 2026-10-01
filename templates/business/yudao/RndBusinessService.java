@@ -247,11 +247,15 @@ public class RndBusinessService {
         if(incoming==null||"".equals(incoming)) { if(field.path("required").asBoolean()) throw bad("Required field: "+key); return null; }
         JsonNode relation=relation(name,key);
         if(relation!=null) {
-            if(!(incoming instanceof String)) throw bad("Relation IDs must be wire strings");
-            Long ref=number(incoming); String target=relation.path("target_entity").asText();
-            if(target.equals("$users")) { if(sidecar.activeUser(tenant(),ref)==null||rolesFor(ref).isEmpty()) throw bad("Unknown active business user"); }
-            else { Object linked=load(target,ref,true); if(archived(linked)) throw bad("Archived relation target"); require(target,linked,"read"); }
-            return ref;
+            try {
+                if(!(incoming instanceof String)) throw bad("Relation IDs must be wire strings");
+                Long ref=number(incoming); String target=relation.path("target_entity").asText();
+                if(target.equals("$users")) { if(sidecar.activeUser(tenant(),ref)==null||rolesFor(ref).isEmpty()) throw bad("Unknown active business user"); }
+                else { Object linked=load(target,ref,true); if(archived(linked)) throw bad("Archived relation target"); require(target,linked,"read"); }
+                return ref;
+            } catch(IllegalArgumentException error) {
+                throw new ServiceException(BAD_REQUEST.getCode(),"Invalid business relation");
+            }
         }
         switch(field.path("kind").asText()) {
             case "text": case "enum":
@@ -325,19 +329,24 @@ public class RndBusinessService {
     public Object get(String name,String identifier) { Object row=load(name,identifier,false);require(name,row,"read");return present(name,row,new Presentation()); }
     public Object page(String name,Map<String,String> query) {
         if(!hasAction(name,"read")) throw denied();
-        int page=Math.max(1,Integer.parseInt(query.getOrDefault("pageNo","1"))),size=Integer.parseInt(query.getOrDefault("pageSize","20"));
-        if(size<1||size>100) throw bad("Page size outside 1..100");
+        int page,size;
+        java.util.function.Predicate<Map<String,Object>> predicate;
+        try {
+            page=Integer.parseInt(query.getOrDefault("pageNo","1"));size=Integer.parseInt(query.getOrDefault("pageSize","20"));
+            if(page<1||size<1||size>100) throw bad("Invalid page bounds");
+            if(!Set.of("true","false").contains(query.getOrDefault("archived","false"))) throw bad("Invalid archive filter");
+            List<RndBusinessQuery.Field> fields=new ArrayList<>();
+            for(JsonNode f:entity(name).path("fields")) fields.add(new RndBusinessQuery.Field(wire(f.path("name").asText()),f.path("kind").asText(),f.path("searchable").asBoolean(),f.path("filterable").asBoolean(),f.path("date_range").asBoolean()));
+            predicate=RndBusinessQuery.compile(fields,query);
+        } catch(IllegalArgumentException error) {
+            throw new ServiceException(BAD_REQUEST.getCode(),"Invalid business query");
+        }
         List<Object> rows=new ArrayList<>();
         for(Object row:all(name)) {
             if(!allowed(name,row,"read")||archived(row)!=Boolean.parseBoolean(query.getOrDefault("archived","false"))) continue;
-            Map<String,Object> external=out(name,row);boolean matches=true;
-            for(JsonNode f:entity(name).path("fields")) {
-                String key=wire(f.path("name").asText());String expected=query.get(key);
-                if(expected!=null&&!expected.isEmpty()&&!String.valueOf(external.get(key)).contains(expected)) matches=false;
-            }
-            if(matches) rows.add(row);
+            if(predicate.test(out(name,row))) rows.add(row);
         }
-        int start=Math.min(rows.size(),Math.multiplyExact(page-1,size)),end=Math.min(rows.size(),start+size);
+        int start=(int)Math.min(rows.size(),((long)page-1)*size),end=Math.min(rows.size(),start+size);
         Presentation display=new Presentation();List<Map<String,Object>> visible=new ArrayList<>();
         for(Object row:rows.subList(start,end)) visible.add(present(name,row,display));
         return Map.of("list",visible,"total",rows.size());
@@ -354,7 +363,10 @@ public class RndBusinessService {
         String note=data.get("note")==null?"":String.valueOf(data.get("note"));if(note.length()>4000) throw bad("Note too long");
         if(action.equals("assign")) {
             String field=resource(name).path("assignee_field").asText("");if(field.isEmpty()) throw bad("No assignee field");Object recipient=data.get("assigneeId");
-            if(recipient!=null&&!recipient.toString().isEmpty()) {Long user=number(recipient);if(sidecar.activeUser(tenant(),user)==null) throw bad("Unknown active business assignee");if(!eligibleAssignee(name,user)) throw new ServiceException(BAD_REQUEST.getCode(),"Assignee cannot handle this resource");set(row,wire(field),user);} else set(row,wire(field),null);
+            if(recipient!=null&&!recipient.toString().isEmpty()) {
+                try {Long user=number(recipient);if(sidecar.activeUser(tenant(),user)==null) throw bad("Unknown active business assignee");if(!eligibleAssignee(name,user)) throw new ServiceException(BAD_REQUEST.getCode(),"Assignee cannot handle this resource");set(row,wire(field),user);}
+                catch(IllegalArgumentException error){throw new ServiceException(BAD_REQUEST.getCode(),"Invalid business assignee");}
+            } else set(row,wire(field),null);
         } else if(action.equals("transition")) {
             JsonNode w=workflow(name);if(w==null) throw bad("No workflow");transition=String.valueOf(data.get("transition"));JsonNode selected=null;
             for(JsonNode t:w.path("transitions")) if(t.path("name").asText().equals(transition)) selected=t;

@@ -86,6 +86,51 @@ def test_nonfailure_cannot_write_unapproved_contract(tmp_path, state):
     assert not target.exists()
 
 
+@pytest.mark.parametrize("state", ["READY", "SOURCE_READY"])
+def test_outer_acceptance_failure_retains_exact_contract_without_execution_approval(
+    tmp_path, state
+):
+    store = ContractStore()
+    store.run["status"] = state
+    target = tmp_path / "unapproved-design-contract.json"
+    receipt = preserve_unapproved_design_contract(
+        store, "synthetic-run", target, DiagnosticTextBudget(), acceptance_failed=True
+    )
+    assert receipt["status"] == "saved"
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    assert payload["execution_authorized"] is False
+    assert payload["requirement"] == store.requirement
+    assert payload["candidate_plan"] == Plan.model_validate(store.plan).model_dump()
+    with pytest.raises(ValidationError):
+        Plan.model_validate(payload)
+
+
+@pytest.mark.parametrize("flag", [False, "true", 1, None])
+def test_outer_failure_flag_cannot_be_coerced(tmp_path, flag):
+    store = ContractStore()
+    store.run["status"] = "READY"
+    target = tmp_path / "unapproved-design-contract.json"
+    assert preserve_unapproved_design_contract(
+        store, "synthetic-run", target, DiagnosticTextBudget(), acceptance_failed=flag
+    ) == {"status": "not_failure"}
+    assert not target.exists()
+
+
+def test_ready_outer_failure_still_rejects_secrets(tmp_path):
+    store = ContractStore()
+    store.run["status"] = "READY"
+    store.requirement["facts"]["example"] = "exact-key-canary"
+    target = tmp_path / "unapproved-design-contract.json"
+    assert preserve_unapproved_design_contract(
+        store,
+        "synthetic-run",
+        target,
+        DiagnosticTextBudget(secrets=("exact-key-canary",)),
+        acceptance_failed=True,
+    ) == {"status": "secret_scan_rejected"}
+    assert not target.exists()
+
+
 @pytest.mark.parametrize(
     "secret",
     [

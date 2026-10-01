@@ -3,6 +3,60 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 
+// Exercise Fa's search bar, including the JSON-encoded exact enum and native pagination.
+async function verifyNativeCustomerQuery(page, customer, category, capture = async () => {}) {
+  assert(category.filterable && category.choices.includes(customer.category));
+  const other = category.choices.find(value => value !== customer.category);
+  assert(other, 'Customer query journey requires two declared category choices');
+  const search = page.getByTestId('business-search');
+  const keywordControl = search.getByRole('textbox').first();
+  const filter = search.locator('.el-select');
+  const keyword = customer.name.slice(1, -1).toUpperCase();
+  assert(keyword && keyword !== customer.name, 'Exercise substring and case-insensitive search');
+  async function submit(expectedCategory, expectedIds, reset = false) {
+    const received = page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/business/customers/list')
+      && response.request().method() === 'GET');
+    await search.getByRole('button', { name: reset ? /^重\s*置$/ : /^搜\s*索$/ }).click();
+    const response = await received;
+    const query = new URL(response.url()).searchParams;
+    assert.equal(query.get('q') || '', reset ? '' : keyword, 'Native query keyword serialization');
+    assert.deepEqual(JSON.parse(query.get('filters')), expectedCategory ? { category: expectedCategory } : {}, 'Native query exact category serialization');
+    assert.equal(query.get('page'), '1', 'Native query must use page=1');
+    // The original table fixes 20 rows per page and lets the API apply that default.
+    if (query.has('page_size')) assert.equal(query.get('page_size'), '20', 'Native query page_size');
+    assert(response.ok(), `Native query HTTP ${response.status()}`);
+    const body = await response.json();
+    assert([0, 200].includes(body.code), 'Native query application error');
+    assert(Array.isArray(body.data.items), 'Native query missing paginated items');
+    if (reset) return;
+    assert.equal(body.data.total, expectedIds.length, 'Native query total must match exact results');
+    assert.deepEqual(body.data.items.map(row => String(row.id)).sort(), expectedIds, 'Native query response IDs');
+    await page.waitForFunction(expectedIds => {
+      const ids = [...new Set([...document.querySelectorAll('.fa-table-card .el-table__row [data-testid^="related-"]')]
+        .filter(button => button.getClientRects().length).map(button => button.dataset.testid.slice('related-'.length)))].sort();
+      return JSON.stringify(ids) === JSON.stringify(expectedIds);
+    }, expectedIds);
+    if (expectedIds.length) await page.locator('.fa-table-card').getByText(customer.name, { exact: true }).first().waitFor({ state: 'visible' });
+  }
+  await keywordControl.fill(keyword);
+  await submit(undefined, [String(customer.id)]);
+  async function select(value) {
+    await filter.click();
+    await page.getByRole('option', { name: category.choice_labels?.[value] || value, exact: true }).last().click();
+  }
+  await select(customer.category);
+  await submit(customer.category, [String(customer.id)]);
+  await capture();
+  await select(other);
+  await submit(other, []);
+  await submit(undefined, [], true);
+  assert.equal(await keywordControl.inputValue(), '', 'Native query reset must clear keyword control');
+  assert.equal(await filter.getByText(category.choice_labels?.[other] || other, { exact: true }).count(), 0, 'Native query reset must clear the selected category label');
+  return { entity: 'customers', keyword_field: 'name', filter_field: 'category', cases: 3,
+    keyword: true, combined_positive: true, combined_mismatch: true, request_values_verified: true,
+    response_ids_exact: true, rendered_ids_exact: true, controls_reset: true };
+}
+
 async function main() {
   const [baseURL, reportDir, playwrightPath, scenarioJSON] = process.argv.slice(2);
   assert.equal(new URL(baseURL).hostname, '127.0.0.1');
@@ -145,6 +199,13 @@ async function main() {
     const customer = await create(page, 'customers', { name: { text: marker }, organization: { text: 'Synthetic browser team' }, contact: { text: 'ui@example.invalid' }, category: { select: '企业' } });
     assert.equal(customer.name, marker);
     report.checks.push('manager:customer_native_form_create');
+    const category = scenario.plan.entities.find(entity => entity.name === 'customers').fields.find(field => field.name === 'category');
+    report.query_journey = await verifyNativeCustomerQuery(page, customer, category, async () => {
+      const filename = 'manager-customers-native-query-positive.png';
+      await page.screenshot({ path: path.join(reportDir, filename), fullPage: true, animations: 'disabled' });
+      report.screenshots.push(filename);
+    });
+    report.checks.push('manager:customers:native-query-and-exact-filter');
     await page.getByTestId('update-' + customer.id).click();
     const edit = page.getByRole('dialog', { name: '编辑记录' });
     await edit.getByTestId('field-organization').locator('input').fill('Changed team');
@@ -240,4 +301,5 @@ async function main() {
     await browser.close();
   }
 }
-main().catch(error => { console.error(error.name + ': native business UI acceptance failed'); process.exitCode = 1; });
+module.exports = { main, verifyNativeCustomerQuery };
+if (require.main === module) main().catch(error => { console.error(error.name + ': native business UI acceptance failed'); process.exitCode = 1; });

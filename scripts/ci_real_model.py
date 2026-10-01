@@ -476,6 +476,13 @@ def safe_coverage_details(requirement, plan, *, text_budget=None):
     )
 
     def scalar(attribute, value):
+        if attribute in {"fields", "entities"} and isinstance(value, list) and len(value) <= 128:
+            if all(
+                isinstance(item, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,39}", item)
+                for item in value
+            ):
+                return [text_budget.scrub(item) if text_budget else item for item in value]
+            return "not_exported"
         if type(value) is bool or value is None:
             return value
         if attribute in {"min_length", "max_length"} and type(value) is int and 0 <= value <= 20000:
@@ -718,7 +725,9 @@ def preserve_approved_customer_plan(native_reports, destination, text_budget):
         return {"status": "io_error"}
 
 
-def preserve_unapproved_design_contract(store, run_id, destination, text_budget):
+def preserve_unapproved_design_contract(
+    store, run_id, destination, text_budget, *, acceptance_failed=False
+):
     """Failure-only diagnostic contract; this envelope carries no execution approval.
 
     Only normalized Requirement/Plan revisions from this synthetic customer run
@@ -735,7 +744,9 @@ def preserve_unapproved_design_contract(store, run_id, destination, text_budget)
         return {"status": "unavailable"}
     try:
         run = store.get_run(run_id)
-        if run.get("status") not in {"FAILED", "BLOCKED"}:
+        if run.get("status") not in {"FAILED", "BLOCKED"} and not (
+            acceptance_failed is True and run.get("status") in {"READY", "SOURCE_READY"}
+        ):
             return {"status": "not_failure"}
         if run.get("template") not in {"python-basic", "fastapiadmin", "yudao-vben"}:
             return {"status": "outside_customer_scope"}
@@ -1047,15 +1058,71 @@ def customer_request():
     )
 
 
+CUSTOMER_GUARD_CODES = frozenset(
+    [
+        "approved_business_obligations",
+        "assignee_field",
+        "bootstrap_role",
+        "canonical_business_obligations",
+        "customer_categories",
+        "customer_forbidden_actions",
+        "customer_read_scope",
+        "declarative_rules_only",
+        "employee_forbidden_actions",
+        "employee_no_metrics",
+        "employee_request_access",
+        "employee_scope",
+        "entities_exact",
+        "field_labels",
+        "fields_exact",
+        "immutable_audit",
+        "initial_state",
+        "manager_scope",
+        "metric_customer_groups",
+        "metric_daily_trend",
+        "metric_duration",
+        "metric_resolved",
+        "metric_total",
+        "metrics_permissions",
+        "notes_archive",
+        "notification_creator_resolution",
+        "notification_event",
+        "registration",
+        "relations",
+        "request_priorities",
+        "required_actions",
+        "resolve_transition",
+        "resolved_timestamp",
+        "role_administration",
+        "roles_exact",
+        "service_scope",
+        "shared_business_supported",
+        "start_transition",
+        "state_choice_labels",
+        "state_labels_readable",
+        "status_field",
+        "task_creation_assignment",
+        "transition_labels",
+        "transition_roles",
+    ]
+)
+
+
 def require_customer_spec(spec, *, approved_requirement=None):
     from workbench.business_capabilities import business_gaps
     from workbench.domain import Plan, Requirement
 
     try:
         plan = Plan.model_validate(spec)
-        assert plan.business is not None and plan.data_scope == "shared" and not plan.unsupported
-        assert {e.name for e in plan.entities} == {"customers", "requests", "tasks"}
-        assert {r.name for r in plan.business.roles} == {"manager", "service", "employee"}
+        assert plan.business is not None and plan.data_scope == "shared" and not plan.unsupported, (
+            "shared_business_supported"
+        )
+        assert {e.name for e in plan.entities} == {"customers", "requests", "tasks"}, (
+            "entities_exact"
+        )
+        assert {r.name for r in plan.business.roles} == {"manager", "service", "employee"}, (
+            "roles_exact"
+        )
         requirement = Requirement(
             summary=customer_request(),
             users=["管理人员", "服务人员", "普通员工"],
@@ -1063,10 +1130,10 @@ def require_customer_spec(spec, *, approved_requirement=None):
             acceptance=[],
             data_scope="shared",
         )
-        assert not business_gaps(requirement, plan)
+        assert not business_gaps(requirement, plan), "canonical_business_obligations"
         if approved_requirement is not None:
             approved = Requirement.model_validate(approved_requirement)
-            assert not business_gaps(approved, plan)
+            assert not business_gaps(approved, plan), "approved_business_obligations"
 
         # Match the public metric meanings, never provider-selected names/labels.
         # Extra supported metrics remain valid, but cannot substitute for these five.
@@ -1084,11 +1151,11 @@ def require_customer_spec(spec, *, approved_requirement=None):
         assert any(
             metric.entity == "requests" and metric.kind == "count" and not metric.filters
             for metric in metrics
-        )
+        ), "metric_total"
         assert any(
             metric.entity == "requests" and metric.kind == "count" and resolved_only(metric)
             for metric in metrics
-        )
+        ), "metric_resolved"
         assert any(
             metric.entity == "requests"
             and metric.kind == "average_duration"
@@ -1096,21 +1163,21 @@ def require_customer_spec(spec, *, approved_requirement=None):
             and metric.end_field == "resolved_at"
             and (not metric.filters or resolved_only(metric))
             for metric in metrics
-        )
+        ), "metric_duration"
         assert any(
             metric.entity == "customers"
             and metric.kind == "group_count"
             and metric.group_by == "category"
             and not metric.filters
             for metric in metrics
-        )
+        ), "metric_customer_groups"
         assert any(
             metric.entity == "requests"
             and metric.kind == "time_count"
             and metric.time_field == "created_at"
             and not metric.filters
             for metric in metrics
-        )
+        ), "metric_daily_trend"
         notices = plan.business.notifications
         for entity in ("requests", "tasks"):
             for event, transition, due_field in (
@@ -1126,15 +1193,15 @@ def require_customer_spec(spec, *, approved_requirement=None):
                     and notice.transition == transition
                     and notice.due_field == due_field
                     for notice in notices
-                )
+                ), "notification_event"
         assert any(
             notice.entity == "requests"
             and notice.event == "transitioned"
             and notice.transition == "resolve"
             and notice.recipient == "creator"
             for notice in notices
-        )
-        assert not plan.custom_rules
+        ), "notification_creator_resolution"
+        assert not plan.custom_rules, "declarative_rules_only"
         entities = {
             entity.name: {field.name: field for field in entity.fields} for entity in plan.entities
         }
@@ -1160,27 +1227,37 @@ def require_customer_spec(spec, *, approved_requirement=None):
                 "due_at",
             },
         }
-        assert all(set(entities[name]) == fields for name, fields in expected.items())
-        assert all(field.label for fields in entities.values() for field in fields.values())
+        assert all(set(entities[name]) == fields for name, fields in expected.items()), (
+            "fields_exact"
+        )
+        assert all(field.label for fields in entities.values() for field in fields.values()), (
+            "field_labels"
+        )
         for entity, field_name in (("requests", "request_state"), ("tasks", "task_state")):
             field = entities[entity][field_name]
-            assert set(field.choice_labels) == set(field.choices)
-            assert all(field.choice_labels[value] != value for value in field.choices)
-        assert set(entities["customers"]["category"].choices) == {"企业", "个人", "合作伙伴"}
-        assert set(entities["requests"]["priority"].choices) == {"普通", "紧急"}
+            assert set(field.choice_labels) == set(field.choices), "state_choice_labels"
+            assert all(field.choice_labels[value] != value for value in field.choices), (
+                "state_labels_readable"
+            )
+        assert set(entities["customers"]["category"].choices) == {"企业", "个人", "合作伙伴"}, (
+            "customer_categories"
+        )
+        assert set(entities["requests"]["priority"].choices) == {"普通", "紧急"}, (
+            "request_priorities"
+        )
         relations = {(r.entity, r.field, r.target_entity) for r in plan.business.relations}
         assert {
             ("requests", "customer_id", "customers"),
             ("tasks", "request_id", "requests"),
             ("requests", "assignee_id", "$users"),
             ("tasks", "assignee_id", "$users"),
-        } <= relations
-        assert plan.business.bootstrap_role == "manager"
-        assert set(plan.business.role_admin_roles) == {"manager"}
+        } <= relations, "relations"
+        assert plan.business.bootstrap_role == "manager", "bootstrap_role"
+        assert set(plan.business.role_admin_roles) == {"manager"}, "role_administration"
         assert (
             plan.business.registration.enabled
             and plan.business.registration.default_role == "employee"
-        )
+        ), "registration"
         policies = {(p.role, p.entity): p for p in plan.business.permissions}
         # Minimum capabilities explicitly promised for this customer case.
         # Keep optional actions separate from these obligations; query access alone
@@ -1204,66 +1281,80 @@ def require_customer_spec(spec, *, approved_requirement=None):
             ("employee", "requests"): {"create", "read"},
         }
         for identity, actions in required_actions.items():
-            assert actions <= set(policies[identity].actions)
-        assert all(policies[("manager", entity)].scope == "all" for entity in expected)
+            assert actions <= set(policies[identity].actions), "required_actions"
+        assert all(policies[("manager", entity)].scope == "all" for entity in expected), (
+            "manager_scope"
+        )
         assert all(
             not {"create", "assign"} & set(policy.actions)
             for policy in plan.business.permissions
             if policy.entity == "tasks" and policy.role != "manager"
-        )
+        ), "task_creation_assignment"
         for role in ("manager", "service"):
             for entity in ("customers", "requests"):
-                assert {"read", "read_metrics"} <= set(policies[(role, entity)].actions)
+                assert {"read", "read_metrics"} <= set(policies[(role, entity)].actions), (
+                    "metrics_permissions"
+                )
         for role in ("service", "employee"):
             customer_policy = policies[(role, "customers")]
-            assert customer_policy.scope == "all" and "read" in customer_policy.actions
+            assert customer_policy.scope == "all" and "read" in customer_policy.actions, (
+                "customer_read_scope"
+            )
             assert not {"create", "update", "archive", "add_note", "read_audit"} & set(
                 customer_policy.actions
-            )
+            ), "customer_forbidden_actions"
         resources = {resource.entity: resource for resource in plan.business.resources}
-        assert all(resources[entity].audit for entity in ("customers", "requests", "tasks"))
+        assert all(resources[entity].audit for entity in ("customers", "requests", "tasks")), (
+            "immutable_audit"
+        )
         for entity in ("requests", "tasks"):
-            assert resources[entity].notes and resources[entity].archive
-            assert resources[entity].assignee_field == "assignee_id"
+            assert resources[entity].notes and resources[entity].archive, "notes_archive"
+            assert resources[entity].assignee_field == "assignee_id", "assignee_field"
             if ("employee", entity) in policies:
                 assert policies[("employee", entity)].scope in (
                     {"own"} if entity == "requests" else {"own", "assigned"}
-                )
+                ), "employee_scope"
                 forbidden = {"assign", "transition", "read_metrics"}
                 if entity == "tasks":
                     forbidden |= {"create", "update", "archive", "add_note"}
-                assert not forbidden & set(policies[("employee", entity)].actions)
+                assert not forbidden & set(policies[("employee", entity)].actions), (
+                    "employee_forbidden_actions"
+                )
             else:
-                assert entity == "tasks"
-            assert policies[("service", entity)].scope == "assigned"
+                assert entity == "tasks", "employee_request_access"
+            assert policies[("service", entity)].scope == "assigned", "service_scope"
             workflow = next(w for w in plan.business.workflows if w.entity == entity)
             transitions = {t.name: t for t in workflow.transitions}
-            assert all(transition.label for transition in workflow.transitions)
-            assert workflow.initial == "new"
+            assert all(transition.label for transition in workflow.transitions), "transition_labels"
+            assert workflow.initial == "new", "initial_state"
             assert (
                 workflow.status_field
                 == {"requests": "request_state", "tasks": "task_state"}[entity]
-            )
+            ), "status_field"
             assert all(
                 set(transition.roles) == {"manager", "service"}
                 for transition in transitions.values()
-            )
+            ), "transition_roles"
             assert (
                 transitions["start"].from_states == ["new"]
                 and transitions["start"].to_state == "active"
-            )
+            ), "start_transition"
             assert (
                 transitions["resolve"].from_states == ["active"]
                 and transitions["resolve"].to_state == "resolved"
-            )
-            assert transitions["resolve"].set_timestamp == "resolved_at"
+            ), "resolve_transition"
+            assert transitions["resolve"].set_timestamp == "resolved_at", "resolved_timestamp"
         assert all(
             "read_metrics" not in policy.actions
             for policy in plan.business.permissions
             if policy.role == "employee"
-        )
-    except ValueError, KeyError, TypeError, AssertionError, StopIteration:
-        raise SafeFailure("explicit_customer_obligation_not_preserved") from None
+        ), "employee_no_metrics"
+    except (ValueError, KeyError, TypeError, AssertionError, StopIteration) as error:
+        failure = SafeFailure("explicit_customer_obligation_not_preserved")
+        # Assertion messages are fixed local identifiers, never model wording.
+        code = error.args[0] if isinstance(error, AssertionError) and error.args else None
+        failure.guard_code = code if code in CUSTOMER_GUARD_CODES else "schema_or_missing_contract"
+        raise failure from None
 
 
 def acceptance_settings(config, directory):
@@ -1403,6 +1494,7 @@ def run_acceptance(config, transport, directory, template="python-basic"):
                     run_id,
                     ROOT / "reports/real-model/unapproved-design-contract.json",
                     diagnostic_text,
+                    acceptance_failed=True,
                 ),
             ),
         ):
@@ -1555,6 +1647,8 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             acceptance_stage,
             DiagnosticTextBudget(secrets=(config.key.get_secret_value(),), limit=1000),
         )
+        if isinstance(error, SafeFailure) and hasattr(error, "guard_code"):
+            details["customer_guard"] = {"code": error.guard_code}
         if isinstance(error, SafeFailure):
             error.details = details
             raise

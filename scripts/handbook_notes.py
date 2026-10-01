@@ -42,6 +42,16 @@ MODULES = {
         "使用明确合成账号和业务记录，通过原生登录取得身份，检查关联、分配、转换、历史、审计、提醒和统计，另以无权用户验证后端拒绝；不把隐藏按钮当权限证明。",
         "native_lab/独立恢复 → customer_service_acceptance → business.json及临时浏览器场景。",
     ),
+    "native_business_probe": (
+        "原生接口的逐字段检索、关联权限与审计不变性验证",
+        "用合成对照记录和五个真实身份计算预期可见集合，实际请求搜索、精确筛选、日期区间及组合条件；尝试无权关系写入和审计修改删除，比较拒绝前后的记录与哈希。只有断言完成才写入观察结果，不根据合同本身填入成功标记。",
+        "business_probe → NativeOracle及真实HTTP探针 → execution_evidence；portable将同一探针带入新数据库再次执行。",
+    ),
+    "native_evidence": (
+        "绑定实际原生执行证据并交给独立模型审阅",
+        "严格校验逐项观察的类型、角色、字段、预期与实际计数及集合哈希，确认覆盖当前批准合同，再绑定源码及报告哈希。传给模型的内容只含受限的测试结果与复现文件摘要，不发送账号、原始记录或工具日志；旧的汇总布尔值不能替代详细证据。",
+        "native_delivery.managed_verify → native_review_evidence → flow.model_review；审阅仍可因真实缺口阻塞交付。",
+    ),
     "business_browser": (
         "用临时场景连接真实原生浏览器验收",
         "只把本次合成账号交给临时场景文件，启动对应浏览器脚本并要求passed及零错误；临时凭据不进入上传报告。",
@@ -287,6 +297,11 @@ MODULES = {
         "reconcile合并已确认事实，后续模型省略不等于用户删除；替换要有当前真实用户更正原文。coverage_gaps把结构化字段义务、数据归属及可识别的明确约束与Plan逐项比较，设计漏项就阻塞，不让规划模型自行宣布已覆盖。",
         "flow.analyse保留事实 → Requirement.field_requirements → flow.design → coverage_gaps；test_requirement_coverage。",
     ),
+    "entity_requirements": (
+        "用户明确封闭的实体与字段清单",
+        "普通项目默认允许扩展；只有明确封闭的批准清单才禁止额外实体或字段。逐实体比较计划并报告缺失、额外字段与来源编号，不直接修改模型计划。模型遗漏清单不构成撤销批准，修正需可追溯的用户原文。",
+        "Requirement.entity_requirements/additional_entities → coverage_gaps → 设计门与下一轮精准修复反馈。",
+    ),
     "native_recovery": (
         "身份绑定的原生中断检查点",
         "identity绑定模板、批准Plan、数据库身份和前后端来源；save记录实际文件清单与可恢复阶段；load只接受同一身份、完整且未篡改的可恢复现场。不可重放阶段中断不能自动重置数据库。",
@@ -325,6 +340,11 @@ MODULES = {
 }
 
 BUSINESS_FILES = {
+    "yudao/RndBusinessQuery.java": (
+        "芋道业务列表的声明式查询谓词",
+        "将配置允许的查询编译为纯Java谓词：关键词只搜索已声明字段，精确过滤按类型比较，日期上下界包含边界，多个条件取交集。无权行先由服务层排除；未知或未开放条件返回输入错误。真实Java断言和错误实现变异检查验证这些规则。",
+        "RndBusinessService.page先检查角色/行权限 → 本文件匹配 → 原生Vxe列表；business-form.ts只显示批准的查询控件。",
+    ),
     "common/policy.py": (
         "三个模板共享的有限业务策略解释器",
         "Policy按批准合同查角色、资源、权限与状态转换，校验受控字段并计算登记指标；只处理数据和规则，不持有数据库连接或外部网络权限。",

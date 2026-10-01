@@ -21,6 +21,7 @@ HELPERS = (
     "business_contracts.py",
     "business_schema_receipt.py",
     "business_probe.py",
+    "native_business_probe.py",
     "business_browser.py",
     "native_checks.py",
     "catalog.py",

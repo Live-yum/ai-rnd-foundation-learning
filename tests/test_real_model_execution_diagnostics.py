@@ -112,7 +112,7 @@ def test_failure_retains_approved_plan_before_cleanup(
         harness, "safe_workflow_details", lambda *a, **kw: {"terminal_state": "READY"}
     )
     monkeypatch.setattr(
-        harness, "preserve_unapproved_design_contract", lambda *a: {"status": "unavailable"}
+        harness, "preserve_unapproved_design_contract", lambda *a, **kw: {"status": "unavailable"}
     )
     if collector_failure:
 

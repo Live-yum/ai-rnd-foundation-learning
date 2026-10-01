@@ -9,6 +9,7 @@ import re
 from copy import deepcopy
 
 from workbench.domain import Plan, Requirement
+from workbench.entity_requirements import entity_gaps
 
 ALIASES = {
     "title": ("title", "标题"),
@@ -43,6 +44,47 @@ def _authorized(change, corrections):
         quote,
         re.I,
     ):
+        return False
+    if change.section == "additional_entities":
+        stated = re.search(
+            r"(?<![a-z0-9_])additional_entities\s*(?:[:=为]|改为|改成|更改为)?"
+            r"\s*(true|false|是|否)(?![a-z])",
+            quote,
+            re.I,
+        )
+        return (
+            change.key == "additional_entities"
+            and type(change.replacement) is bool
+            and bool(stated)
+            and change.replacement is (stated.group(1).lower() in {"true", "是"})
+        )
+    if change.section == "entity_requirements":
+        entity, _, attribute = change.key.partition(".")
+        if not _field_mentions(quote, [entity]):
+            return False
+        if not attribute and change.replacement is None:
+            return bool(re.search(r"取消|删除|移除|不再|不要|remove|drop", quote, re.I))
+        if attribute == "fields":
+            return (
+                bool(re.search(r"字段|\bfields\b", quote, re.I))
+                and isinstance(change.replacement, list)
+                and bool(change.replacement)
+                and all(
+                    isinstance(value, str) and _field_mentions(quote, [value])
+                    for value in change.replacement
+                )
+            )
+        if attribute == "additional_fields" and type(change.replacement) is bool:
+            stated = re.search(
+                rf"(?<![a-z0-9_]){re.escape(entity)}(?:\.additional_fields|\s*"
+                r"(?:的)?(?:额外字段|其他字段|新增字段))\s*"
+                r"(?:[:=为]|改为|改成|更改为)?\s*(true|false|是|否)(?![a-z])",
+                quote,
+                re.I,
+            )
+            return bool(stated) and change.replacement is (
+                stated.group(1).lower() in {"true", "是"}
+            )
         return False
     aliases = [change.key]
     if change.section == "data_scope":
@@ -196,6 +238,11 @@ def reconcile(previous, proposed, corrections, audit=None):
     fields = {(f.entity, f.field): f.model_dump() for f in proposed.field_requirements}
     fields.update({(f.entity, f.field): f.model_dump() for f in old.field_requirements})
     data["field_requirements"] = list(fields.values())
+    entities = {item.entity: item.model_dump() for item in proposed.entity_requirements}
+    entities.update({item.entity: item.model_dump() for item in old.entity_requirements})
+    data["entity_requirements"] = list(entities.values())
+    if "additional_entities" in previous or not old.additional_entities:
+        data["additional_entities"] = old.additional_entities
     if old.data_scope != "unknown":
         data["data_scope"] = old.data_scope
     for change in proposed.changes:
@@ -222,6 +269,17 @@ def reconcile(previous, proposed, corrections, audit=None):
                 data[section] = [x for x in data[section] if x != key]
                 if isinstance(replacement, str) and replacement not in data[section]:
                     data[section].append(replacement)
+        elif section == "entity_requirements":
+            entity, _, attribute = key.partition(".")
+            for item in list(data[section]):
+                if item["entity"] != entity:
+                    continue
+                if not attribute and replacement is None:
+                    data[section].remove(item)
+                elif attribute in {"fields", "additional_fields"}:
+                    item[attribute] = replacement
+        elif section == "additional_entities":
+            data[section] = replacement
         elif section == "data_scope" and replacement in {"per_user", "shared"}:
             data[section] = replacement
         elif section == "field_requirements":
@@ -1537,6 +1595,114 @@ def _legacy_operation_text(text, fields):
     return _negative_operation_pattern(fields).sub("（）", text)
 
 
+_DATE_TYPE = re.compile(
+    r"真实日期|\breal\s+date\b|(?:日期|\bdate\b)\s*(?:类型|字段)|"
+    r"(?:类型|kind)\s*[:=为是]?\s*(?:日期|date\b)|"
+    r"(?:必填|可选|为|使用|采用)\s*(?:日期|date\b)(?!格式|范围|区间|显示|展示)",
+    re.I,
+)
+_DATE_FORMAT = re.compile(r"YYYY-MM-DD|日期格式|\bdate[_ ]format\b", re.I)
+_DATE_INPUT = re.compile(r"输入|录入|校验|验证|拒绝保存|\b(?:input|validate|validation)\b", re.I)
+_DATE_NEGATIVE = re.compile(
+    r"无需|不需要|不要求|不使用|不采用|不添加|不提供|不要|没有|无|不是|并非|取消|禁止|"
+    r"\b(?:no|not|never|without|do\s+not|does\s+not)\b",
+    re.I,
+)
+_DATE_CONTEXT = re.compile(
+    r"模板|可用能力|能力(?:清单|目录|示例)|示例|例如|举例|假设|如果|若|"
+    r"\b(?:template(?:_capabilities)?|capabilities|catalog|example|e\.g\.|if)\b",
+    re.I,
+)
+_DATE_PRESENTATION = re.compile(
+    r"显示|展示|呈现|界面|默认|时间戳|datetime|timestamp|\b(?:display|render|default)\b",
+    re.I,
+)
+
+
+def _legacy_date_obligations(text, fields):
+    """Interpret field types, not every mention of a date-shaped string.
+
+    Read original source clauses before query lowering discards negations or
+    headings. A format alone is presentation metadata; it becomes a type
+    obligation only when bound to a concrete field and used as its input
+    contract. Explicit real-date declarations can still introduce a field.
+    Typed field constraints are checked separately and never filtered here.
+    """
+    scope = _fact_entity(text, fields)
+    for sentence in re.split(r"[；;。\n]|但是|但|不过|\bbut\b", text, flags=re.I):
+        if not sentence.strip():
+            continue
+        # Keep catalog/example provenance that _legacy_clauses may otherwise
+        # remove while normalizing section headings.
+        headings = re.match(r"\s*(?:[^，,：:；;（）()]+[：:]\s*)+", sentence)
+        context = bool(headings and _DATE_CONTEXT.search(headings.group())) or bool(
+            re.search(r"假设|如果|若|\bif\b", sentence, re.I)
+        )
+        for clause in _legacy_clauses(sentence, fields):
+            markers = list(_DATE_TYPE.finditer(clause))
+            formats = list(_DATE_FORMAT.finditer(clause))
+            if not markers and not formats:
+                continue
+            candidates = _legacy_targets(clause, fields)
+            concrete = [
+                field
+                for field in candidates
+                if _field_mentions(clause, [field.name])
+                or any(
+                    field.name in aliases and _field_mentions(clause, [alias])
+                    for aliases in ALIASES.values()
+                    for alias in aliases
+                    if alias not in {"日期", "date"}
+                )
+            ]
+            # Generic 日期 must not donate another entity's published_on to a
+            # declaration naming a different field.
+            targets = concrete or candidates
+            for marker in [*markers, *formats]:
+                prefix = clause[: marker.start()]
+                local_prefix = re.split(r"[，,、]", prefix)[-1]
+                suffix = clause[marker.end() :]
+                if _DATE_NEGATIVE.search(local_prefix) or re.match(
+                    r"\s*(?:字段|类型|校验|验证)?\s*(?:无需|不需要|不要求|取消)", suffix
+                ):
+                    continue
+                # A later example/display instruction cannot erase an earlier
+                # affirmative field-type declaration in this same clause.
+                if context or _DATE_CONTEXT.search(local_prefix):
+                    continue
+                if marker in formats and (
+                    not concrete
+                    or not _DATE_INPUT.search(clause)
+                    or _DATE_PRESENTATION.search(clause)
+                ):
+                    continue
+                if marker in markers and _DATE_PRESENTATION.search(local_prefix):
+                    # "默认真实日期格式" is a formatting default, while a
+                    # field explicitly declared 真实日期 before display prose
+                    # remains executable intent.
+                    continue
+                entity = _fact_entity(clause, fields) or scope
+                qualified = bool(
+                    re.search(r"(?<![a-z0-9_])[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*", clause)
+                )
+                if not targets and (_fact_candidates(clause, fields) or qualified):
+                    # An ambiguous repeated subject cannot be satisfied by an
+                    # unrelated date field in another entity.
+                    yield clause, [], True
+                elif not targets and not _field_mentions(
+                    clause,
+                    [alias for aliases in ALIASES.values() for alias in aliases if alias.isascii()],
+                ):
+                    yield (
+                        clause,
+                        [field for owner, field in fields if entity is None or owner == entity],
+                        False,
+                    )
+                else:
+                    yield clause, targets, True
+                break
+
+
 def _matches_constraint(attribute, expected, actual):
     if attribute in {"required", "searchable", "filterable", "date_range"}:
         if isinstance(expected, str):
@@ -1567,7 +1733,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
     Diagnostic source indices refer to the retained Requirement, never a model
     verdict. Consumers exporting diagnostics must allowlist values separately.
     """
-    gaps = []
+    gaps = entity_gaps(requirement, plan, diagnostics=diagnostics)
     fields = [(entity.name, field) for entity in plan.entities for field in entity.fields]
     source = {"section": "data_scope"}
     source_text = ""
@@ -1681,6 +1847,25 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
         ({"section": "facts", "index": index, "encoding": "legacy", "path": path}, text)
         for index, (path, text) in enumerate(_fact_texts(requirement.facts, fields))
     )
+    for origin, text in texts:
+        for index, (clause, targets, field_bound) in enumerate(
+            _legacy_date_obligations(text, fields)
+        ):
+            source = {**origin, "date_clause": index}
+            source_text = clause
+            missing = [field for field in targets if field.kind != "date"]
+            if (
+                (not targets or missing)
+                if field_bound
+                else not any(field.kind == "date" for field in targets)
+            ):
+                gap(
+                    f"设计未覆盖真实日期类型: {clause}",
+                    "date_kind",
+                    targets=missing if field_bound else targets,
+                    attribute="kind",
+                    expected="date",
+                )
     operations = {
         "searchable": r"搜索|检索|search",
         "filterable": r"筛选|过滤|filter",
@@ -1789,6 +1974,12 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
         known_subjects = _fact_candidates(text, fields)
         mentioned = _legacy_targets(text, fields)
         for canonical, aliases in ALIASES.items():
+            # Date type/format predicates are not identifiers named "date".
+            # Their independently scoped obligations were checked above.
+            if canonical == "published_on" and (
+                _DATE_TYPE.search(text) or _DATE_FORMAT.search(text)
+            ):
+                continue
             if _field_mentions(text, aliases):
                 matches = [f for f in known_subjects if f.name in aliases]
                 # Generic words such as 内容/分类 in a business summary are
@@ -1937,14 +2128,4 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
                         expected=int(number.group(1)),
                         actual=field.min_length,
                     )
-        # A date field represented as text is not executable date validation.
-        if re.search(r"真实日期|YYYY-MM-DD|日期格式", text):
-            if not any(f.kind == "date" for f in mentioned):
-                gap(
-                    f"设计未覆盖真实日期类型: {text}",
-                    "date_kind",
-                    targets=mentioned,
-                    attribute="kind",
-                    expected="date",
-                )
     return list(dict.fromkeys(gaps))

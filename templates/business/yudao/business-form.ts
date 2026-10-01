@@ -101,7 +101,17 @@ export function businessFormSchema(entity: string, original: VbenFormSchema[]): 
 }
 export function businessSearchSchema(entity: string, original: VbenFormSchema[]): VbenFormSchema[] {
   if (!specs[entity]) throw new Error('Unknown native business form');
-  return original.filter(item => fieldSpec(entity, item.fieldName)).map(item => fieldSchema(entity, item, true));
+  return original.flatMap(item => {
+    const field = fieldSpec(entity, item.fieldName);
+    if (!field || !(field.searchable || field.filterable || field.date_range)) return [];
+    const input = fieldSchema(entity, item, true);
+    if (!field.date_range) return [input];
+    return [
+      ...(field.filterable ? [input] : []),
+      { ...input, fieldName: wire(field.name) + '_from', label: `${field.label || field.name} 起始（含）` },
+      { ...input, fieldName: wire(field.name) + '_to', label: `${field.label || field.name} 截止（含）` },
+    ];
+  });
 }
 export function businessPayload<T extends object>(entity: string, values: T): T {
   const spec = specs[entity];

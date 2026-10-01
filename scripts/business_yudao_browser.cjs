@@ -96,6 +96,62 @@ function rememberCreatedRecord(created, labels, entity, identifier, label) {
   labels[entity] = label;
 }
 
+// Drive the original Vben search form and inspect its real paginated request.
+// A deliberately incompatible enum must remove the row, even when its name matches.
+async function verifyNativeCustomerQuery(page, listRoute, customer, category, capture = async () => {}) {
+  assert(category.filterable && category.choices.includes(customer.category));
+  const other = category.choices.find(value => value !== customer.category);
+  assert(other, 'Customer query journey requires two declared category choices');
+  const scopeSelector = '[data-rnd-business-entity="customers"]';
+  const scope = page.locator(scopeSelector + ':visible');
+  const name = scope.getByTestId('business-field-name');
+  const filter = scope.getByTestId('business-field-category');
+  if (!(await filter.isVisible())) await scope.getByText('展开', { exact: true }).click();
+  const keyword = customer.name.slice(1, -1).toUpperCase();
+  assert(keyword && keyword !== customer.name, 'Exercise substring and case-insensitive search');
+  async function submit(expectedCategory, expectedIds, reset = false) {
+    const received = page.waitForResponse(response => new URL(response.url()).pathname.endsWith(listRoute)
+      && response.request().method() === 'GET');
+    await scope.getByRole('button', { name: reset ? /^重\s*置$/ : /^搜\s*索$/ }).click();
+    const response = await received;
+    const query = new URL(response.url()).searchParams;
+    assert.equal(query.get('name') || '', reset ? '' : keyword, 'Native query keyword serialization');
+    assert.equal(query.get('category') || '', expectedCategory || '', 'Native query exact category serialization');
+    assert.equal(query.get('pageNo'), '1', 'Native query must use pageNo=1');
+    assert(/^[1-9][0-9]*$/.test(query.get('pageSize') || ''), 'Native query must serialize pageSize');
+    assert(response.ok(), `Native query HTTP ${response.status()}`);
+    const body = await response.json();
+    assert.equal(body.code, 0, 'Native query application error');
+    assert(Array.isArray(body.data.list), 'Native query missing paginated list');
+    if (reset) return;
+    assert.equal(body.data.total, expectedIds.length, 'Native query total must match exact results');
+    assert.deepEqual(body.data.list.map(row => String(row.id)).sort(), expectedIds, 'Native query response IDs');
+    await page.waitForFunction(({ scopeSelector, expectedIds }) => {
+      const ids = [...new Set([...document.querySelectorAll(scopeSelector + ' .vxe-body--row[rowid]')]
+        .filter(row => row.getClientRects().length).map(row => row.getAttribute('rowid')))].sort();
+      return JSON.stringify(ids) === JSON.stringify(expectedIds);
+    }, { scopeSelector, expectedIds });
+    if (expectedIds.length) await scope.getByText(customer.name, { exact: true }).first().waitFor({ state: 'visible' });
+  }
+  await name.fill(keyword);
+  await submit(undefined, [String(customer.id)]);
+  async function select(value) {
+    await filter.click();
+    await page.locator('.ant-select-dropdown:visible').getByText(category.choice_labels?.[value] || value, { exact: true }).last().click();
+  }
+  await select(customer.category);
+  await submit(customer.category, [String(customer.id)]);
+  await capture();
+  await select(other);
+  await submit(other, []);
+  await submit(undefined, [], true);
+  assert.equal(await name.inputValue(), '', 'Native query reset must clear keyword control');
+  assert.equal(await filter.locator('.ant-select-selection-item').count(), 0, 'Native query reset must clear category control');
+  return { entity: 'customers', keyword_field: 'name', filter_field: 'category', cases: 3,
+    keyword: true, combined_positive: true, combined_mismatch: true, request_values_verified: true,
+    response_ids_exact: true, rendered_ids_exact: true, controls_reset: true };
+}
+
 async function main() {
   const [base, reportDir, playwrightPath, scenarioFile] = process.argv.slice(2);
   assert.equal(new URL(base).hostname, '127.0.0.1');
@@ -248,6 +304,12 @@ async function main() {
   }
   try {
     await createBrowserOwnedRecords(login, create, marker);
+    const customerPage = await openPage('customers');
+    const category = scenario.plan.entities.find(entity => entity.name === 'customers').fields.find(field => field.name === 'category');
+    report.query_journey = await verifyNativeCustomerQuery(page, customerPage.list,
+      { id: created.customers, name: labels.customers, category: category.choices[0] }, category,
+      () => capture('manager-customers-native-query-positive.png'));
+    report.checks.push('manager:customers:native-query-and-exact-filter');
     for (const entity of ['requests', 'tasks']) { await detail(entity, labels[entity]); await action('assign', null, 'Browser assignment'); await verifyNativeHistorySpacing(page); await capture(`${entity}-manager-workflow-controls.png`); }
     for (const [parent, child] of [['customers', 'requests'], ['requests', 'tasks']]) {
       await detail(parent, labels[parent]);
@@ -326,5 +388,5 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord };
+module.exports = { main, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, verifyNativeCustomerQuery };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });

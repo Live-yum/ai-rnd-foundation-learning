@@ -281,7 +281,12 @@ def test_yudao_ineligible_assignee_uses_pinned_native_client_error_mapping():
         "import static cn.iocoder.yudao.framework.common.exception.enums."
         "GlobalErrorCodeConstants.BAD_REQUEST;"
     ) in source
-    assert source.count("new ServiceException(") == 1
+    assert (
+        source.count(
+            'new ServiceException(BAD_REQUEST.getCode(),"Assignee cannot handle this resource")'
+        )
+        == 1
+    )
     assert (
         "private IllegalArgumentException bad(String detail) "
         "{ return new IllegalArgumentException(detail); }"

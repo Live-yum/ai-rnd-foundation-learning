@@ -15,6 +15,7 @@ from workbench.domain import Plan, digest
 from workbench.filesystem import manifest, pack_source, sha, write_json
 from workbench.generator import PrerequisiteError
 from workbench.native_environment import checked_database, native_environment, running_backend
+from workbench.native_evidence import MAX_ACCEPTANCE_BYTES, native_review_evidence
 from workbench.native_frontend import frontend_environment, frontend_preview
 from workbench.native_lab import run_acceptance
 from workbench.native_modules import validate_plan
@@ -303,7 +304,11 @@ def require_native_business(report, receipt, spec_path):
 def managed_verify(destination, receipt):
     destination = Path(destination)
     report_path = destination.parent / "native-evidence/acceptance.json"
-    if not report_path.is_file() or sha(report_path) != receipt.get("evidence_sha256"):
+    if not report_path.is_file():
+        raise PrerequisiteError("原生运行证据丢失或已改变")
+    if report_path.stat().st_size > MAX_ACCEPTANCE_BYTES:
+        raise PrerequisiteError("原生运行证据超出安全大小限制")
+    if sha(report_path) != receipt.get("evidence_sha256"):
         raise PrerequisiteError("原生运行证据丢失或已改变")
     report = json.loads(report_path.read_text(encoding="utf-8"))
     gates = (
@@ -343,6 +348,10 @@ def managed_verify(destination, receipt):
         raise PrerequisiteError("原生源码或设计在验收后发生变化，需要重新验证")
     require_native_style(report, receipt, current)
     business = require_native_business(report, receipt, report_path.with_name("approved-spec.json"))
+    plan = Plan.model_validate_json(
+        report_path.with_name("approved-spec.json").read_text(encoding="utf-8")
+    )
+    review_evidence = native_review_evidence(report, plan, current, receipt["evidence_sha256"])
     result = {
         "passed": True,
         "validation_level": "runtime",
@@ -354,6 +363,7 @@ def managed_verify(destination, receipt):
         + (["native_business_contract"] if business else []),
         "database_delivery": "standalone-fresh-database-bootstrap",
         "startup": "uv run --no-project --python 3.14 python start.py",
+        "native_acceptance": review_evidence,
     }
     write_json(destination.parent / "verification.json", result)
     return result

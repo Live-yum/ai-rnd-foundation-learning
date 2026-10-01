@@ -98,7 +98,16 @@ class ResumeInput(Contract):
 class RequirementChange(Contract):
     """A proposed correction; the workflow checks the quote against fresh user input."""
 
-    section: Literal["facts", "features", "acceptance", "users", "data_scope", "field_requirements"]
+    section: Literal[
+        "facts",
+        "features",
+        "acceptance",
+        "users",
+        "data_scope",
+        "field_requirements",
+        "entity_requirements",
+        "additional_entities",
+    ]
     key: str
     replacement: JsonValue = None
     source_quote: Text
@@ -122,6 +131,24 @@ class FieldRequirement(Contract):
     choices: list[str] | None = None
 
 
+class EntityRequirement(Contract):
+    """An explicit field inventory; ordinary inventories remain extensible."""
+
+    entity: Name
+    fields: list[Name] = Field(min_length=1, max_length=128)
+    additional_fields: StrictBool = Field(
+        default=True,
+        description="False only when the user explicitly says this entity's field list is exhaustive or forbids additional fields. An ordinary list is open by default.",
+    )
+
+    @field_validator("fields")
+    @classmethod
+    def unique_fields(cls, value):
+        if len(set(value)) != len(value):
+            raise ValueError("字段清单不能包含重复名称")
+        return value
+
+
 class Requirement(Contract):
     summary: str = Field(max_length=4000)
     users: list[Text] = Field(max_length=20)
@@ -141,6 +168,11 @@ class Requirement(Contract):
     recommendations: list[Text] = Field(default_factory=list)
     facts: dict[str, JsonValue] = Field(default_factory=dict)
     field_requirements: list[FieldRequirement] = Field(default_factory=list, max_length=128)
+    entity_requirements: list[EntityRequirement] = Field(default_factory=list, max_length=40)
+    additional_entities: StrictBool = Field(
+        default=True,
+        description="False only when the user explicitly restricts the complete entity inventory to entity_requirements. Ordinary projects stay open.",
+    )
     changes: list[RequirementChange] = Field(default_factory=list, max_length=128)
 
     def gate_dump(self) -> dict:
@@ -149,10 +181,18 @@ class Requirement(Contract):
         return self.model_dump(
             exclude={
                 name
-                for name in ("limitations", "field_requirements", "changes")
+                for name in ("limitations", "field_requirements", "entity_requirements", "changes")
                 if not getattr(self, name)
             }
+            | ({"additional_entities"} if self.additional_entities else set())
         )
+
+    @field_validator("entity_requirements")
+    @classmethod
+    def unique_entity_requirements(cls, value):
+        if len({item.entity for item in value}) != len(value):
+            raise ValueError("同一实体不能重复声明字段清单")
+        return value
 
     @property
     def ready(self) -> bool:

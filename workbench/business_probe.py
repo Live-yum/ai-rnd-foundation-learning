@@ -1,5 +1,7 @@
 """Independent customer-service acceptance over real native HTTP authentication."""
 
+import hashlib
+import json
 import uuid
 
 import httpx
@@ -38,21 +40,76 @@ class BusinessClient:
     def wire(self, data):
         return {wire_name(self.template, k): v for k, v in data.items()}
 
-    def create(self, entity, data):
+    def create_response(self, entity, data):
         route = (
             self.prefix + "/" + entity + "/create"
             if self.fastapi
             else self.targets[entity]["api"] + "/create"
         )
-        value = self.call("POST", route, json=data if self.fastapi else self.wire(data))
+        return self.http.post(route, json=data if self.fastapi else self.wire(data))
+
+    def create(self, entity, data):
+        value = payload(self.create_response(entity, data))
         return str(value["id"] if isinstance(value, dict) else value)
 
     def rows(self, entity, **query):
+        # Shared probes used to supply both dialects and rely on a server
+        # silently ignoring foreign keys. Send only this native API's keys.
+        for aliases, native in (
+            (("page_size", "pageSize"), "page_size" if self.fastapi else "pageSize"),
+            (("page", "pageNo"), "page" if self.fastapi else "pageNo"),
+        ):
+            supplied = [query.pop(key) for key in aliases if key in query]
+            if supplied:
+                if len({str(value) for value in supplied}) != 1:
+                    raise ValueError("Conflicting native pagination aliases")
+                query[native] = supplied[0]
         route = (
             self.prefix + "/" + entity + "/list" if self.fastapi else self.targets[entity]["list"]
         )
         value = self.call("GET", route, params=query)
         return value.get("items", value.get("list"))
+
+    def all_rows(self, entity, *, q="", filters=None):
+        """Read the complete bounded result; a first page is never an exact-set oracle."""
+        route = (
+            self.prefix + "/" + entity + "/list" if self.fastapi else self.targets[entity]["list"]
+        )
+        filters = filters or {}
+        query = {"q": q} if q else {}
+        if self.fastapi:
+            query["filters"] = json.dumps(filters, ensure_ascii=False)
+        else:
+            for name, value in filters.items():
+                suffix = next((s for s in ("_from", "_to") if name.endswith(s)), "")
+                field = name[: -len(suffix)] if suffix else name
+                query[wire_name(self.template, field) + suffix] = (
+                    str(value).lower() if type(value) is bool else value
+                )
+        rows, total = [], None
+        for page in range(1, 102):
+            pagination = (
+                {"page": page, "page_size": 100}
+                if self.fastapi
+                else {"pageNo": page, "pageSize": 100}
+            )
+            result = self.call("GET", route, params={**query, **pagination})
+            batch = result.get("items", result.get("list"))
+            count = result.get("total")
+            assert isinstance(batch, list) and type(count) is int and 0 <= count <= 10000, (
+                "Native list omitted bounded total/rows"
+            )
+            if total is None:
+                total = count
+            assert count == total, "Native list changed during exact-set pagination"
+            rows.extend(batch)
+            assert len(rows) <= total and len({str(r["id"]) for r in rows}) == len(rows), (
+                "Native pagination duplicated or overcounted rows"
+            )
+            if len(rows) == total:
+                return rows
+            assert len(batch) == 100, "Native list silently truncated an exact-set result"
+        raise AssertionError("Native list exceeded explicit 10000-row bound")
 
     def action(self, entity, identifier, action, data):
         return payload(self.action_response(entity, identifier, action, data))
@@ -208,6 +265,17 @@ def customer_service_acceptance(template, base, token, targets, plan):
     attempt = uuid.uuid4().hex[:10]
     actors = {}
     browser_actors = {}
+    execution_evidence = {
+        "version": 1,
+        "spec_digest": digest(plan.model_dump()),
+        "reminders": [],
+        "metrics": [],
+        "metric_denials": [],
+        "audit": [],
+        "related_acl": [],
+        "relation_writes": [],
+        "field_queries": [],
+    }
     try:
         state_response = manager.http.get(
             manager.prefix + ("/configuration" if manager.fastapi else "/meta"),
@@ -307,6 +375,7 @@ def customer_service_acceptance(template, base, token, targets, plan):
                     entity, identifier, action, data
                 ),
                 transition,
+                execution_evidence["reminders"],
             )
 
         checked_action("requests", request, employee, "assign", {"assignee": actors["service"][0]})
@@ -332,6 +401,7 @@ def customer_service_acceptance(template, base, token, targets, plan):
             plan,
             [("requests", request, employee, service), ("tasks", task, manager, service)],
             [outsider, actors["other_service"][1]],
+            execution_evidence["reminders"],
         )
         checked_action("tasks", task, manager, "transition", {"transition": "start"}, "start")
         checked_action("tasks", task, manager, "add_note", {"text": "Follow-up complete"})
@@ -356,18 +426,41 @@ def customer_service_acceptance(template, base, token, targets, plan):
             str(row["record_id"]) == request and notice_event(row) == "transitioned"
             for row in inbox
         ), "Resolution reminder missing"
-        metrics = verify_scoped_metrics(manager, plan, "manager")
-        verify_scoped_metrics(service, plan, "service")
-        verify_scoped_metrics(actors["other_service"][1], plan, "service")
-        assert employee.call("GET", employee.prefix + "/metrics") == [], (
-            "Employee must not access team metrics"
-        )
+        metrics = verify_scoped_metrics(manager, plan, "manager", "manager", execution_evidence)
+        for label, (_, client) in actors.items():
+            verify_scoped_metrics(
+                client, plan, label.removeprefix("other_"), label, execution_evidence
+            )
         assert {item.name for item in plan.business.metrics} <= {item["name"] for item in metrics}
+        verify_created_reminders(
+            plan,
+            [
+                ("customers", customer, manager),
+                ("requests", request, employee),
+                ("tasks", task, manager),
+            ],
+            clients,
+            execution_evidence["reminders"],
+        )
         assignment_boundaries = verify_assignment_boundaries(
             plan, manager, actors, {"requests": request, "tasks": task}
         )
+        from workbench.native_business_probe import verify_native_execution
+
+        verify_native_execution(
+            plan,
+            manager,
+            actors,
+            {
+                "customers": customer,
+                "requests": request,
+                "tasks": task,
+            },
+            execution_evidence,
+        )
         return {
             "passed": True,
+            "execution_evidence": execution_evidence,
             "spec_digest": digest(plan.model_dump()),
             "real_native_auth": True,
             "public_native_registration": True,
@@ -725,7 +818,7 @@ def reminder_recipients(plan, entity, event, recipients, transition=None):
 
 
 def verify_event_reminders(
-    plan, entity, identifier, event, recipients, outsiders, action, transition=None
+    plan, entity, identifier, event, recipients, outsiders, action, transition=None, evidence=None
 ):
     """Prove every declared notification comes from this action to its intended inbox."""
     expected = reminder_recipients(plan, entity, event, recipients, transition)
@@ -754,10 +847,79 @@ def verify_event_reminders(
                     403,
                     404,
                 }, "Other recipient changed reminder read state"
+    if evidence is not None:
+        for notice in plan.business.notifications:
+            if (notice.entity, notice.event, notice.transition) == (entity, event, transition):
+                recipient = recipients[notice.recipient]
+                added = set(record_notices(recipient, entity, identifier, event)) - set(
+                    before[recipient]
+                )
+                append_reminder_evidence(evidence, notice, len(added))
     return result
 
 
-def verify_reminders(plan, records, outsiders):
+def verify_created_reminders(plan, records, clients, evidence):
+    """Creation receipts inspect only freshly created owned IDs and their inboxes."""
+    for entity, identifier, creator in records:
+        rules = [
+            n for n in plan.business.notifications if n.entity == entity and n.event == "created"
+        ]
+        if not rules:
+            continue
+        # Native creation deliberately clears assignee; a created-to-assignee rule
+        # cannot demonstrate delivery without a real recipient and stays blocked.
+        assert all(n.recipient == "creator" for n in rules), (
+            "Created reminder has no recipient before the separate assignment action"
+        )
+        for client in set(clients):
+            notices = record_notices(client, entity, identifier, "created")
+            assert len(notices) == int(client is creator), (
+                "Creation reminder was omitted or misrouted"
+            )
+            assert record_notices(client, entity, identifier, "created") == notices, (
+                "Creation reminder duplicated on read"
+            )
+            for notice_id in notices:
+                payload(client.read_notice(notice_id))
+                updated = record_notices(client, entity, identifier, "created")[notice_id]
+                assert updated.get("read") is True or updated.get("read_at") is not None
+                for other in set(clients) - {client}:
+                    response = other.read_notice(notice_id)
+                    assert response.status_code in {401, 403, 404} or response.json().get(
+                        "code"
+                    ) in {401, 403, 404}, "Creation reminder read state leaked"
+        for notice in rules:
+            append_reminder_evidence(
+                evidence, notice, len(record_notices(creator, entity, identifier, "created"))
+            )
+
+
+def append_reminder_evidence(evidence, notice, observed):
+    key = {
+        "entity": notice.entity,
+        "event": notice.event,
+        "transition": notice.transition,
+        "recipient": notice.recipient,
+    }
+    found = next((item for item in evidence if all(item[k] == v for k, v in key.items())), None)
+    if found is None:
+        evidence.append(
+            {
+                **key,
+                "expected_count": 1,
+                "observed_count": observed,
+                "idempotent": True,
+                "read_persisted": True,
+                "foreign_read_denied": True,
+                "outsider_count": 0,
+            }
+        )
+    else:
+        found["expected_count"] += 1
+        found["observed_count"] += observed
+
+
+def verify_reminders(plan, records, outsiders, evidence=None):
     """Check assignment/due routing, idempotency and recipient-private read persistence."""
     for entity, identifier, creator, assignee in records:
         recipients = {"creator": creator, "assignee": assignee}
@@ -789,9 +951,16 @@ def verify_reminders(plan, records, outsiders):
                         403,
                         404,
                     }, "Other recipient changed reminder read state"
+            if evidence is not None and event == "due":
+                for notice in plan.business.notifications:
+                    if (notice.entity, notice.event) == (entity, event):
+                        observed = len(
+                            record_notices(recipients[notice.recipient], entity, identifier, event)
+                        )
+                        append_reminder_evidence(evidence, notice, observed)
 
 
-def verify_scoped_metrics(client, plan, role="manager"):
+def verify_scoped_metrics(client, plan, role="manager", actor=None, evidence=None):
     """Compare HTTP aggregates with independently counted visible rows, including values."""
     from collections import Counter
     from datetime import datetime, timezone
@@ -809,10 +978,19 @@ def verify_scoped_metrics(client, plan, role="manager"):
     assert set(by_name) == expected and len(by_name) == len(results), (
         "Metric set differs from the role's approved permissions"
     )
+    if not expected and evidence is not None:
+        evidence["metric_denials"].append(
+            {"role": role, "actor": actor or role, "observed_count": len(results)}
+        )
     for metric in plan.business.metrics:
         if metric.name not in by_name:
             continue
-        rows = client.rows(metric.entity, page_size=100, pageSize=100)
+        rows = (
+            client.all_rows(metric.entity)
+            if hasattr(client, "all_rows")
+            else client.rows(metric.entity, page_size=100, pageSize=100)
+        )
+        visible_count = len(rows)
 
         def value(row, field):
             return row.get(wire_name(client.template, field))
@@ -844,10 +1022,14 @@ def verify_scoped_metrics(client, plan, role="manager"):
         result = by_name[metric.name]
         if isinstance(result.get("value"), dict):
             result = result["value"]
+        expected_value = {"value": None, "samples": None, "buckets": []}
+        observed_value = dict(expected_value)
         if metric.kind == "count":
             assert type(result["value"]) is int and result["value"] == len(rows), (
                 "Metric count differs from authorized rows"
             )
+            expected_value["value"] = len(rows)
+            observed_value["value"] = result["value"]
         elif metric.kind == "average_duration":
             samples = [
                 (
@@ -861,6 +1043,10 @@ def verify_scoped_metrics(client, plan, role="manager"):
                 assert abs(result["value"] - sum(samples) / len(samples)) < 0.01
             else:
                 assert result["value"] is None
+            expected_value.update(
+                value=sum(samples) / len(samples) if samples else None, samples=len(samples)
+            )
+            observed_value.update(value=result["value"], samples=result["samples"])
         else:
             counts = Counter(
                 str(value(row, metric.group_by))
@@ -877,4 +1063,34 @@ def verify_scoped_metrics(client, plan, role="manager"):
             assert all(type(value) is int for value in actual.values()) and actual == dict(
                 counts
             ), "Metric buckets differ from authorized rows"
+
+            def bounded_buckets(values):
+                return sorted(
+                    [
+                        {"key_sha256": hashlib.sha256(key.encode()).hexdigest(), "count": count}
+                        for key, count in values.items()
+                    ],
+                    key=lambda item: item["key_sha256"],
+                )
+
+            expected_value["buckets"] = bounded_buckets(counts)
+            observed_value["buckets"] = bounded_buckets(actual)
+        if evidence is not None:
+            scope = next(
+                p.scope
+                for p in plan.business.permissions
+                if p.role == role and p.entity == metric.entity and "read_metrics" in p.actions
+            )
+            evidence["metrics"].append(
+                {
+                    "name": metric.name,
+                    "role": role,
+                    "actor": actor or role,
+                    "scope": scope,
+                    "kind": metric.kind,
+                    "visible_count": visible_count,
+                    "expected": expected_value,
+                    "observed": observed_value,
+                }
+            )
     return results
