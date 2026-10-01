@@ -30,6 +30,17 @@ const server=http.createServer((req,res)=>{
  if(${JSON.stringify(mode)}==='moving-layout'){
   window.ticks=0;setInterval(()=>{document.querySelector('#record').style.transform='translateX('+(++window.ticks)+'px)';},10);
  }
+ if(${JSON.stringify(mode)}==='responsive-layout'){
+  const panel=document.querySelector('#record');panel.style='position:absolute;left:30px;right:30px;top:30px;bottom:30px;margin:0';
+  window.resizeEvents=[];
+  window.addEventListener('resize',()=>resizeEvents.push(['viewport',innerWidth,innerHeight]));
+  new ResizeObserver(()=>{const box=panel.getBoundingClientRect();resizeEvents.push(['panel',box.width,box.height]);}).observe(panel);
+ }
+ if(${JSON.stringify(mode)}==='scrolled-long-page'){
+  document.body.style.margin='0';document.body.style.height='1250px';document.body.style.display='flow-root';
+  const tail=document.createElement('div');tail.id='tail';tail.style='position:absolute;top:1200px;left:0;width:100%;height:50px;background:rgb(255,0,255)';
+  tail.textContent='Full document bottom must remain in the PNG';document.body.append(tail);
+ }
  window.captureTicks=0;
  window.addEventListener('captureBoundary',()=>{
   window.captureTicks++;
@@ -54,28 +65,46 @@ const server=http.createServer((req,res)=>{
   if(mode.includes('font')&&mode!=='capture-visible-font')await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='loading'||font.status==='error'));
   if(mode==='missing-visible-font')await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='error'));
   if(mode!=='blank-business')await page.locator('#field').focus();
+  if(mode==='responsive-layout'){
+   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   await page.evaluate(()=>resizeEvents.length=0);
+  }
+  if(mode==='scrolled-long-page')await page.evaluate(()=>window.scrollTo(0,300));
+  const originalScroll=await page.evaluate(()=>[scrollX,scrollY]);
   const before=await page.evaluate(()=>({html:document.body.innerHTML,focus:document.activeElement.id}));
   const file=path.join(directory,'capture.png');
-  let captures=0, lastPixels;
+  let captures=0, lastPixels, beyond;
   const context=page.context(), originalSession=context.newCDPSession.bind(context);
   context.newCDPSession=async(...args)=>{
    const session=await originalSession(...args), send=session.send.bind(session);
    session.send=async(name,args)=>{
     if(name==='Page.captureScreenshot'){
+     beyond=args.captureBeyondViewport;
      captures++;await page.evaluate(()=>window.dispatchEvent(new Event('captureBoundary')));
      const result=await send(name,args);lastPixels=result.data;return result;
     }
     return send(name,args);
    };return session;
   };
-  if(['normal','nonvisible-font','late-tooltip','refreshing-text'].includes(mode)){
+  if(['normal','nonvisible-font','late-tooltip','refreshing-text','responsive-layout','scrolled-long-page'].includes(mode)){
    if(mode==='nonvisible-font'){
     assert.equal(await page.evaluate(()=>document.fonts.status),'loading');
     assert((await nativeScreenshotState(page)).ready);
    }
    await captureNativeScreenshot(page,file,50,1500);
    const bytes=fs.readFileSync(file);assert.equal(bytes.subarray(1,4).toString(),'PNG');
-   assert(bytes.length>1000);assert.equal(bytes.readUInt32BE(16),700);assert.equal(bytes.readUInt32BE(20),400);
+   assert(bytes.length>1000);assert.equal(bytes.readUInt32BE(16),700);assert.equal(bytes.readUInt32BE(20),mode==='scrolled-long-page'?1250:400);
+   assert.equal(beyond,mode==='scrolled-long-page','Only documents exceeding the viewport may request the resize-inducing full-page path');
+   assert.deepEqual(await page.evaluate(()=>[scrollX,scrollY]),originalScroll,'Full-document capture must restore the original visible scroll position');
+   if(mode==='responsive-layout')assert.deepEqual(await page.evaluate(()=>resizeEvents),[],'A fitting responsive table must never collapse through a screenshot-induced 1x1 viewport');
+   if(mode==='scrolled-long-page'){
+    const color=await page.evaluate(async data=>{
+     const image=new Image();image.src='data:image/png;base64,'+data;await image.decode();
+     const canvas=new OffscreenCanvas(image.width,image.height),context=canvas.getContext('2d');context.drawImage(image,0,0);
+     return [...context.getImageData(650,1225,1,1).data];
+    },bytes.toString('base64'));
+    assert.deepEqual(color,[255,0,255,255],'Preserve actual offscreen bottom pixels, not a viewport crop or blank padding');
+   }
    assert.equal(bytes.toString('base64'),lastPixels,'Only the final stable native pixels may be written');
    if(mode==='late-tooltip'){
     assert.equal(captures,2,'Discard the first unstable frame and recapture after the native tooltip settles');
@@ -129,6 +158,8 @@ const server=http.createServer((req,res)=>{
         "refreshing-text",
         "capture-layout-drift",
         "capture-visible-font",
+        "responsive-layout",
+        "scrolled-long-page",
     ],
 )
 def test_native_pixels_require_visible_fonts_and_stable_business_content(

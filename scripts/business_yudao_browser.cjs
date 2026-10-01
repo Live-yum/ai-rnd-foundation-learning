@@ -130,13 +130,21 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       // Inspect actual visible glyphs, then capture unmodified Chromium pixels.
       phase = 'native-pixel-capture';
       if (!session) session = await bounded(() => page.context().newCDPSession(page), phase);
-      const { cssContentSize: size } = await bounded(() => session.send('Page.getLayoutMetrics'), phase);
+      const metrics = await bounded(() => session.send('Page.getLayoutMetrics'), phase);
+      const size = metrics.cssContentSize;
       const width = Math.ceil(size.width), height = Math.ceil(size.height);
       assert(width > 0 && height > 0 && width <= 4096 && height <= 8192 && width * height <= 20000000,
         'Native screenshot surface exceeds the bounded capture scope');
       attempts += 1;
+      const viewport = page.viewportSize() || metrics.cssVisualViewport;
+      const viewportWidth = viewport.width ?? viewport.clientWidth;
+      const viewportHeight = viewport.height ?? viewport.clientHeight;
+      // Match pinned Playwright: Chromium's beyond-viewport path temporarily
+      // resizes even an already-fitting page to 1x1, disturbing responsive VXE
+      // layout/hover state. Preserve full-document capture only when needed.
+      const fitsViewport = width <= viewportWidth && height <= viewportHeight;
       const captured = await bounded(() => session.send('Page.captureScreenshot', {
-        format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height, scale: 1 },
+        format: 'png', captureBeyondViewport: !fitsViewport, clip: { x: 0, y: 0, width, height, scale: 1 },
       }), phase);
       phase = 'post-capture-readiness';
       const after = await bounded(() => nativeScreenshotState(page), phase);
