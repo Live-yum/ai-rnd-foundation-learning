@@ -2532,6 +2532,9 @@ FastapiAdmin将模板参数换成`fastapiadmin`。该路径直接验证保存的
 同一个 45 秒总期限内重新等待稳定、重新截图；不会重置期限或接受变化中的布局。
 等宽文字更新与布局变化分开判断，每次仍校验实际新文字所需字体。失败只保留有界字体
 状态、阶段、捕获次数及布局/文字/字体变化类别，不保存表单值、原始 HTML、认证头或环境变量。
+捕获参数按文档尺寸是否超出 viewport 选择：已完整可见的原生页面不启用
+`captureBeyondViewport`，避免 Chromium 为此临时缩到 1×1 而触发表格的响应式重排。
+真正的长页仍捕获完整文档，并校验原滚动位置恢复及底部实际像素，不能裁剪成当前视口来通过。
 
 只有某行`acceptance_scope=full_workflow`、整体`passed=true`且模板/commit/attempt吻合，才能将该行标为真实模型完整流程通过；三个模板各自满足才可称三模板通过。`smoke_only`、固定计划测试、之前其他案例或其他提交的成功都不能替代。原来`BLOCKED`的任务恢复、Aider编辑、Continue原生索引和Daytona是另外的验证范围；当前真实模型路径明确记录这些未覆盖项，不借用旧报告填充它们。
 
@@ -94760,9 +94763,9 @@ def test_full_yudao_protocol_projection_with_actual_permission_values_fits_uncha
 
 **逐个入口与控制逻辑：**
 
-- `test_native_pixels_require_visible_fonts_and_stable_business_content`（L134–L142）：接收`tmp_path`、`monkeypatch`、`mode`。 控制顺序：L138按`not module or not Path(module).is_dir()`分支。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`monkeypatch.setattr`、`harness._run_driver`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_pixels_require_visible_fonts_and_stable_business_content`（L165–L173）：接收`tmp_path`、`monkeypatch`、`mode`。 控制顺序：L169按`not module or not Path(module).is_dir()`分支。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`monkeypatch.setattr`、`harness._run_driver`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_yudao_screenshot_readiness.py sha256: 51f6ecbd96578cdea9519e46881e9ddced06232bced2e565160c56a0172c75fc -->
+<!-- source-file: tests/test_yudao_screenshot_readiness.py sha256: f4974ec97af7934e353dd45f1929da615224cbe5a5a796d6ec7c121b1fa64116 -->
 ````python
 """Real Chromium capture semantics; these fixtures are not native-stack receipts."""
 
@@ -94796,6 +94799,17 @@ const server=http.createServer((req,res)=>{
  if(${JSON.stringify(mode)}==='moving-layout'){
   window.ticks=0;setInterval(()=>{document.querySelector('#record').style.transform='translateX('+(++window.ticks)+'px)';},10);
  }
+ if(${JSON.stringify(mode)}==='responsive-layout'){
+  const panel=document.querySelector('#record');panel.style='position:absolute;left:30px;right:30px;top:30px;bottom:30px;margin:0';
+  window.resizeEvents=[];
+  window.addEventListener('resize',()=>resizeEvents.push(['viewport',innerWidth,innerHeight]));
+  new ResizeObserver(()=>{const box=panel.getBoundingClientRect();resizeEvents.push(['panel',box.width,box.height]);}).observe(panel);
+ }
+ if(${JSON.stringify(mode)}==='scrolled-long-page'){
+  document.body.style.margin='0';document.body.style.height='1250px';document.body.style.display='flow-root';
+  const tail=document.createElement('div');tail.id='tail';tail.style='position:absolute;top:1200px;left:0;width:100%;height:50px;background:rgb(255,0,255)';
+  tail.textContent='Full document bottom must remain in the PNG';document.body.append(tail);
+ }
  window.captureTicks=0;
  window.addEventListener('captureBoundary',()=>{
   window.captureTicks++;
@@ -94820,28 +94834,46 @@ const server=http.createServer((req,res)=>{
   if(mode.includes('font')&&mode!=='capture-visible-font')await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='loading'||font.status==='error'));
   if(mode==='missing-visible-font')await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='error'));
   if(mode!=='blank-business')await page.locator('#field').focus();
+  if(mode==='responsive-layout'){
+   await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+   await page.evaluate(()=>resizeEvents.length=0);
+  }
+  if(mode==='scrolled-long-page')await page.evaluate(()=>window.scrollTo(0,300));
+  const originalScroll=await page.evaluate(()=>[scrollX,scrollY]);
   const before=await page.evaluate(()=>({html:document.body.innerHTML,focus:document.activeElement.id}));
   const file=path.join(directory,'capture.png');
-  let captures=0, lastPixels;
+  let captures=0, lastPixels, beyond;
   const context=page.context(), originalSession=context.newCDPSession.bind(context);
   context.newCDPSession=async(...args)=>{
    const session=await originalSession(...args), send=session.send.bind(session);
    session.send=async(name,args)=>{
     if(name==='Page.captureScreenshot'){
+     beyond=args.captureBeyondViewport;
      captures++;await page.evaluate(()=>window.dispatchEvent(new Event('captureBoundary')));
      const result=await send(name,args);lastPixels=result.data;return result;
     }
     return send(name,args);
    };return session;
   };
-  if(['normal','nonvisible-font','late-tooltip','refreshing-text'].includes(mode)){
+  if(['normal','nonvisible-font','late-tooltip','refreshing-text','responsive-layout','scrolled-long-page'].includes(mode)){
    if(mode==='nonvisible-font'){
     assert.equal(await page.evaluate(()=>document.fonts.status),'loading');
     assert((await nativeScreenshotState(page)).ready);
    }
    await captureNativeScreenshot(page,file,50,1500);
    const bytes=fs.readFileSync(file);assert.equal(bytes.subarray(1,4).toString(),'PNG');
-   assert(bytes.length>1000);assert.equal(bytes.readUInt32BE(16),700);assert.equal(bytes.readUInt32BE(20),400);
+   assert(bytes.length>1000);assert.equal(bytes.readUInt32BE(16),700);assert.equal(bytes.readUInt32BE(20),mode==='scrolled-long-page'?1250:400);
+   assert.equal(beyond,mode==='scrolled-long-page','Only documents exceeding the viewport may request the resize-inducing full-page path');
+   assert.deepEqual(await page.evaluate(()=>[scrollX,scrollY]),originalScroll,'Full-document capture must restore the original visible scroll position');
+   if(mode==='responsive-layout')assert.deepEqual(await page.evaluate(()=>resizeEvents),[],'A fitting responsive table must never collapse through a screenshot-induced 1x1 viewport');
+   if(mode==='scrolled-long-page'){
+    const color=await page.evaluate(async data=>{
+     const image=new Image();image.src='data:image/png;base64,'+data;await image.decode();
+     const canvas=new OffscreenCanvas(image.width,image.height),context=canvas.getContext('2d');context.drawImage(image,0,0);
+     return [...context.getImageData(650,1225,1,1).data];
+    },bytes.toString('base64'));
+    assert.deepEqual(color,[255,0,255,255],'Preserve actual offscreen bottom pixels, not a viewport crop or blank padding');
+   }
    assert.equal(bytes.toString('base64'),lastPixels,'Only the final stable native pixels may be written');
    if(mode==='late-tooltip'){
     assert.equal(captures,2,'Discard the first unstable frame and recapture after the native tooltip settles');
@@ -94895,6 +94927,8 @@ const server=http.createServer((req,res)=>{
         "refreshing-text",
         "capture-layout-drift",
         "capture-visible-font",
+        "responsive-layout",
+        "scrolled-long-page",
     ],
 )
 def test_native_pixels_require_visible_fonts_and_stable_business_content(
@@ -95523,13 +95557,13 @@ if (require.main === module) main().catch(error => { console.error(error.name + 
 
 ### `scripts/business_yudao_browser.cjs`
 
-**作用：Yudao/Vben三角色真实客服页面验收。** 通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，核对可见文字、表单及图标字体与稳定布局，再直接捕获未改动像素并复查；捕获时布局变化会丢弃该帧，在同一45秒期限内重新稳定采集，等宽文字更新仍检查新字形。不改DOM或禁用字体校验，失败仅保留有界状态与变化类别。HTTP拒绝和UI行为共同组成证据，不以静态图替代。
+**作用：Yudao/Vben三角色真实客服页面验收。** 通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，核对可见文字、表单及图标字体与稳定布局，再捕获未改动像素并复查；已适配viewport的页面不启用会临时缩到1×1的越界捕获，长页仍保留完整像素。布局变化会丢弃该帧，在同一45秒期限内重新稳定采集，等宽更新仍检查新字形。不改DOM或禁用字体校验，失败仅保留有界状态与变化类别。HTTP拒绝和UI行为共同组成证据，不以静态图替代。
 
 **对应关系：** business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/business_yudao_browser.cjs sha256: 3c336081814f7e1c4f681c22805495cca339faadb3d809b5eaf77038b79d9dd6 -->
+<!-- source-file: scripts/business_yudao_browser.cjs sha256: 648e69709fae35453167a737edd0efd2f86d68e6019ff8058b83fe3166f64d9c -->
 ````javascript
 // Real Vben/Ant business journey. Only scenario-owned synthetic accounts; no mocks/token injection.
 'use strict';
@@ -95663,13 +95697,21 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       // Inspect actual visible glyphs, then capture unmodified Chromium pixels.
       phase = 'native-pixel-capture';
       if (!session) session = await bounded(() => page.context().newCDPSession(page), phase);
-      const { cssContentSize: size } = await bounded(() => session.send('Page.getLayoutMetrics'), phase);
+      const metrics = await bounded(() => session.send('Page.getLayoutMetrics'), phase);
+      const size = metrics.cssContentSize;
       const width = Math.ceil(size.width), height = Math.ceil(size.height);
       assert(width > 0 && height > 0 && width <= 4096 && height <= 8192 && width * height <= 20000000,
         'Native screenshot surface exceeds the bounded capture scope');
       attempts += 1;
+      const viewport = page.viewportSize() || metrics.cssVisualViewport;
+      const viewportWidth = viewport.width ?? viewport.clientWidth;
+      const viewportHeight = viewport.height ?? viewport.clientHeight;
+      // Match pinned Playwright: Chromium's beyond-viewport path temporarily
+      // resizes even an already-fitting page to 1x1, disturbing responsive VXE
+      // layout/hover state. Preserve full-document capture only when needed.
+      const fitsViewport = width <= viewportWidth && height <= viewportHeight;
       const captured = await bounded(() => session.send('Page.captureScreenshot', {
-        format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height, scale: 1 },
+        format: 'png', captureBeyondViewport: !fitsViewport, clip: { x: 0, y: 0, width, height, scale: 1 },
       }), phase);
       phase = 'post-capture-readiness';
       const after = await bounded(() => nativeScreenshotState(page), phase);
@@ -102211,7 +102253,7 @@ main().catch((e) => {
 - `purpose`（L694–L877）：接收`name`。 控制顺序：L696按`name == "workbench/__init__.py"`分支；L702按`name.startswith("workbench/") and path.stem in MODULES`分支；L704按`name.startswith("templates/business/")`分支；L705按`role := BUSINESS_FILES.get(name.removeprefix("templates/business/"))`分支；L712按`name == "examples/requirements/customer-service.md"`分支；L718按`name == "examples/requirements/customer-service-decisions.md"`分支；L724按`name == "examples/requirements/customer-service-contract.md"`分支；L730按`name.startswith("examples/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`BUSINESS_FILES.get`、`name.removeprefix`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L697的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L703的`MODULES[path.stem]`；L706的`role`。
 - `notes`（L880–L990）：接收`name`、`content`。 控制顺序：L884按`not name.endswith(".py")`分支；L891遍历`tree.body`；L892按`isinstance(node, ast.ImportFrom) and node.module`分支；L894按`isinstance(node, ast.Import)`分支；L897按`own`分支；L904按`not rows`分支；L907遍历`rows`；L909按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L885的`out`；L889的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L905的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
 
-<!-- source-file: scripts/handbook_notes.py sha256: 5fbe1983ca65bbe6d4df3c90f7842abe9d757a444d9a09009a177a5540c528eb -->
+<!-- source-file: scripts/handbook_notes.py sha256: a471db98f6a08c0209b02a930fc7b3ad47ea844f5d50b5c38eea62d94c8446b4 -->
 ````python
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
 
@@ -102688,7 +102730,7 @@ SCRIPT_ROLES = {
     ),
     "business_yudao_browser.cjs": (
         "Yudao/Vben三角色真实客服页面验收",
-        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，核对可见文字、表单及图标字体与稳定布局，再直接捕获未改动像素并复查；捕获时布局变化会丢弃该帧，在同一45秒期限内重新稳定采集，等宽文字更新仍检查新字形。不改DOM或禁用字体校验，失败仅保留有界状态与变化类别。HTTP拒绝和UI行为共同组成证据，不以静态图替代。",
+        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，核对可见文字、表单及图标字体与稳定布局，再捕获未改动像素并复查；已适配viewport的页面不启用会临时缩到1×1的越界捕获，长页仍保留完整像素。布局变化会丢弃该帧，在同一45秒期限内重新稳定采集，等宽更新仍检查新字形。不改DOM或禁用字体校验，失败仅保留有界状态与变化类别。HTTP拒绝和UI行为共同组成证据，不以静态图替代。",
         "business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。",
     ),
     "ci_real_model.py": (
@@ -114660,7 +114702,7 @@ uv run pytest tests/test_provider_structured_outputs.py tests/test_llm.py tests/
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/real-model-acceptance.md sha256: de264ad27c7b7d3d52985616e9d3a88751d1587edbb2d0aa99e90910f2e77c55 -->
+<!-- source-file: docs/real-model-acceptance.md sha256: 5d0d24b723ec993361414ddae0db5b632f3a07aea577eb94fa95e956ea0ed371 -->
 ````markdown
 ## 显式授权的真实模型客服端到端验收
 
@@ -114829,6 +114871,9 @@ FastapiAdmin将模板参数换成`fastapiadmin`。该路径直接验证保存的
 同一个 45 秒总期限内重新等待稳定、重新截图；不会重置期限或接受变化中的布局。
 等宽文字更新与布局变化分开判断，每次仍校验实际新文字所需字体。失败只保留有界字体
 状态、阶段、捕获次数及布局/文字/字体变化类别，不保存表单值、原始 HTML、认证头或环境变量。
+捕获参数按文档尺寸是否超出 viewport 选择：已完整可见的原生页面不启用
+`captureBeyondViewport`，避免 Chromium 为此临时缩到 1×1 而触发表格的响应式重排。
+真正的长页仍捕获完整文档，并校验原滚动位置恢复及底部实际像素，不能裁剪成当前视口来通过。
 
 只有某行`acceptance_scope=full_workflow`、整体`passed=true`且模板/commit/attempt吻合，才能将该行标为真实模型完整流程通过；三个模板各自满足才可称三模板通过。`smoke_only`、固定计划测试、之前其他案例或其他提交的成功都不能替代。原来`BLOCKED`的任务恢复、Aider编辑、Continue原生索引和Daytona是另外的验证范围；当前真实模型路径明确记录这些未覆盖项，不借用旧报告填充它们。
 
