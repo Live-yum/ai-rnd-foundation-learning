@@ -161,7 +161,11 @@ def test_query_journey_is_in_each_actual_native_driver(template):
     main = source.split("async function main() {", 1)[1]
     assert "report.query_journey = await verifyNativeCustomerQuery(" in main
     assert "report.checks.push('manager:customers:native-query-and-exact-filter')" in main
-    assert "manager-customers-native-query-positive.png" in main
+    if template == "fastapi":
+        assert "await capture(page, 'manager-customers-native-query-positive')" in main
+        assert "const filename = label + '.png'" in main
+    else:
+        assert "manager-customers-native-query-positive.png" in main
 
 
 def test_query_button_fixture_matches_pinned_native_locales():

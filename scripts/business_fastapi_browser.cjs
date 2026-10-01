@@ -61,6 +61,57 @@ async function verifyNativeCustomerQuery(page, customer, category, capture = asy
     response_ids_exact: true, rendered_ids_exact: true, controls_reset: true };
 }
 
+async function dismissNativeThemeGuide(page) {
+  const guide = page.locator('.el-popover:visible').filter({ hasText: '点击这里查看' });
+  if (await guide.count()) {
+    // The pinned header dismisses its own first-use guide when Settings opens.
+    // Use that public control and the drawer's normal Escape-close behavior.
+    await page.locator('#app-header .setting-btn:visible').click();
+    const drawer = page.locator('.setting-modal .el-drawer:visible');
+    await drawer.waitFor({ state: 'visible' });
+    await page.keyboard.press('Escape');
+    await drawer.waitFor({ state: 'hidden' });
+    await guide.waitFor({ state: 'hidden' });
+  }
+}
+
+async function waitNativeDecorationsFinished(page, { timeout = 30000, quiet = 2000 } = {}) {
+  // Read only the pinned decorative canvas. Never hide it or alter the business
+  // DOM, settings store, clock, pixels or request data to manufacture a clean image.
+  const decoration = page.locator('canvas.fixed.pointer-events-none');
+  if (!await decoration.count()) return;
+  const deadline = Date.now() + timeout;
+  let emptySince = null;
+  while (Date.now() < deadline) {
+    const clear = await decoration.evaluateAll(canvases => canvases.every(canvas => {
+      if (!canvas.width || !canvas.height) return true;
+      if (canvas.width * canvas.height > 10000000) throw new Error('Native decorative canvas exceeds inspection bound');
+      const context = canvas.getContext('2d');
+      if (!context) return false;
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      for (let i = 3; i < pixels.length; i += 4) if (pixels[i]) return false;
+      return true;
+    }));
+    if (!clear) emptySince = null;
+    else if (emptySince === null) emptySince = Date.now();
+    else if (Date.now() - emptySince >= quiet) return;
+    await page.waitForTimeout(100);
+  }
+  throw new Error('Native decorative animation did not finish before screenshot');
+}
+
+async function captureNativeScreenshot(page, filename) {
+  for (const close of await page.locator('.el-notification__closeBtn:visible').all()) await close.click().catch(() => {});
+  await page.locator('.el-message:visible').first().waitFor({ state: 'hidden', timeout: 6000 });
+  const viewport = page.viewportSize();
+  if (viewport) await page.mouse.move(viewport.width - 20, viewport.height - 20);
+  await waitNativeDecorationsFinished(page);
+  assert.equal(await page.locator('.el-popover:visible').filter({ hasText: '点击这里查看' }).count(), 0,
+    'Native theme guide must be dismissed through Settings before capture');
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: filename, fullPage: true, animations: 'disabled' });
+}
+
 async function main() {
   const [baseURL, reportDir, playwrightPath, scenarioJSON] = process.argv.slice(2);
   assert.equal(new URL(baseURL).hostname, '127.0.0.1');
@@ -74,12 +125,7 @@ async function main() {
   async function capture(p, label) {
     assert(/^[a-z0-9_-]+$/.test(label));
     const filename = label + '.png';
-    for (const close of await p.locator('.el-notification__closeBtn:visible').all()) await close.click().catch(() => {});
-    await p.locator('.el-message:visible').first().waitFor({ state: 'hidden', timeout: 6000 });
-    const viewport = p.viewportSize();
-    if (viewport) await p.mouse.move(viewport.width - 20, viewport.height - 20);
-    await p.waitForTimeout(350);
-    await p.screenshot({ path: path.join(reportDir, filename), fullPage: true, animations: 'disabled' });
+    await captureNativeScreenshot(p, path.join(reportDir, filename));
     report.screenshots.push(filename);
   }
   let page;
@@ -131,6 +177,7 @@ async function main() {
     const config = await checked(await configResponse);
     assert.equal(config.actor.role, role.includes('employee') ? 'employee' : role.includes('service') ? 'service' : 'manager');
     for (const selector of ['#app-sidebar', '#app-header', '#app-content', '.fa-table']) await p.locator(selector).first().waitFor({ state: 'visible' });
+    await dismissNativeThemeGuide(p);
     assert.equal(await p.locator('#workspace').count(), 0);
     const theme = await p.evaluate(() => {
       const css = getComputedStyle(document.documentElement);
@@ -205,9 +252,7 @@ async function main() {
     report.checks.push('manager:customer_native_form_create');
     const category = scenario.plan.entities.find(entity => entity.name === 'customers').fields.find(field => field.name === 'category');
     report.query_journey = await verifyNativeCustomerQuery(page, customer, category, async () => {
-      const filename = 'manager-customers-native-query-positive.png';
-      await page.screenshot({ path: path.join(reportDir, filename), fullPage: true, animations: 'disabled' });
-      report.screenshots.push(filename);
+      await capture(page, 'manager-customers-native-query-positive');
     });
     report.checks.push('manager:customers:native-query-and-exact-filter');
     await page.getByTestId('update-' + customer.id).click();
@@ -305,5 +350,5 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, verifyNativeCustomerQuery };
+module.exports = { main, verifyNativeCustomerQuery, dismissNativeThemeGuide, waitNativeDecorationsFinished, captureNativeScreenshot };
 if (require.main === module) main().catch(error => { console.error(error.name + ': native business UI acceptance failed'); process.exitCode = 1; });
