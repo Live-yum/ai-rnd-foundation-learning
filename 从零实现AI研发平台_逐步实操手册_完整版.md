@@ -2523,6 +2523,14 @@ FastapiAdmin将模板参数换成`fastapiadmin`。该路径直接验证保存的
 
 真实产品页面使用合成客户和验收账号；经过路径、名称、大小及PNG校验的截图位于`reports/real-model/screenshots/*.png`，单独保存为`customer-ui-${template}-${sha}`产物。它们只用于查看该行实际页面，不公开实际客户数据或临时密码。下载后应真正打开列表、表单、关联、处理、提醒和统计画面，结合业务章节的视觉清单检查；有截图文件不等于已完成视觉审阅。
 
+芋道的角色菜单截图先进入该角色实际授权的业务列表，再确认原生菜单、真实列表响应
+和业务 DOM，不以模板概览中的演示数字作为客服数据。截图检查当前可见文字、输入值、
+占位符及图标伪元素所需字体，连续比较实际布局，随后直接捕获未改动的 Chromium 像素，
+并再次核对字体与布局。它不修改应用 DOM、不终止字体请求，也不禁用字体校验；可见字体
+仍在加载、缺失字体、持续布局变化或空白页面都会失败。未被当前可见内容使用的独立字体
+加载不会单独阻止拍照。整个截图步骤仍有 45 秒上限，失败只保留有界的字体状态和阶段，
+不保存表单值、原始 HTML、认证头或环境变量。
+
 只有某行`acceptance_scope=full_workflow`、整体`passed=true`且模板/commit/attempt吻合，才能将该行标为真实模型完整流程通过；三个模板各自满足才可称三模板通过。`smoke_only`、固定计划测试、之前其他案例或其他提交的成功都不能替代。原来`BLOCKED`的任务恢复、Aider编辑、Continue原生索引和Daytona是另外的验证范围；当前真实模型路径明确记录这些未覆盖项，不借用旧报告填充它们。
 
 工作流每次完成输出上限为65,536 tokens，保留16次工作流调用和单次响应2,000,000字节的硬边界；独立兼容性smoke报文不添加这个参数。该上限保留完整需求与Plan，避免此前16,000上限把思考和JSON输出截断；`finish_reason=length`仍记为失败而不修剪需求。DeepSeek官方Chat Completions文档（https://api-docs.deepseek.com/api/create-chat-completion/ ，2026-09-30核对）允许最大393,216 tokens，thinking默认64K。
@@ -2583,6 +2591,18 @@ uv run python -m scripts.build_handbook --check
 ```
 
 最后一条必须输出`Single handbook source consistency PASS`。如果只有你手写的源码而没有根目录生成手册，先运行不带`--check`的`build_handbook`生成它，再检查。这里验证源码与正文一致，不代表数据库、浏览器或Daytona已经运行过。
+
+独立的 `handbook-only` Actions 会把这一本书复制到临时目录，重建自有源码、固定第三方
+归档和 Continue，再实际执行完整非 PostgreSQL 套件。整套测试子进程的明确预算为
+1800 秒，外层 job 仍限制 40 分钟；安装等其他步骤沿用自己的预算，单项测试和浏览器等待
+没有因此放宽。超时始终失败，只中断和清理本次启动的测试进程，尽量让 pytest 写出 JUnit。
+`handbook-test-status.json` 记录阶段、预算、退出码、超时与清理状态，已产生的 JUnit 也会
+保留；这些诊断不能替代完整测试通过后的 `handbook-clean-room.json`。
+
+普通全套测试的 job 总预算按平台区分：Linux 为 35 分钟，Windows 为 60 分钟，包含安装
+依赖和运行完整测试。Windows 的冷安装会占用较长前置时间；这个外层预算不修改任何
+浏览器、接口或单个测试的超时，也不会让被中断的套件变成通过。捕获子进程文本明确按
+UTF-8 解码，不能依赖 Windows 当前的 cp1252 等本地编码。
 
 第三方框架不由你从零重写。按书中完整的`vendor_templates.py`、manifest和许可证重建固定上游源码归档，再运行`rnd init`。`uv.lock`、Node的`package-lock.json`和模板固定提交各自约束不同依赖，不可互相替代。
 
@@ -73395,13 +73415,14 @@ def test_actual_recorded_business_gap_reaches_planner_with_exact_scope_and_actio
 
 **逐个入口与控制逻辑：**
 
-- `unqualified_text_reads`（L66–L131）：接收`source`。 源码说明：Find locale-sensitive pathlib/builtin text reads in the bounded source set.。 控制顺序：L78遍历`ast.walk(tree)`；L79按`isinstance(node, ast.With)`分支；L80遍历`node.items`；L82按`isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and isinstance(ca…`分支；L91遍历`ast.walk(tree)`；L92按`not isinstance(node, ast.Call)`分支；L96按`isinstance(function, ast.Attribute) and function.attr == "read_text"`分支；L98按`isinstance(function, ast.Attribute) and function.attr == "open" or isinstance(functio…`分支。后续分支沿下方源码相同行号继续阅读。 调用`ast.parse`、`ast.walk`、`isinstance`、`zip_scopes.append`、`any`、`keywords.get`、`len`、`encoding.value.lower().replace("-", "").replace`、`encoding.value.lower().replace`等。 返回路径：L131的`missing`。
-- `test_customer_source_and_fixture_reads_explicitly_use_utf8`（L141–L143）：接收`name`。 控制顺序：L143断言`not unqualified_text_reads(source)`。 调用`(ROOT / name).read_text`、`unqualified_text_reads`、`pytest.mark.parametrize`、`sorted`、`set`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "tests").glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_encoding_guard_rejects_locale_dependent_reads`（L158–L159）：接收`source`。 控制顺序：L159断言`unqualified_text_reads(source) == [1]`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_encoding_guard_allows_explicit_utf8_and_binary_reads`（L176–L177）：接收`source`。 控制顺序：L177断言`unqualified_text_reads(source) == []`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_encoding_guard_distinguishes_zip_binary_open_from_path_open`（L180–L196）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L181断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`；L187断言`unqualified_text_reads( "import zipfile as zip_module\nwith zip_module.ZipFile('sourc…`；L193断言`unqualified_text_reads("path.open()") == [1]`；L194断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`。 调用`unqualified_text_reads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `unqualified_text_reads`（L68–L133）：接收`source`。 源码说明：Find locale-sensitive pathlib/builtin text reads in the bounded source set.。 控制顺序：L80遍历`ast.walk(tree)`；L81按`isinstance(node, ast.With)`分支；L82遍历`node.items`；L84按`isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and isinstance(ca…`分支；L93遍历`ast.walk(tree)`；L94按`not isinstance(node, ast.Call)`分支；L98按`isinstance(function, ast.Attribute) and function.attr == "read_text"`分支；L100按`isinstance(function, ast.Attribute) and function.attr == "open" or isinstance(functio…`分支。后续分支沿下方源码相同行号继续阅读。 调用`ast.parse`、`ast.walk`、`isinstance`、`zip_scopes.append`、`any`、`keywords.get`、`len`、`encoding.value.lower().replace("-", "").replace`、`encoding.value.lower().replace`等。 返回路径：L133的`missing`。
+- `test_customer_source_and_fixture_reads_explicitly_use_utf8`（L143–L145）：接收`name`。 控制顺序：L145断言`not unqualified_text_reads(source)`。 调用`(ROOT / name).read_text`、`unqualified_text_reads`、`pytest.mark.parametrize`、`sorted`、`set`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "tests").glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_reload_fixture_decodes_utf8_child_output_independently_of_windows_locale`（L148–L163）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L159断言`len(calls) == 2`；L160遍历`calls`；L162断言`isinstance(keywords.get("encoding"), ast.Constant)`；L163断言`keywords["encoding"].value == "utf-8"`。 调用`(ROOT / "tests/test_product_reload_readiness.py").read_text`、`ast.walk`、`ast.parse`、`isinstance`、`len`、`keywords.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_rejects_locale_dependent_reads`（L178–L179）：接收`source`。 控制顺序：L179断言`unqualified_text_reads(source) == [1]`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_allows_explicit_utf8_and_binary_reads`（L196–L197）：接收`source`。 控制顺序：L197断言`unqualified_text_reads(source) == []`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_distinguishes_zip_binary_open_from_path_open`（L200–L216）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L201断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`；L207断言`unqualified_text_reads( "import zipfile as zip_module\nwith zip_module.ZipFile('sourc…`；L213断言`unqualified_text_reads("path.open()") == [1]`；L214断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`。 调用`unqualified_text_reads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_customer_source_encoding.py sha256: 565158d9415e65d785322bd2e63ee7761f66dc7fa08d71e0e4f785518f116ee8 -->
+<!-- source-file: tests/test_customer_source_encoding.py sha256: a316b21daf35309f37d68208cfb592c5adea4145a954037e1bc0732f2d77541b -->
 ````python
 """Keep customer acceptance source and fixture reads independent of the OS locale."""
 
@@ -73455,6 +73476,8 @@ SOURCE_READERS = (
     "tests/test_yudao_installed_navigation.py",
     "tests/test_yudao_navigation_evidence.py",
     "tests/test_yudao_navigation_browser.py",
+    "tests/test_yudao_screenshot_readiness.py",
+    "tests/test_handbook_runtime.py",
     "tests/test_product_reload_readiness.py",
     "tests/test_semantic_fact_domains.py",
     "tests/test_semantic_fact_namespace_aliases.py",
@@ -73546,6 +73569,24 @@ def unqualified_text_reads(source):
 def test_customer_source_and_fixture_reads_explicitly_use_utf8(name):
     source = (ROOT / name).read_text(encoding="utf-8")
     assert not unqualified_text_reads(source), f"{name}: unqualified text reads"
+
+
+def test_reload_fixture_decodes_utf8_child_output_independently_of_windows_locale():
+    source = (ROOT / "tests/test_product_reload_readiness.py").read_text(encoding="utf-8")
+    calls = [
+        node
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "subprocess"
+        and node.func.attr == "run"
+    ]
+    assert len(calls) == 2
+    for call in calls:
+        keywords = {keyword.arg: keyword.value for keyword in call.keywords}
+        assert isinstance(keywords.get("encoding"), ast.Constant)
+        assert keywords["encoding"].value == "utf-8"
 
 
 @pytest.mark.parametrize(
@@ -77703,6 +77744,273 @@ def test_directory_order_is_case_sensitive_and_platform_independent():
     ]
     assert names == sorted(names)
     assert names.index("templates/product/README.md") < names.index("templates/product/app.py")
+````
+
+### `tests/test_handbook_runtime.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_only_full_suite_has_the_expanded_explicit_budget`（L17–L25）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L18断言`ci_handbook.FULL_SUITE_TIMEOUT == 1800`；L19断言`inspect.signature(ci_handbook.run_full_tests).parameters["timeout"].default == 1800`；L20断言`inspect.signature(ci_handbook.run).parameters["timeout"].default == 900`；L23断言`"timeout-minutes: 40" in section`；L24断言`"reports/handbook-test-status.json" in section`；L25断言`"timeout-minutes: ${{ matrix.os == 'windows-latest' && 60 \|\| 35 }}" in workflow`。 调用`inspect.signature`、`(ci_handbook.ROOT / ".github/workflows/test.yml").read_text`、`workflow.split(" handbook-only:", 1)[1].split`、`workflow.split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_completed_child_preserves_xml_and_exact_exit_status`（L29–L49）：接收`tmp_path`、`code`。 控制顺序：L40按`code`分支；L43断言`failure.value.returncode == code`；L47断言`status["timed_out"] is False and status["returncode"] == code`；L48断言`status["junit_available"] is True`；L49断言`(reports / "handbook-tests.xml").read_text(encoding="utf-8") == body`。 调用`str`、`pytest.raises`、`ci_handbook.run_full_tests`、`dict`、`json.loads`、`(reports / "handbook-test-status.json").read_text`、`(reports / "handbook-tests.xml").read_text`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_deadline_remains_failure_even_when_interrupt_writes_success_xml`（L53–L92）：接收`tmp_path`、`monkeypatch`、`exit_during_grace`。 控制顺序：L86断言`failure.value.timeout == 1800`；L87断言`waits == [1800, 15] and len(signals) == 1`；L88断言`stopped == ([] if exit_during_grace else [321])`；L89断言`cleaned == [{321: "parent", 322: "child"}]`；L91断言`status["timed_out"] is True and status["timeout_seconds"] == 1800`；L92断言`status["junit_available"] is exit_during_grace`。 调用`SimpleNamespace`、`monkeypatch.setattr`、`cleaned.append`、`pytest.raises`、`ci_handbook.run_full_tests`、`len`、`json.loads`、`(reports / "handbook-test-status.json").read_text`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_deadline_remains_failure_even_when_interrupt_writes_success_xml.wait`（L60–L66）：接收`timeout`。 控制顺序：L62按`len(waits) == 2 and exit_during_grace`分支；L66抛异常，停止当前正常路径。 调用`waits.append`、`len`、`junit.write_text`、`subprocess.TimeoutExpired`。 返回路径：L65的`0`。
+- `test_deadline_remains_failure_even_when_interrupt_writes_success_xml.stop`（L68–L71）：接收`owned`。 控制顺序：L69断言`owned is process`。 调用`stopped.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_timeout_receipt_survives_owned_cleanup_failure`（L95–L118）：接收`tmp_path`、`monkeypatch`。 控制顺序：L117断言`status["timed_out"] is True and status["cleanup_error_type"] == "RuntimeError"`；L118断言`status["junit_available"] is False`。 调用`SimpleNamespace`、`monkeypatch.setattr`、`pytest.raises`、`ci_handbook.run_full_tests`、`json.loads`、`(tmp_path / "reports/handbook-test-status.json").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_timeout_receipt_survives_owned_cleanup_failure.wait`（L96–L97）：接收`**kwargs`。 控制顺序：L97抛异常，停止当前正常路径。 调用`subprocess.TimeoutExpired`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_timeout_receipt_survives_owned_cleanup_failure.stop`（L106–L107）：接收`_`。 控制顺序：L107抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_launch_failure_is_retained_without_claiming_tests_ran`（L121–L134）：接收`tmp_path`、`monkeypatch`。 控制顺序：L133断言`status["error_type"] == "OSError" and status["returncode"] is None`；L134断言`status["junit_available"] is False and status["timed_out"] is False`。 调用`monkeypatch.setattr`、`pytest.raises`、`ci_handbook.run_full_tests`、`json.loads`、`(tmp_path / "reports/handbook-test-status.json").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_launch_failure_is_retained_without_claiming_tests_ran.launch`（L122–L123）：接收`*args`、`**kwargs`。 控制顺序：L123抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_grace_exit_cleans_proven_surviving_child_not_foreign_or_recycled_pid`（L137–L145）：接收`monkeypatch`。 控制顺序：L145断言`killed == [(322, ci_handbook.signal.SIGKILL)]`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`killed.append`、`ci_handbook.cleanup_owned_descendants`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_no_snapshot_stops_live_owned_tree_without_grace_or_expired_pid_lookup`（L148–L172）：接收`tmp_path`、`monkeypatch`。 控制顺序：L172断言`waits == [1800] and stopped == [321]`。 调用`SimpleNamespace`、`pytest.fail`、`monkeypatch.setattr`、`pytest.raises`、`ci_handbook.run_full_tests`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_no_snapshot_stops_live_owned_tree_without_grace_or_expired_pid_lookup.wait`（L154–L156）：接收`timeout`。 控制顺序：L156抛异常，停止当前正常路径。 调用`waits.append`、`subprocess.TimeoutExpired`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_no_snapshot_stops_live_owned_tree_without_grace_or_expired_pid_lookup.stop`（L158–L161）：接收`owned`。 控制顺序：L159断言`owned is process`。 调用`stopped.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_grace_exit_cleans_detached_owned_child_and_preserves_foreign_process`（L178–L235）：接收`tmp_path`。 控制顺序：L209遍历`range(50)`；L216按`fields[0] == "Z" or fields[19] != owned_child["started"]`分支；L221断言`foreign.poll() is None`；L223断言`status["timed_out"] is True and status["returncode"] == 0`；L224断言`status["junit_available"] is True and status["owned_processes_at_timeout"] >= 2`；L226按`child_file.is_file()`分支；L229按`current is not None and current[1] == owned["started"]`分支。 调用`subprocess.Popen`、`pytest.raises`、`ci_handbook.run_full_tests`、`str`、`dict`、`json.loads`、`child_file.read_text`、`range`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_handbook_runtime.py sha256: 7fe0d0de6a9059f4832ec6d5a9209b6b931c9ffbc346a190635e31be39598b37 -->
+````python
+"""Bounded clean-room suite orchestration, not a substitute for the full suite."""
+
+import inspect
+import json
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from scripts import ci_handbook
+
+
+def test_only_full_suite_has_the_expanded_explicit_budget():
+    assert ci_handbook.FULL_SUITE_TIMEOUT == 1800
+    assert inspect.signature(ci_handbook.run_full_tests).parameters["timeout"].default == 1800
+    assert inspect.signature(ci_handbook.run).parameters["timeout"].default == 900
+    workflow = (ci_handbook.ROOT / ".github/workflows/test.yml").read_text(encoding="utf-8")
+    section = workflow.split("  handbook-only:", 1)[1].split("  browser:", 1)[0]
+    assert "timeout-minutes: 40" in section
+    assert "reports/handbook-test-status.json" in section
+    assert "timeout-minutes: ${{ matrix.os == 'windows-latest' && 60 || 35 }}" in workflow
+
+
+@pytest.mark.parametrize("code", [0, 3])
+def test_completed_child_preserves_xml_and_exact_exit_status(tmp_path, code):
+    junit, reports = tmp_path / "student.xml", tmp_path / "reports"
+    body = "<testsuites><testsuite><testcase name='unit-only'/></testsuite></testsuites>"
+    argv = [
+        sys.executable,
+        "-c",
+        "from pathlib import Path; import sys; Path(sys.argv[1]).write_text(sys.argv[2], encoding='utf-8'); sys.exit(int(sys.argv[3]))",
+        str(junit),
+        body,
+        str(code),
+    ]
+    if code:
+        with pytest.raises(subprocess.CalledProcessError) as failure:
+            ci_handbook.run_full_tests(argv, tmp_path, dict(os.environ), junit, reports, timeout=10)
+        assert failure.value.returncode == code
+    else:
+        ci_handbook.run_full_tests(argv, tmp_path, dict(os.environ), junit, reports, timeout=10)
+    status = json.loads((reports / "handbook-test-status.json").read_text(encoding="utf-8"))
+    assert status["timed_out"] is False and status["returncode"] == code
+    assert status["junit_available"] is True
+    assert (reports / "handbook-tests.xml").read_text(encoding="utf-8") == body
+
+
+@pytest.mark.parametrize("exit_during_grace", [True, False])
+def test_deadline_remains_failure_even_when_interrupt_writes_success_xml(
+    tmp_path, monkeypatch, exit_during_grace
+):
+    junit, reports = tmp_path / "student.xml", tmp_path / "reports"
+    waits, signals, stopped, cleaned = [], [], [], []
+    process = SimpleNamespace(pid=321, returncode=None)
+
+    def wait(*, timeout):
+        waits.append(timeout)
+        if len(waits) == 2 and exit_during_grace:
+            junit.write_text("<testsuites/>", encoding="utf-8")
+            process.returncode = 0
+            return 0
+        raise subprocess.TimeoutExpired("unit-owned-pytest", timeout)
+
+    def stop(owned):
+        assert owned is process
+        stopped.append(owned.pid)
+        owned.returncode = -9
+
+    process.wait = wait
+    process.send_signal = signals.append
+    process.poll = lambda: process.returncode
+    monkeypatch.setattr(ci_handbook.subprocess, "Popen", lambda *args, **kw: process)
+    monkeypatch.setattr(ci_handbook, "stop_process", stop)
+    monkeypatch.setattr(
+        ci_handbook, "capture_owned_descendants", lambda _: {321: "parent", 322: "child"}
+    )
+    monkeypatch.setattr(
+        ci_handbook, "cleanup_owned_descendants", lambda owned: cleaned.append(owned)
+    )
+    with pytest.raises(subprocess.TimeoutExpired) as failure:
+        ci_handbook.run_full_tests(["unit-only"], tmp_path, {}, junit, reports)
+    assert failure.value.timeout == 1800
+    assert waits == [1800, 15] and len(signals) == 1
+    assert stopped == ([] if exit_during_grace else [321])
+    assert cleaned == [{321: "parent", 322: "child"}]
+    status = json.loads((reports / "handbook-test-status.json").read_text(encoding="utf-8"))
+    assert status["timed_out"] is True and status["timeout_seconds"] == 1800
+    assert status["junit_available"] is exit_during_grace
+
+
+def test_timeout_receipt_survives_owned_cleanup_failure(tmp_path, monkeypatch):
+    def wait(**kwargs):
+        raise subprocess.TimeoutExpired("unit-owned-pytest", kwargs["timeout"])
+
+    process = SimpleNamespace(
+        returncode=None, wait=wait, poll=lambda: None, send_signal=lambda _: None
+    )
+    monkeypatch.setattr(ci_handbook.subprocess, "Popen", lambda *args, **kw: process)
+    monkeypatch.setattr(ci_handbook, "capture_owned_descendants", lambda _: {321: "owned"})
+    monkeypatch.setattr(ci_handbook, "cleanup_owned_descendants", lambda _: None)
+
+    def stop(_):
+        raise RuntimeError("owned cleanup canary")
+
+    monkeypatch.setattr(ci_handbook, "stop_process", stop)
+    with pytest.raises(subprocess.TimeoutExpired):
+        ci_handbook.run_full_tests(
+            ["unit-only"], tmp_path, {}, tmp_path / "absent.xml", tmp_path / "reports"
+        )
+    status = json.loads(
+        (tmp_path / "reports/handbook-test-status.json").read_text(encoding="utf-8")
+    )
+    assert status["timed_out"] is True and status["cleanup_error_type"] == "RuntimeError"
+    assert status["junit_available"] is False
+
+
+def test_launch_failure_is_retained_without_claiming_tests_ran(tmp_path, monkeypatch):
+    def launch(*args, **kwargs):
+        raise OSError("unit launch canary")
+
+    monkeypatch.setattr(ci_handbook.subprocess, "Popen", launch)
+    with pytest.raises(OSError, match="unit launch canary"):
+        ci_handbook.run_full_tests(
+            ["unit-only"], tmp_path, {}, tmp_path / "absent.xml", tmp_path / "reports"
+        )
+    status = json.loads(
+        (tmp_path / "reports/handbook-test-status.json").read_text(encoding="utf-8")
+    )
+    assert status["error_type"] == "OSError" and status["returncode"] is None
+    assert status["junit_available"] is False and status["timed_out"] is False
+
+
+def test_grace_exit_cleans_proven_surviving_child_not_foreign_or_recycled_pid(monkeypatch):
+    identities = {321: None, 322: (1, "child"), 323: (1, "recycled"), 999: (1, "foreign")}
+    killed = []
+    # This is a POSIX ownership simulation even when the test host is Windows.
+    monkeypatch.setattr(ci_handbook, "signal", SimpleNamespace(SIGKILL=9))
+    monkeypatch.setattr(ci_handbook, "process_identity", identities.get)
+    monkeypatch.setattr(ci_handbook.os, "kill", lambda pid, sig: killed.append((pid, sig)))
+    ci_handbook.cleanup_owned_descendants({321: "parent", 322: "child", 323: "old-child"})
+    assert killed == [(322, ci_handbook.signal.SIGKILL)]
+
+
+def test_no_snapshot_stops_live_owned_tree_without_grace_or_expired_pid_lookup(
+    tmp_path, monkeypatch
+):
+    process = SimpleNamespace(pid=321, returncode=None)
+    waits, stopped = [], []
+
+    def wait(*, timeout):
+        waits.append(timeout)
+        raise subprocess.TimeoutExpired("unit-owned-pytest", timeout)
+
+    def stop(owned):
+        assert owned is process
+        stopped.append(owned.pid)
+        owned.returncode = -9
+
+    process.wait, process.poll = wait, lambda: process.returncode
+    process.send_signal = lambda _: pytest.fail("No unverifiable grace-period cleanup")
+    monkeypatch.setattr(ci_handbook.subprocess, "Popen", lambda *args, **kw: process)
+    monkeypatch.setattr(ci_handbook, "capture_owned_descendants", lambda _: None)
+    monkeypatch.setattr(ci_handbook, "stop_process", stop)
+    with pytest.raises(subprocess.TimeoutExpired):
+        ci_handbook.run_full_tests(
+            ["unit-only"], tmp_path, {}, tmp_path / "absent.xml", tmp_path / "reports"
+        )
+    assert waits == [1800] and stopped == [321]
+
+
+@pytest.mark.skipif(
+    os.name == "nt" or not Path("/proc").is_dir(), reason="Linux process identity integration"
+)
+def test_real_grace_exit_cleans_detached_owned_child_and_preserves_foreign_process(tmp_path):
+    junit, child_file, reports = (
+        tmp_path / "student.xml",
+        tmp_path / "child.pid",
+        tmp_path / "reports",
+    )
+    script = """
+import json, signal, subprocess, sys, time
+from pathlib import Path
+def interrupt(*_):
+    Path(sys.argv[1]).write_text('<testsuites/>', encoding='utf-8')
+    raise SystemExit(0)
+signal.signal(signal.SIGINT, interrupt)
+child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(30)'], start_new_session=True)
+started = Path(f'/proc/{child.pid}/stat').read_text(encoding='utf-8').rsplit(') ', 1)[1].split()[19]
+Path(sys.argv[2]).write_text(json.dumps({'pid': child.pid, 'started': started}), encoding='utf-8')
+time.sleep(30)
+"""
+    foreign = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"])
+    try:
+        with pytest.raises(subprocess.TimeoutExpired):
+            ci_handbook.run_full_tests(
+                [sys.executable, "-c", script, str(junit), str(child_file)],
+                tmp_path,
+                dict(os.environ),
+                junit,
+                reports,
+                timeout=2,
+            )
+        owned_child = json.loads(child_file.read_text(encoding="utf-8"))
+        child = owned_child["pid"]
+        for _ in range(50):
+            path = Path(f"/proc/{child}/stat")
+            try:
+                fields = path.read_text(encoding="utf-8").rsplit(") ", 1)[1].split()
+            except FileNotFoundError, ProcessLookupError:
+                # Exit/reaping can occur during read(), not only before exists().
+                break
+            if fields[0] == "Z" or fields[19] != owned_child["started"]:
+                break
+            time.sleep(0.02)
+        else:
+            pytest.fail("Proven detached child survived the exited leader")
+        assert foreign.poll() is None
+        status = json.loads((reports / "handbook-test-status.json").read_text(encoding="utf-8"))
+        assert status["timed_out"] is True and status["returncode"] == 0
+        assert status["junit_available"] is True and status["owned_processes_at_timeout"] >= 2
+    finally:
+        if child_file.is_file():
+            owned = json.loads(child_file.read_text(encoding="utf-8"))
+            current = ci_handbook.process_identity(owned["pid"])
+            if current is not None and current[1] == owned["started"]:
+                try:
+                    os.kill(owned["pid"], ci_handbook.signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+        foreign.terminate()
+        foreign.wait(timeout=3)
 ````
 
 ### `tests/test_learning_order.py`
@@ -85753,9 +86061,9 @@ def test_optional_text_omitted_in_approved_rule_sample_still_checks_limits(
 
 **逐个入口与控制逻辑：**
 
-- `test_real_product_reload_uses_authenticated_business_readiness`（L178–L271）：接收`tmp_path`、`plan`、`mode`。 控制顺序：L180按`not module or not Path(module).is_dir()`分支；L197断言`migrated.returncode == 0`；L222遍历`range(100)`；L223断言`process.poll() is None`；L225按`client.get(url + "health").status_code == 200`分支；L253断言`result.returncode == 0`；L256按`mode == "delayed-resource"`分支；L257断言`json.loads( (evidence / "old-load-timeout-state.json").read_text(encoding="utf-8") ) …`。 调用`os.environ.get`、`Path(module).is_dir`、`Path`、`pytest.skip`、`generate_basic`、`(product / "reload_fixture.py").write_text`、`SERVER.replace`、`repr`、`clean_env`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_product_reload_uses_authenticated_business_readiness`（L178–L272）：接收`tmp_path`、`plan`、`mode`。 控制顺序：L180按`not module or not Path(module).is_dir()`分支；L198断言`migrated.returncode == 0`；L223遍历`range(100)`；L224断言`process.poll() is None`；L226按`client.get(url + "health").status_code == 200`分支；L254断言`result.returncode == 0`；L257按`mode == "delayed-resource"`分支；L258断言`json.loads( (evidence / "old-load-timeout-state.json").read_text(encoding="utf-8") ) …`。 调用`os.environ.get`、`Path(module).is_dir`、`Path`、`pytest.skip`、`generate_basic`、`(product / "reload_fixture.py").write_text`、`SERVER.replace`、`repr`、`clean_env`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_product_reload_readiness.py sha256: a116cbaf6af5591faf440e8b1181e037c7d39b52a727bc0b2fcc7d30c2320c89 -->
+<!-- source-file: tests/test_product_reload_readiness.py sha256: 769e5bcf4c05000bdfb0e440e771d971900c7ae089929a7dc95a718513a91366 -->
 ````python
 """Authenticated reload proves real API/data readiness without waiting for decorations."""
 
@@ -85950,6 +86258,7 @@ def test_real_product_reload_uses_authenticated_business_readiness(tmp_path, pla
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=30,
         check=False,
     )
@@ -93562,18 +93871,18 @@ public class NavigationTest {
 - `_stop_owned_tree`（L137–L174）：接收`process`。 源码说明：Kill only descendants of this still-owned fixture, including detached Chromium.。 控制顺序：L139按`process.poll() is not None`分支；L141按`os.name == "nt"`分支；L151按`own_identity is None`分支；L152抛异常，停止当前正常路径；L154遍历`Path("/proc").iterdir()`；L155按`path.name.isdecimal() and (identity := _process_identity(int(path.name)))`分支；L158在`added := { pid: identity for pid, identity in snapshot.items() if…`成立时循环；L166遍历`reversed(list(owned.items()))`。后续分支沿下方源码相同行号继续阅读。 调用`process.poll`、`subprocess.run`、`str`、`process.wait`、`_process_identity`、`RuntimeError`、`Path("/proc").iterdir`、`Path`、`path.name.isdecimal`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `_read_diagnostic`（L177–L193）：接收`output`、`limit`。 源码说明：Retain startup and final phase evidence without unbounded output reads.。 控制顺序：L181按`size <= limit`分支。 调用`output.seek`、`output.read(limit).decode`、`output.read`、`len`、`prefix.decode`、`marker.decode`、`output.read(last).decode`。 返回路径：L182的`output.read(limit).decode("utf-8", errors="replace")`；L189的`prefix.decode("utf-8", errors="ignore") + marker.decode() + output.read(last).decode("utf-…`。
 - `_run_driver`（L196–L224）：接收`fault`、`role`、`module`。 控制顺序：L220断言`not timed_out`；L223断言`cleanup_error is None`；L224断言`process.returncode == 0`。 调用`tempfile.TemporaryFile`、`subprocess.Popen`、`shutil.which`、`clean_env`、`process_options`、`process.wait`、`_stop_owned_tree`、`type`、`_read_diagnostic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_owned_cleanup_kills_descendants_but_rejects_foreign_and_recycled_pids`（L227–L260）：接收`monkeypatch`。 控制顺序：L259断言`killed == [(102, signal.SIGKILL), (101, signal.SIGKILL), (100, signal.SIGKILL)]`；L260断言`waited == [{"timeout": 3}]`。 调用`monkeypatch.setitem`、`globals`、`SimpleNamespace`、`str`、`killed.append`、`waited.append`、`_stop_owned_tree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_owned_cleanup_kills_descendants_but_rejects_foreign_and_recycled_pids.identity`（L238–L244）：接收`pid`。 控制顺序：L240按`pid == 102 and reads[pid] > 1`分支；L242按`pid == 103 and reads[pid] > 1`分支。 调用`reads.get`。 返回路径：L241的`(1, "renderer-start")`；L243的`(100, "recycled-start")`；L244的`identities[pid]`。
-- `test_owned_cleanup_refuses_missing_root_identity`（L263–L271）：接收`monkeypatch`。 调用`monkeypatch.setitem`、`globals`、`SimpleNamespace`、`pytest.fail`、`pytest.raises`、`_stop_owned_tree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_owned_cleanup_does_nothing_after_fixture_exit`（L274–L278）：接收`monkeypatch`。 调用`monkeypatch.setitem`、`globals`、`pytest.fail`、`_stop_owned_tree`、`SimpleNamespace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_owned_cleanup_windows_targets_only_fixture_and_reaps_direct_child`（L281–L293）：接收`monkeypatch`。 控制顺序：L287断言`called == [ ( ["taskkill", "/PID", "100", "/T", "/F"], {"capture_output": True, "time…`；L293断言`waited == [{"timeout": 3}]`。 调用`monkeypatch.setitem`、`globals`、`SimpleNamespace`、`monkeypatch.setattr`、`called.append`、`waited.append`、`_stop_owned_tree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_timeout_retains_phase_receipt_and_original_cap_when_owned_cleanup_fails`（L296–L318）：接收`monkeypatch`。 控制顺序：L315断言`"exceeded unchanged 25 s cap" in message`；L316断言`'{"phase":"browser-start","event":"start"}' in message`；L317断言`"Owned fixture cleanup failed: RuntimeError: fixture cleanup canary" in message`；L318断言`waited == [{"timeout": 25}]`。 调用`monkeypatch.setattr`、`monkeypatch.setitem`、`globals`、`pytest.raises`、`_run_driver`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_timeout_retains_phase_receipt_and_original_cap_when_owned_cleanup_fails.timed_out`（L299–L301）：接收`**kwargs`。 控制顺序：L301抛异常，停止当前正常路径。 调用`waited.append`、`subprocess.TimeoutExpired`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_timeout_retains_phase_receipt_and_original_cap_when_owned_cleanup_fails.launch`（L303–L305）：接收`command`、`**kwargs`。 调用`kwargs["stdout"].write`、`SimpleNamespace`。 返回路径：L305的`SimpleNamespace(pid=100, wait=timed_out, returncode=None)`。
-- `test_timeout_retains_phase_receipt_and_original_cap_when_owned_cleanup_fails.cleanup`（L307–L308）：接收`_`。 控制顺序：L308抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_diagnostic_output_is_bounded_and_retains_first_and_last_phase`（L321–L329）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L324断言`len(result.encode("utf-8")) <= 512`；L325断言`result.startswith('{"phase":"browser-start"}')`；L326断言`result.endswith('{"phase":"browser-cleanup"}\n')`；L327断言`"diagnostic bytes omitted" in result`；L329断言`_read_diagnostic(io.BytesIO(small)) == small.decode("utf-8")`。 调用`_read_diagnostic`、`io.BytesIO`、`len`、`result.encode`、`result.startswith`、`result.endswith`、`small.decode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_owned_cleanup_kills_descendants_but_rejects_foreign_and_recycled_pids`（L227–L262）：接收`monkeypatch`。 控制顺序：L261断言`killed == [(102, signal.SIGKILL), (101, signal.SIGKILL), (100, signal.SIGKILL)]`；L262断言`waited == [{"timeout": 3}]`。 调用`monkeypatch.setitem`、`globals`、`SimpleNamespace`、`str`、`killed.append`、`waited.append`、`_stop_owned_tree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_owned_cleanup_kills_descendants_but_rejects_foreign_and_recycled_pids.identity`（L240–L246）：接收`pid`。 控制顺序：L242按`pid == 102 and reads[pid] > 1`分支；L244按`pid == 103 and reads[pid] > 1`分支。 调用`reads.get`。 返回路径：L243的`(1, "renderer-start")`；L245的`(100, "recycled-start")`；L246的`identities[pid]`。
+- `test_owned_cleanup_refuses_missing_root_identity`（L265–L273）：接收`monkeypatch`。 调用`monkeypatch.setitem`、`globals`、`SimpleNamespace`、`pytest.fail`、`pytest.raises`、`_stop_owned_tree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_owned_cleanup_does_nothing_after_fixture_exit`（L276–L280）：接收`monkeypatch`。 调用`monkeypatch.setitem`、`globals`、`pytest.fail`、`_stop_owned_tree`、`SimpleNamespace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_owned_cleanup_windows_targets_only_fixture_and_reaps_direct_child`（L283–L295）：接收`monkeypatch`。 控制顺序：L289断言`called == [ ( ["taskkill", "/PID", "100", "/T", "/F"], {"capture_output": True, "time…`；L295断言`waited == [{"timeout": 3}]`。 调用`monkeypatch.setitem`、`globals`、`SimpleNamespace`、`monkeypatch.setattr`、`called.append`、`waited.append`、`_stop_owned_tree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_timeout_retains_phase_receipt_and_original_cap_when_owned_cleanup_fails`（L298–L320）：接收`monkeypatch`。 控制顺序：L317断言`"exceeded unchanged 25 s cap" in message`；L318断言`'{"phase":"browser-start","event":"start"}' in message`；L319断言`"Owned fixture cleanup failed: RuntimeError: fixture cleanup canary" in message`；L320断言`waited == [{"timeout": 25}]`。 调用`monkeypatch.setattr`、`monkeypatch.setitem`、`globals`、`pytest.raises`、`_run_driver`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_timeout_retains_phase_receipt_and_original_cap_when_owned_cleanup_fails.timed_out`（L301–L303）：接收`**kwargs`。 控制顺序：L303抛异常，停止当前正常路径。 调用`waited.append`、`subprocess.TimeoutExpired`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_timeout_retains_phase_receipt_and_original_cap_when_owned_cleanup_fails.launch`（L305–L307）：接收`command`、`**kwargs`。 调用`kwargs["stdout"].write`、`SimpleNamespace`。 返回路径：L307的`SimpleNamespace(pid=100, wait=timed_out, returncode=None)`。
+- `test_timeout_retains_phase_receipt_and_original_cap_when_owned_cleanup_fails.cleanup`（L309–L310）：接收`_`。 控制顺序：L310抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostic_output_is_bounded_and_retains_first_and_last_phase`（L323–L331）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L326断言`len(result.encode("utf-8")) <= 512`；L327断言`result.startswith('{"phase":"browser-start"}')`；L328断言`result.endswith('{"phase":"browser-cleanup"}\n')`；L329断言`"diagnostic bytes omitted" in result`；L331断言`_read_diagnostic(io.BytesIO(small)) == small.decode("utf-8")`。 调用`_read_diagnostic`、`io.BytesIO`、`len`、`result.encode`、`result.startswith`、`result.endswith`、`small.decode`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_yudao_navigation_browser.py sha256: 8722c48413b7dbfa35454e0a2ff4ceeadd6f341694edea1017b23408c8138d15 -->
+<!-- source-file: tests/test_yudao_navigation_browser.py sha256: fdd3dd86200df73bf64244d0b9f8449107df09de7c84671e038e073a37128509 -->
 ````python
 """Actual Chromium tests of sidebar inspection against a local DOM/HTTP fixture.
 
@@ -93811,6 +94120,8 @@ def test_owned_cleanup_kills_descendants_but_rejects_foreign_and_recycled_pids(m
         201: (200, "foreign-renderer"),
     }
     reads, killed, waited = {}, [], []
+    # Simulate POSIX signals without depending on Windows exposing SIGKILL.
+    monkeypatch.setitem(globals(), "signal", SimpleNamespace(SIGKILL=9))
 
     def identity(pid):
         reads[pid] = reads.get(pid, 0) + 1
@@ -94437,6 +94748,118 @@ def test_full_yudao_protocol_projection_with_actual_permission_values_fits_uncha
         assert raw == navigation and raw["actors"][0]["observed_permissions"] == permissions
 ````
 
+### `tests/test_yudao_screenshot_readiness.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**逐个入口与控制逻辑：**
+
+- `test_native_pixels_require_visible_fonts_and_stable_business_content`（L88–L96）：接收`tmp_path`、`monkeypatch`、`mode`。 控制顺序：L92按`not module or not Path(module).is_dir()`分支。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`monkeypatch.setattr`、`harness._run_driver`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_yudao_screenshot_readiness.py sha256: f23a57349244aa99c82e4c9b041faf698db781278baffae421f5b847a091248d -->
+````python
+"""Real Chromium capture semantics; these fixtures are not native-stack receipts."""
+
+import os
+from pathlib import Path
+
+import pytest
+import test_yudao_navigation_browser as harness
+
+DRIVER = r"""
+const assert=require('node:assert/strict'), fs=require('node:fs'), path=require('node:path'), http=require('node:http');
+const {captureNativeScreenshot,nativeScreenshotState}=require('./scripts/business_yudao_browser.cjs');
+const [mode,directory,modulePath]=process.argv.slice(1), {chromium}=require(modulePath);
+const timers=new Set();
+const server=http.createServer((req,res)=>{
+ if(req.url==='/slow-font'){
+  const timer=setTimeout(()=>{timers.delete(timer);res.writeHead(404);res.end();},8000);
+  timers.add(timer);req.on('close',()=>{clearTimeout(timer);timers.delete(timer);});return;
+ }
+ if(req.url==='/missing-font'){res.writeHead(404);res.end();return;}
+ res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'});
+ const font=mode==='missing-visible-font'?'/missing-font':'/slow-font';
+ res.end(`<style>@font-face{font-family:CaptureProbe;src:url('${font}')}body{font-family:Arial,sans-serif;background:white;color:black}#record{margin:30px;padding:10px}</style>
+ ${mode==='blank-business'?'':`<main id="record">Fixture customer title 123<input id="field" value="Private control value"><div id="hidden" style="display:none;font-family:CaptureProbe">Hidden text</div></main>`}
+ <script>
+ if(${JSON.stringify(mode)}.includes('font')){
+  if(${JSON.stringify(mode)}==='pending-control-font')document.querySelector('#field').style.fontFamily='CaptureProbe,Arial';
+  else if(${JSON.stringify(mode)}!=='nonvisible-font')document.querySelector('#record').style.fontFamily='CaptureProbe,Arial';
+  document.fonts.load('16px CaptureProbe').catch(()=>{});
+ }
+ if(${JSON.stringify(mode)}==='moving-layout'){
+  window.ticks=0;setInterval(()=>{document.querySelector('#record').style.transform='translateX('+(++window.ticks)+'px)';},10);
+ }
+ </script>`);
+});
+(async()=>{
+ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+ const browser=await chromium.launch({headless:true,timeout:8000});
+ try{
+  const page=await browser.newPage({viewport:{width:700,height:400}});page.setDefaultTimeout(3000);
+  await page.goto('http://127.0.0.1:'+server.address().port,{waitUntil:'domcontentloaded'});
+  if(mode.includes('font'))await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='loading'||font.status==='error'));
+  if(mode==='missing-visible-font')await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='error'));
+  if(mode!=='blank-business')await page.locator('#field').focus();
+  const before=await page.evaluate(()=>({html:document.body.innerHTML,focus:document.activeElement.id}));
+  const file=path.join(directory,'capture.png');
+  if(mode==='normal'||mode==='nonvisible-font'){
+   if(mode==='nonvisible-font'){
+    assert.equal(await page.evaluate(()=>document.fonts.status),'loading');
+    assert((await nativeScreenshotState(page)).ready);
+   }
+   await captureNativeScreenshot(page,file,50,1500);
+   const bytes=fs.readFileSync(file);assert.equal(bytes.subarray(1,4).toString(),'PNG');
+   assert(bytes.length>1000);assert.equal(bytes.readUInt32BE(16),700);assert.equal(bytes.readUInt32BE(20),400);
+   assert.deepEqual(await page.evaluate(()=>({html:document.body.innerHTML,focus:document.activeElement.id})),before,'Capture must not change application DOM or focus');
+   if(mode==='nonvisible-font')assert.equal(await page.evaluate(()=>document.fonts.status),'loading','Unused pending font must remain unmodified');
+  }else{
+   await assert.rejects(captureNativeScreenshot(page,file,50,650),/Native screenshot visible-fonts-and-layout did not become ready/);
+   assert(!fs.existsSync(file),'Unreadable/unstable/blank page must not produce a success image');
+   const diagnostic=JSON.parse(fs.readFileSync(file+'.capture.json','utf8'));
+   assert.equal(diagnostic.phase,'visible-fonts-and-layout');
+   assert(!JSON.stringify(diagnostic).includes('Fixture customer title'));
+   assert(!JSON.stringify(diagnostic).includes('Private control value'));
+   if(mode.includes('font'))assert(diagnostic.visible_fonts.some(font=>font.loaded===false),'Visible missing font must remain a strict failure');
+   if(mode==='blank-business')assert.equal(diagnostic.visible_text_nodes,0);
+   if(mode==='moving-layout')assert(await page.evaluate(()=>window.ticks)>10,'Capture must not stop the app animation to hide layout drift');
+  }
+  console.log('Real Chromium screenshot readiness fixture PASS '+mode);
+ }finally{
+  await browser.close();for(const timer of timers)clearTimeout(timer);
+  await new Promise(resolve=>{server.close(resolve);server.closeAllConnections();});
+ }
+})().catch(error=>{console.error(error);process.exitCode=1;});
+"""
+
+
+@pytest.mark.parametrize(
+    "mode",
+    [
+        "normal",
+        "nonvisible-font",
+        "pending-visible-font",
+        "pending-control-font",
+        "missing-visible-font",
+        "moving-layout",
+        "blank-business",
+    ],
+)
+def test_native_pixels_require_visible_fonts_and_stable_business_content(
+    tmp_path, monkeypatch, mode
+):
+    module = os.getenv("PRODUCT_VERIFY_PLAYWRIGHT")
+    if not module or not Path(module).is_dir():
+        pytest.skip("Actual pinned Playwright/Chromium required")
+    # Reuse the already-tested, bounded owned-process runner, not pipe-only teardown.
+    monkeypatch.setattr(harness, "DRIVER", DRIVER)
+    harness._run_driver(mode, str(tmp_path), module)
+````
+
 ## 工具及Actions
 
 ### `scripts/build_handbook.py`
@@ -95052,13 +95475,13 @@ if (require.main === module) main().catch(error => { console.error(error.name + 
 
 ### `scripts/business_yudao_browser.cjs`
 
-**作用：Yudao/Vben三角色真实客服页面验收。** 通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同的列表、表单、详情与协作场景；关联控件按本轮新建记录的可读标签搜索并选择准确ID，不依赖虚拟列表首屏碰巧渲染该选项。HTTP拒绝和UI行为共同组成证据，不以静态图替代。
+**作用：Yudao/Vben三角色真实客服页面验收。** 通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，核对可见文字、表单及图标字体与稳定布局，再直接捕获未改动像素并复查；不改DOM或禁用字体校验，失败仅保留有界字体状态。HTTP拒绝和UI行为共同组成证据，不以静态图替代。
 
 **对应关系：** business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/business_yudao_browser.cjs sha256: e48d4afe364df9e8272d3420257c652de97f405e72ad62357e20e3ad8cd902f0 -->
+<!-- source-file: scripts/business_yudao_browser.cjs sha256: 540d2904a5e8afbaed1c6c38baeaed776172211f8dd6f462d755bb04f4bc20c5 -->
 ````javascript
 // Real Vben/Ant business journey. Only scenario-owned synthetic accounts; no mocks/token injection.
 'use strict';
@@ -95097,17 +95520,121 @@ async function createBrowserOwnedRecords(login, create, marker) {
   await create('tasks'); // Link to the fresh employee-created browser request.
 }
 
-async function captureNativeScreenshot(page, file, noticeTimeout = 6000) {
+async function nativeScreenshotState(page) {
+  return page.evaluate(() => {
+    const visible = element => {
+      const box = element.getBoundingClientRect(), style = getComputedStyle(element);
+      return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+    };
+    const fontChecks = new Map(), geometry = [], textParts = [];
+    const checkFont = (style, text) => {
+      const font = style.font || `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const loaded = document.fonts.check(font, text);
+      fontChecks.set(font, (fontChecks.get(font) ?? true) && loaded);
+    };
+    const elements = [...document.querySelectorAll('body *')].filter(visible);
+    if (elements.length > 6000) throw new Error('Native screenshot layout exceeds the bounded inspection scope');
+    for (const element of elements) {
+      const box = element.getBoundingClientRect();
+      geometry.push([box.x, box.y, box.width, box.height]);
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName)) {
+        // Input values are painted text even though they are not DOM text nodes.
+        // Never inspect a password value; only check its visible masking glyph.
+        const text = element.type === 'password' ? '●' : String(element.value || element.getAttribute('placeholder') || '');
+        if (text) { checkFont(getComputedStyle(element), text); textParts.push(text); }
+      }
+      for (const pseudo of ['::before', '::after']) {
+        const style = getComputedStyle(element, pseudo), content = style.content;
+        if (content && content !== 'none' && content !== 'normal' && style.visibility !== 'hidden') {
+          checkFont(style, content.replace(/^['"]|['"]$/g, ''));
+        }
+      }
+    }
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const text = node.textContent.trim();
+      if (!text || !node.parentElement || !visible(node.parentElement)) continue;
+      const range = document.createRange(); range.selectNodeContents(node);
+      const box = range.getBoundingClientRect();
+      if (!box.width || !box.height) continue;
+      if (text.length > 10000 || textParts.length > 3000) throw new Error('Native screenshot text exceeds the bounded inspection scope');
+      checkFont(getComputedStyle(node.parentElement), text);
+      textParts.push(text);
+      geometry.push([box.x, box.y, box.width, box.height]);
+    }
+    const imagesReady = elements.filter(element => element.tagName === 'IMG')
+      .every(element => element.complete && element.naturalWidth > 0);
+    const fonts = [...fontChecks].map(([font, loaded]) => ({ font, loaded }));
+    return {
+      ready: textParts.length > 0 && fonts.length > 0 && fonts.every(font => font.loaded) && imagesReady,
+      fonts, images_ready: imagesReady, visible_text_nodes: textParts.length,
+      font_faces: [...document.fonts].slice(0, 64).map(font => ({ family: font.family, status: font.status })),
+      // Used only in-memory for stability; never put customer text or geometry in diagnostics.
+      signature: JSON.stringify([geometry, textParts, fonts, window.scrollX, window.scrollY]),
+    };
+  });
+}
+
+async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout = 45000) {
+  const deadline = Date.now() + timeout;
+  let phase = 'notice-settlement', lastState, session;
+  async function bounded(operation, name) {
+    let timer;
+    try {
+      return await Promise.race([operation(), new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Native screenshot ${name} did not become ready`)), Math.max(1, deadline - Date.now()));
+      })]);
+    } finally { clearTimeout(timer); }
+  }
   // Capturing an open picker must not click, focus, blur, scroll or move the pointer.
   // Dismissing a login notification here used to close the already-visible picker.
   try {
-    await page.locator('.ant-notification-notice:visible, .ant-message-notice:visible').first()
-      .waitFor({ state: 'hidden', timeout: noticeTimeout });
+    try {
+      await page.locator('.ant-notification-notice:visible, .ant-message-notice:visible').first()
+        .waitFor({ state: 'hidden', timeout: Math.min(noticeTimeout, timeout) });
+    } catch (error) {
+      // Persistent notices are legitimate UI; bounded waiting must never dismiss them.
+      if (error.name !== 'TimeoutError') throw error;
+    }
+    phase = 'visible-fonts-and-layout';
+    let previous, stable = 0;
+    while (stable < 3) {
+      lastState = await bounded(() => nativeScreenshotState(page), phase);
+      stable = lastState.ready && lastState.signature === previous ? stable + 1 : 0;
+      previous = lastState.signature;
+      if (stable < 3) await bounded(() => new Promise(resolve => setTimeout(resolve, 40)), phase);
+    }
+    // document.fonts.ready also waits for unrelated, nonvisible font loads. Check
+    // the actual visible text/pseudo-glyphs above, then capture the unmodified
+    // Chromium surface directly. Never toggle Playwright's font-wait test flag.
+    phase = 'native-pixel-capture';
+    session = await bounded(() => page.context().newCDPSession(page), phase);
+    const { cssContentSize: size } = await bounded(() => session.send('Page.getLayoutMetrics'), phase);
+    const width = Math.ceil(size.width), height = Math.ceil(size.height);
+    assert(width > 0 && height > 0 && width <= 4096 && height <= 8192 && width * height <= 20000000,
+      'Native screenshot surface exceeds the bounded capture scope');
+    const captured = await bounded(() => session.send('Page.captureScreenshot', {
+      format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height, scale: 1 },
+    }), phase);
+    phase = 'post-capture-readiness';
+    const after = await bounded(() => nativeScreenshotState(page), phase);
+    assert(after.ready && after.signature === lastState.signature,
+      'Native screenshot visible fonts or layout changed during capture');
+    fs.writeFileSync(file, Buffer.from(captured.data, 'base64'));
   } catch (error) {
-    // Persistent notices are legitimate UI; bounded waiting must never dismiss them.
-    if (error.name !== 'TimeoutError') throw error;
+    // Fixed, bounded, local evidence. No raw HTML, field values, URLs, credentials,
+    // source environment, or pending request headers are retained.
+    try {
+      fs.writeFileSync(file + '.capture.json', JSON.stringify({ phase,
+        visible_text_nodes: lastState?.visible_text_nodes, images_ready: lastState?.images_ready,
+        visible_fonts: lastState?.fonts.slice(0, 64).map(font => ({ font: font.font.slice(0, 300), loaded: font.loaded })),
+        font_faces: lastState?.font_faces.map(font => ({ family: font.family.slice(0, 100), status: font.status })),
+      }, null, 2));
+    } catch { /* Preserve the original capture failure. */ }
+    throw error;
+  } finally {
+    if (session) await session.detach().catch(() => {});
   }
-  await page.screenshot({ path: file, fullPage: true, animations: 'disabled' });
 }
 
 async function showNativeDashboard(page) {
@@ -95349,6 +95876,9 @@ async function main() {
     report.installed_navigation ||= [];
     if (!report.installed_navigation.some(proof => proof.actor === role)) {
       report.installed_navigation.push(navigation);
+      // Use an actually authorized business page, not the template's demo
+      // overview. openPage requires its real list response and native DOM.
+      await openPage(navigation.expected_entities[0]);
       await capture(`${role}-installed-navigation.png`);
     }
     report.checks.push(`${role}:native-login-and-tenant`);
@@ -95540,7 +96070,7 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, loginNativeSession, verifyInstalledSidebar, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, selectNativeOption, verifyNativeRelationPayload, verifyNativeCustomerQuery };
+module.exports = { main, loginNativeSession, verifyInstalledSidebar, nativeScreenshotState, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, selectNativeOption, verifyNativeRelationPayload, verifyNativeCustomerQuery };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
 ````
 
@@ -96264,20 +96794,24 @@ if __name__ == "__main__":
 
 ### `scripts/ci_handbook.py`
 
-**作用：证明一本书足够重建平台。** 把教材单独复制进临时目录，恢复所有文本与二进制截图，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue，运行完整非PG回归并保留JUnit。
+**作用：证明一本书足够重建平台。** 把教材单独复制进临时目录，恢复所有文本与二进制截图，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue。完整非PG套件有明确1800秒预算，外层仍40分钟；超时中断自有测试进程、保留阶段与已有JUnit且仍失败，不增加单项等待。
 
-**对应关系：** handbook-only工作流 → 本脚本 → reports/handbook-clean-room.json。
+**对应关系：** handbook-only工作流 → 本脚本 → handbook-test-status.json/JUnit；完整通过才产生handbook-clean-room.json。
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `scripts.build_handbook`、`scripts.rebuild_from_handbook`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.build_handbook`、`scripts.rebuild_from_handbook`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `run`（L17–L19）：接收`argv`、`directory`、`env`、`timeout`。 调用`subprocess.run`。 返回路径：L19的`result.returncode`。
-- `main`（L22–L111）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L33断言`not list((destination / "templates/vendor").glob("*.zip"))`；L49断言`(destination / OUTPUT.name).read_bytes() == text`；L54遍历`zip(expected["sources"], actual["sources"], strict=True)`；L56遍历`("name", "sha", "source_digest", "files")`；L57断言`want[field] == got[field]`；L66按`not npm`分支；L67抛异常，停止当前正常路径；L83按`junit.exists()`分支。后续分支沿下方源码相同行号继续阅读。 调用`OUTPUT.read_bytes`、`json.loads`、`(ROOT / "templates/vendor/manifest.json").read_text`、`tempfile.TemporaryDirectory`、`Path`、`book.write_bytes`、`restore`、`extract`、`text.decode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run`（L22–L24）：接收`argv`、`directory`、`env`、`timeout`。 调用`subprocess.run`。 返回路径：L24的`result.returncode`。
+- `process_identity`（L27–L33）：接收`pid`。 源码说明：Only ancestry and start identity; never commands or process environment.。 调用`Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(") "…`、`Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit`、`Path(f"/proc/{pid}/stat").read_text`、`Path`、`int`。 返回路径：L31的`int(fields[1]), fields[19]`；L33的`None`。
+- `capture_owned_descendants`（L36–L53）：接收`process`。 控制顺序：L37按`os.name == "nt" or not Path("/proc").is_dir()`分支；L40按`root is None`分支；L43遍历`Path("/proc").iterdir()`；L44按`path.name.isdecimal() and (identity := process_identity(int(path.name)))`分支；L47在`added := { pid: identity for pid, identity in snapshot.items() if…`成立时循环。 调用`Path("/proc").is_dir`、`Path`、`process_identity`、`Path("/proc").iterdir`、`path.name.isdecimal`、`int`、`snapshot.items`、`owned.update`、`owned.items`。 返回路径：L38的`None`；L41的`None`；L53的`{pid: identity[1] for pid, identity in owned.items()}`。
+- `cleanup_owned_descendants`（L56–L65）：接收`owned`。 控制顺序：L59遍历`reversed(list(owned.items()))`；L61按`current is not None and current[1] == started`分支。 调用`reversed`、`list`、`owned.items`、`process_identity`、`os.kill`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_full_tests`（L68–L142）：接收`argv`、`directory`、`env`、`junit`、`reports`、`timeout`。 源码说明：Bound the whole expanded suite, retain failure status, and own its cleanup. This is a suite orchestration budget, not a browser or individual-test wait. Crossing it always fails, even if an interrupt 。 控制顺序：L89按`owned is None`分支；L105按`owned is not None`分支；L110按`process is not None and process.poll() is None`分支；L127按`junit.is_file()`分支；L133按`timed_out`分支；L134抛异常，停止当前正常路径；L135按`failure`分支；L136抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`reports.mkdir`、`time.monotonic`、`print`、`subprocess.Popen`、`process_options`、`process.wait`、`capture_owned_descendants`、`stop_process`、`process.send_signal`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L145–L239）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L156断言`not list((destination / "templates/vendor").glob("*.zip"))`；L172断言`(destination / OUTPUT.name).read_bytes() == text`；L177遍历`zip(expected["sources"], actual["sources"], strict=True)`；L179遍历`("name", "sha", "source_digest", "files")`；L180断言`want[field] == got[field]`；L189按`not npm`分支；L190抛异常，停止当前正常路径；L215按`not cases or any( case.find("failure") is not None or case.find("error") is not None …`分支。后续分支沿下方源码相同行号继续阅读。 调用`OUTPUT.read_bytes`、`json.loads`、`(ROOT / "templates/vendor/manifest.json").read_text`、`tempfile.TemporaryDirectory`、`Path`、`book.write_bytes`、`restore`、`extract`、`text.decode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_handbook.py sha256: 66ded005a07da169f94031b0add2f88be9b6fcc7fab8f4533b157d4b199d0b70 -->
+<!-- source-file: scripts/ci_handbook.py sha256: d3c4f72f3421368ad5f95c2081cafe92287a491822605ad6ca2799acdbc7e96f -->
 ````python
 """Verify construction from the handbook alone, without original source/archive access."""
 
@@ -96285,19 +96819,142 @@ import hashlib
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from scripts.build_handbook import OUTPUT, ROOT
 from scripts.rebuild_from_handbook import extract, restore
+from workbench.tools import process_options, stop_process
+
+FULL_SUITE_TIMEOUT = 1800
 
 
 def run(argv, directory, env, timeout=900):
     result = subprocess.run(argv, cwd=directory, env=env, timeout=timeout, check=True)
     return result.returncode
+
+
+def process_identity(pid):
+    """Only ancestry and start identity; never commands or process environment."""
+    try:
+        fields = Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(") ", 1)[1].split()
+        return int(fields[1]), fields[19]
+    except OSError, ValueError, IndexError:
+        return None
+
+
+def capture_owned_descendants(process):
+    if os.name == "nt" or not Path("/proc").is_dir():
+        return None
+    root = process_identity(process.pid)
+    if root is None:
+        return None
+    snapshot = {}
+    for path in Path("/proc").iterdir():
+        if path.name.isdecimal() and (identity := process_identity(int(path.name))):
+            snapshot[int(path.name)] = identity
+    owned = {process.pid: root}
+    while added := {
+        pid: identity
+        for pid, identity in snapshot.items()
+        if identity[0] in owned and pid not in owned
+    }:
+        owned.update(added)
+    return {pid: identity[1] for pid, identity in owned.items()}
+
+
+def cleanup_owned_descendants(owned):
+    # A leader can exit during SIGINT grace. Start ticks still identify its
+    # proven descendants after reparenting, without targeting recycled PIDs.
+    for pid, started in reversed(list(owned.items())):
+        current = process_identity(pid)
+        if current is not None and current[1] == started:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+
+def run_full_tests(argv, directory, env, junit, reports, *, timeout=FULL_SUITE_TIMEOUT):
+    """Bound the whole expanded suite, retain failure status, and own its cleanup.
+
+    This is a suite orchestration budget, not a browser or individual-test wait.
+    Crossing it always fails, even if an interrupt lets pytest finish writing XML.
+    """
+    reports.mkdir(parents=True, exist_ok=True)
+    started = time.monotonic()
+    process = None
+    failure = None
+    cleanup_error = None
+    timed_out = False
+    owned = None
+    print(f"Handbook full non-PostgreSQL suite: deadline {timeout}s", flush=True)
+    try:
+        process = subprocess.Popen(argv, cwd=directory, env=env, **process_options())
+        try:
+            process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            owned = capture_owned_descendants(process)
+            if owned is None:
+                # Stop the still-owned live tree (taskkill /T on Windows), not
+                # an expired leader whose surviving descendants cannot be proven.
+                stop_process(process)
+            else:
+                print("Handbook deadline reached; interrupting owned pytest for JUnit", flush=True)
+                try:
+                    process.send_signal(signal.SIGINT)
+                    process.wait(timeout=15)
+                except subprocess.TimeoutExpired:
+                    pass
+                except ProcessLookupError:
+                    pass
+    except BaseException as error:
+        failure = error
+    finally:
+        if owned is not None:
+            try:
+                cleanup_owned_descendants(owned)
+            except Exception as error:
+                cleanup_error = type(error).__name__
+        if process is not None and process.poll() is None:
+            try:
+                stop_process(process)
+            except Exception as error:
+                cleanup_error = type(error).__name__
+        status = {
+            "version": 1,
+            "phase": "full_non_postgres_tests",
+            "timeout_seconds": timeout,
+            "timed_out": timed_out,
+            "returncode": process.returncode if process is not None else None,
+            "elapsed_seconds": round(time.monotonic() - started, 3),
+            "error_type": type(failure).__name__ if failure else None,
+            "cleanup_error_type": cleanup_error,
+            "owned_processes_at_timeout": len(owned) if owned is not None else None,
+            "junit_available": junit.is_file(),
+        }
+        if junit.is_file():
+            (reports / "handbook-tests.xml").write_bytes(junit.read_bytes())
+        (reports / "handbook-test-status.json").write_text(
+            json.dumps(status, indent=2) + "\n", encoding="utf-8"
+        )
+        print(json.dumps(status), flush=True)
+    if timed_out:
+        raise subprocess.TimeoutExpired("handbook full non-PostgreSQL suite", timeout)
+    if failure:
+        raise failure
+    if cleanup_error:
+        raise RuntimeError("Handbook owned test process cleanup failed: " + cleanup_error)
+    if process.returncode:
+        raise subprocess.CalledProcessError(
+            process.returncode, "handbook full non-PostgreSQL suite"
+        )
 
 
 def main():
@@ -96352,17 +97009,22 @@ def main():
         run([npm, "run", "build", "--prefix", "tools/node"], destination, env)
         env["RND_REQUIRE_NODE_TESTS"] = "1"
         junit = base / "handbook-tests.xml"
-        try:
-            run(
-                [sys.executable, "-m", "pytest", "-m", "not postgres", "-q", f"--junitxml={junit}"],
-                destination,
-                env,
-            )
-        finally:
-            # Keep failed-test evidence even when the temporary student tree is removed.
-            (ROOT / "reports").mkdir(exist_ok=True)
-            if junit.exists():
-                (ROOT / "reports/handbook-tests.xml").write_bytes(junit.read_bytes())
+        run_full_tests(
+            [
+                sys.executable,
+                "-m",
+                "pytest",
+                "-m",
+                "not postgres",
+                "-v",
+                "--tb=short",
+                f"--junitxml={junit}",
+            ],
+            destination,
+            env,
+            junit,
+            ROOT / "reports",
+        )
         suites = ET.parse(junit).getroot()
         cases = suites.findall(".//testcase")
         if not cases or any(
@@ -101482,7 +102144,7 @@ main().catch((e) => {
 - `purpose`（L694–L877）：接收`name`。 控制顺序：L696按`name == "workbench/__init__.py"`分支；L702按`name.startswith("workbench/") and path.stem in MODULES`分支；L704按`name.startswith("templates/business/")`分支；L705按`role := BUSINESS_FILES.get(name.removeprefix("templates/business/"))`分支；L712按`name == "examples/requirements/customer-service.md"`分支；L718按`name == "examples/requirements/customer-service-decisions.md"`分支；L724按`name == "examples/requirements/customer-service-contract.md"`分支；L730按`name.startswith("examples/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`BUSINESS_FILES.get`、`name.removeprefix`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L697的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L703的`MODULES[path.stem]`；L706的`role`。
 - `notes`（L880–L990）：接收`name`、`content`。 控制顺序：L884按`not name.endswith(".py")`分支；L891遍历`tree.body`；L892按`isinstance(node, ast.ImportFrom) and node.module`分支；L894按`isinstance(node, ast.Import)`分支；L897按`own`分支；L904按`not rows`分支；L907遍历`rows`；L909按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L885的`out`；L889的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L905的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
 
-<!-- source-file: scripts/handbook_notes.py sha256: bf1d63b47ed9d56d209a97ef02cad11cc7d4893c0d18ce1cc1d555eedc5baee7 -->
+<!-- source-file: scripts/handbook_notes.py sha256: db4bdaf30c1dbe3009979b105b00088e0e39d68d7317b66e4aed0c7de0d3a5e1 -->
 ````python
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
 
@@ -101959,7 +102621,7 @@ SCRIPT_ROLES = {
     ),
     "business_yudao_browser.cjs": (
         "Yudao/Vben三角色真实客服页面验收",
-        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同的列表、表单、详情与协作场景；关联控件按本轮新建记录的可读标签搜索并选择准确ID，不依赖虚拟列表首屏碰巧渲染该选项。HTTP拒绝和UI行为共同组成证据，不以静态图替代。",
+        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，核对可见文字、表单及图标字体与稳定布局，再直接捕获未改动像素并复查；不改DOM或禁用字体校验，失败仅保留有界字体状态。HTTP拒绝和UI行为共同组成证据，不以静态图替代。",
         "business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。",
     ),
     "ci_real_model.py": (
@@ -101989,8 +102651,8 @@ SCRIPT_ROLES = {
     ),
     "ci_handbook.py": (
         "证明一本书足够重建平台",
-        "把教材单独复制进临时目录，恢复所有文本与二进制截图，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue，运行完整非PG回归并保留JUnit。",
-        "handbook-only工作流 → 本脚本 → reports/handbook-clean-room.json。",
+        "把教材单独复制进临时目录，恢复所有文本与二进制截图，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue。完整非PG套件有明确1800秒预算，外层仍40分钟；超时中断自有测试进程、保留阶段与已有JUnit且仍失败，不增加单项等待。",
+        "handbook-only工作流 → 本脚本 → handbook-test-status.json/JUnit；完整通过才产生handbook-clean-room.json。",
     ),
     "ci_clean_install.py": (
         "独立依赖环境与成品干净解压验收",
@@ -104064,7 +104726,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/test.yml sha256: ab797e624bd3dacb1f16232aa5b0a6f84ad65f706b47702cb35d66a64f7e4d8d -->
+<!-- source-file: .github/workflows/test.yml sha256: a6c5ab034cde76100b8f4d63bf48b48102f5aa801c61c5ab15d0a4b0b550391e -->
 ````yaml
 name: Python 3.14 acceptance
 on:
@@ -104087,7 +104749,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 35
+    # Windows includes a cold native dependency install before the complete suite.
+    # Keep individual test/browser deadlines unchanged; bound each job explicitly.
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 60 || 35 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -104226,6 +104890,7 @@ jobs:
           path: |
             reports/handbook-clean-room.json
             reports/handbook-tests.xml
+            reports/handbook-test-status.json
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -113928,7 +114593,7 @@ uv run pytest tests/test_provider_structured_outputs.py tests/test_llm.py tests/
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/real-model-acceptance.md sha256: 14eaf222e066a999b3f6b0540fa2ec48de538c4ad95c20e523a683488acd87bc -->
+<!-- source-file: docs/real-model-acceptance.md sha256: bf68850013590ed175259c54c27ab7238b7c2834283df7d422dfd3b52988ece5 -->
 ````markdown
 ## 显式授权的真实模型客服端到端验收
 
@@ -114088,6 +114753,14 @@ FastapiAdmin将模板参数换成`fastapiadmin`。该路径直接验证保存的
 
 真实产品页面使用合成客户和验收账号；经过路径、名称、大小及PNG校验的截图位于`reports/real-model/screenshots/*.png`，单独保存为`customer-ui-${template}-${sha}`产物。它们只用于查看该行实际页面，不公开实际客户数据或临时密码。下载后应真正打开列表、表单、关联、处理、提醒和统计画面，结合业务章节的视觉清单检查；有截图文件不等于已完成视觉审阅。
 
+芋道的角色菜单截图先进入该角色实际授权的业务列表，再确认原生菜单、真实列表响应
+和业务 DOM，不以模板概览中的演示数字作为客服数据。截图检查当前可见文字、输入值、
+占位符及图标伪元素所需字体，连续比较实际布局，随后直接捕获未改动的 Chromium 像素，
+并再次核对字体与布局。它不修改应用 DOM、不终止字体请求，也不禁用字体校验；可见字体
+仍在加载、缺失字体、持续布局变化或空白页面都会失败。未被当前可见内容使用的独立字体
+加载不会单独阻止拍照。整个截图步骤仍有 45 秒上限，失败只保留有界的字体状态和阶段，
+不保存表单值、原始 HTML、认证头或环境变量。
+
 只有某行`acceptance_scope=full_workflow`、整体`passed=true`且模板/commit/attempt吻合，才能将该行标为真实模型完整流程通过；三个模板各自满足才可称三模板通过。`smoke_only`、固定计划测试、之前其他案例或其他提交的成功都不能替代。原来`BLOCKED`的任务恢复、Aider编辑、Continue原生索引和Daytona是另外的验证范围；当前真实模型路径明确记录这些未覆盖项，不借用旧报告填充它们。
 
 工作流每次完成输出上限为65,536 tokens，保留16次工作流调用和单次响应2,000,000字节的硬边界；独立兼容性smoke报文不添加这个参数。该上限保留完整需求与Plan，避免此前16,000上限把思考和JSON输出截断；`finish_reason=length`仍记为失败而不修剪需求。DeepSeek官方Chat Completions文档（https://api-docs.deepseek.com/api/create-chat-completion/ ，2026-09-30核对）允许最大393,216 tokens，thinking默认64K。
@@ -114128,7 +114801,7 @@ uv run python -m scripts.ci_native_bundled fastapiadmin --approved-replay fastap
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/from-zero-checkpoints.md sha256: 337282a28e7c230a61eefe4f95b8a4c6b3c3d368c4c00e562c26cb1fd375147c -->
+<!-- source-file: docs/from-zero-checkpoints.md sha256: 1ea5bb1ed41c5a4037c5c0335e8c84cd9950a5d1a869467d05ffa4c42f86d952 -->
 ````markdown
 # 从空目录到可信交付：逐站实操与证据阅读
 
@@ -114159,6 +114832,18 @@ uv run python -m scripts.build_handbook --check
 ```
 
 最后一条必须输出`Single handbook source consistency PASS`。如果只有你手写的源码而没有根目录生成手册，先运行不带`--check`的`build_handbook`生成它，再检查。这里验证源码与正文一致，不代表数据库、浏览器或Daytona已经运行过。
+
+独立的 `handbook-only` Actions 会把这一本书复制到临时目录，重建自有源码、固定第三方
+归档和 Continue，再实际执行完整非 PostgreSQL 套件。整套测试子进程的明确预算为
+1800 秒，外层 job 仍限制 40 分钟；安装等其他步骤沿用自己的预算，单项测试和浏览器等待
+没有因此放宽。超时始终失败，只中断和清理本次启动的测试进程，尽量让 pytest 写出 JUnit。
+`handbook-test-status.json` 记录阶段、预算、退出码、超时与清理状态，已产生的 JUnit 也会
+保留；这些诊断不能替代完整测试通过后的 `handbook-clean-room.json`。
+
+普通全套测试的 job 总预算按平台区分：Linux 为 35 分钟，Windows 为 60 分钟，包含安装
+依赖和运行完整测试。Windows 的冷安装会占用较长前置时间；这个外层预算不修改任何
+浏览器、接口或单个测试的超时，也不会让被中断的套件变成通过。捕获子进程文本明确按
+UTF-8 解码，不能依赖 Windows 当前的 cp1252 等本地编码。
 
 第三方框架不由你从零重写。按书中完整的`vendor_templates.py`、manifest和许可证重建固定上游源码归档，再运行`rnd init`。`uv.lock`、Node的`package-lock.json`和模板固定提交各自约束不同依赖，不可互相替代。
 
