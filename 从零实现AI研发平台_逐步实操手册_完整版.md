@@ -61113,13 +61113,13 @@ def test_actual_recorded_business_gap_reaches_planner_with_exact_scope_and_actio
 
 **逐个入口与控制逻辑：**
 
-- `unqualified_text_reads`（L51–L116）：接收`source`。 源码说明：Find locale-sensitive pathlib/builtin text reads in the bounded source set.。 控制顺序：L63遍历`ast.walk(tree)`；L64按`isinstance(node, ast.With)`分支；L65遍历`node.items`；L67按`isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and isinstance(ca…`分支；L76遍历`ast.walk(tree)`；L77按`not isinstance(node, ast.Call)`分支；L81按`isinstance(function, ast.Attribute) and function.attr == "read_text"`分支；L83按`isinstance(function, ast.Attribute) and function.attr == "open" or isinstance(functio…`分支。后续分支沿下方源码相同行号继续阅读。 调用`ast.parse`、`ast.walk`、`isinstance`、`zip_scopes.append`、`any`、`keywords.get`、`len`、`encoding.value.lower().replace("-", "").replace`、`encoding.value.lower().replace`等。 返回路径：L116的`missing`。
-- `test_customer_source_and_fixture_reads_explicitly_use_utf8`（L126–L128）：接收`name`。 控制顺序：L128断言`not unqualified_text_reads(source)`。 调用`(ROOT / name).read_text`、`unqualified_text_reads`、`pytest.mark.parametrize`、`sorted`、`set`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "tests").glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_encoding_guard_rejects_locale_dependent_reads`（L143–L144）：接收`source`。 控制顺序：L144断言`unqualified_text_reads(source) == [1]`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_encoding_guard_allows_explicit_utf8_and_binary_reads`（L161–L162）：接收`source`。 控制顺序：L162断言`unqualified_text_reads(source) == []`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_encoding_guard_distinguishes_zip_binary_open_from_path_open`（L165–L181）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L166断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`；L172断言`unqualified_text_reads( "import zipfile as zip_module\nwith zip_module.ZipFile('sourc…`；L178断言`unqualified_text_reads("path.open()") == [1]`；L179断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`。 调用`unqualified_text_reads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `unqualified_text_reads`（L52–L117）：接收`source`。 源码说明：Find locale-sensitive pathlib/builtin text reads in the bounded source set.。 控制顺序：L64遍历`ast.walk(tree)`；L65按`isinstance(node, ast.With)`分支；L66遍历`node.items`；L68按`isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and isinstance(ca…`分支；L77遍历`ast.walk(tree)`；L78按`not isinstance(node, ast.Call)`分支；L82按`isinstance(function, ast.Attribute) and function.attr == "read_text"`分支；L84按`isinstance(function, ast.Attribute) and function.attr == "open" or isinstance(functio…`分支。后续分支沿下方源码相同行号继续阅读。 调用`ast.parse`、`ast.walk`、`isinstance`、`zip_scopes.append`、`any`、`keywords.get`、`len`、`encoding.value.lower().replace("-", "").replace`、`encoding.value.lower().replace`等。 返回路径：L117的`missing`。
+- `test_customer_source_and_fixture_reads_explicitly_use_utf8`（L127–L129）：接收`name`。 控制顺序：L129断言`not unqualified_text_reads(source)`。 调用`(ROOT / name).read_text`、`unqualified_text_reads`、`pytest.mark.parametrize`、`sorted`、`set`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "tests").glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_rejects_locale_dependent_reads`（L144–L145）：接收`source`。 控制顺序：L145断言`unqualified_text_reads(source) == [1]`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_allows_explicit_utf8_and_binary_reads`（L162–L163）：接收`source`。 控制顺序：L163断言`unqualified_text_reads(source) == []`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_distinguishes_zip_binary_open_from_path_open`（L166–L182）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L167断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`；L173断言`unqualified_text_reads( "import zipfile as zip_module\nwith zip_module.ZipFile('sourc…`；L179断言`unqualified_text_reads("path.open()") == [1]`；L180断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`。 调用`unqualified_text_reads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_customer_source_encoding.py sha256: b4a881daceb0132e36a5dcf35ce7c877c13f5b0699505078cfb3d50d0a02c775 -->
+<!-- source-file: tests/test_customer_source_encoding.py sha256: f0253581d129453130d84ba54d8659993e86b28c0873a73cec3bf98b657509b2 -->
 ````python
 """Keep customer acceptance source and fixture reads independent of the OS locale."""
 
@@ -61149,6 +61149,7 @@ SOURCE_READERS = (
     "tests/test_native_business_query_browser.py",
     "tests/test_native_backend_failure_diagnostics.py",
     "tests/test_native_delivery_diagnostics.py",
+    "tests/test_native_fastapi_screenshot_readiness.py",
     "tests/test_native_relation_picker_browser.py",
     "tests/test_real_model_execution_diagnostics.py",
     "workbench/verification.py",
@@ -68475,10 +68476,10 @@ def test_full_executed_probe_collections_satisfy_the_strict_native_review_contra
 **逐个入口与控制逻辑：**
 
 - `test_native_query_driver_rejects_http_and_rendering_faults`（L141–L155）：接收`template`、`fault`。 控制顺序：L143按`not module or not Path(module).is_dir()`分支；L155断言`result.returncode == 0`。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`subprocess.run`、`shutil.which`、`clean_env`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_query_journey_is_in_each_actual_native_driver`（L159–L164）：接收`template`。 控制顺序：L162断言`"report.query_journey = await verifyNativeCustomerQuery(" in main`；L163断言`"report.checks.push('manager:customers:native-query-and-exact-filter')" in main`；L164断言`"manager-customers-native-query-positive.png" in main`。 调用`(ROOT / f"scripts/business_{template}_browser.cjs").read_text`、`source.split`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_query_button_fixture_matches_pinned_native_locales`（L167–L181）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L173断言`locale["table"]["searchBar"]["search"] == "查询"`；L174断言`locale["table"]["searchBar"]["reset"] == "重置"`；L175断言`'t("table.searchBar.search")' in component`；L180断言`"content: computed(() => $t('common.search'))" in component`；L181断言`"${yudao ? '搜 索' : '查询'}" in DRIVER`。 调用`zipfile.ZipFile`、`json.loads`、`archive.read`、`archive.read( "frontend/web/src/components/forms/fa-search-bar/in…`、`archive.read("packages/effects/plugins/src/vxe-table/use-vxe-grid…`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_query_journey_is_in_each_actual_native_driver`（L159–L168）：接收`template`。 控制顺序：L162断言`"report.query_journey = await verifyNativeCustomerQuery(" in main`；L163断言`"report.checks.push('manager:customers:native-query-and-exact-filter')" in main`；L164按`template == "fastapi"`分支；L165断言`"await capture(page, 'manager-customers-native-query-positive')" in main`；L166断言`"const filename = label + '.png'" in main`；L168断言`"manager-customers-native-query-positive.png" in main`。 调用`(ROOT / f"scripts/business_{template}_browser.cjs").read_text`、`source.split`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_query_button_fixture_matches_pinned_native_locales`（L171–L185）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L177断言`locale["table"]["searchBar"]["search"] == "查询"`；L178断言`locale["table"]["searchBar"]["reset"] == "重置"`；L179断言`'t("table.searchBar.search")' in component`；L184断言`"content: computed(() => $t('common.search'))" in component`；L185断言`"${yudao ? '搜 索' : '查询'}" in DRIVER`。 调用`zipfile.ZipFile`、`json.loads`、`archive.read`、`archive.read( "frontend/web/src/components/forms/fa-search-bar/in…`、`archive.read("packages/effects/plugins/src/vxe-table/use-vxe-grid…`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_native_business_query_browser.py sha256: a14b901f49f51d0c0fd6a5d03ff7f6f563f8ff9edb4a76cc867c0a817afdf6ac -->
+<!-- source-file: tests/test_native_business_query_browser.py sha256: b4d70ba2b21b0721936125d0ccd6bce5a35afcaf89cb3405dfb65217da2fa921 -->
 ````python
 """Chromium regression of the native drivers against a local HTTP/DOM fixture.
 
@@ -68643,7 +68644,11 @@ def test_query_journey_is_in_each_actual_native_driver(template):
     main = source.split("async function main() {", 1)[1]
     assert "report.query_journey = await verifyNativeCustomerQuery(" in main
     assert "report.checks.push('manager:customers:native-query-and-exact-filter')" in main
-    assert "manager-customers-native-query-positive.png" in main
+    if template == "fastapi":
+        assert "await capture(page, 'manager-customers-native-query-positive')" in main
+        assert "const filename = label + '.png'" in main
+    else:
+        assert "manager-customers-native-query-positive.png" in main
 
 
 def test_query_button_fixture_matches_pinned_native_locales():
@@ -69109,6 +69114,157 @@ def test_verification_preserves_failure_before_temp_cleanup_and_drops_only_owned
     assert operations[0].startswith('CREATE DATABASE "restore_')
     assert operations[1].startswith('DROP DATABASE "restore_')
     assert "console-private" not in (output / "portable-start.log").read_text(encoding="utf-8")
+````
+
+### `tests/test_native_fastapi_screenshot_readiness.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_screenshot_waits_for_native_decorations_without_masking_business`（L94–L108）：接收`tmp_path`、`mode`。 控制顺序：L96按`not module or not Path(module).is_dir()`分支；L108断言`result.returncode == 0`。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`subprocess.run`、`shutil.which`、`str`、`clean_env`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_decoration_controls_and_query_capture_match_pinned_native_source`（L111–L132）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L120断言`'class="setting-btn" @click="openSetting"' in header`；L121断言`"settingStore.hideSettingGuide();" in header`；L122断言`'modal-class="setting-modal"' in drawer`；L123断言`"close-on-press-escape" not in drawer`；L124断言`'class="fixed top-0 left-0 z-9999 w-full h-full pointer-events-none"' in effect`；L125断言`"ctx.value.clearRect(0, 0, this.canvasWidth, this.canvasHeight)" in effect`；L126断言`'name: "国庆节"' in festival and "fireworkInterval: 850" in festival`；L129断言`"await capture(page, 'manager-customers-native-query-positive')" in query_capture`。后续分支沿下方源码相同行号继续阅读。 调用`zipfile.ZipFile`、`archive.read(prefix + "layouts/fa-header-bar/index.vue").decode`、`archive.read`、`archive.read( prefix + "layouts/fa-settings-panel/widgets/FaSetti…`、`archive.read(prefix + "layouts/fa-fireworks-effect/index.vue").de…`、`archive.read(prefix + "config/modules/festival.builtin.ts").decod…`、`(ROOT / "scripts/business_fastapi_browser.cjs").read_text`、`source.split("report.query_journey =", 1)[1].split`、`source.split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_native_fastapi_screenshot_readiness.py sha256: 9d63ffc3b2a94330ce054d92f602526b3004acb5785dfbd97d71c120befc3ab6 -->
+````python
+"""Native decorations must finish normally, without concealing business pixels."""
+
+import os
+import shutil
+import subprocess
+import zipfile
+from pathlib import Path
+
+import pytest
+
+from workbench.settings import ROOT
+from workbench.tools import clean_env
+
+DRIVER = r"""
+const assert = require('node:assert/strict'), http = require('node:http'), fs = require('node:fs');
+const [mode, modulePath, filename] = process.argv.slice(1);
+const { chromium } = require(modulePath);
+const { dismissNativeThemeGuide, waitNativeDecorationsFinished, captureNativeScreenshot } = require('./scripts/business_fastapi_browser.cjs');
+const server = http.createServer((req, res) => {
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.end(`<!doctype html><meta charset="utf-8">
+    <style>[hidden]{display:none!important}.el-popover{position:fixed;right:5px;top:5px;background:white}
+      canvas.fixed{position:fixed;inset:0;pointer-events:none}#record{margin-top:100px}</style>
+    <header id="app-header"><button class="setting-btn">Settings</button></header>
+    <div class="el-popover">点击这里查看 主题风格</div>
+    <div class="setting-modal"><div class="el-drawer" hidden>Native settings</div></div>
+    <input id="query" value="EXACT-CUSTOMER"><select id="category"><option value="company">企业</option></select>
+    <div id="record" data-record-id="121">Exact customer record 121</div><button id="business">Archive record</button>
+    <canvas id="business-chart" width="100" height="30"></canvas>
+    ${mode === 'no-canvas' || mode === 'guide-remains' ? '' : '<canvas id="decoration" class="fixed pointer-events-none" width="600" height="300"></canvas>'}
+    <script>
+      const mode = ${JSON.stringify(mode)};
+      window.businessClicks=0;window.settingsClicks=0;window.bursts=0;
+      const guide=document.querySelector('.el-popover'), drawer=document.querySelector('.el-drawer');
+      document.querySelector('.setting-btn').onclick=()=>{window.settingsClicks++;guide.hidden=true;drawer.hidden=false};
+      document.addEventListener('keydown',e=>{if(e.key==='Escape')drawer.hidden=true});
+      document.querySelector('#business').onclick=()=>window.businessClicks++;
+      const chart=document.querySelector('#business-chart').getContext('2d');chart.fillStyle='blue';chart.fillRect(0,0,100,30);
+      const canvas=document.querySelector('#decoration');
+      if(canvas){
+        const context=canvas.getContext('2d');
+        const burst=()=>{window.bursts++;context.fillStyle='red';context.fillRect(20,20,30,30)};
+        const clear=()=>{context.clearRect(0,0,600,300);window.lastClear=Date.now()};
+        burst();
+        if(mode!=='persistent'){
+          setTimeout(clear,100);
+          // A later native burst must restart the quiet interval, not be frozen or removed.
+          setTimeout(burst,900);setTimeout(clear,1100);
+        }
+      }
+    </script>`);
+});
+(async()=>{
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const browser=await chromium.launch({headless:true});
+  try{
+    const page=await browser.newPage({viewport:{width:600,height:400}});page.setDefaultTimeout(2500);
+    await page.goto('http://127.0.0.1:'+server.address().port);
+    if(mode!=='guide-remains')await dismissNativeThemeGuide(page);
+    if(mode==='persistent'){
+      await assert.rejects(waitNativeDecorationsFinished(page,{timeout:350,quiet:100}),/did not finish/);
+      assert(!fs.existsSync(filename));
+    }else if(mode==='guide-remains'){
+      await assert.rejects(captureNativeScreenshot(page,filename),/theme guide must be dismissed/);
+      assert(!fs.existsSync(filename));
+    }else{
+      await captureNativeScreenshot(page,filename);assert(fs.statSync(filename).size>1000);
+      assert.equal(await page.locator('.el-popover:visible').count(),0);
+      assert.equal(await page.locator('.el-drawer:visible').count(),0);
+    }
+    const state=await page.evaluate(()=>{
+      const canvas=document.querySelector('#decoration');
+      return {query:document.querySelector('#query').value,category:document.querySelector('#category').value,
+        record:document.querySelector('#record').dataset.recordId,businessClicks:window.businessClicks,
+        settingsClicks:window.settingsClicks,bursts:window.bursts,lastClear:window.lastClear,
+        canvasPresent:!!canvas,alpha:canvas?.getContext('2d').getImageData(20,20,1,1).data[3],
+        chartAlpha:document.querySelector('#business-chart').getContext('2d').getImageData(0,0,1,1).data[3]};
+    });
+    assert.equal(state.query,'EXACT-CUSTOMER');assert.equal(state.category,'company');assert.equal(state.record,'121');
+    assert.equal(state.businessClicks,0);assert.equal(state.chartAlpha,255);
+    assert.equal(state.settingsClicks,mode==='guide-remains'?0:1);
+    if(mode==='normal'){
+      assert.equal(state.bursts,2);assert(state.canvasPresent);assert.equal(state.alpha,0);
+      assert(Date.now()-state.lastClear>=2000,'Wait for natural completion and a full quiet interval');
+    }
+    if(mode==='persistent'){assert(state.canvasPresent);assert.equal(state.alpha,255)}
+    console.log('Native screenshot readiness verified: '+mode);
+  }finally{await browser.close();await new Promise(resolve=>server.close(resolve))}
+})().catch(error=>{console.error(error);server.close();process.exitCode=1});
+"""
+
+
+@pytest.mark.parametrize("mode", ["normal", "no-canvas", "persistent", "guide-remains"])
+def test_screenshot_waits_for_native_decorations_without_masking_business(tmp_path, mode):
+    module = os.getenv("PRODUCT_VERIFY_PLAYWRIGHT")
+    if not module or not Path(module).is_dir():
+        pytest.skip("Actual Playwright is required in Actions")
+    result = subprocess.run(
+        [shutil.which("node"), "-e", DRIVER, mode, module, str(tmp_path / "capture.png")],
+        cwd=ROOT,
+        env=clean_env({"PLAYWRIGHT_BROWSERS_PATH": "0"}),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=20,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_decoration_controls_and_query_capture_match_pinned_native_source():
+    with zipfile.ZipFile(ROOT / "templates/vendor/fastapiadmin.zip") as archive:
+        prefix = "frontend/web/src/"
+        header = archive.read(prefix + "layouts/fa-header-bar/index.vue").decode("utf-8")
+        drawer = archive.read(
+            prefix + "layouts/fa-settings-panel/widgets/FaSettingDrawer.vue"
+        ).decode("utf-8")
+        effect = archive.read(prefix + "layouts/fa-fireworks-effect/index.vue").decode("utf-8")
+        festival = archive.read(prefix + "config/modules/festival.builtin.ts").decode("utf-8")
+    assert 'class="setting-btn" @click="openSetting"' in header
+    assert "settingStore.hideSettingGuide();" in header
+    assert 'modal-class="setting-modal"' in drawer
+    assert "close-on-press-escape" not in drawer
+    assert 'class="fixed top-0 left-0 z-9999 w-full h-full pointer-events-none"' in effect
+    assert "ctx.value.clearRect(0, 0, this.canvasWidth, this.canvasHeight)" in effect
+    assert 'name: "国庆节"' in festival and "fireworkInterval: 850" in festival
+    source = (ROOT / "scripts/business_fastapi_browser.cjs").read_text(encoding="utf-8")
+    query_capture = source.split("report.query_journey =", 1)[1].split("report.checks.push", 1)[0]
+    assert "await capture(page, 'manager-customers-native-query-positive')" in query_capture
+    assert ".screenshot(" not in query_capture
+    assert "await dismissNativeThemeGuide(p)" in source
+    assert "getImageData" in source and "canvas.remove" not in source
 ````
 
 ### `tests/test_native_frontend_lifecycle.py`
@@ -77762,7 +77918,7 @@ if __name__ == "__main__":
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/business_fastapi_browser.cjs sha256: 8f93c7b3403bda16f9baa10113e2dffb35c906abc0f46cfbaa5d80a4b910838d -->
+<!-- source-file: scripts/business_fastapi_browser.cjs sha256: 8336be7de069e8ad49d9cd5e135c41680348cf4a067743b1daa7caebdd0eba77 -->
 ````javascript
 // Actual native sessions and rendered Fa/ElementPlus UI. No injected tokens or mocked routes.
 const fs = require('node:fs');
@@ -77827,6 +77983,57 @@ async function verifyNativeCustomerQuery(page, customer, category, capture = asy
     response_ids_exact: true, rendered_ids_exact: true, controls_reset: true };
 }
 
+async function dismissNativeThemeGuide(page) {
+  const guide = page.locator('.el-popover:visible').filter({ hasText: '点击这里查看' });
+  if (await guide.count()) {
+    // The pinned header dismisses its own first-use guide when Settings opens.
+    // Use that public control and the drawer's normal Escape-close behavior.
+    await page.locator('#app-header .setting-btn:visible').click();
+    const drawer = page.locator('.setting-modal .el-drawer:visible');
+    await drawer.waitFor({ state: 'visible' });
+    await page.keyboard.press('Escape');
+    await drawer.waitFor({ state: 'hidden' });
+    await guide.waitFor({ state: 'hidden' });
+  }
+}
+
+async function waitNativeDecorationsFinished(page, { timeout = 30000, quiet = 2000 } = {}) {
+  // Read only the pinned decorative canvas. Never hide it or alter the business
+  // DOM, settings store, clock, pixels or request data to manufacture a clean image.
+  const decoration = page.locator('canvas.fixed.pointer-events-none');
+  if (!await decoration.count()) return;
+  const deadline = Date.now() + timeout;
+  let emptySince = null;
+  while (Date.now() < deadline) {
+    const clear = await decoration.evaluateAll(canvases => canvases.every(canvas => {
+      if (!canvas.width || !canvas.height) return true;
+      if (canvas.width * canvas.height > 10000000) throw new Error('Native decorative canvas exceeds inspection bound');
+      const context = canvas.getContext('2d');
+      if (!context) return false;
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      for (let i = 3; i < pixels.length; i += 4) if (pixels[i]) return false;
+      return true;
+    }));
+    if (!clear) emptySince = null;
+    else if (emptySince === null) emptySince = Date.now();
+    else if (Date.now() - emptySince >= quiet) return;
+    await page.waitForTimeout(100);
+  }
+  throw new Error('Native decorative animation did not finish before screenshot');
+}
+
+async function captureNativeScreenshot(page, filename) {
+  for (const close of await page.locator('.el-notification__closeBtn:visible').all()) await close.click().catch(() => {});
+  await page.locator('.el-message:visible').first().waitFor({ state: 'hidden', timeout: 6000 });
+  const viewport = page.viewportSize();
+  if (viewport) await page.mouse.move(viewport.width - 20, viewport.height - 20);
+  await waitNativeDecorationsFinished(page);
+  assert.equal(await page.locator('.el-popover:visible').filter({ hasText: '点击这里查看' }).count(), 0,
+    'Native theme guide must be dismissed through Settings before capture');
+  await page.waitForTimeout(350);
+  await page.screenshot({ path: filename, fullPage: true, animations: 'disabled' });
+}
+
 async function main() {
   const [baseURL, reportDir, playwrightPath, scenarioJSON] = process.argv.slice(2);
   assert.equal(new URL(baseURL).hostname, '127.0.0.1');
@@ -77840,12 +78047,7 @@ async function main() {
   async function capture(p, label) {
     assert(/^[a-z0-9_-]+$/.test(label));
     const filename = label + '.png';
-    for (const close of await p.locator('.el-notification__closeBtn:visible').all()) await close.click().catch(() => {});
-    await p.locator('.el-message:visible').first().waitFor({ state: 'hidden', timeout: 6000 });
-    const viewport = p.viewportSize();
-    if (viewport) await p.mouse.move(viewport.width - 20, viewport.height - 20);
-    await p.waitForTimeout(350);
-    await p.screenshot({ path: path.join(reportDir, filename), fullPage: true, animations: 'disabled' });
+    await captureNativeScreenshot(p, path.join(reportDir, filename));
     report.screenshots.push(filename);
   }
   let page;
@@ -77897,6 +78099,7 @@ async function main() {
     const config = await checked(await configResponse);
     assert.equal(config.actor.role, role.includes('employee') ? 'employee' : role.includes('service') ? 'service' : 'manager');
     for (const selector of ['#app-sidebar', '#app-header', '#app-content', '.fa-table']) await p.locator(selector).first().waitFor({ state: 'visible' });
+    await dismissNativeThemeGuide(p);
     assert.equal(await p.locator('#workspace').count(), 0);
     const theme = await p.evaluate(() => {
       const css = getComputedStyle(document.documentElement);
@@ -77971,9 +78174,7 @@ async function main() {
     report.checks.push('manager:customer_native_form_create');
     const category = scenario.plan.entities.find(entity => entity.name === 'customers').fields.find(field => field.name === 'category');
     report.query_journey = await verifyNativeCustomerQuery(page, customer, category, async () => {
-      const filename = 'manager-customers-native-query-positive.png';
-      await page.screenshot({ path: path.join(reportDir, filename), fullPage: true, animations: 'disabled' });
-      report.screenshots.push(filename);
+      await capture(page, 'manager-customers-native-query-positive');
     });
     report.checks.push('manager:customers:native-query-and-exact-filter');
     await page.getByTestId('update-' + customer.id).click();
@@ -78071,7 +78272,7 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, verifyNativeCustomerQuery };
+module.exports = { main, verifyNativeCustomerQuery, dismissNativeThemeGuide, waitNativeDecorationsFinished, captureNativeScreenshot };
 if (require.main === module) main().catch(error => { console.error(error.name + ': native business UI acceptance failed'); process.exitCode = 1; });
 ````
 
