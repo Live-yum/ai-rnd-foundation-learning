@@ -1,0 +1,736 @@
+{
+  "passed": false,
+  "real_provider_attempted": true,
+  "acceptance_scope": "full_workflow",
+  "model": "deepseek-flash",
+  "endpoint": "https://api.deepseek.com",
+  "run_identity": [
+    "36899875461",
+    "1",
+    "d3ea6848360054bc83792bb5c6defbe34409b0a9"
+  ],
+  "smoke": {
+    "passed": true,
+    "http_status": 200,
+    "actual_provider_request": true
+  },
+  "failure_phase": "workflow",
+  "failure_code": "workflow_not_ready",
+  "failure_details": {
+    "model_stages": [
+      {
+        "stage": "recommend",
+        "completed": true,
+        "questions_count": 0,
+        "unsupported_count": 0,
+        "field_requirements_count": 19
+      },
+      {
+        "stage": "plan",
+        "completed": true,
+        "unsupported_count": 0
+      },
+      {
+        "stage": "plan",
+        "completed": true,
+        "unsupported_count": 0
+      },
+      {
+        "stage": "plan",
+        "completed": true,
+        "unsupported_count": 0
+      }
+    ],
+    "terminal_state": "BLOCKED",
+    "runtime_diagnostics": {
+      "error_excerpt": "\u667a\u80fd\u63a8\u8350\u5df2\u6682\u505c\uff08design\uff09\uff1a\u8bbe\u8ba1\u672a\u8986\u76d6\u5df2\u786e\u8ba4\u7684 searchable: \u5ba2\u6237\u5173\u952e\u8bcd\u641c\u7d22\u8986\u76d6 name/organization/contact\uff0ccategory \u53ef\u6309\u4f01\u4e1a/\u4e2a\u4eba/\u5408\u4f5c\u4f19\u4f34\u7cbe\u786e\u7b5b\u9009\uff1b\u8bbe\u8ba1\u672a\u8986\u76d6\u5df2\u786e\u8ba4\u7684 filterable: \u5ba2\u6237\u5173\u952e\u8bcd\u641c\u7d22\u8986\u76d6 name/organization/contact\uff0ccategory \u53ef\u6309\u4f01\u4e1a/\u4e2a\u4eba/\u5408\u4f5c\u4f19\u4f34\u7cbe\u786e\u7b5b\u9009\uff1b\u8bbe\u8ba1\u672a\u8986\u76d6\u5df2\u786e\u8ba4\u7684 searchable: \u8bf7\u6c42\u5173\u952e\u8bcd\u641c\u7d22\u8986\u76d6 title/detail\uff0cpriority \u53ef\u6309\u666e\u901a/\u7d27\u6025\u7cbe\u786e\u7b5b\u9009\u3002\u672c\u9636\u6bb5\u4e24\u8f6e\u81ea\u52a8\u4fee\u6b63\u4ecd\u672a\u901a\u8fc7\uff0c\u672a\u8df3\u8fc7\u9a8c\u6536\u3002\u4f7f\u7528 uv run rnd chat --run 7e7ceaa7-60f1-4755-8a64-3c7b72c4055f \u67e5\u770b\u963b\u585e\u8be6\u60c5\uff0c\u53ef\u7ee7\u7eed\u63a8\u8350\u3001\u8865\u5145\u8981\u6c42\u6216\u5207\u6362\u624b\u52a8\uff1b\u65e0\u9700\u65b0\u5efa\u8fd0\u884c\u3002"
+    },
+    "pending_stage": "design",
+    "model_calls": 4,
+    "valid_plan_present": true,
+    "business_contract_present": true,
+    "business_counts": {
+      "roles": 3,
+      "resources": 3,
+      "relations": 4,
+      "permissions": 9,
+      "workflows": 2,
+      "notifications": 14,
+      "metrics": 5
+    },
+    "plan_contract": [
+      {
+        "name": "customers",
+        "fields": [
+          {
+            "name": "name",
+            "required": true,
+            "searchable": true,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 120,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "organization",
+            "required": false,
+            "searchable": true,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 160,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "contact",
+            "required": false,
+            "searchable": true,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "category",
+            "required": true,
+            "searchable": false,
+            "filterable": true,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "enum",
+            "choices_count": 3
+          }
+        ]
+      },
+      {
+        "name": "requests",
+        "fields": [
+          {
+            "name": "title",
+            "required": true,
+            "searchable": true,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "detail",
+            "required": true,
+            "searchable": true,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 3000,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "customer_id",
+            "required": true,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "assignee_id",
+            "required": false,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "request_state",
+            "required": true,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "enum",
+            "choices_count": 3
+          },
+          {
+            "name": "resolved_at",
+            "required": false,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "datetime",
+            "choices_count": 0
+          },
+          {
+            "name": "due_at",
+            "required": false,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "datetime",
+            "choices_count": 0
+          },
+          {
+            "name": "priority",
+            "required": true,
+            "searchable": false,
+            "filterable": true,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "enum",
+            "choices_count": 2
+          }
+        ]
+      },
+      {
+        "name": "tasks",
+        "fields": [
+          {
+            "name": "title",
+            "required": true,
+            "searchable": true,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "detail",
+            "required": true,
+            "searchable": true,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 3000,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "request_id",
+            "required": true,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "assignee_id",
+            "required": false,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "task_state",
+            "required": true,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "enum",
+            "choices_count": 3
+          },
+          {
+            "name": "resolved_at",
+            "required": false,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "datetime",
+            "choices_count": 0
+          },
+          {
+            "name": "due_at",
+            "required": false,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "datetime",
+            "choices_count": 0
+          }
+        ]
+      }
+    ],
+    "requirement_contract": [
+      {
+        "name": "name",
+        "entity": "customers",
+        "required": true,
+        "searchable": true,
+        "min_length": 0,
+        "max_length": 120,
+        "kind": "text"
+      },
+      {
+        "name": "organization",
+        "entity": "customers",
+        "required": false,
+        "searchable": true,
+        "min_length": 0,
+        "max_length": 160,
+        "kind": "text"
+      },
+      {
+        "name": "contact",
+        "entity": "customers",
+        "required": false,
+        "searchable": true,
+        "min_length": 0,
+        "max_length": 200,
+        "kind": "text"
+      },
+      {
+        "name": "category",
+        "entity": "customers",
+        "required": true,
+        "searchable": false,
+        "filterable": true,
+        "kind": "enum",
+        "choices_count": 3
+      },
+      {
+        "name": "title",
+        "entity": "requests",
+        "required": true,
+        "searchable": true,
+        "min_length": 0,
+        "max_length": 200,
+        "kind": "text"
+      },
+      {
+        "name": "detail",
+        "entity": "requests",
+        "required": true,
+        "searchable": true,
+        "min_length": 0,
+        "max_length": 3000,
+        "kind": "text"
+      },
+      {
+        "name": "customer_id",
+        "entity": "requests",
+        "required": true,
+        "searchable": false,
+        "filterable": false,
+        "kind": "text"
+      },
+      {
+        "name": "assignee_id",
+        "entity": "requests",
+        "required": false,
+        "searchable": false,
+        "filterable": false,
+        "kind": "text"
+      },
+      {
+        "name": "request_state",
+        "entity": "requests",
+        "required": true,
+        "searchable": false,
+        "kind": "enum",
+        "choices_count": 3
+      },
+      {
+        "name": "resolved_at",
+        "entity": "requests",
+        "required": false,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "kind": "datetime"
+      },
+      {
+        "name": "due_at",
+        "entity": "requests",
+        "required": false,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "kind": "datetime"
+      },
+      {
+        "name": "priority",
+        "entity": "requests",
+        "required": true,
+        "searchable": false,
+        "filterable": true,
+        "kind": "enum",
+        "choices_count": 2
+      },
+      {
+        "name": "title",
+        "entity": "tasks",
+        "required": true,
+        "searchable": true,
+        "min_length": 0,
+        "max_length": 200,
+        "kind": "text"
+      },
+      {
+        "name": "detail",
+        "entity": "tasks",
+        "required": true,
+        "searchable": true,
+        "min_length": 0,
+        "max_length": 3000,
+        "kind": "text"
+      },
+      {
+        "name": "request_id",
+        "entity": "tasks",
+        "required": true,
+        "searchable": false,
+        "filterable": false,
+        "kind": "text"
+      },
+      {
+        "name": "assignee_id",
+        "entity": "tasks",
+        "required": false,
+        "searchable": false,
+        "filterable": false,
+        "kind": "text"
+      },
+      {
+        "name": "task_state",
+        "entity": "tasks",
+        "required": true,
+        "searchable": false,
+        "kind": "enum",
+        "choices_count": 3
+      },
+      {
+        "name": "resolved_at",
+        "entity": "tasks",
+        "required": false,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "kind": "datetime"
+      },
+      {
+        "name": "due_at",
+        "entity": "tasks",
+        "required": false,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "kind": "datetime"
+      }
+    ],
+    "unsupported_excerpts": [],
+    "coverage_reason_excerpts": [
+      "\u8bbe\u8ba1\u672a\u8986\u76d6\u5df2\u786e\u8ba4\u7684 searchable: \u5ba2\u6237\u5173\u952e\u8bcd\u641c\u7d22\u8986\u76d6 name/organization/contact\uff0ccategory \u53ef\u6309\u4f01\u4e1a/\u4e2a\u4eba/\u5408\u4f5c\u4f19\u4f34\u7cbe\u786e\u7b5b\u9009",
+      "\u8bbe\u8ba1\u672a\u8986\u76d6\u5df2\u786e\u8ba4\u7684 filterable: \u5ba2\u6237\u5173\u952e\u8bcd\u641c\u7d22\u8986\u76d6 name/organization/contact\uff0ccategory \u53ef\u6309\u4f01\u4e1a/\u4e2a\u4eba/\u5408\u4f5c\u4f19\u4f34\u7cbe\u786e\u7b5b\u9009",
+      "\u8bbe\u8ba1\u672a\u8986\u76d6\u5df2\u786e\u8ba4\u7684 searchable: \u8bf7\u6c42\u5173\u952e\u8bcd\u641c\u7d22\u8986\u76d6 title/detail\uff0cpriority \u53ef\u6309\u666e\u901a/\u7d27\u6025\u7cbe\u786e\u7b5b\u9009"
+    ],
+    "coverage_sources": [
+      {
+        "code": "uncovered_operation",
+        "source": {
+          "section": "acceptance",
+          "index": 1,
+          "clause": 0
+        },
+        "source_markers": [
+          "search",
+          "filter"
+        ],
+        "targets": [
+          {
+            "entity": "customers",
+            "field": "name"
+          },
+          {
+            "entity": "customers",
+            "field": "organization"
+          },
+          {
+            "entity": "customers",
+            "field": "contact"
+          },
+          {
+            "entity": "customers",
+            "field": "category"
+          }
+        ],
+        "attribute": "searchable",
+        "expected": true,
+        "actual": false,
+        "source_excerpt": "\u5ba2\u6237\u5173\u952e\u8bcd\u641c\u7d22\u8986\u76d6 name/organization/contact\uff0ccategory \u53ef\u6309\u4f01\u4e1a/\u4e2a\u4eba/\u5408\u4f5c\u4f19\u4f34\u7cbe\u786e\u7b5b\u9009\uff1b\u5ba2\u6237\u53ef\u88ab\u521b\u5efa\u3001\u4fee\u6539\u3001\u67e5\u8be2\u4e0e\u5f52\u6863\uff0c\u4e14\u5f52\u6863\u4fdd\u7559\u5f15\u7528\u4e0e\u5386\u53f2"
+      },
+      {
+        "code": "uncovered_operation",
+        "source": {
+          "section": "acceptance",
+          "index": 1,
+          "clause": 0
+        },
+        "source_markers": [
+          "search",
+          "filter"
+        ],
+        "targets": [
+          {
+            "entity": "customers",
+            "field": "name"
+          },
+          {
+            "entity": "customers",
+            "field": "organization"
+          },
+          {
+            "entity": "customers",
+            "field": "contact"
+          },
+          {
+            "entity": "customers",
+            "field": "category"
+          }
+        ],
+        "attribute": "filterable",
+        "expected": true,
+        "actual": false,
+        "source_excerpt": "\u5ba2\u6237\u5173\u952e\u8bcd\u641c\u7d22\u8986\u76d6 name/organization/contact\uff0ccategory \u53ef\u6309\u4f01\u4e1a/\u4e2a\u4eba/\u5408\u4f5c\u4f19\u4f34\u7cbe\u786e\u7b5b\u9009\uff1b\u5ba2\u6237\u53ef\u88ab\u521b\u5efa\u3001\u4fee\u6539\u3001\u67e5\u8be2\u4e0e\u5f52\u6863\uff0c\u4e14\u5f52\u6863\u4fdd\u7559\u5f15\u7528\u4e0e\u5386\u53f2"
+      },
+      {
+        "code": "uncovered_operation",
+        "source": {
+          "section": "acceptance",
+          "index": 2,
+          "clause": 0
+        },
+        "source_markers": [
+          "search",
+          "filter"
+        ],
+        "targets": [
+          {
+            "entity": "requests",
+            "field": "priority"
+          }
+        ],
+        "attribute": "searchable",
+        "expected": true,
+        "actual": false,
+        "source_excerpt": "\u8bf7\u6c42\u5173\u952e\u8bcd\u641c\u7d22\u8986\u76d6 title/detail\uff0cpriority \u53ef\u6309\u666e\u901a/\u7d27\u6025\u7cbe\u786e\u7b5b\u9009\uff1bcustomer_id \u4e3a\u6821\u9a8c\u578b\u5173\u8054\u800c\u975e\u81ea\u7531\u5907\u6ce8\u6587\u672c\uff0c\u5c55\u793a\u4e3a\u53ef\u8bfb\u5ba2\u6237\u540d\u79f0"
+      }
+    ],
+    "native_plan_validation": {
+      "code": "valid",
+      "entity_labels": [
+        {
+          "entity": "customers",
+          "length": 4,
+          "single_line": true,
+          "allowed_characters": true,
+          "valid_length": true
+        },
+        {
+          "entity": "requests",
+          "length": 4,
+          "single_line": true,
+          "allowed_characters": true,
+          "valid_length": true
+        },
+        {
+          "entity": "tasks",
+          "length": 4,
+          "single_line": true,
+          "allowed_characters": true,
+          "valid_length": true
+        }
+      ]
+    },
+    "error_categories": [
+      "requirement_coverage"
+    ],
+    "coverage_block_count": 3,
+    "coverage_diagnostics": [
+      {
+        "codes": [
+          "uncovered_operation"
+        ],
+        "origin": "requirement_coverage",
+        "attributes": [
+          "searchable"
+        ],
+        "fields": [
+          "category",
+          "contact",
+          "name",
+          "organization"
+        ]
+      },
+      {
+        "codes": [
+          "uncovered_operation"
+        ],
+        "origin": "requirement_coverage",
+        "attributes": [
+          "filterable"
+        ],
+        "fields": [
+          "category",
+          "contact",
+          "name",
+          "organization"
+        ]
+      },
+      {
+        "codes": [
+          "uncovered_operation"
+        ],
+        "origin": "requirement_coverage",
+        "attributes": [
+          "searchable"
+        ],
+        "fields": [
+          "detail",
+          "priority",
+          "title"
+        ]
+      }
+    ],
+    "unsupported_diagnostics": [],
+    "coverage_fields": [
+      "category",
+      "contact",
+      "detail",
+      "name",
+      "organization",
+      "priority",
+      "title"
+    ],
+    "approved_plan_replay": {
+      "status": "unavailable"
+    },
+    "unapproved_design_replay": {
+      "status": "saved",
+      "file": "unapproved-design-contract.json",
+      "approval_status": "unapproved",
+      "execution_authorized": false,
+      "bytes": 48576,
+      "sha256": "142534113f2fbf6a0f1dd6e1593279aac23ca2468ba733dab08cc85a9a6a9d4e"
+    }
+  },
+  "actual_http_calls": 5,
+  "provider_statuses": [
+    200,
+    200,
+    200,
+    200,
+    200
+  ],
+  "provider_receipts": [
+    {
+      "http_status": 200,
+      "stage": "recommend",
+      "finish_reason": "stop",
+      "content_present": true,
+      "reasoning_present": true,
+      "usage": {
+        "prompt_tokens": 9705,
+        "completion_tokens": 13013,
+        "total_tokens": 22718
+      },
+      "schema_valid": true,
+      "provider": "deepseek",
+      "output_mode": "json_object",
+      "format_reason": "provider_json_mode",
+      "contract_version": 2,
+      "structured_output": "langchain.with_structured_output",
+      "requested_output_mode": "json_object"
+    },
+    {
+      "http_status": 200,
+      "stage": "plan",
+      "finish_reason": "stop",
+      "content_present": true,
+      "reasoning_present": true,
+      "usage": {
+        "prompt_tokens": 16813,
+        "completion_tokens": 6276,
+        "total_tokens": 23089
+      },
+      "schema_valid": true,
+      "provider": "deepseek",
+      "output_mode": "json_object",
+      "format_reason": "provider_json_mode",
+      "contract_version": 2,
+      "structured_output": "langchain.with_structured_output",
+      "requested_output_mode": "json_object"
+    },
+    {
+      "http_status": 200,
+      "stage": "plan",
+      "finish_reason": "stop",
+      "content_present": true,
+      "reasoning_present": true,
+      "usage": {
+        "prompt_tokens": 21156,
+        "completion_tokens": 12904,
+        "total_tokens": 34060
+      },
+      "schema_valid": true,
+      "provider": "deepseek",
+      "output_mode": "json_object",
+      "format_reason": "provider_json_mode",
+      "contract_version": 2,
+      "structured_output": "langchain.with_structured_output",
+      "requested_output_mode": "json_object"
+    },
+    {
+      "http_status": 200,
+      "stage": "plan",
+      "finish_reason": "stop",
+      "content_present": true,
+      "reasoning_present": true,
+      "usage": {
+        "prompt_tokens": 20907,
+        "completion_tokens": 5844,
+        "total_tokens": 26751
+      },
+      "schema_valid": true,
+      "provider": "deepseek",
+      "output_mode": "json_object",
+      "format_reason": "provider_json_mode",
+      "contract_version": 2,
+      "structured_output": "langchain.with_structured_output",
+      "requested_output_mode": "json_object"
+    }
+  ]
+}

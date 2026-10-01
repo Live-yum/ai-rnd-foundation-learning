@@ -67,6 +67,17 @@ DeepSeek 真实验收仍使用已批准的 `deepseek-flash`，不改用户模型
 
 类型/Schema正确仍不等于需求满足。`flow.py` 的已批准事实、逐字段覆盖、角色权限/关联/工作流/提醒/统计关卡与编译、API、真实浏览器验收全部保留。结构化输出不能代替用户批准或产品测试。
 
+查询义务按“实体、字段、属性”分别核对：`true` 与 `false` 都是明确约束，`null` 或缺失只表示未知。
+旧自然语言里的前置/后置查询动词只绑定同一局部字段列表，不能把逗号后分类精确筛选
+反套到逗号前关键词字段，也不能因已有一个类型化属性就跳过同一字段的其他属性。
+明确且真正矛盾的查询要求仍阻塞，不将未知值默认成 `false`。
+
+权限列表的 Pydantic 字段说明与需求分析提示同时强调 grant-only：未列出的动作不被授权，
+多角色共用一个动作的叙述必须取各角色授权的交集，不能取并集。验收说明据同一权限表生成，
+不得为了满足模型自行增加的概括而扩权。这是通过现有框架 Schema/提示施加的生成约束，
+不是确定性证明任意自然语言都与权限表一致，也没有新增中文 ACL 解析器。
+独立审阅仍会阻塞实际语义分歧；不能用 Schema 合法、运行测试通过或关闭审阅来抹掉已记录缺口。
+
 ## 缓存与回执
 
 缓存键加入结构化契约版本、框架模式、预算、模型、端点和原需求/Schema。旧版本输出不会被当成新协议下已验证结果。新的成功记录及失败尝试都包含 provider、output_mode、format_reason、contract_version；失败只记录有限安全错误码和尝试序号，不持久化原始拒绝、响应或密钥。运行模型回执接口返回两类记录，旧记录标为legacy。
@@ -74,7 +85,7 @@ DeepSeek 真实验收仍使用已批准的 `deepseek-flash`，不改用户模型
 ## 离线验证
 
 ```bash
-uv run pytest tests/test_provider_structured_outputs.py tests/test_llm.py tests/test_guided_models.py -q
+uv run pytest tests/test_provider_structured_outputs.py tests/test_llm.py tests/test_guided_models.py tests/test_permission_analysis_contract.py tests/test_query_obligation_pairing.py -q
 ```
 
 测试使用真正的官方集成和 `with_structured_output`，只在最终HTTP层注入MockTransport。覆盖共同请求格式、原模型ID不替换、动态事实保真、严格类型、业务约束、拒绝/截断/过滤/空内容、畸形信封、错误回执、无隐式SDK重试、阶段隔离和缓存变更。OpenAI线上可用性保持未验证；真实DeepSeek结果必须另引用相同提交的实际验收运行。

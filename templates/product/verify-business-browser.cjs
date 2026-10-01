@@ -2,6 +2,19 @@
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
 const path = require('node:path');
+function browserFailure(error) {
+  // Retain the failing static operation/callsite, never Playwright's raw DOM,
+  // URLs, credentials, values, absolute paths or complete error/stack text.
+  const message=String(error?.message||'');
+  const code=/^business-browser-[a-z0-9-]{1,100}$/.test(message)?message:
+    /^[A-Za-z]{1,40}Error$/.test(error?.name||'')?error.name:'BusinessBrowserFailure';
+  const operation=message.match(/^(locator\.(?:click|fill|waitFor|selectOption|evaluate|evaluateAll|innerText|inputValue)|page\.(?:goto|waitForURL|waitForFunction|waitForResponse|waitForEvent|waitForLoadState|screenshot)):/)?.[1]||null;
+  const callsites=[...String(error?.stack||'').matchAll(/(?:^|[\\/])verify-business-browser\.cjs:(\d{1,6}):(\d{1,6})(?=[)\s]|$)/gm)]
+    .slice(0,5).map(match=>({line:Number(match[1]),column:Number(match[2])}));
+  return code+' '+JSON.stringify({source:'verify-business-browser.cjs',operation,callsites});
+}
+module.exports={browserFailure};
+if(require.main===module) {
 const [configFile, modulePath] = process.argv.slice(2);
 const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
 (async () => {
@@ -464,4 +477,5 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
     assert.deepEqual(errors,[]);
     fs.writeFileSync(cfg.output,JSON.stringify({passed:true,real_browser:true,entities:cfg.spec.entities.map(e=>e.name),spec_digest:cfg.spec_digest,checks:[...checks],errors,evidence,screenshots:[...screenshots.values()]}));
   }finally{await browser.close();}
-})().catch(error=>{console.error(/^business-browser-[a-z0-9-]+$/.test(error?.message||'')?error.message:error?.name||'BusinessBrowserFailure');process.exitCode=1;});
+})().catch(error=>{console.error(browserFailure(error));process.exitCode=1;});
+}

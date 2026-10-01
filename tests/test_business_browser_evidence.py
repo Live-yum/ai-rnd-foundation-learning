@@ -230,6 +230,8 @@ def test_browser_fault_injection_cannot_claim_customer_evidence(tmp_path, fault,
     result, report = run_browser_gate(tmp_path, customer_plan(), fault)
     assert result.returncode != 0 and report["passed"] is False, report
     assert "business-browser-" + failure in report["message"], report
+    assert '"source":"verify-business-browser.cjs"' in report["message"]
+    assert '"callsites":[{"line":' in report["message"]
 
 
 def test_generic_business_browser_uses_declared_display_fields(tmp_path):

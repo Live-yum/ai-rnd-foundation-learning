@@ -1565,11 +1565,66 @@ def _operation_parts(text):
         elif char in "）)]】":
             depth = max(0, depth - 1)
     start = 0
-    for match in re.finditer(r"、|并且|并|且|和|与", text):
+    for match in re.finditer(r"[、，,]|并且|并|且|和|与", text):
         if not depths[match.start()]:
             yield text[start : match.start()]
             start = match.end()
     yield text[start:]
+
+
+def _query_operation_groups(text, fields, operations):
+    """Bind a target list to its local prefix or suffix operator.
+
+    A prefix operator owns following bare targets until another operator starts;
+    a suffix operator owns preceding bare targets. Completed field descriptors
+    are not a pending target list. This partitions syntax, not typed obligations.
+    """
+    operation = re.compile("|".join(operations.values()), re.I)
+    pending, prefix = [], []
+    for part in _operation_parts(text):
+        marker = operation.search(part)
+        if marker is None:
+            if prefix:
+                prefix.append(part)
+            elif list(_legacy_scalar_constraints(part)) or "（）" in part:
+                if pending:
+                    yield " ".join(pending)
+                    pending = []
+                yield part
+            else:
+                pending.append(part)
+            continue
+        names = {field.name for field in _fact_candidates(part, fields)}
+        names.update(
+            alias
+            for aliases in ALIASES.values()
+            if names.intersection(aliases)
+            for alias in aliases
+        )
+        positions = [
+            match.start()
+            for name in names
+            for match in re.finditer(
+                rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])"
+                if name.isascii()
+                else re.escape(name),
+                part,
+                re.I,
+            )
+        ]
+        is_prefix = marker.start() < min(positions, default=len(part))
+        if prefix:
+            yield " ".join(prefix)
+            prefix = []
+        if is_prefix:
+            if pending:
+                yield " ".join(pending)
+            prefix = [part]
+        else:
+            yield " ".join([*pending, part])
+        pending = []
+    if prefix or pending:
+        yield " ".join([*prefix, *pending])
 
 
 _METRIC_CONTEXT = re.compile(
@@ -1907,6 +1962,7 @@ _DATE_TYPE = re.compile(
     re.I,
 )
 _DATE_FORMAT = re.compile(r"YYYY-MM-DD|日期格式|\bdate[_ ]format\b", re.I)
+_DATE_RANGE_OPERATOR = re.compile(r"日期区间|日期范围|date.?range", re.I)
 _DATE_INPUT = re.compile(r"输入|录入|校验|验证|拒绝保存|\b(?:input|validate|validation)\b", re.I)
 _DATE_NEGATIVE = re.compile(
     r"无需|不需要|不要求|不使用|不采用|不添加|不提供|不要|没有|无|不是|并非|取消|禁止|"
@@ -2219,8 +2275,17 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
     """
     gaps = entity_gaps(requirement, plan, diagnostics=diagnostics)
     fields = [(entity.name, field) for entity in plan.entities for field in entity.fields]
+    typed_queries = {}
     source = {"section": "data_scope"}
     source_text = ""
+
+    def query_matches(field, attribute, expected):
+        key = (id(field), attribute, expected)
+        if key in typed_queries:
+            return typed_queries[key]
+        # None/missing typed values and a genuinely different source value are
+        # still checked. Reusing a typed result keeps every failure's provenance.
+        return getattr(field, attribute) is expected
 
     def gap(message, code, *, targets=(), attribute=None, expected=None, actual=None):
         gaps.append(message)
@@ -2275,7 +2340,10 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
             if key in {"field", "entity"} or value is None:
                 continue
             actual = getattr(field, key)
-            if not _matches_constraint(key, value, actual):
+            matches_constraint = _matches_constraint(key, value, actual)
+            if key in {"searchable", "filterable", "date_range"} and type(value) is bool:
+                typed_queries[(id(field), key, value)] = matches_constraint
+            if not matches_constraint:
                 gap(
                     f"已确认字段 {label}.{key}={value!r}，设计为 {actual!r}",
                     "constraint_mismatch",
@@ -2469,7 +2537,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
             for attribute, expected in constraints:
                 for field in targets:
                     actual = getattr(field, attribute)
-                    if actual is not expected:
+                    if not query_matches(field, attribute, expected):
                         gap(
                             f"已确认字段 {field.name}.{attribute}={expected!r}，设计不一致: {clause}",
                             "constraint_mismatch",
@@ -2522,6 +2590,24 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
                 _DATE_TYPE.search(text) or _DATE_FORMAT.search(text)
             ):
                 continue
+            if canonical == "published_on":
+                spans = [match.span() for match in _DATE_RANGE_OPERATOR.finditer(text)]
+                subjects = [
+                    match
+                    for alias in aliases
+                    for match in re.finditer(
+                        rf"(?<![a-z0-9_]){re.escape(alias)}(?![a-z0-9_])"
+                        if alias.isascii()
+                        else re.escape(alias),
+                        text,
+                        re.I,
+                    )
+                    if not any(
+                        start <= match.start() and match.end() <= end for start, end in spans
+                    )
+                ]
+                if spans and not subjects:
+                    continue  # A query operator's name is not an extra field declaration.
             if _field_mentions(text, aliases):
                 matches = [f for f in known_subjects if f.name in aliases]
                 # Generic words such as 内容/分类 in a business summary are
@@ -2551,21 +2637,18 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
         if re.search(operations["searchable"], text, re.I) and re.search(
             operations["filterable"], text, re.I
         ):
-            # In a capability list, nouns in the filtering clause are not
-            # search targets. Carry noun-only pieces forward so "标题、正文
-            # 搜索" still binds both fields to search rather than losing one.
-            operation_parts, pending = [], []
-            for part in _operation_parts(text):
-                pending.append(part)
-                if any(re.search(pattern, part, re.I) for pattern in operations.values()):
-                    operation_parts.append("".join(pending))
-                    pending = []
-            if pending:
-                operation_parts.append("".join(pending))
+            operation_parts = list(_query_operation_groups(text, fields, operations))
         previous_targets = []
         for part in operation_parts:
-            targets = _legacy_targets(part, fields) if part != text else mentioned
-            ambiguous_subject = not targets and bool(_fact_candidates(part, fields))
+            entity_scope = _fact_entity(part, fields) or _fact_entity(text, fields)
+            bound = part
+            if part != text and _fact_entity(part, fields) is None:
+                if entity_scope:
+                    bound = f"{entity_scope}::{part}"
+                elif _ALL_ENTITIES.search(text):
+                    bound = f"所有实体 {part}"
+            targets = _legacy_targets(bound, fields) if part != text else mentioned
+            ambiguous_subject = not targets and bool(_fact_candidates(bound, fields))
             # An operation-only continuation (标题搜索和精确筛选) inherits
             # the previous named subject; another field cannot satisfy it.
             if (
@@ -2579,7 +2662,6 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
                 targets = previous_targets
             if targets:
                 previous_targets = targets
-            entity_scope = _fact_entity(part, fields) or _fact_entity(text, fields)
             available = [
                 f for entity, f in fields if entity_scope is None or entity == entity_scope
             ]
@@ -2595,7 +2677,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
                     ]
                 if not targets:
                     candidates = available
-                    if not any(getattr(f, flag) for f in candidates):
+                    if not any(query_matches(f, flag, True) for f in candidates):
                         gap(
                             f"设计未覆盖已确认的 {flag}: {part}",
                             "uncovered_operation",
@@ -2604,7 +2686,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
                             expected=True,
                             actual=False,
                         )
-                elif not candidates or any(not getattr(f, flag) for f in candidates):
+                elif not candidates or any(not query_matches(f, flag, True) for f in candidates):
                     gap(
                         f"设计未覆盖已确认的 {flag}: {part}",
                         "uncovered_operation",

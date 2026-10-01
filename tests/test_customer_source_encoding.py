@@ -42,6 +42,8 @@ SOURCE_READERS = (
     "tests/test_requirement_clause_semantics.py",
     "tests/test_entity_group_clause_scope.py",
     "tests/test_permission_contract_equivalence.py",
+    "tests/test_permission_analysis_contract.py",
+    "tests/test_query_obligation_pairing.py",
     "tests/test_requirement_source_conflicts.py",
     "tests/test_real_model_source_conflict_diagnostics.py",
     "workbench/requirement_sources.py",

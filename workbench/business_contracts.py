@@ -59,7 +59,15 @@ class RelationSpec(BusinessContract):
 class PermissionSpec(BusinessContract):
     role: Name
     entity: Name
-    actions: list[Action] = Field(min_length=1, max_length=10)
+    actions: list[Action] = Field(
+        min_length=1,
+        max_length=10,
+        description=(
+            "Exhaustive grant-only actions for this role and entity; absent actions stay denied. "
+            "A statement about several roles may claim only the intersection of their grants, "
+            "never their union. Acceptance prose must not invent additional grants."
+        ),
+    )
     scope: Literal["all", "own", "assigned"]
 
 

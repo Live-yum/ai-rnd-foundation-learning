@@ -34,6 +34,8 @@ unsupported 仅记录用户原始目标或明确修正中仍要求实现、但�
 用户明确要求采集或公开访问时则必须保留为 unsupported，不能移到 limitations 以绕过；智能推荐不是删减明确需求的授权。
 resolution_feedback 是上轮未通过的具体问题。逐项复核其是否来自用户明确要求；区分旧模型推测与事实。
 resolution_feedback.analysis_diagnostics 是需求分析自身的来源冲突，不是设计缺口。依据 original_request、fresh_user_corrections 和 current_requirement 修正完整分析；rejected_analysis 是未通过的模型候选，不是已确认需求。不得选择性删除用户原文、以智能推荐覆盖明确值或要求 Plan 同时满足矛盾值。
+业务权限以完整的 grant-only 契约逐角色、逐实体列出，未列出的动作仍拒绝。features/acceptance 的权限叙述必须从同一权限表展开；多个角色共享一个动作时，必须逐个确认均有该授权，取共同动作而非权限并集。
+不要因角色都能查询、处理或转换状态就概括为都能创建、分配或管理权限。未经用户提出的概括与权限表冲突时，应修正分析叙述，不得为凑齐叙述而扩大权限；用户明确要求但尚未覆盖的动作仍须保留原文并解决，不能静默删除。
 自主模式下对可支持且未明确的分歧做出选择并在 facts/recommendations 解释，questions 留空；真正无法实现的要求仍诚实阻塞。
 模板“可用能力”是环境元数据，不是用户请求；不要把整份搜索/筛选/日期范围能力表复制到features、acceptance或业务facts。只把原始目标明确要求或用户已授权的具体选择写成义务；分类精确筛选与关键词搜索分别记录目标字段，不因同句出现就要求分类字段参与关键词搜索。
 field_requirements记录每个已明确字段的可执行约束：field/entity、类型、必填、长度、选项、搜索/筛选/日期范围；未知值留null。多个实体有同名字段时entity必须明确。required=true不等价于min_length=1，未指定最小长度时不要推测为1。datetime只表示时间戳，不支持date_range=true；业务完成时间和截止时间默认不搜索、不筛选。created_at/updated_at/id/owner_id由运行时提供，不能声明为用户字段。
