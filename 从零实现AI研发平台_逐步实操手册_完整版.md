@@ -2535,6 +2535,12 @@ FastapiAdmin将模板参数换成`fastapiadmin`。该路径直接验证保存的
 捕获参数按文档尺寸是否超出 viewport 选择：已完整可见的原生页面不启用
 `captureBeyondViewport`，避免 Chromium 为此临时缩到 1×1 而触发表格的响应式重排。
 真正的长页仍捕获完整文档，并校验原滚动位置恢复及底部实际像素，不能裁剪成当前视口来通过。
+每次只读 DOM 采样将同一 CSS 字体下的全部实际可见 Unicode 码点合并后检查一次，
+保留文字、输入值及伪元素的字形范围，不跨帧缓存加载结果；新增字符或字体加载变化仍要重新检查。
+截图及登录/列表阶段仅记录固定阶段名、文件名、采样/像素捕获耗时和计数，不输出业务文字。
+通用原生验收的登录同样要求真实认证与权限响应成功、同源非登录路由及原生 shell 可见；
+不把概览图片等无关资源的整页 `load` 当作登录凭据。随后仍必须检查目标列表的真实 API、
+样例记录、原生组件和表单正反例；原有 45 秒单项上限不变。
 
 只有某行`acceptance_scope=full_workflow`、整体`passed=true`且模板/commit/attempt吻合，才能将该行标为真实模型完整流程通过；三个模板各自满足才可称三模板通过。`smoke_only`、固定计划测试、之前其他案例或其他提交的成功都不能替代。原来`BLOCKED`的任务恢复、Aider编辑、Continue原生索引和Daytona是另外的验证范围；当前真实模型路径明确记录这些未覆盖项，不借用旧报告填充它们。
 
@@ -82506,10 +82512,11 @@ def test_invalid_generated_java_does_not_get_silently_repaired():
 
 **逐个入口与控制逻辑：**
 
-- `test_native_login_requires_authentication_permissions_route_and_shell`（L165–L179）：接收`fault`。 控制顺序：L167按`not module or not Path(module).is_dir()`分支；L179断言`result.returncode == 0`。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`subprocess.run`、`shutil.which`、`clean_env`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_native_journey_uses_checked_login_readiness_without_extending_timeout`（L182–L190）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L187断言`"await loginNativeSession(page, base, scenario.actors[role], observe, checked);" in l…`；L188断言`"page.setDefaultTimeout(45000)" in login`；L189断言`login.index("await loginNativeSession(") < login.index("report.checks.push(")`；L190断言`"await checked(response); const identity = await checked(info)" in source`。 调用`(ROOT / "scripts/business_yudao_browser.cjs").read_text`、`source.split(" async function login(role) {", 1)[1].split`、`source.split`、`login.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_login_requires_authentication_permissions_route_and_shell`（L178–L192）：接收`fault`、`driver`。 控制顺序：L180按`not module or not Path(module).is_dir()`分支；L192断言`result.returncode == 0`。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`subprocess.run`、`shutil.which`、`clean_env`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_native_journey_uses_checked_login_readiness_without_extending_timeout`（L195–L203）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L200断言`"await loginNativeSession(page, base, scenario.actors[role], observe, checked);" in l…`；L201断言`"page.setDefaultTimeout(45000)" in login`；L202断言`login.index("await loginNativeSession(") < login.index("report.checks.push(")`；L203断言`"await checked(response); const identity = await checked(info)" in source`。 调用`(ROOT / "scripts/business_yudao_browser.cjs").read_text`、`source.split(" async function login(role) {", 1)[1].split`、`source.split`、`login.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generic_native_journey_uses_checked_login_before_actual_list_and_ui`（L206–L214）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L209断言`"page.setDefaultTimeout(45000)" in main`；L210断言`"await submitNativeLogin(page, base, fastapi, observe, checked);" in main`；L211断言`main.index("await submitNativeLogin(") < main.index("await checked(listing)")`；L212断言`main.index("await checked(listing)") < main.index("const pageResult =")`；L213断言`"native_shell_visible: true" in main`；L214断言`"Native boolean option was not selected" in main`。 调用`(ROOT / "scripts/native_browser.cjs").read_text`、`source.split`、`main.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_native_login_readiness.py sha256: 069d108497156764779e849ff3c135711683b99ad48d30b692ffdff0f7cd6645 -->
+<!-- source-file: tests/test_native_login_readiness.py sha256: cab96847a4924173a068919902fba5f26b6f69eb980c0b35461526585507c299 -->
 ````python
 """Real HTTP/Chromium regressions for the native login driver, not stack acceptance."""
 
@@ -82527,11 +82534,12 @@ DRIVER = r"""
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { loginNativeSession } = require('./scripts/business_yudao_browser.cjs');
-const [fault, playwrightPath, oldTimeout = '1800'] = process.argv.slice(1);
+const { submitNativeLogin } = require('./scripts/native_browser.cjs');
+const [fault, playwrightPath, oldTimeout = '1800', driver = 'business'] = process.argv.slice(1);
 const { chromium } = require(playwrightPath);
 const actor = { username: 'fixture-manager', password: 'fixture-only-password' };
 const requests = [], heldImages = [];
-const shell = '<aside>Native menu</aside><header>Native header</header><main id="__vben_main_content">Dashboard</main>';
+const shell = '<aside id="app-sidebar">Native menu</aside><header id="app-header">Native header</header><main id="app-content"><div id="__vben_main_content">Dashboard</div></main>';
 const foreign = http.createServer((req, res) => res.end(shell));
 const server = http.createServer(async (req, res) => {
   const pathname = new URL(req.url, 'http://127.0.0.1').pathname;
@@ -82550,7 +82558,7 @@ const server = http.createServer(async (req, res) => {
       assert.deepEqual(JSON.parse(raw), { ...actor, tenantId: 1 });
       res.end(JSON.stringify({ code: fault === 'login-failure' ? 401 : 0, data: {} })); return;
     }
-    if (pathname.endsWith('/auth/get-permission-info')) {
+    if (pathname.endsWith('/auth/get-permission-info') || pathname.endsWith('/user/current/info')) {
       if (fault === 'permissions-http-failure') res.statusCode = 403;
       res.end(JSON.stringify({ code: fault === 'permissions-failure' ? 403 : 0,
         data: { menus: fault === 'missing-menu' ? [] : [{ path: '/dashboard/analytics' }] } })); return;
@@ -82573,7 +82581,7 @@ const server = http.createServer(async (req, res) => {
           body: JSON.stringify({ username: document.querySelector('input').value,
             password: document.querySelector('input[type=password]').value, tenantId }) })).json();
         const inspected = new Promise(resolve => addEventListener('permissions-inspected', resolve, { once: true }));
-        await (await fetch('/admin-api/system/auth/get-permission-info')).json();
+        await (await fetch(${JSON.stringify(driver === 'generic-fastapi' ? '/admin-api/system/user/current/info' : '/admin-api/system/auth/get-permission-info')})).json();
         // Even a plausible shell must never override rejected login/permissions responses.
         document.querySelector('#login').remove();
         document.body.insertAdjacentHTML('beforeend', ${JSON.stringify(shell)});
@@ -82614,19 +82622,30 @@ const server = http.createServer(async (req, res) => {
       assert(found.response.ok(), 'Business browser HTTP ' + found.response.status());
       const body = await found.response.json();
       assert.equal(body.code, 0, 'Business application error ' + body.code);
-      if (fault === 'foreign-origin' && found.response.url().endsWith('/auth/get-permission-info')) {
+      if (fault === 'foreign-origin' && /\/(auth\/get-permission-info|user\/current\/info)$/.test(found.response.url())) {
         await page.evaluate(() => dispatchEvent(new Event('permissions-inspected')));
       }
       return body.data;
     };
     let failure, businessReady = false;
     try {
-      await loginNativeSession(page, base, actor, observe, checked);
+      if (driver === 'business') await loginNativeSession(page, base, actor, observe, checked);
+      else {
+        const tenants = observe('/system/tenant/simple-list');
+        await page.goto(base + '/#/auth/login', { waitUntil: 'domcontentloaded' });
+        const available = await checked(tenants);
+        const tenant = available.find(item => item.id === 1); assert(tenant);
+        await page.getByRole('combobox').first().click();
+        await page.getByRole('option', { name: tenant.name, exact: true }).click();
+        await page.getByPlaceholder('用户名').fill(actor.username);
+        await page.locator('input[type=password]').fill(actor.password);
+        await submitNativeLogin(page, base, driver === 'generic-fastapi', observe, checked);
+      }
       businessReady = true;
     } catch (error) { failure = error; }
     if (fault === 'none') {
       assert.ifError(failure); assert.equal(businessReady, true);
-      assert.deepEqual(checkedPaths, ['/admin-api/system/tenant/simple-list', '/admin-api/system/auth/login', '/admin-api/system/auth/get-permission-info']);
+      assert.deepEqual(checkedPaths, ['/admin-api/system/tenant/simple-list', '/admin-api/system/auth/login', driver === 'generic-fastapi' ? '/admin-api/system/user/current/info' : '/admin-api/system/auth/get-permission-info']);
       assert.equal(page.url(), base + '/#/dashboard/analytics');
       assert.equal(await page.evaluate(() => document.readyState), 'interactive');
       assert.equal(await page.evaluate(() => window.loaded), false);
@@ -82645,13 +82664,13 @@ const server = http.createServer(async (req, res) => {
       assert.equal(businessReady, false, 'A failed prerequisite must block business readiness');
       assert(failure, 'Driver must reject ' + fault);
       const expected = { 'login-failure': /Business application error 401/, 'permissions-failure': /Business application error 403/,
-        'permissions-http-failure': /Business browser HTTP 403/, 'missing-menu': /Native role menu missing/,
+        'permissions-http-failure': /Business browser HTTP 403/, 'missing-menu': /Native role menu missing|No native menus/,
         'auth-route': /waitForURL: Timeout/, 'foreign-origin': /waitForURL: Timeout/,
         'missing-aside': /locator.waitFor: Timeout/, 'missing-main': /locator.waitFor: Timeout/ };
       assert.match(failure.message, expected[fault]);
       assert(!requests.some(route => route.includes('/infra/')), 'Never start business requests before login is ready');
     }
-    console.log('Native login HTTP/Chromium fixture verified: ' + fault + '; old load timeout=' + oldTimeout);
+    console.log('Native login HTTP/Chromium fixture verified: ' + driver + '/' + fault + '; old load timeout=' + oldTimeout);
   } finally {
     for (const response of heldImages) response.end();
     await browser.close();
@@ -82675,12 +82694,13 @@ const server = http.createServer(async (req, res) => {
         "missing-main",
     ],
 )
-def test_native_login_requires_authentication_permissions_route_and_shell(fault):
+@pytest.mark.parametrize("driver", ["business", "generic", "generic-fastapi"])
+def test_native_login_requires_authentication_permissions_route_and_shell(fault, driver):
     module = os.getenv("PRODUCT_VERIFY_PLAYWRIGHT")
     if not module or not Path(module).is_dir():
         pytest.skip("Actual Playwright is required in Actions")
     result = subprocess.run(
-        [shutil.which("node"), "-e", DRIVER, fault, module],
+        [shutil.which("node"), "-e", DRIVER, fault, module, "1800", driver],
         cwd=ROOT,
         env=clean_env({"PLAYWRIGHT_BROWSERS_PATH": "0"}),
         capture_output=True,
@@ -82701,6 +82721,17 @@ def test_actual_native_journey_uses_checked_login_readiness_without_extending_ti
     assert "page.setDefaultTimeout(45000)" in login
     assert login.index("await loginNativeSession(") < login.index("report.checks.push(")
     assert "await checked(response); const identity = await checked(info)" in source
+
+
+def test_generic_native_journey_uses_checked_login_before_actual_list_and_ui():
+    source = (ROOT / "scripts/native_browser.cjs").read_text(encoding="utf-8")
+    main = source.split("async function main() {", 1)[1]
+    assert "page.setDefaultTimeout(45000)" in main
+    assert "await submitNativeLogin(page, base, fastapi, observe, checked);" in main
+    assert main.index("await submitNativeLogin(") < main.index("await checked(listing)")
+    assert main.index("await checked(listing)") < main.index("const pageResult =")
+    assert "native_shell_visible: true" in main
+    assert "Native boolean option was not selected" in main
 ````
 
 ### `tests/test_native_managed.py`
@@ -94763,9 +94794,9 @@ def test_full_yudao_protocol_projection_with_actual_permission_values_fits_uncha
 
 **逐个入口与控制逻辑：**
 
-- `test_native_pixels_require_visible_fonts_and_stable_business_content`（L165–L173）：接收`tmp_path`、`monkeypatch`、`mode`。 控制顺序：L169按`not module or not Path(module).is_dir()`分支。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`monkeypatch.setattr`、`harness._run_driver`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_pixels_require_visible_fonts_and_stable_business_content`（L189–L197）：接收`tmp_path`、`monkeypatch`、`mode`。 控制顺序：L193按`not module or not Path(module).is_dir()`分支。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`monkeypatch.setattr`、`harness._run_driver`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_yudao_screenshot_readiness.py sha256: f4974ec97af7934e353dd45f1929da615224cbe5a5a796d6ec7c121b1fa64116 -->
+<!-- source-file: tests/test_yudao_screenshot_readiness.py sha256: 9004c0ad77f87cd85c95040ab7575fc07cf0bf4c30fd5a07a921ae8081f3abcd -->
 ````python
 """Real Chromium capture semantics; these fixtures are not native-stack receipts."""
 
@@ -94788,7 +94819,7 @@ const server=http.createServer((req,res)=>{
  if(req.url==='/missing-font'){res.writeHead(404);res.end();return;}
  res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'});
  const font=mode==='missing-visible-font'?'/missing-font':'/slow-font';
- res.end(`<style>@font-face{font-family:CaptureProbe;src:url('${font}')}body{font-family:Arial,sans-serif;background:white;color:black}#record{margin:30px;padding:10px}</style>
+ res.end(`<style>@font-face{font-family:CaptureProbe;src:url('${font}');${mode==='pending-unicode-range'?'unicode-range:U+20BB7;':''}}body{font-family:Arial,sans-serif;background:white;color:black}#record{margin:30px;padding:10px}</style>
  ${mode==='blank-business'?'':`<main id="record">Fixture customer title 123<input id="field" value="Private control value"><span id="clock" style="font-family:monospace">111</span><div id="hidden" style="display:none;font-family:CaptureProbe">Hidden text</div></main>`}
  <script>
  if(${JSON.stringify(mode)}.includes('font')&&${JSON.stringify(mode)}!=='capture-visible-font'){
@@ -94809,6 +94840,19 @@ const server=http.createServer((req,res)=>{
   document.body.style.margin='0';document.body.style.height='1250px';document.body.style.display='flow-root';
   const tail=document.createElement('div');tail.id='tail';tail.style='position:absolute;top:1200px;left:0;width:100%;height:50px;background:rgb(255,0,255)';
   tail.textContent='Full document bottom must remain in the PNG';document.body.append(tail);
+ }
+ if(${JSON.stringify(mode)}==='batched-unicode'){
+  for(let i=0;i<50;i++){
+   const text=document.createElement('span');text.style.fontSize='8px';text.textContent='Repeated sample '+i+' 𠮷 Ω';document.querySelector('#record').append(text);
+  }
+  const control=document.createElement('input');control.value='Unique control Ж';document.querySelector('#record').append(control);
+  window.fontCalls=[];const originalCheck=document.fonts.check.bind(document.fonts);
+  document.fonts.check=(font,text)=>{fontCalls.push({font,text});return originalCheck(font,text);};
+ }
+ if(${JSON.stringify(mode)}==='pending-unicode-range'){
+  document.querySelector('#record').style.fontFamily='CaptureProbe,Arial';
+  const text=document.createElement('span');text.textContent='𠮷';document.querySelector('#record').append(text);
+  document.fonts.load('16px CaptureProbe','𠮷').catch(()=>{});
  }
  window.captureTicks=0;
  window.addEventListener('captureBoundary',()=>{
@@ -94831,7 +94875,7 @@ const server=http.createServer((req,res)=>{
  try{
   const page=await browser.newPage({viewport:{width:700,height:400}});page.setDefaultTimeout(3000);
   await page.goto('http://127.0.0.1:'+server.address().port,{waitUntil:'domcontentloaded'});
-  if(mode.includes('font')&&mode!=='capture-visible-font')await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='loading'||font.status==='error'));
+  if((mode.includes('font')&&mode!=='capture-visible-font')||mode==='pending-unicode-range')await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='loading'||font.status==='error'));
   if(mode==='missing-visible-font')await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='error'));
   if(mode!=='blank-business')await page.locator('#field').focus();
   if(mode==='responsive-layout'){
@@ -94855,12 +94899,21 @@ const server=http.createServer((req,res)=>{
     return send(name,args);
    };return session;
   };
-  if(['normal','nonvisible-font','late-tooltip','refreshing-text','responsive-layout','scrolled-long-page'].includes(mode)){
+  if(['normal','nonvisible-font','late-tooltip','refreshing-text','responsive-layout','scrolled-long-page','batched-unicode'].includes(mode)){
+   if(mode==='batched-unicode'){
+    const state=await nativeScreenshotState(page);assert(state.ready);
+    const checks=await page.evaluate(()=>fontCalls);
+    assert.equal(checks.length,new Set(checks.map(check=>check.font)).size,'One actual FontFaceSet check per CSS font per sample, never per element');
+    const glyphs=checks.map(check=>check.text).join('');
+    for(const glyph of ['𠮷','Ω','Ж','0','9'])assert(glyphs.includes(glyph),'Batch must retain every visible text/control codepoint');
+   }
    if(mode==='nonvisible-font'){
     assert.equal(await page.evaluate(()=>document.fonts.status),'loading');
     assert((await nativeScreenshotState(page)).ready);
    }
-   await captureNativeScreenshot(page,file,50,1500);
+   const timing=await captureNativeScreenshot(page,file,50,1500);
+   for(const key of ['notice_ms','sampling_ms','pixels_ms','samples','duration_ms','capture_attempts'])assert(Number.isInteger(timing[key])&&timing[key]>=0);
+   assert(!JSON.stringify(timing).includes('Private control value'));
    const bytes=fs.readFileSync(file);assert.equal(bytes.subarray(1,4).toString(),'PNG');
    assert(bytes.length>1000);assert.equal(bytes.readUInt32BE(16),700);assert.equal(bytes.readUInt32BE(20),mode==='scrolled-long-page'?1250:400);
    assert.equal(beyond,mode==='scrolled-long-page','Only documents exceeding the viewport may request the resize-inducing full-page path');
@@ -94895,7 +94948,7 @@ const server=http.createServer((req,res)=>{
    if(mode!=='capture-layout-drift')assert.equal(diagnostic.phase,'visible-fonts-and-layout');
    assert(!JSON.stringify(diagnostic).includes('Fixture customer title'));
    assert(!JSON.stringify(diagnostic).includes('Private control value'));
-   if(mode.includes('font'))assert(diagnostic.visible_fonts.some(font=>font.loaded===false),'Visible missing font must remain a strict failure');
+   if(mode.includes('font')||mode==='pending-unicode-range')assert(diagnostic.visible_fonts.some(font=>font.loaded===false),'Visible missing font must remain a strict failure');
    if(mode==='blank-business')assert.equal(diagnostic.visible_text_nodes,0);
    if(mode==='moving-layout')assert(await page.evaluate(()=>window.ticks)>10,'Capture must not stop the app animation to hide layout drift');
    if(mode==='capture-visible-font')assert.equal(captures,1,'Visible font must become pending during the actual first capture');
@@ -94929,6 +94982,8 @@ const server=http.createServer((req,res)=>{
         "capture-visible-font",
         "responsive-layout",
         "scrolled-long-page",
+        "batched-unicode",
+        "pending-unicode-range",
     ],
 )
 def test_native_pixels_require_visible_fonts_and_stable_business_content(
@@ -95557,13 +95612,13 @@ if (require.main === module) main().catch(error => { console.error(error.name + 
 
 ### `scripts/business_yudao_browser.cjs`
 
-**作用：Yudao/Vben三角色真实客服页面验收。** 通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，核对可见文字、表单及图标字体与稳定布局，再捕获未改动像素并复查；已适配viewport的页面不启用会临时缩到1×1的越界捕获，长页仍保留完整像素。布局变化会丢弃该帧，在同一45秒期限内重新稳定采集，等宽更新仍检查新字形。不改DOM或禁用字体校验，失败仅保留有界状态与变化类别。HTTP拒绝和UI行为共同组成证据，不以静态图替代。
+**作用：Yudao/Vben三角色真实客服页面验收。** 通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，一次只读采样按CSS字体合并全部可见Unicode码点检查，不跨帧缓存字体状态；再捕获未改动像素并复查。已适配viewport的页面不启用会临时缩到1×1的越界捕获，长页仍保留完整像素。布局变化在同一45秒期限内重新稳定，等宽更新仍检查新字形。不改DOM或禁用字体校验；阶段/采样耗时不含业务文字。HTTP拒绝和UI共同组成证据，不以静态图替代。
 
 **对应关系：** business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/business_yudao_browser.cjs sha256: 648e69709fae35453167a737edd0efd2f86d68e6019ff8058b83fe3166f64d9c -->
+<!-- source-file: scripts/business_yudao_browser.cjs sha256: 273563c1943c83da88419aca7238ac57df260f022fa9c2ca4922fd9be7404d83 -->
 ````javascript
 // Real Vben/Ant business journey. Only scenario-owned synthetic accounts; no mocks/token injection.
 'use strict';
@@ -95608,11 +95663,14 @@ async function nativeScreenshotState(page) {
       const box = element.getBoundingClientRect(), style = getComputedStyle(element);
       return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
     };
-    const fontChecks = new Map(), geometry = [], textParts = [];
+    const fontGlyphs = new Map(), geometry = [], textParts = [];
     const checkFont = (style, text) => {
       const font = style.font || `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-      const loaded = document.fonts.check(font, text);
-      fontChecks.set(font, (fontChecks.get(font) ?? true) && loaded);
+      if (!fontGlyphs.has(font)) fontGlyphs.set(font, new Set());
+      // FontFaceSet matching uses codepoint/unicode-range intersection, not
+      // shaping or text order. Check every visible codepoint once per CSS font
+      // within this single sample; never cache a loaded result across frames.
+      for (const glyph of text) fontGlyphs.get(font).add(glyph);
     };
     const elements = [...document.querySelectorAll('body *')].filter(visible);
     if (elements.length > 6000) throw new Error('Native screenshot layout exceeds the bounded inspection scope');
@@ -95646,7 +95704,9 @@ async function nativeScreenshotState(page) {
     }
     const imagesReady = elements.filter(element => element.tagName === 'IMG')
       .every(element => element.complete && element.naturalWidth > 0);
-    const fonts = [...fontChecks].map(([font, loaded]) => ({ font, loaded }));
+    const fonts = [...fontGlyphs].map(([font, glyphs]) => ({
+      font, loaded: document.fonts.check(font, [...glyphs].join('')),
+    }));
     return {
       ready: textParts.length > 0 && fonts.length > 0 && fonts.every(font => font.loaded) && imagesReady,
       fonts, images_ready: imagesReady, visible_text_nodes: textParts.length,
@@ -95663,8 +95723,14 @@ async function nativeScreenshotState(page) {
 }
 
 async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout = 45000) {
-  const deadline = Date.now() + timeout;
+  const started = Date.now(), deadline = started + timeout;
   let phase = 'notice-settlement', lastState, session, changes, attempts = 0;
+  const timing = { notice_ms: 0, sampling_ms: 0, pixels_ms: 0, samples: 0 };
+  async function sample() {
+    const begin = Date.now();
+    try { return await bounded(() => nativeScreenshotState(page), phase); }
+    finally { timing.sampling_ms += Date.now() - begin; timing.samples += 1; }
+  }
   async function bounded(operation, name) {
     let timer;
     try {
@@ -95684,11 +95750,12 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       // Persistent notices are legitimate UI; bounded waiting must never dismiss them.
       if (error.name !== 'TimeoutError') throw error;
     }
+    timing.notice_ms = Date.now() - started;
     for (;;) {
       phase = 'visible-fonts-and-layout';
       let previous, stable = 0;
       while (stable < 3) {
-        lastState = await bounded(() => nativeScreenshotState(page), phase);
+        lastState = await sample();
         stable = lastState.ready && lastState.signature === previous ? stable + 1 : 0;
         previous = lastState.signature;
         if (stable < 3) await bounded(() => new Promise(resolve => setTimeout(resolve, 40)), phase);
@@ -95710,11 +95777,13 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       // resizes even an already-fitting page to 1x1, disturbing responsive VXE
       // layout/hover state. Preserve full-document capture only when needed.
       const fitsViewport = width <= viewportWidth && height <= viewportHeight;
+      const pixelsStarted = Date.now();
       const captured = await bounded(() => session.send('Page.captureScreenshot', {
         format: 'png', captureBeyondViewport: !fitsViewport, clip: { x: 0, y: 0, width, height, scale: 1 },
       }), phase);
+      timing.pixels_ms += Date.now() - pixelsStarted;
       phase = 'post-capture-readiness';
-      const after = await bounded(() => nativeScreenshotState(page), phase);
+      const after = await sample();
       changes = {
         layout: after.layout_signature !== lastState.layout_signature,
         text: after.text_signature !== lastState.text_signature,
@@ -95723,7 +95792,7 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       };
       if (after.ready && after.signature === lastState.signature) {
         fs.writeFileSync(file, Buffer.from(captured.data, 'base64'));
-        break;
+        return { ...timing, duration_ms: Date.now() - started, capture_attempts: attempts };
       }
       // A delayed tooltip or data render can arrive during pixel capture. Drop
       // these unstable pixels and settle again within the SAME overall budget.
@@ -95734,7 +95803,7 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
     // source environment, or pending request headers are retained.
     try {
       fs.writeFileSync(file + '.capture.json', JSON.stringify({ phase, capture_attempts: attempts,
-        last_capture_changes: changes,
+        last_capture_changes: changes, timing: { ...timing, duration_ms: Date.now() - started },
         visible_text_nodes: lastState?.visible_text_nodes, images_ready: lastState?.images_ready,
         visible_fonts: lastState?.fonts.slice(0, 64).map(font => ({ font: font.font.slice(0, 300), loaded: font.loaded })),
         font_faces: lastState?.font_faces.map(font => ({ family: font.family.slice(0, 100), status: font.status })),
@@ -95958,6 +96027,8 @@ async function main() {
   const secrets = Object.values(scenario.actors).map(actor => actor.password);
   const redact = value => secrets.reduce((text, secret) => text.split(secret).join('[REDACTED]'), String(value));
   const errors = [];
+  const journeyStarted = Date.now();
+  const progress = (stage, fields = {}) => console.log(JSON.stringify({ stage, elapsed_ms: Date.now() - journeyStarted, ...fields }));
   let context, page, currentRole;
   const target = entity => {
     const found = scenario.targets.find(item => item.entity === entity);
@@ -95971,10 +96042,13 @@ async function main() {
     const value = await found.response.json(); assert.equal(value.code, 0, `Business application error ${value.code}`); return value.data;
   };
   async function capture(name) {
-    await captureNativeScreenshot(page, path.join(reportDir, name));
+    progress('capture-start', { name });
+    const timing = await captureNativeScreenshot(page, path.join(reportDir, name));
+    progress('capture-complete', { name, ...timing });
     report.screenshots.push(name);
   }
   async function login(role) {
+    progress('login-start', { role });
     currentRole = role;
     if (context) await context.close();
     context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1500, height: 1100 }, reducedMotion: 'reduce' });
@@ -95991,8 +96065,10 @@ async function main() {
       await capture(`${role}-installed-navigation.png`);
     }
     report.checks.push(`${role}:native-login-and-tenant`);
+    progress('login-complete', { role });
   }
   async function openPage(entity) {
+    progress('list-start', { entity });
     const current = target(entity);
     await page.goto(base + '/#' + current.route, { waitUntil: 'domcontentloaded' });
     const rows = await refreshNativeList(page, entity, current.list, observe, checked);
@@ -96006,6 +96082,7 @@ async function main() {
     let proof = report.pages.find(item => item.entity === entity);
     if (!proof) { proof = { entity, route: current.route }; report.pages.push(proof); }
     Object.assign(proof, { native_shell_visible: true, native_component_family: 'Vben/Ant Design/VXE', native_theme_tokens: theme, rendered: true, real_list_request: true });
+    progress('list-complete', { entity });
     return { ...current, rows };
   }
   async function detail(entity, label) {
@@ -102253,7 +102330,7 @@ main().catch((e) => {
 - `purpose`（L694–L877）：接收`name`。 控制顺序：L696按`name == "workbench/__init__.py"`分支；L702按`name.startswith("workbench/") and path.stem in MODULES`分支；L704按`name.startswith("templates/business/")`分支；L705按`role := BUSINESS_FILES.get(name.removeprefix("templates/business/"))`分支；L712按`name == "examples/requirements/customer-service.md"`分支；L718按`name == "examples/requirements/customer-service-decisions.md"`分支；L724按`name == "examples/requirements/customer-service-contract.md"`分支；L730按`name.startswith("examples/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`BUSINESS_FILES.get`、`name.removeprefix`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L697的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L703的`MODULES[path.stem]`；L706的`role`。
 - `notes`（L880–L990）：接收`name`、`content`。 控制顺序：L884按`not name.endswith(".py")`分支；L891遍历`tree.body`；L892按`isinstance(node, ast.ImportFrom) and node.module`分支；L894按`isinstance(node, ast.Import)`分支；L897按`own`分支；L904按`not rows`分支；L907遍历`rows`；L909按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L885的`out`；L889的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L905的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
 
-<!-- source-file: scripts/handbook_notes.py sha256: a471db98f6a08c0209b02a930fc7b3ad47ea844f5d50b5c38eea62d94c8446b4 -->
+<!-- source-file: scripts/handbook_notes.py sha256: cd407c71380fb99d1a2b486584b795c9bb6fc3c7ece746d232cce2650c7aae61 -->
 ````python
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
 
@@ -102730,7 +102807,7 @@ SCRIPT_ROLES = {
     ),
     "business_yudao_browser.cjs": (
         "Yudao/Vben三角色真实客服页面验收",
-        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，核对可见文字、表单及图标字体与稳定布局，再捕获未改动像素并复查；已适配viewport的页面不启用会临时缩到1×1的越界捕获，长页仍保留完整像素。布局变化会丢弃该帧，在同一45秒期限内重新稳定采集，等宽更新仍检查新字形。不改DOM或禁用字体校验，失败仅保留有界状态与变化类别。HTTP拒绝和UI行为共同组成证据，不以静态图替代。",
+        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，一次只读采样按CSS字体合并全部可见Unicode码点检查，不跨帧缓存字体状态；再捕获未改动像素并复查。已适配viewport的页面不启用会临时缩到1×1的越界捕获，长页仍保留完整像素。布局变化在同一45秒期限内重新稳定，等宽更新仍检查新字形。不改DOM或禁用字体校验；阶段/采样耗时不含业务文字。HTTP拒绝和UI共同组成证据，不以静态图替代。",
         "business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。",
     ),
     "ci_real_model.py": (
@@ -102820,7 +102897,7 @@ SCRIPT_ROLES = {
     ),
     "native_browser.cjs": (
         "真实原生登录、菜单、表单与规则浏览器检查",
-        "按FastapiAdmin或Vben的真实DOM操作，先登录再进入生成菜单；检查原生组件、表单正反例和真实HTTP结果。失败截图/网络错误用于诊断，不能注入令牌越过登录。",
+        "按FastapiAdmin或Vben的真实DOM操作，登录提交必须核对实际认证/权限HTTP、同源非登录路由和原生shell，不等待概览页无关资源的整页load；再验证生成菜单的实际列表API/DOM、原生组件及表单正反例。失败截图/网络错误用于诊断，不能注入令牌越过登录，45秒等待上限不变。",
         "native_frontend.browser_check → 本文件 → browser.json与截图。",
     ),
     "native_coding_fixture.py": (
@@ -103249,13 +103326,13 @@ def notes(name, content):
 
 ### `scripts/native_browser.cjs`
 
-**作用：真实原生登录、菜单、表单与规则浏览器检查。** 按FastapiAdmin或Vben的真实DOM操作，先登录再进入生成菜单；检查原生组件、表单正反例和真实HTTP结果。失败截图/网络错误用于诊断，不能注入令牌越过登录。
+**作用：真实原生登录、菜单、表单与规则浏览器检查。** 按FastapiAdmin或Vben的真实DOM操作，登录提交必须核对实际认证/权限HTTP、同源非登录路由和原生shell，不等待概览页无关资源的整页load；再验证生成菜单的实际列表API/DOM、原生组件及表单正反例。失败截图/网络错误用于诊断，不能注入令牌越过登录，45秒等待上限不变。
 
 **对应关系：** native_frontend.browser_check → 本文件 → browser.json与截图。
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/native_browser.cjs sha256: 164edf89ad2f913297a2f1960d4b883c9d247a94143b26fe35477a688467baef -->
+<!-- source-file: scripts/native_browser.cjs sha256: 5078661220ff3d25003eb70198288bba0337db4e2fc91b24dc7a2d3b12c0b5e3 -->
 ````javascript
 // Real Chromium against the disposable loopback lab; no route mocks or injected tokens.
 const fs = require('node:fs');
@@ -103267,6 +103344,24 @@ function nativeComponentSelectors(fastapi) {
     button: fastapi ? '.el-button:visible' : '.ant-btn:visible',
     form: fastapi ? '.el-input:visible, .el-switch:visible' : '.ant-input:visible, .ant-input-number:visible, .ant-radio:visible',
   };
+}
+
+async function submitNativeLogin(page, base, fastapi, observe, checked) {
+  const loginResponse = observe('/system/auth/login', 'POST');
+  const infoResponse = observe(fastapi ? '/system/user/current/info' : '/system/auth/get-permission-info');
+  await page.getByRole('button', { name: /^登\s*录$|^sign in$|^login$/i }).first().click();
+  await checked(loginResponse);
+  const info = await checked(infoResponse);
+  assert(Array.isArray(info.menus) && info.menus.length, 'No native menus');
+  const origin = new URL(base).origin;
+  // A native SPA shell can be authenticated while a dashboard image still
+  // delays window.load. Authentication, permissions, same-origin route and
+  // actual shell visibility are mandatory; the real target list is checked next.
+  await page.waitForURL(url => url.origin === origin && url.hash.startsWith('#/')
+    && !/^#\/(?:auth|login)(?:[/?]|$)/.test(url.hash), { waitUntil: 'domcontentloaded' });
+  const shell = fastapi ? ['#app-sidebar', '#app-header', '#app-content'] : ['aside:visible', 'header:visible', '#__vben_main_content'];
+  for (const selector of shell) await page.locator(selector).first().waitFor({ state: 'visible' });
+  return info;
 }
 
 async function main() {
@@ -103338,13 +103433,7 @@ async function main() {
       await page.mouse.up();
       await checked(slider);
     }
-    const loginResponse = observe('/system/auth/login', 'POST');
-    const infoResponse = observe(fastapi ? '/system/user/current/info' : '/system/auth/get-permission-info');
-    await page.getByRole('button', { name: /^登\s*录$|^sign in$|^login$/i }).first().click();
-    await checked(loginResponse);
-    const info = await checked(infoResponse);
-    await page.waitForURL(url => !url.hash.includes('login'));
-    assert(info.menus && info.menus.length, 'No native menus');
+    await submitNativeLogin(page, base, fastapi, observe, checked);
     // Dismiss the native first-login product tour through its visible UI.
     const skipTour = page.getByRole('button', { name: '跳过', exact: true });
     if (fastapi && await skipTour.isVisible()) await skipTour.click();
@@ -103449,7 +103538,7 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { nativeComponentSelectors };
+module.exports = { nativeComponentSelectors, submitNativeLogin };
 if (require.main === module) main().catch(error => { console.error(error.stack); process.exitCode = 1; });
 ````
 
@@ -114702,7 +114791,7 @@ uv run pytest tests/test_provider_structured_outputs.py tests/test_llm.py tests/
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/real-model-acceptance.md sha256: 5d0d24b723ec993361414ddae0db5b632f3a07aea577eb94fa95e956ea0ed371 -->
+<!-- source-file: docs/real-model-acceptance.md sha256: 1cb375ca9b7cf72f7f9ac6f68940c710afb910b62dfe402621637864949bff16 -->
 ````markdown
 ## 显式授权的真实模型客服端到端验收
 
@@ -114874,6 +114963,12 @@ FastapiAdmin将模板参数换成`fastapiadmin`。该路径直接验证保存的
 捕获参数按文档尺寸是否超出 viewport 选择：已完整可见的原生页面不启用
 `captureBeyondViewport`，避免 Chromium 为此临时缩到 1×1 而触发表格的响应式重排。
 真正的长页仍捕获完整文档，并校验原滚动位置恢复及底部实际像素，不能裁剪成当前视口来通过。
+每次只读 DOM 采样将同一 CSS 字体下的全部实际可见 Unicode 码点合并后检查一次，
+保留文字、输入值及伪元素的字形范围，不跨帧缓存加载结果；新增字符或字体加载变化仍要重新检查。
+截图及登录/列表阶段仅记录固定阶段名、文件名、采样/像素捕获耗时和计数，不输出业务文字。
+通用原生验收的登录同样要求真实认证与权限响应成功、同源非登录路由及原生 shell 可见；
+不把概览图片等无关资源的整页 `load` 当作登录凭据。随后仍必须检查目标列表的真实 API、
+样例记录、原生组件和表单正反例；原有 45 秒单项上限不变。
 
 只有某行`acceptance_scope=full_workflow`、整体`passed=true`且模板/commit/attempt吻合，才能将该行标为真实模型完整流程通过；三个模板各自满足才可称三模板通过。`smoke_only`、固定计划测试、之前其他案例或其他提交的成功都不能替代。原来`BLOCKED`的任务恢复、Aider编辑、Continue原生索引和Daytona是另外的验证范围；当前真实模型路径明确记录这些未覆盖项，不借用旧报告填充它们。
 
