@@ -41,11 +41,14 @@ async function nativeScreenshotState(page) {
       const box = element.getBoundingClientRect(), style = getComputedStyle(element);
       return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
     };
-    const fontChecks = new Map(), geometry = [], textParts = [];
+    const fontGlyphs = new Map(), geometry = [], textParts = [];
     const checkFont = (style, text) => {
       const font = style.font || `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
-      const loaded = document.fonts.check(font, text);
-      fontChecks.set(font, (fontChecks.get(font) ?? true) && loaded);
+      if (!fontGlyphs.has(font)) fontGlyphs.set(font, new Set());
+      // FontFaceSet matching uses codepoint/unicode-range intersection, not
+      // shaping or text order. Check every visible codepoint once per CSS font
+      // within this single sample; never cache a loaded result across frames.
+      for (const glyph of text) fontGlyphs.get(font).add(glyph);
     };
     const elements = [...document.querySelectorAll('body *')].filter(visible);
     if (elements.length > 6000) throw new Error('Native screenshot layout exceeds the bounded inspection scope');
@@ -79,7 +82,9 @@ async function nativeScreenshotState(page) {
     }
     const imagesReady = elements.filter(element => element.tagName === 'IMG')
       .every(element => element.complete && element.naturalWidth > 0);
-    const fonts = [...fontChecks].map(([font, loaded]) => ({ font, loaded }));
+    const fonts = [...fontGlyphs].map(([font, glyphs]) => ({
+      font, loaded: document.fonts.check(font, [...glyphs].join('')),
+    }));
     return {
       ready: textParts.length > 0 && fonts.length > 0 && fonts.every(font => font.loaded) && imagesReady,
       fonts, images_ready: imagesReady, visible_text_nodes: textParts.length,
@@ -96,8 +101,14 @@ async function nativeScreenshotState(page) {
 }
 
 async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout = 45000) {
-  const deadline = Date.now() + timeout;
+  const started = Date.now(), deadline = started + timeout;
   let phase = 'notice-settlement', lastState, session, changes, attempts = 0;
+  const timing = { notice_ms: 0, sampling_ms: 0, pixels_ms: 0, samples: 0 };
+  async function sample() {
+    const begin = Date.now();
+    try { return await bounded(() => nativeScreenshotState(page), phase); }
+    finally { timing.sampling_ms += Date.now() - begin; timing.samples += 1; }
+  }
   async function bounded(operation, name) {
     let timer;
     try {
@@ -117,11 +128,12 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       // Persistent notices are legitimate UI; bounded waiting must never dismiss them.
       if (error.name !== 'TimeoutError') throw error;
     }
+    timing.notice_ms = Date.now() - started;
     for (;;) {
       phase = 'visible-fonts-and-layout';
       let previous, stable = 0;
       while (stable < 3) {
-        lastState = await bounded(() => nativeScreenshotState(page), phase);
+        lastState = await sample();
         stable = lastState.ready && lastState.signature === previous ? stable + 1 : 0;
         previous = lastState.signature;
         if (stable < 3) await bounded(() => new Promise(resolve => setTimeout(resolve, 40)), phase);
@@ -143,11 +155,13 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       // resizes even an already-fitting page to 1x1, disturbing responsive VXE
       // layout/hover state. Preserve full-document capture only when needed.
       const fitsViewport = width <= viewportWidth && height <= viewportHeight;
+      const pixelsStarted = Date.now();
       const captured = await bounded(() => session.send('Page.captureScreenshot', {
         format: 'png', captureBeyondViewport: !fitsViewport, clip: { x: 0, y: 0, width, height, scale: 1 },
       }), phase);
+      timing.pixels_ms += Date.now() - pixelsStarted;
       phase = 'post-capture-readiness';
-      const after = await bounded(() => nativeScreenshotState(page), phase);
+      const after = await sample();
       changes = {
         layout: after.layout_signature !== lastState.layout_signature,
         text: after.text_signature !== lastState.text_signature,
@@ -156,7 +170,7 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       };
       if (after.ready && after.signature === lastState.signature) {
         fs.writeFileSync(file, Buffer.from(captured.data, 'base64'));
-        break;
+        return { ...timing, duration_ms: Date.now() - started, capture_attempts: attempts };
       }
       // A delayed tooltip or data render can arrive during pixel capture. Drop
       // these unstable pixels and settle again within the SAME overall budget.
@@ -167,7 +181,7 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
     // source environment, or pending request headers are retained.
     try {
       fs.writeFileSync(file + '.capture.json', JSON.stringify({ phase, capture_attempts: attempts,
-        last_capture_changes: changes,
+        last_capture_changes: changes, timing: { ...timing, duration_ms: Date.now() - started },
         visible_text_nodes: lastState?.visible_text_nodes, images_ready: lastState?.images_ready,
         visible_fonts: lastState?.fonts.slice(0, 64).map(font => ({ font: font.font.slice(0, 300), loaded: font.loaded })),
         font_faces: lastState?.font_faces.map(font => ({ family: font.family.slice(0, 100), status: font.status })),
@@ -391,6 +405,8 @@ async function main() {
   const secrets = Object.values(scenario.actors).map(actor => actor.password);
   const redact = value => secrets.reduce((text, secret) => text.split(secret).join('[REDACTED]'), String(value));
   const errors = [];
+  const journeyStarted = Date.now();
+  const progress = (stage, fields = {}) => console.log(JSON.stringify({ stage, elapsed_ms: Date.now() - journeyStarted, ...fields }));
   let context, page, currentRole;
   const target = entity => {
     const found = scenario.targets.find(item => item.entity === entity);
@@ -404,10 +420,13 @@ async function main() {
     const value = await found.response.json(); assert.equal(value.code, 0, `Business application error ${value.code}`); return value.data;
   };
   async function capture(name) {
-    await captureNativeScreenshot(page, path.join(reportDir, name));
+    progress('capture-start', { name });
+    const timing = await captureNativeScreenshot(page, path.join(reportDir, name));
+    progress('capture-complete', { name, ...timing });
     report.screenshots.push(name);
   }
   async function login(role) {
+    progress('login-start', { role });
     currentRole = role;
     if (context) await context.close();
     context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1500, height: 1100 }, reducedMotion: 'reduce' });
@@ -424,8 +443,10 @@ async function main() {
       await capture(`${role}-installed-navigation.png`);
     }
     report.checks.push(`${role}:native-login-and-tenant`);
+    progress('login-complete', { role });
   }
   async function openPage(entity) {
+    progress('list-start', { entity });
     const current = target(entity);
     await page.goto(base + '/#' + current.route, { waitUntil: 'domcontentloaded' });
     const rows = await refreshNativeList(page, entity, current.list, observe, checked);
@@ -439,6 +460,7 @@ async function main() {
     let proof = report.pages.find(item => item.entity === entity);
     if (!proof) { proof = { entity, route: current.route }; report.pages.push(proof); }
     Object.assign(proof, { native_shell_visible: true, native_component_family: 'Vben/Ant Design/VXE', native_theme_tokens: theme, rendered: true, real_list_request: true });
+    progress('list-complete', { entity });
     return { ...current, rows };
   }
   async function detail(entity, label) {

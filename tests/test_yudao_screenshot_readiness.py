@@ -19,7 +19,7 @@ const server=http.createServer((req,res)=>{
  if(req.url==='/missing-font'){res.writeHead(404);res.end();return;}
  res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'});
  const font=mode==='missing-visible-font'?'/missing-font':'/slow-font';
- res.end(`<style>@font-face{font-family:CaptureProbe;src:url('${font}')}body{font-family:Arial,sans-serif;background:white;color:black}#record{margin:30px;padding:10px}</style>
+ res.end(`<style>@font-face{font-family:CaptureProbe;src:url('${font}');${mode==='pending-unicode-range'?'unicode-range:U+20BB7;':''}}body{font-family:Arial,sans-serif;background:white;color:black}#record{margin:30px;padding:10px}</style>
  ${mode==='blank-business'?'':`<main id="record">Fixture customer title 123<input id="field" value="Private control value"><span id="clock" style="font-family:monospace">111</span><div id="hidden" style="display:none;font-family:CaptureProbe">Hidden text</div></main>`}
  <script>
  if(${JSON.stringify(mode)}.includes('font')&&${JSON.stringify(mode)}!=='capture-visible-font'){
@@ -40,6 +40,19 @@ const server=http.createServer((req,res)=>{
   document.body.style.margin='0';document.body.style.height='1250px';document.body.style.display='flow-root';
   const tail=document.createElement('div');tail.id='tail';tail.style='position:absolute;top:1200px;left:0;width:100%;height:50px;background:rgb(255,0,255)';
   tail.textContent='Full document bottom must remain in the PNG';document.body.append(tail);
+ }
+ if(${JSON.stringify(mode)}==='batched-unicode'){
+  for(let i=0;i<50;i++){
+   const text=document.createElement('span');text.style.fontSize='8px';text.textContent='Repeated sample '+i+' 𠮷 Ω';document.querySelector('#record').append(text);
+  }
+  const control=document.createElement('input');control.value='Unique control Ж';document.querySelector('#record').append(control);
+  window.fontCalls=[];const originalCheck=document.fonts.check.bind(document.fonts);
+  document.fonts.check=(font,text)=>{fontCalls.push({font,text});return originalCheck(font,text);};
+ }
+ if(${JSON.stringify(mode)}==='pending-unicode-range'){
+  document.querySelector('#record').style.fontFamily='CaptureProbe,Arial';
+  const text=document.createElement('span');text.textContent='𠮷';document.querySelector('#record').append(text);
+  document.fonts.load('16px CaptureProbe','𠮷').catch(()=>{});
  }
  window.captureTicks=0;
  window.addEventListener('captureBoundary',()=>{
@@ -62,7 +75,7 @@ const server=http.createServer((req,res)=>{
  try{
   const page=await browser.newPage({viewport:{width:700,height:400}});page.setDefaultTimeout(3000);
   await page.goto('http://127.0.0.1:'+server.address().port,{waitUntil:'domcontentloaded'});
-  if(mode.includes('font')&&mode!=='capture-visible-font')await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='loading'||font.status==='error'));
+  if((mode.includes('font')&&mode!=='capture-visible-font')||mode==='pending-unicode-range')await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='loading'||font.status==='error'));
   if(mode==='missing-visible-font')await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='error'));
   if(mode!=='blank-business')await page.locator('#field').focus();
   if(mode==='responsive-layout'){
@@ -86,12 +99,21 @@ const server=http.createServer((req,res)=>{
     return send(name,args);
    };return session;
   };
-  if(['normal','nonvisible-font','late-tooltip','refreshing-text','responsive-layout','scrolled-long-page'].includes(mode)){
+  if(['normal','nonvisible-font','late-tooltip','refreshing-text','responsive-layout','scrolled-long-page','batched-unicode'].includes(mode)){
+   if(mode==='batched-unicode'){
+    const state=await nativeScreenshotState(page);assert(state.ready);
+    const checks=await page.evaluate(()=>fontCalls);
+    assert.equal(checks.length,new Set(checks.map(check=>check.font)).size,'One actual FontFaceSet check per CSS font per sample, never per element');
+    const glyphs=checks.map(check=>check.text).join('');
+    for(const glyph of ['𠮷','Ω','Ж','0','9'])assert(glyphs.includes(glyph),'Batch must retain every visible text/control codepoint');
+   }
    if(mode==='nonvisible-font'){
     assert.equal(await page.evaluate(()=>document.fonts.status),'loading');
     assert((await nativeScreenshotState(page)).ready);
    }
-   await captureNativeScreenshot(page,file,50,1500);
+   const timing=await captureNativeScreenshot(page,file,50,1500);
+   for(const key of ['notice_ms','sampling_ms','pixels_ms','samples','duration_ms','capture_attempts'])assert(Number.isInteger(timing[key])&&timing[key]>=0);
+   assert(!JSON.stringify(timing).includes('Private control value'));
    const bytes=fs.readFileSync(file);assert.equal(bytes.subarray(1,4).toString(),'PNG');
    assert(bytes.length>1000);assert.equal(bytes.readUInt32BE(16),700);assert.equal(bytes.readUInt32BE(20),mode==='scrolled-long-page'?1250:400);
    assert.equal(beyond,mode==='scrolled-long-page','Only documents exceeding the viewport may request the resize-inducing full-page path');
@@ -126,7 +148,7 @@ const server=http.createServer((req,res)=>{
    if(mode!=='capture-layout-drift')assert.equal(diagnostic.phase,'visible-fonts-and-layout');
    assert(!JSON.stringify(diagnostic).includes('Fixture customer title'));
    assert(!JSON.stringify(diagnostic).includes('Private control value'));
-   if(mode.includes('font'))assert(diagnostic.visible_fonts.some(font=>font.loaded===false),'Visible missing font must remain a strict failure');
+   if(mode.includes('font')||mode==='pending-unicode-range')assert(diagnostic.visible_fonts.some(font=>font.loaded===false),'Visible missing font must remain a strict failure');
    if(mode==='blank-business')assert.equal(diagnostic.visible_text_nodes,0);
    if(mode==='moving-layout')assert(await page.evaluate(()=>window.ticks)>10,'Capture must not stop the app animation to hide layout drift');
    if(mode==='capture-visible-font')assert.equal(captures,1,'Visible font must become pending during the actual first capture');
@@ -160,6 +182,8 @@ const server=http.createServer((req,res)=>{
         "capture-visible-font",
         "responsive-layout",
         "scrolled-long-page",
+        "batched-unicode",
+        "pending-unicode-range",
     ],
 )
 def test_native_pixels_require_visible_fonts_and_stable_business_content(

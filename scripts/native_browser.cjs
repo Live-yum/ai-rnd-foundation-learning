@@ -10,6 +10,24 @@ function nativeComponentSelectors(fastapi) {
   };
 }
 
+async function submitNativeLogin(page, base, fastapi, observe, checked) {
+  const loginResponse = observe('/system/auth/login', 'POST');
+  const infoResponse = observe(fastapi ? '/system/user/current/info' : '/system/auth/get-permission-info');
+  await page.getByRole('button', { name: /^登\s*录$|^sign in$|^login$/i }).first().click();
+  await checked(loginResponse);
+  const info = await checked(infoResponse);
+  assert(Array.isArray(info.menus) && info.menus.length, 'No native menus');
+  const origin = new URL(base).origin;
+  // A native SPA shell can be authenticated while a dashboard image still
+  // delays window.load. Authentication, permissions, same-origin route and
+  // actual shell visibility are mandatory; the real target list is checked next.
+  await page.waitForURL(url => url.origin === origin && url.hash.startsWith('#/')
+    && !/^#\/(?:auth|login)(?:[/?]|$)/.test(url.hash), { waitUntil: 'domcontentloaded' });
+  const shell = fastapi ? ['#app-sidebar', '#app-header', '#app-content'] : ['aside:visible', 'header:visible', '#__vben_main_content'];
+  for (const selector of shell) await page.locator(selector).first().waitFor({ state: 'visible' });
+  return info;
+}
+
 async function main() {
   const [template, base, reportDir, playwrightPath, moduleFile] = process.argv.slice(2);
   assert(['fastapiadmin', 'yudao-vben'].includes(template));
@@ -79,13 +97,7 @@ async function main() {
       await page.mouse.up();
       await checked(slider);
     }
-    const loginResponse = observe('/system/auth/login', 'POST');
-    const infoResponse = observe(fastapi ? '/system/user/current/info' : '/system/auth/get-permission-info');
-    await page.getByRole('button', { name: /^登\s*录$|^sign in$|^login$/i }).first().click();
-    await checked(loginResponse);
-    const info = await checked(infoResponse);
-    await page.waitForURL(url => !url.hash.includes('login'));
-    assert(info.menus && info.menus.length, 'No native menus');
+    await submitNativeLogin(page, base, fastapi, observe, checked);
     // Dismiss the native first-login product tour through its visible UI.
     const skipTour = page.getByRole('button', { name: '跳过', exact: true });
     if (fastapi && await skipTour.isVisible()) await skipTour.click();
@@ -190,5 +202,5 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { nativeComponentSelectors };
+module.exports = { nativeComponentSelectors, submitNativeLogin };
 if (require.main === module) main().catch(error => { console.error(error.stack); process.exitCode = 1; });

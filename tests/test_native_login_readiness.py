@@ -14,11 +14,12 @@ DRIVER = r"""
 const assert = require('node:assert/strict');
 const http = require('node:http');
 const { loginNativeSession } = require('./scripts/business_yudao_browser.cjs');
-const [fault, playwrightPath, oldTimeout = '1800'] = process.argv.slice(1);
+const { submitNativeLogin } = require('./scripts/native_browser.cjs');
+const [fault, playwrightPath, oldTimeout = '1800', driver = 'business'] = process.argv.slice(1);
 const { chromium } = require(playwrightPath);
 const actor = { username: 'fixture-manager', password: 'fixture-only-password' };
 const requests = [], heldImages = [];
-const shell = '<aside>Native menu</aside><header>Native header</header><main id="__vben_main_content">Dashboard</main>';
+const shell = '<aside id="app-sidebar">Native menu</aside><header id="app-header">Native header</header><main id="app-content"><div id="__vben_main_content">Dashboard</div></main>';
 const foreign = http.createServer((req, res) => res.end(shell));
 const server = http.createServer(async (req, res) => {
   const pathname = new URL(req.url, 'http://127.0.0.1').pathname;
@@ -37,7 +38,7 @@ const server = http.createServer(async (req, res) => {
       assert.deepEqual(JSON.parse(raw), { ...actor, tenantId: 1 });
       res.end(JSON.stringify({ code: fault === 'login-failure' ? 401 : 0, data: {} })); return;
     }
-    if (pathname.endsWith('/auth/get-permission-info')) {
+    if (pathname.endsWith('/auth/get-permission-info') || pathname.endsWith('/user/current/info')) {
       if (fault === 'permissions-http-failure') res.statusCode = 403;
       res.end(JSON.stringify({ code: fault === 'permissions-failure' ? 403 : 0,
         data: { menus: fault === 'missing-menu' ? [] : [{ path: '/dashboard/analytics' }] } })); return;
@@ -60,7 +61,7 @@ const server = http.createServer(async (req, res) => {
           body: JSON.stringify({ username: document.querySelector('input').value,
             password: document.querySelector('input[type=password]').value, tenantId }) })).json();
         const inspected = new Promise(resolve => addEventListener('permissions-inspected', resolve, { once: true }));
-        await (await fetch('/admin-api/system/auth/get-permission-info')).json();
+        await (await fetch(${JSON.stringify(driver === 'generic-fastapi' ? '/admin-api/system/user/current/info' : '/admin-api/system/auth/get-permission-info')})).json();
         // Even a plausible shell must never override rejected login/permissions responses.
         document.querySelector('#login').remove();
         document.body.insertAdjacentHTML('beforeend', ${JSON.stringify(shell)});
@@ -101,19 +102,30 @@ const server = http.createServer(async (req, res) => {
       assert(found.response.ok(), 'Business browser HTTP ' + found.response.status());
       const body = await found.response.json();
       assert.equal(body.code, 0, 'Business application error ' + body.code);
-      if (fault === 'foreign-origin' && found.response.url().endsWith('/auth/get-permission-info')) {
+      if (fault === 'foreign-origin' && /\/(auth\/get-permission-info|user\/current\/info)$/.test(found.response.url())) {
         await page.evaluate(() => dispatchEvent(new Event('permissions-inspected')));
       }
       return body.data;
     };
     let failure, businessReady = false;
     try {
-      await loginNativeSession(page, base, actor, observe, checked);
+      if (driver === 'business') await loginNativeSession(page, base, actor, observe, checked);
+      else {
+        const tenants = observe('/system/tenant/simple-list');
+        await page.goto(base + '/#/auth/login', { waitUntil: 'domcontentloaded' });
+        const available = await checked(tenants);
+        const tenant = available.find(item => item.id === 1); assert(tenant);
+        await page.getByRole('combobox').first().click();
+        await page.getByRole('option', { name: tenant.name, exact: true }).click();
+        await page.getByPlaceholder('用户名').fill(actor.username);
+        await page.locator('input[type=password]').fill(actor.password);
+        await submitNativeLogin(page, base, driver === 'generic-fastapi', observe, checked);
+      }
       businessReady = true;
     } catch (error) { failure = error; }
     if (fault === 'none') {
       assert.ifError(failure); assert.equal(businessReady, true);
-      assert.deepEqual(checkedPaths, ['/admin-api/system/tenant/simple-list', '/admin-api/system/auth/login', '/admin-api/system/auth/get-permission-info']);
+      assert.deepEqual(checkedPaths, ['/admin-api/system/tenant/simple-list', '/admin-api/system/auth/login', driver === 'generic-fastapi' ? '/admin-api/system/user/current/info' : '/admin-api/system/auth/get-permission-info']);
       assert.equal(page.url(), base + '/#/dashboard/analytics');
       assert.equal(await page.evaluate(() => document.readyState), 'interactive');
       assert.equal(await page.evaluate(() => window.loaded), false);
@@ -132,13 +144,13 @@ const server = http.createServer(async (req, res) => {
       assert.equal(businessReady, false, 'A failed prerequisite must block business readiness');
       assert(failure, 'Driver must reject ' + fault);
       const expected = { 'login-failure': /Business application error 401/, 'permissions-failure': /Business application error 403/,
-        'permissions-http-failure': /Business browser HTTP 403/, 'missing-menu': /Native role menu missing/,
+        'permissions-http-failure': /Business browser HTTP 403/, 'missing-menu': /Native role menu missing|No native menus/,
         'auth-route': /waitForURL: Timeout/, 'foreign-origin': /waitForURL: Timeout/,
         'missing-aside': /locator.waitFor: Timeout/, 'missing-main': /locator.waitFor: Timeout/ };
       assert.match(failure.message, expected[fault]);
       assert(!requests.some(route => route.includes('/infra/')), 'Never start business requests before login is ready');
     }
-    console.log('Native login HTTP/Chromium fixture verified: ' + fault + '; old load timeout=' + oldTimeout);
+    console.log('Native login HTTP/Chromium fixture verified: ' + driver + '/' + fault + '; old load timeout=' + oldTimeout);
   } finally {
     for (const response of heldImages) response.end();
     await browser.close();
@@ -162,12 +174,13 @@ const server = http.createServer(async (req, res) => {
         "missing-main",
     ],
 )
-def test_native_login_requires_authentication_permissions_route_and_shell(fault):
+@pytest.mark.parametrize("driver", ["business", "generic", "generic-fastapi"])
+def test_native_login_requires_authentication_permissions_route_and_shell(fault, driver):
     module = os.getenv("PRODUCT_VERIFY_PLAYWRIGHT")
     if not module or not Path(module).is_dir():
         pytest.skip("Actual Playwright is required in Actions")
     result = subprocess.run(
-        [shutil.which("node"), "-e", DRIVER, fault, module],
+        [shutil.which("node"), "-e", DRIVER, fault, module, "1800", driver],
         cwd=ROOT,
         env=clean_env({"PLAYWRIGHT_BROWSERS_PATH": "0"}),
         capture_output=True,
@@ -188,3 +201,14 @@ def test_actual_native_journey_uses_checked_login_readiness_without_extending_ti
     assert "page.setDefaultTimeout(45000)" in login
     assert login.index("await loginNativeSession(") < login.index("report.checks.push(")
     assert "await checked(response); const identity = await checked(info)" in source
+
+
+def test_generic_native_journey_uses_checked_login_before_actual_list_and_ui():
+    source = (ROOT / "scripts/native_browser.cjs").read_text(encoding="utf-8")
+    main = source.split("async function main() {", 1)[1]
+    assert "page.setDefaultTimeout(45000)" in main
+    assert "await submitNativeLogin(page, base, fastapi, observe, checked);" in main
+    assert main.index("await submitNativeLogin(") < main.index("await checked(listing)")
+    assert main.index("await checked(listing)") < main.index("const pageResult =")
+    assert "native_shell_visible: true" in main
+    assert "Native boolean option was not selected" in main
