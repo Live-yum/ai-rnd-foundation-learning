@@ -2276,6 +2276,12 @@ FastapiAdmin应继续体现Fa/Element Plus，Yudao应继续体现Vben/Ant Design
 7. 打开管理员/客服统计：数量、解决时长、客户分类、日趋势均对应实际数据；未解决记录不计入平均解决时长。检查通知已读，再退出、停止、重启产品，确认业务与历史仍在。备份是另外的数据操作，不能把源码ZIP当数据备份。
 8. 保存此模板的当前提交、工具/浏览器/新库/重启结果和实际打开检查的截图。对两个原生模板重复步骤，确认各自的组件与主题，不把一套成功复制给另外两套。最后才汇总三模板结果；真实DeepSeek仍按下一章单独验收。
 
+关联记录多时，Yudao/Vben的原生选择器保留虚拟滚动；展开后输入客户名或请求标题，按可读标签找到刚创建的记录再选择。搜索只过滤后端已经按角色授权的选项，不扩大可见范围；找不到时先核对当前账号能否读取目标记录，不改选第一条记录来跳过问题。
+
+验证列表查询时，使用各模板真实组件显示的按钮，例如FastapiAdmin的“查询”，同时核对关键词、精确筛选、结果记录和重置后的状态。一次成功截图不能替代不匹配条件应返回空集的检查，也不能用接口通过代替真实页面操作。
+
+独立ZIP检查失败时，先查看`portable-start.log`和`portable-failure-diagnostics.json`，区分首次启动、前端构建和重启。后者在临时副本清理前保留有界、已遮蔽凭据的白名单日志尾及当前实例的进程阶段、端口与退出状态；它不包含整个运行目录，也不代表检查通过。启动错误与清理错误同时出现时，原始启动错误应保留，不能靠杀死其他进程、跳过重启或放宽通过条件来消除报错。
+
 这一轮能回答“每条原始需求在哪里实现、谁能执行、怎么拒绝越权、怎么证明交付包离开平台仍能启动”。答不出的部分回到对应代码与测试，不追加第二份带版本后缀的教材。
 
 # LangGraph 工作流的统一结构化输出
@@ -14645,7 +14651,7 @@ def serve_managed(settings, run_id):
 
 ### `workbench/native_environment.py`
 
-**作用：本机原生后端环境和进程。** 先确认专用本机数据库，再复制固定源码、初始化种子并生成环境；install_backend准备依赖与构建，running_backend管理进程存活和退出。兼容改动检查原文并记录，不静默忽略失败。
+**作用：本机原生后端环境和进程。** 先确认专用本机数据库，再复制固定源码、初始化种子并生成环境；install_backend准备依赖与构建，running_backend管理进程存活和退出，记录启动轮次、阶段、已拥有进程与目标端口状态。启动失败后清理也失败时保留原始异常并附加清理事实，不杀死占用端口的其他进程，也不把超时改成成功。兼容改动检查原文并记录。
 
 **对应关系：** native_lab/native_delivery/portable → backend环境 → 本机PG/Redis/Java或Python。
 
@@ -14655,25 +14661,26 @@ def serve_managed(settings, run_id):
 
 **逐个入口与控制逻辑：**
 
-- `checked_database`（L27–L33）：接收`url`。 控制顺序：L29按`parsed.get_backend_name() != "postgresql" or parsed.host not in {"127.0.0.1", "localh…`分支；L30抛异常，停止当前正常路径；L31按`not re.fullmatch(r"[a-z][a-z0-9_]{0,40}_codegen", parsed.database or "")`分支；L32抛异常，停止当前正常路径。 调用`make_url`、`local_database_url`、`parsed.get_backend_name`、`ValueError`、`re.fullmatch`。 返回路径：L33的`parsed`。
-- `copy_source`（L36–L44）：接收`source`、`destination`。 控制顺序：L38按`destination.exists()`分支；L39抛异常，停止当前正常路径；L41遍历`files(source)`。 调用`Path`、`destination.exists`、`FileExistsError`、`destination.mkdir`、`files`、`inside`、`target.parent.mkdir`、`shutil.copyfile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `bootstrap_database`（L47–L74）：接收`template`、`backend`、`url`。 源码说明：Upstream seeds include DROP: execute ONLY in an empty dedicated development database.。 控制顺序：L54遍历`inspector.get_schema_names()`；L55按`schema == "information_schema" or schema.startswith("pg_")`分支；L57按`inspector.get_table_names(schema=schema) or inspector.get_view_names(schema=schema) o…`分支；L62抛异常，停止当前正常路径；L65按`template == "yudao-vben"`分支。 调用`checked_database`、`create_engine`、`engine.connect`、`inspect`、`inspector.get_schema_names`、`schema.startswith`、`inspector.get_table_names`、`inspector.get_view_names`、`inspector.get_sequence_names`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `native_environment`（L77–L161）：接收`template`、`backend`、`url`、`port`、`redis_port`、`redis_database`。 源码说明：Explicit local profile. External OAuth/WeChat features are not configured or tested.。 控制顺序：L80按`not 1024 <= int(port) <= 65535`分支；L81抛异常，停止当前正常路径；L82按`template == "fastapiadmin"`分支；L108按`template != "yudao-vben"`分支；L109抛异常，停止当前正常路径。 调用`checked_database`、`int`、`ValueError`、`str`、`secrets.token_hex`、`Path`、`atomic_text`、`"\n".join`、`properties.items`等。 返回路径：L83的`{ "ENVIRONMENT": "dev", "SERVER_HOST": "127.0.0.1", "SERVER_PORT": str(port), "DEBUG": "Fa…`；L156的`{ "SPRING_PROFILES_ACTIVE": "native", "NATIVE_DB_USER": parsed.username or "", "NATIVE_DB_…`。
-- `prepare_yudao_postgres`（L164–L191）：接收`backend`、`reports`。 源码说明：Declare the selected JDBC runtime in the copied aggregate POM.。 控制顺序：L171按`dependencies is None`分支；L172抛异常，停止当前正常路径；L178按`not present`分支；L179按`source.count("<dependencies>") != 1`分支；L180抛异常，停止当前正常路径。 调用`Path`、`sha`、`pom.read_text`、`ET.fromstring(source).find`、`ET.fromstring`、`ValueError`、`any`、`item.findtext`、`source.count`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify_aggregate_jars`（L194–L216）：接收`backend`。 控制顺序：L197遍历`("yudao-module-infra-server", "yudao-module-system-server")`；L203按`len(matches) != 1`分支；L204抛异常，停止当前正常路径；L206按`any(name.startswith("BOOT-INF/classes/") for name in dependency.namelist())`分支；L207抛异常，停止当前正常路径；L210按`not any( name.startswith("cn/iocoder/yudao/module/") and name.endswith(".class") for …`分支；L214抛异常，停止当前正常路径；L215按`not any(name.startswith("BOOT-INF/lib/postgresql-") for name in archive.namelist())`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`zipfile.ZipFile`、`archive.namelist`、`name.startswith`、`name.endswith`、`len`、`ValueError`、`io.BytesIO`、`archive.read`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `prepare_fastapi_registry`（L219–L246）：接收`backend`、`reports`。 源码说明：Use canonical PyPI URLs without changing any locked package version/hash.。 控制顺序：L231遍历`("pyproject.toml", "uv.lock")`；L236遍历`replacements.items()`；L242按`updated != original`分支。 调用`Path`、`path.read_text`、`sha`、`replacements.items`、`updated.replace`、`tomllib.loads`、`atomic_text`、`write_json`。 返回路径：L246的`receipt`。
-- `install_backend`（L249–L318）：接收`template`、`backend`、`reports`。 控制顺序：L252按`template == "fastapiadmin"`分支；L281按`os.environ.get("RND_OFFLINE_TOOLS") == "1"`分支；L286按`template == "yudao-vben"`分支；L303按`os.environ.get("UV_CACHE_DIR")`分支；L306遍历`commands`；L314抛异常，停止当前正常路径；L317按`template == "yudao-vben"`分支。 调用`Path`、`reports.mkdir`、`prepare_fastapi_registry`、`prepare_yudao_postgres`、`atomic_text`、`os.environ.get`、`str`、`maven_settings.resolve`、`run_command`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `loopback_port_bindable`（L321–L340）：接收`port`。 源码说明：Observe bind availability without connecting to a possibly unowned service. Readiness probes must not allocate an outbound ephemeral socket to their own destination before the server listens (Linux pe。 控制顺序：L330按`os.name != "nt"`分支；L332按`hasattr(socket, "SO_EXCLUSIVEADDRUSE")`分支；L337按`error.errno in {errno.EADDRINUSE, errno.EACCES}`分支；L339抛异常，停止当前正常路径。 调用`socket.socket`、`probe.setsockopt`、`hasattr`、`probe.bind`。 返回路径：L338的`False`；L340的`True`。
-- `backend_port_state`（L343–L390）：接收`port`、`group_pid`。 源码说明：Bounded Linux listener ownership, with no environment or process arguments. Unlike a bind/connect probe this cannot race with server startup. Other platforms retain their existing readiness behavior a。 控制顺序：L350按`os.name != "posix" or not tcp.is_file()`分支；L354遍历`(tcp, Path("/proc/net/tcp6"))`；L355按`path.is_file()`分支；L356遍历`path.read_text().splitlines()[1:8193]`；L358按`len(parts) > 9 and parts[3] == "0A" and int(parts[1].rsplit(":", 1)[1], 16) == port`分支；L365遍历`list(Path("/proc").glob("[0-9]*/stat"))[:4096]`；L368按`int(fields[2]) == group_pid and int(fields[3]) == group_pid`分支；L373遍历`pids[:64]`。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`tcp.is_file`、`set`、`path.is_file`、`path.read_text().splitlines`、`path.read_text`、`line.split`、`len`、`int`等。 返回路径：L351的`{"observable": False}`；L382的`{ "observable": True, "listening": bool(inodes), "owned_listener": bool(owners), "owned_li…`；L390的`{"observable": False}`。
-- `running_backend`（L394–L501）：接收`template`、`backend`、`env`、`reports`。 控制顺序：L397按`template == "fastapiadmin"`分支；L426按`len(jars) != 1`分支；L427抛异常，停止当前正常路径；L431按`not loopback_port_bindable(port)`分支；L432抛异常，停止当前正常路径；L448遍历`range(90)`；L449按`process.poll() is not None`分支；L450抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path(backend).resolve`、`Path`、`Path(reports).resolve`、`reports.mkdir`、`int`、`str`、`( backend / "yudao-server/src/main/resources/application-native.p…`、`next`、`line.split`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `login`（L504–L542）：接收`template`、`base_url`、`username`、`password`。 控制顺序：L508按`template == "fastapiadmin"`分支；L517按`completed.json().get("code") not in (0, 200)`分支；L518抛异常，停止当前正常路径；L534按`body.get("code", 200) not in (0, 200)`分支；L535抛异常，停止当前正常路径；L540按`not isinstance(token, str) or not token`分支；L541抛异常，停止当前正常路径。 调用`httpx.Client`、`client.get`、`challenge.raise_for_status`、`challenge.json`、`time.sleep`、`client.post`、`completed.raise_for_status`、`completed.json().get`、`completed.json`等。 返回路径：L542的`token`。
+- `checked_database`（L28–L34）：接收`url`。 控制顺序：L30按`parsed.get_backend_name() != "postgresql" or parsed.host not in {"127.0.0.1", "localh…`分支；L31抛异常，停止当前正常路径；L32按`not re.fullmatch(r"[a-z][a-z0-9_]{0,40}_codegen", parsed.database or "")`分支；L33抛异常，停止当前正常路径。 调用`make_url`、`local_database_url`、`parsed.get_backend_name`、`ValueError`、`re.fullmatch`。 返回路径：L34的`parsed`。
+- `copy_source`（L37–L45）：接收`source`、`destination`。 控制顺序：L39按`destination.exists()`分支；L40抛异常，停止当前正常路径；L42遍历`files(source)`。 调用`Path`、`destination.exists`、`FileExistsError`、`destination.mkdir`、`files`、`inside`、`target.parent.mkdir`、`shutil.copyfile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `bootstrap_database`（L48–L75）：接收`template`、`backend`、`url`。 源码说明：Upstream seeds include DROP: execute ONLY in an empty dedicated development database.。 控制顺序：L55遍历`inspector.get_schema_names()`；L56按`schema == "information_schema" or schema.startswith("pg_")`分支；L58按`inspector.get_table_names(schema=schema) or inspector.get_view_names(schema=schema) o…`分支；L63抛异常，停止当前正常路径；L66按`template == "yudao-vben"`分支。 调用`checked_database`、`create_engine`、`engine.connect`、`inspect`、`inspector.get_schema_names`、`schema.startswith`、`inspector.get_table_names`、`inspector.get_view_names`、`inspector.get_sequence_names`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_environment`（L78–L162）：接收`template`、`backend`、`url`、`port`、`redis_port`、`redis_database`。 源码说明：Explicit local profile. External OAuth/WeChat features are not configured or tested.。 控制顺序：L81按`not 1024 <= int(port) <= 65535`分支；L82抛异常，停止当前正常路径；L83按`template == "fastapiadmin"`分支；L109按`template != "yudao-vben"`分支；L110抛异常，停止当前正常路径。 调用`checked_database`、`int`、`ValueError`、`str`、`secrets.token_hex`、`Path`、`atomic_text`、`"\n".join`、`properties.items`等。 返回路径：L84的`{ "ENVIRONMENT": "dev", "SERVER_HOST": "127.0.0.1", "SERVER_PORT": str(port), "DEBUG": "Fa…`；L157的`{ "SPRING_PROFILES_ACTIVE": "native", "NATIVE_DB_USER": parsed.username or "", "NATIVE_DB_…`。
+- `prepare_yudao_postgres`（L165–L192）：接收`backend`、`reports`。 源码说明：Declare the selected JDBC runtime in the copied aggregate POM.。 控制顺序：L172按`dependencies is None`分支；L173抛异常，停止当前正常路径；L179按`not present`分支；L180按`source.count("<dependencies>") != 1`分支；L181抛异常，停止当前正常路径。 调用`Path`、`sha`、`pom.read_text`、`ET.fromstring(source).find`、`ET.fromstring`、`ValueError`、`any`、`item.findtext`、`source.count`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_aggregate_jars`（L195–L217）：接收`backend`。 控制顺序：L198遍历`("yudao-module-infra-server", "yudao-module-system-server")`；L204按`len(matches) != 1`分支；L205抛异常，停止当前正常路径；L207按`any(name.startswith("BOOT-INF/classes/") for name in dependency.namelist())`分支；L208抛异常，停止当前正常路径；L211按`not any( name.startswith("cn/iocoder/yudao/module/") and name.endswith(".class") for …`分支；L215抛异常，停止当前正常路径；L216按`not any(name.startswith("BOOT-INF/lib/postgresql-") for name in archive.namelist())`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`zipfile.ZipFile`、`archive.namelist`、`name.startswith`、`name.endswith`、`len`、`ValueError`、`io.BytesIO`、`archive.read`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `prepare_fastapi_registry`（L220–L247）：接收`backend`、`reports`。 源码说明：Use canonical PyPI URLs without changing any locked package version/hash.。 控制顺序：L232遍历`("pyproject.toml", "uv.lock")`；L237遍历`replacements.items()`；L243按`updated != original`分支。 调用`Path`、`path.read_text`、`sha`、`replacements.items`、`updated.replace`、`tomllib.loads`、`atomic_text`、`write_json`。 返回路径：L247的`receipt`。
+- `install_backend`（L250–L319）：接收`template`、`backend`、`reports`。 控制顺序：L253按`template == "fastapiadmin"`分支；L282按`os.environ.get("RND_OFFLINE_TOOLS") == "1"`分支；L287按`template == "yudao-vben"`分支；L304按`os.environ.get("UV_CACHE_DIR")`分支；L307遍历`commands`；L315抛异常，停止当前正常路径；L318按`template == "yudao-vben"`分支。 调用`Path`、`reports.mkdir`、`prepare_fastapi_registry`、`prepare_yudao_postgres`、`atomic_text`、`os.environ.get`、`str`、`maven_settings.resolve`、`run_command`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `loopback_port_bindable`（L322–L341）：接收`port`。 源码说明：Observe bind availability without connecting to a possibly unowned service. Readiness probes must not allocate an outbound ephemeral socket to their own destination before the server listens (Linux pe。 控制顺序：L331按`os.name != "nt"`分支；L333按`hasattr(socket, "SO_EXCLUSIVEADDRUSE")`分支；L338按`error.errno in {errno.EADDRINUSE, errno.EACCES}`分支；L340抛异常，停止当前正常路径。 调用`socket.socket`、`probe.setsockopt`、`hasattr`、`probe.bind`。 返回路径：L339的`False`；L341的`True`。
+- `backend_port_state`（L344–L394）：接收`port`、`group_pid`。 源码说明：Bounded Linux listener ownership, with no environment or process arguments. Unlike a bind/connect probe this cannot race with server startup. Other platforms retain their existing readiness behavior a。 控制顺序：L351按`os.name != "posix" or not tcp.is_file()`分支；L356遍历`(tcp, Path("/proc/net/tcp6"))`；L357按`path.is_file()`分支；L358遍历`path.read_text(encoding="utf-8").splitlines()[1:8193]`；L360按`len(parts) > 9 and int(parts[1].rsplit(":", 1)[1], 16) == port`分支；L363按`parts[3] == "0A"`分支；L366遍历`list(Path("/proc").glob("[0-9]*/stat"))[:4096]`；L369按`int(fields[2]) == group_pid and int(fields[3]) == group_pid`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`tcp.is_file`、`set`、`path.is_file`、`path.read_text(encoding="utf-8").splitlines`、`path.read_text`、`line.split`、`len`、`int`等。 返回路径：L352的`{"observable": False}`；L384的`{ "observable": True, "listening": bool(listener_inodes), "owned_listener": bool(owners), …`；L394的`{"observable": False}`。
+- `running_backend`（L398–L556）：接收`template`、`backend`、`env`、`reports`。 控制顺序：L401按`template == "fastapiadmin"`分支；L430按`len(jars) != 1`分支；L431抛异常，停止当前正常路径；L435按`not loopback_port_bindable(port)`分支；L436抛异常，停止当前正常路径；L441按`previous.is_file() and not previous.is_symlink() and previous.stat().st_size <= 16384`分支；L444按`type(value) is int and 0 < value < 1_000_000`分支；L471遍历`range(90)`。后续分支沿下方源码相同行号继续阅读。 调用`Path(backend).resolve`、`Path`、`Path(reports).resolve`、`reports.mkdir`、`int`、`str`、`( backend / "yudao-server/src/main/resources/application-native.p…`、`next`、`line.split`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `login`（L559–L597）：接收`template`、`base_url`、`username`、`password`。 控制顺序：L563按`template == "fastapiadmin"`分支；L572按`completed.json().get("code") not in (0, 200)`分支；L573抛异常，停止当前正常路径；L589按`body.get("code", 200) not in (0, 200)`分支；L590抛异常，停止当前正常路径；L595按`not isinstance(token, str) or not token`分支；L596抛异常，停止当前正常路径。 调用`httpx.Client`、`client.get`、`challenge.raise_for_status`、`challenge.json`、`time.sleep`、`client.post`、`completed.raise_for_status`、`completed.json().get`、`completed.json`等。 返回路径：L597的`token`。
 
-<!-- source-file: workbench/native_environment.py sha256: 21cdacdab6c1e00fac5c178e83cb25f920e13aa0a1f549c085f88bc64aaf96bf -->
+<!-- source-file: workbench/native_environment.py sha256: 05b037ae1c73c4a2f2ed18a51b41e008e20445e5a8ef60c56480d22d171e142b -->
 ````python
 """Loopback native lab lifecycle. Never resets existing databases or mocks authentication."""
 
 import errno
 import io
+import json
 import os
 import re
 import secrets
@@ -15021,27 +15028,27 @@ def backend_port_state(port, group_pid):
     tcp = Path("/proc/net/tcp")
     if os.name != "posix" or not tcp.is_file():
         return {"observable": False}
-    inodes = set()
+    inodes, listener_inodes = set(), set()
+    local_port_states = {}
     try:
         for path in (tcp, Path("/proc/net/tcp6")):
             if path.is_file():
-                for line in path.read_text().splitlines()[1:8193]:
+                for line in path.read_text(encoding="utf-8").splitlines()[1:8193]:
                     parts = line.split()
-                    if (
-                        len(parts) > 9
-                        and parts[3] == "0A"
-                        and int(parts[1].rsplit(":", 1)[1], 16) == port
-                    ):
+                    if len(parts) > 9 and int(parts[1].rsplit(":", 1)[1], 16) == port:
                         inodes.add(parts[9])
+                        local_port_states[parts[3]] = local_port_states.get(parts[3], 0) + 1
+                        if parts[3] == "0A":
+                            listener_inodes.add(parts[9])
         pids = []
         for path in list(Path("/proc").glob("[0-9]*/stat"))[:4096]:
             try:
-                fields = path.read_text().rsplit(") ", 1)[1].split()
+                fields = path.read_text(encoding="utf-8").rsplit(") ", 1)[1].split()
                 if int(fields[2]) == group_pid and int(fields[3]) == group_pid:
                     pids.append(int(path.parent.name))
             except OSError, ValueError, IndexError:
                 continue
-        owners = []
+        owners, socket_owners = set(), set()
         for pid in pids[:64]:
             for fd in list((Path("/proc") / str(pid) / "fd").glob("*"))[:2048]:
                 try:
@@ -15049,14 +15056,17 @@ def backend_port_state(port, group_pid):
                 except OSError:
                     continue
                 if target.startswith("socket:[") and target[8:-1] in inodes:
-                    owners.append(pid)
-                    break
+                    socket_owners.add(pid)
+                    if target[8:-1] in listener_inodes:
+                        owners.add(pid)
         return {
             "observable": True,
-            "listening": bool(inodes),
+            "listening": bool(listener_inodes),
             "owned_listener": bool(owners),
             "owned_listener_pids": sorted(owners),
             "owned_group_pids": sorted(pids[:64]),
+            "owned_socket_pids": sorted(socket_owners),
+            "local_port_state_counts": dict(sorted(local_port_states.items())),
         }
     except OSError, ValueError, IndexError:
         return {"observable": False}
@@ -15104,7 +15114,17 @@ def running_backend(template, backend, env, reports):
         raise RuntimeError(
             "Native backend port is already occupied; refusing to test another process"
         )
+    attempt = 1
+    previous = reports / "backend-lifecycle.json"
+    if previous.is_file() and not previous.is_symlink() and previous.stat().st_size <= 16384:
+        try:
+            value = json.loads(previous.read_text(encoding="utf-8")).get("startup_attempt")
+            if type(value) is int and 0 < value < 1_000_000:
+                attempt = value + 1
+        except OSError, ValueError, AttributeError:
+            pass
     log = (reports / "backend-runtime.log").open("ab")
+    log_start = log.tell()
     process = subprocess.Popen(
         command,
         cwd=backend,
@@ -15113,8 +15133,17 @@ def running_backend(template, backend, env, reports):
         stderr=subprocess.STDOUT,
         **process_options(),
     )
-    lifecycle = {"port": port, "pid": process.pid, "owned_process_group": True, "started": True}
+    lifecycle = {
+        "port": port,
+        "pid": process.pid,
+        "owned_process_group": True,
+        "started": True,
+        "startup_attempt": attempt,
+        "runtime_log_start_bytes": log_start,
+        "phase": "backend-readiness",
+    }
     write_json(reports / "backend-lifecycle.json", lifecycle)
+    failure = None
     try:
         with httpx.Client(trust_env=False, timeout=5) as client:
             for _ in range(90):
@@ -15146,31 +15175,63 @@ def running_backend(template, backend, env, reports):
                 raise TimeoutError(
                     "Native backend did not become ready; inspect backend-runtime.log"
                 )
-        yield base_url, openapi
-    finally:
-        lifecycle["port_state_before_cleanup"] = backend_port_state(port, process.pid)
-        # A launcher may have exited while its same-session descendants remain.
-        # Generic stop_process returns early for an exited leader, so explicitly
-        # stop only the still-observed session/group that this context created.
-        state = lifecycle["port_state_before_cleanup"]
-        if process.poll() is not None and state.get("owned_group_pids"):
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-        stop_process(process)
-        log.close()
-        # Only the process group we started was stopped. Never kill a process
-        # merely because it owns the port; a foreign collision remains a failure.
-        deadline = time.monotonic() + 5
-        released = loopback_port_bindable(port)
-        while not released and time.monotonic() < deadline:
-            time.sleep(0.1)
-            released = loopback_port_bindable(port)
-        lifecycle.update(returncode=process.poll(), port_released=released)
+        lifecycle["phase"] = "backend-running"
         write_json(reports / "backend-lifecycle.json", lifecycle)
-        if not released:
-            raise RuntimeError("Native backend port remained occupied after owned-process cleanup")
+        yield base_url, openapi
+    except BaseException as error:
+        failure = error
+        lifecycle["failure"] = {"phase": lifecycle["phase"], "type": type(error).__name__}
+        raise
+    finally:
+        cleanup_failure = None
+        lifecycle["returncode_before_cleanup"] = process.poll()
+        lifecycle["phase"] = "backend-cleanup"
+        lifecycle["port_released"] = False
+        try:
+            lifecycle["port_state_before_cleanup"] = backend_port_state(port, process.pid)
+            # An exited launcher may have left same-session descendants. Stop
+            # only the still-observed group created by this context, never a
+            # process discovered merely because it has acquired this port.
+            state = lifecycle["port_state_before_cleanup"]
+            if process.poll() is not None and state.get("owned_group_pids"):
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            stop_process(process)
+            deadline = time.monotonic() + 5
+            released = loopback_port_bindable(port)
+            while not released and time.monotonic() < deadline:
+                time.sleep(0.1)
+                released = loopback_port_bindable(port)
+            lifecycle["port_released"] = released
+            lifecycle["port_state_after_cleanup"] = backend_port_state(port, process.pid)
+            if not released:
+                raise RuntimeError(
+                    "Native backend port remained occupied after owned-process cleanup"
+                )
+        except Exception as error:
+            cleanup_failure = error
+            lifecycle["cleanup_failure"] = {"type": type(error).__name__}
+        finally:
+            try:
+                log.close()
+            except Exception as error:
+                cleanup_failure = cleanup_failure or error
+                lifecycle.setdefault("cleanup_failure", {"type": type(error).__name__})
+            lifecycle["returncode"] = process.poll()
+            try:
+                write_json(reports / "backend-lifecycle.json", lifecycle)
+            except Exception as error:
+                cleanup_failure = cleanup_failure or error
+        if cleanup_failure is not None:
+            if failure is None:
+                raise cleanup_failure
+            failure.add_note(
+                "Native backend cleanup also failed "
+                f"({type(cleanup_failure).__name__}, port_released={lifecycle['port_released']}); "
+                "inspect backend-lifecycle.json"
+            )
 
 
 def login(template, base_url, username=None, password=None):
@@ -17592,7 +17653,7 @@ def stop_native(process, ports):
 
 ### `workbench/portable.py`
 
-**作用：让原生产品脱离工作台独立启动。** 导出原生种子、增量业务表和菜单SQL，复制启动器所需全部HELPERS，包括本机策略模块。verify_native_delivery在另一个新的本机数据库恢复并启动前后端，确认没有导入原工作台或复用原生成数据库。
+**作用：让原生产品脱离工作台独立启动。** 导出原生种子、增量业务表和菜单SQL，复制启动器所需全部HELPERS，包括本机策略模块。verify_native_delivery在另一个新的本机数据库恢复并启动前后端，确认没有导入原工作台或复用原生成数据库；失败时在删除临时副本前保留白名单日志尾和进程阶段，限制读取与输出大小并遮蔽凭据，不复制环境、服务密码文件或任意运行目录。诊断回执不能授予验收成功。
 
 **对应关系：** managed_package → portable → templates/deployment；test_native_delivery_boundaries。
 
@@ -17602,26 +17663,34 @@ def stop_native(process, ports):
 
 **逐个入口与控制逻辑：**
 
-- `connection_url`（L39–L40）：接收`url`。 调用`checked_database(url).set(drivername="postgresql").render_as_stri…`、`checked_database(url).set`、`checked_database`。 返回路径：L40的`checked_database(url).set(drivername="postgresql").render_as_string(hide_password=False)`。
-- `menu_snapshot`（L43–L50）：接收`template`、`url`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`digest`、`json.loads`等。 返回路径：L50的`{row["id"]: digest(json.loads(json.dumps(row, default=str))) for row in rows}`。
-- `export_menu_sql`（L53–L92）：接收`template`、`url`、`before`、`target`。 控制顺序：L64按`not changed`分支；L65抛异常，停止当前正常路径；L69遍历`changed`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`before.get`、`digest`等。 返回路径：L92的`{"table": table, "row_ids": [row["id"] for row in changed], "sha256": sha(target)}`。
-- `build_native_delivery`（L95–L180）：接收`template`、`product`、`reports`、`plan`、`targets`、`url`。 控制顺序：L100遍历`("pyproject.toml", "uv.lock", ".python-version", "services.yaml",…`；L103按`plan.business`分支；L112遍历`HELPERS`；L118按`plan.business`分支；L119遍历`( ("business-extension-schema.sql", "004-business-extension.sql")…`；L124按`source_file.is_file()`分支；L127按`plan.business`分支；L128按`template == "fastapiadmin"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`deployment.mkdir`、`shutil.copyfile`、`helper_root.mkdir`、`sql_dir.mkdir`、`source_file.is_file`、`json.loads`、`(reports / "business-extension.json").read_text`、`(reports / "business-yudao.json").read_text`等。 返回路径：L175的`{ "sql_files": sql_files, "sql_digest": manifest["sql_digest"], "standalone_start": "uv ru…`。
-- `verify_native_delivery`（L183–L259）：接收`product`、`url`、`reports`、`redis_port`、`template`。 源码说明：Restore the distributable ZIP; run startup against a DIFFERENT empty DB.。 控制顺序：L194按`template not in {"fastapiadmin", "yudao-vben"}`分支；L195抛异常，停止当前正常路径；L208按`restored != packaged or manifest(copy) != listing`分支；L209抛异常，停止当前正常路径；L232抛异常，停止当前正常路径；L237按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L244抛异常，停止当前正常路径；L257按`created`分支。 调用`uuid.uuid4`、`ValueError`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`等。 返回路径：L255的`result`。
+- `_diagnostic_redact`（L58–L70）：接收`text`、`url`。 源码说明：The child receives no model credentials; exclude its explicit DB secret too.。 控制顺序：L62遍历`sorted(secrets, key=len, reverse=True)`。 调用`checked_database`、`quote`、`quote_plus`、`sorted`、`text.replace`、`re.sub`。 返回路径：L70的`re.sub(r"(://[^/@:\s]+:)[^@\s]+@", r"\1[REDACTED]@", text)`。
+- `_diagnostic_lifecycle`（L73–L136）：接收`value`。 源码说明：Select scalar process facts, never arbitrary messages, paths or environment.。 控制顺序：L75按`not isinstance(value, dict)`分支；L78遍历`( "port", "pid", "startup_attempt", "runtime_log_start_bytes", "r…`；L86按`name in value and ( type(value[name]) is int or name.startswith("returncode") and val…`分支；L90遍历`("owned_process_group", "started", "port_released")`；L91按`type(value.get(name)) is bool`分支；L94按`value.get("phase") in phases`分支；L96遍历`("failure", "cleanup_failure")`；L98按`isinstance(row, dict)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`type`、`name.startswith`、`value.get`、`row.get`、`counts.items`、`re.fullmatch`。 返回路径：L76的`{}`；L136的`result`。
+- `capture_native_delivery_failure`（L139–L219）：接收`product`、`reports`、`url`、`error`。 源码说明：Preserve bounded selected evidence before the owned temporary copy is deleted. Never copy the runtime directory, services credentials, generated user rows, arbitrary files, symlinks or junctions. This。 控制顺序：L151按`error is not None`分支；L153遍历`("returncode", "timed_out")`；L155按`type(value) in {int, bool}`分支；L168按`len(raw) > 16384`分支；L176按`"cleanup_failure" in result["backend"] and "failure" not in result["backend"]`分支；L181遍历`DIAGNOSTIC_LOGS`；L182按`remaining <= 0`分支；L194按`start`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`getattr`、`selected_path`、`path.open`、`stream.read`、`len`、`_diagnostic_lifecycle`、`json.loads`、`result["backend"].get("failure", {}).get`等。 返回路径：L219的`result`。
+- `capture_native_delivery_failure.selected_path`（L158–L162）：接收`name`。 控制顺序：L160按`not stat.S_ISREG(path.stat().st_mode)`分支；L161抛异常，停止当前正常路径。 调用`inside`、`stat.S_ISREG`、`path.stat`、`ValueError`。 返回路径：L162的`path`。
+- `connection_url`（L222–L223）：接收`url`。 调用`checked_database(url).set(drivername="postgresql").render_as_stri…`、`checked_database(url).set`、`checked_database`。 返回路径：L223的`checked_database(url).set(drivername="postgresql").render_as_string(hide_password=False)`。
+- `menu_snapshot`（L226–L233）：接收`template`、`url`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`digest`、`json.loads`等。 返回路径：L233的`{row["id"]: digest(json.loads(json.dumps(row, default=str))) for row in rows}`。
+- `export_menu_sql`（L236–L275）：接收`template`、`url`、`before`、`target`。 控制顺序：L247按`not changed`分支；L248抛异常，停止当前正常路径；L252遍历`changed`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`before.get`、`digest`等。 返回路径：L275的`{"table": table, "row_ids": [row["id"] for row in changed], "sha256": sha(target)}`。
+- `build_native_delivery`（L278–L363）：接收`template`、`product`、`reports`、`plan`、`targets`、`url`。 控制顺序：L283遍历`("pyproject.toml", "uv.lock", ".python-version", "services.yaml",…`；L286按`plan.business`分支；L295遍历`HELPERS`；L301按`plan.business`分支；L302遍历`( ("business-extension-schema.sql", "004-business-extension.sql")…`；L307按`source_file.is_file()`分支；L310按`plan.business`分支；L311按`template == "fastapiadmin"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`deployment.mkdir`、`shutil.copyfile`、`helper_root.mkdir`、`sql_dir.mkdir`、`source_file.is_file`、`json.loads`、`(reports / "business-extension.json").read_text`、`(reports / "business-yudao.json").read_text`等。 返回路径：L358的`{ "sql_files": sql_files, "sql_digest": manifest["sql_digest"], "standalone_start": "uv ru…`。
+- `verify_native_delivery`（L366–L454）：接收`product`、`url`、`reports`、`redis_port`、`template`。 源码说明：Restore the distributable ZIP; run startup against a DIFFERENT empty DB.。 控制顺序：L376按`template not in {"fastapiadmin", "yudao-vben"}`分支；L377抛异常，停止当前正常路径；L390按`restored != packaged or manifest(copy) != listing`分支；L391抛异常，停止当前正常路径；L416按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L423抛异常，停止当前正常路径；L436按`hasattr(exc, "log")`分支；L450抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`uuid.uuid4`、`ValueError`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`等。 返回路径：L434的`result`。
 
-<!-- source-file: workbench/portable.py sha256: c16c93398fd84c8a998fdb799c2d907ec08b85f72455f673a74869b31eeb5607 -->
+<!-- source-file: workbench/portable.py sha256: 80cca037d3ff0fd3be564f0076052cd931972cb989964cd1b57a7858ee2dca77 -->
 ````python
 """Export a self-contained native launcher, immutable SQL and menu seed (no user data)."""
 
 import json
+import os
+import re
 import shutil
+import stat
 from pathlib import Path
+from urllib.parse import quote, quote_plus
 
 import psycopg
 from psycopg import sql
 from sqlalchemy import create_engine, inspect
 
 from workbench.domain import digest
-from workbench.filesystem import atomic_text, sha, write_json
+from workbench.filesystem import atomic_text, inside, sha, write_json
 from workbench.native_environment import checked_database
 from workbench.settings import ROOT
 
@@ -17646,6 +17715,185 @@ HELPERS = (
     "portable_checks.py",
     "native_business_checks.py",
 )
+
+DIAGNOSTIC_LOGS = (
+    "backend-runtime.log",
+    "backend-build.log",
+    "frontend-runtime.log",
+    "frontend-build.log",
+    "frontend-typecheck.log",
+    "frontend-install.log",
+)
+DIAGNOSTIC_LOG_BYTES = 65536
+DIAGNOSTIC_TOTAL_BYTES = 262144
+DIAGNOSTIC_READ_BYTES = 262144
+# JSON control-character escaping can expand text by six. Keep a hard serialized
+# ceiling as well as the shared raw-text budget, including all lifecycle metadata.
+DIAGNOSTIC_RECEIPT_BYTES = 2_000_000
+
+
+def _diagnostic_redact(text, url):
+    """The child receives no model credentials; exclude its explicit DB secret too."""
+    password = checked_database(url).password or ""
+    secrets = {url, password, quote(password, safe=""), quote_plus(password)} - {""}
+    for secret in sorted(secrets, key=len, reverse=True):
+        text = text.replace(secret, "[REDACTED]")
+    text = re.sub(r"(?i)((?:bearer|basic)\s+)[^\s\"']+", r"\1[REDACTED]", text)
+    text = re.sub(
+        r"(?i)(?<![\w.-])((?:[\"']?)[\w.-]{0,80}(?:password|api[_-]?key|auth[_-]?token|access[_-]?token|token|authorization|secret)(?:[\"']?)\s*[=:]\s*)(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)",
+        r"\1[REDACTED]",
+        text,
+    )
+    return re.sub(r"(://[^/@:\s]+:)[^@\s]+@", r"\1[REDACTED]@", text)
+
+
+def _diagnostic_lifecycle(value):
+    """Select scalar process facts, never arbitrary messages, paths or environment."""
+    if not isinstance(value, dict):
+        return {}
+    result = {}
+    for name in (
+        "port",
+        "pid",
+        "startup_attempt",
+        "runtime_log_start_bytes",
+        "returncode",
+        "returncode_before_cleanup",
+    ):
+        if name in value and (
+            type(value[name]) is int or name.startswith("returncode") and value[name] is None
+        ):
+            result[name] = value[name]
+    for name in ("owned_process_group", "started", "port_released"):
+        if type(value.get(name)) is bool:
+            result[name] = value[name]
+    phases = {"backend-readiness", "backend-running", "backend-cleanup"}
+    if value.get("phase") in phases:
+        result["phase"] = value["phase"]
+    for name in ("failure", "cleanup_failure"):
+        row = value.get(name)
+        if isinstance(row, dict):
+            selected = {}
+            if row.get("phase") in phases:
+                selected["phase"] = row["phase"]
+            if row.get("type") in {
+                "RuntimeError",
+                "TimeoutError",
+                "OSError",
+                "ValueError",
+                "KeyboardInterrupt",
+                "SystemExit",
+                "LookupError",
+                "PermissionError",
+                "ProcessLookupError",
+                "FileNotFoundError",
+            }:
+                selected["type"] = row["type"]
+            result[name] = selected
+    for name in ("port_state", "port_state_before_cleanup", "port_state_after_cleanup"):
+        row = value.get(name)
+        if not isinstance(row, dict):
+            continue
+        selected = {
+            key: row[key]
+            for key in ("observable", "listening", "owned_listener")
+            if type(row.get(key)) is bool
+        }
+        for key in ("owned_listener_pids", "owned_group_pids", "owned_socket_pids"):
+            if isinstance(row.get(key), list):
+                selected[key] = [pid for pid in row[key][:64] if type(pid) is int and pid > 0]
+        counts = row.get("local_port_state_counts")
+        if isinstance(counts, dict):
+            selected["local_port_state_counts"] = {
+                state: count
+                for state, count in counts.items()
+                if re.fullmatch(r"[0-9A-F]{2}", state) and type(count) is int and count >= 0
+            }
+        result[name] = selected
+    return result
+
+
+def capture_native_delivery_failure(product, reports, url, error=None):
+    """Preserve bounded selected evidence before the owned temporary copy is deleted.
+
+    Never copy the runtime directory, services credentials, generated user rows,
+    arbitrary files, symlinks or junctions. This receipt cannot grant acceptance.
+    """
+    result = {
+        "scope": "independent-native-delivery",
+        "affects_acceptance": False,
+        "failure_phase": "standalone-launcher",
+        "logs": {},
+    }
+    if error is not None:
+        result["launcher_failure"] = {"type": type(error).__name__[:64]}
+        for name in ("returncode", "timed_out"):
+            value = getattr(error, name, None)
+            if type(value) in {int, bool}:
+                result["launcher_failure"][name] = value
+
+    def selected_path(name):
+        path = inside(product, ".deployment/reports/" + name)
+        if not stat.S_ISREG(path.stat().st_mode):
+            raise ValueError("Diagnostic must be a regular file")
+        return path
+
+    try:
+        path = selected_path("backend-lifecycle.json")
+        with path.open("rb") as stream:
+            raw = stream.read(16385)
+        if len(raw) > 16384:
+            result["lifecycle_status"] = "oversized"
+        else:
+            result["backend"] = _diagnostic_lifecycle(json.loads(raw))
+            result["lifecycle_status"] = "captured"
+            result["failure_phase"] = (
+                result["backend"].get("failure", {}).get("phase", "standalone-launcher")
+            )
+            if "cleanup_failure" in result["backend"] and "failure" not in result["backend"]:
+                result["failure_phase"] = "backend-cleanup"
+    except OSError, ValueError, TypeError:
+        result["lifecycle_status"] = "unavailable"
+    remaining = DIAGNOSTIC_TOTAL_BYTES
+    for name in DIAGNOSTIC_LOGS:
+        if remaining <= 0:
+            result["logs"][name] = {"status": "budget-exhausted"}
+            continue
+        try:
+            path = selected_path(name)
+            with path.open("rb") as stream:
+                size = stream.seek(0, os.SEEK_END)
+                start = max(0, size - DIAGNOSTIC_READ_BYTES)
+                stream.seek(start)
+                raw = stream.read(DIAGNOSTIC_READ_BYTES)
+            # Discard a partial first line: a credential may straddle this read
+            # boundary. Redact the complete bounded text before output clipping.
+            if start:
+                _, separator, raw = raw.partition(b"\n")
+                if not separator:
+                    raw = b""
+            redacted = _diagnostic_redact(raw.decode("utf-8", errors="replace"), url).encode(
+                "utf-8"
+            )
+            limit = min(DIAGNOSTIC_LOG_BYTES, remaining)
+            text = redacted[-limit:].decode("utf-8", errors="ignore")
+            remaining -= len(text.encode("utf-8"))
+            result["logs"][name] = {
+                "status": "captured",
+                "source_bytes": size,
+                "truncated": bool(start or len(redacted) > limit),
+                "text": text,
+            }
+        except OSError, ValueError:
+            result["logs"][name] = {"status": "unavailable"}
+    body = json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    if len(body.encode("utf-8")) > DIAGNOSTIC_RECEIPT_BYTES:
+        result["logs"] = {
+            name: {"status": "serialization-budget-exhausted"} for name in DIAGNOSTIC_LOGS
+        }
+        body = json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    atomic_text(Path(reports) / "portable-failure-diagnostics.json", body)
+    return result
 
 
 def connection_url(url):
@@ -17794,7 +18042,6 @@ def build_native_delivery(template, product, reports, plan, targets, url):
 
 def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
     """Restore the distributable ZIP; run startup against a DIFFERENT empty DB."""
-    import os
     import sys
     import tempfile
     import uuid
@@ -17839,32 +18086,45 @@ def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
                     },
                     heartbeat="independent-native-start",
                 )
+                atomic_text(Path(reports) / "portable-start.log", command["log"])
+                result = json.loads(
+                    (copy / ".deployment/reports/portable-start.json").read_text(encoding="utf-8")
+                )
+                if (
+                    result.get("passed") is not True
+                    or result.get("frontend_started") is not True
+                    or result.get("restart") is not True
+                    or result.get("business")
+                    and result.get("restart_preserved_records") is not True
+                ):
+                    raise ValueError("独立交付包未完成新库/菜单/CRUD/前端启动与重启保留数据验收")
+                result.update(
+                    fresh_database=True,
+                    standalone_launcher=True,
+                    installed_from_lock=True,
+                    original_platform_imported=False,
+                    source_database_reused=False,
+                    archive_round_trip=True,
+                    archive=restored,
+                )
+                write_json(Path(reports) / "portable-start.json", result)
+                return result
             except Exception as exc:
-                atomic_text(Path(reports) / "portable-start.log", getattr(exc, "log", str(exc)))
+                if hasattr(exc, "log"):
+                    try:
+                        atomic_text(
+                            Path(reports) / "portable-start.log",
+                            _diagnostic_redact(exc.log, clean_url),
+                        )
+                    except Exception:
+                        exc.add_note("Could not retain the standalone launcher console log")
+                try:
+                    capture_native_delivery_failure(copy, reports, clean_url, exc)
+                except Exception:
+                    # Diagnostic I/O must not replace the startup/acceptance error
+                    # or prevent owned temporary directory/database cleanup.
+                    exc.add_note("Could not retain the standalone launcher failure diagnostics")
                 raise
-            atomic_text(Path(reports) / "portable-start.log", command["log"])
-            result = json.loads(
-                (copy / ".deployment/reports/portable-start.json").read_text(encoding="utf-8")
-            )
-            if (
-                result.get("passed") is not True
-                or result.get("frontend_started") is not True
-                or result.get("restart") is not True
-                or result.get("business")
-                and result.get("restart_preserved_records") is not True
-            ):
-                raise ValueError("独立交付包未完成新库/菜单/CRUD/前端启动与重启保留数据验收")
-            result.update(
-                fresh_database=True,
-                standalone_launcher=True,
-                installed_from_lock=True,
-                original_platform_imported=False,
-                source_database_reused=False,
-                archive_round_trip=True,
-                archive=restored,
-            )
-            write_json(Path(reports) / "portable-start.json", result)
-            return result
     finally:
         if created:
             with psycopg.connect(connection_url(url), autocommit=True) as c:
@@ -34019,13 +34279,13 @@ public class RndBusinessService {
 
 ### `templates/business/yudao/business-form.ts`
 
-**作用：Vben合同表单与关联选项。** 在原生Form Schema中移出状态/负责人等受控字段，把关系键接为服务器限定的可识别选择项，保留字段校验和类型。
+**作用：Vben合同表单与关联选项。** 在原生Form Schema中移出状态/负责人等受控字段，把关系键接为服务器限定的可识别选择项；关系选择器按可读标签搜索并保留虚拟滚动，选项多时也能找到新记录，不扩大后端权限范围。保留字段校验和类型。
 
 **对应关系：** 生成Vben表单 → 本辅助函数 → 合同关系API与原生表单组件。
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: templates/business/yudao/business-form.ts sha256: e3fd3e0f9081bddc0f7dc16c68d7b2616e4380acd92337464e02e821a58ebb11 -->
+<!-- source-file: templates/business/yudao/business-form.ts sha256: 03d31aa9a87c739bc6654830f6205e8566085d4e115ad49806460766c391caad -->
 ````typescript
 import type { VbenFormSchema } from '#/adapter/form';
 import type { VxeTableGridOptions } from '#/adapter/vxe-table';
@@ -34103,6 +34363,9 @@ function fieldSchema(entity: string, item: VbenFormSchema, search: boolean): Vbe
     result.componentProps = {
       api: () => relation.target === '$users' ? requestClient.get('/infra/rnd-business/users') : requestClient.get('/infra/rnd-business/references', { params: { entity: relation.target } }),
       labelField: relation.label, valueField: 'id', allowClear: search || !field.required,
+      // ApiComponent maps the declared relation label to option.label. Keep
+      // virtualization while making later authorized records findable by name.
+      showSearch: true, optionFilterProp: 'label',
     };
   } else if (field.kind === 'enum') {
     result.component = 'Select'; result.componentProps = { options: field.choices.map(value => ({ label: field.choice_labels[value] || value, value })), allowClear: search || !field.required };
@@ -60850,13 +61113,13 @@ def test_actual_recorded_business_gap_reaches_planner_with_exact_scope_and_actio
 
 **逐个入口与控制逻辑：**
 
-- `unqualified_text_reads`（L46–L111）：接收`source`。 源码说明：Find locale-sensitive pathlib/builtin text reads in the bounded source set.。 控制顺序：L58遍历`ast.walk(tree)`；L59按`isinstance(node, ast.With)`分支；L60遍历`node.items`；L62按`isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and isinstance(ca…`分支；L71遍历`ast.walk(tree)`；L72按`not isinstance(node, ast.Call)`分支；L76按`isinstance(function, ast.Attribute) and function.attr == "read_text"`分支；L78按`isinstance(function, ast.Attribute) and function.attr == "open" or isinstance(functio…`分支。后续分支沿下方源码相同行号继续阅读。 调用`ast.parse`、`ast.walk`、`isinstance`、`zip_scopes.append`、`any`、`keywords.get`、`len`、`encoding.value.lower().replace("-", "").replace`、`encoding.value.lower().replace`等。 返回路径：L111的`missing`。
-- `test_customer_source_and_fixture_reads_explicitly_use_utf8`（L121–L123）：接收`name`。 控制顺序：L123断言`not unqualified_text_reads(source)`。 调用`(ROOT / name).read_text`、`unqualified_text_reads`、`pytest.mark.parametrize`、`sorted`、`set`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "tests").glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_encoding_guard_rejects_locale_dependent_reads`（L138–L139）：接收`source`。 控制顺序：L139断言`unqualified_text_reads(source) == [1]`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_encoding_guard_allows_explicit_utf8_and_binary_reads`（L156–L157）：接收`source`。 控制顺序：L157断言`unqualified_text_reads(source) == []`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_encoding_guard_distinguishes_zip_binary_open_from_path_open`（L160–L176）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L161断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`；L167断言`unqualified_text_reads( "import zipfile as zip_module\nwith zip_module.ZipFile('sourc…`；L173断言`unqualified_text_reads("path.open()") == [1]`；L174断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`。 调用`unqualified_text_reads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `unqualified_text_reads`（L51–L116）：接收`source`。 源码说明：Find locale-sensitive pathlib/builtin text reads in the bounded source set.。 控制顺序：L63遍历`ast.walk(tree)`；L64按`isinstance(node, ast.With)`分支；L65遍历`node.items`；L67按`isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and isinstance(ca…`分支；L76遍历`ast.walk(tree)`；L77按`not isinstance(node, ast.Call)`分支；L81按`isinstance(function, ast.Attribute) and function.attr == "read_text"`分支；L83按`isinstance(function, ast.Attribute) and function.attr == "open" or isinstance(functio…`分支。后续分支沿下方源码相同行号继续阅读。 调用`ast.parse`、`ast.walk`、`isinstance`、`zip_scopes.append`、`any`、`keywords.get`、`len`、`encoding.value.lower().replace("-", "").replace`、`encoding.value.lower().replace`等。 返回路径：L116的`missing`。
+- `test_customer_source_and_fixture_reads_explicitly_use_utf8`（L126–L128）：接收`name`。 控制顺序：L128断言`not unqualified_text_reads(source)`。 调用`(ROOT / name).read_text`、`unqualified_text_reads`、`pytest.mark.parametrize`、`sorted`、`set`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "tests").glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_rejects_locale_dependent_reads`（L143–L144）：接收`source`。 控制顺序：L144断言`unqualified_text_reads(source) == [1]`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_allows_explicit_utf8_and_binary_reads`（L161–L162）：接收`source`。 控制顺序：L162断言`unqualified_text_reads(source) == []`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_distinguishes_zip_binary_open_from_path_open`（L165–L181）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L166断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`；L172断言`unqualified_text_reads( "import zipfile as zip_module\nwith zip_module.ZipFile('sourc…`；L178断言`unqualified_text_reads("path.open()") == [1]`；L179断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`。 调用`unqualified_text_reads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_customer_source_encoding.py sha256: 7cde6491368a1592c31e249eca9e86f0bb4f86448ec36d079753073d63bae02a -->
+<!-- source-file: tests/test_customer_source_encoding.py sha256: b4a881daceb0132e36a5dcf35ce7c877c13f5b0699505078cfb3d50d0a02c775 -->
 ````python
 """Keep customer acceptance source and fixture reads independent of the OS locale."""
 
@@ -60883,10 +61146,15 @@ SOURCE_READERS = (
     "tests/test_handbook.py",
     "tests/test_handbook_customer.py",
     "tests/test_native_browser_navigation.py",
+    "tests/test_native_business_query_browser.py",
+    "tests/test_native_backend_failure_diagnostics.py",
+    "tests/test_native_delivery_diagnostics.py",
+    "tests/test_native_relation_picker_browser.py",
     "tests/test_real_model_execution_diagnostics.py",
     "workbench/verification.py",
     "workbench/filesystem.py",
     "workbench/native_delivery.py",
+    "workbench/native_environment.py",
     "workbench/native_lab.py",
     "workbench/portable.py",
     "tests/test_native_archive_limits.py",
@@ -66046,6 +66314,262 @@ def test_independent_native_verification_consumes_zip_before_start_and_cleans_da
     assert filesystem.manifest(source) == before
 ````
 
+### `tests/test_native_backend_failure_diagnostics.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure`（L18–L134）：接收`tmp_path`、`monkeypatch`、`primary`、`cleanup`。 源码说明：Portable control-flow fakes, including the Windows unobservable-proc path.。 控制顺序：L49按`hasattr(native.os, "killpg")`分支；L89按`cleanup == "close"`分支；L97按`cleanup == "receipt"`分支；L110按`primary == "body"`分支；L111抛异常，停止当前正常路径；L112断言`primary is None`；L113断言`stopped == [process.pid]`；L114按`primary == "exit"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Process`、`monkeypatch.setattr`、`itertools.count`、`next`、`hasattr`、`pytest.fail`、`LookupError`、`pytest.raises`、`native.running_backend`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.Process`（L23–L28）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.Process.poll`（L27–L28）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L28的`self.returncode`。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.stop`（L41–L46）：接收`owned`。 控制顺序：L42断言`owned is process`；L44按`cleanup == "stop"`分支；L45抛异常，停止当前正常路径。 调用`stopped.append`、`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.Client`（L54–L73）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.Client.__init__`（L55–L56）：接收`**kwargs`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.Client.__enter__`（L58–L59）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L59的`self`。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.Client.__exit__`（L61–L62）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.Client.get`（L64–L73）：接收`url`。 控制顺序：L65断言`primary != "exit"`。 调用`Response`。 返回路径：L73的`Response()`。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.Client.get.Response`（L67–L71）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.Client.get.Response.json`（L70–L71）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L71的`{"paths": {}}`。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.Log`（L78–L87）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.Log.__init__`（L79–L80）：接收`stream`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.Log.tell`（L82–L83）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.stream.tell`。 返回路径：L83的`self.stream.tell()`。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.Log.close`（L85–L87）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L87抛异常，停止当前正常路径。 调用`self.stream.close`、`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.opened`（L91–L93）：接收`path`、`*args`、`**kwargs`。 调用`original_open`、`Log`。 返回路径：L93的`Log(stream) if path.name == "backend-runtime.log" else stream`。
+- `test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure.write`（L99–L102）：接收`path`、`value`。 控制顺序：L100按`path.name == "backend-lifecycle.json" and value.get("phase") == "backend-cleanup"`分支；L101抛异常，停止当前正常路径。 调用`value.get`、`OSError`、`original_write`。 返回路径：L102的`original_write(path, value)`。
+- `test_real_failed_child_retains_exit_code_and_never_kills_new_foreign_listener`（L140–L185）：接收`tmp_path`、`monkeypatch`。 控制顺序：L174断言`result["returncode_before_cleanup"] == result["returncode"] == 42`；L175断言`result["port_released"] is False`；L176断言`result["port_state_after_cleanup"]["owned_listener"] is False`；L177断言`result["port_state_after_cleanup"]["local_port_state_counts"]["0A"] == 1`；L178断言`result["port_state_after_cleanup"]["owned_group_pids"] == []`；L179断言`foreign.getsockopt(socket.SOL_SOCKET, socket.SO_ACCEPTCONN) == 1`；L180断言`"specific child startup failure" in ( tmp_path / "report/backend-runtime.log" ).read_…`；L183断言`"port_released=False" in raised.value.__notes__[0]`。 调用`socket.socket`、`foreign.bind`、`foreign.getsockname`、`monkeypatch.setattr`、`pytest.fail`、`itertools.count`、`next`、`pytest.raises`、`native.running_backend`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_failed_child_retains_exit_code_and_never_kills_new_foreign_listener.start`（L149–L157）：接收`command`、`**kwargs`。 调用`original`、`child.wait`、`foreign.bind`、`foreign.listen`。 返回路径：L157的`child`。
+- `test_repeated_backend_attempts_preserve_attempt_number_and_runtime_log_offset`（L188–L216）：接收`tmp_path`、`monkeypatch`。 控制顺序：L204遍历`(1, 2)`；L213断言`result["startup_attempt"] == attempt`；L214断言`result["runtime_log_start_bytes"] == (attempt - 1) * len( b"failure from this attempt…`。 调用`monkeypatch.setattr`、`pytest.raises`、`native.running_backend`、`pytest.fail`、`json.loads`、`(tmp_path / "report/backend-lifecycle.json").read_text`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_repeated_backend_attempts_preserve_attempt_number_and_runtime_log_offset.Process`（L191–L195）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_repeated_backend_attempts_preserve_attempt_number_and_runtime_log_offset.Process.poll`（L194–L195）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L195的`42`。
+- `test_repeated_backend_attempts_preserve_attempt_number_and_runtime_log_offset.start`（L197–L199）：接收`command`、`**kwargs`。 调用`kwargs["stdout"].write`、`Process`。 返回路径：L199的`Process()`。
+
+<!-- source-file: tests/test_native_backend_failure_diagnostics.py sha256: eb4f3f4f48746bf14309c416f6ef29655aaa632dd2fb504cab09a0b0cce9f004 -->
+````python
+"""Primary backend failures remain visible when owned cleanup also fails."""
+
+import itertools
+import json
+import os
+import socket
+import subprocess
+import sys
+from pathlib import Path
+
+import pytest
+
+from workbench import native_environment as native
+
+
+@pytest.mark.parametrize("primary", ["exit", "body", None])
+@pytest.mark.parametrize("cleanup", ["occupied", "stop", "close", "receipt"])
+def test_backend_primary_error_survives_cleanup_without_accepting_cleanup_failure(
+    tmp_path, monkeypatch, primary, cleanup
+):
+    """Portable control-flow fakes, including the Windows unobservable-proc path."""
+
+    class Process:
+        pid = 12345678
+        returncode = 42 if primary == "exit" else None
+
+        def poll(self):
+            return self.returncode
+
+    process = Process()
+    monkeypatch.setattr(native.subprocess, "Popen", lambda *args, **kwargs: process)
+    monkeypatch.setattr(native, "backend_port_state", lambda *args: {"observable": False})
+    binds = itertools.count()
+    monkeypatch.setattr(
+        native, "loopback_port_bindable", lambda port: next(binds) == 0 or cleanup != "occupied"
+    )
+    times = itertools.count(0, 6)
+    monkeypatch.setattr(native.time, "monotonic", lambda: next(times))
+    stopped = []
+
+    def stop(owned):
+        assert owned is process
+        stopped.append(owned.pid)
+        if cleanup == "stop":
+            raise OSError("explicit synthetic stop error")
+        process.returncode = process.returncode if process.returncode is not None else -9
+
+    monkeypatch.setattr(native, "stop_process", stop)
+    if hasattr(native.os, "killpg"):
+        monkeypatch.setattr(
+            native.os, "killpg", lambda *args: pytest.fail("no observed group to kill")
+        )
+
+    class Client:
+        def __init__(self, **kwargs):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def get(self, url):
+            assert primary != "exit"
+
+            class Response:
+                status_code = 200
+
+                def json(self):
+                    return {"paths": {}}
+
+            return Response()
+
+    monkeypatch.setattr(native.httpx, "Client", Client)
+    original_open = Path.open
+
+    class Log:
+        def __init__(self, stream):
+            self.stream = stream
+
+        def tell(self):
+            return self.stream.tell()
+
+        def close(self):
+            self.stream.close()
+            raise OSError("explicit synthetic log close error")
+
+    if cleanup == "close":
+
+        def opened(path, *args, **kwargs):
+            stream = original_open(path, *args, **kwargs)
+            return Log(stream) if path.name == "backend-runtime.log" else stream
+
+        monkeypatch.setattr(Path, "open", opened)
+    original_write = native.write_json
+    if cleanup == "receipt":
+
+        def write(path, value):
+            if path.name == "backend-lifecycle.json" and value.get("phase") == "backend-cleanup":
+                raise OSError("explicit synthetic receipt error")
+            return original_write(path, value)
+
+        monkeypatch.setattr(native, "write_json", write)
+    body_failure = LookupError("original body error")
+    with pytest.raises((RuntimeError, LookupError, OSError)) as raised:
+        with native.running_backend(
+            "fastapiadmin", tmp_path, {"SERVER_PORT": "18080"}, tmp_path / "report"
+        ):
+            if primary == "body":
+                raise body_failure
+            assert primary is None
+    assert stopped == [process.pid]
+    if primary == "exit":
+        assert str(raised.value) == "Native backend exited; inspect backend-runtime.log"
+    elif primary == "body":
+        assert raised.value is body_failure
+    elif cleanup == "occupied":
+        assert "port remained occupied" in str(raised.value)
+    else:
+        assert isinstance(raised.value, OSError)
+    if primary:
+        assert any("cleanup also failed" in note for note in raised.value.__notes__)
+    if cleanup != "receipt":
+        report = json.loads(
+            (tmp_path / "report/backend-lifecycle.json").read_text(encoding="utf-8")
+        )
+        assert report["cleanup_failure"]
+        assert report["port_released"] is (cleanup == "close")
+        assert report["returncode_before_cleanup"] == (42 if primary == "exit" else None)
+        if primary:
+            assert report["failure"]["phase"] == (
+                "backend-readiness" if primary == "exit" else "backend-running"
+            )
+
+
+@pytest.mark.skipif(
+    os.name != "posix" or not Path("/proc/net/tcp").is_file(), reason="Linux /proc ownership facts"
+)
+def test_real_failed_child_retains_exit_code_and_never_kills_new_foreign_listener(
+    tmp_path, monkeypatch
+):
+    with socket.socket() as foreign:
+        foreign.bind(("127.0.0.1", 0))
+        port = foreign.getsockname()[1]
+    original = subprocess.Popen
+    foreign = socket.socket()
+
+    def start(command, **kwargs):
+        child = original(
+            [sys.executable, "-c", "print('specific child startup failure'); raise SystemExit(42)"],
+            **kwargs,
+        )
+        child.wait(timeout=10)
+        foreign.bind(("127.0.0.1", port))
+        foreign.listen()
+        return child
+
+    monkeypatch.setattr(native.subprocess, "Popen", start)
+    monkeypatch.setattr(
+        native.os, "killpg", lambda *args: pytest.fail("foreign process must survive")
+    )
+    times = itertools.count(0, 6)
+    monkeypatch.setattr(native.time, "monotonic", lambda: next(times))
+    try:
+        with pytest.raises(RuntimeError, match="Native backend exited") as raised:
+            with native.running_backend(
+                "fastapiadmin", tmp_path, {"SERVER_PORT": str(port)}, tmp_path / "report"
+            ):
+                pytest.fail("child exited before readiness")
+        result = json.loads(
+            (tmp_path / "report/backend-lifecycle.json").read_text(encoding="utf-8")
+        )
+        assert result["returncode_before_cleanup"] == result["returncode"] == 42
+        assert result["port_released"] is False
+        assert result["port_state_after_cleanup"]["owned_listener"] is False
+        assert result["port_state_after_cleanup"]["local_port_state_counts"]["0A"] == 1
+        assert result["port_state_after_cleanup"]["owned_group_pids"] == []
+        assert foreign.getsockopt(socket.SOL_SOCKET, socket.SO_ACCEPTCONN) == 1
+        assert "specific child startup failure" in (
+            tmp_path / "report/backend-runtime.log"
+        ).read_text(encoding="utf-8")
+        assert "port_released=False" in raised.value.__notes__[0]
+    finally:
+        foreign.close()
+
+
+def test_repeated_backend_attempts_preserve_attempt_number_and_runtime_log_offset(
+    tmp_path, monkeypatch
+):
+    class Process:
+        pid = 12345678
+
+        def poll(self):
+            return 42
+
+    def start(command, **kwargs):
+        kwargs["stdout"].write(b"failure from this attempt\n")
+        return Process()
+
+    monkeypatch.setattr(native.subprocess, "Popen", start)
+    monkeypatch.setattr(native, "loopback_port_bindable", lambda port: True)
+    monkeypatch.setattr(native, "backend_port_state", lambda *args: {"observable": False})
+    for attempt in (1, 2):
+        with pytest.raises(RuntimeError, match="Native backend exited"):
+            with native.running_backend(
+                "fastapiadmin", tmp_path, {"SERVER_PORT": "18080"}, tmp_path / "report"
+            ):
+                pytest.fail("explicit exited process fake")
+        result = json.loads(
+            (tmp_path / "report/backend-lifecycle.json").read_text(encoding="utf-8")
+        )
+        assert result["startup_attempt"] == attempt
+        assert result["runtime_log_start_bytes"] == (attempt - 1) * len(
+            b"failure from this attempt\n"
+        )
+````
+
 ### `tests/test_native_backend_lifecycle.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -67950,10 +68474,11 @@ def test_full_executed_probe_collections_satisfy_the_strict_native_review_contra
 
 **逐个入口与控制逻辑：**
 
-- `test_native_query_driver_rejects_http_and_rendering_faults`（L136–L150）：接收`template`、`fault`。 控制顺序：L138按`not module or not Path(module).is_dir()`分支；L150断言`result.returncode == 0`。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`subprocess.run`、`shutil.which`、`clean_env`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_query_journey_is_in_each_actual_native_driver`（L154–L159）：接收`template`。 控制顺序：L157断言`"report.query_journey = await verifyNativeCustomerQuery(" in main`；L158断言`"report.checks.push('manager:customers:native-query-and-exact-filter')" in main`；L159断言`"manager-customers-native-query-positive.png" in main`。 调用`(ROOT / f"scripts/business_{template}_browser.cjs").read_text`、`source.split`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_query_driver_rejects_http_and_rendering_faults`（L141–L155）：接收`template`、`fault`。 控制顺序：L143按`not module or not Path(module).is_dir()`分支；L155断言`result.returncode == 0`。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`subprocess.run`、`shutil.which`、`clean_env`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_query_journey_is_in_each_actual_native_driver`（L159–L164）：接收`template`。 控制顺序：L162断言`"report.query_journey = await verifyNativeCustomerQuery(" in main`；L163断言`"report.checks.push('manager:customers:native-query-and-exact-filter')" in main`；L164断言`"manager-customers-native-query-positive.png" in main`。 调用`(ROOT / f"scripts/business_{template}_browser.cjs").read_text`、`source.split`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_query_button_fixture_matches_pinned_native_locales`（L167–L181）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L173断言`locale["table"]["searchBar"]["search"] == "查询"`；L174断言`locale["table"]["searchBar"]["reset"] == "重置"`；L175断言`'t("table.searchBar.search")' in component`；L180断言`"content: computed(() => $t('common.search'))" in component`；L181断言`"${yudao ? '搜 索' : '查询'}" in DRIVER`。 调用`zipfile.ZipFile`、`json.loads`、`archive.read`、`archive.read( "frontend/web/src/components/forms/fa-search-bar/in…`、`archive.read("packages/effects/plugins/src/vxe-table/use-vxe-grid…`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_native_business_query_browser.py sha256: 49a34442eb429e6f9f25094eef7a5ea26d436870d19e94dede315494dd6c1968 -->
+<!-- source-file: tests/test_native_business_query_browser.py sha256: a14b901f49f51d0c0fd6a5d03ff7f6f563f8ff9edb4a76cc867c0a817afdf6ac -->
 ````python
 """Chromium regression of the native drivers against a local HTTP/DOM fixture.
 
@@ -67961,9 +68486,11 @@ These are driver/serialization fault tests, not actual native-stack acceptance.
 The native Actions jobs run the same helpers inside both generated native apps.
 """
 
+import json
 import os
 import shutil
 import subprocess
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -68001,13 +68528,14 @@ const server = http.createServer((req, res) => {
       <div data-testid="business-search">
         <input data-testid="business-field-name" aria-label="搜索">
         <div data-testid="business-field-category" class="${yudao ? 'ant-select' : 'el-select'}" tabindex="0"><span id="selected" class="is-placeholder">请选择</span></div>
-        <button id="search">搜索</button><button id="reset">重置</button>
+        <button id="search">${yudao ? '搜 索' : '查询'}</button><button id="reset">${yudao ? '重 置' : '重置'}</button>
       </div>
       <div class="fa-table-card"><table><tbody id="rows"></tbody></table></div>
     </section>
     <div id="dropdown" class="ant-select-dropdown" hidden><div role="option" data-value="enterprise">企业</div><div role="option" data-value="personal">个人</div></div>
     <script>
       const yudao = ${JSON.stringify(yudao)}, fault = ${JSON.stringify(fault)}, route = ${JSON.stringify(route)};
+      if (fault === 'missing-search-control') document.querySelector('#search').hidden = true;
       let selectedValue = '';
       const keyword = document.querySelector('input'), selected = document.querySelector('#selected');
       document.querySelector('[data-testid="business-field-category"]').onclick = () => document.querySelector('#dropdown').hidden = false;
@@ -68067,7 +68595,8 @@ const server = http.createServer((req, res) => {
       const message = String(failure.message);
       const expected = { 'missing-keyword': /keyword serialization/, 'missing-filter': /category serialization/,
         'ignored-and': /total must match/, 'case-sensitive': /total must match/, 'wrong-pagination': /must use page/,
-        'missing-rendered-row': /waitForFunction: Timeout/, 'stale-reset': /reset must clear keyword/ };
+        'missing-rendered-row': /waitForFunction: Timeout/, 'stale-reset': /reset must clear keyword/,
+        'missing-search-control': /locator.waitFor: Timeout/ };
       assert.match(message, expected[fault], 'Reject for the intended regression, not an unrelated driver error');
     }
     console.log('Local native-query driver fixture regression verified: ' + template + '/' + fault);
@@ -68088,6 +68617,7 @@ const server = http.createServer((req, res) => {
         "wrong-pagination",
         "missing-rendered-row",
         "stale-reset",
+        "missing-search-control",
     ],
 )
 def test_native_query_driver_rejects_http_and_rendering_faults(template, fault):
@@ -68114,6 +68644,23 @@ def test_query_journey_is_in_each_actual_native_driver(template):
     assert "report.query_journey = await verifyNativeCustomerQuery(" in main
     assert "report.checks.push('manager:customers:native-query-and-exact-filter')" in main
     assert "manager-customers-native-query-positive.png" in main
+
+
+def test_query_button_fixture_matches_pinned_native_locales():
+    with zipfile.ZipFile(ROOT / "templates/vendor/fastapiadmin.zip") as archive:
+        locale = json.loads(archive.read("frontend/web/src/locales/langs/zh.json"))
+        component = archive.read(
+            "frontend/web/src/components/forms/fa-search-bar/index.vue"
+        ).decode("utf-8")
+    assert locale["table"]["searchBar"]["search"] == "查询"
+    assert locale["table"]["searchBar"]["reset"] == "重置"
+    assert 't("table.searchBar.search")' in component
+    with zipfile.ZipFile(ROOT / "templates/vendor/yudao-frontend.zip") as archive:
+        component = archive.read("packages/effects/plugins/src/vxe-table/use-vxe-grid.vue").decode(
+            "utf-8"
+        )
+    assert "content: computed(() => $t('common.search'))" in component
+    assert "${yudao ? '搜 索' : '查询'}" in DRIVER
 ````
 
 ### `tests/test_native_business_restart.py`
@@ -68246,6 +68793,322 @@ def test_source_copy_is_independent_of_generated_edits(tmp_path):
     (copied / "module.py").write_text("generated\n", encoding="utf-8")
     assert manifest(source) == before
     assert manifest(copied) != before
+````
+
+### `tests/test_native_delivery_diagnostics.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench`、`workbench.filesystem`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `product_reports`（L14–L18）：接收`tmp_path`。 调用`reports.mkdir`。 返回路径：L18的`product, reports`。
+- `test_failed_delivery_captures_only_safe_structured_lifecycle_and_redacted_logs`（L21–L98）：接收`tmp_path`。 控制顺序：L65遍历`("credentials.json", "services.env", "portable-start.json", "othe…`；L69断言`result["affects_acceptance"] is False`；L70断言`result["failure_phase"] == "backend-readiness"`；L71断言`result["backend"]["startup_attempt"] == 2`；L72断言`result["backend"]["port"] == 48080 and result["backend"]["pid"] == 731`；L73断言`result["backend"]["returncode"] == 42`；L74断言`result["backend"]["port_state_before_cleanup"]["local_port_state_counts"] == {"06": 2…`；L75断言`set(result["logs"]) == set(portable.DIAGNOSTIC_LOGS)`。后续分支沿下方源码相同行号继续阅读。 调用`product_reports`、`write_json`、`atomic_text`、`portable.capture_native_delivery_failure`、`set`、`json.dumps`、`json.loads`、`(tmp_path / "out/portable-failure-diagnostics.json").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostic_log_tails_have_per_file_and_shared_byte_budgets`（L101–L111）：接收`tmp_path`。 控制顺序：L103遍历`portable.DIAGNOSTIC_LOGS`；L107断言`all(len(row.get("text", "").encode("utf-8")) <= 65536 for row in rows)`；L108断言`sum(len(row.get("text", "").encode("utf-8")) for row in rows) <= 262144`；L109断言`result["logs"]["backend-runtime.log"]["text"].endswith("final failure\n")`；L110断言`result["logs"]["backend-runtime.log"]["truncated"] is True`；L111断言`any(row["status"] == "budget-exhausted" for row in rows)`。 调用`product_reports`、`atomic_text`、`portable.capture_native_delivery_failure`、`result["logs"].values`、`all`、`len`、`row.get("text", "").encode`、`row.get`、`sum`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_partial_first_line_is_discarded_and_redaction_precedes_output_clipping`（L114–L125）：接收`tmp_path`。 控制顺序：L123断言`"partial-private-tail" not in body and "secret" not in body`；L124断言`result["logs"]["backend-runtime.log"]["text"].endswith("last failure\n")`；L125断言`"[REDACTED]" in result["logs"]["frontend-runtime.log"]["text"]`。 调用`product_reports`、`atomic_text`、`portable.capture_native_delivery_failure`、`json.dumps`、`result["logs"]["backend-runtime.log"]["text"].endswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_known_database_secret_cannot_leak_at_a_read_or_output_boundary`（L129–L138）：接收`tmp_path`、`boundary`。 控制顺序：L137断言`"ssword" not in captured and secret not in captured`；L138断言`result["logs"]["backend-runtime.log"]["truncated"] is True`。 调用`product_reports`、`len`、`atomic_text`、`portable.capture_native_delivery_failure`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_serialized_receipt_is_bounded_with_control_character_heavy_logs`（L141–L152）：接收`tmp_path`。 控制顺序：L143遍历`portable.DIAGNOSTIC_LOGS`；L147断言`receipt.stat().st_size <= portable.DIAGNOSTIC_RECEIPT_BYTES`；L149断言`sum(len(row.get("text", "").encode("utf-8")) for row in result["logs"].values()) <= p…`。 调用`product_reports`、`atomic_text`、`portable.capture_native_delivery_failure`、`receipt.stat`、`json.loads`、`receipt.read_text`、`sum`、`len`、`row.get("text", "").encode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostics_never_follow_leaf_or_parent_symlinks`（L156–L171）：接收`tmp_path`、`parent`。 控制顺序：L162按`parent`分支；L170断言`result["logs"]["backend-runtime.log"]["status"] == "unavailable"`；L171断言`"private-symlink-target" not in json.dumps(result)`。 调用`product_reports`、`external.mkdir`、`atomic_text`、`source.rmdir`、`source.symlink_to`、`(source / "backend-runtime.log").symlink_to`、`pytest.skip`、`portable.capture_native_delivery_failure`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostics_reject_special_files_without_opening_them`（L175–L179）：接收`tmp_path`。 控制顺序：L179断言`result["logs"]["backend-runtime.log"]["status"] == "unavailable"`。 调用`product_reports`、`os.mkfifo`、`portable.capture_native_delivery_failure`、`pytest.mark.skipif`、`hasattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_lifecycle_invalid_or_oversized_data_cannot_prevent_log_retention`（L183–L189）：接收`tmp_path`、`value`。 控制顺序：L188断言`result["logs"]["backend-runtime.log"]["text"] == "actual child failure"`；L189断言`result["failure_phase"] == "standalone-launcher"`。 调用`product_reports`、`atomic_text`、`portable.capture_native_delivery_failure`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verification_preserves_failure_before_temp_cleanup_and_drops_only_owned_db`（L195–L283）：接收`tmp_path`、`monkeypatch`、`mode`。 控制顺序：L246按`mode == "diagnostic-io-failure"`分支；L254按`mode == "success"`分支；L256断言`result["archive_round_trip"] is True`；L257断言`not (output / "portable-failure-diagnostics.json").exists()`；L261按`mode != "invalid-receipt"`分支；L262断言`raised.value is failure`；L263断言`not (output / "portable-start.json").exists()`；L264按`mode != "diagnostic-io-failure"`分支。后续分支沿下方源码相同行号继续阅读。 调用`product.mkdir`、`atomic_text`、`monkeypatch.setattr`、`Connection`、`tools.ToolFailure`、`portable.verify_native_delivery`、`(output / "portable-failure-diagnostics.json").exists`、`pytest.raises`、`(output / "portable-start.json").exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verification_preserves_failure_before_temp_cleanup_and_drops_only_owned_db.Connection`（L203–L211）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_verification_preserves_failure_before_temp_cleanup_and_drops_only_owned_db.Connection.__enter__`（L204–L205）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L205的`self`。
+- `test_verification_preserves_failure_before_temp_cleanup_and_drops_only_owned_db.Connection.__exit__`（L207–L208）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verification_preserves_failure_before_temp_cleanup_and_drops_only_owned_db.Connection.execute`（L210–L211）：接收`statement`。 调用`operations.append`、`statement.as_string`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verification_preserves_failure_before_temp_cleanup_and_drops_only_owned_db.run`（L218–L243）：接收`command`、`cwd`、`timeout`、`env`、`**kwargs`。 控制顺序：L220断言`env["NATIVE_DELIVERY_DATABASE_URL"] != URL`；L221断言`command[-1] == "--check" and timeout == 2100`；L233按`mode in {"process-failure", "diagnostic-io-failure"}`分支；L234抛异常，停止当前正常路径。 调用`copies.append`、`atomic_text`、`write_json`。 返回路径：L243的`{"log": "explicit fake successful console"}`。
+- `test_verification_preserves_failure_before_temp_cleanup_and_drops_only_owned_db.unavailable`（L248–L250）：接收`*args`、`**kwargs`。 控制顺序：L249断言`copies[-1].is_dir()`；L250抛异常，停止当前正常路径。 调用`copies[-1].is_dir`、`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_native_delivery_diagnostics.py sha256: ff89d24e677f2011ecc865db807f5ee9acbeba74bb9e53207ad330da8cc3795e -->
+````python
+"""Portable failure evidence survives cleanup without exporting runtime secrets."""
+
+import json
+import os
+
+import pytest
+
+from workbench import portable, tools
+from workbench.filesystem import atomic_text, write_json
+
+URL = "postgresql+psycopg://fixture:db-p%40ssword@127.0.0.1/fixture_codegen"
+
+
+def product_reports(tmp_path):
+    product = tmp_path / "product"
+    reports = product / ".deployment/reports"
+    reports.mkdir(parents=True)
+    return product, reports
+
+
+def test_failed_delivery_captures_only_safe_structured_lifecycle_and_redacted_logs(tmp_path):
+    product, source = product_reports(tmp_path)
+    write_json(
+        source / "backend-lifecycle.json",
+        {
+            "port": 48080,
+            "pid": 731,
+            "startup_attempt": 2,
+            "runtime_log_start_bytes": 2345,
+            "returncode": 42,
+            "returncode_before_cleanup": 42,
+            "owned_process_group": True,
+            "started": True,
+            "port_released": False,
+            "phase": "backend-cleanup",
+            "failure": {
+                "phase": "backend-readiness",
+                "type": "RuntimeError",
+                "message": "private-message",
+            },
+            "cleanup_failure": {"type": "RuntimeError", "message": "private-cleanup"},
+            "environment": {"SECRET": "private-environment"},
+            "port_state_before_cleanup": {
+                "observable": True,
+                "listening": False,
+                "owned_listener": False,
+                "owned_group_pids": [731],
+                "owned_listener_pids": [],
+                "owned_socket_pids": [731],
+                "local_port_state_counts": {"06": 2},
+                "command": "private-command",
+                "address": "private-address",
+            },
+        },
+    )
+    atomic_text(
+        source / "backend-runtime.log",
+        "FAILED on second startup\n"
+        + URL
+        + "\ndb-p@ssword db-p%40ssword password=plain-private "
+        + 'NATIVE_DB_PASSWORD=env-private {"accessToken":"json-private"} '
+        + "Authorization: Bearer bearer-private Basic basic-private "
+        + "jdbc:postgresql://user:url-private@127.0.0.1/db\n",
+    )
+    for name in ("credentials.json", "services.env", "portable-start.json", "other.log"):
+        atomic_text(source / name, "never-export-runtime-data")
+    atomic_text(product / ".deployment/services.json", "never-export-service-credentials")
+    result = portable.capture_native_delivery_failure(product, tmp_path / "out", URL)
+    assert result["affects_acceptance"] is False
+    assert result["failure_phase"] == "backend-readiness"
+    assert result["backend"]["startup_attempt"] == 2
+    assert result["backend"]["port"] == 48080 and result["backend"]["pid"] == 731
+    assert result["backend"]["returncode"] == 42
+    assert result["backend"]["port_state_before_cleanup"]["local_port_state_counts"] == {"06": 2}
+    assert set(result["logs"]) == set(portable.DIAGNOSTIC_LOGS)
+    body = json.dumps(result)
+    for secret in (
+        "db-p@ssword",
+        "db-p%40ssword",
+        "plain-private",
+        "env-private",
+        "json-private",
+        "bearer-private",
+        "basic-private",
+        "url-private",
+        "private-message",
+        "private-cleanup",
+        "private-environment",
+        "private-command",
+        "private-address",
+        "never-export",
+    ):
+        assert secret not in body
+    assert "FAILED on second startup" in body
+    assert (
+        json.loads((tmp_path / "out/portable-failure-diagnostics.json").read_text(encoding="utf-8"))
+        == result
+    )
+
+
+def test_diagnostic_log_tails_have_per_file_and_shared_byte_budgets(tmp_path):
+    product, source = product_reports(tmp_path)
+    for name in portable.DIAGNOSTIC_LOGS:
+        atomic_text(source / name, "bounded normal line\n" * 40000 + "final failure\n")
+    result = portable.capture_native_delivery_failure(product, tmp_path / "out", URL)
+    rows = result["logs"].values()
+    assert all(len(row.get("text", "").encode("utf-8")) <= 65536 for row in rows)
+    assert sum(len(row.get("text", "").encode("utf-8")) for row in rows) <= 262144
+    assert result["logs"]["backend-runtime.log"]["text"].endswith("final failure\n")
+    assert result["logs"]["backend-runtime.log"]["truncated"] is True
+    assert any(row["status"] == "budget-exhausted" for row in rows)
+
+
+def test_partial_first_line_is_discarded_and_redaction_precedes_output_clipping(tmp_path):
+    product, source = product_reports(tmp_path)
+    atomic_text(
+        source / "backend-runtime.log",
+        "first" * 70000 + "partial-private-tail\n" + "safe\n" * 100 + "last failure\n",
+    )
+    atomic_text(source / "frontend-runtime.log", 'password="' + "secret" * 14000 + '"\nlast\n')
+    result = portable.capture_native_delivery_failure(product, tmp_path / "out", URL)
+    body = json.dumps(result)
+    assert "partial-private-tail" not in body and "secret" not in body
+    assert result["logs"]["backend-runtime.log"]["text"].endswith("last failure\n")
+    assert "[REDACTED]" in result["logs"]["frontend-runtime.log"]["text"]
+
+
+@pytest.mark.parametrize("boundary", ["read", "output"])
+def test_known_database_secret_cannot_leak_at_a_read_or_output_boundary(tmp_path, boundary):
+    product, source = product_reports(tmp_path)
+    secret = "db-p@ssword"
+    budget = portable.DIAGNOSTIC_READ_BYTES if boundary == "read" else portable.DIAGNOSTIC_LOG_BYTES
+    text = "preamble\n" + secret + "\n" + "z" * (budget - len(secret) + 3)
+    atomic_text(source / "backend-runtime.log", text)
+    result = portable.capture_native_delivery_failure(product, tmp_path / "out", URL)
+    captured = result["logs"]["backend-runtime.log"]["text"]
+    assert "ssword" not in captured and secret not in captured
+    assert result["logs"]["backend-runtime.log"]["truncated"] is True
+
+
+def test_serialized_receipt_is_bounded_with_control_character_heavy_logs(tmp_path):
+    product, source = product_reports(tmp_path)
+    for name in portable.DIAGNOSTIC_LOGS:
+        atomic_text(source / name, "\x00\x01\x02\x03\x04\x05\n" * 40000)
+    portable.capture_native_delivery_failure(product, tmp_path / "out", URL)
+    receipt = tmp_path / "out/portable-failure-diagnostics.json"
+    assert receipt.stat().st_size <= portable.DIAGNOSTIC_RECEIPT_BYTES
+    result = json.loads(receipt.read_text(encoding="utf-8"))
+    assert (
+        sum(len(row.get("text", "").encode("utf-8")) for row in result["logs"].values())
+        <= portable.DIAGNOSTIC_TOTAL_BYTES
+    )
+
+
+@pytest.mark.parametrize("parent", [False, True])
+def test_diagnostics_never_follow_leaf_or_parent_symlinks(tmp_path, parent):
+    product, source = product_reports(tmp_path)
+    external = tmp_path / "external"
+    external.mkdir()
+    atomic_text(external / "backend-runtime.log", "private-symlink-target")
+    try:
+        if parent:
+            source.rmdir()
+            source.symlink_to(external, target_is_directory=True)
+        else:
+            (source / "backend-runtime.log").symlink_to(external / "backend-runtime.log")
+    except OSError:
+        pytest.skip("Host does not permit creating test symlinks")
+    result = portable.capture_native_delivery_failure(product, tmp_path / "out", URL)
+    assert result["logs"]["backend-runtime.log"]["status"] == "unavailable"
+    assert "private-symlink-target" not in json.dumps(result)
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="POSIX special-file regression")
+def test_diagnostics_reject_special_files_without_opening_them(tmp_path):
+    product, source = product_reports(tmp_path)
+    os.mkfifo(source / "backend-runtime.log")
+    result = portable.capture_native_delivery_failure(product, tmp_path / "out", URL)
+    assert result["logs"]["backend-runtime.log"]["status"] == "unavailable"
+
+
+@pytest.mark.parametrize("value", ["{" * 16385, "not JSON", "[]", '{"phase":[]}'])
+def test_lifecycle_invalid_or_oversized_data_cannot_prevent_log_retention(tmp_path, value):
+    product, source = product_reports(tmp_path)
+    atomic_text(source / "backend-lifecycle.json", value)
+    atomic_text(source / "backend-runtime.log", "actual child failure")
+    result = portable.capture_native_delivery_failure(product, tmp_path / "out", URL)
+    assert result["logs"]["backend-runtime.log"]["text"] == "actual child failure"
+    assert result["failure_phase"] == "standalone-launcher"
+
+
+@pytest.mark.parametrize(
+    "mode", ["process-failure", "invalid-receipt", "success", "diagnostic-io-failure"]
+)
+def test_verification_preserves_failure_before_temp_cleanup_and_drops_only_owned_db(
+    tmp_path, monkeypatch, mode
+):
+    product = tmp_path / "source"
+    product.mkdir()
+    atomic_text(product / "start.py", "# Explicit fake child for evidence unit regression\n")
+    operations, copies = [], []
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def execute(self, statement):
+            operations.append(statement.as_string())
+
+    monkeypatch.setattr(portable.psycopg, "connect", lambda *a, **kw: Connection())
+    failure = tools.ToolFailure("original child failed")
+    failure.log = "console password=console-private\n"
+    failure.returncode, failure.timed_out = 1, False
+
+    def run(command, cwd, timeout, env, **kwargs):
+        copies.append(cwd)
+        assert env["NATIVE_DELIVERY_DATABASE_URL"] != URL
+        assert command[-1] == "--check" and timeout == 2100
+        atomic_text(cwd / ".deployment/reports/backend-runtime.log", "actual child failure")
+        write_json(
+            cwd / ".deployment/reports/backend-lifecycle.json",
+            {
+                "pid": 912,
+                "port": 48080,
+                "startup_attempt": 2,
+                "returncode": 42,
+                "failure": {"phase": "backend-readiness", "type": "RuntimeError"},
+            },
+        )
+        if mode in {"process-failure", "diagnostic-io-failure"}:
+            raise failure
+        write_json(
+            cwd / ".deployment/reports/portable-start.json",
+            {
+                "passed": True,
+                "frontend_started": mode == "success",
+                "restart": True,
+            },
+        )
+        return {"log": "explicit fake successful console"}
+
+    monkeypatch.setattr(tools, "run_command", run)
+    if mode == "diagnostic-io-failure":
+
+        def unavailable(*args, **kwargs):
+            assert copies[-1].is_dir()
+            raise OSError("private diagnostic exception")
+
+        monkeypatch.setattr(portable, "capture_native_delivery_failure", unavailable)
+    output = tmp_path / "out"
+    if mode == "success":
+        result = portable.verify_native_delivery(product, URL, output, template="yudao-vben")
+        assert result["archive_round_trip"] is True
+        assert not (output / "portable-failure-diagnostics.json").exists()
+    else:
+        with pytest.raises((tools.ToolFailure, ValueError)) as raised:
+            portable.verify_native_delivery(product, URL, output, template="yudao-vben")
+        if mode != "invalid-receipt":
+            assert raised.value is failure
+        assert not (output / "portable-start.json").exists()
+        if mode != "diagnostic-io-failure":
+            result = json.loads(
+                (output / "portable-failure-diagnostics.json").read_text(encoding="utf-8")
+            )
+            assert result["failure_phase"] == "backend-readiness"
+            assert result["logs"]["backend-runtime.log"]["text"] == "actual child failure"
+            if mode == "process-failure":
+                assert result["launcher_failure"] == {
+                    "type": "ToolFailure",
+                    "returncode": 1,
+                    "timed_out": False,
+                }
+        else:
+            assert "Could not retain" in str(failure.__notes__)
+            assert "private diagnostic" not in str(failure.__notes__)
+    assert len(copies) == 1 and not copies[0].exists()
+    assert len(operations) == 2
+    assert operations[0].startswith('CREATE DATABASE "restore_')
+    assert operations[1].startswith('DROP DATABASE "restore_')
+    assert "console-private" not in (output / "portable-start.log").read_text(encoding="utf-8")
 ````
 
 ### `tests/test_native_frontend_lifecycle.py`
@@ -69078,6 +69941,204 @@ def test_pinned_registry_rewrite_preserves_versions_hashes_and_is_idempotent(tmp
     )
     receipt = prepare_fastapi_registry(backend, tmp_path / "reports")
     assert all(v["before_sha256"] == v["after_sha256"] for v in receipt.values())
+````
+
+### `tests/test_native_relation_picker_browser.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_virtualized_relation_picker_selects_only_exact_fresh_record`（L140–L154）：接收`fault`。 控制顺序：L142按`not module or not Path(module).is_dir()`分支；L154断言`result.returncode == 0`。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`subprocess.run`、`shutil.which`、`clean_env`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_relation_picker_fixture_matches_pinned_api_select_mapping_and_search`（L157–L179）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L163断言`"label: labelFn ? labelFn(item) : get(item, labelField)" in component`；L164断言`"value: numberToString ? `${value}` : value" in component`；L165断言`"ApiSelect: withDefaultPlaceholder(ApiComponent, 'select', {\n component: Select," in…`；L171断言`"labelField: relation.label, valueField: 'id'" in relation`；L172断言`"showSearch: true, optionFilterProp: 'label'" in relation`；L173断言`"virtual: false" not in relation`；L174断言`"requestClient.get('/infra/rnd-business/references'" in relation`；L176断言`"verifyNativeRelationPayload(received.response.request().postDataJSON(), expectedRela…`。 调用`zipfile.ZipFile`、`archive.read( "packages/effects/common-ui/src/components/api-comp…`、`archive.read`、`archive.read("apps/web-antd/src/adapter/component/index.ts").deco…`、`(ROOT / "templates/business/yudao/business-form.ts").read_text`、`source.split("if (relation) {", 1)[1].split`、`source.split`、`(ROOT / "scripts/business_yudao_browser.cjs").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_native_relation_picker_browser.py sha256: 6454bf4852ccfb0e7bbeec09d51f1b1b433f5b83d010f4d1a410f24535dfce26 -->
+````python
+"""Driver regressions for the pinned Ant ApiSelect's mapped, virtualized options.
+
+The DOM fixture uses real Chromium and HTTP, not Playwright route interception.
+Source-parity checks bind its labels, filtering and option mapping to the native
+adapter. Full native-stack acceptance remains in the Actions browser journeys.
+"""
+
+import os
+import shutil
+import subprocess
+import zipfile
+from pathlib import Path
+
+import pytest
+
+from workbench.settings import ROOT
+from workbench.tools import clean_env
+
+DRIVER = r"""
+const assert = require('node:assert/strict'), http = require('node:http');
+const [fault, playwrightPath] = process.argv.slice(1);
+const { chromium } = require(playwrightPath);
+const { selectNativeOption, verifyNativeRelationPayload } = require('./scripts/business_yudao_browser.cjs');
+const fresh = { id: '121', title: 'Browser fresh employee requests title', workspace: 'own' };
+const foreign = { id: '999', title: 'Foreign workspace private request', workspace: 'foreign' };
+const rows = Array.from({ length: 120 }, (_, i) => ({ id: String(i + 1), title: 'Synthetic request ' + (i + 1), workspace: 'own' }));
+rows.push(foreign);
+let selected, referenceRows, creates = 0;
+const wanted = fault === 'foreign-record' ? foreign : fresh;
+const server = http.createServer((req, res) => {
+  const url = new URL(req.url, 'http://127.0.0.1');
+  res.setHeader('Content-Type', 'application/json');
+  if (url.pathname === '/create-request') {
+    creates++; rows.push(fresh); res.end(JSON.stringify({ code: 0, data: fresh.id })); return;
+  }
+  if (url.pathname === '/references') {
+    assert.equal(creates, 1, 'Fetch options only after the fresh record is created');
+    assert.equal(url.searchParams.get('entity'), 'requests');
+    referenceRows = rows.filter(row => row.workspace === 'own' && !(fault === 'stale-options' && row.id === fresh.id))
+      .map(row => row.id !== fresh.id ? row : { ...row,
+        id: fault === 'wrong-id' ? '998' : row.id,
+        title: fault === 'wrong-label' ? row.title + ' other record' : row.title });
+    if (fault === 'duplicate-label') referenceRows.push({ ...fresh, id: '998' });
+    res.end(JSON.stringify({ code: 0, data: referenceRows })); return;
+  }
+  if (url.pathname === '/create-task') {
+    let body = ''; req.on('data', chunk => { body += chunk; });
+    req.on('end', () => { selected = JSON.parse(body); res.end(JSON.stringify({ code: 0, data: '201' })); }); return;
+  }
+  res.setHeader('Content-Type', 'text/html; charset=utf-8');
+  res.end(`<!doctype html><meta charset="utf-8">
+    <button id="new-request">Create fresh request</button><button id="new-task">Create task</button>
+    <div data-testid="business-field-request_id" class="ant-select" hidden>
+      <input role="combobox"><span class="ant-select-selection-item" hidden></span>
+    </div><button id="save">Save task</button>
+    <div class="ant-select-dropdown" hidden></div>
+    <script>
+      const fault = ${JSON.stringify(fault)};
+      const field = document.querySelector('.ant-select'), input = field.querySelector('input');
+      const dropdown = document.querySelector('.ant-select-dropdown'), selected = field.querySelector('span');
+      let options = [], value;
+      function render() {
+        // ApiComponent maps the declared title/id to label/value; Ant virtualizes
+        // the options. Offscreen rows are absent until label filtering reveals them.
+        const matches = options.filter(option => String(option[fault === 'value-filter' ? 'value' : 'label']).toLowerCase().includes(input.value.toLowerCase()));
+        dropdown.innerHTML = '';
+        for (const option of matches.slice(0, 8)) {
+          const row = document.createElement('div'); row.className = 'ant-select-item-option';
+          const label = document.createElement('div'); label.className = 'ant-select-item-option-content'; label.textContent = option.label;
+          row.append(label); row.onclick = event => {
+            event.stopPropagation(); value = option.value; selected.textContent = option.label;
+            selected.hidden = false; input.value = ''; dropdown.hidden = true;
+          }; dropdown.append(row);
+        }
+      }
+      document.querySelector('#new-request').onclick = async () => { await fetch('/create-request', { method: 'POST' }); };
+      document.querySelector('#new-task').onclick = async () => {
+        const body = await (await fetch('/references?entity=requests')).json();
+        options = body.data.map(row => ({ label: row.title, value: row.id })); field.hidden = false;
+      };
+      field.onclick = () => { dropdown.hidden = false; render(); };
+      input.oninput = () => render();
+      input.onkeydown = event => { if (event.key === 'Escape') { dropdown.hidden = true; input.value = ''; } };
+      document.querySelector('#save').onclick = () => fetch('/create-task', { method: 'POST', body: JSON.stringify({ requestId: value }) });
+    </script>`);
+});
+(async () => {
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); page.setDefaultTimeout(1800);
+    await page.goto('http://127.0.0.1:' + server.address().port);
+    await Promise.all([page.waitForResponse('**/create-request'), page.getByText('Create fresh request', { exact: true }).click()]);
+    const [references] = await Promise.all([page.waitForResponse('**/references?entity=requests'), page.getByText('Create task', { exact: true }).click()]);
+    assert((await references.json()).data.length >= 120, 'Fresh record follows seeded records');
+    assert(!referenceRows.some(row => row.id === foreign.id), 'Foreign-workspace options must remain absent');
+    const field = page.getByTestId('business-field-request_id');
+    await field.click();
+    assert.equal(await page.locator('.ant-select-dropdown').getByText(wanted.title, { exact: true }).count(), 0,
+      'The fresh option is outside the initial virtualized DOM');
+    // An interrupted, unrelated search must not determine the next selection.
+    await field.getByRole('combobox').fill('Synthetic request 117');
+    await field.getByRole('combobox').press('Escape');
+    let failure, captures = 0;
+    try {
+      await selectNativeOption(page, field, wanted.title, async () => {
+        captures++;
+        assert(await page.locator('.ant-select-dropdown:visible').getByText(wanted.title, { exact: true }).isVisible());
+      }, true);
+      const [response] = await Promise.all([page.waitForResponse('**/create-task'), page.getByText('Save task', { exact: true }).click()]);
+      assert.equal((await response.json()).code, 0);
+      verifyNativeRelationPayload(response.request().postDataJSON(), { requestId: wanted.id });
+    } catch (error) { failure = error; }
+    if (fault === 'none') {
+      assert.ifError(failure); assert.equal(captures, 1); assert.deepEqual(selected, { requestId: fresh.id });
+    } else {
+      assert(failure, 'Driver must reject ' + fault);
+      assert.match(String(failure.message), fault === 'wrong-id' ? /must submit the browser-owned record ID/
+        : fault === 'duplicate-label' ? /strict mode violation/ : /locator.waitFor: Timeout/);
+      if (fault !== 'wrong-id') assert.equal(selected, undefined, 'Never submit a stale, ambiguous or inaccessible option');
+    }
+    console.log('Virtual native relation picker verified: ' + fault);
+  } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
+})().catch(error => { console.error(error); server.close(); process.exitCode = 1; });
+"""
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "none",
+        "wrong-label",
+        "wrong-id",
+        "stale-options",
+        "foreign-record",
+        "duplicate-label",
+        "value-filter",
+    ],
+)
+def test_virtualized_relation_picker_selects_only_exact_fresh_record(fault):
+    module = os.getenv("PRODUCT_VERIFY_PLAYWRIGHT")
+    if not module or not Path(module).is_dir():
+        pytest.skip("Actual Playwright is required in Actions")
+    result = subprocess.run(
+        [shutil.which("node"), "-e", DRIVER, fault, module],
+        cwd=ROOT,
+        env=clean_env({"PLAYWRIGHT_BROWSERS_PATH": "0"}),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_relation_picker_fixture_matches_pinned_api_select_mapping_and_search():
+    with zipfile.ZipFile(ROOT / "templates/vendor/yudao-frontend.zip") as archive:
+        component = archive.read(
+            "packages/effects/common-ui/src/components/api-component/api-component.vue"
+        ).decode("utf-8")
+        adapter = archive.read("apps/web-antd/src/adapter/component/index.ts").decode("utf-8")
+    assert "label: labelFn ? labelFn(item) : get(item, labelField)" in component
+    assert "value: numberToString ? `${value}` : value" in component
+    assert (
+        "ApiSelect: withDefaultPlaceholder(ApiComponent, 'select', {\n      component: Select,"
+        in adapter
+    )
+    source = (ROOT / "templates/business/yudao/business-form.ts").read_text(encoding="utf-8")
+    relation = source.split("if (relation) {", 1)[1].split("} else if", 1)[0]
+    assert "labelField: relation.label, valueField: 'id'" in relation
+    assert "showSearch: true, optionFilterProp: 'label'" in relation
+    assert "virtual: false" not in relation
+    assert "requestClient.get('/infra/rnd-business/references'" in relation
+    driver = (ROOT / "scripts/business_yudao_browser.cjs").read_text(encoding="utf-8")
+    assert (
+        "verifyNativeRelationPayload(received.response.request().postDataJSON(), expectedRelations)"
+        in driver
+    )
 ````
 
 ### `tests/test_native_review_evidence.py`
@@ -76695,13 +77756,13 @@ if __name__ == "__main__":
 
 ### `scripts/business_fastapi_browser.cjs`
 
-**作用：FastapiAdmin三角色真实客服页面验收。** 使用临时合成账号通过原生登录、菜单与Fa/Element Plus组件，操作客户/请求/任务、关系、分配、流程、历史、提醒和统计，检查原生主题及页面错误，保存命名截图。
+**作用：FastapiAdmin三角色真实客服页面验收。** 使用临时合成账号通过原生登录、菜单与Fa/Element Plus组件，操作客户/请求/任务、关系、分配、流程、历史、提醒和统计；查询按钮等定位以锁定的真实组件为准，同时核对请求参数、响应记录和页面记录，不能用夹具自造的按钮名代替。检查原生主题及页面错误，保存命名截图。
 
 **对应关系：** business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/business_fastapi_browser.cjs sha256: 6e5853d760d5baa005684342730aca58a7d3159556896529e8bcc5d4fb4e7773 -->
+<!-- source-file: scripts/business_fastapi_browser.cjs sha256: 8f93c7b3403bda16f9baa10113e2dffb35c906abc0f46cfbaa5d80a4b910838d -->
 ````javascript
 // Actual native sessions and rendered Fa/ElementPlus UI. No injected tokens or mocked routes.
 const fs = require('node:fs');
@@ -76719,10 +77780,14 @@ async function verifyNativeCustomerQuery(page, customer, category, capture = asy
   const keyword = customer.name.slice(1, -1).toUpperCase();
   assert(keyword && keyword !== customer.name, 'Exercise substring and case-insensitive search');
   async function submit(expectedCategory, expectedIds, reset = false) {
-    const received = page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/business/customers/list')
-      && response.request().method() === 'GET');
-    await search.getByRole('button', { name: reset ? /^重\s*置$/ : /^搜\s*索$/ }).click();
-    const response = await received;
+    // Pinned FaSearchBar translates table.searchBar.search as 查询, not 搜索.
+    const button = search.getByRole('button', { name: reset ? /^重\s*置$/ : /^查\s*询$/ });
+    await button.waitFor({ state: 'visible' });
+    const [response] = await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/business/customers/list')
+        && response.request().method() === 'GET'),
+      button.click(),
+    ]);
     const query = new URL(response.url()).searchParams;
     assert.equal(query.get('q') || '', reset ? '' : keyword, 'Native query keyword serialization');
     assert.deepEqual(JSON.parse(query.get('filters')), expectedCategory ? { category: expectedCategory } : {}, 'Native query exact category serialization');
@@ -77012,13 +78077,13 @@ if (require.main === module) main().catch(error => { console.error(error.name + 
 
 ### `scripts/business_yudao_browser.cjs`
 
-**作用：Yudao/Vben三角色真实客服页面验收。** 通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同的列表、表单、详情与协作场景；HTTP拒绝和UI行为共同组成证据，不以静态图替代。
+**作用：Yudao/Vben三角色真实客服页面验收。** 通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同的列表、表单、详情与协作场景；关联控件按本轮新建记录的可读标签搜索并选择准确ID，不依赖虚拟列表首屏碰巧渲染该选项。HTTP拒绝和UI行为共同组成证据，不以静态图替代。
 
 **对应关系：** business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/business_yudao_browser.cjs sha256: 5fa562e55ecff926ab9e3d0238a4d7d208cd5b087e0ee623979963595164bbb2 -->
+<!-- source-file: scripts/business_yudao_browser.cjs sha256: eb2337d09b719b5a0c9bf02163be6cf2259347e454e7b96f792bb468ab0f25e7 -->
 ````javascript
 // Real Vben/Ant business journey. Only scenario-owned synthetic accounts; no mocks/token injection.
 'use strict';
@@ -77118,6 +78183,25 @@ function rememberCreatedRecord(created, labels, entity, identifier, label) {
   labels[entity] = label;
 }
 
+async function selectNativeOption(page, locator, label, capture, search = false) {
+  await locator.click();
+  // Ant Select virtualizes long relation lists. Filter the native combobox by
+  // its readable label so a newly created record need not be in the initial DOM.
+  if (search) await locator.getByRole('combobox').fill(label);
+  const option = page.locator('.ant-select-dropdown:visible')
+    .locator('.ant-select-item-option').filter({ has: page.getByText(label, { exact: true }) });
+  await option.waitFor({ state: 'visible' });
+  if (capture) await capture();
+  await option.click();
+  await locator.locator('.ant-select-selection-item').getByText(label, { exact: true }).waitFor({ state: 'visible' });
+}
+
+function verifyNativeRelationPayload(payload, expected) {
+  for (const [field, id] of Object.entries(expected)) {
+    assert.equal(String(payload[field]), String(id), `Native relation ${field} must submit the browser-owned record ID`);
+  }
+}
+
 // Drive the original Vben search form and inspect its real paginated request.
 // A deliberately incompatible enum must remove the row, even when its name matches.
 async function verifyNativeCustomerQuery(page, listRoute, customer, category, capture = async () => {}) {
@@ -77132,10 +78216,13 @@ async function verifyNativeCustomerQuery(page, listRoute, customer, category, ca
   const keyword = customer.name.slice(1, -1).toUpperCase();
   assert(keyword && keyword !== customer.name, 'Exercise substring and case-insensitive search');
   async function submit(expectedCategory, expectedIds, reset = false) {
-    const received = page.waitForResponse(response => new URL(response.url()).pathname.endsWith(listRoute)
-      && response.request().method() === 'GET');
-    await scope.getByRole('button', { name: reset ? /^重\s*置$/ : /^搜\s*索$/ }).click();
-    const response = await received;
+    const button = scope.getByRole('button', { name: reset ? /^重\s*置$/ : /^搜\s*索$/ });
+    await button.waitFor({ state: 'visible' });
+    const [response] = await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).pathname.endsWith(listRoute)
+        && response.request().method() === 'GET'),
+      button.click(),
+    ]);
     const query = new URL(response.url()).searchParams;
     assert.equal(query.get('name') || '', reset ? '' : keyword, 'Native query keyword serialization');
     assert.equal(query.get('category') || '', expectedCategory || '', 'Native query exact category serialization');
@@ -77260,15 +78347,13 @@ async function main() {
     assert.equal(String(metadata.record.id), identifier, 'Detail response must match the clicked row');
   }
   async function select(locator, label, screenshot) {
-    await locator.click();
-    const option = page.locator('.ant-select-dropdown:visible').getByText(label, { exact: true }).last();
-    if (screenshot) { await option.waitFor({ state: 'visible' }); await capture(screenshot); }
-    await option.click();
+    await selectNativeOption(page, locator, label, screenshot ? () => capture(screenshot) : undefined, Boolean(screenshot));
   }
   const created = {}, labels = {};
   const marker = 'Browser ' + Date.now();
   async function create(entity, labelPrefix = marker) {
     let newLabel = null;
+    const expectedRelations = {};
     const current = await openPage(entity);
     await page.getByRole('button', { name: /^新增|^创建/ }).first().click();
     const dialog = page.getByRole('dialog').last(); await dialog.waitFor({ state: 'visible' });
@@ -77285,6 +78370,7 @@ async function main() {
       if (relation) {
         assert(labels[relation.target_entity], 'Create referenced browser record first');
         await select(input, labels[relation.target_entity], `${currentRole}-${entity}-${field.name}-relation-picker.png`);
+        expectedRelations[field.name.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())] = created[relation.target_entity];
       } else if (field.kind === 'enum') await select(input, field.choice_labels?.[field.choices[0]] || field.choices[0]);
       else if (field.kind === 'boolean') await select(input, '否');
       else if (field.kind === 'integer') await input.fill('1');
@@ -77301,7 +78387,10 @@ async function main() {
     await capture(`${currentRole}-${entity}-filled-native-form.png`);
     const response = observe(current.api + '/create', 'POST');
     await dialog.getByRole('button', { name: /^确\s*认$|^确\s*定$/ }).click();
-    rememberCreatedRecord(created, labels, entity, await checked(response), newLabel);
+    const received = await response;
+    const identifier = await checked(received);
+    verifyNativeRelationPayload(received.response.request().postDataJSON(), expectedRelations);
+    rememberCreatedRecord(created, labels, entity, identifier, newLabel);
     await dialog.waitFor({ state: 'hidden' });
     await page.getByText(labels[entity], { exact: true }).first().waitFor({ state: 'visible' });
     await capture(`${currentRole}-${entity}-native-list.png`);
@@ -77410,7 +78499,7 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, verifyNativeCustomerQuery };
+module.exports = { main, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, selectNativeOption, verifyNativeRelationPayload, verifyNativeCustomerQuery };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
 ````
 
@@ -83187,7 +84276,7 @@ main().catch((e) => {
 - `purpose`（L679–L862）：接收`name`。 控制顺序：L681按`name == "workbench/__init__.py"`分支；L687按`name.startswith("workbench/") and path.stem in MODULES`分支；L689按`name.startswith("templates/business/")`分支；L690按`role := BUSINESS_FILES.get(name.removeprefix("templates/business/"))`分支；L697按`name == "examples/requirements/customer-service.md"`分支；L703按`name == "examples/requirements/customer-service-decisions.md"`分支；L709按`name == "examples/requirements/customer-service-contract.md"`分支；L715按`name.startswith("examples/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`BUSINESS_FILES.get`、`name.removeprefix`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L682的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L688的`MODULES[path.stem]`；L691的`role`。
 - `notes`（L865–L975）：接收`name`、`content`。 控制顺序：L869按`not name.endswith(".py")`分支；L876遍历`tree.body`；L877按`isinstance(node, ast.ImportFrom) and node.module`分支；L879按`isinstance(node, ast.Import)`分支；L882按`own`分支；L889按`not rows`分支；L892遍历`rows`；L894按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L870的`out`；L874的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L890的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
 
-<!-- source-file: scripts/handbook_notes.py sha256: 707d138386654d5233f1dfbf2dfd4906d113e15118ee17d89e835c6d52f1b1de -->
+<!-- source-file: scripts/handbook_notes.py sha256: 70369f68405195f78acf852c6ed7257743153bdea917bce6b413f18134dc11d6 -->
 ````python
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
 
@@ -83420,7 +84509,7 @@ MODULES = {
     ),
     "native_environment": (
         "本机原生后端环境和进程",
-        "先确认专用本机数据库，再复制固定源码、初始化种子并生成环境；install_backend准备依赖与构建，running_backend管理进程存活和退出。兼容改动检查原文并记录，不静默忽略失败。",
+        "先确认专用本机数据库，再复制固定源码、初始化种子并生成环境；install_backend准备依赖与构建，running_backend管理进程存活和退出，记录启动轮次、阶段、已拥有进程与目标端口状态。启动失败后清理也失败时保留原始异常并附加清理事实，不杀死占用端口的其他进程，也不把超时改成成功。兼容改动检查原文并记录。",
         "native_lab/native_delivery/portable → backend环境 → 本机PG/Redis/Java或Python。",
     ),
     "native_delivery": (
@@ -83480,7 +84569,7 @@ MODULES = {
     ),
     "portable": (
         "让原生产品脱离工作台独立启动",
-        "导出原生种子、增量业务表和菜单SQL，复制启动器所需全部HELPERS，包括本机策略模块。verify_native_delivery在另一个新的本机数据库恢复并启动前后端，确认没有导入原工作台或复用原生成数据库。",
+        "导出原生种子、增量业务表和菜单SQL，复制启动器所需全部HELPERS，包括本机策略模块。verify_native_delivery在另一个新的本机数据库恢复并启动前后端，确认没有导入原工作台或复用原生成数据库；失败时在删除临时副本前保留白名单日志尾和进程阶段，限制读取与输出大小并遮蔽凭据，不复制环境、服务密码文件或任意运行目录。诊断回执不能授予验收成功。",
         "managed_package → portable → templates/deployment；test_native_delivery_boundaries。",
     ),
     "requirement_coverage": (
@@ -83603,7 +84692,7 @@ BUSINESS_FILES = {
     ),
     "yudao/business-form.ts": (
         "Vben合同表单与关联选项",
-        "在原生Form Schema中移出状态/负责人等受控字段，把关系键接为服务器限定的可识别选择项，保留字段校验和类型。",
+        "在原生Form Schema中移出状态/负责人等受控字段，把关系键接为服务器限定的可识别选择项；关系选择器按可读标签搜索并保留虚拟滚动，选项多时也能找到新记录，不扩大后端权限范围。保留字段校验和类型。",
         "生成Vben表单 → 本辅助函数 → 合同关系API与原生表单组件。",
     ),
     "yudao/metric-chart.vue": (
@@ -83644,12 +84733,12 @@ PRODUCT = {
 SCRIPT_ROLES = {
     "business_fastapi_browser.cjs": (
         "FastapiAdmin三角色真实客服页面验收",
-        "使用临时合成账号通过原生登录、菜单与Fa/Element Plus组件，操作客户/请求/任务、关系、分配、流程、历史、提醒和统计，检查原生主题及页面错误，保存命名截图。",
+        "使用临时合成账号通过原生登录、菜单与Fa/Element Plus组件，操作客户/请求/任务、关系、分配、流程、历史、提醒和统计；查询按钮等定位以锁定的真实组件为准，同时核对请求参数、响应记录和页面记录，不能用夹具自造的按钮名代替。检查原生主题及页面错误，保存命名截图。",
         "business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。",
     ),
     "business_yudao_browser.cjs": (
         "Yudao/Vben三角色真实客服页面验收",
-        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同的列表、表单、详情与协作场景；HTTP拒绝和UI行为共同组成证据，不以静态图替代。",
+        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同的列表、表单、详情与协作场景；关联控件按本轮新建记录的可读标签搜索并选择准确ID，不依赖虚拟列表首屏碰巧渲染该选项。HTTP拒绝和UI行为共同组成证据，不以静态图替代。",
         "business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。",
     ),
     "ci_real_model.py": (
@@ -95325,7 +96414,7 @@ DAYTONA_SNAPSHOTS={"python-basic/postgresql":"填写该profile实际快照名","
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/business-platform.md sha256: 83ac62a9e3a4d746ad0da004f9f5ac00f562d53d9f3232688c80732d1a30f808 -->
+<!-- source-file: docs/business-platform.md sha256: 5bd94baee400486ca27114b289fb58dd697034234b0ef171b1fbab17060d4943 -->
 ````markdown
 # 从实体CRUD写到有权限、有流程的业务产品
 
@@ -95501,6 +96590,12 @@ FastapiAdmin应继续体现Fa/Element Plus，Yudao应继续体现Vben/Ant Design
 6. 用第二个员工/客服账号核对看不到不属于其范围的请求、任务、历史和通知。尝试越权API还应被后端拒绝，不能只以按钮消失作为证明。打开客户详情时，相关请求也必须按调用者范围筛选。
 7. 打开管理员/客服统计：数量、解决时长、客户分类、日趋势均对应实际数据；未解决记录不计入平均解决时长。检查通知已读，再退出、停止、重启产品，确认业务与历史仍在。备份是另外的数据操作，不能把源码ZIP当数据备份。
 8. 保存此模板的当前提交、工具/浏览器/新库/重启结果和实际打开检查的截图。对两个原生模板重复步骤，确认各自的组件与主题，不把一套成功复制给另外两套。最后才汇总三模板结果；真实DeepSeek仍按下一章单独验收。
+
+关联记录多时，Yudao/Vben的原生选择器保留虚拟滚动；展开后输入客户名或请求标题，按可读标签找到刚创建的记录再选择。搜索只过滤后端已经按角色授权的选项，不扩大可见范围；找不到时先核对当前账号能否读取目标记录，不改选第一条记录来跳过问题。
+
+验证列表查询时，使用各模板真实组件显示的按钮，例如FastapiAdmin的“查询”，同时核对关键词、精确筛选、结果记录和重置后的状态。一次成功截图不能替代不匹配条件应返回空集的检查，也不能用接口通过代替真实页面操作。
+
+独立ZIP检查失败时，先查看`portable-start.log`和`portable-failure-diagnostics.json`，区分首次启动、前端构建和重启。后者在临时副本清理前保留有界、已遮蔽凭据的白名单日志尾及当前实例的进程阶段、端口与退出状态；它不包含整个运行目录，也不代表检查通过。启动错误与清理错误同时出现时，原始启动错误应保留，不能靠杀死其他进程、跳过重启或放宽通过条件来消除报错。
 
 这一轮能回答“每条原始需求在哪里实现、谁能执行、怎么拒绝越权、怎么证明交付包离开平台仍能启动”。答不出的部分回到对应代码与测试，不追加第二份带版本后缀的教材。
 ````
