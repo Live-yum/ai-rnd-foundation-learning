@@ -83,7 +83,12 @@ def test_gateway_sends_each_stage_to_its_selected_model(store):
             )
         )
         return httpx.Response(
-            200, json={"choices": [{"message": {"content": requirement().model_dump_json()}}]}
+            200,
+            json={
+                "choices": [
+                    {"message": {"role": "assistant", "content": requirement().model_dump_json()}}
+                ]
+            },
         )
 
     gateway = ModelGateway(settings, store, httpx.MockTransport(handler))

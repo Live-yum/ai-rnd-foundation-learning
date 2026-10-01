@@ -18,10 +18,17 @@ jobs:
       matrix:
         include:
           - template: fastapiadmin
+            case: canonical
             repository: fastapiadmin/FastapiAdmin
             revision: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
             pnpm: '9.15.3'
           - template: yudao-vben
+            case: canonical
+            repository: yudaocode/yudao-cloud-mini
+            revision: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
+            pnpm: '11.16.0'
+          - template: yudao-vben
+            case: approved-1d7
             repository: yudaocode/yudao-cloud-mini
             revision: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
             pnpm: '11.16.0'
@@ -83,8 +90,15 @@ jobs:
       - run: uv sync --locked --all-extras
       - name: Bundled source, native generation and independent fresh-database delivery
         timeout-minutes: 45
-        run: uv run python -m scripts.ci_native_bundled ${{ matrix.template }} --spec examples/plans/customer-service.json
+        run: |
+          if [ "$CUSTOMER_CASE" = approved-1d7 ]; then
+            uv run python -m scripts.ci_native_bundled "$CUSTOMER_TEMPLATE" --approved-replay yudao-1d7
+          else
+            uv run python -m scripts.ci_native_bundled "$CUSTOMER_TEMPLATE" --spec examples/plans/customer-service.json
+          fi
         env:
+          CUSTOMER_CASE: ${{ matrix.case }}
+          CUSTOMER_TEMPLATE: ${{ matrix.template }}
           NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
           PLAYWRIGHT_BROWSERS_PATH: '0'
       - uses: actions/cache/save@v4
@@ -101,6 +115,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-runtime-${{ matrix.template }}
+          name: native-runtime-${{ matrix.template }}-${{ matrix.case }}
           path: reports/native/
           retention-days: 7

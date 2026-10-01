@@ -25,7 +25,9 @@ def test_success_cache_and_usage(store):
         return httpx.Response(
             200,
             json={
-                "choices": [{"message": {"content": requirement().model_dump_json()}}],
+                "choices": [
+                    {"message": {"role": "assistant", "content": requirement().model_dump_json()}}
+                ],
                 "usage": {"total_tokens": 12},
             },
         )
@@ -49,7 +51,9 @@ def test_failures_not_fake_success(store, status):
 def test_invalid_json_bounded(store):
     model = gateway(
         store,
-        lambda _: httpx.Response(200, json={"choices": [{"message": {"content": "not-json"}}]}),
+        lambda _: httpx.Response(
+            200, json={"choices": [{"message": {"role": "assistant", "content": "not-json"}}]}
+        ),
     )
     run = new_run(store)
     with pytest.raises(ModelFailure):
@@ -73,7 +77,12 @@ def test_schema_retry_contains_exact_validator_feedback_without_credentials(stor
             200,
             json={
                 "choices": [
-                    {"message": {"content": json.dumps(invalid if len(requests) == 1 else valid)}}
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps(invalid if len(requests) == 1 else valid),
+                        }
+                    }
                 ]
             },
         )

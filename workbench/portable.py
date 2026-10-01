@@ -179,17 +179,19 @@ def build_native_delivery(template, product, reports, plan, targets, url):
     }
 
 
-def verify_native_delivery(product, url, reports, redis_port=6379):
-    """Copy only distributable files; run the delivered startup against a DIFFERENT empty DB."""
+def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
+    """Restore the distributable ZIP; run startup against a DIFFERENT empty DB."""
     import os
     import sys
     import tempfile
     import uuid
 
-    from workbench.filesystem import files
+    from workbench.filesystem import manifest, pack_source, unpack
     from workbench.tools import run_command
 
     name = "restore_" + uuid.uuid4().hex[:16] + "_codegen"
+    if template not in {"fastapiadmin", "yudao-vben"}:
+        raise ValueError("原生交付模板未知")
     parsed = checked_database(url)
     created = False
     try:
@@ -198,11 +200,12 @@ def verify_native_delivery(product, url, reports, redis_port=6379):
             created = True
         with tempfile.TemporaryDirectory(prefix="rnd-independent-native-") as directory:
             copy = Path(directory) / "product"
-            copy.mkdir()
-            for relative, source in files(product):
-                target = copy / relative
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(source, target)
+            archive = Path(directory) / "delivery.zip"
+            listing = manifest(product)
+            packaged = pack_source(product, archive, template=template)
+            restored = unpack(archive, copy, template=template)
+            if restored != packaged or manifest(copy) != listing:
+                raise ValueError("原生交付ZIP与已验证源码不一致")
             clean_url = parsed.set(database=name).render_as_string(hide_password=False)
             try:
                 command = run_command(
@@ -244,6 +247,8 @@ def verify_native_delivery(product, url, reports, redis_port=6379):
                 installed_from_lock=True,
                 original_platform_imported=False,
                 source_database_reused=False,
+                archive_round_trip=True,
+                archive=restored,
             )
             write_json(Path(reports) / "portable-start.json", result)
             return result

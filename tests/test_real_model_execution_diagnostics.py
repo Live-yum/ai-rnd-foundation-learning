@@ -168,7 +168,7 @@ def test_failure_retains_approved_plan_before_cleanup(
                 fail()
             return SimpleNamespace(returncode=0)
 
-        def unpack(archive, product):
+        def unpack(archive, product, *, template):
             if failure_at == "unpack":
                 fail()
             write_json(product / "approved-spec.json", plan)
@@ -184,7 +184,7 @@ def test_failure_retains_approved_plan_before_cleanup(
         monkeypatch.setattr(verification, "require_browser_evidence", lambda *a: None)
         monkeypatch.setattr(verification, "product_interpreter", lambda *a: sys.executable)
         monkeypatch.setattr(verification, "run_probe", lambda *a, **kw: fail())
-        monkeypatch.setattr(portable, "verify_native_delivery", lambda *a: fail())
+        monkeypatch.setattr(portable, "verify_native_delivery", lambda *a, **kw: fail())
         monkeypatch.setenv("NATIVE_TEST_DATABASE_URL", "not-exported-database-url")
         with pytest.raises(harness.SafeFailure) as caught:
             harness.run_acceptance(
@@ -289,3 +289,113 @@ def test_trace_frames_are_bounded_and_secret_filenames_are_not_retained():
     assert all(frame["file"] == "unavailable" for frame in result["frames"])
     assert all(set(frame) == {"file", "function", "line"} for frame in result["frames"])
     assert "test-only-secret" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "content,finish,extra,error",
+    [
+        ('{"value":1}', "length", {}, "truncated"),
+        ('{"value":1}', "stop", {"refusal": "private refusal text"}, "refusal"),
+        (
+            '{"value":1}',
+            "tool_calls",
+            {"tool_calls": [{"id": "private tool"}]},
+            "unexpected_tool_call",
+        ),
+        ('{"value":1}', None, {}, "invalid_finish_reason"),
+        ('```json\n{"value":1}\n```', "stop", {}, "json_invalid"),
+        ('{"value":1,"value":2}', "stop", {}, "duplicate_json_key"),
+        ('{"value":"1"}', "stop", {}, "int_type"),
+    ],
+)
+def test_actual_provider_receipt_uses_same_fail_closed_output_gate(content, finish, extra, error):
+    from pydantic import BaseModel
+
+    class Schema(BaseModel):
+        value: int
+
+    data = json.dumps(
+        {
+            "choices": [
+                {
+                    "finish_reason": finish,
+                    "message": {"role": "assistant", "content": content, **extra},
+                }
+            ]
+        }
+    ).encode()
+    result = harness.response_receipt(200, data, "plan", Schema)
+    assert result["schema_valid"] is False
+    assert result.get("response_contract_error") == error or error in result.get(
+        "schema_error_types", []
+    )
+    assert "private refusal" not in json.dumps(result)
+    assert "private tool" not in json.dumps(result)
+
+
+def test_actual_schema_request_requires_explicit_json_mode_before_http():
+    import httpx
+    from pydantic import BaseModel
+
+    class Schema(BaseModel):
+        value: int
+
+    transport = harness.BoundedRealTransport(configuration())
+    transport.transport.close()
+    requests = []
+    transport.transport = httpx.MockTransport(
+        lambda request: (
+            requests.append(request)
+            or httpx.Response(
+                200,
+                json={
+                    "choices": [{"finish_reason": "stop", "message": {"content": '{"value":1}'}}]
+                },
+            )
+        )
+    )
+    transport.current_schema = Schema
+    transport.current_stage = "plan"
+    body = {"model": harness.MODEL, "messages": [{"role": "user", "content": "Return JSON"}]}
+    try:
+        with pytest.raises(harness.SafeFailure, match="workflow_json_mode_required"):
+            transport.handle_request(
+                httpx.Request(
+                    "POST",
+                    harness.ENDPOINT + "/chat/completions",
+                    headers={"Authorization": "Bearer test-only-secret"},
+                    json=body,
+                )
+            )
+        assert requests == [] and transport.calls == 0
+        body["response_format"] = {"type": "json_object"}
+        transport.handle_request(
+            httpx.Request(
+                "POST",
+                harness.ENDPOINT + "/chat/completions",
+                headers={"Authorization": "Bearer test-only-secret"},
+                json=body,
+            )
+        )
+        assert len(requests) == 1
+        assert transport.receipts[0]["schema_valid"] is True
+        assert transport.receipts[0]["requested_output_mode"] == "json_object"
+        assert transport.receipts[0]["provider"] == "deepseek"
+    finally:
+        transport.shutdown()
+
+
+def test_actual_acceptance_pins_all_deepseek_structured_profiles(tmp_path, monkeypatch):
+    from workbench.settings import STAGES
+
+    monkeypatch.setenv("PROVIDER", "openai")
+    monkeypatch.setenv("PLANNING_PROVIDER", "compatible")
+    monkeypatch.setenv("REVIEW_MAX_OUTPUT_TOKENS", "1")
+    settings = harness.acceptance_settings(configuration(), tmp_path)
+    for stage in STAGES:
+        profile = settings.model_for(stage)
+        assert profile.provider == "deepseek"
+        assert profile.output_mode == "json_object"
+        assert profile.max_output_tokens == harness.MAX_COMPLETION_TOKENS
+        assert profile.base_url == harness.ENDPOINT
+        assert profile.model == harness.MODEL

@@ -124,6 +124,10 @@ class BoundedRealTransport(httpx.BaseTransport):
         body = json.loads(request.read())
         if body.get("model") != self.config.model:
             raise SafeFailure("model_substitution_rejected")
+        if self.current_schema is not None and body.get("response_format") != {
+            "type": "json_object"
+        }:
+            raise SafeFailure("workflow_json_mode_required")
         if not hmac.compare_digest(
             request.headers.get("Authorization", ""),
             "Bearer " + self.config.key.get_secret_value(),
@@ -150,15 +154,17 @@ class BoundedRealTransport(httpx.BaseTransport):
                 response.close()
                 raise SafeFailure("provider_response_too_large", response.status_code)
         response.close()
-        self.receipts.append(
-            response_receipt(
-                response.status_code,
-                bytes(body_bytes),
-                self.current_stage,
-                self.current_schema,
-                text_budget=self.diagnostic_text,
-            )
+        receipt = response_receipt(
+            response.status_code,
+            bytes(body_bytes),
+            self.current_stage,
+            self.current_schema,
+            text_budget=self.diagnostic_text,
         )
+        receipt["requested_output_mode"] = (
+            "json_object" if self.current_schema is not None else "transport_smoke"
+        )
+        self.receipts.append(receipt)
         response_headers = dict(response.headers)
         response_headers.pop("content-encoding", None)
         response_headers.pop("content-length", None)
@@ -177,11 +183,23 @@ class BoundedRealTransport(httpx.BaseTransport):
 def response_receipt(status, data, stage, schema=None, *, text_budget=None):
     from pydantic import ValidationError
 
+    from workbench.model_protocol import (
+        OutputContract,
+        OutputFailure,
+        completion_content,
+        load_json,
+        validate_content,
+    )
+
     receipt = {"http_status": status, "stage": stage}
     text_budget = text_budget or DiagnosticTextBudget()
     try:
-        envelope = json.loads(data)
+        envelope = load_json(data)
+        if not isinstance(envelope, dict):
+            raise TypeError("invalid envelope")
         choice = envelope["choices"][0]
+        if not isinstance(choice, dict) or not isinstance(choice.get("message"), dict):
+            raise TypeError("invalid message")
         reason = choice.get("finish_reason")
         receipt["finish_reason"] = (
             reason if reason in {"stop", "length", "content_filter", "tool_calls"} else "unknown"
@@ -189,20 +207,26 @@ def response_receipt(status, data, stage, schema=None, *, text_budget=None):
         content = choice["message"].get("content")
         receipt["content_present"] = isinstance(content, str) and bool(content.strip())
         receipt["reasoning_present"] = bool(choice["message"].get("reasoning_content"))
+        usage = envelope.get("usage")
         receipt["usage"] = {
             key: value
-            for key, value in envelope.get("usage", {}).items()
+            for key, value in (usage if isinstance(usage, dict) else {}).items()
             if key in {"prompt_tokens", "completion_tokens", "total_tokens"}
             and type(value) is int
             and 0 <= value <= 100_000_000
         }
-        if schema is not None and isinstance(content, str):
-            content = content.strip()
-            if content.startswith("```json") and content.endswith("```"):
-                content = content[7:-3].strip()
+        if schema is not None:
             try:
-                schema.model_validate_json(content)
+                contract = OutputContract("deepseek", "json_object", "provider_json_mode", {})
+                content, _, _ = completion_content(envelope, contract)
+                if status != 200:
+                    raise OutputFailure("http_error", "HTTP status rejected")
+                validate_content(content, schema, mode=contract.mode)
                 receipt["schema_valid"] = True
+                receipt.update(contract.receipt())
+            except OutputFailure as exc:
+                receipt["schema_valid"] = False
+                receipt["response_contract_error"] = exc.code
             except ValidationError as exc:
                 receipt["schema_valid"] = False
                 # Pydantic error types are library-defined codes, never model text or inputs.
@@ -231,8 +255,23 @@ def response_receipt(status, data, stage, schema=None, *, text_budget=None):
                     }
                     for e in errors[:20]
                 ]
+            except ValueError as exc:
+                receipt["schema_valid"] = False
+                code = str(exc)
+                receipt["schema_error_types"] = [
+                    code
+                    if code
+                    in {
+                        "duplicate_json_key",
+                        "non_finite_json_number",
+                        "response_must_be_json_object",
+                    }
+                    else "json_invalid"
+                ]
     except ValueError, KeyError, IndexError, TypeError:
         receipt["response_envelope_valid"] = False
+        if schema is not None:
+            receipt["schema_valid"] = False
     return receipt
 
 
@@ -1237,6 +1276,9 @@ def acceptance_settings(config, directory):
         base_url=config.base_url,
         api_key=config.key,
         MODE=config.model,
+        provider="deepseek",
+        output_mode="json_object",
+        max_output_tokens=MAX_COMPLETION_TOKENS,
         **{
             stage + suffix: value
             for stage in STAGES
@@ -1244,6 +1286,9 @@ def acceptance_settings(config, directory):
                 ("_base_url", config.base_url),
                 ("_api_key", config.key),
                 ("_model", config.model),
+                ("_provider", "deepseek"),
+                ("_output_mode", "json_object"),
+                ("_max_output_tokens", MAX_COMPLETION_TOKENS),
             )
         },
         install_products=True,
@@ -1423,7 +1468,7 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             raise SafeFailure("download_integrity_failed")
         product = directory / "downloaded-product"
         acceptance_stage = "download_unpack"
-        unpack(archive, product)
+        unpack(archive, product, template=template)
         acceptance_stage = "approved_contract"
         screenshot_dir = ROOT / "reports/real-model/screenshots"
         approved_requirement = application.state.store.latest_revision(
@@ -1452,7 +1497,10 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             require_customer_spec(manifest["plan"], approved_requirement=approved_requirement)
             acceptance_stage = "downloaded_native_runtime"
             evidence = verify_native_delivery(
-                product, os.environ["NATIVE_TEST_DATABASE_URL"], directory / "downloaded-evidence"
+                product,
+                os.environ["NATIVE_TEST_DATABASE_URL"],
+                directory / "downloaded-evidence",
+                template=template,
             )
             if (
                 evidence.get("passed") is not True

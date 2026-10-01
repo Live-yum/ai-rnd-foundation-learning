@@ -301,7 +301,9 @@ def run_acceptance(
             template, product_root, reports, plan, targets, url
         )
         stage("independent-native-delivery")
-        report["portable_restored"] = verify_native_delivery(product_root, url, reports, redis_port)
+        report["portable_restored"] = verify_native_delivery(
+            product_root, url, reports, redis_port, template=template
+        )
         stage("accepted")
         write_json(reports / "acceptance.json", report)
         print(

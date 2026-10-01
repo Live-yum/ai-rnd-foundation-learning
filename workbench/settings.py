@@ -12,6 +12,8 @@ from workbench.local_only import local_database_url, local_http_url
 ROOT = Path(__file__).resolve().parent.parent
 Stage = Literal["requirements", "planning", "coding", "review"]
 STAGES = ("requirements", "planning", "coding", "review")
+Provider = Literal["auto", "openai", "deepseek", "compatible"]
+OutputMode = Literal["auto", "json_object"]
 
 
 class ModelProfile(BaseModel):
@@ -19,6 +21,9 @@ class ModelProfile(BaseModel):
     base_url: str
     model: str
     api_key: SecretStr
+    provider: Provider = "auto"
+    output_mode: OutputMode = "auto"
+    max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
 
     def validate_endpoint(self):
         url = urlsplit(self.base_url)
@@ -45,6 +50,9 @@ class ModelProfile(BaseModel):
             "base_url": self.base_url,
             "model": self.model,
             "api_key": "configured" if self.api_key.get_secret_value() else "missing",
+            "provider": self.provider,
+            "output_mode": self.output_mode,
+            "max_output_tokens": self.max_output_tokens,
         }
 
 
@@ -53,6 +61,21 @@ class Settings(BaseSettings):
     base_url: str = ""
     api_key: SecretStr = SecretStr("")
     model: str = Field(default="", validation_alias=AliasChoices("MODE", "MODEL", "model"))
+    provider: Provider = "auto"
+    output_mode: OutputMode = "auto"
+    max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
+    requirements_provider: Provider | None = None
+    requirements_output_mode: OutputMode | None = None
+    requirements_max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
+    planning_provider: Provider | None = None
+    planning_output_mode: OutputMode | None = None
+    planning_max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
+    coding_provider: Provider | None = None
+    coding_output_mode: OutputMode | None = None
+    coding_max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
+    review_provider: Provider | None = None
+    review_output_mode: OutputMode | None = None
+    review_max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
     requirements_base_url: str = ""
     requirements_api_key: SecretStr = SecretStr("")
     requirements_model: str = Field(
@@ -158,6 +181,17 @@ class Settings(BaseSettings):
             base_url=endpoint.rstrip("/"),
             model=getattr(self, stage + "_model") or self.model,
             api_key=key,
+            # An endpoint change must not inherit the previous provider's wire protocol.
+            provider=getattr(self, stage + "_provider")
+            or (self.provider if endpoint.rstrip("/") == self.base_url.rstrip("/") else "auto"),
+            output_mode=getattr(self, stage + "_output_mode")
+            or (self.output_mode if endpoint.rstrip("/") == self.base_url.rstrip("/") else "auto"),
+            max_output_tokens=getattr(self, stage + "_max_output_tokens")
+            or (
+                self.max_output_tokens
+                if endpoint.rstrip("/") == self.base_url.rstrip("/")
+                else None
+            ),
         )
 
     def require_model(self) -> None:

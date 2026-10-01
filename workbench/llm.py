@@ -4,9 +4,17 @@ import json
 import time
 
 import httpx
+from openai import APIError
 from pydantic import ValidationError
 
 from workbench.domain import digest
+from workbench.model_protocol import (
+    AuditedTransport,
+    OutputFailure,
+    output_contract,
+    structured_model,
+    validate_content,
+)
 from workbench.store import Conflict
 
 
@@ -26,8 +34,20 @@ class ModelGateway:
             "coding": "coding",
             "review": "review",
         }.get(key.split(":")[0], "requirements")
-        profile = self.settings.model_for(stage).validate_endpoint()
-        profile_id = digest({"stage": stage, "url": profile.base_url, "model": profile.model})[:12]
+        try:
+            profile = self.settings.model_for(stage).validate_endpoint()
+            contract = output_contract(profile, schema)
+        except ValueError as exc:
+            raise ModelFailure(str(exc)) from None
+        profile_id = digest(
+            {
+                "stage": stage,
+                "url": profile.base_url,
+                "model": profile.model,
+                "contract": contract.receipt(),
+                "request_fields": contract.request_fields,
+            }
+        )[:12]
         # A repaired prompt/schema or a changed gate's feedback must not reuse a
         # stale answer. Exact replays still share the same durable cache entry.
         request_id = digest(
@@ -35,6 +55,23 @@ class ModelGateway:
         )[:16]
 
         def call():
+            def failed(attempt, code):
+                # Immutable audit facts only: no raw response, refusal text, prompts or secrets.
+                self.store.record_event(
+                    run_id,
+                    "model_failure",
+                    {
+                        "stage": stage,
+                        "model": profile.model,
+                        "endpoint": profile.base_url,
+                        "request_id": request_id,
+                        "attempt": attempt + 1,
+                        "status": "failed",
+                        "code": code,
+                        **contract.receipt(),
+                    },
+                )
+
             body = json.dumps(payload, ensure_ascii=False)
             if len(body) > self.settings.max_context_chars:
                 raise ModelFailure(
@@ -52,66 +89,74 @@ class ModelGateway:
             reason = "结构化响应无效"
             for attempt in range(2):
                 content = None
+                if sum(len(m["content"]) for m in messages) > self.settings.max_context_chars:
+                    raise ModelFailure("完整模型请求（含 Schema/修复反馈）超过 MAX_CONTEXT_CHARS")
                 self.store.reserve_model_call(run_id)
                 try:
+                    audited = AuditedTransport(contract, self.transport)
                     with httpx.Client(
                         timeout=self.settings.llm_timeout,
-                        transport=self.transport,
+                        transport=audited,
                         follow_redirects=False,
                         trust_env=False,
                     ) as client:
-                        with client.stream(
-                            "POST",
-                            profile.base_url + "/chat/completions",
-                            headers={
-                                "Authorization": "Bearer " + profile.api_key.get_secret_value()
-                            },
-                            json={"model": profile.model, "messages": messages},
-                        ) as response:
-                            if response.status_code in {401, 403}:
-                                raise ModelFailure("模型鉴权失败，请检查 API_KEY 与模型权限")
-                            if response.status_code == 404:
-                                raise ModelFailure(
-                                    "模型地址/模型名称不存在，请检查 BASE_URL 与 MODE"
-                                )
-                            response.raise_for_status()
-                            chunks = bytearray()
-                            for chunk in response.iter_bytes():
-                                chunks.extend(chunk)
-                                if len(chunks) > 2_000_000:
-                                    raise ModelFailure("模型响应过大")
-                    envelope = json.loads(chunks)
-                    content = envelope["choices"][0]["message"]["content"]
-                    if not isinstance(content, str):
-                        raise ValueError("content must be a string")
-                    if content.strip().startswith("```json") and content.strip().endswith("```"):
-                        content = content.strip()[7:-3].strip()
-                    value = schema.model_validate_json(content)
-                    usage = envelope.get("usage", {})
+                        with structured_model(profile, schema, contract, client) as structured:
+                            try:
+                                result = structured.invoke(messages, config={"callbacks": []})
+                            except Exception:
+                                if audited.error is not None:
+                                    raise audited.error from None
+                                raise
+                    content, usage, finish = audited.content, audited.usage, audited.finish
+                    value = validate_content(content, schema, mode=contract.mode)
+                    if result.get("parsing_error") is not None or not isinstance(
+                        result.get("parsed"), schema
+                    ):
+                        raise ValueError("langchain_structured_output_parsing_failed")
                     return {
                         "value": value.model_dump(mode="json"),
-                        "usage": {
-                            k: usage.get(k)
-                            for k in ("prompt_tokens", "completion_tokens", "total_tokens")
-                        },
+                        "usage": usage,
                         "model": profile.model,
                         "stage": stage,
                         "endpoint": profile.base_url,
+                        "finish_reason": finish,
+                        **contract.receipt(),
                     }
                 except (ValidationError, ValueError, KeyError, IndexError, TypeError) as exc:
-                    reason = "模型返回内容不符合结构化契约"
+                    if isinstance(exc, OutputFailure):
+                        failed(attempt, exc.code)
+                        if not exc.retry:
+                            raise ModelFailure(str(exc)) from None
+                        reason = str(exc)
+                        if not exc.repair:
+                            continue
+                    else:
+                        reason = "模型返回内容不符合结构化契约"
+                        failed(
+                            attempt,
+                            "schema_validation"
+                            if isinstance(exc, ValidationError)
+                            else "invalid_json",
+                        )
                     diagnostics = []
                     if isinstance(exc, ValidationError):
                         diagnostics = [
                             {
                                 "type": error["type"],
-                                "path": list(error["loc"]),
-                                "message": error["msg"],
+                                "path": [
+                                    self.settings.redact(part)[:100]
+                                    if isinstance(part, str)
+                                    else part
+                                    for part in error["loc"][:20]
+                                ],
+                                "message": self.settings.redact(error["msg"])[:500],
                             }
                             for error in exc.errors(include_input=False, include_url=False)[:30]
                         ]
                     if isinstance(content, str) and len(content) <= self.settings.max_context_chars:
-                        messages.append({"role": "assistant", "content": content})
+                        messages.append(
+                            {"role": "assistant", "content": self.settings.redact(content)}
+                        )
                     messages.append(
                         {
                             "role": "user",
@@ -121,8 +166,11 @@ class ModelGateway:
                             "不要删除需求、降级功能或声称人工已批准。",
                         }
                     )
-                except httpx.HTTPError as exc:
-                    status = getattr(getattr(exc, "response", None), "status_code", None)
+                except (httpx.HTTPError, APIError) as exc:
+                    status = getattr(exc, "status_code", None) or getattr(
+                        getattr(exc, "response", None), "status_code", None
+                    )
+                    failed(attempt, "http_" + str(status) if status else "transport_error")
                     if status and status not in {408, 429} and status < 500:
                         raise ModelFailure(f"模型请求被拒绝（HTTP {status}）") from None
                     reason = "模型服务超时、限流或暂时不可用"
@@ -134,4 +182,4 @@ class ModelGateway:
             result = self.store.step(run_id, f"model:{stage}:{key}:{profile_id}:{request_id}", call)
         except Conflict as exc:
             raise ModelFailure(str(exc)) from None
-        return schema.model_validate(result["value"])
+        return schema.model_validate(result["value"], strict=True)

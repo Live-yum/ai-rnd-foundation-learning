@@ -20,6 +20,7 @@ GUIDES = [
     "docs/recommendation-recovery.md",
     "docs/native-toolchain.md",
     "docs/business-platform.md",
+    "docs/provider-structured-outputs.md",
     "docs/real-model-acceptance.md",
     "docs/from-zero-checkpoints.md",
     "docs/acceptance-checklist.md",

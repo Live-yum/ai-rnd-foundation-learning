@@ -3,6 +3,12 @@
 import json
 import re
 
+from workbench.requirement_coverage import (
+    BUSINESS_CONSTRAINT_CONTAINERS,
+    _business_schema,
+    _presentation_namespace,
+)
+
 _ALIASES = {
     "metrics": {
         "type": "kind",
@@ -98,6 +104,24 @@ def _decode(value):
     return value
 
 
+def _fact_domain(key, value, domain, *, entity_position=False):
+    """Collection names inside UI dictionaries remain display vocabulary.
+
+    Re-enter business interpretation only through a structural, explicitly
+    named business contract, not a caption mentioning permissions or metrics.
+    Entity/record positions retain their identifiers even if called 'labels'.
+    """
+    if _presentation_namespace(key) and not entity_position:
+        return "presentation"
+    if (
+        domain == "presentation"
+        and key in BUSINESS_CONSTRAINT_CONTAINERS
+        and _business_schema(value)
+    ):
+        return "business"
+    return domain
+
+
 def _business_facts(facts, entity_names):
     """Read business positions without reinterpreting field names or prose.
 
@@ -144,11 +168,11 @@ def _business_facts(facts, entity_names):
                         item = {"name": key, **item}
                     yield from entries(kind, item, f"{path}.{key}", entity, metric_defaults)
 
-    def walk(value, path="", entity=None, entity_container=False):
+    def walk(value, path="", entity=None, entity_container=False, domain=None):
         value = _decode(value)
         if isinstance(value, list):
             for index, item in enumerate(value):
-                yield from walk(item, f"{path}.{index}", entity, entity_container)
+                yield from walk(item, f"{path}.{index}", entity, entity_container, domain)
         elif isinstance(value, dict):
             if entity_container and isinstance(value.get("name"), str):
                 entity = value["name"]
@@ -156,6 +180,12 @@ def _business_facts(facts, entity_names):
                 if key in _FIELD_COLLECTIONS or key in _FACT_METADATA:
                     continue
                 target = f"{path}.{key}" if path else key
+                child_domain = _fact_domain(
+                    key, item, domain, entity_position=entity_container and domain != "presentation"
+                )
+                if domain == "presentation" or child_domain == "presentation":
+                    yield from walk(item, target, entity, domain=child_domain)
+                    continue
                 kind = "notifications" if key == "reminders" else key
                 if kind in _FACT_COLLECTIONS:
                     decoded = _decode(item)
@@ -185,6 +215,7 @@ def _business_facts(facts, entity_names):
                         if key in entity_names or (entity_container and "name" not in value)
                         else entity,
                         key == "entities",
+                        child_domain,
                     )
 
     yield from walk(facts)
@@ -553,19 +584,30 @@ def _bounded(value, depth=0):
     return value
 
 
-def _policy_roots(facts, path=""):
+def _policy_roots(facts, path="", domain=None, entity_container=False):
     value = _decode(facts)
     if isinstance(value, list):
         for index, item in enumerate(value):
-            yield from _policy_roots(item, f"{path}.{index}")
+            yield from _policy_roots(item, f"{path}.{index}", domain, entity_container)
     elif isinstance(value, dict):
-        if "permissions" in value and (
-            "resources" in value or "roles" in value or value.get("permissions_complete") is True
+        if (
+            domain != "presentation"
+            and "permissions" in value
+            and (
+                "resources" in value
+                or "roles" in value
+                or value.get("permissions_complete") is True
+            )
         ):
             yield path, value
         for key, item in value.items():
             if key not in _FIELD_COLLECTIONS | _FACT_METADATA:
-                yield from _policy_roots(item, f"{path}.{key}" if path else key)
+                child_domain = _fact_domain(
+                    key, item, domain, entity_position=entity_container and domain != "presentation"
+                )
+                yield from _policy_roots(
+                    item, f"{path}.{key}" if path else key, child_domain, key == "entities"
+                )
 
 
 def _business_fact_gaps(requirement, plan, diagnostics=None):

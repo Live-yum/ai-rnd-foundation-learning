@@ -97,7 +97,10 @@ def test_news_http_model_protocol_through_real_clean_delivery(settings, store, i
                 assert feedback["questions"] == [QUESTION]
             result = news_requirement()
         return httpx.Response(
-            200, json={"choices": [{"message": {"content": result.model_dump_json()}}]}
+            200,
+            json={
+                "choices": [{"message": {"role": "assistant", "content": result.model_dump_json()}}]
+            },
         )
 
     run = start_news(store, initial_smart)
@@ -359,7 +362,12 @@ def test_cache_binds_prompt_payload_and_schema_but_reuses_exact_replay(settings,
     def handler(request):
         sent.append(json.loads(request.content))
         return httpx.Response(
-            200, json={"choices": [{"message": {"content": requirement().model_dump_json()}}]}
+            200,
+            json={
+                "choices": [
+                    {"message": {"role": "assistant", "content": requirement().model_dump_json()}}
+                ]
+            },
         )
 
     run = new_run(store)

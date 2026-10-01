@@ -5,7 +5,6 @@ import os
 import re
 import shutil
 import uuid
-import zipfile
 from contextlib import ExitStack
 from pathlib import Path
 
@@ -13,7 +12,7 @@ from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, StrictBool
 
 from workbench.domain import Plan, digest
-from workbench.filesystem import files, manifest, sha, write_json
+from workbench.filesystem import manifest, pack_source, sha, write_json
 from workbench.generator import PrerequisiteError
 from workbench.native_environment import checked_database, native_environment, running_backend
 from workbench.native_frontend import frontend_environment, frontend_preview
@@ -370,13 +369,12 @@ def managed_package(destination, report):
         raise PrerequisiteError("交付的原生运行验证报告不匹配")
     listing = manifest(destination)
     package = destination.parent / "native-runtime.zip"
-    with zipfile.ZipFile(package, "w", zipfile.ZIP_DEFLATED) as archive:
-        for name, source in files(destination):
-            archive.write(source, name)
+    archive_report = pack_source(destination, package, template=receipt["template"])
     result = {
         "package": package.name,
         "sha256": sha(package),
         "files": listing,
+        "archive": archive_report,
         "validation_level": "runtime",
         "runtime_verified": True,
         "production_ready": False,

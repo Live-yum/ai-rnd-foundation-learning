@@ -259,6 +259,47 @@ FACT_DESCRIPTOR_KEYS = {"field", "name", "entity", "label", "choice_labels"}
 
 
 FIELD_FACT_CONTAINERS = {"fields", "field_requirements", "field_constraints", "字段", "字段约束"}
+FIELD_CONSTRAINT_CONTAINERS = {"field_requirements", "field_constraints", "字段约束"}
+BUSINESS_CONSTRAINT_CONTAINERS = {"business", "business_requirements", "business_constraints"}
+PRESENTATION_FACT_CONTAINERS = {
+    "labels",
+    "display",
+    "display_metadata",
+    "presentation",
+    "ui",
+    "i18n",
+    "localization",
+    "translations",
+    "界面标签",
+    "显示标签",
+}
+
+
+def _presentation_namespace(key):
+    """Normalize semantic namespace words, not individual model spellings."""
+    if not isinstance(key, str):
+        return False
+    if key.casefold() in PRESENTATION_FACT_CONTAINERS:
+        return True
+    normalized = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", key)
+    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", normalized)
+    words = set(re.findall(r"[a-z0-9]+", normalized.casefold()))
+    if words & {"labels", "display", "presentation", "ui", "i18n", "localization", "translations"}:
+        return True
+    return any(
+        marker in key
+        for marker in (
+            "界面标签",
+            "显示标签",
+            "显示名称",
+            "字段标签",
+            "字段中文名",
+            "界面文案",
+            "本地化",
+        )
+    )
+
+
 RESOURCE_FACT_CONTAINERS = {"resources", "entities", "资源", "实体"}
 RELATION_FACT_CONTAINERS = {"relations", "关系"}
 BUSINESS_FACT_CONTAINERS = {
@@ -361,6 +402,32 @@ def _optional_fact(value):
     return value
 
 
+def _constraint_schema(value):
+    """A structural declaration distinguishes a schema from a translated caption."""
+    value = _decode_fact(value)
+    if isinstance(value, list):
+        return any(isinstance(_decode_fact(item), dict) for item in value)
+    if not isinstance(value, dict):
+        return False
+    return (
+        any(isinstance(_decode_fact(item), (dict, list)) for item in value.values())
+        or (
+            isinstance(value.get("field", value.get("name")), str)
+            and bool(re.fullmatch(r"[a-z][a-z0-9_]*", value.get("field", value.get("name"))))
+        )
+        or any(type(value.get(attribute)) in {bool, int} for attribute in FACT_ATTRIBUTES)
+    )
+
+
+def _business_schema(value):
+    """An explicit business wrapper needs structured domain declarations."""
+    value = _decode_fact(value)
+    return isinstance(value, dict) and any(
+        key in BUSINESS_FACT_CONTAINERS and isinstance(_decode_fact(item), (dict, list))
+        for key, item in value.items()
+    )
+
+
 def _fact_records(facts, fields):
     """Classify structural facts before projecting field constraints or prose.
 
@@ -371,9 +438,55 @@ def _fact_records(facts, fields):
     """
     entities = {entity for entity, _ in fields}
 
-    def walk(key, value, path, entity=None, subject=None, business=False, container=None):
+    def walk(
+        key, value, path, entity=None, subject=None, business=False, container=None, domain=None
+    ):
         value = _decode_fact(value)
         label = ".".join(path)
+        # Domain provenance survives arbitrary maps, lists and JSON encodings.
+        # A display schema can legitimately contain fields/name/required/choices
+        # captions: those tokens cannot turn its values into field declarations.
+        # An explicit constraint namespace is a separate schema, even nested in
+        # presentation metadata. Keep traversing to find it and validate it in
+        # full; never discard the whole display subtree.
+        field_position = (
+            domain != "presentation"
+            and isinstance(value, dict)
+            and bool(set(value) & FACT_ATTRIBUTES)
+            and not (set(value) & (FIELD_FACT_CONTAINERS | RESOURCE_FACT_CONTAINERS))
+            and _fact_subject(key, fields, entity) is not None
+        )
+        if (
+            key in FIELD_CONSTRAINT_CONTAINERS
+            and container != "fields"
+            and (domain != "presentation" or _constraint_schema(value))
+        ):
+            domain = "constraints"
+        elif (
+            domain == "presentation"
+            and key in BUSINESS_CONSTRAINT_CONTAINERS
+            and _business_schema(value)
+        ):
+            domain = "business"
+        elif _presentation_namespace(key) and container != "fields" and not field_position:
+            domain = "presentation"
+        if domain == "presentation":
+            if isinstance(value, dict):
+                children = value.items()
+            elif isinstance(value, list):
+                children = ((str(index), item) for index, item in enumerate(value))
+            else:
+                return
+            for name, item in children:
+                yield from walk(name, item, [*path, name], entity=entity, domain=domain)
+            return
+        if (
+            key in FIELD_CONSTRAINT_CONTAINERS
+            and container != "fields"
+            and not isinstance(value, (dict, list))
+        ):
+            yield "constraint", label, {}, _fact_subject(None, fields, entity, declared=True)
+            return
         field_container = key in FIELD_FACT_CONTAINERS and subject is None and container is None
         resource_container = (
             key in RESOURCE_FACT_CONTAINERS and subject is None and container is None
@@ -460,7 +573,10 @@ def _fact_records(facts, fields):
                 entity = key
             if not entity_record and (
                 declared
-                and ("field" in value or (key.isdigit() and "name" in value))
+                and (
+                    "field" in value
+                    or (key.isdigit() and ("name" in value or domain == "constraints"))
+                )
                 and not identifier
             ):
                 subject = _fact_subject(None, fields, value.get("entity", entity), declared=True)
@@ -525,8 +641,18 @@ def _fact_records(facts, fields):
                     subject,
                     business_record and not field_container,
                     child_container,
+                    domain,
                 )
         elif isinstance(value, list):
+            if domain == "constraints" and collection == "fields":
+                for index, item in enumerate(value):
+                    if not isinstance(_decode_fact(item), dict):
+                        yield (
+                            "constraint",
+                            f"{label}.{index}",
+                            {},
+                            _fact_subject(None, fields, entity, declared=True),
+                        )
             if not any(isinstance(_decode_fact(item), (dict, list)) for item in value):
                 attribute = _fact_attribute(key)
                 target = subject if attribute == "choices" else None
@@ -554,6 +680,7 @@ def _fact_records(facts, fields):
                             subject,
                             (business or key in BUSINESS_FACT_CONTAINERS) and not field_container,
                             child_container,
+                            domain,
                         )
         else:
             attribute = _scalar_fact_attribute(key, value)
@@ -705,6 +832,48 @@ LEGACY_PROPERTY = (
 )
 
 
+def _query_composition_text(text, fields):
+    """A composite query needs its own local field targets to declare a flag.
+
+    A subject-free composition statement combines the predicates already
+    declared elsewhere. Explicit 'combined search by title' still declares
+    title's primitive operation; neither an earlier nor a later clause can
+    donate targets to a generic composition statement.
+    """
+    depth, depths = 0, []
+    for char in text:
+        depths.append(depth)
+        if char in "（([【":
+            depth += 1
+        elif char in "）)]】":
+            depth = max(0, depth - 1)
+    boundaries = [0]
+    for match in re.finditer(r"[，,；;。\n]|以及|并且|并|且|和|与|\band\b", text, re.I):
+        if depths[match.start()]:
+            continue
+        if re.fullmatch(r"[，,；;。\n]", match.group()) or re.search(
+            LEGACY_PROPERTY, text[boundaries[-1] : match.start()], re.I
+        ):
+            boundaries.append(match.end())
+    boundaries.append(len(text))
+
+    def replace(match):
+        start = max(boundary for boundary in boundaries if boundary <= match.start())
+        end = min(boundary for boundary in boundaries if boundary >= match.end())
+        if _fact_candidates(text[start:end], fields):
+            return match.group()
+        return " " * len(match.group())
+
+    return re.sub(
+        r"(?:组合|联合|复合|多条件)\s*(?:查询|检索|搜索|筛选|过滤)|"
+        r"\b(?:combined|composite|compound|multi[-\s]?condition)\s+"
+        r"(?:search(?:ing)?|filter(?:ing)?|quer(?:y|ies))\b",
+        replace,
+        text,
+        flags=re.I,
+    )
+
+
 def _query_predicate_text(text, fields):
     """Exclude operation-derived nouns unless an explicit predicate binds fields.
 
@@ -713,6 +882,7 @@ def _query_predicate_text(text, fields):
     'title is a search criterion' and imperatives such as 'filter results by title'.
     Other verbs in the same clause remain available for ordinary subject binding.
     """
+    text = _query_composition_text(text, fields)
     nouns = re.compile(
         r"(?P<operation>"
         r"(?:日期区间|日期范围)(?:筛选|过滤|查询)?|"
@@ -866,7 +1036,13 @@ def _explicit_query_sections(text, fields):
     for match in boundary.finditer(text):
         if (
             not depths[match.start()]
-            and _fact_candidates(text[start : match.start()], fields)
+            and (
+                _fact_candidates(text[start : match.start()], fields)
+                or (
+                    text[start : match.start()].strip()
+                    and not _single_operation_heading(text[start : match.start()])
+                )
+            )
             and _fact_candidates(text[match.end() :], fields)
             and re.search(
                 r"搜索|检索|筛选|过滤|search|filter|日期区间|日期范围|date.?range",
