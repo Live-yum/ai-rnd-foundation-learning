@@ -1,7 +1,10 @@
 name: Customer-service native integration
 on:
-  push:
-    branches: [feat/customer-service-acceptance]
+  pull_request:
+    branches: [feat/complete-platform-acceptance]
+    paths:
+      - '从零实现AI研发平台_逐步实操手册_完整版.md'
+      - '.github/workflows/customer-runtime.yml'
   workflow_dispatch:
 permissions:
   contents: read
@@ -12,7 +15,44 @@ env:
   PLAYWRIGHT_BROWSERS_PATH: '0'
   PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright
 jobs:
+  gate:
+    if: >-
+      (github.event_name == 'pull_request' &&
+       github.event.pull_request.head.repo.full_name == github.repository &&
+       github.event.pull_request.head.ref == 'feat/customer-service-acceptance' &&
+       github.event.pull_request.base.ref == 'feat/complete-platform-acceptance') ||
+      (github.event_name == 'workflow_dispatch' &&
+       github.ref == 'refs/heads/feat/customer-service-acceptance')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.head.outputs.sha }}
+      eligible: ${{ steps.head.outputs.eligible }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Verify literal final head before allocating the runtime matrix
+        id: head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          printf 'sha=%s\n' "$EXPECTED_SHA" >> "$GITHUB_OUTPUT"
+          if [ -e .github/workflows/customer-handbook-once.yml ] || [ -L .github/workflows/customer-handbook-once.yml ]; then
+            echo 'eligible=false' >> "$GITHUB_OUTPUT"
+            echo 'Waiting for the handbook refresh and helper removal at the final head.'
+          else
+            echo 'eligible=true' >> "$GITHUB_OUTPUT"
+            echo "Literal helper-free final head is eligible: $EXPECTED_SHA"
+          fi
   runtime:
+    needs: gate
+    if: needs.gate.outputs.eligible == 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -59,7 +99,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: ${{ needs.gate.outputs.sha }}
           persist-credentials: false
+      - name: Verify checked-out runtime head
+        shell: bash
+        env:
+          EXPECTED_SHA: ${{ needs.gate.outputs.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
