@@ -2278,6 +2278,87 @@ FastapiAdmin应继续体现Fa/Element Plus，Yudao应继续体现Vben/Ant Design
 
 这一轮能回答“每条原始需求在哪里实现、谁能执行、怎么拒绝越权、怎么证明交付包离开平台仍能启动”。答不出的部分回到对应代码与测试，不追加第二份带版本后缀的教材。
 
+# LangGraph 工作流的统一结构化输出
+
+平台优先采用 LangGraph 文档推荐的 LangChain 模型增强方法：`with_structured_output`。需求、规划、编码补丁、模型审阅四个节点继续经过同一个 `ModelGateway`，不分别维护按模型 ID 判断能力的适配表，也不自行重写供应商 strict Schema。
+
+本次 **OpenAI 未调用真实 API 验证**。离线测试验证真实官方集成类构造出的 HTTP 请求及响应处理，不代表账户权限、模型可用性或线上质量。DeepSeek 客服真实验收另按同一提交的 `docs/real-model-acceptance.md` 中的验收说明 执行。
+
+## 框架接线
+
+`workbench/model_protocol.py` 使用官方 `ChatDeepSeek` 或 `ChatOpenAI`，共同调用：
+
+```python
+structured = model.with_structured_output(
+    schema,
+    method="json_mode",
+    include_raw=True,
+)
+result = structured.invoke(messages, config={"callbacks": []})
+```
+
+`schema` 是现有 Pydantic `Requirement`、`Plan`、`Patches`、`ModelReview` 之一。系统消息仍明确要求一个 JSON 对象并包含完整 Schema，因为 JSON mode 不自动把完整业务约束传给供应商。官方集成负责格式参数、消息协议和结构化解析；平台随后针对原始内容执行严格校验。
+
+LangGraph 官方的 [工作流与模型增强示例](https://docs.langchain.com/oss/python/langgraph/workflows-agents) 使用 `llm.with_structured_output(...)`。直接结构化模型调用适合本项目已存在的确定性节点，不必为了格式化再引入一个自主工具循环。LangChain 的 [模型文档](https://docs.langchain.com/oss/python/langchain/models) 介绍统一结构化接口；[ChatDeepSeek](https://docs.langchain.com/oss/python/integrations/chat/deepseek) 和 [ChatOpenAI](https://docs.langchain.com/oss/python/integrations/chat/openai) 是使用的官方集成。
+
+依赖通过 `pyproject.toml`/`uv.lock` 固定可重建版本，不在每次生成任务中安装或查询模型目录。当前锁定 `langchain-deepseek 1.1.1`、`langchain-openai 1.6.7`；正常 `uv sync --locked` 会安装它们。
+
+## 为什么统一选择 JSON mode
+
+两个集成共同使用 `method="json_mode"`，产生 `response_format={"type":"json_object"}`。这是 **供应商 JSON 格式约束 + 本地严格业务校验**，不是宣称全部响应都由供应商 `strict=true/json_schema` 保证。
+
+当前领域契约需要动态字典，例如需求事实 `Requirement.facts`、变更值、枚举显示标签和规则示例。把所有开放对象强行改成 `additionalProperties=false` 会丢失有效需求数据。统一 JSON mode 可保留这些结构，不必建立模型 ID 白名单、私有 Schema 转换器或字段补全器。
+
+官方 [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs) 区分 JSON 模式与原生 Schema 约束；[DeepSeek JSON Output](https://api-docs.deepseek.com/guides/json_mode/) 说明 JSON 模式、提示要求、空内容和截断边界。以后若领域契约改为适合原生 strict 的封闭传输类型，应仍使用框架的结构化方法，再补相应验证，不在这里维护逐模型协议分支。
+
+## 配置与模型选择
+
+原有默认三项保持不变：`BASE_URL`、`API_KEY`、`MODE`。模型 ID 按原样交给官方集成，不替换成另一模型，也不按名称前缀声称支持。模型不支持所请求格式或账户无权限时，保留明确失败，不降级成无约束文本或演示结果。
+
+可选配置：
+
+```dotenv
+PROVIDER=auto
+OUTPUT_MODE=auto
+# MAX_OUTPUT_TOKENS=16384
+
+# 阶段覆盖示例
+# PLANNING_PROVIDER=deepseek
+# PLANNING_OUTPUT_MODE=json_object
+# PLANNING_MAX_OUTPUT_TOKENS=65536
+```
+
+- `PROVIDER=auto` 仅按准确主机选择官方集成：`api.deepseek.com` 使用 `ChatDeepSeek`，`api.openai.com` 使用 `ChatOpenAI`。其他兼容地址使用 `ChatOpenAI` 兼容接线；它同样要求 JSON mode，不能证明任意服务都支持该参数
+- 私有代理可显式选择 `PROVIDER=deepseek` 或 `openai`；地址仍由用户配置，不自动改到其他域名
+- `OUTPUT_MODE=auto` 和 `json_object` 都采用统一的框架 JSON mode；不提供私有逐模型模式表
+- `MAX_OUTPUT_TOKENS` 是有限输出预算。默认 DeepSeek 为65536，其他为16384；参数命名由官方集成处理，捕获请求测试分别检查 DeepSeek 的 `max_tokens` 与 OpenAI 的 `max_completion_tokens`。必要时按模型官方上限调整配置；平台不会静默扩大预算。OpenAI 预算涵盖可见与推理 token，见 [Chat Completions 参数](https://developers.openai.com/api/reference/python/resources/chat/subresources/completions/methods/create)
+- 四个前缀 `REQUIREMENTS_`、`PLANNING_`、`CODING_`、`REVIEW_` 都可覆盖这三项。同端点继承默认；改端点不继承原供应商协议/预算，且必须配置该阶段自己的 API_KEY
+
+DeepSeek 真实验收仍使用已批准的 `deepseek-flash`，不改用户模型。单独的 Hello!/thinking/high smoke 保留原始请求，它只是连接测试。随后的全部业务阶段才走统一结构化链。具体供应商字段与结束原因见 [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)。
+
+## 本地验证、重试与安全边界
+
+1. 响应传输最多读取2,000,000字节；在 SDK 标准化前检查原始信封。已知供应商必须 `finish_reason=stop`。有效 JSON 若带 `length` 仍按截断失败；refusal/content_filter 立即停止，不试图绕过；不接受该阶段意外的工具调用
+2. JSON 解析拒绝重复键、NaN/Infinity/数值溢出、非对象根节点和 Markdown 围栏。`Pydantic.model_validate_json(..., strict=True)` 不把 `"true"` 当布尔值，也不把 `"3"` 当整数；原有额外字段、枚举、长度、关系和跨字段业务验证继续执行
+3. 必须同时得到框架的成功结构化解析和平台对原始内容的严格校验。不能只信任框架已转换的 `parsed` 对象，否则宽松类型转换或不完整 JSON 修复可能掩盖原始错误
+4. SDK `max_retries=0`，平台每次操作最多两次总尝试，避免双层重试偷偷放大费用。空内容、畸形响应、中断、408/429/5xx可有界重试；类型/语义错误最多一轮带具体路径的修复。鉴权/地址/其他非暂时性4xx、拒绝和截断直接停止
+5. 修复保留原要求、原 Schema、原模型/地址/JSON模式；不删除需求，不扩大预算，不声称人工批准。完整系统消息、Schema及修复反馈计入上下文字符上限。原始 reasoning_content 不保存或回填为回答
+6. 使用受审计的同步 HTTP 客户端注入官方 SDK，禁止自动重定向和环境代理，保留CI的受限真实传输/离线MockTransport。异步入口为无网络的拒绝传输，不能成为绕开同步审计的另一条路径。已有遥测关闭策略和空回调配置继续生效，不新增LangSmith上传
+
+类型/Schema正确仍不等于需求满足。`flow.py` 的已批准事实、逐字段覆盖、角色权限/关联/工作流/提醒/统计关卡与编译、API、真实浏览器验收全部保留。结构化输出不能代替用户批准或产品测试。
+
+## 缓存与回执
+
+缓存键加入结构化契约版本、框架模式、预算、模型、端点和原需求/Schema。旧版本输出不会被当成新协议下已验证结果。新的成功记录及失败尝试都包含 provider、output_mode、format_reason、contract_version；失败只记录有限安全错误码和尝试序号，不持久化原始拒绝、响应或密钥。运行模型回执接口返回两类记录，旧记录标为legacy。
+
+## 离线验证
+
+```bash
+uv run pytest tests/test_provider_structured_outputs.py tests/test_llm.py tests/test_guided_models.py -q
+```
+
+测试使用真正的官方集成和 `with_structured_output`，只在最终HTTP层注入MockTransport。覆盖共同请求格式、原模型ID不替换、动态事实保真、严格类型、业务约束、拒绝/截断/过滤/空内容、畸形信封、错误回执、无隐式SDK重试、阶段隔离和缓存变更。OpenAI线上可用性保持未验证；真实DeepSeek结果必须另引用相同提交的实际验收运行。
+
 ## 显式授权的真实模型客服端到端验收
 
 常规Actions用明确模型响应夹具验证编排，同时真实运行数据库、浏览器和本机工具。真实服务商测试是有调用成本的另一项验收，不随普通PR自动调用。它必须在可信指定分支、获准的GitHub Environment中运行；测试脚本再次核对仓库、分支、事件与目标，不允许切换服务商或模型来绕过失败。本章说明如何执行及判断结果，不预先声称任何模板已经通过。
@@ -2353,6 +2434,22 @@ FastapiAdmin将模板参数换成`fastapiadmin`。该路径直接验证保存的
 只有某行`acceptance_scope=full_workflow`、整体`passed=true`且模板/commit/attempt吻合，才能将该行标为真实模型完整流程通过；三个模板各自满足才可称三模板通过。`smoke_only`、固定计划测试、之前其他案例或其他提交的成功都不能替代。原来`BLOCKED`的任务恢复、Aider编辑、Continue原生索引和Daytona是另外的验证范围；当前真实模型路径明确记录这些未覆盖项，不借用旧报告填充它们。
 
 工作流每次完成输出上限为65,536 tokens，保留16次工作流调用和单次响应2,000,000字节的硬边界；独立兼容性smoke报文不添加这个参数。该上限保留完整需求与Plan，避免此前16,000上限把思考和JSON输出截断；`finish_reason=length`仍记为失败而不修剪需求。DeepSeek官方Chat Completions文档（https://api-docs.deepseek.com/api/create-chat-completion/ ，2026-09-30核对）允许最大393,216 tokens，thinking默认64K。
+
+## 原生交付 ZIP 与已批准方案复现
+
+原生独立验收先把可交付源码打包，再安全解压到全新目录，并核对源码清单，随后才在独立数据库启动、做真实浏览器验证和重启检查。它与最终下载使用同一套生产者/消费者规则，不能用原目录可启动代替下载包可用。
+
+通用、Python 和 FastapiAdmin 压缩包最多 10,000 个条目；只有调用者已经选择的 `yudao-vben` 使用 25,000 条目上限。这个差异来自锁定的原始 Vben 单仓前端本身已有 12,112 个源码文件，不能删除原模板代码来迎合较小上限。所有模板最多 200,000,000 解压字节，单文件最多 32,000,000 字节，另有压缩比检查；路径越界、大小写重复路径、符号链接、凭据和数据库文件仍被拒绝。完整预检发生在写入第一个文件之前，错误分别报告条目数和字节数。
+
+诊断需要复现真实模型已经批准的方案时，可运行下面这个有明确来源的回归案例：
+
+```bash
+uv run python -m scripts.ci_native_bundled yudao-vben --approved-replay yudao-1d7
+```
+
+它读取真实运行 `36795375784`、源码 `1d7c70b03e63509830e97af9af398c0bd148902e` 中通过设计及模型复核的合成客服 Plan，并在原生生成前验证固定哈希、大小、方案结构和凭据模式。对应运行当时因下载 ZIP 的条目数上限失败，因此这个输入只用于复现，不代表历史下载已经通过。Actions 的 `approved-1d7` 案例独立生成、解压并启动该产品，不调用模型，也不会覆盖两个标准客服案例的产物。
+
+真实模型验收始终重新进行推荐、设计与独立复核，不读取这个回归方案。`customer_design_diagnostics` 中明确标记未批准的候选方案只供校验器诊断，不能进入生成或执行。
 
 # 从空目录到可信交付：逐站实操与证据阅读
 
@@ -2613,12 +2710,16 @@ tools/node/.built/
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .env.example sha256: 1b0fc7ed39dcbd55cf9abbd653832bc11c42061fdbd1298a5e69724ce4dfed83 -->
+<!-- source-file: .env.example sha256: 687c0fb8332ffb81c6fbe18703fd16fcbf0128ae5768d012786a3944c087cd96 -->
 ````text
 # Default model: MODE is the provider's model ID, not dev/prod or reasoning mode.
 BASE_URL=
 API_KEY=
 MODE=
+# Structured output uses the shared LangChain with_structured_output JSON-mode pipeline.
+# PROVIDER=auto  # auto, openai, deepseek, compatible; explicit provider useful for proxies
+# OUTPUT_MODE=auto  # auto or json_object
+# MAX_OUTPUT_TOKENS=16384  # defaults: DeepSeek 65536, others 16384
 
 # Optional stage overrides. Omitted fields inherit the default.
 # A DIFFERENT BASE_URL requires the stage's OWN API_KEY (no cross-provider key leakage).
@@ -2634,6 +2735,9 @@ MODE=
 # REVIEW_BASE_URL=
 # REVIEW_API_KEY=
 # REVIEW_MODE=
+# Every stage also supports *_PROVIDER, *_OUTPUT_MODE, *_MAX_OUTPUT_TOKENS.
+# Example: PLANNING_PROVIDER=deepseek; PLANNING_OUTPUT_MODE=json_object
+# See docs/provider-structured-outputs.md; no real OpenAI validation is implied.
 # MODEL_REVIEW=false
 
 # 0 = no cumulative manual-conversation/model-call limit.
@@ -2697,7 +2801,7 @@ DAYTONA_RUNTIME_TIMEOUT=3600
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: pyproject.toml sha256: abf2977730622231494cc43971dd1b72cd52119b370667be58633471392b5680 -->
+<!-- source-file: pyproject.toml sha256: 9d59650a84dd1a5c0dcd713b0b70f0b39868290246f274deb85030c5362dee6a -->
 ````toml
 [project]
 name = "ai-rnd-workbench"
@@ -2705,13 +2809,29 @@ version = "0.1.0"
 description = "Local-first, approval-gated AI software delivery workbench"
 requires-python = ">=3.14,<3.15"
 dependencies = [
-  "fastapi>=0.128,<1", "uvicorn>=0.38,<1", "sqlalchemy>=2.0.45,<2.1",
-  "alembic>=1.18,<2", "pydantic>=2.12,<3", "pydantic-settings>=2.12,<3",
-  "httpx>=0.28,<0.29", "python-dotenv>=1,<2", "langgraph>=1.0,<2", "langgraph-checkpoint-sqlite>=3,<4",
-  "tree-sitter==0.25.2", "tree-sitter-java==0.23.5",
-  "tree-sitter-typescript==0.23.2", "tree-sitter-javascript==0.25.0",
-  "tree-sitter-html==0.23.2", "mcp>=1.25,<2", "PyYAML==6.0.3", "bcrypt==5.0.0",
-  "jinja2>=3.1.6,<4", "filelock>=3.20,<4", "typer>=0.20,<1"
+  "fastapi>=0.128,<1",
+  "uvicorn>=0.38,<1",
+  "sqlalchemy>=2.0.45,<2.1",
+  "alembic>=1.18,<2",
+  "pydantic>=2.12,<3",
+  "pydantic-settings>=2.12,<3",
+  "httpx>=0.28,<0.29",
+  "python-dotenv>=1,<2",
+  "langgraph>=1.0,<2",
+  "langgraph-checkpoint-sqlite>=3,<4",
+  "tree-sitter==0.25.2",
+  "tree-sitter-java==0.23.5",
+  "tree-sitter-typescript==0.23.2",
+  "tree-sitter-javascript==0.25.0",
+  "tree-sitter-html==0.23.2",
+  "mcp>=1.25,<2",
+  "PyYAML==6.0.3",
+  "bcrypt==5.0.0",
+  "jinja2>=3.1.6,<4",
+  "filelock>=3.20,<4",
+  "typer>=0.20,<1",
+  "langchain-openai>=1.1,<2",
+  "langchain-deepseek>=1.1,<2",
 ]
 [project.optional-dependencies]
 postgres = ["psycopg[binary,pool]>=3.2.12,<4", "langgraph-checkpoint-postgres>=3,<4"]
@@ -3808,35 +3928,44 @@ def require_business_browser(report, plan, template):
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
+**先有这些模块：** `workbench.requirement_coverage`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
 **逐个入口与控制逻辑：**
 
-- `_decode`（L90–L98）：接收`value`。 控制顺序：L91按`isinstance(value, str) and value.lstrip().startswith(("{", "["))`分支；L96按`isinstance(result, (dict, list))`分支。 调用`isinstance`、`value.lstrip().startswith`、`value.lstrip`、`json.loads`。 返回路径：L95的`value`；L97的`result`；L98的`value`。
-- `_business_facts`（L101–L190）：接收`facts`、`entity_names`。 源码说明：Read business positions without reinterpreting field names or prose. Facts remain independent of the implementation. Only an explicit entity descriptor (or an existing entity-keyed section) supplies i。 调用`walk`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_business_facts.entries`（L109–L145）：接收`kind`、`value`、`path`、`entity`、`metric_defaults`。 控制顺序：L111按`isinstance(value, list)`分支；L112遍历`enumerate(value)`；L114按`isinstance(value, dict)`分支；L127按`not metric_mapping and set(value) & keys`分支；L129按`kind == "metrics" and metric_defaults`分支；L131按`entity is not None and "entity" not in descriptor`分支；L135遍历`value.items()`；L137按`isinstance(item, dict) and kind == "metrics" and "name" not in item and set(item) & k…`分支。 调用`_decode`、`isinstance`、`enumerate`、`entries`、`all`、`set`、`value.values`、`_ALIASES.get`、`_EXTRA_KEYS.get`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_business_facts.walk`（L147–L188）：接收`value`、`path`、`entity`、`entity_container`。 控制顺序：L149按`isinstance(value, list)`分支；L150遍历`enumerate(value)`；L152按`isinstance(value, dict)`分支；L153按`entity_container and isinstance(value.get("name"), str)`分支；L155遍历`value.items()`；L156按`key in _FIELD_COLLECTIONS or key in _FACT_METADATA`分支；L160按`kind in _FACT_COLLECTIONS`分支；L171按`not field_value`分支。后续分支沿下方源码相同行号继续阅读。 调用`_decode`、`isinstance`、`enumerate`、`walk`、`value.get`、`value.items`、`decoded.get`、`bool`、`set`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_same_fact`（L193–L211）：接收`expected`、`actual`。 源码说明：Exact typed values; declaration lists are unordered but cannot broaden.。 控制顺序：L195按`isinstance(expected, dict)`分支；L199按`isinstance(expected, list)`分支；L200按`not isinstance(actual, list) or len(expected) != len(actual)`分支；L203遍历`expected`；L207按`match is None`分支。 调用`isinstance`、`all`、`_same_fact`、`expected.items`、`len`、`list`、`next`、`enumerate`、`remaining.pop`等。 返回路径：L196的`isinstance(actual, dict) and all( key in actual and _same_fact(value, actual[key]) for key…`；L201的`False`；L208的`False`。
-- `_aliases`（L214–L222）：接收`descriptor`、`aliases`。 控制顺序：L216遍历`aliases.items()`；L217按`alias not in result`分支；L219按`canonical in result and not _same_fact(result[alias], result[canonical])`分支；L220抛异常，停止当前正常路径。 调用`dict`、`aliases.items`、`_same_fact`、`ValueError`、`result.pop`。 返回路径：L222的`result`。
-- `_actions`（L225–L232）：接收`value`。 控制顺序：L227按`not isinstance(value, list) or not all(isinstance(item, str) for item in value)`分支；L228抛异常，停止当前正常路径；L230按`len(result) != len(set(result))`分支；L231抛异常，停止当前正常路径。 调用`_decode`、`isinstance`、`all`、`ValueError`、`_ACTION_ALIASES.get`、`len`、`set`。 返回路径：L232的`result`。
-- `_semantic_descriptor`（L235–L306）：接收`kind`、`descriptor`。 控制顺序：L237按`kind == "permissions" and "actions" in descriptor`分支；L239按`kind == "metrics" and "filter" in descriptor`分支；L241按`not isinstance(value, dict) or not value`分支；L242抛异常，停止当前正常路径；L243按`"field" in value`分支；L247按`"filters" in descriptor and not _same_fact(predicates, _decode(descriptor["filters"])…`分支；L248抛异常，停止当前正常路径；L250按`kind == "resources" and "audit_history" in descriptor`分支。后续分支沿下方源码相同行号继续阅读。 调用`_aliases`、`_ALIASES.get`、`_actions`、`_decode`、`isinstance`、`ValueError`、`value.items`、`_same_fact`、`descriptor.get`等。 返回路径：L306的`expected`。
-- `_metric_scope`（L309–L328）：接收`descriptor`。 源码说明：Return only unambiguous role grants; never guess an unknown scope form.。 控制顺序：L316按`isinstance(value, list) and value and all(identifier(role) for role in value)`分支；L317按`len(value) == len(set(value))`分支；L319按`isinstance(value, dict) and value and all( identifier(role) and isinstance(scope, str…`分支。 调用`_decode`、`isinstance`、`all`、`identifier`、`len`、`set`、`dict.fromkeys`、`value.items`。 返回路径：L318的`dict.fromkeys(value)`；L327的`value`；L328的`None`。
-- `_metric_scope.identifier`（L313–L314）：接收`item`。 调用`isinstance`、`bool`、`re.fullmatch`。 返回路径：L314的`isinstance(item, str) and bool(re.fullmatch(r"[a-z][a-z0-9_]{0,39}", item))`。
-- `_global_metric_scope`（L331–L348）：接收`value`。 控制顺序：L333按`isinstance(value, dict)`分支；L335按`result is not None`分支；L337按`isinstance(value, str)`分支；L340遍历`re.split(r"[;；,，]", value)`；L342按`not match or match[1] in result`分支；L346按`result`分支；L348抛异常，停止当前正常路径。 调用`_decode`、`isinstance`、`_metric_scope`、`re.sub`、`re.split`、`re.fullmatch`、`ValueError`。 返回路径：L336的`result`；L347的`result`。
-- `_notification_match`（L351–L473）：接收`descriptor`、`business`。 源码说明：Aggregate trigger/recipient catalogs are unions, not a Cartesian policy. An event-specific recipients list, by contrast, applies to that event on one matching resource. An explicit entity always binds。 控制顺序：L359按`not isinstance(channel, str) or channel not in {"in_app", "in-app", "in_app_persisten…`分支；L360抛异常，停止当前正常路径；L361按`"persistent" in value and value["persistent"] is not True`分支；L362抛异常，停止当前正常路径；L365按`not isinstance(triggers, list) or not triggers or not all(item is None or isinstance(…`分支；L370抛异常，停止当前正常路径；L374按`not isinstance(recipients, list) or not all(isinstance(item, str) for item in recipie…`分支；L375抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`dict`、`value.get`、`isinstance`、`ValueError`、`_decode`、`all`、`_RECIPIENT_ALIASES.get`、`any`、`re.fullmatch`等。 返回路径：L460的`False`；L465的`False`；L472的`False`。
-- `_notification_match.covers`（L398–L457）：接收`trigger`、`requested_recipients`。 控制顺序：L400按`event == "resolved"`分支；L402按`event not in {None, "created", "assigned", "transitioned", "note_added", "due"}`分支；L403抛异常，停止当前正常路径；L418遍历`{item.entity for item in candidates}`；L422按`trigger == "resolved"`分支；L428按`generic_transition`分支；L430按`event == "transitioned"`分支；L436按`condition_field and event == "due"`分支。后续分支沿下方源码相同行号继续阅读。 调用`_EVENT_ALIASES.get`、`ValueError`、`str`、`value.get`、`workflows.get`、`any`、`all`。 返回路径：L456的`True`；L457的`False`。
-- `_resource_matches`（L476–L541）：接收`descriptor`、`resource`、`business`、`plan`。 控制顺序：L478按`"assignment" in descriptor`分支；L484按`type(expected) is not bool or expected is not actual`分支；L486按`"initial_state" in descriptor and ( not workflow or workflow.initial != descriptor["i…`分支；L490按`"state_transitions" in descriptor and not _same_fact( _decode(descriptor["state_trans…`分支；L495遍历`("features", "capabilities")`；L496按`key not in descriptor`分支；L499按`not isinstance(names, list) or not all(isinstance(name, str) for name in names)`分支；L500抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`next`、`bool`、`any`、`type`、`_same_fact`、`_decode`、`isinstance`、`all`、`ValueError`。 返回路径：L485的`False`；L489的`False`；L494的`False`。
-- `_bounded`（L544–L553）：接收`value`、`depth`。 控制顺序：L545按`depth > 6`分支；L547按`isinstance(value, str)`分支；L549按`isinstance(value, dict)`分支；L551按`isinstance(value, list)`分支。 调用`isinstance`、`str`、`_bounded`、`list`、`value.items`。 返回路径：L546的`"[nested]"`；L548的`value[:160]`；L550的`{str(key)[:80]: _bounded(item, depth + 1) for key, item in list(value.items())[:20]}`。
-- `_policy_roots`（L556–L568）：接收`facts`、`path`。 控制顺序：L558按`isinstance(value, list)`分支；L559遍历`enumerate(value)`；L561按`isinstance(value, dict)`分支；L562按`"permissions" in value and ( "resources" in value or "roles" in value or value.get("p…`分支；L566遍历`value.items()`；L567按`key not in _FIELD_COLLECTIONS \| _FACT_METADATA`分支。 调用`_decode`、`isinstance`、`enumerate`、`_policy_roots`、`value.get`、`value.items`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_business_fact_gaps`（L571–L1048）：接收`requirement`、`plan`、`diagnostics`。 控制顺序：L578遍历`records`；L579按`kind == "permissions" and isinstance(descriptor.get("role"), str) and isinstance(desc…`分支；L585按`kind == "metrics"`分支；L590按`"role_scope" in descriptor`分支；L592按`scopes and isinstance(descriptor.get("entity"), str)`分支；L606遍历`virtual_permissions`；L607按`isinstance(descriptor.get("role"), str)`分支；L666遍历`_policy_roots(requirement.facts)`。后续分支沿下方源码相同行号继续阅读。 调用`list`、`_business_facts`、`set`、`isinstance`、`descriptor.get`、`_aliases`、`_metric_scope`、`metric_access.update`、`_policy_roots`等。 返回路径：L1048的`gaps`。
-- `_business_fact_gaps.report`（L610–L627）：接收`kind`、`path`、`expected`、`actual`、`code`、`reason`。 控制顺序：L619按`diagnostics is not None`分支。 调用`_bounded`、`json.dumps`、`gaps.append`、`diagnostics.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_business_fact_gaps.permission_matches`（L629–L662）：接收`expected`、`descriptor`、`candidate`。 控制顺序：L631按`not _same_fact(base, candidate.model_dump())`分支；L635按`not requested <= actual`分支；L640按`"read_audit" in requested`分支；L642按`(candidate.role, candidate.entity) in metric_access`分支；L644按`"actions" in expected and not actual <= permitted`分支；L646按`"only_actions" in descriptor and not actual <= set(_actions(descriptor["only_actions"…`分支；L648按`descriptor.get("read_only") is True and actual & { "create", "update", "archive", "as…`分支；L657按`"read_only" in descriptor and type(descriptor["read_only"]) is not bool`分支。后续分支沿下方源码相同行号继续阅读。 调用`expected.items`、`_same_fact`、`candidate.model_dump`、`set`、`expected.get`、`permitted.add`、`_actions`、`descriptor.get`、`type`等。 返回路径：L632的`False`；L636的`False`；L645的`False`。
-- `business_gaps`（L1077–L1203）：接收`requirement`、`plan`、`diagnostics`。 源码说明：Check recognized obligations; independent review/tests still assess prose semantics.。 控制顺序：L1097按`not requested`分支；L1100按`business is None`分支；L1108遍历`_business_facts(requirement.facts, set(resource_labels))`；L1109按`kind == "resources"`分支；L1111按`isinstance(entity, str) and entity in resource_labels and isinstance(descriptor.get("…`分支；L1118遍历`("summary", "features", "acceptance", "users")`；L1124遍历`enumerate(texts)`；L1125遍历`re.split(r"[；;。\n]", text)`。后续分支沿下方源码相同行号继续阅读。 调用`_business_fact_gaps`、`"\n".join`、`needs.items`、`re.search`、`", ".join`、`sorted`、`_business_facts`、`set`、`descriptor.get`等。 返回路径：L1098的`gaps`；L1101的`gaps + [ "已确认的团队关系、流程、权限或统计需要可执行 business 契约：" + ", ".join(sorted(requested)) ]`；L1199的`gaps + [ "业务设计缺少已确认的可执行能力：" + name for name in sorted(requested) if not implemented[name] …`。
+- `_decode`（L96–L104）：接收`value`。 控制顺序：L97按`isinstance(value, str) and value.lstrip().startswith(("{", "["))`分支；L102按`isinstance(result, (dict, list))`分支。 调用`isinstance`、`value.lstrip().startswith`、`value.lstrip`、`json.loads`。 返回路径：L101的`value`；L103的`result`；L104的`value`。
+- `_fact_domain`（L107–L122）：接收`key`、`value`、`domain`、`entity_position`。 源码说明：Collection names inside UI dictionaries remain display vocabulary. Re-enter business interpretation only through a structural, explicitly named business contract, not a caption mentioning permissions 。 控制顺序：L114按`_presentation_namespace(key) and not entity_position`分支；L116按`domain == "presentation" and key in BUSINESS_CONSTRAINT_CONTAINERS and _business_sche…`分支。 调用`_presentation_namespace`、`_business_schema`。 返回路径：L115的`"presentation"`；L121的`"business"`；L122的`domain`。
+- `_business_facts`（L125–L221）：接收`facts`、`entity_names`。 源码说明：Read business positions without reinterpreting field names or prose. Facts remain independent of the implementation. Only an explicit entity descriptor (or an existing entity-keyed section) supplies i。 调用`walk`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_business_facts.entries`（L133–L169）：接收`kind`、`value`、`path`、`entity`、`metric_defaults`。 控制顺序：L135按`isinstance(value, list)`分支；L136遍历`enumerate(value)`；L138按`isinstance(value, dict)`分支；L151按`not metric_mapping and set(value) & keys`分支；L153按`kind == "metrics" and metric_defaults`分支；L155按`entity is not None and "entity" not in descriptor`分支；L159遍历`value.items()`；L161按`isinstance(item, dict) and kind == "metrics" and "name" not in item and set(item) & k…`分支。 调用`_decode`、`isinstance`、`enumerate`、`entries`、`all`、`set`、`value.values`、`_ALIASES.get`、`_EXTRA_KEYS.get`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_business_facts.walk`（L171–L219）：接收`value`、`path`、`entity`、`entity_container`、`domain`。 控制顺序：L173按`isinstance(value, list)`分支；L174遍历`enumerate(value)`；L176按`isinstance(value, dict)`分支；L177按`entity_container and isinstance(value.get("name"), str)`分支；L179遍历`value.items()`；L180按`key in _FIELD_COLLECTIONS or key in _FACT_METADATA`分支；L186按`domain == "presentation" or child_domain == "presentation"`分支；L190按`kind in _FACT_COLLECTIONS`分支。后续分支沿下方源码相同行号继续阅读。 调用`_decode`、`isinstance`、`enumerate`、`walk`、`value.get`、`value.items`、`_fact_domain`、`decoded.get`、`bool`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_same_fact`（L224–L242）：接收`expected`、`actual`。 源码说明：Exact typed values; declaration lists are unordered but cannot broaden.。 控制顺序：L226按`isinstance(expected, dict)`分支；L230按`isinstance(expected, list)`分支；L231按`not isinstance(actual, list) or len(expected) != len(actual)`分支；L234遍历`expected`；L238按`match is None`分支。 调用`isinstance`、`all`、`_same_fact`、`expected.items`、`len`、`list`、`next`、`enumerate`、`remaining.pop`等。 返回路径：L227的`isinstance(actual, dict) and all( key in actual and _same_fact(value, actual[key]) for key…`；L232的`False`；L239的`False`。
+- `_aliases`（L245–L253）：接收`descriptor`、`aliases`。 控制顺序：L247遍历`aliases.items()`；L248按`alias not in result`分支；L250按`canonical in result and not _same_fact(result[alias], result[canonical])`分支；L251抛异常，停止当前正常路径。 调用`dict`、`aliases.items`、`_same_fact`、`ValueError`、`result.pop`。 返回路径：L253的`result`。
+- `_actions`（L256–L263）：接收`value`。 控制顺序：L258按`not isinstance(value, list) or not all(isinstance(item, str) for item in value)`分支；L259抛异常，停止当前正常路径；L261按`len(result) != len(set(result))`分支；L262抛异常，停止当前正常路径。 调用`_decode`、`isinstance`、`all`、`ValueError`、`_ACTION_ALIASES.get`、`len`、`set`。 返回路径：L263的`result`。
+- `_semantic_descriptor`（L266–L337）：接收`kind`、`descriptor`。 控制顺序：L268按`kind == "permissions" and "actions" in descriptor`分支；L270按`kind == "metrics" and "filter" in descriptor`分支；L272按`not isinstance(value, dict) or not value`分支；L273抛异常，停止当前正常路径；L274按`"field" in value`分支；L278按`"filters" in descriptor and not _same_fact(predicates, _decode(descriptor["filters"])…`分支；L279抛异常，停止当前正常路径；L281按`kind == "resources" and "audit_history" in descriptor`分支。后续分支沿下方源码相同行号继续阅读。 调用`_aliases`、`_ALIASES.get`、`_actions`、`_decode`、`isinstance`、`ValueError`、`value.items`、`_same_fact`、`descriptor.get`等。 返回路径：L337的`expected`。
+- `_metric_scope`（L340–L359）：接收`descriptor`。 源码说明：Return only unambiguous role grants; never guess an unknown scope form.。 控制顺序：L347按`isinstance(value, list) and value and all(identifier(role) for role in value)`分支；L348按`len(value) == len(set(value))`分支；L350按`isinstance(value, dict) and value and all( identifier(role) and isinstance(scope, str…`分支。 调用`_decode`、`isinstance`、`all`、`identifier`、`len`、`set`、`dict.fromkeys`、`value.items`。 返回路径：L349的`dict.fromkeys(value)`；L358的`value`；L359的`None`。
+- `_metric_scope.identifier`（L344–L345）：接收`item`。 调用`isinstance`、`bool`、`re.fullmatch`。 返回路径：L345的`isinstance(item, str) and bool(re.fullmatch(r"[a-z][a-z0-9_]{0,39}", item))`。
+- `_global_metric_scope`（L362–L379）：接收`value`。 控制顺序：L364按`isinstance(value, dict)`分支；L366按`result is not None`分支；L368按`isinstance(value, str)`分支；L371遍历`re.split(r"[;；,，]", value)`；L373按`not match or match[1] in result`分支；L377按`result`分支；L379抛异常，停止当前正常路径。 调用`_decode`、`isinstance`、`_metric_scope`、`re.sub`、`re.split`、`re.fullmatch`、`ValueError`。 返回路径：L367的`result`；L378的`result`。
+- `_notification_match`（L382–L504）：接收`descriptor`、`business`。 源码说明：Aggregate trigger/recipient catalogs are unions, not a Cartesian policy. An event-specific recipients list, by contrast, applies to that event on one matching resource. An explicit entity always binds。 控制顺序：L390按`not isinstance(channel, str) or channel not in {"in_app", "in-app", "in_app_persisten…`分支；L391抛异常，停止当前正常路径；L392按`"persistent" in value and value["persistent"] is not True`分支；L393抛异常，停止当前正常路径；L396按`not isinstance(triggers, list) or not triggers or not all(item is None or isinstance(…`分支；L401抛异常，停止当前正常路径；L405按`not isinstance(recipients, list) or not all(isinstance(item, str) for item in recipie…`分支；L406抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`dict`、`value.get`、`isinstance`、`ValueError`、`_decode`、`all`、`_RECIPIENT_ALIASES.get`、`any`、`re.fullmatch`等。 返回路径：L491的`False`；L496的`False`；L503的`False`。
+- `_notification_match.covers`（L429–L488）：接收`trigger`、`requested_recipients`。 控制顺序：L431按`event == "resolved"`分支；L433按`event not in {None, "created", "assigned", "transitioned", "note_added", "due"}`分支；L434抛异常，停止当前正常路径；L449遍历`{item.entity for item in candidates}`；L453按`trigger == "resolved"`分支；L459按`generic_transition`分支；L461按`event == "transitioned"`分支；L467按`condition_field and event == "due"`分支。后续分支沿下方源码相同行号继续阅读。 调用`_EVENT_ALIASES.get`、`ValueError`、`str`、`value.get`、`workflows.get`、`any`、`all`。 返回路径：L487的`True`；L488的`False`。
+- `_resource_matches`（L507–L572）：接收`descriptor`、`resource`、`business`、`plan`。 控制顺序：L509按`"assignment" in descriptor`分支；L515按`type(expected) is not bool or expected is not actual`分支；L517按`"initial_state" in descriptor and ( not workflow or workflow.initial != descriptor["i…`分支；L521按`"state_transitions" in descriptor and not _same_fact( _decode(descriptor["state_trans…`分支；L526遍历`("features", "capabilities")`；L527按`key not in descriptor`分支；L530按`not isinstance(names, list) or not all(isinstance(name, str) for name in names)`分支；L531抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`next`、`bool`、`any`、`type`、`_same_fact`、`_decode`、`isinstance`、`all`、`ValueError`。 返回路径：L516的`False`；L520的`False`；L525的`False`。
+- `_bounded`（L575–L584）：接收`value`、`depth`。 控制顺序：L576按`depth > 6`分支；L578按`isinstance(value, str)`分支；L580按`isinstance(value, dict)`分支；L582按`isinstance(value, list)`分支。 调用`isinstance`、`str`、`_bounded`、`list`、`value.items`。 返回路径：L577的`"[nested]"`；L579的`value[:160]`；L581的`{str(key)[:80]: _bounded(item, depth + 1) for key, item in list(value.items())[:20]}`。
+- `_policy_roots`（L587–L610）：接收`facts`、`path`、`domain`、`entity_container`。 控制顺序：L589按`isinstance(value, list)`分支；L590遍历`enumerate(value)`；L592按`isinstance(value, dict)`分支；L593按`domain != "presentation" and "permissions" in value and ( "resources" in value or "ro…`分支；L603遍历`value.items()`；L604按`key not in _FIELD_COLLECTIONS \| _FACT_METADATA`分支。 调用`_decode`、`isinstance`、`enumerate`、`_policy_roots`、`value.get`、`value.items`、`_fact_domain`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_business_fact_gaps`（L613–L1090）：接收`requirement`、`plan`、`diagnostics`。 控制顺序：L620遍历`records`；L621按`kind == "permissions" and isinstance(descriptor.get("role"), str) and isinstance(desc…`分支；L627按`kind == "metrics"`分支；L632按`"role_scope" in descriptor`分支；L634按`scopes and isinstance(descriptor.get("entity"), str)`分支；L648遍历`virtual_permissions`；L649按`isinstance(descriptor.get("role"), str)`分支；L708遍历`_policy_roots(requirement.facts)`。后续分支沿下方源码相同行号继续阅读。 调用`list`、`_business_facts`、`set`、`isinstance`、`descriptor.get`、`_aliases`、`_metric_scope`、`metric_access.update`、`_policy_roots`等。 返回路径：L1090的`gaps`。
+- `_business_fact_gaps.report`（L652–L669）：接收`kind`、`path`、`expected`、`actual`、`code`、`reason`。 控制顺序：L661按`diagnostics is not None`分支。 调用`_bounded`、`json.dumps`、`gaps.append`、`diagnostics.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_business_fact_gaps.permission_matches`（L671–L704）：接收`expected`、`descriptor`、`candidate`。 控制顺序：L673按`not _same_fact(base, candidate.model_dump())`分支；L677按`not requested <= actual`分支；L682按`"read_audit" in requested`分支；L684按`(candidate.role, candidate.entity) in metric_access`分支；L686按`"actions" in expected and not actual <= permitted`分支；L688按`"only_actions" in descriptor and not actual <= set(_actions(descriptor["only_actions"…`分支；L690按`descriptor.get("read_only") is True and actual & { "create", "update", "archive", "as…`分支；L699按`"read_only" in descriptor and type(descriptor["read_only"]) is not bool`分支。后续分支沿下方源码相同行号继续阅读。 调用`expected.items`、`_same_fact`、`candidate.model_dump`、`set`、`expected.get`、`permitted.add`、`_actions`、`descriptor.get`、`type`等。 返回路径：L674的`False`；L678的`False`；L687的`False`。
+- `business_gaps`（L1119–L1245）：接收`requirement`、`plan`、`diagnostics`。 源码说明：Check recognized obligations; independent review/tests still assess prose semantics.。 控制顺序：L1139按`not requested`分支；L1142按`business is None`分支；L1150遍历`_business_facts(requirement.facts, set(resource_labels))`；L1151按`kind == "resources"`分支；L1153按`isinstance(entity, str) and entity in resource_labels and isinstance(descriptor.get("…`分支；L1160遍历`("summary", "features", "acceptance", "users")`；L1166遍历`enumerate(texts)`；L1167遍历`re.split(r"[；;。\n]", text)`。后续分支沿下方源码相同行号继续阅读。 调用`_business_fact_gaps`、`"\n".join`、`needs.items`、`re.search`、`", ".join`、`sorted`、`_business_facts`、`set`、`descriptor.get`等。 返回路径：L1140的`gaps`；L1143的`gaps + [ "已确认的团队关系、流程、权限或统计需要可执行 business 契约：" + ", ".join(sorted(requested)) ]`；L1241的`gaps + [ "业务设计缺少已确认的可执行能力：" + name for name in sorted(requested) if not implemented[name] …`。
 
-<!-- source-file: workbench/business_capabilities.py sha256: 2a83c2f28334070e537408a4adce8e7a25fad22727a550bbb2b5d6ce58170794 -->
+<!-- source-file: workbench/business_capabilities.py sha256: 239d23a4f846ac26a3b86bac171178a2dc9d7ed352810d7786db57cae4d3f064 -->
 ````python
 """Bounded declarative business capabilities and executable requirement coverage."""
 
 import json
 import re
+
+from workbench.requirement_coverage import (
+    BUSINESS_CONSTRAINT_CONTAINERS,
+    _business_schema,
+    _presentation_namespace,
+)
 
 _ALIASES = {
     "metrics": {
@@ -3933,6 +4062,24 @@ def _decode(value):
     return value
 
 
+def _fact_domain(key, value, domain, *, entity_position=False):
+    """Collection names inside UI dictionaries remain display vocabulary.
+
+    Re-enter business interpretation only through a structural, explicitly
+    named business contract, not a caption mentioning permissions or metrics.
+    Entity/record positions retain their identifiers even if called 'labels'.
+    """
+    if _presentation_namespace(key) and not entity_position:
+        return "presentation"
+    if (
+        domain == "presentation"
+        and key in BUSINESS_CONSTRAINT_CONTAINERS
+        and _business_schema(value)
+    ):
+        return "business"
+    return domain
+
+
 def _business_facts(facts, entity_names):
     """Read business positions without reinterpreting field names or prose.
 
@@ -3979,11 +4126,11 @@ def _business_facts(facts, entity_names):
                         item = {"name": key, **item}
                     yield from entries(kind, item, f"{path}.{key}", entity, metric_defaults)
 
-    def walk(value, path="", entity=None, entity_container=False):
+    def walk(value, path="", entity=None, entity_container=False, domain=None):
         value = _decode(value)
         if isinstance(value, list):
             for index, item in enumerate(value):
-                yield from walk(item, f"{path}.{index}", entity, entity_container)
+                yield from walk(item, f"{path}.{index}", entity, entity_container, domain)
         elif isinstance(value, dict):
             if entity_container and isinstance(value.get("name"), str):
                 entity = value["name"]
@@ -3991,6 +4138,12 @@ def _business_facts(facts, entity_names):
                 if key in _FIELD_COLLECTIONS or key in _FACT_METADATA:
                     continue
                 target = f"{path}.{key}" if path else key
+                child_domain = _fact_domain(
+                    key, item, domain, entity_position=entity_container and domain != "presentation"
+                )
+                if domain == "presentation" or child_domain == "presentation":
+                    yield from walk(item, target, entity, domain=child_domain)
+                    continue
                 kind = "notifications" if key == "reminders" else key
                 if kind in _FACT_COLLECTIONS:
                     decoded = _decode(item)
@@ -4020,6 +4173,7 @@ def _business_facts(facts, entity_names):
                         if key in entity_names or (entity_container and "name" not in value)
                         else entity,
                         key == "entities",
+                        child_domain,
                     )
 
     yield from walk(facts)
@@ -4388,19 +4542,30 @@ def _bounded(value, depth=0):
     return value
 
 
-def _policy_roots(facts, path=""):
+def _policy_roots(facts, path="", domain=None, entity_container=False):
     value = _decode(facts)
     if isinstance(value, list):
         for index, item in enumerate(value):
-            yield from _policy_roots(item, f"{path}.{index}")
+            yield from _policy_roots(item, f"{path}.{index}", domain, entity_container)
     elif isinstance(value, dict):
-        if "permissions" in value and (
-            "resources" in value or "roles" in value or value.get("permissions_complete") is True
+        if (
+            domain != "presentation"
+            and "permissions" in value
+            and (
+                "resources" in value
+                or "roles" in value
+                or value.get("permissions_complete") is True
+            )
         ):
             yield path, value
         for key, item in value.items():
             if key not in _FIELD_COLLECTIONS | _FACT_METADATA:
-                yield from _policy_roots(item, f"{path}.{key}" if path else key)
+                child_domain = _fact_domain(
+                    key, item, domain, entity_position=entity_container and domain != "presentation"
+                )
+                yield from _policy_roots(
+                    item, f"{path}.{key}" if path else key, child_domain, key == "entities"
+                )
 
 
 def _business_fact_gaps(requirement, plan, diagnostics=None):
@@ -9216,9 +9381,13 @@ class UnsupportedScope(RuntimeError):
 - `sha`（L83–L85）：接收`path`。 调用`Path(path).open`、`Path`、`hashlib.file_digest(f, "sha256").hexdigest`、`hashlib.file_digest`。 返回路径：L85的`hashlib.file_digest(f, "sha256").hexdigest()`。
 - `files`（L88–L103）：接收`root`。 控制顺序：L90遍历`os.walk(root, followlinks=False)`；L92遍历`dirs`；L94遍历`sorted(names)`；L97按`secret_name(relative) or name.startswith(".writing-")`分支；L99按`not stat.S_ISREG(path.stat().st_mode)`分支；L100抛异常，停止当前正常路径；L101按`path.stat().st_size > 32_000_000`分支；L102抛异常，停止当前正常路径。 调用`Path(root).resolve`、`Path`、`os.walk`、`sorted`、`inside`、`(Path(base) / directory).relative_to(root).as_posix`、`(Path(base) / directory).relative_to`、`(Path(base) / name).relative_to(root).as_posix`、`(Path(base) / name).relative_to`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `manifest`（L106–L107）：接收`root`。 调用`sha`、`files`。 返回路径：L107的`{name: sha(path) for name, path in files(root)}`。
-- `unpack`（L110–L131）：接收`archive`、`destination`。 控制顺序：L113按`len(entries) > 10000 or sum(e.file_size for e in entries) > 200_000_000`分支；L114抛异常，停止当前正常路径；L116遍历`entries`；L119按`canonical in seen or stat.S_ISLNK(item.external_attr >> 16)`分支；L120抛异常，停止当前正常路径；L122按`secret_name(item.filename)`分支；L123抛异常，停止当前正常路径；L124按`item.is_dir()`分支。 调用`zipfile.ZipFile`、`z.infolist`、`len`、`sum`、`ValueError`、`set`、`inside`、`path.relative_to(Path(destination).resolve()).as_posix().casefold`、`path.relative_to(Path(destination).resolve()).as_posix`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `archive_entry_limit`（L115–L124）：接收`template`。 源码说明：Caller-selected trusted template, never a value read from archive content. The pinned Yudao monorepo alone contains over 12,000 source files. Its source importer already uses a bounded 25,000-entry po。 控制顺序：L122按`template not in {None, "python-basic", "fastapiadmin", "yudao-vben"}`分支；L123抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L124的`25000 if template == "yudao-vben" else 10000`。
+- `_archive_preflight`（L127–L164）：接收`z`、`destination`、`template`。 控制顺序：L131按`len(entries) > limit`分支；L132抛异常，停止当前正常路径；L133按`expanded > ARCHIVE_MAX_BYTES`分支；L134抛异常，停止当前正常路径；L139按`compressed > ARCHIVE_MAX_BYTES`分支；L140抛异常，停止当前正常路径；L142遍历`entries`；L145按`canonical in seen or stat.S_ISLNK(item.external_attr >> 16)`分支。后续分支沿下方源码相同行号继续阅读。 调用`z.infolist`、`archive_entry_limit`、`sum`、`len`、`ValueError`、`z.fp.tell`、`z.fp.seek`、`set`、`inside`等。 返回路径：L156的`entries, { "template": template or "generic", "entry_count": len(entries), "entry_limit": …`。
+- `inspect_archive`（L167–L170）：接收`archive`、`destination`、`template`。 源码说明：Producer and consumer use the same bounded preflight, with no writes.。 调用`zipfile.ZipFile`、`_archive_preflight`。 返回路径：L170的`_archive_preflight(z, destination, template)[1]`。
+- `pack_source`（L173–L189）：接收`source`、`archive`、`template`。 源码说明：Atomically package only distributable sources under the consumer policy.。 控制顺序：L176按`archive.resolve().is_relative_to(Path(source).resolve())`分支；L177抛异常，停止当前正常路径；L183遍历`files(source)`。 调用`Path`、`archive.resolve().is_relative_to`、`archive.resolve`、`Path(source).resolve`、`ValueError`、`tempfile.mkstemp`、`os.close`、`zipfile.ZipFile`、`files`等。 返回路径：L187的`report`。
+- `unpack`（L192–L211）：接收`archive`、`destination`、`template`。 控制顺序：L196遍历`entries`；L198按`item.is_dir()`分支；L204在`block := src.read(1024 * 1024)`成立时循环；L206按`size > item.file_size`分支；L207抛异常，停止当前正常路径；L209按`size != item.file_size`分支；L210抛异常，停止当前正常路径。 调用`zipfile.ZipFile`、`_archive_preflight`、`inside`、`item.is_dir`、`path.mkdir`、`path.parent.mkdir`、`z.open`、`path.open`、`src.read`等。 返回路径：L211的`report`。
 
-<!-- source-file: workbench/filesystem.py sha256: 79e6aa7c4e2b39682e13dc74edd10222a1153fecd388c61c160e1c43d002b534 -->
+<!-- source-file: workbench/filesystem.py sha256: 969e5f1184239abef61b57915fb6c7d746245631d25bcbf5db995b33c9f82790 -->
 ````python
 """File boundaries, atomic writes, deterministic hashes, and safe ZIP extraction."""
 
@@ -9329,28 +9498,108 @@ def manifest(root):
     return {name: sha(path) for name, path in files(root)}
 
 
-def unpack(archive, destination):
+ARCHIVE_MAX_BYTES = 200_000_000
+ARCHIVE_MAX_FILE_BYTES = 32_000_000
+ARCHIVE_MAX_RATIO = 200
+
+
+def archive_entry_limit(template=None):
+    """Caller-selected trusted template, never a value read from archive content.
+
+    The pinned Yudao monorepo alone contains over 12,000 source files. Its
+    source importer already uses a bounded 25,000-entry policy. Keep the
+    generic/Python/Fastapi ceiling and every template's byte budget unchanged.
+    """
+    if template not in {None, "python-basic", "fastapiadmin", "yudao-vben"}:
+        raise ValueError("未知压缩包模板")
+    return 25000 if template == "yudao-vben" else 10000
+
+
+def _archive_preflight(z, destination, template):
+    entries = z.infolist()
+    limit = archive_entry_limit(template)
+    expanded = sum(item.file_size for item in entries)
+    if len(entries) > limit:
+        raise ValueError(f"压缩包条目数量超过限制: {len(entries)} > {limit}")
+    if expanded > ARCHIVE_MAX_BYTES:
+        raise ValueError(f"压缩包解压字节数超过限制: {expanded} > {ARCHIVE_MAX_BYTES}")
+    position = z.fp.tell()
+    z.fp.seek(0, os.SEEK_END)
+    compressed = z.fp.tell()
+    z.fp.seek(position)
+    if compressed > ARCHIVE_MAX_BYTES:
+        raise ValueError("压缩包文件字节数超过限制")
+    seen = set()
+    for item in entries:
+        path = inside(destination, item.filename)
+        canonical = path.relative_to(Path(destination).resolve()).as_posix().casefold()
+        if canonical in seen or stat.S_ISLNK(item.external_attr >> 16):
+            raise ValueError("压缩包含重复路径或符号链接")
+        seen.add(canonical)
+        if secret_name(item.filename):
+            raise ValueError("压缩包含密钥或数据库文件")
+        if item.file_size > ARCHIVE_MAX_FILE_BYTES:
+            raise ValueError("压缩包单文件字节数超过限制")
+        if item.file_size > max(1, item.compress_size) * ARCHIVE_MAX_RATIO:
+            raise ValueError("压缩包压缩比超过限制")
+        if item.flag_bits & 1:
+            raise ValueError("不接受加密压缩包")
+    return entries, {
+        "template": template or "generic",
+        "entry_count": len(entries),
+        "entry_limit": limit,
+        "uncompressed_bytes": expanded,
+        "compressed_bytes": compressed,
+        "byte_limit": ARCHIVE_MAX_BYTES,
+        "compression_ratio_limit": ARCHIVE_MAX_RATIO,
+    }
+
+
+def inspect_archive(archive, destination, *, template=None):
+    """Producer and consumer use the same bounded preflight, with no writes."""
     with zipfile.ZipFile(archive) as z:
-        entries = z.infolist()
-        if len(entries) > 10000 or sum(e.file_size for e in entries) > 200_000_000:
-            raise ValueError("压缩包解压后超过限制")
-        seen = set()
+        return _archive_preflight(z, destination, template)[1]
+
+
+def pack_source(source, archive, *, template=None):
+    """Atomically package only distributable sources under the consumer policy."""
+    archive = Path(archive)
+    if archive.resolve().is_relative_to(Path(source).resolve()):
+        raise ValueError("交付压缩包不能写入待打包源码目录")
+    fd, name = tempfile.mkstemp(prefix=archive.name + "-", suffix=".tmp", dir=archive.parent)
+    os.close(fd)
+    temporary = Path(name)
+    try:
+        with zipfile.ZipFile(temporary, "w", zipfile.ZIP_DEFLATED) as z:
+            for name, path in files(source):
+                z.write(path, name)
+        report = inspect_archive(temporary, source, template=template)
+        os.replace(temporary, archive)
+        return report
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def unpack(archive, destination, *, template=None):
+    with zipfile.ZipFile(archive) as z:
+        entries, report = _archive_preflight(z, destination, template)
+        # Validate the complete archive before creating even its first file.
         for item in entries:
             path = inside(destination, item.filename)
-            canonical = path.relative_to(Path(destination).resolve()).as_posix().casefold()
-            if canonical in seen or stat.S_ISLNK(item.external_attr >> 16):
-                raise ValueError("压缩包含重复路径或符号链接")
-            seen.add(canonical)
-            if secret_name(item.filename):
-                raise ValueError("压缩包含密钥或数据库文件")
             if item.is_dir():
                 path.mkdir(parents=True, exist_ok=True)
             else:
                 path.parent.mkdir(parents=True, exist_ok=True)
                 with z.open(item) as src, path.open("wb") as dst:
-                    import shutil
-
-                    shutil.copyfileobj(src, dst)
+                    size = 0
+                    while block := src.read(1024 * 1024):
+                        size += len(block)
+                        if size > item.file_size:
+                            raise ValueError("压缩包实际解压字节数与声明不符")
+                        dst.write(block)
+                    if size != item.file_size:
+                        raise ValueError("压缩包实际解压字节数与声明不符")
+        return report
 ````
 
 ### `workbench/flow.py`
@@ -10360,17 +10609,18 @@ def design_pack(plan, destination, template="python-basic", selection=None):
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `workbench.domain`、`workbench.store`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.domain`、`workbench.model_protocol`、`workbench.store`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `ModelFailure`（L13–L14）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelGateway`（L17–L137）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelGateway.__init__`（L18–L19）：接收`settings`、`store`、`transport`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ModelGateway.complete`（L21–L137）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L136抛异常，停止当前正常路径。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`digest`、`schema.model_json_schema`、`self.store.step`、`ModelFailure`、`str`等。 返回路径：L137的`schema.model_validate(result["value"])`。
-- `ModelGateway.complete.call`（L37–L131）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L39按`len(body) > self.settings.max_context_chars`分支；L40抛异常，停止当前正常路径；L53遍历`range(2)`；L71按`response.status_code in {401, 403}`分支；L72抛异常，停止当前正常路径；L73按`response.status_code == 404`分支；L74抛异常，停止当前正常路径；L79遍历`response.iter_bytes()`。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`schema.model_json_schema`、`range`、`self.store.reserve_model_call`、`httpx.Client`、`client.stream`、`profile.api_key.get_secret_value`等。 返回路径：L91的`{ "value": value.model_dump(mode="json"), "usage": { k: usage.get(k) for k in ("prompt_tok…`。
+- `ModelFailure`（L21–L22）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ModelGateway`（L25–L185）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ModelGateway.__init__`（L26–L27）：接收`settings`、`store`、`transport`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ModelGateway.complete`（L29–L185）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L41抛异常，停止当前正常路径；L184抛异常，停止当前正常路径。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`ModelFailure`、`str`、`digest`、`contract.receipt`等。 返回路径：L185的`schema.model_validate(result["value"], strict=True)`。
+- `ModelGateway.complete.call`（L57–L179）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L76按`len(body) > self.settings.max_context_chars`分支；L77抛异常，停止当前正常路径；L90遍历`range(2)`；L92按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L93抛异常，停止当前正常路径；L107按`audited.error is not None`分支；L108抛异常，停止当前正常路径；L109抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`schema.model_json_schema`、`range`、`sum`、`self.store.reserve_model_call`、`AuditedTransport`、`httpx.Client`等。 返回路径：L116的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
+- `ModelGateway.complete.call.failed`（L58–L73）：接收`attempt`、`code`。 调用`self.store.record_event`、`contract.receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/llm.py sha256: 09779519a95440037509856dad1cbab1ea400bc66cc4ce1dcf3c2348f2b8c2e6 -->
+<!-- source-file: workbench/llm.py sha256: d4281eba4bc0988c275ba9acdb9f9db1b58f552ce3366d8322ed547fee947289 -->
 ````python
 """OpenAI-compatible Chat Completions adapter; never falls back to fake success."""
 
@@ -10378,9 +10628,17 @@ import json
 import time
 
 import httpx
+from openai import APIError
 from pydantic import ValidationError
 
 from workbench.domain import digest
+from workbench.model_protocol import (
+    AuditedTransport,
+    OutputFailure,
+    output_contract,
+    structured_model,
+    validate_content,
+)
 from workbench.store import Conflict
 
 
@@ -10400,8 +10658,20 @@ class ModelGateway:
             "coding": "coding",
             "review": "review",
         }.get(key.split(":")[0], "requirements")
-        profile = self.settings.model_for(stage).validate_endpoint()
-        profile_id = digest({"stage": stage, "url": profile.base_url, "model": profile.model})[:12]
+        try:
+            profile = self.settings.model_for(stage).validate_endpoint()
+            contract = output_contract(profile, schema)
+        except ValueError as exc:
+            raise ModelFailure(str(exc)) from None
+        profile_id = digest(
+            {
+                "stage": stage,
+                "url": profile.base_url,
+                "model": profile.model,
+                "contract": contract.receipt(),
+                "request_fields": contract.request_fields,
+            }
+        )[:12]
         # A repaired prompt/schema or a changed gate's feedback must not reuse a
         # stale answer. Exact replays still share the same durable cache entry.
         request_id = digest(
@@ -10409,6 +10679,23 @@ class ModelGateway:
         )[:16]
 
         def call():
+            def failed(attempt, code):
+                # Immutable audit facts only: no raw response, refusal text, prompts or secrets.
+                self.store.record_event(
+                    run_id,
+                    "model_failure",
+                    {
+                        "stage": stage,
+                        "model": profile.model,
+                        "endpoint": profile.base_url,
+                        "request_id": request_id,
+                        "attempt": attempt + 1,
+                        "status": "failed",
+                        "code": code,
+                        **contract.receipt(),
+                    },
+                )
+
             body = json.dumps(payload, ensure_ascii=False)
             if len(body) > self.settings.max_context_chars:
                 raise ModelFailure(
@@ -10426,66 +10713,74 @@ class ModelGateway:
             reason = "结构化响应无效"
             for attempt in range(2):
                 content = None
+                if sum(len(m["content"]) for m in messages) > self.settings.max_context_chars:
+                    raise ModelFailure("完整模型请求（含 Schema/修复反馈）超过 MAX_CONTEXT_CHARS")
                 self.store.reserve_model_call(run_id)
                 try:
+                    audited = AuditedTransport(contract, self.transport)
                     with httpx.Client(
                         timeout=self.settings.llm_timeout,
-                        transport=self.transport,
+                        transport=audited,
                         follow_redirects=False,
                         trust_env=False,
                     ) as client:
-                        with client.stream(
-                            "POST",
-                            profile.base_url + "/chat/completions",
-                            headers={
-                                "Authorization": "Bearer " + profile.api_key.get_secret_value()
-                            },
-                            json={"model": profile.model, "messages": messages},
-                        ) as response:
-                            if response.status_code in {401, 403}:
-                                raise ModelFailure("模型鉴权失败，请检查 API_KEY 与模型权限")
-                            if response.status_code == 404:
-                                raise ModelFailure(
-                                    "模型地址/模型名称不存在，请检查 BASE_URL 与 MODE"
-                                )
-                            response.raise_for_status()
-                            chunks = bytearray()
-                            for chunk in response.iter_bytes():
-                                chunks.extend(chunk)
-                                if len(chunks) > 2_000_000:
-                                    raise ModelFailure("模型响应过大")
-                    envelope = json.loads(chunks)
-                    content = envelope["choices"][0]["message"]["content"]
-                    if not isinstance(content, str):
-                        raise ValueError("content must be a string")
-                    if content.strip().startswith("```json") and content.strip().endswith("```"):
-                        content = content.strip()[7:-3].strip()
-                    value = schema.model_validate_json(content)
-                    usage = envelope.get("usage", {})
+                        with structured_model(profile, schema, contract, client) as structured:
+                            try:
+                                result = structured.invoke(messages, config={"callbacks": []})
+                            except Exception:
+                                if audited.error is not None:
+                                    raise audited.error from None
+                                raise
+                    content, usage, finish = audited.content, audited.usage, audited.finish
+                    value = validate_content(content, schema, mode=contract.mode)
+                    if result.get("parsing_error") is not None or not isinstance(
+                        result.get("parsed"), schema
+                    ):
+                        raise ValueError("langchain_structured_output_parsing_failed")
                     return {
                         "value": value.model_dump(mode="json"),
-                        "usage": {
-                            k: usage.get(k)
-                            for k in ("prompt_tokens", "completion_tokens", "total_tokens")
-                        },
+                        "usage": usage,
                         "model": profile.model,
                         "stage": stage,
                         "endpoint": profile.base_url,
+                        "finish_reason": finish,
+                        **contract.receipt(),
                     }
                 except (ValidationError, ValueError, KeyError, IndexError, TypeError) as exc:
-                    reason = "模型返回内容不符合结构化契约"
+                    if isinstance(exc, OutputFailure):
+                        failed(attempt, exc.code)
+                        if not exc.retry:
+                            raise ModelFailure(str(exc)) from None
+                        reason = str(exc)
+                        if not exc.repair:
+                            continue
+                    else:
+                        reason = "模型返回内容不符合结构化契约"
+                        failed(
+                            attempt,
+                            "schema_validation"
+                            if isinstance(exc, ValidationError)
+                            else "invalid_json",
+                        )
                     diagnostics = []
                     if isinstance(exc, ValidationError):
                         diagnostics = [
                             {
                                 "type": error["type"],
-                                "path": list(error["loc"]),
-                                "message": error["msg"],
+                                "path": [
+                                    self.settings.redact(part)[:100]
+                                    if isinstance(part, str)
+                                    else part
+                                    for part in error["loc"][:20]
+                                ],
+                                "message": self.settings.redact(error["msg"])[:500],
                             }
                             for error in exc.errors(include_input=False, include_url=False)[:30]
                         ]
                     if isinstance(content, str) and len(content) <= self.settings.max_context_chars:
-                        messages.append({"role": "assistant", "content": content})
+                        messages.append(
+                            {"role": "assistant", "content": self.settings.redact(content)}
+                        )
                     messages.append(
                         {
                             "role": "user",
@@ -10495,8 +10790,11 @@ class ModelGateway:
                             "不要删除需求、降级功能或声称人工已批准。",
                         }
                     )
-                except httpx.HTTPError as exc:
-                    status = getattr(getattr(exc, "response", None), "status_code", None)
+                except (httpx.HTTPError, APIError) as exc:
+                    status = getattr(exc, "status_code", None) or getattr(
+                        getattr(exc, "response", None), "status_code", None
+                    )
+                    failed(attempt, "http_" + str(status) if status else "transport_error")
                     if status and status not in {408, 429} and status < 500:
                         raise ModelFailure(f"模型请求被拒绝（HTTP {status}）") from None
                     reason = "模型服务超时、限流或暂时不可用"
@@ -10508,7 +10806,7 @@ class ModelGateway:
             result = self.store.step(run_id, f"model:{stage}:{key}:{profile_id}:{request_id}", call)
         except Conflict as exc:
             raise ModelFailure(str(exc)) from None
-        return schema.model_validate(result["value"])
+        return schema.model_validate(result["value"], strict=True)
 ````
 
 ### `workbench/local_only.py`
@@ -10664,6 +10962,269 @@ def local_docker_command(argv):
         "npipe:////./pipe/docker_engine" if os.name == "nt" else "unix:///var/run/docker.sock"
     )
     return [argv[0], "--host", endpoint, *argv[1:]]
+````
+
+### `workbench/model_protocol.py`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**逐个入口与控制逻辑：**
+
+- `OutputContract`（L17–L30）：继承`object`。声明的数据项为`provider`、`mode`、`reason`、`request_fields`；类型约束/数据库列参数以完整定义为准。
+- `OutputContract.receipt`（L23–L30）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L24的`{ "provider": self.provider, "output_mode": self.mode, "format_reason": self.reason, "cont…`。
+- `output_contract`（L33–L50）：接收`profile`、`schema`。 源码说明：Choose the integration, not model capabilities or a hand-built API schema.。 控制顺序：L36按`provider == "auto"`分支；L40按`profile.output_mode not in {"auto", "json_object"}`分支；L41抛异常，停止当前正常路径。 调用`{"api.deepseek.com": "deepseek", "api.openai.com": "openai"}.get`、`urlsplit`、`ValueError`、`OutputContract`。 返回路径：L42的`OutputContract( provider, "json_object", "langchain_json_mode", { "max_output_tokens": pro…`。
+- `structured_model`（L54–L91）：接收`profile`、`schema`、`contract`、`http_client`。 源码说明：The official LangChain integration owns wire formatting and schema parsing. LangGraph nodes call this same Runnable for all four schema-driven stages. JSON mode preserves open dictionaries; local stri。 调用`httpx.AsyncClient`、`SyncOnlyTransport`、`model_class`、`model.with_structured_output`、`asyncio.get_running_loop`、`asyncio.run`、`async_client.aclose`、`ThreadPoolExecutor`、`executor.submit(asyncio.run, async_client.aclose()).result`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `SyncOnlyTransport`（L94–L96）：继承`httpx.AsyncBaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `SyncOnlyTransport.handle_async_request`（L95–L96）：接收`request`。 控制顺序：L96抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AuditedTransport`（L99–L135）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `AuditedTransport.__init__`（L102–L109）：接收`contract`、`inner`。 调用`httpx.HTTPTransport`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AuditedTransport.handle_request`（L111–L131）：接收`request`。 控制顺序：L115遍历`response.iter_bytes()`；L117按`len(data) > 2_000_000`分支；L118抛异常，停止当前正常路径；L119按`200 <= response.status_code < 300`分支；L125抛异常，停止当前正常路径。 调用`self.inner.handle_request`、`bytearray`、`response.iter_bytes`、`data.extend`、`len`、`OutputFailure`、`completion_content`、`load_json`、`response.close`等。 返回路径：L131的`httpx.Response(response.status_code, headers=headers, content=bytes(data))`。
+- `AuditedTransport.close`（L133–L135）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134按`self.owned`分支。 调用`self.inner.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `OutputFailure`（L138–L143）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `OutputFailure.__init__`（L141–L143）：接收`code`、`message`、`retry`、`repair`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `load_json`（L146–L172）：接收`text`。 控制顺序：L172抛异常，停止当前正常路径。 调用`json.loads`、`ValueError`。 返回路径：L165的`json.loads( text, object_pairs_hook=unique_pairs, parse_constant=invalid_constant, parse_f…`。
+- `load_json.unique_pairs`（L147–L153）：接收`pairs`。 控制顺序：L149遍历`pairs`；L150按`key in result`分支；L151抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L153的`result`。
+- `load_json.invalid_constant`（L155–L156）：接收`_`。 控制顺序：L156抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `load_json.finite_float`（L158–L162）：接收`value`。 控制顺序：L160按`not math.isfinite(result)`分支；L161抛异常，停止当前正常路径。 调用`float`、`math.isfinite`、`ValueError`。 返回路径：L162的`result`。
+- `completion_content`（L175–L220）：接收`envelope`、`contract`。 控制顺序：L176按`not isinstance(envelope, dict) or envelope.get("error")`分支；L177抛异常，停止当前正常路径；L179按`not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict…`分支；L180抛异常，停止当前正常路径；L183按`not isinstance(message, dict) or message.get("role", "assistant") != "assistant"`分支；L184抛异常，停止当前正常路径；L185按`message.get("refusal") is not None`分支；L186按`message["refusal"] != ""`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`envelope.get`、`OutputFailure`、`len`、`choice.get`、`message.get`、`content.strip`、`usage.items`、`type`。 返回路径：L220的`content, safe_usage, finish or "unknown"`。
+- `validate_content`（L223–L230）：接收`content`、`schema`、`mode`。 控制顺序：L224按`mode != "json_object"`分支；L225抛异常，停止当前正常路径；L228按`not isinstance(value, dict)`分支；L229抛异常，停止当前正常路径。 调用`ValueError`、`load_json`、`isinstance`、`schema.model_validate_json`。 返回路径：L230的`schema.model_validate_json(content, strict=True)`。
+
+<!-- source-file: workbench/model_protocol.py sha256: aa42ad468744e9c2ba6b74a3bb0386ea4dc9f6b95cb526eb928f34a84e052a6a -->
+````python
+"""LangChain structured-output integration and provider-independent validation guards."""
+
+import asyncio
+import json
+import math
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
+from dataclasses import dataclass
+from urllib.parse import urlsplit
+
+import httpx
+
+CONTRACT_VERSION = 2
+
+
+@dataclass(frozen=True)
+class OutputContract:
+    provider: str
+    mode: str
+    reason: str
+    request_fields: dict
+
+    def receipt(self):
+        return {
+            "provider": self.provider,
+            "output_mode": self.mode,
+            "format_reason": self.reason,
+            "contract_version": CONTRACT_VERSION,
+            "structured_output": "langchain.with_structured_output",
+        }
+
+
+def output_contract(profile, schema):
+    """Choose the integration, not model capabilities or a hand-built API schema."""
+    provider = profile.provider
+    if provider == "auto":
+        provider = {"api.deepseek.com": "deepseek", "api.openai.com": "openai"}.get(
+            urlsplit(profile.base_url).hostname, "compatible"
+        )
+    if profile.output_mode not in {"auto", "json_object"}:
+        raise ValueError("当前统一结构化链使用 JSON mode；OUTPUT_MODE 应为 auto/json_object")
+    return OutputContract(
+        provider,
+        "json_object",
+        "langchain_json_mode",
+        {
+            "max_output_tokens": profile.max_output_tokens
+            or (65536 if provider == "deepseek" else 16384)
+        },
+    )
+
+
+@contextmanager
+def structured_model(profile, schema, contract, http_client):
+    """The official LangChain integration owns wire formatting and schema parsing.
+
+    LangGraph nodes call this same Runnable for all four schema-driven stages.
+    JSON mode preserves open dictionaries; local strict validation remains mandatory.
+    """
+    from langchain_deepseek import ChatDeepSeek
+    from langchain_openai import ChatOpenAI
+
+    # Integrations eagerly construct both SDK clients. Inject a network-disabled
+    # async client too, and close it even when construction or invocation fails.
+    async_client = httpx.AsyncClient(transport=SyncOnlyTransport(), trust_env=False)
+    try:
+        model_class = ChatDeepSeek if contract.provider == "deepseek" else ChatOpenAI
+        model = model_class(
+            model=profile.model,
+            api_key=profile.api_key,
+            base_url=profile.base_url,
+            http_client=http_client,
+            timeout=http_client.timeout,
+            http_async_client=async_client,
+            max_retries=0,
+            streaming=False,
+            use_responses_api=False,
+            http_socket_options=(),
+            cache=False,
+            max_tokens=contract.request_fields["max_output_tokens"],
+        )
+        yield model.with_structured_output(schema, method="json_mode", include_raw=True)
+    finally:
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            asyncio.run(async_client.aclose())
+        else:
+            # A synchronous node can also be called inside an existing event loop.
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                executor.submit(asyncio.run, async_client.aclose()).result()
+
+
+class SyncOnlyTransport(httpx.AsyncBaseTransport):
+    async def handle_async_request(self, request):
+        raise RuntimeError("ModelGateway only permits its audited synchronous transport")
+
+
+class AuditedTransport(httpx.BaseTransport):
+    """Bound bytes and check response status before SDK/parser normalization loses evidence."""
+
+    def __init__(self, contract, inner=None):
+        self.contract = contract
+        self.owned = inner is None
+        self.inner = inner if inner is not None else httpx.HTTPTransport(retries=0, trust_env=False)
+        self.error = None
+        self.content = None
+        self.usage = {}
+        self.finish = "unknown"
+
+    def handle_request(self, request):
+        response = self.inner.handle_request(request)
+        data = bytearray()
+        try:
+            for chunk in response.iter_bytes():
+                data.extend(chunk)
+                if len(data) > 2_000_000:
+                    raise OutputFailure("response_too_large", "模型响应过大")
+            if 200 <= response.status_code < 300:
+                self.content, self.usage, self.finish = completion_content(
+                    load_json(data), self.contract
+                )
+        except (ValueError, TypeError) as exc:
+            self.error = exc
+            raise
+        finally:
+            response.close()
+        headers = dict(response.headers)
+        headers.pop("content-encoding", None)
+        headers.pop("content-length", None)
+        return httpx.Response(response.status_code, headers=headers, content=bytes(data))
+
+    def close(self):
+        if self.owned:
+            self.inner.close()
+
+
+class OutputFailure(ValueError):
+    """Safe static diagnostic; never use provider text as an exception message."""
+
+    def __init__(self, code, message, *, retry=False, repair=False):
+        self.code, self.retry, self.repair = code, retry, repair
+        super().__init__(message)
+
+
+def load_json(text):
+    def unique_pairs(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("duplicate_json_key")
+            result[key] = value
+        return result
+
+    def invalid_constant(_):
+        raise ValueError("non_finite_json_number")
+
+    def finite_float(value):
+        result = float(value)
+        if not math.isfinite(result):
+            raise ValueError("non_finite_json_number")
+        return result
+
+    try:
+        return json.loads(
+            text,
+            object_pairs_hook=unique_pairs,
+            parse_constant=invalid_constant,
+            parse_float=finite_float,
+        )
+    except RecursionError:
+        raise ValueError("json_nesting_limit") from None
+
+
+def completion_content(envelope, contract):
+    if not isinstance(envelope, dict) or envelope.get("error"):
+        raise OutputFailure("invalid_envelope", "模型服务返回无效响应信封", retry=True)
+    choices = envelope.get("choices")
+    if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):
+        raise OutputFailure("invalid_choices", "模型响应缺少唯一选择", retry=True)
+    choice = choices[0]
+    message = choice.get("message")
+    if not isinstance(message, dict) or message.get("role", "assistant") != "assistant":
+        raise OutputFailure("invalid_message", "模型响应消息结构无效", retry=True)
+    if message.get("refusal") is not None:
+        if message["refusal"] != "":
+            raise OutputFailure("refusal", "模型拒绝本次请求；未尝试绕过拒绝")
+    finish = choice.get("finish_reason")
+    if finish == "length":
+        raise OutputFailure(
+            "truncated", "模型输出被截断；检查 MAX_OUTPUT_TOKENS 和上下文长度后重试"
+        )
+    if finish == "content_filter":
+        raise OutputFailure("content_filter", "模型内容过滤阻止本次响应；未尝试绕过过滤")
+    if finish in {"insufficient_system_resource", "aborted"}:
+        raise OutputFailure("interrupted", "模型生成中断", retry=True)
+    if (
+        finish in {"tool_calls", "function_call"}
+        or message.get("tool_calls")
+        or message.get("function_call")
+    ):
+        raise OutputFailure("unexpected_tool_call", "本阶段不接受模型工具调用")
+    # Legacy compatible endpoints sometimes omit this field. Reviewed providers cannot.
+    if finish != "stop" and not (finish is None and contract.provider == "compatible"):
+        raise OutputFailure("invalid_finish_reason", "模型响应没有确认完整结束", retry=True)
+    content = message.get("content")
+    if not isinstance(content, str) or not content.strip():
+        raise OutputFailure(
+            "empty_content", "模型未返回可验证的 JSON 内容", retry=True, repair=True
+        )
+    usage = envelope.get("usage")
+    usage = usage if isinstance(usage, dict) else {}
+    safe_usage = {
+        k: v
+        for k, v in usage.items()
+        if k in {"prompt_tokens", "completion_tokens", "total_tokens"}
+        and type(v) is int
+        and 0 <= v <= 100_000_000
+    }
+    return content, safe_usage, finish or "unknown"
+
+
+def validate_content(content, schema, *, mode):
+    if mode != "json_object":
+        raise ValueError("unsupported_output_validation_mode")
+    # Pydantic's JSON parser accepts duplicate keys/nonfinite numbers; reject them first.
+    value = load_json(content)
+    if not isinstance(value, dict):
+        raise ValueError("response_must_be_json_object")
+    return schema.model_validate_json(content, strict=True)
 ````
 
 ### `workbench/native.py`
@@ -12511,22 +13072,22 @@ def prepare_fastapi_transactions(backend: Path) -> list[dict]:
 
 **逐个入口与控制逻辑：**
 
-- `RuntimeConfig`（L25–L28）：继承`BaseModel`。声明的数据项为`database_url_env`、`initialize_empty_database`；类型约束/数据库列参数以完整定义为准。
-- `runtime_path`（L31–L34）：接收`settings`、`template`。 控制顺序：L32按`template not in {"fastapiadmin", "yudao-vben"}`分支；L33抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L34的`settings.data_dir / "native" / f"{template}.runtime.json"`。
-- `runtime_enabled`（L37–L38）：接收`settings`、`template`。 调用`runtime_path(settings, template).is_file`、`runtime_path`。 返回路径：L38的`runtime_path(settings, template).is_file()`。
-- `write_runtime_example`（L41–L48）：接收`settings`、`template`。 控制顺序：L43按`path.exists()`分支；L44抛异常，停止当前正常路径。 调用`runtime_path`、`path.exists`、`FileExistsError`、`settings.prepare`、`write_json`、`RuntimeConfig(database_url_env=prefix + "_DATABASE_URL").model_du…`、`RuntimeConfig`。 返回路径：L48的`path`。
-- `runtime_config`（L51–L65）：接收`settings`、`template`、`initialize`。 控制顺序：L53按`not path.is_file()`分支；L54抛异常，停止当前正常路径；L56按`not re.fullmatch(r"NATIVE_[A-Z0-9_]+", config.database_url_env)`分支；L57抛异常，停止当前正常路径；L58按`initialize and config.initialize_empty_database is not True`分支；L59抛异常，停止当前正常路径；L62按`not url`分支；L63抛异常，停止当前正常路径。 调用`runtime_path`、`path.is_file`、`PrerequisiteError`、`RuntimeConfig.model_validate_json`、`path.read_text`、`re.fullmatch`、`dotenv_values`、`env.get`、`checked_database`。 返回路径：L65的`config, url`。
-- `database_identity`（L68–L71）：接收`url`。 源码说明：Bind a retained product to its database without storing credentials.。 调用`checked_database`、`digest`。 返回路径：L71的`digest({"host": parsed.host, "port": parsed.port or 5432, "database": parsed.database})`。
-- `check_database_identity`（L74–L78）：接收`receipt`、`url`。 控制顺序：L75按`receipt.get("database_identity") != database_identity(url)`分支；L76抛异常，停止当前正常路径。 调用`receipt.get`、`database_identity`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `prerequisites`（L81–L91）：接收`template`。 控制顺序：L82按`os.name == "nt"`分支；L83抛异常，停止当前正常路径；L87遍历`commands`；L88按`not shutil.which(name)`分支；L89抛异常，停止当前正常路径；L90按`not (ROOT / ".native/browser/node_modules/playwright").is_dir()`分支；L91抛异常，停止当前正常路径。 调用`PrerequisiteError`、`shutil.which`、`(ROOT / ".native/browser/node_modules/playwright").is_dir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `managed_generate`（L94–L148）：接收`settings`、`template`、`plan`、`destination`、`customization`。 控制顺序：L100按`runtime_enabled(settings, template)`分支；L108按`receipt_path.is_file()`分支；L110按`receipt.get("execution") == "managed-runtime" and receipt.get("spec_digest") == diges…`分支；L116抛异常，停止当前正常路径；L133按`report.get("generated_runtime_verified") is not True`分支；L134抛异常，停止当前正常路径。 调用`validate_plan`、`Path(destination).resolve`、`Path`、`prerequisites`、`runtime_enabled`、`runtime_config`、`for_run`、`receipt_path.is_file`、`json.loads`等。 返回路径：L115的`receipt`；L148的`receipt`。
-- `require_native_style`（L151–L222）：接收`report`、`receipt`、`current`。 源码说明：A legacy runtime receipt is not evidence of native UI inheritance.。 控制顺序：L161按`template not in PROFILES or report.get("template") != template or not isinstance(styl…`分支；L171抛异常，停止当前正常路径；L177遍历`PROFILES[template]["protected"]`；L183按`not group`分支；L184抛异常，停止当前正常路径；L186按`style.get("protected_files") != protected or style.get("protected_source_digest") != …`分支；L189抛异常，停止当前正常路径；L191按`not isinstance(entities, list) or not entities or any( not isinstance(name, str) or n…`分支。后续分支沿下方源码相同行号继续阅读。 调用`receipt.get`、`report.get`、`isinstance`、`style.get`、`PrerequisiteError`、`len`、`current.items`、`name.startswith`、`frontend.items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `require_native_business`（L225–L301）：接收`report`、`receipt`、`spec_path`。 源码说明：Classic CRUD receipts cannot stand in for either business installation.。 控制顺序：L233抛异常，停止当前正常路径；L235按`identity != receipt.get("spec_digest") or identity != report.get("spec_digest")`分支；L236抛异常，停止当前正常路径；L237按`not plan.business`分支；L238按`report.get("business_contract") is not None`分支；L239抛异常，停止当前正常路径；L242按`restored.get("restart") is not True or restored.get("restart_preserved_records") is n…`分支；L243抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate_json`、`Path(spec_path).read_text`、`Path`、`PrerequisiteError`、`digest`、`plan.model_dump`、`receipt.get`、`report.get`、`restored.get`等。 返回路径：L240的`False`；L301的`True`。
-- `managed_verify`（L304–L360）：接收`destination`、`receipt`。 控制顺序：L307按`not report_path.is_file() or sha(report_path) != receipt.get("evidence_sha256")`分支；L308抛异常，停止当前正常路径；L322按`any(report.get(name) is not True for name in gates)`分支；L323抛异常，停止当前正常路径；L334按`not isinstance(restored, dict) or any(restored.get(key) is not True for key in requir…`分支；L339抛异常，停止当前正常路径；L343按`current != receipt["files"] or report.get("spec_digest") != receipt.get("spec_digest"…`分支；L344抛异常，停止当前正常路径。 调用`Path`、`report_path.is_file`、`sha`、`receipt.get`、`PrerequisiteError`、`json.loads`、`report_path.read_text`、`any`、`report.get`等。 返回路径：L360的`result`。
-- `managed_package`（L363–L386）：接收`destination`、`report`。 控制顺序：L369按`report != verified`分支；L370抛异常，停止当前正常路径；L374遍历`files(destination)`。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`managed_verify`、`PrerequisiteError`、`manifest`、`zipfile.ZipFile`、`files`、`archive.write`等。 返回路径：L386的`result`。
-- `serve_managed`（L389–L415）：接收`settings`、`run_id`。 控制顺序：L393按`not receipt_path.is_file()`分支；L394抛异常，停止当前正常路径；L396按`receipt.get("execution") != "managed-runtime"`分支；L397抛异常，停止当前正常路径；L414在`True`成立时循环。 调用`str`、`uuid.UUID`、`receipt_path.is_file`、`PrerequisiteError`、`json.loads`、`receipt_path.read_text`、`receipt.get`、`managed_verify`、`runtime_config`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `RuntimeConfig`（L24–L27）：继承`BaseModel`。声明的数据项为`database_url_env`、`initialize_empty_database`；类型约束/数据库列参数以完整定义为准。
+- `runtime_path`（L30–L33）：接收`settings`、`template`。 控制顺序：L31按`template not in {"fastapiadmin", "yudao-vben"}`分支；L32抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L33的`settings.data_dir / "native" / f"{template}.runtime.json"`。
+- `runtime_enabled`（L36–L37）：接收`settings`、`template`。 调用`runtime_path(settings, template).is_file`、`runtime_path`。 返回路径：L37的`runtime_path(settings, template).is_file()`。
+- `write_runtime_example`（L40–L47）：接收`settings`、`template`。 控制顺序：L42按`path.exists()`分支；L43抛异常，停止当前正常路径。 调用`runtime_path`、`path.exists`、`FileExistsError`、`settings.prepare`、`write_json`、`RuntimeConfig(database_url_env=prefix + "_DATABASE_URL").model_du…`、`RuntimeConfig`。 返回路径：L47的`path`。
+- `runtime_config`（L50–L64）：接收`settings`、`template`、`initialize`。 控制顺序：L52按`not path.is_file()`分支；L53抛异常，停止当前正常路径；L55按`not re.fullmatch(r"NATIVE_[A-Z0-9_]+", config.database_url_env)`分支；L56抛异常，停止当前正常路径；L57按`initialize and config.initialize_empty_database is not True`分支；L58抛异常，停止当前正常路径；L61按`not url`分支；L62抛异常，停止当前正常路径。 调用`runtime_path`、`path.is_file`、`PrerequisiteError`、`RuntimeConfig.model_validate_json`、`path.read_text`、`re.fullmatch`、`dotenv_values`、`env.get`、`checked_database`。 返回路径：L64的`config, url`。
+- `database_identity`（L67–L70）：接收`url`。 源码说明：Bind a retained product to its database without storing credentials.。 调用`checked_database`、`digest`。 返回路径：L70的`digest({"host": parsed.host, "port": parsed.port or 5432, "database": parsed.database})`。
+- `check_database_identity`（L73–L77）：接收`receipt`、`url`。 控制顺序：L74按`receipt.get("database_identity") != database_identity(url)`分支；L75抛异常，停止当前正常路径。 调用`receipt.get`、`database_identity`、`PrerequisiteError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `prerequisites`（L80–L90）：接收`template`。 控制顺序：L81按`os.name == "nt"`分支；L82抛异常，停止当前正常路径；L86遍历`commands`；L87按`not shutil.which(name)`分支；L88抛异常，停止当前正常路径；L89按`not (ROOT / ".native/browser/node_modules/playwright").is_dir()`分支；L90抛异常，停止当前正常路径。 调用`PrerequisiteError`、`shutil.which`、`(ROOT / ".native/browser/node_modules/playwright").is_dir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `managed_generate`（L93–L147）：接收`settings`、`template`、`plan`、`destination`、`customization`。 控制顺序：L99按`runtime_enabled(settings, template)`分支；L107按`receipt_path.is_file()`分支；L109按`receipt.get("execution") == "managed-runtime" and receipt.get("spec_digest") == diges…`分支；L115抛异常，停止当前正常路径；L132按`report.get("generated_runtime_verified") is not True`分支；L133抛异常，停止当前正常路径。 调用`validate_plan`、`Path(destination).resolve`、`Path`、`prerequisites`、`runtime_enabled`、`runtime_config`、`for_run`、`receipt_path.is_file`、`json.loads`等。 返回路径：L114的`receipt`；L147的`receipt`。
+- `require_native_style`（L150–L221）：接收`report`、`receipt`、`current`。 源码说明：A legacy runtime receipt is not evidence of native UI inheritance.。 控制顺序：L160按`template not in PROFILES or report.get("template") != template or not isinstance(styl…`分支；L170抛异常，停止当前正常路径；L176遍历`PROFILES[template]["protected"]`；L182按`not group`分支；L183抛异常，停止当前正常路径；L185按`style.get("protected_files") != protected or style.get("protected_source_digest") != …`分支；L188抛异常，停止当前正常路径；L190按`not isinstance(entities, list) or not entities or any( not isinstance(name, str) or n…`分支。后续分支沿下方源码相同行号继续阅读。 调用`receipt.get`、`report.get`、`isinstance`、`style.get`、`PrerequisiteError`、`len`、`current.items`、`name.startswith`、`frontend.items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_native_business`（L224–L300）：接收`report`、`receipt`、`spec_path`。 源码说明：Classic CRUD receipts cannot stand in for either business installation.。 控制顺序：L232抛异常，停止当前正常路径；L234按`identity != receipt.get("spec_digest") or identity != report.get("spec_digest")`分支；L235抛异常，停止当前正常路径；L236按`not plan.business`分支；L237按`report.get("business_contract") is not None`分支；L238抛异常，停止当前正常路径；L241按`restored.get("restart") is not True or restored.get("restart_preserved_records") is n…`分支；L242抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate_json`、`Path(spec_path).read_text`、`Path`、`PrerequisiteError`、`digest`、`plan.model_dump`、`receipt.get`、`report.get`、`restored.get`等。 返回路径：L239的`False`；L300的`True`。
+- `managed_verify`（L303–L359）：接收`destination`、`receipt`。 控制顺序：L306按`not report_path.is_file() or sha(report_path) != receipt.get("evidence_sha256")`分支；L307抛异常，停止当前正常路径；L321按`any(report.get(name) is not True for name in gates)`分支；L322抛异常，停止当前正常路径；L333按`not isinstance(restored, dict) or any(restored.get(key) is not True for key in requir…`分支；L338抛异常，停止当前正常路径；L342按`current != receipt["files"] or report.get("spec_digest") != receipt.get("spec_digest"…`分支；L343抛异常，停止当前正常路径。 调用`Path`、`report_path.is_file`、`sha`、`receipt.get`、`PrerequisiteError`、`json.loads`、`report_path.read_text`、`any`、`report.get`等。 返回路径：L359的`result`。
+- `managed_package`（L362–L384）：接收`destination`、`report`。 控制顺序：L368按`report != verified`分支；L369抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`managed_verify`、`PrerequisiteError`、`manifest`、`pack_source`、`sha`、`write_json`。 返回路径：L384的`result`。
+- `serve_managed`（L387–L413）：接收`settings`、`run_id`。 控制顺序：L391按`not receipt_path.is_file()`分支；L392抛异常，停止当前正常路径；L394按`receipt.get("execution") != "managed-runtime"`分支；L395抛异常，停止当前正常路径；L412在`True`成立时循环。 调用`str`、`uuid.UUID`、`receipt_path.is_file`、`PrerequisiteError`、`json.loads`、`receipt_path.read_text`、`receipt.get`、`managed_verify`、`runtime_config`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/native_delivery.py sha256: e07145f0e3fdf6b9c6d7654168de09ffdf767b2a33d3b35a00d98049e65aaee0 -->
+<!-- source-file: workbench/native_delivery.py sha256: e91cc8ec97dd093b5fd4c16681687daff4406831bf3f9475344b133601eac896 -->
 ````python
 """Explicitly authorized local native runtime delivery; source export is a separate mode."""
 
@@ -12535,7 +13096,6 @@ import os
 import re
 import shutil
 import uuid
-import zipfile
 from contextlib import ExitStack
 from pathlib import Path
 
@@ -12543,7 +13103,7 @@ from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, StrictBool
 
 from workbench.domain import Plan, digest
-from workbench.filesystem import files, manifest, sha, write_json
+from workbench.filesystem import manifest, pack_source, sha, write_json
 from workbench.generator import PrerequisiteError
 from workbench.native_environment import checked_database, native_environment, running_backend
 from workbench.native_frontend import frontend_environment, frontend_preview
@@ -12900,13 +13460,12 @@ def managed_package(destination, report):
         raise PrerequisiteError("交付的原生运行验证报告不匹配")
     listing = manifest(destination)
     package = destination.parent / "native-runtime.zip"
-    with zipfile.ZipFile(package, "w", zipfile.ZIP_DEFLATED) as archive:
-        for name, source in files(destination):
-            archive.write(source, name)
+    archive_report = pack_source(destination, package, template=receipt["template"])
     result = {
         "package": package.name,
         "sha256": sha(package),
         "files": listing,
+        "archive": archive_report,
         "validation_level": "runtime",
         "runtime_verified": True,
         "production_ready": False,
@@ -13746,10 +14305,10 @@ def browser_check(template, url, reports):
 **逐个入口与控制逻辑：**
 
 - `generated_browser`（L37–L60）：接收`template`、`front_url`、`reports`。 控制顺序：L59抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run_acceptance`（L63–L329）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L77按`plan.custom_rules and customization is None`分支；L78抛异常，停止当前正常路径；L91按`not resumed`分支；L94按`template == "fastapiadmin"`分支；L98按`not resumed`分支；L115按`not resumed`分支；L119按`template == "fastapiadmin"`分支；L142按`plan.business`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`ValueError`、`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`等。 返回路径：L310的`report`。
+- `run_acceptance`（L63–L331）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L77按`plan.custom_rules and customization is None`分支；L78抛异常，停止当前正常路径；L91按`not resumed`分支；L94按`template == "fastapiadmin"`分支；L98按`not resumed`分支；L115按`not resumed`分支；L119按`template == "fastapiadmin"`分支；L142按`plan.business`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`ValueError`、`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`等。 返回路径：L312的`report`。
 - `run_acceptance.stage`（L108–L110）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/native_lab.py sha256: 512786bd37e5a060c388e8a32608400ce21774722690bae60db36dbed60223fa -->
+<!-- source-file: workbench/native_lab.py sha256: f4cf1e739c129fbc702e461e9763d1d4ef7cff92a874b458d906dac990587515 -->
 ````python
 """Actual native generation, mounting, permissions, CRUD, restart and browser acceptance."""
 
@@ -14054,7 +14613,9 @@ def run_acceptance(
             template, product_root, reports, plan, targets, url
         )
         stage("independent-native-delivery")
-        report["portable_restored"] = verify_native_delivery(product_root, url, reports, redis_port)
+        report["portable_restored"] = verify_native_delivery(
+            product_root, url, reports, redis_port, template=template
+        )
         stage("accepted")
         write_json(reports / "acceptance.json", report)
         print(
@@ -15351,9 +15912,9 @@ def stop_native(process, ports):
 - `menu_snapshot`（L42–L49）：接收`template`、`url`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`digest`、`json.loads`等。 返回路径：L49的`{row["id"]: digest(json.loads(json.dumps(row, default=str))) for row in rows}`。
 - `export_menu_sql`（L52–L91）：接收`template`、`url`、`before`、`target`。 控制顺序：L63按`not changed`分支；L64抛异常，停止当前正常路径；L68遍历`changed`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`before.get`、`digest`等。 返回路径：L91的`{"table": table, "row_ids": [row["id"] for row in changed], "sha256": sha(target)}`。
 - `build_native_delivery`（L94–L179）：接收`template`、`product`、`reports`、`plan`、`targets`、`url`。 控制顺序：L99遍历`("pyproject.toml", "uv.lock", ".python-version", "services.yaml",…`；L102按`plan.business`分支；L111遍历`HELPERS`；L117按`plan.business`分支；L118遍历`( ("business-extension-schema.sql", "004-business-extension.sql")…`；L123按`source_file.is_file()`分支；L126按`plan.business`分支；L127按`template == "fastapiadmin"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`deployment.mkdir`、`shutil.copyfile`、`helper_root.mkdir`、`sql_dir.mkdir`、`source_file.is_file`、`json.loads`、`(reports / "business-extension.json").read_text`、`(reports / "business-yudao.json").read_text`等。 返回路径：L174的`{ "sql_files": sql_files, "sql_digest": manifest["sql_digest"], "standalone_start": "uv ru…`。
-- `verify_native_delivery`（L182–L253）：接收`product`、`url`、`reports`、`redis_port`。 源码说明：Copy only distributable files; run the delivered startup against a DIFFERENT empty DB.。 控制顺序：L202遍历`files(product)`；L228抛异常，停止当前正常路径；L233按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L240抛异常，停止当前正常路径；L251按`created`分支。 调用`uuid.uuid4`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`、`tempfile.TemporaryDirectory`等。 返回路径：L249的`result`。
+- `verify_native_delivery`（L182–L258）：接收`product`、`url`、`reports`、`redis_port`、`template`。 源码说明：Restore the distributable ZIP; run startup against a DIFFERENT empty DB.。 控制顺序：L193按`template not in {"fastapiadmin", "yudao-vben"}`分支；L194抛异常，停止当前正常路径；L207按`restored != packaged or manifest(copy) != listing`分支；L208抛异常，停止当前正常路径；L231抛异常，停止当前正常路径；L236按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L243抛异常，停止当前正常路径；L256按`created`分支。 调用`uuid.uuid4`、`ValueError`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`等。 返回路径：L254的`result`。
 
-<!-- source-file: workbench/portable.py sha256: b73b2b150fe20101c2f23666976d95e12d54de7a266de2787d3ba7893540817d -->
+<!-- source-file: workbench/portable.py sha256: 6b007458f99ae0a2e3253f3b89ad1ed3fcbc4942956c95dfdb462f173aa97768 -->
 ````python
 """Export a self-contained native launcher, immutable SQL and menu seed (no user data)."""
 
@@ -15536,17 +16097,19 @@ def build_native_delivery(template, product, reports, plan, targets, url):
     }
 
 
-def verify_native_delivery(product, url, reports, redis_port=6379):
-    """Copy only distributable files; run the delivered startup against a DIFFERENT empty DB."""
+def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
+    """Restore the distributable ZIP; run startup against a DIFFERENT empty DB."""
     import os
     import sys
     import tempfile
     import uuid
 
-    from workbench.filesystem import files
+    from workbench.filesystem import manifest, pack_source, unpack
     from workbench.tools import run_command
 
     name = "restore_" + uuid.uuid4().hex[:16] + "_codegen"
+    if template not in {"fastapiadmin", "yudao-vben"}:
+        raise ValueError("原生交付模板未知")
     parsed = checked_database(url)
     created = False
     try:
@@ -15555,11 +16118,12 @@ def verify_native_delivery(product, url, reports, redis_port=6379):
             created = True
         with tempfile.TemporaryDirectory(prefix="rnd-independent-native-") as directory:
             copy = Path(directory) / "product"
-            copy.mkdir()
-            for relative, source in files(product):
-                target = copy / relative
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(source, target)
+            archive = Path(directory) / "delivery.zip"
+            listing = manifest(product)
+            packaged = pack_source(product, archive, template=template)
+            restored = unpack(archive, copy, template=template)
+            if restored != packaged or manifest(copy) != listing:
+                raise ValueError("原生交付ZIP与已验证源码不一致")
             clean_url = parsed.set(database=name).render_as_string(hide_password=False)
             try:
                 command = run_command(
@@ -15601,6 +16165,8 @@ def verify_native_delivery(product, url, reports, redis_port=6379):
                 installed_from_lock=True,
                 original_platform_imported=False,
                 source_database_reused=False,
+                archive_round_trip=True,
+                archive=restored,
             )
             write_json(Path(reports) / "portable-start.json", result)
             return result
@@ -16010,42 +16576,47 @@ def blocked_report(gate, attempts):
 - `_authorized.stated`（L131–L150）：接收`value`。 控制顺序：L132按`isinstance(value, bool)`分支；L133按`re.search(r"false\|否\|可选\|非必填\|不必填\|关闭\|禁用", quote, re.I)`分支；L136按`isinstance(value, (int, float))`分支；L138按`value == "shared"`分支；L140按`value == "per_user"`分支；L142按`str(value).lower() in quote.lower()`分支；L144按`isinstance(value, str)`分支；L148按`numbers and re.search(r"长度\|字符\|字\|length", quote, re.I)`分支。 调用`isinstance`、`re.search`、`bool`、`re.escape`、`str`、`str(value).lower`、`quote.lower`、`re.findall`、`all`。 返回路径：L134的`not value`；L135的`value and bool(re.search(r"true\|是\|必填\|启用\|开启", quote, re.I))`；L137的`bool(re.search(rf"(?<![\d.]){re.escape(str(value))}(?![\d.])", quote))`。
 - `_propagate_fact_correction`（L155–L184）：接收`data`、`key`、`replacement`。 源码说明：Synchronize a source-backed numeric fact across unambiguous legacy text.。 控制顺序：L164按`not attribute or len(numbers) != 1 or len(targets) != 1`分支；L167遍历`("features", "acceptance")`；L168遍历`enumerate(data[section])`；L170按`mentioned == [aliases] and re.search( r"上限\|最大\|最多\|max_length" if attribute == "max_…`分支；L182遍历`data["field_requirements"]`；L183按`field["field"] in aliases`分支。 调用`re.search`、`re.findall`、`str`、`ALIASES.values`、`_mentions`、`len`、`enumerate`、`re.sub`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `reconcile`（L187–L240）：接收`previous`、`proposed`、`corrections`、`audit`。 源码说明：Omission isn't deletion; only source-backed fresh edits replace old intent.。 控制顺序：L189按`not previous`分支；L193遍历`("features", "acceptance", "users")`；L199按`old.data_scope != "unknown"`分支；L201遍历`proposed.changes`；L208按`audit is not None`分支；L210按`not authorized`分支；L214按`section == "facts"`分支；L215按`replacement is None`分支。后续分支沿下方源码相同行号继续阅读。 调用`proposed.model_copy`、`Requirement.model_validate`、`proposed.model_dump`、`list`、`dict.fromkeys`、`getattr`、`f.model_dump`、`fields.update`、`fields.values`等。 返回路径：L190的`proposed.model_copy(update={"changes": []})`；L240的`Requirement.model_validate(data)`。
-- `_decode_fact`（L307–L316）：接收`value`。 控制顺序：L308按`isinstance(value, str) and value.lstrip().startswith(("{", "["))`分支；L314按`isinstance(decoded, (dict, list))`分支。 调用`isinstance`、`value.lstrip().startswith`、`value.lstrip`、`json.loads`。 返回路径：L315的`decoded`；L316的`value`。
-- `_fact_subject`（L319–L339）：接收`key`、`fields`、`entity`、`declared`。 源码说明：Resolve a field position, never a substring of an ancestor's business name.。 控制顺序：L321按`entity is not None and ( not isinstance(entity, str) or not re.fullmatch(r"[a-z][a-z0…`分支；L325按`not isinstance(key, str)`分支；L328按`qualified`分支；L331按`re.fullmatch(r"[a-z][a-z0-9_]*", key) and ( declared or any(field.name == key for _, …`分支；L335遍历`ALIASES.items()`；L336按`key in aliases`分支。 调用`isinstance`、`re.fullmatch`、`qualified.groups`、`any`、`ALIASES.items`、`len`、`next`、`iter`。 返回路径：L326的`(entity, "<invalid field>") if declared else None`；L334的`entity, key`；L338的`entity, next(iter(names)) if len(names) == 1 else canonical`。
-- `_field_kind`（L342–L343）：接收`value`。 调用`isinstance`。 返回路径：L343的`isinstance(value, str) and value in FIELD_KINDS`。
-- `_scalar_subject`（L346–L353）：接收`key`、`fields`、`entity`。 控制顺序：L351按`len(names) == 1`分支。 调用`_fact_candidates`、`len`、`_fact_entity`、`next`、`iter`。 返回路径：L352的`entity or _fact_entity(key, fields), next(iter(names))`；L353的`None`。
-- `_optional_fact`（L356–L361）：接收`value`。 控制顺序：L357按`type(value) is bool`分支；L359按`isinstance(value, str) and value.strip().lower() in {"true", "false", "是", "否"}`分支。 调用`type`、`isinstance`、`value.strip().lower`、`value.strip`。 返回路径：L358的`not value`；L360的`value.strip().lower() in {"false", "否"}`；L361的`value`。
-- `_fact_records`（L364–L579）：接收`facts`、`fields`。 源码说明：Classify structural facts before projecting field constraints or prose. A name/entity pair alone is not a field declaration. Field definitions have an explicit field position and attributes; business 。 控制顺序：L577遍历`facts.items()`；L578按`key not in FACT_METADATA_KEYS`分支。 调用`facts.items`、`walk`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_fact_records.walk`（L374–L575）：接收`key`、`value`、`path`、`entity`、`subject`、`business`、`container`。 控制顺序：L400按`collection`分支；L402按`not business and key in entities and direct is None`分支；L404按`not direct and not business and entity and key not in entities and attributes and sub…`分支；L413按`isinstance(value, dict)`分支；L450按`entity_record`分支；L453按`relation_record`分支；L455按`"entity" in value and "from" in value and value["entity"] != value["from"]`分支；L457按`container == "relations" and not key.isdigit()`分支。后续分支沿下方源码相同行号继续阅读。 调用`_decode_fact`、`".".join`、`_fact_subject`、`key.isdigit`、`isinstance`、`value.items`、`value.get`、`re.fullmatch`、`value.keys`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_fact_constraints`（L582–L585）：接收`facts`、`fields`。 控制顺序：L583遍历`_fact_records(facts, fields)`；L584按`kind == "constraint"`分支。 调用`_fact_records`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_fact_attribute`（L588–L612）：接收`label`。 控制顺序：L597按`attribute is None and re.search(r"(?:是否必填\|必填)$", label)`分支；L599按`attribute is None and re.search(r"(?:是否可选\|可选)$", label)`分支；L601按`attribute is None`分支；L604遍历`( (r"(?:日期\|date).*(?:区间\|范围\|range)(?:筛选\|过滤)?$", "date_range"),…`；L609按`re.search(pattern, label, re.I)`分支。 调用`next`、`re.search`、`re.escape`。 返回路径：L612的`attribute`。
-- `_scalar_fact_attribute`（L615–L631）：接收`label`、`value`。 控制顺序：L617按`attribute in {"required", "optional", "searchable", "filterable", "date_range"}`分支；L618按`isinstance(value, str) and value.strip().lower() not in { "true", "false", "是", "否", …`分支。 调用`_fact_attribute`、`isinstance`、`value.strip().lower`、`value.strip`。 返回路径：L630的`None`；L631的`attribute`。
-- `_fact_texts`（L634–L637）：接收`facts`、`fields`。 控制顺序：L635遍历`_fact_records(facts, fields)`；L636按`kind == "text"`分支。 调用`_fact_records`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_field_mentions`（L640–L652）：接收`text`、`names`。 源码说明：Field identifiers are whole identifiers, not arbitrary underscore fragments.。 调用`re.sub`、`"\|".join`、`sorted`、`any`、`name.isascii`、`re.search`、`re.escape`。 返回路径：L647的`any( re.search(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])", text, re.I) if name.isasc…`。
-- `_fact_entity`（L655–L662）：接收`key`、`fields`。 控制顺序：L656按`"::" in key`分支。 调用`key.split("::")[0].rsplit`、`key.split`、`re.split`、`next`、`part.strip`、`reversed`。 返回路径：L657的`key.split("::")[0].rsplit(".", 1)[-1]`；L662的`next((part.strip() for part in reversed(path[:-1]) if part.strip() in entities), None)`。
-- `_fact_candidates`（L665–L678）：接收`key`、`fields`。 调用`_fact_entity`、`_field_mentions`、`any`、`ALIASES.values`。 返回路径：L667的`[ field for entity, field in fields if (explicit_entity is None or entity == explicit_enti…`。
-- `_legacy_targets`（L686–L699）：接收`text`、`fields`。 源码说明：Do not turn an ambiguous prose subject into grants on every entity. Exact typed obligations are checked independently. Unscoped repeated names remain semantic-review context unless the prose explicitl。 控制顺序：L693按`_fact_entity(text, fields) is not None or _ALL_ENTITIES.search(text)`分支。 调用`_fact_candidates`、`_fact_entity`、`_ALL_ENTITIES.search`、`len`。 返回路径：L694的`candidates`；L695的`[ field for field in candidates if len({entity for entity, item in fields if item.name == …`。
-- `_query_predicate_text`（L708–L797）：接收`text`、`fields`。 源码说明：Exclude operation-derived nouns unless an explicit predicate binds fields. Search results and filter conditions describe query output or context; they do not independently enable a field capability. K。 调用`re.compile`、`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`、`nouns.sub`。 返回路径：L797的`nouns.sub(replace, text)`。
-- `_query_predicate_text.replace`（L738–L795）：接收`match`。 控制顺序：L772按`binds_before or binds_after or imperative`分支；L777按`re.search(r"日期区间\|日期范围\|date[-_\s]?range", operation, re.I)`分支；L781按`negative`分支。 调用`re.split`、`match.start`、`match.end`、`bool`、`re.fullmatch`、`list`、`subjects.finditer`、`mentions[-1].end`、`re.match`等。 返回路径：L792的`operation + " "`；L795的`" " * len(match.group())`。
-- `_section_entity`（L800–L805）：接收`text`、`fields`。 源码说明：Infer only an unambiguous owner of an explicitly named field inventory.。 调用`_field_mentions`、`set.intersection`、`set`、`len`、`next`、`iter`。 返回路径：L805的`next(iter(common)) if len(common) == 1 else None`。
-- `_single_operation_heading`（L808–L826）：接收`text`。 源码说明：Only a bare single operation can predicate the list following a colon.。 控制顺序：L812遍历`( r"日期区间\|日期范围(?:筛选\|查询)?\|date.?range", r"搜索\|检索\|search(?:ing\|…`；L817按`re.search(pattern, remaining, re.I)`分支。 调用`re.search`、`re.sub`。 返回路径：L826的`operations == 1 and not remaining`。
-- `_explicit_predicate_heading`（L829–L844）：接收`text`。 源码说明：Known property/value syntax is a predicate, not a contextual title.。 控制顺序：L831按`_single_operation_heading(text)`分支。 调用`_single_operation_heading`、`text.strip().rstrip(":：").strip`、`text.strip().rstrip`、`text.strip`、`re.sub(r"\s*(?:字段\|fields?)$", "", heading, flags=re.I).strip`、`re.sub`、`bool`、`re.fullmatch`。 返回路径：L832的`True`；L835的`bool( re.fullmatch( r"(?:required\|optional\|必填\|可选填?\|非必填\|不必填\|是否必填\|" r"min_length\|max…`。
-- `_explicit_query_sections`（L847–L879）：接收`text`、`fields`。 源码说明：Separate a new query subject from an earlier inventory or operation. Commas inside descriptors and bare identifier lists remain untouched. A direct by/using/按/对 clause must name its own fields and ope。 控制顺序：L854遍历`text`；L856按`char in "（([【"`分支；L858按`char in "）)]】"`分支；L866遍历`boundary.finditer(text)`；L867按`not depths[match.start()] and _fact_candidates(text[start : match.start()], fields) a…`分支。 调用`depths.append`、`max`、`re.compile`、`boundary.finditer`、`match.start`、`_fact_candidates`、`match.end`、`re.search`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_descriptor_inventory_groups`（L882–L928）：接收`text`、`subject_pattern`。 源码说明：Project bracketed per-field declarations separately from their wrapper. A bare search(title, detail) target list stays intact. In contrast, a list such as create(title max_length=200, detail max_lengt。 控制顺序：L891遍历`enumerate(text)`；L892按`char in "（([【"`分支；L894按`char in "）)]】" and stack`分支；L896按`not stack`分支；L899遍历`spans`；L902遍历`body`；L904按`char in "（([【"`分支；L906按`char in "）)]】"`分支。后续分支沿下方源码相同行号继续阅读。 调用`enumerate`、`stack.append`、`stack.pop`、`spans.append`、`depths.append`、`max`、`re.finditer`、`match.start`、`len`等。 返回路径：L928的`"".join(parts), declarations`。
-- `_legacy_clauses`（L931–L1164）：接收`text`、`fields`。 源码说明：Bind predicates to top-level subjects, preserving bracketed target lists. Both name（必填，最长120）and 搜索（name、contact）are indivisible. A descriptive clause ending at a comma does not lend its subject to th。 控制顺序：L949遍历`re.split(r"([；;。\n]\|但是\|但\|不过)", text)`；L950按`sentence in {"但是", "但", "不过"}`分支；L953按`re.fullmatch(r"[；;。\n]", sentence)`分支；L957按`contrast and previous_subject and not _fact_candidates(sentence, fields) and re.match…`分支；L970在`True`成立时循环；L973按`heading and heading.group(1) in {entity for entity, _ in fields}`分支；L979按`heading and not _explicit_predicate_heading(heading.group())`分支；L980按`not explicit_scope`分支。后续分支沿下方源码相同行号继续阅读。 调用`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`、`_fact_entity`、`re.split`、`re.fullmatch`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_operation_parts`（L1167–L1181）：接收`text`。 源码说明：Split coordinated operations, never the subjects inside a target list.。 控制顺序：L1170遍历`text`；L1172按`char in "（([【"`分支；L1174按`char in "）)]】"`分支；L1177遍历`re.finditer(r"、\|并且\|并\|且\|和\|与", text)`；L1178按`not depths[match.start()]`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_metric_clauses`（L1203–L1299）：接收`text`、`fields`。 源码说明：Separate aggregate predicates from field-query declarations. Only a recognized metric clause with named filter operands or permission scope is consumed. Explicit UI/query flags always remain field obl。 控制顺序：L1289遍历`re.split(r"([，,；;。\n]\|并且\|并\|且\|和\|与)", text)`；L1290按`re.fullmatch(r"[；;。\n]", part)`分支；L1292按`_METRIC_CONTEXT.search(part)`分支；L1297按`_QUERY_SURFACE.search(part)`分支。 调用`re.sub`、`re.split`、`re.fullmatch`、`_METRIC_CONTEXT.search`、`result.append`、`consume`、`_QUERY_SURFACE.search`、`"".join`。 返回路径：L1299的`"".join(result), obligations`。
-- `_metric_clauses.consume`（L1212–L1276）：接收`fragment`、`context`、`inherited`。 控制顺序：L1214按`not _METRIC_CONTEXT.search(combined) or not _METRIC_FILTER.search(_legacy_operation_t…`分支；L1230遍历`matches`；L1232按`name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}`分支；L1236按`target is not None and target.kind in {"integer", "boolean"}`分支；L1254按`inherited and not predicates and not scope_only`分支；L1257按`not targets and not predicates and not scope_only`分支；L1259按`not scope_only`分支。 调用`_METRIC_CONTEXT.search`、`_METRIC_FILTER.search`、`_legacy_operation_text`、`_QUERY_SURFACE.search`、`list`、`re.finditer`、`match.group`、`match.group("value").strip`、`next`等。 返回路径：L1219的`fragment`；L1255的`fragment`；L1258的`fragment`。
-- `_metric_clauses.parenthesis`（L1280–L1285）：接收`match`。 调用`match.start`、`re.split`、`match.group`、`consume`。 返回路径：L1285的`match.group() if filtered == body else ""`。
-- `_negative_operation_pattern`（L1302–L1319）：接收`fields`。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`re.compile`。 返回路径：L1315的`re.compile( negative + r"\s*(?:任何\|额外的?\|新的?)?\s*" + targets + r"(?:" + operation + r")" r…`。
-- `_legacy_boolean_text`（L1322–L1346）：接收`text`、`fields`。 源码说明：Lower explicit negative capability lists before field-clause splitting. 不可/不支持/不提供/不参与 describe disabled behavior; 无需/不要求 merely decline a requirement. Coordination ends before a new field or a positi。 调用`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L1346的`_negative_operation_pattern(fields).sub(replace, text)`。
-- `_legacy_boolean_text.replace`（L1329–L1344）：接收`match`。 控制顺序：L1331按`not re.match(r"禁止\|禁用\|关闭\|不得\|不允许\|不可(?:以)?\|不支持\|不提供\|不参与", phrase)`分支；L1334按`re.search(r"搜索\|检索\|search", phrase, re.I)`分支；L1340按`re.search(r"筛选\|过滤\|filter", exact, re.I)`分支；L1342按`re.search(r"日期区间\|日期范围\|date.?range", phrase, re.I)`分支。 调用`match.group`、`re.match`、`re.search`、`attributes.append`、`re.sub`、`" ".join`。 返回路径：L1332的`""`；L1344的`" " + (match.group("targets") or "") + " " + " ".join(attributes) + " "`。
-- `_legacy_operation_text`（L1349–L1361）：接收`text`、`fields`。 源码说明：Remove checked negatives without merging their subjects into the next clause. An empty descriptor preserves the field boundary, while keeping coordinated negated date-range terms out of the positive f。 调用`re.sub`、`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L1361的`_negative_operation_pattern(fields).sub("（）", text)`。
-- `_matches_constraint`（L1364–L1385）：接收`attribute`、`expected`、`actual`。 控制顺序：L1365按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L1366按`isinstance(expected, str)`分支；L1368按`word in {"true", "是", "必填"}`分支；L1370按`word in {"false", "否", "可选", "非必填"}`分支；L1373按`attribute in {"min_length", "max_length"}`分支；L1374按`isinstance(expected, str)`分支；L1376按`legacy`分支；L1379按`attribute == "choices"`分支。 调用`isinstance`、`expected.strip().lower`、`expected.strip`、`type`、`re.fullmatch`、`int`、`legacy.group`、`all`、`set`。 返回路径：L1372的`type(expected) is bool and actual is expected`；L1378的`type(expected) is int and actual == expected`；L1380的`isinstance(expected, list) and all(isinstance(item, str) for item in expected) and set(act…`。
-- `coverage_gaps`（L1388–L1774）：接收`requirement`、`plan`、`diagnostics`。 源码说明：Return blocking messages; optionally record the exact deterministic provenance. Diagnostic source indices refer to the retained Requirement, never a model verdict. Consumers exporting diagnostics must。 控制顺序：L1429按`plan.data_scope != requirement.data_scope`分支；L1436遍历`enumerate(requirement.field_requirements)`；L1444按`len(matches) != 1`分支；L1448遍历`obligation.model_dump().items()`；L1449按`key in {"field", "entity"} or value is None`分支；L1452按`not _matches_constraint(key, value, actual)`分支；L1470遍历`enumerate(structured)`；L1480按`not candidates`分支。后续分支沿下方源码相同行号继续阅读。 调用`gap`、`enumerate`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_matches_constraint`、`list`、`_fact_constraints`等。 返回路径：L1774的`list(dict.fromkeys(gaps))`。
-- `coverage_gaps.gap`（L1399–L1427）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L1401按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_presentation_namespace`（L278–L300）：接收`key`。 源码说明：Normalize semantic namespace words, not individual model spellings.。 控制顺序：L280按`not isinstance(key, str)`分支；L282按`key.casefold() in PRESENTATION_FACT_CONTAINERS`分支；L287按`words & {"labels", "display", "presentation", "ui", "i18n", "localization", "translat…`分支。 调用`isinstance`、`key.casefold`、`re.sub`、`set`、`re.findall`、`normalized.casefold`、`any`。 返回路径：L281的`False`；L283的`True`；L288的`True`。
+- `_decode_fact`（L348–L357）：接收`value`。 控制顺序：L349按`isinstance(value, str) and value.lstrip().startswith(("{", "["))`分支；L355按`isinstance(decoded, (dict, list))`分支。 调用`isinstance`、`value.lstrip().startswith`、`value.lstrip`、`json.loads`。 返回路径：L356的`decoded`；L357的`value`。
+- `_fact_subject`（L360–L380）：接收`key`、`fields`、`entity`、`declared`。 源码说明：Resolve a field position, never a substring of an ancestor's business name.。 控制顺序：L362按`entity is not None and ( not isinstance(entity, str) or not re.fullmatch(r"[a-z][a-z0…`分支；L366按`not isinstance(key, str)`分支；L369按`qualified`分支；L372按`re.fullmatch(r"[a-z][a-z0-9_]*", key) and ( declared or any(field.name == key for _, …`分支；L376遍历`ALIASES.items()`；L377按`key in aliases`分支。 调用`isinstance`、`re.fullmatch`、`qualified.groups`、`any`、`ALIASES.items`、`len`、`next`、`iter`。 返回路径：L367的`(entity, "<invalid field>") if declared else None`；L375的`entity, key`；L379的`entity, next(iter(names)) if len(names) == 1 else canonical`。
+- `_field_kind`（L383–L384）：接收`value`。 调用`isinstance`。 返回路径：L384的`isinstance(value, str) and value in FIELD_KINDS`。
+- `_scalar_subject`（L387–L394）：接收`key`、`fields`、`entity`。 控制顺序：L392按`len(names) == 1`分支。 调用`_fact_candidates`、`len`、`_fact_entity`、`next`、`iter`。 返回路径：L393的`entity or _fact_entity(key, fields), next(iter(names))`；L394的`None`。
+- `_optional_fact`（L397–L402）：接收`value`。 控制顺序：L398按`type(value) is bool`分支；L400按`isinstance(value, str) and value.strip().lower() in {"true", "false", "是", "否"}`分支。 调用`type`、`isinstance`、`value.strip().lower`、`value.strip`。 返回路径：L399的`not value`；L401的`value.strip().lower() in {"false", "否"}`；L402的`value`。
+- `_constraint_schema`（L405–L419）：接收`value`。 源码说明：A structural declaration distinguishes a schema from a translated caption.。 控制顺序：L408按`isinstance(value, list)`分支；L410按`not isinstance(value, dict)`分支。 调用`_decode_fact`、`isinstance`、`any`、`value.values`、`value.get`、`bool`、`re.fullmatch`、`type`。 返回路径：L409的`any(isinstance(_decode_fact(item), dict) for item in value)`；L411的`False`；L412的`any(isinstance(_decode_fact(item), (dict, list)) for item in value.values()) or ( isinstan…`。
+- `_business_schema`（L422–L428）：接收`value`。 源码说明：An explicit business wrapper needs structured domain declarations.。 调用`_decode_fact`、`isinstance`、`any`、`value.items`。 返回路径：L425的`isinstance(value, dict) and any( key in BUSINESS_FACT_CONTAINERS and isinstance(_decode_fa…`。
+- `_fact_records`（L431–L706）：接收`facts`、`fields`。 源码说明：Classify structural facts before projecting field constraints or prose. A name/entity pair alone is not a field declaration. Field definitions have an explicit field position and attributes; business 。 控制顺序：L704遍历`facts.items()`；L705按`key not in FACT_METADATA_KEYS`分支。 调用`facts.items`、`walk`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_fact_records.walk`（L441–L702）：接收`key`、`value`、`path`、`entity`、`subject`、`business`、`container`、`domain`。 控制顺序：L459按`key in FIELD_CONSTRAINT_CONTAINERS and container != "fields" and (domain != "presenta…`分支；L465按`domain == "presentation" and key in BUSINESS_CONSTRAINT_CONTAINERS and _business_sche…`分支；L471按`_presentation_namespace(key) and container != "fields" and not field_position`分支；L473按`domain == "presentation"`分支；L474按`isinstance(value, dict)`分支；L476按`isinstance(value, list)`分支；L480遍历`children`；L483按`key in FIELD_CONSTRAINT_CONTAINERS and container != "fields" and not isinstance(value…`分支。后续分支沿下方源码相同行号继续阅读。 调用`_decode_fact`、`".".join`、`isinstance`、`bool`、`set`、`_fact_subject`、`_constraint_schema`、`_business_schema`、`_presentation_namespace`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_fact_constraints`（L709–L712）：接收`facts`、`fields`。 控制顺序：L710遍历`_fact_records(facts, fields)`；L711按`kind == "constraint"`分支。 调用`_fact_records`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_fact_attribute`（L715–L739）：接收`label`。 控制顺序：L724按`attribute is None and re.search(r"(?:是否必填\|必填)$", label)`分支；L726按`attribute is None and re.search(r"(?:是否可选\|可选)$", label)`分支；L728按`attribute is None`分支；L731遍历`( (r"(?:日期\|date).*(?:区间\|范围\|range)(?:筛选\|过滤)?$", "date_range"),…`；L736按`re.search(pattern, label, re.I)`分支。 调用`next`、`re.search`、`re.escape`。 返回路径：L739的`attribute`。
+- `_scalar_fact_attribute`（L742–L758）：接收`label`、`value`。 控制顺序：L744按`attribute in {"required", "optional", "searchable", "filterable", "date_range"}`分支；L745按`isinstance(value, str) and value.strip().lower() not in { "true", "false", "是", "否", …`分支。 调用`_fact_attribute`、`isinstance`、`value.strip().lower`、`value.strip`。 返回路径：L757的`None`；L758的`attribute`。
+- `_fact_texts`（L761–L764）：接收`facts`、`fields`。 控制顺序：L762遍历`_fact_records(facts, fields)`；L763按`kind == "text"`分支。 调用`_fact_records`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_field_mentions`（L767–L779）：接收`text`、`names`。 源码说明：Field identifiers are whole identifiers, not arbitrary underscore fragments.。 调用`re.sub`、`"\|".join`、`sorted`、`any`、`name.isascii`、`re.search`、`re.escape`。 返回路径：L774的`any( re.search(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])", text, re.I) if name.isasc…`。
+- `_fact_entity`（L782–L789）：接收`key`、`fields`。 控制顺序：L783按`"::" in key`分支。 调用`key.split("::")[0].rsplit`、`key.split`、`re.split`、`next`、`part.strip`、`reversed`。 返回路径：L784的`key.split("::")[0].rsplit(".", 1)[-1]`；L789的`next((part.strip() for part in reversed(path[:-1]) if part.strip() in entities), None)`。
+- `_fact_candidates`（L792–L805）：接收`key`、`fields`。 调用`_fact_entity`、`_field_mentions`、`any`、`ALIASES.values`。 返回路径：L794的`[ field for entity, field in fields if (explicit_entity is None or entity == explicit_enti…`。
+- `_legacy_targets`（L813–L826）：接收`text`、`fields`。 源码说明：Do not turn an ambiguous prose subject into grants on every entity. Exact typed obligations are checked independently. Unscoped repeated names remain semantic-review context unless the prose explicitl。 控制顺序：L820按`_fact_entity(text, fields) is not None or _ALL_ENTITIES.search(text)`分支。 调用`_fact_candidates`、`_fact_entity`、`_ALL_ENTITIES.search`、`len`。 返回路径：L821的`candidates`；L822的`[ field for field in candidates if len({entity for entity, item in fields if item.name == …`。
+- `_query_composition_text`（L835–L874）：接收`text`、`fields`。 源码说明：A composite query needs its own local field targets to declare a flag. A subject-free composition statement combines the predicates already declared elsewhere. Explicit 'combined search by title' stil。 控制顺序：L844遍历`text`；L846按`char in "（([【"`分支；L848按`char in "）)]】"`分支；L851遍历`re.finditer(r"[，,；;。\n]\|以及\|并且\|并\|且\|和\|与\|\band\b", text, re.I…`；L852按`depths[match.start()]`分支；L854按`re.fullmatch(r"[，,；;。\n]", match.group()) or re.search( LEGACY_PROPERTY, text[boundar…`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`re.fullmatch`、`match.group`、`re.search`、`boundaries.append`、`match.end`等。 返回路径：L867的`re.sub( r"(?:组合\|联合\|复合\|多条件)\s*(?:查询\|检索\|搜索\|筛选\|过滤)\|" r"\b(?:combined\|composite\|comp…`。
+- `_query_composition_text.replace`（L860–L865）：接收`match`。 控制顺序：L863按`_fact_candidates(text[start:end], fields)`分支。 调用`max`、`match.start`、`min`、`match.end`、`_fact_candidates`、`match.group`、`len`。 返回路径：L864的`match.group()`；L865的`" " * len(match.group())`。
+- `_query_predicate_text`（L877–L967）：接收`text`、`fields`。 源码说明：Exclude operation-derived nouns unless an explicit predicate binds fields. Search results and filter conditions describe query output or context; they do not independently enable a field capability. K。 调用`_query_composition_text`、`re.compile`、`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`、`nouns.sub`。 返回路径：L967的`nouns.sub(replace, text)`。
+- `_query_predicate_text.replace`（L908–L965）：接收`match`。 控制顺序：L942按`binds_before or binds_after or imperative`分支；L947按`re.search(r"日期区间\|日期范围\|date[-_\s]?range", operation, re.I)`分支；L951按`negative`分支。 调用`re.split`、`match.start`、`match.end`、`bool`、`re.fullmatch`、`list`、`subjects.finditer`、`mentions[-1].end`、`re.match`等。 返回路径：L962的`operation + " "`；L965的`" " * len(match.group())`。
+- `_section_entity`（L970–L975）：接收`text`、`fields`。 源码说明：Infer only an unambiguous owner of an explicitly named field inventory.。 调用`_field_mentions`、`set.intersection`、`set`、`len`、`next`、`iter`。 返回路径：L975的`next(iter(common)) if len(common) == 1 else None`。
+- `_single_operation_heading`（L978–L996）：接收`text`。 源码说明：Only a bare single operation can predicate the list following a colon.。 控制顺序：L982遍历`( r"日期区间\|日期范围(?:筛选\|查询)?\|date.?range", r"搜索\|检索\|search(?:ing\|…`；L987按`re.search(pattern, remaining, re.I)`分支。 调用`re.search`、`re.sub`。 返回路径：L996的`operations == 1 and not remaining`。
+- `_explicit_predicate_heading`（L999–L1014）：接收`text`。 源码说明：Known property/value syntax is a predicate, not a contextual title.。 控制顺序：L1001按`_single_operation_heading(text)`分支。 调用`_single_operation_heading`、`text.strip().rstrip(":：").strip`、`text.strip().rstrip`、`text.strip`、`re.sub(r"\s*(?:字段\|fields?)$", "", heading, flags=re.I).strip`、`re.sub`、`bool`、`re.fullmatch`。 返回路径：L1002的`True`；L1005的`bool( re.fullmatch( r"(?:required\|optional\|必填\|可选填?\|非必填\|不必填\|是否必填\|" r"min_length\|max…`。
+- `_explicit_query_sections`（L1017–L1055）：接收`text`、`fields`。 源码说明：Separate a new query subject from an earlier inventory or operation. Commas inside descriptors and bare identifier lists remain untouched. A direct by/using/按/对 clause must name its own fields and ope。 控制顺序：L1024遍历`text`；L1026按`char in "（([【"`分支；L1028按`char in "）)]】"`分支；L1036遍历`boundary.finditer(text)`；L1037按`not depths[match.start()] and ( _fact_candidates(text[start : match.start()], fields)…`分支。 调用`depths.append`、`max`、`re.compile`、`boundary.finditer`、`match.start`、`_fact_candidates`、`text[start : match.start()].strip`、`_single_operation_heading`、`match.end`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_descriptor_inventory_groups`（L1058–L1104）：接收`text`、`subject_pattern`。 源码说明：Project bracketed per-field declarations separately from their wrapper. A bare search(title, detail) target list stays intact. In contrast, a list such as create(title max_length=200, detail max_lengt。 控制顺序：L1067遍历`enumerate(text)`；L1068按`char in "（([【"`分支；L1070按`char in "）)]】" and stack`分支；L1072按`not stack`分支；L1075遍历`spans`；L1078遍历`body`；L1080按`char in "（([【"`分支；L1082按`char in "）)]】"`分支。后续分支沿下方源码相同行号继续阅读。 调用`enumerate`、`stack.append`、`stack.pop`、`spans.append`、`depths.append`、`max`、`re.finditer`、`match.start`、`len`等。 返回路径：L1104的`"".join(parts), declarations`。
+- `_legacy_clauses`（L1107–L1340）：接收`text`、`fields`。 源码说明：Bind predicates to top-level subjects, preserving bracketed target lists. Both name（必填，最长120）and 搜索（name、contact）are indivisible. A descriptive clause ending at a comma does not lend its subject to th。 控制顺序：L1125遍历`re.split(r"([；;。\n]\|但是\|但\|不过)", text)`；L1126按`sentence in {"但是", "但", "不过"}`分支；L1129按`re.fullmatch(r"[；;。\n]", sentence)`分支；L1133按`contrast and previous_subject and not _fact_candidates(sentence, fields) and re.match…`分支；L1146在`True`成立时循环；L1149按`heading and heading.group(1) in {entity for entity, _ in fields}`分支；L1155按`heading and not _explicit_predicate_heading(heading.group())`分支；L1156按`not explicit_scope`分支。后续分支沿下方源码相同行号继续阅读。 调用`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`、`_fact_entity`、`re.split`、`re.fullmatch`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_operation_parts`（L1343–L1357）：接收`text`。 源码说明：Split coordinated operations, never the subjects inside a target list.。 控制顺序：L1346遍历`text`；L1348按`char in "（([【"`分支；L1350按`char in "）)]】"`分支；L1353遍历`re.finditer(r"、\|并且\|并\|且\|和\|与", text)`；L1354按`not depths[match.start()]`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_metric_clauses`（L1379–L1475）：接收`text`、`fields`。 源码说明：Separate aggregate predicates from field-query declarations. Only a recognized metric clause with named filter operands or permission scope is consumed. Explicit UI/query flags always remain field obl。 控制顺序：L1465遍历`re.split(r"([，,；;。\n]\|并且\|并\|且\|和\|与)", text)`；L1466按`re.fullmatch(r"[；;。\n]", part)`分支；L1468按`_METRIC_CONTEXT.search(part)`分支；L1473按`_QUERY_SURFACE.search(part)`分支。 调用`re.sub`、`re.split`、`re.fullmatch`、`_METRIC_CONTEXT.search`、`result.append`、`consume`、`_QUERY_SURFACE.search`、`"".join`。 返回路径：L1475的`"".join(result), obligations`。
+- `_metric_clauses.consume`（L1388–L1452）：接收`fragment`、`context`、`inherited`。 控制顺序：L1390按`not _METRIC_CONTEXT.search(combined) or not _METRIC_FILTER.search(_legacy_operation_t…`分支；L1406遍历`matches`；L1408按`name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}`分支；L1412按`target is not None and target.kind in {"integer", "boolean"}`分支；L1430按`inherited and not predicates and not scope_only`分支；L1433按`not targets and not predicates and not scope_only`分支；L1435按`not scope_only`分支。 调用`_METRIC_CONTEXT.search`、`_METRIC_FILTER.search`、`_legacy_operation_text`、`_QUERY_SURFACE.search`、`list`、`re.finditer`、`match.group`、`match.group("value").strip`、`next`等。 返回路径：L1395的`fragment`；L1431的`fragment`；L1434的`fragment`。
+- `_metric_clauses.parenthesis`（L1456–L1461）：接收`match`。 调用`match.start`、`re.split`、`match.group`、`consume`。 返回路径：L1461的`match.group() if filtered == body else ""`。
+- `_negative_operation_pattern`（L1478–L1495）：接收`fields`。 调用`names.update`、`ALIASES.values`、`"\|".join`、`re.escape`、`sorted`、`re.compile`。 返回路径：L1491的`re.compile( negative + r"\s*(?:任何\|额外的?\|新的?)?\s*" + targets + r"(?:" + operation + r")" r…`。
+- `_legacy_boolean_text`（L1498–L1522）：接收`text`、`fields`。 源码说明：Lower explicit negative capability lists before field-clause splitting. 不可/不支持/不提供/不参与 describe disabled behavior; 无需/不要求 merely decline a requirement. Coordination ends before a new field or a positi。 调用`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L1522的`_negative_operation_pattern(fields).sub(replace, text)`。
+- `_legacy_boolean_text.replace`（L1505–L1520）：接收`match`。 控制顺序：L1507按`not re.match(r"禁止\|禁用\|关闭\|不得\|不允许\|不可(?:以)?\|不支持\|不提供\|不参与", phrase)`分支；L1510按`re.search(r"搜索\|检索\|search", phrase, re.I)`分支；L1516按`re.search(r"筛选\|过滤\|filter", exact, re.I)`分支；L1518按`re.search(r"日期区间\|日期范围\|date.?range", phrase, re.I)`分支。 调用`match.group`、`re.match`、`re.search`、`attributes.append`、`re.sub`、`" ".join`。 返回路径：L1508的`""`；L1520的`" " + (match.group("targets") or "") + " " + " ".join(attributes) + " "`。
+- `_legacy_operation_text`（L1525–L1537）：接收`text`、`fields`。 源码说明：Remove checked negatives without merging their subjects into the next clause. An empty descriptor preserves the field boundary, while keeping coordinated negated date-range terms out of the positive f。 调用`re.sub`、`_negative_operation_pattern(fields).sub`、`_negative_operation_pattern`。 返回路径：L1537的`_negative_operation_pattern(fields).sub("（）", text)`。
+- `_matches_constraint`（L1540–L1561）：接收`attribute`、`expected`、`actual`。 控制顺序：L1541按`attribute in {"required", "searchable", "filterable", "date_range"}`分支；L1542按`isinstance(expected, str)`分支；L1544按`word in {"true", "是", "必填"}`分支；L1546按`word in {"false", "否", "可选", "非必填"}`分支；L1549按`attribute in {"min_length", "max_length"}`分支；L1550按`isinstance(expected, str)`分支；L1552按`legacy`分支；L1555按`attribute == "choices"`分支。 调用`isinstance`、`expected.strip().lower`、`expected.strip`、`type`、`re.fullmatch`、`int`、`legacy.group`、`all`、`set`。 返回路径：L1548的`type(expected) is bool and actual is expected`；L1554的`type(expected) is int and actual == expected`；L1556的`isinstance(expected, list) and all(isinstance(item, str) for item in expected) and set(act…`。
+- `coverage_gaps`（L1564–L1950）：接收`requirement`、`plan`、`diagnostics`。 源码说明：Return blocking messages; optionally record the exact deterministic provenance. Diagnostic source indices refer to the retained Requirement, never a model verdict. Consumers exporting diagnostics must。 控制顺序：L1605按`plan.data_scope != requirement.data_scope`分支；L1612遍历`enumerate(requirement.field_requirements)`；L1620按`len(matches) != 1`分支；L1624遍历`obligation.model_dump().items()`；L1625按`key in {"field", "entity"} or value is None`分支；L1628按`not _matches_constraint(key, value, actual)`分支；L1646遍历`enumerate(structured)`；L1656按`not candidates`分支。后续分支沿下方源码相同行号继续阅读。 调用`gap`、`enumerate`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_matches_constraint`、`list`、`_fact_constraints`等。 返回路径：L1950的`list(dict.fromkeys(gaps))`。
+- `coverage_gaps.gap`（L1575–L1603）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L1577按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/requirement_coverage.py sha256: 02a8d446f2a0d87f1f39573237e48f947d303f51fc1a57c68a18229ef0b61373 -->
+<!-- source-file: workbench/requirement_coverage.py sha256: 834622d8e002f38d142e4e7a2936fe5492b6fd8e29e2c5409d1b860b4376683b -->
 ````python
 """Persist approved intent and check executable obligations without a model verdict.
 
@@ -16308,6 +16879,47 @@ FACT_DESCRIPTOR_KEYS = {"field", "name", "entity", "label", "choice_labels"}
 
 
 FIELD_FACT_CONTAINERS = {"fields", "field_requirements", "field_constraints", "字段", "字段约束"}
+FIELD_CONSTRAINT_CONTAINERS = {"field_requirements", "field_constraints", "字段约束"}
+BUSINESS_CONSTRAINT_CONTAINERS = {"business", "business_requirements", "business_constraints"}
+PRESENTATION_FACT_CONTAINERS = {
+    "labels",
+    "display",
+    "display_metadata",
+    "presentation",
+    "ui",
+    "i18n",
+    "localization",
+    "translations",
+    "界面标签",
+    "显示标签",
+}
+
+
+def _presentation_namespace(key):
+    """Normalize semantic namespace words, not individual model spellings."""
+    if not isinstance(key, str):
+        return False
+    if key.casefold() in PRESENTATION_FACT_CONTAINERS:
+        return True
+    normalized = re.sub(r"([A-Z]+)([A-Z][a-z])", r"\1_\2", key)
+    normalized = re.sub(r"([a-z0-9])([A-Z])", r"\1_\2", normalized)
+    words = set(re.findall(r"[a-z0-9]+", normalized.casefold()))
+    if words & {"labels", "display", "presentation", "ui", "i18n", "localization", "translations"}:
+        return True
+    return any(
+        marker in key
+        for marker in (
+            "界面标签",
+            "显示标签",
+            "显示名称",
+            "字段标签",
+            "字段中文名",
+            "界面文案",
+            "本地化",
+        )
+    )
+
+
 RESOURCE_FACT_CONTAINERS = {"resources", "entities", "资源", "实体"}
 RELATION_FACT_CONTAINERS = {"relations", "关系"}
 BUSINESS_FACT_CONTAINERS = {
@@ -16410,6 +17022,32 @@ def _optional_fact(value):
     return value
 
 
+def _constraint_schema(value):
+    """A structural declaration distinguishes a schema from a translated caption."""
+    value = _decode_fact(value)
+    if isinstance(value, list):
+        return any(isinstance(_decode_fact(item), dict) for item in value)
+    if not isinstance(value, dict):
+        return False
+    return (
+        any(isinstance(_decode_fact(item), (dict, list)) for item in value.values())
+        or (
+            isinstance(value.get("field", value.get("name")), str)
+            and bool(re.fullmatch(r"[a-z][a-z0-9_]*", value.get("field", value.get("name"))))
+        )
+        or any(type(value.get(attribute)) in {bool, int} for attribute in FACT_ATTRIBUTES)
+    )
+
+
+def _business_schema(value):
+    """An explicit business wrapper needs structured domain declarations."""
+    value = _decode_fact(value)
+    return isinstance(value, dict) and any(
+        key in BUSINESS_FACT_CONTAINERS and isinstance(_decode_fact(item), (dict, list))
+        for key, item in value.items()
+    )
+
+
 def _fact_records(facts, fields):
     """Classify structural facts before projecting field constraints or prose.
 
@@ -16420,9 +17058,55 @@ def _fact_records(facts, fields):
     """
     entities = {entity for entity, _ in fields}
 
-    def walk(key, value, path, entity=None, subject=None, business=False, container=None):
+    def walk(
+        key, value, path, entity=None, subject=None, business=False, container=None, domain=None
+    ):
         value = _decode_fact(value)
         label = ".".join(path)
+        # Domain provenance survives arbitrary maps, lists and JSON encodings.
+        # A display schema can legitimately contain fields/name/required/choices
+        # captions: those tokens cannot turn its values into field declarations.
+        # An explicit constraint namespace is a separate schema, even nested in
+        # presentation metadata. Keep traversing to find it and validate it in
+        # full; never discard the whole display subtree.
+        field_position = (
+            domain != "presentation"
+            and isinstance(value, dict)
+            and bool(set(value) & FACT_ATTRIBUTES)
+            and not (set(value) & (FIELD_FACT_CONTAINERS | RESOURCE_FACT_CONTAINERS))
+            and _fact_subject(key, fields, entity) is not None
+        )
+        if (
+            key in FIELD_CONSTRAINT_CONTAINERS
+            and container != "fields"
+            and (domain != "presentation" or _constraint_schema(value))
+        ):
+            domain = "constraints"
+        elif (
+            domain == "presentation"
+            and key in BUSINESS_CONSTRAINT_CONTAINERS
+            and _business_schema(value)
+        ):
+            domain = "business"
+        elif _presentation_namespace(key) and container != "fields" and not field_position:
+            domain = "presentation"
+        if domain == "presentation":
+            if isinstance(value, dict):
+                children = value.items()
+            elif isinstance(value, list):
+                children = ((str(index), item) for index, item in enumerate(value))
+            else:
+                return
+            for name, item in children:
+                yield from walk(name, item, [*path, name], entity=entity, domain=domain)
+            return
+        if (
+            key in FIELD_CONSTRAINT_CONTAINERS
+            and container != "fields"
+            and not isinstance(value, (dict, list))
+        ):
+            yield "constraint", label, {}, _fact_subject(None, fields, entity, declared=True)
+            return
         field_container = key in FIELD_FACT_CONTAINERS and subject is None and container is None
         resource_container = (
             key in RESOURCE_FACT_CONTAINERS and subject is None and container is None
@@ -16509,7 +17193,10 @@ def _fact_records(facts, fields):
                 entity = key
             if not entity_record and (
                 declared
-                and ("field" in value or (key.isdigit() and "name" in value))
+                and (
+                    "field" in value
+                    or (key.isdigit() and ("name" in value or domain == "constraints"))
+                )
                 and not identifier
             ):
                 subject = _fact_subject(None, fields, value.get("entity", entity), declared=True)
@@ -16574,8 +17261,18 @@ def _fact_records(facts, fields):
                     subject,
                     business_record and not field_container,
                     child_container,
+                    domain,
                 )
         elif isinstance(value, list):
+            if domain == "constraints" and collection == "fields":
+                for index, item in enumerate(value):
+                    if not isinstance(_decode_fact(item), dict):
+                        yield (
+                            "constraint",
+                            f"{label}.{index}",
+                            {},
+                            _fact_subject(None, fields, entity, declared=True),
+                        )
             if not any(isinstance(_decode_fact(item), (dict, list)) for item in value):
                 attribute = _fact_attribute(key)
                 target = subject if attribute == "choices" else None
@@ -16603,6 +17300,7 @@ def _fact_records(facts, fields):
                             subject,
                             (business or key in BUSINESS_FACT_CONTAINERS) and not field_container,
                             child_container,
+                            domain,
                         )
         else:
             attribute = _scalar_fact_attribute(key, value)
@@ -16754,6 +17452,48 @@ LEGACY_PROPERTY = (
 )
 
 
+def _query_composition_text(text, fields):
+    """A composite query needs its own local field targets to declare a flag.
+
+    A subject-free composition statement combines the predicates already
+    declared elsewhere. Explicit 'combined search by title' still declares
+    title's primitive operation; neither an earlier nor a later clause can
+    donate targets to a generic composition statement.
+    """
+    depth, depths = 0, []
+    for char in text:
+        depths.append(depth)
+        if char in "（([【":
+            depth += 1
+        elif char in "）)]】":
+            depth = max(0, depth - 1)
+    boundaries = [0]
+    for match in re.finditer(r"[，,；;。\n]|以及|并且|并|且|和|与|\band\b", text, re.I):
+        if depths[match.start()]:
+            continue
+        if re.fullmatch(r"[，,；;。\n]", match.group()) or re.search(
+            LEGACY_PROPERTY, text[boundaries[-1] : match.start()], re.I
+        ):
+            boundaries.append(match.end())
+    boundaries.append(len(text))
+
+    def replace(match):
+        start = max(boundary for boundary in boundaries if boundary <= match.start())
+        end = min(boundary for boundary in boundaries if boundary >= match.end())
+        if _fact_candidates(text[start:end], fields):
+            return match.group()
+        return " " * len(match.group())
+
+    return re.sub(
+        r"(?:组合|联合|复合|多条件)\s*(?:查询|检索|搜索|筛选|过滤)|"
+        r"\b(?:combined|composite|compound|multi[-\s]?condition)\s+"
+        r"(?:search(?:ing)?|filter(?:ing)?|quer(?:y|ies))\b",
+        replace,
+        text,
+        flags=re.I,
+    )
+
+
 def _query_predicate_text(text, fields):
     """Exclude operation-derived nouns unless an explicit predicate binds fields.
 
@@ -16762,6 +17502,7 @@ def _query_predicate_text(text, fields):
     'title is a search criterion' and imperatives such as 'filter results by title'.
     Other verbs in the same clause remain available for ordinary subject binding.
     """
+    text = _query_composition_text(text, fields)
     nouns = re.compile(
         r"(?P<operation>"
         r"(?:日期区间|日期范围)(?:筛选|过滤|查询)?|"
@@ -16915,7 +17656,13 @@ def _explicit_query_sections(text, fields):
     for match in boundary.finditer(text):
         if (
             not depths[match.start()]
-            and _fact_candidates(text[start : match.start()], fields)
+            and (
+                _fact_candidates(text[start : match.start()], fields)
+                or (
+                    text[start : match.start()].strip()
+                    and not _single_operation_heading(text[start : match.start()])
+                )
+            )
             and _fact_candidates(text[match.end() :], fields)
             and re.search(
                 r"搜索|检索|筛选|过滤|search|filter|日期区间|日期范围|date.?range",
@@ -19351,21 +20098,21 @@ def scaffold_native_rules(template, plan, product, reports):
 
 **逐个入口与控制逻辑：**
 
-- `ModelProfile`（L17–L48）：继承`BaseModel`。声明的数据项为`stage`、`base_url`、`model`、`api_key`；类型约束/数据库列参数以完整定义为准。
-- `ModelProfile.validate_endpoint`（L23–L40）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L25按`url.scheme not in {"http", "https"} or not url.hostname or url.username or url.passwo…`分支；L33抛异常，停止当前正常路径；L34按`url.scheme == "http" and url.hostname not in {"127.0.0.1", "localhost", "::1"}`分支；L35抛异常，停止当前正常路径；L36按`not self.model or not self.api_key.get_secret_value()`分支；L37抛异常，停止当前正常路径；L38按`self.base_url.rstrip("/").endswith("/chat/completions")`分支；L39抛异常，停止当前正常路径。 调用`urlsplit`、`ValueError`、`self.api_key.get_secret_value`、`self.base_url.rstrip("/").endswith`、`self.base_url.rstrip`。 返回路径：L40的`self`。
-- `ModelProfile.public`（L42–L48）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.api_key.get_secret_value`。 返回路径：L43的`{ "stage": self.stage, "base_url": self.base_url, "model": self.model, "api_key": "configu…`。
-- `Settings`（L51–L189）：继承`BaseSettings`。声明的数据项为`base_url`、`api_key`、`model`、`requirements_base_url`、`requirements_api_key`、`requirements_model`、`planning_base_url`、`planning_api_key`、`planning_model`、`coding_base_url`、`coding_api_key`、`coding_model`、`review_base_url`、`review_api_key`、`review_model`、`model_review`、`data_dir`、`database_url`、`product_postgres_url`、`llm_timeout`、`max_model_calls`、`max_rounds`、`max_context_chars`、`install_products`、`enable_coding`、`max_repair_attempts`、`tool_timeout`、`coding_engine`、`aider_executable`、`repo_map_provider`、`retrieval_engine`、`repo_map_chars`、`embedding_base_url`、`embedding_api_key`、`embedding_model`、`embedding_enabled`、`embedding_max_chunks`、`sandbox_provider`、`daytona_api_url`、`daytona_api_key`、`daytona_target`、`daytona_snapshot`、`daytona_snapshots`、`daytona_runtime_timeout`、`daytona_allow_local_execution`、`daytona_capture_startup_diagnostics`、`checkpoint_url`、`host`、`port`；类型约束/数据库列参数以完整定义为准。
-- `Settings.only_local_tools`（L120–L121）：接收`value`。 调用`local_http_url`、`field_validator`。 返回路径：L121的`local_http_url(value)`。
-- `Settings.only_local_databases`（L125–L126）：接收`value`。 调用`local_database_url`、`field_validator`。 返回路径：L126的`local_database_url(value)`。
-- `Settings.absolute_data_dir`（L130–L131）：接收`value`。 调用`(value if value.is_absolute() else ROOT / value).resolve`、`value.is_absolute`、`field_validator`。 返回路径：L131的`(value if value.is_absolute() else ROOT / value).resolve()`。
-- `Settings.db_url`（L134–L138）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_database_url`、`(self.data_dir / 'workbench.db').as_posix`。 返回路径：L135的`local_database_url(self.database_url) or f"sqlite:///{(self.data_dir / 'workbench.db').as_…`。
-- `Settings.prepare`（L140–L143）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L142遍历`("runs", "sources", "knowledge", "native")`。 调用`self.data_dir.mkdir`、`(self.data_dir / name).mkdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.model_for`（L145–L161）：接收`stage`。 控制顺序：L146按`stage not in STAGES`分支；L147抛异常，停止当前正常路径；L150按`not key.get_secret_value()`分支；L151按`endpoint.rstrip("/") != self.base_url.rstrip("/")`分支；L152抛异常，停止当前正常路径。 调用`ValueError`、`getattr`、`key.get_secret_value`、`endpoint.rstrip`、`self.base_url.rstrip`、`stage.upper`、`ModelProfile`。 返回路径：L156的`ModelProfile( stage=stage, base_url=endpoint.rstrip("/"), model=getattr(self, stage + "_mo…`。
-- `Settings.require_model`（L163–L167）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L164遍历`STAGES[:3]`；L166按`self.review_enabled`分支。 调用`self.model_for(stage).validate_endpoint`、`self.model_for`、`self.model_for("review").validate_endpoint`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.review_enabled`（L170–L176）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`、`self.review_api_key.get_secret_value`。 返回路径：L171的`bool( self.model_review or self.review_model or self.review_base_url or self.review_api_ke…`。
-- `Settings.redact`（L178–L189）：接收`text`。 控制顺序：L179遍历`( "api_key", "product_postgres_url", "embedding_api_key", "dayton…`；L187按`secret`分支。 调用`getattr(self, field).get_secret_value`、`getattr`、`text.replace`。 返回路径：L189的`text`。
+- `ModelProfile`（L19–L56）：继承`BaseModel`。声明的数据项为`stage`、`base_url`、`model`、`api_key`、`provider`、`output_mode`、`max_output_tokens`；类型约束/数据库列参数以完整定义为准。
+- `ModelProfile.validate_endpoint`（L28–L45）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L30按`url.scheme not in {"http", "https"} or not url.hostname or url.username or url.passwo…`分支；L38抛异常，停止当前正常路径；L39按`url.scheme == "http" and url.hostname not in {"127.0.0.1", "localhost", "::1"}`分支；L40抛异常，停止当前正常路径；L41按`not self.model or not self.api_key.get_secret_value()`分支；L42抛异常，停止当前正常路径；L43按`self.base_url.rstrip("/").endswith("/chat/completions")`分支；L44抛异常，停止当前正常路径。 调用`urlsplit`、`ValueError`、`self.api_key.get_secret_value`、`self.base_url.rstrip("/").endswith`、`self.base_url.rstrip`。 返回路径：L45的`self`。
+- `ModelProfile.public`（L47–L56）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.api_key.get_secret_value`。 返回路径：L48的`{ "stage": self.stage, "base_url": self.base_url, "model": self.model, "api_key": "configu…`。
+- `Settings`（L59–L223）：继承`BaseSettings`。声明的数据项为`base_url`、`api_key`、`model`、`provider`、`output_mode`、`max_output_tokens`、`requirements_provider`、`requirements_output_mode`、`requirements_max_output_tokens`、`planning_provider`、`planning_output_mode`、`planning_max_output_tokens`、`coding_provider`、`coding_output_mode`、`coding_max_output_tokens`、`review_provider`、`review_output_mode`、`review_max_output_tokens`、`requirements_base_url`、`requirements_api_key`、`requirements_model`、`planning_base_url`、`planning_api_key`、`planning_model`、`coding_base_url`、`coding_api_key`、`coding_model`、`review_base_url`、`review_api_key`、`review_model`、`model_review`、`data_dir`、`database_url`、`product_postgres_url`、`llm_timeout`、`max_model_calls`、`max_rounds`、`max_context_chars`、`install_products`、`enable_coding`、`max_repair_attempts`、`tool_timeout`、`coding_engine`、`aider_executable`、`repo_map_provider`、`retrieval_engine`、`repo_map_chars`、`embedding_base_url`、`embedding_api_key`、`embedding_model`、`embedding_enabled`、`embedding_max_chunks`、`sandbox_provider`、`daytona_api_url`、`daytona_api_key`、`daytona_target`、`daytona_snapshot`、`daytona_snapshots`、`daytona_runtime_timeout`、`daytona_allow_local_execution`、`daytona_capture_startup_diagnostics`、`checkpoint_url`、`host`、`port`；类型约束/数据库列参数以完整定义为准。
+- `Settings.only_local_tools`（L143–L144）：接收`value`。 调用`local_http_url`、`field_validator`。 返回路径：L144的`local_http_url(value)`。
+- `Settings.only_local_databases`（L148–L149）：接收`value`。 调用`local_database_url`、`field_validator`。 返回路径：L149的`local_database_url(value)`。
+- `Settings.absolute_data_dir`（L153–L154）：接收`value`。 调用`(value if value.is_absolute() else ROOT / value).resolve`、`value.is_absolute`、`field_validator`。 返回路径：L154的`(value if value.is_absolute() else ROOT / value).resolve()`。
+- `Settings.db_url`（L157–L161）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_database_url`、`(self.data_dir / 'workbench.db').as_posix`。 返回路径：L158的`local_database_url(self.database_url) or f"sqlite:///{(self.data_dir / 'workbench.db').as_…`。
+- `Settings.prepare`（L163–L166）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L165遍历`("runs", "sources", "knowledge", "native")`。 调用`self.data_dir.mkdir`、`(self.data_dir / name).mkdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.model_for`（L168–L195）：接收`stage`。 控制顺序：L169按`stage not in STAGES`分支；L170抛异常，停止当前正常路径；L173按`not key.get_secret_value()`分支；L174按`endpoint.rstrip("/") != self.base_url.rstrip("/")`分支；L175抛异常，停止当前正常路径。 调用`ValueError`、`getattr`、`key.get_secret_value`、`endpoint.rstrip`、`self.base_url.rstrip`、`stage.upper`、`ModelProfile`。 返回路径：L179的`ModelProfile( stage=stage, base_url=endpoint.rstrip("/"), model=getattr(self, stage + "_mo…`。
+- `Settings.require_model`（L197–L201）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L198遍历`STAGES[:3]`；L200按`self.review_enabled`分支。 调用`self.model_for(stage).validate_endpoint`、`self.model_for`、`self.model_for("review").validate_endpoint`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.review_enabled`（L204–L210）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`、`self.review_api_key.get_secret_value`。 返回路径：L205的`bool( self.model_review or self.review_model or self.review_base_url or self.review_api_ke…`。
+- `Settings.redact`（L212–L223）：接收`text`。 控制顺序：L213遍历`( "api_key", "product_postgres_url", "embedding_api_key", "dayton…`；L221按`secret`分支。 调用`getattr(self, field).get_secret_value`、`getattr`、`text.replace`。 返回路径：L223的`text`。
 
-<!-- source-file: workbench/settings.py sha256: c008048a3a3fa2921d5eb6b0095c8b18aad72a22c25135f0a34592952fee50d7 -->
+<!-- source-file: workbench/settings.py sha256: 7df8f5eb535bc8093f45cb057e0345f2e83a5b15638902ea52b3a8bbbefe199d -->
 ````python
 """Local configuration and optional per-stage model profiles; no secrets in run receipts."""
 
@@ -19381,6 +20128,8 @@ from workbench.local_only import local_database_url, local_http_url
 ROOT = Path(__file__).resolve().parent.parent
 Stage = Literal["requirements", "planning", "coding", "review"]
 STAGES = ("requirements", "planning", "coding", "review")
+Provider = Literal["auto", "openai", "deepseek", "compatible"]
+OutputMode = Literal["auto", "json_object"]
 
 
 class ModelProfile(BaseModel):
@@ -19388,6 +20137,9 @@ class ModelProfile(BaseModel):
     base_url: str
     model: str
     api_key: SecretStr
+    provider: Provider = "auto"
+    output_mode: OutputMode = "auto"
+    max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
 
     def validate_endpoint(self):
         url = urlsplit(self.base_url)
@@ -19414,6 +20166,9 @@ class ModelProfile(BaseModel):
             "base_url": self.base_url,
             "model": self.model,
             "api_key": "configured" if self.api_key.get_secret_value() else "missing",
+            "provider": self.provider,
+            "output_mode": self.output_mode,
+            "max_output_tokens": self.max_output_tokens,
         }
 
 
@@ -19422,6 +20177,21 @@ class Settings(BaseSettings):
     base_url: str = ""
     api_key: SecretStr = SecretStr("")
     model: str = Field(default="", validation_alias=AliasChoices("MODE", "MODEL", "model"))
+    provider: Provider = "auto"
+    output_mode: OutputMode = "auto"
+    max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
+    requirements_provider: Provider | None = None
+    requirements_output_mode: OutputMode | None = None
+    requirements_max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
+    planning_provider: Provider | None = None
+    planning_output_mode: OutputMode | None = None
+    planning_max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
+    coding_provider: Provider | None = None
+    coding_output_mode: OutputMode | None = None
+    coding_max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
+    review_provider: Provider | None = None
+    review_output_mode: OutputMode | None = None
+    review_max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
     requirements_base_url: str = ""
     requirements_api_key: SecretStr = SecretStr("")
     requirements_model: str = Field(
@@ -19527,6 +20297,17 @@ class Settings(BaseSettings):
             base_url=endpoint.rstrip("/"),
             model=getattr(self, stage + "_model") or self.model,
             api_key=key,
+            # An endpoint change must not inherit the previous provider's wire protocol.
+            provider=getattr(self, stage + "_provider")
+            or (self.provider if endpoint.rstrip("/") == self.base_url.rstrip("/") else "auto"),
+            output_mode=getattr(self, stage + "_output_mode")
+            or (self.output_mode if endpoint.rstrip("/") == self.base_url.rstrip("/") else "auto"),
+            max_output_tokens=getattr(self, stage + "_max_output_tokens")
+            or (
+                self.max_output_tokens
+                if endpoint.rstrip("/") == self.base_url.rstrip("/")
+                else None
+            ),
         )
 
     def require_model(self) -> None:
@@ -19584,7 +20365,7 @@ class Settings(BaseSettings):
 - `Approval`（L109–L114）：继承`Base`。声明的数据项为`gate_id`、`decision`、`actor`、`created_at`；类型约束/数据库列参数以完整定义为准。
 - `Step`（L117–L124）：继承`Base`。声明的数据项为`id`、`run_id`、`name`、`data`、`created_at`；类型约束/数据库列参数以完整定义为准。
 - `Event`（L127–L133）：继承`Base`。声明的数据项为`id`、`run_id`、`kind`、`data`、`created_at`；类型约束/数据库列参数以完整定义为准。
-- `Store`（L136–L561）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Store`（L136–L575）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `Store.__init__`（L137–L160）：接收`settings`。 控制顺序：L146按`self.engine.dialect.name == "sqlite"`分支。 调用`settings.prepare`、`settings.db_url.startswith`、`create_engine`、`sessionmaker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Store.__init__.configure`（L149–L158）：接收`connection`、`_`。 调用`_cursor`、`cursor.execute`、`event.listens_for`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Store.migrate`（L162–L167）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Config`、`str`、`config.set_main_option`、`self.engine.begin`、`command.upgrade`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
@@ -19608,19 +20389,19 @@ class Settings(BaseSettings):
 - `Store.set_automation.operation`（L343–L380）：接收`session`。 控制顺序：L345按`run is None`分支；L346抛异常，停止当前正常路径；L347按`run.status in {"READY", "SOURCE_READY", "REJECTED"}`分支；L348抛异常，停止当前正常路径；L361按`enabled and run.pending`分支；L374按`not enabled and run.status == "BLOCKED" and run.pending`分支；L377按`enabled and run.status in {"FAILED", "BLOCKED", "PAUSED_LIMIT"}`分支。 调用`session.get`、`Missing`、`Conflict`、`session.add`、`Event`、`Job`、`run.pending["stage"].upper`。 返回路径：L380的`{"run_id": run_id, "auto_mode": enabled, "status": run.status}`。
 - `Store.auto_approve`（L386–L406）：接收`run_id`、`gate`。 控制顺序：L389按`not run or not run.auto_mode or not gate["can_approve"]`分支；L390抛异常，停止当前正常路径；L392按`current and not current.decision`分支；L393抛异常，停止当前正常路径；L394按`not current`分支。 调用`self.tx`、`session.get`、`Conflict`、`session.add`、`Approval`、`Event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Store.record_event`（L408–L410）：接收`run_id`、`kind`、`data`。 调用`self.tx`、`session.add`、`Event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Store.model_records`（L412–L430）：接收`run_id`。 调用`self.get_run`、`self.tx`、`session.scalars`、`select(Step) .where(Step.run_id == run_id, Step.name.like("model:…`、`select(Step) .where`、`select`、`Step.name.like`、`r.data.get`。 返回路径：L420的`[ { "step": r.name, "stage": r.data.get("stage", "legacy"), "model": r.data.get("model"), …`。
-- `Store.gate`（L432–L454）：接收`run_id`、`stage`、`version`、`data`、`actions`、`can_approve`。 控制顺序：L436按`not session.get(Revision, gate_id)`分支。 调用`digest`、`self.tx`、`session.get`、`session.add`、`Revision`。 返回路径：L446的`{ "gate_id": gate_id, "stage": stage, "version": version, "digest": content_digest, "data"…`。
-- `Store.check_decision`（L456–L477）：接收`run_id`、`gate`、`value`。 控制顺序：L457按`not isinstance(value, dict)`分支；L458抛异常，停止当前正常路径；L459按`value.get("gate_id") != gate["gate_id"] or ( value.get("action") not in gate["actions…`分支；L462抛异常，停止当前正常路径；L463按`value["action"] == "recommend"`分支；L464按`value.get("approved") is not True or not self.get_run(run_id)["auto_mode"]`分支；L465抛异常，停止当前正常路径；L466按`value["action"] == "approve" and not gate.get("can_approve", False)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`Conflict`、`value.get`、`self.get_run`、`gate.get`、`self.tx`、`session.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Store.claim`（L479–L493）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L484按`job is None`分支；L489按`changed != 1`分支。 调用`self.tx`、`session.scalar`、`select(Job).where(Job.status == "QUEUED").order_by(Job.created_at…`、`select(Job).where(Job.status == "QUEUED").order_by`、`select(Job).where`、`select`、`session.execute`、`update(Job).where(Job.id == job.id, Job.status == "QUEUED").value…`、`update(Job).where`等。 返回路径：L485的`None`；L490的`None`；L493的`{"id": job.id, "run_id": job.run_id, "payload": job.payload}`。
-- `Store.recover`（L495–L497）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.tx`、`session.execute`、`update(Job).where(Job.status == "RUNNING").values`、`update(Job).where`、`update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Store.finish`（L499–L508）：接收`job`、`status`、`pending`、`result`、`error`。 控制顺序：L504按`result is not None`分支。 调用`self.tx`、`session.get`、`session.add`、`Event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Store.events`（L510–L522）：接收`run_id`、`after`。 调用`self.get_run`、`self.tx`、`session.scalars`、`select(Event) .where(Event.run_id == run_id, Event.id > after) .o…`、`select(Event) .where`、`select`。 返回路径：L519的`[ {"id": r.id, "kind": r.kind, "data": r.data, "created_at": r.created_at} for r in rows ]`。
-- `Store.list_projects`（L524–L531）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.tx`、`session.scalars`、`select(Project).order_by(Project.created_at.desc()).limit`、`select(Project).order_by`、`select`、`Project.created_at.desc`。 返回路径：L526的`[ {"id": p.id, "title": p.title, "created_at": p.created_at} for p in session.scalars( sel…`。
-- `Store.list_runs`（L533–L551）：接收`project_id`。 控制顺序：L536按`project_id is not None`分支；L537按`not session.get(Project, project_id)`分支；L538抛异常，停止当前正常路径。 调用`self.tx`、`select(Run).order_by(Run.created_at.desc()).limit`、`select(Run).order_by`、`select`、`Run.created_at.desc`、`session.get`、`Missing`、`statement.where`、`session.scalars`。 返回路径：L540的`[ { "id": r.id, "project_id": r.project_id, "status": r.status, "template": r.template, "o…`。
-- `Store.latest_revision`（L553–L561）：接收`run_id`、`stage`。 调用`self.tx`、`session.scalar`、`select(Revision) .where(Revision.run_id == run_id, Revision.stage…`、`select(Revision) .where`、`select`、`Revision.created_at.desc`。 返回路径：L561的`row.data if row else None`。
-- `_cursor`（L565–L570）：接收`connection`。 调用`connection.cursor`、`cursor.close`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `Store.model_records`（L412–L444）：接收`run_id`。 调用`self.get_run`、`self.tx`、`session.scalars`、`select(Step) .where(Step.run_id == run_id, Step.name.like("model:…`、`select(Step) .where`、`select`、`Step.name.like`、`r.data.get`、`select(Event) .where(Event.run_id == run_id, Event.kind == "model…`等。 返回路径：L444的`sorted(records, key=lambda item: item["created_at"])`。
+- `Store.gate`（L446–L468）：接收`run_id`、`stage`、`version`、`data`、`actions`、`can_approve`。 控制顺序：L450按`not session.get(Revision, gate_id)`分支。 调用`digest`、`self.tx`、`session.get`、`session.add`、`Revision`。 返回路径：L460的`{ "gate_id": gate_id, "stage": stage, "version": version, "digest": content_digest, "data"…`。
+- `Store.check_decision`（L470–L491）：接收`run_id`、`gate`、`value`。 控制顺序：L471按`not isinstance(value, dict)`分支；L472抛异常，停止当前正常路径；L473按`value.get("gate_id") != gate["gate_id"] or ( value.get("action") not in gate["actions…`分支；L476抛异常，停止当前正常路径；L477按`value["action"] == "recommend"`分支；L478按`value.get("approved") is not True or not self.get_run(run_id)["auto_mode"]`分支；L479抛异常，停止当前正常路径；L480按`value["action"] == "approve" and not gate.get("can_approve", False)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`Conflict`、`value.get`、`self.get_run`、`gate.get`、`self.tx`、`session.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Store.claim`（L493–L507）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L498按`job is None`分支；L503按`changed != 1`分支。 调用`self.tx`、`session.scalar`、`select(Job).where(Job.status == "QUEUED").order_by(Job.created_at…`、`select(Job).where(Job.status == "QUEUED").order_by`、`select(Job).where`、`select`、`session.execute`、`update(Job).where(Job.id == job.id, Job.status == "QUEUED").value…`、`update(Job).where`等。 返回路径：L499的`None`；L504的`None`；L507的`{"id": job.id, "run_id": job.run_id, "payload": job.payload}`。
+- `Store.recover`（L509–L511）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.tx`、`session.execute`、`update(Job).where(Job.status == "RUNNING").values`、`update(Job).where`、`update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Store.finish`（L513–L522）：接收`job`、`status`、`pending`、`result`、`error`。 控制顺序：L518按`result is not None`分支。 调用`self.tx`、`session.get`、`session.add`、`Event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Store.events`（L524–L536）：接收`run_id`、`after`。 调用`self.get_run`、`self.tx`、`session.scalars`、`select(Event) .where(Event.run_id == run_id, Event.id > after) .o…`、`select(Event) .where`、`select`。 返回路径：L533的`[ {"id": r.id, "kind": r.kind, "data": r.data, "created_at": r.created_at} for r in rows ]`。
+- `Store.list_projects`（L538–L545）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.tx`、`session.scalars`、`select(Project).order_by(Project.created_at.desc()).limit`、`select(Project).order_by`、`select`、`Project.created_at.desc`。 返回路径：L540的`[ {"id": p.id, "title": p.title, "created_at": p.created_at} for p in session.scalars( sel…`。
+- `Store.list_runs`（L547–L565）：接收`project_id`。 控制顺序：L550按`project_id is not None`分支；L551按`not session.get(Project, project_id)`分支；L552抛异常，停止当前正常路径。 调用`self.tx`、`select(Run).order_by(Run.created_at.desc()).limit`、`select(Run).order_by`、`select`、`Run.created_at.desc`、`session.get`、`Missing`、`statement.where`、`session.scalars`。 返回路径：L554的`[ { "id": r.id, "project_id": r.project_id, "status": r.status, "template": r.template, "o…`。
+- `Store.latest_revision`（L567–L575）：接收`run_id`、`stage`。 调用`self.tx`、`session.scalar`、`select(Revision) .where(Revision.run_id == run_id, Revision.stage…`、`select(Revision) .where`、`select`、`Revision.created_at.desc`。 返回路径：L575的`row.data if row else None`。
+- `_cursor`（L579–L584）：接收`connection`。 调用`connection.cursor`、`cursor.close`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
-<!-- source-file: workbench/store.py sha256: 08b837a1704d6b006671e74675b93323c88f1dc185e77270e7db035b034eb3fc -->
+<!-- source-file: workbench/store.py sha256: 9e3bdf350928eb79ebac0a3904f1d6fa911578c679a6786c1e8287b3a46cc54b -->
 ````python
 """Short SQLAlchemy transactions; no model/tool calls inside a database transaction."""
 
@@ -20041,17 +20822,31 @@ class Store:
                 .where(Step.run_id == run_id, Step.name.like("model:%"))
                 .order_by(Step.id)
             )
-            return [
+            records = [
                 {
                     "step": r.name,
                     "stage": r.data.get("stage", "legacy"),
                     "model": r.data.get("model"),
                     "endpoint": r.data.get("endpoint"),
                     "usage": r.data.get("usage"),
+                    "provider": r.data.get("provider", "legacy"),
+                    "output_mode": r.data.get("output_mode", "legacy"),
+                    "format_reason": r.data.get("format_reason", "legacy"),
+                    "contract_version": r.data.get("contract_version", 0),
+                    "structured_output": r.data.get("structured_output", "legacy"),
+                    "finish_reason": r.data.get("finish_reason", "unknown"),
+                    "status": "validated" if r.data.get("contract_version") else "legacy",
                     "created_at": r.created_at,
                 }
                 for r in rows
             ]
+            failures = session.scalars(
+                select(Event)
+                .where(Event.run_id == run_id, Event.kind == "model_failure")
+                .order_by(Event.id)
+            )
+            records.extend({**r.data, "created_at": r.created_at} for r in failures)
+            return sorted(records, key=lambda item: item["created_at"])
 
     def gate(self, run_id, stage, version, data, actions, can_approve=True):
         content_digest = digest(data)
@@ -32817,6 +33612,2300 @@ def decision(store, run_id, action="approve", text=""):
         },
         str(uuid.uuid4()),
     )
+````
+
+### `tests/fixtures/customer_approved_replays/README.md`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tests/fixtures/customer_approved_replays/README.md sha256: 557e67f2a00a6a3e11207862cf6a3337fb944c0add63911a9866ae0974b8305f -->
+````markdown
+# Approved synthetic customer replay
+
+`yudao-1d7.json` is the byte-identical normalized Plan that passed design approval, native generation/verification, and independent model review in real DeepSeek run [36795375784](https://github.com/Live-yum/ai-rnd-foundation-learning/actions/runs/36795375784), job 110157491211, source `1d7c70b03e63509830e97af9af398c0bd148902e`. The overall run then failed at ZIP extraction because the generic 10,000-entry ceiling rejected the full original Yudao monorepo. This fixture is not evidence that the downloaded product passed.
+
+Artifact 11133539312 retained only this approved synthetic Plan after schema, size, known-key and credential-pattern rejection. Its SHA-256 is `16731f7c60a15916058d64c503525aafe93e1c53e0da62bae1eb8d0c227730f5` (19,534 bytes). The loader rechecks hash, template, schema, size and credential patterns before any replay.
+
+The `approved-1d7` customer-runtime case regenerates this exact Plan with the original pinned native generator, consumes the distributable ZIP, and verifies an independent database, browser and restart. It makes no model calls. The genuine real-model workflow continues to obtain a fresh recommendation, Plan and independent review and never reads this fixture. Unapproved diagnostic artifacts in the sibling directory must never be used for generation.
+````
+
+### `tests/fixtures/customer_approved_replays/yudao-1d7.json`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tests/fixtures/customer_approved_replays/yudao-1d7.json sha256: 16731f7c60a15916058d64c503525aafe93e1c53e0da62bae1eb8d0c227730f5 -->
+````json
+{
+  "title": "内部客户服务管理平台",
+  "data_scope": "shared",
+  "entities": [
+    {
+      "name": "customers",
+      "description": "客户档案",
+      "fields": [
+        {
+          "name": "name",
+          "label": "客户名称",
+          "choice_labels": {},
+          "kind": "text",
+          "required": true,
+          "max_length": 120,
+          "min_length": 0,
+          "choices": [],
+          "searchable": true,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "organization",
+          "label": "所属组织",
+          "choice_labels": {},
+          "kind": "text",
+          "required": false,
+          "max_length": 160,
+          "min_length": 0,
+          "choices": [],
+          "searchable": true,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "contact",
+          "label": "联系方式",
+          "choice_labels": {},
+          "kind": "text",
+          "required": false,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": true,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "category",
+          "label": "客户分类",
+          "choice_labels": {
+            "个人": "个人",
+            "企业": "企业",
+            "合作伙伴": "合作伙伴"
+          },
+          "kind": "enum",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [
+            "企业",
+            "个人",
+            "合作伙伴"
+          ],
+          "searchable": false,
+          "filterable": true,
+          "date_range": false
+        }
+      ]
+    },
+    {
+      "name": "requests",
+      "description": "客户服务请求",
+      "fields": [
+        {
+          "name": "title",
+          "label": "请求标题",
+          "choice_labels": {},
+          "kind": "text",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": true,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "detail",
+          "label": "问题详情",
+          "choice_labels": {},
+          "kind": "text",
+          "required": true,
+          "max_length": 3000,
+          "min_length": 0,
+          "choices": [],
+          "searchable": true,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "customer_id",
+          "label": "关联客户",
+          "choice_labels": {},
+          "kind": "text",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "assignee_id",
+          "label": "负责人",
+          "choice_labels": {},
+          "kind": "text",
+          "required": false,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "request_state",
+          "label": "处理状态",
+          "choice_labels": {
+            "active": "处理中",
+            "new": "待处理",
+            "resolved": "已解决"
+          },
+          "kind": "enum",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [
+            "new",
+            "active",
+            "resolved"
+          ],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "resolved_at",
+          "label": "解决时间",
+          "choice_labels": {},
+          "kind": "datetime",
+          "required": false,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "due_at",
+          "label": "截止时间",
+          "choice_labels": {},
+          "kind": "datetime",
+          "required": false,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "priority",
+          "label": "优先级",
+          "choice_labels": {
+            "普通": "普通",
+            "紧急": "紧急"
+          },
+          "kind": "enum",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [
+            "普通",
+            "紧急"
+          ],
+          "searchable": false,
+          "filterable": true,
+          "date_range": false
+        }
+      ]
+    },
+    {
+      "name": "tasks",
+      "description": "协作任务",
+      "fields": [
+        {
+          "name": "title",
+          "label": "任务标题",
+          "choice_labels": {},
+          "kind": "text",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": true,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "detail",
+          "label": "任务说明",
+          "choice_labels": {},
+          "kind": "text",
+          "required": true,
+          "max_length": 3000,
+          "min_length": 0,
+          "choices": [],
+          "searchable": true,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "request_id",
+          "label": "关联请求",
+          "choice_labels": {},
+          "kind": "text",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "assignee_id",
+          "label": "负责人",
+          "choice_labels": {},
+          "kind": "text",
+          "required": false,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "task_state",
+          "label": "任务状态",
+          "choice_labels": {
+            "active": "处理中",
+            "new": "待处理",
+            "resolved": "已解决"
+          },
+          "kind": "enum",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [
+            "new",
+            "active",
+            "resolved"
+          ],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "resolved_at",
+          "label": "解决时间",
+          "choice_labels": {},
+          "kind": "datetime",
+          "required": false,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "due_at",
+          "label": "截止时间",
+          "choice_labels": {},
+          "kind": "datetime",
+          "required": false,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        }
+      ]
+    }
+  ],
+  "acceptance": [
+    "以 bootstrap_role=manager 的账号登录后可创建、修改、归档客户，字段 name / organization / contact / category 按约束校验，category 只接受 企业、个人、合作伙伴。",
+    "按 name / organization / contact 关键词搜索客户返回匹配记录；按 category 精确筛选只返回所选分类的客户。",
+    "客户详情页展示该客户关联的服务请求；service 与 employee 在此列表中只能看到自己有权查看的请求。",
+    "创建服务请求时 customer_id、title、detail、priority 必须填写，缺少任一必填项保存被拒绝；新记录 request_state 初始为 new。",
+    "请求与任务的状态字段不能通过普通编辑表单直接修改；状态只能由命名转换改变。",
+    "manager 或对自己被分配记录的 service 执行 start 后状态变为 active；执行 resolve 后状态变为 resolved 且 resolved_at 被自动写入；employee 或非负责的 service 调用转换被拒绝。",
+    "负责人变更只能通过 assign 动作完成，且产生服务端审计记录；employee 无法执行分配。",
+    "为请求或任务添加处理备注后，备注出现在处理历史中并触发一条站内提醒。",
+    "请求详情可列出其关联协作任务，任务可回溯所属请求；越权记录不出现在关联结果中。",
+    "请求被 resolve 后，提交者在自己的通知收件箱中看到持久化站内提醒，通知读取状态仅对该收件人可见。",
+    "当 due_at 已过且记录未解决时，负责人收到逾期类站内提醒。",
+    "service 用户查询请求/任务时只返回 assignee_id 为本人 的记录，无法读取他人记录。",
+    "employee 只能创建并查看自己提交的请求；尝试分配、改变状态或读取统计时被拒绝。",
+    "统计接口返回 requests 总数、request_state=resolved 的计数、created_at→resolved_at 的平均秒数、customers 按 category 的分组计数、requests 按 created_at 的每日趋势；service 看到的结果为本人可见行口径，且不返回其他员工数据。",
+    "所有更新、状态转换、分配、备注都留下服务端生成且不可修改的审计历史；记录被归档后原有关联与历史仍可查询。",
+    "界面为 Vben5 Ant Design 风格，菜单中可见客户、服务请求、协作任务、统计与通知入口，状态与动作显示中文标签，关联字段显示客户名称、请求标题或负责人用户名。",
+    "在独立交付数据库、锁定依赖下运行端到端流程测试（含浏览器操作与服务重启后复查）通过，并提供可执行的部署运行方式说明。"
+  ],
+  "custom_rules": [],
+  "business": {
+    "roles": [
+      {
+        "name": "manager",
+        "label": "管理人员"
+      },
+      {
+        "name": "service",
+        "label": "服务人员"
+      },
+      {
+        "name": "employee",
+        "label": "普通员工"
+      }
+    ],
+    "registration": {
+      "enabled": true,
+      "default_role": "employee"
+    },
+    "bootstrap_role": "manager",
+    "role_admin_roles": [
+      "manager"
+    ],
+    "resources": [
+      {
+        "entity": "customers",
+        "assignee_field": null,
+        "archive": true,
+        "notes": false,
+        "audit": true
+      },
+      {
+        "entity": "requests",
+        "assignee_field": "assignee_id",
+        "archive": true,
+        "notes": true,
+        "audit": true
+      },
+      {
+        "entity": "tasks",
+        "assignee_field": "assignee_id",
+        "archive": true,
+        "notes": true,
+        "audit": true
+      }
+    ],
+    "relations": [
+      {
+        "entity": "requests",
+        "field": "customer_id",
+        "target_entity": "customers",
+        "on_delete": "restrict"
+      },
+      {
+        "entity": "requests",
+        "field": "assignee_id",
+        "target_entity": "$users",
+        "on_delete": "restrict"
+      },
+      {
+        "entity": "tasks",
+        "field": "request_id",
+        "target_entity": "requests",
+        "on_delete": "restrict"
+      },
+      {
+        "entity": "tasks",
+        "field": "assignee_id",
+        "target_entity": "$users",
+        "on_delete": "restrict"
+      }
+    ],
+    "permissions": [
+      {
+        "role": "manager",
+        "entity": "customers",
+        "actions": [
+          "create",
+          "read",
+          "update",
+          "archive",
+          "read_audit",
+          "read_metrics"
+        ],
+        "scope": "all"
+      },
+      {
+        "role": "service",
+        "entity": "customers",
+        "actions": [
+          "read",
+          "read_metrics"
+        ],
+        "scope": "all"
+      },
+      {
+        "role": "employee",
+        "entity": "customers",
+        "actions": [
+          "read"
+        ],
+        "scope": "all"
+      },
+      {
+        "role": "manager",
+        "entity": "requests",
+        "actions": [
+          "create",
+          "read",
+          "update",
+          "archive",
+          "assign",
+          "transition",
+          "add_note",
+          "read_history",
+          "read_audit",
+          "read_metrics"
+        ],
+        "scope": "all"
+      },
+      {
+        "role": "service",
+        "entity": "requests",
+        "actions": [
+          "read",
+          "update",
+          "add_note",
+          "transition",
+          "read_history",
+          "read_audit",
+          "read_metrics"
+        ],
+        "scope": "assigned"
+      },
+      {
+        "role": "employee",
+        "entity": "requests",
+        "actions": [
+          "create",
+          "read"
+        ],
+        "scope": "own"
+      },
+      {
+        "role": "manager",
+        "entity": "tasks",
+        "actions": [
+          "create",
+          "read",
+          "update",
+          "archive",
+          "assign",
+          "transition",
+          "add_note",
+          "read_history",
+          "read_audit"
+        ],
+        "scope": "all"
+      },
+      {
+        "role": "service",
+        "entity": "tasks",
+        "actions": [
+          "read",
+          "update",
+          "add_note",
+          "transition",
+          "read_history",
+          "read_audit"
+        ],
+        "scope": "assigned"
+      }
+    ],
+    "workflows": [
+      {
+        "entity": "requests",
+        "status_field": "request_state",
+        "initial": "new",
+        "transitions": [
+          {
+            "name": "start",
+            "label": "开始处理",
+            "from_states": [
+              "new"
+            ],
+            "to_state": "active",
+            "roles": [
+              "manager",
+              "service"
+            ],
+            "set_timestamp": null
+          },
+          {
+            "name": "resolve",
+            "label": "标记解决",
+            "from_states": [
+              "active"
+            ],
+            "to_state": "resolved",
+            "roles": [
+              "manager",
+              "service"
+            ],
+            "set_timestamp": "resolved_at"
+          }
+        ]
+      },
+      {
+        "entity": "tasks",
+        "status_field": "task_state",
+        "initial": "new",
+        "transitions": [
+          {
+            "name": "start",
+            "label": "开始处理",
+            "from_states": [
+              "new"
+            ],
+            "to_state": "active",
+            "roles": [
+              "manager",
+              "service"
+            ],
+            "set_timestamp": null
+          },
+          {
+            "name": "resolve",
+            "label": "标记解决",
+            "from_states": [
+              "active"
+            ],
+            "to_state": "resolved",
+            "roles": [
+              "manager",
+              "service"
+            ],
+            "set_timestamp": "resolved_at"
+          }
+        ]
+      }
+    ],
+    "notifications": [
+      {
+        "entity": "requests",
+        "event": "assigned",
+        "recipient": "assignee",
+        "transition": null,
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "requests",
+        "event": "note_added",
+        "recipient": "assignee",
+        "transition": null,
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "requests",
+        "event": "transitioned",
+        "recipient": "assignee",
+        "transition": "start",
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "requests",
+        "event": "transitioned",
+        "recipient": "creator",
+        "transition": "resolve",
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "requests",
+        "event": "due",
+        "recipient": "assignee",
+        "transition": null,
+        "due_field": "due_at",
+        "channel": "in_app"
+      },
+      {
+        "entity": "tasks",
+        "event": "assigned",
+        "recipient": "assignee",
+        "transition": null,
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "tasks",
+        "event": "note_added",
+        "recipient": "assignee",
+        "transition": null,
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "tasks",
+        "event": "transitioned",
+        "recipient": "assignee",
+        "transition": "start",
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "tasks",
+        "event": "transitioned",
+        "recipient": "creator",
+        "transition": "resolve",
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "tasks",
+        "event": "due",
+        "recipient": "assignee",
+        "transition": null,
+        "due_field": "due_at",
+        "channel": "in_app"
+      }
+    ],
+    "metrics": [
+      {
+        "name": "request_total",
+        "label": "服务请求总数",
+        "entity": "requests",
+        "kind": "count",
+        "group_by": null,
+        "start_field": null,
+        "end_field": null,
+        "time_field": null,
+        "filters": [],
+        "unit": "seconds",
+        "bucket": "day",
+        "timezone": "UTC"
+      },
+      {
+        "name": "request_resolved_count",
+        "label": "已解决请求数",
+        "entity": "requests",
+        "kind": "count",
+        "group_by": null,
+        "start_field": null,
+        "end_field": null,
+        "time_field": null,
+        "filters": [
+          {
+            "field": "request_state",
+            "op": "eq",
+            "value": "resolved"
+          }
+        ],
+        "unit": "seconds",
+        "bucket": "day",
+        "timezone": "UTC"
+      },
+      {
+        "name": "request_avg_resolution_seconds",
+        "label": "平均解决时长（秒）",
+        "entity": "requests",
+        "kind": "average_duration",
+        "group_by": null,
+        "start_field": "created_at",
+        "end_field": "resolved_at",
+        "time_field": null,
+        "filters": [],
+        "unit": "seconds",
+        "bucket": "day",
+        "timezone": "UTC"
+      },
+      {
+        "name": "customer_category_group_count",
+        "label": "客户分类分布",
+        "entity": "customers",
+        "kind": "group_count",
+        "group_by": "category",
+        "start_field": null,
+        "end_field": null,
+        "time_field": null,
+        "filters": [],
+        "unit": "seconds",
+        "bucket": "day",
+        "timezone": "UTC"
+      },
+      {
+        "name": "request_daily_trend",
+        "label": "服务请求每日趋势",
+        "entity": "requests",
+        "kind": "time_count",
+        "group_by": null,
+        "start_field": null,
+        "end_field": null,
+        "time_field": "created_at",
+        "filters": [],
+        "unit": "seconds",
+        "bucket": "day",
+        "timezone": "UTC"
+      }
+    ]
+  },
+  "unsupported": []
+}
+````
+
+### `tests/fixtures/customer_design_diagnostics/1d7c70b/README.md`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tests/fixtures/customer_design_diagnostics/1d7c70b/README.md sha256: 2dd4c0a406158d9a9e30bd2304adeaecb4dd75d469f44eb8e6e7bf4d2312c9b4 -->
+````markdown
+# Unapproved diagnostic replay only
+
+`fastapiadmin.json` is the byte-exact normalized candidate from genuine DeepSeek
+Actions run 36795375784, artifact 11133128751, source
+`1d7c70b03e63509830e97af9af398c0bd148902e`.
+
+SHA256: `d0d30b7d9ccd6a77e2f0e6a599592d9b63637884cec6ec627953e395474d4a72`.
+
+It is explicitly unapproved, not executable, and not delivery proof. Only pure
+Requirement/Plan validation tests may replay it or mutate deep copies. Never
+approve, generate from, execute, or supply this candidate as provider output.
+````
+
+### `tests/fixtures/customer_design_diagnostics/1d7c70b/fastapiadmin.json`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tests/fixtures/customer_design_diagnostics/1d7c70b/fastapiadmin.json sha256: d0d30b7d9ccd6a77e2f0e6a599592d9b63637884cec6ec627953e395474d4a72 -->
+````json
+{
+  "format": "customer-design-diagnostic-v1",
+  "approval_status": "unapproved",
+  "execution_authorized": false,
+  "purpose": "offline_contract_validation_only",
+  "template": "fastapiadmin",
+  "requirement": {
+    "summary": "内部客户服务管理平台：shared 业务范围，三个业务实体 customers / requests / tasks，三类角色 manager（管理人员）/ service（服务人员）/ employee（普通员工）。管理人员维护客户档案、分配负责人、查看审计与统计；服务人员只处理分配给自己的请求与任务（scope=assigned），可查询、修改、加备注、执行命名状态转换、查看处理历史与审计；普通员工提交并只查看自己创建的请求（scope=own），不能分配、改状态、看团队统计。请求与任务初始状态 new，命名转换 start（new→active）、resolve（active→resolved 并自动写 resolved_at），仅 manager/service 可执行，状态与负责人受动作保护。三个资源均记录不可修改审计；请求/任务启用处理备注、分配、状态转换与归档及持久化站内提醒（分配、备注、状态变化、解决、逾期），请求解决后创建者可在自己的通知收件箱看到提醒。统计包含请求总数、已解决数、created_at→resolved_at 平均解决时长、客户按 category 分组、请求按 created_at 的 UTC 每日趋势，按调用者 read_metrics 行范围计算。技术栈为 FastapiAdmin 原生后端 + Vue 管理端 + PostgreSQL，遵循既有代码规范、组件与前后端架构，附带必要测试与部署运行方式。",
+    "users": [
+      "管理人员（manager）：管理团队业务、客户档案、分配负责人、查看审计与统计，拥有三个资源全部记录的动作权限",
+      "服务人员（service）：只处理分配给自己的请求与任务（scope=assigned），可查询、修改、添加备注、执行状态转换、查看处理历史与审计，统计按本人可见行计算",
+      "普通员工（employee）：提交并只查看自己创建的请求（scope=own），不能分配、改变状态、读取团队统计",
+      "新注册用户：默认获得 employee 角色，不能自行提升权限",
+      "首个引导账号（bootstrap_role=manager）：由系统初始化为管理人员"
+    ],
+    "data_scope": "shared",
+    "features": [
+      "客户档案管理：管理人员可创建客户（name 必填、最长120；organization 最长160；contact 最长200；category 必填枚举 企业/个人/合作伙伴），修改、归档客户并查看审计；服务人员与普通员工只能查询客户资料。",
+      "客户查询：按 name、organization、contact 关键词搜索，按 category 精确筛选，支持不同条件组合检索。",
+      "客户历史服务记录：客户详情展示其关联的服务请求列表，并遵守被关联请求的行权限，不泄露其他员工记录。",
+      "服务请求管理：创建请求（title 最长200、detail 最长3000、customer_id 关联客户、priority 必填），分配负责人、添加处理备注、查看处理过程、归档。",
+      "请求状态流转：初始 new，命名转换 start（new→active）与 resolve（active→resolved，自动写入 resolved_at），仅 manager/service 可执行；状态与负责人受动作保护，禁止普通表单绕过转换或分配。",
+      "请求查询：按 title、detail 关键词搜索，按 priority（普通/紧急）精确筛选，可查询历史请求。",
+      "协作任务管理：创建任务（title 最长200、detail 最长3000、request_id 关联请求），分配负责人、添加处理备注、状态流转（start/resolve）、归档、查看处理过程与审计。",
+      "任务查询：按 title、detail 关键词搜索历史任务。",
+      "关联视图：请求详情展示其关联的协作任务，客户详情展示关联请求；关联字段显示当前角色可读的客户名称、请求标题或负责人用户名，不显示内部 ID。",
+      "审计与处理历史：customers、requests、tasks 均记录不可修改的审计历史；处理历史按 read_history、完整审计按 read_audit 分别授权查看。",
+      "站内提醒：负责人分配、添加处理备注、状态变化（start/resolve）、解决、逾期（due_at）事件生成持久化站内消息给对应接收者；请求被解决后创建者在自己的通知收件箱看到提醒；已读状态仅对该接收者可见。",
+      "数据统计：requests 总数（count）、已解决数（count，request_state=resolved）、创建至 resolved_at 的平均解决时长（average_duration，单位秒，无样本返回空值）、customers 按 category 分组计数、requests 按 created_at 的 UTC 每日趋势；结果来自数据库真实记录，按当前角色数据范围计算，非前端假图。",
+      "权限管理：固定三角色 manager/service/employee，显示名称分别为管理人员/服务人员/普通员工；注册默认 employee；仅 manager 可管理角色，用户不能自行提升权限。",
+      "中文界面标签：实体、字段、角色、统计均使用可声明中文 label；request_state/task_state 通过 choice_labels 显示 待处理/处理中/已解决（存储与动作仍用 new/active/resolved），转换 start 显示“开始处理”、resolve 显示“标记解决”。",
+      "工程交付：基于当前项目技术体系（FastapiAdmin 原生后端 + Vue 管理端 + PostgreSQL）实现，遵循已有代码规范与组件、保持前后端架构一致，添加必要测试并提供部署运行方式。"
+    ],
+    "acceptance": [
+      "以 bootstrap 的 manager 账号登录后可创建客户（name、category 必填，organization、contact 可选，超过 120/160/200 分别报错）；service 与 employee 账号可查询客户但创建、修改、归档被拒绝。",
+      "客户列表可按 name/organization/contact 关键词搜索、按 category=企业/个人/合作伙伴 精确筛选，条件组合结果正确。",
+      "客户详情展示该客户关联的历史服务请求，且只显示当前角色有权读取的请求。",
+      "创建服务请求时 title（≤200）、detail（≤3000）、customer_id、priority 必填，customer_id 必须指向已存在客户，创建后 request_state 初始值为 new。",
+      "请求可分配负责人；被分配的服务人员只能看到并处理 scope=assigned 的请求，看不到其他服务人员的请求。",
+      "只有 manager/service 可对请求执行 start（new→active）与 resolve（active→resolved）；resolve 自动写入 resolved_at；无权限角色或非法转换（如 new→resolved）被拒绝。",
+      "通过普通表单直接改写 request_state 或 assignee_id 被拒绝，必须走命名转换与分配动作。",
+      "请求可添加处理备注；无 read_history 权限的角色看不到处理历史，无 read_audit 权限的角色看不到完整审计；两项授权互不隐含。",
+      "任务可创建、分配、添加备注、执行 start/resolve、归档；tasks.title/detail 关键词搜索生效；请求详情展示关联协作任务并遵守 tasks 行权限。",
+      "customers/requests/tasks 的审计历史不存在修改或删除入口，归档后历史与被引用关系保留。",
+      "分配负责人、添加备注、执行 start/resolve、到达 due_at 时，对应接收者收到持久化站内提醒；请求被 resolve 后创建者在自己的通知收件箱看到提醒；提醒已读状态仅对该接收者可见。",
+      "统计返回：requests 总数、request_state=resolved 的数量、created_at→resolved_at 的平均解决秒数（零样本返回空值而非 0）、customers 按 category 的分组计数、requests 按 created_at 的 UTC 每日趋势，数值与数据库实际记录一致。",
+      "服务人员调用统计时按 scope=assigned 的可见请求行计算；普通员工无 read_metrics 权限，调用统计被拒绝。",
+      "新注册用户默认获得 employee 角色，无法自行提升权限；仅 manager 可执行角色管理操作。",
+      "界面按中文标签呈现：request_state/task_state 显示 待处理/处理中/已解决，动作显示 开始处理/标记解决，关联字段显示客户名称、请求标题或负责人用户名。"
+    ],
+    "questions": [],
+    "assumptions": [
+      "实体名固定为 customers、requests、tasks，角色名固定为 manager、service、employee，状态机器值固定为 new/active/resolved；中文显示名称按命名合同落地。",
+      "关系键 customer_id、assignee_id、request_id 在声明合同中为 text 类型，由原生生成器转换为真实整数外键并校验存在性，不实现为不校验的备注文本。",
+      "所有文本字段 min_length=0（必填由 required 负责）；datetime 字段仅存储时间戳，不参与搜索、筛选或日期范围。",
+      "统计时区固定 UTC、每日分桶，平均解决时长单位固定为秒；已解决数通过 request_state=resolved 过滤。",
+      "审计记录不可修改且由服务端在事务内自动写入；归档保留引用与历史。",
+      "界面字段与统计中文标签由业务术语落地，可按团队用语调整而不改变字段名与机器值。"
+    ],
+    "unsupported": [],
+    "limitations": [
+      "不连接邮件、短信或真实客户联系方式，提醒仅为持久化站内消息。",
+      "不包含外部数据采集、公开匿名访问、爬虫或支付等外部副作用；以声明式业务合同实现，custom_rules 留空。",
+      "业务权限、关系、流程、提醒与统计仅在声明式业务合同内实现，不支持任意脚本或任意状态机扩展。",
+      "本实例交付为 FastapiAdmin 原生后端 + Vue 管理端 + PostgreSQL 单界面风格；api-only 无界面变体与 Yudao/Java 变体不在本次界面验收范围。",
+      "验收仅创建合成账号与客户数据，不导入真实客户隐私数据。"
+    ],
+    "recommendations": [
+      "普通文本统一 min_length=0（必填由 required 承担），标题类上限按合同取 120/160/200，正文上限 3000，日期与时间戳展示格式 YYYY-MM-DD（系统 created_at/updated_at 由运行时提供，不在实体字段中重复声明）。",
+      "datetime 字段（resolved_at、due_at）仅存储时间戳，不参与搜索、筛选与日期范围；本需求未要求按时间区间筛选，如后续需要可按日期字段单独追加。",
+      "关键字搜索分别落在 customers.name/organization/contact、requests.title/detail、tasks.title/detail；分类精确筛选仅落 customers.category 与 requests.priority，状态字段不默认追加筛选条件。",
+      "命名合同未要求普通员工读取协作任务，暂不授予 tasks 权限；若希望员工看到分配给自己的任务，可追加 tasks read + add_note、scope=assigned。",
+      "服务人员对 customers 为全量查询（customers 无负责人字段），因此客户分类分布指标对服务人员按全部可见客户计算；若需按负责范围隔离客户，需为 customers 增加 assignee 字段并改成 assigned 范围。",
+      "普通员工没有 read_metrics，统计入口对其不可见；管理人员统计范围为全部记录，服务人员统计按 scope=assigned 的可见请求行计算。",
+      "站内提醒按源事件与接收者去重，已读状态仅对该接收者可见；请求解决的提醒同时发送给负责人与创建者。",
+      "界面字段与统计中文标签为按业务术语给出的建议值，可在不改变字段名与机器值的前提下调整。",
+      "归档对 requests/tasks 启用并保留审计与引用关系；客户档案归档后其历史请求仍可查询。"
+    ],
+    "facts": {
+      "business": {
+        "scope": "shared",
+        "roles": [
+          {
+            "name": "manager",
+            "label": "管理人员"
+          },
+          {
+            "name": "service",
+            "label": "服务人员"
+          },
+          {
+            "name": "employee",
+            "label": "普通员工"
+          }
+        ],
+        "registration": {
+          "enabled": true,
+          "default_role": "employee"
+        },
+        "bootstrap_role": "manager",
+        "role_admin_roles": [
+          "manager"
+        ],
+        "resources": [
+          {
+            "entity": "customers",
+            "notes": false,
+            "archive": true,
+            "audit": true
+          },
+          {
+            "entity": "requests",
+            "assignee_field": "assignee_id",
+            "notes": true,
+            "archive": true,
+            "audit": true
+          },
+          {
+            "entity": "tasks",
+            "assignee_field": "assignee_id",
+            "notes": true,
+            "archive": true,
+            "audit": true
+          }
+        ],
+        "relations": [
+          {
+            "entity": "requests",
+            "field": "customer_id",
+            "target_entity": "customers",
+            "on_delete": "restrict"
+          },
+          {
+            "entity": "requests",
+            "field": "assignee_id",
+            "target_entity": "$users",
+            "on_delete": "restrict"
+          },
+          {
+            "entity": "tasks",
+            "field": "request_id",
+            "target_entity": "requests",
+            "on_delete": "restrict"
+          },
+          {
+            "entity": "tasks",
+            "field": "assignee_id",
+            "target_entity": "$users",
+            "on_delete": "restrict"
+          }
+        ],
+        "permissions": [
+          {
+            "role": "manager",
+            "entity": "customers",
+            "actions": [
+              "create",
+              "read",
+              "update",
+              "archive",
+              "read_audit",
+              "read_metrics"
+            ],
+            "scope": "all"
+          },
+          {
+            "role": "service",
+            "entity": "customers",
+            "actions": [
+              "read",
+              "read_metrics"
+            ],
+            "scope": "all"
+          },
+          {
+            "role": "employee",
+            "entity": "customers",
+            "actions": [
+              "read"
+            ],
+            "scope": "all"
+          },
+          {
+            "role": "manager",
+            "entity": "requests",
+            "actions": [
+              "create",
+              "read",
+              "update",
+              "archive",
+              "assign",
+              "transition",
+              "add_note",
+              "read_history",
+              "read_audit",
+              "read_metrics"
+            ],
+            "scope": "all"
+          },
+          {
+            "role": "service",
+            "entity": "requests",
+            "actions": [
+              "read",
+              "update",
+              "add_note",
+              "transition",
+              "read_history",
+              "read_audit",
+              "read_metrics"
+            ],
+            "scope": "assigned"
+          },
+          {
+            "role": "employee",
+            "entity": "requests",
+            "actions": [
+              "create",
+              "read"
+            ],
+            "scope": "own"
+          },
+          {
+            "role": "manager",
+            "entity": "tasks",
+            "actions": [
+              "create",
+              "read",
+              "update",
+              "archive",
+              "assign",
+              "transition",
+              "add_note",
+              "read_history",
+              "read_audit"
+            ],
+            "scope": "all"
+          },
+          {
+            "role": "service",
+            "entity": "tasks",
+            "actions": [
+              "read",
+              "update",
+              "add_note",
+              "transition",
+              "read_history",
+              "read_audit"
+            ],
+            "scope": "assigned"
+          }
+        ],
+        "workflows": [
+          {
+            "entity": "requests",
+            "status_field": "request_state",
+            "initial": "new",
+            "transitions": [
+              {
+                "name": "start",
+                "label": "开始处理",
+                "from_states": [
+                  "new"
+                ],
+                "to_state": "active",
+                "roles": [
+                  "manager",
+                  "service"
+                ]
+              },
+              {
+                "name": "resolve",
+                "label": "标记解决",
+                "from_states": [
+                  "active"
+                ],
+                "to_state": "resolved",
+                "roles": [
+                  "manager",
+                  "service"
+                ],
+                "set_timestamp": "resolved_at"
+              }
+            ]
+          },
+          {
+            "entity": "tasks",
+            "status_field": "task_state",
+            "initial": "new",
+            "transitions": [
+              {
+                "name": "start",
+                "label": "开始处理",
+                "from_states": [
+                  "new"
+                ],
+                "to_state": "active",
+                "roles": [
+                  "manager",
+                  "service"
+                ]
+              },
+              {
+                "name": "resolve",
+                "label": "标记解决",
+                "from_states": [
+                  "active"
+                ],
+                "to_state": "resolved",
+                "roles": [
+                  "manager",
+                  "service"
+                ],
+                "set_timestamp": "resolved_at"
+              }
+            ]
+          }
+        ],
+        "notifications": [
+          {
+            "entity": "requests",
+            "event": "assigned",
+            "recipient": "assignee"
+          },
+          {
+            "entity": "requests",
+            "event": "note_added",
+            "recipient": "assignee"
+          },
+          {
+            "entity": "requests",
+            "event": "transitioned",
+            "transition": "start",
+            "recipient": "assignee"
+          },
+          {
+            "entity": "requests",
+            "event": "transitioned",
+            "transition": "resolve",
+            "recipient": "assignee"
+          },
+          {
+            "entity": "requests",
+            "event": "transitioned",
+            "transition": "resolve",
+            "recipient": "creator"
+          },
+          {
+            "entity": "requests",
+            "event": "due",
+            "recipient": "assignee",
+            "due_field": "due_at"
+          },
+          {
+            "entity": "tasks",
+            "event": "assigned",
+            "recipient": "assignee"
+          },
+          {
+            "entity": "tasks",
+            "event": "note_added",
+            "recipient": "assignee"
+          },
+          {
+            "entity": "tasks",
+            "event": "transitioned",
+            "transition": "start",
+            "recipient": "assignee"
+          },
+          {
+            "entity": "tasks",
+            "event": "transitioned",
+            "transition": "resolve",
+            "recipient": "assignee"
+          },
+          {
+            "entity": "tasks",
+            "event": "due",
+            "recipient": "assignee",
+            "due_field": "due_at"
+          }
+        ],
+        "metrics": [
+          {
+            "name": "requests_total",
+            "label": "服务请求总数",
+            "entity": "requests",
+            "kind": "count"
+          },
+          {
+            "name": "requests_resolved",
+            "label": "已解决服务请求数",
+            "entity": "requests",
+            "kind": "count",
+            "filters": [
+              {
+                "field": "request_state",
+                "op": "eq",
+                "value": "resolved"
+              }
+            ]
+          },
+          {
+            "name": "requests_avg_resolution",
+            "label": "平均解决时长",
+            "entity": "requests",
+            "kind": "average_duration",
+            "start_field": "created_at",
+            "end_field": "resolved_at",
+            "unit": "seconds"
+          },
+          {
+            "name": "customers_by_category",
+            "label": "客户分类分布",
+            "entity": "customers",
+            "kind": "group_count",
+            "group_by": "category"
+          },
+          {
+            "name": "requests_daily_trend",
+            "label": "服务请求每日趋势",
+            "entity": "requests",
+            "kind": "time_count",
+            "time_field": "created_at",
+            "bucket": "day",
+            "timezone": "UTC"
+          }
+        ]
+      },
+      "labels": {
+        "entities": {
+          "customers": "客户",
+          "requests": "服务请求",
+          "tasks": "协作任务"
+        },
+        "fields": {
+          "customers": {
+            "name": "客户名称",
+            "organization": "所属组织",
+            "contact": "联系方式",
+            "category": "客户分类"
+          },
+          "requests": {
+            "title": "请求标题",
+            "detail": "问题描述",
+            "customer_id": "所属客户",
+            "assignee_id": "负责人",
+            "request_state": "处理状态",
+            "resolved_at": "解决时间",
+            "due_at": "截止时间",
+            "priority": "优先级"
+          },
+          "tasks": {
+            "title": "任务标题",
+            "detail": "任务说明",
+            "request_id": "关联请求",
+            "assignee_id": "负责人",
+            "task_state": "任务状态",
+            "resolved_at": "解决时间",
+            "due_at": "截止时间"
+          }
+        },
+        "choices": {
+          "request_state": {
+            "new": "待处理",
+            "active": "处理中",
+            "resolved": "已解决"
+          },
+          "task_state": {
+            "new": "待处理",
+            "active": "处理中",
+            "resolved": "已解决"
+          }
+        },
+        "transitions": {
+          "start": "开始处理",
+          "resolve": "标记解决"
+        },
+        "relation_display": "关联字段显示当前角色可读的客户名称、请求标题或负责人用户名，不显示内部 ID"
+      },
+      "access_rules": {
+        "registration_default_role": "employee",
+        "self_escalation": "禁止用户自行提升权限",
+        "status_protected_by_transitions": true,
+        "assignee_protected_by_assign_action": true,
+        "history_and_audit_separate": "read_history 与 read_audit 为独立授权"
+      },
+      "reminders": {
+        "channel": "in_app",
+        "persisted": true,
+        "events": [
+          "assigned",
+          "note_added",
+          "transitioned:start",
+          "transitioned:resolve",
+          "due"
+        ],
+        "no_external_channels": [
+          "邮件",
+          "短信",
+          "真实客户联系方式"
+        ]
+      },
+      "tech": {
+        "backend": "fastapiadmin",
+        "frontend": "fastapiadmin-vue",
+        "database": "postgresql",
+        "requirements": [
+          "遵循已有项目代码规范",
+          "使用已有组件和基础设施",
+          "保持前后端架构一致",
+          "添加必要测试",
+          "提供部署运行方式"
+        ]
+      },
+      "verification": {
+        "database": "真正独立的交付数据库",
+        "dependencies": "锁定依赖",
+        "checks": [
+          "浏览器端完整流程验证",
+          "重启后验证"
+        ],
+        "fixtures": "仅使用合成账号与客户数据",
+        "note": "不把独立 CRUD 或新闻案例成功当作本案例完成"
+      }
+    },
+    "field_requirements": [
+      {
+        "field": "name",
+        "entity": "customers",
+        "kind": "text",
+        "required": true,
+        "min_length": 0,
+        "max_length": 120,
+        "searchable": true,
+        "filterable": null,
+        "date_range": null,
+        "choices": null
+      },
+      {
+        "field": "organization",
+        "entity": "customers",
+        "kind": "text",
+        "required": false,
+        "min_length": 0,
+        "max_length": 160,
+        "searchable": true,
+        "filterable": null,
+        "date_range": null,
+        "choices": null
+      },
+      {
+        "field": "contact",
+        "entity": "customers",
+        "kind": "text",
+        "required": false,
+        "min_length": 0,
+        "max_length": 200,
+        "searchable": true,
+        "filterable": null,
+        "date_range": null,
+        "choices": null
+      },
+      {
+        "field": "category",
+        "entity": "customers",
+        "kind": "enum",
+        "required": true,
+        "min_length": null,
+        "max_length": null,
+        "searchable": null,
+        "filterable": true,
+        "date_range": null,
+        "choices": [
+          "企业",
+          "个人",
+          "合作伙伴"
+        ]
+      },
+      {
+        "field": "title",
+        "entity": "requests",
+        "kind": "text",
+        "required": true,
+        "min_length": 0,
+        "max_length": 200,
+        "searchable": true,
+        "filterable": null,
+        "date_range": null,
+        "choices": null
+      },
+      {
+        "field": "detail",
+        "entity": "requests",
+        "kind": "text",
+        "required": true,
+        "min_length": 0,
+        "max_length": 3000,
+        "searchable": true,
+        "filterable": null,
+        "date_range": null,
+        "choices": null
+      },
+      {
+        "field": "customer_id",
+        "entity": "requests",
+        "kind": "text",
+        "required": true,
+        "min_length": null,
+        "max_length": null,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "choices": null
+      },
+      {
+        "field": "assignee_id",
+        "entity": "requests",
+        "kind": "text",
+        "required": false,
+        "min_length": null,
+        "max_length": null,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "choices": null
+      },
+      {
+        "field": "request_state",
+        "entity": "requests",
+        "kind": "enum",
+        "required": true,
+        "min_length": null,
+        "max_length": null,
+        "searchable": null,
+        "filterable": null,
+        "date_range": null,
+        "choices": [
+          "new",
+          "active",
+          "resolved"
+        ]
+      },
+      {
+        "field": "resolved_at",
+        "entity": "requests",
+        "kind": "datetime",
+        "required": false,
+        "min_length": null,
+        "max_length": null,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "choices": null
+      },
+      {
+        "field": "due_at",
+        "entity": "requests",
+        "kind": "datetime",
+        "required": false,
+        "min_length": null,
+        "max_length": null,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "choices": null
+      },
+      {
+        "field": "priority",
+        "entity": "requests",
+        "kind": "enum",
+        "required": true,
+        "min_length": null,
+        "max_length": null,
+        "searchable": null,
+        "filterable": true,
+        "date_range": null,
+        "choices": [
+          "普通",
+          "紧急"
+        ]
+      },
+      {
+        "field": "title",
+        "entity": "tasks",
+        "kind": "text",
+        "required": true,
+        "min_length": 0,
+        "max_length": 200,
+        "searchable": true,
+        "filterable": null,
+        "date_range": null,
+        "choices": null
+      },
+      {
+        "field": "detail",
+        "entity": "tasks",
+        "kind": "text",
+        "required": true,
+        "min_length": 0,
+        "max_length": 3000,
+        "searchable": true,
+        "filterable": null,
+        "date_range": null,
+        "choices": null
+      },
+      {
+        "field": "request_id",
+        "entity": "tasks",
+        "kind": "text",
+        "required": true,
+        "min_length": null,
+        "max_length": null,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "choices": null
+      },
+      {
+        "field": "assignee_id",
+        "entity": "tasks",
+        "kind": "text",
+        "required": false,
+        "min_length": null,
+        "max_length": null,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "choices": null
+      },
+      {
+        "field": "task_state",
+        "entity": "tasks",
+        "kind": "enum",
+        "required": true,
+        "min_length": null,
+        "max_length": null,
+        "searchable": null,
+        "filterable": null,
+        "date_range": null,
+        "choices": [
+          "new",
+          "active",
+          "resolved"
+        ]
+      },
+      {
+        "field": "resolved_at",
+        "entity": "tasks",
+        "kind": "datetime",
+        "required": false,
+        "min_length": null,
+        "max_length": null,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "choices": null
+      },
+      {
+        "field": "due_at",
+        "entity": "tasks",
+        "kind": "datetime",
+        "required": false,
+        "min_length": null,
+        "max_length": null,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "choices": null
+      }
+    ],
+    "changes": []
+  },
+  "candidate_plan": {
+    "title": "内部客户服务管理平台",
+    "data_scope": "shared",
+    "entities": [
+      {
+        "name": "customers",
+        "description": "客户",
+        "fields": [
+          {
+            "name": "name",
+            "label": "客户名称",
+            "choice_labels": {},
+            "kind": "text",
+            "required": true,
+            "max_length": 120,
+            "min_length": 0,
+            "choices": [],
+            "searchable": true,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "organization",
+            "label": "所属组织",
+            "choice_labels": {},
+            "kind": "text",
+            "required": false,
+            "max_length": 160,
+            "min_length": 0,
+            "choices": [],
+            "searchable": true,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "contact",
+            "label": "联系方式",
+            "choice_labels": {},
+            "kind": "text",
+            "required": false,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [],
+            "searchable": true,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "category",
+            "label": "客户分类",
+            "choice_labels": {
+              "企业": "企业",
+              "个人": "个人",
+              "合作伙伴": "合作伙伴"
+            },
+            "kind": "enum",
+            "required": true,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [
+              "企业",
+              "个人",
+              "合作伙伴"
+            ],
+            "searchable": false,
+            "filterable": true,
+            "date_range": false
+          }
+        ]
+      },
+      {
+        "name": "requests",
+        "description": "服务请求",
+        "fields": [
+          {
+            "name": "title",
+            "label": "请求标题",
+            "choice_labels": {},
+            "kind": "text",
+            "required": true,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [],
+            "searchable": true,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "detail",
+            "label": "问题描述",
+            "choice_labels": {},
+            "kind": "text",
+            "required": true,
+            "max_length": 3000,
+            "min_length": 0,
+            "choices": [],
+            "searchable": true,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "customer_id",
+            "label": "所属客户",
+            "choice_labels": {},
+            "kind": "text",
+            "required": true,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [],
+            "searchable": false,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "assignee_id",
+            "label": "负责人",
+            "choice_labels": {},
+            "kind": "text",
+            "required": false,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [],
+            "searchable": false,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "request_state",
+            "label": "处理状态",
+            "choice_labels": {
+              "new": "待处理",
+              "active": "处理中",
+              "resolved": "已解决"
+            },
+            "kind": "enum",
+            "required": true,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [
+              "new",
+              "active",
+              "resolved"
+            ],
+            "searchable": false,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "resolved_at",
+            "label": "解决时间",
+            "choice_labels": {},
+            "kind": "datetime",
+            "required": false,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [],
+            "searchable": false,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "due_at",
+            "label": "截止时间",
+            "choice_labels": {},
+            "kind": "datetime",
+            "required": false,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [],
+            "searchable": false,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "priority",
+            "label": "优先级",
+            "choice_labels": {
+              "普通": "普通",
+              "紧急": "紧急"
+            },
+            "kind": "enum",
+            "required": true,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [
+              "普通",
+              "紧急"
+            ],
+            "searchable": false,
+            "filterable": true,
+            "date_range": false
+          }
+        ]
+      },
+      {
+        "name": "tasks",
+        "description": "协作任务",
+        "fields": [
+          {
+            "name": "title",
+            "label": "任务标题",
+            "choice_labels": {},
+            "kind": "text",
+            "required": true,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [],
+            "searchable": true,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "detail",
+            "label": "任务说明",
+            "choice_labels": {},
+            "kind": "text",
+            "required": true,
+            "max_length": 3000,
+            "min_length": 0,
+            "choices": [],
+            "searchable": true,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "request_id",
+            "label": "关联请求",
+            "choice_labels": {},
+            "kind": "text",
+            "required": true,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [],
+            "searchable": false,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "assignee_id",
+            "label": "负责人",
+            "choice_labels": {},
+            "kind": "text",
+            "required": false,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [],
+            "searchable": false,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "task_state",
+            "label": "任务状态",
+            "choice_labels": {
+              "new": "待处理",
+              "active": "处理中",
+              "resolved": "已解决"
+            },
+            "kind": "enum",
+            "required": true,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [
+              "new",
+              "active",
+              "resolved"
+            ],
+            "searchable": false,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "resolved_at",
+            "label": "解决时间",
+            "choice_labels": {},
+            "kind": "datetime",
+            "required": false,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [],
+            "searchable": false,
+            "filterable": false,
+            "date_range": false
+          },
+          {
+            "name": "due_at",
+            "label": "截止时间",
+            "choice_labels": {},
+            "kind": "datetime",
+            "required": false,
+            "max_length": 200,
+            "min_length": 0,
+            "choices": [],
+            "searchable": false,
+            "filterable": false,
+            "date_range": false
+          }
+        ]
+      }
+    ],
+    "acceptance": [
+      "以 bootstrap 的 manager 账号登录后可创建客户（name、category 必填，organization、contact 可选，超过 120/160/200 分别报错）；service 与 employee 账号可查询客户但创建、修改、归档被拒绝。",
+      "客户列表可按 name/organization/contact 关键词搜索、按 category=企业/个人/合作伙伴 精确筛选，条件组合结果正确。",
+      "客户详情展示该客户关联的历史服务请求，且只显示当前角色有权读取的请求。",
+      "创建服务请求时 title（≤200）、detail（≤3000）、customer_id、priority 必填，customer_id 必须指向已存在客户，创建后 request_state 初始值为 new。",
+      "请求可分配负责人；被分配的服务人员只能看到并处理 scope=assigned 的请求，看不到其他服务人员的请求。",
+      "只有 manager/service 可对请求执行 start（new→active）与 resolve（active→resolved）；resolve 自动写入 resolved_at；无权限角色或非法转换（如 new→resolved）被拒绝。",
+      "通过普通表单直接改写 request_state 或 assignee_id 被拒绝，必须走命名转换与分配动作。",
+      "请求可添加处理备注；无 read_history 权限的角色看不到处理历史，无 read_audit 权限的角色看不到完整审计；两项授权互不隐含。",
+      "任务可创建、分配、添加备注、执行 start/resolve、归档；tasks.title/detail 关键词搜索生效；请求详情展示关联协作任务并遵守 tasks 行权限。",
+      "customers/requests/tasks 的审计历史不存在修改或删除入口，归档后历史与被引用关系保留。",
+      "分配负责人、添加备注、执行 start/resolve、到达 due_at 时，对应接收者收到持久化站内提醒；请求被 resolve 后创建者在自己的通知收件箱看到提醒；提醒已读状态仅对该接收者可见。",
+      "统计返回：requests 总数、request_state=resolved 的数量、created_at→resolved_at 的平均解决秒数（零样本返回空值而非 0）、customers 按 category 的分组计数、requests 按 created_at 的 UTC 每日趋势，数值与数据库实际记录一致。",
+      "服务人员调用统计时按 scope=assigned 的可见请求行计算；普通员工无 read_metrics 权限，调用统计被拒绝。",
+      "新注册用户默认获得 employee 角色，无法自行提升权限；仅 manager 可执行角色管理操作。",
+      "界面按中文标签呈现：request_state/task_state 显示 待处理/处理中/已解决，动作显示 开始处理/标记解决，关联字段显示客户名称、请求标题或负责人用户名。"
+    ],
+    "custom_rules": [],
+    "business": {
+      "roles": [
+        {
+          "name": "manager",
+          "label": "管理人员"
+        },
+        {
+          "name": "service",
+          "label": "服务人员"
+        },
+        {
+          "name": "employee",
+          "label": "普通员工"
+        }
+      ],
+      "registration": {
+        "enabled": true,
+        "default_role": "employee"
+      },
+      "bootstrap_role": "manager",
+      "role_admin_roles": [
+        "manager"
+      ],
+      "resources": [
+        {
+          "entity": "customers",
+          "assignee_field": null,
+          "archive": true,
+          "notes": false,
+          "audit": true
+        },
+        {
+          "entity": "requests",
+          "assignee_field": "assignee_id",
+          "archive": true,
+          "notes": true,
+          "audit": true
+        },
+        {
+          "entity": "tasks",
+          "assignee_field": "assignee_id",
+          "archive": true,
+          "notes": true,
+          "audit": true
+        }
+      ],
+      "relations": [
+        {
+          "entity": "requests",
+          "field": "customer_id",
+          "target_entity": "customers",
+          "on_delete": "restrict"
+        },
+        {
+          "entity": "requests",
+          "field": "assignee_id",
+          "target_entity": "$users",
+          "on_delete": "restrict"
+        },
+        {
+          "entity": "tasks",
+          "field": "request_id",
+          "target_entity": "requests",
+          "on_delete": "restrict"
+        },
+        {
+          "entity": "tasks",
+          "field": "assignee_id",
+          "target_entity": "$users",
+          "on_delete": "restrict"
+        }
+      ],
+      "permissions": [
+        {
+          "role": "manager",
+          "entity": "customers",
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "archive",
+            "read_audit",
+            "read_metrics"
+          ],
+          "scope": "all"
+        },
+        {
+          "role": "service",
+          "entity": "customers",
+          "actions": [
+            "read",
+            "read_metrics"
+          ],
+          "scope": "all"
+        },
+        {
+          "role": "employee",
+          "entity": "customers",
+          "actions": [
+            "read"
+          ],
+          "scope": "all"
+        },
+        {
+          "role": "manager",
+          "entity": "requests",
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "archive",
+            "assign",
+            "transition",
+            "add_note",
+            "read_history",
+            "read_audit",
+            "read_metrics"
+          ],
+          "scope": "all"
+        },
+        {
+          "role": "service",
+          "entity": "requests",
+          "actions": [
+            "read",
+            "update",
+            "add_note",
+            "transition",
+            "read_history",
+            "read_audit",
+            "read_metrics"
+          ],
+          "scope": "assigned"
+        },
+        {
+          "role": "employee",
+          "entity": "requests",
+          "actions": [
+            "create",
+            "read"
+          ],
+          "scope": "own"
+        },
+        {
+          "role": "manager",
+          "entity": "tasks",
+          "actions": [
+            "create",
+            "read",
+            "update",
+            "archive",
+            "assign",
+            "transition",
+            "add_note",
+            "read_history",
+            "read_audit"
+          ],
+          "scope": "all"
+        },
+        {
+          "role": "service",
+          "entity": "tasks",
+          "actions": [
+            "read",
+            "update",
+            "add_note",
+            "transition",
+            "read_history",
+            "read_audit"
+          ],
+          "scope": "assigned"
+        }
+      ],
+      "workflows": [
+        {
+          "entity": "requests",
+          "status_field": "request_state",
+          "initial": "new",
+          "transitions": [
+            {
+              "name": "start",
+              "label": "开始处理",
+              "from_states": [
+                "new"
+              ],
+              "to_state": "active",
+              "roles": [
+                "manager",
+                "service"
+              ],
+              "set_timestamp": null
+            },
+            {
+              "name": "resolve",
+              "label": "标记解决",
+              "from_states": [
+                "active"
+              ],
+              "to_state": "resolved",
+              "roles": [
+                "manager",
+                "service"
+              ],
+              "set_timestamp": "resolved_at"
+            }
+          ]
+        },
+        {
+          "entity": "tasks",
+          "status_field": "task_state",
+          "initial": "new",
+          "transitions": [
+            {
+              "name": "start",
+              "label": "开始处理",
+              "from_states": [
+                "new"
+              ],
+              "to_state": "active",
+              "roles": [
+                "manager",
+                "service"
+              ],
+              "set_timestamp": null
+            },
+            {
+              "name": "resolve",
+              "label": "标记解决",
+              "from_states": [
+                "active"
+              ],
+              "to_state": "resolved",
+              "roles": [
+                "manager",
+                "service"
+              ],
+              "set_timestamp": "resolved_at"
+            }
+          ]
+        }
+      ],
+      "notifications": [
+        {
+          "entity": "requests",
+          "event": "assigned",
+          "recipient": "assignee",
+          "transition": null,
+          "due_field": null,
+          "channel": "in_app"
+        },
+        {
+          "entity": "requests",
+          "event": "note_added",
+          "recipient": "assignee",
+          "transition": null,
+          "due_field": null,
+          "channel": "in_app"
+        },
+        {
+          "entity": "requests",
+          "event": "transitioned",
+          "recipient": "assignee",
+          "transition": "start",
+          "due_field": null,
+          "channel": "in_app"
+        },
+        {
+          "entity": "requests",
+          "event": "transitioned",
+          "recipient": "assignee",
+          "transition": "resolve",
+          "due_field": null,
+          "channel": "in_app"
+        },
+        {
+          "entity": "requests",
+          "event": "transitioned",
+          "recipient": "creator",
+          "transition": "resolve",
+          "due_field": null,
+          "channel": "in_app"
+        },
+        {
+          "entity": "requests",
+          "event": "due",
+          "recipient": "assignee",
+          "transition": null,
+          "due_field": "due_at",
+          "channel": "in_app"
+        },
+        {
+          "entity": "tasks",
+          "event": "assigned",
+          "recipient": "assignee",
+          "transition": null,
+          "due_field": null,
+          "channel": "in_app"
+        },
+        {
+          "entity": "tasks",
+          "event": "note_added",
+          "recipient": "assignee",
+          "transition": null,
+          "due_field": null,
+          "channel": "in_app"
+        },
+        {
+          "entity": "tasks",
+          "event": "transitioned",
+          "recipient": "assignee",
+          "transition": "start",
+          "due_field": null,
+          "channel": "in_app"
+        },
+        {
+          "entity": "tasks",
+          "event": "transitioned",
+          "recipient": "assignee",
+          "transition": "resolve",
+          "due_field": null,
+          "channel": "in_app"
+        },
+        {
+          "entity": "tasks",
+          "event": "due",
+          "recipient": "assignee",
+          "transition": null,
+          "due_field": "due_at",
+          "channel": "in_app"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "requests_total",
+          "label": "服务请求总数",
+          "entity": "requests",
+          "kind": "count",
+          "group_by": null,
+          "start_field": null,
+          "end_field": null,
+          "time_field": null,
+          "filters": [],
+          "unit": "seconds",
+          "bucket": "day",
+          "timezone": "UTC"
+        },
+        {
+          "name": "requests_resolved",
+          "label": "已解决服务请求数",
+          "entity": "requests",
+          "kind": "count",
+          "group_by": null,
+          "start_field": null,
+          "end_field": null,
+          "time_field": null,
+          "filters": [
+            {
+              "field": "request_state",
+              "op": "eq",
+              "value": "resolved"
+            }
+          ],
+          "unit": "seconds",
+          "bucket": "day",
+          "timezone": "UTC"
+        },
+        {
+          "name": "requests_avg_resolution",
+          "label": "平均解决时长",
+          "entity": "requests",
+          "kind": "average_duration",
+          "group_by": null,
+          "start_field": "created_at",
+          "end_field": "resolved_at",
+          "time_field": null,
+          "filters": [],
+          "unit": "seconds",
+          "bucket": "day",
+          "timezone": "UTC"
+        },
+        {
+          "name": "customers_by_category",
+          "label": "客户分类分布",
+          "entity": "customers",
+          "kind": "group_count",
+          "group_by": "category",
+          "start_field": null,
+          "end_field": null,
+          "time_field": null,
+          "filters": [],
+          "unit": "seconds",
+          "bucket": "day",
+          "timezone": "UTC"
+        },
+        {
+          "name": "requests_daily_trend",
+          "label": "服务请求每日趋势",
+          "entity": "requests",
+          "kind": "time_count",
+          "group_by": null,
+          "start_field": null,
+          "end_field": null,
+          "time_field": "created_at",
+          "filters": [],
+          "unit": "seconds",
+          "bucket": "day",
+          "timezone": "UTC"
+        }
+      ]
+    },
+    "unsupported": []
+  }
+}
 ````
 
 ### `tests/fixtures/customer_design_diagnostics/2a4106f/fastapiadmin.json`
@@ -54719,12 +57808,13 @@ def test_actual_recorded_business_gap_reaches_planner_with_exact_scope_and_actio
 
 **逐个入口与控制逻辑：**
 
-- `unqualified_text_reads`（L30–L65）：接收`source`。 源码说明：Find locale-sensitive pathlib/builtin text reads in the bounded source set.。 控制顺序：L33遍历`ast.walk(ast.parse(source))`；L34按`not isinstance(node, ast.Call)`分支；L38按`isinstance(function, ast.Attribute) and function.attr == "read_text"`分支；L40按`isinstance(function, ast.Attribute) and function.attr == "open" or isinstance(functio…`分支；L48按`mode is None and len(node.args) > mode_position`分支；L50按`isinstance(mode, ast.Constant) and isinstance(mode.value, str)`分支；L51按`"b" in mode.value or not ("r" in mode.value or "+" in mode.value)`分支；L57按`encoding is None and len(node.args) > encoding_position`分支。后续分支沿下方源码相同行号继续阅读。 调用`ast.walk`、`ast.parse`、`isinstance`、`keywords.get`、`len`、`encoding.value.lower().replace("-", "").replace`、`encoding.value.lower().replace`、`encoding.value.lower`、`missing.append`。 返回路径：L65的`missing`。
-- `test_customer_source_and_fixture_reads_explicitly_use_utf8`（L75–L77）：接收`name`。 控制顺序：L77断言`not unqualified_text_reads(source)`。 调用`(ROOT / name).read_text`、`unqualified_text_reads`、`pytest.mark.parametrize`、`sorted`、`set`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "tests").glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_encoding_guard_rejects_locale_dependent_reads`（L92–L93）：接收`source`。 控制顺序：L93断言`unqualified_text_reads(source) == [1]`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_encoding_guard_allows_explicit_utf8_and_binary_reads`（L110–L111）：接收`source`。 控制顺序：L111断言`unqualified_text_reads(source) == []`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `unqualified_text_reads`（L41–L106）：接收`source`。 源码说明：Find locale-sensitive pathlib/builtin text reads in the bounded source set.。 控制顺序：L53遍历`ast.walk(tree)`；L54按`isinstance(node, ast.With)`分支；L55遍历`node.items`；L57按`isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and isinstance(ca…`分支；L66遍历`ast.walk(tree)`；L67按`not isinstance(node, ast.Call)`分支；L71按`isinstance(function, ast.Attribute) and function.attr == "read_text"`分支；L73按`isinstance(function, ast.Attribute) and function.attr == "open" or isinstance(functio…`分支。后续分支沿下方源码相同行号继续阅读。 调用`ast.parse`、`ast.walk`、`isinstance`、`zip_scopes.append`、`any`、`keywords.get`、`len`、`encoding.value.lower().replace("-", "").replace`、`encoding.value.lower().replace`等。 返回路径：L106的`missing`。
+- `test_customer_source_and_fixture_reads_explicitly_use_utf8`（L116–L118）：接收`name`。 控制顺序：L118断言`not unqualified_text_reads(source)`。 调用`(ROOT / name).read_text`、`unqualified_text_reads`、`pytest.mark.parametrize`、`sorted`、`set`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "tests").glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_rejects_locale_dependent_reads`（L133–L134）：接收`source`。 控制顺序：L134断言`unqualified_text_reads(source) == [1]`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_allows_explicit_utf8_and_binary_reads`（L151–L152）：接收`source`。 控制顺序：L152断言`unqualified_text_reads(source) == []`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_distinguishes_zip_binary_open_from_path_open`（L155–L171）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L156断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`；L162断言`unqualified_text_reads( "import zipfile as zip_module\nwith zip_module.ZipFile('sourc…`；L168断言`unqualified_text_reads("path.open()") == [1]`；L169断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`。 调用`unqualified_text_reads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_customer_source_encoding.py sha256: 537d6c9a94ca2e072a1031b8aadcca34d9c1e45c2965ae4802b8a8ec2cf11d6d -->
+<!-- source-file: tests/test_customer_source_encoding.py sha256: cf33869c1ec65f5e2cda10ecbf1ea57c652b13569237bcb0bae865663652d9d8 -->
 ````python
 """Keep customer acceptance source and fixture reads independent of the OS locale."""
 
@@ -54739,6 +57829,7 @@ from workbench.settings import ROOT
 SOURCE_READERS = (
     "scripts/build_handbook.py",
     "scripts/ci_handbook.py",
+    "scripts/ci_native_bundled.py",
     "scripts/ci_real_model.py",
     "scripts/handbook_notes.py",
     "scripts/rebuild_from_handbook.py",
@@ -54752,13 +57843,45 @@ SOURCE_READERS = (
     "tests/test_native_browser_navigation.py",
     "tests/test_real_model_execution_diagnostics.py",
     "workbench/verification.py",
+    "workbench/filesystem.py",
+    "workbench/native_delivery.py",
+    "workbench/native_lab.py",
+    "workbench/portable.py",
+    "tests/test_native_archive_limits.py",
+    "tests/test_native_approved_replay.py",
+    "tests/test_semantic_fact_domains.py",
+    "tests/test_semantic_fact_namespace_aliases.py",
+    "workbench/model_protocol.py",
+    "workbench/llm.py",
 )
 
 
 def unqualified_text_reads(source):
     """Find locale-sensitive pathlib/builtin text reads in the bounded source set."""
     missing = []
-    for node in ast.walk(ast.parse(source)):
+    tree = ast.parse(source)
+    zip_modules = {
+        alias.asname or alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Import)
+        for alias in node.names
+        if alias.name == "zipfile"
+    }
+    zip_scopes = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.With):
+            for item in node.items:
+                call = item.context_expr
+                if (
+                    isinstance(call, ast.Call)
+                    and isinstance(call.func, ast.Attribute)
+                    and isinstance(call.func.value, ast.Name)
+                    and call.func.value.id in zip_modules
+                    and call.func.attr == "ZipFile"
+                    and isinstance(item.optional_vars, ast.Name)
+                ):
+                    zip_scopes.append((item.optional_vars.id, node.lineno, node.end_lineno))
+    for node in ast.walk(tree):
         if not isinstance(node, ast.Call):
             continue
         function = node.func
@@ -54771,6 +57894,14 @@ def unqualified_text_reads(source):
             or isinstance(function, ast.Name)
             and function.id == "open"
         ):
+            # ZipFile.open returns bytes and has no encoding parameter. Limit
+            # the exception to a directly identified constructor's with-scope.
+            if isinstance(function, ast.Attribute) and isinstance(function.value, ast.Name):
+                if any(
+                    function.value.id == name and start <= node.lineno <= end
+                    for name, start, end in zip_scopes
+                ):
+                    continue
             mode_position = 1 if isinstance(function, ast.Name) else 0
             mode = keywords.get("mode")
             if mode is None and len(node.args) > mode_position:
@@ -54837,6 +57968,25 @@ def test_encoding_guard_rejects_locale_dependent_reads(source):
 )
 def test_encoding_guard_allows_explicit_utf8_and_binary_reads(source):
     assert unqualified_text_reads(source) == []
+
+
+def test_encoding_guard_distinguishes_zip_binary_open_from_path_open():
+    assert (
+        unqualified_text_reads(
+            "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z.open('app.py')"
+        )
+        == []
+    )
+    assert (
+        unqualified_text_reads(
+            "import zipfile as zip_module\nwith zip_module.ZipFile('source.zip') as z:\n z.open('app.py')"
+        )
+        == []
+    )
+    assert unqualified_text_reads("path.open()") == [1]
+    assert unqualified_text_reads(
+        "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z.open('app.py')\nz.open()"
+    ) == [4]
 ````
 
 ### `tests/test_customer_workflow.py`
@@ -57534,11 +60684,11 @@ def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, mon
 - `test_one_model_remains_the_default`（L13–L27）：接收`tmp_path`。 控制顺序：L21断言`not settings.review_enabled`；L22遍历`["requirements", "planning", "coding"]`；L24断言`model.model == "one-model"`；L25断言`model.base_url == "https://provider.example/v1"`；L26断言`model.api_key.get_secret_value() == "secret-default"`；L27断言`"secret-default" not in str(model.public())`。 调用`env.write_text`、`Settings`、`settings.require_model`、`settings.model_for`、`model.api_key.get_secret_value`、`str`、`model.public`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_mixed_per_stage_models_and_provider_keys`（L30–L52）：接收`tmp_path`。 控制顺序：L46断言`settings.model_for("requirements").model == "cheap-analysis"`；L47断言`settings.model_for("coding").base_url == "https://base.example/v1"`；L48断言`settings.model_for("planning").api_key.get_secret_value() == "planning-secret"`；L49断言`settings.model_for("review").model == "reviewer"`；L50断言`settings.review_enabled`；L51断言`"default-secret" not in settings.redact("default-secret planning-secret review-secret…`；L52断言`"planning-secret" not in settings.redact("default-secret planning-secret review-secre…`。 调用`env.write_text`、`Settings`、`settings.require_model`、`settings.model_for`、`settings.model_for("planning").api_key.get_secret_value`、`settings.redact`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_new_endpoint_never_inherits_another_provider_key`（L55–L64）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Settings`、`pytest.raises`、`s.model_for`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_gateway_sends_each_stage_to_its_selected_model`（L67–L102）：接收`store`。 控制顺序：L93断言`seen == [ ("base.example", "Bearer base-key", "shared-model"), ("planner.example", "B…`；L97断言`{x["stage"] for x in store.model_records(rid)} == {"requirements", "planning"}`；L100断言`len(seen) == 3`。 调用`SecretStr`、`ModelGateway`、`httpx.MockTransport`、`new_run`、`gateway.complete`、`store.model_records`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_gateway_sends_each_stage_to_its_selected_model.handler`（L77–L87）：接收`request`。 调用`seen.append`、`json.loads`、`httpx.Response`、`requirement().model_dump_json`、`requirement`。 返回路径：L85的`httpx.Response( 200, json={"choices": [{"message": {"content": requirement().model_dump_js…`。
-- `test_default_model_budget_does_not_kill_long_conversations`（L105–L110）：接收`store`。 控制顺序：L107断言`store.settings.max_rounds == 0 and store.settings.max_model_calls == 0`；L108遍历`range(80)`；L110断言`store.get_run(rid)["model_calls"] == 80`。 调用`new_run`、`range`、`store.reserve_model_call`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_gateway_sends_each_stage_to_its_selected_model`（L67–L107）：接收`store`。 控制顺序：L98断言`seen == [ ("base.example", "Bearer base-key", "shared-model"), ("planner.example", "B…`；L102断言`{x["stage"] for x in store.model_records(rid)} == {"requirements", "planning"}`；L105断言`len(seen) == 3`。 调用`SecretStr`、`ModelGateway`、`httpx.MockTransport`、`new_run`、`gateway.complete`、`store.model_records`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_gateway_sends_each_stage_to_its_selected_model.handler`（L77–L92）：接收`request`。 调用`seen.append`、`json.loads`、`httpx.Response`、`requirement().model_dump_json`、`requirement`。 返回路径：L85的`httpx.Response( 200, json={ "choices": [ {"message": {"role": "assistant", "content": requ…`。
+- `test_default_model_budget_does_not_kill_long_conversations`（L110–L115）：接收`store`。 控制顺序：L112断言`store.settings.max_rounds == 0 and store.settings.max_model_calls == 0`；L113遍历`range(80)`；L115断言`store.get_run(rid)["model_calls"] == 80`。 调用`new_run`、`range`、`store.reserve_model_call`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_guided_models.py sha256: 84d4d966b326c2318645c3b070286e4fd9bda99c36048eb88f9733ca431eae51 -->
+<!-- source-file: tests/test_guided_models.py sha256: 373b15cfd95dc9de812d2f2cf82706b51bfdf4ceb23e33c46c173363bd54a3ec -->
 ````python
 import json
 
@@ -57625,7 +60775,12 @@ def test_gateway_sends_each_stage_to_its_selected_model(store):
             )
         )
         return httpx.Response(
-            200, json={"choices": [{"message": {"content": requirement().model_dump_json()}}]}
+            200,
+            json={
+                "choices": [
+                    {"message": {"role": "assistant", "content": requirement().model_dump_json()}}
+                ]
+            },
         )
 
     gateway = ModelGateway(settings, store, httpx.MockTransport(handler))
@@ -58661,14 +61816,14 @@ def test_database_lesson_runs_from_only_its_documented_files(tmp_path):
 **逐个入口与控制逻辑：**
 
 - `gateway`（L11–L17）：接收`store`、`handler`。 调用`SecretStr`、`ModelGateway`、`httpx.MockTransport`。 返回路径：L17的`ModelGateway(store.settings, store, httpx.MockTransport(handler))`。
-- `test_success_cache_and_usage`（L20–L38）：接收`store`。 控制顺序：L36断言`model.complete(run, "test", "instruction", {}, Requirement) == a`；L37断言`len(calls) == 1`；L38断言`store.get_run(run)["model_calls"] == 1`。 调用`gateway`、`new_run`、`model.complete`、`len`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_success_cache_and_usage.handler`（L23–L31）：接收`request`。 调用`calls.append`、`json.loads`、`httpx.Response`、`requirement().model_dump_json`、`requirement`。 返回路径：L25的`httpx.Response( 200, json={ "choices": [{"message": {"content": requirement().model_dump_j…`。
-- `test_failures_not_fake_success`（L42–L46）：接收`store`、`status`。 控制顺序：L46断言`"do-not-disclose" not in str(error.value)`。 调用`gateway`、`httpx.Response`、`pytest.raises`、`model.complete`、`new_run`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_invalid_json_bounded`（L49–L57）：接收`store`。 控制顺序：L57断言`store.get_run(run)["model_calls"] == 2`。 调用`gateway`、`httpx.Response`、`new_run`、`pytest.raises`、`model.complete`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_schema_retry_contains_exact_validator_feedback_without_credentials`（L60–L90）：接收`store`。 控制顺序：L83断言`result.business is not None`；L84断言`len(requests) == 2`；L86断言`retry[-2]["role"] == "assistant"`；L87断言`json.loads(retry[-2]["content"]) == invalid`；L88断言`"日期范围只支持 date 类型" in retry[-1]["content"]`；L89断言`"entities" in retry[-1]["content"] and "fields" in retry[-1]["content"]`；L90断言`"do-not-disclose" not in json.dumps(retry)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`json.dumps`、`next`、`gateway`、`model.complete`、`new_run`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_schema_retry_contains_exact_validator_feedback_without_credentials.handler`（L70–L79）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`、`json.dumps`、`len`。 返回路径：L72的`httpx.Response( 200, json={ "choices": [ {"message": {"content": json.dumps(invalid if len…`。
+- `test_success_cache_and_usage`（L20–L40）：接收`store`。 控制顺序：L38断言`model.complete(run, "test", "instruction", {}, Requirement) == a`；L39断言`len(calls) == 1`；L40断言`store.get_run(run)["model_calls"] == 1`。 调用`gateway`、`new_run`、`model.complete`、`len`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_success_cache_and_usage.handler`（L23–L33）：接收`request`。 调用`calls.append`、`json.loads`、`httpx.Response`、`requirement().model_dump_json`、`requirement`。 返回路径：L25的`httpx.Response( 200, json={ "choices": [ {"message": {"role": "assistant", "content": requ…`。
+- `test_failures_not_fake_success`（L44–L48）：接收`store`、`status`。 控制顺序：L48断言`"do-not-disclose" not in str(error.value)`。 调用`gateway`、`httpx.Response`、`pytest.raises`、`model.complete`、`new_run`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_json_bounded`（L51–L61）：接收`store`。 控制顺序：L61断言`store.get_run(run)["model_calls"] == 2`。 调用`gateway`、`httpx.Response`、`new_run`、`pytest.raises`、`model.complete`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_schema_retry_contains_exact_validator_feedback_without_credentials`（L64–L99）：接收`store`。 控制顺序：L92断言`result.business is not None`；L93断言`len(requests) == 2`；L95断言`retry[-2]["role"] == "assistant"`；L96断言`json.loads(retry[-2]["content"]) == invalid`；L97断言`"日期范围只支持 date 类型" in retry[-1]["content"]`；L98断言`"entities" in retry[-1]["content"] and "fields" in retry[-1]["content"]`；L99断言`"do-not-disclose" not in json.dumps(retry)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`json.dumps`、`next`、`gateway`、`model.complete`、`new_run`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_schema_retry_contains_exact_validator_feedback_without_credentials.handler`（L74–L88）：接收`request`。 调用`requests.append`、`json.loads`、`httpx.Response`、`json.dumps`、`len`。 返回路径：L76的`httpx.Response( 200, json={ "choices": [ { "message": { "role": "assistant", "content": js…`。
 
-<!-- source-file: tests/test_llm.py sha256: 9bd978e0f271059a2f25ca8595e0efe3e996f65392a22c3ac5e6eebe5fdab674 -->
+<!-- source-file: tests/test_llm.py sha256: e2c0a2f6e4a1db2a27d71c66cc648e3f321d29c96341fb122e29d58c33ca9c17 -->
 ````python
 import json
 
@@ -58697,7 +61852,9 @@ def test_success_cache_and_usage(store):
         return httpx.Response(
             200,
             json={
-                "choices": [{"message": {"content": requirement().model_dump_json()}}],
+                "choices": [
+                    {"message": {"role": "assistant", "content": requirement().model_dump_json()}}
+                ],
                 "usage": {"total_tokens": 12},
             },
         )
@@ -58721,7 +61878,9 @@ def test_failures_not_fake_success(store, status):
 def test_invalid_json_bounded(store):
     model = gateway(
         store,
-        lambda _: httpx.Response(200, json={"choices": [{"message": {"content": "not-json"}}]}),
+        lambda _: httpx.Response(
+            200, json={"choices": [{"message": {"role": "assistant", "content": "not-json"}}]}
+        ),
     )
     run = new_run(store)
     with pytest.raises(ModelFailure):
@@ -58745,7 +61904,12 @@ def test_schema_retry_contains_exact_validator_feedback_without_credentials(stor
             200,
             json={
                 "choices": [
-                    {"message": {"content": json.dumps(invalid if len(requests) == 1 else valid)}}
+                    {
+                        "message": {
+                            "role": "assistant",
+                            "content": json.dumps(invalid if len(requests) == 1 else valid),
+                        }
+                    }
                 ]
             },
         )
@@ -59238,6 +62402,421 @@ def test_all_sources_pinned():
         for source in sources:
             assert len(source["sha"]) == 40
             assert source["required"]
+````
+
+### `tests/test_native_approved_replay.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`、`workbench.domain`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_exact_approved_yudao_replay_preserves_original_schema_and_bytes`（L14–L28）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L17断言`len(raw) == 19534`；L18断言`hashlib.sha256(raw).hexdigest() == "16731f7c60a15916058d64c503525aafe93e1c53e0da62bae…`；L23断言`plan == Plan.model_validate_json(raw)`；L24断言`{entity.name for entity in plan.entities} == {"customers", "requests", "tasks"}`；L25断言`{role.name for role in plan.business.roles} == {"manager", "service", "employee"}`；L27断言`"36795375784" in note and "1d7c70b03e63509830e97af9af398c0bd148902e" in note`；L28断言`"never reads this fixture" in note`。 调用`(ROOT / record["path"]).read_bytes`、`len`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`、`replay.approved_customer_replay`、`Plan.model_validate_json`、`(ROOT / "tests/fixtures/customer_approved_replays/README.md").rea…`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_replay_rejects_untrusted_payload_before_generation`（L34–L64）：接收`tmp_path`、`monkeypatch`、`kind`。 控制顺序：L37按`kind == "oversize"`分支；L39按`kind == "schema"`分支；L41按`kind == "credential"`分支；L43按`kind == "candidate_envelope"`分支；L64断言`"secret-test-canary" not in str(caught.value)`。 调用`json.loads`、`(ROOT / original["path"]).read_text`、`json.dumps(data).encode`、`json.dumps`、`path.write_bytes`、`monkeypatch.setattr`、`monkeypatch.setitem`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_replay_template_is_not_read_from_fixture`（L67–L69）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`replay.approved_customer_replay`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_replay_workflow_is_separate_and_has_unique_artifacts`（L72–L82）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L74断言`"--approved-replay yudao-1d7" in source`；L75断言`"--spec examples/plans/customer-service.json" in source`；L76断言`"native-runtime-${{ matrix.template }}-${{ matrix.case }}" in source`；L77断言`source.count("case: canonical") == 2`；L78断言`source.count("case: approved-1d7") == 1`；L79断言`not re.search(r"^\s*(?:API_KEY\|BASE_URL)\s*:", source, re.M)`；L81断言`"customer_approved_replays" not in genuine`；L82断言`"approved_customer_replay" not in genuine`。 调用`(ROOT / ".github/workflows/customer-runtime.yml").read_text`、`source.count`、`re.search`、`(ROOT / "scripts/ci_real_model.py").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_native_approved_replay.py sha256: 954a49947ba080525668420cea7bde1cca7126b87cf7ad4686220b84fa7bf256 -->
+````python
+"""Approved-plan provenance checks precede native generation; never a model substitute."""
+
+import hashlib
+import json
+import re
+
+import pytest
+
+from scripts import ci_native_bundled as replay
+from workbench.domain import Plan
+from workbench.settings import ROOT
+
+
+def test_exact_approved_yudao_replay_preserves_original_schema_and_bytes():
+    record = replay.APPROVED_CUSTOMER_REPLAYS["yudao-1d7"]
+    raw = (ROOT / record["path"]).read_bytes()
+    assert len(raw) == 19534
+    assert (
+        hashlib.sha256(raw).hexdigest()
+        == "16731f7c60a15916058d64c503525aafe93e1c53e0da62bae1eb8d0c227730f5"
+    )
+    plan = replay.approved_customer_replay("yudao-1d7", "yudao-vben")
+    assert plan == Plan.model_validate_json(raw)
+    assert {entity.name for entity in plan.entities} == {"customers", "requests", "tasks"}
+    assert {role.name for role in plan.business.roles} == {"manager", "service", "employee"}
+    note = (ROOT / "tests/fixtures/customer_approved_replays/README.md").read_text(encoding="utf-8")
+    assert "36795375784" in note and "1d7c70b03e63509830e97af9af398c0bd148902e" in note
+    assert "never reads this fixture" in note
+
+
+@pytest.mark.parametrize(
+    "kind", ["digest", "oversize", "schema", "credential", "candidate_envelope"]
+)
+def test_approved_replay_rejects_untrusted_payload_before_generation(tmp_path, monkeypatch, kind):
+    original = replay.APPROVED_CUSTOMER_REPLAYS["yudao-1d7"]
+    data = json.loads((ROOT / original["path"]).read_text(encoding="utf-8"))
+    if kind == "oversize":
+        data["acceptance"] = ["x" * 140000]
+    elif kind == "schema":
+        data["entities"] = "not-an-entity-list"
+    elif kind == "credential":
+        data["acceptance"] = ["DATABASE_PASSWORD=secret-test-canary"]
+    elif kind == "candidate_envelope":
+        data = {
+            "approval_status": "unapproved",
+            "execution_authorized": False,
+            "candidate_plan": data,
+        }
+    raw = json.dumps(data).encode()
+    path = tmp_path / "fixture.json"
+    path.write_bytes(raw)
+    monkeypatch.setattr(replay, "ROOT", tmp_path)
+    monkeypatch.setitem(
+        replay.APPROVED_CUSTOMER_REPLAYS,
+        "test",
+        {
+            "path": path.name,
+            "template": "yudao-vben",
+            "sha256": "0" * 64 if kind == "digest" else hashlib.sha256(raw).hexdigest(),
+        },
+    )
+    with pytest.raises(ValueError) as caught:
+        replay.approved_customer_replay("test", "yudao-vben")
+    assert "secret-test-canary" not in str(caught.value)
+
+
+def test_approved_replay_template_is_not_read_from_fixture():
+    with pytest.raises(ValueError, match="template/path"):
+        replay.approved_customer_replay("yudao-1d7", "fastapiadmin")
+
+
+def test_replay_workflow_is_separate_and_has_unique_artifacts():
+    source = (ROOT / ".github/workflows/customer-runtime.yml").read_text(encoding="utf-8")
+    assert "--approved-replay yudao-1d7" in source
+    assert "--spec examples/plans/customer-service.json" in source
+    assert "native-runtime-${{ matrix.template }}-${{ matrix.case }}" in source
+    assert source.count("case: canonical") == 2
+    assert source.count("case: approved-1d7") == 1
+    assert not re.search(r"^\s*(?:API_KEY|BASE_URL)\s*:", source, re.M)
+    genuine = (ROOT / "scripts/ci_real_model.py").read_text(encoding="utf-8")
+    assert "customer_approved_replays" not in genuine
+    assert "approved_customer_replay" not in genuine
+````
+
+### `tests/test_native_archive_limits.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench`、`workbench.filesystem`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `archive`（L15–L23）：接收`rows`、`compressed`。 控制顺序：L20遍历`rows`。 调用`io.BytesIO`、`zipfile.ZipFile`、`z.writestr`、`output.seek`。 返回路径：L23的`output`。
+- `test_registered_template_limits_are_bounded_and_generic_is_unchanged`（L30–L34）：接收`template`、`limit`。 控制顺序：L31断言`filesystem.archive_entry_limit(template) == limit`；L32断言`filesystem.ARCHIVE_MAX_BYTES == 200_000_000`；L33断言`filesystem.ARCHIVE_MAX_FILE_BYTES == 32_000_000`；L34断言`filesystem.ARCHIVE_MAX_RATIO == 200`。 调用`filesystem.archive_entry_limit`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unknown_archive_template_cannot_select_a_larger_budget`（L37–L43）：接收`tmp_path`。 调用`pytest.raises`、`unpack`、`archive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_entry_limit_rejects_before_any_write`（L49–L56）：接收`tmp_path`、`template`、`count`。 控制顺序：L56断言`not (tmp_path / "out").exists()`。 调用`pytest.raises`、`unpack`、`archive`、`range`、`(tmp_path / "out").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_preserves_expanded_byte_budget_without_allocating_a_bomb`（L59–L65）：接收`tmp_path`。 控制顺序：L65断言`not (tmp_path / "out").exists()`。 调用`bytearray`、`archive([("source.py", "x")]).getvalue`、`archive`、`data.index`、`struct.pack_into`、`pytest.raises`、`unpack`、`io.BytesIO`、`(tmp_path / "out").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_compressed_archive_budget_includes_headers`（L68–L73）：接收`tmp_path`、`monkeypatch`。 控制顺序：L73断言`not (tmp_path / "out").exists()`。 调用`archive`、`monkeypatch.setattr`、`len`、`data.getvalue`、`pytest.raises`、`unpack`、`(tmp_path / "out").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_preserves_per_file_source_budget`（L76–L80）：接收`tmp_path`、`monkeypatch`。 控制顺序：L80断言`not (tmp_path / "out").exists()`。 调用`monkeypatch.setattr`、`pytest.raises`、`unpack`、`archive`、`(tmp_path / "out").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_compression_ratio_is_rejected_before_extraction`（L84–L91）：接收`tmp_path`、`template`。 控制顺序：L91断言`not (tmp_path / "out").exists()`。 调用`pytest.raises`、`unpack`、`archive`、`(tmp_path / "out").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_all_paths_and_secrets_are_preflighted_before_first_write`（L98–L105）：接收`tmp_path`、`name`、`template`。 控制顺序：L105断言`not (tmp_path / "out").exists()`。 调用`pytest.raises`、`unpack`、`archive`、`(tmp_path / "out").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_symlinks_and_case_collisions_remain_rejected`（L109–L115）：接收`tmp_path`、`template`。 控制顺序：L112遍历`(archive([(link, "target")]), archive([("a.py", "a"), ("A.py", "b…`；L115断言`not (tmp_path / "out").exists()`。 调用`zipfile.ZipInfo`、`archive`、`pytest.raises`、`unpack`、`(tmp_path / "out").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_producer_and_consumer_share_policy_and_exclude_runtime_files`（L118–L133）：接收`tmp_path`。 控制顺序：L122遍历`[".git", "node_modules", "target", "dist", "logs", ".deployment"]`；L129断言`packed == restored`；L130断言`packed["entry_count"] == 1`；L131断言`filesystem.manifest(source) == filesystem.manifest(tmp_path / "restored")`；L132断言`inspect_archive(target, tmp_path / "unused", template="yudao-vben") == packed`；L133断言`not (tmp_path / "unused").exists()`。 调用`source.mkdir`、`(source / "app.py").write_text`、`(source / name).mkdir`、`(source / name / "excluded.txt").write_text`、`(source / ".env").write_text`、`pack_source`、`unpack`、`filesystem.manifest`、`inspect_archive`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failed_producer_leaves_no_downloadable_partial_package`（L136–L145）：接收`tmp_path`、`monkeypatch`。 控制顺序：L144断言`not target.exists()`；L145断言`not target.with_suffix(".zip.tmp").exists()`。 调用`source.mkdir`、`(source / "app.py").write_text`、`monkeypatch.setattr`、`pytest.raises`、`pack_source`、`target.exists`、`target.with_suffix(".zip.tmp").exists`、`target.with_suffix`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pinned_native_sources_plus_generated_files_restore_at_13594_entries`（L148–L183）：接收`tmp_path`。 源码说明：Real pinned source bytes, plus 74 explicitly synthetic generated test files. The failed product's saved source manifest had exactly 13,594 entries. Its private ZIP was not retained, so this reproduces。 控制顺序：L159遍历`[ ("yudao-backend.zip", "backend"), ("yudao-frontend.zip", "front…`；L164遍历`source.infolist()`；L165断言`not item.is_dir()`；L168断言`count == 13520`；L169遍历`range(13594 - count)`；L177断言`report["entry_count"] == 13594`；L178断言`report["entry_limit"] == 25000`；L179断言`report["uncompressed_bytes"] < 200_000_000`。后续分支沿下方源码相同行号继续阅读。 调用`zipfile.ZipFile`、`source.infolist`、`item.is_dir`、`out.writestr`、`source.read`、`range`、`pytest.raises`、`unpack`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pack_source_refuses_output_inside_source_tree`（L186–L189）：接收`tmp_path`。 控制顺序：L189断言`not (tmp_path / "delivery.zip").exists()`。 调用`pytest.raises`、`pack_source`、`(tmp_path / "delivery.zip").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_independent_native_verification_consumes_zip_before_start_and_cleans_database`（L193–L273）：接收`tmp_path`、`monkeypatch`、`fault`。 源码说明：Real ZIP/file checks with explicit fake database/process, never runtime proof.。 控制顺序：L255按`fault`分支；L258断言`execution == ["pack", "unpack"]`；L259断言`not (tmp_path / "reports/portable-start.json").exists()`；L262断言`report["archive_round_trip"] is True`；L263断言`report["archive"]["entry_limit"] == 25000`；L264断言`report["archive"]["entry_count"] == 2`；L265断言`json.loads((tmp_path / "reports/portable-start.json").read_text(encoding="utf-8"))[ "…`；L271断言`execution == ["pack", "unpack", "start"]`。后续分支沿下方源码相同行号继续阅读。 调用`source.mkdir`、`(source / "start.py").write_text`、`(source / "app.py").write_text`、`filesystem.manifest`、`monkeypatch.setattr`、`Connection`、`pytest.raises`、`portable.verify_native_delivery`、`(tmp_path / "reports/portable-start.json").exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_independent_native_verification_consumes_zip_before_start_and_cleans_database.Connection`（L208–L216）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_independent_native_verification_consumes_zip_before_start_and_cleans_database.Connection.__enter__`（L209–L210）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L210的`self`。
+- `test_independent_native_verification_consumes_zip_before_start_and_cleans_database.Connection.__exit__`（L212–L213）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_independent_native_verification_consumes_zip_before_start_and_cleans_database.Connection.execute`（L215–L216）：接收`statement`。 调用`database_operations.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_independent_native_verification_consumes_zip_before_start_and_cleans_database.pack`（L221–L228）：接收`*args`、`**kwargs`。 控制顺序：L222断言`kwargs == {"template": "yudao-vben"}`；L225按`fault == "archive_changed"`分支。 调用`original_pack`、`execution.append`、`args[1].open`、`stream.write`。 返回路径：L228的`result`。
+- `test_independent_native_verification_consumes_zip_before_start_and_cleans_database.restore`（L230–L236）：接收`*args`、`**kwargs`。先验证所有源码块与目标路径，再向空目录写入；这一步本身不执行任何写出的项目代码。 控制顺序：L231断言`kwargs == {"template": "yudao-vben"}`；L234按`fault == "restored_source_changed"`分支。 调用`original_unpack`、`execution.append`、`(args[1] / "app.py").write_text`。 返回路径：L236的`result`。
+- `test_independent_native_verification_consumes_zip_before_start_and_cleans_database.run`（L238–L249）：接收`command`、`cwd`、`timeout`、`env`、`**kwargs`。 控制顺序：L239断言`execution == ["pack", "unpack"]`；L240断言`filesystem.manifest(cwd) == before`；L241断言`cwd != source`；L242断言`"restore_" in env["NATIVE_DELIVERY_DATABASE_URL"]`；L243断言`env["NATIVE_DELIVERY_DATABASE_URL"].endswith("_codegen")`。 调用`filesystem.manifest`、`env["NATIVE_DELIVERY_DATABASE_URL"].endswith`、`execution.append`、`filesystem.write_json`。 返回路径：L249的`{"log": "Explicit unit process fake"}`。
+
+<!-- source-file: tests/test_native_archive_limits.py sha256: 2fc82afb6210dbdebe8c707e00d64d7d37be82efb8747570aaf7934362719b36 -->
+````python
+"""Source-only ZIP boundaries; no model, native runtime or approval substitutes."""
+
+import io
+import stat
+import struct
+import zipfile
+
+import pytest
+
+from workbench import filesystem
+from workbench.filesystem import inspect_archive, pack_source, unpack
+from workbench.settings import ROOT
+
+
+def archive(rows, *, compressed=False):
+    output = io.BytesIO()
+    with zipfile.ZipFile(
+        output, "w", zipfile.ZIP_DEFLATED if compressed else zipfile.ZIP_STORED
+    ) as z:
+        for name, data in rows:
+            z.writestr(name, data)
+    output.seek(0)
+    return output
+
+
+@pytest.mark.parametrize(
+    "template,limit",
+    [(None, 10000), ("python-basic", 10000), ("fastapiadmin", 10000), ("yudao-vben", 25000)],
+)
+def test_registered_template_limits_are_bounded_and_generic_is_unchanged(template, limit):
+    assert filesystem.archive_entry_limit(template) == limit
+    assert filesystem.ARCHIVE_MAX_BYTES == 200_000_000
+    assert filesystem.ARCHIVE_MAX_FILE_BYTES == 32_000_000
+    assert filesystem.ARCHIVE_MAX_RATIO == 200
+
+
+def test_unknown_archive_template_cannot_select_a_larger_budget(tmp_path):
+    with pytest.raises(ValueError, match="未知"):
+        unpack(
+            archive([("template.json", '{"template":"yudao-vben"}')]),
+            tmp_path / "out",
+            template="untrusted",
+        )
+
+
+@pytest.mark.parametrize(
+    "template,count", [(None, 10001), ("fastapiadmin", 10001), ("yudao-vben", 25001)]
+)
+def test_entry_limit_rejects_before_any_write(tmp_path, template, count):
+    with pytest.raises(ValueError, match=rf"条目数量.*{count}"):
+        unpack(
+            archive((f"source/{i}.py", "") for i in range(count)),
+            tmp_path / "out",
+            template=template,
+        )
+    assert not (tmp_path / "out").exists()
+
+
+def test_native_preserves_expanded_byte_budget_without_allocating_a_bomb(tmp_path):
+    data = bytearray(archive([("source.py", "x")]).getvalue())
+    central = data.index(b"PK\x01\x02")
+    struct.pack_into("<I", data, central + 24, 200_000_001)
+    with pytest.raises(ValueError, match="解压字节数.*200000001"):
+        unpack(io.BytesIO(data), tmp_path / "out", template="yudao-vben")
+    assert not (tmp_path / "out").exists()
+
+
+def test_compressed_archive_budget_includes_headers(tmp_path, monkeypatch):
+    data = archive([("source.py", "x")])
+    monkeypatch.setattr(filesystem, "ARCHIVE_MAX_BYTES", len(data.getvalue()) - 1)
+    with pytest.raises(ValueError, match="压缩包文件字节数"):
+        unpack(data, tmp_path / "out", template="yudao-vben")
+    assert not (tmp_path / "out").exists()
+
+
+def test_native_preserves_per_file_source_budget(tmp_path, monkeypatch):
+    monkeypatch.setattr(filesystem, "ARCHIVE_MAX_FILE_BYTES", 64)
+    with pytest.raises(ValueError, match="单文件"):
+        unpack(archive([("source.py", "x" * 65)]), tmp_path / "out", template="yudao-vben")
+    assert not (tmp_path / "out").exists()
+
+
+@pytest.mark.parametrize("template", [None, "yudao-vben"])
+def test_compression_ratio_is_rejected_before_extraction(tmp_path, template):
+    with pytest.raises(ValueError, match="压缩比"):
+        unpack(
+            archive([("source.py", b"0" * 1_000_000)], compressed=True),
+            tmp_path / "out",
+            template=template,
+        )
+    assert not (tmp_path / "out").exists()
+
+
+@pytest.mark.parametrize(
+    "name", ["../escape", "/absolute", "C:/escape", "..\\escape", ".env", "config/secret.key"]
+)
+@pytest.mark.parametrize("template", [None, "yudao-vben"])
+def test_all_paths_and_secrets_are_preflighted_before_first_write(tmp_path, name, template):
+    with pytest.raises(ValueError):
+        unpack(
+            archive([("first-good.py", "safe"), (name, "synthetic")]),
+            tmp_path / "out",
+            template=template,
+        )
+    assert not (tmp_path / "out").exists()
+
+
+@pytest.mark.parametrize("template", [None, "yudao-vben"])
+def test_symlinks_and_case_collisions_remain_rejected(tmp_path, template):
+    link = zipfile.ZipInfo("linked")
+    link.external_attr = (stat.S_IFLNK | 0o777) << 16
+    for data in (archive([(link, "target")]), archive([("a.py", "a"), ("A.py", "b")])):
+        with pytest.raises(ValueError, match="重复路径或符号链接"):
+            unpack(data, tmp_path / "out", template=template)
+        assert not (tmp_path / "out").exists()
+
+
+def test_producer_and_consumer_share_policy_and_exclude_runtime_files(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "app.py").write_text("print('source')\n", encoding="utf-8")
+    for name in [".git", "node_modules", "target", "dist", "logs", ".deployment"]:
+        (source / name).mkdir()
+        (source / name / "excluded.txt").write_text("synthetic excluded bytes", encoding="utf-8")
+    (source / ".env").write_text("synthetic credential", encoding="utf-8")
+    target = tmp_path / "delivery.zip"
+    packed = pack_source(source, target, template="yudao-vben")
+    restored = unpack(target, tmp_path / "restored", template="yudao-vben")
+    assert packed == restored
+    assert packed["entry_count"] == 1
+    assert filesystem.manifest(source) == filesystem.manifest(tmp_path / "restored")
+    assert inspect_archive(target, tmp_path / "unused", template="yudao-vben") == packed
+    assert not (tmp_path / "unused").exists()
+
+
+def test_failed_producer_leaves_no_downloadable_partial_package(tmp_path, monkeypatch):
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "app.py").write_text("x=1\n", encoding="utf-8")
+    target = tmp_path / "delivery.zip"
+    monkeypatch.setattr(filesystem, "archive_entry_limit", lambda template: 0)
+    with pytest.raises(ValueError, match="条目数量"):
+        pack_source(source, target, template="yudao-vben")
+    assert not target.exists()
+    assert not target.with_suffix(".zip.tmp").exists()
+
+
+def test_pinned_native_sources_plus_generated_files_restore_at_13594_entries(tmp_path):
+    """Real pinned source bytes, plus 74 explicitly synthetic generated test files.
+
+    The failed product's saved source manifest had exactly 13,594 entries. Its
+    private ZIP was not retained, so this reproduces that boundary honestly
+    without pretending to possess the original generated bytes or runtime proof.
+    Native Actions separately round-trip and execute the exact approved Plan.
+    """
+    target = tmp_path / "native-source.zip"
+    count = 0
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as out:
+        for filename, prefix in [
+            ("yudao-backend.zip", "backend"),
+            ("yudao-frontend.zip", "frontend-product"),
+        ]:
+            with zipfile.ZipFile(ROOT / "templates/vendor" / filename) as source:
+                for item in source.infolist():
+                    assert not item.is_dir()
+                    out.writestr(prefix + "/" + item.filename, source.read(item))
+                    count += 1
+        assert count == 13520
+        for index in range(13594 - count):
+            out.writestr(
+                f"synthetic-generated/source_{index}.py",
+                f"# Explicit test-only generated source {index}\n",
+            )
+    with pytest.raises(ValueError, match="条目数量.*13594.*10000"):
+        unpack(target, tmp_path / "generic")
+    report = unpack(target, tmp_path / "native", template="yudao-vben")
+    assert report["entry_count"] == 13594
+    assert report["entry_limit"] == 25000
+    assert report["uncompressed_bytes"] < 200_000_000
+    assert len(list((tmp_path / "native").rglob("*.*"))) > 10000
+    with zipfile.ZipFile(target) as source:
+        for item in source.infolist():
+            assert (tmp_path / "native" / item.filename).read_bytes() == source.read(item)
+
+
+def test_pack_source_refuses_output_inside_source_tree(tmp_path):
+    with pytest.raises(ValueError, match="源码目录"):
+        pack_source(tmp_path, tmp_path / "delivery.zip", template="yudao-vben")
+    assert not (tmp_path / "delivery.zip").exists()
+
+
+@pytest.mark.parametrize("fault", [None, "archive_changed", "restored_source_changed"])
+def test_independent_native_verification_consumes_zip_before_start_and_cleans_database(
+    tmp_path, monkeypatch, fault
+):
+    """Real ZIP/file checks with explicit fake database/process, never runtime proof."""
+    import json
+
+    from workbench import portable, tools
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "start.py").write_text("# test-only launcher\n", encoding="utf-8")
+    (source / "app.py").write_text("# immutable test source\n", encoding="utf-8")
+    before = filesystem.manifest(source)
+    database_operations, execution = [], []
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def execute(self, statement):
+            database_operations.append(statement)
+
+    monkeypatch.setattr(portable.psycopg, "connect", lambda *a, **kw: Connection())
+    original_pack, original_unpack = filesystem.pack_source, filesystem.unpack
+
+    def pack(*args, **kwargs):
+        assert kwargs == {"template": "yudao-vben"}
+        result = original_pack(*args, **kwargs)
+        execution.append("pack")
+        if fault == "archive_changed":
+            with args[1].open("ab") as stream:
+                stream.write(b"changed archive bytes")
+        return result
+
+    def restore(*args, **kwargs):
+        assert kwargs == {"template": "yudao-vben"}
+        result = original_unpack(*args, **kwargs)
+        execution.append("unpack")
+        if fault == "restored_source_changed":
+            (args[1] / "app.py").write_text("# changed test bytes\n", encoding="utf-8")
+        return result
+
+    def run(command, cwd, timeout, env, **kwargs):
+        assert execution == ["pack", "unpack"]
+        assert filesystem.manifest(cwd) == before
+        assert cwd != source
+        assert "restore_" in env["NATIVE_DELIVERY_DATABASE_URL"]
+        assert env["NATIVE_DELIVERY_DATABASE_URL"].endswith("_codegen")
+        execution.append("start")
+        filesystem.write_json(
+            cwd / ".deployment/reports/portable-start.json",
+            {"passed": True, "frontend_started": True, "restart": True},
+        )
+        return {"log": "Explicit unit process fake"}
+
+    monkeypatch.setattr(filesystem, "pack_source", pack)
+    monkeypatch.setattr(filesystem, "unpack", restore)
+    monkeypatch.setattr(tools, "run_command", run)
+    args = (source, "postgresql+psycopg://test:test@127.0.0.1/native_codegen", tmp_path / "reports")
+    if fault:
+        with pytest.raises(ValueError, match="ZIP"):
+            portable.verify_native_delivery(*args, template="yudao-vben")
+        assert execution == ["pack", "unpack"]
+        assert not (tmp_path / "reports/portable-start.json").exists()
+    else:
+        report = portable.verify_native_delivery(*args, template="yudao-vben")
+        assert report["archive_round_trip"] is True
+        assert report["archive"]["entry_limit"] == 25000
+        assert report["archive"]["entry_count"] == 2
+        assert (
+            json.loads((tmp_path / "reports/portable-start.json").read_text(encoding="utf-8"))[
+                "archive"
+            ]
+            == report["archive"]
+        )
+        assert execution == ["pack", "unpack", "start"]
+    assert len(database_operations) == 2  # create only the owned new DB, then drop it
+    assert filesystem.manifest(source) == before
 ````
 
 ### `tests/test_native_backend_lifecycle.py`
@@ -62315,6 +65894,497 @@ def test_optional_text_omitted_in_approved_rule_sample_still_checks_limits(
     assert "browser-overlength-rejected:task.notes" in report["browser"]["checks"]
 ````
 
+### `tests/test_provider_structured_outputs.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.domain`、`workbench.llm`、`workbench.model_protocol`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `profile`（L25–L32）：接收`provider`、`model`、`**kwargs`。 调用`ModelProfile`、`SecretStr`。 返回路径：L26的`ModelProfile( stage="requirements", base_url=f"https://api.{provider}.com/v1", api_key=Sec…`。
+- `envelope`（L35–L48）：接收`content`、`finish`、`**message_fields`。 返回路径：L36的`{ "choices": [ { "finish_reason": finish, "message": { "role": "assistant", "content": con…`。
+- `gateway`（L51–L64）：接收`store`、`responses`、`provider`、`model`。 调用`SecretStr`、`ModelGateway`、`httpx.MockTransport`。 返回路径：L64的`ModelGateway(store.settings, store, httpx.MockTransport(handle)), seen`。
+- `gateway.handle`（L57–L62）：接收`request`。 控制顺序：L60按`isinstance(response, httpx.Response)`分支。 调用`seen.append`、`json.loads`、`min`、`len`、`isinstance`、`httpx.Response`。 返回路径：L61的`response`；L62的`httpx.Response(200, json=response)`。
+- `test_official_wrappers_own_structured_request_without_model_tables`（L79–L110）：接收`store`、`monkeypatch`、`provider`、`model`、`token_field`。 控制顺序：L101断言`result.summary == "ok"`；L102断言`wrappers == [(ModelReview, {"method": "json_mode", "include_raw": True})]`；L103断言`seen[0]["response_format"] == {"type": "json_object"}`；L104断言`seen[0]["model"] == model`；L105断言`seen[0][token_field] == (65536 if provider == "deepseek" else 16384)`；L106断言`"thinking" not in seen[0] and "temperature" not in seen[0]`；L107断言`not seen[0]["stream"]`；L108断言`"ModelReview" in seen[0]["messages"][0]["content"]`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setattr`、`gateway`、`envelope`、`ModelReview(summary="ok").model_dump_json`、`ModelReview`、`model_gateway.complete`、`new_run`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_official_wrappers_own_structured_request_without_model_tables.wrapped`（L89–L91）：接收`schema`、`**kwargs`。 调用`wrappers.append`、`original`。 返回路径：L91的`original(self, schema, **kwargs)`。
+- `test_same_json_mode_pipeline_preserves_every_domain_schema`（L114–L121）：接收`schema`。 控制顺序：L116遍历`("openai", "deepseek")`；L118断言`contract.mode == "json_object"`；L119断言`contract.reason == "langchain_json_mode"`；L120断言`contract.receipt()["structured_output"] == "langchain.with_structured_output"`；L121断言`before == schema.model_json_schema()`。 调用`copy.deepcopy`、`schema.model_json_schema`、`output_contract`、`profile`、`contract.receipt`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_all_four_graph_stage_schemas_use_real_framework_parser`（L126–L158）：接收`store`、`provider`、`schema`。 控制顺序：L157断言`isinstance(result, schema)`；L158断言`len(seen) == 1 and seen[0]["response_format"] == {"type": "json_object"}`。 调用`requirement().model_dump_json`、`requirement`、`(ROOT / "examples/plans/customer-service.json").read_text`、`json.dumps`、`ModelReview(summary="offline review").model_dump_json`、`ModelReview`、`gateway`、`envelope`、`model.complete`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_output_mode_fails_locally_without_request_or_budget`（L161–L167）：接收`store`。 控制顺序：L167断言`seen == [] and store.get_run(run)["model_calls"] == 0`。 调用`gateway`、`new_run`、`pytest.raises`、`model.complete`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_endpoint_detection_uses_exact_host_and_proxy_can_select_official_integration`（L170–L175）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L173断言`contract.provider == "compatible" and contract.mode == "json_object"`；L175断言`explicit.provider == "deepseek" and explicit.mode == "json_object"`。 调用`profile().model_copy`、`profile`、`output_contract`、`fake.model_copy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_stage_provider_overrides_do_not_leak_on_endpoint_change`（L178–L203）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L191断言`settings.model_for("requirements").provider == "openai"`；L193断言`(planning.provider, planning.output_mode, planning.max_output_tokens) == ( "auto", "a…`；L198断言`output_contract(planning, Plan).provider == "deepseek"`；L200断言`output_contract(settings.model_for("planning"), Plan).request_fields["max_output_toke…`。 调用`Settings`、`settings.model_for`、`output_contract`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_request_receipt_cache_and_capability_changes`（L206–L224）：接收`store`。 控制顺序：L211断言`model.complete(run, "requirement:1", "Preserve confirmed facts", {}, Requirement) == …`；L214断言`len(seen) == 1`；L215断言`seen[0]["response_format"] == {"type": "json_object"}`；L216断言`"JSON" in seen[0]["messages"][0]["content"]`；L218断言`receipt["provider"] == "openai"`；L219断言`receipt["output_mode"] == "json_object"`；L220断言`receipt["contract_version"] == 2 and receipt["finish_reason"] == "stop"`；L221断言`"offline-test-key" not in json.dumps(receipt)`。后续分支沿下方源码相同行号继续阅读。 调用`envelope`、`requirement().model_dump_json`、`requirement`、`gateway`、`new_run`、`model.complete`、`len`、`store.model_records`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_legacy_records_stay_identifiable_but_cannot_satisfy_new_framework_cache`（L227–L244）：接收`store`。 控制顺序：L242断言`len(seen) == 1`；L243断言`[row["status"] for row in records] == ["legacy", "validated"]`；L244断言`[row["contract_version"] for row in records] == [0, 2]`。 调用`gateway`、`envelope`、`requirement().model_dump_json`、`requirement`、`new_run`、`store.step`、`requirement().model_dump`、`model.complete`、`store.model_records`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_terminal_status_never_accepts_otherwise_valid_json_or_repairs`（L257–L270）：接收`store`、`finish`、`extra`、`match`。 控制顺序：L262断言`"sensitive provider text" not in str(error.value)`；L263断言`len(seen) == store.get_run(run)["model_calls"] == 1`；L265断言`len(records) == 1 and records[0]["status"] == "failed"`；L266断言`records[0]["code"] in {"refusal", "truncated", "content_filter", "unexpected_tool_cal…`；L267断言`records[0]["contract_version"] == 2`；L268断言`records[0]["output_mode"] == "json_object"`；L269断言`"sensitive provider text" not in json.dumps(records, default=str)`；L270断言`"offline-test-key" not in json.dumps(records, default=str)`。 调用`gateway`、`envelope`、`requirement().model_dump_json`、`requirement`、`new_run`、`pytest.raises`、`model.complete`、`str`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_malformed_or_interrupted_envelopes_are_bounded_and_not_success`（L287–L293）：接收`store`、`bad`。 控制顺序：L292断言`len(seen) == 2`；L293断言`all(record["status"] == "failed" for record in store.model_records(run))`。 调用`gateway`、`new_run`、`pytest.raises`、`model.complete`、`len`、`all`、`store.model_records`、`pytest.mark.parametrize`、`envelope`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_empty_deepseek_content_can_repair_once_without_using_reasoning`（L296–L309）：接收`store`。 控制顺序：L307断言`len(seen) == 2`；L308断言`"private reasoning" not in json.dumps(seen[1])`；L309断言`seen[1]["response_format"] == {"type": "json_object"}`。 调用`gateway`、`envelope`、`requirement().model_dump_json`、`requirement`、`model.complete`、`new_run`、`len`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_typed_validation_rejects_coercion_and_repairs_exact_field_without_changing_schema`（L312–L321）：接收`store`。 控制顺序：L318断言`result.business is not None and len(seen) == 2`；L319断言`"bool_type" in seen[1]["messages"][-1]["content"]`；L320断言`"required" in seen[1]["messages"][-1]["content"]`；L321断言`seen[0]["response_format"] == seen[1]["response_format"]`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`copy.deepcopy`、`gateway`、`envelope`、`json.dumps`、`model.complete`、`new_run`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_json_mode_rejects_duplicate_nonfinite_nonobject_and_fenced_content`（L335–L337）：接收`content`。 调用`pytest.raises`、`validate_content`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_lenient_framework_parser_cannot_hide_incomplete_raw_json`（L340–L347）：接收`store`。 控制顺序：L346断言`len(seen) == 2`；L347断言`all(row["status"] == "failed" for row in store.model_records(run))`。 调用`ModelReview(summary="test").model_dump_json`、`ModelReview`、`gateway`、`envelope`、`new_run`、`pytest.raises`、`model.complete`、`len`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_dynamic_facts_and_choice_labels_are_preserved_in_json_mode`（L350–L360）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L353断言`validate_content(json.dumps(facts), Requirement, mode="json_object").facts == facts["…`；L360断言`any(f.choice_labels for e in validated.entities for f in e.fields)`。 调用`requirement().model_dump`、`requirement`、`validate_content`、`json.dumps`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`next`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_business_validator_is_still_required_after_valid_provider_json`（L363–L368）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`next`、`pytest.raises`、`validate_content`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_usage_is_sanitized_and_duplicate_envelopes_or_malformed_refusals_fail`（L371–L385）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L381断言`completion_content(result, contract)[1] == {}`。 调用`ModelReview(summary="test").model_dump_json`、`ModelReview`、`envelope`、`OutputContract`、`completion_content`、`pytest.raises`、`load_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_http_error_retry_budget_never_downgrades_output_format`（L391–L397）：接收`store`、`status`、`expected_calls`。 控制顺序：L395断言`len(seen) == expected_calls`；L396断言`"raw-provider-secret" not in str(error.value)`；L397断言`all(call["response_format"]["type"] == "json_object" for call in seen)`。 调用`gateway`、`httpx.Response`、`pytest.raises`、`model.complete`、`new_run`、`len`、`str`、`all`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_full_context_and_repair_are_bounded_before_an_extra_model_call`（L400–L406）：接收`store`。 控制顺序：L406断言`seen == [] and store.get_run(run)["model_calls"] == 0`。 调用`gateway`、`envelope`、`requirement().model_dump_json`、`requirement`、`new_run`、`pytest.raises`、`model.complete`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_injected_async_clients_are_closed_on_success_failure_and_existing_event_loop`（L411–L445）：接收`store`、`monkeypatch`、`inside_event_loop`、`http_status`。 控制顺序：L440按`inside_event_loop`分支；L444断言`len(seen) == 1 and clients`；L445断言`all(client.is_closed for client in clients)`。 调用`monkeypatch.setattr`、`envelope`、`requirement().model_dump_json`、`requirement`、`httpx.Response`、`gateway`、`asyncio.run`、`call_inside_loop`、`call`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_injected_async_clients_are_closed_on_success_failure_and_existing_event_loop.TrackedAsync`（L419–L422）：继承`actual_async`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_injected_async_clients_are_closed_on_success_failure_and_existing_event_loop.TrackedAsync.__init__`（L420–L422）：接收`*args`、`**kwargs`。 调用`super().__init__`、`super`、`clients.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_injected_async_clients_are_closed_on_success_failure_and_existing_event_loop.call`（L430–L435）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L431按`http_status == 200`分支。 调用`model.complete`、`new_run`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_injected_async_clients_are_closed_on_success_failure_and_existing_event_loop.call_inside_loop`（L437–L438）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`call`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_provider_structured_outputs.py sha256: 16acb2ed1776601e44d426d2d9477bb94a3a53a01212738e7157f0dd887d189e -->
+````python
+"""Offline request/response contracts only: these tests never call a real provider."""
+
+import asyncio
+import copy
+import json
+
+import httpx
+import pytest
+from conftest import new_run, requirement
+from pydantic import SecretStr
+
+from workbench.domain import ModelReview, Patches, Plan, Requirement
+from workbench.llm import ModelFailure, ModelGateway
+from workbench.model_protocol import (
+    OutputContract,
+    OutputFailure,
+    completion_content,
+    load_json,
+    output_contract,
+    validate_content,
+)
+from workbench.settings import ROOT, ModelProfile, Settings
+
+
+def profile(provider="openai", model="gpt-4o-mini", **kwargs):
+    return ModelProfile(
+        stage="requirements",
+        base_url=f"https://api.{provider}.com/v1",
+        api_key=SecretStr("offline-test-key"),
+        model=model,
+        **kwargs,
+    )
+
+
+def envelope(content=None, finish="stop", **message_fields):
+    return {
+        "choices": [
+            {
+                "finish_reason": finish,
+                "message": {
+                    "role": "assistant",
+                    "content": content,
+                    **message_fields,
+                },
+            }
+        ],
+        "usage": {"prompt_tokens": 1, "completion_tokens": 2, "total_tokens": 3},
+    }
+
+
+def gateway(store, responses, *, provider="openai", model="gpt-4o-mini"):
+    store.settings.base_url = f"https://api.{provider}.com/v1"
+    store.settings.model = model
+    store.settings.api_key = SecretStr("offline-test-key")
+    seen = []
+
+    def handle(request):
+        seen.append(json.loads(request.content))
+        response = responses[min(len(seen) - 1, len(responses) - 1)]
+        if isinstance(response, httpx.Response):
+            return response
+        return httpx.Response(200, json=response)
+
+    return ModelGateway(store.settings, store, httpx.MockTransport(handle)), seen
+
+
+@pytest.mark.parametrize(
+    "provider,model,token_field",
+    [
+        ("deepseek", "deepseek-flash", "max_tokens"),
+        ("deepseek", "deepseek-v4-pro", "max_tokens"),
+        ("openai", "gpt-4o-mini", "max_completion_tokens"),
+        ("openai", "gpt-4.1-mini", "max_completion_tokens"),
+        ("openai", "gpt-5.4", "max_completion_tokens"),
+        ("openai", "o3", "max_completion_tokens"),
+        ("openai", "unreviewed-model-no-substitution", "max_completion_tokens"),
+    ],
+)
+def test_official_wrappers_own_structured_request_without_model_tables(
+    store, monkeypatch, provider, model, token_field
+):
+    from langchain_deepseek import ChatDeepSeek
+    from langchain_openai import ChatOpenAI
+
+    cls = ChatDeepSeek if provider == "deepseek" else ChatOpenAI
+    original = cls.with_structured_output
+    wrappers = []
+
+    def wrapped(self, schema, **kwargs):
+        wrappers.append((schema, kwargs))
+        return original(self, schema, **kwargs)
+
+    monkeypatch.setattr(cls, "with_structured_output", wrapped)
+    model_gateway, seen = gateway(
+        store,
+        [envelope(ModelReview(summary="ok").model_dump_json())],
+        provider=provider,
+        model=model,
+    )
+    result = model_gateway.complete(new_run(store), "review:1", "Return JSON", {}, ModelReview)
+    assert result.summary == "ok"
+    assert wrappers == [(ModelReview, {"method": "json_mode", "include_raw": True})]
+    assert seen[0]["response_format"] == {"type": "json_object"}
+    assert seen[0]["model"] == model
+    assert seen[0][token_field] == (65536 if provider == "deepseek" else 16384)
+    assert "thinking" not in seen[0] and "temperature" not in seen[0]
+    assert not seen[0]["stream"]
+    assert "ModelReview" in seen[0]["messages"][0]["content"]
+    if model == "o3":
+        assert seen[0]["messages"][0]["role"] == "developer"  # Official SDK integration owns this.
+
+
+@pytest.mark.parametrize("schema", [Requirement, Plan, Patches, ModelReview])
+def test_same_json_mode_pipeline_preserves_every_domain_schema(schema):
+    before = copy.deepcopy(schema.model_json_schema())
+    for provider in ("openai", "deepseek"):
+        contract = output_contract(profile(provider, model="user-selected-id"), schema)
+        assert contract.mode == "json_object"
+        assert contract.reason == "langchain_json_mode"
+        assert contract.receipt()["structured_output"] == "langchain.with_structured_output"
+    assert before == schema.model_json_schema()
+
+
+@pytest.mark.parametrize("provider", ["openai", "deepseek"])
+@pytest.mark.parametrize("schema", [Requirement, Plan, Patches, ModelReview])
+def test_all_four_graph_stage_schemas_use_real_framework_parser(store, provider, schema):
+    samples = {
+        Requirement: requirement().model_dump_json(),
+        Plan: (ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"),
+        Patches: json.dumps(
+            {
+                "explanation": "offline fixture",
+                "patches": [
+                    {
+                        "path": "custom_rules.py",
+                        "before_sha256": "0" * 64,
+                        "content": "pass\n",
+                    }
+                ],
+            }
+        ),
+        ModelReview: ModelReview(summary="offline review").model_dump_json(),
+    }
+    keys = {
+        Requirement: "requirement:1",
+        Plan: "plan:1",
+        Patches: "coding:1",
+        ModelReview: "review:1",
+    }
+    model, seen = gateway(
+        store,
+        [envelope(samples[schema])],
+        provider=provider,
+        model="deepseek-flash" if provider == "deepseek" else "gpt-4o-mini",
+    )
+    result = model.complete(new_run(store), keys[schema], "Return JSON", {}, schema)
+    assert isinstance(result, schema)
+    assert len(seen) == 1 and seen[0]["response_format"] == {"type": "json_object"}
+
+
+def test_invalid_output_mode_fails_locally_without_request_or_budget(store):
+    model, seen = gateway(store, [])
+    store.settings.output_mode = "json_schema"  # Simulate invalid mutable app configuration.
+    run = new_run(store)
+    with pytest.raises(ModelFailure):
+        model.complete(run, "requirement:1", "JSON", {}, Requirement)
+    assert seen == [] and store.get_run(run)["model_calls"] == 0
+
+
+def test_endpoint_detection_uses_exact_host_and_proxy_can_select_official_integration():
+    fake = profile().model_copy(update={"base_url": "https://api.openai.com.example.test/v1"})
+    contract = output_contract(fake, Requirement)
+    assert contract.provider == "compatible" and contract.mode == "json_object"
+    explicit = output_contract(fake.model_copy(update={"provider": "deepseek"}), Requirement)
+    assert explicit.provider == "deepseek" and explicit.mode == "json_object"
+
+
+def test_stage_provider_overrides_do_not_leak_on_endpoint_change():
+    settings = Settings(
+        base_url="https://proxy.example/v1",
+        api_key="default-key",
+        model="gpt-4o-mini",
+        provider="openai",
+        output_mode="json_object",
+        max_output_tokens=8192,
+        planning_base_url="https://api.deepseek.com",
+        planning_api_key="planning-key",
+        planning_model="deepseek-flash",
+        _env_file=None,
+    )
+    assert settings.model_for("requirements").provider == "openai"
+    planning = settings.model_for("planning")
+    assert (planning.provider, planning.output_mode, planning.max_output_tokens) == (
+        "auto",
+        "auto",
+        None,
+    )
+    assert output_contract(planning, Plan).provider == "deepseek"
+    settings.planning_max_output_tokens = 4096
+    assert (
+        output_contract(settings.model_for("planning"), Plan).request_fields["max_output_tokens"]
+        == 4096
+    )
+
+
+def test_actual_request_receipt_cache_and_capability_changes(store):
+    response = envelope(requirement().model_dump_json())
+    model, seen = gateway(store, [response])
+    run = new_run(store)
+    first = model.complete(run, "requirement:1", "Preserve confirmed facts", {}, Requirement)
+    assert (
+        model.complete(run, "requirement:1", "Preserve confirmed facts", {}, Requirement) == first
+    )
+    assert len(seen) == 1
+    assert seen[0]["response_format"] == {"type": "json_object"}
+    assert "JSON" in seen[0]["messages"][0]["content"]
+    receipt = store.model_records(run)[0]
+    assert receipt["provider"] == "openai"
+    assert receipt["output_mode"] == "json_object"
+    assert receipt["contract_version"] == 2 and receipt["finish_reason"] == "stop"
+    assert "offline-test-key" not in json.dumps(receipt)
+    store.settings.max_output_tokens = 4096
+    model.complete(run, "requirement:1", "Preserve confirmed facts", {}, Requirement)
+    assert len(seen) == 2  # Capability/token-budget changes cannot reuse stale cached answers.
+
+
+def test_legacy_records_stay_identifiable_but_cannot_satisfy_new_framework_cache(store):
+    model, seen = gateway(store, [envelope(requirement().model_dump_json())])
+    run = new_run(store)
+    store.step(
+        run,
+        "model:requirements:legacy",
+        lambda: {
+            "value": requirement().model_dump(),
+            "stage": "requirements",
+            "model": "gpt-4o-mini",
+            "usage": {},
+        },
+    )
+    model.complete(run, "requirement:1", "Return JSON", {}, Requirement)
+    records = store.model_records(run)
+    assert len(seen) == 1
+    assert [row["status"] for row in records] == ["legacy", "validated"]
+    assert [row["contract_version"] for row in records] == [0, 2]
+
+
+@pytest.mark.parametrize(
+    "finish,extra,match",
+    [
+        ("stop", {"refusal": "sensitive provider text"}, "拒绝"),
+        ("length", {}, "截断"),
+        ("content_filter", {}, "过滤"),
+        ("tool_calls", {}, "工具调用"),
+        ("stop", {"tool_calls": [{"id": "unexpected"}]}, "工具调用"),
+    ],
+)
+def test_terminal_status_never_accepts_otherwise_valid_json_or_repairs(store, finish, extra, match):
+    model, seen = gateway(store, [envelope(requirement().model_dump_json(), finish, **extra)])
+    run = new_run(store)
+    with pytest.raises(ModelFailure, match=match) as error:
+        model.complete(run, "requirement:1", "JSON", {}, Requirement)
+    assert "sensitive provider text" not in str(error.value)
+    assert len(seen) == store.get_run(run)["model_calls"] == 1
+    records = store.model_records(run)
+    assert len(records) == 1 and records[0]["status"] == "failed"
+    assert records[0]["code"] in {"refusal", "truncated", "content_filter", "unexpected_tool_call"}
+    assert records[0]["contract_version"] == 2
+    assert records[0]["output_mode"] == "json_object"
+    assert "sensitive provider text" not in json.dumps(records, default=str)
+    assert "offline-test-key" not in json.dumps(records, default=str)
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {},
+        {"choices": []},
+        {"choices": "invalid"},
+        {"choices": [None]},
+        envelope("{}", finish=None),
+        envelope("{}", finish="unknown"),
+        envelope("{}", finish="aborted"),
+        envelope("{}", finish="insufficient_system_resource"),
+        envelope("", reasoning_content="must never become the answer"),
+    ],
+)
+def test_malformed_or_interrupted_envelopes_are_bounded_and_not_success(store, bad):
+    model, seen = gateway(store, [bad])
+    run = new_run(store)
+    with pytest.raises(ModelFailure):
+        model.complete(run, "requirement:1", "JSON", {}, Requirement)
+    assert len(seen) == 2
+    assert all(record["status"] == "failed" for record in store.model_records(run))
+
+
+def test_empty_deepseek_content_can_repair_once_without_using_reasoning(store):
+    model, seen = gateway(
+        store,
+        [
+            envelope(None, reasoning_content="private reasoning must not be retried"),
+            envelope(requirement().model_dump_json()),
+        ],
+        provider="deepseek",
+        model="deepseek-flash",
+    )
+    model.complete(new_run(store), "requirement:1", "JSON", {}, Requirement)
+    assert len(seen) == 2
+    assert "private reasoning" not in json.dumps(seen[1])
+    assert seen[1]["response_format"] == {"type": "json_object"}
+
+
+def test_typed_validation_rejects_coercion_and_repairs_exact_field_without_changing_schema(store):
+    good = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    bad = copy.deepcopy(good)
+    bad["entities"][0]["fields"][0]["required"] = "true"
+    model, seen = gateway(store, [envelope(json.dumps(bad)), envelope(json.dumps(good))])
+    result = model.complete(new_run(store), "plan:1", "Preserve approved requirements", {}, Plan)
+    assert result.business is not None and len(seen) == 2
+    assert "bool_type" in seen[1]["messages"][-1]["content"]
+    assert "required" in seen[1]["messages"][-1]["content"]
+    assert seen[0]["response_format"] == seen[1]["response_format"]
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        '{"summary":"first","summary":"second"}',
+        '{"value":NaN}',
+        '{"value":Infinity}',
+        '{"value":1e999}',
+        "[]",
+        '```json\n{"summary":"example","observations":[],"uncovered_requirements":[]}\n```',
+    ],
+)
+def test_json_mode_rejects_duplicate_nonfinite_nonobject_and_fenced_content(content):
+    with pytest.raises(ValueError):
+        validate_content(content, ModelReview, mode="json_object")
+
+
+def test_lenient_framework_parser_cannot_hide_incomplete_raw_json(store):
+    raw = ModelReview(summary="test").model_dump_json()[:-1]
+    model, seen = gateway(store, [envelope(raw)])
+    run = new_run(store)
+    with pytest.raises(ModelFailure):
+        model.complete(run, "review:1", "Return JSON", {}, ModelReview)
+    assert len(seen) == 2
+    assert all(row["status"] == "failed" for row in store.model_records(run))
+
+
+def test_dynamic_facts_and_choice_labels_are_preserved_in_json_mode():
+    facts = requirement().model_dump()
+    facts["facts"] = {"label": "用户原话", "nested": {"enabled": True, "values": [1, None]}}
+    assert (
+        validate_content(json.dumps(facts), Requirement, mode="json_object").facts == facts["facts"]
+    )
+    data = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    field = next(f for e in data["entities"] for f in e["fields"] if f["kind"] == "enum")
+    field["choice_labels"] = {field["choices"][0]: "原始标签"}
+    validated = validate_content(json.dumps(data), Plan, mode="json_object")
+    assert any(f.choice_labels for e in validated.entities for f in e.fields)
+
+
+def test_business_validator_is_still_required_after_valid_provider_json():
+    data = json.loads((ROOT / "examples/plans/customer-service.json").read_text(encoding="utf-8"))
+    field = next(f for e in data["entities"] for f in e["fields"] if f["kind"] == "datetime")
+    field["date_range"] = True
+    with pytest.raises(ValueError, match="日期范围只支持 date 类型"):
+        validate_content(json.dumps(data), Plan, mode="json_object")
+
+
+def test_usage_is_sanitized_and_duplicate_envelopes_or_malformed_refusals_fail():
+    content = ModelReview(summary="test").model_dump_json()
+    result = envelope(content)
+    result["usage"] = {
+        "prompt_tokens": True,
+        "completion_tokens": -1,
+        "total_tokens": "provider-secret",
+        "extra": "provider-secret",
+    }
+    contract = OutputContract("openai", "json_object", "langchain_json_mode", {})
+    assert completion_content(result, contract)[1] == {}
+    with pytest.raises(ValueError, match="duplicate_json_key"):
+        load_json('{"choices":[],"choices":[]}')
+    with pytest.raises(OutputFailure, match="拒绝"):
+        completion_content(envelope(content, refusal={"unexpected": "data"}), contract)
+
+
+@pytest.mark.parametrize(
+    "status,expected_calls", [(400, 1), (401, 1), (403, 1), (404, 1), (429, 2), (500, 2)]
+)
+def test_http_error_retry_budget_never_downgrades_output_format(store, status, expected_calls):
+    model, seen = gateway(store, [httpx.Response(status, text="raw-provider-secret")])
+    with pytest.raises(ModelFailure) as error:
+        model.complete(new_run(store), "review:1", "JSON", {}, ModelReview)
+    assert len(seen) == expected_calls
+    assert "raw-provider-secret" not in str(error.value)
+    assert all(call["response_format"]["type"] == "json_object" for call in seen)
+
+
+def test_full_context_and_repair_are_bounded_before_an_extra_model_call(store):
+    model, seen = gateway(store, [envelope(requirement().model_dump_json())])
+    store.settings.max_context_chars = 10000
+    run = new_run(store)
+    with pytest.raises(ModelFailure, match="MAX_CONTEXT_CHARS"):
+        model.complete(run, "requirement:1", "x" * 10000, {}, Requirement)
+    assert seen == [] and store.get_run(run)["model_calls"] == 0
+
+
+@pytest.mark.parametrize("inside_event_loop", [False, True])
+@pytest.mark.parametrize("http_status", [200, 401])
+def test_injected_async_clients_are_closed_on_success_failure_and_existing_event_loop(
+    store, monkeypatch, inside_event_loop, http_status
+):
+    import workbench.model_protocol as protocol
+
+    actual_async = httpx.AsyncClient
+    clients = []
+
+    class TrackedAsync(actual_async):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            clients.append(self)
+
+    monkeypatch.setattr(protocol.httpx, "AsyncClient", TrackedAsync)
+    response = (
+        envelope(requirement().model_dump_json()) if http_status == 200 else httpx.Response(401)
+    )
+    model, seen = gateway(store, [response])
+
+    def call():
+        if http_status == 200:
+            model.complete(new_run(store), "requirement:1", "JSON", {}, Requirement)
+        else:
+            with pytest.raises(ModelFailure):
+                model.complete(new_run(store), "requirement:1", "JSON", {}, Requirement)
+
+    async def call_inside_loop():
+        call()
+
+    if inside_event_loop:
+        asyncio.run(call_inside_loop())
+    else:
+        call()
+    assert len(seen) == 1 and clients
+    assert all(client.is_closed for client in clients)
+````
+
 ### `tests/test_real_model_ci.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -63765,13 +67835,18 @@ def test_notification_schema_exposes_existing_cross_field_invariants():
 - `test_failure_retains_approved_plan_before_cleanup.Store.latest_revision`（L141–L142）：接收`run_id`、`stage`。 返回路径：L142的`{"requirement": {}}`。
 - `test_failure_retains_approved_plan_before_cleanup.fail`（L152–L155）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L153抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_failure_retains_approved_plan_before_cleanup.browser`（L160–L169）：接收`*a`、`**kw`。 控制顺序：L167按`failure_at == "browser"`分支。 调用`write_json`、`harness.approved_plan_artifact_directory`、`(directory / "download.zip").write_bytes`、`fail`、`SimpleNamespace`。 返回路径：L169的`SimpleNamespace(returncode=0)`。
-- `test_failure_retains_approved_plan_before_cleanup.unpack`（L171–L175）：接收`archive`、`product`。 控制顺序：L172按`failure_at == "unpack"`分支。 调用`fail`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failure_retains_approved_plan_before_cleanup.unpack`（L171–L175）：接收`archive`、`product`、`template`。 控制顺序：L172按`failure_at == "unpack"`分支。 调用`fail`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_failure_retains_approved_plan_before_cleanup.contract`（L177–L179）：接收`*a`、`**kw`。 控制顺序：L178按`failure_at == "contract"`分支。 调用`fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_outer_failure_retains_safe_diagnostic`（L228–L269）：接收`tmp_path`、`monkeypatch`、`capsys`、`phase`。 控制顺序：L232按`phase == "workflow"`分支；L233遍历`("approved-plan-replay.json", "unapproved-design-contract.json")`；L262断言`result["failure_details"]["execution"]["stage"] == phase`；L263按`phase == "workflow"`分支；L264断言`not (tmp_path / "reports/real-model/approved-plan-replay.json").exists()`；L265断言`not (tmp_path / "reports/real-model/unapproved-design-contract.json").exists()`；L266断言`result["failure_details"]["execution"]["exception_type"] == "RuntimeError"`；L268遍历`("test-only-secret", "private-canary", "raw environment dump")`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setattr`、`write_json`、`monkeypatch.setenv`、`SimpleNamespace`、`pytest.raises`、`harness.main`、`json.loads`、`(tmp_path / "reports/real-model/summary.json").read_text`、`(tmp_path / "reports/real-model/approved-plan-replay.json").exist…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_outer_failure_retains_safe_diagnostic.fail`（L240–L243）：接收`*a`、`**kw`。 控制顺序：L241抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_trace_frames_are_bounded_and_secret_filenames_are_not_retained`（L272–L291）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L288断言`len(result["frames"]) == 8`；L289断言`all(frame["file"] == "unavailable" for frame in result["frames"])`；L290断言`all(set(frame) == {"file", "function", "line"} for frame in result["frames"])`；L291断言`"test-only-secret" not in json.dumps(result)`。 调用`exec`、`compile`、`scope["recurse"]`、`harness.safe_execution_failure`、`harness.DiagnosticTextBudget`、`len`、`all`、`set`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_provider_receipt_uses_same_fail_closed_output_gate`（L311–L333）：接收`content`、`finish`、`extra`、`error`。 控制顺序：L328断言`result["schema_valid"] is False`；L329断言`result.get("response_contract_error") == error or error in result.get( "schema_error_…`；L332断言`"private refusal" not in json.dumps(result)`；L333断言`"private tool" not in json.dumps(result)`。 调用`json.dumps( { "choices": [ { "finish_reason": finish, "message": …`、`json.dumps`、`harness.response_receipt`、`result.get`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_provider_receipt_uses_same_fail_closed_output_gate.Schema`（L314–L315）：继承`BaseModel`。声明的数据项为`value`；类型约束/数据库列参数以完整定义为准。
+- `test_actual_schema_request_requires_explicit_json_mode_before_http`（L336–L385）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L370断言`requests == [] and transport.calls == 0`；L380断言`len(requests) == 1`；L381断言`transport.receipts[0]["schema_valid"] is True`；L382断言`transport.receipts[0]["requested_output_mode"] == "json_object"`；L383断言`transport.receipts[0]["provider"] == "deepseek"`。 调用`harness.BoundedRealTransport`、`configuration`、`transport.transport.close`、`httpx.MockTransport`、`requests.append`、`httpx.Response`、`pytest.raises`、`transport.handle_request`、`httpx.Request`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_schema_request_requires_explicit_json_mode_before_http.Schema`（L340–L341）：继承`BaseModel`。声明的数据项为`value`；类型约束/数据库列参数以完整定义为准。
+- `test_actual_acceptance_pins_all_deepseek_structured_profiles`（L388–L401）：接收`tmp_path`、`monkeypatch`。 控制顺序：L395遍历`STAGES`；L397断言`profile.provider == "deepseek"`；L398断言`profile.output_mode == "json_object"`；L399断言`profile.max_output_tokens == harness.MAX_COMPLETION_TOKENS`；L400断言`profile.base_url == harness.ENDPOINT`；L401断言`profile.model == harness.MODEL`。 调用`monkeypatch.setenv`、`harness.acceptance_settings`、`configuration`、`settings.model_for`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_real_model_execution_diagnostics.py sha256: d658a50091c0df0474d71fb09f0ed394acb768a9a6fd687d7e9acd6c7a904d62 -->
+<!-- source-file: tests/test_real_model_execution_diagnostics.py sha256: cb88589de0197e378230ac361213bdcce25c0b1abd2b6fc3d03c2b7d2e541d8b -->
 ````python
 """No provider calls: exercise failure artifact retention before private cleanup."""
 
@@ -63943,7 +68018,7 @@ def test_failure_retains_approved_plan_before_cleanup(
                 fail()
             return SimpleNamespace(returncode=0)
 
-        def unpack(archive, product):
+        def unpack(archive, product, *, template):
             if failure_at == "unpack":
                 fail()
             write_json(product / "approved-spec.json", plan)
@@ -63959,7 +68034,7 @@ def test_failure_retains_approved_plan_before_cleanup(
         monkeypatch.setattr(verification, "require_browser_evidence", lambda *a: None)
         monkeypatch.setattr(verification, "product_interpreter", lambda *a: sys.executable)
         monkeypatch.setattr(verification, "run_probe", lambda *a, **kw: fail())
-        monkeypatch.setattr(portable, "verify_native_delivery", lambda *a: fail())
+        monkeypatch.setattr(portable, "verify_native_delivery", lambda *a, **kw: fail())
         monkeypatch.setenv("NATIVE_TEST_DATABASE_URL", "not-exported-database-url")
         with pytest.raises(harness.SafeFailure) as caught:
             harness.run_acceptance(
@@ -64064,6 +68139,116 @@ def test_trace_frames_are_bounded_and_secret_filenames_are_not_retained():
     assert all(frame["file"] == "unavailable" for frame in result["frames"])
     assert all(set(frame) == {"file", "function", "line"} for frame in result["frames"])
     assert "test-only-secret" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "content,finish,extra,error",
+    [
+        ('{"value":1}', "length", {}, "truncated"),
+        ('{"value":1}', "stop", {"refusal": "private refusal text"}, "refusal"),
+        (
+            '{"value":1}',
+            "tool_calls",
+            {"tool_calls": [{"id": "private tool"}]},
+            "unexpected_tool_call",
+        ),
+        ('{"value":1}', None, {}, "invalid_finish_reason"),
+        ('```json\n{"value":1}\n```', "stop", {}, "json_invalid"),
+        ('{"value":1,"value":2}', "stop", {}, "duplicate_json_key"),
+        ('{"value":"1"}', "stop", {}, "int_type"),
+    ],
+)
+def test_actual_provider_receipt_uses_same_fail_closed_output_gate(content, finish, extra, error):
+    from pydantic import BaseModel
+
+    class Schema(BaseModel):
+        value: int
+
+    data = json.dumps(
+        {
+            "choices": [
+                {
+                    "finish_reason": finish,
+                    "message": {"role": "assistant", "content": content, **extra},
+                }
+            ]
+        }
+    ).encode()
+    result = harness.response_receipt(200, data, "plan", Schema)
+    assert result["schema_valid"] is False
+    assert result.get("response_contract_error") == error or error in result.get(
+        "schema_error_types", []
+    )
+    assert "private refusal" not in json.dumps(result)
+    assert "private tool" not in json.dumps(result)
+
+
+def test_actual_schema_request_requires_explicit_json_mode_before_http():
+    import httpx
+    from pydantic import BaseModel
+
+    class Schema(BaseModel):
+        value: int
+
+    transport = harness.BoundedRealTransport(configuration())
+    transport.transport.close()
+    requests = []
+    transport.transport = httpx.MockTransport(
+        lambda request: (
+            requests.append(request)
+            or httpx.Response(
+                200,
+                json={
+                    "choices": [{"finish_reason": "stop", "message": {"content": '{"value":1}'}}]
+                },
+            )
+        )
+    )
+    transport.current_schema = Schema
+    transport.current_stage = "plan"
+    body = {"model": harness.MODEL, "messages": [{"role": "user", "content": "Return JSON"}]}
+    try:
+        with pytest.raises(harness.SafeFailure, match="workflow_json_mode_required"):
+            transport.handle_request(
+                httpx.Request(
+                    "POST",
+                    harness.ENDPOINT + "/chat/completions",
+                    headers={"Authorization": "Bearer test-only-secret"},
+                    json=body,
+                )
+            )
+        assert requests == [] and transport.calls == 0
+        body["response_format"] = {"type": "json_object"}
+        transport.handle_request(
+            httpx.Request(
+                "POST",
+                harness.ENDPOINT + "/chat/completions",
+                headers={"Authorization": "Bearer test-only-secret"},
+                json=body,
+            )
+        )
+        assert len(requests) == 1
+        assert transport.receipts[0]["schema_valid"] is True
+        assert transport.receipts[0]["requested_output_mode"] == "json_object"
+        assert transport.receipts[0]["provider"] == "deepseek"
+    finally:
+        transport.shutdown()
+
+
+def test_actual_acceptance_pins_all_deepseek_structured_profiles(tmp_path, monkeypatch):
+    from workbench.settings import STAGES
+
+    monkeypatch.setenv("PROVIDER", "openai")
+    monkeypatch.setenv("PLANNING_PROVIDER", "compatible")
+    monkeypatch.setenv("REVIEW_MAX_OUTPUT_TOKENS", "1")
+    settings = harness.acceptance_settings(configuration(), tmp_path)
+    for stage in STAGES:
+        profile = settings.model_for(stage)
+        assert profile.provider == "deepseek"
+        assert profile.output_mode == "json_object"
+        assert profile.max_output_tokens == harness.MAX_COMPLETION_TOKENS
+        assert profile.base_url == harness.ENDPOINT
+        assert profile.model == harness.MODEL
 ````
 
 ### `tests/test_recommendation_recovery.py`
@@ -64082,37 +68267,37 @@ def test_trace_frames_are_bounded_and_secret_filenames_are_not_retained():
 - `start_news`（L44–L50）：接收`store`、`smart`。 调用`store.create_project`、`str`、`uuid.uuid4`、`store.create_run`。 返回路径：L46的`store.create_run( project["id"], {"requirement": "游戏资讯", "template": "python-basic", "inte…`。
 - `test_limitations_are_advisory_but_unsupported_still_blocks`（L53–L58）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L55断言`ready.ready`；L56断言`ready.limitations == LIMITATIONS`；L57断言`not ready.model_copy(update={"unsupported": ["用户明确要求自动采集"]}).ready`；L58断言`not ready.model_copy(update={"questions": [QUESTION]}).ready`。 调用`news_requirement`、`ready.model_copy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_legacy_gate_digest_does_not_change_for_empty_optional_fields`（L61–L67）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L64断言`reconstructed.gate_dump() == old`；L65断言`digest({"requirement": old, "ready": True}) == digest( {"requirement": reconstructed.…`。 调用`requirement().model_dump`、`requirement`、`Requirement.model_validate`、`reconstructed.gate_dump`、`digest`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_news_http_model_protocol_through_real_clean_delivery`（L71–L119）：接收`settings`、`store`、`initial_smart`。 控制顺序：L106断言`worker.tick()`；L107按`not initial_smart`分支；L108断言`store.get_run(run)["status"] == "WAITING_CLARIFICATION"`；L110断言`worker.tick()`；L112断言`state["status"] == "READY"`；L113断言`state["pending"] is None and state["error"] is None`；L114断言`state["options"]["database"] == "sqlite"`；L115断言`state["options"]["frontend"] == "simple-admin"`。后续分支沿下方源码相同行号继续阅读。 调用`SecretStr`、`start_news`、`ModelGateway`、`httpx.MockTransport`、`Runtime`、`worker.tick`、`store.get_run`、`store.set_automation`、`(settings.data_dir / "runs" / run / "delivery.zip").is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_news_http_model_protocol_through_real_clean_delivery.handler`（L77–L101）：接收`request`。 控制顺序：L82按`"approved_requirement" in payload`分支；L84断言`approved["unsupported"] == []`；L85断言`approved["limitations"] == LIMITATIONS`；L86断言`approved["facts"]["分类是否必填"] == "否"`；L88按`not payload["autonomous"]`分支；L91断言`payload["original_request"] == "游戏资讯"`；L92断言`"禁止把 template_capabilities.not_supported" in instruction`；L93断言`"用户明确要求采集或公开访问时" in instruction`。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`seen.append`、`news_plan`、`news_requirement`、`httpx.Response`、`result.model_dump_json`。 返回路径：L99的`httpx.Response( 200, json={"choices": [{"message": {"content": result.model_dump_json()}}]…`。
-- `test_existing_legacy_blocked_checkpoint_recovers_same_run`（L122–L169）：接收`settings`、`store`、`monkeypatch`。 控制顺序：L150断言`blocked["status"] == "BLOCKED"`；L151断言`blocked["pending"]["data"]["requirement"]["unsupported"] == LIMITATIONS`；L152断言`"limitations" not in blocked["pending"]["data"]["requirement"]`；L167断言`state["status"] == "READY"`；L168断言`state["result"]["cleanroom"]["passed"] is True`；L169断言`len(store.messages(run)) == 1`。 调用`start_news`、`monkeypatch.context`、`patch.setattr`、`Runtime`、`Stale`、`news_plan`、`worker.tick`、`store.get_run`、`store.set_automation`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_existing_legacy_blocked_checkpoint_recovers_same_run.old_requirements`（L124–L136）：接收`state`。 控制顺序：L134按`outcome["decision"] in {"answer", "revise", "recommend"}`分支。 调用`dict`、`raw.pop`、`self.gate`。 返回路径：L136的`outcome`。
-- `test_existing_legacy_blocked_checkpoint_recovers_same_run.Stale`（L138–L142）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_existing_legacy_blocked_checkpoint_recovers_same_run.Stale.complete`（L139–L142）：接收`rid`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L141断言`schema is Requirement`。 调用`self.calls.append`、`news_requirement`。 返回路径：L142的`news_requirement(stale=True)`。
-- `test_existing_legacy_blocked_checkpoint_recovers_same_run.Fixed`（L154–L160）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_existing_legacy_blocked_checkpoint_recovers_same_run.Fixed.complete`（L155–L160）：接收`rid`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L156按`schema is Requirement`分支；L157断言`rid == run`；L158断言`payload["resolution_feedback"]["unsupported"] == LIMITATIONS`。 调用`news_requirement`、`super().complete`、`super`。 返回路径：L159的`news_requirement()`；L160的`super().complete(rid, key, instruction, payload, schema)`。
-- `test_design_recommendation_receives_blockers_without_reanalysing_approved_scope`（L172–L195）：接收`settings`、`store`、`plan`。 控制顺序：L194断言`store.get_run(run)["status"] == "READY"`；L195断言`gateway.calls == ["recommend:1", "plan:1", "plan:2"]`。 调用`new_run`、`Repair`、`store.set_automation`、`Runtime`、`worker.tick`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_design_recommendation_receives_blockers_without_reanalysing_approved_scope.Repair`（L175–L187）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_design_recommendation_receives_blockers_without_reanalysing_approved_scope.Repair.complete`（L176–L187）：接收`run`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L177按`schema is Plan`分支；L179按`key == "plan:1"`分支；L181断言`payload["approved_requirement"]["data_scope"] == "per_user"`；L182断言`payload["previous_plan"]["data_scope"] == "shared"`；L183断言`payload["resolution_feedback"]["stage"] == "design"`；L184断言`any("数据归属" in x for x in payload["resolution_feedback"]["blocked"])`；L185断言`payload["runtime_constraints"]["coding_enabled"] is True`。 调用`self.calls.append`、`plan.model_copy`、`any`、`super().complete`、`super`。 返回路径：L180的`plan.model_copy(update={"data_scope": "shared"})`；L186的`plan`；L187的`super().complete(run, key, instruction, payload, schema)`。
-- `test_explicit_unsupported_request_remains_blocked_with_actionable_report`（L199–L228）：接收`settings`、`store`、`plan`、`requested`。 控制顺序：L216断言`state["status"] == "BLOCKED"`；L217断言`requested in state["error"]`；L218断言`state["pending"]["can_approve"] is False`；L219断言`len(gateway.calls) == 3`；L225断言`report["reasons"] == [requested] and report["passed"] is False`；L226断言`not (settings.data_dir / "runs" / run / "delivery.zip").exists()`。 调用`store.create_project`、`store.create_run`、`Unsupported`、`Runtime`、`worker.tick`、`store.get_run`、`len`、`json.loads`、`(settings.data_dir / "runs" / run / "recommendation-blocked.json"…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_explicit_unsupported_request_remains_blocked_with_actionable_report.Unsupported`（L202–L206）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_explicit_unsupported_request_remains_blocked_with_actionable_report.Unsupported.complete`（L203–L206）：接收`run`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L205断言`schema is Requirement`。 调用`self.calls.append`、`requirement().model_copy`、`requirement`。 返回路径：L206的`requirement().model_copy(update={"unsupported": [requested]})`。
-- `test_blocked_manual_and_retry_keep_saved_gate_and_clear_stale_error`（L231–L262）：接收`settings`、`store`、`plan`。 控制顺序：L241断言`state["status"] == "BLOCKED"`；L244断言`store.get_run(run)["pending"] is None`；L252断言`store.get_run(run)["status"] == "WAITING_CLARIFICATION"`；L253断言`pending_interrupt(worker.graph.get_state({"configurable": {"thread_id": run}}))[ "gat…`；L261断言`store.get_run(run)["status"] == "WAITING_REQUIREMENTS"`；L262断言`store.get_run(run)["error"] is None`。 调用`new_run`、`store.set_automation`、`Runtime`、`Unresolved`、`worker.tick`、`store.get_run`、`store.retry`、`pytest.raises`、`store.submit`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_blocked_manual_and_retry_keep_saved_gate_and_clear_stale_error.Unresolved`（L232–L234）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_blocked_manual_and_retry_keep_saved_gate_and_clear_stale_error.Unresolved.complete`（L233–L234）：接收`*args`。 调用`requirement`。 返回路径：L234的`requirement(["仍未决定"])`。
-- `test_manual_switch_on_blocked_restores_visible_waiting_gate`（L265–L278）：接收`settings`、`store`、`plan`。 控制顺序：L277断言`state["status"] == "WAITING_CLARIFICATION"`；L278断言`state["pending"] == pending and state["error"] is None`。 调用`new_run`、`store.set_automation`、`Runtime`、`Unresolved`、`worker.tick`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_manual_switch_on_blocked_restores_visible_waiting_gate.Unresolved`（L266–L268）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_manual_switch_on_blocked_restores_visible_waiting_gate.Unresolved.complete`（L267–L268）：接收`*args`。 调用`requirement`。 返回路径：L268的`requirement(["仍未决定"])`。
-- `test_question_only_pause_is_not_misreported_as_unsupported_scope`（L281–L291）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L290断言`report["reasons"] == ["尚未自动决定：" + QUESTION]`；L291断言`report["recoverable"] and not report["can_approve"]`。 调用`blocked_report`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_recovery_control_words_never_become_model_answers`（L295–L297）：接收`word`。 调用`pytest.raises`、`ResumeInput`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_chat_run_can_operate_on_existing_blocked_gate`（L301–L350）：接收`monkeypatch`、`command`。 控制顺序：L334断言`result.exit_code == 0`；L335断言`LIMITATIONS[0] in result.output`；L337按`command == "退出"`分支；L338断言`writes == []`；L340断言`len(writes) == 1`；L341断言`writes[0][1].startswith(f"/runs/{run}/")`；L342按`command == "智能推荐"`分支；L343断言`writes[0][2] == {"enabled": True, "accepted": True}`。后续分支沿下方源码相同行号继续阅读。 调用`str`、`uuid.uuid4`、`monkeypatch.setattr`、`CliRunner().invoke`、`CliRunner`、`len`、`writes[0][1].startswith`、`writes[0][1].endswith`、`any`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_chat_run_can_operate_on_existing_blocked_gate.client`（L316–L317）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`object`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_chat_run_can_operate_on_existing_blocked_gate.api_call`（L319–L329）：接收`c`、`method`、`path`、`body`。 控制顺序：L322按`method == "GET"`分支。 调用`calls.append`。 返回路径：L323的`{ "status": status, "error": "可恢复的阻塞", "pending": gate if status == "BLOCKED" else None, }`；L329的`{}`。
-- `test_cache_binds_prompt_payload_and_schema_but_reuses_exact_replay`（L353–L379）：接收`settings`、`store`。 控制顺序：L369断言`len(sent) == 1`；L372断言`len(sent) == 3`；L373断言`store.get_run(run)["model_calls"] == 3`；L379断言`len(sent) == 4`。 调用`SecretStr`、`new_run`、`ModelGateway`、`httpx.MockTransport`、`gateway.complete`、`len`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_cache_binds_prompt_payload_and_schema_but_reuses_exact_replay.handler`（L359–L363）：接收`request`。 调用`sent.append`、`json.loads`、`httpx.Response`、`requirement().model_dump_json`、`requirement`。 返回路径：L361的`httpx.Response( 200, json={"choices": [{"message": {"content": requirement().model_dump_js…`。
-- `test_cache_binds_prompt_payload_and_schema_but_reuses_exact_replay.ExtendedRequirement`（L375–L376）：继承`Requirement`。声明的数据项为`schema_revision_note`；类型约束/数据库列参数以完整定义为准。
-- `test_smart_recovery_never_overrides_failed_independent_verification`（L382–L395）：接收`settings`、`store`、`plan`、`monkeypatch`。 控制顺序：L393断言`state["status"] == "FAILED"`；L394断言`"真实验收失败" in state["error"]`；L395断言`not (settings.data_dir / "runs" / run / "delivery.zip").exists()`。 调用`monkeypatch.setattr`、`new_run`、`store.set_automation`、`Runtime`、`FixtureGateway`、`worker.tick`、`store.get_run`、`(settings.data_dir / "runs" / run / "delivery.zip").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_news_http_model_protocol_through_real_clean_delivery`（L71–L122）：接收`settings`、`store`、`initial_smart`。 控制顺序：L109断言`worker.tick()`；L110按`not initial_smart`分支；L111断言`store.get_run(run)["status"] == "WAITING_CLARIFICATION"`；L113断言`worker.tick()`；L115断言`state["status"] == "READY"`；L116断言`state["pending"] is None and state["error"] is None`；L117断言`state["options"]["database"] == "sqlite"`；L118断言`state["options"]["frontend"] == "simple-admin"`。后续分支沿下方源码相同行号继续阅读。 调用`SecretStr`、`start_news`、`ModelGateway`、`httpx.MockTransport`、`Runtime`、`worker.tick`、`store.get_run`、`store.set_automation`、`(settings.data_dir / "runs" / run / "delivery.zip").is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_news_http_model_protocol_through_real_clean_delivery.handler`（L77–L104）：接收`request`。 控制顺序：L82按`"approved_requirement" in payload`分支；L84断言`approved["unsupported"] == []`；L85断言`approved["limitations"] == LIMITATIONS`；L86断言`approved["facts"]["分类是否必填"] == "否"`；L88按`not payload["autonomous"]`分支；L91断言`payload["original_request"] == "游戏资讯"`；L92断言`"禁止把 template_capabilities.not_supported" in instruction`；L93断言`"用户明确要求采集或公开访问时" in instruction`。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`seen.append`、`news_plan`、`news_requirement`、`httpx.Response`、`result.model_dump_json`。 返回路径：L99的`httpx.Response( 200, json={ "choices": [{"message": {"role": "assistant", "content": resul…`。
+- `test_existing_legacy_blocked_checkpoint_recovers_same_run`（L125–L172）：接收`settings`、`store`、`monkeypatch`。 控制顺序：L153断言`blocked["status"] == "BLOCKED"`；L154断言`blocked["pending"]["data"]["requirement"]["unsupported"] == LIMITATIONS`；L155断言`"limitations" not in blocked["pending"]["data"]["requirement"]`；L170断言`state["status"] == "READY"`；L171断言`state["result"]["cleanroom"]["passed"] is True`；L172断言`len(store.messages(run)) == 1`。 调用`start_news`、`monkeypatch.context`、`patch.setattr`、`Runtime`、`Stale`、`news_plan`、`worker.tick`、`store.get_run`、`store.set_automation`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_legacy_blocked_checkpoint_recovers_same_run.old_requirements`（L127–L139）：接收`state`。 控制顺序：L137按`outcome["decision"] in {"answer", "revise", "recommend"}`分支。 调用`dict`、`raw.pop`、`self.gate`。 返回路径：L139的`outcome`。
+- `test_existing_legacy_blocked_checkpoint_recovers_same_run.Stale`（L141–L145）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_existing_legacy_blocked_checkpoint_recovers_same_run.Stale.complete`（L142–L145）：接收`rid`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L144断言`schema is Requirement`。 调用`self.calls.append`、`news_requirement`。 返回路径：L145的`news_requirement(stale=True)`。
+- `test_existing_legacy_blocked_checkpoint_recovers_same_run.Fixed`（L157–L163）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_existing_legacy_blocked_checkpoint_recovers_same_run.Fixed.complete`（L158–L163）：接收`rid`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L159按`schema is Requirement`分支；L160断言`rid == run`；L161断言`payload["resolution_feedback"]["unsupported"] == LIMITATIONS`。 调用`news_requirement`、`super().complete`、`super`。 返回路径：L162的`news_requirement()`；L163的`super().complete(rid, key, instruction, payload, schema)`。
+- `test_design_recommendation_receives_blockers_without_reanalysing_approved_scope`（L175–L198）：接收`settings`、`store`、`plan`。 控制顺序：L197断言`store.get_run(run)["status"] == "READY"`；L198断言`gateway.calls == ["recommend:1", "plan:1", "plan:2"]`。 调用`new_run`、`Repair`、`store.set_automation`、`Runtime`、`worker.tick`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_design_recommendation_receives_blockers_without_reanalysing_approved_scope.Repair`（L178–L190）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_design_recommendation_receives_blockers_without_reanalysing_approved_scope.Repair.complete`（L179–L190）：接收`run`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L180按`schema is Plan`分支；L182按`key == "plan:1"`分支；L184断言`payload["approved_requirement"]["data_scope"] == "per_user"`；L185断言`payload["previous_plan"]["data_scope"] == "shared"`；L186断言`payload["resolution_feedback"]["stage"] == "design"`；L187断言`any("数据归属" in x for x in payload["resolution_feedback"]["blocked"])`；L188断言`payload["runtime_constraints"]["coding_enabled"] is True`。 调用`self.calls.append`、`plan.model_copy`、`any`、`super().complete`、`super`。 返回路径：L183的`plan.model_copy(update={"data_scope": "shared"})`；L189的`plan`；L190的`super().complete(run, key, instruction, payload, schema)`。
+- `test_explicit_unsupported_request_remains_blocked_with_actionable_report`（L202–L231）：接收`settings`、`store`、`plan`、`requested`。 控制顺序：L219断言`state["status"] == "BLOCKED"`；L220断言`requested in state["error"]`；L221断言`state["pending"]["can_approve"] is False`；L222断言`len(gateway.calls) == 3`；L228断言`report["reasons"] == [requested] and report["passed"] is False`；L229断言`not (settings.data_dir / "runs" / run / "delivery.zip").exists()`。 调用`store.create_project`、`store.create_run`、`Unsupported`、`Runtime`、`worker.tick`、`store.get_run`、`len`、`json.loads`、`(settings.data_dir / "runs" / run / "recommendation-blocked.json"…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_unsupported_request_remains_blocked_with_actionable_report.Unsupported`（L205–L209）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_explicit_unsupported_request_remains_blocked_with_actionable_report.Unsupported.complete`（L206–L209）：接收`run`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L208断言`schema is Requirement`。 调用`self.calls.append`、`requirement().model_copy`、`requirement`。 返回路径：L209的`requirement().model_copy(update={"unsupported": [requested]})`。
+- `test_blocked_manual_and_retry_keep_saved_gate_and_clear_stale_error`（L234–L265）：接收`settings`、`store`、`plan`。 控制顺序：L244断言`state["status"] == "BLOCKED"`；L247断言`store.get_run(run)["pending"] is None`；L255断言`store.get_run(run)["status"] == "WAITING_CLARIFICATION"`；L256断言`pending_interrupt(worker.graph.get_state({"configurable": {"thread_id": run}}))[ "gat…`；L264断言`store.get_run(run)["status"] == "WAITING_REQUIREMENTS"`；L265断言`store.get_run(run)["error"] is None`。 调用`new_run`、`store.set_automation`、`Runtime`、`Unresolved`、`worker.tick`、`store.get_run`、`store.retry`、`pytest.raises`、`store.submit`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_blocked_manual_and_retry_keep_saved_gate_and_clear_stale_error.Unresolved`（L235–L237）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_blocked_manual_and_retry_keep_saved_gate_and_clear_stale_error.Unresolved.complete`（L236–L237）：接收`*args`。 调用`requirement`。 返回路径：L237的`requirement(["仍未决定"])`。
+- `test_manual_switch_on_blocked_restores_visible_waiting_gate`（L268–L281）：接收`settings`、`store`、`plan`。 控制顺序：L280断言`state["status"] == "WAITING_CLARIFICATION"`；L281断言`state["pending"] == pending and state["error"] is None`。 调用`new_run`、`store.set_automation`、`Runtime`、`Unresolved`、`worker.tick`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_manual_switch_on_blocked_restores_visible_waiting_gate.Unresolved`（L269–L271）：继承`FixtureGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_manual_switch_on_blocked_restores_visible_waiting_gate.Unresolved.complete`（L270–L271）：接收`*args`。 调用`requirement`。 返回路径：L271的`requirement(["仍未决定"])`。
+- `test_question_only_pause_is_not_misreported_as_unsupported_scope`（L284–L294）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L293断言`report["reasons"] == ["尚未自动决定：" + QUESTION]`；L294断言`report["recoverable"] and not report["can_approve"]`。 调用`blocked_report`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_recovery_control_words_never_become_model_answers`（L298–L300）：接收`word`。 调用`pytest.raises`、`ResumeInput`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_chat_run_can_operate_on_existing_blocked_gate`（L304–L353）：接收`monkeypatch`、`command`。 控制顺序：L337断言`result.exit_code == 0`；L338断言`LIMITATIONS[0] in result.output`；L340按`command == "退出"`分支；L341断言`writes == []`；L343断言`len(writes) == 1`；L344断言`writes[0][1].startswith(f"/runs/{run}/")`；L345按`command == "智能推荐"`分支；L346断言`writes[0][2] == {"enabled": True, "accepted": True}`。后续分支沿下方源码相同行号继续阅读。 调用`str`、`uuid.uuid4`、`monkeypatch.setattr`、`CliRunner().invoke`、`CliRunner`、`len`、`writes[0][1].startswith`、`writes[0][1].endswith`、`any`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_chat_run_can_operate_on_existing_blocked_gate.client`（L319–L320）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`object`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_chat_run_can_operate_on_existing_blocked_gate.api_call`（L322–L332）：接收`c`、`method`、`path`、`body`。 控制顺序：L325按`method == "GET"`分支。 调用`calls.append`。 返回路径：L326的`{ "status": status, "error": "可恢复的阻塞", "pending": gate if status == "BLOCKED" else None, }`；L332的`{}`。
+- `test_cache_binds_prompt_payload_and_schema_but_reuses_exact_replay`（L356–L387）：接收`settings`、`store`。 控制顺序：L377断言`len(sent) == 1`；L380断言`len(sent) == 3`；L381断言`store.get_run(run)["model_calls"] == 3`；L387断言`len(sent) == 4`。 调用`SecretStr`、`new_run`、`ModelGateway`、`httpx.MockTransport`、`gateway.complete`、`len`、`store.get_run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cache_binds_prompt_payload_and_schema_but_reuses_exact_replay.handler`（L362–L371）：接收`request`。 调用`sent.append`、`json.loads`、`httpx.Response`、`requirement().model_dump_json`、`requirement`。 返回路径：L364的`httpx.Response( 200, json={ "choices": [ {"message": {"role": "assistant", "content": requ…`。
+- `test_cache_binds_prompt_payload_and_schema_but_reuses_exact_replay.ExtendedRequirement`（L383–L384）：继承`Requirement`。声明的数据项为`schema_revision_note`；类型约束/数据库列参数以完整定义为准。
+- `test_smart_recovery_never_overrides_failed_independent_verification`（L390–L403）：接收`settings`、`store`、`plan`、`monkeypatch`。 控制顺序：L401断言`state["status"] == "FAILED"`；L402断言`"真实验收失败" in state["error"]`；L403断言`not (settings.data_dir / "runs" / run / "delivery.zip").exists()`。 调用`monkeypatch.setattr`、`new_run`、`store.set_automation`、`Runtime`、`FixtureGateway`、`worker.tick`、`store.get_run`、`(settings.data_dir / "runs" / run / "delivery.zip").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_recommendation_recovery.py sha256: d5c56137d1fdff4b6f0438c0171cb8a8da90bf7829e86136289c866632a53a46 -->
+<!-- source-file: tests/test_recommendation_recovery.py sha256: 1ca24bab97e33e9e34c16d09cc6fe2cb0dd6f94b9d4c4106e90eb600859b4393 -->
 ````python
 """Reported smart-news dead end: real graph/storage/product, explicit model fixtures."""
 
@@ -64213,7 +68398,10 @@ def test_news_http_model_protocol_through_real_clean_delivery(settings, store, i
                 assert feedback["questions"] == [QUESTION]
             result = news_requirement()
         return httpx.Response(
-            200, json={"choices": [{"message": {"content": result.model_dump_json()}}]}
+            200,
+            json={
+                "choices": [{"message": {"role": "assistant", "content": result.model_dump_json()}}]
+            },
         )
 
     run = start_news(store, initial_smart)
@@ -64475,7 +68663,12 @@ def test_cache_binds_prompt_payload_and_schema_but_reuses_exact_replay(settings,
     def handler(request):
         sent.append(json.loads(request.content))
         return httpx.Response(
-            200, json={"choices": [{"message": {"content": requirement().model_dump_json()}}]}
+            200,
+            json={
+                "choices": [
+                    {"message": {"role": "assistant", "content": requirement().model_dump_json()}}
+                ]
+            },
         )
 
     run = new_run(store)
@@ -65247,6 +69440,697 @@ def test_stale_patch_and_template_tamper(settings, plan):
     (product / "app.py").write_text('print("fake success")')
     with pytest.raises(PrerequisiteError):
         verify_basic(plan, product, settings)
+````
+
+### `tests/test_semantic_fact_domains.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.business_capabilities`、`workbench.domain`、`workbench.requirement_coverage`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `case`（L19–L54）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Plan`、`Requirement`。 返回路径：L54的`requirement, plan`。
+- `encode`（L57–L62）：接收`value`、`shape`。 控制顺序：L58按`shape == "json"`分支；L60按`shape == "nested"`分支。 调用`json.dumps`。 返回路径：L59的`json.dumps(value, ensure_ascii=False)`；L61的`[{"arbitrary": [json.dumps({"wrapper": value}, ensure_ascii=False)]}]`；L62的`value`。
+- `test_presentation_domain_survives_containers_and_constraint_looking_captions`（L68–L90）：接收`namespace`、`collision`、`shape`。 控制顺序：L89断言`coverage_gaps(requirement, plan) == []`；L90断言`requirement.model_dump_json() == before`。 调用`case`、`encode`、`requirement.model_dump_json`、`coverage_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_explicit_constraint_schema_reenters_presentation_domain`（L96–L119）：接收`namespace`、`declaration`、`shape`。 控制顺序：L112断言`coverage_gaps(requirement, plan) == []`；L115断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L116断言`len(diagnostics) == 1`；L117断言`diagnostics[0]["targets"] == [{"entity": "alpha", "field": "title"}]`；L118断言`diagnostics[0]["source"]["path"].startswith(namespace)`；L119断言`diagnostics[0]["attribute"] == "required"`。 调用`case`、`encode`、`coverage_gaps`、`len`、`diagnostics[0]["source"]["path"].startswith`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_corrupted_or_missing_explicit_declarations_cannot_hide_in_display`（L139–L148）：接收`namespace`、`entry`。 控制顺序：L147断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L148断言`all(item["source"]["path"].startswith(namespace) for item in diagnostics)`。 调用`case`、`coverage_gaps`、`all`、`item["source"]["path"].startswith`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_display_domain_cannot_override_an_independent_typed_obligation`（L152–L162）：接收`namespace`。 控制顺序：L158断言`coverage_gaps(requirement, plan) == []`；L161断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L162断言`all(item["source"]["section"] == "field_requirements" for item in diagnostics)`。 调用`case`、`FieldRequirement`、`coverage_gaps`、`all`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_field_name_can_equal_presentation_namespace_in_real_field_schema`（L166–L176）：接收`namespace`。 控制顺序：L174断言`coverage_gaps(requirement, plan) == []`；L176断言`coverage_gaps(requirement, plan)`。 调用`case`、`coverage_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_constraints_keep_structural_resource_scope_across_display`（L180–L195）：接收`namespace`。 控制顺序：L191断言`coverage_gaps(requirement, plan) == []`；L194断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L195断言`diagnostics[0]["targets"] == [{"entity": "alpha", "field": "title"}]`。 调用`case`、`coverage_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_query_composition_never_borrows_other_local_operation_targets`（L208–L231）：接收`parts`、`section`、`separator`。 控制顺序：L211按`section == "facts"`分支；L215断言`coverage_gaps(requirement, plan) == []`；L216遍历`[ ("needle", "searchable"), ("contact", "searchable"), ("category…`；L227断言`coverage_gaps(requirement, changed, diagnostics=diagnostics)`；L228断言`any( item["attribute"] == attribute and {"entity": "alpha", "field": name} in item["t…`。 调用`case`、`separator.join`、`setattr`、`coverage_gaps`、`plan.model_copy`、`next(field for field in changed.entities[0].fields if field.name …`、`next`、`any`、`pytest.mark.parametrize`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_composition_alone_does_not_require_any_primitive_search`（L244–L251）：接收`text`。 控制顺序：L247遍历`plan.entities[0].fields`；L249断言`coverage_gaps(requirement, plan) == []`；L251断言`coverage_gaps(requirement, plan)`。 调用`case`、`coverage_gaps`、`requirement.features.append`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `recorded`（L254–L266）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L257断言`hashlib.sha256(raw).hexdigest() == ( "d0d30b7d9ccd6a77e2f0e6a599592d9b63637884cec6ec6…`；L261断言`data["approval_status"] == "unapproved"`；L262断言`data["execution_authorized"] is False`；L263断言`data["purpose"] == "offline_contract_validation_only"`。 调用`file.read_bytes`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`、`json.loads`、`Requirement.model_validate`、`Plan.model_validate`。 返回路径：L264的`Requirement.model_validate(data["requirement"]), Plan.model_validate( data["candidate_plan…`。
+- `test_exact_genuine_candidate_passes_all_pure_semantic_gates_without_mutation`（L269–L274）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L272断言`not coverage_gaps(requirement, plan)`；L273断言`not business_gaps(requirement, plan)`；L274断言`(requirement.model_dump(), plan.model_dump()) == before`。 调用`recorded`、`deepcopy`、`requirement.model_dump`、`plan.model_dump`、`coverage_gaps`、`business_gaps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_recorded_candidate_rejects_real_obligation_regressions`（L292–L324）：接收`mutation`。 控制顺序：L296按`mutation.endswith("_search")`分支；L298按`mutation == "category_filter"`分支；L300按`mutation == "max_length"`分支；L302按`mutation == "missing_field"`分支；L304按`mutation == "unknown_obligation"`分支；L308按`mutation == "metadata_constraint"`分支；L312按`mutation == "permission"`分支；L317按`mutation == "relation"`分支。后续分支沿下方源码相同行号继续阅读。 调用`recorded`、`next`、`mutation.endswith`、`mutation.removesuffix`、`customers.fields.remove`、`requirement.field_requirements.append`、`FieldRequirement`、`coverage_gaps`、`business_gaps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_scalar_constraint_namespace_captions_are_presentation_values`（L328–L339）：接收`namespace`。 控制顺序：L338断言`coverage_gaps(requirement, plan) == []`；L339断言`business_gaps(requirement, plan) == []`。 调用`case`、`coverage_gaps`、`business_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_entity_scoped_field_can_be_named_like_presentation_domain`（L351–L360）：接收`namespace`、`attribute`、`expected`、`changed`。 控制顺序：L358断言`coverage_gaps(requirement, plan) == []`；L360断言`coverage_gaps(requirement, plan)`。 调用`case`、`coverage_gaps`、`setattr`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_composition_targets_keep_their_primitive_obligations`（L373–L387）：接收`text`、`attribute`。 控制顺序：L377遍历`plan.entities[0].fields`；L379断言`coverage_gaps(requirement, plan) == []`；L380遍历`targets`；L387断言`coverage_gaps(requirement, changed)`。 调用`case`、`setattr`、`coverage_gaps`、`plan.model_copy`、`next`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_presentation_business_vocabulary_is_not_a_business_schema_or_permission_matrix`（L402–L412）：接收`namespace`、`shape`。 控制顺序：L407断言`coverage_gaps(requirement, plan) == []`；L408断言`business_gaps(requirement, plan) == []`；L412断言`business_gaps(actual_requirement, actual_plan) == []`。 调用`case`、`encode`、`coverage_gaps`、`business_gaps`、`recorded`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_business_schema_nested_in_display_preserves_permissions_and_malformed_constraints`（L417–L431）：接收`namespace`、`wrapper`。 控制顺序：L423断言`not business_gaps(requirement, plan)`；L428断言`business_gaps(requirement, plan)`；L431断言`business_gaps(requirement, plan)`。 调用`recorded`、`deepcopy`、`business_gaps`、`next`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_business_reentry_keeps_its_nested_real_field_constraints`（L436–L454）：接收`namespace`、`wrapper`。 控制顺序：L450断言`coverage_gaps(requirement, plan) == []`；L453断言`coverage_gaps(requirement, plan, diagnostics=diagnostics)`；L454断言`diagnostics[0]["targets"] == [{"entity": "alpha", "field": "title"}]`。 调用`case`、`coverage_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_candidate_preserves_every_typed_field_attribute_and_identity`（L457–L503）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L460遍历`enumerate(requirement.field_requirements)`；L461遍历`obligation.model_dump(exclude_none=True).items()`；L462按`attribute in {"entity", "field"}`分支；L472按`type(expected) is bool`分支；L474按`type(expected) is int`分支；L476按`isinstance(expected, list)`分支；L482断言`coverage_gaps(requirement, changed, diagnostics=diagnostics)`；L483断言`any( item["source"] == {"section": "field_requirements", "index": index} and item["at…`。后续分支沿下方源码相同行号继续阅读。 调用`recorded`、`enumerate`、`obligation.model_dump(exclude_none=True).items`、`obligation.model_dump`、`plan.model_copy`、`next`、`type`、`isinstance`、`setattr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unique_unscoped_field_identity_precedes_a_presentation_namespace_name`（L507–L520）：接收`namespace`。 控制顺序：L511断言`coverage_gaps(requirement, plan)`；L513断言`not coverage_gaps(requirement, plan)`；L520断言`not coverage_gaps(requirement, plan)`。 调用`case`、`coverage_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_semantic_fact_domains.py sha256: 2b07546e921923fda3474db3abc825e6d1910726c8ba8eac1e8a4f5a5ec188ff -->
+````python
+"""Presentation namespaces and query composition never grant primitive field flags."""
+
+import hashlib
+import json
+from copy import deepcopy
+from itertools import permutations
+
+import pytest
+
+from workbench.business_capabilities import business_gaps
+from workbench.domain import FieldRequirement, Plan, Requirement
+from workbench.requirement_coverage import coverage_gaps
+from workbench.settings import ROOT
+
+PRESENTATION = ["labels", "display", "ui", "i18n", "translations", "presentation"]
+COLLISIONS = ["fields", "entities", "roles", "permissions", "metrics", "reminders", "relations"]
+
+
+def case():
+    plan = Plan(
+        title="Namespace boundaries",
+        data_scope="shared",
+        entities=[
+            {
+                "name": "alpha",
+                "description": "First resource",
+                "fields": [
+                    {"name": "needle", "kind": "text", "searchable": True, "max_length": 120},
+                    {"name": "contact", "kind": "text", "searchable": True, "max_length": 200},
+                    {
+                        "name": "category",
+                        "kind": "enum",
+                        "choices": ["a", "b"],
+                        "filterable": True,
+                    },
+                    {"name": "title", "kind": "text", "required": False, "max_length": 80},
+                ],
+            },
+            {
+                "name": "beta",
+                "description": "Other resource",
+                "fields": [{"name": "title", "kind": "text", "max_length": 200}],
+            },
+        ],
+        acceptance=["Preserve explicit constraints"],
+    )
+    requirement = Requirement(
+        summary="Namespace boundaries",
+        users=["Reader"],
+        data_scope="shared",
+        features=[],
+        acceptance=[],
+    )
+    return requirement, plan
+
+
+def encode(value, shape):
+    if shape == "json":
+        return json.dumps(value, ensure_ascii=False)
+    if shape == "nested":
+        return [{"arbitrary": [json.dumps({"wrapper": value}, ensure_ascii=False)]}]
+    return value
+
+
+@pytest.mark.parametrize("namespace", PRESENTATION)
+@pytest.mark.parametrize("collision", COLLISIONS)
+@pytest.mark.parametrize("shape", ["native", "json", "nested"])
+def test_presentation_domain_survives_containers_and_constraint_looking_captions(
+    namespace, collision, shape
+):
+    requirement, plan = case()
+    captions = {
+        "alpha": {
+            "name": "needle",
+            "field": "title",
+            "entity": "beta",
+            "required": "必填",
+            "kind": "text",
+            "searchable": "可搜索",
+            "filterable": "精确筛选",
+            "choices": ["title", "category"],
+            "max_length": "最多200",
+            "title": "标题必须可搜索",
+        },
+        "beta": {"title": "必填标题", "category": "可选分类"},
+    }
+    requirement.facts = {namespace: encode({collision: captions}, shape)}
+    before = requirement.model_dump_json()
+    assert coverage_gaps(requirement, plan) == []
+    assert requirement.model_dump_json() == before
+
+
+@pytest.mark.parametrize("namespace", PRESENTATION)
+@pytest.mark.parametrize("declaration", ["field_requirements", "field_constraints", "字段约束"])
+@pytest.mark.parametrize("shape", ["native", "json", "nested"])
+def test_only_explicit_constraint_schema_reenters_presentation_domain(
+    namespace, declaration, shape
+):
+    requirement, plan = case()
+    requirement.facts = {
+        namespace: encode(
+            {
+                "fields": {
+                    "translations": {
+                        declaration: [{"entity": "alpha", "field": "title", "required": False}],
+                    }
+                }
+            },
+            shape,
+        ),
+    }
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[-1].required = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert len(diagnostics) == 1
+    assert diagnostics[0]["targets"] == [{"entity": "alpha", "field": "title"}]
+    assert diagnostics[0]["source"]["path"].startswith(namespace)
+    assert diagnostics[0]["attribute"] == "required"
+
+
+@pytest.mark.parametrize("namespace", PRESENTATION)
+@pytest.mark.parametrize(
+    "entry",
+    [
+        {"entity": "alpha", "field": "missing", "required": True},
+        {"entity": "missing", "field": "title", "required": True},
+        {"entity": {}, "field": "title", "required": True},
+        {"entity": "alpha", "field": None, "required": True},
+        {"entity": "alpha", "required": True},
+        {"entity": "alpha", "field": "title", "required": "a label"},
+        {"entity": "alpha", "field": "title", "max_length": True},
+        {"entity": "alpha", "field": "category", "choices": {"a": "A"}},
+        {},
+        "malformed declaration",
+        None,
+    ],
+)
+def test_corrupted_or_missing_explicit_declarations_cannot_hide_in_display(namespace, entry):
+    requirement, plan = case()
+    requirement.facts = {
+        namespace: {
+            "field_requirements": [{"entity": "alpha", "field": "title", "required": False}, entry]
+        }
+    }
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert all(item["source"]["path"].startswith(namespace) for item in diagnostics)
+
+
+@pytest.mark.parametrize("namespace", PRESENTATION)
+def test_display_domain_cannot_override_an_independent_typed_obligation(namespace):
+    requirement, plan = case()
+    requirement.field_requirements = [
+        FieldRequirement(entity="alpha", field="needle", searchable=True),
+    ]
+    requirement.facts = {namespace: {"fields": {"needle": {"searchable": False}}}}
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[0].searchable = False
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert all(item["source"]["section"] == "field_requirements" for item in diagnostics)
+
+
+@pytest.mark.parametrize("namespace", PRESENTATION)
+def test_field_name_can_equal_presentation_namespace_in_real_field_schema(namespace):
+    requirement, plan = case()
+    plan.entities[0].fields[0].name = namespace
+    requirement.facts = {
+        "fields": {
+            namespace: {"entity": "alpha", "kind": "text", "required": True, "max_length": 120},
+        }
+    }
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[0].max_length = 121
+    assert coverage_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize("namespace", PRESENTATION)
+def test_explicit_constraints_keep_structural_resource_scope_across_display(namespace):
+    requirement, plan = case()
+    requirement.facts = {
+        "resources": {
+            "alpha": {
+                namespace: {
+                    "field_constraints": [{"field": "title", "required": False}],
+                }
+            }
+        }
+    }
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[-1].required = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert diagnostics[0]["targets"] == [{"entity": "alpha", "field": "title"}]
+
+
+QUERY_PARTS = [
+    "按 needle、contact 关键词搜索",
+    "按 category 精确筛选",
+    "支持不同条件组合检索",
+]
+
+
+@pytest.mark.parametrize("parts", list(permutations(QUERY_PARTS)))
+@pytest.mark.parametrize("section", ["features", "acceptance", "facts"])
+@pytest.mark.parametrize("separator", ["，", "；", ", ", "并且", "和", " and "])
+def test_query_composition_never_borrows_other_local_operation_targets(parts, section, separator):
+    requirement, plan = case()
+    text = "alpha：" + separator.join(parts)
+    if section == "facts":
+        requirement.facts = {"description": text}
+    else:
+        setattr(requirement, section, [text])
+    assert coverage_gaps(requirement, plan) == []
+    for name, attribute in [
+        ("needle", "searchable"),
+        ("contact", "searchable"),
+        ("category", "filterable"),
+    ]:
+        changed = plan.model_copy(deep=True)
+        next(field for field in changed.entities[0].fields if field.name == name).__setattr__(
+            attribute,
+            False,
+        )
+        diagnostics = []
+        assert coverage_gaps(requirement, changed, diagnostics=diagnostics)
+        assert any(
+            item["attribute"] == attribute and {"entity": "alpha", "field": name} in item["targets"]
+            for item in diagnostics
+        )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "按 category 精确筛选，支持不同条件组合检索",
+        "支持不同条件联合查询；category 精确筛选",
+        "filter by category, support combined search",
+        "support composite filtering; filter by category",
+        "support compound queries; filter by category",
+    ],
+)
+def test_composition_alone_does_not_require_any_primitive_search(text):
+    requirement, plan = case()
+    requirement.features = ["alpha：" + text]
+    for field in plan.entities[0].fields:
+        field.searchable = False
+    assert coverage_gaps(requirement, plan) == []
+    requirement.features.append("alpha：category 必须可搜索")
+    assert coverage_gaps(requirement, plan)
+
+
+def recorded():
+    file = ROOT / "tests/fixtures/customer_design_diagnostics/1d7c70b/fastapiadmin.json"
+    raw = file.read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == (
+        "d0d30b7d9ccd6a77e2f0e6a599592d9b63637884cec6ec627953e395474d4a72"
+    )
+    data = json.loads(raw)
+    assert data["approval_status"] == "unapproved"
+    assert data["execution_authorized"] is False
+    assert data["purpose"] == "offline_contract_validation_only"
+    return Requirement.model_validate(data["requirement"]), Plan.model_validate(
+        data["candidate_plan"]
+    )
+
+
+def test_exact_genuine_candidate_passes_all_pure_semantic_gates_without_mutation():
+    requirement, plan = recorded()
+    before = deepcopy((requirement.model_dump(), plan.model_dump()))
+    assert not coverage_gaps(requirement, plan)
+    assert not business_gaps(requirement, plan)
+    assert (requirement.model_dump(), plan.model_dump()) == before
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "name_search",
+        "contact_search",
+        "category_filter",
+        "max_length",
+        "missing_field",
+        "unknown_obligation",
+        "metadata_constraint",
+        "permission",
+        "relation",
+        "metric",
+    ],
+)
+def test_exact_recorded_candidate_rejects_real_obligation_regressions(mutation):
+    requirement, plan = recorded()
+    customers = next(entity for entity in plan.entities if entity.name == "customers")
+    fields = {field.name: field for field in customers.fields}
+    if mutation.endswith("_search"):
+        fields[mutation.removesuffix("_search")].searchable = False
+    elif mutation == "category_filter":
+        fields["category"].filterable = False
+    elif mutation == "max_length":
+        fields["name"].max_length = 121
+    elif mutation == "missing_field":
+        customers.fields.remove(fields["contact"])
+    elif mutation == "unknown_obligation":
+        requirement.field_requirements.append(
+            FieldRequirement(entity="customers", field="missing", required=True),
+        )
+    elif mutation == "metadata_constraint":
+        requirement.facts["labels"]["field_constraints"] = [
+            {"entity": "customers", "field": "name", "max_length": 121},
+        ]
+    elif mutation == "permission":
+        permission = next(
+            p for p in plan.business.permissions if p.role == "service" and p.entity == "requests"
+        )
+        permission.scope = "all"
+    elif mutation == "relation":
+        plan.business.relations[0].target_entity = "tasks"
+    else:
+        next(
+            metric for metric in plan.business.metrics if metric.kind == "group_count"
+        ).group_by = "name"
+    # Pure diagnostic replay only. Nothing is generated or executed from the candidate.
+    assert coverage_gaps(requirement, plan) or business_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize("namespace", PRESENTATION)
+def test_scalar_constraint_namespace_captions_are_presentation_values(namespace):
+    requirement, plan = case()
+    requirement.facts = {
+        namespace: {
+            "field_constraints": "字段约束",
+            "field_requirements": "字段要求",
+            "字段约束": "约束说明",
+            "business": "业务合同",
+        }
+    }
+    assert coverage_gaps(requirement, plan) == []
+    assert business_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize("namespace", PRESENTATION)
+@pytest.mark.parametrize(
+    "attribute,expected,changed",
+    [
+        ("required", True, False),
+        ("max_length", 120, 121),
+        ("searchable", True, False),
+    ],
+)
+def test_entity_scoped_field_can_be_named_like_presentation_domain(
+    namespace, attribute, expected, changed
+):
+    requirement, plan = case()
+    field = plan.entities[0].fields[0]
+    field.name = namespace
+    requirement.facts = {"alpha": {namespace: {attribute: expected}}}
+    assert coverage_gaps(requirement, plan) == []
+    setattr(field, attribute, changed)
+    assert coverage_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize(
+    "text,attribute",
+    [
+        ("对 needle、contact 进行联合搜索", "searchable"),
+        ("needle 和 contact 支持组合搜索", "searchable"),
+        ("按 needle 和 contact 组合筛选", "filterable"),
+        ("combined search by needle and contact", "searchable"),
+        ("category 参与复合搜索", "searchable"),
+    ],
+)
+def test_explicit_composition_targets_keep_their_primitive_obligations(text, attribute):
+    requirement, plan = case()
+    requirement.features = ["alpha：" + text]
+    targets = ["category"] if "category" in text else ["needle", "contact"]
+    for field in plan.entities[0].fields:
+        setattr(field, attribute, field.name in targets)
+    assert coverage_gaps(requirement, plan) == []
+    for target in targets:
+        changed = plan.model_copy(deep=True)
+        setattr(
+            next(field for field in changed.entities[0].fields if field.name == target),
+            attribute,
+            False,
+        )
+        assert coverage_gaps(requirement, changed)
+
+
+BUSINESS_CAPTIONS = {
+    "metrics": {"name": "指标名称", "kind": "指标类型", "entity": "业务实体"},
+    "relations": {"entity": "业务实体", "field": "字段", "target_entity": "目标实体"},
+    "permissions": {"role": "角色", "entity": "实体", "actions": "操作", "scope": "范围"},
+    "reminders": {"entity": "实体", "event": "事件", "recipient": "接收者"},
+    "resources": {"entity": "实体", "audit": "审计", "archive": "归档"},
+    "roles": ["manager", "service"],
+}
+
+
+@pytest.mark.parametrize("namespace", PRESENTATION)
+@pytest.mark.parametrize("shape", ["native", "json", "nested"])
+def test_presentation_business_vocabulary_is_not_a_business_schema_or_permission_matrix(
+    namespace, shape
+):
+    requirement, plan = case()
+    requirement.facts = {namespace: encode(BUSINESS_CAPTIONS, shape)}
+    assert coverage_gaps(requirement, plan) == []
+    assert business_gaps(requirement, plan) == []
+    # It must not impose an empty complete-policy matrix on existing grants.
+    actual_requirement, actual_plan = recorded()
+    actual_requirement.facts[namespace] = encode(BUSINESS_CAPTIONS, shape)
+    assert business_gaps(actual_requirement, actual_plan) == []
+
+
+@pytest.mark.parametrize("namespace", PRESENTATION)
+@pytest.mark.parametrize("wrapper", ["business", "business_requirements", "business_constraints"])
+def test_explicit_business_schema_nested_in_display_preserves_permissions_and_malformed_constraints(
+    namespace, wrapper
+):
+    requirement, plan = recorded()
+    business = deepcopy(requirement.facts["business"])
+    requirement.facts = {namespace: {wrapper: business}}
+    assert not business_gaps(requirement, plan)
+    policy = next(
+        p for p in plan.business.permissions if p.role == "service" and p.entity == "requests"
+    )
+    policy.scope = "all"
+    assert business_gaps(requirement, plan)
+    policy.scope = "assigned"
+    business["permissions"][0]["actions"] = "malformed actions"
+    assert business_gaps(requirement, plan)
+
+
+@pytest.mark.parametrize("namespace", PRESENTATION)
+@pytest.mark.parametrize("wrapper", ["business", "business_requirements", "business_constraints"])
+def test_explicit_business_reentry_keeps_its_nested_real_field_constraints(namespace, wrapper):
+    requirement, plan = case()
+    requirement.facts = {
+        namespace: {
+            wrapper: {
+                "resources": [
+                    {
+                        "entity": "alpha",
+                        "fields": [{"field": "title", "required": False}],
+                    }
+                ]
+            }
+        }
+    }
+    assert coverage_gaps(requirement, plan) == []
+    plan.entities[0].fields[-1].required = True
+    diagnostics = []
+    assert coverage_gaps(requirement, plan, diagnostics=diagnostics)
+    assert diagnostics[0]["targets"] == [{"entity": "alpha", "field": "title"}]
+
+
+def test_exact_candidate_preserves_every_typed_field_attribute_and_identity():
+    requirement, plan = recorded()
+    checked = 0
+    for index, obligation in enumerate(requirement.field_requirements):
+        for attribute, expected in obligation.model_dump(exclude_none=True).items():
+            if attribute in {"entity", "field"}:
+                continue
+            changed = plan.model_copy(deep=True)
+            field = next(
+                field
+                for entity in changed.entities
+                if entity.name == obligation.entity
+                for field in entity.fields
+                if field.name == obligation.field
+            )
+            if type(expected) is bool:
+                replacement = not expected
+            elif type(expected) is int:
+                replacement = expected + 1
+            elif isinstance(expected, list):
+                replacement = [*expected, "unexpected"]
+            else:
+                replacement = "integer" if expected != "integer" else "text"
+            setattr(field, attribute, replacement)
+            diagnostics = []
+            assert coverage_gaps(requirement, changed, diagnostics=diagnostics)
+            assert any(
+                item["source"] == {"section": "field_requirements", "index": index}
+                and item["attribute"] == attribute
+                for item in diagnostics
+            ), (
+                obligation.entity,
+                obligation.field,
+                attribute,
+            )
+            checked += 1
+        changed = plan.model_copy(deep=True)
+        entity = next(entity for entity in changed.entities if entity.name == obligation.entity)
+        entity.fields = [field for field in entity.fields if field.name != obligation.field]
+        diagnostics = []
+        assert coverage_gaps(requirement, changed, diagnostics=diagnostics)
+        assert any(
+            item["source"] == {"section": "field_requirements", "index": index}
+            and item["code"] == "missing_or_ambiguous"
+            for item in diagnostics
+        )
+    assert checked == 89
+
+
+@pytest.mark.parametrize("namespace", PRESENTATION)
+def test_unique_unscoped_field_identity_precedes_a_presentation_namespace_name(namespace):
+    requirement, plan = case()
+    plan.entities[0].fields[0].name = namespace
+    requirement.facts = {namespace: {"required": False}}
+    assert coverage_gaps(requirement, plan)
+    plan.entities[0].fields[0].required = False
+    assert not coverage_gaps(requirement, plan)
+    requirement.facts = {
+        namespace: {
+            "fields": {"alpha": {namespace: "必填可搜索"}},
+            "choices": {"title": "必填标题"},
+        }
+    }
+    assert not coverage_gaps(requirement, plan)
+````
+
+### `tests/test_semantic_fact_namespace_aliases.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.business_capabilities`、`workbench.domain`、`workbench.requirement_coverage`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `recorded`（L38–L45）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L44断言`envelope["approval_status"] == "unapproved" and envelope["execution_authorized"] is F…`。 调用`json.loads`、`(ROOT / "tests/fixtures/customer_design_diagnostics/1d7c70b/fasta…`、`deepcopy`、`Plan.model_validate`。 返回路径：L45的`deepcopy(envelope["requirement"]), Plan.model_validate(envelope["candidate_plan"])`。
+- `test_exact_recorded_display_namespace_spellings_never_create_contracts`（L50–L60）：接收`namespace`、`encoding`。 控制顺序：L53按`encoding == "json"`分支；L55按`encoding == "nested"`分支；L59断言`coverage_gaps(requirement, plan) == []`；L60断言`business_gaps(requirement, plan) == []`。 调用`recorded`、`data["facts"].pop`、`json.dumps`、`Requirement.model_validate`、`coverage_gaps`、`business_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_business_display_aliases_do_not_invent_metrics_or_permissions`（L64–L75）：接收`namespace`。 控制顺序：L74断言`coverage_gaps(requirement, plan) == []`；L75断言`business_gaps(requirement, plan) == []`。 调用`recorded`、`data.update`、`Requirement.model_validate`、`coverage_gaps`、`business_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_fields_named_like_display_aliases_keep_explicit_constraints`（L89–L112）：接收`name`。 控制顺序：L110断言`coverage_gaps(requirement, plan)`；L112断言`coverage_gaps(requirement, plan) == []`。 调用`Plan`、`Requirement`、`coverage_gaps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_semantic_fact_namespace_aliases.py sha256: 13035e879bbd26e4d2649e7d19e209f4ca4d435cf3cb6506a9fd0d1f3b5fd05c -->
+````python
+"""Presentation provenance survives provider spelling variations without field exemptions."""
+
+import json
+from copy import deepcopy
+
+import pytest
+
+from workbench.business_capabilities import business_gaps
+from workbench.domain import Plan, Requirement
+from workbench.requirement_coverage import coverage_gaps
+from workbench.settings import ROOT
+
+ALIASES = [
+    "ui_metadata",
+    "UI_Metadata",
+    "uiMetadata",
+    "ui-metadata",
+    "ui metadata",
+    "ui.labels",
+    "uiFieldLabels",
+    "UIFieldLabels",
+    "field_labels",
+    "fieldLabels",
+    "display_names",
+    "displayNames",
+    "display-names",
+    "customer_labels",
+    "customerLabels",
+    "localized_labels",
+    "i18n_fields",
+    "translationLabels",
+    "字段中文名",
+    "字段显示标签",
+    "界面文案",
+]
+
+
+def recorded():
+    envelope = json.loads(
+        (ROOT / "tests/fixtures/customer_design_diagnostics/1d7c70b/fastapiadmin.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert envelope["approval_status"] == "unapproved" and envelope["execution_authorized"] is False
+    return deepcopy(envelope["requirement"]), Plan.model_validate(envelope["candidate_plan"])
+
+
+@pytest.mark.parametrize("namespace", ALIASES)
+@pytest.mark.parametrize("encoding", ["native", "json", "nested"])
+def test_exact_recorded_display_namespace_spellings_never_create_contracts(namespace, encoding):
+    data, plan = recorded()
+    display = data["facts"].pop("labels")
+    if encoding == "json":
+        display = json.dumps(display, ensure_ascii=False)
+    elif encoding == "nested":
+        display = [{"wrapper": [json.dumps(display, ensure_ascii=False)]}]
+    data["facts"][namespace] = display
+    requirement = Requirement.model_validate(data)
+    assert coverage_gaps(requirement, plan) == []
+    assert business_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize("namespace", ALIASES)
+def test_business_display_aliases_do_not_invent_metrics_or_permissions(namespace):
+    data, plan = recorded()
+    data.update(features=[], acceptance=[])
+    data["facts"] = {
+        namespace: {
+            "metrics": {"name": "指标名称", "kind": "指标类型", "entity": "业务实体"},
+            "permissions": {"role": "角色", "entity": "实体", "actions": "操作", "scope": "范围"},
+        }
+    }
+    requirement = Requirement.model_validate(data)
+    assert coverage_gaps(requirement, plan) == []
+    assert business_gaps(requirement, plan) == []
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "ui_metadata",
+        "field_labels",
+        "display_names",
+        "customer_labels",
+        "localized_labels",
+        "i18n_fields",
+    ],
+)
+def test_real_fields_named_like_display_aliases_keep_explicit_constraints(name):
+    plan = Plan(
+        title="Field collision",
+        data_scope="shared",
+        entities=[
+            {
+                "name": "records",
+                "description": "Real field namespace collision",
+                "fields": [{"name": name, "kind": "text", "required": False}],
+            }
+        ],
+        acceptance=["Preserve field constraints"],
+    )
+    requirement = Requirement(
+        summary="Explicit constraint",
+        users=["Reader"],
+        data_scope="shared",
+        features=[],
+        acceptance=[],
+        facts={"records": {name: {"required": True}}},
+    )
+    assert coverage_gaps(requirement, plan)
+    plan.entities[0].fields[0].required = True
+    assert coverage_gaps(requirement, plan) == []
 ````
 
 ### `tests/test_store.py`
@@ -66584,12 +71468,12 @@ def test_tampered_delivery_not_released(settings, store, plan):
 
 **逐个入口与控制逻辑：**
 
-- `sources`（L94–L142）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L96遍历`GROUPS`；L98遍历`paths`；L100按`not path.exists()`分支；L101抛异常，停止当前正常路径；L107遍历`items`；L108按`not item.is_file() or item.suffix == ".pyc" or any( part in { "__pycache__", ".venv",…`分支；L129按`name in { ".github/workflows/prepare-local-tools.yml", ".github/workflows/runtime-con…`分支；L134按`name not in seen`分支。 调用`set`、`path.exists`、`FileNotFoundError`、`path.is_dir`、`sorted`、`path.rglob`、`item.relative_to(ROOT).as_posix`、`item.relative_to`、`item.is_file`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `guide_text`（L145–L152）：接收`name`。 源码说明：Keep image links valid in both the chapter and the root-level handbook.。 调用`(ROOT / name).read_text(encoding="utf-8").rstrip`、`(ROOT / name).read_text`、`re.sub`、`Path(name).parent.as_posix`、`Path`。 返回路径：L148的`re.sub( r"(!\[[^\]\n]*\]\()images/", lambda match: match[1] + Path(name).parent.as_posix()…`。
-- `render`（L155–L203）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L158遍历`sources()`；L160遍历`rows`；L161按`isinstance(content, bytes)`分支。 调用`"\n\n".join`、`guide_text`、`sources`、`isinstance`、`hashlib.sha256(content).hexdigest`、`hashlib.sha256`、`"\n".join`、`textwrap.wrap`、`base64.b64encode(content).decode`等。 返回路径：L203的`text`。
-- `main`（L206–L219）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L211按`args.check`分支；L212按`not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != expected`分支；L213抛异常，停止当前正常路径；L214按`len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) != 1`分支；L215抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`OUTPUT.read_text`、`SystemExit`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `sources`（L95–L143）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L97遍历`GROUPS`；L99遍历`paths`；L101按`not path.exists()`分支；L102抛异常，停止当前正常路径；L108遍历`items`；L109按`not item.is_file() or item.suffix == ".pyc" or any( part in { "__pycache__", ".venv",…`分支；L130按`name in { ".github/workflows/prepare-local-tools.yml", ".github/workflows/runtime-con…`分支；L135按`name not in seen`分支。 调用`set`、`path.exists`、`FileNotFoundError`、`path.is_dir`、`sorted`、`path.rglob`、`item.relative_to(ROOT).as_posix`、`item.relative_to`、`item.is_file`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `guide_text`（L146–L153）：接收`name`。 源码说明：Keep image links valid in both the chapter and the root-level handbook.。 调用`(ROOT / name).read_text(encoding="utf-8").rstrip`、`(ROOT / name).read_text`、`re.sub`、`Path(name).parent.as_posix`、`Path`。 返回路径：L149的`re.sub( r"(!\[[^\]\n]*\]\()images/", lambda match: match[1] + Path(name).parent.as_posix()…`。
+- `render`（L156–L204）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L159遍历`sources()`；L161遍历`rows`；L162按`isinstance(content, bytes)`分支。 调用`"\n\n".join`、`guide_text`、`sources`、`isinstance`、`hashlib.sha256(content).hexdigest`、`hashlib.sha256`、`"\n".join`、`textwrap.wrap`、`base64.b64encode(content).decode`等。 返回路径：L204的`text`。
+- `main`（L207–L220）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L212按`args.check`分支；L213按`not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != expected`分支；L214抛异常，停止当前正常路径；L215按`len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) != 1`分支；L216抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`OUTPUT.read_text`、`SystemExit`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/build_handbook.py sha256: d3ecc255d5ae435b3352d65addff7620e57f677c838413b49ba8944284a0e711 -->
+<!-- source-file: scripts/build_handbook.py sha256: 98e1b5ecc35fe5d51e9571165b52fe9340f81edf5ff07cf575839fb6a8e68c93 -->
 ````python
 """Render a complete, reconstructable handbook from tracked source, never from memory."""
 
@@ -66613,6 +71497,7 @@ GUIDES = [
     "docs/recommendation-recovery.md",
     "docs/native-toolchain.md",
     "docs/business-platform.md",
+    "docs/provider-structured-outputs.md",
     "docs/real-model-acceptance.md",
     "docs/from-zero-checkpoints.md",
     "docs/acceptance-checklist.md",
@@ -67886,12 +72771,12 @@ if __name__ == "__main__":
 **逐个入口与控制逻辑：**
 
 - `free_port`（L29–L32）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`socket.socket`、`sock.bind`、`sock.getsockname`。 返回路径：L32的`sock.getsockname()[1]`。
-- `main`（L35–L225）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L100遍历`range(100)`；L101按`server.started`分支；L105抛异常，停止当前正常路径；L132断言`first.returncode == 0`；L135断言`run["status"] == "READY" and run["auto_mode"]`；L136断言`run["options"]["frontend"] == "simple-admin" and run["options"]["database"] == "sqlit…`；L140断言`{c["model"] for c in calls} == { "requirements-fixture", "planning-fixture", "review-…`；L178遍历`range(100)`。后续分支沿下方源码相同行号继续阅读。 调用`ThreadingHTTPServer`、`threading.Thread(target=provider.serve_forever, daemon=True).star…`、`threading.Thread`、`reports.mkdir`、`tempfile.TemporaryDirectory`、`Path`、`free_port`、`Settings`、`create_app`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.Provider`（L38–L74）：继承`BaseHTTPRequestHandler`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `main`（L35–L232）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L107遍历`range(100)`；L108按`server.started`分支；L112抛异常，停止当前正常路径；L139断言`first.returncode == 0`；L142断言`run["status"] == "READY" and run["auto_mode"]`；L143断言`run["options"]["frontend"] == "simple-admin" and run["options"]["database"] == "sqlit…`；L147断言`{c["model"] for c in calls} == { "requirements-fixture", "planning-fixture", "review-…`；L185遍历`range(100)`。后续分支沿下方源码相同行号继续阅读。 调用`ThreadingHTTPServer`、`threading.Thread(target=provider.serve_forever, daemon=True).star…`、`threading.Thread`、`reports.mkdir`、`tempfile.TemporaryDirectory`、`Path`、`free_port`、`Settings`、`create_app`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.Provider`（L38–L81）：继承`BaseHTTPRequestHandler`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `main.Provider.log_message`（L39–L40）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.Provider.do_POST`（L42–L74）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L44断言`self.headers["Authorization"] == "Bearer explicit-ci-only"`；L48按`model == "requirements-fixture"`分支；L49按`payload.get("autonomous")`分支；L52按`model == "planning-fixture"`分支；L55按`model == "review-fixture"`分支；L62抛异常，停止当前正常路径。 调用`json.loads`、`self.rfile.read`、`int`、`calls.append`、`payload.get`、`assert_resolution`、`news_requirement`、`assert_approved`、`news_spec`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.Provider.do_POST`（L42–L81）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L44断言`self.headers["Authorization"] == "Bearer explicit-ci-only"`；L48按`model == "requirements-fixture"`分支；L49按`payload.get("autonomous")`分支；L52按`model == "planning-fixture"`分支；L55按`model == "review-fixture"`分支；L62抛异常，停止当前正常路径。 调用`json.loads`、`self.rfile.read`、`int`、`calls.append`、`payload.get`、`assert_resolution`、`news_requirement`、`assert_approved`、`news_spec`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_guided_browser.py sha256: 32c8788926ca52af4e467fae12d81b9d099f405967c862f31c03c05b2903c6e4 -->
+<!-- source-file: scripts/ci_guided_browser.py sha256: 40533481b935aa69dbcfaa51d578f0cbec61ff1eb1272c2c45cba26fd74da03b -->
 ````python
 """Real local HTTP and Chromium regression; model servers are explicit test fixtures only."""
 
@@ -67957,7 +72842,14 @@ def main():
                 raise AssertionError("Unexpected model stage for deterministic CRUD: " + model)
             encoded = json.dumps(
                 {
-                    "choices": [{"message": {"content": json.dumps(value, ensure_ascii=False)}}],
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": json.dumps(value, ensure_ascii=False),
+                            }
+                        }
+                    ],
                     "usage": {"total_tokens": 50},
                 },
                 ensure_ascii=False,
@@ -68651,13 +73543,15 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `main`（L15–L36）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`Settings`、`prepare_sources`、`Path`、`write_json`、`run_acceptance`、`sources.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `approved_customer_replay`（L24–L40）：接收`name`、`template`。 源码说明：Only the recorded approved synthetic Plan, never a diagnostic candidate.。 控制顺序：L30按`template != record["template"] or path.is_symlink()`分支；L31抛异常，停止当前正常路径；L32按`path.stat().st_size > MAX_REPLAY_PLAN_BYTES`分支；L33抛异常，停止当前正常路径；L35按`hashlib.sha256(raw).hexdigest() != record["sha256"]`分支；L36抛异常，停止当前正常路径；L38按`DiagnosticTextBudget().scrub(text) != text`分支；L39抛异常，停止当前正常路径。 调用`path.is_symlink`、`ValueError`、`path.stat`、`path.read_bytes`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`、`raw.decode`、`DiagnosticTextBudget().scrub`、`DiagnosticTextBudget`等。 返回路径：L40的`Plan.model_validate_json(text)`。
+- `main`（L43–L71）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.add_mutually_exclusive_group`、`inputs.add_argument`、`sorted`、`parser.parse_args`、`approved_customer_replay`、`Plan.model_validate_json`、`args.spec.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_native_bundled.py sha256: b20743d1b0ce125b27f92c364b1685d0fd101d752a9addb8a0b5e172701b713a -->
+<!-- source-file: scripts/ci_native_bundled.py sha256: db040b8a06d6a996e03a69df6ea8403fe2c52b80d929abbf94bf4133ef5eda73 -->
 ````python
 """Run original native acceptance AND standalone empty-database deployment from vendored code."""
 
 import argparse
+import hashlib
 import os
 from pathlib import Path
 
@@ -68668,12 +73562,48 @@ from workbench.native import prepare_sources
 from workbench.native_lab import run_acceptance
 from workbench.settings import ROOT, Settings
 
+APPROVED_CUSTOMER_REPLAYS = {
+    "yudao-1d7": {
+        "template": "yudao-vben",
+        "path": "tests/fixtures/customer_approved_replays/yudao-1d7.json",
+        "sha256": "16731f7c60a15916058d64c503525aafe93e1c53e0da62bae1eb8d0c227730f5",
+    }
+}
+
+
+def approved_customer_replay(name, template):
+    """Only the recorded approved synthetic Plan, never a diagnostic candidate."""
+    from scripts.ci_real_model import MAX_REPLAY_PLAN_BYTES, DiagnosticTextBudget
+
+    record = APPROVED_CUSTOMER_REPLAYS[name]
+    path = ROOT / record["path"]
+    if template != record["template"] or path.is_symlink():
+        raise ValueError("Approved replay template/path mismatch")
+    if path.stat().st_size > MAX_REPLAY_PLAN_BYTES:
+        raise ValueError("Approved replay exceeds size limit")
+    raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != record["sha256"]:
+        raise ValueError("Approved replay digest mismatch")
+    text = raw.decode("utf-8")
+    if DiagnosticTextBudget().scrub(text) != text:
+        raise ValueError("Approved replay contains credential-like content")
+    return Plan.model_validate_json(text)
+
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("template", choices=["fastapiadmin", "yudao-vben"])
-    parser.add_argument("--spec", type=Path)
+    inputs = parser.add_mutually_exclusive_group()
+    inputs.add_argument("--spec", type=Path)
+    inputs.add_argument("--approved-replay", choices=sorted(APPROVED_CUSTOMER_REPLAYS))
     args = parser.parse_args()
+    plan = (
+        approved_customer_replay(args.approved_replay, args.template)
+        if args.approved_replay
+        else Plan.model_validate_json(args.spec.read_text(encoding="utf-8"))
+        if args.spec
+        else acceptance_spec()
+    )
     s = Settings(data_dir=ROOT / ".data/native-ci", _env_file=None)
     rows = prepare_sources(s, args.template)
     sources = {r["slot"]: Path(r["path"]) for r in rows}
@@ -68687,9 +73617,7 @@ def main():
         sources.get("frontend"),
         os.environ["NATIVE_TEST_DATABASE_URL"],
         reports,
-        Plan.model_validate_json(args.spec.read_text(encoding="utf-8"))
-        if args.spec
-        else acceptance_spec(),
+        plan,
     )
 
 
@@ -69123,46 +74051,46 @@ if __name__ == "__main__":
 - `Config`（L63–L66）：继承`object`。声明的数据项为`base_url`、`model`、`key`；类型约束/数据库列参数以完整定义为准。
 - `configuration`（L69–L91）：接收`env`。 控制顺序：L82遍历`names`；L83按`not isinstance(raw[name], str)`分支；L84抛异常，停止当前正常路径；L85按`not values[name]`分支；L86抛异常，停止当前正常路径；L87按`not checks["BASE_URL_matches_authorized_destination"]`分支；L88抛异常，停止当前正常路径；L89按`not checks["MODE_matches_authorized_model"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`env.get`、`isinstance`、`value.strip`、`raw.items`、`bool`、`values["BASE_URL"].rstrip`、`SafeFailure`、`Config`、`SecretStr`。 返回路径：L91的`Config(values["BASE_URL"].rstrip("/"), values["MODE"], SecretStr(values["API_KEY"]))`。
 - `trusted_dispatch`（L94–L101）：接收`env`。 控制顺序：L95按`env.get("GITHUB_ACTIONS") != "true" or env.get("GITHUB_EVENT_NAME") != "workflow_disp…`分支；L101抛异常，停止当前正常路径。 调用`env.get`、`SafeFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedRealTransport`（L104–L174）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BoundedRealTransport`（L104–L180）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `BoundedRealTransport.__init__`（L107–L115）：接收`config`。 调用`httpx.HTTPTransport`、`DiagnosticTextBudget`、`config.key.get_secret_value`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedRealTransport.handle_request`（L117–L167）：接收`request`。 控制顺序：L118按`request.method != "POST" or str(request.url) != self.config.base_url + "/chat/complet…`分支；L123抛异常，停止当前正常路径；L125按`body.get("model") != self.config.model`分支；L126抛异常，停止当前正常路径；L127按`not hmac.compare_digest( request.headers.get("Authorization", ""), "Bearer " + self.c…`分支；L131抛异常，停止当前正常路径；L134按`body != SMOKE_PAYLOAD`分支；L147遍历`response.iter_bytes()`。后续分支沿下方源码相同行号继续阅读。 调用`str`、`SafeFailure`、`json.loads`、`request.read`、`body.get`、`hmac.compare_digest`、`request.headers.get`、`self.config.key.get_secret_value`、`min`等。 返回路径：L165的`httpx.Response( response.status_code, headers=response_headers, content=bytes(body_bytes) …`。
-- `BoundedRealTransport.close`（L169–L171）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedRealTransport.shutdown`（L173–L174）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.transport.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `response_receipt`（L177–L236）：接收`status`、`data`、`stage`、`schema`、`text_budget`。 控制顺序：L199按`schema is not None and isinstance(content, str)`分支；L201按`content.startswith("```json") and content.endswith("```")`分支。 调用`DiagnosticTextBudget`、`json.loads`、`choice.get`、`choice["message"].get`、`isinstance`、`bool`、`content.strip`、`envelope.get("usage", {}).items`、`envelope.get`等。 返回路径：L236的`receipt`。
-- `response_receipt.visit`（L213–L220）：接收`node`。 控制顺序：L214按`isinstance(node, dict)`分支；L216遍历`node.values()`；L218按`isinstance(node, list)`分支；L219遍历`node`。 调用`isinstance`、`names.update`、`node.get`、`node.values`、`visit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `DiagnosticTextBudget`（L239–L285）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `DiagnosticTextBudget.__init__`（L242–L244）：接收`secrets`、`limit`。 调用`tuple`、`isinstance`、`min`、`max`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `DiagnosticTextBudget.scrub`（L246–L273）：接收`text`。 源码说明：Scrub complete selected strings before any truncation or persistence.。 控制顺序：L250遍历`sorted(self.secrets, key=len, reverse=True)`。 调用`sorted`、`text.replace`、`re.sub`。 返回路径：L273的`re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)`。
-- `DiagnosticTextBudget.excerpt`（L275–L282）：接收`value`。 控制顺序：L276按`not isinstance(value, str) or not self.remaining`分支。 调用`isinstance`、`self.scrub`、`min`、`len`。 返回路径：L277的`""`；L282的`text`。
-- `DiagnosticTextBudget.excerpts`（L284–L285）：接收`values`。 调用`self.excerpt`。 返回路径：L285的`[text for value in values[:20] if (text := self.excerpt(value))]`。
-- `safe_execution_failure`（L288–L342）：接收`error`、`stage`、`text_budget`。 源码说明：Selected exception headline and frame coordinates, never raw logs/locals.。 控制顺序：L310按`len(headline) > 4096 or headline.lstrip().startswith(("{", "["))`分支；L312按`re.search(r"[\[{]", headline)`分支；L321遍历`traceback.extract_tb(error.__traceback__)[-8:]`。 调用`str`、`message.splitlines`、`len`、`headline.lstrip().startswith`、`headline.lstrip`、`re.search`、`re.split`、`re.sub`、`traceback.extract_tb`等。 返回路径：L337的`{ "stage": stage if stage in stages else "unknown", "exception_type": text_budget.excerpt(…`。
-- `completed_stage_details`（L345–L355）：接收`value`、`text_budget`。 源码说明：Keep schema counts and selected review gaps, not complete model responses.。 控制顺序：L348遍历`("questions", "unsupported", "uncovered_requirements", "field_req…`；L349按`hasattr(value, name)`分支；L351按`hasattr(value, "uncovered_requirements")`分支。 调用`hasattr`、`len`、`getattr`、`text_budget.excerpts`。 返回路径：L355的`result`。
-- `contract_snapshot`（L358–L390）：接收`data`、`requirement`。 控制顺序：L382按`requirement`分支。 调用`field_summary`、`data.get`、`identifier`、`e.get`。 返回路径：L383的`[field_summary(f) for f in data.get("field_requirements", [])[:128]]`；L384的`[ { "name": identifier(e.get("name")), "fields": [field_summary(f) for f in e.get("fields"…`。
-- `contract_snapshot.identifier`（L359–L364）：接收`value`。 调用`isinstance`、`re.fullmatch`。 返回路径：L360的`value if isinstance(value, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,39}", value) else "unr…`。
-- `contract_snapshot.field_summary`（L366–L380）：接收`value`。 控制顺序：L368按`requirement`分支；L370遍历`("required", "searchable", "filterable", "date_range")`；L371按`type(value.get(name)) is bool`分支；L373遍历`("min_length", "max_length")`；L374按`type(value.get(name)) is int and 0 <= value[name] <= 20000`分支；L376按`value.get("kind") in {"text", "integer", "boolean", "date", "datetime", "enum"}`分支；L378按`isinstance(value.get("choices"), list)`分支。 调用`identifier`、`value.get`、`type`、`isinstance`、`len`。 返回路径：L380的`result`。
-- `safe_coverage_details`（L424–L484）：接收`requirement`、`plan`、`text_budget`。 源码说明：Export executable differences and source references, never requirement prose.。 控制顺序：L461遍历`items[:128]`；L466遍历`("expected", "actual")`；L468按`attribute == "choices" and isinstance(value, list)`分支；L474按`text_budget is not None and type(source.get("index")) is int and 0 <= source["index"]…`分支；L481按`excerpt`分支。 调用`requirement.get`、`list`、`_fact_texts`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`isinstance`、`len`、`scalar`等。 返回路径：L484的`result`。
-- `safe_coverage_details.scalar`（L439–L458）：接收`attribute`、`value`。 控制顺序：L440按`type(value) is bool or value is None`分支；L442按`attribute in {"min_length", "max_length"} and type(value) is int and 0 <= value <= 20…`分支；L444按`attribute == "kind" and isinstance(value, str) and value in { "text", "integer", "boo…`分支。 调用`type`、`isinstance`。 返回路径：L441的`value`；L443的`value`；L457的`value`。
-- `safe_native_plan_details`（L487–L512）：接收`plan`。 源码说明：Report the actual native-validator failure plus label-shape evidence.。 调用`Plan.model_validate`、`validate_plan`、`DESIGN_REASON_CODES.get`、`str`、`len`、`any`、`bool`、`re.fullmatch`。 返回路径：L498的`{ "code": code, "entity_labels": [ { "entity": entity.name, "length": len(entity.descripti…`。
-- `safe_runtime_details`（L537–L589）：接收`error`、`native_reports`、`text_budget`。 源码说明：Select the runtime error, finite stage and one native exception headline. Never export native logs, environment, response bodies or tracebacks. These fixed local reports are read before the isolated w。 控制顺序：L546按`excerpt := text_budget.excerpt(error)`分支；L548按`native_reports is None`分支；L551按`any(path.is_symlink() for path in (reports, *reports.parents))`分支；L555按`not progress.is_symlink() and progress.is_file() and progress.stat().st_size <= 4096`分支；L557按`isinstance(value, dict)`分支；L558按`value.get("stage") in NATIVE_PROGRESS_STAGES`分支；L560按`value.get("template") in {"fastapiadmin", "yudao-vben"}`分支；L566按`failure.is_symlink() or not failure.is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`text_budget.excerpt`、`Path`、`any`、`path.is_symlink`、`progress.is_symlink`、`progress.is_file`、`progress.stat`、`json.loads`、`progress.read_text`等。 返回路径：L549的`result`；L552的`result`；L567的`result`。
-- `approved_plan_artifact_directory`（L595–L604）：接收`data_dir`、`run_id`、`template`。 源码说明：Select only a registered generated approval artifact, never a revision.。 控制顺序：L597按`template not in {"python-basic", "fastapiadmin", "yudao-vben"} or not isinstance(run_…`分支。 调用`isinstance`、`re.fullmatch`、`Path`。 返回路径：L602的`None`；L604的`Path(data_dir) / "runs" / run_id / leaf`。
-- `preserve_approved_customer_plan`（L607–L679）：接收`native_reports`、`destination`、`text_budget`。 源码说明：Retain only a validated, credential-free, synthetic approved Plan. The Python generator and native_lab write approved-spec.json only after the design approval gate. Reject rather than alter credential。 控制顺序：L618按`native_reports is None`分支；L622按`any( path.is_symlink() for path in (source, *source.parents, destination, *destinatio…`分支；L627按`not source.is_file()`分支；L629按`source.stat().st_size > MAX_REPLAY_PLAN_BYTES`分支；L632按`len(raw) > MAX_REPLAY_PLAN_BYTES`分支；L635按`{entity.name for entity in plan.entities} != {"customers", "requests", "tasks"} or no…`分支；L655按`not credential_free(normalized)`分支；L660按`text_budget.scrub(rendered) != rendered`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`any`、`path.is_symlink`、`source.is_file`、`source.stat`、`source.read_bytes`、`len`、`Plan.model_validate_json`、`plan.model_dump`等。 返回路径：L619的`{"status": "unavailable"}`；L625的`{"status": "unsafe_path"}`；L628的`{"status": "unavailable"}`。
-- `preserve_approved_customer_plan.credential_free`（L644–L653）：接收`value`。 控制顺序：L645按`isinstance(value, str)`分支；L647按`isinstance(value, list)`分支；L649按`isinstance(value, dict)`分支。 调用`isinstance`、`text_budget.scrub`、`all`、`credential_free`、`value.items`。 返回路径：L646的`text_budget.scrub(value) == value`；L648的`all(credential_free(item) for item in value)`；L650的`all( credential_free(key) and credential_free(item) for key, item in value.items() )`。
-- `preserve_unapproved_design_contract`（L682–L759）：接收`store`、`run_id`、`destination`、`text_budget`。 源码说明：Failure-only diagnostic contract; this envelope carries no execution approval. Only normalized Requirement/Plan revisions from this synthetic customer run are selected. No provider response, runtime e。 控制顺序：L693按`any(path.is_symlink() for path in (destination, *destination.parents))`分支；L695按`not isinstance(run_id, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", run_id)`分支；L699按`run.get("status") not in {"FAILED", "BLOCKED"}`分支；L701按`run.get("template") not in {"python-basic", "fastapiadmin", "yudao-vben"}`分支；L705按`not requirement or not plan`分支；L708按`len(json.dumps(selected, ensure_ascii=False).encode("utf-8")) > MAX_REPLAY_PLAN_BYTES`分支；L712按`{entity.name for entity in plan.entities} != {"customers", "requests", "tasks"} or no…`分支；L739按`not credential_free(payload)`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`any`、`path.is_symlink`、`isinstance`、`re.fullmatch`、`store.get_run`、`run.get`、`(store.latest_revision(run_id, "requirements") or {}).get`、`store.latest_revision`等。 返回路径：L694的`{"status": "unsafe_path"}`；L696的`{"status": "unavailable"}`；L700的`{"status": "not_failure"}`。
-- `preserve_unapproved_design_contract.credential_free`（L728–L737）：接收`value`。 控制顺序：L729按`isinstance(value, str)`分支；L731按`isinstance(value, list)`分支；L733按`isinstance(value, dict)`分支。 调用`isinstance`、`text_budget.scrub`、`all`、`credential_free`、`value.items`。 返回路径：L730的`text_budget.scrub(value) == value`；L732的`all(credential_free(item) for item in value)`；L734的`all( credential_free(key) and credential_free(item) for key, item in value.items() )`。
-- `safe_workflow_details`（L762–L926）：接收`store`、`run_id`、`traces`、`text_budget`、`native_reports`。 控制顺序：L765按`run_id`分支；L805按`requirement and plan`分支；L815按`run.get("template") in {"fastapiadmin", "yudao-vben"}`分支。 调用`DiagnosticTextBudget`、`store.get_run`、`run.get`、`safe_runtime_details`、`pending.get`、`(store.latest_revision(run_id, "requirements") or {}).get`、`store.latest_revision`、`(store.latest_revision(run_id, "design") or {}).get`、`bool`等。 返回路径：L926的`details`。
-- `smoke`（L929–L957）：接收`config`、`transport`。 源码说明：A single bounded genuine request. Provider error bodies are never emitted.。 控制顺序：L942按`status != 200`分支；L944抛异常，停止当前正常路径；L946遍历`response.iter_bytes()`；L948按`len(data) > 131072`分支；L949抛异常，停止当前正常路径；L951按`not isinstance(content, str) or not content.strip()`分支；L952抛异常，停止当前正常路径；L954抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`httpx.Client`、`client.stream`、`config.key.get_secret_value`、`SafeFailure`、`bytearray`、`response.iter_bytes`、`data.extend`、`len`、`json.loads`等。 返回路径：L957的`{"passed": True, "http_status": status, "actual_provider_request": True}`。
-- `customer_request`（L998–L1008）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`"\n\n".join`、`(ROOT / "examples/requirements" / name).read_text`。 返回路径：L1001的`"\n\n".join( (ROOT / "examples/requirements" / name).read_text(encoding="utf-8") for name …`。
-- `require_customer_spec`（L1011–L1227）：接收`spec`、`approved_requirement`。 控制顺序：L1017断言`plan.business is not None and plan.data_scope == "shared" and not plan.unsupported`；L1018断言`{e.name for e in plan.entities} == {"customers", "requests", "tasks"}`；L1019断言`{r.name for r in plan.business.roles} == {"manager", "service", "employee"}`；L1027断言`not business_gaps(requirement, plan)`；L1028按`approved_requirement is not None`分支；L1030断言`not business_gaps(approved, plan)`；L1045断言`any( metric.entity == "requests" and metric.kind == "count" and not metric.filters fo…`；L1049断言`any( metric.entity == "requests" and metric.kind == "count" and resolved_only(metric)…`。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`Requirement`、`customer_request`、`business_gaps`、`Requirement.model_validate`、`any`、`resolved_only`、`all`、`set`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `require_customer_spec.resolved_only`（L1034–L1042）：接收`metric`。 调用`bool`、`all`。 返回路径：L1035的`bool(metric.filters) and all( rule.field == "request_state" and ( (rule.op == "eq" and rul…`。
-- `acceptance_settings`（L1230–L1262）：接收`config`、`directory`。 调用`Settings`。 返回路径：L1233的`Settings( data_dir=directory / "private-platform", database_url="", checkpoint_url="", bas…`。
-- `run_acceptance`（L1265–L1516）：接收`config`、`transport`、`directory`、`template`。 控制顺序：L1279按`template != "python-basic"`分支；L1374遍历`range(150)`；L1375按`server.started`分支；L1379抛异常，停止当前正常路径；L1409按`process.returncode or not result_path.is_file()`分支；L1412按`result_path.is_file()`分支；L1415抛异常，停止当前正常路径；L1420按`run["status"] != "READY" or not run["auto_mode"] or not archive.is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_settings`、`Selection`、`settings.prepare`、`write_json`、`runtime_path`、`DiagnosticTextBudget`、`config.key.get_secret_value`、`create_app`、`ObservedGateway`等。 返回路径：L1480的`{ "passed": True, "real_model": True, "single_initial_smart_consent": True, "explicit_cust…`。
-- `run_acceptance.ObservedGateway`（L1293–L1306）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `run_acceptance.ObservedGateway.complete`（L1294–L1306）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 调用`key.split`、`traces.append`、`super().complete`、`super`、`trace.update`、`completed_stage_details`。 返回路径：L1306的`value`。
-- `run_acceptance.failure_context`（L1325–L1371）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1327按`run_id is None`分支；L1329按`not result_path.is_symlink() and result_path.stat().st_size <= 4096`分支；L1345遍历`( ( "approved_plan_replay", lambda: preserve_approved_customer_pl…`。 调用`result_path.is_symlink`、`result_path.stat`、`json.loads(result_path.read_text(encoding="utf-8")).get`、`json.loads`、`result_path.read_text`、`approved_plan_artifact_directory`、`safe_workflow_details`、`type`、`preserve_approved_customer_plan`等。 返回路径：L1371的`details`。
-- `verified_smoke_receipt`（L1519–L1535）：接收`path`、`config`、`env`。 控制顺序：L1522断言`saved["passed"] is True and saved["acceptance_scope"] == "smoke_only"`；L1523断言`saved["smoke"] == { "passed": True, "http_status": 200, "actual_provider_request": Tr…`；L1528断言`saved["actual_http_calls"] == 1 and saved["provider_statuses"] == [200]`；L1529断言`saved["model"] == config.model and saved["endpoint"] == config.base_url`；L1530断言`saved["run_identity"] == [ env.get(k, "") for k in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTE…`；L1535抛异常，停止当前正常路径。 调用`json.loads`、`path.read_text`、`env.get`、`SafeFailure`。 返回路径：L1533的`saved["smoke"]`。
-- `main`（L1538–L1628）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1573按`mode == "full"`分支；L1574遍历`("approved-plan-replay.json", "unapproved-design-contract.json")`；L1585按`mode == "smoke"`分支；L1596按`exc.status is not None`分支；L1598按`exc.details is not None`分支；L1615按`transport`分支；L1623按`config is not None`分支；L1627按`not result["passed"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`trusted_dispatch`、`configuration`、`os.environ.pop`、`result.update`、`os.environ.get`、`(destination / filename).unlink`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedRealTransport.handle_request`（L117–L173）：接收`request`。 控制顺序：L118按`request.method != "POST" or str(request.url) != self.config.base_url + "/chat/complet…`分支；L123抛异常，停止当前正常路径；L125按`body.get("model") != self.config.model`分支；L126抛异常，停止当前正常路径；L127按`self.current_schema is not None and body.get("response_format") != { "type": "json_ob…`分支；L130抛异常，停止当前正常路径；L131按`not hmac.compare_digest( request.headers.get("Authorization", ""), "Bearer " + self.c…`分支；L135抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`str`、`SafeFailure`、`json.loads`、`request.read`、`body.get`、`hmac.compare_digest`、`request.headers.get`、`self.config.key.get_secret_value`、`min`等。 返回路径：L171的`httpx.Response( response.status_code, headers=response_headers, content=bytes(body_bytes) …`。
+- `BoundedRealTransport.close`（L175–L177）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedRealTransport.shutdown`（L179–L180）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.transport.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `response_receipt`（L183–L275）：接收`status`、`data`、`stage`、`schema`、`text_budget`。 控制顺序：L198按`not isinstance(envelope, dict)`分支；L199抛异常，停止当前正常路径；L201按`not isinstance(choice, dict) or not isinstance(choice.get("message"), dict)`分支；L202抛异常，停止当前正常路径；L218按`schema is not None`分支；L222按`status != 200`分支；L223抛异常，停止当前正常路径；L273按`schema is not None`分支。 调用`DiagnosticTextBudget`、`load_json`、`isinstance`、`TypeError`、`choice.get`、`choice["message"].get`、`bool`、`content.strip`、`envelope.get`等。 返回路径：L275的`receipt`。
+- `response_receipt.visit`（L237–L244）：接收`node`。 控制顺序：L238按`isinstance(node, dict)`分支；L240遍历`node.values()`；L242按`isinstance(node, list)`分支；L243遍历`node`。 调用`isinstance`、`names.update`、`node.get`、`node.values`、`visit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `DiagnosticTextBudget`（L278–L324）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `DiagnosticTextBudget.__init__`（L281–L283）：接收`secrets`、`limit`。 调用`tuple`、`isinstance`、`min`、`max`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `DiagnosticTextBudget.scrub`（L285–L312）：接收`text`。 源码说明：Scrub complete selected strings before any truncation or persistence.。 控制顺序：L289遍历`sorted(self.secrets, key=len, reverse=True)`。 调用`sorted`、`text.replace`、`re.sub`。 返回路径：L312的`re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)`。
+- `DiagnosticTextBudget.excerpt`（L314–L321）：接收`value`。 控制顺序：L315按`not isinstance(value, str) or not self.remaining`分支。 调用`isinstance`、`self.scrub`、`min`、`len`。 返回路径：L316的`""`；L321的`text`。
+- `DiagnosticTextBudget.excerpts`（L323–L324）：接收`values`。 调用`self.excerpt`。 返回路径：L324的`[text for value in values[:20] if (text := self.excerpt(value))]`。
+- `safe_execution_failure`（L327–L381）：接收`error`、`stage`、`text_budget`。 源码说明：Selected exception headline and frame coordinates, never raw logs/locals.。 控制顺序：L349按`len(headline) > 4096 or headline.lstrip().startswith(("{", "["))`分支；L351按`re.search(r"[\[{]", headline)`分支；L360遍历`traceback.extract_tb(error.__traceback__)[-8:]`。 调用`str`、`message.splitlines`、`len`、`headline.lstrip().startswith`、`headline.lstrip`、`re.search`、`re.split`、`re.sub`、`traceback.extract_tb`等。 返回路径：L376的`{ "stage": stage if stage in stages else "unknown", "exception_type": text_budget.excerpt(…`。
+- `completed_stage_details`（L384–L394）：接收`value`、`text_budget`。 源码说明：Keep schema counts and selected review gaps, not complete model responses.。 控制顺序：L387遍历`("questions", "unsupported", "uncovered_requirements", "field_req…`；L388按`hasattr(value, name)`分支；L390按`hasattr(value, "uncovered_requirements")`分支。 调用`hasattr`、`len`、`getattr`、`text_budget.excerpts`。 返回路径：L394的`result`。
+- `contract_snapshot`（L397–L429）：接收`data`、`requirement`。 控制顺序：L421按`requirement`分支。 调用`field_summary`、`data.get`、`identifier`、`e.get`。 返回路径：L422的`[field_summary(f) for f in data.get("field_requirements", [])[:128]]`；L423的`[ { "name": identifier(e.get("name")), "fields": [field_summary(f) for f in e.get("fields"…`。
+- `contract_snapshot.identifier`（L398–L403）：接收`value`。 调用`isinstance`、`re.fullmatch`。 返回路径：L399的`value if isinstance(value, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,39}", value) else "unr…`。
+- `contract_snapshot.field_summary`（L405–L419）：接收`value`。 控制顺序：L407按`requirement`分支；L409遍历`("required", "searchable", "filterable", "date_range")`；L410按`type(value.get(name)) is bool`分支；L412遍历`("min_length", "max_length")`；L413按`type(value.get(name)) is int and 0 <= value[name] <= 20000`分支；L415按`value.get("kind") in {"text", "integer", "boolean", "date", "datetime", "enum"}`分支；L417按`isinstance(value.get("choices"), list)`分支。 调用`identifier`、`value.get`、`type`、`isinstance`、`len`。 返回路径：L419的`result`。
+- `safe_coverage_details`（L463–L523）：接收`requirement`、`plan`、`text_budget`。 源码说明：Export executable differences and source references, never requirement prose.。 控制顺序：L500遍历`items[:128]`；L505遍历`("expected", "actual")`；L507按`attribute == "choices" and isinstance(value, list)`分支；L513按`text_budget is not None and type(source.get("index")) is int and 0 <= source["index"]…`分支；L520按`excerpt`分支。 调用`requirement.get`、`list`、`_fact_texts`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`isinstance`、`len`、`scalar`等。 返回路径：L523的`result`。
+- `safe_coverage_details.scalar`（L478–L497）：接收`attribute`、`value`。 控制顺序：L479按`type(value) is bool or value is None`分支；L481按`attribute in {"min_length", "max_length"} and type(value) is int and 0 <= value <= 20…`分支；L483按`attribute == "kind" and isinstance(value, str) and value in { "text", "integer", "boo…`分支。 调用`type`、`isinstance`。 返回路径：L480的`value`；L482的`value`；L496的`value`。
+- `safe_native_plan_details`（L526–L551）：接收`plan`。 源码说明：Report the actual native-validator failure plus label-shape evidence.。 调用`Plan.model_validate`、`validate_plan`、`DESIGN_REASON_CODES.get`、`str`、`len`、`any`、`bool`、`re.fullmatch`。 返回路径：L537的`{ "code": code, "entity_labels": [ { "entity": entity.name, "length": len(entity.descripti…`。
+- `safe_runtime_details`（L576–L628）：接收`error`、`native_reports`、`text_budget`。 源码说明：Select the runtime error, finite stage and one native exception headline. Never export native logs, environment, response bodies or tracebacks. These fixed local reports are read before the isolated w。 控制顺序：L585按`excerpt := text_budget.excerpt(error)`分支；L587按`native_reports is None`分支；L590按`any(path.is_symlink() for path in (reports, *reports.parents))`分支；L594按`not progress.is_symlink() and progress.is_file() and progress.stat().st_size <= 4096`分支；L596按`isinstance(value, dict)`分支；L597按`value.get("stage") in NATIVE_PROGRESS_STAGES`分支；L599按`value.get("template") in {"fastapiadmin", "yudao-vben"}`分支；L605按`failure.is_symlink() or not failure.is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`text_budget.excerpt`、`Path`、`any`、`path.is_symlink`、`progress.is_symlink`、`progress.is_file`、`progress.stat`、`json.loads`、`progress.read_text`等。 返回路径：L588的`result`；L591的`result`；L606的`result`。
+- `approved_plan_artifact_directory`（L634–L643）：接收`data_dir`、`run_id`、`template`。 源码说明：Select only a registered generated approval artifact, never a revision.。 控制顺序：L636按`template not in {"python-basic", "fastapiadmin", "yudao-vben"} or not isinstance(run_…`分支。 调用`isinstance`、`re.fullmatch`、`Path`。 返回路径：L641的`None`；L643的`Path(data_dir) / "runs" / run_id / leaf`。
+- `preserve_approved_customer_plan`（L646–L718）：接收`native_reports`、`destination`、`text_budget`。 源码说明：Retain only a validated, credential-free, synthetic approved Plan. The Python generator and native_lab write approved-spec.json only after the design approval gate. Reject rather than alter credential。 控制顺序：L657按`native_reports is None`分支；L661按`any( path.is_symlink() for path in (source, *source.parents, destination, *destinatio…`分支；L666按`not source.is_file()`分支；L668按`source.stat().st_size > MAX_REPLAY_PLAN_BYTES`分支；L671按`len(raw) > MAX_REPLAY_PLAN_BYTES`分支；L674按`{entity.name for entity in plan.entities} != {"customers", "requests", "tasks"} or no…`分支；L694按`not credential_free(normalized)`分支；L699按`text_budget.scrub(rendered) != rendered`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`any`、`path.is_symlink`、`source.is_file`、`source.stat`、`source.read_bytes`、`len`、`Plan.model_validate_json`、`plan.model_dump`等。 返回路径：L658的`{"status": "unavailable"}`；L664的`{"status": "unsafe_path"}`；L667的`{"status": "unavailable"}`。
+- `preserve_approved_customer_plan.credential_free`（L683–L692）：接收`value`。 控制顺序：L684按`isinstance(value, str)`分支；L686按`isinstance(value, list)`分支；L688按`isinstance(value, dict)`分支。 调用`isinstance`、`text_budget.scrub`、`all`、`credential_free`、`value.items`。 返回路径：L685的`text_budget.scrub(value) == value`；L687的`all(credential_free(item) for item in value)`；L689的`all( credential_free(key) and credential_free(item) for key, item in value.items() )`。
+- `preserve_unapproved_design_contract`（L721–L798）：接收`store`、`run_id`、`destination`、`text_budget`。 源码说明：Failure-only diagnostic contract; this envelope carries no execution approval. Only normalized Requirement/Plan revisions from this synthetic customer run are selected. No provider response, runtime e。 控制顺序：L732按`any(path.is_symlink() for path in (destination, *destination.parents))`分支；L734按`not isinstance(run_id, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", run_id)`分支；L738按`run.get("status") not in {"FAILED", "BLOCKED"}`分支；L740按`run.get("template") not in {"python-basic", "fastapiadmin", "yudao-vben"}`分支；L744按`not requirement or not plan`分支；L747按`len(json.dumps(selected, ensure_ascii=False).encode("utf-8")) > MAX_REPLAY_PLAN_BYTES`分支；L751按`{entity.name for entity in plan.entities} != {"customers", "requests", "tasks"} or no…`分支；L778按`not credential_free(payload)`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`any`、`path.is_symlink`、`isinstance`、`re.fullmatch`、`store.get_run`、`run.get`、`(store.latest_revision(run_id, "requirements") or {}).get`、`store.latest_revision`等。 返回路径：L733的`{"status": "unsafe_path"}`；L735的`{"status": "unavailable"}`；L739的`{"status": "not_failure"}`。
+- `preserve_unapproved_design_contract.credential_free`（L767–L776）：接收`value`。 控制顺序：L768按`isinstance(value, str)`分支；L770按`isinstance(value, list)`分支；L772按`isinstance(value, dict)`分支。 调用`isinstance`、`text_budget.scrub`、`all`、`credential_free`、`value.items`。 返回路径：L769的`text_budget.scrub(value) == value`；L771的`all(credential_free(item) for item in value)`；L773的`all( credential_free(key) and credential_free(item) for key, item in value.items() )`。
+- `safe_workflow_details`（L801–L965）：接收`store`、`run_id`、`traces`、`text_budget`、`native_reports`。 控制顺序：L804按`run_id`分支；L844按`requirement and plan`分支；L854按`run.get("template") in {"fastapiadmin", "yudao-vben"}`分支。 调用`DiagnosticTextBudget`、`store.get_run`、`run.get`、`safe_runtime_details`、`pending.get`、`(store.latest_revision(run_id, "requirements") or {}).get`、`store.latest_revision`、`(store.latest_revision(run_id, "design") or {}).get`、`bool`等。 返回路径：L965的`details`。
+- `smoke`（L968–L996）：接收`config`、`transport`。 源码说明：A single bounded genuine request. Provider error bodies are never emitted.。 控制顺序：L981按`status != 200`分支；L983抛异常，停止当前正常路径；L985遍历`response.iter_bytes()`；L987按`len(data) > 131072`分支；L988抛异常，停止当前正常路径；L990按`not isinstance(content, str) or not content.strip()`分支；L991抛异常，停止当前正常路径；L993抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`httpx.Client`、`client.stream`、`config.key.get_secret_value`、`SafeFailure`、`bytearray`、`response.iter_bytes`、`data.extend`、`len`、`json.loads`等。 返回路径：L996的`{"passed": True, "http_status": status, "actual_provider_request": True}`。
+- `customer_request`（L1037–L1047）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`"\n\n".join`、`(ROOT / "examples/requirements" / name).read_text`。 返回路径：L1040的`"\n\n".join( (ROOT / "examples/requirements" / name).read_text(encoding="utf-8") for name …`。
+- `require_customer_spec`（L1050–L1266）：接收`spec`、`approved_requirement`。 控制顺序：L1056断言`plan.business is not None and plan.data_scope == "shared" and not plan.unsupported`；L1057断言`{e.name for e in plan.entities} == {"customers", "requests", "tasks"}`；L1058断言`{r.name for r in plan.business.roles} == {"manager", "service", "employee"}`；L1066断言`not business_gaps(requirement, plan)`；L1067按`approved_requirement is not None`分支；L1069断言`not business_gaps(approved, plan)`；L1084断言`any( metric.entity == "requests" and metric.kind == "count" and not metric.filters fo…`；L1088断言`any( metric.entity == "requests" and metric.kind == "count" and resolved_only(metric)…`。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`Requirement`、`customer_request`、`business_gaps`、`Requirement.model_validate`、`any`、`resolved_only`、`all`、`set`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_customer_spec.resolved_only`（L1073–L1081）：接收`metric`。 调用`bool`、`all`。 返回路径：L1074的`bool(metric.filters) and all( rule.field == "request_state" and ( (rule.op == "eq" and rul…`。
+- `acceptance_settings`（L1269–L1307）：接收`config`、`directory`。 调用`Settings`。 返回路径：L1272的`Settings( data_dir=directory / "private-platform", database_url="", checkpoint_url="", bas…`。
+- `run_acceptance`（L1310–L1564）：接收`config`、`transport`、`directory`、`template`。 控制顺序：L1324按`template != "python-basic"`分支；L1419遍历`range(150)`；L1420按`server.started`分支；L1424抛异常，停止当前正常路径；L1454按`process.returncode or not result_path.is_file()`分支；L1457按`result_path.is_file()`分支；L1460抛异常，停止当前正常路径；L1465按`run["status"] != "READY" or not run["auto_mode"] or not archive.is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`acceptance_settings`、`Selection`、`settings.prepare`、`write_json`、`runtime_path`、`DiagnosticTextBudget`、`config.key.get_secret_value`、`create_app`、`ObservedGateway`等。 返回路径：L1528的`{ "passed": True, "real_model": True, "single_initial_smart_consent": True, "explicit_cust…`。
+- `run_acceptance.ObservedGateway`（L1338–L1351）：继承`ModelGateway`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `run_acceptance.ObservedGateway.complete`（L1339–L1351）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 调用`key.split`、`traces.append`、`super().complete`、`super`、`trace.update`、`completed_stage_details`。 返回路径：L1351的`value`。
+- `run_acceptance.failure_context`（L1370–L1416）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1372按`run_id is None`分支；L1374按`not result_path.is_symlink() and result_path.stat().st_size <= 4096`分支；L1390遍历`( ( "approved_plan_replay", lambda: preserve_approved_customer_pl…`。 调用`result_path.is_symlink`、`result_path.stat`、`json.loads(result_path.read_text(encoding="utf-8")).get`、`json.loads`、`result_path.read_text`、`approved_plan_artifact_directory`、`safe_workflow_details`、`type`、`preserve_approved_customer_plan`等。 返回路径：L1416的`details`。
+- `verified_smoke_receipt`（L1567–L1583）：接收`path`、`config`、`env`。 控制顺序：L1570断言`saved["passed"] is True and saved["acceptance_scope"] == "smoke_only"`；L1571断言`saved["smoke"] == { "passed": True, "http_status": 200, "actual_provider_request": Tr…`；L1576断言`saved["actual_http_calls"] == 1 and saved["provider_statuses"] == [200]`；L1577断言`saved["model"] == config.model and saved["endpoint"] == config.base_url`；L1578断言`saved["run_identity"] == [ env.get(k, "") for k in ("GITHUB_RUN_ID", "GITHUB_RUN_ATTE…`；L1583抛异常，停止当前正常路径。 调用`json.loads`、`path.read_text`、`env.get`、`SafeFailure`。 返回路径：L1581的`saved["smoke"]`。
+- `main`（L1586–L1676）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1621按`mode == "full"`分支；L1622遍历`("approved-plan-replay.json", "unapproved-design-contract.json")`；L1633按`mode == "smoke"`分支；L1644按`exc.status is not None`分支；L1646按`exc.details is not None`分支；L1663按`transport`分支；L1671按`config is not None`分支；L1675按`not result["passed"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`trusted_dispatch`、`configuration`、`os.environ.pop`、`result.update`、`os.environ.get`、`(destination / filename).unlink`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_real_model.py sha256: 8bef3715ffdfd516b0fb70428b713fd8e4d15b62ef54674099e1e28d7424fb51 -->
+<!-- source-file: scripts/ci_real_model.py sha256: bac83a313d0ba4ec44794f66b56d7b2116b48b5efdb69756156caebfb79fe48f -->
 ````python
 """Opt-in real provider acceptance; only allowlisted evidence leaves the isolated job.
 
@@ -69290,6 +74218,10 @@ class BoundedRealTransport(httpx.BaseTransport):
         body = json.loads(request.read())
         if body.get("model") != self.config.model:
             raise SafeFailure("model_substitution_rejected")
+        if self.current_schema is not None and body.get("response_format") != {
+            "type": "json_object"
+        }:
+            raise SafeFailure("workflow_json_mode_required")
         if not hmac.compare_digest(
             request.headers.get("Authorization", ""),
             "Bearer " + self.config.key.get_secret_value(),
@@ -69316,15 +74248,17 @@ class BoundedRealTransport(httpx.BaseTransport):
                 response.close()
                 raise SafeFailure("provider_response_too_large", response.status_code)
         response.close()
-        self.receipts.append(
-            response_receipt(
-                response.status_code,
-                bytes(body_bytes),
-                self.current_stage,
-                self.current_schema,
-                text_budget=self.diagnostic_text,
-            )
+        receipt = response_receipt(
+            response.status_code,
+            bytes(body_bytes),
+            self.current_stage,
+            self.current_schema,
+            text_budget=self.diagnostic_text,
         )
+        receipt["requested_output_mode"] = (
+            "json_object" if self.current_schema is not None else "transport_smoke"
+        )
+        self.receipts.append(receipt)
         response_headers = dict(response.headers)
         response_headers.pop("content-encoding", None)
         response_headers.pop("content-length", None)
@@ -69343,11 +74277,23 @@ class BoundedRealTransport(httpx.BaseTransport):
 def response_receipt(status, data, stage, schema=None, *, text_budget=None):
     from pydantic import ValidationError
 
+    from workbench.model_protocol import (
+        OutputContract,
+        OutputFailure,
+        completion_content,
+        load_json,
+        validate_content,
+    )
+
     receipt = {"http_status": status, "stage": stage}
     text_budget = text_budget or DiagnosticTextBudget()
     try:
-        envelope = json.loads(data)
+        envelope = load_json(data)
+        if not isinstance(envelope, dict):
+            raise TypeError("invalid envelope")
         choice = envelope["choices"][0]
+        if not isinstance(choice, dict) or not isinstance(choice.get("message"), dict):
+            raise TypeError("invalid message")
         reason = choice.get("finish_reason")
         receipt["finish_reason"] = (
             reason if reason in {"stop", "length", "content_filter", "tool_calls"} else "unknown"
@@ -69355,20 +74301,26 @@ def response_receipt(status, data, stage, schema=None, *, text_budget=None):
         content = choice["message"].get("content")
         receipt["content_present"] = isinstance(content, str) and bool(content.strip())
         receipt["reasoning_present"] = bool(choice["message"].get("reasoning_content"))
+        usage = envelope.get("usage")
         receipt["usage"] = {
             key: value
-            for key, value in envelope.get("usage", {}).items()
+            for key, value in (usage if isinstance(usage, dict) else {}).items()
             if key in {"prompt_tokens", "completion_tokens", "total_tokens"}
             and type(value) is int
             and 0 <= value <= 100_000_000
         }
-        if schema is not None and isinstance(content, str):
-            content = content.strip()
-            if content.startswith("```json") and content.endswith("```"):
-                content = content[7:-3].strip()
+        if schema is not None:
             try:
-                schema.model_validate_json(content)
+                contract = OutputContract("deepseek", "json_object", "provider_json_mode", {})
+                content, _, _ = completion_content(envelope, contract)
+                if status != 200:
+                    raise OutputFailure("http_error", "HTTP status rejected")
+                validate_content(content, schema, mode=contract.mode)
                 receipt["schema_valid"] = True
+                receipt.update(contract.receipt())
+            except OutputFailure as exc:
+                receipt["schema_valid"] = False
+                receipt["response_contract_error"] = exc.code
             except ValidationError as exc:
                 receipt["schema_valid"] = False
                 # Pydantic error types are library-defined codes, never model text or inputs.
@@ -69397,8 +74349,23 @@ def response_receipt(status, data, stage, schema=None, *, text_budget=None):
                     }
                     for e in errors[:20]
                 ]
+            except ValueError as exc:
+                receipt["schema_valid"] = False
+                code = str(exc)
+                receipt["schema_error_types"] = [
+                    code
+                    if code
+                    in {
+                        "duplicate_json_key",
+                        "non_finite_json_number",
+                        "response_must_be_json_object",
+                    }
+                    else "json_invalid"
+                ]
     except ValueError, KeyError, IndexError, TypeError:
         receipt["response_envelope_valid"] = False
+        if schema is not None:
+            receipt["schema_valid"] = False
     return receipt
 
 
@@ -70403,6 +75370,9 @@ def acceptance_settings(config, directory):
         base_url=config.base_url,
         api_key=config.key,
         MODE=config.model,
+        provider="deepseek",
+        output_mode="json_object",
+        max_output_tokens=MAX_COMPLETION_TOKENS,
         **{
             stage + suffix: value
             for stage in STAGES
@@ -70410,6 +75380,9 @@ def acceptance_settings(config, directory):
                 ("_base_url", config.base_url),
                 ("_api_key", config.key),
                 ("_model", config.model),
+                ("_provider", "deepseek"),
+                ("_output_mode", "json_object"),
+                ("_max_output_tokens", MAX_COMPLETION_TOKENS),
             )
         },
         install_products=True,
@@ -70589,7 +75562,7 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             raise SafeFailure("download_integrity_failed")
         product = directory / "downloaded-product"
         acceptance_stage = "download_unpack"
-        unpack(archive, product)
+        unpack(archive, product, template=template)
         acceptance_stage = "approved_contract"
         screenshot_dir = ROOT / "reports/real-model/screenshots"
         approved_requirement = application.state.store.latest_revision(
@@ -70618,7 +75591,10 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             require_customer_spec(manifest["plan"], approved_requirement=approved_requirement)
             acceptance_stage = "downloaded_native_runtime"
             evidence = verify_native_delivery(
-                product, os.environ["NATIVE_TEST_DATABASE_URL"], directory / "downloaded-evidence"
+                product,
+                os.environ["NATIVE_TEST_DATABASE_URL"],
+                directory / "downloaded-evidence",
+                template=template,
             )
             if (
                 evidence.get("passed") is not True
@@ -74687,7 +79663,7 @@ if __name__ == "__main__":
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/customer-runtime.yml sha256: e5216056cb76060596e2a75d92eb576d0ebffc8c3a8c15d5bd058226754f9a13 -->
+<!-- source-file: .github/workflows/customer-runtime.yml sha256: 22539f516c1c68771e2470cb4710b8732a7547f00ff6eb28180b8332aa8f62a9 -->
 ````yaml
 name: Customer-service native integration
 on:
@@ -74709,10 +79685,17 @@ jobs:
       matrix:
         include:
           - template: fastapiadmin
+            case: canonical
             repository: fastapiadmin/FastapiAdmin
             revision: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
             pnpm: '9.15.3'
           - template: yudao-vben
+            case: canonical
+            repository: yudaocode/yudao-cloud-mini
+            revision: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
+            pnpm: '11.16.0'
+          - template: yudao-vben
+            case: approved-1d7
             repository: yudaocode/yudao-cloud-mini
             revision: 47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be
             pnpm: '11.16.0'
@@ -74774,8 +79757,15 @@ jobs:
       - run: uv sync --locked --all-extras
       - name: Bundled source, native generation and independent fresh-database delivery
         timeout-minutes: 45
-        run: uv run python -m scripts.ci_native_bundled ${{ matrix.template }} --spec examples/plans/customer-service.json
+        run: |
+          if [ "$CUSTOMER_CASE" = approved-1d7 ]; then
+            uv run python -m scripts.ci_native_bundled "$CUSTOMER_TEMPLATE" --approved-replay yudao-1d7
+          else
+            uv run python -m scripts.ci_native_bundled "$CUSTOMER_TEMPLATE" --spec examples/plans/customer-service.json
+          fi
         env:
+          CUSTOMER_CASE: ${{ matrix.case }}
+          CUSTOMER_TEMPLATE: ${{ matrix.template }}
           NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
           PLAYWRIGHT_BROWSERS_PATH: '0'
       - uses: actions/cache/save@v4
@@ -74792,7 +79782,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-runtime-${{ matrix.template }}
+          name: native-runtime-${{ matrix.template }}-${{ matrix.case }}
           path: reports/native/
           retention-days: 7
 ````
@@ -80415,7 +85405,7 @@ export class FullTextSearchCodebaseIndex implements CodebaseIndex {
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: uv.lock sha256: 42f1bc09c0bd1172187eb304cd63808112439b4d8955f946a3d47778ebf49c6e -->
+<!-- source-file: uv.lock sha256: 16c886d0370d9b5035cff7055efb1594cdcec116305bdd2bd4a6718fa1b1c8db -->
 ````text
 version = 1
 revision = 3
@@ -80432,6 +85422,8 @@ dependencies = [
     { name = "filelock" },
     { name = "httpx" },
     { name = "jinja2" },
+    { name = "langchain-deepseek" },
+    { name = "langchain-openai" },
     { name = "langgraph" },
     { name = "langgraph-checkpoint-sqlite" },
     { name = "mcp" },
@@ -80474,6 +85466,8 @@ requires-dist = [
     { name = "filelock", specifier = ">=3.20,<4" },
     { name = "httpx", specifier = ">=0.28,<0.29" },
     { name = "jinja2", specifier = ">=3.1.6,<4" },
+    { name = "langchain-deepseek", specifier = ">=1.1,<2" },
+    { name = "langchain-openai", specifier = ">=1.1,<2" },
     { name = "langgraph", specifier = ">=1.0,<2" },
     { name = "langgraph-checkpoint-postgres", marker = "extra == 'postgres'", specifier = ">=3,<4" },
     { name = "langgraph-checkpoint-sqlite", specifier = ">=3,<4" },
@@ -81273,6 +86267,42 @@ wheels = [
 ]
 
 [[package]]
+name = "jiter"
+version = "0.17.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/9c/1f/8176d92e001f86505424b41664032ae26a882bc9ca41a32c803f373f9195/jiter-0.17.0.tar.gz", hash = "sha256:03e432f226a453851079fb84cd17c6da9991eab723e28d716f14ae3d906e0c12", size = 229037, upload-time = "2026-09-12T15:14:14.253Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/01/9e/23065f8e2c7a4c372c1b6f6622e4cfab4dc786cb5150052b1527e6a6a840/jiter-0.17.0-cp314-cp314-macosx_10_12_x86_64.whl", hash = "sha256:00d783a779c5664e16dbad5e3a3c3a75e128b07dd5f4765159658d9210a50ca5", size = 292210, upload-time = "2026-09-12T15:12:35.613Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/81/67b58647560bc82a4490d722caa8561d7a86a9f45d4fa620b7e5fe282c7a/jiter-0.17.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:0619d806e260ecf0c2a64521942c94af5d547c9ec99b55ae4f51b538b5576a76", size = 321512, upload-time = "2026-09-12T15:12:36.907Z" },
+    { url = "https://files.pythonhosted.org/packages/c7/07/6658359a25f55927f7f8bf0e16465dee2ccd0b2a1a5208acc0df8972e074/jiter-0.17.0-cp314-cp314-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:dc0288ce39190ee33fe6e4ec73161eed34e7e2da509b525546ca061778d62b64", size = 343897, upload-time = "2026-09-12T15:12:38.189Z" },
+    { url = "https://files.pythonhosted.org/packages/46/04/5d50a9f0319cbdc37fd53c27f8c313d46afc34f1b048219ae6d8ea068da4/jiter-0.17.0-cp314-cp314-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:5a52a430d04225ffde633e6840bf2381d34c019ff98526b5929755b9052fb199", size = 326519, upload-time = "2026-09-12T15:12:39.532Z" },
+    { url = "https://files.pythonhosted.org/packages/bb/c7/d02517832b29eb8275fdd0f4ce0f17b80f58cc4c3ebecd4d9ace990d633d/jiter-0.17.0-cp314-cp314-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:37f33d327900bf2879613b3363fd48df97b4232d0c41f54bcf2e790c2fc40a71", size = 341369, upload-time = "2026-09-12T15:12:41.486Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/07/499b5f5603501cdd93a73a6a176dfad9c96555a3ae58ca9f8e3acba63dc9/jiter-0.17.0-cp314-cp314-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:6cf564d43c4388149ca58ee571d0f5ccf875e20d1fd4662fd94cc0d1ea3b10ef", size = 352160, upload-time = "2026-09-12T15:12:42.721Z" },
+    { url = "https://files.pythonhosted.org/packages/f5/75/b04013c7743269d4533ef4e746fc0ed678a143968dd7448658e3f51daad2/jiter-0.17.0-cp314-cp314-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:523c499235fb65add25d4bb01b1c4709ce695efdc7deb6c0a7bc515b5c44e0fb", size = 345018, upload-time = "2026-09-12T15:12:44.192Z" },
+    { url = "https://files.pythonhosted.org/packages/1d/96/cbb6fd1e42a77c8412ec4643db95059b30cdfc635e387cc9193e098ce268/jiter-0.17.0-cp314-cp314-manylinux_2_31_riscv64.whl", hash = "sha256:455e4ab35cb2a4a91a8404e08fd3c621bae433922e59bf1c494fe20a426b013b", size = 329244, upload-time = "2026-09-12T15:12:45.491Z" },
+    { url = "https://files.pythonhosted.org/packages/15/67/d3be402f398566a379bf40ae65be5c3505b14d9e95e0802a597ddde7ddee/jiter-0.17.0-cp314-cp314-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:6871973bfbd4408f7f1c632b30bbb5bbd9671c1bc8650af6823e24b7be13709b", size = 335693, upload-time = "2026-09-12T15:12:46.935Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/8d/98e2c4130b93d64f1d67c89060b928d04102549bf05e64451c9e6024f9ca/jiter-0.17.0-cp314-cp314-musllinux_1_1_aarch64.whl", hash = "sha256:77f6aac0137309b31448c1bdcda4c6c77077664a6d018ece8d94019c68a5a5b9", size = 484329, upload-time = "2026-09-12T15:12:48.361Z" },
+    { url = "https://files.pythonhosted.org/packages/78/5e/8da91e49f0fbca37c3489fb4cf3ad6676d4965f00ae5468bca3a2513737a/jiter-0.17.0-cp314-cp314-musllinux_1_1_x86_64.whl", hash = "sha256:93946d89fa04d5ba64dd323a8dd8d901676cb8a3c81d99ae4f6c051a9b4c3f2f", size = 521358, upload-time = "2026-09-12T15:12:49.856Z" },
+    { url = "https://files.pythonhosted.org/packages/be/21/5388684a5a38af3557cd9c2424b9827c71809cff24373c75ef9d0d3dfba9/jiter-0.17.0-cp314-cp314-pyemscripten_2026_0_wasm32.whl", hash = "sha256:70f19a2ca8429f91e82eeffb2f51cb87bc2d6e953b009b91a92d29c3a16ccb03", size = 110459, upload-time = "2026-09-12T15:12:51.747Z" },
+    { url = "https://files.pythonhosted.org/packages/b1/ad/58b3a93525d2ffca7f54d9dee441381990082bd1172fbeb8d6a3f72a4dc3/jiter-0.17.0-cp314-cp314-win32.whl", hash = "sha256:71dbd74314c5df52a1bccf7b8bca46d14e943af7a2012e73b23f49977ef194c8", size = 185043, upload-time = "2026-09-12T15:12:54.477Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/4a/1aa520eb6c359b262c14ff995ca7283837208ddfb1202082ce9d73cf214d/jiter-0.17.0-cp314-cp314-win_amd64.whl", hash = "sha256:ac3c6ee3264d6f5c44c617f90bc7e8b9e1587e7d6708c9d8f811cb65582ee312", size = 227163, upload-time = "2026-09-12T15:12:55.931Z" },
+    { url = "https://files.pythonhosted.org/packages/cf/e4/5997f648794bd9b499491d0ff480b096cc9a9c65bdba29f57568e6aa1705/jiter-0.17.0-cp314-cp314-win_arm64.whl", hash = "sha256:6219adaf59711ba7063a52496e8ec6d3fa3e209d7827d83eee3b2abc780a1744", size = 183505, upload-time = "2026-09-12T15:12:58.196Z" },
+    { url = "https://files.pythonhosted.org/packages/ac/4a/84a5ec271d09f7590b6073af5ee4abb44eab4ccace453b7e2c5ce45234ca/jiter-0.17.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:59bddbe6f9ffecc68d641e1e2d619ce64cf8a9e9eeb74e5c518f74fc87abf1b0", size = 321527, upload-time = "2026-09-12T15:12:59.394Z" },
+    { url = "https://files.pythonhosted.org/packages/39/71/9e1fd0045f5920b4c36be35c3f0f0dfd123668684f8ad352619d7aa44183/jiter-0.17.0-cp314-cp314t-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:6cb41cd1432f1dc19a231cf70b54d42b2c9f05085155859263fce06fa4d41388", size = 340865, upload-time = "2026-09-12T15:13:00.756Z" },
+    { url = "https://files.pythonhosted.org/packages/b7/2b/14627fd2bc377f3dd09491bcace6b90e34b4d7fea2f1f3295031ff91f528/jiter-0.17.0-cp314-cp314t-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:fd7790aa79c8b518e512ebcdfce9f11d8ef5f30efd43720c8a19a548b39fa489", size = 325412, upload-time = "2026-09-12T15:13:02.152Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/f3/8d5808f7bf0f456bde79e6393587183a0cee5f83d179fe1f7f1eff2ba067/jiter-0.17.0-cp314-cp314t-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:dbbfe4e3c21c8166980cddc5bee1a315df082454f007947dfb6fb73800768165", size = 340473, upload-time = "2026-09-12T15:13:03.485Z" },
+    { url = "https://files.pythonhosted.org/packages/4f/da/1d8c7c6c4ae6b2423b94a81b6b907d37b28f87664e077427b531bf1b5313/jiter-0.17.0-cp314-cp314t-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:8c286860abfe8b100cac1c02e225e5776eb9216edd71ba17cdb237da4af32bc9", size = 350757, upload-time = "2026-09-12T15:13:04.828Z" },
+    { url = "https://files.pythonhosted.org/packages/eb/96/c1813dcca15c5a370145a448aaea7d1f83f6f0228a5f1130e79340ee385f/jiter-0.17.0-cp314-cp314t-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f753eb70b1474a29e635e7542ff7312e6d6b951e0b25e8a2e8c34eeb1ddcd478", size = 345203, upload-time = "2026-09-12T15:13:06.131Z" },
+    { url = "https://files.pythonhosted.org/packages/d7/f7/fc61cbcf2992d169ede13648fc3fd8e2d3171a3669dde43cd4db556549ac/jiter-0.17.0-cp314-cp314t-manylinux_2_31_riscv64.whl", hash = "sha256:eae86b1f027031e39db2e0e9c4842221edb7b8cd474d23f87a79b3bd4b651768", size = 328322, upload-time = "2026-09-12T15:13:07.392Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/88/46418a3abbdffb7dc41b314200360f24f75faaeb35573e81c92de322cce9/jiter-0.17.0-cp314-cp314t-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:5bf350452a43173e69e1fc74847c57a60e3d7515807287f29849baa2a85d8718", size = 336570, upload-time = "2026-09-12T15:13:08.666Z" },
+    { url = "https://files.pythonhosted.org/packages/f0/28/b8a55b949be6306df8888e365a8df05441de8a7b11289f6957004302e41e/jiter-0.17.0-cp314-cp314t-musllinux_1_1_aarch64.whl", hash = "sha256:da139721f4b7cafdbff580a4f511ea24cb91f4909330c6b926a1ca53836c0a59", size = 482879, upload-time = "2026-09-12T15:13:10.037Z" },
+    { url = "https://files.pythonhosted.org/packages/75/3b/21d0afa53ba0680962c39f3eb95ed2946f8793369ed44b0c82b490723081/jiter-0.17.0-cp314-cp314t-musllinux_1_1_x86_64.whl", hash = "sha256:8079849db9a1371bfd90bad088458a8fb836261879df2233cc9632464ecf64e1", size = 520406, upload-time = "2026-09-12T15:13:11.456Z" },
+    { url = "https://files.pythonhosted.org/packages/ef/03/bcbaf8b6b9ea23c2c074411f8ecfbb02d820abac5d0cb8f4e280209174a2/jiter-0.17.0-cp314-cp314t-win32.whl", hash = "sha256:8f770b0c77e5fac482e1ba03ca1a7e18286bfb213d749932a00a7e4cd5de5e06", size = 184434, upload-time = "2026-09-12T15:13:13.037Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/b5/5d6ce2c93ef6fe1241b37a9005547f9b6d58db1f07f39fe95807d4b98f51/jiter-0.17.0-cp314-cp314t-win_amd64.whl", hash = "sha256:c4289293e5278d9314b00f15c37f2120fa51d3d68565292e715524c750e775a9", size = 227392, upload-time = "2026-09-12T15:13:14.933Z" },
+    { url = "https://files.pythonhosted.org/packages/f5/4b/1e52baf90187606e33a7b8cfa8f96f5829acd7f01870077eb01059ab76d0/jiter-0.17.0-cp314-cp314t-win_arm64.whl", hash = "sha256:4dfbfe5a6e1e80a7082af559f66386405025ec278833e0c649f69cbc6e1004cc", size = 182776, upload-time = "2026-09-12T15:13:16.239Z" },
+]
+
+[[package]]
 name = "jsonpatch"
 version = "1.33"
 source = { registry = "https://pypi.org/simple" }
@@ -81322,7 +86352,7 @@ wheels = [
 
 [[package]]
 name = "langchain-core"
-version = "1.6.5"
+version = "1.6.6"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -81336,9 +86366,37 @@ dependencies = [
     { name = "typing-extensions" },
     { name = "uuid-utils" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/ed/ed/ceecd3bfcfc77a94cf30a9f1506e907fdea447458825e01914a72d2d1a6f/langchain_core-1.6.5.tar.gz", hash = "sha256:bdb059fef65473fd444558dbb18f50901657402c43ceed9dc0fdc7b76a393c6b", size = 1007041, upload-time = "2026-09-24T18:11:06.487Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/18/87/9e5d393bbcec068c51becc255a15aacfd8a14ac5826179751c1c320e5258/langchain_core-1.6.6.tar.gz", hash = "sha256:67616d984c085009be2c381c2efd330d32429a58aebab295b4f51b6573964511", size = 1007227, upload-time = "2026-09-29T14:52:54.598Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/59/68/447ac7e734990b7ed9dcfc3b6dee9a4cd4d4169e296429fa71a9a47c1c7b/langchain_core-1.6.5-py3-none-any.whl", hash = "sha256:54c7b0e9314b9084fb04405bb33dc5d32986d512d92b7b8863899cd5f6267556", size = 572136, upload-time = "2026-09-24T18:11:04.837Z" },
+    { url = "https://files.pythonhosted.org/packages/90/10/8c00b4dc094886314c907ec7ead258dfee28948cf44175976cc4fba9aba8/langchain_core-1.6.6-py3-none-any.whl", hash = "sha256:d9a71e312ab7443701238750e04a57aefc037c4f1ec82837c8a1609d9a14a9b1", size = 572080, upload-time = "2026-09-29T14:52:53.213Z" },
+]
+
+[[package]]
+name = "langchain-deepseek"
+version = "1.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "langchain-core" },
+    { name = "langchain-openai" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/1b/6d/469f03fc140d7e8974246b41d65e71a3c7a6bc9ceba2f31bd5d8b0892c6a/langchain_deepseek-1.1.1.tar.gz", hash = "sha256:94267fb5500813fa41ea4bbc8b523551cfbf58f8966ed3b91dbb8991f8bd70e5", size = 166705, upload-time = "2026-09-22T04:29:55.678Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5d/1b/da9b7fcdb205acf5405dc961d8edaf779eab18326938811530b3032d6803/langchain_deepseek-1.1.1-py3-none-any.whl", hash = "sha256:aec298233606b1289898543e56f90373f71e919b586f580f5e161c018ab21dcb", size = 11692, upload-time = "2026-09-22T04:29:54.462Z" },
+]
+
+[[package]]
+name = "langchain-openai"
+version = "1.6.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "certifi" },
+    { name = "langchain-core" },
+    { name = "openai" },
+    { name = "tiktoken" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/7c/2f/367068190b5a7d181996ad7899052394f0276468c92be48e0b7dab63716a/langchain_openai-1.6.7.tar.gz", hash = "sha256:b276a01b43c5287382f62070a4e1ca5bad5581fadab8c086e46b79daa4bf975d", size = 3380633, upload-time = "2026-09-30T15:12:03.1Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/18/d9/b3db61c6c15766c999194a9cba0b9c5035567b7e0dd1c1a94a6d76448cd6/langchain_openai-1.6.7-py3-none-any.whl", hash = "sha256:e1b9b318fafc47b2dbc3485778aa23f809195065ee313611c188af29744b8e8e", size = 127883, upload-time = "2026-09-30T15:12:01.876Z" },
 ]
 
 [[package]]
@@ -81624,6 +86682,23 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/7f/74/3269a3a58347e0b019742d888612c4b765293c9c75efa44e144b1e884c0d/obstore-0.8.2-cp314-cp314-musllinux_1_2_armv7l.whl", hash = "sha256:329038c9645d6d1741e77fe1a53e28a14b1a5c1461cfe4086082ad39ebabf981", size = 3687307, upload-time = "2025-09-16T15:34:14.501Z" },
     { url = "https://files.pythonhosted.org/packages/01/f9/4fd4819ad6a49d2f462a45be453561f4caebded0dc40112deeffc34b89b1/obstore-0.8.2-cp314-cp314-musllinux_1_2_i686.whl", hash = "sha256:1e4df99b369790c97c752d126b286dc86484ea49bff5782843a265221406566f", size = 3776076, upload-time = "2025-09-16T15:34:16.207Z" },
     { url = "https://files.pythonhosted.org/packages/14/dd/7c4f958fa0b9fc4778fb3d232e38b37db8c6b260f641022fbba48b049d7e/obstore-0.8.2-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:9e1c65c65e20cc990414a8a9af88209b1bbc0dd9521b5f6b0293c60e19439bb7", size = 3947445, upload-time = "2025-09-16T15:34:17.423Z" },
+]
+
+[[package]]
+name = "openai"
+version = "3.22.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "httpx2" },
+    { name = "jiter" },
+    { name = "pydantic" },
+    { name = "sniffio" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e7/db/b135830095e2ae120ea04b0a53d3a1644eb65554385a8ef4c9cb4de3f5fd/openai-3.22.1.tar.gz", hash = "sha256:2575f961e4c1df8761f8eeb4d78e967de3f9b9f91b22f7120d60e393e970094d", size = 1751626, upload-time = "2026-09-30T00:25:55.548Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/32/74/e3b77d1157c8b9ad815a87d5719545097e5edb06156869c1657fbb6b797b/openai-3.22.1-py3-none-any.whl", hash = "sha256:43ff3de5457a8beb4afa177d4e0ba6841cfadd5219ebc62297fde6c8a9d401a6", size = 2090965, upload-time = "2026-09-30T00:25:53.524Z" },
 ]
 
 [[package]]
@@ -82155,6 +87230,46 @@ wheels = [
 ]
 
 [[package]]
+name = "regex"
+version = "2026.9.29"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/fc/f2/af1da9d3ceed77bfcdce40427d49ba0be94e4fe84245e3bfef68c10e75b6/regex-2026.9.29.tar.gz", hash = "sha256:8b5fcc4771732191b2b7d1dd68d8f0353f47f8d90b6150f6dce58bf1112442cb", size = 419199, upload-time = "2026-09-29T00:49:58.298Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/93/1f/d9dc6f02f569625faf67a4daec926cd5023472dcd69bb44286dccd5a5ab3/regex-2026.9.29-cp314-cp314-macosx_10_15_universal2.whl", hash = "sha256:957bb708e8057ab1649ba566456429d691ec9b90d1c9ad1af1ba7ffbbeaf05f2", size = 497598, upload-time = "2026-09-29T00:47:36.541Z" },
+    { url = "https://files.pythonhosted.org/packages/9c/83/9b693a3fd1451381e812031a8961ec5b3b8f0c8cc6871f14c5223642804d/regex-2026.9.29-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:c9b602fae1e00b7c035d661ce85575365719192a7b46784bd71cf64c68053aa0", size = 296250, upload-time = "2026-09-29T00:47:38.233Z" },
+    { url = "https://files.pythonhosted.org/packages/dd/5f/52bc2abc3fef040cd9de76ab29c918d6a717a454ae2b9dd7938b0c95656d/regex-2026.9.29-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:0166844493626c5015c6088ee15c9ca2fd060ca15b7641d1657da6a58432ae33", size = 293518, upload-time = "2026-09-29T00:47:39.957Z" },
+    { url = "https://files.pythonhosted.org/packages/dc/fc/cf50671215ee0057046980b4571ef8646a005819bb67f0957e779ed107a5/regex-2026.9.29-cp314-cp314-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:b97a38fb4c732b6832db6bf108963adbcd82ef1268ba2025dce390f45af75efa", size = 806037, upload-time = "2026-09-29T00:47:41.676Z" },
+    { url = "https://files.pythonhosted.org/packages/14/4b/dddef8fc15c63e4347cc9efb138d0cd306f30e6c98acbcc81a8f780083b9/regex-2026.9.29-cp314-cp314-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:a540abfab208e1b7ef2df231c40ef3b6cbb30a0aad6204e9b6a81c10a6794628", size = 878881, upload-time = "2026-09-29T00:47:43.755Z" },
+    { url = "https://files.pythonhosted.org/packages/9f/cb/38daabed32d28f7e58a06e9344ce00dc67952e9996bc578ed6a29fe1240e/regex-2026.9.29-cp314-cp314-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:ddfa987262763c3c22a8367d2a49c244b018a74c3a8e3ab1a864119ad45c5633", size = 918684, upload-time = "2026-09-29T00:47:45.594Z" },
+    { url = "https://files.pythonhosted.org/packages/a9/4d/041d9458a645fee4fce4d642a89d27271a3cfcd91095104f6dde44da70bf/regex-2026.9.29-cp314-cp314-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:2f7f7aa47b229f2b39a2ae2596d2ad5625d77b5eb9856fac2dab3eb506cdd0a0", size = 807176, upload-time = "2026-09-29T00:47:47.372Z" },
+    { url = "https://files.pythonhosted.org/packages/bf/c4/4383eed7aa5aef67616cb1b3f3ad06b7c624c4e6cced48630cd5ce133d85/regex-2026.9.29-cp314-cp314-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:d9b77b25b4f395f92de6099ab08e8ae2bc7e51dfe157f22900902243a5cc90c7", size = 784315, upload-time = "2026-09-29T00:47:49.518Z" },
+    { url = "https://files.pythonhosted.org/packages/5c/a6/0086ad31cebb183c637d3198547075aa493afde308e1ff61fccccb29ba6e/regex-2026.9.29-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:34b6925af9853bf461950e6508910f179fd6e9b1a7ec8548e069606b7e51a26b", size = 793748, upload-time = "2026-09-29T00:47:51.279Z" },
+    { url = "https://files.pythonhosted.org/packages/d5/a0/f9005cba3f629a859573fc5d1224ea4e1f97919ec8581d018e03a351a604/regex-2026.9.29-cp314-cp314-musllinux_1_2_ppc64le.whl", hash = "sha256:addd736a0547d553283adaf4e05d7104e7f2c7b0b092e9b4d28756825f14531f", size = 870302, upload-time = "2026-09-29T00:47:53.368Z" },
+    { url = "https://files.pythonhosted.org/packages/01/4f/e1a3e46bb5315a4e18b01a990e7a28e2a16595609d50c442baf2815a3c65/regex-2026.9.29-cp314-cp314-musllinux_1_2_riscv64.whl", hash = "sha256:fe3fa1dd453ed5c7f5ea23a26218329790ed7197a99b90e94330e313959a7f52", size = 770299, upload-time = "2026-09-29T00:47:55.606Z" },
+    { url = "https://files.pythonhosted.org/packages/2c/fe/f303b4acfda44e1ff1379368748c1ef2dad04a6a8e9c0ecbc970b19d97ca/regex-2026.9.29-cp314-cp314-musllinux_1_2_s390x.whl", hash = "sha256:0cc63b5e47c12a48d90c7e9d7de6a035dd14f62868aaedbb4e0ff8ba2b8bfe7b", size = 861570, upload-time = "2026-09-29T00:47:57.617Z" },
+    { url = "https://files.pythonhosted.org/packages/60/b6/b4f7e99249f596017c60ccad5faf9310fc8e3e59bb2244940a90a1b0bdff/regex-2026.9.29-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:724184b4aafed865e4f13ca313fdcb43024300c028ec67319cfa16847d84685e", size = 795967, upload-time = "2026-09-29T00:47:59.922Z" },
+    { url = "https://files.pythonhosted.org/packages/fb/d3/fc865a4638d9f6762192b6bab5b7aa1f33a90e9e99578c2e111e2a63c8c3/regex-2026.9.29-cp314-cp314-win32.whl", hash = "sha256:c6c8fabf1dafc1f1ddcbb67896d3f93efb092e8c4b6322d7389b944e76a484e5", size = 274758, upload-time = "2026-09-29T00:48:01.8Z" },
+    { url = "https://files.pythonhosted.org/packages/31/e2/c2b466924ccbeb874862968ca638051b15a8fd29d994a0e99004a5cbf78e/regex-2026.9.29-cp314-cp314-win_amd64.whl", hash = "sha256:1c2a0026062abcc321a53db4a185ceba0b59a66b5d37b0808917a88b55a5257f", size = 283817, upload-time = "2026-09-29T00:48:03.614Z" },
+    { url = "https://files.pythonhosted.org/packages/c6/42/ea0f8dbaa924fa75c6338935eaee2f44dab369b27f02db1e03d74344b049/regex-2026.9.29-cp314-cp314-win_arm64.whl", hash = "sha256:121a76a0985db80ceae9e171c337f8c927868e37d01b54e3ce87bc87f9c6a208", size = 283663, upload-time = "2026-09-29T00:48:05.624Z" },
+    { url = "https://files.pythonhosted.org/packages/44/48/d58e5081119f5c223bbb37d2340acde3d069e1df8e8cd166c37502eee4da/regex-2026.9.29-cp314-cp314t-macosx_10_15_universal2.whl", hash = "sha256:e31f72490b7c12f7790e1e25c3afffd20503ee1bfb43461d7838b871ff244b19", size = 501393, upload-time = "2026-09-29T00:48:07.833Z" },
+    { url = "https://files.pythonhosted.org/packages/72/3c/c49945287d4f9efee7d41f98072f8ad880efb8f430595a612fbdea996a4e/regex-2026.9.29-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:80ea96f5c1a30bf09007d48466521d9c294bebe197c708c3359096e3e3691632", size = 298237, upload-time = "2026-09-29T00:48:09.684Z" },
+    { url = "https://files.pythonhosted.org/packages/f9/1f/688cb61c3d4cf7bcc1ed444b5cc49399eba3e51c469ae285cf87fea3022e/regex-2026.9.29-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:554bffadcbcb6d5f4e5fb10a61cc52084b9a63d1dab5f10bcd2c4343972e8e2c", size = 295936, upload-time = "2026-09-29T00:48:11.454Z" },
+    { url = "https://files.pythonhosted.org/packages/26/a3/de43ac6b877b7d09c19a3a426b1bd5acdd209eaaf68f406466f80439ccf6/regex-2026.9.29-cp314-cp314t-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:864e9b87ac33c3fb9fb4ad48166d4fdb579c351d5c77deb0d34bccb36a775cd9", size = 816905, upload-time = "2026-09-29T00:48:13.321Z" },
+    { url = "https://files.pythonhosted.org/packages/62/14/9940763201c51d537786304984c67d0fc3d2ed18837ffb6f09a869f6b6c9/regex-2026.9.29-cp314-cp314t-manylinux2014_ppc64le.manylinux_2_17_ppc64le.manylinux_2_28_ppc64le.whl", hash = "sha256:044265d77d94f5e3cb2fd72c76723807c429cb8c533e9d4672d0334a6f14f588", size = 881527, upload-time = "2026-09-29T00:48:15.313Z" },
+    { url = "https://files.pythonhosted.org/packages/d3/e1/c842d8df0b23245ebf202f8ab9c39fd48e2db39959454ec39a41c8c72082/regex-2026.9.29-cp314-cp314t-manylinux2014_s390x.manylinux_2_17_s390x.manylinux_2_28_s390x.whl", hash = "sha256:2089fe39c406784d90101c726755ffa1497bb74638fd434300d2b88006186de8", size = 923115, upload-time = "2026-09-29T00:48:17.328Z" },
+    { url = "https://files.pythonhosted.org/packages/d8/c1/98622479e3c354a446a75232e522d747d2b3df23092dcd8a5309380a2020/regex-2026.9.29-cp314-cp314t-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:0def9fb6abac55492d6d51cddb7225d07d6f279e774e0adc08569a54a5fc8d46", size = 820674, upload-time = "2026-09-29T00:48:19.32Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/d0/5808c95f9c79ed27b5eedaafc3df6239ec56a49f2e23ea8f831b18427c82/regex-2026.9.29-cp314-cp314t-manylinux_2_31_riscv64.manylinux_2_39_riscv64.whl", hash = "sha256:888d60953908dcf761aa320c3e390ab8556efbdb551ace63921de90f6ae0848d", size = 793306, upload-time = "2026-09-29T00:48:21.615Z" },
+    { url = "https://files.pythonhosted.org/packages/bf/d3/021ca2638671ad20603bcd9b4d5bfa35d2610cd216a043ea7f0b44ea39f6/regex-2026.9.29-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:ed511a0708e2297e1d6431e7fb217e3402791e491e02da800658ace4973df1bb", size = 803103, upload-time = "2026-09-29T00:48:23.871Z" },
+    { url = "https://files.pythonhosted.org/packages/6b/2d/755c6d13ef9c657378013676c391c7a402166b3f419a464a3e058dcbe533/regex-2026.9.29-cp314-cp314t-musllinux_1_2_ppc64le.whl", hash = "sha256:e1172147d28d8fbcf8cb8d26c41506169f5ad8fe9ec969cb116835a19d4d8eca", size = 872175, upload-time = "2026-09-29T00:48:26.255Z" },
+    { url = "https://files.pythonhosted.org/packages/6c/fc/e1cab183b9dafe8597f58c1c766da9bf96204d3b2f232bcf3eeb75ff7b6c/regex-2026.9.29-cp314-cp314t-musllinux_1_2_riscv64.whl", hash = "sha256:92f05c9c42bde5785dc48770bc2194d9f7442544156f951e19cd31b096cec562", size = 777362, upload-time = "2026-09-29T00:48:28.389Z" },
+    { url = "https://files.pythonhosted.org/packages/06/7c/e10ea17fba31fb4a1f9d13ed53a2d2a9066a2aea58d7557e263f6d99e7b0/regex-2026.9.29-cp314-cp314t-musllinux_1_2_s390x.whl", hash = "sha256:f37964e4a5e993d2fd45147741e9dff7f34a2d8c00ab94c4ea0514a4677f959e", size = 865606, upload-time = "2026-09-29T00:48:30.4Z" },
+    { url = "https://files.pythonhosted.org/packages/8e/6e/69824d9aee1fd41c54ea7264654a47c8d9d84d8a228e11c2bcf4c201ed81/regex-2026.9.29-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:951733b1bbdb71e377cec567b409f1a7881b47cfcad84121aa74cb575fa425ea", size = 807945, upload-time = "2026-09-29T00:48:32.375Z" },
+    { url = "https://files.pythonhosted.org/packages/89/22/857050a86e21ce60193e02a8ef662521f2e263a645c8b1b905fc136b61a7/regex-2026.9.29-cp314-cp314t-win32.whl", hash = "sha256:65b408d8fcb273e3499e7ef2ce796810da1becd208c7fb4373692a242d79d461", size = 276758, upload-time = "2026-09-29T00:48:34.72Z" },
+    { url = "https://files.pythonhosted.org/packages/4d/96/56808fe029553d7d4c703414f2a527faad2ea2bfa9ca094a2e7f8762b530/regex-2026.9.29-cp314-cp314t-win_amd64.whl", hash = "sha256:bf48516e35cf848390ea68850aba53e7c333720d2945b4d2c25b69fc5171723f", size = 286527, upload-time = "2026-09-29T00:48:36.864Z" },
+    { url = "https://files.pythonhosted.org/packages/01/aa/074e2cfb3d8101a6a764aba5f7c5d1e21de087483e35bdc0c4ce2eb60364/regex-2026.9.29-cp314-cp314t-win_arm64.whl", hash = "sha256:9173db3be74a35cb6731701094b98120f7ee4876a287882a59cdea1fa7da342f", size = 285954, upload-time = "2026-09-29T00:48:38.901Z" },
+]
+
+[[package]]
 name = "requests"
 version = "2.34.2"
 source = { registry = "https://pypi.org/simple" }
@@ -82354,6 +87469,32 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/47/c6/ee486fd809e357697ee8a44d3d69222b344920433d3b6666ccd9b374630c/tenacity-9.1.4.tar.gz", hash = "sha256:adb31d4c263f2bd041081ab33b498309a57c77f9acf2db65aadf0898179cf93a", size = 49413, upload-time = "2026-02-07T10:45:33.841Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d7/c1/eb8f9debc45d3b7918a32ab756658a0904732f75e555402972246b0b8e71/tenacity-9.1.4-py3-none-any.whl", hash = "sha256:6095a360c919085f28c6527de529e76a06ad89b23659fa881ae0649b867a9d55", size = 28926, upload-time = "2026-02-07T10:45:32.24Z" },
+]
+
+[[package]]
+name = "tiktoken"
+version = "0.14.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "regex" },
+    { name = "requests" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/66/62/167a842aa0429d45f5e797354fd4343a96f6043d67d0513c675c7b8d36e6/tiktoken-0.14.0.tar.gz", hash = "sha256:231dec90efcdccf1b565a1416107736f1e09b1a08fe736ef9d6363e626d03874", size = 38898, upload-time = "2026-08-17T19:49:49.514Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/59/b0/1cf129f4af8fc513931f931023def596b7c4bfc77026513cd9d851da9e88/tiktoken-0.14.0-cp314-cp314-macosx_10_15_x86_64.whl", hash = "sha256:e067f4cbcc5d036e8aff7fe7a6b530a8f4de2e4616ad9005a24a1879e24e6450", size = 1096273, upload-time = "2026-08-17T19:49:05.807Z" },
+    { url = "https://files.pythonhosted.org/packages/62/85/2ae74575e321148484147e10b53c3b1717c59ebaa9edb4fe18b1f5c055f8/tiktoken-0.14.0-cp314-cp314-macosx_11_0_arm64.whl", hash = "sha256:f2af4a336ea56d6c14f27741a0e1d8294a35dd0b038bcf990d232ebb54eb994b", size = 1040269, upload-time = "2026-08-17T19:49:06.943Z" },
+    { url = "https://files.pythonhosted.org/packages/89/29/92a1120a12e4bcf2d5464350d1a91b68a433d63ce656bb7f806c27aec09c/tiktoken-0.14.0-cp314-cp314-manylinux_2_28_aarch64.whl", hash = "sha256:f702e0aeeb6506e57687e881c59e844ebe8f0a6a097ddafe20e3ab25f387be4e", size = 1186101, upload-time = "2026-08-17T19:49:08.102Z" },
+    { url = "https://files.pythonhosted.org/packages/5b/7d/144af98dc5ad68108451a82e2f5a17f80e2663f5115058b8dfd215c1ad02/tiktoken-0.14.0-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:e3442bbb2f0c588cec876061e37ae67b455b9df9978b003c8fe30e45f2ef5b42", size = 1204457, upload-time = "2026-08-17T19:49:09.28Z" },
+    { url = "https://files.pythonhosted.org/packages/e6/1f/be7cb06ab2108f612f3e92e7b76cf391e192db0db37a984616f0cc32aafc/tiktoken-0.14.0-cp314-cp314-musllinux_1_2_aarch64.whl", hash = "sha256:979c1524f753b662b0f3cd261b135afe6659cce33caaa7a5ea00dd1756b3055c", size = 1251716, upload-time = "2026-08-17T19:49:10.509Z" },
+    { url = "https://files.pythonhosted.org/packages/ab/6b/81f158d0f90adb826cd704069c2129a046cb784a2a09861009519fc41cf4/tiktoken-0.14.0-cp314-cp314-musllinux_1_2_x86_64.whl", hash = "sha256:2cc19ac87b41c9493c9778ff5847f0c8bbcf5bd0ec6b87ce06c1c802adc8a771", size = 1315432, upload-time = "2026-08-17T19:49:11.844Z" },
+    { url = "https://files.pythonhosted.org/packages/fc/ec/f5fa35ec13f07279fdcaf3cc9c04bbb154ea591d23978651f2b672593e8a/tiktoken-0.14.0-cp314-cp314-win_amd64.whl", hash = "sha256:eceeff0c62419bc78d4b6e70a4762a4d25df3ae8f2d5946e3853ce93e7a57098", size = 988046, upload-time = "2026-08-17T19:49:13.282Z" },
+    { url = "https://files.pythonhosted.org/packages/68/c9/7756717408d3d0dfea3f046c9466144b28afde39ff69d5808f2475dcd7f5/tiktoken-0.14.0-cp314-cp314t-macosx_10_15_x86_64.whl", hash = "sha256:6eb94895c45f26bb8f5546e5fd8a069efcf6e3f108ea9d5cbe3bf6f7f3983438", size = 1096261, upload-time = "2026-08-17T19:49:14.351Z" },
+    { url = "https://files.pythonhosted.org/packages/79/29/46ad8061f57bd9f8b2ea0aa82bf574e0f2aa040b0857a1582adba9957899/tiktoken-0.14.0-cp314-cp314t-macosx_11_0_arm64.whl", hash = "sha256:86951a971c53979ec857bd8c4a32dc227ab0fd33f6c12a3bd62d3fbf5f0bfcaa", size = 1040183, upload-time = "2026-08-17T19:49:15.707Z" },
+    { url = "https://files.pythonhosted.org/packages/5a/7c/3184d17b868456f17b60b1a75f5ec0405618a43aa753336df341d8f11781/tiktoken-0.14.0-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:e2eca764c53490f8930dbce329e0769f11108d87d908282a80c5c130e26e7037", size = 1186719, upload-time = "2026-08-17T19:49:16.84Z" },
+    { url = "https://files.pythonhosted.org/packages/0b/e8/46de4400d5bf859f640feee85bd7e32235f68ddf25db53c63be78e581e3a/tiktoken-0.14.0-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:26cc4b4840fa0e9f4b72ed489883e12f57e00d1021ca794720e3c29a12f0edef", size = 1204660, upload-time = "2026-08-17T19:49:17.987Z" },
+    { url = "https://files.pythonhosted.org/packages/29/ce/af8964c38bc8226dd8950305b7a255fa33345d5572f78af7275a313d28e0/tiktoken-0.14.0-cp314-cp314t-musllinux_1_2_aarch64.whl", hash = "sha256:2fc834fbe3f6a0736905c36ab709537e6840dbd63b982dc9e0216ae7d305ba1a", size = 1250932, upload-time = "2026-08-17T19:49:19.28Z" },
+    { url = "https://files.pythonhosted.org/packages/1d/4b/323631116fc986d9cc5bbeb2b8223c7c85e61a8bb94ea5ab4951023b149b/tiktoken-0.14.0-cp314-cp314t-musllinux_1_2_x86_64.whl", hash = "sha256:ca4db6ff5c5bf600f9b7761a0070ed44dfe5797a76bd432fb978bc480ef40c58", size = 1315190, upload-time = "2026-08-17T19:49:20.467Z" },
+    { url = "https://files.pythonhosted.org/packages/18/8b/ba48a73729c9270989b36f37ab2ed5525e52690d715097c9fa791aaa5d05/tiktoken-0.14.0-cp314-cp314t-win_amd64.whl", hash = "sha256:7aab286a020660a039097912a088236b985d18a3090d73f136c4413d29d37ca0", size = 987717, upload-time = "2026-08-17T19:49:21.704Z" },
 ]
 
 [[package]]
@@ -85134,6 +90275,98 @@ FastapiAdmin应继续体现Fa/Element Plus，Yudao应继续体现Vben/Ant Design
 这一轮能回答“每条原始需求在哪里实现、谁能执行、怎么拒绝越权、怎么证明交付包离开平台仍能启动”。答不出的部分回到对应代码与测试，不追加第二份带版本后缀的教材。
 ````
 
+### `docs/provider-structured-outputs.md`
+
+**作用：本教材正文的源文件。** 上文正文就是这些源文件拼接后的内容。它们也收录在附录中，使从教材还原出的项目能再次生成逐字一致的完整教材，而不是只有一次性的代码快照。
+
+**对应关系：** scripts/build_handbook.py的GUIDES → 正文 → 完整源码附录。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: docs/provider-structured-outputs.md sha256: a460e7983926772d1947816da4dd1996003711308adc5653b4efc4816cb232d9 -->
+````markdown
+# LangGraph 工作流的统一结构化输出
+
+平台优先采用 LangGraph 文档推荐的 LangChain 模型增强方法：`with_structured_output`。需求、规划、编码补丁、模型审阅四个节点继续经过同一个 `ModelGateway`，不分别维护按模型 ID 判断能力的适配表，也不自行重写供应商 strict Schema。
+
+本次 **OpenAI 未调用真实 API 验证**。离线测试验证真实官方集成类构造出的 HTTP 请求及响应处理，不代表账户权限、模型可用性或线上质量。DeepSeek 客服真实验收另按同一提交的 `docs/real-model-acceptance.md` 中的验收说明 执行。
+
+## 框架接线
+
+`workbench/model_protocol.py` 使用官方 `ChatDeepSeek` 或 `ChatOpenAI`，共同调用：
+
+```python
+structured = model.with_structured_output(
+    schema,
+    method="json_mode",
+    include_raw=True,
+)
+result = structured.invoke(messages, config={"callbacks": []})
+```
+
+`schema` 是现有 Pydantic `Requirement`、`Plan`、`Patches`、`ModelReview` 之一。系统消息仍明确要求一个 JSON 对象并包含完整 Schema，因为 JSON mode 不自动把完整业务约束传给供应商。官方集成负责格式参数、消息协议和结构化解析；平台随后针对原始内容执行严格校验。
+
+LangGraph 官方的 [工作流与模型增强示例](https://docs.langchain.com/oss/python/langgraph/workflows-agents) 使用 `llm.with_structured_output(...)`。直接结构化模型调用适合本项目已存在的确定性节点，不必为了格式化再引入一个自主工具循环。LangChain 的 [模型文档](https://docs.langchain.com/oss/python/langchain/models) 介绍统一结构化接口；[ChatDeepSeek](https://docs.langchain.com/oss/python/integrations/chat/deepseek) 和 [ChatOpenAI](https://docs.langchain.com/oss/python/integrations/chat/openai) 是使用的官方集成。
+
+依赖通过 `pyproject.toml`/`uv.lock` 固定可重建版本，不在每次生成任务中安装或查询模型目录。当前锁定 `langchain-deepseek 1.1.1`、`langchain-openai 1.6.7`；正常 `uv sync --locked` 会安装它们。
+
+## 为什么统一选择 JSON mode
+
+两个集成共同使用 `method="json_mode"`，产生 `response_format={"type":"json_object"}`。这是 **供应商 JSON 格式约束 + 本地严格业务校验**，不是宣称全部响应都由供应商 `strict=true/json_schema` 保证。
+
+当前领域契约需要动态字典，例如需求事实 `Requirement.facts`、变更值、枚举显示标签和规则示例。把所有开放对象强行改成 `additionalProperties=false` 会丢失有效需求数据。统一 JSON mode 可保留这些结构，不必建立模型 ID 白名单、私有 Schema 转换器或字段补全器。
+
+官方 [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs) 区分 JSON 模式与原生 Schema 约束；[DeepSeek JSON Output](https://api-docs.deepseek.com/guides/json_mode/) 说明 JSON 模式、提示要求、空内容和截断边界。以后若领域契约改为适合原生 strict 的封闭传输类型，应仍使用框架的结构化方法，再补相应验证，不在这里维护逐模型协议分支。
+
+## 配置与模型选择
+
+原有默认三项保持不变：`BASE_URL`、`API_KEY`、`MODE`。模型 ID 按原样交给官方集成，不替换成另一模型，也不按名称前缀声称支持。模型不支持所请求格式或账户无权限时，保留明确失败，不降级成无约束文本或演示结果。
+
+可选配置：
+
+```dotenv
+PROVIDER=auto
+OUTPUT_MODE=auto
+# MAX_OUTPUT_TOKENS=16384
+
+# 阶段覆盖示例
+# PLANNING_PROVIDER=deepseek
+# PLANNING_OUTPUT_MODE=json_object
+# PLANNING_MAX_OUTPUT_TOKENS=65536
+```
+
+- `PROVIDER=auto` 仅按准确主机选择官方集成：`api.deepseek.com` 使用 `ChatDeepSeek`，`api.openai.com` 使用 `ChatOpenAI`。其他兼容地址使用 `ChatOpenAI` 兼容接线；它同样要求 JSON mode，不能证明任意服务都支持该参数
+- 私有代理可显式选择 `PROVIDER=deepseek` 或 `openai`；地址仍由用户配置，不自动改到其他域名
+- `OUTPUT_MODE=auto` 和 `json_object` 都采用统一的框架 JSON mode；不提供私有逐模型模式表
+- `MAX_OUTPUT_TOKENS` 是有限输出预算。默认 DeepSeek 为65536，其他为16384；参数命名由官方集成处理，捕获请求测试分别检查 DeepSeek 的 `max_tokens` 与 OpenAI 的 `max_completion_tokens`。必要时按模型官方上限调整配置；平台不会静默扩大预算。OpenAI 预算涵盖可见与推理 token，见 [Chat Completions 参数](https://developers.openai.com/api/reference/python/resources/chat/subresources/completions/methods/create)
+- 四个前缀 `REQUIREMENTS_`、`PLANNING_`、`CODING_`、`REVIEW_` 都可覆盖这三项。同端点继承默认；改端点不继承原供应商协议/预算，且必须配置该阶段自己的 API_KEY
+
+DeepSeek 真实验收仍使用已批准的 `deepseek-flash`，不改用户模型。单独的 Hello!/thinking/high smoke 保留原始请求，它只是连接测试。随后的全部业务阶段才走统一结构化链。具体供应商字段与结束原因见 [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)。
+
+## 本地验证、重试与安全边界
+
+1. 响应传输最多读取2,000,000字节；在 SDK 标准化前检查原始信封。已知供应商必须 `finish_reason=stop`。有效 JSON 若带 `length` 仍按截断失败；refusal/content_filter 立即停止，不试图绕过；不接受该阶段意外的工具调用
+2. JSON 解析拒绝重复键、NaN/Infinity/数值溢出、非对象根节点和 Markdown 围栏。`Pydantic.model_validate_json(..., strict=True)` 不把 `"true"` 当布尔值，也不把 `"3"` 当整数；原有额外字段、枚举、长度、关系和跨字段业务验证继续执行
+3. 必须同时得到框架的成功结构化解析和平台对原始内容的严格校验。不能只信任框架已转换的 `parsed` 对象，否则宽松类型转换或不完整 JSON 修复可能掩盖原始错误
+4. SDK `max_retries=0`，平台每次操作最多两次总尝试，避免双层重试偷偷放大费用。空内容、畸形响应、中断、408/429/5xx可有界重试；类型/语义错误最多一轮带具体路径的修复。鉴权/地址/其他非暂时性4xx、拒绝和截断直接停止
+5. 修复保留原要求、原 Schema、原模型/地址/JSON模式；不删除需求，不扩大预算，不声称人工批准。完整系统消息、Schema及修复反馈计入上下文字符上限。原始 reasoning_content 不保存或回填为回答
+6. 使用受审计的同步 HTTP 客户端注入官方 SDK，禁止自动重定向和环境代理，保留CI的受限真实传输/离线MockTransport。异步入口为无网络的拒绝传输，不能成为绕开同步审计的另一条路径。已有遥测关闭策略和空回调配置继续生效，不新增LangSmith上传
+
+类型/Schema正确仍不等于需求满足。`flow.py` 的已批准事实、逐字段覆盖、角色权限/关联/工作流/提醒/统计关卡与编译、API、真实浏览器验收全部保留。结构化输出不能代替用户批准或产品测试。
+
+## 缓存与回执
+
+缓存键加入结构化契约版本、框架模式、预算、模型、端点和原需求/Schema。旧版本输出不会被当成新协议下已验证结果。新的成功记录及失败尝试都包含 provider、output_mode、format_reason、contract_version；失败只记录有限安全错误码和尝试序号，不持久化原始拒绝、响应或密钥。运行模型回执接口返回两类记录，旧记录标为legacy。
+
+## 离线验证
+
+```bash
+uv run pytest tests/test_provider_structured_outputs.py tests/test_llm.py tests/test_guided_models.py -q
+```
+
+测试使用真正的官方集成和 `with_structured_output`，只在最终HTTP层注入MockTransport。覆盖共同请求格式、原模型ID不替换、动态事实保真、严格类型、业务约束、拒绝/截断/过滤/空内容、畸形信封、错误回执、无隐式SDK重试、阶段隔离和缓存变更。OpenAI线上可用性保持未验证；真实DeepSeek结果必须另引用相同提交的实际验收运行。
+````
+
 ### `docs/real-model-acceptance.md`
 
 **作用：本教材正文的源文件。** 上文正文就是这些源文件拼接后的内容。它们也收录在附录中，使从教材还原出的项目能再次生成逐字一致的完整教材，而不是只有一次性的代码快照。
@@ -85142,7 +90375,7 @@ FastapiAdmin应继续体现Fa/Element Plus，Yudao应继续体现Vben/Ant Design
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/real-model-acceptance.md sha256: f3731e96ba658441ad59cb33043f29a045fef00d56afb8c07ad323fbdbf11413 -->
+<!-- source-file: docs/real-model-acceptance.md sha256: 47ab44fd44658079a029d7016e62966983e6457e9ba149238a6a9edccb64549b -->
 ````markdown
 ## 显式授权的真实模型客服端到端验收
 
@@ -85219,6 +90452,22 @@ FastapiAdmin将模板参数换成`fastapiadmin`。该路径直接验证保存的
 只有某行`acceptance_scope=full_workflow`、整体`passed=true`且模板/commit/attempt吻合，才能将该行标为真实模型完整流程通过；三个模板各自满足才可称三模板通过。`smoke_only`、固定计划测试、之前其他案例或其他提交的成功都不能替代。原来`BLOCKED`的任务恢复、Aider编辑、Continue原生索引和Daytona是另外的验证范围；当前真实模型路径明确记录这些未覆盖项，不借用旧报告填充它们。
 
 工作流每次完成输出上限为65,536 tokens，保留16次工作流调用和单次响应2,000,000字节的硬边界；独立兼容性smoke报文不添加这个参数。该上限保留完整需求与Plan，避免此前16,000上限把思考和JSON输出截断；`finish_reason=length`仍记为失败而不修剪需求。DeepSeek官方Chat Completions文档（https://api-docs.deepseek.com/api/create-chat-completion/ ，2026-09-30核对）允许最大393,216 tokens，thinking默认64K。
+
+## 原生交付 ZIP 与已批准方案复现
+
+原生独立验收先把可交付源码打包，再安全解压到全新目录，并核对源码清单，随后才在独立数据库启动、做真实浏览器验证和重启检查。它与最终下载使用同一套生产者/消费者规则，不能用原目录可启动代替下载包可用。
+
+通用、Python 和 FastapiAdmin 压缩包最多 10,000 个条目；只有调用者已经选择的 `yudao-vben` 使用 25,000 条目上限。这个差异来自锁定的原始 Vben 单仓前端本身已有 12,112 个源码文件，不能删除原模板代码来迎合较小上限。所有模板最多 200,000,000 解压字节，单文件最多 32,000,000 字节，另有压缩比检查；路径越界、大小写重复路径、符号链接、凭据和数据库文件仍被拒绝。完整预检发生在写入第一个文件之前，错误分别报告条目数和字节数。
+
+诊断需要复现真实模型已经批准的方案时，可运行下面这个有明确来源的回归案例：
+
+```bash
+uv run python -m scripts.ci_native_bundled yudao-vben --approved-replay yudao-1d7
+```
+
+它读取真实运行 `36795375784`、源码 `1d7c70b03e63509830e97af9af398c0bd148902e` 中通过设计及模型复核的合成客服 Plan，并在原生生成前验证固定哈希、大小、方案结构和凭据模式。对应运行当时因下载 ZIP 的条目数上限失败，因此这个输入只用于复现，不代表历史下载已经通过。Actions 的 `approved-1d7` 案例独立生成、解压并启动该产品，不调用模型，也不会覆盖两个标准客服案例的产物。
+
+真实模型验收始终重新进行推荐、设计与独立复核，不读取这个回归方案。`customer_design_diagnostics` 中明确标记未批准的候选方案只供校验器诊断，不能进入生成或执行。
 ````
 
 ### `docs/from-zero-checkpoints.md`
