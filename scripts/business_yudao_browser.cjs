@@ -96,6 +96,25 @@ function rememberCreatedRecord(created, labels, entity, identifier, label) {
   labels[entity] = label;
 }
 
+async function selectNativeOption(page, locator, label, capture, search = false) {
+  await locator.click();
+  // Ant Select virtualizes long relation lists. Filter the native combobox by
+  // its readable label so a newly created record need not be in the initial DOM.
+  if (search) await locator.getByRole('combobox').fill(label);
+  const option = page.locator('.ant-select-dropdown:visible')
+    .locator('.ant-select-item-option').filter({ has: page.getByText(label, { exact: true }) });
+  await option.waitFor({ state: 'visible' });
+  if (capture) await capture();
+  await option.click();
+  await locator.locator('.ant-select-selection-item').getByText(label, { exact: true }).waitFor({ state: 'visible' });
+}
+
+function verifyNativeRelationPayload(payload, expected) {
+  for (const [field, id] of Object.entries(expected)) {
+    assert.equal(String(payload[field]), String(id), `Native relation ${field} must submit the browser-owned record ID`);
+  }
+}
+
 // Drive the original Vben search form and inspect its real paginated request.
 // A deliberately incompatible enum must remove the row, even when its name matches.
 async function verifyNativeCustomerQuery(page, listRoute, customer, category, capture = async () => {}) {
@@ -110,10 +129,13 @@ async function verifyNativeCustomerQuery(page, listRoute, customer, category, ca
   const keyword = customer.name.slice(1, -1).toUpperCase();
   assert(keyword && keyword !== customer.name, 'Exercise substring and case-insensitive search');
   async function submit(expectedCategory, expectedIds, reset = false) {
-    const received = page.waitForResponse(response => new URL(response.url()).pathname.endsWith(listRoute)
-      && response.request().method() === 'GET');
-    await scope.getByRole('button', { name: reset ? /^重\s*置$/ : /^搜\s*索$/ }).click();
-    const response = await received;
+    const button = scope.getByRole('button', { name: reset ? /^重\s*置$/ : /^搜\s*索$/ });
+    await button.waitFor({ state: 'visible' });
+    const [response] = await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).pathname.endsWith(listRoute)
+        && response.request().method() === 'GET'),
+      button.click(),
+    ]);
     const query = new URL(response.url()).searchParams;
     assert.equal(query.get('name') || '', reset ? '' : keyword, 'Native query keyword serialization');
     assert.equal(query.get('category') || '', expectedCategory || '', 'Native query exact category serialization');
@@ -238,15 +260,13 @@ async function main() {
     assert.equal(String(metadata.record.id), identifier, 'Detail response must match the clicked row');
   }
   async function select(locator, label, screenshot) {
-    await locator.click();
-    const option = page.locator('.ant-select-dropdown:visible').getByText(label, { exact: true }).last();
-    if (screenshot) { await option.waitFor({ state: 'visible' }); await capture(screenshot); }
-    await option.click();
+    await selectNativeOption(page, locator, label, screenshot ? () => capture(screenshot) : undefined, Boolean(screenshot));
   }
   const created = {}, labels = {};
   const marker = 'Browser ' + Date.now();
   async function create(entity, labelPrefix = marker) {
     let newLabel = null;
+    const expectedRelations = {};
     const current = await openPage(entity);
     await page.getByRole('button', { name: /^新增|^创建/ }).first().click();
     const dialog = page.getByRole('dialog').last(); await dialog.waitFor({ state: 'visible' });
@@ -263,6 +283,7 @@ async function main() {
       if (relation) {
         assert(labels[relation.target_entity], 'Create referenced browser record first');
         await select(input, labels[relation.target_entity], `${currentRole}-${entity}-${field.name}-relation-picker.png`);
+        expectedRelations[field.name.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase())] = created[relation.target_entity];
       } else if (field.kind === 'enum') await select(input, field.choice_labels?.[field.choices[0]] || field.choices[0]);
       else if (field.kind === 'boolean') await select(input, '否');
       else if (field.kind === 'integer') await input.fill('1');
@@ -279,7 +300,10 @@ async function main() {
     await capture(`${currentRole}-${entity}-filled-native-form.png`);
     const response = observe(current.api + '/create', 'POST');
     await dialog.getByRole('button', { name: /^确\s*认$|^确\s*定$/ }).click();
-    rememberCreatedRecord(created, labels, entity, await checked(response), newLabel);
+    const received = await response;
+    const identifier = await checked(received);
+    verifyNativeRelationPayload(received.response.request().postDataJSON(), expectedRelations);
+    rememberCreatedRecord(created, labels, entity, identifier, newLabel);
     await dialog.waitFor({ state: 'hidden' });
     await page.getByText(labels[entity], { exact: true }).first().waitFor({ state: 'visible' });
     await capture(`${currentRole}-${entity}-native-list.png`);
@@ -388,5 +412,5 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, verifyNativeCustomerQuery };
+module.exports = { main, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, selectNativeOption, verifyNativeRelationPayload, verifyNativeCustomerQuery };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });

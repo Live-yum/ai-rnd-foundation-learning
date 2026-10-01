@@ -4,9 +4,11 @@ These are driver/serialization fault tests, not actual native-stack acceptance.
 The native Actions jobs run the same helpers inside both generated native apps.
 """
 
+import json
 import os
 import shutil
 import subprocess
+import zipfile
 from pathlib import Path
 
 import pytest
@@ -44,13 +46,14 @@ const server = http.createServer((req, res) => {
       <div data-testid="business-search">
         <input data-testid="business-field-name" aria-label="搜索">
         <div data-testid="business-field-category" class="${yudao ? 'ant-select' : 'el-select'}" tabindex="0"><span id="selected" class="is-placeholder">请选择</span></div>
-        <button id="search">搜索</button><button id="reset">重置</button>
+        <button id="search">${yudao ? '搜 索' : '查询'}</button><button id="reset">${yudao ? '重 置' : '重置'}</button>
       </div>
       <div class="fa-table-card"><table><tbody id="rows"></tbody></table></div>
     </section>
     <div id="dropdown" class="ant-select-dropdown" hidden><div role="option" data-value="enterprise">企业</div><div role="option" data-value="personal">个人</div></div>
     <script>
       const yudao = ${JSON.stringify(yudao)}, fault = ${JSON.stringify(fault)}, route = ${JSON.stringify(route)};
+      if (fault === 'missing-search-control') document.querySelector('#search').hidden = true;
       let selectedValue = '';
       const keyword = document.querySelector('input'), selected = document.querySelector('#selected');
       document.querySelector('[data-testid="business-field-category"]').onclick = () => document.querySelector('#dropdown').hidden = false;
@@ -110,7 +113,8 @@ const server = http.createServer((req, res) => {
       const message = String(failure.message);
       const expected = { 'missing-keyword': /keyword serialization/, 'missing-filter': /category serialization/,
         'ignored-and': /total must match/, 'case-sensitive': /total must match/, 'wrong-pagination': /must use page/,
-        'missing-rendered-row': /waitForFunction: Timeout/, 'stale-reset': /reset must clear keyword/ };
+        'missing-rendered-row': /waitForFunction: Timeout/, 'stale-reset': /reset must clear keyword/,
+        'missing-search-control': /locator.waitFor: Timeout/ };
       assert.match(message, expected[fault], 'Reject for the intended regression, not an unrelated driver error');
     }
     console.log('Local native-query driver fixture regression verified: ' + template + '/' + fault);
@@ -131,6 +135,7 @@ const server = http.createServer((req, res) => {
         "wrong-pagination",
         "missing-rendered-row",
         "stale-reset",
+        "missing-search-control",
     ],
 )
 def test_native_query_driver_rejects_http_and_rendering_faults(template, fault):
@@ -157,3 +162,20 @@ def test_query_journey_is_in_each_actual_native_driver(template):
     assert "report.query_journey = await verifyNativeCustomerQuery(" in main
     assert "report.checks.push('manager:customers:native-query-and-exact-filter')" in main
     assert "manager-customers-native-query-positive.png" in main
+
+
+def test_query_button_fixture_matches_pinned_native_locales():
+    with zipfile.ZipFile(ROOT / "templates/vendor/fastapiadmin.zip") as archive:
+        locale = json.loads(archive.read("frontend/web/src/locales/langs/zh.json"))
+        component = archive.read(
+            "frontend/web/src/components/forms/fa-search-bar/index.vue"
+        ).decode("utf-8")
+    assert locale["table"]["searchBar"]["search"] == "查询"
+    assert locale["table"]["searchBar"]["reset"] == "重置"
+    assert 't("table.searchBar.search")' in component
+    with zipfile.ZipFile(ROOT / "templates/vendor/yudao-frontend.zip") as archive:
+        component = archive.read("packages/effects/plugins/src/vxe-table/use-vxe-grid.vue").decode(
+            "utf-8"
+        )
+    assert "content: computed(() => $t('common.search'))" in component
+    assert "${yudao ? '搜 索' : '查询'}" in DRIVER

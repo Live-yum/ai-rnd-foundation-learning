@@ -14,10 +14,14 @@ async function verifyNativeCustomerQuery(page, customer, category, capture = asy
   const keyword = customer.name.slice(1, -1).toUpperCase();
   assert(keyword && keyword !== customer.name, 'Exercise substring and case-insensitive search');
   async function submit(expectedCategory, expectedIds, reset = false) {
-    const received = page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/business/customers/list')
-      && response.request().method() === 'GET');
-    await search.getByRole('button', { name: reset ? /^重\s*置$/ : /^搜\s*索$/ }).click();
-    const response = await received;
+    // Pinned FaSearchBar translates table.searchBar.search as 查询, not 搜索.
+    const button = search.getByRole('button', { name: reset ? /^重\s*置$/ : /^查\s*询$/ });
+    await button.waitFor({ state: 'visible' });
+    const [response] = await Promise.all([
+      page.waitForResponse(response => new URL(response.url()).pathname.endsWith('/business/customers/list')
+        && response.request().method() === 'GET'),
+      button.click(),
+    ]);
     const query = new URL(response.url()).searchParams;
     assert.equal(query.get('q') || '', reset ? '' : keyword, 'Native query keyword serialization');
     assert.deepEqual(JSON.parse(query.get('filters')), expectedCategory ? { category: expectedCategory } : {}, 'Native query exact category serialization');

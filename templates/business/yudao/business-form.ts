@@ -74,6 +74,9 @@ function fieldSchema(entity: string, item: VbenFormSchema, search: boolean): Vbe
     result.componentProps = {
       api: () => relation.target === '$users' ? requestClient.get('/infra/rnd-business/users') : requestClient.get('/infra/rnd-business/references', { params: { entity: relation.target } }),
       labelField: relation.label, valueField: 'id', allowClear: search || !field.required,
+      // ApiComponent maps the declared relation label to option.label. Keep
+      // virtualization while making later authorized records findable by name.
+      showSearch: true, optionFilterProp: 'label',
     };
   } else if (field.kind === 'enum') {
     result.component = 'Select'; result.componentProps = { options: field.choices.map(value => ({ label: field.choice_labels[value] || value, value })), allowClear: search || !field.required };

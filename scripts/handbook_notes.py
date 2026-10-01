@@ -229,7 +229,7 @@ MODULES = {
     ),
     "native_environment": (
         "本机原生后端环境和进程",
-        "先确认专用本机数据库，再复制固定源码、初始化种子并生成环境；install_backend准备依赖与构建，running_backend管理进程存活和退出。兼容改动检查原文并记录，不静默忽略失败。",
+        "先确认专用本机数据库，再复制固定源码、初始化种子并生成环境；install_backend准备依赖与构建，running_backend管理进程存活和退出，记录启动轮次、阶段、已拥有进程与目标端口状态。启动失败后清理也失败时保留原始异常并附加清理事实，不杀死占用端口的其他进程，也不把超时改成成功。兼容改动检查原文并记录。",
         "native_lab/native_delivery/portable → backend环境 → 本机PG/Redis/Java或Python。",
     ),
     "native_delivery": (
@@ -289,7 +289,7 @@ MODULES = {
     ),
     "portable": (
         "让原生产品脱离工作台独立启动",
-        "导出原生种子、增量业务表和菜单SQL，复制启动器所需全部HELPERS，包括本机策略模块。verify_native_delivery在另一个新的本机数据库恢复并启动前后端，确认没有导入原工作台或复用原生成数据库。",
+        "导出原生种子、增量业务表和菜单SQL，复制启动器所需全部HELPERS，包括本机策略模块。verify_native_delivery在另一个新的本机数据库恢复并启动前后端，确认没有导入原工作台或复用原生成数据库；失败时在删除临时副本前保留白名单日志尾和进程阶段，限制读取与输出大小并遮蔽凭据，不复制环境、服务密码文件或任意运行目录。诊断回执不能授予验收成功。",
         "managed_package → portable → templates/deployment；test_native_delivery_boundaries。",
     ),
     "requirement_coverage": (
@@ -412,7 +412,7 @@ BUSINESS_FILES = {
     ),
     "yudao/business-form.ts": (
         "Vben合同表单与关联选项",
-        "在原生Form Schema中移出状态/负责人等受控字段，把关系键接为服务器限定的可识别选择项，保留字段校验和类型。",
+        "在原生Form Schema中移出状态/负责人等受控字段，把关系键接为服务器限定的可识别选择项；关系选择器按可读标签搜索并保留虚拟滚动，选项多时也能找到新记录，不扩大后端权限范围。保留字段校验和类型。",
         "生成Vben表单 → 本辅助函数 → 合同关系API与原生表单组件。",
     ),
     "yudao/metric-chart.vue": (
@@ -453,12 +453,12 @@ PRODUCT = {
 SCRIPT_ROLES = {
     "business_fastapi_browser.cjs": (
         "FastapiAdmin三角色真实客服页面验收",
-        "使用临时合成账号通过原生登录、菜单与Fa/Element Plus组件，操作客户/请求/任务、关系、分配、流程、历史、提醒和统计，检查原生主题及页面错误，保存命名截图。",
+        "使用临时合成账号通过原生登录、菜单与Fa/Element Plus组件，操作客户/请求/任务、关系、分配、流程、历史、提醒和统计；查询按钮等定位以锁定的真实组件为准，同时核对请求参数、响应记录和页面记录，不能用夹具自造的按钮名代替。检查原生主题及页面错误，保存命名截图。",
         "business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。",
     ),
     "business_yudao_browser.cjs": (
         "Yudao/Vben三角色真实客服页面验收",
-        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同的列表、表单、详情与协作场景；HTTP拒绝和UI行为共同组成证据，不以静态图替代。",
+        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同的列表、表单、详情与协作场景；关联控件按本轮新建记录的可读标签搜索并选择准确ID，不依赖虚拟列表首屏碰巧渲染该选项。HTTP拒绝和UI行为共同组成证据，不以静态图替代。",
         "business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。",
     ),
     "ci_real_model.py": (

@@ -2,6 +2,7 @@
 
 import errno
 import io
+import json
 import os
 import re
 import secrets
@@ -349,27 +350,27 @@ def backend_port_state(port, group_pid):
     tcp = Path("/proc/net/tcp")
     if os.name != "posix" or not tcp.is_file():
         return {"observable": False}
-    inodes = set()
+    inodes, listener_inodes = set(), set()
+    local_port_states = {}
     try:
         for path in (tcp, Path("/proc/net/tcp6")):
             if path.is_file():
-                for line in path.read_text().splitlines()[1:8193]:
+                for line in path.read_text(encoding="utf-8").splitlines()[1:8193]:
                     parts = line.split()
-                    if (
-                        len(parts) > 9
-                        and parts[3] == "0A"
-                        and int(parts[1].rsplit(":", 1)[1], 16) == port
-                    ):
+                    if len(parts) > 9 and int(parts[1].rsplit(":", 1)[1], 16) == port:
                         inodes.add(parts[9])
+                        local_port_states[parts[3]] = local_port_states.get(parts[3], 0) + 1
+                        if parts[3] == "0A":
+                            listener_inodes.add(parts[9])
         pids = []
         for path in list(Path("/proc").glob("[0-9]*/stat"))[:4096]:
             try:
-                fields = path.read_text().rsplit(") ", 1)[1].split()
+                fields = path.read_text(encoding="utf-8").rsplit(") ", 1)[1].split()
                 if int(fields[2]) == group_pid and int(fields[3]) == group_pid:
                     pids.append(int(path.parent.name))
             except OSError, ValueError, IndexError:
                 continue
-        owners = []
+        owners, socket_owners = set(), set()
         for pid in pids[:64]:
             for fd in list((Path("/proc") / str(pid) / "fd").glob("*"))[:2048]:
                 try:
@@ -377,14 +378,17 @@ def backend_port_state(port, group_pid):
                 except OSError:
                     continue
                 if target.startswith("socket:[") and target[8:-1] in inodes:
-                    owners.append(pid)
-                    break
+                    socket_owners.add(pid)
+                    if target[8:-1] in listener_inodes:
+                        owners.add(pid)
         return {
             "observable": True,
-            "listening": bool(inodes),
+            "listening": bool(listener_inodes),
             "owned_listener": bool(owners),
             "owned_listener_pids": sorted(owners),
             "owned_group_pids": sorted(pids[:64]),
+            "owned_socket_pids": sorted(socket_owners),
+            "local_port_state_counts": dict(sorted(local_port_states.items())),
         }
     except OSError, ValueError, IndexError:
         return {"observable": False}
@@ -432,7 +436,17 @@ def running_backend(template, backend, env, reports):
         raise RuntimeError(
             "Native backend port is already occupied; refusing to test another process"
         )
+    attempt = 1
+    previous = reports / "backend-lifecycle.json"
+    if previous.is_file() and not previous.is_symlink() and previous.stat().st_size <= 16384:
+        try:
+            value = json.loads(previous.read_text(encoding="utf-8")).get("startup_attempt")
+            if type(value) is int and 0 < value < 1_000_000:
+                attempt = value + 1
+        except OSError, ValueError, AttributeError:
+            pass
     log = (reports / "backend-runtime.log").open("ab")
+    log_start = log.tell()
     process = subprocess.Popen(
         command,
         cwd=backend,
@@ -441,8 +455,17 @@ def running_backend(template, backend, env, reports):
         stderr=subprocess.STDOUT,
         **process_options(),
     )
-    lifecycle = {"port": port, "pid": process.pid, "owned_process_group": True, "started": True}
+    lifecycle = {
+        "port": port,
+        "pid": process.pid,
+        "owned_process_group": True,
+        "started": True,
+        "startup_attempt": attempt,
+        "runtime_log_start_bytes": log_start,
+        "phase": "backend-readiness",
+    }
     write_json(reports / "backend-lifecycle.json", lifecycle)
+    failure = None
     try:
         with httpx.Client(trust_env=False, timeout=5) as client:
             for _ in range(90):
@@ -474,31 +497,63 @@ def running_backend(template, backend, env, reports):
                 raise TimeoutError(
                     "Native backend did not become ready; inspect backend-runtime.log"
                 )
-        yield base_url, openapi
-    finally:
-        lifecycle["port_state_before_cleanup"] = backend_port_state(port, process.pid)
-        # A launcher may have exited while its same-session descendants remain.
-        # Generic stop_process returns early for an exited leader, so explicitly
-        # stop only the still-observed session/group that this context created.
-        state = lifecycle["port_state_before_cleanup"]
-        if process.poll() is not None and state.get("owned_group_pids"):
-            try:
-                os.killpg(process.pid, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
-        stop_process(process)
-        log.close()
-        # Only the process group we started was stopped. Never kill a process
-        # merely because it owns the port; a foreign collision remains a failure.
-        deadline = time.monotonic() + 5
-        released = loopback_port_bindable(port)
-        while not released and time.monotonic() < deadline:
-            time.sleep(0.1)
-            released = loopback_port_bindable(port)
-        lifecycle.update(returncode=process.poll(), port_released=released)
+        lifecycle["phase"] = "backend-running"
         write_json(reports / "backend-lifecycle.json", lifecycle)
-        if not released:
-            raise RuntimeError("Native backend port remained occupied after owned-process cleanup")
+        yield base_url, openapi
+    except BaseException as error:
+        failure = error
+        lifecycle["failure"] = {"phase": lifecycle["phase"], "type": type(error).__name__}
+        raise
+    finally:
+        cleanup_failure = None
+        lifecycle["returncode_before_cleanup"] = process.poll()
+        lifecycle["phase"] = "backend-cleanup"
+        lifecycle["port_released"] = False
+        try:
+            lifecycle["port_state_before_cleanup"] = backend_port_state(port, process.pid)
+            # An exited launcher may have left same-session descendants. Stop
+            # only the still-observed group created by this context, never a
+            # process discovered merely because it has acquired this port.
+            state = lifecycle["port_state_before_cleanup"]
+            if process.poll() is not None and state.get("owned_group_pids"):
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            stop_process(process)
+            deadline = time.monotonic() + 5
+            released = loopback_port_bindable(port)
+            while not released and time.monotonic() < deadline:
+                time.sleep(0.1)
+                released = loopback_port_bindable(port)
+            lifecycle["port_released"] = released
+            lifecycle["port_state_after_cleanup"] = backend_port_state(port, process.pid)
+            if not released:
+                raise RuntimeError(
+                    "Native backend port remained occupied after owned-process cleanup"
+                )
+        except Exception as error:
+            cleanup_failure = error
+            lifecycle["cleanup_failure"] = {"type": type(error).__name__}
+        finally:
+            try:
+                log.close()
+            except Exception as error:
+                cleanup_failure = cleanup_failure or error
+                lifecycle.setdefault("cleanup_failure", {"type": type(error).__name__})
+            lifecycle["returncode"] = process.poll()
+            try:
+                write_json(reports / "backend-lifecycle.json", lifecycle)
+            except Exception as error:
+                cleanup_failure = cleanup_failure or error
+        if cleanup_failure is not None:
+            if failure is None:
+                raise cleanup_failure
+            failure.add_note(
+                "Native backend cleanup also failed "
+                f"({type(cleanup_failure).__name__}, port_released={lifecycle['port_released']}); "
+                "inspect backend-lifecycle.json"
+            )
 
 
 def login(template, base_url, username=None, password=None):
