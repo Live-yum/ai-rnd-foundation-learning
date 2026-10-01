@@ -61113,13 +61113,13 @@ def test_actual_recorded_business_gap_reaches_planner_with_exact_scope_and_actio
 
 **逐个入口与控制逻辑：**
 
-- `unqualified_text_reads`（L52–L117）：接收`source`。 源码说明：Find locale-sensitive pathlib/builtin text reads in the bounded source set.。 控制顺序：L64遍历`ast.walk(tree)`；L65按`isinstance(node, ast.With)`分支；L66遍历`node.items`；L68按`isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and isinstance(ca…`分支；L77遍历`ast.walk(tree)`；L78按`not isinstance(node, ast.Call)`分支；L82按`isinstance(function, ast.Attribute) and function.attr == "read_text"`分支；L84按`isinstance(function, ast.Attribute) and function.attr == "open" or isinstance(functio…`分支。后续分支沿下方源码相同行号继续阅读。 调用`ast.parse`、`ast.walk`、`isinstance`、`zip_scopes.append`、`any`、`keywords.get`、`len`、`encoding.value.lower().replace("-", "").replace`、`encoding.value.lower().replace`等。 返回路径：L117的`missing`。
-- `test_customer_source_and_fixture_reads_explicitly_use_utf8`（L127–L129）：接收`name`。 控制顺序：L129断言`not unqualified_text_reads(source)`。 调用`(ROOT / name).read_text`、`unqualified_text_reads`、`pytest.mark.parametrize`、`sorted`、`set`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "tests").glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_encoding_guard_rejects_locale_dependent_reads`（L144–L145）：接收`source`。 控制顺序：L145断言`unqualified_text_reads(source) == [1]`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_encoding_guard_allows_explicit_utf8_and_binary_reads`（L162–L163）：接收`source`。 控制顺序：L163断言`unqualified_text_reads(source) == []`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_encoding_guard_distinguishes_zip_binary_open_from_path_open`（L166–L182）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L167断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`；L173断言`unqualified_text_reads( "import zipfile as zip_module\nwith zip_module.ZipFile('sourc…`；L179断言`unqualified_text_reads("path.open()") == [1]`；L180断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`。 调用`unqualified_text_reads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `unqualified_text_reads`（L53–L118）：接收`source`。 源码说明：Find locale-sensitive pathlib/builtin text reads in the bounded source set.。 控制顺序：L65遍历`ast.walk(tree)`；L66按`isinstance(node, ast.With)`分支；L67遍历`node.items`；L69按`isinstance(call, ast.Call) and isinstance(call.func, ast.Attribute) and isinstance(ca…`分支；L78遍历`ast.walk(tree)`；L79按`not isinstance(node, ast.Call)`分支；L83按`isinstance(function, ast.Attribute) and function.attr == "read_text"`分支；L85按`isinstance(function, ast.Attribute) and function.attr == "open" or isinstance(functio…`分支。后续分支沿下方源码相同行号继续阅读。 调用`ast.parse`、`ast.walk`、`isinstance`、`zip_scopes.append`、`any`、`keywords.get`、`len`、`encoding.value.lower().replace("-", "").replace`、`encoding.value.lower().replace`等。 返回路径：L118的`missing`。
+- `test_customer_source_and_fixture_reads_explicitly_use_utf8`（L128–L130）：接收`name`。 控制顺序：L130断言`not unqualified_text_reads(source)`。 调用`(ROOT / name).read_text`、`unqualified_text_reads`、`pytest.mark.parametrize`、`sorted`、`set`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "tests").glob`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_rejects_locale_dependent_reads`（L145–L146）：接收`source`。 控制顺序：L146断言`unqualified_text_reads(source) == [1]`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_allows_explicit_utf8_and_binary_reads`（L163–L164）：接收`source`。 控制顺序：L164断言`unqualified_text_reads(source) == []`。 调用`unqualified_text_reads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_encoding_guard_distinguishes_zip_binary_open_from_path_open`（L167–L183）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L168断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`；L174断言`unqualified_text_reads( "import zipfile as zip_module\nwith zip_module.ZipFile('sourc…`；L180断言`unqualified_text_reads("path.open()") == [1]`；L181断言`unqualified_text_reads( "import zipfile\nwith zipfile.ZipFile('source.zip') as z:\n z…`。 调用`unqualified_text_reads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_customer_source_encoding.py sha256: f0253581d129453130d84ba54d8659993e86b28c0873a73cec3bf98b657509b2 -->
+<!-- source-file: tests/test_customer_source_encoding.py sha256: 09424042f52ee37f015aee6b5fe282c53c206501afdbfe4edadc19566584c167 -->
 ````python
 """Keep customer acceptance source and fixture reads independent of the OS locale."""
 
@@ -61150,6 +61150,7 @@ SOURCE_READERS = (
     "tests/test_native_backend_failure_diagnostics.py",
     "tests/test_native_delivery_diagnostics.py",
     "tests/test_native_fastapi_screenshot_readiness.py",
+    "tests/test_native_login_readiness.py",
     "tests/test_native_relation_picker_browser.py",
     "tests/test_real_model_execution_diagnostics.py",
     "workbench/verification.py",
@@ -69481,6 +69482,215 @@ def test_generic_type_shadow_is_not_rebound_to_java_time():
 def test_invalid_generated_java_does_not_get_silently_repaired():
     with pytest.raises(ValueError, match="syntax"):
         prepare_java_time_imports("package demo; class Entry { private LocalDate value;")
+````
+
+### `tests/test_native_login_readiness.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_native_login_requires_authentication_permissions_route_and_shell`（L165–L179）：接收`fault`。 控制顺序：L167按`not module or not Path(module).is_dir()`分支；L179断言`result.returncode == 0`。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`subprocess.run`、`shutil.which`、`clean_env`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_native_journey_uses_checked_login_readiness_without_extending_timeout`（L182–L190）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L187断言`"await loginNativeSession(page, base, scenario.actors[role], observe, checked);" in l…`；L188断言`"page.setDefaultTimeout(45000)" in login`；L189断言`login.index("await loginNativeSession(") < login.index("report.checks.push(")`；L190断言`"await checked(response); const identity = await checked(info)" in source`。 调用`(ROOT / "scripts/business_yudao_browser.cjs").read_text`、`source.split(" async function login(role) {", 1)[1].split`、`source.split`、`login.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_native_login_readiness.py sha256: 069d108497156764779e849ff3c135711683b99ad48d30b692ffdff0f7cd6645 -->
+````python
+"""Real HTTP/Chromium regressions for the native login driver, not stack acceptance."""
+
+import os
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from workbench.settings import ROOT
+from workbench.tools import clean_env
+
+DRIVER = r"""
+const assert = require('node:assert/strict');
+const http = require('node:http');
+const { loginNativeSession } = require('./scripts/business_yudao_browser.cjs');
+const [fault, playwrightPath, oldTimeout = '1800'] = process.argv.slice(1);
+const { chromium } = require(playwrightPath);
+const actor = { username: 'fixture-manager', password: 'fixture-only-password' };
+const requests = [], heldImages = [];
+const shell = '<aside>Native menu</aside><header>Native header</header><main id="__vben_main_content">Dashboard</main>';
+const foreign = http.createServer((req, res) => res.end(shell));
+const server = http.createServer(async (req, res) => {
+  const pathname = new URL(req.url, 'http://127.0.0.1').pathname;
+  if (pathname === '/delayed-dashboard-image') {
+    heldImages.push(res); return; // Complete the real HTTP response only after the assertions.
+  }
+  if (pathname.startsWith('/admin-api/')) {
+    requests.push(pathname);
+    res.setHeader('Content-Type', 'application/json');
+    if (pathname.endsWith('/tenant/simple-list')) {
+      res.end(JSON.stringify({ code: 0, data: [{ id: 1, name: 'Fixture tenant' }] })); return;
+    }
+    if (pathname.endsWith('/auth/login')) {
+      assert.equal(req.method, 'POST');
+      let raw = ''; for await (const part of req) raw += part;
+      assert.deepEqual(JSON.parse(raw), { ...actor, tenantId: 1 });
+      res.end(JSON.stringify({ code: fault === 'login-failure' ? 401 : 0, data: {} })); return;
+    }
+    if (pathname.endsWith('/auth/get-permission-info')) {
+      if (fault === 'permissions-http-failure') res.statusCode = 403;
+      res.end(JSON.stringify({ code: fault === 'permissions-failure' ? 403 : 0,
+        data: { menus: fault === 'missing-menu' ? [] : [{ path: '/dashboard/analytics' }] } })); return;
+    }
+    throw new Error('Unexpected API request: ' + pathname);
+  }
+  res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+  res.end(`<!doctype html><meta charset="utf-8">
+    <img src="/delayed-dashboard-image" alt="Delayed dashboard resource">
+    <section id="login"><button role="combobox" onclick="document.querySelector('#tenant').hidden=false">Tenant</button>
+      <button id="tenant" role="option" hidden>Fixture tenant</button>
+      <input placeholder="用户名"><input type="password"><button id="submit">登 录</button></section>
+    <script>
+      window.loaded = false; addEventListener('load', () => window.loaded = true);
+      let tenantId;
+      document.querySelector('#tenant').onclick = () => { tenantId = 1; document.querySelector('#tenant').hidden = true; };
+      fetch('/admin-api/system/tenant/simple-list');
+      document.querySelector('#submit').onclick = async () => {
+        await (await fetch('/admin-api/system/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: document.querySelector('input').value,
+            password: document.querySelector('input[type=password]').value, tenantId }) })).json();
+        const inspected = new Promise(resolve => addEventListener('permissions-inspected', resolve, { once: true }));
+        await (await fetch('/admin-api/system/auth/get-permission-info')).json();
+        // Even a plausible shell must never override rejected login/permissions responses.
+        document.querySelector('#login').remove();
+        document.body.insertAdjacentHTML('beforeend', ${JSON.stringify(shell)});
+        const fault = ${JSON.stringify(fault)};
+        if (fault === 'missing-aside') document.querySelector('aside').remove();
+        if (fault === 'missing-main') document.querySelector('main').remove();
+        if (fault === 'auth-route') location.hash = '/auth/session-expired';
+        else if (fault === 'foreign-origin') {
+          // Preserve the response body until the driver has inspected it, isolating route validation.
+          await inspected; location.href = 'http://127.0.0.1:${foreign.address().port}/#/dashboard/analytics';
+        }
+        else location.hash = '/dashboard/analytics';
+      };
+    </script>`);
+});
+(async () => {
+  await new Promise(resolve => foreign.listen(0, '127.0.0.1', resolve));
+  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+  const browser = await chromium.launch({ headless: true });
+  try {
+    const page = await browser.newPage(); page.setDefaultTimeout(1800);
+    page.setDefaultNavigationTimeout(Number(oldTimeout));
+    const base = 'http://127.0.0.1:' + server.address().port;
+    const checkedPaths = []; let oldReadiness;
+    const observe = (part, method = 'GET') => {
+      if (fault === 'none' && part.endsWith('/auth/login')) {
+        // Begin the original exact wait before the same-document route changes.
+        oldReadiness = page.waitForURL(url => !url.hash.includes('login'))
+          .then(() => ({}), error => ({ error }));
+      }
+      return page.waitForResponse(response =>
+        new URL(response.url()).pathname.endsWith(part) && response.request().method() === method)
+        .then(response => ({ response }), error => ({ error }));
+    };
+    const checked = async promise => {
+      const found = await promise; if (found.error) throw found.error;
+      checkedPaths.push(new URL(found.response.url()).pathname);
+      assert(found.response.ok(), 'Business browser HTTP ' + found.response.status());
+      const body = await found.response.json();
+      assert.equal(body.code, 0, 'Business application error ' + body.code);
+      if (fault === 'foreign-origin' && found.response.url().endsWith('/auth/get-permission-info')) {
+        await page.evaluate(() => dispatchEvent(new Event('permissions-inspected')));
+      }
+      return body.data;
+    };
+    let failure, businessReady = false;
+    try {
+      await loginNativeSession(page, base, actor, observe, checked);
+      businessReady = true;
+    } catch (error) { failure = error; }
+    if (fault === 'none') {
+      assert.ifError(failure); assert.equal(businessReady, true);
+      assert.deepEqual(checkedPaths, ['/admin-api/system/tenant/simple-list', '/admin-api/system/auth/login', '/admin-api/system/auth/get-permission-info']);
+      assert.equal(page.url(), base + '/#/dashboard/analytics');
+      assert.equal(await page.evaluate(() => document.readyState), 'interactive');
+      assert.equal(await page.evaluate(() => window.loaded), false);
+      assert.equal(heldImages.length, 1);
+      for (const selector of ['aside', 'header', '#__vben_main_content']) assert(await page.locator(selector).isVisible());
+      // The old exact predicate/default load semantics still fail with URL, API and DOM ready.
+      const oldFailure = (await oldReadiness).error;
+      assert.equal(oldFailure?.name, 'TimeoutError');
+      assert.match(oldFailure.message, /waiting for navigation until "load"/);
+      assert.match(oldFailure.message, /navigated to .*#\/dashboard\/analytics/);
+      assert.equal(await page.evaluate(() => window.loaded), false);
+      for (const response of heldImages) response.end();
+      await page.waitForLoadState('load');
+      assert.equal(await page.evaluate(() => window.loaded), true);
+    } else {
+      assert.equal(businessReady, false, 'A failed prerequisite must block business readiness');
+      assert(failure, 'Driver must reject ' + fault);
+      const expected = { 'login-failure': /Business application error 401/, 'permissions-failure': /Business application error 403/,
+        'permissions-http-failure': /Business browser HTTP 403/, 'missing-menu': /Native role menu missing/,
+        'auth-route': /waitForURL: Timeout/, 'foreign-origin': /waitForURL: Timeout/,
+        'missing-aside': /locator.waitFor: Timeout/, 'missing-main': /locator.waitFor: Timeout/ };
+      assert.match(failure.message, expected[fault]);
+      assert(!requests.some(route => route.includes('/infra/')), 'Never start business requests before login is ready');
+    }
+    console.log('Native login HTTP/Chromium fixture verified: ' + fault + '; old load timeout=' + oldTimeout);
+  } finally {
+    for (const response of heldImages) response.end();
+    await browser.close();
+    await Promise.all([server, foreign].map(service => new Promise(resolve => service.close(resolve))));
+  }
+})().catch(error => { console.error(error); server.close(); foreign.close(); process.exitCode = 1; });
+"""
+
+
+@pytest.mark.parametrize(
+    "fault",
+    [
+        "none",
+        "login-failure",
+        "permissions-failure",
+        "permissions-http-failure",
+        "missing-menu",
+        "auth-route",
+        "foreign-origin",
+        "missing-aside",
+        "missing-main",
+    ],
+)
+def test_native_login_requires_authentication_permissions_route_and_shell(fault):
+    module = os.getenv("PRODUCT_VERIFY_PLAYWRIGHT")
+    if not module or not Path(module).is_dir():
+        pytest.skip("Actual Playwright is required in Actions")
+    result = subprocess.run(
+        [shutil.which("node"), "-e", DRIVER, fault, module],
+        cwd=ROOT,
+        env=clean_env({"PLAYWRIGHT_BROWSERS_PATH": "0"}),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=30,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_actual_native_journey_uses_checked_login_readiness_without_extending_timeout():
+    source = (ROOT / "scripts/business_yudao_browser.cjs").read_text(encoding="utf-8")
+    login = source.split("  async function login(role) {", 1)[1].split(
+        "  async function openPage(", 1
+    )[0]
+    assert "await loginNativeSession(page, base, scenario.actors[role], observe, checked);" in login
+    assert "page.setDefaultTimeout(45000)" in login
+    assert login.index("await loginNativeSession(") < login.index("report.checks.push(")
+    assert "await checked(response); const identity = await checked(info)" in source
 ````
 
 ### `tests/test_native_managed.py`
@@ -78284,7 +78494,7 @@ if (require.main === module) main().catch(error => { console.error(error.name + 
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/business_yudao_browser.cjs sha256: eb2337d09b719b5a0c9bf02163be6cf2259347e454e7b96f792bb468ab0f25e7 -->
+<!-- source-file: scripts/business_yudao_browser.cjs sha256: 91847fad510a60fd962f4e7ae951da68595442ab8cc1cfcb24ea6a4cd15e9d5c -->
 ````javascript
 // Real Vben/Ant business journey. Only scenario-owned synthetic accounts; no mocks/token injection.
 'use strict';
@@ -78462,6 +78672,28 @@ async function verifyNativeCustomerQuery(page, listRoute, customer, category, ca
     response_ids_exact: true, rendered_ids_exact: true, controls_reset: true };
 }
 
+async function loginNativeSession(page, base, actor, observe, checked) {
+  const tenants = observe('/admin-api/system/tenant/simple-list');
+  await page.goto(base + '/#/auth/login', { waitUntil: 'domcontentloaded' });
+  const available = await checked(tenants); const tenant = available.find(item => item.id === 1); assert(tenant);
+  await page.getByRole('combobox').first().click();
+  await page.getByRole('option', { name: tenant.name, exact: true }).click();
+  await page.getByPlaceholder(/用户名|账号|username/i).first().fill(actor.username);
+  await page.locator('input[type=password]').first().fill(actor.password);
+  const response = observe('/admin-api/system/auth/login', 'POST');
+  const info = observe('/admin-api/system/auth/get-permission-info');
+  await page.getByRole('button', { name: /^登\s*录$|^sign in$|^login$/i }).first().click();
+  await checked(response); const identity = await checked(info); assert(identity.menus?.length, 'Native role menu missing');
+  // Hash navigation can finish while a dashboard subresource still delays window.load.
+  // Successful authentication/permissions and the rendered native shell establish readiness.
+  const origin = new URL(base).origin;
+  await page.waitForURL(url => url.origin === origin && url.hash.startsWith('#/')
+    && !/^#\/(?:auth|login)(?:[/?]|$)/.test(url.hash), { waitUntil: 'domcontentloaded' });
+  for (const selector of ['aside:visible', 'header:visible', '#__vben_main_content']) {
+    await page.locator(selector).first().waitFor({ state: 'visible' });
+  }
+}
+
 async function main() {
   const [base, reportDir, playwrightPath, scenarioFile] = process.argv.slice(2);
   assert.equal(new URL(base).hostname, '127.0.0.1');
@@ -78499,18 +78731,7 @@ async function main() {
     context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1500, height: 1100 }, reducedMotion: 'reduce' });
     page = await context.newPage(); page.setDefaultTimeout(45000);
     page.on('pageerror', error => errors.push(redact(error.message)));
-    const tenants = observe('/admin-api/system/tenant/simple-list');
-    await page.goto(base + '/#/auth/login', { waitUntil: 'domcontentloaded' });
-    const available = await checked(tenants); const tenant = available.find(item => item.id === 1); assert(tenant);
-    await page.getByRole('combobox').first().click();
-    await page.getByRole('option', { name: tenant.name, exact: true }).click();
-    await page.getByPlaceholder(/用户名|账号|username/i).first().fill(scenario.actors[role].username);
-    await page.locator('input[type=password]').first().fill(scenario.actors[role].password);
-    const response = observe('/admin-api/system/auth/login', 'POST');
-    const info = observe('/admin-api/system/auth/get-permission-info');
-    await page.getByRole('button', { name: /^登\s*录$|^sign in$|^login$/i }).first().click();
-    await checked(response); const identity = await checked(info); assert(identity.menus?.length, 'Native role menu missing');
-    await page.waitForURL(url => !url.hash.includes('login'));
+    await loginNativeSession(page, base, scenario.actors[role], observe, checked);
     report.checks.push(`${role}:native-login-and-tenant`);
   }
   async function openPage(entity) {
@@ -78700,7 +78921,7 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, selectNativeOption, verifyNativeRelationPayload, verifyNativeCustomerQuery };
+module.exports = { main, loginNativeSession, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, selectNativeOption, verifyNativeRelationPayload, verifyNativeCustomerQuery };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
 ````
 
