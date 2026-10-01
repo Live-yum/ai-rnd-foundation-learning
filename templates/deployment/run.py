@@ -290,6 +290,18 @@ def main():
                 require_preserved_business_records(before_restart, after_restart)
                 outcome["restart_preserved_records"] = True
                 outcome["restart_records"] = after_restart
+                if template == "yudao-vben":
+                    from workbench.domain import Plan
+                    from workbench.yudao_navigation_checks import check_navigation_restart
+
+                    outcome["business"]["installed_navigation_restart"] = check_navigation_restart(
+                        template,
+                        base,
+                        token,
+                        manifest["targets"],
+                        outcome["business"],
+                        Plan.model_validate(manifest["plan"]),
+                    )
             outcome["restart"] = True
         if args.check and manifest["plan"].get("business"):
             from workbench.business_browser import run_business_browser

@@ -299,6 +299,17 @@ def require_native_business(report, receipt, spec_path):
             require_business_browser(browser, plan, receipt["template"])
         except (KeyError, ValueError, TypeError) as exc:
             raise PrerequisiteError(error) from exc
+    if receipt["template"] == "yudao-vben":
+        from workbench.yudao_navigation_checks import validate_navigation
+
+        try:
+            for business in (report["business_contract"], restored["business"]):
+                first = validate_navigation(business.get("installed_navigation"), plan)
+                restarted = validate_navigation(business.get("installed_navigation_restart"), plan)
+                if first != restarted:
+                    raise ValueError("Installed navigation changed across restart")
+        except (KeyError, ValueError, TypeError) as exc:
+            raise PrerequisiteError(error) from exc
     return True
 
 

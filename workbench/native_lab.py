@@ -219,6 +219,12 @@ def run_acceptance(
                         )
                 finally:
                     client.close()
+                if template == "yudao-vben":
+                    from workbench.yudao_navigation_checks import check_navigation_restart
+
+                    records["installed_navigation_restart"] = check_navigation_restart(
+                        template, base_url, token, targets, records, plan
+                    )
                 write_json(
                     reports / "restart/persistence.json",
                     {"process_restart_preserves_records": True, "business": True},

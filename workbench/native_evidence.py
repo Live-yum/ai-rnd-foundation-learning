@@ -590,6 +590,54 @@ def native_review_evidence(report, plan, files, evidence_sha256):
                 ),
                 "browser": browser_summary(report["portable_restored"]["browser"], plan),
             }
+            if report["template"] == "yudao-vben":
+                from workbench.yudao_navigation_checks import (
+                    encode_navigation,
+                    encode_observation_rows,
+                    validate_navigation,
+                    validate_sidebar,
+                )
+
+                # Deduplicate only byte-identical validated observations. Each
+                # installation and restart retains an explicit pool reference;
+                # the versioned named-column codec preserves every raw value.
+                pool = []
+                result["installed_navigation_proofs"] = pool
+
+                def retain(value, browser=False):
+                    encoded = encode_navigation(value, browser=browser)
+                    if encoded not in pool:
+                        pool.append(encoded)
+                    return pool.index(encoded)
+
+                for label, business, browser in (
+                    (
+                        "original_installation",
+                        report["business_contract"],
+                        report["business_browser"],
+                    ),
+                    ("fresh_database_installation", restored["business"], restored["browser"]),
+                ):
+                    first = validate_navigation(business.get("installed_navigation"), plan)
+                    restarted = validate_navigation(
+                        business.get("installed_navigation_restart"), plan
+                    )
+                    require(first == restarted)
+                    sidebar = validate_sidebar(browser.get("installed_navigation"), plan)
+                    result[label]["navigation"] = {
+                        "http": retain(first),
+                        "restart_http": retain(restarted),
+                        "browser": retain(sidebar, browser=True),
+                    }
+                    # This optional collection codec has its own explicit
+                    # version and hashes. The raw execution schema is unchanged.
+                    for collection, columns in (
+                        ("metrics", list(Metric.model_fields)),
+                        ("field_queries", ["entity", "field", "kind", "role", "actor", "cases"]),
+                    ):
+                        result[label]["http"][collection] = encode_observation_rows(
+                            result[label]["http"][collection], columns
+                        )
         require(len(json.dumps(result, separators=(",", ":")).encode()) <= MAX_EVIDENCE_BYTES)
         return result
     except ValueError, TypeError, KeyError, AttributeError:

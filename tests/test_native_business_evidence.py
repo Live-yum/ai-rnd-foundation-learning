@@ -96,6 +96,13 @@ def evidence(tmp_path, template="fastapiadmin"):
             "controls_reset": True,
         },
     }
+    if not fastapi:
+        from test_yudao_navigation_evidence import synthetic_navigation
+
+        navigation, sidebar = synthetic_navigation(plan)
+        contract["installed_navigation"] = navigation
+        contract["installed_navigation_restart"] = deepcopy(navigation)
+        browser["installed_navigation"] = sidebar
     for entity in plan.entities:
         browser["pages"].append(
             {

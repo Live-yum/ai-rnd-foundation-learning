@@ -247,13 +247,16 @@ def prepare_fastapi_registry(backend, reports):
     return receipt
 
 
-def install_backend(template, backend, reports):
+def install_backend(template, backend, reports, *, navigation_api_only=False):
     backend, reports = Path(backend), Path(reports)
     reports.mkdir(parents=True, exist_ok=True)
     if template == "fastapiadmin":
         prepare_fastapi_registry(backend, reports)
         commands = [["uv", "sync", "--locked", "--python", "3.14"]]
     else:
+        from workbench.yudao_navigation import prepare_yudao_navigation
+
+        prepare_yudao_navigation(backend, reports, api_only=navigation_api_only)
         prepare_yudao_postgres(backend, reports)
         # The upstream POM lists distant public mirrors before Central. Use one
         # explicit public repository for repeatable dependency resolution, not

@@ -17,6 +17,7 @@ from workbench.filesystem import sha, write_json
 from workbench.generator import PrerequisiteError, generate_basic
 from workbench.knowledge import design_pack
 from workbench.requirement_coverage import coverage_gaps, reconcile
+from workbench.requirement_sources import analysis_feedback, analysis_source_conflicts
 from workbench.verification import package_basic, verify_basic
 
 ANALYSE = """你是需求分析员。先阅读结构化的当前需求、用户原始目标、最近修正和真实模板能力。
@@ -32,6 +33,7 @@ unsupported 仅记录用户原始目标或明确修正中仍要求实现、但�
 例如用户要求内部客户服务团队协作，应选择shared和明确的角色行权限，而不是假定用户要求外部采集或公开网站。
 用户明确要求采集或公开访问时则必须保留为 unsupported，不能移到 limitations 以绕过；智能推荐不是删减明确需求的授权。
 resolution_feedback 是上轮未通过的具体问题。逐项复核其是否来自用户明确要求；区分旧模型推测与事实。
+resolution_feedback.analysis_diagnostics 是需求分析自身的来源冲突，不是设计缺口。依据 original_request、fresh_user_corrections 和 current_requirement 修正完整分析；rejected_analysis 是未通过的模型候选，不是已确认需求。不得选择性删除用户原文、以智能推荐覆盖明确值或要求 Plan 同时满足矛盾值。
 自主模式下对可支持且未明确的分歧做出选择并在 facts/recommendations 解释，questions 留空；真正无法实现的要求仍诚实阻塞。
 模板“可用能力”是环境元数据，不是用户请求；不要把整份搜索/筛选/日期范围能力表复制到features、acceptance或业务facts。只把原始目标明确要求或用户已授权的具体选择写成义务；分类精确筛选与关键词搜索分别记录目标字段，不因同句出现就要求分类字段参与关键词搜索。
 field_requirements记录每个已明确字段的可执行约束：field/entity、类型、必填、长度、选项、搜索/筛选/日期范围；未知值留null。多个实体有同名字段时entity必须明确。required=true不等价于min_length=1，未指定最小长度时不要推测为1。datetime只表示时间戳，不支持date_range=true；业务完成时间和截止时间默认不搜索、不筛选。created_at/updated_at/id/owner_id由运行时提供，不能声明为用户字段。
@@ -80,6 +82,8 @@ class State(TypedDict, total=False):
     requirement: dict
     requirement_source_count: int
     requirement_ledger: list[dict]
+    requirement_analysis_diagnostics: list[dict]
+    requirement_analysis_baseline: dict
     resolution_feedback: dict
     plan: dict
     decision: str
@@ -119,6 +123,21 @@ class Workflow:
         run = self.store.get_run(state["run_id"])
         capabilities = options_for_run(run).capabilities()
         payload = context(self.store, state, capabilities)
+        # A rejected candidate is display/audit evidence, never the baseline for
+        # the next merge. Absent fields preserve legacy checkpoint behavior.
+        previous = (
+            state.get("requirement_analysis_baseline")
+            if state.get("requirement_analysis_diagnostics")
+            else state.get("requirement")
+        )
+        payload["current_requirement"] = previous or {}
+        if state.get("requirement_analysis_diagnostics"):
+            ledger = state.get("requirement_ledger", [])
+            if ledger:
+                payload["rejected_analysis"] = {
+                    "ledger_round": ledger[-1]["round"],
+                    "sha256": digest(ledger[-1].get("reconciled_candidate", {})),
+                }
         human = [m["content"] for m in self.store.messages(state["run_id"]) if m["role"] == "user"]
         # Legacy interrupted checkpoints have no cursor. Only an actual answer or
         # revise can establish a fresh correction; recommendation is not one.
@@ -138,41 +157,59 @@ class Workflow:
         )
         proposal = requirement.gate_dump()
         changes = []
-        requirement = reconcile(state.get("requirement"), requirement, corrections, changes)
+        requirement = reconcile(previous, requirement, corrections, changes)
         for change in changes:
             change["sources"] = [
                 {"user_message_index": cursor + index, "sha256": digest(text)}
                 for index, text in enumerate(corrections)
                 if change["source_quote"] in text
             ]
+        diagnostics = analysis_source_conflicts(
+            previous, requirement, human, changes=changes, cursor=cursor
+        )
+        candidate = requirement.gate_dump()
+        # Preserve the existing requirement and its source cursor until analysis
+        # is valid. With no prior requirement the rejected candidate is shown at
+        # the blocked clarification gate, isolated by the empty baseline.
+        accepted = (previous or {}) if diagnostics else candidate
+        entry = {
+            "round": state["round"],
+            "changes": changes,
+            "before": previous or {},
+            "model_proposal": proposal,
+            "after": accepted,
+            "source_count": len(human),
+        }
+        if diagnostics:
+            entry.update(reconciled_candidate=candidate, analysis_diagnostics=diagnostics)
         ledger = [
             *state.get("requirement_ledger", []),
-            {
-                "round": state["round"],
-                "changes": changes,
-                "before": state.get("requirement", {}),
-                "model_proposal": proposal,
-                "after": requirement.gate_dump(),
-                "source_count": len(human),
-            },
+            entry,
         ]
         write_json(self.product(state).parent / "requirement-ledger.json", ledger)
         return {
-            "requirement": requirement.gate_dump(),
-            "requirement_source_count": len(human),
+            "requirement": accepted or candidate,
+            "requirement_source_count": cursor if diagnostics else len(human),
             "requirement_ledger": ledger,
+            "requirement_analysis_diagnostics": diagnostics,
+            "requirement_analysis_baseline": (previous or {}) if diagnostics else {},
         }
 
     def requirements(self, state):
         requirement = Requirement.model_validate(state["requirement"])
         selection = options_for_run(self.store.get_run(state["run_id"]))
         supported = requirement.data_scope in selection.capabilities()["scopes"]
-        ready = requirement.ready and supported
+        diagnostics = state.get("requirement_analysis_diagnostics", [])
+        ready = requirement.ready and supported and not diagnostics
         data = {"requirement": requirement.gate_dump(), "ready": ready}
         if not supported:
             data["blocked"] = (
                 "数据归属与已选模板不兼容；不能替用户改写明确要求。需要调整范围或新选模板。"
             )
+        if diagnostics:
+            blocked = [data["blocked"]] if "blocked" in data else []
+            data["blocked"] = [*blocked, *(item["message"] for item in diagnostics)]
+            data["analysis_diagnostics"] = diagnostics
         outcome = self.gate(
             state,
             "requirements" if ready else "clarification",
@@ -188,8 +225,18 @@ class Workflow:
                 "round": state["round"],
                 "questions": requirement.questions,
                 "unsupported": requirement.unsupported,
-                "blocked": [data["blocked"]] if "blocked" in data else [],
+                "blocked": (
+                    data["blocked"]
+                    if isinstance(data.get("blocked"), list)
+                    else [data["blocked"]]
+                    if "blocked" in data
+                    else []
+                ),
             }
+            if diagnostics:
+                outcome["resolution_feedback"]["analysis_diagnostics"] = analysis_feedback(
+                    diagnostics, max_chars=min(16000, self.settings.max_context_chars // 5)
+                )
         if outcome["decision"] == "reject":
             outcome["status"] = "REJECTED"
         return outcome

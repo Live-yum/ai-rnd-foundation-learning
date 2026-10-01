@@ -2,7 +2,9 @@
 
 import json
 import re
+from typing import get_args
 
+from workbench.business_contracts import Action
 from workbench.requirement_coverage import (
     BUSINESS_CONSTRAINT_CONTAINERS,
     _business_schema,
@@ -128,13 +130,19 @@ def _business_facts(facts, entity_names):
     Facts remain independent of the implementation. Only an explicit entity
     descriptor (or an existing entity-keyed section) supplies inherited scope.
     Collection entries may be objects, arrays, keyed objects or JSON strings.
+    An opaque collection identity keeps independent permission matrices apart,
+    even if untrusted dictionary keys happen to produce identical display paths.
     """
 
-    def entries(kind, value, path, entity=None, metric_defaults=None):
+    def entries(kind, value, path, entity=None, metric_defaults=None, collection=None):
+        if collection is None:
+            collection = object()
         value = _decode(value)
         if isinstance(value, list):
             for index, item in enumerate(value):
-                yield from entries(kind, item, f"{path}.{index}", entity, metric_defaults)
+                yield from entries(
+                    kind, item, f"{path}.{index}", entity, metric_defaults, collection
+                )
         elif isinstance(value, dict):
             metric_mapping = (
                 kind == "metrics"
@@ -154,7 +162,7 @@ def _business_facts(facts, entity_names):
                     descriptor = {**metric_defaults, **descriptor}
                 if entity is not None and "entity" not in descriptor:
                     descriptor["entity"] = entity
-                yield kind, path, descriptor
+                yield kind, path, descriptor, collection
             else:
                 for key, item in value.items():
                     item = _decode(item)
@@ -166,7 +174,9 @@ def _business_facts(facts, entity_names):
                     ):
                         # A keyed metric object declares its stable identifier.
                         item = {"name": key, **item}
-                    yield from entries(kind, item, f"{path}.{key}", entity, metric_defaults)
+                    yield from entries(
+                        kind, item, f"{path}.{key}", entity, metric_defaults, collection
+                    )
 
     def walk(value, path="", entity=None, entity_container=False, domain=None):
         value = _decode(value)
@@ -260,6 +270,38 @@ def _actions(value):
     result = [_ACTION_ALIASES.get(item, item) for item in value]
     if len(result) != len(set(result)):
         raise ValueError("actions 包含重复或同义重复动作")
+    if set(result) - set(get_args(Action)):
+        raise ValueError("actions 包含未知动作")
+    return result
+
+
+def _permission_key(descriptor):
+    """Only an explicit role/resource/row scope can authorize action pooling."""
+    key = tuple(descriptor.get(name) for name in ("role", "entity", "scope"))
+    if all(isinstance(item, str) for item in key) and key[2] in _SCOPES:
+        return key
+    return None
+
+
+def _permission_action_sets(records):
+    """Split positive grants are one action set, never an arbitrary superset.
+
+    Keep the source records intact: every restriction and malformed declaration
+    must still be checked independently, and diagnostics retain original paths.
+    Missing selectors/scopes cannot borrow actions from another declaration;
+    independent permission collections never authorize one another's extras.
+    """
+    result = {}
+    for kind, _, descriptor, collection in records:
+        if kind != "permissions" or (key := _permission_key(descriptor)) is None:
+            continue
+        if "actions" not in descriptor:
+            continue
+        try:
+            actions = _actions(descriptor["actions"])
+        except ValueError:
+            continue  # The original record reports the unsupported shape below.
+        result.setdefault((collection, key), set()).update(actions)
     return result
 
 
@@ -614,10 +656,11 @@ def _business_fact_gaps(requirement, plan, diagnostics=None):
     gaps = []
     entities = {entity.name for entity in plan.entities}
     records = list(_business_facts(requirement.facts, entities))
+    permission_actions = _permission_action_sets(records)
     business = plan.business
     metric_access = set()
     approved_scopes = {}
-    for kind, _, descriptor in records:
+    for kind, _, descriptor, _ in records:
         if (
             kind == "permissions"
             and isinstance(descriptor.get("role"), str)
@@ -635,14 +678,14 @@ def _business_fact_gaps(requirement, plan, diagnostics=None):
                     metric_access.update((role, descriptor["entity"]) for role in scopes)
     virtual_permissions = [
         descriptor
-        for kind, _, descriptor in records
+        for kind, _, descriptor, _ in records
         if kind == "permissions"
         and descriptor.get("entity") == "metrics"
         and "metrics" not in entities
     ]
     metric_entities = {
         descriptor["entity"]
-        for kind, _, descriptor in records
+        for kind, _, descriptor, _ in records
         if kind == "metrics" and isinstance(descriptor.get("entity"), str)
     }
     for descriptor in virtual_permissions:
@@ -709,7 +752,7 @@ def _business_fact_gaps(requirement, plan, diagnostics=None):
         prefix = root_path + ".permissions" if root_path else "permissions"
         declarations = [
             item
-            for kind, path, item in records
+            for kind, path, item, _ in records
             if kind == "permissions" and (path == prefix or path.startswith(prefix + "."))
         ]
         pairs = {
@@ -853,11 +896,17 @@ def _business_fact_gaps(requirement, plan, diagnostics=None):
                         [item.model_dump() for item in business.resources],
                     )
 
-    for kind, path, raw_descriptor in records:
+    for kind, path, raw_descriptor, collection in records:
         candidates = getattr(business, kind) if business else []
         try:
             descriptor = _aliases(raw_descriptor, _ALIASES.get(kind, {}))
             expected = _semantic_descriptor(kind, raw_descriptor)
+            if kind == "permissions" and "actions" in expected:
+                if not expected["actions"]:
+                    raise ValueError("actions 需要非空动作标识列表")
+                key = (collection, _permission_key(expected))
+                if key in permission_actions:
+                    expected["actions"] = sorted(permission_actions[key])
             scopes = None
             if kind == "metrics" and "role_scope" in descriptor:
                 scopes = _metric_scope(descriptor)
@@ -1147,7 +1196,7 @@ def business_gaps(requirement, plan, *, diagnostics=None):
     # Audit and ordinary read are different endpoint grants. Explicit handling
     # history must be usable by the actors whose declared role handles notes.
     resource_labels = {item.entity: {item.entity} for item in business.resources}
-    for kind, _, descriptor in _business_facts(requirement.facts, set(resource_labels)):
+    for kind, _, descriptor, _ in _business_facts(requirement.facts, set(resource_labels)):
         if kind == "resources":
             entity = descriptor.get("entity", descriptor.get("name"))
             if (

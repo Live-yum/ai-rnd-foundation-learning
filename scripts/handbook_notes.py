@@ -7,6 +7,11 @@ from pathlib import Path
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "requirement_sources": (
+        "在规划前拒绝明确来源互相冲突的分析候选",
+        "对能可靠定位的同一原子义务比较明确值，保留用户原文、已确认契约和模型候选来源；矛盾走已有有界分析纠错，不替用户选值或批准，未知旧文本仍保守校验。",
+        "Workflow.analyse → 来源冲突诊断与需求账本 → 原有clarification关口；有效分析才进入设计。",
+    ),
     "business_contracts": (
         "业务合同的类型和交叉校验",
         "将角色、资源、关联、状态、提醒与指标作为有限声明；检查实体/字段/角色引用、不可改系统字段和互相矛盾的权限，拒绝任意SQL或执行脚本。",
@@ -232,6 +237,16 @@ MODULES = {
         "先确认专用本机数据库，再复制固定源码、初始化种子并生成环境；install_backend准备依赖与构建，running_backend管理进程存活和退出，记录启动轮次、阶段、已拥有进程与目标端口状态。启动失败后清理也失败时保留原始异常并附加清理事实，不杀死占用端口的其他进程，也不把超时改成成功。兼容改动检查原文并记录。",
         "native_lab/native_delivery/portable → backend环境 → 本机PG/Redis/Java或Python。",
     ),
+    "yudao_navigation": (
+        "让原生菜单只呈现实际安装的能力",
+        "固定mini后端只安装system/infra，完整上游种子仍含其他模块；生成覆盖层将已有菜单与实际注册的Spring处理器、已安装Maven模块及随包Vben组件求交集。管理员也不能看到未安装模块；不删除菜单数据、不增加角色授权，重建和ZIP恢复重新计算能力。",
+        "install_backend → 原生MenuService只读覆盖层 → auth/menu/role-menu接口与Vben侧栏。",
+    ),
+    "yudao_navigation_checks": (
+        "独立检查实际菜单与角色授权的交集",
+        "通过真实原生接口和浏览器，比较安装的基础能力、批准方案业务菜单及各角色原有授权；同时保留应出现和应拒绝的具体观察值。源实例、新数据库恢复与重启重复检查，不能用覆盖层自报清单或单个passed标记替代执行证据。",
+        "原生HTTP/浏览器与独立恢复 → 菜单能力观察 → 源码和原始报告哈希绑定的独立审阅。",
+    ),
     "native_delivery": (
         "原生生成、完整验收和打包的流程接口",
         "managed_generate协调本机源码、专用数据库和生成器；managed_verify核对数据库身份及完整回执，managed_package只有在验收成功时打包。serve_managed用于本机查看生成结果，不是公网部署。",
@@ -294,7 +309,7 @@ MODULES = {
     ),
     "requirement_coverage": (
         "保留用户事实并检查可执行需求覆盖",
-        "reconcile合并已确认事实，后续模型省略不等于用户删除；替换要有当前真实用户更正原文。coverage_gaps把结构化字段义务、数据归属及可识别的明确约束与Plan逐项比较，设计漏项就阻塞，不让规划模型自行宣布已覆盖。",
+        "reconcile合并已确认事实，后续模型省略不等于用户删除；替换要有当前真实用户更正原文。coverage_gaps把结构化字段义务、数据归属及可识别的明确约束与Plan逐项比较；实体组、作用域切换、字段极性和长度共享归一化，指标与列表查询分区，不从等价重述扩大授权。设计漏项仍阻塞，不让规划模型自行宣布已覆盖。",
         "flow.analyse保留事实 → Requirement.field_requirements → flow.design → coverage_gaps；test_requirement_coverage。",
     ),
     "entity_requirements": (
@@ -444,7 +459,7 @@ PRODUCT = {
     "auth.py": "产品自己的账号密码与会话：加盐口令派生、会话令牌摘要、过期和身份读取；这里的产品登录不是工作台访问令牌，更不是大模型API Key。",
     "rules.py": "交付给用户的受限规则解释器：与生成时采用相同的允许表达式和输入输出合同，不使用eval或任意Python执行。",
     "verify.py": "真实产品验收程序：创建测试账号调用HTTP接口，再根据simple-admin选择启动同目录verify-browser.cjs；缺浏览器或逐规格检查缺项都失败，api-only明确记为不适用。与app.py分离，不能因应用自称成功就通过。",
-    "verify-browser.cjs": "逐规格真实Chromium验收：页面注册登录、遍历全部实体和字段，检查CRUD、长度拒绝、搜索/组合筛选/含边界日期、用户隔离和退出重新登录；不注入登录Token或mock接口，输出明确checks与页面错误。",
+    "verify-browser.cjs": "逐规格真实Chromium验收：页面注册登录、遍历全部实体和字段，检查CRUD、长度拒绝、搜索/组合筛选/含边界日期、用户隔离和退出重新登录；刷新另核对同源路由、真实认证schema/list响应与已保存记录DOM，不以整页load或HTTP200独自代替业务就绪。不注入登录Token或mock接口，输出明确checks与页面错误。",
     "start.py": "成品自包含入口：在产品目录安装自己的锁定依赖，准备本机SQLite或专用PostgreSQL，执行迁移后启动HTTP服务；不调用模型，不要求原工作台目录。",
     "custom_rules.py": "唯一允许自动定制的业务规则文件；生成前后的约束、例子与SHA由平台检查。其他身份、存储和启动代码不开放给模型任意编辑。",
     "spec.json": "该文件是模板示例规格，运行时由已批准Plan生成具体成品规格；不要把示例实体名称硬编码到平台通用生成流程。",

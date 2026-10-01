@@ -146,6 +146,10 @@ def require_business_browser(report, plan, template):
     if not journeys <= set(report.get("checks", [])):
         raise ValueError("Native business browser omitted required workflow or isolation checks")
     query_journey_evidence(report)
+    if template == "yudao-vben":
+        from workbench.yudao_navigation_checks import validate_sidebar
+
+        validate_sidebar(report.get("installed_navigation"), plan)
     for entity in plan.entities:
         proofs = [page for page in report.get("pages", []) if page.get("entity") == entity.name]
         if not any(

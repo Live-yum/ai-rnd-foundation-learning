@@ -7,6 +7,7 @@ requirements can supply exact field_requirements for arbitrary domain fields.
 import json
 import re
 from copy import deepcopy
+from types import SimpleNamespace
 
 from workbench.domain import Plan, Requirement
 from workbench.entity_requirements import entity_gaps
@@ -1184,6 +1185,121 @@ def _descriptor_inventory_groups(text, subject_pattern):
     return "".join(parts), declarations
 
 
+def _entity_subject_heading(text, fields):
+    """Read explicit entity subjects before binding any field predicates.
+
+    A group is a set of independent owners, not a namespace string. Explicit
+    subjects replace inherited scope; unknown members of a partly known group
+    are retained so another member cannot satisfy their missing fields.
+    """
+    identifier = r"[a-z][a-z0-9_]*"
+    conjunction = r"[/、,&，]|和|与|及|\band\b"
+    heading = re.match(
+        rf"\s*(?:[-*]\s+|\d+[.)]\s+)?(?P<owners>{identifier}(?:\s*(?:{conjunction})\s*{identifier})*)"
+        r"\s*(?:::|[：:.]|的\s*|['’]s\s+|(?=\s+\S))",
+        text,
+        re.I,
+    )
+    if not heading:
+        return None
+    owners = tuple(dict.fromkeys(re.split(rf"\s*(?:{conjunction})\s*", heading["owners"])))
+    known = {entity for entity, _ in fields}
+    field_names = {field.name for _, field in fields}
+    if any(owner in field_names and owner not in known for owner in owners):
+        return None
+    if not any(owner in known for owner in owners) and "::" not in heading.group():
+        return None
+    return owners, text[heading.end() :]
+
+
+def _explicit_entity_sections(text, fields):
+    """Recognize a new entity subject at top-level punctuation or conjunctions.
+
+    A coordinated qualified field list still shares its trailing predicate:
+    'alpha.title and alpha.detail required' is not two independent sentences.
+    """
+    leading = _entity_subject_heading(text, fields)
+    protected = len(text) - len(leading[1]) if leading else 0
+    start, offset = 0, 0
+    for part, separator in _top_level_parts(text, r"[、，,；;。\n]|并且|并|且|和|与|\band\b"):
+        boundary = offset + len(part)
+        offset = boundary + len(separator)
+        if not separator or boundary < protected:
+            continue
+        following = text[offset:]
+        heading = _entity_subject_heading(following, fields)
+        if not heading:
+            continue
+        owners, body = heading
+        syntax = following[: len(following) - len(body)].rstrip()
+        if (
+            len(owners) > 1
+            or not syntax.endswith(".")
+            or re.search(LEGACY_PROPERTY, text[start:boundary], re.I)
+        ):
+            yield text[start:boundary], text[boundary:offset]
+            start = offset
+            protected = offset + len(following) - len(body)
+    yield text[start:], ""
+
+
+def _legacy_length_text(text, fields):
+    """Lower explicit length notation, without treating numeric filters as lengths."""
+    if not re.search(r"长度|字符|\b(?:length|characters?)\b", text, re.I):
+        return text
+    names = {field.name for _, field in fields}
+    names.update(name for names in ALIASES.values() for name in names if name.isascii())
+    pattern = "|".join(re.escape(name) for name in sorted(names, key=len, reverse=True))
+    return re.sub(
+        rf"(?<![a-z0-9_])(?P<field>{pattern})\s*(?P<op>≤|>=|<=|≥)\s*(?P<value>\d+)",
+        lambda match: (
+            match["field"]
+            + " "
+            + ("max_length" if match["op"] in {"≤", "<="} else "min_length")
+            + "="
+            + match["value"]
+        ),
+        text,
+        flags=re.I,
+    )
+
+
+def _legacy_subject_projections(clause, pattern, scopes):
+    """Project coordinated qualified fields to their owners before predicates.
+
+    The predicate remains shared, while alpha.title and beta.detail can never
+    become alpha.detail merely because alpha was the previous namespace.
+    """
+    subjects = list(re.finditer(pattern, clause, re.I))
+    predicates = [
+        match for pattern in (_DATE_TYPE, _DATE_FORMAT) for match in pattern.finditer(clause)
+    ]
+    bindings = []
+    qualified = False
+    for match in subjects:
+        reference = re.fullmatch(r"([a-z][a-z0-9_]*)(?:::|\.)(.+)", match.group(), re.I)
+        qualified = qualified or reference is not None
+        neutral = any(p.start() <= match.start() and p.end() >= match.end() for p in predicates)
+        bindings.append(((reference.group(1),) if reference else scopes, reference, neutral))
+    if not qualified:
+        return [(owner, clause) for owner in scopes or (None,)]
+    owners = dict.fromkeys(owner for targets, _, _ in bindings for owner in targets)
+    result = []
+    for owner in owners:
+        parts, start = [], 0
+        for match, (targets, reference, neutral) in zip(subjects, bindings):
+            parts.append(clause[start : match.start()])
+            parts.append(
+                (reference.group(2) if reference else match.group())
+                if owner in targets or neutral
+                else " " * len(match.group())
+            )
+            start = match.end()
+        parts.append(clause[start:])
+        result.append((owner, "".join(parts)))
+    return result
+
+
 def _legacy_clauses(text, fields):
     """Bind predicates to top-level subjects, preserving bracketed target lists.
 
@@ -1191,6 +1307,8 @@ def _legacy_clauses(text, fields):
     A descriptive clause ending at a comma does not lend its subject to the
     next clause. Bare coordinated subjects still share their final predicate.
     """
+    text = _legacy_length_text(text, fields)
+    text = ";".join(part for part, _ in _explicit_entity_sections(text, fields))
     names = {field.name for _, field in fields}
     names.update(name for aliases in ALIASES.values() for name in aliases)
     pattern = "|".join(
@@ -1199,7 +1317,9 @@ def _legacy_clauses(text, fields):
     )
     entity_names = "|".join(re.escape(entity) for entity, _ in fields)
     pattern = rf"(?:(?:{entity_names})(?:::|\.))?(?:{pattern})"
-    scope = _fact_entity(text, fields)
+    initial_scope = _fact_entity(text, fields)
+    scopes = (initial_scope,) if initial_scope else ()
+    persistent_scopes = ()
     previous_subject = ""
     contrast = False
     for sentence in re.split(r"([；;。\n]|但是|但|不过)", text):
@@ -1209,6 +1329,7 @@ def _legacy_clauses(text, fields):
         if re.fullmatch(r"[；;。\n]", sentence):
             contrast = False
             previous_subject = ""
+            scopes = persistent_scopes
             continue
         if (
             contrast
@@ -1225,16 +1346,21 @@ def _legacy_clauses(text, fields):
         explicit_scope = False
         while True:
             original = sentence
-            heading = re.match(r"\s*([a-z][a-z0-9_]*)\s*[：:]", sentence, re.I)
-            if heading and heading.group(1) in {entity for entity, _ in fields}:
-                scope = heading.group(1)
+            heading = _entity_subject_heading(sentence, fields)
+            if heading:
+                syntax = sentence[: len(sentence) - len(heading[1])].rstrip()
+                scopes, sentence = heading
+                if syntax.endswith((":", "：")):
+                    persistent_scopes = scopes
+                elif scopes != persistent_scopes:
+                    persistent_scopes = ()
                 explicit_scope = True
-                sentence = sentence[heading.end() :]
             else:
                 heading = re.match(r"\s*[^：:\n]*(?:字段|fields)\s*[：:]", sentence, re.I)
                 if heading and not _explicit_predicate_heading(heading.group()):
                     if not explicit_scope:
-                        scope = None
+                        scopes = ()
+                        persistent_scopes = ()
                     body = sentence[heading.end() :]
                     declared = re.findall(r"(?<![a-z0-9_])([a-z][a-z0-9_]*)\s*[(（]", body, re.I)
                     if not declared:
@@ -1254,7 +1380,8 @@ def _legacy_clauses(text, fields):
                     # list, never a hard-coded translation or the first entity.
                     if len(common) == 1:
                         if not explicit_scope:
-                            scope = common.pop()
+                            scopes = (common.pop(),)
+                            persistent_scopes = scopes
                         sentence = body
                 else:
                     heading = re.match(r"\s*([^：:\n]+)[：:]", sentence)
@@ -1268,17 +1395,20 @@ def _legacy_clauses(text, fields):
                             and not _explicit_predicate_heading(heading.group(1))
                         ):
                             if not explicit_scope:
-                                scope = _section_entity(body, fields)
+                                inferred = _section_entity(body, fields)
+                                scopes = (inferred,) if inferred else ()
+                                persistent_scopes = ()
                             sentence = body
             if sentence == original:
                 break
         wrapper, inventories = _descriptor_inventory_groups(sentence, pattern)
         if inventories:
             for part in [wrapper, *inventories]:
-                scoped = f"{scope}：{part}" if scope else part
-                if universal_scope and not scope:
-                    scoped = "所有实体：" + scoped
-                yield from _legacy_clauses(scoped, fields)
+                for owner in scopes or (None,):
+                    scoped = f"{owner}::{part}" if owner else part
+                    if universal_scope and not owner:
+                        scoped = "所有实体：" + scoped
+                    yield from _legacy_clauses(scoped, fields)
             subjects = _fact_candidates(sentence, fields)
             if subjects:
                 previous_subject = "、".join(dict.fromkeys(field.name for field in subjects))
@@ -1286,13 +1416,16 @@ def _legacy_clauses(text, fields):
         sections = list(_explicit_query_sections(sentence, fields))
         if len(sections) > 1:
             for section in sections:
-                scoped = f"{scope}：{section}" if scope else section
-                if universal_scope and not scope:
-                    scoped = "所有实体：" + scoped
-                yield from _legacy_clauses(scoped, fields)
-                subjects = _fact_candidates(scoped, fields)
-                if subjects:
-                    previous_subject = "、".join(dict.fromkeys(field.name for field in subjects))
+                for owner in scopes or (None,):
+                    scoped = f"{owner}::{section}" if owner else section
+                    if universal_scope and not owner:
+                        scoped = "所有实体：" + scoped
+                    yield from _legacy_clauses(scoped, fields)
+                    subjects = _fact_candidates(scoped, fields)
+                    if subjects:
+                        previous_subject = "、".join(
+                            dict.fromkeys(field.name for field in subjects)
+                        )
             continue
         depths, depth = [], 0
         for char in sentence:
@@ -1410,14 +1543,16 @@ def _legacy_clauses(text, fields):
                 # the individual fields have complete, independent descriptors.
                 if shared_suffix and re.search(r"[)）]", clause) and shared_suffix not in clause:
                     clause += " " + shared_suffix
-                local_scope = _fact_entity(clause, fields) or scope
-                scoped = f"{local_scope}::{clause}" if local_scope else clause
-                if universal_scope and not local_scope:
-                    scoped = "所有实体 " + scoped
-                subjects = _fact_candidates(scoped, fields)
-                if subjects:
-                    previous_subject = "、".join(dict.fromkeys(field.name for field in subjects))
-                yield scoped
+                for owner, projection in _legacy_subject_projections(clause, pattern, scopes):
+                    scoped = f"{owner}::{projection}" if owner else projection
+                    if universal_scope and not owner:
+                        scoped = "所有实体 " + scoped
+                    subjects = _fact_candidates(scoped, fields)
+                    if subjects:
+                        previous_subject = "、".join(
+                            dict.fromkeys(field.name for field in subjects)
+                        )
+                    yield scoped
 
 
 def _operation_parts(text):
@@ -1702,7 +1837,8 @@ def _legacy_field_exclusions(text, fields):
         r"不出现|(?:不应|不得|不允许|不能)\s*(?:出现|存在|包含|含有|添加|引入|保留)|"
         r"禁止\s*(?:出现|存在|添加|引入|保留)|不包含|不含有|"
         r"\b(?:must|should)\s+not\s+(?:include|contain|have|add|retain)|"
-        r"\b(?:do|does)\s+not\s+(?:include|contain|add|retain)|\bexclude"
+        r"\b(?:do|does)\s+not\s+(?:include|contain|add|retain)|\bexclude|"
+        rf"禁止(?=\s*{subject}\s*字段(?!\s*(?:{LEGACY_PROPERTY})))"
     )
     prefix = re.compile(
         rf"(?:{absence})\s*(?:(?:字段|fields?)\s*[：:]?\s*)?(?P<targets>{targets})", re.I
@@ -1714,11 +1850,18 @@ def _legacy_field_exclusions(text, fields):
         r"(?:must|should)\s+not\s+(?:exist|appear|be\s+(?:included|added|present))\b",
         re.I,
     )
-    obligations, output, scope = [], [], _fact_entity(text, fields)
-    for sentence, separator in _top_level_parts(text, r"[；;。\n]|但是|但|不过|\bbut\b"):
-        heading = re.match(r"\s*([a-z][a-z0-9_]*)\s*[：:]", sentence, re.I)
-        if heading and heading.group(1) in {entity for entity, _ in fields}:
-            scope = heading.group(1)
+    initial_scope = _fact_entity(text, fields)
+    obligations, output = [], []
+    scopes = (initial_scope,) if initial_scope else ()
+    sentences = (
+        (part, inner_separator or separator)
+        for sentence, separator in _top_level_parts(text, r"[；;。\n]|但是|但|不过|\bbut\b")
+        for part, inner_separator in _explicit_entity_sections(sentence, fields)
+    )
+    for sentence, separator in sentences:
+        heading = _entity_subject_heading(sentence, fields)
+        if heading:
+            scopes, _ = heading
 
         def replace(match):
             local_prefix = re.split(r"[，,]|并且|并|且|\band\b", sentence[: match.start()])[-1]
@@ -1740,12 +1883,13 @@ def _legacy_field_exclusions(text, fields):
             for identity in re.split(separator_pattern, identities, flags=re.I):
                 identity = identity.strip()
                 qualified = re.fullmatch(r"([a-z][a-z0-9_]*)(?:::|\.)(.+)", identity, re.I)
-                owner, field_name = qualified.groups() if qualified else (scope, identity)
+                owners = (qualified.group(1),) if qualified else scopes or (None,)
+                field_name = qualified.group(2) if qualified else identity
                 aliases = next(
                     (aliases for aliases in ALIASES.values() if field_name in aliases),
                     (field_name,),
                 )
-                obligations.append((owner, aliases, field_name))
+                obligations.extend((owner, aliases, field_name) for owner in owners)
             start, end = match.span(group)
             start, end = start - match.start(), end - match.start()
             return match.group()[:start] + " " * (end - start) + match.group()[end:]
@@ -1865,7 +2009,7 @@ def _legacy_date_obligations(text, fields):
                 break
 
 
-def _matches_constraint(attribute, expected, actual):
+def _normalized_constraint_value(attribute, expected):
     if attribute in {"required", "searchable", "filterable", "date_range"}:
         if isinstance(expected, str):
             word = expected.strip().lower()
@@ -1873,12 +2017,19 @@ def _matches_constraint(attribute, expected, actual):
                 expected = True
             elif word in {"false", "否", "可选", "非必填"}:
                 expected = False
-        return type(expected) is bool and actual is expected
     if attribute in {"min_length", "max_length"}:
         if isinstance(expected, str):
             legacy = re.fullmatch(r"\s*(\d+)\s*(?:字符|字|characters?)?\s*", expected, re.I)
             if legacy:
                 expected = int(legacy.group(1))
+    return expected
+
+
+def _matches_constraint(attribute, expected, actual):
+    expected = _normalized_constraint_value(attribute, expected)
+    if attribute in {"required", "searchable", "filterable", "date_range"}:
+        return type(expected) is bool and actual is expected
+    if attribute in {"min_length", "max_length"}:
         return type(expected) is int and actual == expected
     if attribute == "choices":
         return (
@@ -1887,6 +2038,104 @@ def _matches_constraint(attribute, expected, actual):
             and set(actual) == set(expected)
         )
     return type(expected) is str and actual == expected
+
+
+def _legacy_scalar_constraints(text):
+    """Shared scalar predicate extraction after entity/field subject binding."""
+    validation = bool(
+        re.search(r"必填(?:字段|项).*(?:缺失|为空)|(?:缺少|缺失)必填|必填.*可选.*校验", text)
+    )
+    optional = re.search(
+        r"非必填|不必填|是否必填.*否|optional|\bnot\s+required\b|"
+        r"required\s*[:=]\s*(?:false|否)",
+        text,
+        re.I,
+    )
+    if not validation:
+        if re.search(r"必填|required", text, re.I) and not optional:
+            yield "required", True
+        if optional or re.search(r"可选", text):
+            yield "required", False
+    for attribute, pattern in (
+        ("max_length", r"上限|最大|max_length|最多|最长"),
+        ("min_length", r"最小|min_length|至少|最短"),
+    ):
+        number = re.search(rf"(?:{pattern})[^\d]*?(\d+)", text, re.I)
+        if number:
+            yield attribute, int(number.group(1))
+
+
+def explicit_legacy_field_constraints(requirement: Requirement):
+    """Reliably bound scalar constraints using Requirement vocabulary only.
+
+    This is a read-only projection for source-conflict detection, not a new
+    requirements ledger or an excuse to discard unsupported text. It never
+    reads a candidate Plan. Unknown/ambiguous subjects remain ordinary coverage
+    inputs. Typed obligations are independent and must not be overridden here.
+    """
+    vocabulary = {
+        (item.entity, item.field): SimpleNamespace(name=item.field, kind=item.kind)
+        for item in requirement.field_requirements
+        if item.entity is not None
+    }
+    fields = [(entity, subject) for (entity, _), subject in vocabulary.items()]
+    if not fields:
+        return []
+    result = []
+    texts = [
+        ({"section": section, "index": index}, text)
+        for section in ("features", "acceptance")
+        for index, text in enumerate(getattr(requirement, section))
+    ]
+    texts.extend(
+        ({"section": "facts", "index": index, "encoding": "legacy", "path": path}, text)
+        for index, (path, text) in enumerate(_fact_texts(requirement.facts, fields))
+    )
+    for origin, original in texts:
+        text, _ = _legacy_field_exclusions(original, fields)
+        text, _ = _metric_clauses(text, fields)
+        text = _query_predicate_text(text, fields)
+        for index, clause in enumerate(
+            _legacy_clauses(_legacy_operation_text(text, fields), fields)
+        ):
+            for target in _legacy_targets(clause, fields):
+                entity = next(owner for owner, field in fields if field is target)
+                for attribute, expected in _legacy_scalar_constraints(clause):
+                    result.append(
+                        {
+                            "source": {**origin, "clause": index},
+                            "entity": entity,
+                            "field": target.name,
+                            "attribute": attribute,
+                            "expected": expected,
+                            "text": original,
+                        }
+                    )
+    for index, (path, attributes, subject) in enumerate(
+        _fact_constraints(requirement.facts, fields)
+    ):
+        if subject not in vocabulary:
+            continue
+        for attribute in ("required", "min_length", "max_length"):
+            value = _normalized_constraint_value(attribute, attributes.get(attribute))
+            if type(value) is not (bool if attribute == "required" else int):
+                continue
+            result.append(
+                {
+                    "source": {
+                        "section": "facts",
+                        "index": index,
+                        "encoding": "structured",
+                        "path": path,
+                    },
+                    "entity": subject[0],
+                    "field": subject[1],
+                    "attribute": attribute,
+                    "expected": value,
+                    "text": json.dumps(attributes, ensure_ascii=False),
+                }
+            )
+    return result
 
 
 def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> list[str]:
@@ -2157,6 +2406,24 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
         source_text = text
         known_subjects = _fact_candidates(text, fields)
         mentioned = _legacy_targets(text, fields)
+        entity_scope = _fact_entity(text, fields)
+        if entity_scope and list(_legacy_scalar_constraints(text)):
+            # A known field on another entity cannot satisfy this subject.
+            # Vocabulary comes from declared fields, never grammatical words
+            # such as 'not required' or descriptor attribute names.
+            names = {field.name for _, field in fields}
+            names.update(item.field for item in requirement.field_requirements)
+            names.update(
+                name for entity in requirement.entity_requirements for name in entity.fields
+            )
+            for name in sorted(name for name in names if _field_mentions(text, [name])):
+                if not any(name in aliases for aliases in ALIASES.values()) and not any(
+                    owner == entity_scope and field.name == name for owner, field in fields
+                ):
+                    gap(
+                        f"已确认条件缺少对应字段 {entity_scope}.{name}: {text}",
+                        "legacy_missing_field",
+                    )
         for canonical, aliases in ALIASES.items():
             # Date type/format predicates are not identifiers named "date".
             # Their independently scoped obligations were checked above.
@@ -2248,70 +2515,22 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
                         actual=False,
                     )
         for field in mentioned:
-            # Validation summaries refer to the required/optional flags already
-            # declared for each field; they don't make every listed field both.
-            validation = bool(
-                re.search(
-                    r"必填(?:字段|项).*(?:缺失|为空)|(?:缺少|缺失)必填|必填.*可选.*校验", text
+            for attribute, expected in _legacy_scalar_constraints(text):
+                actual = getattr(field, attribute)
+                if actual == expected:
+                    continue
+                description = (
+                    ("必填" if expected else "可选")
+                    if attribute == "required"
+                    else ("长度上限为 " if attribute == "max_length" else "最小长度为 ")
+                    + str(expected)
                 )
-            )
-            if (
-                re.search(r"必填|required", text, re.I)
-                and not re.search(
-                    r"非必填|不必填|是否必填.*否|optional|\bnot\s+required\b|"
-                    r"required\s*[:=]\s*(?:false|否)",
-                    text,
-                    re.I,
+                gap(
+                    f"已确认字段 {field.name} {description}: {text}",
+                    "constraint_mismatch",
+                    targets=[field],
+                    attribute=attribute,
+                    expected=expected,
+                    actual=actual,
                 )
-                and not validation
-            ):
-                if not field.required:
-                    gap(
-                        f"已确认字段 {field.name} 必填: {text}",
-                        "constraint_mismatch",
-                        targets=[field],
-                        attribute="required",
-                        expected=True,
-                        actual=field.required,
-                    )
-            if (
-                re.search(
-                    r"可选|非必填|不必填|是否必填.*否|optional|\bnot\s+required\b|"
-                    r"required\s*[:=]\s*(?:false|否)",
-                    text,
-                    re.I,
-                )
-                and not validation
-            ):
-                if field.required:
-                    gap(
-                        f"已确认字段 {field.name} 可选: {text}",
-                        "constraint_mismatch",
-                        targets=[field],
-                        attribute="required",
-                        expected=False,
-                        actual=field.required,
-                    )
-            if re.search(r"上限|最大|max_length|最多|最长", text, re.I):
-                number = re.search(r"(?:上限|最大|max_length|最多|最长)[^\d]*?(\d+)", text, re.I)
-                if number and field.max_length != int(number.group(1)):
-                    gap(
-                        f"已确认字段 {field.name} 长度上限为 {number.group(1)}: {text}",
-                        "constraint_mismatch",
-                        targets=[field],
-                        attribute="max_length",
-                        expected=int(number.group(1)),
-                        actual=field.max_length,
-                    )
-            if re.search(r"最小|min_length|至少|最短", text, re.I):
-                number = re.search(r"(?:最小|min_length|至少|最短)[^\d]*?(\d+)", text, re.I)
-                if number and field.min_length != int(number.group(1)):
-                    gap(
-                        f"已确认字段 {field.name} 最小长度为 {number.group(1)}: {text}",
-                        "constraint_mismatch",
-                        targets=[field],
-                        attribute="min_length",
-                        expected=int(number.group(1)),
-                        actual=field.min_length,
-                    )
     return list(dict.fromkeys(gaps))

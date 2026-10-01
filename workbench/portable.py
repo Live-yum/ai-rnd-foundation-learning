@@ -33,6 +33,8 @@ HELPERS = (
     "filesystem.py",
     "tools.py",
     "native_environment.py",
+    "yudao_navigation.py",
+    "yudao_navigation_checks.py",
     "native_frontend.py",
     "native_vben.py",
     "portable_checks.py",

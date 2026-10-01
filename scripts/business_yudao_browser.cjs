@@ -194,6 +194,55 @@ async function loginNativeSession(page, base, actor, observe, checked) {
   for (const selector of ['aside:visible', 'header:visible', '#__vben_main_content']) {
     await page.locator(selector).first().waitFor({ state: 'visible' });
   }
+  return identity;
+}
+
+async function verifyInstalledSidebar(page, identity, actor, plan, targets) {
+  const expected = plan.business.permissions.filter(rule => rule.role === actor.replace(/^other_/, '') && rule.actions.includes('read')).map(rule => rule.entity).sort();
+  const expectedRoots = actor === 'manager' ? ['/infra', '/system', '/workbench'] : ['/workbench'];
+  const roots = identity.menus.map(menu => menu.path).sort();
+  assert.deepEqual(roots, expectedRoots, 'Native auth response exposed unavailable/ungranted modules');
+  const workbench = identity.menus.find(menu => menu.path === '/workbench');
+  assert(workbench && workbench.children?.length, 'Generated Workbench disappeared');
+  const byComponent = new Map(targets.map(target => [`infra/wb${target.entity.replaceAll('_', '')}/index`, target.entity]));
+  const observed = workbench.children.map(menu => byComponent.get((menu.component || '').replace(/\.vue$/, ''))).sort();
+  assert.deepEqual(observed, expected, 'Generated sidebar menu differs from approved read ACL');
+  const aside = page.locator('aside:visible').first();
+  const firstTarget = targets.find(target => target.entity === expected[0]);
+  assert(firstTarget, 'Role needs an approved readable native page');
+  if (!await aside.locator(`a[role="menuitem"][href$="${firstTarget.route}"]`).first().isVisible()) {
+    await aside.getByText(workbench.name, { exact: true }).first().click();
+  }
+  for (const entity of expected) {
+    const target = targets.find(item => item.entity === entity);
+    await aside.locator(`a[role="menuitem"][href$="${target.route}"]`).first().waitFor({ state: 'visible' });
+  }
+  const sidebar = await aside.evaluate(element => {
+    const menu = element.querySelector('ul.vben-menu');
+    if (!menu) return null;
+    return {
+      paths: Array.from(menu.querySelectorAll('a[role="menuitem"][href]')).map(link => {
+        const url = new URL(link.getAttribute('href'), location.href);
+        return url.origin === location.origin ? url.hash.slice(1).split('?')[0] : url.href;
+      }),
+      groups: Array.from(menu.children).filter(child => child.matches('li')).map(child => ({
+        title: child.querySelector('.vben-sub-menu-content__title')?.textContent?.trim(),
+        paths: Array.from(child.querySelectorAll('a[role="menuitem"][href]')).map(link => new URL(link.getAttribute('href'), location.href).hash.slice(1).split('?')[0]),
+      })),
+    };
+  });
+  assert(sidebar && sidebar.paths.length, 'Actual Vben menu DOM was not inspected');
+  const allowedRoots = new Set([...roots, '/dashboard']); // Pinned native client-only dashboard.
+  const invalid = sidebar.paths.filter(value => !allowedRoots.has('/' + value.split('/')[1]));
+  assert.equal(invalid.length, 0, 'Rendered sidebar exposed an unavailable module');
+  for (const group of sidebar.groups) {
+    assert(identity.menus.some(menu => menu.name === group.title)
+      || (group.paths.length > 0 && group.paths.every(value => value.startsWith('/dashboard/'))),
+    'Rendered top-level sidebar contains an unrecognized module');
+  }
+  return { actor, expected_roots: expectedRoots, observed_roots: roots, expected_entities: expected,
+    observed_entities: observed, rendered_entities: expected, sidebar_link_count: sidebar.paths.length,
+    unavailable_count: invalid.length, native_sidebar_inspected: true, generated_links_visible: true };
 }
 
 async function main() {
@@ -233,7 +282,13 @@ async function main() {
     context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1500, height: 1100 }, reducedMotion: 'reduce' });
     page = await context.newPage(); page.setDefaultTimeout(45000);
     page.on('pageerror', error => errors.push(redact(error.message)));
-    await loginNativeSession(page, base, scenario.actors[role], observe, checked);
+    const identity = await loginNativeSession(page, base, scenario.actors[role], observe, checked);
+    const navigation = await verifyInstalledSidebar(page, identity, role, scenario.plan, scenario.targets);
+    report.installed_navigation ||= [];
+    if (!report.installed_navigation.some(proof => proof.actor === role)) {
+      report.installed_navigation.push(navigation);
+      await capture(`${role}-installed-navigation.png`);
+    }
     report.checks.push(`${role}:native-login-and-tenant`);
   }
   async function openPage(entity) {
@@ -423,5 +478,5 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, loginNativeSession, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, selectNativeOption, verifyNativeRelationPayload, verifyNativeCustomerQuery };
+module.exports = { main, loginNativeSession, verifyInstalledSidebar, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, selectNativeOption, verifyNativeRelationPayload, verifyNativeCustomerQuery };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });

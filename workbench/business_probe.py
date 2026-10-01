@@ -458,9 +458,15 @@ def customer_service_acceptance(template, base, token, targets, plan):
             },
             execution_evidence,
         )
+        navigation = None
+        if template == "yudao-vben":
+            from workbench.yudao_navigation_checks import check_installed_navigation
+
+            navigation = check_installed_navigation(plan, manager, actors)
         return {
             "passed": True,
             "execution_evidence": execution_evidence,
+            "installed_navigation": navigation,
             "spec_digest": digest(plan.model_dump()),
             "real_native_auth": True,
             "public_native_registration": True,

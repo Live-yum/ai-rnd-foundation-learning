@@ -2,9 +2,156 @@
 'use strict';
 const fs = require('node:fs');
 const assert = require('node:assert/strict');
-const [input, modulePath, output] = process.argv.slice(2);
-const cfg = JSON.parse(fs.readFileSync(input, 'utf8'));
+const path = require('node:path');
+const os = require('node:os');
+const {isDeepStrictEqual} = require('node:util');
+
+async function captureReloadScreenshot(page, filename) {
+  // Diagnostic pixels at the failure instant: do not wait for fonts/load or
+  // hide, cancel, animate, or otherwise change any page content.
+  const session = await page.context().newCDPSession(page);
+  try {
+    const {cssVisualViewport:viewport} = await session.send('Page.getLayoutMetrics');
+    const result = await session.send('Page.captureScreenshot', {format:'png', captureBeyondViewport:false,
+      clip:{x:viewport.pageX, y:viewport.pageY, width:viewport.clientWidth, height:viewport.clientHeight,
+        scale:Math.min(1, 1600 / viewport.clientWidth, 1200 / viewport.clientHeight)}});
+    fs.writeFileSync(filename, Buffer.from(result.data, 'base64'));
+  } finally { await session.detach(); }
+}
+
+// Navigation completion is not authentication or rendered-data readiness. Keep
+// the real document/resources intact and prove all three independently.
+async function reloadAuthenticatedWorkspace(page, {url, spec, records, timeout = 12000,
+  diagnosticsDirectory}) {
+  const expectedURL = new URL(url);
+  const entity = spec.entities[0];
+  assert(entity && records.length, 'Reload proof requires actual created records');
+  const pending = new Map(), responses = [], events = [];
+  let committed = false, phase = 'navigation-and-api';
+  const allowedPaths = new Set([expectedURL.pathname, '/schema', '/api/' + entity.name, '/web/app.js', '/web/style.css']);
+  const route = value => {
+    const target = new URL(value);
+    return {same_origin:target.origin === expectedURL.origin,
+      path:target.origin === expectedURL.origin && allowedPaths.has(target.pathname) ? target.pathname : '[other-route]'};
+  };
+  const append = (items, value) => { if (items.length < 64) items.push(value); };
+  const failedAt = at => error => { error.reloadPhase = at; throw error; };
+  const onRequest = request => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame()) {
+      committed = true;
+      append(events, {event:'document-request', route:route(request.url())});
+    }
+    if (committed) pending.set(request, {route:route(request.url()), type:request.resourceType()});
+  };
+  const onFinished = request => pending.delete(request);
+  const onFailed = request => {
+    if (pending.has(request)) append(events, {...pending.get(request), event:'request-failed'});
+    pending.delete(request);
+  };
+  const onResponse = response => {
+    if (committed) append(responses, {route:route(response.url()), status:response.status()});
+  };
+  const onLoad = () => append(events, {event:'load'});
+  const sameEndpoint = (response, pathname) => {
+    const target = new URL(response.url());
+    return committed && pending.has(response.request()) && response.request().frame() === page.mainFrame() &&
+      target.origin === expectedURL.origin && target.pathname === pathname &&
+      response.request().method() === 'GET';
+  };
+  page.on('request', onRequest);
+  page.on('requestfinished', onFinished);
+  page.on('requestfailed', onFailed);
+  page.on('response', onResponse);
+  page.on('load', onLoad);
+  try {
+    const schema = page.waitForResponse(r => sameEndpoint(r, '/schema'), {timeout}).then(async r => {
+      assert.equal(r.status(), 200, 'Reload authenticated schema denied');
+      assert(/^Bearer \S+$/.test(r.request().headers().authorization || ''), 'Missing genuine session');
+      const data = await r.json();
+      assert(isDeepStrictEqual(data.spec, spec), 'Reload schema differs from approved spec');
+      return r.status();
+    }).catch(failedAt('authenticated-schema'));
+    const listed = page.waitForResponse(r => sameEndpoint(r, '/api/' + entity.name), {timeout}).then(async r => {
+      assert.equal(r.status(), 200, 'Reload business list denied');
+      assert(/^Bearer \S+$/.test(r.request().headers().authorization || ''), 'Missing genuine session');
+      const data = await r.json();
+      const ordered = values => [...values].sort((a,b) => a.id.localeCompare(b.id));
+      assert(isDeepStrictEqual(ordered(data), ordered(records)), 'Reload lost or exposed different authenticated records');
+      return r.status();
+    }).catch(failedAt('business-list'));
+    const navigated = page.reload({waitUntil:'domcontentloaded', timeout}).then(response => {
+      assert(response && response.status() === 200, 'Reload document did not return HTTP 200');
+      const current = new URL(page.url());
+      assert(current.origin === expectedURL.origin, 'Reload left the product origin');
+      assert(current.pathname === expectedURL.pathname, 'Reload left the product page');
+      assert(current.search === expectedURL.search, 'Reload changed the product query');
+      assert(current.hash === expectedURL.hash, 'Reload changed the product fragment');
+      return response.status();
+    }).catch(failedAt('document-navigation'));
+    const [documentStatus, schemaStatus, listStatus] = await Promise.all([navigated, schema, listed]);
+    phase = 'business-dom';
+    await page.locator('#workspace').waitFor({state:'visible', timeout});
+    assert(await page.locator('#login').isHidden(), 'Reload returned to login');
+    await page.waitForFunction(({entity, records}) => {
+      const root = document.querySelector('#rows');
+      if (!root || root.dataset.loading !== 'false' || root.dataset.entity !== entity.name) return false;
+      const wanted = records.map(record => ({id:record.id, values:entity.fields.map(field =>
+        record[field.name] == null ? '' : String(field.choice_labels?.[String(record[field.name])] || record[field.name]))}));
+      const actual = [...root.querySelectorAll('tr')].map(row => ({id:row.dataset.id,
+        values:[...row.querySelectorAll('td')].slice(0,-1).map(cell => cell.textContent)}));
+      const ordered = values => values.sort((a,b) => a.id.localeCompare(b.id));
+      return JSON.stringify(ordered(actual)) === JSON.stringify(ordered(wanted));
+    }, {entity, records}, {timeout});
+    phase = 'business-controls';
+    assert(isDeepStrictEqual(await page.locator('#entities button').allTextContents(),
+      spec.entities.map(item => item.description || item.name)), 'Reload entity permissions/navigation changed');
+    assert(isDeepStrictEqual(await page.locator('#columns th').allTextContents(),
+      [...entity.fields.map(field => field.label || field.name), '操作']), 'Reload business columns missing');
+    assert((await page.locator('#notice').textContent()) === '', 'Reload displayed a business error');
+    return {document_status:documentStatus, schema_status:schemaStatus, list_status:listStatus,
+      entity:entity.name, exact_record_count:records.length, same_origin:true, authenticated:true,
+      wait_until:'domcontentloaded', business_dom:true};
+  } catch (error) {
+    const evidence = {phase:error.reloadPhase || phase,
+      error_name:['TimeoutError', 'AssertionError', 'Error'].includes(error.name) ? error.name : 'Error',
+      route:route(page.url()), pending:[...pending.values()].slice(0,32), responses, events};
+    try {
+      evidence.state = await page.evaluate(entityName => ({readyState:document.readyState,
+        loginVisible:!!document.querySelector('#login')?.checkVisibility(),
+        workspaceVisible:!!document.querySelector('#workspace')?.checkVisibility(),
+        expectedEntity:document.querySelector('#rows')?.dataset.entity === entityName,
+        loading:document.querySelector('#rows')?.dataset.loading === 'true',
+        rowCount:document.querySelectorAll('#rows tr').length,
+        noticePresent:!!document.querySelector('#notice')?.textContent}), entity.name);
+    } catch { evidence.state_unavailable = true; }
+    try {
+      // verify.py deletes its working directory. Retain only bounded, allowlisted
+      // state outside it; never save tokens, headers, inputs, raw HTML, or records.
+      diagnosticsDirectory ||= fs.mkdtempSync(path.join(os.tmpdir(), 'product-browser-failure-'));
+      fs.mkdirSync(diagnosticsDirectory, {recursive:true});
+      const prefix = path.join(diagnosticsDirectory, 'reload-' + require('node:crypto').randomUUID());
+      evidence.artifact_prefix = prefix;
+      if (evidence.route.same_origin && evidence.route.path === expectedURL.pathname) {
+        // Local failure pixels can show synthetic acceptance records. They are
+        // capped to 1600x1200, never uploaded, and never modify the business page.
+        try { await captureReloadScreenshot(page, prefix + '.png'); }
+        catch { evidence.screenshot_unavailable = true; }
+      } else { evidence.screenshot_skipped = 'not-product-page'; }
+      fs.writeFileSync(prefix + '.json', JSON.stringify(evidence, null, 2));
+    } catch { evidence.artifact_unavailable = true; }
+    error.reloadEvidence = evidence;
+    throw error;
+  } finally {
+    page.off('request', onRequest);
+    page.off('requestfinished', onFinished);
+    page.off('requestfailed', onFailed);
+    page.off('response', onResponse);
+    page.off('load', onLoad);
+  }
+}
 async function main() {
+  const [input, modulePath, output] = process.argv.slice(2);
+  const cfg = JSON.parse(fs.readFileSync(input, 'utf8'));
   const version = require(modulePath + '/package.json').version;
   assert.equal(version, '1.56.1', 'Pinned Playwright 1.56.1 is required');
   const {chromium} = require(modulePath);
@@ -218,8 +365,8 @@ async function main() {
     assert(await page.locator('#workspace').isHidden());
     await auth(user, password, false);
     await page.locator('#workspace').waitFor({state:'visible'});
-    await page.reload();
-    await page.locator('#workspace').waitFor({state:'visible'});
+    const reload = await reloadAuthenticatedWorkspace(page, {url:cfg.url, spec:cfg.spec,
+      records:entities[0].records, diagnosticsDirectory:cfg.diagnostics_directory});
     checks.push('browser-login-invalid-password-logout-reload');
     await page.locator('#logout').click();
     await page.locator('#login').waitFor({state:'visible'});
@@ -234,7 +381,14 @@ async function main() {
     }
     assert.deepEqual(errors, []);
     fs.writeFileSync(output, JSON.stringify({passed:true, engine:'chromium', browser_version:browser.version(), playwright_version:version, real_browser:true,
-      entities:entities.map(e=>e.name), checks, errors}, null, 2));
+      entities:entities.map(e=>e.name), checks, errors, reload}, null, 2));
   } finally { await browser.close(); }
 }
-main().catch(error => { console.error(error.stack); process.exitCode=1; });
+module.exports = {reloadAuthenticatedWorkspace, captureReloadScreenshot};
+if (require.main === module) main().catch(error => {
+  if (error.reloadEvidence) {
+    const {artifact_prefix, artifact_unavailable, phase, error_name, state, pending} = error.reloadEvidence;
+    console.error('Reload failure evidence: ' + JSON.stringify({artifact_prefix, artifact_unavailable, phase, error_name, state, pending}));
+  } else { console.error(error.stack); }
+  process.exitCode=1;
+});

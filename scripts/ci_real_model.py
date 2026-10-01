@@ -558,6 +558,97 @@ def safe_native_plan_details(plan):
     }
 
 
+def safe_analysis_conflict_details(items, text_budget):
+    """Retain bounded atomic conflicts even when analysis never produced a Plan."""
+    if not isinstance(items, list):
+        return []
+    sections = {"field_requirements", "features", "acceptance", "facts", "user_messages"}
+    attributes = {
+        "kind",
+        "required",
+        "searchable",
+        "filterable",
+        "date_range",
+        "min_length",
+        "max_length",
+        "choices",
+    }
+
+    def identifier(value):
+        return (
+            value
+            if isinstance(value, str)
+            and re.fullmatch(r"[a-z][a-z0-9_]{0,39}", value)
+            and text_budget.scrub(value) == value
+            else "unrecognized"
+        )
+
+    def position(value):
+        return type(value) is int and 0 <= value <= 100_000
+
+    result = []
+    for item in items[:20]:
+        if (
+            not isinstance(item, dict)
+            or item.get("code") != "requirement_source_conflict"
+            or not isinstance(item.get("attribute"), str)
+            or item.get("attribute") not in attributes
+            or not isinstance(item.get("target"), dict)
+            or not isinstance(item.get("sources"), list)
+        ):
+            continue
+        target = item["target"]
+        entry = {
+            "code": "requirement_source_conflict",
+            "target": {
+                "entity": None if target.get("entity") is None else identifier(target["entity"]),
+                "field": identifier(target.get("field")),
+            },
+            "attribute": item["attribute"],
+            "sources": [],
+        }
+        for source in item["sources"][:8]:
+            if not isinstance(source, dict) or not isinstance(source.get("source"), dict):
+                continue
+            ref = source["source"]
+            if (
+                not isinstance(ref.get("section"), str)
+                or ref.get("section") not in sections
+                or not position(ref.get("index"))
+            ):
+                continue
+            selected = {
+                "source": {"section": ref["section"], "index": ref["index"]},
+                "origin": source.get("origin")
+                if isinstance(source.get("origin"), str)
+                and source.get("origin") in {"previous_requirement", "model_analysis", "user_input"}
+                else "not_recorded",
+            }
+            value = source.get("expected")
+            attribute = item["attribute"]
+            if attribute == "choices" and isinstance(value, list):
+                selected["expected_count"] = min(len(value), 20_000)
+            elif (
+                value is None
+                or type(value) is bool
+                or attribute in {"min_length", "max_length"}
+                and type(value) is int
+                and 0 <= value <= 20_000
+                or attribute == "kind"
+                and isinstance(value, str)
+                and value in {"text", "integer", "boolean", "date", "datetime", "enum"}
+            ):
+                selected["expected"] = value
+            else:
+                selected["expected"] = "not_exported"
+            excerpt = text_budget.excerpt(source.get("text", source.get("excerpt")))
+            if excerpt:
+                selected["source_excerpt"] = excerpt
+            entry["sources"].append(selected)
+        result.append(entry)
+    return result
+
+
 NATIVE_PROGRESS_STAGES = frozenset(
     {
         "bootstrap-empty-database",
@@ -830,6 +921,11 @@ def safe_workflow_details(store, run_id, traces, *, text_budget=None, native_rep
         details["pending_stage"] = (
             stage if stage in {"clarification", "requirements", "design", "delivery"} else None
         )
+        conflicts = safe_analysis_conflict_details(
+            (pending.get("data") or {}).get("analysis_diagnostics"), text_budget
+        )
+        if conflicts:
+            details["analysis_source_conflicts"] = conflicts
         details["model_calls"] = run.get("model_calls", 0)
         requirement = (store.latest_revision(run_id, "requirements") or {}).get("requirement", {})
         plan = (store.latest_revision(run_id, "design") or {}).get("plan", {})
@@ -866,6 +962,7 @@ def safe_workflow_details(store, run_id, traces, *, text_budget=None, native_rep
                 details["native_plan_validation"] = safe_native_plan_details(plan)
         error = run.get("error") or ""
         categories = {
+            "requirement_source_conflict": ("需求分析来源冲突",),
             "model_schema_invalid": ("结构化契约",),
             "context_limit": ("上下文过大",),
             "provider_error": ("模型鉴权", "模型地址", "模型请求被拒绝", "模型服务超时"),
