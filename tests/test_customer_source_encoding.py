@@ -27,6 +27,7 @@ SOURCE_READERS = (
     "tests/test_native_backend_failure_diagnostics.py",
     "tests/test_native_delivery_diagnostics.py",
     "tests/test_native_fastapi_screenshot_readiness.py",
+    "tests/test_native_login_readiness.py",
     "tests/test_native_relation_picker_browser.py",
     "tests/test_real_model_execution_diagnostics.py",
     "workbench/verification.py",

@@ -174,6 +174,28 @@ async function verifyNativeCustomerQuery(page, listRoute, customer, category, ca
     response_ids_exact: true, rendered_ids_exact: true, controls_reset: true };
 }
 
+async function loginNativeSession(page, base, actor, observe, checked) {
+  const tenants = observe('/admin-api/system/tenant/simple-list');
+  await page.goto(base + '/#/auth/login', { waitUntil: 'domcontentloaded' });
+  const available = await checked(tenants); const tenant = available.find(item => item.id === 1); assert(tenant);
+  await page.getByRole('combobox').first().click();
+  await page.getByRole('option', { name: tenant.name, exact: true }).click();
+  await page.getByPlaceholder(/用户名|账号|username/i).first().fill(actor.username);
+  await page.locator('input[type=password]').first().fill(actor.password);
+  const response = observe('/admin-api/system/auth/login', 'POST');
+  const info = observe('/admin-api/system/auth/get-permission-info');
+  await page.getByRole('button', { name: /^登\s*录$|^sign in$|^login$/i }).first().click();
+  await checked(response); const identity = await checked(info); assert(identity.menus?.length, 'Native role menu missing');
+  // Hash navigation can finish while a dashboard subresource still delays window.load.
+  // Successful authentication/permissions and the rendered native shell establish readiness.
+  const origin = new URL(base).origin;
+  await page.waitForURL(url => url.origin === origin && url.hash.startsWith('#/')
+    && !/^#\/(?:auth|login)(?:[/?]|$)/.test(url.hash), { waitUntil: 'domcontentloaded' });
+  for (const selector of ['aside:visible', 'header:visible', '#__vben_main_content']) {
+    await page.locator(selector).first().waitFor({ state: 'visible' });
+  }
+}
+
 async function main() {
   const [base, reportDir, playwrightPath, scenarioFile] = process.argv.slice(2);
   assert.equal(new URL(base).hostname, '127.0.0.1');
@@ -211,18 +233,7 @@ async function main() {
     context = await browser.newContext({ locale: 'zh-CN', viewport: { width: 1500, height: 1100 }, reducedMotion: 'reduce' });
     page = await context.newPage(); page.setDefaultTimeout(45000);
     page.on('pageerror', error => errors.push(redact(error.message)));
-    const tenants = observe('/admin-api/system/tenant/simple-list');
-    await page.goto(base + '/#/auth/login', { waitUntil: 'domcontentloaded' });
-    const available = await checked(tenants); const tenant = available.find(item => item.id === 1); assert(tenant);
-    await page.getByRole('combobox').first().click();
-    await page.getByRole('option', { name: tenant.name, exact: true }).click();
-    await page.getByPlaceholder(/用户名|账号|username/i).first().fill(scenario.actors[role].username);
-    await page.locator('input[type=password]').first().fill(scenario.actors[role].password);
-    const response = observe('/admin-api/system/auth/login', 'POST');
-    const info = observe('/admin-api/system/auth/get-permission-info');
-    await page.getByRole('button', { name: /^登\s*录$|^sign in$|^login$/i }).first().click();
-    await checked(response); const identity = await checked(info); assert(identity.menus?.length, 'Native role menu missing');
-    await page.waitForURL(url => !url.hash.includes('login'));
+    await loginNativeSession(page, base, scenario.actors[role], observe, checked);
     report.checks.push(`${role}:native-login-and-tenant`);
   }
   async function openPage(entity) {
@@ -412,5 +423,5 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, selectNativeOption, verifyNativeRelationPayload, verifyNativeCustomerQuery };
+module.exports = { main, loginNativeSession, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, selectNativeOption, verifyNativeRelationPayload, verifyNativeCustomerQuery };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
