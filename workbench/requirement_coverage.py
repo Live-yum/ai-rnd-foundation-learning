@@ -2138,6 +2138,79 @@ def explicit_legacy_field_constraints(requirement: Requirement):
     return result
 
 
+def _legacy_declared_fields(text, fields):
+    """Recognize explicit field declarations, never infer fields from bare prose.
+
+    This is a compatibility guard, not a general-language parser. Typed ledgers
+    remain independent. Only a schema heading/imperative or a direct scalar
+    descriptor can introduce an arbitrary identifier absent from the candidate.
+    """
+    owner = _fact_entity(text, fields)
+    heading = _entity_subject_heading(text, fields)
+    owners = (owner,) if owner else (None,)
+    if heading:
+        owners, text = heading
+    elif owner:
+        # Legacy facts retain a namespaced path before their description.
+        match = re.search(rf"(?:^|[:：])\s*{re.escape(owner)}(?:::|[:：])", text)
+        if match:
+            text = text[match.end() :]
+    aliases = [name for names in ALIASES.values() for name in names if not name.isascii()]
+    name = (
+        r"(?<![a-z0-9_])(?:[a-z][a-z0-9_]*(?:::|\.))?(?:[a-z][a-z0-9_]*|"
+        + "|".join(aliases)
+        + r")(?![a-z0-9_])"
+    )
+    separators = r"[、/,，]|和|与|及|\band\b"
+    scalar = r"非必填|不必填|可选|必填|\bnot\s+required\b|\brequired\b|\boptional\b|max_length|min_length|(?:长度)?(?:上限|下限|最大|最小|最多|至少|最长|最短)"
+    presence = r"(?:必须|需要)?存在|\bmust\s+exist\b"
+    declaration = re.match(
+        r"\s*(?:(?:字段(?:清单|列表)?|fields?)\s*[:：]?|"
+        r"(?:必须|需要|要求)\s*(?:包含|添加|保留|存在|有)|"
+        r"(?:must|should)\s+(?:include|add|retain|have)\b|"
+        r"(?:不得|不要|不能)\s*(?:遗漏|缺少))\s*",
+        text,
+        re.I,
+    )
+    if declaration:
+        body = text[declaration.end() :].strip()
+        if body[:1] in "（([【":
+            body = body[1:]
+    else:
+        descriptor = re.match(
+            rf"\s*(?P<subjects>{name}(?:\s*(?:{separators})\s*{name})*)"
+            rf"\s*(?:字段|fields?)?\s*[（(\[【]?\s*(?={scalar}|{presence})",
+            text,
+            re.I,
+        )
+        if not descriptor:
+            return []
+        body = descriptor["subjects"]
+    result = []
+    for part, _ in _top_level_parts(body, separators):
+        subject = re.match(rf"\s*(?P<name>{name})", part, re.I)
+        if not subject:
+            break
+        tail = part[subject.end() :].strip().rstrip("）)]】")
+        # A new explanatory/waived clause is not another catalog member.
+        if tail and tail[:1] not in "（([【" and not re.match(scalar, tail, re.I):
+            break
+        identity = subject["name"]
+        qualified = re.fullmatch(r"([a-z][a-z0-9_]*)(?:::|\.)(.+)", identity, re.I)
+        if qualified and qualified[1] in {field.name for _, field in fields} - {
+            entity for entity, _ in fields
+        }:
+            # _fact_texts prefixes localized attributes with their field name;
+            # title.标题长度上限 is a descriptor path, not entity title.
+            continue
+        result.extend(
+            [(qualified[1], qualified[2])]
+            if qualified
+            else [(entity, identity) for entity in owners]
+        )
+    return result
+
+
 def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> list[str]:
     """Return blocking messages; optionally record the exact deterministic provenance.
 
@@ -2262,6 +2335,16 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
     for origin, text in texts:
         affirmative, exclusions = _legacy_field_exclusions(text, fields)
         affirmative_texts.append((origin, affirmative))
+        for index, (owner, name) in enumerate(_legacy_declared_fields(affirmative, fields)):
+            source = {**origin, "declaration": index}
+            source_text = text
+            aliases = next((values for values in ALIASES.values() if name in values), (name,))
+            if not any(
+                (owner is None or entity == owner) and field.name in aliases
+                for entity, field in fields
+            ):
+                label = f"{owner + '.' if owner else ''}{name}"
+                gap(f"已确认条件缺少对应字段 {label}: {text}", "legacy_missing_field")
         for index, (owner, aliases, field_name) in enumerate(exclusions):
             source = {**origin, "exclusion_clause": index}
             source_text = text
@@ -2407,6 +2490,14 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
         known_subjects = _fact_candidates(text, fields)
         mentioned = _legacy_targets(text, fields)
         entity_scope = _fact_entity(text, fields)
+        declarations = _legacy_declared_fields(text, fields)
+        for owner, name in declarations:
+            if not any(name in aliases for aliases in ALIASES.values()) and not any(
+                (owner is None or entity == owner) and field.name == name
+                for entity, field in fields
+            ):
+                label = f"{owner + '.' if owner else ''}{name}"
+                gap(f"已确认条件缺少对应字段 {label}: {text}", "legacy_missing_field")
         if entity_scope and list(_legacy_scalar_constraints(text)):
             # A known field on another entity cannot satisfy this subject.
             # Vocabulary comes from declared fields, never grammatical words
@@ -2445,6 +2536,14 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
                 if (
                     not matches
                     and not description
+                    # An identifier mention is not an existence predicate.
+                    # Keep direct scalar/query declarations and explicit schema
+                    # declarations; descriptive/negative bare prose adds none.
+                    and (
+                        bool(declarations)
+                        or bool(list(_legacy_scalar_constraints(text)))
+                        or any(re.search(pattern, text, re.I) for pattern in operations.values())
+                    )
                     and (explicit or re.search(LEGACY_PROPERTY, text, re.I))
                 ):
                     gap(f"已确认条件缺少对应字段 {canonical}: {text}", "legacy_missing_field")

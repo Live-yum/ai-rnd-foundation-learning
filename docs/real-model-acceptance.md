@@ -2,6 +2,21 @@
 
 常规Actions用明确模型响应夹具验证编排，同时真实运行数据库、浏览器和本机工具。真实服务商测试是有调用成本的另一项验收，不随普通PR自动调用。它必须在可信指定分支、获准的GitHub Environment中运行；测试脚本再次核对仓库、分支、事件与目标，不允许切换服务商或模型来绕过失败。本章说明如何执行及判断结果，不预先声称任何模板已经通过。
 
+### 先使用框架，再补业务验证
+
+输出格式与嵌套结构使用官方 LangChain `with_structured_output`，直接传入 Pydantic
+`Requirement`、`Plan` 等模型；Pydantic 负责类型、取值范围和跨字段校验，不另写格式化器。
+当前锁定的 DeepSeek/OpenAI 集成统一使用 `json_mode`，并检查解析错误及严格本地校验结果。
+JSON 语法合法不等于满足全部用户意图，不能因为结构合法就自动扩大用户的业务要求。
+参见[官方模型结构化输出](https://docs.langchain.com/oss/python/langchain/models#structured-output)
+和[Pydantic 校验器](https://docs.pydantic.dev/latest/concepts/validators/)。
+
+流程沿用 LangGraph `StateGraph`、checkpointer、`interrupt` 和 `Command(resume=...)`。
+瞬时故障重试与语义纠错分开：前者可使用框架重试策略，后者需要把具体错误放回已有
+有界状态分支，不能只重复相同请求。框架提供状态与恢复机制，但原始要求是否被保留、
+权限是否正确和实际产品是否运行，仍须独立业务验证；本轮不新增代理循环或审批步骤。
+参见[LangGraph 错误分类与处理](https://docs.langchain.com/oss/python/langgraph/thinking-in-langgraph)。
+
 ### 明确字段清单与设计前校验
 
 本客服基准的三个实体与业务字段清单是明确封闭的，模型必须在真实生成的
@@ -20,6 +35,12 @@
 `requests/tasks` 会结束前一实体的作用域，两组字段分别承担约束；分号、逗号或并列
 连接词不能使约束串到 `customers.title`。字段排除、查询条件和指标谓词使用相同的
 作用域边界，但指标过滤不会被当成列表字段过滤授权。
+
+字段名字出现在说明里，本身不代表要求新增字段；例如否定句中的 `published_on`
+不能仅因是英文别名而变成新的存在义务。字段与属性的类型化合同继续逐项比较；真实
+正向声明、旧项目的明确文字约束、开放清单中明确禁止的字段以及来源冲突仍需检查。
+这些是业务语义兼容检查，不是另一套模型输出格式化器，也不宣称能完整解析任意自然语言。
+原始说明始终保留；不能用“已有部分 typed 字段”或模型自报完整，就跳过未映射的旧承诺。
 
 业务权限按同一声明集合内的 `role/entity/scope` 比较动作集合。同一角色在同一实体、
 同一行范围的 `read` 与 `read_metrics` 拆成两条或合成一条含义相同；不同集合、角色、
