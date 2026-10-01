@@ -84,18 +84,24 @@ async function nativeScreenshotState(page) {
       ready: textParts.length > 0 && fonts.length > 0 && fonts.every(font => font.loaded) && imagesReady,
       fonts, images_ready: imagesReady, visible_text_nodes: textParts.length,
       font_faces: [...document.fonts].slice(0, 64).map(font => ({ family: font.family, status: font.status })),
-      // Used only in-memory for stability; never put customer text or geometry in diagnostics.
-      signature: JSON.stringify([geometry, textParts, fonts, window.scrollX, window.scrollY]),
+      // Used only in-memory; never put customer text or geometry in diagnostics.
+      // A clock or an equal-width value refresh is not a layout change. The
+      // actual glyphs are still checked above, including every new text value.
+      layout_signature: JSON.stringify([geometry, window.scrollX, window.scrollY]),
+      text_signature: JSON.stringify(textParts),
+      font_signature: JSON.stringify(fonts),
+      signature: JSON.stringify([geometry, fonts, window.scrollX, window.scrollY]),
     };
   });
 }
 
 async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout = 45000) {
   const deadline = Date.now() + timeout;
-  let phase = 'notice-settlement', lastState, session;
+  let phase = 'notice-settlement', lastState, session, changes, attempts = 0;
   async function bounded(operation, name) {
     let timer;
     try {
+      if (Date.now() >= deadline) throw new Error(`Native screenshot ${name} did not become ready`);
       return await Promise.race([operation(), new Promise((_, reject) => {
         timer = setTimeout(() => reject(new Error(`Native screenshot ${name} did not become ready`)), Math.max(1, deadline - Date.now()));
       })]);
@@ -111,36 +117,49 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       // Persistent notices are legitimate UI; bounded waiting must never dismiss them.
       if (error.name !== 'TimeoutError') throw error;
     }
-    phase = 'visible-fonts-and-layout';
-    let previous, stable = 0;
-    while (stable < 3) {
-      lastState = await bounded(() => nativeScreenshotState(page), phase);
-      stable = lastState.ready && lastState.signature === previous ? stable + 1 : 0;
-      previous = lastState.signature;
-      if (stable < 3) await bounded(() => new Promise(resolve => setTimeout(resolve, 40)), phase);
+    for (;;) {
+      phase = 'visible-fonts-and-layout';
+      let previous, stable = 0;
+      while (stable < 3) {
+        lastState = await bounded(() => nativeScreenshotState(page), phase);
+        stable = lastState.ready && lastState.signature === previous ? stable + 1 : 0;
+        previous = lastState.signature;
+        if (stable < 3) await bounded(() => new Promise(resolve => setTimeout(resolve, 40)), phase);
+      }
+      // document.fonts.ready also waits for unrelated, nonvisible font loads.
+      // Inspect actual visible glyphs, then capture unmodified Chromium pixels.
+      phase = 'native-pixel-capture';
+      if (!session) session = await bounded(() => page.context().newCDPSession(page), phase);
+      const { cssContentSize: size } = await bounded(() => session.send('Page.getLayoutMetrics'), phase);
+      const width = Math.ceil(size.width), height = Math.ceil(size.height);
+      assert(width > 0 && height > 0 && width <= 4096 && height <= 8192 && width * height <= 20000000,
+        'Native screenshot surface exceeds the bounded capture scope');
+      attempts += 1;
+      const captured = await bounded(() => session.send('Page.captureScreenshot', {
+        format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height, scale: 1 },
+      }), phase);
+      phase = 'post-capture-readiness';
+      const after = await bounded(() => nativeScreenshotState(page), phase);
+      changes = {
+        layout: after.layout_signature !== lastState.layout_signature,
+        text: after.text_signature !== lastState.text_signature,
+        fonts: after.font_signature !== lastState.font_signature,
+        images: after.images_ready !== lastState.images_ready,
+      };
+      if (after.ready && after.signature === lastState.signature) {
+        fs.writeFileSync(file, Buffer.from(captured.data, 'base64'));
+        break;
+      }
+      // A delayed tooltip or data render can arrive during pixel capture. Drop
+      // these unstable pixels and settle again within the SAME overall budget.
+      // Never accept changed geometry, suppress UI, or restart the deadline.
     }
-    // document.fonts.ready also waits for unrelated, nonvisible font loads. Check
-    // the actual visible text/pseudo-glyphs above, then capture the unmodified
-    // Chromium surface directly. Never toggle Playwright's font-wait test flag.
-    phase = 'native-pixel-capture';
-    session = await bounded(() => page.context().newCDPSession(page), phase);
-    const { cssContentSize: size } = await bounded(() => session.send('Page.getLayoutMetrics'), phase);
-    const width = Math.ceil(size.width), height = Math.ceil(size.height);
-    assert(width > 0 && height > 0 && width <= 4096 && height <= 8192 && width * height <= 20000000,
-      'Native screenshot surface exceeds the bounded capture scope');
-    const captured = await bounded(() => session.send('Page.captureScreenshot', {
-      format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height, scale: 1 },
-    }), phase);
-    phase = 'post-capture-readiness';
-    const after = await bounded(() => nativeScreenshotState(page), phase);
-    assert(after.ready && after.signature === lastState.signature,
-      'Native screenshot visible fonts or layout changed during capture');
-    fs.writeFileSync(file, Buffer.from(captured.data, 'base64'));
   } catch (error) {
     // Fixed, bounded, local evidence. No raw HTML, field values, URLs, credentials,
     // source environment, or pending request headers are retained.
     try {
-      fs.writeFileSync(file + '.capture.json', JSON.stringify({ phase,
+      fs.writeFileSync(file + '.capture.json', JSON.stringify({ phase, capture_attempts: attempts,
+        last_capture_changes: changes,
         visible_text_nodes: lastState?.visible_text_nodes, images_ready: lastState?.images_ready,
         visible_fonts: lastState?.fonts.slice(0, 64).map(font => ({ font: font.font.slice(0, 300), loaded: font.loaded })),
         font_faces: lastState?.font_faces.map(font => ({ family: font.family.slice(0, 100), status: font.status })),
