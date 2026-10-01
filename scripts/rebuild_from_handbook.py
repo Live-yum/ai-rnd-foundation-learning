@@ -1,12 +1,15 @@
 """Restore source blocks to an EMPTY directory. Writes only; does not execute anything."""
 
 import argparse
+import base64
+import binascii
 import hashlib
 import re
 from pathlib import Path, PurePosixPath
 
 PATTERN = re.compile(
-    r"^<!-- source-file: ([^\r\n]+) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n",
+    r"^<!-- source-file: ([^\r\n]+) sha256: ([0-9a-f]{64})(?: encoding: (base64))? -->\n"
+    r"(`{4,})[^\n]*\n(.*?)\n\4\n",
     re.S | re.M,
 )
 
@@ -14,7 +17,7 @@ PATTERN = re.compile(
 def extract(text):
     result = {}
     for match in PATTERN.finditer(text):
-        name, fingerprint, _, content = match.groups()
+        name, fingerprint, encoding, _, content = match.groups()
         path = PurePosixPath(name)
         if (
             path.is_absolute()
@@ -28,6 +31,15 @@ def extract(text):
             or any(ord(char) < 32 for char in name)
         ):
             raise ValueError("附录文件路径不安全或重复")
+        if encoding == "base64":
+            try:
+                restored = base64.b64decode(content.replace("\n", ""), validate=True)
+            except (binascii.Error, ValueError) as exc:
+                raise ValueError("二进制块编码不合法: " + name) from exc
+            if hashlib.sha256(restored).hexdigest() != fingerprint:
+                raise ValueError("二进制块哈希不匹配: " + name)
+            result[name] = restored
+            continue
         # The final fence separator can be a source newline or an added one.
         # Recover only the exact form authorized by the original source SHA.
         candidates = (content + "\n", content)
@@ -58,7 +70,10 @@ def restore(handbook, destination):
     for name, content in rows.items():
         target = destination / name
         target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8", newline="\n")
+        if isinstance(content, bytes):
+            target.write_bytes(content)
+        else:
+            target.write_text(content, encoding="utf-8", newline="\n")
     return len(rows)
 
 

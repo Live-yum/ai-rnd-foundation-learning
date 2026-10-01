@@ -87,7 +87,9 @@ def native_assignment():
     path = ROOT / "templates/business/fastapiadmin/runtime.py"
     names = {"fail", "identifier", "grant", "scope", "record", "mutate"}
     nodes = [
-        node for node in ast.parse(path.read_text()).body if getattr(node, "name", None) in names
+        node
+        for node in ast.parse(path.read_text(encoding="utf-8")).body
+        if getattr(node, "name", None) in names
     ]
     exec(compile(ast.Module(body=nodes, type_ignores=[]), str(path), "exec"), namespace)
     engine = create_engine("sqlite://")
@@ -214,7 +216,7 @@ def test_read_only_native_assignee_gains_no_mutation_actions(native_assignment, 
 
 def test_fastapi_selector_source_matches_read_only_eligibility():
     path = ROOT / "templates/business/fastapiadmin/index.vue"
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8")
     selector = next(
         line for line in source.splitlines() if line.startswith("const eligibleUsers =")
     )
@@ -227,7 +229,7 @@ def test_fastapi_selector_source_matches_read_only_eligibility():
 
 def test_yudao_selector_uses_server_eligibility_without_limiting_role_admin_users():
     path = ROOT / "templates/business/yudao/panel.vue"
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8")
     assert "eligibleEntities: string[]" in source
     assert "users.value.filter(user => user.eligibleEntities?.includes(props.entity))" in source
     assert "return userOptions.value.filter(option => eligible.has(option.value));" in source
@@ -241,7 +243,7 @@ def test_yudao_selector_uses_server_eligibility_without_limiting_role_admin_user
 
 def test_yudao_source_guards_target_receiving_scope_and_actor_row_acl():
     path = ROOT / "templates/business/yudao/RndBusinessService.java"
-    source = path.read_text()
+    source = path.read_text(encoding="utf-8")
     helper = source.split("private boolean eligibleAssignee(", 1)[1].split(
         "private void require(", 1
     )[0]
@@ -273,7 +275,7 @@ def test_yudao_source_guards_target_receiving_scope_and_actor_row_acl():
 
 def test_yudao_ineligible_assignee_uses_pinned_native_client_error_mapping():
     """Source contract only; real HTTP status and rollback are checked by native CI."""
-    source = (ROOT / "templates/business/yudao/RndBusinessService.java").read_text()
+    source = (ROOT / "templates/business/yudao/RndBusinessService.java").read_text(encoding="utf-8")
     assert "import cn.iocoder.yudao.framework.common.exception.ServiceException;" in source
     assert (
         "import static cn.iocoder.yudao.framework.common.exception.enums."

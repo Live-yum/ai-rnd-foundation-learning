@@ -24,6 +24,289 @@ def check(condition, message):
         raise ValueError(message)
 
 
+def verify_query_matrix(spec, actors, rows, samples, create_roles, request, allowed):
+    """Exact query expectations come from owned API writes, never query responses."""
+    business = spec["business"]
+    grants = {(p["role"], p["entity"]): p for p in business["permissions"]}
+    resources = {r["entity"]: r for r in business["resources"]}
+    workflows = {w["entity"]: w for w in business["workflows"]}
+    relations = {(r["entity"], r["field"]): r for r in business["relations"]}
+    cases, evidence = [], []
+
+    def wire(value):
+        return str(value).lower() if type(value) is bool else str(value)
+
+    def keyword(value):
+        text = str(value or "")
+        # A proper substring distinguishes keyword search from full-value
+        # equality. One-character domains have no shorter nonempty query.
+        term = text[1:-1] if len(text) > 2 else text[:1]
+        return term[:200].upper()
+
+    for definition in spec["entities"]:
+        entity, fields = definition["name"], definition["fields"]
+        searchable = [f for f in fields if f["searchable"]]
+        filterable = [f for f in fields if f["filterable"]]
+        if not searchable and not filterable:
+            continue
+        workflow = workflows.get(entity)
+        protected = {resources[entity].get("assignee_field")}
+        if workflow:
+            protected.add(workflow["status_field"])
+            protected.update(t.get("set_timestamp") for t in workflow["transitions"])
+        due_fields = {
+            n["due_field"]
+            for n in business["notifications"]
+            if n["entity"] == entity and n["event"] == "due"
+        }
+        controls = {}
+        for role, actor in actors.items():
+            if not allowed(role, entity, "read"):
+                continue
+            scope = grants[role, entity]["scope"]
+            if scope == "own" and not allowed(role, entity, "create"):
+                # An approved own/read-only role can legitimately have no owned
+                # records. Do not manufacture extra create or ownership rights.
+                continue
+            creator = actor if scope == "own" else actors[create_roles[entity]]
+            for side in (0, 1):
+                sample = dict(samples[entity])
+                for field_index, field in enumerate(fields):
+                    name, kind = field["name"], field["kind"]
+                    if name in protected or (entity, name) in relations:
+                        continue
+                    if name in due_fields:
+                        sample[name] = f"2099-01-0{side + 1}T00:00:00Z"
+                    elif field["searchable"] or field["filterable"]:
+                        if kind == "text":
+                            marker = (
+                                "q"
+                                + str(side)
+                                + hashlib.sha256(f"{entity}/{name}".encode()).hexdigest()[:8]
+                            )
+                            if field["max_length"] < len(marker):
+                                # Truncating the same q0 prefix would correlate
+                                # short fields and lose independent field proof.
+                                marker = chr(0x4E00 + field_index * 2 + side)
+                            sample[name] = marker.ljust(max(1, field.get("min_length", 0)), "z")[
+                                : field["max_length"]
+                            ]
+                        elif kind == "enum":
+                            sample[name] = field["choices"][min(side, len(field["choices"]) - 1)]
+                        elif kind == "integer":
+                            sample[name] = 41 + side
+                        elif kind == "boolean":
+                            sample[name] = bool(side)
+                        elif kind == "date":
+                            sample[name] = f"2026-02-0{side + 1}"
+                        elif kind == "datetime":
+                            sample[name] = f"2026-02-0{side + 1}T00:00:00Z"
+                row = request("POST", "/api/" + entity, creator, status=201, json=sample)
+                rows[entity].append(row)
+                if scope == "assigned":
+                    assigner = next(
+                        (
+                            a
+                            for a in actors.values()
+                            if allowed(a["role"], entity, "assign", row, a["id"])
+                        ),
+                        None,
+                    )
+                    check(assigner is not None, "Query controls need an approved assignment actor")
+                    row.update(
+                        request(
+                            "POST",
+                            f"/api/{entity}/{row['id']}/assign",
+                            assigner,
+                            json={"user_id": actor["id"]},
+                        )
+                    )
+                if (
+                    side
+                    and workflow
+                    and any(f["name"] == workflow["status_field"] for f in searchable + filterable)
+                ):
+                    transition = next(
+                        (
+                            t
+                            for t in workflow["transitions"]
+                            if row[workflow["status_field"]] in t["from_states"]
+                        ),
+                        None,
+                    )
+                    if transition:
+                        handler = next(
+                            (
+                                a
+                                for a in actors.values()
+                                if a["role"] in transition["roles"]
+                                and allowed(a["role"], entity, "transition", row, a["id"])
+                            ),
+                            None,
+                        )
+                        if handler:
+                            row.update(
+                                request(
+                                    "POST",
+                                    f"/api/{entity}/{row['id']}/transition",
+                                    handler,
+                                    json={"transition": transition["name"]},
+                                )
+                            )
+                controls[role, side] = row
+        check(len(rows[entity]) <= 100, "Query control rows exceed explicit 100-record bound")
+
+        def matches(row, params):
+            q = params.get("q", "").strip().casefold()
+            if q and not any(q in str(row.get(f["name"]) or "").casefold() for f in searchable):
+                return False
+            return all(
+                wire(row.get(f["name"])) == value
+                for key, value in params.items()
+                if key.startswith("filter_")
+                for f in filterable
+                if key == "filter_" + f["name"]
+            )
+
+        first = next(iter(controls.values()), rows[entity][0])
+        other = next((row for (role, side), row in controls.items() if side), first)
+        for role, actor in actors.items():
+            if not allowed(role, entity, "read"):
+                continue
+            scope = grants[role, entity]["scope"]
+            visible = [r for r in rows[entity] if allowed(role, entity, "read", r, actor["id"])]
+            positive = controls.get((role, 0), first)
+            alternate = controls.get((role, 1), other)
+            matrix = [(f, "keyword", None) for f in searchable] + [
+                (f, "exact_filter", None) for f in filterable
+            ]
+            matrix += (
+                [(f, "combined", searchable[0]["name"]) for f in filterable] if searchable else []
+            )
+            for field, kind, keyword_field in matrix:
+                name = field["name"]
+                if kind == "keyword":
+                    term = keyword(positive.get(name))
+                    check(bool(term), f"Query keyword control is empty: {entity}.{name}")
+                    pair = [
+                        ("match", {"q": term}),
+                        (
+                            "miss",
+                            {
+                                "q": "qnever"
+                                + hashlib.sha256(f"{entity}/{name}".encode()).hexdigest()[:12]
+                            },
+                        ),
+                    ]
+                else:
+                    value, alternative = positive.get(name), alternate.get(name)
+                    if value == alternative:
+                        if field["kind"] == "enum":
+                            alternative = next((v for v in field["choices"] if v != value), value)
+                        elif field["kind"] == "text":
+                            alternative = "query-value-not-present"
+                        elif field["kind"] == "boolean":
+                            alternative = not value
+                        elif field["kind"] == "integer":
+                            alternative = int(value or 0) + 1
+                    check(
+                        value is not None and alternative is not None,
+                        f"Query filter control is empty: {entity}.{name}",
+                    )
+                    anchor = {"q": keyword(positive.get(keyword_field))} if keyword_field else {}
+                    pair = [
+                        ("match", {**anchor, "filter_" + name: wire(value)}),
+                        ("other", {**anchor, "filter_" + name: wire(alternative)}),
+                    ]
+                counts, excluded, foreign, isolated = [], 0, 0, 0
+                for variant, params in pair:
+                    expected = {r["id"] for r in visible if matches(r, params)}
+                    all_matches = {r["id"] for r in rows[entity] if matches(r, params)}
+                    isolated_count = (
+                        sum(
+                            r["id"] in expected
+                            and params["q"].casefold() in str(r.get(name) or "").casefold()
+                            and not any(
+                                params["q"].casefold() in str(r.get(f["name"]) or "").casefold()
+                                for f in searchable
+                                if f["name"] != name
+                            )
+                            for r in visible
+                        )
+                        if kind == "keyword" and variant == "match"
+                        else 0
+                    )
+                    actual = request(
+                        "GET", "/api/" + entity, actor, params={**params, "limit": 100}
+                    )
+                    check(
+                        isinstance(actual, list)
+                        and {r["id"] for r in actual} == expected
+                        and len(actual) == len(expected),
+                        f"Query matrix differs for {role}/{entity}/{name}/{kind}/{variant}",
+                    )
+                    cases.append(
+                        {
+                            "role": role,
+                            "entity": entity,
+                            "field": name,
+                            "kind": kind,
+                            "variant": variant,
+                            "keyword_field": keyword_field,
+                            "params": params,
+                            "expected_ids": sorted(expected),
+                            "total_count": len(visible),
+                            "foreign_count": len(all_matches - expected),
+                            "isolated_count": isolated_count,
+                        }
+                    )
+                    counts.append(len(expected))
+                    excluded += len(visible) - len(expected)
+                    foreign += len(all_matches - expected)
+                    isolated += isolated_count
+                evidence.append(
+                    {
+                        "role": role,
+                        "entity": entity,
+                        "field": name,
+                        "kind": kind,
+                        "keyword_field": keyword_field,
+                        "scope": scope,
+                        "cases": 2,
+                        "positive_matches": counts[0],
+                        "other_matches": counts[1],
+                        "excluded_records": excluded,
+                        "foreign_matches": foreign,
+                        "isolated_matches": isolated,
+                        "exact_results": True,
+                        "role_scope": True,
+                    }
+                )
+        for field in searchable:
+            check(
+                any(
+                    p["entity"] == entity
+                    and p["field"] == field["name"]
+                    and p["kind"] == "keyword"
+                    and p["isolated_matches"] > 0
+                    for p in evidence
+                ),
+                f"Keyword field lacks an isolated positive control: {entity}.{field['name']}",
+            )
+        for field in filterable:
+            check(
+                any(
+                    p["entity"] == entity
+                    and p["field"] == field["name"]
+                    and p["kind"] == "exact_filter"
+                    and p["positive_matches"] > 0
+                    for p in evidence
+                ),
+                f"Filter lacks a positive control: {entity}.{field['name']}",
+            )
+    return cases, evidence
+
+
 def verify_field_constraints(client, actor, entity, fields, sample, row, protected, can_update):
     """Reject concrete invalid requests through the generated server, not metadata alone."""
     headers = {"Authorization": "Bearer " + actor["token"]}
@@ -388,6 +671,7 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
         "datetime_policy": [],
         "due_notifications": [],
         "audit_immutability": [],
+        "query_matrix": [],
     }
     related_expectations, relation_labels = [], []
     password = secrets.token_urlsafe(24)
@@ -1039,6 +1323,10 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                             "Incorrect scoped grouping or day buckets",
                         )
             checks.append("business-scoped-metrics")
+            query_cases, evidence["query_matrix"] = verify_query_matrix(
+                spec, actors, rows, samples, create_roles, request, allowed
+            )
+            checks.append("business-query-matrix")
             actor_ids = {a["id"] for a in actors.values()} | {bootstrap_actor["id"]}
             for entity, row in base.items():
                 auditor = next(
@@ -1297,6 +1585,8 @@ def verify_business(product, python, stop, browser_error, screenshot_dir=None):
                             "base_records": {entity: row["id"] for entity, row in base.items()},
                             "related_expectations": related_expectations,
                             "relation_labels": relation_labels,
+                            "query_cases": query_cases,
+                            "query_evidence": evidence["query_matrix"],
                             "create_roles": create_roles,
                             "output": str(output),
                             "screenshot_dir": str(screenshot_target) if screenshot_target else None,

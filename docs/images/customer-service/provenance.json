@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "template": "fastapiadmin",
+  "source_sha": "a15137ff1aca04d3091a9c4f7cfa99bb09436d07",
+  "run_id": 36789925373,
+  "run_attempt": 1,
+  "run_url": "https://github.com/Live-yum/ai-rnd-foundation-learning/actions/runs/36789925373",
+  "genuine_model": true,
+  "acceptance_scope": "full_workflow",
+  "model": "deepseek-flash",
+  "upstream_template_sha": "1cd12c726ad9032c17ef85ce805ce991be60fbdf",
+  "workflow_summary": "genuine-workflow-summary.json",
+  "evidence_scope": "Historical successful real-model FastapiAdmin run only; not current-commit or other-template acceptance. Browser data and accounts are synthetic test inputs, not simulated UI.",
+  "screenshots": [
+    {
+      "file": "manager-customers-native-form.png",
+      "sha256": "4a40727a793588d97d2d406681ec39d822256ba6fa612c47e037d74821114eab",
+      "width": 1600,
+      "height": 1100,
+      "pixel_reviewed": true,
+      "modified": false
+    },
+    {
+      "file": "employee-native-list.png",
+      "sha256": "ae3e90d11531a31f8d0d3203a4fa5bce0c27e47dfd7f5c8469e9a5aebb0b000a",
+      "width": 1600,
+      "height": 1100,
+      "pixel_reviewed": true,
+      "modified": false
+    },
+    {
+      "file": "manager-requests-assignment.png",
+      "sha256": "fdf646baa1fffc7a6e6e6d4b8c434f15a50dc8f102c5ee77610d5e4b90b21577",
+      "width": 1600,
+      "height": 1100,
+      "pixel_reviewed": true,
+      "modified": false
+    },
+    {
+      "file": "service-handling-history.png",
+      "sha256": "d3c16dd3b8c0e769335bd5a2dd897c31579543235c23a8f280b515fdc242238c",
+      "width": 1600,
+      "height": 1100,
+      "pixel_reviewed": true,
+      "modified": false
+    },
+    {
+      "file": "employee-resolution-reminders.png",
+      "sha256": "d11c174a803b780a384c871b4e64606ff5849199b70a5ea892fddbaee20025ba",
+      "width": 1600,
+      "height": 1100,
+      "pixel_reviewed": true,
+      "modified": false
+    },
+    {
+      "file": "manager-native-dashboard.png",
+      "sha256": "66bef9518e84d049e4f02a93493724bbb6b0a0415e7064f5aa6c4f4dc1b8ccb8",
+      "width": 1600,
+      "height": 1100,
+      "pixel_reviewed": true,
+      "modified": false
+    }
+  ]
+}

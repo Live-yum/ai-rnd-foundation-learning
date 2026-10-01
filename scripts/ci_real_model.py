@@ -19,6 +19,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -259,7 +260,7 @@ class DiagnosticTextBudget:
             text,
         )
         text = re.sub(
-            r"(?i)(?:\b(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|password|passwd|secret|credential|authorization|token)\b|密码|口令|密钥|令牌)[\"']?\s*[:：=]\s*[^\r\n]*",
+            r"(?i)(?:\b(?:[a-z][a-z0-9]*[_-])*(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|password|passwd|secret|credential|authorization|token)\b|密码|口令|密钥|令牌)[\"']?\s*[:：=]\s*[^\r\n]*",
             "[REDACTED CREDENTIAL]",
             text,
         )
@@ -282,6 +283,63 @@ class DiagnosticTextBudget:
 
     def excerpts(self, values):
         return [text for value in values[:20] if (text := self.excerpt(value))]
+
+
+def safe_execution_failure(error, stage, text_budget):
+    """Selected exception headline and frame coordinates, never raw logs/locals."""
+    stages = {
+        "configuration",
+        "smoke",
+        "workflow",
+        "platform_start",
+        "smart_delivery_browser",
+        "delivery_receipt",
+        "download_unpack",
+        "approved_contract",
+        "downloaded_python_runtime",
+        "downloaded_native_runtime",
+        "screenshot_export",
+        "complete",
+    }
+    try:
+        message = str(error)
+    except Exception:
+        message = "Exception text unavailable"
+    headline = message.splitlines()[0] if message else ""
+    # Long exception strings often embed tool/provider output. Do not retain it.
+    if len(headline) > 4096 or headline.lstrip().startswith(("{", "[")):
+        headline = "Oversized exception headline omitted"
+    elif re.search(r"[\[{]", headline):
+        # An exception may prefix a complete JSON/tool payload with a sentence.
+        # Retain only that sentence, not any structured payload or later values.
+        headline = re.split(r"[\[{]", headline, maxsplit=1)[0] + "[structured payload omitted]"
+    headline = re.sub(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s]+", "[URL REDACTED]", headline)
+    headline = re.sub(
+        r"(?:/(?:tmp|home|workspace|Users)/|[A-Za-z]:[\\/])[^\s,;]+", "[PATH]", headline
+    )
+    frames = []
+    for frame in traceback.extract_tb(error.__traceback__)[-8:]:
+        filename = Path(frame.filename).name
+        function = frame.name
+        frames.append(
+            {
+                "file": filename
+                if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]{0,99}", filename)
+                and text_budget.scrub(filename) == filename
+                else "unavailable",
+                "function": function
+                if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,99}|<module>", function)
+                and text_budget.scrub(function) == function
+                else "unavailable",
+                "line": min(max(frame.lineno, 0), 1_000_000),
+            }
+        )
+    return {
+        "stage": stage if stage in stages else "unknown",
+        "exception_type": text_budget.excerpt(type(error).__name__),
+        "message_excerpt": text_budget.excerpt(headline),
+        "frames": frames,
+    }
 
 
 def completed_stage_details(value, text_budget):
@@ -1260,6 +1318,58 @@ def run_acceptance(config, transport, directory, template="python-basic"):
     )
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
+    run_id = None
+    result_path = directory / "browser-result.json"
+    acceptance_stage = "platform_start"
+
+    def failure_context():
+        nonlocal run_id
+        if run_id is None:
+            try:
+                if not result_path.is_symlink() and result_path.stat().st_size <= 4096:
+                    run_id = json.loads(result_path.read_text(encoding="utf-8")).get("run_id")
+            except OSError, ValueError, TypeError, AttributeError:
+                pass
+        artifact_directory = approved_plan_artifact_directory(settings.data_dir, run_id, template)
+        native_reports = artifact_directory if template != "python-basic" else None
+        try:
+            details = safe_workflow_details(
+                application.state.store,
+                run_id,
+                traces,
+                text_budget=diagnostic_text,
+                native_reports=native_reports,
+            )
+        except Exception as diagnostic_error:
+            details = {"diagnostic_error_type": type(diagnostic_error).__name__[:80]}
+        for key, operation in (
+            (
+                "approved_plan_replay",
+                lambda: preserve_approved_customer_plan(
+                    artifact_directory,
+                    ROOT / "reports/real-model/approved-plan-replay.json",
+                    diagnostic_text,
+                ),
+            ),
+            (
+                "unapproved_design_replay",
+                lambda: preserve_unapproved_design_contract(
+                    application.state.store,
+                    run_id,
+                    ROOT / "reports/real-model/unapproved-design-contract.json",
+                    diagnostic_text,
+                ),
+            ),
+        ):
+            try:
+                details[key] = operation()
+            except Exception as diagnostic_error:
+                details[key] = {
+                    "status": "diagnostic_failed",
+                    "error_type": type(diagnostic_error).__name__[:80],
+                }
+        return details
+
     try:
         for _ in range(150):
             if server.started:
@@ -1287,6 +1397,7 @@ def run_acceptance(config, transport, directory, template="python-basic"):
         module = os.environ.get(
             "PRODUCT_VERIFY_PLAYWRIGHT", str(ROOT / ".native/browser/node_modules/playwright")
         )
+        acceptance_stage = "smart_delivery_browser"
         process = subprocess.run(
             ["node", str(driver), str(cfg), module],
             cwd=ROOT,
@@ -1300,40 +1411,20 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             run_id = None
             if result_path.is_file():
                 run_id = json.loads(result_path.read_text(encoding="utf-8")).get("run_id")
-            native_reports = (
-                settings.data_dir / "runs" / run_id / "native-evidence"
-                if template != "python-basic"
-                and isinstance(run_id, str)
-                and re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", run_id)
-                else None
-            )
-            details = safe_workflow_details(
-                application.state.store,
-                run_id,
-                traces,
-                text_budget=diagnostic_text,
-                native_reports=native_reports,
-            )
-            details["approved_plan_replay"] = preserve_approved_customer_plan(
-                approved_plan_artifact_directory(settings.data_dir, run_id, template),
-                ROOT / "reports/real-model/approved-plan-replay.json",
-                diagnostic_text,
-            )
-            details["unapproved_design_replay"] = preserve_unapproved_design_contract(
-                application.state.store,
-                run_id,
-                ROOT / "reports/real-model/unapproved-design-contract.json",
-                diagnostic_text,
-            )
+            details = failure_context()
             raise SafeFailure("workflow_not_ready", last, details)
+        acceptance_stage = "delivery_receipt"
         browser = json.loads(result_path.read_text(encoding="utf-8"))
-        run = application.state.store.get_run(browser["run_id"])
+        run_id = browser["run_id"]
+        run = application.state.store.get_run(run_id)
         if run["status"] != "READY" or not run["auto_mode"] or not archive.is_file():
             raise SafeFailure("delivery_not_ready")
         if hashlib.sha256(archive.read_bytes()).hexdigest() != run["result"]["sha256"]:
             raise SafeFailure("download_integrity_failed")
         product = directory / "downloaded-product"
+        acceptance_stage = "download_unpack"
         unpack(archive, product)
+        acceptance_stage = "approved_contract"
         screenshot_dir = ROOT / "reports/real-model/screenshots"
         approved_requirement = application.state.store.latest_revision(
             browser["run_id"], "requirements"
@@ -1346,6 +1437,7 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             require_browser_evidence(product, run["result"]["cleanroom"])
             python = product_interpreter(product, settings)
             probe = directory / "downloaded-product-verification.json"
+            acceptance_stage = "downloaded_python_runtime"
             run_probe(product, python, probe, settings, business_screenshots=screenshot_dir)
             evidence = json.loads(probe.read_text(encoding="utf-8"))
             require_browser_evidence(product, evidence)
@@ -1358,6 +1450,7 @@ def run_acceptance(config, transport, directory, template="python-basic"):
                 (product / "deployment/manifest.json").read_text(encoding="utf-8")
             )
             require_customer_spec(manifest["plan"], approved_requirement=approved_requirement)
+            acceptance_stage = "downloaded_native_runtime"
             evidence = verify_native_delivery(
                 product, os.environ["NATIVE_TEST_DATABASE_URL"], directory / "downloaded-evidence"
             )
@@ -1368,6 +1461,7 @@ def run_acceptance(config, transport, directory, template="python-basic"):
                 or evidence.get("restart_preserved_records") is not True
             ):
                 raise SafeFailure("downloaded_cleanroom_failed")
+            acceptance_stage = "screenshot_export"
             # Only allowlisted synthetic UI PNGs, never full logs, credentials or product archives.
             import shutil
 
@@ -1402,6 +1496,21 @@ def run_acceptance(config, transport, directory, template="python-basic"):
             "daytona": "not_exercised",
             "old_blocked_recovery": "not_exercised_in_real_run",
         }
+    except Exception as error:
+        # Collect while the private product and approval artifacts still exist.
+        # Expected gates with existing detail retain their original explanation.
+        if isinstance(error, SafeFailure) and error.details is not None:
+            raise
+        details = failure_context()
+        details["execution"] = safe_execution_failure(
+            error,
+            acceptance_stage,
+            DiagnosticTextBudget(secrets=(config.key.get_secret_value(),), limit=1000),
+        )
+        if isinstance(error, SafeFailure):
+            error.details = details
+            raise
+        raise SafeFailure("acceptance_execution_failed", details=details) from None
     finally:
         server.should_exit = True
         thread.join(timeout=120)
@@ -1462,7 +1571,8 @@ def main():
             ],
         )
         if mode == "full":
-            (destination / "approved-plan-replay.json").unlink(missing_ok=True)
+            for filename in ("approved-plan-replay.json", "unapproved-design-contract.json"):
+                (destination / filename).unlink(missing_ok=True)
             result["smoke"] = verified_smoke_receipt(summary, config, os.environ)
             prior_calls = 1
         transport = BoundedRealTransport(config)
@@ -1489,8 +1599,18 @@ def main():
             result["configuration_checks" if "configuration" in exc.code else "failure_details"] = (
                 exc.details
             )
-    except Exception:
-        result.update(failure_phase=phase, failure_code="acceptance_execution_failed")
+    except Exception as error:
+        budget = DiagnosticTextBudget(
+            secrets=(config.key.get_secret_value(),)
+            if config
+            else (os.environ.get("API_KEY", ""),),
+            limit=1000,
+        )
+        result.update(
+            failure_phase=phase,
+            failure_code="acceptance_execution_failed",
+            failure_details={"execution": safe_execution_failure(error, phase, budget)},
+        )
     finally:
         if transport:
             result["actual_http_calls"] = prior_calls + transport.calls

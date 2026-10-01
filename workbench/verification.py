@@ -150,7 +150,84 @@ def require_business_proof(spec, report, with_browser):
             "datetime_policy",
             "due_notifications",
             "audit_immutability",
+            "query_matrix",
         }
+        query_keys = {
+            "role",
+            "entity",
+            "field",
+            "kind",
+            "keyword_field",
+            "scope",
+            "cases",
+            "positive_matches",
+            "other_matches",
+            "excluded_records",
+            "foreign_matches",
+            "isolated_matches",
+            "exact_results",
+            "role_scope",
+        }
+        query_identity = ("role", "entity", "field", "kind")
+        expected_queries = {}
+        grants = {(p["role"], p["entity"]): p for p in contract["permissions"]}
+        for entity in spec["entities"]:
+            keyword = next((f["name"] for f in entity["fields"] if f["searchable"]), None)
+            for role in contract["roles"]:
+                if not read(role["name"], entity["name"]):
+                    continue
+                for field in entity["fields"]:
+                    kinds = (["keyword"] if field["searchable"] else []) + (
+                        ["exact_filter", *(["combined"] if keyword else [])]
+                        if field["filterable"]
+                        else []
+                    )
+                    for kind in kinds:
+                        expected_queries[role["name"], entity["name"], field["name"], kind] = (
+                            grants[role["name"], entity["name"]]["scope"],
+                            keyword if kind == "combined" else None,
+                        )
+        queries = indexed(proof["query_matrix"], query_identity, len(expected_queries))
+        assert set(queries) == set(expected_queries)
+        for identity, item in queries.items():
+            assert set(item) == query_keys
+            assert (item["scope"], item["keyword_field"]) == expected_queries[identity]
+            assert type(item["cases"]) is int and item["cases"] == 2
+            for key, maximum in (
+                ("positive_matches", 100),
+                ("other_matches", 100),
+                ("excluded_records", 200),
+                ("foreign_matches", 200),
+                ("isolated_matches", 100),
+            ):
+                assert type(item[key]) is int and 0 <= item[key] <= maximum
+            assert item["exact_results"] is True and item["role_scope"] is True
+            assert item["isolated_matches"] <= item["positive_matches"]
+            if item["kind"] == "keyword":
+                assert item["other_matches"] == 0
+            if item["kind"] != "keyword":
+                assert item["isolated_matches"] == 0
+            if item["scope"] == "all":
+                assert item["foreign_matches"] == 0
+        # Zero rows may be correct for a particular read-only/own actor. But each
+        # declared capability needs an independent positive/control witness somewhere.
+        for entity, field in fields:
+            for kind in ("keyword", "exact_filter", "combined"):
+                group = [
+                    v for (r, e, f, k), v in queries.items() if (e, f, k) == (entity, field, kind)
+                ]
+                if group:
+                    assert any(v["positive_matches"] > 0 for v in group)
+                    singleton_filter = (
+                        kind == "exact_filter"
+                        and fields[entity, field]["kind"] == "enum"
+                        and fields[entity, field]["required"] is True
+                        and len(fields[entity, field]["choices"]) == 1
+                    )
+                    if not singleton_filter:
+                        assert any(v["excluded_records"] > 0 for v in group)
+                    if kind == "keyword":
+                        assert any(v["isolated_matches"] > 0 for v in group)
         validations = indexed(proof["field_validation"], ("entity", "field"), len(fields))
         assert set(validations) == set(fields)
         protected = {
@@ -314,7 +391,24 @@ def require_business_proof(spec, report, with_browser):
             "related_views",
             "related_sources",
             "datetime_controls",
+            "query_matrix",
         }
+        ui_queries = indexed(browser["query_matrix"], query_identity, len(expected_queries))
+        assert set(ui_queries) == set(queries)
+        ui_query_keys = {
+            "query_values_verified",
+            "response_ids_exact",
+            "rendered_ids_exact",
+            "controls_reset",
+        }
+        for identity, item in ui_queries.items():
+            assert set(item) == query_keys | ui_query_keys
+            assert all(item[key] is True for key in ui_query_keys)
+            assert all(
+                type(item[key]) is type(queries[identity][key])
+                and item[key] == queries[identity][key]
+                for key in query_keys
+            )
         ui_labels = indexed(
             browser["relation_labels"], ("role", "entity", "field"), role_count * len(relations)
         )
@@ -391,7 +485,7 @@ def require_business_proof(spec, report, with_browser):
             )
     except AssertionError, KeyError, TypeError, ValueError, AttributeError:
         raise PrerequisiteError(
-            "逐字段约束、关联权限、时间戳、逾期与不可改写审计的独立业务证据缺失或不匹配"
+            "逐字段约束、查询矩阵、关联权限、时间戳、逾期与不可改写审计的独立业务证据缺失或不匹配"
         ) from None
 
 
@@ -414,6 +508,7 @@ def require_business_evidence(spec, report, with_browser):
         "business-datetime-policy",
         "business-due-reminders",
         "business-audit-immutability",
+        "business-query-matrix",
     }
     if (
         not isinstance(business, dict)
@@ -440,6 +535,7 @@ def require_business_evidence(spec, report, with_browser):
         "business-browser-related-views",
         "business-browser-related-row-acl",
         "business-browser-datetime-controls",
+        "business-browser-query-matrix",
         *(["business-browser-relation-labels"] if spec["business"]["relations"] else []),
         *["business-browser-records:" + e["name"] for e in spec["entities"]],
     }

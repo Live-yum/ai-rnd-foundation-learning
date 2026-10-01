@@ -103,6 +103,7 @@ def assert_bounded_evidence(plan, report):
         "related_views",
         "related_sources",
         "datetime_controls",
+        "query_matrix",
     }
     assert evidence["version"] == 1
     roles = {role.name for role in plan.business.roles}

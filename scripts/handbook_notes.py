@@ -448,7 +448,7 @@ SCRIPT_ROLES = {
     ),
     "build_handbook.py": (
         "生成唯一完整教材",
-        "按GUIDES顺序拼正文，再按GROUPS枚举自有文本源，排除依赖/运行目录；附录写源码指纹、独立讲解和完整代码。--check比较全部文本与唯一输出，不改源码。",
+        "按GUIDES顺序拼正文并调整图片相对路径，再按GROUPS枚举自有源码与真实截图，排除依赖/运行目录；附录写源码指纹、完整代码及可折叠Base64二进制块。--check比较全部文本与唯一输出，不改源码。",
         "正文及真实源文件 → render → 单一Markdown；test_handbook验证独立重建。",
     ),
     "handbook_notes.py": (
@@ -458,8 +458,8 @@ SCRIPT_ROLES = {
     ),
     "rebuild_from_handbook.py": (
         "从一本书还原安全的新项目",
-        "extract先验证全部标记、路径和SHA，再由restore写入新的空目录；任一源码块残缺就不动目标。只创建文件，不运行提取出的程序或下载依赖。",
-        "书中独立bootstrap或本脚本 → 完整自有文本项目 → ci_handbook。",
+        "extract先验证全部标记、路径和SHA；截图严格解码Base64后验证原始字节，再由restore写入新的空目录。任一源码或资源块残缺就不动目标；不运行提取出的程序或下载依赖。",
+        "书中独立bootstrap或本脚本 → 完整自有源码和真实截图 → ci_handbook。",
     ),
     "vendor_templates.py": (
         "重建固定的第三方源码归档",
@@ -468,7 +468,7 @@ SCRIPT_ROLES = {
     ),
     "ci_handbook.py": (
         "证明一本书足够重建平台",
-        "把教材单独复制进临时目录，恢复所有文本，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue，运行完整非PG回归并保留JUnit。",
+        "把教材单独复制进临时目录，恢复所有文本与二进制截图，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue，运行完整非PG回归并保留JUnit。",
         "handbook-only工作流 → 本脚本 → reports/handbook-clean-room.json。",
     ),
     "ci_clean_install.py": (
@@ -822,6 +822,12 @@ def purpose(name):
             "第三方源码来源与许可证",
             "模板属于第三方依赖。manifest记录固定提交、归档哈希、逐文件内容摘要及排除项；LICENSE原样保留。只从教材也可以用vendor_templates --fetch重建源码归档，不需要复制本仓库已有ZIP。",
             "scripts/vendor_templates.py → manifest/ZIP → workbench/vendor.py → 原生生成器。",
+        )
+    if name.startswith("docs/images/"):
+        return (
+            "真实浏览器截图的来源与验收边界",
+            "provenance记录模板、Actions运行、平台与上游源码提交以及各PNG的原始SHA；summary保留该历史运行的真实模型与完整工作流结果。它们不是当前提交或其他模板的通过证据。",
+            "成功运行的原图与回执 → 客服正文图注 → 附录逐字节还原与哈希测试。",
         )
     if name.startswith("docs/"):
         return (

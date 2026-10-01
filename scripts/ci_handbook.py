@@ -11,7 +11,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from scripts.build_handbook import OUTPUT, ROOT
-from scripts.rebuild_from_handbook import restore
+from scripts.rebuild_from_handbook import extract, restore
 
 
 def run(argv, directory, env, timeout=900):
@@ -28,6 +28,8 @@ def main():
         book.write_bytes(text)
         destination = base / "student-project"
         count = restore(book, destination)
+        rows = extract(text.decode("utf-8"))
+        binary_count = sum(isinstance(content, bytes) for content in rows.values())
         assert not list((destination / "templates/vendor").glob("*.zip"))
         env = dict(
             os.environ, PYTHONPATH=str(destination), PYTHONUTF8="1", PYTHONIOENCODING="utf-8"
@@ -90,7 +92,9 @@ def main():
             )
         report = {
             "passed": True,
-            "text_files_restored": count,
+            "files_restored": count,
+            "text_files_restored": count - binary_count,
+            "binary_files_restored": binary_count,
             "original_project_imported": False,
             "original_archives_copied": False,
             "continue_component_rebuilt_from_handbook": True,

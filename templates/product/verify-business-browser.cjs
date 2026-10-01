@@ -12,7 +12,7 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
   const errors=[], checks=new Set(), business=cfg.spec.business, screenshots=new Map();
   // These summaries contain only approved contract names, booleans and bounded counts.
   // Expected identities and display values stay in this isolated verifier process.
-  const evidence={version:1,relation_labels:[],related_views:[],related_sources:[],datetime_controls:[]};
+  const evidence={version:1,relation_labels:[],related_views:[],related_sources:[],datetime_controls:[],query_matrix:[]};
   const labelEvidence=new Map(), relatedEvidence=new Map(), sourceEvidence=new Map();
   const entities=new Map(cfg.spec.entities.map(entity=>[entity.name,entity]));
   const roles=new Set(business.roles.map(role=>role.name));
@@ -22,7 +22,52 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
   const tuple=(...parts)=>JSON.stringify(parts);
   const summary=(map,key,initial)=>{if(!map.has(key))map.set(key,initial);return map.get(key);};
   const relationFor=(entity,field)=>business.relations.find(r=>r.entity===entity&&r.field===field);
+  const queryKey=item=>tuple(item.role,item.entity,item.field,item.kind);
+  function validateQueryExpectations() {
+    verify(Array.isArray(cfg.query_cases)&&Array.isArray(cfg.query_evidence),'query-expectations-missing');
+    const required=new Map();
+    for(const actor of cfg.actors)for(const entity of cfg.spec.entities.filter(entity=>allowed(actor.role,entity.name,'read'))) {
+      const keyword=entity.fields.find(field=>field.searchable);
+      for(const field of entity.fields) {
+        const kinds=[...(field.searchable?['keyword']:[]),...(field.filterable?['exact_filter',...(keyword?['combined']:[])]:[])];
+        for(const kind of kinds) {
+          const item={role:actor.role,entity:entity.name,field:field.name,kind,keyword_field:kind==='combined'?keyword.name:null};
+          required.set(queryKey(item),item);
+        }
+      }
+    }
+    verify(cfg.query_cases.length===required.size*2&&cfg.query_evidence.length===required.size,'query-expectations-coverage');
+    const pairs=new Map();
+    for(const item of cfg.query_cases) {
+      const expected=required.get(queryKey(item));
+      verify(!!expected&&item.keyword_field===expected.keyword_field,'query-expectations-scope');
+      const variants=item.kind==='keyword'?['match','miss']:['match','other'];
+      verify(variants.includes(item.variant),'query-expectations-variant');
+      verify(item.params&&typeof item.params==='object'&&!Array.isArray(item.params),'query-expectations-params');
+      const names=item.kind==='keyword'?['q']:item.kind==='exact_filter'?['filter_'+item.field]:['filter_'+item.field,'q'];
+      verify(JSON.stringify(Object.keys(item.params).sort())===JSON.stringify(names.sort())&&Object.values(item.params).every(value=>typeof value==='string'&&value.length>0&&value.length<=4096),'query-expectations-params');
+      verify(Array.isArray(item.expected_ids)&&item.expected_ids.length<=50&&item.expected_ids.every(id=>typeof id==='string'&&!!id)&&new Set(item.expected_ids).size===item.expected_ids.length,'query-expectations-identities');
+      verify(Number.isInteger(item.total_count)&&item.total_count>=item.expected_ids.length&&item.total_count<=limit,'query-expectations-count');
+      for(const name of ['foreign_count','isolated_count'])verify(Number.isInteger(item[name])&&item[name]>=0&&item[name]<=limit,'query-expectations-count');
+      verify(item.isolated_count<=item.expected_ids.length&&(item.kind==='keyword'||item.isolated_count===0),'query-expectations-isolation');
+      if(item.variant==='miss')verify(item.expected_ids.length===0,'query-expectations-miss');
+      const pair=summary(pairs,queryKey(item),[]);
+      verify(!pair.some(other=>other.variant===item.variant),'query-expectations-duplicate');pair.push(item);
+    }
+    const seen=new Set();
+    for(const entry of cfg.query_evidence) {
+      const key=queryKey(entry),expected=required.get(key),pair=pairs.get(key);
+      verify(!!expected&&!seen.has(key)&&pair?.length===2,'query-evidence-coverage');seen.add(key);
+      verify(entry.keyword_field===expected.keyword_field&&entry.scope===grant(entry.role,entry.entity)?.scope,'query-evidence-scope');
+      verify(entry.cases===2&&entry.exact_results===true&&entry.role_scope===true,'query-evidence-result');
+      for(const name of ['positive_matches','other_matches','excluded_records','foreign_matches','isolated_matches'])verify(Number.isInteger(entry[name])&&entry[name]>=0&&entry[name]<=limit*2,'query-evidence-count');
+      verify(entry.positive_matches===pair.find(item=>item.variant==='match').expected_ids.length&&entry.other_matches===pair.find(item=>item.variant!=='match').expected_ids.length,'query-evidence-matches');
+      verify(entry.excluded_records===pair.reduce((count,item)=>count+item.total_count-item.expected_ids.length,0)&&entry.foreign_matches===pair.reduce((count,item)=>count+item.foreign_count,0)&&entry.isolated_matches===pair.reduce((count,item)=>count+item.isolated_count,0),'query-evidence-counts');
+    }
+    for(const entity of cfg.spec.entities)for(const field of entity.fields.filter(field=>field.searchable))verify(cfg.query_evidence.some(entry=>entry.entity===entity.name&&entry.field===field.name&&entry.kind==='keyword'&&entry.isolated_matches>0),'query-field-isolation');
+  }
   function validateExpectations() {
+    validateQueryExpectations();
     verify(Array.isArray(cfg.relation_labels),'label-expectations-missing');
     verify(Array.isArray(cfg.related_expectations),'related-expectations-missing');
     verify(cfg.relation_labels.length<=roles.size*business.relations.length*limit,'label-expectations-limit');
@@ -72,6 +117,61 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
       evidence.datetime_controls.push({role:actor.role,entity:entity.name,field:field.name,searchable:!!field.searchable,date_range:!!field.date_range,filterable:!!field.filterable,controls_absent:!field.searchable&&!field.date_range&&!field.filterable});
     }
     checks.add('business-browser-datetime-controls');
+  }
+  function verifyQueryValues(response,params) {
+    const query=new URL(response.url()).searchParams;
+    verify(query.getAll('offset').length===1&&query.get('offset')==='0'&&query.getAll('limit').length===1&&query.get('limit')==='50','query-pagination-values');
+    const active=[...query.entries()].filter(([name])=>!['offset','limit'].includes(name)).sort(([left],[right])=>left.localeCompare(right));
+    const expected=Object.entries(params).sort(([left],[right])=>left.localeCompare(right));
+    verify(JSON.stringify(active)===JSON.stringify(expected),'query-control-values');
+  }
+  async function verifyQueryResults(response,entity,expectedIds) {
+    verify(response.status()===200,'query-http-status');
+    const rows=await response.json();
+    verify(Array.isArray(rows)&&rows.length<=limit&&rows.every(row=>row&&typeof row.id==='string'),'query-response-shape');
+    const expected=[...expectedIds].sort();
+    verify(JSON.stringify(rows.map(row=>row.id).sort())===JSON.stringify(expected),'query-response-ids');
+    verify(response.headers()['x-total-count']===String(expected.length),'query-response-total');
+    await page.waitForFunction(name=>document.querySelector('#rows').dataset.entity===name&&document.querySelector('#rows').dataset.loading==='false',entity.name);
+    const rendered=await page.locator('#rows tr').evaluateAll(nodes=>nodes.map(node=>node.dataset.id).sort());
+    verify(JSON.stringify(rendered)===JSON.stringify(expected),'query-rendered-ids');
+    return rows;
+  }
+  async function verifyQueries(actor,entity,sources) {
+    const cases=cfg.query_cases.filter(item=>item.role===actor.role&&item.entity===entity.name);
+    const listResponse=()=>page.waitForResponse(response=>new URL(response.url()).pathname===`/api/${entity.name}`&&response.request().method()==='GET');
+    for(const item of cases) {
+      verify(item.total_count===sources.length,'query-source-count');
+      const controls=page.locator('#filters input[name],#filters select[name],#filters textarea[name]');
+      verify(await controls.evaluateAll(nodes=>nodes.every(node=>node.value==='')),'query-controls-reset');
+      for(const [name,value] of Object.entries(item.params)) {
+        const control=page.locator(`#filters [name=${JSON.stringify(name)}]`);
+        verify(await control.count()===1,'query-control-present');
+        if(await control.evaluate(node=>node.tagName)==='SELECT')await control.selectOption(value);
+        else await control.fill(value);
+        verify(await control.inputValue()===value,'query-control-input');
+      }
+      const pending=listResponse();
+      await page.locator('#filters button[type=submit]').click();
+      const response=await pending;verifyQueryValues(response,item.params);
+      const rows=await verifyQueryResults(response,entity,item.expected_ids);
+      if(item.kind==='keyword'&&item.variant==='match') {
+        const term=item.params.q.toLowerCase();
+        const matches=(row,field)=>String(row[field]??'').toLowerCase().includes(term);
+        const isolated=rows.filter(row=>matches(row,item.field)&&!entity.fields.some(field=>field.searchable&&field.name!==item.field&&matches(row,field.name))).length;
+        verify(isolated===item.isolated_count,'query-field-isolation');
+      }
+      const clearing=listResponse();
+      await page.locator('#reset').click();
+      const cleared=await clearing;verifyQueryValues(cleared,{});
+      verify(await controls.evaluateAll(nodes=>nodes.every(node=>node.value==='')),'query-controls-reset');
+      await verifyQueryResults(cleared,entity,sources.map(item=>item.record_id));
+    }
+    for(const entry of cfg.query_evidence.filter(entry=>entry.role===actor.role&&entry.entity===entity.name)) {
+      const {role,entity,field,kind,keyword_field,scope,cases,positive_matches,other_matches,excluded_records,foreign_matches,isolated_matches}=entry;
+      evidence.query_matrix.push({role,entity,field,kind,keyword_field,scope,cases,positive_matches,other_matches,excluded_records,foreign_matches,isolated_matches,exact_results:true,role_scope:true,query_values_verified:true,response_ids_exact:true,rendered_ids_exact:true,controls_reset:true});
+    }
+    checks.add('business-browser-query-matrix');
   }
   async function verifyListLabels(actor,entity,expectations) {
     for(const item of expectations) {
@@ -192,6 +292,7 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
         const sources=cfg.related_expectations.filter(item=>item.role===actor.role&&item.entity===entity.name);
         const visibleIds=await page.locator('#rows tr').evaluateAll(nodes=>nodes.map(node=>node.dataset.id).sort());
         verify(JSON.stringify(visibleIds)===JSON.stringify(sources.map(item=>item.record_id).sort()),'source-list-row-acl');
+        await verifyQueries(actor,entity,sources);
         const labels=cfg.relation_labels.filter(item=>item.role===actor.role&&item.entity===entity.name);
         await verifyListLabels(actor,entity,labels);await verifySelectLabels(actor,entity,labels);
         for(const item of sources)await verifyRelated(actor,entity,item,labels);
@@ -297,21 +398,6 @@ const cfg = JSON.parse(fs.readFileSync(configFile, 'utf8'));
       await page.locator('#editor').waitFor({state:'hidden'});
       const line=page.locator(`#rows tr[data-id="${row.id}"]`);await line.waitFor();
       checks.add('business-browser-records:'+entity.name);
-      for(const field of entity.fields.filter(f=>f.searchable)) {
-        const input=page.locator('#filters [name=q]');await input.fill(String(cfg.samples[entity.name][field.name]));
-        const response=page.waitForResponse(r=>r.url().includes('/api/'+entity.name+'?')&&r.request().method()==='GET');
-        await page.locator('#filters button[type=submit]').click();assert.equal((await response).status(),200);
-        await line.waitFor();await page.locator('#reset').click();await page.waitForTimeout(75);
-      }
-      for(const field of entity.fields.filter(f=>f.filterable)) {
-        if(row[field.name]===null)continue;
-        const input=page.locator(`#filters [name="filter_${field.name}"]`);
-        const tag=await input.evaluate(node=>node.tagName);
-        if(tag==='SELECT')await input.selectOption(String(row[field.name]));else await input.fill(String(row[field.name]));
-        const response=page.waitForResponse(r=>r.url().includes('filter_'+field.name+'=')&&r.request().method()==='GET');
-        await page.locator('#filters button[type=submit]').click();assert.equal((await response).status(),200);await line.waitFor();
-        await page.locator('#reset').click();await page.waitForTimeout(75);
-      }
       await line.getByRole('button',{name:'详情 / 处理'}).click();await page.locator('#business-detail').waitFor({state:'visible'});
       if(resource.assignee_field&&allowed(actor.role,entity.name,'assign')) {
         const target=cfg.actors.find(a=>grant(a.role,entity.name)?.scope==='assigned'&&allowed(a.role,entity.name,'read')&&(allowed(a.role,entity.name,'update')||allowed(a.role,entity.name,'transition')))||actor;

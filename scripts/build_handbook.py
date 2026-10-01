@@ -1,7 +1,10 @@
 """Render a complete, reconstructable handbook from tracked source, never from memory."""
 
 import argparse
+import base64
 import hashlib
+import re
+import textwrap
 from pathlib import Path
 
 from scripts.handbook_notes import notes
@@ -83,7 +86,9 @@ GROUPS = [
     ),
     ("平台依赖锁", ["uv.lock"]),
     ("手册正文源文件", GUIDES),
+    ("真实操作截图与来源证据", ["docs/images"]),
 ]
+BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico"}
 
 
 def sources():
@@ -127,17 +132,45 @@ def sources():
                 }:
                     continue  # Temporary review infrastructure is not part of the product.
                 if name not in seen:
-                    rows.append((name, item.read_text(encoding="utf-8")))
+                    content = (
+                        item.read_bytes()
+                        if item.suffix.lower() in BINARY_SUFFIXES
+                        else item.read_text(encoding="utf-8")
+                    )
+                    rows.append((name, content))
                     seen.add(name)
         yield title, rows
 
 
+def guide_text(name):
+    """Keep image links valid in both the chapter and the root-level handbook."""
+    content = (ROOT / name).read_text(encoding="utf-8").rstrip()
+    return re.sub(
+        r"(!\[[^\]\n]*\]\()images/",
+        lambda match: match[1] + Path(name).parent.as_posix() + "/images/",
+        content,
+    )
+
+
 def render():
-    text = "\n\n".join((ROOT / name).read_text(encoding="utf-8").rstrip() for name in GUIDES)
+    text = "\n\n".join(guide_text(name) for name in GUIDES)
     text += "\n\n# 完整源码附录\n"
     for title, rows in sources():
         text += "\n## " + title + "\n"
         for name, content in rows:
+            if isinstance(content, bytes):
+                code_sha = hashlib.sha256(content).hexdigest()
+                encoded = "\n".join(textwrap.wrap(base64.b64encode(content).decode("ascii"), 76))
+                text += (
+                    f"\n### `{name}`\n\n"
+                    "真实PNG等二进制资源按原始字节收录；正文通过相对路径显示图片。"
+                    "下列Base64仅供本书独立还原程序解码，并校验解码后SHA-256，"
+                    "不是需要手写的UI代码，也不是模型绘制的截图。\n\n"
+                    "<details>\n<summary>展开二进制还原数据</summary>\n\n"
+                    f"<!-- source-file: {name} sha256: {code_sha} encoding: base64 -->\n"
+                    f"````base64\n{encoded}\n````\n\n</details>\n"
+                )
+                continue
             code_sha = hashlib.sha256(content.encode()).hexdigest()
             fence = "`" * max(
                 4,

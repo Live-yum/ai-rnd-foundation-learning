@@ -51,6 +51,11 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000) {
 async function showNativeDashboard(page) {
   const dashboard = page.locator('[data-rnd-business-entity]:visible').getByTestId('business-metrics');
   await dashboard.locator('canvas').first().waitFor({ state: 'visible' });
+  // The journey uses reduced motion, so completed setOption calls draw final values.
+  // A canvas alone can exist before its native metric options have been rendered.
+  await dashboard.locator('[data-rnd-metric-chart]').first().waitFor({ state: 'visible' });
+  await dashboard.locator('[data-rnd-metric-chart]:not([data-rnd-metric-rendered="true"])').first()
+    .waitFor({ state: 'hidden', timeout: 6000 });
   const heading = dashboard.locator('.ant-card-head');
   // Vben scrolls its native main-content container, not the document. Move the
   // real stats heading into view explicitly, outside the noninteractive capture helper.
@@ -62,12 +67,26 @@ async function showNativeDashboard(page) {
 
 async function verifyNativeHistorySpacing(page) {
   const panel = page.locator('[data-rnd-business-entity]:visible [data-rnd-business-panel]');
-  const actions = await panel.getByTestId('business-actions').boundingBox();
   const first = panel.getByTestId('business-history').locator('.ant-timeline-item-content').first();
   await first.waitFor({ state: 'visible' });
-  const history = await first.boundingBox();
-  assert(actions && history && history.y >= actions.y + actions.height + 8,
-    'Native history must be separated from the bottom of the wrapped action buttons');
+  // Reloading history can change the native scroll position while its rows mount.
+  // Read both rectangles synchronously in one browser frame after visibility.
+  const geometry = await panel.evaluate(element => new Promise(resolve => requestAnimationFrame(() => {
+    const rectangle = node => {
+      if (!node) return null;
+      const { x, y, width, height } = node.getBoundingClientRect();
+      return [x, y, width, height].every(Number.isFinite) ? { x, y, width, height } : null;
+    };
+    const actions = rectangle(element.querySelector('[data-testid="business-actions"]'));
+    const history = rectangle(element.querySelector('[data-testid="business-history"] .ant-timeline-item-content'));
+    const gap = actions && history ? history.y - actions.y - actions.height : null;
+    resolve({ actions, history, gap: Number.isFinite(gap) ? gap : null });
+  })));
+  if (!(geometry.actions?.width > 0 && geometry.actions.height > 0
+    && geometry.history?.width > 0 && geometry.history.height > 0
+    && Number.isFinite(geometry.gap) && geometry.gap >= 8)) {
+    assert.fail('Native history must be separated from the bottom of the wrapped action buttons; geometry=' + JSON.stringify(geometry));
+  }
 }
 
 function rememberCreatedRecord(created, labels, entity, identifier, label) {

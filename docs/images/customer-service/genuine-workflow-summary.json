@@ -1,0 +1,84 @@
+{
+  "passed": true,
+  "real_provider_attempted": true,
+  "acceptance_scope": "full_workflow",
+  "model": "deepseek-flash",
+  "endpoint": "https://api.deepseek.com",
+  "run_identity": [
+    "36789925373",
+    "1",
+    "a15137ff1aca04d3091a9c4f7cfa99bb09436d07"
+  ],
+  "smoke": {
+    "passed": true,
+    "http_status": 200,
+    "actual_provider_request": true
+  },
+  "workflow": {
+    "passed": true,
+    "real_model": true,
+    "single_initial_smart_consent": true,
+    "explicit_customer_obligations_preserved": true,
+    "template": "fastapiadmin",
+    "ready": true,
+    "ui_download": true,
+    "download_hash_matches": true,
+    "independent_database": true,
+    "real_browser": true,
+    "restart": true,
+    "model_calls": 3,
+    "page_errors": 0,
+    "aider_edit": "not_exercised",
+    "continue_native_index": "not_exercised",
+    "daytona": "not_exercised",
+    "old_blocked_recovery": "not_exercised_in_real_run"
+  },
+  "actual_http_calls": 4,
+  "provider_statuses": [
+    200,
+    200,
+    200,
+    200
+  ],
+  "provider_receipts": [
+    {
+      "http_status": 200,
+      "stage": "recommend",
+      "finish_reason": "stop",
+      "content_present": true,
+      "reasoning_present": true,
+      "usage": {
+        "prompt_tokens": 8835,
+        "completion_tokens": 11386,
+        "total_tokens": 20221
+      },
+      "schema_valid": true
+    },
+    {
+      "http_status": 200,
+      "stage": "plan",
+      "finish_reason": "stop",
+      "content_present": true,
+      "reasoning_present": true,
+      "usage": {
+        "prompt_tokens": 16267,
+        "completion_tokens": 6808,
+        "total_tokens": 23075
+      },
+      "schema_valid": true
+    },
+    {
+      "http_status": 200,
+      "stage": "review",
+      "finish_reason": "stop",
+      "content_present": true,
+      "reasoning_present": true,
+      "usage": {
+        "prompt_tokens": 9295,
+        "completion_tokens": 2131,
+        "total_tokens": 11426
+      },
+      "schema_valid": true
+    }
+  ]
+}

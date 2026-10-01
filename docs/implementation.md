@@ -250,9 +250,11 @@ Runtime在本机文件锁和可选PG advisory lock下启动单Worker。文件锁
 
 ## K. 只有这一份文档时如何减少抄写错误
 
-手工学习仍按前面的组和逐文件代码区进行。为了校对大量锁文件和重复的完整源码，可以先把下面这段**仅使用Python标准库**的完整代码保存为项目目录外的`rebuild_book.py`。它不要求已有本项目脚本、不下载本项目源码、不执行提取的代码，只把经过SHA验证的源码块写入一个新的空目录。
+手工学习仍按前面的组和逐文件代码区进行。为了校对大量锁文件和重复的完整源码，可以先把下面这段**仅使用Python标准库**的完整代码保存为项目目录外的`rebuild_book.py`。它不要求已有本项目脚本、不下载本项目源码、不执行提取的代码，只把经过SHA验证的源码块和截图原始字节写入一个新的空目录。图片以可折叠的Base64资源块随书收录，不需要照着界面重画，也不需要另外下载图片。还原后在项目根目录重新生成本书，正文的`docs/images/`相对图片路径即可正常显示。
 
 ```python
+import base64
+import binascii
 import hashlib
 import re
 import sys
@@ -268,11 +270,12 @@ target = Path(sys.argv[2])
 if target.is_symlink() or (target.exists() and any(target.iterdir())):
     raise SystemExit("目标必须是新的空目录，不覆盖任何已有项目")
 pattern = re.compile(
-    r"^<!-- source-file: ([^\r\n]+) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n",
+    r"^<!-- source-file: ([^\r\n]+) sha256: ([0-9a-f]{64})(?: encoding: (base64))? -->\n"
+    r"(`{4,})[^\n]*\n(.*?)\n\4\n",
     re.S | re.M,
 )
 files = {}
-for name, expected, fence, code in pattern.findall(book):
+for name, expected, encoding, fence, code in pattern.findall(book):
     relative = PurePosixPath(name)
     if (
         relative.is_absolute()
@@ -286,6 +289,15 @@ for name, expected, fence, code in pattern.findall(book):
         or any(ord(char) < 32 for char in name)
     ):
         raise SystemExit("不安全或重复路径: " + name)
+    if encoding == "base64":
+        try:
+            content = base64.b64decode(code.replace("\n", ""), validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise SystemExit("二进制块编码不合法: " + name) from exc
+        if hashlib.sha256(content).hexdigest() != expected:
+            raise SystemExit("二进制块哈希不匹配: " + name)
+        files[name] = content
+        continue
     # Fence separators are not necessarily source bytes: preserve empty files
     # and sources with or without a final newline, using the exact source SHA.
     content = next(
@@ -307,7 +319,10 @@ target.mkdir(parents=True, exist_ok=True)
 for name, content in files.items():
     path = target / name
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8", newline="\n")
+    if isinstance(content, bytes):
+        path.write_bytes(content)
+    else:
+        path.write_text(content, encoding="utf-8", newline="\n")
 print("已校验并写入", len(files), "个文件；尚未执行代码或安装依赖。")
 ```
 

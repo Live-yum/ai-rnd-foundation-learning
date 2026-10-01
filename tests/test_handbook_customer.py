@@ -1,5 +1,9 @@
 """The single from-zero sourcebook teaches and reconstructs the complete customer path."""
 
+import hashlib
+import json
+import re
+import struct
 from pathlib import Path
 
 from scripts.build_handbook import GUIDES, OUTPUT, ROOT, sources
@@ -112,3 +116,68 @@ def test_real_model_lesson_has_exact_commit_gate_and_separate_template_evidence(
         assert token in text
     assert "不预先声称任何模板已经通过" in text
     assert "新库" in text and "重启" in text
+
+
+def test_customer_screenshots_are_authentic_hashed_and_in_the_source_snapshot():
+    folder = ROOT / "docs/images/customer-service"
+    provenance = json.loads((folder / "provenance.json").read_text(encoding="utf-8"))
+    summary = json.loads((folder / provenance["workflow_summary"]).read_text(encoding="utf-8"))
+    assert provenance["template"] == summary["workflow"]["template"] == "fastapiadmin"
+    assert provenance["genuine_model"] is True
+    assert summary["passed"] is True and summary["workflow"]["real_model"] is True
+    assert provenance["acceptance_scope"] == summary["acceptance_scope"] == "full_workflow"
+    assert provenance["source_sha"] == "a15137ff1aca04d3091a9c4f7cfa99bb09436d07"
+    assert summary["run_identity"] == [
+        str(provenance["run_id"]),
+        str(provenance["run_attempt"]),
+        provenance["source_sha"],
+    ]
+    assert provenance["upstream_template_sha"] == "1cd12c726ad9032c17ef85ce805ce991be60fbdf"
+    source_rows = {name: content for _, rows in sources() for name, content in rows}
+    assert len(provenance["screenshots"]) == 6
+    assert {row["file"] for row in provenance["screenshots"]} == {
+        path.name for path in folder.glob("*.png")
+    }
+    for entry in provenance["screenshots"]:
+        path = folder / entry["file"]
+        data = path.read_bytes()
+        assert data.startswith(b"\x89PNG\r\n\x1a\n")
+        assert hashlib.sha256(data).hexdigest() == entry["sha256"]
+        assert struct.unpack(">II", data[16:24]) == (entry["width"], entry["height"])
+        assert entry["pixel_reviewed"] is True and entry["modified"] is False
+        assert source_rows[path.relative_to(ROOT).as_posix()] == data
+    assert "docs/images/customer-service/provenance.json" in source_rows
+    assert "docs/images/customer-service/genuine-workflow-summary.json" in source_rows
+
+
+def test_customer_images_follow_the_operation_they_explain():
+    from scripts.build_handbook import guide_text
+
+    name = "docs/business-platform.md"
+    chapter = (ROOT / name).read_text(encoding="utf-8")
+    locations = {
+        "manager-customers-native-form.png": "## 1.",
+        "employee-native-list.png": "## 2.",
+        "manager-requests-assignment.png": "## 3.",
+        "service-handling-history.png": "## 5.",
+        "employee-resolution-reminders.png": "## 5.",
+        "manager-native-dashboard.png": "## 5.",
+    }
+    rendered = guide_text(name)
+    for image_name, heading in locations.items():
+        position = chapter.index(f"](images/customer-service/{image_name})")
+        assert chapter.rfind("\n## ", 0, position) == chapter.index("\n" + heading)
+        caption = chapter[position:].split("\n\n", 2)[1]
+        for token in ("操作位置", "预期", "FastapiAdmin", "a15137ff", "真实模型运行36789925373"):
+            assert token in caption
+        assert f"](docs/images/customer-service/{image_name})" in rendered
+    images = re.findall(r"!\[([^\]]+)\]\((images/[^)]+)\)", chapter)
+    assert len(images) == 6
+    for alt, relative in images:
+        assert len(alt) >= 20
+        assert (ROOT / "docs" / relative).is_file()
+    assert "PNG原始字节" in (ROOT / "docs/guide.md").read_text(encoding="utf-8")
+    assert "不代表后续提交" in chapter
+    assert "不是模拟接口或绘制的UI" in chapter
+    assert "本章没有为这些页面补画截图" in chapter
+    assert "data:image" not in chapter
