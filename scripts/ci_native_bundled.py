@@ -2,13 +2,20 @@
 
 import argparse
 import hashlib
+import json
 import os
 from pathlib import Path
 
 from scripts.ci_native_generated import acceptance_spec
-from workbench.domain import Plan
-from workbench.filesystem import write_json
+from workbench.domain import Plan, digest
+from workbench.filesystem import manifest, sha, write_json
 from workbench.native import prepare_sources
+from workbench.native_delivery import (
+    require_native_business,
+    require_native_runtime,
+    require_native_style,
+)
+from workbench.native_evidence import MAX_ACCEPTANCE_BYTES, native_review_evidence
 from workbench.native_lab import run_acceptance
 from workbench.settings import ROOT, Settings
 
@@ -17,7 +24,12 @@ APPROVED_CUSTOMER_REPLAYS = {
         "template": "yudao-vben",
         "path": "tests/fixtures/customer_approved_replays/yudao-1d7.json",
         "sha256": "16731f7c60a15916058d64c503525aafe93e1c53e0da62bae1eb8d0c227730f5",
-    }
+    },
+    "fastapi-0e8": {
+        "template": "fastapiadmin",
+        "path": "tests/fixtures/customer_approved_replays/fastapi-0e8.json",
+        "sha256": "023ed6b43f20de90ef3b68033263212204314c2df0be08095fd6f9ec9e56dcb4",
+    },
 }
 
 
@@ -40,6 +52,58 @@ def approved_customer_replay(name, template):
     return Plan.model_validate_json(text)
 
 
+def verify_review_projection(template, plan, product, reports, report):
+    """Exercise production review projection using only this execution's saved proof."""
+    status = {
+        "version": 1,
+        "template": template,
+        "model_calls": 0,
+        "spec_digest": digest(plan.model_dump()),
+        "phase": "saved-execution-evidence",
+        "passed": False,
+    }
+    status_path = reports / "review-projection-status.json"
+    projection_path = reports / "review-projection.json"
+    projection_path.unlink(missing_ok=True)
+    write_json(status_path, status)
+    try:
+        path = reports / "acceptance.json"
+        if path.is_symlink() or path.stat().st_size > MAX_ACCEPTANCE_BYTES:
+            raise ValueError("Unsafe native acceptance artifact")
+        with path.open("rb") as handle:
+            raw = handle.read(MAX_ACCEPTANCE_BYTES + 1)
+        if len(raw) > MAX_ACCEPTANCE_BYTES:
+            raise ValueError("Native acceptance exceeds size limit")
+        saved = json.loads(raw)
+        if (
+            saved != report
+            or saved.get("template") != template
+            or saved.get("spec_digest") != status["spec_digest"]
+        ):
+            raise ValueError("Native acceptance is not bound to this execution")
+        status["acceptance_sha256"] = hashlib.sha256(raw).hexdigest()
+        files = manifest(product)
+        status["source_digest"] = digest(files)
+        receipt = {"template": template, "spec_digest": status["spec_digest"]}
+        status["phase"] = "native-runtime-deployment"
+        require_native_runtime(saved)
+        status["phase"] = "native-style-and-business"
+        require_native_style(saved, receipt, files)
+        require_native_business(saved, receipt, reports / "approved-spec.json")
+        status["phase"] = "production-review-projection"
+        projection = native_review_evidence(saved, plan, files, status["acceptance_sha256"])
+        if sha(path) != status["acceptance_sha256"] or manifest(product) != files:
+            raise ValueError("Native evidence or source changed during projection")
+        write_json(projection_path, projection)
+        status.update(phase="complete", passed=True)
+        print("Native production review projection PASS (zero model calls)", flush=True)
+        return projection
+    finally:
+        # Preserve a bounded allowlisted phase and hashes, never exception text,
+        # environment variables, copied runtime folders or fabricated proof rows.
+        write_json(status_path, status)
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("template", choices=["fastapiadmin", "yudao-vben"])
@@ -60,7 +124,7 @@ def main():
     reports = ROOT / "reports/native"
     write_json(reports / "bundled-sources.json", rows)
     output = ROOT / ".native/product"
-    run_acceptance(
+    report = run_acceptance(
         args.template,
         sources["fastapiadmin"] if args.template == "fastapiadmin" else sources["backend"],
         output if args.template == "fastapiadmin" else output / "backend",
@@ -69,6 +133,7 @@ def main():
         reports,
         plan,
     )
+    verify_review_projection(args.template, plan, output, reports, report)
 
 
 if __name__ == "__main__":

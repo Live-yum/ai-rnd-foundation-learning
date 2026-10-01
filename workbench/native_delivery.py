@@ -1,5 +1,6 @@
 """Explicitly authorized local native runtime delivery; source export is a separate mode."""
 
+import hashlib
 import json
 import os
 import re
@@ -301,16 +302,8 @@ def require_native_business(report, receipt, spec_path):
     return True
 
 
-def managed_verify(destination, receipt):
-    destination = Path(destination)
-    report_path = destination.parent / "native-evidence/acceptance.json"
-    if not report_path.is_file():
-        raise PrerequisiteError("原生运行证据丢失或已改变")
-    if report_path.stat().st_size > MAX_ACCEPTANCE_BYTES:
-        raise PrerequisiteError("原生运行证据超出安全大小限制")
-    if sha(report_path) != receipt.get("evidence_sha256"):
-        raise PrerequisiteError("原生运行证据丢失或已改变")
-    report = json.loads(report_path.read_text(encoding="utf-8"))
+def require_native_runtime(report):
+    """Shared fail-closed runtime/deployment gates for production and zero-model CI."""
     gates = (
         "generated_runtime_verified",
         "native_codegen",
@@ -343,6 +336,24 @@ def managed_verify(destination, receipt):
         raise PrerequisiteError(
             "原生独立交付缺少通过的新数据库恢复证据；不得以原生成数据库可启动代替独立交付"
         )
+    return gates
+
+
+def managed_verify(destination, receipt):
+    destination = Path(destination)
+    report_path = destination.parent / "native-evidence/acceptance.json"
+    if not report_path.is_file():
+        raise PrerequisiteError("原生运行证据丢失或已改变")
+    if report_path.stat().st_size > MAX_ACCEPTANCE_BYTES:
+        raise PrerequisiteError("原生运行证据超出安全大小限制")
+    with report_path.open("rb") as handle:
+        raw = handle.read(MAX_ACCEPTANCE_BYTES + 1)
+    if len(raw) > MAX_ACCEPTANCE_BYTES:
+        raise PrerequisiteError("原生运行证据超出安全大小限制")
+    if hashlib.sha256(raw).hexdigest() != receipt.get("evidence_sha256"):
+        raise PrerequisiteError("原生运行证据丢失或已改变")
+    report = json.loads(raw)
+    gates = require_native_runtime(report)
     current = manifest(destination)
     if current != receipt["files"] or report.get("spec_digest") != receipt.get("spec_digest"):
         raise PrerequisiteError("原生源码或设计在验收后发生变化，需要重新验证")

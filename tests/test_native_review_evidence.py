@@ -209,6 +209,10 @@ def detailed_fixture(tmp_path):
     proof = synthetic_observations(plan)
     report["business_contract"]["execution_evidence"] = proof
     report["portable_restored"]["business"]["execution_evidence"] = deepcopy(proof)
+    for browser in (report["business_browser"], report["portable_restored"]["browser"]):
+        browser["pages"].extend(
+            login_shell_observation(actor) for actor in ("manager", "employee", "service")
+        )
     return report, plan
 
 
@@ -459,3 +463,255 @@ def test_oversized_acceptance_is_rejected_before_hashing(tmp_path, monkeypatch):
     monkeypatch.setattr(delivery, "sha", lambda *_: pytest.fail("Oversized report was read"))
     with pytest.raises(PrerequisiteError, match="大小"):
         managed_verify(product, receipt)
+
+
+def login_shell_observation(actor="manager"):
+    """Unit fixture matching the executed Fastapi browser producer's shell shape."""
+    return {
+        "role": actor,
+        "route": "/module_rnd/customers",
+        "rendered": True,
+        "native_shell_visible": True,
+        "native_component_family": "Fa/Element Plus",
+        "native_theme_tokens": {"--el-color-primary": "#5D87FF", "--el-font-size-base": "14px"},
+        "real_login": True,
+        "native_menu_received": True,
+    }
+
+
+def test_fastapi_login_shells_are_distinct_from_entity_form_observations(detailed_fixture):
+    report, plan = detailed_fixture
+    actors = ("manager", "employee", "other_employee", "service", "other_service")
+    for browser in (report["business_browser"], report["portable_restored"]["browser"]):
+        browser["pages"] = [page for page in browser["pages"] if "entity" in page]
+        browser["pages"].extend(login_shell_observation(actor) for actor in actors)
+        browser["checks"].extend(f"{actor}:real_native_login_menu_shell" for actor in actors)
+    original = deepcopy(report)
+    projection = native_review_evidence(report, plan, {}, "a" * 64)
+    for installation in ("original_installation", "fresh_database_installation"):
+        browser = projection[installation]["browser"]
+        assert {page["entity"] for page in browser["pages"]} == {e.name for e in plan.entities}
+        assert browser["login_shells"] == [
+            {
+                "actor": actor,
+                "rendered": True,
+                "native_shell_visible": True,
+                "real_login": True,
+                "native_menu_received": True,
+            }
+            for actor in actors
+        ]
+        assert "route" not in json.dumps(browser)
+        assert "#5D87FF" not in json.dumps(browser)
+    assert report == original
+
+
+@pytest.mark.parametrize("installation", ["original", "fresh"])
+@pytest.mark.parametrize(
+    "change",
+    [
+        "unknown_actor",
+        "unknown_shape",
+        "missing_login",
+        "failed_login",
+        "coerced_login",
+        "unapproved_route",
+        "wrong_family",
+        "missing_theme",
+        "missing_check",
+        "duplicate_actor",
+        "entity_disguised_as_shell",
+        "missing_entity",
+        "failed_entity",
+    ],
+)
+def test_shell_acceptance_cannot_hide_invalid_or_missing_page_proof(
+    detailed_fixture, installation, change
+):
+    report, plan = detailed_fixture
+    browser = (
+        report["business_browser"]
+        if installation == "original"
+        else report["portable_restored"]["browser"]
+    )
+    shell = next(page for page in browser["pages"] if page.get("role") == "manager")
+    if change == "unknown_actor":
+        shell["role"] = "secret-private-role"
+    elif change == "unknown_shape":
+        shell["arbitrary_page"] = "secret-private-value"
+    elif change == "missing_login":
+        shell.pop("real_login")
+    elif change == "failed_login":
+        shell["real_login"] = False
+    elif change == "coerced_login":
+        shell["real_login"] = 1
+    elif change == "unapproved_route":
+        shell["route"] = "/secret-private-route"
+    elif change == "wrong_family":
+        shell["native_component_family"] = "generic"
+    elif change == "missing_theme":
+        shell["native_theme_tokens"] = {}
+    elif change == "missing_check":
+        browser["checks"].remove("manager:real_native_login_menu_shell")
+    elif change == "duplicate_actor":
+        browser["pages"].append(deepcopy(shell))
+    elif change == "entity_disguised_as_shell":
+        browser["pages"][0].pop("entity")
+    elif change == "missing_entity":
+        browser["pages"].pop(0)
+    elif change == "failed_entity":
+        browser["pages"][0]["real_list_request"] = False
+    with pytest.raises(PrerequisiteError) as error:
+        native_review_evidence(report, plan, {}, "a" * 64)
+    assert "secret-private" not in str(error.value)
+
+
+@pytest.mark.parametrize("installation", ["original", "fresh"])
+@pytest.mark.parametrize("missing", ["manager", "employee", "service", "all", "extra_check"])
+def test_every_fastapi_login_check_requires_its_typed_shell_observation(
+    detailed_fixture, installation, missing
+):
+    report, plan = detailed_fixture
+    browser = (
+        report["business_browser"]
+        if installation == "original"
+        else report["portable_restored"]["browser"]
+    )
+    if missing == "extra_check":
+        browser["checks"].append("other_service:real_native_login_menu_shell")
+    else:
+        browser["pages"] = [
+            page
+            for page in browser["pages"]
+            if "entity" in page or missing != "all" and page.get("role") != missing
+        ]
+    with pytest.raises(PrerequisiteError):
+        native_review_evidence(report, plan, {}, "a" * 64)
+
+
+def test_lower_level_projection_does_not_invent_unclaimed_logins(detailed_fixture):
+    report, plan = detailed_fixture
+    for browser in (report["business_browser"], report["portable_restored"]["browser"]):
+        browser["checks"] = [
+            check
+            for check in browser["checks"]
+            if not check.endswith(":real_native_login_menu_shell")
+        ]
+        browser["pages"] = [page for page in browser["pages"] if "entity" in page]
+    projected = native_review_evidence(report, plan, {}, "a" * 64)
+    assert projected["original_installation"]["browser"]["login_shells"] == []
+    assert projected["fresh_database_installation"]["browser"]["login_shells"] == []
+    # Production's preceding business gate still requires genuine login checks.
+    from workbench.business_browser import require_business_browser
+
+    with pytest.raises(ValueError, match="real role login"):
+        require_business_browser(report["business_browser"], plan, "fastapiadmin")
+
+
+def test_relation_column_projection_is_lossless_and_hashes_complete_proof(detailed_fixture):
+    from workbench.native_evidence import RelatedACL, RelationWrite, execution_summary
+
+    report, plan = detailed_fixture
+    raw = report["business_contract"]["execution_evidence"]
+    original = deepcopy(raw)
+    compact = execution_summary(raw, plan)
+    assert compact["execution_sha256"] == digest(raw)
+    assert compact["version"] == raw["version"] == 1
+    assert compact["projection_version"] == 2
+    for collection, schema, key in (
+        ("relation_writes", RelationWrite, "relation_write_columns"),
+        ("related_acl", RelatedACL, "related_acl_columns"),
+    ):
+        assert compact[key] == list(schema.model_fields)
+        expanded = [dict(zip(compact[key], row, strict=True)) for row in compact[collection]]
+        assert expanded == raw[collection]
+    assert raw == original
+
+
+@pytest.mark.parametrize("collection", ["relation_writes", "related_acl"])
+def test_invalid_relation_observation_is_rejected_before_compaction(detailed_fixture, collection):
+    report, plan = detailed_fixture
+    report["business_contract"]["execution_evidence"][collection][0]["observed_count"] += 1
+    with pytest.raises(PrerequisiteError):
+        native_review_evidence(report, plan, {}, "a" * 64)
+
+
+def test_exact_approved_fastapi_plan_protocol_projection_fits_unchanged_budget(detailed_fixture):
+    """Protocol mocks exercise producer cardinality, not native runtime acceptance."""
+    import hashlib
+
+    from test_native_business_probes import protocol
+
+    from workbench.business_probe import verify_scoped_metrics
+    from workbench.domain import ModelReview
+    from workbench.flow import REVIEW
+    from workbench.native_business_probe import verify_native_execution
+
+    path = ROOT / "tests/fixtures/customer_approved_replays/fastapi-0e8.json"
+    raw = path.read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == (
+        "023ed6b43f20de90ef3b68033263212204314c2df0be08095fd6f9ec9e56dcb4"
+    )
+    plan = Plan.model_validate_json(raw)
+    before = plan.model_dump()
+    proof = synthetic_observations(plan)
+    for key, value in proof.items():
+        if isinstance(value, list) and key != "reminders":
+            proof[key] = []
+    with protocol("fastapiadmin", plan=plan) as (oracle, _, _, _):
+        verify_native_execution(
+            plan,
+            oracle.manager,
+            {actor: value for actor, value in oracle.actors.items() if actor != "manager"},
+            oracle.records,
+            proof,
+        )
+        for actor, (_, client) in oracle.actors.items():
+            verify_scoped_metrics(client, plan, actor.removeprefix("other_"), actor, proof)
+    assert len(proof["relation_writes"]) == 64
+    assert len(proof["field_queries"]) == 49
+    assert validate_execution_evidence(proof, plan) == proof
+    report, _ = detailed_fixture
+    report["spec_digest"] = digest(plan.model_dump())
+    for business in (report["business_contract"], report["portable_restored"]["business"]):
+        business["execution_evidence"] = deepcopy(proof)
+    actors = ("manager", "employee", "other_employee", "service", "other_service")
+    for browser in (report["business_browser"], report["portable_restored"]["browser"]):
+        browser["spec_digest"] = report["spec_digest"]
+        browser["pages"] = [page for page in browser["pages"] if "entity" in page]
+        browser["pages"].extend(login_shell_observation(actor) for actor in actors)
+        browser["checks"].extend(f"{actor}:real_native_login_menu_shell" for actor in actors)
+    files = {"start.py": "b" * 64, "deployment/workbench/business_probe.py": "c" * 64}
+    projected = native_review_evidence(report, plan, files, "a" * 64)
+    assert projected["version"] == 2
+    assert MAX_EVIDENCE_BYTES == 64_000
+    assert len(json.dumps(projected, separators=(",", ":")).encode()) < MAX_EVIDENCE_BYTES
+    assert projected["source_digest"] == digest(files)
+    assert projected["acceptance_sha256"] == "a" * 64
+    for installation in ("original_installation", "fresh_database_installation"):
+        assert projected[installation]["http"]["execution_sha256"] == digest(proof)
+    uncompressed = deepcopy(projected)
+    for installation in ("original_installation", "fresh_database_installation"):
+        http = uncompressed[installation]["http"]
+        for collection, key in (
+            ("relation_writes", "relation_write_columns"),
+            ("related_acl", "related_acl_columns"),
+        ):
+            columns = http.pop(key)
+            http[collection] = [dict(zip(columns, row, strict=True)) for row in http[collection]]
+    assert len(json.dumps(uncompressed, separators=(",", ":")).encode()) > MAX_EVIDENCE_BYTES
+    payload = {
+        "requirement": (ROOT / "examples/requirements/customer-service-contract.md").read_text(
+            encoding="utf-8"
+        ),
+        "plan": plan.model_dump(),
+        "independent_evidence": {"passed": True, "native_acceptance": projected},
+        "previous_review": {"uncovered_requirements": ["bounded previous finding"] * 7},
+    }
+    size = (
+        len(json.dumps(payload, ensure_ascii=False))
+        + len(REVIEW)
+        + len(json.dumps(ModelReview.model_json_schema(), ensure_ascii=False))
+    )
+    assert size < 95_000
+    assert plan.model_dump() == before

@@ -962,6 +962,26 @@ def _query_predicate_text(text, fields):
         ),
         re.I,
     )
+    # Membership in query controls is a capability predicate, not a schema
+    # exclusion. Output/display surfaces (e.g. search results) are not controls.
+    subject = rf"(?:[a-z][a-z0-9_]*(?:::|\.))?(?:{subjects.pattern})"
+    targets = rf"{subject}(?:\s*(?:[、/]|和|与|\band\b)\s*{subject})*"
+    controls = r"(?:filters?|filter\s+(?:criteria|conditions?)|search\s+(?:criteria|conditions?))"
+
+    def negative_membership(match):
+        attribute = "searchable" if re.search(r"search", match["control"], re.I) else "filterable"
+        return match["targets"] + " " + attribute + "=false"
+
+    for declaration in (
+        rf"\b(?:do|does|must|should)\s+not\s+include\s+(?P<targets>{targets})",
+        rf"(?P<targets>{targets})\s+(?:must|should)\s+not\s+(?:appear|be\s+included)",
+    ):
+        text = re.sub(
+            declaration + rf"\s+(?:in|as)\s+(?:the\s+)?(?P<control>{controls})\b",
+            negative_membership,
+            text,
+            flags=re.I,
+        )
 
     def replace(match):
         before = re.split(r"[，,；;。\n]", text[: match.start()])[-1]
@@ -1087,7 +1107,9 @@ def _explicit_query_sections(text, fields):
             depth = max(0, depth - 1)
     boundary = re.compile(
         r"(?:[,，]\s*(?:(?:并且|并|且|and)\s*)?|(?:并且|并|且|\band\b)\s*)"
-        r"(?=按|对|针对|依据|\b(?:by|using|on)\b|(?:keyword\s+)?search|filter|关键词搜索|精确筛选)",
+        r"(?=按|对|针对|依据|支持|允许|必须|需要|"
+        r"\b(?:by|using|on|supports?|allows?|requires?)\b|"
+        r"(?:keyword\s+)?search|filter|关键词搜索|精确筛选)",
         re.I,
     )
     start = 0
@@ -1432,6 +1454,45 @@ _QUERY_SURFACE = re.compile(
 )
 _METRIC_SCOPE = re.compile(r"权限|可见|角色|本人|负责范围|assigned|read_metrics", re.I)
 _METRIC_FILTER = re.compile(r"筛选|过滤|(?<![a-z_])filters?(?![a-z_])", re.I)
+_METRIC_PREDICATE = re.compile(
+    r"(?<![a-z0-9_])(?:(?P<entity>[a-z][a-z0-9_]*)[.:])?"
+    r"(?P<field>[a-z][a-z0-9_]*)\s*(?P<op>!=|>=|<=|==|=)\s*"
+    r"(?P<value>\"[^\"]*\"|'[^']*'|[a-zA-Z0-9_.:+-]+|"
+    r"[\u4e00-\u9fff]+?(?=\s|[，,；;、（）()]|筛选|过滤|$))",
+    re.I,
+)
+
+
+def _top_level_parts(text, separators):
+    """Keep operand lists, descriptors and quoted values inside their own group."""
+    depth, quote, protected = 0, None, []
+    for index, char in enumerate(text):
+        protected.append(bool(depth or quote))
+        if quote:
+            if char == quote and (not index or text[index - 1] != "\\"):
+                quote = None
+        elif char in "\"'":
+            quote = char
+        elif char in "（([【":
+            depth += 1
+        elif char in "）)]】":
+            depth = max(0, depth - 1)
+    start = 0
+    for match in re.finditer(separators, text, re.I):
+        if not protected[match.start()]:
+            yield text[start : match.start()], match.group()
+            start = match.end()
+    yield text[start:], ""
+
+
+def _metric_entity(text, fields):
+    """An entity named in a metric clause scopes it, including plain prose names."""
+    text = _METRIC_PREDICATE.sub(lambda match: match["entity"] or "", text)
+    owners = {entity for entity, _ in fields if _field_mentions(text, [entity])}
+    explicit = _fact_entity(text, fields)
+    if explicit:
+        owners.add(explicit)
+    return next(iter(owners)) if len(owners) == 1 else "<ambiguous entity>" if owners else None
 
 
 def _metric_clauses(text, fields):
@@ -1442,32 +1503,35 @@ def _metric_clauses(text, fields):
     The caller checks consumed predicates against executable MetricSpec.filters.
     """
     obligations = []
+    active = None
 
     def consume(fragment, context="", inherited=False):
+        nonlocal active
         combined = context + fragment
-        if (
-            not _METRIC_CONTEXT.search(combined)
-            or not _METRIC_FILTER.search(_legacy_operation_text(fragment, fields))
-            or _QUERY_SURFACE.search(fragment)
-        ):
+        if not _METRIC_CONTEXT.search(combined) or _QUERY_SURFACE.search(fragment):
             return fragment
-        matches = list(
-            re.finditer(
-                r"(?<![a-z0-9_])(?:(?P<entity>[a-z][a-z0-9_]*)[.:])?"
-                r"(?P<field>[a-z][a-z0-9_]*)\s*(?P<op>!=|>=|<=|==|=)\s*"
-                r"(?P<value>\"[^\"]*\"|'[^']*'|[a-zA-Z0-9_.:+-]+|[\u4e00-\u9fff]+?(?=\s|[，,；;、（）()]|筛选|过滤|$))",
-                fragment,
-                re.I,
-            )
-        )
+        matches = list(_METRIC_PREDICATE.finditer(fragment))
+        entity = _metric_entity(fragment, fields) or _metric_entity(context, fields)
         predicates = []
         for match in matches:
             name = match.group("field")
             if name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}:
                 continue
-            value = match.group("value").strip("\"'")
-            target = next((field for _, field in fields if field.name == name), None)
-            if target is not None and target.kind in {"integer", "boolean"}:
+            literal = match.group("value")
+            quoted = literal.startswith(('"', "'"))
+            value = literal.strip("\"'")
+            target = next(
+                (
+                    field
+                    for owner, field in fields
+                    if field.name == name and (entity is None or owner == entity)
+                ),
+                None,
+            )
+            if not quoted and (
+                value.lower() == "null"
+                or (target is not None and target.kind in {"integer", "boolean"})
+            ):
                 try:
                     value = json.loads(value.lower())
                 except ValueError:
@@ -1482,12 +1546,20 @@ def _metric_clauses(text, fields):
                     "value": value,
                 }
             )
+        if not _METRIC_FILTER.search(_legacy_operation_text(fragment, fields)) and not (
+            inherited and active is not None and predicates
+        ):
+            return fragment
         scope_only = not predicates and bool(_METRIC_SCOPE.search(fragment))
         # A metric heading may scope a following predicate, never an unrelated
         # bare field-filter declaration after a comma or conjunction.
         if inherited and not predicates and not scope_only:
             return fragment
-        targets = _fact_candidates(fragment, fields)
+        targets = (
+            [field for _, field in fields if any(p["field"] == field.name for p in predicates)]
+            if predicates
+            else _fact_candidates(fragment, fields)
+        )
         if not targets and not predicates and not scope_only:
             return fragment
         if not scope_only:
@@ -1499,19 +1571,26 @@ def _metric_clauses(text, fields):
                 "趋势": "time_count",
                 "分组": "group_count",
             }.get(kind, "average_duration" if kind and "时长" in kind else kind)
-            obligations.append(
-                {
+            if inherited and active is not None and entity == active["entity"]:
+                active["predicates"].extend(predicates)
+                active["targets"].extend(
+                    target for target in targets if all(target is not t for t in active["targets"])
+                )
+            else:
+                active = {
                     "kind": kind,
-                    "entity": _fact_entity(combined, fields),
+                    "entity": entity,
                     "predicates": predicates,
                     "targets": targets,
                 }
-            )
+                obligations.append(active)
         return ""
 
     # Parenthesized metric definitions have their own scope, even alongside a
     # list-filter requirement in the same sentence.
     def parenthesis(match):
+        nonlocal active
+        active = None
         prefix = text[: match.start()]
         label = re.split(r"[，,、；;。\n]", prefix)[-1]
         body = match.group(1)
@@ -1520,16 +1599,18 @@ def _metric_clauses(text, fields):
 
     text = re.sub(r"[（(]([^（）()]*)[）)]", parenthesis, text)
     result, context = [], ""
-    for part in re.split(r"([，,；;。\n]|并且|并|且|和|与)", text):
-        if re.fullmatch(r"[；;。\n]", part):
-            context = ""
+    active = None
+    for part, separator in _top_level_parts(text, r"[、，,；;。\n]|并且|并|且|和|与|\band\b"):
         if _METRIC_CONTEXT.search(part):
             context = part
+            active = None
             result.append(consume(part))
         else:
             result.append(consume(part, context, inherited=True))
-        if _QUERY_SURFACE.search(part):
+        result.append(separator)
+        if _QUERY_SURFACE.search(part) or re.fullmatch(r"[；;。\n]", separator):
             context = ""
+            active = None
     return "".join(result), obligations
 
 
@@ -1595,8 +1676,88 @@ def _legacy_operation_text(text, fields):
     return _negative_operation_pattern(fields).sub("（）", text)
 
 
+def _legacy_field_exclusions(text, fields):
+    """Separate absence of fields from nullable fields or disabled operations.
+
+    Only explicit absence/removal predicates bind exclusions. In particular,
+    'not required', 'not null' and 'do not filter' are not absence predicates.
+    Mask just the excluded subjects so adjacent positive clauses survive. Keep
+    the absence predicate for any trailing type description, e.g. 'date field'.
+    """
+    names = {field.name for _, field in fields}
+    names.update(name for aliases in ALIASES.values() for name in aliases)
+    name = (
+        r"(?:[a-z][a-z0-9_]*|"
+        + "|".join(
+            re.escape(name) for name in sorted(names, key=len, reverse=True) if not name.isascii()
+        )
+        + ")"
+    )
+    subject = rf"(?<![a-z0-9_])(?:[a-z][a-z0-9_]*(?:::|\.))?{name}(?![a-z0-9_])"
+    separator_pattern = r"[、/]|或|和|与|以及|\band\b|\bor\b"
+    bare_subject = rf"{subject}(?!\s*(?:{LEGACY_PROPERTY}|\b(?:is|are|must|should|not)\b))"
+    targets = rf"{bare_subject}(?:\s*(?:{separator_pattern})\s*{bare_subject})*"
+    suffix_targets = rf"{subject}(?:\s*(?:{separator_pattern})\s*{subject})*"
+    absence = (
+        r"不出现|(?:不应|不得|不允许|不能)\s*(?:出现|存在|包含|含有|添加|引入|保留)|"
+        r"禁止\s*(?:出现|存在|添加|引入|保留)|不包含|不含有|"
+        r"\b(?:must|should)\s+not\s+(?:include|contain|have|add|retain)|"
+        r"\b(?:do|does)\s+not\s+(?:include|contain|add|retain)|\bexclude"
+    )
+    prefix = re.compile(
+        rf"(?:{absence})\s*(?:(?:字段|fields?)\s*[：:]?\s*)?(?P<targets>{targets})", re.I
+    )
+    suffix = re.compile(
+        rf"(?P<targets>{suffix_targets})\s*(?:字段|fields?)?\s*"
+        r"(?:不得|不应|不能|不允许)\s*(?:出现|存在|被添加|被引入)|"
+        rf"(?P<english>{suffix_targets})\s+(?:fields?\s+)?"
+        r"(?:must|should)\s+not\s+(?:exist|appear|be\s+(?:included|added|present))\b",
+        re.I,
+    )
+    obligations, output, scope = [], [], _fact_entity(text, fields)
+    for sentence, separator in _top_level_parts(text, r"[；;。\n]|但是|但|不过|\bbut\b"):
+        heading = re.match(r"\s*([a-z][a-z0-9_]*)\s*[：:]", sentence, re.I)
+        if heading and heading.group(1) in {entity for entity, _ in fields}:
+            scope = heading.group(1)
+
+        def replace(match):
+            local_prefix = re.split(r"[，,]|并且|并|且|\band\b", sentence[: match.start()])[-1]
+            query_location = re.match(
+                r"\s*(?:在|于|\b(?:in|on|from|within|as)\s+(?:the\s+)?)\s*"
+                r"(?:搜索|检索|筛选|过滤|显示|展示|界面|列表|表格|页面|"
+                r"\b(?:search|filters?|filtering|display(?:ed)?|ui|lists?|tables?|forms?|views?)\b)",
+                sentence[match.end() :],
+                re.I,
+            )
+            if query_location or re.search(
+                r"搜索|检索|筛选|过滤|显示|展示|界面|列表|\b(?:search|filter|display|ui|list)\b",
+                local_prefix,
+                re.I,
+            ):
+                return match.group()
+            group = "targets" if match.group("targets") else "english"
+            identities = match.group(group)
+            for identity in re.split(separator_pattern, identities, flags=re.I):
+                identity = identity.strip()
+                qualified = re.fullmatch(r"([a-z][a-z0-9_]*)(?:::|\.)(.+)", identity, re.I)
+                owner, field_name = qualified.groups() if qualified else (scope, identity)
+                aliases = next(
+                    (aliases for aliases in ALIASES.values() if field_name in aliases),
+                    (field_name,),
+                )
+                obligations.append((owner, aliases, field_name))
+            start, end = match.span(group)
+            start, end = start - match.start(), end - match.start()
+            return match.group()[:start] + " " * (end - start) + match.group()[end:]
+
+        sentence = prefix.sub(replace, sentence)
+        sentence = suffix.sub(replace, sentence)
+        output.append(sentence + separator)
+    return "".join(output), obligations
+
+
 _DATE_TYPE = re.compile(
-    r"真实日期|\breal\s+date\b|(?:日期|\bdate\b)\s*(?:类型|字段)|"
+    r"真实日期|\breal\s+date\b|(?:日期|\bdate\b)\s*(?:类型|字段|\b(?:type|field)\b)|"
     r"(?:类型|kind)\s*[:=为是]?\s*(?:日期|date\b)|"
     r"(?:必填|可选|为|使用|采用)\s*(?:日期|date\b)(?!格式|范围|区间|显示|展示)",
     re.I,
@@ -1605,6 +1766,7 @@ _DATE_FORMAT = re.compile(r"YYYY-MM-DD|日期格式|\bdate[_ ]format\b", re.I)
 _DATE_INPUT = re.compile(r"输入|录入|校验|验证|拒绝保存|\b(?:input|validate|validation)\b", re.I)
 _DATE_NEGATIVE = re.compile(
     r"无需|不需要|不要求|不使用|不采用|不添加|不提供|不要|没有|无|不是|并非|取消|禁止|"
+    r"不出现|不应|不得|不允许|不能|不包含|不含有|"
     r"\b(?:no|not|never|without|do\s+not|does\s+not)\b",
     re.I,
 )
@@ -1847,6 +2009,28 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
         ({"section": "facts", "index": index, "encoding": "legacy", "path": path}, text)
         for index, (path, text) in enumerate(_fact_texts(requirement.facts, fields))
     )
+    affirmative_texts = []
+    for origin, text in texts:
+        affirmative, exclusions = _legacy_field_exclusions(text, fields)
+        affirmative_texts.append((origin, affirmative))
+        for index, (owner, aliases, field_name) in enumerate(exclusions):
+            source = {**origin, "exclusion_clause": index}
+            source_text = text
+            forbidden = [
+                field
+                for entity, field in fields
+                if (owner is None or owner == entity) and field.name in aliases
+            ]
+            if forbidden:
+                gap(
+                    f"设计包含已禁止的字段 {owner + '.' if owner else ''}{field_name}: {text}",
+                    "forbidden_field",
+                    targets=forbidden,
+                    attribute="present",
+                    expected=False,
+                    actual=True,
+                )
+    texts = affirmative_texts
     for origin, text in texts:
         for index, (clause, targets, field_bound) in enumerate(
             _legacy_date_obligations(text, fields)
@@ -1890,7 +2074,7 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
             candidates = [
                 metric
                 for metric in candidates
-                if (not explicit or metric.entity in explicit)
+                if (not explicit or explicit == {metric.entity})
                 and (not entities or metric.entity in entities)
                 and (obligation["kind"] is None or metric.kind == obligation["kind"])
             ]
@@ -2074,7 +2258,8 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
             if (
                 re.search(r"必填|required", text, re.I)
                 and not re.search(
-                    r"非必填|不必填|是否必填.*否|optional|required\s*[:=]\s*(?:false|否)",
+                    r"非必填|不必填|是否必填.*否|optional|\bnot\s+required\b|"
+                    r"required\s*[:=]\s*(?:false|否)",
                     text,
                     re.I,
                 )
@@ -2091,7 +2276,8 @@ def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> 
                     )
             if (
                 re.search(
-                    r"可选|非必填|不必填|是否必填.*否|optional|required\s*[:=]\s*(?:false|否)",
+                    r"可选|非必填|不必填|是否必填.*否|optional|\bnot\s+required\b|"
+                    r"required\s*[:=]\s*(?:false|否)",
                     text,
                     re.I,
                 )

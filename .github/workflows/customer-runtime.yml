@@ -22,6 +22,11 @@ jobs:
             repository: fastapiadmin/FastapiAdmin
             revision: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
             pnpm: '9.15.3'
+          - template: fastapiadmin
+            case: approved-0e8
+            repository: fastapiadmin/FastapiAdmin
+            revision: 1cd12c726ad9032c17ef85ce805ce991be60fbdf
+            pnpm: '9.15.3'
           - template: yudao-vben
             case: canonical
             repository: yudaocode/yudao-cloud-mini
@@ -93,6 +98,8 @@ jobs:
         run: |
           if [ "$CUSTOMER_CASE" = approved-1d7 ]; then
             uv run python -m scripts.ci_native_bundled "$CUSTOMER_TEMPLATE" --approved-replay yudao-1d7
+          elif [ "$CUSTOMER_CASE" = approved-0e8 ]; then
+            uv run python -m scripts.ci_native_bundled "$CUSTOMER_TEMPLATE" --approved-replay fastapi-0e8
           else
             uv run python -m scripts.ci_native_bundled "$CUSTOMER_TEMPLATE" --spec examples/plans/customer-service.json
           fi

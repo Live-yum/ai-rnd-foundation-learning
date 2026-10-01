@@ -38,6 +38,8 @@ SOURCE_READERS = (
     "workbench/portable.py",
     "tests/test_native_archive_limits.py",
     "tests/test_native_approved_replay.py",
+    "tests/test_native_projection_gate.py",
+    "tests/test_requirement_clause_semantics.py",
     "tests/test_semantic_fact_domains.py",
     "tests/test_semantic_fact_namespace_aliases.py",
     "workbench/model_protocol.py",

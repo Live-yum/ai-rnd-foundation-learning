@@ -16,6 +16,7 @@ from workbench.generator import PrerequisiteError
 MAX_EVIDENCE_BYTES = 64_000
 MAX_EXECUTION_BYTES = 128_000
 MAX_ACCEPTANCE_BYTES = 8_000_000
+PROJECTION_VERSION = 2
 Count = Annotated[int, Field(strict=True, ge=0, le=1_000_000)]
 Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 Role = Literal["manager", "employee", "service"]
@@ -151,6 +152,14 @@ class ExecutionEvidence(Observation):
     related_acl: list[RelatedACL] = Field(max_length=128)
     relation_writes: list[RelationWrite] = Field(max_length=192)
     field_queries: list[FieldQuery] = Field(max_length=256)
+
+
+class LoginShell(Observation):
+    actor: Actor
+    rendered: Passed
+    native_shell_visible: Passed
+    real_login: Passed
+    native_menu_received: Passed
 
 
 def require(condition):
@@ -408,9 +417,50 @@ def browser_summary(report, plan):
     require(isinstance(checks, list) and len(checks) <= 256)
     require(all(isinstance(check, str) and check in _BROWSER_CHECKS for check in checks))
     pages = []
+    login_shells = []
     names = {entity.name for entity in plan.entities}
-    for page in report.get("pages", []):
-        require(isinstance(page, dict) and page.get("entity") in names)
+    observations = report.get("pages")
+    require(isinstance(observations, list) and len(observations) <= 32)
+    for page in observations:
+        require(isinstance(page, dict))
+        if "entity" not in page:
+            # FastapiAdmin records each real actor login before its entity-form
+            # observations. A login shell is a separate executed proof type,
+            # never a substitute for a missing entity page or an arbitrary log.
+            require(report.get("template") == "fastapiadmin")
+            require(
+                set(page)
+                == {
+                    "role",
+                    "route",
+                    "rendered",
+                    "native_shell_visible",
+                    "native_component_family",
+                    "native_theme_tokens",
+                    "real_login",
+                    "native_menu_received",
+                }
+            )
+            shell = LoginShell.model_validate(
+                {
+                    "actor": page["role"],
+                    **{key: page[key] for key in LoginShell.model_fields if key != "actor"},
+                }
+            )
+            require(f"{shell.actor}:real_native_login_menu_shell" in checks)
+            require(page["route"] in {f"/module_rnd/{name}" for name in names})
+            require(page["native_component_family"] == "Fa/Element Plus")
+            tokens = page["native_theme_tokens"]
+            require(
+                isinstance(tokens, dict)
+                and all(
+                    isinstance(tokens.get(key), str) and tokens[key].strip()
+                    for key in ("--el-color-primary", "--el-font-size-base")
+                )
+            )
+            login_shells.append(shell)
+            continue
+        require(page.get("entity") in names)
         pages.append(
             {
                 "entity": page["entity"],
@@ -424,13 +474,30 @@ def browser_summary(report, plan):
                 },
             }
         )
-    require(len(pages) <= 32)
+    login_actors = unique(login_shells, lambda shell: shell.actor)
+    if report.get("template") == "fastapiadmin":
+        # Each claimed executed login needs its actual typed shell observation.
+        # Keeping a check marker cannot replace a deleted actor's proof page.
+        suffix = ":real_native_login_menu_shell"
+        require(
+            login_actors
+            == {check.removesuffix(suffix) for check in checks if check.endswith(suffix)}
+        )
+    require(
+        {
+            page["entity"]
+            for page in pages
+            if all(value is True for key, value in page.items() if key != "entity")
+        }
+        == names
+    )
     from workbench.business_browser import query_journey_evidence
 
     return {
         "passed": True,
         "checks": sorted(set(checks)),
         "pages": pages,
+        "login_shells": [shell.model_dump() for shell in login_shells],
         "query_journey": query_journey_evidence(report),
     }
 
@@ -438,6 +505,9 @@ def browser_summary(report, plan):
 def execution_summary(raw, plan):
     proof = validate_execution_evidence(raw, plan)
     proof["execution_sha256"] = digest(proof)
+    # Keep the raw observation schema's version unchanged. The separately
+    # versioned projection uses ordered rows paired with named column maps.
+    proof["projection_version"] = PROJECTION_VERSION
     # The full acceptance artifact retains both hashes for each query. Validate
     # them before compacting repetitive cases with an explicit shared column map;
     # preserve expected/actual counts and the actually executed set-equality test.
@@ -445,6 +515,17 @@ def execution_summary(raw, plan):
     proof["field_query_case_columns"] = columns
     for query in proof["field_queries"]:
         query["cases"] = [[case[column] for column in columns] for case in query["cases"]]
+    # The full per-actor relation and ACL matrices repeat the same keys in every
+    # row, in both installations. Encode all validated values with explicit
+    # column maps so a valid approved Plan fits the unchanged model-context bound.
+    # Hashing above still binds the complete uncompressed executed proof.
+    for collection, schema, key in (
+        ("relation_writes", RelationWrite, "relation_write_columns"),
+        ("related_acl", RelatedACL, "related_acl_columns"),
+    ):
+        columns = list(schema.model_fields)
+        proof[key] = columns
+        proof[collection] = [[row[column] for column in columns] for row in proof[collection]]
     return proof
 
 
@@ -475,7 +556,7 @@ def native_review_evidence(report, plan, files, evidence_sha256):
             require(deployment["archive_round_trip"] is True)
             require(deployment["restart_preserved_records"] is True)
         result = {
-            "version": 1,
+            "version": PROJECTION_VERSION,
             "spec_digest": digest(plan.model_dump()),
             "source_digest": digest(files),
             "acceptance_sha256": evidence_sha256,
