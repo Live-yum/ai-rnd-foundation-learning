@@ -2528,8 +2528,10 @@ FastapiAdmin将模板参数换成`fastapiadmin`。该路径直接验证保存的
 占位符及图标伪元素所需字体，连续比较实际布局，随后直接捕获未改动的 Chromium 像素，
 并再次核对字体与布局。它不修改应用 DOM、不终止字体请求，也不禁用字体校验；可见字体
 仍在加载、缺失字体、持续布局变化或空白页面都会失败。未被当前可见内容使用的独立字体
-加载不会单独阻止拍照。整个截图步骤仍有 45 秒上限，失败只保留有界的字体状态和阶段，
-不保存表单值、原始 HTML、认证头或环境变量。
+加载不会单独阻止拍照。捕获途中正常出现的提示或数据渲染若改变布局，会丢弃该帧并在
+同一个 45 秒总期限内重新等待稳定、重新截图；不会重置期限或接受变化中的布局。
+等宽文字更新与布局变化分开判断，每次仍校验实际新文字所需字体。失败只保留有界字体
+状态、阶段、捕获次数及布局/文字/字体变化类别，不保存表单值、原始 HTML、认证头或环境变量。
 
 只有某行`acceptance_scope=full_workflow`、整体`passed=true`且模板/commit/attempt吻合，才能将该行标为真实模型完整流程通过；三个模板各自满足才可称三模板通过。`smoke_only`、固定计划测试、之前其他案例或其他提交的成功都不能替代。原来`BLOCKED`的任务恢复、Aider编辑、Continue原生索引和Daytona是另外的验证范围；当前真实模型路径明确记录这些未覆盖项，不借用旧报告填充它们。
 
@@ -94758,9 +94760,9 @@ def test_full_yudao_protocol_projection_with_actual_permission_values_fits_uncha
 
 **逐个入口与控制逻辑：**
 
-- `test_native_pixels_require_visible_fonts_and_stable_business_content`（L88–L96）：接收`tmp_path`、`monkeypatch`、`mode`。 控制顺序：L92按`not module or not Path(module).is_dir()`分支。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`monkeypatch.setattr`、`harness._run_driver`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_pixels_require_visible_fonts_and_stable_business_content`（L134–L142）：接收`tmp_path`、`monkeypatch`、`mode`。 控制顺序：L138按`not module or not Path(module).is_dir()`分支。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`monkeypatch.setattr`、`harness._run_driver`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_yudao_screenshot_readiness.py sha256: f23a57349244aa99c82e4c9b041faf698db781278baffae421f5b847a091248d -->
+<!-- source-file: tests/test_yudao_screenshot_readiness.py sha256: 51f6ecbd96578cdea9519e46881e9ddced06232bced2e565160c56a0172c75fc -->
 ````python
 """Real Chromium capture semantics; these fixtures are not native-stack receipts."""
 
@@ -94784,9 +94786,9 @@ const server=http.createServer((req,res)=>{
  res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'});
  const font=mode==='missing-visible-font'?'/missing-font':'/slow-font';
  res.end(`<style>@font-face{font-family:CaptureProbe;src:url('${font}')}body{font-family:Arial,sans-serif;background:white;color:black}#record{margin:30px;padding:10px}</style>
- ${mode==='blank-business'?'':`<main id="record">Fixture customer title 123<input id="field" value="Private control value"><div id="hidden" style="display:none;font-family:CaptureProbe">Hidden text</div></main>`}
+ ${mode==='blank-business'?'':`<main id="record">Fixture customer title 123<input id="field" value="Private control value"><span id="clock" style="font-family:monospace">111</span><div id="hidden" style="display:none;font-family:CaptureProbe">Hidden text</div></main>`}
  <script>
- if(${JSON.stringify(mode)}.includes('font')){
+ if(${JSON.stringify(mode)}.includes('font')&&${JSON.stringify(mode)}!=='capture-visible-font'){
   if(${JSON.stringify(mode)}==='pending-control-font')document.querySelector('#field').style.fontFamily='CaptureProbe,Arial';
   else if(${JSON.stringify(mode)}!=='nonvisible-font')document.querySelector('#record').style.fontFamily='CaptureProbe,Arial';
   document.fonts.load('16px CaptureProbe').catch(()=>{});
@@ -94794,6 +94796,19 @@ const server=http.createServer((req,res)=>{
  if(${JSON.stringify(mode)}==='moving-layout'){
   window.ticks=0;setInterval(()=>{document.querySelector('#record').style.transform='translateX('+(++window.ticks)+'px)';},10);
  }
+ window.captureTicks=0;
+ window.addEventListener('captureBoundary',()=>{
+  window.captureTicks++;
+  if(${JSON.stringify(mode)}==='late-tooltip'&&window.captureTicks===1){
+   const tooltip=document.createElement('div');tooltip.id='tooltip';tooltip.textContent='Delayed native tooltip';
+   tooltip.style='position:absolute;top:120px;left:200px;background:#222;color:white';document.body.append(tooltip);
+  }
+  if(${JSON.stringify(mode)}==='refreshing-text')document.querySelector('#clock').textContent=window.captureTicks%2?'222':'111';
+  if(${JSON.stringify(mode)}==='capture-layout-drift')document.querySelector('#record').style.transform='translateX('+window.captureTicks+'px)';
+  if(${JSON.stringify(mode)}==='capture-visible-font'){
+   document.querySelector('#record').style.fontFamily='CaptureProbe,Arial';document.fonts.load('16px CaptureProbe').catch(()=>{});
+  }
+ });
  </script>`);
 });
 (async()=>{
@@ -94802,12 +94817,24 @@ const server=http.createServer((req,res)=>{
  try{
   const page=await browser.newPage({viewport:{width:700,height:400}});page.setDefaultTimeout(3000);
   await page.goto('http://127.0.0.1:'+server.address().port,{waitUntil:'domcontentloaded'});
-  if(mode.includes('font'))await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='loading'||font.status==='error'));
+  if(mode.includes('font')&&mode!=='capture-visible-font')await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='loading'||font.status==='error'));
   if(mode==='missing-visible-font')await page.waitForFunction(()=>[...document.fonts].some(font=>font.status==='error'));
   if(mode!=='blank-business')await page.locator('#field').focus();
   const before=await page.evaluate(()=>({html:document.body.innerHTML,focus:document.activeElement.id}));
   const file=path.join(directory,'capture.png');
-  if(mode==='normal'||mode==='nonvisible-font'){
+  let captures=0, lastPixels;
+  const context=page.context(), originalSession=context.newCDPSession.bind(context);
+  context.newCDPSession=async(...args)=>{
+   const session=await originalSession(...args), send=session.send.bind(session);
+   session.send=async(name,args)=>{
+    if(name==='Page.captureScreenshot'){
+     captures++;await page.evaluate(()=>window.dispatchEvent(new Event('captureBoundary')));
+     const result=await send(name,args);lastPixels=result.data;return result;
+    }
+    return send(name,args);
+   };return session;
+  };
+  if(['normal','nonvisible-font','late-tooltip','refreshing-text'].includes(mode)){
    if(mode==='nonvisible-font'){
     assert.equal(await page.evaluate(()=>document.fonts.status),'loading');
     assert((await nativeScreenshotState(page)).ready);
@@ -94815,18 +94842,35 @@ const server=http.createServer((req,res)=>{
    await captureNativeScreenshot(page,file,50,1500);
    const bytes=fs.readFileSync(file);assert.equal(bytes.subarray(1,4).toString(),'PNG');
    assert(bytes.length>1000);assert.equal(bytes.readUInt32BE(16),700);assert.equal(bytes.readUInt32BE(20),400);
-   assert.deepEqual(await page.evaluate(()=>({html:document.body.innerHTML,focus:document.activeElement.id})),before,'Capture must not change application DOM or focus');
+   assert.equal(bytes.toString('base64'),lastPixels,'Only the final stable native pixels may be written');
+   if(mode==='late-tooltip'){
+    assert.equal(captures,2,'Discard the first unstable frame and recapture after the native tooltip settles');
+    assert(await page.locator('#tooltip').isVisible(),'Capture must not hide the native tooltip');
+   }else if(mode==='refreshing-text'){
+    // Chromium may settle its initial system-font metrics on first paint. Text
+    // changes on EVERY capture, so success proves text alone cannot loop forever.
+    assert(captures<=2,'Equal-geometry live text changes are not layout drift');
+    assert.equal(await page.locator('#clock').textContent(),captures%2?'222':'111');
+   }else assert.deepEqual(await page.evaluate(()=>({html:document.body.innerHTML,focus:document.activeElement.id})),before,'Capture must not change application DOM or focus');
+   assert.equal(await page.evaluate(()=>document.activeElement.id),before.focus,'Capture must preserve user focus');
    if(mode==='nonvisible-font')assert.equal(await page.evaluate(()=>document.fonts.status),'loading','Unused pending font must remain unmodified');
   }else{
-   await assert.rejects(captureNativeScreenshot(page,file,50,650),/Native screenshot visible-fonts-and-layout did not become ready/);
+   const started=Date.now();
+   await assert.rejects(captureNativeScreenshot(page,file,50,650),/Native screenshot (visible-fonts-and-layout|native-pixel-capture|post-capture-readiness) did not become ready/);
+   assert(Date.now()-started<1500,'Repeated capture must not reset the overall deadline');
    assert(!fs.existsSync(file),'Unreadable/unstable/blank page must not produce a success image');
    const diagnostic=JSON.parse(fs.readFileSync(file+'.capture.json','utf8'));
-   assert.equal(diagnostic.phase,'visible-fonts-and-layout');
+   if(mode!=='capture-layout-drift')assert.equal(diagnostic.phase,'visible-fonts-and-layout');
    assert(!JSON.stringify(diagnostic).includes('Fixture customer title'));
    assert(!JSON.stringify(diagnostic).includes('Private control value'));
    if(mode.includes('font'))assert(diagnostic.visible_fonts.some(font=>font.loaded===false),'Visible missing font must remain a strict failure');
    if(mode==='blank-business')assert.equal(diagnostic.visible_text_nodes,0);
    if(mode==='moving-layout')assert(await page.evaluate(()=>window.ticks)>10,'Capture must not stop the app animation to hide layout drift');
+   if(mode==='capture-visible-font')assert.equal(captures,1,'Visible font must become pending during the actual first capture');
+   if(mode==='capture-layout-drift'){
+    assert(captures>=2);assert(diagnostic.last_capture_changes.layout);
+    assert.equal(diagnostic.capture_attempts,captures);
+   }
   }
   console.log('Real Chromium screenshot readiness fixture PASS '+mode);
  }finally{
@@ -94847,6 +94891,10 @@ const server=http.createServer((req,res)=>{
         "missing-visible-font",
         "moving-layout",
         "blank-business",
+        "late-tooltip",
+        "refreshing-text",
+        "capture-layout-drift",
+        "capture-visible-font",
     ],
 )
 def test_native_pixels_require_visible_fonts_and_stable_business_content(
@@ -95475,13 +95523,13 @@ if (require.main === module) main().catch(error => { console.error(error.name + 
 
 ### `scripts/business_yudao_browser.cjs`
 
-**作用：Yudao/Vben三角色真实客服页面验收。** 通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，核对可见文字、表单及图标字体与稳定布局，再直接捕获未改动像素并复查；不改DOM或禁用字体校验，失败仅保留有界字体状态。HTTP拒绝和UI行为共同组成证据，不以静态图替代。
+**作用：Yudao/Vben三角色真实客服页面验收。** 通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，核对可见文字、表单及图标字体与稳定布局，再直接捕获未改动像素并复查；捕获时布局变化会丢弃该帧，在同一45秒期限内重新稳定采集，等宽文字更新仍检查新字形。不改DOM或禁用字体校验，失败仅保留有界状态与变化类别。HTTP拒绝和UI行为共同组成证据，不以静态图替代。
 
 **对应关系：** business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/business_yudao_browser.cjs sha256: 540d2904a5e8afbaed1c6c38baeaed776172211f8dd6f462d755bb04f4bc20c5 -->
+<!-- source-file: scripts/business_yudao_browser.cjs sha256: 3c336081814f7e1c4f681c22805495cca339faadb3d809b5eaf77038b79d9dd6 -->
 ````javascript
 // Real Vben/Ant business journey. Only scenario-owned synthetic accounts; no mocks/token injection.
 'use strict';
@@ -95569,18 +95617,24 @@ async function nativeScreenshotState(page) {
       ready: textParts.length > 0 && fonts.length > 0 && fonts.every(font => font.loaded) && imagesReady,
       fonts, images_ready: imagesReady, visible_text_nodes: textParts.length,
       font_faces: [...document.fonts].slice(0, 64).map(font => ({ family: font.family, status: font.status })),
-      // Used only in-memory for stability; never put customer text or geometry in diagnostics.
-      signature: JSON.stringify([geometry, textParts, fonts, window.scrollX, window.scrollY]),
+      // Used only in-memory; never put customer text or geometry in diagnostics.
+      // A clock or an equal-width value refresh is not a layout change. The
+      // actual glyphs are still checked above, including every new text value.
+      layout_signature: JSON.stringify([geometry, window.scrollX, window.scrollY]),
+      text_signature: JSON.stringify(textParts),
+      font_signature: JSON.stringify(fonts),
+      signature: JSON.stringify([geometry, fonts, window.scrollX, window.scrollY]),
     };
   });
 }
 
 async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout = 45000) {
   const deadline = Date.now() + timeout;
-  let phase = 'notice-settlement', lastState, session;
+  let phase = 'notice-settlement', lastState, session, changes, attempts = 0;
   async function bounded(operation, name) {
     let timer;
     try {
+      if (Date.now() >= deadline) throw new Error(`Native screenshot ${name} did not become ready`);
       return await Promise.race([operation(), new Promise((_, reject) => {
         timer = setTimeout(() => reject(new Error(`Native screenshot ${name} did not become ready`)), Math.max(1, deadline - Date.now()));
       })]);
@@ -95596,36 +95650,49 @@ async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout
       // Persistent notices are legitimate UI; bounded waiting must never dismiss them.
       if (error.name !== 'TimeoutError') throw error;
     }
-    phase = 'visible-fonts-and-layout';
-    let previous, stable = 0;
-    while (stable < 3) {
-      lastState = await bounded(() => nativeScreenshotState(page), phase);
-      stable = lastState.ready && lastState.signature === previous ? stable + 1 : 0;
-      previous = lastState.signature;
-      if (stable < 3) await bounded(() => new Promise(resolve => setTimeout(resolve, 40)), phase);
+    for (;;) {
+      phase = 'visible-fonts-and-layout';
+      let previous, stable = 0;
+      while (stable < 3) {
+        lastState = await bounded(() => nativeScreenshotState(page), phase);
+        stable = lastState.ready && lastState.signature === previous ? stable + 1 : 0;
+        previous = lastState.signature;
+        if (stable < 3) await bounded(() => new Promise(resolve => setTimeout(resolve, 40)), phase);
+      }
+      // document.fonts.ready also waits for unrelated, nonvisible font loads.
+      // Inspect actual visible glyphs, then capture unmodified Chromium pixels.
+      phase = 'native-pixel-capture';
+      if (!session) session = await bounded(() => page.context().newCDPSession(page), phase);
+      const { cssContentSize: size } = await bounded(() => session.send('Page.getLayoutMetrics'), phase);
+      const width = Math.ceil(size.width), height = Math.ceil(size.height);
+      assert(width > 0 && height > 0 && width <= 4096 && height <= 8192 && width * height <= 20000000,
+        'Native screenshot surface exceeds the bounded capture scope');
+      attempts += 1;
+      const captured = await bounded(() => session.send('Page.captureScreenshot', {
+        format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height, scale: 1 },
+      }), phase);
+      phase = 'post-capture-readiness';
+      const after = await bounded(() => nativeScreenshotState(page), phase);
+      changes = {
+        layout: after.layout_signature !== lastState.layout_signature,
+        text: after.text_signature !== lastState.text_signature,
+        fonts: after.font_signature !== lastState.font_signature,
+        images: after.images_ready !== lastState.images_ready,
+      };
+      if (after.ready && after.signature === lastState.signature) {
+        fs.writeFileSync(file, Buffer.from(captured.data, 'base64'));
+        break;
+      }
+      // A delayed tooltip or data render can arrive during pixel capture. Drop
+      // these unstable pixels and settle again within the SAME overall budget.
+      // Never accept changed geometry, suppress UI, or restart the deadline.
     }
-    // document.fonts.ready also waits for unrelated, nonvisible font loads. Check
-    // the actual visible text/pseudo-glyphs above, then capture the unmodified
-    // Chromium surface directly. Never toggle Playwright's font-wait test flag.
-    phase = 'native-pixel-capture';
-    session = await bounded(() => page.context().newCDPSession(page), phase);
-    const { cssContentSize: size } = await bounded(() => session.send('Page.getLayoutMetrics'), phase);
-    const width = Math.ceil(size.width), height = Math.ceil(size.height);
-    assert(width > 0 && height > 0 && width <= 4096 && height <= 8192 && width * height <= 20000000,
-      'Native screenshot surface exceeds the bounded capture scope');
-    const captured = await bounded(() => session.send('Page.captureScreenshot', {
-      format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height, scale: 1 },
-    }), phase);
-    phase = 'post-capture-readiness';
-    const after = await bounded(() => nativeScreenshotState(page), phase);
-    assert(after.ready && after.signature === lastState.signature,
-      'Native screenshot visible fonts or layout changed during capture');
-    fs.writeFileSync(file, Buffer.from(captured.data, 'base64'));
   } catch (error) {
     // Fixed, bounded, local evidence. No raw HTML, field values, URLs, credentials,
     // source environment, or pending request headers are retained.
     try {
-      fs.writeFileSync(file + '.capture.json', JSON.stringify({ phase,
+      fs.writeFileSync(file + '.capture.json', JSON.stringify({ phase, capture_attempts: attempts,
+        last_capture_changes: changes,
         visible_text_nodes: lastState?.visible_text_nodes, images_ready: lastState?.images_ready,
         visible_fonts: lastState?.fonts.slice(0, 64).map(font => ({ font: font.font.slice(0, 300), loaded: font.loaded })),
         font_faces: lastState?.font_faces.map(font => ({ family: font.family.slice(0, 100), status: font.status })),
@@ -102144,7 +102211,7 @@ main().catch((e) => {
 - `purpose`（L694–L877）：接收`name`。 控制顺序：L696按`name == "workbench/__init__.py"`分支；L702按`name.startswith("workbench/") and path.stem in MODULES`分支；L704按`name.startswith("templates/business/")`分支；L705按`role := BUSINESS_FILES.get(name.removeprefix("templates/business/"))`分支；L712按`name == "examples/requirements/customer-service.md"`分支；L718按`name == "examples/requirements/customer-service-decisions.md"`分支；L724按`name == "examples/requirements/customer-service-contract.md"`分支；L730按`name.startswith("examples/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`BUSINESS_FILES.get`、`name.removeprefix`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L697的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L703的`MODULES[path.stem]`；L706的`role`。
 - `notes`（L880–L990）：接收`name`、`content`。 控制顺序：L884按`not name.endswith(".py")`分支；L891遍历`tree.body`；L892按`isinstance(node, ast.ImportFrom) and node.module`分支；L894按`isinstance(node, ast.Import)`分支；L897按`own`分支；L904按`not rows`分支；L907遍历`rows`；L909按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L885的`out`；L889的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L905的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
 
-<!-- source-file: scripts/handbook_notes.py sha256: db4bdaf30c1dbe3009979b105b00088e0e39d68d7317b66e4aed0c7de0d3a5e1 -->
+<!-- source-file: scripts/handbook_notes.py sha256: 5fbe1983ca65bbe6d4df3c90f7842abe9d757a444d9a09009a177a5540c528eb -->
 ````python
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
 
@@ -102621,7 +102688,7 @@ SCRIPT_ROLES = {
     ),
     "business_yudao_browser.cjs": (
         "Yudao/Vben三角色真实客服页面验收",
-        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，核对可见文字、表单及图标字体与稳定布局，再直接捕获未改动像素并复查；不改DOM或禁用字体校验，失败仅保留有界字体状态。HTTP拒绝和UI行为共同组成证据，不以静态图替代。",
+        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，核对可见文字、表单及图标字体与稳定布局，再直接捕获未改动像素并复查；捕获时布局变化会丢弃该帧，在同一45秒期限内重新稳定采集，等宽文字更新仍检查新字形。不改DOM或禁用字体校验，失败仅保留有界状态与变化类别。HTTP拒绝和UI行为共同组成证据，不以静态图替代。",
         "business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。",
     ),
     "ci_real_model.py": (
@@ -114593,7 +114660,7 @@ uv run pytest tests/test_provider_structured_outputs.py tests/test_llm.py tests/
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/real-model-acceptance.md sha256: bf68850013590ed175259c54c27ab7238b7c2834283df7d422dfd3b52988ece5 -->
+<!-- source-file: docs/real-model-acceptance.md sha256: de264ad27c7b7d3d52985616e9d3a88751d1587edbb2d0aa99e90910f2e77c55 -->
 ````markdown
 ## 显式授权的真实模型客服端到端验收
 
@@ -114758,8 +114825,10 @@ FastapiAdmin将模板参数换成`fastapiadmin`。该路径直接验证保存的
 占位符及图标伪元素所需字体，连续比较实际布局，随后直接捕获未改动的 Chromium 像素，
 并再次核对字体与布局。它不修改应用 DOM、不终止字体请求，也不禁用字体校验；可见字体
 仍在加载、缺失字体、持续布局变化或空白页面都会失败。未被当前可见内容使用的独立字体
-加载不会单独阻止拍照。整个截图步骤仍有 45 秒上限，失败只保留有界的字体状态和阶段，
-不保存表单值、原始 HTML、认证头或环境变量。
+加载不会单独阻止拍照。捕获途中正常出现的提示或数据渲染若改变布局，会丢弃该帧并在
+同一个 45 秒总期限内重新等待稳定、重新截图；不会重置期限或接受变化中的布局。
+等宽文字更新与布局变化分开判断，每次仍校验实际新文字所需字体。失败只保留有界字体
+状态、阶段、捕获次数及布局/文字/字体变化类别，不保存表单值、原始 HTML、认证头或环境变量。
 
 只有某行`acceptance_scope=full_workflow`、整体`passed=true`且模板/commit/attempt吻合，才能将该行标为真实模型完整流程通过；三个模板各自满足才可称三模板通过。`smoke_only`、固定计划测试、之前其他案例或其他提交的成功都不能替代。原来`BLOCKED`的任务恢复、Aider编辑、Continue原生索引和Daytona是另外的验证范围；当前真实模型路径明确记录这些未覆盖项，不借用旧报告填充它们。
 
