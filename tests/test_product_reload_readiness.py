@@ -191,6 +191,7 @@ def test_real_product_reload_uses_authenticated_business_readiness(tmp_path, pla
         env=env,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         timeout=30,
         check=False,
     )

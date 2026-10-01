@@ -28,6 +28,18 @@ uv run python -m scripts.build_handbook --check
 
 最后一条必须输出`Single handbook source consistency PASS`。如果只有你手写的源码而没有根目录生成手册，先运行不带`--check`的`build_handbook`生成它，再检查。这里验证源码与正文一致，不代表数据库、浏览器或Daytona已经运行过。
 
+独立的 `handbook-only` Actions 会把这一本书复制到临时目录，重建自有源码、固定第三方
+归档和 Continue，再实际执行完整非 PostgreSQL 套件。整套测试子进程的明确预算为
+1800 秒，外层 job 仍限制 40 分钟；安装等其他步骤沿用自己的预算，单项测试和浏览器等待
+没有因此放宽。超时始终失败，只中断和清理本次启动的测试进程，尽量让 pytest 写出 JUnit。
+`handbook-test-status.json` 记录阶段、预算、退出码、超时与清理状态，已产生的 JUnit 也会
+保留；这些诊断不能替代完整测试通过后的 `handbook-clean-room.json`。
+
+普通全套测试的 job 总预算按平台区分：Linux 为 35 分钟，Windows 为 60 分钟，包含安装
+依赖和运行完整测试。Windows 的冷安装会占用较长前置时间；这个外层预算不修改任何
+浏览器、接口或单个测试的超时，也不会让被中断的套件变成通过。捕获子进程文本明确按
+UTF-8 解码，不能依赖 Windows 当前的 cp1252 等本地编码。
+
 第三方框架不由你从零重写。按书中完整的`vendor_templates.py`、manifest和许可证重建固定上游源码归档，再运行`rnd init`。`uv.lock`、Node的`package-lock.json`和模板固定提交各自约束不同依赖，不可互相替代。
 
 ## 三、站点1：先让合同与数据库独立成立

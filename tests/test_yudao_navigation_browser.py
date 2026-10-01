@@ -234,6 +234,8 @@ def test_owned_cleanup_kills_descendants_but_rejects_foreign_and_recycled_pids(m
         201: (200, "foreign-renderer"),
     }
     reads, killed, waited = {}, [], []
+    # Simulate POSIX signals without depending on Windows exposing SIGKILL.
+    monkeypatch.setitem(globals(), "signal", SimpleNamespace(SIGKILL=9))
 
     def identity(pid):
         reads[pid] = reads.get(pid, 0) + 1

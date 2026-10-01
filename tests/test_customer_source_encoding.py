@@ -50,6 +50,8 @@ SOURCE_READERS = (
     "tests/test_yudao_installed_navigation.py",
     "tests/test_yudao_navigation_evidence.py",
     "tests/test_yudao_navigation_browser.py",
+    "tests/test_yudao_screenshot_readiness.py",
+    "tests/test_handbook_runtime.py",
     "tests/test_product_reload_readiness.py",
     "tests/test_semantic_fact_domains.py",
     "tests/test_semantic_fact_namespace_aliases.py",
@@ -141,6 +143,24 @@ def unqualified_text_reads(source):
 def test_customer_source_and_fixture_reads_explicitly_use_utf8(name):
     source = (ROOT / name).read_text(encoding="utf-8")
     assert not unqualified_text_reads(source), f"{name}: unqualified text reads"
+
+
+def test_reload_fixture_decodes_utf8_child_output_independently_of_windows_locale():
+    source = (ROOT / "tests/test_product_reload_readiness.py").read_text(encoding="utf-8")
+    calls = [
+        node
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "subprocess"
+        and node.func.attr == "run"
+    ]
+    assert len(calls) == 2
+    for call in calls:
+        keywords = {keyword.arg: keyword.value for keyword in call.keywords}
+        assert isinstance(keywords.get("encoding"), ast.Constant)
+        assert keywords["encoding"].value == "utf-8"
 
 
 @pytest.mark.parametrize(

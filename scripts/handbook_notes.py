@@ -473,7 +473,7 @@ SCRIPT_ROLES = {
     ),
     "business_yudao_browser.cjs": (
         "Yudao/Vben三角色真实客服页面验收",
-        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同的列表、表单、详情与协作场景；关联控件按本轮新建记录的可读标签搜索并选择准确ID，不依赖虚拟列表首屏碰巧渲染该选项。HTTP拒绝和UI行为共同组成证据，不以静态图替代。",
+        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，核对可见文字、表单及图标字体与稳定布局，再直接捕获未改动像素并复查；不改DOM或禁用字体校验，失败仅保留有界字体状态。HTTP拒绝和UI行为共同组成证据，不以静态图替代。",
         "business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。",
     ),
     "ci_real_model.py": (
@@ -503,8 +503,8 @@ SCRIPT_ROLES = {
     ),
     "ci_handbook.py": (
         "证明一本书足够重建平台",
-        "把教材单独复制进临时目录，恢复所有文本与二进制截图，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue，运行完整非PG回归并保留JUnit。",
-        "handbook-only工作流 → 本脚本 → reports/handbook-clean-room.json。",
+        "把教材单独复制进临时目录，恢复所有文本与二进制截图，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue。完整非PG套件有明确1800秒预算，外层仍40分钟；超时中断自有测试进程、保留阶段与已有JUnit且仍失败，不增加单项等待。",
+        "handbook-only工作流 → 本脚本 → handbook-test-status.json/JUnit；完整通过才产生handbook-clean-room.json。",
     ),
     "ci_clean_install.py": (
         "独立依赖环境与成品干净解压验收",

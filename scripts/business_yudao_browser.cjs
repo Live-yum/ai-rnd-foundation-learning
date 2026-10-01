@@ -35,17 +35,121 @@ async function createBrowserOwnedRecords(login, create, marker) {
   await create('tasks'); // Link to the fresh employee-created browser request.
 }
 
-async function captureNativeScreenshot(page, file, noticeTimeout = 6000) {
+async function nativeScreenshotState(page) {
+  return page.evaluate(() => {
+    const visible = element => {
+      const box = element.getBoundingClientRect(), style = getComputedStyle(element);
+      return box.width > 0 && box.height > 0 && style.visibility !== 'hidden' && style.display !== 'none';
+    };
+    const fontChecks = new Map(), geometry = [], textParts = [];
+    const checkFont = (style, text) => {
+      const font = style.font || `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+      const loaded = document.fonts.check(font, text);
+      fontChecks.set(font, (fontChecks.get(font) ?? true) && loaded);
+    };
+    const elements = [...document.querySelectorAll('body *')].filter(visible);
+    if (elements.length > 6000) throw new Error('Native screenshot layout exceeds the bounded inspection scope');
+    for (const element of elements) {
+      const box = element.getBoundingClientRect();
+      geometry.push([box.x, box.y, box.width, box.height]);
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(element.tagName)) {
+        // Input values are painted text even though they are not DOM text nodes.
+        // Never inspect a password value; only check its visible masking glyph.
+        const text = element.type === 'password' ? '●' : String(element.value || element.getAttribute('placeholder') || '');
+        if (text) { checkFont(getComputedStyle(element), text); textParts.push(text); }
+      }
+      for (const pseudo of ['::before', '::after']) {
+        const style = getComputedStyle(element, pseudo), content = style.content;
+        if (content && content !== 'none' && content !== 'normal' && style.visibility !== 'hidden') {
+          checkFont(style, content.replace(/^['"]|['"]$/g, ''));
+        }
+      }
+    }
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const text = node.textContent.trim();
+      if (!text || !node.parentElement || !visible(node.parentElement)) continue;
+      const range = document.createRange(); range.selectNodeContents(node);
+      const box = range.getBoundingClientRect();
+      if (!box.width || !box.height) continue;
+      if (text.length > 10000 || textParts.length > 3000) throw new Error('Native screenshot text exceeds the bounded inspection scope');
+      checkFont(getComputedStyle(node.parentElement), text);
+      textParts.push(text);
+      geometry.push([box.x, box.y, box.width, box.height]);
+    }
+    const imagesReady = elements.filter(element => element.tagName === 'IMG')
+      .every(element => element.complete && element.naturalWidth > 0);
+    const fonts = [...fontChecks].map(([font, loaded]) => ({ font, loaded }));
+    return {
+      ready: textParts.length > 0 && fonts.length > 0 && fonts.every(font => font.loaded) && imagesReady,
+      fonts, images_ready: imagesReady, visible_text_nodes: textParts.length,
+      font_faces: [...document.fonts].slice(0, 64).map(font => ({ family: font.family, status: font.status })),
+      // Used only in-memory for stability; never put customer text or geometry in diagnostics.
+      signature: JSON.stringify([geometry, textParts, fonts, window.scrollX, window.scrollY]),
+    };
+  });
+}
+
+async function captureNativeScreenshot(page, file, noticeTimeout = 6000, timeout = 45000) {
+  const deadline = Date.now() + timeout;
+  let phase = 'notice-settlement', lastState, session;
+  async function bounded(operation, name) {
+    let timer;
+    try {
+      return await Promise.race([operation(), new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Native screenshot ${name} did not become ready`)), Math.max(1, deadline - Date.now()));
+      })]);
+    } finally { clearTimeout(timer); }
+  }
   // Capturing an open picker must not click, focus, blur, scroll or move the pointer.
   // Dismissing a login notification here used to close the already-visible picker.
   try {
-    await page.locator('.ant-notification-notice:visible, .ant-message-notice:visible').first()
-      .waitFor({ state: 'hidden', timeout: noticeTimeout });
+    try {
+      await page.locator('.ant-notification-notice:visible, .ant-message-notice:visible').first()
+        .waitFor({ state: 'hidden', timeout: Math.min(noticeTimeout, timeout) });
+    } catch (error) {
+      // Persistent notices are legitimate UI; bounded waiting must never dismiss them.
+      if (error.name !== 'TimeoutError') throw error;
+    }
+    phase = 'visible-fonts-and-layout';
+    let previous, stable = 0;
+    while (stable < 3) {
+      lastState = await bounded(() => nativeScreenshotState(page), phase);
+      stable = lastState.ready && lastState.signature === previous ? stable + 1 : 0;
+      previous = lastState.signature;
+      if (stable < 3) await bounded(() => new Promise(resolve => setTimeout(resolve, 40)), phase);
+    }
+    // document.fonts.ready also waits for unrelated, nonvisible font loads. Check
+    // the actual visible text/pseudo-glyphs above, then capture the unmodified
+    // Chromium surface directly. Never toggle Playwright's font-wait test flag.
+    phase = 'native-pixel-capture';
+    session = await bounded(() => page.context().newCDPSession(page), phase);
+    const { cssContentSize: size } = await bounded(() => session.send('Page.getLayoutMetrics'), phase);
+    const width = Math.ceil(size.width), height = Math.ceil(size.height);
+    assert(width > 0 && height > 0 && width <= 4096 && height <= 8192 && width * height <= 20000000,
+      'Native screenshot surface exceeds the bounded capture scope');
+    const captured = await bounded(() => session.send('Page.captureScreenshot', {
+      format: 'png', captureBeyondViewport: true, clip: { x: 0, y: 0, width, height, scale: 1 },
+    }), phase);
+    phase = 'post-capture-readiness';
+    const after = await bounded(() => nativeScreenshotState(page), phase);
+    assert(after.ready && after.signature === lastState.signature,
+      'Native screenshot visible fonts or layout changed during capture');
+    fs.writeFileSync(file, Buffer.from(captured.data, 'base64'));
   } catch (error) {
-    // Persistent notices are legitimate UI; bounded waiting must never dismiss them.
-    if (error.name !== 'TimeoutError') throw error;
+    // Fixed, bounded, local evidence. No raw HTML, field values, URLs, credentials,
+    // source environment, or pending request headers are retained.
+    try {
+      fs.writeFileSync(file + '.capture.json', JSON.stringify({ phase,
+        visible_text_nodes: lastState?.visible_text_nodes, images_ready: lastState?.images_ready,
+        visible_fonts: lastState?.fonts.slice(0, 64).map(font => ({ font: font.font.slice(0, 300), loaded: font.loaded })),
+        font_faces: lastState?.font_faces.map(font => ({ family: font.family.slice(0, 100), status: font.status })),
+      }, null, 2));
+    } catch { /* Preserve the original capture failure. */ }
+    throw error;
+  } finally {
+    if (session) await session.detach().catch(() => {});
   }
-  await page.screenshot({ path: file, fullPage: true, animations: 'disabled' });
 }
 
 async function showNativeDashboard(page) {
@@ -287,6 +391,9 @@ async function main() {
     report.installed_navigation ||= [];
     if (!report.installed_navigation.some(proof => proof.actor === role)) {
       report.installed_navigation.push(navigation);
+      // Use an actually authorized business page, not the template's demo
+      // overview. openPage requires its real list response and native DOM.
+      await openPage(navigation.expected_entities[0]);
       await capture(`${role}-installed-navigation.png`);
     }
     report.checks.push(`${role}:native-login-and-tenant`);
@@ -478,5 +585,5 @@ async function main() {
     await browser.close();
   }
 }
-module.exports = { main, loginNativeSession, verifyInstalledSidebar, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, selectNativeOption, verifyNativeRelationPayload, verifyNativeCustomerQuery };
+module.exports = { main, loginNativeSession, verifyInstalledSidebar, nativeScreenshotState, refreshNativeList, nativeDetailButton, createBrowserOwnedRecords, captureNativeScreenshot, showNativeDashboard, verifyNativeHistorySpacing, rememberCreatedRecord, selectNativeOption, verifyNativeRelationPayload, verifyNativeCustomerQuery };
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
