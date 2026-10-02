@@ -2,7 +2,7 @@
 
 [阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
 
-[上一段](workbench__business_capabilities_py--001.md) · 
+[上一段](workbench__business_capabilities_py--001.md)
 
 **作用：业务合同的可执行能力边界。** 按实际模板及已实现适配判断合同是否能执行，不根据模型声称动态开启能力；未登记功能保留阻塞。
 

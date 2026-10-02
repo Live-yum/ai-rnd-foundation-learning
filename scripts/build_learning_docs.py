@@ -363,11 +363,12 @@ def source_pages(name, content, stage):
         body = f"# {name} · {index + 1}/{len(pieces)}\n\n"
         level = "../" * (len(Path(names[index]).parts) - 2)
         body += f"[阶段导读]({level}README.md) · [本阶段文件顺序]({level}files.md) · [全部文件索引]({level}../source-index.md)\n\n"
+        neighbors = []
         if index:
-            body += f"[上一段]({Path(names[index - 1]).name}) · "
+            neighbors.append(f"[上一段]({Path(names[index - 1]).name})")
         if index + 1 < len(pieces):
-            body += f"[下一段]({Path(names[index + 1]).name})"
-        body += "\n\n" + source_note(name, content, first, last)
+            neighbors.append(f"[下一段]({Path(names[index + 1]).name})")
+        body += " · ".join(neighbors) + "\n\n" + source_note(name, content, first, last)
         body += f"**创建路径：** `{name}`；**本文件共有 {len(pieces)} 段**。"
         body += "本段是二进制编码数据。" if binary else f"本段覆盖源文件 L{first}–L{last}。"
         body += (

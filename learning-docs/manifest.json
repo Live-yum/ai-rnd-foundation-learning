@@ -3160,8 +3160,8 @@
     },
     {
       "path": "scripts/build_learning_docs.py",
-      "bytes": 30894,
-      "sha256": "9774e52789decaea5120f8edb43fcdf138831fe59a180c92b08b3c45bbc67971",
+      "bytes": 30958,
+      "sha256": "fd39cfb7bb889e9731d8ac5f9a812e0840a1a3f819276120e35f8d938a6a780d",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_learning_docs_py--001.md"
@@ -3342,8 +3342,8 @@
     },
     {
       "path": "tests/test_learning_docs.py",
-      "bytes": 25312,
-      "sha256": "effef697b7a5121387b854bc7e22487f7fd37e3359cd5f2cb4d91751b0a945c3",
+      "bytes": 26141,
+      "sha256": "ce3d8d5a342bdcc548cfefe64546b6d72a29cc0bf6e3d92e911723c9527d98bc",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_learning_docs_py--001.md"

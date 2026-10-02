@@ -666,3 +666,25 @@ def test_docs_only_bootstrap_runs_isolated_with_original_tree_reads_forbidden(tm
         assert_exact_bytes((destination / name).read_bytes(), data, name)
     assert not (destination / ".git").exists()
     assert not list((destination / "templates/vendor").glob("*.zip"))
+
+
+def test_multi_part_navigation_has_no_dangling_separator_or_trailing_space():
+    from scripts import build_learning_docs as builder
+
+    source = "".join(
+        f"def example_{number}():\n    pass\n" + "# retained source line\n" * 700
+        for number in range(3)
+    )
+    pages, record = builder.source_pages("example.py", source, 0)
+    assert len(record["parts"]) == 3
+    for index, name in enumerate(record["parts"]):
+        navigation = [
+            line
+            for line in prose_outside_fences(pages[name]).splitlines()
+            if line.startswith(("[上一段]", "[下一段]"))
+        ]
+        assert len(navigation) == 1
+        line = navigation[0]
+        assert line == line.rstrip(), name
+        assert not line.endswith(" ·"), name
+        assert line.count("](") == (2 if index == 1 else 1)

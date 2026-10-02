@@ -20,19 +20,19 @@
 - `language_for`（L213–L238）：接收`name`、`binary`。 控制顺序：L214按`binary`分支；L216按`name.endswith("uv.lock")`分支；L218按`Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile")`分支。 调用`name.endswith`、`Path(name).name.startswith`、`Path`、`{ ".py": "python", ".md": "markdown", ".toml": "toml", ".yml": "y…`。 返回路径：L215的`"base64"`；L217的`"toml"`；L219的`"dockerfile"`。
 - `chunks`（L241–L280）：接收`data`、`binary`、`name`。 源码说明：Keep ordinary modules together; split only long implementations at real boundaries.。 控制顺序：L243按`binary or name.endswith(("uv.lock", "package-lock.json"))`分支；L247按`len(lines) <= 1000`分支；L250按`name.endswith(".py")`分支；L258按`name.endswith(".md")`分支；L268在`len(lines) - first > 1000`成立时循环；L270按`not options`分支；L278按`first < len(lines)`分支。 调用`name.endswith`、`data.decode`、`content.splitlines`、`len`、`ast.parse`、`min`、`ast.walk`、`isinstance`、`enumerate`等。 返回路径：L244的`[data]`；L248的`[data]`；L280的`result or [b""]`。
 - `source_note`（L306–L330）：接收`name`、`content`、`first`、`last`。 控制顺序：L307按`isinstance(content, bytes)`分支；L315按`name in TEACHING_CASES`分支；L317按`not separator`分支；L320遍历`entries.splitlines()`；L322按`match and first <= int(match[1]) <= last`分支；L324按`selected`分支。 调用`isinstance`、`notes`、`detail.replace`、`detail.partition`、`entries.splitlines`、`re.search`、`int`、`selected.append`、`"\n".join`。 返回路径：L308的`"该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"`；L318的`head`；L330的`head`。
-- `source_pages`（L333–L399）：接收`name`、`content`、`stage`。 控制顺序：L339按`binary`分支；L341按`name.endswith(("uv.lock", "package-lock.json"))`分支；L346遍历`enumerate(pieces)`；L366按`index`分支；L368按`index + 1 < len(pieces)`分支；L377按`not piece`分支；L379按`not binary`分支；L389按`not payload.endswith("\n")`分支。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L393的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
-- `read_content`（L402–L403）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L403的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
-- `render`（L406–L453）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L408按`[stage["id"] for stage in curriculum] != STAGES`分支；L409抛异常，停止当前正常路径；L411遍历`sources()`；L412遍历`files`；L414按`set(output).intersection(pages)`分支；L415抛异常，停止当前正常路径；L424遍历`curriculum`；L429按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L453的`output`。
-- `readme`（L456–L535）：接收`curriculum`、`records`。 控制顺序：L470遍历`curriculum`。 调用`len`。 返回路径：L535的`text`。
-- `main`（L538–L566）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L548按`args.check`分支；L555按`wrong`分支；L556抛异常，停止当前正常路径；L560遍历`actual.difference(expected)`；L562遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `source_pages`（L333–L400）：接收`name`、`content`、`stage`。 控制顺序：L339按`binary`分支；L341按`name.endswith(("uv.lock", "package-lock.json"))`分支；L346遍历`enumerate(pieces)`；L367按`index`分支；L369按`index + 1 < len(pieces)`分支；L378按`not piece`分支；L380按`not binary`分支；L390按`not payload.endswith("\n")`分支。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L394的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
+- `read_content`（L403–L404）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L404的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
+- `render`（L407–L454）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L409按`[stage["id"] for stage in curriculum] != STAGES`分支；L410抛异常，停止当前正常路径；L412遍历`sources()`；L413遍历`files`；L415按`set(output).intersection(pages)`分支；L416抛异常，停止当前正常路径；L425遍历`curriculum`；L430按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L454的`output`。
+- `readme`（L457–L536）：接收`curriculum`、`records`。 控制顺序：L471遍历`curriculum`。 调用`len`。 返回路径：L536的`text`。
+- `main`（L539–L567）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L549按`args.check`分支；L556按`wrong`分支；L557抛异常，停止当前正常路径；L561遍历`actual.difference(expected)`；L563遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/build_learning_docs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L570。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/build_learning_docs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L571。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`30894`。本段原文以LF换行结束。
+本段原始字节数：`30958`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/build_learning_docs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9774e52789decaea5120f8edb43fcdf138831fe59a180c92b08b3c45bbc67971"} -->
+<!-- learning-source: {"path": "scripts/build_learning_docs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fd39cfb7bb889e9731d8ac5f9a812e0840a1a3f819276120e35f8d938a6a780d"} -->
 ````python
 # scripts/build_learning_docs.py
 """Build small, staged lessons and lossless source pages from the actual platform."""
@@ -400,11 +400,12 @@ def source_pages(name, content, stage):
         body = f"# {name} · {index + 1}/{len(pieces)}\n\n"
         level = "../" * (len(Path(names[index]).parts) - 2)
         body += f"[阶段导读]({level}README.md) · [本阶段文件顺序]({level}files.md) · [全部文件索引]({level}../source-index.md)\n\n"
+        neighbors = []
         if index:
-            body += f"[上一段]({Path(names[index - 1]).name}) · "
+            neighbors.append(f"[上一段]({Path(names[index - 1]).name})")
         if index + 1 < len(pieces):
-            body += f"[下一段]({Path(names[index + 1]).name})"
-        body += "\n\n" + source_note(name, content, first, last)
+            neighbors.append(f"[下一段]({Path(names[index + 1]).name})")
+        body += " · ".join(neighbors) + "\n\n" + source_note(name, content, first, last)
         body += f"**创建路径：** `{name}`；**本文件共有 {len(pieces)} 段**。"
         body += "本段是二进制编码数据。" if binary else f"本段覆盖源文件 L{first}–L{last}。"
         body += (

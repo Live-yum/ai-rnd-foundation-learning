@@ -57,14 +57,15 @@
 - `test_all_local_links_outside_source_fences_resolve_inside_the_bundle`（L573–L587）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L578遍历`sorted(builder.OUTPUT.rglob("*.md"))`；L580遍历`re.findall(r"\[[^\]\n]*\]\(([^)\n]+)\)", prose)`；L582按`url.scheme or url.netloc or not url.path`分支；L585按`not path.is_relative_to(root) or not path.is_file()`分支；L587断言`not failures`。 调用`builder.OUTPUT.resolve`、`sorted`、`builder.OUTPUT.rglob`、`prose_outside_inline_code`、`prose_outside_fences`、`page.read_text`、`re.findall`、`urlsplit`、`target.strip().removeprefix("<").removesuffix`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_manifest_covers_owned_tracked_sources_independently_of_generator_groups`（L590–L624）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L602按`not (ROOT / ".git").exists()`分支；L617断言`not owned - rows.keys()`；L618断言`not rows.keys() & excluded`；L619断言`not any(name.startswith("learning-docs/") for name in rows)`；L620断言`"tests/test_learning_docs.py" in rows`；L621断言`"scripts/rebuild_learning_docs.py" in rows`；L622断言`"scripts/build_learning_docs.py" in rows`；L623断言`"uv.lock" in rows and "tools/node/package-lock.json" in rows`。后续分支沿下方源码相同行号继续阅读。 调用`reader.read_bundle`、`isinstance`、`content.encode`、`builder.sources`、`assert_exact_inventory`、`(ROOT / ".git").exists`、`set`、`subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT) .dec…`、`subprocess.check_output`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_docs_only_bootstrap_runs_isolated_with_original_tree_reads_forbidden`（L627–L668）：接收`tmp_path`。 控制顺序：L664断言`result.returncode == 0`；L665遍历`reader.read_bundle(docs).items()`；L667断言`not (destination / ".git").exists()`；L668断言`not list((destination / "templates/vendor").glob("*.zip"))`。 调用`shutil.copytree`、`assert_exact_bytes`、`(docs / "rebuild.py").read_bytes`、`(ROOT / "scripts/rebuild_learning_docs.py").read_bytes`、`launch.write_text`、`subprocess.run`、`str`、`os.environ.items`、`reader.read_bundle(docs).items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_multi_part_navigation_has_no_dangling_separator_or_trailing_space`（L671–L690）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L679断言`len(record["parts"]) == 3`；L680遍历`enumerate(record["parts"])`；L686断言`len(navigation) == 1`；L688断言`line == line.rstrip()`；L689断言`not line.endswith(" ·")`；L690断言`line.count("](") == (2 if index == 1 else 1)`。 调用`"".join`、`range`、`builder.source_pages`、`len`、`enumerate`、`prose_outside_fences(pages[name]).splitlines`、`prose_outside_fences`、`line.startswith`、`line.rstrip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_learning_docs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L668。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_learning_docs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L690。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`25312`。本段原文以LF换行结束。
+本段原始字节数：`26141`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_learning_docs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "effef697b7a5121387b854bc7e22487f7fd37e3359cd5f2cb4d91751b0a945c3"} -->
+<!-- learning-source: {"path": "tests/test_learning_docs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ce3d8d5a342bdcc548cfefe64546b6d72a29cc0bf6e3d92e911723c9527d98bc"} -->
 ``````python
 # tests/test_learning_docs.py
 """Independent source coverage, byte-exact reconstruction, and fail-before-write contracts."""
@@ -735,4 +736,26 @@ def test_docs_only_bootstrap_runs_isolated_with_original_tree_reads_forbidden(tm
         assert_exact_bytes((destination / name).read_bytes(), data, name)
     assert not (destination / ".git").exists()
     assert not list((destination / "templates/vendor").glob("*.zip"))
+
+
+def test_multi_part_navigation_has_no_dangling_separator_or_trailing_space():
+    from scripts import build_learning_docs as builder
+
+    source = "".join(
+        f"def example_{number}():\n    pass\n" + "# retained source line\n" * 700
+        for number in range(3)
+    )
+    pages, record = builder.source_pages("example.py", source, 0)
+    assert len(record["parts"]) == 3
+    for index, name in enumerate(record["parts"]):
+        navigation = [
+            line
+            for line in prose_outside_fences(pages[name]).splitlines()
+            if line.startswith(("[上一段]", "[下一段]"))
+        ]
+        assert len(navigation) == 1
+        line = navigation[0]
+        assert line == line.rstrip(), name
+        assert not line.endswith(" ·"), name
+        assert line.count("](") == (2 if index == 1 else 1)
 ``````

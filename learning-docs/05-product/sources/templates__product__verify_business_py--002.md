@@ -2,7 +2,7 @@
 
 [阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
 
-[上一段](templates__product__verify_business_py--001.md) · 
+[上一段](templates__product__verify_business_py--001.md)
 
 **作用：独立基础产品的组成文件。** 独立客服HTTP/浏览器验收器：新建自有数据库和三角色合成账号，验证关系、指派、流程、记录、提醒、统计、拒绝路径及重启；截图仅限有界命名PNG，不导出密码或运行数据库。
 

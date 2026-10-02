@@ -2,7 +2,7 @@
 
 [阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
 
-[上一段](workbench__business_probe_py--001.md) · 
+[上一段](workbench__business_probe_py--001.md)
 
 **作用：三角色实际原生HTTP验收。** 使用明确合成账号和业务记录，通过原生登录取得身份，检查关联、分配、转换、历史、审计、提醒和统计，另以无权用户验证后端拒绝；不把隐藏按钮当权限证明。
 
