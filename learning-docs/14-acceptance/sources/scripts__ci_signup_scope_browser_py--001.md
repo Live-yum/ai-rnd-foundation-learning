@@ -25,15 +25,15 @@
 - `legacy_failed_run.old_analyse`（L92–L93）：接收`state`。 调用`requirement.gate_dump`。 返回路径：L93的`{"requirement": requirement.gate_dump()}`。
 - `legacy_failed_run.old_requirements`（L95–L102）：接收`state`。 调用`self.gate`。 返回路径：L96的`self.gate( state, "requirements", {"requirement": state["requirement"], "ready": True}, ["…`。
 - `legacy_failed_run.old_import_failure`（L104–L105）：接收`state`。 控制顺序：L105抛异常，停止当前正常路径。 调用`ModuleNotFoundError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L143–L271）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L151遍历`( "browser.log", "scope-blocked.png", "scope-blocked-mobile.png",…`；L184在`not server.started`成立时循环；L185按`time.monotonic() >= deadline`分支；L186抛异常，停止当前正常路径；L215断言`result.returncode == 0`；L218断言`run_id == legacy_run_id`；L220断言`run["status"] == "WAITING_REQUIREMENTS"`；L221断言`run["pending"]["can_approve"] and not run["auto_mode"]`。后续分支沿下方源码相同行号继续阅读。 调用`ui_snapshot`、`socket.socket`、`sock.bind`、`sock.getsockname`、`reports.mkdir`、`(reports / name).unlink`、`write_json`、`ScopeFixture`、`tempfile.TemporaryDirectory`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L143–L272）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L151遍历`( "browser.log", "scope-blocked.png", "scope-blocked-mobile.png",…`；L184在`not server.started`成立时循环；L185按`time.monotonic() >= deadline`分支；L186抛异常，停止当前正常路径；L216断言`result.returncode == 0`；L219断言`run_id == legacy_run_id`；L221断言`run["status"] == "WAITING_REQUIREMENTS"`；L222断言`run["pending"]["can_approve"] and not run["auto_mode"]`。后续分支沿下方源码相同行号继续阅读。 调用`ui_snapshot`、`socket.socket`、`sock.bind`、`sock.getsockname`、`reports.mkdir`、`(reports / name).unlink`、`write_json`、`ScopeFixture`、`tempfile.TemporaryDirectory`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_signup_scope_browser.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L275。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_signup_scope_browser.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L276。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11151`。本段原文以LF换行结束。
+本段原始字节数：`11185`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_signup_scope_browser.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c5ffeae438b9d45dcd5dc56beedae94d9a3e237fa188d1d45578ed56744501a0"} -->
+<!-- learning-source: {"path": "scripts/ci_signup_scope_browser.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "dedf9e6f02de70ff179553056069c81b7fdc30fd778c44857d9b68c8d478827f"} -->
 ````python
 # scripts/ci_signup_scope_browser.py
 """Real local HTTP/Chromium proof of the registration scope correction UI.
@@ -247,6 +247,7 @@ def main():
                 ),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
                 timeout=90,
             )
             (reports / "browser.log").write_text(result.stdout + result.stderr, encoding="utf-8")

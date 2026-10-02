@@ -17,12 +17,12 @@
 
 - `valid_summary`（L27–L44）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`dict.fromkeys`、`hashlib.sha256(data).hexdigest`、`hashlib.sha256`、`BUNDLE_FILES.items`、`hashlib.sha256(PNG_BYTES).hexdigest`。 返回路径：L28的`{ **dict.fromkeys(acceptance.SIGNUP_SCOPE_TRUE_FIELDS, True), "run_id": "same-fixture-run"…`。
 - `browser_files`（L47–L57）：接收`destination`、`summary`、`missing_image`。 控制顺序：L51遍历`BUNDLE_FILES.items()`；L55遍历`SCREENSHOTS`；L56按`not missing_image or name != "scope-corrected.png"`分支。 调用`folder.mkdir`、`(folder / "browser.json").write_text`、`json.dumps`、`BUNDLE_FILES.items`、`path.parent.mkdir`、`path.write_bytes`、`(folder / name).write_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_signup_cleanroom_driver_and_evidence_are_separate`（L60–L73）：接收`tmp_path`。 控制顺序：L70断言`result == summary`；L71断言`commands == [["student-python", "-m", "scripts.ci_signup_scope_browser"]]`；L72断言`json.loads((evidence / "browser.json").read_text()) == summary`；L73断言`(evidence / "scope-corrected.png").is_file()`。 调用`valid_summary`、`acceptance.verify_signup_scope_browser`、`json.loads`、`(evidence / "browser.json").read_text`、`(evidence / "scope-corrected.png").is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_signup_cleanroom_driver_and_evidence_are_separate`（L60–L73）：接收`tmp_path`。 控制顺序：L70断言`result == summary`；L71断言`commands == [["student-python", "-m", "scripts.ci_signup_scope_browser"]]`；L72断言`json.loads((evidence / "browser.json").read_text(encoding="utf-8")) == summary`；L73断言`(evidence / "scope-corrected.png").is_file()`。 调用`valid_summary`、`acceptance.verify_signup_scope_browser`、`json.loads`、`(evidence / "browser.json").read_text`、`(evidence / "scope-corrected.png").is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_signup_cleanroom_driver_and_evidence_are_separate.run`（L65–L67）：接收`argv`。 调用`commands.append`、`browser_files`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_signup_evidence_requires_literal_success_for_every_claim`（L78–L86）：接收`tmp_path`、`field`、`bad`。 控制顺序：L86断言`(tmp_path / "out/browser.json").is_file()`。 调用`valid_summary`、`pytest.raises`、`acceptance.verify_signup_scope_browser`、`browser_files`、`(tmp_path / "out/browser.json").is_file`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_signup_cleanroom_rejects_changed_scope_or_missing_contract`（L112–L119）：接收`tmp_path`、`field`、`bad`。 调用`valid_summary`、`pytest.raises`、`acceptance.verify_signup_scope_browser`、`browser_files`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_signup_cleanroom_requires_all_screenshot_files`（L122–L130）：接收`tmp_path`。 调用`pytest.raises`、`acceptance.verify_signup_scope_browser`、`browser_files`、`valid_summary`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_signup_cleanroom_preserves_failure_and_never_merges_previous_success`（L133–L150）：接收`tmp_path`。 控制顺序：L148断言`(evidence / "browser.log").read_text() == "current failure"`；L149断言`not (evidence / "browser.json").exists()`；L150断言`(previous / "browser.json").read_text() == '{"passed":true}'`。 调用`previous.mkdir`、`(previous / "browser.json").write_text`、`pytest.raises`、`acceptance.verify_signup_scope_browser`、`(evidence / "browser.log").read_text`、`(evidence / "browser.json").exists`、`(previous / "browser.json").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_signup_cleanroom_preserves_failure_and_never_merges_previous_success`（L133–L150）：接收`tmp_path`。 控制顺序：L148断言`(evidence / "browser.log").read_text(encoding="utf-8") == "current failure: 中文诊断"`；L149断言`not (evidence / "browser.json").exists()`；L150断言`(previous / "browser.json").read_text(encoding="utf-8") == '{"passed":true}'`。 调用`previous.mkdir`、`(previous / "browser.json").write_text`、`pytest.raises`、`acceptance.verify_signup_scope_browser`、`(evidence / "browser.log").read_text`、`(evidence / "browser.json").exists`、`(previous / "browser.json").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_signup_cleanroom_preserves_failure_and_never_merges_previous_success.run`（L140–L144）：接收`_`。 控制顺序：L144抛异常，停止当前正常路径。 调用`folder.mkdir`、`(folder / "browser.log").write_text`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_signup_cleanroom_refuses_preexisting_evidence_before_running`（L154–L163）：接收`tmp_path`、`reuse`。 控制顺序：L156按`reuse == "source"`分支；L163断言`commands == []`。 调用`browser_files`、`valid_summary`、`evidence.mkdir`、`pytest.raises`、`acceptance.verify_signup_scope_browser`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_signup_teaching_source_assignment_and_lessons_match_current_boundaries`（L166–L182）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L167遍历`("requirement_intent", "requirement_canonical")`；L168断言`builder.stage_for(f"workbench/{name}.py") == 3`；L169断言`"项目根配置" not in purpose(f"workbench/{name}.py")[0]`；L170遍历`("ci_signup_scope_browser.py", "signup_scope_browser.cjs")`；L171断言`builder.stage_for(f"scripts/{name}") == 14`；L172断言`"浏览器" in purpose(f"scripts/{name}")[0]`；L174断言`"uv sync --locked --extra postgres" in stages[0]["body"]`；L175断言`"不能因为框架能注册账号" in stages[3]["body"]`。后续分支沿下方源码相同行号继续阅读。 调用`builder.stage_for`、`purpose`、`builder.read_content`、`all`、`check_fences`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
@@ -33,9 +33,9 @@
 
 **创建路径：** `tests/test_learning_docs_signup.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L201。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8194`。本段原文以LF换行结束。
+本段原始字节数：`8324`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_learning_docs_signup.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2b03e619bfae38735057a548a3ebfca3344532f06634093e5a37e4b84b39570c"} -->
+<!-- learning-source: {"path": "tests/test_learning_docs_signup.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ee61019e4363c8b411ddfa18f6e1974a7ecefcce4be5b58dfd8342db55a96298"} -->
 ````python
 # tests/test_learning_docs_signup.py
 """Signup lessons and restored real-browser evidence fail closed independently."""
@@ -87,7 +87,7 @@ def valid_summary():
 def browser_files(destination, summary, *, missing_image=False):
     folder = destination / "reports/signup-scope-browser"
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / "browser.json").write_text(json.dumps(summary))
+    (folder / "browser.json").write_text(json.dumps(summary), encoding="utf-8")
     for name, data in BUNDLE_FILES.items():
         path = destination / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -109,7 +109,7 @@ def test_signup_cleanroom_driver_and_evidence_are_separate(tmp_path):
     result = acceptance.verify_signup_scope_browser(destination, "student-python", run, evidence)
     assert result == summary
     assert commands == [["student-python", "-m", "scripts.ci_signup_scope_browser"]]
-    assert json.loads((evidence / "browser.json").read_text()) == summary
+    assert json.loads((evidence / "browser.json").read_text(encoding="utf-8")) == summary
     assert (evidence / "scope-corrected.png").is_file()
 
 
@@ -174,20 +174,20 @@ def test_signup_cleanroom_preserves_failure_and_never_merges_previous_success(tm
     destination = tmp_path / "student"
     previous = tmp_path / "evidence/previous"
     previous.mkdir(parents=True)
-    (previous / "browser.json").write_text('{"passed":true}')
+    (previous / "browser.json").write_text('{"passed":true}', encoding="utf-8")
     evidence = tmp_path / "evidence/current"
 
     def run(_):
         folder = destination / "reports/signup-scope-browser"
         folder.mkdir(parents=True)
-        (folder / "browser.log").write_text("current failure")
+        (folder / "browser.log").write_text("current failure: 中文诊断", encoding="utf-8")
         raise RuntimeError("Chromium failed")
 
     with pytest.raises(RuntimeError, match="Chromium failed"):
         acceptance.verify_signup_scope_browser(destination, "python", run, evidence)
-    assert (evidence / "browser.log").read_text() == "current failure"
+    assert (evidence / "browser.log").read_text(encoding="utf-8") == "current failure: 中文诊断"
     assert not (evidence / "browser.json").exists()
-    assert (previous / "browser.json").read_text() == '{"passed":true}'
+    assert (previous / "browser.json").read_text(encoding="utf-8") == '{"passed":true}'
 
 
 @pytest.mark.parametrize("reuse", ["source", "destination"])

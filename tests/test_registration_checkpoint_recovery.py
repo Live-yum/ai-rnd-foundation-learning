@@ -135,7 +135,9 @@ def test_real_legacy_polluted_clarification_repairs_same_run_and_keeps_full_audi
     assert state["requirement_ledger"][0] == old_entry
     assert state["requirement_ledger"][-1]["scope_changes"]
     assert gateway.calls == 1
-    on_disk = json.loads((settings.data_dir / "runs" / run / "requirement-ledger.json").read_text())
+    on_disk = json.loads(
+        (settings.data_dir / "runs" / run / "requirement-ledger.json").read_text(encoding="utf-8")
+    )
     assert on_disk == state["requirement_ledger"]
     assert store.messages(run) == [
         {"role": "user", "content": ORIGINAL},

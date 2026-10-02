@@ -47,7 +47,7 @@ def valid_summary():
 def browser_files(destination, summary, *, missing_image=False):
     folder = destination / "reports/signup-scope-browser"
     folder.mkdir(parents=True, exist_ok=True)
-    (folder / "browser.json").write_text(json.dumps(summary))
+    (folder / "browser.json").write_text(json.dumps(summary), encoding="utf-8")
     for name, data in BUNDLE_FILES.items():
         path = destination / name
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -69,7 +69,7 @@ def test_signup_cleanroom_driver_and_evidence_are_separate(tmp_path):
     result = acceptance.verify_signup_scope_browser(destination, "student-python", run, evidence)
     assert result == summary
     assert commands == [["student-python", "-m", "scripts.ci_signup_scope_browser"]]
-    assert json.loads((evidence / "browser.json").read_text()) == summary
+    assert json.loads((evidence / "browser.json").read_text(encoding="utf-8")) == summary
     assert (evidence / "scope-corrected.png").is_file()
 
 
@@ -134,20 +134,20 @@ def test_signup_cleanroom_preserves_failure_and_never_merges_previous_success(tm
     destination = tmp_path / "student"
     previous = tmp_path / "evidence/previous"
     previous.mkdir(parents=True)
-    (previous / "browser.json").write_text('{"passed":true}')
+    (previous / "browser.json").write_text('{"passed":true}', encoding="utf-8")
     evidence = tmp_path / "evidence/current"
 
     def run(_):
         folder = destination / "reports/signup-scope-browser"
         folder.mkdir(parents=True)
-        (folder / "browser.log").write_text("current failure")
+        (folder / "browser.log").write_text("current failure: 中文诊断", encoding="utf-8")
         raise RuntimeError("Chromium failed")
 
     with pytest.raises(RuntimeError, match="Chromium failed"):
         acceptance.verify_signup_scope_browser(destination, "python", run, evidence)
-    assert (evidence / "browser.log").read_text() == "current failure"
+    assert (evidence / "browser.log").read_text(encoding="utf-8") == "current failure: 中文诊断"
     assert not (evidence / "browser.json").exists()
-    assert (previous / "browser.json").read_text() == '{"passed":true}'
+    assert (previous / "browser.json").read_text(encoding="utf-8") == '{"passed":true}'
 
 
 @pytest.mark.parametrize("reuse", ["source", "destination"])

@@ -3560,8 +3560,8 @@
     },
     {
       "path": "scripts/ci_signup_scope_browser.py",
-      "bytes": 11151,
-      "sha256": "c5ffeae438b9d45dcd5dc56beedae94d9a3e237fa188d1d45578ed56744501a0",
+      "bytes": 11185,
+      "sha256": "dedf9e6f02de70ff179553056069c81b7fdc30fd778c44857d9b68c8d478827f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_signup_scope_browser_py--001.md"
@@ -3723,8 +3723,8 @@
     },
     {
       "path": "tests/test_learning_docs_signup.py",
-      "bytes": 8194,
-      "sha256": "2b03e619bfae38735057a548a3ebfca3344532f06634093e5a37e4b84b39570c",
+      "bytes": 8324,
+      "sha256": "ee61019e4363c8b411ddfa18f6e1974a7ecefcce4be5b58dfd8342db55a96298",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_learning_docs_signup_py--001.md"
@@ -3877,8 +3877,8 @@
     },
     {
       "path": "tests/test_registration_checkpoint_recovery.py",
-      "bytes": 5996,
-      "sha256": "27478473d17b416844762ef941548993e88fd6ec7f3df3eb188b7e83d302aad6",
+      "bytes": 6026,
+      "sha256": "5625fe3066caf82eeddeae3483a41e7dcb24e1de963f9c81edd2a7d1e1d485c4",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_registration_checkpoint_recovery_py--001.md"
