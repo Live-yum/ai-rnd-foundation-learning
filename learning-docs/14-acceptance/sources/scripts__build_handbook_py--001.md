@@ -15,18 +15,19 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `sources`（L95–L143）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L97遍历`GROUPS`；L99遍历`paths`；L101按`not path.exists()`分支；L102抛异常，停止当前正常路径；L108遍历`items`；L109按`not item.is_file() or item.suffix == ".pyc" or any( part in { "__pycache__", ".venv",…`分支；L130按`name in { ".github/workflows/prepare-local-tools.yml", ".github/workflows/runtime-con…`分支；L135按`name not in seen`分支。 调用`set`、`path.exists`、`FileNotFoundError`、`path.is_dir`、`sorted`、`path.rglob`、`item.relative_to(ROOT).as_posix`、`item.relative_to`、`item.is_file`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `guide_text`（L146–L153）：接收`name`。 源码说明：Keep image links valid in both the chapter and the root-level handbook.。 调用`(ROOT / name).read_text(encoding="utf-8").rstrip`、`(ROOT / name).read_text`、`re.sub`、`Path(name).parent.as_posix`、`Path`。 返回路径：L149的`re.sub( r"(!\[[^\]\n]*\]\()images/", lambda match: match[1] + Path(name).parent.as_posix()…`。
-- `render`（L156–L204）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L159遍历`sources()`；L161遍历`rows`；L162按`isinstance(content, bytes)`分支。 调用`"\n\n".join`、`guide_text`、`sources`、`isinstance`、`hashlib.sha256(content).hexdigest`、`hashlib.sha256`、`"\n".join`、`textwrap.wrap`、`base64.b64encode(content).decode`等。 返回路径：L204的`text`。
-- `main`（L207–L220）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L212按`args.check`分支；L213按`not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != expected`分支；L214抛异常，停止当前正常路径；L215按`len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) != 1`分支；L216抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`OUTPUT.read_text`、`SystemExit`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `generated_frontend_asset`（L97–L99）：接收`name`。 源码说明：Vite output is a lossless runtime snapshot, not handwritten lesson source.。 调用`name.startswith`。 返回路径：L99的`name.startswith(GENERATED_FRONTEND_PREFIX)`。
+- `sources`（L102–L150）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L104遍历`GROUPS`；L106遍历`paths`；L108按`not path.exists()`分支；L109抛异常，停止当前正常路径；L115遍历`items`；L116按`not item.is_file() or item.suffix == ".pyc" or any( part in { "__pycache__", ".venv",…`分支；L137按`name in { ".github/workflows/prepare-local-tools.yml", ".github/workflows/runtime-con…`分支；L142按`name not in seen`分支。 调用`set`、`path.exists`、`FileNotFoundError`、`path.is_dir`、`sorted`、`path.rglob`、`item.relative_to(ROOT).as_posix`、`item.relative_to`、`item.is_file`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `guide_text`（L153–L160）：接收`name`。 源码说明：Keep image links valid in both the chapter and the root-level handbook.。 调用`(ROOT / name).read_text(encoding="utf-8").rstrip`、`(ROOT / name).read_text`、`re.sub`、`Path(name).parent.as_posix`、`Path`。 返回路径：L156的`re.sub( r"(!\[[^\]\n]*\]\()images/", lambda match: match[1] + Path(name).parent.as_posix()…`。
+- `render`（L163–L217）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L166遍历`sources()`；L168遍历`rows`；L169按`isinstance(content, bytes)`分支。 调用`"\n\n".join`、`guide_text`、`sources`、`isinstance`、`hashlib.sha256(content).hexdigest`、`hashlib.sha256`、`"\n".join`、`textwrap.wrap`、`base64.b64encode(content).decode`等。 返回路径：L217的`text`。
+- `main`（L220–L233）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L225按`args.check`分支；L226按`not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != expected`分支；L227抛异常，停止当前正常路径；L228按`len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) != 1`分支；L229抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`OUTPUT.read_text`、`SystemExit`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/build_handbook.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L224。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/build_handbook.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L237。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8277`。本段原文以LF换行结束。
+本段原始字节数：`9057`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/build_handbook.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "98e1b5ecc35fe5d51e9571165b52fe9340f81edf5ff07cf575839fb6a8e68c93"} -->
+<!-- learning-source: {"path": "scripts/build_handbook.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "655df2484ccdc2d31ed10fdfd692d6a6555e598bc9ecfa42af446c56854c88c0"} -->
 `````python
 # scripts/build_handbook.py
 """Render a complete, reconstructable handbook from tracked source, never from memory."""
@@ -71,6 +72,7 @@ GROUPS = [
         ],
     ),
     ("后端全部实现与控制台", ["workbench"]),
+    ("Vue操作台完整源码、构建配置与依赖锁", ["ui"]),
     ("冻结数据库迁移", ["migrations"]),
     ("默认产品与前端", ["templates/product", "templates/frontends"]),
     ("独立原生交付启动器", ["templates/deployment"]),
@@ -121,6 +123,12 @@ GROUPS = [
     ("真实操作截图与来源证据", ["docs/images"]),
 ]
 BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico"}
+GENERATED_FRONTEND_PREFIX = "workbench/web/"
+
+
+def generated_frontend_asset(name):
+    """Vite output is a lossless runtime snapshot, not handwritten lesson source."""
+    return name.startswith(GENERATED_FRONTEND_PREFIX)
 
 
 def sources():
@@ -166,7 +174,7 @@ def sources():
                 if name not in seen:
                     content = (
                         item.read_bytes()
-                        if item.suffix.lower() in BINARY_SUFFIXES
+                        if item.suffix.lower() in BINARY_SUFFIXES or generated_frontend_asset(name)
                         else item.read_text(encoding="utf-8")
                     )
                     rows.append((name, content))
@@ -195,9 +203,15 @@ def render():
                 encoded = "\n".join(textwrap.wrap(base64.b64encode(content).decode("ascii"), 76))
                 text += (
                     f"\n### `{name}`\n\n"
-                    "真实PNG等二进制资源按原始字节收录；正文通过相对路径显示图片。"
-                    "下列Base64仅供本书独立还原程序解码，并校验解码后SHA-256，"
-                    "不是需要手写的UI代码，也不是模型绘制的截图。\n\n"
+                    + (
+                        "这是ui源码构建出的操作台静态资产快照，不是需要手写或修改的压缩代码。"
+                        "阅读ui/src与构建配置，执行npm ci --prefix ui及npm run build --prefix ui生成；"
+                        "独立还原仍保留精确运行字节，干净构建须再次与此快照逐文件核对。\n\n"
+                        if generated_frontend_asset(name)
+                        else "真实PNG等二进制资源按原始字节收录；正文通过相对路径显示图片。"
+                        "它不是模型绘制的截图。\n\n"
+                    )
+                    + "下列Base64仅供独立还原程序解码，并校验解码后SHA-256。\n\n"
                     "<details>\n<summary>展开二进制还原数据</summary>\n\n"
                     f"<!-- source-file: {name} sha256: {code_sha} encoding: base64 -->\n"
                     f"````base64\n{encoded}\n````\n\n</details>\n"

@@ -6,13 +6,72 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 from scripts.build_handbook import OUTPUT as LEGACY
+from scripts.build_handbook import generated_frontend_asset
 from scripts.build_learning_docs import OUTPUT, ROOT
 from scripts.ci_handbook import run_full_tests
 from scripts.rebuild_learning_docs import read_bundle, sha
+
+
+def verify_frontend_bundle(destination, expected):
+    """No Git or original checkout: compare the rebuilt complete runtime asset set."""
+    wanted = {name: data for name, data in expected.items() if generated_frontend_asset(name)}
+    if not wanted:
+        raise AssertionError("The textbook must include the generated control-plane assets")
+    actual = {
+        path.relative_to(destination).as_posix(): path.read_bytes()
+        for path in (destination / "workbench/web").rglob("*")
+        if path.is_file()
+    }
+    if actual.keys() != wanted.keys():
+        raise AssertionError(
+            "Vue asset inventory differs: missing="
+            + str(sorted(wanted.keys() - actual.keys()))
+            + "; extra="
+            + str(sorted(actual.keys() - wanted.keys()))
+        )
+    for name, data in wanted.items():
+        if actual[name] != data:
+            raise AssertionError("Vue clean-build byte comparison failed: " + name)
+    return len(wanted)
+
+
+def rebuild_frontend(destination, expected, npm, run):
+    """Build only from the restored source and its lock; do not accept the saved bundle alone."""
+    run([npm, "ci", "--prefix", "ui", "--no-audit", "--no-fund"])
+    run([npm, "test", "--prefix", "ui"])
+    run([npm, "run", "build", "--prefix", "ui"])
+    return verify_frontend_bundle(destination, expected)
+
+
+def verify_frontend_browser(destination, python, run, reports):
+    """Keep real HTTP/Chromium evidence from the restored platform, including failures."""
+    # Never merge a failed rerun into old passed:true summaries or screenshots.
+    # Callers retain this run-specific path even when the driver raises.
+    reports.mkdir(parents=True, exist_ok=False)
+    browser_reports = destination / "reports/guided-browser"
+    try:
+        run([python, "-m", "scripts.ci_guided_browser"])
+    finally:
+        if browser_reports.is_dir():
+            shutil.copytree(browser_reports, reports, dirs_exist_ok=True)
+    summary = json.loads((browser_reports / "summary.json").read_text(encoding="utf-8"))
+    required = (
+        "passed",
+        "real_browser",
+        "actual_incremental_sse",
+        "first_delta_before_provider_complete",
+        "unicode_split_replay_dedupe",
+    )
+    if any(summary.get(field) is not True for field in required):
+        raise AssertionError("Restored Vue workbench requires real incremental-browser evidence")
+    if summary.get("model_mode") != "explicit-local-http-fixtures":
+        raise AssertionError("Textbook acceptance must not call live or paid model providers")
+    return {field: summary[field] for field in (*required, "model_mode")}
 
 
 def main():
@@ -85,6 +144,15 @@ def main():
                     "assert Path(workbench.store.__file__).resolve().is_relative_to(Path.cwd())",
                 ]
             )
+            status["phase"] = "build_vue_control_plane"
+            frontend_count = rebuild_frontend(destination, expected, npm, run)
+            status["frontend"] = {
+                "source": "restored ui directory and npm lock",
+                "unit_tests": "passed",
+                "typescript_and_production_build": "passed",
+                "runtime_assets_byte_equal": True,
+                "runtime_assets": frontend_count,
+            }
             status["phase"] = "exact_textbook_roundtrip"
             run([python, "-m", "scripts.build_handbook"])
             if (destination / LEGACY.name).read_bytes() != LEGACY.read_bytes():
@@ -120,6 +188,15 @@ def main():
             run([python, "-m", "ruff", "check", "."])
             run([python, "-m", "ruff", "format", "--check", "."])
             run([python, "-m", "scripts.build_learning_docs", "--check"])
+            status["phase"] = "vue_real_browser_acceptance"
+            browser_evidence = reports / "learning-docs-guided-browser" / uuid.uuid4().hex
+            status["frontend"]["browser"] = {
+                "passed": False,
+                "evidence_directory": browser_evidence.relative_to(reports).as_posix(),
+            }
+            status["frontend"]["browser"].update(
+                verify_frontend_browser(destination, python, run, browser_evidence)
+            )
             status["phase"] = "full_non_postgres_tests"
             junit = base / "learning-docs-tests.xml"
             run_full_tests(

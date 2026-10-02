@@ -17,39 +17,41 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `State`（L80–L99）：继承`TypedDict`。声明的数据项为`run_id`、`template`、`round`、`requirement`、`requirement_source_count`、`requirement_ledger`、`requirement_analysis_diagnostics`、`requirement_analysis_baseline`、`resolution_feedback`、`plan`、`decision`、`last_job_id`、`attempt`、`verification`、`delivery`、`status`、`model_review`、`code_context`、`sandbox`；类型约束/数据库列参数以完整定义为准。
-- `Workflow`（L102–L662）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `Workflow.__init__`（L103–L104）：接收`settings`、`store`、`gateway`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Workflow.product`（L106–L107）：接收`state`。 返回路径：L107的`self.settings.data_dir / "runs" / state["run_id"] / "product"`。
-- `Workflow.gate`（L109–L118）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 控制顺序：L115按`action == "recommend" and can_approve`分支。 调用`list`、`dict.fromkeys`、`self.store.gate`、`interrupt`、`self.store.check_decision`、`self.store.auto_approve`。 返回路径：L118的`{"decision": action, "last_job_id": value["job_id"]}`。
-- `Workflow.analyse`（L120–L198）：接收`state`。 控制顺序：L121按`self.settings.max_rounds and state["round"] > self.settings.max_rounds`分支；L122抛异常，停止当前正常路径；L136按`state.get("requirement_analysis_diagnostics")`分支；L138按`ledger`分支；L163遍历`changes`；L185按`diagnostics`分支。 调用`PausedLimit`、`self.store.get_run`、`options_for_run(run).capabilities`、`options_for_run`、`context`、`state.get`、`digest`、`ledger[-1].get`、`self.store.messages`等。 返回路径：L192的`{ "requirement": accepted or candidate, "requirement_source_count": cursor if diagnostics …`。
-- `Workflow.requirements`（L200–L244）：接收`state`。 控制顺序：L207按`not supported`分支；L211按`diagnostics`分支；L223按`outcome["decision"] in {"answer", "revise", "recommend"}`分支；L238按`diagnostics`分支；L242按`outcome["decision"] == "reject"`分支。 调用`Requirement.model_validate`、`options_for_run`、`self.store.get_run`、`selection.capabilities`、`state.get`、`requirement.gate_dump`、`self.gate`、`isinstance`、`data.get`等。 返回路径：L244的`outcome`。
-- `Workflow.source_context`（L246–L255）：接收`state`。 调用`prepare_context`、`self.product`。 返回路径：L255的`{"code_context": value}`。
-- `Workflow.plan`（L257–L305）：接收`state`。 控制顺序：L260遍历`enumerate(approved.field_requirements)`。 调用`Requirement.model_validate`、`enumerate`、`field_obligations.append`、`obligation.model_dump`、`self.gateway.complete`、`state.get`、`state.get("resolution_feedback", {}).get`、`options_for_run( self.store.get_run(state["run_id"]) ).capabiliti…`、`options_for_run`等。 返回路径：L305的`{"plan": value.model_dump(), "attempt": 0}`。
-- `Workflow.design`（L307–L399）：接收`state`。 控制顺序：L319按`any(field.kind not in kinds for entity in plan.entities for field in entity.fields)`分支；L334按`state["template"] == "python-basic" and plan.data_scope != "per_user" and plan.busine…`分支；L341按`plan.custom_rules and not self.settings.enable_coding`分支；L344按`state["template"] != "python-basic" and plan.custom_rules and self.settings.coding_en…`分支；L351按`state["template"] != "python-basic"`分支；L357按`runtime_enabled(self.settings, state["template"])`分支；L387按`outcome["decision"] in {"revise", "recommend"}`分支；L397按`outcome["decision"] == "reject"`分支。 调用`Plan.model_validate`、`list`、`len`、`options_for_run`、`self.store.get_run`、`set`、`selection.capabilities`、`any`、`reasons.append`等。 返回路径：L399的`outcome`。
-- `Workflow.generate`（L401–L425）：接收`state`。 控制顺序：L403按`state["template"] == "python-basic"`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`。 返回路径：L425的`{}`。
-- `Workflow.generate.fn`（L405–L410）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_basic`、`self.product`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`。 返回路径：L406的`generate_basic( plan, self.product(state), selection=options_for_run(self.store.get_run(st…`。
-- `Workflow.generate.fn`（L414–L422）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_native`、`self.product`、`self.native_customization`。 返回路径：L415的`generate_native( self.settings, state["template"], plan, self.product(state), managed=True…`。
-- `Workflow.native_customization`（L427–L432）：接收`state`、`plan`。 控制顺序：L428按`not plan.custom_rules`分支。 调用`native_rule_customizer`。 返回路径：L429的`None`；L432的`native_rule_customizer(self.settings, self.gateway, state["run_id"])`。
-- `Workflow.run_coder`（L434–L454）：接收`state`、`plan`。 控制顺序：L435按`self.settings.coding_engine == "aider"`分支。 调用`code_rules_with_aider`、`self.product`、`state.get("verification", {}).get`、`state.get`、`code_rules`。 返回路径：L438的`code_rules_with_aider( state["run_id"], plan, self.product(state), self.gateway, self.sett…`；L447的`code_rules( state["run_id"], plan, self.product(state), self.gateway, state["attempt"], st…`。
-- `Workflow.code`（L456–L468）：接收`state`。 控制顺序：L458按`not plan.custom_rules or state["template"] != "python-basic"`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`、`self.run_coder`、`str`。 返回路径：L459的`{}`；L467的`{"verification": {"passed": False, "kind": "code", "error": str(exc)[:500]}}`；L468的`{}`。
-- `Workflow.verify`（L470–L482）：接收`state`。 控制顺序：L471按`state["template"] != "python-basic"`分支。 调用`verify_native`、`self.product`、`verify_basic`、`Plan.model_validate`。 返回路径：L482的`{"verification": result}`。
-- `Workflow.after_verify`（L484–L495）：接收`state`。 控制顺序：L485按`state["verification"]["passed"]`分支；L487按`state["plan"].get("custom_rules") and state["attempt"] < self.settings.max_repair_att…`分支；L493抛异常，停止当前正常路径。 调用`state["plan"].get`、`state["verification"].get`、`PrerequisiteError`。 返回路径：L486的`"sandbox"`；L492的`"repair"`。
-- `Workflow.sandbox`（L497–L503）：接收`state`。 控制顺序：L498按`self.settings.sandbox_provider == "local"`分支。 调用`verify_in_daytona`、`self.product`。 返回路径：L499的`{"sandbox": {"enabled": False, "provider": "local", "remote_upload": False}}`；L503的`{"sandbox": {"enabled": True, **result}}`。
-- `Workflow.model_review`（L505–L534）：接收`state`。 控制顺序：L510按`not self.settings.review_enabled`分支；L512按`previous.get("uncovered_requirements")`分支。 调用`self.product`、`previous_path.is_file`、`json.loads`、`previous_path.read_text`、`previous.get`、`self.require_review_clearance`、`self.gateway.complete`、`digest`、`review.model_dump`。 返回路径：L514的`{ "model_review": { "enabled": False, "note": "Executable test results remain the authorit…`；L534的`{"model_review": result}`。
-- `Workflow.require_review_clearance`（L536–L562）：接收`state`、`review`、`fresh`。 源码说明：Only a fresh successful review may clear a persisted uncovered gap.。 控制顺序：L540按`previous.get("uncovered_requirements") and not review.get("uncovered_requirements")`分支；L541按`not ( fresh and review.get("enabled") and state.get("verification", {}).get("passed")…`分支；L557按`gaps`分支；L558抛异常，停止当前正常路径。 调用`self.product`、`path.is_file`、`json.loads`、`path.read_text`、`previous.get`、`review.get`、`state.get("verification", {}).get`、`state.get`、`digest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Workflow.repair`（L564–L565）：接收`state`。 返回路径：L565的`{"attempt": state["attempt"] + 1}`。
-- `Workflow.package`（L567–L594）：接收`state`。 控制顺序：L570按`state.get("requirement")`分支；L580按`gaps`分支；L581抛异常，停止当前正常路径；L582按`state["template"] == "python-basic"`分支。 调用`self.require_review_clearance`、`state.get`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`gaps.extend`、`business_gaps`、`UnsupportedScope`、`"；".join`等。 返回路径：L594的`{"delivery": result}`。
-- `Workflow.delivery`（L596–L608）：接收`state`。 控制顺序：L601按`sha(self.product(state).parent / result["package"]) != result["sha256"]`分支；L602抛异常，停止当前正常路径。 调用`result.items`、`len`、`self.gate`、`sha`、`self.product`、`PrerequisiteError`。 返回路径：L608的`decision`。
-- `Workflow.compile`（L610–L662）：接收`checkpointer`。 控制顺序：L612遍历`( "analyse", "requirements", "source_context", "plan", "design", …`。 调用`StateGraph`、`graph.add_node`、`getattr`、`graph.add_edge`、`graph.add_conditional_edges`、`graph.compile`。 返回路径：L662的`graph.compile(checkpointer=checkpointer)`。
+- `State`（L82–L101）：继承`TypedDict`。声明的数据项为`run_id`、`template`、`round`、`requirement`、`requirement_source_count`、`requirement_ledger`、`requirement_analysis_diagnostics`、`requirement_analysis_baseline`、`resolution_feedback`、`plan`、`decision`、`last_job_id`、`attempt`、`verification`、`delivery`、`status`、`model_review`、`code_context`、`sandbox`；类型约束/数据库列参数以完整定义为准。
+- `Workflow`（L104–L687）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Workflow.__init__`（L105–L106）：接收`settings`、`store`、`gateway`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Workflow.product`（L108–L109）：接收`state`。 返回路径：L109的`self.settings.data_dir / "runs" / state["run_id"] / "product"`。
+- `Workflow.gate`（L111–L120）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 控制顺序：L117按`action == "recommend" and can_approve`分支。 调用`list`、`dict.fromkeys`、`self.store.gate`、`interrupt`、`self.store.check_decision`、`self.store.auto_approve`。 返回路径：L120的`{"decision": action, "last_job_id": value["job_id"]}`。
+- `Workflow.analyse`（L122–L200）：接收`state`。 控制顺序：L123按`self.settings.max_rounds and state["round"] > self.settings.max_rounds`分支；L124抛异常，停止当前正常路径；L138按`state.get("requirement_analysis_diagnostics")`分支；L140按`ledger`分支；L165遍历`changes`；L187按`diagnostics`分支。 调用`PausedLimit`、`self.store.get_run`、`options_for_run(run).capabilities`、`options_for_run`、`context`、`state.get`、`digest`、`ledger[-1].get`、`self.store.messages`等。 返回路径：L194的`{ "requirement": accepted or candidate, "requirement_source_count": cursor if diagnostics …`。
+- `Workflow.requirements`（L202–L246）：接收`state`。 控制顺序：L209按`not supported`分支；L213按`diagnostics`分支；L225按`outcome["decision"] in {"answer", "revise", "recommend"}`分支；L240按`diagnostics`分支；L244按`outcome["decision"] == "reject"`分支。 调用`Requirement.model_validate`、`options_for_run`、`self.store.get_run`、`selection.capabilities`、`state.get`、`requirement.gate_dump`、`self.gate`、`isinstance`、`data.get`等。 返回路径：L246的`outcome`。
+- `Workflow.source_context`（L248–L257）：接收`state`。 调用`prepare_context`、`self.product`。 返回路径：L257的`{"code_context": value}`。
+- `Workflow.plan`（L259–L307）：接收`state`。 控制顺序：L262遍历`enumerate(approved.field_requirements)`。 调用`Requirement.model_validate`、`enumerate`、`field_obligations.append`、`obligation.model_dump`、`self.gateway.complete`、`state.get`、`state.get("resolution_feedback", {}).get`、`options_for_run( self.store.get_run(state["run_id"]) ).capabiliti…`、`options_for_run`等。 返回路径：L307的`{"plan": value.model_dump(), "attempt": 0}`。
+- `Workflow.design`（L309–L401）：接收`state`。 控制顺序：L321按`any(field.kind not in kinds for entity in plan.entities for field in entity.fields)`分支；L336按`state["template"] == "python-basic" and plan.data_scope != "per_user" and plan.busine…`分支；L343按`plan.custom_rules and not self.settings.enable_coding`分支；L346按`state["template"] != "python-basic" and plan.custom_rules and self.settings.coding_en…`分支；L353按`state["template"] != "python-basic"`分支；L359按`runtime_enabled(self.settings, state["template"])`分支；L389按`outcome["decision"] in {"revise", "recommend"}`分支；L399按`outcome["decision"] == "reject"`分支。 调用`Plan.model_validate`、`list`、`len`、`options_for_run`、`self.store.get_run`、`set`、`selection.capabilities`、`any`、`reasons.append`等。 返回路径：L401的`outcome`。
+- `Workflow.generate`（L403–L427）：接收`state`。 控制顺序：L405按`state["template"] == "python-basic"`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`。 返回路径：L427的`{}`。
+- `Workflow.generate.fn`（L407–L412）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_basic`、`self.product`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`。 返回路径：L408的`generate_basic( plan, self.product(state), selection=options_for_run(self.store.get_run(st…`。
+- `Workflow.generate.fn`（L416–L424）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_native`、`self.product`、`self.native_customization`。 返回路径：L417的`generate_native( self.settings, state["template"], plan, self.product(state), managed=True…`。
+- `Workflow.native_customization`（L429–L434）：接收`state`、`plan`。 控制顺序：L430按`not plan.custom_rules`分支。 调用`native_rule_customizer`。 返回路径：L431的`None`；L434的`native_rule_customizer(self.settings, self.gateway, state["run_id"])`。
+- `Workflow.run_coder`（L436–L456）：接收`state`、`plan`。 控制顺序：L437按`self.settings.coding_engine == "aider"`分支。 调用`code_rules_with_aider`、`self.product`、`state.get("verification", {}).get`、`state.get`、`code_rules`。 返回路径：L440的`code_rules_with_aider( state["run_id"], plan, self.product(state), self.gateway, self.sett…`；L449的`code_rules( state["run_id"], plan, self.product(state), self.gateway, state["attempt"], st…`。
+- `Workflow.code`（L458–L470）：接收`state`。 控制顺序：L460按`not plan.custom_rules or state["template"] != "python-basic"`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`、`self.run_coder`、`str`。 返回路径：L461的`{}`；L469的`{"verification": {"passed": False, "kind": "code", "error": str(exc)[:500]}}`；L470的`{}`。
+- `Workflow.verify`（L472–L484）：接收`state`。 控制顺序：L473按`state["template"] != "python-basic"`分支。 调用`verify_native`、`self.product`、`verify_basic`、`Plan.model_validate`。 返回路径：L484的`{"verification": result}`。
+- `Workflow.after_verify`（L486–L497）：接收`state`。 控制顺序：L487按`state["verification"]["passed"]`分支；L489按`state["plan"].get("custom_rules") and state["attempt"] < self.settings.max_repair_att…`分支；L495抛异常，停止当前正常路径。 调用`state["plan"].get`、`state["verification"].get`、`PrerequisiteError`。 返回路径：L488的`"sandbox"`；L494的`"repair"`。
+- `Workflow.sandbox`（L499–L505）：接收`state`。 控制顺序：L500按`self.settings.sandbox_provider == "local"`分支。 调用`verify_in_daytona`、`self.product`。 返回路径：L501的`{"sandbox": {"enabled": False, "provider": "local", "remote_upload": False}}`；L505的`{"sandbox": {"enabled": True, **result}}`。
+- `Workflow.model_review`（L507–L536）：接收`state`。 控制顺序：L512按`not self.settings.review_enabled`分支；L514按`previous.get("uncovered_requirements")`分支。 调用`self.product`、`previous_path.is_file`、`json.loads`、`previous_path.read_text`、`previous.get`、`self.require_review_clearance`、`self.gateway.complete`、`digest`、`review.model_dump`。 返回路径：L516的`{ "model_review": { "enabled": False, "note": "Executable test results remain the authorit…`；L536的`{"model_review": result}`。
+- `Workflow.require_review_clearance`（L538–L564）：接收`state`、`review`、`fresh`。 源码说明：Only a fresh successful review may clear a persisted uncovered gap.。 控制顺序：L542按`previous.get("uncovered_requirements") and not review.get("uncovered_requirements")`分支；L543按`not ( fresh and review.get("enabled") and state.get("verification", {}).get("passed")…`分支；L559按`gaps`分支；L560抛异常，停止当前正常路径。 调用`self.product`、`path.is_file`、`json.loads`、`path.read_text`、`previous.get`、`review.get`、`state.get("verification", {}).get`、`state.get`、`digest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Workflow.repair`（L566–L567）：接收`state`。 返回路径：L567的`{"attempt": state["attempt"] + 1}`。
+- `Workflow.package`（L569–L596）：接收`state`。 控制顺序：L572按`state.get("requirement")`分支；L582按`gaps`分支；L583抛异常，停止当前正常路径；L584按`state["template"] == "python-basic"`分支。 调用`self.require_review_clearance`、`state.get`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`gaps.extend`、`business_gaps`、`UnsupportedScope`、`"；".join`等。 返回路径：L596的`{"delivery": result}`。
+- `Workflow.delivery`（L598–L610）：接收`state`。 控制顺序：L603按`sha(self.product(state).parent / result["package"]) != result["sha256"]`分支；L604抛异常，停止当前正常路径。 调用`result.items`、`len`、`self.gate`、`sha`、`self.product`、`PrerequisiteError`。 返回路径：L610的`decision`。
+- `Workflow.observed_node`（L612–L633）：接收`name`。 源码说明：Publish real serial node transitions, without model/tool internals.。 调用`getattr`。 返回路径：L633的`observed`。
+- `Workflow.observed_node.observed`（L616–L631）：接收`state`。 控制顺序：L624抛异常，停止当前正常路径；L629抛异常，停止当前正常路径。 调用`state.get`、`self.store.record_event`、`node`。 返回路径：L631的`result`。
+- `Workflow.compile`（L635–L687）：接收`checkpointer`。 控制顺序：L637遍历`( "analyse", "requirements", "source_context", "plan", "design", …`。 调用`StateGraph`、`graph.add_node`、`self.observed_node`、`graph.add_edge`、`graph.add_conditional_edges`、`graph.compile`。 返回路径：L687的`graph.compile(checkpointer=checkpointer)`。
 
 </details>
 
-**创建路径：** `workbench/flow.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L662。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/flow.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L687。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`37665`。本段原文以LF换行结束。
+本段原始字节数：`39283`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/flow.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "78f598d87cb6297ba47bd7ab1aea9ab8c1368e31d9d72ffbdd648978797aab6d"} -->
+<!-- learning-source: {"path": "workbench/flow.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "60dfbccbc27341d1e921b4e0a3f73fb3ff15e65cad98854277336aad01c0828d"} -->
 ````python
 # workbench/flow.py
 """One explicit LangGraph workflow. Durable approval records, not model prose, open gates."""
@@ -57,6 +59,7 @@
 import json
 from typing import TypedDict
 
+from langgraph.errors import GraphInterrupt
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
@@ -76,6 +79,7 @@ from workbench.verification import package_basic, verify_basic
 
 ANALYSE = """你是需求分析员。先阅读结构化的当前需求、用户原始目标、最近修正和真实模板能力。
 禁止重新询问已确认的信息，禁止在后续轮次丢掉已明确的功能、字段、搜索条件和分类选项。
+question_items 可把 questions 中的同一问题呈现为 single（单选）、multiple（多选）或 text；非空 question_items 必须完整覆盖 questions，prompt 必须逐字对应 questions，id 和选项 id 使用稳定英文标识。选择项是建议而不是用户已确认的要求；始终允许自定义补充 allow_other=true，不能以选项限制用户原有范围。问题已被回答后从 questions 和 question_items 同时移除。仅问会改变产品范围的阻塞问题；不制造演示问题或为填充页面而提问。
 questions 最多两个，只问会实质改变产品范围的阻塞问题；字数上限、是否包含边界等普通细节放 recommendations 并给默认值，不逐项逼问。
 默认普通文本上限200字符，长正文3000字符；用户明确指定则覆盖默认。只有用户确实要求date字段时才使用YYYY-MM-DD格式；格式知识不是新增日期字段的需求。日期筛选仅在明确需要时设置；不要给未要求筛选的字段自动追加条件。
 模板能力来自 template_capabilities，不得交替声称搜索/筛选支持或不支持。
@@ -661,6 +665,29 @@ class Workflow:
         )
         return decision
 
+    def observed_node(self, name):
+        """Publish real serial node transitions, without model/tool internals."""
+        node = getattr(self, name)
+
+        def observed(state):
+            run_id = state["run_id"]
+            event = {"name": name, "round": state.get("round", 1)}
+            self.store.record_event(run_id, "stage", {**event, "phase": "started"})
+            try:
+                result = node(state)
+            except GraphInterrupt:
+                self.store.record_event(run_id, "stage", {**event, "phase": "waiting"})
+                raise
+            except Exception:
+                # Runtime persists the classified, redacted error. A raw provider or
+                # tool exception must never enter browser-visible progress events.
+                self.store.record_event(run_id, "stage", {**event, "phase": "failed"})
+                raise
+            self.store.record_event(run_id, "stage", {**event, "phase": "completed"})
+            return result
+
+        return observed
+
     def compile(self, checkpointer):
         graph = StateGraph(State)
         for name in (
@@ -678,7 +705,7 @@ class Workflow:
             "package",
             "delivery",
         ):
-            graph.add_node(name, getattr(self, name))
+            graph.add_node(name, self.observed_node(name))
         graph.add_edge(START, "analyse")
         graph.add_edge("analyse", "requirements")
         graph.add_conditional_edges(

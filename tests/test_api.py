@@ -1,11 +1,15 @@
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from workbench.api import create_app
 
 
 @pytest.fixture
 def client(settings):
+    settings.base_url = "https://model.example.test/v1"
+    settings.model = "test-model"
+    settings.api_key = SecretStr("dummy-api-test-key")
     app = create_app(settings, start_worker=False)
     with TestClient(app) as c:
         c.headers["Authorization"] = "Bearer " + app.state.token

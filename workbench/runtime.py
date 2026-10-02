@@ -37,7 +37,8 @@ def pending_interrupt(snapshot):
 class Runtime:
     def __init__(self, settings, store, gateway=None):
         self.settings, self.store = settings, store
-        self.gateway = gateway or ModelGateway(settings, store)
+        self.requires_model_configuration = gateway is None
+        self.gateway = gateway or ModelGateway(settings, store, streaming=True)
         self.stop = threading.Event()
         self.stack = ExitStack()
 
@@ -80,7 +81,12 @@ class Runtime:
         self.stack.close()
 
     def tick(self):
-        job = self.store.claim()
+        # First-run settings must not execute model work. Existing gate rejection
+        # remains available even after credentials are removed or become invalid.
+        if self.requires_model_configuration and not self.settings.models_ready():
+            job = self.store.claim(only_rejections=True)
+        else:
+            job = self.store.claim()
         if job is None:
             return False
         run_id, payload = job["run_id"], job["payload"]

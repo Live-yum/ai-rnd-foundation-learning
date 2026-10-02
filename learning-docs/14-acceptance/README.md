@@ -8,10 +8,13 @@
 
 ## 先生成教材，再检查；先准备工具，再跑全套
 
-如果你是从空目录手抄或还原出来的学生项目，根目录的生成版完整手册和新的 `learning-docs` 可能尚不存在。所有第14站源码和正文源文件都齐全后，先生成它们，再用 `--check` 检查；检查命令只核对现有输出，不替你创建缺失输出。
+如果你是从空目录手抄或还原出来的学生项目，根目录的生成版完整手册和新的 `learning-docs` 可能尚不存在。所有第14站源码和正文源文件都齐全后，先按第08站从ui源码构建静态资产，再生成它们，最后用 `--check` 检查；检查命令只核对现有输出，不替你创建缺失输出。
 
 ```bash
 # .learning/commands/14-build-books.sh
+npm ci --prefix ui --no-audit --no-fund
+npm test --prefix ui
+npm run build --prefix ui
 uv run python -m scripts.build_handbook
 uv run python -m scripts.build_learning_docs
 uv run python -m scripts.build_handbook --check
@@ -53,14 +56,27 @@ uv run python -m scripts.build_learning_docs --check
 uv run python -m scripts.ci_learning_docs
 ```
 
-该脚本复制教材到临时目录，用标准库还原全部自有文件；先按 `PLAYWRIGHT_BROWSERS_PATH=0` 真正启动并关闭Chromium，核对第06站要求的本地浏览器安装位置，再安装学生项目独立venv，从固定上游提交重建三个模板归档，构建真实Node组件，再执行真实完整非PostgreSQL回归。它还核对手册和分阶段教材能再生成一致；不是只检查文件数就打印PASS。需要公开依赖下载、Node和已安装浏览器，成功与否查看 `reports/learning-docs-clean-room.json` 和对应测试结果。超时、依赖失败、测试失败都保留原失败阶段，不能手工把报告中的passed改成true。原生服务、PostgreSQL和Daytona完整矩阵仍需各自环境与证据，这个脚本不声称验证了那些未启动服务。
+该脚本复制教材到临时目录，用标准库还原全部自有文件；先按 `PLAYWRIGHT_BROWSERS_PATH=0` 真正启动并关闭Chromium，核对第06站要求的本地浏览器安装位置，再安装学生项目独立venv；用还原出的ui/package-lock.json执行npm ci、Vitest、类型检查和生产构建，并将所有新资产与教材快照逐字节比较；然后从固定上游提交重建三个模板归档，构建真实Node组件，执行还原平台的真实Vue浏览器验收，再执行真实完整非PostgreSQL回归。它还核对手册和分阶段教材能再生成一致；不是只检查文件数就打印PASS。需要公开依赖下载、Node和已安装浏览器，成功与否查看 `reports/learning-docs-clean-room.json` 和对应测试结果。超时、依赖失败、测试失败都保留原失败阶段，不能手工把报告中的passed改成true。原生服务、PostgreSQL和Daytona完整矩阵仍需各自环境与证据，这个脚本不声称验证了那些未启动服务。
+
+## 单独执行Vue真实页面验收
+
+在第06站安装的Playwright 1.56.1/Chromium可用、当前终端已设置PRODUCT_VERIFY_PLAYWRIGHT及PLAYWRIGHT_BROWSERS_PATH=0、tools/node已安装构建、ui已按第08站构建后，于项目根目录执行：
+
+```bash
+# .learning/commands/14-vue-browser.sh
+uv run python -m scripts.ci_guided_browser
+```
+
+这条命令启动真实本机FastAPI和Chromium，用明确的本机HTTP模型夹具控制增量及结束时机，操作Vue页面、人工/委托关卡、刷新、过期冲突、设置和下载，还保留生成产品页面回归。它不使用真实供应商账号。阅读 `reports/guided-browser/summary.json`、`workbench.json`、各步骤log与 `screenshot-manifest.json`，同时检查实际桌面/窄屏截图；启动或任何断言失败都不得叫通过。单独的pytest夹具保护测试不等于执行了这条浏览器命令。
+
+`ci_learning_docs` 也会在只从教材还原的新项目中调用同一driver，每次独立证据复制到 `reports/learning-docs-guided-browser/本次唯一编号`，当前目录记在learning-docs-clean-room.json的frontend.browser.evidence_directory中，失败重跑不混入上次成功summary或截图，再进入完整非PostgreSQL套件。源工作区浏览器成功和教材还原后浏览器成功分别记录，不能互借结果。失败时保留已经产生的日志或截图，不改场景、移除认证或写入假summary来通过。
 
 ## 建立一份不冒进的验收记录
 
 每一层写清输入身份、命令、环境前提、实际结果、报告位置和未覆盖范围。建议按下面顺序读证据：
 
 1. 安装与还原：Python3.14、锁文件、完整自有源码、固定第三方归档与许可证；若从教材还原，逐文件hash相等
-2. 内核：合同、数据库、需求覆盖、来源冲突、模型协议、幂等与审批恢复
+2. 内核与操作台：合同、数据库、需求覆盖、来源冲突、真实增量协议、本机设置、幂等与审批恢复；Vue类型/组件测试和真实浏览器另有结果
 3. 基础产品：生成回执、独立依赖、HTTP、真实浏览器、两用户隔离与重启
 4. 客服业务：三角色动作/行范围、关联、分配、命名状态、历史、审计、提醒、指标与查询
 5. 原生模板：分别记录FastapiAdmin和Yudao的生成、SQL、编译、类型检查、原生页面与独立新库启动
@@ -82,6 +98,14 @@ uv run python -m scripts.ci_learning_docs
 
 能用本项目的真实函数、调用方和失败测试回答这些问题，才说明你掌握了平台的构造，而不只是拥有一份源码。所有缺失服务与未运行矩阵继续明确列出；完整实现、可运行基础链路、全面环境验收是三个相关但不同的结论。
 
+## 怎样证明流式页面，而不是证明打字动画
+
+后端协议测试要让受控HTTP响应先发两个有间隔的增量、最后才结束，并断言结束前已有公开delta；Vue解析器单元测试检查半帧、中文分块，状态单元测试检查认证、幂等键与锁定后的迟到请求。openRun订阅、真实刷新/重连去重、切换任务和草稿到完成的联动由浏览器验收另行操作，不能把纯函数测试当作整条页面链已通过。三层各证明一段链，不相互冒充。
+
+失败流必须清掉未验证草稿，非流服务必须标记non_streaming，断开订阅不能额外调用模型或停止持久Worker。设置页要实际操作保留/更换/清除Key与409版本冲突，不能把“表单保存”记为“供应商连接测试”。所有测试输入用合成Key和受控协议；如未运行真实付费供应商，报告明确写未运行。
+
+`reports/learning-docs-clean-room.json` 的frontend字段记录目录还原后的独立npm测试、类型/构建、资产字节比较，以及还原平台的真实HTTP/Chromium流式页面结果。只运行manifest校验或格式检查不能替它填写passed。UI改动后必须在最终组合源码上重生两套教材并运行受影响验证，之前文档版本或原型截图不能当新界面的验收结果。
+
 ## 本阶段源码和后续依赖
 
-本阶段首次创建 76 个源文件，完整位置见[文件落盘顺序](files.md)。已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。
+本阶段首次创建 79 个源文件，完整位置见[文件落盘顺序](files.md)。已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。

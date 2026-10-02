@@ -7,6 +7,21 @@ from pathlib import Path
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "model_settings": (
+        "本机模型配置的版本化保存与密钥边界",
+        "读取配置只返回模型身份和是否已配置Key；保存需匹配expected_revision。文件锁与原子替换避免并发覆盖，POSIX配置要求600权限。更换服务地址不复用旧密钥，已开始调用使用固定快照，下次调用才读取新版本。",
+        "Vue模型设置 → 受认证且同源的/settings/models → ModelSettingsRepository → Settings.model_for → ModelGateway。",
+    ),
+    "streaming": (
+        "公开模型文本的安全投影与可重放事件流",
+        "只投影明确schema的根字符串summary/title/explanation，增量始终是待验证草稿。处理UTF-8、JSON转义与跨块密钥前缀，失败清空草稿。SSE订阅读取持久事件，不创建模型调用；刷新先取同一快照的transcript与cursor，再继续之后的事件。",
+        "AuditedEventStream → AssistantStream → Store事件 → /transcript与/stream → Vue消息状态机；最终结构仍须严格校验。",
+    ),
+    "clarification": (
+        "把当前澄清关卡的选择可靠还原为用户回答",
+        "在Store.submit事务内，用服务器当前问题与选项ID取回标签，拒绝过期问题、未知选项、漏答必填和单选多选混用。保留用户自定义文字；不信任浏览器发来的标签，也不把一次回答当作批准。",
+        "ResumeRequest.answers + 当前pending/gate_id → render_answer → 用户Message及排队Job；无选择项的CLI纯文字仍原样保留。",
+    ),
     "requirement_sources": (
         "在规划前拒绝明确来源互相冲突的分析候选",
         "对能可靠定位的同一原子义务比较明确值，保留用户原文、已确认契约和模型候选来源；矛盾走已有有界分析纠错，不替用户选值或批准，未知旧文本仍保守校验。",
@@ -693,6 +708,35 @@ def body_nodes(node):
 
 def purpose(name):
     path = Path(name)
+    if name.startswith("ui/"):
+        roles = {
+            "ui/src/main.ts": "创建Vue应用并挂载顶层组件，统一导入界面样式。",
+            "ui/src/App.vue": "组合本机连接、项目导航与页面路由；锁定时清空内存令牌与当前任务状态。",
+            "ui/src/api.ts": "同源fetch携带内存Bearer令牌；写操作传幂等键。流读取用TextDecoder和SSEParser保留跨网络块的未完成帧，不能把每个TCP块当作一个JSON对象。",
+            "ui/src/state.ts": "集中管理任务快照、事件游标、当前订阅与错误。切换运行先abort旧订阅并增加代次，迟到请求不得覆盖新任务；重连用游标去重，不重新发起模型生成。",
+            "ui/src/presentation.ts": "把已验证的运行阶段、消息事件与关卡身份投影为显示状态，失败草稿和完成结果采用不同呈现。页面文案不能替代后台状态判断。",
+            "ui/src/types.ts": "定义浏览器持有的项目、运行、消息与事件形状；TypeScript约束本地使用，不能替代服务端输入验证。",
+            "ui/src/style.css": "定义操作台的布局、间距、响应式断点和状态样式；真实组件仍负责交互与无障碍语义。",
+            "ui/src/components/RunView.vue": "显示对话、流式草稿、审批内容、阶段进度与证据；根据当前运行状态开放实际可用的回答、批准、重试和下载操作。",
+            "ui/src/components/Questionnaire.vue": "按后端当前问题渲染单选、多选或文字回答，提交问题ID和选项ID；必填和自定义约束在浏览器提示后仍由后端复验。",
+            "ui/src/components/SettingsView.vue": "编辑默认与分阶段模型配置；已保存密钥不回填，保存使用版本号防止覆盖另一窗口的修改。保存成功不表示连通性测试或付费模型调用通过。",
+            "ui/src/components/ProjectsView.vue": "读取、筛选和打开已有项目，将导航交给上层；不在项目列表中另造创建运行的业务逻辑。",
+            "ui/src/components/HomeView.vue": "接收用户需求，在提交前打开技术组合与标题确认，再调用创建项目（需要时）和创建运行接口；兼容项以服务器目录为准，重试复用幂等请求身份。",
+            "ui/src/components/DataDocument.vue": "把结构化需求、计划或报告变成可阅读字段；输出作为文本显示，不执行模型提供的HTML。",
+            "ui/vite.config.ts": "配置Vue编译和开发期API代理，生产资源写到workbench/web供本机FastAPI与wheel使用；开发代理不是生产部署。",
+            "ui/package.json": "声明固定Vue/AntDesign及编译测试工具版本，提供dev/check/test/build命令；npm ci以相邻lock锁定完整依赖树。",
+            "ui/package-lock.json": "npm依赖树的完整锁定回执；不手写各传递依赖，原样恢复后用npm ci安装。",
+            "ui/tsconfig.json": "让Vue与TypeScript检查脚本、组件和测试的类型，不把类型检查通过当作浏览器交互通过。",
+            "ui/index.html": "Vite开发与构建的HTML入口；源入口由编译器替换为生产静态资源引用。",
+        }
+        return (
+            "Vue 3 / Ant Design本机操作台源码",
+            roles.get(
+                name,
+                "这是操作台自有的源码或测试支持文件，按路径保留。测试使用合成数据和受控接口，不接触真实模型密钥。",
+            ),
+            "ui/src及锁文件 → npm ci/test/build → workbench/web → FastAPI本机页面；与生成产品的前端模板是两套不同界面。",
+        )
     if name == "workbench/__init__.py":
         return (
             "包入口",
@@ -744,9 +788,9 @@ def purpose(name):
         )
     if name.startswith("workbench/web/"):
         return (
-            "工作台浏览器界面",
-            "HTML提供控件与容器，CSS控制布局，JavaScript绑定事件并调用/api接口。界面先保存技术栈选择，再创建运行、读取状态、回答关卡或委托智能推荐；认证令牌只发给同一本机工作台。",
-            "网页事件 → api路由 → Store/Runtime → 状态JSON → 页面重新渲染；ci_guided_browser。",
+            "Vue操作台的精确构建资产",
+            "由ui源码、锁文件与Vite配置生成，不手写或修改压缩代码。教材按资产字节保存；独立构建后还必须逐文件比较，不能用已有bundle掩盖源代码不可构建。",
+            "ui源码 → npm run build --prefix ui → 本目录 → FastAPI静态路由及Python wheel；ci_guided_browser验证真实页面。",
         )
     if name.startswith("templates/frontends/"):
         return (

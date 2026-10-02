@@ -18,20 +18,20 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `pending_interrupt`（L30–L34）：接收`snapshot`。 控制顺序：L31遍历`snapshot.tasks`；L32按`task.interrupts`分支。 返回路径：L33的`task.interrupts[0].value`；L34的`None`。
-- `Runtime`（L37–L224）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `Runtime.__init__`（L38–L42）：接收`settings`、`store`、`gateway`。 调用`ModelGateway`、`threading.Event`、`ExitStack`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Runtime.__enter__`（L44–L77）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L49按`self.store.engine.dialect.name == "postgresql"`分支；L53按`not connection.scalar(text("SELECT pg_try_advisory_lock(728194602)"))`分支；L54抛异常，停止当前正常路径；L77抛异常，停止当前正常路径。 调用`self.stack.enter_context`、`FileLock`、`str`、`self.store.engine.connect().execution_options`、`self.store.engine.connect`、`connection.scalar`、`text`、`PrerequisiteError`、`self.stack.callback`等。 返回路径：L74的`self`。
-- `Runtime.__exit__`（L79–L80）：接收`*args`。 调用`self.stack.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Runtime.tick`（L82–L219）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L84按`job is None`分支；L92按`not snapshot.values`分支；L104按`payload["action"] in {"start", "retry"} or snapshot.values.get("last_job_id") == job[…`分支；L109按`snapshot.next and not waiting`分支；L111按`waiting`分支；L112按`waiting["gate_id"] != payload.get("gate_id")`分支；L113抛异常，停止当前正常路径；L122在`True`成立时循环。后续分支沿下方源码相同行号继续阅读。 调用`self.store.claim`、`self.graph.get_state`、`pending_interrupt`、`self.store.get_run`、`self.graph.invoke`、`snapshot.values.get`、`payload.get`、`Conflict`、`Command`等。 返回路径：L85的`False`；L219的`True`。
-- `Runtime.loop`（L221–L224）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L222在`not self.stop.is_set()`成立时循环；L223按`not self.tick()`分支。 调用`self.stop.is_set`、`self.tick`、`self.stop.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Runtime`（L37–L230）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Runtime.__init__`（L38–L43）：接收`settings`、`store`、`gateway`。 调用`ModelGateway`、`threading.Event`、`ExitStack`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Runtime.__enter__`（L45–L78）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L50按`self.store.engine.dialect.name == "postgresql"`分支；L54按`not connection.scalar(text("SELECT pg_try_advisory_lock(728194602)"))`分支；L55抛异常，停止当前正常路径；L78抛异常，停止当前正常路径。 调用`self.stack.enter_context`、`FileLock`、`str`、`self.store.engine.connect().execution_options`、`self.store.engine.connect`、`connection.scalar`、`text`、`PrerequisiteError`、`self.stack.callback`等。 返回路径：L75的`self`。
+- `Runtime.__exit__`（L80–L81）：接收`*args`。 调用`self.stack.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Runtime.tick`（L83–L225）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L86按`self.requires_model_configuration and not self.settings.models_ready()`分支；L90按`job is None`分支；L98按`not snapshot.values`分支；L110按`payload["action"] in {"start", "retry"} or snapshot.values.get("last_job_id") == job[…`分支；L115按`snapshot.next and not waiting`分支；L117按`waiting`分支；L118按`waiting["gate_id"] != payload.get("gate_id")`分支；L119抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`self.settings.models_ready`、`self.store.claim`、`self.graph.get_state`、`pending_interrupt`、`self.store.get_run`、`self.graph.invoke`、`snapshot.values.get`、`payload.get`、`Conflict`等。 返回路径：L91的`False`；L225的`True`。
+- `Runtime.loop`（L227–L230）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L228在`not self.stop.is_set()`成立时循环；L229按`not self.tick()`分支。 调用`self.stop.is_set`、`self.tick`、`self.stop.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/runtime.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L224。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/runtime.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L230。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10155`。本段原文以LF换行结束。
+本段原始字节数：`10553`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/runtime.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0d4b06190f2c2148b2d22c1a6dcb83278b322a30561e27092e136f516b0fc0e9"} -->
+<!-- learning-source: {"path": "workbench/runtime.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2a9d898268687b223af1e763379569affad5cb467e8e1eb3c7916697ad0379d3"} -->
 ````python
 # workbench/runtime.py
 """Single durable worker. A recovered job never consumes a later approval gate."""
@@ -73,7 +73,8 @@ def pending_interrupt(snapshot):
 class Runtime:
     def __init__(self, settings, store, gateway=None):
         self.settings, self.store = settings, store
-        self.gateway = gateway or ModelGateway(settings, store)
+        self.requires_model_configuration = gateway is None
+        self.gateway = gateway or ModelGateway(settings, store, streaming=True)
         self.stop = threading.Event()
         self.stack = ExitStack()
 
@@ -116,7 +117,12 @@ class Runtime:
         self.stack.close()
 
     def tick(self):
-        job = self.store.claim()
+        # First-run settings must not execute model work. Existing gate rejection
+        # remains available even after credentials are removed or become invalid.
+        if self.requires_model_configuration and not self.settings.models_ready():
+            job = self.store.claim(only_rejections=True)
+        else:
+            job = self.store.claim()
         if job is None:
             return False
         run_id, payload = job["run_id"], job["payload"]

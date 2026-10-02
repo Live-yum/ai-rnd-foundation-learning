@@ -2,7 +2,7 @@
 
 [返回阶段导读](README.md)
 
-按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件与截图编码在 sources/locks 和 sources/assets 下，先读实现模块，需要校对时再打开资源。
+按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件在 sources/locks，截图及Vue构建快照编码在 sources/assets 下，先读实现模块，需要校对时再打开资源。
 
 - [templates/business/common/policy.py](sources/templates__business__common__policy_py--001.md)：三个模板共享的有限业务策略解释器；1 段
 - [templates/frontends/simple-admin/app.js](sources/templates__frontends__simple-admin__app_js--001.md)：交付给产品的前端选项；1 段

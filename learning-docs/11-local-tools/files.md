@@ -2,7 +2,7 @@
 
 [返回阶段导读](README.md)
 
-按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件与截图编码在 sources/locks 和 sources/assets 下，先读实现模块，需要校对时再打开资源。
+按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件在 sources/locks，截图及Vue构建快照编码在 sources/assets 下，先读实现模块，需要校对时再打开资源。
 
 - [scripts/ci_aider_workflow.py](sources/scripts__ci_aider_workflow_py--001.md)：基础产品实际Aider编排验收；1 段
 - [scripts/ci_local_embeddings.py](sources/scripts__ci_local_embeddings_py--001.md)：固定真实权重的本机推理验收和服务；1 段

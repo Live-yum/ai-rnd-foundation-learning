@@ -17,36 +17,49 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `ModelProfile`（L19–L56）：继承`BaseModel`。声明的数据项为`stage`、`base_url`、`model`、`api_key`、`provider`、`output_mode`、`max_output_tokens`；类型约束/数据库列参数以完整定义为准。
-- `ModelProfile.validate_endpoint`（L28–L45）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L30按`url.scheme not in {"http", "https"} or not url.hostname or url.username or url.passwo…`分支；L38抛异常，停止当前正常路径；L39按`url.scheme == "http" and url.hostname not in {"127.0.0.1", "localhost", "::1"}`分支；L40抛异常，停止当前正常路径；L41按`not self.model or not self.api_key.get_secret_value()`分支；L42抛异常，停止当前正常路径；L43按`self.base_url.rstrip("/").endswith("/chat/completions")`分支；L44抛异常，停止当前正常路径。 调用`urlsplit`、`ValueError`、`self.api_key.get_secret_value`、`self.base_url.rstrip("/").endswith`、`self.base_url.rstrip`。 返回路径：L45的`self`。
-- `ModelProfile.public`（L47–L56）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.api_key.get_secret_value`。 返回路径：L48的`{ "stage": self.stage, "base_url": self.base_url, "model": self.model, "api_key": "configu…`。
-- `Settings`（L59–L223）：继承`BaseSettings`。声明的数据项为`base_url`、`api_key`、`model`、`provider`、`output_mode`、`max_output_tokens`、`requirements_provider`、`requirements_output_mode`、`requirements_max_output_tokens`、`planning_provider`、`planning_output_mode`、`planning_max_output_tokens`、`coding_provider`、`coding_output_mode`、`coding_max_output_tokens`、`review_provider`、`review_output_mode`、`review_max_output_tokens`、`requirements_base_url`、`requirements_api_key`、`requirements_model`、`planning_base_url`、`planning_api_key`、`planning_model`、`coding_base_url`、`coding_api_key`、`coding_model`、`review_base_url`、`review_api_key`、`review_model`、`model_review`、`data_dir`、`database_url`、`product_postgres_url`、`llm_timeout`、`max_model_calls`、`max_rounds`、`max_context_chars`、`install_products`、`enable_coding`、`max_repair_attempts`、`tool_timeout`、`coding_engine`、`aider_executable`、`repo_map_provider`、`retrieval_engine`、`repo_map_chars`、`embedding_base_url`、`embedding_api_key`、`embedding_model`、`embedding_enabled`、`embedding_max_chunks`、`sandbox_provider`、`daytona_api_url`、`daytona_api_key`、`daytona_target`、`daytona_snapshot`、`daytona_snapshots`、`daytona_runtime_timeout`、`daytona_allow_local_execution`、`daytona_capture_startup_diagnostics`、`checkpoint_url`、`host`、`port`；类型约束/数据库列参数以完整定义为准。
-- `Settings.only_local_tools`（L143–L144）：接收`value`。 调用`local_http_url`、`field_validator`。 返回路径：L144的`local_http_url(value)`。
-- `Settings.only_local_databases`（L148–L149）：接收`value`。 调用`local_database_url`、`field_validator`。 返回路径：L149的`local_database_url(value)`。
-- `Settings.absolute_data_dir`（L153–L154）：接收`value`。 调用`(value if value.is_absolute() else ROOT / value).resolve`、`value.is_absolute`、`field_validator`。 返回路径：L154的`(value if value.is_absolute() else ROOT / value).resolve()`。
-- `Settings.db_url`（L157–L161）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_database_url`、`(self.data_dir / 'workbench.db').as_posix`。 返回路径：L158的`local_database_url(self.database_url) or f"sqlite:///{(self.data_dir / 'workbench.db').as_…`。
-- `Settings.prepare`（L163–L166）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L165遍历`("runs", "sources", "knowledge", "native")`。 调用`self.data_dir.mkdir`、`(self.data_dir / name).mkdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.model_for`（L168–L195）：接收`stage`。 控制顺序：L169按`stage not in STAGES`分支；L170抛异常，停止当前正常路径；L173按`not key.get_secret_value()`分支；L174按`endpoint.rstrip("/") != self.base_url.rstrip("/")`分支；L175抛异常，停止当前正常路径。 调用`ValueError`、`getattr`、`key.get_secret_value`、`endpoint.rstrip`、`self.base_url.rstrip`、`stage.upper`、`ModelProfile`。 返回路径：L179的`ModelProfile( stage=stage, base_url=endpoint.rstrip("/"), model=getattr(self, stage + "_mo…`。
-- `Settings.require_model`（L197–L201）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L198遍历`STAGES[:3]`；L200按`self.review_enabled`分支。 调用`self.model_for(stage).validate_endpoint`、`self.model_for`、`self.model_for("review").validate_endpoint`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.review_enabled`（L204–L210）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`、`self.review_api_key.get_secret_value`。 返回路径：L205的`bool( self.model_review or self.review_model or self.review_base_url or self.review_api_ke…`。
-- `Settings.redact`（L212–L223）：接收`text`。 控制顺序：L213遍历`( "api_key", "product_postgres_url", "embedding_api_key", "dayton…`；L221按`secret`分支。 调用`getattr(self, field).get_secret_value`、`getattr`、`text.replace`。 返回路径：L223的`text`。
+- `validate_model_url`（L28–L67）：接收`value`。 源码说明：Only API roots; validate before any model credential can reach a transport.。 控制顺序：L33按`parsed.scheme not in {"http", "https"} or not parsed.hostname or parsed.username is n…`分支；L44抛异常，停止当前正常路径；L45按`parsed.scheme == "http" and parsed.hostname not in {"127.0.0.1", "localhost", "::1"}`分支；L46抛异常，停止当前正常路径；L48遍历`range(3)`；L50按`decoded == path`分支；L54按`any(part in {"completions", "responses"} for part in segments)`分支；L55抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`urlsplit`、`any`、`ord`、`ValueError`、`range`、`unquote`、`path.lower().replace("\\", "/").split`、`path.lower().replace`、`path.lower`等。 返回路径：L67的`value.rstrip("/")`。
+- `ModelProfile`（L70–L98）：继承`BaseModel`。声明的数据项为`stage`、`base_url`、`model`、`api_key`、`provider`、`output_mode`、`max_output_tokens`；类型约束/数据库列参数以完整定义为准。
+- `ModelProfile.validate_endpoint`（L80–L87）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L84抛异常，停止当前正常路径；L85按`not self.model.strip() or not self.api_key.get_secret_value().strip()`分支；L86抛异常，停止当前正常路径。 调用`validate_model_url`、`ValueError`、`self.model.strip`、`self.api_key.get_secret_value().strip`、`self.api_key.get_secret_value`。 返回路径：L87的`self`。
+- `ModelProfile.public`（L89–L98）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.api_key.get_secret_value`。 返回路径：L90的`{ "stage": self.stage, "base_url": self.base_url, "model": self.model, "api_key": "configu…`。
+- `Settings`（L101–L265）：继承`BaseSettings`。声明的数据项为`_model_keys`、`_model_keys_lock`、`base_url`、`api_key`、`model`、`provider`、`output_mode`、`max_output_tokens`、`requirements_provider`、`requirements_output_mode`、`requirements_max_output_tokens`、`planning_provider`、`planning_output_mode`、`planning_max_output_tokens`、`coding_provider`、`coding_output_mode`、`coding_max_output_tokens`、`review_provider`、`review_output_mode`、`review_max_output_tokens`、`requirements_base_url`、`requirements_api_key`、`requirements_model`、`planning_base_url`、`planning_api_key`、`planning_model`、`coding_base_url`、`coding_api_key`、`coding_model`、`review_base_url`、`review_api_key`、`review_model`、`model_review`、`data_dir`、`database_url`、`product_postgres_url`、`llm_timeout`、`max_model_calls`、`max_rounds`、`max_context_chars`、`install_products`、`enable_coding`、`max_repair_attempts`、`tool_timeout`、`coding_engine`、`aider_executable`、`repo_map_provider`、`retrieval_engine`、`repo_map_chars`、`embedding_base_url`、`embedding_api_key`、`embedding_model`、`embedding_enabled`、`embedding_max_chunks`、`sandbox_provider`、`daytona_api_url`、`daytona_api_key`、`daytona_target`、`daytona_snapshot`、`daytona_snapshots`、`daytona_runtime_timeout`、`daytona_allow_local_execution`、`daytona_capture_startup_diagnostics`、`checkpoint_url`、`host`、`port`；类型约束/数据库列参数以完整定义为准。
+- `Settings.only_local_tools`（L187–L188）：接收`value`。 调用`local_http_url`、`field_validator`。 返回路径：L188的`local_http_url(value)`。
+- `Settings.only_local_databases`（L192–L193）：接收`value`。 调用`local_database_url`、`field_validator`。 返回路径：L193的`local_database_url(value)`。
+- `Settings.absolute_data_dir`（L197–L198）：接收`value`。 调用`(value if value.is_absolute() else ROOT / value).resolve`、`value.is_absolute`、`field_validator`。 返回路径：L198的`(value if value.is_absolute() else ROOT / value).resolve()`。
+- `Settings.db_url`（L201–L205）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_database_url`、`(self.data_dir / 'workbench.db').as_posix`。 返回路径：L202的`local_database_url(self.database_url) or f"sqlite:///{(self.data_dir / 'workbench.db').as_…`。
+- `Settings.prepare`（L207–L210）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L209遍历`("runs", "sources", "knowledge", "native")`。 调用`self.data_dir.mkdir`、`(self.data_dir / name).mkdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.model_configuration`（L212–L217）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`ModelSettingsRepository(self).snapshot`、`ModelSettingsRepository`、`self._remember_model_keys`。 返回路径：L217的`configuration`。
+- `Settings._remember_model_keys`（L219–L224）：接收`configuration`。 控制顺序：L221遍历`(configuration.default, *configuration.stages.values())`；L223按`secret`分支。 调用`configuration.stages.values`、`profile.api_key.get_secret_value`、`self._model_keys.add`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.model_for`（L226–L227）：接收`stage`。 调用`self.model_configuration().profile`、`self.model_configuration`。 返回路径：L227的`self.model_configuration().profile(stage)`。
+- `Settings.require_model`（L229–L231）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_configuration().require_model`、`self.model_configuration`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.models_ready`（L233–L238）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.require_model`。 返回路径：L237的`False`；L238的`True`。
+- `Settings.review_enabled`（L241–L242）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_configuration`。 返回路径：L242的`self.model_configuration().review_enabled`。
+- `Settings.redact`（L244–L265）：接收`text`。 控制顺序：L253遍历`sorted(known_keys, key=len, reverse=True)`；L255遍历`( "api_key", "product_postgres_url", "embedding_api_key", "dayton…`；L263按`secret`分支。 调用`self.model_configuration`、`tuple`、`sorted`、`text.replace`、`getattr(self, field).get_secret_value`、`getattr`。 返回路径：L265的`text`。
 
 </details>
 
-**创建路径：** `workbench/settings.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L223。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/settings.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L265。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9354`。本段原文以LF换行结束。
+本段原始字节数：`10537`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/settings.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7df8f5eb535bc8093f45cb057e0345f2e83a5b15638902ea52b3a8bbbefe199d"} -->
+<!-- learning-source: {"path": "workbench/settings.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0c1e5a492669bbcaad366430b966482c1ccc5d3e33632a37168664b694facad1"} -->
 ````python
 # workbench/settings.py
 """Local configuration and optional per-stage model profiles; no secrets in run receipts."""
 
 from pathlib import Path
+from threading import RLock
 from typing import Literal
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
-from pydantic import AliasChoices, BaseModel, Field, SecretStr, field_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    SecretStr,
+    field_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from workbench.local_only import local_database_url, local_http_url
@@ -58,7 +71,50 @@ Provider = Literal["auto", "openai", "deepseek", "compatible"]
 OutputMode = Literal["auto", "json_object"]
 
 
+def validate_model_url(value: str) -> str:
+    """Only API roots; validate before any model credential can reach a transport."""
+    message = "BASE_URL 必须是无凭据/查询参数的 HTTP(S) API 根地址"
+    try:
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or "?" in value
+            or "#" in value
+            or "\\" in value
+            or any(ord(char) <= 32 or ord(char) == 127 for char in value)
+            or parsed.port == 0
+        ):
+            raise ValueError(message)
+        if parsed.scheme == "http" and parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
+            raise ValueError("远程模型必须使用 HTTPS")
+        path = parsed.path
+        for _ in range(3):
+            decoded = unquote(path)
+            if decoded == path:
+                break
+            path = decoded
+        segments = path.lower().replace("\\", "/").split("/")
+        if any(part in {"completions", "responses"} for part in segments):
+            raise ValueError(
+                "BASE_URL 只填 API 根地址，不要重复 /chat/completions 或其他推理子路径"
+            )
+    except ValueError as exc:
+        # URL parsers may echo invalid ports/hosts. Return only our fixed messages.
+        if str(exc) in {
+            message,
+            "远程模型必须使用 HTTPS",
+            "BASE_URL 只填 API 根地址，不要重复 /chat/completions 或其他推理子路径",
+        }:
+            raise ValueError(str(exc)) from None
+        raise ValueError(message) from None
+    return value.rstrip("/")
+
+
 class ModelProfile(BaseModel):
+    model_config = ConfigDict(frozen=True, hide_input_in_errors=True)
     stage: str
     base_url: str
     model: str
@@ -68,22 +124,12 @@ class ModelProfile(BaseModel):
     max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
 
     def validate_endpoint(self):
-        url = urlsplit(self.base_url)
-        if (
-            url.scheme not in {"http", "https"}
-            or not url.hostname
-            or url.username
-            or url.password
-            or url.query
-            or url.fragment
-        ):
-            raise ValueError(f"{self.stage}: BASE_URL 必须是无凭据/查询参数的 HTTP(S) API 根地址")
-        if url.scheme == "http" and url.hostname not in {"127.0.0.1", "localhost", "::1"}:
-            raise ValueError(f"{self.stage}: 远程模型必须使用 HTTPS")
-        if not self.model or not self.api_key.get_secret_value():
+        try:
+            validate_model_url(self.base_url)
+        except ValueError as exc:
+            raise ValueError(f"{self.stage}: {exc}") from None
+        if not self.model.strip() or not self.api_key.get_secret_value().strip():
             raise ValueError(f"{self.stage}: 请填写 MODE/模型名称及 API_KEY")
-        if self.base_url.rstrip("/").endswith("/chat/completions"):
-            raise ValueError(f"{self.stage}: BASE_URL 只填 API 根地址，不要重复 /chat/completions")
         return self
 
     def public(self):
@@ -99,6 +145,8 @@ class ModelProfile(BaseModel):
 
 
 class Settings(BaseSettings):
+    _model_keys: set[str] = PrivateAttr(default_factory=set)
+    _model_keys_lock: RLock = PrivateAttr(default_factory=RLock)
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
     base_url: str = ""
     api_key: SecretStr = SecretStr("")
@@ -207,51 +255,49 @@ class Settings(BaseSettings):
         for name in ("runs", "sources", "knowledge", "native"):
             (self.data_dir / name).mkdir(exist_ok=True)
 
+    def model_configuration(self):
+        from workbench.model_settings import ModelSettingsRepository
+
+        configuration = ModelSettingsRepository(self).snapshot()
+        self._remember_model_keys(configuration)
+        return configuration
+
+    def _remember_model_keys(self, configuration):
+        with self._model_keys_lock:
+            for profile in (configuration.default, *configuration.stages.values()):
+                secret = profile.api_key.get_secret_value()
+                if secret:
+                    self._model_keys.add(secret)
+
     def model_for(self, stage: Stage) -> ModelProfile:
-        if stage not in STAGES:
-            raise ValueError("未知模型阶段")
-        endpoint = getattr(self, stage + "_base_url") or self.base_url
-        key = getattr(self, stage + "_api_key")
-        if not key.get_secret_value():
-            if endpoint.rstrip("/") != self.base_url.rstrip("/"):
-                raise ValueError(
-                    f"{stage}: 更换服务商地址时必须单独配置 {stage.upper()}_API_KEY，禁止发送默认密钥到新地址"
-                )
-            key = self.api_key
-        return ModelProfile(
-            stage=stage,
-            base_url=endpoint.rstrip("/"),
-            model=getattr(self, stage + "_model") or self.model,
-            api_key=key,
-            # An endpoint change must not inherit the previous provider's wire protocol.
-            provider=getattr(self, stage + "_provider")
-            or (self.provider if endpoint.rstrip("/") == self.base_url.rstrip("/") else "auto"),
-            output_mode=getattr(self, stage + "_output_mode")
-            or (self.output_mode if endpoint.rstrip("/") == self.base_url.rstrip("/") else "auto"),
-            max_output_tokens=getattr(self, stage + "_max_output_tokens")
-            or (
-                self.max_output_tokens
-                if endpoint.rstrip("/") == self.base_url.rstrip("/")
-                else None
-            ),
-        )
+        return self.model_configuration().profile(stage)
 
     def require_model(self) -> None:
-        for stage in STAGES[:3]:
-            self.model_for(stage).validate_endpoint()
-        if self.review_enabled:
-            self.model_for("review").validate_endpoint()
+        # One snapshot for all stages prevents mixing revisions during validation.
+        self.model_configuration().require_model()
+
+    def models_ready(self) -> bool:
+        try:
+            self.require_model()
+        except ValueError:
+            return False
+        return True
 
     @property
     def review_enabled(self) -> bool:
-        return bool(
-            self.model_review
-            or self.review_model
-            or self.review_base_url
-            or self.review_api_key.get_secret_value()
-        )
+        return self.model_configuration().review_enabled
 
     def redact(self, text: str) -> str:
+        # Retain old process-local keys for in-flight calls after a settings edit.
+        # An invalid file must never stop error-path redaction from working.
+        try:
+            self.model_configuration()
+        except ValueError:
+            pass
+        with self._model_keys_lock:
+            known_keys = tuple(self._model_keys)
+        for secret in sorted(known_keys, key=len, reverse=True):
+            text = text.replace(secret, "[redacted]")
         for field in (
             "api_key",
             "product_postgres_url",

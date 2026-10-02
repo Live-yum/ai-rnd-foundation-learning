@@ -3,6 +3,7 @@
 import json
 from typing import TypedDict
 
+from langgraph.errors import GraphInterrupt
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
@@ -22,6 +23,7 @@ from workbench.verification import package_basic, verify_basic
 
 ANALYSE = """你是需求分析员。先阅读结构化的当前需求、用户原始目标、最近修正和真实模板能力。
 禁止重新询问已确认的信息，禁止在后续轮次丢掉已明确的功能、字段、搜索条件和分类选项。
+question_items 可把 questions 中的同一问题呈现为 single（单选）、multiple（多选）或 text；非空 question_items 必须完整覆盖 questions，prompt 必须逐字对应 questions，id 和选项 id 使用稳定英文标识。选择项是建议而不是用户已确认的要求；始终允许自定义补充 allow_other=true，不能以选项限制用户原有范围。问题已被回答后从 questions 和 question_items 同时移除。仅问会改变产品范围的阻塞问题；不制造演示问题或为填充页面而提问。
 questions 最多两个，只问会实质改变产品范围的阻塞问题；字数上限、是否包含边界等普通细节放 recommendations 并给默认值，不逐项逼问。
 默认普通文本上限200字符，长正文3000字符；用户明确指定则覆盖默认。只有用户确实要求date字段时才使用YYYY-MM-DD格式；格式知识不是新增日期字段的需求。日期筛选仅在明确需要时设置；不要给未要求筛选的字段自动追加条件。
 模板能力来自 template_capabilities，不得交替声称搜索/筛选支持或不支持。
@@ -607,6 +609,29 @@ class Workflow:
         )
         return decision
 
+    def observed_node(self, name):
+        """Publish real serial node transitions, without model/tool internals."""
+        node = getattr(self, name)
+
+        def observed(state):
+            run_id = state["run_id"]
+            event = {"name": name, "round": state.get("round", 1)}
+            self.store.record_event(run_id, "stage", {**event, "phase": "started"})
+            try:
+                result = node(state)
+            except GraphInterrupt:
+                self.store.record_event(run_id, "stage", {**event, "phase": "waiting"})
+                raise
+            except Exception:
+                # Runtime persists the classified, redacted error. A raw provider or
+                # tool exception must never enter browser-visible progress events.
+                self.store.record_event(run_id, "stage", {**event, "phase": "failed"})
+                raise
+            self.store.record_event(run_id, "stage", {**event, "phase": "completed"})
+            return result
+
+        return observed
+
     def compile(self, checkpointer):
         graph = StateGraph(State)
         for name in (
@@ -624,7 +649,7 @@ class Workflow:
             "package",
             "delivery",
         ):
-            graph.add_node(name, getattr(self, name))
+            graph.add_node(name, self.observed_node(name))
         graph.add_edge(START, "analyse")
         graph.add_edge("analyse", "requirements")
         graph.add_conditional_edges(

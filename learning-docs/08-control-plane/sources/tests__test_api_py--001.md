@@ -15,28 +15,32 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `client`（L8–L12）：接收`settings`。 调用`create_app`、`TestClient`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_auth_and_host`（L15–L19）：接收`client`。 控制顺序：L16断言`client.get("/health").json() == {"status": "ok"}`；L17断言`client.get("/ready").status_code == 200`；L18断言`client.get("/projects", headers={"Authorization": "Bearer wrong"}).status_code == 401`；L19断言`client.get("/health", headers={"Host": "attacker.example"}).status_code == 400`。 调用`client.get("/health").json`、`client.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_project_run_idempotency_roles`（L22–L45）：接收`client`。 控制顺序：L25断言`project.status_code == 201`；L26断言`client.post("/projects", json={"title": "test"}, headers=headers).json() == project.j…`；L29断言`client.post("/projects", json={"title": "changed"}, headers=headers).status_code == 4…`；L30断言`client.post("/projects", json={"title": "x"}).status_code == 422`；L34断言`run.status_code == 202`；L35断言`client.post( url, json={**payload, "role": "system"}, headers={"Idempotency-Key": "ba…`；L42断言`client.get("/runs/" + run_id + "/messages").json()[0]["role"] == "user"`；L43断言`client.get("/runs/" + run_id + "/download").status_code == 409`。后续分支沿下方源码相同行号继续阅读。 调用`client.post`、`client.post("/projects", json={"title": "test"}, headers=headers)…`、`project.json`、`run.json`、`client.get("/runs/" + run_id + "/messages").json`、`client.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_report_exposes_bounded_toolchain_receipts_without_arbitrary_files`（L48–L70）：接收`client`、`settings`。 控制顺序：L60遍历`evidence.items()`；L64断言`response.status_code == 200`；L65断言`response.json() == evidence`；L66断言`"must-not-be-exposed" not in response.text`；L67断言`client.get(f"/runs/{run_id}/report", headers={"Authorization": "Bearer wrong"}).statu…`。 调用`new_run`、`evidence.items`、`write_json`、`client.get`、`response.json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `client`（L9–L16）：接收`settings`。 调用`SecretStr`、`create_app`、`TestClient`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_auth_and_host`（L19–L23）：接收`client`。 控制顺序：L20断言`client.get("/health").json() == {"status": "ok"}`；L21断言`client.get("/ready").status_code == 200`；L22断言`client.get("/projects", headers={"Authorization": "Bearer wrong"}).status_code == 401`；L23断言`client.get("/health", headers={"Host": "attacker.example"}).status_code == 400`。 调用`client.get("/health").json`、`client.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_project_run_idempotency_roles`（L26–L49）：接收`client`。 控制顺序：L29断言`project.status_code == 201`；L30断言`client.post("/projects", json={"title": "test"}, headers=headers).json() == project.j…`；L33断言`client.post("/projects", json={"title": "changed"}, headers=headers).status_code == 4…`；L34断言`client.post("/projects", json={"title": "x"}).status_code == 422`；L38断言`run.status_code == 202`；L39断言`client.post( url, json={**payload, "role": "system"}, headers={"Idempotency-Key": "ba…`；L46断言`client.get("/runs/" + run_id + "/messages").json()[0]["role"] == "user"`；L47断言`client.get("/runs/" + run_id + "/download").status_code == 409`。后续分支沿下方源码相同行号继续阅读。 调用`client.post`、`client.post("/projects", json={"title": "test"}, headers=headers)…`、`project.json`、`run.json`、`client.get("/runs/" + run_id + "/messages").json`、`client.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_report_exposes_bounded_toolchain_receipts_without_arbitrary_files`（L52–L74）：接收`client`、`settings`。 控制顺序：L64遍历`evidence.items()`；L68断言`response.status_code == 200`；L69断言`response.json() == evidence`；L70断言`"must-not-be-exposed" not in response.text`；L71断言`client.get(f"/runs/{run_id}/report", headers={"Authorization": "Bearer wrong"}).statu…`。 调用`new_run`、`evidence.items`、`write_json`、`client.get`、`response.json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_api.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L70。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_api.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L74。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2849`。本段原文以LF换行结束。
+本段原始字节数：`3025`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_api.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3bbe86492864d2f64d09f10809ac35d00d921cd7f4f441d4943cee9fc19719a6"} -->
+<!-- learning-source: {"path": "tests/test_api.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7db5b3629a9abbef4cd1fd6a2370456f99f6330cf26c6b66e927f66762987339"} -->
 ````python
 # tests/test_api.py
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import SecretStr
 
 from workbench.api import create_app
 
 
 @pytest.fixture
 def client(settings):
+    settings.base_url = "https://model.example.test/v1"
+    settings.model = "test-model"
+    settings.api_key = SecretStr("dummy-api-test-key")
     app = create_app(settings, start_worker=False)
     with TestClient(app) as c:
         c.headers["Authorization"] = "Bearer " + app.state.token

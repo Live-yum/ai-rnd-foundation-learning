@@ -15,40 +15,43 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `create_app`（L24–L221）：接收`settings`、`gateway_factory`、`start_worker`。定义并返回FastAPI应用对象；内层带路由装饰器的函数在对应HTTP请求到达时调用，而不是定义时立即执行。 调用`Settings`、`FastAPI`、`app.add_middleware`、`HTTPBearer`。 返回路径：L221的`app`。
-- `create_app.lifespan`（L28–L50）：接收`app`。 控制顺序：L36按`start_worker`分支。 调用`Store`、`store.token`、`FileLock`、`str`、`store.migrate`、`gateway_factory`、`Runtime`、`threading.Thread`、`worker.start`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `create_app.auth`（L58–L63）：接收`request`、`credentials`。核对当前工作台HTTP请求的本机访问令牌；它不是产品用户登录，也不联系Dex或大模型供应商。 控制顺序：L59按`not credentials or not hmac.compare_digest( credentials.credentials, request.app.stat…`分支；L62抛异常，停止当前正常路径。 调用`Depends`、`hmac.compare_digest`、`HTTPException`。 返回路径：L63的`request.app.state.store`。
-- `create_app.conflict_handler`（L66–L67）：接收`request`、`exc`。 调用`JSONResponse`、`str`、`app.exception_handler`。 返回路径：L67的`JSONResponse(status_code=409, content={"detail": str(exc)})`。
-- `create_app.missing_handler`（L70–L71）：接收`request`、`exc`。 调用`JSONResponse`、`str`、`app.exception_handler`。 返回路径：L71的`JSONResponse(status_code=404, content={"detail": str(exc)})`。
-- `create_app.workspace_page`（L74–L78）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`FileResponse`、`app.get`。 返回路径：L75的`FileResponse( ROOT / "workbench/web/index.html", headers={"Cache-Control": "no-store", "Re…`。
-- `create_app.ui_asset`（L81–L84）：接收`asset`。 控制顺序：L82按`asset not in {"app.js", "style.css"}`分支；L83抛异常，停止当前正常路径。 调用`HTTPException`、`FileResponse`、`app.get`。 返回路径：L84的`FileResponse(ROOT / "workbench/web" / asset)`。
-- `create_app.catalog`（L87–L88）：接收`store`。 调用`Depends`、`selections`、`app.get`。 返回路径：L88的`selections()`。
-- `create_app.models`（L91–L103）：接收`store`。 控制顺序：L93遍历`STAGES`。 调用`Depends`、`settings.model_for`、`profile.public`、`profile.validate_endpoint`、`settings.redact`、`str`、`result.append`、`app.get`。 返回路径：L103的`result`。
-- `create_app.run_models`（L106–L107）：接收`run_id`、`store`。 调用`Depends`、`store.model_records`、`app.get`。 返回路径：L107的`store.model_records(run_id)`。
-- `create_app.automation`（L110–L113）：接收`run_id`、`body`、`idempotency_key`、`store`。 调用`Header`、`Depends`、`store.set_automation`、`app.post`。 返回路径：L113的`store.set_automation(run_id, body.enabled, idempotency_key)`。
-- `create_app.health`（L116–L117）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`app.get`。 返回路径：L117的`{"status": "ok"}`。
-- `create_app.ready`（L120–L129）：接收`request`。 控制顺序：L125按`start_worker and (worker is None or not worker.is_alive())`分支。 调用`request.app.state.store.engine.connect`、`c.execute`、`text`、`worker.is_alive`、`JSONResponse`、`bool`、`app.get`。 返回路径：L126的`JSONResponse(status_code=503, content={"status": "worker_unavailable"})`；L127的`{"status": "ready", "worker": bool(worker)}`；L129的`JSONResponse(status_code=503, content={"status": "database_unavailable"})`。
-- `create_app.create_project`（L132–L133）：接收`body`、`idempotency_key`、`store`。 调用`Header`、`Depends`、`store.create_project`、`app.post`。 返回路径：L133的`store.create_project(body.title, idempotency_key)`。
-- `create_app.projects`（L136–L137）：接收`store`。 调用`Depends`、`store.list_projects`、`app.get`。 返回路径：L137的`store.list_projects()`。
-- `create_app.project_runs`（L140–L141）：接收`project_id`、`store`。 调用`Depends`、`store.list_runs`、`app.get`。 返回路径：L141的`store.list_runs(project_id)`。
-- `create_app.create_run`（L144–L147）：接收`project_id`、`body`、`idempotency_key`、`store`。 调用`Header`、`Depends`、`store.create_run`、`body.model_dump`、`app.post`。 返回路径：L147的`store.create_run(project_id, body.model_dump(), idempotency_key)`。
-- `create_app.runs`（L150–L151）：接收`store`。 调用`Depends`、`store.list_runs`、`app.get`。 返回路径：L151的`store.list_runs()`。
-- `create_app.get_run`（L154–L155）：接收`run_id`、`store`。 调用`Depends`、`store.get_run`、`app.get`。 返回路径：L155的`store.get_run(run_id)`。
-- `create_app.messages`（L158–L160）：接收`run_id`、`store`。 调用`Depends`、`store.get_run`、`store.messages`、`app.get`。 返回路径：L160的`store.messages(run_id)`。
-- `create_app.resume`（L163–L166）：接收`run_id`、`body`、`idempotency_key`、`store`。 调用`Header`、`Depends`、`store.submit`、`body.model_dump`、`app.post`。 返回路径：L166的`store.submit(run_id, body.model_dump(), idempotency_key)`。
-- `create_app.retry`（L169–L170）：接收`run_id`、`idempotency_key`、`store`。 调用`Header`、`Depends`、`store.retry`、`app.post`。 返回路径：L170的`store.retry(run_id, idempotency_key)`。
-- `create_app.events`（L173–L174）：接收`run_id`、`after`、`store`。 调用`Query`、`Depends`、`store.events`、`app.get`。 返回路径：L174的`store.events(run_id, after)`。
-- `create_app.report`（L177–L193）：接收`run_id`、`store`。 控制顺序：L181遍历`( "generation.json", "verification.json", "delivery.json", "nativ…`；L191按`path.is_file()`分支。 调用`Depends`、`store.get_run`、`inside`、`path.is_file`、`json.loads`、`path.read_text`、`app.get`。 返回路径：L193的`result`。
-- `create_app.download`（L196–L213）：接收`run_id`、`store`。 控制顺序：L198按`run["status"] not in {"READY", "SOURCE_READY"}`分支；L199抛异常，停止当前正常路径；L201按`not path.is_file()`分支；L202抛异常，停止当前正常路径；L204按`hashlib.sha256(data).hexdigest() != run["result"]["sha256"]`分支；L205抛异常，停止当前正常路径。 调用`Depends`、`store.get_run`、`Conflict`、`inside`、`path.is_file`、`Missing`、`path.read_bytes`、`hashlib.sha256(data).hexdigest`、`hashlib.sha256`等。 返回路径：L206的`Response( content=data, media_type="application/zip", headers={ "Content-Disposition": f'a…`。
-- `create_app.templates`（L216–L219）：接收`store`。 调用`Depends`、`catalog`、`app.get`。 返回路径：L219的`catalog(settings)`。
+- `create_app`（L25–L273）：接收`settings`、`gateway_factory`、`start_worker`。定义并返回FastAPI应用对象；内层带路由装饰器的函数在对应HTTP请求到达时调用，而不是定义时立即执行。 调用`Settings`、`FastAPI`、`app.add_middleware`、`HTTPBearer`、`register_model_settings_routes`、`register_streaming_routes`。 返回路径：L273的`app`。
+- `create_app.lifespan`（L29–L51）：接收`app`。 控制顺序：L37按`start_worker`分支。 调用`Store`、`store.token`、`FileLock`、`str`、`store.migrate`、`gateway_factory`、`Runtime`、`threading.Thread`、`worker.start`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `create_app.response_security`（L60–L72）：接收`request`、`call_next`。 控制顺序：L65按`request.url.path in {"/", "/ui"} or request.url.path.startswith("/ui/")`分支。 调用`call_next`、`request.url.path.startswith`、`app.middleware`。 返回路径：L72的`response`。
+- `create_app.auth`（L74–L79）：接收`request`、`credentials`。核对当前工作台HTTP请求的本机访问令牌；它不是产品用户登录，也不联系Dex或大模型供应商。 控制顺序：L75按`not credentials or not hmac.compare_digest( credentials.credentials, request.app.stat…`分支；L78抛异常，停止当前正常路径。 调用`Depends`、`hmac.compare_digest`、`HTTPException`。 返回路径：L79的`request.app.state.store`。
+- `create_app.validation_handler`（L82–L91）：接收`request`、`exc`。 调用`JSONResponse`、`exc.errors`、`app.exception_handler`。 返回路径：L85的`JSONResponse( status_code=422, content={ "detail": "请求字段或格式无效，请检查必填项和当前步骤", "errors": [{"t…`。
+- `create_app.conflict_handler`（L94–L95）：接收`request`、`exc`。 调用`JSONResponse`、`str`、`app.exception_handler`。 返回路径：L95的`JSONResponse(status_code=409, content={"detail": str(exc)})`。
+- `create_app.missing_handler`（L98–L99）：接收`request`、`exc`。 调用`JSONResponse`、`str`、`app.exception_handler`。 返回路径：L99的`JSONResponse(status_code=404, content={"detail": str(exc)})`。
+- `create_app.workspace_page`（L104–L108）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`FileResponse`、`app.get`。 返回路径：L105的`FileResponse( ROOT / "workbench/web/index.html", headers={"Cache-Control": "no-store", "Re…`。
+- `create_app.ui_asset`（L111–L114）：接收`asset`。 控制顺序：L112按`asset not in {"app.js", "style.css"}`分支；L113抛异常，停止当前正常路径。 调用`HTTPException`、`FileResponse`、`app.get`。 返回路径：L114的`FileResponse(ROOT / "workbench/web" / asset)`。
+- `create_app.catalog`（L117–L118）：接收`store`。 调用`Depends`、`selections`、`app.get`。 返回路径：L118的`selections()`。
+- `create_app.models`（L121–L138）：接收`store`。 控制顺序：L125抛异常，停止当前正常路径；L127遍历`STAGES`。 调用`Depends`、`settings.model_configuration`、`HTTPException`、`configuration.profile`、`profile.public`、`profile.validate_endpoint`、`settings.redact`、`str`、`result.append`等。 返回路径：L138的`result`。
+- `create_app.run_models`（L141–L142）：接收`run_id`、`store`。 调用`Depends`、`store.model_records`、`app.get`。 返回路径：L142的`store.model_records(run_id)`。
+- `create_app.automation`（L145–L150）：接收`run_id`、`body`、`idempotency_key`、`store`。 控制顺序：L148按`body.enabled`分支。 调用`Header`、`Depends`、`require_models`、`store.set_automation`、`app.post`。 返回路径：L150的`store.set_automation(run_id, body.enabled, idempotency_key)`。
+- `create_app.health`（L153–L154）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`app.get`。 返回路径：L154的`{"status": "ok"}`。
+- `create_app.ready`（L157–L166）：接收`request`。 控制顺序：L162按`start_worker and (worker is None or not worker.is_alive())`分支。 调用`request.app.state.store.engine.connect`、`c.execute`、`text`、`worker.is_alive`、`JSONResponse`、`bool`、`app.get`。 返回路径：L163的`JSONResponse(status_code=503, content={"status": "worker_unavailable"})`；L164的`{"status": "ready", "worker": bool(worker)}`；L166的`JSONResponse(status_code=503, content={"status": "database_unavailable"})`。
+- `create_app.create_project`（L169–L170）：接收`body`、`idempotency_key`、`store`。 调用`Header`、`Depends`、`store.create_project`、`app.post`。 返回路径：L170的`store.create_project(body.title, idempotency_key)`。
+- `create_app.projects`（L173–L174）：接收`store`。 调用`Depends`、`store.list_projects`、`app.get`。 返回路径：L174的`store.list_projects()`。
+- `create_app.project_runs`（L177–L178）：接收`project_id`、`store`。 调用`Depends`、`store.list_runs`、`app.get`。 返回路径：L178的`store.list_runs(project_id)`。
+- `create_app.require_models`（L180–L184）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L184抛异常，停止当前正常路径。 调用`settings.require_model`、`HTTPException`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `create_app.create_run`（L187–L191）：接收`project_id`、`body`、`idempotency_key`、`store`。 调用`Header`、`Depends`、`require_models`、`store.create_run`、`body.model_dump`、`app.post`。 返回路径：L191的`store.create_run(project_id, body.model_dump(), idempotency_key)`。
+- `create_app.runs`（L194–L195）：接收`store`。 调用`Depends`、`store.list_runs`、`app.get`。 返回路径：L195的`store.list_runs()`。
+- `create_app.get_run`（L198–L199）：接收`run_id`、`store`。 调用`Depends`、`store.get_run`、`app.get`。 返回路径：L199的`store.get_run(run_id)`。
+- `create_app.messages`（L202–L204）：接收`run_id`、`store`。 调用`Depends`、`store.get_run`、`store.messages`、`app.get`。 返回路径：L204的`store.messages(run_id)`。
+- `create_app.resume`（L207–L212）：接收`run_id`、`body`、`idempotency_key`、`store`。 控制顺序：L210按`body.action != "reject"`分支。 调用`Header`、`Depends`、`require_models`、`store.submit`、`body.model_dump`、`app.post`。 返回路径：L212的`store.submit(run_id, body.model_dump(), idempotency_key)`。
+- `create_app.retry`（L215–L217）：接收`run_id`、`idempotency_key`、`store`。 调用`Header`、`Depends`、`require_models`、`store.retry`、`app.post`。 返回路径：L217的`store.retry(run_id, idempotency_key)`。
+- `create_app.events`（L220–L221）：接收`run_id`、`after`、`store`。 调用`Query`、`Depends`、`store.events`、`app.get`。 返回路径：L221的`store.events(run_id, after)`。
+- `create_app.report`（L224–L240）：接收`run_id`、`store`。 控制顺序：L228遍历`( "generation.json", "verification.json", "delivery.json", "nativ…`；L238按`path.is_file()`分支。 调用`Depends`、`store.get_run`、`inside`、`path.is_file`、`json.loads`、`path.read_text`、`app.get`。 返回路径：L240的`result`。
+- `create_app.download`（L243–L260）：接收`run_id`、`store`。 控制顺序：L245按`run["status"] not in {"READY", "SOURCE_READY"}`分支；L246抛异常，停止当前正常路径；L248按`not path.is_file()`分支；L249抛异常，停止当前正常路径；L251按`hashlib.sha256(data).hexdigest() != run["result"]["sha256"]`分支；L252抛异常，停止当前正常路径。 调用`Depends`、`store.get_run`、`Conflict`、`inside`、`path.is_file`、`Missing`、`path.read_bytes`、`hashlib.sha256(data).hexdigest`、`hashlib.sha256`等。 返回路径：L253的`Response( content=data, media_type="application/zip", headers={ "Content-Disposition": f'a…`。
+- `create_app.templates`（L263–L266）：接收`store`。 调用`Depends`、`catalog`、`app.get`。 返回路径：L266的`catalog(settings)`。
 
 </details>
 
-**创建路径：** `workbench/api.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L224。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/api.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L276。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8413`。本段原文以LF换行结束。
+本段原始字节数：`10811`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/api.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f7c355056f0de8d28279f66cd5bc21813194dadf89396e424f8815de5b96b610"} -->
+<!-- learning-source: {"path": "workbench/api.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9be76b41042080e1abe5cf5b67456ae181c05f82e68d4d478316c4a77772a6ab"} -->
 ````python
 # workbench/api.py
 """Local operator API. Authentication protects every data endpoint, including downloads."""
@@ -60,6 +63,7 @@ import threading
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from filelock import FileLock
@@ -108,12 +112,39 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
     )
     bearer = HTTPBearer(auto_error=False)
 
+    @app.middleware("http")
+    async def response_security(request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Cache-Control"] = "no-store"
+        if request.url.path in {"/", "/ui"} or request.url.path.startswith("/ui/"):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data:; font-src 'self' data:; connect-src 'self'; "
+                "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+            )
+            response.headers["X-Frame-Options"] = "DENY"
+        return response
+
     def auth(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(bearer)):
         if not credentials or not hmac.compare_digest(
             credentials.credentials, request.app.state.token
         ):
             raise HTTPException(401, "需要本机访问令牌；执行 uv run rnd token 查看")
         return request.app.state.store
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_handler(request, exc):
+        # Pydantic's default response includes `input` and may echo credentials.
+        # Keep only bounded, input-independent validation categories.
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": "请求字段或格式无效，请检查必填项和当前步骤",
+                "errors": [{"type": error["type"]} for error in exc.errors()[:20]],
+            },
+        )
 
     @app.exception_handler(Conflict)
     async def conflict_handler(request, exc):
@@ -124,6 +155,8 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
         return JSONResponse(status_code=404, content={"detail": str(exc)})
 
     @app.get("/", include_in_schema=False)
+    @app.get("/ui", include_in_schema=False)
+    @app.get("/ui/", include_in_schema=False)
     def workspace_page():
         return FileResponse(
             ROOT / "workbench/web/index.html",
@@ -142,16 +175,21 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
 
     @app.get("/models")
     def models(store=Depends(auth)):
+        try:
+            configuration = settings.model_configuration()
+        except ValueError:
+            raise HTTPException(503, "本机模型配置无法安全读取，请检查配置格式与权限") from None
         result = []
         for stage in STAGES:
             try:
-                profile = settings.model_for(stage)
+                profile = configuration.profile(stage)
                 row = profile.public()
                 profile.validate_endpoint()
                 row["valid"] = True
             except ValueError as exc:
                 row = {"stage": stage, "valid": False, "error": settings.redact(str(exc))}
-            row["enabled"] = stage != "review" or settings.review_enabled
+            row["enabled"] = stage != "review" or configuration.review_enabled
+            row["validation_scope"] = "format_only"
             result.append(row)
         return result
 
@@ -163,6 +201,8 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
     def automation(
         run_id: str, body: AutomationInput, idempotency_key: str = Header(), store=Depends(auth)
     ):
+        if body.enabled:
+            require_models()
         return store.set_automation(run_id, body.enabled, idempotency_key)
 
     @app.get("/health")
@@ -193,10 +233,17 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
     def project_runs(project_id: str, store=Depends(auth)):
         return store.list_runs(project_id)
 
+    def require_models():
+        try:
+            settings.require_model()
+        except ValueError:
+            raise HTTPException(503, "请先在模型与配置中完成有效配置，再继续当前运行") from None
+
     @app.post("/projects/{project_id}/runs", status_code=202)
     def create_run(
         project_id: str, body: RunInput, idempotency_key: str = Header(), store=Depends(auth)
     ):
+        require_models()
         return store.create_run(project_id, body.model_dump(), idempotency_key)
 
     @app.get("/runs")
@@ -216,10 +263,13 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
     def resume(
         run_id: str, body: ResumeInput, idempotency_key: str = Header(), store=Depends(auth)
     ):
+        if body.action != "reject":
+            require_models()
         return store.submit(run_id, body.model_dump(), idempotency_key)
 
     @app.post("/runs/{run_id}/retry", status_code=202)
     def retry(run_id: str, idempotency_key: str = Header(), store=Depends(auth)):
+        require_models()
         return store.retry(run_id, idempotency_key)
 
     @app.get("/runs/{run_id}/events")
@@ -271,6 +321,11 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
 
         return catalog(settings)
 
+    from workbench.model_settings import register_model_settings_routes
+    from workbench.streaming import register_streaming_routes
+
+    register_model_settings_routes(app, settings, auth)
+    register_streaming_routes(app, auth)
     return app
 
 

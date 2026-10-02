@@ -248,6 +248,11 @@ class Store:
 
     def submit(self, run_id, data, key):
         data = ResumeInput.model_validate(data).model_dump()
+        # Keep pre-upgrade idempotency fingerprints byte-equivalent when the
+        # optional browser-only review metadata/choices were not supplied.
+        for field in ("version", "digest", "answers"):
+            if data[field] is None or data[field] == []:
+                data.pop(field)
 
         def operation(session):
             run = session.get(Run, run_id)
@@ -256,6 +261,10 @@ class Store:
             pending = run.pending
             if not pending or pending["gate_id"] != data["gate_id"]:
                 raise Conflict("审批/回答版本已变化，请重新读取运行状态")
+            if data.get("version") is not None and data["version"] != pending["version"]:
+                raise Conflict("审批/回答版本已变化，请重新读取运行状态")
+            if data.get("digest") is not None and data["digest"] != pending["digest"]:
+                raise Conflict("审批/回答内容已变化，请重新审阅当前版本")
             if data["action"] not in pending["actions"] and data["action"] != "recommend":
                 raise Conflict("当前阶段不接受这个动作")
             if data["action"] == "approve" and not pending.get("can_approve", False):
@@ -274,7 +283,10 @@ class Store:
                     )
                 )
             if data["action"] in {"answer", "revise"}:
-                session.add(Message(run_id=run_id, role="user", content=data["text"]))
+                from workbench.clarification import render_answer
+
+                answer_text = render_answer(pending, data)
+                session.add(Message(run_id=run_id, role="user", content=answer_text))
             if data["action"] in {"approve", "reject"}:
                 session.add(Approval(gate_id=pending["gate_id"], decision=data["approved"]))
             job = Job(run_id=run_id, payload=dict(data))
@@ -315,6 +327,143 @@ class Store:
                 select(Message).where(Message.run_id == run_id).order_by(Message.id)
             )
             return [{"role": row.role, "content": row.content} for row in rows]
+
+    def assistant_event(self, run_id, kind, data):
+        """Append UI-only assistant events; terminal replay is idempotent.
+
+        The existing Message table remains the authoritative human-input history.
+        Assistant drafts cannot accidentally become requirements on a later round.
+        """
+        allowed = {
+            "assistant_start",
+            "assistant_status",
+            "assistant_delta",
+            "assistant_completed",
+            "assistant_failed",
+        }
+        if kind not in allowed:
+            raise ValueError("unsupported_assistant_event")
+        with FileLock(str(self.settings.data_dir / "assistant-events.lock"), timeout=30):
+            with self.tx() as session:
+                if not session.get(Run, run_id):
+                    raise Missing("运行不存在")
+                rows = list(
+                    session.scalars(
+                        select(Event)
+                        .where(
+                            Event.run_id == run_id,
+                            Event.kind.in_(
+                                {"assistant_start", "assistant_completed", "assistant_failed"}
+                            ),
+                            Event.data["response_id"].as_string() == data.get("response_id")
+                            if kind == "assistant_start"
+                            else Event.data["message_id"].as_string() == data["message_id"],
+                        )
+                        .order_by(Event.id)
+                    )
+                )
+                matching = [r for r in rows if r.data.get("message_id") == data["message_id"]]
+                if any(r.kind == kind for r in matching) and kind in {
+                    "assistant_start",
+                    "assistant_completed",
+                    "assistant_failed",
+                }:
+                    return
+                if any(r.kind in {"assistant_completed", "assistant_failed"} for r in matching):
+                    return
+                if kind == "assistant_start":
+                    # A restarted worker cannot leave an old attempt apparently streaming.
+                    old = {}
+                    for row in rows:
+                        if row.data.get("response_id") == data.get("response_id"):
+                            old[row.data["message_id"]] = row
+                    for row in old.values():
+                        if row.kind not in {"assistant_completed", "assistant_failed"}:
+                            session.add(
+                                Event(
+                                    run_id=run_id,
+                                    kind="assistant_failed",
+                                    data={
+                                        **{
+                                            k: row.data.get(k)
+                                            for k in (
+                                                "message_id",
+                                                "response_id",
+                                                "stage",
+                                                "transport",
+                                            )
+                                        },
+                                        "validation": "failed",
+                                        "status": "failed",
+                                        "code": "worker_interrupted",
+                                        "content": "",
+                                    },
+                                )
+                            )
+                session.add(Event(run_id=run_id, kind=kind, data=dict(data)))
+
+    def transcript(self, run_id):
+        """One read snapshot plus cursor, suitable for replay without duplicated text."""
+        with self.tx() as session:
+            if self.engine.dialect.name == "postgresql":
+                session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
+            if not session.get(Run, run_id):
+                raise Missing("运行不存在")
+            messages = [
+                {
+                    "message_id": "user-" + str(row.id),
+                    "role": row.role,
+                    "content": row.content,
+                    "created_at": row.created_at,
+                    "status": "completed",
+                    "validation": "user",
+                    "transport": None,
+                }
+                for row in session.scalars(
+                    select(Message).where(Message.run_id == run_id).order_by(Message.id)
+                )
+            ]
+            assistants, cursor = {}, 0
+            for row in session.scalars(
+                select(Event).where(Event.run_id == run_id).order_by(Event.id)
+            ):
+                cursor = row.id
+                if not row.kind.startswith("assistant_"):
+                    continue
+                data = row.data
+                message_id = data["message_id"]
+                item = assistants.setdefault(
+                    message_id,
+                    {
+                        "message_id": message_id,
+                        "role": "assistant",
+                        "content": "",
+                        "created_at": row.created_at,
+                        "status": "streaming",
+                    },
+                )
+                item.update(
+                    {
+                        k: data[k]
+                        for k in (
+                            "stage",
+                            "response_id",
+                            "validation",
+                            "transport",
+                            "status",
+                            "code",
+                        )
+                        if k in data
+                    }
+                )
+                if row.kind == "assistant_delta":
+                    item["content"] += data["text"]
+                elif row.kind in {"assistant_completed", "assistant_failed"}:
+                    item["content"] = data.get("content", "")
+                item["event_id"] = row.id
+            messages.extend(assistants.values())
+            messages.sort(key=lambda item: (item["created_at"], item["message_id"]))
+            return {"messages": messages, "cursor": cursor}
 
     def step(self, run_id, name, fn):
         with self.tx() as session:
@@ -490,11 +639,12 @@ class Store:
                 if approval.decision is not (value["action"] == "approve"):
                     raise Conflict("审批决定不一致")
 
-    def claim(self):
+    def claim(self, *, only_rejections=False):
         with self.tx() as session:
-            job = session.scalar(
-                select(Job).where(Job.status == "QUEUED").order_by(Job.created_at).limit(1)
-            )
+            statement = select(Job).where(Job.status == "QUEUED")
+            if only_rejections:
+                statement = statement.where(Job.payload["action"].as_string() == "reject")
+            job = session.scalar(statement.order_by(Job.created_at).limit(1))
             if job is None:
                 return None
             changed = session.execute(
@@ -507,8 +657,99 @@ class Store:
             return {"id": job.id, "run_id": job.run_id, "payload": job.payload}
 
     def recover(self):
-        with self.tx() as session:
-            session.execute(update(Job).where(Job.status == "RUNNING").values(status="QUEUED"))
+        # Runtime holds the single-worker lock before recovery. Serialize with
+        # assistant appenders as well, and commit transcript repair with requeue.
+        with FileLock(str(self.settings.data_dir / "assistant-events.lock"), timeout=30):
+            with self.tx() as session:
+                runs = list(
+                    session.scalars(select(Job.run_id).where(Job.status == "RUNNING").distinct())
+                )
+                for run_id in runs:
+                    self._recover_assistants(session, run_id)
+                session.execute(update(Job).where(Job.status == "RUNNING").values(status="QUEUED"))
+
+    def _recover_assistants(self, session, run_id):
+        """Resolve every abandoned attempt, even after a model/profile change."""
+        latest = {}
+        for row in session.scalars(
+            select(Event)
+            .where(
+                Event.run_id == run_id,
+                Event.kind.in_(
+                    {
+                        "assistant_start",
+                        "assistant_status",
+                        "assistant_completed",
+                        "assistant_failed",
+                    }
+                ),
+            )
+            .order_by(Event.id)
+        ):
+            latest[row.data["message_id"]] = row
+        unfinished = {
+            key: row
+            for key, row in latest.items()
+            if row.kind not in {"assistant_completed", "assistant_failed"}
+        }
+        if not unfinished:
+            return
+        # Select only already-sanitized assistant metadata. The full model JSON,
+        # prompts and executable patches never enter recovery UI events.
+        committed = {}
+        for data in session.scalars(
+            select(Step.data["assistant"]).where(
+                Step.run_id == run_id,
+                Step.name.like("model:%"),
+                Step.data["contract_version"].as_integer() >= 2,
+            )
+        ):
+            if (
+                isinstance(data, dict)
+                and data.get("validation") == "validated"
+                and data.get("status") == "completed"
+                and isinstance(data.get("content"), str)
+            ):
+                committed[data.get("message_id")] = data
+        for message_id, row in unfinished.items():
+            if message_id in committed:
+                data = committed[message_id]
+                session.add(
+                    Event(
+                        run_id=run_id,
+                        kind="assistant_completed",
+                        data={
+                            key: data[key]
+                            for key in (
+                                "message_id",
+                                "response_id",
+                                "stage",
+                                "transport",
+                                "validation",
+                                "status",
+                                "content",
+                            )
+                            if key in data
+                        },
+                    )
+                )
+            else:
+                session.add(
+                    Event(
+                        run_id=run_id,
+                        kind="assistant_failed",
+                        data={
+                            **{
+                                key: row.data.get(key)
+                                for key in ("message_id", "response_id", "stage", "transport")
+                            },
+                            "validation": "failed",
+                            "status": "failed",
+                            "code": "worker_interrupted",
+                            "content": "",
+                        },
+                    )
+                )
 
     def finish(self, job, status, pending=None, result=None, error=None):
         with self.tx() as session:

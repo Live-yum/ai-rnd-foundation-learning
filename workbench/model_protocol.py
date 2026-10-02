@@ -1,6 +1,7 @@
 """LangChain structured-output integration and provider-independent validation guards."""
 
 import asyncio
+import codecs
 import json
 import math
 from concurrent.futures import ThreadPoolExecutor
@@ -51,7 +52,7 @@ def output_contract(profile, schema):
 
 
 @contextmanager
-def structured_model(profile, schema, contract, http_client):
+def structured_model(profile, schema, contract, http_client, *, streaming=False):
     """The official LangChain integration owns wire formatting and schema parsing.
 
     LangGraph nodes call this same Runnable for all four schema-driven stages.
@@ -73,7 +74,7 @@ def structured_model(profile, schema, contract, http_client):
             timeout=http_client.timeout,
             http_async_client=async_client,
             max_retries=0,
-            streaming=False,
+            streaming=streaming,
             use_responses_api=False,
             http_socket_options=(),
             cache=False,
@@ -99,7 +100,7 @@ class SyncOnlyTransport(httpx.AsyncBaseTransport):
 class AuditedTransport(httpx.BaseTransport):
     """Bound bytes and check response status before SDK/parser normalization loses evidence."""
 
-    def __init__(self, contract, inner=None):
+    def __init__(self, contract, inner=None, *, observer=None, streaming=False):
         self.contract = contract
         self.owned = inner is None
         self.inner = inner if inner is not None else httpx.HTTPTransport(retries=0, trust_env=False)
@@ -107,9 +108,28 @@ class AuditedTransport(httpx.BaseTransport):
         self.content = None
         self.usage = {}
         self.finish = "unknown"
+        self.observer = observer
+        self.streaming = streaming
+        self.stream_unsupported = False
 
     def handle_request(self, request):
         response = self.inner.handle_request(request)
+        if (
+            200 <= response.status_code < 300
+            and response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+            == "text/event-stream"
+        ):
+            if self.observer:
+                self.observer.mode("streaming")
+            return httpx.Response(
+                response.status_code,
+                headers={
+                    k: v
+                    for k, v in response.headers.items()
+                    if k.lower() not in {"content-encoding", "content-length"}
+                },
+                stream=AuditedEventStream(response, self),
+            )
         data = bytearray()
         try:
             for chunk in response.iter_bytes():
@@ -120,6 +140,23 @@ class AuditedTransport(httpx.BaseTransport):
                 self.content, self.usage, self.finish = completion_content(
                     load_json(data), self.contract
                 )
+                if self.observer:
+                    self.observer.mode("non_streaming")
+            elif response.status_code in {400, 422}:
+                # Only explicit capability errors authorize a non-streaming retry.
+                # Never expose or heuristically display raw provider error messages.
+                try:
+                    error = load_json(data).get("error", {})
+                    self.stream_unsupported = isinstance(error, dict) and (
+                        error.get("code")
+                        in {"unsupported_stream", "stream_not_supported", "unsupported_streaming"}
+                        or (
+                            error.get("param") == "stream"
+                            and error.get("code") == "unsupported_value"
+                        )
+                    )
+                except ValueError, TypeError, AttributeError:
+                    pass
         except (ValueError, TypeError) as exc:
             self.error = exc
             raise
@@ -128,11 +165,162 @@ class AuditedTransport(httpx.BaseTransport):
         headers = dict(response.headers)
         headers.pop("content-encoding", None)
         headers.pop("content-length", None)
+        if self.streaming and 200 <= response.status_code < 300:
+            # Some compatible endpoints ignore stream=true and return one JSON
+            # completion. Adapt that single genuine result for the SDK; the UI
+            # receives no pretend deltas and explicitly reports non_streaming.
+            item = {
+                "id": "completed-response",
+                "object": "chat.completion.chunk",
+                "created": 0,
+                "model": "",
+                "usage": self.usage,
+                "choices": [
+                    {
+                        "index": 0,
+                        "delta": {
+                            "role": "assistant",
+                            "content": self.content,
+                        },
+                        "finish_reason": "stop",
+                    }
+                ],
+            }
+            data = (
+                "data: " + json.dumps(item, ensure_ascii=False) + "\n\ndata: [DONE]\n\n"
+            ).encode()
+            headers["content-type"] = "text/event-stream"
         return httpx.Response(response.status_code, headers=headers, content=bytes(data))
 
     def close(self):
         if self.owned:
             self.inner.close()
+
+
+class AuditedEventStream(httpx.SyncByteStream):
+    """Audit each provider SSE frame before it reaches the SDK or UI projection."""
+
+    def __init__(self, response, audit):
+        self.response, self.audit = response, audit
+        self.content = []
+        self.usage = {}
+        self.finish = None
+        self.done = False
+        self.bytes_read = 0
+        self.frames = 0
+
+    def __iter__(self):
+        data = []
+        try:
+            for line in self.lines():
+                if line == "":
+                    if not data:
+                        continue
+                    payload = "\n".join(data)
+                    data = []
+                    self.frame(payload)
+                    yield ("data: " + payload + "\n\n").encode("utf-8")
+                    if self.done:
+                        return
+                elif line.startswith("data:"):
+                    data.append(line[5:].removeprefix(" "))
+                # Comments and unknown SSE fields are intentionally ignored.
+            if not self.done:
+                raise OutputFailure("interrupted", "模型流在完整结束前断开", retry=True)
+        except (ValueError, TypeError, httpx.HTTPError) as exc:
+            self.audit.error = exc
+            raise
+        finally:
+            self.response.close()
+
+    def lines(self):
+        decoder = codecs.getincrementaldecoder("utf-8")()
+        buffer = ""
+        for chunk in self.response.iter_bytes():
+            self.bytes_read += len(chunk)
+            if self.bytes_read > 2_000_000:
+                raise OutputFailure("response_too_large", "模型响应过大")
+            buffer += decoder.decode(chunk)
+            while True:
+                boundaries = [p for p in (buffer.find("\r"), buffer.find("\n")) if p >= 0]
+                if not boundaries:
+                    break
+                index = min(boundaries)
+                if buffer[index] == "\r" and index == len(buffer) - 1:
+                    break  # CRLF may be split between provider byte chunks.
+                end = index + (2 if buffer[index : index + 2] == "\r\n" else 1)
+                yield buffer[:index]
+                buffer = buffer[end:]
+        buffer += decoder.decode(b"", final=True)
+        if buffer.endswith("\r"):
+            yield buffer[:-1]
+        elif buffer:
+            yield buffer
+
+    def frame(self, payload):
+        if payload == "[DONE]":
+            self.audit.content, self.audit.usage, self.audit.finish = completion_content(
+                {
+                    "choices": [
+                        {
+                            "message": {"role": "assistant", "content": "".join(self.content)},
+                            "finish_reason": self.finish,
+                        }
+                    ],
+                    "usage": self.usage,
+                },
+                self.audit.contract,
+            )
+            # Streaming always requires affirmative completion, even compatible endpoints.
+            if self.finish != "stop":
+                raise OutputFailure("invalid_finish_reason", "模型流没有确认完整结束", retry=True)
+            self.done = True
+            return
+        value = load_json(payload)
+        if not isinstance(value, dict) or value.get("error"):
+            raise OutputFailure("invalid_envelope", "模型服务返回无效响应信封", retry=True)
+        self.frames += 1
+        choices = value.get("choices")
+        if choices == [] and isinstance(value.get("usage"), dict):
+            self.usage = value["usage"]
+            return
+        if not isinstance(choices, list) or len(choices) != 1 or not isinstance(choices[0], dict):
+            raise OutputFailure("invalid_choices", "模型响应缺少唯一选择", retry=True)
+        choice = choices[0]
+        delta = choice.get("delta")
+        if choice.get("index", 0) != 0 or not isinstance(delta, dict):
+            raise OutputFailure("invalid_message", "模型流消息结构无效", retry=True)
+        if delta.get("role", "assistant") != "assistant":
+            raise OutputFailure("invalid_message", "模型流消息角色无效", retry=True)
+        if delta.get("refusal") not in (None, ""):
+            raise OutputFailure("refusal", "模型拒绝本次请求；未尝试绕过拒绝")
+        if delta.get("tool_calls") or delta.get("function_call"):
+            raise OutputFailure("unexpected_tool_call", "本阶段不接受模型工具调用")
+        finish = choice.get("finish_reason")
+        if finish is not None:
+            # Reuse the nonstream guards before making any content visible.
+            completion_content(
+                {"choices": [{"message": {"content": "{}"}, "finish_reason": finish}]},
+                self.audit.contract,
+            )
+            if self.finish is not None:
+                raise OutputFailure("invalid_finish_reason", "模型流重复结束", retry=True)
+            self.finish = finish
+        fragment = delta.get("content")
+        if fragment is not None and not isinstance(fragment, str):
+            raise OutputFailure("invalid_message", "模型流内容结构无效", retry=True)
+        if fragment:
+            if self.finish is not None and finish is None:
+                raise OutputFailure("invalid_finish_reason", "模型流结束后仍有内容", retry=True)
+            self.content.append(fragment)
+            if self.audit.observer:
+                self.audit.observer.content(fragment)
+        if isinstance(value.get("usage"), dict):
+            self.usage = value["usage"]
+        # reasoning_content, reasoning and other internal fields are never projected.
+
+    def close(self):
+        self.response.close()
 
 
 class OutputFailure(ValueError):

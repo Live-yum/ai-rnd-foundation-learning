@@ -78,6 +78,18 @@ uv run pytest tests/test_llm.py tests/test_provider_structured_outputs.py tests/
 
 不要在这一站直接跑 `tests/test_requirement_coverage.py` 或 `tests/test_requirement_source_conflicts.py` 的整文件。它们混合纯函数、工作流和原生适配/诊断数据用例，既有后续Runtime导入，也读取后续fixtures。第14阶段完整源码就位后再跑它们；这并不是少测，而是把集成测试放到真实依赖成立之后。
 
+## 从真实模型增量到可见草稿，仍不能绕过最终合同
+
+`Runtime` 创建生产 `ModelGateway(..., streaming=True)`。网关仍通过官方LangChain结构化链解析结果；`model_protocol.AuditedTransport` 在SDK规范化之前审计真实HTTP响应。服务端返回 `text/event-stream` 时，`AuditedEventStream` 逐帧消费内容、完成原因和usage，并检查大小上限、结束标记与本地严格schema。网络块不是一个JSON对象，也不保证一个中文字已经完整，协议层因此需要增量解码和帧边界处理。
+
+`streaming.AssistantStream` 并不把服务商原始JSON全部发到网页。只有本项目指定schema的公开根字符串可以显示：需求的 `summary`、计划的 `title`、补丁的 `explanation`、复核的 `summary`。嵌套对象、补丁源码和隐藏推理字段不在投影范围。`root_string_prefix` 只返回当前已经完整解码的字符串前缀；碰到半个JSON转义或UTF-16代理对时等待后续数据，不猜一个字符。若目标字段前还有尚未完成的对象，暂时没有公开文字也是正常情况。
+
+可以跟踪一个具体反例：服务商先返回summary前半句，页面已显示草稿，后半段却让Requirement缺了必填字段。增量不能使这次调用提前成功，完整对象仍须校验；失败事件把草稿清空并保留失败状态，重新纠错是另一次有身份的尝试。只有最终通过校验的对象才进入需求/计划与后续业务判断。
+
+另一个难点是密钥跨块泄露。若已知Key的前半段恰好出现在当前公开字符串末尾，`AssistantStream.content` 会暂留这个可能的前缀，直到能判定或统一脱敏后才追加可见文本。修改过的本机模型配置中的旧Key也保留在脱敏集合，不能只保护当前环境变量。测试用的都是明确假Key，不需要把自己的Key写进测试证明保护有效。
+
+并非每个兼容服务都支持流。若服务忽略 `stream=true` 而一次返回JSON，回执明确 `non_streaming`，界面一次显示真实完整结果，不在浏览器伪造逐字动画。只有协议中明确的“不支持stream”错误才允许一次非流回退；认证错误、普通超时和任意400不能被当作能力回退。增量显示、传输成功、schema通过和业务通过是四件不同的事。
+
 ## 本阶段源码和后续依赖
 
-本阶段首次创建 15 个源文件，完整位置见[文件落盘顺序](files.md)。已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。
+本阶段首次创建 16 个源文件，完整位置见[文件落盘顺序](files.md)。已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。

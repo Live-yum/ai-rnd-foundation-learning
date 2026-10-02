@@ -2,7 +2,7 @@
 
 [返回阶段导读](README.md)
 
-按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件与截图编码在 sources/locks 和 sources/assets 下，先读实现模块，需要校对时再打开资源。
+按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件在 sources/locks，截图及Vue构建快照编码在 sources/assets 下，先读实现模块，需要校对时再打开资源。
 
 - [workbench/context_mcp.py](sources/workbench__context_mcp_py--001.md)：只读本机MCP适配器；1 段
 - [workbench/filesystem.py](sources/workbench__filesystem_py--001.md)：限定文件路径、归档成员和写入范围；1 段

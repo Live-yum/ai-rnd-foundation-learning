@@ -45,15 +45,15 @@ FastAPI的lifespan在服务启动和退出时管理数据库/Worker。LangGraph�
 | 组 | 先写的文件 | 这一组完成后的可观察结果 |
 |---|---|---|
 | 0 工具与项目 | `.python-version`、`pyproject.toml`、`uv.lock`、`.env.example`、`.gitignore`、`.gitattributes`、`README.md`、`workbench/__init__.py`、`workbench/local_only.py` | uv创建独立`.venv`；尚未启动服务或调用模型 |
-| 1 数据契约 | `settings.py`、`business_contracts.py`、`business_capabilities.py`、`catalog.py`、`domain.py`、`errors.py` | 能把合法字典转成Plan；非法字段、技术栈组合和非本机工具地址被拒绝 |
-| 2 数据库 | `store.py`、`alembic.ini`、`migrations/`全部文件；`tests/conftest.py`、`test_contracts.py`、`test_store.py` | 临时数据库能迁移、保存项目和事务回滚；此时完全不需要api.py或runtime.py |
-| 3 需求与模型 | `conversation.py`、`llm.py`、`requirement_coverage.py`、`recommendation.py` | 长期会话保存原事实；模型请求有角色路由、预算、缓存和严格响应格式 |
+| 1 数据契约 | `settings.py`、`model_settings.py`、`business_contracts.py`、`business_capabilities.py`、`catalog.py`、`domain.py`、`errors.py` | 能把合法字典转成Plan；非法字段、技术栈组合和非本机工具地址被拒绝 |
+| 2 数据库 | `store.py`、`clarification.py`、`alembic.ini`、`migrations/`全部文件；`tests/conftest.py`、`test_contracts.py`、`test_store.py` | 临时数据库能迁移、保存项目和事务回滚；此时完全不需要api.py或runtime.py |
+| 3 需求与模型 | `conversation.py`、`llm.py`、`model_protocol.py`、`streaming.py`、`requirement_coverage.py`、`recommendation.py` | 长期会话保存原事实；模型请求有角色路由、预算、缓存和严格响应格式 |
 | 4 安全与源代码 | `filesystem.py`、`tools.py`、`vendor.py`、`scripts/vendor_templates.py`、`templates/vendor/`文本清单/许可证 | 能从固定第三方源码生成本机ZIP，再安全解压；没有任意命令入口 |
 | 5 上下文 | `symbols.py`、`knowledge.py`、`retrieval.py`、`continue_index.py`、`context_mcp.py`、`toolchain.py`、`tools/node/`全部文本文件 | Java/TS/Vue/Python符号和源码行号可检索；只读MCP共享同一索引 |
 | 6 产品 | `templates/product/`全部文件、`templates/frontends/`全部文件、`generator.py`、`product_sql.py`、`business_python.py`、`templates/business/common/policy.py`、`rules.py`、`coding.py`、`aider_tool.py` | 已批准Plan可确定性生成独立产品；只有受限规则文件可以由模型参与修改 |
 | 7 验收 | `verification.py`、`postgres_lab.py`、`sandbox.py`、`daytona_worker.py`、本机Daytona脚本和Dockerfile | 本机真实验收、可选隔离复验以及清理失败阻止交付 |
 | 8 原生全栈 | 全部`native*.py`、`business*.py`、`portable.py`、`portable_checks.py`、`templates/deployment/`、`templates/business/`、两套business浏览器脚本 | 原框架生成、菜单/权限挂载、前端/浏览器验证及独立新库启动 |
-| 9 串联 | `flow.py`、`runtime.py`、`api.py`、`cli.py`、`workbench/web/` | Web和CLI共用同一持久状态流程，能够从需求到下载 |
+| 9 串联 | `flow.py`、`runtime.py`、`api.py`、`cli.py`、`ui/`完整源和锁、`workbench/web/`构建快照 | Web和CLI共用同一持久状态流程，能够从需求到下载 |
 | 10 可重复验证 | `tests/`剩余文件、`scripts/`剩余文件、`.github/workflows/`、`docs/`、手册构建脚本 | 能运行完整回归，能由本书重新建立代码，再生成字节一致的本书 |
 
 模块之间允许引用后面将创建的模块，所以“文件能保存”不等于“马上能运行”。先看完整源码区自动列出的本项目import关系，再补齐组内依赖。不要用`pass`或删掉import来让中间状态伪装成完成。`tests/test_learning_order.py`会把第一组数据库课的最小文件集复制到新目录，确认这一阶段没有暗中依赖尚未编写的API和Worker。
@@ -62,7 +62,7 @@ FastAPI的lifespan在服务启动和退出时管理数据库/Worker。LangGraph�
 
 ### C.1 从页面到输入对象
 
-`workbench/web/index.html`定义选择框、输入框、按钮和报告区，style.css决定布局，app.js负责读取值和调用API。浏览器先选后端/前端/数据库，app.js再显示需求输入区；因此系统在理解需求之前就知道允许的能力范围。
+`ui/src` 是可读的Vue 3 / Ant Design实现：组件显示项目选择、对话、模型配置与运行进度，api.ts负责受认证请求与SSE帧，state.ts管理当前任务和订阅，presentation.ts转换可见状态。先选后端/前端/数据库再创建需求运行，因此系统在理解需求之前知道允许的能力范围。`workbench/web/index.html`、app.js与style.css是Vite生成的运行资产，不是需要手写的实现；附录按Base64保存精确快照，源码与依赖锁另行完整收录。
 
 `POST /projects`把项目名称交给ProjectInput；`POST /projects/{id}/runs`把需求、template、selection和intelligent交给RunInput。RunInput调用Selection验证三件事：模板必须存在，前后端/数据库必须属于已适配组合，selection中的模板必须与请求中的template一致。客户端不能通过增加字段绕开校验。
 
@@ -89,6 +89,14 @@ uv run pytest tests/test_contracts.py tests/test_store.py -q
 
 这一步不用填写模型Key、不启动Daytona、不需要浏览器。测试使用临时目录，验证外键、短事务、重复请求和门身份。出现ModuleNotFoundError先核对本组是否包含local_only.py、business_contracts.py、business_capabilities.py和所有迁移文件，不要把未来的API文件复制进来掩盖依赖错误。
 
+### C.4 页面刷新和模型设置为何不能只存在浏览器里
+
+模型响应增量通过 `streaming.AssistantStream` 写入Store事件，页面先读transcript及同快照cursor，再订阅cursor之后的SSE。每个事件ID只应用一次；切换运行先abort旧订阅，再用runGeneration拒绝迟到响应。只把聊天内容放在浏览器数组中会在刷新后丢失；只读全量事件后再接流又可能重复追加已有增量。这两种错误都不是加一个加载动画能解决的。
+
+增量是未校验草稿。只允许特定schema的公开根字符串，完整对象仍需协议审计和Pydantic严格验证；完成事件用最终公开内容收口，失败事件清空草稿。关闭页面只关闭订阅，不取消Worker，也不创建新模型调用。无流服务明确标记non_streaming，不能模拟逐字显示冒充真实增量。
+
+`model_settings.ModelSettingsRepository` 把配置保存到本机私有文件，GET只返回安全摘要与revision。保存带expected_revision，文件锁和原子替换防止两个窗口互相覆盖；更换服务地址必须更换独立Key。调用开始时取得不可变profile，重试保持同一快照，后续调用才看见新配置。页面保存只做格式和安全校验，不是实际账号连通性测试。
+
 ## D. 第二条数据流：从模糊需求到已批准Plan
 
 ### D.1 facts与原始消息各有什么用
@@ -110,6 +118,8 @@ ModelGateway.complete根据调用阶段从Settings.model_for选择地址、密�
 Workflow.gate把当前run、阶段、内容版本与可选动作交给Store.gate。gate_id是这次具体内容的身份；ResumeInput要求客户端把当前gate_id和明确动作一起发回。check_decision再次核对，避免浏览器拿着过期页面批准已经改过的设计。
 
 人工模式会interrupt等待。智能推荐不是让模型随意伪造批准，而是用户显式设置auto_mode，Store记录授权事件，再由auto_approve产生标记为delegated-ai的决定。关闭自动模式后，后续门恢复人工等待，已经执行的合法步骤不会被倒着撤销。
+
+结构化澄清表单也服从同一个门：`clarification.render_answer` 在Store.submit事务内用当前问题ID和选项ID恢复服务器标签，核对必答项、单选数量和自定义文字规则。旧题目或伪造选项不会入队；合法回答仍是用户Message，不能代替approve。
 
 ### D.4 Plan如何落到后端与前端
 

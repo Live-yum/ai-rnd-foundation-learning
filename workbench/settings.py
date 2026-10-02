@@ -1,10 +1,19 @@
 """Local configuration and optional per-stage model profiles; no secrets in run receipts."""
 
 from pathlib import Path
+from threading import RLock
 from typing import Literal
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
-from pydantic import AliasChoices, BaseModel, Field, SecretStr, field_validator
+from pydantic import (
+    AliasChoices,
+    BaseModel,
+    ConfigDict,
+    Field,
+    PrivateAttr,
+    SecretStr,
+    field_validator,
+)
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from workbench.local_only import local_database_url, local_http_url
@@ -16,7 +25,50 @@ Provider = Literal["auto", "openai", "deepseek", "compatible"]
 OutputMode = Literal["auto", "json_object"]
 
 
+def validate_model_url(value: str) -> str:
+    """Only API roots; validate before any model credential can reach a transport."""
+    message = "BASE_URL 必须是无凭据/查询参数的 HTTP(S) API 根地址"
+    try:
+        parsed = urlsplit(value)
+        if (
+            parsed.scheme not in {"http", "https"}
+            or not parsed.hostname
+            or parsed.username is not None
+            or parsed.password is not None
+            or "?" in value
+            or "#" in value
+            or "\\" in value
+            or any(ord(char) <= 32 or ord(char) == 127 for char in value)
+            or parsed.port == 0
+        ):
+            raise ValueError(message)
+        if parsed.scheme == "http" and parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
+            raise ValueError("远程模型必须使用 HTTPS")
+        path = parsed.path
+        for _ in range(3):
+            decoded = unquote(path)
+            if decoded == path:
+                break
+            path = decoded
+        segments = path.lower().replace("\\", "/").split("/")
+        if any(part in {"completions", "responses"} for part in segments):
+            raise ValueError(
+                "BASE_URL 只填 API 根地址，不要重复 /chat/completions 或其他推理子路径"
+            )
+    except ValueError as exc:
+        # URL parsers may echo invalid ports/hosts. Return only our fixed messages.
+        if str(exc) in {
+            message,
+            "远程模型必须使用 HTTPS",
+            "BASE_URL 只填 API 根地址，不要重复 /chat/completions 或其他推理子路径",
+        }:
+            raise ValueError(str(exc)) from None
+        raise ValueError(message) from None
+    return value.rstrip("/")
+
+
 class ModelProfile(BaseModel):
+    model_config = ConfigDict(frozen=True, hide_input_in_errors=True)
     stage: str
     base_url: str
     model: str
@@ -26,22 +78,12 @@ class ModelProfile(BaseModel):
     max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
 
     def validate_endpoint(self):
-        url = urlsplit(self.base_url)
-        if (
-            url.scheme not in {"http", "https"}
-            or not url.hostname
-            or url.username
-            or url.password
-            or url.query
-            or url.fragment
-        ):
-            raise ValueError(f"{self.stage}: BASE_URL 必须是无凭据/查询参数的 HTTP(S) API 根地址")
-        if url.scheme == "http" and url.hostname not in {"127.0.0.1", "localhost", "::1"}:
-            raise ValueError(f"{self.stage}: 远程模型必须使用 HTTPS")
-        if not self.model or not self.api_key.get_secret_value():
+        try:
+            validate_model_url(self.base_url)
+        except ValueError as exc:
+            raise ValueError(f"{self.stage}: {exc}") from None
+        if not self.model.strip() or not self.api_key.get_secret_value().strip():
             raise ValueError(f"{self.stage}: 请填写 MODE/模型名称及 API_KEY")
-        if self.base_url.rstrip("/").endswith("/chat/completions"):
-            raise ValueError(f"{self.stage}: BASE_URL 只填 API 根地址，不要重复 /chat/completions")
         return self
 
     def public(self):
@@ -57,6 +99,8 @@ class ModelProfile(BaseModel):
 
 
 class Settings(BaseSettings):
+    _model_keys: set[str] = PrivateAttr(default_factory=set)
+    _model_keys_lock: RLock = PrivateAttr(default_factory=RLock)
     model_config = SettingsConfigDict(env_file=ROOT / ".env", extra="ignore")
     base_url: str = ""
     api_key: SecretStr = SecretStr("")
@@ -165,51 +209,49 @@ class Settings(BaseSettings):
         for name in ("runs", "sources", "knowledge", "native"):
             (self.data_dir / name).mkdir(exist_ok=True)
 
+    def model_configuration(self):
+        from workbench.model_settings import ModelSettingsRepository
+
+        configuration = ModelSettingsRepository(self).snapshot()
+        self._remember_model_keys(configuration)
+        return configuration
+
+    def _remember_model_keys(self, configuration):
+        with self._model_keys_lock:
+            for profile in (configuration.default, *configuration.stages.values()):
+                secret = profile.api_key.get_secret_value()
+                if secret:
+                    self._model_keys.add(secret)
+
     def model_for(self, stage: Stage) -> ModelProfile:
-        if stage not in STAGES:
-            raise ValueError("未知模型阶段")
-        endpoint = getattr(self, stage + "_base_url") or self.base_url
-        key = getattr(self, stage + "_api_key")
-        if not key.get_secret_value():
-            if endpoint.rstrip("/") != self.base_url.rstrip("/"):
-                raise ValueError(
-                    f"{stage}: 更换服务商地址时必须单独配置 {stage.upper()}_API_KEY，禁止发送默认密钥到新地址"
-                )
-            key = self.api_key
-        return ModelProfile(
-            stage=stage,
-            base_url=endpoint.rstrip("/"),
-            model=getattr(self, stage + "_model") or self.model,
-            api_key=key,
-            # An endpoint change must not inherit the previous provider's wire protocol.
-            provider=getattr(self, stage + "_provider")
-            or (self.provider if endpoint.rstrip("/") == self.base_url.rstrip("/") else "auto"),
-            output_mode=getattr(self, stage + "_output_mode")
-            or (self.output_mode if endpoint.rstrip("/") == self.base_url.rstrip("/") else "auto"),
-            max_output_tokens=getattr(self, stage + "_max_output_tokens")
-            or (
-                self.max_output_tokens
-                if endpoint.rstrip("/") == self.base_url.rstrip("/")
-                else None
-            ),
-        )
+        return self.model_configuration().profile(stage)
 
     def require_model(self) -> None:
-        for stage in STAGES[:3]:
-            self.model_for(stage).validate_endpoint()
-        if self.review_enabled:
-            self.model_for("review").validate_endpoint()
+        # One snapshot for all stages prevents mixing revisions during validation.
+        self.model_configuration().require_model()
+
+    def models_ready(self) -> bool:
+        try:
+            self.require_model()
+        except ValueError:
+            return False
+        return True
 
     @property
     def review_enabled(self) -> bool:
-        return bool(
-            self.model_review
-            or self.review_model
-            or self.review_base_url
-            or self.review_api_key.get_secret_value()
-        )
+        return self.model_configuration().review_enabled
 
     def redact(self, text: str) -> str:
+        # Retain old process-local keys for in-flight calls after a settings edit.
+        # An invalid file must never stop error-path redaction from working.
+        try:
+            self.model_configuration()
+        except ValueError:
+            pass
+        with self._model_keys_lock:
+            known_keys = tuple(self._model_keys)
+        for secret in sorted(known_keys, key=len, reverse=True):
+            text = text.replace(secret, "[redacted]")
         for field in (
             "api_key",
             "product_postgres_url",

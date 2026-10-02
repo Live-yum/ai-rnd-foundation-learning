@@ -2,7 +2,7 @@
 
 [返回阶段导读](README.md)
 
-按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件与截图编码在 sources/locks 和 sources/assets 下，先读实现模块，需要校对时再打开资源。
+按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件在 sources/locks，截图及Vue构建快照编码在 sources/assets 下，先读实现模块，需要校对时再打开资源。
 
 - [.github/workflows/customer-runtime.yml](sources/_github__workflows__customer-runtime_yml--001.md)：可复现的自动化验收配置；1 段
 - [.github/workflows/daytona-local.yml](sources/_github__workflows__daytona-local_yml--001.md)：可复现的自动化验收配置；1 段
@@ -43,7 +43,7 @@
 - [scripts/ci_native_runtime.py](sources/scripts__ci_native_runtime_py--001.md)：原框架本身的运行基线验收；1 段
 - [scripts/ci_native_sources.py](sources/scripts__ci_native_sources_py--001.md)：固定原生模板源码完整性检查；1 段
 - [scripts/ci_real_model.py](sources/scripts__ci_real_model_py--001.md)：显式授权的真实模型完整验收；3 段
-- [scripts/handbook_notes.py](sources/scripts__handbook_notes_py--001.md)：把源码变成逐文件教学提示；1 段
+- [scripts/handbook_notes.py](sources/scripts__handbook_notes_py--001.md)：把源码变成逐文件教学提示；2 段
 - [scripts/learning_docs_content.json](sources/scripts__learning_docs_content_json--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/rebuild_from_handbook.py](sources/scripts__rebuild_from_handbook_py--001.md)：从一本书还原安全的新项目；1 段
 - [scripts/rebuild_learning_docs.py](sources/scripts__rebuild_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
@@ -57,6 +57,7 @@
 - [tests/test_handbook_order.py](sources/tests__test_handbook_order_py--001.md)：可重复的验收用例；1 段
 - [tests/test_handbook_runtime.py](sources/tests__test_handbook_runtime_py--001.md)：可重复的验收用例；1 段
 - [tests/test_learning_docs.py](sources/tests__test_learning_docs_py--001.md)：可重复的验收用例；1 段
+- [tests/test_learning_docs_frontend.py](sources/tests__test_learning_docs_frontend_py--001.md)：可重复的验收用例；1 段
 - [tests/test_learning_order.py](sources/tests__test_learning_order_py--001.md)：可重复的验收用例；1 段
 - [tests/test_legacy_date_requirements.py](sources/tests__test_legacy_date_requirements_py--001.md)：可重复的验收用例；1 段
 - [tests/test_news_delivery.py](sources/tests__test_news_delivery_py--001.md)：可重复的验收用例；1 段
@@ -80,3 +81,5 @@
 - [tests/test_semantic_fact_namespace_aliases.py](sources/tests__test_semantic_fact_namespace_aliases_py--001.md)：可重复的验收用例；1 段
 - [tests/test_structured_facts.py](sources/tests__test_structured_facts_py--001.md)：可重复的验收用例；1 段
 - [tests/test_unapproved_design_replay.py](sources/tests__test_unapproved_design_replay_py--001.md)：可重复的验收用例；1 段
+- [tests/test_workbench_browser_fixture.py](sources/tests__test_workbench_browser_fixture_py--001.md)：可重复的验收用例；1 段
+- [tests/test_workbench_startup.py](sources/tests__test_workbench_startup_py--001.md)：可重复的验收用例；1 段

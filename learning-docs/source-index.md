@@ -18,6 +18,7 @@
 - [workbench/catalog.py](01-contracts/sources/workbench__catalog_py--001.md)（1 段）
 - [workbench/domain.py](01-contracts/sources/workbench__domain_py--001.md)（1 段）
 - [workbench/errors.py](01-contracts/sources/workbench__errors_py--001.md)（1 段）
+- [workbench/model_settings.py](01-contracts/sources/workbench__model_settings_py--001.md)（1 段）
 - [workbench/settings.py](01-contracts/sources/workbench__settings_py--001.md)（1 段）
 ## [02-storage · 持久化与迁移](02-storage/README.md)
 
@@ -30,6 +31,7 @@
 - [tests/test_business_contracts.py](02-storage/sources/tests__test_business_contracts_py--001.md)（1 段）
 - [tests/test_contracts.py](02-storage/sources/tests__test_contracts_py--001.md)（1 段）
 - [tests/test_store.py](02-storage/sources/tests__test_store_py--001.md)（1 段）
+- [workbench/clarification.py](02-storage/sources/workbench__clarification_py--001.md)（1 段）
 - [workbench/store.py](02-storage/sources/workbench__store_py--001.md)（1 段）
 ## [03-requirements · 需求保真与模型协议](03-requirements/README.md)
 
@@ -48,6 +50,7 @@
 - [workbench/model_protocol.py](03-requirements/sources/workbench__model_protocol_py--001.md)（1 段）
 - [workbench/requirement_coverage.py](03-requirements/sources/workbench__requirement_coverage_py--001.md)（3 段）
 - [workbench/requirement_sources.py](03-requirements/sources/workbench__requirement_sources_py--001.md)（1 段）
+- [workbench/streaming.py](03-requirements/sources/workbench__streaming_py--001.md)（1 段）
 ## [04-local-foundation · 文件安全与源码检索](04-local-foundation/README.md)
 
 - [workbench/context_mcp.py](04-local-foundation/sources/workbench__context_mcp_py--001.md)（1 段）
@@ -106,18 +109,48 @@
 - [workbench/runtime.py](07-orchestration/sources/workbench__runtime_py--001.md)（1 段）
 - [workbench/sandbox.py](07-orchestration/sources/workbench__sandbox_py--001.md)（1 段）
 - [workbench/toolchain.py](07-orchestration/sources/workbench__toolchain_py--001.md)（1 段）
-## [08-control-plane · API、CLI与操作台](08-control-plane/README.md)
+## [08-control-plane · API、CLI与Vue流式操作台](08-control-plane/README.md)
 
-- [scripts/guided_browser.cjs](08-control-plane/sources/scripts__guided_browser_cjs--001.md)（1 段）
+- [scripts/guided_browser.cjs](08-control-plane/sources/scripts__guided_browser_cjs--001.md)（2 段）
 - [tests/test_api.py](08-control-plane/sources/tests__test_api_py--001.md)（1 段）
+- [tests/test_clarification_choices.py](08-control-plane/sources/tests__test_clarification_choices_py--001.md)（1 段）
+- [tests/test_cli_connection.py](08-control-plane/sources/tests__test_cli_connection_py--001.md)（1 段）
 - [tests/test_guided_selection.py](08-control-plane/sources/tests__test_guided_selection_py--001.md)（1 段）
+- [tests/test_model_settings.py](08-control-plane/sources/tests__test_model_settings_py--001.md)（1 段）
+- [tests/test_streaming_backend.py](08-control-plane/sources/tests__test_streaming_backend_py--001.md)（1 段）
 - [tests/test_tools_cli.py](08-control-plane/sources/tests__test_tools_cli_py--001.md)（1 段）
+- [ui/.gitignore](08-control-plane/sources/ui___gitignore--001.md)（1 段）
+- [ui/.prettierrc.json](08-control-plane/sources/ui___prettierrc_json--001.md)（1 段）
+- [ui/README.md](08-control-plane/sources/ui__README_md--001.md)（1 段）
+- [ui/index.html](08-control-plane/sources/ui__index_html--001.md)（1 段）
+- [ui/package-lock.json](08-control-plane/sources/locks/ui__package-lock_json--001.md)（1 段）
+- [ui/package.json](08-control-plane/sources/ui__package_json--001.md)（1 段）
+- [ui/src/App.vue](08-control-plane/sources/ui__src__App_vue--001.md)（1 段）
+- [ui/src/api.ts](08-control-plane/sources/ui__src__api_ts--001.md)（1 段）
+- [ui/src/components/DataDocument.vue](08-control-plane/sources/ui__src__components__DataDocument_vue--001.md)（1 段）
+- [ui/src/components/HomeView.vue](08-control-plane/sources/ui__src__components__HomeView_vue--001.md)（1 段）
+- [ui/src/components/ProjectsView.vue](08-control-plane/sources/ui__src__components__ProjectsView_vue--001.md)（1 段）
+- [ui/src/components/Questionnaire.vue](08-control-plane/sources/ui__src__components__Questionnaire_vue--001.md)（1 段）
+- [ui/src/components/RunView.vue](08-control-plane/sources/ui__src__components__RunView_vue--001.md)（1 段）
+- [ui/src/components/SettingsView.vue](08-control-plane/sources/ui__src__components__SettingsView_vue--001.md)（1 段）
+- [ui/src/main.ts](08-control-plane/sources/ui__src__main_ts--001.md)（1 段）
+- [ui/src/presentation.ts](08-control-plane/sources/ui__src__presentation_ts--001.md)（1 段）
+- [ui/src/state.ts](08-control-plane/sources/ui__src__state_ts--001.md)（1 段）
+- [ui/src/style.css](08-control-plane/sources/ui__src__style_css--001.md)（1 段）
+- [ui/src/types.ts](08-control-plane/sources/ui__src__types_ts--001.md)（1 段）
+- [ui/tests/documents.test.ts](08-control-plane/sources/ui__tests__documents_test_ts--001.md)（1 段）
+- [ui/tests/protocol.test.ts](08-control-plane/sources/ui__tests__protocol_test_ts--001.md)（1 段）
+- [ui/tests/questions.test.ts](08-control-plane/sources/ui__tests__questions_test_ts--001.md)（1 段）
+- [ui/tests/settings.test.ts](08-control-plane/sources/ui__tests__settings_test_ts--001.md)（1 段）
+- [ui/tests/state.test.ts](08-control-plane/sources/ui__tests__state_test_ts--001.md)（1 段）
+- [ui/tsconfig.json](08-control-plane/sources/ui__tsconfig_json--001.md)（1 段）
+- [ui/vite.config.ts](08-control-plane/sources/ui__vite_config_ts--001.md)（1 段）
 - [workbench/api.py](08-control-plane/sources/workbench__api_py--001.md)（1 段）
 - [workbench/cli.py](08-control-plane/sources/workbench__cli_py--001.md)（1 段）
 - [workbench/native.py](08-control-plane/sources/workbench__native_py--001.md)（1 段）
-- [workbench/web/app.js](08-control-plane/sources/workbench__web__app_js--001.md)（1 段）
-- [workbench/web/index.html](08-control-plane/sources/workbench__web__index_html--001.md)（1 段）
-- [workbench/web/style.css](08-control-plane/sources/workbench__web__style_css--001.md)（1 段）
+- [workbench/web/app.js](08-control-plane/sources/assets/workbench__web__app_js--001.md)（1 段）
+- [workbench/web/index.html](08-control-plane/sources/assets/workbench__web__index_html--001.md)（1 段）
+- [workbench/web/style.css](08-control-plane/sources/assets/workbench__web__style_css--001.md)（1 段）
 ## [09-native · 原生快照与框架接入](09-native/README.md)
 
 - [scripts/business_fastapi_browser.cjs](09-native/sources/scripts__business_fastapi_browser_cjs--001.md)（1 段）
@@ -389,7 +422,7 @@
 - [scripts/ci_native_runtime.py](14-acceptance/sources/scripts__ci_native_runtime_py--001.md)（1 段）
 - [scripts/ci_native_sources.py](14-acceptance/sources/scripts__ci_native_sources_py--001.md)（1 段）
 - [scripts/ci_real_model.py](14-acceptance/sources/scripts__ci_real_model_py--001.md)（3 段）
-- [scripts/handbook_notes.py](14-acceptance/sources/scripts__handbook_notes_py--001.md)（1 段）
+- [scripts/handbook_notes.py](14-acceptance/sources/scripts__handbook_notes_py--001.md)（2 段）
 - [scripts/learning_docs_content.json](14-acceptance/sources/scripts__learning_docs_content_json--001.md)（1 段）
 - [scripts/rebuild_from_handbook.py](14-acceptance/sources/scripts__rebuild_from_handbook_py--001.md)（1 段）
 - [scripts/rebuild_learning_docs.py](14-acceptance/sources/scripts__rebuild_learning_docs_py--001.md)（1 段）
@@ -403,6 +436,7 @@
 - [tests/test_handbook_order.py](14-acceptance/sources/tests__test_handbook_order_py--001.md)（1 段）
 - [tests/test_handbook_runtime.py](14-acceptance/sources/tests__test_handbook_runtime_py--001.md)（1 段）
 - [tests/test_learning_docs.py](14-acceptance/sources/tests__test_learning_docs_py--001.md)（1 段）
+- [tests/test_learning_docs_frontend.py](14-acceptance/sources/tests__test_learning_docs_frontend_py--001.md)（1 段）
 - [tests/test_learning_order.py](14-acceptance/sources/tests__test_learning_order_py--001.md)（1 段）
 - [tests/test_legacy_date_requirements.py](14-acceptance/sources/tests__test_legacy_date_requirements_py--001.md)（1 段）
 - [tests/test_news_delivery.py](14-acceptance/sources/tests__test_news_delivery_py--001.md)（1 段）
@@ -426,3 +460,5 @@
 - [tests/test_semantic_fact_namespace_aliases.py](14-acceptance/sources/tests__test_semantic_fact_namespace_aliases_py--001.md)（1 段）
 - [tests/test_structured_facts.py](14-acceptance/sources/tests__test_structured_facts_py--001.md)（1 段）
 - [tests/test_unapproved_design_replay.py](14-acceptance/sources/tests__test_unapproved_design_replay_py--001.md)（1 段）
+- [tests/test_workbench_browser_fixture.py](14-acceptance/sources/tests__test_workbench_browser_fixture_py--001.md)（1 段）
+- [tests/test_workbench_startup.py](14-acceptance/sources/tests__test_workbench_startup_py--001.md)（1 段）

@@ -2,7 +2,7 @@
 
 [返回阶段导读](README.md)
 
-按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件与截图编码在 sources/locks 和 sources/assets 下，先读实现模块，需要校对时再打开资源。
+按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件在 sources/locks，截图及Vue构建快照编码在 sources/assets 下，先读实现模块，需要校对时再打开资源。
 
 - [examples/plans/customer-service.json](sources/examples__plans__customer-service_json--001.md)：可审查的需求与完整合同验收样例；1 段
 - [examples/requirements/customer-service-contract.md](sources/examples__requirements__customer-service-contract_md--001.md)：客服黑盒验收的字段与命名约定；1 段
@@ -19,3 +19,4 @@
 - [workbench/model_protocol.py](sources/workbench__model_protocol_py--001.md)：项目根配置或说明；1 段
 - [workbench/requirement_coverage.py](sources/workbench__requirement_coverage_py--001.md)：保留用户事实并检查可执行需求覆盖；3 段
 - [workbench/requirement_sources.py](sources/workbench__requirement_sources_py--001.md)：在规划前拒绝明确来源互相冲突的分析候选；1 段
+- [workbench/streaming.py](sources/workbench__streaming_py--001.md)：公开模型文本的安全投影与可重放事件流；1 段

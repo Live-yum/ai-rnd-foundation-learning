@@ -7,6 +7,7 @@ import threading
 from contextlib import asynccontextmanager
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, Response
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from filelock import FileLock
@@ -55,12 +56,39 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
     )
     bearer = HTTPBearer(auto_error=False)
 
+    @app.middleware("http")
+    async def response_security(request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Referrer-Policy"] = "no-referrer"
+        response.headers["Cache-Control"] = "no-store"
+        if request.url.path in {"/", "/ui"} or request.url.path.startswith("/ui/"):
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                "img-src 'self' data:; font-src 'self' data:; connect-src 'self'; "
+                "object-src 'none'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"
+            )
+            response.headers["X-Frame-Options"] = "DENY"
+        return response
+
     def auth(request: Request, credentials: HTTPAuthorizationCredentials | None = Depends(bearer)):
         if not credentials or not hmac.compare_digest(
             credentials.credentials, request.app.state.token
         ):
             raise HTTPException(401, "需要本机访问令牌；执行 uv run rnd token 查看")
         return request.app.state.store
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_handler(request, exc):
+        # Pydantic's default response includes `input` and may echo credentials.
+        # Keep only bounded, input-independent validation categories.
+        return JSONResponse(
+            status_code=422,
+            content={
+                "detail": "请求字段或格式无效，请检查必填项和当前步骤",
+                "errors": [{"type": error["type"]} for error in exc.errors()[:20]],
+            },
+        )
 
     @app.exception_handler(Conflict)
     async def conflict_handler(request, exc):
@@ -71,6 +99,8 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
         return JSONResponse(status_code=404, content={"detail": str(exc)})
 
     @app.get("/", include_in_schema=False)
+    @app.get("/ui", include_in_schema=False)
+    @app.get("/ui/", include_in_schema=False)
     def workspace_page():
         return FileResponse(
             ROOT / "workbench/web/index.html",
@@ -89,16 +119,21 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
 
     @app.get("/models")
     def models(store=Depends(auth)):
+        try:
+            configuration = settings.model_configuration()
+        except ValueError:
+            raise HTTPException(503, "本机模型配置无法安全读取，请检查配置格式与权限") from None
         result = []
         for stage in STAGES:
             try:
-                profile = settings.model_for(stage)
+                profile = configuration.profile(stage)
                 row = profile.public()
                 profile.validate_endpoint()
                 row["valid"] = True
             except ValueError as exc:
                 row = {"stage": stage, "valid": False, "error": settings.redact(str(exc))}
-            row["enabled"] = stage != "review" or settings.review_enabled
+            row["enabled"] = stage != "review" or configuration.review_enabled
+            row["validation_scope"] = "format_only"
             result.append(row)
         return result
 
@@ -110,6 +145,8 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
     def automation(
         run_id: str, body: AutomationInput, idempotency_key: str = Header(), store=Depends(auth)
     ):
+        if body.enabled:
+            require_models()
         return store.set_automation(run_id, body.enabled, idempotency_key)
 
     @app.get("/health")
@@ -140,10 +177,17 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
     def project_runs(project_id: str, store=Depends(auth)):
         return store.list_runs(project_id)
 
+    def require_models():
+        try:
+            settings.require_model()
+        except ValueError:
+            raise HTTPException(503, "请先在模型与配置中完成有效配置，再继续当前运行") from None
+
     @app.post("/projects/{project_id}/runs", status_code=202)
     def create_run(
         project_id: str, body: RunInput, idempotency_key: str = Header(), store=Depends(auth)
     ):
+        require_models()
         return store.create_run(project_id, body.model_dump(), idempotency_key)
 
     @app.get("/runs")
@@ -163,10 +207,13 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
     def resume(
         run_id: str, body: ResumeInput, idempotency_key: str = Header(), store=Depends(auth)
     ):
+        if body.action != "reject":
+            require_models()
         return store.submit(run_id, body.model_dump(), idempotency_key)
 
     @app.post("/runs/{run_id}/retry", status_code=202)
     def retry(run_id: str, idempotency_key: str = Header(), store=Depends(auth)):
+        require_models()
         return store.retry(run_id, idempotency_key)
 
     @app.get("/runs/{run_id}/events")
@@ -218,6 +265,11 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
 
         return catalog(settings)
 
+    from workbench.model_settings import register_model_settings_routes
+    from workbench.streaming import register_streaming_routes
+
+    register_model_settings_routes(app, settings, auth)
+    register_streaming_routes(app, auth)
     return app
 
 

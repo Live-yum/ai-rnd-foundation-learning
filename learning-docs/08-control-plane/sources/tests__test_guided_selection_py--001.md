@@ -17,18 +17,18 @@
 
 - `test_incompatible_stack_is_rejected_before_a_model_call`（L18–L20）：接收`bad`。 调用`pytest.raises`、`Selection.model_validate`、`pytest.mark.parametrize`、`dict`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_selection_capabilities_include_user_reported_search_and_dates`（L23–L28）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L25断言`{"keyword-search", "exact-filter", "date-range", "enum"} <= set(c["features"])`；L26断言`c["defaults"]["title_max_length"] == 250`；L27断言`c["defaults"]["body_max_length"] == 3000`；L28断言`c["date_range_inclusive"] is True`。 调用`Selection().capabilities`、`Selection`、`set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_control_page_has_template_first_and_smart_button`（L31–L40）：接收`settings`。 控制顺序：L34断言`"智能推荐" in html and "数据库" in html`；L35断言`c.get("/ui/app.js").status_code == 200`；L36断言`c.get("/ui/not-allowed.txt").status_code == 404`；L37断言`c.get("/models").status_code == 401`；L39断言`c.get("/catalog").status_code == 200`；L40断言`c.get("/models").status_code == 200`。 调用`TestClient`、`create_app`、`c.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_bad_selection_mismatch_is_not_silently_replaced`（L43–L47）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`RunInput`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_catalog_publishes_business_scope_without_losing_stack_choices`（L50–L72）：接收`settings`。 控制顺序：L54断言`{row["template"] for row in catalog} == { "python-basic", "fastapiadmin", "yudao-vben…`；L59遍历`catalog`；L61断言`row == original`；L62断言`row["backend"]`；L63断言`row["frontends"] and row["databases"]`；L64断言`"shared" in row["scopes"]`；L65断言`row["business_contract"]["scope"] == "shared"`；L66断言`"named-state-transitions" in row["business_contract"]["features"]`。后续分支沿下方源码相同行号继续阅读。 调用`TestClient`、`create_app`、`client.get("/catalog").json`、`client.get`、`Selection(template=row["template"]).capabilities`、`Selection`、`next`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_workbench_hints_use_customer_case_without_replacing_user_input`（L75–L88）：接收`settings`。 控制顺序：L79断言`"内部客户服务管理平台" in html`；L80遍历`( "customer-service.md", "customer-service-decisions.md", "custom…`；L85断言`name in html`；L86断言`"chosen.scopes" in javascript`；L87断言`"声明式业务合同" in javascript`；L88断言`"新闻" not in html and "资讯" not in html`。 调用`TestClient`、`create_app`、`client.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_control_page_has_template_first_and_smart_button`（L31–L46）：接收`settings`。 控制顺序：L35断言`'<div id="app"></div>' in html`；L36断言`'type="module"' in html and "/ui/app.js" in html`；L38断言`entry.status_code == 200`；L39断言`"智能推荐" in entry.text and "数据库" in entry.text`；L40断言`"确认本次研发的技术选型" in entry.text`；L41断言`"确认选型并开始" in entry.text`；L42断言`c.get("/ui/not-allowed.txt").status_code == 404`；L43断言`c.get("/models").status_code == 401`。后续分支沿下方源码相同行号继续阅读。 调用`TestClient`、`create_app`、`c.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_bad_selection_mismatch_is_not_silently_replaced`（L49–L53）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`RunInput`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_catalog_publishes_business_scope_without_losing_stack_choices`（L56–L78）：接收`settings`。 控制顺序：L60断言`{row["template"] for row in catalog} == { "python-basic", "fastapiadmin", "yudao-vben…`；L65遍历`catalog`；L67断言`row == original`；L68断言`row["backend"]`；L69断言`row["frontends"] and row["databases"]`；L70断言`"shared" in row["scopes"]`；L71断言`row["business_contract"]["scope"] == "shared"`；L72断言`"named-state-transitions" in row["business_contract"]["features"]`。后续分支沿下方源码相同行号继续阅读。 调用`TestClient`、`create_app`、`client.get("/catalog").json`、`client.get`、`Selection(template=row["template"]).capabilities`、`Selection`、`next`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_workbench_hints_use_customer_case_without_replacing_user_input`（L81–L95）：接收`settings`。 控制顺序：L85断言`"内部客户服务管理平台" in javascript`；L86遍历`( "customer-service.md", "customer-service-decisions.md", "custom…`；L91断言`name in javascript`；L93断言`".scopes" in javascript`；L94断言`"声明式业务合同" in javascript`；L95断言`"新闻" not in html + javascript and "资讯" not in html + javascript`。 调用`TestClient`、`create_app`、`client.get`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_guided_selection.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L88。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_guided_selection.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L95。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3544`。本段原文以LF换行结束。
+本段原始字节数：`4012`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_guided_selection.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6f38757ba3112d8d272b7952880cf9a08d0943ca806843fa26cd6c094304d7df"} -->
+<!-- learning-source: {"path": "tests/test_guided_selection.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4109126712e48434711c5e1cae024b9c4473e55833c3f2fcd8b411d134af7487"} -->
 ````python
 # tests/test_guided_selection.py
 import pytest
@@ -64,8 +64,14 @@ def test_selection_capabilities_include_user_reported_search_and_dates():
 def test_actual_control_page_has_template_first_and_smart_button(settings):
     with TestClient(create_app(settings, start_worker=False)) as c:
         html = c.get("/").text
-        assert "智能推荐" in html and "数据库" in html
-        assert c.get("/ui/app.js").status_code == 200
+        # Vite's app shell is intentionally small; copy lives in the built Vue entry.
+        assert '<div id="app"></div>' in html
+        assert 'type="module"' in html and "/ui/app.js" in html
+        entry = c.get("/ui/app.js")
+        assert entry.status_code == 200
+        assert "智能推荐" in entry.text and "数据库" in entry.text
+        assert "确认本次研发的技术选型" in entry.text
+        assert "确认选型并开始" in entry.text
         assert c.get("/ui/not-allowed.txt").status_code == 404
         assert c.get("/models").status_code == 401
         c.headers["Authorization"] = "Bearer " + c.app.state.token
@@ -109,14 +115,15 @@ def test_workbench_hints_use_customer_case_without_replacing_user_input(settings
     with TestClient(create_app(settings, start_worker=False)) as client:
         html = client.get("/").text
         javascript = client.get("/ui/app.js").text
-    assert "内部客户服务管理平台" in html
+    assert "内部客户服务管理平台" in javascript
     for name in (
         "customer-service.md",
         "customer-service-decisions.md",
         "customer-service-contract.md",
     ):
-        assert name in html
-    assert "chosen.scopes" in javascript
+        assert name in javascript
+    # Vue compiles the selected capability expression, retaining its actual scopes key.
+    assert ".scopes" in javascript
     assert "声明式业务合同" in javascript
-    assert "新闻" not in html and "资讯" not in html
+    assert "新闻" not in html + javascript and "资讯" not in html + javascript
 ````

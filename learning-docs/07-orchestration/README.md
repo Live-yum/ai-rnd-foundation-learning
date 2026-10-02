@@ -29,6 +29,16 @@ uv run pytest tests/test_workflow.py tests/test_guided_workflow.py tests/test_re
 
 本阶段结束时应能跟踪同一run_id从排队到等待、从批准到恢复。真正的恢复是继续已有身份与证据，而非重新新建一个项目看起来成功。下一站只是在这条已测链路外加API、CLI和操作台，不把业务逻辑搬进网页按钮。
 
+## 对话事件与工作流状态分别持久化
+
+流式页面需要展示“正在收到什么”，而编排需要决定“下一步可以执行什么”。两者共用run_id，但不能混为一张已批准需求表。`Store.assistant_event` 追加 `assistant_start/status/delta/completed/failed` 事件；用户回答继续写入Message。助手草稿不会被当作下一轮用户需求，完成事件也不会自动消费审批关卡。
+
+一次逻辑模型响应由response_id联系起来，每次真实尝试还有单独message_id。工作进程重启后，新尝试开始时旧的未完成草稿会被标为 `worker_interrupted`；终态事件重复到达不能追加第二个完成结果。这样既能说明发生过重试，又不让旧消息永远显示“生成中”。
+
+刷新页面时，`Store.transcript` 在同一个读取快照中返回对话与cursor；后续SSE只从cursor之后继续。PostgreSQL显式使用可重复读，避免“消息包含了某个增量，cursor却没包含它”造成重复。`event_stream` 从已经提交的事件回放再跟随新事件，检查到任务不再QUEUED/RUNNING时补查一次尾部事件，再发送idle结束。浏览器关闭或切换任务只关闭这条订阅，已持久化Worker任务仍可继续；重新订阅不会再次调用模型。
+
+需求澄清现在还可包含有ID的结构化问题与选项。先看 `domain.ClarificationQuestion` 的single/multiple/text约束，再看 `clarification.render_answer`：它在 `Store.submit` 已锁定、核对当前gate_id的事务里，从服务器当前选项恢复标签、拼接用户补充文字。旧关卡、伪造选项或漏答必填必须整体拒绝，不能先入队再提示错误。合法回答进入下一轮分析，批准需求/计划仍是另一次明确操作。
+
 ## 本阶段源码和后续依赖
 
 本阶段首次创建 14 个源文件，完整位置见[文件落盘顺序](files.md)。已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。

@@ -2,7 +2,7 @@
 
 [返回阶段导读](README.md)
 
-按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件与截图编码在 sources/locks 和 sources/assets 下，先读实现模块，需要校对时再打开资源。
+按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件在 sources/locks，截图及Vue构建快照编码在 sources/assets 下，先读实现模块，需要校对时再打开资源。
 
 - [tests/fixtures/customer_approved_replays/README.md](sources/tests__fixtures__customer_approved_replays__README_md--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/customer_approved_replays/fastapi-0e8.json](sources/tests__fixtures__customer_approved_replays__fastapi-0e8_json--001.md)：可重复的验收用例；1 段

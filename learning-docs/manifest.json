@@ -93,8 +93,8 @@
     },
     {
       "path": "workbench/domain.py",
-      "bytes": 14371,
-      "sha256": "5974d487ea8faedcb362046933bab93d27871744bbe9158f45221e0c36e3b082",
+      "bytes": 17618,
+      "sha256": "c6c2befdad76cd5fe3e20c56bcd32639b8d511a7c20dd370400bd8f7cc7d992c",
       "stage": "01-contracts",
       "parts": [
         "01-contracts/sources/workbench__domain_py--001.md"
@@ -110,9 +110,18 @@
       ]
     },
     {
+      "path": "workbench/model_settings.py",
+      "bytes": 18465,
+      "sha256": "3aa5c8d5abc2ad240d4d0ad623c9bdacc14107e1393579b6e6d1de9e97aa8ca4",
+      "stage": "01-contracts",
+      "parts": [
+        "01-contracts/sources/workbench__model_settings_py--001.md"
+      ]
+    },
+    {
       "path": "workbench/settings.py",
-      "bytes": 9354,
-      "sha256": "7df8f5eb535bc8093f45cb057e0345f2e83a5b15638902ea52b3a8bbbefe199d",
+      "bytes": 10537,
+      "sha256": "0c1e5a492669bbcaad366430b966482c1ccc5d3e33632a37168664b694facad1",
       "stage": "01-contracts",
       "parts": [
         "01-contracts/sources/workbench__settings_py--001.md"
@@ -200,9 +209,18 @@
       ]
     },
     {
+      "path": "workbench/clarification.py",
+      "bytes": 2822,
+      "sha256": "ea794fb1e2ee487a4159f338009f7da4c8154813b091a35e17ac0a4d085ee760",
+      "stage": "02-storage",
+      "parts": [
+        "02-storage/sources/workbench__clarification_py--001.md"
+      ]
+    },
+    {
       "path": "workbench/store.py",
-      "bytes": 23801,
-      "sha256": "9e3bdf350928eb79ebac0a3904f1d6fa911578c679a6786c1e8287b3a46cc54b",
+      "bytes": 34623,
+      "sha256": "f2a06ed033bc7df4ad755861df9c6b32a2ff35e59dda61361be815565a0c0b02",
       "stage": "02-storage",
       "parts": [
         "02-storage/sources/workbench__store_py--001.md"
@@ -310,8 +328,8 @@
     },
     {
       "path": "workbench/llm.py",
-      "bytes": 8628,
-      "sha256": "d4281eba4bc0988c275ba9acdb9f9db1b58f552ce3366d8322ed547fee947289",
+      "bytes": 10872,
+      "sha256": "da0b24b08edd3bf35d94357389d02983dc382ee0f4714dbb38522a8a6717c492",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__llm_py--001.md"
@@ -319,8 +337,8 @@
     },
     {
       "path": "workbench/model_protocol.py",
-      "bytes": 8774,
-      "sha256": "aa42ad468744e9c2ba6b74a3bb0386ea4dc9f6b95cb526eb928f34a84e052a6a",
+      "bytes": 17241,
+      "sha256": "f7c5e3e0ab5b6b093079902e72e59e320e4062bc2cb37aab470e758f127b7ddb",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__model_protocol_py--001.md"
@@ -344,6 +362,15 @@
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__requirement_sources_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/streaming.py",
+      "bytes": 11535,
+      "sha256": "b9b2f71a7a663ef4401ea3f674650c6bd68cf0bb61a4224fb12d48fa5296a5ab",
+      "stage": "03-requirements",
+      "parts": [
+        "03-requirements/sources/workbench__streaming_py--001.md"
       ]
     },
     {
@@ -754,8 +781,8 @@
     },
     {
       "path": "workbench/flow.py",
-      "bytes": 37665,
-      "sha256": "78f598d87cb6297ba47bd7ab1aea9ab8c1368e31d9d72ffbdd648978797aab6d",
+      "bytes": 39283,
+      "sha256": "60dfbccbc27341d1e921b4e0a3f73fb3ff15e65cad98854277336aad01c0828d",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__flow_py--001.md"
@@ -772,8 +799,8 @@
     },
     {
       "path": "workbench/runtime.py",
-      "bytes": 10155,
-      "sha256": "0d4b06190f2c2148b2d22c1a6dcb83278b322a30561e27092e136f516b0fc0e9",
+      "bytes": 10553,
+      "sha256": "2a9d898268687b223af1e763379569affad5cb467e8e1eb3c7916697ad0379d3",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__runtime_py--001.md"
@@ -799,29 +826,66 @@
     },
     {
       "path": "scripts/guided_browser.cjs",
-      "bytes": 6398,
-      "sha256": "ef6fba4efcbc3c69be53ddb3b79f218a6bcee17613d24db3cbe4c954f6e584b6",
+      "bytes": 41014,
+      "sha256": "431bbba01ec2bcea307eedf30d82fbde53d4e850964d2ca3183ef8c8d25a9802",
       "stage": "08-control-plane",
       "parts": [
-        "08-control-plane/sources/scripts__guided_browser_cjs--001.md"
+        "08-control-plane/sources/scripts__guided_browser_cjs--001.md",
+        "08-control-plane/sources/scripts__guided_browser_cjs--002.md"
       ]
     },
     {
       "path": "tests/test_api.py",
-      "bytes": 2849,
-      "sha256": "3bbe86492864d2f64d09f10809ac35d00d921cd7f4f441d4943cee9fc19719a6",
+      "bytes": 3025,
+      "sha256": "7db5b3629a9abbef4cd1fd6a2370456f99f6330cf26c6b66e927f66762987339",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/tests__test_api_py--001.md"
       ]
     },
     {
+      "path": "tests/test_clarification_choices.py",
+      "bytes": 7930,
+      "sha256": "2819e98f5dab64b1238bfd9c19b6f1c26b239616f78dc34d113c024294fb2180",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/tests__test_clarification_choices_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_cli_connection.py",
+      "bytes": 2913,
+      "sha256": "647baa409d1c49a943db873232850e810a089f0fbe20303988869956671c24b4",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/tests__test_cli_connection_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_guided_selection.py",
-      "bytes": 3544,
-      "sha256": "6f38757ba3112d8d272b7952880cf9a08d0943ca806843fa26cd6c094304d7df",
+      "bytes": 4012,
+      "sha256": "4109126712e48434711c5e1cae024b9c4473e55833c3f2fcd8b411d134af7487",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/tests__test_guided_selection_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_model_settings.py",
+      "bytes": 20178,
+      "sha256": "ce92c44f603c57c257b9cfa1bbdf463e768dbf8e7555d2394201c4e0bc3184ec",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/tests__test_model_settings_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_streaming_backend.py",
+      "bytes": 29779,
+      "sha256": "deaec9b54018d2ecec70b9f8954b03ef5b47eff81f09cc1cd3b78e9514929c9d",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/tests__test_streaming_backend_py--001.md"
       ]
     },
     {
@@ -834,9 +898,243 @@
       ]
     },
     {
+      "path": "ui/.gitignore",
+      "bytes": 31,
+      "sha256": "19dd20fe3aeeb4504d22130cd8a95d886243e76c4d733970361522fcad1a9ecd",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui___gitignore--001.md"
+      ]
+    },
+    {
+      "path": "ui/.prettierrc.json",
+      "bytes": 56,
+      "sha256": "c55215e671ed5dbd6cbc8ba38615f9b844c6319822c182d60f826566888201a3",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui___prettierrc_json--001.md"
+      ]
+    },
+    {
+      "path": "ui/README.md",
+      "bytes": 4772,
+      "sha256": "3202c1d1113dca89d8a8795d62947632754cb0df02d0797a30b7fc2f7e5bd0f4",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__README_md--001.md"
+      ]
+    },
+    {
+      "path": "ui/index.html",
+      "bytes": 425,
+      "sha256": "0541210f85022a8318491e70177feb7011d98bd05643e8209f208892a8d1bf00",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__index_html--001.md"
+      ]
+    },
+    {
+      "path": "ui/package-lock.json",
+      "bytes": 117876,
+      "sha256": "2fa0e9b822f4e28c95add06cd5c537c8dfd1a17f3848845c08bb005d64d29800",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/locks/ui__package-lock_json--001.md"
+      ]
+    },
+    {
+      "path": "ui/package.json",
+      "bytes": 817,
+      "sha256": "7980df1ea80df17cdd1e4e41def51bcf4a13879471555e48e2599cb6a5c33ac3",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__package_json--001.md"
+      ]
+    },
+    {
+      "path": "ui/src/App.vue",
+      "bytes": 14958,
+      "sha256": "5b781a616f0242efef222290f81ca9510afd49065bbfc2b068fa3a750876abf8",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__App_vue--001.md"
+      ]
+    },
+    {
+      "path": "ui/src/api.ts",
+      "bytes": 5282,
+      "sha256": "5984f5a298182514b6270e166ea1d3d405fae785fbe652f75cef99d7813cdc52",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__api_ts--001.md"
+      ]
+    },
+    {
+      "path": "ui/src/components/DataDocument.vue",
+      "bytes": 7227,
+      "sha256": "cef64422fc36dde4dc6e9e05150f202bd4b595f2f072555e9dc7694c84fc641d",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__components__DataDocument_vue--001.md"
+      ]
+    },
+    {
+      "path": "ui/src/components/HomeView.vue",
+      "bytes": 12604,
+      "sha256": "4309234ba3b62d920773905788e1a73d75bad984d0d8643474c78ddfd49533b4",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__components__HomeView_vue--001.md"
+      ]
+    },
+    {
+      "path": "ui/src/components/ProjectsView.vue",
+      "bytes": 7014,
+      "sha256": "eca607686f0dd73e6ae2b191ed72709efeaa69923778f960f1e570fc8bfc60ca",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__components__ProjectsView_vue--001.md"
+      ]
+    },
+    {
+      "path": "ui/src/components/Questionnaire.vue",
+      "bytes": 6356,
+      "sha256": "ed2228bd1857412059232923054337a7a0b0cd167ec6c4e2942ffeda323e6110",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__components__Questionnaire_vue--001.md"
+      ]
+    },
+    {
+      "path": "ui/src/components/RunView.vue",
+      "bytes": 38135,
+      "sha256": "526632a8ed35289d8e2ede5c92c1dcffb71636a6066e02bf65e8d81432836a44",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__components__RunView_vue--001.md"
+      ]
+    },
+    {
+      "path": "ui/src/components/SettingsView.vue",
+      "bytes": 14508,
+      "sha256": "9716eeaad994f490bfff183347cd4ecac82f5fe370b108a301d47fa023f3ce2f",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__components__SettingsView_vue--001.md"
+      ]
+    },
+    {
+      "path": "ui/src/main.ts",
+      "bytes": 671,
+      "sha256": "05d5d6fec008f2eb2884d100ce084bfe74c13d14481d61ba233cbacdad7f51b6",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__main_ts--001.md"
+      ]
+    },
+    {
+      "path": "ui/src/presentation.ts",
+      "bytes": 7576,
+      "sha256": "48f650db5868ffa5d8318fd95128c460d98af1cdbc3f87e13e288110805f2b77",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__presentation_ts--001.md"
+      ]
+    },
+    {
+      "path": "ui/src/state.ts",
+      "bytes": 9148,
+      "sha256": "fc18cae167e3d6ba9f5ab64ed2e6375ccce4093a072246b0aed5e9abfae3cc10",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__state_ts--001.md"
+      ]
+    },
+    {
+      "path": "ui/src/style.css",
+      "bytes": 50267,
+      "sha256": "b47f226c61d030bc0d5aea877c912ccfba07b19323f26e00158207f9d161db52",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__style_css--001.md"
+      ]
+    },
+    {
+      "path": "ui/src/types.ts",
+      "bytes": 1069,
+      "sha256": "464785e6913d3b7cc1d8d9ec33c4436be80dcce4e3be72375c0d15b2b5211cb5",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__src__types_ts--001.md"
+      ]
+    },
+    {
+      "path": "ui/tests/documents.test.ts",
+      "bytes": 2694,
+      "sha256": "6a5a5e51741042173506ce91ff289151a4b46adc01242a6f68c49d5d8ee3f252",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__tests__documents_test_ts--001.md"
+      ]
+    },
+    {
+      "path": "ui/tests/protocol.test.ts",
+      "bytes": 7755,
+      "sha256": "941a7704838e8fff78cfb83436443351cb4dc236cc157ceb9ed84dbe6e3175c1",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__tests__protocol_test_ts--001.md"
+      ]
+    },
+    {
+      "path": "ui/tests/questions.test.ts",
+      "bytes": 5304,
+      "sha256": "40587d4869890ee04e52e0a6208def88d039f31f1dd19b23b66ea5f343a4091d",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__tests__questions_test_ts--001.md"
+      ]
+    },
+    {
+      "path": "ui/tests/settings.test.ts",
+      "bytes": 2144,
+      "sha256": "ddeb62ba8c5800248d4e97a8bde8d60c431e21c7a6fbfdc27f52218a993b06eb",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__tests__settings_test_ts--001.md"
+      ]
+    },
+    {
+      "path": "ui/tests/state.test.ts",
+      "bytes": 2899,
+      "sha256": "7d42b43c888f55eba935b743050a2042ecc017410cb1840a1b08fff236f94c12",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__tests__state_test_ts--001.md"
+      ]
+    },
+    {
+      "path": "ui/tsconfig.json",
+      "bytes": 473,
+      "sha256": "73d81ec4a09e63820864db21c964a738158c63f4fc0cf6a1ef9525c9076e27a7",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__tsconfig_json--001.md"
+      ]
+    },
+    {
+      "path": "ui/vite.config.ts",
+      "bytes": 807,
+      "sha256": "599381779eaf89552673a5a47e38816bf3fb7d85a55fd9079a403e6def0c34d4",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__vite_config_ts--001.md"
+      ]
+    },
+    {
       "path": "workbench/api.py",
-      "bytes": 8413,
-      "sha256": "f7c355056f0de8d28279f66cd5bc21813194dadf89396e424f8815de5b96b610",
+      "bytes": 10811,
+      "sha256": "9be76b41042080e1abe5cf5b67456ae181c05f82e68d4d478316c4a77772a6ab",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/workbench__api_py--001.md"
@@ -844,8 +1142,8 @@
     },
     {
       "path": "workbench/cli.py",
-      "bytes": 14801,
-      "sha256": "b57c4960918273516f631fac84f57cdafe1d6020ed419f42eeb78dd229fe5783",
+      "bytes": 15534,
+      "sha256": "cfd88374504b521efdc92de06642093512ad18785a2f66642c96b5ca6bbd9023",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/workbench__cli_py--001.md"
@@ -862,29 +1160,29 @@
     },
     {
       "path": "workbench/web/app.js",
-      "bytes": 7115,
-      "sha256": "38b0a0637e8e3296166f4faf09b9cae41852fde7e83731f86fd4ab06c71b0f1f",
+      "bytes": 762220,
+      "sha256": "256309ba3519e16cf98312059e03779deb6a530e0b1d74db0916add72f1e3b27",
       "stage": "08-control-plane",
       "parts": [
-        "08-control-plane/sources/workbench__web__app_js--001.md"
+        "08-control-plane/sources/assets/workbench__web__app_js--001.md"
       ]
     },
     {
       "path": "workbench/web/index.html",
-      "bytes": 4065,
-      "sha256": "a1fb93ded7fa019904c64cf1e0f2de257e20ff0a600feadd2cdad586b55a26c4",
+      "bytes": 496,
+      "sha256": "2798d587d27756fc4375345f36bcfd1bd938df199cb5d4b06193c814f58762bf",
       "stage": "08-control-plane",
       "parts": [
-        "08-control-plane/sources/workbench__web__index_html--001.md"
+        "08-control-plane/sources/assets/workbench__web__index_html--001.md"
       ]
     },
     {
       "path": "workbench/web/style.css",
-      "bytes": 1029,
-      "sha256": "8763de75d3ae515dc74342e3c4411c1682f450c9bd08754612f8a7fb444c24c4",
+      "bytes": 41576,
+      "sha256": "a7bb12087826a638e1fc149f02e65a2768d18208720533217041e3adf09aa258",
       "stage": "08-control-plane",
       "parts": [
-        "08-control-plane/sources/workbench__web__style_css--001.md"
+        "08-control-plane/sources/assets/workbench__web__style_css--001.md"
       ]
     },
     {
@@ -2935,8 +3233,8 @@
     },
     {
       "path": ".github/workflows/test.yml",
-      "bytes": 7346,
-      "sha256": "c987bfd63098d1251b4f93c806d15db981bc487f5c063883e90b271ac2d81139",
+      "bytes": 7975,
+      "sha256": "4fd96f1d5f338ce8be2373da0683baaa2bd08c3e51edd4b4820bafc59d6eb9ea",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__test_yml--001.md"
@@ -2953,8 +3251,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 18553,
-      "sha256": "cb6b5a9b33b800125e032675e9186eaa69ece97dbdb2351472625112d7453b95",
+      "bytes": 21149,
+      "sha256": "98789713303c7b897776d6631998040cf8b39c383ac2be8e41289a239802120b",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/README_md--001.md"
@@ -2962,8 +3260,8 @@
     },
     {
       "path": "SECURITY.md",
-      "bytes": 3253,
-      "sha256": "1a5fb0000240f3ac8e6f5ea31b377324fea5e6298c0ee62246a5f8b46e3057db",
+      "bytes": 4915,
+      "sha256": "a55894a83878eaa3d90e214f6b1b947f496d3926cc292e71d1ff49d450bd574f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/SECURITY_md--001.md"
@@ -2998,8 +3296,8 @@
     },
     {
       "path": "docs/guide.md",
-      "bytes": 41755,
-      "sha256": "7e7260cc28c5d8f76abb4bfdfa6f3c2895fb8d214aefa9d62904ec69c68b5ae0",
+      "bytes": 45411,
+      "sha256": "b691fa7631a3a25344509445c3c33525c81be4e1e5b490aff72ae91e78ad912c",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__guide_md--001.md"
@@ -3088,8 +3386,8 @@
     },
     {
       "path": "docs/implementation.md",
-      "bytes": 40827,
-      "sha256": "dca0dc77128e07608952a00843ddecb594fe08611ef8cb8bb336e6cf1d32fedb",
+      "bytes": 42800,
+      "sha256": "85761ece0e94038293584675b68460c3ab49b0549f9d93db62314ecf3453c64e",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__implementation_md--001.md"
@@ -3151,8 +3449,8 @@
     },
     {
       "path": "scripts/build_handbook.py",
-      "bytes": 8277,
-      "sha256": "98e1b5ecc35fe5d51e9571165b52fe9340f81edf5ff07cf575839fb6a8e68c93",
+      "bytes": 9057,
+      "sha256": "655df2484ccdc2d31ed10fdfd692d6a6555e598bc9ecfa42af446c56854c88c0",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_handbook_py--001.md"
@@ -3160,8 +3458,8 @@
     },
     {
       "path": "scripts/build_learning_docs.py",
-      "bytes": 31749,
-      "sha256": "b10c38a6bd9347f81dcaa1a9f2007dd8d9e22423543dd4c5bc43da85dea77c97",
+      "bytes": 35283,
+      "sha256": "1d4f933d4e874efc74d92d6c937736d094a4fe67435e7f16eaa7f56f7ab29abd",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_learning_docs_py--001.md"
@@ -3169,8 +3467,8 @@
     },
     {
       "path": "scripts/ci_guided_browser.py",
-      "bytes": 8592,
-      "sha256": "40533481b935aa69dbcfaa51d578f0cbec61ff1eb1272c2c45cba26fd74da03b",
+      "bytes": 21062,
+      "sha256": "0442407cdc17b789b222565a4ca17d93f06f3846d49ab3433b6c0ffefc5da88a",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_guided_browser_py--001.md"
@@ -3187,8 +3485,8 @@
     },
     {
       "path": "scripts/ci_learning_docs.py",
-      "bytes": 7901,
-      "sha256": "933722d1c1685e3fbff7c3b6ac428001e2b3eecf56f379128f2f853bff3346ba",
+      "bytes": 11529,
+      "sha256": "74c8a462f79291e801fe72b62c40545a141a04ffdd314e0cbfbdf5611af21615",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_learning_docs_py--001.md"
@@ -3225,17 +3523,18 @@
     },
     {
       "path": "scripts/handbook_notes.py",
-      "bytes": 79763,
-      "sha256": "e8a454df9246461fe2b58589ac432791696ef107e0284cd1344e0a2338a3242c",
+      "bytes": 85096,
+      "sha256": "07968f9a34498628fd52fc1ac562a7b8e3aab4f6a915b1dbf8a0e755758e328c",
       "stage": "14-acceptance",
       "parts": [
-        "14-acceptance/sources/scripts__handbook_notes_py--001.md"
+        "14-acceptance/sources/scripts__handbook_notes_py--001.md",
+        "14-acceptance/sources/scripts__handbook_notes_py--002.md"
       ]
     },
     {
       "path": "scripts/learning_docs_content.json",
-      "bytes": 105546,
-      "sha256": "8339419d9a6dd04372510ca1c959241f07335121b8e0a3b3392ed1a2666142cc",
+      "bytes": 121477,
+      "sha256": "b1b2edda74004af591739ea1ca98a95a34d59e626914bb78fcc02a23e758c888",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__learning_docs_content_json--001.md"
@@ -3350,9 +3649,18 @@
       ]
     },
     {
+      "path": "tests/test_learning_docs_frontend.py",
+      "bytes": 7944,
+      "sha256": "2167d7bfa82b3633fc4c43f9a84b547dde4d2c0e981352de40d77f49e1d31b41",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_learning_docs_frontend_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_learning_order.py",
-      "bytes": 2103,
-      "sha256": "f3b3cc941a8c7f283f4d0000637116c6fed5e816399623a5d29d9b2cc15473bc",
+      "bytes": 2310,
+      "sha256": "c44ac836ba0d31a213e55dff00ba28d7a5724a1a9f018c86a2a4d38c7d3d4f2e",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_learning_order_py--001.md"
@@ -3460,8 +3768,8 @@
     },
     {
       "path": "tests/test_recommendation_recovery.py",
-      "bytes": 16531,
-      "sha256": "f58f0246ebcfb7cdd2706ebc9b3eeaba16195e7edc55a9398a210e2410ac9e84",
+      "bytes": 16561,
+      "sha256": "c986cec00a4c513627f8ea12d9931ef6d74d2265f6c96b9517c91330a39f873f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_recommendation_recovery_py--001.md"
@@ -3555,6 +3863,24 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_unapproved_design_replay_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_workbench_browser_fixture.py",
+      "bytes": 3949,
+      "sha256": "64953ee2b8082cbbcbf01f3dcde6fdbd3957108a775b73ab9c122a8939ef28df",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_workbench_browser_fixture_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_workbench_startup.py",
+      "bytes": 2551,
+      "sha256": "5b59983721c5de4f79b64238e2940e9b397a7d38b0ee2315a3c082bbc2b06feb",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_workbench_startup_py--001.md"
       ]
     }
   ]

@@ -53,15 +53,38 @@ class RunInput(Contract):
         return self
 
 
+class ClarificationAnswer(Contract):
+    """Explicit selections refer only to the current, reviewed question version."""
+
+    question_id: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]
+    option_ids: list[Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]] = Field(
+        default_factory=list, max_length=20
+    )
+    text: str = Field(default="", max_length=10000)
+
+    @model_validator(mode="after")
+    def unique_options(self):
+        if len(self.option_ids) != len(set(self.option_ids)):
+            raise ValueError("同一个选项不能重复提交")
+        return self
+
+
 class ResumeInput(Contract):
     gate_id: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
     action: Literal["answer", "approve", "reject", "revise", "recommend"]
+    version: int | None = Field(default=None, ge=1)
+    digest: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")] | None = None
+    answers: list[ClarificationAnswer] = Field(default_factory=list, max_length=6)
     text: str = Field(default="", max_length=20000)
     approved: StrictBool | None = None
 
     @model_validator(mode="after")
     def action_matches(self):
-        if self.action in {"answer", "revise"} and not self.text:
+        if self.answers and self.action != "answer":
+            raise ValueError("选项回答只能用于当前澄清问题")
+        if len({answer.question_id for answer in self.answers}) != len(self.answers):
+            raise ValueError("同一个问题不能重复提交")
+        if self.action in {"answer", "revise"} and not self.text and not self.answers:
             raise ValueError("回答或修改意见不能为空")
         if self.action in {"answer", "revise"}:
             from workbench.conversation import command_word
@@ -149,6 +172,35 @@ class EntityRequirement(Contract):
         return value
 
 
+class ClarificationOption(Contract):
+    id: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]
+    label: Annotated[str, Field(min_length=1, max_length=1000)]
+    description: str = Field(default="", max_length=1000)
+
+
+class ClarificationQuestion(Contract):
+    """Optional presentation of a real blocking question, with an open-text escape."""
+
+    id: Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]
+    prompt: Text
+    kind: Literal["single", "multiple", "text"]
+    options: list[ClarificationOption] = Field(default_factory=list, max_length=20)
+    required: StrictBool = True
+    allow_other: StrictBool = True
+
+    @model_validator(mode="after")
+    def valid_options(self):
+        if self.kind == "text" and self.options:
+            raise ValueError("文本问题不能包含选择项")
+        if self.kind != "text" and len(self.options) < 2:
+            raise ValueError("选择问题至少包含两个不同选项")
+        if len({option.id for option in self.options}) != len(self.options):
+            raise ValueError("同一个问题的选项标识不能重复")
+        if len({option.label for option in self.options}) != len(self.options):
+            raise ValueError("同一个问题的选项文字不能重复")
+        return self
+
+
 class Requirement(Contract):
     summary: str = Field(max_length=4000)
     users: list[Text] = Field(max_length=20)
@@ -156,6 +208,7 @@ class Requirement(Contract):
     features: list[Text] = Field(max_length=40)
     acceptance: list[Text]
     questions: list[Text] = Field(default_factory=list, max_length=6)
+    question_items: list[ClarificationQuestion] = Field(default_factory=list, max_length=6)
     assumptions: list[Text] = Field(default_factory=list)
     unsupported: list[Text] = Field(
         default_factory=list,
@@ -181,11 +234,29 @@ class Requirement(Contract):
         return self.model_dump(
             exclude={
                 name
-                for name in ("limitations", "field_requirements", "entity_requirements", "changes")
+                for name in (
+                    "limitations",
+                    "field_requirements",
+                    "entity_requirements",
+                    "changes",
+                    "question_items",
+                )
                 if not getattr(self, name)
             }
             | ({"additional_entities"} if self.additional_entities else set())
         )
+
+    @model_validator(mode="after")
+    def question_presentation(self):
+        if len({item.id for item in self.question_items}) != len(self.question_items):
+            raise ValueError("问题标识不能重复")
+        if len({item.prompt for item in self.question_items}) != len(self.question_items):
+            raise ValueError("问题文字不能重复")
+        if self.question_items and {item.prompt for item in self.question_items} != set(
+            self.questions
+        ):
+            raise ValueError("结构化问题必须逐字完整对应 questions 中的全部真实阻塞问题")
+        return self
 
     @field_validator("entity_requirements")
     @classmethod
