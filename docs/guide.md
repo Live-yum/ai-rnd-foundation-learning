@@ -1,5 +1,7 @@
 # 从零实现 AI 研发平台：逐步实操手册
 
+**统一主线：内部客户服务管理系统，从需求、合同、代码到三个模板的独立产品与验收。**
+
 **Python 3.14 · uv · FastAPI · SQLite/可选PostgreSQL · LangGraph · 可选多模型 · 智能推荐 · 自带原生模板**
 
 这是一份完整的实现与操作手册：前半部分按学习顺序说明创建什么、连接到哪里、如何运行与测试；后半部分直接包含同一提交中的全部文本源码、配置、数据库迁移、前端、测试和依赖锁。全文描述一个一致的最终系统，不需要任何较早版本、骨架项目或差异补丁。
@@ -28,6 +30,8 @@
 | `python-basic` / FastAPI | `simple-admin` 或 `api-only` | SQLite、PostgreSQL | 按登录用户隔离；text/integer/boolean/date/enum；长度、枚举、真实日期校验；关键词搜索、精确筛选、含两端日期区间；简单额外单记录规则 |
 | `fastapiadmin` | `fastapiadmin-vue` | PostgreSQL | 原生插件模块、菜单、角色权限和共享CRUD；text/integer/boolean；保留原框架 |
 | `yudao-vben` / Java | `vben-antd` | PostgreSQL | 原生Java模块、Vben5 Ant Design页面、菜单、角色权限与共享CRUD；text/integer/boolean |
+
+上表说明不带`Plan.business`的基础CRUD路径。带业务合同的共享产品另按“从实体CRUD写到有权限、有流程的业务产品”章节处理关联、角色行权限、状态、提醒和统计；仍必须逐关验证，不把普通CRUD的报告借给业务合同使用。
 
 后端、前端、数据库必须先选，再输入需求。不同框架的登录与路由并不天然兼容，页面和API会拒绝未适配的混搭。产品数据库与平台控制数据库独立；平台即使用SQLite，也可以生成PostgreSQL产品。
 
@@ -182,11 +186,11 @@ uv run rnd token
 
 界面先展示后端/模板、对应前端、对应数据库。点“确认选择”以后才出现项目名称和需求输入框。选择后若重新换前端/数据库，必须再次确认，不把修改悄悄应用到旧运行。
 
-第一次输入：
+第一次使用同一个标准客服案例。先在本书完整源码区创建`examples/requirements/customer-service.md`、`customer-service-decisions.md`和`customer-service-contract.md`（后两份在同一目录），按顺序把三份完整文本一起填入页面。原始需求保留原文，默认决策补充站内提醒、角色范围和统计口径，命名约定明确黑盒验收字段；不把固定Plan当模型答案。下面只是核对摘要，不能用摘要删去原文条目：
 
-> 个人泰拉瑞亚游戏资讯管理。手工录入。标题250字、正文3000字、发布日期YYYY-MM-DD必填；分类可选，选项为资讯、攻略、大神。搜索标题和正文，按分类、单日及含起止日的日期区间筛选。需要增删改查，各用户只看自己的数据。
+> 建设公司内部客户服务管理平台：维护客户档案和历史服务记录；创建服务请求、分配负责人、按批准流程改变状态并追加处理记录；支持协作任务、站内提醒和不可修改的操作审计；提供服务数量、创建到解决的时长、客户分组和每日趋势统计。管理员、客服、普通员工按角色及负责/创建范围访问数据。沿用所选框架的原生认证、ORM、事务与UI组件，并交付可在新目录和新数据库独立启动的产品。
 
-选择 `python-basic / simple-admin / sqlite`。这个例子是回归目标：不能再一轮声称搜索支持、下一轮说不支持，也不要求把日期永远退化成未经校验的普通字符串。
+先选择本次要运行的模板组合，再输入需求。基础入口为`python-basic / simple-admin / sqlite`；两个原生入口分别为`fastapiadmin / fastapiadmin-vue / postgresql`及`yudao-vben / vben-antd / postgresql`。原生环境需要先完成第19章准备。设计必须形成完整`Plan.business`，保留客户→请求→任务的关联、三角色行权限、指派、状态、记录、提醒和四类统计，不能退化成三个互不相关的CRUD页面。
 
 ### 4.1 人工交互
 
@@ -238,7 +242,13 @@ uv run rnd download 运行UUID
 uv run --no-project --python 3.14 python start.py
 ```
 
-启动器安装该产品的锁定依赖、应用Alembic迁移、启动产品。`simple-admin`前端在 `http://127.0.0.1:8001/`；api-only只提供接口及 `/docs`。先注册一个产品用户，再操作自己的实体。完成后退出并重启，记录与登录数据库仍保留。
+启动器安装该产品的锁定依赖、应用Alembic迁移、启动产品。`simple-admin`前端在 `http://127.0.0.1:8001/`；api-only只提供接口及 `/docs`。客服产品必须先初始化业务管理员：在产品目录另开终端，执行以下命令，并按隐藏密码提示输入两次（不要把密码写进命令或配置）：
+
+```powershell
+uv run python manage.py bootstrap-admin --username manager
+```
+
+此入口只允许一次成功的初始化，失败不会覆盖原账号。用该账号登录后再创建客服、员工或给已有账号分配产品角色。普通注册只得到合同中的employee角色，不能靠抢先注册成为管理员。产品角色/行权限来自`Plan.business`，不会把所有员工的数据一律开放。完成后退出并重启，记录与账号数据库仍保留。
 
 需要只初始化不启动：同一命令后追加 `--init-only`。需要换端口：追加 `--port 8002`。`--no-install`仅用于你确实已安装对应依赖的环境或测试，不推荐新手首次使用。
 
@@ -282,11 +292,12 @@ uv python install 3.14
 
 ## 7. 第一组：配置、输入契约和数据库
 
-创建 `workbench/local_only.py`、`workbench/settings.py`、`catalog.py`、`domain.py`、`errors.py`、`store.py`、`alembic.ini` 和 `migrations/`中的完整文件。local_only定义仅本机工具策略并关闭遥测；settings依赖Pydantic Settings和local_only，domain和catalog不依赖HTTP；store读取配置并提供短事务，禁止反向import api。
+创建 `workbench/local_only.py`、`workbench/settings.py`、`business_contracts.py`、`business_capabilities.py`、`catalog.py`、`domain.py`、`errors.py`、`store.py`、`alembic.ini` 和 `migrations/`中的完整文件。local_only定义仅本机工具策略并关闭遥测；settings依赖Pydantic Settings和local_only，domain和catalog不依赖HTTP；store读取配置并提供短事务，禁止反向import api。
 
 | 文件 | 负责什么 |
 |---|---|
 | settings.py | 固定数据目录、默认/阶段模型、安全继承、预算；工作目录变化不能移动数据库 |
+| business_contracts.py / business_capabilities.py | 先写有限业务合同及能力登记，供domain与catalog读取；不依赖后续API或Worker |
 | catalog.py | 真实后端/前端/数据库组合和支持能力；模型无法通过输出一个supported=true创造功能 |
 | domain.py | 输入、结构化需求、计划、规则补丁、智能委托和模型审阅格式；拒绝未知字段 |
 | errors.py | 可恢复预算暂停等错误类型，与不可恢复失败区分 |
@@ -363,7 +374,7 @@ rules只解释白名单AST，不能import/exec模型文件。coding只修改cust
 uv run pytest tests/test_safety.py tests/test_vendor.py tests/test_tools_cli.py -q
 ```
 
-设计图由规格生成。date/enum必须正确出现在ER图，所选PG产品不能画成SQLite。图旁标记设计来源，不冒充生产反射；`test_guided_completion`覆盖用户资讯规格。
+设计图由规格生成。date/enum必须正确出现在ER图，所选PG产品不能画成SQLite。图旁标记设计来源，不冒充生产反射；客服规格还必须在图和结构中保留客户、请求、任务的引用及业务合同，不用独立的三个表冒充关联。
 
 ## 11. 第五组：默认生成产品的完整后端与轻量前端
 
@@ -376,7 +387,7 @@ schema-spec和SQL DDL由同一元数据生成，SQLite和PostgreSQL分别输出�
 simple-admin不是框架原生UI的假替身，它是明确可选的轻量前端。用户可选择api-only不用它。页面通过真正fetch操作产品API，有登录、列表、新增/编辑、删除、搜索、分类/日期筛选和分页。采用textContent避免把需求文字当HTML执行。清除筛选必须恢复所有控件，并丢弃旧请求的晚到响应；浏览器回归会连续切换关键词、分类、单日和区间。
 
 ```powershell
-uv run pytest tests/test_news_delivery.py tests/test_guided_selection.py -q
+uv run pytest tests/test_business_contracts.py tests/test_business_python.py tests/test_guided_selection.py -q
 ```
 
 这组测试验证用户日志里的具体案例，不以一个最简单的hello接口替代复杂字段和过滤要求。
@@ -422,7 +433,7 @@ uv run pytest tests/test_api.py tests/test_workflow.py tests/test_guided_workflo
 uv run python -m scripts.ci_guided_browser
 ```
 
-浏览器集成需预先安装独立Playwright1.56.1/Chromium；普通使用轻量页面不需要本机安装Playwright。该脚本使用三个明确的本机HTTP模型夹具，真正打开平台页面，先选模板，再输入用户资讯需求，点智能推荐后不再人工确认，下载并打开独立产品，真实搜索筛选；不是mock页面请求。
+浏览器集成需预先安装独立Playwright1.56.1/Chromium；普通使用产品页面不需要本机安装Playwright。ci_guided_browser保留基础交互的历史回归，不作为当前客服标准例的完整证据。客服验收走业务章节的三个模板检查、真实三角色页面与独立部署；输入和响应夹具应明确标记，不能mock页面请求或借用旧案例的报告。
 
 ## 14. 运行状态、预算与恢复
 
@@ -459,7 +470,7 @@ templates/vendor/                 固定第三方源码ZIP与许可证
 
 ## 17. 正式Actions与手册一致性
 
-正式PR不能只包含“运行过的候选截图”。Actions对提交的源码运行：Linux/Windows回归、PG平台与产品测试、默认产品独立安装、真实工作台和资讯页面浏览器、原生两套生成与独立交付新库启动。CI无需真实模型Key，夹具是显式的；验证你的供应商只能用本机.env。
+正式PR不能只包含“运行过的候选截图”。Actions对提交的源码运行：Linux/Windows回归、PG平台与产品测试、默认产品独立安装、真实工作台/产品页面浏览器及客服三角色业务浏览器、原生两套生成与独立交付新库启动。常规回归不注入真实模型Key，夹具是显式的；真实DeepSeek客服验收另走经过授权的本机配置或rnd环境手动任务，并记录同一提交身份。
 
 ```powershell
 uv run ruff check .
@@ -474,7 +485,7 @@ uv run python -m scripts.build_handbook --check
 uv run python -m scripts.build_handbook
 ```
 
-生成器把全部正文、逐文件讲解与真实源码完整组合成唯一正式手册。每个源码块带SHA；test_handbook验证逐块一致性与空目录还原后再次生成相同手册。二进制vendorZIP在Git中单独保存，书中包含重建这些ZIP的完整脚本、manifest与许可证，不把二进制伪装成代码块，也不要求已有ZIP作为学习前提。
+生成器把全部正文、逐文件讲解与真实源码完整组合成唯一正式手册。每个源码块带SHA；test_handbook验证逐块一致性与空目录还原后再次生成相同手册。客服章节在建档、权限、分配、历史、提醒和统计处配有真实浏览器截图；图注注明模板、来源提交及证据范围。PNG原始字节通过可折叠Base64资源块随书保存，独立还原程序严格解码并逐张核对SHA，正文仍使用`docs/images/`相对路径，不塞入data URI。二进制vendorZIP在Git中单独保存，书中包含重建这些ZIP的完整脚本、manifest与许可证，不把二进制伪装成可手写源码，也不要求已有ZIP作为学习前提。
 
 手工学习创建顺序可照第7—13章；全部源码齐全后再执行全量测试。复现安装始终 `--locked`；依赖更新需提交真实新锁并重跑，不由AI随意修改锁内容。
 
@@ -493,7 +504,7 @@ uv run python -m scripts.build_handbook
 | 浏览器工作台显示KeyError | 错误包含源码位置；日期/枚举图表有回归测试，检查你是否使用同提交完整源码 |
 | 手册不一致 | 修改正文源或代码后重新build_handbook，不手工只改生成文档或关闭测试 |
 
-通关顺序：配置单模型 → 可选阶段覆盖验证 → 选择组合后新建 → 人工13+轮不丢数据 → 任意关卡智能推荐后无后续提问 → 用户资讯案例完整字段与搜索筛选 → 独立产品启动 → 原生环境及独立新库交付 → Windows/Linux/PG/浏览器CI → 整本手册一致。实际结果必须有对应提交的报告，不凭README一句“已通过”。
+通关顺序：配置单模型 → 可选阶段覆盖验证 → 选择组合后新建 → 人工13+轮不丢数据 → 任意关卡智能推荐后无后续提问 → 客服三资源关联、角色、指派、流程、记录、提醒与统计 → 独立产品启动 → 原生环境及独立新库交付 → Windows/Linux/PG/浏览器CI → 整本手册一致。实际结果必须有对应提交的报告，不凭README一句“已通过”。
 
 ### 官方资料
 

@@ -63,3 +63,11 @@ def test_full_vben_build_has_bounded_rust_parallelism():
     env = native_frontend.frontend_environment("yudao-vben", "http://127.0.0.1:48080")
     assert env["RAYON_NUM_THREADS"] == "2"
     assert "8192" in env["NODE_OPTIONS"]
+
+
+@pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])
+def test_generated_native_product_uses_approved_project_title(template):
+    title = "内部客户服务管理平台"
+    env = native_frontend.frontend_environment(template, "http://127.0.0.1:48080", title)
+    assert env["VITE_APP_TITLE"] == title
+    assert env["VITE_APP_TITLE"] != "Native lab"

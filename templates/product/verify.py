@@ -51,9 +51,13 @@ def stop(process):
     process.wait(timeout=15)
 
 
-def verify(product, python=sys.executable):
+def verify(product, python=sys.executable, business_screenshots=None):
     product = Path(product).resolve()
     spec = json.loads((product / "approved-spec.json").read_text(encoding="utf-8"))
+    if spec.get("business"):
+        from verify_business import verify_business
+
+        return verify_business(product, python, stop, BrowserPrerequisite, business_screenshots)
     checks = []
     suffix = uuid.uuid4().hex[:10]
     browser_report = {"applicable": False, "reason": "api-only frontend"}
@@ -348,6 +352,7 @@ def verify(product, python=sys.executable):
                     env=browser_env,
                     capture_output=True,
                     text=True,
+                    encoding="utf-8",
                     timeout=300,
                     check=False,
                 )
@@ -414,9 +419,14 @@ def main():
     parser.add_argument("--product", type=Path, default=Path(__file__).resolve().parent)
     parser.add_argument("--python", default=sys.executable)
     parser.add_argument("--report", type=Path)
+    parser.add_argument(
+        "--business-screenshots",
+        type=Path,
+        help="Optional new empty output directory for synthetic business PNG evidence",
+    )
     args = parser.parse_args()
     try:
-        result = verify(args.product, args.python)
+        result = verify(args.product, args.python, args.business_screenshots)
     except (
         CheckFailed,
         httpx.HTTPError,

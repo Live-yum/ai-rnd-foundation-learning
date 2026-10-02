@@ -84,10 +84,22 @@ class Selection(BaseModel):
         return self
 
     def capabilities(self):
+        from workbench.business_capabilities import BUSINESS
+
         return {
             **PAIRS[self.template],
             **self.model_dump(),
             "date_range_inclusive": True,
+            "scopes": [
+                PAIRS[self.template]["scope"],
+                *(["shared"] if self.template == "python-basic" else []),
+            ],
+            "business_contract": BUSINESS,
+            "not_supported": [
+                item
+                for item in PAIRS[self.template]["not_supported"]
+                if item not in {"business-rbac", "cross-entity-transactions"}
+            ],
             "defaults": {
                 "title_max_length": 250,
                 "body_max_length": 3000,
@@ -102,4 +114,4 @@ def options_for_run(run):
 
 
 def selections():
-    return [{"template": k, **v} for k, v in PAIRS.items()]
+    return [Selection(template=template).capabilities() for template in PAIRS]

@@ -1,12 +1,14 @@
 """Read-only startup inspection must be scoped, redacted and cleanup-independent."""
 
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
 from pydantic import SecretStr
 
 from workbench import daytona_diagnostics as diagnostics
+from workbench import tools
 from workbench.filesystem import atomic_text
 from workbench.generator import PrerequisiteError
 from workbench.sandbox import verify_in_daytona
@@ -35,8 +37,8 @@ def test_diagnostics_only_exact_owned_id_fixed_daemons_and_no_environment_dump(
     def command(argv, cwd, timeout):
         calls.append(argv)
         assert 0 < timeout <= 5
-        assert argv[:2] == ["docker", "--host"]
-        assert "unix:///var/run/docker.sock" in argv
+        assert argv[:2] == ["docker", "compose"]
+        assert "DOCKER_HOST=unix:///var/run/docker.sock" in argv
         assert "runner" in argv and OWNED_ID in argv
         assert "ps" not in argv and "Env" not in " ".join(argv)
         return {
@@ -62,7 +64,105 @@ def test_diagnostics_only_exact_owned_id_fixed_daemons_and_no_environment_dump(
         len(value["text"]) <= diagnostics.MAX_CHARS for value in report["diagnostics"].values()
     )
     assert "OOMKilled" in calls[0][calls[0].index("--format") + 1]
-    assert calls[-1][-4:] == ["tail", "-c", "8192", "/tmp/daytona-daemon.log"]
+    assert calls[-1][-3:] == ["tail", "--bytes=8192", "/tmp/daytona-daemon.log"]
+
+
+def test_diagnostics_cross_real_local_command_policy_with_fixed_inner_environment(
+    tmp_path, settings, monkeypatch
+):
+    local = local_compose(tmp_path, monkeypatch)
+    settings.daytona_api_key = SecretStr("api-secret-sentinel")
+    hostile = {
+        "DOCKER_HOST": "tcp://remote.invalid:2376",
+        "DOCKER_CONTEXT": "remote-context",
+        "DOCKER_TLS": "1",
+        "DOCKER_TLS_VERIFY": "1",
+        "DOCKER_CERT_PATH": "/untrusted-certificates",
+        "DOCKER_CONFIG": "/untrusted-config",
+    }
+    for name, value in hostile.items():
+        monkeypatch.setenv(name, value)
+    calls = []
+    waits = []
+
+    class Process:
+        def __init__(self, argv, **kwargs):
+            calls.append((argv, kwargs))
+            kwargs["stdout"].write(
+                b"x" * 10000 + b" api-secret-sentinel local-password-sentinel password=other-secret"
+            )
+
+        def wait(self, timeout):
+            waits.append(timeout)
+            return 0
+
+    # Keep capture_startup, run_command and local_docker_command real. Only the
+    # process creation is stubbed, so a rejected diagnostic cannot look captured.
+    monkeypatch.setattr(tools.subprocess, "Popen", Process)
+    report = diagnostics.capture_startup(OWNED_ID, OWNED_NAME, settings)
+    endpoint = (
+        "npipe:////./pipe/docker_engine" if os.name == "nt" else "unix:///var/run/docker.sock"
+    )
+    expected_prefix = [
+        "docker",
+        "--host",
+        endpoint,
+        "compose",
+        "-p",
+        local.PROJECT,
+        "-f",
+        str(tmp_path / "compose.lock.yaml"),
+        "exec",
+        "-T",
+        "-e",
+        "DOCKER_HOST=unix:///var/run/docker.sock",
+        "-e",
+        "DOCKER_CONTEXT=",
+        "-e",
+        "DOCKER_TLS=",
+        "-e",
+        "DOCKER_TLS_VERIFY=",
+        "-e",
+        "DOCKER_CERT_PATH=",
+        "runner",
+        "docker",
+    ]
+    expected_suffixes = [
+        ["inspect", "--format", diagnostics.STATE_FORMAT, OWNED_ID],
+        ["logs", "--tail", "80", OWNED_ID],
+        ["exec", OWNED_ID, "tail", "--bytes=8192", "/tmp/daytona-daemon.log"],
+    ]
+    assert len(calls) == len(waits) == 3
+    for (argv, options), suffix in zip(calls, expected_suffixes, strict=True):
+        assert argv == expected_prefix + suffix
+        assert options["shell"] is False
+        assert all(name not in options["env"] for name in hostile)
+    assert all(0 < timeout <= 5 for timeout in waits)
+    assert diagnostics.TOTAL_SECONDS == 15
+    assert report["passed"] is False and report["affects_acceptance"] is False
+    assert all(row["status"] == "captured" for row in report["diagnostics"].values())
+    assert all(len(row["text"]) <= 8192 for row in report["diagnostics"].values())
+    body = json.dumps(report)
+    for secret in ["api-secret-sentinel", "local-password-sentinel", "other-secret"]:
+        assert secret not in body
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["docker", "--host", "tcp://remote.invalid:2376", "ps"],
+        ["docker", "--host", "unix:///var/run/docker.sock", "ps"],
+        ["docker", "--context=remote", "ps"],
+        ["docker", "-H", "unix:///var/run/docker.sock", "ps"],
+        ["docker", "exec", OWNED_ID, "tail", "-c", "8192", "/tmp/daytona-daemon.log"],
+    ],
+)
+def test_diagnostics_fix_does_not_relax_general_docker_overrides(argv, tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        tools.subprocess, "Popen", lambda *a, **kw: pytest.fail("override reached process")
+    )
+    with pytest.raises(ValueError):
+        tools.run_command(argv, tmp_path, timeout=5)
 
 
 @pytest.mark.parametrize(
@@ -75,8 +175,8 @@ def test_diagnostics_only_exact_owned_id_fixed_daemons_and_no_environment_dump(
 )
 def test_invalid_identity_never_invokes_docker(identifier, name, settings, monkeypatch):
     monkeypatch.setattr(
-        diagnostics,
-        "run_command",
+        tools.subprocess,
+        "Popen",
         lambda *a, **kw: pytest.fail("must not inspect another container"),
     )
     with pytest.raises(ValueError):

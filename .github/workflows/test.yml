@@ -19,7 +19,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 35
+    # Windows includes a cold native dependency install before the complete suite.
+    # Keep individual test/browser deadlines unchanged; bound each job explicitly.
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 60 || 35 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -158,6 +160,7 @@ jobs:
           path: |
             reports/handbook-clean-room.json
             reports/handbook-tests.xml
+            reports/handbook-test-status.json
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15

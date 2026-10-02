@@ -1,7 +1,7 @@
 """Deterministic validators shared by CRUD and query filters; no LLM execution."""
 
 import re
-from datetime import date
+from datetime import date, datetime, timezone
 
 from pydantic import ConfigDict, Field, StrictBool, StrictInt, StrictStr, create_model
 
@@ -21,14 +21,19 @@ def input_model(entity):
             "text": StrictStr,
             "enum": StrictStr,
             "date": StrictStr,
+            "datetime": StrictStr,
             "integer": StrictInt,
             "boolean": StrictBool,
         }[kind]
         constraints = {}
-        if kind in {"text", "enum", "date"}:
+        if kind in {"text", "enum", "date", "datetime"}:
             constraints = {
                 "min_length": max(1 if field["required"] else 0, field.get("min_length", 0)),
-                "max_length": 10 if kind == "date" else field["max_length"],
+                "max_length": 10
+                if kind == "date"
+                else 40
+                if kind == "datetime"
+                else field["max_length"],
             }
         elif kind == "integer":
             constraints = {"ge": -9223372036854775808, "le": 9223372036854775807}
@@ -50,6 +55,8 @@ def validate_options(entity, values):
             continue
         if field["kind"] == "date":
             date_string(value)
+        elif field["kind"] == "datetime":
+            values[field["name"]] = datetime_string(value)
         elif field["kind"] == "enum" and value not in field["choices"]:
             raise ValueError("分类不在已配置的选项中")
     return values
@@ -72,9 +79,20 @@ def filter_value(field, value):
             return value == "true"
         case "date":
             return date_string(value)
+        case "datetime":
+            return datetime_string(value)
         case "enum":
             if value not in field["choices"]:
                 raise ValueError("筛选值不在枚举中")
             return value
         case _:
             return value
+
+
+def datetime_string(value):
+    if not isinstance(value, str):
+        raise ValueError("时间必须是包含时区的ISO时间")
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise ValueError("时间必须包含时区")
+    return parsed.astimezone(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")

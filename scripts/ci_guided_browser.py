@@ -62,7 +62,14 @@ def main():
                 raise AssertionError("Unexpected model stage for deterministic CRUD: " + model)
             encoded = json.dumps(
                 {
-                    "choices": [{"message": {"content": json.dumps(value, ensure_ascii=False)}}],
+                    "choices": [
+                        {
+                            "message": {
+                                "role": "assistant",
+                                "content": json.dumps(value, ensure_ascii=False),
+                            }
+                        }
+                    ],
                     "usage": {"total_tokens": 50},
                 },
                 ensure_ascii=False,

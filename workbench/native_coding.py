@@ -356,7 +356,7 @@ def native_rule_customizer(settings, gateway, run_id):
                         }
                 candidate_reports = reports / f"native-coding-{attempt}"
                 write_json(candidate_reports / "browser-targets.json", targets)
-                front_env = frontend_environment(template, base)
+                front_env = frontend_environment(template, base, plan.title)
                 prepared = (reports / "native-front-prepared.json").exists()
                 build_frontend(template, frontend, front_env, candidate_reports, prepared=prepared)
                 write_json(reports / "native-front-prepared.json", {"prepared": True})

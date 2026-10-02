@@ -28,12 +28,24 @@ uv run python -m scripts.build_handbook --check
 
 最后一条必须输出`Single handbook source consistency PASS`。如果只有你手写的源码而没有根目录生成手册，先运行不带`--check`的`build_handbook`生成它，再检查。这里验证源码与正文一致，不代表数据库、浏览器或Daytona已经运行过。
 
+独立的 `handbook-only` Actions 会把这一本书复制到临时目录，重建自有源码、固定第三方
+归档和 Continue，再实际执行完整非 PostgreSQL 套件。整套测试子进程的明确预算为
+1800 秒，外层 job 仍限制 40 分钟；安装等其他步骤沿用自己的预算，单项测试和浏览器等待
+没有因此放宽。超时始终失败，只中断和清理本次启动的测试进程，尽量让 pytest 写出 JUnit。
+`handbook-test-status.json` 记录阶段、预算、退出码、超时与清理状态，已产生的 JUnit 也会
+保留；这些诊断不能替代完整测试通过后的 `handbook-clean-room.json`。
+
+普通全套测试的 job 总预算按平台区分：Linux 为 35 分钟，Windows 为 60 分钟，包含安装
+依赖和运行完整测试。Windows 的冷安装会占用较长前置时间；这个外层预算不修改任何
+浏览器、接口或单个测试的超时，也不会让被中断的套件变成通过。捕获子进程文本明确按
+UTF-8 解码，不能依赖 Windows 当前的 cp1252 等本地编码。
+
 第三方框架不由你从零重写。按书中完整的`vendor_templates.py`、manifest和许可证重建固定上游源码归档，再运行`rnd init`。`uv.lock`、Node的`package-lock.json`和模板固定提交各自约束不同依赖，不可互相替代。
 
 ## 三、站点1：先让合同与数据库独立成立
 
 ```powershell
-uv run pytest tests/test_contracts.py tests/test_store.py tests/test_learning_order.py -q
+uv run pytest tests/test_contracts.py tests/test_business_contracts.py tests/test_business_capabilities.py tests/test_store.py tests/test_learning_order.py -q
 ```
 
 看源码时跟随这条链：输入字典 → Pydantic合同 → Store事务 → 数据库记录。试着指出字段名拼错在哪里被拒绝、事务失败在哪里回滚、重复请求为什么不多创建一次任务。这里用临时数据库，不需要你的模型密钥。不要提前启动网页掩盖尚未写齐的数据库模块。
@@ -58,7 +70,7 @@ uv run rnd start
 
 ## 五、站点3：生成器、Plop、Aider各做一件可核查的事
 
-先学习确定性CRUD：已批准Plan → generator/native generator → 实际文件 → 独立验证。基础CRUD无须调用编码模型。只有额外的单记录业务规则需要编码时，才准备独立Aider环境：
+先学习客服确定性生成：已批准Plan.business → generator/native generator → 框架专用业务适配 → 实际文件 → 角色、关联、流程、提醒和统计的独立验证。声明式客服合同无须调用编码模型。只有额外的单记录业务规则需要编码时，才准备独立Aider环境：
 
 ```powershell
 uv sync --locked --project tools/aider --python 3.12
@@ -95,9 +107,9 @@ export PRODUCT_VERIFY_PLAYWRIGHT="$PWD/.native/browser/node_modules/playwright"
 
 产品独立验收也可以在产品根目录安装同一工具，或显式使用上述已安装模块的绝对路径。复用的是测试工具，不是平台业务代码或平台数据库。缺Node、模块或Chromium应明确失败；api-only没有前端，报告标记不适用，但不能把带前端的任务改成api-only以绕过验收。
 
-源码连接关系是`workbench.verification.run_probe → templates/product/verify.py → verify-browser.cjs`。`require_browser_evidence`再次按approved-spec核对全部实体、字段对应的检查名称以及零页面错误；缺少一个应有的检查也不能通过。`verify.py`和CJS脚本一同进入产品ZIP，干净解压后再次运行同一验证链。
+客服源码连接关系是`workbench.verification.run_probe → templates/product/verify.py → verify_business.py → verify-business-browser.cjs`；无business合同的普通实体测试使用`verify-browser.cjs`。`require_browser_evidence`再次按approved-spec核对全部实体、字段对应的检查名称以及零页面错误；缺少一个应有的检查也不能通过。`verify.py`和CJS脚本一同进入产品ZIP，干净解压后再次运行同一验证链。
 
-测试不仅看首屏，还应覆盖新增、编辑、删除、关键词、筛选、清除条件、分页及重启后的数据。真实表单测试要走页面操作，不靠注入登录令牌、替换接口结果或只截一张静态图。相同源码生成的独立解压目录需要再验证，不能拿生成目录的报告当作解压目录已经通过。
+客服测试不仅看首屏，还应覆盖客户/请求/任务新增编辑、关联选择、分配、状态转换、备注、归档、历史、提醒、统计、越权拒绝及重启后的数据；普通字段查询继续覆盖关键词、筛选、清除条件与分页。真实表单测试要走页面操作，不靠注入登录令牌、替换接口结果或只截一张静态图。相同源码生成的独立解压目录需要再验证，不能拿生成目录的报告当作解压目录已经通过。
 
 ## 七、站点5：启动原生框架，再准备对应Daytona快照
 

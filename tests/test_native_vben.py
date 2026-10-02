@@ -33,16 +33,16 @@ def test_changed_or_ambiguous_upstream_context_fails_closed(source):
 def test_vben_boundary_is_local_and_excluded_from_delivery(tmp_path):
     source = tmp_path / "upstream"
     (source / ".git").mkdir(parents=True)
-    (source / ".git/config").write_text("never-copy-upstream-credentials")
-    (source / ".env").write_text("API_KEY=never-copy-me")
-    (source / "package.json").write_text(json.dumps({"name": "boundary-fixture"}))
+    (source / ".git/config").write_text("never-copy-upstream-credentials", encoding="utf-8")
+    (source / ".env").write_text("API_KEY=never-copy-me", encoding="utf-8")
+    (source / "package.json").write_text(json.dumps({"name": "boundary-fixture"}), encoding="utf-8")
     destination = tmp_path / "product"
     copy_source(source, destination)
     before = manifest(destination)
     initialize_vben_boundary(destination)
     assert manifest(destination) == before
     assert not (destination / ".env").exists()
-    config = (destination / ".git/config").read_text()
+    config = (destination / ".git/config").read_text(encoding="utf-8")
     assert "remote" not in config and "never-copy" not in config
     assert not (destination / ".git/hooks").exists()
     result = run_command(["git", "rev-parse", "--show-toplevel"], destination, 30)
@@ -130,3 +130,35 @@ def test_generated_schema_preserves_zero_false_and_all_fields():
 def test_unknown_generated_boolean_shape_fails_closed(source):
     with pytest.raises(ValueError, match="Unsupported generated"):
         adapt_generated_schema(source, [FieldSpec(name="enabled", kind="boolean")])
+
+
+@pytest.mark.parametrize(
+    "kind,component",
+    [("enum", "Input"), ("enum", "Select"), ("date", "DatePicker"), ("datetime", "DatePicker")],
+)
+def test_business_scalar_controls_are_not_misclassified_as_boolean(kind, component):
+    field = FieldSpec(
+        name="category" if kind == "enum" else "due_at",
+        kind=kind,
+        choices=["a", "b"] if kind == "enum" else [],
+    )
+    name = "category" if kind == "enum" else "dueAt"
+    original = schema_field(name, component, component == "Select")
+    assert adapt_generated_schema(original, [field]) == original
+
+
+def test_business_fields_preserved_while_classic_boolean_guard_still_runs():
+    source = schema_field("category", "Input") + "\n" + schema_field("enabled", "Select", True)
+    result = adapt_generated_schema(
+        source,
+        [
+            FieldSpec(name="category", kind="enum", choices=["a", "b"]),
+            FieldSpec(name="enabled", kind="boolean"),
+        ],
+    )
+    assert schema_field("category", "Input") in result
+    assert result.count("component: 'RadioGroup'") == 1
+    with pytest.raises(ValueError, match="Unsupported generated boolean control"):
+        adapt_generated_schema(
+            schema_field("enabled", "Input"), [FieldSpec(name="enabled", kind="boolean")]
+        )

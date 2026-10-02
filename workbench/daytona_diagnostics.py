@@ -5,7 +5,6 @@ change network settings, or turn failed creation into successful acceptance.
 """
 
 import json
-import os
 import re
 import time
 import uuid
@@ -66,11 +65,12 @@ def capture_startup(sandbox_id, sandbox_name, settings):
         text = re.sub(r"(://[^/@:\s]+:)[^@\s]+@", r"\1[REDACTED]@", text)
         return text[-MAX_CHARS:]
 
-    host = "npipe:////./pipe/docker_engine" if os.name == "nt" else "unix:///var/run/docker.sock"
+    # run_command pins the outer Docker CLI to this machine's local socket.
+    # Compose exec must also pin the inner CLI to the runner's own DinD socket;
+    # explicit fixed values override its environment without a shell or a remote
+    # context. Do not pass --host through the generic command policy.
     prefix = [
         "docker",
-        "--host",
-        host,
         "compose",
         "-p",
         PROJECT,
@@ -78,10 +78,18 @@ def capture_startup(sandbox_id, sandbox_name, settings):
         str(compose),
         "exec",
         "-T",
+        "-e",
+        "DOCKER_HOST=unix:///var/run/docker.sock",
+        "-e",
+        "DOCKER_CONTEXT=",
+        "-e",
+        "DOCKER_TLS=",
+        "-e",
+        "DOCKER_TLS_VERIFY=",
+        "-e",
+        "DOCKER_CERT_PATH=",
         "runner",
         "docker",
-        "--host",
-        "unix:///var/run/docker.sock",
     ]
     commands = {
         "state": ["inspect", "--format", STATE_FORMAT, sandbox_id],
@@ -90,8 +98,7 @@ def capture_startup(sandbox_id, sandbox_name, settings):
             "exec",
             sandbox_id,
             "tail",
-            "-c",
-            str(MAX_CHARS),
+            "--bytes=" + str(MAX_CHARS),
             "/tmp/daytona-daemon.log",
         ],
     }

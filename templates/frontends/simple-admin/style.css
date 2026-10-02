@@ -79,3 +79,31 @@ dialog {
 [hidden] {
   display: none !important;
 }
+
+/* Team business panels extend the existing lightweight admin visual system. */
+#business-panels { padding: 16px 0; }
+#business-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; margin: 12px 0 20px; }
+#business-metrics .metric-card { margin: 0; padding: 16px; border: 1px solid #dfe4ed; background: #f8faff; min-width: 0; }
+.metric-card h3 { margin: 0 0 12px; font-size: 15px; color: #47556b; }
+.metric-value { margin: 0; font-size: 26px; font-weight: 650; }
+.metric-chart { display: grid; gap: 10px; }
+.metric-group { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 10px; font-size: 13px; }
+.metric-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.metric-track { grid-column: 1 / -1; height: 7px; background: #e4eaf5; border-radius: 5px; overflow: hidden; }
+.metric-track span { display: block; height: 100%; background: #5676c5; border-radius: inherit; }
+#business-notifications { max-height: 220px; overflow: auto; font-size: 14px; }
+#business-notifications p { padding: 8px 0; margin: 0; border-bottom: 1px solid #edf0f5; }
+#business-admin { margin: 12px 0; }
+#business-users { max-height: 240px; overflow: auto; }
+#record-fields label { display: grid; grid-template-columns: 110px minmax(0,1fr); margin: 8px 0; align-items: start; }
+#record-fields input, #record-fields select, #record-fields textarea { box-sizing: border-box; margin: 0; width: 100%; }
+dialog { max-height: 85vh; overflow: auto; }
+dialog::backdrop { background: rgba(23,32,51,.28); }
+@media (max-width: 600px) { body { padding: 12px; } main { padding: 12px; } #record-fields label { grid-template-columns: 1fr; } #business-metrics { grid-template-columns: 1fr; } }
+
+.table table { min-width: 960px; }
+.table th { white-space: nowrap; }
+.table td { min-width: 90px; max-width: 240px; overflow-wrap: normal; word-break: normal; }
+.table td:last-child { min-width: 200px; }
+.table th:last-child, .table td:last-child { width: 235px; position: sticky; right: 0; background: white; box-shadow: -4px 0 6px rgba(23,32,51,.05); z-index: 1; }
+.table td:last-child { min-width: 235px; white-space: nowrap; }

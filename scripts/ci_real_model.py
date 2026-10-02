@@ -1,7 +1,10 @@
 """Opt-in real provider acceptance; only allowlisted evidence leaves the isolated job.
 
 No model fixtures, provider substitutions, secret discovery, or automatic scheduling.
-The source files and databases produced during the run are deliberately not artifacts.
+Generated source, databases and raw logs are never artifacts. A bounded, validated,
+secret-scanned approved customer Plan can be retained for deterministic replay.
+Failure-only normalized Requirement/candidate Plan envelopes are diagnostics,
+explicitly unapproved and unusable as generation inputs.
 """
 
 import contextlib
@@ -16,6 +19,7 @@ import subprocess
 import tempfile
 import threading
 import time
+import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -27,11 +31,14 @@ REFS = {
     "refs/heads/main",
     "refs/heads/feat/complete-platform-acceptance",
     "refs/heads/feat/real-model-acceptance",
+    "refs/heads/feat/customer-service-acceptance",
 }
 ENDPOINT = "https://api.deepseek.com"
 MODEL = "deepseek-flash"
 MAX_WORKFLOW_CALLS = 16
-MAX_COMPLETION_TOKENS = 4096
+# DeepSeek thinking defaults to 64K; 16K truncated complete customer plans.
+# Keep finite call/byte limits and preserve the separate exact smoke request.
+MAX_COMPLETION_TOKENS = 65536
 SMOKE_PAYLOAD = {
     "model": MODEL,
     "messages": [
@@ -42,16 +49,6 @@ SMOKE_PAYLOAD = {
     "reasoning_effort": "high",
     "stream": False,
 }
-NEWS_REQUEST = (
-    "泰拉瑞瑞亚游戏资讯。创建登录后逐用户隔离的个人资讯管理页面，手动录入，支持增删改查。"
-    "本次验收的明确字段契约：实体 news；title 为必填文本，1至250字符，可关键词搜索；"
-    "body 为必填文本，1至3000字符，也可关键词搜索；published_on 为必填真实日期，"
-    "支持单日精确筛选和包含起止日的日期区间；category 为可选枚举，选项资讯、攻略、大神，"
-    "可精确筛选。关键词、分类、日期条件必须可以组合，清除条件恢复完整列表。"
-    "用户注册登录后只能访问自己的记录，跨用户读写拒绝。"
-    "选择 python-basic、simple-admin、SQLite；未明确事项使用智能推荐。"
-    "不要增加网站采集、匿名公众访问、支付或其他未要求功能。"
-)
 
 
 class SafeFailure(RuntimeError):
@@ -115,6 +112,7 @@ class BoundedRealTransport(httpx.BaseTransport):
         self.receipts = []
         self.current_schema = None
         self.current_stage = "smoke"
+        self.diagnostic_text = DiagnosticTextBudget(secrets=(config.key.get_secret_value(),))
 
     def handle_request(self, request):
         if (
@@ -126,6 +124,10 @@ class BoundedRealTransport(httpx.BaseTransport):
         body = json.loads(request.read())
         if body.get("model") != self.config.model:
             raise SafeFailure("model_substitution_rejected")
+        if self.current_schema is not None and body.get("response_format") != {
+            "type": "json_object"
+        }:
+            raise SafeFailure("workflow_json_mode_required")
         if not hmac.compare_digest(
             request.headers.get("Authorization", ""),
             "Bearer " + self.config.key.get_secret_value(),
@@ -152,11 +154,17 @@ class BoundedRealTransport(httpx.BaseTransport):
                 response.close()
                 raise SafeFailure("provider_response_too_large", response.status_code)
         response.close()
-        self.receipts.append(
-            response_receipt(
-                response.status_code, bytes(body_bytes), self.current_stage, self.current_schema
-            )
+        receipt = response_receipt(
+            response.status_code,
+            bytes(body_bytes),
+            self.current_stage,
+            self.current_schema,
+            text_budget=self.diagnostic_text,
         )
+        receipt["requested_output_mode"] = (
+            "json_object" if self.current_schema is not None else "transport_smoke"
+        )
+        self.receipts.append(receipt)
         response_headers = dict(response.headers)
         response_headers.pop("content-encoding", None)
         response_headers.pop("content-length", None)
@@ -172,13 +180,26 @@ class BoundedRealTransport(httpx.BaseTransport):
         self.transport.close()
 
 
-def response_receipt(status, data, stage, schema=None):
+def response_receipt(status, data, stage, schema=None, *, text_budget=None):
     from pydantic import ValidationError
 
+    from workbench.model_protocol import (
+        OutputContract,
+        OutputFailure,
+        completion_content,
+        load_json,
+        validate_content,
+    )
+
     receipt = {"http_status": status, "stage": stage}
+    text_budget = text_budget or DiagnosticTextBudget()
     try:
-        envelope = json.loads(data)
+        envelope = load_json(data)
+        if not isinstance(envelope, dict):
+            raise TypeError("invalid envelope")
         choice = envelope["choices"][0]
+        if not isinstance(choice, dict) or not isinstance(choice.get("message"), dict):
+            raise TypeError("invalid message")
         reason = choice.get("finish_reason")
         receipt["finish_reason"] = (
             reason if reason in {"stop", "length", "content_filter", "tool_calls"} else "unknown"
@@ -186,20 +207,26 @@ def response_receipt(status, data, stage, schema=None):
         content = choice["message"].get("content")
         receipt["content_present"] = isinstance(content, str) and bool(content.strip())
         receipt["reasoning_present"] = bool(choice["message"].get("reasoning_content"))
+        usage = envelope.get("usage")
         receipt["usage"] = {
             key: value
-            for key, value in envelope.get("usage", {}).items()
+            for key, value in (usage if isinstance(usage, dict) else {}).items()
             if key in {"prompt_tokens", "completion_tokens", "total_tokens"}
             and type(value) is int
             and 0 <= value <= 100_000_000
         }
-        if schema is not None and isinstance(content, str):
-            content = content.strip()
-            if content.startswith("```json") and content.endswith("```"):
-                content = content[7:-3].strip()
+        if schema is not None:
             try:
-                schema.model_validate_json(content)
+                contract = OutputContract("deepseek", "json_object", "provider_json_mode", {})
+                content, _, _ = completion_content(envelope, contract)
+                if status != 200:
+                    raise OutputFailure("http_error", "HTTP status rejected")
+                validate_content(content, schema, mode=contract.mode)
                 receipt["schema_valid"] = True
+                receipt.update(contract.receipt())
+            except OutputFailure as exc:
+                receipt["schema_valid"] = False
+                receipt["response_contract_error"] = exc.code
             except ValidationError as exc:
                 receipt["schema_valid"] = False
                 # Pydantic error types are library-defined codes, never model text or inputs.
@@ -220,6 +247,7 @@ def response_receipt(status, data, stage, schema=None):
                 receipt["schema_errors"] = [
                     {
                         "type": e["type"],
+                        "message": text_budget.excerpt(e.get("msg", "")),
                         "field_path": [
                             part if type(part) is int or part in names else "additional_field"
                             for part in e["loc"]
@@ -227,9 +255,143 @@ def response_receipt(status, data, stage, schema=None):
                     }
                     for e in errors[:20]
                 ]
+            except ValueError as exc:
+                receipt["schema_valid"] = False
+                code = str(exc)
+                receipt["schema_error_types"] = [
+                    code
+                    if code
+                    in {
+                        "duplicate_json_key",
+                        "non_finite_json_number",
+                        "response_must_be_json_object",
+                    }
+                    else "json_invalid"
+                ]
     except ValueError, KeyError, IndexError, TypeError:
         receipt["response_envelope_valid"] = False
+        if schema is not None:
+            receipt["schema_valid"] = False
     return receipt
+
+
+class DiagnosticTextBudget:
+    """Bounded, selected validation wording, never full provider payloads/logs."""
+
+    def __init__(self, secrets=(), limit=6000):
+        self.secrets = tuple(secret for secret in secrets if isinstance(secret, str) and secret)
+        self.remaining = min(max(limit, 0), 6000)
+
+    def scrub(self, text):
+        """Scrub complete selected strings before any truncation or persistence."""
+        # Replace exact credentials before truncation so a boundary cannot leak
+        # a credential fragment. The caller supplies only the authorized key.
+        for secret in sorted(self.secrets, key=len, reverse=True):
+            text = text.replace(secret, "[REDACTED]")
+        text = re.sub(
+            r"(?im)\b(?:authorization|proxy-authorization|cookie|set-cookie|x-api-key)[\"']?\s*:.*$",
+            "[REDACTED HEADER]",
+            text,
+        )
+        text = re.sub(
+            r"(?i)\b[a-z][a-z0-9+.-]*://[^\s/@]+(?::[^\s/@]*)?@",
+            "[REDACTED URL CREDENTIALS]@",
+            text,
+        )
+        text = re.sub(
+            r"(?i)(?:\b(?:[a-z][a-z0-9]*[_-])*(?:api[_ -]?key|access[_ -]?token|refresh[_ -]?token|password|passwd|secret|credential|authorization|token)\b|密码|口令|密钥|令牌)[\"']?\s*[:：=]\s*[^\r\n]*",
+            "[REDACTED CREDENTIAL]",
+            text,
+        )
+        text = re.sub(r"(?i)\bbearer\s+[^\s,;]+", "[REDACTED TOKEN]", text)
+        text = re.sub(
+            r"\b(?:sk-[A-Za-z0-9_-]{8,}|gh[pousr]_[A-Za-z0-9_]{8,}|github_pat_[A-Za-z0-9_]{8,}|eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)\b",
+            "[REDACTED TOKEN]",
+            text,
+        )
+        return re.sub(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]", "", text)
+
+    def excerpt(self, value):
+        if not isinstance(value, str) or not self.remaining:
+            return ""
+        text = self.scrub(value)
+        limit = min(600, self.remaining)
+        text = text[:limit]
+        self.remaining -= len(text)
+        return text
+
+    def excerpts(self, values):
+        return [text for value in values[:20] if (text := self.excerpt(value))]
+
+
+def safe_execution_failure(error, stage, text_budget):
+    """Selected exception headline and frame coordinates, never raw logs/locals."""
+    stages = {
+        "configuration",
+        "smoke",
+        "workflow",
+        "platform_start",
+        "smart_delivery_browser",
+        "delivery_receipt",
+        "download_unpack",
+        "approved_contract",
+        "downloaded_python_runtime",
+        "downloaded_native_runtime",
+        "screenshot_export",
+        "complete",
+    }
+    try:
+        message = str(error)
+    except Exception:
+        message = "Exception text unavailable"
+    headline = message.splitlines()[0] if message else ""
+    # Long exception strings often embed tool/provider output. Do not retain it.
+    if len(headline) > 4096 or headline.lstrip().startswith(("{", "[")):
+        headline = "Oversized exception headline omitted"
+    elif re.search(r"[\[{]", headline):
+        # An exception may prefix a complete JSON/tool payload with a sentence.
+        # Retain only that sentence, not any structured payload or later values.
+        headline = re.split(r"[\[{]", headline, maxsplit=1)[0] + "[structured payload omitted]"
+    headline = re.sub(r"\b[a-zA-Z][a-zA-Z0-9+.-]*://[^\s]+", "[URL REDACTED]", headline)
+    headline = re.sub(
+        r"(?:/(?:tmp|home|workspace|Users)/|[A-Za-z]:[\\/])[^\s,;]+", "[PATH]", headline
+    )
+    frames = []
+    for frame in traceback.extract_tb(error.__traceback__)[-8:]:
+        filename = Path(frame.filename).name
+        function = frame.name
+        frames.append(
+            {
+                "file": filename
+                if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]{0,99}", filename)
+                and text_budget.scrub(filename) == filename
+                else "unavailable",
+                "function": function
+                if re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]{0,99}|<module>", function)
+                and text_budget.scrub(function) == function
+                else "unavailable",
+                "line": min(max(frame.lineno, 0), 1_000_000),
+            }
+        )
+    return {
+        "stage": stage if stage in stages else "unknown",
+        "exception_type": text_budget.excerpt(type(error).__name__),
+        "message_excerpt": text_budget.excerpt(headline),
+        "frames": frames,
+    }
+
+
+def completed_stage_details(value, text_budget):
+    """Keep schema counts and selected review gaps, not complete model responses."""
+    result = {"completed": True}
+    for name in ("questions", "unsupported", "uncovered_requirements", "field_requirements"):
+        if hasattr(value, name):
+            result[name + "_count"] = len(getattr(value, name))
+    if hasattr(value, "uncovered_requirements"):
+        result["uncovered_requirement_excerpts"] = text_budget.excerpts(
+            value.uncovered_requirements
+        )
+    return result
 
 
 def contract_snapshot(data, requirement=False):
@@ -242,13 +404,15 @@ def contract_snapshot(data, requirement=False):
 
     def field_summary(value):
         result = {"name": identifier(value.get("field" if requirement else "name"))}
+        if requirement:
+            result["entity"] = identifier(value.get("entity")) if value.get("entity") else None
         for name in ("required", "searchable", "filterable", "date_range"):
             if type(value.get(name)) is bool:
                 result[name] = value[name]
         for name in ("min_length", "max_length"):
             if type(value.get(name)) is int and 0 <= value[name] <= 20000:
                 result[name] = value[name]
-        if value.get("kind") in {"text", "integer", "boolean", "date", "enum"}:
+        if value.get("kind") in {"text", "integer", "boolean", "date", "datetime", "enum"}:
             result["kind"] = value["kind"]
         if isinstance(value.get("choices"), list):
             result["choices_count"] = len(value["choices"])
@@ -265,7 +429,479 @@ def contract_snapshot(data, requirement=False):
     ]
 
 
-def safe_workflow_details(store, run_id, traces):
+# Exact validator messages map to finite evidence codes. Never publish exception
+# text: prerequisite errors can contain paths, environment values or model prose.
+DESIGN_REASON_CODES = {
+    "设计改变了已批准的数据归属，必须修改后重新批准": "data_scope",
+    "设计使用了当前模板不支持的字段类型": "unsupported_field_kind",
+    "共享业务必须有完整关系、角色和动作的 business 契约": "business_contract_required",
+    "当前配置已禁用规则编码器": "coding_disabled",
+    "原生业务规则需要 CODING_ENGINE=aider；CRUD仍由原生生成器完成": "native_coding_engine",
+    "Native runtime does not accept unsupported requirements": "native_unsupported",
+    "每个原生实体只能有一个合并后的业务规则及完整正反例": "native_duplicate_rules",
+    "Native field uses a reserved runtime name": "native_reserved_runtime_field",
+    "Native runtime currently requires explicitly approved shared data with role permissions": "native_data_scope",
+    "Native normalized business names collide": "native_entity_collision",
+    "Native enum/date/datetime fields require a business contract": "native_business_field_kind",
+    "Native adapters do not yet execute searchable/filterable/date_range/min_length; "
+    "use a supported template or explicitly revise the requirement": "native_unsupported_field_option",
+    "Native runtime requires a required text field in each entity for independent UI acceptance": "native_required_text",
+    "Native entity identifiers must be lowercase and at most 20 characters": "native_entity_identifier",
+    "Native labels cannot contain code delimiters or multiline text": "native_label_contract",
+    "Field conflicts with native framework audit columns": "native_reserved_audit_field",
+    "先执行 rnd native runtime-config TEMPLATE 并授权专用空开发库": "native_runtime_config_missing",
+    "原生数据库只能读取明确的 NATIVE_* 环境变量": "native_database_env_name",
+    "请明确批准仅在自己创建的专用空数据库初始化原生框架": "native_database_not_authorized",
+    "原生数据库环境变量未设置": "native_database_env_missing",
+    "Native runtime requires a loopback PostgreSQL database": "native_database_not_loopback_postgres",
+    "Use a dedicated lowercase database identifier ending in _codegen": "native_database_identifier",
+    "本机Daytona需要 DAYTONA_ALLOW_LOCAL_EXECUTION=true；只在本机创建隔离验证环境": "sandbox_not_authorized",
+    "请配置当前技术栈的离线DAYTONA_SNAPSHOT或DAYTONA_SNAPSHOTS映射": "sandbox_snapshot_missing",
+}
+
+
+def safe_coverage_details(requirement, plan, *, text_budget=None):
+    """Export executable differences and source references, never requirement prose."""
+    from workbench.domain import Plan, Requirement
+    from workbench.requirement_coverage import _fact_texts, coverage_gaps
+
+    source_texts = {
+        "features": requirement.get("features", []),
+        "acceptance": requirement.get("acceptance", []),
+        "facts": list(_fact_texts(requirement.get("facts", {}))),
+    }
+    items = []
+    coverage_gaps(
+        Requirement.model_validate(requirement), Plan.model_validate(plan), diagnostics=items
+    )
+
+    def scalar(attribute, value):
+        if attribute in {"fields", "entities"} and isinstance(value, list) and len(value) <= 128:
+            if all(
+                isinstance(item, str) and re.fullmatch(r"[a-z][a-z0-9_]{0,39}", item)
+                for item in value
+            ):
+                return [text_budget.scrub(item) if text_budget else item for item in value]
+            return "not_exported"
+        if type(value) is bool or value is None:
+            return value
+        if attribute in {"min_length", "max_length"} and type(value) is int and 0 <= value <= 20000:
+            return value
+        if (
+            attribute == "kind"
+            and isinstance(value, str)
+            and value
+            in {
+                "text",
+                "integer",
+                "boolean",
+                "date",
+                "datetime",
+                "enum",
+            }
+        ):
+            return value
+        return "not_exported"
+
+    result = []
+    for item in items[:128]:
+        entry = {
+            key: item[key] for key in ("code", "source", "source_markers", "targets", "attribute")
+        }
+        attribute = item["attribute"]
+        for key in ("expected", "actual"):
+            value = item[key]
+            if attribute == "choices" and isinstance(value, list):
+                entry[key + "_count"] = len(value)
+            else:
+                entry[key] = scalar(attribute, value)
+        source = item["source"]
+        texts = source_texts.get(source["section"], [])
+        if (
+            text_budget is not None
+            and type(source.get("index")) is int
+            and 0 <= source["index"] < len(texts)
+            and (source["section"] != "facts" or source.get("encoding") == "legacy")
+        ):
+            excerpt = text_budget.excerpt(texts[source["index"]])
+            if excerpt:
+                entry["source_excerpt"] = excerpt
+        result.append(entry)
+    return result
+
+
+def safe_native_plan_details(plan):
+    """Report the actual native-validator failure plus label-shape evidence."""
+    from workbench.domain import Plan
+    from workbench.native_modules import validate_plan
+
+    value = Plan.model_validate(plan)
+    try:
+        validate_plan(value)
+        code = "valid"
+    except ValueError as exc:
+        code = DESIGN_REASON_CODES.get(str(exc), "unclassified_native_validation")
+    return {
+        "code": code,
+        "entity_labels": [
+            {
+                "entity": entity.name,
+                "length": len(entity.description),
+                "single_line": not any(char in entity.description for char in "\r\n\t"),
+                "allowed_characters": bool(
+                    re.fullmatch(r"[\w\s\-\u4e00-\u9fff]+", entity.description)
+                ),
+                "valid_length": 1 <= len(entity.description) <= 100,
+            }
+            for entity in value.entities
+        ],
+    }
+
+
+def safe_analysis_conflict_details(items, text_budget):
+    """Retain bounded atomic conflicts even when analysis never produced a Plan."""
+    if not isinstance(items, list):
+        return []
+    sections = {"field_requirements", "features", "acceptance", "facts", "user_messages"}
+    attributes = {
+        "kind",
+        "required",
+        "searchable",
+        "filterable",
+        "date_range",
+        "min_length",
+        "max_length",
+        "choices",
+    }
+
+    def identifier(value):
+        return (
+            value
+            if isinstance(value, str)
+            and re.fullmatch(r"[a-z][a-z0-9_]{0,39}", value)
+            and text_budget.scrub(value) == value
+            else "unrecognized"
+        )
+
+    def position(value):
+        return type(value) is int and 0 <= value <= 100_000
+
+    result = []
+    for item in items[:20]:
+        if (
+            not isinstance(item, dict)
+            or item.get("code") != "requirement_source_conflict"
+            or not isinstance(item.get("attribute"), str)
+            or item.get("attribute") not in attributes
+            or not isinstance(item.get("target"), dict)
+            or not isinstance(item.get("sources"), list)
+        ):
+            continue
+        target = item["target"]
+        entry = {
+            "code": "requirement_source_conflict",
+            "target": {
+                "entity": None if target.get("entity") is None else identifier(target["entity"]),
+                "field": identifier(target.get("field")),
+            },
+            "attribute": item["attribute"],
+            "sources": [],
+        }
+        for source in item["sources"][:8]:
+            if not isinstance(source, dict) or not isinstance(source.get("source"), dict):
+                continue
+            ref = source["source"]
+            if (
+                not isinstance(ref.get("section"), str)
+                or ref.get("section") not in sections
+                or not position(ref.get("index"))
+            ):
+                continue
+            selected = {
+                "source": {"section": ref["section"], "index": ref["index"]},
+                "origin": source.get("origin")
+                if isinstance(source.get("origin"), str)
+                and source.get("origin") in {"previous_requirement", "model_analysis", "user_input"}
+                else "not_recorded",
+            }
+            value = source.get("expected")
+            attribute = item["attribute"]
+            if attribute == "choices" and isinstance(value, list):
+                selected["expected_count"] = min(len(value), 20_000)
+            elif (
+                value is None
+                or type(value) is bool
+                or attribute in {"min_length", "max_length"}
+                and type(value) is int
+                and 0 <= value <= 20_000
+                or attribute == "kind"
+                and isinstance(value, str)
+                and value in {"text", "integer", "boolean", "date", "datetime", "enum"}
+            ):
+                selected["expected"] = value
+            else:
+                selected["expected"] = "not_exported"
+            excerpt = text_budget.excerpt(source.get("text", source.get("excerpt")))
+            if excerpt:
+                selected["source_excerpt"] = excerpt
+            entry["sources"].append(selected)
+        result.append(entry)
+    return result
+
+
+NATIVE_PROGRESS_STAGES = frozenset(
+    {
+        "bootstrap-empty-database",
+        "baseline-install",
+        "native-generation",
+        "native-business-contract",
+        "resume-native-validation",
+        "plop-aider-native-business-rules",
+        "generated-build",
+        "customer-service-http",
+        "generated-crud",
+        "generated-permissions",
+        "native-frontend-build",
+        "restart-persistence",
+        "native-browser",
+        "portable-startup-assets",
+        "independent-native-delivery",
+        "accepted",
+    }
+)
+
+
+def safe_runtime_details(error, native_reports, text_budget):
+    """Select the runtime error, finite stage and one native exception headline.
+
+    Never export native logs, environment, response bodies or tracebacks. These
+    fixed local reports are read before the isolated work directory is destroyed.
+    A headline must match the format written by native_lab; appended tool output
+    is deliberately ignored, even when it would explain a subprocess failure.
+    """
+    result = {}
+    if excerpt := text_budget.excerpt(error):
+        result["error_excerpt"] = excerpt
+    if native_reports is None:
+        return result
+    reports = Path(native_reports)
+    if any(path.is_symlink() for path in (reports, *reports.parents)):
+        return result
+    progress = reports / "progress.json"
+    try:
+        if not progress.is_symlink() and progress.is_file() and progress.stat().st_size <= 4096:
+            value = json.loads(progress.read_text(encoding="utf-8"))
+            if isinstance(value, dict):
+                if value.get("stage") in NATIVE_PROGRESS_STAGES:
+                    result["native_stage"] = value["stage"]
+                if value.get("template") in {"fastapiadmin", "yudao-vben"}:
+                    result["native_template"] = value["template"]
+    except OSError, ValueError, TypeError:
+        pass
+    failure = reports / "failure.log"
+    try:
+        if failure.is_symlink() or not failure.is_file():
+            return result
+        with failure.open(encoding="utf-8") as source:
+            headline = source.readline(65537)
+        # Do not truncate prior to secret redaction or publish an arbitrary line.
+        if len(headline) > 65536:
+            return result
+        match = re.fullmatch(
+            r"(?P<exception_type>[A-Za-z_][A-Za-z0-9_]{0,79}) at "
+            r"(?P<file>[A-Za-z_][A-Za-z0-9_]{0,99}\.py):(?P<line>[0-9]{1,7}) "
+            r"\((?P<function>[A-Za-z_][A-Za-z0-9_]{0,99}|<module>)\): (?P<message>[^\r\n]*)\r?\n?",
+            headline,
+        )
+        if match:
+            failure_details = {
+                key: text_budget.excerpt(match[key])
+                for key in ("exception_type", "file", "function")
+            }
+            failure_details["line"] = int(match["line"])
+            failure_details["message_excerpt"] = text_budget.excerpt(match["message"])
+            result["native_exception"] = failure_details
+    except OSError, ValueError:
+        pass
+    return result
+
+
+MAX_REPLAY_PLAN_BYTES = 131072
+
+
+def approved_plan_artifact_directory(data_dir, run_id, template):
+    """Select only a registered generated approval artifact, never a revision."""
+    if (
+        template not in {"python-basic", "fastapiadmin", "yudao-vben"}
+        or not isinstance(run_id, str)
+        or not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", run_id)
+    ):
+        return None
+    leaf = "product" if template == "python-basic" else "native-evidence"
+    return Path(data_dir) / "runs" / run_id / leaf
+
+
+def preserve_approved_customer_plan(native_reports, destination, text_budget):
+    """Retain only a validated, credential-free, synthetic approved Plan.
+
+    The Python generator and native_lab write approved-spec.json only after the design approval gate.
+    Reject rather than alter credential-bearing contracts: a changed Plan cannot
+    truthfully reproduce the failed run. Never fall back to a raw provider reply,
+    an unapproved design revision, generated source, a database, or a tool log.
+    """
+    from workbench.domain import Plan
+    from workbench.filesystem import atomic_text
+
+    if native_reports is None:
+        return {"status": "unavailable"}
+    source = Path(native_reports) / "approved-spec.json"
+    destination = Path(destination)
+    if any(
+        path.is_symlink() for path in (source, *source.parents, destination, *destination.parents)
+    ):
+        return {"status": "unsafe_path"}
+    try:
+        if not source.is_file():
+            return {"status": "unavailable"}
+        if source.stat().st_size > MAX_REPLAY_PLAN_BYTES:
+            return {"status": "size_limit"}
+        raw = source.read_bytes()
+        if len(raw) > MAX_REPLAY_PLAN_BYTES:
+            return {"status": "size_limit"}
+        plan = Plan.model_validate_json(raw)
+        if (
+            {entity.name for entity in plan.entities} != {"customers", "requests", "tasks"}
+            or not plan.business
+            or plan.custom_rules
+            or plan.unsupported
+        ):
+            return {"status": "outside_customer_scope"}
+        normalized = plan.model_dump(mode="json")
+
+        def credential_free(value):
+            if isinstance(value, str):
+                return text_budget.scrub(value) == value
+            if isinstance(value, list):
+                return all(credential_free(item) for item in value)
+            if isinstance(value, dict):
+                return all(
+                    credential_free(key) and credential_free(item) for key, item in value.items()
+                )
+            return True
+
+        if not credential_free(normalized):
+            return {"status": "secret_scan_rejected"}
+        rendered = json.dumps(normalized, ensure_ascii=False, indent=2) + "\n"
+        # Scan structural credential assignments too (e.g. a nested JSON value
+        # with a password key), not only individual string values.
+        if text_budget.scrub(rendered) != rendered:
+            return {"status": "secret_scan_rejected"}
+        data = rendered.encode("utf-8")
+        if len(data) > MAX_REPLAY_PLAN_BYTES:
+            return {"status": "size_limit"}
+        # This exact normalized contract regenerates code without paid model calls.
+        atomic_text(destination, rendered)
+        return {
+            "status": "saved",
+            "file": "approved-plan-replay.json",
+            "bytes": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+            "exact_normalized_plan": True,
+        }
+    except FileNotFoundError:
+        return {"status": "unavailable"}
+    except ValueError:
+        return {"status": "invalid_schema"}
+    except OSError:
+        return {"status": "io_error"}
+
+
+def preserve_unapproved_design_contract(
+    store, run_id, destination, text_budget, *, acceptance_failed=False
+):
+    """Failure-only diagnostic contract; this envelope carries no execution approval.
+
+    Only normalized Requirement/Plan revisions from this synthetic customer run
+    are selected. No provider response, runtime environment, database or log is
+    read. The envelope is deliberately not a valid Plan/generation input.
+    """
+    from workbench.domain import Plan, Requirement
+    from workbench.filesystem import atomic_text
+
+    destination = Path(destination)
+    if any(path.is_symlink() for path in (destination, *destination.parents)):
+        return {"status": "unsafe_path"}
+    if not isinstance(run_id, str) or not re.fullmatch(r"[a-zA-Z0-9_-]{1,100}", run_id):
+        return {"status": "unavailable"}
+    try:
+        run = store.get_run(run_id)
+        if run.get("status") not in {"FAILED", "BLOCKED"} and not (
+            acceptance_failed is True and run.get("status") in {"READY", "SOURCE_READY"}
+        ):
+            return {"status": "not_failure"}
+        if run.get("template") not in {"python-basic", "fastapiadmin", "yudao-vben"}:
+            return {"status": "outside_customer_scope"}
+        requirement = (store.latest_revision(run_id, "requirements") or {}).get("requirement")
+        plan = (store.latest_revision(run_id, "design") or {}).get("plan")
+        if not requirement or not plan:
+            return {"status": "unavailable"}
+        selected = {"requirement": requirement, "candidate_plan": plan}
+        if len(json.dumps(selected, ensure_ascii=False).encode("utf-8")) > MAX_REPLAY_PLAN_BYTES:
+            return {"status": "size_limit"}
+        requirement = Requirement.model_validate(requirement)
+        plan = Plan.model_validate(plan)
+        if (
+            {entity.name for entity in plan.entities} != {"customers", "requests", "tasks"}
+            or not plan.business
+            or plan.custom_rules
+        ):
+            return {"status": "outside_customer_scope"}
+        payload = {
+            "format": "customer-design-diagnostic-v1",
+            "approval_status": "unapproved",
+            "execution_authorized": False,
+            "purpose": "offline_contract_validation_only",
+            "template": run["template"],
+            "requirement": requirement.model_dump(mode="json"),
+            "candidate_plan": plan.model_dump(mode="json"),
+        }
+
+        def credential_free(value):
+            if isinstance(value, str):
+                return text_budget.scrub(value) == value
+            if isinstance(value, list):
+                return all(credential_free(item) for item in value)
+            if isinstance(value, dict):
+                return all(
+                    credential_free(key) and credential_free(item) for key, item in value.items()
+                )
+            return True
+
+        if not credential_free(payload):
+            return {"status": "secret_scan_rejected"}
+        rendered = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+        if text_budget.scrub(rendered) != rendered:
+            return {"status": "secret_scan_rejected"}
+        data = rendered.encode("utf-8")
+        if len(data) > MAX_REPLAY_PLAN_BYTES:
+            return {"status": "size_limit"}
+        atomic_text(destination, rendered)
+        return {
+            "status": "saved",
+            "file": "unapproved-design-contract.json",
+            "approval_status": "unapproved",
+            "execution_authorized": False,
+            "bytes": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+        }
+    except ValueError, TypeError:
+        return {"status": "invalid_schema"}
+    except OSError:
+        return {"status": "io_error"}
+
+
+def safe_workflow_details(store, run_id, traces, *, text_budget=None, native_reports=None):
+    text_budget = text_budget or DiagnosticTextBudget()
     details = {"model_stages": traces}
     if run_id:
         run = store.get_run(run_id)
@@ -275,19 +911,58 @@ def safe_workflow_details(store, run_id, traces):
             if state in {"READY", "SOURCE_READY", "FAILED", "BLOCKED", "PAUSED_LIMIT", "REJECTED"}
             else "not_terminal"
         )
+        # Reserve the shared text budget for the actual runtime failure before
+        # lower-priority coverage/model wording can exhaust it.
+        details["runtime_diagnostics"] = safe_runtime_details(
+            run.get("error") or "", native_reports, text_budget
+        )
         pending = run.get("pending") or {}
         stage = pending.get("stage")
         details["pending_stage"] = (
             stage if stage in {"clarification", "requirements", "design", "delivery"} else None
         )
+        conflicts = safe_analysis_conflict_details(
+            (pending.get("data") or {}).get("analysis_diagnostics"), text_budget
+        )
+        if conflicts:
+            details["analysis_source_conflicts"] = conflicts
         details["model_calls"] = run.get("model_calls", 0)
         requirement = (store.latest_revision(run_id, "requirements") or {}).get("requirement", {})
         plan = (store.latest_revision(run_id, "design") or {}).get("plan", {})
         details["valid_plan_present"] = bool(plan)
+        business = plan.get("business") or {}
+        details["business_contract_present"] = bool(business)
+        details["business_counts"] = {
+            key: len(business.get(key, []))
+            for key in (
+                "roles",
+                "resources",
+                "relations",
+                "permissions",
+                "workflows",
+                "notifications",
+                "metrics",
+            )
+            if isinstance(business.get(key, []), list)
+        }
         details["plan_contract"] = contract_snapshot(plan)
         details["requirement_contract"] = contract_snapshot(requirement, requirement=True)
+        details["unsupported_excerpts"] = text_budget.excerpts(plan.get("unsupported", []))
+        if requirement and plan:
+            from workbench.domain import Plan, Requirement
+            from workbench.requirement_coverage import coverage_gaps
+
+            details["coverage_reason_excerpts"] = text_budget.excerpts(
+                coverage_gaps(Requirement.model_validate(requirement), Plan.model_validate(plan))
+            )
+            details["coverage_sources"] = safe_coverage_details(
+                requirement, plan, text_budget=text_budget
+            )
+            if run.get("template") in {"fastapiadmin", "yudao-vben"}:
+                details["native_plan_validation"] = safe_native_plan_details(plan)
         error = run.get("error") or ""
         categories = {
+            "requirement_source_conflict": ("需求分析来源冲突",),
             "model_schema_invalid": ("结构化契约",),
             "context_limit": ("上下文过大",),
             "provider_error": ("模型鉴权", "模型地址", "模型请求被拒绝", "模型服务超时"),
@@ -301,6 +976,89 @@ def safe_workflow_details(store, run_id, traces):
         ]
         blocked = (pending.get("data") or {}).get("blocked", [])
         details["coverage_block_count"] = len(blocked) if isinstance(blocked, list) else 0
+        diagnostic_kinds = {
+            "missing_or_ambiguous": "缺失或映射不唯一",
+            "legacy_missing_field": "缺少对应字段",
+            "required": "必填",
+            "optional": "可选",
+            "max_length": "长度上限",
+            "min_length": "最小长度",
+            "date_kind": "真实日期类型",
+            "uncovered_operation": "设计未覆盖已确认的",
+            "constraint_mismatch": "设计不一致",
+            "missing_metric_predicate": "业务指标缺少已确认的筛选条件",
+            "business_capability": "业务设计缺少",
+        }
+        attributes = (
+            "kind",
+            "required",
+            "searchable",
+            "filterable",
+            "date_range",
+            "min_length",
+            "max_length",
+            "choices",
+        )
+        known_names = {
+            field["name"] for entity in details["plan_contract"] for field in entity["fields"]
+        }
+        sources = (pending.get("data") or {}).get("block_sources", [])
+        known_sources = {
+            "planner_unsupported",
+            "template_field_kind",
+            "requirement_coverage",
+            "business_coverage",
+            "business_contract",
+            "coding_disabled",
+            "native_coding_engine",
+            "native_validation_or_runtime",
+            "sandbox_configuration",
+        }
+        details["coverage_diagnostics"] = [
+            {
+                "codes": (
+                    [DESIGN_REASON_CODES[reason]]
+                    if reason in DESIGN_REASON_CODES
+                    else [code for code, marker in diagnostic_kinds.items() if marker in reason]
+                    or (
+                        ["planner_unsupported"]
+                        if reason in plan.get("unsupported", [])
+                        else ["unclassified_design_block"]
+                    )
+                ),
+                "origin": sources[index]
+                if index < len(sources) and sources[index] in known_sources
+                else "not_recorded",
+                "attributes": [attribute for attribute in attributes if attribute in reason],
+                "fields": sorted(
+                    name
+                    for name in known_names
+                    if name != "unrecognized"
+                    and re.search(r"(?<![a-z0-9_])" + re.escape(name) + r"(?![a-z0-9_])", reason)
+                ),
+            }
+            for index, reason in enumerate((blocked if isinstance(blocked, list) else [])[:40])
+            if isinstance(reason, str)
+        ]
+        details["unsupported_diagnostics"] = [
+            {
+                "index": index,
+                "topics": [
+                    code
+                    for code, pattern in (
+                        ("search", r"搜索|检索|search"),
+                        ("filter", r"筛选|过滤|filter"),
+                        ("date_range", r"日期范围|日期区间|date.?range"),
+                        ("capability", r"模板|能力|capabilit"),
+                        ("external_service", r"外部|短信|邮件|支付|采集|external"),
+                        ("business", r"角色|关系|流程|统计|business"),
+                    )
+                    if re.search(pattern, reason, re.I)
+                ],
+            }
+            for index, reason in enumerate(plan.get("unsupported", [])[:40])
+            if isinstance(reason, str)
+        ]
         paths = {f["name"] for e in details["plan_contract"] for f in e["fields"]}
         details["coverage_fields"] = (
             sorted(
@@ -360,17 +1118,17 @@ async function main() {
     await page.goto(cfg.platform);
     await page.locator('#token').fill(cfg.token);
     await page.locator('#connect button').click();
-    await page.locator('#template').selectOption('python-basic');
-    await page.locator('#frontend').selectOption('simple-admin');
-    await page.locator('#database').selectOption('sqlite');
+    await page.locator('#template').selectOption(cfg.template);
+    await page.locator('#frontend').selectOption(cfg.frontend);
+    await page.locator('#database').selectOption(cfg.database);
     await page.locator('#choose').click();
-    await page.locator('#project-title').fill('Real-model Terraria acceptance');
+    await page.locator('#project-title').fill('真实 DeepSeek 客服完整验收');
     await page.locator('#requirement').fill(cfg.requirement);
     // Exactly one initial delegation, no subsequent approval or retry clicks.
     await page.locator('#initial-smart').check();
     await page.locator('#new-run button').click();
     await page.waitForFunction(() => ['READY','SOURCE_READY','FAILED','BLOCKED','PAUSED_LIMIT','REJECTED']
-      .some(s=>document.querySelector('#status').textContent === '状态：'+s), null, {timeout:1500000});
+      .some(s=>document.querySelector('#status').textContent === '状态：'+s), null, {timeout:6900000});
     const state=(await page.locator('#status').innerText()).replace('状态：','');
     const runId=(await page.locator('#run-title').innerText()).split(' ').at(-1);
     fs.writeFileSync(cfg.result, JSON.stringify({state,run_id:runId,page_errors:errors.length}));
@@ -384,28 +1142,316 @@ main().catch(()=> { console.error('real-model browser acceptance did not complet
 """
 
 
-def require_news_spec(spec):
+def customer_request():
+    from workbench.settings import ROOT
+
+    return "\n\n".join(
+        (ROOT / "examples/requirements" / name).read_text(encoding="utf-8")
+        for name in (
+            "customer-service.md",
+            "customer-service-decisions.md",
+            "customer-service-contract.md",
+        )
+    )
+
+
+CUSTOMER_GUARD_CODES = frozenset(
+    [
+        "approved_business_obligations",
+        "assignee_field",
+        "bootstrap_role",
+        "canonical_business_obligations",
+        "customer_categories",
+        "customer_forbidden_actions",
+        "customer_read_scope",
+        "declarative_rules_only",
+        "employee_forbidden_actions",
+        "employee_no_metrics",
+        "employee_request_access",
+        "employee_scope",
+        "entities_exact",
+        "field_labels",
+        "fields_exact",
+        "immutable_audit",
+        "initial_state",
+        "manager_scope",
+        "metric_customer_groups",
+        "metric_daily_trend",
+        "metric_duration",
+        "metric_resolved",
+        "metric_total",
+        "metrics_permissions",
+        "notes_archive",
+        "notification_creator_resolution",
+        "notification_event",
+        "registration",
+        "relations",
+        "request_priorities",
+        "required_actions",
+        "resolve_transition",
+        "resolved_timestamp",
+        "role_administration",
+        "roles_exact",
+        "service_scope",
+        "shared_business_supported",
+        "start_transition",
+        "state_choice_labels",
+        "state_labels_readable",
+        "status_field",
+        "task_creation_assignment",
+        "transition_labels",
+        "transition_roles",
+    ]
+)
+
+
+def require_customer_spec(spec, *, approved_requirement=None):
+    from workbench.business_capabilities import business_gaps
+    from workbench.domain import Plan, Requirement
+
     try:
-        assert spec["data_scope"] == "per_user" and not spec["unsupported"]
-        assert len(spec["entities"]) == 1
-        entity = spec["entities"][0]
-        assert entity["name"] == "news"
-        fields = {item["name"]: item for item in entity["fields"]}
-        assert set(fields) == {"title", "body", "published_on", "category"}
-        for name, length in (("title", 250), ("body", 3000)):
-            f = fields[name]
-            assert f["kind"] == "text" and f["required"] is True
-            assert f["max_length"] == length and f["min_length"] == 1
-            assert f["searchable"] is True
-        date = fields["published_on"]
-        assert date["kind"] == "date" and date["required"] is True
-        assert date["filterable"] is True and date["date_range"] is True
-        category = fields["category"]
-        assert category["kind"] == "enum" and category["required"] is False
-        assert set(category["choices"]) == {"资讯", "攻略", "大神"}
-        assert category["filterable"] is True
-    except KeyError, TypeError, AssertionError:
-        raise SafeFailure("explicit_news_obligation_not_preserved") from None
+        plan = Plan.model_validate(spec)
+        assert plan.business is not None and plan.data_scope == "shared" and not plan.unsupported, (
+            "shared_business_supported"
+        )
+        assert {e.name for e in plan.entities} == {"customers", "requests", "tasks"}, (
+            "entities_exact"
+        )
+        assert {r.name for r in plan.business.roles} == {"manager", "service", "employee"}, (
+            "roles_exact"
+        )
+        requirement = Requirement(
+            summary=customer_request(),
+            users=["管理人员", "服务人员", "普通员工"],
+            features=[],
+            acceptance=[],
+            data_scope="shared",
+        )
+        assert not business_gaps(requirement, plan), "canonical_business_obligations"
+        if approved_requirement is not None:
+            approved = Requirement.model_validate(approved_requirement)
+            assert not business_gaps(approved, plan), "approved_business_obligations"
+
+        # Match the public metric meanings, never provider-selected names/labels.
+        # Extra supported metrics remain valid, but cannot substitute for these five.
+        def resolved_only(metric):
+            return bool(metric.filters) and all(
+                rule.field == "request_state"
+                and (
+                    (rule.op == "eq" and rule.value == "resolved")
+                    or (rule.op == "in" and rule.value == ["resolved"])
+                )
+                for rule in metric.filters
+            )
+
+        metrics = plan.business.metrics
+        assert any(
+            metric.entity == "requests" and metric.kind == "count" and not metric.filters
+            for metric in metrics
+        ), "metric_total"
+        assert any(
+            metric.entity == "requests" and metric.kind == "count" and resolved_only(metric)
+            for metric in metrics
+        ), "metric_resolved"
+        assert any(
+            metric.entity == "requests"
+            and metric.kind == "average_duration"
+            and metric.start_field == "created_at"
+            and metric.end_field == "resolved_at"
+            and (not metric.filters or resolved_only(metric))
+            for metric in metrics
+        ), "metric_duration"
+        assert any(
+            metric.entity == "customers"
+            and metric.kind == "group_count"
+            and metric.group_by == "category"
+            and not metric.filters
+            for metric in metrics
+        ), "metric_customer_groups"
+        assert any(
+            metric.entity == "requests"
+            and metric.kind == "time_count"
+            and metric.time_field == "created_at"
+            and not metric.filters
+            for metric in metrics
+        ), "metric_daily_trend"
+        notices = plan.business.notifications
+        for entity in ("requests", "tasks"):
+            for event, transition, due_field in (
+                ("assigned", None, None),
+                ("note_added", None, None),
+                ("transitioned", "start", None),
+                ("transitioned", "resolve", None),
+                ("due", None, "due_at"),
+            ):
+                assert any(
+                    notice.entity == entity
+                    and notice.event == event
+                    and notice.transition == transition
+                    and notice.due_field == due_field
+                    for notice in notices
+                ), "notification_event"
+        assert any(
+            notice.entity == "requests"
+            and notice.event == "transitioned"
+            and notice.transition == "resolve"
+            and notice.recipient == "creator"
+            for notice in notices
+        ), "notification_creator_resolution"
+        assert not plan.custom_rules, "declarative_rules_only"
+        entities = {
+            entity.name: {field.name: field for field in entity.fields} for entity in plan.entities
+        }
+        expected = {
+            "customers": {"name", "organization", "contact", "category"},
+            "requests": {
+                "title",
+                "detail",
+                "customer_id",
+                "assignee_id",
+                "request_state",
+                "resolved_at",
+                "due_at",
+                "priority",
+            },
+            "tasks": {
+                "title",
+                "detail",
+                "request_id",
+                "assignee_id",
+                "task_state",
+                "resolved_at",
+                "due_at",
+            },
+        }
+        assert all(set(entities[name]) == fields for name, fields in expected.items()), (
+            "fields_exact"
+        )
+        assert all(field.label for fields in entities.values() for field in fields.values()), (
+            "field_labels"
+        )
+        for entity, field_name in (("requests", "request_state"), ("tasks", "task_state")):
+            field = entities[entity][field_name]
+            assert set(field.choice_labels) == set(field.choices), "state_choice_labels"
+            assert all(field.choice_labels[value] != value for value in field.choices), (
+                "state_labels_readable"
+            )
+        assert set(entities["customers"]["category"].choices) == {"企业", "个人", "合作伙伴"}, (
+            "customer_categories"
+        )
+        assert set(entities["requests"]["priority"].choices) == {"普通", "紧急"}, (
+            "request_priorities"
+        )
+        relations = {(r.entity, r.field, r.target_entity) for r in plan.business.relations}
+        assert {
+            ("requests", "customer_id", "customers"),
+            ("tasks", "request_id", "requests"),
+            ("requests", "assignee_id", "$users"),
+            ("tasks", "assignee_id", "$users"),
+        } <= relations, "relations"
+        assert plan.business.bootstrap_role == "manager", "bootstrap_role"
+        assert set(plan.business.role_admin_roles) == {"manager"}, "role_administration"
+        assert (
+            plan.business.registration.enabled
+            and plan.business.registration.default_role == "employee"
+        ), "registration"
+        policies = {(p.role, p.entity): p for p in plan.business.permissions}
+        # Minimum capabilities explicitly promised for this customer case.
+        # Keep optional actions separate from these obligations; query access alone
+        # must neither imply a grant nor excuse a missing processing action.
+        customer_manager_actions = {"create", "read", "update", "archive", "read_audit"}
+        processing_actions = {
+            "read",
+            "update",
+            "add_note",
+            "transition",
+            "read_history",
+            "read_audit",
+        }
+        manager_processing_actions = processing_actions | {"create", "archive", "assign"}
+        required_actions = {
+            ("manager", "customers"): customer_manager_actions,
+            ("manager", "requests"): manager_processing_actions,
+            ("manager", "tasks"): manager_processing_actions,
+            ("service", "requests"): processing_actions,
+            ("service", "tasks"): processing_actions,
+            ("employee", "requests"): {"create", "read"},
+        }
+        for identity, actions in required_actions.items():
+            assert actions <= set(policies[identity].actions), "required_actions"
+        assert all(policies[("manager", entity)].scope == "all" for entity in expected), (
+            "manager_scope"
+        )
+        assert all(
+            not {"create", "assign"} & set(policy.actions)
+            for policy in plan.business.permissions
+            if policy.entity == "tasks" and policy.role != "manager"
+        ), "task_creation_assignment"
+        for role in ("manager", "service"):
+            for entity in ("customers", "requests"):
+                assert {"read", "read_metrics"} <= set(policies[(role, entity)].actions), (
+                    "metrics_permissions"
+                )
+        for role in ("service", "employee"):
+            customer_policy = policies[(role, "customers")]
+            assert customer_policy.scope == "all" and "read" in customer_policy.actions, (
+                "customer_read_scope"
+            )
+            assert not {"create", "update", "archive", "add_note", "read_audit"} & set(
+                customer_policy.actions
+            ), "customer_forbidden_actions"
+        resources = {resource.entity: resource for resource in plan.business.resources}
+        assert all(resources[entity].audit for entity in ("customers", "requests", "tasks")), (
+            "immutable_audit"
+        )
+        for entity in ("requests", "tasks"):
+            assert resources[entity].notes and resources[entity].archive, "notes_archive"
+            assert resources[entity].assignee_field == "assignee_id", "assignee_field"
+            if ("employee", entity) in policies:
+                assert policies[("employee", entity)].scope in (
+                    {"own"} if entity == "requests" else {"own", "assigned"}
+                ), "employee_scope"
+                forbidden = {"assign", "transition", "read_metrics"}
+                if entity == "tasks":
+                    forbidden |= {"create", "update", "archive", "add_note"}
+                assert not forbidden & set(policies[("employee", entity)].actions), (
+                    "employee_forbidden_actions"
+                )
+            else:
+                assert entity == "tasks", "employee_request_access"
+            assert policies[("service", entity)].scope == "assigned", "service_scope"
+            workflow = next(w for w in plan.business.workflows if w.entity == entity)
+            transitions = {t.name: t for t in workflow.transitions}
+            assert all(transition.label for transition in workflow.transitions), "transition_labels"
+            assert workflow.initial == "new", "initial_state"
+            assert (
+                workflow.status_field
+                == {"requests": "request_state", "tasks": "task_state"}[entity]
+            ), "status_field"
+            assert all(
+                set(transition.roles) == {"manager", "service"}
+                for transition in transitions.values()
+            ), "transition_roles"
+            assert (
+                transitions["start"].from_states == ["new"]
+                and transitions["start"].to_state == "active"
+            ), "start_transition"
+            assert (
+                transitions["resolve"].from_states == ["active"]
+                and transitions["resolve"].to_state == "resolved"
+            ), "resolve_transition"
+            assert transitions["resolve"].set_timestamp == "resolved_at", "resolved_timestamp"
+        assert all(
+            "read_metrics" not in policy.actions
+            for policy in plan.business.permissions
+            if policy.role == "employee"
+        ), "employee_no_metrics"
+    except (ValueError, KeyError, TypeError, AssertionError, StopIteration) as error:
+        failure = SafeFailure("explicit_customer_obligation_not_preserved")
+        # Assertion messages are fixed local identifiers, never model wording.
+        code = error.args[0] if isinstance(error, AssertionError) and error.args else None
+        failure.guard_code = code if code in CUSTOMER_GUARD_CODES else "schema_or_missing_contract"
+        raise failure from None
 
 
 def acceptance_settings(config, directory):
@@ -418,6 +1464,9 @@ def acceptance_settings(config, directory):
         base_url=config.base_url,
         api_key=config.key,
         MODE=config.model,
+        provider="deepseek",
+        output_mode="json_object",
+        max_output_tokens=MAX_COMPLETION_TOKENS,
         **{
             stage + suffix: value
             for stage in STAGES
@@ -425,12 +1474,15 @@ def acceptance_settings(config, directory):
                 ("_base_url", config.base_url),
                 ("_api_key", config.key),
                 ("_model", config.model),
+                ("_provider", "deepseek"),
+                ("_output_mode", "json_object"),
+                ("_max_output_tokens", MAX_COMPLETION_TOKENS),
             )
         },
         install_products=True,
         tool_timeout=600,
         model_review=True,
-        llm_timeout=90,
+        llm_timeout=180,
         max_model_calls=MAX_WORKFLOW_CALLS,
         max_rounds=5,
         max_repair_attempts=1,
@@ -443,7 +1495,7 @@ def acceptance_settings(config, directory):
     )
 
 
-def run_acceptance(config, transport, directory):
+def run_acceptance(config, transport, directory, template="python-basic"):
     import uvicorn
 
     from workbench.api import create_app
@@ -454,7 +1506,22 @@ def run_acceptance(config, transport, directory):
     from workbench.verification import product_interpreter, require_browser_evidence, run_probe
 
     settings = acceptance_settings(config, directory)
+    from workbench.catalog import Selection
+
+    selection = Selection(template=template)
+    if template != "python-basic":
+        from workbench.native_delivery import runtime_path
+
+        settings.prepare()
+        write_json(
+            runtime_path(settings, template),
+            {
+                "database_url_env": "NATIVE_TEST_DATABASE_URL",
+                "initialize_empty_database": True,
+            },
+        )
     traces = []
+    diagnostic_text = DiagnosticTextBudget(secrets=(config.key.get_secret_value(),))
 
     class ObservedGateway(ModelGateway):
         def complete(self, run_id, key, instruction, payload, schema):
@@ -468,15 +1535,7 @@ def run_acceptance(config, transport, directory):
             trace = {"stage": stage, "completed": False}
             traces.append(trace)
             value = super().complete(run_id, key, instruction, payload, schema)
-            trace["completed"] = True
-            for name in (
-                "questions",
-                "unsupported",
-                "uncovered_requirements",
-                "field_requirements",
-            ):
-                if hasattr(value, name):
-                    trace[name + "_count"] = len(getattr(value, name))
+            trace.update(completed_stage_details(value, diagnostic_text))
             return value
 
     application = create_app(
@@ -492,6 +1551,59 @@ def run_acceptance(config, transport, directory):
     )
     thread = threading.Thread(target=server.run, daemon=True)
     thread.start()
+    run_id = None
+    result_path = directory / "browser-result.json"
+    acceptance_stage = "platform_start"
+
+    def failure_context():
+        nonlocal run_id
+        if run_id is None:
+            try:
+                if not result_path.is_symlink() and result_path.stat().st_size <= 4096:
+                    run_id = json.loads(result_path.read_text(encoding="utf-8")).get("run_id")
+            except OSError, ValueError, TypeError, AttributeError:
+                pass
+        artifact_directory = approved_plan_artifact_directory(settings.data_dir, run_id, template)
+        native_reports = artifact_directory if template != "python-basic" else None
+        try:
+            details = safe_workflow_details(
+                application.state.store,
+                run_id,
+                traces,
+                text_budget=diagnostic_text,
+                native_reports=native_reports,
+            )
+        except Exception as diagnostic_error:
+            details = {"diagnostic_error_type": type(diagnostic_error).__name__[:80]}
+        for key, operation in (
+            (
+                "approved_plan_replay",
+                lambda: preserve_approved_customer_plan(
+                    artifact_directory,
+                    ROOT / "reports/real-model/approved-plan-replay.json",
+                    diagnostic_text,
+                ),
+            ),
+            (
+                "unapproved_design_replay",
+                lambda: preserve_unapproved_design_contract(
+                    application.state.store,
+                    run_id,
+                    ROOT / "reports/real-model/unapproved-design-contract.json",
+                    diagnostic_text,
+                    acceptance_failed=True,
+                ),
+            ),
+        ):
+            try:
+                details[key] = operation()
+            except Exception as diagnostic_error:
+                details[key] = {
+                    "status": "diagnostic_failed",
+                    "error_type": type(diagnostic_error).__name__[:80],
+                }
+        return details
+
     try:
         for _ in range(150):
             if server.started:
@@ -508,7 +1620,10 @@ def run_acceptance(config, transport, directory):
             {
                 "platform": f"http://127.0.0.1:{port}",
                 "token": application.state.token,
-                "requirement": NEWS_REQUEST,
+                "requirement": customer_request(),
+                "template": template,
+                "frontend": selection.frontend,
+                "database": selection.database,
                 "download": str(archive),
                 "result": str(result_path),
             },
@@ -516,12 +1631,13 @@ def run_acceptance(config, transport, directory):
         module = os.environ.get(
             "PRODUCT_VERIFY_PLAYWRIGHT", str(ROOT / ".native/browser/node_modules/playwright")
         )
+        acceptance_stage = "smart_delivery_browser"
         process = subprocess.run(
             ["node", str(driver), str(cfg), module],
             cwd=ROOT,
             env=clean_env({"PLAYWRIGHT_BROWSERS_PATH": "0"}),
             capture_output=True,
-            timeout=1560,
+            timeout=6960,
             check=False,
         )
         if process.returncode or not result_path.is_file():
@@ -529,36 +1645,81 @@ def run_acceptance(config, transport, directory):
             run_id = None
             if result_path.is_file():
                 run_id = json.loads(result_path.read_text(encoding="utf-8")).get("run_id")
-            raise SafeFailure(
-                "workflow_not_ready",
-                last,
-                safe_workflow_details(application.state.store, run_id, traces),
-            )
+            details = failure_context()
+            raise SafeFailure("workflow_not_ready", last, details)
+        acceptance_stage = "delivery_receipt"
         browser = json.loads(result_path.read_text(encoding="utf-8"))
-        run = application.state.store.get_run(browser["run_id"])
+        run_id = browser["run_id"]
+        run = application.state.store.get_run(run_id)
         if run["status"] != "READY" or not run["auto_mode"] or not archive.is_file():
             raise SafeFailure("delivery_not_ready")
         if hashlib.sha256(archive.read_bytes()).hexdigest() != run["result"]["sha256"]:
             raise SafeFailure("download_integrity_failed")
         product = directory / "downloaded-product"
-        unpack(archive, product)
-        require_news_spec(json.loads((product / "approved-spec.json").read_text(encoding="utf-8")))
-        if not run["result"]["cleanroom"].get("passed"):
-            raise SafeFailure("pipeline_cleanroom_failed")
-        require_browser_evidence(product, run["result"]["cleanroom"])
-        # A fresh environment and database validate the bytes actually downloaded through the UI.
-        python = product_interpreter(product, settings)
-        probe = directory / "downloaded-product-verification.json"
-        run_probe(product, python, probe, settings)
-        evidence = json.loads(probe.read_text(encoding="utf-8"))
-        require_browser_evidence(product, evidence)
-        if evidence.get("passed") is not True or evidence.get("restart") is not True:
-            raise SafeFailure("downloaded_cleanroom_failed")
+        acceptance_stage = "download_unpack"
+        unpack(archive, product, template=template)
+        acceptance_stage = "approved_contract"
+        screenshot_dir = ROOT / "reports/real-model/screenshots"
+        approved_requirement = application.state.store.latest_revision(
+            browser["run_id"], "requirements"
+        )["requirement"]
+        if template == "python-basic":
+            spec = json.loads((product / "approved-spec.json").read_text(encoding="utf-8"))
+            require_customer_spec(spec, approved_requirement=approved_requirement)
+            if not run["result"]["cleanroom"].get("passed"):
+                raise SafeFailure("pipeline_cleanroom_failed")
+            require_browser_evidence(product, run["result"]["cleanroom"])
+            python = product_interpreter(product, settings)
+            probe = directory / "downloaded-product-verification.json"
+            acceptance_stage = "downloaded_python_runtime"
+            run_probe(product, python, probe, settings, business_screenshots=screenshot_dir)
+            evidence = json.loads(probe.read_text(encoding="utf-8"))
+            require_browser_evidence(product, evidence)
+            if evidence.get("passed") is not True or evidence.get("restart") is not True:
+                raise SafeFailure("downloaded_cleanroom_failed")
+        else:
+            from workbench.portable import verify_native_delivery
+
+            manifest = json.loads(
+                (product / "deployment/manifest.json").read_text(encoding="utf-8")
+            )
+            require_customer_spec(manifest["plan"], approved_requirement=approved_requirement)
+            acceptance_stage = "downloaded_native_runtime"
+            evidence = verify_native_delivery(
+                product,
+                os.environ["NATIVE_TEST_DATABASE_URL"],
+                directory / "downloaded-evidence",
+                template=template,
+            )
+            if (
+                evidence.get("passed") is not True
+                or evidence.get("fresh_database") is not True
+                or evidence.get("restart") is not True
+                or evidence.get("restart_preserved_records") is not True
+            ):
+                raise SafeFailure("downloaded_cleanroom_failed")
+            acceptance_stage = "screenshot_export"
+            # Only allowlisted synthetic UI PNGs, never full logs, credentials or product archives.
+            import shutil
+
+            native_reports = settings.data_dir / "runs" / browser["run_id"] / "native-evidence"
+            screenshot_dir.mkdir(parents=True, exist_ok=True)
+            for screenshot in native_reports.rglob("*.png"):
+                if screenshot.is_symlink() or screenshot.stat().st_size > 12_000_000:
+                    raise SafeFailure("invalid_screenshot_artifact")
+                if not re.fullmatch(r"[a-zA-Z0-9_-]+\.png", screenshot.name):
+                    raise SafeFailure("invalid_screenshot_name")
+                if not screenshot.read_bytes().startswith(b"\x89PNG\r\n\x1a\n"):
+                    raise SafeFailure("invalid_screenshot_png")
+                shutil.copyfile(screenshot, screenshot_dir / screenshot.name)
+            if not list(screenshot_dir.glob("*.png")):
+                raise SafeFailure("missing_native_screenshots")
         return {
             "passed": True,
             "real_model": True,
             "single_initial_smart_consent": True,
-            "explicit_news_obligations_preserved": True,
+            "explicit_customer_obligations_preserved": True,
+            "template": template,
             "ready": True,
             "ui_download": True,
             "download_hash_matches": True,
@@ -572,6 +1733,23 @@ def run_acceptance(config, transport, directory):
             "daytona": "not_exercised",
             "old_blocked_recovery": "not_exercised_in_real_run",
         }
+    except Exception as error:
+        # Collect while the private product and approval artifacts still exist.
+        # Expected gates with existing detail retain their original explanation.
+        if isinstance(error, SafeFailure) and error.details is not None:
+            raise
+        details = failure_context()
+        details["execution"] = safe_execution_failure(
+            error,
+            acceptance_stage,
+            DiagnosticTextBudget(secrets=(config.key.get_secret_value(),), limit=1000),
+        )
+        if isinstance(error, SafeFailure) and hasattr(error, "guard_code"):
+            details["customer_guard"] = {"code": error.guard_code}
+        if isinstance(error, SafeFailure):
+            error.details = details
+            raise
+        raise SafeFailure("acceptance_execution_failed", details=details) from None
     finally:
         server.should_exit = True
         thread.join(timeout=120)
@@ -603,7 +1781,11 @@ def main():
 
     parser = argparse.ArgumentParser()
     parser.add_argument("--phase", choices=["smoke", "full"], required=True)
-    mode = parser.parse_args().phase
+    parser.add_argument(
+        "--template", choices=["python-basic", "fastapiadmin", "yudao-vben"], default="python-basic"
+    )
+    args = parser.parse_args()
+    mode = args.phase
     destination = ROOT / "reports/real-model"
     summary = destination / "summary.json"
     result = {
@@ -628,6 +1810,8 @@ def main():
             ],
         )
         if mode == "full":
+            for filename in ("approved-plan-replay.json", "unapproved-design-contract.json"):
+                (destination / filename).unlink(missing_ok=True)
             result["smoke"] = verified_smoke_receipt(summary, config, os.environ)
             prior_calls = 1
         transport = BoundedRealTransport(config)
@@ -642,7 +1826,9 @@ def main():
                         result["smoke"] = smoke(config, transport)
                     else:
                         phase = "workflow"
-                        result["workflow"] = run_acceptance(config, transport, Path(private))
+                        result["workflow"] = run_acceptance(
+                            config, transport, Path(private), args.template
+                        )
         result["passed"] = True
     except SafeFailure as exc:
         result.update(failure_phase=phase, failure_code=exc.code)
@@ -652,8 +1838,18 @@ def main():
             result["configuration_checks" if "configuration" in exc.code else "failure_details"] = (
                 exc.details
             )
-    except Exception:
-        result.update(failure_phase=phase, failure_code="acceptance_execution_failed")
+    except Exception as error:
+        budget = DiagnosticTextBudget(
+            secrets=(config.key.get_secret_value(),)
+            if config
+            else (os.environ.get("API_KEY", ""),),
+            limit=1000,
+        )
+        result.update(
+            failure_phase=phase,
+            failure_code="acceptance_execution_failed",
+            failure_details={"execution": safe_execution_failure(error, phase, budget)},
+        )
     finally:
         if transport:
             result["actual_http_calls"] = prior_calls + transport.calls

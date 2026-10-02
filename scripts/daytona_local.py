@@ -9,6 +9,7 @@ import argparse
 import copy
 import hashlib
 import hmac
+import ipaddress
 import json
 import os
 import re
@@ -30,8 +31,18 @@ HOME = ROOT / ".data/daytona-local"
 PROJECT = "rnd-daytona-local"
 UPSTREAM_SERVICES = {"api", "proxy", "runner", "db", "redis", "dex", "registry", "minio", "maildev"}
 KEEP = UPSTREAM_SERVICES | {"gateway"}
+# Pinned DAYTONA_SOURCE 01c502bb1f1ff8f2885d0cd490e043736083dca8:
+# apps/runner/pkg/docker/client.go fixes the isolated runner-bridge to this /16.
+# Keep the outer DinD control plane disjoint; dynamic Docker allocation can choose
+# the same subnet and send daemon readiness probes down the wrong interface.
+RUNNER_BRIDGE_SUBNET = "172.20.0.0/16"
+CONTROL_PLANE_SUBNET = "172.30.240.0/24"
 NETWORKS = {
-    "daytona-network": {"driver": "bridge", "internal": True},
+    "daytona-network": {
+        "driver": "bridge",
+        "internal": True,
+        "ipam": {"config": [{"subnet": CONTROL_PLANE_SUBNET}]},
+    },
     "loopback-entry": {"driver": "bridge", "internal": False},
 }
 IMAGES = {
@@ -181,8 +192,28 @@ def render_compose(original, credentials, directory):
 
 
 def assert_local_compose(config):
-    if config.get("networks", {}).get("daytona-network", {}).get("internal") is not True:
+    control_plane = config.get("networks", {}).get("daytona-network", {})
+    if control_plane.get("internal") is not True:
         raise ValueError("Daytona运行网络必须禁止外部出口")
+    ipam = control_plane.get("ipam")
+    ranges = ipam.get("config") if isinstance(ipam, dict) else None
+    if (
+        not isinstance(ranges, list)
+        or len(ranges) != 1
+        or not isinstance(ranges[0], dict)
+        or not isinstance(ranges[0].get("subnet"), str)
+    ):
+        raise ValueError("Daytona控制网络必须固定不重叠的私有子网；不自动选择或重试")
+    try:
+        subnet = ipaddress.ip_network(ranges[0]["subnet"])
+    except ValueError:
+        raise ValueError("Daytona控制网络子网无效；不自动选择或重试") from None
+    if (
+        subnet.version != 4
+        or not subnet.is_private
+        or subnet.overlaps(ipaddress.ip_network(RUNNER_BRIDGE_SUBNET))
+    ):
+        raise ValueError("Daytona控制网络不能与固定runner-bridge子网重叠；不改变隔离设置")
     if config.get("networks") != NETWORKS:
         raise ValueError("仅允许固定内部网络和本机入口网络")
     if set(config["services"]) != KEEP:

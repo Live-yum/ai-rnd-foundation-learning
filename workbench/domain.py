@@ -4,7 +4,7 @@ import hashlib
 import json
 import keyword
 import re
-from datetime import date
+from datetime import date, datetime
 from typing import Annotated, Literal
 
 from pydantic import (
@@ -16,6 +16,8 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+from workbench.business_contracts import BusinessSpec
 
 Text = Annotated[str, Field(min_length=1, max_length=20000)]
 Name = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,39}$")]
@@ -96,7 +98,16 @@ class ResumeInput(Contract):
 class RequirementChange(Contract):
     """A proposed correction; the workflow checks the quote against fresh user input."""
 
-    section: Literal["facts", "features", "acceptance", "users", "data_scope", "field_requirements"]
+    section: Literal[
+        "facts",
+        "features",
+        "acceptance",
+        "users",
+        "data_scope",
+        "field_requirements",
+        "entity_requirements",
+        "additional_entities",
+    ]
     key: str
     replacement: JsonValue = None
     source_quote: Text
@@ -107,14 +118,35 @@ class FieldRequirement(Contract):
 
     field: Name
     entity: Name | None = None
-    kind: Literal["text", "integer", "boolean", "date", "enum"] | None = None
+    kind: Literal["text", "integer", "boolean", "date", "datetime", "enum"] | None = None
     required: bool | None = None
     min_length: int | None = Field(default=None, ge=0, le=20000)
     max_length: int | None = Field(default=None, ge=1, le=20000)
     searchable: bool | None = None
     filterable: bool | None = None
-    date_range: bool | None = None
+    date_range: bool | None = Field(
+        default=None,
+        description="Only kind=date supports this; datetime must use false. Do not invent date ranges when none were requested.",
+    )
     choices: list[str] | None = None
+
+
+class EntityRequirement(Contract):
+    """An explicit field inventory; ordinary inventories remain extensible."""
+
+    entity: Name
+    fields: list[Name] = Field(min_length=1, max_length=128)
+    additional_fields: StrictBool = Field(
+        default=True,
+        description="False only when the user explicitly says this entity's field list is exhaustive or forbids additional fields. An ordinary list is open by default.",
+    )
+
+    @field_validator("fields")
+    @classmethod
+    def unique_fields(cls, value):
+        if len(set(value)) != len(value):
+            raise ValueError("字段清单不能包含重复名称")
+        return value
 
 
 class Requirement(Contract):
@@ -136,6 +168,11 @@ class Requirement(Contract):
     recommendations: list[Text] = Field(default_factory=list)
     facts: dict[str, JsonValue] = Field(default_factory=dict)
     field_requirements: list[FieldRequirement] = Field(default_factory=list, max_length=128)
+    entity_requirements: list[EntityRequirement] = Field(default_factory=list, max_length=40)
+    additional_entities: StrictBool = Field(
+        default=True,
+        description="False only when the user explicitly restricts the complete entity inventory to entity_requirements. Ordinary projects stay open.",
+    )
     changes: list[RequirementChange] = Field(default_factory=list, max_length=128)
 
     def gate_dump(self) -> dict:
@@ -144,10 +181,18 @@ class Requirement(Contract):
         return self.model_dump(
             exclude={
                 name
-                for name in ("limitations", "field_requirements", "changes")
+                for name in ("limitations", "field_requirements", "entity_requirements", "changes")
                 if not getattr(self, name)
             }
+            | ({"additional_entities"} if self.additional_entities else set())
         )
+
+    @field_validator("entity_requirements")
+    @classmethod
+    def unique_entity_requirements(cls, value):
+        if len({item.entity for item in value}) != len(value):
+            raise ValueError("同一实体不能重复声明字段清单")
+        return value
 
     @property
     def ready(self) -> bool:
@@ -164,7 +209,16 @@ class Requirement(Contract):
 
 class FieldSpec(Contract):
     name: Name
-    kind: Literal["text", "integer", "boolean", "date", "enum"]
+    label: str = Field(
+        default="",
+        max_length=100,
+        description="Human-readable field label; use the user's interface language without changing the stable name.",
+    )
+    choice_labels: dict[str, Annotated[str, Field(min_length=1, max_length=100)]] = Field(
+        default_factory=dict,
+        description="Optional enum stored value to human-readable label. Keys must occur in choices.",
+    )
+    kind: Literal["text", "integer", "boolean", "date", "datetime", "enum"]
     required: bool = True
     max_length: int = Field(default=200, ge=1, le=20000)
     min_length: int = Field(default=0, ge=0, le=20000)
@@ -173,7 +227,10 @@ class FieldSpec(Contract):
     )
     searchable: bool = False
     filterable: bool = False
-    date_range: bool = False
+    date_range: bool = Field(
+        default=False,
+        description="Only kind=date supports inclusive date ranges; kind=datetime must set false.",
+    )
 
     @model_validator(mode="after")
     def field_options(self):
@@ -185,6 +242,10 @@ class FieldSpec(Contract):
             raise ValueError("枚举必须有不重复的选项")
         if self.kind != "enum" and self.choices:
             raise ValueError("只有 enum 类型可以声明 choices")
+        if self.choice_labels and (
+            self.kind != "enum" or not set(self.choice_labels) <= set(self.choices)
+        ):
+            raise ValueError("choice_labels只能映射已声明的enum选项")
         if self.searchable and self.kind not in {"text", "enum"}:
             raise ValueError("关键词搜索只能使用文本/枚举字段")
         if self.date_range and self.kind != "date":
@@ -224,6 +285,7 @@ class Plan(Contract):
     entities: list[Entity] = Field(min_length=1, max_length=8)
     acceptance: list[Text] = Field(min_length=1)
     custom_rules: list[CustomRule] = Field(default_factory=list, max_length=6)
+    business: BusinessSpec | None = Field(default=None, exclude_if=lambda value: value is None)
     unsupported: list[Text] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -252,16 +314,27 @@ class Plan(Contract):
                         "integer": int,
                         "boolean": bool,
                         "date": str,
+                        "datetime": str,
                         "enum": str,
                     }[field.kind]
                     if type(value) is not expected:
                         raise ValueError("规则示例字段类型错误")
                     if field.kind == "date":
                         date.fromisoformat(value)
+                    if field.kind == "datetime":
+                        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+                        if parsed.tzinfo is None:
+                            raise ValueError("datetime 必须包含时区")
                     if field.kind == "enum" and value not in field.choices:
                         raise ValueError("规则示例不在枚举选项内")
                     if field.kind in {"text", "enum"} and len(value) > field.max_length:
                         raise ValueError("规则示例文本过长")
+        if self.business is not None:
+            if self.custom_rules:
+                raise ValueError(
+                    "Business contracts cannot also use standalone custom_rules; express supported behavior in the business contract"
+                )
+            self.business.validate_plan(self)
         return self
 
 

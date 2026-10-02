@@ -6,9 +6,9 @@
 
 ### A.1 值、变量、列表与字典
 
-`title = "资讯"`把一段文字放到变量title中。`count = 3`是整数，`enabled = False`是布尔值，`None`表示没有值。它们不能随意互换：数量0不是空值，布尔False也不是“没填写”。本系统专门测试这两个边界。
+`title = "客服平台"`把一段文字放到变量title中。`count = 3`是整数，`enabled = False`是布尔值，`None`表示没有值。它们不能随意互换：数量0不是空值，布尔False也不是“没填写”。本系统专门测试这两个边界。
 
-`fields = ["title", "body"]`是有顺序的列表；`{"title": "资讯", "required": True}`是按键取值的字典。`data["title"]`要求键存在，缺少时会报错；`data.get("title", "")`允许不存在并提供默认值。不能为了避免报错，给本来必需的批准信息随意设True。
+`fields = ["title", "body"]`是有顺序的列表；`{"title": "客服请求", "required": True}`是按键取值的字典。`data["title"]`要求键存在，缺少时会报错；`data.get("title", "")`允许不存在并提供默认值。不能为了避免报错，给本来必需的批准信息随意设True。
 
 Python代码中的`if`是条件，冒号后缩进的行只有条件成立才执行。`for`逐个处理列表元素。`return`结束当前函数并返回结果，`raise`结束正常流程并发出错误。`try/except/finally`分别表示尝试执行、处理指定错误、无论成功失败都执行清理。本地Daytona删除沙箱就在finally里；它不是“仅成功时才清理”。
 
@@ -45,14 +45,14 @@ FastAPI的lifespan在服务启动和退出时管理数据库/Worker。LangGraph�
 | 组 | 先写的文件 | 这一组完成后的可观察结果 |
 |---|---|---|
 | 0 工具与项目 | `.python-version`、`pyproject.toml`、`uv.lock`、`.env.example`、`.gitignore`、`.gitattributes`、`README.md`、`workbench/__init__.py`、`workbench/local_only.py` | uv创建独立`.venv`；尚未启动服务或调用模型 |
-| 1 数据契约 | `settings.py`、`catalog.py`、`domain.py`、`errors.py` | 能把合法字典转成Plan；非法字段、技术栈组合和非本机工具地址被拒绝 |
+| 1 数据契约 | `settings.py`、`business_contracts.py`、`business_capabilities.py`、`catalog.py`、`domain.py`、`errors.py` | 能把合法字典转成Plan；非法字段、技术栈组合和非本机工具地址被拒绝 |
 | 2 数据库 | `store.py`、`alembic.ini`、`migrations/`全部文件；`tests/conftest.py`、`test_contracts.py`、`test_store.py` | 临时数据库能迁移、保存项目和事务回滚；此时完全不需要api.py或runtime.py |
 | 3 需求与模型 | `conversation.py`、`llm.py`、`requirement_coverage.py`、`recommendation.py` | 长期会话保存原事实；模型请求有角色路由、预算、缓存和严格响应格式 |
 | 4 安全与源代码 | `filesystem.py`、`tools.py`、`vendor.py`、`scripts/vendor_templates.py`、`templates/vendor/`文本清单/许可证 | 能从固定第三方源码生成本机ZIP，再安全解压；没有任意命令入口 |
 | 5 上下文 | `symbols.py`、`knowledge.py`、`retrieval.py`、`continue_index.py`、`context_mcp.py`、`toolchain.py`、`tools/node/`全部文本文件 | Java/TS/Vue/Python符号和源码行号可检索；只读MCP共享同一索引 |
-| 6 产品 | `templates/product/`全部文件、`templates/frontends/`全部文件、`generator.py`、`product_sql.py`、`rules.py`、`coding.py`、`aider_tool.py` | 已批准Plan可确定性生成独立产品；只有受限规则文件可以由模型参与修改 |
+| 6 产品 | `templates/product/`全部文件、`templates/frontends/`全部文件、`generator.py`、`product_sql.py`、`business_python.py`、`templates/business/common/policy.py`、`rules.py`、`coding.py`、`aider_tool.py` | 已批准Plan可确定性生成独立产品；只有受限规则文件可以由模型参与修改 |
 | 7 验收 | `verification.py`、`postgres_lab.py`、`sandbox.py`、`daytona_worker.py`、本机Daytona脚本和Dockerfile | 本机真实验收、可选隔离复验以及清理失败阻止交付 |
-| 8 原生全栈 | 全部`native*.py`、`portable.py`、`portable_checks.py`、`templates/deployment/`、原生浏览器脚本 | 原框架生成、菜单/权限挂载、前端/浏览器验证及独立新库启动 |
+| 8 原生全栈 | 全部`native*.py`、`business*.py`、`portable.py`、`portable_checks.py`、`templates/deployment/`、`templates/business/`、两套business浏览器脚本 | 原框架生成、菜单/权限挂载、前端/浏览器验证及独立新库启动 |
 | 9 串联 | `flow.py`、`runtime.py`、`api.py`、`cli.py`、`workbench/web/` | Web和CLI共用同一持久状态流程，能够从需求到下载 |
 | 10 可重复验证 | `tests/`剩余文件、`scripts/`剩余文件、`.github/workflows/`、`docs/`、手册构建脚本 | 能运行完整回归，能由本书重新建立代码，再生成字节一致的本书 |
 
@@ -87,7 +87,7 @@ uv sync --locked
 uv run pytest tests/test_contracts.py tests/test_store.py -q
 ```
 
-这一步不用填写模型Key、不启动Daytona、不需要浏览器。测试使用临时目录，验证外键、短事务、重复请求和门身份。出现ModuleNotFoundError先核对本组是否包含local_only.py和所有迁移文件，不要把未来的API文件复制进来掩盖依赖错误。
+这一步不用填写模型Key、不启动Daytona、不需要浏览器。测试使用临时目录，验证外键、短事务、重复请求和门身份。出现ModuleNotFoundError先核对本组是否包含local_only.py、business_contracts.py、business_capabilities.py和所有迁移文件，不要把未来的API文件复制进来掩盖依赖错误。
 
 ## D. 第二条数据流：从模糊需求到已批准Plan
 
@@ -113,7 +113,7 @@ Workflow.gate把当前run、阶段、内容版本与可选动作交给Store.gate
 
 ### D.4 Plan如何落到后端与前端
 
-Plan的entities是业务实体，FieldSpec描述每个字段的name/kind/required/长度/choices/检索与筛选属性。以资讯为例：title是可搜索文本、body是可搜索长文本、publish_date是可精确与区间筛选的date、category是可空的enum。数据范围per_user表示不同产品用户不能互看记录。
+Plan的entities是业务实体，FieldSpec描述每个字段的name/kind/required/长度/choices/检索与筛选属性。以客服为例：customers保存客户资料，requests的customer_id指向客户，tasks的request_id指向请求；request_state/task_state是受控枚举，resolved_at是由转换写入的时间。Plan.business声明共享资源上的角色/行权限，而不是仅设置shared就开放给所有用户。
 
 同一个Plan最终进入四个地方：generator产生approved-spec.json；schema/fields产生数据库结构与输入校验；前端按规格产生表单和筛选控件；verify按规格生成边界用例。若只改UI而不改Plan，后端仍拒绝；若只改后端而漏掉前端，浏览器回归会发现。对应关系由数据驱动，不由模型生成四份互相矛盾的业务定义。
 
@@ -240,7 +240,7 @@ Runtime在本机文件锁和可选PG advisory lock下启动单Worker。文件锁
 | 契约/数据库 | `uv run pytest tests/test_contracts.py tests/test_store.py -q` | 字段名、local_only依赖、迁移文件是否齐全 |
 | 模型 | `uv run pytest tests/test_llm.py tests/test_guided_models.py -q` | JSON响应契约、模型路由与密钥继承，不需要真实Key |
 | 安全/源码 | `uv run pytest tests/test_safety.py tests/test_vendor.py tests/test_toolchain.py tests/test_local_only.py -q` | 固定模板ZIP是否由脚本生成；所有工具地址是否回环 |
-| 产品 | `uv run pytest tests/test_news_delivery.py tests/test_guided_selection.py -q` | approved-spec与字段/查询/前端是否来自同一Plan |
+| 产品 | `uv run pytest tests/test_business_contracts.py tests/test_business_python.py tests/test_guided_selection.py -q` | approved-spec与字段/查询/前端是否来自同一Plan |
 | 流程/API | `uv run pytest tests/test_api.py tests/test_workflow.py tests/test_guided_workflow.py -q` | gate_id、显式布尔值、Job状态与幂等键 |
 | 全部文件 | `uv run python -m scripts.build_handbook`，然后`uv run pytest -m "not postgres" -q` | 先生成唯一手册，再检查源码块与当前文件的一致性 |
 | 真实工具 | `uv run python -m scripts.ci_toolchain` | Aider独立环境、实际MCP进程、源码索引，不是模型账号 |
@@ -250,9 +250,11 @@ Runtime在本机文件锁和可选PG advisory lock下启动单Worker。文件锁
 
 ## K. 只有这一份文档时如何减少抄写错误
 
-手工学习仍按前面的组和逐文件代码区进行。为了校对大量锁文件和重复的完整源码，可以先把下面这段**仅使用Python标准库**的完整代码保存为项目目录外的`rebuild_book.py`。它不要求已有本项目脚本、不下载本项目源码、不执行提取的代码，只把经过SHA验证的源码块写入一个新的空目录。
+手工学习仍按前面的组和逐文件代码区进行。为了校对大量锁文件和重复的完整源码，可以先把下面这段**仅使用Python标准库**的完整代码保存为项目目录外的`rebuild_book.py`。它不要求已有本项目脚本、不下载本项目源码、不执行提取的代码，只把经过SHA验证的源码块和截图原始字节写入一个新的空目录。图片以可折叠的Base64资源块随书收录，不需要照着界面重画，也不需要另外下载图片。还原后在项目根目录重新生成本书，正文的`docs/images/`相对图片路径即可正常显示。
 
 ```python
+import base64
+import binascii
 import hashlib
 import re
 import sys
@@ -268,11 +270,12 @@ target = Path(sys.argv[2])
 if target.is_symlink() or (target.exists() and any(target.iterdir())):
     raise SystemExit("目标必须是新的空目录，不覆盖任何已有项目")
 pattern = re.compile(
-    r"^<!-- source-file: ([^\r\n]+) sha256: ([0-9a-f]{64}) -->\n(`{4,})[^\n]*\n(.*?)\n\3\n",
+    r"^<!-- source-file: ([^\r\n]+) sha256: ([0-9a-f]{64})(?: encoding: (base64))? -->\n"
+    r"(`{4,})[^\n]*\n(.*?)\n\4\n",
     re.S | re.M,
 )
 files = {}
-for name, expected, fence, code in pattern.findall(book):
+for name, expected, encoding, fence, code in pattern.findall(book):
     relative = PurePosixPath(name)
     if (
         relative.is_absolute()
@@ -286,8 +289,26 @@ for name, expected, fence, code in pattern.findall(book):
         or any(ord(char) < 32 for char in name)
     ):
         raise SystemExit("不安全或重复路径: " + name)
-    content = code + "\n"
-    if hashlib.sha256(content.encode("utf-8")).hexdigest() != expected:
+    if encoding == "base64":
+        try:
+            content = base64.b64decode(code.replace("\n", ""), validate=True)
+        except (binascii.Error, ValueError) as exc:
+            raise SystemExit("二进制块编码不合法: " + name) from exc
+        if hashlib.sha256(content).hexdigest() != expected:
+            raise SystemExit("二进制块哈希不匹配: " + name)
+        files[name] = content
+        continue
+    # Fence separators are not necessarily source bytes: preserve empty files
+    # and sources with or without a final newline, using the exact source SHA.
+    content = next(
+        (
+            value
+            for value in (code + "\n", code)
+            if hashlib.sha256(value.encode("utf-8")).hexdigest() == expected
+        ),
+        None,
+    )
+    if content is None:
         raise SystemExit("代码块损坏: " + name)
     files[name] = content
 if not files:
@@ -298,7 +319,10 @@ target.mkdir(parents=True, exist_ok=True)
 for name, content in files.items():
     path = target / name
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(content, encoding="utf-8", newline="\n")
+    if isinstance(content, bytes):
+        path.write_bytes(content)
+    else:
+        path.write_text(content, encoding="utf-8", newline="\n")
 print("已校验并写入", len(files), "个文件；尚未执行代码或安装依赖。")
 ```
 
@@ -357,12 +381,34 @@ uv run python -m scripts.build_handbook --check
 原生协议测试使用固定时间戳的ZIP夹具；它仍比较原始ZIP字节，只是不依赖运行时的时钟，避免跨越ZIP时间刻度产生随机误报。
 这些协议夹具不代替Actions中实际启动原生生成器、全栈应用及全新数据库的验收。
 
-## L. 已确认的需求为什么不能在下一轮消失
+## M. 已确认的需求为什么不能在下一轮消失
 
-`Requirement.field_requirements`保存字段级义务，例如`article.title`的文本类型、必填、最大长度和可搜索标记；`features`、`acceptance`与`facts`保存用户明确表达的其他条件。它们来自需求阶段，不由设计Plan反向决定。设计中的一个字段存在，不等于它的长度、日期范围和查询能力都正确。
+`Requirement.field_requirements`保存字段级义务，例如`requests.priority`必须为必填枚举、`requests.title`的文本类型、最大长度和可搜索标记；`features`、`acceptance`与`facts`保存用户明确表达的其他条件。它们来自需求阶段，不由设计Plan反向决定。设计中的一个字段存在，不等于它的长度、日期范围和查询能力都正确。
 
 `requirement_coverage.reconcile`先合并前次事实。后一次模型响应漏掉一项，不代表用户同意删除；需要替换时使用`RequirementChange`，包含被改的section/key、replacement和来自新用户消息的source_quote。程序核对引用确实存在并表达这项更正；模型自己写一句“用户同意”不构成证据。
 
 需求确认后，`flow.plan`保留原验收条件，`flow.design`调用`coverage_gaps`逐项比较结构化义务与Plan。把per_user换成shared、把真实日期换成普通文字、遗漏筛选或改掉枚举，都应进入明确的设计阻塞/修正流程，不能一路生成到下载。数据归属更改尤其需要用户的实际更正。
 
+规划输入还包含确定性生成的`field_obligations`：每项保留`field_requirements/索引`来源ID、实体/字段目标以及明确指定的属性。`false`、`0`不能当作缺失值丢掉，未指定的属性也不能凭空变成要求。重试反馈携带同一目标、属性、期望值和实际值，并同时保留原需求与上轮Plan；程序不自动改写模型Plan来伪造符合。
+
+旧版文字条件按章节与语句绑定：标题只提供上下文，字段清单只在归属唯一时帮助确定实体；后面的“按字段搜索/筛选”只约束自己的字段列表。重复字段名如果没有明确实体范围，不推断成所有实体的共同义务。真正明确的文字条件与结构化条件冲突时仍应阻塞，不能把全部文字忽略。其余业务语义继续通过业务合同和独立审阅检查，不能靠字词命中宣称完整理解。
+
 手工追踪一个例子：“标题必填，最多80字，可关键词搜索”。先在Requirement找到这三个条件，再在Plan中找到同一实体同一字段，核对required、max_length、searchable；最后查看产品API和浏览器对同一条件的检查。自由文字识别只覆盖已登记词汇，不能宣称程序已理解任意自然语言业务；明确的字段义务应进入结构化合同，未支持的要求保留为阻塞项。
+
+### 结构化业务义务与离线诊断
+
+需求分析输入直接提供实际 `BusinessSpec` JSON Schema；字段义务仍使用 `field_requirements`，不把指标、角色、关系或模板能力名称当作字段。嵌套资源的实体范围与关系的来源实体会传递给其明确字段约束，列表、按名称索引的映射和 JSON 字符串表示遵守相同边界。
+
+业务事实按资源、关系、权限、状态流转、提醒、指标分别比较。已支持的明确同义表达可转换为规范属性；转换不修改已批准事实。完整权限矩阵默认拒绝未声明的角色或资源授权，明确行范围、禁止动作和只读约束仍需满足。指标权限绑定到指标所属实体；聚合范围不能覆盖冲突的逐指标范围。通知目录的事件与接收者集合不是自动的笛卡尔乘积，带明确实体/事件的通知规则仍逐项验证。
+
+设计失败会把义务来源、预期动作/实体/范围及实际设计传入下一轮规划；真正遗漏的统计或处理历史授权不会被别名兼容隐藏。已留存的三个真实模型失败合同仅用于纯离线验证回归，带 `unapproved` 和 `execution_authorized=false` 标识，不能参与批准、生成或冒充真实交付。
+
+负责人选择只要求目标角色能够以 `all` 或 `assigned` 范围读取该资源；分配者仍必须拥有该记录的 `assign` 权限。只读负责人不因此获得修改、流转、备注或统计权限，`own` 范围或无读取权限的目标不能被当作负责人。三个运行时的服务端与选择器使用相同边界。
+
+原生后端启动前拒绝已占用端口；Linux 就绪检测先只读核对监听 socket 与本次启动的进程组，再调用 HTTP。清理只处理本次创建且仍能观测到的进程组，验证原端口释放，再在同一端口完成重启。失败诊断只记录有界的端口、进程 ID、退出码和拥有关系，不收集环境、凭据或完整进程参数。
+
+查询谓词与结果描述分别解析：例如“搜索结果符合筛选条件”不为邻近字段开启搜索；括号中的逐字段描述保留各自必填、长度和选项约束，不借用前一个字段的数值。明确的额外文字约束与真正冲突仍会阻塞。需求中的通用状态提醒必须覆盖该实体的每一个命名转换及指定接收者，不能只命中一个转换；可执行通知仍使用具体动作名，不能把 null 当作运行时通配规则。
+
+read_audit 与 read_history 是独立读取授权。仅有审计授权的客户记录仍可通过受当前角色行范围保护的入口查看完整不可修改审计；只有历史授权时仅返回去除快照的处理时间线。两种读取权限都不授予备注、修改或状态动作权限。
+
+本机 Daytona 测试控制平面的 `daytona-network` 固定为私有 `172.30.240.0/24`，仍为 `internal:true`；服务成员、仅网关发布的 `127.0.0.1` 端口、禁止沙箱互联和 `network_block_all` 均不改变。固定上游版本 `01c502bb1f1ff8f2885d0cd490e043736083dca8` 的 [runner Docker client](https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/runner/pkg/docker/client.go) 在禁止互联时使用内层 `172.20.0.0/16`；外层不得由 Docker 动态选择到相同网段。启动前拒绝缺失、改变或重叠的 IPAM 配置；已分配冲突由 Docker 报错，不随机重试、不退回 host 网络，也不修改主机防火墙或 VPN。该约束有渲染和失败前置回归，实际启动与独立应用检查仍必须由同一最终提交的 Actions 完成。

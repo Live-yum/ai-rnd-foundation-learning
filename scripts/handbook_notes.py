@@ -7,6 +7,66 @@ from pathlib import Path
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "requirement_sources": (
+        "在规划前拒绝明确来源互相冲突的分析候选",
+        "对能可靠定位的同一原子义务比较明确值，保留用户原文、已确认契约和模型候选来源；矛盾走已有有界分析纠错，不替用户选值或批准，未知旧文本仍保守校验。",
+        "Workflow.analyse → 来源冲突诊断与需求账本 → 原有clarification关口；有效分析才进入设计。",
+    ),
+    "business_contracts": (
+        "业务合同的类型和交叉校验",
+        "将角色、资源、关联、状态、提醒与指标作为有限声明；检查实体/字段/角色引用、不可改系统字段和互相矛盾的权限，拒绝任意SQL或执行脚本。",
+        "Plan.business → validate_plan → 各模板适配器与独立验收。",
+    ),
+    "business_capabilities": (
+        "业务合同的可执行能力边界",
+        "按实际模板及已实现适配判断合同是否能执行，不根据模型声称动态开启能力；未登记功能保留阻塞。",
+        "选择器/规划门 → 合同检查 → 对应业务运行时。",
+    ),
+    "business_yudao": (
+        "在真实Yudao生成物上挂载业务策略",
+        "核对当前表名、权限、路由及生成文件身份，保留DO/Mapper/Service与原生Vben结构，将控制器全部交给统一事务策略；输出明确扩展DDL和可核查源清单，不执行用户SQL或重置数据。",
+        "native_lab → install_native_business → install_yudao_business → Spring/MyBatis/Vben产物 → 显式SQL安装。",
+    ),
+    "business_fastapi": (
+        "在真实FastapiAdmin产物上挂载业务策略",
+        "保留框架认证与生成模型、补齐关系，保护原CRUD入口并挂载带行权限的业务接口和原生组件页面；注册仍走原生校验，之后事务性附加默认业务角色。",
+        "native_lab → extend_business → module_business插件、Fa页面和扩展DDL。",
+    ),
+    "business_native": (
+        "事务安装明确的原生业务扩展",
+        "根据模板选适配器，再向已验证的专用本机库按顺序执行受信任扩展SQL；同一事务失败全部回滚，证据记录实际SQL哈希而非直接宣告运行成功。",
+        "生成器及菜单完成 → 本文件 → 后端重新构建/启动 → HTTP与浏览器验收。",
+    ),
+    "business_schema_receipt": (
+        "独立交付的真实数据库结构签名",
+        "从当前数据库读取列、外键与关键约束，形成可比较结构；恢复不能仅以表存在代替结构一致，也不能删除不匹配的数据。",
+        "portable创建清单 → 独立启动器校验新库/已有同产品库 → 结构一致性证据。",
+    ),
+    "business_probe": (
+        "三角色实际原生HTTP验收",
+        "使用明确合成账号和业务记录，通过原生登录取得身份，检查关联、分配、转换、历史、审计、提醒和统计，另以无权用户验证后端拒绝；不把隐藏按钮当权限证明。",
+        "native_lab/独立恢复 → customer_service_acceptance → business.json及临时浏览器场景。",
+    ),
+    "native_business_probe": (
+        "原生接口的逐字段检索、关联权限与审计不变性验证",
+        "用合成对照记录和五个真实身份计算预期可见集合，实际请求搜索、精确筛选、日期区间及组合条件；尝试无权关系写入和审计修改删除，比较拒绝前后的记录与哈希。只有断言完成才写入观察结果，不根据合同本身填入成功标记。",
+        "business_probe → NativeOracle及真实HTTP探针 → execution_evidence；portable将同一探针带入新数据库再次执行。",
+    ),
+    "native_evidence": (
+        "绑定实际原生执行证据并交给独立模型审阅",
+        "严格校验逐项观察的类型、角色、字段、预期与实际计数及集合哈希，确认覆盖当前批准合同，再绑定源码及报告哈希。传给模型的内容只含受限的测试结果与复现文件摘要，不发送账号、原始记录或工具日志；旧的汇总布尔值不能替代详细证据。",
+        "native_delivery.managed_verify → native_review_evidence → flow.model_review；审阅仍可因真实缺口阻塞交付。",
+    ),
+    "business_browser": (
+        "用临时场景连接真实原生浏览器验收",
+        "只把本次合成账号交给临时场景文件，启动对应浏览器脚本并要求passed及零错误；临时凭据不进入上传报告。",
+        "native_lab/portable → 模板专用CJS脚本 → business-browser.json与截图。",
+    ),
+    "business_python": (
+        "基础Python产品的业务合同挂载",
+        "把共享的有限业务策略与产品自身Schema/认证连接，生成独立运行所需配置及文件；不依赖开发工作台进程或真实模型服务。",
+        "generate_basic → 完整业务合同 → 产品自身运行时和独立验收。",
+    ),
     "daytona_sessions": (
         "长时间沙箱检查的单次异步提交",
         "建立独立会话并仅提交一次异步命令，按总期限用有界GET轮询，终止后读一次日志。传输层关闭透明重试，单请求最多30秒；提交响应丢失立即失败，不能用同步exec重放。",
@@ -150,7 +210,7 @@ MODULES = {
     "verification": (
         "基础产品的真实验收和干净解压复验",
         "先用产品自己的锁安装独立环境，再运行产品HTTP和逐规格真实Chromium验收。require_browser_evidence核对当前实体、字段与检查名称，不接纳缺项报告；package_basic解压到新目录再次完整验证，避免仅在工作目录偶然可运行。",
-        "flow → verify_basic/package_basic → templates/product/verify.py；test_news_delivery。",
+        "flow → verify_basic/package_basic → templates/product/verify.py/verify_business.py；test_customer_workflow与test_business_python。",
     ),
     "sandbox": (
         "本机Daytona附加验收与生命周期",
@@ -174,8 +234,18 @@ MODULES = {
     ),
     "native_environment": (
         "本机原生后端环境和进程",
-        "先确认专用本机数据库，再复制固定源码、初始化种子并生成环境；install_backend准备依赖与构建，running_backend管理进程存活和退出。兼容改动检查原文并记录，不静默忽略失败。",
+        "先确认专用本机数据库，再复制固定源码、初始化种子并生成环境；install_backend准备依赖与构建，running_backend管理进程存活和退出，记录启动轮次、阶段、已拥有进程与目标端口状态。启动失败后清理也失败时保留原始异常并附加清理事实，不杀死占用端口的其他进程，也不把超时改成成功。兼容改动检查原文并记录。",
         "native_lab/native_delivery/portable → backend环境 → 本机PG/Redis/Java或Python。",
+    ),
+    "yudao_navigation": (
+        "让原生菜单只呈现实际安装的能力",
+        "固定mini后端只安装system/infra，完整上游种子仍含其他模块；生成覆盖层将已有菜单与实际注册的Spring处理器、已安装Maven模块及随包Vben组件求交集。管理员也不能看到未安装模块；不删除菜单数据、不增加角色授权，重建和ZIP恢复重新计算能力。",
+        "install_backend → 原生MenuService只读覆盖层 → auth/menu/role-menu接口与Vben侧栏。",
+    ),
+    "yudao_navigation_checks": (
+        "独立检查实际菜单与角色授权的交集",
+        "通过真实原生接口和浏览器，比较安装的基础能力、批准方案业务菜单及各角色原有授权；同时保留应出现和应拒绝的具体观察值。源实例、新数据库恢复与重启重复检查，不能用覆盖层自报清单或单个passed标记替代执行证据。",
+        "原生HTTP/浏览器与独立恢复 → 菜单能力观察 → 源码和原始报告哈希绑定的独立审阅。",
     ),
     "native_delivery": (
         "原生生成、完整验收和打包的流程接口",
@@ -234,13 +304,18 @@ MODULES = {
     ),
     "portable": (
         "让原生产品脱离工作台独立启动",
-        "导出原生种子、增量业务表和菜单SQL，复制启动器所需全部HELPERS，包括本机策略模块。verify_native_delivery在另一个新的本机数据库恢复并启动前后端，确认没有导入原工作台或复用原生成数据库。",
+        "导出原生种子、增量业务表和菜单SQL，复制启动器所需全部HELPERS，包括本机策略模块。verify_native_delivery在另一个新的本机数据库恢复并启动前后端，确认没有导入原工作台或复用原生成数据库；失败时在删除临时副本前保留白名单日志尾和进程阶段，限制读取与输出大小并遮蔽凭据，不复制环境、服务密码文件或任意运行目录。诊断回执不能授予验收成功。",
         "managed_package → portable → templates/deployment；test_native_delivery_boundaries。",
     ),
     "requirement_coverage": (
         "保留用户事实并检查可执行需求覆盖",
-        "reconcile合并已确认事实，后续模型省略不等于用户删除；替换要有当前真实用户更正原文。coverage_gaps把结构化字段义务、数据归属及可识别的明确约束与Plan逐项比较，设计漏项就阻塞，不让规划模型自行宣布已覆盖。",
+        "模型格式与类型先由官方LangChain结构化输出和Pydantic负责。reconcile保留已确认事实，替换要有当前真实用户更正原文；coverage_gaps逐项比较结构化字段、数据归属与可识别业务约束，指标与列表查询分区。仅提到英文别名不会建立新字段义务；真实正向声明、明确禁止字段及旧文本兼容检查仍保留，不把部分typed清单当成语义完整证明。来源冲突与设计漏项仍阻塞，不让规划模型自行宣布已覆盖。",
         "flow.analyse保留事实 → Requirement.field_requirements → flow.design → coverage_gaps；test_requirement_coverage。",
+    ),
+    "entity_requirements": (
+        "用户明确封闭的实体与字段清单",
+        "普通项目默认允许扩展；只有明确封闭的批准清单才禁止额外实体或字段。逐实体比较计划并报告缺失、额外字段与来源编号，不直接修改模型计划。模型遗漏清单不构成撤销批准，修正需可追溯的用户原文。",
+        "Requirement.entity_requirements/additional_entities → coverage_gaps → 设计门与下一轮精准修复反馈。",
     ),
     "native_recovery": (
         "身份绑定的原生中断检查点",
@@ -279,34 +354,136 @@ MODULES = {
     ),
 }
 
+BUSINESS_FILES = {
+    "yudao/RndBusinessQuery.java": (
+        "芋道业务列表的声明式查询谓词",
+        "将配置允许的查询编译为纯Java谓词：关键词只搜索已声明字段，精确过滤按类型比较，日期上下界包含边界，多个条件取交集。无权行先由服务层排除；未知或未开放条件返回输入错误。真实Java断言和错误实现变异检查验证这些规则。",
+        "RndBusinessService.page先检查角色/行权限 → 本文件匹配 → 原生Vxe列表；business-form.ts只显示批准的查询控件。",
+    ),
+    "common/policy.py": (
+        "三个模板共享的有限业务策略解释器",
+        "Policy按批准合同查角色、资源、权限与状态转换，校验受控字段并计算登记指标；只处理数据和规则，不持有数据库连接或外部网络权限。",
+        "Plan.business → business_python/fastapiadmin复制策略 → 各自事务运行时；Yudao以审查过的Java实现相同合同。",
+    ),
+    "fastapiadmin/controller.py": (
+        "FastapiAdmin原生认证下的业务HTTP入口",
+        "路由接收严格动作载荷，使用框架当前用户和数据库依赖调用运行时；业务权限不能由浏览器传入角色或负责人来决定。",
+        "原生路由注册 → controller → runtime → SQLAlchemy模型与policy。",
+    ),
+    "fastapiadmin/guard.py": (
+        "原生成CRUD入口的绕过防护",
+        "业务合同挂载后，原CRUD路径不能成为跳过行范围、受控字段与事件的备用写入口；这里检查当前模块身份并拒绝不允许的调用。",
+        "business_fastapi改造生成控制器 → guard → 合同业务接口。",
+    ),
+    "fastapiadmin/index.vue": (
+        "Fa与Element Plus业务页面",
+        "沿用原生布局和组件，按合同渲染列表、表单、关系选项、指派、状态、历史、提醒与统计；页面只提示权限，服务器仍实施权限。",
+        "原生菜单/路由 → 本Vue页 → 同框架业务API；business_fastapi_browser.cjs实际操作。",
+    ),
+    "fastapiadmin/model.py": (
+        "FastapiAdmin业务事件与通知模型",
+        "用原生ORM事件表承载操作、处理记录和收件人通知，字段来自受审查适配器；与生成实体使用同一专用数据库，不建立旁路内存数据库。",
+        "扩展DDL → 原生模型发现 → runtime事务读写。",
+    ),
+    "fastapiadmin/registration.py": (
+        "原生注册与默认业务角色的事务连接",
+        "在已有账号校验和密码哈希之后添加合同默认非管理员角色；初始化权限和普通注册分离，不允许用户选择管理员角色。",
+        "原生注册接口 → 同事务注册钩子 → 产品专属角色。",
+    ),
+    "fastapiadmin/runtime.py": (
+        "FastapiAdmin合同事务运行时",
+        "读取真实原生身份，实施角色/行范围、关联锁、命名动作、事件与通知；指标使用当前可见范围，关键写入共同提交或回滚。",
+        "controller → policy/生成模型/扩展模型 → PostgreSQL → 原生响应。",
+    ),
+    "fastapiadmin/__init__.py": (
+        "FastapiAdmin业务插件包入口",
+        "使生成后的module_business目录成为可导入模块；具体路由、事务和策略分别由同目录文件实现。",
+        "business_fastapi写入 → 原生模块发现 → controller/model。",
+    ),
+    "yudao/EntityController.java": (
+        "Yudao生成实体的受保护控制器",
+        "保留原生路由、VO与认证接线，将实体读写转交合同服务，避免旧生成CRUD旁路跳过角色、关系和事件规则。",
+        "Vben生成API → 此Controller → RndBusinessService → 原生Mapper。",
+    ),
+    "yudao/RndBusinessController.java": (
+        "Yudao业务动作与管理路由",
+        "公开角色、关系、分配、命名转换、历史、通知和统计入口；身份来自原生登录，接口参数不能伪造操作者。",
+        "Vben业务面板 → Controller → RndBusinessService事务。",
+    ),
+    "yudao/RndBusinessMapper.java": (
+        "Yudao扩展事件与业务查询Mapper",
+        "以明确登记表与参数绑定读写扩展数据；实体DO/Mapper仍来自真实生成器，不能用用户输入替换SQL表名。",
+        "RndBusinessService → MyBatis Mapper → 本产品业务及事件表。",
+    ),
+    "yudao/RndBusinessRegistration.java": (
+        "Yudao原生注册后的业务角色连接",
+        "沿用框架注册、校验与密码处理，事务性分配合同默认非管理员角色，不签发假令牌或存储明文密码。",
+        "原生账号注册 → 本产品角色钩子 → 初始化与权限验证。",
+    ),
+    "yudao/RndBusinessService.java": (
+        "Yudao业务合同的Java事务实现",
+        "校验真实身份与精确资源映射，锁定记录后执行关系、分配和状态动作，追加事件/通知；角色管理保护最后管理员，统计应用可见行范围。",
+        "业务/实体Controller → Spring事务 → 原生DO/Mapper及扩展Mapper → PostgreSQL。",
+    ),
+    "yudao/business-form.ts": (
+        "Vben合同表单与关联选项",
+        "在原生Form Schema中移出状态/负责人等受控字段，把关系键接为服务器限定的可识别选择项；关系选择器按可读标签搜索并保留虚拟滚动，选项多时也能找到新记录，不扩大后端权限范围。保留字段校验和类型。",
+        "生成Vben表单 → 本辅助函数 → 合同关系API与原生表单组件。",
+    ),
+    "yudao/metric-chart.vue": (
+        "Vben真实指标的图表组件",
+        "将服务器已按角色范围计算的指标转换为Echarts展示；空样本、数量、时长和日期轴有不同含义，不在前端编造统计数字。",
+        "业务metrics响应 → panel.vue → 本图表 → 原生主题。",
+    ),
+    "yudao/panel.vue": (
+        "Vben业务处理与协作面板",
+        "使用原生Ant/Vben组件展示指派、状态、备注、历史、提醒和统计，调用合同专用API；权限变化后仍以后端结果为准。",
+        "生成Page/Grid/TableAction入口 → 本面板/Form/Modal → 业务Controller。",
+    ),
+}
+
 PRODUCT = {
+    "business_schema.py": "纯元数据构造器：按批准合同创建实体真实外键、角色、初始化标记、不可改审计、处理记录与收件人通知表；不在导入时连接数据库，可供生成器编译审查SQL。",
+    "business_runtime.py": "独立客服产品事务执行器：每请求读真实角色，把all/own/assigned放进查询；保护创建人/负责人/状态/时间，锁定记录执行动作，追加事件与提醒，并按范围计算四类指标。",
+    "verify_business.py": "独立客服HTTP/浏览器验收器：新建自有数据库和三角色合成账号，验证关系、指派、流程、记录、提醒、统计、拒绝路径及重启；截图仅限有界命名PNG，不导出密码或运行数据库。",
+    "verify-business-browser.cjs": "Python轻量原生UI的三角色真实Chromium场景：通过登录、列表、关联表单、详情动作、提醒及统计控件完成客服流程，记录检查项和合成数据截图；不注入token或mock接口。",
     "fields.py": "按批准字段规则验证新增/修改载荷：必填、整数与布尔、文本长度、日期和枚举各自处理；可选空值不等于整数0或布尔False。业务规则在结构校验之后执行。",
     "querying.py": "把搜索词、精确筛选、日期上下界转成受字段白名单约束的SQLAlchemy条件；类型和范围先验证，再通过参数绑定查询，不拼接用户SQL。",
-    "manage.py": "产品自己的数据库维护入口：按指定命令执行迁移等初始化工作；由start.py调用，导入时不启动网页，也不代替平台控制数据库迁移。",
+    "manage.py": "产品自己的迁移/启动及一次性bootstrap-admin入口：管理员密码在隐藏终端交互输入，初始化与事件同事务完成；普通注册不能抢占管理员，也不修改平台控制数据库。",
     "compose.yaml": "独立产品的本机PostgreSQL服务声明：服务、回环端口与持久卷属于该产品；启动器生成本机随机凭据并保留已有配置，应用退出不删除数据卷。",
     "pyproject.toml": "独立产品的Python依赖清单，与平台环境分开；先由uv按对应uv.lock安装，再启动产品，不能依赖开发平台碰巧装过的库。",
     "uv.lock": "该独立产品的精确Python依赖及分发哈希；与产品pyproject配套保存，由启动器--locked安装，不使用平台或Aider锁代替。",
     "README.md": "交付包内的独立启动和使用说明模板；生成器还会写入规格、选择和SQL，使用户离开研发平台后仍知道运行哪个入口。",
-    "app.py": "FastAPI产品路由：从spec.json建立实体接口；依赖先验证产品登录，再在每次查询中施加owner_id范围。网页不能直接访问数据库，也不能指定另一个用户作为owner。",
+    "app.py": "FastAPI产品认证与路由入口：无business时保留per_user实体接口；有business时安装business_runtime事务接口与角色范围。网页不能直接访问数据库或伪造操作者，角色从服务器读取。",
     "schema.py": "产品数据库及字段合同：按spec.json创建运行表模型与校验规则；独立产品也拒绝远程数据库。字段类型同时决定请求校验、SQL列类型、序列化和查询筛选行为。",
     "auth.py": "产品自己的账号密码与会话：加盐口令派生、会话令牌摘要、过期和身份读取；这里的产品登录不是工作台访问令牌，更不是大模型API Key。",
     "rules.py": "交付给用户的受限规则解释器：与生成时采用相同的允许表达式和输入输出合同，不使用eval或任意Python执行。",
     "verify.py": "真实产品验收程序：创建测试账号调用HTTP接口，再根据simple-admin选择启动同目录verify-browser.cjs；缺浏览器或逐规格检查缺项都失败，api-only明确记为不适用。与app.py分离，不能因应用自称成功就通过。",
-    "verify-browser.cjs": "逐规格真实Chromium验收：页面注册登录、遍历全部实体和字段，检查CRUD、长度拒绝、搜索/组合筛选/含边界日期、用户隔离和退出重新登录；不注入登录Token或mock接口，输出明确checks与页面错误。",
+    "verify-browser.cjs": "逐规格真实Chromium验收：页面注册登录、遍历全部实体和字段，检查CRUD、长度拒绝、搜索/组合筛选/含边界日期、用户隔离和退出重新登录；刷新另核对同源路由、真实认证schema/list响应与已保存记录DOM，不以整页load或HTTP200独自代替业务就绪。不注入登录Token或mock接口，输出明确checks与页面错误。",
     "start.py": "成品自包含入口：在产品目录安装自己的锁定依赖，准备本机SQLite或专用PostgreSQL，执行迁移后启动HTTP服务；不调用模型，不要求原工作台目录。",
     "custom_rules.py": "唯一允许自动定制的业务规则文件；生成前后的约束、例子与SHA由平台检查。其他身份、存储和启动代码不开放给模型任意编辑。",
     "spec.json": "该文件是模板示例规格，运行时由已批准Plan生成具体成品规格；不要把示例实体名称硬编码到平台通用生成流程。",
 }
 
 SCRIPT_ROLES = {
+    "business_fastapi_browser.cjs": (
+        "FastapiAdmin三角色真实客服页面验收",
+        "使用临时合成账号通过原生登录、菜单与Fa/Element Plus组件，操作客户/请求/任务、关系、分配、流程、历史、提醒和统计；查询按钮等定位以锁定的真实组件为准，同时核对请求参数、响应记录和页面记录，不能用夹具自造的按钮名代替。检查原生主题及页面错误，保存命名截图。",
+        "business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。",
+    ),
+    "business_yudao_browser.cjs": (
+        "Yudao/Vben三角色真实客服页面验收",
+        "通过原生登录和租户选择进入Vben/Ant/VXE组件，执行同一客服合同；关联控件搜索本轮记录并选择准确ID。角色菜单截图进入真实授权列表，一次只读采样按CSS字体合并全部可见Unicode码点检查，不跨帧缓存字体状态；再捕获未改动像素并复查。已适配viewport的页面不启用会临时缩到1×1的越界捕获，长页仍保留完整像素。布局变化在同一45秒期限内重新稳定，等宽更新仍检查新字形。不改DOM或禁用字体校验；阶段/采样耗时不含业务文字。HTTP拒绝和UI共同组成证据，不以静态图替代。",
+        "business_browser → 本脚本 → business-browser.json与当前生成产品的PNG。",
+    ),
     "ci_real_model.py": (
         "显式授权的真实模型完整验收",
-        "可信仓库/分支的手动任务从rnd环境取得专用配置，先校验Hello协议，再要求同提交同attempt的成功smoke回执。真实网页只一次初始智能推荐，随后必须READY、真实下载及独立新库HTTP/浏览器/重启通过；公开结果只保留白名单状态，不输出密钥或模型原文。",
-        "real-model.yml直接environment job → 平台ModelGateway真实请求 → UI与独立产品验证 → reports/real-model/summary.json；其他工具矩阵和旧BLOCKED恢复另验。",
+        "可信客服分支的手动任务在rnd中将APK_KEY映射为API_KEY，三个模板各自先Hello再校验同提交同attempt回执。完整需求由原文、默认决策和命名约定构成；真实网页只一次初始智能推荐，随后必须READY、实际下载、新库HTTP/浏览器/重启；公开白名单状态及经过校验的合成页面截图，不输出密钥或模型原文。",
+        "native-probe手动real_model=true+expected_sha，或real-model手动矩阵 → rnd job → ModelGateway真实请求 → 当前模板独立产品 → summary.json与合成PNG；工具矩阵和BLOCKED恢复另验。",
     ),
     "build_handbook.py": (
         "生成唯一完整教材",
-        "按GUIDES顺序拼正文，再按GROUPS枚举自有文本源，排除依赖/运行目录；附录写源码指纹、独立讲解和完整代码。--check比较全部文本与唯一输出，不改源码。",
+        "按GUIDES顺序拼正文并调整图片相对路径，再按GROUPS枚举自有源码与真实截图，排除依赖/运行目录；附录写源码指纹、完整代码及可折叠Base64二进制块。--check比较全部文本与唯一输出，不改源码。",
         "正文及真实源文件 → render → 单一Markdown；test_handbook验证独立重建。",
     ),
     "handbook_notes.py": (
@@ -316,8 +493,8 @@ SCRIPT_ROLES = {
     ),
     "rebuild_from_handbook.py": (
         "从一本书还原安全的新项目",
-        "extract先验证全部标记、路径和SHA，再由restore写入新的空目录；任一源码块残缺就不动目标。只创建文件，不运行提取出的程序或下载依赖。",
-        "书中独立bootstrap或本脚本 → 完整自有文本项目 → ci_handbook。",
+        "extract先验证全部标记、路径和SHA；截图严格解码Base64后验证原始字节，再由restore写入新的空目录。任一源码或资源块残缺就不动目标；不运行提取出的程序或下载依赖。",
+        "书中独立bootstrap或本脚本 → 完整自有源码和真实截图 → ci_handbook。",
     ),
     "vendor_templates.py": (
         "重建固定的第三方源码归档",
@@ -326,8 +503,8 @@ SCRIPT_ROLES = {
     ),
     "ci_handbook.py": (
         "证明一本书足够重建平台",
-        "把教材单独复制进临时目录，恢复所有文本，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue，运行完整非PG回归并保留JUnit。",
-        "handbook-only工作流 → 本脚本 → reports/handbook-clean-room.json。",
+        "把教材单独复制进临时目录，恢复所有文本与二进制截图，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue。完整非PG套件有明确1800秒预算，外层仍40分钟；超时中断自有测试进程、保留阶段与已有JUnit且仍失败，不增加单项等待。",
+        "handbook-only工作流 → 本脚本 → handbook-test-status.json/JUnit；完整通过才产生handbook-clean-room.json。",
     ),
     "ci_clean_install.py": (
         "独立依赖环境与成品干净解压验收",
@@ -386,7 +563,7 @@ SCRIPT_ROLES = {
     ),
     "native_browser.cjs": (
         "真实原生登录、菜单、表单与规则浏览器检查",
-        "按FastapiAdmin或Vben的真实DOM操作，先登录再进入生成菜单；检查原生组件、表单正反例和真实HTTP结果。失败截图/网络错误用于诊断，不能注入令牌越过登录。",
+        "按FastapiAdmin或Vben的真实DOM操作，登录提交必须核对实际认证/权限HTTP、同源非登录路由和原生shell，不等待概览页无关资源的整页load；再验证生成菜单的实际列表API/DOM、原生组件及表单正反例。失败截图/网络错误用于诊断，不能注入令牌越过登录，45秒等待上限不变。",
         "native_frontend.browser_check → 本文件 → browser.json与截图。",
     ),
     "native_coding_fixture.py": (
@@ -524,6 +701,38 @@ def purpose(name):
         )
     if name.startswith("workbench/") and path.stem in MODULES:
         return MODULES[path.stem]
+    if name.startswith("templates/business/"):
+        if role := BUSINESS_FILES.get(name.removeprefix("templates/business/")):
+            return role
+        return (
+            "合同驱动的业务运行与原生界面模板",
+            "此文件被对应适配器写入实际生成产品。通用策略解释有限合同，框架适配保留其认证/ORM/事务/组件；服务器控制状态与负责人，事件追加，提醒与统计按权限读取。模板占位符仅由受信任生成器填充，不由用户输入执行任意代码。",
+            "business_fastapi/business_yudao/business_python → 本文件 → 当前产品；完整链路由business_probe和真实浏览器验证。",
+        )
+    if name == "examples/requirements/customer-service.md":
+        return (
+            "用户原始客服需求",
+            "原文保留客户管理、请求处理、协作、统计、权限和现有技术体系要求；默认决策与命名约定放在相邻补充文件，不用补充文件改写或删去原文。",
+            "原文 + decisions + contract → 用户输入/真实模型 → Requirement → Plan.business；不作为预置JSON模型响应。",
+        )
+    if name == "examples/requirements/customer-service-decisions.md":
+        return (
+            "客服演示的明确默认决策",
+            "将站内提醒、合成验收数据、角色范围、统计口径和三套原生风格明确写入需求；它是可见输入，不是失败后暗中降低要求的补丁。",
+            "customer-service.md之后输入 → 需求事实与设计 → 三模板独立验收。",
+        )
+    if name == "examples/requirements/customer-service-contract.md":
+        return (
+            "客服黑盒验收的字段与命名约定",
+            "明确实体、角色、字段、关系、状态、提醒和指标的实施决策；保留自然语言约束，由真实模型构造并校验Plan，禁止拿固定样例替代模型。",
+            "原始需求/默认决策后追加 → ModelGateway → require_customer_spec → 三模板黑盒用例。",
+        )
+    if name.startswith("examples/"):
+        return (
+            "可审查的需求与完整合同验收样例",
+            "自然语言说明目标，JSON计划逐项登记实体、字段、关系、角色、转换和指标。它用于确定性验收，不是生产模型失败后的隐藏答案；改需求需修改并重新批准相应合同。",
+            "按正文验证Plan → ci_native_bundled --spec → 真实原生工具验收；该文件随教材一并还原。",
+        )
     if name.startswith("templates/product/"):
         return (
             "独立基础产品的组成文件",
@@ -543,7 +752,7 @@ def purpose(name):
         return (
             "交付给产品的前端选项",
             "轻量页面围绕产品规格显示字段和查询条件；注册登录后才请求业务API。清除筛选必须同时重置控件和查询状态，不能只隐藏标签；API-only模板则不需要管理页面。",
-            "Selection → generator选取前端 → 产品HTTP路由；资讯浏览器测试。",
+            "Selection → generator选取前端 → 产品HTTP/业务路由；verify-business-browser和test_business_python_browser。",
         )
     if name.startswith("templates/deployment/"):
         return (
@@ -648,6 +857,12 @@ def purpose(name):
             "第三方源码来源与许可证",
             "模板属于第三方依赖。manifest记录固定提交、归档哈希、逐文件内容摘要及排除项；LICENSE原样保留。只从教材也可以用vendor_templates --fetch重建源码归档，不需要复制本仓库已有ZIP。",
             "scripts/vendor_templates.py → manifest/ZIP → workbench/vendor.py → 原生生成器。",
+        )
+    if name.startswith("docs/images/"):
+        return (
+            "真实浏览器截图的来源与验收边界",
+            "provenance记录模板、Actions运行、平台与上游源码提交以及各PNG的原始SHA；summary保留该历史运行的真实模型与完整工作流结果。它们不是当前提交或其他模板的通过证据。",
+            "成功运行的原图与回执 → 客服正文图注 → 附录逐字节还原与哈希测试。",
         )
     if name.startswith("docs/"):
         return (

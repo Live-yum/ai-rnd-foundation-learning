@@ -190,6 +190,9 @@ def chat(
                 typer.echo(
                     "PostgreSQL产品需要Docker或已配置的独立开发数据库；平台控制库仍可用SQLite。"
                 )
+            typer.echo(
+                "标准案例为内部客户服务管理平台；完整原始需求、默认决策和命名约定见 examples/requirements/customer-service*.md。"
+            )
             title = typer.prompt("项目名称")
             requirement = typer.prompt("你希望做什么系统")
             project = api_call(c, "POST", "/projects", {"title": title})

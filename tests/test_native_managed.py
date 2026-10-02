@@ -87,6 +87,7 @@ def verified_fixture(tmp_path):
         "frontend_started": True,
         "installed_from_lock": True,
         "standalone_launcher": True,
+        "restart": True,
         "source_database_reused": False,
         "original_platform_imported": False,
         "model_required": False,
@@ -129,6 +130,7 @@ def verified_fixture(tmp_path):
     }
     report["spec_digest"] = digest(acceptance_spec().model_dump())
     target = tmp_path / "native-evidence/acceptance.json"
+    write_json(target.with_name("approved-spec.json"), acceptance_spec().model_dump())
     write_json(target, report)
     receipt = {
         "execution": "managed-runtime",

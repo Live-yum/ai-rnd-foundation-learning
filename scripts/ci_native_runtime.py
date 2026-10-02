@@ -35,12 +35,16 @@ def main():
     url = os.environ["NATIVE_TEST_DATABASE_URL"]
     copy_source(args.source, args.output)
     backend = args.output / "backend" if args.template == "fastapiadmin" else args.output
+    frontend = args.output / "frontend/web"
+    if args.frontend and args.template == "yudao-vben":
+        frontend = args.output.parent / "frontend-product"
+        copy_source(args.frontend_source, frontend)
     env = native_environment(
         args.template, backend, url, 8001 if args.template == "fastapiadmin" else 48080
     )
     try:
         bootstrap_database(args.template, backend, url)
-        install_backend(args.template, backend, reports)
+        install_backend(args.template, backend, reports, navigation_api_only=not args.frontend)
         with running_backend(args.template, backend, env, reports) as (base_url, _):
             token = login(args.template, base_url)
             if not isinstance(token, str) or len(token) < 10:
@@ -59,11 +63,6 @@ def main():
             write_json(reports / "permissions.json", permissions)
             print("Original native backend: login and role permissions PASS")
             if args.frontend:
-                if args.template == "fastapiadmin":
-                    frontend = args.output / "frontend/web"
-                else:
-                    frontend = args.output.parent / "frontend-product"
-                    copy_source(args.frontend_source, frontend)
                 front_env = frontend_environment(args.template, base_url)
                 build_frontend(args.template, frontend, front_env, reports)
                 with frontend_preview(args.template, frontend, front_env, reports) as front_url:

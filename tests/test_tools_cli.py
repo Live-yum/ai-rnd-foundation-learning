@@ -27,3 +27,14 @@ def test_cli_discovery():
     result = runner.invoke(app, ["templates"])
     assert result.exit_code == 0
     assert "native-source-export" in result.output
+
+
+def test_clean_environment_preserves_windows_runtime_without_model_credentials(monkeypatch):
+    monkeypatch.setenv("SystemRoot", r"C:\Windows")
+    monkeypatch.setenv("WINDIR", r"C:\Windows")
+    monkeypatch.setenv("API_KEY", "must-not-enter-product-process")
+    env = clean_env({"PRODUCT_DATA_DIR": "isolated-product-data"})
+    assert next(value for key, value in env.items() if key.upper() == "SYSTEMROOT") == r"C:\Windows"
+    assert env["WINDIR"] == r"C:\Windows"
+    assert env["PRODUCT_DATA_DIR"] == "isolated-product-data"
+    assert "API_KEY" not in env

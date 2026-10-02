@@ -75,10 +75,10 @@ from workbench.domain import Plan, Requirement
 from workbench.requirement_coverage import coverage_gaps, reconcile
 
 requirement = Requirement(
-    summary="个人资讯",
+    summary="客服请求字段练习",
     users=["我"],
     data_scope="per_user",
-    features=["管理资讯"],
+    features=["管理服务请求"],
     acceptance=["标题规则正确"],
     facts={"标题说明": "保留原始标题"},
     field_requirements=[
@@ -93,7 +93,7 @@ requirement = Requirement(
     ],
 )
 plan = Plan(
-    title="资讯",
+    title="客服请求",
     data_scope="per_user",
     acceptance=["标题规则正确"],
     entities=[
@@ -148,8 +148,8 @@ with TemporaryDirectory(prefix="rnd-lesson-") as temporary:
     store = Store(settings)
     try:
         store.migrate()
-        first = store.create_project("资讯练习", "same-request")
-        repeated = store.create_project("资讯练习", "same-request")
+        first = store.create_project("客服练习", "same-request")
+        repeated = store.create_project("客服练习", "same-request")
         assert first["id"] == repeated["id"]
         try:
             store.create_project("不同内容", "same-request")
