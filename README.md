@@ -93,7 +93,7 @@ uv run rnd token
 
 将本机访问令牌填入页面。它不是模型 API_KEY，也不是生成产品的用户登录令牌。先选模板、兼容前端和数据库，点“确认选择”，之后才显示项目名称与需求表单。
 
-也可以只用 CLI：
+也可以用 CLI 操作（仍需保持终端 A 的 `rnd start` 运行，在另一个终端执行）：
 
 ```powershell
 uv run rnd chat

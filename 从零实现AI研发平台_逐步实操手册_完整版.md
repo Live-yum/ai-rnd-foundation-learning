@@ -3030,7 +3030,7 @@ select = ["E4", "E7", "E9", "F", "I"]
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: README.md sha256: 0001d40f076b870458c9bd62d40a1f57564a0f71860fac8aac9c4404c59c48c4 -->
+<!-- source-file: README.md sha256: 16a0b5c67ec4a29dcee9961911ce0734e268d2b03dced54e5c42b5e1cce6befa -->
 ````markdown
 # AI 研发工作台 · Python 3.14
 
@@ -3127,7 +3127,7 @@ uv run rnd token
 
 将本机访问令牌填入页面。它不是模型 API_KEY，也不是生成产品的用户登录令牌。先选模板、兼容前端和数据库，点“确认选择”，之后才显示项目名称与需求表单。
 
-也可以只用 CLI：
+也可以用 CLI 操作（仍需保持终端 A 的 `rnd start` 运行，在另一个终端执行）：
 
 ```powershell
 uv run rnd chat
@@ -8117,35 +8117,36 @@ def selections():
 
 **逐个入口与控制逻辑：**
 
-- `echo`（L24–L25）：接收`value`。 调用`typer.echo`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `client`（L28–L41）：接收`url`。 控制顺序：L31按`urlsplit(base).hostname not in {"127.0.0.1", "localhost", "::1"}`分支；L32抛异常，停止当前正常路径；L34按`not path.exists()`分支；L35抛异常，停止当前正常路径。 调用`Settings`、`urlsplit`、`typer.BadParameter`、`path.exists`、`httpx.Client`、`path.read_text().strip`、`path.read_text`。 返回路径：L36的`httpx.Client( base_url=base, headers={"Authorization": "Bearer " + path.read_text().strip(…`。
-- `api_call`（L44–L50）：接收`c`、`method`、`path`、`body`。 控制顺序：L47按`response.is_error`分支；L49抛异常，停止当前正常路径。 调用`str`、`uuid.uuid4`、`c.request`、`typer.echo`、`typer.Exit`、`response.json`。 返回路径：L50的`response.json()`。
-- `init`（L54–L71）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：首次创建 .env；不覆盖配置、不打印密钥。。 控制顺序：L57按`not target.exists()`分支；L67遍历`("fastapiadmin", "yudao-vben")`。 调用`target.exists`、`target.write_text`、`(ROOT / ".env.example").read_text`、`Store`、`Settings`、`store.migrate`、`store.token`、`store.engine.dispose`、`prepare`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `start`（L75–L96）：接收`no_worker`。 源码说明：迁移数据库并启动 API，默认内置一个持久 Worker。。 控制顺序：L85抛异常，停止当前正常路径；L86按`settings.host not in {"127.0.0.1", "localhost", "::1"}`分支；L87抛异常，停止当前正常路径。 调用`Settings`、`settings.require_model`、`typer.BadParameter`、`str`、`typer.echo`、`uvicorn.run`、`create_app`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `worker`（L100–L114）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：API 使用 --no-worker 时，单独运行 Worker；不能重复启动。。 调用`Settings`、`settings.require_model`、`Store`、`store.migrate`、`Runtime`、`runtime.loop`、`store.engine.dispose`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `token`（L118–L123）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：显示本机访问令牌供 Swagger Authorize；不要分享或提交到 Git。。 控制顺序：L121按`not path.exists()`分支；L122抛异常，停止当前正常路径。 调用`Settings`、`path.exists`、`typer.BadParameter`、`typer.echo`、`path.read_text(encoding="utf-8").strip`、`path.read_text`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `doctor`（L127–L146）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：检查解释器和配置；不调用模型、不打印 API Key。。 调用`Settings`、`settings.require_model`、`str`、`echo`、`sys.version.split`、`settings.db_url.startswith`、`settings.api_key.get_secret_value`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `templates`（L150–L154）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：查看模板能力和本机原生生成器配置状态。。 调用`echo`、`catalog`、`Settings`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `chat`（L158–L286）：接收`run`、`template`、`frontend`、`database`、`smart`。 源码说明：创建并体验整个流程，或用 --run 恢复已有运行。。 控制顺序：L163按`not run`分支；L165按`not template`分支；L167遍历`enumerate(available, 1)`；L170按`not 1 <= index <= len(available)`分支；L171抛异常，停止当前正常路径；L174按`item is None`分支；L175抛异常，停止当前正常路径；L176按`not frontend`分支。后续分支沿下方源码相同行号继续阅读。 调用`client`、`selections`、`typer.echo`、`enumerate`、`typer.prompt`、`len`、`typer.BadParameter`、`next`、`", ".join`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `recommend`（L290–L293）：接收`run`。 源码说明：授权当前运行的后续未明确需求使用AI建议；不绕过测试与技术前提。。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `manual`（L297–L300）：接收`run`。 源码说明：关闭后续自动决定；下一道门恢复人工确认。。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `models`（L304–L311）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：显示各阶段实际模型选择，不显示密钥；单模型配置自动回退。。 控制顺序：L307遍历`STAGES`。 调用`Settings`、`echo`、`settings.model_for(stage).public`、`settings.model_for`、`settings.redact`、`str`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `show`（L315–L317）：接收`run`。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `retry`（L321–L323）：接收`run`。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `download`（L327–L338）：接收`run`、`output`。 控制顺序：L332按`target.exists()`分支；L333抛异常，停止当前正常路径。 调用`Path`、`output.mkdir`、`str`、`uuid.UUID`、`target.exists`、`typer.BadParameter`、`client`、`c.get`、`response.raise_for_status`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `index`（L342–L346）：接收`source`、`output`。 源码说明：在源码目录外创建增量 AST/文件哈希知识包。。 调用`echo`、`build_index`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `native_prepare`（L350–L354）：接收`template`。 源码说明：校验并展开仓库内固定源码归档，建立原生模板源码知识包；不在线克隆。。 调用`echo`、`prepare_sources`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `config_example`（L358–L362）：接收`template`。 源码说明：创建本机原生服务配置示例，不覆盖已有配置。。 调用`typer.echo`、`str`、`write_config_example`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `native_runtime_config`（L366–L370）：接收`template`。 源码说明：创建原生全栈运行配置；必须显式授权专用空 PostgreSQL 库。。 调用`typer.echo`、`str`、`write_runtime_example`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `native_serve`（L374–L381）：接收`run`。 源码说明：重新打开已验收原生产品；复用开发库，不删库、不重新生成。。 调用`serve_managed`、`Settings`、`typer.echo`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `echo`（L25–L26）：接收`value`。 调用`typer.echo`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `client`（L30–L54）：接收`url`。 控制顺序：L33按`urlsplit(base).hostname not in {"127.0.0.1", "localhost", "::1"}`分支；L34抛异常，停止当前正常路径；L36按`not path.exists()`分支；L37抛异常，停止当前正常路径；L54抛异常，停止当前正常路径。 调用`Settings`、`urlsplit`、`typer.BadParameter`、`path.exists`、`httpx.Client`、`path.read_text().strip`、`path.read_text`、`api_call`、`typer.echo`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `api_call`（L57–L63）：接收`c`、`method`、`path`、`body`。 控制顺序：L60按`response.is_error`分支；L62抛异常，停止当前正常路径。 调用`str`、`uuid.uuid4`、`c.request`、`typer.echo`、`typer.Exit`、`response.json`。 返回路径：L63的`response.json()`。
+- `init`（L67–L84）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：首次创建 .env；不覆盖配置、不打印密钥。。 控制顺序：L70按`not target.exists()`分支；L80遍历`("fastapiadmin", "yudao-vben")`。 调用`target.exists`、`target.write_text`、`(ROOT / ".env.example").read_text`、`Store`、`Settings`、`store.migrate`、`store.token`、`store.engine.dispose`、`prepare`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `start`（L88–L109）：接收`no_worker`。 源码说明：迁移数据库并启动 API，默认内置一个持久 Worker。。 控制顺序：L98抛异常，停止当前正常路径；L99按`settings.host not in {"127.0.0.1", "localhost", "::1"}`分支；L100抛异常，停止当前正常路径。 调用`Settings`、`settings.require_model`、`typer.BadParameter`、`str`、`typer.echo`、`uvicorn.run`、`create_app`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `worker`（L113–L127）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：API 使用 --no-worker 时，单独运行 Worker；不能重复启动。。 调用`Settings`、`settings.require_model`、`Store`、`store.migrate`、`Runtime`、`runtime.loop`、`store.engine.dispose`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `token`（L131–L136）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：显示本机访问令牌供 Swagger Authorize；不要分享或提交到 Git。。 控制顺序：L134按`not path.exists()`分支；L135抛异常，停止当前正常路径。 调用`Settings`、`path.exists`、`typer.BadParameter`、`typer.echo`、`path.read_text(encoding="utf-8").strip`、`path.read_text`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `doctor`（L140–L159）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：检查解释器和配置；不调用模型、不打印 API Key。。 调用`Settings`、`settings.require_model`、`str`、`echo`、`sys.version.split`、`settings.db_url.startswith`、`settings.api_key.get_secret_value`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `templates`（L163–L167）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：查看模板能力和本机原生生成器配置状态。。 调用`echo`、`catalog`、`Settings`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `chat`（L171–L299）：接收`run`、`template`、`frontend`、`database`、`smart`。 源码说明：创建并体验整个流程，或用 --run 恢复已有运行。。 控制顺序：L176按`not run`分支；L178按`not template`分支；L180遍历`enumerate(available, 1)`；L183按`not 1 <= index <= len(available)`分支；L184抛异常，停止当前正常路径；L187按`item is None`分支；L188抛异常，停止当前正常路径；L189按`not frontend`分支。后续分支沿下方源码相同行号继续阅读。 调用`client`、`selections`、`typer.echo`、`enumerate`、`typer.prompt`、`len`、`typer.BadParameter`、`next`、`", ".join`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `recommend`（L303–L306）：接收`run`。 源码说明：授权当前运行的后续未明确需求使用AI建议；不绕过测试与技术前提。。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `manual`（L310–L313）：接收`run`。 源码说明：关闭后续自动决定；下一道门恢复人工确认。。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `models`（L317–L324）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：显示各阶段实际模型选择，不显示密钥；单模型配置自动回退。。 控制顺序：L320遍历`STAGES`。 调用`Settings`、`echo`、`settings.model_for(stage).public`、`settings.model_for`、`settings.redact`、`str`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `show`（L328–L330）：接收`run`。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `retry`（L334–L336）：接收`run`。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `download`（L340–L351）：接收`run`、`output`。 控制顺序：L345按`target.exists()`分支；L346抛异常，停止当前正常路径。 调用`Path`、`output.mkdir`、`str`、`uuid.UUID`、`target.exists`、`typer.BadParameter`、`client`、`c.get`、`response.raise_for_status`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `index`（L355–L359）：接收`source`、`output`。 源码说明：在源码目录外创建增量 AST/文件哈希知识包。。 调用`echo`、`build_index`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_prepare`（L363–L367）：接收`template`。 源码说明：校验并展开仓库内固定源码归档，建立原生模板源码知识包；不在线克隆。。 调用`echo`、`prepare_sources`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `config_example`（L371–L375）：接收`template`。 源码说明：创建本机原生服务配置示例，不覆盖已有配置。。 调用`typer.echo`、`str`、`write_config_example`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_runtime_config`（L379–L383）：接收`template`。 源码说明：创建原生全栈运行配置；必须显式授权专用空 PostgreSQL 库。。 调用`typer.echo`、`str`、`write_runtime_example`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_serve`（L387–L394）：接收`run`。 源码说明：重新打开已验收原生产品；复用开发库，不删库、不重新生成。。 调用`serve_managed`、`Settings`、`typer.echo`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/cli.py sha256: b57c4960918273516f631fac84f57cdafe1d6020ed419f42eeb78dd229fe5783 -->
+<!-- source-file: workbench/cli.py sha256: 2100c423af7ce6d24913468f3756916b292dfaa7322995a13c095020360ee5ce -->
 ````python
 """Operator commands: init/start/chat/show/download/index/native. No custom UI needed."""
 
 import json
 import time
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -8168,6 +8169,7 @@ def echo(value):
     typer.echo(json.dumps(value, ensure_ascii=False, indent=2, default=str))
 
 
+@contextmanager
 def client(url=None):
     settings = Settings()
     base = url or f"http://127.0.0.1:{settings.port}"
@@ -8176,12 +8178,23 @@ def client(url=None):
     path = settings.data_dir / "access-token"
     if not path.exists():
         raise typer.BadParameter("先执行 uv run rnd start")
-    return httpx.Client(
-        base_url=base,
-        headers={"Authorization": "Bearer " + path.read_text().strip()},
-        timeout=30,
-        trust_env=False,
-    )
+    try:
+        with httpx.Client(
+            base_url=base,
+            headers={"Authorization": "Bearer " + path.read_text().strip()},
+            timeout=30,
+            trust_env=False,
+        ) as c:
+            api_call(c, "GET", "/health")
+            yield c
+    except httpx.ConnectError:
+        typer.echo(
+            f"无法连接本机平台 {base}。\n"
+            "请在同一项目目录的另一个终端执行 uv run rnd start，并保持服务运行。\n"
+            "若已启动，请检查 .env 的 PORT 配置和启动日志，再重试当前命令。",
+            err=True,
+        )
+        raise typer.Exit(1) from None
 
 
 def api_call(c, method, path, body=None):
@@ -76464,6 +76477,105 @@ def test_notification_display_preserves_raw_message_and_stable_read_controls():
     assert "business-notice-read-${record.id}" in panel
     assert "business-notice-read-state-${record.id}" in panel
     assert "record.display_message || record.message" in panel
+````
+
+### `tests/test_cli_connection.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_offline_cli_fails_before_prompts_with_start_instructions`（L23–L48）：接收`monkeypatch`、`settings`、`args`。 控制顺序：L39断言`result.exit_code == 1`；L40断言`"无法连接本机平台" in result.output`；L41断言`"http://127.0.0.1:8000" in result.output`；L42断言`"uv run rnd start" in result.output`；L43断言`"另一个终端" in result.output`；L44断言`"模板编号" not in result.output`；L45断言`"项目名称" not in result.output`；L46断言`not isinstance(result.exception, httpx.ConnectError)`。后续分支沿下方源码相同行号继续阅读。 调用`settings.prepare`、`(settings.data_dir / "access-token").write_text`、`monkeypatch.setattr`、`httpx.Client`、`httpx.MockTransport`、`monkeypatch.chdir`、`CliRunner().invoke`、`CliRunner`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_offline_cli_fails_before_prompts_with_start_instructions.refused`（L29–L31）：接收`request`。 控制顺序：L31抛异常，停止当前正常路径。 调用`requests.append`、`httpx.ConnectError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cli_checks_health_and_handles_later_disconnect`（L52–L78）：接收`monkeypatch`、`settings`、`disconnect`。 控制顺序：L73断言`[(r.method, r.url.path) for r in requests] == [ ("GET", "/health"), ("GET", "/runs/sa…`；L77断言`result.exit_code == int(disconnect)`；L78断言`("uv run rnd start" if disconnect else "READY") in result.output`。 调用`settings.prepare`、`(settings.data_dir / "access-token").write_text`、`monkeypatch.setattr`、`partial`、`httpx.MockTransport`、`CliRunner().invoke`、`CliRunner`、`int`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cli_checks_health_and_handles_later_disconnect.handler`（L59–L67）：接收`request`。 控制顺序：L61断言`request.headers["Authorization"] == "Bearer local-test-token"`；L62断言`request.url.port == 8123`；L63按`request.url.path == "/health"`分支；L65按`disconnect`分支；L66抛异常，停止当前正常路径。 调用`requests.append`、`httpx.Response`、`httpx.ConnectError`。 返回路径：L64的`httpx.Response(200, json={"status": "ok"})`；L67的`httpx.Response(200, json={"status": "READY"})`。
+
+<!-- source-file: tests/test_cli_connection.py sha256: 647baa409d1c49a943db873232850e810a089f0fbe20303988869956671c24b4 -->
+````python
+import uuid
+from functools import partial
+
+import httpx
+import pytest
+from typer.testing import CliRunner
+
+from workbench import cli
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        ["chat"],
+        ["chat", "--run", "saved-run"],
+        ["show", "saved-run"],
+        ["retry", "saved-run"],
+        ["recommend", "saved-run"],
+        ["manual", "saved-run"],
+        ["download", str(uuid.UUID(int=1))],
+    ],
+)
+def test_offline_cli_fails_before_prompts_with_start_instructions(monkeypatch, settings, args):
+    settings.prepare()
+    (settings.data_dir / "access-token").write_text("local-test-token", encoding="utf-8")
+    monkeypatch.setattr(cli, "Settings", lambda: settings)
+    requests = []
+
+    def refused(request):
+        requests.append(request)
+        raise httpx.ConnectError("[WinError 10061] Connection refused", request=request)
+
+    connection = httpx.Client(
+        base_url="http://127.0.0.1:8000", transport=httpx.MockTransport(refused)
+    )
+    monkeypatch.setattr(cli.httpx, "Client", lambda **kwargs: connection)
+    monkeypatch.chdir(settings.data_dir)
+    result = CliRunner().invoke(cli.app, args)
+    assert result.exit_code == 1, result.output
+    assert "无法连接本机平台" in result.output
+    assert "http://127.0.0.1:8000" in result.output
+    assert "uv run rnd start" in result.output
+    assert "另一个终端" in result.output
+    assert "模板编号" not in result.output
+    assert "项目名称" not in result.output
+    assert not isinstance(result.exception, httpx.ConnectError)
+    assert [(r.method, r.url.path) for r in requests] == [("GET", "/health")]
+    assert connection.is_closed
+
+
+@pytest.mark.parametrize("disconnect", [False, True])
+def test_cli_checks_health_and_handles_later_disconnect(monkeypatch, settings, disconnect):
+    settings.port = 8123
+    settings.prepare()
+    (settings.data_dir / "access-token").write_text("local-test-token", encoding="utf-8")
+    monkeypatch.setattr(cli, "Settings", lambda: settings)
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        assert request.headers["Authorization"] == "Bearer local-test-token"
+        assert request.url.port == 8123
+        if request.url.path == "/health":
+            return httpx.Response(200, json={"status": "ok"})
+        if disconnect:
+            raise httpx.ConnectError("Connection refused", request=request)
+        return httpx.Response(200, json={"status": "READY"})
+
+    monkeypatch.setattr(
+        cli.httpx, "Client", partial(httpx.Client, transport=httpx.MockTransport(handler))
+    )
+    result = CliRunner().invoke(cli.app, ["show", "saved-run"])
+    assert [(r.method, r.url.path) for r in requests] == [
+        ("GET", "/health"),
+        ("GET", "/runs/saved-run"),
+    ]
+    assert result.exit_code == int(disconnect), result.output
+    assert ("uv run rnd start" if disconnect else "READY") in result.output
 ````
 
 ### `tests/test_continue_index.py`

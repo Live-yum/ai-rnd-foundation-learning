@@ -3,6 +3,7 @@
 import json
 import time
 import uuid
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -25,6 +26,7 @@ def echo(value):
     typer.echo(json.dumps(value, ensure_ascii=False, indent=2, default=str))
 
 
+@contextmanager
 def client(url=None):
     settings = Settings()
     base = url or f"http://127.0.0.1:{settings.port}"
@@ -33,12 +35,23 @@ def client(url=None):
     path = settings.data_dir / "access-token"
     if not path.exists():
         raise typer.BadParameter("先执行 uv run rnd start")
-    return httpx.Client(
-        base_url=base,
-        headers={"Authorization": "Bearer " + path.read_text().strip()},
-        timeout=30,
-        trust_env=False,
-    )
+    try:
+        with httpx.Client(
+            base_url=base,
+            headers={"Authorization": "Bearer " + path.read_text().strip()},
+            timeout=30,
+            trust_env=False,
+        ) as c:
+            api_call(c, "GET", "/health")
+            yield c
+    except httpx.ConnectError:
+        typer.echo(
+            f"无法连接本机平台 {base}。\n"
+            "请在同一项目目录的另一个终端执行 uv run rnd start，并保持服务运行。\n"
+            "若已启动，请检查 .env 的 PORT 配置和启动日志，再重试当前命令。",
+            err=True,
+        )
+        raise typer.Exit(1) from None
 
 
 def api_call(c, method, path, body=None):
