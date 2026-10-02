@@ -17,6 +17,8 @@
 - [workbench/entity_requirements.py](sources/workbench__entity_requirements_py--001.md)：用户明确封闭的实体与字段清单；1 段
 - [workbench/llm.py](sources/workbench__llm_py--001.md)：唯一的对话模型调用网关；1 段
 - [workbench/model_protocol.py](sources/workbench__model_protocol_py--001.md)：项目根配置或说明；1 段
-- [workbench/requirement_coverage.py](sources/workbench__requirement_coverage_py--001.md)：保留用户事实并检查可执行需求覆盖；3 段
+- [workbench/requirement_canonical.py](sources/workbench__requirement_canonical_py--001.md)：对已确认等价的需求表述进行保守去重；1 段
+- [workbench/requirement_coverage.py](sources/workbench__requirement_coverage_py--001.md)：保留用户事实并检查可执行需求覆盖；4 段
+- [workbench/requirement_intent.py](sources/workbench__requirement_intent_py--001.md)：保留原始报名目标并明确参与者入口；1 段
 - [workbench/requirement_sources.py](sources/workbench__requirement_sources_py--001.md)：在规划前拒绝明确来源互相冲突的分析候选；1 段
 - [workbench/streaming.py](sources/workbench__streaming_py--001.md)：公开模型文本的安全投影与可重放事件流；1 段

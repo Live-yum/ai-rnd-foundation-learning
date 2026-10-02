@@ -22,6 +22,16 @@ MODULES = {
         "在Store.submit事务内，用服务器当前问题与选项ID取回标签，拒绝过期问题、未知选项、漏答必填和单选多选混用。保留用户自定义文字；不信任浏览器发来的标签，也不把一次回答当作批准。",
         "ResumeRequest.answers + 当前pending/gate_id → render_answer → 用户Message及排队Job；无选择项的CLI纯文字仍原样保留。",
     ),
+    "requirement_intent": (
+        "保留原始报名目标并明确参与者入口",
+        "区分入口未定、登录后业务UI和显式匿名或独立公众门户；只接受用户明确取消自行报名后的管理员范围更正。原始消息是依据，模型重述或智能推荐不能授权缩减；阻塞恢复保留旧需求并提出明确选项；analysis_intent_conflicts拒绝丢失参与者，registration_plan_gaps核对真实报名实体、默认角色和create/read的own权限。",
+        "用户消息 → scope_conflicts → Workflow.capability_recovery → 当前能力澄清gate及Vue范围提示；已知选择不再消耗模型调用。",
+    ),
+    "requirement_canonical": (
+        "对已确认等价的需求表述进行保守去重",
+        "只合并完整匹配的角色或CRUD表述及规范化文本；不同权限、否定、主体、约束和未知改写不折叠。记录保留项和重复写法，旧账本不可回写。",
+        "reconcile及能力恢复 → canonicalize_requirement → 新需求与新增canonicalization审计。",
+    ),
     "requirement_sources": (
         "在规划前拒绝明确来源互相冲突的分析候选",
         "对能可靠定位的同一原子义务比较明确值，保留用户原文、已确认契约和模型候选来源；矛盾走已有有界分析纠错，不替用户选值或批准，未知旧文本仍保守校验。",
@@ -264,7 +274,7 @@ MODULES = {
     ),
     "native_delivery": (
         "原生生成、完整验收和打包的流程接口",
-        "managed_generate协调本机源码、专用数据库和生成器；managed_verify核对数据库身份及完整回执，managed_package只有在验收成功时打包。serve_managed用于本机查看生成结果，不是公网部署。",
+        "设计/配置导入不加载可选数据库执行器；managed_generate先检查WSL2/Linux、psycopg及工具，再加载native_lab并协调本机源码、专用数据库和生成器。缺依赖在目录/容器/连接副作用前停止，可修复后同run重试；managed_verify核对数据库身份及完整回执，managed_package只有在验收成功时打包。serve_managed用于本机查看生成结果，不是公网部署。",
         "flow → managed_generate/verify/package → native_lab/portable；test_native_managed。",
     ),
     "native_modules": (
@@ -550,6 +560,16 @@ SCRIPT_ROLES = {
         "在真实浏览器操作研发工作台",
         "通过DOM选择技术栈、提交需求与控制智能推荐，等待真实状态/网络结果；操作生成资讯页面的登录、CRUD和查询，保存截图与错误。",
         "ci_guided_browser启动服务 → 本文件驱动Chromium → 可复查界面证据。",
+    ),
+    "ci_signup_scope_browser.py": (
+        "历史FAILED报名运行的真实浏览器恢复协调",
+        "建立真实SQLite/LangGraph旧设计失败检查点，以显式进程内需求网关夹具启动实际API与Worker；检查同run恢复、原目标、旧审批和仅一次有效澄清模型调用，不启动原生生成或外部供应商。",
+        "第14站及教材cleanroom → signup_scope_browser.cjs → reports/signup-scope-browser/browser.json及截图。",
+    ),
+    "signup_scope_browser.cjs": (
+        "在真实浏览器确认Vue报名能力范围",
+        "操作FAILED重试、能力提示、重复智能推荐与人工选项；先选管理员再改为登录后自行报名，确认只有最终选择提交、原目标保留且旧gate不被智能推荐消费。",
+        "ci_signup_scope_browser的真实本机HTTP → Chromium → 真实DOM/API断言与证据。",
     ),
     "ci_native_sources.py": (
         "固定原生模板源码完整性检查",

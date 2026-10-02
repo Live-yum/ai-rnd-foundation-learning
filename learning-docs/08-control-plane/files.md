@@ -31,6 +31,7 @@
 - [ui/src/state.ts](sources/ui__src__state_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/style.css](sources/ui__src__style_css--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/src/types.ts](sources/ui__src__types_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
+- [ui/tests/capability.test.ts](sources/ui__tests__capability_test_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/tests/documents.test.ts](sources/ui__tests__documents_test_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/tests/protocol.test.ts](sources/ui__tests__protocol_test_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段
 - [ui/tests/questions.test.ts](sources/ui__tests__questions_test_ts--001.md)：Vue 3 / Ant Design本机操作台源码；1 段

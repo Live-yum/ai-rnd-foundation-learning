@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/components/RunView.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L952。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/components/RunView.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L992。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`38135`。本段原文以LF换行结束。
+本段原始字节数：`40356`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/components/RunView.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "526632a8ed35289d8e2ede5c92c1dcffb71636a6066e02bf65e8d81432836a44"} -->
+<!-- learning-source: {"path": "ui/src/components/RunView.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7aa5ce9d4ecd4244295013c8ae23d8240d0de4fc02fa8f66a7c6318a978b6eb8"} -->
 ````vue
 <!-- ui/src/components/RunView.vue -->
 <script setup lang="ts">
@@ -96,6 +96,15 @@ const blocked = computed(() => {
   const b = gate.value?.data?.blocked || gate.value?.data?.requirement?.unsupported
   return Array.isArray(b) ? b : b ? [b] : []
 })
+const capabilityConflicts = computed(() => gate.value?.data?.capability_conflicts || [])
+const capabilityAlternatives = computed(() => [
+  ...new Set(capabilityConflicts.value.flatMap((item: any) => item.alternatives || [])),
+])
+const hasScopeChoices = computed(() =>
+  gate.value?.data?.requirement?.question_items?.some(
+    (item: any) => item.id === 'registration_scope',
+  ),
+)
 const canSubmit = computed(
   () => state.online && state.authenticated && !submitting.value && !state.stale,
 )
@@ -163,6 +172,10 @@ watch(
 )
 const route = (view: string) => emit('navigate', `run/${props.runId}/${view}`)
 function milestone(index: number) {
+  // A restored earlier gate invalidates later-stage completion for this revision.
+  // Historical events remain inspectable, but aren't this scope's progress.
+  if (gate.value && index === stageIndex.value) return 'waiting'
+  if (index > stageIndex.value) return 'pending'
   const relevant = stepEvents.value.filter((e) =>
       stages[index].steps.some((s) => e.data.name === s || e.data.name?.startsWith(s + ':')),
     ),
@@ -263,6 +276,7 @@ async function retry() {
 }
 function automation() {
   if (!run.value || terminal(run.value) || submitting.value || !state.online) return
+  if (!run.value.auto_mode && capabilityConflicts.value.length) return
   const enabled = !run.value.auto_mode,
     targetId = props.runId,
     targetHash = location.hash,
@@ -405,7 +419,14 @@ function reread() {
                 : '先定位原因，再恢复同一轮运行'
           }}
         </h2>
-        <p>{{ run.error || '请查看当前关卡与执行证据，确认问题后继续。' }}</p>
+        <p v-if="capabilityConflicts.length">
+          当前运行与原始目标已保留。请在下方明确报名入口，已有审批不会自动批准新的范围。
+        </p>
+        <p v-else>{{ run.error || '请查看当前关卡与执行证据，确认问题后继续。' }}</p>
+        <details v-if="capabilityConflicts.length && run.error" class="field-hint">
+          <summary>查看恢复诊断</summary>
+          <p>{{ run.error }}</p>
+        </details>
         <div class="header-actions">
           <a-button
             v-if="!gate"
@@ -461,7 +482,22 @@ function reread() {
           <div v-if="!state.messages.length" class="quiet-empty">此轮尚未产生对话记录</div>
         </div>
         <div v-if="gate" class="conversation-gate">
-          <div v-if="blocked.length" class="blocked-list">
+          <section v-if="capabilityConflicts.length" class="panel gate-preview">
+            <div class="section-top">
+              <h2>先确认参与者入口与报名范围</h2>
+              <a-tag color="orange">不能自动缩减目标</a-tag>
+            </div>
+            <p>你的原始目标已保留。智能推荐不会替你把参与者自行报名改成管理员录入。</p>
+            <p v-for="(item, index) in capabilityConflicts" :key="index">
+              {{ item.message }}
+            </p>
+            <h3 v-if="!hasScopeChoices">可选路径，需要你明确决定</h3>
+            <ul v-if="!hasScopeChoices">
+              <li v-for="item in capabilityAlternatives" :key="String(item)">{{ item }}</li>
+            </ul>
+            <p class="field-hint">下方答复只提交你填写的选择，不会自动采用任何替代范围。</p>
+          </section>
+          <div v-if="blocked.length && !capabilityConflicts.length" class="blocked-list">
             <a-alert type="warning" show-icon message="当前仍有需要解决的内容" />
             <ul>
               <li v-for="(item, index) in blocked" :key="index">{{ item }}</li>
@@ -623,11 +659,15 @@ function reread() {
           ><a-button
             type="link"
             :disabled="
-              terminal(run) || submitting || !state.online || (!run.auto_mode && !modelReady)
+              terminal(run) ||
+              submitting ||
+              !state.online ||
+              (!run.auto_mode && (!modelReady || capabilityConflicts.length > 0))
             "
             @click="automation"
             >{{ run.auto_mode ? '恢复人工确认' : '了解并开启智能推荐' }}</a-button
           >
+          <p v-if="capabilityConflicts.length">先明确答复范围，重复推荐不会改变模板能力。</p>
         </div>
         <div class="stream-status">
           <span class="status-dot" :class="state.stream === 'connected' ? 'online' : 'warning'" />{{

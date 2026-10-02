@@ -121,7 +121,19 @@ Workflow.gate把当前run、阶段、内容版本与可选动作交给Store.gate
 
 结构化澄清表单也服从同一个门：`clarification.render_answer` 在Store.submit事务内用当前问题ID和选项ID恢复服务器标签，核对必答项、单选数量和自定义文字规则。旧题目或伪造选项不会入队；合法回答仍是用户Message，不能代替approve。
 
-### D.4 Plan如何落到后端与前端
+### D.4 来源保真、入口澄清与旧检查点恢复
+
+原始参赛者自行报名目标不能被模型改写成管理员代录；“报名网站”也不能被程序直接理解成匿名门户。确定性范围检查先区分未明确入口、登录后已有业务UI、显式匿名/独立门户和用户明确取消自行报名后的管理员路径。登录后路径必须保留参与者业务角色、默认角色与本人记录权限；明确未实现的入口停在能力扩展边界。
+
+`Workflow.capability_recovery` 在消耗新的模型调用之前核对用户消息和当前模板能力，必要时将旧Requirement保存在新增账本条目中、恢复原始目标并清除当前旧Plan。它不删除历史账本或Approval，也不让旧gate的批准跨到新需求版本。旧interrupt要按原身份合法恢复，已批准的FAILED设计则在执行前重查；同一run_id、checkpoint和messages延续，不能另建运行假装修复了历史。
+
+`requirement_intent_version` 区分已应用入口约束的状态与旧检查点；旧的已明确登录后报名状态也要恢复真实参与者角色。`analysis_intent_conflicts` 检查需求中的参与者和正向自行提交，`registration_plan_gaps` 检查报名实体、默认角色与create/read的own权限；Python基础per_user产品已有owner_id隔离时保留其窄内置路径。
+
+已知入口决策再次触发智能推荐时直接保持当前能力澄清，不能重复调用模型或自动降级。普通字段、推荐默认值或已明确支持入口但旧分析丢失参与者的情况进入已有的有界模型修正；不能把“已知范围不重复调用模型”扩大成所有历史恢复都零调用。规范化只折叠明确等价的角色/CRUD表述，保留不同主体、否定、权限和约束，并记录折叠来源；不可把语义相近当作授权删除。
+
+原生设计阶段也应能在Windows基础依赖下导入；`native_delivery` 将真实执行入口延迟到系统、psycopg与工具预检之后。WSL2/Linux安装postgres extra后仍须真实原生验收；预检失败必须早于目录、容器和数据库副作用。缺包错误、能力范围等待和真实运行失败是不同层，不能互相冒充。
+
+### D.5 Plan如何落到后端与前端
 
 Plan的entities是业务实体，FieldSpec描述每个字段的name/kind/required/长度/choices/检索与筛选属性。以客服为例：customers保存客户资料，requests的customer_id指向客户，tasks的request_id指向请求；request_state/task_state是受控枚举，resolved_at是由转换写入的时间。Plan.business声明共享资源上的角色/行权限，而不是仅设置shared就开放给所有用户。
 

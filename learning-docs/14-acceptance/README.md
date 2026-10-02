@@ -106,6 +106,19 @@ uv run python -m scripts.ci_guided_browser
 
 `reports/learning-docs-clean-room.json` 的frontend字段记录目录还原后的独立npm测试、类型/构建、资产字节比较，以及还原平台的真实HTTP/Chromium流式页面结果。只运行manifest校验或格式检查不能替它填写passed。UI改动后必须在最终组合源码上重生两套教材并运行受影响验证，之前文档版本或原型截图不能当新界面的验收结果。
 
+## 报名入口与历史FAILED恢复的独立浏览器证据
+
+在上面的真实浏览器前提全部成立后，另跑报名范围专用driver：
+
+```bash
+# .learning/commands/14-signup-scope-browser.sh
+uv run python -m scripts.ci_signup_scope_browser
+```
+
+`scripts/signup_scope_browser.cjs` 操作真实Vue页面与本机API，模型使用显式进程内需求网关夹具。它先恢复一个真实旧FAILED设计检查点，核对同run身份、原始报名目标和既有delegated-ai审批，再检查桌面/窄屏能力提示、旧进度不误显示完成、范围没有默认选项、重复智能推荐不消耗模型调用，以及先选管理员后改选登录后自行提交时只发送最终选择。成功停在WAITING_REQUIREMENTS，不启动原生生成，也不宣称新建任务、显式匿名分支或全部原生全栈的浏览器验收已经完成；这些范围分支另由后端回归保护。
+
+`ci_learning_docs` 在教材独立还原后也执行该driver，并把本次证据单独复制到 `reports/learning-docs-signup-scope-browser/本次唯一编号`。它必须先检查 `browser.json` 的真实浏览器、范围及恢复断言和进程内夹具模式，并核对ui_bundle_sha256与还原后的资产、screenshot_sha256与保留的PNG字节一致，才可进入最终全套通过；任何缺字段、假布尔值、失败或遗留summary都不能冒充成功。流式页面证据和报名范围证据分别保存，各自的失败日志/截图仍应保留。
+
 ## 本阶段源码和后续依赖
 
-本阶段首次创建 79 个源文件，完整位置见[文件落盘顺序](files.md)。已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。
+本阶段首次创建 86 个源文件，完整位置见[文件落盘顺序](files.md)。已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。

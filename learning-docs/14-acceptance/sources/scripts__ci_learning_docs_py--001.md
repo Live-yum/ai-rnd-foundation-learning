@@ -15,23 +15,25 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `verify_frontend_bundle`（L20–L40）：接收`destination`、`expected`。 源码说明：No Git or original checkout: compare the rebuilt complete runtime asset set.。 控制顺序：L23按`not wanted`分支；L24抛异常，停止当前正常路径；L30按`actual.keys() != wanted.keys()`分支；L31抛异常，停止当前正常路径；L37遍历`wanted.items()`；L38按`actual[name] != data`分支；L39抛异常，停止当前正常路径。 调用`expected.items`、`generated_frontend_asset`、`AssertionError`、`path.relative_to(destination).as_posix`、`path.relative_to`、`path.read_bytes`、`(destination / "workbench/web").rglob`、`path.is_file`、`actual.keys`等。 返回路径：L40的`len(wanted)`。
-- `rebuild_frontend`（L43–L48）：接收`destination`、`expected`、`npm`、`run`。 源码说明：Build only from the restored source and its lock; do not accept the saved bundle alone.。 调用`run`、`verify_frontend_bundle`。 返回路径：L48的`verify_frontend_bundle(destination, expected)`。
-- `verify_frontend_browser`（L51–L74）：接收`destination`、`python`、`run`、`reports`。 源码说明：Keep real HTTP/Chromium evidence from the restored platform, including failures.。 控制顺序：L60按`browser_reports.is_dir()`分支；L70按`any(summary.get(field) is not True for field in required)`分支；L71抛异常，停止当前正常路径；L72按`summary.get("model_mode") != "explicit-local-http-fixtures"`分支；L73抛异常，停止当前正常路径。 调用`reports.mkdir`、`run`、`browser_reports.is_dir`、`shutil.copytree`、`json.loads`、`(browser_reports / "summary.json").read_text`、`any`、`summary.get`、`AssertionError`。 返回路径：L74的`{field: summary[field] for field in (*required, "model_mode")}`。
-- `main`（L77–L243）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L100遍历`expected.items()`；L101按`(destination / name).read_bytes() != data`分支；L102抛异常，停止当前正常路径；L103按`list((destination / "templates/vendor").glob("*.zip"))`分支；L104抛异常，停止当前正常路径；L107按`not uv or not npm`分支；L108抛异常，停止当前正常路径；L112按`not node or not module or not Path(module).is_dir()`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_bundle`、`reports.mkdir`、`tempfile.TemporaryDirectory`、`Path`、`shutil.copytree`、`dict`、`run`、`str`、`expected.items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.run`（L95–L96）：接收`argv`、`cwd`、`timeout`。 调用`subprocess.run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_frontend_bundle`（L21–L41）：接收`destination`、`expected`。 源码说明：No Git or original checkout: compare the rebuilt complete runtime asset set.。 控制顺序：L24按`not wanted`分支；L25抛异常，停止当前正常路径；L31按`actual.keys() != wanted.keys()`分支；L32抛异常，停止当前正常路径；L38遍历`wanted.items()`；L39按`actual[name] != data`分支；L40抛异常，停止当前正常路径。 调用`expected.items`、`generated_frontend_asset`、`AssertionError`、`path.relative_to(destination).as_posix`、`path.relative_to`、`path.read_bytes`、`(destination / "workbench/web").rglob`、`path.is_file`、`actual.keys`等。 返回路径：L41的`len(wanted)`。
+- `rebuild_frontend`（L44–L49）：接收`destination`、`expected`、`npm`、`run`。 源码说明：Build only from the restored source and its lock; do not accept the saved bundle alone.。 调用`run`、`verify_frontend_bundle`。 返回路径：L49的`verify_frontend_bundle(destination, expected)`。
+- `verify_frontend_browser`（L52–L75）：接收`destination`、`python`、`run`、`reports`。 源码说明：Keep real HTTP/Chromium evidence from the restored platform, including failures.。 控制顺序：L61按`browser_reports.is_dir()`分支；L71按`any(summary.get(field) is not True for field in required)`分支；L72抛异常，停止当前正常路径；L73按`summary.get("model_mode") != "explicit-local-http-fixtures"`分支；L74抛异常，停止当前正常路径。 调用`reports.mkdir`、`run`、`browser_reports.is_dir`、`shutil.copytree`、`json.loads`、`(browser_reports / "summary.json").read_text`、`any`、`summary.get`、`AssertionError`。 返回路径：L75的`{field: summary[field] for field in (*required, "model_mode")}`。
+- `verify_signup_scope_browser`（L94–L164）：接收`destination`、`python`、`run`、`reports`。 源码说明：Prove the restored legacy recovery flow; retain distinct evidence on failure.。 控制顺序：L100按`browser_reports.exists()`分支；L101抛异常，停止当前正常路径；L105按`browser_reports.is_dir()`分支；L108按`any(summary.get(field) is not True for field in SIGNUP_SCOPE_TRUE_FIELDS)`分支；L109抛异常，停止当前正常路径；L110按`summary.get("native_generation_attempted") is not False or summary.get("external_prov…`分支；L117抛异常，停止当前正常路径；L120按`not isinstance(run_id, str) or not run_id or not isinstance(calls, list) or len(calls…`分支。后续分支沿下方源码相同行号继续阅读。 调用`reports.mkdir`、`browser_reports.exists`、`AssertionError`、`run`、`browser_reports.is_dir`、`shutil.copytree`、`json.loads`、`(browser_reports / "browser.json").read_text`、`any`等。 返回路径：L164的`summary`。
+- `main`（L167–L342）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L190遍历`expected.items()`；L191按`(destination / name).read_bytes() != data`分支；L192抛异常，停止当前正常路径；L193按`list((destination / "templates/vendor").glob("*.zip"))`分支；L194抛异常，停止当前正常路径；L197按`not uv or not npm`分支；L198抛异常，停止当前正常路径；L202按`not node or not module or not Path(module).is_dir()`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_bundle`、`reports.mkdir`、`tempfile.TemporaryDirectory`、`Path`、`shutil.copytree`、`dict`、`run`、`str`、`expected.items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.run`（L185–L186）：接收`argv`、`cwd`、`timeout`。 调用`subprocess.run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_learning_docs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L247。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_learning_docs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L346。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11529`。本段原文以LF换行结束。
+本段原始字节数：`16067`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_learning_docs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "74c8a462f79291e801fe72b62c40545a141a04ffdd314e0cbfbdf5611af21615"} -->
+<!-- learning-source: {"path": "scripts/ci_learning_docs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f6ed37e198dc446773bc067e573a00db82cea0d0662a0ea8de65c05ce3e78632"} -->
 ````python
 # scripts/ci_learning_docs.py
 """Prove a directory-only textbook rebuild, then run the actual complete platform suite."""
 
+import hashlib
 import json
 import os
 import shutil
@@ -104,6 +106,95 @@ def verify_frontend_browser(destination, python, run, reports):
     if summary.get("model_mode") != "explicit-local-http-fixtures":
         raise AssertionError("Textbook acceptance must not call live or paid model providers")
     return {field: summary[field] for field in (*required, "model_mode")}
+
+
+SIGNUP_SCOPE_TRUE_FIELDS = (
+    "passed",
+    "real_browser",
+    "real_http",
+    "same_run_id",
+    "original_request_preserved",
+    "no_default_scope_selection",
+    "discarded_admin_selection_not_submitted",
+    "authenticated_entrant_goal_preserved",
+    "legacy_failed_import_checkpoint",
+    "earlier_scope_invalidates_old_progress",
+    "mobile_no_horizontal_overflow",
+    "mobile_submit_above_fixed_navigation",
+)
+
+
+def verify_signup_scope_browser(destination, python, run, reports):
+    """Prove the restored legacy recovery flow; retain distinct evidence on failure."""
+    reports.mkdir(parents=True, exist_ok=False)
+    browser_reports = destination / "reports/signup-scope-browser"
+    # A new cleanroom has no earlier driver output. Reject accidental reuse rather
+    # than letting an old passed:true result become this run's evidence.
+    if browser_reports.exists():
+        raise AssertionError("Signup browser evidence must be new for this restored project")
+    try:
+        run([python, "-m", "scripts.ci_signup_scope_browser"])
+    finally:
+        if browser_reports.is_dir():
+            shutil.copytree(browser_reports, reports, dirs_exist_ok=True)
+    summary = json.loads((browser_reports / "browser.json").read_text(encoding="utf-8"))
+    if any(summary.get(field) is not True for field in SIGNUP_SCOPE_TRUE_FIELDS):
+        raise AssertionError("Restored signup scope requires real browser/recovery evidence")
+    if (
+        summary.get("native_generation_attempted") is not False
+        or summary.get("external_provider_calls") is not False
+        or summary.get("fixture_mode") != "in-process-requirement-gateway"
+        or summary.get("status") != "WAITING_REQUIREMENTS"
+        or summary.get("errors") != []
+    ):
+        raise AssertionError("Signup browser must stop at the local-fixture requirements gate")
+    calls = summary.get("fixture_model_calls")
+    run_id = summary.get("run_id")
+    if (
+        not isinstance(run_id, str)
+        or not run_id
+        or not isinstance(calls, list)
+        or len(calls) != 1
+        or not isinstance(calls[0], dict)
+        or calls[0].get("run_id") != run_id
+    ):
+        raise AssertionError("Known signup decisions must not repeat model calls or change run")
+    for field in ("original_approval_count", "recovered_approval_count"):
+        if type(summary.get(field)) is not int or summary[field] != 1:
+            raise AssertionError("Legacy signup recovery must preserve its original approval")
+    screenshots = summary.get("screenshots")
+    expected_screenshots = {
+        "scope-blocked.png",
+        "scope-blocked-mobile.png",
+        "scope-options-mobile.png",
+        "scope-corrected.png",
+    }
+    if (
+        not isinstance(screenshots, list)
+        or any(not isinstance(name, str) for name in screenshots)
+        or len(screenshots) != len(expected_screenshots)
+        or set(screenshots) != expected_screenshots
+    ):
+        raise AssertionError("Signup browser must retain all desktop/mobile PNG screenshots")
+    if any(
+        not (browser_reports / name).is_file()
+        or not (browser_reports / name).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+        for name in screenshots
+    ):
+        raise AssertionError("Signup browser must retain all desktop/mobile PNG screenshots")
+    actual_bundle = {
+        path.relative_to(destination).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in (destination / "workbench/web").rglob("*")
+        if path.is_file()
+    }
+    actual_screenshots = {
+        name: hashlib.sha256((reports / name).read_bytes()).hexdigest() for name in screenshots
+    }
+    if not actual_bundle or summary.get("ui_bundle_sha256") != actual_bundle:
+        raise AssertionError("Signup browser evidence must bind the restored Vue bundle")
+    if summary.get("screenshot_sha256") != actual_screenshots:
+        raise AssertionError("Signup browser evidence must bind the preserved PNG bytes")
+    return summary
 
 
 def main():
@@ -228,6 +319,15 @@ def main():
             }
             status["frontend"]["browser"].update(
                 verify_frontend_browser(destination, python, run, browser_evidence)
+            )
+            status["phase"] = "signup_scope_real_browser_acceptance"
+            signup_evidence = reports / "learning-docs-signup-scope-browser" / uuid.uuid4().hex
+            status["frontend"]["signup_scope_browser"] = {
+                "passed": False,
+                "evidence_directory": signup_evidence.relative_to(reports).as_posix(),
+            }
+            status["frontend"]["signup_scope_browser"].update(
+                verify_signup_scope_browser(destination, python, run, signup_evidence)
             )
             status["phase"] = "full_non_postgres_tests"
             junit = base / "learning-docs-tests.xml"

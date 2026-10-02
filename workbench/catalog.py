@@ -39,6 +39,7 @@ PAIRS = {
         "field_kinds": ["text", "integer", "boolean"],
         "not_supported": [
             "per-user-isolation",
+            "public-anonymous-site",
             "arbitrary-code-execution",
             "cross-entity-transactions",
         ],
@@ -53,6 +54,7 @@ PAIRS = {
         "field_kinds": ["text", "integer", "boolean"],
         "not_supported": [
             "per-user-isolation",
+            "public-anonymous-site",
             "arbitrary-code-execution",
             "cross-entity-transactions",
         ],
@@ -95,6 +97,12 @@ class Selection(BaseModel):
                 *(["shared"] if self.template == "python-basic" else []),
             ],
             "business_contract": BUSINESS,
+            "registration_modes": {
+                "authenticated_business_ui": True,
+                "anonymous_submission": False,
+                "custom_public_portal": False,
+                "note": "参赛者可使用已生成业务界面登录后提交，须声明非管理员角色和逐角色行权限；独立公众门户与匿名提交不在当前交付能力内",
+            },
             "not_supported": [
                 item
                 for item in PAIRS[self.template]["not_supported"]

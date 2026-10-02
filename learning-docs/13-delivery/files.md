@@ -23,6 +23,7 @@
 - [tests/test_native_login_readiness.py](sources/tests__test_native_login_readiness_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_managed.py](sources/tests__test_native_managed_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_modules.py](sources/tests__test_native_modules_py--001.md)：可重复的验收用例；1 段
+- [tests/test_native_optional_dependencies.py](sources/tests__test_native_optional_dependencies_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_postgres_contract.py](sources/tests__test_native_postgres_contract_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_projection_gate.py](sources/tests__test_native_projection_gate_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_recovery.py](sources/tests__test_native_recovery_py--001.md)：可重复的验收用例；1 段

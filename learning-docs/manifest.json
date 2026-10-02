@@ -84,8 +84,8 @@
     },
     {
       "path": "workbench/catalog.py",
-      "bytes": 3938,
-      "sha256": "1ef0f0410dfbf4b231e8758dcb1d69c80f873193b396dfaf0b362c3f233ffce8",
+      "bytes": 4404,
+      "sha256": "e95db029c26bd104e7a1f97ca8f75758a57d4089db0c3d9b3cf33b64ca4b54d1",
       "stage": "01-contracts",
       "parts": [
         "01-contracts/sources/workbench__catalog_py--001.md"
@@ -219,8 +219,8 @@
     },
     {
       "path": "workbench/store.py",
-      "bytes": 34623,
-      "sha256": "f2a06ed033bc7df4ad755861df9c6b32a2ff35e59dda61361be815565a0c0b02",
+      "bytes": 35637,
+      "sha256": "8bce90787323de5c408592fc9109049dcb40abf7cbd784a7c467d2f3c7c7069f",
       "stage": "02-storage",
       "parts": [
         "02-storage/sources/workbench__store_py--001.md"
@@ -345,14 +345,33 @@
       ]
     },
     {
+      "path": "workbench/requirement_canonical.py",
+      "bytes": 2167,
+      "sha256": "cc302c7b6e87e4a0b1187d23dffbed13ce1e0f4cea57809c1f4c6f783de08c12",
+      "stage": "03-requirements",
+      "parts": [
+        "03-requirements/sources/workbench__requirement_canonical_py--001.md"
+      ]
+    },
+    {
       "path": "workbench/requirement_coverage.py",
-      "bytes": 117612,
-      "sha256": "75e5f1715aa6a16c45277f9002de6c3367c89758e4d5a7af18f74d12f71df576",
+      "bytes": 118350,
+      "sha256": "8abb1976b66a006197f2276a929e6e5aa765960f47be6ae39841a5fe42a6a9ef",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__requirement_coverage_py--001.md",
         "03-requirements/sources/workbench__requirement_coverage_py--002.md",
-        "03-requirements/sources/workbench__requirement_coverage_py--003.md"
+        "03-requirements/sources/workbench__requirement_coverage_py--003.md",
+        "03-requirements/sources/workbench__requirement_coverage_py--004.md"
+      ]
+    },
+    {
+      "path": "workbench/requirement_intent.py",
+      "bytes": 19037,
+      "sha256": "d37f7becd451ff2d9e9ea512aa3d4aa33fef3859e64989c6f25f4f99fb647c39",
+      "stage": "03-requirements",
+      "parts": [
+        "03-requirements/sources/workbench__requirement_intent_py--001.md"
       ]
     },
     {
@@ -781,8 +800,8 @@
     },
     {
       "path": "workbench/flow.py",
-      "bytes": 39283,
-      "sha256": "60dfbccbc27341d1e921b4e0a3f73fb3ff15e65cad98854277336aad01c0828d",
+      "bytes": 46965,
+      "sha256": "1ca855679067d427995729f99a074cd021efb1837147402533ea4033f9240929",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__flow_py--001.md"
@@ -790,8 +809,8 @@
     },
     {
       "path": "workbench/recommendation.py",
-      "bytes": 991,
-      "sha256": "e832e9df2a2b7a464fe2596544d549776eaeaf85bb95fcdf01b6c287d5a879f9",
+      "bytes": 1329,
+      "sha256": "e8fc7c6136fa951ee9c5baf3491ebc82412e3112a60e7acf88641cdd9b6d932c",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__recommendation_py--001.md"
@@ -799,8 +818,8 @@
     },
     {
       "path": "workbench/runtime.py",
-      "bytes": 10553,
-      "sha256": "2a9d898268687b223af1e763379569affad5cb467e8e1eb3c7916697ad0379d3",
+      "bytes": 11570,
+      "sha256": "99f657c69c238f141fa20e3a17bd76aa965be2995e8261765edfb9374662ad5a",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__runtime_py--001.md"
@@ -1007,8 +1026,8 @@
     },
     {
       "path": "ui/src/components/RunView.vue",
-      "bytes": 38135,
-      "sha256": "526632a8ed35289d8e2ede5c92c1dcffb71636a6066e02bf65e8d81432836a44",
+      "bytes": 40356,
+      "sha256": "7aa5ce9d4ecd4244295013c8ae23d8240d0de4fc02fa8f66a7c6318a978b6eb8",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__components__RunView_vue--001.md"
@@ -1066,6 +1085,15 @@
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__types_ts--001.md"
+      ]
+    },
+    {
+      "path": "ui/tests/capability.test.ts",
+      "bytes": 4836,
+      "sha256": "b6d1df037968ba2e0246036d190428c7b2a17738e0c483b7b224a22e00e325fb",
+      "stage": "08-control-plane",
+      "parts": [
+        "08-control-plane/sources/ui__tests__capability_test_ts--001.md"
       ]
     },
     {
@@ -1142,8 +1170,8 @@
     },
     {
       "path": "workbench/cli.py",
-      "bytes": 15534,
-      "sha256": "cfd88374504b521efdc92de06642093512ad18785a2f66642c96b5ca6bbd9023",
+      "bytes": 16378,
+      "sha256": "2cfee0bead54e467a0df7c1d5679582168e499dd9f312603fcac2feafa048b11",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/workbench__cli_py--001.md"
@@ -1160,8 +1188,8 @@
     },
     {
       "path": "workbench/web/app.js",
-      "bytes": 762220,
-      "sha256": "256309ba3519e16cf98312059e03779deb6a530e0b1d74db0916add72f1e3b27",
+      "bytes": 764106,
+      "sha256": "51a46904d553a4a265d2224a83969b2b8eb8e1a9ebd6c9e81314fdae98dd98ac",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/assets/workbench__web__app_js--001.md"
@@ -1620,8 +1648,8 @@
     },
     {
       "path": "workbench/native_delivery.py",
-      "bytes": 18574,
-      "sha256": "248ec20a2b3fbd6f01883e08e52d1bf9bc1c55818c4ebbe4bf472e86c7b8ffe8",
+      "bytes": 19070,
+      "sha256": "8e499a60c1c9099b00a5e44d924edcda5b2809432af407bf69a627ee39f95312",
       "stage": "09-native",
       "parts": [
         "09-native/sources/workbench__native_delivery_py--001.md"
@@ -3034,6 +3062,15 @@
       ]
     },
     {
+      "path": "tests/test_native_optional_dependencies.py",
+      "bytes": 8135,
+      "sha256": "aa641db46683f20705ec09b0b41c1fb09303ea309d9bfca72aa68e5ac3934073",
+      "stage": "13-delivery",
+      "parts": [
+        "13-delivery/sources/tests__test_native_optional_dependencies_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_native_postgres_contract.py",
       "bytes": 743,
       "sha256": "37d740e8910ee916220fe69ab6f0f7b52d9584867db1b9b38da6b8c9842d754a",
@@ -3233,8 +3270,8 @@
     },
     {
       "path": ".github/workflows/test.yml",
-      "bytes": 7975,
-      "sha256": "4fd96f1d5f338ce8be2373da0683baaa2bd08c3e51edd4b4820bafc59d6eb9ea",
+      "bytes": 8118,
+      "sha256": "af76821b2300b7e2d5e9e4550dc153292eda7d9e389fedef2017cfa0561ec716",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__test_yml--001.md"
@@ -3251,8 +3288,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 21149,
-      "sha256": "98789713303c7b897776d6631998040cf8b39c383ac2be8e41289a239802120b",
+      "bytes": 22474,
+      "sha256": "fa55d15e0af8dd533b6b1854fbe563a2865becbbdb48555ad3c306b5e3c65dfe",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/README_md--001.md"
@@ -3296,8 +3333,8 @@
     },
     {
       "path": "docs/guide.md",
-      "bytes": 45411,
-      "sha256": "b691fa7631a3a25344509445c3c33525c81be4e1e5b490aff72ae91e78ad912c",
+      "bytes": 47489,
+      "sha256": "d2e47e70c236f8aeb282c90aed13e81ceb0331d76ce0653bff5056b01311c283",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__guide_md--001.md"
@@ -3386,8 +3423,8 @@
     },
     {
       "path": "docs/implementation.md",
-      "bytes": 42800,
-      "sha256": "85761ece0e94038293584675b68460c3ab49b0549f9d93db62314ecf3453c64e",
+      "bytes": 45037,
+      "sha256": "3b81573979ff552b54b0ab316f4a837b74a007cd85aa409d5f55e92948876a3c",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__implementation_md--001.md"
@@ -3458,8 +3495,8 @@
     },
     {
       "path": "scripts/build_learning_docs.py",
-      "bytes": 35283,
-      "sha256": "1d4f933d4e874efc74d92d6c937736d094a4fe67435e7f16eaa7f56f7ab29abd",
+      "bytes": 35344,
+      "sha256": "1975cf39de3949e22b7a4273117db502d5ff9008fcce88acce66c9c40016311f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_learning_docs_py--001.md"
@@ -3485,8 +3522,8 @@
     },
     {
       "path": "scripts/ci_learning_docs.py",
-      "bytes": 11529,
-      "sha256": "74c8a462f79291e801fe72b62c40545a141a04ffdd314e0cbfbdf5611af21615",
+      "bytes": 16067,
+      "sha256": "f6ed37e198dc446773bc067e573a00db82cea0d0662a0ea8de65c05ce3e78632",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_learning_docs_py--001.md"
@@ -3522,9 +3559,18 @@
       ]
     },
     {
+      "path": "scripts/ci_signup_scope_browser.py",
+      "bytes": 11151,
+      "sha256": "c5ffeae438b9d45dcd5dc56beedae94d9a3e237fa188d1d45578ed56744501a0",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/scripts__ci_signup_scope_browser_py--001.md"
+      ]
+    },
+    {
       "path": "scripts/handbook_notes.py",
-      "bytes": 85096,
-      "sha256": "07968f9a34498628fd52fc1ac562a7b8e3aab4f6a915b1dbf8a0e755758e328c",
+      "bytes": 87291,
+      "sha256": "1b3c42c28ad123418e4a4210dd45e3fd3f9bc3858da265661d77ab680bdc8609",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__handbook_notes_py--001.md",
@@ -3533,8 +3579,8 @@
     },
     {
       "path": "scripts/learning_docs_content.json",
-      "bytes": 121477,
-      "sha256": "b1b2edda74004af591739ea1ca98a95a34d59e626914bb78fcc02a23e758c888",
+      "bytes": 131513,
+      "sha256": "9a75e67234b82ca5fe88476c61da8d0d8c7204048ae245e24cd1bfe864655de0",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__learning_docs_content_json--001.md"
@@ -3556,6 +3602,24 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__rebuild_learning_docs_py--001.md"
+      ]
+    },
+    {
+      "path": "scripts/signup_scope_browser.cjs",
+      "bytes": 7245,
+      "sha256": "c0cf7ee2aafce9a5e2d18b75cac9f23ae3818cf5f53c89608058882f4c5eb800",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/scripts__signup_scope_browser_cjs--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_capability_recovery_controls.py",
+      "bytes": 3963,
+      "sha256": "193fb7266eff08efb6a7d2d5e2b73c2f95cd8ebcbdee730313b470a8484a62c8",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_capability_recovery_controls_py--001.md"
       ]
     },
     {
@@ -3658,6 +3722,15 @@
       ]
     },
     {
+      "path": "tests/test_learning_docs_signup.py",
+      "bytes": 8194,
+      "sha256": "2b03e619bfae38735057a548a3ebfca3344532f06634093e5a37e4b84b39570c",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_learning_docs_signup_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_learning_order.py",
       "bytes": 2310,
       "sha256": "c44ac836ba0d31a213e55dff00ba28d7a5724a1a9f018c86a2a4d38c7d3d4f2e",
@@ -3673,6 +3746,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_legacy_date_requirements_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_legacy_signup_recovery.py",
+      "bytes": 18610,
+      "sha256": "d8f4b1ccd35bdbca5a99846096392afeebb233c1acbfdc0f10bdd8c204f0ba7e",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_legacy_signup_recovery_py--001.md"
       ]
     },
     {
@@ -3791,6 +3873,24 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_recorded_field_polarity_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_registration_checkpoint_recovery.py",
+      "bytes": 5996,
+      "sha256": "27478473d17b416844762ef941548993e88fd6ec7f3df3eb188b7e83d302aad6",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_registration_checkpoint_recovery_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_registration_intent.py",
+      "bytes": 12441,
+      "sha256": "8358c8cbe876c1dfa0750ca1dc241244a5f183d7165403c85f2fc67d7861b7ca",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_registration_intent_py--001.md"
       ]
     },
     {

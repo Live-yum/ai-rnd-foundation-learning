@@ -80,6 +80,32 @@ class Runtime:
     def __exit__(self, *args):
         self.stack.close()
 
+    def pause_recommendation(self, run_id, pending, attempts):
+        report = blocked_report(pending, attempts)
+        report = json.loads(self.settings.redact(json.dumps(report, ensure_ascii=False)))
+        report_path = self.settings.data_dir / "runs" / run_id / "recommendation-blocked.json"
+        try:
+            write_json(report_path, report)
+        except OSError:
+            logger.warning("Could not write recommendation diagnostic for %s", run_id)
+        if report.get("capability_conflicts"):
+            recovery = (
+                "。当前用户入口与模板能力需要明确对齐，重复智能推荐不能代替范围选择。"
+                "原始目标已保留；请明确所需参与者操作，不能自动改为仅后台录入。"
+            )
+        else:
+            recovery = "。本阶段两轮自动修正仍未通过，未跳过验收。可继续推荐、补充要求或切换手动。"
+        raise UnsupportedScope(
+            "智能推荐已暂停（"
+            + report["stage"]
+            + "）："
+            + "；".join(report["reasons"])[:500]
+            + recovery
+            + "使用 uv run rnd chat --run "
+            + run_id
+            + " 查看阻塞详情；无需新建运行。"
+        )
+
     def tick(self):
         # First-run settings must not execute model work. Existing gate rejection
         # remains available even after credentials are removed or become invalid.
@@ -95,6 +121,16 @@ class Runtime:
         try:
             snapshot = self.graph.get_state(config)
             waiting = pending_interrupt(snapshot)
+            if snapshot.values and snapshot.next and not waiting:
+                # An older worker may already have auto-approved a narrowed
+                # interpretation before failing downstream. Recover the original
+                # request into a fresh gate, never reuse that old approval.
+                recovery = Workflow(self.settings, self.store, self.gateway).capability_recovery(
+                    snapshot.values, advance_round=True
+                )
+                if recovery:
+                    self.graph.update_state(config, recovery, as_node="analyse")
+                    snapshot = self.graph.get_state(config)
             if not snapshot.values:
                 run = self.store.get_run(run_id)
                 self.graph.invoke(
@@ -130,35 +166,17 @@ class Runtime:
                 pending = pending_interrupt(snapshot)
                 if not pending or not self.store.get_run(run_id)["auto_mode"]:
                     break
+                if pending.get("data", {}).get("capability_conflicts"):
+                    self.pause_recommendation(run_id, pending, 0)
                 if pending["can_approve"]:
-                    self.store.auto_approve(run_id, pending)
-                    action = {"action": "approve", "approved": True}
+                    # Let the replayed gate recheck its immutable user scope
+                    # before recording delegated approval. A legacy ready gate
+                    # may require a new clarification, not a new approval row.
+                    action = {"action": "recommend", "approved": True}
                 else:
                     attempts = resolutions.get(pending["stage"], 0)
                     if attempts >= 2:
-                        report = blocked_report(pending, attempts)
-                        report = json.loads(
-                            self.settings.redact(json.dumps(report, ensure_ascii=False))
-                        )
-                        report_path = (
-                            self.settings.data_dir / "runs" / run_id / "recommendation-blocked.json"
-                        )
-                        try:
-                            write_json(report_path, report)
-                        except OSError:
-                            logger.warning(
-                                "Could not write recommendation diagnostic for %s", run_id
-                            )
-                        raise UnsupportedScope(
-                            "智能推荐已暂停（"
-                            + report["stage"]
-                            + "）："
-                            + "；".join(report["reasons"])[:500]
-                            + "。本阶段两轮自动修正仍未通过，未跳过验收。"
-                            + "使用 uv run rnd chat --run "
-                            + run_id
-                            + " 查看阻塞详情，可继续推荐、补充要求或切换手动；无需新建运行。"
-                        )
+                        self.pause_recommendation(run_id, pending, attempts)
                     resolutions[pending["stage"]] = attempts + 1
                     action = {"action": "recommend", "approved": True}
                 self.graph.invoke(

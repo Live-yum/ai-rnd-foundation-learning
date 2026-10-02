@@ -1,4 +1,4 @@
-# workbench/requirement_coverage.py · 1/3
+# workbench/requirement_coverage.py · 1/4
 
 [阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
 
@@ -10,44 +10,43 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.domain`、`workbench.entity_requirements`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.domain`、`workbench.entity_requirements`、`workbench.requirement_canonical`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **带着一个具体问题阅读：** 例如用户已明确请求标题可搜索，候选Plan却把 searchable 设为 false：coverage_gaps 返回可定位的缺项，流程不能因为JSON合法就批准。reconcile 接收上一版Requirement和新候选；新一轮只是没再提到字段时保留原事实，只有带本轮原话证据的明确更正才能修改。读这一层时用第03阶段的正确计划、缺搜索计划和省略事实三份输入对照，不先背辅助正则。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `_mentions`（L30–L36）：接收`text`、`names`。 调用`any`、`n.isascii`、`re.search`、`re.escape`、`text.lower`。 返回路径：L31的`any( re.search(rf"(?<![a-z0-9]){re.escape(n)}(?![a-z0-9])", text.lower()) if n.isascii() e…`。
-- `_authorized`（L39–L195）：接收`change`、`corrections`。 控制顺序：L41按`not any(quote in text for text in corrections)`分支；L43按`not re.search( r"修改\|改为\|改成\|更改\|取消\|删除\|移除\|不再\|不要\|改\|change\|replace\|remove\|drop…`分支；L49按`change.section == "additional_entities"`分支；L62按`change.section == "entity_requirements"`分支；L64按`not _field_mentions(quote, [entity])`分支；L66按`not attribute and change.replacement is None`分支；L68按`attribute == "fields"`分支；L78按`attribute == "additional_fields" and type(change.replacement) is bool`分支。后续分支沿下方源码相同行号继续阅读。 调用`any`、`re.search`、`type`、`bool`、`stated.group(1).lower`、`stated.group`、`change.key.partition`、`_field_mentions`、`isinstance`等。 返回路径：L42的`False`；L48的`False`；L56的`change.key == "additional_entities" and type(change.replacement) is bool and bool(stated) …`。
-- `_authorized.stated`（L174–L193）：接收`value`。 控制顺序：L175按`isinstance(value, bool)`分支；L176按`re.search(r"false\|否\|可选\|非必填\|不必填\|关闭\|禁用", quote, re.I)`分支；L179按`isinstance(value, (int, float))`分支；L181按`value == "shared"`分支；L183按`value == "per_user"`分支；L185按`str(value).lower() in quote.lower()`分支；L187按`isinstance(value, str)`分支；L191按`numbers and re.search(r"长度\|字符\|字\|length", quote, re.I)`分支。 调用`isinstance`、`re.search`、`bool`、`re.escape`、`str`、`str(value).lower`、`quote.lower`、`re.findall`、`all`。 返回路径：L177的`not value`；L178的`value and bool(re.search(r"true\|是\|必填\|启用\|开启", quote, re.I))`；L180的`bool(re.search(rf"(?<![\d.]){re.escape(str(value))}(?![\d.])", quote))`。
-- `_propagate_fact_correction`（L198–L227）：接收`data`、`key`、`replacement`。 源码说明：Synchronize a source-backed numeric fact across unambiguous legacy text.。 控制顺序：L207按`not attribute or len(numbers) != 1 or len(targets) != 1`分支；L210遍历`("features", "acceptance")`；L211遍历`enumerate(data[section])`；L213按`mentioned == [aliases] and re.search( r"上限\|最大\|最多\|max_length" if attribute == "max_…`分支；L225遍历`data["field_requirements"]`；L226按`field["field"] in aliases`分支。 调用`re.search`、`re.findall`、`str`、`ALIASES.values`、`_mentions`、`len`、`enumerate`、`re.sub`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `reconcile`（L230–L299）：接收`previous`、`proposed`、`corrections`、`audit`。 源码说明：Omission isn't deletion; only source-backed fresh edits replace old intent.。 控制顺序：L232按`not previous`分支；L236遍历`("features", "acceptance", "users")`；L245按`"additional_entities" in previous or not old.additional_entities`分支；L247按`old.data_scope != "unknown"`分支；L249遍历`proposed.changes`；L256按`audit is not None`分支；L258按`not authorized`分支；L262按`section == "facts"`分支。后续分支沿下方源码相同行号继续阅读。 调用`proposed.model_copy`、`Requirement.model_validate`、`proposed.model_dump`、`list`、`dict.fromkeys`、`getattr`、`f.model_dump`、`fields.update`、`fields.values`等。 返回路径：L233的`proposed.model_copy(update={"changes": []})`；L299的`Requirement.model_validate(data)`。
-- `_presentation_namespace`（L337–L359）：接收`key`。 源码说明：Normalize semantic namespace words, not individual model spellings.。 控制顺序：L339按`not isinstance(key, str)`分支；L341按`key.casefold() in PRESENTATION_FACT_CONTAINERS`分支；L346按`words & {"labels", "display", "presentation", "ui", "i18n", "localization", "translat…`分支。 调用`isinstance`、`key.casefold`、`re.sub`、`set`、`re.findall`、`normalized.casefold`、`any`。 返回路径：L340的`False`；L342的`True`；L347的`True`。
-- `_decode_fact`（L407–L416）：接收`value`。 控制顺序：L408按`isinstance(value, str) and value.lstrip().startswith(("{", "["))`分支；L414按`isinstance(decoded, (dict, list))`分支。 调用`isinstance`、`value.lstrip().startswith`、`value.lstrip`、`json.loads`。 返回路径：L415的`decoded`；L416的`value`。
-- `_fact_subject`（L419–L439）：接收`key`、`fields`、`entity`、`declared`。 源码说明：Resolve a field position, never a substring of an ancestor's business name.。 控制顺序：L421按`entity is not None and ( not isinstance(entity, str) or not re.fullmatch(r"[a-z][a-z0…`分支；L425按`not isinstance(key, str)`分支；L428按`qualified`分支；L431按`re.fullmatch(r"[a-z][a-z0-9_]*", key) and ( declared or any(field.name == key for _, …`分支；L435遍历`ALIASES.items()`；L436按`key in aliases`分支。 调用`isinstance`、`re.fullmatch`、`qualified.groups`、`any`、`ALIASES.items`、`len`、`next`、`iter`。 返回路径：L426的`(entity, "<invalid field>") if declared else None`；L434的`entity, key`；L438的`entity, next(iter(names)) if len(names) == 1 else canonical`。
-- `_field_kind`（L442–L443）：接收`value`。 调用`isinstance`。 返回路径：L443的`isinstance(value, str) and value in FIELD_KINDS`。
-- `_scalar_subject`（L446–L453）：接收`key`、`fields`、`entity`。 控制顺序：L451按`len(names) == 1`分支。 调用`_fact_candidates`、`len`、`_fact_entity`、`next`、`iter`。 返回路径：L452的`entity or _fact_entity(key, fields), next(iter(names))`；L453的`None`。
-- `_optional_fact`（L456–L461）：接收`value`。 控制顺序：L457按`type(value) is bool`分支；L459按`isinstance(value, str) and value.strip().lower() in {"true", "false", "是", "否"}`分支。 调用`type`、`isinstance`、`value.strip().lower`、`value.strip`。 返回路径：L458的`not value`；L460的`value.strip().lower() in {"false", "否"}`；L461的`value`。
-- `_constraint_schema`（L464–L478）：接收`value`。 源码说明：A structural declaration distinguishes a schema from a translated caption.。 控制顺序：L467按`isinstance(value, list)`分支；L469按`not isinstance(value, dict)`分支。 调用`_decode_fact`、`isinstance`、`any`、`value.values`、`value.get`、`bool`、`re.fullmatch`、`type`。 返回路径：L468的`any(isinstance(_decode_fact(item), dict) for item in value)`；L470的`False`；L471的`any(isinstance(_decode_fact(item), (dict, list)) for item in value.values()) or ( isinstan…`。
-- `_business_schema`（L481–L487）：接收`value`。 源码说明：An explicit business wrapper needs structured domain declarations.。 调用`_decode_fact`、`isinstance`、`any`、`value.items`。 返回路径：L484的`isinstance(value, dict) and any( key in BUSINESS_FACT_CONTAINERS and isinstance(_decode_fa…`。
-- `_fact_records`（L490–L765）：接收`facts`、`fields`。 源码说明：Classify structural facts before projecting field constraints or prose. A name/entity pair alone is not a field declaration. Field definitions have an explicit field position and attributes; business 。 控制顺序：L763遍历`facts.items()`；L764按`key not in FACT_METADATA_KEYS`分支。 调用`facts.items`、`walk`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_fact_records.walk`（L500–L761）：接收`key`、`value`、`path`、`entity`、`subject`、`business`、`container`、`domain`。 控制顺序：L518按`key in FIELD_CONSTRAINT_CONTAINERS and container != "fields" and (domain != "presenta…`分支；L524按`domain == "presentation" and key in BUSINESS_CONSTRAINT_CONTAINERS and _business_sche…`分支；L530按`_presentation_namespace(key) and container != "fields" and not field_position`分支；L532按`domain == "presentation"`分支；L533按`isinstance(value, dict)`分支；L535按`isinstance(value, list)`分支；L539遍历`children`；L542按`key in FIELD_CONSTRAINT_CONTAINERS and container != "fields" and not isinstance(value…`分支。后续分支沿下方源码相同行号继续阅读。 调用`_decode_fact`、`".".join`、`isinstance`、`bool`、`set`、`_fact_subject`、`_constraint_schema`、`_business_schema`、`_presentation_namespace`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_fact_constraints`（L768–L771）：接收`facts`、`fields`。 控制顺序：L769遍历`_fact_records(facts, fields)`；L770按`kind == "constraint"`分支。 调用`_fact_records`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_fact_attribute`（L774–L798）：接收`label`。 控制顺序：L783按`attribute is None and re.search(r"(?:是否必填\|必填)$", label)`分支；L785按`attribute is None and re.search(r"(?:是否可选\|可选)$", label)`分支；L787按`attribute is None`分支；L790遍历`( (r"(?:日期\|date).*(?:区间\|范围\|range)(?:筛选\|过滤)?$", "date_range"),…`；L795按`re.search(pattern, label, re.I)`分支。 调用`next`、`re.search`、`re.escape`。 返回路径：L798的`attribute`。
-- `_scalar_fact_attribute`（L801–L817）：接收`label`、`value`。 控制顺序：L803按`attribute in {"required", "optional", "searchable", "filterable", "date_range"}`分支；L804按`isinstance(value, str) and value.strip().lower() not in { "true", "false", "是", "否", …`分支。 调用`_fact_attribute`、`isinstance`、`value.strip().lower`、`value.strip`。 返回路径：L816的`None`；L817的`attribute`。
-- `_fact_texts`（L820–L823）：接收`facts`、`fields`。 控制顺序：L821遍历`_fact_records(facts, fields)`；L822按`kind == "text"`分支。 调用`_fact_records`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_field_mentions`（L826–L838）：接收`text`、`names`。 源码说明：Field identifiers are whole identifiers, not arbitrary underscore fragments.。 调用`re.sub`、`"\|".join`、`sorted`、`any`、`name.isascii`、`re.search`、`re.escape`。 返回路径：L833的`any( re.search(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])", text, re.I) if name.isasc…`。
-- `_fact_entity`（L841–L848）：接收`key`、`fields`。 控制顺序：L842按`"::" in key`分支。 调用`key.split("::")[0].rsplit`、`key.split`、`re.split`、`next`、`part.strip`、`reversed`。 返回路径：L843的`key.split("::")[0].rsplit(".", 1)[-1]`；L848的`next((part.strip() for part in reversed(path[:-1]) if part.strip() in entities), None)`。
-- `_fact_candidates`（L851–L864）：接收`key`、`fields`。 调用`_fact_entity`、`_field_mentions`、`any`、`ALIASES.values`。 返回路径：L853的`[ field for entity, field in fields if (explicit_entity is None or entity == explicit_enti…`。
-- `_legacy_targets`（L872–L885）：接收`text`、`fields`。 源码说明：Do not turn an ambiguous prose subject into grants on every entity. Exact typed obligations are checked independently. Unscoped repeated names remain semantic-review context unless the prose explicitl。 控制顺序：L879按`_fact_entity(text, fields) is not None or _ALL_ENTITIES.search(text)`分支。 调用`_fact_candidates`、`_fact_entity`、`_ALL_ENTITIES.search`、`len`。 返回路径：L880的`candidates`；L881的`[ field for field in candidates if len({entity for entity, item in fields if item.name == …`。
+- `_mentions`（L31–L37）：接收`text`、`names`。 调用`any`、`n.isascii`、`re.search`、`re.escape`、`text.lower`。 返回路径：L32的`any( re.search(rf"(?<![a-z0-9]){re.escape(n)}(?![a-z0-9])", text.lower()) if n.isascii() e…`。
+- `_authorized`（L40–L204）：接收`change`、`corrections`。 控制顺序：L42按`not any(quote in text for text in corrections)`分支；L44按`not re.search( r"修改\|改为\|改成\|更改\|取消\|删除\|移除\|不再\|不要\|改\|change\|replace\|remove\|drop…`分支；L50按`change.section == "additional_entities"`分支；L63按`change.section == "entity_requirements"`分支；L65按`not _field_mentions(quote, [entity])`分支；L67按`not attribute and change.replacement is None`分支；L69按`attribute == "fields"`分支；L79按`attribute == "additional_fields" and type(change.replacement) is bool`分支。后续分支沿下方源码相同行号继续阅读。 调用`any`、`re.search`、`type`、`bool`、`stated.group(1).lower`、`stated.group`、`change.key.partition`、`_field_mentions`、`isinstance`等。 返回路径：L43的`False`；L49的`False`；L57的`change.key == "additional_entities" and type(change.replacement) is bool and bool(stated) …`。
+- `_authorized.stated`（L183–L202）：接收`value`。 控制顺序：L184按`isinstance(value, bool)`分支；L185按`re.search(r"false\|否\|可选\|非必填\|不必填\|关闭\|禁用", quote, re.I)`分支；L188按`isinstance(value, (int, float))`分支；L190按`value == "shared"`分支；L192按`value == "per_user"`分支；L194按`str(value).lower() in quote.lower()`分支；L196按`isinstance(value, str)`分支；L200按`numbers and re.search(r"长度\|字符\|字\|length", quote, re.I)`分支。 调用`isinstance`、`re.search`、`bool`、`re.escape`、`str`、`str(value).lower`、`quote.lower`、`re.findall`、`all`。 返回路径：L186的`not value`；L187的`value and bool(re.search(r"true\|是\|必填\|启用\|开启", quote, re.I))`；L189的`bool(re.search(rf"(?<![\d.]){re.escape(str(value))}(?![\d.])", quote))`。
+- `_propagate_fact_correction`（L207–L236）：接收`data`、`key`、`replacement`。 源码说明：Synchronize a source-backed numeric fact across unambiguous legacy text.。 控制顺序：L216按`not attribute or len(numbers) != 1 or len(targets) != 1`分支；L219遍历`("features", "acceptance")`；L220遍历`enumerate(data[section])`；L222按`mentioned == [aliases] and re.search( r"上限\|最大\|最多\|max_length" if attribute == "max_…`分支；L234遍历`data["field_requirements"]`；L235按`field["field"] in aliases`分支。 调用`re.search`、`re.findall`、`str`、`ALIASES.values`、`_mentions`、`len`、`enumerate`、`re.sub`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `reconcile`（L239–L312）：接收`previous`、`proposed`、`corrections`、`audit`、`canonicalization`。 源码说明：Omission isn't deletion; only source-backed fresh edits replace old intent.。 控制顺序：L241按`not previous`分支；L248遍历`("features", "acceptance", "users")`；L257按`"additional_entities" in previous or not old.additional_entities`分支；L259按`old.data_scope != "unknown"`分支；L261遍历`proposed.changes`；L268按`audit is not None`分支；L270按`not authorized`分支；L274按`section == "facts"`分支。后续分支沿下方源码相同行号继续阅读。 调用`proposed.model_dump`、`canonicalize_requirement`、`Requirement.model_validate`、`list`、`dict.fromkeys`、`getattr`、`f.model_dump`、`fields.update`、`fields.values`等。 返回路径：L245的`Requirement.model_validate(data)`；L312的`Requirement.model_validate(data)`。
+- `_presentation_namespace`（L350–L372）：接收`key`。 源码说明：Normalize semantic namespace words, not individual model spellings.。 控制顺序：L352按`not isinstance(key, str)`分支；L354按`key.casefold() in PRESENTATION_FACT_CONTAINERS`分支；L359按`words & {"labels", "display", "presentation", "ui", "i18n", "localization", "translat…`分支。 调用`isinstance`、`key.casefold`、`re.sub`、`set`、`re.findall`、`normalized.casefold`、`any`。 返回路径：L353的`False`；L355的`True`；L360的`True`。
+- `_decode_fact`（L420–L429）：接收`value`。 控制顺序：L421按`isinstance(value, str) and value.lstrip().startswith(("{", "["))`分支；L427按`isinstance(decoded, (dict, list))`分支。 调用`isinstance`、`value.lstrip().startswith`、`value.lstrip`、`json.loads`。 返回路径：L428的`decoded`；L429的`value`。
+- `_fact_subject`（L432–L452）：接收`key`、`fields`、`entity`、`declared`。 源码说明：Resolve a field position, never a substring of an ancestor's business name.。 控制顺序：L434按`entity is not None and ( not isinstance(entity, str) or not re.fullmatch(r"[a-z][a-z0…`分支；L438按`not isinstance(key, str)`分支；L441按`qualified`分支；L444按`re.fullmatch(r"[a-z][a-z0-9_]*", key) and ( declared or any(field.name == key for _, …`分支；L448遍历`ALIASES.items()`；L449按`key in aliases`分支。 调用`isinstance`、`re.fullmatch`、`qualified.groups`、`any`、`ALIASES.items`、`len`、`next`、`iter`。 返回路径：L439的`(entity, "<invalid field>") if declared else None`；L447的`entity, key`；L451的`entity, next(iter(names)) if len(names) == 1 else canonical`。
+- `_field_kind`（L455–L456）：接收`value`。 调用`isinstance`。 返回路径：L456的`isinstance(value, str) and value in FIELD_KINDS`。
+- `_scalar_subject`（L459–L466）：接收`key`、`fields`、`entity`。 控制顺序：L464按`len(names) == 1`分支。 调用`_fact_candidates`、`len`、`_fact_entity`、`next`、`iter`。 返回路径：L465的`entity or _fact_entity(key, fields), next(iter(names))`；L466的`None`。
+- `_optional_fact`（L469–L474）：接收`value`。 控制顺序：L470按`type(value) is bool`分支；L472按`isinstance(value, str) and value.strip().lower() in {"true", "false", "是", "否"}`分支。 调用`type`、`isinstance`、`value.strip().lower`、`value.strip`。 返回路径：L471的`not value`；L473的`value.strip().lower() in {"false", "否"}`；L474的`value`。
+- `_constraint_schema`（L477–L491）：接收`value`。 源码说明：A structural declaration distinguishes a schema from a translated caption.。 控制顺序：L480按`isinstance(value, list)`分支；L482按`not isinstance(value, dict)`分支。 调用`_decode_fact`、`isinstance`、`any`、`value.values`、`value.get`、`bool`、`re.fullmatch`、`type`。 返回路径：L481的`any(isinstance(_decode_fact(item), dict) for item in value)`；L483的`False`；L484的`any(isinstance(_decode_fact(item), (dict, list)) for item in value.values()) or ( isinstan…`。
+- `_business_schema`（L494–L500）：接收`value`。 源码说明：An explicit business wrapper needs structured domain declarations.。 调用`_decode_fact`、`isinstance`、`any`、`value.items`。 返回路径：L497的`isinstance(value, dict) and any( key in BUSINESS_FACT_CONTAINERS and isinstance(_decode_fa…`。
+- `_fact_records`（L503–L778）：接收`facts`、`fields`。 源码说明：Classify structural facts before projecting field constraints or prose. A name/entity pair alone is not a field declaration. Field definitions have an explicit field position and attributes; business 。 控制顺序：L776遍历`facts.items()`；L777按`key not in FACT_METADATA_KEYS`分支。 调用`facts.items`、`walk`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_fact_records.walk`（L513–L774）：接收`key`、`value`、`path`、`entity`、`subject`、`business`、`container`、`domain`。 控制顺序：L531按`key in FIELD_CONSTRAINT_CONTAINERS and container != "fields" and (domain != "presenta…`分支；L537按`domain == "presentation" and key in BUSINESS_CONSTRAINT_CONTAINERS and _business_sche…`分支；L543按`_presentation_namespace(key) and container != "fields" and not field_position`分支；L545按`domain == "presentation"`分支；L546按`isinstance(value, dict)`分支；L548按`isinstance(value, list)`分支；L552遍历`children`；L555按`key in FIELD_CONSTRAINT_CONTAINERS and container != "fields" and not isinstance(value…`分支。后续分支沿下方源码相同行号继续阅读。 调用`_decode_fact`、`".".join`、`isinstance`、`bool`、`set`、`_fact_subject`、`_constraint_schema`、`_business_schema`、`_presentation_namespace`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_fact_constraints`（L781–L784）：接收`facts`、`fields`。 控制顺序：L782遍历`_fact_records(facts, fields)`；L783按`kind == "constraint"`分支。 调用`_fact_records`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_fact_attribute`（L787–L811）：接收`label`。 控制顺序：L796按`attribute is None and re.search(r"(?:是否必填\|必填)$", label)`分支；L798按`attribute is None and re.search(r"(?:是否可选\|可选)$", label)`分支；L800按`attribute is None`分支；L803遍历`( (r"(?:日期\|date).*(?:区间\|范围\|range)(?:筛选\|过滤)?$", "date_range"),…`；L808按`re.search(pattern, label, re.I)`分支。 调用`next`、`re.search`、`re.escape`。 返回路径：L811的`attribute`。
+- `_scalar_fact_attribute`（L814–L830）：接收`label`、`value`。 控制顺序：L816按`attribute in {"required", "optional", "searchable", "filterable", "date_range"}`分支；L817按`isinstance(value, str) and value.strip().lower() not in { "true", "false", "是", "否", …`分支。 调用`_fact_attribute`、`isinstance`、`value.strip().lower`、`value.strip`。 返回路径：L829的`None`；L830的`attribute`。
+- `_fact_texts`（L833–L836）：接收`facts`、`fields`。 控制顺序：L834遍历`_fact_records(facts, fields)`；L835按`kind == "text"`分支。 调用`_fact_records`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_field_mentions`（L839–L851）：接收`text`、`names`。 源码说明：Field identifiers are whole identifiers, not arbitrary underscore fragments.。 调用`re.sub`、`"\|".join`、`sorted`、`any`、`name.isascii`、`re.search`、`re.escape`。 返回路径：L846的`any( re.search(rf"(?<![a-z0-9_]){re.escape(name)}(?![a-z0-9_])", text, re.I) if name.isasc…`。
+- `_fact_entity`（L854–L861）：接收`key`、`fields`。 控制顺序：L855按`"::" in key`分支。 调用`key.split("::")[0].rsplit`、`key.split`、`re.split`、`next`、`part.strip`、`reversed`。 返回路径：L856的`key.split("::")[0].rsplit(".", 1)[-1]`；L861的`next((part.strip() for part in reversed(path[:-1]) if part.strip() in entities), None)`。
+- `_fact_candidates`（L864–L877）：接收`key`、`fields`。 调用`_fact_entity`、`_field_mentions`、`any`、`ALIASES.values`。 返回路径：L866的`[ field for entity, field in fields if (explicit_entity is None or entity == explicit_enti…`。
 
 </details>
 
-**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 3 段**。本段覆盖源文件 L1–L893。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L1–L884。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`35693`。本段原文以LF换行结束。
+本段原始字节数：`35639`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 1, "parts": 3, "encoding": "utf-8", "sha256": "5e8bcf25417cef8ea32b4c9a26ef52b87d90eb91412f48f67d31c942c1a26aef"} -->
+<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 1, "parts": 4, "encoding": "utf-8", "sha256": "f831d1776e5d2b81424d99a8d099f55929c23965b73c8019d73aea10b84c5506"} -->
 ````python
 # workbench/requirement_coverage.py
 """Persist approved intent and check executable obligations without a model verdict.
@@ -63,6 +62,7 @@ from types import SimpleNamespace
 
 from workbench.domain import Plan, Requirement
 from workbench.entity_requirements import entity_gaps
+from workbench.requirement_canonical import canonicalize_requirement
 
 ALIASES = {
     "title": ("title", "标题"),
@@ -139,6 +139,14 @@ def _authorized(change, corrections):
                 stated.group(1).lower() in {"true", "是"}
             )
         return False
+    # Legacy public-registration goals may be explicitly replaced by an
+    # administrative-only scope. This recognizes the whole original goal only;
+    # compound features and an unrelated cancellation still cannot be erased.
+    if change.section in {"features", "acceptance"} and change.replacement is None:
+        from workbench.requirement_intent import cancellable_registration_goal
+
+        if cancellable_registration_goal(change.key, quote):
+            return True
     aliases = [change.key]
     if change.section == "data_scope":
         aliases.extend(["数据归属", "数据范围", "data scope"])
@@ -279,10 +287,13 @@ def _propagate_fact_correction(data, key, replacement):
             field[attribute] = int(numbers[0])
 
 
-def reconcile(previous, proposed, corrections, audit=None):
+def reconcile(previous, proposed, corrections, audit=None, *, canonicalization=None):
     """Omission isn't deletion; only source-backed fresh edits replace old intent."""
     if not previous:
-        return proposed.model_copy(update={"changes": []})
+        data = proposed.model_dump()
+        data["changes"] = []
+        canonicalize_requirement(data, canonicalization)
+        return Requirement.model_validate(data)
     old = Requirement.model_validate(previous)
     data = proposed.model_dump()
     for section in ("features", "acceptance", "users"):
@@ -348,6 +359,7 @@ def reconcile(previous, proposed, corrections, audit=None):
                         field[attribute] = replacement
         event["after"] = deepcopy(data[section])
     data["changes"] = []
+    canonicalize_requirement(data, canonicalization)
     return Requirement.model_validate(data)
 
 
@@ -918,28 +930,6 @@ def _fact_candidates(key, fields):
 
 _ALL_ENTITIES = re.compile(
     r"(?:所有|全部|各个?|两个|两种)实体|\b(?:all|both|every)\s+entities\b", re.I
-)
-
-
-def _legacy_targets(text, fields):
-    """Do not turn an ambiguous prose subject into grants on every entity.
-
-    Exact typed obligations are checked independently. Unscoped repeated names
-    remain semantic-review context unless the prose explicitly says all entities.
-    """
-    candidates = _fact_candidates(text, fields)
-    if _fact_entity(text, fields) is not None or _ALL_ENTITIES.search(text):
-        return candidates
-    return [
-        field
-        for field in candidates
-        if len({entity for entity, item in fields if item.name == field.name}) == 1
-    ]
-
-
-LEGACY_PROPERTY = (
-    r"必填|可选|required|optional|搜索|检索|search|筛选|过滤|filter|"
-    r"上限|最大|最多|最长|max_length|最小|至少|最短|min_length|日期区间|日期范围"
 )
 
 

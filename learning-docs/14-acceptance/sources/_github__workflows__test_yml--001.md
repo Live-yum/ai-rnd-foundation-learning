@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/test.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L227。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/test.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L229。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7975`。本段原文以LF换行结束。
+本段原始字节数：`8118`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/test.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4fd96f1d5f338ce8be2373da0683baaa2bd08c3e51edd4b4820bafc59d6eb9ea"} -->
+<!-- learning-source: {"path": ".github/workflows/test.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "af76821b2300b7e2d5e9e4550dc153292eda7d9e389fedef2017cfa0561ec716"} -->
 ````yaml
 # .github/workflows/test.yml
 name: Python 3.14 acceptance
@@ -223,6 +223,8 @@ jobs:
       - run: npm ci --prefix ui --no-audit --no-fund
       - run: npm run build --prefix ui
       - run: uv run python -m scripts.ci_guided_browser
+      - name: Verify persisted registration scope recovery in the real workbench
+        run: uv run python -m scripts.ci_signup_scope_browser
       - uses: actions/upload-artifact@v4
         if: always()
         with:

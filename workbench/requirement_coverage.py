@@ -11,6 +11,7 @@ from types import SimpleNamespace
 
 from workbench.domain import Plan, Requirement
 from workbench.entity_requirements import entity_gaps
+from workbench.requirement_canonical import canonicalize_requirement
 
 ALIASES = {
     "title": ("title", "标题"),
@@ -87,6 +88,14 @@ def _authorized(change, corrections):
                 stated.group(1).lower() in {"true", "是"}
             )
         return False
+    # Legacy public-registration goals may be explicitly replaced by an
+    # administrative-only scope. This recognizes the whole original goal only;
+    # compound features and an unrelated cancellation still cannot be erased.
+    if change.section in {"features", "acceptance"} and change.replacement is None:
+        from workbench.requirement_intent import cancellable_registration_goal
+
+        if cancellable_registration_goal(change.key, quote):
+            return True
     aliases = [change.key]
     if change.section == "data_scope":
         aliases.extend(["数据归属", "数据范围", "data scope"])
@@ -227,10 +236,13 @@ def _propagate_fact_correction(data, key, replacement):
             field[attribute] = int(numbers[0])
 
 
-def reconcile(previous, proposed, corrections, audit=None):
+def reconcile(previous, proposed, corrections, audit=None, *, canonicalization=None):
     """Omission isn't deletion; only source-backed fresh edits replace old intent."""
     if not previous:
-        return proposed.model_copy(update={"changes": []})
+        data = proposed.model_dump()
+        data["changes"] = []
+        canonicalize_requirement(data, canonicalization)
+        return Requirement.model_validate(data)
     old = Requirement.model_validate(previous)
     data = proposed.model_dump()
     for section in ("features", "acceptance", "users"):
@@ -296,6 +308,7 @@ def reconcile(previous, proposed, corrections, audit=None):
                         field[attribute] = replacement
         event["after"] = deepcopy(data[section])
     data["changes"] = []
+    canonicalize_requirement(data, canonicalization)
     return Requirement.model_validate(data)
 
 

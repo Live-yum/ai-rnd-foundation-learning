@@ -10,48 +10,49 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.business_capabilities`、`workbench.business_contracts`、`workbench.catalog`、`workbench.coding`、`workbench.conversation`、`workbench.domain`、`workbench.errors`、`workbench.filesystem`、`workbench.generator`、`workbench.knowledge`、`workbench.requirement_coverage`、`workbench.requirement_sources`、`workbench.verification`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.business_capabilities`、`workbench.business_contracts`、`workbench.catalog`、`workbench.coding`、`workbench.conversation`、`workbench.domain`、`workbench.errors`、`workbench.filesystem`、`workbench.generator`、`workbench.knowledge`、`workbench.requirement_coverage`、`workbench.requirement_intent`、`workbench.requirement_sources`、`workbench.verification`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **带着一个具体问题阅读：** Workflow把需求确认、设计、生成、验证和交付排成有条件的图。gate先保存本版审批内容，再interrupt等待；恢复必须提交当前gate_id。智能推荐可以替用户补普通未知项并留下委托记录，但代码验证失败时仍不得进入READY。请沿第07阶段的三次等待状态走一次，而非假设所有节点每次都会执行。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `State`（L82–L101）：继承`TypedDict`。声明的数据项为`run_id`、`template`、`round`、`requirement`、`requirement_source_count`、`requirement_ledger`、`requirement_analysis_diagnostics`、`requirement_analysis_baseline`、`resolution_feedback`、`plan`、`decision`、`last_job_id`、`attempt`、`verification`、`delivery`、`status`、`model_review`、`code_context`、`sandbox`；类型约束/数据库列参数以完整定义为准。
-- `Workflow`（L104–L687）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `Workflow.__init__`（L105–L106）：接收`settings`、`store`、`gateway`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Workflow.product`（L108–L109）：接收`state`。 返回路径：L109的`self.settings.data_dir / "runs" / state["run_id"] / "product"`。
-- `Workflow.gate`（L111–L120）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 控制顺序：L117按`action == "recommend" and can_approve`分支。 调用`list`、`dict.fromkeys`、`self.store.gate`、`interrupt`、`self.store.check_decision`、`self.store.auto_approve`。 返回路径：L120的`{"decision": action, "last_job_id": value["job_id"]}`。
-- `Workflow.analyse`（L122–L200）：接收`state`。 控制顺序：L123按`self.settings.max_rounds and state["round"] > self.settings.max_rounds`分支；L124抛异常，停止当前正常路径；L138按`state.get("requirement_analysis_diagnostics")`分支；L140按`ledger`分支；L165遍历`changes`；L187按`diagnostics`分支。 调用`PausedLimit`、`self.store.get_run`、`options_for_run(run).capabilities`、`options_for_run`、`context`、`state.get`、`digest`、`ledger[-1].get`、`self.store.messages`等。 返回路径：L194的`{ "requirement": accepted or candidate, "requirement_source_count": cursor if diagnostics …`。
-- `Workflow.requirements`（L202–L246）：接收`state`。 控制顺序：L209按`not supported`分支；L213按`diagnostics`分支；L225按`outcome["decision"] in {"answer", "revise", "recommend"}`分支；L240按`diagnostics`分支；L244按`outcome["decision"] == "reject"`分支。 调用`Requirement.model_validate`、`options_for_run`、`self.store.get_run`、`selection.capabilities`、`state.get`、`requirement.gate_dump`、`self.gate`、`isinstance`、`data.get`等。 返回路径：L246的`outcome`。
-- `Workflow.source_context`（L248–L257）：接收`state`。 调用`prepare_context`、`self.product`。 返回路径：L257的`{"code_context": value}`。
-- `Workflow.plan`（L259–L307）：接收`state`。 控制顺序：L262遍历`enumerate(approved.field_requirements)`。 调用`Requirement.model_validate`、`enumerate`、`field_obligations.append`、`obligation.model_dump`、`self.gateway.complete`、`state.get`、`state.get("resolution_feedback", {}).get`、`options_for_run( self.store.get_run(state["run_id"]) ).capabiliti…`、`options_for_run`等。 返回路径：L307的`{"plan": value.model_dump(), "attempt": 0}`。
-- `Workflow.design`（L309–L401）：接收`state`。 控制顺序：L321按`any(field.kind not in kinds for entity in plan.entities for field in entity.fields)`分支；L336按`state["template"] == "python-basic" and plan.data_scope != "per_user" and plan.busine…`分支；L343按`plan.custom_rules and not self.settings.enable_coding`分支；L346按`state["template"] != "python-basic" and plan.custom_rules and self.settings.coding_en…`分支；L353按`state["template"] != "python-basic"`分支；L359按`runtime_enabled(self.settings, state["template"])`分支；L389按`outcome["decision"] in {"revise", "recommend"}`分支；L399按`outcome["decision"] == "reject"`分支。 调用`Plan.model_validate`、`list`、`len`、`options_for_run`、`self.store.get_run`、`set`、`selection.capabilities`、`any`、`reasons.append`等。 返回路径：L401的`outcome`。
-- `Workflow.generate`（L403–L427）：接收`state`。 控制顺序：L405按`state["template"] == "python-basic"`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`。 返回路径：L427的`{}`。
-- `Workflow.generate.fn`（L407–L412）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_basic`、`self.product`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`。 返回路径：L408的`generate_basic( plan, self.product(state), selection=options_for_run(self.store.get_run(st…`。
-- `Workflow.generate.fn`（L416–L424）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_native`、`self.product`、`self.native_customization`。 返回路径：L417的`generate_native( self.settings, state["template"], plan, self.product(state), managed=True…`。
-- `Workflow.native_customization`（L429–L434）：接收`state`、`plan`。 控制顺序：L430按`not plan.custom_rules`分支。 调用`native_rule_customizer`。 返回路径：L431的`None`；L434的`native_rule_customizer(self.settings, self.gateway, state["run_id"])`。
-- `Workflow.run_coder`（L436–L456）：接收`state`、`plan`。 控制顺序：L437按`self.settings.coding_engine == "aider"`分支。 调用`code_rules_with_aider`、`self.product`、`state.get("verification", {}).get`、`state.get`、`code_rules`。 返回路径：L440的`code_rules_with_aider( state["run_id"], plan, self.product(state), self.gateway, self.sett…`；L449的`code_rules( state["run_id"], plan, self.product(state), self.gateway, state["attempt"], st…`。
-- `Workflow.code`（L458–L470）：接收`state`。 控制顺序：L460按`not plan.custom_rules or state["template"] != "python-basic"`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`、`self.run_coder`、`str`。 返回路径：L461的`{}`；L469的`{"verification": {"passed": False, "kind": "code", "error": str(exc)[:500]}}`；L470的`{}`。
-- `Workflow.verify`（L472–L484）：接收`state`。 控制顺序：L473按`state["template"] != "python-basic"`分支。 调用`verify_native`、`self.product`、`verify_basic`、`Plan.model_validate`。 返回路径：L484的`{"verification": result}`。
-- `Workflow.after_verify`（L486–L497）：接收`state`。 控制顺序：L487按`state["verification"]["passed"]`分支；L489按`state["plan"].get("custom_rules") and state["attempt"] < self.settings.max_repair_att…`分支；L495抛异常，停止当前正常路径。 调用`state["plan"].get`、`state["verification"].get`、`PrerequisiteError`。 返回路径：L488的`"sandbox"`；L494的`"repair"`。
-- `Workflow.sandbox`（L499–L505）：接收`state`。 控制顺序：L500按`self.settings.sandbox_provider == "local"`分支。 调用`verify_in_daytona`、`self.product`。 返回路径：L501的`{"sandbox": {"enabled": False, "provider": "local", "remote_upload": False}}`；L505的`{"sandbox": {"enabled": True, **result}}`。
-- `Workflow.model_review`（L507–L536）：接收`state`。 控制顺序：L512按`not self.settings.review_enabled`分支；L514按`previous.get("uncovered_requirements")`分支。 调用`self.product`、`previous_path.is_file`、`json.loads`、`previous_path.read_text`、`previous.get`、`self.require_review_clearance`、`self.gateway.complete`、`digest`、`review.model_dump`。 返回路径：L516的`{ "model_review": { "enabled": False, "note": "Executable test results remain the authorit…`；L536的`{"model_review": result}`。
-- `Workflow.require_review_clearance`（L538–L564）：接收`state`、`review`、`fresh`。 源码说明：Only a fresh successful review may clear a persisted uncovered gap.。 控制顺序：L542按`previous.get("uncovered_requirements") and not review.get("uncovered_requirements")`分支；L543按`not ( fresh and review.get("enabled") and state.get("verification", {}).get("passed")…`分支；L559按`gaps`分支；L560抛异常，停止当前正常路径。 调用`self.product`、`path.is_file`、`json.loads`、`path.read_text`、`previous.get`、`review.get`、`state.get("verification", {}).get`、`state.get`、`digest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Workflow.repair`（L566–L567）：接收`state`。 返回路径：L567的`{"attempt": state["attempt"] + 1}`。
-- `Workflow.package`（L569–L596）：接收`state`。 控制顺序：L572按`state.get("requirement")`分支；L582按`gaps`分支；L583抛异常，停止当前正常路径；L584按`state["template"] == "python-basic"`分支。 调用`self.require_review_clearance`、`state.get`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`gaps.extend`、`business_gaps`、`UnsupportedScope`、`"；".join`等。 返回路径：L596的`{"delivery": result}`。
-- `Workflow.delivery`（L598–L610）：接收`state`。 控制顺序：L603按`sha(self.product(state).parent / result["package"]) != result["sha256"]`分支；L604抛异常，停止当前正常路径。 调用`result.items`、`len`、`self.gate`、`sha`、`self.product`、`PrerequisiteError`。 返回路径：L610的`decision`。
-- `Workflow.observed_node`（L612–L633）：接收`name`。 源码说明：Publish real serial node transitions, without model/tool internals.。 调用`getattr`。 返回路径：L633的`observed`。
-- `Workflow.observed_node.observed`（L616–L631）：接收`state`。 控制顺序：L624抛异常，停止当前正常路径；L629抛异常，停止当前正常路径。 调用`state.get`、`self.store.record_event`、`node`。 返回路径：L631的`result`。
-- `Workflow.compile`（L635–L687）：接收`checkpointer`。 控制顺序：L637遍历`( "analyse", "requirements", "source_context", "plan", "design", …`。 调用`StateGraph`、`graph.add_node`、`self.observed_node`、`graph.add_edge`、`graph.add_conditional_edges`、`graph.compile`。 返回路径：L687的`graph.compile(checkpointer=checkpointer)`。
+- `State`（L92–L113）：继承`TypedDict`。声明的数据项为`run_id`、`template`、`round`、`requirement`、`requirement_source_count`、`requirement_ledger`、`requirement_analysis_diagnostics`、`requirement_analysis_baseline`、`requirement_capability_conflicts`、`requirement_intent_version`、`resolution_feedback`、`plan`、`decision`、`last_job_id`、`attempt`、`verification`、`delivery`、`status`、`model_review`、`code_context`、`sandbox`；类型约束/数据库列参数以完整定义为准。
+- `Workflow`（L116–L835）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Workflow.__init__`（L117–L118）：接收`settings`、`store`、`gateway`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Workflow.product`（L120–L121）：接收`state`。 返回路径：L121的`self.settings.data_dir / "runs" / state["run_id"] / "product"`。
+- `Workflow.gate`（L123–L142）：接收`state`、`stage`、`data`、`actions`、`can_approve`。 控制顺序：L129按`action in {"approve", "recommend"} and can_approve and stage in {"requirements", "des…`分支；L137按`recovery`分支；L139按`action == "recommend" and can_approve`分支。 调用`list`、`dict.fromkeys`、`self.store.gate`、`interrupt`、`self.store.check_decision`、`self.capability_recovery`、`self.store.auto_approve`。 返回路径：L138的`{**recovery, "decision": "revise", "last_job_id": value["job_id"]}`；L142的`{"decision": action, "last_job_id": value["job_id"]}`。
+- `Workflow.capability_recovery`（L144–L214）：接收`state`、`advance_round`。 源码说明：Build a source-backed clarification without spending a model call. Runtime may use this before continuing an old, already-approved design checkpoint. It records the complete old analysis, then creates。 控制顺序：L164按`not conflicts and not migrate_authenticated`分支；L168按`migrate_authenticated`分支。 调用`self.store.get_run`、`options_for_run(run).capabilities`、`options_for_run`、`self.store.messages`、`scope_conflicts`、`registration_scope`、`state.get`、`reconcile_entrypoint`、`Requirement.model_validate`等。 返回路径：L165的`None`；L204的`{ "round": round_number, "requirement": requirement.gate_dump(), "requirement_source_count…`。
+- `Workflow.analyse`（L216–L309）：接收`state`。 控制顺序：L218按`recovery`分支；L220按`self.settings.max_rounds and state["round"] > self.settings.max_rounds`分支；L221抛异常，停止当前正常路径；L235按`state.get("requirement_analysis_diagnostics")`分支；L237按`ledger`分支；L269遍历`changes`；L294按`diagnostics`分支。 调用`self.capability_recovery`、`PausedLimit`、`self.store.get_run`、`options_for_run(run).capabilities`、`options_for_run`、`context`、`state.get`、`digest`、`ledger[-1].get`等。 返回路径：L219的`recovery`；L301的`{ "requirement": accepted or candidate, "requirement_source_count": cursor if diagnostics …`。
+- `Workflow.requirements`（L311–L366）：接收`state`。 控制顺序：L319按`capability_conflicts`分支；L322按`not supported`分支；L331按`diagnostics`分支；L333按`isinstance(blocked, str)`分支；L345按`outcome["decision"] in {"answer", "revise", "recommend"}`分支；L360按`diagnostics`分支；L364按`outcome["decision"] == "reject"`分支。 调用`Requirement.model_validate`、`options_for_run`、`self.store.get_run`、`selection.capabilities`、`state.get`、`requirement.gate_dump`、`data.get`、`isinstance`、`self.gate`等。 返回路径：L366的`outcome`。
+- `Workflow.source_context`（L368–L377）：接收`state`。 调用`prepare_context`、`self.product`。 返回路径：L377的`{"code_context": value}`。
+- `Workflow.plan`（L379–L434）：接收`state`。 控制顺序：L382遍历`enumerate(approved.field_requirements)`。 调用`Requirement.model_validate`、`enumerate`、`field_obligations.append`、`obligation.model_dump`、`self.gateway.complete`、`registration_scope`、`self.store.messages`、`state.get`、`state.get("resolution_feedback", {}).get`等。 返回路径：L434的`{"plan": value.model_dump(), "attempt": 0}`。
+- `Workflow.design`（L436–L545）：接收`state`。 控制顺序：L448按`any(field.kind not in kinds for entity in plan.entities for field in entity.fields)`分支；L480按`state["template"] == "python-basic" and plan.data_scope != "per_user" and plan.busine…`分支；L487按`plan.custom_rules and not self.settings.enable_coding`分支；L490按`state["template"] != "python-basic" and plan.custom_rules and self.settings.coding_en…`分支；L497按`state["template"] != "python-basic"`分支；L503按`runtime_enabled(self.settings, state["template"])`分支；L533按`outcome["decision"] in {"revise", "recommend"}`分支；L543按`outcome["decision"] == "reject"`分支。 调用`Plan.model_validate`、`list`、`len`、`options_for_run`、`self.store.get_run`、`set`、`selection.capabilities`、`any`、`reasons.append`等。 返回路径：L545的`outcome`。
+- `Workflow.generate`（L547–L571）：接收`state`。 控制顺序：L549按`state["template"] == "python-basic"`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`。 返回路径：L571的`{}`。
+- `Workflow.generate.fn`（L551–L556）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_basic`、`self.product`、`options_for_run(self.store.get_run(state["run_id"])).model_dump`、`options_for_run`、`self.store.get_run`。 返回路径：L552的`generate_basic( plan, self.product(state), selection=options_for_run(self.store.get_run(st…`。
+- `Workflow.generate.fn`（L560–L568）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`generate_native`、`self.product`、`self.native_customization`。 返回路径：L561的`generate_native( self.settings, state["template"], plan, self.product(state), managed=True…`。
+- `Workflow.native_customization`（L573–L578）：接收`state`、`plan`。 控制顺序：L574按`not plan.custom_rules`分支。 调用`native_rule_customizer`。 返回路径：L575的`None`；L578的`native_rule_customizer(self.settings, self.gateway, state["run_id"])`。
+- `Workflow.run_coder`（L580–L600）：接收`state`、`plan`。 控制顺序：L581按`self.settings.coding_engine == "aider"`分支。 调用`code_rules_with_aider`、`self.product`、`state.get("verification", {}).get`、`state.get`、`code_rules`。 返回路径：L584的`code_rules_with_aider( state["run_id"], plan, self.product(state), self.gateway, self.sett…`；L593的`code_rules( state["run_id"], plan, self.product(state), self.gateway, state["attempt"], st…`。
+- `Workflow.code`（L602–L614）：接收`state`。 控制顺序：L604按`not plan.custom_rules or state["template"] != "python-basic"`分支。 调用`Plan.model_validate`、`self.store.step`、`digest`、`self.run_coder`、`str`。 返回路径：L605的`{}`；L613的`{"verification": {"passed": False, "kind": "code", "error": str(exc)[:500]}}`；L614的`{}`。
+- `Workflow.verify`（L616–L628）：接收`state`。 控制顺序：L617按`state["template"] != "python-basic"`分支。 调用`verify_native`、`self.product`、`verify_basic`、`Plan.model_validate`。 返回路径：L628的`{"verification": result}`。
+- `Workflow.after_verify`（L630–L641）：接收`state`。 控制顺序：L631按`state["verification"]["passed"]`分支；L633按`state["plan"].get("custom_rules") and state["attempt"] < self.settings.max_repair_att…`分支；L639抛异常，停止当前正常路径。 调用`state["plan"].get`、`state["verification"].get`、`PrerequisiteError`。 返回路径：L632的`"sandbox"`；L638的`"repair"`。
+- `Workflow.sandbox`（L643–L649）：接收`state`。 控制顺序：L644按`self.settings.sandbox_provider == "local"`分支。 调用`verify_in_daytona`、`self.product`。 返回路径：L645的`{"sandbox": {"enabled": False, "provider": "local", "remote_upload": False}}`；L649的`{"sandbox": {"enabled": True, **result}}`。
+- `Workflow.model_review`（L651–L680）：接收`state`。 控制顺序：L656按`not self.settings.review_enabled`分支；L658按`previous.get("uncovered_requirements")`分支。 调用`self.product`、`previous_path.is_file`、`json.loads`、`previous_path.read_text`、`previous.get`、`self.require_review_clearance`、`self.gateway.complete`、`digest`、`review.model_dump`。 返回路径：L660的`{ "model_review": { "enabled": False, "note": "Executable test results remain the authorit…`；L680的`{"model_review": result}`。
+- `Workflow.require_review_clearance`（L682–L708）：接收`state`、`review`、`fresh`。 源码说明：Only a fresh successful review may clear a persisted uncovered gap.。 控制顺序：L686按`previous.get("uncovered_requirements") and not review.get("uncovered_requirements")`分支；L687按`not ( fresh and review.get("enabled") and state.get("verification", {}).get("passed")…`分支；L703按`gaps`分支；L704抛异常，停止当前正常路径。 调用`self.product`、`path.is_file`、`json.loads`、`path.read_text`、`previous.get`、`review.get`、`state.get("verification", {}).get`、`state.get`、`digest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Workflow.repair`（L710–L711）：接收`state`。 返回路径：L711的`{"attempt": state["attempt"] + 1}`。
+- `Workflow.package`（L713–L740）：接收`state`。 控制顺序：L716按`state.get("requirement")`分支；L726按`gaps`分支；L727抛异常，停止当前正常路径；L728按`state["template"] == "python-basic"`分支。 调用`self.require_review_clearance`、`state.get`、`coverage_gaps`、`Requirement.model_validate`、`Plan.model_validate`、`gaps.extend`、`business_gaps`、`UnsupportedScope`、`"；".join`等。 返回路径：L740的`{"delivery": result}`。
+- `Workflow.delivery`（L742–L756）：接收`state`。 控制顺序：L747按`decision["decision"] == "revise"`分支；L749按`sha(self.product(state).parent / result["package"]) != result["sha256"]`分支；L750抛异常，停止当前正常路径。 调用`result.items`、`len`、`self.gate`、`sha`、`self.product`、`PrerequisiteError`。 返回路径：L748的`{**decision, "round": state["round"] + 1, "status": "RUNNING"}`；L756的`decision`。
+- `Workflow.observed_node`（L758–L779）：接收`name`。 源码说明：Publish real serial node transitions, without model/tool internals.。 调用`getattr`。 返回路径：L779的`observed`。
+- `Workflow.observed_node.observed`（L762–L777）：接收`state`。 控制顺序：L770抛异常，停止当前正常路径；L775抛异常，停止当前正常路径。 调用`state.get`、`self.store.record_event`、`node`。 返回路径：L777的`result`。
+- `Workflow.compile`（L781–L835）：接收`checkpointer`。 控制顺序：L783遍历`( "analyse", "requirements", "source_context", "plan", "design", …`。 调用`StateGraph`、`graph.add_node`、`self.observed_node`、`graph.add_edge`、`graph.add_conditional_edges`、`graph.compile`。 返回路径：L835的`graph.compile(checkpointer=checkpointer)`。
 
 </details>
 
-**创建路径：** `workbench/flow.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L687。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/flow.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L835。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`39283`。本段原文以LF换行结束。
+本段原始字节数：`46965`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/flow.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "60dfbccbc27341d1e921b4e0a3f73fb3ff15e65cad98854277336aad01c0828d"} -->
+<!-- learning-source: {"path": "workbench/flow.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1ca855679067d427995729f99a074cd021efb1837147402533ea4033f9240929"} -->
 ````python
 # workbench/flow.py
 """One explicit LangGraph workflow. Durable approval records, not model prose, open gates."""
@@ -74,6 +75,14 @@ from workbench.filesystem import sha, write_json
 from workbench.generator import PrerequisiteError, generate_basic
 from workbench.knowledge import design_pack
 from workbench.requirement_coverage import coverage_gaps, reconcile
+from workbench.requirement_intent import (
+    analysis_intent_conflicts,
+    blocked_requirement,
+    reconcile_entrypoint,
+    registration_plan_gaps,
+    registration_scope,
+    scope_conflicts,
+)
 from workbench.requirement_sources import analysis_feedback, analysis_source_conflicts
 from workbench.verification import package_basic, verify_basic
 
@@ -100,6 +109,7 @@ field_requirements记录每个已明确字段的可执行约束：field/entity�
 entity_requirements记录用户明确的实体字段清单：entity、fields、additional_fields。默认additional_fields=true，普通字段列举并不禁止扩展；仅当用户明确说字段清单穷尽、封闭或禁止新增字段时设false。用户还明确限定只能有这些实体时，将Requirement.additional_entities设false；普通项目保持true。封闭清单须完整记录且不得在后续推荐中遗漏或打开。系统自动字段不放入清单。不能把日期格式示例、模板能力或其他案例字段加入封闭清单。
 既有facts、features、acceptance、users和field_requirements不会因遗漏而删除。用户明确修改时，通过changes提交section、key、replacement和逐字source_quote。
 source_quote必须来自本轮fresh_user_corrections并明确指出修改对象和新值；删除replacement=null。field_requirements修改单项使用key="entity.field.属性"（entity未指定则以点开头），replacement为新值。智能推荐不是修改已确认事实的授权。
+报名网站不等于匿名访问：参赛者注册登录后可使用现有业务界面，通过非管理员业务角色及本人记录权限自行提交报名；独立公众门户与匿名报名提交不在当前能力内。用户选择登录后自行提交时，保留参赛者使用角色及提交行为，不能把队长改成仅联系人或由管理员代录。明确取消参赛者自行报名并改为管理员录入时，使用changes及本轮逐字来源移除旧的独立报名网站目标；不保留相互矛盾的目标。不要为同一角色或功能持续追加换句话说的重复条目；沿用既有表述，真正新增义务才追加。
 business_contract 是三个模板共同的声明式团队业务能力：关联记录、角色与行权限、负责人、命名状态流转、处理备注、审计、站内提醒和统计。
 facts 中结构化的业务义务使用 business.resources/relations/permissions/workflows/notifications/metrics 的已知契约属性，不把指标名、角色列表或关系元数据写成字段约束。字段约束放 field_requirements；角色与行范围用 permissions 的 role/entity/actions/scope（all/own/assigned）表达，不新增模糊的 role_scope 表达式。保留明确义务，不能只保存一份能力目录代替需求。
 business_contract_schema 是可执行业务契约的准确 JSON Schema。facts.business 的结构化义务使用其中的同名属性和枚举，按实体分别列 notifications 的事件与接收者、permissions 的完整动作与范围；不要发明近义动作名或把事件列表与接收者列表隐含组合。字段约束仍放 field_requirements。指标角色授权必须在对应指标实体的 permissions 中明确包含 read_metrics；只有请求统计权限不代表拥有客户分布统计权限。查看处理历史对应 read_history，查看完整审计对应 read_audit，二者为独立授权；需求同时要求时必须同时声明。Schema 是表达方式，不是自动追加需求的清单。
@@ -119,6 +129,7 @@ resolution_feedback 是上次设计被确定性校验拦住的具体原因；结
 field_obligations 是 approved_requirement.field_requirements 的确定性逐字段映射，含来源ID、实体/字段目标和明确属性。逐项保持 expected 中的类型、布尔值、长度和枚举，不得用相邻字段描述、章节标题或默认值覆盖；未列出的属性才由你设计。resolution_feedback.coverage_diagnostics 的 targets/attribute/expected/actual 指明具体偏差，必须修正对应属性，不能通过改写已批准需求解除约束。resolution_feedback.business_diagnostics 同样给出业务义务来源、expected 和 actual，逐项修复角色动作、范围、关系、提醒和指标；不得只修改说明而保持错误的契约。
 entity_obligations 是已批准实体字段清单；additional_fields=false 时字段必须与fields完全一致，不能添入其他案例的日期、发布、正文等字段。开放清单只要求所列字段存在。字段清单校验的missing/extra是精确反馈，必须重新生成符合原始批准清单的完整Plan，不得改写清单、删除真正需求或仅修改说明。
 approved_requirement.limitations 是已排除的边界说明，不得复制进 Plan.unsupported。
+entrypoint_obligation 是从用户原文确定的报名入口义务；authenticated_business_ui 必须由真实报名实体、默认非管理员参赛角色、create/read 与 own 行权限实现；用户要求注册账号时启用 registration.enabled。原生管理端普通CRUD不能替代参赛者自行报名。python-basic 的 per_user 内置登录与本人记录隔离也可实现该入口，不自动要求匿名访问或独立门户。
 Plan.unsupported 仅为已批准需求中仍无法实现的功能，不是模板限制清单。runtime_constraints 是实际配置约束，不能假称环境已满足。
 原生FastapiAdmin和芋道的entities[].description直接用作代码生成显示标题：1到100字符，只能中文、字母、数字、下划线、空格和连字符，不能含标点、代码分隔符、换行或制表符；详细业务说明放入验收条件，不写入这个短标题。
 原生FastapiAdmin和芋道支持custom_rules表示纯单记录业务校验，由Plop挂载Java/Python/Vue校验入口、Aider修改表达式；每实体最多一条规则，合并所有条件并给完整正反例。原生规则必须在runtime_constraints中coding_engine=aider时使用。不接受网络、跨记录事务、任意脚本或任意命令。不能把逐用户隔离改成共享。
@@ -144,6 +155,8 @@ class State(TypedDict, total=False):
     requirement_ledger: list[dict]
     requirement_analysis_diagnostics: list[dict]
     requirement_analysis_baseline: dict
+    requirement_capability_conflicts: list[dict]
+    requirement_intent_version: int
     resolution_feedback: dict
     plan: dict
     decision: str
@@ -170,12 +183,97 @@ class Workflow:
         value = interrupt(gate)
         self.store.check_decision(state["run_id"], gate, value)
         action = value["action"]
+        if (
+            action in {"approve", "recommend"}
+            and can_approve
+            and stage in {"requirements", "design", "delivery"}
+        ):
+            # A legacy interrupt must consume its original gate identity first.
+            # Its old approval cannot authorize a model-only scope downgrade.
+            recovery = self.capability_recovery(state)
+            if recovery:
+                return {**recovery, "decision": "revise", "last_job_id": value["job_id"]}
         if action == "recommend" and can_approve:
             self.store.auto_approve(state["run_id"], gate)
             action = "approve"
         return {"decision": action, "last_job_id": value["job_id"]}
 
+    def capability_recovery(self, state, *, advance_round=False):
+        """Build a source-backed clarification without spending a model call.
+
+        Runtime may use this before continuing an old, already-approved design
+        checkpoint. It records the complete old analysis, then creates a fresh
+        round/gate; prior approvals do not authorize the corrected requirement.
+        Interrupted legacy gates are replayed unchanged before analysis resumes.
+        """
+        run = self.store.get_run(state["run_id"])
+        capabilities = options_for_run(run).capabilities()
+        human = [m["content"] for m in self.store.messages(state["run_id"]) if m["role"] == "user"]
+        conflicts = scope_conflicts(human, capabilities)
+        active = registration_scope(human)
+        migrate_authenticated = (
+            not conflicts
+            and state.get("requirement")
+            and not state.get("requirement_intent_version")
+            and active
+            and active["mode"] == "authenticated_business_ui"
+        )
+        if not conflicts and not migrate_authenticated:
+            return None
+        canonicalization, scope_changes = [], []
+        previous = state.get("requirement", {})
+        if migrate_authenticated:
+            revised, requirement = reconcile_entrypoint(
+                previous, Requirement.model_validate(previous), human, human, scope_changes
+            )
+            # Compact the source-corrected baseline itself, not a union with
+            # the old proposal that would restore the removed role assumptions.
+            requirement = reconcile(
+                None,
+                Requirement.model_validate({**revised, "summary": requirement.summary}),
+                [],
+                canonicalization=canonicalization,
+            )
+            diagnostics = analysis_intent_conflicts(requirement, human)
+        else:
+            diagnostics = state.get("requirement_analysis_diagnostics", [])
+            requirement = blocked_requirement(
+                previous,
+                conflicts,
+                capabilities,
+                canonicalization,
+                original_request=human[0] if human else "",
+            )
+        round_number = state["round"] + int(advance_round)
+        entry = {
+            "round": round_number,
+            "kind": "capability_recovery",
+            "before": previous,
+            "after": requirement.gate_dump(),
+            "changes": [],
+            "canonicalization": canonicalization,
+            "scope_changes": scope_changes,
+            "capability_conflicts": conflicts,
+            "source_count": len(human),
+        }
+        ledger = [*state.get("requirement_ledger", []), entry]
+        write_json(self.product(state).parent / "requirement-ledger.json", ledger)
+        return {
+            "round": round_number,
+            "requirement": requirement.gate_dump(),
+            "requirement_source_count": state.get("requirement_source_count", len(human)),
+            "requirement_ledger": ledger,
+            "requirement_capability_conflicts": conflicts,
+            "requirement_intent_version": 1,
+            "requirement_analysis_diagnostics": diagnostics,
+            "requirement_analysis_baseline": requirement.gate_dump() if diagnostics else {},
+            "plan": {},
+        }
+
     def analyse(self, state):
+        recovery = self.capability_recovery(state)
+        if recovery:
+            return recovery
         if self.settings.max_rounds and state["round"] > self.settings.max_rounds:
             raise PausedLimit(
                 "达到你配置的MAX_ROUNDS；所有回答已保留。设为0后重试同一运行即可继续。"
@@ -216,8 +314,15 @@ class Workflow:
             Requirement,
         )
         proposal = requirement.gate_dump()
-        changes = []
-        requirement = reconcile(previous, requirement, corrections, changes)
+        original_previous = previous
+        scope_changes = []
+        previous, requirement = reconcile_entrypoint(
+            previous, requirement, human, corrections, scope_changes
+        )
+        changes, canonicalization = [], []
+        requirement = reconcile(
+            previous, requirement, corrections, changes, canonicalization=canonicalization
+        )
         for change in changes:
             change["sources"] = [
                 {"user_message_index": cursor + index, "sha256": digest(text)}
@@ -227,6 +332,7 @@ class Workflow:
         diagnostics = analysis_source_conflicts(
             previous, requirement, human, changes=changes, cursor=cursor
         )
+        diagnostics.extend(analysis_intent_conflicts(requirement, human, cursor=cursor))
         candidate = requirement.gate_dump()
         # Preserve the existing requirement and its source cursor until analysis
         # is valid. With no prior requirement the rejected candidate is shown at
@@ -235,8 +341,10 @@ class Workflow:
         entry = {
             "round": state["round"],
             "changes": changes,
-            "before": previous or {},
+            "before": original_previous or {},
+            "scope_changes": scope_changes,
             "model_proposal": proposal,
+            "canonicalization": canonicalization,
             "after": accepted,
             "source_count": len(human),
         }
@@ -253,6 +361,8 @@ class Workflow:
             "requirement_ledger": ledger,
             "requirement_analysis_diagnostics": diagnostics,
             "requirement_analysis_baseline": (previous or {}) if diagnostics else {},
+            "requirement_capability_conflicts": [],
+            "requirement_intent_version": 1,
         }
 
     def requirements(self, state):
@@ -260,14 +370,25 @@ class Workflow:
         selection = options_for_run(self.store.get_run(state["run_id"]))
         supported = requirement.data_scope in selection.capabilities()["scopes"]
         diagnostics = state.get("requirement_analysis_diagnostics", [])
-        ready = requirement.ready and supported and not diagnostics
+        capability_conflicts = state.get("requirement_capability_conflicts", [])
+        ready = requirement.ready and supported and not diagnostics and not capability_conflicts
         data = {"requirement": requirement.gate_dump(), "ready": ready}
+        if capability_conflicts:
+            data["capability_conflicts"] = capability_conflicts
+            data["blocked"] = [item["message"] for item in capability_conflicts]
         if not supported:
             data["blocked"] = (
-                "数据归属与已选模板不兼容；不能替用户改写明确要求。需要调整范围或新选模板。"
+                [
+                    *data.get("blocked", []),
+                    "数据归属与已选模板不兼容；不能替用户改写明确要求。需要调整范围或新选模板。",
+                ]
+                if capability_conflicts
+                else ("数据归属与已选模板不兼容；不能替用户改写明确要求。需要调整范围或新选模板。")
             )
         if diagnostics:
-            blocked = [data["blocked"]] if "blocked" in data else []
+            blocked = data.get("blocked", [])
+            if isinstance(blocked, str):
+                blocked = [blocked]
             data["blocked"] = [*blocked, *(item["message"] for item in diagnostics)]
             data["analysis_diagnostics"] = diagnostics
         outcome = self.gate(
@@ -331,6 +452,13 @@ class Workflow:
             PLAN,
             {
                 "approved_requirement": state["requirement"],
+                "entrypoint_obligation": registration_scope(
+                    [
+                        message["content"]
+                        for message in self.store.messages(state["run_id"])
+                        if message["role"] == "user"
+                    ]
+                ),
                 "field_obligations": field_obligations,
                 "entity_obligations": [
                     {"id": f"entity_requirements/{index}", **obligation.model_dump()}
@@ -389,6 +517,23 @@ class Workflow:
         )
         reasons.extend(business)
         reason_sources.extend(["business_coverage"] * len(business))
+        # Preserve old interrupted design gate digests during replay. A legacy
+        # approval is recovered by gate() before it can generate any product.
+        entrypoint = (
+            registration_plan_gaps(
+                plan,
+                [
+                    message["content"]
+                    for message in self.store.messages(state["run_id"])
+                    if message["role"] == "user"
+                ],
+                selection.capabilities(),
+            )
+            if state.get("requirement_intent_version")
+            else []
+        )
+        reasons.extend(entrypoint)
+        reason_sources.extend(["registration_entrypoint"] * len(entrypoint))
         if (
             state["template"] == "python-basic"
             and plan.data_scope != "per_user"
@@ -656,6 +801,8 @@ class Workflow:
         gate_data = {k: v for k, v in result.items() if k != "files"}
         gate_data["file_count"] = len(result["files"])
         decision = self.gate(state, "delivery", gate_data, ["approve", "reject"])
+        if decision["decision"] == "revise":
+            return {**decision, "round": state["round"] + 1, "status": "RUNNING"}
         if sha(self.product(state).parent / result["package"]) != result["sha256"]:
             raise PrerequisiteError("交付文件在审批期间被修改，拒绝发布")
         decision["status"] = (
@@ -739,6 +886,8 @@ class Workflow:
         graph.add_edge("sandbox", "model_review")
         graph.add_edge("model_review", "package")
         graph.add_edge("package", "delivery")
-        graph.add_edge("delivery", END)
+        graph.add_conditional_edges(
+            "delivery", lambda s: "analyse" if s["decision"] == "revise" else END
+        )
         return graph.compile(checkpointer=checkpointer)
 ````

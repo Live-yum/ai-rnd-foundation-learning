@@ -269,6 +269,10 @@ class Store:
                 raise Conflict("当前阶段不接受这个动作")
             if data["action"] == "approve" and not pending.get("can_approve", False):
                 raise Conflict("存在未支持项或先决条件尚未满足，不能批准")
+            if data["action"] == "recommend" and pending.get("data", {}).get(
+                "capability_conflicts"
+            ):
+                raise Conflict("模板能力尚未改变；智能推荐不能取消明确需求，请先答复范围选择")
             if data["action"] == "recommend":
                 run.auto_mode = True
                 session.add(
@@ -305,6 +309,8 @@ class Store:
                 raise Missing("运行不存在")
             if run.status not in {"FAILED", "BLOCKED", "PAUSED_LIMIT"}:
                 raise Conflict("只有 FAILED、BLOCKED 或 PAUSED_LIMIT 状态可以重试")
+            if run.pending and run.pending.get("data", {}).get("capability_conflicts"):
+                raise Conflict("模板能力尚未改变，重复重试不会解决；请先答复当前范围选择")
             session.add(Job(run_id=run_id, payload={"action": "retry"}))
             # The graph owns the saved interrupt. Hide the stale Store copy
             # while queued so a second request cannot consume it concurrently.
@@ -507,6 +513,15 @@ class Store:
                     },
                 )
             )
+            if enabled and run.pending and run.pending.get("data", {}).get("capability_conflicts"):
+                # Delegation can choose missing details, not cancel a user's goal.
+                # Keep this exact gate and avoid a new model job for known limits.
+                return {
+                    "run_id": run_id,
+                    "auto_mode": enabled,
+                    "status": run.status,
+                    "message": "当前报名入口仍需明确选择；已保留关卡，未发起新的模型请求",
+                }
             if enabled and run.pending:
                 session.add(
                     Job(

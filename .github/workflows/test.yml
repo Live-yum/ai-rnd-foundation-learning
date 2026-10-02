@@ -204,6 +204,8 @@ jobs:
       - run: npm ci --prefix ui --no-audit --no-fund
       - run: npm run build --prefix ui
       - run: uv run python -m scripts.ci_guided_browser
+      - name: Verify persisted registration scope recovery in the real workbench
+        run: uv run python -m scripts.ci_signup_scope_browser
       - uses: actions/upload-artifact@v4
         if: always()
         with:

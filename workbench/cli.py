@@ -256,6 +256,12 @@ def chat(
                     continue
                 echo(gate["data"])
                 typer.echo("当前阶段：" + gate["stage"])
+                capability_blocked = bool(gate["data"].get("capability_conflicts"))
+                if capability_blocked:
+                    typer.echo(
+                        "原始目标已保留。请明确所需报名入口和参与者操作；"
+                        "智能推荐不能替你改为仅后台录入。可答复范围选择，或保留目标并停止。"
+                    )
                 prompt = "答复 / 批准 / 拒绝 / 智能推荐 / 手动 / 退出"
                 if state["status"] == "BLOCKED":
                     prompt += " / 重试"
@@ -270,7 +276,9 @@ def chat(
                     )
                     continue
                 if word in {"重试", "retry"}:
-                    if state["status"] == "BLOCKED":
+                    if capability_blocked:
+                        typer.echo("模板能力尚未改变，重复重试不会解决。请先明确答复范围选择。")
+                    elif state["status"] == "BLOCKED":
                         api_call(c, "POST", f"/runs/{run}/retry")
                     else:
                         typer.echo(
@@ -278,6 +286,11 @@ def chat(
                         )
                     continue
                 if word in {"智能推荐", "推荐", "smart", "recommend"}:
+                    if capability_blocked:
+                        typer.echo(
+                            "未发送新的模型请求：智能推荐不能取消明确需求。请先明确答复范围选择。"
+                        )
+                        continue
                     api_call(
                         c, "POST", f"/runs/{run}/automation", {"enabled": True, "accepted": True}
                     )

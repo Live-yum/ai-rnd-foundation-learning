@@ -1,4 +1,4 @@
-# workbench/requirement_coverage.py · 2/3
+# workbench/requirement_coverage.py · 2/4
 
 [阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
 
@@ -10,44 +10,66 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.domain`、`workbench.entity_requirements`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.domain`、`workbench.entity_requirements`、`workbench.requirement_canonical`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **带着一个具体问题阅读：** 例如用户已明确请求标题可搜索，候选Plan却把 searchable 设为 false：coverage_gaps 返回可定位的缺项，流程不能因为JSON合法就批准。reconcile 接收上一版Requirement和新候选；新一轮只是没再提到字段时保留原事实，只有带本轮原话证据的明确更正才能修改。读这一层时用第03阶段的正确计划、缺搜索计划和省略事实三份输入对照，不先背辅助正则。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `_query_composition_text`（L894–L933）：接收`text`、`fields`。 源码说明：A composite query needs its own local field targets to declare a flag. A subject-free composition statement combines the predicates already declared elsewhere. Explicit 'combined search by title' stil。 控制顺序：L903遍历`text`；L905按`char in "（([【"`分支；L907按`char in "）)]】"`分支；L910遍历`re.finditer(r"[，,；;。\n]\|以及\|并且\|并\|且\|和\|与\|\band\b", text, re.I…`；L911按`depths[match.start()]`分支；L913按`re.fullmatch(r"[，,；;。\n]", match.group()) or re.search( LEGACY_PROPERTY, text[boundar…`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`re.fullmatch`、`match.group`、`re.search`、`boundaries.append`、`match.end`等。 返回路径：L926的`re.sub( r"(?:组合\|联合\|复合\|多条件)\s*(?:查询\|检索\|搜索\|筛选\|过滤)\|" r"\b(?:combined\|composite\|comp…`。
-- `_query_composition_text.replace`（L919–L924）：接收`match`。 控制顺序：L922按`_fact_candidates(text[start:end], fields)`分支。 调用`max`、`match.start`、`min`、`match.end`、`_fact_candidates`、`match.group`、`len`。 返回路径：L923的`match.group()`；L924的`" " * len(match.group())`。
-- `_query_predicate_text`（L936–L1046）：接收`text`、`fields`。 源码说明：Exclude operation-derived nouns unless an explicit predicate binds fields. Search results and filter conditions describe query output or context; they do not independently enable a field capability. K。 控制顺序：L976遍历`( rf"\b(?:do\|does\|must\|should)\s+not\s+include\s+(?P<targets>{…`。 调用`_query_composition_text`、`re.compile`、`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`、`re.sub`等。 返回路径：L1046的`nouns.sub(replace, text)`。
-- `_query_predicate_text.negative_membership`（L972–L974）：接收`match`。 调用`re.search`。 返回路径：L974的`match["targets"] + " " + attribute + "=false"`。
-- `_query_predicate_text.replace`（L987–L1044）：接收`match`。 控制顺序：L1021按`binds_before or binds_after or imperative`分支；L1026按`re.search(r"日期区间\|日期范围\|date[-_\s]?range", operation, re.I)`分支；L1030按`negative`分支。 调用`re.split`、`match.start`、`match.end`、`bool`、`re.fullmatch`、`list`、`subjects.finditer`、`mentions[-1].end`、`re.match`等。 返回路径：L1041的`operation + " "`；L1044的`" " * len(match.group())`。
-- `_section_entity`（L1049–L1054）：接收`text`、`fields`。 源码说明：Infer only an unambiguous owner of an explicitly named field inventory.。 调用`_field_mentions`、`set.intersection`、`set`、`len`、`next`、`iter`。 返回路径：L1054的`next(iter(common)) if len(common) == 1 else None`。
-- `_single_operation_heading`（L1057–L1075）：接收`text`。 源码说明：Only a bare single operation can predicate the list following a colon.。 控制顺序：L1061遍历`( r"日期区间\|日期范围(?:筛选\|查询)?\|date.?range", r"搜索\|检索\|search(?:ing\|…`；L1066按`re.search(pattern, remaining, re.I)`分支。 调用`re.search`、`re.sub`。 返回路径：L1075的`operations == 1 and not remaining`。
-- `_explicit_predicate_heading`（L1078–L1093）：接收`text`。 源码说明：Known property/value syntax is a predicate, not a contextual title.。 控制顺序：L1080按`_single_operation_heading(text)`分支。 调用`_single_operation_heading`、`text.strip().rstrip(":：").strip`、`text.strip().rstrip`、`text.strip`、`re.sub(r"\s*(?:字段\|fields?)$", "", heading, flags=re.I).strip`、`re.sub`、`bool`、`re.fullmatch`。 返回路径：L1081的`True`；L1084的`bool( re.fullmatch( r"(?:required\|optional\|必填\|可选填?\|非必填\|不必填\|是否必填\|" r"min_length\|max…`。
-- `_explicit_query_sections`（L1096–L1136）：接收`text`、`fields`。 源码说明：Separate a new query subject from an earlier inventory or operation. Commas inside descriptors and bare identifier lists remain untouched. A direct by/using/按/对 clause must name its own fields and ope。 控制顺序：L1103遍历`text`；L1105按`char in "（([【"`分支；L1107按`char in "）)]】"`分支；L1117遍历`boundary.finditer(text)`；L1118按`not depths[match.start()] and ( _fact_candidates(text[start : match.start()], fields)…`分支。 调用`depths.append`、`max`、`re.compile`、`boundary.finditer`、`match.start`、`_fact_candidates`、`text[start : match.start()].strip`、`_single_operation_heading`、`match.end`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_descriptor_inventory_groups`（L1139–L1185）：接收`text`、`subject_pattern`。 源码说明：Project bracketed per-field declarations separately from their wrapper. A bare search(title, detail) target list stays intact. In contrast, a list such as create(title max_length=200, detail max_lengt。 控制顺序：L1148遍历`enumerate(text)`；L1149按`char in "（([【"`分支；L1151按`char in "）)]】" and stack`分支；L1153按`not stack`分支；L1156遍历`spans`；L1159遍历`body`；L1161按`char in "（([【"`分支；L1163按`char in "）)]】"`分支。后续分支沿下方源码相同行号继续阅读。 调用`enumerate`、`stack.append`、`stack.pop`、`spans.append`、`depths.append`、`max`、`re.finditer`、`match.start`、`len`等。 返回路径：L1185的`"".join(parts), declarations`。
-- `_entity_subject_heading`（L1188–L1212）：接收`text`、`fields`。 源码说明：Read explicit entity subjects before binding any field predicates. A group is a set of independent owners, not a namespace string. Explicit subjects replace inherited scope; unknown members of a partl。 控制顺序：L1203按`not heading`分支；L1208按`any(owner in field_names and owner not in known for owner in owners)`分支；L1210按`not any(owner in known for owner in owners) and "::" not in heading.group()`分支。 调用`re.match`、`tuple`、`dict.fromkeys`、`re.split`、`any`、`heading.group`、`heading.end`。 返回路径：L1204的`None`；L1209的`None`；L1211的`None`。
-- `_explicit_entity_sections`（L1215–L1243）：接收`text`、`fields`。 源码说明：Recognize a new entity subject at top-level punctuation or conjunctions. A coordinated qualified field list still shares its trailing predicate: 'alpha.title and alpha.detail required' is not two inde。 控制顺序：L1224遍历`_top_level_parts(text, r"[、，,；;。\n]\|并且\|并\|且\|和\|与\|\band\b")`；L1227按`not separator or boundary < protected`分支；L1231按`not heading`分支；L1235按`len(owners) > 1 or not syntax.endswith(".") or re.search(LEGACY_PROPERTY, text[start:…`分支。 调用`_entity_subject_heading`、`len`、`_top_level_parts`、`following[: len(following) - len(body)].rstrip`、`syntax.endswith`、`re.search`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_legacy_length_text`（L1246–L1264）：接收`text`、`fields`。 源码说明：Lower explicit length notation, without treating numeric filters as lengths.。 控制顺序：L1248按`not re.search(r"长度\|字符\|\b(?:length\|characters?)\b", text, re.I)`分支。 调用`re.search`、`names.update`、`ALIASES.values`、`name.isascii`、`"\|".join`、`re.escape`、`sorted`、`re.sub`。 返回路径：L1249的`text`；L1253的`re.sub( rf"(?<![a-z0-9_])(?P<field>{pattern})\s*(?P<op>≤\|>=\|<=\|≥)\s*(?P<value>\d+)", la…`。
-- `_legacy_subject_projections`（L1267–L1300）：接收`clause`、`pattern`、`scopes`。 源码说明：Project coordinated qualified fields to their owners before predicates. The predicate remains shared, while alpha.title and beta.detail can never become alpha.detail merely because alpha was the previ。 控制顺序：L1279遍历`subjects`；L1284按`not qualified`分支；L1288遍历`owners`；L1290遍历`zip(subjects, bindings)`。 调用`list`、`re.finditer`、`pattern.finditer`、`re.fullmatch`、`match.group`、`any`、`p.start`、`match.start`、`p.end`等。 返回路径：L1285的`[(owner, clause) for owner in scopes or (None,)]`；L1300的`result`。
-- `_legacy_clauses`（L1303–L1555）：接收`text`、`fields`。 源码说明：Bind predicates to top-level subjects, preserving bracketed target lists. Both name（必填，最长120）and 搜索（name、contact）are indivisible. A descriptive clause ending at a comma does not lend its subject to th。 控制顺序：L1325遍历`re.split(r"([；;。\n]\|但是\|但\|不过)", text)`；L1326按`sentence in {"但是", "但", "不过"}`分支；L1329按`re.fullmatch(r"[；;。\n]", sentence)`分支；L1334按`contrast and previous_subject and not _fact_candidates(sentence, fields) and re.match…`分支；L1347在`True`成立时循环；L1350按`heading`分支；L1353按`syntax.endswith((":", "："))`分支；L1355按`scopes != persistent_scopes`分支。后续分支沿下方源码相同行号继续阅读。 调用`_legacy_length_text`、`";".join`、`_explicit_entity_sections`、`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_operation_parts`（L1558–L1572）：接收`text`。 源码说明：Split coordinated operations, never the subjects inside a target list.。 控制顺序：L1561遍历`text`；L1563按`char in "（([【"`分支；L1565按`char in "）)]】"`分支；L1568遍历`re.finditer(r"[、，,]\|并且\|并\|且\|和\|与", text)`；L1569按`not depths[match.start()]`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_query_operation_groups`（L1575–L1627）：接收`text`、`fields`、`operations`。 源码说明：Bind a target list to its local prefix or suffix operator. A prefix operator owns following bare targets until another operator starts; a suffix operator owns preceding bare targets. Completed field d。 控制顺序：L1584遍历`_operation_parts(text)`；L1586按`marker is None`分支；L1587按`prefix`分支；L1589按`list(_legacy_scalar_constraints(part)) or "（）" in part`分支；L1590按`pending`分支；L1616按`prefix`分支；L1619按`is_prefix`分支；L1620按`pending`分支。后续分支沿下方源码相同行号继续阅读。 调用`re.compile`、`"\|".join`、`operations.values`、`_operation_parts`、`operation.search`、`prefix.append`、`list`、`_legacy_scalar_constraints`、`" ".join`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_top_level_parts`（L1656–L1675）：接收`text`、`separators`。 源码说明：Keep operand lists, descriptors and quoted values inside their own group.。 控制顺序：L1659遍历`enumerate(text)`；L1661按`quote`分支；L1662按`char == quote and (not index or text[index - 1] != "\\")`分支；L1664按`char in "\"'"`分支；L1666按`char in "（([【"`分支；L1668按`char in "）)]】"`分支；L1671遍历`re.finditer(separators, text, re.I)`；L1672按`not protected[match.start()]`分支。 调用`enumerate`、`protected.append`、`bool`、`max`、`re.finditer`、`match.start`、`match.group`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_metric_entity`（L1678–L1685）：接收`text`、`fields`。 源码说明：An entity named in a metric clause scopes it, including plain prose names.。 控制顺序：L1683按`explicit`分支。 调用`_METRIC_PREDICATE.sub`、`_field_mentions`、`_fact_entity`、`owners.add`、`len`、`next`、`iter`。 返回路径：L1685的`next(iter(owners)) if len(owners) == 1 else "<ambiguous entity>" if owners else None`。
-- `_metric_clauses`（L1688–L1804）：接收`text`、`fields`。 源码说明：Separate aggregate predicates from field-query declarations. Only a recognized metric clause with named filter operands or permission scope is consumed. Explicit UI/query flags always remain field obl。 控制顺序：L1793遍历`_top_level_parts(text, r"[、，,；;。\n]\|并且\|并\|且\|和\|与\|\band\b")`；L1794按`_METRIC_CONTEXT.search(part)`分支；L1801按`_QUERY_SURFACE.search(part) or re.fullmatch(r"[；;。\n]", separator)`分支。 调用`re.sub`、`_top_level_parts`、`_METRIC_CONTEXT.search`、`result.append`、`consume`、`_QUERY_SURFACE.search`、`re.fullmatch`、`"".join`。 返回路径：L1804的`"".join(result), obligations`。
-- `_metric_clauses.consume`（L1698–L1777）：接收`fragment`、`context`、`inherited`。 控制顺序：L1701按`not _METRIC_CONTEXT.search(combined) or _QUERY_SURFACE.search(fragment)`分支；L1706遍历`matches`；L1708按`name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}`分支；L1721按`not quoted and ( value.lower() == "null" or (target is not None and target.kind in {"…`分支；L1739按`not _METRIC_FILTER.search(_legacy_operation_text(fragment, fields)) and not ( inherit…`分支；L1746按`inherited and not predicates and not scope_only`分支；L1753按`not targets and not predicates and not scope_only`分支；L1755按`not scope_only`分支。后续分支沿下方源码相同行号继续阅读。 调用`_METRIC_CONTEXT.search`、`_QUERY_SURFACE.search`、`list`、`_METRIC_PREDICATE.finditer`、`_metric_entity`、`match.group`、`literal.startswith`、`literal.strip`、`next`等。 返回路径：L1702的`fragment`；L1742的`fragment`；L1747的`fragment`。
+- `_legacy_targets`（L885–L898）：接收`text`、`fields`。 源码说明：Do not turn an ambiguous prose subject into grants on every entity. Exact typed obligations are checked independently. Unscoped repeated names remain semantic-review context unless the prose explicitl。 控制顺序：L892按`_fact_entity(text, fields) is not None or _ALL_ENTITIES.search(text)`分支。 调用`_fact_candidates`、`_fact_entity`、`_ALL_ENTITIES.search`、`len`。 返回路径：L893的`candidates`；L894的`[ field for field in candidates if len({entity for entity, item in fields if item.name == …`。
+- `_query_composition_text`（L907–L946）：接收`text`、`fields`。 源码说明：A composite query needs its own local field targets to declare a flag. A subject-free composition statement combines the predicates already declared elsewhere. Explicit 'combined search by title' stil。 控制顺序：L916遍历`text`；L918按`char in "（([【"`分支；L920按`char in "）)]】"`分支；L923遍历`re.finditer(r"[，,；;。\n]\|以及\|并且\|并\|且\|和\|与\|\band\b", text, re.I…`；L924按`depths[match.start()]`分支；L926按`re.fullmatch(r"[，,；;。\n]", match.group()) or re.search( LEGACY_PROPERTY, text[boundar…`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`re.fullmatch`、`match.group`、`re.search`、`boundaries.append`、`match.end`等。 返回路径：L939的`re.sub( r"(?:组合\|联合\|复合\|多条件)\s*(?:查询\|检索\|搜索\|筛选\|过滤)\|" r"\b(?:combined\|composite\|comp…`。
+- `_query_composition_text.replace`（L932–L937）：接收`match`。 控制顺序：L935按`_fact_candidates(text[start:end], fields)`分支。 调用`max`、`match.start`、`min`、`match.end`、`_fact_candidates`、`match.group`、`len`。 返回路径：L936的`match.group()`；L937的`" " * len(match.group())`。
+- `_query_predicate_text`（L949–L1059）：接收`text`、`fields`。 源码说明：Exclude operation-derived nouns unless an explicit predicate binds fields. Search results and filter conditions describe query output or context; they do not independently enable a field capability. K。 控制顺序：L989遍历`( rf"\b(?:do\|does\|must\|should)\s+not\s+include\s+(?P<targets>{…`。 调用`_query_composition_text`、`re.compile`、`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`、`re.sub`等。 返回路径：L1059的`nouns.sub(replace, text)`。
+- `_query_predicate_text.negative_membership`（L985–L987）：接收`match`。 调用`re.search`。 返回路径：L987的`match["targets"] + " " + attribute + "=false"`。
+- `_query_predicate_text.replace`（L1000–L1057）：接收`match`。 控制顺序：L1034按`binds_before or binds_after or imperative`分支；L1039按`re.search(r"日期区间\|日期范围\|date[-_\s]?range", operation, re.I)`分支；L1043按`negative`分支。 调用`re.split`、`match.start`、`match.end`、`bool`、`re.fullmatch`、`list`、`subjects.finditer`、`mentions[-1].end`、`re.match`等。 返回路径：L1054的`operation + " "`；L1057的`" " * len(match.group())`。
+- `_section_entity`（L1062–L1067）：接收`text`、`fields`。 源码说明：Infer only an unambiguous owner of an explicitly named field inventory.。 调用`_field_mentions`、`set.intersection`、`set`、`len`、`next`、`iter`。 返回路径：L1067的`next(iter(common)) if len(common) == 1 else None`。
+- `_single_operation_heading`（L1070–L1088）：接收`text`。 源码说明：Only a bare single operation can predicate the list following a colon.。 控制顺序：L1074遍历`( r"日期区间\|日期范围(?:筛选\|查询)?\|date.?range", r"搜索\|检索\|search(?:ing\|…`；L1079按`re.search(pattern, remaining, re.I)`分支。 调用`re.search`、`re.sub`。 返回路径：L1088的`operations == 1 and not remaining`。
+- `_explicit_predicate_heading`（L1091–L1106）：接收`text`。 源码说明：Known property/value syntax is a predicate, not a contextual title.。 控制顺序：L1093按`_single_operation_heading(text)`分支。 调用`_single_operation_heading`、`text.strip().rstrip(":：").strip`、`text.strip().rstrip`、`text.strip`、`re.sub(r"\s*(?:字段\|fields?)$", "", heading, flags=re.I).strip`、`re.sub`、`bool`、`re.fullmatch`。 返回路径：L1094的`True`；L1097的`bool( re.fullmatch( r"(?:required\|optional\|必填\|可选填?\|非必填\|不必填\|是否必填\|" r"min_length\|max…`。
+- `_explicit_query_sections`（L1109–L1149）：接收`text`、`fields`。 源码说明：Separate a new query subject from an earlier inventory or operation. Commas inside descriptors and bare identifier lists remain untouched. A direct by/using/按/对 clause must name its own fields and ope。 控制顺序：L1116遍历`text`；L1118按`char in "（([【"`分支；L1120按`char in "）)]】"`分支；L1130遍历`boundary.finditer(text)`；L1131按`not depths[match.start()] and ( _fact_candidates(text[start : match.start()], fields)…`分支。 调用`depths.append`、`max`、`re.compile`、`boundary.finditer`、`match.start`、`_fact_candidates`、`text[start : match.start()].strip`、`_single_operation_heading`、`match.end`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_descriptor_inventory_groups`（L1152–L1198）：接收`text`、`subject_pattern`。 源码说明：Project bracketed per-field declarations separately from their wrapper. A bare search(title, detail) target list stays intact. In contrast, a list such as create(title max_length=200, detail max_lengt。 控制顺序：L1161遍历`enumerate(text)`；L1162按`char in "（([【"`分支；L1164按`char in "）)]】" and stack`分支；L1166按`not stack`分支；L1169遍历`spans`；L1172遍历`body`；L1174按`char in "（([【"`分支；L1176按`char in "）)]】"`分支。后续分支沿下方源码相同行号继续阅读。 调用`enumerate`、`stack.append`、`stack.pop`、`spans.append`、`depths.append`、`max`、`re.finditer`、`match.start`、`len`等。 返回路径：L1198的`"".join(parts), declarations`。
+- `_entity_subject_heading`（L1201–L1225）：接收`text`、`fields`。 源码说明：Read explicit entity subjects before binding any field predicates. A group is a set of independent owners, not a namespace string. Explicit subjects replace inherited scope; unknown members of a partl。 控制顺序：L1216按`not heading`分支；L1221按`any(owner in field_names and owner not in known for owner in owners)`分支；L1223按`not any(owner in known for owner in owners) and "::" not in heading.group()`分支。 调用`re.match`、`tuple`、`dict.fromkeys`、`re.split`、`any`、`heading.group`、`heading.end`。 返回路径：L1217的`None`；L1222的`None`；L1224的`None`。
+- `_explicit_entity_sections`（L1228–L1256）：接收`text`、`fields`。 源码说明：Recognize a new entity subject at top-level punctuation or conjunctions. A coordinated qualified field list still shares its trailing predicate: 'alpha.title and alpha.detail required' is not two inde。 控制顺序：L1237遍历`_top_level_parts(text, r"[、，,；;。\n]\|并且\|并\|且\|和\|与\|\band\b")`；L1240按`not separator or boundary < protected`分支；L1244按`not heading`分支；L1248按`len(owners) > 1 or not syntax.endswith(".") or re.search(LEGACY_PROPERTY, text[start:…`分支。 调用`_entity_subject_heading`、`len`、`_top_level_parts`、`following[: len(following) - len(body)].rstrip`、`syntax.endswith`、`re.search`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_legacy_length_text`（L1259–L1277）：接收`text`、`fields`。 源码说明：Lower explicit length notation, without treating numeric filters as lengths.。 控制顺序：L1261按`not re.search(r"长度\|字符\|\b(?:length\|characters?)\b", text, re.I)`分支。 调用`re.search`、`names.update`、`ALIASES.values`、`name.isascii`、`"\|".join`、`re.escape`、`sorted`、`re.sub`。 返回路径：L1262的`text`；L1266的`re.sub( rf"(?<![a-z0-9_])(?P<field>{pattern})\s*(?P<op>≤\|>=\|<=\|≥)\s*(?P<value>\d+)", la…`。
+- `_legacy_subject_projections`（L1280–L1313）：接收`clause`、`pattern`、`scopes`。 源码说明：Project coordinated qualified fields to their owners before predicates. The predicate remains shared, while alpha.title and beta.detail can never become alpha.detail merely because alpha was the previ。 控制顺序：L1292遍历`subjects`；L1297按`not qualified`分支；L1301遍历`owners`；L1303遍历`zip(subjects, bindings)`。 调用`list`、`re.finditer`、`pattern.finditer`、`re.fullmatch`、`match.group`、`any`、`p.start`、`match.start`、`p.end`等。 返回路径：L1298的`[(owner, clause) for owner in scopes or (None,)]`；L1313的`result`。
+- `_legacy_clauses`（L1316–L1568）：接收`text`、`fields`。 源码说明：Bind predicates to top-level subjects, preserving bracketed target lists. Both name（必填，最长120）and 搜索（name、contact）are indivisible. A descriptive clause ending at a comma does not lend its subject to th。 控制顺序：L1338遍历`re.split(r"([；;。\n]\|但是\|但\|不过)", text)`；L1339按`sentence in {"但是", "但", "不过"}`分支；L1342按`re.fullmatch(r"[；;。\n]", sentence)`分支；L1347按`contrast and previous_subject and not _fact_candidates(sentence, fields) and re.match…`分支；L1360在`True`成立时循环；L1363按`heading`分支；L1366按`syntax.endswith((":", "："))`分支；L1368按`scopes != persistent_scopes`分支。后续分支沿下方源码相同行号继续阅读。 调用`_legacy_length_text`、`";".join`、`_explicit_entity_sections`、`names.update`、`ALIASES.values`、`"\|".join`、`name.isascii`、`re.escape`、`sorted`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_operation_parts`（L1571–L1585）：接收`text`。 源码说明：Split coordinated operations, never the subjects inside a target list.。 控制顺序：L1574遍历`text`；L1576按`char in "（([【"`分支；L1578按`char in "）)]】"`分支；L1581遍历`re.finditer(r"[、，,]\|并且\|并\|且\|和\|与", text)`；L1582按`not depths[match.start()]`分支。 调用`depths.append`、`max`、`re.finditer`、`match.start`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_query_operation_groups`（L1588–L1640）：接收`text`、`fields`、`operations`。 源码说明：Bind a target list to its local prefix or suffix operator. A prefix operator owns following bare targets until another operator starts; a suffix operator owns preceding bare targets. Completed field d。 控制顺序：L1597遍历`_operation_parts(text)`；L1599按`marker is None`分支；L1600按`prefix`分支；L1602按`list(_legacy_scalar_constraints(part)) or "（）" in part`分支；L1603按`pending`分支；L1629按`prefix`分支；L1632按`is_prefix`分支；L1633按`pending`分支。后续分支沿下方源码相同行号继续阅读。 调用`re.compile`、`"\|".join`、`operations.values`、`_operation_parts`、`operation.search`、`prefix.append`、`list`、`_legacy_scalar_constraints`、`" ".join`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_top_level_parts`（L1669–L1688）：接收`text`、`separators`。 源码说明：Keep operand lists, descriptors and quoted values inside their own group.。 控制顺序：L1672遍历`enumerate(text)`；L1674按`quote`分支；L1675按`char == quote and (not index or text[index - 1] != "\\")`分支；L1677按`char in "\"'"`分支；L1679按`char in "（([【"`分支；L1681按`char in "）)]】"`分支；L1684遍历`re.finditer(separators, text, re.I)`；L1685按`not protected[match.start()]`分支。 调用`enumerate`、`protected.append`、`bool`、`max`、`re.finditer`、`match.start`、`match.group`、`match.end`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_metric_entity`（L1691–L1698）：接收`text`、`fields`。 源码说明：An entity named in a metric clause scopes it, including plain prose names.。 控制顺序：L1696按`explicit`分支。 调用`_METRIC_PREDICATE.sub`、`_field_mentions`、`_fact_entity`、`owners.add`、`len`、`next`、`iter`。 返回路径：L1698的`next(iter(owners)) if len(owners) == 1 else "<ambiguous entity>" if owners else None`。
+- `_metric_clauses`（L1701–L1817）：接收`text`、`fields`。 源码说明：Separate aggregate predicates from field-query declarations. Only a recognized metric clause with named filter operands or permission scope is consumed. Explicit UI/query flags always remain field obl。 控制顺序：L1806遍历`_top_level_parts(text, r"[、，,；;。\n]\|并且\|并\|且\|和\|与\|\band\b")`；L1807按`_METRIC_CONTEXT.search(part)`分支；L1814按`_QUERY_SURFACE.search(part) or re.fullmatch(r"[；;。\n]", separator)`分支。 调用`re.sub`、`_top_level_parts`、`_METRIC_CONTEXT.search`、`result.append`、`consume`、`_QUERY_SURFACE.search`、`re.fullmatch`、`"".join`。 返回路径：L1817的`"".join(result), obligations`。
 
 </details>
 
-**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 3 段**。本段覆盖源文件 L894–L1780。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L885–L1710。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`38391`。本段原文以LF换行结束。
+本段原始字节数：`35623`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 2, "parts": 3, "encoding": "utf-8", "sha256": "1043e8451e82b36d4728d481cb30b7500fb3a65a3279a1fe68d06f5d392d614c"} -->
+<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 2, "parts": 4, "encoding": "utf-8", "sha256": "926765b0a8d96f5160b0e5ccc8f3592b491fb8f1c2e3c06bbea77d9f2d01d5a8"} -->
 ````python
 # workbench/requirement_coverage.py
+def _legacy_targets(text, fields):
+    """Do not turn an ambiguous prose subject into grants on every entity.
+
+    Exact typed obligations are checked independently. Unscoped repeated names
+    remain semantic-review context unless the prose explicitly says all entities.
+    """
+    candidates = _fact_candidates(text, fields)
+    if _fact_entity(text, fields) is not None or _ALL_ENTITIES.search(text):
+        return candidates
+    return [
+        field
+        for field in candidates
+        if len({entity for entity, item in fields if item.name == field.name}) == 1
+    ]
+
+
+LEGACY_PROPERTY = (
+    r"必填|可选|required|optional|搜索|检索|search|筛选|过滤|filter|"
+    r"上限|最大|最多|最长|max_length|最小|至少|最短|min_length|日期区间|日期范围"
+)
+
+
 def _query_composition_text(text, fields):
     """A composite query needs its own local field targets to declare a flag.
 
@@ -852,87 +874,4 @@ def _metric_clauses(text, fields):
     obligations = []
     active = None
 
-    def consume(fragment, context="", inherited=False):
-        nonlocal active
-        combined = context + fragment
-        if not _METRIC_CONTEXT.search(combined) or _QUERY_SURFACE.search(fragment):
-            return fragment
-        matches = list(_METRIC_PREDICATE.finditer(fragment))
-        entity = _metric_entity(fragment, fields) or _metric_entity(context, fields)
-        predicates = []
-        for match in matches:
-            name = match.group("field")
-            if name in {"group_by", "start_field", "end_field", "time_field", "kind", "scope"}:
-                continue
-            literal = match.group("value")
-            quoted = literal.startswith(('"', "'"))
-            value = literal.strip("\"'")
-            target = next(
-                (
-                    field
-                    for owner, field in fields
-                    if field.name == name and (entity is None or owner == entity)
-                ),
-                None,
-            )
-            if not quoted and (
-                value.lower() == "null"
-                or (target is not None and target.kind in {"integer", "boolean"})
-            ):
-                try:
-                    value = json.loads(value.lower())
-                except ValueError:
-                    pass
-            predicates.append(
-                {
-                    "entity": match.group("entity"),
-                    "field": name,
-                    "op": {"=": "eq", "==": "eq", "!=": "ne", ">=": "gte", "<=": "lte"}[
-                        match.group("op")
-                    ],
-                    "value": value,
-                }
-            )
-        if not _METRIC_FILTER.search(_legacy_operation_text(fragment, fields)) and not (
-            inherited and active is not None and predicates
-        ):
-            return fragment
-        scope_only = not predicates and bool(_METRIC_SCOPE.search(fragment))
-        # A metric heading may scope a following predicate, never an unrelated
-        # bare field-filter declaration after a comma or conjunction.
-        if inherited and not predicates and not scope_only:
-            return fragment
-        targets = (
-            [field for _, field in fields if any(p["field"] == field.name for p in predicates)]
-            if predicates
-            else _fact_candidates(fragment, fields)
-        )
-        if not targets and not predicates and not scope_only:
-            return fragment
-        if not scope_only:
-            kinds = list(_METRIC_KIND.finditer(combined))
-            kind = kinds[-1].group().lower() if kinds else None
-            kind = {
-                "已解决数": "count",
-                "总数": "count",
-                "趋势": "time_count",
-                "分组": "group_count",
-            }.get(kind, "average_duration" if kind and "时长" in kind else kind)
-            if inherited and active is not None and entity == active["entity"]:
-                active["predicates"].extend(predicates)
-                active["targets"].extend(
-                    target for target in targets if all(target is not t for t in active["targets"])
-                )
-            else:
-                active = {
-                    "kind": kind,
-                    "entity": entity,
-                    "predicates": predicates,
-                    "targets": targets,
-                }
-                obligations.append(active)
-        return ""
-
-    # Parenthesized metric definitions have their own scope, even alongside a
-    # list-filter requirement in the same sentence.
 ````

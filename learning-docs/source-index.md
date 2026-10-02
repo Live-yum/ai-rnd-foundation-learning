@@ -48,7 +48,9 @@
 - [workbench/entity_requirements.py](03-requirements/sources/workbench__entity_requirements_py--001.md)（1 段）
 - [workbench/llm.py](03-requirements/sources/workbench__llm_py--001.md)（1 段）
 - [workbench/model_protocol.py](03-requirements/sources/workbench__model_protocol_py--001.md)（1 段）
-- [workbench/requirement_coverage.py](03-requirements/sources/workbench__requirement_coverage_py--001.md)（3 段）
+- [workbench/requirement_canonical.py](03-requirements/sources/workbench__requirement_canonical_py--001.md)（1 段）
+- [workbench/requirement_coverage.py](03-requirements/sources/workbench__requirement_coverage_py--001.md)（4 段）
+- [workbench/requirement_intent.py](03-requirements/sources/workbench__requirement_intent_py--001.md)（1 段）
 - [workbench/requirement_sources.py](03-requirements/sources/workbench__requirement_sources_py--001.md)（1 段）
 - [workbench/streaming.py](03-requirements/sources/workbench__streaming_py--001.md)（1 段）
 ## [04-local-foundation · 文件安全与源码检索](04-local-foundation/README.md)
@@ -138,6 +140,7 @@
 - [ui/src/state.ts](08-control-plane/sources/ui__src__state_ts--001.md)（1 段）
 - [ui/src/style.css](08-control-plane/sources/ui__src__style_css--001.md)（1 段）
 - [ui/src/types.ts](08-control-plane/sources/ui__src__types_ts--001.md)（1 段）
+- [ui/tests/capability.test.ts](08-control-plane/sources/ui__tests__capability_test_ts--001.md)（1 段）
 - [ui/tests/documents.test.ts](08-control-plane/sources/ui__tests__documents_test_ts--001.md)（1 段）
 - [ui/tests/protocol.test.ts](08-control-plane/sources/ui__tests__protocol_test_ts--001.md)（1 段）
 - [ui/tests/questions.test.ts](08-control-plane/sources/ui__tests__questions_test_ts--001.md)（1 段）
@@ -366,6 +369,7 @@
 - [tests/test_native_login_readiness.py](13-delivery/sources/tests__test_native_login_readiness_py--001.md)（1 段）
 - [tests/test_native_managed.py](13-delivery/sources/tests__test_native_managed_py--001.md)（1 段）
 - [tests/test_native_modules.py](13-delivery/sources/tests__test_native_modules_py--001.md)（1 段）
+- [tests/test_native_optional_dependencies.py](13-delivery/sources/tests__test_native_optional_dependencies_py--001.md)（1 段）
 - [tests/test_native_postgres_contract.py](13-delivery/sources/tests__test_native_postgres_contract_py--001.md)（1 段）
 - [tests/test_native_projection_gate.py](13-delivery/sources/tests__test_native_projection_gate_py--001.md)（1 段）
 - [tests/test_native_recovery.py](13-delivery/sources/tests__test_native_recovery_py--001.md)（1 段）
@@ -422,10 +426,13 @@
 - [scripts/ci_native_runtime.py](14-acceptance/sources/scripts__ci_native_runtime_py--001.md)（1 段）
 - [scripts/ci_native_sources.py](14-acceptance/sources/scripts__ci_native_sources_py--001.md)（1 段）
 - [scripts/ci_real_model.py](14-acceptance/sources/scripts__ci_real_model_py--001.md)（3 段）
+- [scripts/ci_signup_scope_browser.py](14-acceptance/sources/scripts__ci_signup_scope_browser_py--001.md)（1 段）
 - [scripts/handbook_notes.py](14-acceptance/sources/scripts__handbook_notes_py--001.md)（2 段）
 - [scripts/learning_docs_content.json](14-acceptance/sources/scripts__learning_docs_content_json--001.md)（1 段）
 - [scripts/rebuild_from_handbook.py](14-acceptance/sources/scripts__rebuild_from_handbook_py--001.md)（1 段）
 - [scripts/rebuild_learning_docs.py](14-acceptance/sources/scripts__rebuild_learning_docs_py--001.md)（1 段）
+- [scripts/signup_scope_browser.cjs](14-acceptance/sources/scripts__signup_scope_browser_cjs--001.md)（1 段）
+- [tests/test_capability_recovery_controls.py](14-acceptance/sources/tests__test_capability_recovery_controls_py--001.md)（1 段）
 - [tests/test_description_facts.py](14-acceptance/sources/tests__test_description_facts_py--001.md)（1 段）
 - [tests/test_entity_group_clause_scope.py](14-acceptance/sources/tests__test_entity_group_clause_scope_py--001.md)（1 段）
 - [tests/test_guided_completion.py](14-acceptance/sources/tests__test_guided_completion_py--001.md)（1 段）
@@ -437,8 +444,10 @@
 - [tests/test_handbook_runtime.py](14-acceptance/sources/tests__test_handbook_runtime_py--001.md)（1 段）
 - [tests/test_learning_docs.py](14-acceptance/sources/tests__test_learning_docs_py--001.md)（1 段）
 - [tests/test_learning_docs_frontend.py](14-acceptance/sources/tests__test_learning_docs_frontend_py--001.md)（1 段）
+- [tests/test_learning_docs_signup.py](14-acceptance/sources/tests__test_learning_docs_signup_py--001.md)（1 段）
 - [tests/test_learning_order.py](14-acceptance/sources/tests__test_learning_order_py--001.md)（1 段）
 - [tests/test_legacy_date_requirements.py](14-acceptance/sources/tests__test_legacy_date_requirements_py--001.md)（1 段）
+- [tests/test_legacy_signup_recovery.py](14-acceptance/sources/tests__test_legacy_signup_recovery_py--001.md)（1 段）
 - [tests/test_news_delivery.py](14-acceptance/sources/tests__test_news_delivery_py--001.md)（1 段）
 - [tests/test_owned_lifecycle.py](14-acceptance/sources/tests__test_owned_lifecycle_py--001.md)（1 段）
 - [tests/test_permission_analysis_contract.py](14-acceptance/sources/tests__test_permission_analysis_contract_py--001.md)（1 段）
@@ -452,6 +461,8 @@
 - [tests/test_recommendation_recovery.py](14-acceptance/sources/tests__test_recommendation_recovery_py--001.md)（1 段）
 - [tests/test_recorded_design_contracts.py](14-acceptance/sources/tests__test_recorded_design_contracts_py--001.md)（1 段）
 - [tests/test_recorded_field_polarity.py](14-acceptance/sources/tests__test_recorded_field_polarity_py--001.md)（1 段）
+- [tests/test_registration_checkpoint_recovery.py](14-acceptance/sources/tests__test_registration_checkpoint_recovery_py--001.md)（1 段）
+- [tests/test_registration_intent.py](14-acceptance/sources/tests__test_registration_intent_py--001.md)（1 段）
 - [tests/test_requirement_clause_semantics.py](14-acceptance/sources/tests__test_requirement_clause_semantics_py--001.md)（1 段）
 - [tests/test_requirement_coverage.py](14-acceptance/sources/tests__test_requirement_coverage_py--001.md)（1 段）
 - [tests/test_requirement_source_conflicts.py](14-acceptance/sources/tests__test_requirement_source_conflicts_py--001.md)（1 段）

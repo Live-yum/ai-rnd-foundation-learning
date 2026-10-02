@@ -43,10 +43,13 @@
 - [scripts/ci_native_runtime.py](sources/scripts__ci_native_runtime_py--001.md)：原框架本身的运行基线验收；1 段
 - [scripts/ci_native_sources.py](sources/scripts__ci_native_sources_py--001.md)：固定原生模板源码完整性检查；1 段
 - [scripts/ci_real_model.py](sources/scripts__ci_real_model_py--001.md)：显式授权的真实模型完整验收；3 段
+- [scripts/ci_signup_scope_browser.py](sources/scripts__ci_signup_scope_browser_py--001.md)：历史FAILED报名运行的真实浏览器恢复协调；1 段
 - [scripts/handbook_notes.py](sources/scripts__handbook_notes_py--001.md)：把源码变成逐文件教学提示；2 段
 - [scripts/learning_docs_content.json](sources/scripts__learning_docs_content_json--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/rebuild_from_handbook.py](sources/scripts__rebuild_from_handbook_py--001.md)：从一本书还原安全的新项目；1 段
 - [scripts/rebuild_learning_docs.py](sources/scripts__rebuild_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/signup_scope_browser.cjs](sources/scripts__signup_scope_browser_cjs--001.md)：在真实浏览器确认Vue报名能力范围；1 段
+- [tests/test_capability_recovery_controls.py](sources/tests__test_capability_recovery_controls_py--001.md)：可重复的验收用例；1 段
 - [tests/test_description_facts.py](sources/tests__test_description_facts_py--001.md)：可重复的验收用例；1 段
 - [tests/test_entity_group_clause_scope.py](sources/tests__test_entity_group_clause_scope_py--001.md)：可重复的验收用例；1 段
 - [tests/test_guided_completion.py](sources/tests__test_guided_completion_py--001.md)：可重复的验收用例；1 段
@@ -58,8 +61,10 @@
 - [tests/test_handbook_runtime.py](sources/tests__test_handbook_runtime_py--001.md)：可重复的验收用例；1 段
 - [tests/test_learning_docs.py](sources/tests__test_learning_docs_py--001.md)：可重复的验收用例；1 段
 - [tests/test_learning_docs_frontend.py](sources/tests__test_learning_docs_frontend_py--001.md)：可重复的验收用例；1 段
+- [tests/test_learning_docs_signup.py](sources/tests__test_learning_docs_signup_py--001.md)：可重复的验收用例；1 段
 - [tests/test_learning_order.py](sources/tests__test_learning_order_py--001.md)：可重复的验收用例；1 段
 - [tests/test_legacy_date_requirements.py](sources/tests__test_legacy_date_requirements_py--001.md)：可重复的验收用例；1 段
+- [tests/test_legacy_signup_recovery.py](sources/tests__test_legacy_signup_recovery_py--001.md)：可重复的验收用例；1 段
 - [tests/test_news_delivery.py](sources/tests__test_news_delivery_py--001.md)：可重复的验收用例；1 段
 - [tests/test_owned_lifecycle.py](sources/tests__test_owned_lifecycle_py--001.md)：可重复的验收用例；1 段
 - [tests/test_permission_analysis_contract.py](sources/tests__test_permission_analysis_contract_py--001.md)：可重复的验收用例；1 段
@@ -73,6 +78,8 @@
 - [tests/test_recommendation_recovery.py](sources/tests__test_recommendation_recovery_py--001.md)：可重复的验收用例；1 段
 - [tests/test_recorded_design_contracts.py](sources/tests__test_recorded_design_contracts_py--001.md)：可重复的验收用例；1 段
 - [tests/test_recorded_field_polarity.py](sources/tests__test_recorded_field_polarity_py--001.md)：可重复的验收用例；1 段
+- [tests/test_registration_checkpoint_recovery.py](sources/tests__test_registration_checkpoint_recovery_py--001.md)：可重复的验收用例；1 段
+- [tests/test_registration_intent.py](sources/tests__test_registration_intent_py--001.md)：可重复的验收用例；1 段
 - [tests/test_requirement_clause_semantics.py](sources/tests__test_requirement_clause_semantics_py--001.md)：可重复的验收用例；1 段
 - [tests/test_requirement_coverage.py](sources/tests__test_requirement_coverage_py--001.md)：可重复的验收用例；1 段
 - [tests/test_requirement_source_conflicts.py](sources/tests__test_requirement_source_conflicts_py--001.md)：可重复的验收用例；1 段

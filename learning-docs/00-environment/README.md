@@ -78,6 +78,12 @@ uv run python -c "import sys; assert sys.version_info[:2] == (3, 14); import fas
 
 第08站的 `ui/` 是平台控制面的Vue 3 / Ant Design源码，和第05站写入生成产品的 `templates/frontends/` 不是同一套界面。它使用Node 22与相邻 `package-lock.json`，不要在Python环境或 `tools/node` 目录里安装这套前端。初学到本阶段不必先构建所有界面；到第08站按顺序执行 `npm ci --prefix ui`、测试和构建。教材同时保留可重建源码与精确静态资产快照，快照不是需要手写的压缩代码。
 
+## Windows基础安装与原生执行依赖是两条边界
+
+`uv sync --locked` 安装基础平台；没有安装可选 `postgres` extra、因而不能 `import psycopg`，不应让Windows上的原生模板选择、能力说明或设计检查崩溃。原生设计模块必须能在基础环境导入，真正的数据库运行模块等到需要执行时再加载。不要为修复设计页的导入错误而要求每位Windows读者安装全部原生工具。
+
+实际原生全栈运行仍只在WSL2/Linux执行。到第09站进入WSL2/Linux项目目录后，安装 `uv sync --locked --extra postgres`，再检查本机工具与专用数据库；Windows和Linux不能共用同一个 `.venv`。平台先检查操作系统、PostgreSQL驱动和必需命令，再创建输出目录、容器或数据库连接。预检通过只说明依赖就绪，不能替代真正的编译、HTTP和浏览器验收。
+
 ## 本阶段源码和后续依赖
 
 本阶段首次创建 8 个源文件，完整位置见[文件落盘顺序](files.md)。已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。

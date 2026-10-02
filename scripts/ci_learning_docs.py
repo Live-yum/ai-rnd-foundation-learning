@@ -1,5 +1,6 @@
 """Prove a directory-only textbook rebuild, then run the actual complete platform suite."""
 
+import hashlib
 import json
 import os
 import shutil
@@ -72,6 +73,95 @@ def verify_frontend_browser(destination, python, run, reports):
     if summary.get("model_mode") != "explicit-local-http-fixtures":
         raise AssertionError("Textbook acceptance must not call live or paid model providers")
     return {field: summary[field] for field in (*required, "model_mode")}
+
+
+SIGNUP_SCOPE_TRUE_FIELDS = (
+    "passed",
+    "real_browser",
+    "real_http",
+    "same_run_id",
+    "original_request_preserved",
+    "no_default_scope_selection",
+    "discarded_admin_selection_not_submitted",
+    "authenticated_entrant_goal_preserved",
+    "legacy_failed_import_checkpoint",
+    "earlier_scope_invalidates_old_progress",
+    "mobile_no_horizontal_overflow",
+    "mobile_submit_above_fixed_navigation",
+)
+
+
+def verify_signup_scope_browser(destination, python, run, reports):
+    """Prove the restored legacy recovery flow; retain distinct evidence on failure."""
+    reports.mkdir(parents=True, exist_ok=False)
+    browser_reports = destination / "reports/signup-scope-browser"
+    # A new cleanroom has no earlier driver output. Reject accidental reuse rather
+    # than letting an old passed:true result become this run's evidence.
+    if browser_reports.exists():
+        raise AssertionError("Signup browser evidence must be new for this restored project")
+    try:
+        run([python, "-m", "scripts.ci_signup_scope_browser"])
+    finally:
+        if browser_reports.is_dir():
+            shutil.copytree(browser_reports, reports, dirs_exist_ok=True)
+    summary = json.loads((browser_reports / "browser.json").read_text(encoding="utf-8"))
+    if any(summary.get(field) is not True for field in SIGNUP_SCOPE_TRUE_FIELDS):
+        raise AssertionError("Restored signup scope requires real browser/recovery evidence")
+    if (
+        summary.get("native_generation_attempted") is not False
+        or summary.get("external_provider_calls") is not False
+        or summary.get("fixture_mode") != "in-process-requirement-gateway"
+        or summary.get("status") != "WAITING_REQUIREMENTS"
+        or summary.get("errors") != []
+    ):
+        raise AssertionError("Signup browser must stop at the local-fixture requirements gate")
+    calls = summary.get("fixture_model_calls")
+    run_id = summary.get("run_id")
+    if (
+        not isinstance(run_id, str)
+        or not run_id
+        or not isinstance(calls, list)
+        or len(calls) != 1
+        or not isinstance(calls[0], dict)
+        or calls[0].get("run_id") != run_id
+    ):
+        raise AssertionError("Known signup decisions must not repeat model calls or change run")
+    for field in ("original_approval_count", "recovered_approval_count"):
+        if type(summary.get(field)) is not int or summary[field] != 1:
+            raise AssertionError("Legacy signup recovery must preserve its original approval")
+    screenshots = summary.get("screenshots")
+    expected_screenshots = {
+        "scope-blocked.png",
+        "scope-blocked-mobile.png",
+        "scope-options-mobile.png",
+        "scope-corrected.png",
+    }
+    if (
+        not isinstance(screenshots, list)
+        or any(not isinstance(name, str) for name in screenshots)
+        or len(screenshots) != len(expected_screenshots)
+        or set(screenshots) != expected_screenshots
+    ):
+        raise AssertionError("Signup browser must retain all desktop/mobile PNG screenshots")
+    if any(
+        not (browser_reports / name).is_file()
+        or not (browser_reports / name).read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+        for name in screenshots
+    ):
+        raise AssertionError("Signup browser must retain all desktop/mobile PNG screenshots")
+    actual_bundle = {
+        path.relative_to(destination).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in (destination / "workbench/web").rglob("*")
+        if path.is_file()
+    }
+    actual_screenshots = {
+        name: hashlib.sha256((reports / name).read_bytes()).hexdigest() for name in screenshots
+    }
+    if not actual_bundle or summary.get("ui_bundle_sha256") != actual_bundle:
+        raise AssertionError("Signup browser evidence must bind the restored Vue bundle")
+    if summary.get("screenshot_sha256") != actual_screenshots:
+        raise AssertionError("Signup browser evidence must bind the preserved PNG bytes")
+    return summary
 
 
 def main():
@@ -196,6 +286,15 @@ def main():
             }
             status["frontend"]["browser"].update(
                 verify_frontend_browser(destination, python, run, browser_evidence)
+            )
+            status["phase"] = "signup_scope_real_browser_acceptance"
+            signup_evidence = reports / "learning-docs-signup-scope-browser" / uuid.uuid4().hex
+            status["frontend"]["signup_scope_browser"] = {
+                "passed": False,
+                "evidence_directory": signup_evidence.relative_to(reports).as_posix(),
+            }
+            status["frontend"]["signup_scope_browser"].update(
+                verify_signup_scope_browser(destination, python, run, signup_evidence)
             )
             status["phase"] = "full_non_postgres_tests"
             junit = base / "learning-docs-tests.xml"

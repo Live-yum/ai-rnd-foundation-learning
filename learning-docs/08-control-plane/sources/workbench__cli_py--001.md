@@ -26,26 +26,26 @@
 - `token`（L129–L134）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：显示本机访问令牌供 Swagger Authorize；不要分享或提交到 Git。。 控制顺序：L132按`not path.exists()`分支；L133抛异常，停止当前正常路径。 调用`Settings`、`path.exists`、`typer.BadParameter`、`typer.echo`、`path.read_text(encoding="utf-8").strip`、`path.read_text`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `doctor`（L138–L161）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：检查解释器和配置；不调用模型、不打印 API Key。。 调用`Settings`、`settings.model_configuration`、`configuration.default.public`、`configuration.require_model`、`str`、`echo`、`sys.version.split`、`settings.db_url.startswith`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `templates`（L165–L169）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：查看模板能力和本机原生生成器配置状态。。 调用`echo`、`catalog`、`Settings`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `chat`（L173–L301）：接收`run`、`template`、`frontend`、`database`、`smart`。 源码说明：创建并体验整个流程，或用 --run 恢复已有运行。。 控制顺序：L178按`not run`分支；L180按`not template`分支；L182遍历`enumerate(available, 1)`；L185按`not 1 <= index <= len(available)`分支；L186抛异常，停止当前正常路径；L189按`item is None`分支；L190抛异常，停止当前正常路径；L191按`not frontend`分支。后续分支沿下方源码相同行号继续阅读。 调用`client`、`selections`、`typer.echo`、`enumerate`、`typer.prompt`、`len`、`typer.BadParameter`、`next`、`", ".join`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `recommend`（L305–L308）：接收`run`。 源码说明：授权当前运行的后续未明确需求使用AI建议；不绕过测试与技术前提。。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `manual`（L312–L315）：接收`run`。 源码说明：关闭后续自动决定；下一道门恢复人工确认。。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `models`（L319–L326）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：显示各阶段实际模型选择，不显示密钥；单模型配置自动回退。。 控制顺序：L322遍历`STAGES`。 调用`Settings`、`echo`、`settings.model_for(stage).public`、`settings.model_for`、`settings.redact`、`str`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `show`（L330–L332）：接收`run`。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `retry`（L336–L338）：接收`run`。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `download`（L342–L353）：接收`run`、`output`。 控制顺序：L347按`target.exists()`分支；L348抛异常，停止当前正常路径。 调用`Path`、`output.mkdir`、`str`、`uuid.UUID`、`target.exists`、`typer.BadParameter`、`client`、`c.get`、`response.raise_for_status`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `index`（L357–L361）：接收`source`、`output`。 源码说明：在源码目录外创建增量 AST/文件哈希知识包。。 调用`echo`、`build_index`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `native_prepare`（L365–L369）：接收`template`。 源码说明：校验并展开仓库内固定源码归档，建立原生模板源码知识包；不在线克隆。。 调用`echo`、`prepare_sources`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `config_example`（L373–L377）：接收`template`。 源码说明：创建本机原生服务配置示例，不覆盖已有配置。。 调用`typer.echo`、`str`、`write_config_example`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `native_runtime_config`（L381–L385）：接收`template`。 源码说明：创建原生全栈运行配置；必须显式授权专用空 PostgreSQL 库。。 调用`typer.echo`、`str`、`write_runtime_example`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `native_serve`（L389–L396）：接收`run`。 源码说明：重新打开已验收原生产品；复用开发库，不删库、不重新生成。。 调用`serve_managed`、`Settings`、`typer.echo`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `chat`（L173–L314）：接收`run`、`template`、`frontend`、`database`、`smart`。 源码说明：创建并体验整个流程，或用 --run 恢复已有运行。。 控制顺序：L178按`not run`分支；L180按`not template`分支；L182遍历`enumerate(available, 1)`；L185按`not 1 <= index <= len(available)`分支；L186抛异常，停止当前正常路径；L189按`item is None`分支；L190抛异常，停止当前正常路径；L191按`not frontend`分支。后续分支沿下方源码相同行号继续阅读。 调用`client`、`selections`、`typer.echo`、`enumerate`、`typer.prompt`、`len`、`typer.BadParameter`、`next`、`", ".join`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `recommend`（L318–L321）：接收`run`。 源码说明：授权当前运行的后续未明确需求使用AI建议；不绕过测试与技术前提。。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `manual`（L325–L328）：接收`run`。 源码说明：关闭后续自动决定；下一道门恢复人工确认。。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `models`（L332–L339）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：显示各阶段实际模型选择，不显示密钥；单模型配置自动回退。。 控制顺序：L335遍历`STAGES`。 调用`Settings`、`echo`、`settings.model_for(stage).public`、`settings.model_for`、`settings.redact`、`str`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `show`（L343–L345）：接收`run`。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `retry`（L349–L351）：接收`run`。 调用`client`、`echo`、`api_call`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `download`（L355–L366）：接收`run`、`output`。 控制顺序：L360按`target.exists()`分支；L361抛异常，停止当前正常路径。 调用`Path`、`output.mkdir`、`str`、`uuid.UUID`、`target.exists`、`typer.BadParameter`、`client`、`c.get`、`response.raise_for_status`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `index`（L370–L374）：接收`source`、`output`。 源码说明：在源码目录外创建增量 AST/文件哈希知识包。。 调用`echo`、`build_index`、`app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_prepare`（L378–L382）：接收`template`。 源码说明：校验并展开仓库内固定源码归档，建立原生模板源码知识包；不在线克隆。。 调用`echo`、`prepare_sources`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `config_example`（L386–L390）：接收`template`。 源码说明：创建本机原生服务配置示例，不覆盖已有配置。。 调用`typer.echo`、`str`、`write_config_example`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_runtime_config`（L394–L398）：接收`template`。 源码说明：创建原生全栈运行配置；必须显式授权专用空 PostgreSQL 库。。 调用`typer.echo`、`str`、`write_runtime_example`、`Settings`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_serve`（L402–L409）：接收`run`。 源码说明：重新打开已验收原生产品；复用开发库，不删库、不重新生成。。 调用`serve_managed`、`Settings`、`typer.echo`、`native_app.command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/cli.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L400。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/cli.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L413。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`15534`。本段原文以LF换行结束。
+本段原始字节数：`16378`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/cli.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "cfd88374504b521efdc92de06642093512ad18785a2f66642c96b5ca6bbd9023"} -->
+<!-- learning-source: {"path": "workbench/cli.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2cfee0bead54e467a0df7c1d5679582168e499dd9f312603fcac2feafa048b11"} -->
 ````python
 # workbench/cli.py
 """Operator commands: init/start/chat/show/download/index/native. No custom UI needed."""
@@ -306,6 +306,12 @@ def chat(
                     continue
                 echo(gate["data"])
                 typer.echo("当前阶段：" + gate["stage"])
+                capability_blocked = bool(gate["data"].get("capability_conflicts"))
+                if capability_blocked:
+                    typer.echo(
+                        "原始目标已保留。请明确所需报名入口和参与者操作；"
+                        "智能推荐不能替你改为仅后台录入。可答复范围选择，或保留目标并停止。"
+                    )
                 prompt = "答复 / 批准 / 拒绝 / 智能推荐 / 手动 / 退出"
                 if state["status"] == "BLOCKED":
                     prompt += " / 重试"
@@ -320,7 +326,9 @@ def chat(
                     )
                     continue
                 if word in {"重试", "retry"}:
-                    if state["status"] == "BLOCKED":
+                    if capability_blocked:
+                        typer.echo("模板能力尚未改变，重复重试不会解决。请先明确答复范围选择。")
+                    elif state["status"] == "BLOCKED":
                         api_call(c, "POST", f"/runs/{run}/retry")
                     else:
                         typer.echo(
@@ -328,6 +336,11 @@ def chat(
                         )
                     continue
                 if word in {"智能推荐", "推荐", "smart", "recommend"}:
+                    if capability_blocked:
+                        typer.echo(
+                            "未发送新的模型请求：智能推荐不能取消明确需求。请先明确答复范围选择。"
+                        )
+                        continue
                     api_call(
                         c, "POST", f"/runs/{run}/automation", {"enabled": True, "accepted": True}
                     )

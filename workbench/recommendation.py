@@ -12,7 +12,7 @@ def blocked_report(gate, attempts):
     reasons.extend("尚未自动决定：" + text for text in questions)
     if not reasons:
         reasons = ["需求摘要、使用者、功能、验收条件或数据范围仍不完整"]
-    return {
+    report = {
         "passed": False,
         "stage": gate["stage"],
         "gate_id": gate["gate_id"],
@@ -23,3 +23,11 @@ def blocked_report(gate, attempts):
         "can_approve": gate.get("can_approve", False),
         "recoverable": True,
     }
+    conflicts = data.get("capability_conflicts", [])
+    if conflicts:
+        report["capability_conflicts"] = conflicts
+        report["retry_without_changes"] = False
+        report["alternatives"] = list(
+            dict.fromkeys(option for conflict in conflicts for option in conflict["alternatives"])
+        )
+    return report

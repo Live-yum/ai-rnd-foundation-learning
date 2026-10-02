@@ -52,6 +52,8 @@ MODULE_STAGE = {
     "entity_requirements": 3,
     "requirement_coverage": 3,
     "requirement_sources": 3,
+    "requirement_canonical": 3,
+    "requirement_intent": 3,
     "business_capabilities": 3,
     "filesystem": 4,
     "tools": 4,

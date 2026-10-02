@@ -168,6 +168,20 @@ uv run python -m scripts.ci_native_bundled yudao-vben --spec examples/plans/cust
 
 这里明确是“第10站业务文件齐全后回到这里执行”；执行前在本节实验PG中另建新的专用空_codegen库，并像上面一样以当前终端随机密码设置 `NATIVE_TEST_DATABASE_URL`，保留前次 `.native/product` 和报告；不要直接在书中写真实密码。每次只认本模板本次报告，先保存或分目录留存再跑另一模板，避免覆盖证据。合同测试只证明适配器拒绝/接受给定输入，真实原生通过要看编译、类型检查、HTTP、浏览器和独立新库部署。
 
+## 先检查可选依赖，后产生原生副作用
+
+基础Windows环境可以选择原生模板、读取能力和到达设计关卡，即使没有psycopg；这不表示Windows已支持原生执行。真正运行在WSL2/Linux进行，并在其项目目录安装：
+
+```bash
+# .learning/commands/09-postgres-extra.sh
+uv sync --locked --extra postgres
+uv run python -c "import psycopg; print('PostgreSQL driver import PASS')"
+```
+
+`native_delivery.prerequisites` 在加载实际 `native_lab` 执行入口前检查系统、驱动和必需命令。缺少驱动给出上面的安装命令和“重试同一运行”提示；必须在创建目标目录、Compose服务、复制代码和连接数据库之前停止。不要把try/except包住真实数据库失败后继续生成，也不要移除平台检查来让Windows误入Linux工具链。
+
+旧的 `FAILED` 运行补齐条件后从同一UUID恢复，继续使用历史需求、审批和检查点。若原目标曾被错误改成管理员代录，先完成第07/08站的能力范围澄清，再执行原生生成；依赖修好不等于旧设计已经获得新的有效批准。
+
 ## 本阶段源码和后续依赖
 
 本阶段首次创建 64 个源文件，完整位置见[文件落盘顺序](files.md)。已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。

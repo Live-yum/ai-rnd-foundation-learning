@@ -7,6 +7,7 @@ import re
 import shutil
 import uuid
 from contextlib import ExitStack
+from importlib import import_module
 from pathlib import Path
 
 from dotenv import dotenv_values
@@ -18,7 +19,6 @@ from workbench.generator import PrerequisiteError
 from workbench.native_environment import checked_database, native_environment, running_backend
 from workbench.native_evidence import MAX_ACCEPTANCE_BYTES, native_review_evidence
 from workbench.native_frontend import frontend_environment, frontend_preview
-from workbench.native_lab import run_acceptance
 from workbench.native_modules import validate_plan
 from workbench.settings import ROOT
 
@@ -84,6 +84,13 @@ def prerequisites(template):
         raise PrerequisiteError(
             "原生全栈运行通道请在 WSL 2/Linux 使用；默认 Python 通道支持 Windows"
         )
+    try:
+        import_module("psycopg")
+    except ImportError:
+        raise PrerequisiteError(
+            "原生 PostgreSQL 运行依赖不可用；请在 WSL 2/Linux 的项目目录运行 "
+            "uv sync --locked --extra postgres，然后重试同一运行"
+        ) from None
     commands = ["git", "uv", "node", "pnpm"] + (["java", "mvn"] if template == "yudao-vben" else [])
     for name in commands:
         if not shutil.which(name):
@@ -98,6 +105,10 @@ def managed_generate(settings, template, plan, destination, *, customization=Non
     plan = validate_plan(plan)
     destination = Path(destination).resolve()
     prerequisites(template)
+    # Design/config inspection also imports this module. Load optional database
+    # runtime code only after platform/dependency checks, before any side effects.
+    from workbench.native_lab import run_acceptance
+
     if runtime_enabled(settings, template):
         _, url = runtime_config(settings, template)
         redis_port = 6379
