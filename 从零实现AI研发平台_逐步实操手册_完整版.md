@@ -6,7 +6,7 @@
 
 这是一份完整的实现与操作手册：前半部分按学习顺序说明创建什么、连接到哪里、如何运行与测试；后半部分直接包含同一提交中的全部文本源码、配置、数据库迁移、前端、测试和依赖锁。全文描述一个一致的最终系统，不需要任何较早版本、骨架项目或差异补丁。
 
-本手册只有一个正式文件：`从零实现AI研发平台_逐步实操手册_完整版.md`。你可以只拿到这一份文档，从空文件夹逐个创建本项目的全部源文件。语言解释器、Python包和第三方开源框架属于明确安装的依赖，不要求预先拥有本项目仓库。
+本文件是保留兼容的完整版：`从零实现AI研发平台_逐步实操手册_完整版.md`。新的分阶段教材位于 `learning-docs/README.md`，适合按依赖逐站学习。你可以只拿到这一份文档，从空文件夹逐个创建本项目的全部源文件。语言解释器、Python包和第三方开源框架属于明确安装的依赖，不要求预先拥有本项目仓库。
 
 **阅读顺序**：先完成第2章的工具准备，按照第6—13章和“逐文件实现讲解”创建文件；每写完一组，紧接着做“动手写与跑”的对应完整小实验，再回到第3—5章体验平台。完整源码区的每个标题就是要创建的文件路径，代码块不省略实现。希望先体验的读者可以在已经取得的演示源码目录直接执行第3—5章，但这不是手写学习的前置条件。
 
@@ -485,7 +485,7 @@ uv run python -m scripts.build_handbook --check
 uv run python -m scripts.build_handbook
 ```
 
-生成器把全部正文、逐文件讲解与真实源码完整组合成唯一正式手册。每个源码块带SHA；test_handbook验证逐块一致性与空目录还原后再次生成相同手册。客服章节在建档、权限、分配、历史、提醒和统计处配有真实浏览器截图；图注注明模板、来源提交及证据范围。PNG原始字节通过可折叠Base64资源块随书保存，独立还原程序严格解码并逐张核对SHA，正文仍使用`docs/images/`相对路径，不塞入data URI。二进制vendorZIP在Git中单独保存，书中包含重建这些ZIP的完整脚本、manifest与许可证，不把二进制伪装成可手写源码，也不要求已有ZIP作为学习前提。
+生成器把全部正文、逐文件讲解与真实源码完整组合成兼容版完整手册。每个源码块带SHA；test_handbook验证逐块一致性与空目录还原后再次生成相同手册。客服章节在建档、权限、分配、历史、提醒和统计处配有真实浏览器截图；图注注明模板、来源提交及证据范围。PNG原始字节通过可折叠Base64资源块随书保存，独立还原程序严格解码并逐张核对SHA，正文仍使用`docs/images/`相对路径，不塞入data URI。二进制vendorZIP在Git中单独保存，书中包含重建这些ZIP的完整脚本、manifest与许可证，不把二进制伪装成可手写源码，也不要求已有ZIP作为学习前提。
 
 手工学习创建顺序可照第7—13章；全部源码齐全后再执行全量测试。复现安装始终 `--locked`；依赖更新需提交真实新锁并重跑，不由AI随意修改锁内容。
 
@@ -2827,7 +2827,7 @@ Python/SQLite用基础快照；Python/PostgreSQL、FastapiAdmin/PostgreSQL、Yud
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .gitignore sha256: 40215040282ddb9d064a10efc05b227c4e2baff936a75731ccd9b280c90eccf9 -->
+<!-- source-file: .gitignore sha256: 9f384eabb9e8d11e987a6d1120b92f8dcf632ed72414dcdc5370403ea35ea120 -->
 ````text
 .venv/
 .env
@@ -2851,6 +2851,10 @@ htmlcov/
 # Optional local Node tools; never ship installed dependencies or generated bundles.
 node_modules/
 tools/node/.built/
+
+# Optional student exercises and byte-verified reconstruction progress.
+.learning/
+.learning-progress.json
 ````
 
 ### `.gitattributes`
@@ -2967,7 +2971,7 @@ DAYTONA_RUNTIME_TIMEOUT=3600
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: pyproject.toml sha256: 9d59650a84dd1a5c0dcd713b0b70f0b39868290246f274deb85030c5362dee6a -->
+<!-- source-file: pyproject.toml sha256: 0425e8a1eadcc35d5204ed6f5fa6107d8e88dbaf6cc42ae34e63617cec4ed900 -->
 ````toml
 [project]
 name = "ai-rnd-workbench"
@@ -3020,6 +3024,11 @@ markers = ["postgres: PostgreSQL integration requires TEST_DATABASE_URL", "node_
 line-length = 100
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.format]
+# Source excerpts preserve exact bytes, including chunk-boundary blank lines.
+# The complete underlying Python files are still formatted and linted normally.
+exclude = ["learning-docs/**/sources/**"]
 ````
 
 ### `README.md`
@@ -3030,7 +3039,7 @@ select = ["E4", "E7", "E9", "F", "I"]
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: README.md sha256: 0001d40f076b870458c9bd62d40a1f57564a0f71860fac8aac9c4404c59c48c4 -->
+<!-- source-file: README.md sha256: cb6b5a9b33b800125e032675e9186eaa69ece97dbdb2351472625112d7453b95 -->
 ````markdown
 # AI 研发工作台 · Python 3.14
 
@@ -3039,6 +3048,12 @@ select = ["E4", "E7", "E9", "F", "I"]
 从需求到可启动产品的本地工作台：**先选择后端、前端与数据库 → 描述需求 → 人工确认或一键智能推荐 → 原生/确定性生成 → 独立测试 → 可选模型审阅 → 打包下载**。
 
 平台使用 Python、uv、FastAPI、SQLite 和 LangGraph。**仅聊天大模型允许使用外部推理服务；其余工具均为本机运行。** 基础代码、迁移、索引、测试与打包由工具执行。测试失败不能由模型“宣布通过”。
+
+## 从零学习：推荐新的分阶段教材
+
+从 [learning-docs/README.md](learning-docs/README.md) 开始：15个依赖有序阶段，每站有实现解释、小实验、预期结果与排错。每个代码块首行标注相对路径，大文件按模块分为连续小页。只保存整个 `learning-docs` 目录就能在空目录重建自有源码、测试、锁文件和截图，第三方模板按固定上游提交自行下载处理；无需先下载本仓库骨架。
+
+旧版完整手册仍保留兼容。新教材的还原与验收方式见 [learning-docs 最后一站](learning-docs/14-acceptance/README.md)。
 
 ## 1. 初始化完整演示源码
 
@@ -3057,7 +3072,7 @@ uv sync --locked
 uv run rnd init
 ```
 
-**从零学习不需要先取得这些源码。** 唯一教材`从零实现AI研发平台_逐步实操手册_完整版.md`从空文件夹讲解每个自有文件、调用关系和逻辑，包含所有文本源码及锁文件；书中给出的脚本可从固定第三方提交生成原生模板ZIP。没有本项目骨架也能照书实现。
+**从零学习不需要先取得这些源码。** 兼容版教材`从零实现AI研发平台_逐步实操手册_完整版.md`从空文件夹讲解每个自有文件、调用关系和逻辑，包含所有文本源码及锁文件；书中给出的脚本可从固定第三方提交生成原生模板ZIP。没有本项目骨架也能照书实现。
 
 需要先安装 Git、uv。Windows 的 uv 官方安装器：
 
@@ -3202,6 +3217,7 @@ uv run ruff check .
 uv run ruff format --check .
 uv run pytest -m "not postgres" -q
 uv run python -m scripts.build_handbook --check
+uv run python -m scripts.build_learning_docs --check
 ```
 
 Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新数据库交付、真实Chromium智能推荐与产品页面回归，并由客服矩阵验证三角色、关系、流程、提醒和统计。CI模型采用显式协议夹具，不消耗真实Key，也不声称已验证你的供应商账号。
@@ -3210,7 +3226,7 @@ Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新�
 
 当前是仅监听本机、单操作人和单Worker的研发工作台。没有公网生产身份体系。请勿公开 `.env`、`.data`、`.deployment` 或访问令牌。更多环境条件、SQL步骤、预算恢复、原生部署与故障定位见完整手册。
 
-## 9. 本机工具链与唯一完整教材
+## 9. 本机工具链与完整教材
 
 默认使用本机Tree-sitter/Python AST、FTS5和符号Repo Map。Aider使用独立Python3.12环境：
 
@@ -3264,7 +3280,7 @@ uv run python -m scripts.ci_handbook
 
 ### 本机Daytona的安装边界
 
-Daytona固定v0.190.0；API/Proxy从固定SHA在本机Docker构建，Runner使用同版本、固定SHA256的发布文件。服务运行在本机internal网络，端口仅绑定回环，SDK也禁止非回环连接；不申请Daytona云账号。完整安装顺序为`prepare → images → snapshot-image → up → auth → snapshot → ci_daytona_local`，每一步的完整代码、用途、预期结果及失败处理见唯一手册第20章。此安装通道使用Linux x86_64或Windows x86_64 WSL2；默认平台与普通本机验收不要求安装Daytona。安装时下载公开依赖，不等于把生成代码交给云端运行。
+Daytona固定v0.190.0；API/Proxy从固定SHA在本机Docker构建，Runner使用同版本、固定SHA256的发布文件。服务运行在本机internal网络，端口仅绑定回环，SDK也禁止非回环连接；不申请Daytona云账号。完整安装顺序为`prepare → images → snapshot-image → up → auth → snapshot → ci_daytona_local`，每一步的完整代码、用途、预期结果及失败处理见兼容手册第20章及新教材第12阶段。此安装通道使用Linux x86_64或Windows x86_64 WSL2；默认平台与普通本机验收不要求安装Daytona。安装时下载公开依赖，不等于把生成代码交给云端运行。
 
 ### 原生业务规则、Plop、Aider 与完整本机 Daytona
 
@@ -85389,6 +85405,733 @@ time.sleep(30)
         foreign.wait(timeout=3)
 ````
 
+### `tests/test_learning_docs.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `fingerprint`（L21–L22）：接收`data`。 调用`hashlib.sha256(data).hexdigest`、`hashlib.sha256`。 返回路径：L22的`hashlib.sha256(data).hexdigest()`。
+- `assert_exact_bytes`（L25–L30）：接收`actual`、`expected`、`name`。 控制顺序：L26按`actual != expected`分支。 调用`pytest.fail`、`len`、`fingerprint`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `assert_exact_inventory`（L33–L38）：接收`actual`、`expected`。 控制顺序：L36断言`not missing and not extra`；L37遍历`expected.items()`。 调用`sorted`、`expected.keys`、`actual.keys`、`expected.items`、`assert_exact_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `source_block`（L41–L64）：接收`name`、`data`、`part`、`parts`、`language`、`encoding`。 调用`fingerprint`、`base64.b64encode(data).decode`、`base64.b64encode`、`data.decode`、`max`、`len`、`re.findall`、`json.dumps`、`reader.comment_line`等。 返回路径：L51的`"<!-- learning-source: " + json.dumps(metadata) + " -->\n" + fence + language + "\n" + rea…`。
+- `make_bundle`（L67–L104）：接收`folder`、`entries`。 源码说明：An independent tiny publisher: do not use the production generator for parser tests.。 控制顺序：L69按`entries is None`分支；L73遍历`enumerate(entries)`；L75遍历`enumerate(chunks, 1)`。 调用`folder.mkdir`、`enumerate`、`page.parent.mkdir`、`page.write_text`、`source_block`、`len`、`documents.append`、`b"".join`、`rows.append`等。 返回路径：L104的`manifest`。
+- `write_manifest`（L107–L108）：接收`folder`、`manifest`。 调用`(folder / "manifest.json").write_text`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `replace_metadata`（L111–L117）：接收`folder`、`manifest`、`mutation`。 调用`path.read_text`、`text.split`、`json.loads`、`len`、`mutation`、`path.write_text`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `assert_rejected_before_writing`（L120–L123）：接收`folder`、`destination`。 控制顺序：L123断言`not destination.exists()`。 调用`pytest.raises`、`reader.restore`、`destination.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_every_language_has_a_path_annotation_in_the_actual_first_line`（L148–L150）：接收`language`、`name`。 控制顺序：L150断言`reader.check_fences(text) == 1`。 调用`reader.comment_line`、`reader.check_fences`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_or_invalid_annotation_in_any_markdown_fence_is_rejected`（L173–L175）：接收`text`。 调用`pytest.raises`、`reader.check_fences`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_nested_fences_are_payload_not_extra_fences`（L178–L180）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L180断言`reader.check_fences(text) == 1`。 调用`reader.check_fences`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_empty_file_and_final_newline_bytes`（L184–L190）：接收`data`、`tmp_path`。 控制顺序：L187断言`reader.read_bundle(folder) == {"sample.py": data}`；L189断言`reader.restore(folder, destination) == 1`；L190断言`(destination / "sample.py").read_bytes() == data`。 调用`make_bundle`、`reader.read_bundle`、`reader.restore`、`(destination / "sample.py").read_bytes`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unicode_multipart_json_and_binary_strip_only_the_instructional_comment`（L193–L204）：接收`tmp_path`。 控制顺序：L203断言`result == {"config/settings.json": json_data, "docs/images/test.png": png}`；L204断言`json.loads(result["config/settings.json"])["count"] == 0`。 调用`'{"客户": "中文", "count": 0, "enabled": false}\n'.encode`、`bytes`、`range`、`make_bundle`、`reader.read_bundle`、`json.loads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_nested_literal_source_marker_is_source_data`（L207–L216）：接收`tmp_path`。 控制顺序：L216断言`reader.read_bundle(folder) == {"docs/nested.md": content}`。 调用`( "Nested source examples are ordinary Markdown.\n" + reader.MARK…`、`make_bundle`、`reader.read_bundle`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unknown_manifest_version_never_restores`（L220–L225）：接收`version`、`tmp_path`。 调用`make_bundle`、`write_manifest`、`assert_rejected_before_writing`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_non_object_manifest_is_a_validation_error`（L229–L233）：接收`document`、`tmp_path`。 调用`make_bundle`、`write_manifest`、`assert_rejected_before_writing`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_manifest_byte_count_cannot_use_boolean_in_place_of_one`（L236–L241）：接收`tmp_path`。 调用`make_bundle`、`write_manifest`、`assert_rejected_before_writing`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_non_object_source_metadata_is_a_validation_error`（L245–L251）：接收`metadata`、`tmp_path`。 调用`make_bundle`、`page.read_text(encoding="utf-8").split`、`page.read_text`、`page.write_text`、`json.dumps`、`assert_rejected_before_writing`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_malformed_manifest_is_a_validation_error_before_any_write`（L273–L278）：接收`mutation`、`tmp_path`。 调用`make_bundle`、`mutation`、`write_manifest`、`assert_rejected_before_writing`、`pytest.mark.parametrize`、`m.pop`、`m.update`、`m["files"][0].pop`、`m["files"][0].update`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_wrong_part_identity_or_hash_rejects_before_writing`（L294–L298）：接收`changes`、`tmp_path`。 调用`make_bundle`、`replace_metadata`、`meta.update`、`assert_rejected_before_writing`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unsafe_or_reserved_source_paths_are_rejected`（L317–L322）：接收`name`、`tmp_path`。 调用`make_bundle`、`write_manifest`、`assert_rejected_before_writing`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_and_annotation_paths_must_agree`（L325–L330）：接收`tmp_path`。 调用`make_bundle`、`page.write_text`、`page.read_text().replace`、`page.read_text`、`assert_rejected_before_writing`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_duplicate_and_unlisted_source_documents_fail_atomically`（L336–L351）：接收`damage`、`tmp_path`。 控制顺序：L341按`damage == "missing"`分支；L343按`damage == "duplicate"`分支；L345按`damage == "truncated"`分支；L347按`damage == "extra"`分支。 调用`make_bundle`、`page.read_text`、`page.unlink`、`page.write_text`、`text.rsplit`、`(page.parent / "unlisted.md").write_text`、`(folder / "unlisted.md").write_text`、`assert_rejected_before_writing`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_corrupt_later_stage_prevents_even_early_stage_write`（L354–L366）：接收`tmp_path`。 控制顺序：L366断言`not (tmp_path / "student").exists()`。 调用`make_bundle`、`(folder / manifest["files"][1]["parts"][0]).unlink`、`pytest.raises`、`reader.restore`、`(tmp_path / "student").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_binary_corruption_fails_before_writing`（L369–L378）：接收`tmp_path`。 调用`make_bundle`、`page.write_text`、`page.read_text().replace`、`page.read_text`、`base64.b64encode(b"\x89PNG\x00\xff").decode`、`base64.b64encode`、`assert_rejected_before_writing`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_progress_ledger_cannot_also_be_a_source_directory`（L381–L387）：接收`tmp_path`。 调用`make_bundle`、`assert_rejected_before_writing`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_file_ancestor_conflict_is_rejected_before_any_write`（L390–L399）：接收`tmp_path`。 调用`make_bundle`、`assert_rejected_before_writing`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `link_or_skip`（L402–L406）：接收`path`、`target`、`directory`。 调用`path.symlink_to`、`pytest.skip`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_symlink_roots_ancestors_and_source_entries_are_rejected`（L412–L436）：接收`kind`、`tmp_path`。 控制顺序：L418按`kind == "destination"`分支；L420按`kind == "ancestor"`分支；L423按`kind == "bundle-ancestor"`分支；L434断言`not (outside / "example.py").exists()`；L435按`kind != "destination"`分支；L436断言`not destination.exists()`。 调用`make_bundle`、`outside.mkdir`、`link_or_skip`、`page.rename`、`pytest.raises`、`reader.restore`、`(outside / "example.py").exists`、`destination.exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_nonempty_destination_is_untouched_without_explicit_advance`（L439–L447）：接收`tmp_path`。 控制顺序：L447断言`{p.name: p.read_bytes() for p in destination.iterdir()} == {"mine.txt": b"keep me"}`。 调用`make_bundle`、`destination.mkdir`、`(destination / "mine.txt").write_bytes`、`pytest.raises`、`reader.restore`、`p.read_bytes`、`destination.iterdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `two_stage_bundle`（L450–L457）：接收`folder`。 调用`make_bundle`。 返回路径：L451的`make_bundle( folder, [ ("early.py", [b"early\n"], "00-environment", "python", "utf-8"), ("…`。
+- `test_advancement_is_cumulative_and_preserves_unrelated_student_notes`（L460–L471）：接收`tmp_path`。 控制顺序：L463断言`reader.restore(folder, destination, through="00") == 1`；L464断言`not (destination / "late.py").exists()`；L466断言`reader.restore(folder, destination, through="01-contracts", advance=True) == 2`；L467断言`(destination / "early.py").read_bytes() == b"early\n"`；L468断言`(destination / "late.py").read_bytes() == b"late\n"`；L469断言`(destination / "my-notes.txt").read_bytes() == b"personal notes"`。 调用`two_stage_bundle`、`reader.restore`、`(destination / "late.py").exists`、`(destination / "my-notes.txt").write_bytes`、`(destination / "early.py").read_bytes`、`(destination / "late.py").read_bytes`、`(destination / "my-notes.txt").read_bytes`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_advancement_never_overwrites_an_edited_prior_stage`（L474–L482）：接收`tmp_path`。 控制顺序：L481断言`(destination / "early.py").read_bytes() == b"my change\n"`；L482断言`not (destination / "late.py").exists()`。 调用`two_stage_bundle`、`reader.restore`、`(destination / "early.py").write_bytes`、`pytest.raises`、`(destination / "early.py").read_bytes`、`(destination / "late.py").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_progress_ledger_never_advances_or_overwrites`（L486–L494）：接收`document`、`tmp_path`。 控制顺序：L493断言`(destination / "early.py").read_bytes() == b"early\n"`；L494断言`not (destination / "late.py").exists()`。 调用`two_stage_bundle`、`reader.restore`、`(destination / reader.LEDGER).write_text`、`json.dumps`、`pytest.raises`、`(destination / "early.py").read_bytes`、`(destination / "late.py").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_future_target_symlink_cannot_be_followed_during_advancement`（L497–L506）：接收`tmp_path`。 控制顺序：L506断言`outside.read_bytes() == b"untouched"`。 调用`two_stage_bundle`、`reader.restore`、`outside.write_bytes`、`link_or_skip`、`pytest.raises`、`outside.read_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unknown_stage_is_rejected_before_any_write`（L509–L514）：接收`tmp_path`。 控制顺序：L514断言`not (tmp_path / "student").exists()`。 调用`make_bundle`、`pytest.raises`、`reader.restore`、`(tmp_path / "student").exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_published_learning_docs_match_deterministic_render`（L517–L535）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L533遍历`expected.items()`；L534按`name.endswith(".md")`分支。 调用`builder.render`、`path.relative_to(builder.OUTPUT).as_posix`、`path.relative_to`、`path.read_bytes`、`builder.OUTPUT.rglob`、`path.is_file`、`assert_exact_inventory`、`isinstance`、`content.encode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `prose_outside_fences`（L538–L553）：接收`text`。 源码说明：Independent CommonMark-style scanner so nested source links are never followed.。 控制顺序：L541遍历`text.splitlines()`；L542按`opened is not None`分支；L544按`re.fullmatch(r" {0,3}" + re.escape(character) + "{" + str(width) + r",}\s*", line)`分支；L548按`match and not (match[1][0] == "`" and "`" in match[2])`分支；L552断言`opened is None`。 调用`text.splitlines`、`re.fullmatch`、`re.escape`、`str`、`len`、`result.append`、`"\n".join`。 返回路径：L553的`"\n".join(result)`。
+- `prose_outside_inline_code`（L556–L570）：接收`text`。 控制顺序：L559在`opening := runs.search(text, position)`成立时循环；L563按`closing is None`分支。 调用`re.compile`、`runs.search`、`re.compile(r"(?<!`)" + re.escape(opening[0]) + r"(?!`)").search`、`re.escape`、`opening.end`、`result.append`、`opening.start`、`closing.end`、`"".join`。 返回路径：L570的`"".join(result)`。
+- `test_all_local_links_outside_source_fences_resolve_inside_the_bundle`（L573–L587）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L578遍历`sorted(builder.OUTPUT.rglob("*.md"))`；L580遍历`re.findall(r"\[[^\]\n]*\]\(([^)\n]+)\)", prose)`；L582按`url.scheme or url.netloc or not url.path`分支；L585按`not path.is_relative_to(root) or not path.is_file()`分支；L587断言`not failures`。 调用`builder.OUTPUT.resolve`、`sorted`、`builder.OUTPUT.rglob`、`prose_outside_inline_code`、`prose_outside_fences`、`page.read_text`、`re.findall`、`urlsplit`、`target.strip().removeprefix("<").removesuffix`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_manifest_covers_owned_tracked_sources_independently_of_generator_groups`（L590–L624）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L602按`not (ROOT / ".git").exists()`分支；L617断言`not owned - rows.keys()`；L618断言`not rows.keys() & excluded`；L619断言`not any(name.startswith("learning-docs/") for name in rows)`；L620断言`"tests/test_learning_docs.py" in rows`；L621断言`"scripts/rebuild_learning_docs.py" in rows`；L622断言`"scripts/build_learning_docs.py" in rows`；L623断言`"uv.lock" in rows and "tools/node/package-lock.json" in rows`。后续分支沿下方源码相同行号继续阅读。 调用`reader.read_bundle`、`isinstance`、`content.encode`、`builder.sources`、`assert_exact_inventory`、`(ROOT / ".git").exists`、`set`、`subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT) .dec…`、`subprocess.check_output`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_docs_only_bootstrap_runs_isolated_with_original_tree_reads_forbidden`（L627–L668）：接收`tmp_path`。 控制顺序：L664断言`result.returncode == 0`；L665遍历`reader.read_bundle(docs).items()`；L667断言`not (destination / ".git").exists()`；L668断言`not list((destination / "templates/vendor").glob("*.zip"))`。 调用`shutil.copytree`、`assert_exact_bytes`、`(docs / "rebuild.py").read_bytes`、`(ROOT / "scripts/rebuild_learning_docs.py").read_bytes`、`launch.write_text`、`subprocess.run`、`str`、`os.environ.items`、`reader.read_bundle(docs).items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_learning_docs.py sha256: effef697b7a5121387b854bc7e22487f7fd37e3359cd5f2cb4d91751b0a945c3 -->
+````python
+"""Independent source coverage, byte-exact reconstruction, and fail-before-write contracts."""
+
+import base64
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+from urllib.parse import unquote, urlsplit
+
+import pytest
+
+from scripts import rebuild_learning_docs as reader
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def fingerprint(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def assert_exact_bytes(actual, expected, name):
+    if actual != expected:
+        pytest.fail(
+            f"Byte mismatch: {name}; expected {len(expected)} bytes / {fingerprint(expected)}, "
+            f"got {len(actual)} bytes / {fingerprint(actual)}"
+        )
+
+
+def assert_exact_inventory(actual, expected):
+    missing = sorted(expected.keys() - actual.keys())
+    extra = sorted(actual.keys() - expected.keys())
+    assert not missing and not extra, f"Missing files: {missing}; unexpected files: {extra}"
+    for name, data in expected.items():
+        assert_exact_bytes(actual[name], data, name)
+
+
+def source_block(name, data, *, part=1, parts=1, language="python", encoding="utf-8"):
+    metadata = {
+        "path": name,
+        "part": part,
+        "parts": parts,
+        "encoding": encoding,
+        "sha256": fingerprint(data),
+    }
+    payload = base64.b64encode(data).decode("ascii") if encoding == "base64" else data.decode()
+    fence = "`" * max(4, max((len(run) for run in re.findall(r"`+", payload)), default=0) + 1)
+    return (
+        "<!-- learning-source: "
+        + json.dumps(metadata)
+        + " -->\n"
+        + fence
+        + language
+        + "\n"
+        + reader.comment_line(name, language)
+        + "\n"
+        + payload
+        + ("" if payload.endswith("\n") else "\n")
+        + fence
+        + "\n"
+    )
+
+
+def make_bundle(folder, entries=None):
+    """An independent tiny publisher: do not use the production generator for parser tests."""
+    if entries is None:
+        entries = [("example.py", [b"answer = 42\n"], "00-environment", "python", "utf-8")]
+    folder.mkdir(parents=True, exist_ok=True)
+    rows = []
+    for index, (name, chunks, stage, language, encoding) in enumerate(entries):
+        documents = []
+        for part, chunk in enumerate(chunks, 1):
+            relative = f"{stage}/sources/{index}-{part}.md"
+            page = folder / relative
+            page.parent.mkdir(parents=True, exist_ok=True)
+            page.write_text(
+                source_block(
+                    name,
+                    chunk,
+                    part=part,
+                    parts=len(chunks),
+                    language=language,
+                    encoding=encoding,
+                ),
+                encoding="utf-8",
+                newline="\n",
+            )
+            documents.append(relative)
+        data = b"".join(chunks)
+        rows.append(
+            {
+                "path": name,
+                "sha256": fingerprint(data),
+                "bytes": len(data),
+                "stage": stage,
+                "parts": documents,
+            }
+        )
+    manifest = {"format": 1, "files": rows}
+    write_manifest(folder, manifest)
+    return manifest
+
+
+def write_manifest(folder, manifest):
+    (folder / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+
+def replace_metadata(folder, manifest, mutation):
+    path = folder / manifest["files"][0]["parts"][0]
+    text = path.read_text(encoding="utf-8")
+    marker, rest = text.split("\n", 1)
+    metadata = json.loads(marker[len(reader.MARKER) : -4])
+    mutation(metadata)
+    path.write_text(reader.MARKER + json.dumps(metadata) + " -->\n" + rest, encoding="utf-8")
+
+
+def assert_rejected_before_writing(folder, destination):
+    with pytest.raises(ValueError):
+        reader.restore(folder, destination)
+    assert not destination.exists(), "A corrupt bundle must fail before creating any target files"
+
+
+@pytest.mark.parametrize(
+    "language,name",
+    [
+        ("python", "scripts/example.py"),
+        ("bash", "commands/install.sh"),
+        ("powershell", "commands/install.ps1"),
+        ("json", "config/example.json"),
+        ("markdown", "docs/example.md"),
+        ("base64", "docs/images/example.png"),
+        ("toml", "uv.lock"),
+        ("yaml", ".github/workflows/test.yml"),
+        ("javascript", "tools/example.cjs"),
+        ("typescript", "tools/example.ts"),
+        ("java", "examples/Example.java"),
+        ("vue", "templates/Example.vue"),
+        ("html", "workbench/web/index.html"),
+        ("css", "workbench/web/style.css"),
+        ("sql", "migrations/example.sql"),
+        ("ini", "alembic.ini"),
+        ("text", ".python-version"),
+    ],
+)
+def test_every_language_has_a_path_annotation_in_the_actual_first_line(language, name):
+    text = f"```{language}\n{reader.comment_line(name, language)}\ncontent\n```\n"
+    assert reader.check_fences(text) == 1
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "```python\nprint(42)\n```\n",
+        "```json\n{}\n```\n",
+        "```markdown\n# Ordinary heading\n```\n",
+        "```base64\neA==\n```\n",
+        "```bash\necho ready\n```\n",
+        "```python\n\n# example.py\n```\n",
+        "```python\n# ../outside.py\nx = 1\n```\n",
+        "```python\n# /absolute.py\nx = 1\n```\n",
+        "```python\n# .git/config\nx = 1\n```\n",
+        "```python\n# C:drive.py\nx = 1\n```\n",
+        "```json\n# config.json\n{}\n```\n",
+        "```python\n# example.py\nx = 1\n",
+        "```\n```\n",
+        " ```python\nprint(42)\n ```\n",
+        "```python title=example\nprint(42)\n```\n",
+    ],
+)
+def test_missing_or_invalid_annotation_in_any_markdown_fence_is_rejected(text):
+    with pytest.raises(ValueError):
+        reader.check_fences(text)
+
+
+def test_nested_fences_are_payload_not_extra_fences():
+    text = "`````markdown\n<!-- docs/example.md -->\n```python\nprint(42)\n```\n`````\n"
+    assert reader.check_fences(text) == 1
+
+
+@pytest.mark.parametrize("data", [b"", b"\n", b"answer = 42", b"answer = 42\n", b"x\n\n\n"])
+def test_exact_empty_file_and_final_newline_bytes(data, tmp_path):
+    folder = tmp_path / "book"
+    make_bundle(folder, [("sample.py", [data], "00-environment", "python", "utf-8")])
+    assert reader.read_bundle(folder) == {"sample.py": data}
+    destination = tmp_path / "student"
+    assert reader.restore(folder, destination) == 1
+    assert (destination / "sample.py").read_bytes() == data
+
+
+def test_unicode_multipart_json_and_binary_strip_only_the_instructional_comment(tmp_path):
+    folder = tmp_path / "book"
+    json_data = '{"客户": "中文", "count": 0, "enabled": false}\n'.encode()
+    png = b"\x89PNG\r\n\x1a\n\x00\xff" + bytes(range(256))
+    entries = [
+        ("config/settings.json", [json_data[:2], json_data[2:]], "00-environment", "json", "utf-8"),
+        ("docs/images/test.png", [png[:7], png[7:]], "01-contracts", "base64", "base64"),
+    ]
+    make_bundle(folder, entries)
+    result = reader.read_bundle(folder)
+    assert result == {"config/settings.json": json_data, "docs/images/test.png": png}
+    assert json.loads(result["config/settings.json"])["count"] == 0
+
+
+def test_nested_literal_source_marker_is_source_data(tmp_path):
+    folder = tmp_path / "book"
+    content = (
+        "Nested source examples are ordinary Markdown.\n"
+        + reader.MARKER
+        + '{"path": "not-a-real-entry.py"} -->\n'
+        + "```python\nprint('nested example')\n```\n"
+    ).encode()
+    make_bundle(folder, [("docs/nested.md", [content], "00-environment", "markdown", "utf-8")])
+    assert reader.read_bundle(folder) == {"docs/nested.md": content}
+
+
+@pytest.mark.parametrize("version", [0, 2, "1", True, None])
+def test_unknown_manifest_version_never_restores(version, tmp_path):
+    folder = tmp_path / "book"
+    manifest = make_bundle(folder)
+    manifest["format"] = version
+    write_manifest(folder, manifest)
+    assert_rejected_before_writing(folder, tmp_path / "student")
+
+
+@pytest.mark.parametrize("document", [[], None, 1, "manifest"])
+def test_non_object_manifest_is_a_validation_error(document, tmp_path):
+    folder = tmp_path / "book"
+    make_bundle(folder)
+    write_manifest(folder, document)
+    assert_rejected_before_writing(folder, tmp_path / "student")
+
+
+def test_manifest_byte_count_cannot_use_boolean_in_place_of_one(tmp_path):
+    folder = tmp_path / "book"
+    manifest = make_bundle(folder, [("one.txt", [b"x"], "00-environment", "text", "utf-8")])
+    manifest["files"][0]["bytes"] = True
+    write_manifest(folder, manifest)
+    assert_rejected_before_writing(folder, tmp_path / "student")
+
+
+@pytest.mark.parametrize("metadata", [[], None, 1, "metadata"])
+def test_non_object_source_metadata_is_a_validation_error(metadata, tmp_path):
+    folder = tmp_path / "book"
+    manifest = make_bundle(folder)
+    page = folder / manifest["files"][0]["parts"][0]
+    _, rest = page.read_text(encoding="utf-8").split("\n", 1)
+    page.write_text(reader.MARKER + json.dumps(metadata) + " -->\n" + rest, encoding="utf-8")
+    assert_rejected_before_writing(folder, tmp_path / "student")
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda m: m.pop("files"),
+        lambda m: m.update(files=[]),
+        lambda m: m.update(files="not a list"),
+        lambda m: m.update(files=[None]),
+        lambda m: m["files"][0].pop("path"),
+        lambda m: m["files"][0].update(path=None),
+        lambda m: m["files"][0].update(stage=0),
+        lambda m: m["files"][0].update(stage="not-a-stage"),
+        lambda m: m["files"][0].update(bytes=999),
+        lambda m: m["files"][0].update(sha256="0" * 64),
+        lambda m: m["files"][0].update(parts=[]),
+        lambda m: m["files"][0].update(parts="a.md"),
+        lambda m: m["files"][0].update(parts=["../outside.md"]),
+        lambda m: m["files"].append(dict(m["files"][0])),
+    ],
+)
+def test_malformed_manifest_is_a_validation_error_before_any_write(mutation, tmp_path):
+    folder = tmp_path / "book"
+    manifest = make_bundle(folder)
+    mutation(manifest)
+    write_manifest(folder, manifest)
+    assert_rejected_before_writing(folder, tmp_path / "student")
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"path": "other.py"},
+        {"part": 0},
+        {"part": 2},
+        {"part": True},
+        {"parts": 2},
+        {"parts": True},
+        {"encoding": "unknown"},
+        {"sha256": "0" * 64},
+    ],
+)
+def test_wrong_part_identity_or_hash_rejects_before_writing(changes, tmp_path):
+    folder = tmp_path / "book"
+    manifest = make_bundle(folder)
+    replace_metadata(folder, manifest, lambda meta: meta.update(changes))
+    assert_rejected_before_writing(folder, tmp_path / "student")
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "../escape.py",
+        "/absolute.py",
+        "a//alias.py",
+        "./alias.py",
+        ".",
+        ".git/config",
+        "nested/.git/config",
+        "C:drive.py",
+        "folder\\file.py",
+        "bad\x00name.py",
+        reader.LEDGER,
+    ],
+)
+def test_unsafe_or_reserved_source_paths_are_rejected(name, tmp_path):
+    folder = tmp_path / "book"
+    manifest = make_bundle(folder)
+    manifest["files"][0]["path"] = name
+    write_manifest(folder, manifest)
+    assert_rejected_before_writing(folder, tmp_path / "student")
+
+
+def test_source_and_annotation_paths_must_agree(tmp_path):
+    folder = tmp_path / "book"
+    manifest = make_bundle(folder)
+    page = folder / manifest["files"][0]["parts"][0]
+    page.write_text(page.read_text().replace("# example.py\n", "# other.py\n"))
+    assert_rejected_before_writing(folder, tmp_path / "student")
+
+
+@pytest.mark.parametrize(
+    "damage", ["missing", "duplicate", "truncated", "extra", "unlisted-marker"]
+)
+def test_missing_duplicate_and_unlisted_source_documents_fail_atomically(damage, tmp_path):
+    folder = tmp_path / "book"
+    manifest = make_bundle(folder)
+    page = folder / manifest["files"][0]["parts"][0]
+    text = page.read_text(encoding="utf-8")
+    if damage == "missing":
+        page.unlink()
+    elif damage == "duplicate":
+        page.write_text(text + text)
+    elif damage == "truncated":
+        page.write_text(text.rsplit("````", 1)[0])
+    elif damage == "extra":
+        (page.parent / "unlisted.md").write_text(text)
+    else:
+        (folder / "unlisted.md").write_text(text)
+    assert_rejected_before_writing(folder, tmp_path / "student")
+
+
+def test_corrupt_later_stage_prevents_even_early_stage_write(tmp_path):
+    folder = tmp_path / "book"
+    manifest = make_bundle(
+        folder,
+        [
+            ("early.py", [b"early\n"], "00-environment", "python", "utf-8"),
+            ("late.py", [b"late\n"], "01-contracts", "python", "utf-8"),
+        ],
+    )
+    (folder / manifest["files"][1]["parts"][0]).unlink()
+    with pytest.raises(ValueError):
+        reader.restore(folder, tmp_path / "student", through="00")
+    assert not (tmp_path / "student").exists()
+
+
+def test_binary_corruption_fails_before_writing(tmp_path):
+    folder = tmp_path / "book"
+    manifest = make_bundle(
+        folder, [("image.png", [b"\x89PNG\x00\xff"], "00-environment", "base64", "base64")]
+    )
+    page = folder / manifest["files"][0]["parts"][0]
+    page.write_text(
+        page.read_text().replace(base64.b64encode(b"\x89PNG\x00\xff").decode(), "!bad!")
+    )
+    assert_rejected_before_writing(folder, tmp_path / "student")
+
+
+def test_progress_ledger_cannot_also_be_a_source_directory(tmp_path):
+    folder = tmp_path / "book"
+    make_bundle(
+        folder,
+        [(reader.LEDGER + "/child.py", [b"x = 1\n"], "00-environment", "python", "utf-8")],
+    )
+    assert_rejected_before_writing(folder, tmp_path / "student")
+
+
+def test_source_file_ancestor_conflict_is_rejected_before_any_write(tmp_path):
+    folder = tmp_path / "book"
+    make_bundle(
+        folder,
+        [
+            ("conflict", [b"first\n"], "00-environment", "text", "utf-8"),
+            ("conflict/child.py", [b"second\n"], "00-environment", "python", "utf-8"),
+        ],
+    )
+    assert_rejected_before_writing(folder, tmp_path / "student")
+
+
+def link_or_skip(path, target, *, directory=False):
+    try:
+        path.symlink_to(target, target_is_directory=directory)
+    except (OSError, NotImplementedError) as error:
+        pytest.skip(f"Symlink creation unavailable on this runner: {error}")
+
+
+@pytest.mark.parametrize(
+    "kind", ["destination", "ancestor", "manifest", "source", "bundle-ancestor"]
+)
+def test_symlink_roots_ancestors_and_source_entries_are_rejected(kind, tmp_path):
+    folder = tmp_path / "book"
+    manifest = make_bundle(folder)
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    destination = tmp_path / "student"
+    if kind == "destination":
+        link_or_skip(destination, outside, directory=True)
+    elif kind == "ancestor":
+        link_or_skip(tmp_path / "alias", outside, directory=True)
+        destination = tmp_path / "alias/student"
+    elif kind == "bundle-ancestor":
+        link_or_skip(tmp_path / "alias", tmp_path, directory=True)
+        folder = tmp_path / "alias/book"
+    else:
+        relative = "manifest.json" if kind == "manifest" else manifest["files"][0]["parts"][0]
+        page = folder / relative
+        external = outside / "original"
+        page.rename(external)
+        link_or_skip(page, external)
+    with pytest.raises(ValueError):
+        reader.restore(folder, destination)
+    assert not (outside / "example.py").exists()
+    if kind != "destination":
+        assert not destination.exists()
+
+
+def test_nonempty_destination_is_untouched_without_explicit_advance(tmp_path):
+    folder = tmp_path / "book"
+    make_bundle(folder)
+    destination = tmp_path / "student"
+    destination.mkdir()
+    (destination / "mine.txt").write_bytes(b"keep me")
+    with pytest.raises(ValueError):
+        reader.restore(folder, destination)
+    assert {p.name: p.read_bytes() for p in destination.iterdir()} == {"mine.txt": b"keep me"}
+
+
+def two_stage_bundle(folder):
+    return make_bundle(
+        folder,
+        [
+            ("early.py", [b"early\n"], "00-environment", "python", "utf-8"),
+            ("late.py", [b"late\n"], "01-contracts", "python", "utf-8"),
+        ],
+    )
+
+
+def test_advancement_is_cumulative_and_preserves_unrelated_student_notes(tmp_path):
+    folder, destination = tmp_path / "book", tmp_path / "student"
+    two_stage_bundle(folder)
+    assert reader.restore(folder, destination, through="00") == 1
+    assert not (destination / "late.py").exists()
+    (destination / "my-notes.txt").write_bytes(b"personal notes")
+    assert reader.restore(folder, destination, through="01-contracts", advance=True) == 2
+    assert (destination / "early.py").read_bytes() == b"early\n"
+    assert (destination / "late.py").read_bytes() == b"late\n"
+    assert (destination / "my-notes.txt").read_bytes() == b"personal notes"
+    with pytest.raises(ValueError):
+        reader.restore(folder, destination, through="00", advance=True)
+
+
+def test_advancement_never_overwrites_an_edited_prior_stage(tmp_path):
+    folder, destination = tmp_path / "book", tmp_path / "student"
+    two_stage_bundle(folder)
+    reader.restore(folder, destination, through="00")
+    (destination / "early.py").write_bytes(b"my change\n")
+    with pytest.raises(ValueError):
+        reader.restore(folder, destination, through="01", advance=True)
+    assert (destination / "early.py").read_bytes() == b"my change\n"
+    assert not (destination / "late.py").exists()
+
+
+@pytest.mark.parametrize("document", [[], None, 1, {"format": 1, "files": []}])
+def test_invalid_progress_ledger_never_advances_or_overwrites(document, tmp_path):
+    folder, destination = tmp_path / "book", tmp_path / "student"
+    two_stage_bundle(folder)
+    reader.restore(folder, destination, through="00")
+    (destination / reader.LEDGER).write_text(json.dumps(document), encoding="utf-8")
+    with pytest.raises(ValueError):
+        reader.restore(folder, destination, through="01", advance=True)
+    assert (destination / "early.py").read_bytes() == b"early\n"
+    assert not (destination / "late.py").exists()
+
+
+def test_future_target_symlink_cannot_be_followed_during_advancement(tmp_path):
+    folder, destination = tmp_path / "book", tmp_path / "student"
+    two_stage_bundle(folder)
+    reader.restore(folder, destination, through="00")
+    outside = tmp_path / "outside.py"
+    outside.write_bytes(b"untouched")
+    link_or_skip(destination / "late.py", outside)
+    with pytest.raises(ValueError):
+        reader.restore(folder, destination, through="01", advance=True)
+    assert outside.read_bytes() == b"untouched"
+
+
+def test_unknown_stage_is_rejected_before_any_write(tmp_path):
+    folder = tmp_path / "book"
+    make_bundle(folder)
+    with pytest.raises(ValueError):
+        reader.restore(folder, tmp_path / "student", through="99")
+    assert not (tmp_path / "student").exists()
+
+
+def test_published_learning_docs_match_deterministic_render():
+    from scripts import build_learning_docs as builder
+
+    expected = builder.render()
+    actual = {
+        path.relative_to(builder.OUTPUT).as_posix(): path.read_bytes()
+        for path in builder.OUTPUT.rglob("*")
+        if path.is_file()
+    }
+    assert_exact_inventory(
+        actual,
+        {
+            name: content.encode("utf-8") if isinstance(content, str) else content
+            for name, content in expected.items()
+        },
+    )
+    for name, content in expected.items():
+        if name.endswith(".md"):
+            reader.check_fences(content if isinstance(content, str) else content.decode("utf-8"))
+
+
+def prose_outside_fences(text):
+    """Independent CommonMark-style scanner so nested source links are never followed."""
+    result, opened = [], None
+    for line in text.splitlines():
+        if opened is not None:
+            character, width = opened
+            if re.fullmatch(r" {0,3}" + re.escape(character) + "{" + str(width) + r",}\s*", line):
+                opened = None
+            continue
+        match = re.fullmatch(r" {0,3}(`{3,}|~{3,})(.*)", line)
+        if match and not (match[1][0] == "`" and "`" in match[2]):
+            opened = match[1][0], len(match[1])
+        else:
+            result.append(line)
+    assert opened is None, "Unclosed fence in generated documentation"
+    return "\n".join(result)
+
+
+def prose_outside_inline_code(text):
+    result, position = [], 0
+    runs = re.compile(r"(?<!`)(`+)(?!`)")
+    while opening := runs.search(text, position):
+        closing = re.compile(r"(?<!`)" + re.escape(opening[0]) + r"(?!`)").search(
+            text, opening.end()
+        )
+        if closing is None:
+            result.append(text[position : opening.end()])
+            position = opening.end()
+            continue
+        result.append(text[position : opening.start()])
+        position = closing.end()
+    result.append(text[position:])
+    return "".join(result)
+
+
+def test_all_local_links_outside_source_fences_resolve_inside_the_bundle():
+    from scripts import build_learning_docs as builder
+
+    root = builder.OUTPUT.resolve()
+    failures = []
+    for page in sorted(builder.OUTPUT.rglob("*.md")):
+        prose = prose_outside_inline_code(prose_outside_fences(page.read_text(encoding="utf-8")))
+        for target in re.findall(r"\[[^\]\n]*\]\(([^)\n]+)\)", prose):
+            url = urlsplit(target.strip().removeprefix("<").removesuffix(">"))
+            if url.scheme or url.netloc or not url.path:
+                continue
+            path = (page.parent / unquote(url.path)).resolve()
+            if not path.is_relative_to(root) or not path.is_file():
+                failures.append(f"{page.relative_to(root)} -> {target}")
+    assert not failures, "Broken local documentation links:\n" + "\n".join(failures)
+
+
+def test_manifest_covers_owned_tracked_sources_independently_of_generator_groups():
+    from scripts import build_learning_docs as builder
+
+    # Restored projects intentionally have no .git; use this independent VCS comparison
+    # in a checkout and keep exact builder-source coverage active in both environments.
+    rows = reader.read_bundle(builder.OUTPUT)
+    expected = {
+        name: content.encode("utf-8") if isinstance(content, str) else content
+        for _, files in builder.sources()
+        for name, content in files
+    }
+    assert_exact_inventory(rows, expected)
+    if not (ROOT / ".git").exists():
+        return
+    tracked = set(
+        subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT)
+        .decode()
+        .strip("\0")
+        .split("\0")
+    )
+    excluded = {
+        "从零实现AI研发平台_逐步实操手册_完整版.md",
+        "templates/vendor/fastapiadmin.zip",
+        "templates/vendor/yudao-backend.zip",
+        "templates/vendor/yudao-frontend.zip",
+    }
+    owned = {name for name in tracked if not name.startswith("learning-docs/")} - excluded
+    assert not owned - rows.keys(), f"Owned tracked source omitted: {sorted(owned - rows.keys())}"
+    assert not rows.keys() & excluded
+    assert not any(name.startswith("learning-docs/") for name in rows)
+    assert "tests/test_learning_docs.py" in rows
+    assert "scripts/rebuild_learning_docs.py" in rows
+    assert "scripts/build_learning_docs.py" in rows
+    assert "uv.lock" in rows and "tools/node/package-lock.json" in rows
+    assert any(name.endswith(".png") for name in rows)
+
+
+def test_docs_only_bootstrap_runs_isolated_with_original_tree_reads_forbidden(tmp_path):
+    from scripts import build_learning_docs as builder
+
+    docs, destination = tmp_path / "only-book", tmp_path / "student"
+    shutil.copytree(builder.OUTPUT, docs)
+    assert_exact_bytes(
+        (docs / "rebuild.py").read_bytes(),
+        (ROOT / "scripts/rebuild_learning_docs.py").read_bytes(),
+        "rebuild.py",
+    )
+    launch = tmp_path / "isolated-bootstrap.py"
+    launch.write_text(
+        "import pathlib, runpy, sys\n"
+        "forbidden = pathlib.Path(sys.argv[1]).resolve()\n"
+        "def guard(event, args):\n"
+        "    if event == 'open' and isinstance(args[0], (str, bytes)):\n"
+        "        path = pathlib.Path(args[0].decode() if isinstance(args[0], bytes) else args[0]).resolve()\n"
+        "        if path.is_relative_to(forbidden):\n"
+        "            raise RuntimeError('Original project access is forbidden: ' + str(path))\n"
+        "sys.addaudithook(guard)\n"
+        "bootstrap, destination = sys.argv[2:]\n"
+        "sys.argv = [bootstrap, destination]\n"
+        "runpy.run_path(bootstrap, run_name='__main__')\n"
+        "sys.path.insert(0, destination)\n"
+        "import workbench\n"
+        "assert pathlib.Path(workbench.__file__).resolve().is_relative_to(pathlib.Path(destination))\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [sys.executable, "-I", str(launch), str(ROOT), str(docs / "rebuild.py"), str(destination)],
+        cwd=tmp_path,
+        env={key: value for key, value in os.environ.items() if key != "PYTHONPATH"},
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    for name, data in reader.read_bundle(docs).items():
+        assert_exact_bytes((destination / name).read_bytes(), data, name)
+    assert not (destination / ".git").exists()
+    assert not list((destination / "templates/vendor").glob("*.zip"))
+````
+
 ### `tests/test_learning_order.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -103578,6 +104321,603 @@ if __name__ == "__main__":
     main()
 ````
 
+### `scripts/build_learning_docs.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.build_learning_docs；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts.build_handbook`、`scripts.handbook_notes`、`scripts.rebuild_learning_docs`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `stage_for`（L112–L164）：接收`name`。 控制顺序：L114按`name.startswith("workbench/web/")`分支；L116按`name.startswith("workbench/")`分支；L118按`name.startswith("migrations/") or name == "alembic.ini"`分支；L120按`name.startswith("templates/product/") or name.startswith("templates/frontends/")`分支；L122按`name.startswith("templates/business/common/")`分支；L124按`name.startswith(("templates/vendor/", "templates/business/", "templates/deployment/")…`分支；L126按`name.startswith("examples/")`分支；L128按`name.startswith("tools/daytona/") or name.startswith("scripts/daytona") or name.start…`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`test_stage`。 返回路径：L115的`8`；L117的`MODULE_STAGE[path.stem]`；L119的`2`。
+- `test_stage`（L167–L210）：接收`name`。 控制顺序：L168按`name == "tests/conftest.py"`分支；L170按`name == "tests/news_case.py"`分支；L172按`name.startswith("tests/fixtures/")`分支；L188按`stem in early`分支；L190按`stem == "store"`分支；L192按`stem in {"contracts", "business_contracts"}`分支；L194按`stem in {"llm", "guided_models", "provider_structured_outputs"}`分支；L196按`stem.startswith("daytona") or stem == "local_only"`分支。后续分支沿下方源码相同行号继续阅读。 调用`name.startswith`、`Path(name).stem.removeprefix`、`Path`、`stem.startswith`。 返回路径：L169的`2`；L171的`7`；L173的`10`。
+- `language_for`（L213–L238）：接收`name`、`binary`。 控制顺序：L214按`binary`分支；L216按`name.endswith("uv.lock")`分支；L218按`Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile")`分支。 调用`name.endswith`、`Path(name).name.startswith`、`Path`、`{ ".py": "python", ".md": "markdown", ".toml": "toml", ".yml": "y…`。 返回路径：L215的`"base64"`；L217的`"toml"`；L219的`"dockerfile"`。
+- `chunks`（L241–L280）：接收`data`、`binary`、`name`。 源码说明：Keep ordinary modules together; split only long implementations at real boundaries.。 控制顺序：L243按`binary or name.endswith(("uv.lock", "package-lock.json"))`分支；L247按`len(lines) <= 1000`分支；L250按`name.endswith(".py")`分支；L258按`name.endswith(".md")`分支；L268在`len(lines) - first > 1000`成立时循环；L270按`not options`分支；L278按`first < len(lines)`分支。 调用`name.endswith`、`data.decode`、`content.splitlines`、`len`、`ast.parse`、`min`、`ast.walk`、`isinstance`、`enumerate`等。 返回路径：L244的`[data]`；L248的`[data]`；L280的`result or [b""]`。
+- `source_note`（L306–L330）：接收`name`、`content`、`first`、`last`。 控制顺序：L307按`isinstance(content, bytes)`分支；L315按`name in TEACHING_CASES`分支；L317按`not separator`分支；L320遍历`entries.splitlines()`；L322按`match and first <= int(match[1]) <= last`分支；L324按`selected`分支。 调用`isinstance`、`notes`、`detail.replace`、`detail.partition`、`entries.splitlines`、`re.search`、`int`、`selected.append`、`"\n".join`。 返回路径：L308的`"该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"`；L318的`head`；L330的`head`。
+- `source_pages`（L333–L399）：接收`name`、`content`、`stage`。 控制顺序：L339按`binary`分支；L341按`name.endswith(("uv.lock", "package-lock.json"))`分支；L346遍历`enumerate(pieces)`；L366按`index`分支；L368按`index + 1 < len(pieces)`分支；L377按`not piece`分支；L379按`not binary`分支；L389按`not payload.endswith("\n")`分支。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L393的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
+- `read_content`（L402–L403）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L403的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
+- `render`（L406–L453）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L408按`[stage["id"] for stage in curriculum] != STAGES`分支；L409抛异常，停止当前正常路径；L411遍历`sources()`；L412遍历`files`；L414按`set(output).intersection(pages)`分支；L415抛异常，停止当前正常路径；L424遍历`curriculum`；L429按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L453的`output`。
+- `readme`（L456–L535）：接收`curriculum`、`records`。 控制顺序：L470遍历`curriculum`。 调用`len`。 返回路径：L535的`text`。
+- `main`（L538–L566）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L548按`args.check`分支；L555按`wrong`分支；L556抛异常，停止当前正常路径；L560遍历`actual.difference(expected)`；L562遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: scripts/build_learning_docs.py sha256: 9774e52789decaea5120f8edb43fcdf138831fe59a180c92b08b3c45bbc67971 -->
+````python
+"""Build small, staged lessons and lossless source pages from the actual platform."""
+
+import argparse
+import ast
+import base64
+import hashlib
+import json
+import re
+import textwrap
+from pathlib import Path
+
+from scripts.build_handbook import ROOT, sources
+from scripts.handbook_notes import notes, purpose
+from scripts.rebuild_learning_docs import check_fences, comment_line
+
+OUTPUT = ROOT / "learning-docs"
+CONTENT = ROOT / "scripts/learning_docs_content.json"
+STAGES = [
+    "00-environment",
+    "01-contracts",
+    "02-storage",
+    "03-requirements",
+    "04-local-foundation",
+    "05-product",
+    "06-generation",
+    "07-orchestration",
+    "08-control-plane",
+    "09-native",
+    "10-business",
+    "11-local-tools",
+    "12-daytona",
+    "13-delivery",
+    "14-acceptance",
+]
+# Installation order follows imports. Later lessons deepen modules that must exist
+# earlier; optional services are never implicitly started by source restoration.
+MODULE_STAGE = {
+    "__init__": 0,
+    "local_only": 0,
+    "settings": 1,
+    "domain": 1,
+    "business_contracts": 1,
+    "catalog": 1,
+    "errors": 1,
+    "store": 2,
+    "conversation": 3,
+    "llm": 3,
+    "model_protocol": 3,
+    "entity_requirements": 3,
+    "requirement_coverage": 3,
+    "requirement_sources": 3,
+    "business_capabilities": 3,
+    "filesystem": 4,
+    "tools": 4,
+    "owned_lifecycle": 4,
+    "symbols": 4,
+    "knowledge": 4,
+    "retrieval": 4,
+    "rules": 4,
+    "context_mcp": 4,
+    "business_python": 5,
+    "generator": 6,
+    "verification": 6,
+    "product_sql": 6,
+    "postgres_lab": 6,
+    "coding": 7,
+    "flow": 7,
+    "runtime": 7,
+    "recommendation": 7,
+    "toolchain": 7,
+    "aider_tool": 7,
+    "continue_index": 7,
+    "sandbox": 7,
+    "daytona_profiles": 7,
+    "api": 8,
+    "cli": 8,
+    "vendor": 9,
+    "native": 8,
+    "native_acceptance": 9,
+    "native_checks": 9,
+    "native_coding": 9,
+    "native_compatibility": 9,
+    "native_delivery": 9,
+    "native_environment": 9,
+    "native_evidence": 9,
+    "native_frontend": 9,
+    "native_lab": 9,
+    "native_modules": 9,
+    "native_recovery": 9,
+    "native_resources": 9,
+    "native_style": 9,
+    "native_vben": 9,
+    "native_business_checks": 9,
+    "native_business_probe": 9,
+    "scaffolding": 9,
+    "yudao_navigation": 9,
+    "yudao_navigation_checks": 9,
+    "portable": 9,
+    "portable_checks": 9,
+    "business_browser": 9,
+    "business_probe": 9,
+    "business_schema_receipt": 9,
+    "business_native": 9,
+    "business_fastapi": 9,
+    "business_yudao": 9,
+    "daytona_sessions": 12,
+    "daytona_diagnostics": 12,
+    "daytona_worker": 12,
+}
+
+
+def stage_for(name):
+    path = Path(name)
+    if name.startswith("workbench/web/"):
+        return 8
+    if name.startswith("workbench/"):
+        return MODULE_STAGE[path.stem]
+    if name.startswith("migrations/") or name == "alembic.ini":
+        return 2
+    if name.startswith("templates/product/") or name.startswith("templates/frontends/"):
+        return 5
+    if name.startswith("templates/business/common/"):
+        return 5
+    if name.startswith(("templates/vendor/", "templates/business/", "templates/deployment/")):
+        return 9
+    if name.startswith("examples/"):
+        return 3
+    if (
+        name.startswith("tools/daytona/")
+        or name.startswith("scripts/daytona")
+        or name.startswith("scripts/ci_daytona")
+    ):
+        return 12
+    if name.startswith("tools/"):
+        return 11
+    if name == "scripts/news_fixture.py":
+        return 7
+    if name in {
+        "scripts/vendor_templates.py",
+        "scripts/ci_native_generated.py",
+        "scripts/ci_native_bundled.py",
+        "scripts/native_coding_fixture.py",
+    }:
+        return 9
+    if name in {
+        "scripts/ci_toolchain.py",
+        "scripts/ci_aider_workflow.py",
+        "scripts/ci_native_tools.py",
+        "scripts/ci_local_embeddings.py",
+    }:
+        return 11
+    if name == "scripts/ci_clean_install.py":
+        return 13
+    if name.startswith("scripts/business_") or name == "scripts/native_browser.cjs":
+        return 9
+    if name == "scripts/guided_browser.cjs":
+        return 8
+    if name.startswith("tests/"):
+        return test_stage(name)
+    if name.startswith("docs/") or name.startswith(".github/") or name.startswith("scripts/"):
+        return 14
+    if name in {"README.md", "SECURITY.md"}:
+        return 14
+    return 0
+
+
+def test_stage(name):
+    if name == "tests/conftest.py":
+        return 2
+    if name == "tests/news_case.py":
+        return 7
+    if name.startswith("tests/fixtures/"):
+        return 10
+    stem = Path(name).stem.removeprefix("test_")
+    early = {
+        "field_predicate_semantics": 3,
+        "generation_preservation": 6,
+        "product_browser_gate": 6,
+        "workflow": 7,
+        "guided_workflow": 7,
+        "recommendation_stage_budget": 7,
+        "vendor": 9,
+        "native_archive_limits": 9,
+        "native_delivery_boundaries": 9,
+        "native_tools": 11,
+        "delivery_clearance": 13,
+    }
+    if stem in early:
+        return early[stem]
+    if stem == "store":
+        return 2
+    if stem in {"contracts", "business_contracts"}:
+        return 2  # pytest's conftest imports Store.
+    if stem in {"llm", "guided_models", "provider_structured_outputs"}:
+        return 3
+    if stem.startswith("daytona") or stem == "local_only":
+        return 12
+    if stem in {"aider_offline", "continue_index", "local_embeddings", "toolchain"}:
+        return 11
+    if stem.startswith(("native", "vendor", "yudao")):
+        return 13
+    if stem.startswith(("business", "customer")):
+        return 10
+    if stem in {"api", "tools_cli", "guided_selection"}:
+        return 8
+    if stem.startswith(("handbook", "learning", "real_model")):
+        return 14
+    # Complex historical regression cases import several later layers. Keep them
+    # in the final complete suite rather than advertising an un-runnable early test.
+    return 14
+
+
+def language_for(name, binary=False):
+    if binary:
+        return "base64"
+    if name.endswith("uv.lock"):
+        return "toml"
+    if Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile"):
+        return "dockerfile"
+    return {
+        ".py": "python",
+        ".md": "markdown",
+        ".toml": "toml",
+        ".yml": "yaml",
+        ".yaml": "yaml",
+        ".json": "json",
+        ".cjs": "javascript",
+        ".mjs": "javascript",
+        ".ts": "typescript",
+        ".java": "java",
+        ".vue": "vue",
+        ".js": "javascript",
+        ".html": "html",
+        ".css": "css",
+        ".sql": "sql",
+        ".ini": "ini",
+        ".sh": "bash",
+    }.get(Path(name).suffix, "text")
+
+
+def chunks(data, binary, name):
+    """Keep ordinary modules together; split only long implementations at real boundaries."""
+    if binary or name.endswith(("uv.lock", "package-lock.json")):
+        return [data]
+    content = data.decode("utf-8")
+    lines = content.splitlines(keepends=True)
+    if len(lines) <= 1000:
+        return [data]
+    anchors = []
+    if name.endswith(".py"):
+        tree = ast.parse(content)
+        anchors = [
+            min([node.lineno, *(d.lineno for d in node.decorator_list)]) - 1
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            and node.col_offset <= 4
+        ]
+    elif name.endswith(".md"):
+        anchors = [n for n, line in enumerate(lines) if re.match(r"#{1,3} ", line)]
+    else:
+        anchors = [
+            n
+            for n, line in enumerate(lines)
+            if re.match(r"(?:export )?(?:async )?(?:function|class) ", line)
+        ]
+    anchors = sorted(set([0, *anchors, len(lines)]))
+    result, first = [], 0
+    while len(lines) - first > 1000:
+        options = [line for line in anchors if first + 350 <= line <= first + 900]
+        if not options:
+            # A large declaration stays intact through its next natural boundary.
+            options = [line for line in anchors if line > first + 350]
+            last = options[0] if options else len(lines)
+        else:
+            last = options[-1]
+        result.append("".join(lines[first:last]).encode("utf-8"))
+        first = last
+    if first < len(lines):
+        result.append("".join(lines[first:]).encode("utf-8"))
+    return result or [b""]
+
+
+# Short hand-written cases explain decisions; mechanical symbol inventories stay folded.
+TEACHING_CASES = {
+    "workbench/requirement_coverage.py": "例如用户已明确请求标题可搜索，候选Plan却把 searchable 设为 false：coverage_gaps 返回可定位的缺项，流程不能因为JSON合法就批准。reconcile 接收上一版Requirement和新候选；新一轮只是没再提到字段时保留原事实，只有带本轮原话证据的明确更正才能修改。读这一层时用第03阶段的正确计划、缺搜索计划和省略事实三份输入对照，不先背辅助正则。",
+    "workbench/requirement_sources.py": "先把用户原文、已确认合同和模型候选放在各自来源中比较。若同一字段被明确要求为必填，而候选却明确写成可选，应返回冲突诊断交回分析纠错；函数不替用户选择哪项约束获胜。无法可靠定位的旧文本继续保守校验，不能把猜测写成已批准事实。",
+    "workbench/domain.py": "以批准为例：网页传入的是ResumeInput，不是任意字典。action=approve必须携带严格布尔true，字符串true不能当批准；gate_id随后还要与数据库当前关口相符。Plan的字段、关系和业务合同先完成交叉校验，再允许生成器接收，所以模型写出一段JSON并不是绕过边界的办法。",
+    "workbench/business_contracts.py": "例如一条requests到customers的关系需要指向实际存在的实体与字段，某个角色的权限也必须引用已登记角色。BusinessSpec先拒绝这些悬空引用，再检查工作流和受保护系统字段；它输出的是受约束声明，不能包含任意SQL来替代业务合同。执行这些声明的事务和权限判断在第10阶段实现。",
+    "workbench/settings.py": "默认地址A、默认Key A可以被同服务商的planning阶段继承。若planning只改成地址B而未提供Key B，model_for必须在HTTP之前拒绝；否则会把A的密钥发送给B。public和redact只允许显示模型身份与脱敏诊断，练习时不把秘密打印出来证明它存在。",
+    "workbench/store.py": "create_project第一次使用请求键K时创建项目并保存回执；同键同内容返回原结果，同键不同标题抛Conflict。关键是状态变化与回执在同一短事务里完成；若事务中抛异常，新增记录整体回滚。审批还把gate_id绑定到确定版本，而不是只保存一个永远有效的approved标志。",
+    "workbench/llm.py": "complete先选阶段模型并检查预算，构造受约束请求，再通过协议层解析、验证响应并保存使用回执。HTTP成功却返回不符合schema的JSON仍应失败；传输错误的有限重试也不能变成无上限重复收费。测试显式注入MockTransport，生产缺少模型配置时不会静默换成样例答案。",
+    "workbench/model_protocol.py": "服务商原生结构化输出只是传输能力：协议层必须仍检查返回内容大小、JSON结构和本地schema。一个供应商声称strict并不能代替本地验证；不支持的响应形状应给出可脱敏诊断，而不是扫描任意文本直到拼出看似合格的对象。",
+    "workbench/generator.py": "generate_basic把批准Plan和已校验选择写成不可含糊的产物身份，再复制模板、生成迁移并登记每个文件SHA。第一次创建目标目录应得到完整产品；同一路径已经有文件却无相符回执时应停止并保留现场。这里不能用删除重建来伪装幂等，因为目录可能已包含用户修改或数据。",
+    "workbench/verification.py": "verify_basic先核对生成回执与当前源码，再让产品自己的环境真实运行；页面、HTTP和重启失败会保留失败，不能靠模型审阅改成passed。package_basic随后还要在新目录解压复验，检测遗漏文件或借用平台环境的问题。测试后改一个受保护文件，原有报告即失效。",
+    "workbench/flow.py": "Workflow把需求确认、设计、生成、验证和交付排成有条件的图。gate先保存本版审批内容，再interrupt等待；恢复必须提交当前gate_id。智能推荐可以替用户补普通未知项并留下委托记录，但代码验证失败时仍不得进入READY。请沿第07阶段的三次等待状态走一次，而非假设所有节点每次都会执行。",
+    "workbench/runtime.py": "队列任务只是唤醒同一run_id的理由，LangGraph检查点才说明流程停在哪。Runtime认领任务并恢复原图，遇到interrupt保存等待状态；崩溃后不能把上个任务误当下一关的新批准。一个控制库只允许一个Worker，退出时关闭锁与检查点连接，才能在Windows等平台安全恢复。",
+    "workbench/native_modules.py": "批准的实体不是直接拷贝成通用Python CRUD。这里把表和字段翻译成所选框架的真实代码生成输入，再安装实际导出文件与菜单；表名、序列、逻辑删除字段和原生权限均需匹配。源码导出仅证明SOURCE_READY，之后还要编译、启动、HTTP和原生浏览器检查。",
+    "workbench/native_lab.py": "把原生流程看成一串证据：固定来源→专用库→真实生成→SQL/菜单→编译/类型检查→HTTP→原生页面。run_acceptance只能在每一步实际完成后汇总报告。某个模板跑通不能替另一个模板写passed，恢复也必须先核对原始Plan、源码与数据库身份。",
+    "workbench/business_native.py": "业务扩展SQL属于已验证适配器的输出，安装前先验证专用本机库与模板身份。按既定顺序在事务中执行；中途失败整体回滚，记录的是实际执行SQL的哈希。不能接收模型随口生成的任意SQL，也不能为修复冲突自动清空既有业务库。",
+    "workbench/native_evidence.py": "一个passed=true不能证明三角色、逐字段查询和关联权限都被观察。这里检查报告中预期与实际集合、身份、计数、源码哈希等细项，只有覆盖当前批准合同的证据才送审。审阅材料排除原始账号和业务记录，模型看到的也是受限证据而非秘密日志。",
+    "workbench/portable.py": "交付包不能在新电脑上偷偷import旧工作台路径。build_native_delivery只复制明确HELPERS清单、固定原生源码、SQL/菜单与独立启动器；新目录必须从自己的依赖和新数据库启动。源码包不携带真实业务数据，结构不匹配时拒绝恢复，不删除数据强行对齐。",
+    "workbench/sandbox.py": "本机可信验证先通过，Daytona才增加独立执行证据。所选模板/数据库决定profile，镜像、源码和报告身份必须匹配；请求超时不能当作操作未执行而无限重放。运行结果和本次沙箱清理都成立才允许交付，不能用一个API健康响应替代产品验收。",
+}
+
+
+def source_note(name, content, first, last):
+    if isinstance(content, bytes):
+        return "该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"
+    detail = notes(name, content)
+    detail = detail.replace(
+        "**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。",
+        "**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。",
+    )
+    head, separator, entries = detail.partition("**逐个入口与控制逻辑：**\n\n")
+    if name in TEACHING_CASES:
+        head += "**带着一个具体问题阅读：** " + TEACHING_CASES[name] + "\n\n"
+    if not separator:
+        return head
+    selected = []
+    for line in entries.splitlines():
+        match = re.search(r"（L(\d+)–L(\d+)）", line)
+        if match and first <= int(match[1]) <= last:
+            selected.append(line)
+    if selected:
+        head += (
+            "<details>\n<summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>\n\n"
+            + "\n".join(selected)
+            + "\n\n</details>\n\n"
+        )
+    return head
+
+
+def source_pages(name, content, stage):
+    binary = isinstance(content, bytes)
+    data = content if binary else content.encode("utf-8")
+    pieces = chunks(data, binary, name)
+    stem = name.replace("/", "__").replace(".", "_")
+    directory = f"{STAGES[stage]}/sources"
+    if binary:
+        directory += "/assets"
+    elif name.endswith(("uv.lock", "package-lock.json")):
+        directory += "/locks"
+    names = [f"{directory}/{stem}--{n:03d}.md" for n in range(1, len(pieces) + 1)]
+    result = {}
+    language = language_for(name, binary)
+    for index, piece in enumerate(pieces):
+        payload = (
+            "\n".join(textwrap.wrap(base64.b64encode(piece).decode("ascii"), 76))
+            if binary
+            else piece.decode("utf-8")
+        )
+        width = max(4, max((len(x) for x in re.findall(r"`+", payload)), default=0) + 1)
+        fence = "`" * width
+        meta = {
+            "path": name,
+            "part": index + 1,
+            "parts": len(pieces),
+            "encoding": "base64" if binary else "utf-8",
+            "sha256": hashlib.sha256(piece).hexdigest(),
+        }
+        first = sum(part.count(b"\n") for part in pieces[:index]) + 1
+        last = first + len(piece.decode("utf-8").splitlines()) - 1 if not binary else 0
+        body = f"# {name} · {index + 1}/{len(pieces)}\n\n"
+        level = "../" * (len(Path(names[index]).parts) - 2)
+        body += f"[阶段导读]({level}README.md) · [本阶段文件顺序]({level}files.md) · [全部文件索引]({level}../source-index.md)\n\n"
+        if index:
+            body += f"[上一段]({Path(names[index - 1]).name}) · "
+        if index + 1 < len(pieces):
+            body += f"[下一段]({Path(names[index + 1]).name})"
+        body += "\n\n" + source_note(name, content, first, last)
+        body += f"**创建路径：** `{name}`；**本文件共有 {len(pieces)} 段**。"
+        body += "本段是二进制编码数据。" if binary else f"本段覆盖源文件 L{first}–L{last}。"
+        body += (
+            "第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。\n\n"
+        )
+        body += f"本段原始字节数：`{len(piece)}`。"
+        if not piece:
+            body += "原文件为空，不保存路径行后的围栏分隔空行。\n\n"
+        elif not binary:
+            body += (
+                "本段原文以LF换行结束。\n\n"
+                if piece.endswith(b"\n")
+                else "本段原文没有结尾换行；手工保存时去掉围栏前为展示添加的最后一个换行，自动还原器会根据SHA判定。\n\n"
+            )
+        else:
+            body += "按Base64解码后的原始字节数计算。\n\n"
+        body += f"<!-- learning-source: {json.dumps(meta, ensure_ascii=False)} -->\n"
+        body += f"{fence}{language}\n{comment_line(name, language)}\n{payload}"
+        if not payload.endswith("\n"):
+            body += "\n"
+        body += f"{fence}\n"
+        result[names[index]] = body
+    return result, {
+        "path": name,
+        "bytes": len(data),
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "stage": STAGES[stage],
+        "parts": names,
+    }
+
+
+def read_content():
+    return json.loads(CONTENT.read_text(encoding="utf-8"))
+
+
+def render():
+    curriculum = read_content()
+    if [stage["id"] for stage in curriculum] != STAGES:
+        raise ValueError("The teaching stage IDs differ from the source allocation")
+    output, records = {}, []
+    for _, files in sources():
+        for name, content in files:
+            pages, record = source_pages(name, content, stage_for(name))
+            if set(output).intersection(pages):
+                raise ValueError("Source page filename collision: " + name)
+            output.update(pages)
+            records.append(record)
+    records.sort(key=lambda row: (row["stage"], row["path"]))
+    output["manifest.json"] = (
+        json.dumps({"format": 1, "files": records}, ensure_ascii=False, indent=2) + "\n"
+    )
+    output["rebuild.py"] = (ROOT / "scripts/rebuild_learning_docs.py").read_text(encoding="utf-8")
+    index = "# 全部源文件索引\n\n每个链接指向该文件第一段；大文件通过上一段/下一段继续，不能只复制第一段。阶段编号是首次落盘时间，之后章节会继续深入已有模块。\n\n"
+    for stage in curriculum:
+        sid = stage["id"]
+        included = [row for row in records if row["stage"] == sid]
+        pos = STAGES.index(sid)
+        nav = "[总目录](../README.md)"
+        if pos:
+            nav += f" · [上一阶段](../{STAGES[pos - 1]}/README.md)"
+        if pos + 1 < len(STAGES):
+            nav += f" · [下一阶段](../{STAGES[pos + 1]}/README.md)"
+        body = f"# {sid[:2]} · {stage['title']}\n\n{nav}\n\n"
+        body += stage["body"].strip() + "\n\n"
+        body += "## 本阶段源码和后续依赖\n\n"
+        body += f"本阶段首次创建 {len(included)} 个源文件，完整位置见[文件落盘顺序](files.md)。"
+        body += "已在前站创建的模块不重复覆盖；本章深入使用已有模块时回到[总索引](../source-index.md)查找。只有各步骤写明的检查代表本阶段成果，完整平台和外部服务验收留到最后一站。\n"
+        output[f"{sid}/README.md"] = body
+        listing = f"# {stage['title']}：本阶段文件\n\n[返回阶段导读](README.md)\n\n"
+        listing += "按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件与截图编码在 sources/locks 和 sources/assets 下，先读实现模块，需要校对时再打开资源。\n\n"
+        index += f"## [{sid} · {stage['title']}]({sid}/README.md)\n\n"
+        for row in included:
+            part = row["parts"][0]
+            desc = purpose(row["path"])[0]
+            listing += f"- [{row['path']}]({part.removeprefix(sid + '/')})：{desc}；{len(row['parts'])} 段\n"
+            index += f"- [{row['path']}]({part})（{len(row['parts'])} 段）\n"
+        output[f"{sid}/files.md"] = listing
+    output["source-index.md"] = index
+    output["README.md"] = readme(curriculum, records)
+    for name, content in output.items():
+        if name.endswith(".md"):
+            check_fences(content)
+    return output
+
+
+def readme(curriculum, records):
+    text = """# 从零实现 AI 研发平台 · 分阶段实操教材
+
+只保存本目录，就能在另一个空目录重建本项目的自有代码、前端、测试、迁移、配置、锁文件及教材维护工具。不需要本项目仓库、代码骨架或旧版大手册。第三方原生框架按第09阶段的固定提交从公开上游下载并处理；语言解释器、包管理器、依赖和浏览器按第00阶段安装。
+
+## 如何学，而不只是如何复制
+
+从00按顺序走到14。每站先看“为什么”，按落盘清单创建文件，运行该站指定的小实验，核对观察结果，再继续。每个模块页说明职责、上下游和当前段函数的控制逻辑；完整代码按文件职责归类，普通模块一页完整展示；只有超过千行的实现按函数、类或章节的自然边界拆段。锁文件和截图编码单独放在资源层，日常学习无需打开这些大块数据。后续阶段会深化前站因导入依赖而必须先创建的模块，不把它们偷偷留空。
+
+模型只处理需求/规划/必要规则/可选审阅。数据库、模板、代码检查、浏览器和打包由真实工具执行。教材把“可复现确定性平台”“真实模型调用”“三套原生产品”“本机Daytona”分别列出验收证据，不能以一个PASS代替其余路径。
+
+## 目录
+
+"""
+    for stage in curriculum:
+        text += f"- [{stage['id'][:2]} · {stage['title']}]({stage['id']}/README.md)\n"
+    text += f"""
+本版完整收录 **{len(records)} 个源文件**；[源文件总索引](source-index.md)供查找，`manifest.json`记录每个文件的完整SHA-256、字节数、阶段和全部分段。它不是另一个代码下载地址。
+
+## 每个代码块第一行是什么
+
+第一行始终是对应文件的项目相对路径注释，例如 Python 的 `# workbench/business_contracts.py`、JS/JSON 的 `// tools/node/package.json`、HTML/Vue/Markdown 的HTML注释、SQL 的 `--`、CSS 的 `/* */`、INI 的 `;`。JSON、`.python-version`、Base64等本身不支持该注释；它是统一的教材定位行，不属于原文件。
+
+手抄时只删除每块的第一行定位注释，然后按序拼接同一文件全部分段。原文件已有注释、shebang、空行和缩进都保留。不把Markdown围栏复制进去，不把JSON另存为JSONC，不给锁文件加说明文字。源码页的行号不计定位行。自动还原器删除的也是恰好这一行，先检查分段和整文件哈希，正确恢复空文件、无结尾换行和二进制图片后才写盘。
+
+命令示例的路径以`.learning/commands/`开头，表示可选练习脚本；在文字指定的工作目录执行它的内容，不属于平台源文件。`.learning/checks/`是需要手动新建的练习文件；`.learning/output/`是预期输出示意，不保存成程序。源文件页中的大围栏若包含Markdown示例，内部反引号只是原文件的文字，先去外层路径定位行即可。
+
+## 三种实际使用方法
+
+### A. 逐文件手写
+
+00准备工具与空目录，之后按每阶段导读和files.md写文件。不要提前运行`rnd init`、`rnd start`或全套pytest。已有模块不完整时的ImportError是阶段顺序问题。每章仅执行本章已满足前提的检查。
+
+### B. 分阶段落盘，逐段学习
+
+先按00安装uv；下面让uv选取Python3.14运行标准库还原器，不要求系统预装python或Windows的py启动器。以下示例在“同时能看见learning-docs和未来student-project”的父目录执行，PowerShell和Bash都可使用同样命令及正斜线路径。还原器本身兼容Python3.10以上，但平台必须3.14。
+
+```bash
+# .learning/commands/staged-restore.sh
+uv run --no-project --python 3.14 python learning-docs/rebuild.py --check
+uv run --no-project --python 3.14 python learning-docs/rebuild.py student-project --through 00
+uv run --no-project --python 3.14 python learning-docs/rebuild.py student-project --through 01 --advance
+```
+
+每学完一站再把`--through`改为下一站编号。`--advance`会核对已还原文件的哈希；你练习修改过源码时先把练习保存在单独目录，或创建另一个空目录继续，它不会覆盖修改。生成的`.learning-progress.json`只记录教材文件哈希，不执行任何代码，也不启动外部服务。
+
+### C. 一次还原，用于完整性验收
+
+```bash
+# .learning/commands/full-restore.sh
+uv run --no-project --python 3.14 python learning-docs/rebuild.py student-project-complete
+cd student-project-complete
+uv python install 3.14
+uv sync --locked --all-extras
+```
+
+这一步只证明代码落盘与依赖安装。接着按09重建三个上游模板ZIP，按11安装Node工具，按06安装浏览器，再按14执行完整检查。不要把这四行当作全平台已经运行成功。路径、哈希或段数出错时还原器在写任何源码前中止，目的目录必须为空；不要用管理员权限强行覆盖已有工程。
+
+## 学到最后的交付标准
+
+1. 空目录重建后的自有文件与本目录清单逐字节一致，且不是从原仓库复制代码
+2. 三个原生模板来自登记的固定提交，来源摘要、文件数与许可证一致；压缩器版本不同可能改变ZIP压缩字节
+3. 运行完整非PostgreSQL测试、真实浏览器以及独立产品安装；另单独运行PostgreSQL、原生三矩阵和可选本机工具验收
+4. 真实模型需你自己的服务配置和费用授权；确定性夹具不会被描述为真实模型成功
+5. 成品解压到另一个空目录、用新数据库启动，不再导入工作台源目录或读取模型密钥
+
+## 手册维护与旧版兼容
+
+本目录由`scripts/build_learning_docs.py`从当前自有源码及`scripts/learning_docs_content.json`生成。所有生成器、正文源、测试也包含在本目录中，因此还原后能自行维护。旧的大文件仍保留用于兼容，其维护命令不替代本目录的独立验收。
+
+```bash
+# .learning/commands/regenerate-docs.sh
+uv run python -m scripts.build_handbook
+uv run python -m scripts.build_learning_docs
+uv run python -m scripts.build_learning_docs --check
+```
+
+从完整教材重建时先生成旧兼容手册，再生成本目录，最后执行14的测试。重新从上游打包会更新模板清单中的压缩摘要，之后须同步生成两套教材；不允许为了通过检查改来源提交或删除断言。
+"""
+    return text
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--check", action="store_true")
+    args = parser.parse_args()
+    expected = render()
+    actual = (
+        {path.relative_to(OUTPUT).as_posix() for path in OUTPUT.rglob("*") if path.is_file()}
+        if OUTPUT.exists()
+        else set()
+    )
+    if args.check:
+        wrong = actual.symmetric_difference(expected)
+        wrong.update(
+            name
+            for name in actual.intersection(expected)
+            if (OUTPUT / name).read_bytes() != expected[name].encode("utf-8")
+        )
+        if wrong:
+            raise SystemExit("learning-docs is stale: " + ", ".join(sorted(wrong)[:10]))
+        print(f"Staged learning documentation PASS: {len(expected)} files")
+        return
+    # Only remove obsolete files in this generated directory, never source files.
+    for name in actual.difference(expected):
+        (OUTPUT / name).unlink()
+    for name, content in expected.items():
+        path = OUTPUT / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8", newline="\n")
+    print(f"Staged learning documentation written: {len(expected)} files")
+
+
+if __name__ == "__main__":
+    main()
+````
+
 ### `scripts/business_fastapi_browser.cjs`
 
 **作用：FastapiAdmin三角色真实客服页面验收。** 使用临时合成账号通过原生登录、菜单与Fa/Element Plus组件，操作客户/请求/任务、关系、分配、流程、历史、提醒和统计；查询按钮等定位以锁定的真实组件为准，同时核对请求参数、响应记录和页面记录，不能用夹具自造的按钮名代替。检查原生主题及页面错误，保存命名截图。
@@ -105329,9 +106669,9 @@ if __name__ == "__main__":
 - `capture_owned_descendants`（L36–L53）：接收`process`。 控制顺序：L37按`os.name == "nt" or not Path("/proc").is_dir()`分支；L40按`root is None`分支；L43遍历`Path("/proc").iterdir()`；L44按`path.name.isdecimal() and (identity := process_identity(int(path.name)))`分支；L47在`added := { pid: identity for pid, identity in snapshot.items() if…`成立时循环。 调用`Path("/proc").is_dir`、`Path`、`process_identity`、`Path("/proc").iterdir`、`path.name.isdecimal`、`int`、`snapshot.items`、`owned.update`、`owned.items`。 返回路径：L38的`None`；L41的`None`；L53的`{pid: identity[1] for pid, identity in owned.items()}`。
 - `cleanup_owned_descendants`（L56–L65）：接收`owned`。 控制顺序：L59遍历`reversed(list(owned.items()))`；L61按`current is not None and current[1] == started`分支。 调用`reversed`、`list`、`owned.items`、`process_identity`、`os.kill`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `run_full_tests`（L68–L142）：接收`argv`、`directory`、`env`、`junit`、`reports`、`timeout`。 源码说明：Bound the whole expanded suite, retain failure status, and own its cleanup. This is a suite orchestration budget, not a browser or individual-test wait. Crossing it always fails, even if an interrupt 。 控制顺序：L89按`owned is None`分支；L105按`owned is not None`分支；L110按`process is not None and process.poll() is None`分支；L127按`junit.is_file()`分支；L133按`timed_out`分支；L134抛异常，停止当前正常路径；L135按`failure`分支；L136抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`reports.mkdir`、`time.monotonic`、`print`、`subprocess.Popen`、`process_options`、`process.wait`、`capture_owned_descendants`、`stop_process`、`process.send_signal`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L145–L239）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L156断言`not list((destination / "templates/vendor").glob("*.zip"))`；L172断言`(destination / OUTPUT.name).read_bytes() == text`；L177遍历`zip(expected["sources"], actual["sources"], strict=True)`；L179遍历`("name", "sha", "source_digest", "files")`；L180断言`want[field] == got[field]`；L189按`not npm`分支；L190抛异常，停止当前正常路径；L215按`not cases or any( case.find("failure") is not None or case.find("error") is not None …`分支。后续分支沿下方源码相同行号继续阅读。 调用`OUTPUT.read_bytes`、`json.loads`、`(ROOT / "templates/vendor/manifest.json").read_text`、`tempfile.TemporaryDirectory`、`Path`、`book.write_bytes`、`restore`、`extract`、`text.decode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L145–L242）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L156断言`not list((destination / "templates/vendor").glob("*.zip"))`；L172断言`(destination / OUTPUT.name).read_bytes() == text`；L177遍历`zip(expected["sources"], actual["sources"], strict=True)`；L179遍历`("name", "sha", "source_digest", "files")`；L180断言`want[field] == got[field]`；L192按`not npm`分支；L193抛异常，停止当前正常路径；L218按`not cases or any( case.find("failure") is not None or case.find("error") is not None …`分支。后续分支沿下方源码相同行号继续阅读。 调用`OUTPUT.read_bytes`、`json.loads`、`(ROOT / "templates/vendor/manifest.json").read_text`、`tempfile.TemporaryDirectory`、`Path`、`book.write_bytes`、`restore`、`extract`、`text.decode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_handbook.py sha256: d3c4f72f3421368ad5f95c2081cafe92287a491822605ad6ca2799acdbc7e96f -->
+<!-- source-file: scripts/ci_handbook.py sha256: 62b10f10e8def98f52b32e2aca78419c905784e5d0b0a973f172dccda3fab03a -->
 ````python
 """Verify construction from the handbook alone, without original source/archive access."""
 
@@ -105518,6 +106858,9 @@ def main():
         # The exact original text roundtrip and all upstream source digests above
         # have already been independently checked, not weakened to fit new output.
         run([sys.executable, "-m", "scripts.build_handbook"], destination, env)
+        # New staged-doc tests require the generated directory, which is rebuilt
+        # from the restored source rather than embedded recursively in this book.
+        run([sys.executable, "-m", "scripts.build_learning_docs"], destination, env)
         # Build the optional real Continue component from the textbook's restored files,
         # not from the original project's generated bundle or installed node_modules.
         npm = shutil.which("npm")
@@ -105572,6 +106915,195 @@ def main():
             json.dumps(report, indent=2) + "\n", encoding="utf-8"
         )
         print(json.dumps(report, ensure_ascii=False, indent=2))
+
+
+if __name__ == "__main__":
+    main()
+````
+
+### `scripts/ci_learning_docs.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.ci_learning_docs；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts.build_handbook`、`scripts.build_learning_docs`、`scripts.ci_handbook`、`scripts.rebuild_learning_docs`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `main`（L18–L166）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L41遍历`expected.items()`；L42按`(destination / name).read_bytes() != data`分支；L43抛异常，停止当前正常路径；L44按`list((destination / "templates/vendor").glob("*.zip"))`分支；L45抛异常，停止当前正常路径；L48按`not uv or not npm`分支；L49抛异常，停止当前正常路径；L53按`not node or not module or not Path(module).is_dir()`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_bundle`、`reports.mkdir`、`tempfile.TemporaryDirectory`、`Path`、`shutil.copytree`、`dict`、`run`、`str`、`expected.items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.run`（L36–L37）：接收`argv`、`cwd`、`timeout`。 调用`subprocess.run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: scripts/ci_learning_docs.py sha256: 933722d1c1685e3fbff7c3b6ac428001e2b3eecf56f379128f2f853bff3346ba -->
+````python
+"""Prove a directory-only textbook rebuild, then run the actual complete platform suite."""
+
+import json
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+import xml.etree.ElementTree as ET
+from pathlib import Path
+
+from scripts.build_handbook import OUTPUT as LEGACY
+from scripts.build_learning_docs import OUTPUT, ROOT
+from scripts.ci_handbook import run_full_tests
+from scripts.rebuild_learning_docs import read_bundle, sha
+
+
+def main():
+    expected = read_bundle(OUTPUT)
+    reports = ROOT / "reports"
+    reports.mkdir(exist_ok=True)
+    status = {
+        "passed": False,
+        "phase": "copy_docs",
+        "original_project_imported": False,
+        "original_archives_copied": False,
+    }
+    try:
+        with tempfile.TemporaryDirectory(prefix="rnd-learning-only-") as folder:
+            base = Path(folder)
+            docs = base / "learning-docs"
+            shutil.copytree(OUTPUT, docs)
+            destination = base / "student-project"
+            env = dict(os.environ, PYTHONPATH="", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+
+            def run(argv, cwd=destination, timeout=900):
+                subprocess.run(argv, cwd=cwd, env=env, check=True, timeout=timeout)
+
+            status["phase"] = "standard_library_rebuild"
+            run([sys.executable, "-I", str(docs / "rebuild.py"), str(destination)], cwd=base)
+            for name, data in expected.items():
+                if (destination / name).read_bytes() != data:
+                    raise AssertionError("Docs-only byte comparison failed: " + name)
+            if list((destination / "templates/vendor").glob("*.zip")):
+                raise AssertionError("Original upstream archives were copied")
+            uv = shutil.which("uv")
+            npm = shutil.which("npm")
+            if not uv or not npm:
+                raise RuntimeError("Install uv and Node 22/npm before full clean-room acceptance")
+            status["phase"] = "browser_preflight"
+            node = shutil.which("node")
+            module = env.get("PRODUCT_VERIFY_PLAYWRIGHT")
+            if not node or not module or not Path(module).is_dir():
+                raise RuntimeError(
+                    "Install Playwright 1.56.1/Chromium as stage 06 describes and set "
+                    "PRODUCT_VERIFY_PLAYWRIGHT to its absolute module directory"
+                )
+            # Several actual browser tests intentionally use Playwright's hermetic
+            # installation. Check that same location before launching thousands of tests.
+            env["PLAYWRIGHT_BROWSERS_PATH"] = "0"
+            run(
+                [
+                    node,
+                    "-e",
+                    "const {chromium}=require(process.argv[1]); "
+                    "(async()=>{const b=await chromium.launch({headless:true}); "
+                    "await b.close(); console.log('Hermetic Chromium preflight PASS')})()"
+                    ".catch(e=>{console.error(e.message);process.exitCode=1})",
+                    module,
+                ],
+                cwd=base,
+                timeout=60,
+            )
+            status["phase"] = "locked_install"
+            run([uv, "sync", "--locked", "--all-extras"])
+            python = str(
+                destination / ".venv" / ("Scripts/python.exe" if os.name == "nt" else "bin/python")
+            )
+            # The student's own venv is used; not even the project's .pth entry is reused.
+            run(
+                [
+                    python,
+                    "-c",
+                    "from pathlib import Path; import workbench.store; "
+                    "assert Path(workbench.store.__file__).resolve().is_relative_to(Path.cwd())",
+                ]
+            )
+            status["phase"] = "exact_textbook_roundtrip"
+            run([python, "-m", "scripts.build_handbook"])
+            if (destination / LEGACY.name).read_bytes() != LEGACY.read_bytes():
+                raise AssertionError("Legacy compatibility book roundtrip differs")
+            run([python, "-m", "scripts.build_learning_docs"])
+            for original in docs.rglob("*"):
+                if original.is_file():
+                    relative = original.relative_to(docs)
+                    if (
+                        destination / "learning-docs" / relative
+                    ).read_bytes() != original.read_bytes():
+                        raise AssertionError("Staged textbook roundtrip differs: " + str(relative))
+            pinned = json.loads(expected["templates/vendor/manifest.json"])
+            status["phase"] = "fetch_pinned_upstream_templates"
+            run([python, "-m", "scripts.vendor_templates", "--fetch"])
+            actual = json.loads(
+                (destination / "templates/vendor/manifest.json").read_text(encoding="utf-8")
+            )
+            for want, got in zip(pinned["sources"], actual["sources"], strict=True):
+                for field in ("name", "url", "sha", "source_digest", "files", "license"):
+                    if want[field] != got[field]:
+                        raise AssertionError(
+                            "Pinned template mismatch: " + want["name"] + ":" + field
+                        )
+            # zlib variations may legitimately change compressed ZIP bytes only.
+            run([python, "-m", "scripts.build_handbook"])
+            run([python, "-m", "scripts.build_learning_docs"])
+            status["phase"] = "build_real_node_tools"
+            run([npm, "ci", "--prefix", "tools/node", "--no-audit", "--no-fund"])
+            run([npm, "run", "build", "--prefix", "tools/node"])
+            env["RND_REQUIRE_NODE_TESTS"] = "1"
+            status["phase"] = "ruff"
+            run([python, "-m", "ruff", "check", "."])
+            run([python, "-m", "ruff", "format", "--check", "."])
+            run([python, "-m", "scripts.build_learning_docs", "--check"])
+            status["phase"] = "full_non_postgres_tests"
+            junit = base / "learning-docs-tests.xml"
+            run_full_tests(
+                [
+                    python,
+                    "-m",
+                    "pytest",
+                    "-m",
+                    "not postgres",
+                    "-v",
+                    "--tb=short",
+                    f"--junitxml={junit}",
+                ],
+                destination,
+                env,
+                junit,
+                reports,
+            )
+            shutil.copyfile(junit, reports / "learning-docs-tests.xml")
+            cases = ET.parse(junit).getroot().findall(".//testcase")
+            if not cases or any(
+                case.find("failure") is not None or case.find("error") is not None for case in cases
+            ):
+                raise AssertionError("The actual platform suite must pass")
+            status.update(
+                passed=True,
+                phase="complete",
+                files_restored=len(expected),
+                binary_files_restored=sum(name.endswith(".png") for name in expected),
+                tests_passed=sum(case.find("skipped") is None for case in cases),
+                tests_skipped=sum(case.find("skipped") is not None for case in cases),
+                test_selection="full non-PostgreSQL platform suite with real Node/browser tools",
+                python_environment="independent locked student-project venv",
+                third_party_fixed_revisions_rebuilt=len(actual["sources"]),
+                manifest_sha256=sha((docs / "manifest.json").read_bytes()),
+            )
+    except BaseException as exc:
+        status["error_type"] = type(exc).__name__
+        raise
+    finally:
+        (reports / "learning-docs-clean-room.json").write_text(
+            json.dumps(status, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+        )
+        print(json.dumps(status, ensure_ascii=False, indent=2), flush=True)
 
 
 if __name__ == "__main__":
@@ -111658,6 +113190,592 @@ def notes(name, content):
     return out + "\n"
 ````
 
+### `scripts/learning_docs_content.json`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.learning_docs_content.j；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: scripts/learning_docs_content.json sha256: 3dd56245a5a1aef3428b91289937e5db27d1ede5fcd6bbffb2dac22b73ec910e -->
+````json
+[
+  {
+    "id": "00-environment",
+    "title": "项目与安装边界",
+    "goal": "从真正的空目录建立可以安装的 Python 包，先验证解释器和锁文件，再接触平台入口。",
+    "prerequisites": [
+      "能打开终端与保存UTF-8文本；无需预装Python",
+      "持有完整learning-docs目录；安装期可访问Git和uv官方来源"
+    ],
+    "concepts": [
+      "Python解释器、虚拟环境与包不是同一事物",
+      "声明依赖与锁定依赖",
+      "平台目录、运行数据目录、交付目录的不同寿命"
+    ],
+    "steps": [
+      "先写本阶段配置、锁文件和 workbench/__init__.py",
+      "在该根目录安装 Python3.14 和锁定主环境",
+      "核对运行解释器与基础库；不要调用尚不存在的 rnd 命令"
+    ],
+    "checks": [
+      "Python版本必须3.14.x",
+      "import fastapi、pydantic、sqlalchemy 成功",
+      "没有 .env 密钥也是此站正常状态"
+    ],
+    "troubleshooting": [
+      "SyntaxError先核对解释器，而非改写源码以迁就3.12",
+      "锁文件不匹配先找漏抄文件，不随手 uv lock 升级",
+      "网络下载失败属于安装阻塞，未获得测试结果"
+    ],
+    "boundaries": [
+      "此站只建立开发环境，不证明应用可启动",
+      "不需要模型账号、Docker、PostgreSQL、Node或Daytona服务"
+    ],
+    "body": "## 真正从没有工具的电脑开始\n\n本教程不要求克隆本项目源码。你需要的是这份完整 `learning-docs` 教材目录、一处准备写代码的空目录，以及终端和纯文本编辑器。编辑器任选你熟悉的工具，能创建目录、显示文件扩展名并按UTF-8保存即可；别把Word文档改名成 `.py`。基础平台可在Windows/Linux学习；原生框架和Daytona章节请使用其明确支持的Linux/WSL环境。\n\n先从 [Git官方安装入口](https://git-scm.com/install/) 选择操作系统并按官方步骤安装。Git在后面的固定上游源码获取和Aider隔离副本中需要；不必先用它克隆本项目。安装后重新打开终端，运行 `git --version` 应显示版本。若提示命令不存在，先检查安装器提示与PATH，不盲目重装Python。\n\nuv有不依赖预装Python的独立安装器。下面是 [uv官方安装文档](https://docs.astral.sh/uv/getting-started/installation/) 提供的两种入口，按自己的系统只选一条；它会下载并执行官方安装脚本，你也可以先从官方文档检查脚本内容。\n\n```bash\n# .learning/commands/00-install-uv-linux.sh\ncurl -LsSf https://astral.sh/uv/install.sh | sh\n```\n\n```powershell\n# .learning/commands/00-install-uv-windows.ps1\npowershell -ExecutionPolicy ByPass -c \"irm https://astral.sh/uv/install.ps1 | iex\"\n```\n\n安装后关闭并重新打开终端，运行 `uv --version` 应显示版本。PowerShell的这条命令为本次官方安装脚本使用相应执行策略，不需要为了教程永久关闭系统安全设置。若组织策略不允许安装，请使用组织批准的官方安装方式，不绕过限制。\n\n## 先取得解释器，再选择手写或逐站还原\n\n你还没有 `pyproject.toml` 时，也可以让uv安装Python3.14；这解决“教材还原器本身需要Python”的前置问题。在教材目录的上一级执行：\n\n```bash\n# .learning/commands/00-bootstrap-python.sh\nuv python install 3.14\nuv run --no-project --python 3.14 python -c \"import sys; assert sys.version_info[:2] == (3, 14); print(sys.version.split()[0])\"\n```\n\n应打印3.14.x。`--no-project` 表示这一条命令不寻找尚未创建的项目配置。接下来有两条都真实可行的学习路径：手写时新建 `student-project`，按本阶段源码索引创建每个文件；辅助还原时先不要创建目标目录，由教材自己的标准库脚本只还原第00站。两种方式都逐站读解释与运行检查，不需要先得到完整平台骨架。\n\n```bash\n# .learning/commands/00-restore-first-stage.sh\nuv run --no-project --python 3.14 python learning-docs/rebuild.py student-project --through 00\ncd student-project\n```\n\n此时应只有第00站登记的源文件与学习进度记录，没有API、CLI和Worker。下一站可以手写补齐，也可以从 `student-project` 目录运行下面的增量命令；它在已恢复源码匹配时新增到指定阶段，不覆盖你改过的代码：\n\n```bash\n# .learning/commands/00-next-stage-example.sh\nuv run --no-project --python 3.14 python ../learning-docs/rebuild.py . --through 01 --advance\n```\n\n这条是“开始第01站时再执行”的示例。若你有意修改了旧源码，先理解并保存自己的变更；还原器拒绝覆盖是保护，不应通过删除检查绕开。正式安装项目依赖要在第00站文件已写齐后执行下节命令。\n\n## 先认清你正在搭建什么\n\n最终平台有两种程序。第一种是研发工作台，负责保存需求、审批、调用模型和运行工具；第二种是它生成的业务产品，具有自己的依赖、用户和数据库。现在只搭建第一种程序的安装外壳。`pyproject.toml` 声明 Python 范围、依赖和 `rnd` 入口，`uv.lock` 固定实际解析结果，`.python-version` 帮终端选择解释器，`workbench/__init__.py` 让工作台成为可安装包。入口声明可以先存在，入口指向的 `cli.py` 要等后面实现；安装成功不会替你补出 CLI。\n\n按本阶段源码索引逐文件写入，不要先复制整个最终仓库。根目录是含 `pyproject.toml` 的目录；教材目录和将来的产品解压目录都不是它。保存文件使用 UTF-8，不要让编辑器暗中加 `.txt`。锁文件较长是因为依赖身份必须完整记录，它是数据，不需要当作算法逐行背诵。不要删去看起来不重要的 hash，也不要把自己重新生成的锁冒充书中同一组依赖。\n\n下面所有 `.learning/commands/...` 标记表示终端命令示例的归属，不要求保存成脚本；后面明确写“保存为”的练习才要创建文件。\n\n```bash\n# .learning/commands/00-install.sh\nuv python install 3.14\nuv sync --locked\nuv run python -c \"import sys; assert sys.version_info[:2] == (3, 14); import fastapi, pydantic, sqlalchemy; print('00 PASS: Python 3.14 and base dependencies')\"\n```\n\n最后一条应打印 `00 PASS: Python 3.14 and base dependencies`。Python3.12/3.13不是可互换环境：最终代码包含 Python3.14 的语法与运行接口，靠“我电脑有 Python”不足以判断可用。Aider 后面独立使用3.12，那是工具隔离要求，不是把平台降级到3.12。\n\n## 学会区分安装与运行\n\n`uv sync --locked` 会下载并安装可信来源的依赖；这不是把生成业务交给远程工具执行。平台设计要求业务工具在本机，允许聊天模型访问你明确配置的 HTTPS 推理服务。第三方源码快照、Python锁文件和Node锁文件解决的是不同层的复现问题，不能只保存其中一个。\n\n本阶段还没有 Store、API、CLI、模型网关。不要运行 `rnd init`、`rnd doctor` 或 `rnd start` 来检验半成品；这些命令导入后续模块，`init` 还会准备原生模板，`start` 还会要求真实模型配置。此时运行它们报缺模块是顺序错误，不是让你提前粘贴全部源码的理由。\n\n完成后能说清三句话：平台源码可版本管理；`.data` 是后续本机状态且不能作为源码分享；最终ZIP要去新目录和新数据库验收。此站不要放真实模型密钥，也不要建立实际业务数据。\n"
+  },
+  {
+    "id": "01-contracts",
+    "title": "配置与数据合同",
+    "goal": "把自由输入限制成可核查的模板组合、需求、设计与审批数据。",
+    "prerequisites": [
+      "00环境安装成功",
+      "完整写入local_only、settings、catalog、business_contracts、domain、errors"
+    ],
+    "concepts": [
+      "Pydantic模型与确定性校验",
+      "用户输入、能力目录和批准记录各有职责",
+      "配置继承不能导致跨服务泄露密钥"
+    ],
+    "steps": [
+      "从local_only的回环地址校验读到Settings.model_for",
+      "写Selection与字段、需求、Plan等合同",
+      "先认识BusinessSpec结构，业务运行将在10阶段展开",
+      "用直接练习代替pytest，避免conftest提前导入Store"
+    ],
+    "checks": [
+      "默认python-basic选simple-admin/SQLite",
+      "yudao-vben/SQLite被ValidationError拒绝",
+      "显式错误长度被拒绝",
+      "更改阶段服务地址但无独立密钥时被拒绝"
+    ],
+    "troubleshooting": [
+      "不要把ValidationError吞成正常结果",
+      "MODE是模型名，不是开发模式",
+      "SecretStr防止常见展示泄密，不是允许打印原值"
+    ],
+    "boundaries": [
+      "这时只校验结构，不启动网络、数据库或模型",
+      "Selection.capabilities需要03的business_capabilities，01不要调用它"
+    ],
+    "body": "## 先写边界，再写功能\n\n从 `local_only.py` 开始：`local_http_url` 接受回环服务，拒绝公网、局域网、URL凭据和查询参数；模型地址由 `ModelProfile.validate_endpoint` 单独校验，允许远程 HTTPS。两类地址规则分开，才能做到“模型可以外部推理，其余工具本地运行”，而不是一刀切地禁网或放网。\n\n`Settings` 把环境配置变成类型化对象。四个模型阶段依次是 requirements、planning、coding、review。`model_for` 决定哪些值可以继承，`public` 决定哪些值可以显示。尤其要读“地址改变但阶段密钥为空”分支：拒绝复用默认密钥，是在请求发出前阻止跨服务泄露。`_env_file=None` 只是不读个人 `.env`；进程环境变量仍然有效，遇到意外配置时检查当前终端，不要打印密钥排错。\n\n`catalog.py` 固定后端、前端、数据库的合法组合。`domain.py` 不把字典原样转交后续工具，而是校验项目名、字段类型、保留名称、枚举、示例与批准动作。`BusinessSpec` 提前落盘，是因为 `Plan` 在导入时直接引用它；提前实现合同不代表现在就已经拥有角色和流程运行时。此时只理解“业务行为要能声明与验证”，第10阶段再把这些声明变成数据库事务。\n\n## 保存并运行第一个合同练习\n\n保存为 `.learning/checks/01_contracts.py`。这不是产品代码，而是你对刚写模块提出的可重复问题。\n\n```python\n# .learning/checks/01_contracts.py\nfrom pydantic import ValidationError\nfrom workbench.catalog import Selection\nfrom workbench.domain import FieldSpec, digest\nfrom workbench.settings import Settings\n\nchosen = Selection(template=\"python-basic\")\nassert (chosen.frontend, chosen.database) == (\"simple-admin\", \"sqlite\")\nfor create in (\n    lambda: Selection(template=\"yudao-vben\", database=\"sqlite\"),\n    lambda: FieldSpec(name=\"title\", kind=\"text\", min_length=81, max_length=80),\n):\n    try:\n        create()\n    except ValidationError:\n        pass\n    else:\n        raise AssertionError(\"invalid contract was accepted\")\nassert digest({\"a\": 1, \"b\": 2}) == digest({\"b\": 2, \"a\": 1})\nsettings = Settings(\n    base_url=\"https://one.example/v1\",\n    api_key=\"exercise-only\",\n    model=\"demo\",\n    planning_base_url=\"https://two.example/v1\",\n    planning_api_key=\"\",\n    _env_file=None,\n)\ntry:\n    settings.model_for(\"planning\")\nexcept ValueError:\n    print(\"01 PASS: valid selection; invalid contracts and cross-provider key reuse rejected\")\nelse:\n    raise AssertionError(\"a different provider requires its own key\")\n```\n\n```bash\n# .learning/commands/01-check.sh\nuv run python .learning/checks/01_contracts.py\n```\n\n应出现一行以 `01 PASS` 开头的文字；示例地址没有被请求，字符串 `exercise-only` 只是本地假值。把一个断言临时反过来应得到 `AssertionError`，改回后再继续。不要删断言来获得绿色结果。\n\n现在不要运行 `pytest tests/test_contracts.py`：pytest 会先加载全局 `tests/conftest.py`，它顶层导入 Store，而 Store 是下一站。这种隐藏依赖比“测试文件名叫合同测试”更能决定何时可执行。也不要调用 `Selection.capabilities()`，其业务能力展开在下一批模块完成后才可用。\n"
+  },
+  {
+    "id": "02-storage",
+    "title": "持久化与迁移",
+    "goal": "在没有网页和模型的情况下，证明任务状态可持久化、事务可回滚、重试可幂等。",
+    "prerequisites": [
+      "01合同通过",
+      "Store、Alembic配置与两份迁移齐全",
+      "tests/conftest与本阶段测试齐全"
+    ],
+    "concepts": [
+      "控制数据库与产品数据库不同",
+      "事务覆盖业务变化与请求回执",
+      "幂等键绑定请求内容",
+      "审批版本绑定数据摘要"
+    ],
+    "steps": [
+      "按表之间外键理解Project/Run/Message/Job/Revision/Approval/Step/Event",
+      "先跑迁移，再直接调用Store",
+      "验证相同键重放与不同内容冲突",
+      "观察故意失败的事务不会留下半条项目"
+    ],
+    "checks": [
+      "Alembic版本为0002",
+      "相同请求只创建一个项目",
+      "同键不同内容抛Conflict",
+      "失败事务无残留"
+    ],
+    "troubleshooting": [
+      "SQLite锁冲突先查是否复用实际.data而非临时目录",
+      "Windows删除临时库前先dispose连接池",
+      "迁移env.py不得导入API或Runtime"
+    ],
+    "boundaries": [
+      "没有后台工作线程与图检查点",
+      "不会创建正式用户产品数据库"
+    ],
+    "body": "## 从内存对象跨进数据库\n\n合同只能保证“这一份输入长得正确”，不能保证进程重启后记得它。`Store` 使用 SQLAlchemy，保存项目、运行、消息、排队任务、请求回执、审批修订和步骤证据。先画出 Project → Run → Message/Job 的归属，再看 Revision 与 Approval 为什么共用 gate_id：一次批准对应某个确定版本的内容，不能漂移到后来改过的设计。\n\n`Store.tx` 是短事务边界；`request → _request` 把请求指纹和响应与实际变化一起提交。第一次创建成功后，网络重试带同一个幂等键应得到原响应；同键换了内容则冲突。幂等不是“忽略所有重复动作”，更不是允许把一个人的批准挪到下一道关卡。`step` 记录已完成步骤的回执，用于避免安全可重放步骤无意义地重做；后续仍要核对输入身份和源码指纹。\n\n平台使用 Alembic 升级控制库，而不是每次启动调用删除重建。`migrations/env.py` 接收已有连接时复用它，否则自行建立 Store；它只能依赖本阶段基础层，不应导入还没实现的 API 和 Runtime。初始迁移建立控制表，第二份迁移加入运行选择与持续委托数据。数据库的版本号应是 `0002`，不会因为你少抄一份迁移而自动补齐。\n\n## 用临时目录验证四件事\n\n保存为 `.learning/checks/02_storage.py`：\n\n```python\n# .learning/checks/02_storage.py\nfrom pathlib import Path\nfrom tempfile import TemporaryDirectory\nfrom sqlalchemy import text\nfrom workbench.settings import Settings\nfrom workbench.store import Conflict, Project, Store\n\nwith TemporaryDirectory(prefix=\"rnd-learning-store-\") as directory:\n    store = Store(\n        Settings(data_dir=Path(directory), database_url=\"\", install_products=False, _env_file=None)\n    )\n    try:\n        store.migrate()\n        with store.engine.connect() as connection:\n            assert connection.scalar(text(\"SELECT version_num FROM alembic_version\")) == \"0002\"\n        first = store.create_project(\"客服学习\", \"same-request\")\n        assert store.create_project(\"客服学习\", \"same-request\") == first\n        try:\n            store.create_project(\"另一个项目\", \"same-request\")\n        except Conflict:\n            pass\n        else:\n            raise AssertionError(\"idempotency conflict was ignored\")\n        try:\n            with store.tx() as session:\n                session.add(Project(title=\"must roll back\"))\n                raise RuntimeError(\"exercise rollback\")\n        except RuntimeError:\n            pass\n        assert len(store.list_projects()) == 1\n    finally:\n        store.engine.dispose()\nprint(\"02 PASS: migration, idempotency, conflict and rollback\")\n```\n\n```bash\n# .learning/commands/02-check.sh\nuv run python .learning/checks/02_storage.py\nuv run pytest tests/test_contracts.py tests/test_store.py -q\n```\n\n第一条应打印 `02 PASS`，第二条应正常退出且没有 failed/error。测试会用临时库；确认没有把 `DATABASE_URL` 环境变量指向你已有的真实数据库。`finally` 在清理临时目录前关闭连接池，特别避免 Windows 文件句柄未释放。\n\n这一站的成功意味着控制面的持久化规则成立。它还不意味着 LangGraph 的暂停点被保存，也不意味着 Worker 已启动。稍后 `checkpoints.db` 管“图停在哪”，`workbench.db` 管“用户看见什么任务和批准”；产品库则管客户、请求和任务，三者不能混用。\n"
+  },
+  {
+    "id": "03-requirements",
+    "title": "需求保真与模型协议",
+    "goal": "让模型提出结构化候选，再由确定性规则保留既有事实、拒绝漏项与冲突。",
+    "prerequisites": [
+      "02临时库与基础测试通过",
+      "requirement_coverage、requirement_sources、entity_requirements、business_capabilities完整",
+      "llm与model_protocol及其依赖齐全"
+    ],
+    "concepts": [
+      "结构正确不等于需求正确",
+      "省略不代表删除",
+      "更正必须引用当前用户来源",
+      "模型协议失败与实现失败分层"
+    ],
+    "steps": [
+      "先写覆盖检查与保留合并，再写来源冲突",
+      "把SDK输出接入同一Pydantic合同",
+      "运行无网络模型协议测试",
+      "故意删搜索能力验证缺口仍存在"
+    ],
+    "checks": [
+      "正确计划无缺口，删除searchable产生缺口",
+      "模型省略的facts仍被保留",
+      "协议测试无真实供应商请求"
+    ],
+    "troubleshooting": [
+      "JSON可解析但字段错误仍应失败",
+      "冲突需求需澄清，不能硬改Plan去满足互斥条件",
+      "不要把生产无密钥改成固定模型答案"
+    ],
+    "boundaries": [
+      "不承诺任意自然语言都可自动穷尽理解",
+      "test_requirement_coverage/source_conflicts完整回归到14运行，03用可执行纯函数与协议测试"
+    ],
+    "body": "## 两道不同的门：响应合同与需求覆盖\n\n`model_protocol.py` 接管服务商结构化输出的协议边界：选择正式 LangChain 集成、检查HTTP状态和响应大小、解析JSON、执行本地严格验证。`llm.ModelGateway` 再负责阶段模型选择、调用预算、缓存/回执与安全诊断。返回合法JSON只是第一道门；例如用户要求标题可搜索，而候选计划把 `searchable` 设为 false，所有JSON字段都合法，业务仍然错误。\n\n因此 `requirement_coverage.py` 不依赖模型自己宣布“全部覆盖”。它读取已保存的 Requirement，包括类型化字段约束、实体清单、既有 facts 及受约束的旧文本表达，再与 Plan 比较。`entity_requirements.py` 负责实体字段清单；开放清单要求“至少有这些”，封闭清单还要求“不能多出别的”。`business_capabilities.py` 专门处理角色动作、范围、关联、提醒、统计等业务义务，不能把这些义务错当作普通字段。\n\n多轮澄清最大的陷阱是遗漏。`reconcile` 保留上一轮已确认的事实，不因下一轮模型没再写一遍就删除。真正的修改要有 `RequirementChange`，其 `source_quote` 必须能对应本轮新收到的用户更正。`requirement_sources.py` 进一步检测不同来源中的互斥约束；诊断指出冲突双方，不能自己决定哪方胜出。智能推荐是补齐普通未知项的委托，不是修改明确要求的授权。\n\n## 一个无需真实模型的反例实验\n\n保存为 `.learning/checks/03_requirements.py`：\n\n```python\n# .learning/checks/03_requirements.py\nfrom workbench.domain import Plan, Requirement\nfrom workbench.requirement_coverage import coverage_gaps, reconcile\n\nrequirement = Requirement(\n    summary=\"请求标题\",\n    users=[\"员工\"],\n    data_scope=\"per_user\",\n    features=[\"管理请求\"],\n    acceptance=[\"标题可搜索\"],\n    facts={\"original\": \"保留原始标题\"},\n    field_requirements=[\n        {\n            \"entity\": \"request\",\n            \"field\": \"title\",\n            \"kind\": \"text\",\n            \"required\": True,\n            \"max_length\": 80,\n            \"searchable\": True,\n        }\n    ],\n)\nplan = Plan(\n    title=\"请求\",\n    data_scope=\"per_user\",\n    acceptance=[\"标题可搜索\"],\n    entities=[\n        {\n            \"name\": \"request\",\n            \"description\": \"请求\",\n            \"fields\": [\n                {\n                    \"name\": \"title\",\n                    \"kind\": \"text\",\n                    \"required\": True,\n                    \"max_length\": 80,\n                    \"searchable\": True,\n                }\n            ],\n        }\n    ],\n)\nassert coverage_gaps(requirement, plan) == []\nwrong = plan.model_copy(deep=True)\nwrong.entities[0].fields[0].searchable = False\nassert coverage_gaps(requirement, wrong)\nomitted = requirement.model_copy(update={\"facts\": {}, \"field_requirements\": []})\nmerged = reconcile(requirement.model_dump(), omitted, corrections=[])\nassert merged.facts == requirement.facts\nassert merged.field_requirements == requirement.field_requirements\nprint(\"03 PASS: coverage detects loss; omission preserves intent\")\n```\n\n```bash\n# .learning/commands/03-check.sh\nuv run python .learning/checks/03_requirements.py\nuv run pytest tests/test_llm.py tests/test_provider_structured_outputs.py tests/test_field_predicate_semantics.py -q\n```\n\n练习应打印 `03 PASS`，测试应无 failed/error。协议测试通过显式 MockTransport 检查请求响应合同，不会验证你自己的供应商账号。`deep=True` 很重要：否则错误样本可能共享嵌套对象，误把正确计划也改坏。把练习里的“正确计划”“缺搜索计划”“省略事实的下一轮”对应回三个独立变量，就能看清各函数的职责。\n\n不要在这一站直接跑 `tests/test_requirement_coverage.py` 或 `tests/test_requirement_source_conflicts.py` 的整文件。它们混合纯函数、工作流和原生适配/诊断数据用例，既有后续Runtime导入，也读取后续fixtures。第14阶段完整源码就位后再跑它们；这并不是少测，而是把集成测试放到真实依赖成立之后。\n"
+  },
+  {
+    "id": "04-local-foundation",
+    "title": "文件安全与源码检索",
+    "goal": "建立可定位行号、可验证新鲜度的本机源码上下文，限制文件访问与工具执行。",
+    "prerequisites": [
+      "03合同与需求模块齐全",
+      "filesystem、tools、symbols、knowledge、retrieval、rules齐全；coding/toolchain在07落盘"
+    ],
+    "concepts": [
+      "路径归属与secret排除",
+      "源码SHA与索引身份",
+      "AST/Tree-sitter与FTS分工",
+      "受限规则解释不等于exec"
+    ],
+    "steps": [
+      "先实现文件访问和受控进程",
+      "写本机符号索引与检索",
+      "观察二次索引复用与源码变化后拒绝旧索引",
+      "用一正一反一非法输入验证Rules"
+    ],
+    "checks": [
+      "demo.py能按model_for命中",
+      "未变化第二次索引reused=1",
+      "源码变化后查询拒绝旧索引",
+      "import os规则被拒绝"
+    ],
+    "troubleshooting": [
+      "索引目录必须位于源码目录外",
+      "先检查真实起止行，不把命中文件名当语法解析",
+      "子进程失败先看退出码与限量日志"
+    ],
+    "boundaries": [
+      "此站默认不启用Continue、向量或Aider",
+      "test_toolchain整文件有未来依赖，完整工具回归放12之后"
+    ],
+    "body": "## 检索要能回答“证据在哪一行”\n\n`filesystem.py` 是其他工具的共同入口：解析目标必须留在授权根目录内，遍历时排除敏感配置、运行数据和日志，写入使用原子替换，解压检查危险路径。它看起来比模型调用普通，却决定后面索引和交付包会不会把 `.env`、数据库或运行日志当源码带走。先跟踪 `inside → files → manifest`，再看生成器、上下文和打包器怎样共同使用这些函数。\n\n`symbols.py` 负责多语言语法；Python使用AST，Java/TypeScript/JavaScript/HTML使用固定Tree-sitter语法。`knowledge.build_index` 保存文件SHA、符号及起止行，第二次只重用指纹未变的文件。`retrieval.py` 再生成FTS索引、检索片段和紧凑仓库地图。它们不是同一个黑箱：解析告诉你“这个定义在哪”，全文检索告诉你“哪些位置含相关词”，新鲜度检查告诉你“现在还能不能信这个索引”。\n\n`tools.py` 只接收明确的字符串参数数组，清理子进程环境、设置期限并清理本次进程组。它是可信固定工具的执行器，不是可接收任意模型 shell 的安全沙箱。`rules.py` 允许有限AST节点，按自己的解释器计算单记录规则；第07站实现的 `coding.py` 会进一步把改动锁定到 `custom_rules.py` 和正确前像SHA。规则通过也只证明那段受限业务表达式有效，不能由此授权改鉴权、测试或启动器。\n\n## 观察真实索引的生命周期\n\n保存为 `.learning/checks/04_index.py`：\n\n```python\n# .learning/checks/04_index.py\nfrom pathlib import Path\nfrom tempfile import TemporaryDirectory\nfrom workbench.knowledge import build_index\nfrom workbench.retrieval import query\nfrom workbench.rules import Rules, UnsafeRule\n\nwith TemporaryDirectory(prefix=\"rnd-learning-index-\") as temporary:\n    root = Path(temporary)\n    source, index = root / \"source\", root / \"index\"\n    source.mkdir()\n    file = source / \"demo.py\"\n    file.write_text(\"def model_for(stage):\\n    return stage\\n\", encoding=\"utf-8\")\n    assert build_index(source, index)[\"files\"] == 1\n    assert build_index(source, index)[\"reused\"] == 1\n    assert any(hit[\"path\"] == \"demo.py\" for hit in query(source, index, \"model_for\")[\"matches\"])\n    file.write_text(\"def model_for(stage):\\n    return 'changed'\\n\", encoding=\"utf-8\")\n    try:\n        query(source, index, \"model_for\")\n    except ValueError:\n        pass\n    else:\n        raise AssertionError(\"stale index was accepted\")\nrule = Rules(\n    \"def validate(entity, data):\\n    if data['quantity'] < 0:\\n        raise ValueError('nonnegative')\\n    return None\\n\"\n)\nrule.validate(\"request\", {\"quantity\": 0})\ntry:\n    rule.validate(\"request\", {\"quantity\": -1})\nexcept ValueError:\n    pass\nelse:\n    raise AssertionError(\"negative example was accepted\")\ntry:\n    Rules(\"import os\\n\")\nexcept UnsafeRule:\n    pass\nelse:\n    raise AssertionError(\"arbitrary code was accepted\")\nprint(\"04 PASS: source-backed retrieval, stale rejection and bounded rules\")\n```\n\n```bash\n# .learning/commands/04-check.sh\nuv run python .learning/checks/04_index.py\n```\n\n应打印 `04 PASS`。其中 `demo.py` 只被当源码解析，没有执行它。索引和源码是并列目录，因为把输出放进被扫描的目录会产生自我索引。现在的检索不需要Node和向量服务，切换更多引擎要等第11站。\n\n学习时随手打开命中的文件，看行号对应的真实函数；然后把 `query` 的字符预算调得过小，观察明确拒绝，而不是让上下文静默截断。上下文预算与来源指纹共同保护规划：模型收到的是可追溯的源码证据，源码注释也仍然是不可信数据，不能覆盖用户批准。\n"
+  },
+  {
+    "id": "05-product",
+    "title": "产品模板与认证",
+    "goal": "先把将被复制的完整业务应用写齐，理解产品自己的认证、模型、迁移与界面。",
+    "prerequisites": [
+      "04安全文件与规则解释器通过",
+      "templates/product全部文件、templates/frontends/simple-admin全部文件",
+      "business/common/policy与business_python按依赖先实现"
+    ],
+    "concepts": [
+      "模板文件还不是生成后的项目",
+      "平台令牌、模型Key、产品用户Token互不通用",
+      "字段合同贯穿API校验、SQL与表单",
+      "权限依赖服务端而不是按钮隐藏"
+    ],
+    "steps": [
+      "按schema→fields/querying→app→manage/start顺序阅读",
+      "再写simple-admin浏览器交互与验证脚本",
+      "把业务分支完整落盘，第10站深学",
+      "只做源码语法检查，生成后才能运行"
+    ],
+    "checks": [
+      "所有模板Python文件可由3.14解析",
+      "Node就绪时三个核心CJS/JS脚本语法检查通过",
+      "模板根目录不被当成产品直接启动"
+    ],
+    "troubleshooting": [
+      "缺approved-spec.json或selection.json是尚未生成，不手工复制平台配置蒙混",
+      "ModuleNotFoundError rule_engine说明误在模板目录直接运行",
+      "认证失败先辨别使用了哪一种令牌"
+    ],
+    "boundaries": [
+      "语法通过不代表HTTP或浏览器运行通过",
+      "不提供默认真实管理员密码、不在文档放真实凭据"
+    ],
+    "body": "## 为什么先写模板，再写生成器\n\n生成器的主要工作不是让模型写一整套CRUD，而是把已审阅的应用模板和批准的结构组合起来。因此这一站先完成“将被复制的产品”，下一站才写复制和冻结设计的过程。`templates/product` 整个目录都需要落盘，包括业务扩展和验证脚本，因为生成器按完整目录复制；不能把尚未讲解的业务文件先省略，否则最终包不再是同一实现。\n\n从 `schema.py` 阅读数据流：它读取生成后的 `approved-spec.json`，根据字段声明建SQLAlchemy表，决定使用独立 SQLite 文件还是本机 PostgreSQL。`fields.py` 为请求建立严格输入模型，`querying.py` 把关键词、枚举筛选和含边界的日期查询变成参数化条件。`app.py` 提供注册、登录与CRUD，每条数据通过服务端当前用户约束所属范围，不能信任客户端提交的 owner_id。\n\n密码使用带盐哈希；产品发出的访问Token在数据库中保存其哈希与有效期。平台访问令牌保护“谁能操作研发平台”，产品Token保护“谁能访问最终客户记录”，模型API_KEY则只用于推理供应商，三者不能互换。普通注册和管理员初始化也是两回事：业务产品的初始化管理员由 `manage.py bootstrap-admin` 单独建立，密码通过终端隐藏输入，不能凭借普通注册获得管理角色。\n\n## 页面只是完整链路的一环\n\n`templates/frontends/simple-admin/app.js` 根据 `/schema` 呈现已批准实体和字段，把日期、枚举、搜索/筛选条件映射到HTTP请求。选择关系、提交表单、显示错误和重新加载需要保持一致；不能只看首屏渲染就认为认证和业务完成。业务模式安装时，`business_runtime.py` 替换相关CRUD与schema路由，继续使用同一个认证入口，并在每次请求从服务端重新加载角色。\n\n`verify.py` 是可信验收入口。普通实体走 `verify-browser.cjs`；客服业务由 `verify_business.py` 与 `verify-business-browser.cjs` 检查。这些测试脚本也会进入交付包，让新目录复验不必借平台源码。它们不受编码模型控制，不能在规则失败时改测试以求通过。\n\n## 本站检查：模板齐全，但暂时不启动\n\n```bash\n# .learning/commands/05-syntax.sh\nuv run python -m compileall -q templates/product templates/business/common\n```\n\n命令应退出码为0；成功可能没有输出。它只编译语法，不导入模板应用，也不创建产品数据库。此刻不要在 `templates/product` 中执行 `uv run python app.py`：它尚没有生成的 `approved-spec.json`、`selection.json`、迁移文件和从规则解释器复制出的 `rule_engine.py`。缺这些文件是阶段边界，不是应当手工做一套重复配置。\n\nNode22准备好后，可增加下面的纯语法检查；没有Node时将本项记录为“待第06阶段浏览器准备”，不能伪装通过。\n\n```bash\n# .learning/commands/05-node-syntax.sh\nnode --check templates/frontends/simple-admin/app.js\nnode --check templates/product/verify-browser.cjs\nnode --check templates/product/verify-business-browser.cjs\n```\n\n本阶段完成后，你应该能沿着“批准字段 → schema → API输入校验 → SQL写入 → 前端表单”口述完整路径，并指出服务端何处阻止跨用户访问。第10站会把角色、关联、工作流、提醒和统计展开；这里先保证完整产品文件集合就位，不把未来功能留成 `pass`。\n"
+  },
+  {
+    "id": "06-generation",
+    "title": "确定性生成与独立验证",
+    "goal": "把批准的Plan变成真实文件，验证本次文件对应本次设计，并首次运行真实产品。",
+    "prerequisites": [
+      "05产品模板完整",
+      "generator、product_sql、verification、postgres_lab及其依赖齐全",
+      "带simple-admin验收前准备Node22/Playwright1.56.1/Chromium"
+    ],
+    "concepts": [
+      "生成回执与源码manifest",
+      "已有目录保护",
+      "环境故障不同于代码故障",
+      "浏览器证据绑定实体与字段"
+    ],
+    "steps": [
+      "跟踪generate_basic冻结spec/selection/迁移",
+      "先跑生成保护测试",
+      "显式安装浏览器工具后运行生成验收练习",
+      "保留生成回执与verification.json阅读"
+    ],
+    "checks": [
+      "generation.json包含spec_digest、selection、files",
+      "已有不匹配目录被保留而不是覆盖",
+      "真实产品报告http/restart/passed均true",
+      "simple-admin具有逐实体真实browser证据"
+    ],
+    "troubleshooting": [
+      "缺Playwright模块检查绝对路径与当前终端环境",
+      "缺Chromium回到显式安装阶段，不在运行时隐式联网",
+      "重新生成失败不要删除用户.data"
+    ],
+    "boundaries": [
+      "模型尚未参与此处Plan输入",
+      "install_products=False只适合开发测试，不能声称独立依赖验收"
+    ],
+    "body": "## 一份批准设计怎样变成可运行项目\n\n`generator.generate_basic` 首先校验模板选择与数据范围，再检查目标目录是否为危险链接或已经存在。新目录中复制产品模板、规则解释器和所选前端，冻结 `approved-spec.json` 与 `selection.json`，生成固定迁移并导出参考DDL。最后把设计摘要、选择和完整文件指纹写入目录外的 `generation.json`。参考SQL用于阅读和核对；正常启动由版本化迁移执行，不要再手工把参考SQL执行第二遍。\n\n已存在的产品不是可随时删掉的临时产物。只有相符生成回执时才允许安全重用；缺回执、计划改变、选择改变或目录身份异常都应保留现场并拒绝。这个分支保护产品数据库、用户笔记和人工维护的文件。幂等的含义是“重做同一请求不损坏结果”，不是“每次清空再生成看起来一样”。\n\n`verification.verify_basic` 先将当前manifest与生成回执对比。可信模板、验证器和启动器不能被编码器改动；只允许规则文件走指定路径。然后解析源码、运行正反规则样例、安装产品自己的锁定依赖，调用 `run_probe → verify.py` 进行迁移、真实HTTP、重启和浏览器检查。最后把源码摘要绑定到报告，防止测试过后换一份文件仍拿旧报告交付。\n\n## 先检验保护，再准备浏览器\n\n```bash\n# .learning/commands/06-generator-contracts.sh\nuv run pytest tests/test_generation_preservation.py -q\n```\n\n应无 failed/error。该组测试故意破坏回执并放入用户文件哨兵，验证失败后每个字节仍在；它并不证明产品已经启动。\n\n完整 simple-admin 产品需要真实浏览器。先打开 [Node.js官方下载页](https://nodejs.org/en/download)，在版本选择中明确选22.x（至少22.13），再选你的系统与架构，使用官方安装器/预编译包；不要直接采用页面默认的另一个主版本。也可在 [官方版本归档](https://nodejs.org/en/download/archive) 查找22.x。安装后重开终端，运行 `node --version` 和 `npm --version`；前者应是v22.x且不低于22.13。安装到其他终端的Node不一定进入当前PATH。\n\nLinux/WSL在项目根目录执行：\n\n```bash\n# .learning/commands/06-browser-linux.sh\nnpm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1\nexport PLAYWRIGHT_BROWSERS_PATH=0\nnode .native/browser/node_modules/playwright/cli.js install --with-deps chromium\nexport PRODUCT_VERIFY_PLAYWRIGHT=\"$PWD/.native/browser/node_modules/playwright\"\n```\n\nWindows PowerShell执行对应版本：\n\n```powershell\n# .learning/commands/06-browser-windows.ps1\nnpm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1\n$env:PLAYWRIGHT_BROWSERS_PATH = '0'\nnode .native/browser/node_modules/playwright/cli.js install chromium\n$env:PRODUCT_VERIFY_PLAYWRIGHT = (Resolve-Path '.native/browser/node_modules/playwright').Path\n```\n\nLinux `--with-deps` 可能需要本机管理员安装系统库，按系统提示由你处理。环境变量仅对当前终端及子进程有效，后续平台和测试从同一终端启动。模块路径不是浏览器URL，也不是Chromium可执行文件。安装失败要先修复环境，不通过改成 api-only 来规避本来选择的页面验收。\n\n## 保存一个真正运行的生成练习\n\n保存为 `.learning/checks/06_generate.py`：\n\n```python\n# .learning/checks/06_generate.py\nfrom pathlib import Path\nfrom tempfile import TemporaryDirectory\nfrom workbench.domain import Plan\nfrom workbench.generator import generate_basic\nfrom workbench.settings import Settings\nfrom workbench.verification import verify_basic\n\nplan = Plan(\n    title=\"请求标题练习\",\n    data_scope=\"per_user\",\n    acceptance=[\"CRUD与两用户隔离\"],\n    entities=[\n        {\n            \"name\": \"request\",\n            \"description\": \"请求\",\n            \"fields\": [{\"name\": \"title\", \"kind\": \"text\", \"max_length\": 80, \"searchable\": True}],\n        }\n    ],\n)\nwith TemporaryDirectory(prefix=\"rnd-learning-generation-\") as temporary:\n    root = Path(temporary)\n    product = root / \"run/product\"\n    settings = Settings(\n        data_dir=root / \"state\",\n        database_url=\"\",\n        install_products=True,\n        tool_timeout=600,\n        _env_file=None,\n    )\n    generation = generate_basic(\n        plan,\n        product,\n        {\"template\": \"python-basic\", \"frontend\": \"simple-admin\", \"database\": \"sqlite\"},\n    )\n    assert \"approved-spec.json\" in generation[\"files\"]\n    report = verify_basic(plan, product, settings)\n    assert report[\"passed\"] is True and report[\"http\"] and report[\"restart\"]\n    assert report[\"browser\"][\"real_browser\"] is True\n    assert report[\"isolated_dependencies\"] is True\nprint(\"06 PASS: generated files, isolated dependencies, real HTTP/browser and restart\")\n```\n\n```bash\n# .learning/commands/06-runtime.sh\nuv run python .learning/checks/06_generate.py\nuv run pytest tests/test_product_browser_gate.py -q\n```\n\n只有实际执行并出现 `06 PASS` 才能记“产品运行通过”。这个Plan是公开写在练习里的确定性输入，不是假装来自模型。还没有测试后续流程图；下一站才让需求、审批和这些工具衔接起来。\n"
+  },
+  {
+    "id": "07-orchestration",
+    "title": "审批状态机与恢复",
+    "goal": "用持久状态机串联需求、设计、生成、验证与交付，并证明中断不吞批准。",
+    "prerequisites": [
+      "06真实产品运行通过且浏览器仍可用",
+      "flow、runtime、conversation、recommendation齐全",
+      "toolchain、sandbox、daytona_profiles必须在运行时导入链内提前就位"
+    ],
+    "concepts": [
+      "控制库与图检查点协同",
+      "interrupt与gate_id",
+      "一步回执和任务认领",
+      "持续委托不跳过验证",
+      "预算暂停可恢复"
+    ],
+    "steps": [
+      "按compile图边逐节点阅读",
+      "先用FixtureGateway运行人工三关卡",
+      "测试旧gate拒绝与重启恢复",
+      "再测试智能推荐各阶段独立修复预算"
+    ],
+    "checks": [
+      "人工路径经历WAITING_REQUIREMENTS/DESIGN/DELIVERY",
+      "CRUD不调用coding模型",
+      "旧gate不能消费新批准",
+      "最终READY带cleanroom通过"
+    ],
+    "troubleshooting": [
+      "单Worker锁错误先检查第二个进程",
+      "PAUSED_LIMIT调整配置后重试原运行",
+      "BLOCKED读具体诊断，不新建任务抹除证据"
+    ],
+    "boundaries": [
+      "本阶段模型使用显式测试夹具",
+      "Daytona源码前置仅满足import，不表示已安装或运行服务"
+    ],
+    "body": "## 图负责顺序，工具负责真相\n\n`flow.Workflow` 把前面写好的函数串成节点：分析需求、澄清/确认、形成设计、设计校验、生成、受限编码、独立验证、可选本机沙箱、可选模型审阅、交付批准和打包。按 `compile` 中的节点与条件边阅读，不要把某个节点函数存在误认为它一定会执行。例如纯CRUD不需要编码模型；只有已批准的额外单记录规则进入编码与有界修复。\n\n`gate` 先由 Store 固化这一版审批内容，再调用 LangGraph 的 `interrupt`。用户回答带 gate_id，恢复时再次核对当前版本与已存批准；模型不能通过在JSON里写 `approved=true` 自己跨过关卡。`conversation.py` 将“批准”“智能推荐”等控制词与普通需求内容区分，避免把批准口令当新需求再次发给模型。\n\n`Runtime` 负责取队列任务、载入检查点、进入图、完成任务和归类错误。SQLite使用独立 `checkpoints.db`；PostgreSQL使用对应checkpoint后端。文件锁和数据库锁限制一个Worker。`last_job_id` 与当前中断共同防止“图已推进，但任务完成记录还没写入”这种崩溃窗口重复消耗下一次回答。\n\n## 依赖闭包为什么比章节标题更重要\n\n此站第一次跑整条本地流程。`flow.plan` 会导入 `toolchain.prepare_context`，`flow.design` 即使是local配置也会导入 `sandbox.validate_configuration`，后者又需要 `daytona_profiles.py`。这些文件必须先完整写入；Daytona SDK和服务仍是第12站才安装启用的可选运行能力。不要为了看起来顺序漂亮把源码换成假stub，也不要因为文件提前存在就声称沙箱已经验收。\n\n模型使用 `tests/conftest.py` 的 `FixtureGateway`，这是明确的测试替身，只为让同样输入可重现。生产 `rnd start` 不会在缺Key时偷偷选择它。夹具控制模型响应，但生成、迁移、HTTP、浏览器和干净解压仍由真实本机工具决定结果。\n\n```bash\n# .learning/commands/07-state-machine.sh\nuv run pytest tests/test_workflow.py tests/test_guided_workflow.py tests/test_recommendation_stage_budget.py -q\n```\n\n前提是相关测试文件已按本阶段索引写齐。需求覆盖完整历史回归含原生适配用例，来源冲突回归还读取诊断fixtures，recommendation_recovery会导入CLI，guided_completion会读取独立部署模板，因此这些整文件统一放第14站全套运行；此处只运行当前闭包完整的三个文件。预期所有用例正常退出，没有failed/error。`test_complete_default_flow` 会实际依次检查 `WAITING_REQUIREMENTS`、`WAITING_DESIGN`、`WAITING_DELIVERY`，再看到 `READY` 和cleanroom报告；其模型调用只有 requirement 与 plan，恰好证明CRUD不靠模型自由编码。\n\n## 主动制造一次“不能继续”\n\n读测试里的旧gate、第二Worker和模型预算反例，先说出你预期的错误，再运行对应测试。`MAX_ROUNDS=0` 和 `MAX_MODEL_CALLS=0` 表示不设累计上限，不意味着HTTP重试或自动修复无限。智能推荐对每个阻塞阶段有独立修复预算，修复失败进入 `BLOCKED` 并保存诊断；不能把需求澄清消耗的修复次数错误借到设计阶段，也不能删掉验收条件来解除阻塞。\n\n本阶段结束时应能跟踪同一run_id从排队到等待、从批准到恢复。真正的恢复是继续已有身份与证据，而非重新新建一个项目看起来成功。下一站只是在这条已测链路外加API、CLI和操作台，不把业务逻辑搬进网页按钮。\n"
+  },
+  {
+    "id": "08-control-plane",
+    "title": "API、CLI与操作台",
+    "goal": "在已验证内核上增加本机操作入口，保持鉴权、幂等与模板先选流程一致。",
+    "prerequisites": [
+      "07状态机测试通过",
+      "api、cli、web静态文件与工具CLI齐全",
+      "完整原生vendor尚未准备时不能运行rnd init"
+    ],
+    "concepts": [
+      "展示层调用Store/Runtime而非复制逻辑",
+      "健康与就绪不同",
+      "平台本机令牌与Host限制",
+      "HTTP幂等键"
+    ],
+    "steps": [
+      "先TestClient验证无Worker API",
+      "再核对CLI帮助和本机地址校验",
+      "最后用真实模型配置启动平台",
+      "从同一浏览器完整走选择、输入与等待点"
+    ],
+    "checks": [
+      "health=ok，ready=200",
+      "错误Bearer=401，非本机Host=400",
+      "同键重复创建返回同项目",
+      "页面先确认组合才输入需求"
+    ],
+    "troubleshooting": [
+      "rnd start缺模型配置是明确前提，不以夹具兜底",
+      "init缺vendor归档应等09而非联网猜模板",
+      "readiness失败分清数据库和Worker"
+    ],
+    "boundaries": [
+      "仅本机单操作人，不是公网生产多租户身份体系",
+      "真实供应商调用会产生费用，纯API测试不会"
+    ],
+    "body": "## 一套内核，三种入口\n\n`api.create_app` 把 Store 和 Runtime 接到FastAPI生命周期，启动时迁移并取得平台访问令牌；可选启动一个内置Worker。关闭时通知Worker停下、等待线程退出、释放数据库。`/health` 说明进程能回答，`/ready` 进一步检查数据库与要求中的Worker是否可用，它们不能互相替代。\n\n所有数据接口和下载都依赖本机Bearer令牌；TrustedHost限制可信主机名，防止把本地服务当开放网络API。写操作继续要求 `Idempotency-Key`，不是到了HTTP层就丢掉上一站的重复提交保护。`/catalog` 来自固定模板组合，`/models` 和运行模型回执只显示安全摘要，不展示Key原文。\n\n`cli.py` 是另一位HTTP客户端：只连接回环平台，读取本机令牌，创建项目/运行后轮询等待点。网页 `workbench/web` 做同样的事。两者都必须先确定模板、兼容前端和数据库，再提交需求。按钮“智能推荐”修改的是持续委托状态，不是一次普通模型提示；“恢复人工确认”在后续关卡恢复人工决策。\n\n## 先测API，不要求真实账号\n\n```bash\n# .learning/commands/08-api.sh\nuv run pytest tests/test_api.py tests/test_guided_selection.py -q\nuv run rnd --help\nuv run rnd doctor\n```\n\nAPI测试使用 `create_app(..., start_worker=False)` 和临时Store。应验证错误令牌得到401、恶意Host得到400、重复幂等请求返回同一项目、缺幂等键得到422。帮助应列出实际已有命令。`doctor` 在没有配置真实模型时如实显示missing，这是此时允许的诊断结果，不叫模型验证通过。\n\n`rnd init` 在当前实现中还会解压两类原生模板。若你按阶段从空目录写到这里，vendor文件要到第09站准备；现在先不运行 `init`。真实启动所需的 `.env` 可以在原生初始化完成后由 `init` 创建，或在你已经理解配置内容后从 `.env.example` 复制。不要在缺归档时改坏 `init`，也不要把实际Key写进书中练习或Git。\n\n`workbench/native.py` 在这一站先创建，因为 `/templates` 接口需要其中的catalog来列出模板定义与配置状态。这里只读取目录信息，不需要ZIP或PostgreSQL；真正准备上游源码、运行原生生成器和验收仍在第09站。\n\n## 真实操作台的第一次启动\n\n完成第09站的原生归档准备并填写自己的 `BASE_URL`、`API_KEY`、`MODE` 后，才执行下列真实启动命令。它们是后续回到本节的操作，不是本阶段无Key测试的隐藏前提。\n\n```bash\n# .learning/commands/08-live-start.sh\nuv run rnd init\nuv run rnd models\nuv run rnd start\n```\n\n另一个同目录终端执行 `uv run rnd token`，把输出填入 `http://127.0.0.1:8000/` 的本机页面，不分享给别人。浏览器选择 python-basic/simple-admin/SQLite 后，再输入需求。CLI的等价入口是 `uv run rnd chat --template python-basic --frontend simple-admin --database sqlite`。没有模型配置时 `start` 应拒绝；生产入口不能静默改用测试夹具。\n\n记录你看到的run_id，并练习用 `uv run rnd show 运行UUID` 查看同一任务。等待、失败、预算暂停各有真实含义；页面存在下载按钮也仍需后面的交付证据。平台只监听本机，并没有公网多用户身份体系，不要为了让别人访问而改为 `0.0.0.0`。\n"
+  },
+  {
+    "id": "09-native",
+    "title": "原生快照与框架接入",
+    "goal": "接入固定上游源码与真正的原生生成器，保持框架认证、菜单、ORM和前端风格。",
+    "prerequisites": [
+      "08控制入口齐全",
+      "vendor清单、许可证、归档与脚本可复现",
+      "Linux/WSL、PG/Redis、Node22、对应pnpm；芋道另需JDK17/Maven",
+      "uv postgres额外依赖安装"
+    ],
+    "concepts": [
+      "自有适配代码与第三方源码分开",
+      "原生生成ZIP不等于运行验收",
+      "专用空_codegen库",
+      "原生风格与菜单鉴权属于验收"
+    ],
+    "steps": [
+      "验证manifest与归档身份，再解压",
+      "先学习native/native_modules与框架导出挂载",
+      "学习environment/frontend/owned_lifecycle管理真实进程",
+      "最后用独立原生CI脚本执行一个模板再另一个"
+    ],
+    "checks": [
+      "三个归档SHA匹配且许可证齐全",
+      "SOURCE_READY不能冒充READY",
+      "真实编译/类型检查/浏览器各有报告",
+      "恢复身份不匹配拒绝而不清库"
+    ],
+    "troubleshooting": [
+      "psycopg缺失先安装postgres extra",
+      "不得用已有业务库代替专用空库",
+      "原生页面风格不符排查适配器，不能换通用页面"
+    ],
+    "boundaries": [
+      "本节受固定上游版本和已适配组合约束",
+      "原生运行很重，未运行矩阵必须明确未验证"
+    ],
+    "body": "## 原生不是给通用CRUD换一个名字\n\n`vendor.py` 根据manifest核对三个源码归档：FastapiAdmin、芋道后端、Vben前端。它们保留固定提交和许可证，解压复用也要重新核对源码身份。普通克隆已经带归档；从只有教材的空目录恢复时，要使用书中的完整重建路径，从指定公开提交重建归档，不能拿主分支最新ZIP代替。上游源码不是你自行实现的文件，教材应当清楚区分“重建上游快照”与“手写自有适配器”。\n\n`native.py` 知道各模板的固定来源与生成接口；`native_modules.py` 把已批准实体转成适合框架的数据库表和真实代码生成请求，再将导出文件装进原框架。FastapiAdmin继续使用自己的认证、模块、Vue管理端；芋道继续使用Java后端、菜单权限和Vben界面。字段和表名还要适配框架保留列、序列与逻辑删除约定，不能把Python Basic文件复制过去宣称原生。\n\n`native_environment.py` 准备本次后端与本机数据库连接，`native_frontend.py` 负责真实依赖、类型检查、构建与预览，`owned_lifecycle.py` 追踪本次启动的进程与端口。`native_style.py` 同时检查原生布局/主题指纹和生成页面组件。`native_lab.py` 组合这些真实操作，`native_recovery.py` 只在源码、Plan、数据库身份一致且明确可恢复的阶段继续；任意硬杀后的未知状态并不自动安全。\n\n## 固定源码去哪里取得，怎样处理\n\n本教材使用下列准确来源，提交号同时保存在 `scripts/vendor_templates.py` 和 `templates/vendor/manifest.json`，不是让读者任选最新版本：\n\n- [FastapiAdmin固定源码](https://github.com/fastapiadmin/FastapiAdmin/tree/1cd12c726ad9032c17ef85ce805ce991be60fbdf)：`1cd12c726ad9032c17ef85ce805ce991be60fbdf`\n- [芋道Cloud Mini固定后端](https://github.com/yudaocode/yudao-cloud-mini/tree/47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be)：`47f8f6cfabc5017a8eac4654c7ba4c14aaa6a7be`\n- [芋道Vben固定前端](https://github.com/yudaocode/yudao-ui-admin-vben/tree/1b14e889f529e245fd620daa720dcea6de0cc5e7)：`1b14e889f529e245fd620daa720dcea6de0cc5e7`\n\n推荐使用下一节的 `vendor_templates --fetch`：脚本为每份上游建立临时Git目录，只fetch指定SHA、detached checkout，再核对 `rev-parse HEAD` 完全相同。若你自己取得了上述固定版本的源文件，把三个根目录分别命名为 `fastapiadmin`、`yudao-backend`、`yudao-frontend` 放在同一个 `upstream-sources` 目录中，先核对来源和LICENSE，然后可用 `uv run python -m scripts.vendor_templates --source-root upstream-sources`。这个离线目录入口只打包你提供的文件，不能替你证明它们来自哪个提交；你必须保留获取记录并比对教材的固定来源摘要。\n\n打包不是压缩整台开发机。脚本排除 `.git`、`.venv`、node_modules、缓存、target、dist、logs、实际 `.env`、数据库、私钥和字体二进制；保留源码、迁移、依赖锁和LICENSE。遇到符号链接、异常大文件或许可证不符就停止。输出三个普通ZIP、三份LICENSE及manifest，其中有文件数、排除清单、归档SHA与按文件hash汇总的source_digest。\n\n`vendor.unpack_source` 先验归档SHA，再限制解压路径、重复条目、链接、敏感文件与大小，最后重新计算解压后source_digest。只有全部成立才发布本机源码目录。这个双层检查把“传输压缩包有没有变”和“真正源码有没有变”分开；下方pytest正是在验证这些事实。\n\n## 先过快照和环境边界\n\n原生层与独立交付帮助模块有顶层 `psycopg` 导入，开始这一层前安装额外依赖：\n\n```bash\n# .learning/commands/09-native-install.sh\nuv sync --locked --extra postgres\nuv run python -m scripts.vendor_templates --fetch\nuv run pytest tests/test_vendor.py tests/test_native_archive_limits.py tests/test_native_delivery_boundaries.py -q\nuv run rnd init\n```\n\n从空目录还原时没有预带第三方ZIP，上面的 `vendor_templates --fetch` 会用Git获取固定公开提交并重建三个归档；普通克隆且归档已核验存在时可略过这一重建步骤。该命令不是获取最新主分支，不跳过来源和解压后源码摘要校验。压缩库版本可能使ZIP压缩字节不同，因此重建后以脚本生成的新归档hash配合固定commit/解压源码摘要记录，不混用旧压缩hash。测试应无failed/error；`rnd init` 应创建本机状态、令牌并从已具备的归档解压模板，不覆盖已有 `.env`。这个命令完成不代表PostgreSQL、Redis、Java或Vue已经运行。\n\nFastapiAdmin使用pnpm9.15.3，芋道Vben使用pnpm11.16.0；不要在同一全局安装中含糊地说“有pnpm即可”。两者需要Node22和本机PG/Redis，芋道还需要JDK17与Maven。按下一节的完整本机步骤准备专用 `*_codegen` 数据库。拒绝非空库时先检查归属，不能用DROP整库来让下一条命令变绿。\n\n## 从Ubuntu/WSL准备原生运行环境\n\n以下命令是Ubuntu x86_64的Bash，不是PowerShell。Windows先按 [Docker Desktop官方Windows安装说明](https://docs.docker.com/desktop/setup/install/windows-install/) 安装、启动Docker Desktop，自行阅读并决定接受许可条款，在Resources → WSL Integration启用你使用的Ubuntu；不要在同一个发行版里同时另装一套冲突Engine。工作目录放在WSL的Linux文件系统，重新安装Linux `.venv`，不能复用Windows的虚拟环境。\n\n已有Docker的读者先运行 `docker version`、`docker compose version`，前者必须同时显示Client和Server。尚未安装Docker的干净Ubuntu主机，可按 [Docker官方Ubuntu安装文档](https://docs.docker.com/engine/install/ubuntu/) 配置来源。下面仅适用于没有既有容器环境的受支持Ubuntu；有冲突包、现存服务或组织限制时先处理兼容性，不自动卸载别人的软件：\n\n```bash\n# .learning/commands/09-docker-ubuntu.sh\nsudo apt-get update\nsudo apt-get install -y ca-certificates curl\nsudo install -d -m 0755 /etc/apt/keyrings\nsudo curl --fail --silent --show-error --location https://download.docker.com/linux/ubuntu/gpg --output /etc/apt/keyrings/docker.asc\nsudo chmod a+r /etc/apt/keyrings/docker.asc\n. /etc/os-release\nprintf 'Types: deb\\nURIs: https://download.docker.com/linux/ubuntu\\nSuites: %s\\nComponents: stable\\nArchitectures: %s\\nSigned-By: /etc/apt/keyrings/docker.asc\\n' \"${UBUNTU_CODENAME:-$VERSION_CODENAME}\" \"$(dpkg --print-architecture)\" | sudo tee /etc/apt/sources.list.d/docker.sources\nsudo apt-get update\nsudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin\nsudo systemctl start docker\nsudo docker version\nsudo docker compose version\n```\n\n后续平台由普通用户运行。如果只有sudo能访问Docker，先阅读 [Docker安装后权限说明](https://docs.docker.com/engine/install/linux-postinstall/) 并决定是否赋予本机开发账户Docker组权限；该组近似root权限，不是一个无风险修复。不要把socket chmod成666，也不要开启公网Docker TCP端口。平台不代替你更改权限；正常用户 `docker version` 成功后才继续。\n\n芋道需要JDK17/Maven，FastapiAdmin可不安装这两项。Ubuntu准备命令如下，`mvn -version` 中显示的Java也必须为17；机器有多个JDK时先正确选择JAVA_HOME，不能只看另一个终端的 `java -version`：\n\n```bash\n# .learning/commands/09-native-language-tools.sh\nsudo apt-get update\nsudo apt-get install -y git curl ca-certificates xz-utils openjdk-17-jdk maven\njava -version\nmvn -version\n```\n\n原生Vben要求Node22.18或更新的22.x，比第11站Continue的最低22.13更严格。第06站若装了更早22.x，现在升级到满足原生要求的22.x。Ubuntu x86_64可安装固定官方用户目录二进制；下面不修改系统Node，不把哈希检查删掉：\n\n```bash\n# .learning/commands/09-node-linux.sh\nmkdir -p \"$HOME/.local/share/rnd-tools\"\ncd \"$HOME/.local/share/rnd-tools\"\ncurl -fLO https://nodejs.org/dist/v22.18.0/node-v22.18.0-linux-x64.tar.xz\ncurl -fsS https://nodejs.org/dist/v22.18.0/SHASUMS256.txt | grep ' node-v22.18.0-linux-x64.tar.xz$' > node.sha256\nsha256sum -c node.sha256\ntar -xJf node-v22.18.0-linux-x64.tar.xz\nexport PATH=\"$HOME/.local/share/rnd-tools/node-v22.18.0-linux-x64/bin:$PATH\"\nnode --version\nnpm --version\n```\n\n预期SHA检查为OK、Node为v22.18.0。ARM机器不能执行这个x64命令，应从官方页面取匹配架构；Daytona本教程明确只验Linux x86_64/WSL2 x86_64。重新打开终端后重设PATH，回到你的 `student-project` 根目录；不要在 `~/.local/share/rnd-tools` 安装平台依赖。Vben完整构建较重，预留足够磁盘与内存；失败时保留构建日志，不删除原生业务页面来缩减构建。\n\n## 建立只属于实验的PostgreSQL与Redis\n\n真实平台也能为获准运行自动创建独立Compose服务。为了理解原生CI脚本，下面显式创建实验服务。先确认 `rnd-learning-pg`、`rnd-learning-redis` 名称和本机5432/6379端口未被别的服务占用；有冲突先调查，不能强制删除。密码用随机值留在当前终端，不贴聊天或提交Git。\n\n```bash\n# .learning/commands/09-owned-services.sh\nexport NATIVE_PG_PASSWORD=\"$(uv run python -c 'import secrets; print(secrets.token_urlsafe(24))')\"\ndocker run -d --name rnd-learning-pg \\\n  -e POSTGRES_USER=native -e POSTGRES_PASSWORD=\"$NATIVE_PG_PASSWORD\" \\\n  -e POSTGRES_DB=fastapi_codegen -v rnd-learning-pg-data:/var/lib/postgresql/data \\\n  -p 127.0.0.1:5432:5432 postgres:17\ndocker run -d --name rnd-learning-redis -p 127.0.0.1:6379:6379 redis:7.4-alpine\ndocker exec rnd-learning-pg pg_isready -U native -d fastapi_codegen\ndocker exec rnd-learning-redis redis-cli ping\n```\n\nPG初始化可能需要几秒，尚未接受连接就稍后重跑 `pg_isready`，不要重发 `docker run`。成功分别看到accepting connections和PONG。容器内的实验native账户有创建独立验收新库所需权限；只用于这次回环开发服务。用你自己的现有PG账号时，需要先由拥有者明确提供专用空库和必要CREATEDB权限，不能自行扩大生产账号权限。\n\n为两个框架选择各自pnpm版本；下面将npm全局工具放在自己用户目录，避免sudo安装。首先跑FastapiAdmin：\n\n```bash\n# .learning/commands/09-fastapi-native-runtime.sh\nexport PATH=\"$HOME/.local/share/rnd-tools/npm-global/bin:$PATH\"\nnpm install --global --prefix \"$HOME/.local/share/rnd-tools/npm-global\" pnpm@9.15.3\npnpm --version\nexport NATIVE_TEST_DATABASE_URL=\"postgresql+psycopg://native:${NATIVE_PG_PASSWORD}@127.0.0.1:5432/fastapi_codegen\"\nuv run python -m scripts.ci_native_bundled fastapiadmin\n```\n\n本条是标准原生CRUD与独立新库验收，使用公开确定性规格，不调用真实模型。浏览器环境变量仍要延续第06站。成功后在 `reports/native` 阅读完整报告，而不是只看到生成ZIP。默认产物位于 `.native/product`。在全部测试进程退出后，将本次产物和报告移动保留，再准备另一个空库；不要让第二个模板覆盖第一个的证据：\n\n```bash\n# .learning/commands/09-preserve-first-native-run.sh\nmkdir -p .native/completed/fastapiadmin\nmv .native/product .native/completed/fastapiadmin/product\nmv reports/native .native/completed/fastapiadmin/reports\ndocker exec rnd-learning-pg createdb -U native yudao_codegen\nnpm install --global --prefix \"$HOME/.local/share/rnd-tools/npm-global\" pnpm@11.16.0\npnpm --version\nexport NATIVE_TEST_DATABASE_URL=\"postgresql+psycopg://native:${NATIVE_PG_PASSWORD}@127.0.0.1:5432/yudao_codegen\"\nuv run python -m scripts.ci_native_bundled yudao-vben\n```\n\n若目标保留目录或yudao_codegen已存在，停下来核对前一次实验，不靠覆盖/清库继续。两次pnpm版本输出应分别为9.15.3、11.16.0；第二条运行还要求Java17/Maven已经通过版本检查。这里先验原生基本能力；第10站客服测试要另建自己的空库和无冲突输出，不能在已经初始化过的库上重跑生成器。完成学习后可由你明确停止自己创建的两个容器，保留持久卷和报告；不要执行删除全部Docker资源的清理命令。\n\n## 分开记录源码导出与运行通过\n\n`SOURCE_READY` 只表示源码导出，不表示编译、权限、浏览器或独立新库部署通过。全运行前再次核对实际环境；下一站完成客服适配后，可分别执行下列标准客服矩阵命令：\n\n```bash\n# .learning/commands/09-native-customer-runtime.sh\nuv run python -m scripts.ci_native_bundled fastapiadmin --spec examples/plans/customer-service.json\nuv run python -m scripts.ci_native_bundled yudao-vben --spec examples/plans/customer-service.json\n```\n\n这里明确是“第10站业务文件齐全后回到这里执行”；执行前在本节实验PG中另建新的专用空_codegen库，并像上面一样以当前终端随机密码设置 `NATIVE_TEST_DATABASE_URL`，保留前次 `.native/product` 和报告；不要直接在书中写真实密码。每次只认本模板本次报告，先保存或分目录留存再跑另一模板，避免覆盖证据。合同测试只证明适配器拒绝/接受给定输入，真实原生通过要看编译、类型检查、HTTP、浏览器和独立新库部署。\n"
+  },
+  {
+    "id": "10-business",
+    "title": "角色权限与客服业务",
+    "goal": "把标准客户服务合同实现成可审计的数据库事务和三角色界面流程。",
+    "prerequisites": [
+      "09原生适配完整",
+      "三份客户需求与确定性Plan输入齐全",
+      "business_*适配、policy、各框架业务模板与浏览器探针齐全"
+    ],
+    "concepts": [
+      "默认拒绝动作授权",
+      "own/assigned/all行范围",
+      "命名转换与保护字段",
+      "审计历史与提醒同事务",
+      "统计必须尊重角色与行范围"
+    ],
+    "steps": [
+      "先按三份需求梳理客户/请求/任务与角色",
+      "从BusinessSpec回看policy的授权",
+      "分别跟进Python/FastapiAdmin/Yudao事务适配",
+      "跑正向业务与越权反例再真实浏览器"
+    ],
+    "checks": [
+      "普通员工不能通过通用update改负责人或状态",
+      "请求解决通知提交者",
+      "read_history和read_audit各自授权",
+      "统计不同过滤/分组有不同值",
+      "重启后数据和提醒读状态保留"
+    ],
+    "troubleshooting": [
+      "403/404先按批准动作与范围定位，不扩大角色权限",
+      "空平均时长应为null而非伪造0",
+      "处理记录字段不能替代真实不可改审计"
+    ],
+    "boundaries": [
+      "仅站内提醒，不含外部邮件/短信",
+      "业务合同不能与自由custom_rules混用",
+      "fixtures中的未批准诊断不能作为生成计划"
+    ],
+    "body": "## 从个人CRUD走向团队业务\n\n现在回到标准案例：维护客户、创建服务请求、分配负责人、按批准动作推进状态、追加处理记录、协作任务、站内提醒和统计。三份输入有不同职责：原始需求保存业务目标，默认决策明确可执行选择，字段合同固定名称、枚举和类型。必须一起保留，不能把原需求改写成更小的任务后说完成。`examples/plans/customer-service.json` 是确定性验收输入，不是模型失败时的隐藏答案。\n\n`BusinessSpec` 把行为限制成可验证的结构。资源声明负责人字段、归档与历史；关系声明引用目标及restrict删除语义；permissions逐角色逐实体声明完整动作和范围；workflows给出命名转换、合法起始状态和时间戳写入；notifications明确事件与接收者；metrics明确计数、平均时长、分组和每日趋势。shared表示团队业务模型，不表示所有员工都能读全部记录。\n\n`templates/business/common/policy.py` 负责共同语义。默认没有动作就拒绝；own依据不可改的created_by，assigned依据批准的负责人字段，all才是全部可见范围。`read_history`、`read_audit`、`read_metrics` 是独立动作，不能由“能读记录”推导出“能读审计与统计”。角色从服务端实时读取；前端隐藏按钮只是辅助体验，HTTP直接请求仍必须被服务端拒绝。\n\n## 沿一笔“解决请求”追踪事务\n\n从页面点击命名动作resolve开始，先识别当前用户，再核对该角色对requests的transition权限和当前行范围；读取并锁定记录，检查原状态是否属于允许来源，然后修改状态并填写批准的完成时间。同一个事务还要追加服务端作者的审计/历史、生成要求的站内提醒。失败要整体回滚，不能出现“状态已解决却没有审计”，也不能允许普通update绕过命名转换。\n\nPython产品的 `business_schema.py`、`business_runtime.py` 生成表并实现事务；FastapiAdmin适配器与模板延续其原生控制器/ORM/事务；Yudao适配器生成Java服务、Mapper、控制器和原生表单面板。共同合同不意味着强行共用同一套前端或伪造框架事务。`business_schema_receipt.py` 与业务探针把实际SQL结构及行为证据绑定到设计。\n\n提醒要按源事件和接收者去重，读收件箱不能再产生一批提醒；标记已读只影响当前接收者。统计同样先授权再选行：总数与已解决数不能混用，创建到解决平均时长排除缺失端点的记录，零样本返回null，UTC日桶必须一致。增加未解决对照请求和第二类客户，是为了让错误的全量计数、分组或时长计算暴露出来。\n\n## 按层验收，不只看一个总passed\n\n```bash\n# .learning/commands/10-business-contracts.sh\nuv run pytest tests/test_business_contracts.py tests/test_business_capabilities.py tests/test_business_python.py tests/test_business_fastapi.py tests/test_business_yudao.py -q\nuv run pytest tests/test_business_audit_permissions.py tests/test_business_note_notifications.py tests/test_customer_employee_task_scopes.py tests/test_business_query_api.py -q\n```\n\n这些文件中一部分是真实生成产品HTTP/SQL，另一部分是适配器与证据合同；阅读文件说明，不能把全部统称原生运行。相关测试辅助文件和fixtures必须按源码索引齐全。浏览器工具准备好后：\n\n```bash\n# .learning/commands/10-business-browser.sh\nuv run pytest tests/test_business_python_browser.py -q\n```\n\n再回到第09节执行两种原生客服命令，分别保留真实报告。预期包括三角色授权正反例、客户关联选择、分配、start/resolve、备注、归档、提醒和统计，不只是“页面有几张卡片”。原生浏览器必须从登录与菜单进入实际业务路由，不能注入Token或截一张静态首页替代流程。\n\n如果一个计划缺动作或范围，先回需求与设计层判定批准内容；不要临时给员工管理员角色以让测试通过。失败的诊断候选Plan只是分析材料，只有确实已批准且通过合同检查的Plan才能进入生成。\n"
+  },
+  {
+    "id": "11-local-tools",
+    "title": "Continue、Plop与Aider",
+    "goal": "在保留默认本机能力的基础上接入真实可选工具，并验证它们实际执行且边界未扩大。",
+    "prerequisites": [
+      "10业务完整",
+      "Node22.13+与tools/node全部锁定文件",
+      "Aider独立Python3.12项目完整",
+      "原生规则实验需09原生运行环境"
+    ],
+    "concepts": [
+      "索引引擎不等于完整IDE",
+      "只读MCP",
+      "Plop脚手架与Aider精确补丁分工",
+      "模型网关与禁网编辑进程隔离"
+    ],
+    "steps": [
+      "先npm ci/build准备Continue与Plop",
+      "独立uv安装Aider并执行本机依赖自检",
+      "按需切换RETRIEVAL_ENGINE/CODING_ENGINE",
+      "用真实工具脚本读回执与Git前后提交"
+    ],
+    "checks": [
+      "Continue回执指出固定上游组件实际update/retrieve",
+      "Aider禁网自检通过",
+      "Plop生成受信文件并挂载入口",
+      "错误规则回滚后有限修复通过"
+    ],
+    "troubleshooting": [
+      "Aider依赖冲突不要合并平台3.14环境",
+      "SEARCH匹配多处或SHA过期应拒绝",
+      "可选Node测试skip不等于已验证"
+    ],
+    "boundaries": [
+      "真实模型Key只给网关，不进入编辑子进程",
+      "不允许模型改鉴权、依赖锁、可信测试或任意命令"
+    ],
+    "body": "## 给每个工具一件可以检查的事\n\n第04站的AST/FTS已经能工作。现在接入可选增强工具：Continue使用仓库内固定提交的 `FullTextSearchCodebaseIndex.ts`，Node桥接负责本机SQLite宿主和update/retrieve调用；`continue_index.py` 核对桥接身份并执行它。这里不是安装整个IDE生命周期，也不读取IDE私有缓存。`context_mcp.py` 把同一检索与仓库地图作为只读stdio工具提供给支持MCP的客户端，不新增任意文件修改权限。\n\nPlop与Aider不负责同一层。`scaffolding.py` 根据批准规则注册允许文件和区域，由真实node-plop从受信模板放入框架规则与表单入口。`aider_tool.py`、`native_coding.py` 再把模型网关给出的精确SEARCH/REPLACE或受限表达式交给实际Aider，在隔离Git副本里应用。命中不唯一、前像SHA过期、未知路径、越界区域、非法表达式都拒绝。Aider退出码0只说明它完成编辑，不代表业务规则通过。\n\n原生规则需继续编译、类型检查、API正反例和真实浏览器；失败回滚候选文件，保留诊断，在有限次数内修复。客服声明式business路径无需自由编码，且不能与standalone custom_rules混用。把所有需求都推给编码模型，会破坏前面建立的确定性边界。\n\n## 安装边界必须显式\n\n```bash\n# .learning/commands/11-tool-install.sh\nnode --version\nnpm ci --prefix tools/node --no-audit --no-fund\nnpm run build --prefix tools/node\nuv sync --locked --project tools/aider --python 3.12\nuv run --locked --project tools/aider --python 3.12 python tools/aider/offline_runner.py --check-local-deps\n```\n\nNode应为22.13或更新的22.x；Aider自检应报告锁定依赖和禁网状态。此处Python3.12环境位于tools/aider，平台仍为3.14。不要为解决一个工具的版本冲突改写平台锁文件。依赖与浏览器安装属于准备期，实际编辑/检索不应临时下载模型元数据或编码资源。\n\n配置 `.env` 的 `RETRIEVAL_ENGINE=continue` 后重启平台，才会使用该引擎；`CODING_ENGINE=aider` 与 `REPO_MAP_PROVIDER=aider` 分别选择编辑与仓库地图。不是安装成功就已启用，也不是写了配置就已证明真实执行。\n\n```bash\n# .learning/commands/11-tool-check.sh\nuv run pytest tests/test_continue_index.py tests/test_aider_offline.py tests/test_native_tools.py -q\nuv run python -m scripts.ci_toolchain\n```\n\n可选Node测试可能在未准备工具时skip，必须查看摘要而不是只读退出码。`ci_toolchain` 会实际运行Aider、Continue、MCP和源码检索，并把证据写入 `reports/toolchain.json`；报告明确不声称Daytona服务已通过。此脚本包含已有产品工作流，故仍需浏览器工具。\n\n## 向量是独立选择\n\n`EMBEDDING_ENABLED` 默认为false。需要向量时按 `tools/embeddings` 的锁定项目和 `scripts/ci_local_embeddings.py` 准备本机权重与回环端点，然后检查真实CPU推理及融合证据。不能在本机服务连接失败时偷偷改成云地址。三份固定Vben源码的命中测试也不代表所有模板、所有中文问题都达到某个召回率；扩大范围要扩大数据和验收，而不是扩大口头承诺。\n\n\n### 亲手验证可选本机向量\n\n向量工具与Aider一样使用自己的Python3.12环境，不能安装进平台3.14里混用。准备期下载固定权重，验证期在回环HTTP服务中做真实ONNX CPU推理。下面Linux/WSL命令按顺序执行；Windows的最后一条 `--python` 改为 `tools/embeddings/.venv/Scripts/python.exe`。\n\n```bash\n# .learning/commands/11-local-embeddings.sh\nuv sync --locked --project tools/embeddings --python 3.12\nuv run --locked --project tools/embeddings --python 3.12 python scripts/ci_local_embeddings.py prepare\nuv run python -m scripts.ci_local_embeddings verify --python tools/embeddings/.venv/bin/python\n```\n\nprepare会检查固定模型文件身份，verify自行启动并关闭本次回环服务，结合真实Continue/AST/FTS检索，报告在 `reports/local-embeddings.json`。没有成功报告不算本机向量通过。这个验收服务的随机端口只属于本次测试；要长期启用平台向量，另按同一脚本的serve接口或你自己的已准备回环服务提供稳定端点，再将实际URL和模型名写入 `.env`，不要把一次测试端口当长期服务。\n\n\n若想直接用本脚本提供平台向量端点，在平台根目录的终端A运行下面命令；它持续运行，Ctrl+C只停止本次服务，不删除权重：\n\n```bash\n# .learning/commands/11-embedding-serve.sh\nuv run --locked --project tools/embeddings --python 3.12 python scripts/ci_local_embeddings.py serve --ready .data/embedding-ready.json\n```\n\n终端B读取本次实际回环地址：\n\n```bash\n# .learning/commands/11-embedding-address.sh\nuv run python -c \"import json; from pathlib import Path; print(json.loads(Path('.data/embedding-ready.json').read_text())['url'])\"\n```\n\n把打印的完整URL填入 `.env` 的 `EMBEDDING_BASE_URL`，设置 `EMBEDDING_MODE=sentence-transformers/all-MiniLM-L6-v2`、`EMBEDDING_API_KEY=local-no-auth`、`EMBEDDING_ENABLED=true`，然后重启平台。服务每次重开可能换端口，因此重启向量服务后重新读本次ready文件并核对；旧ready文件存在不证明进程还活着。这个服务只监听回环，外部请求不在本教程能力内。\n"
+  },
+  {
+    "id": "12-daytona",
+    "title": "本机沙箱与镜像",
+    "goal": "准备固定版本自托管Daytona，验证离线快照内运行与本次沙箱清理，而不是只安装SDK。",
+    "prerequisites": [
+      "11本机直接工具与产品已验证",
+      "Linux x86_64或Windows x86_64 WSL2，Docker可用",
+      "daytona相关脚本、Dockerfile、会话/诊断/快照模块齐全",
+      "明确同意本机资源创建与所需下载"
+    ],
+    "concepts": [
+      "控制面、Runner、快照、业务验收是独立层",
+      "准备期下载与运行期禁网",
+      "模板数据库profile绑定镜像身份",
+      "异步提交不自动重发",
+      "清理属于交付条件"
+    ],
+    "steps": [
+      "安装额外依赖后严格按prepare到snapshot执行",
+      "基础SQLite快照先验收",
+      "为PG/FastapiAdmin/Yudao分别预热matrix镜像",
+      "检查报告绑定源码、运行、重启和删除"
+    ],
+    "checks": [
+      "API健康且快照active",
+      "对应组合在禁外网沙箱内完成真实验收",
+      "report身份匹配当前源代码与profile",
+      "删除本次sandbox成功"
+    ],
+    "troubleshooting": [
+      "创建超时先读有限启动诊断，不能遍历别人的容器",
+      "缺依赖返回镜像准备期，不运行时开放网络",
+      "提交响应丢失不重发POST"
+    ],
+    "boundaries": [
+      "Daytona0.190.0开发部署，不是托管云模式",
+      "privileged Runner不是生产强隔离保证",
+      "默认Python/SQLite镜像不能冒充Java/Vue环境"
+    ],
+    "body": "## 先让本机产品跑通，再隔离它\n\n沙箱不是修补不可运行项目的魔法。平台先做本机可信验证，Daytona再增加一层本机自托管执行证据。`sandbox.py` 校验配置和profile，打包受控源码与验收harness，创建本次命名的沙箱，传入不含主机模型Key和主机数据库密码的必要材料，再读回有大小与身份限制的报告。`daytona_worker.py` 在专门子进程内施加回环工具约束，不能把它描述为抵抗任意恶意代码的操作系统隔离。\n\n`daytona_profiles.py` 按模板/数据库决定快照与必须的检查项目：Python/SQLite、Python/PostgreSQL、FastapiAdmin/PostgreSQL、Yudao/PostgreSQL各有真实依赖。数据库和Redis在适用沙箱内初始化，不把主机的正式库连接串复制进去。源码hash、锁文件身份与镜像回执串起来，才能知道这份环境究竟验了哪个产品。\n\n`daytona_sessions.py` 对长运行使用一个异步命令提交，后续短GET轮询，最后读日志。请求超时不证明服务器没执行，因此不能重发一个可能已成功的POST来“再试一次”。输出目录保护和总预算同样保留；状态pending时不允许写passed。\n\n## 严格按顺序准备固定版本\n\n这是较重的可选能力，只在你确实准备好Linux/WSL、Docker及本机资源后执行。若尚未安装浏览器、Node工具、Aider和基础产品依赖，先回前面章节。\n\n```bash\n# .learning/commands/12-daytona-prepare.sh\nuv sync --locked --all-extras\nuv run python -m scripts.daytona_local prepare\nuv run python -m scripts.daytona_local images\nuv run python -m scripts.daytona_local snapshot-image\nuv run python -m scripts.daytona_local up\nuv run python -m scripts.daytona_bootstrap auth\nuv run python -m scripts.daytona_bootstrap snapshot\nuv run python -m scripts.ci_daytona_local\nmkdir -p reports/daytona-python-sqlite\ncp .data/daytona-local/snapshot-image.json reports/daytona-python-sqlite/snapshot-image.json\ncp reports/daytona-local.json reports/daytona-python-sqlite/daytona-local.json\n```\n\n每一步退出码为0并得到对应回执后才执行下一步。prepare固定上游并写本机配置；images构建固定控制面与Runner；snapshot-image预热基础离线执行环境；up启动本机服务；auth建立本机认证；snapshot登记可运行快照。最后验收才说明业务和工具实际执行。CLI存在、API健康、快照active、产品通过和沙箱删除是五个不同事实。\n\n`.data/daytona-local` 含本机随机凭据和状态，不进入Git或交付ZIP。服务端口只绑定回环，内部服务网络和Runner网络按脚本分开；不要为了排错把它暴露到公网。安装阶段下载公共依赖与运行阶段外联业务工具是不同事件。\n\n## 三个PostgreSQL profile逐个做，不猜参数\n\n下列命令来自实际 `ci_daytona_matrix`、`daytona_matrix_image`、`ci_native_tools` 的参数定义。先完成本节基础Daytona服务，且第09站PG/Redis、第11站Aider/Node/浏览器仍可用。每次只做一个profile，并在切换前保留报告；`.data/daytona-local/snapshot-image.json` 会被最新镜像覆盖，不能最后才回头猜前面快照名。\n\n### A. Python/PostgreSQL\n\n它使用明确的确定性新闻CRUD规格检查数据库型别，不冒充客服业务矩阵或真实模型。\n\n```bash\n# .learning/commands/12-python-postgres-matrix.sh\nuv run python -m scripts.ci_daytona_matrix prepare-basic python-basic --product .native/daytona-python-pg\nuv run python -m scripts.daytona_matrix_image python-basic --database postgresql --product .native/daytona-python-pg\nuv run python -m scripts.daytona_bootstrap snapshot\nuv run python -m scripts.ci_daytona_matrix verify python-basic --product .native/daytona-python-pg\nmkdir -p reports/daytona-python-pg\ncp .data/daytona-local/snapshot-image.json reports/daytona-python-pg/snapshot-image.json\ncp reports/daytona-matrix.json reports/daytona-python-pg/daytona-matrix.json\n```\n\n首次prepare要求目标尚不存在；反复执行时遇到保护要核对原生成回执，不能删数据库来“刷新”。build步骤过滤产品文件、预热锁定依赖，推送本机registry并写不可变image_id；snapshot确认已登记的同名快照来源一致且active后，更新本机 `workbench.env`。verify从该配置读取准确快照名，要求passed、cleanup=deleted、host_credentials_used=false、host_database_used=false。\n\n### B. FastapiAdmin/PostgreSQL\n\n先在第09站实验PG创建一个新的专用空库，不能用已经完成客服或原生生成的库。这里沿用当前终端的 `NATIVE_PG_PASSWORD`；若你换了终端，先从自己的安全保存处恢复它，不把密码打印进日志。\n\n```bash\n# .learning/commands/12-fastapiadmin-matrix.sh\ndocker exec rnd-learning-pg createdb -U native fastapi_tools_codegen\nexport NATIVE_TEST_DATABASE_URL=\"postgresql+psycopg://native:${NATIVE_PG_PASSWORD}@127.0.0.1:5432/fastapi_tools_codegen\"\nexport PATH=\"$HOME/.local/share/rnd-tools/npm-global/bin:$PATH\"\nnpm install --global --prefix \"$HOME/.local/share/rnd-tools/npm-global\" pnpm@9.15.3\nuv run python -m scripts.ci_native_tools fastapiadmin --output .native/daytona-fastapiadmin\nuv run python -m scripts.daytona_matrix_image fastapiadmin --database postgresql --product .native/daytona-fastapiadmin\nuv run python -m scripts.daytona_bootstrap snapshot\nuv run python -m scripts.ci_daytona_matrix verify fastapiadmin --product .native/daytona-fastapiadmin\nmkdir -p reports/daytona-fastapiadmin\ncp .data/daytona-local/snapshot-image.json reports/daytona-fastapiadmin/snapshot-image.json\ncp reports/daytona-matrix.json reports/daytona-fastapiadmin/daytona-matrix.json\nmv reports/native-tools reports/daytona-fastapiadmin/native-tools\n```\n\n`ci_native_tools` 先用真实原生生成器产出模块，故意中断后恢复，再用显式测试模型给出错误规则、验证真实反例失败与回滚、下一轮修复，再做后端、前端、浏览器和独立新库验收。它成功后才能拿输出目录制作快照。只运行daytona_matrix_image不包含这部分原生编辑链证明。\n\n### C. Yudao/PostgreSQL\n\n保留上一profile报告后，再准备Java17/Maven、pnpm11.16.0与另一个新空库；不得把FastapiAdmin产品目录当作Vben源：\n\n```bash\n# .learning/commands/12-yudao-matrix.sh\ndocker exec rnd-learning-pg createdb -U native yudao_tools_codegen\nexport NATIVE_TEST_DATABASE_URL=\"postgresql+psycopg://native:${NATIVE_PG_PASSWORD}@127.0.0.1:5432/yudao_tools_codegen\"\nnpm install --global --prefix \"$HOME/.local/share/rnd-tools/npm-global\" pnpm@11.16.0\njava -version\nmvn -version\nuv run python -m scripts.ci_native_tools yudao-vben --output .native/daytona-yudao\nuv run python -m scripts.daytona_matrix_image yudao-vben --database postgresql --product .native/daytona-yudao\nuv run python -m scripts.daytona_bootstrap snapshot\nuv run python -m scripts.ci_daytona_matrix verify yudao-vben --product .native/daytona-yudao\nmkdir -p reports/daytona-yudao\ncp .data/daytona-local/snapshot-image.json reports/daytona-yudao/snapshot-image.json\ncp reports/daytona-matrix.json reports/daytona-yudao/daytona-matrix.json\nmv reports/native-tools reports/daytona-yudao/native-tools\n```\n\n每条命令成功后再向下执行，不能把失败命令与后续命令一起粘贴后只看最后的cp。脚本给Yudao快照登记10GiB内存、30GiB磁盘，基础/FA的PG profile使用4GiB内存、30GiB磁盘；主机还要承担控制面和构建，因此实际主机需要更多可用资源。内存不足先增加你明确控制的本机资源或调整实验安排，不省略类型检查、权限测试和浏览器。\n\n### 把多个已通过快照接回日常平台\n\n上面的单profile验收会由bootstrap自动把当前准确快照写到 `.data/daytona-local/workbench.env`。日常平台的 `.env` 与这份工具配置不是同一文件；不要直接覆盖 `.env` 而丢掉模型配置。将本机Daytona连接配置私下合并到现有 `.env`，其中Key只留本机；多profile名称分别读取已保留的snapshot-image.json的snapshot字段。下面是需要编辑的字段说明，不是可原样执行的虚假名称：\n\n```dotenv\n# .env\nSANDBOX_PROVIDER=daytona\nDAYTONA_ALLOW_LOCAL_EXECUTION=true\nDAYTONA_API_URL=http://127.0.0.1:3000/api\nDAYTONA_TARGET=local\nDAYTONA_RUNTIME_TIMEOUT=3600\nDAYTONA_SNAPSHOTS={\"python-basic/postgresql\":\"替换为Python-PG回执snapshot\",\"fastapiadmin/postgresql\":\"替换为FastapiAdmin回执snapshot\",\"yudao-vben/postgresql\":\"替换为Yudao回执snapshot\"}\n```\n\nSQLite基础profile继续使用前面基础回执的 `DAYTONA_SNAPSHOT`；也需保留其准确名字。确认没有占位词后重启平台。镜像source_hash受锁文件和Docker构建输入约束；源码变化不一定改变依赖快照身份，但每次上传与运行仍需绑定新源码hash。缺依赖时显式重建对应镜像，不运行时放开外网。\n\n## 复杂模板单独预热，失败后保留证据\n\n基础镜像并不包含Java/Vue完整原生环境。先根据本次实际生成目录，通过 `daytona_matrix_image.py` 等本阶段完整脚本预热各profile，将快照回执中的准确名称填入 `DAYTONA_SNAPSHOTS`。不要自行猜快照名，不把Python镜像改名当作Yudao镜像，也不在缺依赖时开放运行期网络。\n\n需要诊断时显式开启 `DAYTONA_CAPTURE_STARTUP_DIAGNOSTICS`。诊断仅限本次已确认身份的沙箱、限定日志尾部与时间预算、先脱敏，再继续原清理路径。即使日志采集成功，创建超时或业务失败也仍然失败。最后确认应用端口关闭、重启检查成立、沙箱删除成功；清理失败是交付阻塞，不是可忽略的收尾。\n\n```bash\n# .learning/commands/12-daytona-contracts.sh\nuv run pytest tests/test_daytona_snapshot.py tests/test_daytona_sessions.py tests/test_daytona_startup_diagnostics.py tests/test_daytona_matrix.py -q\n```\n\n这些合同与反例测试可以在没有完整服务时解释边界，不能代替上面的真实自托管运行，更不能代替三行原生/PG矩阵。最终报告按每种profile逐项写passed、failed或未运行。\n"
+  },
+  {
+    "id": "13-delivery",
+    "title": "独立交付与重启",
+    "goal": "把已验证源代码打包，在干净目录、独立依赖和新数据库重复验证，并保留重启数据。",
+    "prerequisites": [
+      "所选模板相关运行与浏览器证据通过",
+      "portable、portable_checks、native_delivery与deployment模板完整",
+      "交付ZIP来自当前源码摘要而非历史输出"
+    ],
+    "concepts": [
+      "构建目录成功不等于交付包独立成功",
+      "包内只含源码和初始化语句",
+      "不可恢复删除不是排错手段",
+      "测试后源码变化使旧报告失效"
+    ],
+    "steps": [
+      "跟踪package_basic的临时ZIP→安全解压→再安装→再验证",
+      "学习portable导出固定helpers与原生种子",
+      "独立目录启动并验证重复启动保留数据",
+      "核对delivery.json与archive SHA"
+    ],
+    "checks": [
+      "cleanroom.passed=true且源码manifest一致",
+      "独立依赖标志为true",
+      "产品无需平台PYTHONPATH或模型Key",
+      "重启后业务数据/密码不重置"
+    ],
+    "troubleshooting": [
+      "缺包内模块应修正导出清单，不从平台借文件",
+      "新库保护报错先检查真实空库",
+      "--skip-build仅在同产品先前构建成功后使用"
+    ],
+    "boundaries": [
+      "源码包不是实际业务数据备份",
+      "production_ready仍为false",
+      "独立启动不等于生产安全认证"
+    ],
+    "body": "## 最后一次验证要离开原工作台\n\n`verification.package_basic` 并不在得到一个passed后马上返回下载链接。它先重算文件manifest，确认报告绑定当前源码，再写临时ZIP；随后在新临时目录安全解压，检查包中文件是否与通过验证的文件一致，安装独立产品环境，再跑真实迁移、HTTP、重启和浏览器。全部成立后才原子替换成正式 `delivery.zip` 并保存 `delivery.json`。\n\n这条链解决一个常见错觉：原生成目录能运行，可能因为借用了平台venv、环境变量或未打包文件。干净解压要清楚证明产品自身代码与锁文件足够。`install_products=False` 的开发测试能验证很多行为，但其回执会明确说明没有隔离安装；不能把它当成完整独立交付证据。\n\n原生交付由 `portable.py` 冻结必需帮助模块、原生源码、SQL和菜单种子，`templates/deployment` 提供独立启动器。`portable_checks.py` 检查恢复后的数据与行为，`native_delivery.py` 对原生运行、业务、页面风格、来源身份和报告作交付门禁。它们可能因09层的导入闭包而提前写入，但只有这一站完整讨论“去掉原平台后还剩什么”。\n\n## 先跑真实独立环境验收\n\n```bash\n# .learning/commands/13-clean-install.sh\nuv run python -m scripts.ci_clean_install\nuv run pytest tests/test_delivery_clearance.py tests/test_native_delivery_boundaries.py tests/test_native_delivery_diagnostics.py -q\n```\n\n第一条需要第06站浏览器准备和正常依赖下载环境，成功应输出 `PASS: genuine product venv + separate clean-room venv; HTTP CRUD/isolation/restart; fixture model only`，并产生 `reports/clean-install.json`。报告中的模型是明确夹具，但两个独立venv、HTTP/浏览器和重启是真执行。第二条检查拒绝边界与诊断，不代替两种原生真实新库运行。\n\n真实任务达到READY后，用 `rnd show` 检查报告再下载。下列 `运行UUID` 要替换为你的实际任务标识：\n\n```bash\n# .learning/commands/13-download.sh\nuv run rnd show 运行UUID\nuv run rnd download 运行UUID\n```\n\n把得到的ZIP解压到一个全新目录，进入含 `start.py` 的产品根目录；下面的命令不在平台根目录执行：\n\n```bash\n# .learning/commands/13-product-start.sh\nuv run --no-project --python 3.14 python start.py\n```\n\n基础SQLite产品会安装自己的锁定依赖并迁移启动。基础PostgreSQL产品使用自己的Docker Compose随机凭据与持久卷，或明确的本机 `PRODUCT_DATABASE_URL`。原生产品按自身启动器建立新的独立数据库与服务，并打印实际前端地址；需要专用空库时按启动器契约配置 `NATIVE_DELIVERY_DATABASE_URL`，绝不能用生成器开发库冒充新库验收。\n\n## 数据必须能留住，也必须不被带走\n\n客服产品先在产品目录执行 `uv run python manage.py bootstrap-admin --username manager`，在隐藏终端输入中设置管理员密码。重复执行不能覆盖原管理员，重复启动不能重置业务记录和密码。手工创建一条请求、停止后重新启动，再确认仍可登录且记录存在；内置验收也要记录重启结果。\n\n源码ZIP包含初始化/迁移语句，不包含实际用户数据库、`.env`、模型密钥或运行日志。它不是业务备份。不要用“删除数据库后成功启动”替代恢复性验证；原生 `--skip-build` 只适合同一个产品此前确已构建成功的情况，也不是第一次交付省略构建的快捷方式。即使所有开发验收通过，回执仍明确 `production_ready=false`，不把本机开发产品当作公网生产部署认证。\n"
+  },
+  {
+    "id": "14-acceptance",
+    "title": "全平台验收与证据阅读",
+    "goal": "按同一源码身份汇总所有能力层，明确通过、失败、跳过和未运行，完成真正可复现的平台。",
+    "prerequisites": [
+      "00—13全部实现页与测试支持文件齐全",
+      "完整依赖与可选服务按所选矩阵准备",
+      "本次源码版本、日志、报告可追溯"
+    ],
+    "concepts": [
+      "全量源码重建与功能执行是独立证据",
+      "单元/集成/浏览器/真实供应商分层",
+      "同一提交同一模板同一数据库组合",
+      "没有报告就没有通过结论"
+    ],
+    "steps": [
+      "运行格式与全套非PG回归",
+      "独立跑PG与原生/客服/工具/Daytona矩阵",
+      "检查教材还原与源码一致性",
+      "汇总最终证据并标明未运行项"
+    ],
+    "checks": [
+      "lint/format/pytest都明确成功",
+      "完整重建文件与源码一致",
+      "每项对应真实报告与同一提交",
+      "失败诊断和未批准候选不混入交付"
+    ],
+    "troubleshooting": [
+      "skip先读原因不能算通过",
+      "超时清理后保留失败状态与已产生JUnit",
+      "真实模型脚本带授权部署限制，不伪造环境绕过"
+    ],
+    "boundaries": [
+      "不预填全绿，不用别的提交或模板证据替代",
+      "真实DeepSeek脚本不是通用本地任意模型测试入口",
+      "教材源码一致性不等于运行矩阵通过"
+    ],
+    "body": "## 现在才到“整个项目”\n\n前面的每站都有一个小而真实的完成条件：合同能拒绝错误、事务能回滚、索引能拒绝过期、产品能运行、状态机能恢复、业务能拒绝越权、交付能在新目录重启。最后的全平台验收不是把这些文字勾选一遍，而是在最终文件集合上重跑对应检查，并核对报告属于同一个源码版本。任何后续改动都可能使旧报告失效。\n\n## 先生成教材，再检查；先准备工具，再跑全套\n\n如果你是从空目录手抄或还原出来的学生项目，根目录的生成版完整手册和新的 `learning-docs` 可能尚不存在。所有第14站源码和正文源文件都齐全后，先生成它们，再用 `--check` 检查；检查命令只核对现有输出，不替你创建缺失输出。\n\n```bash\n# .learning/commands/14-build-books.sh\nuv run python -m scripts.build_handbook\nuv run python -m scripts.build_learning_docs\nuv run python -m scripts.build_handbook --check\nuv run python -m scripts.build_learning_docs --check\n```\n\n完整非PostgreSQL回归也需要第06站的Playwright/Chromium和当前终端的 `PRODUCT_VERIFY_PLAYWRIGHT`、`PLAYWRIGHT_BROWSERS_PATH=0`，以及第11站真实Node组件。先运行 `npm ci --prefix tools/node --no-audit --no-fund` 和 `npm run build --prefix tools/node`。测试必须强制实际Node组件存在，Linux/WSL在同一终端设置：\n\n```bash\n# .learning/commands/14-node-required-linux.sh\nexport RND_REQUIRE_NODE_TESTS=1\n```\n\nWindows PowerShell设置：\n\n```powershell\n# .learning/commands/14-node-required-windows.ps1\n$env:RND_REQUIRE_NODE_TESTS = '1'\n```\n\n没有这些前提时先标记阻塞，不把可选工具skip当作全平台通过。然后执行最广的静态与基础回归：\n\n```bash\n# .learning/commands/14-base-regression.sh\nuv sync --locked --all-extras\nuv run ruff check .\nuv run ruff format --check .\nuv run pytest -m \"not postgres\" -q\nuv run python -m scripts.build_handbook --check\nuv run python -m scripts.build_learning_docs --check\n```\n\n`ruff` 要真实通过，不能因返回非零就自动改成忽略规则。非PostgreSQL套件包含需要浏览器和若干可选工具的测试，先查看test markers与skip原因；“not postgres”不代表“只需Python且所有工具都模拟”。原有完整手册一致性检查应输出 `Single handbook source consistency PASS`；新分阶段教材的检查命令同样必须退出码为0，二者各自证明对应文档与源码一致，不能互相替代。\n\n最后验证“只带教材目录”的完整重建，而不是从原仓库偷借依赖或ZIP：\n\n```bash\n# .learning/commands/14-textbook-clean-room.sh\nuv run python -m scripts.ci_learning_docs\n```\n\n该脚本复制教材到临时目录，用标准库还原全部自有文件；先按 `PLAYWRIGHT_BROWSERS_PATH=0` 真正启动并关闭Chromium，核对第06站要求的本地浏览器安装位置，再安装学生项目独立venv，从固定上游提交重建三个模板归档，构建真实Node组件，再执行真实完整非PostgreSQL回归。它还核对手册和分阶段教材能再生成一致；不是只检查文件数就打印PASS。需要公开依赖下载、Node和已安装浏览器，成功与否查看 `reports/learning-docs-clean-room.json` 和对应测试结果。超时、依赖失败、测试失败都保留原失败阶段，不能手工把报告中的passed改成true。原生服务、PostgreSQL和Daytona完整矩阵仍需各自环境与证据，这个脚本不声称验证了那些未启动服务。\n\n## 建立一份不冒进的验收记录\n\n每一层写清输入身份、命令、环境前提、实际结果、报告位置和未覆盖范围。建议按下面顺序读证据：\n\n1. 安装与还原：Python3.14、锁文件、完整自有源码、固定第三方归档与许可证；若从教材还原，逐文件hash相等\n2. 内核：合同、数据库、需求覆盖、来源冲突、模型协议、幂等与审批恢复\n3. 基础产品：生成回执、独立依赖、HTTP、真实浏览器、两用户隔离与重启\n4. 客服业务：三角色动作/行范围、关联、分配、命名状态、历史、审计、提醒、指标与查询\n5. 原生模板：分别记录FastapiAdmin和Yudao的生成、SQL、编译、类型检查、原生页面与独立新库启动\n6. 工具链：实际Continue、Plop、Aider、MCP及可选本机向量；不能只记录安装版本\n7. Daytona：对应profile的真实离线执行、重启、端口与沙箱清理；基本镜像不代表全部矩阵\n8. 真实模型：服务商实际响应与完整需求流程；不能拿协议夹具或确定性Plan重放来代替\n\n每项只能写passed、failed、pending、skipped或未运行的真实状态。一个总passed不能抵消缺少必须的逐实体/逐字段浏览器checks；一张旧截图不能证明当前提交；某个模板成功不代表另一个模板成功。源码包中的业务数据为空是正确交付边界，不能因此声称真实业务备份恢复已被验证。\n\n## 真实模型与CI有自己的权限边界\n\n`scripts/ci_real_model.py` 是仓库专门的受限真实供应商验收，代码检查固定仓库、允许ref、手动dispatch、地址与模型，不是给任意本地模型的通用命令。不要在本机伪造GITHUB_ACTIONS等变量绕过门禁，也不要改服务商或预算后继续沿用原来的验收名称。普通本机体验使用已完成的 `rnd start/chat` 和你自己的配置；正式真实供应商证明按该工作流的实际授权与证据要求执行。\n\n批准的合成Plan可做确定性重放；失败时保存的Requirement/Plan诊断明确未批准，不能被当作备用生成答案。模型语义审阅同样只提供有依据的额外意见，不能把HTTP或浏览器失败改成成功。\n\n## 完成后能够独立解释的十个问题\n\n不要背文件名，试着从输入走到结果：为什么改模型地址必须换Key？为什么下一轮遗漏不删除事实？为什么批准绑定gate_id？为什么生成器保留旧目录？为什么搜索索引要核对SHA？为什么隐藏按钮不等于权限？为什么状态、审计和提醒同事务？为什么模型不能改测试？为什么新目录要再装依赖？为什么沙箱删除也会阻止交付？\n\n能用本项目的真实函数、调用方和失败测试回答这些问题，才说明你掌握了平台的构造，而不只是拥有一份源码。所有缺失服务与未运行矩阵继续明确列出；完整实现、可运行基础链路、全面环境验收是三个相关但不同的结论。\n"
+  }
+]
+````
+
 ### `scripts/native_browser.cjs`
 
 **作用：真实原生登录、菜单、表单与规则浏览器检查。** 按FastapiAdmin或Vben的真实DOM操作，登录提交必须核对实际认证/权限HTTP、同源非登录路由和原生shell，不等待概览页无关资源的整页load；再验证生成菜单的实际列表API/DOM、原生组件及表单正反例。失败截图/网络错误用于诊断，不能注入令牌越过登录，45秒等待上限不变。
@@ -112188,6 +114306,381 @@ if __name__ == "__main__":
     parser.add_argument("destination", type=Path)
     args = parser.parse_args()
     print("Restored files:", restore(args.handbook, args.destination))
+````
+
+### `scripts/rebuild_learning_docs.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.rebuild_learning_docs；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**逐个入口与控制逻辑：**
+
+- `sha`（L24–L25）：接收`data`。 调用`hashlib.sha256(data).hexdigest`、`hashlib.sha256`。 返回路径：L25的`hashlib.sha256(data).hexdigest()`。
+- `safe_path`（L28–L44）：接收`name`。 控制顺序：L29按`not isinstance(name, str)`分支；L30抛异常，停止当前正常路径；L32按`not name or path.is_absolute() or path.as_posix() != name or ".." in path.parts or ".…`分支；L43抛异常，停止当前正常路径。 调用`isinstance`、`ValueError`、`PurePosixPath`、`path.is_absolute`、`path.as_posix`、`any`、`ord`。 返回路径：L44的`path`。
+- `comment_line`（L47–L59）：接收`name`、`language`。 控制顺序：L49按`language in {"html", "vue", "markdown", "xml"}`分支；L51按`language in {"javascript", "typescript", "java", "json", "jsonc"}`分支；L53按`language == "css"`分支；L55按`language == "sql"`分支；L57按`language == "ini"`分支。 调用`safe_path`。 返回路径：L50的`f"<!-- {name} -->"`；L52的`f"// {name}"`；L54的`f"/* {name} */"`。
+- `annotation`（L62–L67）：接收`line`。 控制顺序：L63遍历`COMMENTS`；L64按`match := pattern.fullmatch(line)`分支；L67抛异常，停止当前正常路径。 调用`pattern.fullmatch`、`safe_path`、`ValueError`。 返回路径：L66的`match[1]`。
+- `parse_document`（L70–L111）：接收`text`。 源码说明：Scan real top-level fences; nested source examples remain uninterpreted bytes.。 控制顺序：L74在`index < len(lines)`成立时循环；L77按`not match`分支；L78按`line.lstrip().startswith(MARKER)`分支；L83按`fence[0] == "`" and "`" in info`分支；L92在`index < len(lines) and not closing.fullmatch(lines[index].rstrip(…`成立时循环；L94按`index == len(lines)`分支；L95抛异常，停止当前正常路径；L97按`not body`分支。后续分支沿下方源码相同行号继续阅读。 调用`text.splitlines`、`len`、`lines[index].rstrip`、`OPEN.fullmatch`、`line.lstrip().startswith`、`line.lstrip`、`markers.append`、`match.groups`、`info.strip`等。 返回路径：L111的`records, markers`。
+- `fences`（L114–L115）：接收`text`。 调用`parse_document`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `check_fences`（L118–L119）：接收`text`。 调用`sum`、`fences`。 返回路径：L119的`sum(1 for _ in fences(text))`。
+- `regular_inside`（L122–L133）：接收`root`、`relative`。 控制顺序：L125按`root.is_symlink() or any(parent.is_symlink() for parent in root.absolute().parents)`分支；L126抛异常，停止当前正常路径；L127遍历`parts`；L129按`candidate.is_symlink()`分支；L130抛异常，停止当前正常路径；L131按`not candidate.is_file()`分支；L132抛异常，停止当前正常路径。 调用`safe_path`、`root.is_symlink`、`any`、`parent.is_symlink`、`root.absolute`、`ValueError`、`candidate.is_symlink`、`candidate.is_file`。 返回路径：L133的`candidate`。
+- `read_manifest`（L136–L148）：接收`folder`。 控制顺序：L139按`not isinstance(document, dict) or type(document.get("format")) is not int or document…`分支；L145抛异常，停止当前正常路径；L146按`not document["files"]`分支；L147抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`regular_inside(folder, "manifest.json").read_text`、`regular_inside`、`isinstance`、`type`、`document.get`、`ValueError`。 返回路径：L148的`document`。
+- `read_bundle`（L151–L250）：接收`folder`。 控制顺序：L155遍历`document["files"]`；L156按`not isinstance(row, dict) or not {"path", "sha256", "bytes", "stage", "parts"} <= row…`分支；L160抛异常，停止当前正常路径；L161按`not isinstance(row["sha256"], str) or not re.fullmatch(r"[0-9a-f]{64}", row["sha256"]…`分支；L167抛异常，停止当前正常路径；L170按`name in rows or safe_path(name).parts[0] == LEDGER`分支；L171抛异常，停止当前正常路径；L172按`not isinstance(row["stage"], str) or not re.fullmatch( r"[0-9]{2}-[a-z0-9-]+", row["s…`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`read_manifest`、`set`、`isinstance`、`row.keys`、`ValueError`、`re.fullmatch`、`type`、`safe_path`等。 返回路径：L250的`rows`。
+- `ensure_safe_target`（L253–L261）：接收`destination`、`name`。 控制顺序：L255遍历`safe_path(name).parts`；L257按`candidate.is_symlink()`分支；L258抛异常，停止当前正常路径；L259按`candidate != destination / name and candidate.exists() and not candidate.is_dir()`分支；L260抛异常，停止当前正常路径。 调用`safe_path`、`candidate.is_symlink`、`ValueError`、`candidate.exists`、`candidate.is_dir`。 返回路径：L261的`candidate`。
+- `restore`（L264–L324）：接收`folder`、`destination`、`through`、`advance`。先验证所有源码块与目标路径，再向空目录写入；这一步本身不执行任何写出的项目代码。 控制顺序：L269按`through is not None`分支；L271按`len(matches) != 1`分支；L272抛异常，停止当前正常路径；L279按`destination.is_symlink() or (destination.exists() and not destination.is_dir())`分支；L280抛异常，停止当前正常路径；L282按`any(parent.is_symlink() for parent in destination.absolute().parents)`分支；L283抛异常，停止当前正常路径；L285按`destination.exists() and any(destination.iterdir())`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`read_bundle`、`read_manifest`、`len`、`ValueError`、`destination.is_symlink`、`destination.exists`、`destination.is_dir`、`any`等。 返回路径：L324的`len(selected)`。
+- `main`（L327–L343）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L335按`args.check`分支；L337按`args.destination is None`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`Path(__file__).resolve`、`Path`、`parser.parse_args`、`print`、`len`、`read_bundle`、`parser.error`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: scripts/rebuild_learning_docs.py sha256: 157a029a2305ad664e40990f9ad18a8e0da2db796e800c9998381f65d25b01e9 -->
+````python
+"""Restore a staged textbook using only Python's standard library; never execute source."""
+
+import argparse
+import base64
+import binascii
+import hashlib
+import json
+import re
+from pathlib import Path, PurePosixPath
+
+MARKER = "<!-- learning-source: "
+OPEN = re.compile(r"^( {0,3})(`{3,}|~{3,})([^\r\n]*)$")
+COMMENTS = (
+    re.compile(r"^# (.+)$"),
+    re.compile(r"^// (.+)$"),
+    re.compile(r"^-- (.+)$"),
+    re.compile(r"^; (.+)$"),
+    re.compile(r"^<!-- (.+) -->$"),
+    re.compile(r"^/\* (.+) \*/$"),
+)
+LEDGER = ".learning-progress.json"
+
+
+def sha(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def safe_path(name):
+    if not isinstance(name, str):
+        raise ValueError("Path must be a string")
+    path = PurePosixPath(name)
+    if (
+        not name
+        or path.is_absolute()
+        or path.as_posix() != name
+        or ".." in path.parts
+        or ".git" in path.parts
+        or ":" in name
+        or "\\" in name
+        or any(ord(char) < 32 for char in name)
+        or name == "."
+    ):
+        raise ValueError("Unsafe relative path: " + name)
+    return path
+
+
+def comment_line(name, language):
+    safe_path(name)
+    if language in {"html", "vue", "markdown", "xml"}:
+        return f"<!-- {name} -->"
+    if language in {"javascript", "typescript", "java", "json", "jsonc"}:
+        return f"// {name}"
+    if language == "css":
+        return f"/* {name} */"
+    if language == "sql":
+        return f"-- {name}"
+    if language == "ini":
+        return f"; {name}"
+    return f"# {name}"
+
+
+def annotation(line):
+    for pattern in COMMENTS:
+        if match := pattern.fullmatch(line):
+            safe_path(match[1])
+            return match[1]
+    raise ValueError("Every fenced block must start with a relative-path comment")
+
+
+def parse_document(text):
+    """Scan real top-level fences; nested source examples remain uninterpreted bytes."""
+    lines = text.splitlines(keepends=True)
+    index, records, markers = 0, [], []
+    while index < len(lines):
+        line = lines[index].rstrip("\r\n")
+        match = OPEN.fullmatch(line)
+        if not match:
+            if line.lstrip().startswith(MARKER):
+                markers.append(line)
+            index += 1
+            continue
+        indentation, fence, info = match.groups()
+        if fence[0] == "`" and "`" in info:
+            # CommonMark forbids backticks in a backtick-fence info string.
+            index += 1
+            continue
+        language = info.strip().split()[0] if info.strip() else ""
+        opening = index
+        index += 1
+        start = index
+        closing = re.compile(r" {0,3}" + re.escape(fence[0]) + "{" + str(len(fence)) + r",}\s*$")
+        while index < len(lines) and not closing.fullmatch(lines[index].rstrip("\r\n")):
+            index += 1
+        if index == len(lines):
+            raise ValueError("Unclosed Markdown fence")
+        body = "".join(lines[start:index])
+        if not body:
+            raise ValueError("A fenced block has no path annotation")
+        first, separator, rest = body.partition("\n")
+        if not separator:
+            raise ValueError("A fenced block has no content separator")
+        first = first.rstrip("\r")
+        if indentation:
+            first = first[min(len(first) - len(first.lstrip(" ")), len(indentation)) :]
+        name = annotation(first)
+        if first != comment_line(name, language):
+            raise ValueError("Wrong comment syntax for fenced language: " + language)
+        previous = lines[opening - 1].rstrip("\r\n") if opening else ""
+        records.append((previous, language, name, rest))
+        index += 1
+    return records, markers
+
+
+def fences(text):
+    yield from parse_document(text)[0]
+
+
+def check_fences(text):
+    return sum(1 for _ in fences(text))
+
+
+def regular_inside(root, relative):
+    parts = safe_path(relative).parts
+    candidate = root
+    if root.is_symlink() or any(parent.is_symlink() for parent in root.absolute().parents):
+        raise ValueError("Symlink root or ancestor is forbidden")
+    for part in parts:
+        candidate = candidate / part
+        if candidate.is_symlink():
+            raise ValueError("Symlink path is forbidden: " + relative)
+    if not candidate.is_file():
+        raise ValueError("Missing regular file: " + relative)
+    return candidate
+
+
+def read_manifest(folder):
+    folder = Path(folder)
+    document = json.loads(regular_inside(folder, "manifest.json").read_text(encoding="utf-8"))
+    if (
+        not isinstance(document, dict)
+        or type(document.get("format")) is not int
+        or document["format"] != 1
+        or not isinstance(document.get("files"), list)
+    ):
+        raise ValueError("Unsupported learning manifest")
+    if not document["files"]:
+        raise ValueError("Empty learning manifest")
+    return document
+
+
+def read_bundle(folder):
+    folder = Path(folder)
+    document = read_manifest(folder)
+    rows, documents = {}, set()
+    for row in document["files"]:
+        if (
+            not isinstance(row, dict)
+            or not {"path", "sha256", "bytes", "stage", "parts"} <= row.keys()
+        ):
+            raise ValueError("Incomplete source manifest row")
+        if (
+            not isinstance(row["sha256"], str)
+            or not re.fullmatch(r"[0-9a-f]{64}", row["sha256"])
+            or type(row["bytes"]) is not int
+            or row["bytes"] < 0
+        ):
+            raise ValueError("Invalid source hash or byte count")
+        name = row["path"]
+        safe_path(name)
+        if name in rows or safe_path(name).parts[0] == LEDGER:
+            raise ValueError("Duplicate or reserved source path: " + name)
+        if not isinstance(row["stage"], str) or not re.fullmatch(
+            r"[0-9]{2}-[a-z0-9-]+", row["stage"]
+        ):
+            raise ValueError("Invalid stage")
+        if not isinstance(row["parts"], list) or not row["parts"]:
+            raise ValueError("Missing source parts: " + name)
+        chunks = []
+        for number, relative in enumerate(row["parts"], 1):
+            document_path = safe_path(relative)
+            if (
+                document_path.parts[:2] != (row["stage"], "sources")
+                or document_path.suffix != ".md"
+            ):
+                raise ValueError("Source document is outside its declared stage")
+            if relative in documents:
+                raise ValueError("Duplicate source document: " + relative)
+            documents.add(relative)
+            text = regular_inside(folder, relative).read_bytes().decode("utf-8")
+            all_records, markers = parse_document(text)
+            records = [item for item in all_records if item[0].startswith(MARKER)]
+            if len(records) != 1 or len(markers) != 1:
+                raise ValueError("Missing or duplicate source record: " + relative)
+            marker, language, annotated, payload = records[0]
+            if not marker.endswith(" -->"):
+                raise ValueError("Malformed source marker")
+            meta = json.loads(marker[len(MARKER) : -4])
+            if (
+                not isinstance(meta, dict)
+                or meta.get("path") != name
+                or annotated != name
+                or type(meta.get("part")) is not int
+                or type(meta.get("parts")) is not int
+                or meta.get("part") != number
+                or meta.get("parts") != len(row["parts"])
+                or meta.get("encoding") not in ("utf-8", "base64")
+            ):
+                raise ValueError("Source chunk identity mismatch: " + relative)
+            if meta["encoding"] == "base64":
+                if language != "base64":
+                    raise ValueError("Binary source has wrong language")
+                try:
+                    chunk = base64.b64decode(payload.replace("\n", ""), validate=True)
+                except (ValueError, binascii.Error) as exc:
+                    raise ValueError("Invalid base64: " + name) from exc
+                candidates = [chunk]
+            else:
+                candidates = [payload.encode("utf-8")]
+                if payload.endswith("\n"):
+                    candidates.append(payload[:-1].encode("utf-8"))
+            matches = [data for data in candidates if sha(data) == meta.get("sha256")]
+            if not matches:
+                raise ValueError("Source chunk hash mismatch: " + relative)
+            chunks.append(matches[0])
+        data = b"".join(chunks)
+        if len(data) != row.get("bytes") or sha(data) != row.get("sha256"):
+            raise ValueError("Whole source hash mismatch: " + name)
+        rows[name] = data
+    # No file can also be a directory. Preflight the entire edition, including
+    # later stages, so conflicts never cause a partial restore.
+    for name in rows:
+        if any(parent.as_posix() in rows for parent in PurePosixPath(name).parents):
+            raise ValueError("Source file is also an ancestor directory: " + name)
+    # Reject an omitted source page even if its manifest row was removed.
+    actual = {
+        path.relative_to(folder).as_posix()
+        for path in folder.glob("*/sources/**/*.md")
+        if path.is_file()
+    }
+    if actual != documents:
+        raise ValueError("Source document inventory mismatch")
+    for path in folder.rglob("*.md"):
+        if path.is_symlink():
+            raise ValueError("Symlink Markdown is forbidden")
+        relative = path.relative_to(folder).as_posix()
+        text = regular_inside(folder, relative).read_bytes().decode("utf-8")
+        _, markers = parse_document(text)
+        if relative not in documents and markers:
+            raise ValueError("Unlisted source marker: " + relative)
+    return rows
+
+
+def ensure_safe_target(destination, name):
+    candidate = destination
+    for part in safe_path(name).parts:
+        candidate = candidate / part
+        if candidate.is_symlink():
+            raise ValueError("Refuse target symlink: " + name)
+        if candidate != destination / name and candidate.exists() and not candidate.is_dir():
+            raise ValueError("Target parent is not a directory: " + name)
+    return candidate
+
+
+def restore(folder, destination, through=None, advance=False):
+    folder, destination = Path(folder), Path(destination)
+    rows = read_bundle(folder)  # Fully validate every stage before writing anything.
+    document = read_manifest(folder)
+    stages = {row["stage"] for row in document["files"]}
+    if through is not None:
+        matches = [stage for stage in stages if stage == through or stage[:2] == through]
+        if len(matches) != 1:
+            raise ValueError("Unknown or ambiguous stage: " + through)
+        through = matches[0]
+    selected = {
+        row["path"]: rows[row["path"]]
+        for row in document["files"]
+        if through is None or row["stage"] <= through
+    }
+    if destination.is_symlink() or (destination.exists() and not destination.is_dir()):
+        raise ValueError("Destination must be a real directory")
+    # Refuse symlink ancestors even when the final leaf does not yet exist.
+    if any(parent.is_symlink() for parent in destination.absolute().parents):
+        raise ValueError("Destination has a symlink ancestor")
+    previous = {}
+    if destination.exists() and any(destination.iterdir()):
+        if not advance:
+            raise ValueError(
+                "Destination must be empty; use --advance for a verified earlier stage"
+            )
+        ledger = json.loads(regular_inside(destination, LEDGER).read_text(encoding="utf-8"))
+        if (
+            not isinstance(ledger, dict)
+            or type(ledger.get("format")) is not int
+            or ledger.get("format") != 1
+            or not isinstance(ledger.get("files"), dict)
+        ):
+            raise ValueError("Invalid progress ledger")
+        previous = ledger["files"]
+        for name, digest in previous.items():
+            if name not in rows or sha(rows[name]) != digest:
+                raise ValueError("Ledger does not belong to this edition: " + name)
+            if sha(regular_inside(destination, name).read_bytes()) != digest:
+                raise ValueError("A previously restored file changed: " + name)
+        if not set(previous).issubset(selected):
+            raise ValueError("Cannot move backwards to an earlier stage")
+    for name, data in selected.items():
+        target = ensure_safe_target(destination, name)
+        if target.exists() and (not target.is_file() or target.read_bytes() != data):
+            raise ValueError("Refuse to overwrite existing source: " + name)
+    destination.mkdir(parents=True, exist_ok=True)
+    for name, data in selected.items():
+        target = ensure_safe_target(destination, name)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(data)
+    (destination / LEDGER).write_text(
+        json.dumps(
+            {"format": 1, "files": {name: sha(data) for name, data in selected.items()}},
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return len(selected)
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("destination", type=Path, nargs="?")
+    parser.add_argument("--docs", type=Path, default=Path(__file__).resolve().parent)
+    parser.add_argument("--through", help="Include all stages through this number or full stage ID")
+    parser.add_argument("--advance", action="store_true")
+    parser.add_argument("--check", action="store_true", help="Validate only; never write source")
+    args = parser.parse_args()
+    if args.check:
+        print("Validated source files:", len(read_bundle(args.docs)))
+    elif args.destination is None:
+        parser.error("Provide a new empty destination or --check")
+    else:
+        print(
+            "Restored source files:",
+            restore(args.docs, args.destination, args.through, args.advance),
+        )
+
+
+if __name__ == "__main__":
+    main()
 ````
 
 ### `scripts/vendor_templates.py`
@@ -113307,7 +115800,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/test.yml sha256: a6c5ab034cde76100b8f4d63bf48b48102f5aa801c61c5ab15d0a4b0b550391e -->
+<!-- source-file: .github/workflows/test.yml sha256: c987bfd63098d1251b4f93c806d15db981bc487f5c063883e90b271ac2d81139 -->
 ````yaml
 name: Python 3.14 acceptance
 on:
@@ -113354,6 +115847,7 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run python -m scripts.build_handbook --check
+      - run: uv run python -m scripts.build_learning_docs --check
       - run: uv run pytest -m "not postgres" --junitxml=reports/tests.xml --cov=workbench --cov-report=term-missing
         env:
           RND_REQUIRE_NODE_TESTS: '1'
@@ -113463,7 +115957,8 @@ jobs:
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
-      - run: uv run python -m scripts.ci_handbook
+      - name: Reconstruct from only learning-docs and test the complete platform
+        run: uv run python -m scripts.ci_learning_docs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -113472,6 +115967,8 @@ jobs:
             reports/handbook-clean-room.json
             reports/handbook-tests.xml
             reports/handbook-test-status.json
+            reports/learning-docs-clean-room.json
+            reports/learning-docs-tests.xml
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -113513,6 +116010,7 @@ jobs:
           path: |
             workbench-source.zip
             从零实现AI研发平台_逐步实操手册_完整版.md
+            learning-docs/
 ````
 
 ### `.github/workflows/toolchain.yml`
@@ -120708,7 +123206,7 @@ wheels = [
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/guide.md sha256: 98dd68d1681ab4fd716de9fc42ce6e066df6b57d42fe7a73430df3e46587d467 -->
+<!-- source-file: docs/guide.md sha256: 7e7260cc28c5d8f76abb4bfdfa6f3c2895fb8d214aefa9d62904ec69c68b5ae0 -->
 ````markdown
 # 从零实现 AI 研发平台：逐步实操手册
 
@@ -120718,7 +123216,7 @@ wheels = [
 
 这是一份完整的实现与操作手册：前半部分按学习顺序说明创建什么、连接到哪里、如何运行与测试；后半部分直接包含同一提交中的全部文本源码、配置、数据库迁移、前端、测试和依赖锁。全文描述一个一致的最终系统，不需要任何较早版本、骨架项目或差异补丁。
 
-本手册只有一个正式文件：`从零实现AI研发平台_逐步实操手册_完整版.md`。你可以只拿到这一份文档，从空文件夹逐个创建本项目的全部源文件。语言解释器、Python包和第三方开源框架属于明确安装的依赖，不要求预先拥有本项目仓库。
+本文件是保留兼容的完整版：`从零实现AI研发平台_逐步实操手册_完整版.md`。新的分阶段教材位于 `learning-docs/README.md`，适合按依赖逐站学习。你可以只拿到这一份文档，从空文件夹逐个创建本项目的全部源文件。语言解释器、Python包和第三方开源框架属于明确安装的依赖，不要求预先拥有本项目仓库。
 
 **阅读顺序**：先完成第2章的工具准备，按照第6—13章和“逐文件实现讲解”创建文件；每写完一组，紧接着做“动手写与跑”的对应完整小实验，再回到第3—5章体验平台。完整源码区的每个标题就是要创建的文件路径，代码块不省略实现。希望先体验的读者可以在已经取得的演示源码目录直接执行第3—5章，但这不是手写学习的前置条件。
 
@@ -121197,7 +123695,7 @@ uv run python -m scripts.build_handbook --check
 uv run python -m scripts.build_handbook
 ```
 
-生成器把全部正文、逐文件讲解与真实源码完整组合成唯一正式手册。每个源码块带SHA；test_handbook验证逐块一致性与空目录还原后再次生成相同手册。客服章节在建档、权限、分配、历史、提醒和统计处配有真实浏览器截图；图注注明模板、来源提交及证据范围。PNG原始字节通过可折叠Base64资源块随书保存，独立还原程序严格解码并逐张核对SHA，正文仍使用`docs/images/`相对路径，不塞入data URI。二进制vendorZIP在Git中单独保存，书中包含重建这些ZIP的完整脚本、manifest与许可证，不把二进制伪装成可手写源码，也不要求已有ZIP作为学习前提。
+生成器把全部正文、逐文件讲解与真实源码完整组合成兼容版完整手册。每个源码块带SHA；test_handbook验证逐块一致性与空目录还原后再次生成相同手册。客服章节在建档、权限、分配、历史、提醒和统计处配有真实浏览器截图；图注注明模板、来源提交及证据范围。PNG原始字节通过可折叠Base64资源块随书保存，独立还原程序严格解码并逐张核对SHA，正文仍使用`docs/images/`相对路径，不塞入data URI。二进制vendorZIP在Git中单独保存，书中包含重建这些ZIP的完整脚本、manifest与许可证，不把二进制伪装成可手写源码，也不要求已有ZIP作为学习前提。
 
 手工学习创建顺序可照第7—13章；全部源码齐全后再执行全量测试。复现安装始终 `--locked`；依赖更新需提交真实新锁并重跑，不由AI随意修改锁内容。
 

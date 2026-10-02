@@ -6,6 +6,12 @@
 
 平台使用 Python、uv、FastAPI、SQLite 和 LangGraph。**仅聊天大模型允许使用外部推理服务；其余工具均为本机运行。** 基础代码、迁移、索引、测试与打包由工具执行。测试失败不能由模型“宣布通过”。
 
+## 从零学习：推荐新的分阶段教材
+
+从 [learning-docs/README.md](learning-docs/README.md) 开始：15个依赖有序阶段，每站有实现解释、小实验、预期结果与排错。每个代码块首行标注相对路径，大文件按模块分为连续小页。只保存整个 `learning-docs` 目录就能在空目录重建自有源码、测试、锁文件和截图，第三方模板按固定上游提交自行下载处理；无需先下载本仓库骨架。
+
+旧版完整手册仍保留兼容。新教材的还原与验收方式见 [learning-docs 最后一站](learning-docs/14-acceptance/README.md)。
+
 ## 1. 初始化完整演示源码
 
 安装下方的Git和uv后，在准备存放项目的文件夹打开终端。取得完整演示源码：
@@ -23,7 +29,7 @@ uv sync --locked
 uv run rnd init
 ```
 
-**从零学习不需要先取得这些源码。** 唯一教材`从零实现AI研发平台_逐步实操手册_完整版.md`从空文件夹讲解每个自有文件、调用关系和逻辑，包含所有文本源码及锁文件；书中给出的脚本可从固定第三方提交生成原生模板ZIP。没有本项目骨架也能照书实现。
+**从零学习不需要先取得这些源码。** 兼容版教材`从零实现AI研发平台_逐步实操手册_完整版.md`从空文件夹讲解每个自有文件、调用关系和逻辑，包含所有文本源码及锁文件；书中给出的脚本可从固定第三方提交生成原生模板ZIP。没有本项目骨架也能照书实现。
 
 需要先安装 Git、uv。Windows 的 uv 官方安装器：
 
@@ -168,6 +174,7 @@ uv run ruff check .
 uv run ruff format --check .
 uv run pytest -m "not postgres" -q
 uv run python -m scripts.build_handbook --check
+uv run python -m scripts.build_learning_docs --check
 ```
 
 Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新数据库交付、真实Chromium智能推荐与产品页面回归，并由客服矩阵验证三角色、关系、流程、提醒和统计。CI模型采用显式协议夹具，不消耗真实Key，也不声称已验证你的供应商账号。
@@ -176,7 +183,7 @@ Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新�
 
 当前是仅监听本机、单操作人和单Worker的研发工作台。没有公网生产身份体系。请勿公开 `.env`、`.data`、`.deployment` 或访问令牌。更多环境条件、SQL步骤、预算恢复、原生部署与故障定位见完整手册。
 
-## 9. 本机工具链与唯一完整教材
+## 9. 本机工具链与完整教材
 
 默认使用本机Tree-sitter/Python AST、FTS5和符号Repo Map。Aider使用独立Python3.12环境：
 
@@ -230,7 +237,7 @@ uv run python -m scripts.ci_handbook
 
 ### 本机Daytona的安装边界
 
-Daytona固定v0.190.0；API/Proxy从固定SHA在本机Docker构建，Runner使用同版本、固定SHA256的发布文件。服务运行在本机internal网络，端口仅绑定回环，SDK也禁止非回环连接；不申请Daytona云账号。完整安装顺序为`prepare → images → snapshot-image → up → auth → snapshot → ci_daytona_local`，每一步的完整代码、用途、预期结果及失败处理见唯一手册第20章。此安装通道使用Linux x86_64或Windows x86_64 WSL2；默认平台与普通本机验收不要求安装Daytona。安装时下载公开依赖，不等于把生成代码交给云端运行。
+Daytona固定v0.190.0；API/Proxy从固定SHA在本机Docker构建，Runner使用同版本、固定SHA256的发布文件。服务运行在本机internal网络，端口仅绑定回环，SDK也禁止非回环连接；不申请Daytona云账号。完整安装顺序为`prepare → images → snapshot-image → up → auth → snapshot → ci_daytona_local`，每一步的完整代码、用途、预期结果及失败处理见兼容手册第20章及新教材第12阶段。此安装通道使用Linux x86_64或Windows x86_64 WSL2；默认平台与普通本机验收不要求安装Daytona。安装时下载公开依赖，不等于把生成代码交给云端运行。
 
 ### 原生业务规则、Plop、Aider 与完整本机 Daytona
 

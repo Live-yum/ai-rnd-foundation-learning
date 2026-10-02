@@ -183,6 +183,9 @@ def main():
         # The exact original text roundtrip and all upstream source digests above
         # have already been independently checked, not weakened to fit new output.
         run([sys.executable, "-m", "scripts.build_handbook"], destination, env)
+        # New staged-doc tests require the generated directory, which is rebuilt
+        # from the restored source rather than embedded recursively in this book.
+        run([sys.executable, "-m", "scripts.build_learning_docs"], destination, env)
         # Build the optional real Continue component from the textbook's restored files,
         # not from the original project's generated bundle or installed node_modules.
         npm = shutil.which("npm")

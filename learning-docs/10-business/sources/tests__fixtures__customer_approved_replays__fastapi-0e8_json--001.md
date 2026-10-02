@@ -1,0 +1,738 @@
+# tests/fixtures/customer_approved_replays/fastapi-0e8.json · 1/1
+
+[阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
+
+
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
+
+**创建路径：** `tests/fixtures/customer_approved_replays/fastapi-0e8.json`；**本文件共有 1 段**。本段覆盖源文件 L1–L718。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+
+本段原始字节数：`19099`。本段原文以LF换行结束。
+
+<!-- learning-source: {"path": "tests/fixtures/customer_approved_replays/fastapi-0e8.json", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "023ed6b43f20de90ef3b68033263212204314c2df0be08095fd6f9ec9e56dcb4"} -->
+````json
+// tests/fixtures/customer_approved_replays/fastapi-0e8.json
+{
+  "title": "内部客户服务管理平台",
+  "data_scope": "shared",
+  "entities": [
+    {
+      "name": "customers",
+      "description": "客户档案与分类信息",
+      "fields": [
+        {
+          "name": "name",
+          "label": "客户名称",
+          "choice_labels": {},
+          "kind": "text",
+          "required": true,
+          "max_length": 120,
+          "min_length": 0,
+          "choices": [],
+          "searchable": true,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "organization",
+          "label": "所属组织",
+          "choice_labels": {},
+          "kind": "text",
+          "required": false,
+          "max_length": 160,
+          "min_length": 0,
+          "choices": [],
+          "searchable": true,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "contact",
+          "label": "联系方式",
+          "choice_labels": {},
+          "kind": "text",
+          "required": false,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": true,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "category",
+          "label": "客户分类",
+          "choice_labels": {
+            "个人": "个人",
+            "企业": "企业",
+            "合作伙伴": "合作伙伴"
+          },
+          "kind": "enum",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [
+            "企业",
+            "个人",
+            "合作伙伴"
+          ],
+          "searchable": false,
+          "filterable": true,
+          "date_range": false
+        }
+      ]
+    },
+    {
+      "name": "requests",
+      "description": "服务请求与处理状态",
+      "fields": [
+        {
+          "name": "title",
+          "label": "请求标题",
+          "choice_labels": {},
+          "kind": "text",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": true,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "detail",
+          "label": "请求详情",
+          "choice_labels": {},
+          "kind": "text",
+          "required": true,
+          "max_length": 3000,
+          "min_length": 0,
+          "choices": [],
+          "searchable": true,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "customer_id",
+          "label": "所属客户",
+          "choice_labels": {},
+          "kind": "text",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "assignee_id",
+          "label": "负责人",
+          "choice_labels": {},
+          "kind": "text",
+          "required": false,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "request_state",
+          "label": "请求状态",
+          "choice_labels": {
+            "active": "处理中",
+            "new": "待处理",
+            "resolved": "已解决"
+          },
+          "kind": "enum",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [
+            "new",
+            "active",
+            "resolved"
+          ],
+          "searchable": false,
+          "filterable": true,
+          "date_range": false
+        },
+        {
+          "name": "resolved_at",
+          "label": "解决时间",
+          "choice_labels": {},
+          "kind": "datetime",
+          "required": false,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "due_at",
+          "label": "截止时间",
+          "choice_labels": {},
+          "kind": "datetime",
+          "required": false,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "priority",
+          "label": "优先级",
+          "choice_labels": {
+            "普通": "普通",
+            "紧急": "紧急"
+          },
+          "kind": "enum",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [
+            "普通",
+            "紧急"
+          ],
+          "searchable": false,
+          "filterable": true,
+          "date_range": false
+        }
+      ]
+    },
+    {
+      "name": "tasks",
+      "description": "协作任务与负责人跟踪",
+      "fields": [
+        {
+          "name": "title",
+          "label": "任务标题",
+          "choice_labels": {},
+          "kind": "text",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": true,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "detail",
+          "label": "任务详情",
+          "choice_labels": {},
+          "kind": "text",
+          "required": true,
+          "max_length": 3000,
+          "min_length": 0,
+          "choices": [],
+          "searchable": true,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "request_id",
+          "label": "所属服务请求",
+          "choice_labels": {},
+          "kind": "text",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "assignee_id",
+          "label": "负责人",
+          "choice_labels": {},
+          "kind": "text",
+          "required": false,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "task_state",
+          "label": "任务状态",
+          "choice_labels": {
+            "active": "处理中",
+            "new": "待处理",
+            "resolved": "已解决"
+          },
+          "kind": "enum",
+          "required": true,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [
+            "new",
+            "active",
+            "resolved"
+          ],
+          "searchable": false,
+          "filterable": true,
+          "date_range": false
+        },
+        {
+          "name": "resolved_at",
+          "label": "解决时间",
+          "choice_labels": {},
+          "kind": "datetime",
+          "required": false,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        },
+        {
+          "name": "due_at",
+          "label": "截止时间",
+          "choice_labels": {},
+          "kind": "datetime",
+          "required": false,
+          "max_length": 200,
+          "min_length": 0,
+          "choices": [],
+          "searchable": false,
+          "filterable": false,
+          "date_range": false
+        }
+      ]
+    }
+  ],
+  "acceptance": [
+    "管理人员登录后可创建 customers、requests 和 tasks；服务人员与普通员工无 customers 创建权限，被拒绝后不产生数据。",
+    "客户查询支持按 name、organization、contact 关键词搜索，并按 category（企业/个人/合作伙伴）精确筛选，返回结果符合条件。",
+    "客户详情展示关联的历史服务请求；请求详情展示关联的协作任务；关联查询不返回当前角色不可读的他人记录。",
+    "新建请求与任务的初始状态为 new；服务人员对自己负责的请求执行 start 后状态变为 active，执行 resolve 后状态变为 resolved 且 resolved_at 被自动写入。",
+    "未分配给某服务人员的请求/任务对该服务人员不可见或不可操作；普通员工只能查询自己创建的请求，不能分配负责人、改变状态或读取团队统计。",
+    "每次创建、修改、分配、备注、状态变更与归档都在同一事务内产生服务端审计记录，且审计记录不可修改，可通过处理历史与审计查看。",
+    "分配负责人、添加处理备注、状态变化、解决请求、逾期分别产生持久化站内提醒；请求被解决后，提交者可在自己的通知收件箱看到该提醒，且通知读取状态仅对自己可见。",
+    "统计接口返回 requests 总数、已解决数、平均解决时长（秒，从 created_at 到 resolved_at）、customers 按 category 分组数、requests 按 created_at 的每日趋势；服务人员调用时仅按其可见行计算，非预设数字。",
+    "字段约束生效：name 最长120，organization 最长160，contact 最长200，title 最长200，detail 最长3000；category、priority、request_state、task_state 取值受枚举限制，超长或非法枚举被拒绝。",
+    "前端界面显示中文标签（管理人员/服务人员/普通员工、待处理/处理中/已解决、开始处理/标记解决、中文统计标签），并以客户名称、请求标题或负责人用户名展示关联字段。",
+    "三个实体只存在 customers、requests、tasks，且各自字段与封闭清单完全一致，不出现清单之外的业务字段或其他案例字段。"
+  ],
+  "custom_rules": [],
+  "business": {
+    "roles": [
+      {
+        "name": "manager",
+        "label": "管理人员"
+      },
+      {
+        "name": "service",
+        "label": "服务人员"
+      },
+      {
+        "name": "employee",
+        "label": "普通员工"
+      }
+    ],
+    "registration": {
+      "enabled": true,
+      "default_role": "employee"
+    },
+    "bootstrap_role": "manager",
+    "role_admin_roles": [
+      "manager"
+    ],
+    "resources": [
+      {
+        "entity": "customers",
+        "assignee_field": null,
+        "archive": true,
+        "notes": false,
+        "audit": true
+      },
+      {
+        "entity": "requests",
+        "assignee_field": "assignee_id",
+        "archive": true,
+        "notes": true,
+        "audit": true
+      },
+      {
+        "entity": "tasks",
+        "assignee_field": "assignee_id",
+        "archive": true,
+        "notes": true,
+        "audit": true
+      }
+    ],
+    "relations": [
+      {
+        "entity": "requests",
+        "field": "customer_id",
+        "target_entity": "customers",
+        "on_delete": "restrict"
+      },
+      {
+        "entity": "requests",
+        "field": "assignee_id",
+        "target_entity": "$users",
+        "on_delete": "restrict"
+      },
+      {
+        "entity": "tasks",
+        "field": "request_id",
+        "target_entity": "requests",
+        "on_delete": "restrict"
+      },
+      {
+        "entity": "tasks",
+        "field": "assignee_id",
+        "target_entity": "$users",
+        "on_delete": "restrict"
+      }
+    ],
+    "permissions": [
+      {
+        "role": "manager",
+        "entity": "customers",
+        "actions": [
+          "create",
+          "read",
+          "update",
+          "archive",
+          "read_audit",
+          "read_metrics"
+        ],
+        "scope": "all"
+      },
+      {
+        "role": "manager",
+        "entity": "requests",
+        "actions": [
+          "create",
+          "read",
+          "update",
+          "archive",
+          "assign",
+          "transition",
+          "add_note",
+          "read_history",
+          "read_audit",
+          "read_metrics"
+        ],
+        "scope": "all"
+      },
+      {
+        "role": "manager",
+        "entity": "tasks",
+        "actions": [
+          "create",
+          "read",
+          "update",
+          "archive",
+          "assign",
+          "transition",
+          "add_note",
+          "read_history",
+          "read_audit"
+        ],
+        "scope": "all"
+      },
+      {
+        "role": "service",
+        "entity": "customers",
+        "actions": [
+          "read",
+          "read_metrics"
+        ],
+        "scope": "all"
+      },
+      {
+        "role": "service",
+        "entity": "requests",
+        "actions": [
+          "read",
+          "update",
+          "add_note",
+          "transition",
+          "read_history",
+          "read_audit",
+          "read_metrics"
+        ],
+        "scope": "assigned"
+      },
+      {
+        "role": "service",
+        "entity": "tasks",
+        "actions": [
+          "read",
+          "update",
+          "add_note",
+          "transition",
+          "read_history",
+          "read_audit"
+        ],
+        "scope": "assigned"
+      },
+      {
+        "role": "employee",
+        "entity": "customers",
+        "actions": [
+          "read"
+        ],
+        "scope": "all"
+      },
+      {
+        "role": "employee",
+        "entity": "requests",
+        "actions": [
+          "create",
+          "read"
+        ],
+        "scope": "own"
+      }
+    ],
+    "workflows": [
+      {
+        "entity": "requests",
+        "status_field": "request_state",
+        "initial": "new",
+        "transitions": [
+          {
+            "name": "start",
+            "label": "开始处理",
+            "from_states": [
+              "new"
+            ],
+            "to_state": "active",
+            "roles": [
+              "manager",
+              "service"
+            ],
+            "set_timestamp": null
+          },
+          {
+            "name": "resolve",
+            "label": "标记解决",
+            "from_states": [
+              "active"
+            ],
+            "to_state": "resolved",
+            "roles": [
+              "manager",
+              "service"
+            ],
+            "set_timestamp": "resolved_at"
+          }
+        ]
+      },
+      {
+        "entity": "tasks",
+        "status_field": "task_state",
+        "initial": "new",
+        "transitions": [
+          {
+            "name": "start",
+            "label": "开始处理",
+            "from_states": [
+              "new"
+            ],
+            "to_state": "active",
+            "roles": [
+              "manager",
+              "service"
+            ],
+            "set_timestamp": null
+          },
+          {
+            "name": "resolve",
+            "label": "标记解决",
+            "from_states": [
+              "active"
+            ],
+            "to_state": "resolved",
+            "roles": [
+              "manager",
+              "service"
+            ],
+            "set_timestamp": "resolved_at"
+          }
+        ]
+      }
+    ],
+    "notifications": [
+      {
+        "entity": "requests",
+        "event": "assigned",
+        "recipient": "assignee",
+        "transition": null,
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "requests",
+        "event": "note_added",
+        "recipient": "assignee",
+        "transition": null,
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "requests",
+        "event": "transitioned",
+        "recipient": "assignee",
+        "transition": "start",
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "requests",
+        "event": "transitioned",
+        "recipient": "creator",
+        "transition": "resolve",
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "requests",
+        "event": "due",
+        "recipient": "assignee",
+        "transition": null,
+        "due_field": "due_at",
+        "channel": "in_app"
+      },
+      {
+        "entity": "tasks",
+        "event": "assigned",
+        "recipient": "assignee",
+        "transition": null,
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "tasks",
+        "event": "note_added",
+        "recipient": "assignee",
+        "transition": null,
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "tasks",
+        "event": "transitioned",
+        "recipient": "assignee",
+        "transition": "start",
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "tasks",
+        "event": "transitioned",
+        "recipient": "assignee",
+        "transition": "resolve",
+        "due_field": null,
+        "channel": "in_app"
+      },
+      {
+        "entity": "tasks",
+        "event": "due",
+        "recipient": "assignee",
+        "transition": null,
+        "due_field": "due_at",
+        "channel": "in_app"
+      }
+    ],
+    "metrics": [
+      {
+        "name": "requests_total",
+        "label": "服务请求总数",
+        "entity": "requests",
+        "kind": "count",
+        "group_by": null,
+        "start_field": null,
+        "end_field": null,
+        "time_field": null,
+        "filters": [],
+        "unit": "seconds",
+        "bucket": "day",
+        "timezone": "UTC"
+      },
+      {
+        "name": "requests_resolved",
+        "label": "已解决请求数",
+        "entity": "requests",
+        "kind": "count",
+        "group_by": null,
+        "start_field": null,
+        "end_field": null,
+        "time_field": null,
+        "filters": [
+          {
+            "field": "request_state",
+            "op": "eq",
+            "value": "resolved"
+          }
+        ],
+        "unit": "seconds",
+        "bucket": "day",
+        "timezone": "UTC"
+      },
+      {
+        "name": "requests_avg_resolution",
+        "label": "平均解决时长",
+        "entity": "requests",
+        "kind": "average_duration",
+        "group_by": null,
+        "start_field": "created_at",
+        "end_field": "resolved_at",
+        "time_field": null,
+        "filters": [],
+        "unit": "seconds",
+        "bucket": "day",
+        "timezone": "UTC"
+      },
+      {
+        "name": "customers_by_category",
+        "label": "客户分类分布",
+        "entity": "customers",
+        "kind": "group_count",
+        "group_by": "category",
+        "start_field": null,
+        "end_field": null,
+        "time_field": null,
+        "filters": [],
+        "unit": "seconds",
+        "bucket": "day",
+        "timezone": "UTC"
+      },
+      {
+        "name": "requests_daily_trend",
+        "label": "每日服务请求趋势",
+        "entity": "requests",
+        "kind": "time_count",
+        "group_by": null,
+        "start_field": null,
+        "end_field": null,
+        "time_field": "created_at",
+        "filters": [],
+        "unit": "seconds",
+        "bucket": "day",
+        "timezone": "UTC"
+      }
+    ]
+  },
+  "unsupported": []
+}
+````

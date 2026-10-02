@@ -1,0 +1,73 @@
+# 角色权限与客服业务：本阶段文件
+
+[返回阶段导读](README.md)
+
+按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件与截图编码在 sources/locks 和 sources/assets 下，先读实现模块，需要校对时再打开资源。
+
+- [tests/fixtures/customer_approved_replays/README.md](sources/tests__fixtures__customer_approved_replays__README_md--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_approved_replays/fastapi-0e8.json](sources/tests__fixtures__customer_approved_replays__fastapi-0e8_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_approved_replays/yudao-1d7.json](sources/tests__fixtures__customer_approved_replays__yudao-1d7_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/0e8ebdd/README.md](sources/tests__fixtures__customer_design_diagnostics__0e8ebdd__README_md--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/0e8ebdd/python-summary.json](sources/tests__fixtures__customer_design_diagnostics__0e8ebdd__python-summary_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/0e8ebdd/python-unapproved-design.json](sources/tests__fixtures__customer_design_diagnostics__0e8ebdd__python-unapproved-design_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/0e8ebdd/yudao-summary.json](sources/tests__fixtures__customer_design_diagnostics__0e8ebdd__yudao-summary_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/0e8ebdd/yudao-unapproved-design.json](sources/tests__fixtures__customer_design_diagnostics__0e8ebdd__yudao-unapproved-design_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/10bd49e/README.md](sources/tests__fixtures__customer_design_diagnostics__10bd49e__README_md--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/10bd49e/python-approved-plan.json](sources/tests__fixtures__customer_design_diagnostics__10bd49e__python-approved-plan_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/1d7c70b/README.md](sources/tests__fixtures__customer_design_diagnostics__1d7c70b__README_md--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/1d7c70b/fastapiadmin.json](sources/tests__fixtures__customer_design_diagnostics__1d7c70b__fastapiadmin_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/2a4106f/fastapiadmin.json](sources/tests__fixtures__customer_design_diagnostics__2a4106f__fastapiadmin_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/2a4106f/python-basic.json](sources/tests__fixtures__customer_design_diagnostics__2a4106f__python-basic_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/2a4106f/yudao-vben.json](sources/tests__fixtures__customer_design_diagnostics__2a4106f__yudao-vben_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/76ca70b/python-summary.json](sources/tests__fixtures__customer_design_diagnostics__76ca70b__python-summary_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/76ca70b/python-unapproved-design.json](sources/tests__fixtures__customer_design_diagnostics__76ca70b__python-unapproved-design_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/README.md](sources/tests__fixtures__customer_design_diagnostics__README_md--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/d3ea684/README.md](sources/tests__fixtures__customer_design_diagnostics__d3ea684__README_md--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/d3ea684/fastapi-summary.json](sources/tests__fixtures__customer_design_diagnostics__d3ea684__fastapi-summary_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/d3ea684/fastapi-unapproved-design.json](sources/tests__fixtures__customer_design_diagnostics__d3ea684__fastapi-unapproved-design_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/d3ea684/yudao-summary.json](sources/tests__fixtures__customer_design_diagnostics__d3ea684__yudao-summary_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/d3ea684/yudao-unapproved-design.json](sources/tests__fixtures__customer_design_diagnostics__d3ea684__yudao-unapproved-design_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/dd7e5f2/FASTAPI_PROVENANCE.md](sources/tests__fixtures__customer_design_diagnostics__dd7e5f2__FASTAPI_PROVENANCE_md--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/dd7e5f2/PYTHON_PROVENANCE.md](sources/tests__fixtures__customer_design_diagnostics__dd7e5f2__PYTHON_PROVENANCE_md--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/dd7e5f2/fastapi-summary.json](sources/tests__fixtures__customer_design_diagnostics__dd7e5f2__fastapi-summary_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/dd7e5f2/fastapi-unapproved-design.json](sources/tests__fixtures__customer_design_diagnostics__dd7e5f2__fastapi-unapproved-design_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/dd7e5f2/python-summary.json](sources/tests__fixtures__customer_design_diagnostics__dd7e5f2__python-summary_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/dd7e5f2/python-unapproved-design.json](sources/tests__fixtures__customer_design_diagnostics__dd7e5f2__python-unapproved-design_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/fastapiadmin.json](sources/tests__fixtures__customer_design_diagnostics__fastapiadmin_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/python-basic.json](sources/tests__fixtures__customer_design_diagnostics__python-basic_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_design_diagnostics/yudao-vben.json](sources/tests__fixtures__customer_design_diagnostics__yudao-vben_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/customer_evidence_receipt_unit_only.json](sources/tests__fixtures__customer_evidence_receipt_unit_only_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/yudao-native-date/WbRequestsDO.java](sources/tests__fixtures__yudao-native-date__WbRequestsDO_java--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/yudao-native-date/WbRequestsPageReqVO.java](sources/tests__fixtures__yudao-native-date__WbRequestsPageReqVO_java--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/yudao-native-date/WbRequestsRespVO.java](sources/tests__fixtures__yudao-native-date__WbRequestsRespVO_java--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/yudao-native-date/WbRequestsSaveReqVO.java](sources/tests__fixtures__yudao-native-date__WbRequestsSaveReqVO_java--001.md)：可重复的验收用例；1 段
+- [tests/test_business_acceptance_evidence.py](sources/tests__test_business_acceptance_evidence_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_assignment_probe.py](sources/tests__test_business_assignment_probe_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_audit_dialog.py](sources/tests__test_business_audit_dialog_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_audit_permissions.py](sources/tests__test_business_audit_permissions_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_browser_diagnostics.py](sources/tests__test_business_browser_diagnostics_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_browser_evidence.py](sources/tests__test_business_browser_evidence_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_capabilities.py](sources/tests__test_business_capabilities_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_evidence_contract.py](sources/tests__test_business_evidence_contract_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_fact_coverage.py](sources/tests__test_business_fact_coverage_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_fastapi.py](sources/tests__test_business_fastapi_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_metric_probe.py](sources/tests__test_business_metric_probe_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_native_schema.py](sources/tests__test_business_native_schema_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_note_notifications.py](sources/tests__test_business_note_notifications_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_probe.py](sources/tests__test_business_probe_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_python.py](sources/tests__test_business_python_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_python_browser.py](sources/tests__test_business_python_browser_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_query_api.py](sources/tests__test_business_query_api_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_query_browser.py](sources/tests__test_business_query_browser_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_query_evidence_contract.py](sources/tests__test_business_query_evidence_contract_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_receipt.py](sources/tests__test_business_receipt_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_screenshots.py](sources/tests__test_business_screenshots_py--001.md)：可重复的验收用例；1 段
+- [tests/test_business_yudao.py](sources/tests__test_business_yudao_py--001.md)：可重复的验收用例；1 段
+- [tests/test_customer_coverage.py](sources/tests__test_customer_coverage_py--001.md)：可重复的验收用例；3 段
+- [tests/test_customer_employee_task_scopes.py](sources/tests__test_customer_employee_task_scopes_py--001.md)：可重复的验收用例；1 段
+- [tests/test_customer_entity_requirements.py](sources/tests__test_customer_entity_requirements_py--001.md)：可重复的验收用例；1 段
+- [tests/test_customer_native_assignment_eligibility.py](sources/tests__test_customer_native_assignment_eligibility_py--001.md)：可重复的验收用例；1 段
+- [tests/test_customer_plan_feedback.py](sources/tests__test_customer_plan_feedback_py--001.md)：可重复的验收用例；1 段
+- [tests/test_customer_runtime_workflow.py](sources/tests__test_customer_runtime_workflow_py--001.md)：可重复的验收用例；1 段
+- [tests/test_customer_source_encoding.py](sources/tests__test_customer_source_encoding_py--001.md)：可重复的验收用例；1 段
+- [tests/test_customer_workflow.py](sources/tests__test_customer_workflow_py--001.md)：可重复的验收用例；1 段

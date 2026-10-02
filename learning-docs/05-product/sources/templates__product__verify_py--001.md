@@ -1,0 +1,485 @@
+# templates/product/verify.py · 1/1
+
+[阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
+
+
+
+**作用：独立基础产品的组成文件。** 真实产品验收程序：创建测试账号调用HTTP接口，再根据simple-admin选择启动同目录verify-browser.cjs；缺浏览器或逐规格检查缺项都失败，api-only明确记为不适用。与app.py分离，不能因应用自称成功就通过。
+
+**对应关系：** generator复制 → 产品start.py/app.py；verification在独立环境复验。
+
+**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
+
+<details>
+<summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
+
+- `CheckFailed`（L23–L24）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BrowserPrerequisite`（L27–L28）：继承`CheckFailed`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `need`（L31–L33）：接收`condition`、`message`。 控制顺序：L32按`not condition`分支；L33抛异常，停止当前正常路径。 调用`CheckFailed`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `stop`（L36–L51）：接收`process`。 控制顺序：L37按`process.poll() is not None`分支；L39按`os.name == "nt"`分支。 调用`process.poll`、`subprocess.run`、`str`、`os.killpg`、`process.wait`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify`（L54–L414）：接收`product`、`python`、`business_screenshots`。 控制顺序：L57按`spec.get("business")`分支；L71按`selection["database"] == "postgresql"`分支；L147按`selection["frontend"] == "simple-admin"`分支；L180遍历`spec["entities"]`；L194按`rules`分支；L209遍历`("GET", "PUT", "DELETE")`；L222遍历`entity["fields"]`；L237按`f["required"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`json.loads`、`(product / "approved-spec.json").read_text`、`spec.get`、`verify_business`、`uuid.uuid4`、`tempfile.TemporaryDirectory`、`os.environ.items`等。 返回路径：L60的`verify_business(product, python, stop, BrowserPrerequisite, business_screenshots)`；L406的`{ "passed": True, "checks": checks, "entities": len(spec["entities"]), "http": True, "data…`。
+- `verify.start_server`（L97–L138）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L126遍历`range(150)`；L127按`process.poll() is not None`分支；L129抛异常，停止当前正常路径；L131按`client.get("/health").status_code == 200`分支；L138抛异常，停止当前正常路径。 调用`socket.socket`、`sock.bind`、`sock.getsockname`、`subprocess.Popen`、`str`、`httpx.Client`、`range`、`process.poll`、`client.close`等。 返回路径：L132的`process, client`。
+- `main`（L417–L448）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L443按`args.report`分支；L447按`not result["passed"]`分支；L448抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`Path(__file__).resolve`、`Path`、`parser.parse_args`、`verify`、`type`、`str`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+</details>
+
+**创建路径：** `templates/product/verify.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L452。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+
+本段原始字节数：`18337`。本段原文以LF换行结束。
+
+<!-- learning-source: {"path": "templates/product/verify.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "37d89464ffdc0da1716bb38914943eb769a2bf84e1d129b5626e5e39f7816e76"} -->
+````python
+# templates/product/verify.py
+"""Run real migrations and HTTP checks against an isolated product database.
+
+Usage: uv run python verify.py [--product PATH] [--python EXECUTABLE] [--report PATH]
+This file is reviewed test code, never authored or modified by the coding model.
+"""
+
+import argparse
+import json
+import os
+import shutil
+import signal
+import socket
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+from pathlib import Path
+
+import httpx
+
+
+class CheckFailed(RuntimeError):
+    pass
+
+
+class BrowserPrerequisite(CheckFailed):
+    pass
+
+
+def need(condition, message):
+    if not condition:
+        raise CheckFailed(message)
+
+
+def stop(process):
+    if process.poll() is not None:
+        return
+    if os.name == "nt":
+        subprocess.run(
+            ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+            capture_output=True,
+            timeout=15,
+            check=False,
+        )
+    else:
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    process.wait(timeout=15)
+
+
+def verify(product, python=sys.executable, business_screenshots=None):
+    product = Path(product).resolve()
+    spec = json.loads((product / "approved-spec.json").read_text(encoding="utf-8"))
+    if spec.get("business"):
+        from verify_business import verify_business
+
+        return verify_business(product, python, stop, BrowserPrerequisite, business_screenshots)
+    checks = []
+    suffix = uuid.uuid4().hex[:10]
+    browser_report = {"applicable": False, "reason": "api-only frontend"}
+    with tempfile.TemporaryDirectory(prefix="product-verify-") as directory:
+        env = {
+            k: v
+            for k, v in os.environ.items()
+            if k.upper() in {"PATH", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP"}
+        }
+        selection = json.loads((product / "selection.json").read_text(encoding="utf-8"))
+        if selection["database"] == "postgresql":
+            target = os.environ.get("VERIFY_DATABASE_URL")
+            need(
+                bool(target),
+                "Selected PostgreSQL requires an isolated PostgreSQL verification database",
+            )
+            env["PRODUCT_DATABASE_URL"] = target
+        env.update(
+            PRODUCT_DATA_DIR=directory,
+            HOME=directory,
+            USERPROFILE=directory,
+            PYTHONUTF8="1",
+            PYTHONIOENCODING="utf-8",
+            PYTHONDONTWRITEBYTECODE="1",
+        )
+        migrated = subprocess.run(
+            [python, "manage.py", "init"],
+            cwd=product,
+            env=env,
+            capture_output=True,
+            timeout=60,
+            check=False,
+        )
+        need(migrated.returncode == 0, "product migration failed")
+        checks.append("migration")
+
+        def start_server():
+            with socket.socket() as sock:
+                sock.bind(("127.0.0.1", 0))
+                port = sock.getsockname()[1]
+            options = (
+                {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+                if os.name == "nt"
+                else {"start_new_session": True}
+            )
+            process = subprocess.Popen(
+                [
+                    python,
+                    "-m",
+                    "uvicorn",
+                    "app:app",
+                    "--host",
+                    "127.0.0.1",
+                    "--port",
+                    str(port),
+                    "--no-access-log",
+                ],
+                cwd=product,
+                env=env,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                stdin=subprocess.DEVNULL,
+                **options,
+            )
+            client = httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=10, trust_env=False)
+            for _ in range(150):
+                if process.poll() is not None:
+                    client.close()
+                    raise CheckFailed("product server exited before health check")
+                try:
+                    if client.get("/health").status_code == 200:
+                        return process, client
+                except httpx.HTTPError:
+                    pass
+                time.sleep(0.1)
+            stop(process)
+            client.close()
+            raise CheckFailed("product server did not become healthy")
+
+        process, client = start_server()
+        saved = []
+        try:
+            need(client.get("/openapi.json").status_code == 200, "OpenAPI unavailable")
+            checks.extend(["http_start", "openapi"])
+            home = client.get("/")
+            need(home.status_code == 200, "selected frontend unavailable")
+            if selection["frontend"] == "simple-admin":
+                need(
+                    '<form id="filters">' in home.text,
+                    "missing generated search frontend",
+                )
+                need(
+                    client.get("/web/app.js").status_code == 200,
+                    "frontend asset unavailable",
+                )
+                checks.append("generated_frontend_assets")
+            password = "Test-only-strong-password-314"
+            a = client.post("/auth/register", json={"username": "a" + suffix, "password": password})
+            b = client.post("/auth/register", json={"username": "b" + suffix, "password": password})
+            need(a.status_code == 201 and b.status_code == 201, "registration failed")
+            need(
+                client.post(
+                    "/auth/login",
+                    json={"username": "a" + suffix, "password": "incorrect-password"},
+                ).status_code
+                == 401,
+                "invalid password was accepted",
+            )
+            login = client.post(
+                "/auth/login", json={"username": "a" + suffix, "password": password}
+            )
+            need(login.status_code == 200, "login failed")
+            auth_a = {"Authorization": "Bearer " + login.json()["access_token"]}
+            auth_b = {"Authorization": "Bearer " + b.json()["access_token"]}
+            need(
+                client.get("/api/users", headers=auth_a).status_code == 404,
+                "system table exposed",
+            )
+            checks.append("authentication")
+            for entity in spec["entities"]:
+                name = entity["name"]
+                path = "/api/" + name
+                sample = {
+                    f["name"]: {
+                        "text": "x" * max(1, f.get("min_length", 0)),
+                        "integer": 1,
+                        "boolean": True,
+                        "date": "2026-01-15",
+                        "enum": (f.get("choices") or ["sample"])[0],
+                    }[f["kind"]]
+                    for f in entity["fields"]
+                }
+                rules = [r for r in spec.get("custom_rules", []) if r["entity"] == name]
+                if rules:
+                    sample = dict(rules[0]["accept_examples"][0])
+                need(client.get(path).status_code in {401, 403}, "anonymous read allowed")
+                response = client.post(path, headers=auth_a, json=sample)
+                need(response.status_code == 201, f"create failed: {name}")
+                item = response.json()
+                detail = path + "/" + item["id"]
+                need(
+                    client.get(detail, headers=auth_a).status_code == 200,
+                    "owner read failed",
+                )
+                need(
+                    client.get(path, headers=auth_b).json() == [],
+                    "cross-user list leaked data",
+                )
+                for method in ("GET", "PUT", "DELETE"):
+                    kwargs = {"json": sample} if method == "PUT" else {}
+                    need(
+                        client.request(method, detail, headers=auth_b, **kwargs).status_code == 404,
+                        "cross-user record access allowed",
+                    )
+                need(
+                    client.post(
+                        path, headers=auth_a, json={**sample, "owner_id": "forged"}
+                    ).status_code
+                    == 422,
+                    "forged ownership field accepted",
+                )
+                for f in entity["fields"]:
+                    invalid = {
+                        **sample,
+                        f["name"]: {
+                            "text": 123,
+                            "integer": True,
+                            "boolean": "yes",
+                            "date": "2026/01/15",
+                            "enum": "__invalid_choice__",
+                        }[f["kind"]],
+                    }
+                    need(
+                        client.post(path, headers=auth_a, json=invalid).status_code == 422,
+                        "wrong field type accepted",
+                    )
+                    if f["required"]:
+                        missing = {k: v for k, v in sample.items() if k != f["name"]}
+                        need(
+                            client.post(path, headers=auth_a, json=missing).status_code == 422,
+                            "missing field accepted",
+                        )
+                    if f["kind"] == "text":
+                        need(
+                            client.post(
+                                path,
+                                headers=auth_a,
+                                json={**sample, f["name"]: "x" * (f["max_length"] + 1)},
+                            ).status_code
+                            == 422,
+                            "overlong field accepted",
+                        )
+                need(
+                    client.put(detail, headers=auth_a, json=sample).status_code == 200,
+                    "update failed",
+                )
+                for rule in rules:
+                    for candidate in rule["accept_examples"]:
+                        need(
+                            client.post(path, headers=auth_a, json=candidate).status_code == 201,
+                            "approved positive rule example rejected",
+                        )
+                    for candidate in rule["reject_examples"]:
+                        need(
+                            client.post(path, headers=auth_a, json=candidate).status_code == 422,
+                            "approved negative rule example accepted",
+                        )
+                for field in entity["fields"]:
+                    value = sample.get(field["name"])
+                    if value is None:
+                        continue
+                    if field.get("searchable"):
+                        found = client.get(path, headers=auth_a, params={"q": str(value)})
+                        need(
+                            found.status_code == 200
+                            and any(row["id"] == item["id"] for row in found.json()),
+                            "configured search failed",
+                        )
+                        need(
+                            client.get(path, headers=auth_b, params={"q": str(value)}).json() == [],
+                            "search bypassed ownership",
+                        )
+                        checks.append("search:" + field["name"])
+                    if field.get("filterable"):
+                        wire = str(value).lower() if type(value) is bool else str(value)
+                        found = client.get(
+                            path,
+                            headers=auth_a,
+                            params={"filter_" + field["name"]: wire},
+                        )
+                        need(
+                            found.status_code == 200
+                            and any(row["id"] == item["id"] for row in found.json()),
+                            "configured exact filter failed",
+                        )
+                        checks.append("filter:" + field["name"])
+                    if field.get("date_range"):
+                        found = client.get(
+                            path,
+                            headers=auth_a,
+                            params={
+                                "from_" + field["name"]: value,
+                                "to_" + field["name"]: value,
+                            },
+                        )
+                        need(
+                            found.status_code == 200
+                            and any(row["id"] == item["id"] for row in found.json()),
+                            "inclusive date boundary failed",
+                        )
+                        bad = client.post(
+                            path,
+                            headers=auth_a,
+                            json={**sample, field["name"]: "2026-02-30"},
+                        )
+                        need(bad.status_code == 422, "invalid calendar date accepted")
+                        checks.append("inclusive-date-range:" + field["name"])
+                saved.append(detail)
+                checks.extend([f"crud:{name}", f"isolation:{name}", f"types:{name}"])
+                if rules:
+                    checks.append(f"business_rules:{name}")
+            if selection["frontend"] == "simple-admin":
+                module = Path(
+                    os.environ.get(
+                        "PRODUCT_VERIFY_PLAYWRIGHT",
+                        product / ".native/browser/node_modules/playwright",
+                    )
+                ).resolve()
+                if not shutil.which("node") or not module.is_dir():
+                    raise BrowserPrerequisite(
+                        "Real browser acceptance requires Node and pinned Playwright/Chromium"
+                    )
+                config = Path(directory) / "browser-input.json"
+                output = Path(directory) / "browser-result.json"
+                config.write_text(
+                    json.dumps({"url": str(client.base_url), "spec": spec}),
+                    encoding="utf-8",
+                )
+                browser_env = dict(env)
+                browser_env["PLAYWRIGHT_BROWSERS_PATH"] = os.environ.get(
+                    "PLAYWRIGHT_BROWSERS_PATH", "0"
+                )
+                browser_run = subprocess.run(
+                    [
+                        shutil.which("node"),
+                        str(Path(__file__).with_name("verify-browser.cjs")),
+                        str(config),
+                        str(module),
+                        str(output),
+                    ],
+                    cwd=product,
+                    env=browser_env,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    timeout=300,
+                    check=False,
+                )
+                if browser_run.returncode and any(
+                    text in browser_run.stderr
+                    for text in (
+                        "Executable doesn't exist",
+                        "Host system is missing dependencies",
+                        "Cannot find module",
+                    )
+                ):
+                    raise BrowserPrerequisite(
+                        "Pinned Chromium/Playwright is not installed or usable"
+                    )
+                need(
+                    browser_run.returncode == 0,
+                    "Real browser acceptance failed: " + browser_run.stderr[-2000:],
+                )
+                need(output.is_file(), "Browser acceptance did not produce evidence")
+                browser_report = json.loads(output.read_text(encoding="utf-8"))
+                need(
+                    browser_report.get("passed") is True
+                    and browser_report.get("real_browser") is True
+                    and browser_report.get("entities") == [e["name"] for e in spec["entities"]],
+                    "Incomplete browser evidence",
+                )
+                browser_report["applicable"] = True
+                checks.append("real-browser-spec-driven")
+        finally:
+            client.close()
+            stop(process)
+        process, client = start_server()
+        try:
+            for detail in saved:
+                need(
+                    client.get(detail, headers=auth_a).status_code == 200,
+                    "data or login lost after process restart",
+                )
+                need(
+                    client.delete(detail, headers=auth_a).status_code == 204,
+                    "delete failed",
+                )
+                need(
+                    client.get(detail, headers=auth_a).status_code == 404,
+                    "deleted record still visible",
+                )
+            checks.append("process_restart_persistence")
+        finally:
+            client.close()
+            stop(process)
+    return {
+        "passed": True,
+        "checks": checks,
+        "entities": len(spec["entities"]),
+        "http": True,
+        "database": "real-isolated-" + selection["database"],
+        "restart": True,
+        "browser": browser_report,
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--product", type=Path, default=Path(__file__).resolve().parent)
+    parser.add_argument("--python", default=sys.executable)
+    parser.add_argument("--report", type=Path)
+    parser.add_argument(
+        "--business-screenshots",
+        type=Path,
+        help="Optional new empty output directory for synthetic business PNG evidence",
+    )
+    args = parser.parse_args()
+    try:
+        result = verify(args.product, args.python, args.business_screenshots)
+    except (
+        CheckFailed,
+        httpx.HTTPError,
+        subprocess.SubprocessError,
+        OSError,
+        ValueError,
+    ) as exc:
+        result = {
+            "passed": False,
+            "error": type(exc).__name__,
+            "message": str(exc)[:2500],
+            "kind": "environment" if isinstance(exc, BrowserPrerequisite) else "code",
+        }
+    if args.report:
+        args.report.parent.mkdir(parents=True, exist_ok=True)
+        args.report.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(json.dumps(result, ensure_ascii=False))
+    if not result["passed"]:
+        raise SystemExit(1)
+
+
+if __name__ == "__main__":
+    main()
+````
