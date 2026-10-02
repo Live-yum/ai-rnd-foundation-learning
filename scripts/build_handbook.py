@@ -40,6 +40,7 @@ GROUPS = [
         ],
     ),
     ("后端全部实现与控制台", ["workbench"]),
+    ("Vue操作台完整源码、构建配置与依赖锁", ["ui"]),
     ("冻结数据库迁移", ["migrations"]),
     ("默认产品与前端", ["templates/product", "templates/frontends"]),
     ("独立原生交付启动器", ["templates/deployment"]),
@@ -90,6 +91,12 @@ GROUPS = [
     ("真实操作截图与来源证据", ["docs/images"]),
 ]
 BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico"}
+GENERATED_FRONTEND_PREFIX = "workbench/web/"
+
+
+def generated_frontend_asset(name):
+    """Vite output is a lossless runtime snapshot, not handwritten lesson source."""
+    return name.startswith(GENERATED_FRONTEND_PREFIX)
 
 
 def sources():
@@ -135,7 +142,7 @@ def sources():
                 if name not in seen:
                     content = (
                         item.read_bytes()
-                        if item.suffix.lower() in BINARY_SUFFIXES
+                        if item.suffix.lower() in BINARY_SUFFIXES or generated_frontend_asset(name)
                         else item.read_text(encoding="utf-8")
                     )
                     rows.append((name, content))
@@ -164,9 +171,15 @@ def render():
                 encoded = "\n".join(textwrap.wrap(base64.b64encode(content).decode("ascii"), 76))
                 text += (
                     f"\n### `{name}`\n\n"
-                    "真实PNG等二进制资源按原始字节收录；正文通过相对路径显示图片。"
-                    "下列Base64仅供本书独立还原程序解码，并校验解码后SHA-256，"
-                    "不是需要手写的UI代码，也不是模型绘制的截图。\n\n"
+                    + (
+                        "这是ui源码构建出的操作台静态资产快照，不是需要手写或修改的压缩代码。"
+                        "阅读ui/src与构建配置，执行npm ci --prefix ui及npm run build --prefix ui生成；"
+                        "独立还原仍保留精确运行字节，干净构建须再次与此快照逐文件核对。\n\n"
+                        if generated_frontend_asset(name)
+                        else "真实PNG等二进制资源按原始字节收录；正文通过相对路径显示图片。"
+                        "它不是模型绘制的截图。\n\n"
+                    )
+                    + "下列Base64仅供独立还原程序解码，并校验解码后SHA-256。\n\n"
                     "<details>\n<summary>展开二进制还原数据</summary>\n\n"
                     f"<!-- source-file: {name} sha256: {code_sha} encoding: base64 -->\n"
                     f"````base64\n{encoded}\n````\n\n</details>\n"

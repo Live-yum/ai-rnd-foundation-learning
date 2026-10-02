@@ -3,6 +3,7 @@
 import json
 from typing import TypedDict
 
+from langgraph.errors import GraphInterrupt
 from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
@@ -17,11 +18,20 @@ from workbench.filesystem import sha, write_json
 from workbench.generator import PrerequisiteError, generate_basic
 from workbench.knowledge import design_pack
 from workbench.requirement_coverage import coverage_gaps, reconcile
+from workbench.requirement_intent import (
+    analysis_intent_conflicts,
+    blocked_requirement,
+    reconcile_entrypoint,
+    registration_plan_gaps,
+    registration_scope,
+    scope_conflicts,
+)
 from workbench.requirement_sources import analysis_feedback, analysis_source_conflicts
 from workbench.verification import package_basic, verify_basic
 
 ANALYSE = """你是需求分析员。先阅读结构化的当前需求、用户原始目标、最近修正和真实模板能力。
 禁止重新询问已确认的信息，禁止在后续轮次丢掉已明确的功能、字段、搜索条件和分类选项。
+question_items 可把 questions 中的同一问题呈现为 single（单选）、multiple（多选）或 text；非空 question_items 必须完整覆盖 questions，prompt 必须逐字对应 questions，id 和选项 id 使用稳定英文标识。选择项是建议而不是用户已确认的要求；始终允许自定义补充 allow_other=true，不能以选项限制用户原有范围。问题已被回答后从 questions 和 question_items 同时移除。仅问会改变产品范围的阻塞问题；不制造演示问题或为填充页面而提问。
 questions 最多两个，只问会实质改变产品范围的阻塞问题；字数上限、是否包含边界等普通细节放 recommendations 并给默认值，不逐项逼问。
 默认普通文本上限200字符，长正文3000字符；用户明确指定则覆盖默认。只有用户确实要求date字段时才使用YYYY-MM-DD格式；格式知识不是新增日期字段的需求。日期筛选仅在明确需要时设置；不要给未要求筛选的字段自动追加条件。
 模板能力来自 template_capabilities，不得交替声称搜索/筛选支持或不支持。
@@ -42,6 +52,7 @@ field_requirements记录每个已明确字段的可执行约束：field/entity�
 entity_requirements记录用户明确的实体字段清单：entity、fields、additional_fields。默认additional_fields=true，普通字段列举并不禁止扩展；仅当用户明确说字段清单穷尽、封闭或禁止新增字段时设false。用户还明确限定只能有这些实体时，将Requirement.additional_entities设false；普通项目保持true。封闭清单须完整记录且不得在后续推荐中遗漏或打开。系统自动字段不放入清单。不能把日期格式示例、模板能力或其他案例字段加入封闭清单。
 既有facts、features、acceptance、users和field_requirements不会因遗漏而删除。用户明确修改时，通过changes提交section、key、replacement和逐字source_quote。
 source_quote必须来自本轮fresh_user_corrections并明确指出修改对象和新值；删除replacement=null。field_requirements修改单项使用key="entity.field.属性"（entity未指定则以点开头），replacement为新值。智能推荐不是修改已确认事实的授权。
+报名网站不等于匿名访问：参赛者注册登录后可使用现有业务界面，通过非管理员业务角色及本人记录权限自行提交报名；独立公众门户与匿名报名提交不在当前能力内。用户选择登录后自行提交时，保留参赛者使用角色及提交行为，不能把队长改成仅联系人或由管理员代录。明确取消参赛者自行报名并改为管理员录入时，使用changes及本轮逐字来源移除旧的独立报名网站目标；不保留相互矛盾的目标。不要为同一角色或功能持续追加换句话说的重复条目；沿用既有表述，真正新增义务才追加。
 business_contract 是三个模板共同的声明式团队业务能力：关联记录、角色与行权限、负责人、命名状态流转、处理备注、审计、站内提醒和统计。
 facts 中结构化的业务义务使用 business.resources/relations/permissions/workflows/notifications/metrics 的已知契约属性，不把指标名、角色列表或关系元数据写成字段约束。字段约束放 field_requirements；角色与行范围用 permissions 的 role/entity/actions/scope（all/own/assigned）表达，不新增模糊的 role_scope 表达式。保留明确义务，不能只保存一份能力目录代替需求。
 business_contract_schema 是可执行业务契约的准确 JSON Schema。facts.business 的结构化义务使用其中的同名属性和枚举，按实体分别列 notifications 的事件与接收者、permissions 的完整动作与范围；不要发明近义动作名或把事件列表与接收者列表隐含组合。字段约束仍放 field_requirements。指标角色授权必须在对应指标实体的 permissions 中明确包含 read_metrics；只有请求统计权限不代表拥有客户分布统计权限。查看处理历史对应 read_history，查看完整审计对应 read_audit，二者为独立授权；需求同时要求时必须同时声明。Schema 是表达方式，不是自动追加需求的清单。
@@ -61,6 +72,7 @@ resolution_feedback 是上次设计被确定性校验拦住的具体原因；结
 field_obligations 是 approved_requirement.field_requirements 的确定性逐字段映射，含来源ID、实体/字段目标和明确属性。逐项保持 expected 中的类型、布尔值、长度和枚举，不得用相邻字段描述、章节标题或默认值覆盖；未列出的属性才由你设计。resolution_feedback.coverage_diagnostics 的 targets/attribute/expected/actual 指明具体偏差，必须修正对应属性，不能通过改写已批准需求解除约束。resolution_feedback.business_diagnostics 同样给出业务义务来源、expected 和 actual，逐项修复角色动作、范围、关系、提醒和指标；不得只修改说明而保持错误的契约。
 entity_obligations 是已批准实体字段清单；additional_fields=false 时字段必须与fields完全一致，不能添入其他案例的日期、发布、正文等字段。开放清单只要求所列字段存在。字段清单校验的missing/extra是精确反馈，必须重新生成符合原始批准清单的完整Plan，不得改写清单、删除真正需求或仅修改说明。
 approved_requirement.limitations 是已排除的边界说明，不得复制进 Plan.unsupported。
+entrypoint_obligation 是从用户原文确定的报名入口义务；authenticated_business_ui 必须由真实报名实体、默认非管理员参赛角色、create/read 与 own 行权限实现；用户要求注册账号时启用 registration.enabled。原生管理端普通CRUD不能替代参赛者自行报名。python-basic 的 per_user 内置登录与本人记录隔离也可实现该入口，不自动要求匿名访问或独立门户。
 Plan.unsupported 仅为已批准需求中仍无法实现的功能，不是模板限制清单。runtime_constraints 是实际配置约束，不能假称环境已满足。
 原生FastapiAdmin和芋道的entities[].description直接用作代码生成显示标题：1到100字符，只能中文、字母、数字、下划线、空格和连字符，不能含标点、代码分隔符、换行或制表符；详细业务说明放入验收条件，不写入这个短标题。
 原生FastapiAdmin和芋道支持custom_rules表示纯单记录业务校验，由Plop挂载Java/Python/Vue校验入口、Aider修改表达式；每实体最多一条规则，合并所有条件并给完整正反例。原生规则必须在runtime_constraints中coding_engine=aider时使用。不接受网络、跨记录事务、任意脚本或任意命令。不能把逐用户隔离改成共享。
@@ -86,6 +98,8 @@ class State(TypedDict, total=False):
     requirement_ledger: list[dict]
     requirement_analysis_diagnostics: list[dict]
     requirement_analysis_baseline: dict
+    requirement_capability_conflicts: list[dict]
+    requirement_intent_version: int
     resolution_feedback: dict
     plan: dict
     decision: str
@@ -112,12 +126,97 @@ class Workflow:
         value = interrupt(gate)
         self.store.check_decision(state["run_id"], gate, value)
         action = value["action"]
+        if (
+            action in {"approve", "recommend"}
+            and can_approve
+            and stage in {"requirements", "design", "delivery"}
+        ):
+            # A legacy interrupt must consume its original gate identity first.
+            # Its old approval cannot authorize a model-only scope downgrade.
+            recovery = self.capability_recovery(state)
+            if recovery:
+                return {**recovery, "decision": "revise", "last_job_id": value["job_id"]}
         if action == "recommend" and can_approve:
             self.store.auto_approve(state["run_id"], gate)
             action = "approve"
         return {"decision": action, "last_job_id": value["job_id"]}
 
+    def capability_recovery(self, state, *, advance_round=False):
+        """Build a source-backed clarification without spending a model call.
+
+        Runtime may use this before continuing an old, already-approved design
+        checkpoint. It records the complete old analysis, then creates a fresh
+        round/gate; prior approvals do not authorize the corrected requirement.
+        Interrupted legacy gates are replayed unchanged before analysis resumes.
+        """
+        run = self.store.get_run(state["run_id"])
+        capabilities = options_for_run(run).capabilities()
+        human = [m["content"] for m in self.store.messages(state["run_id"]) if m["role"] == "user"]
+        conflicts = scope_conflicts(human, capabilities)
+        active = registration_scope(human)
+        migrate_authenticated = (
+            not conflicts
+            and state.get("requirement")
+            and not state.get("requirement_intent_version")
+            and active
+            and active["mode"] == "authenticated_business_ui"
+        )
+        if not conflicts and not migrate_authenticated:
+            return None
+        canonicalization, scope_changes = [], []
+        previous = state.get("requirement", {})
+        if migrate_authenticated:
+            revised, requirement = reconcile_entrypoint(
+                previous, Requirement.model_validate(previous), human, human, scope_changes
+            )
+            # Compact the source-corrected baseline itself, not a union with
+            # the old proposal that would restore the removed role assumptions.
+            requirement = reconcile(
+                None,
+                Requirement.model_validate({**revised, "summary": requirement.summary}),
+                [],
+                canonicalization=canonicalization,
+            )
+            diagnostics = analysis_intent_conflicts(requirement, human)
+        else:
+            diagnostics = state.get("requirement_analysis_diagnostics", [])
+            requirement = blocked_requirement(
+                previous,
+                conflicts,
+                capabilities,
+                canonicalization,
+                original_request=human[0] if human else "",
+            )
+        round_number = state["round"] + int(advance_round)
+        entry = {
+            "round": round_number,
+            "kind": "capability_recovery",
+            "before": previous,
+            "after": requirement.gate_dump(),
+            "changes": [],
+            "canonicalization": canonicalization,
+            "scope_changes": scope_changes,
+            "capability_conflicts": conflicts,
+            "source_count": len(human),
+        }
+        ledger = [*state.get("requirement_ledger", []), entry]
+        write_json(self.product(state).parent / "requirement-ledger.json", ledger)
+        return {
+            "round": round_number,
+            "requirement": requirement.gate_dump(),
+            "requirement_source_count": state.get("requirement_source_count", len(human)),
+            "requirement_ledger": ledger,
+            "requirement_capability_conflicts": conflicts,
+            "requirement_intent_version": 1,
+            "requirement_analysis_diagnostics": diagnostics,
+            "requirement_analysis_baseline": requirement.gate_dump() if diagnostics else {},
+            "plan": {},
+        }
+
     def analyse(self, state):
+        recovery = self.capability_recovery(state)
+        if recovery:
+            return recovery
         if self.settings.max_rounds and state["round"] > self.settings.max_rounds:
             raise PausedLimit(
                 "达到你配置的MAX_ROUNDS；所有回答已保留。设为0后重试同一运行即可继续。"
@@ -158,8 +257,15 @@ class Workflow:
             Requirement,
         )
         proposal = requirement.gate_dump()
-        changes = []
-        requirement = reconcile(previous, requirement, corrections, changes)
+        original_previous = previous
+        scope_changes = []
+        previous, requirement = reconcile_entrypoint(
+            previous, requirement, human, corrections, scope_changes
+        )
+        changes, canonicalization = [], []
+        requirement = reconcile(
+            previous, requirement, corrections, changes, canonicalization=canonicalization
+        )
         for change in changes:
             change["sources"] = [
                 {"user_message_index": cursor + index, "sha256": digest(text)}
@@ -169,6 +275,7 @@ class Workflow:
         diagnostics = analysis_source_conflicts(
             previous, requirement, human, changes=changes, cursor=cursor
         )
+        diagnostics.extend(analysis_intent_conflicts(requirement, human, cursor=cursor))
         candidate = requirement.gate_dump()
         # Preserve the existing requirement and its source cursor until analysis
         # is valid. With no prior requirement the rejected candidate is shown at
@@ -177,8 +284,10 @@ class Workflow:
         entry = {
             "round": state["round"],
             "changes": changes,
-            "before": previous or {},
+            "before": original_previous or {},
+            "scope_changes": scope_changes,
             "model_proposal": proposal,
+            "canonicalization": canonicalization,
             "after": accepted,
             "source_count": len(human),
         }
@@ -195,6 +304,8 @@ class Workflow:
             "requirement_ledger": ledger,
             "requirement_analysis_diagnostics": diagnostics,
             "requirement_analysis_baseline": (previous or {}) if diagnostics else {},
+            "requirement_capability_conflicts": [],
+            "requirement_intent_version": 1,
         }
 
     def requirements(self, state):
@@ -202,14 +313,25 @@ class Workflow:
         selection = options_for_run(self.store.get_run(state["run_id"]))
         supported = requirement.data_scope in selection.capabilities()["scopes"]
         diagnostics = state.get("requirement_analysis_diagnostics", [])
-        ready = requirement.ready and supported and not diagnostics
+        capability_conflicts = state.get("requirement_capability_conflicts", [])
+        ready = requirement.ready and supported and not diagnostics and not capability_conflicts
         data = {"requirement": requirement.gate_dump(), "ready": ready}
+        if capability_conflicts:
+            data["capability_conflicts"] = capability_conflicts
+            data["blocked"] = [item["message"] for item in capability_conflicts]
         if not supported:
             data["blocked"] = (
-                "数据归属与已选模板不兼容；不能替用户改写明确要求。需要调整范围或新选模板。"
+                [
+                    *data.get("blocked", []),
+                    "数据归属与已选模板不兼容；不能替用户改写明确要求。需要调整范围或新选模板。",
+                ]
+                if capability_conflicts
+                else ("数据归属与已选模板不兼容；不能替用户改写明确要求。需要调整范围或新选模板。")
             )
         if diagnostics:
-            blocked = [data["blocked"]] if "blocked" in data else []
+            blocked = data.get("blocked", [])
+            if isinstance(blocked, str):
+                blocked = [blocked]
             data["blocked"] = [*blocked, *(item["message"] for item in diagnostics)]
             data["analysis_diagnostics"] = diagnostics
         outcome = self.gate(
@@ -273,6 +395,13 @@ class Workflow:
             PLAN,
             {
                 "approved_requirement": state["requirement"],
+                "entrypoint_obligation": registration_scope(
+                    [
+                        message["content"]
+                        for message in self.store.messages(state["run_id"])
+                        if message["role"] == "user"
+                    ]
+                ),
                 "field_obligations": field_obligations,
                 "entity_obligations": [
                     {"id": f"entity_requirements/{index}", **obligation.model_dump()}
@@ -331,6 +460,23 @@ class Workflow:
         )
         reasons.extend(business)
         reason_sources.extend(["business_coverage"] * len(business))
+        # Preserve old interrupted design gate digests during replay. A legacy
+        # approval is recovered by gate() before it can generate any product.
+        entrypoint = (
+            registration_plan_gaps(
+                plan,
+                [
+                    message["content"]
+                    for message in self.store.messages(state["run_id"])
+                    if message["role"] == "user"
+                ],
+                selection.capabilities(),
+            )
+            if state.get("requirement_intent_version")
+            else []
+        )
+        reasons.extend(entrypoint)
+        reason_sources.extend(["registration_entrypoint"] * len(entrypoint))
         if (
             state["template"] == "python-basic"
             and plan.data_scope != "per_user"
@@ -598,6 +744,8 @@ class Workflow:
         gate_data = {k: v for k, v in result.items() if k != "files"}
         gate_data["file_count"] = len(result["files"])
         decision = self.gate(state, "delivery", gate_data, ["approve", "reject"])
+        if decision["decision"] == "revise":
+            return {**decision, "round": state["round"] + 1, "status": "RUNNING"}
         if sha(self.product(state).parent / result["package"]) != result["sha256"]:
             raise PrerequisiteError("交付文件在审批期间被修改，拒绝发布")
         decision["status"] = (
@@ -606,6 +754,29 @@ class Workflow:
             else "REJECTED"
         )
         return decision
+
+    def observed_node(self, name):
+        """Publish real serial node transitions, without model/tool internals."""
+        node = getattr(self, name)
+
+        def observed(state):
+            run_id = state["run_id"]
+            event = {"name": name, "round": state.get("round", 1)}
+            self.store.record_event(run_id, "stage", {**event, "phase": "started"})
+            try:
+                result = node(state)
+            except GraphInterrupt:
+                self.store.record_event(run_id, "stage", {**event, "phase": "waiting"})
+                raise
+            except Exception:
+                # Runtime persists the classified, redacted error. A raw provider or
+                # tool exception must never enter browser-visible progress events.
+                self.store.record_event(run_id, "stage", {**event, "phase": "failed"})
+                raise
+            self.store.record_event(run_id, "stage", {**event, "phase": "completed"})
+            return result
+
+        return observed
 
     def compile(self, checkpointer):
         graph = StateGraph(State)
@@ -624,7 +795,7 @@ class Workflow:
             "package",
             "delivery",
         ):
-            graph.add_node(name, getattr(self, name))
+            graph.add_node(name, self.observed_node(name))
         graph.add_edge(START, "analyse")
         graph.add_edge("analyse", "requirements")
         graph.add_conditional_edges(
@@ -658,5 +829,7 @@ class Workflow:
         graph.add_edge("sandbox", "model_review")
         graph.add_edge("model_review", "package")
         graph.add_edge("package", "delivery")
-        graph.add_edge("delivery", END)
+        graph.add_conditional_edges(
+            "delivery", lambda s: "analyse" if s["decision"] == "revise" else END
+        )
         return graph.compile(checkpointer=checkpointer)

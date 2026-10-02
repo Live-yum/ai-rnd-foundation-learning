@@ -1,0 +1,928 @@
+# workbench/business_probe.py · 1/2
+
+[阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
+
+[下一段](workbench__business_probe_py--002.md)
+
+**作用：三角色实际原生HTTP验收。** 使用明确合成账号和业务记录，通过原生登录取得身份，检查关联、分配、转换、历史、审计、提醒和统计，另以无权用户验证后端拒绝；不把隐藏按钮当权限证明。
+
+**对应关系：** native_lab/独立恢复 → customer_service_acceptance → business.json及临时浏览器场景。
+
+**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
+
+**先有这些模块：** `workbench.domain`、`workbench.native_checks`、`workbench.native_environment`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+<details>
+<summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
+
+- `wire_name`（L14–L18）：接收`template`、`name`。 控制顺序：L15按`template == "fastapiadmin"`分支。 调用`name.split`、`"".join`、`piece[:1].upper`。 返回路径：L16的`name`；L18的`first + "".join(piece[:1].upper() + piece[1:] for piece in rest)`。
+- `BusinessClient`（L21–L173）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BusinessClient.__init__`（L22–L32）：接收`template`、`base`、`token`、`targets`。 调用`httpx.Client`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BusinessClient.close`（L34–L35）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.http.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BusinessClient.call`（L37–L38）：接收`method`、`path`、`**kwargs`。 调用`payload`、`self.http.request`。 返回路径：L38的`payload(self.http.request(method, path, **kwargs))`。
+- `BusinessClient.wire`（L40–L41）：接收`data`。 调用`wire_name`、`data.items`。 返回路径：L41的`{wire_name(self.template, k): v for k, v in data.items()}`。
+- `BusinessClient.create_response`（L43–L49）：接收`entity`、`data`。 调用`self.http.post`、`self.wire`。 返回路径：L49的`self.http.post(route, json=data if self.fastapi else self.wire(data))`。
+- `BusinessClient.create`（L51–L53）：接收`entity`、`data`。 调用`payload`、`self.create_response`、`str`、`isinstance`。 返回路径：L53的`str(value["id"] if isinstance(value, dict) else value)`。
+- `BusinessClient.rows`（L55–L71）：接收`entity`、`**query`。 控制顺序：L58遍历`( (("page_size", "pageSize"), "page_size" if self.fastapi else "p…`；L63按`supplied`分支；L64按`len({str(value) for value in supplied}) != 1`分支；L65抛异常，停止当前正常路径。 调用`query.pop`、`len`、`str`、`ValueError`、`self.call`、`value.get`。 返回路径：L71的`value.get("items", value.get("list"))`。
+- `BusinessClient.all_rows`（L73–L112）：接收`entity`、`q`、`filters`。 源码说明：Read the complete bounded result; a first page is never an exact-set oracle.。 控制顺序：L80按`self.fastapi`分支；L83遍历`filters.items()`；L90遍历`range(1, 102)`；L99断言`isinstance(batch, list) and type(count) is int and 0 <= count <= 10000`；L102按`total is None`分支；L104断言`count == total`；L106断言`len(rows) <= total and len({str(r["id"]) for r in rows}) == len(rows)`；L109按`len(rows) == total`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`filters.items`、`next`、`name.endswith`、`len`、`wire_name`、`type`、`str(value).lower`、`str`等。 返回路径：L110的`rows`。
+- `BusinessClient.action`（L114–L115）：接收`entity`、`identifier`、`action`、`data`。 调用`payload`、`self.action_response`。 返回路径：L115的`payload(self.action_response(entity, identifier, action, data))`。
+- `BusinessClient.action_response`（L117–L132）：接收`entity`、`identifier`、`action`、`data`。 源码说明：Keep the real native response available for negative authorization probes.。 控制顺序：L119按`self.fastapi`分支；L121按`action == "update"`分支。 调用`self.http.post`、`self.http.put`、`self.wire`、`value.update`、`data.items`。 返回路径：L120的`self.http.post(f"{self.prefix}/{entity}/{identifier}/{action}", json=data)`；L122的`self.http.put( self.targets[entity]["api"] + "/update", json={"id": identifier, **self.wir…`；L132的`self.http.post(self.prefix + "/action", json=value)`。
+- `BusinessClient.history`（L134–L142）：接收`entity`、`identifier`、`audit`。 调用`self.call`、`str(audit).lower`、`str`。 返回路径：L140的`self.call( "GET", route, params={"entity": entity, "id": identifier, "audit": str(audit).l…`。
+- `BusinessClient.related`（L144–L156）：接收`entity`、`identifier`。 控制顺序：L151按`self.fastapi`分支。 调用`self.call`。 返回路径：L152的`value`；L153的`{ group["entity"]: [entry["record"] for entry in group["records"]] for group in value["gro…`。
+- `BusinessClient.role`（L158–L165）：接收`identifier`、`role`。 控制顺序：L159按`self.fastapi`分支。 调用`self.call`、`str`。 返回路径：L160的`self.call("PUT", f"{self.prefix}/users/{identifier}/role", json={"role": role})`；L161的`self.call( "POST", self.prefix + "/roles", json={"userId": str(identifier), "role": role, …`。
+- `BusinessClient.inbox`（L167–L168）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.call`。 返回路径：L168的`self.call("GET", self.prefix + ("/inbox" if self.fastapi else "/notifications"))`。
+- `BusinessClient.read_notice`（L170–L173）：接收`identifier`。 控制顺序：L171按`self.fastapi`分支。 调用`self.http.post`。 返回路径：L172的`self.http.post(f"{self.prefix}/inbox/{identifier}/read", json={})`；L173的`self.http.post(self.prefix + "/notifications/read", json={"id": identifier})`。
+- `register_fastapi_actor`（L176–L218）：接收`base`、`username`、`password`、`targets`。 源码说明：Exercise the public native registration route without an administrator token.。 控制顺序：L198断言`config["actor"] == {"id": identifier, "role": "employee"}`；L199断言`config["can_manage_roles"] is False`；L201断言`info.get("is_superuser") is False`；L202断言`info.get("menus")`；L203按`targets`分支；L214断言`actual == expected`；L217抛异常，停止当前正常路径。 调用`httpx.Client`、`payload`、`public.post`、`str`、`record_id`、`BusinessClient`、`login`、`actor.call`、`info.get`等。 返回路径：L218的`identifier, actor`。
+- `register_yudao_actor`（L221–L253）：接收`base`、`username`、`password`、`targets`。 源码说明：Keep the native anonymous registration, validation and default membership.。 控制顺序：L244断言`membership["id"] == identifier`；L245断言`membership["roles"] == ["employee"]`；L247断言`"super_admin" not in info.get("roles", [])`；L248断言`"*:*:*" not in info.get("permissions", [])`；L249断言`info.get("menus")`；L252抛异常，停止当前正常路径。 调用`httpx.Client`、`payload`、`public.post`、`str`、`BusinessClient`、`login`、`actor.call`、`info.get`、`actor.close`。 返回路径：L253的`identifier, actor`。
+- `customer_service_acceptance`（L256–L496）：接收`template`、`base`、`token`、`targets`、`plan`。 源码说明：Use synthetic owned accounts/records; do not alter any pre-existing user.。 控制顺序：L259按`names != {"customers", "requests", "tasks"} or plan.business is None`分支；L260抛异常，停止当前正常路径；L288按`state.get("bootstrapRequired")`分支；L290遍历`[ ("employee", "employee"), ("other_employee", "employee"), ("ser…`；L307按`label == "employee"`分支；L333断言`any(str(r["id"]) == customer for r in employee.rows("customers", q=attempt))`；L361断言`not any(str(r["id"]) == request for r in outsider.rows("requests"))`；L362断言`not any(str(r["id"]) == request for r in service.rows("requests"))`。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`BusinessClient`、`uuid.uuid4`、`digest`、`plan.model_dump`、`manager.http.get`、`payload`、`state.get`、`manager.call`等。 返回路径：L466的`{ "passed": True, "execution_evidence": execution_evidence, "installed_navigation": naviga…`。
+- `customer_service_acceptance.checked_action`（L364–L379）：接收`entity`、`identifier`、`creator`、`action`、`data`、`transition`。 调用`verify_event_reminders`、`(manager if action == "assign" else service).action`。 返回路径：L365的`verify_event_reminders( plan, entity, identifier, {"assign": "assigned", "add_note": "note…`。
+- `verify_assignment_boundaries`（L499–L762）：接收`plan`、`manager`、`actors`、`records`。 源码说明：Exercise only existing actors and grants from this exact approved Plan. Run after reminder cardinality checks: the conditional positive assignment is restored, but its legitimate audit/notification ev。 控制顺序：L605遍历`records.items()`；L615断言`eligible`；L616遍历`( ( "own_only_assignee_denied", [ actor for actor in roster if (g…`；L630按`candidates`分支；L640按`unauthorized`分支；L662按`foreign`分支；L676按`not readonly`分支；L685断言`original_assignee is not None`。后续分支沿下方源码相同行号继续阅读。 调用`digest`、`plan.model_dump`、`label.removeprefix`、`str`、`actors.items`、`records.items`、`next`、`wire_name`、`row`等。 返回路径：L762的`{"version": 1, "spec_digest": approved_digest, "checks": checks}`。
+- `verify_assignment_boundaries.read_grant`（L515–L517）：接收`role`、`entity`。 调用`grants.get`。 返回路径：L517的`grant if grant and "read" in grant.actions else None`。
+- `verify_assignment_boundaries.row`（L519–L526）：接收`client`、`entity`、`identifier`。 控制顺序：L525断言`len(found) == 1`。 调用`client.rows`、`str`、`len`。 返回路径：L526的`found[0]`。
+- `verify_assignment_boundaries.visible`（L528–L541）：接收`grant`、`actor_id`、`record`、`assignee_field`。 控制顺序：L529按`grant is None`分支。 调用`str`、`record.get`、`wire_name`。 返回路径：L530的`False`；L531的`grant.scope == "all" or str( record.get( wire_name(manager.template, "created_by") if gran…`。
+- `verify_assignment_boundaries.snapshot`（L543–L555）：接收`entity`、`identifier`。 调用`row`、`manager.history`、`client.inbox`、`str`。 返回路径：L544的`{ "row": row(manager, entity, identifier), "audit": manager.history(entity, identifier, Tr…`。
+- `verify_assignment_boundaries.absent`（L557–L558）：接收`entity`、`case`、`reason`。 调用`checks.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_assignment_boundaries.rejected`（L560–L603）：接收`entity`、`identifier`、`case`、`actor`、`recipient`、`statuses`、`action`、`data`。 控制顺序：L571按`type(code) is not int or not -(2**31) <= code < 2**31`分支；L573断言`response.status_code in statuses or ( response.status_code == 200 and code in statuse…`；L580断言`after == before`。 调用`snapshot`、`actor[3].action_response`、`response.json().get`、`response.json`、`type`、`checks.append`、`next`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `assert_history_denied`（L765–L779）：接收`client`、`entity`、`identifier`。 控制顺序：L774按`forbidden.status_code not in {401, 403, 404}`分支；L779断言`refused_code in {401, 403, 404}`。 调用`client.http.get`、`forbidden.json().get`、`forbidden.json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_handling_history`（L782–L799）：接收`plan`、`manager`、`service`、`employee`、`outsider`、`entity`、`identifier`。 控制顺序：L786断言`len(history) >= 4`；L788断言`len(audit) >= len(history)`；L793按`employee_history`分支；L794断言`len(employee.history(entity, identifier)) >= len(history)`。 调用`service.history`、`len`、`manager.history`、`any`、`employee.history`、`assert_history_denied`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `notice_event`（L802–L803）：接收`row`。 调用`row.get`、`row.get("message", "").rsplit`。 返回路径：L803的`row.get("event") or row.get("message", "").rsplit(" ", 1)[-1]`。
+- `record_notices`（L806–L813）：接收`client`、`entity`、`identifier`、`event`。 调用`str`、`client.inbox`、`notice_event`。 返回路径：L807的`{ str(row["id"]): row for row in client.inbox() if row["entity"] == entity and str(row["re…`。
+- `reminder_recipients`（L816–L823）：接收`plan`、`entity`、`event`、`recipients`、`transition`。 返回路径：L819的`{ recipients[notice.recipient] for notice in plan.business.notifications if notice.entity …`。
+- `verify_event_reminders`（L826–L864）：接收`plan`、`entity`、`identifier`、`event`、`recipients`、`outsiders`、`action`、`transition`、`evidence`。 源码说明：Prove every declared notification comes from this action to its intended inbox.。 控制顺序：L834遍历`clients`；L837断言`len(added) == int(client in expected)`；L840断言`set(record_notices(client, entity, identifier, event)) == set(after)`；L843遍历`added`；L846断言`updated.get("read") is True or updated.get("read_at") is not None`；L849遍历`clients - {client}`；L851断言`forbidden.status_code in {401, 403, 404} or forbidden.json().get("code") in { 401, 40…`；L856按`evidence is not None`分支。后续分支沿下方源码相同行号继续阅读。 调用`reminder_recipients`、`set`、`recipients.values`、`record_notices`、`action`、`len`、`int`、`payload`、`client.read_notice`等。 返回路径：L864的`result`。
+
+</details>
+
+**创建路径：** `workbench/business_probe.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L866。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+
+本段原始字节数：`36316`。本段原文以LF换行结束。
+
+<!-- learning-source: {"path": "workbench/business_probe.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "89fbd76c2e5100b0d1678e32557403aad03082655a4310d30578c195b849602f"} -->
+````python
+# workbench/business_probe.py
+"""Independent customer-service acceptance over real native HTTP authentication."""
+
+import hashlib
+import json
+import uuid
+
+import httpx
+
+from workbench.domain import digest
+from workbench.native_checks import flatten, payload, record_id
+from workbench.native_environment import login
+
+
+def wire_name(template, name):
+    if template == "fastapiadmin":
+        return name
+    first, *rest = name.split("_")
+    return first + "".join(piece[:1].upper() + piece[1:] for piece in rest)
+
+
+class BusinessClient:
+    def __init__(self, template, base, token, targets):
+        self.fastapi = template == "fastapiadmin"
+        self.template = template
+        self.prefix = "/business" if self.fastapi else "/admin-api/infra/rnd-business"
+        self.targets = {t["entity"]: t for t in targets}
+        self.http = httpx.Client(
+            base_url=base,
+            timeout=30,
+            trust_env=False,
+            headers={"Authorization": "Bearer " + token, "tenant-id": "1"},
+        )
+
+    def close(self):
+        self.http.close()
+
+    def call(self, method, path, **kwargs):
+        return payload(self.http.request(method, path, **kwargs))
+
+    def wire(self, data):
+        return {wire_name(self.template, k): v for k, v in data.items()}
+
+    def create_response(self, entity, data):
+        route = (
+            self.prefix + "/" + entity + "/create"
+            if self.fastapi
+            else self.targets[entity]["api"] + "/create"
+        )
+        return self.http.post(route, json=data if self.fastapi else self.wire(data))
+
+    def create(self, entity, data):
+        value = payload(self.create_response(entity, data))
+        return str(value["id"] if isinstance(value, dict) else value)
+
+    def rows(self, entity, **query):
+        # Shared probes used to supply both dialects and rely on a server
+        # silently ignoring foreign keys. Send only this native API's keys.
+        for aliases, native in (
+            (("page_size", "pageSize"), "page_size" if self.fastapi else "pageSize"),
+            (("page", "pageNo"), "page" if self.fastapi else "pageNo"),
+        ):
+            supplied = [query.pop(key) for key in aliases if key in query]
+            if supplied:
+                if len({str(value) for value in supplied}) != 1:
+                    raise ValueError("Conflicting native pagination aliases")
+                query[native] = supplied[0]
+        route = (
+            self.prefix + "/" + entity + "/list" if self.fastapi else self.targets[entity]["list"]
+        )
+        value = self.call("GET", route, params=query)
+        return value.get("items", value.get("list"))
+
+    def all_rows(self, entity, *, q="", filters=None):
+        """Read the complete bounded result; a first page is never an exact-set oracle."""
+        route = (
+            self.prefix + "/" + entity + "/list" if self.fastapi else self.targets[entity]["list"]
+        )
+        filters = filters or {}
+        query = {"q": q} if q else {}
+        if self.fastapi:
+            query["filters"] = json.dumps(filters, ensure_ascii=False)
+        else:
+            for name, value in filters.items():
+                suffix = next((s for s in ("_from", "_to") if name.endswith(s)), "")
+                field = name[: -len(suffix)] if suffix else name
+                query[wire_name(self.template, field) + suffix] = (
+                    str(value).lower() if type(value) is bool else value
+                )
+        rows, total = [], None
+        for page in range(1, 102):
+            pagination = (
+                {"page": page, "page_size": 100}
+                if self.fastapi
+                else {"pageNo": page, "pageSize": 100}
+            )
+            result = self.call("GET", route, params={**query, **pagination})
+            batch = result.get("items", result.get("list"))
+            count = result.get("total")
+            assert isinstance(batch, list) and type(count) is int and 0 <= count <= 10000, (
+                "Native list omitted bounded total/rows"
+            )
+            if total is None:
+                total = count
+            assert count == total, "Native list changed during exact-set pagination"
+            rows.extend(batch)
+            assert len(rows) <= total and len({str(r["id"]) for r in rows}) == len(rows), (
+                "Native pagination duplicated or overcounted rows"
+            )
+            if len(rows) == total:
+                return rows
+            assert len(batch) == 100, "Native list silently truncated an exact-set result"
+        raise AssertionError("Native list exceeded explicit 10000-row bound")
+
+    def action(self, entity, identifier, action, data):
+        return payload(self.action_response(entity, identifier, action, data))
+
+    def action_response(self, entity, identifier, action, data):
+        """Keep the real native response available for negative authorization probes."""
+        if self.fastapi:
+            return self.http.post(f"{self.prefix}/{entity}/{identifier}/{action}", json=data)
+        if action == "update":
+            return self.http.put(
+                self.targets[entity]["api"] + "/update", json={"id": identifier, **self.wire(data)}
+            )
+        value = {"entity": entity, "id": identifier, "action": action}
+        value.update(
+            {
+                "assigneeId" if k == "assignee" else "note" if k == "text" else k: v
+                for k, v in data.items()
+            }
+        )
+        return self.http.post(self.prefix + "/action", json=value)
+
+    def history(self, entity, identifier, audit=False):
+        route = (
+            f"{self.prefix}/{entity}/{identifier}/history"
+            if self.fastapi
+            else self.prefix + "/history"
+        )
+        return self.call(
+            "GET", route, params={"entity": entity, "id": identifier, "audit": str(audit).lower()}
+        )
+
+    def related(self, entity, identifier):
+        route = (
+            f"{self.prefix}/{entity}/{identifier}/related"
+            if self.fastapi
+            else self.prefix + "/related"
+        )
+        value = self.call("GET", route, params={"entity": entity, "id": identifier})
+        if self.fastapi:
+            return value
+        return {
+            group["entity"]: [entry["record"] for entry in group["records"]]
+            for group in value["groups"]
+        }
+
+    def role(self, identifier, role):
+        if self.fastapi:
+            return self.call("PUT", f"{self.prefix}/users/{identifier}/role", json={"role": role})
+        return self.call(
+            "POST",
+            self.prefix + "/roles",
+            json={"userId": str(identifier), "role": role, "grant": True},
+        )
+
+    def inbox(self):
+        return self.call("GET", self.prefix + ("/inbox" if self.fastapi else "/notifications"))
+
+    def read_notice(self, identifier):
+        if self.fastapi:
+            return self.http.post(f"{self.prefix}/inbox/{identifier}/read", json={})
+        return self.http.post(self.prefix + "/notifications/read", json={"id": identifier})
+
+
+def register_fastapi_actor(base, username, password, targets):
+    """Exercise the public native registration route without an administrator token."""
+    with httpx.Client(base_url=base, timeout=30, trust_env=False) as public:
+        registered = payload(
+            public.post(
+                "/system/user/register",
+                json={
+                    "username": username,
+                    "password": password,
+                    "name": "Synthetic employee",
+                    # Native registration must not accept forged administrative claims.
+                    "is_superuser": True,
+                    "role_ids": [1],
+                },
+            )
+        )
+    identifier = str(record_id(registered))
+    actor = BusinessClient(
+        "fastapiadmin", base, login("fastapiadmin", base, username, password), targets
+    )
+    try:
+        config = actor.call("GET", "/business/configuration")
+        assert config["actor"] == {"id": identifier, "role": "employee"}
+        assert config["can_manage_roles"] is False
+        info = actor.call("GET", "/system/user/current/info")
+        assert info.get("is_superuser") is False, "Public registration granted native administrator"
+        assert info.get("menus"), "Default business role has no native menu"
+        if targets:
+            expected = {
+                "module_rnd/" + grant["entity"] + "/index"
+                for grant in config["permissions"]
+                if "read" in grant["actions"]
+            }
+            actual = {
+                (menu.get("component_path") or "").lstrip("/")
+                for menu in flatten(info["menus"])
+                if (menu.get("component_path") or "").lstrip("/").startswith("module_rnd/")
+            }
+            assert actual == expected, "Native business menus differ from approved read grants"
+    except Exception:
+        actor.close()
+        raise
+    return identifier, actor
+
+
+def register_yudao_actor(base, username, password, targets):
+    """Keep the native anonymous registration, validation and default membership."""
+    with httpx.Client(
+        base_url=base, timeout=30, trust_env=False, headers={"tenant-id": "1"}
+    ) as public:
+        registered = payload(
+            public.post(
+                "/admin-api/system/auth/register",
+                json={
+                    "username": username,
+                    "password": password,
+                    "nickname": "Synthetic employee",
+                    "roleIds": [1],
+                    "roles": ["super_admin"],
+                },
+            )
+        )
+    identifier = str(registered["userId"])
+    actor = BusinessClient(
+        "yudao-vben", base, login("yudao-vben", base, username, password), targets
+    )
+    try:
+        membership = actor.call("GET", actor.prefix + "/me")
+        assert membership["id"] == identifier
+        assert membership["roles"] == ["employee"]
+        info = actor.call("GET", "/admin-api/system/auth/get-permission-info")
+        assert "super_admin" not in info.get("roles", [])
+        assert "*:*:*" not in info.get("permissions", [])
+        assert info.get("menus"), "Default business role has no native menu"
+    except Exception:
+        actor.close()
+        raise
+    return identifier, actor
+
+
+def customer_service_acceptance(template, base, token, targets, plan):
+    """Use synthetic owned accounts/records; do not alter any pre-existing user."""
+    names = {entity.name for entity in plan.entities}
+    if names != {"customers", "requests", "tasks"} or plan.business is None:
+        raise ValueError(
+            "Customer-service acceptance requires the declared three-resource contract"
+        )
+    manager = BusinessClient(template, base, token, targets)
+    clients = [manager]
+    attempt = uuid.uuid4().hex[:10]
+    actors = {}
+    browser_actors = {}
+    execution_evidence = {
+        "version": 1,
+        "spec_digest": digest(plan.model_dump()),
+        "reminders": [],
+        "metrics": [],
+        "metric_denials": [],
+        "audit": [],
+        "related_acl": [],
+        "relation_writes": [],
+        "field_queries": [],
+    }
+    try:
+        state_response = manager.http.get(
+            manager.prefix + ("/configuration" if manager.fastapi else "/meta"),
+            params={"entity": "customers"},
+        )
+        try:
+            state = payload(state_response)
+        except ValueError, AssertionError:
+            state = {"bootstrapRequired": True}
+        if state.get("bootstrapRequired"):
+            manager.call("POST", manager.prefix + "/bootstrap", json={})
+        for label, role in [
+            ("employee", "employee"),
+            ("other_employee", "employee"),
+            ("service", "service"),
+            ("other_service", "service"),
+        ]:
+            username = "rnd" + attempt + label.replace("_", "")[:5]
+            # Distinct test identities remain under native account/password validation.
+            username += str(len(actors))
+            password = "BusinessTest123!"
+            body = {"username": username, "password": password}
+            body.update(
+                {"name": "Synthetic " + label, "is_superuser": False, "role_ids": [], "status": 0}
+                if manager.fastapi
+                else {"nickname": "Synthetic " + label}
+            )
+            prefix = "" if manager.fastapi else "/admin-api"
+            if label == "employee":
+                register = register_fastapi_actor if manager.fastapi else register_yudao_actor
+                identifier, actor = register(base, username, password, targets)
+            else:
+                identifier = record_id(
+                    manager.call("POST", prefix + "/system/user/create", json=body)
+                )
+                manager.role(identifier, role)
+                actor = BusinessClient(
+                    template, base, login(template, base, username, password), targets
+                )
+            clients.append(actor)
+            actors[label] = (str(identifier), actor)
+            browser_actors[label] = {"username": username, "id": str(identifier), "role": role}
+        employee = actors["employee"][1]
+        outsider = actors["other_employee"][1]
+        service = actors["service"][1]
+        customer = manager.create(
+            "customers",
+            {
+                "name": "Synthetic " + attempt,
+                "organization": "Example team",
+                "contact": "synthetic@example.invalid",
+                "category": "企业",
+            },
+        )
+        assert any(str(r["id"]) == customer for r in employee.rows("customers", q=attempt))
+        request = employee.create(
+            "requests",
+            {
+                "title": "Synthetic consultation " + attempt,
+                "detail": "Need assistance",
+                "customer_id": customer,
+                "priority": "普通",
+                "due_at": "2020-01-01T00:00:00Z",
+            },
+        )
+        # Distinct categories and an unresolved request make the required metric
+        # meanings observably different from each other on the live database.
+        other_customer = manager.create(
+            "customers", {"name": "Comparison " + attempt, "category": "个人"}
+        )
+        other_request = outsider.create(
+            "requests",
+            {
+                "title": "Unresolved comparison " + attempt,
+                "detail": "Control row for scoped operational metrics",
+                "customer_id": other_customer,
+                "priority": "紧急",
+            },
+        )
+        manager.action(
+            "requests", other_request, "assign", {"assignee": actors["other_service"][0]}
+        )
+        assert not any(str(r["id"]) == request for r in outsider.rows("requests"))
+        assert not any(str(r["id"]) == request for r in service.rows("requests"))
+
+        def checked_action(entity, identifier, creator, action, data, transition=None):
+            return verify_event_reminders(
+                plan,
+                entity,
+                identifier,
+                {"assign": "assigned", "add_note": "note_added", "transition": "transitioned"}[
+                    action
+                ],
+                {"creator": creator, "assignee": service},
+                [outsider, actors["other_service"][1]],
+                lambda: (manager if action == "assign" else service).action(
+                    entity, identifier, action, data
+                ),
+                transition,
+                execution_evidence["reminders"],
+            )
+
+        checked_action("requests", request, employee, "assign", {"assignee": actors["service"][0]})
+        assert any(str(r["id"]) == request for r in service.rows("requests"))
+        assert not any(str(r["id"]) == request for r in actors["other_service"][1].rows("requests"))
+        checked_action(
+            "requests", request, employee, "add_note", {"text": "Investigated synthetic request"}
+        )
+        checked_action(
+            "requests", request, employee, "transition", {"transition": "start"}, "start"
+        )
+        task = manager.create(
+            "tasks",
+            {
+                "title": "Follow-up " + attempt,
+                "detail": "Synthetic collaboration",
+                "request_id": request,
+                "due_at": "2020-01-01T00:00:00Z",
+            },
+        )
+        checked_action("tasks", task, manager, "assign", {"assignee": actors["service"][0]})
+        verify_reminders(
+            plan,
+            [("requests", request, employee, service), ("tasks", task, manager, service)],
+            [outsider, actors["other_service"][1]],
+            execution_evidence["reminders"],
+        )
+        checked_action("tasks", task, manager, "transition", {"transition": "start"}, "start")
+        checked_action("tasks", task, manager, "add_note", {"text": "Follow-up complete"})
+        checked_action("tasks", task, manager, "transition", {"transition": "resolve"}, "resolve")
+        assert any(
+            str(row["id"]) == request
+            for row in manager.related("customers", customer).get("requests", [])
+        ), "Customer service history missing"
+        assert any(
+            str(row["id"]) == task for row in manager.related("requests", request).get("tasks", [])
+        ), "Request collaboration history missing"
+        assert not any(
+            str(row["id"]) == request
+            for row in outsider.related("customers", customer).get("requests", [])
+        ), "Related history leaked another employee request"
+        checked_action(
+            "requests", request, employee, "transition", {"transition": "resolve"}, "resolve"
+        )
+        verify_handling_history(plan, manager, service, employee, outsider, "requests", request)
+        inbox = employee.inbox()
+        assert any(
+            str(row["record_id"]) == request and notice_event(row) == "transitioned"
+            for row in inbox
+        ), "Resolution reminder missing"
+        metrics = verify_scoped_metrics(manager, plan, "manager", "manager", execution_evidence)
+        for label, (_, client) in actors.items():
+            verify_scoped_metrics(
+                client, plan, label.removeprefix("other_"), label, execution_evidence
+            )
+        assert {item.name for item in plan.business.metrics} <= {item["name"] for item in metrics}
+        verify_created_reminders(
+            plan,
+            [
+                ("customers", customer, manager),
+                ("requests", request, employee),
+                ("tasks", task, manager),
+            ],
+            clients,
+            execution_evidence["reminders"],
+        )
+        assignment_boundaries = verify_assignment_boundaries(
+            plan, manager, actors, {"requests": request, "tasks": task}
+        )
+        from workbench.native_business_probe import verify_native_execution
+
+        verify_native_execution(
+            plan,
+            manager,
+            actors,
+            {
+                "customers": customer,
+                "requests": request,
+                "tasks": task,
+            },
+            execution_evidence,
+        )
+        navigation = None
+        if template == "yudao-vben":
+            from workbench.yudao_navigation_checks import check_installed_navigation
+
+            navigation = check_installed_navigation(plan, manager, actors)
+        return {
+            "passed": True,
+            "execution_evidence": execution_evidence,
+            "installed_navigation": navigation,
+            "spec_digest": digest(plan.model_dump()),
+            "real_native_auth": True,
+            "public_native_registration": True,
+            "three_roles": True,
+            "relations": True,
+            "related_history": True,
+            "assignment": True,
+            "assignment_boundaries": assignment_boundaries,
+            "transitions": True,
+            "handling_history": True,
+            "audit": True,
+            "in_app_reminders": True,
+            "due_reminders": True,
+            "note_reminders": True,
+            "status_change_reminders": True,
+            "reminder_read_isolation": True,
+            "metrics": True,
+            "row_isolation": True,
+            "records": {"customers": customer, "requests": request, "tasks": task},
+            "synthetic_accounts": len(actors),
+            "attempt": attempt,
+            "browser_actors": browser_actors,
+            "targets": targets,
+        }
+    finally:
+        for client in clients:
+            client.close()
+
+
+def verify_assignment_boundaries(plan, manager, actors, records):
+    """Exercise only existing actors and grants from this exact approved Plan.
+
+    Run after reminder cardinality checks: the conditional positive assignment is
+    restored, but its legitimate audit/notification events must remain persisted.
+    """
+    approved_digest = digest(plan.model_dump())
+    grants = {(p.role, p.entity): p for p in plan.business.permissions}
+    roster = [
+        (label, label.removeprefix("other_"), str(identifier), client)
+        for label, (identifier, client) in actors.items()
+    ]
+    clients = [manager, *(actor[3] for actor in roster)]
+    checks = []
+    mutations = {"create", "update", "archive", "assign", "transition", "add_note"}
+
+    def read_grant(role, entity):
+        grant = grants.get((role, entity))
+        return grant if grant and "read" in grant.actions else None
+
+    def row(client, entity, identifier):
+        found = [
+            item
+            for item in client.rows(entity, page_size=100, pageSize=100)
+            if str(item["id"]) == str(identifier)
+        ]
+        assert len(found) == 1, "Assigned record missing from authorized HTTP rows"
+        return found[0]
+
+    def visible(grant, actor_id, record, assignee_field):
+        if grant is None:
+            return False
+        return (
+            grant.scope == "all"
+            or str(
+                record.get(
+                    wire_name(manager.template, "created_by")
+                    if grant.scope == "own"
+                    else assignee_field
+                )
+            )
+            == actor_id
+        )
+
+    def snapshot(entity, identifier):
+        return {
+            "row": row(manager, entity, identifier),
+            "audit": manager.history(entity, identifier, True),
+            "notifications": [
+                [
+                    notice
+                    for notice in client.inbox()
+                    if notice["entity"] == entity and str(notice["record_id"]) == str(identifier)
+                ]
+                for client in clients
+            ],
+        }
+
+    def absent(entity, case, reason):
+        checks.append({"entity": entity, "case": case, "status": "absent", "reason": reason})
+
+    def rejected(entity, identifier, case, actor, recipient, statuses, action="assign", data=None):
+        before = snapshot(entity, identifier)
+        response = actor[3].action_response(
+            entity, identifier, action, {"assignee": recipient[2]} if data is None else data
+        )
+        try:
+            code = response.json().get("code")
+        except ValueError, AttributeError:
+            code = None
+        # Native application codes are bounded integers. Never echo arbitrary
+        # response strings, bodies, headers, or credentials in failure reports.
+        if type(code) is not int or not -(2**31) <= code < 2**31:
+            code = None
+        assert response.status_code in statuses or (
+            response.status_code == 200 and code in statuses
+        ), (
+            f"{case}: native assignment was accepted, crashed, or failed for an unrelated reason "
+            f"(entity={entity}, http_status={response.status_code}, response_code={code})"
+        )
+        after = snapshot(entity, identifier)
+        assert after == before, f"{case}: rejected assignment changed row, audit, or notifications"
+        checks.append(
+            {
+                "entity": entity,
+                "case": case,
+                "status": "exercised",
+                "action": action,
+                "actor_role": actor[1],
+                **(
+                    {
+                        "assignee_role": next(
+                            item[1]
+                            for item in roster
+                            if item[2] == str(recipient[2] if data is None else data["assignee"])
+                        )
+                    }
+                    if action == "assign"
+                    else {}
+                ),
+                "http_status": response.status_code,
+                "response_code": code,
+                "row_audit_notifications_unchanged": True,
+            }
+        )
+
+    for entity, identifier in records.items():
+        resource = next(item for item in plan.business.resources if item.entity == entity)
+        assignee_field = wire_name(manager.template, resource.assignee_field)
+        baseline = row(manager, entity, identifier)
+        assigning_actor = ("manager", "manager", "", manager)
+        eligible = [
+            actor
+            for actor in roster
+            if (grant := read_grant(actor[1], entity)) and grant.scope in {"assigned", "all"}
+        ]
+        assert eligible, "No existing approved assignee for assignment boundary probes"
+        for case, candidates in (
+            (
+                "own_only_assignee_denied",
+                [
+                    actor
+                    for actor in roster
+                    if (grant := read_grant(actor[1], entity)) and grant.scope == "own"
+                ],
+            ),
+            (
+                "no_read_assignee_denied",
+                [actor for actor in roster if read_grant(actor[1], entity) is None],
+            ),
+        ):
+            if candidates:
+                rejected(entity, identifier, case, assigning_actor, candidates[0], {400, 422})
+            else:
+                absent(entity, case, "No existing actor has this approved read-permission boundary")
+
+        unauthorized = [
+            actor
+            for actor in roster
+            if not (grant := grants.get((actor[1], entity))) or "assign" not in grant.actions
+        ]
+        if unauthorized:
+            # Prefer a visible row, so denial proves the action gate independently
+            # of the row-scope gate whenever the approved actors allow it.
+            unauthorized.sort(
+                key=lambda actor: (
+                    not visible(read_grant(actor[1], entity), actor[2], baseline, assignee_field)
+                )
+            )
+            rejected(
+                entity, identifier, "unauthorized_actor_denied", unauthorized[0], eligible[0], {403}
+            )
+        else:
+            absent(entity, "unauthorized_actor_denied", "Every existing actor has approved assign")
+
+        foreign = [
+            actor
+            for actor in roster
+            if (grant := grants.get((actor[1], entity)))
+            and "assign" in grant.actions
+            and grant.scope in {"own", "assigned"}
+            and not visible(grant, actor[2], baseline, assignee_field)
+        ]
+        if foreign:
+            rejected(entity, identifier, "foreign_row_denied", foreign[0], eligible[0], {403, 404})
+        else:
+            absent(
+                entity,
+                "foreign_row_denied",
+                "No existing approved own/assigned assign actor is outside this row's scope",
+            )
+
+        readonly = [
+            actor
+            for actor in eligible
+            if not mutations.intersection(grants[actor[1], entity].actions)
+        ]
+        if not readonly:
+            absent(
+                entity,
+                "read_only_recipient_accepted",
+                "No existing actor has approved read-only assigned/all permission",
+            )
+            continue
+        recipient = readonly[0]
+        original_assignee = baseline[assignee_field]
+        assert original_assignee is not None, (
+            "Assignment restoration requires the existing assignee"
+        )
+        manager.action(entity, identifier, "assign", {"assignee": recipient[2]})
+        try:
+            assert str(row(manager, entity, identifier)[assignee_field]) == recipient[2], (
+                "Read-only recipient assignment did not persist"
+            )
+            assert str(row(recipient[3], entity, identifier)[assignee_field]) == recipient[2], (
+                "Read-only assigned/all recipient cannot read their assigned row"
+            )
+            workflow = next(item for item in plan.business.workflows if item.entity == entity)
+            for action, data in (
+                ("assign", {"assignee": original_assignee}),
+                ("update", {"title": baseline["title"]}),
+                ("transition", {"transition": workflow.transitions[0].name}),
+            ):
+                rejected(
+                    entity,
+                    identifier,
+                    "read_only_recipient_" + action + "_denied",
+                    recipient,
+                    recipient,
+                    {403},
+                    action,
+                    data,
+                )
+            peers = [actor for actor in roster if actor[1] == recipient[1] and actor != recipient]
+            isolation = {
+                "status": "absent",
+                "reason": "Approved all scope allows peer reads or no same-role peer exists",
+            }
+            if peers and grants[recipient[1], entity].scope == "assigned":
+                peer = peers[0][3]
+                assert not any(
+                    str(item["id"]) == str(identifier)
+                    for item in peer.rows(entity, page_size=100, pageSize=100)
+                ), "Read-only assignment leaked into another actor's assigned list"
+                if peer.fastapi:
+                    # Fastapi detail uses list-row data plus the related endpoint;
+                    # there is no independent business detail GET route.
+                    response = peer.http.get(f"{peer.prefix}/{entity}/{identifier}/related")
+                    endpoint = "related"
+                else:
+                    response = peer.http.get(
+                        peer.targets[entity]["api"] + "/get", params={"id": identifier}
+                    )
+                    endpoint = "get"
+                assert response.status_code in {403, 404} or (
+                    response.status_code == 200 and response.json().get("code") in {403, 404}
+                ), "Read-only assignment leaked through direct record access"
+                isolation = {
+                    "status": "exercised",
+                    "list_denied": True,
+                    "record_endpoint": endpoint,
+                }
+        finally:
+            manager.action(entity, identifier, "assign", {"assignee": str(original_assignee)})
+        assert str(row(manager, entity, identifier)[assignee_field]) == str(original_assignee), (
+            "Original assignee was not restored for subsequent native browser acceptance"
+        )
+        checks.append(
+            {
+                "entity": entity,
+                "case": "read_only_recipient_accepted",
+                "status": "exercised",
+                "actor_role": "manager",
+                "assignee_role": recipient[1],
+                "assignee_scope": grants[recipient[1], entity].scope,
+                "persisted_and_recipient_readable": True,
+                "original_assignee_restored": True,
+                "peer_isolation": isolation,
+            }
+        )
+    assert digest(plan.model_dump()) == approved_digest, (
+        "Assignment probe changed the approved Plan"
+    )
+    return {"version": 1, "spec_digest": approved_digest, "checks": checks}
+
+
+def assert_history_denied(client, entity, identifier):
+    # Both native wire protocols must deny the API call, not merely hide its UI.
+    forbidden = (
+        client.http.get(f"{client.prefix}/{entity}/{identifier}/history")
+        if client.fastapi
+        else client.http.get(
+            client.prefix + "/history", params={"entity": entity, "id": identifier}
+        )
+    )
+    if forbidden.status_code not in {401, 403, 404}:
+        try:
+            refused_code = forbidden.json().get("code")
+        except ValueError:
+            refused_code = None
+        assert refused_code in {401, 403, 404}, "Unpermitted actor read handling history"
+
+
+def verify_handling_history(plan, manager, service, employee, outsider, entity, identifier):
+    # The public contract guarantees assigned service history and manager audit.
+    # An employee's read grant does not implicitly grant read_history.
+    history = service.history(entity, identifier)
+    assert len(history) >= 4, "Handling timeline omitted actions"
+    audit = manager.history(entity, identifier, True)
+    assert len(audit) >= len(history), "Audit trail omitted history"
+    employee_history = any(
+        grant.role == "employee" and grant.entity == entity and "read_history" in grant.actions
+        for grant in plan.business.permissions
+    )
+    if employee_history:
+        assert len(employee.history(entity, identifier)) >= len(history), (
+            "Employee handling history omitted permitted actions"
+        )
+    else:
+        assert_history_denied(employee, entity, identifier)
+    assert_history_denied(outsider, entity, identifier)
+
+
+def notice_event(row):
+    return row.get("event") or row.get("message", "").rsplit(" ", 1)[-1]
+
+
+def record_notices(client, entity, identifier, event):
+    return {
+        str(row["id"]): row
+        for row in client.inbox()
+        if row["entity"] == entity
+        and str(row["record_id"]) == str(identifier)
+        and notice_event(row) == event
+    }
+
+
+def reminder_recipients(plan, entity, event, recipients, transition=None):
+    # Only resolve→request creator is fixed by the public contract. All other
+    # recipients come from the approved plan, not an implicit test preference.
+    return {
+        recipients[notice.recipient]
+        for notice in plan.business.notifications
+        if notice.entity == entity and notice.event == event and notice.transition == transition
+    }
+
+
+def verify_event_reminders(
+    plan, entity, identifier, event, recipients, outsiders, action, transition=None, evidence=None
+):
+    """Prove every declared notification comes from this action to its intended inbox."""
+    expected = reminder_recipients(plan, entity, event, recipients, transition)
+    clients = set(recipients.values()) | set(outsiders)
+    before = {client: record_notices(client, entity, identifier, event) for client in clients}
+    result = action()
+    for client in clients:
+        after = record_notices(client, entity, identifier, event)
+        added = set(after) - set(before[client])
+        assert len(added) == int(client in expected), (
+            f"{entity} {event} {transition or ''} reminder missing, duplicated or misrouted"
+        )
+        assert set(record_notices(client, entity, identifier, event)) == set(after), (
+            "Reading reminders generated duplicate notifications"
+        )
+        for notice_id in added:
+            payload(client.read_notice(notice_id))
+            updated = record_notices(client, entity, identifier, event)[notice_id]
+            assert updated.get("read") is True or updated.get("read_at") is not None, (
+                "Read state not persisted"
+            )
+            for other in clients - {client}:
+                forbidden = other.read_notice(notice_id)
+                assert forbidden.status_code in {401, 403, 404} or forbidden.json().get("code") in {
+                    401,
+                    403,
+                    404,
+                }, "Other recipient changed reminder read state"
+    if evidence is not None:
+        for notice in plan.business.notifications:
+            if (notice.entity, notice.event, notice.transition) == (entity, event, transition):
+                recipient = recipients[notice.recipient]
+                added = set(record_notices(recipient, entity, identifier, event)) - set(
+                    before[recipient]
+                )
+                append_reminder_evidence(evidence, notice, len(added))
+    return result
+
+
+````

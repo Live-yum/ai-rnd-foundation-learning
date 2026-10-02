@@ -6,7 +6,7 @@
 
 这是一份完整的实现与操作手册：前半部分按学习顺序说明创建什么、连接到哪里、如何运行与测试；后半部分直接包含同一提交中的全部文本源码、配置、数据库迁移、前端、测试和依赖锁。全文描述一个一致的最终系统，不需要任何较早版本、骨架项目或差异补丁。
 
-本手册只有一个正式文件：`从零实现AI研发平台_逐步实操手册_完整版.md`。你可以只拿到这一份文档，从空文件夹逐个创建本项目的全部源文件。语言解释器、Python包和第三方开源框架属于明确安装的依赖，不要求预先拥有本项目仓库。
+本文件是保留兼容的完整版：`从零实现AI研发平台_逐步实操手册_完整版.md`。新的分阶段教材位于 `learning-docs/README.md`，适合按依赖逐站学习。你可以只拿到这一份文档，从空文件夹逐个创建本项目的全部源文件。语言解释器、Python包和第三方开源框架属于明确安装的依赖，不要求预先拥有本项目仓库。
 
 **阅读顺序**：先完成第2章的工具准备，按照第6—13章和“逐文件实现讲解”创建文件；每写完一组，紧接着做“动手写与跑”的对应完整小实验，再回到第3—5章体验平台。完整源码区的每个标题就是要创建的文件路径，代码块不省略实现。希望先体验的读者可以在已经取得的演示源码目录直接执行第3—5章，但这不是手写学习的前置条件。
 
@@ -88,7 +88,13 @@ code .
 
 先写第6章列出的项目配置文件，之后才能执行`uv sync --locked`。不要先执行后面的API或模型命令，因为相关模块还没有写出来。
 
-### 2.3 第三方源码不是隐含的骨架
+### 2.3 基础安装不预装所有原生运行依赖
+
+`uv sync --locked` 的基础环境不要求可选的psycopg。Windows上选择原生模板、读取能力或检查设计不能因缺少它而崩溃；真正的FastapiAdmin/芋道全栈执行仍需要WSL2/Linux。在Linux项目目录中安装 `uv sync --locked --extra postgres`，再配置本机语言工具与专用PostgreSQL/Redis。不要复用Windows `.venv`。
+
+实际原生运行会先检查操作系统、PostgreSQL驱动与工具，再创建目录、容器或连接数据库。缺依赖时修复环境并重试同一运行，保留需求和审批，不需要重建项目。预检成功不是原生全栈验收成功。
+
+### 2.4 第三方源码不是隐含的骨架
 
 本平台的Python/Java原生框架是第三方依赖。书中给出了`scripts/vendor_templates.py`的全部代码及三个固定源码提交。手写完成这个脚本和模板清单以后执行：
 
@@ -102,11 +108,26 @@ uv run python -m scripts.vendor_templates --fetch
 
 安装依赖、模型权重、浏览器、Maven/pnpm包及Daytona镜像需要网络。准备完成以后索引和工具执行不调用云端服务；这不等于无需安装任何软件的完全离线发行版。
 
-### 2.4 在生成带界面的产品前安装浏览器验收工具
+### 2.5 在生成带界面的产品前安装浏览器验收工具
 
 `simple-admin`产品需要Node22与本机Playwright1.56.1/Chromium。请先完成本书“从空目录到可信交付”站点4中的Windows或Linux安装与环境变量设置，再在同一终端启动平台。缺少这些工具会阻止交付，不会将浏览器验收记为跳过。api-only没有页面，才允许浏览器项标记不适用。
 
+### 2.6 从源码构建平台Vue操作台
+
+`ui/` 是平台自己的Vue 3 / Ant Design前端，和生成产品的 `templates/frontends/` 不同。完整源码、依赖锁、类型和构建配置都在手册中；`workbench/web` 是构建快照，以Base64资产保留精确字节，无需手写压缩代码。在项目根目录、Node 22环境执行：
+
+```bash
+# .learning/commands/control-plane-build.sh
+npm ci --prefix ui --no-audit --no-fund
+npm test --prefix ui
+npm run build --prefix ui
+```
+
+构建先做Vue/TypeScript检查，再输出供FastAPI与平台wheel使用的静态文件。开发热更新可用 `npm run dev --prefix ui`，但正式 `rnd start` 不依赖Vite服务器。只带教材的独立验收会从源重新安装、测试、构建，并逐文件核对生成资产与快照，不用残留bundle掩盖构建失败。
+
 ## 3. 配置模型：单模型先跑通，多模型按需启用
+
+首次没有模型配置也可以先执行 `rnd start` 打开操作台的模型设置。页面支持默认连接和分阶段覆盖，保存只做格式与安全校验，不发起真实模型请求；创建运行和需要模型的后续操作仍要求有效配置。下面的.env方式是初始配置的另一入口，不必为了打开设置页先把Key写进命令行。
 
 先在项目根目录创建配置文件，已有`.env`则保留，不覆盖里面的密钥。PowerShell：
 
@@ -160,7 +181,9 @@ uv run rnd doctor
 uv run rnd models
 ```
 
-两条命令只显示非敏感信息，不调用付费模型，不证明账号权限；首次实际请求会验证账号。`.env`修改后重新启动服务。已保存运行的模型用量回执保留实际阶段/地址/模型/usage，不公开API_KEY。
+两条命令只显示非敏感信息，不调用付费模型，不证明账号权限；首次实际请求才涉及真实服务。尚未从页面保存配置时，修改.env后重启使初始环境值生效。页面保存后，本机私有配置文件成为模型配置来源；后续请在页面修改，不期待重启让.env覆盖已保存值。运行用量回执保留实际阶段、地址、模型和usage，不公开API_KEY。
+
+页面保存带expected_revision；两个窗口同时编辑时，落后版本得到409，必须重新读取并核对。已保存Key只显示configured/missing，保留、更换和清除分别操作；更换BaseURL必须输入新地址独立Key。文件锁与原子替换保护旧值，POSIX要求600权限并拒绝符号链接。不要提交配置文件或把它放入教材截图。一次已开始调用及其重试使用固定快照，下一次调用才读取新配置；当前界面没有真实连接测试接口，保存不能写成“连接成功”。
 
 ### 3.2 限额与恢复
 
@@ -176,21 +199,21 @@ MAX_ROUNDS=0和MAX_MODEL_CALLS=0表示不设累计上限，不是无限网络重
 uv run rnd start
 ```
 
-打开 `http://127.0.0.1:8000/`。另一个同目录终端：
+打开启动日志打印的本机地址，默认 `http://127.0.0.1:8000/`；自定义PORT后以实际地址为准。另一个同目录终端：
 
 ```powershell
 uv run rnd token
 ```
 
-将输出填入平台页面的访问令牌。平台令牌、模型Key、产品用户token各自独立，不互相代用。程序仅绑定本机，Swagger在 `/docs`，不需要定制UI也能通过API使用。
+将输出填入平台页面的访问令牌。令牌只保存在当前页面内存，刷新后重新连接。平台令牌、模型Key、产品用户token各自独立，不互相代用。程序仅绑定本机，Swagger在 `/docs`，也能通过CLI/API使用。
 
-界面先展示后端/模板、对应前端、对应数据库。点“确认选择”以后才出现项目名称和需求输入框。选择后若重新换前端/数据库，必须再次确认，不把修改悄悄应用到旧运行。
+在项目入口确认后端/模板、兼容前端和数据库，再创建需求运行。兼容项来自真实/catalog；已存在运行的技术选择是已保存事实，不能因为表单后来换了选项就悄悄修改旧运行。模型尚未有效配置时先完成设置，再开始需求。
 
 第一次使用同一个标准客服案例。先在本书完整源码区创建`examples/requirements/customer-service.md`、`customer-service-decisions.md`和`customer-service-contract.md`（后两份在同一目录），按顺序把三份完整文本一起填入页面。原始需求保留原文，默认决策补充站内提醒、角色范围和统计口径，命名约定明确黑盒验收字段；不把固定Plan当模型答案。下面只是核对摘要，不能用摘要删去原文条目：
 
 > 建设公司内部客户服务管理平台：维护客户档案和历史服务记录；创建服务请求、分配负责人、按批准流程改变状态并追加处理记录；支持协作任务、站内提醒和不可修改的操作审计；提供服务数量、创建到解决的时长、客户分组和每日趋势统计。管理员、客服、普通员工按角色及负责/创建范围访问数据。沿用所选框架的原生认证、ORM、事务与UI组件，并交付可在新目录和新数据库独立启动的产品。
 
-先选择本次要运行的模板组合，再输入需求。基础入口为`python-basic / simple-admin / sqlite`；两个原生入口分别为`fastapiadmin / fastapiadmin-vue / postgresql`及`yudao-vben / vben-antd / postgresql`。原生环境需要先完成第19章准备。设计必须形成完整`Plan.business`，保留客户→请求→任务的关联、三角色行权限、指派、状态、记录、提醒和四类统计，不能退化成三个互不相关的CRUD页面。
+页面可先输入需求草稿，在提交运行前确认本次模板组合。基础入口为`python-basic / simple-admin / sqlite`；两个原生入口分别为`fastapiadmin / fastapiadmin-vue / postgresql`及`yudao-vben / vben-antd / postgresql`。原生环境需要先完成第19章准备。设计必须形成完整`Plan.business`，保留客户→请求→任务的关联、三角色行权限、指派、状态、记录、提醒和四类统计，不能退化成三个互不相关的CRUD页面。
 
 ### 4.1 人工交互
 
@@ -221,7 +244,23 @@ uv run rnd chat --smart
 
 恢复人工：点击“恢复人工确认”，或 `uv run rnd manual UUID`。当前已经运行的工具不会因这个开关倒退，后续关卡恢复等待。退出浏览器或CLI并不取消后台保存的job；重新 `rnd chat --run UUID` 可继续。
 
-确实不支持的要求不能被AI删除后假装完成。自动模式有小规模、有界的内部补全次数，仍不能形成可执行规格时BLOCKED并记录原因，不再次提问拖到无穷，也不标READY。人工可以调整或新建更合适的模板运行。
+确实不支持的要求不能被AI删除后假装完成。自动模式有小规模、有界的内部补全次数，仍不能形成可执行规格时BLOCKED并记录原因，不再次提问拖到无穷，也不标READY。人工可以在同一运行明确调整范围；只有确需更换技术栈时再选择合适入口，不能靠新建任务抹去旧证据。
+
+### 4.3 报名入口的选择不能被智能推荐代替
+
+“参赛报名网站”首先保留参赛者自行提交的目标；未说清入口时，平台会澄清，不默认推定为匿名访问。当前已支持注册登录后在生成业务界面提交报名，设计必须声明非管理员业务角色、默认角色与本人记录权限。账号注册本身不等于业务报名已经实现。
+
+若明确要求匿名提交或独立自定义公众门户，当前范围会暂停，说明需先扩展并验证对应能力。仅管理员代录需要你明确取消参赛者自行报名并作出该范围更正，智能推荐或历史模型分析不能替你决定。页面的能力范围提示给出原目标、边界和选项；重复智能推荐不会为已知选择反复调用模型。人工模式保留WAITING_CLARIFICATION且不能批准，自动模式停止为BLOCKED。未明确入口时unsupported仍为空，能力提示要求澄清；明确匿名/公众门户才登记为不支持。
+
+旧FAILED运行可能已有错误的管理员设计和历史批准。恢复保留同一UUID、原始消息、需求账本与审批历史，并在生成副作用前建立新的有效澄清关卡；旧批准不会自动批准改正后的需求。补齐依赖、选择范围和批准新设计是不同步骤。
+
+### 4.4 真实流式对话、澄清表单与恢复
+
+Vue页面订阅 `/runs/{id}/stream`，用带Authorization的fetch读取SSE。服务商真实增量经协议审计，只投影公开summary/title/explanation字段；隐藏推理、原始提示和补丁源码不送进聊天。增量始终是待验证草稿，最终完整对象通过严格schema才完成；中途失败清掉草稿。服务商仅返回完整JSON时明确标记非流式，不用前端打字动画伪装。
+
+刷新先读 `/runs/{id}/transcript` 的消息快照和cursor，再接后续事件；重连按事件ID去重，不另发一次模型调用。切换任务会关闭旧订阅并拒绝迟到结果，避免消息串到新任务。关闭网页不代表取消持久Worker任务，任务状态、审批等待和交付资格始终从真实后台读取。
+
+澄清可以是单选、多选或文字题，提交当前问题/选项ID与用户补充。服务器只接受当前gate的选择，自己取回标签并核对必答项，过期选择不会排队。补充回答与批准需求/计划是不同操作。界面里的进度、报告和按钮要能对应真实状态；出现下载按钮不等于已通过交付。
 
 ## 5. 下载、启动、检查最终产品
 
@@ -292,7 +331,7 @@ uv python install 3.14
 
 ## 7. 第一组：配置、输入契约和数据库
 
-创建 `workbench/local_only.py`、`workbench/settings.py`、`business_contracts.py`、`business_capabilities.py`、`catalog.py`、`domain.py`、`errors.py`、`store.py`、`alembic.ini` 和 `migrations/`中的完整文件。local_only定义仅本机工具策略并关闭遥测；settings依赖Pydantic Settings和local_only，domain和catalog不依赖HTTP；store读取配置并提供短事务，禁止反向import api。
+创建 `workbench/local_only.py`、`workbench/settings.py`、`model_settings.py`、`business_contracts.py`、`business_capabilities.py`、`catalog.py`、`domain.py`、`errors.py`、`store.py`、`clarification.py`、`alembic.ini` 和 `migrations/`中的完整文件。local_only定义仅本机工具策略并关闭遥测；settings依赖Pydantic Settings和local_only，domain和catalog不依赖HTTP；store读取配置并提供短事务，禁止反向import api。
 
 | 文件 | 负责什么 |
 |---|---|
@@ -342,7 +381,7 @@ uv run pytest tests/test_guided_workflow.py tests/test_guided_completion.py -q
 
 ## 9. 第三组：多模型边界和运行回执
 
-创建 `workbench/llm.py`、阅读settings.ModelProfile与 `tests/test_guided_models.py`。
+创建 `workbench/llm.py`、`model_protocol.py`、`streaming.py`，阅读settings.ModelProfile与 `tests/test_guided_models.py`。
 
 调用key将任务映射到requirements/planning/coding/review，解析有效地址、密钥、模型名；缓存身份包括阶段/地址/模型，不包含明文密钥。更改模型不会错误复用另一模型的响应。响应必须经过Pydantic严格验证；未知字段、错误JSON、超长响应、鉴权失败或超时明确报错。调用前记录预算尝试，外部服务失败也不免费假装成功。
 
@@ -410,7 +449,7 @@ uv run python -m scripts.ci_clean_install
 
 ## 13. 第七组：LangGraph、Worker和HTTP
 
-创建flow.py、runtime.py、api.py、cli.py、workbench/web/所有页面文件。前面的已测试函数由图连接，不在一个庞大节点里混合调用模型、等待用户和扣费写库。
+创建flow.py、runtime.py、api.py、cli.py与ui/完整Vue源、锁和配置，再构建workbench/web运行资产。前面的已测试函数由图连接，不在一个庞大节点里混合调用模型、等待用户和扣费写库。
 
 实际流程节点：analyse → requirements gate → source_context（索引、检索与Repo Map）→ plan → design gate → generate → code（需要时）→ verify；可修复失败经repair回到code，再次verify；验证通过后进入sandbox（已显式启用时执行本机自托管Daytona，否则记录未启用）→ model_review（可选）→ package（含独立解压复验）→ delivery gate。source_context不调用聊天模型，也不默认计算向量；code按CODING_ENGINE使用受限表达式引擎或真实Aider；sandbox失败不能跳到交付。状态主要保存runID、版本、结构化规格、有界上下文与回执，不保存ZIP字节或整个仓库。
 
@@ -422,7 +461,9 @@ API快速写入job然后返回，不让长时间Maven构建占住HTTP请求。li
 |---|---|
 | GET /catalog、/models | 当前实际模板组合与阶段模型，无密钥 |
 | POST /projects、POST /projects/{id}/runs | 创建项目、选项/需求同事务入队 |
-| GET /runs/{id}、/messages、/events、/models | 状态、完整消息、事件、实际模型使用 |
+| GET /runs/{id}、/messages、/events、/models | 状态、用户消息、事件、实际模型使用 |
+| GET /runs/{id}/transcript、/stream | 含助手草稿/结果的持久消息快照与可重放SSE |
+| GET/PATCH/PUT /settings/models | 安全配置摘要和带版本号的本机模型配置写入 |
 | POST /runs/{id}/resume | 当前gate的回答、批准、拒绝、修改 |
 | POST /runs/{id}/automation | 显式开启智能推荐或恢复人工 |
 | POST /runs/{id}/retry | 可恢复的失败/暂停保留原ID重试 |
@@ -485,7 +526,7 @@ uv run python -m scripts.build_handbook --check
 uv run python -m scripts.build_handbook
 ```
 
-生成器把全部正文、逐文件讲解与真实源码完整组合成唯一正式手册。每个源码块带SHA；test_handbook验证逐块一致性与空目录还原后再次生成相同手册。客服章节在建档、权限、分配、历史、提醒和统计处配有真实浏览器截图；图注注明模板、来源提交及证据范围。PNG原始字节通过可折叠Base64资源块随书保存，独立还原程序严格解码并逐张核对SHA，正文仍使用`docs/images/`相对路径，不塞入data URI。二进制vendorZIP在Git中单独保存，书中包含重建这些ZIP的完整脚本、manifest与许可证，不把二进制伪装成可手写源码，也不要求已有ZIP作为学习前提。
+生成器把全部正文、逐文件讲解与真实源码完整组合成兼容版完整手册。每个源码块带SHA；test_handbook验证逐块一致性与空目录还原后再次生成相同手册。客服章节在建档、权限、分配、历史、提醒和统计处配有真实浏览器截图；图注注明模板、来源提交及证据范围。PNG原始字节通过可折叠Base64资源块随书保存，独立还原程序严格解码并逐张核对SHA，正文仍使用`docs/images/`相对路径，不塞入data URI。二进制vendorZIP在Git中单独保存，书中包含重建这些ZIP的完整脚本、manifest与许可证，不把二进制伪装成可手写源码，也不要求已有ZIP作为学习前提。
 
 手工学习创建顺序可照第7—13章；全部源码齐全后再执行全量测试。复现安装始终 `--locked`；依赖更新需提交真实新锁并重跑，不由AI随意修改锁内容。
 

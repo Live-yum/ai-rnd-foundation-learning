@@ -1,0 +1,99 @@
+# templates/frontends/simple-admin/index.html · 1/1
+
+[阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
+
+
+
+**作用：交付给产品的前端选项。** 轻量页面围绕产品规格显示字段和查询条件；注册登录后才请求业务API。清除筛选必须同时重置控件和查询状态，不能只隐藏标签；API-only模板则不需要管理页面。
+
+**对应关系：** Selection → generator选取前端 → 产品HTTP/业务路由；verify-business-browser和test_business_python_browser。
+
+**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
+
+**创建路径：** `templates/frontends/simple-admin/index.html`；**本文件共有 1 段**。本段覆盖源文件 L1–L79。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+
+本段原始字节数：`3358`。本段原文以LF换行结束。
+
+<!-- learning-source: {"path": "templates/frontends/simple-admin/index.html", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e338508e6c0ed4291194b3b490717518c081deeefb66c87c9b1da6a05f44fd39"} -->
+````html
+<!-- templates/frontends/simple-admin/index.html -->
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>业务管理</title>
+    <link rel="stylesheet" href="/web/style.css" />
+    <script defer src="/web/app.js"></script>
+  </head>
+  <body>
+    <header>
+      <h1 id="title">业务管理</h1>
+      <span id="business-role"></span><button id="logout" hidden>退出登录</button>
+    </header>
+    <p id="notice" role="status"></p>
+    <section id="login">
+      <h2>注册 / 登录</h2>
+      <form id="auth">
+        <label
+          >用户名<input
+            name="username"
+            required
+            autocomplete="username"
+            maxlength="100" /></label
+        ><label
+          >密码<input
+            name="password"
+            type="password"
+            required
+            minlength="10"
+            autocomplete="current-password" /></label
+        ><button type="submit">登录</button
+        ><button type="button" id="register">注册</button>
+      </form>
+    </section>
+    <main id="workspace" hidden>
+      <nav id="entities"></nav>
+      <section id="business-panels" hidden>
+        <button id="refresh-business" type="button">刷新统计与提醒</button>
+        <div id="business-metrics"></div><h3>站内提醒</h3><div id="business-notifications"></div>
+        <details id="business-admin" hidden><summary>账号与角色管理</summary>
+          <form id="business-create-user"><label>用户名<input name="username" required maxlength="100"></label>
+          <label>初始密码<input name="password" type="password" required minlength="10" autocomplete="new-password"></label>
+          <label>业务角色<select name="role" id="business-new-role"></select></label><button>创建账号</button></form>
+          <div id="business-users"></div>
+        </details>
+      </section>
+      <section>
+        <h2 id="entity-title"></h2>
+        <form id="filters">
+          <div id="filter-fields"></div>
+          <button type="submit">搜索 / 筛选</button
+          ><button type="button" id="reset">清除条件</button>
+        </form>
+        <button id="create">新增</button><span id="total"></span>
+        <div class="table" tabindex="0" aria-label="业务记录表，可左右滚动">
+          <table>
+            <thead id="columns"></thead>
+            <tbody id="rows"></tbody>
+          </table>
+        </div>
+        <button id="previous">上一页</button><button id="next">下一页</button>
+      </section>
+    </main>
+    <dialog id="business-detail"><h2 id="business-detail-title">记录详情</h2>
+      <div id="business-actions"></div><h3>关联记录</h3><div id="business-related"></div>
+      <h3>备注与跟进</h3><div id="business-notes"></div><form id="business-note-form"><label>备注<textarea name="body" required maxlength="10000"></textarea></label><button>添加备注</button></form>
+      <h3>不可修改的处理历史</h3><div id="business-history"></div><button id="business-close" type="button">关闭</button>
+    </dialog>
+    <dialog id="editor">
+      <form id="record">
+        <h2 id="edit-title"></h2>
+        <div id="record-fields"></div>
+        <button type="submit">保存</button
+        ><button type="button" id="cancel">取消</button>
+      </form>
+    </dialog>
+  </body>
+</html>
+````

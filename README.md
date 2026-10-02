@@ -4,7 +4,13 @@
 
 从需求到可启动产品的本地工作台：**先选择后端、前端与数据库 → 描述需求 → 人工确认或一键智能推荐 → 原生/确定性生成 → 独立测试 → 可选模型审阅 → 打包下载**。
 
-平台使用 Python、uv、FastAPI、SQLite 和 LangGraph。**仅聊天大模型允许使用外部推理服务；其余工具均为本机运行。** 基础代码、迁移、索引、测试与打包由工具执行。测试失败不能由模型“宣布通过”。
+平台使用 Python、uv、FastAPI、SQLite、LangGraph，以及本地打包的 Vue 3 + Ant Design Vue 操作界面。**仅聊天大模型允许使用外部推理服务；其余工具均为本机运行。** 基础代码、迁移、索引、测试与打包由工具执行。测试失败不能由模型“宣布通过”。
+
+## 从零学习：推荐新的分阶段教材
+
+从 [learning-docs/README.md](learning-docs/README.md) 开始：15个依赖有序阶段，每站有实现解释、小实验、预期结果与排错。每个代码块首行标注相对路径，大文件按模块分为连续小页。只保存整个 `learning-docs` 目录就能在空目录重建自有源码、测试、锁文件和截图，第三方模板按固定上游提交自行下载处理；无需先下载本仓库骨架。
+
+旧版完整手册仍保留兼容。新教材的还原与验收方式见 [learning-docs 最后一站](learning-docs/14-acceptance/README.md)。
 
 ## 1. 初始化完整演示源码
 
@@ -23,7 +29,7 @@ uv sync --locked
 uv run rnd init
 ```
 
-**从零学习不需要先取得这些源码。** 唯一教材`从零实现AI研发平台_逐步实操手册_完整版.md`从空文件夹讲解每个自有文件、调用关系和逻辑，包含所有文本源码及锁文件；书中给出的脚本可从固定第三方提交生成原生模板ZIP。没有本项目骨架也能照书实现。
+**从零学习不需要先取得这些源码。** 兼容版教材`从零实现AI研发平台_逐步实操手册_完整版.md`从空文件夹讲解每个自有文件、调用关系和逻辑，包含所有文本源码及锁文件；书中给出的脚本可从固定第三方提交生成原生模板ZIP。没有本项目骨架也能照书实现。
 
 需要先安装 Git、uv。Windows 的 uv 官方安装器：
 
@@ -37,7 +43,7 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 
 ## 2. 单模型配置：只填三项
 
-编辑仓库根 `.env`：
+推荐先执行 `uv run rnd start`，即使还没填模型也能打开页面。输入本机访问令牌后，进入「模型与配置」，填写默认 BaseURL、模型名称和 API Key。也可以继续编辑仓库根 `.env`：
 
 ```dotenv
 BASE_URL=https://你的兼容服务/v1
@@ -91,7 +97,23 @@ uv run rnd start
 uv run rnd token
 ```
 
-将本机访问令牌填入页面。它不是模型 API_KEY，也不是生成产品的用户登录令牌。先选模板、兼容前端和数据库，点“确认选择”，之后才显示项目名称与需求表单。
+将本机访问令牌填入页面。它不是模型 API_KEY，也不是生成产品的用户登录令牌。令牌仅保留在当前页面内存，刷新后重新输入。从工作台描述目标，在技术栈设置中确认模板、兼容前端和数据库后开始；页面组件使用的 Vue 3 + Ant Design Vue 与最终生成产品的技术栈是两件事。
+
+### 对话、进度与恢复
+
+- 对话展示同一次真实模型响应中的用户可见摘要。支持流式协议的供应商会逐步显示实际内容；不支持流式时明确显示等待完整响应，不用定时器伪造打字
+- 生成中的文字标为待校验草稿；完整响应通过严格 Schema 校验后才成为确认内容。模型推理过程、系统提示词和源文件补丁不会通过对话流展示
+- 需求澄清支持真实模型生成的单选、多选和自定义回答；没有结构化选项时使用文字回答。选项不是已批准需求，服务器按当前问题版本验证并保留用户选择与补充
+- 需求、设计、交付三道关卡仍使用 gate_id、版本和内容摘要。遇到 409 过期版本须重新查看与审阅，不自动重发批准
+- 研发进度来自串行 LangGraph 节点的实际开始、等待、完成和失败事件，不展示虚构并行工作或估算百分比
+- 关闭页面或切换运行只断开该页面的流订阅，后台任务继续。重新连接从持久事件编号续传并去重；失败或预算暂停时修复原因后重试同一运行
+- `READY` 表示通过运行级验收并获交付批准；`SOURCE_READY` 仅表示源码级交付，不能当作已启动运行验证
+
+### 页面内模型设置
+
+默认配置和需求、规划、编码、审阅四阶段可分别设置。空阶段字段表示继承；已有 Key 只显示「已配置」，服务器不回传原文。修改 BaseURL 必须同时为新地址输入独立 Key；不会将旧 Key 自动发到新地址。保存前检查配置版本，其他窗口已修改时先重新加载。
+
+页面保存到本机 `.data/model-settings.json`，优先于 `.env`；POSIX 下原子写入且文件权限为 0600。保存后下一次模型调用读取新配置，进行中的调用及其重试继续使用原快照。格式检查不验证账号可用性，也不发起付费连接测试。请勿提交配置文件、访问令牌或 API Key。
 
 也可以用 CLI 操作（仍需保持终端 A 的 `rnd start` 运行，在另一个终端执行）：
 
@@ -111,6 +133,8 @@ uv run rnd chat --template python-basic --frontend simple-admin --database sqlit
 | `fastapiadmin` | `fastapiadmin-vue` | PostgreSQL | Linux/WSL、Node22、pnpm9.15.3、Redis/PG、浏览器验证工具 |
 | `yudao-vben` / Java | `vben-antd` | PostgreSQL | 上述服务 + JDK17/Maven、pnpm11.16.0 |
 
+Windows 可以先分析原生模板的需求和设计，基础安装不会因缺少可选 PostgreSQL 驱动而在导入阶段崩溃。原生全栈的实际执行仍须使用 WSL 2/Linux，平台与驱动检查会在创建数据库或生成产品之前给出准确提示；选择默认 Python/SQLite 通道则不要求安装 PostgreSQL 驱动。
+
 界面只允许已适配的组合，不任意混接一个框架的前端和另一个框架的鉴权 API。**所选数据库是交付产品的数据库；平台控制库仍可用 SQLite。** 完整原生环境准备见手册第二部分。
 
 ## 5. 不再被澄清轮数卡死
@@ -123,7 +147,7 @@ uv run rnd chat --template python-basic --frontend simple-admin --database sqlit
 
 ## 6. “智能推荐”是持续委托，不是再问一次
 
-页面任意非终态均可点击 **智能推荐**，或在新建时选择智能推荐；CLI 可输入 `智能推荐`，或者：
+页面支持委托的非终态可点击 **智能推荐**，或在新建时选择智能推荐；需要你明确范围的关卡会解释为何暂不可委托。CLI 可输入 `智能推荐`，或者：
 
 ```powershell
 uv run rnd recommend 运行UUID
@@ -132,7 +156,11 @@ uv run rnd chat --smart
 
 这是你授权：**从现在起，剩余不明确细节按 AI 推荐补齐；后续需求/设计/交付不再逐项询问。** 它保留你已明确的要求，记录推荐与 `delegated-ai` 决定。可以随时点“恢复人工确认”或执行 `uv run rnd manual UUID`，在后续关卡恢复人工模式。
 
-智能推荐不允许跳过独立测试、覆盖生产库、伪造成功或删掉你明确要求的功能。确实超出模板能力时明确 `BLOCKED`，不会再次陷入无限提问，也不会偷偷生成缩水产品。
+智能推荐不允许跳过独立测试、覆盖生产库、伪造成功或删掉你明确要求的功能。确实超出模板能力时关卡不可批准，智能推荐会暂停为 `BLOCKED`；人工模式保留不可批准的澄清关卡，不会偷偷生成缩水产品。
+
+“报名网站”不会自动解释为匿名网站，也不会自动缩减为管理员录入。若报名入口尚不明确，平台会保留原始目标，请你选择登录后的参赛者自行提交、保留独立公众门户需求并暂停扩展，或明确同意仅管理员维护。登录后的自行提交须使用真实非管理员业务角色与本人记录权限；独立公众门户与匿名提交当前不能自动交付。已知入口选择未解决时，重复智能推荐不会再次调用模型，也不能代替你的决定。
+
+旧运行若曾在原生设计的可选依赖导入处失败，可在升级后重试同一运行。运行 ID、回答、已保存设计与历史审批保留；若检测到原始报名目标曾被缩减，会建立新的澄清版本，旧审批不能批准新版本。无需删除 `.data` 或重新创建项目。
 
 本仓库的标准端到端示例是**内部客户服务管理系统**，从空目录教材、需求、计划、生成、测试到独立部署都围绕同一案例：
 
@@ -164,10 +192,14 @@ uv run --no-project --python 3.14 python start.py
 ## 8. 测试、证据、手册
 
 ```powershell
+npm ci --prefix ui --no-audit --no-fund
+npm test --prefix ui
+npm run build --prefix ui
 uv run ruff check .
 uv run ruff format --check .
 uv run pytest -m "not postgres" -q
 uv run python -m scripts.build_handbook --check
+uv run python -m scripts.build_learning_docs --check
 ```
 
 Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新数据库交付、真实Chromium智能推荐与产品页面回归，并由客服矩阵验证三角色、关系、流程、提醒和统计。CI模型采用显式协议夹具，不消耗真实Key，也不声称已验证你的供应商账号。
@@ -176,7 +208,7 @@ Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新�
 
 当前是仅监听本机、单操作人和单Worker的研发工作台。没有公网生产身份体系。请勿公开 `.env`、`.data`、`.deployment` 或访问令牌。更多环境条件、SQL步骤、预算恢复、原生部署与故障定位见完整手册。
 
-## 9. 本机工具链与唯一完整教材
+## 9. 本机工具链与完整教材
 
 默认使用本机Tree-sitter/Python AST、FTS5和符号Repo Map。Aider使用独立Python3.12环境：
 
@@ -218,7 +250,7 @@ uv run python -m scripts.ci_daytona_local
 
 本机随机凭据及平台配置保存在`.data/daytona-local`，不得提交Git。完整教材第20章解释Dex、API、Runner、镜像摘要、离线快照、每一步预期结果和清理。默认Python/SQLite快照不冒充Java/Vue通用镜像；原生完整验收仍在本机进行。Daytona上游Compose仅供开发，privileged Runner不是生产强隔离保证。
 
-仓库只保留`从零实现AI研发平台_逐步实操手册_完整版.md`这一份完整教材，不提供版本差异补丁式教程。源码块带SHA，逐文件讲解与源码同步，标准库重建脚本可只从文档建立全部自有文件：
+仓库保留`从零实现AI研发平台_逐步实操手册_完整版.md`作为兼容完整手册；分阶段`learning-docs`是推荐学习入口，两者从同一源码重生。源码块带SHA，逐文件讲解与源码同步，标准库重建脚本可只从文档建立全部自有文件：
 
 ```powershell
 uv run python -m scripts.build_handbook
@@ -230,7 +262,7 @@ uv run python -m scripts.ci_handbook
 
 ### 本机Daytona的安装边界
 
-Daytona固定v0.190.0；API/Proxy从固定SHA在本机Docker构建，Runner使用同版本、固定SHA256的发布文件。服务运行在本机internal网络，端口仅绑定回环，SDK也禁止非回环连接；不申请Daytona云账号。完整安装顺序为`prepare → images → snapshot-image → up → auth → snapshot → ci_daytona_local`，每一步的完整代码、用途、预期结果及失败处理见唯一手册第20章。此安装通道使用Linux x86_64或Windows x86_64 WSL2；默认平台与普通本机验收不要求安装Daytona。安装时下载公开依赖，不等于把生成代码交给云端运行。
+Daytona固定v0.190.0；API/Proxy从固定SHA在本机Docker构建，Runner使用同版本、固定SHA256的发布文件。服务运行在本机internal网络，端口仅绑定回环，SDK也禁止非回环连接；不申请Daytona云账号。完整安装顺序为`prepare → images → snapshot-image → up → auth → snapshot → ci_daytona_local`，每一步的完整代码、用途、预期结果及失败处理见兼容手册第20章及新教材第12阶段。此安装通道使用Linux x86_64或Windows x86_64 WSL2；默认平台与普通本机验收不要求安装Daytona。安装时下载公开依赖，不等于把生成代码交给云端运行。
 
 ### 原生业务规则、Plop、Aider 与完整本机 Daytona
 

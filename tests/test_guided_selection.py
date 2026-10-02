@@ -31,8 +31,14 @@ def test_selection_capabilities_include_user_reported_search_and_dates():
 def test_actual_control_page_has_template_first_and_smart_button(settings):
     with TestClient(create_app(settings, start_worker=False)) as c:
         html = c.get("/").text
-        assert "智能推荐" in html and "数据库" in html
-        assert c.get("/ui/app.js").status_code == 200
+        # Vite's app shell is intentionally small; copy lives in the built Vue entry.
+        assert '<div id="app"></div>' in html
+        assert 'type="module"' in html and "/ui/app.js" in html
+        entry = c.get("/ui/app.js")
+        assert entry.status_code == 200
+        assert "智能推荐" in entry.text and "数据库" in entry.text
+        assert "确认本次研发的技术选型" in entry.text
+        assert "确认选型并开始" in entry.text
         assert c.get("/ui/not-allowed.txt").status_code == 404
         assert c.get("/models").status_code == 401
         c.headers["Authorization"] = "Bearer " + c.app.state.token
@@ -76,13 +82,14 @@ def test_workbench_hints_use_customer_case_without_replacing_user_input(settings
     with TestClient(create_app(settings, start_worker=False)) as client:
         html = client.get("/").text
         javascript = client.get("/ui/app.js").text
-    assert "内部客户服务管理平台" in html
+    assert "内部客户服务管理平台" in javascript
     for name in (
         "customer-service.md",
         "customer-service-decisions.md",
         "customer-service-contract.md",
     ):
-        assert name in html
-    assert "chosen.scopes" in javascript
+        assert name in javascript
+    # Vue compiles the selected capability expression, retaining its actual scopes key.
+    assert ".scopes" in javascript
     assert "声明式业务合同" in javascript
-    assert "新闻" not in html and "资讯" not in html
+    assert "新闻" not in html + javascript and "资讯" not in html + javascript

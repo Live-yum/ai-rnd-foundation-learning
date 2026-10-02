@@ -1,0 +1,690 @@
+# tests/fixtures/customer_design_diagnostics/dd7e5f2/fastapi-summary.json · 1/1
+
+[阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
+
+
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
+
+**创建路径：** `tests/fixtures/customer_design_diagnostics/dd7e5f2/fastapi-summary.json`；**本文件共有 1 段**。本段覆盖源文件 L1–L670。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+
+本段原始字节数：`17671`。本段原文没有结尾换行；手工保存时去掉围栏前为展示添加的最后一个换行，自动还原器会根据SHA判定。
+
+<!-- learning-source: {"path": "tests/fixtures/customer_design_diagnostics/dd7e5f2/fastapi-summary.json", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a7782be7e86a74cfae44ca9ccad835107ac4a7de2e7fff9ebcb4d747b6138e7a"} -->
+````json
+// tests/fixtures/customer_design_diagnostics/dd7e5f2/fastapi-summary.json
+{
+  "passed": false,
+  "real_provider_attempted": true,
+  "acceptance_scope": "full_workflow",
+  "model": "deepseek-flash",
+  "endpoint": "https://api.deepseek.com",
+  "run_identity": [
+    "36840557604",
+    "1",
+    "dd7e5f2135fdfe8b84f36dd1de5ab6e090c6a45a"
+  ],
+  "smoke": {
+    "passed": true,
+    "http_status": 200,
+    "actual_provider_request": true
+  },
+  "failure_phase": "workflow",
+  "failure_code": "workflow_not_ready",
+  "failure_details": {
+    "model_stages": [
+      {
+        "stage": "recommend",
+        "completed": true,
+        "questions_count": 0,
+        "unsupported_count": 0,
+        "field_requirements_count": 19
+      },
+      {
+        "stage": "plan",
+        "completed": true,
+        "unsupported_count": 0
+      },
+      {
+        "stage": "plan",
+        "completed": true,
+        "unsupported_count": 0
+      },
+      {
+        "stage": "plan",
+        "completed": true,
+        "unsupported_count": 0
+      }
+    ],
+    "terminal_state": "BLOCKED",
+    "runtime_diagnostics": {
+      "error_excerpt": "\u667a\u80fd\u63a8\u8350\u5df2\u6682\u505c\uff08design\uff09\uff1a\u4e1a\u52a1\u4e8b\u5b9e\u672a\u8986\u76d6 business.permissions.1\uff1a{\"role\":\"service\",\"entity\":\"customers\",\"actions\":[\"read\"],\"scope\":\"all\"}\uff1b\u4e1a\u52a1\u4e8b\u5b9e\u672a\u8986\u76d6 business.permissions.8\uff1a{\"role\":\"service\",\"entity\":\"customers\",\"actions\":[\"read_metrics\"],\"scope\":\"all\"}\u3002\u672c\u9636\u6bb5\u4e24\u8f6e\u81ea\u52a8\u4fee\u6b63\u4ecd\u672a\u901a\u8fc7\uff0c\u672a\u8df3\u8fc7\u9a8c\u6536\u3002\u4f7f\u7528 uv run rnd chat --run f3ebd312-95e2-47eb-a825-bc77bbbb7442 \u67e5\u770b\u963b\u585e\u8be6\u60c5\uff0c\u53ef\u7ee7\u7eed\u63a8\u8350\u3001\u8865\u5145\u8981\u6c42\u6216\u5207\u6362\u624b\u52a8\uff1b\u65e0\u9700\u65b0\u5efa\u8fd0\u884c\u3002"
+    },
+    "pending_stage": "design",
+    "model_calls": 6,
+    "valid_plan_present": true,
+    "business_contract_present": true,
+    "business_counts": {
+      "roles": 3,
+      "resources": 3,
+      "relations": 4,
+      "permissions": 8,
+      "workflows": 2,
+      "notifications": 12,
+      "metrics": 5
+    },
+    "plan_contract": [
+      {
+        "name": "customers",
+        "fields": [
+          {
+            "name": "name",
+            "required": true,
+            "searchable": true,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 120,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "organization",
+            "required": false,
+            "searchable": true,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 160,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "contact",
+            "required": false,
+            "searchable": true,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "category",
+            "required": true,
+            "searchable": false,
+            "filterable": true,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "enum",
+            "choices_count": 3
+          }
+        ]
+      },
+      {
+        "name": "requests",
+        "fields": [
+          {
+            "name": "title",
+            "required": true,
+            "searchable": true,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "detail",
+            "required": true,
+            "searchable": true,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 3000,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "customer_id",
+            "required": true,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "assignee_id",
+            "required": false,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "request_state",
+            "required": true,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "enum",
+            "choices_count": 3
+          },
+          {
+            "name": "resolved_at",
+            "required": false,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "datetime",
+            "choices_count": 0
+          },
+          {
+            "name": "due_at",
+            "required": false,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "datetime",
+            "choices_count": 0
+          },
+          {
+            "name": "priority",
+            "required": true,
+            "searchable": false,
+            "filterable": true,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "enum",
+            "choices_count": 2
+          }
+        ]
+      },
+      {
+        "name": "tasks",
+        "fields": [
+          {
+            "name": "title",
+            "required": true,
+            "searchable": true,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "detail",
+            "required": true,
+            "searchable": true,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 3000,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "request_id",
+            "required": true,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "assignee_id",
+            "required": false,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "text",
+            "choices_count": 0
+          },
+          {
+            "name": "task_state",
+            "required": true,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "enum",
+            "choices_count": 3
+          },
+          {
+            "name": "resolved_at",
+            "required": false,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "datetime",
+            "choices_count": 0
+          },
+          {
+            "name": "due_at",
+            "required": false,
+            "searchable": false,
+            "filterable": false,
+            "date_range": false,
+            "min_length": 0,
+            "max_length": 200,
+            "kind": "datetime",
+            "choices_count": 0
+          }
+        ]
+      }
+    ],
+    "requirement_contract": [
+      {
+        "name": "name",
+        "entity": "customers",
+        "required": true,
+        "searchable": true,
+        "filterable": false,
+        "min_length": 0,
+        "max_length": 120,
+        "kind": "text"
+      },
+      {
+        "name": "organization",
+        "entity": "customers",
+        "required": false,
+        "searchable": true,
+        "filterable": false,
+        "min_length": 0,
+        "max_length": 160,
+        "kind": "text"
+      },
+      {
+        "name": "contact",
+        "entity": "customers",
+        "required": false,
+        "searchable": true,
+        "filterable": false,
+        "min_length": 0,
+        "max_length": 200,
+        "kind": "text"
+      },
+      {
+        "name": "category",
+        "entity": "customers",
+        "required": true,
+        "searchable": false,
+        "filterable": true,
+        "kind": "enum",
+        "choices_count": 3
+      },
+      {
+        "name": "title",
+        "entity": "requests",
+        "required": true,
+        "searchable": true,
+        "filterable": false,
+        "min_length": 0,
+        "max_length": 200,
+        "kind": "text"
+      },
+      {
+        "name": "detail",
+        "entity": "requests",
+        "required": true,
+        "searchable": true,
+        "filterable": false,
+        "min_length": 0,
+        "max_length": 3000,
+        "kind": "text"
+      },
+      {
+        "name": "customer_id",
+        "entity": "requests",
+        "required": true,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "kind": "text"
+      },
+      {
+        "name": "assignee_id",
+        "entity": "requests",
+        "required": false,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "kind": "text"
+      },
+      {
+        "name": "request_state",
+        "entity": "requests",
+        "required": true,
+        "searchable": false,
+        "filterable": false,
+        "kind": "enum",
+        "choices_count": 3
+      },
+      {
+        "name": "resolved_at",
+        "entity": "requests",
+        "required": false,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "kind": "datetime"
+      },
+      {
+        "name": "due_at",
+        "entity": "requests",
+        "required": false,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "kind": "datetime"
+      },
+      {
+        "name": "priority",
+        "entity": "requests",
+        "required": true,
+        "searchable": false,
+        "filterable": true,
+        "kind": "enum",
+        "choices_count": 2
+      },
+      {
+        "name": "title",
+        "entity": "tasks",
+        "required": true,
+        "searchable": true,
+        "filterable": false,
+        "min_length": 0,
+        "max_length": 200,
+        "kind": "text"
+      },
+      {
+        "name": "detail",
+        "entity": "tasks",
+        "required": true,
+        "searchable": true,
+        "filterable": false,
+        "min_length": 0,
+        "max_length": 3000,
+        "kind": "text"
+      },
+      {
+        "name": "request_id",
+        "entity": "tasks",
+        "required": true,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "kind": "text"
+      },
+      {
+        "name": "assignee_id",
+        "entity": "tasks",
+        "required": false,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "kind": "text"
+      },
+      {
+        "name": "task_state",
+        "entity": "tasks",
+        "required": true,
+        "searchable": false,
+        "filterable": false,
+        "kind": "enum",
+        "choices_count": 3
+      },
+      {
+        "name": "resolved_at",
+        "entity": "tasks",
+        "required": false,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "kind": "datetime"
+      },
+      {
+        "name": "due_at",
+        "entity": "tasks",
+        "required": false,
+        "searchable": false,
+        "filterable": false,
+        "date_range": false,
+        "kind": "datetime"
+      }
+    ],
+    "unsupported_excerpts": [],
+    "coverage_reason_excerpts": [],
+    "coverage_sources": [],
+    "native_plan_validation": {
+      "code": "valid",
+      "entity_labels": [
+        {
+          "entity": "customers",
+          "length": 4,
+          "single_line": true,
+          "allowed_characters": true,
+          "valid_length": true
+        },
+        {
+          "entity": "requests",
+          "length": 4,
+          "single_line": true,
+          "allowed_characters": true,
+          "valid_length": true
+        },
+        {
+          "entity": "tasks",
+          "length": 4,
+          "single_line": true,
+          "allowed_characters": true,
+          "valid_length": true
+        }
+      ]
+    },
+    "error_categories": [],
+    "coverage_block_count": 2,
+    "coverage_diagnostics": [
+      {
+        "codes": [
+          "unclassified_design_block"
+        ],
+        "origin": "business_coverage",
+        "attributes": [],
+        "fields": []
+      },
+      {
+        "codes": [
+          "unclassified_design_block"
+        ],
+        "origin": "business_coverage",
+        "attributes": [],
+        "fields": []
+      }
+    ],
+    "unsupported_diagnostics": [],
+    "coverage_fields": [],
+    "approved_plan_replay": {
+      "status": "unavailable"
+    },
+    "unapproved_design_replay": {
+      "status": "saved",
+      "file": "unapproved-design-contract.json",
+      "approval_status": "unapproved",
+      "execution_authorized": false,
+      "bytes": 49980,
+      "sha256": "9c8cdc4576208ee3f3954d724a7789e2f635e50ae25b66f65d75e34d0e41b5f5"
+    }
+  },
+  "actual_http_calls": 7,
+  "provider_statuses": [
+    200,
+    200,
+    200,
+    200,
+    200,
+    200,
+    200
+  ],
+  "provider_receipts": [
+    {
+      "http_status": 200,
+      "stage": "recommend",
+      "finish_reason": "stop",
+      "content_present": true,
+      "reasoning_present": true,
+      "usage": {
+        "prompt_tokens": 9629,
+        "completion_tokens": 7683,
+        "total_tokens": 17312
+      },
+      "schema_valid": true,
+      "provider": "deepseek",
+      "output_mode": "json_object",
+      "format_reason": "provider_json_mode",
+      "contract_version": 2,
+      "structured_output": "langchain.with_structured_output",
+      "requested_output_mode": "json_object"
+    },
+    {
+      "http_status": 200,
+      "stage": "plan",
+      "finish_reason": "stop",
+      "content_present": true,
+      "reasoning_present": true,
+      "usage": {
+        "prompt_tokens": 17325,
+        "completion_tokens": 9213,
+        "total_tokens": 26538
+      },
+      "schema_valid": true,
+      "provider": "deepseek",
+      "output_mode": "json_object",
+      "format_reason": "provider_json_mode",
+      "contract_version": 2,
+      "structured_output": "langchain.with_structured_output",
+      "requested_output_mode": "json_object"
+    },
+    {
+      "http_status": 200,
+      "stage": "plan",
+      "finish_reason": "stop",
+      "content_present": true,
+      "reasoning_present": true,
+      "usage": {
+        "prompt_tokens": 21732,
+        "completion_tokens": 10415,
+        "total_tokens": 32147
+      },
+      "schema_valid": false,
+      "schema_error_types": [
+        "value_error"
+      ],
+      "schema_errors": [
+        {
+          "type": "value_error",
+          "message": "Value error, Duplicate/contradictory business declaration",
+          "field_path": [
+            "business"
+          ]
+        }
+      ],
+      "requested_output_mode": "json_object"
+    },
+    {
+      "http_status": 200,
+      "stage": "plan",
+      "finish_reason": "stop",
+      "content_present": true,
+      "reasoning_present": true,
+      "usage": {
+        "prompt_tokens": 26054,
+        "completion_tokens": 8705,
+        "total_tokens": 34759
+      },
+      "schema_valid": true,
+      "provider": "deepseek",
+      "output_mode": "json_object",
+      "format_reason": "provider_json_mode",
+      "contract_version": 2,
+      "structured_output": "langchain.with_structured_output",
+      "requested_output_mode": "json_object"
+    },
+    {
+      "http_status": 200,
+      "stage": "plan",
+      "finish_reason": "stop",
+      "content_present": true,
+      "reasoning_present": true,
+      "usage": {
+        "prompt_tokens": 21536,
+        "completion_tokens": 6242,
+        "total_tokens": 27778
+      },
+      "schema_valid": false,
+      "schema_error_types": [
+        "value_error"
+      ],
+      "schema_errors": [
+        {
+          "type": "value_error",
+          "message": "Value error, Duplicate/contradictory business declaration",
+          "field_path": [
+            "business"
+          ]
+        }
+      ],
+      "requested_output_mode": "json_object"
+    },
+    {
+      "http_status": 200,
+      "stage": "plan",
+      "finish_reason": "stop",
+      "content_present": true,
+      "reasoning_present": true,
+      "usage": {
+        "prompt_tokens": 25256,
+        "completion_tokens": 6969,
+        "total_tokens": 32225
+      },
+      "schema_valid": true,
+      "provider": "deepseek",
+      "output_mode": "json_object",
+      "format_reason": "provider_json_mode",
+      "contract_version": 2,
+      "structured_output": "langchain.with_structured_output",
+      "requested_output_mode": "json_object"
+    }
+  ]
+}
+````

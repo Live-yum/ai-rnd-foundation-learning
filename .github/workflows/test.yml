@@ -13,6 +13,22 @@ env:
   PLAYWRIGHT_BROWSERS_PATH: '0'
   PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright
 jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm ci --prefix ui --no-audit --no-fund
+      - run: npm run format:check --prefix ui
+      - run: npm test --prefix ui
+      - run: npm run build --prefix ui
+      - name: Verify committed local UI bundle matches its source
+        run: git diff --exit-code -- workbench/web
   tests:
     strategy:
       fail-fast: false
@@ -43,6 +59,7 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run python -m scripts.build_handbook --check
+      - run: uv run python -m scripts.build_learning_docs --check
       - run: uv run pytest -m "not postgres" --junitxml=reports/tests.xml --cov=workbench --cov-report=term-missing
         env:
           RND_REQUIRE_NODE_TESTS: '1'
@@ -152,7 +169,8 @@ jobs:
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
-      - run: uv run python -m scripts.ci_handbook
+      - name: Reconstruct from only learning-docs and test the complete platform
+        run: uv run python -m scripts.ci_learning_docs
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -161,6 +179,8 @@ jobs:
             reports/handbook-clean-room.json
             reports/handbook-tests.xml
             reports/handbook-test-status.json
+            reports/learning-docs-clean-room.json
+            reports/learning-docs-tests.xml
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -181,14 +201,18 @@ jobs:
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - run: npm ci --prefix ui --no-audit --no-fund
+      - run: npm run build --prefix ui
       - run: uv run python -m scripts.ci_guided_browser
+      - name: Verify persisted registration scope recovery in the real workbench
+        run: uv run python -m scripts.ci_signup_scope_browser
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: guided-workbench-and-news-browser
           path: reports/
   delivery:
-    needs: [tests, postgres, clean-install, native-sources, handbook-only, browser]
+    needs: [frontend, tests, postgres, clean-install, native-sources, handbook-only, browser]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -202,3 +226,4 @@ jobs:
           path: |
             workbench-source.zip
             从零实现AI研发平台_逐步实操手册_完整版.md
+            learning-docs/

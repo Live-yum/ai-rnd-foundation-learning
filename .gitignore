@@ -20,3 +20,7 @@ htmlcov/
 # Optional local Node tools; never ship installed dependencies or generated bundles.
 node_modules/
 tools/node/.built/
+
+# Optional student exercises and byte-verified reconstruction progress.
+.learning/
+.learning-progress.json

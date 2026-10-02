@@ -1,0 +1,495 @@
+# workbench/portable.py · 1/1
+
+[阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
+
+
+
+**作用：让原生产品脱离工作台独立启动。** 导出原生种子、增量业务表和菜单SQL，复制启动器所需全部HELPERS，包括本机策略模块。verify_native_delivery在另一个新的本机数据库恢复并启动前后端，确认没有导入原工作台或复用原生成数据库；失败时在删除临时副本前保留白名单日志尾和进程阶段，限制读取与输出大小并遮蔽凭据，不复制环境、服务密码文件或任意运行目录。诊断回执不能授予验收成功。
+
+**对应关系：** managed_package → portable → templates/deployment；test_native_delivery_boundaries。
+
+**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
+
+**先有这些模块：** `workbench.domain`、`workbench.filesystem`、`workbench.native_environment`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**带着一个具体问题阅读：** 交付包不能在新电脑上偷偷import旧工作台路径。build_native_delivery只复制明确HELPERS清单、固定原生源码、SQL/菜单与独立启动器；新目录必须从自己的依赖和新数据库启动。源码包不携带真实业务数据，结构不匹配时拒绝恢复，不删除数据强行对齐。
+
+<details>
+<summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
+
+- `_diagnostic_redact`（L60–L72）：接收`text`、`url`。 源码说明：The child receives no model credentials; exclude its explicit DB secret too.。 控制顺序：L64遍历`sorted(secrets, key=len, reverse=True)`。 调用`checked_database`、`quote`、`quote_plus`、`sorted`、`text.replace`、`re.sub`。 返回路径：L72的`re.sub(r"(://[^/@:\s]+:)[^@\s]+@", r"\1[REDACTED]@", text)`。
+- `_diagnostic_lifecycle`（L75–L138）：接收`value`。 源码说明：Select scalar process facts, never arbitrary messages, paths or environment.。 控制顺序：L77按`not isinstance(value, dict)`分支；L80遍历`( "port", "pid", "startup_attempt", "runtime_log_start_bytes", "r…`；L88按`name in value and ( type(value[name]) is int or name.startswith("returncode") and val…`分支；L92遍历`("owned_process_group", "started", "port_released")`；L93按`type(value.get(name)) is bool`分支；L96按`value.get("phase") in phases`分支；L98遍历`("failure", "cleanup_failure")`；L100按`isinstance(row, dict)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`type`、`name.startswith`、`value.get`、`row.get`、`counts.items`、`re.fullmatch`。 返回路径：L78的`{}`；L138的`result`。
+- `capture_native_delivery_failure`（L141–L221）：接收`product`、`reports`、`url`、`error`。 源码说明：Preserve bounded selected evidence before the owned temporary copy is deleted. Never copy the runtime directory, services credentials, generated user rows, arbitrary files, symlinks or junctions. This。 控制顺序：L153按`error is not None`分支；L155遍历`("returncode", "timed_out")`；L157按`type(value) in {int, bool}`分支；L170按`len(raw) > 16384`分支；L178按`"cleanup_failure" in result["backend"] and "failure" not in result["backend"]`分支；L183遍历`DIAGNOSTIC_LOGS`；L184按`remaining <= 0`分支；L196按`start`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`getattr`、`selected_path`、`path.open`、`stream.read`、`len`、`_diagnostic_lifecycle`、`json.loads`、`result["backend"].get("failure", {}).get`等。 返回路径：L221的`result`。
+- `capture_native_delivery_failure.selected_path`（L160–L164）：接收`name`。 控制顺序：L162按`not stat.S_ISREG(path.stat().st_mode)`分支；L163抛异常，停止当前正常路径。 调用`inside`、`stat.S_ISREG`、`path.stat`、`ValueError`。 返回路径：L164的`path`。
+- `connection_url`（L224–L225）：接收`url`。 调用`checked_database(url).set(drivername="postgresql").render_as_stri…`、`checked_database(url).set`、`checked_database`。 返回路径：L225的`checked_database(url).set(drivername="postgresql").render_as_string(hide_password=False)`。
+- `menu_snapshot`（L228–L235）：接收`template`、`url`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`digest`、`json.loads`等。 返回路径：L235的`{row["id"]: digest(json.loads(json.dumps(row, default=str))) for row in rows}`。
+- `export_menu_sql`（L238–L277）：接收`template`、`url`、`before`、`target`。 控制顺序：L249按`not changed`分支；L250抛异常，停止当前正常路径；L254遍历`changed`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`before.get`、`digest`等。 返回路径：L277的`{"table": table, "row_ids": [row["id"] for row in changed], "sha256": sha(target)}`。
+- `build_native_delivery`（L280–L365）：接收`template`、`product`、`reports`、`plan`、`targets`、`url`。 控制顺序：L285遍历`("pyproject.toml", "uv.lock", ".python-version", "services.yaml",…`；L288按`plan.business`分支；L297遍历`HELPERS`；L303按`plan.business`分支；L304遍历`( ("business-extension-schema.sql", "004-business-extension.sql")…`；L309按`source_file.is_file()`分支；L312按`plan.business`分支；L313按`template == "fastapiadmin"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`deployment.mkdir`、`shutil.copyfile`、`helper_root.mkdir`、`sql_dir.mkdir`、`source_file.is_file`、`json.loads`、`(reports / "business-extension.json").read_text`、`(reports / "business-yudao.json").read_text`等。 返回路径：L360的`{ "sql_files": sql_files, "sql_digest": manifest["sql_digest"], "standalone_start": "uv ru…`。
+- `verify_native_delivery`（L368–L456）：接收`product`、`url`、`reports`、`redis_port`、`template`。 源码说明：Restore the distributable ZIP; run startup against a DIFFERENT empty DB.。 控制顺序：L378按`template not in {"fastapiadmin", "yudao-vben"}`分支；L379抛异常，停止当前正常路径；L392按`restored != packaged or manifest(copy) != listing`分支；L393抛异常，停止当前正常路径；L418按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L425抛异常，停止当前正常路径；L438按`hasattr(exc, "log")`分支；L452抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`uuid.uuid4`、`ValueError`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`等。 返回路径：L436的`result`。
+
+</details>
+
+**创建路径：** `workbench/portable.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L456。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+
+本段原始字节数：`20874`。本段原文以LF换行结束。
+
+<!-- learning-source: {"path": "workbench/portable.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "eb36016ba55ef8c2fcf5c2dcee6c3ce8cef9a94289cb5cf8142ed5b22b6fbbd4"} -->
+````python
+# workbench/portable.py
+"""Export a self-contained native launcher, immutable SQL and menu seed (no user data)."""
+
+import json
+import os
+import re
+import shutil
+import stat
+from pathlib import Path
+from urllib.parse import quote, quote_plus
+
+import psycopg
+from psycopg import sql
+from sqlalchemy import create_engine, inspect
+
+from workbench.domain import digest
+from workbench.filesystem import atomic_text, inside, sha, write_json
+from workbench.native_environment import checked_database
+from workbench.settings import ROOT
+
+HELPERS = (
+    "__init__.py",
+    "local_only.py",
+    "settings.py",
+    "domain.py",
+    "business_contracts.py",
+    "business_schema_receipt.py",
+    "business_probe.py",
+    "native_business_probe.py",
+    "business_browser.py",
+    "native_checks.py",
+    "catalog.py",
+    "errors.py",
+    "filesystem.py",
+    "tools.py",
+    "native_environment.py",
+    "yudao_navigation.py",
+    "yudao_navigation_checks.py",
+    "native_frontend.py",
+    "native_vben.py",
+    "portable_checks.py",
+    "native_business_checks.py",
+)
+
+DIAGNOSTIC_LOGS = (
+    "backend-runtime.log",
+    "backend-build.log",
+    "frontend-runtime.log",
+    "frontend-build.log",
+    "frontend-typecheck.log",
+    "frontend-install.log",
+)
+DIAGNOSTIC_LOG_BYTES = 65536
+DIAGNOSTIC_TOTAL_BYTES = 262144
+DIAGNOSTIC_READ_BYTES = 262144
+# JSON control-character escaping can expand text by six. Keep a hard serialized
+# ceiling as well as the shared raw-text budget, including all lifecycle metadata.
+DIAGNOSTIC_RECEIPT_BYTES = 2_000_000
+
+
+def _diagnostic_redact(text, url):
+    """The child receives no model credentials; exclude its explicit DB secret too."""
+    password = checked_database(url).password or ""
+    secrets = {url, password, quote(password, safe=""), quote_plus(password)} - {""}
+    for secret in sorted(secrets, key=len, reverse=True):
+        text = text.replace(secret, "[REDACTED]")
+    text = re.sub(r"(?i)((?:bearer|basic)\s+)[^\s\"']+", r"\1[REDACTED]", text)
+    text = re.sub(
+        r"(?i)(?<![\w.-])((?:[\"']?)[\w.-]{0,80}(?:password|api[_-]?key|auth[_-]?token|access[_-]?token|token|authorization|secret)(?:[\"']?)\s*[=:]\s*)(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)",
+        r"\1[REDACTED]",
+        text,
+    )
+    return re.sub(r"(://[^/@:\s]+:)[^@\s]+@", r"\1[REDACTED]@", text)
+
+
+def _diagnostic_lifecycle(value):
+    """Select scalar process facts, never arbitrary messages, paths or environment."""
+    if not isinstance(value, dict):
+        return {}
+    result = {}
+    for name in (
+        "port",
+        "pid",
+        "startup_attempt",
+        "runtime_log_start_bytes",
+        "returncode",
+        "returncode_before_cleanup",
+    ):
+        if name in value and (
+            type(value[name]) is int or name.startswith("returncode") and value[name] is None
+        ):
+            result[name] = value[name]
+    for name in ("owned_process_group", "started", "port_released"):
+        if type(value.get(name)) is bool:
+            result[name] = value[name]
+    phases = {"backend-readiness", "backend-running", "backend-cleanup"}
+    if value.get("phase") in phases:
+        result["phase"] = value["phase"]
+    for name in ("failure", "cleanup_failure"):
+        row = value.get(name)
+        if isinstance(row, dict):
+            selected = {}
+            if row.get("phase") in phases:
+                selected["phase"] = row["phase"]
+            if row.get("type") in {
+                "RuntimeError",
+                "TimeoutError",
+                "OSError",
+                "ValueError",
+                "KeyboardInterrupt",
+                "SystemExit",
+                "LookupError",
+                "PermissionError",
+                "ProcessLookupError",
+                "FileNotFoundError",
+            }:
+                selected["type"] = row["type"]
+            result[name] = selected
+    for name in ("port_state", "port_state_before_cleanup", "port_state_after_cleanup"):
+        row = value.get(name)
+        if not isinstance(row, dict):
+            continue
+        selected = {
+            key: row[key]
+            for key in ("observable", "listening", "owned_listener")
+            if type(row.get(key)) is bool
+        }
+        for key in ("owned_listener_pids", "owned_group_pids", "owned_socket_pids"):
+            if isinstance(row.get(key), list):
+                selected[key] = [pid for pid in row[key][:64] if type(pid) is int and pid > 0]
+        counts = row.get("local_port_state_counts")
+        if isinstance(counts, dict):
+            selected["local_port_state_counts"] = {
+                state: count
+                for state, count in counts.items()
+                if re.fullmatch(r"[0-9A-F]{2}", state) and type(count) is int and count >= 0
+            }
+        result[name] = selected
+    return result
+
+
+def capture_native_delivery_failure(product, reports, url, error=None):
+    """Preserve bounded selected evidence before the owned temporary copy is deleted.
+
+    Never copy the runtime directory, services credentials, generated user rows,
+    arbitrary files, symlinks or junctions. This receipt cannot grant acceptance.
+    """
+    result = {
+        "scope": "independent-native-delivery",
+        "affects_acceptance": False,
+        "failure_phase": "standalone-launcher",
+        "logs": {},
+    }
+    if error is not None:
+        result["launcher_failure"] = {"type": type(error).__name__[:64]}
+        for name in ("returncode", "timed_out"):
+            value = getattr(error, name, None)
+            if type(value) in {int, bool}:
+                result["launcher_failure"][name] = value
+
+    def selected_path(name):
+        path = inside(product, ".deployment/reports/" + name)
+        if not stat.S_ISREG(path.stat().st_mode):
+            raise ValueError("Diagnostic must be a regular file")
+        return path
+
+    try:
+        path = selected_path("backend-lifecycle.json")
+        with path.open("rb") as stream:
+            raw = stream.read(16385)
+        if len(raw) > 16384:
+            result["lifecycle_status"] = "oversized"
+        else:
+            result["backend"] = _diagnostic_lifecycle(json.loads(raw))
+            result["lifecycle_status"] = "captured"
+            result["failure_phase"] = (
+                result["backend"].get("failure", {}).get("phase", "standalone-launcher")
+            )
+            if "cleanup_failure" in result["backend"] and "failure" not in result["backend"]:
+                result["failure_phase"] = "backend-cleanup"
+    except OSError, ValueError, TypeError:
+        result["lifecycle_status"] = "unavailable"
+    remaining = DIAGNOSTIC_TOTAL_BYTES
+    for name in DIAGNOSTIC_LOGS:
+        if remaining <= 0:
+            result["logs"][name] = {"status": "budget-exhausted"}
+            continue
+        try:
+            path = selected_path(name)
+            with path.open("rb") as stream:
+                size = stream.seek(0, os.SEEK_END)
+                start = max(0, size - DIAGNOSTIC_READ_BYTES)
+                stream.seek(start)
+                raw = stream.read(DIAGNOSTIC_READ_BYTES)
+            # Discard a partial first line: a credential may straddle this read
+            # boundary. Redact the complete bounded text before output clipping.
+            if start:
+                _, separator, raw = raw.partition(b"\n")
+                if not separator:
+                    raw = b""
+            redacted = _diagnostic_redact(raw.decode("utf-8", errors="replace"), url).encode(
+                "utf-8"
+            )
+            limit = min(DIAGNOSTIC_LOG_BYTES, remaining)
+            text = redacted[-limit:].decode("utf-8", errors="ignore")
+            remaining -= len(text.encode("utf-8"))
+            result["logs"][name] = {
+                "status": "captured",
+                "source_bytes": size,
+                "truncated": bool(start or len(redacted) > limit),
+                "text": text,
+            }
+        except OSError, ValueError:
+            result["logs"][name] = {"status": "unavailable"}
+    body = json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    if len(body.encode("utf-8")) > DIAGNOSTIC_RECEIPT_BYTES:
+        result["logs"] = {
+            name: {"status": "serialization-budget-exhausted"} for name in DIAGNOSTIC_LOGS
+        }
+        body = json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    atomic_text(Path(reports) / "portable-failure-diagnostics.json", body)
+    return result
+
+
+def connection_url(url):
+    return checked_database(url).set(drivername="postgresql").render_as_string(hide_password=False)
+
+
+def menu_snapshot(template, url):
+    table = "sys_menu" if template == "fastapiadmin" else "system_menu"
+    with psycopg.connect(connection_url(url), row_factory=psycopg.rows.dict_row) as c:
+        rows = c.execute(
+            sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Identifier(table))
+        ).fetchall()
+    # JSON hash compares timestamps as ISO strings, but SQL retains actual Python values.
+    return {row["id"]: digest(json.loads(json.dumps(row, default=str))) for row in rows}
+
+
+def export_menu_sql(template, url, before, target):
+    table = "sys_menu" if template == "fastapiadmin" else "system_menu"
+    with psycopg.connect(connection_url(url), row_factory=psycopg.rows.dict_row) as c:
+        rows = c.execute(
+            sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Identifier(table))
+        ).fetchall()
+        changed = [
+            row
+            for row in rows
+            if before.get(row["id"]) != digest(json.loads(json.dumps(row, default=str)))
+        ]
+        if not changed:
+            raise ValueError("原生生成器没有新增/修改菜单，不能打包一个缺菜单的产品")
+        statements = [
+            "-- Deterministic native generated menu seed. No users, passwords or business rows."
+        ]
+        for row in changed:
+            keys = list(row)
+            statement = sql.SQL(
+                "INSERT INTO {} ({}) VALUES ({}) ON CONFLICT (id) DO UPDATE SET {};"
+            ).format(
+                sql.Identifier(table),
+                sql.SQL(", ").join(map(sql.Identifier, keys)),
+                sql.SQL(", ").join(sql.Literal(row[key]) for key in keys),
+                sql.SQL(", ").join(
+                    sql.SQL("{}=EXCLUDED.{}").format(sql.Identifier(key), sql.Identifier(key))
+                    for key in keys
+                    if key != "id"
+                ),
+            )
+            statements.append(statement.as_string(c))
+        statements.append(
+            sql.SQL(
+                "SELECT setval(pg_get_serial_sequence({}, 'id'), COALESCE((SELECT max(id) FROM {}),0)+1, false);"
+            )
+            .format(sql.Literal(table), sql.Identifier(table))
+            .as_string(c)
+        )
+    atomic_text(target, "\n".join(statements) + "\n")
+    return {"table": table, "row_ids": [row["id"] for row in changed], "sha256": sha(target)}
+
+
+def build_native_delivery(template, product, reports, plan, targets, url):
+    product, reports = Path(product), Path(reports)
+    deployment = product / "deployment"
+    deployment.mkdir(exist_ok=True)
+    source = ROOT / "templates/deployment"
+    for name in ("pyproject.toml", "uv.lock", ".python-version", "services.yaml", "run.py"):
+        shutil.copyfile(source / name, deployment / name)
+    shutil.copyfile(source / "entry.py", product / "start.py")
+    if plan.business:
+        script = (
+            "business_fastapi_browser.cjs"
+            if template == "fastapiadmin"
+            else "business_yudao_browser.cjs"
+        )
+        shutil.copyfile(ROOT / "scripts" / script, deployment / "business-browser.cjs")
+    helper_root = deployment / "workbench"
+    helper_root.mkdir(exist_ok=True)
+    for name in HELPERS:
+        shutil.copyfile(ROOT / "workbench" / name, helper_root / name)
+    sql_dir = deployment / "database"
+    sql_dir.mkdir(exist_ok=True)
+    shutil.copyfile(reports / "business-schema.sql", sql_dir / "002-business.sql")
+    shutil.copyfile(reports / "menu-seed.sql", sql_dir / "003-menus.sql")
+    if plan.business:
+        for source_name, target_name in (
+            ("business-extension-schema.sql", "004-business-extension.sql"),
+            ("business-role-seed.sql", "005-business-roles.sql"),
+        ):
+            source_file = reports / source_name
+            if source_file.is_file():
+                shutil.copyfile(source_file, sql_dir / target_name)
+    extension_tables = []
+    if plan.business:
+        if template == "fastapiadmin":
+            adapter = json.loads((reports / "business-extension.json").read_text(encoding="utf-8"))
+            extension_tables = [adapter["namespace"] + "_events"]
+        else:
+            adapter = json.loads((reports / "business-yudao.json").read_text(encoding="utf-8"))
+            extension_tables = list(adapter["extension_tables"])
+    schema_contract = {}
+    metadata = create_engine(url)
+    try:
+        with metadata.connect() as c:
+            inspector = inspect(c)
+            tables = {
+                target["table"]: [
+                    column["name"] for column in inspector.get_columns(target["table"])
+                ]
+                for target in targets
+            }
+            if plan.business:
+                from workbench.business_schema_receipt import table_signature
+
+                schema_contract = {
+                    name: table_signature(c, name) for name in [*tables, *extension_tables]
+                }
+                if any(value is None for value in schema_contract.values()):
+                    raise ValueError("Missing installed business extension table")
+    finally:
+        metadata.dispose()
+    sql_files = {"database/" + p.name: sha(p) for p in sorted(sql_dir.iterdir())}
+    manifest = {
+        "format": 1,
+        "template": template,
+        "spec_digest": digest(plan.model_dump()),
+        "plan": plan.model_dump(),
+        "targets": targets,
+        "tables": tables,
+        "business_schema": schema_contract,
+        "extension_tables": extension_tables,
+        "sql_files": sql_files,
+        "sql_digest": digest(sql_files),
+        "bootstrap": "native-seed-then-business-schema-and-menus",
+        "contains_user_data": False,
+    }
+    write_json(deployment / "manifest.json", manifest)
+    atomic_text(
+        product / "START_HERE.md",
+        f"""# 独立启动已生成的原生产品\n\n模板：{template}。不需要原研发平台、模型 API Key 或原开发数据库。\n\n在 Linux/WSL 2 安装 Python 3.14、uv、Node22、对应 pnpm（FastapiAdmin9.15.3 / Vben11.16.0）、Docker Compose；芋道额外需要JDK17/Maven。然后在本目录执行：\n\n```bash\nuv run --no-project --python 3.14 python start.py\n```\n\n启动器在本产品的独立 Compose 项目创建 PostgreSQL17/Redis7.4、使用新随机数据库密码和本机空闲端口，安装锁定依赖，执行原生初始化、`deployment/database/002-business.sql` 和 `003-menus.sql`，验证新库中的菜单与CRUD，构建前端并启动。\n\n默认管理员只供本机开发：FastapiAdmin super/123456；芋道 admin/admin123。第一次启动后应修改默认管理员密码；再次启动不会覆盖密码或删除记录。公网部署前必须完成额外的安全配置。\n\n已有的专用空本机 PostgreSQL 服务可用 `NATIVE_DELIVERY_DATABASE_URL`（库名以 `_codegen` 结尾）和 `NATIVE_DELIVERY_REDIS_PORT` 指定，不需要 Docker。程序只接受空库或之前被这份不可变交付认领的库，拒绝覆盖其他数据。\n\n首次启动需要互联网下载Python/Java/Node依赖，源码和数据库语句已在包内，不会重新克隆模板。重复启动复用持久数据；Ctrl+C仅停止应用，Compose数据卷保留。\n\n`--check` 在新库初始化并验证后退出；`--skip-build` 仅用于已经成功安装/构建的同一产品，不能拿它代替首次安装。\n\n`.deployment/` 保存本产品生成的数据库凭据，不要提交Git、分享或打包。备份需要同时备份数据库持久卷；源码包含初始化语句但不包含任何用户业务记录。\n""",
+    )
+    return {
+        "sql_files": sql_files,
+        "sql_digest": manifest["sql_digest"],
+        "standalone_start": "uv run --no-project --python 3.14 python start.py",
+        "database_initialization_included": True,
+    }
+
+
+def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
+    """Restore the distributable ZIP; run startup against a DIFFERENT empty DB."""
+    import sys
+    import tempfile
+    import uuid
+
+    from workbench.filesystem import manifest, pack_source, unpack
+    from workbench.tools import run_command
+
+    name = "restore_" + uuid.uuid4().hex[:16] + "_codegen"
+    if template not in {"fastapiadmin", "yudao-vben"}:
+        raise ValueError("原生交付模板未知")
+    parsed = checked_database(url)
+    created = False
+    try:
+        with psycopg.connect(connection_url(url), autocommit=True) as c:
+            c.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(name)))
+            created = True
+        with tempfile.TemporaryDirectory(prefix="rnd-independent-native-") as directory:
+            copy = Path(directory) / "product"
+            archive = Path(directory) / "delivery.zip"
+            listing = manifest(product)
+            packaged = pack_source(product, archive, template=template)
+            restored = unpack(archive, copy, template=template)
+            if restored != packaged or manifest(copy) != listing:
+                raise ValueError("原生交付ZIP与已验证源码不一致")
+            clean_url = parsed.set(database=name).render_as_string(hide_password=False)
+            try:
+                command = run_command(
+                    [sys.executable, str(copy / "start.py"), "--check"],
+                    copy,
+                    2100,
+                    {
+                        "NATIVE_DELIVERY_DATABASE_URL": clean_url,
+                        "NATIVE_DELIVERY_REDIS_PORT": str(redis_port),
+                        "NATIVE_DELIVERY_REDIS_DB": "8",
+                        "UV_PYTHON": sys.executable,
+                        "JAVA_HOME": os.environ.get("JAVA_HOME", ""),
+                        "PRODUCT_VERIFY_PLAYWRIGHT": os.environ.get(
+                            "PRODUCT_VERIFY_PLAYWRIGHT",
+                            str(ROOT / ".native/browser/node_modules/playwright"),
+                        ),
+                        "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
+                    },
+                    heartbeat="independent-native-start",
+                )
+                atomic_text(Path(reports) / "portable-start.log", command["log"])
+                result = json.loads(
+                    (copy / ".deployment/reports/portable-start.json").read_text(encoding="utf-8")
+                )
+                if (
+                    result.get("passed") is not True
+                    or result.get("frontend_started") is not True
+                    or result.get("restart") is not True
+                    or result.get("business")
+                    and result.get("restart_preserved_records") is not True
+                ):
+                    raise ValueError("独立交付包未完成新库/菜单/CRUD/前端启动与重启保留数据验收")
+                result.update(
+                    fresh_database=True,
+                    standalone_launcher=True,
+                    installed_from_lock=True,
+                    original_platform_imported=False,
+                    source_database_reused=False,
+                    archive_round_trip=True,
+                    archive=restored,
+                )
+                write_json(Path(reports) / "portable-start.json", result)
+                return result
+            except Exception as exc:
+                if hasattr(exc, "log"):
+                    try:
+                        atomic_text(
+                            Path(reports) / "portable-start.log",
+                            _diagnostic_redact(exc.log, clean_url),
+                        )
+                    except Exception:
+                        exc.add_note("Could not retain the standalone launcher console log")
+                try:
+                    capture_native_delivery_failure(copy, reports, clean_url, exc)
+                except Exception:
+                    # Diagnostic I/O must not replace the startup/acceptance error
+                    # or prevent owned temporary directory/database cleanup.
+                    exc.add_note("Could not retain the standalone launcher failure diagnostics")
+                raise
+    finally:
+        if created:
+            with psycopg.connect(connection_url(url), autocommit=True) as c:
+                c.execute(sql.SQL("DROP DATABASE {} WITH (FORCE)").format(sql.Identifier(name)))
+````

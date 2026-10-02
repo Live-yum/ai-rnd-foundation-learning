@@ -66,6 +66,7 @@ def test_legacy_gate_digest_does_not_change_for_empty_optional_fields():
             "entity_requirements",
             "additional_entities",
             "changes",
+            "question_items",
         }
     )
     reconstructed = Requirement.model_validate(old)

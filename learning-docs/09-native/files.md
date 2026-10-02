@@ -1,0 +1,70 @@
+# 原生快照与框架接入：本阶段文件
+
+[返回阶段导读](README.md)
+
+按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件在 sources/locks，截图及Vue构建快照编码在 sources/assets 下，先读实现模块，需要校对时再打开资源。
+
+- [scripts/business_fastapi_browser.cjs](sources/scripts__business_fastapi_browser_cjs--001.md)：FastapiAdmin三角色真实客服页面验收；1 段
+- [scripts/business_yudao_browser.cjs](sources/scripts__business_yudao_browser_cjs--001.md)：Yudao/Vben三角色真实客服页面验收；1 段
+- [scripts/ci_native_bundled.py](sources/scripts__ci_native_bundled_py--001.md)：从随附原生源码生成并独立新库恢复；1 段
+- [scripts/ci_native_generated.py](sources/scripts__ci_native_generated_py--001.md)：定义并运行原生模块集成样例；1 段
+- [scripts/native_browser.cjs](sources/scripts__native_browser_cjs--001.md)：真实原生登录、菜单、表单与规则浏览器检查；1 段
+- [scripts/native_coding_fixture.py](sources/scripts__native_coding_fixture_py--001.md)：故意先出错的原生编码测试模型；1 段
+- [scripts/vendor_templates.py](sources/scripts__vendor_templates_py--001.md)：重建固定的第三方源码归档；1 段
+- [templates/business/fastapiadmin/__init__.py](sources/templates__business__fastapiadmin____init___py--001.md)：FastapiAdmin业务插件包入口；1 段
+- [templates/business/fastapiadmin/controller.py](sources/templates__business__fastapiadmin__controller_py--001.md)：FastapiAdmin原生认证下的业务HTTP入口；1 段
+- [templates/business/fastapiadmin/guard.py](sources/templates__business__fastapiadmin__guard_py--001.md)：原生成CRUD入口的绕过防护；1 段
+- [templates/business/fastapiadmin/index.vue](sources/templates__business__fastapiadmin__index_vue--001.md)：Fa与Element Plus业务页面；1 段
+- [templates/business/fastapiadmin/model.py](sources/templates__business__fastapiadmin__model_py--001.md)：FastapiAdmin业务事件与通知模型；1 段
+- [templates/business/fastapiadmin/registration.py](sources/templates__business__fastapiadmin__registration_py--001.md)：原生注册与默认业务角色的事务连接；1 段
+- [templates/business/fastapiadmin/runtime.py](sources/templates__business__fastapiadmin__runtime_py--001.md)：FastapiAdmin合同事务运行时；1 段
+- [templates/business/yudao/EntityController.java](sources/templates__business__yudao__EntityController_java--001.md)：Yudao生成实体的受保护控制器；1 段
+- [templates/business/yudao/RndBusinessController.java](sources/templates__business__yudao__RndBusinessController_java--001.md)：Yudao业务动作与管理路由；1 段
+- [templates/business/yudao/RndBusinessMapper.java](sources/templates__business__yudao__RndBusinessMapper_java--001.md)：Yudao扩展事件与业务查询Mapper；1 段
+- [templates/business/yudao/RndBusinessQuery.java](sources/templates__business__yudao__RndBusinessQuery_java--001.md)：芋道业务列表的声明式查询谓词；1 段
+- [templates/business/yudao/RndBusinessRegistration.java](sources/templates__business__yudao__RndBusinessRegistration_java--001.md)：Yudao原生注册后的业务角色连接；1 段
+- [templates/business/yudao/RndBusinessService.java](sources/templates__business__yudao__RndBusinessService_java--001.md)：Yudao业务合同的Java事务实现；1 段
+- [templates/business/yudao/business-form.ts](sources/templates__business__yudao__business-form_ts--001.md)：Vben合同表单与关联选项；1 段
+- [templates/business/yudao/metric-chart.vue](sources/templates__business__yudao__metric-chart_vue--001.md)：Vben真实指标的图表组件；1 段
+- [templates/business/yudao/panel.vue](sources/templates__business__yudao__panel_vue--001.md)：Vben业务处理与协作面板；1 段
+- [templates/deployment/.python-version](sources/templates__deployment___python-version--001.md)：原生独立交付启动器；1 段
+- [templates/deployment/entry.py](sources/templates__deployment__entry_py--001.md)：原生独立交付启动器；1 段
+- [templates/deployment/pyproject.toml](sources/templates__deployment__pyproject_toml--001.md)：原生独立交付启动器；1 段
+- [templates/deployment/run.py](sources/templates__deployment__run_py--001.md)：原生独立交付启动器；1 段
+- [templates/deployment/services.yaml](sources/templates__deployment__services_yaml--001.md)：原生独立交付启动器；1 段
+- [templates/deployment/uv.lock](sources/locks/templates__deployment__uv_lock--001.md)：原生独立交付启动器；1 段
+- [templates/vendor/fastapiadmin.LICENSE](sources/templates__vendor__fastapiadmin_LICENSE--001.md)：第三方源码来源与许可证；1 段
+- [templates/vendor/manifest.json](sources/templates__vendor__manifest_json--001.md)：第三方源码来源与许可证；1 段
+- [templates/vendor/yudao-backend.LICENSE](sources/templates__vendor__yudao-backend_LICENSE--001.md)：第三方源码来源与许可证；1 段
+- [templates/vendor/yudao-frontend.LICENSE](sources/templates__vendor__yudao-frontend_LICENSE--001.md)：第三方源码来源与许可证；1 段
+- [tests/test_native_archive_limits.py](sources/tests__test_native_archive_limits_py--001.md)：可重复的验收用例；1 段
+- [tests/test_native_delivery_boundaries.py](sources/tests__test_native_delivery_boundaries_py--001.md)：可重复的验收用例；1 段
+- [tests/test_vendor.py](sources/tests__test_vendor_py--001.md)：可重复的验收用例；1 段
+- [workbench/business_browser.py](sources/workbench__business_browser_py--001.md)：用临时场景连接真实原生浏览器验收；1 段
+- [workbench/business_fastapi.py](sources/workbench__business_fastapi_py--001.md)：在真实FastapiAdmin产物上挂载业务策略；1 段
+- [workbench/business_native.py](sources/workbench__business_native_py--001.md)：事务安装明确的原生业务扩展；1 段
+- [workbench/business_probe.py](sources/workbench__business_probe_py--001.md)：三角色实际原生HTTP验收；2 段
+- [workbench/business_schema_receipt.py](sources/workbench__business_schema_receipt_py--001.md)：独立交付的真实数据库结构签名；1 段
+- [workbench/business_yudao.py](sources/workbench__business_yudao_py--001.md)：在真实Yudao生成物上挂载业务策略；1 段
+- [workbench/native_acceptance.py](sources/workbench__native_acceptance_py--001.md)：实际调用生成后的业务接口；1 段
+- [workbench/native_business_checks.py](sources/workbench__native_business_checks_py--001.md)：用批准的正反例验证原生业务约束；1 段
+- [workbench/native_business_probe.py](sources/workbench__native_business_probe_py--001.md)：原生接口的逐字段检索、关联权限与审计不变性验证；1 段
+- [workbench/native_checks.py](sources/workbench__native_checks_py--001.md)：统一原生响应、菜单和权限断言；1 段
+- [workbench/native_coding.py](sources/workbench__native_coding_py--001.md)：原生业务规则的有界编辑与修复；1 段
+- [workbench/native_compatibility.py](sources/workbench__native_compatibility_py--001.md)：原生事务提交时机的精确适配；1 段
+- [workbench/native_delivery.py](sources/workbench__native_delivery_py--001.md)：原生生成、完整验收和打包的流程接口；1 段
+- [workbench/native_environment.py](sources/workbench__native_environment_py--001.md)：本机原生后端环境和进程；1 段
+- [workbench/native_evidence.py](sources/workbench__native_evidence_py--001.md)：绑定实际原生执行证据并交给独立模型审阅；1 段
+- [workbench/native_frontend.py](sources/workbench__native_frontend_py--001.md)：完整原生前端构建和浏览器入口；1 段
+- [workbench/native_lab.py](sources/workbench__native_lab_py--001.md)：两套原生全链路验收的总协调；1 段
+- [workbench/native_modules.py](sources/workbench__native_modules_py--001.md)：把Plan的实体挂载成原生业务模块；1 段
+- [workbench/native_recovery.py](sources/workbench__native_recovery_py--001.md)：身份绑定的原生中断检查点；1 段
+- [workbench/native_resources.py](sources/workbench__native_resources_py--001.md)：为一次运行分配隔离资源；1 段
+- [workbench/native_style.py](sources/workbench__native_style_py--001.md)：原生UI壳、主题和组件族的身份检查；1 段
+- [workbench/native_vben.py](sources/workbench__native_vben_py--001.md)：Vben兼容适配与生成表单类型保持；1 段
+- [workbench/portable.py](sources/workbench__portable_py--001.md)：让原生产品脱离工作台独立启动；1 段
+- [workbench/portable_checks.py](sources/workbench__portable_checks_py--001.md)：独立原生产品的业务复验；1 段
+- [workbench/scaffolding.py](sources/workbench__scaffolding_py--001.md)：用真实Plop接入受限业务规则；1 段
+- [workbench/vendor.py](sources/workbench__vendor_py--001.md)：核验并展开固定第三方模板；1 段
+- [workbench/yudao_navigation.py](sources/workbench__yudao_navigation_py--001.md)：让原生菜单只呈现实际安装的能力；1 段
+- [workbench/yudao_navigation_checks.py](sources/workbench__yudao_navigation_checks_py--001.md)：独立检查实际菜单与角色授权的交集；1 段

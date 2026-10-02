@@ -17,12 +17,14 @@ def test_database_lesson_runs_from_only_its_documented_files(tmp_path):
         "workbench/__init__.py",
         "workbench/local_only.py",
         "workbench/settings.py",
+        "workbench/model_settings.py",
         "workbench/business_contracts.py",
         "workbench/business_capabilities.py",
         "workbench/domain.py",
         "workbench/errors.py",
         "workbench/catalog.py",
         "workbench/store.py",
+        "workbench/clarification.py",
         "tests/conftest.py",
         "tests/test_contracts.py",
         "tests/test_store.py",
@@ -41,7 +43,10 @@ def test_database_lesson_runs_from_only_its_documented_files(tmp_path):
         [
             sys.executable,
             "-c",
-            "from pathlib import Path; import workbench.store; assert Path(workbench.store.__file__).resolve().is_relative_to(Path.cwd())",
+            "from pathlib import Path; "
+            "from workbench import store, model_settings, clarification; "
+            "assert all(Path(module.__file__).resolve().is_relative_to(Path.cwd()) "
+            "for module in (store, model_settings, clarification))",
         ],
         cwd=destination,
         env=env,
