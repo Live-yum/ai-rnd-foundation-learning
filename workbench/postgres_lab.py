@@ -13,11 +13,12 @@ from pathlib import Path
 from sqlalchemy.engine import make_url
 
 from workbench.generator import PrerequisiteError
+from workbench.local_only import local_database_url
 from workbench.tools import run_command
 
 
 def checked_admin_url(value):
-    url = make_url(value)
+    url = make_url(local_database_url(value))
     if url.get_backend_name() != "postgresql" or url.host not in {"127.0.0.1", "localhost", "::1"}:
         raise PrerequisiteError("产品验收数据库必须是本机独立 PostgreSQL 服务")
     return url

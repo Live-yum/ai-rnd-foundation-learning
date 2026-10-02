@@ -1,0 +1,47 @@
+name: Real local embedding and Continue acceptance
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: local-embeddings-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  real-cpu-weights:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      HF_HUB_DISABLE_TELEMETRY: '1'
+      HF_HUB_DISABLE_IMPLICIT_TOKEN: '1'
+      HF_HUB_DISABLE_XET: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install locked platform and independent CPU inference runtime
+        run: |
+          uv sync --locked --all-extras
+          uv sync --locked --project tools/embeddings --python 3.12
+          npm ci --prefix tools/node --no-audit --no-fund
+          npm run build --prefix tools/node
+      - name: Explicitly download checksum-pinned official public weights
+        run: tools/embeddings/.venv/bin/python scripts/ci_local_embeddings.py prepare
+      - name: Run local inference and actual Continue hybrid retrieval without model credentials
+        env:
+          HF_HUB_OFFLINE: '1'
+          TRANSFORMERS_OFFLINE: '1'
+        run: uv run python -m scripts.ci_local_embeddings verify
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: real-local-embedding-evidence
+          path: reports/local-embeddings.json

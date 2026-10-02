@@ -35,9 +35,13 @@ PAIRS = {
         "databases": ["postgresql"],
         "name": "FastapiAdmin 原生后端 + Vue 管理端",
         "scope": "shared",
-        "features": ["native-crud", "native-rbac", "menu-integration"],
+        "features": ["native-crud", "native-rbac", "menu-integration", "native-record-rules"],
         "field_kinds": ["text", "integer", "boolean"],
-        "not_supported": ["per-user-isolation", "custom-python-rules", "cross-entity-transactions"],
+        "not_supported": [
+            "per-user-isolation",
+            "arbitrary-code-execution",
+            "cross-entity-transactions",
+        ],
     },
     "yudao-vben": {
         "backend": "yudao-java",
@@ -45,9 +49,13 @@ PAIRS = {
         "databases": ["postgresql"],
         "name": "芋道 Java 后端 + Vben5 Ant Design",
         "scope": "shared",
-        "features": ["native-crud", "native-rbac", "menu-integration"],
+        "features": ["native-crud", "native-rbac", "menu-integration", "native-record-rules"],
         "field_kinds": ["text", "integer", "boolean"],
-        "not_supported": ["per-user-isolation", "custom-python-rules", "cross-entity-transactions"],
+        "not_supported": [
+            "per-user-isolation",
+            "arbitrary-code-execution",
+            "cross-entity-transactions",
+        ],
     },
 }
 
@@ -76,10 +84,22 @@ class Selection(BaseModel):
         return self
 
     def capabilities(self):
+        from workbench.business_capabilities import BUSINESS
+
         return {
             **PAIRS[self.template],
             **self.model_dump(),
             "date_range_inclusive": True,
+            "scopes": [
+                PAIRS[self.template]["scope"],
+                *(["shared"] if self.template == "python-basic" else []),
+            ],
+            "business_contract": BUSINESS,
+            "not_supported": [
+                item
+                for item in PAIRS[self.template]["not_supported"]
+                if item not in {"business-rbac", "cross-entity-transactions"}
+            ],
             "defaults": {
                 "title_max_length": 250,
                 "body_max_length": 3000,
@@ -94,4 +114,4 @@ def options_for_run(run):
 
 
 def selections():
-    return [{"template": k, **v} for k, v in PAIRS.items()]
+    return [Selection(template=template).capabilities() for template in PAIRS]

@@ -281,7 +281,7 @@ class Store:
             session.add(job)
             session.flush()
             run.pending = None
-            run.status = "QUEUED"
+            run.status, run.error = "QUEUED", None
             return {"run_id": run_id, "job_id": job.id, "status": "QUEUED"}
 
         return self.request(key, {"operation": "submit", "run_id": run_id, **data}, operation)
@@ -294,6 +294,9 @@ class Store:
             if run.status not in {"FAILED", "BLOCKED", "PAUSED_LIMIT"}:
                 raise Conflict("只有 FAILED、BLOCKED 或 PAUSED_LIMIT 状态可以重试")
             session.add(Job(run_id=run_id, payload={"action": "retry"}))
+            # The graph owns the saved interrupt. Hide the stale Store copy
+            # while queued so a second request cannot consume it concurrently.
+            run.pending = None
             run.status, run.error = "QUEUED", None
             return {"run_id": run_id, "status": run.status}
 
@@ -367,7 +370,10 @@ class Store:
                     )
                 )
                 run.pending = None
-                run.status = "QUEUED"
+                run.status, run.error = "QUEUED", None
+            elif not enabled and run.status == "BLOCKED" and run.pending:
+                run.status = "WAITING_" + run.pending["stage"].upper()
+                run.error = None
             elif enabled and run.status in {"FAILED", "BLOCKED", "PAUSED_LIMIT"}:
                 session.add(Job(run_id=run_id, payload={"action": "retry"}))
                 run.status, run.error = "QUEUED", None
@@ -411,17 +417,31 @@ class Store:
                 .where(Step.run_id == run_id, Step.name.like("model:%"))
                 .order_by(Step.id)
             )
-            return [
+            records = [
                 {
                     "step": r.name,
                     "stage": r.data.get("stage", "legacy"),
                     "model": r.data.get("model"),
                     "endpoint": r.data.get("endpoint"),
                     "usage": r.data.get("usage"),
+                    "provider": r.data.get("provider", "legacy"),
+                    "output_mode": r.data.get("output_mode", "legacy"),
+                    "format_reason": r.data.get("format_reason", "legacy"),
+                    "contract_version": r.data.get("contract_version", 0),
+                    "structured_output": r.data.get("structured_output", "legacy"),
+                    "finish_reason": r.data.get("finish_reason", "unknown"),
+                    "status": "validated" if r.data.get("contract_version") else "legacy",
                     "created_at": r.created_at,
                 }
                 for r in rows
             ]
+            failures = session.scalars(
+                select(Event)
+                .where(Event.run_id == run_id, Event.kind == "model_failure")
+                .order_by(Event.id)
+            )
+            records.extend({**r.data, "created_at": r.created_at} for r in failures)
+            return sorted(records, key=lambda item: item["created_at"])
 
     def gate(self, run_id, stage, version, data, actions, can_approve=True):
         content_digest = digest(data)

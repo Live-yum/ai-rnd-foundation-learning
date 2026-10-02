@@ -1,5 +1,6 @@
 """Single durable worker. A recovered job never consumes a later approval gate."""
 
+import json
 import logging
 import threading
 import traceback
@@ -14,10 +15,14 @@ from sqlalchemy import text
 from sqlalchemy.engine import make_url
 
 from workbench.errors import PausedLimit, UnsupportedScope
+from workbench.filesystem import write_json
 from workbench.flow import Workflow
 from workbench.generator import PrerequisiteError
 from workbench.llm import ModelFailure, ModelGateway
+from workbench.local_only import local_database_url
+from workbench.recommendation import blocked_report
 from workbench.store import Conflict
+from workbench.tools import ToolFailure
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +57,9 @@ class Runtime:
                 )
                 from langgraph.checkpoint.postgres import PostgresSaver
 
-                url = make_url(self.settings.checkpoint_url or self.settings.db_url).set(
-                    drivername="postgresql"
-                )
+                url = make_url(
+                    local_database_url(self.settings.checkpoint_url) or self.settings.db_url
+                ).set(drivername="postgresql")
                 saver = self.stack.enter_context(
                     PostgresSaver.from_conn_string(url.render_as_string(hide_password=False))
                 )
@@ -80,6 +85,7 @@ class Runtime:
             return False
         run_id, payload = job["run_id"], job["payload"]
         config = {"configurable": {"thread_id": run_id}, "recursion_limit": 150}
+        pending = None
         try:
             snapshot = self.graph.get_state(config)
             waiting = pending_interrupt(snapshot)
@@ -110,8 +116,9 @@ class Runtime:
                 # Resume may have been persisted just before the process died.
                 self.graph.invoke(None, config)
             # Explicit delegation may be enabled before starting or at any human gate.
-            # Keep model/repair attempts bounded even though manual conversation rounds are unlimited.
-            resolutions = 0
+            # Each stage gets a bounded repair allowance. Clarification repairs
+            # must not consume design repairs; the global model budget still applies.
+            resolutions = {}
             while True:
                 snapshot = self.graph.get_state(config)
                 pending = pending_interrupt(snapshot)
@@ -121,11 +128,32 @@ class Runtime:
                     self.store.auto_approve(run_id, pending)
                     action = {"action": "approve", "approved": True}
                 else:
-                    if resolutions >= 2:
-                        raise UnsupportedScope(
-                            "智能推荐无法在当前模板能力内解决阻塞项；数据已保存且不会反复提问。查看最新需求/设计报告，可调整环境后重试或关闭自动模式。"
+                    attempts = resolutions.get(pending["stage"], 0)
+                    if attempts >= 2:
+                        report = blocked_report(pending, attempts)
+                        report = json.loads(
+                            self.settings.redact(json.dumps(report, ensure_ascii=False))
                         )
-                    resolutions += 1
+                        report_path = (
+                            self.settings.data_dir / "runs" / run_id / "recommendation-blocked.json"
+                        )
+                        try:
+                            write_json(report_path, report)
+                        except OSError:
+                            logger.warning(
+                                "Could not write recommendation diagnostic for %s", run_id
+                            )
+                        raise UnsupportedScope(
+                            "智能推荐已暂停（"
+                            + report["stage"]
+                            + "）："
+                            + "；".join(report["reasons"])[:500]
+                            + "。本阶段两轮自动修正仍未通过，未跳过验收。"
+                            + "使用 uv run rnd chat --run "
+                            + run_id
+                            + " 查看阻塞详情，可继续推荐、补充要求或切换手动；无需新建运行。"
+                        )
+                    resolutions[pending["stage"]] = attempts + 1
                     action = {"action": "recommend", "approved": True}
                 self.graph.invoke(
                     Command(resume={**action, "gate_id": pending["gate_id"], "job_id": job["id"]}),
@@ -140,7 +168,36 @@ class Runtime:
                     result=snapshot.values.get("delivery", {}),
                 )
         except Exception as exc:
-            if isinstance(
+            if isinstance(exc, UnsupportedScope):
+                # An exception between gates (for example review clearance) must not
+                # recycle the already-consumed design gate from the automatic loop.
+                pending = pending_interrupt(self.graph.get_state(config))
+            # Preserve bounded, redacted tool output even when an adapter wraps the error.
+            tool_error = exc
+            seen = set()
+            while not isinstance(tool_error, ToolFailure) and id(tool_error) not in seen:
+                seen.add(id(tool_error))
+                tool_error = tool_error.__cause__
+                if tool_error is None:
+                    break
+            if isinstance(tool_error, ToolFailure):
+                report = {
+                    "passed": False,
+                    "run_id": run_id,
+                    "job_id": job["id"],
+                    "error": self.settings.redact(str(tool_error))[:1000],
+                    "log": self.settings.redact(getattr(tool_error, "log", ""))[:65536],
+                    "returncode": getattr(tool_error, "returncode", None),
+                    "timed_out": getattr(tool_error, "timed_out", False),
+                }
+                try:
+                    write_json(
+                        self.settings.data_dir / "runs" / run_id / "tool-failure.json", report
+                    )
+                    error = "工具执行失败；查看运行报告 tool-failure.json：" + report["error"]
+                except OSError:
+                    error = "工具执行失败且无法写入报告；请检查数据目录的空间及权限"
+            elif isinstance(
                 exc, (Conflict, ModelFailure, PrerequisiteError, PausedLimit, UnsupportedScope)
             ):
                 error = str(exc)[:1000]

@@ -8,6 +8,7 @@ from sqlalchemy import (
     BigInteger,
     Boolean,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Integer,
@@ -20,12 +21,13 @@ from sqlalchemy import (
     inspect,
     text,
 )
-from sqlalchemy.schema import CreateSequence, CreateTable
+from sqlalchemy.schema import CreateIndex, CreateSequence, CreateTable
 
 from workbench.domain import Plan, digest
 from workbench.filesystem import atomic_text, inside, sha, unpack, write_json
 from workbench.native import NativeClient, NativeConfig
 from workbench.native_checks import payload, record_id
+from workbench.native_compatibility import prepare_java_time_imports
 from workbench.native_environment import checked_database
 from workbench.native_vben import (
     adapt_generated_form,
@@ -56,10 +58,14 @@ RESERVED = {
 
 def validate_plan(plan):
     plan = Plan.model_validate(plan)
-    if plan.custom_rules or plan.unsupported:
-        raise ValueError(
-            "Native runtime only accepts supported native CRUD, not custom Python rules"
-        )
+    if plan.unsupported:
+        raise ValueError("Native runtime does not accept unsupported requirements")
+    if len({rule.entity for rule in plan.custom_rules}) != len(plan.custom_rules):
+        raise ValueError("每个原生实体只能有一个合并后的业务规则及完整正反例")
+    from workbench.native_coding import RESERVED as RULE_RESERVED
+
+    if any(field.name in RULE_RESERVED for entity in plan.entities for field in entity.fields):
+        raise ValueError("Native field uses a reserved runtime name")
     if plan.data_scope != "shared":
         raise ValueError(
             "Native runtime currently requires explicitly approved shared data with role permissions"
@@ -67,6 +73,16 @@ def validate_plan(plan):
     if len({"wb" + e.name.replace("_", "") for e in plan.entities}) != len(plan.entities):
         raise ValueError("Native normalized business names collide")
     for entity in plan.entities:
+        for field in entity.fields:
+            if plan.business is None and field.kind not in {"text", "integer", "boolean"}:
+                raise ValueError("Native enum/date/datetime fields require a business contract")
+            if plan.business is None and (
+                field.searchable or field.filterable or field.date_range or field.min_length
+            ):
+                raise ValueError(
+                    "Native adapters do not yet execute searchable/filterable/date_range/min_length; "
+                    "use a supported template or explicitly revise the requirement"
+                )
         if not any(field.kind == "text" and field.required for field in entity.fields):
             raise ValueError(
                 "Native runtime requires a required text field in each entity for independent UI acceptance"
@@ -91,10 +107,19 @@ def native_metadata(template, plan, url, run_id):
     metadata = MetaData()
     if template == "fastapiadmin":
         Table("sys_user", metadata, Column("id", Integer, primary_key=True))
-    tables, mapping = [], {}
+    elif template == "yudao-vben" and plan.business:
+        Table("system_users", metadata, Column("id", BigInteger, primary_key=True))
+    tables = []
+    mapping = {
+        entity.name: "wb_" + digest(run_id)[:8] + "_" + entity.name for entity in plan.entities
+    }
+    relations = (
+        {(item.entity, item.field): item for item in plan.business.relations}
+        if plan.business
+        else {}
+    )
     for entity in plan.entities:
-        name = "wb_" + digest(run_id)[:8] + "_" + entity.name
-        mapping[entity.name] = name
+        name = mapping[entity.name]
         if template == "fastapiadmin":
             columns = [
                 Column("id", Integer, primary_key=True, autoincrement=True),
@@ -146,13 +171,45 @@ def native_metadata(template, plan, url, run_id):
         else:
             raise ValueError("Unknown native template")
         for field in entity.fields:
-            kind = {"text": String(field.max_length), "integer": Integer(), "boolean": Boolean()}[
-                field.kind
-            ]
+            kind = {
+                "text": String(field.max_length),
+                "integer": Integer(),
+                "boolean": Boolean(),
+                "enum": String(max([len(value) for value in field.choices] or [1])),
+                "date": Date(),
+                "datetime": DateTime(timezone=template == "fastapiadmin"),
+            }[field.kind]
+            constraints = []
+            relation = relations.get((entity.name, field.name))
+            if relation:
+                kind = Integer() if template == "fastapiadmin" else BigInteger()
+                target = (
+                    ("sys_user" if template == "fastapiadmin" else "system_users")
+                    if relation.target_entity == "$users"
+                    else mapping[relation.target_entity]
+                )
+                constraints.append(ForeignKey(target + ".id", ondelete="RESTRICT"))
             columns.append(
-                Column(field.name, kind, nullable=not field.required, comment=field.name)
+                Column(
+                    field.name, kind, *constraints, nullable=not field.required, comment=field.name
+                )
             )
         for column in columns:
+            if (
+                plan.business
+                and template == "fastapiadmin"
+                and column.name
+                in {
+                    "id",
+                    "uuid",
+                    "is_deleted",
+                    "created_time",
+                    "created_id",
+                    "updated_id",
+                    "deleted_id",
+                }
+            ):
+                column.index = True
             if not column.comment:
                 column.comment = column.name
         tables.append(Table(name, metadata, *columns, comment=entity.description))
@@ -171,12 +228,16 @@ def create_native_tables(template, plan, url, run_id, reports):
                 )
             metadata.create_all(connection, tables=tables)
         ddl = []
-        for table in tables:
+        for table in metadata.sorted_tables:
+            if table not in tables:
+                continue
             if template == "yudao-vben":
                 ddl.append(
                     str(CreateSequence(table.c.id.default).compile(dialect=engine.dialect)) + ";"
                 )
             ddl.append(str(CreateTable(table).compile(dialect=engine.dialect)) + ";")
+            for index in sorted(table.indexes, key=lambda item: item.name):
+                ddl.append(str(CreateIndex(index).compile(dialect=engine.dialect)) + ";")
         atomic_text(Path(reports) / "business-schema.sql", "\n".join(ddl) + "\n")
     finally:
         engine.dispose()
@@ -213,6 +274,8 @@ def mount_yudao_export(export, backend, frontend, entity, reports, used_errors):
                 target = inside(backend, name)
                 if target.exists():
                     raise FileExistsError("Refusing to overwrite native Java source: " + name)
+                if name.endswith(".java"):
+                    body = prepare_java_time_imports(body)
             elif "/src/" in name and (
                 name.startswith("yudao-ui-admin-vben/") or name.startswith("yudao-ui-admin-vben5/")
             ):

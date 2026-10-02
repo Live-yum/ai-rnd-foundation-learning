@@ -9,6 +9,9 @@ permissions:
 concurrency:
   group: test-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
+env:
+  PLAYWRIGHT_BROWSERS_PATH: '0'
+  PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright
 jobs:
   tests:
     strategy:
@@ -16,7 +19,9 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    # Windows includes a cold native dependency install before the complete suite.
+    # Keep individual test/browser deadlines unchanged; bound each job explicitly.
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 60 || 35 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -24,12 +29,23 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - run: npm ci --prefix tools/node --no-audit --no-fund
+      - run: npm run build --prefix tools/node
       - run: uv sync --locked --all-extras
       - run: uv run python --version
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run python -m scripts.build_handbook --check
       - run: uv run pytest -m "not postgres" --junitxml=reports/tests.xml --cov=workbench --cov-report=term-missing
+        env:
+          RND_REQUIRE_NODE_TESTS: '1'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -37,7 +53,7 @@ jobs:
           path: reports/
   postgres:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:17
@@ -59,6 +75,13 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - run: uv sync --locked --all-extras
       - run: uv run pytest -m postgres -q --junitxml=reports/postgres.xml
       - uses: actions/upload-artifact@v4
@@ -72,7 +95,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -80,6 +103,13 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - run: uv sync --locked
       - run: uv run python -m scripts.ci_clean_install
       - uses: actions/upload-artifact@v4
@@ -104,6 +134,33 @@ jobs:
         with:
           name: pinned-native-source-evidence
           path: reports/
+  handbook-only:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - run: uv run python -m scripts.ci_handbook
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: handbook-clean-room
+          path: |
+            reports/handbook-clean-room.json
+            reports/handbook-tests.xml
+            reports/handbook-test-status.json
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -118,10 +175,12 @@ jobs:
         with:
           node-version: '22'
       - run: uv sync --locked --all-extras
+      - run: npm ci --prefix tools/node --no-audit --no-fund
+      - run: npm run build --prefix tools/node
       - name: Install isolated Chromium test tooling
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
-          PLAYWRIGHT_BROWSERS_PATH=0 .native/browser/node_modules/.bin/playwright install --with-deps chromium
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - run: uv run python -m scripts.ci_guided_browser
       - uses: actions/upload-artifact@v4
         if: always()
@@ -129,7 +188,7 @@ jobs:
           name: guided-workbench-and-news-browser
           path: reports/
   delivery:
-    needs: [tests, postgres, clean-install, native-sources, browser]
+    needs: [tests, postgres, clean-install, native-sources, handbook-only, browser]
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -143,4 +202,3 @@ jobs:
           path: |
             workbench-source.zip
             从零实现AI研发平台_逐步实操手册_完整版.md
-            从零实现AI研发平台_逐步实操手册_完整版_v3.md

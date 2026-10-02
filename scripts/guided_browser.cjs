@@ -26,11 +26,7 @@ async function main() {
       assert(await page.locator("#request").isHidden());
       await page.locator("#choose").click();
       await page.locator("#project-title").fill("游戏资讯助手");
-      await page
-        .locator("#requirement")
-        .fill(
-          "仅本人手动录入资讯。标题250字、正文3000字，发布日期YYYY-MM-DD。搜索标题正文，分类资讯/攻略/大神可选，日期支持单日和包含两端的区间筛选。",
-        );
+      await page.locator("#requirement").fill(cfg.requirement);
       await page.locator("#new-run button").click();
       await page.waitForFunction(
         () =>
@@ -110,7 +106,9 @@ async function main() {
         );
       }
       await filter({ q: "泰拉瑞亚" }, 2);
+      await filter({ q: "矿石" }, 1);
       await filter({ filter_category: "攻略" }, 1);
+      await filter({ q: "泰拉瑞亚", filter_category: "攻略", from_published_on: "2026-03-09", to_published_on: "2026-03-09" }, 1);
       await filter({ filter_published_on: "2026-03-08" }, 1);
       await filter(
         { from_published_on: "2026-03-08", to_published_on: "2026-03-09" },
@@ -139,6 +137,7 @@ async function main() {
             created_records: 3,
             title_and_body_search: true,
             category_filter: true,
+            combined_search_category_date_filter: true,
             exact_date: true,
             inclusive_date_range: true,
             field_lengths: true,

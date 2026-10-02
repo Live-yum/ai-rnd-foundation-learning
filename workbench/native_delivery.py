@@ -1,21 +1,22 @@
 """Explicitly authorized local native runtime delivery; source export is a separate mode."""
 
+import hashlib
 import json
 import os
 import re
 import shutil
 import uuid
-import zipfile
 from contextlib import ExitStack
 from pathlib import Path
 
 from dotenv import dotenv_values
 from pydantic import BaseModel, ConfigDict, StrictBool
 
-from workbench.domain import digest
-from workbench.filesystem import files, manifest, sha, write_json
+from workbench.domain import Plan, digest
+from workbench.filesystem import manifest, pack_source, sha, write_json
 from workbench.generator import PrerequisiteError
 from workbench.native_environment import checked_database, native_environment, running_backend
+from workbench.native_evidence import MAX_ACCEPTANCE_BYTES, native_review_evidence
 from workbench.native_frontend import frontend_environment, frontend_preview
 from workbench.native_lab import run_acceptance
 from workbench.native_modules import validate_plan
@@ -91,7 +92,7 @@ def prerequisites(template):
         raise PrerequisiteError("尚未安装独立 Playwright/Chromium 验证工具，请按手册安装")
 
 
-def managed_generate(settings, template, plan, destination):
+def managed_generate(settings, template, plan, destination, *, customization=None):
     from workbench.native import prepare_sources
 
     plan = validate_plan(plan)
@@ -114,17 +115,21 @@ def managed_generate(settings, template, plan, destination):
             managed_verify(destination, receipt)
             return receipt
         raise PrerequisiteError("已有产物不能被另一份设计或执行模式覆盖")
-    if destination.exists():
-        raise PrerequisiteError(
-            "上次原生任务未完成；保留现场，新建运行和新的专用空库，不自动删除数据"
-        )
     sources = prepare_sources(settings, template)
     slots = {item["slot"]: Path(item["path"]) for item in sources}
     reports = destination.parent / "native-evidence"
     source = slots["fastapiadmin"] if template == "fastapiadmin" else slots["backend"]
     output = destination if template == "fastapiadmin" else destination / "backend"
     report = run_acceptance(
-        template, source, output, slots.get("frontend"), url, reports, plan, redis_port=redis_port
+        template,
+        source,
+        output,
+        slots.get("frontend"),
+        url,
+        reports,
+        plan,
+        redis_port=redis_port,
+        customization=customization,
     )
     if report.get("generated_runtime_verified") is not True:
         raise PrerequisiteError("原生运行验收尚未完成")
@@ -144,12 +149,172 @@ def managed_generate(settings, template, plan, destination):
     return receipt
 
 
-def managed_verify(destination, receipt):
-    destination = Path(destination)
-    report_path = destination.parent / "native-evidence/acceptance.json"
-    if not report_path.is_file() or sha(report_path) != receipt.get("evidence_sha256"):
-        raise PrerequisiteError("原生运行证据丢失或已改变")
-    report = json.loads(report_path.read_text(encoding="utf-8"))
+def require_native_style(report, receipt, current):
+    """A legacy runtime receipt is not evidence of native UI inheritance."""
+    from workbench.native_style import PROFILES, native_page_contracts
+
+    template = receipt.get("template")
+    style = report.get("native_style")
+    error = (
+        "原生UI风格验收证据缺失、过期或不匹配；保留运行目录与数据库，"
+        "需要重新执行原生UI、浏览器及独立新库验收，不能沿用旧回执或删除数据绕过"
+    )
+    if (
+        template not in PROFILES
+        or report.get("template") != template
+        or not isinstance(style, dict)
+        or style.get("template") != template
+        or style.get("ui_family") != PROFILES[template]["family"]
+        or style.get("passed") is not True
+        or style.get("shell_and_theme_unchanged") is not True
+        or style.get("generic_frontend_substitution") is not False
+    ):
+        raise PrerequisiteError(error)
+    root = "frontend/web/" if template == "fastapiadmin" else "frontend-product/"
+    frontend = {
+        name[len(root) :]: value for name, value in current.items() if name.startswith(root)
+    }
+    protected = {}
+    for prefix in PROFILES[template]["protected"]:
+        group = {
+            name: value
+            for name, value in frontend.items()
+            if name == prefix or (prefix.endswith("/") and name.startswith(prefix))
+        }
+        if not group:
+            raise PrerequisiteError(error)
+        protected.update(group)
+    if style.get("protected_files") != protected or style.get("protected_source_digest") != digest(
+        protected
+    ):
+        raise PrerequisiteError(error)
+    entities, pages = report.get("entities"), style.get("generated_pages")
+    if (
+        not isinstance(entities, list)
+        or not entities
+        or any(
+            not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_]*", name)
+            for name in entities
+        )
+        or len(set(entities)) != len(entities)
+        or not isinstance(pages, list)
+    ):
+        raise PrerequisiteError(error)
+    expected = {
+        path: values[0]
+        for path, values in native_page_contracts(
+            template, entities, report.get("business_contract") is not None
+        ).items()
+    }
+    if (
+        len(pages) != len(expected)
+        or any(
+            not isinstance(page, dict)
+            or not isinstance(page.get("path"), str)
+            or page["path"] not in expected
+            or not frontend.get(page["path"])
+            or page.get("sha256") != frontend.get(page["path"])
+            or not isinstance(page.get("native_components"), list)
+            or any(name not in page["native_components"] for name in expected[page["path"]])
+            for page in pages
+        )
+        or {page["path"] for page in pages} != set(expected)
+    ):
+        raise PrerequisiteError(error)
+
+
+def require_native_business(report, receipt, spec_path):
+    """Classic CRUD receipts cannot stand in for either business installation."""
+    from workbench.business_browser import require_business_browser
+
+    error = "原生业务验收缺失或与批准设计不匹配；需要真实角色、业务浏览器和独立新库证据"
+    try:
+        plan = Plan.model_validate_json(Path(spec_path).read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise PrerequisiteError(error) from exc
+    identity = digest(plan.model_dump())
+    if identity != receipt.get("spec_digest") or identity != report.get("spec_digest"):
+        raise PrerequisiteError(error)
+    if not plan.business:
+        if report.get("business_contract") is not None:
+            raise PrerequisiteError(error)
+        return False
+    restored = report.get("portable_restored", {})
+    if restored.get("restart") is not True or restored.get("restart_preserved_records") is not True:
+        raise PrerequisiteError(error)
+    if not isinstance(restored.get("restart_records"), dict) or set(
+        restored["restart_records"]
+    ) != {entity.name for entity in plan.entities}:
+        raise PrerequisiteError(error)
+    for entity, record in restored["restart_records"].items():
+        if (
+            not isinstance(record, dict)
+            or record.get("id") != restored.get("business", {}).get("records", {}).get(entity)
+            or not isinstance(record.get("sha256"), str)
+            or not re.fullmatch(r"[0-9a-f]{64}", record["sha256"])
+        ):
+            raise PrerequisiteError(error)
+    required = (
+        "passed",
+        "real_native_auth",
+        "public_native_registration",
+        "three_roles",
+        "relations",
+        "related_history",
+        "assignment",
+        "transitions",
+        "handling_history",
+        "audit",
+        "in_app_reminders",
+        "due_reminders",
+        "note_reminders",
+        "status_change_reminders",
+        "reminder_read_isolation",
+        "metrics",
+        "row_isolation",
+    )
+    for evidence in (
+        report.get("business_contract"),
+        report.get("portable_restored", {}).get("business"),
+    ):
+        if (
+            not isinstance(evidence, dict)
+            or evidence.get("spec_digest") != identity
+            or any(evidence.get(key) is not True for key in required)
+            or not isinstance(evidence.get("records"), dict)
+            or set(evidence["records"]) != {entity.name for entity in plan.entities}
+            or any(
+                not isinstance(value, str) or not re.fullmatch(r"[1-9][0-9]*", value)
+                for value in evidence["records"].values()
+            )
+        ):
+            raise PrerequisiteError(error)
+    for browser in (
+        report.get("business_browser"),
+        report.get("portable_restored", {}).get("browser"),
+    ):
+        try:
+            if not isinstance(browser, dict) or browser.get("spec_digest") != identity:
+                raise ValueError("Unbound browser evidence")
+            require_business_browser(browser, plan, receipt["template"])
+        except (KeyError, ValueError, TypeError) as exc:
+            raise PrerequisiteError(error) from exc
+    if receipt["template"] == "yudao-vben":
+        from workbench.yudao_navigation_checks import validate_navigation
+
+        try:
+            for business in (report["business_contract"], restored["business"]):
+                first = validate_navigation(business.get("installed_navigation"), plan)
+                restarted = validate_navigation(business.get("installed_navigation_restart"), plan)
+                if first != restarted:
+                    raise ValueError("Installed navigation changed across restart")
+        except (KeyError, ValueError, TypeError) as exc:
+            raise PrerequisiteError(error) from exc
+    return True
+
+
+def require_native_runtime(report):
+    """Shared fail-closed runtime/deployment gates for production and zero-model CI."""
     gates = (
         "generated_runtime_verified",
         "native_codegen",
@@ -164,9 +329,51 @@ def managed_verify(destination, receipt):
     )
     if any(report.get(name) is not True for name in gates):
         raise PrerequisiteError("原生运行未满足所有独立验收门槛")
+    restored = report.get("portable_restored")
+    required_true = (
+        "passed",
+        "fresh_database",
+        "frontend_started",
+        "installed_from_lock",
+        "standalone_launcher",
+        "restart",
+    )
+    required_false = ("source_database_reused", "original_platform_imported", "model_required")
+    if (
+        not isinstance(restored, dict)
+        or any(restored.get(key) is not True for key in required_true)
+        or any(restored.get(key) is not False for key in required_false)
+    ):
+        raise PrerequisiteError(
+            "原生独立交付缺少通过的新数据库恢复证据；不得以原生成数据库可启动代替独立交付"
+        )
+    return gates
+
+
+def managed_verify(destination, receipt):
+    destination = Path(destination)
+    report_path = destination.parent / "native-evidence/acceptance.json"
+    if not report_path.is_file():
+        raise PrerequisiteError("原生运行证据丢失或已改变")
+    if report_path.stat().st_size > MAX_ACCEPTANCE_BYTES:
+        raise PrerequisiteError("原生运行证据超出安全大小限制")
+    with report_path.open("rb") as handle:
+        raw = handle.read(MAX_ACCEPTANCE_BYTES + 1)
+    if len(raw) > MAX_ACCEPTANCE_BYTES:
+        raise PrerequisiteError("原生运行证据超出安全大小限制")
+    if hashlib.sha256(raw).hexdigest() != receipt.get("evidence_sha256"):
+        raise PrerequisiteError("原生运行证据丢失或已改变")
+    report = json.loads(raw)
+    gates = require_native_runtime(report)
     current = manifest(destination)
     if current != receipt["files"] or report.get("spec_digest") != receipt.get("spec_digest"):
         raise PrerequisiteError("原生源码或设计在验收后发生变化，需要重新验证")
+    require_native_style(report, receipt, current)
+    business = require_native_business(report, receipt, report_path.with_name("approved-spec.json"))
+    plan = Plan.model_validate_json(
+        report_path.with_name("approved-spec.json").read_text(encoding="utf-8")
+    )
+    review_evidence = native_review_evidence(report, plan, current, receipt["evidence_sha256"])
     result = {
         "passed": True,
         "validation_level": "runtime",
@@ -174,11 +381,11 @@ def managed_verify(destination, receipt):
         "production_ready": False,
         "source_digest": digest(current),
         "evidence_sha256": receipt["evidence_sha256"],
-        "checks": list(gates),
-        "database_delivery": "standalone-fresh-database-bootstrap"
-        if report.get("portable_restored", {}).get("passed")
-        else "existing-dedicated-lab-database-required",
+        "checks": [*gates, "native_template_ui_style"]
+        + (["native_business_contract"] if business else []),
+        "database_delivery": "standalone-fresh-database-bootstrap",
         "startup": "uv run --no-project --python 3.14 python start.py",
+        "native_acceptance": review_evidence,
     }
     write_json(destination.parent / "verification.json", result)
     return result
@@ -194,13 +401,12 @@ def managed_package(destination, report):
         raise PrerequisiteError("交付的原生运行验证报告不匹配")
     listing = manifest(destination)
     package = destination.parent / "native-runtime.zip"
-    with zipfile.ZipFile(package, "w", zipfile.ZIP_DEFLATED) as archive:
-        for name, source in files(destination):
-            archive.write(source, name)
+    archive_report = pack_source(destination, package, template=receipt["template"])
     result = {
         "package": package.name,
         "sha256": sha(package),
         "files": listing,
+        "archive": archive_report,
         "validation_level": "runtime",
         "runtime_verified": True,
         "production_ready": False,

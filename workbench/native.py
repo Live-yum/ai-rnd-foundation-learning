@@ -415,11 +415,11 @@ def native_export(client, template, mapping, plan):
     return exports
 
 
-def generate_native(settings, template, plan, destination, *, managed=False):
+def generate_native(settings, template, plan, destination, *, managed=False, customization=None):
     from workbench.native_delivery import managed_generate, runtime_enabled
 
     if managed or runtime_enabled(settings, template):
-        return managed_generate(settings, template, plan, destination)
+        return managed_generate(settings, template, plan, destination, customization=customization)
     config, token, db_url = load_config(settings, template)
     if plan.custom_rules or plan.unsupported:
         raise PrerequisiteError("原生源码导出不接受未实现的定制规则")

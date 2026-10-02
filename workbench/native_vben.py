@@ -226,7 +226,10 @@ def adapt_generated_schema(source: str, fields: Sequence[FieldSpec]) -> str:
         source, "getDictOptions", "import { getDictOptions } from '@vben/hooks';\n"
     )
     for field in fields:
-        if field.kind == "text":
+        # This compatibility shim only repairs the pinned integer/boolean controls.
+        # Business enum/date/datetime widgets are mounted later by businessFormSchema;
+        # treating them as booleans corrupts the genuine generated source before that hook.
+        if field.kind not in {"integer", "boolean"}:
             continue
         first, *rest = field.name.split("_")
         name = first + "".join(piece[:1].upper() + piece[1:] for piece in rest)

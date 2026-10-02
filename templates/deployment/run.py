@@ -123,6 +123,8 @@ def seed_yudao(url, backend):
 
 def apply_delivery_sql(url, manifest, marker):
     """Schema and menu SQL is trusted generated metadata, never raw model SQL."""
+    if manifest.get("business_schema"):
+        return apply_business_delivery_sql(url, manifest, marker)
     engine = create_engine(url)
     try:
         with engine.connect() as c:
@@ -148,6 +150,53 @@ def apply_delivery_sql(url, manifest, marker):
                 sql.Identifier(parsed.database), sql.Literal(marker + ":ready")
             )
         )
+
+
+def apply_business_delivery_sql(url, manifest, marker):
+    from workbench.business_schema_receipt import table_signature, verify_tables
+
+    engine = create_engine(url)
+    try:
+        with engine.connect() as connection:
+            inspector = inspect(connection)
+            existing = {name for name in manifest["tables"] if inspector.has_table(name)}
+            sidecars = {name for name in manifest["extension_tables"] if inspector.has_table(name)}
+            if existing and existing != set(manifest["tables"]):
+                raise ValueError("Partial business schema; preserve the owned database")
+            installed = bool(sidecars)
+            if installed:
+                verify_tables(connection, manifest["business_schema"])
+            elif existing:
+                for name in existing:
+                    expected = dict(manifest["business_schema"][name])
+                    # Yudao's explicit extension adds this server-owned archive column.
+                    expected["columns"] = [
+                        c for c in expected["columns"] if c["name"] != "rnd_archived_at"
+                    ]
+                    if table_signature(connection, name) != expected:
+                        raise ValueError("Base business schema changed; preserve the database")
+        with psycopg.connect(db_url(url)) as connection:
+            if not existing:
+                connection.execute((HERE / "database/002-business.sql").read_text(encoding="utf-8"))
+            connection.execute((HERE / "database/003-menus.sql").read_text(encoding="utf-8"))
+            if not installed:
+                connection.execute(
+                    (HERE / "database/004-business-extension.sql").read_text(encoding="utf-8")
+                )
+            roles = HERE / "database/005-business-roles.sql"
+            if roles.is_file():
+                connection.execute(roles.read_text(encoding="utf-8"))
+        with engine.connect() as connection:
+            verify_tables(connection, manifest["business_schema"])
+        parsed = checked_database(url)
+        with psycopg.connect(db_url(url)) as connection:
+            connection.execute(
+                sql.SQL("COMMENT ON DATABASE {} IS {}").format(
+                    sql.Identifier(parsed.database), sql.Literal(marker + ":ready")
+                )
+            )
+    finally:
+        engine.dispose()
 
 
 def verify_manifest(data):
@@ -198,13 +247,19 @@ def main():
     with running_backend(template, backend, env, reports) as (base, _):
         if not ready and template == "fastapiadmin":
             apply_delivery_sql(url, manifest, marker)
-        if args.check or not ready:
+        if args.check or (not ready and not manifest["plan"].get("business")):
             token = login(template, base)
             from workbench.portable_checks import check_restored_product
 
             outcome = check_restored_product(
                 template, base, token, manifest["targets"], manifest["plan"]
             )
+            if manifest["plan"].get("business"):
+                from workbench.portable_checks import snapshot_business_records
+
+                before_restart = snapshot_business_records(
+                    template, base, token, manifest["targets"], outcome["business"]
+                )
         else:
             # A regular restart must not require the seed admin's old password.
             outcome = {"database_initialized": True, "verification_rerun": False}
@@ -218,6 +273,52 @@ def main():
     with ExitStack() as stack:
         base, _ = stack.enter_context(running_backend(template, backend, env, reports))
         frontend_url = stack.enter_context(frontend_preview(template, frontend, front_env, reports))
+        if args.check:
+            # The first running_backend context has stopped its process. Verify
+            # persisted rows through a newly authenticated, independently started
+            # delivered backend before any second-process browser mutation.
+            token = login(template, base)
+            if manifest["plan"].get("business"):
+                from workbench.portable_checks import (
+                    require_preserved_business_records,
+                    snapshot_business_records,
+                )
+
+                after_restart = snapshot_business_records(
+                    template, base, token, manifest["targets"], outcome["business"]
+                )
+                require_preserved_business_records(before_restart, after_restart)
+                outcome["restart_preserved_records"] = True
+                outcome["restart_records"] = after_restart
+                if template == "yudao-vben":
+                    from workbench.domain import Plan
+                    from workbench.yudao_navigation_checks import check_navigation_restart
+
+                    outcome["business"]["installed_navigation_restart"] = check_navigation_restart(
+                        template,
+                        base,
+                        token,
+                        manifest["targets"],
+                        outcome["business"],
+                        Plan.model_validate(manifest["plan"]),
+                    )
+            outcome["restart"] = True
+        if args.check and manifest["plan"].get("business"):
+            from workbench.business_browser import run_business_browser
+            from workbench.domain import Plan
+
+            module = os.getenv("PRODUCT_VERIFY_PLAYWRIGHT")
+            if not module:
+                raise ValueError("Business --check requires pinned local Playwright/Chromium")
+            outcome["browser"] = run_business_browser(
+                template,
+                HERE / "business-browser.cjs",
+                frontend_url,
+                reports,
+                outcome["business"],
+                Plan.model_validate(manifest["plan"]),
+                module,
+            )
         outcome["frontend_started"] = True
         write_json(reports / "portable-start.json", outcome)
         print(f"后端 {base}；前端 {frontend_url}；Ctrl+C停止，数据不会删除。", flush=True)

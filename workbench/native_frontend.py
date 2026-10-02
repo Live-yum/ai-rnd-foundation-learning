@@ -15,7 +15,7 @@ from workbench.settings import ROOT
 from workbench.tools import clean_env, process_options, run_command, stop_process
 
 
-def frontend_environment(template, backend_url):
+def frontend_environment(template, backend_url, title="Native lab"):
     common = {
         "CI": "true",
         "HUSKY": "0",
@@ -26,7 +26,7 @@ def frontend_environment(template, backend_url):
     if template == "fastapiadmin":
         return {
             **common,
-            "VITE_APP_TITLE": "Native lab",
+            "VITE_APP_TITLE": title,
             "VITE_VERSION": "3.0.0",
             "VITE_PORT": "5173",
             "VITE_BASE_URL": "/",
@@ -41,7 +41,7 @@ def frontend_environment(template, backend_url):
         raise ValueError("Unknown native frontend")
     return {
         **common,
-        "VITE_APP_TITLE": "Native lab",
+        "VITE_APP_TITLE": title,
         "VITE_APP_NAMESPACE": "native-lab-vben",
         # Bound Rust bundler parallelism; give the full Vben graph its native heap budget.
         "RAYON_NUM_THREADS": "2",
@@ -93,7 +93,16 @@ def build_frontend(template, root, env, reports, *, prepared=False):
     # Checking a pristine checkout before generating them yields false missing-name errors.
     # Type checking remains mandatory, AFTER deterministic generation; no errors are ignored.
     checks = [
-        ("install", ["pnpm", "install", "--frozen-lockfile"], root),
+        (
+            "install",
+            [
+                "pnpm",
+                "install",
+                "--frozen-lockfile",
+                *(["--offline"] if os.environ.get("RND_OFFLINE_TOOLS") == "1" else []),
+            ],
+            root,
+        ),
         ("build", ["pnpm", "exec", "vite", "build", "--mode", "production"], app),
         ("typecheck", ["pnpm", "exec", "vue-tsc", "--noEmit", "--skipLibCheck"], app),
     ]

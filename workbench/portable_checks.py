@@ -3,6 +3,36 @@
 import httpx
 
 
+def snapshot_business_records(template, base, token, targets, scenario):
+    """Hash the exact records created by the independent installation over native HTTP."""
+    from workbench.business_probe import BusinessClient
+    from workbench.domain import digest
+
+    records = scenario.get("records")
+    if not isinstance(records, dict) or set(records) != {target["entity"] for target in targets}:
+        raise ValueError("Independent restart has no complete business record identity")
+    client = BusinessClient(template, base, token, targets)
+    try:
+        result = {}
+        for entity, identifier in records.items():
+            matches = [
+                row
+                for row in client.rows(entity, page_size=100, pageSize=100)
+                if str(row["id"]) == identifier
+            ]
+            if len(matches) != 1:
+                raise ValueError("Independent restart lost the original business record: " + entity)
+            result[entity] = {"id": identifier, "sha256": digest(matches[0])}
+        return result
+    finally:
+        client.close()
+
+
+def require_preserved_business_records(before, after):
+    if not before or before != after:
+        raise ValueError("Independent restart changed or lost previously created business records")
+
+
 def payload(response):
     if not response.is_success:
         raise ValueError(f"原生交付接口 HTTP {response.status_code}")
@@ -13,6 +43,14 @@ def payload(response):
 
 
 def check_restored_product(template, base, token, targets, plan):
+    if plan.get("business"):
+        from workbench.business_probe import customer_service_acceptance
+        from workbench.domain import Plan
+
+        result = customer_service_acceptance(
+            template, base, token, targets, Plan.model_validate(plan)
+        )
+        return {"passed": True, "fresh_database": True, "model_required": False, "business": result}
     fastapi = template == "fastapiadmin"
     prefix = "" if fastapi else "/admin-api"
     with httpx.Client(
@@ -48,6 +86,13 @@ def check_restored_product(template, base, token, targets, plan):
                     "integer": 0,
                     "boolean": False,
                 }[field["kind"]]
+            from workbench.native_business_checks import wire
+
+            rule = next(
+                (r for r in plan.get("custom_rules", []) if r["entity"] == entity["name"]), None
+            )
+            if rule:
+                body = wire(template, rule["accept_examples"][0])
             created = payload(client.post(target["api"] + "/create", json=body))
             identifier = created["id"] if isinstance(created, dict) else created
             got = payload(
@@ -70,4 +115,13 @@ def check_restored_product(template, base, token, targets, plan):
                     "zero_false_preserved": True,
                 }
             )
-    return {"passed": True, "fresh_database": True, "entities": checked, "model_required": False}
+    from workbench.native_business_checks import check_business_examples
+
+    business = check_business_examples(template, base, token, targets, plan)
+    return {
+        "passed": True,
+        "fresh_database": True,
+        "entities": checked,
+        "model_required": False,
+        "business_rules": business,
+    }

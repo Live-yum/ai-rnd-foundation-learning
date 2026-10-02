@@ -1,10 +1,14 @@
 """Loopback native lab lifecycle. Never resets existing databases or mocks authentication."""
 
+import errno
 import io
+import json
 import os
 import re
 import secrets
 import shutil
+import signal
+import socket
 import subprocess
 import time
 import xml.etree.ElementTree as ET
@@ -17,11 +21,12 @@ from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import make_url
 
 from workbench.filesystem import atomic_text, files, inside, sha, write_json
+from workbench.local_only import local_database_url
 from workbench.tools import clean_env, process_options, run_command, stop_process
 
 
 def checked_database(url):
-    parsed = make_url(url)
+    parsed = make_url(local_database_url(url))
     if parsed.get_backend_name() != "postgresql" or parsed.host not in {"127.0.0.1", "localhost"}:
         raise ValueError("Native runtime requires a loopback PostgreSQL database")
     if not re.fullmatch(r"[a-z][a-z0-9_]{0,40}_codegen", parsed.database or ""):
@@ -212,12 +217,46 @@ def verify_aggregate_jars(backend):
             raise ValueError("PostgreSQL JDBC driver is absent from aggregate")
 
 
-def install_backend(template, backend, reports):
+def prepare_fastapi_registry(backend, reports):
+    """Use canonical PyPI URLs without changing any locked package version/hash."""
+    import tomllib
+
+    from workbench.filesystem import sha, write_json
+
+    backend, reports = Path(backend), Path(reports)
+    replacements = {
+        "https://pypi.tuna.tsinghua.edu.cn/simple": "https://pypi.org/simple",
+        "https://pypi.tuna.tsinghua.edu.cn/packages/": "https://files.pythonhosted.org/packages/",
+    }
+    receipt = {}
+    for name in ("pyproject.toml", "uv.lock"):
+        path = backend / name
+        original = path.read_text(encoding="utf-8")
+        before = sha(path)
+        updated = original
+        for old, new in replacements.items():
+            updated = updated.replace(old, new)
+        # Parsing both documents detects malformed source. Only the literal,
+        # known public mirror URLs can change; hashes and versions are retained.
+        tomllib.loads(original)
+        tomllib.loads(updated)
+        if updated != original:
+            atomic_text(path, updated)
+        receipt[name] = {"before_sha256": before, "after_sha256": sha(path), "url_only": True}
+    write_json(reports / "official-python-registry.json", receipt)
+    return receipt
+
+
+def install_backend(template, backend, reports, *, navigation_api_only=False):
     backend, reports = Path(backend), Path(reports)
     reports.mkdir(parents=True, exist_ok=True)
     if template == "fastapiadmin":
+        prepare_fastapi_registry(backend, reports)
         commands = [["uv", "sync", "--locked", "--python", "3.14"]]
     else:
+        from workbench.yudao_navigation import prepare_yudao_navigation
+
+        prepare_yudao_navigation(backend, reports, api_only=navigation_api_only)
         prepare_yudao_postgres(backend, reports)
         # The upstream POM lists distant public mirrors before Central. Use one
         # explicit public repository for repeatable dependency resolution, not
@@ -242,6 +281,11 @@ def install_backend(template, backend, reports):
                 "-Dspring-boot.repackage.skip=true",
             ],
             ["mvn", "-B", "-ntp", "-pl", "yudao-server", "package", "-DskipTests"],
+        ]
+    if os.environ.get("RND_OFFLINE_TOOLS") == "1":
+        commands = [
+            command[:1] + (["-o"] if command[0] == "mvn" else []) + command[1:]
+            for command in commands
         ]
     if template == "yudao-vben":
         commands = [
@@ -276,6 +320,81 @@ def install_backend(template, backend, reports):
     atomic_text(reports / "backend-build.log", "\n".join(logs))
     if template == "yudao-vben":
         verify_aggregate_jars(backend)
+
+
+def loopback_port_bindable(port):
+    """Observe bind availability without connecting to a possibly unowned service.
+
+    Readiness probes must not allocate an outbound ephemeral socket to their own
+    destination before the server listens (Linux permits such self-connections).
+    SO_REUSEADDR matches server restart semantics on POSIX, including TIME_WAIT.
+    This function never terminates a listener or changes host networking.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        if os.name != "nt":
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        elif hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            probe.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        try:
+            probe.bind(("127.0.0.1", port))
+        except OSError as error:
+            if error.errno in {errno.EADDRINUSE, errno.EACCES}:
+                return False
+            raise
+    return True
+
+
+def backend_port_state(port, group_pid):
+    """Bounded Linux listener ownership, with no environment or process arguments.
+
+    Unlike a bind/connect probe this cannot race with server startup. Other
+    platforms retain their existing readiness behavior and report unobservable.
+    """
+    tcp = Path("/proc/net/tcp")
+    if os.name != "posix" or not tcp.is_file():
+        return {"observable": False}
+    inodes, listener_inodes = set(), set()
+    local_port_states = {}
+    try:
+        for path in (tcp, Path("/proc/net/tcp6")):
+            if path.is_file():
+                for line in path.read_text(encoding="utf-8").splitlines()[1:8193]:
+                    parts = line.split()
+                    if len(parts) > 9 and int(parts[1].rsplit(":", 1)[1], 16) == port:
+                        inodes.add(parts[9])
+                        local_port_states[parts[3]] = local_port_states.get(parts[3], 0) + 1
+                        if parts[3] == "0A":
+                            listener_inodes.add(parts[9])
+        pids = []
+        for path in list(Path("/proc").glob("[0-9]*/stat"))[:4096]:
+            try:
+                fields = path.read_text(encoding="utf-8").rsplit(") ", 1)[1].split()
+                if int(fields[2]) == group_pid and int(fields[3]) == group_pid:
+                    pids.append(int(path.parent.name))
+            except OSError, ValueError, IndexError:
+                continue
+        owners, socket_owners = set(), set()
+        for pid in pids[:64]:
+            for fd in list((Path("/proc") / str(pid) / "fd").glob("*"))[:2048]:
+                try:
+                    target = os.readlink(fd)
+                except OSError:
+                    continue
+                if target.startswith("socket:[") and target[8:-1] in inodes:
+                    socket_owners.add(pid)
+                    if target[8:-1] in listener_inodes:
+                        owners.add(pid)
+        return {
+            "observable": True,
+            "listening": bool(listener_inodes),
+            "owned_listener": bool(owners),
+            "owned_listener_pids": sorted(owners),
+            "owned_group_pids": sorted(pids[:64]),
+            "owned_socket_pids": sorted(socket_owners),
+            "local_port_state_counts": dict(sorted(local_port_states.items())),
+        }
+    except OSError, ValueError, IndexError:
+        return {"observable": False}
 
 
 @contextmanager
@@ -316,16 +435,21 @@ def running_backend(template, backend, env, reports):
         command = ["java", "-Xmx1400m", "-jar", str(jars[0]), "--spring.profiles.active=native"]
         openapi = "/v3/api-docs"
     base_url = f"http://127.0.0.1:{port}"
-    with httpx.Client(trust_env=False, timeout=1) as client:
+    if not loopback_port_bindable(port):
+        raise RuntimeError(
+            "Native backend port is already occupied; refusing to test another process"
+        )
+    attempt = 1
+    previous = reports / "backend-lifecycle.json"
+    if previous.is_file() and not previous.is_symlink() and previous.stat().st_size <= 16384:
         try:
-            client.get(base_url + openapi)
-        except httpx.HTTPError:
+            value = json.loads(previous.read_text(encoding="utf-8")).get("startup_attempt")
+            if type(value) is int and 0 < value < 1_000_000:
+                attempt = value + 1
+        except OSError, ValueError, AttributeError:
             pass
-        else:
-            raise RuntimeError(
-                "Native backend port is already occupied; refusing to test another process"
-            )
     log = (reports / "backend-runtime.log").open("ab")
+    log_start = log.tell()
     process = subprocess.Popen(
         command,
         cwd=backend,
@@ -334,11 +458,32 @@ def running_backend(template, backend, env, reports):
         stderr=subprocess.STDOUT,
         **process_options(),
     )
+    lifecycle = {
+        "port": port,
+        "pid": process.pid,
+        "owned_process_group": True,
+        "started": True,
+        "startup_attempt": attempt,
+        "runtime_log_start_bytes": log_start,
+        "phase": "backend-readiness",
+    }
+    write_json(reports / "backend-lifecycle.json", lifecycle)
+    failure = None
     try:
         with httpx.Client(trust_env=False, timeout=5) as client:
             for _ in range(90):
                 if process.poll() is not None:
                     raise RuntimeError("Native backend exited; inspect backend-runtime.log")
+                port_state = backend_port_state(port, process.pid)
+                lifecycle["port_state"] = port_state
+                if port_state.get("observable"):
+                    if not port_state["listening"]:
+                        time.sleep(2)
+                        continue
+                    if not port_state["owned_listener"]:
+                        raise RuntimeError(
+                            "Native backend port belongs to another process; refusing readiness"
+                        )
                 try:
                     response = client.get(base_url + openapi)
                     if response.status_code == 200 and "paths" in response.json():
@@ -355,10 +500,63 @@ def running_backend(template, backend, env, reports):
                 raise TimeoutError(
                     "Native backend did not become ready; inspect backend-runtime.log"
                 )
+        lifecycle["phase"] = "backend-running"
+        write_json(reports / "backend-lifecycle.json", lifecycle)
         yield base_url, openapi
+    except BaseException as error:
+        failure = error
+        lifecycle["failure"] = {"phase": lifecycle["phase"], "type": type(error).__name__}
+        raise
     finally:
-        stop_process(process)
-        log.close()
+        cleanup_failure = None
+        lifecycle["returncode_before_cleanup"] = process.poll()
+        lifecycle["phase"] = "backend-cleanup"
+        lifecycle["port_released"] = False
+        try:
+            lifecycle["port_state_before_cleanup"] = backend_port_state(port, process.pid)
+            # An exited launcher may have left same-session descendants. Stop
+            # only the still-observed group created by this context, never a
+            # process discovered merely because it has acquired this port.
+            state = lifecycle["port_state_before_cleanup"]
+            if process.poll() is not None and state.get("owned_group_pids"):
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+            stop_process(process)
+            deadline = time.monotonic() + 5
+            released = loopback_port_bindable(port)
+            while not released and time.monotonic() < deadline:
+                time.sleep(0.1)
+                released = loopback_port_bindable(port)
+            lifecycle["port_released"] = released
+            lifecycle["port_state_after_cleanup"] = backend_port_state(port, process.pid)
+            if not released:
+                raise RuntimeError(
+                    "Native backend port remained occupied after owned-process cleanup"
+                )
+        except Exception as error:
+            cleanup_failure = error
+            lifecycle["cleanup_failure"] = {"type": type(error).__name__}
+        finally:
+            try:
+                log.close()
+            except Exception as error:
+                cleanup_failure = cleanup_failure or error
+                lifecycle.setdefault("cleanup_failure", {"type": type(error).__name__})
+            lifecycle["returncode"] = process.poll()
+            try:
+                write_json(reports / "backend-lifecycle.json", lifecycle)
+            except Exception as error:
+                cleanup_failure = cleanup_failure or error
+        if cleanup_failure is not None:
+            if failure is None:
+                raise cleanup_failure
+            failure.add_note(
+                "Native backend cleanup also failed "
+                f"({type(cleanup_failure).__name__}, port_released={lifecycle['port_released']}); "
+                "inspect backend-lifecycle.json"
+            )
 
 
 def login(template, base_url, username=None, password=None):

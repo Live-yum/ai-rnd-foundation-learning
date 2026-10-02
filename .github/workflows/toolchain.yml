@@ -1,0 +1,52 @@
+name: Toolchain integration acceptance
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: toolchain-${{ github.ref }}
+  cancel-in-progress: true
+env:
+  PLAYWRIGHT_BROWSERS_PATH: '0'
+  PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright
+jobs:
+  real-tools:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    env:
+      PYTHONUTF8: '1'
+      LITELLM_LOCAL_MODEL_COST_MAP: 'True'
+      AIDER_ANALYTICS: 'false'
+      RND_REQUIRE_NODE_TESTS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - run: npm ci --prefix tools/node --no-audit --no-fund
+      - run: npm run build --prefix tools/node
+      - run: uv sync --locked --all-extras
+      - run: uv sync --locked --project tools/aider --python 3.12
+      - run: uv run pytest tests/test_toolchain.py tests/test_continue_index.py -q --junitxml=reports/toolchain-contracts.xml
+      - run: uv run python -m scripts.ci_toolchain
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: toolchain-${{ matrix.os }}
+          path: reports/

@@ -1,31 +1,224 @@
 """Export a self-contained native launcher, immutable SQL and menu seed (no user data)."""
 
 import json
+import os
+import re
 import shutil
+import stat
 from pathlib import Path
+from urllib.parse import quote, quote_plus
 
 import psycopg
 from psycopg import sql
 from sqlalchemy import create_engine, inspect
 
 from workbench.domain import digest
-from workbench.filesystem import atomic_text, sha, write_json
+from workbench.filesystem import atomic_text, inside, sha, write_json
 from workbench.native_environment import checked_database
 from workbench.settings import ROOT
 
 HELPERS = (
     "__init__.py",
+    "local_only.py",
     "settings.py",
     "domain.py",
+    "business_contracts.py",
+    "business_schema_receipt.py",
+    "business_probe.py",
+    "native_business_probe.py",
+    "business_browser.py",
+    "native_checks.py",
     "catalog.py",
     "errors.py",
     "filesystem.py",
     "tools.py",
     "native_environment.py",
+    "yudao_navigation.py",
+    "yudao_navigation_checks.py",
     "native_frontend.py",
     "native_vben.py",
     "portable_checks.py",
+    "native_business_checks.py",
 )
+
+DIAGNOSTIC_LOGS = (
+    "backend-runtime.log",
+    "backend-build.log",
+    "frontend-runtime.log",
+    "frontend-build.log",
+    "frontend-typecheck.log",
+    "frontend-install.log",
+)
+DIAGNOSTIC_LOG_BYTES = 65536
+DIAGNOSTIC_TOTAL_BYTES = 262144
+DIAGNOSTIC_READ_BYTES = 262144
+# JSON control-character escaping can expand text by six. Keep a hard serialized
+# ceiling as well as the shared raw-text budget, including all lifecycle metadata.
+DIAGNOSTIC_RECEIPT_BYTES = 2_000_000
+
+
+def _diagnostic_redact(text, url):
+    """The child receives no model credentials; exclude its explicit DB secret too."""
+    password = checked_database(url).password or ""
+    secrets = {url, password, quote(password, safe=""), quote_plus(password)} - {""}
+    for secret in sorted(secrets, key=len, reverse=True):
+        text = text.replace(secret, "[REDACTED]")
+    text = re.sub(r"(?i)((?:bearer|basic)\s+)[^\s\"']+", r"\1[REDACTED]", text)
+    text = re.sub(
+        r"(?i)(?<![\w.-])((?:[\"']?)[\w.-]{0,80}(?:password|api[_-]?key|auth[_-]?token|access[_-]?token|token|authorization|secret)(?:[\"']?)\s*[=:]\s*)(?:\"[^\"]*\"|'[^']*'|[^\s,;]+)",
+        r"\1[REDACTED]",
+        text,
+    )
+    return re.sub(r"(://[^/@:\s]+:)[^@\s]+@", r"\1[REDACTED]@", text)
+
+
+def _diagnostic_lifecycle(value):
+    """Select scalar process facts, never arbitrary messages, paths or environment."""
+    if not isinstance(value, dict):
+        return {}
+    result = {}
+    for name in (
+        "port",
+        "pid",
+        "startup_attempt",
+        "runtime_log_start_bytes",
+        "returncode",
+        "returncode_before_cleanup",
+    ):
+        if name in value and (
+            type(value[name]) is int or name.startswith("returncode") and value[name] is None
+        ):
+            result[name] = value[name]
+    for name in ("owned_process_group", "started", "port_released"):
+        if type(value.get(name)) is bool:
+            result[name] = value[name]
+    phases = {"backend-readiness", "backend-running", "backend-cleanup"}
+    if value.get("phase") in phases:
+        result["phase"] = value["phase"]
+    for name in ("failure", "cleanup_failure"):
+        row = value.get(name)
+        if isinstance(row, dict):
+            selected = {}
+            if row.get("phase") in phases:
+                selected["phase"] = row["phase"]
+            if row.get("type") in {
+                "RuntimeError",
+                "TimeoutError",
+                "OSError",
+                "ValueError",
+                "KeyboardInterrupt",
+                "SystemExit",
+                "LookupError",
+                "PermissionError",
+                "ProcessLookupError",
+                "FileNotFoundError",
+            }:
+                selected["type"] = row["type"]
+            result[name] = selected
+    for name in ("port_state", "port_state_before_cleanup", "port_state_after_cleanup"):
+        row = value.get(name)
+        if not isinstance(row, dict):
+            continue
+        selected = {
+            key: row[key]
+            for key in ("observable", "listening", "owned_listener")
+            if type(row.get(key)) is bool
+        }
+        for key in ("owned_listener_pids", "owned_group_pids", "owned_socket_pids"):
+            if isinstance(row.get(key), list):
+                selected[key] = [pid for pid in row[key][:64] if type(pid) is int and pid > 0]
+        counts = row.get("local_port_state_counts")
+        if isinstance(counts, dict):
+            selected["local_port_state_counts"] = {
+                state: count
+                for state, count in counts.items()
+                if re.fullmatch(r"[0-9A-F]{2}", state) and type(count) is int and count >= 0
+            }
+        result[name] = selected
+    return result
+
+
+def capture_native_delivery_failure(product, reports, url, error=None):
+    """Preserve bounded selected evidence before the owned temporary copy is deleted.
+
+    Never copy the runtime directory, services credentials, generated user rows,
+    arbitrary files, symlinks or junctions. This receipt cannot grant acceptance.
+    """
+    result = {
+        "scope": "independent-native-delivery",
+        "affects_acceptance": False,
+        "failure_phase": "standalone-launcher",
+        "logs": {},
+    }
+    if error is not None:
+        result["launcher_failure"] = {"type": type(error).__name__[:64]}
+        for name in ("returncode", "timed_out"):
+            value = getattr(error, name, None)
+            if type(value) in {int, bool}:
+                result["launcher_failure"][name] = value
+
+    def selected_path(name):
+        path = inside(product, ".deployment/reports/" + name)
+        if not stat.S_ISREG(path.stat().st_mode):
+            raise ValueError("Diagnostic must be a regular file")
+        return path
+
+    try:
+        path = selected_path("backend-lifecycle.json")
+        with path.open("rb") as stream:
+            raw = stream.read(16385)
+        if len(raw) > 16384:
+            result["lifecycle_status"] = "oversized"
+        else:
+            result["backend"] = _diagnostic_lifecycle(json.loads(raw))
+            result["lifecycle_status"] = "captured"
+            result["failure_phase"] = (
+                result["backend"].get("failure", {}).get("phase", "standalone-launcher")
+            )
+            if "cleanup_failure" in result["backend"] and "failure" not in result["backend"]:
+                result["failure_phase"] = "backend-cleanup"
+    except OSError, ValueError, TypeError:
+        result["lifecycle_status"] = "unavailable"
+    remaining = DIAGNOSTIC_TOTAL_BYTES
+    for name in DIAGNOSTIC_LOGS:
+        if remaining <= 0:
+            result["logs"][name] = {"status": "budget-exhausted"}
+            continue
+        try:
+            path = selected_path(name)
+            with path.open("rb") as stream:
+                size = stream.seek(0, os.SEEK_END)
+                start = max(0, size - DIAGNOSTIC_READ_BYTES)
+                stream.seek(start)
+                raw = stream.read(DIAGNOSTIC_READ_BYTES)
+            # Discard a partial first line: a credential may straddle this read
+            # boundary. Redact the complete bounded text before output clipping.
+            if start:
+                _, separator, raw = raw.partition(b"\n")
+                if not separator:
+                    raw = b""
+            redacted = _diagnostic_redact(raw.decode("utf-8", errors="replace"), url).encode(
+                "utf-8"
+            )
+            limit = min(DIAGNOSTIC_LOG_BYTES, remaining)
+            text = redacted[-limit:].decode("utf-8", errors="ignore")
+            remaining -= len(text.encode("utf-8"))
+            result["logs"][name] = {
+                "status": "captured",
+                "source_bytes": size,
+                "truncated": bool(start or len(redacted) > limit),
+                "text": text,
+            }
+        except OSError, ValueError:
+            result["logs"][name] = {"status": "unavailable"}
+    body = json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    if len(body.encode("utf-8")) > DIAGNOSTIC_RECEIPT_BYTES:
+        result["logs"] = {
+            name: {"status": "serialization-budget-exhausted"} for name in DIAGNOSTIC_LOGS
+        }
+        body = json.dumps(result, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    atomic_text(Path(reports) / "portable-failure-diagnostics.json", body)
+    return result
 
 
 def connection_url(url):
@@ -92,6 +285,13 @@ def build_native_delivery(template, product, reports, plan, targets, url):
     for name in ("pyproject.toml", "uv.lock", ".python-version", "services.yaml", "run.py"):
         shutil.copyfile(source / name, deployment / name)
     shutil.copyfile(source / "entry.py", product / "start.py")
+    if plan.business:
+        script = (
+            "business_fastapi_browser.cjs"
+            if template == "fastapiadmin"
+            else "business_yudao_browser.cjs"
+        )
+        shutil.copyfile(ROOT / "scripts" / script, deployment / "business-browser.cjs")
     helper_root = deployment / "workbench"
     helper_root.mkdir(exist_ok=True)
     for name in HELPERS:
@@ -100,6 +300,23 @@ def build_native_delivery(template, product, reports, plan, targets, url):
     sql_dir.mkdir(exist_ok=True)
     shutil.copyfile(reports / "business-schema.sql", sql_dir / "002-business.sql")
     shutil.copyfile(reports / "menu-seed.sql", sql_dir / "003-menus.sql")
+    if plan.business:
+        for source_name, target_name in (
+            ("business-extension-schema.sql", "004-business-extension.sql"),
+            ("business-role-seed.sql", "005-business-roles.sql"),
+        ):
+            source_file = reports / source_name
+            if source_file.is_file():
+                shutil.copyfile(source_file, sql_dir / target_name)
+    extension_tables = []
+    if plan.business:
+        if template == "fastapiadmin":
+            adapter = json.loads((reports / "business-extension.json").read_text(encoding="utf-8"))
+            extension_tables = [adapter["namespace"] + "_events"]
+        else:
+            adapter = json.loads((reports / "business-yudao.json").read_text(encoding="utf-8"))
+            extension_tables = list(adapter["extension_tables"])
+    schema_contract = {}
     metadata = create_engine(url)
     try:
         with metadata.connect() as c:
@@ -110,6 +327,14 @@ def build_native_delivery(template, product, reports, plan, targets, url):
                 ]
                 for target in targets
             }
+            if plan.business:
+                from workbench.business_schema_receipt import table_signature
+
+                schema_contract = {
+                    name: table_signature(c, name) for name in [*tables, *extension_tables]
+                }
+                if any(value is None for value in schema_contract.values()):
+                    raise ValueError("Missing installed business extension table")
     finally:
         metadata.dispose()
     sql_files = {"database/" + p.name: sha(p) for p in sorted(sql_dir.iterdir())}
@@ -120,6 +345,8 @@ def build_native_delivery(template, product, reports, plan, targets, url):
         "plan": plan.model_dump(),
         "targets": targets,
         "tables": tables,
+        "business_schema": schema_contract,
+        "extension_tables": extension_tables,
         "sql_files": sql_files,
         "sql_digest": digest(sql_files),
         "bootstrap": "native-seed-then-business-schema-and-menus",
@@ -138,17 +365,18 @@ def build_native_delivery(template, product, reports, plan, targets, url):
     }
 
 
-def verify_native_delivery(product, url, reports, redis_port=6379):
-    """Copy only distributable files; run the delivered startup against a DIFFERENT empty DB."""
-    import os
+def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
+    """Restore the distributable ZIP; run startup against a DIFFERENT empty DB."""
     import sys
     import tempfile
     import uuid
 
-    from workbench.filesystem import files
+    from workbench.filesystem import manifest, pack_source, unpack
     from workbench.tools import run_command
 
     name = "restore_" + uuid.uuid4().hex[:16] + "_codegen"
+    if template not in {"fastapiadmin", "yudao-vben"}:
+        raise ValueError("原生交付模板未知")
     parsed = checked_database(url)
     created = False
     try:
@@ -157,11 +385,12 @@ def verify_native_delivery(product, url, reports, redis_port=6379):
             created = True
         with tempfile.TemporaryDirectory(prefix="rnd-independent-native-") as directory:
             copy = Path(directory) / "product"
-            copy.mkdir()
-            for relative, source in files(product):
-                target = copy / relative
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(source, target)
+            archive = Path(directory) / "delivery.zip"
+            listing = manifest(product)
+            packaged = pack_source(product, archive, template=template)
+            restored = unpack(archive, copy, template=template)
+            if restored != packaged or manifest(copy) != listing:
+                raise ValueError("原生交付ZIP与已验证源码不一致")
             clean_url = parsed.set(database=name).render_as_string(hide_password=False)
             try:
                 command = run_command(
@@ -174,27 +403,53 @@ def verify_native_delivery(product, url, reports, redis_port=6379):
                         "NATIVE_DELIVERY_REDIS_DB": "8",
                         "UV_PYTHON": sys.executable,
                         "JAVA_HOME": os.environ.get("JAVA_HOME", ""),
+                        "PRODUCT_VERIFY_PLAYWRIGHT": os.environ.get(
+                            "PRODUCT_VERIFY_PLAYWRIGHT",
+                            str(ROOT / ".native/browser/node_modules/playwright"),
+                        ),
+                        "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
                     },
                     heartbeat="independent-native-start",
                 )
+                atomic_text(Path(reports) / "portable-start.log", command["log"])
+                result = json.loads(
+                    (copy / ".deployment/reports/portable-start.json").read_text(encoding="utf-8")
+                )
+                if (
+                    result.get("passed") is not True
+                    or result.get("frontend_started") is not True
+                    or result.get("restart") is not True
+                    or result.get("business")
+                    and result.get("restart_preserved_records") is not True
+                ):
+                    raise ValueError("独立交付包未完成新库/菜单/CRUD/前端启动与重启保留数据验收")
+                result.update(
+                    fresh_database=True,
+                    standalone_launcher=True,
+                    installed_from_lock=True,
+                    original_platform_imported=False,
+                    source_database_reused=False,
+                    archive_round_trip=True,
+                    archive=restored,
+                )
+                write_json(Path(reports) / "portable-start.json", result)
+                return result
             except Exception as exc:
-                atomic_text(Path(reports) / "portable-start.log", getattr(exc, "log", str(exc)))
+                if hasattr(exc, "log"):
+                    try:
+                        atomic_text(
+                            Path(reports) / "portable-start.log",
+                            _diagnostic_redact(exc.log, clean_url),
+                        )
+                    except Exception:
+                        exc.add_note("Could not retain the standalone launcher console log")
+                try:
+                    capture_native_delivery_failure(copy, reports, clean_url, exc)
+                except Exception:
+                    # Diagnostic I/O must not replace the startup/acceptance error
+                    # or prevent owned temporary directory/database cleanup.
+                    exc.add_note("Could not retain the standalone launcher failure diagnostics")
                 raise
-            atomic_text(Path(reports) / "portable-start.log", command["log"])
-            result = json.loads(
-                (copy / ".deployment/reports/portable-start.json").read_text(encoding="utf-8")
-            )
-            if result.get("passed") is not True or result.get("frontend_started") is not True:
-                raise ValueError("独立交付包未完成新库/菜单/CRUD/前端启动验收")
-            result.update(
-                fresh_database=True,
-                standalone_launcher=True,
-                installed_from_lock=True,
-                original_platform_imported=False,
-                source_database_reused=False,
-            )
-            write_json(Path(reports) / "portable-start.json", result)
-            return result
     finally:
         if created:
             with psycopg.connect(connection_url(url), autocommit=True) as c:

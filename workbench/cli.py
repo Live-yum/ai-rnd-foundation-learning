@@ -13,10 +13,12 @@ from workbench.catalog import Selection, selections
 from workbench.conversation import command_word
 from workbench.settings import ROOT, STAGES, Settings
 from workbench.store import Store
+from workbench.toolchain import app as tools_app
 
 app = typer.Typer(no_args_is_help=True, help="本地 AI 研发平台（Python 3.14）")
 native_app = typer.Typer(no_args_is_help=True)
 app.add_typer(native_app, name="native")
+app.add_typer(tools_app, name="tools")
 
 
 def echo(value):
@@ -188,6 +190,9 @@ def chat(
                 typer.echo(
                     "PostgreSQL产品需要Docker或已配置的独立开发数据库；平台控制库仍可用SQLite。"
                 )
+            typer.echo(
+                "标准案例为内部客户服务管理平台；完整原始需求、默认决策和命名约定见 examples/requirements/customer-service*.md。"
+            )
             title = typer.prompt("项目名称")
             requirement = typer.prompt("你希望做什么系统")
             project = api_call(c, "POST", "/projects", {"title": title})
@@ -221,17 +226,42 @@ def chat(
                     if state["status"] == "SOURCE_READY":
                         typer.echo("这是原生源码导出，不是已通过完整运行验收的产品。")
                     break
+                gate = state.get("pending")
                 if state["status"] in {"FAILED", "REJECTED", "BLOCKED", "PAUSED_LIMIT"}:
                     typer.echo(state.get("error") or "操作已拒绝")
-                    break
-                gate = state.get("pending")
+                    if state["status"] != "BLOCKED" or not gate:
+                        if state["status"] != "REJECTED":
+                            typer.echo(f"修复原因后重试：uv run rnd retry {run}")
+                        break
+                    typer.echo(
+                        "运行与回答已保存。下面可查看具体阻塞并继续操作，不会自动重试或新建项目。"
+                    )
                 if not gate:
                     time.sleep(0.5)
                     continue
                 echo(gate["data"])
                 typer.echo("当前阶段：" + gate["stage"])
-                text = typer.prompt("答复 / 批准 / 拒绝 / 智能推荐")
+                prompt = "答复 / 批准 / 拒绝 / 智能推荐 / 手动 / 退出"
+                if state["status"] == "BLOCKED":
+                    prompt += " / 重试"
+                text = typer.prompt(prompt)
                 word = command_word(text)
+                if word in {"退出", "quit", "exit"}:
+                    typer.echo(f"已保留运行：{run}")
+                    break
+                if word in {"手动", "manual"}:
+                    api_call(
+                        c, "POST", f"/runs/{run}/automation", {"enabled": False, "accepted": False}
+                    )
+                    continue
+                if word in {"重试", "retry"}:
+                    if state["status"] == "BLOCKED":
+                        api_call(c, "POST", f"/runs/{run}/retry")
+                    else:
+                        typer.echo(
+                            "当前为等待确认阶段，请答复或选择智能推荐；控制指令不会发送给模型。"
+                        )
+                    continue
                 if word in {"智能推荐", "推荐", "smart", "recommend"}:
                     api_call(
                         c, "POST", f"/runs/{run}/automation", {"enabled": True, "accepted": True}
@@ -318,7 +348,7 @@ def index(source: Path, output: Path):
 
 @native_app.command("prepare")
 def native_prepare(template: str):
-    """克隆白名单中的固定开源提交，建立原生模板源码知识包。"""
+    """校验并展开仓库内固定源码归档，建立原生模板源码知识包；不在线克隆。"""
     from workbench.native import prepare_sources
 
     echo(prepare_sources(Settings(), template))

@@ -18,18 +18,37 @@ def generate_basic(plan: Plan, destination: Path, selection=None):
     from workbench.catalog import Selection
 
     selection = Selection.model_validate(selection or {"template": "python-basic"}).model_dump()
-    if plan.data_scope != "per_user" or plan.unsupported:
+    if (plan.business is None and plan.data_scope != "per_user") or plan.unsupported:
         raise PrerequisiteError("免服务模板仅支持逐用户 CRUD；不允许静默替换共享数据或未支持项")
+    destination = Path(destination)
+    if destination.is_symlink() or (
+        hasattr(destination, "is_junction") and destination.is_junction()
+    ):
+        raise PrerequisiteError("生成目录不能是符号链接或 junction；原路径未修改")
     if destination.exists():
+        error = (
+            "现有产品目录缺少有效且匹配的生成回执；已保留源码、用户文件和.data数据库。"
+            "请恢复此运行原有的generation.json及批准设计，或使用新的空目录生成；"
+            "不自动删除、覆盖或迁移现有产品数据"
+        )
         receipt = destination.parent / "generation.json"
-        if receipt.exists():
+        if not destination.is_dir() or receipt.is_symlink() or not receipt.is_file():
+            raise PrerequisiteError(error)
+        try:
             previous = json.loads(receipt.read_text(encoding="utf-8"))
-            if (
-                previous["spec_digest"] == digest(plan.model_dump())
-                and previous.get("selection") == selection
-            ):
-                return previous
-        shutil.rmtree(destination)
+        except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+            raise PrerequisiteError(error) from exc
+        if (
+            not isinstance(previous, dict)
+            or previous.get("spec_digest") != digest(plan.model_dump())
+            or previous.get("selection") != selection
+            or not isinstance(previous.get("files"), dict)
+            or not previous["files"]
+        ):
+            raise PrerequisiteError(error)
+        # Idempotence never authorizes resetting an existing product. Runtime
+        # verification separately binds its source hashes before any delivery.
+        return previous
     destination.mkdir(parents=True)
     for name, source in files(ROOT / "templates" / "product"):
         target = destination / name
@@ -88,9 +107,14 @@ def downgrade():
 '''.replace("SPEC_LITERAL", repr(json.dumps(plan.model_dump(), ensure_ascii=False)))
     ast.parse(text)
     atomic_text(destination / "migrations/versions/0001_initial.py", text)
-    from workbench.product_sql import render
+    if plan.business is not None:
+        from workbench.business_python import prepare_product
 
-    render(plan, destination)
+        prepare_product(plan, destination)
+    else:
+        from workbench.product_sql import render
+
+        render(plan, destination)
     receipt = {
         "generator": "reviewed-python-basic-v2",
         "spec_digest": digest(plan.model_dump()),

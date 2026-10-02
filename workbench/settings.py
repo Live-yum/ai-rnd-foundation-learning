@@ -7,9 +7,13 @@ from urllib.parse import urlsplit
 from pydantic import AliasChoices, BaseModel, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from workbench.local_only import local_database_url, local_http_url
+
 ROOT = Path(__file__).resolve().parent.parent
 Stage = Literal["requirements", "planning", "coding", "review"]
 STAGES = ("requirements", "planning", "coding", "review")
+Provider = Literal["auto", "openai", "deepseek", "compatible"]
+OutputMode = Literal["auto", "json_object"]
 
 
 class ModelProfile(BaseModel):
@@ -17,6 +21,9 @@ class ModelProfile(BaseModel):
     base_url: str
     model: str
     api_key: SecretStr
+    provider: Provider = "auto"
+    output_mode: OutputMode = "auto"
+    max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
 
     def validate_endpoint(self):
         url = urlsplit(self.base_url)
@@ -43,6 +50,9 @@ class ModelProfile(BaseModel):
             "base_url": self.base_url,
             "model": self.model,
             "api_key": "configured" if self.api_key.get_secret_value() else "missing",
+            "provider": self.provider,
+            "output_mode": self.output_mode,
+            "max_output_tokens": self.max_output_tokens,
         }
 
 
@@ -51,6 +61,21 @@ class Settings(BaseSettings):
     base_url: str = ""
     api_key: SecretStr = SecretStr("")
     model: str = Field(default="", validation_alias=AliasChoices("MODE", "MODEL", "model"))
+    provider: Provider = "auto"
+    output_mode: OutputMode = "auto"
+    max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
+    requirements_provider: Provider | None = None
+    requirements_output_mode: OutputMode | None = None
+    requirements_max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
+    planning_provider: Provider | None = None
+    planning_output_mode: OutputMode | None = None
+    planning_max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
+    coding_provider: Provider | None = None
+    coding_output_mode: OutputMode | None = None
+    coding_max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
+    review_provider: Provider | None = None
+    review_output_mode: OutputMode | None = None
+    review_max_output_tokens: int | None = Field(default=None, ge=1, le=393216)
     requirements_base_url: str = ""
     requirements_api_key: SecretStr = SecretStr("")
     requirements_model: str = Field(
@@ -88,9 +113,40 @@ class Settings(BaseSettings):
     enable_coding: bool = True
     max_repair_attempts: int = Field(default=2, ge=0, le=2)
     tool_timeout: int = Field(default=180, ge=10, le=900)
+    coding_engine: Literal["bounded", "aider"] = "bounded"
+    aider_executable: str = ""
+    repo_map_provider: Literal["symbols", "aider"] = "symbols"
+    retrieval_engine: Literal["local", "continue"] = "local"
+    repo_map_chars: int = Field(default=12000, ge=1000, le=40000)
+    embedding_base_url: str = "http://127.0.0.1:11434/v1"
+    embedding_api_key: SecretStr = SecretStr("local-no-auth")
+    embedding_model: str = Field(
+        default="", validation_alias=AliasChoices("EMBEDDING_MODE", "embedding_model")
+    )
+    embedding_enabled: bool = False
+    embedding_max_chunks: int = Field(default=500, ge=1, le=40000)
+    sandbox_provider: Literal["local", "daytona"] = "local"
+    daytona_api_url: str = "http://127.0.0.1:3000/api"
+    daytona_api_key: SecretStr = SecretStr("")
+    daytona_target: str = "local"
+    daytona_snapshot: str = ""
+    daytona_snapshots: dict[str, str] = Field(default_factory=dict)
+    daytona_runtime_timeout: int = Field(default=3600, ge=60, le=7200)
+    daytona_allow_local_execution: bool = False
+    daytona_capture_startup_diagnostics: bool = False
     checkpoint_url: str = ""
     host: str = "127.0.0.1"
     port: int = Field(default=8000, ge=1024, le=65535)
+
+    @field_validator("daytona_api_url", "embedding_base_url")
+    @classmethod
+    def only_local_tools(cls, value: str) -> str:
+        return local_http_url(value)
+
+    @field_validator("database_url", "checkpoint_url")
+    @classmethod
+    def only_local_databases(cls, value: str) -> str:
+        return local_database_url(value)
 
     @field_validator("data_dir", mode="after")
     @classmethod
@@ -99,7 +155,10 @@ class Settings(BaseSettings):
 
     @property
     def db_url(self) -> str:
-        return self.database_url or f"sqlite:///{(self.data_dir / 'workbench.db').as_posix()}"
+        return (
+            local_database_url(self.database_url)
+            or f"sqlite:///{(self.data_dir / 'workbench.db').as_posix()}"
+        )
 
     def prepare(self) -> None:
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -122,6 +181,17 @@ class Settings(BaseSettings):
             base_url=endpoint.rstrip("/"),
             model=getattr(self, stage + "_model") or self.model,
             api_key=key,
+            # An endpoint change must not inherit the previous provider's wire protocol.
+            provider=getattr(self, stage + "_provider")
+            or (self.provider if endpoint.rstrip("/") == self.base_url.rstrip("/") else "auto"),
+            output_mode=getattr(self, stage + "_output_mode")
+            or (self.output_mode if endpoint.rstrip("/") == self.base_url.rstrip("/") else "auto"),
+            max_output_tokens=getattr(self, stage + "_max_output_tokens")
+            or (
+                self.max_output_tokens
+                if endpoint.rstrip("/") == self.base_url.rstrip("/")
+                else None
+            ),
         )
 
     def require_model(self) -> None:
@@ -140,7 +210,13 @@ class Settings(BaseSettings):
         )
 
     def redact(self, text: str) -> str:
-        for field in ("api_key", "product_postgres_url", *(stage + "_api_key" for stage in STAGES)):
+        for field in (
+            "api_key",
+            "product_postgres_url",
+            "embedding_api_key",
+            "daytona_api_key",
+            *(stage + "_api_key" for stage in STAGES),
+        ):
             secret = getattr(self, field).get_secret_value()
             if secret:
                 text = text.replace(secret, "[redacted]")

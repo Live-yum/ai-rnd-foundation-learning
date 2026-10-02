@@ -1,6 +1,7 @@
 """Independent HTTP checks for the ACTUAL generated modules and native RBAC APIs."""
 
 import time
+import uuid
 
 import httpx
 
@@ -23,7 +24,14 @@ def wire_name(template, name):
     return first + "".join(piece[:1].upper() + piece[1:] for piece in rest)
 
 
-def sample_record(entity, suffix="original", template="fastapiadmin"):
+def sample_record(entity, suffix="original", template="fastapiadmin", plan=None):
+    if plan is not None:
+        from workbench.native_business_checks import wire
+
+        rule = next((r for r in plan.custom_rules if r.entity == entity.name), None)
+        if rule:
+            index = -1 if suffix == "updated" else 0
+            return wire(template, rule.accept_examples[index])
     return {
         wire_name(template, f.name): (
             f"{entity.name}-{suffix}"[: f.max_length]
@@ -56,7 +64,7 @@ def generated_crud(template, base_url, token, targets, plan):
             listing = target["list"]
             denied(client.get(listing))
             denied(client.get(listing, headers={"Authorization": "Bearer test1"}))
-            data = sample_record(entity, template=template)
+            data = sample_record(entity, template=template, plan=plan)
             created = payload(client.post(target["api"] + "/create", json=data, headers=admin))
             identifier = record_id(created)
             assert type(identifier) is int and identifier > 0
@@ -73,7 +81,7 @@ def generated_crud(template, base_url, token, targets, plan):
             saved = get_item()
             for key, value in data.items():
                 assert saved[key] == value, f"Create/read mismatch for {key}"
-            changed = sample_record(entity, "updated", template)
+            changed = sample_record(entity, "updated", template, plan)
             if fastapi:
                 payload(
                     client.put(target["api"] + f"/update/{identifier}", json=changed, headers=admin)
@@ -114,7 +122,7 @@ def generated_crud(template, base_url, token, targets, plan):
             assert not any(row["id"] == identifier for row in rows), (
                 "Delete did not remove business item"
             )
-            sample = sample_record(entity, "persistent", template)
+            sample = sample_record(entity, "persistent", template, plan)
             persistent = record_id(
                 payload(client.post(target["api"] + "/create", json=sample, headers=admin))
             )
@@ -174,12 +182,15 @@ def generated_permissions(template, base_url, token, targets, plan):
             read_ids.update(read_menu_ids(rows, target["permission"] + ":query"))
             for operation in ("query", "create", "update", "delete"):
                 full_ids.update(read_menu_ids(rows, target["permission"] + ":" + operation))
-        role = {"name": "Generated module reader", "code": "generated_reader", "status": 0}
+        # A retry never adopts, deletes or changes an unrelated existing account.
+        # Each disposable acceptance attempt owns a new bounded identifier.
+        attempt_id = uuid.uuid4().hex[:12]
+        role = {"name": "RND reader " + attempt_id, "code": "rnd_" + attempt_id, "status": 0}
         role.update({"order": 1, "data_scope": 3} if fastapi else {"sort": 1})
         role_id = record_id(
             payload(client.post(prefix + "/system/role/create", json=role, headers=admin))
         )
-        username, password = "generatedreader", "NativeTest123!"
+        username, password = "rnd" + attempt_id, "NativeTest123!"
         user = {"username": username, "password": password}
         user.update(
             {"name": "Generated reader", "is_superuser": False, "role_ids": [role_id], "status": 0}
@@ -250,7 +261,7 @@ def generated_permissions(template, base_url, token, targets, plan):
             denied(
                 client.post(
                     target["api"] + "/create",
-                    json=sample_record(entity, template=template),
+                    json=sample_record(entity, template=template, plan=plan),
                     headers=reader,
                 )
             )
@@ -272,7 +283,7 @@ def generated_permissions(template, base_url, token, targets, plan):
             payload(
                 client.post(
                     target["api"] + "/create",
-                    json=sample_record(entity, "writer", template),
+                    json=sample_record(entity, "writer", template, plan),
                     headers=writer,
                 )
             )
@@ -285,6 +296,9 @@ def generated_permissions(template, base_url, token, targets, plan):
             denied(client.get(target["list"], headers=revoked))
         assert not payload(client.get(info, headers=revoked)).get("menus")
     return {
+        "owned_user_id": user_id,
+        "owned_role_id": role_id,
+        "attempt_id": attempt_id,
         "empty_role_denied": True,
         "read_grant_allowed": True,
         "generated_pages_visible": True,

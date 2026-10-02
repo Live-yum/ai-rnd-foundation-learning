@@ -19,8 +19,25 @@ from workbench.native import (
 def zip_bytes():
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w") as archive:
-        archive.writestr("sample.py", "value = 1\n")
+        # The protocol test compares raw export bytes, not just extracted text.
+        # Explicit metadata avoids flaky failures across ZIP two-second clock ticks.
+        archive.writestr(
+            zipfile.ZipInfo("sample.py", date_time=(1980, 1, 1, 0, 0, 0)), "value = 1\n"
+        )
     return buffer.getvalue()
+
+
+def test_native_zip_fixture_does_not_read_wall_clock(monkeypatch):
+    def forbidden_clock(*args):
+        raise AssertionError("ZIP protocol fixtures must have deterministic metadata")
+
+    monkeypatch.setattr(zipfile.time, "localtime", forbidden_clock)
+    first = zip_bytes()
+    assert first == zip_bytes()
+    with zipfile.ZipFile(io.BytesIO(first)) as archive:
+        assert archive.namelist() == ["sample.py"]
+        assert archive.getinfo("sample.py").date_time == (1980, 1, 1, 0, 0, 0)
+        assert archive.read("sample.py") == b"value = 1\n"
 
 
 @pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])

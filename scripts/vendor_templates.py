@@ -154,6 +154,9 @@ def main():
                     check=True,
                 )
                 subprocess.run(
+                    ["git", "-C", str(dest), "config", "core.autocrlf", "false"], check=True
+                )
+                subprocess.run(
                     ["git", "-C", str(dest), "checkout", "--detach", "FETCH_HEAD"], check=True
                 )
                 actual = subprocess.check_output(

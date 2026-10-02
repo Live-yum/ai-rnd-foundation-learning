@@ -3,6 +3,31 @@ const fs = require('node:fs');
 const path = require('node:path');
 const assert = require('node:assert/strict');
 
+function nativeComponentSelectors(fastapi) {
+  return {
+    button: fastapi ? '.el-button:visible' : '.ant-btn:visible',
+    form: fastapi ? '.el-input:visible, .el-switch:visible' : '.ant-input:visible, .ant-input-number:visible, .ant-radio:visible',
+  };
+}
+
+async function submitNativeLogin(page, base, fastapi, observe, checked) {
+  const loginResponse = observe('/system/auth/login', 'POST');
+  const infoResponse = observe(fastapi ? '/system/user/current/info' : '/system/auth/get-permission-info');
+  await page.getByRole('button', { name: /^登\s*录$|^sign in$|^login$/i }).first().click();
+  await checked(loginResponse);
+  const info = await checked(infoResponse);
+  assert(Array.isArray(info.menus) && info.menus.length, 'No native menus');
+  const origin = new URL(base).origin;
+  // A native SPA shell can be authenticated while a dashboard image still
+  // delays window.load. Authentication, permissions, same-origin route and
+  // actual shell visibility are mandatory; the real target list is checked next.
+  await page.waitForURL(url => url.origin === origin && url.hash.startsWith('#/')
+    && !/^#\/(?:auth|login)(?:[/?]|$)/.test(url.hash), { waitUntil: 'domcontentloaded' });
+  const shell = fastapi ? ['#app-sidebar', '#app-header', '#app-content'] : ['aside:visible', 'header:visible', '#__vben_main_content'];
+  for (const selector of shell) await page.locator(selector).first().waitFor({ state: 'visible' });
+  return info;
+}
+
 async function main() {
   const [template, base, reportDir, playwrightPath, moduleFile] = process.argv.slice(2);
   assert(['fastapiadmin', 'yudao-vben'].includes(template));
@@ -15,9 +40,12 @@ async function main() {
   fs.mkdirSync(reportDir, { recursive: true });
   const errors = [];
   const responses = [];
+  const requests = [];
+  page.on('request', request => requests.push({ url: new URL(request.url()).pathname, method: request.method() }));
   page.on('pageerror', error => errors.push(error.message));
   page.on('response', response => responses.push({ url: new URL(response.url()).pathname, status: response.status(), method: response.request().method() }));
   const fastapi = template === 'fastapiadmin';
+  const components = nativeComponentSelectors(fastapi);
   const report = { template, scope: moduleFile ? 'generated-native-frontend' : 'original-upstream-frontend', passed: false };
   const observe = (part, method = 'GET') => page.waitForResponse(r => r.url().includes(part) && r.request().method() === method).then(r => ({ response: r }), error => ({ error }));
   const checked = async promise => {
@@ -30,8 +58,20 @@ async function main() {
   };
   try {
     const captcha = fastapi ? observe('/system/auth/captcha/get') : null;
+    const tenants = fastapi ? null : observe('/system/tenant/simple-list');
     await page.goto(base + (fastapi ? '/#/login' : '/#/auth/login'), { waitUntil: 'domcontentloaded' });
     if (captcha) await checked(captcha);
+    if (tenants) {
+      const available = await checked(tenants);
+      assert(Array.isArray(available) && available.length, 'No selectable native tenant');
+      const tenant = available.find(item => item.id === 1);
+      assert(tenant, 'The seeded native tenant 1 is unavailable');
+      // The asynchronous default label is not proof of a validated form value.
+      // Select the actual tenant via the UI before submitting, never inject tokens.
+      await page.getByRole('combobox').first().click();
+      await page.getByRole('option', { name: tenant.name, exact: true }).click();
+      report.tenant_selected = tenant.id;
+    }
     await page.getByPlaceholder(/用户名|账号|username/i).first().fill(fastapi ? 'super' : 'admin');
     await page.locator('input[type="password"]').first().fill(fastapi ? '123456' : 'admin123');
     if (fastapi) {
@@ -57,13 +97,7 @@ async function main() {
       await page.mouse.up();
       await checked(slider);
     }
-    const loginResponse = observe('/system/auth/login', 'POST');
-    const infoResponse = observe(fastapi ? '/system/user/current/info' : '/system/auth/get-permission-info');
-    await page.getByRole('button', { name: /^登\s*录$|^sign in$|^login$/i }).first().click();
-    await checked(loginResponse);
-    const info = await checked(infoResponse);
-    await page.waitForURL(url => !url.hash.includes('login'));
-    assert(info.menus && info.menus.length, 'No native menus');
+    await submitNativeLogin(page, base, fastapi, observe, checked);
     // Dismiss the native first-login product tour through its visible UI.
     const skipTour = page.getByRole('button', { name: '跳过', exact: true });
     if (fastapi && await skipTour.isVisible()) await skipTour.click();
@@ -75,29 +109,64 @@ async function main() {
       await checked(listing);
       await page.locator(fastapi ? '.el-table' : '.vxe-table').first().waitFor({ state: 'visible' });
       if (target.sample) await page.getByText(target.sample, { exact: true }).first().waitFor({ state: 'visible' });
+      // Verify the selected template's actual rendered shell and component system.
+      // A generic table with matching data is not a native frontend acceptance.
+      const shell = fastapi ? ['#app-sidebar', '#app-header', '#app-content'] : ['aside:visible', 'header:visible', '#__vben_main_content'];
+      for (const selector of shell) await page.locator(selector).first().waitFor({ state: 'visible' });
+      await page.locator(components.button).first().waitFor({ state: 'visible' });
+      assert.equal(await page.locator('#workspace').count(), 0, 'Generic simple-admin cannot replace a native template');
+      const theme = await page.evaluate(fast => {
+        const style = getComputedStyle(document.documentElement);
+        const variables = fast ? ['--el-color-primary', '--el-font-size-base'] : ['--primary', '--background', '--font-family'];
+        return Object.fromEntries(variables.map(name => [name, style.getPropertyValue(name).trim()]));
+      }, fastapi);
+      assert(Object.values(theme).every(Boolean), 'Native theme tokens were not loaded');
+
       await page.screenshot({ path: path.join(reportDir, (target.entity || 'system-user') + '.png'), fullPage: true });
-      const pageResult = { route: target.route, real_list_request: true, rendered: true };
-      if (!fastapi && target.fields) {
+      const pageResult = { route: target.route, real_list_request: true, rendered: true, native_shell_visible: true, native_component_family: fastapi ? 'Fa/Element Plus' : 'Vben/Ant Design/VXE', native_theme_tokens: theme };
+      if (target.fields || target.business_rule) {
         // Submit through the real generated UI; zero/false must not become strings or disappear.
         await page.getByRole('button', { name: /^新增|^创建/ }).first().click();
         const dialog = page.getByRole('dialog').last();
         await dialog.waitFor({ state: 'visible' });
-        const expected = {};
-        let booleanIndex = 0;
-        for (const field of target.fields) {
-          const key = field.name.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
-          if (field.kind === 'boolean') {
-            const radio = dialog.getByRole('radio', { name: '否', exact: true }).nth(booleanIndex++);
-            // Ant Design hides its input; users interact with the enclosing visible label.
-            await radio.locator('xpath=ancestor::label[1]').click();
-            assert(await radio.isChecked(), 'Native boolean option was not selected');
-            expected[key] = false;
-          } else {
-            const value = field.kind === 'integer' ? 0 : (target.entity + '-browser').slice(0, field.max_length);
-            await dialog.getByPlaceholder('请输入' + field.name, { exact: true }).fill(String(value));
+        await dialog.locator(components.form).first().waitFor({ state: 'visible' });
+        await page.screenshot({ path: path.join(reportDir, target.entity + '-native-form.png'), fullPage: true });
+        pageResult.native_form_components_visible = true;
+
+        async function fill(sample) {
+          const expected = {};
+          let booleanIndex = 0;
+          for (const field of target.fields) {
+            const key = fastapi ? field.name : field.name.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+            const value = sample ? sample[key] : (field.kind === 'boolean' ? false : field.kind === 'integer' ? 0 : (target.entity + '-browser').slice(0, field.max_length));
+            if (field.kind === 'boolean') {
+              if (fastapi) {
+                const toggle = dialog.getByRole('switch').nth(booleanIndex++);
+                if ((await toggle.getAttribute('aria-checked') === 'true') !== value) await toggle.click();
+              } else {
+                const radio = dialog.getByRole('radio', { name: value ? '是' : '否', exact: true }).nth(booleanIndex++);
+                await radio.locator('xpath=ancestor::label[1]').click();
+                assert(await radio.isChecked(), 'Native boolean option was not selected');
+              }
+            } else {
+              await dialog.getByPlaceholder('请输入' + field.name, { exact: true }).fill(String(value));
+            }
             expected[key] = value;
           }
+          return expected;
         }
+        if (target.business_rule) {
+          await dialog.getByRole('note').waitFor({ state: 'visible' });
+          pageResult.plop_rule_component_rendered = true;
+          await fill(target.business_rule.reject);
+          const before = requests.filter(r => r.url.endsWith(target.api + '/create') && r.method === 'POST').length;
+          await dialog.getByRole('button', { name: /^确\s*认$|^确\s*定$/ }).click();
+          await page.getByText('RND_BUSINESS_RULE', { exact: true }).first().waitFor({ state: 'visible' });
+          assert.equal(requests.filter(r => r.url.endsWith(target.api + '/create') && r.method === 'POST').length, before, 'Frontend guard must reject before calling the backend');
+          assert(await dialog.isVisible(), 'Rejected business input closed the form');
+          pageResult.business_rule_rejected_before_http = true;
+        }
+        const expected = await fill(target.business_rule?.accept);
         const created = observe(target.api + '/create', 'POST');
         const refreshed = observe(target.list);
         await dialog.getByRole('button', { name: /^确\s*认$|^确\s*定$/ }).click();
@@ -107,7 +176,7 @@ async function main() {
         for (const [key, value] of Object.entries(expected)) assert.equal(sent[key], value, 'Generated form kind: ' + key);
         await checked(Promise.resolve(captured));
         const listed = await checked(refreshed);
-        assert(listed.list.some(row => Object.entries(expected).every(([key, value]) => row[key] === value)), 'Submitted record was not returned by real list API');
+        assert((listed.items || listed.list).some(row => Object.entries(expected).every(([key, value]) => row[key] === value)), 'Submitted record was not returned by real list API');
         await dialog.waitFor({ state: 'hidden' });
         const text = Object.values(expected).find(value => typeof value === 'string');
         if (text) await page.getByText(text, { exact: true }).first().waitFor({ state: 'visible' });
@@ -127,8 +196,11 @@ async function main() {
   } finally {
     report.page_errors = errors;
     report.responses = responses;
+    report.requests = requests;
+    report.final_url = page.url();
     fs.writeFileSync(path.join(reportDir, 'browser.json'), JSON.stringify(report, null, 2));
     await browser.close();
   }
 }
-main().catch(error => { console.error(error.stack); process.exitCode = 1; });
+module.exports = { nativeComponentSelectors, submitNativeLogin };
+if (require.main === module) main().catch(error => { console.error(error.stack); process.exitCode = 1; });

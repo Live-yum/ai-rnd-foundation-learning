@@ -81,11 +81,60 @@ def verified_fixture(tmp_path):
             "source_unmodified",
         )
     }
+    report["portable_restored"] = {
+        "passed": True,
+        "fresh_database": True,
+        "frontend_started": True,
+        "installed_from_lock": True,
+        "standalone_launcher": True,
+        "restart": True,
+        "source_database_reused": False,
+        "original_platform_imported": False,
+        "model_required": False,
+    }
+    # Explicit unit-test evidence; actual UI is exercised by native Actions.
+    from workbench.native_style import PROFILES
+
+    report["template"] = "fastapiadmin"
+    report["entities"] = [entity.name for entity in acceptance_spec().entities]
+    root = product / "frontend/web"
+    protected = {}
+    for prefix in PROFILES["fastapiadmin"]["protected"]:
+        name = prefix + "fixture.vue" if prefix.endswith("/") else prefix
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("explicit-unit-fixture", encoding="utf-8")
+        protected[name] = sha(path)
+    pages = []
+    for entity in report["entities"]:
+        name = f"src/views/module_rnd/{entity}/index.vue"
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("explicit-unit-page-fixture", encoding="utf-8")
+        pages.append(
+            {
+                "path": name,
+                "sha256": sha(path),
+                "native_components": ["FaSearchBar", "FaTable", "FaDialog", "FaForm"],
+            }
+        )
+    report["native_style"] = {
+        "template": "fastapiadmin",
+        "ui_family": PROFILES["fastapiadmin"]["family"],
+        "passed": True,
+        "shell_and_theme_unchanged": True,
+        "generic_frontend_substitution": False,
+        "protected_files": protected,
+        "protected_source_digest": digest(protected),
+        "generated_pages": pages,
+    }
     report["spec_digest"] = digest(acceptance_spec().model_dump())
     target = tmp_path / "native-evidence/acceptance.json"
+    write_json(target.with_name("approved-spec.json"), acceptance_spec().model_dump())
     write_json(target, report)
     receipt = {
         "execution": "managed-runtime",
+        "template": "fastapiadmin",
         "files": manifest(product),
         "spec_digest": report["spec_digest"],
         "evidence_sha256": sha(target),
@@ -122,5 +171,5 @@ def test_native_runtime_package_preserves_validation_level(tmp_path):
     result = managed_package(product, report)
     assert result["runtime_verified"] is True
     assert result["package"] == "native-runtime.zip"
-    assert result["database_delivery"] == "existing-dedicated-lab-database-required"
+    assert result["database_delivery"] == "standalone-fresh-database-bootstrap"
     assert (tmp_path / result["package"]).is_file()

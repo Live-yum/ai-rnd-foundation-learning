@@ -1,21 +1,29 @@
 # AI 研发工作台 · Python 3.14
 
+**标准主线：从空目录实现并生成完整的内部客户服务管理系统。**
+
 从需求到可启动产品的本地工作台：**先选择后端、前端与数据库 → 描述需求 → 人工确认或一键智能推荐 → 原生/确定性生成 → 独立测试 → 可选模型审阅 → 打包下载**。
 
-平台使用 Python、uv、FastAPI、SQLite 和 LangGraph。只有真实模型接口会产生模型费用；基础代码、迁移、索引、测试与打包由工具执行。测试失败不能由模型“宣布通过”。
+平台使用 Python、uv、FastAPI、SQLite 和 LangGraph。**仅聊天大模型允许使用外部推理服务；其余工具均为本机运行。** 基础代码、迁移、索引、测试与打包由工具执行。测试失败不能由模型“宣布通过”。
 
-## 1. 克隆并初始化
+## 1. 初始化完整演示源码
 
-本功能 PR 合并前使用功能分支；合并后可以使用 main。
+安装下方的Git和uv后，在准备存放项目的文件夹打开终端。取得完整演示源码：
 
 ```powershell
-cd D:\Code
-git clone --branch feat/guided-multimodel-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
+git clone https://github.com/Live-yum/ai-rnd-foundation-learning.git
 cd ai-rnd-foundation-learning
+```
+
+也可以使用GitHub的Code菜单下载ZIP并解压。以下命令均在含`pyproject.toml`的项目根目录执行：
+
+```powershell
 uv python install 3.14
 uv sync --locked
 uv run rnd init
 ```
+
+**从零学习不需要先取得这些源码。** 唯一教材`从零实现AI研发平台_逐步实操手册_完整版.md`从空文件夹讲解每个自有文件、调用关系和逻辑，包含所有文本源码及锁文件；书中给出的脚本可从固定第三方提交生成原生模板ZIP。没有本项目骨架也能照书实现。
 
 需要先安装 Git、uv。Windows 的 uv 官方安装器：
 
@@ -24,6 +32,8 @@ powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | ie
 ```
 
 `rnd init` 创建本地数据库和访问令牌，不覆盖已有 `.env` 或删除数据，并从仓库内的 `templates/vendor/` 解压 FastapiAdmin、芋道后端与 Vben 源码。**普通 git clone 已包含模板代码快照，不用再 clone 上游仓库、初始化 submodule 或下载 LFS 文件。** 源码压缩包、许可证、固定 commit 和 SHA-256 清单一起提交。安装第三方依赖、下载浏览器等仍需网络；包含源码不等于完全离线运行。
+
+带`simple-admin`的产品在交付前必须通过真实浏览器验收。先按完整手册“从空目录到可信交付”的站点4安装本机Node22、Playwright1.56.1及Chromium，再从同一终端启动平台；缺少浏览器会明确阻塞，不能只用HTTP测试代替。原生框架同样保留真实浏览器关卡。
 
 ## 2. 单模型配置：只填三项
 
@@ -107,7 +117,7 @@ uv run rnd chat --template python-basic --frontend simple-admin --database sqlit
 
 默认 `MAX_ROUNDS=0`、`MAX_MODEL_CALLS=0`：没有累计人工会话轮数或模型调用数量上限。HTTP重试与自动代码修复仍有限，避免单次故障无限调用。按需设正整数限制预算，达到后为 `PAUSED_LIMIT`，保留原回答与断点，不要求新建项目。
 
-普通细节给推荐默认值；每轮最多要求模型提出两个阻塞问题，已经明确的事实随结构化需求保存。默认标题250字、正文3000字、日期YYYY-MM-DD、区间含两端、分类可选，用户指定优先。
+普通细节给推荐默认值；每轮最多要求模型提出两个阻塞问题，已经明确的事实随结构化需求保存。客服的站内提醒、角色范围、统计口径及字段命名以三份需求文本为准；字段、枚举与日期范围经过合同校验，用户明确指定优先。
 
 `批准`、`“批准”` 等控制指令不会被当作需求文本再次发送给模型。不满足批准条件时保持原等待点，提示回答或智能推荐，不消耗一轮。
 
@@ -124,11 +134,11 @@ uv run rnd chat --smart
 
 智能推荐不允许跳过独立测试、覆盖生产库、伪造成功或删掉你明确要求的功能。确实超出模板能力时明确 `BLOCKED`，不会再次陷入无限提问，也不会偷偷生成缩水产品。
 
-建议首次验证用真实示例：
+本仓库的标准端到端示例是**内部客户服务管理系统**，从空目录教材、需求、计划、生成、测试到独立部署都围绕同一案例：
 
-> 个人泰拉瑞亚资讯助手。手动录入，标题250字、正文3000字、发布日期必填且为YYYY-MM-DD。分类可选，只有资讯/攻略/大神。支持标题和正文搜索、分类和单日筛选、包含起止日的日期区间。数据按用户隔离。
+> 建设公司内部客户服务管理平台：维护客户档案和历史服务记录；创建服务请求、分配负责人、按批准流程改变状态并追加处理记录；支持协作任务、站内提醒和不可修改的操作审计；提供服务数量、创建到解决的时长、客户分组和每日趋势统计。管理员、客服、普通员工按角色及负责/创建范围访问数据。沿用所选框架的原生认证、ORM、事务与UI组件，并交付可在新目录和新数据库独立启动的产品。
 
-选择 `python-basic + simple-admin + SQLite`。这些能力已实现，不再反复将搜索、筛选或日期说成“不支持”。
+完整原始需求在`examples/requirements/customer-service.md`，演示默认决策在`customer-service-decisions.md`，明确字段与命名约定在`customer-service-contract.md`（后两份同在`examples/requirements/`）。按此顺序把三份文本一起输入平台：原始需求不改写、不删减，补充文件只明确可执行约定。由所选模型形成并校验`Plan.business`；`examples/plans/customer-service.json`只用于确定性工具验收，不作为模型失败的隐藏答案。分别验证`python-basic/simple-admin/SQLite`、`fastapiadmin/fastapiadmin-vue/PostgreSQL`与`yudao-vben/vben-antd/PostgreSQL`，每种组合都要保留自己当前提交的证据，不能用一个模板成功代表其余模板。
 
 ## 7. 得到和启动最终产品
 
@@ -145,26 +155,13 @@ ZIP 位于 `deliveries/`，解压到新目录。**在解压后的产品根目录
 uv run --no-project --python 3.14 python start.py
 ```
 
-- 默认产品：自动安装产品自身锁定依赖、执行Alembic迁移、启动；轻量界面在 `http://127.0.0.1:8001/`，API文档在 `/docs`。先注册自己的产品账号。SQLite无需外部服务。
+- 默认产品：自动安装产品自身锁定依赖、执行Alembic迁移、启动；轻量界面在 `http://127.0.0.1:8001/`，API文档在 `/docs`。客服产品先在产品目录执行`uv run python manage.py bootstrap-admin --username manager`，通过隐藏终端输入设置初始管理员密码；随后登录并创建或分配客服/员工业务角色。普通注册只得到员工角色。SQLite无需外部服务。
 - 默认产品选PostgreSQL：启动器使用该产品独立Docker Compose、随机密码、回环端口和持久卷；或显式提供 `PRODUCT_DATABASE_URL`。
 - 原生产品：包含原生源码、独立启动器、原生种子、业务DDL和菜单SQL。在Linux/WSL准备其语言工具和Docker后，同一启动命令自动初始化**新的独立数据库**并启动前后端；无需原研发平台、模型Key或原开发数据库。可用本机专用空库 `NATIVE_DELIVERY_DATABASE_URL` 和Redis替代Docker。浏览器地址由启动器打印。
 
 源码包含初始化/迁移语句，不包含用户实际业务数据。重复启动不重置记录或密码。原生 `--check` 会完整验证数据库、菜单、CRUD和前端启动后退出；`--skip-build` 仅用于之前已成功构建的同一产品。不要删除数据库排错，不把源码包当作用户数据备份。
 
-## 8. 从已合并的旧版本升级
-
-先停止旧服务，备份整个 `.data/` 和自己的 `.env`；在已有仓库保存/提交本地代码改动后切换新PR分支并更新依赖：
-
-```powershell
-git fetch origin
-git switch feat/guided-multimodel-workbench
-uv sync --locked
-uv run rnd init
-```
-
-`init` 不覆盖 `.env`。旧配置显式写了 `MAX_ROUNDS=10` 或 `MAX_MODEL_CALLS=16` 时，请改成0再重启。数据库迁移增加必要字段，不删除原记录。针对“超轮数”运行，修正配置后可 `uv run rnd retry UUID`，随后 `uv run rnd chat --run UUID` 或 `uv run rnd recommend UUID`。已有运行的模板选择被保留；更换技术栈应新建运行，不能覆盖已经生成的数据。
-
-## 9. 测试、证据、手册
+## 8. 测试、证据、手册
 
 ```powershell
 uv run ruff check .
@@ -173,8 +170,83 @@ uv run pytest -m "not postgres" -q
 uv run python -m scripts.build_handbook --check
 ```
 
-Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新数据库交付、真实Chromium智能推荐和资讯页面搜索筛选。CI模型采用显式协议夹具，不消耗真实Key，也不声称已验证你的供应商账号。
+Actions 覆盖Windows/Linux、真实PostgreSQL、独立产品安装、原生新数据库交付、真实Chromium智能推荐与产品页面回归，并由客服矩阵验证三角色、关系、流程、提醒和统计。CI模型采用显式协议夹具，不消耗真实Key，也不声称已验证你的供应商账号。
 
-详细从零实现手册：**`从零实现AI研发平台_逐步实操手册_完整版.md`**。兼容旧链接的 `_v3.md` 与它逐字一致。正文、完整代码、数据库迁移、前端、测试、CI、锁文件一起生成；修改代码后执行 `uv run python -m scripts.build_handbook`。模板ZIP二进制不嵌入Markdown，但已随普通clone包含，附录给出哈希、来源和许可证。
+详细从零实现手册：**`从零实现AI研发平台_逐步实操手册_完整版.md`**。从空目录创建文件、数据流讲解、完整代码、数据库迁移、前端、测试、CI与锁文件均包含在同一份教材。第三方模板不是自行编写的代码：教材提供固定提交和打包脚本，读者可以从公开上游重建三个归档，不需要先取得本仓库骨架。演示仓库附带这些归档以便直接体验；源码附录逐文件讲解职责与对应关系。
 
 当前是仅监听本机、单操作人和单Worker的研发工作台。没有公网生产身份体系。请勿公开 `.env`、`.data`、`.deployment` 或访问令牌。更多环境条件、SQL步骤、预算恢复、原生部署与故障定位见完整手册。
+
+## 9. 本机工具链与唯一完整教材
+
+默认使用本机Tree-sitter/Python AST、FTS5和符号Repo Map。Aider使用独立Python3.12环境：
+
+```powershell
+uv sync --locked --project tools/aider --python 3.12
+uv run rnd index workbench .data/platform-index
+uv run rnd tools search workbench .data/platform-index "model_for"
+uv run rnd tools continue-config . workbench .data/platform-index
+```
+
+设置`CODING_ENGINE=aider`和`REPO_MAP_PROVIDER=aider`可启用实际本机编辑/Repo Map。真实模型Key只交给平台网关，Aider不取得它；登记的CLI入口禁用网络，Token编码和模型元数据来自经过SHA校验的锁定依赖，不在生成任务中下载。
+
+实际Continue全文索引组件已随仓库包含源码和Apache-2.0许可证，固定提交为`5522c6f44ca0ac3528b37244818fbfa39b5af470`。使用Node22（至少22.13）在本机准备：
+
+```powershell
+node --version
+npm ci --prefix tools/node --no-audit --no-fund
+npm run build --prefix tools/node
+```
+
+在项目`.env`设置`RETRIEVAL_ENGINE=continue`并重启平台。规划、CLI和只读MCP都会实际执行上游`FullTextSearchCodebaseIndex.update/retrieve`，与本机AST、FTS5和可选向量融合；不是把自写索引重命名为Continue。查询进程禁用网络，不读取IDE私有缓存。`RETRIEVAL_ENGINE=local`仍是无需Node的默认基础方案。Continue IDE可以通过本机stdio MCP访问同一套只读search_code/repository_map，不要求云账号。
+
+向量服务仅接受回环地址，使用本机模型并显式`EMBEDDING_ENABLED=true`。工具端点拒绝云端/局域网、代理与重定向，数据库和Docker执行也限定本机；继承的LangSmith/OTEL遥测关闭。公开依赖下载不等于云端执行工具。
+
+Daytona固定为**v0.190.0自托管开发部署**，没有云端模式。Linux/WSL准备Docker后：
+
+```bash
+uv sync --locked --all-extras
+uv run python -m scripts.daytona_local prepare
+uv run python -m scripts.daytona_local images
+uv run python -m scripts.daytona_local snapshot-image
+uv run python -m scripts.daytona_local up
+uv run python -m scripts.daytona_bootstrap auth
+uv run python -m scripts.daytona_bootstrap snapshot
+uv run python -m scripts.ci_daytona_local
+```
+
+最后一条保留历史工具接线回归，使用明确的测试模型夹具，不是客服全流程或真实供应商通过证明。客服标准验收以`examples/plans/customer-service.json`、各模板业务测试及`customer-runtime.yml`为准；DeepSeek必须另用同一最终提交的真实客服需求完成验证。需先按上方准备Node组件与Aider环境。
+
+本机随机凭据及平台配置保存在`.data/daytona-local`，不得提交Git。完整教材第20章解释Dex、API、Runner、镜像摘要、离线快照、每一步预期结果和清理。默认Python/SQLite快照不冒充Java/Vue通用镜像；原生完整验收仍在本机进行。Daytona上游Compose仅供开发，privileged Runner不是生产强隔离保证。
+
+仓库只保留`从零实现AI研发平台_逐步实操手册_完整版.md`这一份完整教材，不提供版本差异补丁式教程。源码块带SHA，逐文件讲解与源码同步，标准库重建脚本可只从文档建立全部自有文件：
+
+```powershell
+uv run python -m scripts.build_handbook
+uv run python -m scripts.build_handbook --check
+uv run python -m scripts.ci_handbook
+```
+
+真实模型联调需要你自己的大模型配置。CI使用显式模型协议夹具；真实CLI、数据库、浏览器、本机服务测试的证据分别保存，不把SDK模拟响应当成本机完整部署成功。
+
+### 本机Daytona的安装边界
+
+Daytona固定v0.190.0；API/Proxy从固定SHA在本机Docker构建，Runner使用同版本、固定SHA256的发布文件。服务运行在本机internal网络，端口仅绑定回环，SDK也禁止非回环连接；不申请Daytona云账号。完整安装顺序为`prepare → images → snapshot-image → up → auth → snapshot → ci_daytona_local`，每一步的完整代码、用途、预期结果及失败处理见唯一手册第20章。此安装通道使用Linux x86_64或Windows x86_64 WSL2；默认平台与普通本机验收不要求安装Daytona。安装时下载公开依赖，不等于把生成代码交给云端运行。
+
+### 原生业务规则、Plop、Aider 与完整本机 Daytona
+
+原生新增/修改规则可由实际 Plop 挂载，再由独立 Aider 应用精确补丁；编译、正反例、浏览器失败会回滚候选并进入有界修复。原生与基础 PostgreSQL 使用单独的本机 Daytona 离线快照，数据库和 Redis 在沙箱内初始化，不复制主机数据库凭据。完整安装、文件对应关系、支持矩阵、配置与排错见 [原生工具链实操](docs/native-toolchain.md)。基础生成仍优先原生生成器；不是让 Agent 自由修改权限或执行 shell。
+
+
+## 10. 客服标准流程的验收与截图
+
+先完成教材中的本机依赖和专用空测试库准备，再运行基础模板业务测试与两个原生完整入口：
+
+```bash
+uv run pytest tests/test_business_contracts.py tests/test_business_capabilities.py tests/test_business_python.py tests/test_business_python_browser.py tests/test_customer_workflow.py -q
+uv run python -m scripts.ci_native_bundled fastapiadmin --spec examples/plans/customer-service.json
+uv run python -m scripts.ci_native_bundled yudao-vben --spec examples/plans/customer-service.json
+```
+
+原生两条命令各用自己的干净测试环境/空库，不能连续指向一个已有业务数据的库。正式结论须核对同一提交的Actions、实际DeepSeek客服运行及下载后独立启动结果。完成后还要打开列表、表单、关联选择、处理流程、提醒和统计截图，检查原生UI一致性、文字/控件布局和业务信息完整性；“截图生成成功”不等于视觉检查已完成。未通过的项保持失败或未验证，不写“DeepSeek全流程没问题”。
+
+真实模型的手动入口和证据解释见`docs/real-model-acceptance.md`。当前客服分支运行`.github/workflows/native-probe.yml`时选择`feat/customer-service-acceptance`，明确设置`real_model=true`，`expected_sha`填写已审查的完整40位提交SHA。`rnd`环境的`APK_KEY`仅在模型调用步骤映射成`API_KEY`，不打印或复制到源码；三个模板分别执行smoke与完整客服交付，任何一行未完成都仍是未验证。

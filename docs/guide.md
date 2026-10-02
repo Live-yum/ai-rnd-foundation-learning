@@ -1,10 +1,16 @@
 # 从零实现 AI 研发平台：逐步实操手册
 
+**统一主线：内部客户服务管理系统，从需求、合同、代码到三个模板的独立产品与验收。**
+
 **Python 3.14 · uv · FastAPI · SQLite/可选PostgreSQL · LangGraph · 可选多模型 · 智能推荐 · 自带原生模板**
 
-这是一份完整的实现与操作手册：前半部分按学习顺序说明创建什么、连接到哪里、如何运行与测试；后半部分直接包含同一提交中的全部文本源码、配置、数据库迁移、前端、测试和依赖锁。不要把旧手册里同名文件的部分代码混入当前实现。
+这是一份完整的实现与操作手册：前半部分按学习顺序说明创建什么、连接到哪里、如何运行与测试；后半部分直接包含同一提交中的全部文本源码、配置、数据库迁移、前端、测试和依赖锁。全文描述一个一致的最终系统，不需要任何较早版本、骨架项目或差异补丁。
 
-本手册的正式文件为 `从零实现AI研发平台_逐步实操手册_完整版.md`，保留兼容路径 `_完整版_v3.md`，两者内容完全一致。修改源码或正文后自动重新生成整本，不维护一堆互相矛盾的补丁章节。
+本手册只有一个正式文件：`从零实现AI研发平台_逐步实操手册_完整版.md`。你可以只拿到这一份文档，从空文件夹逐个创建本项目的全部源文件。语言解释器、Python包和第三方开源框架属于明确安装的依赖，不要求预先拥有本项目仓库。
+
+**阅读顺序**：先完成第2章的工具准备，按照第6—13章和“逐文件实现讲解”创建文件；每写完一组，紧接着做“动手写与跑”的对应完整小实验，再回到第3—5章体验平台。完整源码区的每个标题就是要创建的文件路径，代码块不省略实现。希望先体验的读者可以在已经取得的演示源码目录直接执行第3—5章，但这不是手写学习的前置条件。
+
+**运行边界**：仅需求理解、规划、规则编码和语义审阅的大模型接口允许使用外部推理服务。索引、检索、向量模型、MCP、Aider、数据库、Daytona控制面及执行器全部在本机。下载依赖、浏览器或固定第三方源码属于安装阶段，不把业务任务交给云端工具执行。
 
 ## 1. 认识最终系统，再决定使用方式
 
@@ -25,6 +31,8 @@
 | `fastapiadmin` | `fastapiadmin-vue` | PostgreSQL | 原生插件模块、菜单、角色权限和共享CRUD；text/integer/boolean；保留原框架 |
 | `yudao-vben` / Java | `vben-antd` | PostgreSQL | 原生Java模块、Vben5 Ant Design页面、菜单、角色权限与共享CRUD；text/integer/boolean |
 
+上表说明不带`Plan.business`的基础CRUD路径。带业务合同的共享产品另按“从实体CRUD写到有权限、有流程的业务产品”章节处理关联、角色行权限、状态、提醒和统计；仍必须逐关验证，不把普通CRUD的报告借给业务合同使用。
+
 后端、前端、数据库必须先选，再输入需求。不同框架的登录与路由并不天然兼容，页面和API会拒绝未适配的混搭。产品数据库与平台控制数据库独立；平台即使用SQLite，也可以生成PostgreSQL产品。
 
 没有实现的外部采集、支付、跨实体事务等必须明确阻塞，不能换个模型就宣称完成。智能推荐允许补齐未明确细节，不允许删除你已经明确要求的功能或擅自把“各自数据”改成“共享数据”。
@@ -41,49 +49,78 @@ git --version
 uv --version
 ```
 
-本PR合并前使用实现分支：
+Linux/WSL的Ubuntu终端先安装本机Git、curl和uv，不运行PowerShell安装器：
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git curl ca-certificates
+curl -LsSf https://astral.sh/uv/install.sh | sh
+export PATH="$HOME/.local/bin:$PATH"
+git --version
+uv --version
+```
+
+VS Code从官方安装页按你的系统安装。Windows安装Git时保留命令行PATH选项，安装编辑器后重新打开终端；先看到git和uv版本号，再创建下面的目录。Windows需要原生Java/Vue或Daytona时，在管理员PowerShell执行`wsl --install -d Ubuntu`，按提示重新启动并设置Ubuntu本机用户名；随后所有Linux命令在Ubuntu中执行。默认Python/SQLite演示不需要WSL。
+
+### 2.2 创建一个真正的空文件夹
+
+Windows打开PowerShell；先在文件资源管理器中打开“查看 → 显示 → 文件扩展名”，避免把`app.py`保存为`app.py.txt`。选择你有写权限的位置，例如：
 
 ```powershell
-cd D:\Code
-git clone --branch feat/guided-multimodel-workbench https://github.com/Live-yum/ai-rnd-foundation-learning.git
-cd ai-rnd-foundation-learning
+New-Item -ItemType Directory -Path "$HOME\rnd-learning"
+Set-Location "$HOME\rnd-learning"
 uv python install 3.14
-uv sync --locked
-uv run python -c "import sys; print(sys.executable); print(sys.version)"
+code .
 ```
 
-预期为仓库 `.venv` 和 Python3.14.x。`uv run` 自动选择项目环境；终端显示Conda `(base)` 不足以判断实际运行解释器。不要在系统Python里pip一套、uv里又装一套，也不要因旧测试的import错误而降到3.12。
+Linux/WSL使用：
 
-合并后main具有同一功能时可直接clone main。已存在目录不要再clone覆盖；先`git status`检查并保存自己的改动。不要用`git reset --hard`、删除数据库或删除整个学习目录排错。
+```bash
+mkdir -p ~/rnd-learning
+cd ~/rnd-learning
+uv python install 3.14
+code .
+```
 
-### 2.2 普通clone已经带模板代码
+这时目录中不需要任何代码，也不用运行`git clone`或下载本项目骨架。VS Code是编辑器，PowerShell/Bash是执行命令的终端，Python是执行`.py`文件的解释器，uv负责创建`.venv`并安装精确依赖；它们不是同一个东西。
 
-`templates/vendor/`包含三个实际源码ZIP：FastapiAdmin、芋道后端、Vben前端；同时包含 `manifest.json` 和各自LICENSE。它们是普通Git文件，不是submodule、Git LFS指针或只有URL的清单。
+在VS Code左侧按“新建文件”，输入完整相对路径。斜线前是文件夹，例如`workbench/settings.py`表示在workbench文件夹创建settings.py。复制完整源码区同名文件的整个代码块，不复制外层反引号、行号或标题。保存时选择UTF-8。`#`是Python注释；英文标点和缩进必须保留。
+
+先写第6章列出的项目配置文件，之后才能执行`uv sync --locked`。不要先执行后面的API或模型命令，因为相关模块还没有写出来。
+
+### 2.3 第三方源码不是隐含的骨架
+
+本平台的Python/Java原生框架是第三方依赖。书中给出了`scripts/vendor_templates.py`的全部代码及三个固定源码提交。手写完成这个脚本和模板清单以后执行：
 
 ```powershell
-uv run rnd init
+uv run python -m scripts.vendor_templates --fetch
 ```
 
-这个命令创建 `.env`、平台数据库、本机访问令牌，并验证和解压仓库内的模板快照到 `.data/sources`。不重新从GitHub/Gitee克隆、不覆盖已有 `.env`、不清空数据库。默认只需Python/uv即可完成解压；真正运行Java或原生前端时才需要对应语言环境。
+脚本只从登记的三个公开上游拉取指定SHA，验证许可证，排除Git历史、依赖缓存、密钥、数据库和字体二进制，重建`templates/vendor/*.zip`。它不下载本项目的Python实现，不要求复制已有仓库中的任何骨架文件。先写代码再执行脚本，下载的第三方框架与语言包一样是显式依赖。
 
-锁文件安装、浏览器下载、Maven/pnpm依赖下载仍需要网络，不能把“源码已经在本地”描述成“全部离线”。源码快照排除依赖缓存、Git历史、密钥、数据库和字体二进制；许可证及原始commit保留。
+最终演示仓库已带这三个普通Git ZIP；直接使用演示仓库的人不需要重复下载。无论采取哪种路径，`rnd init`都校验模板清单并在本机解压到`.data/sources`，不会覆盖`.env`或清空数据库。
 
-### 2.3 从已合并版本升级
+安装依赖、模型权重、浏览器、Maven/pnpm包及Daytona镜像需要网络。准备完成以后索引和工具执行不调用云端服务；这不等于无需安装任何软件的完全离线发行版。
 
-停止旧服务，备份 `.data/`、`.env` 和未提交的源码改动，随后在仓库根执行：
+### 2.4 在生成带界面的产品前安装浏览器验收工具
 
-```powershell
-git fetch origin
-git switch feat/guided-multimodel-workbench
-uv sync --locked
-uv run rnd init
-```
-
-数据库迁移给旧表新增必要列，旧项目、消息和运行ID保留；不通过删除库绕过迁移。如果旧 `.env` 中显式填写 `MAX_ROUNDS=10` 或 `MAX_MODEL_CALLS=16`，新默认不会覆盖它，请主动改成0。旧运行因为轮数失败时可修正配置并重启，再 `uv run rnd retry 原UUID`。没有生成到不可恢复外部副作用阶段的澄清运行可以继续；原生初始化中途失败则应保留现场并使用新的独立库，不自动DROP原数据。
+`simple-admin`产品需要Node22与本机Playwright1.56.1/Chromium。请先完成本书“从空目录到可信交付”站点4中的Windows或Linux安装与环境变量设置，再在同一终端启动平台。缺少这些工具会阻止交付，不会将浏览器验收记为跳过。api-only没有页面，才允许浏览器项标记不适用。
 
 ## 3. 配置模型：单模型先跑通，多模型按需启用
 
-编辑根目录 `.env`：
+先在项目根目录创建配置文件，已有`.env`则保留，不覆盖里面的密钥。PowerShell：
+
+```powershell
+if (!(Test-Path .env)) { Copy-Item .env.example .env }
+```
+
+Linux/WSL Bash：
+
+```bash
+[ -e .env ] || cp .env.example .env
+```
+
+再用编辑器打开根目录`.env`，只把下面三个占位内容改为你自己服务商的值。不要把密钥写到Python源码、命令历史、Git提交或教材截图里：
 
 ```dotenv
 BASE_URL=https://你的服务商API根地址/v1
@@ -149,11 +186,11 @@ uv run rnd token
 
 界面先展示后端/模板、对应前端、对应数据库。点“确认选择”以后才出现项目名称和需求输入框。选择后若重新换前端/数据库，必须再次确认，不把修改悄悄应用到旧运行。
 
-第一次输入：
+第一次使用同一个标准客服案例。先在本书完整源码区创建`examples/requirements/customer-service.md`、`customer-service-decisions.md`和`customer-service-contract.md`（后两份在同一目录），按顺序把三份完整文本一起填入页面。原始需求保留原文，默认决策补充站内提醒、角色范围和统计口径，命名约定明确黑盒验收字段；不把固定Plan当模型答案。下面只是核对摘要，不能用摘要删去原文条目：
 
-> 个人泰拉瑞亚游戏资讯管理。手工录入。标题250字、正文3000字、发布日期YYYY-MM-DD必填；分类可选，选项为资讯、攻略、大神。搜索标题和正文，按分类、单日及含起止日的日期区间筛选。需要增删改查，各用户只看自己的数据。
+> 建设公司内部客户服务管理平台：维护客户档案和历史服务记录；创建服务请求、分配负责人、按批准流程改变状态并追加处理记录；支持协作任务、站内提醒和不可修改的操作审计；提供服务数量、创建到解决的时长、客户分组和每日趋势统计。管理员、客服、普通员工按角色及负责/创建范围访问数据。沿用所选框架的原生认证、ORM、事务与UI组件，并交付可在新目录和新数据库独立启动的产品。
 
-选择 `python-basic / simple-admin / sqlite`。这个例子是回归目标：不能再一轮声称搜索支持、下一轮说不支持，也不要求把日期永远退化成未经校验的普通字符串。
+先选择本次要运行的模板组合，再输入需求。基础入口为`python-basic / simple-admin / sqlite`；两个原生入口分别为`fastapiadmin / fastapiadmin-vue / postgresql`及`yudao-vben / vben-antd / postgresql`。原生环境需要先完成第19章准备。设计必须形成完整`Plan.business`，保留客户→请求→任务的关联、三角色行权限、指派、状态、记录、提醒和四类统计，不能退化成三个互不相关的CRUD页面。
 
 ### 4.1 人工交互
 
@@ -205,7 +242,13 @@ uv run rnd download 运行UUID
 uv run --no-project --python 3.14 python start.py
 ```
 
-启动器安装该产品的锁定依赖、应用Alembic迁移、启动产品。`simple-admin`前端在 `http://127.0.0.1:8001/`；api-only只提供接口及 `/docs`。先注册一个产品用户，再操作自己的实体。完成后退出并重启，记录与登录数据库仍保留。
+启动器安装该产品的锁定依赖、应用Alembic迁移、启动产品。`simple-admin`前端在 `http://127.0.0.1:8001/`；api-only只提供接口及 `/docs`。客服产品必须先初始化业务管理员：在产品目录另开终端，执行以下命令，并按隐藏密码提示输入两次（不要把密码写进命令或配置）：
+
+```powershell
+uv run python manage.py bootstrap-admin --username manager
+```
+
+此入口只允许一次成功的初始化，失败不会覆盖原账号。用该账号登录后再创建客服、员工或给已有账号分配产品角色。普通注册只得到合同中的employee角色，不能靠抢先注册成为管理员。产品角色/行权限来自`Plan.business`，不会把所有员工的数据一律开放。完成后退出并重启，记录与账号数据库仍保留。
 
 需要只初始化不启动：同一命令后追加 `--init-only`。需要换端口：追加 `--port 8002`。`--no-install`仅用于你确实已安装对应依赖的环境或测试，不推荐新手首次使用。
 
@@ -233,29 +276,28 @@ uv run --no-project --python 3.14 python start.py
 
 ## 6. 从空目录逐组创建代码
 
-这是学习路径，与上面的clone体验路径分开。另建空目录，不在已安装项目内重复uv init：
+这是本书的主学习路径。沿用第2章创建的空文件夹，不再创建第二套项目，也不执行会生成隐含骨架的初始化命令：
 
 ```powershell
-mkdir D:\Code\rnd-rebuild
-cd D:\Code\rnd-rebuild
+# 在已经创建的空文件夹打开终端，确认位置
+Get-Location
 uv python install 3.14
-uv init --bare --no-package --no-workspace --python 3.14
-uv python pin 3.14
 ```
 
-在VS Code中先创建 `.python-version`、`pyproject.toml`、`uv.lock`、`.gitignore`、`.gitattributes`、`.env.example`、`workbench/__init__.py`，逐字使用附录里的相应文件。确保 `.py` 不是 `.py.txt`，编码UTF-8。覆盖初始化的pyproject为本提交版本，再运行 `uv sync --locked`。
+在VS Code中先创建 `.python-version`、`pyproject.toml`、`uv.lock`、`.gitignore`、`.gitattributes`、`.env.example`、`README.md`、`workbench/__init__.py`、`workbench/local_only.py`，逐字使用附录里的相应文件。确保 `.py` 不是 `.py.txt`，编码UTF-8。把本书给出的pyproject和uv.lock完整保存，再运行 `uv sync --locked`。
 
 文件路径有斜线意味着先创建目录，例如 `workbench/settings.py`。每个模块创建后可 `uv run python -m py_compile workbench/settings.py`；它只是语法检查。等其依赖组齐全再执行对应测试，不提前import尚未创建的API模块。
 
-二进制模板ZIP不能放进Markdown代码块；学习还原时从同一Git提交复制 `templates/vendor/*.zip`，随后用manifest核对。它们已经在clone内，不再要求对未来的上游master重新解析。纯源码附录还原脚本不执行代码、不会联网下载模板；复制三份已验证ZIP后即可使用完整仓库能力。
+二进制模板ZIP不需要手工输入或从本项目复制。第2.3节的脚本会从固定第三方源码生成它们。你手写的平台实现全部在本书中，包括脚本本身、模板的自有适配代码、前端、测试、配置和锁文件。“逐文件实现讲解”还给出完整的创建组、输入输出、调用关系与验证方式。
 
 ## 7. 第一组：配置、输入契约和数据库
 
-创建 `workbench/settings.py`、`catalog.py`、`domain.py`、`errors.py`、`store.py`、`alembic.ini` 和 `migrations/`中的完整文件。settings依赖Pydantic Settings，domain和catalog不依赖HTTP；store读取配置并提供短事务，禁止反向import api。
+创建 `workbench/local_only.py`、`workbench/settings.py`、`business_contracts.py`、`business_capabilities.py`、`catalog.py`、`domain.py`、`errors.py`、`store.py`、`alembic.ini` 和 `migrations/`中的完整文件。local_only定义仅本机工具策略并关闭遥测；settings依赖Pydantic Settings和local_only，domain和catalog不依赖HTTP；store读取配置并提供短事务，禁止反向import api。
 
 | 文件 | 负责什么 |
 |---|---|
 | settings.py | 固定数据目录、默认/阶段模型、安全继承、预算；工作目录变化不能移动数据库 |
+| business_contracts.py / business_capabilities.py | 先写有限业务合同及能力登记，供domain与catalog读取；不依赖后续API或Worker |
 | catalog.py | 真实后端/前端/数据库组合和支持能力；模型无法通过输出一个supported=true创造功能 |
 | domain.py | 输入、结构化需求、计划、规则补丁、智能委托和模型审阅格式；拒绝未知字段 |
 | errors.py | 可恢复预算暂停等错误类型，与不可恢复失败区分 |
@@ -264,7 +306,7 @@ uv python pin 3.14
 
 SQLite开启foreign_keys、WAL、busy_timeout；Python3.14显式事务设置。事务中只做数据库工作，不把LLM调用、Git或前端构建包进数据库事务。Engine长期复用、Session每次独立。时间使用明确带UTC偏移的字符串，避免读回无时区对象。
 
-迁移现有库：
+在空数据库按已有的完整迁移文件创建全部控制表：
 
 ```powershell
 uv run alembic upgrade head
@@ -272,7 +314,7 @@ uv run alembic current
 uv run alembic check
 ```
 
-首次使用已提交revision，不再另造0001。改变模型才用 `revision --autogenerate -m "具体变更"`，人工阅读增加/删除项再upgrade。自动生成是候选，不自动理解数据重命名与搬迁。测试里可对临时库create_all，生产和真实学习数据用迁移。
+首次使用本书完整给出的revision，不需要自己猜测0001。以后主动改变模型时才用 `revision --autogenerate -m "具体变更"`，人工阅读增加/删除项再upgrade。自动生成是候选，不自动理解数据重命名与搬迁。测试里可对临时库create_all，生产和真实学习数据用迁移。
 
 创建 tests/conftest.py、test_contracts.py、test_store.py，运行：
 
@@ -280,7 +322,7 @@ uv run alembic check
 uv run pytest tests/test_contracts.py tests/test_store.py -q
 ```
 
-通关：提交/回滚、真实外键、幂等、时间/路径、旧库升级、输入不伪造身份都通过。`test_learning_order.py`还验证这一数据库学习阶段不依赖未来的API或Agent模块。
+通关：提交/回滚、真实外键、幂等、时间/路径、迁移顺序、输入不伪造身份都通过。`test_learning_order.py`还验证这一数据库学习阶段不依赖未来的API或Agent模块。
 
 ## 8. 第二组：消息、长期会话、审批与智能委托
 
@@ -314,11 +356,11 @@ uv run pytest tests/test_llm.py tests/test_guided_models.py -q
 
 ## 10. 第四组：文件、模板快照、索引与规则
 
-创建filesystem.py、vendor.py、tools.py、knowledge.py、rules.py、coding.py。
+在workbench目录创建filesystem.py、vendor.py、tools.py、symbols.py、knowledge.py、retrieval.py、context_mcp.py、toolchain.py、rules.py、coding.py、aider_tool.py、local_only.py、daytona_worker.py和sandbox.py，全部内容见源码附录。第20章逐项说明解析、检索、Continue、Aider和Daytona的安装、接线与测试。
 
 filesystem负责原子写、路径边界、普通文件与ZIP大小、符号链接/路径遍历/重复文件检查及哈希。API不能接收任意shell命令或任意主机路径。tools的命令来自可信代码参数数组，shell=False；环境只透传必需路径和显式配置，排除平台模型密钥；超时停止进程组并保留有界首尾日志。
 
-vendor读取manifest，核对ZIP整体SHA和解压后的文件指纹与LICENSE。重复init复用有效缓存，篡改立即拒绝。三份模板在仓库内，源码未变化就不反复解析。knowledge的AST索引记录Python符号起止行和imports，Java/TS目前是文件地图，不假称是精确全语言调用图。输出目录必须位于被索引源码之外。
+vendor读取manifest，核对ZIP整体SHA和解压后的文件指纹与LICENSE。重复init复用有效缓存，篡改立即拒绝。三份模板由固定源码生成后保存在本机，源码未变化就复用已解析条目。knowledge记录文件SHA、符号起止行与增量状态；Python使用标准库AST，Java/TypeScript/JavaScript以及Vue内嵌script通过symbols中的Tree-sitter解析。Java类、方法、字段、注解和继承，TS声明，以及Vue组件标签与真实源码行号进入符号索引；这不是完整的跨模块类型推导或调用图，编译和类型检查仍然必需。retrieval提供SQLite FTS5与可选本机向量检索，context_mcp向Continue开放只读查询，toolchain把同一上下文接入规划。输出目录必须位于被索引源码之外。
 
 ```powershell
 uv run rnd index workbench .data/platform-knowledge
@@ -332,7 +374,7 @@ rules只解释白名单AST，不能import/exec模型文件。coding只修改cust
 uv run pytest tests/test_safety.py tests/test_vendor.py tests/test_tools_cli.py -q
 ```
 
-设计图由规格生成。date/enum必须正确出现在ER图，所选PG产品不能画成SQLite。图旁标记设计来源，不冒充生产反射；`test_guided_completion`覆盖用户资讯规格。
+设计图由规格生成。date/enum必须正确出现在ER图，所选PG产品不能画成SQLite。图旁标记设计来源，不冒充生产反射；客服规格还必须在图和结构中保留客户、请求、任务的引用及业务合同，不用独立的三个表冒充关联。
 
 ## 11. 第五组：默认生成产品的完整后端与轻量前端
 
@@ -345,14 +387,14 @@ schema-spec和SQL DDL由同一元数据生成，SQLite和PostgreSQL分别输出�
 simple-admin不是框架原生UI的假替身，它是明确可选的轻量前端。用户可选择api-only不用它。页面通过真正fetch操作产品API，有登录、列表、新增/编辑、删除、搜索、分类/日期筛选和分页。采用textContent避免把需求文字当HTML执行。清除筛选必须恢复所有控件，并丢弃旧请求的晚到响应；浏览器回归会连续切换关键词、分类、单日和区间。
 
 ```powershell
-uv run pytest tests/test_news_delivery.py tests/test_guided_selection.py -q
+uv run pytest tests/test_business_contracts.py tests/test_business_python.py tests/test_guided_selection.py -q
 ```
 
 这组测试验证用户日志里的具体案例，不以一个最简单的hello接口替代复杂字段和过滤要求。
 
 ## 12. 第六组：独立验证、修复、模型审阅与打包
 
-创建verification.py并阅读templates/product/verify.py、product_database.py。产品以独立进程真实启动，不从Agent的“我测过了”获取结论。测试账号、登录、越权、字段、CRUD、搜索筛选、进程重启全部通过才继续。
+创建verification.py并阅读templates/product/verify.py、workbench/postgres_lab.py。产品以独立进程真实启动，不从Agent的“我测过了”获取结论。测试账号、登录、越权、字段、CRUD、搜索筛选、进程重启全部通过才继续。
 
 平台默认给产品创建自己的uv环境；集成测试可显式用已有依赖减少下载，但另有ci_clean_install真实安装验证。PG产品验证用独立数据库，不能替换成SQLite后仍声称PG已测。
 
@@ -370,7 +412,7 @@ uv run python -m scripts.ci_clean_install
 
 创建flow.py、runtime.py、api.py、cli.py、workbench/web/所有页面文件。前面的已测试函数由图连接，不在一个庞大节点里混合调用模型、等待用户和扣费写库。
 
-流程节点：analyse → requirements gate → plan → design gate → generate → code（需要时）→ verify → repair（需要时）→ model_review（可选）→ package → delivery gate。状态主要保存runID、版本、结构化规格和回执路径，不保存ZIP字节或整个仓库。
+实际流程节点：analyse → requirements gate → source_context（索引、检索与Repo Map）→ plan → design gate → generate → code（需要时）→ verify；可修复失败经repair回到code，再次verify；验证通过后进入sandbox（已显式启用时执行本机自托管Daytona，否则记录未启用）→ model_review（可选）→ package（含独立解压复验）→ delivery gate。source_context不调用聊天模型，也不默认计算向量；code按CODING_ENGINE使用受限表达式引擎或真实Aider；sandbox失败不能跳到交付。状态主要保存runID、版本、结构化规格、有界上下文与回执，不保存ZIP字节或整个仓库。
 
 interrupt恢复时节点重入，所以副作用需要回执和幂等。runUUID是稳定thread_id；数据库已保存的授权再次在图层校验。Worker保存last_job_id，崩溃时不会把同一回答消费到下一道审批。单Worker由本地文件锁及PG锁限制；并行HTTP和多个原生重型任务不等于已经实现分布式执行器。
 
@@ -391,13 +433,13 @@ uv run pytest tests/test_api.py tests/test_workflow.py tests/test_guided_workflo
 uv run python -m scripts.ci_guided_browser
 ```
 
-浏览器集成需预先安装独立Playwright1.56.1/Chromium；普通使用轻量页面不需要本机安装Playwright。该脚本使用三个明确的本机HTTP模型夹具，真正打开平台页面，先选模板，再输入用户资讯需求，点智能推荐后不再人工确认，下载并打开独立产品，真实搜索筛选；不是mock页面请求。
+浏览器集成需预先安装独立Playwright1.56.1/Chromium；普通使用产品页面不需要本机安装Playwright。ci_guided_browser保留基础交互的历史回归，不作为当前客服标准例的完整证据。客服验收走业务章节的三个模板检查、真实三角色页面与独立部署；输入和响应夹具应明确标记，不能mock页面请求或借用旧案例的报告。
 
-## 14. 运行状态、预算、恢复与升级
+## 14. 运行状态、预算与恢复
 
 QUEUED/RUNNING是执行中；WAITING_CLARIFICATION/REQUIREMENTS/DESIGN/DELIVERY是人工等待；智能推荐可自动处理可支持的后续等待点。READY是当次工具验证与交付决定完成；SOURCE_READY是旧原生导出语义；REJECTED不继续；BLOCKED是明确能力冲突；PAUSED_LIMIT保留用户指定预算；FAILED是实际执行错误。
 
-旧日志中的最后答案会在数据库messages保存。升级后不要新建同名项目再重打全部需求。确认备份、迁移、去掉旧限额，重试原UUID后可以继续。将来大幅修改图结构时不保证所有历史checkpoint任意跨版本恢复；升级前备份，保留旧环境完成已运行任务。
+每一条回答都保存在messages表。关闭浏览器不会丢失运行；用同一UUID重新进入即可读取当前等待点。达到显式预算后可调整预算并重启，再重试原UUID；不是再建同名项目、重复输入需求或删除数据库。流程断点、原始消息和工具回执共同解释“已经做到了哪一步”。
 
 每个运行的前后端/数据库选择是冻结选项，防止拿新设置误解释旧产物；修改.env的模型用于后续尚未完成阶段，已落盘的结果和实际模型回执不被重写。API限额不是供应商余额控制，要自己管理供应商预算。
 
@@ -411,12 +453,12 @@ QUEUED/RUNNING是执行中；WAITING_CLARIFICATION/REQUIREMENTS/DESIGN/DELIVERY�
   runs/<UUID>/                    规格、产品、生成/测试/交付证据
   native-services/<UUID>/          原生任务自己的服务配置与密码，勿共享
   native/                         可选显式原生运行配置
-templates/vendor/                 clone自带的固定源码ZIP与许可证
+templates/vendor/                 固定第三方源码ZIP与许可证
 ```
 
 停止平台和Worker后备份完整.data，不只复制正在写入的SQLite主文件而漏掉WAL。PostgreSQL备份还需其数据库备份工具。新交付包的`.deployment`或`.data`保存它自己生成的服务密码，不能加入Git或再分发。
 
-平台可使用PostgreSQL：`uv sync --locked --all-extras`后设置DATABASE_URL。CHECKPOINT_URL可分离图断点库。新空库有迁移和真实CI验证；旧SQLite历史数据并不会因改URL自动搬过去，需要另行数据迁移与恢复验证，不能承诺零操作切库。
+平台可使用PostgreSQL：`uv sync --locked --all-extras`后设置DATABASE_URL。CHECKPOINT_URL可分离图断点库。新空库有迁移和真实CI验证；SQLite数据并不会因改URL自动搬过去，需要另行数据迁移与恢复验证，不能承诺零操作切库。
 
 ## 16. 原生源码、独立SQL与部署边界
 
@@ -428,7 +470,7 @@ templates/vendor/                 clone自带的固定源码ZIP与许可证
 
 ## 17. 正式Actions与手册一致性
 
-正式PR不能只包含“运行过的候选截图”。Actions对提交的源码运行：Linux/Windows回归、PG平台与产品测试、默认产品独立安装、真实工作台和资讯页面浏览器、原生两套生成与独立交付新库启动。CI无需真实模型Key，夹具是显式的；验证你的供应商只能用本机.env。
+正式PR不能只包含“运行过的候选截图”。Actions对提交的源码运行：Linux/Windows回归、PG平台与产品测试、默认产品独立安装、真实工作台/产品页面浏览器及客服三角色业务浏览器、原生两套生成与独立交付新库启动。常规回归不注入真实模型Key，夹具是显式的；真实DeepSeek客服验收另走经过授权的本机配置或rnd环境手动任务，并记录同一提交身份。
 
 ```powershell
 uv run ruff check .
@@ -443,7 +485,7 @@ uv run python -m scripts.build_handbook --check
 uv run python -m scripts.build_handbook
 ```
 
-生成器把docs正文与当前真实文件完整组合成两个相同手册路径。每个源码块带SHA；test_handbook验证逐块一致性与空目录还原后再次生成相同手册。二进制vendorZIP在Git中单独保存，附录用manifest和许可证描述，不把二进制伪装成代码块。
+生成器把全部正文、逐文件讲解与真实源码完整组合成唯一正式手册。每个源码块带SHA；test_handbook验证逐块一致性与空目录还原后再次生成相同手册。客服章节在建档、权限、分配、历史、提醒和统计处配有真实浏览器截图；图注注明模板、来源提交及证据范围。PNG原始字节通过可折叠Base64资源块随书保存，独立还原程序严格解码并逐张核对SHA，正文仍使用`docs/images/`相对路径，不塞入data URI。二进制vendorZIP在Git中单独保存，书中包含重建这些ZIP的完整脚本、manifest与许可证，不把二进制伪装成可手写源码，也不要求已有ZIP作为学习前提。
 
 手工学习创建顺序可照第7—13章；全部源码齐全后再执行全量测试。复现安装始终 `--locked`；依赖更新需提交真实新锁并重跑，不由AI随意修改锁内容。
 
@@ -451,18 +493,18 @@ uv run python -m scripts.build_handbook
 
 | 问题 | 正确处理 |
 |---|---|
-| ModuleNotFoundError | 回到含pyproject的根目录，uv sync --locked；使用包路径workbench，不混用旧from main |
-| 超轮数/调用上限 | 检查.env是否仍写旧正数；默认0；改好重启并retry同一UUID |
+| ModuleNotFoundError | 回到含pyproject的根目录，uv sync --locked；使用包路径workbench，不要写不存在的from main |
+| 超轮数/调用上限 | 检查.env是否设置了正数；默认0；改好重启并retry同一UUID |
 | 智能推荐仍BLOCKED | 阅读真实unsupported/范围冲突；不为通过而删需求或修改权限 |
 | 平台401 / 模型401 / 产品401 | 分别检查rnd token / API_KEY / 产品登录token，不混用 |
 | 搜索筛选结果不对 | 核对Plan searchable/filterable/date_range、真实API与前端请求；先清除旧条件，检查日期格式 |
 | 原生数据库非空 | 保留现场，不取消保护或自动DROP；使用新的明确授权空库 |
 | 前端构建或类型失败 | 保留真实日志，不删页面、不跳过类型；按固定上游兼容适配核对 |
 | 独立包只有后台通过 | --check必须前端启动后才成功，不能减少验收项掩盖错误 |
-| 浏览器工作台显示KeyError | 现在错误含源码位置；日期/枚举图表有回归测试，检查你是否使用同提交完整源码 |
+| 浏览器工作台显示KeyError | 错误包含源码位置；日期/枚举图表有回归测试，检查你是否使用同提交完整源码 |
 | 手册不一致 | 修改正文源或代码后重新build_handbook，不手工只改生成文档或关闭测试 |
 
-通关顺序：配置单模型 → 可选阶段覆盖验证 → 选择组合后新建 → 人工13+轮不丢数据 → 任意关卡智能推荐后无后续提问 → 用户资讯案例完整字段与搜索筛选 → 独立产品启动 → 原生环境及独立新库交付 → Windows/Linux/PG/浏览器CI → 整本手册一致。实际结果必须有对应提交的报告，不凭README一句“已通过”。
+通关顺序：配置单模型 → 可选阶段覆盖验证 → 选择组合后新建 → 人工13+轮不丢数据 → 任意关卡智能推荐后无后续提问 → 客服三资源关联、角色、指派、流程、记录、提醒与统计 → 独立产品启动 → 原生环境及独立新库交付 → Windows/Linux/PG/浏览器CI → 整本手册一致。实际结果必须有对应提交的报告，不凭README一句“已通过”。
 
 ### 官方资料
 
@@ -475,3 +517,7 @@ Pydantic Settings：https://docs.pydantic.dev/latest/concepts/pydantic_settings/
 FastapiAdmin：https://github.com/fastapiadmin/FastapiAdmin
 芋道：https://gitee.com/yudaocode/yudao-cloud-mini 、https://gitee.com/yudaocode/yudao-ui-admin-vben
 这些文档解释工具行为；本项目可复现版本以同一提交的uv.lock、vendor manifest、代码及测试为准。
+
+## 已有生成目录和数据库的保护
+
+基础模板只在不存在的新目标目录中首次生成。已有目录只有在原 `generation.json` 的设计指纹、前端/数据库选择及文件清单有效且匹配时才可原样复用，交付前仍须单独验证源码。回执缺失、损坏或设计/选择不匹配时会停止，并保留全部原字节，包括 `.data/product.db`、`.env` 和你自行添加的源码；不会删除整个产品目录来“恢复成功”。先备份并核对原运行的真实回执和批准设计，不要手写一个成功回执或删除数据库绕过检查。新设计应在新的空目录/新运行中生成；若要把现有业务数据迁移到新结构，需要单独制定、备份并批准迁移方案。生成中断且没有有效回执时也保留现场，不承诺自动重建或自动迁移数据。

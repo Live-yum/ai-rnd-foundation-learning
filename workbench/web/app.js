@@ -52,7 +52,7 @@ function templateChanged() {
   );
   txt(
     "capabilities",
-    `数据归属：${chosen.scope}；能力：${chosen.features.join(" / ")}。${chosen.template === "python-basic" ? "SQLite免服务，PostgreSQL另需数据库/Docker。" : "原生模式需要Linux/WSL、Java或Python、Node、PostgreSQL、Redis；代码快照已包含在仓库。"}`,
+    `数据归属：${(chosen.scopes || [chosen.scope]).join(" / ")}；基础能力：${chosen.features.join(" / ")}。声明式业务合同：角色与行范围、关联、分配、状态、处理记录、站内提醒和统计；仅限已登记动作，不执行任意跨实体脚本。${chosen.template === "python-basic" ? "SQLite免服务，PostgreSQL另需数据库/Docker。" : "原生模式需要Linux/WSL、Java或Python、Node、PostgreSQL、Redis；代码快照已包含在仓库。"}`,
   );
   $("request").hidden = true;
   selected = null;

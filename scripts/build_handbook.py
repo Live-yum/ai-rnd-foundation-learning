@@ -1,13 +1,30 @@
 """Render a complete, reconstructable handbook from tracked source, never from memory."""
 
 import argparse
+import base64
 import hashlib
+import re
+import textwrap
 from pathlib import Path
+
+from scripts.handbook_notes import notes
 
 ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "从零实现AI研发平台_逐步实操手册_完整版.md"
-LEGACY = ROOT / "从零实现AI研发平台_逐步实操手册_完整版_v3.md"
-GUIDES = ["docs/guide.md", "docs/native-baseline.md"]
+GUIDES = [
+    "docs/guide.md",
+    "docs/implementation.md",
+    "docs/implementation-labs.md",
+    "docs/native-baseline.md",
+    "docs/toolchain.md",
+    "docs/recommendation-recovery.md",
+    "docs/native-toolchain.md",
+    "docs/business-platform.md",
+    "docs/provider-structured-outputs.md",
+    "docs/real-model-acceptance.md",
+    "docs/from-zero-checkpoints.md",
+    "docs/acceptance-checklist.md",
+]
 GROUPS = [
     (
         "项目配置",
@@ -26,6 +43,8 @@ GROUPS = [
     ("冻结数据库迁移", ["migrations"]),
     ("默认产品与前端", ["templates/product", "templates/frontends"]),
     ("独立原生交付启动器", ["templates/deployment"]),
+    ("业务合同的原生适配模板", ["templates/business"]),
+    ("完整需求与结构化验收案例", ["examples"]),
     (
         "自带原生源码的版本与许可证",
         [
@@ -40,14 +59,37 @@ GROUPS = [
         "工具及Actions",
         [
             "scripts",
-            ".github/workflows/test.yml",
-            ".github/workflows/native-runtime.yml",
-            ".github/workflows/native-probe.yml",
+            ".github/workflows",
+            "tools/aider/pyproject.toml",
+            "tools/aider/offline_runner.py",
+            "tools/aider/.python-version",
+            "tools/aider/uv.lock",
+            "tools/daytona",
+            "tools/embeddings/pyproject.toml",
+            "tools/embeddings/uv.lock",
+        ],
+    ),
+    (
+        "本机Continue组件、适配器及Node依赖锁",
+        [
+            "tools/node/package.json",
+            "tools/node/package-lock.json",
+            "tools/node/build.mjs",
+            "tools/node/continue-host.mjs",
+            "tools/node/continue-runner.mjs",
+            "tools/node/no-network.cjs",
+            "tools/node/plop-runner.mjs",
+            "tools/node/templates",
+            "tools/node/upstream/manifest.json",
+            "tools/node/upstream/FullTextSearchCodebaseIndex.ts",
+            "tools/node/upstream/LICENSE",
         ],
     ),
     ("平台依赖锁", ["uv.lock"]),
     ("手册正文源文件", GUIDES),
+    ("真实操作截图与来源证据", ["docs/images"]),
 ]
+BINARY_SUFFIXES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico"}
 
 
 def sources():
@@ -64,21 +106,72 @@ def sources():
                 else [path]
             )
             for item in items:
-                if not item.is_file() or "__pycache__" in item.parts or item.suffix == ".pyc":
+                if (
+                    not item.is_file()
+                    or item.suffix == ".pyc"
+                    or any(
+                        part
+                        in {
+                            "__pycache__",
+                            ".venv",
+                            "node_modules",
+                            ".git",
+                            ".data",
+                            ".native",
+                            ".built",
+                            ".pytest_cache",
+                            ".ruff_cache",
+                        }
+                        for part in item.relative_to(ROOT).parts
+                    )
+                ):
                     continue
                 name = item.relative_to(ROOT).as_posix()
+                if name in {
+                    ".github/workflows/prepare-local-tools.yml",
+                    ".github/workflows/runtime-contract.yml",
+                }:
+                    continue  # Temporary review infrastructure is not part of the product.
                 if name not in seen:
-                    rows.append((name, item.read_text(encoding="utf-8")))
+                    content = (
+                        item.read_bytes()
+                        if item.suffix.lower() in BINARY_SUFFIXES
+                        else item.read_text(encoding="utf-8")
+                    )
+                    rows.append((name, content))
                     seen.add(name)
         yield title, rows
 
 
+def guide_text(name):
+    """Keep image links valid in both the chapter and the root-level handbook."""
+    content = (ROOT / name).read_text(encoding="utf-8").rstrip()
+    return re.sub(
+        r"(!\[[^\]\n]*\]\()images/",
+        lambda match: match[1] + Path(name).parent.as_posix() + "/images/",
+        content,
+    )
+
+
 def render():
-    text = "\n\n".join((ROOT / name).read_text(encoding="utf-8").rstrip() for name in GUIDES)
+    text = "\n\n".join(guide_text(name) for name in GUIDES)
     text += "\n\n# 完整源码附录\n"
     for title, rows in sources():
         text += "\n## " + title + "\n"
         for name, content in rows:
+            if isinstance(content, bytes):
+                code_sha = hashlib.sha256(content).hexdigest()
+                encoded = "\n".join(textwrap.wrap(base64.b64encode(content).decode("ascii"), 76))
+                text += (
+                    f"\n### `{name}`\n\n"
+                    "真实PNG等二进制资源按原始字节收录；正文通过相对路径显示图片。"
+                    "下列Base64仅供本书独立还原程序解码，并校验解码后SHA-256，"
+                    "不是需要手写的UI代码，也不是模型绘制的截图。\n\n"
+                    "<details>\n<summary>展开二进制还原数据</summary>\n\n"
+                    f"<!-- source-file: {name} sha256: {code_sha} encoding: base64 -->\n"
+                    f"````base64\n{encoded}\n````\n\n</details>\n"
+                )
+                continue
             code_sha = hashlib.sha256(content.encode()).hexdigest()
             fence = "`" * max(
                 4,
@@ -95,12 +188,19 @@ def render():
                 ".yml": "yaml",
                 ".json": "json",
                 ".cjs": "javascript",
+                ".mjs": "javascript",
+                ".ts": "typescript",
+                ".java": "java",
+                ".vue": "vue",
                 ".js": "javascript",
                 ".html": "html",
                 ".css": "css",
                 ".yaml": "yaml",
             }.get(Path(name).suffix, "text")
-            text += f"\n### `{name}`\n\n<!-- source-file: {name} sha256: {code_sha} -->\n{fence}{language}\n{content.rstrip(chr(10))}\n{fence}\n"
+            # A fence needs its own line, but the source may be empty or omit its
+            # final newline. The extractor uses the SHA to recover that distinction.
+            body = content if content.endswith("\n") else content + "\n"
+            text += f"\n### `{name}`\n\n{notes(name, content)}<!-- source-file: {name} sha256: {code_sha} -->\n{fence}{language}\n{body}{fence}\n"
     return text
 
 
@@ -110,17 +210,13 @@ def main():
     args = parser.parse_args()
     expected = render()
     if args.check:
-        if (
-            not OUTPUT.exists()
-            or OUTPUT.read_text(encoding="utf-8") != expected
-            or not LEGACY.exists()
-            or LEGACY.read_text(encoding="utf-8") != expected
-        ):
+        if not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != expected:
             raise SystemExit("手册与源码不一致：执行 uv run python -m scripts.build_handbook")
-        print("Handbook source consistency PASS")
+        if len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) != 1:
+            raise SystemExit("只能保留一份正式完整手册")
+        print("Single handbook source consistency PASS")
     else:
         OUTPUT.write_text(expected, encoding="utf-8", newline="\n")
-        LEGACY.write_text(expected, encoding="utf-8", newline="\n")
         print("Handbook written successfully")
 
 
