@@ -58,14 +58,15 @@
 - `test_manifest_covers_owned_tracked_sources_independently_of_generator_groups`（L590–L624）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L602按`not (ROOT / ".git").exists()`分支；L617断言`not owned - rows.keys()`；L618断言`not rows.keys() & excluded`；L619断言`not any(name.startswith("learning-docs/") for name in rows)`；L620断言`"tests/test_learning_docs.py" in rows`；L621断言`"scripts/rebuild_learning_docs.py" in rows`；L622断言`"scripts/build_learning_docs.py" in rows`；L623断言`"uv.lock" in rows and "tools/node/package-lock.json" in rows`。后续分支沿下方源码相同行号继续阅读。 调用`reader.read_bundle`、`isinstance`、`content.encode`、`builder.sources`、`assert_exact_inventory`、`(ROOT / ".git").exists`、`set`、`subprocess.check_output(["git", "ls-files", "-z"], cwd=ROOT) .dec…`、`subprocess.check_output`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_docs_only_bootstrap_runs_isolated_with_original_tree_reads_forbidden`（L627–L668）：接收`tmp_path`。 控制顺序：L664断言`result.returncode == 0`；L665遍历`reader.read_bundle(docs).items()`；L667断言`not (destination / ".git").exists()`；L668断言`not list((destination / "templates/vendor").glob("*.zip"))`。 调用`shutil.copytree`、`assert_exact_bytes`、`(docs / "rebuild.py").read_bytes`、`(ROOT / "scripts/rebuild_learning_docs.py").read_bytes`、`launch.write_text`、`subprocess.run`、`str`、`os.environ.items`、`reader.read_bundle(docs).items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_multi_part_navigation_has_no_dangling_separator_or_trailing_space`（L671–L690）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L679断言`len(record["parts"]) == 3`；L680遍历`enumerate(record["parts"])`；L686断言`len(navigation) == 1`；L688断言`line == line.rstrip()`；L689断言`not line.endswith(" ·")`；L690断言`line.count("](") == (2 if index == 1 else 1)`。 调用`"".join`、`range`、`builder.source_pages`、`len`、`enumerate`、`prose_outside_fences(pages[name]).splitlines`、`prose_outside_fences`、`line.startswith`、`line.rstrip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_repacked_vendor_manifest_blocks_advance_but_clean_full_restore_is_safe`（L693–L729）：接收`tmp_path`。 控制顺序：L717遍历`("name", "sha", "source_digest", "files")`；L718断言`repacked["sources"][0][key] == original["sources"][0][key]`；L724断言`vendor.read_bytes() == changed`；L725断言`not (old / "later.py").exists()`；L726断言`reader.restore(book, complete) == 2`；L727断言`(complete / "templates/vendor/manifest.json").read_bytes() == encoded`；L728断言`(complete / "later.py").read_bytes() == b"answer = 42\n"`；L729断言`vendor.read_bytes() == changed`。 调用`(json.dumps(original) + "\n").encode`、`json.dumps`、`make_bundle`、`reader.restore`、`json.loads`、`(json.dumps(repacked) + "\n").encode`、`vendor.write_bytes`、`pytest.raises`、`vendor.read_bytes`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_learning_docs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L690。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_learning_docs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L729。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26141`。本段原文以LF换行结束。
+本段原始字节数：`27786`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_learning_docs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ce3d8d5a342bdcc548cfefe64546b6d72a29cc0bf6e3d92e911723c9527d98bc"} -->
+<!-- learning-source: {"path": "tests/test_learning_docs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d2b371cbb8d9abf4ddb18944fe82ef9b7845accac60c146282daa45c88ef02e6"} -->
 ``````python
 # tests/test_learning_docs.py
 """Independent source coverage, byte-exact reconstruction, and fail-before-write contracts."""
@@ -758,4 +759,43 @@ def test_multi_part_navigation_has_no_dangling_separator_or_trailing_space():
         assert line == line.rstrip(), name
         assert not line.endswith(" ·"), name
         assert line.count("](") == (2 if index == 1 else 1)
+
+
+def test_repacked_vendor_manifest_blocks_advance_but_clean_full_restore_is_safe(tmp_path):
+    original = {
+        "sources": [
+            {
+                "name": "example",
+                "sha": "a" * 40,
+                "source_digest": "b" * 64,
+                "files": 1,
+                "archive_sha256": "c" * 64,
+            }
+        ]
+    }
+    encoded = (json.dumps(original) + "\n").encode()
+    book, old, complete = tmp_path / "book", tmp_path / "original", tmp_path / "complete"
+    make_bundle(
+        book,
+        [
+            ("templates/vendor/manifest.json", [encoded], "09-native", "json", "utf-8"),
+            ("later.py", [b"answer = 42\n"], "10-business", "python", "utf-8"),
+        ],
+    )
+    reader.restore(book, old, through="09")
+    repacked = json.loads(encoded)
+    repacked["sources"][0]["archive_sha256"] = "d" * 64
+    for key in ("name", "sha", "source_digest", "files"):
+        assert repacked["sources"][0][key] == original["sources"][0][key]
+    changed = (json.dumps(repacked) + "\n").encode()
+    vendor = old / "templates/vendor/manifest.json"
+    vendor.write_bytes(changed)
+    with pytest.raises(ValueError, match="previously restored file changed"):
+        reader.restore(book, old, through="10", advance=True)
+    assert vendor.read_bytes() == changed
+    assert not (old / "later.py").exists()
+    assert reader.restore(book, complete) == 2
+    assert (complete / "templates/vendor/manifest.json").read_bytes() == encoded
+    assert (complete / "later.py").read_bytes() == b"answer = 42\n"
+    assert vendor.read_bytes() == changed  # The user's original directory stays untouched.
 ``````

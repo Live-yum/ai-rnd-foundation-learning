@@ -500,6 +500,10 @@ uv run --no-project --python 3.14 python learning-docs/rebuild.py student-projec
 
 每学完一站再把`--through`改为下一站编号。`--advance`会核对已还原文件的哈希；你练习修改过源码时先把练习保存在单独目录，或创建另一个空目录继续，它不会覆盖修改。生成的`.learning-progress.json`只记录教材文件哈希，不执行任何代码，也不启动外部服务。
 
+第09站重建第三方模板时，不同zlib版本可能只改变ZIP压缩字节，从而更新 `templates/vendor/manifest.json` 的 `archive_sha256`。`--advance` 会把它识别为已还原文件变化并停止，这是应当保留的保护。先核对固定commit、source_digest和文件数仍一致；不要删账本、改校验值或用旧manifest覆盖本机新归档。
+
+若遇到这种情况，保留原项目和数据，在一个新的空目录采用下面C路线完整还原，再按第09站重建模板、按第06/11站准备新目录的浏览器和Node工具，继续后续学习。新完整目录不再需要 `--advance`。明确命令与恢复边界见[第09站的重打包说明](09-native/README.md)；手写后续源码也是有效路线。不删除或覆盖原项目。
+
 ### C. 一次还原，用于完整性验收
 
 ```bash

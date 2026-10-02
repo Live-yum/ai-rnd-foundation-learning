@@ -688,3 +688,42 @@ def test_multi_part_navigation_has_no_dangling_separator_or_trailing_space():
         assert line == line.rstrip(), name
         assert not line.endswith(" ·"), name
         assert line.count("](") == (2 if index == 1 else 1)
+
+
+def test_repacked_vendor_manifest_blocks_advance_but_clean_full_restore_is_safe(tmp_path):
+    original = {
+        "sources": [
+            {
+                "name": "example",
+                "sha": "a" * 40,
+                "source_digest": "b" * 64,
+                "files": 1,
+                "archive_sha256": "c" * 64,
+            }
+        ]
+    }
+    encoded = (json.dumps(original) + "\n").encode()
+    book, old, complete = tmp_path / "book", tmp_path / "original", tmp_path / "complete"
+    make_bundle(
+        book,
+        [
+            ("templates/vendor/manifest.json", [encoded], "09-native", "json", "utf-8"),
+            ("later.py", [b"answer = 42\n"], "10-business", "python", "utf-8"),
+        ],
+    )
+    reader.restore(book, old, through="09")
+    repacked = json.loads(encoded)
+    repacked["sources"][0]["archive_sha256"] = "d" * 64
+    for key in ("name", "sha", "source_digest", "files"):
+        assert repacked["sources"][0][key] == original["sources"][0][key]
+    changed = (json.dumps(repacked) + "\n").encode()
+    vendor = old / "templates/vendor/manifest.json"
+    vendor.write_bytes(changed)
+    with pytest.raises(ValueError, match="previously restored file changed"):
+        reader.restore(book, old, through="10", advance=True)
+    assert vendor.read_bytes() == changed
+    assert not (old / "later.py").exists()
+    assert reader.restore(book, complete) == 2
+    assert (complete / "templates/vendor/manifest.json").read_bytes() == encoded
+    assert (complete / "later.py").read_bytes() == b"answer = 42\n"
+    assert vendor.read_bytes() == changed  # The user's original directory stays untouched.

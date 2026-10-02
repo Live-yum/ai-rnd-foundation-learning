@@ -38,6 +38,26 @@ uv run rnd init
 
 从空目录还原时没有预带第三方ZIP，上面的 `vendor_templates --fetch` 会用Git获取固定公开提交并重建三个归档；普通克隆且归档已核验存在时可略过这一重建步骤。该命令不是获取最新主分支，不跳过来源和解压后源码摘要校验。压缩库版本可能使ZIP压缩字节不同，因此重建后以脚本生成的新归档hash配合固定commit/解压源码摘要记录，不混用旧压缩hash。测试应无failed/error；`rnd init` 应创建本机状态、令牌并从已具备的归档解压模板，不覆盖已有 `.env`。这个命令完成不代表PostgreSQL、Redis、Java或Vue已经运行。
 
+### 重打包后，分阶段还原为什么可能暂停
+
+固定提交和解压后的源码摘要相同，也不保证不同zlib版本产出的ZIP压缩字节完全相同。此时变化的是 `templates/vendor/manifest.json` 中的 `archive_sha256`，脚本必须把它更新为你本机真实归档的摘要；固定commit、source_digest和文件数仍应与教材一致。若这些来源字段也不同，应先停止调查，不能把它解释成压缩差异。
+
+可选的 `--advance` 对已经还原的文件逐字节检查，因此这个正常的重打包变化也会触发保护，拒绝推进。这不代表模板源码丢失，也不是让你改掉校验。不要删除 `.learning-progress.json`、伪造其中的哈希，或把旧manifest强行盖回去：旧归档哈希可能与本机新ZIP不符。
+
+推荐改用“完整空目录还原后继续学习”路线。保留原 `student-project` 及其中的源码修改、状态、数据库和报告；不删除、不覆盖、不把它当作新项目的代码来源。在同时放着教材和原项目的父目录运行下列命令；新名字 `student-project-complete` 必须尚不存在或为空。若你原项目叫别的名字，先在终端确认当前位置再操作。
+
+```bash
+# .learning/commands/09-repack-continue.sh
+uv run --no-project --python 3.14 python learning-docs/rebuild.py student-project-complete
+cd student-project-complete
+uv sync --locked --all-extras
+uv run python -m scripts.vendor_templates --fetch
+```
+
+Windows PowerShell也可执行以上四行。这里一次性取得完整自有代码，之后不再对这个新目录使用 `--advance`；仍按第10站以后的教学顺序阅读、练习和验收。按第06站在新目录安装浏览器并重新设置其绝对模块路径，按第11站安装/构建Node工具，再运行需要它们的检查。原生实验继续遵守专用空数据库要求，不能为了复用已初始化的旧库而删除数据。最后按第14站从本机实际模板清单重新生成两套教材并检查一致性。
+
+手写路线本来就不需要进度账本；也可以保留当前目录、按后续完整源码页手写新文件。无论选哪条路，哈希保护都保持严格，不把“还原完成”当作依赖和服务已经准备完成。
+
 FastapiAdmin使用pnpm9.15.3，芋道Vben使用pnpm11.16.0；不要在同一全局安装中含糊地说“有pnpm即可”。两者需要Node22和本机PG/Redis，芋道还需要JDK17与Maven。按下一节的完整本机步骤准备专用 `*_codegen` 数据库。拒绝非空库时先检查归属，不能用DROP整库来让下一条命令变绿。
 
 ## 从Ubuntu/WSL准备原生运行环境

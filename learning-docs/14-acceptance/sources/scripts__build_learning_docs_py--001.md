@@ -23,16 +23,16 @@
 - `source_pages`（L333–L400）：接收`name`、`content`、`stage`。 控制顺序：L339按`binary`分支；L341按`name.endswith(("uv.lock", "package-lock.json"))`分支；L346遍历`enumerate(pieces)`；L367按`index`分支；L369按`index + 1 < len(pieces)`分支；L378按`not piece`分支；L380按`not binary`分支；L390按`not payload.endswith("\n")`分支。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L394的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
 - `read_content`（L403–L404）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L404的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
 - `render`（L407–L454）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L409按`[stage["id"] for stage in curriculum] != STAGES`分支；L410抛异常，停止当前正常路径；L412遍历`sources()`；L413遍历`files`；L415按`set(output).intersection(pages)`分支；L416抛异常，停止当前正常路径；L425遍历`curriculum`；L430按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L454的`output`。
-- `readme`（L457–L536）：接收`curriculum`、`records`。 控制顺序：L471遍历`curriculum`。 调用`len`。 返回路径：L536的`text`。
-- `main`（L539–L567）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L549按`args.check`分支；L556按`wrong`分支；L557抛异常，停止当前正常路径；L561遍历`actual.difference(expected)`；L563遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `readme`（L457–L540）：接收`curriculum`、`records`。 控制顺序：L471遍历`curriculum`。 调用`len`。 返回路径：L540的`text`。
+- `main`（L543–L571）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L553按`args.check`分支；L560按`wrong`分支；L561抛异常，停止当前正常路径；L565遍历`actual.difference(expected)`；L567遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/build_learning_docs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L571。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/build_learning_docs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L575。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`30958`。本段原文以LF换行结束。
+本段原始字节数：`31749`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/build_learning_docs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fd39cfb7bb889e9731d8ac5f9a812e0840a1a3f819276120e35f8d938a6a780d"} -->
+<!-- learning-source: {"path": "scripts/build_learning_docs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b10c38a6bd9347f81dcaa1a9f2007dd8d9e22423543dd4c5bc43da85dea77c97"} -->
 ````python
 # scripts/build_learning_docs.py
 """Build small, staged lessons and lossless source pages from the actual platform."""
@@ -536,6 +536,10 @@ uv run --no-project --python 3.14 python learning-docs/rebuild.py student-projec
 ```
 
 每学完一站再把`--through`改为下一站编号。`--advance`会核对已还原文件的哈希；你练习修改过源码时先把练习保存在单独目录，或创建另一个空目录继续，它不会覆盖修改。生成的`.learning-progress.json`只记录教材文件哈希，不执行任何代码，也不启动外部服务。
+
+第09站重建第三方模板时，不同zlib版本可能只改变ZIP压缩字节，从而更新 `templates/vendor/manifest.json` 的 `archive_sha256`。`--advance` 会把它识别为已还原文件变化并停止，这是应当保留的保护。先核对固定commit、source_digest和文件数仍一致；不要删账本、改校验值或用旧manifest覆盖本机新归档。
+
+若遇到这种情况，保留原项目和数据，在一个新的空目录采用下面C路线完整还原，再按第09站重建模板、按第06/11站准备新目录的浏览器和Node工具，继续后续学习。新完整目录不再需要 `--advance`。明确命令与恢复边界见[第09站的重打包说明](09-native/README.md)；手写后续源码也是有效路线。不删除或覆盖原项目。
 
 ### C. 一次还原，用于完整性验收
 
