@@ -158,6 +158,7 @@ class Settings(BaseSettings):
     max_repair_attempts: int = Field(default=2, ge=0, le=2)
     tool_timeout: int = Field(default=180, ge=10, le=900)
     coding_engine: Literal["bounded", "aider"] = "bounded"
+    module_coding_engine: Literal["structured", "openhands"] = "structured"
     aider_executable: str = ""
     repo_map_provider: Literal["symbols", "aider"] = "symbols"
     retrieval_engine: Literal["local", "continue"] = "local"
@@ -241,17 +242,14 @@ class Settings(BaseSettings):
     def review_enabled(self) -> bool:
         return self.model_configuration().review_enabled
 
-    def redact(self, text: str) -> str:
-        # Retain old process-local keys for in-flight calls after a settings edit.
-        # An invalid file must never stop error-path redaction from working.
+    def redaction_secrets(self):
+        # Retain old process-local values while in-flight calls finish.
         try:
             self.model_configuration()
         except ValueError:
             pass
         with self._model_keys_lock:
-            known_keys = tuple(self._model_keys)
-        for secret in sorted(known_keys, key=len, reverse=True):
-            text = text.replace(secret, "[redacted]")
+            values = set(self._model_keys)
         for field in (
             "api_key",
             "product_postgres_url",
@@ -259,7 +257,47 @@ class Settings(BaseSettings):
             "daytona_api_key",
             *(stage + "_api_key" for stage in STAGES),
         ):
-            secret = getattr(self, field).get_secret_value()
-            if secret:
-                text = text.replace(secret, "[redacted]")
+            value = getattr(self, field).get_secret_value()
+            if value:
+                values.add(value)
+        return sorted((value for value in values if value), key=len, reverse=True)
+
+    def redact(self, text: str) -> str:
+        for secret in self.redaction_secrets():
+            text = text.replace(secret, "[redacted]")
         return text
+
+    def redact_fragments(self, fragments):
+        """Hide all pieces of a newly registered secret in historical SSE replay."""
+        joined = "".join(fragments)
+        spans = []
+        for secret in self.redaction_secrets():
+            start = joined.find(secret)
+            while start >= 0:
+                spans.append((start, start + len(secret)))
+                start = joined.find(secret, start + 1)
+        result, offset = [], 0
+        for fragment in fragments:
+            end = offset + len(fragment)
+            result.append(
+                "[redacted]"
+                if any(left < end and right > offset for left, right in spans)
+                else fragment
+            )
+            offset = end
+        return result
+
+    def redact_data(self, value):
+        """Redact JSON string leaves and keys before escaping; preserve inputs."""
+        if isinstance(value, str):
+            return self.redact(value)
+        if isinstance(value, dict):
+            return {
+                self.redact(key) if isinstance(key, str) else key: self.redact_data(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [self.redact_data(item) for item in value]
+        if isinstance(value, tuple):
+            return tuple(self.redact_data(item) for item in value)
+        return value
