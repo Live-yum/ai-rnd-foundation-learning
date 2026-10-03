@@ -303,3 +303,107 @@ def test_live_container_inspection_failure_stops_before_source_upload(settings, 
     )
     assert result["passed"] is False and result["cleanup"] == "deleted"
     assert result["kind"] == "isolation_environment" and operations == ["deleted"]
+
+
+@pytest.mark.parametrize("failure", [None, "baseline", "initial", "restart-health", "restart"])
+def test_verifier_closes_health_opened_http_clients_on_all_paths(
+    settings, tmp_path, monkeypatch, failure
+):
+    """Real HTTPX lifecycle with transport/process fixtures, not live isolation proof."""
+    import httpx
+
+    from scripts.ci_capability_profile import fixed_application
+    from workbench import capability_sandbox as verifier
+    from workbench.capability_verification import CheckFailure
+
+    product = tmp_path / "product"
+    plan = fixed_application(product)
+    identifier = "00000000-0000-0000-0000-000000000001"
+    events, clients = [], []
+    original_client = httpx.Client
+
+    def build_http(**kwargs):
+        launch = len(clients)
+        assert kwargs["headers"] == {"x-daytona-preview-token": "fixture-private-token"}
+        assert kwargs["trust_env"] is False and kwargs["follow_redirects"] is False
+
+        def respond(request):
+            events.append((launch, request.url.path))
+            assert request.url.host == f"8123-{identifier}.proxy.localhost"
+            if failure == "restart-health" and launch == 1:
+                raise RuntimeError("fixture health failure")
+            return httpx.Response(200, json={"ok": True})
+
+        client = original_client(**kwargs, transport=httpx.MockTransport(respond))
+        clients.append(client)
+        return client
+
+    sandbox = SimpleNamespace(
+        id=identifier,
+        fs=SimpleNamespace(create_folder=lambda *a: None, upload_file=lambda *a, **k: None),
+        process=SimpleNamespace(
+            create_session=lambda *a: None,
+            execute_session_command=lambda *a, **k: SimpleNamespace(cmd_id="fixture-command"),
+        ),
+        get_preview_link=lambda port: SimpleNamespace(
+            url=f"http://{port}-{identifier}.proxy.localhost", token="fixture-private-token"
+        ),
+    )
+    daytona = SimpleNamespace(
+        create=lambda *a, **k: sandbox,
+        stop=lambda *a, **k: events.append("stopped"),
+        start=lambda *a, **k: events.append("started"),
+        delete=lambda *a, **k: events.append("deleted"),
+    )
+    counts = iter([0, 1, 1])
+
+    def database_counts(*args):
+        if failure == "baseline":
+            raise CheckFailure("fixture baseline failure")
+        return {"entries": next(counts)}
+
+    def run_scenarios(http, scenarios, *, saved=None, after_restart=False):
+        phase = "restart" if after_restart else "initial"
+        assert http.get("/fixture-" + phase).status_code == 200
+        if failure == phase:
+            raise CheckFailure("fixture scenario failure")
+        return [{"phase": phase, "fixture_only": True}], {}
+
+    monkeypatch.setattr(verifier, "require_container_evidence", lambda *a: {"fixture_only": True})
+    monkeypatch.setattr(verifier, "prepare_identity", lambda *a: {"fixture_only": True})
+    monkeypatch.setattr(verifier, "control_exec", lambda *a: SimpleNamespace(exit_code=0))
+    monkeypatch.setattr(verifier, "database_counts", database_counts)
+    monkeypatch.setattr(verifier, "run_scenarios", run_scenarios)
+    monkeypatch.setattr(verifier, "run_browser", lambda *a: [{"fixture_only": True}])
+    monkeypatch.setattr(verifier.httpx, "Client", build_http)
+    monkeypatch.setattr(
+        "workbench.daytona_sessions.run_session_command",
+        lambda *a, **k: SimpleNamespace(exit_code=0),
+    )
+    settings.daytona_snapshot = "fixture-owned-snapshot"
+    try:
+        result = verifier._verify(
+            product,
+            plan,
+            plan.scenarios,
+            settings,
+            plan.selection.model_dump(),
+            tmp_path / "receipt.json",
+            client=daytona,
+            aggregate=True,
+            control_observer=lambda _: {},
+        )
+        assert result["passed"] is (failure is None)
+        assert result["restarted"] is (failure is None)
+        assert result["cleanup"] == "deleted" and events[-1] == "deleted"
+        assert len(clients) == (1 if failure in {"baseline", "initial"} else 2)
+        assert all(client.is_closed for client in clients)
+        assert (0, "/health") in events
+        if failure is None:
+            assert [check["phase"] for check in result["checks"]] == ["initial", "restart"]
+            assert (0, "/openapi.json") in events
+            assert (0, "/fixture-initial") in events and (1, "/fixture-restart") in events
+            assert result["database"]["after_restart"] == {"entries": 1}
+    finally:
+        for client in clients:
+            client.close()

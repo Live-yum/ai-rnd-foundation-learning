@@ -12,6 +12,7 @@ import sys
 import tempfile
 import time
 import uuid
+from contextlib import closing
 from pathlib import Path
 
 import httpx
@@ -265,8 +266,10 @@ def _verify(
                 raise
 
         http, url, token = start()
-        baseline_counts = database_counts(sandbox, plan, settings.tool_timeout)
-        with http:
+        # The health request already opened this client; entering it again is
+        # invalid. Own its close even when the independent baseline probe fails.
+        with closing(http):
+            baseline_counts = database_counts(sandbox, plan, settings.tool_timeout)
             if plan.selection.backend in {"fastapi", "fastapiadmin"}:
                 with http.stream("GET", "/openapi.json") as response:
                     if response.status_code != 200:
@@ -292,7 +295,7 @@ def _verify(
                 sandbox, plan, settings.tool_timeout, restart=True, password=database_password
             )
             http, _, _ = start()
-            with http:
+            with closing(http):
                 checks, _ = run_scenarios(http, scenarios, saved=saved, after_restart=True)
                 receipt["checks"].extend(checks)
             receipt["restarted"] = True
