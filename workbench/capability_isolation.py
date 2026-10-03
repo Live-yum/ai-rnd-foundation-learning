@@ -19,6 +19,18 @@ APP_USER = "rnd-module"
 APP_UID = 20000
 GUARD = CONTROL + "/guard.py"
 SYSTEM_PATH = "/usr/sbin:/usr/bin:/sbin:/bin"
+# The daemon starts an outer shell before it evaluates our inner env -i command.
+# Apply these through the SDK's envs protocol so locale and user startup hooks
+# cannot contaminate machine-readable command output before that inner boundary.
+# Global shell startup files remain part of the pinned trusted image; unexpected
+# output still fails the strict whole-output identity check below.
+CONTROL_SHELL_ENV = {
+    "LC_ALL": "C",
+    "LANG": "C",
+    "BASH_ENV": "/dev/null",
+    "ENV": "/dev/null",
+    "ZDOTDIR": "/nonexistent",
+}
 ISOLATION_PROFILE = "module-linux-landlock-v1"
 ISOLATION_FLAGS = (
     "no_new_privs",
@@ -88,7 +100,9 @@ def system_argv(argv):
 
 
 def control_exec(sandbox, argv, timeout):
-    return sandbox.process.exec(shlex.join(system_argv(argv)), timeout=timeout)
+    return sandbox.process.exec(
+        shlex.join(system_argv(argv)), env=dict(CONTROL_SHELL_ENV), timeout=timeout
+    )
 
 
 def product_argv(plan, argv, database):
@@ -197,8 +211,21 @@ def prepare_identity(sandbox, plan, timeout):
     identity_check = {
         "control_exec_exit_code": root.exit_code if type(root.exit_code) is int else None,
         "control_euid": control_uid,
+        "control_result_type": "string"
+        if isinstance(root.result, str)
+        else "null"
+        if root.result is None
+        else "other",
+        "control_result_chars": len(root.result) if isinstance(root.result, str) else None,
+        "control_output_shape": "decimal"
+        if control_uid is not None
+        else "empty"
+        if not output
+        else "locale-warning"
+        if "setlocale" in output.lower()
+        else "other",
     }
-    if root.exit_code != 0 or control_uid != 0:
+    if type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0:
         raise IsolationUnavailable("缺少受控隔离身份，未执行生成源码", evidence=identity_check)
     commands = [
         ["/usr/sbin/groupadd", "--gid", str(APP_UID), APP_USER],

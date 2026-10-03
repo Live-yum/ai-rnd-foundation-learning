@@ -12,7 +12,7 @@ import shlex
 from pathlib import PurePosixPath
 from xml.etree import ElementTree
 
-from workbench.capability_isolation import control_exec, system_argv
+from workbench.capability_isolation import CONTROL_SHELL_ENV, control_exec, system_argv
 from workbench.capability_verification import CheckFailure
 from workbench.filesystem import inside, manifest
 
@@ -227,7 +227,9 @@ print(json.dumps({t:c.execute('SELECT count(*) FROM '+t).fetchone()[0] if t in n
             REMOTE + "/product/" + plan.runtime.database_path,
             *tables,
         ]
-        result = sandbox.process.exec(shlex.join(argv), timeout=timeout)
+        result = sandbox.process.exec(
+            shlex.join(argv), env=dict(CONTROL_SHELL_ENV), timeout=timeout
+        )
         if result.exit_code != 0:
             raise CheckFailure("独立SQLite物理数据探针失败，不能接受应用自报存储成功")
         try:

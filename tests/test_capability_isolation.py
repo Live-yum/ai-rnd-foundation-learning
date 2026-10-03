@@ -1,6 +1,8 @@
 """Verify every source command is composed through the same non-bypassable launcher."""
 
+import json
 import os
+import shlex
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -8,6 +10,137 @@ from types import SimpleNamespace
 import pytest
 
 from workbench.capability_isolation import IsolationUnavailable, product_argv
+
+
+@pytest.mark.parametrize(
+    "output,exit_code,shape",
+    [
+        ("warning: setlocale: private-sentinel\n0\n", 0, "locale-warning"),
+        ("private-sentinel\n0\n", 0, "other"),
+        ("", 0, "empty"),
+        (None, 0, "empty"),
+        (b"0\n", 0, "empty"),
+        (0, 0, "empty"),
+        ("1000\n", 0, "decimal"),
+        ("0\n", 7, "decimal"),
+        ("0\n", False, "decimal"),
+        ("0\n", "0", "decimal"),
+        ("0\n0\n", 0, "other"),
+        ("\x1b[0m0\n", 0, "other"),
+    ],
+)
+def test_identity_rejects_output_contamination_before_any_setup(output, exit_code, shape):
+    from workbench.capability_isolation import CONTROL_SHELL_ENV, prepare_identity
+
+    calls = []
+
+    def execute(command, *, env, timeout):
+        calls.append((command, env, timeout))
+        assert len(calls) == 1, "No setup or application command after failed identity"
+        assert shlex.split(command)[-2:] == ["/usr/bin/id", "-u"]
+        assert env == CONTROL_SHELL_ENV and timeout == 10
+        return SimpleNamespace(result=output, exit_code=exit_code)
+
+    sandbox = SimpleNamespace(process=SimpleNamespace(exec=execute))
+    with pytest.raises(IsolationUnavailable) as caught:
+        prepare_identity(sandbox, object(), 10)
+    evidence = caught.value.evidence
+    assert evidence["control_output_shape"] == shape
+    assert evidence["control_result_chars"] == (len(output) if isinstance(output, str) else None)
+    assert "private-sentinel" not in json.dumps(evidence)
+    assert set(evidence) == {
+        "control_exec_exit_code",
+        "control_euid",
+        "control_result_type",
+        "control_result_chars",
+        "control_output_shape",
+    }
+    assert len(calls) == 1
+
+
+def test_exact_root_identity_progresses_to_setup_without_weaker_parsing():
+    from workbench.capability_isolation import prepare_identity
+
+    calls = []
+
+    def execute(command, *, env, timeout):
+        calls.append(shlex.split(command))
+        return SimpleNamespace(
+            result="0\n" if len(calls) == 1 else "", exit_code=0 if len(calls) == 1 else 1
+        )
+
+    sandbox = SimpleNamespace(process=SimpleNamespace(exec=execute))
+    with pytest.raises(IsolationUnavailable, match="无法建立"):
+        prepare_identity(sandbox, object(), 10)
+    assert len(calls) == 2
+    assert "/usr/sbin/groupadd" in calls[1]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Pinned daemon shell fixture requires POSIX bash")
+def test_actual_sdk_env_protocol_prevents_outer_shell_contamination(tmp_path):
+    """Real SDK + subprocess protocol fixture, not the missing live CI output."""
+    import httpx
+    from daytona._sync.process import Process
+
+    from workbench.capability_isolation import CONTROL_SHELL_ENV, control_exec, system_argv
+
+    bootstrap = tmp_path / "fixture-bootstrap.sh"
+    bootstrap.write_text("printf 'private-bootstrap-sentinel\\n'\n", encoding="utf-8")
+    requests = []
+
+    def execute_command(*, request, **kwargs):
+        requests.append(request)
+        result = subprocess.run(
+            ["/bin/bash"],
+            input=request.command,
+            env={
+                "PATH": os.defpath,
+                "LC_ALL": "rnd_nonexistent_locale.UTF-8",
+                "BASH_ENV": str(bootstrap),
+                **(request.envs or {}),
+            },
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        return SimpleNamespace(
+            result=result.stdout, exit_code=result.returncode, additional_properties={}
+        )
+
+    with httpx.Client(trust_env=False) as client:
+        sdk = Process("python", SimpleNamespace(execute_command=execute_command), client)
+        sandbox = SimpleNamespace(process=sdk)
+        noisy = sdk.exec(shlex.join(system_argv(["/usr/bin/id", "-u"])), timeout=10)
+        assert noisy.exit_code == 0
+        assert "setlocale" in noisy.result and "private-bootstrap-sentinel" in noisy.result
+        assert noisy.result.strip() != str(os.geteuid())
+        safe = control_exec(sandbox, ["/usr/bin/id", "-u"], 10)
+        assert safe.exit_code == 0 and safe.result.strip() == str(os.geteuid())
+        assert requests[-1].envs == CONTROL_SHELL_ENV
+
+
+@pytest.mark.parametrize("engine", ["sqlite", "postgresql"])
+def test_physical_count_probe_uses_same_outer_shell_environment(engine):
+    from workbench.capability_isolation import CONTROL_SHELL_ENV
+    from workbench.capability_stack import database_counts
+
+    calls = []
+
+    def execute(command, *, env, timeout):
+        calls.append(shlex.split(command))
+        assert env == CONTROL_SHELL_ENV and timeout == 10
+        assert calls[-1][:2] == ["/usr/bin/env", "-i"]
+        return SimpleNamespace(exit_code=0, result='{"entries":7}' if engine == "sqlite" else "7\n")
+
+    plan = SimpleNamespace(
+        selection=SimpleNamespace(database=engine),
+        runtime=SimpleNamespace(database_tables=["entries"], database_path="data/app.db"),
+    )
+    sandbox = SimpleNamespace(process=SimpleNamespace(exec=execute))
+    assert database_counts(sandbox, plan, 10) == {"entries": 7}
+    assert len(calls) == 1
 
 
 @pytest.mark.parametrize("database", ["sqlite", "postgresql"])
