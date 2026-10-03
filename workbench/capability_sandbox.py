@@ -33,7 +33,13 @@ from workbench.capability_stack import (
     inspect_stack,
     prepare_database,
 )
-from workbench.capability_verification import CheckFailure, preview_url, run_browser, run_scenarios
+from workbench.capability_verification import (
+    BrowserFailure,
+    CheckFailure,
+    preview_url,
+    run_browser,
+    run_scenarios,
+)
 from workbench.domain import digest
 from workbench.errors import UnsupportedScope
 from workbench.filesystem import manifest, write_json
@@ -312,6 +318,8 @@ def _verify(
     except CheckFailure as exc:
         receipt["error"] = str(exc)
         receipt["failed_scenario"] = getattr(exc, "scenario_id", None)
+        if isinstance(exc, BrowserFailure):
+            receipt["browser_diagnostic"] = exc.diagnostic
     except Exception as exc:
         receipt["error"] = (
             "本机隔离服务未完成验收（" + type(exc).__name__ + "），未使用本机执行回退"

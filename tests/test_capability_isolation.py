@@ -305,7 +305,27 @@ def test_live_container_inspection_failure_stops_before_source_upload(settings, 
     assert result["kind"] == "isolation_environment" and operations == ["deleted"]
 
 
-@pytest.mark.parametrize("failure", [None, "baseline", "initial", "restart-health", "restart"])
+BROWSER_FAILURE_FIXTURES = {
+    "browser-launch": {"phase": "launch", "error_code": "operation-failed"},
+    "browser-timeout": {"phase": "python-timeout", "error_code": "timeout", "cleanup": "stopped"},
+    "browser-json": {
+        "phase": "python-report",
+        "error_code": "invalid-report",
+        "report_error": "invalid-json",
+    },
+    "browser-head": {
+        "phase": "python-report",
+        "error_code": "invalid-report",
+        "report_error": "wrong-verifier-or-request",
+    },
+    "browser-exit": {"phase": "python-exit", "error_code": "nonzero-exit", "exit_code": 1},
+    "browser-cleanup": {"phase": "launch", "error_code": "operation-failed"},
+}
+
+
+@pytest.mark.parametrize(
+    "failure", [None, "baseline", "initial", "restart-health", "restart", *BROWSER_FAILURE_FIXTURES]
+)
 def test_verifier_closes_health_opened_http_clients_on_all_paths(
     settings, tmp_path, monkeypatch, failure
 ):
@@ -314,7 +334,7 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
 
     from scripts.ci_capability_profile import fixed_application
     from workbench import capability_sandbox as verifier
-    from workbench.capability_verification import CheckFailure
+    from workbench.capability_verification import BrowserFailure, CheckFailure
 
     product = tmp_path / "product"
     plan = fixed_application(product)
@@ -349,11 +369,17 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
             url=f"http://{port}-{identifier}.proxy.localhost", token="fixture-private-token"
         ),
     )
+
+    def delete(*args, **kwargs):
+        events.append("deleted")
+        if failure == "browser-cleanup":
+            raise RuntimeError("fixture sandbox cleanup failure")
+
     daytona = SimpleNamespace(
         create=lambda *a, **k: sandbox,
         stop=lambda *a, **k: events.append("stopped"),
         start=lambda *a, **k: events.append("started"),
-        delete=lambda *a, **k: events.append("deleted"),
+        delete=delete,
     )
     counts = iter([0, 1, 1])
 
@@ -369,12 +395,17 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
             raise CheckFailure("fixture scenario failure")
         return [{"phase": phase, "fixture_only": True}], {}
 
+    def run_browser(*args):
+        if failure in BROWSER_FAILURE_FIXTURES:
+            raise BrowserFailure(BROWSER_FAILURE_FIXTURES[failure].copy())
+        return [{"fixture_only": True}]
+
     monkeypatch.setattr(verifier, "require_container_evidence", lambda *a: {"fixture_only": True})
     monkeypatch.setattr(verifier, "prepare_identity", lambda *a: {"fixture_only": True})
     monkeypatch.setattr(verifier, "control_exec", lambda *a: SimpleNamespace(exit_code=0))
     monkeypatch.setattr(verifier, "database_counts", database_counts)
     monkeypatch.setattr(verifier, "run_scenarios", run_scenarios)
-    monkeypatch.setattr(verifier, "run_browser", lambda *a: [{"fixture_only": True}])
+    monkeypatch.setattr(verifier, "run_browser", run_browser)
     monkeypatch.setattr(verifier.httpx, "Client", build_http)
     monkeypatch.setattr(
         "workbench.daytona_sessions.run_session_command",
@@ -395,10 +426,18 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         )
         assert result["passed"] is (failure is None)
         assert result["restarted"] is (failure is None)
-        assert result["cleanup"] == "deleted" and events[-1] == "deleted"
-        assert len(clients) == (1 if failure in {"baseline", "initial"} else 2)
+        assert result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")
+        assert events[-1] == "deleted"
+        assert len(clients) == (
+            1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} else 2
+        )
         assert all(client.is_closed for client in clients)
         assert (0, "/health") in events
+        persisted = json.loads((tmp_path / "receipt.json").read_text())
+        assert persisted == result
+        if failure in BROWSER_FAILURE_FIXTURES:
+            assert persisted["browser_diagnostic"] == BROWSER_FAILURE_FIXTURES[failure]
+            assert "fixture-private-token" not in json.dumps(persisted)
         if failure is None:
             assert [check["phase"] for check in result["checks"]] == ["initial", "restart"]
             assert (0, "/openapi.json") in events

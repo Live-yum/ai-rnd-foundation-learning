@@ -18,12 +18,123 @@ import httpx
 
 from workbench.capability_contracts import HttpStep
 from workbench.domain import digest
+from workbench.filesystem import sha
 from workbench.settings import ROOT
 from workbench.tools import clean_env, process_options, stop_process
 
 
 class CheckFailure(ValueError):
     pass
+
+
+class BrowserFailure(CheckFailure):
+    """Only bounded, allowlisted diagnostics cross the browser process boundary."""
+
+    def __init__(self, diagnostic):
+        super().__init__("真实浏览器场景未通过；查看安全阶段诊断，未跳过")
+        self.diagnostic = diagnostic
+
+
+BROWSER_PHASES = {
+    "contract",
+    "tool",
+    "launch",
+    "context",
+    "routing",
+    "page",
+    "navigation",
+    "action",
+    "assertion",
+    "application",
+    "context-close",
+    "browser-close",
+}
+BROWSER_ERROR_CODES = {
+    "operation-failed",
+    "timeout",
+    "tool-version",
+    "contract-too-large",
+    "origin-rejected",
+    "action-rejected",
+    "application-error",
+    "tool-missing",
+    "sandbox-unavailable",
+    "browser-missing",
+    "browser-dependency",
+    "name-resolution",
+    "connection-refused",
+    "navigation-network",
+}
+BROWSER_ACTIONS = {"viewport", "open", "fill", "click", "visible", "hidden", "text", None}
+BROWSER_ERROR_TYPES = {
+    "Error",
+    "TypeError",
+    "SyntaxError",
+    "ReferenceError",
+    "TimeoutError",
+    "Other",
+}
+
+
+def browser_report(raw, request_id, verifier_sha256):
+    """Return a current, exact-protocol report or a static rejection category."""
+    if len(raw) > 100000:
+        return None, "report-too-large"
+    try:
+        value = json.loads(raw)
+    except ValueError, UnicodeError, RecursionError:
+        return None, "invalid-json"
+    if (
+        not isinstance(value, dict)
+        or type(value.get("protocol")) is not int
+        or value["protocol"] != 1
+    ):
+        return None, "invalid-schema"
+    if value.get("request_id") != request_id or value.get("verifier_sha256") != verifier_sha256:
+        return None, "wrong-verifier-or-request"
+    fields = {"protocol", "request_id", "verifier_sha256", "passed"}
+    if value.get("passed") is True:
+        if set(value) != fields | {"checks"} or not isinstance(value["checks"], list):
+            return None, "invalid-schema"
+        return value, None
+    detail = value.get("diagnostic")
+    if (
+        value.get("passed") is not False
+        or set(value) != fields | {"diagnostic"}
+        or not isinstance(detail, dict)
+        or set(detail)
+        != {
+            "phase",
+            "error_code",
+            "error_type",
+            "scenario_index",
+            "step_index",
+            "action",
+            "navigation_status",
+        }
+        or not isinstance(detail.get("phase"), str)
+        or detail["phase"] not in BROWSER_PHASES
+        or not isinstance(detail.get("error_code"), str)
+        or detail["error_code"] not in BROWSER_ERROR_CODES
+        or not isinstance(detail.get("error_type"), str)
+        or detail["error_type"] not in BROWSER_ERROR_TYPES
+        or (detail.get("action") is not None and not isinstance(detail["action"], str))
+        or detail["action"] not in BROWSER_ACTIONS
+        or any(
+            detail[key] is not None
+            and (type(detail[key]) is not int or not 0 <= detail[key] <= 10000)
+            for key in ("scenario_index", "step_index")
+        )
+        or (
+            detail["navigation_status"] is not None
+            and (
+                type(detail["navigation_status"]) is not int
+                or not 100 <= detail["navigation_status"] <= 599
+            )
+        )
+    ):
+        return None, "invalid-diagnostic"
+    return value, None
 
 
 def preview_url(value, sandbox_id, port):
@@ -189,8 +300,17 @@ def run_browser(url, token, scenarios, saved, timeout):
         return []
     node = shutil.which("node")
     if not node:
-        raise CheckFailure("浏览器验收需要已安装的Node与固定Playwright，不能跳过前端验证")
+        raise BrowserFailure({"phase": "python-spawn", "error_code": "node-missing"})
+    request_id = uuid.uuid4().hex
+    script = ROOT / "scripts/capability_browser.cjs"
+    try:
+        verifier_sha256 = sha(script)
+    except OSError:
+        raise BrowserFailure(
+            {"phase": "python-spawn", "error_code": "verifier-unavailable"}
+        ) from None
     payload = {
+        "request_id": request_id,
         "url": url,
         "token": token,
         "scenarios": [
@@ -202,39 +322,82 @@ def run_browser(url, token, scenarios, saved, timeout):
         ],
     }
     with tempfile.TemporaryFile() as output:
-        process = subprocess.Popen(
-            [node, str(ROOT / "scripts/capability_browser.cjs")],
-            stdin=subprocess.PIPE,
-            stdout=output,
-            stderr=subprocess.STDOUT,
-            **process_options(),
-            env=clean_env(
-                {
-                    "PRODUCT_VERIFY_PLAYWRIGHT": os.environ.get(
-                        "PRODUCT_VERIFY_PLAYWRIGHT",
-                        str(ROOT / ".native/browser/node_modules/playwright"),
-                    ),
-                    "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
-                }
-            ),
-        )
+        try:
+            process = subprocess.Popen(
+                [node, str(script)],
+                stdin=subprocess.PIPE,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                **process_options(),
+                env=clean_env(
+                    {
+                        "PRODUCT_VERIFY_PLAYWRIGHT": os.environ.get(
+                            "PRODUCT_VERIFY_PLAYWRIGHT",
+                            str(ROOT / ".native/browser/node_modules/playwright"),
+                        ),
+                        "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
+                    }
+                ),
+            )
+        except OSError:
+            raise BrowserFailure({"phase": "python-spawn", "error_code": "spawn-failed"}) from None
         try:
             process.communicate(json.dumps(payload).encode(), timeout=timeout)
         except subprocess.TimeoutExpired:
-            stop_process(process)
-            raise CheckFailure("真实浏览器验收超时，已终止验收进程组") from None
-        if process.returncode:
-            raise CheckFailure("真实浏览器场景未通过；缺少工具或页面交互断言失败，未跳过")
+            cleanup = "stopped"
+            try:
+                stop_process(process)
+            except Exception:
+                cleanup = "failed"
+            output.seek(0)
+            prior, _ = browser_report(output.read(100001), request_id, verifier_sha256)
+            if prior and prior["passed"] is False:
+                raise BrowserFailure(
+                    {**prior["diagnostic"], "termination": "python-timeout", "cleanup": cleanup}
+                ) from None
+            raise BrowserFailure(
+                {"phase": "python-timeout", "error_code": "timeout", "cleanup": cleanup}
+            ) from None
         output.seek(0)
         raw = output.read(100001)
-    if len(raw) > 100000:
-        raise CheckFailure("浏览器验收报告过大")
-    try:
-        value = json.loads(raw)
-    except ValueError, UnicodeError:
-        raise CheckFailure("浏览器验收缺少有效报告") from None
-    if value.get("passed") is not True:
-        raise CheckFailure("浏览器验收失败")
+    value, report_error = browser_report(raw, request_id, verifier_sha256)
+    status = process.returncode if type(process.returncode) is int else None
+    if report_error:
+        raise BrowserFailure(
+            {
+                "phase": "python-exit" if status else "python-report",
+                "error_code": "nonzero-exit" if status else "invalid-report",
+                "exit_code": status,
+                "report_error": report_error,
+            }
+        )
+    if value["passed"] is False:
+        raise BrowserFailure({**value["diagnostic"], "exit_code": status})
+    if status != 0:
+        raise BrowserFailure(
+            {"phase": "python-exit", "error_code": "success-with-invalid-exit", "exit_code": status}
+        )
+    expected = {scenario.id: len(scenario.browser) for scenario in selected}
+    checks = value["checks"]
+    seen = set()
+    for check in checks:
+        if (
+            not isinstance(check, dict)
+            or set(check) != {"id", "passed", "steps", "real_browser", "browser_os_sandbox"}
+            or not isinstance(check.get("id"), str)
+            or check["id"] not in expected
+            or check["id"] in seen
+            or type(check.get("steps")) is not int
+            or check["steps"] != expected[check["id"]]
+            or any(
+                check.get(flag) is not True
+                for flag in ("passed", "real_browser", "browser_os_sandbox")
+            )
+        ):
+            raise BrowserFailure({"phase": "python-report", "error_code": "invalid-checks"})
+        seen.add(check["id"])
+    if seen != set(expected):
+        raise BrowserFailure({"phase": "python-report", "error_code": "invalid-checks"})
     return value["checks"]
 
 

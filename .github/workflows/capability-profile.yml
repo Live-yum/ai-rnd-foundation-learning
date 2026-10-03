@@ -6,6 +6,8 @@ on:
       - 'workbench/capability_*.py'
       - 'scripts/capability_guard.py'
       - 'scripts/capability_fixture.py'
+      - 'scripts/capability_browser.cjs'
+      - 'tests/test_capability_browser_protocol.py'
       - 'scripts/ci_capability_profile.py'
       - 'scripts/daytona_capability_profile.py'
       - 'tools/daytona/capability*'
@@ -32,11 +34,13 @@ jobs:
         with:
           python-version: '3.14'
       - run: uv sync --locked --all-extras
-      - name: Check ordinary launcher behavior and strict receipt contracts
-        run: uv run pytest -q tests/test_capability_guard.py tests/test_capability_isolation.py tests/test_daytona_capability_profile.py
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Check ordinary launcher behavior and strict receipt contracts
+        env:
+          RND_REQUIRE_NODE_TESTS: '1'
+        run: uv run pytest -q tests/test_capability_guard.py tests/test_capability_isolation.py tests/test_daytona_capability_profile.py tests/test_capability_browser_protocol.py
       - name: Install mandatory product browser acceptance tooling
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
