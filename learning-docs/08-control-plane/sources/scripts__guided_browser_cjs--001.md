@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `scripts/guided_browser.cjs`；**本文件共有 2 段**。本段覆盖源文件 L1–L866。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/guided_browser.cjs`；**本文件共有 2 段**。本段覆盖源文件 L1–L872。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`29251`。本段原文以LF换行结束。
+本段原始字节数：`29895`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "df1a50ab39beab23af959d7b4d731b641163a677f5e416b6e09e591333e5ff8b"} -->
+<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "72e02e8bed912c16eaab2e8ec1c7d04bf21fd8ef2e674b9a1632a5fa8128497c"} -->
 ````javascript
 // scripts/guided_browser.cjs
 // Real local application and provider HTTP. No fulfilled page routes or preapproved gates.
@@ -235,11 +235,17 @@ async function checkSettings(page, cfg, errors) {
   page.on("response", watch);
   await route(page, "settings");
   await page.getByRole("heading", { name: "模型与服务，一处配置" }).waitFor();
-  assert(
-    await page
-      .getByRole("button", { name: "连接测试未开放", exact: true })
-      .isDisabled(),
-  );
+  const connectionTest = page.getByRole("button", { name: "测试连接", exact: true });
+  assert(await connectionTest.isEnabled(), "Saved configuration exposes the explicit probe");
+  await connectionTest.click();
+  const probeConfirmation = page.getByRole("dialog");
+  await probeConfirmation.getByText("发起一次真实模型连接测试？", { exact: true }).waitFor();
+  assert.equal((await fixture(page, cfg)).calls.length, callsBefore,
+    "Opening the cost confirmation must not call a model");
+  await probeConfirmation.getByRole("button", { name: /^取\s*消$/ }).click();
+  await probeConfirmation.waitFor({ state: "hidden" });
+  assert.equal((await fixture(page, cfg)).calls.length, callsBefore,
+    "Cancelling a connection test must not call a model");
   await page.getByRole("tab", { name: /^计划阶段/ }).click();
   await page.locator("#model-url").fill(cfg.fixture + "/another-v1");
   const save = page.getByRole("button", { name: "保存配置", exact: true });

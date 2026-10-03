@@ -152995,7 +152995,7 @@ if __name__ == "__main__":
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/guided_browser.cjs sha256: 431bbba01ec2bcea307eedf30d82fbde53d4e850964d2ca3183ef8c8d25a9802 -->
+<!-- source-file: scripts/guided_browser.cjs sha256: 128a186426c310d294902b1e70764dd1a88b049795cd6013724e271993a48e36 -->
 ````javascript
 // Real local application and provider HTTP. No fulfilled page routes or preapproved gates.
 const fs = require("node:fs");
@@ -153215,11 +153215,17 @@ async function checkSettings(page, cfg, errors) {
   page.on("response", watch);
   await route(page, "settings");
   await page.getByRole("heading", { name: "模型与服务，一处配置" }).waitFor();
-  assert(
-    await page
-      .getByRole("button", { name: "连接测试未开放", exact: true })
-      .isDisabled(),
-  );
+  const connectionTest = page.getByRole("button", { name: "测试连接", exact: true });
+  assert(await connectionTest.isEnabled(), "Saved configuration exposes the explicit probe");
+  await connectionTest.click();
+  const probeConfirmation = page.getByRole("dialog");
+  await probeConfirmation.getByText("发起一次真实模型连接测试？", { exact: true }).waitFor();
+  assert.equal((await fixture(page, cfg)).calls.length, callsBefore,
+    "Opening the cost confirmation must not call a model");
+  await probeConfirmation.getByRole("button", { name: /^取\s*消$/ }).click();
+  await probeConfirmation.waitFor({ state: "hidden" });
+  assert.equal((await fixture(page, cfg)).calls.length, callsBefore,
+    "Cancelling a connection test must not call a model");
   await page.getByRole("tab", { name: /^计划阶段/ }).click();
   await page.locator("#model-url").fill(cfg.fixture + "/another-v1");
   const save = page.getByRole("button", { name: "保存配置", exact: true });

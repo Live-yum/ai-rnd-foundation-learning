@@ -935,8 +935,8 @@
     },
     {
       "path": "scripts/guided_browser.cjs",
-      "bytes": 41014,
-      "sha256": "431bbba01ec2bcea307eedf30d82fbde53d4e850964d2ca3183ef8c8d25a9802",
+      "bytes": 41658,
+      "sha256": "128a186426c310d294902b1e70764dd1a88b049795cd6013724e271993a48e36",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/scripts__guided_browser_cjs--001.md",

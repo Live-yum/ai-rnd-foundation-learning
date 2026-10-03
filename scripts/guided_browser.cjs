@@ -216,11 +216,17 @@ async function checkSettings(page, cfg, errors) {
   page.on("response", watch);
   await route(page, "settings");
   await page.getByRole("heading", { name: "模型与服务，一处配置" }).waitFor();
-  assert(
-    await page
-      .getByRole("button", { name: "连接测试未开放", exact: true })
-      .isDisabled(),
-  );
+  const connectionTest = page.getByRole("button", { name: "测试连接", exact: true });
+  assert(await connectionTest.isEnabled(), "Saved configuration exposes the explicit probe");
+  await connectionTest.click();
+  const probeConfirmation = page.getByRole("dialog");
+  await probeConfirmation.getByText("发起一次真实模型连接测试？", { exact: true }).waitFor();
+  assert.equal((await fixture(page, cfg)).calls.length, callsBefore,
+    "Opening the cost confirmation must not call a model");
+  await probeConfirmation.getByRole("button", { name: /^取\s*消$/ }).click();
+  await probeConfirmation.waitFor({ state: "hidden" });
+  assert.equal((await fixture(page, cfg)).calls.length, callsBefore,
+    "Cancelling a connection test must not call a model");
   await page.getByRole("tab", { name: /^计划阶段/ }).click();
   await page.locator("#model-url").fill(cfg.fixture + "/another-v1");
   const save = page.getByRole("button", { name: "保存配置", exact: true });
