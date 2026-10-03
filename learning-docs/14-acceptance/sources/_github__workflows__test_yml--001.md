@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/test.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L229。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/test.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L233。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8118`。本段原文以LF换行结束。
+本段原始字节数：`8447`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/test.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "af76821b2300b7e2d5e9e4550dc153292eda7d9e389fedef2017cfa0561ec716"} -->
+<!-- learning-source: {"path": ".github/workflows/test.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "db72663a3dbbc2136b5611f4073f07bcb93f7f688ffc2e9b20486b1d58189702"} -->
 ````yaml
 # .github/workflows/test.yml
 name: Python 3.14 acceptance
@@ -75,6 +75,10 @@ jobs:
       - run: npm run build --prefix tools/node
       - run: uv sync --locked --all-extras
       - run: uv run python --version
+      - name: Check capability protocol and receipt portability before full acceptance
+        env:
+          RND_REQUIRE_NODE_TESTS: '1'
+        run: uv run pytest -q tests/test_capability_browser_protocol.py tests/test_capability_isolation.py tests/test_daytona_capability_profile.py tests/test_capability_browser_preflight.py
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run python -m scripts.build_handbook --check

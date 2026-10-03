@@ -13,6 +13,7 @@ from pydantic import (
     Field,
     JsonValue,
     StrictBool,
+    StringConstraints,
     field_validator,
     model_validator,
 )
@@ -20,6 +21,7 @@ from pydantic import (
 from workbench.business_contracts import BusinessSpec
 
 Text = Annotated[str, Field(min_length=1, max_length=20000)]
+UserText = Annotated[str, StringConstraints(strip_whitespace=False)]
 Name = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,39}$")]
 
 
@@ -37,7 +39,7 @@ class ProjectInput(Contract):
 
 
 class RunInput(Contract):
-    requirement: Text
+    requirement: Annotated[UserText, Field(min_length=1, max_length=20000)]
     template: Literal["python-basic", "fastapiadmin", "yudao-vben"] = "python-basic"
     selection: dict | None = None
     intelligent: StrictBool = False
@@ -50,6 +52,8 @@ class RunInput(Contract):
         if chosen.template != self.template:
             raise ValueError("选择与模板标识不一致")
         self.selection = chosen.model_dump()
+        if not self.requirement.strip():
+            raise ValueError("需求不能为空")
         return self
 
 
@@ -60,7 +64,7 @@ class ClarificationAnswer(Contract):
     option_ids: list[Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]] = Field(
         default_factory=list, max_length=20
     )
-    text: str = Field(default="", max_length=10000)
+    text: UserText = Field(default="", max_length=10000)
 
     @model_validator(mode="after")
     def unique_options(self):
@@ -71,11 +75,11 @@ class ClarificationAnswer(Contract):
 
 class ResumeInput(Contract):
     gate_id: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
-    action: Literal["answer", "approve", "reject", "revise", "recommend"]
+    action: Literal["answer", "approve", "reject", "revise", "recommend", "retry_node"]
     version: int | None = Field(default=None, ge=1)
     digest: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")] | None = None
     answers: list[ClarificationAnswer] = Field(default_factory=list, max_length=6)
-    text: str = Field(default="", max_length=20000)
+    text: UserText = Field(default="", max_length=20000)
     approved: StrictBool | None = None
 
     @model_validator(mode="after")
@@ -84,7 +88,7 @@ class ResumeInput(Contract):
             raise ValueError("选项回答只能用于当前澄清问题")
         if len({answer.question_id for answer in self.answers}) != len(self.answers):
             raise ValueError("同一个问题不能重复提交")
-        if self.action in {"answer", "revise"} and not self.text and not self.answers:
+        if self.action in {"answer", "revise"} and not self.text.strip() and not self.answers:
             raise ValueError("回答或修改意见不能为空")
         if self.action in {"answer", "revise"}:
             from workbench.conversation import command_word

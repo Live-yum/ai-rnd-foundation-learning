@@ -1,0 +1,17 @@
+--- a/apps/runner/pkg/docker/container_configs.go
++++ b/apps/runner/pkg/docker/container_configs.go
+@@ -198,11 +198,9 @@
+ 	}
+ 
+ 	hostConfig := &container.HostConfig{
+-		// Privileged mode exposes every /dev/nvidia* node and bypasses the
+-		// CDI cgroup rules, so GPU sandboxes have to opt out to keep their
+-		// allocated card isolated. Non-GPU sandboxes still need privileged
+-		// for their current workloads.
+-		Privileged: gpuIndex == nil,
++		// Owned fixed-application profile: all application containers use
++		// Docker's unprivileged defaults, including its default seccomp filter.
++		Privileged: false,
+ 		Binds:      binds,
+ 	}
+ 

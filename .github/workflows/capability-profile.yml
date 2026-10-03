@@ -1,0 +1,112 @@
+name: Fixed authored SQLite isolation profile
+on:
+  push:
+    branches: [feature/capability-nodes-transcript]
+    paths:
+      - 'workbench/capability_*.py'
+      - 'scripts/capability_guard.py'
+      - 'scripts/capability_fixture.py'
+      - 'scripts/capability_browser.cjs'
+      - 'tests/test_capability_browser_protocol.py'
+      - 'scripts/ci_capability_profile.py'
+      - 'scripts/ci_capability_browser_preflight.py'
+      - 'tests/test_capability_browser_preflight.py'
+      - 'scripts/daytona_capability_profile.py'
+      - 'tools/daytona/capability*'
+      - '.github/workflows/capability-profile.yml'
+  workflow_dispatch:
+concurrency:
+  group: fixed-sqlite-profile-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+env:
+  PLAYWRIGHT_BROWSERS_PATH: '0'
+  PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright
+  PRODUCT_VERIFY_BROWSER_CHANNEL: 'chrome'
+jobs:
+  local-service:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check ordinary launcher behavior and strict receipt contracts
+        env:
+          RND_REQUIRE_NODE_TESTS: '1'
+        run: uv run pytest -q tests/test_capability_guard.py tests/test_capability_isolation.py tests/test_daytona_capability_profile.py tests/test_capability_browser_protocol.py tests/test_capability_browser_preflight.py
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Require sandboxed browser readiness before building the local service
+        run: uv run python -m scripts.ci_capability_browser_preflight
+      - name: Create the local control plane with random local credentials
+        run: uv run python -m scripts.daytona_local prepare --directory .data/daytona-capability
+      - name: Build pinned release locally and lock immutable images
+        run: uv run python -m scripts.daytona_local images --directory .data/daytona-capability
+      - name: Build the offline snapshot in the local registry
+        run: uv run python -m scripts.daytona_capability_profile prepare
+      - name: Start local API, Runner, Dex, database, registry and storage
+        run: uv run python -m scripts.daytona_capability_profile up
+      - name: Authenticate through real local Dex and API
+        run: uv run python -m scripts.daytona_bootstrap auth --directory .data/daytona-capability
+      - name: Register the prebuilt snapshot without any hosted service
+        run: uv run python -m scripts.daytona_bootstrap snapshot --directory .data/daytona-capability
+      - name: Require positive fixed-application isolation profile and real HTTP browser database restart
+        run: uv run python -m scripts.ci_capability_profile
+      - name: Preserve bounded redacted diagnostics only
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, pathlib, subprocess
+          root = pathlib.Path('.data/daytona-capability')
+          secrets = []
+          for name in ['credentials.json', 'api-key.json']:
+              path = root / name
+              if path.exists():
+                  secrets += [v for v in json.loads(path.read_text()).values() if isinstance(v,str) and len(v)>5]
+          outputs = []
+          compose = root / 'compose.capability.lock.yaml'
+          if compose.exists():
+              for args in [['ps','--all'],['logs','--no-color','--tail','80']]:
+                  run = subprocess.run(['docker','--host','unix:///var/run/docker.sock','compose','-p','rnd-daytona-capability','-f',str(compose),*args], capture_output=True, timeout=60)
+                  text=(run.stdout+run.stderr).decode('utf-8',errors='replace')[-80000:]
+                  for secret in sorted(secrets,key=len,reverse=True):
+                      text=text.replace(secret,'[REDACTED]')
+                  outputs.append(text)
+          reports = pathlib.Path('reports'); reports.mkdir(exist_ok=True)
+          (reports/'daytona-local-diagnostics.log').write_text('\n'.join(outputs),encoding='utf-8')
+          if (root/'images.lock.json').exists():
+              (reports/'daytona-images.lock.json').write_bytes((root/'images.lock.json').read_bytes())
+          profile = root / 'capability-profile.lock.json'
+          if profile.exists():
+              (reports/'capability-image-provenance.json').write_bytes(profile.read_bytes())
+          print('Diagnostics saved without local credentials or environment files.')
+          PY
+      - name: Stop this local test deployment without deleting persistent volumes
+        if: always()
+        run: |
+          if test -f .data/daytona-capability/compose.capability.lock.yaml; then
+            docker --host unix:///var/run/docker.sock compose -p rnd-daytona-capability -f .data/daytona-capability/compose.capability.lock.yaml down
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fixed-sqlite-profile-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            reports/daytona-local-diagnostics.log
+            reports/daytona-images.lock.json
+            reports/capability-profile.json
+            reports/capability-profile-detail.json
+            reports/capability-image-provenance.json
+            reports/capability-browser-preflight.json

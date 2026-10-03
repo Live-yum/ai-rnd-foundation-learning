@@ -7,6 +7,11 @@ from pathlib import Path
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "template_adapters": (
+        "技术栈选择与后续交付共用的模板合同",
+        "Selection在导入catalog时就读取固定适配器，所以本模块必须在第01站与catalog一同写入。基础组合校验不启动生成器、浏览器或原生服务；源码锁、UI和运行证据在后续阶段分别核验，静态能力声明不能替代验收。",
+        "catalog.Selection → get_adapter及validate_selection → 后续feature规划、所选栈生成与独立交付。",
+    ),
     "model_settings": (
         "本机模型配置的版本化保存与密钥边界",
         "读取配置只返回模型身份和是否已配置Key；保存需匹配expected_revision。文件锁与原子替换避免并发覆盖，POSIX配置要求600权限。更换服务地址不复用旧密钥，已开始调用使用固定快照，下次调用才读取新版本。",

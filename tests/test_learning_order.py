@@ -23,6 +23,7 @@ def test_database_lesson_runs_from_only_its_documented_files(tmp_path):
         "workbench/domain.py",
         "workbench/errors.py",
         "workbench/catalog.py",
+        "workbench/template_adapters.py",
         "workbench/store.py",
         "workbench/clarification.py",
         "tests/conftest.py",

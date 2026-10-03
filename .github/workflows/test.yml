@@ -56,6 +56,10 @@ jobs:
       - run: npm run build --prefix tools/node
       - run: uv sync --locked --all-extras
       - run: uv run python --version
+      - name: Check capability protocol and receipt portability before full acceptance
+        env:
+          RND_REQUIRE_NODE_TESTS: '1'
+        run: uv run pytest -q tests/test_capability_browser_protocol.py tests/test_capability_isolation.py tests/test_daytona_capability_profile.py tests/test_capability_browser_preflight.py
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run python -m scripts.build_handbook --check

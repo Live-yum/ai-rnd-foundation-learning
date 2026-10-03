@@ -1,0 +1,558 @@
+# tests/test_capability_isolation.py · 1/1
+
+[阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
+
+
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
+
+**先有这些模块：** `workbench.capability_isolation`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+<details>
+<summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
+
+- `test_identity_rejects_output_contamination_before_any_setup`（L32–L58）：接收`output`、`exit_code`、`shape`。 控制顺序：L48断言`evidence["control_output_shape"] == shape`；L49断言`evidence["control_result_chars"] == (len(output) if isinstance(output, str) else None…`；L50断言`"private-sentinel" not in json.dumps(evidence)`；L51断言`set(evidence) == { "control_exec_exit_code", "control_euid", "control_result_type", "…`；L58断言`len(calls) == 1`。 调用`SimpleNamespace`、`pytest.raises`、`prepare_identity`、`object`、`isinstance`、`len`、`json.dumps`、`set`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_identity_rejects_output_contamination_before_any_setup.execute`（L37–L42）：接收`command`、`env`、`timeout`。 控制顺序：L39断言`len(calls) == 1`；L40断言`shlex.split(command)[-2:] == ["/usr/bin/id", "-u"]`；L41断言`env == CONTROL_SHELL_ENV and timeout == 10`。 调用`calls.append`、`len`、`shlex.split`、`SimpleNamespace`。 返回路径：L42的`SimpleNamespace(result=output, exit_code=exit_code)`。
+- `test_exact_root_identity_progresses_to_setup_without_weaker_parsing`（L61–L76）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L75断言`len(calls) == 2`；L76断言`"/usr/sbin/groupadd" in calls[1]`。 调用`SimpleNamespace`、`pytest.raises`、`prepare_identity`、`object`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_root_identity_progresses_to_setup_without_weaker_parsing.execute`（L66–L70）：接收`command`、`env`、`timeout`。 调用`calls.append`、`shlex.split`、`SimpleNamespace`、`len`。 返回路径：L68的`SimpleNamespace( result="0\n" if len(calls) == 1 else "", exit_code=0 if len(calls) == 1 e…`。
+- `test_actual_sdk_env_protocol_prevents_outer_shell_contamination`（L80–L121）：接收`tmp_path`。 源码说明：Real SDK + subprocess protocol fixture, not the missing live CI output.。 控制顺序：L116断言`noisy.exit_code == 0`；L117断言`"setlocale" in noisy.result and "private-bootstrap-sentinel" in noisy.result`；L118断言`noisy.result.strip() != str(os.geteuid())`；L120断言`safe.exit_code == 0 and safe.result.strip() == str(os.geteuid())`；L121断言`requests[-1].envs == CONTROL_SHELL_ENV`。 调用`bootstrap.write_text`、`httpx.Client`、`Process`、`SimpleNamespace`、`sdk.exec`、`shlex.join`、`system_argv`、`noisy.result.strip`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_sdk_env_protocol_prevents_outer_shell_contamination.execute_command`（L91–L110）：接收`request`、`**kwargs`。 调用`requests.append`、`subprocess.run`、`str`、`SimpleNamespace`。 返回路径：L108的`SimpleNamespace( result=result.stdout, exit_code=result.returncode, additional_properties=…`。
+- `test_physical_count_probe_uses_same_outer_shell_environment`（L125–L143）：接收`engine`。 控制顺序：L142断言`database_counts(sandbox, plan, 10) == {"entries": 7}`；L143断言`len(calls) == 1`。 调用`SimpleNamespace`、`database_counts`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_physical_count_probe_uses_same_outer_shell_environment.execute`（L131–L135）：接收`command`、`env`、`timeout`。 控制顺序：L133断言`env == CONTROL_SHELL_ENV and timeout == 10`；L134断言`calls[-1][:2] == ["/usr/bin/env", "-i"]`。 调用`calls.append`、`shlex.split`、`SimpleNamespace`。 返回路径：L135的`SimpleNamespace(exit_code=0, result='{"entries":7}' if engine == "sqlite" else "7\n")`。
+- `test_generated_prepare_and_start_cannot_bypass_identity_or_network_guard`（L147–L181）：接收`database`。 控制顺序：L153断言`result[:2] == ["/usr/bin/env", "-i"]`；L154断言`"--reuid=rnd-module" in result and "--regid=rnd-module" in result`；L156断言`result[session : session + 4] == [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/s…`；L162遍历`( "--clear-groups", "--no-new-privs", "--bounding-set=-all", "--i…`；L169断言`flag in result`；L171断言`result[index : index + 6] == [ "/usr/bin/python3", "-I", "-S", "/tmp/rnd-module-contr…`；L179断言`result[-len(command) :] == command`；L180断言`result.index("--") < index`。后续分支沿下方源码相同行号继续阅读。 调用`SimpleNamespace`、`product_argv`、`result.index`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_product_cannot_allow_its_control_or_database_listener`（L185–L190）：接收`port`。 调用`SimpleNamespace`、`pytest.raises`、`product_argv`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_isolation_receipt_requires_each_field_actual_abi_and_current_guard_digest`（L193–L219）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L210断言`require_isolation_evidence(value) == value`；L211遍历`list(value)`；L215遍历`[True, 5, "6"]`。 调用`sha`、`dict.fromkeys`、`require_isolation_evidence`、`list`、`value.items`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_detached_session_waits_for_ordinary_command_and_preserves_exit`（L224–L244）：接收`tmp_path`、`exit_code`。 控制顺序：L243断言`result.returncode == exit_code`；L244断言`completed.read_text(encoding="utf-8") == "completed"`。 调用`subprocess.run`、`str`、`completed.read_text`、`pytest.mark.skipif`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_container_receipt_requires_current_sandbox_and_all_boundaries`（L247–L270）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L263断言`require_container_evidence(value, identifier) == value`；L264遍历`value`。 调用`require_container_evidence`、`pytest.raises`、`value.items`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_container_inspection_failure_stops_before_source_upload`（L273–L305）：接收`settings`、`tmp_path`。 控制顺序：L304断言`result["passed"] is False and result["cleanup"] == "deleted"`；L305断言`result["kind"] == "isolation_environment" and operations == ["deleted"]`。 调用`fixed_application`、`SimpleNamespace`、`operations.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_container_inspection_failure_stops_before_source_upload.forbidden`（L281–L282）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths`（L329–L469）：接收`settings`、`tmp_path`、`monkeypatch`、`failure`。 源码说明：Real HTTPX lifecycle with transport/process fixtures, not live isolation proof.。 控制顺序：L445断言`result["passed"] is (failure is None)`；L446断言`result["restarted"] is (failure is None)`；L447断言`result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")`；L448断言`events[-1] == "deleted"`；L449断言`len(clients) == ( 1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} …`；L452断言`all(client.is_closed for client in clients)`；L453断言`(0, "/health") in events`；L455断言`persisted == result`。后续分支沿下方源码相同行号继续阅读。 调用`fixed_application`、`SimpleNamespace`、`events.append`、`iter`、`monkeypatch.setattr`、`verifier._verify`、`plan.selection.model_dump`、`len`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http`（L345–L359）：接收`**kwargs`。 控制顺序：L347断言`kwargs["headers"] == {"x-daytona-preview-token": "fixture-private-token"}`；L348断言`kwargs["trust_env"] is False and kwargs["follow_redirects"] is False`。 调用`len`、`original_client`、`httpx.MockTransport`、`clients.append`。 返回路径：L359的`client`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http.respond`（L350–L355）：接收`request`。 控制顺序：L352断言`request.url.host == f"8123-{identifier}.proxy.localhost"`；L353按`failure == "restart-health" and launch == 1`分支；L354抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`httpx.Response`。 返回路径：L355的`httpx.Response(200, json={"ok": True})`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.delete`（L373–L376）：接收`*args`、`**kwargs`。 控制顺序：L375按`failure == "browser-cleanup"`分支；L376抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.create`（L378–L390）：接收`parameters`、`**kwargs`。 控制顺序：L385断言`ordinary.auto_delete_interval == 0`；L386断言`parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60`；L387断言`parameters.network_block_all is True`；L388断言`parameters.public is False`。 调用`params_for`。 返回路径：L390的`sandbox`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.stop`（L392–L394）：接收`*args`、`**kwargs`。 控制顺序：L393断言`sandbox.auto_delete_interval > 0`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.database_counts`（L404–L407）：接收`*args`。 控制顺序：L405按`failure == "baseline"`分支；L406抛异常，停止当前正常路径。 调用`CheckFailure`、`next`。 返回路径：L407的`{"entries": next(counts)}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_scenarios`（L409–L414）：接收`http`、`scenarios`、`saved`、`after_restart`。 控制顺序：L411断言`http.get("/fixture-" + phase).status_code == 200`；L412按`failure == phase`分支；L413抛异常，停止当前正常路径。 调用`http.get`、`CheckFailure`。 返回路径：L414的`[{"phase": phase, "fixture_only": True}], {}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_browser`（L416–L419）：接收`*args`。 控制顺序：L417按`failure in BROWSER_FAILURE_FIXTURES`分支；L418抛异常，停止当前正常路径。 调用`BrowserFailure`、`BROWSER_FAILURE_FIXTURES[failure].copy`。 返回路径：L419的`[{"fixture_only": True}]`。
+- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup`（L472–L504）：接收`settings`、`tmp_path`。 控制顺序：L502断言`calls == ["created", "deleted"]`；L503断言`result["passed"] is False`；L504断言`result["cleanup"] == "deleted"`。 调用`fixed_application`、`SimpleNamespace`、`calls.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup.create`（L482–L486）：接收`parameters`、`**kwargs`。 控制顺序：L483断言`parameters.auto_delete_interval == 0`；L484断言`parameters.network_block_all is True and parameters.public is False`。 调用`calls.append`。 返回路径：L486的`sandbox`。
+
+</details>
+
+**创建路径：** `tests/test_capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L504。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+
+本段原始字节数：`19821`。本段原文以LF换行结束。
+
+<!-- learning-source: {"path": "tests/test_capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "06a5ca7db2d10be2d9c672c2279308f8401834ce0b99affc24fa393d7d752bd9"} -->
+````python
+# tests/test_capability_isolation.py
+"""Verify every source command is composed through the same non-bypassable launcher."""
+
+import json
+import os
+import shlex
+import subprocess
+import sys
+from types import SimpleNamespace
+
+import pytest
+
+from workbench.capability_isolation import IsolationUnavailable, product_argv
+
+
+@pytest.mark.parametrize(
+    "output,exit_code,shape",
+    [
+        ("warning: setlocale: private-sentinel\n0\n", 0, "locale-warning"),
+        ("private-sentinel\n0\n", 0, "other"),
+        ("", 0, "empty"),
+        (None, 0, "empty"),
+        (b"0\n", 0, "empty"),
+        (0, 0, "empty"),
+        ("1000\n", 0, "decimal"),
+        ("0\n", 7, "decimal"),
+        ("0\n", False, "decimal"),
+        ("0\n", "0", "decimal"),
+        ("0\n0\n", 0, "other"),
+        ("\x1b[0m0\n", 0, "other"),
+    ],
+)
+def test_identity_rejects_output_contamination_before_any_setup(output, exit_code, shape):
+    from workbench.capability_isolation import CONTROL_SHELL_ENV, prepare_identity
+
+    calls = []
+
+    def execute(command, *, env, timeout):
+        calls.append((command, env, timeout))
+        assert len(calls) == 1, "No setup or application command after failed identity"
+        assert shlex.split(command)[-2:] == ["/usr/bin/id", "-u"]
+        assert env == CONTROL_SHELL_ENV and timeout == 10
+        return SimpleNamespace(result=output, exit_code=exit_code)
+
+    sandbox = SimpleNamespace(process=SimpleNamespace(exec=execute))
+    with pytest.raises(IsolationUnavailable) as caught:
+        prepare_identity(sandbox, object(), 10)
+    evidence = caught.value.evidence
+    assert evidence["control_output_shape"] == shape
+    assert evidence["control_result_chars"] == (len(output) if isinstance(output, str) else None)
+    assert "private-sentinel" not in json.dumps(evidence)
+    assert set(evidence) == {
+        "control_exec_exit_code",
+        "control_euid",
+        "control_result_type",
+        "control_result_chars",
+        "control_output_shape",
+    }
+    assert len(calls) == 1
+
+
+def test_exact_root_identity_progresses_to_setup_without_weaker_parsing():
+    from workbench.capability_isolation import prepare_identity
+
+    calls = []
+
+    def execute(command, *, env, timeout):
+        calls.append(shlex.split(command))
+        return SimpleNamespace(
+            result="0\n" if len(calls) == 1 else "", exit_code=0 if len(calls) == 1 else 1
+        )
+
+    sandbox = SimpleNamespace(process=SimpleNamespace(exec=execute))
+    with pytest.raises(IsolationUnavailable, match="无法建立"):
+        prepare_identity(sandbox, object(), 10)
+    assert len(calls) == 2
+    assert "/usr/sbin/groupadd" in calls[1]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Pinned daemon shell fixture requires POSIX bash")
+def test_actual_sdk_env_protocol_prevents_outer_shell_contamination(tmp_path):
+    """Real SDK + subprocess protocol fixture, not the missing live CI output."""
+    import httpx
+    from daytona._sync.process import Process
+
+    from workbench.capability_isolation import CONTROL_SHELL_ENV, control_exec, system_argv
+
+    bootstrap = tmp_path / "fixture-bootstrap.sh"
+    bootstrap.write_text("printf 'private-bootstrap-sentinel\\n'\n", encoding="utf-8")
+    requests = []
+
+    def execute_command(*, request, **kwargs):
+        requests.append(request)
+        result = subprocess.run(
+            ["/bin/bash"],
+            input=request.command,
+            env={
+                "PATH": os.defpath,
+                "LC_ALL": "rnd_nonexistent_locale.UTF-8",
+                "BASH_ENV": str(bootstrap),
+                **(request.envs or {}),
+            },
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        return SimpleNamespace(
+            result=result.stdout, exit_code=result.returncode, additional_properties={}
+        )
+
+    with httpx.Client(trust_env=False) as client:
+        sdk = Process("python", SimpleNamespace(execute_command=execute_command), client)
+        sandbox = SimpleNamespace(process=sdk)
+        noisy = sdk.exec(shlex.join(system_argv(["/usr/bin/id", "-u"])), timeout=10)
+        assert noisy.exit_code == 0
+        assert "setlocale" in noisy.result and "private-bootstrap-sentinel" in noisy.result
+        assert noisy.result.strip() != str(os.geteuid())
+        safe = control_exec(sandbox, ["/usr/bin/id", "-u"], 10)
+        assert safe.exit_code == 0 and safe.result.strip() == str(os.geteuid())
+        assert requests[-1].envs == CONTROL_SHELL_ENV
+
+
+@pytest.mark.parametrize("engine", ["sqlite", "postgresql"])
+def test_physical_count_probe_uses_same_outer_shell_environment(engine):
+    from workbench.capability_isolation import CONTROL_SHELL_ENV
+    from workbench.capability_stack import database_counts
+
+    calls = []
+
+    def execute(command, *, env, timeout):
+        calls.append(shlex.split(command))
+        assert env == CONTROL_SHELL_ENV and timeout == 10
+        assert calls[-1][:2] == ["/usr/bin/env", "-i"]
+        return SimpleNamespace(exit_code=0, result='{"entries":7}' if engine == "sqlite" else "7\n")
+
+    plan = SimpleNamespace(
+        selection=SimpleNamespace(database=engine),
+        runtime=SimpleNamespace(database_tables=["entries"], database_path="data/app.db"),
+    )
+    sandbox = SimpleNamespace(process=SimpleNamespace(exec=execute))
+    assert database_counts(sandbox, plan, 10) == {"entries": 7}
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("database", ["sqlite", "postgresql"])
+def test_generated_prepare_and_start_cannot_bypass_identity_or_network_guard(database):
+    plan = SimpleNamespace(
+        runtime=SimpleNamespace(port=8123), selection=SimpleNamespace(database=database)
+    )
+    command = ["/bin/sh", "-c", "sudo -n id; curl http://127.0.0.1:2280/process/execute"]
+    result = product_argv(plan, command, {"DATABASE_URL": "synthetic-only"})
+    assert result[:2] == ["/usr/bin/env", "-i"]
+    assert "--reuid=rnd-module" in result and "--regid=rnd-module" in result
+    session = result.index("/usr/bin/setsid")
+    assert result[session : session + 4] == [
+        "/usr/bin/setsid",
+        "--fork",
+        "--wait",
+        "/usr/bin/setpriv",
+    ]
+    for flag in (
+        "--clear-groups",
+        "--no-new-privs",
+        "--bounding-set=-all",
+        "--inh-caps=-all",
+        "--ambient-caps=-all",
+    ):
+        assert flag in result
+    index = result.index("/usr/bin/python3")
+    assert result[index : index + 6] == [
+        "/usr/bin/python3",
+        "-I",
+        "-S",
+        "/tmp/rnd-module-control/guard.py",
+        "8123",
+        "55432" if database == "postgresql" else "",
+    ]
+    assert result[-len(command) :] == command
+    assert result.index("--") < index
+    assert result[index + 6] == "--"
+
+
+@pytest.mark.parametrize("port", [2280, 55432])
+def test_product_cannot_allow_its_control_or_database_listener(port):
+    plan = SimpleNamespace(
+        runtime=SimpleNamespace(port=port), selection=SimpleNamespace(database="sqlite")
+    )
+    with pytest.raises(IsolationUnavailable):
+        product_argv(plan, ["echo", "should-not-run"], {})
+
+
+def test_isolation_receipt_requires_each_field_actual_abi_and_current_guard_digest():
+    from workbench.capability_isolation import (
+        APP_UID,
+        ISOLATION_FLAGS,
+        ISOLATION_PROFILE,
+        require_isolation_evidence,
+    )
+    from workbench.filesystem import sha
+    from workbench.settings import ROOT
+
+    value = {
+        "profile": ISOLATION_PROFILE,
+        "application_uid": APP_UID,
+        "landlock_abi": 6,
+        "guard_sha256": sha(ROOT / "scripts/capability_guard.py"),
+        **dict.fromkeys(ISOLATION_FLAGS, True),
+    }
+    assert require_isolation_evidence(value) == value
+    for key in list(value):
+        missing = {k: v for k, v in value.items() if k != key}
+        with pytest.raises(IsolationUnavailable):
+            require_isolation_evidence(missing)
+    for invalid in [True, 5, "6"]:
+        with pytest.raises(IsolationUnavailable):
+            require_isolation_evidence({**value, "landlock_abi": invalid})
+    with pytest.raises(IsolationUnavailable):
+        require_isolation_evidence({**value, "guard_sha256": "0" * 64})
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Linux executor profile uses util-linux setsid")
+@pytest.mark.parametrize("exit_code", [0, 7])
+def test_detached_session_waits_for_ordinary_command_and_preserves_exit(tmp_path, exit_code):
+    completed = tmp_path / "completed.txt"
+    result = subprocess.run(
+        [
+            "/usr/bin/setsid",
+            "--fork",
+            "--wait",
+            sys.executable,
+            "-I",
+            "-S",
+            "-c",
+            "import pathlib,sys,time;time.sleep(0.05);pathlib.Path(sys.argv[1]).write_text('completed',encoding='utf-8');raise SystemExit(int(sys.argv[2]))",
+            str(completed),
+            str(exit_code),
+        ],
+        capture_output=True,
+        timeout=5,
+        start_new_session=True,
+    )
+    assert result.returncode == exit_code
+    assert completed.read_text(encoding="utf-8") == "completed"
+
+
+def test_container_receipt_requires_current_sandbox_and_all_boundaries():
+    from workbench.capability_isolation import require_container_evidence
+
+    identifier = "00000000-0000-0000-0000-000000000001"
+    value = {
+        "profile": "fixed-authored-sqlite-v1",
+        "sandbox_id": identifier,
+        "control_user": "0:0",
+        "privileged": False,
+        "seccomp": "docker-default",
+        "seccomp_engine": "builtin",
+        "trusted_readonly_binary_mounts": True,
+        "runner_image_id": "sha256:" + "0" * 64,
+        "snapshot_image_id": "sha256:" + "1" * 64,
+        "snapshot_digest": "registry:6000/rnd-python@sha256:" + "2" * 64,
+    }
+    assert require_container_evidence(value, identifier) == value
+    for key in value:
+        with pytest.raises(IsolationUnavailable):
+            require_container_evidence({k: v for k, v in value.items() if k != key}, identifier)
+    with pytest.raises(IsolationUnavailable):
+        require_container_evidence(value, None)
+    with pytest.raises(IsolationUnavailable):
+        require_container_evidence({**value, "privileged": True}, identifier)
+
+
+def test_live_container_inspection_failure_stops_before_source_upload(settings, tmp_path):
+    from scripts.ci_capability_profile import fixed_application
+    from workbench.capability_sandbox import _verify
+
+    product = tmp_path / "product"
+    plan = fixed_application(product)
+    operations = []
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("No source upload or command before container policy verification")
+
+    sandbox = SimpleNamespace(
+        id="00000000-0000-0000-0000-000000000001",
+        fs=SimpleNamespace(create_folder=forbidden, upload_file=forbidden),
+        process=SimpleNamespace(exec=forbidden),
+    )
+    client = SimpleNamespace(
+        create=lambda *a, **k: sandbox, delete=lambda *a, **k: operations.append("deleted")
+    )
+    settings.daytona_snapshot = "fixture-owned-snapshot"
+    result = _verify(
+        product,
+        plan,
+        plan.scenarios,
+        settings,
+        plan.selection.model_dump(),
+        tmp_path / "receipt.json",
+        client=client,
+        aggregate=True,
+        control_observer=lambda _: {},
+    )
+    assert result["passed"] is False and result["cleanup"] == "deleted"
+    assert result["kind"] == "isolation_environment" and operations == ["deleted"]
+
+
+BROWSER_FAILURE_FIXTURES = {
+    "browser-launch": {"phase": "launch", "error_code": "operation-failed"},
+    "browser-timeout": {"phase": "python-timeout", "error_code": "timeout", "cleanup": "stopped"},
+    "browser-json": {
+        "phase": "python-report",
+        "error_code": "invalid-report",
+        "report_error": "invalid-json",
+    },
+    "browser-head": {
+        "phase": "python-report",
+        "error_code": "invalid-report",
+        "report_error": "wrong-verifier-or-request",
+    },
+    "browser-exit": {"phase": "python-exit", "error_code": "nonzero-exit", "exit_code": 1},
+    "browser-cleanup": {"phase": "launch", "error_code": "operation-failed"},
+}
+
+
+@pytest.mark.parametrize(
+    "failure", [None, "baseline", "initial", "restart-health", "restart", *BROWSER_FAILURE_FIXTURES]
+)
+def test_verifier_closes_health_opened_http_clients_on_all_paths(
+    settings, tmp_path, monkeypatch, failure
+):
+    """Real HTTPX lifecycle with transport/process fixtures, not live isolation proof."""
+    import httpx
+
+    from scripts.ci_capability_profile import fixed_application
+    from workbench import capability_sandbox as verifier
+    from workbench.capability_verification import BrowserFailure, CheckFailure
+
+    product = tmp_path / "product"
+    plan = fixed_application(product)
+    identifier = "00000000-0000-0000-0000-000000000001"
+    events, clients = [], []
+    original_client = httpx.Client
+
+    def build_http(**kwargs):
+        launch = len(clients)
+        assert kwargs["headers"] == {"x-daytona-preview-token": "fixture-private-token"}
+        assert kwargs["trust_env"] is False and kwargs["follow_redirects"] is False
+
+        def respond(request):
+            events.append((launch, request.url.path))
+            assert request.url.host == f"8123-{identifier}.proxy.localhost"
+            if failure == "restart-health" and launch == 1:
+                raise RuntimeError("fixture health failure")
+            return httpx.Response(200, json={"ok": True})
+
+        client = original_client(**kwargs, transport=httpx.MockTransport(respond))
+        clients.append(client)
+        return client
+
+    sandbox = SimpleNamespace(
+        id=identifier,
+        fs=SimpleNamespace(create_folder=lambda *a: None, upload_file=lambda *a, **k: None),
+        process=SimpleNamespace(
+            create_session=lambda *a: None,
+            execute_session_command=lambda *a, **k: SimpleNamespace(cmd_id="fixture-command"),
+        ),
+        get_preview_link=lambda port: SimpleNamespace(
+            url=f"http://{port}-{identifier}.proxy.localhost", token="fixture-private-token"
+        ),
+    )
+
+    def delete(*args, **kwargs):
+        events.append("deleted")
+        if failure == "browser-cleanup":
+            raise RuntimeError("fixture sandbox cleanup failure")
+
+    def create(parameters, **kwargs):
+        # Reproduce the pinned SDK's actual delete-on-stop parameter semantics.
+        # An aggregate sandbox must survive both bounded lifecycle operations;
+        # the ordinary disposable verifier policy must remain zero.
+        from workbench.sandbox import params_for
+
+        ordinary = params_for(settings, "fixture-ordinary")
+        assert ordinary.auto_delete_interval == 0
+        assert parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60
+        assert parameters.network_block_all is True
+        assert parameters.public is False
+        sandbox.auto_delete_interval = parameters.auto_delete_interval
+        return sandbox
+
+    def stop(*args, **kwargs):
+        assert sandbox.auto_delete_interval > 0, "Zero deletes the sandbox before restart"
+        events.append("stopped")
+
+    daytona = SimpleNamespace(
+        create=create,
+        stop=stop,
+        start=lambda *a, **k: events.append("started"),
+        delete=delete,
+    )
+    counts = iter([0, 1, 1])
+
+    def database_counts(*args):
+        if failure == "baseline":
+            raise CheckFailure("fixture baseline failure")
+        return {"entries": next(counts)}
+
+    def run_scenarios(http, scenarios, *, saved=None, after_restart=False):
+        phase = "restart" if after_restart else "initial"
+        assert http.get("/fixture-" + phase).status_code == 200
+        if failure == phase:
+            raise CheckFailure("fixture scenario failure")
+        return [{"phase": phase, "fixture_only": True}], {}
+
+    def run_browser(*args):
+        if failure in BROWSER_FAILURE_FIXTURES:
+            raise BrowserFailure(BROWSER_FAILURE_FIXTURES[failure].copy())
+        return [{"fixture_only": True}]
+
+    monkeypatch.setattr(verifier, "require_container_evidence", lambda *a: {"fixture_only": True})
+    monkeypatch.setattr(verifier, "prepare_identity", lambda *a: {"fixture_only": True})
+    monkeypatch.setattr(verifier, "control_exec", lambda *a: SimpleNamespace(exit_code=0))
+    monkeypatch.setattr(verifier, "database_counts", database_counts)
+    monkeypatch.setattr(verifier, "run_scenarios", run_scenarios)
+    monkeypatch.setattr(verifier, "run_browser", run_browser)
+    monkeypatch.setattr(verifier.httpx, "Client", build_http)
+    monkeypatch.setattr(
+        "workbench.daytona_sessions.run_session_command",
+        lambda *a, **k: SimpleNamespace(exit_code=0),
+    )
+    settings.daytona_snapshot = "fixture-owned-snapshot"
+    try:
+        result = verifier._verify(
+            product,
+            plan,
+            plan.scenarios,
+            settings,
+            plan.selection.model_dump(),
+            tmp_path / "receipt.json",
+            client=daytona,
+            aggregate=True,
+            control_observer=lambda _: {},
+        )
+        assert result["passed"] is (failure is None)
+        assert result["restarted"] is (failure is None)
+        assert result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")
+        assert events[-1] == "deleted"
+        assert len(clients) == (
+            1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} else 2
+        )
+        assert all(client.is_closed for client in clients)
+        assert (0, "/health") in events
+        persisted = json.loads((tmp_path / "receipt.json").read_text(encoding="utf-8"))
+        assert persisted == result
+        if failure in BROWSER_FAILURE_FIXTURES:
+            assert persisted["browser_diagnostic"] == BROWSER_FAILURE_FIXTURES[failure]
+            assert "fixture-private-token" not in json.dumps(persisted)
+            if failure == "browser-cleanup":
+                assert persisted["error"] == "真实浏览器场景未通过；查看安全阶段诊断，未跳过"
+                assert "删除未确认" in persisted["cleanup_error"]
+        if failure is None:
+            assert [check["phase"] for check in result["checks"]] == ["initial", "restart"]
+            assert (0, "/openapi.json") in events
+            assert (0, "/fixture-initial") in events and (1, "/fixture-restart") in events
+            assert result["database"]["after_restart"] == {"entries": 1}
+    finally:
+        for client in clients:
+            client.close()
+
+
+def test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup(settings, tmp_path):
+    from scripts.ci_capability_profile import fixed_application
+    from workbench.capability_sandbox import _verify
+
+    product = tmp_path / "product"
+    plan = fixed_application(product)
+    settings.daytona_snapshot = "fixture-owned-snapshot"
+    sandbox = SimpleNamespace(id="00000000-0000-0000-0000-000000000001")
+    calls = []
+
+    def create(parameters, **kwargs):
+        assert parameters.auto_delete_interval == 0
+        assert parameters.network_block_all is True and parameters.public is False
+        calls.append("created")
+        return sandbox
+
+    client = SimpleNamespace(create=create, delete=lambda *a, **k: calls.append("deleted"))
+    result = _verify(
+        product,
+        plan,
+        plan.scenarios,
+        settings,
+        plan.selection.model_dump(),
+        tmp_path / "receipt.json",
+        client=client,
+        aggregate=False,
+        # Deliberately reject before source upload; this is a lifecycle contract
+        # regression and supplies no live container or application evidence.
+        control_observer=lambda identifier: {},
+    )
+    assert calls == ["created", "deleted"]
+    assert result["passed"] is False
+    assert result["cleanup"] == "deleted"
+````

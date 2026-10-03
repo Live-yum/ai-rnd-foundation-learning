@@ -13,18 +13,18 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `parse`（L696–L702）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L702的`ast.parse(normalized)`。
-- `segment`（L705–L708）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L708的`value if len(value) <= limit else value[:limit] + "…"`。
-- `definitions`（L711–L718）：接收`node`、`prefix`。 控制顺序：L712遍历`ast.iter_child_nodes(node)`；L713按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `body_nodes`（L721–L726）：接收`node`。 控制顺序：L722遍历`ast.iter_child_nodes(node)`；L723按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `parse`（L701–L707）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L707的`ast.parse(normalized)`。
+- `segment`（L710–L713）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L713的`value if len(value) <= limit else value[:limit] + "…"`。
+- `definitions`（L716–L723）：接收`node`、`prefix`。 控制顺序：L717遍历`ast.iter_child_nodes(node)`；L718按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `body_nodes`（L726–L731）：接收`node`。 控制顺序：L727遍历`ast.iter_child_nodes(node)`；L728按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
 </details>
 
-**创建路径：** `scripts/handbook_notes.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L728。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/handbook_notes.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L733。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`64162`。本段原文以LF换行结束。
+本段原始字节数：`64673`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/handbook_notes.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "cfc6ca4b43bb9574757be2e298bd33b93b137945a5f2568b5672fa49aba43cbf"} -->
+<!-- learning-source: {"path": "scripts/handbook_notes.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "f91d55e3240edb101da4a1d08fc3b75022a2e51c2223df052f706d1bb889ca04"} -->
 ````python
 # scripts/handbook_notes.py
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
@@ -36,6 +36,11 @@ from pathlib import Path
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "template_adapters": (
+        "技术栈选择与后续交付共用的模板合同",
+        "Selection在导入catalog时就读取固定适配器，所以本模块必须在第01站与catalog一同写入。基础组合校验不启动生成器、浏览器或原生服务；源码锁、UI和运行证据在后续阶段分别核验，静态能力声明不能替代验收。",
+        "catalog.Selection → get_adapter及validate_selection → 后续feature规划、所选栈生成与独立交付。",
+    ),
     "model_settings": (
         "本机模型配置的版本化保存与密钥边界",
         "读取配置只返回模型身份和是否已配置Key；保存需匹配expected_revision。文件锁与原子替换避免并发覆盖，POSIX配置要求600权限。更换服务地址不复用旧密钥，已开始调用使用固定快照，下次调用才读取新版本。",

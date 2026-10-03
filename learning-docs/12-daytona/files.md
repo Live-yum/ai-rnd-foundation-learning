@@ -8,6 +8,7 @@
 - [scripts/ci_daytona_matrix.py](sources/scripts__ci_daytona_matrix_py--001.md)：数据库与模板矩阵的沙箱验收入口；1 段
 - [scripts/daytona_bootstrap.py](sources/scripts__daytona_bootstrap_py--001.md)：真实本机身份认证与快照注册；1 段
 - [scripts/daytona_build.py](sources/scripts__daytona_build_py--001.md)：从固定来源构建并锁定本机镜像；1 段
+- [scripts/daytona_capability_profile.py](sources/scripts__daytona_capability_profile_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/daytona_diagnostics.py](sources/scripts__daytona_diagnostics_py--001.md)：保留有界且脱敏的失败诊断；1 段
 - [scripts/daytona_gateway.py](sources/scripts__daytona_gateway_py--001.md)：固定端口的本机网络入口；1 段
 - [scripts/daytona_local.py](sources/scripts__daytona_local_py--001.md)：安装和管理本机Daytona开发服务；1 段
@@ -15,6 +16,7 @@
 - [scripts/daytona_matrix_probe.py](sources/scripts__daytona_matrix_probe_py--001.md)：沙箱内独立数据库和产品验收；1 段
 - [tests/test_daytona_bootstrap_contract.py](sources/tests__test_daytona_bootstrap_contract_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_build.py](sources/tests__test_daytona_build_py--001.md)：可重复的验收用例；1 段
+- [tests/test_daytona_capability_profile.py](sources/tests__test_daytona_capability_profile_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_download.py](sources/tests__test_daytona_download_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_gateway.py](sources/tests__test_daytona_gateway_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_matrix.py](sources/tests__test_daytona_matrix_py--001.md)：可重复的验收用例；1 段
@@ -23,6 +25,9 @@
 - [tests/test_daytona_startup_diagnostics.py](sources/tests__test_daytona_startup_diagnostics_py--001.md)：可重复的验收用例；1 段
 - [tests/test_local_only.py](sources/tests__test_local_only_py--001.md)：可重复的验收用例；1 段
 - [tools/daytona/Dockerfile](sources/tools__daytona__Dockerfile--001.md)：本机Daytona的预热镜像；1 段
+- [tools/daytona/capability-runner.Dockerfile](sources/tools__daytona__capability-runner_Dockerfile--001.md)：本机Daytona的预热镜像；1 段
+- [tools/daytona/capability-runner.patch](sources/tools__daytona__capability-runner_patch--001.md)：本机Daytona的预热镜像；1 段
+- [tools/daytona/capability-snapshot.Dockerfile](sources/tools__daytona__capability-snapshot_Dockerfile--001.md)：本机Daytona的预热镜像；1 段
 - [tools/daytona/matrix.Dockerfile](sources/tools__daytona__matrix_Dockerfile--001.md)：本机Daytona的预热镜像；1 段
 - [tools/daytona/minio.Dockerfile](sources/tools__daytona__minio_Dockerfile--001.md)：本机对象存储服务镜像；1 段
 - [tools/daytona/runner-entry.sh](sources/tools__daytona__runner-entry_sh--001.md)：本机Runner启动顺序与退出清理；1 段

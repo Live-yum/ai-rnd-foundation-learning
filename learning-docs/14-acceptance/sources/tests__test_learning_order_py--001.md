@@ -15,15 +15,15 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `test_database_lesson_runs_from_only_its_documented_files`（L11–L70）：接收`tmp_path`。 控制顺序：L37遍历`names`；L58断言`probe.returncode == 0`；L68断言`result.returncode == 0`；L69断言`not (destination / "workbench/api.py").exists()`；L70断言`not (destination / "workbench/runtime.py").exists()`。 调用`names.extend`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "migrations").rglob`、`path.is_file`、`target.parent.mkdir`、`shutil.copyfile`、`dict`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_database_lesson_runs_from_only_its_documented_files`（L11–L71）：接收`tmp_path`。 控制顺序：L38遍历`names`；L59断言`probe.returncode == 0`；L69断言`result.returncode == 0`；L70断言`not (destination / "workbench/api.py").exists()`；L71断言`not (destination / "workbench/runtime.py").exists()`。 调用`names.extend`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "migrations").rglob`、`path.is_file`、`target.parent.mkdir`、`shutil.copyfile`、`dict`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_learning_order.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L70。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_learning_order.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L71。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2310`。本段原文以LF换行结束。
+本段原始字节数：`2352`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_learning_order.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c44ac836ba0d31a213e55dff00ba28d7a5724a1a9f018c86a2a4d38c7d3d4f2e"} -->
+<!-- learning-source: {"path": "tests/test_learning_order.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f3e846ca7911b7fcb89703af94d587b84f4473031c047d683cfdbc796f40e972"} -->
 ````python
 # tests/test_learning_order.py
 """The first database lesson must not depend on a future API or agent module."""
@@ -51,6 +51,7 @@ def test_database_lesson_runs_from_only_its_documented_files(tmp_path):
         "workbench/domain.py",
         "workbench/errors.py",
         "workbench/catalog.py",
+        "workbench/template_adapters.py",
         "workbench/store.py",
         "workbench/clarification.py",
         "tests/conftest.py",

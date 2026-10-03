@@ -4,6 +4,7 @@
 
 按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件在 sources/locks，截图及Vue构建快照编码在 sources/assets 下，先读实现模块，需要校对时再打开资源。
 
+- [.github/workflows/capability-profile.yml](sources/_github__workflows__capability-profile_yml--001.md)：可复现的自动化验收配置；1 段
 - [.github/workflows/customer-runtime.yml](sources/_github__workflows__customer-runtime_yml--001.md)：可复现的自动化验收配置；1 段
 - [.github/workflows/daytona-local.yml](sources/_github__workflows__daytona-local_yml--001.md)：可复现的自动化验收配置；1 段
 - [.github/workflows/local-embeddings.yml](sources/_github__workflows__local-embeddings_yml--001.md)：可复现的自动化验收配置；1 段
@@ -37,6 +38,11 @@
 - [docs/toolchain.md](sources/docs__toolchain_md--001.md)：本教材正文的源文件；1 段
 - [scripts/build_handbook.py](sources/scripts__build_handbook_py--001.md)：生成唯一完整教材；1 段
 - [scripts/build_learning_docs.py](sources/scripts__build_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/capability_browser.cjs](sources/scripts__capability_browser_cjs--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/capability_fixture.py](sources/scripts__capability_fixture_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/capability_guard.py](sources/scripts__capability_guard_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/ci_capability_browser_preflight.py](sources/scripts__ci_capability_browser_preflight_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/ci_capability_profile.py](sources/scripts__ci_capability_profile_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_guided_browser.py](sources/scripts__ci_guided_browser_py--001.md)：工作台到资讯产品的浏览器验收协调；1 段
 - [scripts/ci_handbook.py](sources/scripts__ci_handbook_py--001.md)：证明一本书足够重建平台；1 段
 - [scripts/ci_learning_docs.py](sources/scripts__ci_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
@@ -49,6 +55,10 @@
 - [scripts/rebuild_from_handbook.py](sources/scripts__rebuild_from_handbook_py--001.md)：从一本书还原安全的新项目；1 段
 - [scripts/rebuild_learning_docs.py](sources/scripts__rebuild_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/signup_scope_browser.cjs](sources/scripts__signup_scope_browser_cjs--001.md)：在真实浏览器确认Vue报名能力范围；1 段
+- [tests/test_capability_browser_preflight.py](sources/tests__test_capability_browser_preflight_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_browser_protocol.py](sources/tests__test_capability_browser_protocol_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_guard.py](sources/tests__test_capability_guard_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_isolation.py](sources/tests__test_capability_isolation_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_recovery_controls.py](sources/tests__test_capability_recovery_controls_py--001.md)：可重复的验收用例；1 段
 - [tests/test_description_facts.py](sources/tests__test_description_facts_py--001.md)：可重复的验收用例；1 段
 - [tests/test_entity_group_clause_scope.py](sources/tests__test_entity_group_clause_scope_py--001.md)：可重复的验收用例；1 段

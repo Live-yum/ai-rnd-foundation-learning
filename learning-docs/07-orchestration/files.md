@@ -10,6 +10,7 @@
 - [tests/test_recommendation_stage_budget.py](sources/tests__test_recommendation_stage_budget_py--001.md)：可重复的验收用例；1 段
 - [tests/test_workflow.py](sources/tests__test_workflow_py--001.md)：可重复的验收用例；1 段
 - [workbench/aider_tool.py](sources/workbench__aider_tool_py--001.md)：隔离的Aider命令行适配；1 段
+- [workbench/capability_sandbox.py](sources/workbench__capability_sandbox_py--001.md)：项目根配置或说明；1 段
 - [workbench/coding.py](sources/workbench__coding_py--001.md)：不依赖Aider的受限规则编辑；1 段
 - [workbench/continue_index.py](sources/workbench__continue_index_py--001.md)：固定Continue全文索引组件的本机适配器；1 段
 - [workbench/daytona_profiles.py](sources/workbench__daytona_profiles_py--001.md)：按技术栈登记离线快照和验收合同；1 段

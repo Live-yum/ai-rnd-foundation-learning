@@ -1,0 +1,128 @@
+"""Positive isolation acceptance with only the repository's fixed authored app.
+
+No model, arbitrary source directory, or task argument is accepted. Unsupported
+kernel/profile prerequisites fail this command; exit 78 is never a passing proof.
+Production source execution remains separately disabled pending review.
+"""
+
+import shutil
+import tempfile
+from pathlib import Path
+
+from scripts.capability_fixture import APP, GOAL, SHARED_ROUTES, make_plan
+from scripts.daytona_capability_profile import HOME, inspect_created_sandbox, require_profile
+from workbench.capability_contracts import scope_sources
+from workbench.capability_sandbox import _verify
+from workbench.capability_verification import (
+    BROWSER_ERROR_CODES,
+    BROWSER_PHASES,
+    CheckFailure,
+    require_evidence,
+)
+from workbench.domain import digest
+from workbench.filesystem import manifest, write_json
+from workbench.local_only import install_loopback_guard
+from workbench.sandbox import client_for, close_client, validate_configuration
+from workbench.settings import ROOT, Settings
+
+
+def fixed_application(product):
+    product.mkdir(parents=True)
+    for name in ("pyproject.toml", "uv.lock"):
+        shutil.copyfile(ROOT / "templates/product" / name, product / name)
+    (product / "app.py").write_text(
+        APP.replace(
+            "    # CUSTOM_ACCESS",
+            "    from access import readable\n    allowed = readable(row['owner'],name,member)",
+        ).replace("# CUSTOM_ROUTES", SHARED_ROUTES),
+        encoding="utf-8",
+    )
+    (product / "access.py").write_text(
+        "def readable(owner, actor, member):\n    return owner == actor or member\n",
+        encoding="utf-8",
+    )
+    return make_plan(
+        {
+            "source_units": scope_sources([GOAL]),
+            "source_digest": digest([GOAL]),
+            "selection": {"template": "python-basic"},
+        }
+    )
+
+
+def require_profile_evidence(proof, **bindings):
+    """Keep strict validation; explain only an allowlisted browser failure."""
+    try:
+        require_evidence(proof, **bindings)
+    except CheckFailure:
+        diagnostic = proof.get("browser_diagnostic", {})
+        phase, code = diagnostic.get("phase"), diagnostic.get("error_code")
+        if (
+            proof.get("passed") is False
+            and isinstance(phase, str)
+            and phase in BROWSER_PHASES
+            and isinstance(code, str)
+            and code in BROWSER_ERROR_CODES
+        ):
+            raise CheckFailure(
+                f"Browser acceptance failed: {phase}/{code}; "
+                "see capability-profile-detail.json; strict evidence rejected"
+            ) from None
+        raise
+
+
+def main():
+    install_loopback_guard()
+    settings = Settings(_env_file=HOME / "workbench.env", tool_timeout=300)
+    report_path = ROOT / "reports/capability-profile.json"
+    summary = {
+        "passed": False,
+        "authored_fixture": True,
+        "paid_model_calls": 0,
+        "production_execution_enabled": False,
+    }
+    write_json(report_path, summary)
+    if settings.sandbox_provider != "daytona":
+        raise ValueError("Positive profile acceptance requires the real local Daytona service")
+    require_profile(HOME, settings.daytona_snapshot)
+    with tempfile.TemporaryDirectory(prefix="rnd-fixed-profile-") as directory:
+        product = Path(directory) / "product"
+        plan = fixed_application(product)
+        selected = plan.selection.model_dump()
+        validate_configuration(settings, selected["template"], selected)
+        client = client_for(settings)
+        try:
+            proof = _verify(
+                product,
+                plan,
+                plan.scenarios,
+                settings,
+                selected,
+                ROOT / "reports/capability-profile-detail.json",
+                client=client,
+                aggregate=True,
+                control_observer=lambda sandbox_id: inspect_created_sandbox(HOME, sandbox_id),
+            )
+            summary["proof"] = settings.redact_data(proof)
+            require_profile_evidence(
+                proof,
+                source_digest=digest(manifest(product)),
+                plan_digest=digest(plan.model_dump()),
+                scenarios=plan.scenarios,
+                selection=selected,
+                database_tables=plan.runtime.database_tables,
+                aggregate=True,
+            )
+            summary["passed"] = True
+        finally:
+            try:
+                close_client(client)
+            except Exception:
+                summary["passed"] = False
+                raise
+            finally:
+                write_json(report_path, summary)
+
+
+if __name__ == "__main__":
+    main()
