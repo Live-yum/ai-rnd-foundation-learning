@@ -10,4 +10,4 @@
 - [workbench/errors.py](sources/workbench__errors_py--001.md)：区分暂停预算和超出能力；1 段
 - [workbench/model_settings.py](sources/workbench__model_settings_py--001.md)：本机模型配置的版本化保存与密钥边界；1 段
 - [workbench/settings.py](sources/workbench__settings_py--001.md)：把配置转换为带类型、可校验的运行参数；1 段
-- [workbench/template_adapters.py](sources/workbench__template_adapters_py--001.md)：项目根配置或说明；1 段
+- [workbench/template_adapters.py](sources/workbench__template_adapters_py--001.md)：技术栈选择与后续交付共用的模板合同；1 段

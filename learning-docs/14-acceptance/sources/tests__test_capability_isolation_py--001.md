@@ -30,21 +30,25 @@
 - `test_container_receipt_requires_current_sandbox_and_all_boundaries`（L247–L270）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L263断言`require_container_evidence(value, identifier) == value`；L264遍历`value`。 调用`require_container_evidence`、`pytest.raises`、`value.items`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_live_container_inspection_failure_stops_before_source_upload`（L273–L305）：接收`settings`、`tmp_path`。 控制顺序：L304断言`result["passed"] is False and result["cleanup"] == "deleted"`；L305断言`result["kind"] == "isolation_environment" and operations == ["deleted"]`。 调用`fixed_application`、`SimpleNamespace`、`operations.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_live_container_inspection_failure_stops_before_source_upload.forbidden`（L281–L282）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths`（L329–L448）：接收`settings`、`tmp_path`、`monkeypatch`、`failure`。 源码说明：Real HTTPX lifecycle with transport/process fixtures, not live isolation proof.。 控制顺序：L427断言`result["passed"] is (failure is None)`；L428断言`result["restarted"] is (failure is None)`；L429断言`result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")`；L430断言`events[-1] == "deleted"`；L431断言`len(clients) == ( 1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} …`；L434断言`all(client.is_closed for client in clients)`；L435断言`(0, "/health") in events`；L437断言`persisted == result`。后续分支沿下方源码相同行号继续阅读。 调用`fixed_application`、`SimpleNamespace`、`events.append`、`iter`、`monkeypatch.setattr`、`verifier._verify`、`plan.selection.model_dump`、`len`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths`（L329–L469）：接收`settings`、`tmp_path`、`monkeypatch`、`failure`。 源码说明：Real HTTPX lifecycle with transport/process fixtures, not live isolation proof.。 控制顺序：L445断言`result["passed"] is (failure is None)`；L446断言`result["restarted"] is (failure is None)`；L447断言`result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")`；L448断言`events[-1] == "deleted"`；L449断言`len(clients) == ( 1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} …`；L452断言`all(client.is_closed for client in clients)`；L453断言`(0, "/health") in events`；L455断言`persisted == result`。后续分支沿下方源码相同行号继续阅读。 调用`fixed_application`、`SimpleNamespace`、`events.append`、`iter`、`monkeypatch.setattr`、`verifier._verify`、`plan.selection.model_dump`、`len`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http`（L345–L359）：接收`**kwargs`。 控制顺序：L347断言`kwargs["headers"] == {"x-daytona-preview-token": "fixture-private-token"}`；L348断言`kwargs["trust_env"] is False and kwargs["follow_redirects"] is False`。 调用`len`、`original_client`、`httpx.MockTransport`、`clients.append`。 返回路径：L359的`client`。
 - `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http.respond`（L350–L355）：接收`request`。 控制顺序：L352断言`request.url.host == f"8123-{identifier}.proxy.localhost"`；L353按`failure == "restart-health" and launch == 1`分支；L354抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`httpx.Response`。 返回路径：L355的`httpx.Response(200, json={"ok": True})`。
 - `test_verifier_closes_health_opened_http_clients_on_all_paths.delete`（L373–L376）：接收`*args`、`**kwargs`。 控制顺序：L375按`failure == "browser-cleanup"`分支；L376抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.database_counts`（L386–L389）：接收`*args`。 控制顺序：L387按`failure == "baseline"`分支；L388抛异常，停止当前正常路径。 调用`CheckFailure`、`next`。 返回路径：L389的`{"entries": next(counts)}`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_scenarios`（L391–L396）：接收`http`、`scenarios`、`saved`、`after_restart`。 控制顺序：L393断言`http.get("/fixture-" + phase).status_code == 200`；L394按`failure == phase`分支；L395抛异常，停止当前正常路径。 调用`http.get`、`CheckFailure`。 返回路径：L396的`[{"phase": phase, "fixture_only": True}], {}`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_browser`（L398–L401）：接收`*args`。 控制顺序：L399按`failure in BROWSER_FAILURE_FIXTURES`分支；L400抛异常，停止当前正常路径。 调用`BrowserFailure`、`BROWSER_FAILURE_FIXTURES[failure].copy`。 返回路径：L401的`[{"fixture_only": True}]`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.create`（L378–L390）：接收`parameters`、`**kwargs`。 控制顺序：L385断言`ordinary.auto_delete_interval == 0`；L386断言`parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60`；L387断言`parameters.network_block_all is True`；L388断言`parameters.public is False`。 调用`params_for`。 返回路径：L390的`sandbox`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.stop`（L392–L394）：接收`*args`、`**kwargs`。 控制顺序：L393断言`sandbox.auto_delete_interval > 0`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.database_counts`（L404–L407）：接收`*args`。 控制顺序：L405按`failure == "baseline"`分支；L406抛异常，停止当前正常路径。 调用`CheckFailure`、`next`。 返回路径：L407的`{"entries": next(counts)}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_scenarios`（L409–L414）：接收`http`、`scenarios`、`saved`、`after_restart`。 控制顺序：L411断言`http.get("/fixture-" + phase).status_code == 200`；L412按`failure == phase`分支；L413抛异常，停止当前正常路径。 调用`http.get`、`CheckFailure`。 返回路径：L414的`[{"phase": phase, "fixture_only": True}], {}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_browser`（L416–L419）：接收`*args`。 控制顺序：L417按`failure in BROWSER_FAILURE_FIXTURES`分支；L418抛异常，停止当前正常路径。 调用`BrowserFailure`、`BROWSER_FAILURE_FIXTURES[failure].copy`。 返回路径：L419的`[{"fixture_only": True}]`。
+- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup`（L472–L504）：接收`settings`、`tmp_path`。 控制顺序：L502断言`calls == ["created", "deleted"]`；L503断言`result["passed"] is False`；L504断言`result["cleanup"] == "deleted"`。 调用`fixed_application`、`SimpleNamespace`、`calls.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup.create`（L482–L486）：接收`parameters`、`**kwargs`。 控制顺序：L483断言`parameters.auto_delete_interval == 0`；L484断言`parameters.network_block_all is True and parameters.public is False`。 调用`calls.append`。 返回路径：L486的`sandbox`。
 
 </details>
 
-**创建路径：** `tests/test_capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L448。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L504。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17469`。本段原文以LF换行结束。
+本段原始字节数：`19805`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e1bc39543c69622bf12fdd64da9cd5390a8f724af455cbd330a35038546e8cbf"} -->
+<!-- learning-source: {"path": "tests/test_capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5207b190033e6e420d4bb5fe47a07167fdc7f5c2d4e204d65af20f69c970b246"} -->
 ````python
 # tests/test_capability_isolation.py
 """Verify every source command is composed through the same non-bypassable launcher."""
@@ -424,9 +428,27 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         if failure == "browser-cleanup":
             raise RuntimeError("fixture sandbox cleanup failure")
 
+    def create(parameters, **kwargs):
+        # Reproduce the pinned SDK's actual delete-on-stop parameter semantics.
+        # An aggregate sandbox must survive both bounded lifecycle operations;
+        # the ordinary disposable verifier policy must remain zero.
+        from workbench.sandbox import params_for
+
+        ordinary = params_for(settings, "fixture-ordinary")
+        assert ordinary.auto_delete_interval == 0
+        assert parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60
+        assert parameters.network_block_all is True
+        assert parameters.public is False
+        sandbox.auto_delete_interval = parameters.auto_delete_interval
+        return sandbox
+
+    def stop(*args, **kwargs):
+        assert sandbox.auto_delete_interval > 0, "Zero deletes the sandbox before restart"
+        events.append("stopped")
+
     daytona = SimpleNamespace(
-        create=lambda *a, **k: sandbox,
-        stop=lambda *a, **k: events.append("stopped"),
+        create=create,
+        stop=stop,
         start=lambda *a, **k: events.append("started"),
         delete=delete,
     )
@@ -487,6 +509,9 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         if failure in BROWSER_FAILURE_FIXTURES:
             assert persisted["browser_diagnostic"] == BROWSER_FAILURE_FIXTURES[failure]
             assert "fixture-private-token" not in json.dumps(persisted)
+            if failure == "browser-cleanup":
+                assert persisted["error"] == "真实浏览器场景未通过；查看安全阶段诊断，未跳过"
+                assert "删除未确认" in persisted["cleanup_error"]
         if failure is None:
             assert [check["phase"] for check in result["checks"]] == ["initial", "restart"]
             assert (0, "/openapi.json") in events
@@ -495,4 +520,39 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
     finally:
         for client in clients:
             client.close()
+
+
+def test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup(settings, tmp_path):
+    from scripts.ci_capability_profile import fixed_application
+    from workbench.capability_sandbox import _verify
+
+    product = tmp_path / "product"
+    plan = fixed_application(product)
+    settings.daytona_snapshot = "fixture-owned-snapshot"
+    sandbox = SimpleNamespace(id="00000000-0000-0000-0000-000000000001")
+    calls = []
+
+    def create(parameters, **kwargs):
+        assert parameters.auto_delete_interval == 0
+        assert parameters.network_block_all is True and parameters.public is False
+        calls.append("created")
+        return sandbox
+
+    client = SimpleNamespace(create=create, delete=lambda *a, **k: calls.append("deleted"))
+    result = _verify(
+        product,
+        plan,
+        plan.scenarios,
+        settings,
+        plan.selection.model_dump(),
+        tmp_path / "receipt.json",
+        client=client,
+        aggregate=False,
+        # Deliberately reject before source upload; this is a lifecycle contract
+        # regression and supplies no live container or application evidence.
+        control_observer=lambda identifier: {},
+    )
+    assert calls == ["created", "deleted"]
+    assert result["passed"] is False
+    assert result["cleanup"] == "deleted"
 ````

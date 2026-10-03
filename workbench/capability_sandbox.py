@@ -177,6 +177,12 @@ def _verify(
     try:
         parameters = params_for(settings, name, selection["template"], selection)
         parameters.os_user = "root"
+        if aggregate:
+            # SDK 0.190.0 uses 0 for delete-on-stop, so the ordinary disposable
+            # policy destroys the database before aggregate restart acceptance.
+            # Keep only this owned sandbox for a finite stop/start window; the
+            # mandatory finally deletion and all isolation gates still apply.
+            parameters.auto_delete_interval = (2 * settings.tool_timeout + 59) // 60 + 1
         sandbox = client.create(parameters, timeout=settings.tool_timeout)
         receipt.update(sandbox_id=sandbox.id, cleanup="pending")
         write_json(receipt_path, receipt)
@@ -337,7 +343,8 @@ def _verify(
                 receipt["cleanup"] = "deleted"
             except Exception:
                 receipt.update(cleanup="delete-failed", passed=False)
-                receipt["error"] = "本机隔离沙箱删除未确认；请按回执名称检查，交付已停止"
+                receipt["cleanup_error"] = "本机隔离沙箱删除未确认；请按回执名称检查，交付已停止"
+                receipt.setdefault("error", receipt["cleanup_error"])
         if receipt["cleanup"] != "deleted":
             receipt["passed"] = False
         write_json(receipt_path, receipt)

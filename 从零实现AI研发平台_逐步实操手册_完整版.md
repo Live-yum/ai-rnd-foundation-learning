@@ -2858,6 +2858,8 @@ Python/SQLite用基础快照；Python/PostgreSQL、FastapiAdmin/PostgreSQL、Yud
 
 该固定夹具的私有记录与团队共享场景不代表具体产品已完成。完整对话历史、计划后的feature节点、学生自助注册登录和自己的记录、教师/专家/管理员角色，以及上传、预览、导出、盲审分配，必须在用户所选栈逐项实现并验收；Vue3/Ant Design需求不能由通用夹具页面替代，模板缺失也不能通过丢弃需求来取得通过。
 
+Daytona 0.190.0的`auto_delete_interval=0`表示停机立即删除，不能用于需要停机后重启的汇总验收。仅汇总验收的独占沙箱使用覆盖两个生命周期超时再加一分钟的有限自动删除窗口；普通一次性验收仍保留停机立即删除策略。最终`finally`删除仍是必须项，失败会阻止交付，且单独保留`cleanup_error`而不覆盖先前验收失败原因。自动保留窗口不是重启或清理成功证据，仍须检查实际重启场景、独立数据库计数与删除回执。
+
 ## 所选模板的页面风格
 
 原生模板的页面必须由对应原生生成器生成并挂载到原管理端。FastapiAdmin保留原生Vue布局、Fa组件和Element Plus；芋道保留Vben5 web-antd布局、Ant Design Vue和VXE。不得替换成Python Basic通用页面。
@@ -8911,11 +8913,11 @@ def prepare_identity(sandbox, plan, timeout):
 **逐个入口与控制逻辑：**
 
 - `verify_capabilities`（L53–L139）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`。 控制顺序：L57按`plan.selection.model_dump() != selection`分支；L58抛异常，停止当前正常路径；L63按`settings.sandbox_provider != "daytona"`分支；L64抛异常，停止当前正常路径；L71抛异常，停止当前正常路径；L77抛异常，停止当前正常路径；L108按`len(body) > 1_000_000`分支；L109抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`UnsupportedScope`、`validate_configuration`、`Path(product).resolve`、`Path`、`plan.model_dump`等。 返回路径：L62的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L139的`receipt`。
-- `_verify`（L142–L344）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`。 控制顺序：L183按`control_observer is None`分支；L184抛异常，停止当前正常路径；L190抛异常，停止当前正常路径；L203按`result.exit_code != 0`分支；L204抛异常，停止当前正常路径；L207按`database_password`分支；L211遍历`enumerate(plan.runtime.prepare)`；L223按`result.exit_code != 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`manifest`、`uuid.uuid4`、`digest`、`plan.model_dump`、`inspect_stack`、`write_json`、`params_for`、`client.create`、`receipt.update`等。 返回路径：L344的`receipt`。
-- `_verify.start`（L229–L272）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L245按`not response.cmd_id`分支；L246抛异常，停止当前正常路径；L249按`not isinstance(preview.token, str) or not preview.token`分支；L250抛异常，停止当前正常路径；L261在`time.monotonic() < deadline`成立时循环；L264按`200 <= check.status_code < 300`分支；L269抛异常，停止当前正常路径；L272抛异常，停止当前正常路径。 调用`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`、`shlex.quote`、`shlex.join`、`CheckFailure`等。 返回路径：L265的`http, url, preview.token`。
-- `main`（L347–L373）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L348抛异常，停止当前正常路径；L350按`len(body) > 1_000_000`分支；L351抛异常，停止当前正常路径。 调用`UnsupportedScope`、`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_verify`（L142–L351）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`。 控制顺序：L180按`aggregate`分支；L189按`control_observer is None`分支；L190抛异常，停止当前正常路径；L196抛异常，停止当前正常路径；L209按`result.exit_code != 0`分支；L210抛异常，停止当前正常路径；L213按`database_password`分支；L217遍历`enumerate(plan.runtime.prepare)`。后续分支沿下方源码相同行号继续阅读。 调用`manifest`、`uuid.uuid4`、`digest`、`plan.model_dump`、`inspect_stack`、`write_json`、`params_for`、`client.create`、`receipt.update`等。 返回路径：L351的`receipt`。
+- `_verify.start`（L235–L278）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L251按`not response.cmd_id`分支；L252抛异常，停止当前正常路径；L255按`not isinstance(preview.token, str) or not preview.token`分支；L256抛异常，停止当前正常路径；L267在`time.monotonic() < deadline`成立时循环；L270按`200 <= check.status_code < 300`分支；L275抛异常，停止当前正常路径；L278抛异常，停止当前正常路径。 调用`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`、`shlex.quote`、`shlex.join`、`CheckFailure`等。 返回路径：L271的`http, url, preview.token`。
+- `main`（L354–L380）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L355抛异常，停止当前正常路径；L357按`len(body) > 1_000_000`分支；L358抛异常，停止当前正常路径。 调用`UnsupportedScope`、`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/capability_sandbox.py sha256: 2d1c17c2a45a885938c17aa984783f52ac681672c906b3539720d0cedaf979fb -->
+<!-- source-file: workbench/capability_sandbox.py sha256: 71c164a92df7b0b3a3201374b224d53ccc42d3cbc3ce79099582bcd1ffc06a08 -->
 ````python
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
 
@@ -9096,6 +9098,12 @@ def _verify(
     try:
         parameters = params_for(settings, name, selection["template"], selection)
         parameters.os_user = "root"
+        if aggregate:
+            # SDK 0.190.0 uses 0 for delete-on-stop, so the ordinary disposable
+            # policy destroys the database before aggregate restart acceptance.
+            # Keep only this owned sandbox for a finite stop/start window; the
+            # mandatory finally deletion and all isolation gates still apply.
+            parameters.auto_delete_interval = (2 * settings.tool_timeout + 59) // 60 + 1
         sandbox = client.create(parameters, timeout=settings.tool_timeout)
         receipt.update(sandbox_id=sandbox.id, cleanup="pending")
         write_json(receipt_path, receipt)
@@ -9256,7 +9264,8 @@ def _verify(
                 receipt["cleanup"] = "deleted"
             except Exception:
                 receipt.update(cleanup="delete-failed", passed=False)
-                receipt["error"] = "本机隔离沙箱删除未确认；请按回执名称检查，交付已停止"
+                receipt["cleanup_error"] = "本机隔离沙箱删除未确认；请按回执名称检查，交付已停止"
+                receipt.setdefault("error", receipt["cleanup_error"])
         if receipt["cleanup"] != "deleted":
             receipt["passed"] = False
         write_json(receipt_path, receipt)
@@ -29457,9 +29466,9 @@ def parse_file(path):
 
 ### `workbench/template_adapters.py`
 
-**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+**作用：技术栈选择与后续交付共用的模板合同。** Selection在导入catalog时就读取固定适配器，所以本模块必须在第01站与catalog一同写入。基础组合校验不启动生成器、浏览器或原生服务；源码锁、UI和运行证据在后续阶段分别核验，静态能力声明不能替代验收。
 
-**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+**对应关系：** catalog.Selection → get_adapter及validate_selection → 后续feature规划、所选栈生成与独立交付。
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
@@ -107606,15 +107615,19 @@ def test_supported_kernel_restricts_real_daemon_port_or_fails_closed():
 - `test_container_receipt_requires_current_sandbox_and_all_boundaries`（L247–L270）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L263断言`require_container_evidence(value, identifier) == value`；L264遍历`value`。 调用`require_container_evidence`、`pytest.raises`、`value.items`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_live_container_inspection_failure_stops_before_source_upload`（L273–L305）：接收`settings`、`tmp_path`。 控制顺序：L304断言`result["passed"] is False and result["cleanup"] == "deleted"`；L305断言`result["kind"] == "isolation_environment" and operations == ["deleted"]`。 调用`fixed_application`、`SimpleNamespace`、`operations.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_live_container_inspection_failure_stops_before_source_upload.forbidden`（L281–L282）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths`（L329–L448）：接收`settings`、`tmp_path`、`monkeypatch`、`failure`。 源码说明：Real HTTPX lifecycle with transport/process fixtures, not live isolation proof.。 控制顺序：L427断言`result["passed"] is (failure is None)`；L428断言`result["restarted"] is (failure is None)`；L429断言`result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")`；L430断言`events[-1] == "deleted"`；L431断言`len(clients) == ( 1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} …`；L434断言`all(client.is_closed for client in clients)`；L435断言`(0, "/health") in events`；L437断言`persisted == result`。后续分支沿下方源码相同行号继续阅读。 调用`fixed_application`、`SimpleNamespace`、`events.append`、`iter`、`monkeypatch.setattr`、`verifier._verify`、`plan.selection.model_dump`、`len`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths`（L329–L469）：接收`settings`、`tmp_path`、`monkeypatch`、`failure`。 源码说明：Real HTTPX lifecycle with transport/process fixtures, not live isolation proof.。 控制顺序：L445断言`result["passed"] is (failure is None)`；L446断言`result["restarted"] is (failure is None)`；L447断言`result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")`；L448断言`events[-1] == "deleted"`；L449断言`len(clients) == ( 1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} …`；L452断言`all(client.is_closed for client in clients)`；L453断言`(0, "/health") in events`；L455断言`persisted == result`。后续分支沿下方源码相同行号继续阅读。 调用`fixed_application`、`SimpleNamespace`、`events.append`、`iter`、`monkeypatch.setattr`、`verifier._verify`、`plan.selection.model_dump`、`len`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http`（L345–L359）：接收`**kwargs`。 控制顺序：L347断言`kwargs["headers"] == {"x-daytona-preview-token": "fixture-private-token"}`；L348断言`kwargs["trust_env"] is False and kwargs["follow_redirects"] is False`。 调用`len`、`original_client`、`httpx.MockTransport`、`clients.append`。 返回路径：L359的`client`。
 - `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http.respond`（L350–L355）：接收`request`。 控制顺序：L352断言`request.url.host == f"8123-{identifier}.proxy.localhost"`；L353按`failure == "restart-health" and launch == 1`分支；L354抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`httpx.Response`。 返回路径：L355的`httpx.Response(200, json={"ok": True})`。
 - `test_verifier_closes_health_opened_http_clients_on_all_paths.delete`（L373–L376）：接收`*args`、`**kwargs`。 控制顺序：L375按`failure == "browser-cleanup"`分支；L376抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.database_counts`（L386–L389）：接收`*args`。 控制顺序：L387按`failure == "baseline"`分支；L388抛异常，停止当前正常路径。 调用`CheckFailure`、`next`。 返回路径：L389的`{"entries": next(counts)}`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_scenarios`（L391–L396）：接收`http`、`scenarios`、`saved`、`after_restart`。 控制顺序：L393断言`http.get("/fixture-" + phase).status_code == 200`；L394按`failure == phase`分支；L395抛异常，停止当前正常路径。 调用`http.get`、`CheckFailure`。 返回路径：L396的`[{"phase": phase, "fixture_only": True}], {}`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_browser`（L398–L401）：接收`*args`。 控制顺序：L399按`failure in BROWSER_FAILURE_FIXTURES`分支；L400抛异常，停止当前正常路径。 调用`BrowserFailure`、`BROWSER_FAILURE_FIXTURES[failure].copy`。 返回路径：L401的`[{"fixture_only": True}]`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.create`（L378–L390）：接收`parameters`、`**kwargs`。 控制顺序：L385断言`ordinary.auto_delete_interval == 0`；L386断言`parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60`；L387断言`parameters.network_block_all is True`；L388断言`parameters.public is False`。 调用`params_for`。 返回路径：L390的`sandbox`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.stop`（L392–L394）：接收`*args`、`**kwargs`。 控制顺序：L393断言`sandbox.auto_delete_interval > 0`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.database_counts`（L404–L407）：接收`*args`。 控制顺序：L405按`failure == "baseline"`分支；L406抛异常，停止当前正常路径。 调用`CheckFailure`、`next`。 返回路径：L407的`{"entries": next(counts)}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_scenarios`（L409–L414）：接收`http`、`scenarios`、`saved`、`after_restart`。 控制顺序：L411断言`http.get("/fixture-" + phase).status_code == 200`；L412按`failure == phase`分支；L413抛异常，停止当前正常路径。 调用`http.get`、`CheckFailure`。 返回路径：L414的`[{"phase": phase, "fixture_only": True}], {}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_browser`（L416–L419）：接收`*args`。 控制顺序：L417按`failure in BROWSER_FAILURE_FIXTURES`分支；L418抛异常，停止当前正常路径。 调用`BrowserFailure`、`BROWSER_FAILURE_FIXTURES[failure].copy`。 返回路径：L419的`[{"fixture_only": True}]`。
+- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup`（L472–L504）：接收`settings`、`tmp_path`。 控制顺序：L502断言`calls == ["created", "deleted"]`；L503断言`result["passed"] is False`；L504断言`result["cleanup"] == "deleted"`。 调用`fixed_application`、`SimpleNamespace`、`calls.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup.create`（L482–L486）：接收`parameters`、`**kwargs`。 控制顺序：L483断言`parameters.auto_delete_interval == 0`；L484断言`parameters.network_block_all is True and parameters.public is False`。 调用`calls.append`。 返回路径：L486的`sandbox`。
 
-<!-- source-file: tests/test_capability_isolation.py sha256: e1bc39543c69622bf12fdd64da9cd5390a8f724af455cbd330a35038546e8cbf -->
+<!-- source-file: tests/test_capability_isolation.py sha256: 5207b190033e6e420d4bb5fe47a07167fdc7f5c2d4e204d65af20f69c970b246 -->
 ````python
 """Verify every source command is composed through the same non-bypassable launcher."""
 
@@ -107993,9 +108006,27 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         if failure == "browser-cleanup":
             raise RuntimeError("fixture sandbox cleanup failure")
 
+    def create(parameters, **kwargs):
+        # Reproduce the pinned SDK's actual delete-on-stop parameter semantics.
+        # An aggregate sandbox must survive both bounded lifecycle operations;
+        # the ordinary disposable verifier policy must remain zero.
+        from workbench.sandbox import params_for
+
+        ordinary = params_for(settings, "fixture-ordinary")
+        assert ordinary.auto_delete_interval == 0
+        assert parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60
+        assert parameters.network_block_all is True
+        assert parameters.public is False
+        sandbox.auto_delete_interval = parameters.auto_delete_interval
+        return sandbox
+
+    def stop(*args, **kwargs):
+        assert sandbox.auto_delete_interval > 0, "Zero deletes the sandbox before restart"
+        events.append("stopped")
+
     daytona = SimpleNamespace(
-        create=lambda *a, **k: sandbox,
-        stop=lambda *a, **k: events.append("stopped"),
+        create=create,
+        stop=stop,
         start=lambda *a, **k: events.append("started"),
         delete=delete,
     )
@@ -108056,6 +108087,9 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         if failure in BROWSER_FAILURE_FIXTURES:
             assert persisted["browser_diagnostic"] == BROWSER_FAILURE_FIXTURES[failure]
             assert "fixture-private-token" not in json.dumps(persisted)
+            if failure == "browser-cleanup":
+                assert persisted["error"] == "真实浏览器场景未通过；查看安全阶段诊断，未跳过"
+                assert "删除未确认" in persisted["cleanup_error"]
         if failure is None:
             assert [check["phase"] for check in result["checks"]] == ["initial", "restart"]
             assert (0, "/openapi.json") in events
@@ -108064,6 +108098,41 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
     finally:
         for client in clients:
             client.close()
+
+
+def test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup(settings, tmp_path):
+    from scripts.ci_capability_profile import fixed_application
+    from workbench.capability_sandbox import _verify
+
+    product = tmp_path / "product"
+    plan = fixed_application(product)
+    settings.daytona_snapshot = "fixture-owned-snapshot"
+    sandbox = SimpleNamespace(id="00000000-0000-0000-0000-000000000001")
+    calls = []
+
+    def create(parameters, **kwargs):
+        assert parameters.auto_delete_interval == 0
+        assert parameters.network_block_all is True and parameters.public is False
+        calls.append("created")
+        return sandbox
+
+    client = SimpleNamespace(create=create, delete=lambda *a, **k: calls.append("deleted"))
+    result = _verify(
+        product,
+        plan,
+        plan.scenarios,
+        settings,
+        plan.selection.model_dump(),
+        tmp_path / "receipt.json",
+        client=client,
+        aggregate=False,
+        # Deliberately reject before source upload; this is a lifecycle contract
+        # regression and supplies no live container or application evidence.
+        control_observer=lambda identifier: {},
+    )
+    assert calls == ["created", "deleted"]
+    assert result["passed"] is False
+    assert result["cleanup"] == "deleted"
 ````
 
 ### `tests/test_capability_recovery_controls.py`
@@ -119235,9 +119304,9 @@ def test_signup_cleanroom_rejects_artifact_changes_after_report(tmp_path, damage
 
 **逐个入口与控制逻辑：**
 
-- `test_database_lesson_runs_from_only_its_documented_files`（L11–L70）：接收`tmp_path`。 控制顺序：L37遍历`names`；L58断言`probe.returncode == 0`；L68断言`result.returncode == 0`；L69断言`not (destination / "workbench/api.py").exists()`；L70断言`not (destination / "workbench/runtime.py").exists()`。 调用`names.extend`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "migrations").rglob`、`path.is_file`、`target.parent.mkdir`、`shutil.copyfile`、`dict`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_database_lesson_runs_from_only_its_documented_files`（L11–L71）：接收`tmp_path`。 控制顺序：L38遍历`names`；L59断言`probe.returncode == 0`；L69断言`result.returncode == 0`；L70断言`not (destination / "workbench/api.py").exists()`；L71断言`not (destination / "workbench/runtime.py").exists()`。 调用`names.extend`、`path.relative_to(ROOT).as_posix`、`path.relative_to`、`(ROOT / "migrations").rglob`、`path.is_file`、`target.parent.mkdir`、`shutil.copyfile`、`dict`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_learning_order.py sha256: c44ac836ba0d31a213e55dff00ba28d7a5724a1a9f018c86a2a4d38c7d3d4f2e -->
+<!-- source-file: tests/test_learning_order.py sha256: f3e846ca7911b7fcb89703af94d587b84f4473031c047d683cfdbc796f40e972 -->
 ````python
 """The first database lesson must not depend on a future API or agent module."""
 
@@ -119264,6 +119333,7 @@ def test_database_lesson_runs_from_only_its_documented_files(tmp_path):
         "workbench/domain.py",
         "workbench/errors.py",
         "workbench/catalog.py",
+        "workbench/template_adapters.py",
         "workbench/store.py",
         "workbench/clarification.py",
         "tests/conftest.py",
@@ -151650,14 +151720,14 @@ main().catch((e) => {
 
 **逐个入口与控制逻辑：**
 
-- `parse`（L696–L702）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L702的`ast.parse(normalized)`。
-- `segment`（L705–L708）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L708的`value if len(value) <= limit else value[:limit] + "…"`。
-- `definitions`（L711–L718）：接收`node`、`prefix`。 控制顺序：L712遍历`ast.iter_child_nodes(node)`；L713按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `body_nodes`（L721–L726）：接收`node`。 控制顺序：L722遍历`ast.iter_child_nodes(node)`；L723按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `purpose`（L729–L941）：接收`name`。 控制顺序：L731按`name.startswith("ui/")`分支；L760按`name == "workbench/__init__.py"`分支；L766按`name.startswith("workbench/") and path.stem in MODULES`分支；L768按`name.startswith("templates/business/")`分支；L769按`role := BUSINESS_FILES.get(name.removeprefix("templates/business/"))`分支；L776按`name == "examples/requirements/customer-service.md"`分支；L782按`name == "examples/requirements/customer-service-decisions.md"`分支；L788按`name == "examples/requirements/customer-service-contract.md"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`roles.get`、`BUSINESS_FILES.get`、`name.removeprefix`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L752的`( "Vue 3 / Ant Design本机操作台源码", roles.get( name, "这是操作台自有的源码或测试支持文件，按路径保留。测试使用合成数据和受控接口，不接触…`；L761的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L767的`MODULES[path.stem]`。
-- `notes`（L944–L1054）：接收`name`、`content`。 控制顺序：L948按`not name.endswith(".py")`分支；L955遍历`tree.body`；L956按`isinstance(node, ast.ImportFrom) and node.module`分支；L958按`isinstance(node, ast.Import)`分支；L961按`own`分支；L968按`not rows`分支；L971遍历`rows`；L973按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L949的`out`；L953的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L969的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
+- `parse`（L701–L707）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L707的`ast.parse(normalized)`。
+- `segment`（L710–L713）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L713的`value if len(value) <= limit else value[:limit] + "…"`。
+- `definitions`（L716–L723）：接收`node`、`prefix`。 控制顺序：L717遍历`ast.iter_child_nodes(node)`；L718按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `body_nodes`（L726–L731）：接收`node`。 控制顺序：L727遍历`ast.iter_child_nodes(node)`；L728按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `purpose`（L734–L946）：接收`name`。 控制顺序：L736按`name.startswith("ui/")`分支；L765按`name == "workbench/__init__.py"`分支；L771按`name.startswith("workbench/") and path.stem in MODULES`分支；L773按`name.startswith("templates/business/")`分支；L774按`role := BUSINESS_FILES.get(name.removeprefix("templates/business/"))`分支；L781按`name == "examples/requirements/customer-service.md"`分支；L787按`name == "examples/requirements/customer-service-decisions.md"`分支；L793按`name == "examples/requirements/customer-service-contract.md"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`roles.get`、`BUSINESS_FILES.get`、`name.removeprefix`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L757的`( "Vue 3 / Ant Design本机操作台源码", roles.get( name, "这是操作台自有的源码或测试支持文件，按路径保留。测试使用合成数据和受控接口，不接触…`；L766的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L772的`MODULES[path.stem]`。
+- `notes`（L949–L1059）：接收`name`、`content`。 控制顺序：L953按`not name.endswith(".py")`分支；L960遍历`tree.body`；L961按`isinstance(node, ast.ImportFrom) and node.module`分支；L963按`isinstance(node, ast.Import)`分支；L966按`own`分支；L973按`not rows`分支；L976遍历`rows`；L978按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L954的`out`；L958的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L974的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
 
-<!-- source-file: scripts/handbook_notes.py sha256: 1b3c42c28ad123418e4a4210dd45e3fd3f9bc3858da265661d77ab680bdc8609 -->
+<!-- source-file: scripts/handbook_notes.py sha256: 0a989bcd69d6ad8628ca254d670c8a856c4821232a57bf16422316a1096a6697 -->
 ````python
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
 
@@ -151668,6 +151738,11 @@ from pathlib import Path
 # Each module has a distinct architectural job. These explanations accompany,
 # rather than replace, the complete and SHA-checked source below them.
 MODULES = {
+    "template_adapters": (
+        "技术栈选择与后续交付共用的模板合同",
+        "Selection在导入catalog时就读取固定适配器，所以本模块必须在第01站与catalog一同写入。基础组合校验不启动生成器、浏览器或原生服务；源码锁、UI和运行证据在后续阶段分别核验，静态能力声明不能替代验收。",
+        "catalog.Selection → get_adapter及validate_selection → 后续feature规划、所选栈生成与独立交付。",
+    ),
     "model_settings": (
         "本机模型配置的版本化保存与密钥边界",
         "读取配置只返回模型身份和是否已配置Key；保存需匹配expected_revision。文件锁与原子替换避免并发覆盖，POSIX配置要求600权限。更换服务地址不复用旧密钥，已开始调用使用固定快照，下次调用才读取新版本。",
@@ -152723,7 +152798,7 @@ def notes(name, content):
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/learning_docs_content.json sha256: 9a75e67234b82ca5fe88476c61da8d0d8c7204048ae245e24cd1bfe864655de0 -->
+<!-- source-file: scripts/learning_docs_content.json sha256: 72326428a5c66096077c2bd9591f39f8659993db584ed4725da0a10e8ad94510 -->
 ````json
 [
   {
@@ -152767,7 +152842,7 @@ def notes(name, content):
     "goal": "把自由输入限制成可核查的模板组合、需求、设计与审批数据。",
     "prerequisites": [
       "00环境安装成功",
-      "完整写入local_only、settings、catalog、business_contracts、domain、errors"
+      "完整写入local_only、settings、template_adapters、catalog、business_contracts、domain、errors"
     ],
     "concepts": [
       "Pydantic模型与确定性校验",
@@ -152795,7 +152870,7 @@ def notes(name, content):
       "这时只校验结构，不启动网络、数据库或模型",
       "Selection.capabilities需要03的business_capabilities，01不要调用它"
     ],
-    "body": "## 先写边界，再写功能\n\n从 `local_only.py` 开始：`local_http_url` 接受回环服务，拒绝公网、局域网、URL凭据和查询参数；模型地址由 `ModelProfile.validate_endpoint` 单独校验，允许远程 HTTPS。两类地址规则分开，才能做到“模型可以外部推理，其余工具本地运行”，而不是一刀切地禁网或放网。\n\n`Settings` 把环境配置变成类型化对象。四个模型阶段依次是 requirements、planning、coding、review。`model_for` 决定哪些值可以继承，`public` 决定哪些值可以显示。尤其要读“地址改变但阶段密钥为空”分支：拒绝复用默认密钥，是在请求发出前阻止跨服务泄露。`_env_file=None` 只是不读个人 `.env`；进程环境变量仍然有效，遇到意外配置时检查当前终端，不要打印密钥排错。\n\n`catalog.py` 固定后端、前端、数据库的合法组合。`domain.py` 不把字典原样转交后续工具，而是校验项目名、字段类型、保留名称、枚举、示例与批准动作。`BusinessSpec` 提前落盘，是因为 `Plan` 在导入时直接引用它；提前实现合同不代表现在就已经拥有角色和流程运行时。此时只理解“业务行为要能声明与验证”，第10阶段再把这些声明变成数据库事务。\n\n## 保存并运行第一个合同练习\n\n保存为 `.learning/checks/01_contracts.py`。这不是产品代码，而是你对刚写模块提出的可重复问题。\n\n```python\n# .learning/checks/01_contracts.py\nfrom pydantic import ValidationError\nfrom workbench.catalog import Selection\nfrom workbench.domain import FieldSpec, digest\nfrom workbench.settings import Settings\n\nchosen = Selection(template=\"python-basic\")\nassert (chosen.frontend, chosen.database) == (\"simple-admin\", \"sqlite\")\nfor create in (\n    lambda: Selection(template=\"yudao-vben\", database=\"sqlite\"),\n    lambda: FieldSpec(name=\"title\", kind=\"text\", min_length=81, max_length=80),\n):\n    try:\n        create()\n    except ValidationError:\n        pass\n    else:\n        raise AssertionError(\"invalid contract was accepted\")\nassert digest({\"a\": 1, \"b\": 2}) == digest({\"b\": 2, \"a\": 1})\nsettings = Settings(\n    base_url=\"https://one.example/v1\",\n    api_key=\"exercise-only\",\n    model=\"demo\",\n    planning_base_url=\"https://two.example/v1\",\n    planning_api_key=\"\",\n    _env_file=None,\n)\ntry:\n    settings.model_for(\"planning\")\nexcept ValueError:\n    print(\"01 PASS: valid selection; invalid contracts and cross-provider key reuse rejected\")\nelse:\n    raise AssertionError(\"a different provider requires its own key\")\n```\n\n```bash\n# .learning/commands/01-check.sh\nuv run python .learning/checks/01_contracts.py\n```\n\n应出现一行以 `01 PASS` 开头的文字；示例地址没有被请求，字符串 `exercise-only` 只是本地假值。把一个断言临时反过来应得到 `AssertionError`，改回后再继续。不要删断言来获得绿色结果。\n\n现在不要运行 `pytest tests/test_contracts.py`：pytest 会先加载全局 `tests/conftest.py`，它顶层导入 Store，而 Store 是下一站。这种隐藏依赖比“测试文件名叫合同测试”更能决定何时可执行。也不要调用 `Selection.capabilities()`，其业务能力展开在下一批模块完成后才可用。\n"
+    "body": "## 先写边界，再写功能\n\n从 `local_only.py` 开始：`local_http_url` 接受回环服务，拒绝公网、局域网、URL凭据和查询参数；模型地址由 `ModelProfile.validate_endpoint` 单独校验，允许远程 HTTPS。两类地址规则分开，才能做到“模型可以外部推理，其余工具本地运行”，而不是一刀切地禁网或放网。\n\n`Settings` 把环境配置变成类型化对象。四个模型阶段依次是 requirements、planning、coding、review。`model_for` 决定哪些值可以继承，`public` 决定哪些值可以显示。尤其要读“地址改变但阶段密钥为空”分支：拒绝复用默认密钥，是在请求发出前阻止跨服务泄露。`_env_file=None` 只是不读个人 `.env`；进程环境变量仍然有效，遇到意外配置时检查当前终端，不要打印密钥排错。\n\n`template_adapters.py` 提供模板合同，`catalog.py` 的选择校验直接导入它；两者必须在本阶段一同写入，再运行合同练习。它们固定后端、前端、数据库的合法组合，基础选择校验不启动后续原生服务。`domain.py` 不把字典原样转交后续工具，而是校验项目名、字段类型、保留名称、枚举、示例与批准动作。`BusinessSpec` 提前落盘，是因为 `Plan` 在导入时直接引用它；提前实现合同不代表现在就已经拥有角色和流程运行时。此时只理解“业务行为要能声明与验证”，第10阶段再把这些声明变成数据库事务。\n\n## 保存并运行第一个合同练习\n\n保存为 `.learning/checks/01_contracts.py`。这不是产品代码，而是你对刚写模块提出的可重复问题。\n\n```python\n# .learning/checks/01_contracts.py\nfrom pydantic import ValidationError\nfrom workbench.catalog import Selection\nfrom workbench.domain import FieldSpec, digest\nfrom workbench.settings import Settings\n\nchosen = Selection(template=\"python-basic\")\nassert (chosen.frontend, chosen.database) == (\"simple-admin\", \"sqlite\")\nfor create in (\n    lambda: Selection(template=\"yudao-vben\", database=\"sqlite\"),\n    lambda: FieldSpec(name=\"title\", kind=\"text\", min_length=81, max_length=80),\n):\n    try:\n        create()\n    except ValidationError:\n        pass\n    else:\n        raise AssertionError(\"invalid contract was accepted\")\nassert digest({\"a\": 1, \"b\": 2}) == digest({\"b\": 2, \"a\": 1})\nsettings = Settings(\n    base_url=\"https://one.example/v1\",\n    api_key=\"exercise-only\",\n    model=\"demo\",\n    planning_base_url=\"https://two.example/v1\",\n    planning_api_key=\"\",\n    _env_file=None,\n)\ntry:\n    settings.model_for(\"planning\")\nexcept ValueError:\n    print(\"01 PASS: valid selection; invalid contracts and cross-provider key reuse rejected\")\nelse:\n    raise AssertionError(\"a different provider requires its own key\")\n```\n\n```bash\n# .learning/commands/01-check.sh\nuv run python .learning/checks/01_contracts.py\n```\n\n应出现一行以 `01 PASS` 开头的文字；示例地址没有被请求，字符串 `exercise-only` 只是本地假值。把一个断言临时反过来应得到 `AssertionError`，改回后再继续。不要删断言来获得绿色结果。\n\n现在不要运行 `pytest tests/test_contracts.py`：pytest 会先加载全局 `tests/conftest.py`，它顶层导入 Store，而 Store 是下一站。这种隐藏依赖比“测试文件名叫合同测试”更能决定何时可执行。也不要调用 `Selection.capabilities()`，其业务能力展开在下一批模块完成后才可用。\n"
   },
   {
     "id": "02-storage",
@@ -166200,7 +166275,7 @@ Python/SQLite用基础快照；Python/PostgreSQL、FastapiAdmin/PostgreSQL、Yud
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/acceptance-checklist.md sha256: 2e1b70784f2c5ce48d1d16c97005fd112bdb6c9d0fc1662fefd1b92f9fc48516 -->
+<!-- source-file: docs/acceptance-checklist.md sha256: c744cf07d95d2609b4c7898be5b255a62664fe57b90b38490a8daa33c7111cc5 -->
 ````markdown
 # 功能与验收对照清单
 
@@ -166252,6 +166327,8 @@ Python/SQLite用基础快照；Python/PostgreSQL、FastapiAdmin/PostgreSQL、Yud
 先执行`uv run python -m scripts.ci_capability_browser_preflight`，用与产品验收相同的可信driver操作合成回环页面；`reports/capability-browser-preflight.json`分别保留自带浏览器的观察结果、所选浏览器的必须通过结果及只读AppArmor/userns开关。某个开关开启加上启动失败只能支持原因推断，不能冒充内核拒绝审计。预检通过只证明控制侧浏览器就绪，仍须运行`ci_capability_profile`，取得当前源码/计划/场景绑定的HTTP、真实浏览器、物理数据库写入、重启与清理证据。失败`launch/sandbox-unavailable`保留为浏览器失败，不被描述为已经发现源码摘要漂移。
 
 该固定夹具的私有记录与团队共享场景不代表具体产品已完成。完整对话历史、计划后的feature节点、学生自助注册登录和自己的记录、教师/专家/管理员角色，以及上传、预览、导出、盲审分配，必须在用户所选栈逐项实现并验收；Vue3/Ant Design需求不能由通用夹具页面替代，模板缺失也不能通过丢弃需求来取得通过。
+
+Daytona 0.190.0的`auto_delete_interval=0`表示停机立即删除，不能用于需要停机后重启的汇总验收。仅汇总验收的独占沙箱使用覆盖两个生命周期超时再加一分钟的有限自动删除窗口；普通一次性验收仍保留停机立即删除策略。最终`finally`删除仍是必须项，失败会阻止交付，且单独保留`cleanup_error`而不覆盖先前验收失败原因。自动保留窗口不是重启或清理成功证据，仍须检查实际重启场景、独立数据库计数与删除回执。
 
 ## 所选模板的页面风格
 

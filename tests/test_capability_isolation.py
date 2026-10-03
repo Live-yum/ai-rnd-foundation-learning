@@ -375,9 +375,27 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         if failure == "browser-cleanup":
             raise RuntimeError("fixture sandbox cleanup failure")
 
+    def create(parameters, **kwargs):
+        # Reproduce the pinned SDK's actual delete-on-stop parameter semantics.
+        # An aggregate sandbox must survive both bounded lifecycle operations;
+        # the ordinary disposable verifier policy must remain zero.
+        from workbench.sandbox import params_for
+
+        ordinary = params_for(settings, "fixture-ordinary")
+        assert ordinary.auto_delete_interval == 0
+        assert parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60
+        assert parameters.network_block_all is True
+        assert parameters.public is False
+        sandbox.auto_delete_interval = parameters.auto_delete_interval
+        return sandbox
+
+    def stop(*args, **kwargs):
+        assert sandbox.auto_delete_interval > 0, "Zero deletes the sandbox before restart"
+        events.append("stopped")
+
     daytona = SimpleNamespace(
-        create=lambda *a, **k: sandbox,
-        stop=lambda *a, **k: events.append("stopped"),
+        create=create,
+        stop=stop,
         start=lambda *a, **k: events.append("started"),
         delete=delete,
     )
@@ -438,6 +456,9 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         if failure in BROWSER_FAILURE_FIXTURES:
             assert persisted["browser_diagnostic"] == BROWSER_FAILURE_FIXTURES[failure]
             assert "fixture-private-token" not in json.dumps(persisted)
+            if failure == "browser-cleanup":
+                assert persisted["error"] == "真实浏览器场景未通过；查看安全阶段诊断，未跳过"
+                assert "删除未确认" in persisted["cleanup_error"]
         if failure is None:
             assert [check["phase"] for check in result["checks"]] == ["initial", "restart"]
             assert (0, "/openapi.json") in events
@@ -446,3 +467,38 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
     finally:
         for client in clients:
             client.close()
+
+
+def test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup(settings, tmp_path):
+    from scripts.ci_capability_profile import fixed_application
+    from workbench.capability_sandbox import _verify
+
+    product = tmp_path / "product"
+    plan = fixed_application(product)
+    settings.daytona_snapshot = "fixture-owned-snapshot"
+    sandbox = SimpleNamespace(id="00000000-0000-0000-0000-000000000001")
+    calls = []
+
+    def create(parameters, **kwargs):
+        assert parameters.auto_delete_interval == 0
+        assert parameters.network_block_all is True and parameters.public is False
+        calls.append("created")
+        return sandbox
+
+    client = SimpleNamespace(create=create, delete=lambda *a, **k: calls.append("deleted"))
+    result = _verify(
+        product,
+        plan,
+        plan.scenarios,
+        settings,
+        plan.selection.model_dump(),
+        tmp_path / "receipt.json",
+        client=client,
+        aggregate=False,
+        # Deliberately reject before source upload; this is a lifecycle contract
+        # regression and supplies no live container or application evidence.
+        control_observer=lambda identifier: {},
+    )
+    assert calls == ["created", "deleted"]
+    assert result["passed"] is False
+    assert result["cleanup"] == "deleted"

@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/acceptance-checklist.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L63。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/acceptance-checklist.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L65。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11671`。本段原文以LF换行结束。
+本段原始字节数：`12219`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/acceptance-checklist.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2e1b70784f2c5ce48d1d16c97005fd112bdb6c9d0fc1662fefd1b92f9fc48516"} -->
+<!-- learning-source: {"path": "docs/acceptance-checklist.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c744cf07d95d2609b4c7898be5b255a62664fe57b90b38490a8daa33c7111cc5"} -->
 ````markdown
 <!-- docs/acceptance-checklist.md -->
 # 功能与验收对照清单
@@ -67,6 +67,8 @@
 先执行`uv run python -m scripts.ci_capability_browser_preflight`，用与产品验收相同的可信driver操作合成回环页面；`reports/capability-browser-preflight.json`分别保留自带浏览器的观察结果、所选浏览器的必须通过结果及只读AppArmor/userns开关。某个开关开启加上启动失败只能支持原因推断，不能冒充内核拒绝审计。预检通过只证明控制侧浏览器就绪，仍须运行`ci_capability_profile`，取得当前源码/计划/场景绑定的HTTP、真实浏览器、物理数据库写入、重启与清理证据。失败`launch/sandbox-unavailable`保留为浏览器失败，不被描述为已经发现源码摘要漂移。
 
 该固定夹具的私有记录与团队共享场景不代表具体产品已完成。完整对话历史、计划后的feature节点、学生自助注册登录和自己的记录、教师/专家/管理员角色，以及上传、预览、导出、盲审分配，必须在用户所选栈逐项实现并验收；Vue3/Ant Design需求不能由通用夹具页面替代，模板缺失也不能通过丢弃需求来取得通过。
+
+Daytona 0.190.0的`auto_delete_interval=0`表示停机立即删除，不能用于需要停机后重启的汇总验收。仅汇总验收的独占沙箱使用覆盖两个生命周期超时再加一分钟的有限自动删除窗口；普通一次性验收仍保留停机立即删除策略。最终`finally`删除仍是必须项，失败会阻止交付，且单独保留`cleanup_error`而不覆盖先前验收失败原因。自动保留窗口不是重启或清理成功证据，仍须检查实际重启场景、独立数据库计数与删除回执。
 
 ## 所选模板的页面风格
 

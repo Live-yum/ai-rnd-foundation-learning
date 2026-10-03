@@ -16,17 +16,17 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `verify_capabilities`（L53–L139）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`。 控制顺序：L57按`plan.selection.model_dump() != selection`分支；L58抛异常，停止当前正常路径；L63按`settings.sandbox_provider != "daytona"`分支；L64抛异常，停止当前正常路径；L71抛异常，停止当前正常路径；L77抛异常，停止当前正常路径；L108按`len(body) > 1_000_000`分支；L109抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`UnsupportedScope`、`validate_configuration`、`Path(product).resolve`、`Path`、`plan.model_dump`等。 返回路径：L62的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L139的`receipt`。
-- `_verify`（L142–L344）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`。 控制顺序：L183按`control_observer is None`分支；L184抛异常，停止当前正常路径；L190抛异常，停止当前正常路径；L203按`result.exit_code != 0`分支；L204抛异常，停止当前正常路径；L207按`database_password`分支；L211遍历`enumerate(plan.runtime.prepare)`；L223按`result.exit_code != 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`manifest`、`uuid.uuid4`、`digest`、`plan.model_dump`、`inspect_stack`、`write_json`、`params_for`、`client.create`、`receipt.update`等。 返回路径：L344的`receipt`。
-- `_verify.start`（L229–L272）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L245按`not response.cmd_id`分支；L246抛异常，停止当前正常路径；L249按`not isinstance(preview.token, str) or not preview.token`分支；L250抛异常，停止当前正常路径；L261在`time.monotonic() < deadline`成立时循环；L264按`200 <= check.status_code < 300`分支；L269抛异常，停止当前正常路径；L272抛异常，停止当前正常路径。 调用`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`、`shlex.quote`、`shlex.join`、`CheckFailure`等。 返回路径：L265的`http, url, preview.token`。
-- `main`（L347–L373）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L348抛异常，停止当前正常路径；L350按`len(body) > 1_000_000`分支；L351抛异常，停止当前正常路径。 调用`UnsupportedScope`、`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_verify`（L142–L351）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`。 控制顺序：L180按`aggregate`分支；L189按`control_observer is None`分支；L190抛异常，停止当前正常路径；L196抛异常，停止当前正常路径；L209按`result.exit_code != 0`分支；L210抛异常，停止当前正常路径；L213按`database_password`分支；L217遍历`enumerate(plan.runtime.prepare)`。后续分支沿下方源码相同行号继续阅读。 调用`manifest`、`uuid.uuid4`、`digest`、`plan.model_dump`、`inspect_stack`、`write_json`、`params_for`、`client.create`、`receipt.update`等。 返回路径：L351的`receipt`。
+- `_verify.start`（L235–L278）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L251按`not response.cmd_id`分支；L252抛异常，停止当前正常路径；L255按`not isinstance(preview.token, str) or not preview.token`分支；L256抛异常，停止当前正常路径；L267在`time.monotonic() < deadline`成立时循环；L270按`200 <= check.status_code < 300`分支；L275抛异常，停止当前正常路径；L278抛异常，停止当前正常路径。 调用`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`、`shlex.quote`、`shlex.join`、`CheckFailure`等。 返回路径：L271的`http, url, preview.token`。
+- `main`（L354–L380）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L355抛异常，停止当前正常路径；L357按`len(body) > 1_000_000`分支；L358抛异常，停止当前正常路径。 调用`UnsupportedScope`、`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L377。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L384。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`15731`。本段原文以LF换行结束。
+本段原始字节数：`16237`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2d1c17c2a45a885938c17aa984783f52ac681672c906b3539720d0cedaf979fb"} -->
+<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "71c164a92df7b0b3a3201374b224d53ccc42d3cbc3ce79099582bcd1ffc06a08"} -->
 ````python
 # workbench/capability_sandbox.py
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
@@ -208,6 +208,12 @@ def _verify(
     try:
         parameters = params_for(settings, name, selection["template"], selection)
         parameters.os_user = "root"
+        if aggregate:
+            # SDK 0.190.0 uses 0 for delete-on-stop, so the ordinary disposable
+            # policy destroys the database before aggregate restart acceptance.
+            # Keep only this owned sandbox for a finite stop/start window; the
+            # mandatory finally deletion and all isolation gates still apply.
+            parameters.auto_delete_interval = (2 * settings.tool_timeout + 59) // 60 + 1
         sandbox = client.create(parameters, timeout=settings.tool_timeout)
         receipt.update(sandbox_id=sandbox.id, cleanup="pending")
         write_json(receipt_path, receipt)
@@ -368,7 +374,8 @@ def _verify(
                 receipt["cleanup"] = "deleted"
             except Exception:
                 receipt.update(cleanup="delete-failed", passed=False)
-                receipt["error"] = "本机隔离沙箱删除未确认；请按回执名称检查，交付已停止"
+                receipt["cleanup_error"] = "本机隔离沙箱删除未确认；请按回执名称检查，交付已停止"
+                receipt.setdefault("error", receipt["cleanup_error"])
         if receipt["cleanup"] != "deleted":
             receipt["passed"] = False
         write_json(receipt_path, receipt)
