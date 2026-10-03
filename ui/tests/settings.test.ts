@@ -1,6 +1,6 @@
 import { mount, flushPromises } from '@vue/test-utils'
 import { beforeAll, afterEach, describe, expect, it, vi } from 'vitest'
-import Antd from 'ant-design-vue'
+import Antd, { Modal } from 'ant-design-vue'
 import SettingsView from '../src/components/SettingsView.vue'
 import { state, lock } from '../src/state'
 import * as apiModule from '../src/api'
@@ -25,8 +25,161 @@ beforeAll(() => {
   )
 })
 afterEach(() => {
+  Modal.destroyAll()
   lock()
   vi.restoreAllMocks()
+})
+
+function connectionSettings() {
+  const profile = {
+    base_url: 'https://saved.example.test/v1',
+    model: 'saved-model',
+    api_key: 'configured',
+    provider: 'auto',
+    output_mode: 'auto',
+    max_output_tokens: 8000,
+  }
+  state.settings = {
+    revision: 'saved-revision',
+    default: profile,
+    stages: { coding: { ...profile, effective: { ...profile, model: 'saved-coder' } } },
+    model_review: false,
+    ready: true,
+    validation: [],
+  }
+  state.authenticated = true
+  state.online = true
+  apiModule.setToken('fixture-only-token')
+}
+
+function testButton(wrapper: ReturnType<typeof mount>) {
+  return wrapper.findAll('button').find((button) => button.text().includes('测试连接'))!
+}
+
+describe('explicit saved-profile connection tests', () => {
+  it('asks about real-call cost once and cancellation makes no request', async () => {
+    connectionSettings()
+    const request = vi.spyOn(apiModule, 'api')
+    const confirm = vi
+      .spyOn(Modal, 'confirm')
+      .mockReturnValue({ destroy: vi.fn(), update: vi.fn() })
+    const wrapper = mount(SettingsView, { global: { plugins: [Antd] } })
+    expect(testButton(wrapper).attributes('title')).toContain('可能产生费用')
+    expect(wrapper.findComponent({ name: 'ATooltip' }).exists()).toBe(false)
+    await testButton(wrapper).trigger('click')
+    await testButton(wrapper).trigger('click')
+    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(confirm.mock.calls[0]![0].content).toContain('128')
+    expect(confirm.mock.calls[0]![0].content).toContain('可能按服务商价格计费')
+    expect(request).not.toHaveBeenCalled()
+    await confirm.mock.calls[0]![0].onCancel?.()
+    expect(request).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('tests the saved effective stage and blocks edits, duplicate clicks and automatic retries', async () => {
+    connectionSettings()
+    let resolve!: (value: unknown) => void
+    const request = vi.spyOn(apiModule, 'api').mockImplementation(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        }),
+    )
+    const confirm = vi
+      .spyOn(Modal, 'confirm')
+      .mockReturnValue({ destroy: vi.fn(), update: vi.fn() })
+    const wrapper = mount(SettingsView, { global: { plugins: [Antd] } })
+    await wrapper.findAll('[role="tab"]')[3]!.trigger('click')
+    await testButton(wrapper).trigger('click')
+    expect(confirm.mock.calls[0]![0].content).toContain('saved-coder')
+    const pending = confirm.mock.calls[0]![0].onOk?.()
+    await flushPromises()
+    await testButton(wrapper).trigger('click')
+    expect(request).toHaveBeenCalledTimes(1)
+    expect(request.mock.calls[0]![0]).toBe('/settings/models/test')
+    expect(request.mock.calls[0]![1]?.body).toMatchObject({
+      stage: 'coding',
+      expected_revision: 'saved-revision',
+      confirm_cost: true,
+    })
+    expect(JSON.stringify(request.mock.calls[0]![1]?.body)).not.toContain('api_key')
+    expect(wrapper.find('#model-name').attributes('disabled')).toBeDefined()
+    expect(wrapper.text()).toContain('正在请求真实模型响应')
+    resolve({
+      ok: false,
+      stage: 'coding',
+      revision: 'saved-revision',
+      phase: 'request',
+      code: 'authentication_failed',
+      message: '请检查 API Key',
+      trace_id: 'trace-123',
+      retryable: false,
+      attempts: 1,
+      elapsed_ms: 42,
+    })
+    await pending
+    await flushPromises()
+    expect(wrapper.text()).toContain('authentication_failed')
+    expect(wrapper.text()).toContain('trace-123')
+    expect(wrapper.text()).toContain('请求次数：1')
+    expect(request).toHaveBeenCalledTimes(1)
+    wrapper.unmount()
+  })
+
+  it('disables testing unsaved edits and clears success when the revision changes', async () => {
+    connectionSettings()
+    vi.spyOn(apiModule, 'api').mockResolvedValue({
+      ok: true,
+      stage: 'default',
+      revision: 'saved-revision',
+      phase: 'completed',
+      code: 'connected',
+      message: '连接成功',
+      trace_id: 'trace-success',
+      retryable: false,
+      attempts: 1,
+      elapsed_ms: 2,
+    })
+    const confirm = vi
+      .spyOn(Modal, 'confirm')
+      .mockReturnValue({ destroy: vi.fn(), update: vi.fn() })
+    const wrapper = mount(SettingsView, { global: { plugins: [Antd] } })
+    await wrapper.find('#model-name').setValue('unsaved-model')
+    expect(testButton(wrapper).attributes('disabled')).toBeDefined()
+    await wrapper.find('#model-name').setValue('saved-model')
+    await testButton(wrapper).trigger('click')
+    await confirm.mock.calls[0]![0].onOk?.()
+    await flushPromises()
+    expect(wrapper.text()).toContain('当前连接测试通过')
+    state.settings = { ...state.settings, revision: 'new-revision' }
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('当前连接测试通过')
+    expect(wrapper.text()).not.toContain('trace-success')
+    wrapper.unmount()
+  })
+
+  it('ignores a late response after unmount and destroys its pending dialog', async () => {
+    connectionSettings()
+    let resolve!: (value: unknown) => void
+    const request = vi.spyOn(apiModule, 'api').mockImplementation(
+      () =>
+        new Promise((done) => {
+          resolve = done
+        }),
+    )
+    const destroy = vi.fn()
+    const confirm = vi.spyOn(Modal, 'confirm').mockReturnValue({ destroy, update: vi.fn() })
+    const wrapper = mount(SettingsView, { global: { plugins: [Antd] } })
+    await testButton(wrapper).trigger('click')
+    const pending = confirm.mock.calls[0]![0].onOk?.()
+    wrapper.unmount()
+    expect(destroy).toHaveBeenCalledTimes(1)
+    expect(request.mock.calls[0]![1]?.signal?.aborted).toBe(true)
+    resolve({ ok: true, revision: 'saved-revision', stage: 'default' })
+    await pending
+    expect(request).toHaveBeenCalledTimes(1)
+  })
 })
 describe('model settings save baseline', () => {
   it('becomes clean immediately after saving unchanged normalized form fields', async () => {

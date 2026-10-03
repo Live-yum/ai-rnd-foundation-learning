@@ -448,13 +448,44 @@ function reread() {
                 {{
                   item.content ||
                   item.text ||
-                  (item.validation === 'pending' ? '正在等待模型响应…' : '暂无可展示的摘要')
+                  (item.validation === 'pending'
+                    ? '正在等待模型响应…'
+                    : item.validation === 'failed'
+                      ? '模型调用未完成有效结果，请查看下方诊断。'
+                      : '暂无可展示的摘要')
                 }}<span
                   v-if="item.validation === 'pending'"
                   class="typing-cursor"
                   aria-label="响应生成中"
                 />
               </div>
+              <section v-if="item.validation === 'failed'" class="failure-diagnostic" role="status">
+                <p>{{ item.diagnostic?.summary || '响应未通过校验或请求失败。' }}</p>
+                <p>
+                  阶段：{{ item.stage || '模型' }} · 环节：{{
+                    item.diagnostic?.phase || 'response_validation'
+                  }}
+                  · 错误码：{{ item.code || 'unknown' }}
+                </p>
+                <p>
+                  追踪 ID：{{ item.diagnostic?.trace_id || item.response_id || item.message_id
+                  }}<span v-if="item.diagnostic?.attempt">
+                    · 第 {{ item.diagnostic.attempt }} 次尝试</span
+                  >
+                </p>
+                <ul v-if="item.diagnostic?.details?.length">
+                  <li v-for="(detail, detailIndex) in item.diagnostic.details" :key="detailIndex">
+                    {{ detail.path?.join('.') || '根对象' }}：{{ detail.type }} ·
+                    {{ detail.message || '字段结构或类型不符合约定' }}
+                  </li>
+                </ul>
+                <p>
+                  {{
+                    item.diagnostic?.retry_hint ||
+                    '先检查模型配置与运行错误，再重试当前运行；已提交回答会保留。'
+                  }}
+                </p>
+              </section>
               <p v-if="item.validation === 'failed'" class="field-hint">
                 此响应不能作为已批准方案，后续以有效关卡和验证证据为准。
               </p>

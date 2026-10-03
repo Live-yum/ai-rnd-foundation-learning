@@ -12,6 +12,8 @@ from fastapi import Depends, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import SecretStr
 
+from workbench.model_diagnostics import failure_diagnostic
+
 PUBLIC_FIELDS = {
     "Requirement": "summary",
     "Plan": "title",
@@ -231,11 +233,20 @@ class AssistantStream:
             self.sent = safe
             self.emit("assistant_delta", {**self.data, "text": delta})
 
-    def failed(self, code):
+    def failed(self, code, *, attempt=None, details=None):
         # Static error codes only. A failed draft must not be presented as a result.
         self.emit(
             "assistant_failed",
-            {**self.data, "validation": "failed", "status": "failed", "code": code, "content": ""},
+            {
+                **self.data,
+                "validation": "failed",
+                "status": "failed",
+                "code": code,
+                "content": "",
+                "diagnostic": failure_diagnostic(
+                    code, trace_id=self.data["response_id"], attempt=attempt, details=details
+                ),
+            },
         )
 
     def completed_data(self, value, schema):

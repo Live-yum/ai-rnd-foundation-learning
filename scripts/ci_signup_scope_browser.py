@@ -16,6 +16,7 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
+import httpx
 import uvicorn
 from sqlalchemy import select
 
@@ -23,6 +24,7 @@ from workbench.api import create_app
 from workbench.domain import Plan, Requirement
 from workbench.filesystem import write_json
 from workbench.flow import Workflow
+from workbench.llm import ModelFailure, ModelGateway
 from workbench.requirement_intent import ADMIN_SCOPE, AUTHENTICATED_SCOPE
 from workbench.runtime import Runtime, pending_interrupt
 from workbench.settings import ROOT, Settings
@@ -30,6 +32,67 @@ from workbench.store import Approval, Revision, Store
 from workbench.tools import clean_env
 
 ORIGINAL = "大学生计算机设计大赛报名网站"
+
+
+def diagnostic_failed_run(settings):
+    """Real adapter/store, offline invalid provider envelope; never a paid request."""
+    store = Store(settings)
+    store.migrate()
+    project = store.create_project("模型反馈回归", str(uuid.uuid4()))
+    run_id = store.create_run(
+        project["id"], {"requirement": ORIGINAL, "template": "fastapiadmin"}, str(uuid.uuid4())
+    )["run_id"]
+    job = store.claim()
+    gate = store.gate(
+        run_id,
+        "clarification",
+        1,
+        {
+            "requirement": {
+                "questions": ["参与者将通过哪种入口报名？"],
+                "unsupported": ["模板不支持匿名公开报名页"],
+            }
+        },
+        ["answer"],
+        can_approve=False,
+    )
+    store.finish(job, "WAITING_CLARIFICATION", pending=gate)
+    answer = "参赛者注册并登录后，在现有业务界面自行提交报名，仅管理本人报名记录"
+    store.submit(
+        run_id,
+        {"gate_id": gate["gate_id"], "action": "answer", "text": answer},
+        "diagnostic-answer",
+    )
+    job = store.claim()
+
+    def invalid_response(request):
+        return httpx.Response(
+            200,
+            json={
+                "id": "fixture",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "fixture",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": '{"summary":123}'},
+                    }
+                ],
+            },
+        )
+
+    try:
+        ModelGateway(
+            settings, store, httpx.MockTransport(invalid_response), streaming=True
+        ).complete(run_id, "requirement:2", "JSON fixture", {}, Requirement)
+        raise AssertionError("Invalid provider fixture must fail strict validation")
+    except ModelFailure:
+        store.finish(job, "FAILED", error="模型返回内容不符合结构化契约；两次尝试后停止")
+    finally:
+        store.engine.dispose()
+    return run_id
 
 
 def ui_snapshot():
@@ -173,6 +236,7 @@ def main():
             _env_file=None,
         )
         legacy_run_id = legacy_failed_run(settings)
+        diagnostic_run_id = diagnostic_failed_run(settings)
         application = create_app(settings, gateway_factory=lambda _: fixture)
         server = uvicorn.Server(
             uvicorn.Config(application, host="127.0.0.1", port=port, log_level="error")
@@ -196,6 +260,7 @@ def main():
                     "admin_scope": ADMIN_SCOPE,
                     "authenticated_scope": AUTHENTICATED_SCOPE,
                     "legacy_run_id": legacy_run_id,
+                    "diagnostic_run_id": diagnostic_run_id,
                 },
             )
             browser = os.getenv(
@@ -205,7 +270,10 @@ def main():
                 ["node", str(ROOT / "scripts/signup_scope_browser.cjs"), str(inputs), browser],
                 cwd=ROOT,
                 env=clean_env(
-                    {"PLAYWRIGHT_BROWSERS_PATH": os.getenv("PLAYWRIGHT_BROWSERS_PATH", "0")}
+                    {
+                        "PLAYWRIGHT_BROWSERS_PATH": os.getenv("PLAYWRIGHT_BROWSERS_PATH", "0"),
+                        "PRODUCT_VERIFY_CHROMIUM": os.getenv("PRODUCT_VERIFY_CHROMIUM", ""),
+                    }
                 ),
                 capture_output=True,
                 text=True,

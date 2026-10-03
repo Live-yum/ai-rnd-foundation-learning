@@ -138,7 +138,7 @@ export function applyMessageEvent(messages: ChatMessage[], event: RunEvent) {
     message.status = data.status || 'failed'
   }
   if (event.kind === 'assistant_start') message.status = 'streaming'
-  for (const key of ['stage', 'validation', 'transport'])
+  for (const key of ['stage', 'validation', 'transport', 'response_id', 'code', 'diagnostic'])
     if (data[key] !== undefined) message[key] = data[key]
 }
 export function gatePayload(gate: Gate, action: string, text = '', answers?: unknown[]) {

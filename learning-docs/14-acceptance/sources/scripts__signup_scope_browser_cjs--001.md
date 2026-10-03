@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `scripts/signup_scope_browser.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L220。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/signup_scope_browser.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L241。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7245`。本段原文以LF换行结束。
+本段原始字节数：`8785`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/signup_scope_browser.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c0cf7ee2aafce9a5e2d18b75cac9f23ae3818cf5f53c89608058882f4c5eb800"} -->
+<!-- learning-source: {"path": "scripts/signup_scope_browser.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b3881301e484424717e1c2f1958a27e59e15be7d85e89df79b584ef34d6075e7"} -->
 ````javascript
 // scripts/signup_scope_browser.cjs
 // Real backend gates and compiled Vue UI; no mocked browser routes or model network.
@@ -26,7 +26,7 @@ const { randomUUID } = require("node:crypto");
 async function main() {
   const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
   const { chromium } = require(process.argv[3]);
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, ...(process.env.PRODUCT_VERIFY_CHROMIUM ? { executablePath: process.env.PRODUCT_VERIFY_CHROMIUM } : {}) });
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1050 },
   });
@@ -196,6 +196,25 @@ async function main() {
       path: path.join(cfg.reports, "scope-corrected.png"),
       fullPage: true,
     });
+    const history = page.locator('[data-validation="historical_gate"]');
+    assert((await history.allTextContents()).join("\n").includes("参与者"));
+    await page.evaluate((id) => { location.hash = `/run/${id}/conversation`; }, cfg.diagnostic_run_id);
+    await status("FAILED");
+    const checkDiagnostics = async () => {
+      assert.equal(await page.locator('.failure-diagnostic').count(), 2);
+      const text = await page.locator('.messages').innerText();
+      for (const expected of ["参与者将通过哪种入口报名？", "模板不支持匿名公开报名页", "仅管理本人报名记录", "schema_validation", "response_validation", "string_type", "追踪 ID", "无需重填已提交的回答"]) assert(text.includes(expected), expected);
+      assert(!text.includes("暂无可展示的摘要"));
+      assert.equal(await page.locator('.question-card').count(), 0);
+    };
+    await checkDiagnostics();
+    await page.reload();
+    await page.getByRole("button", { name: "连接本地服务", exact: true }).click();
+    await page.locator("#access-token").fill(cfg.token);
+    await page.getByRole("dialog").getByRole("button", { name: "连接工作空间", exact: true }).click();
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+    await status("FAILED");
+    await checkDiagnostics();
     assert.deepEqual(errors, []);
     fs.writeFileSync(
       path.join(cfg.reports, "browser.json"),
@@ -206,6 +225,8 @@ async function main() {
           real_http: true,
           status: result.status,
           errors,
+          diagnostic_failure_and_history_survive_refresh: true,
+          provider_mode: "offline-fixture",
           earlier_scope_invalidates_old_progress: true,
           mobile_no_horizontal_overflow: true,
           mobile_submit_above_fixed_navigation: true,

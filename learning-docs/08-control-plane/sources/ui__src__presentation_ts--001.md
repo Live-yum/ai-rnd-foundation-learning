@@ -12,9 +12,9 @@
 
 **创建路径：** `ui/src/presentation.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L238。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7576`。本段原文以LF换行结束。
+本段原始字节数：`7613`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/presentation.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "48f650db5868ffa5d8318fd95128c460d98af1cdbc3f87e13e288110805f2b77"} -->
+<!-- learning-source: {"path": "ui/src/presentation.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1f57d192291bf8aafb8d03d2a0842fd4983e51d47c2445f048d355c8a9389328"} -->
 ````typescript
 // ui/src/presentation.ts
 import type { Gate, Run, RunEvent, ChatMessage } from './types'
@@ -157,7 +157,7 @@ export function applyMessageEvent(messages: ChatMessage[], event: RunEvent) {
     message.status = data.status || 'failed'
   }
   if (event.kind === 'assistant_start') message.status = 'streaming'
-  for (const key of ['stage', 'validation', 'transport'])
+  for (const key of ['stage', 'validation', 'transport', 'response_id', 'code', 'diagnostic'])
     if (data[key] !== undefined) message[key] = data[key]
 }
 export function gatePayload(gate: Gate, action: string, text = '', answers?: unknown[]) {

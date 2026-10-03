@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/capability.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L143。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/capability.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L192。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4836`。本段原文以LF换行结束。
+本段原始字节数：`6805`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/capability.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b6d1df037968ba2e0246036d190428c7b2a17738e0c483b7b224a22e00e325fb"} -->
+<!-- learning-source: {"path": "ui/tests/capability.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "19a0fb94f3c25cf1ce57d2fefaf1ad770b7b0046a70f7b430df14ac95867bcc7"} -->
 ````typescript
 // ui/tests/capability.test.ts
 import { mount } from '@vue/test-utils'
@@ -159,5 +159,54 @@ describe('persisted registration scope decision', () => {
     expect(JSON.stringify((options as any).body)).not.toContain('仅管理员维护')
     wrapper.unmount()
   })
+})
+
+it('keeps failed-attempt diagnostics and historical questions readable after the gate is cleared', () => {
+  state.run!.pending = null
+  state.run!.status = 'FAILED'
+  state.messages = [
+    {
+      message_id: 'gate-old',
+      role: 'assistant',
+      validation: 'historical_gate',
+      content:
+        '历史澄清与模板能力提示（保留记录，不代表当前仍未解决）\n参与者将通过哪种入口报名？\n能力限制：模板不支持匿名公开报名页',
+    },
+    {
+      message_id: 'answer',
+      role: 'user',
+      content: '参赛者注册并登录后，在现有业务界面自行提交报名，仅管理本人报名记录',
+    },
+    {
+      message_id: 'attempt-1',
+      role: 'assistant',
+      validation: 'failed',
+      code: 'schema_validation',
+      stage: 'requirements',
+      response_id: 'trace-123',
+      diagnostic: {
+        phase: 'response_validation',
+        trace_id: 'trace-123',
+        attempt: 1,
+        summary: '模型响应未通过结构校验',
+        retry_hint: '重试当前运行，无需重填已提交的回答。',
+        details: [{ path: ['summary'], type: 'string_type', message: '字段结构或类型不符合约定' }],
+      },
+    },
+  ]
+  const wrapper = mount(RunView, {
+    props: { runId: 'saved-run', view: 'conversation' },
+    global: { plugins: [Antd] },
+  })
+  expect(wrapper.text()).toContain('参与者将通过哪种入口报名？')
+  expect(wrapper.text()).toContain('模板不支持匿名公开报名页')
+  expect(wrapper.text()).toContain('仅管理本人报名记录')
+  expect(wrapper.text()).toContain('schema_validation')
+  expect(wrapper.text()).toContain('trace-123')
+  expect(wrapper.text()).toContain('summary：string_type')
+  expect(wrapper.text()).toContain('无需重填已提交的回答')
+  expect(wrapper.text()).not.toContain('暂无可展示的摘要')
+  expect(wrapper.find('form.question-card').exists()).toBe(false)
+  wrapper.unmount()
 })
 ````

@@ -141,3 +141,52 @@ describe('persisted registration scope decision', () => {
     wrapper.unmount()
   })
 })
+
+it('keeps failed-attempt diagnostics and historical questions readable after the gate is cleared', () => {
+  state.run!.pending = null
+  state.run!.status = 'FAILED'
+  state.messages = [
+    {
+      message_id: 'gate-old',
+      role: 'assistant',
+      validation: 'historical_gate',
+      content:
+        '历史澄清与模板能力提示（保留记录，不代表当前仍未解决）\n参与者将通过哪种入口报名？\n能力限制：模板不支持匿名公开报名页',
+    },
+    {
+      message_id: 'answer',
+      role: 'user',
+      content: '参赛者注册并登录后，在现有业务界面自行提交报名，仅管理本人报名记录',
+    },
+    {
+      message_id: 'attempt-1',
+      role: 'assistant',
+      validation: 'failed',
+      code: 'schema_validation',
+      stage: 'requirements',
+      response_id: 'trace-123',
+      diagnostic: {
+        phase: 'response_validation',
+        trace_id: 'trace-123',
+        attempt: 1,
+        summary: '模型响应未通过结构校验',
+        retry_hint: '重试当前运行，无需重填已提交的回答。',
+        details: [{ path: ['summary'], type: 'string_type', message: '字段结构或类型不符合约定' }],
+      },
+    },
+  ]
+  const wrapper = mount(RunView, {
+    props: { runId: 'saved-run', view: 'conversation' },
+    global: { plugins: [Antd] },
+  })
+  expect(wrapper.text()).toContain('参与者将通过哪种入口报名？')
+  expect(wrapper.text()).toContain('模板不支持匿名公开报名页')
+  expect(wrapper.text()).toContain('仅管理本人报名记录')
+  expect(wrapper.text()).toContain('schema_validation')
+  expect(wrapper.text()).toContain('trace-123')
+  expect(wrapper.text()).toContain('summary：string_type')
+  expect(wrapper.text()).toContain('无需重填已提交的回答')
+  expect(wrapper.text()).not.toContain('暂无可展示的摘要')
+  expect(wrapper.find('form.question-card').exists()).toBe(false)
+  wrapper.unmount()
+})

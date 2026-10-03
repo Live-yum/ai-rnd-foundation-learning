@@ -7,7 +7,7 @@ const { randomUUID } = require("node:crypto");
 async function main() {
   const cfg = JSON.parse(fs.readFileSync(process.argv[2], "utf8"));
   const { chromium } = require(process.argv[3]);
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, ...(process.env.PRODUCT_VERIFY_CHROMIUM ? { executablePath: process.env.PRODUCT_VERIFY_CHROMIUM } : {}) });
   const page = await browser.newPage({
     viewport: { width: 1440, height: 1050 },
   });
@@ -177,6 +177,25 @@ async function main() {
       path: path.join(cfg.reports, "scope-corrected.png"),
       fullPage: true,
     });
+    const history = page.locator('[data-validation="historical_gate"]');
+    assert((await history.allTextContents()).join("\n").includes("参与者"));
+    await page.evaluate((id) => { location.hash = `/run/${id}/conversation`; }, cfg.diagnostic_run_id);
+    await status("FAILED");
+    const checkDiagnostics = async () => {
+      assert.equal(await page.locator('.failure-diagnostic').count(), 2);
+      const text = await page.locator('.messages').innerText();
+      for (const expected of ["参与者将通过哪种入口报名？", "模板不支持匿名公开报名页", "仅管理本人报名记录", "schema_validation", "response_validation", "string_type", "追踪 ID", "无需重填已提交的回答"]) assert(text.includes(expected), expected);
+      assert(!text.includes("暂无可展示的摘要"));
+      assert.equal(await page.locator('.question-card').count(), 0);
+    };
+    await checkDiagnostics();
+    await page.reload();
+    await page.getByRole("button", { name: "连接本地服务", exact: true }).click();
+    await page.locator("#access-token").fill(cfg.token);
+    await page.getByRole("dialog").getByRole("button", { name: "连接工作空间", exact: true }).click();
+    await page.getByRole("dialog").waitFor({ state: "hidden" });
+    await status("FAILED");
+    await checkDiagnostics();
     assert.deepEqual(errors, []);
     fs.writeFileSync(
       path.join(cfg.reports, "browser.json"),
@@ -187,6 +206,8 @@ async function main() {
           real_http: true,
           status: result.status,
           errors,
+          diagnostic_failure_and_history_survive_refresh: true,
+          provider_mode: "offline-fixture",
           earlier_scope_invalidates_old_progress: true,
           mobile_no_horizontal_overflow: true,
           mobile_submit_above_fixed_navigation: true,

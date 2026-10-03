@@ -111,8 +111,8 @@
     },
     {
       "path": "workbench/model_settings.py",
-      "bytes": 18465,
-      "sha256": "3aa5c8d5abc2ad240d4d0ad623c9bdacc14107e1393579b6e6d1de9e97aa8ca4",
+      "bytes": 19657,
+      "sha256": "2ae77603cb8c9538a84e409883c761b0c57cf1873542c14ce85a25d3c9a1d469",
       "stage": "01-contracts",
       "parts": [
         "01-contracts/sources/workbench__model_settings_py--001.md"
@@ -228,8 +228,8 @@
     },
     {
       "path": "workbench/store.py",
-      "bytes": 35637,
-      "sha256": "8bce90787323de5c408592fc9109049dcb40abf7cbd784a7c467d2f3c7c7069f",
+      "bytes": 38117,
+      "sha256": "ab9b0d8d52fc144bf545b86d48e7e0c4e8bb11045f98df5461f88b92173dfa2a",
       "stage": "02-storage",
       "parts": [
         "02-storage/sources/workbench__store_py--001.md"
@@ -337,17 +337,35 @@
     },
     {
       "path": "workbench/llm.py",
-      "bytes": 10872,
-      "sha256": "da0b24b08edd3bf35d94357389d02983dc382ee0f4714dbb38522a8a6717c492",
+      "bytes": 11691,
+      "sha256": "f57bc50fd1666cc9f04c6397e0e5b3e5564648b98f4e877d754302aa5bfbcc67",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__llm_py--001.md"
       ]
     },
     {
+      "path": "workbench/model_connection.py",
+      "bytes": 11000,
+      "sha256": "2138576ed0b0a145b3c0c6943378c1bcb2561252ba913906dd17f9d2794c14e9",
+      "stage": "03-requirements",
+      "parts": [
+        "03-requirements/sources/workbench__model_connection_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/model_diagnostics.py",
+      "bytes": 5663,
+      "sha256": "6265d57aebcbbdddcc2ec5befffc4640912267183f1d632777e1b663c6889977",
+      "stage": "03-requirements",
+      "parts": [
+        "03-requirements/sources/workbench__model_diagnostics_py--001.md"
+      ]
+    },
+    {
       "path": "workbench/model_protocol.py",
-      "bytes": 17241,
-      "sha256": "f7c5e3e0ab5b6b093079902e72e59e320e4062bc2cb37aab470e758f127b7ddb",
+      "bytes": 19503,
+      "sha256": "d49c15e6b26515c5a45e0b69a4cdc2fa7d9b5cba58751d228164b01b91e496c9",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__model_protocol_py--001.md"
@@ -394,8 +412,8 @@
     },
     {
       "path": "workbench/streaming.py",
-      "bytes": 11535,
-      "sha256": "b9b2f71a7a663ef4401ea3f674650c6bd68cf0bb61a4224fb12d48fa5296a5ab",
+      "bytes": 11884,
+      "sha256": "9e1b2b9a82f5036865dae993bc6dc1b19fefe5cb2afe76f1408e57cff95fb926",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__streaming_py--001.md"
@@ -917,8 +935,8 @@
     },
     {
       "path": "scripts/guided_browser.cjs",
-      "bytes": 41014,
-      "sha256": "431bbba01ec2bcea307eedf30d82fbde53d4e850964d2ca3183ef8c8d25a9802",
+      "bytes": 41658,
+      "sha256": "128a186426c310d294902b1e70764dd1a88b049795cd6013724e271993a48e36",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/scripts__guided_browser_cjs--001.md",
@@ -1098,8 +1116,8 @@
     },
     {
       "path": "ui/src/components/RunView.vue",
-      "bytes": 40356,
-      "sha256": "7aa5ce9d4ecd4244295013c8ae23d8240d0de4fc02fa8f66a7c6318a978b6eb8",
+      "bytes": 41938,
+      "sha256": "c07736af5f9aaa990c32a9702b5c084d9f8fcd9273b25be62b5e8ec0f3208665",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__components__RunView_vue--001.md"
@@ -1107,8 +1125,8 @@
     },
     {
       "path": "ui/src/components/SettingsView.vue",
-      "bytes": 14508,
-      "sha256": "9716eeaad994f490bfff183347cd4ecac82f5fe370b108a301d47fa023f3ce2f",
+      "bytes": 19629,
+      "sha256": "73c4a1522c44b3ce3174c59125b9679cd377693442a38efb09b84c93a8fc0e87",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__components__SettingsView_vue--001.md"
@@ -1125,8 +1143,8 @@
     },
     {
       "path": "ui/src/presentation.ts",
-      "bytes": 7576,
-      "sha256": "48f650db5868ffa5d8318fd95128c460d98af1cdbc3f87e13e288110805f2b77",
+      "bytes": 7613,
+      "sha256": "1f57d192291bf8aafb8d03d2a0842fd4983e51d47c2445f048d355c8a9389328",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__presentation_ts--001.md"
@@ -1161,8 +1179,8 @@
     },
     {
       "path": "ui/tests/capability.test.ts",
-      "bytes": 4836,
-      "sha256": "b6d1df037968ba2e0246036d190428c7b2a17738e0c483b7b224a22e00e325fb",
+      "bytes": 6805,
+      "sha256": "19a0fb94f3c25cf1ce57d2fefaf1ad770b7b0046a70f7b430df14ac95867bcc7",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__tests__capability_test_ts--001.md"
@@ -1179,8 +1197,8 @@
     },
     {
       "path": "ui/tests/protocol.test.ts",
-      "bytes": 7755,
-      "sha256": "941a7704838e8fff78cfb83436443351cb4dc236cc157ceb9ed84dbe6e3175c1",
+      "bytes": 8476,
+      "sha256": "e11068e7781db63878741ef02a7531bf0c362960396b428a5ffab568ccc260b2",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__tests__protocol_test_ts--001.md"
@@ -1197,8 +1215,8 @@
     },
     {
       "path": "ui/tests/settings.test.ts",
-      "bytes": 2144,
-      "sha256": "ddeb62ba8c5800248d4e97a8bde8d60c431e21c7a6fbfdc27f52218a993b06eb",
+      "bytes": 7958,
+      "sha256": "7d1dd3652c277f1a3385588cd178d6c9d60ce5803345406c9a05f931215b688d",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__tests__settings_test_ts--001.md"
@@ -1260,8 +1278,8 @@
     },
     {
       "path": "workbench/web/app.js",
-      "bytes": 764106,
-      "sha256": "51a46904d553a4a265d2224a83969b2b8eb8e1a9ebd6c9e81314fdae98dd98ac",
+      "bytes": 768260,
+      "sha256": "fb7405ecf44ed9c8411079c597c48e4f54355ef070ad831a2d6af580f4184b5d",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/assets/workbench__web__app_js--001.md"
@@ -3387,8 +3405,8 @@
     },
     {
       "path": ".github/workflows/real-model.yml",
-      "bytes": 4427,
-      "sha256": "d2c287eb983465a1c26615cc708d67ecaec12313402f49dfd2e9944fc3da0c35",
+      "bytes": 6559,
+      "sha256": "687d74b290652fd41c86350c83407c30f93029e43ea41755f4fbe3e083c02276",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__real-model_yml--001.md"
@@ -3414,8 +3432,8 @@
     },
     {
       "path": "README.md",
-      "bytes": 22474,
-      "sha256": "fa55d15e0af8dd533b6b1854fbe563a2865becbbdb48555ad3c306b5e3c65dfe",
+      "bytes": 23105,
+      "sha256": "9d5d1db4263b18112f4e1d0edbe440592d14b289fab3074ce4f9a5d9cad41bf7",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/README_md--001.md"
@@ -3459,8 +3477,8 @@
     },
     {
       "path": "docs/guide.md",
-      "bytes": 47489,
-      "sha256": "d2e47e70c236f8aeb282c90aed13e81ceb0331d76ce0653bff5056b01311c283",
+      "bytes": 48309,
+      "sha256": "bee61da9d40d94779573f896d37604ed8d63c6a201d2ac2390ee229f544ecf60",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__guide_md--001.md"
@@ -3557,6 +3575,15 @@
       ]
     },
     {
+      "path": "docs/model-feedback-verification.md",
+      "bytes": 8323,
+      "sha256": "85cce38c6be629137f92edd42fb910577639c40b9bd23ccdea90e45edd522b19",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/docs__model-feedback-verification_md--001.md"
+      ]
+    },
+    {
       "path": "docs/native-baseline.md",
       "bytes": 21685,
       "sha256": "3a202005e814051cd3c85a9d68205d0025719d2fb344a02467360a78839c656a",
@@ -3576,8 +3603,8 @@
     },
     {
       "path": "docs/provider-structured-outputs.md",
-      "bytes": 9363,
-      "sha256": "eeb0c26e72bb893d5222d0a5440f90bb769ecaf3b8f6d8c96a05085bb24baaf1",
+      "bytes": 9607,
+      "sha256": "0c603387b3ec83f57a4fa5a00147566eac6f033a4b7cdaebdc3ed283620f455d",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__provider-structured-outputs_md--001.md"
@@ -3612,8 +3639,8 @@
     },
     {
       "path": "scripts/build_handbook.py",
-      "bytes": 9057,
-      "sha256": "655df2484ccdc2d31ed10fdfd692d6a6555e598bc9ecfa42af446c56854c88c0",
+      "bytes": 9100,
+      "sha256": "9d05f9d03cd262643314afc5892d09a3a9d35083ec3a699dc37b5cb8afca0520",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_handbook_py--001.md"
@@ -3621,8 +3648,8 @@
     },
     {
       "path": "scripts/build_learning_docs.py",
-      "bytes": 35576,
-      "sha256": "c519294cb4d14ce3443cd28c0c407923f8b0f797522871ec113a7c973305a796",
+      "bytes": 35631,
+      "sha256": "13ceee0b87f256762c6ec01e451522d4f788ab7a3f0f71e180d19c37498622ca",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_learning_docs_py--001.md"
@@ -3701,6 +3728,15 @@
       ]
     },
     {
+      "path": "scripts/ci_model_feedback.py",
+      "bytes": 19982,
+      "sha256": "93b9135a0177e36d175b8d00ac74b33e6ded0bcdb4bfac0a72f940e5a74f141d",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/scripts__ci_model_feedback_py--001.md"
+      ]
+    },
+    {
       "path": "scripts/ci_native_runtime.py",
       "bytes": 3668,
       "sha256": "0c431907c32fdae222553b76a0c25953d6aaa4515ea2b4afcbaa42a7e13d4bd0",
@@ -3731,8 +3767,8 @@
     },
     {
       "path": "scripts/ci_signup_scope_browser.py",
-      "bytes": 11185,
-      "sha256": "dedf9e6f02de70ff179553056069c81b7fdc30fd778c44857d9b68c8d478827f",
+      "bytes": 13623,
+      "sha256": "f1d844c9d2c5710e78d99a371f9fe46726c64d8db8aae5f8b4b57453d5803a90",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_signup_scope_browser_py--001.md"
@@ -3777,8 +3813,8 @@
     },
     {
       "path": "scripts/signup_scope_browser.cjs",
-      "bytes": 7245,
-      "sha256": "c0cf7ee2aafce9a5e2d18b75cac9f23ae3818cf5f53c89608058882f4c5eb800",
+      "bytes": 8785,
+      "sha256": "b3881301e484424717e1c2f1958a27e59e15be7d85e89df79b584ef34d6075e7",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__signup_scope_browser_cjs--001.md"
@@ -3962,6 +3998,33 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_legacy_signup_recovery_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_model_connection.py",
+      "bytes": 10150,
+      "sha256": "37a936277740d836603f49e430703e9e188447b7a53c761f6fa14562c98a41ff",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_model_connection_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_model_feedback_ci.py",
+      "bytes": 18420,
+      "sha256": "d5ed4cb2a663901a238d890cf8f8c2f470c68d5167a64f305895c052cca3b730",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_model_feedback_ci_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_model_feedback_history.py",
+      "bytes": 5811,
+      "sha256": "87daf731b2709c45e3aeb19ce279b92d8edf7076eb06fe173f15e2ed99c29433",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_model_feedback_history_py--001.md"
       ]
     },
     {
@@ -4152,6 +4215,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_semantic_fact_namespace_aliases_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_streaming_limits.py",
+      "bytes": 5119,
+      "sha256": "44aecf4647126373a4acaf156603b894e59d94d7be00de8e20140528311d7a54",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_streaming_limits_py--001.md"
       ]
     },
     {
