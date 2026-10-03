@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/settings.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L218。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/settings.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L220。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7797`。本段原文以LF换行结束。
+本段原始字节数：`7958`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/settings.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7ebeac7c1706c37ef0e68a8447f5318776fa0b1665e77af6afb421972133a65f"} -->
+<!-- learning-source: {"path": "ui/tests/settings.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7d1dd3652c277f1a3385588cd178d6c9d60ce5803345406c9a05f931215b688d"} -->
 ````typescript
 // ui/tests/settings.test.ts
 import { mount, flushPromises } from '@vue/test-utils'
@@ -83,6 +83,8 @@ describe('explicit saved-profile connection tests', () => {
       .spyOn(Modal, 'confirm')
       .mockReturnValue({ destroy: vi.fn(), update: vi.fn() })
     const wrapper = mount(SettingsView, { global: { plugins: [Antd] } })
+    expect(testButton(wrapper).attributes('title')).toContain('可能产生费用')
+    expect(wrapper.findComponent({ name: 'ATooltip' }).exists()).toBe(false)
     await testButton(wrapper).trigger('click')
     await testButton(wrapper).trigger('click')
     expect(confirm).toHaveBeenCalledTimes(1)

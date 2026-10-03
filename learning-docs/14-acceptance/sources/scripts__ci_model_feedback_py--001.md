@@ -10,35 +10,37 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.domain`、`workbench.llm`、`workbench.model_connection`、`workbench.model_settings`、`workbench.requirement_intent`、`workbench.runtime`、`workbench.settings`、`workbench.store`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.domain`、`workbench.llm`、`workbench.model_connection`、`workbench.model_protocol`、`workbench.model_settings`、`workbench.requirement_intent`、`workbench.runtime`、`workbench.settings`、`workbench.store`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `SafeFailure`（L55–L56）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `Config`（L60–L72）：继承`object`。声明的数据项为`model`、`key`、`approved_max_cny`；类型约束/数据库列参数以完整定义为准。
-- `Config.cost`（L65–L67）：接收`input_tokens`、`output_tokens`。 调用`Decimal`。 返回路径：L67的`(input_rate * input_tokens + output_rate * output_tokens) / Decimal(1_000_000)`。
-- `Config.maximum_cost`（L69–L72）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.cost`。 返回路径：L70的`self.cost( MAX_CALLS * (2 * MAX_REQUEST_BYTES + 4096), PROBE_OUTPUT_TOKENS + 4 * TASK_OUTP…`。
-- `configuration`（L75–L93）：接收`env`。 控制顺序：L76按`env.get("BASE_URL", "").strip().rstrip("/") != ENDPOINT`分支；L77抛异常，停止当前正常路径；L79按`model not in PRICES`分支；L80抛异常，停止当前正常路径；L82按`not key or any(ord(character) <= 32 for character in key)`分支；L83抛异常，停止当前正常路径；L87抛异常，停止当前正常路径；L88按`not approved.is_finite() or not 0 < approved <= MAX_APPROVED_CNY`分支。后续分支沿下方源码相同行号继续阅读。 调用`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`env.get`、`SafeFailure`、`env.get("MODE", "").strip`、`env.get("API_KEY", "").strip`、`any`、`ord`、`Decimal`等。 返回路径：L93的`result`。
-- `trusted_dispatch`（L96–L106）：接收`env`。 控制顺序：L97按`env.get("GITHUB_ACTIONS") != "true" or env.get("GITHUB_EVENT_NAME") != "workflow_disp…`分支；L106抛异常，停止当前正常路径。 调用`env.get`、`re.fullmatch`、`SafeFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `response_receipt`（L109–L144）：接收`status`、`data`。 控制顺序：L115遍历`data.splitlines()`；L116按`line.startswith(b"data:") and line[5:].strip() != b"[DONE]"`分支；L121遍历`envelopes`；L122按`not isinstance(envelope, dict)`分支；L125按`isinstance(usage, dict)`分支；L134按`isinstance(choices, list) and choices and isinstance(choices[0], dict)`分支；L136按`finish in { "stop", "length", "content_filter", "tool_calls", "insufficient_system_re…`分支。 调用`json.loads`、`data.splitlines`、`line.startswith`、`line[5:].strip`、`envelopes.append`、`isinstance`、`envelope.get`、`usage.items`、`type`等。 返回路径：L144的`receipt`。
-- `BoundedFeedbackTransport`（L147–L240）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `BoundedFeedbackTransport.__init__`（L150–L157）：接收`config`。 调用`httpx.HTTPTransport`、`Decimal`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedFeedbackTransport.handle_request`（L159–L234）：接收`request`。 控制顺序：L160按`request.method != "POST" or str(request.url) != ENDPOINT + "/chat/completions"`分支；L161抛异常，停止当前正常路径；L162按`self.phase not in PHASE_LIMITS or self.calls >= MAX_CALLS or self.phase_calls[self.ph…`分支；L167抛异常，停止当前正常路径；L169按`len(data) > MAX_REQUEST_BYTES`分支；L170抛异常，停止当前正常路径；L174抛异常，停止当前正常路径；L175按`not isinstance(body, dict) or body.get("model") != self.config.model`分支。后续分支沿下方源码相同行号继续阅读。 调用`str`、`SafeFailure`、`request.read`、`len`、`json.loads`、`isinstance`、`body.get`、`hmac.compare_digest`、`request.headers.get`等。 返回路径：L234的`httpx.Response(response.status_code, headers=headers, content=bytes(data))`。
-- `BoundedFeedbackTransport.close`（L236–L237）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `BoundedFeedbackTransport.shutdown`（L239–L240）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.transport.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `safe_gate`（L243–L255）：接收`run`。 调用`run.get`、`pending.get`、`data.get`、`bool`、`len`、`requirement.get`。 返回路径：L247的`{ "status": run["status"], "gate_stage": pending.get("stage"), "can_approve": bool(pending…`。
-- `failure_receipts`（L258–L288）：接收`store`、`run_id`。 控制顺序：L271遍历`reversed(events)`。 调用`store.tx`、`list`、`session.scalars`、`select(Event) .where(Event.run_id == run_id, Event.kind == "assis…`、`select(Event) .where`、`select`、`Event.id.desc`、`reversed`、`event.data.get`等。 返回路径：L288的`receipts`。
-- `run_check`（L291–L403）：接收`config`、`transport`、`directory`。 控制顺序：L333按`not probe["ok"] and probe["code"] != "truncated"`分支；L354按`not gate or gate["stage"] not in {"requirements", "clarification"}`分支；L401按`run_id`分支。 调用`Settings`、`ModelSettingsRepository(settings).update`、`ModelSettingsRepository`、`config.key.get_secret_value`、`ModelConnectionTester(settings, transport).test`、`ModelConnectionTester`、`ConnectionTestRequest`、`str`、`uuid.uuid4`等。 返回路径：L335的`result`；L356的`result`；L399的`result`。
-- `main`（L406–L454）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L438按`transport`分支；L447按`config`分支；L453按`not result["passed"]`分支；L454抛异常，停止当前正常路径。 调用`trusted_dispatch`、`configuration`、`os.environ.pop`、`result.update`、`str`、`config.maximum_cost`、`BoundedFeedbackTransport`、`tempfile.TemporaryDirectory`、`tempfile.TemporaryFile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `SafeFailure`（L56–L60）：继承`OutputFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `SafeFailure.__init__`（L59–L60）：接收`code`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Config`（L64–L76）：继承`object`。声明的数据项为`model`、`key`、`approved_max_cny`；类型约束/数据库列参数以完整定义为准。
+- `Config.cost`（L69–L71）：接收`input_tokens`、`output_tokens`。 调用`Decimal`。 返回路径：L71的`(input_rate * input_tokens + output_rate * output_tokens) / Decimal(1_000_000)`。
+- `Config.maximum_cost`（L73–L76）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.cost`。 返回路径：L74的`self.cost( MAX_CALLS * (2 * MAX_REQUEST_BYTES + 4096), PROBE_OUTPUT_TOKENS + 4 * TASK_OUTP…`。
+- `configuration`（L79–L97）：接收`env`。 控制顺序：L80按`env.get("BASE_URL", "").strip().rstrip("/") != ENDPOINT`分支；L81抛异常，停止当前正常路径；L83按`model not in PRICES`分支；L84抛异常，停止当前正常路径；L86按`not key or any(ord(character) <= 32 for character in key)`分支；L87抛异常，停止当前正常路径；L91抛异常，停止当前正常路径；L92按`not approved.is_finite() or not 0 < approved <= MAX_APPROVED_CNY`分支。后续分支沿下方源码相同行号继续阅读。 调用`env.get("BASE_URL", "").strip().rstrip`、`env.get("BASE_URL", "").strip`、`env.get`、`SafeFailure`、`env.get("MODE", "").strip`、`env.get("API_KEY", "").strip`、`any`、`ord`、`Decimal`等。 返回路径：L97的`result`。
+- `trusted_dispatch`（L100–L110）：接收`env`。 控制顺序：L101按`env.get("GITHUB_ACTIONS") != "true" or env.get("GITHUB_EVENT_NAME") != "workflow_disp…`分支；L110抛异常，停止当前正常路径。 调用`env.get`、`re.fullmatch`、`SafeFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `response_receipt`（L113–L148）：接收`status`、`data`。 控制顺序：L119遍历`data.splitlines()`；L120按`line.startswith(b"data:") and line[5:].strip() != b"[DONE]"`分支；L125遍历`envelopes`；L126按`not isinstance(envelope, dict)`分支；L129按`isinstance(usage, dict)`分支；L138按`isinstance(choices, list) and choices and isinstance(choices[0], dict)`分支；L140按`finish in { "stop", "length", "content_filter", "tool_calls", "insufficient_system_re…`分支。 调用`json.loads`、`data.splitlines`、`line.startswith`、`line[5:].strip`、`envelopes.append`、`isinstance`、`envelope.get`、`usage.items`、`type`等。 返回路径：L148的`receipt`。
+- `BoundedFeedbackTransport`（L151–L289）：继承`httpx.BaseTransport`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BoundedFeedbackTransport.__init__`（L154–L162）：接收`config`。 调用`httpx.HTTPTransport`、`Decimal`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedFeedbackTransport.handle_request`（L164–L194）：接收`request`。 控制顺序：L170按`len(self.receipts) > before`分支；L172抛异常，停止当前正常路径；L174按`len(self.receipts) > before`分支；L181抛异常，停止当前正常路径；L190按`len(self.receipts) > before`分支；L194抛异常，停止当前正常路径。 调用`len`、`self._handle_request`、`self.guard_failures.append`、`self.receipts[-1].update`、`isinstance`、`type`、`SafeFailure`。 返回路径：L167的`self._handle_request(request)`。
+- `BoundedFeedbackTransport._handle_request`（L196–L283）：接收`request`。 控制顺序：L197按`request.method != "POST" or str(request.url) != ENDPOINT + "/chat/completions"`分支；L198抛异常，停止当前正常路径；L199按`self.phase not in PHASE_LIMITS or self.calls >= MAX_CALLS or self.phase_calls[self.ph…`分支；L204抛异常，停止当前正常路径；L206按`len(data) > MAX_REQUEST_BYTES`分支；L207抛异常，停止当前正常路径；L211抛异常，停止当前正常路径；L212按`not isinstance(body, dict) or body.get("model") != self.config.model`分支。后续分支沿下方源码相同行号继续阅读。 调用`str`、`SafeFailure`、`request.read`、`len`、`json.loads`、`isinstance`、`body.get`、`hmac.compare_digest`、`request.headers.get`等。 返回路径：L283的`httpx.Response(response.status_code, headers=headers, content=bytes(data))`。
+- `BoundedFeedbackTransport.close`（L285–L286）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `BoundedFeedbackTransport.shutdown`（L288–L289）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.transport.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `safe_gate`（L292–L304）：接收`run`。 调用`run.get`、`pending.get`、`data.get`、`bool`、`len`、`requirement.get`。 返回路径：L296的`{ "status": run["status"], "gate_stage": pending.get("stage"), "can_approve": bool(pending…`。
+- `failure_receipts`（L307–L337）：接收`store`、`run_id`。 控制顺序：L320遍历`reversed(events)`。 调用`store.tx`、`list`、`session.scalars`、`select(Event) .where(Event.run_id == run_id, Event.kind == "assis…`、`select(Event) .where`、`select`、`Event.id.desc`、`reversed`、`event.data.get`等。 返回路径：L337的`receipts`。
+- `run_check`（L340–L452）：接收`config`、`transport`、`directory`。 控制顺序：L382按`not probe["ok"] and probe["code"] != "truncated"`分支；L403按`not gate or gate["stage"] not in {"requirements", "clarification"}`分支；L450按`run_id`分支。 调用`Settings`、`ModelSettingsRepository(settings).update`、`ModelSettingsRepository`、`config.key.get_secret_value`、`ModelConnectionTester(settings, transport).test`、`ModelConnectionTester`、`ConnectionTestRequest`、`str`、`uuid.uuid4`等。 返回路径：L384的`result`；L405的`result`；L448的`result`。
+- `main`（L455–L504）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L487按`transport`分支；L497按`config`分支；L503按`not result["passed"]`分支；L504抛异常，停止当前正常路径。 调用`trusted_dispatch`、`configuration`、`os.environ.pop`、`result.update`、`str`、`config.maximum_cost`、`BoundedFeedbackTransport`、`tempfile.TemporaryDirectory`、`tempfile.TemporaryFile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_model_feedback.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L458。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_model_feedback.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L508。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17909`。本段原文以LF换行结束。
+本段原始字节数：`19982`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_model_feedback.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "eeae9adf0b4e89382c41592ef44eab792faaecc152c5301de6bc27eb6df25229"} -->
+<!-- learning-source: {"path": "scripts/ci_model_feedback.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "93b9135a0177e36d175b8d00ac74b33e6ded0bcdb4bfac0a72f940e5a74f141d"} -->
 ````python
 # scripts/ci_model_feedback.py
 """Explicitly authorized, cost-bounded live model/settings + signup feedback check.
@@ -67,6 +69,7 @@ from sqlalchemy import func, select
 from workbench.domain import Requirement
 from workbench.llm import ModelGateway
 from workbench.model_connection import ConnectionTestRequest, ModelConnectionTester
+from workbench.model_protocol import OutputFailure, stream_wire_limit
 from workbench.model_settings import ModelSettingsRepository
 from workbench.requirement_intent import registration_scope
 from workbench.runtime import Runtime
@@ -95,8 +98,11 @@ PRICES = {
 MAX_APPROVED_CNY = Decimal("10")
 
 
-class SafeFailure(RuntimeError):
+class SafeFailure(OutputFailure):
     """Only harness-owned failure codes are public; never pass provider strings."""
+
+    def __init__(self, code):
+        super().__init__(code, code, retry=False)
 
 
 @dataclass(frozen=True)
@@ -198,8 +204,41 @@ class BoundedFeedbackTransport(httpx.BaseTransport):
         self.phase_calls = {phase: 0 for phase in PHASE_LIMITS}
         self.reserved_cny = Decimal("0")
         self.receipts = []
+        self.guard_failures = []
 
     def handle_request(self, request):
+        before = len(self.receipts)
+        try:
+            return self._handle_request(request)
+        except SafeFailure as exc:
+            self.guard_failures.append({"code": exc.code, "call": self.calls})
+            if len(self.receipts) > before:
+                self.receipts[-1]["error_code"] = exc.code
+            raise
+        except httpx.HTTPError as exc:
+            if len(self.receipts) > before:
+                self.receipts[-1].update(
+                    error_code="transport_timeout"
+                    if isinstance(exc, httpx.TimeoutException)
+                    else "transport_error",
+                    exception_type=type(exc).__name__,
+                )
+            raise
+        except Exception as exc:
+            self.guard_failures.append(
+                {
+                    "code": "harness_internal_error",
+                    "call": self.calls,
+                    "exception_type": type(exc).__name__,
+                }
+            )
+            if len(self.receipts) > before:
+                self.receipts[-1].update(
+                    error_code="harness_internal_error", exception_type=type(exc).__name__
+                )
+            raise SafeFailure("harness_internal_error") from None
+
+    def _handle_request(self, request):
         if request.method != "POST" or str(request.url) != ENDPOINT + "/chat/completions":
             raise SafeFailure("request_destination_rejected")
         if (
@@ -253,12 +292,24 @@ class BoundedFeedbackTransport(httpx.BaseTransport):
         except httpx.HTTPError:
             receipt["transport_error"] = True
             raise
+        streaming = (
+            response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+            == "text/event-stream"
+        )
+        byte_limit = stream_wire_limit(output) if streaming else MAX_RESPONSE_BYTES
+        receipt.update(
+            http_status=response.status_code,
+            response_transport="sse" if streaming else "non_streaming",
+            response_bytes=0,
+            response_byte_limit=byte_limit,
+        )
         data = bytearray()
         try:
             for chunk in response.iter_bytes():
                 data.extend(chunk)
-                if len(data) > MAX_RESPONSE_BYTES:
-                    raise SafeFailure("response_byte_limit")
+                receipt["response_bytes"] = len(data)
+                if len(data) > byte_limit:
+                    raise SafeFailure("stream_wire_limit" if streaming else "response_byte_limit")
         finally:
             response.close()
         receipt.update(response_receipt(response.status_code, bytes(data)))
@@ -484,6 +535,7 @@ def main():
                 phase_calls=transport.phase_calls,
                 reserved_cny=str(transport.reserved_cny),
                 requests=transport.receipts,
+                guard_failures=transport.guard_failures,
             )
             transport.shutdown()
         rendered = json.dumps(result, ensure_ascii=False, indent=2)

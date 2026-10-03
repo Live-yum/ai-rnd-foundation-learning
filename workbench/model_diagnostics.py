@@ -27,9 +27,34 @@ def failure_diagnostic(code, *, trace_id, attempt=None, details=None):
     elif code == "invalid_json":
         summary = "服务已响应，但返回内容不是可接受的完整 JSON 对象。"
         hint = "检查服务是否支持 JSON 对象输出；保留严格校验，调整模型或配置后重试当前运行。"
-    elif code in {"length", "truncated", "response_too_large"}:
+    elif code in {
+        "length",
+        "truncated",
+        "response_too_large",
+        "response_byte_limit",
+        "stream_wire_limit",
+    }:
         summary = "模型响应超过长度限制，无法作为完整结果。"
         hint = "检查模型输出限制与本轮范围，调整后重试；保留原始需求与已提交回答。"
+        if code == "stream_wire_limit":
+            phase = "response_stream"
+            summary = "模型流的传输字节超过安全上限；正文与流式封装分别计量。"
+    elif code in {
+        "request_destination_rejected",
+        "request_count_limit",
+        "request_byte_limit",
+        "request_not_json",
+        "model_substitution_rejected",
+        "authorization_header_mismatch",
+        "structured_output_required",
+        "output_budget_missing_or_exceeded",
+        "monetary_budget_exceeded",
+        "provider_reported_usage_exceeds_reserved_bounds",
+        "harness_internal_error",
+    }:
+        phase = "request_guard"
+        summary = "验收请求被安全或预算保护停止，未自动重试。"
+        hint = "使用追踪 ID 和安全回执中的错误代码定位原因；重新实测前核对剩余预算与授权。"
     return {
         "phase": phase,
         "code": code,

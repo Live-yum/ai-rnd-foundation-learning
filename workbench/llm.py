@@ -213,8 +213,17 @@ class ModelGateway:
                     reason = "模型服务超时、限流或暂时不可用"
                     if attempt == 0:
                         time.sleep(0.2)
-                except Exception:
-                    observer.failed("unexpected_model_error", attempt=attempt + 1)
+                except Exception as exc:
+                    # Exception class names identify integration failures without
+                    # disclosing provider bodies, credentials or exception text.
+                    error_type = type(exc).__name__
+                    if not error_type.isidentifier() or len(error_type) > 80:
+                        error_type = "Exception"
+                    observer.failed(
+                        "unexpected_model_error",
+                        attempt=attempt + 1,
+                        details=[{"type": error_type, "path": [], "message": "模型适配器异常"}],
+                    )
                     raise
             raise ModelFailure(reason + "；两次尝试后停止，未替换成演示结果")
 

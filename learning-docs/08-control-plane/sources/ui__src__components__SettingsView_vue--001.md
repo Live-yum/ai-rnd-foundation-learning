@@ -12,11 +12,11 @@
 
 **带着一个具体问题阅读：** 页面显示‘Key已配置’不代表拿到了Key原文；留空表示不修改，明确清除才删除覆盖。保存只验证并落盘，不能显示‘模型连接成功’。如果另一窗口先保存导致409，应读取新版本让用户复核，而不是自动拿新revision重发旧表单。
 
-**创建路径：** `ui/src/components/SettingsView.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L522。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/components/SettingsView.vue`；**本文件共有 1 段**。本段覆盖源文件 L1–L520。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19690`。本段原文以LF换行结束。
+本段原始字节数：`19629`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/components/SettingsView.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6b297158543e33120d978922dec83096724fbf2a24dd14ead5b7e3f2ae716a5d"} -->
+<!-- learning-source: {"path": "ui/src/components/SettingsView.vue", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "73c4a1522c44b3ce3174c59125b9679cd377693442a38efb09b84c93a8fc0e87"} -->
 ````vue
 <!-- ui/src/components/SettingsView.vue -->
 <script setup lang="ts">
@@ -505,18 +505,16 @@ defineExpose({ dirty })
             }}</span
             ><a-button v-if="conflict" :loading="loading" @click="refresh"
               ><ReloadOutlined aria-hidden="true" />读取最新配置</a-button
-            ><a-tooltip
+            ><a-button
               :title="
                 dirty
                   ? '请先保存修改，再测试已保存的有效连接'
                   : '发起一次真实模型调用，可能产生费用；确认后才开始'
               "
-              ><a-button
-                :loading="testing"
-                :disabled="!canTest || confirmingTest"
-                @click="confirmConnectionTest"
-                >测试连接</a-button
-              ></a-tooltip
+              :loading="testing"
+              :disabled="!canTest || confirmingTest"
+              @click="confirmConnectionTest"
+              >测试连接</a-button
             ><a-button
               type="primary"
               html-type="submit"

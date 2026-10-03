@@ -337,8 +337,8 @@
     },
     {
       "path": "workbench/llm.py",
-      "bytes": 11167,
-      "sha256": "b9a7a21549a452441d9f8d30e05f24ae7c74cbce49223b8105e336f44ff115bb",
+      "bytes": 11691,
+      "sha256": "f57bc50fd1666cc9f04c6397e0e5b3e5564648b98f4e877d754302aa5bfbcc67",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__llm_py--001.md"
@@ -355,8 +355,8 @@
     },
     {
       "path": "workbench/model_diagnostics.py",
-      "bytes": 4698,
-      "sha256": "f3f1afa5128cee4e1970fe6cc2a79f2f0d27b425352c4ff2ce7610969223ab39",
+      "bytes": 5663,
+      "sha256": "6265d57aebcbbdddcc2ec5befffc4640912267183f1d632777e1b663c6889977",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__model_diagnostics_py--001.md"
@@ -364,8 +364,8 @@
     },
     {
       "path": "workbench/model_protocol.py",
-      "bytes": 17241,
-      "sha256": "f7c5e3e0ab5b6b093079902e72e59e320e4062bc2cb37aab470e758f127b7ddb",
+      "bytes": 19503,
+      "sha256": "d49c15e6b26515c5a45e0b69a4cdc2fa7d9b5cba58751d228164b01b91e496c9",
       "stage": "03-requirements",
       "parts": [
         "03-requirements/sources/workbench__model_protocol_py--001.md"
@@ -1125,8 +1125,8 @@
     },
     {
       "path": "ui/src/components/SettingsView.vue",
-      "bytes": 19690,
-      "sha256": "6b297158543e33120d978922dec83096724fbf2a24dd14ead5b7e3f2ae716a5d",
+      "bytes": 19629,
+      "sha256": "73c4a1522c44b3ce3174c59125b9679cd377693442a38efb09b84c93a8fc0e87",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__src__components__SettingsView_vue--001.md"
@@ -1215,8 +1215,8 @@
     },
     {
       "path": "ui/tests/settings.test.ts",
-      "bytes": 7797,
-      "sha256": "7ebeac7c1706c37ef0e68a8447f5318776fa0b1665e77af6afb421972133a65f",
+      "bytes": 7958,
+      "sha256": "7d1dd3652c277f1a3385588cd178d6c9d60ce5803345406c9a05f931215b688d",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/ui__tests__settings_test_ts--001.md"
@@ -1278,8 +1278,8 @@
     },
     {
       "path": "workbench/web/app.js",
-      "bytes": 768312,
-      "sha256": "d16f0ab14e866578ee837b1ef839a879249652389bce9a18f548550675bc76a6",
+      "bytes": 768260,
+      "sha256": "fb7405ecf44ed9c8411079c597c48e4f54355ef070ad831a2d6af580f4184b5d",
       "stage": "08-control-plane",
       "parts": [
         "08-control-plane/sources/assets/workbench__web__app_js--001.md"
@@ -3576,8 +3576,8 @@
     },
     {
       "path": "docs/model-feedback-verification.md",
-      "bytes": 6705,
-      "sha256": "d23699324117e09abdbc5bb34fbdd4d368620840843d37180f64d5753a679e4d",
+      "bytes": 8323,
+      "sha256": "85cce38c6be629137f92edd42fb910577639c40b9bd23ccdea90e45edd522b19",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__model-feedback-verification_md--001.md"
@@ -3603,8 +3603,8 @@
     },
     {
       "path": "docs/provider-structured-outputs.md",
-      "bytes": 9363,
-      "sha256": "eeb0c26e72bb893d5222d0a5440f90bb769ecaf3b8f6d8c96a05085bb24baaf1",
+      "bytes": 9607,
+      "sha256": "0c603387b3ec83f57a4fa5a00147566eac6f033a4b7cdaebdc3ed283620f455d",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__provider-structured-outputs_md--001.md"
@@ -3729,8 +3729,8 @@
     },
     {
       "path": "scripts/ci_model_feedback.py",
-      "bytes": 17909,
-      "sha256": "eeae9adf0b4e89382c41592ef44eab792faaecc152c5301de6bc27eb6df25229",
+      "bytes": 19982,
+      "sha256": "93b9135a0177e36d175b8d00ac74b33e6ded0bcdb4bfac0a72f940e5a74f141d",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_model_feedback_py--001.md"
@@ -4011,8 +4011,8 @@
     },
     {
       "path": "tests/test_model_feedback_ci.py",
-      "bytes": 12296,
-      "sha256": "629d7c04f3511a42943c5be3244c712e21b82d7b9c617427e73a20b892d13877",
+      "bytes": 18420,
+      "sha256": "d5ed4cb2a663901a238d890cf8f8c2f470c68d5167a64f305895c052cca3b730",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_model_feedback_ci_py--001.md"
@@ -4215,6 +4215,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_semantic_fact_namespace_aliases_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_streaming_limits.py",
+      "bytes": 5119,
+      "sha256": "44aecf4647126373a4acaf156603b894e59d94d7be00de8e20140528311d7a54",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_streaming_limits_py--001.md"
       ]
     },
     {

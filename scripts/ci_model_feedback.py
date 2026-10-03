@@ -24,6 +24,7 @@ from sqlalchemy import func, select
 from workbench.domain import Requirement
 from workbench.llm import ModelGateway
 from workbench.model_connection import ConnectionTestRequest, ModelConnectionTester
+from workbench.model_protocol import OutputFailure, stream_wire_limit
 from workbench.model_settings import ModelSettingsRepository
 from workbench.requirement_intent import registration_scope
 from workbench.runtime import Runtime
@@ -52,8 +53,11 @@ PRICES = {
 MAX_APPROVED_CNY = Decimal("10")
 
 
-class SafeFailure(RuntimeError):
+class SafeFailure(OutputFailure):
     """Only harness-owned failure codes are public; never pass provider strings."""
+
+    def __init__(self, code):
+        super().__init__(code, code, retry=False)
 
 
 @dataclass(frozen=True)
@@ -155,8 +159,41 @@ class BoundedFeedbackTransport(httpx.BaseTransport):
         self.phase_calls = {phase: 0 for phase in PHASE_LIMITS}
         self.reserved_cny = Decimal("0")
         self.receipts = []
+        self.guard_failures = []
 
     def handle_request(self, request):
+        before = len(self.receipts)
+        try:
+            return self._handle_request(request)
+        except SafeFailure as exc:
+            self.guard_failures.append({"code": exc.code, "call": self.calls})
+            if len(self.receipts) > before:
+                self.receipts[-1]["error_code"] = exc.code
+            raise
+        except httpx.HTTPError as exc:
+            if len(self.receipts) > before:
+                self.receipts[-1].update(
+                    error_code="transport_timeout"
+                    if isinstance(exc, httpx.TimeoutException)
+                    else "transport_error",
+                    exception_type=type(exc).__name__,
+                )
+            raise
+        except Exception as exc:
+            self.guard_failures.append(
+                {
+                    "code": "harness_internal_error",
+                    "call": self.calls,
+                    "exception_type": type(exc).__name__,
+                }
+            )
+            if len(self.receipts) > before:
+                self.receipts[-1].update(
+                    error_code="harness_internal_error", exception_type=type(exc).__name__
+                )
+            raise SafeFailure("harness_internal_error") from None
+
+    def _handle_request(self, request):
         if request.method != "POST" or str(request.url) != ENDPOINT + "/chat/completions":
             raise SafeFailure("request_destination_rejected")
         if (
@@ -210,12 +247,24 @@ class BoundedFeedbackTransport(httpx.BaseTransport):
         except httpx.HTTPError:
             receipt["transport_error"] = True
             raise
+        streaming = (
+            response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+            == "text/event-stream"
+        )
+        byte_limit = stream_wire_limit(output) if streaming else MAX_RESPONSE_BYTES
+        receipt.update(
+            http_status=response.status_code,
+            response_transport="sse" if streaming else "non_streaming",
+            response_bytes=0,
+            response_byte_limit=byte_limit,
+        )
         data = bytearray()
         try:
             for chunk in response.iter_bytes():
                 data.extend(chunk)
-                if len(data) > MAX_RESPONSE_BYTES:
-                    raise SafeFailure("response_byte_limit")
+                receipt["response_bytes"] = len(data)
+                if len(data) > byte_limit:
+                    raise SafeFailure("stream_wire_limit" if streaming else "response_byte_limit")
         finally:
             response.close()
         receipt.update(response_receipt(response.status_code, bytes(data)))
@@ -441,6 +490,7 @@ def main():
                 phase_calls=transport.phase_calls,
                 reserved_cny=str(transport.reserved_cny),
                 requests=transport.receipts,
+                guard_failures=transport.guard_failures,
             )
             transport.shutdown()
         rendered = json.dumps(result, ensure_ascii=False, indent=2)

@@ -12,9 +12,9 @@
 
 **创建路径：** `docs/provider-structured-outputs.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L91。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9363`。本段原文以LF换行结束。
+本段原始字节数：`9607`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/provider-structured-outputs.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "eeb0c26e72bb893d5222d0a5440f90bb769ecaf3b8f6d8c96a05085bb24baaf1"} -->
+<!-- learning-source: {"path": "docs/provider-structured-outputs.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0c603387b3ec83f57a4fa5a00147566eac6f033a4b7cdaebdc3ed283620f455d"} -->
 ````markdown
 <!-- docs/provider-structured-outputs.md -->
 # LangGraph 工作流的统一结构化输出
@@ -77,7 +77,7 @@ DeepSeek 真实验收仍使用已批准的 `deepseek-flash`，不改用户模型
 
 ## 本地验证、重试与安全边界
 
-1. 响应传输最多读取2,000,000字节；在 SDK 标准化前检查原始信封。已知供应商必须 `finish_reason=stop`。有效 JSON 若带 `length` 仍按截断失败；refusal/content_filter 立即停止，不试图绕过；不接受该阶段意外的工具调用
+1. 非流式响应最多读取2,000,000字节；SSE逐Token封装与解码正文分开计量，传输上限为 min(64,000,000, 2,000,000 + MAX_OUTPUT_TOKENS × 1024) 字节，解码正文与推理文本合计仍最多2,000,000字节，单帧与未结束行也保持2,000,000字节上限。在 SDK 标准化前检查原始信封。已知供应商必须 `finish_reason=stop`。有效 JSON 若带 `length` 仍按截断失败；refusal/content_filter 立即停止，不试图绕过；不接受该阶段意外的工具调用
 2. JSON 解析拒绝重复键、NaN/Infinity/数值溢出、非对象根节点和 Markdown 围栏。`Pydantic.model_validate_json(..., strict=True)` 不把 `"true"` 当布尔值，也不把 `"3"` 当整数；原有额外字段、枚举、长度、关系和跨字段业务验证继续执行
 3. 必须同时得到框架的成功结构化解析和平台对原始内容的严格校验。不能只信任框架已转换的 `parsed` 对象，否则宽松类型转换或不完整 JSON 修复可能掩盖原始错误
 4. SDK `max_retries=0`，平台每次操作最多两次总尝试，避免双层重试偷偷放大费用。空内容、畸形响应、中断、408/429/5xx可有界重试；类型/语义错误最多一轮带具体路径的修复。鉴权/地址/其他非暂时性4xx、拒绝和截断直接停止

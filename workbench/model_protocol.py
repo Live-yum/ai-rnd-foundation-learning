@@ -12,6 +12,16 @@ from urllib.parse import urlsplit
 import httpx
 
 CONTRACT_VERSION = 2
+MAX_MODEL_CONTENT_BYTES = 2_000_000
+MAX_STREAM_WIRE_BYTES = 64_000_000
+
+
+def stream_wire_limit(max_output_tokens):
+    """SSE repeats metadata per token; bound framing separately from model text."""
+    tokens = (
+        max_output_tokens if type(max_output_tokens) is int and max_output_tokens > 0 else 16384
+    )
+    return min(MAX_STREAM_WIRE_BYTES, MAX_MODEL_CONTENT_BYTES + tokens * 1024)
 
 
 @dataclass(frozen=True)
@@ -113,7 +123,13 @@ class AuditedTransport(httpx.BaseTransport):
         self.stream_unsupported = False
 
     def handle_request(self, request):
-        response = self.inner.handle_request(request)
+        try:
+            response = self.inner.handle_request(request)
+        except OutputFailure as exc:
+            # Preserve a trusted transport guard through SDK exception wrapping.
+            # It must remain non-retryable and retain its static diagnostic code.
+            self.error = exc
+            raise
         if (
             200 <= response.status_code < 300
             and response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
@@ -134,7 +150,7 @@ class AuditedTransport(httpx.BaseTransport):
         try:
             for chunk in response.iter_bytes():
                 data.extend(chunk)
-                if len(data) > 2_000_000:
+                if len(data) > MAX_MODEL_CONTENT_BYTES:
                     raise OutputFailure("response_too_large", "模型响应过大")
             if 200 <= response.status_code < 300:
                 self.content, self.usage, self.finish = completion_content(
@@ -208,9 +224,12 @@ class AuditedEventStream(httpx.SyncByteStream):
         self.done = False
         self.bytes_read = 0
         self.frames = 0
+        self.content_bytes = 0
+        self.wire_limit = stream_wire_limit(audit.contract.request_fields.get("max_output_tokens"))
 
     def __iter__(self):
         data = []
+        data_bytes = 0
         try:
             for line in self.lines():
                 if line == "":
@@ -218,12 +237,19 @@ class AuditedEventStream(httpx.SyncByteStream):
                         continue
                     payload = "\n".join(data)
                     data = []
+                    data_bytes = 0
+                    if len(payload.encode("utf-8")) > MAX_MODEL_CONTENT_BYTES:
+                        raise OutputFailure("response_too_large", "模型流的单个消息过大")
                     self.frame(payload)
                     yield ("data: " + payload + "\n\n").encode("utf-8")
                     if self.done:
                         return
                 elif line.startswith("data:"):
-                    data.append(line[5:].removeprefix(" "))
+                    part = line[5:].removeprefix(" ")
+                    data_bytes += len(part.encode("utf-8")) + bool(data)
+                    data.append(part)
+                    if data_bytes > MAX_MODEL_CONTENT_BYTES:
+                        raise OutputFailure("response_too_large", "模型流的单个消息过大")
                 # Comments and unknown SSE fields are intentionally ignored.
             if not self.done:
                 raise OutputFailure("interrupted", "模型流在完整结束前断开", retry=True)
@@ -238,19 +264,23 @@ class AuditedEventStream(httpx.SyncByteStream):
         buffer = ""
         for chunk in self.response.iter_bytes():
             self.bytes_read += len(chunk)
-            if self.bytes_read > 2_000_000:
-                raise OutputFailure("response_too_large", "模型响应过大")
+            if self.bytes_read > self.wire_limit:
+                raise OutputFailure("stream_wire_limit", "模型流传输字节超过安全上限")
             buffer += decoder.decode(chunk)
             while True:
                 boundaries = [p for p in (buffer.find("\r"), buffer.find("\n")) if p >= 0]
                 if not boundaries:
                     break
                 index = min(boundaries)
+                if len(buffer[:index].encode("utf-8")) > MAX_MODEL_CONTENT_BYTES:
+                    raise OutputFailure("response_too_large", "模型流的单行消息过大")
                 if buffer[index] == "\r" and index == len(buffer) - 1:
                     break  # CRLF may be split between provider byte chunks.
                 end = index + (2 if buffer[index : index + 2] == "\r\n" else 1)
                 yield buffer[:index]
                 buffer = buffer[end:]
+            if len(buffer.encode("utf-8")) > MAX_MODEL_CONTENT_BYTES:
+                raise OutputFailure("response_too_large", "模型响应过大：流中存在未结束消息")
         buffer += decoder.decode(b"", final=True)
         if buffer.endswith("\r"):
             yield buffer[:-1]
@@ -309,6 +339,16 @@ class AuditedEventStream(httpx.SyncByteStream):
         fragment = delta.get("content")
         if fragment is not None and not isinstance(fragment, str):
             raise OutputFailure("invalid_message", "模型流内容结构无效", retry=True)
+        for key in ("reasoning_content", "reasoning"):
+            if delta.get(key) is not None and not isinstance(delta[key], str):
+                raise OutputFailure("invalid_message", "模型流推理字段结构无效")
+        self.content_bytes += sum(
+            len(delta[key].encode("utf-8"))
+            for key in ("content", "reasoning_content", "reasoning")
+            if isinstance(delta.get(key), str)
+        )
+        if self.content_bytes > MAX_MODEL_CONTENT_BYTES:
+            raise OutputFailure("response_too_large", "模型响应正文过大")
         if fragment:
             if self.finish is not None and finish is None:
                 raise OutputFailure("invalid_finish_reason", "模型流结束后仍有内容", retry=True)

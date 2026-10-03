@@ -42,3 +42,16 @@
 - `tests/test_workflow.py::test_complete_default_flow`：工作流落盘回执：BrowserPrerequisite，后续READY/BLOCKED/关卡断言因此失败；基线同样失败。
 - `tests/test_workflow.py::test_rule_coding_repair_is_bounded`：工作流落盘回执：BrowserPrerequisite，后续READY/BLOCKED/关卡断言因此失败；基线同样失败。
 - `tests/test_workflow.py::test_tampered_delivery_not_released`：工作流落盘回执：BrowserPrerequisite，后续READY/BLOCKED/关卡断言因此失败；基线同样失败。
+
+## 首次真实 DeepSeek 检查（2026-10-03）
+
+[受限手动运行37132989503](https://github.com/Live-yum/ai-rnd-foundation-learning/actions/runs/37132989503) 检查提交 `2780495baa985a5fbffd8f05dd5ddb43bfa4a976`，使用已有配置中的 `deepseek-flash`，仅发送合成报名需求及固定连接探测。原有大范围客服模型任务明确跳过。
+
+- 真实连接探测通过：HTTP200，输入71Token、输出24Token。
+- 原始报名回答与范围均保留；未发生批准或代码生成。
+- 报名任务未通过：一次后续模型请求后记录 `unexpected_model_error`，不能把这一轮报告为完整验收成功。
+- 实际发起2次HTTP请求；按请求大小与输出上限预留的保守累计金额为0.224108元。只有探测返回用量，其高峰单价估算为0.000334元；第二次请求没有完整用量回执，整轮实际账单未知。
+- 后续离线发现可复现的流式边界问题：SSE协议封装本身可能超过2MB，即使解码后的JSON仍在限制内。首次真实回执未保留完整字节/异常类型证据，因此它是否正是该轮失败原因尚未证实。修复将协议传输上限与解码内容上限分离，并新增脱敏错误类别、状态和字节诊断，保留严格Schema校验。
+- 真实Chromium同时发现设置页提示浮层在移动端缩放后产生横向溢出；移除冗余浮层，保留可见费用说明。后续提交仍须通过完整浏览器与教材重建检查。
+
+任何再次付费检查都必须使用已审核提交、剩余累计预算和同一受限入口，不自动重跑失败的付费任务。

@@ -64,6 +64,8 @@ describe('explicit saved-profile connection tests', () => {
       .spyOn(Modal, 'confirm')
       .mockReturnValue({ destroy: vi.fn(), update: vi.fn() })
     const wrapper = mount(SettingsView, { global: { plugins: [Antd] } })
+    expect(testButton(wrapper).attributes('title')).toContain('可能产生费用')
+    expect(wrapper.findComponent({ name: 'ATooltip' }).exists()).toBe(false)
     await testButton(wrapper).trigger('click')
     await testButton(wrapper).trigger('click')
     expect(confirm).toHaveBeenCalledTimes(1)

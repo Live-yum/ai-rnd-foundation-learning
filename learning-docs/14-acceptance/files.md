@@ -101,6 +101,7 @@
 - [tests/test_safety.py](sources/tests__test_safety_py--001.md)：可重复的验收用例；1 段
 - [tests/test_semantic_fact_domains.py](sources/tests__test_semantic_fact_domains_py--001.md)：可重复的验收用例；1 段
 - [tests/test_semantic_fact_namespace_aliases.py](sources/tests__test_semantic_fact_namespace_aliases_py--001.md)：可重复的验收用例；1 段
+- [tests/test_streaming_limits.py](sources/tests__test_streaming_limits_py--001.md)：可重复的验收用例；1 段
 - [tests/test_structured_facts.py](sources/tests__test_structured_facts_py--001.md)：可重复的验收用例；1 段
 - [tests/test_unapproved_design_replay.py](sources/tests__test_unapproved_design_replay_py--001.md)：可重复的验收用例；1 段
 - [tests/test_workbench_browser_fixture.py](sources/tests__test_workbench_browser_fixture_py--001.md)：可重复的验收用例；1 段

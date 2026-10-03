@@ -18,19 +18,19 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `ModelFailure`（L23–L24）：继承`RuntimeError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ModelGateway`（L27–L239）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ModelGateway`（L27–L248）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `ModelGateway.__init__`（L28–L30）：接收`settings`、`store`、`transport`、`streaming`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ModelGateway.complete`（L32–L239）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L44抛异常，停止当前正常路径；L224抛异常，停止当前正常路径；L226按`self.streaming and callable(getattr(self.store, "assistant_event", None))`分支。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`ModelFailure`、`str`、`digest`、`contract.receipt`等。 返回路径：L239的`value`。
-- `ModelGateway.complete.call`（L63–L219）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L86按`len(body) > self.settings.max_context_chars`分支；L87抛异常，停止当前正常路径；L101遍历`range(2)`；L103按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L104抛异常，停止当前正常路径；L132按`audited.error is not None`分支；L133抛异常，停止当前正常路径；L134抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`schema.model_json_schema`、`range`、`sum`、`self.store.reserve_model_call`、`AssistantStream`、`AuditedTransport`等。 返回路径：L141的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
+- `ModelGateway.complete`（L32–L248）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L44抛异常，停止当前正常路径；L233抛异常，停止当前正常路径；L235按`self.streaming and callable(getattr(self.store, "assistant_event", None))`分支。 调用`{ "requirement": "requirements", "recommend": "requirements", "pl…`、`key.split`、`self.settings.model_for(stage).validate_endpoint`、`self.settings.model_for`、`output_contract`、`ModelFailure`、`str`、`digest`、`contract.receipt`等。 返回路径：L248的`value`。
+- `ModelGateway.complete.call`（L63–L228）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L86按`len(body) > self.settings.max_context_chars`分支；L87抛异常，停止当前正常路径；L101遍历`range(2)`；L103按`sum(len(m["content"]) for m in messages) > self.settings.max_context_chars`分支；L104抛异常，停止当前正常路径；L132按`audited.error is not None`分支；L133抛异常，停止当前正常路径；L134抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`json.dumps`、`len`、`ModelFailure`、`schema.model_json_schema`、`range`、`sum`、`self.store.reserve_model_call`、`AssistantStream`、`AuditedTransport`等。 返回路径：L141的`{ "value": value.model_dump(mode="json"), "usage": usage, "model": profile.model, "stage":…`。
 - `ModelGateway.complete.call.failed`（L66–L83）：接收`attempt`、`code`、`details`。 控制顺序：L67按`observer is not None`分支。 调用`observer.failed`、`self.store.record_event`、`contract.receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/llm.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L239。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/llm.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L248。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11167`。本段原文以LF换行结束。
+本段原始字节数：`11691`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/llm.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b9a7a21549a452441d9f8d30e05f24ae7c74cbce49223b8105e336f44ff115bb"} -->
+<!-- learning-source: {"path": "workbench/llm.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f57bc50fd1666cc9f04c6397e0e5b3e5564648b98f4e877d754302aa5bfbcc67"} -->
 ````python
 # workbench/llm.py
 """OpenAI-compatible Chat Completions adapter; never falls back to fake success."""
@@ -248,8 +248,17 @@ class ModelGateway:
                     reason = "模型服务超时、限流或暂时不可用"
                     if attempt == 0:
                         time.sleep(0.2)
-                except Exception:
-                    observer.failed("unexpected_model_error", attempt=attempt + 1)
+                except Exception as exc:
+                    # Exception class names identify integration failures without
+                    # disclosing provider bodies, credentials or exception text.
+                    error_type = type(exc).__name__
+                    if not error_type.isidentifier() or len(error_type) > 80:
+                        error_type = "Exception"
+                    observer.failed(
+                        "unexpected_model_error",
+                        attempt=attempt + 1,
+                        details=[{"type": error_type, "path": [], "message": "模型适配器异常"}],
+                    )
                     raise
             raise ModelFailure(reason + "；两次尝试后停止，未替换成演示结果")
 

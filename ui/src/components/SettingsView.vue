@@ -484,18 +484,16 @@ defineExpose({ dirty })
             }}</span
             ><a-button v-if="conflict" :loading="loading" @click="refresh"
               ><ReloadOutlined aria-hidden="true" />读取最新配置</a-button
-            ><a-tooltip
+            ><a-button
               :title="
                 dirty
                   ? '请先保存修改，再测试已保存的有效连接'
                   : '发起一次真实模型调用，可能产生费用；确认后才开始'
               "
-              ><a-button
-                :loading="testing"
-                :disabled="!canTest || confirmingTest"
-                @click="confirmConnectionTest"
-                >测试连接</a-button
-              ></a-tooltip
+              :loading="testing"
+              :disabled="!canTest || confirmingTest"
+              @click="confirmConnectionTest"
+              >测试连接</a-button
             ><a-button
               type="primary"
               html-type="submit"

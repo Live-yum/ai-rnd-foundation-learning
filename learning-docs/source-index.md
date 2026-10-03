@@ -499,6 +499,7 @@
 - [tests/test_safety.py](14-acceptance/sources/tests__test_safety_py--001.md)（1 段）
 - [tests/test_semantic_fact_domains.py](14-acceptance/sources/tests__test_semantic_fact_domains_py--001.md)（1 段）
 - [tests/test_semantic_fact_namespace_aliases.py](14-acceptance/sources/tests__test_semantic_fact_namespace_aliases_py--001.md)（1 段）
+- [tests/test_streaming_limits.py](14-acceptance/sources/tests__test_streaming_limits_py--001.md)（1 段）
 - [tests/test_structured_facts.py](14-acceptance/sources/tests__test_structured_facts_py--001.md)（1 段）
 - [tests/test_unapproved_design_replay.py](14-acceptance/sources/tests__test_unapproved_design_replay_py--001.md)（1 段）
 - [tests/test_workbench_browser_fixture.py](14-acceptance/sources/tests__test_workbench_browser_fixture_py--001.md)（1 段）

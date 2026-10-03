@@ -360,3 +360,173 @@ def test_workflow_exposes_only_bounded_branch_and_allowlisted_receipt():
     ]
     assert uploads == ["reports/model-feedback/summary.json"]
     assert "fix/model-feedback-history" not in workflow["jobs"]["real-model"]["if"]
+
+
+class StreamingBytes(httpx.SyncByteStream):
+    def __init__(self, value):
+        self.value = value
+        self.closed = False
+
+    def __iter__(self):
+        for offset in range(0, len(self.value), 65536):
+            yield self.value[offset : offset + 65536]
+
+    def close(self):
+        self.closed = True
+
+
+def large_token_framed_response(content):
+    def frame(delta, finish=None):
+        return (
+            b"data: "
+            + json.dumps(
+                {
+                    "id": "chatcmpl-" + "a" * 64,
+                    "object": "chat.completion.chunk",
+                    "created": 0,
+                    "model": "deepseek-flash",
+                    "system_fingerprint": "f" * 120,
+                    "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
+                }
+            ).encode()
+            + b"\n\n"
+        )
+
+    return (
+        frame({"role": "assistant", "reasoning_content": "x"})
+        + frame({"reasoning_content": "x"}) * 6999
+        + frame({"content": content}, "stop")
+        + b'data: {"choices":[],"usage":{"prompt_tokens":100,"completion_tokens":7100,"total_tokens":7200}}\n\n'
+        + b"data: [DONE]\n\n"
+    )
+
+
+def test_real_adapter_accepts_small_valid_json_inside_more_than_two_mb_of_sse_framing(tmp_path):
+    calls = []
+    content = Requirement(
+        summary=ORIGINAL,
+        users=["参赛者", "管理员"],
+        data_scope="shared",
+        features=[ANSWER],
+        acceptance=["参赛者仅可维护本人报名记录"],
+    ).model_dump_json()
+    body = large_token_framed_response(content)
+    assert len(body) > 2_000_000
+    stream = StreamingBytes(body)
+
+    def handler(req):
+        calls.append(req)
+        if len(calls) == 1:
+            return httpx.Response(
+                200,
+                json={
+                    "id": "probe",
+                    "object": "chat.completion",
+                    "created": 0,
+                    "model": "deepseek-flash",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": '{"ok":true}'},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                },
+            )
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=stream)
+
+    transport = mocked_transport(configured(), handler)
+    try:
+        result = run_check(configured(), transport, tmp_path)
+        assert result["passed"], result
+        assert len(calls) == 2 and stream.closed
+        receipt = transport.receipts[-1]
+        assert receipt["response_bytes"] == len(body)
+        assert receipt["response_byte_limit"] > len(body)
+        assert receipt["http_status"] == 200 and receipt["response_transport"] == "sse"
+        assert receipt["usage"]["completion_tokens"] == 7100
+        assert transport.reserved_cny <= configured().maximum_cost()
+        assert not transport.guard_failures
+    finally:
+        transport.shutdown()
+
+
+def test_response_guard_records_status_bytes_and_static_error_before_stopping(tmp_path):
+    calls = []
+    body = b"x" * 2_000_001
+    stream = StreamingBytes(body)
+
+    def handler(req):
+        calls.append(req)
+        if len(calls) == 1:
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "message": {"role": "assistant", "content": '{"ok":true}'},
+                            "finish_reason": "stop",
+                        }
+                    ]
+                },
+            )
+        return httpx.Response(200, stream=stream)
+
+    transport = mocked_transport(configured(), handler)
+    try:
+        result = run_check(configured(), transport, tmp_path)
+        assert not result["passed"] and result["answer_preserved"]
+        assert len(calls) == 2 and stream.closed  # The trusted guard is not retried.
+        failure = result["model_failures"][-1]
+        assert failure["code"] == "response_byte_limit"
+        assert failure["code"] != "unexpected_model_error"
+        receipt = transport.receipts[-1]
+        assert receipt["error_code"] == "response_byte_limit" and receipt["http_status"] == 200
+        assert receipt["response_bytes"] == len(body)
+        assert transport.guard_failures == [{"code": "response_byte_limit", "call": 2}]
+    finally:
+        transport.shutdown()
+
+
+def test_partial_stream_read_timeout_keeps_status_and_safe_exception_type():
+    class BrokenStream(httpx.SyncByteStream):
+        def __iter__(self):
+            yield b": partial\n\n"
+            raise httpx.ReadTimeout(KEY)
+
+    transport = mocked_transport(
+        configured(),
+        lambda req: httpx.Response(
+            200, headers={"content-type": "text/event-stream"}, stream=BrokenStream()
+        ),
+    )
+    try:
+        with pytest.raises(httpx.ReadTimeout):
+            transport.handle_request(request())
+        receipt = transport.receipts[-1]
+        assert receipt["http_status"] == 200 and receipt["response_bytes"] == 11
+        assert (
+            receipt["exception_type"] == "ReadTimeout"
+            and receipt["error_code"] == "transport_timeout"
+        )
+        assert KEY not in json.dumps(receipt)
+    finally:
+        transport.shutdown()
+
+
+def test_unexpected_transport_exception_is_safe_specific_and_non_retryable():
+    def broken(request):
+        raise RuntimeError(KEY + " private provider detail")
+
+    transport = mocked_transport(configured(), broken)
+    try:
+        with pytest.raises(SafeFailure) as caught:
+            transport.handle_request(request())
+        assert caught.value.code == "harness_internal_error" and not caught.value.retry
+        assert transport.receipts[-1]["exception_type"] == "RuntimeError"
+        assert transport.guard_failures[-1]["exception_type"] == "RuntimeError"
+        assert KEY not in json.dumps(transport.receipts + transport.guard_failures) + str(
+            caught.value
+        )
+    finally:
+        transport.shutdown()

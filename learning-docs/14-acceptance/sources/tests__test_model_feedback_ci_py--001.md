@@ -34,14 +34,29 @@
 - `test_failed_schema_run_retains_answer_and_exports_only_safe_diagnostic_paths`（L298–L335）：接收`tmp_path`。 控制顺序：L324断言`not result["passed"] and result["answer_preserved"]`；L325断言`result["corrected"]["status"] == "FAILED"`；L326断言`transport.phase_calls["corrected_requirements"] == 2`；L327断言`len(result["model_failures"]) == 2`；L329断言`diagnostic["phase"] == "response_validation" and diagnostic["trace_id"]`；L330断言`diagnostic["code"] == "schema_validation" and diagnostic["attempt"] == 2`；L331断言`any(detail["path"] == ["summary"] for detail in diagnostic["details"])`；L332断言`KEY not in json.dumps(result)`。后续分支沿下方源码相同行号继续阅读。 调用`mocked_transport`、`configured`、`run_check`、`len`、`any`、`json.dumps`、`transport.shutdown`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_failed_schema_run_retains_answer_and_exports_only_safe_diagnostic_paths.handle`（L301–L319）：接收`req`。 调用`calls.append`、`len`、`json.dumps`、`httpx.Response`。 返回路径：L304的`httpx.Response( 200, json={ "id": "offline", "object": "chat.completion", "created": 0, "m…`。
 - `test_workflow_exposes_only_bounded_branch_and_allowlisted_receipt`（L338–L362）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L345断言`job["environment"] == "rnd" and job["timeout-minutes"] == 15`；L346断言`"refs/heads/fix/model-feedback-history" in job["if"]`；L347断言`"github.run_attempt == 1" in job["if"]`；L353断言`live["env"]["API_KEY"] == "${{ secrets.APK_KEY }}"`；L354断言`live["env"]["APPROVED_MAX_CNY"] == "${{ inputs.remaining_budget_cny }}"`；L355断言`live["env"]["REVIEWED_SHA"] == "${{ inputs.reviewed_sha }}"`；L361断言`uploads == ["reports/model-feedback/summary.json"]`；L362断言`"fix/model-feedback-history" not in workflow["jobs"]["real-model"]["if"]`。 调用`yaml.safe_load`、`(ROOT / ".github/workflows/real-model.yml").read_text`、`next`、`step.get`、`step.get("uses", "").startswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `StreamingBytes`（L365–L375）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `StreamingBytes.__init__`（L366–L368）：接收`value`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `StreamingBytes.__iter__`（L370–L372）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L371遍历`range(0, len(self.value), 65536)`。 调用`range`、`len`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `StreamingBytes.close`（L374–L375）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `large_token_framed_response`（L378–L401）：接收`content`。 调用`frame`。 返回路径：L395的`frame({"role": "assistant", "reasoning_content": "x"}) + frame({"reasoning_content": "x"})…`。
+- `large_token_framed_response.frame`（L379–L393）：接收`delta`、`finish`。 调用`json.dumps( { "id": "chatcmpl-" + "a" * 64, "object": "chat.compl…`、`json.dumps`。 返回路径：L380的`b"data: " + json.dumps( { "id": "chatcmpl-" + "a" * 64, "object": "chat.completion.chunk",…`。
+- `test_real_adapter_accepts_small_valid_json_inside_more_than_two_mb_of_sse_framing`（L404–L451）：接收`tmp_path`。 控制顺序：L414断言`len(body) > 2_000_000`；L441断言`result["passed"]`；L442断言`len(calls) == 2 and stream.closed`；L444断言`receipt["response_bytes"] == len(body)`；L445断言`receipt["response_byte_limit"] > len(body)`；L446断言`receipt["http_status"] == 200 and receipt["response_transport"] == "sse"`；L447断言`receipt["usage"]["completion_tokens"] == 7100`；L448断言`transport.reserved_cny <= configured().maximum_cost()`。后续分支沿下方源码相同行号继续阅读。 调用`Requirement( summary=ORIGINAL, users=["参赛者", "管理员"], data_scope="…`、`Requirement`、`large_token_framed_response`、`len`、`StreamingBytes`、`mocked_transport`、`configured`、`run_check`、`configured().maximum_cost`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_adapter_accepts_small_valid_json_inside_more_than_two_mb_of_sse_framing.handler`（L417–L436）：接收`req`。 控制顺序：L419按`len(calls) == 1`分支。 调用`calls.append`、`len`、`httpx.Response`。 返回路径：L420的`httpx.Response( 200, json={ "id": "probe", "object": "chat.completion", "created": 0, "mod…`；L436的`httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=stream)`。
+- `test_response_guard_records_status_bytes_and_static_error_before_stopping`（L454–L488）：接收`tmp_path`。 控制顺序：L478断言`not result["passed"] and result["answer_preserved"]`；L479断言`len(calls) == 2 and stream.closed`；L481断言`failure["code"] == "response_byte_limit"`；L482断言`failure["code"] != "unexpected_model_error"`；L484断言`receipt["error_code"] == "response_byte_limit" and receipt["http_status"] == 200`；L485断言`receipt["response_bytes"] == len(body)`；L486断言`transport.guard_failures == [{"code": "response_byte_limit", "call": 2}]`。 调用`StreamingBytes`、`mocked_transport`、`configured`、`run_check`、`len`、`transport.shutdown`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_response_guard_records_status_bytes_and_static_error_before_stopping.handler`（L459–L473）：接收`req`。 控制顺序：L461按`len(calls) == 1`分支。 调用`calls.append`、`len`、`httpx.Response`。 返回路径：L462的`httpx.Response( 200, json={ "choices": [ { "message": {"role": "assistant", "content": '{"…`；L473的`httpx.Response(200, stream=stream)`。
+- `test_partial_stream_read_timeout_keeps_status_and_safe_exception_type`（L491–L514）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L507断言`receipt["http_status"] == 200 and receipt["response_bytes"] == 11`；L508断言`receipt["exception_type"] == "ReadTimeout" and receipt["error_code"] == "transport_ti…`；L512断言`KEY not in json.dumps(receipt)`。 调用`mocked_transport`、`configured`、`httpx.Response`、`BrokenStream`、`pytest.raises`、`transport.handle_request`、`request`、`json.dumps`、`transport.shutdown`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_partial_stream_read_timeout_keeps_status_and_safe_exception_type.BrokenStream`（L492–L495）：继承`httpx.SyncByteStream`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_partial_stream_read_timeout_keeps_status_and_safe_exception_type.BrokenStream.__iter__`（L493–L495）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L495抛异常，停止当前正常路径。 调用`httpx.ReadTimeout`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_unexpected_transport_exception_is_safe_specific_and_non_retryable`（L517–L532）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L525断言`caught.value.code == "harness_internal_error" and not caught.value.retry`；L526断言`transport.receipts[-1]["exception_type"] == "RuntimeError"`；L527断言`transport.guard_failures[-1]["exception_type"] == "RuntimeError"`；L528断言`KEY not in json.dumps(transport.receipts + transport.guard_failures) + str( caught.va…`。 调用`mocked_transport`、`configured`、`pytest.raises`、`transport.handle_request`、`request`、`json.dumps`、`str`、`transport.shutdown`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unexpected_transport_exception_is_safe_specific_and_non_retryable.broken`（L518–L519）：接收`request`。 控制顺序：L519抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_model_feedback_ci.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L362。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_model_feedback_ci.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L532。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12296`。本段原文以LF换行结束。
+本段原始字节数：`18420`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_model_feedback_ci.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "629d7c04f3511a42943c5be3244c712e21b82d7b9c617427e73a20b892d13877"} -->
+<!-- learning-source: {"path": "tests/test_model_feedback_ci.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d5ed4cb2a663901a238d890cf8f8c2f470c68d5167a64f305895c052cca3b730"} -->
 ````python
 # tests/test_model_feedback_ci.py
 """Cost/destination/receipt controls are tested only with explicit mock transports."""
@@ -406,4 +421,174 @@ def test_workflow_exposes_only_bounded_branch_and_allowlisted_receipt():
     ]
     assert uploads == ["reports/model-feedback/summary.json"]
     assert "fix/model-feedback-history" not in workflow["jobs"]["real-model"]["if"]
+
+
+class StreamingBytes(httpx.SyncByteStream):
+    def __init__(self, value):
+        self.value = value
+        self.closed = False
+
+    def __iter__(self):
+        for offset in range(0, len(self.value), 65536):
+            yield self.value[offset : offset + 65536]
+
+    def close(self):
+        self.closed = True
+
+
+def large_token_framed_response(content):
+    def frame(delta, finish=None):
+        return (
+            b"data: "
+            + json.dumps(
+                {
+                    "id": "chatcmpl-" + "a" * 64,
+                    "object": "chat.completion.chunk",
+                    "created": 0,
+                    "model": "deepseek-flash",
+                    "system_fingerprint": "f" * 120,
+                    "choices": [{"index": 0, "delta": delta, "finish_reason": finish}],
+                }
+            ).encode()
+            + b"\n\n"
+        )
+
+    return (
+        frame({"role": "assistant", "reasoning_content": "x"})
+        + frame({"reasoning_content": "x"}) * 6999
+        + frame({"content": content}, "stop")
+        + b'data: {"choices":[],"usage":{"prompt_tokens":100,"completion_tokens":7100,"total_tokens":7200}}\n\n'
+        + b"data: [DONE]\n\n"
+    )
+
+
+def test_real_adapter_accepts_small_valid_json_inside_more_than_two_mb_of_sse_framing(tmp_path):
+    calls = []
+    content = Requirement(
+        summary=ORIGINAL,
+        users=["参赛者", "管理员"],
+        data_scope="shared",
+        features=[ANSWER],
+        acceptance=["参赛者仅可维护本人报名记录"],
+    ).model_dump_json()
+    body = large_token_framed_response(content)
+    assert len(body) > 2_000_000
+    stream = StreamingBytes(body)
+
+    def handler(req):
+        calls.append(req)
+        if len(calls) == 1:
+            return httpx.Response(
+                200,
+                json={
+                    "id": "probe",
+                    "object": "chat.completion",
+                    "created": 0,
+                    "model": "deepseek-flash",
+                    "choices": [
+                        {
+                            "index": 0,
+                            "message": {"role": "assistant", "content": '{"ok":true}'},
+                            "finish_reason": "stop",
+                        }
+                    ],
+                },
+            )
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=stream)
+
+    transport = mocked_transport(configured(), handler)
+    try:
+        result = run_check(configured(), transport, tmp_path)
+        assert result["passed"], result
+        assert len(calls) == 2 and stream.closed
+        receipt = transport.receipts[-1]
+        assert receipt["response_bytes"] == len(body)
+        assert receipt["response_byte_limit"] > len(body)
+        assert receipt["http_status"] == 200 and receipt["response_transport"] == "sse"
+        assert receipt["usage"]["completion_tokens"] == 7100
+        assert transport.reserved_cny <= configured().maximum_cost()
+        assert not transport.guard_failures
+    finally:
+        transport.shutdown()
+
+
+def test_response_guard_records_status_bytes_and_static_error_before_stopping(tmp_path):
+    calls = []
+    body = b"x" * 2_000_001
+    stream = StreamingBytes(body)
+
+    def handler(req):
+        calls.append(req)
+        if len(calls) == 1:
+            return httpx.Response(
+                200,
+                json={
+                    "choices": [
+                        {
+                            "message": {"role": "assistant", "content": '{"ok":true}'},
+                            "finish_reason": "stop",
+                        }
+                    ]
+                },
+            )
+        return httpx.Response(200, stream=stream)
+
+    transport = mocked_transport(configured(), handler)
+    try:
+        result = run_check(configured(), transport, tmp_path)
+        assert not result["passed"] and result["answer_preserved"]
+        assert len(calls) == 2 and stream.closed  # The trusted guard is not retried.
+        failure = result["model_failures"][-1]
+        assert failure["code"] == "response_byte_limit"
+        assert failure["code"] != "unexpected_model_error"
+        receipt = transport.receipts[-1]
+        assert receipt["error_code"] == "response_byte_limit" and receipt["http_status"] == 200
+        assert receipt["response_bytes"] == len(body)
+        assert transport.guard_failures == [{"code": "response_byte_limit", "call": 2}]
+    finally:
+        transport.shutdown()
+
+
+def test_partial_stream_read_timeout_keeps_status_and_safe_exception_type():
+    class BrokenStream(httpx.SyncByteStream):
+        def __iter__(self):
+            yield b": partial\n\n"
+            raise httpx.ReadTimeout(KEY)
+
+    transport = mocked_transport(
+        configured(),
+        lambda req: httpx.Response(
+            200, headers={"content-type": "text/event-stream"}, stream=BrokenStream()
+        ),
+    )
+    try:
+        with pytest.raises(httpx.ReadTimeout):
+            transport.handle_request(request())
+        receipt = transport.receipts[-1]
+        assert receipt["http_status"] == 200 and receipt["response_bytes"] == 11
+        assert (
+            receipt["exception_type"] == "ReadTimeout"
+            and receipt["error_code"] == "transport_timeout"
+        )
+        assert KEY not in json.dumps(receipt)
+    finally:
+        transport.shutdown()
+
+
+def test_unexpected_transport_exception_is_safe_specific_and_non_retryable():
+    def broken(request):
+        raise RuntimeError(KEY + " private provider detail")
+
+    transport = mocked_transport(configured(), broken)
+    try:
+        with pytest.raises(SafeFailure) as caught:
+            transport.handle_request(request())
+        assert caught.value.code == "harness_internal_error" and not caught.value.retry
+        assert transport.receipts[-1]["exception_type"] == "RuntimeError"
+        assert transport.guard_failures[-1]["exception_type"] == "RuntimeError"
+        assert KEY not in json.dumps(transport.receipts + transport.guard_failures) + str(
+            caught.value
+        )
+    finally:
+        transport.shutdown()
 ````
