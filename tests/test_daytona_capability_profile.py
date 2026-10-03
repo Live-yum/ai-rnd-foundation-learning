@@ -129,10 +129,12 @@ def source_fixture(tmp_path, monkeypatch):
     def export(directory, command, target):
         path = Path(target) / profile.SOURCE_FILE
         path.parent.mkdir(parents=True)
-        path.write_text(source)
-        (Path(target) / "go.work").write_text(workspace)
-        (Path(target) / "apps/runner/go.mod").write_text("module fixture\ngo 1.25.5\n")
-        (Path(target) / "apps/runner/go.sum").write_text("fixture v1 h1:fixture\n")
+        # These stand in for Git-exported, SHA-bound bytes, not host-native
+        # text files. Windows newline conversion must not alter the preimage.
+        path.write_bytes(source.encode("utf-8"))
+        (Path(target) / "go.work").write_bytes(workspace.encode("utf-8"))
+        (Path(target) / "apps/runner/go.mod").write_bytes(b"module fixture\ngo 1.25.5\n")
+        (Path(target) / "apps/runner/go.sum").write_bytes(b"fixture v1 h1:fixture\n")
 
     monkeypatch.setattr(profile, "ROOT", root)
     monkeypatch.setattr(profile, "export_source", export)

@@ -2829,8 +2829,8 @@
     },
     {
       "path": "tests/test_daytona_capability_profile.py",
-      "bytes": 17926,
-      "sha256": "e7f63a428d6f105c5ed3b43efeaea9f46d2d46aecb7f1bbcf7e2336cdd9b376d",
+      "bytes": 18118,
+      "sha256": "69d061553f7fc9a535423eb9bcb47ec24a90f17401b01ee42989d667df6ba560",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tests__test_daytona_capability_profile_py--001.md"
@@ -3396,8 +3396,8 @@
     },
     {
       "path": ".github/workflows/test.yml",
-      "bytes": 8118,
-      "sha256": "af76821b2300b7e2d5e9e4550dc153292eda7d9e389fedef2017cfa0561ec716",
+      "bytes": 8447,
+      "sha256": "db72663a3dbbc2136b5611f4073f07bcb93f7f688ffc2e9b20486b1d58189702",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__test_yml--001.md"
@@ -3432,8 +3432,8 @@
     },
     {
       "path": "docs/acceptance-checklist.md",
-      "bytes": 12219,
-      "sha256": "c744cf07d95d2609b4c7898be5b255a62664fe57b90b38490a8daa33c7111cc5",
+      "bytes": 12630,
+      "sha256": "282c97b9fd9999e6b873bee74d9955360c6b5e84548e1dce374b4c6933de186a",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__acceptance-checklist_md--001.md"
@@ -3795,8 +3795,8 @@
     },
     {
       "path": "tests/test_capability_browser_protocol.py",
-      "bytes": 30887,
-      "sha256": "54e552ea708fe895defc48d8410d1fbc6f7fe41002287137c33788add149fa38",
+      "bytes": 31333,
+      "sha256": "fe23cb71ee7228e58193616f99348255d072a3e5a8454bbdbf2cdf6b1f6c8ac6",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_browser_protocol_py--001.md"
@@ -3813,8 +3813,8 @@
     },
     {
       "path": "tests/test_capability_isolation.py",
-      "bytes": 19805,
-      "sha256": "5207b190033e6e420d4bb5fe47a07167fdc7f5c2d4e204d65af20f69c970b246",
+      "bytes": 19821,
+      "sha256": "06a5ca7db2d10be2d9c672c2279308f8401834ce0b99affc24fa393d7d752bd9",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_isolation_py--001.md"

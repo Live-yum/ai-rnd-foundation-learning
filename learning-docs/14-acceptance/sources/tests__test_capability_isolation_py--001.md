@@ -46,9 +46,9 @@
 
 **创建路径：** `tests/test_capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L504。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19805`。本段原文以LF换行结束。
+本段原始字节数：`19821`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5207b190033e6e420d4bb5fe47a07167fdc7f5c2d4e204d65af20f69c970b246"} -->
+<!-- learning-source: {"path": "tests/test_capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "06a5ca7db2d10be2d9c672c2279308f8401834ce0b99affc24fa393d7d752bd9"} -->
 ````python
 # tests/test_capability_isolation.py
 """Verify every source command is composed through the same non-bypassable launcher."""
@@ -504,7 +504,7 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         )
         assert all(client.is_closed for client in clients)
         assert (0, "/health") in events
-        persisted = json.loads((tmp_path / "receipt.json").read_text())
+        persisted = json.loads((tmp_path / "receipt.json").read_text(encoding="utf-8"))
         assert persisted == result
         if failure in BROWSER_FAILURE_FIXTURES:
             assert persisted["browser_diagnostic"] == BROWSER_FAILURE_FIXTURES[failure]

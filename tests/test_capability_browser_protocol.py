@@ -196,6 +196,14 @@ def cjs_runner(tmp_path):
                 timeout=2 if hang_close else 10,
                 cwd=tmp_path,
                 env={
+                    # Windows Node/OpenSSL needs its OS loader environment even
+                    # in this credential-free protocol fixture. Preserve only
+                    # those OS paths, never the caller's general environment.
+                    **{
+                        key: value
+                        for key, value in os.environ.items()
+                        if key.upper() in {"SYSTEMROOT", "WINDIR"}
+                    },
                     "PATH": str(Path(node).parent),
                     "PRODUCT_VERIFY_PLAYWRIGHT": str(module),
                     "PRODUCT_VERIFY_BROWSER_CHANNEL": channel,

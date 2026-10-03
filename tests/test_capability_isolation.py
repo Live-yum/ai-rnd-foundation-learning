@@ -451,7 +451,7 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         )
         assert all(client.is_closed for client in clients)
         assert (0, "/health") in events
-        persisted = json.loads((tmp_path / "receipt.json").read_text())
+        persisted = json.loads((tmp_path / "receipt.json").read_text(encoding="utf-8"))
         assert persisted == result
         if failure in BROWSER_FAILURE_FIXTURES:
             assert persisted["browser_diagnostic"] == BROWSER_FAILURE_FIXTURES[failure]
