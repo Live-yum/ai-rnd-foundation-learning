@@ -7,6 +7,8 @@ on:
       - 'scripts/capability_guard.py'
       - 'scripts/capability_fixture.py'
       - 'scripts/ci_capability_profile.py'
+      - 'scripts/daytona_capability_profile.py'
+      - 'tools/daytona/capability*'
       - '.github/workflows/capability-profile.yml'
   workflow_dispatch:
 concurrency:
@@ -31,7 +33,7 @@ jobs:
           python-version: '3.14'
       - run: uv sync --locked --all-extras
       - name: Check ordinary launcher behavior and strict receipt contracts
-        run: uv run pytest -q tests/test_capability_guard.py tests/test_capability_isolation.py
+        run: uv run pytest -q tests/test_capability_guard.py tests/test_capability_isolation.py tests/test_daytona_capability_profile.py
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -40,17 +42,17 @@ jobs:
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - name: Create the local control plane with random local credentials
-        run: uv run python -m scripts.daytona_local prepare
+        run: uv run python -m scripts.daytona_local prepare --directory .data/daytona-capability
       - name: Build pinned release locally and lock immutable images
-        run: uv run python -m scripts.daytona_local images
+        run: uv run python -m scripts.daytona_local images --directory .data/daytona-capability
       - name: Build the offline snapshot in the local registry
-        run: uv run python -m scripts.daytona_local snapshot-image
+        run: uv run python -m scripts.daytona_capability_profile prepare
       - name: Start local API, Runner, Dex, database, registry and storage
-        run: uv run python -m scripts.daytona_local up
+        run: uv run python -m scripts.daytona_capability_profile up
       - name: Authenticate through real local Dex and API
-        run: uv run python -m scripts.daytona_bootstrap auth
+        run: uv run python -m scripts.daytona_bootstrap auth --directory .data/daytona-capability
       - name: Register the prebuilt snapshot without any hosted service
-        run: uv run python -m scripts.daytona_bootstrap snapshot
+        run: uv run python -m scripts.daytona_bootstrap snapshot --directory .data/daytona-capability
       - name: Require positive fixed-application isolation profile and real HTTP browser database restart
         run: uv run python -m scripts.ci_capability_profile
       - name: Preserve bounded redacted diagnostics only
@@ -58,17 +60,17 @@ jobs:
         run: |
           python - <<'PY'
           import json, pathlib, subprocess
-          root = pathlib.Path('.data/daytona-local')
+          root = pathlib.Path('.data/daytona-capability')
           secrets = []
           for name in ['credentials.json', 'api-key.json']:
               path = root / name
               if path.exists():
                   secrets += [v for v in json.loads(path.read_text()).values() if isinstance(v,str) and len(v)>5]
           outputs = []
-          compose = root / 'compose.lock.yaml'
+          compose = root / 'compose.capability.lock.yaml'
           if compose.exists():
               for args in [['ps','--all'],['logs','--no-color','--tail','80']]:
-                  run = subprocess.run(['docker','--host','unix:///var/run/docker.sock','compose','-p','rnd-daytona-local','-f',str(compose),*args], capture_output=True, timeout=60)
+                  run = subprocess.run(['docker','--host','unix:///var/run/docker.sock','compose','-p','rnd-daytona-capability','-f',str(compose),*args], capture_output=True, timeout=60)
                   text=(run.stdout+run.stderr).decode('utf-8',errors='replace')[-80000:]
                   for secret in sorted(secrets,key=len,reverse=True):
                       text=text.replace(secret,'[REDACTED]')
@@ -77,13 +79,16 @@ jobs:
           (reports/'daytona-local-diagnostics.log').write_text('\n'.join(outputs),encoding='utf-8')
           if (root/'images.lock.json').exists():
               (reports/'daytona-images.lock.json').write_bytes((root/'images.lock.json').read_bytes())
+          profile = root / 'capability-profile.lock.json'
+          if profile.exists():
+              (reports/'capability-image-provenance.json').write_bytes(profile.read_bytes())
           print('Diagnostics saved without local credentials or environment files.')
           PY
       - name: Stop this local test deployment without deleting persistent volumes
         if: always()
         run: |
-          if test -f .data/daytona-local/compose.lock.yaml; then
-            docker --host unix:///var/run/docker.sock compose -p rnd-daytona-local -f .data/daytona-local/compose.lock.yaml down
+          if test -f .data/daytona-capability/compose.capability.lock.yaml; then
+            docker --host unix:///var/run/docker.sock compose -p rnd-daytona-capability -f .data/daytona-capability/compose.capability.lock.yaml down
           fi
       - uses: actions/upload-artifact@v4
         if: always()
@@ -94,3 +99,4 @@ jobs:
             reports/daytona-images.lock.json
             reports/capability-profile.json
             reports/capability-profile-detail.json
+            reports/capability-image-provenance.json

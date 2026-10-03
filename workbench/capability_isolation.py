@@ -5,6 +5,7 @@ Daytona sandbox's control channel, before untrusted source is executed.
 """
 
 import json
+import re
 import shlex
 import uuid
 
@@ -51,7 +52,35 @@ def require_isolation_evidence(value):
 
 
 class IsolationUnavailable(CheckFailure):
-    pass
+    def __init__(self, message, *, evidence=None):
+        super().__init__(message)
+        self.evidence = evidence or {}
+
+
+def require_container_evidence(value, sandbox_id):
+    if (
+        not isinstance(value, dict)
+        or not isinstance(sandbox_id, str)
+        or not re.fullmatch(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", sandbox_id
+        )
+        or value.get("profile") != "fixed-authored-sqlite-v1"
+        or value.get("sandbox_id") != sandbox_id
+        or value.get("control_user") != "0:0"
+        or value.get("privileged") is not False
+        or value.get("seccomp") != "docker-default"
+        or value.get("seccomp_engine") != "builtin"
+        or value.get("trusted_readonly_binary_mounts") is not True
+        or any(
+            not re.fullmatch(r"sha256:[a-f0-9]{64}", str(value.get(key, "")))
+            for key in ("runner_image_id", "snapshot_image_id")
+        )
+        or not re.fullmatch(
+            r"registry:6000/rnd-python@sha256:[a-f0-9]{64}", str(value.get("snapshot_digest", ""))
+        )
+    ):
+        raise IsolationUnavailable("缺少当前独占容器的真实非特权/镜像/挂载检查回执")
+    return value
 
 
 def system_argv(argv):
@@ -163,8 +192,14 @@ print(json.dumps({'application_uid':os.getuid(),'no_new_privs':True,'capabilitie
 
 def prepare_identity(sandbox, plan, timeout):
     root = control_exec(sandbox, ["/usr/bin/id", "-u"], timeout)
-    if root.exit_code != 0 or root.result.strip() != "0":
-        raise IsolationUnavailable("缺少受控隔离身份，未执行生成源码")
+    output = root.result.strip() if isinstance(root.result, str) else ""
+    control_uid = int(output) if re.fullmatch(r"[0-9]{1,10}", output) else None
+    identity_check = {
+        "control_exec_exit_code": root.exit_code if type(root.exit_code) is int else None,
+        "control_euid": control_uid,
+    }
+    if root.exit_code != 0 or control_uid != 0:
+        raise IsolationUnavailable("缺少受控隔离身份，未执行生成源码", evidence=identity_check)
     commands = [
         ["/usr/sbin/groupadd", "--gid", str(APP_UID), APP_USER],
         [
@@ -251,5 +286,6 @@ def prepare_identity(sandbox, plan, timeout):
             **receipt,
             "profile": ISOLATION_PROFILE,
             "guard_sha256": sha(ROOT / "scripts/capability_guard.py"),
+            **identity_check,
         }
     )

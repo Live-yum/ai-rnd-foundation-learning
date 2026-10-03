@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 
 from scripts.capability_fixture import APP, GOAL, SHARED_ROUTES, make_plan
+from scripts.daytona_capability_profile import HOME, inspect_created_sandbox, require_profile
 from workbench.capability_contracts import scope_sources
 from workbench.capability_sandbox import _verify
 from workbench.capability_verification import require_evidence
@@ -46,7 +47,7 @@ def fixed_application(product):
 
 def main():
     install_loopback_guard()
-    settings = Settings(_env_file=ROOT / ".data/daytona-local/workbench.env", tool_timeout=300)
+    settings = Settings(_env_file=HOME / "workbench.env", tool_timeout=300)
     report_path = ROOT / "reports/capability-profile.json"
     summary = {
         "passed": False,
@@ -57,6 +58,7 @@ def main():
     write_json(report_path, summary)
     if settings.sandbox_provider != "daytona":
         raise ValueError("Positive profile acceptance requires the real local Daytona service")
+    require_profile(HOME, settings.daytona_snapshot)
     with tempfile.TemporaryDirectory(prefix="rnd-fixed-profile-") as directory:
         product = Path(directory) / "product"
         plan = fixed_application(product)
@@ -73,6 +75,7 @@ def main():
                 ROOT / "reports/capability-profile-detail.json",
                 client=client,
                 aggregate=True,
+                control_observer=lambda sandbox_id: inspect_created_sandbox(HOME, sandbox_id),
             )
             summary["proof"] = settings.redact_data(proof)
             require_evidence(

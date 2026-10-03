@@ -241,8 +241,12 @@ def run_browser(url, token, scenarios, saved, timeout):
 def require_evidence(
     receipt, *, source_digest, plan_digest, scenarios, selection, database_tables, aggregate=False
 ):
-    from workbench.capability_isolation import require_isolation_evidence
+    from workbench.capability_isolation import (
+        require_container_evidence,
+        require_isolation_evidence,
+    )
 
+    require_container_evidence(receipt.get("container_isolation"), receipt.get("sandbox_id"))
     require_isolation_evidence(receipt.get("execution_isolation"))
     expected = {s.id: digest(s.model_dump()) for s in scenarios}
     checks = receipt.get("checks", [])
@@ -251,7 +255,7 @@ def require_evidence(
         receipt.get("passed") is not True
         or receipt.get("source_digest") != source_digest
         or receipt.get("plan_digest") != plan_digest
-        or receipt.get("verifier") != "controller-http-contract-v2"
+        or receipt.get("verifier") != "controller-http-contract-v3"
         or receipt.get("network_block_all") is not True
         or receipt.get("credentials_uploaded") is not False
         or receipt.get("cleanup") != "deleted"

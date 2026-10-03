@@ -109,3 +109,64 @@ def test_detached_session_waits_for_ordinary_command_and_preserves_exit(tmp_path
     )
     assert result.returncode == exit_code
     assert completed.read_text(encoding="utf-8") == "completed"
+
+
+def test_container_receipt_requires_current_sandbox_and_all_boundaries():
+    from workbench.capability_isolation import require_container_evidence
+
+    identifier = "00000000-0000-0000-0000-000000000001"
+    value = {
+        "profile": "fixed-authored-sqlite-v1",
+        "sandbox_id": identifier,
+        "control_user": "0:0",
+        "privileged": False,
+        "seccomp": "docker-default",
+        "seccomp_engine": "builtin",
+        "trusted_readonly_binary_mounts": True,
+        "runner_image_id": "sha256:" + "0" * 64,
+        "snapshot_image_id": "sha256:" + "1" * 64,
+        "snapshot_digest": "registry:6000/rnd-python@sha256:" + "2" * 64,
+    }
+    assert require_container_evidence(value, identifier) == value
+    for key in value:
+        with pytest.raises(IsolationUnavailable):
+            require_container_evidence({k: v for k, v in value.items() if k != key}, identifier)
+    with pytest.raises(IsolationUnavailable):
+        require_container_evidence(value, None)
+    with pytest.raises(IsolationUnavailable):
+        require_container_evidence({**value, "privileged": True}, identifier)
+
+
+def test_live_container_inspection_failure_stops_before_source_upload(settings, tmp_path):
+    from scripts.ci_capability_profile import fixed_application
+    from workbench.capability_sandbox import _verify
+
+    product = tmp_path / "product"
+    plan = fixed_application(product)
+    operations = []
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("No source upload or command before container policy verification")
+
+    sandbox = SimpleNamespace(
+        id="00000000-0000-0000-0000-000000000001",
+        fs=SimpleNamespace(create_folder=forbidden, upload_file=forbidden),
+        process=SimpleNamespace(exec=forbidden),
+    )
+    client = SimpleNamespace(
+        create=lambda *a, **k: sandbox, delete=lambda *a, **k: operations.append("deleted")
+    )
+    settings.daytona_snapshot = "fixture-owned-snapshot"
+    result = _verify(
+        product,
+        plan,
+        plan.scenarios,
+        settings,
+        plan.selection.model_dump(),
+        tmp_path / "receipt.json",
+        client=client,
+        aggregate=True,
+        control_observer=lambda _: {},
+    )
+    assert result["passed"] is False and result["cleanup"] == "deleted"
+    assert result["kind"] == "isolation_environment" and operations == ["deleted"]

@@ -24,6 +24,7 @@ from workbench.capability_isolation import (
     product_argv,
     read_command_output,
     redirected_command,
+    require_container_evidence,
 )
 from workbench.capability_stack import (
     database_counts,
@@ -131,7 +132,18 @@ def verify_capabilities(product, plan, scenarios, settings, *, aggregate, select
     return receipt
 
 
-def _verify(product, plan, scenarios, settings, selection, receipt_path, *, client, aggregate):
+def _verify(
+    product,
+    plan,
+    scenarios,
+    settings,
+    selection,
+    receipt_path,
+    *,
+    client,
+    aggregate,
+    control_observer=None,
+):
     from daytona import SessionExecuteRequest
 
     from workbench.daytona_sessions import run_session_command
@@ -140,7 +152,7 @@ def _verify(product, plan, scenarios, settings, selection, receipt_path, *, clie
     before = manifest(product)
     name = "rnd-capability-" + uuid.uuid4().hex
     receipt = {
-        "verifier": "controller-http-contract-v2",
+        "verifier": "controller-http-contract-v3",
         "passed": False,
         "source_digest": digest(before),
         "plan_digest": digest(plan.model_dump()),
@@ -160,6 +172,17 @@ def _verify(product, plan, scenarios, settings, selection, receipt_path, *, clie
         parameters.os_user = "root"
         sandbox = client.create(parameters, timeout=settings.tool_timeout)
         receipt.update(sandbox_id=sandbox.id, cleanup="pending")
+        write_json(receipt_path, receipt)
+        if control_observer is None:
+            raise IsolationUnavailable("缺少可信控制面的实际容器检查，未上传或执行源码")
+        try:
+            receipt["container_isolation"] = require_container_evidence(
+                control_observer(sandbox.id), sandbox.id
+            )
+        except ValueError:
+            raise IsolationUnavailable(
+                "实际容器不符合已批准的非特权策略，未上传或执行源码"
+            ) from None
         write_json(receipt_path, receipt)
         sandbox.fs.create_folder(REMOTE, "700")
         sandbox.fs.upload_file(
@@ -282,6 +305,7 @@ def _verify(product, plan, scenarios, settings, selection, receipt_path, *, clie
         receipt["passed"] = True
     except IsolationUnavailable as exc:
         receipt.update(kind="isolation_environment", error=str(exc))
+        receipt["isolation_diagnostic"] = exc.evidence
     except CheckFailure as exc:
         receipt["error"] = str(exc)
         receipt["failed_scenario"] = getattr(exc, "scenario_id", None)
