@@ -10,86 +10,34 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
+**先有这些模块：** `workbench.template_adapters`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `Selection`（L65–L117）：继承`BaseModel`。声明的数据项为`template`、`backend`、`frontend`、`database`；类型约束/数据库列参数以完整定义为准。
-- `Selection.supported`（L73–L86）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L74按`self.template not in PAIRS`分支；L75抛异常，停止当前正常路径；L80按`self.backend != spec["backend"] or self.frontend not in spec["frontends"] or self.dat…`分支；L85抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L86的`self`。
-- `Selection.capabilities`（L88–L117）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_dump`。 返回路径：L91的`{ **PAIRS[self.template], **self.model_dump(), "date_range_inclusive": True, "scopes": [ P…`。
-- `options_for_run`（L120–L121）：接收`run`。 调用`Selection.model_validate`、`run.get`。 返回路径：L121的`Selection.model_validate(run.get("options") or {"template": run["template"]})`。
-- `selections`（L124–L125）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Selection(template=template).capabilities`、`Selection`。 返回路径：L125的`[Selection(template=template).capabilities() for template in PAIRS]`。
+- `Selection`（L11–L28）：继承`BaseModel`。声明的数据项为`template`、`backend`、`frontend`、`database`；类型约束/数据库列参数以完整定义为准。
+- `Selection.supported`（L19–L25）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`get_adapter`、`adapter.validate_selection`、`model_validator`。 返回路径：L25的`self`。
+- `Selection.capabilities`（L27–L28）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`get_adapter(self.template).capabilities`、`get_adapter`、`self.model_dump`。 返回路径：L28的`{**get_adapter(self.template).capabilities(), **self.model_dump()}`。
+- `options_for_run`（L31–L32）：接收`run`。 调用`Selection.model_validate`、`run.get`。 返回路径：L32的`Selection.model_validate(run.get("options") or {"template": run["template"]})`。
+- `selections`（L35–L36）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Selection(template=template).capabilities`、`Selection`、`template_ids`。 返回路径：L36的`[Selection(template=template).capabilities() for template in template_ids()]`。
 
 </details>
 
-**创建路径：** `workbench/catalog.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L125。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/catalog.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L36。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4404`。本段原文以LF换行结束。
+本段原始字节数：`1299`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/catalog.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e95db029c26bd104e7a1f97ca8f75758a57d4089db0c3d9b3cf33b64ca4b54d1"} -->
+<!-- learning-source: {"path": "workbench/catalog.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "19eb77c215fb4abcbc880bfd89fd4cbb32a21cabc4909b11f577ac5532583a0e"} -->
 ````python
 # workbench/catalog.py
-"""Executable, deterministic template capabilities. The LLM cannot invent support flags."""
+"""Validated selection uses the same executable catalog exposed by all discovery surfaces."""
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-PAIRS = {
-    "python-basic": {
-        "backend": "fastapi",
-        "frontends": ["simple-admin", "api-only"],
-        "databases": ["sqlite", "postgresql"],
-        "name": "FastAPI + 轻量管理页面",
-        "scope": "per_user",
-        "features": [
-            "typed-crud",
-            "authentication",
-            "user-isolation",
-            "keyword-search",
-            "exact-filter",
-            "date-range",
-            "enum",
-            "field-length",
-            "single-record-rules",
-        ],
-        "field_kinds": ["text", "integer", "boolean", "date", "enum"],
-        "not_supported": [
-            "web-scraping",
-            "external-payments",
-            "cross-entity-transactions",
-            "business-rbac",
-            "public-anonymous-site",
-        ],
-    },
-    "fastapiadmin": {
-        "backend": "fastapiadmin",
-        "frontends": ["fastapiadmin-vue"],
-        "databases": ["postgresql"],
-        "name": "FastapiAdmin 原生后端 + Vue 管理端",
-        "scope": "shared",
-        "features": ["native-crud", "native-rbac", "menu-integration", "native-record-rules"],
-        "field_kinds": ["text", "integer", "boolean"],
-        "not_supported": [
-            "per-user-isolation",
-            "public-anonymous-site",
-            "arbitrary-code-execution",
-            "cross-entity-transactions",
-        ],
-    },
-    "yudao-vben": {
-        "backend": "yudao-java",
-        "frontends": ["vben-antd"],
-        "databases": ["postgresql"],
-        "name": "芋道 Java 后端 + Vben5 Ant Design",
-        "scope": "shared",
-        "features": ["native-crud", "native-rbac", "menu-integration", "native-record-rules"],
-        "field_kinds": ["text", "integer", "boolean"],
-        "not_supported": [
-            "per-user-isolation",
-            "public-anonymous-site",
-            "arbitrary-code-execution",
-            "cross-entity-transactions",
-        ],
-    },
-}
+from workbench.template_adapters import get_adapter, template_ids
+
+# Compatibility view for integrations that used PAIRS; never a second source of truth.
+PAIRS = {template: get_adapter(template).selection_spec() for template in template_ids()}
 
 
 class Selection(BaseModel):
@@ -101,50 +49,15 @@ class Selection(BaseModel):
 
     @model_validator(mode="after")
     def supported(self):
-        if self.template not in PAIRS:
-            raise ValueError("未知模板")
-        spec = PAIRS[self.template]
-        self.backend = self.backend or spec["backend"]
-        self.frontend = self.frontend or spec["frontends"][0]
-        self.database = self.database or spec["databases"][0]
-        if (
-            self.backend != spec["backend"]
-            or self.frontend not in spec["frontends"]
-            or self.database not in spec["databases"]
-        ):
-            raise ValueError("前后端与数据库组合不兼容；从模板目录中选择已验证的组合")
+        adapter = get_adapter(self.template)
+        self.backend = self.backend or adapter.backend
+        self.frontend = self.frontend or adapter.frontends[0]
+        self.database = self.database or adapter.databases[0]
+        adapter.validate_selection(self.backend, self.frontend, self.database)
         return self
 
     def capabilities(self):
-        from workbench.business_capabilities import BUSINESS
-
-        return {
-            **PAIRS[self.template],
-            **self.model_dump(),
-            "date_range_inclusive": True,
-            "scopes": [
-                PAIRS[self.template]["scope"],
-                *(["shared"] if self.template == "python-basic" else []),
-            ],
-            "business_contract": BUSINESS,
-            "registration_modes": {
-                "authenticated_business_ui": True,
-                "anonymous_submission": False,
-                "custom_public_portal": False,
-                "note": "参赛者可使用已生成业务界面登录后提交，须声明非管理员角色和逐角色行权限；独立公众门户与匿名提交不在当前交付能力内",
-            },
-            "not_supported": [
-                item
-                for item in PAIRS[self.template]["not_supported"]
-                if item not in {"business-rbac", "cross-entity-transactions"}
-            ],
-            "defaults": {
-                "title_max_length": 250,
-                "body_max_length": 3000,
-                "date_format": "YYYY-MM-DD",
-                "category_required": False,
-            },
-        }
+        return {**get_adapter(self.template).capabilities(), **self.model_dump()}
 
 
 def options_for_run(run):
@@ -152,5 +65,5 @@ def options_for_run(run):
 
 
 def selections():
-    return [Selection(template=template).capabilities() for template in PAIRS]
+    return [Selection(template=template).capabilities() for template in template_ids()]
 ````

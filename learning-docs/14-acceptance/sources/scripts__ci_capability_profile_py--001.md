@@ -1,3 +1,33 @@
+# scripts/ci_capability_profile.py · 1/1
+
+[阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
+
+
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.ci_capability_profile；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
+
+**先有这些模块：** `scripts.capability_fixture`、`scripts.daytona_capability_profile`、`workbench.capability_contracts`、`workbench.capability_sandbox`、`workbench.capability_verification`、`workbench.domain`、`workbench.filesystem`、`workbench.local_only`、`workbench.sandbox`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+<details>
+<summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
+
+- `fixed_application`（L29–L50）：接收`product`。 控制顺序：L31遍历`("pyproject.toml", "uv.lock")`。 调用`product.mkdir`、`shutil.copyfile`、`(product / "app.py").write_text`、`APP.replace( " # CUSTOM_ACCESS", " from access import readable\n …`、`APP.replace`、`(product / "access.py").write_text`、`make_plan`、`scope_sources`、`digest`。 返回路径：L44的`make_plan( { "source_units": scope_sources([GOAL]), "source_digest": digest([GOAL]), "sele…`。
+- `require_profile_evidence`（L53–L71）：接收`proof`、`**bindings`。 源码说明：Keep strict validation; explain only an allowlisted browser failure.。 控制顺序：L60按`proof.get("passed") is False and isinstance(phase, str) and phase in BROWSER_PHASES a…`分支；L67抛异常，停止当前正常路径；L71抛异常，停止当前正常路径。 调用`require_evidence`、`proof.get`、`diagnostic.get`、`isinstance`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L74–L124）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L85按`settings.sandbox_provider != "daytona"`分支；L86抛异常，停止当前正常路径；L122抛异常，停止当前正常路径。 调用`install_loopback_guard`、`Settings`、`write_json`、`ValueError`、`require_profile`、`tempfile.TemporaryDirectory`、`Path`、`fixed_application`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+</details>
+
+**创建路径：** `scripts/ci_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L128。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+
+本段原始字节数：`4692`。本段原文以LF换行结束。
+
+<!-- learning-source: {"path": "scripts/ci_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "696f918271d412c01dee5d7cd67ce9804ef68cfbdb69624aad2641439c6104db"} -->
+````python
+# scripts/ci_capability_profile.py
 """Positive isolation acceptance with only the repository's fixed authored app.
 
 No model, arbitrary source directory, or task argument is accepted. Unsupported
@@ -126,3 +156,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+````

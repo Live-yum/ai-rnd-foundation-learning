@@ -2852,6 +2852,12 @@ Python/SQLite用基础快照；Python/PostgreSQL、FastapiAdmin/PostgreSQL、Yud
 
 提交验收结论时记录完整commit SHA、工作流/作业链接和对应报告；未结束的矩阵保留pending，失败写出失败层及日志。只有对应要求的真实检查在该提交通过，才把该项标为通过。本文不提前写入最终CI状态，避免后续源码改变后留下过期的“全绿”承诺。
 
+固定自有SQLite隔离profile在Ubuntu 24.04上显式选择runner预装的系统Chrome（`PRODUCT_VERIFY_BROWSER_CHANNEL=chrome`），保留`chromiumSandbox: true`。它不改AppArmor、userns、seccomp或系统策略，也不在失败后关闭沙箱重试。默认未指定channel时仍使用Playwright自带Chromium；除`chrome`外的自定义channel、路径和启动参数不被该验收入口接受。Playwright模块继续固定1.56.1，系统Chrome版本记录在报告中。
+
+先执行`uv run python -m scripts.ci_capability_browser_preflight`，用与产品验收相同的可信driver操作合成回环页面；`reports/capability-browser-preflight.json`分别保留自带浏览器的观察结果、所选浏览器的必须通过结果及只读AppArmor/userns开关。某个开关开启加上启动失败只能支持原因推断，不能冒充内核拒绝审计。预检通过只证明控制侧浏览器就绪，仍须运行`ci_capability_profile`，取得当前源码/计划/场景绑定的HTTP、真实浏览器、物理数据库写入、重启与清理证据。失败`launch/sandbox-unavailable`保留为浏览器失败，不被描述为已经发现源码摘要漂移。
+
+该固定夹具的私有记录与团队共享场景不代表具体产品已完成。完整对话历史、计划后的feature节点、学生自助注册登录和自己的记录、教师/专家/管理员角色，以及上传、预览、导出、盲审分配，必须在用户所选栈逐项实现并验收；Vue3/Ant Design需求不能由通用夹具页面替代，模板缺失也不能通过丢弃需求来取得通过。
+
 ## 所选模板的页面风格
 
 原生模板的页面必须由对应原生生成器生成并挂载到原管理端。FastapiAdmin保留原生Vue布局、Fa组件和Element Plus；芋道保留Vben5 web-antd布局、Ant Design Vue和VXE。不得替换成Python Basic通用页面。
@@ -8138,6 +8144,1953 @@ mount_business = install_yudao_business
 extend_business = install_yudao_business
 ````
 
+### `workbench/capability_contracts.py`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.catalog`、`workbench.domain`、`workbench.filesystem`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `custom_requested`（L17–L28）：接收`messages`。 源码说明：Only explicit human authorization selects this path, never model claims.。 控制顺序：L20遍历`messages`；L21按`re.search(r"(?:禁止\|不允许\|不要)自定义实现\|仅(?:使用\|用)模板", text)`分支；L23按`CUSTOM_CHOICE in text or ( re.search(r"(?:自己\|自定义)(?:开发\|实现)\|自行(?:开发\|实现)", text) an…`分支。 调用`re.search`。 返回路径：L28的`enabled`。
+- `scope_sources`（L31–L57）：接收`messages`。 源码说明：Keep every exact human source; source units are coverage references, not summaries.。 控制顺序：L34遍历`enumerate(messages)`；L35按`text.strip() in {"继续", "请继续", "好的", "好", "确认", "确认继续"}`分支；L38遍历`re.finditer(r"[^。；;\n]+[。；;\n]*", text)`；L40遍历`range(0, len(value), 1000)`；L42按`not quote.strip()`分支；L55按`len(rows) > 256`分支；L56抛异常，停止当前正常路径。 调用`enumerate`、`text.strip`、`re.finditer`、`match.group`、`range`、`len`、`quote.strip`、`rows.append`、`match.start`等。 返回路径：L57的`rows`。
+- `source_path`（L60–L76）：接收`value`。 控制顺序：L62按`not value or len(value) > 300 or p.is_absolute() or any(part in {"", ".", ".."} for p…`分支；L75抛异常，停止当前正常路径。 调用`PurePosixPath`、`len`、`p.is_absolute`、`any`、`value.split`、`ord`、`set`、`secret_name`、`ValueError`。 返回路径：L76的`value`。
+- `TaskCommand`（L79–L95）：继承`Contract`。声明的数据项为`argv`、`cwd`；类型约束/数据库列参数以完整定义为准。
+- `TaskCommand.relative_directory`（L87–L88）：接收`value`。 调用`source_path`、`field_validator`。 返回路径：L88的`value if value == "." else source_path(value)`。
+- `TaskCommand.no_control_characters`（L92–L95）：接收`value`。 控制顺序：L93按`any(any(ord(c) < 32 for c in item) for item in value)`分支；L94抛异常，停止当前正常路径。 调用`any`、`ord`、`ValueError`、`field_validator`。 返回路径：L95的`value`。
+- `RuntimeContract`（L98–L135）：继承`Contract`。声明的数据项为`prepare`、`start`、`port`、`health_path`、`startup_seconds`、`database_path`、`database_tables`；类型约束/数据库列参数以完整定义为准。
+- `RuntimeContract.product_port`（L111–L114）：接收`value`。 控制顺序：L112按`value in {2280, 55432}`分支；L113抛异常，停止当前正常路径。 调用`ValueError`、`field_validator`。 返回路径：L114的`value`。
+- `RuntimeContract.health_is_relative`（L118–L121）：接收`value`。 控制顺序：L119按`not value.startswith("/") or value.startswith("//") or "\\" in value`分支；L120抛异常，停止当前正常路径。 调用`value.startswith`、`ValueError`、`field_validator`。 返回路径：L121的`value`。
+- `RuntimeContract.storage_is_relative`（L125–L135）：接收`value`。 控制顺序：L127按`p.is_absolute() or ".." in p.parts or "\\" in value or ":" in value or value.startswi…`分支；L134抛异常，停止当前正常路径。 调用`PurePosixPath`、`p.is_absolute`、`value.startswith`、`ValueError`、`field_validator`。 返回路径：L135的`value`。
+- `HttpStep`（L138–L171）：继承`Contract`。声明的数据项为`method`、`path`、`headers`、`body`、`status`、`equals`、`absent`、`captures`；类型约束/数据库列参数以完整定义为准。
+- `HttpStep.loopback_path`（L150–L158）：接收`value`。 控制顺序：L151按`not value.startswith("/") or value.startswith("//") or "\\" in value or any(ord(c) < …`分支；L157抛异常，停止当前正常路径。 调用`value.startswith`、`any`、`ord`、`ValueError`、`field_validator`。 返回路径：L158的`value`。
+- `HttpStep.bounded_headers`（L162–L171）：接收`value`。 控制顺序：L163按`any( k.lower() in {"host", "proxy-authorization", "connection", "content-length"} or …`分支；L170抛异常，停止当前正常路径。 调用`any`、`k.lower`、`k.lower().startswith`、`re.fullmatch`、`ord`、`value.items`、`ValueError`、`field_validator`。 返回路径：L171的`value`。
+- `AcceptanceScenario`（L174–L189）：继承`Contract`。声明的数据项为`id`、`title`、`requirements`、`steps`、`after_restart`、`browser`、`evidence`、`external_service`；类型约束/数据库列参数以完整定义为准。
+- `AcceptanceScenario.fixture_identity`（L186–L189）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L187按`(self.evidence == "external_fixture") != (self.external_service is not None)`分支；L188抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L189的`self`。
+- `BrowserStep`（L192–L205）：继承`Contract`。声明的数据项为`action`、`selector`、`value`、`width`、`height`；类型约束/数据库列参数以完整定义为准。
+- `BrowserStep.action_contract`（L200–L205）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L201按`self.action == "open"`分支；L203按`self.action != "viewport" and not self.selector`分支；L204抛异常，停止当前正常路径。 调用`HttpStep.loopback_path`、`ValueError`、`model_validator`。 返回路径：L205的`self`。
+- `ExternalPrerequisite`（L208–L230）：继承`Contract`。声明的数据项为`id`、`kind`、`description`、`requirements`、`configuration_names`、`provider`、`probe`；类型约束/数据库列参数以完整定义为准。
+- `ExternalPrerequisite.bounded_provider_probe`（L219–L230）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L220按`self.provider == "http_json" and ( self.probe is None or self.probe.method != "GET" o…`分支；L227抛异常，停止当前正常路径；L228按`self.provider != "http_json" and self.probe is not None`分支；L229抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L230的`self`。
+- `CapabilityTask`（L233–L249）：继承`Contract`。声明的数据项为`id`、`title`、`depends_on`、`requirements`、`files`、`contract`、`scenarios`；类型约束/数据库列参数以完整定义为准。
+- `CapabilityTask.exact_files`（L244–L249）：接收`values`。 控制顺序：L245遍历`values`；L247按`len({v.casefold() for v in values}) != len(values)`分支；L248抛异常，停止当前正常路径。 调用`source_path`、`len`、`v.casefold`、`ValueError`、`field_validator`。 返回路径：L249的`values`。
+- `CapabilityPlan`（L252–L299）：继承`Contract`。声明的数据项为`title`、`summary`、`selection`、`source_digest`、`tasks`、`runtime`、`scenarios`、`prerequisites`；类型约束/数据库列参数以完整定义为准。
+- `CapabilityPlan.dependency_contract`（L263–L299）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L266按`len(tasks) != len(self.tasks) or len(scenarios) != len(self.scenarios)`分支；L267抛异常，停止当前正常路径；L268按`len({p.id for p in self.prerequisites}) != len(self.prerequisites)`分支；L269抛异常，停止当前正常路径；L283遍历`self.tasks`；L285按`len(set(task.depends_on)) != len(task.depends_on) or not set(task.scenarios) <= scena…`分支；L289抛异常，停止当前正常路径；L290遍历`enumerate(self.tasks)`。后续分支沿下方源码相同行号继续阅读。 调用`len`、`ValueError`、`visit`、`set`、`scenarios.keys`、`enumerate`、`p.casefold`、`model_validator`。 返回路径：L299的`self`。
+- `CapabilityPlan.dependency_contract.visit`（L272–L281）：接收`identifier`、`stack`。 控制顺序：L273按`identifier in stack`分支；L274抛异常，停止当前正常路径；L275按`identifier not in tasks`分支；L276抛异常，停止当前正常路径；L277按`identifier not in ancestors`分支；L279遍历`tasks[identifier].depends_on`。 调用`ValueError`、`set`、`visit`。 返回路径：L281的`ancestors[identifier]`。
+- `CapabilityOutline`（L302–L311）：继承`Contract`。声明的数据项为`title`、`summary`、`selection`、`source_digest`、`tasks`、`runtime`、`prerequisites`；类型约束/数据库列参数以完整定义为准。
+- `CapabilityScenarioBatch`（L314–L316）：继承`Contract`。声明的数据项为`summary`、`scenarios`；类型约束/数据库列参数以完整定义为准。
+- `SourceEdit`（L319–L327）：继承`Contract`。声明的数据项为`path`、`before_sha256`、`content`；类型约束/数据库列参数以完整定义为准。
+- `SourceEdit.path_contract`（L326–L327）：接收`value`。 调用`source_path`、`field_validator`。 返回路径：L327的`source_path(value)`。
+- `CapabilityEdits`（L330–L332）：继承`Contract`。声明的数据项为`explanation`、`files`；类型约束/数据库列参数以完整定义为准。
+- `coverage_errors`（L335–L361）：接收`plan`、`sources`。 控制顺序：L339遍历`plan.tasks`；L347按`not set(task.requirements) <= checked`分支；L354按`expected - covered`分支；L356按`all_refs - expected`分支；L359按`any(s.external_service and s.external_service not in services for s in plan.scenarios…`分支。 调用`set`、`covered.update`、`errors.append`、`", ".join`、`sorted`、`any`。 返回路径：L361的`errors`。
+
+<!-- source-file: workbench/capability_contracts.py sha256: af77b993ab002d589f6f51c848ac9bb236d6a7c47763013cf87d2e697e2a0e73 -->
+````python
+"""Reviewed source tasks and executable checks, separate from template CRUD schemas."""
+
+import re
+from pathlib import PurePosixPath
+from typing import Annotated, Literal
+
+from pydantic import Field, JsonValue, field_validator, model_validator
+
+from workbench.catalog import Selection
+from workbench.domain import Contract, UserText, digest
+from workbench.filesystem import EXCLUDED_DIRS, secret_name
+
+Identifier = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]
+CUSTOM_CHOICE = "保留全部已提出功能，规划并自定义实现模板未覆盖的能力"
+
+
+def custom_requested(messages):
+    """Only explicit human authorization selects this path, never model claims."""
+    enabled = False
+    for text in messages:
+        if re.search(r"(?:禁止|不允许|不要)自定义实现|仅(?:使用|用)模板", text):
+            enabled = False
+        elif CUSTOM_CHOICE in text or (
+            re.search(r"(?:自己|自定义)(?:开发|实现)|自行(?:开发|实现)", text)
+            and re.search(r"不用模板|不依赖模板|模板(?:未|不|无法|不能)|超出模板", text)
+        ):
+            enabled = True
+    return enabled
+
+
+def scope_sources(messages):
+    """Keep every exact human source; source units are coverage references, not summaries."""
+    rows = []
+    for index, text in enumerate(messages):
+        if text.strip() in {"继续", "请继续", "好的", "好", "确认", "确认继续"}:
+            continue
+        position = 0
+        for match in re.finditer(r"[^。；;\n]+[。；;\n]*", text):
+            value = match.group()
+            for offset in range(0, len(value), 1000):
+                quote = value[offset : offset + 1000]
+                if not quote.strip():
+                    continue
+                rows.append(
+                    {
+                        "id": f"source-{index}-{position}",
+                        "message_index": index,
+                        "start": match.start() + offset,
+                        "end": match.start() + offset + len(quote),
+                        "text": quote,
+                        "sha256": digest(quote),
+                    }
+                )
+                position += 1
+    if len(rows) > 256:
+        raise ValueError("自定义范围超过单次计划的256个来源单元；原始内容仍保留，请分项目规划")
+    return rows
+
+
+def source_path(value):
+    p = PurePosixPath(value)
+    if (
+        not value
+        or len(value) > 300
+        or p.is_absolute()
+        or any(part in {"", ".", ".."} for part in value.split("/"))
+        or "\\" in value
+        or ":" in value
+        or any(ord(c) < 32 for c in value)
+        or set(p.parts) & EXCLUDED_DIRS
+        or secret_name(value)
+        or p.parts[0] in {".github", ".agents", ".codex"}
+        or p.name in {"RND-CANDIDATE.json", "RND-DELIVERY.json"}
+    ):
+        raise ValueError("只允许产品内的普通源码路径；不允许秘密、环境、工具或平台控制目录")
+    return value
+
+
+class TaskCommand(Contract):
+    argv: list[Annotated[str, Field(min_length=1, max_length=500)]] = Field(
+        min_length=1, max_length=30
+    )
+    cwd: str = "."
+
+    @field_validator("cwd")
+    @classmethod
+    def relative_directory(cls, value):
+        return value if value == "." else source_path(value)
+
+    @field_validator("argv")
+    @classmethod
+    def no_control_characters(cls, value):
+        if any(any(ord(c) < 32 for c in item) for item in value):
+            raise ValueError("命令参数不能含控制字符")
+        return value
+
+
+class RuntimeContract(Contract):
+    prepare: list[TaskCommand] = Field(default_factory=list, max_length=8)
+    start: TaskCommand
+    port: int = Field(ge=1024, le=65535)
+    health_path: str = "/health"
+    startup_seconds: int = Field(default=30, ge=1, le=120)
+    database_path: str = "data/application.db"
+    database_tables: list[Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,63}$")]] = Field(
+        min_length=1, max_length=40
+    )
+
+    @field_validator("port")
+    @classmethod
+    def product_port(cls, value):
+        if value in {2280, 55432}:
+            raise ValueError("产品端口不能使用控制或独立数据库保留端口")
+        return value
+
+    @field_validator("health_path")
+    @classmethod
+    def health_is_relative(cls, value):
+        if not value.startswith("/") or value.startswith("//") or "\\" in value:
+            raise ValueError("健康检查必须是产品相对路径")
+        return value
+
+    @field_validator("database_path")
+    @classmethod
+    def storage_is_relative(cls, value):
+        p = PurePosixPath(value)
+        if (
+            p.is_absolute()
+            or ".." in p.parts
+            or "\\" in value
+            or ":" in value
+            or value.startswith(".")
+        ):
+            raise ValueError("测试数据库只能位于隔离产品的普通相对路径")
+        return value
+
+
+class HttpStep(Contract):
+    method: Literal["GET", "POST", "PUT", "PATCH", "DELETE"] = "GET"
+    path: str = Field(min_length=1, max_length=1000)
+    headers: dict[str, str] = Field(default_factory=dict, max_length=12)
+    body: JsonValue = None
+    status: int = Field(ge=100, le=599)
+    equals: dict[str, JsonValue] = Field(default_factory=dict, max_length=40)
+    absent: list[str] = Field(default_factory=list, max_length=40)
+    captures: dict[Identifier, str] = Field(default_factory=dict, max_length=12)
+
+    @field_validator("path")
+    @classmethod
+    def loopback_path(cls, value):
+        if (
+            not value.startswith("/")
+            or value.startswith("//")
+            or "\\" in value
+            or any(ord(c) < 32 for c in value)
+        ):
+            raise ValueError("验收请求只能使用隔离产品的相对HTTP路径")
+        return value
+
+    @field_validator("headers")
+    @classmethod
+    def bounded_headers(cls, value):
+        if any(
+            k.lower() in {"host", "proxy-authorization", "connection", "content-length"}
+            or k.lower().startswith("x-daytona-")
+            or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]{0,63}", k)
+            or any(ord(c) < 32 for c in v)
+            for k, v in value.items()
+        ):
+            raise ValueError("验收请求头无效")
+        return value
+
+
+class AcceptanceScenario(Contract):
+    id: Identifier
+    title: str = Field(min_length=1, max_length=500)
+    requirements: list[Identifier] = Field(min_length=1, max_length=256)
+    steps: list[HttpStep] = Field(min_length=1, max_length=60)
+    after_restart: list[HttpStep] = Field(default_factory=list, max_length=20)
+    browser: list["BrowserStep"] = Field(default_factory=list, max_length=60)
+    # A declared fixture proves adapter behavior, never live service availability.
+    evidence: Literal["runtime", "external_fixture"] = "runtime"
+    external_service: Identifier | None = None
+
+    @model_validator(mode="after")
+    def fixture_identity(self):
+        if (self.evidence == "external_fixture") != (self.external_service is not None):
+            raise ValueError("外部服务替身必须声明对应服务，不能当成真实服务证据")
+        return self
+
+
+class BrowserStep(Contract):
+    action: Literal["open", "fill", "click", "text", "visible", "hidden", "viewport"]
+    selector: str = Field(default="", max_length=500)
+    value: str = Field(default="", max_length=10000)
+    width: int = Field(default=1280, ge=320, le=2560)
+    height: int = Field(default=900, ge=480, le=2000)
+
+    @model_validator(mode="after")
+    def action_contract(self):
+        if self.action == "open":
+            HttpStep.loopback_path(self.value)
+        elif self.action != "viewport" and not self.selector:
+            raise ValueError("浏览器交互必须有明确选择器")
+        return self
+
+
+class ExternalPrerequisite(Contract):
+    id: Identifier
+    kind: Literal["service", "credential", "capacity", "human_policy"]
+    description: str = Field(min_length=1, max_length=1500)
+    requirements: list[Identifier] = Field(min_length=1, max_length=256)
+    # Describes names/purpose only; credential values never belong in a plan.
+    configuration_names: list[Identifier] = Field(default_factory=list, max_length=20)
+    provider: Literal["manual", "http_json", "s3"] = "manual"
+    probe: HttpStep | None = None
+
+    @model_validator(mode="after")
+    def bounded_provider_probe(self):
+        if self.provider == "http_json" and (
+            self.probe is None
+            or self.probe.method != "GET"
+            or self.probe.body is not None
+            or self.probe.headers
+            or self.probe.captures
+        ):
+            raise ValueError("HTTP服务检查只允许明确GET断言，认证由安全配置提供")
+        if self.provider != "http_json" and self.probe is not None:
+            raise ValueError("S3使用固定临时对象往返协议；人工条件不能伪装网络探针")
+        return self
+
+
+class CapabilityTask(Contract):
+    id: Identifier
+    title: str = Field(min_length=1, max_length=300)
+    depends_on: list[Identifier] = Field(default_factory=list, max_length=32)
+    requirements: list[Identifier] = Field(min_length=1, max_length=256)
+    files: list[str] = Field(min_length=1, max_length=64)
+    contract: str = Field(min_length=1, max_length=6000)
+    scenarios: list[Identifier] = Field(min_length=1, max_length=16)
+
+    @field_validator("files")
+    @classmethod
+    def exact_files(cls, values):
+        for value in values:
+            source_path(value)
+        if len({v.casefold() for v in values}) != len(values):
+            raise ValueError("节点文件清单不能重复或大小写冲突")
+        return values
+
+
+class CapabilityPlan(Contract):
+    title: str = Field(min_length=1, max_length=200)
+    summary: str = Field(min_length=1, max_length=4000)
+    selection: Selection
+    source_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    tasks: list[CapabilityTask] = Field(min_length=1, max_length=32)
+    runtime: RuntimeContract
+    scenarios: list[AcceptanceScenario] = Field(min_length=1, max_length=128)
+    prerequisites: list[ExternalPrerequisite] = Field(default_factory=list, max_length=32)
+
+    @model_validator(mode="after")
+    def dependency_contract(self):
+        tasks = {t.id: t for t in self.tasks}
+        scenarios = {s.id: s for s in self.scenarios}
+        if len(tasks) != len(self.tasks) or len(scenarios) != len(self.scenarios):
+            raise ValueError("节点和验收场景ID必须唯一")
+        if len({p.id for p in self.prerequisites}) != len(self.prerequisites):
+            raise ValueError("外部前提ID必须唯一")
+        ancestors = {}
+
+        def visit(identifier, stack):
+            if identifier in stack:
+                raise ValueError("能力节点依赖存在循环")
+            if identifier not in tasks:
+                raise ValueError("能力节点引用不存在的依赖")
+            if identifier not in ancestors:
+                ancestors[identifier] = set()
+                for dependency in tasks[identifier].depends_on:
+                    ancestors[identifier] |= {dependency} | visit(dependency, {*stack, identifier})
+            return ancestors[identifier]
+
+        for task in self.tasks:
+            visit(task.id, set())
+            if (
+                len(set(task.depends_on)) != len(task.depends_on)
+                or not set(task.scenarios) <= scenarios.keys()
+            ):
+                raise ValueError("重复依赖或未知验收场景")
+        for index, left in enumerate(self.tasks):
+            for right in self.tasks[index + 1 :]:
+                if {p.casefold() for p in left.files} & {
+                    p.casefold() for p in right.files
+                } and not (left.id in ancestors[right.id] or right.id in ancestors[left.id]):
+                    raise ValueError("写同一文件的节点必须显式串行依赖")
+        used = {s for task in self.tasks for s in task.scenarios}
+        if used != scenarios.keys():
+            raise ValueError("每个验收场景必须属于至少一个源码节点")
+        return self
+
+
+class CapabilityOutline(Contract):
+    """Small global plan; detailed executable scenarios are generated per task."""
+
+    title: str = Field(min_length=1, max_length=200)
+    summary: str = Field(min_length=1, max_length=4000)
+    selection: Selection
+    source_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    tasks: list[CapabilityTask] = Field(min_length=1, max_length=32)
+    runtime: RuntimeContract
+    prerequisites: list[ExternalPrerequisite] = Field(default_factory=list, max_length=32)
+
+
+class CapabilityScenarioBatch(Contract):
+    summary: str = Field(min_length=1, max_length=2000)
+    scenarios: list[AcceptanceScenario] = Field(min_length=1, max_length=16)
+
+
+class SourceEdit(Contract):
+    path: str
+    before_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    content: UserText = Field(max_length=100000)
+
+    @field_validator("path")
+    @classmethod
+    def path_contract(cls, value):
+        return source_path(value)
+
+
+class CapabilityEdits(Contract):
+    explanation: str = Field(min_length=1, max_length=2000)
+    files: list[SourceEdit] = Field(min_length=1, max_length=64)
+
+
+def coverage_errors(plan, sources):
+    expected = {s["id"] for s in sources}
+    errors = []
+    covered = set()
+    for task in plan.tasks:
+        covered.update(task.requirements)
+        checked = {
+            ref
+            for scenario in plan.scenarios
+            if scenario.id in task.scenarios
+            for ref in scenario.requirements
+        }
+        if not set(task.requirements) <= checked:
+            errors.append(f"节点 {task.id} 存在没有独立验收场景的来源")
+    all_refs = (
+        covered
+        | {r for s in plan.scenarios for r in s.requirements}
+        | {r for p in plan.prerequisites for r in p.requirements}
+    )
+    if expected - covered:
+        errors.append("未覆盖原始来源：" + ", ".join(sorted(expected - covered)))
+    if all_refs - expected:
+        errors.append("引用不存在的来源：" + ", ".join(sorted(all_refs - expected)))
+    services = {p.id for p in plan.prerequisites}
+    if any(s.external_service and s.external_service not in services for s in plan.scenarios):
+        errors.append("外部替身引用未声明服务")
+    return errors
+````
+
+### `workbench/capability_isolation.py`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.capability_verification`、`workbench.filesystem`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `require_isolation_evidence`（L51–L63）：接收`value`。 控制顺序：L52按`not isinstance(value, dict) or value.get("profile") != ISOLATION_PROFILE or type(valu…`分支；L62抛异常，停止当前正常路径。 调用`isinstance`、`value.get`、`type`、`sha`、`any`、`IsolationUnavailable`。 返回路径：L63的`value`。
+- `IsolationUnavailable`（L66–L69）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `IsolationUnavailable.__init__`（L67–L69）：接收`message`、`evidence`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_container_evidence`（L72–L95）：接收`value`、`sandbox_id`。 控制顺序：L73按`not isinstance(value, dict) or not isinstance(sandbox_id, str) or not re.fullmatch( r…`分支；L94抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`value.get`、`any`、`str`、`IsolationUnavailable`。 返回路径：L95的`value`。
+- `system_argv`（L98–L99）：接收`argv`。 返回路径：L99的`["/usr/bin/env", "-i", "PATH=" + SYSTEM_PATH, "LANG=C.UTF-8", "HOME=/nonexistent", *argv]`。
+- `control_exec`（L102–L105）：接收`sandbox`、`argv`、`timeout`。 调用`sandbox.process.exec`、`shlex.join`、`system_argv`、`dict`。 返回路径：L103的`sandbox.process.exec( shlex.join(system_argv(argv)), env=dict(CONTROL_SHELL_ENV), timeout=…`。
+- `product_argv`（L108–L152）：接收`plan`、`argv`、`database`。 控制顺序：L110按`ports & {2280, 55432}`分支；L111抛异常，停止当前正常路径。 调用`IsolationUnavailable`、`system_argv`、`str`、`environment.items`。 返回路径：L126的`system_argv( [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/setpriv", "--reuid=" + APP…`。
+- `redirected_command`（L155–L159）：接收`argv`。 源码说明：Dedicated data-only stdio; never share a privileged control terminal.。 调用`uuid.uuid4`、`shlex.join`、`shlex.quote`。 返回路径：L159的`["/bin/sh", "-c", command], output`。
+- `read_command_output`（L162–L170）：接收`sandbox`、`path`、`timeout`、`limit`。 控制顺序：L163按`not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix( CONTROL + "/p…`分支；L166抛异常，停止当前正常路径；L168按`result.exit_code != 0`分支；L169抛异常，停止当前正常路径。 调用`path.startswith`、`path.removeprefix`、`IsolationUnavailable`、`control_exec`、`str`。 返回路径：L170的`result.result or ""`。
+- `run_guarded_control`（L173–L176）：接收`sandbox`、`argv`、`timeout`。 调用`redirected_command`、`control_exec`、`read_command_output`。 返回路径：L176的`result.exit_code, read_command_output(sandbox, output, timeout)`。
+- `prepare_identity`（L207–L318）：接收`sandbox`、`plan`、`timeout`。 控制顺序：L228按`type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0`分支；L229抛异常，停止当前正常路径；L249遍历`commands`；L250按`control_exec(sandbox, argv, timeout).exit_code != 0`分支；L251抛异常，停止当前正常路径；L255按`control_exec(sandbox, ["/usr/bin/chmod", "644", GUARD], timeout).exit_code`分支；L256抛异常，停止当前正常路径；L281抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`isinstance`、`root.result.strip`、`re.fullmatch`、`int`、`type`、`len`、`output.lower`、`IsolationUnavailable`等。 返回路径：L310的`require_isolation_evidence( { **guard_receipt, **receipt, "profile": ISOLATION_PROFILE, "g…`。
+
+<!-- source-file: workbench/capability_isolation.py sha256: 707f2c1edae2fe13bfef78be265a4559006c5a45fc192903a774f20ae56c1379 -->
+````python
+"""Disposable Linux identity and control-channel separation for module commands.
+
+No operation here targets the host OS. All commands go through the owned
+Daytona sandbox's control channel, before untrusted source is executed.
+"""
+
+import json
+import re
+import shlex
+import uuid
+
+from workbench.capability_verification import CheckFailure
+from workbench.filesystem import sha
+from workbench.settings import ROOT
+
+PRODUCT = "/tmp/rnd-capability/product"
+CONTROL = "/tmp/rnd-module-control"
+APP_USER = "rnd-module"
+APP_UID = 20000
+GUARD = CONTROL + "/guard.py"
+SYSTEM_PATH = "/usr/sbin:/usr/bin:/sbin:/bin"
+# The daemon starts an outer shell before it evaluates our inner env -i command.
+# Apply these through the SDK's envs protocol so locale and user startup hooks
+# cannot contaminate machine-readable command output before that inner boundary.
+# Global shell startup files remain part of the pinned trusted image; unexpected
+# output still fails the strict whole-output identity check below.
+CONTROL_SHELL_ENV = {
+    "LC_ALL": "C",
+    "LANG": "C",
+    "BASH_ENV": "/dev/null",
+    "ENV": "/dev/null",
+    "ZDOTDIR": "/nonexistent",
+}
+ISOLATION_PROFILE = "module-linux-landlock-v1"
+ISOLATION_FLAGS = (
+    "no_new_privs",
+    "capabilities_cleared",
+    "supplementary_groups_cleared",
+    "privilege_transitions_disabled",
+    "trusted_tools_readonly",
+    "private_control_unreadable",
+    "private_database_unreadable",
+    "daemon_tcp_denied",
+    "unix_scope_restricted",
+    "inherited_fds_closed",
+    "standard_streams_detached",
+    "no_controlling_terminal",
+)
+
+
+def require_isolation_evidence(value):
+    if (
+        not isinstance(value, dict)
+        or value.get("profile") != ISOLATION_PROFILE
+        or type(value.get("application_uid")) is not int
+        or value["application_uid"] != APP_UID
+        or type(value.get("landlock_abi")) is not int
+        or value["landlock_abi"] < 6
+        or value.get("guard_sha256") != sha(ROOT / "scripts/capability_guard.py")
+        or any(value.get(flag) is not True for flag in ISOLATION_FLAGS)
+    ):
+        raise IsolationUnavailable("缺少准确版本、完整必需字段或当前守卫摘要的执行隔离回执")
+    return value
+
+
+class IsolationUnavailable(CheckFailure):
+    def __init__(self, message, *, evidence=None):
+        super().__init__(message)
+        self.evidence = evidence or {}
+
+
+def require_container_evidence(value, sandbox_id):
+    if (
+        not isinstance(value, dict)
+        or not isinstance(sandbox_id, str)
+        or not re.fullmatch(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", sandbox_id
+        )
+        or value.get("profile") != "fixed-authored-sqlite-v1"
+        or value.get("sandbox_id") != sandbox_id
+        or value.get("control_user") != "0:0"
+        or value.get("privileged") is not False
+        or value.get("seccomp") != "docker-default"
+        or value.get("seccomp_engine") != "builtin"
+        or value.get("trusted_readonly_binary_mounts") is not True
+        or any(
+            not re.fullmatch(r"sha256:[a-f0-9]{64}", str(value.get(key, "")))
+            for key in ("runner_image_id", "snapshot_image_id")
+        )
+        or not re.fullmatch(
+            r"registry:6000/rnd-python@sha256:[a-f0-9]{64}", str(value.get("snapshot_digest", ""))
+        )
+    ):
+        raise IsolationUnavailable("缺少当前独占容器的真实非特权/镜像/挂载检查回执")
+    return value
+
+
+def system_argv(argv):
+    return ["/usr/bin/env", "-i", "PATH=" + SYSTEM_PATH, "LANG=C.UTF-8", "HOME=/nonexistent", *argv]
+
+
+def control_exec(sandbox, argv, timeout):
+    return sandbox.process.exec(
+        shlex.join(system_argv(argv)), env=dict(CONTROL_SHELL_ENV), timeout=timeout
+    )
+
+
+def product_argv(plan, argv, database):
+    ports = {plan.runtime.port}
+    if ports & {2280, 55432}:
+        raise IsolationUnavailable("产品端口与控制/数据库保留端口冲突")
+    connect = "55432" if plan.selection.database == "postgresql" else ""
+    environment = {
+        "HOME": "/home/" + APP_USER,
+        "PATH": "/opt/java/openjdk/bin:/usr/local/bin:/usr/bin:/bin",
+        "LANG": "C.UTF-8",
+        "PYTHONUTF8": "1",
+        "UV_CACHE_DIR": "/opt/rnd/uv-cache",
+        "UV_PYTHON_INSTALL_DIR": "/opt/rnd/python",
+        "UV_OFFLINE": "1",
+        "UV_NO_PROGRESS": "1",
+        "UV_LINK_MODE": "copy",
+        "COREPACK_ENABLE_NETWORK": "0",
+        **database,
+    }
+    return system_argv(
+        [
+            "/usr/bin/setsid",
+            "--fork",
+            "--wait",
+            "/usr/bin/setpriv",
+            "--reuid=" + APP_USER,
+            "--regid=" + APP_USER,
+            "--clear-groups",
+            "--no-new-privs",
+            "--bounding-set=-all",
+            "--inh-caps=-all",
+            "--ambient-caps=-all",
+            "--",
+            "/usr/bin/python3",
+            "-I",
+            "-S",
+            GUARD,
+            str(plan.runtime.port),
+            connect,
+            "--",
+            "/usr/bin/env",
+            "-i",
+            *(key + "=" + value for key, value in environment.items()),
+            *argv,
+        ]
+    )
+
+
+def redirected_command(argv):
+    """Dedicated data-only stdio; never share a privileged control terminal."""
+    output = CONTROL + "/private/" + uuid.uuid4().hex + ".log"
+    command = "exec " + shlex.join(argv) + " </dev/null >" + shlex.quote(output) + " 2>&1"
+    return ["/bin/sh", "-c", command], output
+
+
+def read_command_output(sandbox, path, timeout, limit=8000):
+    if not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix(
+        CONTROL + "/private/"
+    ):
+        raise IsolationUnavailable("执行输出路径不属于独立控制目录")
+    result = control_exec(sandbox, ["/usr/bin/head", "-c", str(limit), path], timeout)
+    if result.exit_code != 0:
+        raise IsolationUnavailable("无法读取独立命令回执")
+    return result.result or ""
+
+
+def run_guarded_control(sandbox, argv, timeout):
+    command, output = redirected_command(argv)
+    result = control_exec(sandbox, command, timeout)
+    return result.exit_code, read_command_output(sandbox, output, timeout)
+
+
+PROBE = r"""
+import json,os,pathlib,stat,sys
+status=dict(line.split(':',1) for line in pathlib.Path('/proc/self/status').read_text().splitlines())
+assert os.getuid()==20000 and os.geteuid()==20000
+assert not os.getgroups() and status['NoNewPrivs'].strip()=='1'
+assert pathlib.Path('/proc/self/stat').read_text().rsplit(')',1)[1].split()[4]=='0'
+assert all(int(status[name].strip(),16)==0 for name in ('CapInh','CapPrm','CapEff','CapBnd','CapAmb'))
+for raw in sys.argv[1:]:
+    path=pathlib.Path(raw).resolve()
+    assert path.exists() and not os.access(path,os.W_OK)
+    while str(path) != '/':
+        parent=path.parent
+        if os.access(parent,os.W_OK):
+            assert parent.stat().st_mode & stat.S_ISVTX and path.stat().st_uid != os.getuid()
+        path=parent
+assert not os.access('/tmp/rnd-module-control/private',os.R_OK)
+assert not os.access('/tmp/rnd-postgres',os.R_OK)
+# A filesystem Unix control socket accessible to this UID is not an accepted profile.
+for line in pathlib.Path('/proc/net/unix').read_text().splitlines()[1:]:
+    fields=line.split()
+    if len(fields)>7 and fields[7].startswith('/'):
+        p=pathlib.Path(fields[7])
+        if p.exists() and p.stat().st_uid != os.getuid():
+            assert not os.access(p,os.W_OK)
+print(json.dumps({'application_uid':os.getuid(),'no_new_privs':True,'capabilities_cleared':True,'supplementary_groups_cleared':True,'privilege_transitions_disabled':True,'trusted_tools_readonly':True,'private_control_unreadable':True,'private_database_unreadable':True,'daemon_tcp_denied':True,'unix_scope_restricted':True,'no_controlling_terminal':True}))
+"""
+
+
+def prepare_identity(sandbox, plan, timeout):
+    root = control_exec(sandbox, ["/usr/bin/id", "-u"], timeout)
+    output = root.result.strip() if isinstance(root.result, str) else ""
+    control_uid = int(output) if re.fullmatch(r"[0-9]{1,10}", output) else None
+    identity_check = {
+        "control_exec_exit_code": root.exit_code if type(root.exit_code) is int else None,
+        "control_euid": control_uid,
+        "control_result_type": "string"
+        if isinstance(root.result, str)
+        else "null"
+        if root.result is None
+        else "other",
+        "control_result_chars": len(root.result) if isinstance(root.result, str) else None,
+        "control_output_shape": "decimal"
+        if control_uid is not None
+        else "empty"
+        if not output
+        else "locale-warning"
+        if "setlocale" in output.lower()
+        else "other",
+    }
+    if type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0:
+        raise IsolationUnavailable("缺少受控隔离身份，未执行生成源码", evidence=identity_check)
+    commands = [
+        ["/usr/sbin/groupadd", "--gid", str(APP_UID), APP_USER],
+        [
+            "/usr/sbin/useradd",
+            "--uid",
+            str(APP_UID),
+            "--gid",
+            APP_USER,
+            "--create-home",
+            "--shell",
+            "/usr/sbin/nologin",
+            APP_USER,
+        ],
+        ["/usr/bin/mkdir", "-p", CONTROL + "/private", "/tmp/rnd-postgres"],
+        ["/usr/bin/chmod", "700", CONTROL + "/private", "/tmp/rnd-postgres"],
+        ["/usr/bin/chmod", "755", CONTROL],
+        ["/usr/bin/chmod", "711", "/tmp/rnd-capability"],
+        ["/usr/bin/chown", "-R", APP_USER + ":" + APP_USER, PRODUCT, "/opt/rnd/uv-cache"],
+    ]
+    for argv in commands:
+        if control_exec(sandbox, argv, timeout).exit_code != 0:
+            raise IsolationUnavailable("隔离环境无法建立专用无权限执行身份，未执行生成源码")
+    sandbox.fs.upload_file(
+        (ROOT / "scripts/capability_guard.py").read_bytes(), GUARD, timeout=timeout
+    )
+    if control_exec(sandbox, ["/usr/bin/chmod", "644", GUARD], timeout).exit_code:
+        raise IsolationUnavailable("可信执行守卫无法设为只读")
+    trusted = [
+        "/usr/bin/python3",
+        "/usr/bin/env",
+        "/usr/bin/setpriv",
+        "/usr/bin/setsid",
+        "/usr/bin/head",
+        "/bin/sh",
+        GUARD,
+    ]
+    # Include the system interpreter's complete stdlib search roots, without site hooks.
+    result = control_exec(
+        sandbox,
+        [
+            "/usr/bin/python3",
+            "-I",
+            "-S",
+            "-c",
+            "import json,sys;print(json.dumps([p for p in sys.path if p]))",
+        ],
+        timeout,
+    )
+    try:
+        trusted.extend(path for path in json.loads(result.result) if not path.endswith(".zip"))
+    except ValueError, TypeError:
+        raise IsolationUnavailable("系统解释器环境无法核实") from None
+    if plan.selection.database == "postgresql":
+        trusted.extend(["/usr/lib/postgresql/17/bin/psql", "/usr/lib/postgresql/17/bin/postgres"])
+    guarded = product_argv(plan, [], {})
+    probe_argv = guarded[: guarded.index(GUARD) + 3] + ["--probe"]
+    probe_status, probe_output = run_guarded_control(sandbox, probe_argv, timeout)
+    try:
+        guard_receipt = json.loads(probe_output)
+    except ValueError, TypeError:
+        raise IsolationUnavailable("内核守卫未返回完整回执；未执行生成源码") from None
+    if (
+        probe_status != 0
+        or type(guard_receipt.get("landlock_abi")) is not int
+        or guard_receipt["landlock_abi"] < 6
+    ):
+        raise IsolationUnavailable("内核缺少所需Landlock ABI6隔离，未执行生成源码")
+    identity_status, identity_output = run_guarded_control(
+        sandbox,
+        product_argv(plan, ["/usr/bin/python3", "-I", "-S", "-c", PROBE, *trusted], {}),
+        timeout,
+    )
+    if identity_status != 0:
+        raise IsolationUnavailable(
+            "生成程序身份/内核守卫/控制端口/可信工具隔离未通过，未执行生成源码"
+        )
+    try:
+        receipt = json.loads(identity_output)
+    except ValueError, TypeError:
+        raise IsolationUnavailable("执行隔离缺少可信运行回执") from None
+    return require_isolation_evidence(
+        {
+            **guard_receipt,
+            **receipt,
+            "profile": ISOLATION_PROFILE,
+            "guard_sha256": sha(ROOT / "scripts/capability_guard.py"),
+            **identity_check,
+        }
+    )
+````
+
+### `workbench/capability_sandbox.py`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.capability_contracts`、`workbench.capability_isolation`、`workbench.capability_stack`、`workbench.capability_verification`、`workbench.domain`、`workbench.errors`、`workbench.filesystem`、`workbench.generator`、`workbench.local_only`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `verify_capabilities`（L53–L139）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`。 控制顺序：L57按`plan.selection.model_dump() != selection`分支；L58抛异常，停止当前正常路径；L63按`settings.sandbox_provider != "daytona"`分支；L64抛异常，停止当前正常路径；L71抛异常，停止当前正常路径；L77抛异常，停止当前正常路径；L108按`len(body) > 1_000_000`分支；L109抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`UnsupportedScope`、`validate_configuration`、`Path(product).resolve`、`Path`、`plan.model_dump`等。 返回路径：L62的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L139的`receipt`。
+- `_verify`（L142–L344）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`。 控制顺序：L183按`control_observer is None`分支；L184抛异常，停止当前正常路径；L190抛异常，停止当前正常路径；L203按`result.exit_code != 0`分支；L204抛异常，停止当前正常路径；L207按`database_password`分支；L211遍历`enumerate(plan.runtime.prepare)`；L223按`result.exit_code != 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`manifest`、`uuid.uuid4`、`digest`、`plan.model_dump`、`inspect_stack`、`write_json`、`params_for`、`client.create`、`receipt.update`等。 返回路径：L344的`receipt`。
+- `_verify.start`（L229–L272）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L245按`not response.cmd_id`分支；L246抛异常，停止当前正常路径；L249按`not isinstance(preview.token, str) or not preview.token`分支；L250抛异常，停止当前正常路径；L261在`time.monotonic() < deadline`成立时循环；L264按`200 <= check.status_code < 300`分支；L269抛异常，停止当前正常路径；L272抛异常，停止当前正常路径。 调用`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`、`shlex.quote`、`shlex.join`、`CheckFailure`等。 返回路径：L265的`http, url, preview.token`。
+- `main`（L347–L373）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L348抛异常，停止当前正常路径；L350按`len(body) > 1_000_000`分支；L351抛异常，停止当前正常路径。 调用`UnsupportedScope`、`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: workbench/capability_sandbox.py sha256: 2d1c17c2a45a885938c17aa984783f52ac681672c906b3539720d0cedaf979fb -->
+````python
+"""Custom source runs only in a private, network-blocked local Daytona sandbox.
+
+The HTTP verifier remains in the controller process, outside generated code's
+filesystem/process namespace. A product-authored JSON report cannot pass a task.
+"""
+
+import json
+import os
+import shlex
+import subprocess
+import sys
+import tempfile
+import time
+import uuid
+from contextlib import closing
+from pathlib import Path
+
+import httpx
+
+from workbench.capability_contracts import CapabilityPlan
+from workbench.capability_isolation import (
+    IsolationUnavailable,
+    control_exec,
+    prepare_identity,
+    product_argv,
+    read_command_output,
+    redirected_command,
+    require_container_evidence,
+)
+from workbench.capability_stack import (
+    database_counts,
+    database_environment,
+    inspect_stack,
+    prepare_database,
+)
+from workbench.capability_verification import (
+    BrowserFailure,
+    CheckFailure,
+    preview_url,
+    run_browser,
+    run_scenarios,
+)
+from workbench.domain import digest
+from workbench.errors import UnsupportedScope
+from workbench.filesystem import manifest, write_json
+from workbench.generator import PrerequisiteError
+from workbench.local_only import install_loopback_guard
+from workbench.tools import clean_env, process_options, stop_process
+
+REMOTE = "/tmp/rnd-capability"
+
+
+def verify_capabilities(product, plan, scenarios, settings, *, aggregate, selection=None):
+    from workbench.sandbox import validate_configuration
+
+    selection = selection or {"template": "python-basic", "database": "sqlite"}
+    if plan.selection.model_dump() != selection:
+        raise CheckFailure("隔离验证的技术栈与已批准计划不一致")
+    try:
+        inspect_stack(product, plan)
+    except (CheckFailure, ValueError) as exc:
+        return {"passed": False, "kind": "source_contract", "error": str(exc)}
+    if settings.sandbox_provider != "daytona":
+        raise UnsupportedScope(
+            "自定义源码已保存，等待隔离验证环境：请配置本机 Daytona 和对应离线快照。"
+            "生成代码不会在平台宿主执行；配置后重试同一运行，不会重做已保存模型响应。"
+        )
+    try:
+        validate_configuration(settings, selection["template"], selection)
+    except ValueError, PrerequisiteError:
+        raise UnsupportedScope(
+            "自定义验证环境尚未就绪；请检查本机 Daytona 授权、技术栈离线快照及配置，再重试同一运行。"
+        ) from None
+    # The pinned stock daemon exposes an unauthenticated in-sandbox execution
+    # channel. A same-container database/tool probe cannot be trusted until the
+    # new executor's application and control identities are actually separated.
+    raise UnsupportedScope(
+        "自定义源码已保存，但当前Daytona镜像的控制通道与数据库验证身份尚未完成隔离验收；"
+        "已停止执行，保留原技术栈和同一运行候选，不会将不可信探针标为通过。"
+    )
+    product = Path(product).resolve()
+    receipt_path = product.parent / (
+        product.name + ("-aggregate" if aggregate else "-node") + "-verification.json"
+    )
+    payload = {
+        "product": str(product),
+        "receipt": str(receipt_path),
+        "selection": selection,
+        "plan": plan.model_dump(),
+        "scenario_ids": [s.id for s in scenarios],
+        "aggregate": aggregate,
+        "settings": {
+            name: getattr(settings, name)
+            for name in (
+                "sandbox_provider",
+                "daytona_allow_local_execution",
+                "daytona_api_url",
+                "daytona_snapshot",
+                "daytona_snapshots",
+                "daytona_target",
+                "daytona_runtime_timeout",
+                "tool_timeout",
+            )
+        },
+    }
+    payload["settings"]["daytona_api_key"] = settings.daytona_api_key.get_secret_value()
+    body = json.dumps(payload).encode()
+    if len(body) > 1_000_000:
+        raise PrerequisiteError("自定义验收控制契约超过1MB预算，未创建沙箱")
+    with tempfile.TemporaryFile() as output:
+        process = subprocess.Popen(
+            [sys.executable, "-m", "workbench.capability_sandbox"],
+            stdin=subprocess.PIPE,
+            stdout=output,
+            stderr=subprocess.STDOUT,
+            env=clean_env(
+                {
+                    "PRODUCT_VERIFY_PLAYWRIGHT": os.environ.get("PRODUCT_VERIFY_PLAYWRIGHT", ""),
+                    "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
+                }
+            ),
+            **process_options(),
+        )
+        try:
+            process.communicate(
+                body, timeout=settings.daytona_runtime_timeout + settings.tool_timeout * 12 + 60
+            )
+        except subprocess.TimeoutExpired:
+            stop_process(process)
+            raise PrerequisiteError(
+                "自定义隔离验证超时；已保留沙箱名称回执，请在本机确认清理后重试"
+            ) from None
+        if process.returncode:
+            # The child prints only a static classified error. Never echo provider/SDK objects.
+            raise PrerequisiteError("自定义隔离验证进程失败；查看该节点的脱敏验证回执")
+    receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+    if receipt.get("cleanup") != "deleted":
+        raise PrerequisiteError("自定义隔离环境清理未确认；已阻止交付，请按回执中的沙箱名称检查")
+    return receipt
+
+
+def _verify(
+    product,
+    plan,
+    scenarios,
+    settings,
+    selection,
+    receipt_path,
+    *,
+    client,
+    aggregate,
+    control_observer=None,
+):
+    from daytona import SessionExecuteRequest
+
+    from workbench.daytona_sessions import run_session_command
+    from workbench.sandbox import params_for, source_archive
+
+    before = manifest(product)
+    name = "rnd-capability-" + uuid.uuid4().hex
+    receipt = {
+        "verifier": "controller-http-contract-v3",
+        "passed": False,
+        "source_digest": digest(before),
+        "plan_digest": digest(plan.model_dump()),
+        "network_block_all": True,
+        "credentials_uploaded": False,
+        "scope": "aggregate" if aggregate else "node",
+        "checks": [],
+        "sandbox_name": name,
+        "cleanup": "not-created",
+        "restarted": False,
+        "stack": inspect_stack(product, plan),
+    }
+    write_json(receipt_path, receipt)
+    sandbox = None
+    try:
+        parameters = params_for(settings, name, selection["template"], selection)
+        parameters.os_user = "root"
+        sandbox = client.create(parameters, timeout=settings.tool_timeout)
+        receipt.update(sandbox_id=sandbox.id, cleanup="pending")
+        write_json(receipt_path, receipt)
+        if control_observer is None:
+            raise IsolationUnavailable("缺少可信控制面的实际容器检查，未上传或执行源码")
+        try:
+            receipt["container_isolation"] = require_container_evidence(
+                control_observer(sandbox.id), sandbox.id
+            )
+        except ValueError:
+            raise IsolationUnavailable(
+                "实际容器不符合已批准的非特权策略，未上传或执行源码"
+            ) from None
+        write_json(receipt_path, receipt)
+        sandbox.fs.create_folder(REMOTE, "700")
+        sandbox.fs.upload_file(
+            source_archive(product), REMOTE + "/source.zip", timeout=settings.tool_timeout
+        )
+        result = control_exec(
+            sandbox,
+            ["/usr/bin/python3", "-I", "-S", "-m", "zipfile", "-e", REMOTE + "/source.zip", REMOTE],
+            settings.tool_timeout,
+        )
+        if result.exit_code != 0:
+            raise CheckFailure("自定义产品源码解压失败")
+        receipt["execution_isolation"] = prepare_identity(sandbox, plan, settings.tool_timeout)
+        database_password = prepare_database(sandbox, plan, settings.tool_timeout)
+        if database_password:
+            with settings._model_keys_lock:
+                settings._model_keys.add(database_password)
+        database = database_environment(plan, database_password)
+        for index, command in enumerate(plan.runtime.prepare):
+            evidence = {}
+            guarded_command, command_output = redirected_command(
+                product_argv(plan, command.argv, database)
+            )
+            result = run_session_command(
+                sandbox.process,
+                guarded_command,
+                REMOTE + "/product/" + command.cwd,
+                settings.tool_timeout,
+                evidence,
+            )
+            if result.exit_code != 0:
+                receipt["build_diagnostic"] = settings.redact(
+                    read_command_output(sandbox, command_output, settings.tool_timeout)
+                )[-4000:]
+                raise CheckFailure(f"第 {index + 1} 个隔离准备/构建命令失败；检查节点构建诊断")
+
+        def start():
+            session = "rnd-app-" + uuid.uuid4().hex
+            sandbox.process.create_session(session)
+            command = plan.runtime.start
+            guarded_command, _ = redirected_command(product_argv(plan, command.argv, database))
+            response = sandbox.process.execute_session_command(
+                session,
+                SessionExecuteRequest(
+                    command="cd "
+                    + shlex.quote(REMOTE + "/product/" + command.cwd)
+                    + " && exec "
+                    + shlex.join(guarded_command),
+                    run_async=True,
+                ),
+                timeout=settings.tool_timeout,
+            )
+            if not response.cmd_id:
+                raise CheckFailure("隔离应用启动未返回命令标识")
+            preview = sandbox.get_preview_link(plan.runtime.port)
+            url = preview_url(preview.url, sandbox.id, plan.runtime.port)
+            if not isinstance(preview.token, str) or not preview.token:
+                raise CheckFailure("私有隔离预览缺少授权标识")
+            # The pinned local proxy consumes/strips this token before forwarding.
+            http = httpx.Client(
+                base_url=url,
+                headers={"x-daytona-preview-token": preview.token},
+                timeout=15,
+                follow_redirects=False,
+                trust_env=False,
+            )
+            try:
+                deadline = time.monotonic() + plan.runtime.startup_seconds
+                while time.monotonic() < deadline:
+                    try:
+                        with http.stream("GET", plan.runtime.health_path) as check:
+                            if 200 <= check.status_code < 300:
+                                return http, url, preview.token
+                    except httpx.HTTPError:
+                        pass
+                    time.sleep(0.2)
+                raise CheckFailure("隔离应用未在约定时间内通过健康检查")
+            except BaseException:
+                http.close()
+                raise
+
+        http, url, token = start()
+        # The health request already opened this client; entering it again is
+        # invalid. Own its close even when the independent baseline probe fails.
+        with closing(http):
+            baseline_counts = database_counts(sandbox, plan, settings.tool_timeout)
+            if plan.selection.backend in {"fastapi", "fastapiadmin"}:
+                with http.stream("GET", "/openapi.json") as response:
+                    if response.status_code != 200:
+                        raise CheckFailure("实际运行服务没有FastAPI OpenAPI契约，拒绝技术栈替换")
+            checks, saved = run_scenarios(http, scenarios)
+            receipt["checks"].extend(checks)
+        receipt["browser"] = run_browser(url, token, scenarios, saved, settings.tool_timeout)
+        counts = database_counts(sandbox, plan, settings.tool_timeout)
+        if not any(counts[name] > baseline_counts[name] for name in counts):
+            raise CheckFailure(
+                "独立物理数据库探针未观察到验收请求写入的数据；静态响应不能替代持久化"
+            )
+        receipt["database"] = {
+            "engine": plan.selection.database,
+            "baseline": baseline_counts,
+            "after": counts,
+            "observed_writes": True,
+        }
+        if aggregate:
+            client.stop(sandbox, timeout=settings.tool_timeout)
+            client.start(sandbox, timeout=settings.tool_timeout)
+            prepare_database(
+                sandbox, plan, settings.tool_timeout, restart=True, password=database_password
+            )
+            http, _, _ = start()
+            with closing(http):
+                checks, _ = run_scenarios(http, scenarios, saved=saved, after_restart=True)
+                receipt["checks"].extend(checks)
+            receipt["restarted"] = True
+            restarted = database_counts(sandbox, plan, settings.tool_timeout)
+            if any(restarted[name] < counts[name] for name in counts):
+                raise CheckFailure("独立数据库重启后丢失已写入的记录")
+            receipt["database"]["after_restart"] = restarted
+        if manifest(product) != before:
+            raise CheckFailure("隔离验收期间宿主源码发生变化")
+        receipt["passed"] = True
+    except IsolationUnavailable as exc:
+        receipt.update(kind="isolation_environment", error=str(exc))
+        receipt["isolation_diagnostic"] = exc.evidence
+    except CheckFailure as exc:
+        receipt["error"] = str(exc)
+        receipt["failed_scenario"] = getattr(exc, "scenario_id", None)
+        if isinstance(exc, BrowserFailure):
+            receipt["browser_diagnostic"] = exc.diagnostic
+    except Exception as exc:
+        receipt["error"] = (
+            "本机隔离服务未完成验收（" + type(exc).__name__ + "），未使用本机执行回退"
+        )
+    finally:
+        if sandbox is None:
+            receipt["cleanup"] = "create-failed-unknown"
+            try:
+                sandbox = client.get(name)
+            except Exception:
+                pass
+        if sandbox is not None:
+            try:
+                client.delete(sandbox, timeout=settings.tool_timeout)
+                receipt["cleanup"] = "deleted"
+            except Exception:
+                receipt.update(cleanup="delete-failed", passed=False)
+                receipt["error"] = "本机隔离沙箱删除未确认；请按回执名称检查，交付已停止"
+        if receipt["cleanup"] != "deleted":
+            receipt["passed"] = False
+        write_json(receipt_path, receipt)
+    return receipt
+
+
+def main():
+    raise UnsupportedScope("生产自定义执行入口尚未完成独立隔离验收，禁止直接启动")
+    body = sys.stdin.buffer.read(1_000_001)
+    if len(body) > 1_000_000:
+        raise ValueError("自定义验收控制契约过大")
+    payload = json.loads(body)
+    install_loopback_guard()
+    from workbench.sandbox import client_for, close_client
+    from workbench.settings import Settings
+
+    settings = Settings(_env_file=None, **payload["settings"])
+    plan = CapabilityPlan.model_validate(payload["plan"])
+    scenarios = [s for s in plan.scenarios if s.id in payload["scenario_ids"]]
+    client = client_for(settings)
+    try:
+        _verify(
+            Path(payload["product"]),
+            plan,
+            scenarios,
+            settings,
+            payload["selection"],
+            Path(payload["receipt"]),
+            client=client,
+            aggregate=payload["aggregate"],
+        )
+    finally:
+        close_client(client)
+
+
+if __name__ == "__main__":
+    main()
+````
+
+### `workbench/capability_stack.py`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.capability_isolation`、`workbench.capability_verification`、`workbench.filesystem`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `inspect_stack`（L26–L107）：接收`product`、`plan`。 控制顺序：L32按`selected["backend"] in {"fastapi", "fastapiadmin"}`分支；L33按`command not in {"uv", "uvicorn", "python", "python3", "python3.14"} or not any( "uvic…`分支；L36抛异常，停止当前正常路径；L42按`len(modules) != 1`分支；L43抛异常，停止当前正常路径；L48按`entry not in inventory`分支；L49抛异常，停止当前正常路径；L51遍历`inventory`。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`PurePosixPath`、`manifest`、`any`、`CheckFailure`、`re.fullmatch`、`len`、`( PurePosixPath(plan.runtime.start.cwd) / (modules[0].split(":")[…`、`modules[0].split(":")[0].replace`等。 返回路径：L107的`evidence`。
+- `database_environment`（L110–L120）：接收`plan`、`password`。 控制顺序：L111按`plan.selection.database == "sqlite"`分支；L113按`not password`分支；L114抛异常，停止当前正常路径。 调用`CheckFailure`。 返回路径：L112的`{"DATABASE_URL": "sqlite:///" + REMOTE + "/product/" + plan.runtime.database_path}`；L115的`{ "DATABASE_URL": f"postgresql+psycopg://rnd_app:{password}@127.0.0.1:{PG_PORT}/rnd_produc…`。
+- `pg_control`（L123–L130）：接收`argv`。 调用`system_argv`。 返回路径：L124的`[ "/usr/sbin/runuser", "-u", "postgres", "--", *system_argv(["/usr/bin/env", "PGOPTIONS=-c…`。
+- `prepare_database`（L133–L201）：接收`sandbox`、`plan`、`timeout`、`restart`、`password`。 控制顺序：L134按`plan.selection.database == "sqlite"`分支；L136按`not restart`分支；L137遍历`( ["/usr/bin/mkdir", "-p", PG_SOCKET], ["/usr/bin/chown", "-R", "…`；L142按`control_exec(sandbox, argv, timeout).exit_code`分支；L143抛异常，停止当前正常路径；L152按`control_exec(sandbox, pg_control(command), timeout).exit_code`分支；L153抛异常，停止当前正常路径；L165按`control_exec(sandbox, pg_control(command), timeout).exit_code`分支。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`CheckFailure`、`pg_control`、`secrets.token_hex`、`str`。 返回路径：L135的`""`；L201的`password`。
+- `database_counts`（L204–L269）：接收`sandbox`、`plan`、`timeout`。 控制顺序：L206按`plan.selection.database == "sqlite"`分支；L233按`result.exit_code != 0`分支；L234抛异常，停止当前正常路径；L238抛异常，停止当前正常路径；L241遍历`tables`；L264按`result.exit_code != 0 or not re.fullmatch(r"\d+\s*", result.result or "")`分支；L265抛异常，停止当前正常路径；L267按`set(values) != set(tables) or any(type(v) is not int or v < 0 for v in values.values(…`分支。后续分支沿下方源码相同行号继续阅读。 调用`sandbox.process.exec`、`shlex.join`、`dict`、`CheckFailure`、`json.loads`、`str`、`control_exec`、`pg_control`、`re.fullmatch`等。 返回路径：L269的`values`。
+
+<!-- source-file: workbench/capability_stack.py sha256: 896642df20a86921f7b8bdf5950b04d6a85b0e12de0a55ab2dca2466c39e3ac4 -->
+````python
+"""Independent selected-language/framework and physical-database evidence.
+
+This is a bounded runtime profile, not a model's claimed framework boolean.
+Generated code remains inside Daytona; database probes use trusted system tools.
+"""
+
+import ast
+import json
+import re
+import secrets
+import shlex
+from pathlib import PurePosixPath
+from xml.etree import ElementTree
+
+from workbench.capability_isolation import CONTROL_SHELL_ENV, control_exec, system_argv
+from workbench.capability_verification import CheckFailure
+from workbench.filesystem import inside, manifest
+
+REMOTE = "/tmp/rnd-capability"
+PG_BIN = "/usr/lib/postgresql/17/bin/"
+PG_PORT = 55432
+PG_ROOT = "/tmp/rnd-postgres"
+PG_SOCKET = PG_ROOT + "/socket"
+
+
+def inspect_stack(product, plan):
+    selected = plan.selection.model_dump()
+    argv = plan.runtime.start.argv
+    command = PurePosixPath(argv[0]).name
+    inventory = manifest(product)
+    evidence = {"selection": selected, "source_checks": {}, "launcher": ""}
+    if selected["backend"] in {"fastapi", "fastapiadmin"}:
+        if command not in {"uv", "uvicorn", "python", "python3", "python3.14"} or not any(
+            "uvicorn" == PurePosixPath(arg).name for arg in argv
+        ):
+            raise CheckFailure("所选FastAPI技术栈必须通过真实uvicorn入口运行")
+        modules = [
+            arg
+            for arg in argv
+            if re.fullmatch(r"[a-zA-Z_][a-zA-Z0-9_.]*:[a-zA-Z_][a-zA-Z0-9_]*", arg)
+        ]
+        if len(modules) != 1:
+            raise CheckFailure("FastAPI启动命令必须声明唯一ASGI模块入口")
+        entry = (
+            PurePosixPath(plan.runtime.start.cwd)
+            / (modules[0].split(":")[0].replace(".", "/") + ".py")
+        ).as_posix()
+        if entry not in inventory:
+            raise CheckFailure("FastAPI入口不是本次产物源码")
+        found = False
+        for name in inventory:
+            if not name.endswith(".py"):
+                continue
+            try:
+                tree = ast.parse(inside(product, name).read_text(encoding="utf-8"))
+            except SyntaxError:
+                raise CheckFailure("自定义Python源码语法未通过") from None
+            aliases = {
+                item.asname or item.name
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom) and node.module == "fastapi"
+                for item in node.names
+                if item.name == "FastAPI"
+            }
+            if any(
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id in aliases
+                for node in ast.walk(tree)
+            ):
+                found = True
+                evidence["source_checks"][name] = inventory[name]
+        if not found:
+            raise CheckFailure("源码没有真实FastAPI应用构造，不能用另一框架冒充所选栈")
+        evidence["launcher"] = "uvicorn"
+    else:
+        if command != "java" or "-jar" not in argv:
+            raise CheckFailure("所选Java技术栈必须通过真实Java应用入口运行")
+        poms = [name for name in inventory if name.endswith("pom.xml")]
+        spring = False
+        for name in poms:
+            try:
+                root = ElementTree.fromstring(inside(product, name).read_text(encoding="utf-8"))
+            except ElementTree.ParseError:
+                raise CheckFailure("Maven构建清单无效") from None
+            if any(
+                node.tag.endswith("groupId") and node.text == "org.springframework.boot"
+                for node in root.iter()
+            ):
+                evidence["source_checks"][name] = inventory[name]
+                spring = True
+        if not spring:
+            raise CheckFailure("所选Java/Spring技术栈缺少实际构建清单")
+        evidence["launcher"] = "java"
+    if selected["frontend"] in {"fastapiadmin-vue", "vben-antd"}:
+        vue = False
+        for name in inventory:
+            if not name.endswith("package.json"):
+                continue
+            package = json.loads(inside(product, name).read_text(encoding="utf-8"))
+            deps = {**package.get("dependencies", {}), **package.get("devDependencies", {})}
+            if "vue" in deps:
+                evidence["source_checks"][name] = inventory[name]
+                vue = True
+        if not vue or not any(name.endswith(".vue") for name in inventory):
+            raise CheckFailure("所选Vue前端缺少Vue依赖和实际组件源码")
+    return evidence
+
+
+def database_environment(plan, password=""):
+    if plan.selection.database == "sqlite":
+        return {"DATABASE_URL": "sqlite:///" + REMOTE + "/product/" + plan.runtime.database_path}
+    if not password:
+        raise CheckFailure("隔离PostgreSQL缺少专用应用身份")
+    return {
+        "DATABASE_URL": f"postgresql+psycopg://rnd_app:{password}@127.0.0.1:{PG_PORT}/rnd_product",
+        "SPRING_DATASOURCE_URL": f"jdbc:postgresql://127.0.0.1:{PG_PORT}/rnd_product",
+        "SPRING_DATASOURCE_USERNAME": "rnd_app",
+        "SPRING_DATASOURCE_PASSWORD": password,
+    }
+
+
+def pg_control(argv):
+    return [
+        "/usr/sbin/runuser",
+        "-u",
+        "postgres",
+        "--",
+        *system_argv(["/usr/bin/env", "PGOPTIONS=-c search_path=pg_catalog", *argv]),
+    ]
+
+
+def prepare_database(sandbox, plan, timeout, *, restart=False, password=""):
+    if plan.selection.database == "sqlite":
+        return ""
+    if not restart:
+        for argv in (
+            ["/usr/bin/mkdir", "-p", PG_SOCKET],
+            ["/usr/bin/chown", "-R", "postgres:postgres", PG_ROOT],
+            ["/usr/bin/chmod", "700", PG_ROOT, PG_SOCKET],
+        ):
+            if control_exec(sandbox, argv, timeout).exit_code:
+                raise CheckFailure("无法建立独立PostgreSQL私有目录")
+        command = [
+            PG_BIN + "initdb",
+            "-D",
+            PG_ROOT + "/data",
+            "--username=postgres",
+            "--auth-local=peer",
+            "--auth-host=scram-sha-256",
+        ]
+        if control_exec(sandbox, pg_control(command), timeout).exit_code:
+            raise CheckFailure("独立PostgreSQL初始化失败")
+    command = [
+        PG_BIN + "pg_ctl",
+        "-D",
+        PG_ROOT + "/data",
+        "-l",
+        PG_ROOT + "/postgres.log",
+        "-o",
+        f"-h 127.0.0.1 -k {PG_SOCKET} -p {PG_PORT}",
+        "-w",
+        "start",
+    ]
+    if control_exec(sandbox, pg_control(command), timeout).exit_code:
+        raise CheckFailure("独立PostgreSQL进程无法启动")
+    if not restart:
+        password = secrets.token_hex(24)
+        command = [
+            PG_BIN + "createdb",
+            "-h",
+            PG_SOCKET,
+            "-p",
+            str(PG_PORT),
+            "-U",
+            "postgres",
+            "--owner=postgres",
+            "rnd_product",
+        ]
+        if control_exec(sandbox, pg_control(command), timeout).exit_code:
+            raise CheckFailure("无法建立非应用拥有的验证数据库")
+        sql = f"CREATE ROLE rnd_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{password}'; REVOKE ALL ON DATABASE rnd_product FROM PUBLIC; GRANT CONNECT,TEMPORARY ON DATABASE rnd_product TO rnd_app; REVOKE ALL ON SCHEMA public FROM PUBLIC; GRANT USAGE,CREATE ON SCHEMA public TO rnd_app;"
+        command = [
+            PG_BIN + "psql",
+            "-X",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-h",
+            PG_SOCKET,
+            "-p",
+            str(PG_PORT),
+            "-U",
+            "postgres",
+            "-d",
+            "rnd_product",
+            "-c",
+            sql,
+        ]
+        if control_exec(sandbox, pg_control(command), timeout).exit_code:
+            raise CheckFailure("无法建立最小应用数据库权限")
+    return password
+
+
+def database_counts(sandbox, plan, timeout):
+    tables = plan.runtime.database_tables
+    if plan.selection.database == "sqlite":
+        script = """import sqlite3,json,sys,pathlib,urllib.parse
+p=pathlib.Path(sys.argv[1]); root=pathlib.Path('/tmp/rnd-capability/product')
+assert p.resolve().is_relative_to(root.resolve())
+if not p.exists():
+ print(json.dumps({t:0 for t in sys.argv[2:]})); sys.exit(0)
+c=sqlite3.connect('file:'+urllib.parse.quote(str(p))+'?mode=ro',uri=True)
+c.execute('PRAGMA trusted_schema=OFF');c.execute('PRAGMA query_only=ON')
+names={r[0] for r in c.execute("select name,sql from sqlite_schema where type='table'") if (r[1] or '').lstrip().upper().startswith('CREATE TABLE')}
+print(json.dumps({t:c.execute('SELECT count(*) FROM '+t).fetchone()[0] if t in names else 0 for t in sys.argv[2:]}))
+"""
+        argv = [
+            "/usr/bin/env",
+            "-i",
+            "PATH=/usr/bin:/bin",
+            "HOME=/nonexistent",
+            "/usr/bin/python3",
+            "-I",
+            "-S",
+            "-c",
+            script,
+            REMOTE + "/product/" + plan.runtime.database_path,
+            *tables,
+        ]
+        result = sandbox.process.exec(
+            shlex.join(argv), env=dict(CONTROL_SHELL_ENV), timeout=timeout
+        )
+        if result.exit_code != 0:
+            raise CheckFailure("独立SQLite物理数据探针失败，不能接受应用自报存储成功")
+        try:
+            values = json.loads(result.result)
+        except ValueError, TypeError:
+            raise CheckFailure("独立SQLite探针未返回有效计数") from None
+    else:
+        values = {}
+        for table in tables:
+            # Table identifiers are constrained by the reviewed Pydantic contract.
+            query = f"SELECT CASE WHEN pg_catalog.to_regclass('public.{table}') IS NULL THEN 0 WHEN (SELECT relkind='r' AND relpersistence='p' FROM pg_catalog.pg_class WHERE oid=pg_catalog.to_regclass('public.{table}')) THEN (pg_catalog.xpath('/row/c/text()',pg_catalog.query_to_xml('SELECT pg_catalog.count(*) AS c FROM public.{table}',false,true,'')))[1]::text::bigint ELSE -1 END"
+            argv = [
+                PG_BIN + "psql",
+                "-X",
+                "-q",
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-h",
+                PG_SOCKET,
+                "-p",
+                str(PG_PORT),
+                "-U",
+                "postgres",
+                "-d",
+                "rnd_product",
+                "-A",
+                "-t",
+                "-c",
+                query,
+            ]
+            result = control_exec(sandbox, pg_control(argv), timeout)
+            if result.exit_code != 0 or not re.fullmatch(r"\d+\s*", result.result or ""):
+                raise CheckFailure("独立PostgreSQL物理数据探针失败，未采用模型声称的存储证据")
+            values[table] = int(result.result.strip())
+    if set(values) != set(tables) or any(type(v) is not int or v < 0 for v in values.values()):
+        raise CheckFailure("物理数据库证据与批准表清单不一致")
+    return values
+````
+
+### `workbench/capability_verification.py`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.capability_contracts`、`workbench.domain`、`workbench.filesystem`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `CheckFailure`（L26–L27）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BrowserFailure`（L30–L35）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BrowserFailure.__init__`（L33–L35）：接收`diagnostic`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `browser_report`（L80–L138）：接收`raw`、`request_id`、`verifier_sha256`。 源码说明：Return a current, exact-protocol report or a static rejection category.。 控制顺序：L82按`len(raw) > 100000`分支；L88按`not isinstance(value, dict) or type(value.get("protocol")) is not int or value["proto…`分支；L94按`value.get("request_id") != request_id or value.get("verifier_sha256") != verifier_sha…`分支；L97按`value.get("passed") is True`分支；L98按`set(value) != fields \| {"checks"} or not isinstance(value["checks"], list)`分支；L102按`value.get("passed") is not False or set(value) != fields \| {"diagnostic"} or not isi…`分支。 调用`len`、`json.loads`、`isinstance`、`type`、`value.get`、`set`、`detail.get`、`any`。 返回路径：L83的`None, "report-too-large"`；L87的`None, "invalid-json"`；L93的`None, "invalid-schema"`。
+- `preview_url`（L141–L154）：接收`value`、`sandbox_id`、`port`。 控制顺序：L143按`parsed.scheme not in {"http", "https"} or parsed.hostname != f"{port}-{sandbox_id}.pr…`分支；L153抛异常，停止当前正常路径。 调用`urlsplit`、`any`、`ord`、`CheckFailure`、`value.rstrip`。 返回路径：L154的`value.rstrip("/")`。
+- `interpolate`（L157–L176）：接收`value`、`variables`、`path`。 控制顺序：L158按`isinstance(value, list)`分支；L160按`isinstance(value, dict)`分支；L162按`not isinstance(value, str)`分支；L165按`full and not path`分支；L166按`full[1] not in variables`分支；L167抛异常，停止当前正常路径。 调用`isinstance`、`interpolate`、`value.items`、`re.fullmatch`、`CheckFailure`、`re.sub`。 返回路径：L159的`[interpolate(v, variables) for v in value]`；L161的`{k: interpolate(v, variables) for k, v in value.items()}`；L163的`value`。
+- `interpolate.replacement`（L170–L174）：接收`match`。 控制顺序：L171按`match[1] not in variables`分支；L172抛异常，停止当前正常路径。 调用`CheckFailure`、`str`、`quote`。 返回路径：L174的`quote(text, safe="") if path else text`。
+- `values_at`（L179–L195）：接收`value`、`path`。 控制顺序：L180按`path == "$"`分支；L182按`not path.startswith("$.") or len(path) > 300`分支；L183抛异常，停止当前正常路径；L185遍历`path[2:].split(".")`；L187遍历`values`；L188按`part == "*" and isinstance(item, (dict, list))`分支；L190按`isinstance(item, dict) and part in item`分支；L192按`isinstance(item, list) and part.isdigit() and int(part) < len(item)`分支。 调用`path.startswith`、`len`、`CheckFailure`、`path[2:].split`、`isinstance`、`found.extend`、`item.values`、`found.append`、`part.isdigit`等。 返回路径：L181的`[value]`；L195的`values`。
+- `json_equal`（L198–L209）：接收`left`、`right`。 控制顺序：L199按`type(left) is not type(right)`分支；L201按`isinstance(left, dict)`分支；L205按`isinstance(left, list)`分支。 调用`type`、`isinstance`、`left.keys`、`right.keys`、`all`、`json_equal`、`left.items`、`len`、`zip`。 返回路径：L200的`False`；L202的`left.keys() == right.keys() and all( json_equal(value, right[key]) for key, value in left.…`；L206的`len(left) == len(right) and all( json_equal(a, b) for a, b in zip(left, right, strict=True…`。
+- `run_steps`（L212–L266）：接收`client`、`steps`、`variables`。 控制顺序：L214遍历`enumerate(steps)`；L228遍历`response.iter_bytes()`；L230按`len(raw) > 2_000_000`分支；L231抛异常，停止当前正常路径；L234抛异常，停止当前正常路径；L235按`status != step.status`分支；L236抛异常，停止当前正常路径；L238按`step.equals or step.absent or step.captures`分支。后续分支沿下方源码相同行号继续阅读。 调用`enumerate`、`interpolate`、`HttpStep.loopback_path`、`HttpStep.bounded_headers`、`time.monotonic`、`client.stream`、`bytearray`、`response.iter_bytes`、`raw.extend`等。 返回路径：L266的`receipts`。
+- `run_scenarios`（L269–L295）：接收`client`、`scenarios`、`saved`、`after_restart`。 控制顺序：L272遍历`scenarios`；L276按`not steps`分支；L282抛异常，停止当前正常路径。 调用`client.cookies.clear`、`saved.setdefault`、`uuid.uuid4`、`run_steps`、`checks.append`、`digest`、`scenario.model_dump`。 返回路径：L295的`checks, saved`。
+- `run_browser`（L298–L405）：接收`url`、`token`、`scenarios`、`saved`、`timeout`。 控制顺序：L300按`not selected`分支；L303按`not node`分支；L304抛异常，停止当前正常路径；L310抛异常，停止当前正常路径；L347抛异常，停止当前正常路径；L358按`prior and prior["passed"] is False`分支；L359抛异常，停止当前正常路径；L362抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`sha`、`interpolate`、`step.model_dump`、`tempfile.TemporaryFile`、`subprocess.Popen`、`str`等。 返回路径：L301的`[]`；L405的`value["checks"]`。
+- `require_evidence`（L408–L474）：接收`receipt`、`source_digest`、`plan_digest`、`scenarios`、`selection`、`database_tables`、`aggregate`。 控制顺序：L421按`receipt.get("passed") is not True or receipt.get("source_digest") != source_digest or…`分支；L434抛异常，停止当前正常路径；L435按`aggregate`分支；L438按`not required or restarted != required or receipt.get("restarted") is not True`分支；L439抛异常，停止当前正常路径；L443按`stack.get("selection") != selection or not stack.get("source_checks") or stack.get("l…`分支；L454抛异常，停止当前正常路径；L455按`aggregate`分支。后续分支沿下方源码相同行号继续阅读。 调用`require_container_evidence`、`receipt.get`、`require_isolation_evidence`、`digest`、`s.model_dump`、`c.get`、`len`、`any`、`s.get`等。 返回路径：L474的`receipt`。
+
+<!-- source-file: workbench/capability_verification.py sha256: 791adcd6a6ba87c62c3adec0c487995e9b20e860b86a5d9e3ebce54387121bf6 -->
+````python
+"""Independent HTTP checks run outside the generated application's sandbox.
+
+Only request/expectation data comes from the reviewed plan. Generated test scripts
+and reports are never imported or accepted as evidence by this verifier.
+"""
+
+import json
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+import time
+import uuid
+from urllib.parse import quote, urlsplit
+
+import httpx
+
+from workbench.capability_contracts import HttpStep
+from workbench.domain import digest
+from workbench.filesystem import sha
+from workbench.settings import ROOT
+from workbench.tools import clean_env, process_options, stop_process
+
+
+class CheckFailure(ValueError):
+    pass
+
+
+class BrowserFailure(CheckFailure):
+    """Only bounded, allowlisted diagnostics cross the browser process boundary."""
+
+    def __init__(self, diagnostic):
+        super().__init__("真实浏览器场景未通过；查看安全阶段诊断，未跳过")
+        self.diagnostic = diagnostic
+
+
+BROWSER_PHASES = {
+    "contract",
+    "tool",
+    "launch",
+    "context",
+    "routing",
+    "page",
+    "navigation",
+    "action",
+    "assertion",
+    "application",
+    "context-close",
+    "browser-close",
+}
+BROWSER_ERROR_CODES = {
+    "operation-failed",
+    "timeout",
+    "tool-version",
+    "browser-channel-rejected",
+    "contract-too-large",
+    "origin-rejected",
+    "action-rejected",
+    "application-error",
+    "tool-missing",
+    "sandbox-unavailable",
+    "browser-missing",
+    "browser-dependency",
+    "name-resolution",
+    "connection-refused",
+    "navigation-network",
+}
+BROWSER_ACTIONS = {"viewport", "open", "fill", "click", "visible", "hidden", "text", None}
+BROWSER_ERROR_TYPES = {
+    "Error",
+    "TypeError",
+    "SyntaxError",
+    "ReferenceError",
+    "TimeoutError",
+    "Other",
+}
+
+
+def browser_report(raw, request_id, verifier_sha256):
+    """Return a current, exact-protocol report or a static rejection category."""
+    if len(raw) > 100000:
+        return None, "report-too-large"
+    try:
+        value = json.loads(raw)
+    except ValueError, UnicodeError, RecursionError:
+        return None, "invalid-json"
+    if (
+        not isinstance(value, dict)
+        or type(value.get("protocol")) is not int
+        or value["protocol"] != 1
+    ):
+        return None, "invalid-schema"
+    if value.get("request_id") != request_id or value.get("verifier_sha256") != verifier_sha256:
+        return None, "wrong-verifier-or-request"
+    fields = {"protocol", "request_id", "verifier_sha256", "passed"}
+    if value.get("passed") is True:
+        if set(value) != fields | {"checks"} or not isinstance(value["checks"], list):
+            return None, "invalid-schema"
+        return value, None
+    detail = value.get("diagnostic")
+    if (
+        value.get("passed") is not False
+        or set(value) != fields | {"diagnostic"}
+        or not isinstance(detail, dict)
+        or set(detail)
+        != {
+            "phase",
+            "error_code",
+            "error_type",
+            "scenario_index",
+            "step_index",
+            "action",
+            "navigation_status",
+        }
+        or not isinstance(detail.get("phase"), str)
+        or detail["phase"] not in BROWSER_PHASES
+        or not isinstance(detail.get("error_code"), str)
+        or detail["error_code"] not in BROWSER_ERROR_CODES
+        or not isinstance(detail.get("error_type"), str)
+        or detail["error_type"] not in BROWSER_ERROR_TYPES
+        or (detail.get("action") is not None and not isinstance(detail["action"], str))
+        or detail["action"] not in BROWSER_ACTIONS
+        or any(
+            detail[key] is not None
+            and (type(detail[key]) is not int or not 0 <= detail[key] <= 10000)
+            for key in ("scenario_index", "step_index")
+        )
+        or (
+            detail["navigation_status"] is not None
+            and (
+                type(detail["navigation_status"]) is not int
+                or not 100 <= detail["navigation_status"] <= 599
+            )
+        )
+    ):
+        return None, "invalid-diagnostic"
+    return value, None
+
+
+def preview_url(value, sandbox_id, port):
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or parsed.hostname != f"{port}-{sandbox_id}.proxy.localhost"
+        or parsed.username is not None
+        or parsed.password is not None
+        or parsed.query
+        or parsed.fragment
+        or parsed.path not in {"", "/"}
+        or any(ord(c) <= 32 for c in value)
+    ):
+        raise CheckFailure("自定义验收只接受当前沙箱端口的本机私有预览地址")
+    return value.rstrip("/")
+
+
+def interpolate(value, variables, *, path=False):
+    if isinstance(value, list):
+        return [interpolate(v, variables) for v in value]
+    if isinstance(value, dict):
+        return {k: interpolate(v, variables) for k, v in value.items()}
+    if not isinstance(value, str):
+        return value
+    full = re.fullmatch(r"\$\{([a-z][a-z0-9_-]*)\}", value)
+    if full and not path:
+        if full[1] not in variables:
+            raise CheckFailure("验收引用尚未捕获的变量")
+        return variables[full[1]]
+
+    def replacement(match):
+        if match[1] not in variables:
+            raise CheckFailure("验收引用尚未捕获的变量")
+        text = str(variables[match[1]])
+        return quote(text, safe="") if path else text
+
+    return re.sub(r"\$\{([a-z][a-z0-9_-]*)\}", replacement, value)
+
+
+def values_at(value, path):
+    if path == "$":
+        return [value]
+    if not path.startswith("$.") or len(path) > 300:
+        raise CheckFailure("验收JSON路径无效")
+    values = [value]
+    for part in path[2:].split("."):
+        found = []
+        for item in values:
+            if part == "*" and isinstance(item, (dict, list)):
+                found.extend(item.values() if isinstance(item, dict) else item)
+            elif isinstance(item, dict) and part in item:
+                found.append(item[part])
+            elif isinstance(item, list) and part.isdigit() and int(part) < len(item):
+                found.append(item[int(part)])
+        values = found
+    return values
+
+
+def json_equal(left, right):
+    if type(left) is not type(right):
+        return False
+    if isinstance(left, dict):
+        return left.keys() == right.keys() and all(
+            json_equal(value, right[key]) for key, value in left.items()
+        )
+    if isinstance(left, list):
+        return len(left) == len(right) and all(
+            json_equal(a, b) for a, b in zip(left, right, strict=True)
+        )
+    return left == right
+
+
+def run_steps(client, steps, variables):
+    receipts = []
+    for index, step in enumerate(steps):
+        path = interpolate(step.path, variables, path=True)
+        HttpStep.loopback_path(path)
+        headers = interpolate(step.headers, variables)
+        HttpStep.bounded_headers(headers)
+        started = time.monotonic()
+        try:
+            with client.stream(
+                step.method,
+                path,
+                headers=headers,
+                **({"json": interpolate(step.body, variables)} if step.body is not None else {}),
+            ) as response:
+                raw = bytearray()
+                for block in response.iter_bytes():
+                    raw.extend(block)
+                    if len(raw) > 2_000_000:
+                        raise CheckFailure("验收HTTP响应超过2MB预算")
+                status = response.status_code
+        except httpx.HTTPError:
+            raise CheckFailure(f"第 {index + 1} 个验收请求传输失败") from None
+        if status != step.status:
+            raise CheckFailure(f"第 {index + 1} 个请求期望HTTP {step.status}，实际HTTP {status}")
+        body = None
+        if step.equals or step.absent or step.captures:
+            try:
+                body = json.loads(raw)
+            except ValueError, UnicodeError:
+                raise CheckFailure(f"第 {index + 1} 个请求缺少约定JSON响应") from None
+        for pointer, expected in step.equals.items():
+            actual = values_at(body, pointer)
+            if not actual or any(
+                not json_equal(v, interpolate(expected, variables)) for v in actual
+            ):
+                raise CheckFailure(f"第 {index + 1} 个请求的已批准JSON断言未通过")
+        if any(values_at(body, pointer) for pointer in step.absent):
+            raise CheckFailure(f"第 {index + 1} 个请求暴露了契约禁止返回的字段")
+        for name, pointer in step.captures.items():
+            found = values_at(body, pointer)
+            if len(found) != 1 or not isinstance(found[0], (str, int, float, bool)):
+                raise CheckFailure(f"第 {index + 1} 个请求缺少单一捕获值")
+            variables[name] = found[0]
+        receipts.append(
+            {
+                "step": index + 1,
+                "method": step.method,
+                "status": status,
+                "assertions": len(step.equals) + len(step.absent),
+                "elapsed_ms": round((time.monotonic() - started) * 1000),
+                "passed": True,
+            }
+        )
+    return receipts
+
+
+def run_scenarios(client, scenarios, *, saved=None, after_restart=False):
+    saved = {} if saved is None else saved
+    checks = []
+    for scenario in scenarios:
+        client.cookies.clear()
+        variables = saved.setdefault(scenario.id, {"nonce": uuid.uuid4().hex})
+        steps = scenario.after_restart if after_restart else scenario.steps
+        if not steps:
+            continue
+        try:
+            executed = run_steps(client, steps, variables)
+        except CheckFailure as exc:
+            exc.scenario_id = scenario.id
+            raise
+        checks.append(
+            {
+                "id": scenario.id,
+                "contract_sha256": digest(scenario.model_dump()),
+                "requirements": scenario.requirements,
+                "evidence": scenario.evidence,
+                "external_service": scenario.external_service,
+                "phase": "restart" if after_restart else "initial",
+                "steps": executed,
+                "passed": True,
+            }
+        )
+    return checks, saved
+
+
+def run_browser(url, token, scenarios, saved, timeout):
+    selected = [s for s in scenarios if s.browser]
+    if not selected:
+        return []
+    node = shutil.which("node")
+    if not node:
+        raise BrowserFailure({"phase": "python-spawn", "error_code": "node-missing"})
+    request_id = uuid.uuid4().hex
+    script = ROOT / "scripts/capability_browser.cjs"
+    try:
+        verifier_sha256 = sha(script)
+    except OSError:
+        raise BrowserFailure(
+            {"phase": "python-spawn", "error_code": "verifier-unavailable"}
+        ) from None
+    payload = {
+        "request_id": request_id,
+        "url": url,
+        "token": token,
+        "scenarios": [
+            {
+                "id": s.id,
+                "steps": [interpolate(step.model_dump(), saved[s.id]) for step in s.browser],
+            }
+            for s in selected
+        ],
+    }
+    with tempfile.TemporaryFile() as output:
+        try:
+            process = subprocess.Popen(
+                [node, str(script)],
+                stdin=subprocess.PIPE,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                **process_options(),
+                env=clean_env(
+                    {
+                        "PRODUCT_VERIFY_PLAYWRIGHT": os.environ.get(
+                            "PRODUCT_VERIFY_PLAYWRIGHT",
+                            str(ROOT / ".native/browser/node_modules/playwright"),
+                        ),
+                        "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
+                        "PRODUCT_VERIFY_BROWSER_CHANNEL": os.environ.get(
+                            "PRODUCT_VERIFY_BROWSER_CHANNEL", ""
+                        ),
+                    }
+                ),
+            )
+        except OSError:
+            raise BrowserFailure({"phase": "python-spawn", "error_code": "spawn-failed"}) from None
+        try:
+            process.communicate(json.dumps(payload).encode(), timeout=timeout)
+        except subprocess.TimeoutExpired:
+            cleanup = "stopped"
+            try:
+                stop_process(process)
+            except Exception:
+                cleanup = "failed"
+            output.seek(0)
+            prior, _ = browser_report(output.read(100001), request_id, verifier_sha256)
+            if prior and prior["passed"] is False:
+                raise BrowserFailure(
+                    {**prior["diagnostic"], "termination": "python-timeout", "cleanup": cleanup}
+                ) from None
+            raise BrowserFailure(
+                {"phase": "python-timeout", "error_code": "timeout", "cleanup": cleanup}
+            ) from None
+        output.seek(0)
+        raw = output.read(100001)
+    value, report_error = browser_report(raw, request_id, verifier_sha256)
+    status = process.returncode if type(process.returncode) is int else None
+    if report_error:
+        raise BrowserFailure(
+            {
+                "phase": "python-exit" if status else "python-report",
+                "error_code": "nonzero-exit" if status else "invalid-report",
+                "exit_code": status,
+                "report_error": report_error,
+            }
+        )
+    if value["passed"] is False:
+        raise BrowserFailure({**value["diagnostic"], "exit_code": status})
+    if status != 0:
+        raise BrowserFailure(
+            {"phase": "python-exit", "error_code": "success-with-invalid-exit", "exit_code": status}
+        )
+    expected = {scenario.id: len(scenario.browser) for scenario in selected}
+    checks = value["checks"]
+    seen = set()
+    for check in checks:
+        if (
+            not isinstance(check, dict)
+            or set(check) != {"id", "passed", "steps", "real_browser", "browser_os_sandbox"}
+            or not isinstance(check.get("id"), str)
+            or check["id"] not in expected
+            or check["id"] in seen
+            or type(check.get("steps")) is not int
+            or check["steps"] != expected[check["id"]]
+            or any(
+                check.get(flag) is not True
+                for flag in ("passed", "real_browser", "browser_os_sandbox")
+            )
+        ):
+            raise BrowserFailure({"phase": "python-report", "error_code": "invalid-checks"})
+        seen.add(check["id"])
+    if seen != set(expected):
+        raise BrowserFailure({"phase": "python-report", "error_code": "invalid-checks"})
+    return value["checks"]
+
+
+def require_evidence(
+    receipt, *, source_digest, plan_digest, scenarios, selection, database_tables, aggregate=False
+):
+    from workbench.capability_isolation import (
+        require_container_evidence,
+        require_isolation_evidence,
+    )
+
+    require_container_evidence(receipt.get("container_isolation"), receipt.get("sandbox_id"))
+    require_isolation_evidence(receipt.get("execution_isolation"))
+    expected = {s.id: digest(s.model_dump()) for s in scenarios}
+    checks = receipt.get("checks", [])
+    actual = {c.get("id"): c.get("contract_sha256") for c in checks if c.get("phase") == "initial"}
+    if (
+        receipt.get("passed") is not True
+        or receipt.get("source_digest") != source_digest
+        or receipt.get("plan_digest") != plan_digest
+        or receipt.get("verifier") != "controller-http-contract-v3"
+        or receipt.get("network_block_all") is not True
+        or receipt.get("credentials_uploaded") is not False
+        or receipt.get("cleanup") != "deleted"
+        or actual != expected
+        or len(actual) != len([c for c in checks if c.get("phase") == "initial"])
+        or any(c.get("passed") is not True or not c.get("steps") for c in checks)
+        or any(s.get("passed") is not True for c in checks for s in c.get("steps", []))
+    ):
+        raise CheckFailure("独立验收证据不完整或与当前源码、计划和场景不一致")
+    if aggregate:
+        restarted = {c.get("id") for c in checks if c.get("phase") == "restart"}
+        required = {s.id for s in scenarios if s.after_restart}
+        if not required or restarted != required or receipt.get("restarted") is not True:
+            raise CheckFailure("最终汇总缺少独立重启后的持久化验收")
+    stack = receipt.get("stack", {})
+    database = receipt.get("database", {})
+    before, after = database.get("baseline", {}), database.get("after", {})
+    if (
+        stack.get("selection") != selection
+        or not stack.get("source_checks")
+        or stack.get("launcher") != ("java" if selection["backend"] == "yudao-java" else "uvicorn")
+        or database.get("engine") != selection["database"]
+        or database.get("observed_writes") is not True
+        or set(before) != set(database_tables)
+        or set(after) != set(database_tables)
+        or any(type(value) is not int or value < 0 for value in [*before.values(), *after.values()])
+        or not any(after[name] > before[name] for name in before)
+    ):
+        raise CheckFailure("技术栈或独立物理数据库写入证据缺失，不能采用模型自报完成")
+    if aggregate:
+        restarted = database.get("after_restart", {})
+        if set(restarted) != set(after) or any(
+            type(restarted[name]) is not int or restarted[name] < after[name] for name in after
+        ):
+            raise CheckFailure("物理数据库重启证据不完整")
+    browser_expected = {s.id: len(s.browser) for s in scenarios if s.browser}
+    browser = receipt.get("browser", [])
+    if (
+        {check.get("id"): check.get("steps") for check in browser} != browser_expected
+        or len(browser) != len(browser_expected)
+        or any(
+            check.get("passed") is not True
+            or check.get("real_browser") is not True
+            or check.get("browser_os_sandbox") is not True
+            for check in browser
+        )
+    ):
+        raise CheckFailure("缺少准确计划的真实浏览器验收证据")
+    return receipt
+````
+
 ### `workbench/catalog.py`
 
 **作用：技术栈组合目录。** Selection把前端、后端、数据库当作一个整体校验，而不是三个互不相关的文本。网页和CLI从同一目录取得可选项，生成器也读取同一个已验证选择，避免页面允许选但后端不能生成。
@@ -8146,78 +10099,26 @@ extend_business = install_yudao_business
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
+**先有这些模块：** `workbench.template_adapters`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
 **逐个入口与控制逻辑：**
 
-- `Selection`（L65–L117）：继承`BaseModel`。声明的数据项为`template`、`backend`、`frontend`、`database`；类型约束/数据库列参数以完整定义为准。
-- `Selection.supported`（L73–L86）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L74按`self.template not in PAIRS`分支；L75抛异常，停止当前正常路径；L80按`self.backend != spec["backend"] or self.frontend not in spec["frontends"] or self.dat…`分支；L85抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L86的`self`。
-- `Selection.capabilities`（L88–L117）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_dump`。 返回路径：L91的`{ **PAIRS[self.template], **self.model_dump(), "date_range_inclusive": True, "scopes": [ P…`。
-- `options_for_run`（L120–L121）：接收`run`。 调用`Selection.model_validate`、`run.get`。 返回路径：L121的`Selection.model_validate(run.get("options") or {"template": run["template"]})`。
-- `selections`（L124–L125）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Selection(template=template).capabilities`、`Selection`。 返回路径：L125的`[Selection(template=template).capabilities() for template in PAIRS]`。
+- `Selection`（L11–L28）：继承`BaseModel`。声明的数据项为`template`、`backend`、`frontend`、`database`；类型约束/数据库列参数以完整定义为准。
+- `Selection.supported`（L19–L25）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`get_adapter`、`adapter.validate_selection`、`model_validator`。 返回路径：L25的`self`。
+- `Selection.capabilities`（L27–L28）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`get_adapter(self.template).capabilities`、`get_adapter`、`self.model_dump`。 返回路径：L28的`{**get_adapter(self.template).capabilities(), **self.model_dump()}`。
+- `options_for_run`（L31–L32）：接收`run`。 调用`Selection.model_validate`、`run.get`。 返回路径：L32的`Selection.model_validate(run.get("options") or {"template": run["template"]})`。
+- `selections`（L35–L36）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Selection(template=template).capabilities`、`Selection`、`template_ids`。 返回路径：L36的`[Selection(template=template).capabilities() for template in template_ids()]`。
 
-<!-- source-file: workbench/catalog.py sha256: e95db029c26bd104e7a1f97ca8f75758a57d4089db0c3d9b3cf33b64ca4b54d1 -->
+<!-- source-file: workbench/catalog.py sha256: 19eb77c215fb4abcbc880bfd89fd4cbb32a21cabc4909b11f577ac5532583a0e -->
 ````python
-"""Executable, deterministic template capabilities. The LLM cannot invent support flags."""
+"""Validated selection uses the same executable catalog exposed by all discovery surfaces."""
 
 from pydantic import BaseModel, ConfigDict, model_validator
 
-PAIRS = {
-    "python-basic": {
-        "backend": "fastapi",
-        "frontends": ["simple-admin", "api-only"],
-        "databases": ["sqlite", "postgresql"],
-        "name": "FastAPI + 轻量管理页面",
-        "scope": "per_user",
-        "features": [
-            "typed-crud",
-            "authentication",
-            "user-isolation",
-            "keyword-search",
-            "exact-filter",
-            "date-range",
-            "enum",
-            "field-length",
-            "single-record-rules",
-        ],
-        "field_kinds": ["text", "integer", "boolean", "date", "enum"],
-        "not_supported": [
-            "web-scraping",
-            "external-payments",
-            "cross-entity-transactions",
-            "business-rbac",
-            "public-anonymous-site",
-        ],
-    },
-    "fastapiadmin": {
-        "backend": "fastapiadmin",
-        "frontends": ["fastapiadmin-vue"],
-        "databases": ["postgresql"],
-        "name": "FastapiAdmin 原生后端 + Vue 管理端",
-        "scope": "shared",
-        "features": ["native-crud", "native-rbac", "menu-integration", "native-record-rules"],
-        "field_kinds": ["text", "integer", "boolean"],
-        "not_supported": [
-            "per-user-isolation",
-            "public-anonymous-site",
-            "arbitrary-code-execution",
-            "cross-entity-transactions",
-        ],
-    },
-    "yudao-vben": {
-        "backend": "yudao-java",
-        "frontends": ["vben-antd"],
-        "databases": ["postgresql"],
-        "name": "芋道 Java 后端 + Vben5 Ant Design",
-        "scope": "shared",
-        "features": ["native-crud", "native-rbac", "menu-integration", "native-record-rules"],
-        "field_kinds": ["text", "integer", "boolean"],
-        "not_supported": [
-            "per-user-isolation",
-            "public-anonymous-site",
-            "arbitrary-code-execution",
-            "cross-entity-transactions",
-        ],
-    },
-}
+from workbench.template_adapters import get_adapter, template_ids
+
+# Compatibility view for integrations that used PAIRS; never a second source of truth.
+PAIRS = {template: get_adapter(template).selection_spec() for template in template_ids()}
 
 
 class Selection(BaseModel):
@@ -8229,50 +10130,15 @@ class Selection(BaseModel):
 
     @model_validator(mode="after")
     def supported(self):
-        if self.template not in PAIRS:
-            raise ValueError("未知模板")
-        spec = PAIRS[self.template]
-        self.backend = self.backend or spec["backend"]
-        self.frontend = self.frontend or spec["frontends"][0]
-        self.database = self.database or spec["databases"][0]
-        if (
-            self.backend != spec["backend"]
-            or self.frontend not in spec["frontends"]
-            or self.database not in spec["databases"]
-        ):
-            raise ValueError("前后端与数据库组合不兼容；从模板目录中选择已验证的组合")
+        adapter = get_adapter(self.template)
+        self.backend = self.backend or adapter.backend
+        self.frontend = self.frontend or adapter.frontends[0]
+        self.database = self.database or adapter.databases[0]
+        adapter.validate_selection(self.backend, self.frontend, self.database)
         return self
 
     def capabilities(self):
-        from workbench.business_capabilities import BUSINESS
-
-        return {
-            **PAIRS[self.template],
-            **self.model_dump(),
-            "date_range_inclusive": True,
-            "scopes": [
-                PAIRS[self.template]["scope"],
-                *(["shared"] if self.template == "python-basic" else []),
-            ],
-            "business_contract": BUSINESS,
-            "registration_modes": {
-                "authenticated_business_ui": True,
-                "anonymous_submission": False,
-                "custom_public_portal": False,
-                "note": "参赛者可使用已生成业务界面登录后提交，须声明非管理员角色和逐角色行权限；独立公众门户与匿名提交不在当前交付能力内",
-            },
-            "not_supported": [
-                item
-                for item in PAIRS[self.template]["not_supported"]
-                if item not in {"business-rbac", "cross-entity-transactions"}
-            ],
-            "defaults": {
-                "title_max_length": 250,
-                "body_max_length": 3000,
-                "date_format": "YYYY-MM-DD",
-                "category_required": False,
-            },
-        }
+        return {**get_adapter(self.template).capabilities(), **self.model_dump()}
 
 
 def options_for_run(run):
@@ -8280,7 +10146,7 @@ def options_for_run(run):
 
 
 def selections():
-    return [Selection(template=template).capabilities() for template in PAIRS]
+    return [Selection(template=template).capabilities() for template in template_ids()]
 ````
 
 ### `workbench/clarification.py`
@@ -9743,43 +11609,43 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `digest`（L26–L28）：接收`data`。 调用`json.dumps`、`hashlib.sha256(raw.encode()).hexdigest`、`hashlib.sha256`、`raw.encode`。 返回路径：L28的`hashlib.sha256(raw.encode()).hexdigest()`。
-- `Contract`（L31–L32）：继承`BaseModel`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ProjectInput`（L35–L36）：继承`Contract`。声明的数据项为`title`；类型约束/数据库列参数以完整定义为准。
-- `RunInput`（L39–L53）：继承`Contract`。声明的数据项为`requirement`、`template`、`selection`、`intelligent`；类型约束/数据库列参数以完整定义为准。
-- `RunInput.validate_selection`（L46–L53）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L50按`chosen.template != self.template`分支；L51抛异常，停止当前正常路径。 调用`Selection.model_validate`、`ValueError`、`chosen.model_dump`、`model_validator`。 返回路径：L53的`self`。
-- `ClarificationAnswer`（L56–L69）：继承`Contract`。声明的数据项为`question_id`、`option_ids`、`text`；类型约束/数据库列参数以完整定义为准。
-- `ClarificationAnswer.unique_options`（L66–L69）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L67按`len(self.option_ids) != len(set(self.option_ids))`分支；L68抛异常，停止当前正常路径。 调用`len`、`set`、`ValueError`、`model_validator`。 返回路径：L69的`self`。
-- `ResumeInput`（L72–L118）：继承`Contract`。声明的数据项为`gate_id`、`action`、`version`、`digest`、`answers`、`text`、`approved`；类型约束/数据库列参数以完整定义为准。
-- `ResumeInput.action_matches`（L82–L118）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L83按`self.answers and self.action != "answer"`分支；L84抛异常，停止当前正常路径；L85按`len({answer.question_id for answer in self.answers}) != len(self.answers)`分支；L86抛异常，停止当前正常路径；L87按`self.action in {"answer", "revise"} and not self.text and not self.answers`分支；L88抛异常，停止当前正常路径；L89按`self.action in {"answer", "revise"}`分支；L92按`command_word(self.text) in { "批准", "approve", "拒绝", "reject", "智能推荐", "推荐", "smart", …`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`len`、`command_word`、`model_validator`。 返回路径：L118的`self`。
-- `RequirementChange`（L121–L136）：继承`Contract`。声明的数据项为`section`、`key`、`replacement`、`source_quote`；类型约束/数据库列参数以完整定义为准。
-- `FieldRequirement`（L139–L154）：继承`Contract`。声明的数据项为`field`、`entity`、`kind`、`required`、`min_length`、`max_length`、`searchable`、`filterable`、`date_range`、`choices`；类型约束/数据库列参数以完整定义为准。
-- `EntityRequirement`（L157–L172）：继承`Contract`。声明的数据项为`entity`、`fields`、`additional_fields`；类型约束/数据库列参数以完整定义为准。
-- `EntityRequirement.unique_fields`（L169–L172）：接收`value`。 控制顺序：L170按`len(set(value)) != len(value)`分支；L171抛异常，停止当前正常路径。 调用`len`、`set`、`ValueError`、`field_validator`。 返回路径：L172的`value`。
-- `ClarificationOption`（L175–L178）：继承`Contract`。声明的数据项为`id`、`label`、`description`；类型约束/数据库列参数以完整定义为准。
-- `ClarificationQuestion`（L181–L201）：继承`Contract`。声明的数据项为`id`、`prompt`、`kind`、`options`、`required`、`allow_other`；类型约束/数据库列参数以完整定义为准。
-- `ClarificationQuestion.valid_options`（L192–L201）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L193按`self.kind == "text" and self.options`分支；L194抛异常，停止当前正常路径；L195按`self.kind != "text" and len(self.options) < 2`分支；L196抛异常，停止当前正常路径；L197按`len({option.id for option in self.options}) != len(self.options)`分支；L198抛异常，停止当前正常路径；L199按`len({option.label for option in self.options}) != len(self.options)`分支；L200抛异常，停止当前正常路径。 调用`ValueError`、`len`、`model_validator`。 返回路径：L201的`self`。
-- `Requirement`（L204–L278）：继承`Contract`。声明的数据项为`summary`、`users`、`data_scope`、`features`、`acceptance`、`questions`、`question_items`、`assumptions`、`unsupported`、`limitations`、`recommendations`、`facts`、`field_requirements`、`entity_requirements`、`additional_entities`、`changes`；类型约束/数据库列参数以完整定义为准。
-- `Requirement.gate_dump`（L231–L247）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_dump`、`getattr`、`set`。 返回路径：L234的`self.model_dump( exclude={ name for name in ( "limitations", "field_requirements", "entity…`。
-- `Requirement.question_presentation`（L250–L259）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L251按`len({item.id for item in self.question_items}) != len(self.question_items)`分支；L252抛异常，停止当前正常路径；L253按`len({item.prompt for item in self.question_items}) != len(self.question_items)`分支；L254抛异常，停止当前正常路径；L255按`self.question_items and {item.prompt for item in self.question_items} != set( self.qu…`分支；L258抛异常，停止当前正常路径。 调用`len`、`ValueError`、`set`、`model_validator`。 返回路径：L259的`self`。
-- `Requirement.unique_entity_requirements`（L263–L266）：接收`value`。 控制顺序：L264按`len({item.entity for item in value}) != len(value)`分支；L265抛异常，停止当前正常路径。 调用`len`、`ValueError`、`field_validator`。 返回路径：L266的`value`。
-- `Requirement.ready`（L269–L278）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`。 返回路径：L270的`bool( self.summary and self.users and self.features and self.acceptance and self.data_scop…`。
-- `FieldSpec`（L281–L331）：继承`Contract`。声明的数据项为`name`、`label`、`choice_labels`、`kind`、`required`、`max_length`、`min_length`、`choices`、`searchable`、`filterable`、`date_range`；类型约束/数据库列参数以完整定义为准。
-- `FieldSpec.field_options`（L307–L324）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L308按`self.min_length > self.max_length`分支；L309抛异常，停止当前正常路径；L310按`self.kind == "enum" and ( not self.choices or len(set(self.choices)) != len(self.choi…`分支；L313抛异常，停止当前正常路径；L314按`self.kind != "enum" and self.choices`分支；L315抛异常，停止当前正常路径；L316按`self.choice_labels and ( self.kind != "enum" or not set(self.choice_labels) <= set(se…`分支；L319抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`len`、`set`、`model_validator`。 返回路径：L324的`self`。
-- `FieldSpec.reserved`（L328–L331）：接收`value`。 控制顺序：L329按`keyword.iskeyword(value) or value in {"id", "owner_id", "created_at", "updated_at"}`分支；L330抛异常，停止当前正常路径。 调用`keyword.iskeyword`、`ValueError`、`field_validator`。 返回路径：L331的`value`。
-- `Entity`（L334–L343）：继承`Contract`。声明的数据项为`name`、`description`、`fields`；类型约束/数据库列参数以完整定义为准。
-- `Entity.unique_fields`（L340–L343）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L341按`len({f.name for f in self.fields}) != len(self.fields)`分支；L342抛异常，停止当前正常路径。 调用`len`、`ValueError`、`model_validator`。 返回路径：L343的`self`。
-- `CustomRule`（L346–L350）：继承`Contract`。声明的数据项为`description`、`entity`、`accept_examples`、`reject_examples`；类型约束/数据库列参数以完整定义为准。
-- `Plan`（L353–L409）：继承`Contract`。声明的数据项为`title`、`data_scope`、`entities`、`acceptance`、`custom_rules`、`business`、`unsupported`；类型约束/数据库列参数以完整定义为准。
-- `Plan.unique_entities`（L363–L409）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L365按`len(names) != len(self.entities) or ( names & {"users", "tokens", "alembic_version"} …`分支；L369抛异常，停止当前正常路径；L370按`any(rule.entity not in names for rule in self.custom_rules)`分支；L371抛异常，停止当前正常路径；L372遍历`self.custom_rules`；L374遍历`rule.accept_examples + rule.reject_examples`；L375按`set(sample) - {f.name for f in entity.fields}`分支；L376抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`len`、`any`、`n.startswith`、`ValueError`、`next`、`set`、`sample.get`、`type`、`date.fromisoformat`等。 返回路径：L409的`self`。
-- `Patch`（L412–L415）：继承`Contract`。声明的数据项为`path`、`before_sha256`、`content`；类型约束/数据库列参数以完整定义为准。
-- `Patches`（L418–L420）：继承`Contract`。声明的数据项为`explanation`、`patches`；类型约束/数据库列参数以完整定义为准。
-- `safe_component`（L423–L426）：接收`value`。 控制顺序：L424按`not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", value)`分支；L425抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`。 返回路径：L426的`value`。
-- `ModelReview`（L429–L432）：继承`Contract`。声明的数据项为`summary`、`observations`、`uncovered_requirements`；类型约束/数据库列参数以完整定义为准。
-- `AutomationInput`（L437–L445）：继承`Contract`。声明的数据项为`enabled`、`accepted`；类型约束/数据库列参数以完整定义为准。
-- `AutomationInput.consent`（L442–L445）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L443按`self.enabled and not self.accepted`分支；L444抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L445的`self`。
+- `digest`（L28–L30）：接收`data`。 调用`json.dumps`、`hashlib.sha256(raw.encode()).hexdigest`、`hashlib.sha256`、`raw.encode`。 返回路径：L30的`hashlib.sha256(raw.encode()).hexdigest()`。
+- `Contract`（L33–L34）：继承`BaseModel`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ProjectInput`（L37–L38）：继承`Contract`。声明的数据项为`title`；类型约束/数据库列参数以完整定义为准。
+- `RunInput`（L41–L57）：继承`Contract`。声明的数据项为`requirement`、`template`、`selection`、`intelligent`；类型约束/数据库列参数以完整定义为准。
+- `RunInput.validate_selection`（L48–L57）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L52按`chosen.template != self.template`分支；L53抛异常，停止当前正常路径；L55按`not self.requirement.strip()`分支；L56抛异常，停止当前正常路径。 调用`Selection.model_validate`、`ValueError`、`chosen.model_dump`、`self.requirement.strip`、`model_validator`。 返回路径：L57的`self`。
+- `ClarificationAnswer`（L60–L73）：继承`Contract`。声明的数据项为`question_id`、`option_ids`、`text`；类型约束/数据库列参数以完整定义为准。
+- `ClarificationAnswer.unique_options`（L70–L73）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L71按`len(self.option_ids) != len(set(self.option_ids))`分支；L72抛异常，停止当前正常路径。 调用`len`、`set`、`ValueError`、`model_validator`。 返回路径：L73的`self`。
+- `ResumeInput`（L76–L122）：继承`Contract`。声明的数据项为`gate_id`、`action`、`version`、`digest`、`answers`、`text`、`approved`；类型约束/数据库列参数以完整定义为准。
+- `ResumeInput.action_matches`（L86–L122）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L87按`self.answers and self.action != "answer"`分支；L88抛异常，停止当前正常路径；L89按`len({answer.question_id for answer in self.answers}) != len(self.answers)`分支；L90抛异常，停止当前正常路径；L91按`self.action in {"answer", "revise"} and not self.text.strip() and not self.answers`分支；L92抛异常，停止当前正常路径；L93按`self.action in {"answer", "revise"}`分支；L96按`command_word(self.text) in { "批准", "approve", "拒绝", "reject", "智能推荐", "推荐", "smart", …`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`len`、`self.text.strip`、`command_word`、`model_validator`。 返回路径：L122的`self`。
+- `RequirementChange`（L125–L140）：继承`Contract`。声明的数据项为`section`、`key`、`replacement`、`source_quote`；类型约束/数据库列参数以完整定义为准。
+- `FieldRequirement`（L143–L158）：继承`Contract`。声明的数据项为`field`、`entity`、`kind`、`required`、`min_length`、`max_length`、`searchable`、`filterable`、`date_range`、`choices`；类型约束/数据库列参数以完整定义为准。
+- `EntityRequirement`（L161–L176）：继承`Contract`。声明的数据项为`entity`、`fields`、`additional_fields`；类型约束/数据库列参数以完整定义为准。
+- `EntityRequirement.unique_fields`（L173–L176）：接收`value`。 控制顺序：L174按`len(set(value)) != len(value)`分支；L175抛异常，停止当前正常路径。 调用`len`、`set`、`ValueError`、`field_validator`。 返回路径：L176的`value`。
+- `ClarificationOption`（L179–L182）：继承`Contract`。声明的数据项为`id`、`label`、`description`；类型约束/数据库列参数以完整定义为准。
+- `ClarificationQuestion`（L185–L205）：继承`Contract`。声明的数据项为`id`、`prompt`、`kind`、`options`、`required`、`allow_other`；类型约束/数据库列参数以完整定义为准。
+- `ClarificationQuestion.valid_options`（L196–L205）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L197按`self.kind == "text" and self.options`分支；L198抛异常，停止当前正常路径；L199按`self.kind != "text" and len(self.options) < 2`分支；L200抛异常，停止当前正常路径；L201按`len({option.id for option in self.options}) != len(self.options)`分支；L202抛异常，停止当前正常路径；L203按`len({option.label for option in self.options}) != len(self.options)`分支；L204抛异常，停止当前正常路径。 调用`ValueError`、`len`、`model_validator`。 返回路径：L205的`self`。
+- `Requirement`（L208–L282）：继承`Contract`。声明的数据项为`summary`、`users`、`data_scope`、`features`、`acceptance`、`questions`、`question_items`、`assumptions`、`unsupported`、`limitations`、`recommendations`、`facts`、`field_requirements`、`entity_requirements`、`additional_entities`、`changes`；类型约束/数据库列参数以完整定义为准。
+- `Requirement.gate_dump`（L235–L251）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_dump`、`getattr`、`set`。 返回路径：L238的`self.model_dump( exclude={ name for name in ( "limitations", "field_requirements", "entity…`。
+- `Requirement.question_presentation`（L254–L263）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L255按`len({item.id for item in self.question_items}) != len(self.question_items)`分支；L256抛异常，停止当前正常路径；L257按`len({item.prompt for item in self.question_items}) != len(self.question_items)`分支；L258抛异常，停止当前正常路径；L259按`self.question_items and {item.prompt for item in self.question_items} != set( self.qu…`分支；L262抛异常，停止当前正常路径。 调用`len`、`ValueError`、`set`、`model_validator`。 返回路径：L263的`self`。
+- `Requirement.unique_entity_requirements`（L267–L270）：接收`value`。 控制顺序：L268按`len({item.entity for item in value}) != len(value)`分支；L269抛异常，停止当前正常路径。 调用`len`、`ValueError`、`field_validator`。 返回路径：L270的`value`。
+- `Requirement.ready`（L273–L282）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`。 返回路径：L274的`bool( self.summary and self.users and self.features and self.acceptance and self.data_scop…`。
+- `FieldSpec`（L285–L335）：继承`Contract`。声明的数据项为`name`、`label`、`choice_labels`、`kind`、`required`、`max_length`、`min_length`、`choices`、`searchable`、`filterable`、`date_range`；类型约束/数据库列参数以完整定义为准。
+- `FieldSpec.field_options`（L311–L328）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L312按`self.min_length > self.max_length`分支；L313抛异常，停止当前正常路径；L314按`self.kind == "enum" and ( not self.choices or len(set(self.choices)) != len(self.choi…`分支；L317抛异常，停止当前正常路径；L318按`self.kind != "enum" and self.choices`分支；L319抛异常，停止当前正常路径；L320按`self.choice_labels and ( self.kind != "enum" or not set(self.choice_labels) <= set(se…`分支；L323抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`len`、`set`、`model_validator`。 返回路径：L328的`self`。
+- `FieldSpec.reserved`（L332–L335）：接收`value`。 控制顺序：L333按`keyword.iskeyword(value) or value in {"id", "owner_id", "created_at", "updated_at"}`分支；L334抛异常，停止当前正常路径。 调用`keyword.iskeyword`、`ValueError`、`field_validator`。 返回路径：L335的`value`。
+- `Entity`（L338–L347）：继承`Contract`。声明的数据项为`name`、`description`、`fields`；类型约束/数据库列参数以完整定义为准。
+- `Entity.unique_fields`（L344–L347）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L345按`len({f.name for f in self.fields}) != len(self.fields)`分支；L346抛异常，停止当前正常路径。 调用`len`、`ValueError`、`model_validator`。 返回路径：L347的`self`。
+- `CustomRule`（L350–L354）：继承`Contract`。声明的数据项为`description`、`entity`、`accept_examples`、`reject_examples`；类型约束/数据库列参数以完整定义为准。
+- `Plan`（L357–L413）：继承`Contract`。声明的数据项为`title`、`data_scope`、`entities`、`acceptance`、`custom_rules`、`business`、`unsupported`；类型约束/数据库列参数以完整定义为准。
+- `Plan.unique_entities`（L367–L413）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L369按`len(names) != len(self.entities) or ( names & {"users", "tokens", "alembic_version"} …`分支；L373抛异常，停止当前正常路径；L374按`any(rule.entity not in names for rule in self.custom_rules)`分支；L375抛异常，停止当前正常路径；L376遍历`self.custom_rules`；L378遍历`rule.accept_examples + rule.reject_examples`；L379按`set(sample) - {f.name for f in entity.fields}`分支；L380抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`len`、`any`、`n.startswith`、`ValueError`、`next`、`set`、`sample.get`、`type`、`date.fromisoformat`等。 返回路径：L413的`self`。
+- `Patch`（L416–L419）：继承`Contract`。声明的数据项为`path`、`before_sha256`、`content`；类型约束/数据库列参数以完整定义为准。
+- `Patches`（L422–L424）：继承`Contract`。声明的数据项为`explanation`、`patches`；类型约束/数据库列参数以完整定义为准。
+- `safe_component`（L427–L430）：接收`value`。 控制顺序：L428按`not re.fullmatch(r"[a-zA-Z0-9_-]{1,80}", value)`分支；L429抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`。 返回路径：L430的`value`。
+- `ModelReview`（L433–L436）：继承`Contract`。声明的数据项为`summary`、`observations`、`uncovered_requirements`；类型约束/数据库列参数以完整定义为准。
+- `AutomationInput`（L441–L449）：继承`Contract`。声明的数据项为`enabled`、`accepted`；类型约束/数据库列参数以完整定义为准。
+- `AutomationInput.consent`（L446–L449）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L447按`self.enabled and not self.accepted`分支；L448抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L449的`self`。
 
-<!-- source-file: workbench/domain.py sha256: c6c2befdad76cd5fe3e20c56bcd32639b8d511a7c20dd370400bd8f7cc7d992c -->
+<!-- source-file: workbench/domain.py sha256: 25b4a1c769eb04052f1c48c3e369fb8a9a0bcfc49d650f63b982a1ced3578a6f -->
 ````python
 """Typed external contracts. Raw user input cannot choose roles, commands or approval state."""
 
@@ -9796,6 +11662,7 @@ from pydantic import (
     Field,
     JsonValue,
     StrictBool,
+    StringConstraints,
     field_validator,
     model_validator,
 )
@@ -9803,6 +11670,7 @@ from pydantic import (
 from workbench.business_contracts import BusinessSpec
 
 Text = Annotated[str, Field(min_length=1, max_length=20000)]
+UserText = Annotated[str, StringConstraints(strip_whitespace=False)]
 Name = Annotated[str, Field(pattern=r"^[a-z][a-z0-9_]{0,39}$")]
 
 
@@ -9820,7 +11688,7 @@ class ProjectInput(Contract):
 
 
 class RunInput(Contract):
-    requirement: Text
+    requirement: Annotated[UserText, Field(min_length=1, max_length=20000)]
     template: Literal["python-basic", "fastapiadmin", "yudao-vben"] = "python-basic"
     selection: dict | None = None
     intelligent: StrictBool = False
@@ -9833,6 +11701,8 @@ class RunInput(Contract):
         if chosen.template != self.template:
             raise ValueError("选择与模板标识不一致")
         self.selection = chosen.model_dump()
+        if not self.requirement.strip():
+            raise ValueError("需求不能为空")
         return self
 
 
@@ -9843,7 +11713,7 @@ class ClarificationAnswer(Contract):
     option_ids: list[Annotated[str, Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")]] = Field(
         default_factory=list, max_length=20
     )
-    text: str = Field(default="", max_length=10000)
+    text: UserText = Field(default="", max_length=10000)
 
     @model_validator(mode="after")
     def unique_options(self):
@@ -9854,11 +11724,11 @@ class ClarificationAnswer(Contract):
 
 class ResumeInput(Contract):
     gate_id: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
-    action: Literal["answer", "approve", "reject", "revise", "recommend"]
+    action: Literal["answer", "approve", "reject", "revise", "recommend", "retry_node"]
     version: int | None = Field(default=None, ge=1)
     digest: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")] | None = None
     answers: list[ClarificationAnswer] = Field(default_factory=list, max_length=6)
-    text: str = Field(default="", max_length=20000)
+    text: UserText = Field(default="", max_length=20000)
     approved: StrictBool | None = None
 
     @model_validator(mode="after")
@@ -9867,7 +11737,7 @@ class ResumeInput(Contract):
             raise ValueError("选项回答只能用于当前澄清问题")
         if len({answer.question_id for answer in self.answers}) != len(self.answers):
             raise ValueError("同一个问题不能重复提交")
-        if self.action in {"answer", "revise"} and not self.text and not self.answers:
+        if self.action in {"answer", "revise"} and not self.text.strip() and not self.answers:
             raise ValueError("回答或修改意见不能为空")
         if self.action in {"answer", "revise"}:
             from workbench.conversation import command_word
@@ -10321,6 +12191,265 @@ class PausedLimit(RuntimeError):
 
 class UnsupportedScope(RuntimeError):
     pass
+````
+
+### `workbench/feature_planning.py`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.capability_contracts`、`workbench.catalog`、`workbench.domain`、`workbench.module_imports`、`workbench.template_adapters`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `RoutedFeature`（L19–L36）：继承`Contract`。声明的数据项为`id`、`title`、`requirements`、`route`、`capability`、`depends_on`、`entity`、`module_id`、`blocker`；类型约束/数据库列参数以完整定义为准。
+- `RoutedFeature.route_shape`（L31–L36）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L32按`(self.route == "module") != (self.module_id is not None)`分支；L33抛异常，停止当前正常路径；L34按`(self.route == "blocked") != bool(self.blocker)`分支；L35抛异常，停止当前正常路径。 调用`ValueError`、`bool`、`model_validator`。 返回路径：L36的`self`。
+- `PlannedModule`（L39–L59）：继承`CapabilityTask`。声明的数据项为`adapter`、`extension`、`page_patterns`、`interfaces`、`dependency_requests`、`migrations`、`permission_changes`、`import_spec`；类型约束/数据库列参数以完整定义为准。
+- `PlannedModule.exact_module_configuration`（L52–L55）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L53按`(self.extension == "batch-import-v1") != (self.import_spec is not None)`分支；L54抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L55的`self`。
+- `PlannedModule.requires_explicit_review`（L58–L59）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`bool`。 返回路径：L59的`bool(self.dependency_requests or self.migrations or self.permission_changes)`。
+- `FeatureOutline`（L62–L100）：继承`Contract`。声明的数据项为`version`、`summary`、`selection`、`source_digest`、`features`、`modules`、`questions`；类型约束/数据库列参数以完整定义为准。
+- `FeatureOutline.dependencies`（L72–L100）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L74按`len(keys) != len(self.features)`分支；L75抛异常，停止当前正常路径；L76按`any(not set(feature.depends_on) <= keys for feature in self.features)`分支；L77抛异常，停止当前正常路径；L79在`len(done) < len(keys)`成立时循环；L83按`not ready`分支；L84抛异常，停止当前正常路径；L87按`len(module_ids) != len(self.modules)`分支。后续分支沿下方源码相同行号继续阅读。 调用`len`、`ValueError`、`any`、`set`、`done.update`、`finished.update`、`model_validator`。 返回路径：L100的`self`。
+- `route_errors`（L103–L135）：接收`outline`、`sources`、`selected`、`source_digest`。 控制顺序：L106按`outline.selection.model_dump() != Selection.model_validate(selected).model_dump()`分支；L108按`outline.source_digest != source_digest`分支；L112按`covered != expected`分支；L117遍历`outline.features`；L118按`feature.route == "native" and feature.capability not in native`分支；L120按`feature.route == "declarative" and feature.capability not in business`分支；L122按`feature.route == "module"`分支；L124按`not set(feature.requirements) <= set(module.requirements)`分支。后续分支沿下方源码相同行号继续阅读。 调用`get_adapter(selected["template"]).capabilities`、`get_adapter`、`outline.selection.model_dump`、`Selection.model_validate(selected).model_dump`、`Selection.model_validate`、`errors.append`、`set`、`errors.extend`、`module_path_errors`。 返回路径：L135的`errors`。
+- `module_path_errors`（L138–L181）：接收`module`。 源码说明：An approved filename never grants access to trusted product control files.。 控制顺序：L144遍历`module.files`；L160按`module.adapter == "fastapiadmin"`分支；L170按`module.adapter == "yudao-vben"`分支；L179按`blocked`分支。 调用`get_adapter(module.adapter).ui_contract`、`get_adapter`、`ui.get`、`PurePosixPath`、`path.startswith`、`name.startswith`、`any`、`p.endswith`、`errors.append`。 返回路径：L181的`errors`。
+- `baseline_errors`（L184–L214）：接收`outline`、`baseline`。 控制顺序：L185按`baseline is None`分支；L193按`baseline.unsupported`分支；L195按`any(feature.route == "declarative" for feature in outline.features) and baseline.busi…`分支；L201遍历`outline.modules`；L202按`module.import_spec and module.import_spec.entity not in entities`分支；L204按`module.import_spec and baseline.business is None`分支；L206按`any( feature.entity and feature.entity not in entities for feature in outline.feature…`分支；L212按`outline.selection.template != "python-basic" and baseline.data_scope != "shared"`分支。 调用`any`、`Plan.model_validate`、`errors.append`。 返回路径：L186的`["原生和声明式路由需要单独评审基础业务契约"] if any(feature.route in {"native", "declarative"} for feature in …`；L214的`errors`。
+- `planning_payload`（L217–L231）：接收`scope`。 调用`Selection.model_validate`、`selection.model_dump`、`selection.capabilities`、`digest`。 返回路径：L219的`{ "source_digest": scope["source_digest"], "source_units": scope["sources"], "selection": …`。
+
+<!-- source-file: workbench/feature_planning.py sha256: 0c3c5221a588e1a231a65f41a26c37b22109db8778079188358c297596d99cce -->
+````python
+"""Per-feature routing over the selected adapter, separate from graph orchestration.
+
+Coverage references support review; they never constitute implementation proof.
+Only executable adapter capabilities can select a deterministic route.
+"""
+
+from pathlib import PurePosixPath
+from typing import Literal
+
+from pydantic import Field, model_validator
+
+from workbench.capability_contracts import CapabilityTask, Identifier
+from workbench.catalog import Selection
+from workbench.domain import ClarificationQuestion, Contract, Plan, digest
+from workbench.module_imports import ImportModuleSpec
+from workbench.template_adapters import get_adapter
+
+
+class RoutedFeature(Contract):
+    id: Identifier
+    title: str = Field(min_length=1, max_length=300)
+    requirements: list[Identifier] = Field(min_length=1, max_length=256)
+    route: Literal["native", "declarative", "module", "blocked"]
+    capability: str = Field(min_length=1, max_length=100)
+    depends_on: list[Identifier] = Field(default_factory=list, max_length=32)
+    entity: str | None = None
+    module_id: Identifier | None = None
+    blocker: str = Field(default="", max_length=2000)
+
+    @model_validator(mode="after")
+    def route_shape(self):
+        if (self.route == "module") != (self.module_id is not None):
+            raise ValueError("仅受控模块路由引用准确module_id")
+        if (self.route == "blocked") != bool(self.blocker):
+            raise ValueError("阻塞路由须明确缺少的环境或授权，其他路由不能隐藏阻塞")
+        return self
+
+
+class PlannedModule(CapabilityTask):
+    adapter: Literal["python-basic", "fastapiadmin", "yudao-vben"]
+    extension: Literal["batch-import-v1", "approved-source-module"]
+    page_patterns: list[Literal["list", "form", "detail", "wizard"]] = Field(
+        default_factory=list, max_length=4
+    )
+    interfaces: list[str] = Field(min_length=1, max_length=20)
+    dependency_requests: list[str] = Field(default_factory=list, max_length=8)
+    migrations: list[str] = Field(default_factory=list, max_length=8)
+    permission_changes: list[str] = Field(default_factory=list, max_length=8)
+    import_spec: ImportModuleSpec | None = None
+
+    @model_validator(mode="after")
+    def exact_module_configuration(self):
+        if (self.extension == "batch-import-v1") != (self.import_spec is not None):
+            raise ValueError("批量导入模块必须有准确实体、重复策略和行数配置；其他模块不能混用")
+        return self
+
+    @property
+    def requires_explicit_review(self):
+        return bool(self.dependency_requests or self.migrations or self.permission_changes)
+
+
+class FeatureOutline(Contract):
+    version: Literal[1] = 1
+    summary: str = Field(min_length=1, max_length=4000)
+    selection: Selection
+    source_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    features: list[RoutedFeature] = Field(min_length=1, max_length=64)
+    modules: list[PlannedModule] = Field(default_factory=list, max_length=32)
+    questions: list[ClarificationQuestion] = Field(default_factory=list, max_length=6)
+
+    @model_validator(mode="after")
+    def dependencies(self):
+        keys = {feature.id for feature in self.features}
+        if len(keys) != len(self.features):
+            raise ValueError("功能ID不能重复")
+        if any(not set(feature.depends_on) <= keys for feature in self.features):
+            raise ValueError("功能依赖必须引用本轮明确功能")
+        done = set()
+        while len(done) < len(keys):
+            ready = {
+                feature.id for feature in self.features if set(feature.depends_on) <= done
+            } - done
+            if not ready:
+                raise ValueError("功能依赖不能形成循环")
+            done.update(ready)
+        module_ids = {module.id for module in self.modules}
+        if len(module_ids) != len(self.modules):
+            raise ValueError("模块ID不能重复")
+        referenced = {feature.module_id for feature in self.features if feature.route == "module"}
+        if referenced != module_ids:
+            raise ValueError("每个模块必须逐个关联所保留的功能，不能有遗漏或孤立模块")
+        finished = set()
+        while len(finished) < len(module_ids):
+            ready = {
+                module.id for module in self.modules if set(module.depends_on) <= finished
+            } - finished
+            if not ready:
+                raise ValueError("模块依赖必须引用本计划模块且不能形成循环")
+            finished.update(ready)
+        return self
+
+
+def route_errors(outline, sources, selected, source_digest):
+    adapter = get_adapter(selected["template"]).capabilities()
+    errors = []
+    if outline.selection.model_dump() != Selection.model_validate(selected).model_dump():
+        errors.append("功能分派改变了已选语言、框架、前端或数据库")
+    if outline.source_digest != source_digest:
+        errors.append("功能分派未绑定当前原始需求版本")
+    expected = {source["id"] for source in sources}
+    covered = {ref for feature in outline.features for ref in feature.requirements}
+    if covered != expected:
+        errors.append("全部原始来源必须保留在明确功能中，不能只给总体摘要")
+    native = set(adapter["capability_layers"]["native_generator"]["features"])
+    business = set(adapter["capability_layers"]["declarative_business"]["features"])
+    modules = {module.id: module for module in outline.modules}
+    for feature in outline.features:
+        if feature.route == "native" and feature.capability not in native:
+            errors.append(f"{feature.id}不是当前确定性生成器能力")
+        if feature.route == "declarative" and feature.capability not in business:
+            errors.append(f"{feature.id}不是当前声明式业务能力")
+        if feature.route == "module":
+            module = modules[feature.module_id]
+            if not set(feature.requirements) <= set(module.requirements):
+                errors.append(f"{feature.id}未由对应模块覆盖全部来源")
+    for module in outline.modules:
+        if module.adapter != outline.selection.template:
+            errors.append(f"{module.id}更换了模板适配包")
+        if not set(module.requirements) <= expected:
+            errors.append(f"{module.id}引用了不存在的来源")
+        if module.extension == "batch-import-v1" and module.adapter != "fastapiadmin":
+            errors.append("批导适配器尚未在该原生栈实现，保留为待实现模块，不能冒充已接入")
+        if module.extension == "approved-source-module":
+            errors.extend(module_path_errors(module))
+    return errors
+
+
+def module_path_errors(module):
+    """An approved filename never grants access to trusted product control files."""
+    errors = []
+    ui = get_adapter(module.adapter).ui_contract()
+    prefix = "frontend/web/" if module.adapter == "fastapiadmin" else "frontend-product/"
+    protected = [prefix + path for path in ui.get("protected_paths", [])]
+    for path in module.files:
+        name = PurePosixPath(path).name
+        blocked = (
+            path.startswith(("deployment/", ".", "backend/app/core/", "backend/app/config/"))
+            or name
+            in {
+                "uv.lock",
+                "pnpm-lock.yaml",
+                "package-lock.json",
+                "pyproject.toml",
+                "package.json",
+                "pom.xml",
+            }
+            or name.startswith(("verify", "RND-"))
+            or any(path == p or (p.endswith("/") and path.startswith(p)) for p in protected)
+        )
+        if module.adapter == "fastapiadmin":
+            blocked |= not path.startswith(
+                (
+                    "backend/app/plugin/",
+                    "backend/tests/",
+                    "frontend/web/src/views/",
+                    "frontend/web/src/components/",
+                    "frontend/web/src/api/",
+                )
+            )
+        if module.adapter == "yudao-vben":
+            blocked |= not path.startswith(
+                (
+                    "backend/yudao-module-infra/src/main/java/",
+                    "backend/yudao-module-infra/src/test/java/",
+                    "frontend-product/apps/web-antd/src/views/",
+                    "frontend-product/apps/web-antd/src/api/",
+                )
+            )
+        if blocked:
+            errors.append(f"{module.id}的路径不属于适配包允许的业务扩展点：{path}")
+    return errors
+
+
+def baseline_errors(outline, baseline):
+    if baseline is None:
+        return (
+            ["原生和声明式路由需要单独评审基础业务契约"]
+            if any(feature.route in {"native", "declarative"} for feature in outline.features)
+            else []
+        )
+    baseline = Plan.model_validate(baseline)
+    errors = []
+    if baseline.unsupported:
+        errors.append("基础契约不能丢弃已分派到模块或外部前提的功能")
+    if (
+        any(feature.route == "declarative" for feature in outline.features)
+        and baseline.business is None
+    ):
+        errors.append("声明式功能必须有实际Plan.business契约")
+    entities = {entity.name for entity in baseline.entities}
+    for module in outline.modules:
+        if module.import_spec and module.import_spec.entity not in entities:
+            errors.append(f"{module.id}的批导实体未在基础模型中定义")
+        if module.import_spec and baseline.business is None:
+            errors.append("原生批导需要明确角色和动作的基础business契约")
+    if any(
+        feature.entity and feature.entity not in entities
+        for feature in outline.features
+        if feature.route in {"native", "declarative"}
+    ):
+        errors.append("基础功能引用的实体不在批准的基础模型中")
+    if outline.selection.template != "python-basic" and baseline.data_scope != "shared":
+        errors.append("原生模板保留shared模式，使用明确own/assigned/all行权限")
+    return errors
+
+
+def planning_payload(scope):
+    selection = Selection.model_validate(scope["selection"])
+    return {
+        "source_digest": scope["source_digest"],
+        "source_units": scope["sources"],
+        "selection": selection.model_dump(),
+        "adapter": selection.capabilities(),
+        "rules": {
+            "routes": ["native", "declarative", "module", "blocked"],
+            "route_is_not_verification": True,
+            "native_stack_and_ui_must_remain": True,
+            "baseline_contract_is_separate": True,
+            "scope_review_digest": digest(scope["sources"]),
+        },
+    }
 ````
 
 ### `workbench/filesystem.py`
@@ -13137,6 +15266,170 @@ def register_model_settings_routes(app, settings, auth):
             raise HTTPException(409, str(exc)) from None
         except ModelSettingsError as exc:
             raise HTTPException(422, str(exc)) from None
+````
+
+### `workbench/module_imports.py`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.domain`、`workbench.filesystem`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `ImportModuleSpec`（L19–L22）：继承`Contract`。声明的数据项为`entity`、`duplicate_policy`、`max_rows`；类型约束/数据库列参数以完整定义为准。
+- `install_import_module`（L25–L145）：接收`plan`、`backend`、`frontend`、`reports`、`entity`、`duplicate_policy`、`max_rows`。 源码说明：Install only after the parent workflow approved this exact plan and spec.。 控制顺序：L31按`not plan.business`分支；L32抛异常，停止当前正常路径；L35按`entity not in entities`分支；L36抛异常，停止当前正常路径；L37按`not any( p.entity == entity and {"create", "read"} <= set(p.actions) for p in plan.bu…`分支；L41抛异常，停止当前正常路径；L45按`(plugin / "import.json").exists()`分支；L46抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`ImportModuleSpec`、`ValueError`、`plan.business.validate_plan`、`any`、`set`、`map`、`(plugin / "import.json").exists`、`business_config.is_file`等。 返回路径：L145的`receipt`。
+
+<!-- source-file: workbench/module_imports.py sha256: bddc05558b86e27a5bc3b0150ed3fd36795ba5dbca498b3689a4a613eb50e416 -->
+````python
+"""Deterministic approved batch-import module for actual FastapiAdmin products.
+
+The caller owns the approval gate. Installation is additive to a newly generated
+business product; it does not upgrade a running product or migrate user data.
+"""
+
+import ast
+import shutil
+from pathlib import Path
+from typing import Literal
+
+from pydantic import Field
+
+from workbench.domain import Contract, Name, Plan, digest
+from workbench.filesystem import atomic_text, sha, write_json
+from workbench.settings import ROOT
+
+
+class ImportModuleSpec(Contract):
+    entity: Name
+    duplicate_policy: Literal["reject_all"] = "reject_all"
+    max_rows: int = Field(default=1000, ge=1, le=1000, strict=True)
+
+
+def install_import_module(
+    plan, backend, frontend, reports, *, entity, duplicate_policy="reject_all", max_rows=1000
+):
+    """Install only after the parent workflow approved this exact plan and spec."""
+    plan = Plan.model_validate(plan)
+    spec = ImportModuleSpec(entity=entity, duplicate_policy=duplicate_policy, max_rows=max_rows)
+    if not plan.business:
+        raise ValueError("Batch import requires the actual approved native business product")
+    plan.business.validate_plan(plan)
+    entities = {item.name: item for item in plan.entities}
+    if entity not in entities:
+        raise ValueError("Import entity must exist in the approved business plan")
+    if not any(
+        p.entity == entity and {"create", "read"} <= set(p.actions)
+        for p in plan.business.permissions
+    ):
+        raise ValueError("No business role may both create and read the import entity")
+    backend, frontend, reports = map(Path, (backend, frontend, reports))
+    plugin = backend / "app/plugin/module_business"
+    source = ROOT / "templates/modules/fastapiadmin"
+    if (plugin / "import.json").exists():
+        raise ValueError("Import module already exists; incremental installation needs a new plan")
+    business_config = plugin / "business.json"
+    if not business_config.is_file():
+        raise ValueError("Actual generated native business configuration is missing")
+    import json
+
+    existing = json.loads(business_config.read_text(encoding="utf-8"))
+    if digest(existing["plan"]) != digest(plan.model_dump(mode="json")):
+        raise ValueError("Installed business product differs from the approved plan")
+    runtime = plugin / "runtime.py"
+    if not runtime.is_file() or not any(
+        isinstance(node, ast.AsyncFunctionDef) and node.name == "stage_create"
+        for node in ast.parse(runtime.read_text(encoding="utf-8")).body
+    ):
+        raise ValueError("Native runtime lacks atomic stage_create; regenerate this product")
+    controller = plugin / "controller.py"
+    controller_body = controller.read_text(encoding="utf-8")
+    anchor = 'BusinessRouter = APIRouter(tags=["Business workflows"])'
+    if controller_body.count(anchor) != 1 or "import_routes" in controller_body:
+        raise ValueError("Unexpected native BusinessRouter shape; refusing unsafe installation")
+    controller_body = controller_body.replace(
+        anchor,
+        anchor
+        + "\n\nfrom .import_routes import router as import_router\nBusinessRouter.include_router(import_router)",
+    )
+    ast.parse(controller_body)
+    changes = [(controller, controller_body)]
+    page_anchor = '          <ElButton data-testid="business-create"'
+    script_anchor = "import { request } from '@utils';"
+    for item in plan.entities:
+        page = frontend / f"src/views/module_rnd/{item.name}/index.vue"
+        body = page.read_text(encoding="utf-8")
+        if body.count(page_anchor) != 1 or body.count(script_anchor) != 1 or "ImportWizard" in body:
+            raise ValueError("Native business page has no recognized module extension point")
+        entry = (
+            f"          <ImportWizard v-if=\"tab === '{entity}' &amp;&amp; can('create') &amp;&amp; can('read')\" "
+            f':entity="tab" :fields="editableFields" :max-rows="{max_rows}" @committed="refresh" />\n'
+        )
+        body = body.replace(page_anchor, entry + page_anchor, 1)
+        body = body.replace(
+            script_anchor,
+            script_anchor + "\nimport ImportWizard from '@/components/business/ImportWizard.vue';",
+            1,
+        )
+        changes.append((page, body))
+    destination = frontend / "src/components/business/ImportWizard.vue"
+    if destination.exists():
+        raise ValueError("Import component path is already occupied")
+    for name in ("import_runtime.py", "import_routes.py"):
+        if (plugin / name).exists():
+            raise ValueError("Import runtime path is already occupied")
+        ast.parse((source / name).read_text(encoding="utf-8"))
+    backups = reports / "import-module-originals"
+    if backups.exists():
+        raise ValueError("Prior import installation evidence exists")
+    backups.mkdir(parents=True)
+    originals = {}
+    for index, (path, _) in enumerate(changes):
+        shutil.copyfile(path, backups / f"{index}-{path.name}")
+        originals[str(path.relative_to(backend if path.is_relative_to(backend) else frontend))] = (
+            sha(path)
+        )
+    for name in ("import_runtime.py", "import_routes.py"):
+        shutil.copyfile(source / name, plugin / name)
+    config = {
+        **spec.model_dump(),
+        "module": "batch-import-v1",
+        "plan_digest": digest(plan.model_dump(mode="json")),
+    }
+    write_json(plugin / "import.json", config)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(source / "ImportWizard.vue", destination)
+    for path, body in changes:
+        atomic_text(path, body)
+    receipt = {
+        "module": "batch-import-v1",
+        "template": "fastapiadmin",
+        "spec": spec.model_dump(),
+        "plan_digest": config["plan_digest"],
+        "config_digest": digest(config),
+        "originals": originals,
+        "schema_migration_required": False,
+        "journal": "existing native business event table, owner-bound",
+        "duplicate_match": "all importable fields in nonarchived authorized records",
+        "atomic_commit": "stage_create rows and audit plus journal receipt in one transaction",
+        "runtime_verified": False,
+        "native_shell_modified": False,
+        "files": {
+            str(path.relative_to(backend if path.is_relative_to(backend) else frontend)): sha(path)
+            for path in [
+                *(p for p, _ in changes),
+                destination,
+                plugin / "import.json",
+                plugin / "import_routes.py",
+                plugin / "import_runtime.py",
+            ]
+        },
+    }
+    write_json(reports / "import-module-installation.json", receipt)
+    return receipt
 ````
 
 ### `workbench/native.py`
@@ -25363,21 +27656,24 @@ def scaffold_native_rules(template, plan, product, reports):
 - `ModelProfile`（L70–L98）：继承`BaseModel`。声明的数据项为`stage`、`base_url`、`model`、`api_key`、`provider`、`output_mode`、`max_output_tokens`；类型约束/数据库列参数以完整定义为准。
 - `ModelProfile.validate_endpoint`（L80–L87）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L84抛异常，停止当前正常路径；L85按`not self.model.strip() or not self.api_key.get_secret_value().strip()`分支；L86抛异常，停止当前正常路径。 调用`validate_model_url`、`ValueError`、`self.model.strip`、`self.api_key.get_secret_value().strip`、`self.api_key.get_secret_value`。 返回路径：L87的`self`。
 - `ModelProfile.public`（L89–L98）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.api_key.get_secret_value`。 返回路径：L90的`{ "stage": self.stage, "base_url": self.base_url, "model": self.model, "api_key": "configu…`。
-- `Settings`（L101–L265）：继承`BaseSettings`。声明的数据项为`_model_keys`、`_model_keys_lock`、`base_url`、`api_key`、`model`、`provider`、`output_mode`、`max_output_tokens`、`requirements_provider`、`requirements_output_mode`、`requirements_max_output_tokens`、`planning_provider`、`planning_output_mode`、`planning_max_output_tokens`、`coding_provider`、`coding_output_mode`、`coding_max_output_tokens`、`review_provider`、`review_output_mode`、`review_max_output_tokens`、`requirements_base_url`、`requirements_api_key`、`requirements_model`、`planning_base_url`、`planning_api_key`、`planning_model`、`coding_base_url`、`coding_api_key`、`coding_model`、`review_base_url`、`review_api_key`、`review_model`、`model_review`、`data_dir`、`database_url`、`product_postgres_url`、`llm_timeout`、`max_model_calls`、`max_rounds`、`max_context_chars`、`install_products`、`enable_coding`、`max_repair_attempts`、`tool_timeout`、`coding_engine`、`aider_executable`、`repo_map_provider`、`retrieval_engine`、`repo_map_chars`、`embedding_base_url`、`embedding_api_key`、`embedding_model`、`embedding_enabled`、`embedding_max_chunks`、`sandbox_provider`、`daytona_api_url`、`daytona_api_key`、`daytona_target`、`daytona_snapshot`、`daytona_snapshots`、`daytona_runtime_timeout`、`daytona_allow_local_execution`、`daytona_capture_startup_diagnostics`、`checkpoint_url`、`host`、`port`；类型约束/数据库列参数以完整定义为准。
-- `Settings.only_local_tools`（L187–L188）：接收`value`。 调用`local_http_url`、`field_validator`。 返回路径：L188的`local_http_url(value)`。
-- `Settings.only_local_databases`（L192–L193）：接收`value`。 调用`local_database_url`、`field_validator`。 返回路径：L193的`local_database_url(value)`。
-- `Settings.absolute_data_dir`（L197–L198）：接收`value`。 调用`(value if value.is_absolute() else ROOT / value).resolve`、`value.is_absolute`、`field_validator`。 返回路径：L198的`(value if value.is_absolute() else ROOT / value).resolve()`。
-- `Settings.db_url`（L201–L205）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_database_url`、`(self.data_dir / 'workbench.db').as_posix`。 返回路径：L202的`local_database_url(self.database_url) or f"sqlite:///{(self.data_dir / 'workbench.db').as_…`。
-- `Settings.prepare`（L207–L210）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L209遍历`("runs", "sources", "knowledge", "native")`。 调用`self.data_dir.mkdir`、`(self.data_dir / name).mkdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.model_configuration`（L212–L217）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`ModelSettingsRepository(self).snapshot`、`ModelSettingsRepository`、`self._remember_model_keys`。 返回路径：L217的`configuration`。
-- `Settings._remember_model_keys`（L219–L224）：接收`configuration`。 控制顺序：L221遍历`(configuration.default, *configuration.stages.values())`；L223按`secret`分支。 调用`configuration.stages.values`、`profile.api_key.get_secret_value`、`self._model_keys.add`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.model_for`（L226–L227）：接收`stage`。 调用`self.model_configuration().profile`、`self.model_configuration`。 返回路径：L227的`self.model_configuration().profile(stage)`。
-- `Settings.require_model`（L229–L231）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_configuration().require_model`、`self.model_configuration`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Settings.models_ready`（L233–L238）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.require_model`。 返回路径：L237的`False`；L238的`True`。
-- `Settings.review_enabled`（L241–L242）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_configuration`。 返回路径：L242的`self.model_configuration().review_enabled`。
-- `Settings.redact`（L244–L265）：接收`text`。 控制顺序：L253遍历`sorted(known_keys, key=len, reverse=True)`；L255遍历`( "api_key", "product_postgres_url", "embedding_api_key", "dayton…`；L263按`secret`分支。 调用`self.model_configuration`、`tuple`、`sorted`、`text.replace`、`getattr(self, field).get_secret_value`、`getattr`。 返回路径：L265的`text`。
+- `Settings`（L101–L303）：继承`BaseSettings`。声明的数据项为`_model_keys`、`_model_keys_lock`、`base_url`、`api_key`、`model`、`provider`、`output_mode`、`max_output_tokens`、`requirements_provider`、`requirements_output_mode`、`requirements_max_output_tokens`、`planning_provider`、`planning_output_mode`、`planning_max_output_tokens`、`coding_provider`、`coding_output_mode`、`coding_max_output_tokens`、`review_provider`、`review_output_mode`、`review_max_output_tokens`、`requirements_base_url`、`requirements_api_key`、`requirements_model`、`planning_base_url`、`planning_api_key`、`planning_model`、`coding_base_url`、`coding_api_key`、`coding_model`、`review_base_url`、`review_api_key`、`review_model`、`model_review`、`data_dir`、`database_url`、`product_postgres_url`、`llm_timeout`、`max_model_calls`、`max_rounds`、`max_context_chars`、`install_products`、`enable_coding`、`max_repair_attempts`、`tool_timeout`、`coding_engine`、`module_coding_engine`、`aider_executable`、`repo_map_provider`、`retrieval_engine`、`repo_map_chars`、`embedding_base_url`、`embedding_api_key`、`embedding_model`、`embedding_enabled`、`embedding_max_chunks`、`sandbox_provider`、`daytona_api_url`、`daytona_api_key`、`daytona_target`、`daytona_snapshot`、`daytona_snapshots`、`daytona_runtime_timeout`、`daytona_allow_local_execution`、`daytona_capture_startup_diagnostics`、`checkpoint_url`、`host`、`port`；类型约束/数据库列参数以完整定义为准。
+- `Settings.only_local_tools`（L188–L189）：接收`value`。 调用`local_http_url`、`field_validator`。 返回路径：L189的`local_http_url(value)`。
+- `Settings.only_local_databases`（L193–L194）：接收`value`。 调用`local_database_url`、`field_validator`。 返回路径：L194的`local_database_url(value)`。
+- `Settings.absolute_data_dir`（L198–L199）：接收`value`。 调用`(value if value.is_absolute() else ROOT / value).resolve`、`value.is_absolute`、`field_validator`。 返回路径：L199的`(value if value.is_absolute() else ROOT / value).resolve()`。
+- `Settings.db_url`（L202–L206）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local_database_url`、`(self.data_dir / 'workbench.db').as_posix`。 返回路径：L203的`local_database_url(self.database_url) or f"sqlite:///{(self.data_dir / 'workbench.db').as_…`。
+- `Settings.prepare`（L208–L211）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L210遍历`("runs", "sources", "knowledge", "native")`。 调用`self.data_dir.mkdir`、`(self.data_dir / name).mkdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.model_configuration`（L213–L218）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`ModelSettingsRepository(self).snapshot`、`ModelSettingsRepository`、`self._remember_model_keys`。 返回路径：L218的`configuration`。
+- `Settings._remember_model_keys`（L220–L225）：接收`configuration`。 控制顺序：L222遍历`(configuration.default, *configuration.stages.values())`；L224按`secret`分支。 调用`configuration.stages.values`、`profile.api_key.get_secret_value`、`self._model_keys.add`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.model_for`（L227–L228）：接收`stage`。 调用`self.model_configuration().profile`、`self.model_configuration`。 返回路径：L228的`self.model_configuration().profile(stage)`。
+- `Settings.require_model`（L230–L232）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_configuration().require_model`、`self.model_configuration`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Settings.models_ready`（L234–L239）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.require_model`。 返回路径：L238的`False`；L239的`True`。
+- `Settings.review_enabled`（L242–L243）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.model_configuration`。 返回路径：L243的`self.model_configuration().review_enabled`。
+- `Settings.redaction_secrets`（L245–L263）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L253遍历`( "api_key", "product_postgres_url", "embedding_api_key", "dayton…`；L261按`value`分支。 调用`self.model_configuration`、`set`、`getattr(self, field).get_secret_value`、`getattr`、`values.add`、`sorted`。 返回路径：L263的`sorted((value for value in values if value), key=len, reverse=True)`。
+- `Settings.redact`（L265–L268）：接收`text`。 控制顺序：L266遍历`self.redaction_secrets()`。 调用`self.redaction_secrets`、`text.replace`。 返回路径：L268的`text`。
+- `Settings.redact_fragments`（L270–L288）：接收`fragments`。 源码说明：Hide all pieces of a newly registered secret in historical SSE replay.。 控制顺序：L274遍历`self.redaction_secrets()`；L276在`start >= 0`成立时循环；L280遍历`fragments`。 调用`"".join`、`self.redaction_secrets`、`joined.find`、`spans.append`、`len`、`result.append`、`any`。 返回路径：L288的`result`。
+- `Settings.redact_data`（L290–L303）：接收`value`。 源码说明：Redact JSON string leaves and keys before escaping; preserve inputs.。 控制顺序：L292按`isinstance(value, str)`分支；L294按`isinstance(value, dict)`分支；L299按`isinstance(value, list)`分支；L301按`isinstance(value, tuple)`分支。 调用`isinstance`、`self.redact`、`self.redact_data`、`value.items`、`tuple`。 返回路径：L293的`self.redact(value)`；L295的`{ self.redact(key) if isinstance(key, str) else key: self.redact_data(item) for key, item …`；L300的`[self.redact_data(item) for item in value]`。
 
-<!-- source-file: workbench/settings.py sha256: 0c1e5a492669bbcaad366430b966482c1ccc5d3e33632a37168664b694facad1 -->
+<!-- source-file: workbench/settings.py sha256: d35e64ec30b044394f6a559ad132b006ffb09972b399928201c2e8199a29188f -->
 ````python
 """Local configuration and optional per-stage model profiles; no secrets in run receipts."""
 
@@ -25539,6 +27835,7 @@ class Settings(BaseSettings):
     max_repair_attempts: int = Field(default=2, ge=0, le=2)
     tool_timeout: int = Field(default=180, ge=10, le=900)
     coding_engine: Literal["bounded", "aider"] = "bounded"
+    module_coding_engine: Literal["structured", "openhands"] = "structured"
     aider_executable: str = ""
     repo_map_provider: Literal["symbols", "aider"] = "symbols"
     retrieval_engine: Literal["local", "continue"] = "local"
@@ -25622,17 +27919,14 @@ class Settings(BaseSettings):
     def review_enabled(self) -> bool:
         return self.model_configuration().review_enabled
 
-    def redact(self, text: str) -> str:
-        # Retain old process-local keys for in-flight calls after a settings edit.
-        # An invalid file must never stop error-path redaction from working.
+    def redaction_secrets(self):
+        # Retain old process-local values while in-flight calls finish.
         try:
             self.model_configuration()
         except ValueError:
             pass
         with self._model_keys_lock:
-            known_keys = tuple(self._model_keys)
-        for secret in sorted(known_keys, key=len, reverse=True):
-            text = text.replace(secret, "[redacted]")
+            values = set(self._model_keys)
         for field in (
             "api_key",
             "product_postgres_url",
@@ -25640,10 +27934,50 @@ class Settings(BaseSettings):
             "daytona_api_key",
             *(stage + "_api_key" for stage in STAGES),
         ):
-            secret = getattr(self, field).get_secret_value()
-            if secret:
-                text = text.replace(secret, "[redacted]")
+            value = getattr(self, field).get_secret_value()
+            if value:
+                values.add(value)
+        return sorted((value for value in values if value), key=len, reverse=True)
+
+    def redact(self, text: str) -> str:
+        for secret in self.redaction_secrets():
+            text = text.replace(secret, "[redacted]")
         return text
+
+    def redact_fragments(self, fragments):
+        """Hide all pieces of a newly registered secret in historical SSE replay."""
+        joined = "".join(fragments)
+        spans = []
+        for secret in self.redaction_secrets():
+            start = joined.find(secret)
+            while start >= 0:
+                spans.append((start, start + len(secret)))
+                start = joined.find(secret, start + 1)
+        result, offset = [], 0
+        for fragment in fragments:
+            end = offset + len(fragment)
+            result.append(
+                "[redacted]"
+                if any(left < end and right > offset for left, right in spans)
+                else fragment
+            )
+            offset = end
+        return result
+
+    def redact_data(self, value):
+        """Redact JSON string leaves and keys before escaping; preserve inputs."""
+        if isinstance(value, str):
+            return self.redact(value)
+        if isinstance(value, dict):
+            return {
+                self.redact(key) if isinstance(key, str) else key: self.redact_data(item)
+                for key, item in value.items()
+            }
+        if isinstance(value, list):
+            return [self.redact_data(item) for item in value]
+        if isinstance(value, tuple):
+            return tuple(self.redact_data(item) for item in value)
+        return value
 ````
 
 ### `workbench/store.py`
@@ -27119,6 +29453,311 @@ def parse_file(path):
         "parse_error": bool(errors) or tree.root_node.has_error,
         "diagnostics": errors,
     }
+````
+
+### `workbench/template_adapters.py`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `TemplateAdapter`（L16–L204）：继承`object`。声明的数据项为`template`、`name`、`backend`、`frontends`、`databases`、`scope`、`features`、`field_kinds`、`languages`、`runtimes`、`package_managers`、`generator`、`verifier`；类型约束/数据库列参数以完整定义为准。
+- `TemplateAdapter.validate_selection`（L31–L37）：接收`backend`、`frontend`、`database`。 控制顺序：L32按`backend != self.backend or frontend not in self.frontends or database not in self.dat…`分支；L37抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `TemplateAdapter.selection_spec`（L39–L49）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`list`、`self.blocked_features`。 返回路径：L40的`{ "backend": self.backend, "frontends": list(self.frontends), "databases": list(self.datab…`。
+- `TemplateAdapter.blocked_features`（L51–L59）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L52的`[ "public-anonymous-site", "external-payments", "web-scraping", "arbitrary-code-execution"…`。
+- `TemplateAdapter.source_pins`（L61–L82）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L62按`self.template == "python-basic"`分支。 调用`sha256((ROOT / path).read_bytes()).hexdigest`、`sha256`、`(ROOT / path).read_bytes`、`json.loads`、`(ROOT / "templates/vendor/manifest.json").read_text`。 返回路径：L66的`[ { "slot": "product", "origin": "platform-repository", "revision": "platform-head", "lice…`；L78的`[ {key: row[key] for key in ("slot", "url", "sha", "license", "archive_sha256")} for row i…`。
+- `TemplateAdapter.ui_contract`（L84–L115）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L85按`self.template == "python-basic"`分支。 调用`native_page_contracts`、`sorted`、`pages.values`、`list`。 返回路径：L86的`{ "family": "simple-admin / semantic HTML", "source_root": "templates/frontends/simple-adm…`；L99的`{ "family": profile["family"], "source_root": "frontend/web" if self.template == "fastapia…`。
+- `TemplateAdapter.capabilities`（L117–L204）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`deepcopy`、`self.source_pins`、`self.selection_spec`、`list`、`sorted`、`self.ui_contract`、`self.blocked_features`。 返回路径：L123的`{ **self.selection_spec(), "id": self.template, "template": self.template, "catalog_versio…`。
+- `get_adapter`（L266–L270）：接收`template`。 控制顺序：L270抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L268的`_ADAPTERS[template]`。
+- `template_ids`（L273–L274）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`tuple`。 返回路径：L274的`tuple(_ADAPTERS)`。
+- `template_catalog`（L277–L278）：接收`template`。 调用`get_adapter(template).capabilities`、`get_adapter`。 返回路径：L278的`get_adapter(template).capabilities()`。
+
+<!-- source-file: workbench/template_adapters.py sha256: f2a402e1adc0d0b7f4b074fa0562c5cdd14c72d5fb6720d0247fd77a6831ef20 -->
+````python
+"""One executable template contract for selection, discovery and delivery planning.
+
+Static support is not a configuration check or an acceptance receipt. Custom
+source is a candidate until the selected stack and independent checks prove it.
+"""
+
+import json
+from copy import deepcopy
+from dataclasses import dataclass
+from hashlib import sha256
+
+from workbench.settings import ROOT
+
+
+@dataclass(frozen=True)
+class TemplateAdapter:
+    template: str
+    name: str
+    backend: str
+    frontends: tuple[str, ...]
+    databases: tuple[str, ...]
+    scope: str
+    features: tuple[str, ...]
+    field_kinds: tuple[str, ...]
+    languages: tuple[str, ...]
+    runtimes: tuple[str, ...]
+    package_managers: tuple[str, ...]
+    generator: str
+    verifier: str
+
+    def validate_selection(self, backend, frontend, database):
+        if (
+            backend != self.backend
+            or frontend not in self.frontends
+            or database not in self.databases
+        ):
+            raise ValueError("前后端与数据库组合不兼容；从模板目录中选择已验证的组合")
+
+    def selection_spec(self):
+        return {
+            "backend": self.backend,
+            "frontends": list(self.frontends),
+            "databases": list(self.databases),
+            "name": self.name,
+            "scope": self.scope,
+            "features": list(self.features),
+            "field_kinds": list(self.field_kinds),
+            "not_supported": self.blocked_features(),
+        }
+
+    def blocked_features(self):
+        return [
+            "public-anonymous-site",
+            "external-payments",
+            "web-scraping",
+            "arbitrary-code-execution",
+            "arbitrary-cross-entity-transactions",
+            *(["standalone-per-user-template-mode"] if self.scope == "shared" else []),
+        ]
+
+    def source_pins(self):
+        if self.template == "python-basic":
+            # This template has no separately versioned upstream repository. Its
+            # source and dependency locks belong to the executing platform commit.
+            paths = ["templates/product/pyproject.toml", "templates/product/uv.lock"]
+            return [
+                {
+                    "slot": "product",
+                    "origin": "platform-repository",
+                    "revision": "platform-head",
+                    "license": "not-declared",
+                    "lock_sha256": {
+                        path: sha256((ROOT / path).read_bytes()).hexdigest() for path in paths
+                    },
+                }
+            ]
+        manifest = json.loads((ROOT / "templates/vendor/manifest.json").read_text(encoding="utf-8"))
+        return [
+            {key: row[key] for key in ("slot", "url", "sha", "license", "archive_sha256")}
+            for row in manifest["sources"]
+            if row["template"] == self.template
+        ]
+
+    def ui_contract(self):
+        if self.template == "python-basic":
+            return {
+                "family": "simple-admin / semantic HTML",
+                "source_root": "templates/frontends/simple-admin",
+                "request": "same-origin fetch with Bearer authentication",
+                "api_prefix": "/api",
+                "components": ["native HTML form", "table", "dialog"],
+                "api_only_available": True,
+                "verification": "workbench.verification.require_browser_evidence",
+            }
+        from workbench.native_style import PROFILES, native_page_contracts
+
+        profile = PROFILES[self.template]
+        pages = native_page_contracts(self.template, ["record"], business=True)
+        return {
+            "family": profile["family"],
+            "source_root": "frontend/web" if self.template == "fastapiadmin" else "apps/web-antd",
+            "request": "request from @utils"
+            if self.template == "fastapiadmin"
+            else "requestClient from #/api/request",
+            "api_prefix": "/api/v1" if self.template == "fastapiadmin" else "/admin-api",
+            "response_envelope": "ApiResponse data"
+            if self.template == "fastapiadmin"
+            else "code=0, data, msg",
+            "components": sorted({name for names, _ in pages.values() for name in names}),
+            "imports": sorted({name for _, imports in pages.values() for name in imports}),
+            "protected_paths": list(profile["protected"]),
+            "preserve_native_shell": True,
+            "api_only_available": False,
+            "verification": "workbench.native_style.verify_native_style",
+        }
+
+    def capabilities(self):
+        from workbench.business_capabilities import BUSINESS
+
+        business = deepcopy(BUSINESS)
+        native = self.template != "python-basic"
+        sources = self.source_pins()
+        return {
+            **self.selection_spec(),
+            "id": self.template,
+            "template": self.template,
+            "catalog_version": 1,
+            "stack": {
+                "languages": list(self.languages),
+                "runtimes": list(self.runtimes),
+                "package_managers": list(self.package_managers),
+                "sources": sources,
+                "licenses": sorted({row["license"] for row in sources}),
+                "database_compatibility": list(self.databases),
+                "services": ["PostgreSQL 17", "Redis 7.4"] if native else [],
+                "lock_policy": "use bundled dependency locks; do not select latest versions",
+            },
+            "ui_contract": self.ui_contract(),
+            "capability_layers": {
+                "native_generator": {
+                    "available": True,
+                    "uses_upstream_generator": native,
+                    "kind": "upstream-native-generator" if native else "reviewed-golden-template",
+                    "entrypoint": self.generator,
+                    "features": list(self.features),
+                    "field_kinds": list(self.field_kinds),
+                },
+                "declarative_business": {
+                    "available": True,
+                    "requires": "approved Plan.business contract",
+                    **deepcopy(business),
+                },
+                "custom_extension": {
+                    "status": "candidate-only",
+                    "available": False,
+                    "preverified_features": [],
+                    "requires": [
+                        "explicit user approval of scope and source plan",
+                        "implemented selected-template adapter and native UI integration",
+                        "trusted isolated executor and prepared offline dependencies",
+                        "independent per-node and aggregate HTTP/browser/database/restart evidence",
+                    ],
+                    "note": "自定义功能须先实现并逐项验收；安装SDK、创建候选或配置服务不代表能力可交付",
+                },
+                "blocked": {
+                    "features": self.blocked_features(),
+                    "scope": "built-in generator and declarative business contract",
+                    "note": "模板外需求保留为待实现能力或外部前提，不得静默删减或标记通过",
+                },
+            },
+            "verification_contract": {
+                "entrypoint": self.verifier,
+                "runtime_verified": False,
+                "configuration_is_not_acceptance": True,
+                "requires": [
+                    "approved-spec digest",
+                    "unchanged source manifest",
+                    "real HTTP and selected frontend checks",
+                    "physical database and restart persistence",
+                    "independent fresh-database delivery verification",
+                    *(["pinned native sources and unchanged native UI shell"] if native else []),
+                ],
+            },
+            "date_range_inclusive": True,
+            "scopes": [self.scope, *(["shared"] if self.scope == "per_user" else [])],
+            "business_contract": business,
+            "record_authorization": {
+                "scopes": ["all", "own", "assigned"],
+                "requires": "explicit Plan.business permissions per role and resource",
+                "note": "shared模板仍支持本人/分配记录行权限；团队共享须明确成员关系和允许动作，不能等同单owner隔离",
+            },
+            "registration_modes": {
+                "authenticated_business_ui": True,
+                "anonymous_submission": False,
+                "custom_public_portal": False,
+                "note": "参赛者可使用已生成业务界面登录后提交，须声明非管理员角色和逐角色行权限；独立公众门户与匿名提交不在当前交付能力内",
+            },
+            "defaults": {
+                "title_max_length": 250,
+                "body_max_length": 3000,
+                "date_format": "YYYY-MM-DD",
+                "category_required": False,
+            },
+        }
+
+
+_ADAPTERS = {
+    "python-basic": TemplateAdapter(
+        "python-basic",
+        "FastAPI + 轻量管理页面",
+        "fastapi",
+        ("simple-admin", "api-only"),
+        ("sqlite", "postgresql"),
+        "per_user",
+        (
+            "typed-crud",
+            "authentication",
+            "user-isolation",
+            "keyword-search",
+            "exact-filter",
+            "date-range",
+            "enum",
+            "field-length",
+            "single-record-rules",
+        ),
+        ("text", "integer", "boolean", "date", "enum"),
+        ("Python", "JavaScript", "HTML", "CSS"),
+        ("Python 3.14",),
+        ("uv",),
+        "workbench.generator.generate_basic",
+        "workbench.verification.verify_basic",
+    ),
+    "fastapiadmin": TemplateAdapter(
+        "fastapiadmin",
+        "FastapiAdmin 原生后端 + Vue 管理端",
+        "fastapiadmin",
+        ("fastapiadmin-vue",),
+        ("postgresql",),
+        "shared",
+        ("native-crud", "native-rbac", "menu-integration", "native-record-rules"),
+        ("text", "integer", "boolean"),
+        ("Python", "TypeScript", "Vue"),
+        ("Python 3.14 (upstream >=3.12)", "Node.js 22 (upstream >=20.19)"),
+        ("uv", "pnpm 9.15.3"),
+        "workbench.native.generate_native",
+        "workbench.native_delivery.managed_verify",
+    ),
+    "yudao-vben": TemplateAdapter(
+        "yudao-vben",
+        "芋道 Java 后端 + Vben5 Ant Design",
+        "yudao-java",
+        ("vben-antd",),
+        ("postgresql",),
+        "shared",
+        ("native-crud", "native-rbac", "menu-integration", "native-record-rules"),
+        ("text", "integer", "boolean"),
+        ("Java", "TypeScript", "Vue"),
+        ("Java 17", "Node.js 22.18+ (upstream ^22.18.0 || ^24.12.0)"),
+        ("Maven", "pnpm 11.16.0"),
+        "workbench.native.generate_native",
+        "workbench.native_delivery.managed_verify",
+    ),
+}
+
+
+def get_adapter(template):
+    try:
+        return _ADAPTERS[template]
+    except KeyError:
+        raise ValueError("未知模板") from None
+
+
+def template_ids():
+    return tuple(_ADAPTERS)
+
+
+def template_catalog(template):
+    return get_adapter(template).capabilities()
 ````
 
 ### `workbench/toolchain.py`
@@ -103773,6 +106412,1660 @@ def test_notification_display_preserves_raw_message_and_stable_read_controls():
     assert "record.display_message || record.message" in panel
 ````
 
+### `tests/test_capability_browser_preflight.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`、`workbench.capability_verification`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `setup_report`（L13–L19）：接收`tmp_path`、`monkeypatch`。 调用`monkeypatch.setattr`、`monkeypatch.setenv`。 返回路径：L19的`tmp_path / "reports/capability-browser-preflight.json"`。
+- `test_selected_probe_is_mandatory_even_if_bundled_browser_passes`（L23–L49）：接收`setup_report`、`monkeypatch`、`selected_passes`。 控制顺序：L37按`selected_passes`分支；L43断言`result["passed"] is selected_passes`；L44断言`result["product_acceptance"] is False`；L45断言`result["channel"] == "chrome"`；L46断言`[channel for channel, _ in calls] == ["", "chrome"]`；L47断言`preflight.os.environ["PRODUCT_VERIFY_BROWSER_CHANNEL"] == "chrome"`。 调用`monkeypatch.setattr`、`preflight.main`、`pytest.raises`、`json.loads`、`setup_report.read_text`、`urlopen`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_selected_probe_is_mandatory_even_if_bundled_browser_passes.probe`（L28–L34）：接收`url`。 控制顺序：L30断言`response.status == 200`；L31断言`b'id="check"' in response.read()`。 调用`urlopen`、`response.read`、`calls.append`。 返回路径：L34的`{"passed": selected_passes if channel == "chrome" else True}`。
+- `test_bundled_failure_cannot_hide_selected_success`（L52–L63）：接收`setup_report`、`monkeypatch`。 控制顺序：L61断言`result["passed"] is True`；L62断言`result["bundled_probe"]["passed"] is False`；L63断言`result["selected_probe"]["passed"] is True`。 调用`monkeypatch.setattr`、`preflight.main`、`json.loads`、`setup_report.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_bundled_failure_cannot_hide_selected_success.probe`（L53–L56）：接收`url`。 控制顺序：L54按`preflight.os.environ["PRODUCT_VERIFY_BROWSER_CHANNEL"] == ""`分支。 返回路径：L55的`{"passed": False, "browser_diagnostic": {"error_code": "sandbox-unavailable"}}`；L56的`{"passed": True}`。
+- `test_probe_preserves_safe_browser_failure_without_raw_infrastructure_errors`（L66–L85）：接收`monkeypatch`。 控制顺序：L73断言`preflight.probe("http://127.0.0.1:1") == { "passed": False, "browser_diagnostic": dia…`；L82断言`preflight.probe("http://127.0.0.1:1") == { "passed": False, "error_code": "preflight-…`。 调用`monkeypatch.setattr`、`preflight.probe`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_probe_preserves_safe_browser_failure_without_raw_infrastructure_errors.fail`（L69–L70）：接收`*args`。 控制顺序：L70抛异常，停止当前正常路径。 调用`BrowserFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_probe_preserves_safe_browser_failure_without_raw_infrastructure_errors.infrastructure_failure`（L78–L79）：接收`*args`。 控制顺序：L79抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_chrome_version_output_is_bounded_and_allowlisted`（L89–L99）：接收`monkeypatch`、`version`。 控制顺序：L97断言`preflight.installed_chrome_version() == ( "141.0.7390.37" if version == "141.0.7390.3…`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`version.encode`、`preflight.installed_chrome_version`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_profile_failure_label_does_not_bypass_or_replace_strict_validation`（L103–L128）：接收`monkeypatch`、`valid_diagnostic`。 控制顺序：L126断言`"private-credential" not in str(failure.value)`；L127断言`calls == [(proof, {"aggregate": True, "source_digest": "current-source"})]`；L128断言`proof["passed"] is False`。 调用`monkeypatch.setattr`、`pytest.raises`、`profile.require_profile_evidence`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_profile_failure_label_does_not_bypass_or_replace_strict_validation.reject`（L118–L120）：接收`receipt`、`**bindings`。 控制顺序：L120抛异常，停止当前正常路径。 调用`calls.append`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_browser_preflight.py sha256: 654f04d832b9869a7014d4a2fd43a47d74a6da9fa4c67bede3267254cfe2bf8c -->
+````python
+"""Preflight failure/cleanup contracts; unit fixtures are not browser evidence."""
+
+import json
+from urllib.request import urlopen
+
+import pytest
+
+from scripts import ci_capability_browser_preflight as preflight
+from workbench.capability_verification import BrowserFailure
+
+
+@pytest.fixture
+def setup_report(tmp_path, monkeypatch):
+    monkeypatch.setattr(preflight, "ROOT", tmp_path)
+    monkeypatch.setattr(preflight, "sha", lambda path: "a" * 64)
+    monkeypatch.setattr(preflight, "installed_chrome_version", lambda: "141.0.7390.37")
+    monkeypatch.setattr(preflight, "readonly_host_facts", lambda: {"apparmor_enabled": "Y"})
+    monkeypatch.setenv("PRODUCT_VERIFY_BROWSER_CHANNEL", "chrome")
+    return tmp_path / "reports/capability-browser-preflight.json"
+
+
+@pytest.mark.parametrize("selected_passes", [True, False])
+def test_selected_probe_is_mandatory_even_if_bundled_browser_passes(
+    setup_report, monkeypatch, selected_passes
+):
+    calls = []
+
+    def probe(url):
+        with urlopen(url, timeout=2) as response:
+            assert response.status == 200
+            assert b'id="check"' in response.read()
+        channel = preflight.os.environ["PRODUCT_VERIFY_BROWSER_CHANNEL"]
+        calls.append((channel, url))
+        return {"passed": selected_passes if channel == "chrome" else True}
+
+    monkeypatch.setattr(preflight, "probe", probe)
+    if selected_passes:
+        preflight.main()
+    else:
+        with pytest.raises(SystemExit, match="preflight FAILED"):
+            preflight.main()
+    result = json.loads(setup_report.read_text())
+    assert result["passed"] is selected_passes
+    assert result["product_acceptance"] is False
+    assert result["channel"] == "chrome"
+    assert [channel for channel, _ in calls] == ["", "chrome"]
+    assert preflight.os.environ["PRODUCT_VERIFY_BROWSER_CHANNEL"] == "chrome"
+    with pytest.raises(OSError):
+        urlopen(calls[-1][1], timeout=2)
+
+
+def test_bundled_failure_cannot_hide_selected_success(setup_report, monkeypatch):
+    def probe(url):
+        if preflight.os.environ["PRODUCT_VERIFY_BROWSER_CHANNEL"] == "":
+            return {"passed": False, "browser_diagnostic": {"error_code": "sandbox-unavailable"}}
+        return {"passed": True}
+
+    monkeypatch.setattr(preflight, "probe", probe)
+    preflight.main()
+    result = json.loads(setup_report.read_text())
+    assert result["passed"] is True
+    assert result["bundled_probe"]["passed"] is False
+    assert result["selected_probe"]["passed"] is True
+
+
+def test_probe_preserves_safe_browser_failure_without_raw_infrastructure_errors(monkeypatch):
+    diagnostic = {"phase": "launch", "error_code": "sandbox-unavailable"}
+
+    def fail(*args):
+        raise BrowserFailure(diagnostic)
+
+    monkeypatch.setattr(preflight, "run_browser", fail)
+    assert preflight.probe("http://127.0.0.1:1") == {
+        "passed": False,
+        "browser_diagnostic": diagnostic,
+    }
+
+    def infrastructure_failure(*args):
+        raise OSError("private-path-and-credential-do-not-print")
+
+    monkeypatch.setattr(preflight, "run_browser", infrastructure_failure)
+    assert preflight.probe("http://127.0.0.1:1") == {
+        "passed": False,
+        "error_code": "preflight-infrastructure",
+    }
+
+
+@pytest.mark.parametrize("version", ["141.0.7390.37\n", "private-token", "141.0.7390.37\nsecret"])
+def test_chrome_version_output_is_bounded_and_allowlisted(monkeypatch, version):
+    from types import SimpleNamespace
+
+    monkeypatch.setattr(
+        preflight.subprocess,
+        "run",
+        lambda *args, **kwargs: SimpleNamespace(returncode=0, stdout=version.encode()),
+    )
+    assert preflight.installed_chrome_version() == (
+        "141.0.7390.37" if version == "141.0.7390.37\n" else None
+    )
+
+
+@pytest.mark.parametrize("valid_diagnostic", [True, False])
+def test_profile_failure_label_does_not_bypass_or_replace_strict_validation(
+    monkeypatch, valid_diagnostic
+):
+    from scripts import ci_capability_profile as profile
+    from workbench.capability_verification import CheckFailure
+
+    calls = []
+    proof = {
+        "passed": False,
+        "browser_diagnostic": {
+            "phase": "launch" if valid_diagnostic else "private-credential",
+            "error_code": "sandbox-unavailable",
+        },
+    }
+
+    def reject(receipt, **bindings):
+        calls.append((receipt, bindings))
+        raise CheckFailure("strict-contract-rejected")
+
+    monkeypatch.setattr(profile, "require_evidence", reject)
+    message = "launch/sandbox-unavailable" if valid_diagnostic else "strict-contract-rejected"
+    with pytest.raises(CheckFailure, match=message) as failure:
+        profile.require_profile_evidence(proof, aggregate=True, source_digest="current-source")
+    assert "private-credential" not in str(failure.value)
+    assert calls == [(proof, {"aggregate": True, "source_digest": "current-source"})]
+    assert proof["passed"] is False
+````
+
+### `tests/test_capability_browser_protocol.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench`、`workbench.capability_contracts`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `assert_redacted`（L97–L100）：接收`value`。 控制顺序：L99遍历`(TOKEN, URL, SELECTOR, "fixture-secret-selector", RAW_ERROR)`；L100断言`secret not in text`。 调用`isinstance`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `diagnostic`（L103–L113）：接收`**changes`。 返回路径：L104的`{ "phase": "assertion", "scenario_index": 0, "step_index": 1, "action": "visible", "naviga…`。
+- `report`（L116–L132）：接收`payload`、`**changes`。 调用`hashlib.sha256(SCRIPT.read_bytes()).hexdigest`、`hashlib.sha256`、`SCRIPT.read_bytes`。 返回路径：L117的`{ "protocol": 1, "request_id": payload["request_id"], "verifier_sha256": hashlib.sha256(SC…`。
+- `failed_report`（L135–L138）：接收`payload`、`**changes`。 调用`report`、`diagnostic`。 返回路径：L138的`value`。
+- `cjs_runner`（L142–L221）：接收`tmp_path`。 控制顺序：L144按`not node`分支；L145按`os.environ.get("RND_REQUIRE_NODE_TESTS") == "1"`分支。 调用`shutil.which`、`os.environ.get`、`pytest.fail`、`pytest.skip`、`module.mkdir`、`(module / "package.json").write_text`、`(module / "index.cjs").write_text`。 返回路径：L221的`run`。
+- `cjs_runner.run`（L154–L219）：接收`steps`、`failures`、`page_error`、`raw`、`version`、`hang_close`、`scenarios`、`channel`。 控制顺序：L189按`scenarios is not None`分支；L207按`not hang_close`分支；L208抛异常，停止当前正常路径；L212断言`not hang_close`；L213断言`result.stderr == b""`；L216断言`value["protocol"] == 1`；L217断言`value["verifier_sha256"] == hashlib.sha256(SCRIPT.read_bytes()).hexdigest()`。 调用`(module / "package.json").write_text`、`json.dumps`、`audit.write_text`、`subprocess.run`、`str`、`json.dumps(payload).encode`、`Path`、`SimpleNamespace`、`assert_redacted`等。 返回路径：L219的`result.returncode, value, events`。
+- `test_actual_cjs_protocol_success_keeps_sandbox_and_original_action_timeouts`（L225–L265）：接收`cjs_runner`。 控制顺序：L233断言`status == 0`；L234断言`value == report( {"request_id": REQUEST_ID}, checks=[ { "id": "fixture-only", "passed…`；L247断言`launch["headless"] is True`；L248断言`launch["chromiumSandbox"] is True`；L249断言`"channel" not in launch`；L250断言`"--no-sandbox" not in launch["args"]`；L251断言`"--force-webrtc-ip-handling-policy=disable_non_proxied_udp" in launch["args"]`；L252断言`next(event for event in events if event["op"] == "context") == { "op": "context", "se…`。后续分支沿下方源码相同行号继续阅读。 调用`cjs_runner`、`report`、`len`、`next`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_preserves_primary_failure_when_both_closes_fail`（L284–L309）：接收`cjs_runner`、`operation`、`phase`、`action`、`index`。 控制顺序：L299断言`status == 1`；L300断言`value == failed_report( {"request_id": REQUEST_ID}, phase=phase, action=action, step_…`；L307断言`events[-1]["op"] == "browser-close"`；L308按`operation != "context"`分支；L309断言`events[-2]["op"] == "context-close"`。 调用`cjs_runner`、`failed_report`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_launch_failure_returns_only_classification`（L325–L340）：接收`cjs_runner`、`message`、`code`。 控制顺序：L329断言`status == 1`；L330断言`value == failed_report( {"request_id": REQUEST_ID}, phase="launch", scenario_index=No…`；L340断言`[event["op"] for event in events] == ["launch"]`。 调用`cjs_runner`、`failed_report`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_system_chrome_channel_keeps_sandbox_and_does_not_retry`（L344–L357）：接收`cjs_runner`。 控制顺序：L346断言`status == 0`；L348断言`launch["channel"] == "chrome"`；L349断言`launch["chromiumSandbox"] is True`；L350断言`"executablePath" not in launch`；L351断言`"--no-sandbox" not in launch["args"]`；L355断言`status == 1`；L356断言`value["diagnostic"]["error_code"] == "sandbox-unavailable"`；L357断言`[event["op"] for event in events] == ["launch"]`。 调用`cjs_runner`、`next`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unknown_browser_channel_fails_before_launch_without_leaking_input`（L362–L367）：接收`cjs_runner`、`channel`。 控制顺序：L364断言`status == 1`；L365断言`value["diagnostic"]["phase"] == "tool"`；L366断言`value["diagnostic"]["error_code"] == "browser-channel-rejected"`；L367断言`events == []`。 调用`cjs_runner`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_navigation_failure_does_not_leak_url`（L379–L391）：接收`cjs_runner`、`message`、`code`。 控制顺序：L383断言`status == 1`；L384断言`value["diagnostic"] == diagnostic( phase="navigation", step_index=0, action="open", n…`。 调用`cjs_runner`、`diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_failed_second_navigation_cannot_reuse_prior_status`（L395–L411）：接收`cjs_runner`。 控制顺序：L402断言`status == 1`；L403断言`value["diagnostic"] == diagnostic( phase="navigation", step_index=1, action="open", n…`；L411断言`sum(event["op"] == "navigation" for event in events) == 2`。 调用`cjs_runner`、`diagnostic`、`sum`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_successful_actions_do_not_hide_cleanup_failure`（L416–L428）：接收`cjs_runner`、`first_close`。 控制顺序：L418按`first_close == "context-close"`分支；L421断言`status == 1`；L422断言`value == failed_report( {"request_id": REQUEST_ID}, phase=first_close, error_code="op…`；L428断言`events[-1]["op"] == "browser-close"`。 调用`cjs_runner`、`failed_report`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_application_error_survives_cleanup_and_unknown_error_name`（L432–L442）：接收`cjs_runner`。 控制顺序：L436断言`status == 1`；L437断言`value["diagnostic"] == diagnostic( phase="application", error_code="application-error…`；L441断言`status == 1`；L442断言`value["diagnostic"]["error_type"] == "Other"`。 调用`cjs_runner`、`diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_rejects_cross_origin_navigation_before_goto`（L446–L459）：接收`cjs_runner`。 控制顺序：L450断言`status == 1`；L451断言`value["diagnostic"] == diagnostic( phase="navigation", action="open", step_index=0, n…`；L459断言`"navigation" not in [event["op"] for event in events]`。 调用`cjs_runner`、`diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_rejects_wrong_playwright_version_before_launch`（L463–L475）：接收`cjs_runner`。 控制顺序：L465断言`status == 1`；L466断言`value["diagnostic"] == diagnostic( phase="tool", scenario_index=None, step_index=None…`；L475断言`events == []`。 调用`cjs_runner`、`diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_emits_first_failure_once_before_cleanup_can_hang`（L480–L486）：接收`cjs_runner`、`hang_close`。 控制顺序：L484断言`status is None`；L485断言`value == failed_report({"request_id": REQUEST_ID})`；L486断言`events[-1]["op"] == hang_close`。 调用`cjs_runner`、`failed_report`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_identifies_later_scenario_without_returning_partial_success`（L490–L506）：接收`cjs_runner`。 控制顺序：L498断言`status == 1`；L499断言`value == failed_report( {"request_id": REQUEST_ID}, phase="navigation", scenario_inde…`。 调用`cjs_runner`、`failed_report`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_rejects_damaged_input_before_loading_browser`（L518–L531）：接收`cjs_runner`、`raw`、`code`、`error_type`。 控制顺序：L520断言`status == 1`；L521断言`value == failed_report( {"request_id": None}, phase="contract", scenario_index=None, …`；L531断言`events == []`。 调用`cjs_runner`、`failed_report`、`pytest.mark.parametrize`、`pytest.param`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `browser_process`（L535–L572）：接收`monkeypatch`。 源码说明：Deterministic subprocess boundary fixture; does not launch a browser.。 调用`monkeypatch.setattr`。 返回路径：L572的`install`。
+- `browser_process.install`（L540–L570）：接收`response`、`returncode`、`timeout`、`cleanup_error`。 调用`monkeypatch.setattr`。 返回路径：L570的`instances`。
+- `browser_process.install.Process`（L541–L561）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `browser_process.install.Process.__init__`（L542–L547）：接收`command`、`**options`。 调用`instances.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `browser_process.install.Process.communicate`（L549–L559）：接收`raw`、`timeout`。 控制顺序：L553按`value is None`分支；L558按`self.should_timeout`分支；L559抛异常，停止当前正常路径。 调用`json.loads`、`callable`、`response`、`report`、`self.options["stdout"].write`、`isinstance`、`json.dumps(value).encode`、`json.dumps`、`subprocess.TimeoutExpired`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `browser_process.install.stop`（L563–L566）：接收`process`。 控制顺序：L565按`cleanup_error`分支；L566抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_fixture_browser`（L575–L585）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`BrowserStep`、`verifier.run_browser`。 返回路径：L583的`verifier.run_browser( URL, TOKEN, [scenario], {"fixture-only": {"private_value": TOKEN}}, …`。
+- `capture_failure`（L588–L593）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`run_fixture_browser`、`assert_redacted`、`str`。 返回路径：L593的`raised.value.diagnostic`。
+- `test_python_success_binds_request_sha_and_keeps_secrets_off_command_line`（L596–L612）：接收`browser_process`。 控制顺序：L600断言`checks == report(first.payload)["checks"]`；L601断言`first.command == ["/fixture/node", str(SCRIPT)]`；L602断言`re.fullmatch(r"[a-f0-9]{32}", first.payload["request_id"])`；L603断言`first.payload["token"] == TOKEN`；L604断言`first.payload["scenarios"][0]["steps"][1]["value"] == TOKEN`；L605断言`first.timeout == 23`；L606断言`first.options["stdin"] == subprocess.PIPE`；L607断言`first.options["stderr"] == subprocess.STDOUT`。后续分支沿下方源码相同行号继续阅读。 调用`browser_process`、`run_fixture_browser`、`report`、`str`、`re.fullmatch`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_passes_only_selected_channel_without_inheriting_browser_arguments`（L615–L628）：接收`browser_process`、`monkeypatch`。 控制顺序：L625断言`env["PRODUCT_VERIFY_BROWSER_CHANNEL"] == "chrome"`；L626断言`"PRODUCT_VERIFY_BROWSER_ARGS" not in env`；L627断言`"PRODUCT_VERIFY_BROWSER_EXECUTABLE" not in env`；L628断言`"CLOUD_PRIVATE_TOKEN" not in env`。 调用`monkeypatch.setenv`、`browser_process`、`run_fixture_browser`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_valid_failure_diagnostic_is_retained`（L632–L634）：接收`browser_process`、`returncode`。 控制顺序：L634断言`capture_failure() == {**diagnostic(), "exit_code": returncode}`。 调用`browser_process`、`capture_failure`、`diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_timeout_preserves_primary_error_even_when_cleanup_fails`（L638–L648）：接收`browser_process`、`cleanup_error`。 控制顺序：L642断言`capture_failure() == { "phase": "python-timeout", "error_code": "timeout", "cleanup":…`；L647断言`instances[0].stopped is True`；L648断言`instances[0].options["stdout"].closed`。 调用`browser_process`、`SECRET_ERROR.encode`、`capture_failure`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_timeout_keeps_prior_bound_failure_when_browser_cleanup_hangs`（L652–L662）：接收`browser_process`、`cleanup_error`。 控制顺序：L656断言`capture_failure() == { **diagnostic(), "termination": "python-timeout", "cleanup": "f…`；L661断言`instances[0].stopped is True`；L662断言`instances[0].options["stdout"].closed`。 调用`browser_process`、`capture_failure`、`diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_timeout_does_not_adopt_unbound_or_malformed_prior_report`（L668–L688）：接收`browser_process`、`prior_report`。 控制顺序：L684断言`capture_failure() == { "phase": "python-timeout", "error_code": "timeout", "cleanup":…`。 调用`browser_process`、`capture_failure`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_timeout_does_not_adopt_unbound_or_malformed_prior_report.response`（L671–L681）：接收`payload`。 控制顺序：L672按`prior_report == "success"`分支；L675按`prior_report == "wrong-request"`分支；L677按`prior_report == "wrong-verifier"`分支。 调用`report`、`failed_report`。 返回路径：L673的`report(payload)`；L681的`value`。
+- `test_python_rejects_damaged_oversized_or_unbound_reports`（L709–L718）：接收`browser_process`、`response`、`category`、`returncode`。 控制顺序：L713断言`capture_failure() == { "phase": "python-exit" if returncode else "python-report", "er…`。 调用`browser_process`、`capture_failure`、`pytest.mark.parametrize`、`SECRET_ERROR.encode`、`pytest.param`、`report`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_deep_json_report_is_rejected_without_recursion_escape`（L722–L731）：接收`browser_process`、`returncode`。 控制顺序：L726断言`value.pop("report_error") in {"invalid-json", "invalid-schema"}`；L727断言`value == { "phase": "python-exit" if returncode else "python-report", "error_code": "…`。 调用`browser_process`、`capture_failure`、`value.pop`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_rejects_success_with_nonzero_or_invalid_exit`（L735–L741）：接收`browser_process`、`returncode`。 控制顺序：L737断言`capture_failure() == { "phase": "python-exit", "error_code": "success-with-invalid-ex…`。 调用`browser_process`、`capture_failure`、`type`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_success_checks_must_match_current_plan_and_exact_schema`（L759–L768）：接收`browser_process`、`field`、`value`。 控制顺序：L768断言`capture_failure() == {"phase": "python-report", "error_code": "invalid-checks"}`。 调用`browser_process`、`capture_failure`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_success_checks_must_match_current_plan_and_exact_schema.response`（L762–L765）：接收`payload`。 调用`report`。 返回路径：L765的`result`。
+- `test_python_success_checks_reject_missing_duplicate_or_damaged_entries`（L772–L786）：接收`browser_process`、`kind`。 控制顺序：L786断言`capture_failure() == {"phase": "python-report", "error_code": "invalid-checks"}`。 调用`browser_process`、`capture_failure`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_success_checks_reject_missing_duplicate_or_damaged_entries.response`（L773–L783）：接收`payload`。 控制顺序：L775按`kind == "missing"`分支；L777按`kind == "duplicate"`分支；L779按`kind == "missing-field"`分支。 调用`report`。 返回路径：L783的`result`。
+- `test_python_malformed_diagnostic_including_unhashable_values_fails_closed`（L813–L822）：接收`browser_process`、`field`、`bad_value`。 控制顺序：L817断言`capture_failure() == { "phase": "python-exit", "error_code": "nonzero-exit", "exit_co…`。 调用`browser_process`、`failed_report`、`capture_failure`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_diagnostic_requires_exact_schema`（L826–L838）：接收`browser_process`、`mutation`。 控制顺序：L838断言`capture_failure()["report_error"] == "invalid-diagnostic"`。 调用`browser_process`、`capture_failure`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_diagnostic_requires_exact_schema.response`（L827–L835）：接收`payload`。 控制顺序：L829按`mutation == "missing-field"`分支；L831按`mutation == "extra-field"`分支。 调用`failed_report`。 返回路径：L835的`value`。
+- `test_python_missing_node_and_spawn_failure_are_redacted`（L841–L850）：接收`monkeypatch`。 控制顺序：L843断言`capture_failure() == {"phase": "python-spawn", "error_code": "node-missing"}`；L850断言`capture_failure() == {"phase": "python-spawn", "error_code": "spawn-failed"}`。 调用`monkeypatch.setattr`、`capture_failure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_missing_node_and_spawn_failure_are_redacted.fail`（L846–L847）：接收`*args`、`**kwargs`。 控制顺序：L847抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_missing_verifier_fails_before_process_spawn`（L853–L861）：接收`monkeypatch`、`tmp_path`。 控制顺序：L861断言`capture_failure() == {"phase": "python-spawn", "error_code": "verifier-unavailable"}`。 调用`monkeypatch.setattr`、`capture_failure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_missing_verifier_fails_before_process_spawn.unexpected`（L857–L858）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_without_browser_scenarios_does_not_spawn`（L864–L869）：接收`monkeypatch`。 控制顺序：L869断言`verifier.run_browser(URL, TOKEN, [SimpleNamespace(browser=[])], {}, 23) == []`。 调用`monkeypatch.setattr`、`verifier.run_browser`、`SimpleNamespace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_without_browser_scenarios_does_not_spawn.unexpected`（L865–L866）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_browser_protocol.py sha256: 54e552ea708fe895defc48d8410d1fbc6f7fe41002287137c33788add149fa38 -->
+````python
+"""Browser subprocess protocol regressions, not evidence of a live browser run.
+
+The CJS driver really runs under Node, but its Playwright module is an explicit
+local test double. Nothing from these tests is a product acceptance receipt.
+"""
+
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
+
+from workbench import capability_verification as verifier
+from workbench.capability_contracts import BrowserStep
+
+SCRIPT = Path(__file__).resolve().parents[1] / "scripts/capability_browser.cjs"
+TOKEN = "fixture-private-token-do-not-report"
+URL = "https://fixture-private-url.invalid"
+SELECTOR = '[data-private="fixture-secret-selector"]'
+RAW_ERROR = "fixture-raw-error-do-not-report"
+SECRET_ERROR = f"{RAW_ERROR} {TOKEN} {URL} {SELECTOR}"
+REQUEST_ID = "1234567890abcdef1234567890abcdef"
+
+# A controlled protocol fixture: no browser executable, network, or credentials.
+FAKE_PLAYWRIGHT = r"""
+const fs = require('node:fs')
+const config = JSON.parse(process.env.FIXTURE_CONFIG)
+const calls = {}
+function record(op, detail = {}) {
+  fs.appendFileSync(process.env.FIXTURE_AUDIT, JSON.stringify({op, ...detail}) + '\n')
+}
+function perform(op, detail = {}) {
+  record(op, detail)
+  calls[op] = (calls[op] || 0) + 1
+  const failure = (config.failures || {})[op]
+  if (failure && calls[op] === (failure.atCall || 1)) {
+    const error = new Error(failure.message || config.secretError)
+    error.name = failure.name || 'Error'
+    throw error
+  }
+}
+async function close(op) {
+  perform(op)
+  if (config.hangClose === op) {
+    setInterval(() => {}, 1000)
+    await new Promise(() => {})
+  }
+}
+function target() {
+  return {
+    fill: async (value, options) => perform('fill', options),
+    click: async options => perform('click', options),
+    waitFor: async options => perform(options.state, options),
+    filter: () => ({waitFor: async options => perform('text', options)}),
+  }
+}
+const page = {
+  on: (event, callback) => {
+    record('listener', {event})
+    if (config.pageError) callback(new Error(config.secretError))
+  },
+  setViewportSize: async options => perform('viewport', options),
+  goto: async (url, options) => {
+    perform('navigation', options)
+    return {status: () => config.status || 200}
+  },
+  locator: () => target(),
+}
+const context = {
+  route: async () => perform('routing'),
+  routeWebSocket: async () => perform('websocket'),
+  newPage: async () => {perform('page'); return page},
+  close: async () => close('context-close'),
+}
+const browser = {
+  newContext: async options => {
+    perform('context', {
+      serviceWorkers: options.serviceWorkers,
+      acceptDownloads: options.acceptDownloads,
+      tokenMatches: options.extraHTTPHeaders['x-daytona-preview-token'] === config.token,
+    })
+    return context
+  },
+  close: async () => close('browser-close'),
+}
+exports.chromium = {
+  launch: async options => {perform('launch', options); return browser},
+}
+"""
+
+
+def assert_redacted(value):
+    text = value if isinstance(value, str) else json.dumps(value, ensure_ascii=False)
+    for secret in (TOKEN, URL, SELECTOR, "fixture-secret-selector", RAW_ERROR):
+        assert secret not in text
+
+
+def diagnostic(**changes):
+    return {
+        "phase": "assertion",
+        "scenario_index": 0,
+        "step_index": 1,
+        "action": "visible",
+        "navigation_status": 200,
+        "error_code": "timeout",
+        "error_type": "TimeoutError",
+        **changes,
+    }
+
+
+def report(payload, **changes):
+    return {
+        "protocol": 1,
+        "request_id": payload["request_id"],
+        "verifier_sha256": hashlib.sha256(SCRIPT.read_bytes()).hexdigest(),
+        "passed": True,
+        "checks": [
+            {
+                "id": "fixture-only",
+                "passed": True,
+                "steps": 2,
+                "real_browser": True,
+                "browser_os_sandbox": True,
+            }
+        ],
+        **changes,
+    }
+
+
+def failed_report(payload, **changes):
+    value = report(payload, passed=False, diagnostic=diagnostic(**changes))
+    del value["checks"]
+    return value
+
+
+@pytest.fixture
+def cjs_runner(tmp_path):
+    node = shutil.which("node")
+    if not node:
+        if os.environ.get("RND_REQUIRE_NODE_TESTS") == "1":
+            pytest.fail("Node is required for the browser protocol regression tests")
+        pytest.skip("Node is not installed; no browser protocol test was run")
+    module = tmp_path / "explicit-fake-playwright"
+    module.mkdir()
+    (module / "package.json").write_text('{"version":"1.56.1","main":"index.cjs"}')
+    (module / "index.cjs").write_text(FAKE_PLAYWRIGHT)
+    audit = tmp_path / "fixture-audit.jsonl"
+
+    def run(
+        *,
+        steps=None,
+        failures=None,
+        page_error=False,
+        raw=None,
+        version="1.56.1",
+        hang_close=None,
+        scenarios=None,
+        channel="",
+    ):
+        (module / "package.json").write_text(json.dumps({"version": version, "main": "index.cjs"}))
+        audit.write_text("")
+        payload = {
+            "request_id": REQUEST_ID,
+            "url": URL,
+            "token": TOKEN,
+            "scenarios": [
+                {
+                    "id": "fixture-only",
+                    "steps": steps
+                    or [
+                        {"action": "open", "value": "/private-path"},
+                        {"action": "visible", "selector": SELECTOR},
+                    ],
+                }
+            ],
+        }
+        config = {
+            "failures": failures or {},
+            "pageError": page_error,
+            "secretError": SECRET_ERROR,
+            "token": TOKEN,
+            "hangClose": hang_close,
+        }
+        if scenarios is not None:
+            payload["scenarios"] = scenarios
+        try:
+            result = subprocess.run(
+                [node, str(SCRIPT)],
+                input=json.dumps(payload).encode() if raw is None else raw,
+                capture_output=True,
+                timeout=2 if hang_close else 10,
+                cwd=tmp_path,
+                env={
+                    "PATH": str(Path(node).parent),
+                    "PRODUCT_VERIFY_PLAYWRIGHT": str(module),
+                    "PRODUCT_VERIFY_BROWSER_CHANNEL": channel,
+                    "FIXTURE_CONFIG": json.dumps(config),
+                    "FIXTURE_AUDIT": str(audit),
+                },
+            )
+        except subprocess.TimeoutExpired as exc:
+            if not hang_close:
+                raise
+            # subprocess.run has killed and reaped the deliberate hanging fixture.
+            result = SimpleNamespace(returncode=None, stdout=exc.stdout, stderr=exc.stderr or b"")
+        else:
+            assert not hang_close, "The deliberate cleanup hang should hit the process deadline"
+        assert result.stderr == b""
+        assert_redacted(result.stdout.decode())
+        value = json.loads(result.stdout)
+        assert value["protocol"] == 1
+        assert value["verifier_sha256"] == hashlib.sha256(SCRIPT.read_bytes()).hexdigest()
+        events = [json.loads(line) for line in audit.read_text().splitlines()]
+        return result.returncode, value, events
+
+    return run
+
+
+@pytest.mark.node_tools
+def test_actual_cjs_protocol_success_keeps_sandbox_and_original_action_timeouts(cjs_runner):
+    actions = ["fill", "click", "visible", "hidden", "text"]
+    steps = [
+        {"action": "viewport", "width": 900, "height": 700},
+        {"action": "open", "value": "/private-path"},
+        *[{"action": action, "selector": SELECTOR, "value": TOKEN} for action in actions],
+    ]
+    status, value, events = cjs_runner(steps=steps)
+    assert status == 0
+    assert value == report(
+        {"request_id": REQUEST_ID},
+        checks=[
+            {
+                "id": "fixture-only",
+                "passed": True,
+                "steps": len(steps),
+                "real_browser": True,
+                "browser_os_sandbox": True,
+            }
+        ],
+    )
+    launch = next(event for event in events if event["op"] == "launch")
+    assert launch["headless"] is True
+    assert launch["chromiumSandbox"] is True
+    assert "channel" not in launch
+    assert "--no-sandbox" not in launch["args"]
+    assert "--force-webrtc-ip-handling-policy=disable_non_proxied_udp" in launch["args"]
+    assert next(event for event in events if event["op"] == "context") == {
+        "op": "context",
+        "serviceWorkers": "block",
+        "acceptDownloads": False,
+        "tokenMatches": True,
+    }
+    navigation = next(event for event in events if event["op"] == "navigation")
+    assert navigation["timeout"] == 15000
+    assert navigation["waitUntil"] == "domcontentloaded"
+    assert all(
+        next(event for event in events if event["op"] == action)["timeout"] == 10000
+        for action in actions
+    )
+    assert [event["op"] for event in events][-2:] == ["context-close", "browser-close"]
+
+
+@pytest.mark.node_tools
+@pytest.mark.parametrize(
+    ("operation", "phase", "action", "index"),
+    [
+        ("context", "context", None, None),
+        ("routing", "routing", None, None),
+        ("websocket", "routing", None, None),
+        ("page", "page", None, None),
+        ("navigation", "navigation", "open", 0),
+        ("fill", "action", "fill", 1),
+        ("click", "action", "click", 1),
+        ("visible", "assertion", "visible", 1),
+        ("hidden", "assertion", "hidden", 1),
+        ("text", "assertion", "text", 1),
+    ],
+)
+def test_actual_cjs_preserves_primary_failure_when_both_closes_fail(
+    cjs_runner, operation, phase, action, index
+):
+    steps = [
+        {"action": "open", "value": "/private-path"},
+        {"action": action or "visible", "selector": SELECTOR, "value": TOKEN},
+    ]
+    status, value, events = cjs_runner(
+        steps=steps,
+        failures={
+            operation: {"name": "TimeoutError"},
+            "context-close": {"name": "TypeError"},
+            "browser-close": {"name": "ReferenceError"},
+        },
+    )
+    assert status == 1
+    assert value == failed_report(
+        {"request_id": REQUEST_ID},
+        phase=phase,
+        action=action,
+        step_index=index,
+        navigation_status=200 if index == 1 else None,
+    )
+    assert events[-1]["op"] == "browser-close"
+    if operation != "context":
+        assert events[-2]["op"] == "context-close"
+
+
+@pytest.mark.node_tools
+@pytest.mark.parametrize(
+    ("message", "code"),
+    [
+        ("No usable sandbox", "sandbox-unavailable"),
+        ("Failed to move to new namespace", "sandbox-unavailable"),
+        ("Running as root without --no-sandbox", "sandbox-unavailable"),
+        ("Executable doesn't exist", "browser-missing"),
+        ("Chromium distribution 'chrome' is not found", "browser-missing"),
+        ("error while loading shared libraries", "browser-dependency"),
+        ("unrecognized launch failure", "operation-failed"),
+    ],
+)
+def test_actual_cjs_launch_failure_returns_only_classification(cjs_runner, message, code):
+    status, value, events = cjs_runner(
+        failures={"launch": {"message": f"{message}: {SECRET_ERROR}"}}
+    )
+    assert status == 1
+    assert value == failed_report(
+        {"request_id": REQUEST_ID},
+        phase="launch",
+        scenario_index=None,
+        step_index=None,
+        action=None,
+        navigation_status=None,
+        error_code=code,
+        error_type="Error",
+    )
+    assert [event["op"] for event in events] == ["launch"]
+
+
+@pytest.mark.node_tools
+def test_system_chrome_channel_keeps_sandbox_and_does_not_retry(cjs_runner):
+    status, _, events = cjs_runner(channel="chrome")
+    assert status == 0
+    launch = next(event for event in events if event["op"] == "launch")
+    assert launch["channel"] == "chrome"
+    assert launch["chromiumSandbox"] is True
+    assert "executablePath" not in launch
+    assert "--no-sandbox" not in launch["args"]
+    status, value, events = cjs_runner(
+        channel="chrome", failures={"launch": {"message": "No usable sandbox: " + SECRET_ERROR}}
+    )
+    assert status == 1
+    assert value["diagnostic"]["error_code"] == "sandbox-unavailable"
+    assert [event["op"] for event in events] == ["launch"]
+
+
+@pytest.mark.node_tools
+@pytest.mark.parametrize("channel", ["msedge", "--no-sandbox", "/tmp/private-browser", TOKEN])
+def test_unknown_browser_channel_fails_before_launch_without_leaking_input(cjs_runner, channel):
+    status, value, events = cjs_runner(channel=channel)
+    assert status == 1
+    assert value["diagnostic"]["phase"] == "tool"
+    assert value["diagnostic"]["error_code"] == "browser-channel-rejected"
+    assert events == []
+
+
+@pytest.mark.node_tools
+@pytest.mark.parametrize(
+    ("message", "code"),
+    [
+        ("net::ERR_NAME_NOT_RESOLVED", "name-resolution"),
+        ("net::ERR_CONNECTION_REFUSED", "connection-refused"),
+        ("net::ERR_CONNECTION_RESET", "navigation-network"),
+    ],
+)
+def test_actual_cjs_navigation_failure_does_not_leak_url(cjs_runner, message, code):
+    status, value, _ = cjs_runner(
+        failures={"navigation": {"message": f"{message}: {SECRET_ERROR}"}}
+    )
+    assert status == 1
+    assert value["diagnostic"] == diagnostic(
+        phase="navigation",
+        step_index=0,
+        action="open",
+        navigation_status=None,
+        error_code=code,
+        error_type="Error",
+    )
+
+
+@pytest.mark.node_tools
+def test_actual_cjs_failed_second_navigation_cannot_reuse_prior_status(cjs_runner):
+    status, value, events = cjs_runner(
+        steps=[{"action": "open", "value": "/first"}, {"action": "open", "value": "/second"}],
+        failures={
+            "navigation": {"atCall": 2, "message": "net::ERR_CONNECTION_REFUSED: " + SECRET_ERROR}
+        },
+    )
+    assert status == 1
+    assert value["diagnostic"] == diagnostic(
+        phase="navigation",
+        step_index=1,
+        action="open",
+        navigation_status=None,
+        error_code="connection-refused",
+        error_type="Error",
+    )
+    assert sum(event["op"] == "navigation" for event in events) == 2
+
+
+@pytest.mark.node_tools
+@pytest.mark.parametrize("first_close", ["context-close", "browser-close"])
+def test_actual_cjs_successful_actions_do_not_hide_cleanup_failure(cjs_runner, first_close):
+    failures = {first_close: {"name": "TypeError"}}
+    if first_close == "context-close":
+        failures["browser-close"] = {"name": "ReferenceError"}
+    status, value, events = cjs_runner(failures=failures)
+    assert status == 1
+    assert value == failed_report(
+        {"request_id": REQUEST_ID},
+        phase=first_close,
+        error_code="operation-failed",
+        error_type="TypeError",
+    )
+    assert events[-1]["op"] == "browser-close"
+
+
+@pytest.mark.node_tools
+def test_actual_cjs_application_error_survives_cleanup_and_unknown_error_name(cjs_runner):
+    status, value, _ = cjs_runner(
+        page_error=True, failures={"context-close": {"name": SECRET_ERROR}}
+    )
+    assert status == 1
+    assert value["diagnostic"] == diagnostic(
+        phase="application", error_code="application-error", error_type="Error"
+    )
+    status, value, _ = cjs_runner(failures={"visible": {"name": SECRET_ERROR}})
+    assert status == 1
+    assert value["diagnostic"]["error_type"] == "Other"
+
+
+@pytest.mark.node_tools
+def test_actual_cjs_rejects_cross_origin_navigation_before_goto(cjs_runner):
+    status, value, events = cjs_runner(
+        steps=[{"action": "open", "value": "https://other-fixture-origin.invalid/private"}]
+    )
+    assert status == 1
+    assert value["diagnostic"] == diagnostic(
+        phase="navigation",
+        action="open",
+        step_index=0,
+        navigation_status=None,
+        error_code="origin-rejected",
+        error_type="Error",
+    )
+    assert "navigation" not in [event["op"] for event in events]
+
+
+@pytest.mark.node_tools
+def test_actual_cjs_rejects_wrong_playwright_version_before_launch(cjs_runner):
+    status, value, events = cjs_runner(version="0.0.0-fixture")
+    assert status == 1
+    assert value["diagnostic"] == diagnostic(
+        phase="tool",
+        scenario_index=None,
+        step_index=None,
+        action=None,
+        navigation_status=None,
+        error_code="tool-version",
+        error_type="Error",
+    )
+    assert events == []
+
+
+@pytest.mark.node_tools
+@pytest.mark.parametrize("hang_close", ["context-close", "browser-close"])
+def test_actual_cjs_emits_first_failure_once_before_cleanup_can_hang(cjs_runner, hang_close):
+    status, value, events = cjs_runner(
+        failures={"visible": {"name": "TimeoutError"}}, hang_close=hang_close
+    )
+    assert status is None
+    assert value == failed_report({"request_id": REQUEST_ID})
+    assert events[-1]["op"] == hang_close
+
+
+@pytest.mark.node_tools
+def test_actual_cjs_identifies_later_scenario_without_returning_partial_success(cjs_runner):
+    scenarios = [
+        {"id": name, "steps": [{"action": "open", "value": "/private-path"}]}
+        for name in ("fixture-one", "fixture-two")
+    ]
+    status, value, _ = cjs_runner(
+        scenarios=scenarios, failures={"navigation": {"name": "TimeoutError", "atCall": 2}}
+    )
+    assert status == 1
+    assert value == failed_report(
+        {"request_id": REQUEST_ID},
+        phase="navigation",
+        scenario_index=1,
+        step_index=0,
+        action="open",
+        navigation_status=None,
+    )
+
+
+@pytest.mark.node_tools
+@pytest.mark.parametrize(
+    ("raw", "code", "error_type"),
+    [
+        (b'{"request_id": "bad",', "operation-failed", "SyntaxError"),
+        (b'{"request_id": "bad"}', "operation-failed", "Error"),
+        pytest.param(b"x" * 1000001, "contract-too-large", "Error", id="oversized-contract"),
+    ],
+)
+def test_actual_cjs_rejects_damaged_input_before_loading_browser(cjs_runner, raw, code, error_type):
+    status, value, events = cjs_runner(raw=raw)
+    assert status == 1
+    assert value == failed_report(
+        {"request_id": None},
+        phase="contract",
+        scenario_index=None,
+        step_index=None,
+        action=None,
+        navigation_status=None,
+        error_code=code,
+        error_type=error_type,
+    )
+    assert events == []
+
+
+@pytest.fixture
+def browser_process(monkeypatch):
+    """Deterministic subprocess boundary fixture; does not launch a browser."""
+    instances = []
+    monkeypatch.setattr(verifier.shutil, "which", lambda name: "/fixture/node")
+
+    def install(response=None, *, returncode=0, timeout=False, cleanup_error=False):
+        class Process:
+            def __init__(self, command, **options):
+                self.command = command
+                self.options = options
+                self.returncode = returncode
+                self.stopped = False
+                instances.append(self)
+
+            def communicate(self, raw, *, timeout):
+                self.payload = json.loads(raw)
+                self.timeout = timeout
+                value = response(self.payload) if callable(response) else response
+                if value is None:
+                    value = report(self.payload)
+                self.options["stdout"].write(
+                    value if isinstance(value, bytes) else json.dumps(value).encode()
+                )
+                if self.should_timeout:
+                    raise subprocess.TimeoutExpired(self.command, timeout, output=SECRET_ERROR)
+
+            should_timeout = timeout
+
+        def stop(process):
+            process.stopped = True
+            if cleanup_error:
+                raise OSError(SECRET_ERROR)
+
+        monkeypatch.setattr(verifier.subprocess, "Popen", Process)
+        monkeypatch.setattr(verifier, "stop_process", stop)
+        return instances
+
+    return install
+
+
+def run_fixture_browser():
+    scenario = SimpleNamespace(
+        id="fixture-only",
+        browser=[
+            BrowserStep(action="open", value="/private-path"),
+            BrowserStep(action="fill", selector=SELECTOR, value="${private_value}"),
+        ],
+    )
+    return verifier.run_browser(
+        URL, TOKEN, [scenario], {"fixture-only": {"private_value": TOKEN}}, 23
+    )
+
+
+def capture_failure():
+    with pytest.raises(verifier.BrowserFailure) as raised:
+        run_fixture_browser()
+    assert_redacted(str(raised.value))
+    assert_redacted(raised.value.diagnostic)
+    return raised.value.diagnostic
+
+
+def test_python_success_binds_request_sha_and_keeps_secrets_off_command_line(browser_process):
+    instances = browser_process()
+    checks = run_fixture_browser()
+    first = instances[0]
+    assert checks == report(first.payload)["checks"]
+    assert first.command == ["/fixture/node", str(SCRIPT)]
+    assert re.fullmatch(r"[a-f0-9]{32}", first.payload["request_id"])
+    assert first.payload["token"] == TOKEN
+    assert first.payload["scenarios"][0]["steps"][1]["value"] == TOKEN
+    assert first.timeout == 23
+    assert first.options["stdin"] == subprocess.PIPE
+    assert first.options["stderr"] == subprocess.STDOUT
+    assert TOKEN not in json.dumps(first.options["env"])
+    assert first.options["stdout"].closed
+    assert first.stopped is False
+    run_fixture_browser()
+    assert first.payload["request_id"] != instances[1].payload["request_id"]
+
+
+def test_python_passes_only_selected_channel_without_inheriting_browser_arguments(
+    browser_process, monkeypatch
+):
+    monkeypatch.setenv("PRODUCT_VERIFY_BROWSER_CHANNEL", "chrome")
+    monkeypatch.setenv("PRODUCT_VERIFY_BROWSER_ARGS", "--no-sandbox")
+    monkeypatch.setenv("PRODUCT_VERIFY_BROWSER_EXECUTABLE", "/tmp/private-browser")
+    monkeypatch.setenv("CLOUD_PRIVATE_TOKEN", TOKEN)
+    instances = browser_process()
+    run_fixture_browser()
+    env = instances[0].options["env"]
+    assert env["PRODUCT_VERIFY_BROWSER_CHANNEL"] == "chrome"
+    assert "PRODUCT_VERIFY_BROWSER_ARGS" not in env
+    assert "PRODUCT_VERIFY_BROWSER_EXECUTABLE" not in env
+    assert "CLOUD_PRIVATE_TOKEN" not in env
+
+
+@pytest.mark.parametrize("returncode", [0, 1, -9])
+def test_python_valid_failure_diagnostic_is_retained(browser_process, returncode):
+    browser_process(failed_report, returncode=returncode)
+    assert capture_failure() == {**diagnostic(), "exit_code": returncode}
+
+
+@pytest.mark.parametrize("cleanup_error", [False, True])
+def test_python_timeout_preserves_primary_error_even_when_cleanup_fails(
+    browser_process, cleanup_error
+):
+    instances = browser_process(SECRET_ERROR.encode(), timeout=True, cleanup_error=cleanup_error)
+    assert capture_failure() == {
+        "phase": "python-timeout",
+        "error_code": "timeout",
+        "cleanup": "failed" if cleanup_error else "stopped",
+    }
+    assert instances[0].stopped is True
+    assert instances[0].options["stdout"].closed
+
+
+@pytest.mark.parametrize("cleanup_error", [False, True])
+def test_python_timeout_keeps_prior_bound_failure_when_browser_cleanup_hangs(
+    browser_process, cleanup_error
+):
+    instances = browser_process(failed_report, timeout=True, cleanup_error=cleanup_error)
+    assert capture_failure() == {
+        **diagnostic(),
+        "termination": "python-timeout",
+        "cleanup": "failed" if cleanup_error else "stopped",
+    }
+    assert instances[0].stopped is True
+    assert instances[0].options["stdout"].closed
+
+
+@pytest.mark.parametrize(
+    "prior_report", ["success", "wrong-request", "wrong-verifier", "malformed"]
+)
+def test_python_timeout_does_not_adopt_unbound_or_malformed_prior_report(
+    browser_process, prior_report
+):
+    def response(payload):
+        if prior_report == "success":
+            return report(payload)
+        value = failed_report(payload)
+        if prior_report == "wrong-request":
+            value["request_id"] = "f" * 32
+        elif prior_report == "wrong-verifier":
+            value["verifier_sha256"] = "0" * 64
+        else:
+            value["diagnostic"]["phase"] = {"message": SECRET_ERROR}
+        return value
+
+    browser_process(response, timeout=True)
+    assert capture_failure() == {
+        "phase": "python-timeout",
+        "error_code": "timeout",
+        "cleanup": "stopped",
+    }
+
+
+@pytest.mark.parametrize(
+    ("response", "category"),
+    [
+        (SECRET_ERROR.encode(), "invalid-json"),
+        (b'{"protocol":1', "invalid-json"),
+        (b"\xff\xfe\x00", "invalid-json"),
+        pytest.param(b"x" * 100001, "report-too-large", id="oversized-report"),
+        ([], "invalid-schema"),
+        (lambda payload: report(payload, protocol=True), "invalid-schema"),
+        (lambda payload: report(payload, protocol=2), "invalid-schema"),
+        (lambda payload: report(payload, request_id="f" * 32), "wrong-verifier-or-request"),
+        (lambda payload: report(payload, verifier_sha256="0" * 64), "wrong-verifier-or-request"),
+        (lambda payload: report(payload, diagnostic=SECRET_ERROR), "invalid-schema"),
+        (lambda payload: report(payload, checks={}), "invalid-schema"),
+        (lambda payload: report(payload, passed=1), "invalid-diagnostic"),
+    ],
+)
+@pytest.mark.parametrize("returncode", [0, 7])
+def test_python_rejects_damaged_oversized_or_unbound_reports(
+    browser_process, response, category, returncode
+):
+    browser_process(response, returncode=returncode)
+    assert capture_failure() == {
+        "phase": "python-exit" if returncode else "python-report",
+        "error_code": "nonzero-exit" if returncode else "invalid-report",
+        "exit_code": returncode,
+        "report_error": category,
+    }
+
+
+@pytest.mark.parametrize("returncode", [0, 7])
+def test_python_deep_json_report_is_rejected_without_recursion_escape(browser_process, returncode):
+    browser_process(b"[" * 2000 + b"0" + b"]" * 2000, returncode=returncode)
+    value = capture_failure()
+    # JSON decoder recursion limits differ between supported Python builds.
+    assert value.pop("report_error") in {"invalid-json", "invalid-schema"}
+    assert value == {
+        "phase": "python-exit" if returncode else "python-report",
+        "error_code": "nonzero-exit" if returncode else "invalid-report",
+        "exit_code": returncode,
+    }
+
+
+@pytest.mark.parametrize("returncode", [1, -9, None, False, "0"])
+def test_python_rejects_success_with_nonzero_or_invalid_exit(browser_process, returncode):
+    browser_process(returncode=returncode)
+    assert capture_failure() == {
+        "phase": "python-exit",
+        "error_code": "success-with-invalid-exit",
+        "exit_code": returncode if type(returncode) is int else None,
+    }
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("id", []),
+        ("id", "different-scenario"),
+        ("steps", True),
+        ("steps", 2.0),
+        ("steps", "2"),
+        ("steps", 0),
+        ("passed", False),
+        ("real_browser", 1),
+        ("browser_os_sandbox", False),
+        ("message", SECRET_ERROR),
+    ],
+)
+def test_python_success_checks_must_match_current_plan_and_exact_schema(
+    browser_process, field, value
+):
+    def response(payload):
+        result = report(payload)
+        result["checks"][0][field] = value
+        return result
+
+    browser_process(response)
+    assert capture_failure() == {"phase": "python-report", "error_code": "invalid-checks"}
+
+
+@pytest.mark.parametrize("kind", ["missing", "duplicate", "null", "string", "missing-field"])
+def test_python_success_checks_reject_missing_duplicate_or_damaged_entries(browser_process, kind):
+    def response(payload):
+        result = report(payload)
+        if kind == "missing":
+            result["checks"] = []
+        elif kind == "duplicate":
+            result["checks"] *= 2
+        elif kind == "missing-field":
+            del result["checks"][0]["steps"]
+        else:
+            result["checks"] = [None if kind == "null" else SECRET_ERROR]
+        return result
+
+    browser_process(response)
+    assert capture_failure() == {"phase": "python-report", "error_code": "invalid-checks"}
+
+
+@pytest.mark.parametrize(
+    ("field", "bad_value"),
+    [
+        ("phase", SECRET_ERROR),
+        ("error_code", SECRET_ERROR),
+        ("error_type", SECRET_ERROR),
+        ("action", SECRET_ERROR),
+        ("scenario_index", True),
+        ("scenario_index", -1),
+        ("scenario_index", 10001),
+        ("step_index", 0.5),
+        ("step_index", "1"),
+        ("step_index", {}),
+        ("navigation_status", True),
+        ("navigation_status", 99),
+        ("navigation_status", 600),
+        ("navigation_status", []),
+        *[
+            (field, value)
+            for field in ("phase", "error_code", "error_type", "action")
+            for value in ([], {})
+        ],
+    ],
+)
+def test_python_malformed_diagnostic_including_unhashable_values_fails_closed(
+    browser_process, field, bad_value
+):
+    browser_process(lambda payload: failed_report(payload, **{field: bad_value}), returncode=1)
+    assert capture_failure() == {
+        "phase": "python-exit",
+        "error_code": "nonzero-exit",
+        "exit_code": 1,
+        "report_error": "invalid-diagnostic",
+    }
+
+
+@pytest.mark.parametrize("mutation", ["missing-field", "extra-field", "not-object"])
+def test_python_diagnostic_requires_exact_schema(browser_process, mutation):
+    def response(payload):
+        value = failed_report(payload)
+        if mutation == "missing-field":
+            del value["diagnostic"]["action"]
+        elif mutation == "extra-field":
+            value["diagnostic"]["message"] = SECRET_ERROR
+        else:
+            value["diagnostic"] = [SECRET_ERROR]
+        return value
+
+    browser_process(response, returncode=1)
+    assert capture_failure()["report_error"] == "invalid-diagnostic"
+
+
+def test_python_missing_node_and_spawn_failure_are_redacted(monkeypatch):
+    monkeypatch.setattr(verifier.shutil, "which", lambda name: None)
+    assert capture_failure() == {"phase": "python-spawn", "error_code": "node-missing"}
+    monkeypatch.setattr(verifier.shutil, "which", lambda name: "/fixture/node")
+
+    def fail(*args, **kwargs):
+        raise OSError(SECRET_ERROR)
+
+    monkeypatch.setattr(verifier.subprocess, "Popen", fail)
+    assert capture_failure() == {"phase": "python-spawn", "error_code": "spawn-failed"}
+
+
+def test_python_missing_verifier_fails_before_process_spawn(monkeypatch, tmp_path):
+    monkeypatch.setattr(verifier, "ROOT", tmp_path)
+    monkeypatch.setattr(verifier.shutil, "which", lambda name: "/fixture/node")
+
+    def unexpected(*args, **kwargs):
+        pytest.fail("No process may start without the trusted verifier's current SHA")
+
+    monkeypatch.setattr(verifier.subprocess, "Popen", unexpected)
+    assert capture_failure() == {"phase": "python-spawn", "error_code": "verifier-unavailable"}
+
+
+def test_python_without_browser_scenarios_does_not_spawn(monkeypatch):
+    def unexpected(*args, **kwargs):
+        pytest.fail("No browser subprocess should be started without browser scenarios")
+
+    monkeypatch.setattr(verifier.subprocess, "Popen", unexpected)
+    assert verifier.run_browser(URL, TOKEN, [SimpleNamespace(browser=[])], {}, 23) == []
+````
+
+### `tests/test_capability_guard.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_network_guard_cannot_silently_fall_back`（L10–L29）：接收`tmp_path`。 控制顺序：L28断言`process.returncode == 78`；L29断言`not marker.exists()`。 调用`subprocess.run`、`str`、`marker.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_supported_kernel_restricts_real_daemon_port_or_fails_closed`（L32–L55）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L48按`process.returncode == 78`分支；L49断言`process.stdout == ""`；L50断言`"no product command was executed" in process.stderr`；L52断言`process.returncode == 0`；L54断言`result["landlock_abi"] >= 6`；L55断言`result["daemon_tcp_denied"] and result["no_new_privs"]`。 调用`subprocess.run`、`str`、`json.loads`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_guard.py sha256: 42871ef43f8ac86239869194f796f2f6e345bb008539bc7e07c02e290741f721 -->
+````python
+"""No privileges or system policy changes: restrict only a disposable child."""
+
+import json
+import subprocess
+import sys
+
+from workbench.settings import ROOT
+
+
+def test_network_guard_cannot_silently_fall_back(tmp_path):
+    marker = tmp_path / "executed"
+    process = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            str(ROOT / "scripts/capability_guard.py"),
+            "",
+            "2280",
+            "--",
+            sys.executable,
+            "-c",
+            f"open({str(marker)!r}, 'w').write('unsafe')",
+        ],
+        capture_output=True,
+        timeout=15,
+    )
+    assert process.returncode == 78
+    assert not marker.exists()
+
+
+def test_supported_kernel_restricts_real_daemon_port_or_fails_closed():
+    process = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            str(ROOT / "scripts/capability_guard.py"),
+            "8123",
+            "",
+            "--probe",
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=15,
+    )
+    if process.returncode == 78:
+        assert process.stdout == ""
+        assert "no product command was executed" in process.stderr
+    else:
+        assert process.returncode == 0
+        result = json.loads(process.stdout)
+        assert result["landlock_abi"] >= 6
+        assert result["daemon_tcp_denied"] and result["no_new_privs"]
+````
+
+### `tests/test_capability_isolation.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.capability_isolation`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_identity_rejects_output_contamination_before_any_setup`（L32–L58）：接收`output`、`exit_code`、`shape`。 控制顺序：L48断言`evidence["control_output_shape"] == shape`；L49断言`evidence["control_result_chars"] == (len(output) if isinstance(output, str) else None…`；L50断言`"private-sentinel" not in json.dumps(evidence)`；L51断言`set(evidence) == { "control_exec_exit_code", "control_euid", "control_result_type", "…`；L58断言`len(calls) == 1`。 调用`SimpleNamespace`、`pytest.raises`、`prepare_identity`、`object`、`isinstance`、`len`、`json.dumps`、`set`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_identity_rejects_output_contamination_before_any_setup.execute`（L37–L42）：接收`command`、`env`、`timeout`。 控制顺序：L39断言`len(calls) == 1`；L40断言`shlex.split(command)[-2:] == ["/usr/bin/id", "-u"]`；L41断言`env == CONTROL_SHELL_ENV and timeout == 10`。 调用`calls.append`、`len`、`shlex.split`、`SimpleNamespace`。 返回路径：L42的`SimpleNamespace(result=output, exit_code=exit_code)`。
+- `test_exact_root_identity_progresses_to_setup_without_weaker_parsing`（L61–L76）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L75断言`len(calls) == 2`；L76断言`"/usr/sbin/groupadd" in calls[1]`。 调用`SimpleNamespace`、`pytest.raises`、`prepare_identity`、`object`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_root_identity_progresses_to_setup_without_weaker_parsing.execute`（L66–L70）：接收`command`、`env`、`timeout`。 调用`calls.append`、`shlex.split`、`SimpleNamespace`、`len`。 返回路径：L68的`SimpleNamespace( result="0\n" if len(calls) == 1 else "", exit_code=0 if len(calls) == 1 e…`。
+- `test_actual_sdk_env_protocol_prevents_outer_shell_contamination`（L80–L121）：接收`tmp_path`。 源码说明：Real SDK + subprocess protocol fixture, not the missing live CI output.。 控制顺序：L116断言`noisy.exit_code == 0`；L117断言`"setlocale" in noisy.result and "private-bootstrap-sentinel" in noisy.result`；L118断言`noisy.result.strip() != str(os.geteuid())`；L120断言`safe.exit_code == 0 and safe.result.strip() == str(os.geteuid())`；L121断言`requests[-1].envs == CONTROL_SHELL_ENV`。 调用`bootstrap.write_text`、`httpx.Client`、`Process`、`SimpleNamespace`、`sdk.exec`、`shlex.join`、`system_argv`、`noisy.result.strip`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_sdk_env_protocol_prevents_outer_shell_contamination.execute_command`（L91–L110）：接收`request`、`**kwargs`。 调用`requests.append`、`subprocess.run`、`str`、`SimpleNamespace`。 返回路径：L108的`SimpleNamespace( result=result.stdout, exit_code=result.returncode, additional_properties=…`。
+- `test_physical_count_probe_uses_same_outer_shell_environment`（L125–L143）：接收`engine`。 控制顺序：L142断言`database_counts(sandbox, plan, 10) == {"entries": 7}`；L143断言`len(calls) == 1`。 调用`SimpleNamespace`、`database_counts`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_physical_count_probe_uses_same_outer_shell_environment.execute`（L131–L135）：接收`command`、`env`、`timeout`。 控制顺序：L133断言`env == CONTROL_SHELL_ENV and timeout == 10`；L134断言`calls[-1][:2] == ["/usr/bin/env", "-i"]`。 调用`calls.append`、`shlex.split`、`SimpleNamespace`。 返回路径：L135的`SimpleNamespace(exit_code=0, result='{"entries":7}' if engine == "sqlite" else "7\n")`。
+- `test_generated_prepare_and_start_cannot_bypass_identity_or_network_guard`（L147–L181）：接收`database`。 控制顺序：L153断言`result[:2] == ["/usr/bin/env", "-i"]`；L154断言`"--reuid=rnd-module" in result and "--regid=rnd-module" in result`；L156断言`result[session : session + 4] == [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/s…`；L162遍历`( "--clear-groups", "--no-new-privs", "--bounding-set=-all", "--i…`；L169断言`flag in result`；L171断言`result[index : index + 6] == [ "/usr/bin/python3", "-I", "-S", "/tmp/rnd-module-contr…`；L179断言`result[-len(command) :] == command`；L180断言`result.index("--") < index`。后续分支沿下方源码相同行号继续阅读。 调用`SimpleNamespace`、`product_argv`、`result.index`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_product_cannot_allow_its_control_or_database_listener`（L185–L190）：接收`port`。 调用`SimpleNamespace`、`pytest.raises`、`product_argv`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_isolation_receipt_requires_each_field_actual_abi_and_current_guard_digest`（L193–L219）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L210断言`require_isolation_evidence(value) == value`；L211遍历`list(value)`；L215遍历`[True, 5, "6"]`。 调用`sha`、`dict.fromkeys`、`require_isolation_evidence`、`list`、`value.items`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_detached_session_waits_for_ordinary_command_and_preserves_exit`（L224–L244）：接收`tmp_path`、`exit_code`。 控制顺序：L243断言`result.returncode == exit_code`；L244断言`completed.read_text(encoding="utf-8") == "completed"`。 调用`subprocess.run`、`str`、`completed.read_text`、`pytest.mark.skipif`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_container_receipt_requires_current_sandbox_and_all_boundaries`（L247–L270）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L263断言`require_container_evidence(value, identifier) == value`；L264遍历`value`。 调用`require_container_evidence`、`pytest.raises`、`value.items`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_container_inspection_failure_stops_before_source_upload`（L273–L305）：接收`settings`、`tmp_path`。 控制顺序：L304断言`result["passed"] is False and result["cleanup"] == "deleted"`；L305断言`result["kind"] == "isolation_environment" and operations == ["deleted"]`。 调用`fixed_application`、`SimpleNamespace`、`operations.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_container_inspection_failure_stops_before_source_upload.forbidden`（L281–L282）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths`（L329–L448）：接收`settings`、`tmp_path`、`monkeypatch`、`failure`。 源码说明：Real HTTPX lifecycle with transport/process fixtures, not live isolation proof.。 控制顺序：L427断言`result["passed"] is (failure is None)`；L428断言`result["restarted"] is (failure is None)`；L429断言`result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")`；L430断言`events[-1] == "deleted"`；L431断言`len(clients) == ( 1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} …`；L434断言`all(client.is_closed for client in clients)`；L435断言`(0, "/health") in events`；L437断言`persisted == result`。后续分支沿下方源码相同行号继续阅读。 调用`fixed_application`、`SimpleNamespace`、`events.append`、`iter`、`monkeypatch.setattr`、`verifier._verify`、`plan.selection.model_dump`、`len`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http`（L345–L359）：接收`**kwargs`。 控制顺序：L347断言`kwargs["headers"] == {"x-daytona-preview-token": "fixture-private-token"}`；L348断言`kwargs["trust_env"] is False and kwargs["follow_redirects"] is False`。 调用`len`、`original_client`、`httpx.MockTransport`、`clients.append`。 返回路径：L359的`client`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http.respond`（L350–L355）：接收`request`。 控制顺序：L352断言`request.url.host == f"8123-{identifier}.proxy.localhost"`；L353按`failure == "restart-health" and launch == 1`分支；L354抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`httpx.Response`。 返回路径：L355的`httpx.Response(200, json={"ok": True})`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.delete`（L373–L376）：接收`*args`、`**kwargs`。 控制顺序：L375按`failure == "browser-cleanup"`分支；L376抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.database_counts`（L386–L389）：接收`*args`。 控制顺序：L387按`failure == "baseline"`分支；L388抛异常，停止当前正常路径。 调用`CheckFailure`、`next`。 返回路径：L389的`{"entries": next(counts)}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_scenarios`（L391–L396）：接收`http`、`scenarios`、`saved`、`after_restart`。 控制顺序：L393断言`http.get("/fixture-" + phase).status_code == 200`；L394按`failure == phase`分支；L395抛异常，停止当前正常路径。 调用`http.get`、`CheckFailure`。 返回路径：L396的`[{"phase": phase, "fixture_only": True}], {}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_browser`（L398–L401）：接收`*args`。 控制顺序：L399按`failure in BROWSER_FAILURE_FIXTURES`分支；L400抛异常，停止当前正常路径。 调用`BrowserFailure`、`BROWSER_FAILURE_FIXTURES[failure].copy`。 返回路径：L401的`[{"fixture_only": True}]`。
+
+<!-- source-file: tests/test_capability_isolation.py sha256: e1bc39543c69622bf12fdd64da9cd5390a8f724af455cbd330a35038546e8cbf -->
+````python
+"""Verify every source command is composed through the same non-bypassable launcher."""
+
+import json
+import os
+import shlex
+import subprocess
+import sys
+from types import SimpleNamespace
+
+import pytest
+
+from workbench.capability_isolation import IsolationUnavailable, product_argv
+
+
+@pytest.mark.parametrize(
+    "output,exit_code,shape",
+    [
+        ("warning: setlocale: private-sentinel\n0\n", 0, "locale-warning"),
+        ("private-sentinel\n0\n", 0, "other"),
+        ("", 0, "empty"),
+        (None, 0, "empty"),
+        (b"0\n", 0, "empty"),
+        (0, 0, "empty"),
+        ("1000\n", 0, "decimal"),
+        ("0\n", 7, "decimal"),
+        ("0\n", False, "decimal"),
+        ("0\n", "0", "decimal"),
+        ("0\n0\n", 0, "other"),
+        ("\x1b[0m0\n", 0, "other"),
+    ],
+)
+def test_identity_rejects_output_contamination_before_any_setup(output, exit_code, shape):
+    from workbench.capability_isolation import CONTROL_SHELL_ENV, prepare_identity
+
+    calls = []
+
+    def execute(command, *, env, timeout):
+        calls.append((command, env, timeout))
+        assert len(calls) == 1, "No setup or application command after failed identity"
+        assert shlex.split(command)[-2:] == ["/usr/bin/id", "-u"]
+        assert env == CONTROL_SHELL_ENV and timeout == 10
+        return SimpleNamespace(result=output, exit_code=exit_code)
+
+    sandbox = SimpleNamespace(process=SimpleNamespace(exec=execute))
+    with pytest.raises(IsolationUnavailable) as caught:
+        prepare_identity(sandbox, object(), 10)
+    evidence = caught.value.evidence
+    assert evidence["control_output_shape"] == shape
+    assert evidence["control_result_chars"] == (len(output) if isinstance(output, str) else None)
+    assert "private-sentinel" not in json.dumps(evidence)
+    assert set(evidence) == {
+        "control_exec_exit_code",
+        "control_euid",
+        "control_result_type",
+        "control_result_chars",
+        "control_output_shape",
+    }
+    assert len(calls) == 1
+
+
+def test_exact_root_identity_progresses_to_setup_without_weaker_parsing():
+    from workbench.capability_isolation import prepare_identity
+
+    calls = []
+
+    def execute(command, *, env, timeout):
+        calls.append(shlex.split(command))
+        return SimpleNamespace(
+            result="0\n" if len(calls) == 1 else "", exit_code=0 if len(calls) == 1 else 1
+        )
+
+    sandbox = SimpleNamespace(process=SimpleNamespace(exec=execute))
+    with pytest.raises(IsolationUnavailable, match="无法建立"):
+        prepare_identity(sandbox, object(), 10)
+    assert len(calls) == 2
+    assert "/usr/sbin/groupadd" in calls[1]
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Pinned daemon shell fixture requires POSIX bash")
+def test_actual_sdk_env_protocol_prevents_outer_shell_contamination(tmp_path):
+    """Real SDK + subprocess protocol fixture, not the missing live CI output."""
+    import httpx
+    from daytona._sync.process import Process
+
+    from workbench.capability_isolation import CONTROL_SHELL_ENV, control_exec, system_argv
+
+    bootstrap = tmp_path / "fixture-bootstrap.sh"
+    bootstrap.write_text("printf 'private-bootstrap-sentinel\\n'\n", encoding="utf-8")
+    requests = []
+
+    def execute_command(*, request, **kwargs):
+        requests.append(request)
+        result = subprocess.run(
+            ["/bin/bash"],
+            input=request.command,
+            env={
+                "PATH": os.defpath,
+                "LC_ALL": "rnd_nonexistent_locale.UTF-8",
+                "BASH_ENV": str(bootstrap),
+                **(request.envs or {}),
+            },
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            timeout=10,
+            check=False,
+        )
+        return SimpleNamespace(
+            result=result.stdout, exit_code=result.returncode, additional_properties={}
+        )
+
+    with httpx.Client(trust_env=False) as client:
+        sdk = Process("python", SimpleNamespace(execute_command=execute_command), client)
+        sandbox = SimpleNamespace(process=sdk)
+        noisy = sdk.exec(shlex.join(system_argv(["/usr/bin/id", "-u"])), timeout=10)
+        assert noisy.exit_code == 0
+        assert "setlocale" in noisy.result and "private-bootstrap-sentinel" in noisy.result
+        assert noisy.result.strip() != str(os.geteuid())
+        safe = control_exec(sandbox, ["/usr/bin/id", "-u"], 10)
+        assert safe.exit_code == 0 and safe.result.strip() == str(os.geteuid())
+        assert requests[-1].envs == CONTROL_SHELL_ENV
+
+
+@pytest.mark.parametrize("engine", ["sqlite", "postgresql"])
+def test_physical_count_probe_uses_same_outer_shell_environment(engine):
+    from workbench.capability_isolation import CONTROL_SHELL_ENV
+    from workbench.capability_stack import database_counts
+
+    calls = []
+
+    def execute(command, *, env, timeout):
+        calls.append(shlex.split(command))
+        assert env == CONTROL_SHELL_ENV and timeout == 10
+        assert calls[-1][:2] == ["/usr/bin/env", "-i"]
+        return SimpleNamespace(exit_code=0, result='{"entries":7}' if engine == "sqlite" else "7\n")
+
+    plan = SimpleNamespace(
+        selection=SimpleNamespace(database=engine),
+        runtime=SimpleNamespace(database_tables=["entries"], database_path="data/app.db"),
+    )
+    sandbox = SimpleNamespace(process=SimpleNamespace(exec=execute))
+    assert database_counts(sandbox, plan, 10) == {"entries": 7}
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("database", ["sqlite", "postgresql"])
+def test_generated_prepare_and_start_cannot_bypass_identity_or_network_guard(database):
+    plan = SimpleNamespace(
+        runtime=SimpleNamespace(port=8123), selection=SimpleNamespace(database=database)
+    )
+    command = ["/bin/sh", "-c", "sudo -n id; curl http://127.0.0.1:2280/process/execute"]
+    result = product_argv(plan, command, {"DATABASE_URL": "synthetic-only"})
+    assert result[:2] == ["/usr/bin/env", "-i"]
+    assert "--reuid=rnd-module" in result and "--regid=rnd-module" in result
+    session = result.index("/usr/bin/setsid")
+    assert result[session : session + 4] == [
+        "/usr/bin/setsid",
+        "--fork",
+        "--wait",
+        "/usr/bin/setpriv",
+    ]
+    for flag in (
+        "--clear-groups",
+        "--no-new-privs",
+        "--bounding-set=-all",
+        "--inh-caps=-all",
+        "--ambient-caps=-all",
+    ):
+        assert flag in result
+    index = result.index("/usr/bin/python3")
+    assert result[index : index + 6] == [
+        "/usr/bin/python3",
+        "-I",
+        "-S",
+        "/tmp/rnd-module-control/guard.py",
+        "8123",
+        "55432" if database == "postgresql" else "",
+    ]
+    assert result[-len(command) :] == command
+    assert result.index("--") < index
+    assert result[index + 6] == "--"
+
+
+@pytest.mark.parametrize("port", [2280, 55432])
+def test_product_cannot_allow_its_control_or_database_listener(port):
+    plan = SimpleNamespace(
+        runtime=SimpleNamespace(port=port), selection=SimpleNamespace(database="sqlite")
+    )
+    with pytest.raises(IsolationUnavailable):
+        product_argv(plan, ["echo", "should-not-run"], {})
+
+
+def test_isolation_receipt_requires_each_field_actual_abi_and_current_guard_digest():
+    from workbench.capability_isolation import (
+        APP_UID,
+        ISOLATION_FLAGS,
+        ISOLATION_PROFILE,
+        require_isolation_evidence,
+    )
+    from workbench.filesystem import sha
+    from workbench.settings import ROOT
+
+    value = {
+        "profile": ISOLATION_PROFILE,
+        "application_uid": APP_UID,
+        "landlock_abi": 6,
+        "guard_sha256": sha(ROOT / "scripts/capability_guard.py"),
+        **dict.fromkeys(ISOLATION_FLAGS, True),
+    }
+    assert require_isolation_evidence(value) == value
+    for key in list(value):
+        missing = {k: v for k, v in value.items() if k != key}
+        with pytest.raises(IsolationUnavailable):
+            require_isolation_evidence(missing)
+    for invalid in [True, 5, "6"]:
+        with pytest.raises(IsolationUnavailable):
+            require_isolation_evidence({**value, "landlock_abi": invalid})
+    with pytest.raises(IsolationUnavailable):
+        require_isolation_evidence({**value, "guard_sha256": "0" * 64})
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Linux executor profile uses util-linux setsid")
+@pytest.mark.parametrize("exit_code", [0, 7])
+def test_detached_session_waits_for_ordinary_command_and_preserves_exit(tmp_path, exit_code):
+    completed = tmp_path / "completed.txt"
+    result = subprocess.run(
+        [
+            "/usr/bin/setsid",
+            "--fork",
+            "--wait",
+            sys.executable,
+            "-I",
+            "-S",
+            "-c",
+            "import pathlib,sys,time;time.sleep(0.05);pathlib.Path(sys.argv[1]).write_text('completed',encoding='utf-8');raise SystemExit(int(sys.argv[2]))",
+            str(completed),
+            str(exit_code),
+        ],
+        capture_output=True,
+        timeout=5,
+        start_new_session=True,
+    )
+    assert result.returncode == exit_code
+    assert completed.read_text(encoding="utf-8") == "completed"
+
+
+def test_container_receipt_requires_current_sandbox_and_all_boundaries():
+    from workbench.capability_isolation import require_container_evidence
+
+    identifier = "00000000-0000-0000-0000-000000000001"
+    value = {
+        "profile": "fixed-authored-sqlite-v1",
+        "sandbox_id": identifier,
+        "control_user": "0:0",
+        "privileged": False,
+        "seccomp": "docker-default",
+        "seccomp_engine": "builtin",
+        "trusted_readonly_binary_mounts": True,
+        "runner_image_id": "sha256:" + "0" * 64,
+        "snapshot_image_id": "sha256:" + "1" * 64,
+        "snapshot_digest": "registry:6000/rnd-python@sha256:" + "2" * 64,
+    }
+    assert require_container_evidence(value, identifier) == value
+    for key in value:
+        with pytest.raises(IsolationUnavailable):
+            require_container_evidence({k: v for k, v in value.items() if k != key}, identifier)
+    with pytest.raises(IsolationUnavailable):
+        require_container_evidence(value, None)
+    with pytest.raises(IsolationUnavailable):
+        require_container_evidence({**value, "privileged": True}, identifier)
+
+
+def test_live_container_inspection_failure_stops_before_source_upload(settings, tmp_path):
+    from scripts.ci_capability_profile import fixed_application
+    from workbench.capability_sandbox import _verify
+
+    product = tmp_path / "product"
+    plan = fixed_application(product)
+    operations = []
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("No source upload or command before container policy verification")
+
+    sandbox = SimpleNamespace(
+        id="00000000-0000-0000-0000-000000000001",
+        fs=SimpleNamespace(create_folder=forbidden, upload_file=forbidden),
+        process=SimpleNamespace(exec=forbidden),
+    )
+    client = SimpleNamespace(
+        create=lambda *a, **k: sandbox, delete=lambda *a, **k: operations.append("deleted")
+    )
+    settings.daytona_snapshot = "fixture-owned-snapshot"
+    result = _verify(
+        product,
+        plan,
+        plan.scenarios,
+        settings,
+        plan.selection.model_dump(),
+        tmp_path / "receipt.json",
+        client=client,
+        aggregate=True,
+        control_observer=lambda _: {},
+    )
+    assert result["passed"] is False and result["cleanup"] == "deleted"
+    assert result["kind"] == "isolation_environment" and operations == ["deleted"]
+
+
+BROWSER_FAILURE_FIXTURES = {
+    "browser-launch": {"phase": "launch", "error_code": "operation-failed"},
+    "browser-timeout": {"phase": "python-timeout", "error_code": "timeout", "cleanup": "stopped"},
+    "browser-json": {
+        "phase": "python-report",
+        "error_code": "invalid-report",
+        "report_error": "invalid-json",
+    },
+    "browser-head": {
+        "phase": "python-report",
+        "error_code": "invalid-report",
+        "report_error": "wrong-verifier-or-request",
+    },
+    "browser-exit": {"phase": "python-exit", "error_code": "nonzero-exit", "exit_code": 1},
+    "browser-cleanup": {"phase": "launch", "error_code": "operation-failed"},
+}
+
+
+@pytest.mark.parametrize(
+    "failure", [None, "baseline", "initial", "restart-health", "restart", *BROWSER_FAILURE_FIXTURES]
+)
+def test_verifier_closes_health_opened_http_clients_on_all_paths(
+    settings, tmp_path, monkeypatch, failure
+):
+    """Real HTTPX lifecycle with transport/process fixtures, not live isolation proof."""
+    import httpx
+
+    from scripts.ci_capability_profile import fixed_application
+    from workbench import capability_sandbox as verifier
+    from workbench.capability_verification import BrowserFailure, CheckFailure
+
+    product = tmp_path / "product"
+    plan = fixed_application(product)
+    identifier = "00000000-0000-0000-0000-000000000001"
+    events, clients = [], []
+    original_client = httpx.Client
+
+    def build_http(**kwargs):
+        launch = len(clients)
+        assert kwargs["headers"] == {"x-daytona-preview-token": "fixture-private-token"}
+        assert kwargs["trust_env"] is False and kwargs["follow_redirects"] is False
+
+        def respond(request):
+            events.append((launch, request.url.path))
+            assert request.url.host == f"8123-{identifier}.proxy.localhost"
+            if failure == "restart-health" and launch == 1:
+                raise RuntimeError("fixture health failure")
+            return httpx.Response(200, json={"ok": True})
+
+        client = original_client(**kwargs, transport=httpx.MockTransport(respond))
+        clients.append(client)
+        return client
+
+    sandbox = SimpleNamespace(
+        id=identifier,
+        fs=SimpleNamespace(create_folder=lambda *a: None, upload_file=lambda *a, **k: None),
+        process=SimpleNamespace(
+            create_session=lambda *a: None,
+            execute_session_command=lambda *a, **k: SimpleNamespace(cmd_id="fixture-command"),
+        ),
+        get_preview_link=lambda port: SimpleNamespace(
+            url=f"http://{port}-{identifier}.proxy.localhost", token="fixture-private-token"
+        ),
+    )
+
+    def delete(*args, **kwargs):
+        events.append("deleted")
+        if failure == "browser-cleanup":
+            raise RuntimeError("fixture sandbox cleanup failure")
+
+    daytona = SimpleNamespace(
+        create=lambda *a, **k: sandbox,
+        stop=lambda *a, **k: events.append("stopped"),
+        start=lambda *a, **k: events.append("started"),
+        delete=delete,
+    )
+    counts = iter([0, 1, 1])
+
+    def database_counts(*args):
+        if failure == "baseline":
+            raise CheckFailure("fixture baseline failure")
+        return {"entries": next(counts)}
+
+    def run_scenarios(http, scenarios, *, saved=None, after_restart=False):
+        phase = "restart" if after_restart else "initial"
+        assert http.get("/fixture-" + phase).status_code == 200
+        if failure == phase:
+            raise CheckFailure("fixture scenario failure")
+        return [{"phase": phase, "fixture_only": True}], {}
+
+    def run_browser(*args):
+        if failure in BROWSER_FAILURE_FIXTURES:
+            raise BrowserFailure(BROWSER_FAILURE_FIXTURES[failure].copy())
+        return [{"fixture_only": True}]
+
+    monkeypatch.setattr(verifier, "require_container_evidence", lambda *a: {"fixture_only": True})
+    monkeypatch.setattr(verifier, "prepare_identity", lambda *a: {"fixture_only": True})
+    monkeypatch.setattr(verifier, "control_exec", lambda *a: SimpleNamespace(exit_code=0))
+    monkeypatch.setattr(verifier, "database_counts", database_counts)
+    monkeypatch.setattr(verifier, "run_scenarios", run_scenarios)
+    monkeypatch.setattr(verifier, "run_browser", run_browser)
+    monkeypatch.setattr(verifier.httpx, "Client", build_http)
+    monkeypatch.setattr(
+        "workbench.daytona_sessions.run_session_command",
+        lambda *a, **k: SimpleNamespace(exit_code=0),
+    )
+    settings.daytona_snapshot = "fixture-owned-snapshot"
+    try:
+        result = verifier._verify(
+            product,
+            plan,
+            plan.scenarios,
+            settings,
+            plan.selection.model_dump(),
+            tmp_path / "receipt.json",
+            client=daytona,
+            aggregate=True,
+            control_observer=lambda _: {},
+        )
+        assert result["passed"] is (failure is None)
+        assert result["restarted"] is (failure is None)
+        assert result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")
+        assert events[-1] == "deleted"
+        assert len(clients) == (
+            1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} else 2
+        )
+        assert all(client.is_closed for client in clients)
+        assert (0, "/health") in events
+        persisted = json.loads((tmp_path / "receipt.json").read_text())
+        assert persisted == result
+        if failure in BROWSER_FAILURE_FIXTURES:
+            assert persisted["browser_diagnostic"] == BROWSER_FAILURE_FIXTURES[failure]
+            assert "fixture-private-token" not in json.dumps(persisted)
+        if failure is None:
+            assert [check["phase"] for check in result["checks"]] == ["initial", "restart"]
+            assert (0, "/openapi.json") in events
+            assert (0, "/fixture-initial") in events and (1, "/fixture-restart") in events
+            assert result["database"]["after_restart"] == {"entries": 1}
+    finally:
+        for client in clients:
+            client.close()
+````
+
 ### `tests/test_capability_recovery_controls.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -109216,6 +113509,504 @@ def test_invalid_or_overlapping_control_plane_ipam_fails_before_docker(ipam, tmp
     )
     with pytest.raises(ValueError):
         local.compose(tmp_path, "up", "-d", "--pull", "never")
+````
+
+### `tests/test_daytona_capability_profile.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`、`scripts.daytona_bootstrap`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `base_config`（L21–L33）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local.IMAGES.items`、`local.gateway_service`、`copy.deepcopy`。 返回路径：L33的`{"services": services, "networks": copy.deepcopy(local.NETWORKS)}`。
+- `test_profile_transformation_preserves_general_defaults_and_all_other_fields`（L36–L52）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L41断言`original == untouched`；L42断言`result["name"] == profile.PROJECT`；L43断言`result["services"]["runner"]["image"] == RUNNER`；L44断言`result["services"]["runner"]["environment"]["USE_SNAPSHOT_ENTRYPOINT"] == "false"`；L45断言`result["services"]["runner"]["privileged"] is True`；L46断言`result["services"]["api"]["environment"]["DEFAULT_SNAPSHOT"] == image`；L48断言`"USE_SNAPSHOT_ENTRYPOINT" not in original["services"]["runner"]["environment"]`；L49断言`local.IMAGES["runner"].startswith("rnd-local/daytona-runner:")`。后续分支沿下方源码相同行号继续阅读。 调用`base_config`、`copy.deepcopy`、`profile.render_profile`、`local.IMAGES["runner"].startswith`、`snapshot_resources`、`pytest.raises`、`profile.profile_directory`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `snapshot_inspect`（L55–L73）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`profile.recipe_identity`。 返回路径：L57的`{ "Id": SNAPSHOT, "Os": "linux", "Architecture": "amd64", "RepoDigests": ["127.0.0.1:6000/…`。
+- `test_snapshot_requires_declared_control_identity_and_no_inherited_command`（L86–L92）：接收`field`、`value`。 调用`snapshot_inspect`、`profile.recipe_identity`、`profile.validate_image`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runner_requires_the_explicit_normal_daemon_entrypoint`（L95–L103）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L98遍历`([], ["USE_SNAPSHOT_ENTRYPOINT=true"])`。 调用`snapshot_inspect`、`profile.recipe_identity`、`pytest.raises`、`profile.validate_image`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `source_fixture`（L106–L141）：接收`tmp_path`、`monkeypatch`。 控制顺序：L115遍历`profile.RECIPE_PATHS`。 调用`context.mkdir`、`path.parent.mkdir`、`path.write_text`、`"".join`、`difflib.unified_diff`、`source.splitlines`、`source.replace(profile.OLD, profile.NEW).splitlines`、`source.replace`、`(root / "tools/daytona/capability-runner.patch").write_text`等。 返回路径：L141的`root, context, source, workspace`。
+- `source_fixture.export`（L129–L135）：接收`directory`、`command`、`target`。 调用`Path`、`path.parent.mkdir`、`path.write_text`、`(Path(target) / "go.work").write_text`、`(Path(target) / "apps/runner/go.mod").write_text`、`(Path(target) / "apps/runner/go.sum").write_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_preimage_and_patch_are_exact_and_module_inputs_are_preserved`（L144–L152）：接收`tmp_path`、`monkeypatch`。 控制顺序：L147断言`(context / profile.SOURCE_FILE).read_text() == source.replace(profile.OLD, profile.NE…`；L148断言`(context / "go.work").read_text() == workspace`；L149断言`(context / "apps/runner/go.mod").read_text() == "module fixture\ngo 1.25.5\n"`；L150断言`(context / "go.work.sum").read_text() == "fixture v1 h1:fixture\n"`；L151断言`record["source_sha"] == profile.DAYTONA_SOURCE`；L152断言`(context / "capability-build/NOTICE").is_file()`。 调用`source_fixture`、`profile.source_context`、`(context / profile.SOURCE_FILE).read_text`、`source.replace`、`(context / "go.work").read_text`、`(context / "apps/runner/go.mod").read_text`、`(context / "go.work.sum").read_text`、`(context / "capability-build/NOTICE").is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_drift_fails_closed_before_any_build`（L156–L166）：接收`tmp_path`、`monkeypatch`、`changed`。 控制顺序：L158按`changed == "source"`分支；L160按`changed == "workspace"`分支。 调用`source_fixture`、`monkeypatch.setattr`、`(root / "tools/daytona/capability-runner.patch").open`、`file.write`、`pytest.raises`、`profile.source_context`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `application_inspect`（L169–L196）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L170的`{ "Name": "/" + SANDBOX, "Image": SNAPSHOT, "State": {"Running": True}, "Config": { "User"…`。
+- `inspection`（L200–L229）：接收`tmp_path`、`monkeypatch`。 调用`application_inspect`、`monkeypatch.setattr`。 返回路径：L229的`tmp_path, outer, inner, calls`。
+- `inspection.docker`（L222–L226）：接收`*args`、`**kwargs`。 控制顺序：L224按`"info" in args`分支。 调用`calls.append`、`json.dumps`、`inner.get`。 返回路径：L225的`json.dumps(inner.get("engine_security", ["name=seccomp,profile=builtin"]))`；L226的`json.dumps([outer if args[0] == "container" else inner])`。
+- `test_readonly_inspection_is_scoped_to_owned_uuid_and_redacts_everything_else`（L232–L263）：接收`inspection`。 控制顺序：L235断言`proof["privileged"] is False and proof["seccomp"] == "docker-default"`；L236断言`proof["snapshot_image_id"] == SNAPSHOT`；L237断言`calls == [ ("container", "inspect", OUTER), ( "exec", OUTER, "docker", "--host", "uni…`；L260断言`"SECRET" not in json.dumps(proof) and "TOKEN" not in json.dumps(proof)`；L263断言`len(calls) == 3`。 调用`profile.inspect_created_sandbox`、`json.dumps`、`pytest.raises`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_created_application_rejects_real_inspect_drift`（L290–L294）：接收`inspection`、`mutation`。 调用`mutation`、`pytest.raises`、`profile.inspect_created_sandbox`、`pytest.mark.parametrize`、`row.update`、`row["Config"].update`、`row["HostConfig"].update`、`row["Mounts"][0].update`、`row["Mounts"].append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_wrong_runner_is_rejected_before_an_inner_exec`（L297–L302）：接收`inspection`。 控制顺序：L302断言`len(calls) == 1`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_recipe_keeps_real_embeds_glibc_smoke_license_and_locked_go_inputs`（L305–L332）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L307遍历`( "./apps/daemon/cmd/daemon", "./libs/computer-use", "./apps/runn…`；L322断言`text in recipe`；L323断言`"go mod edit" not in recipe and "yarn" not in recipe`；L325断言`snapshot.rstrip().endswith("USER 0:0")`；L326断言`"WORKDIR /opt/rnd/control" in snapshot`；L327断言`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip() .endswith("WORKDIR…`。 调用`(profile.ROOT / "tools/daytona/capability-runner.Dockerfile").rea…`、`(profile.ROOT / "tools/daytona/capability-snapshot.Dockerfile").r…`、`snapshot.rstrip().endswith`、`snapshot.rstrip`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip(…`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `locked_profile`（L336–L391）：接收`tmp_path`。 控制顺序：L339遍历`base["services"].items()`。 调用`base_config`、`base["services"].items`、`tag.rsplit`、`profile.write_compose`、`local.private_json`、`profile.recipe_identity`、`profile.BASES.items`、`profile.sha256`、`(identity + json.dumps(bases, sort_keys=True)).encode`等。 返回路径：L391的`tmp_path, record`。
+- `test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_changes`（L394–L403）：接收`locked_profile`。 控制顺序：L398断言`actual == record`；L403断言`(directory / "compose.lock.yaml").read_bytes() == ordinary`。 调用`(directory / "compose.lock.yaml").read_bytes`、`profile.load_profile`、`profile.write_compose`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_edited_lock_cannot_select_general_or_unpinned_images`（L416–L422）：接收`locked_profile`、`mutation`。 调用`mutation`、`local.private_json`、`pytest.raises`、`profile.load_profile`、`pytest.mark.parametrize`、`record["bases"]["GO_IMAGE"].update`、`record["snapshot"].update`、`record["runner"].update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_required_profile_verifies_image_id_and_registry_digest`（L425–L439）：接收`locked_profile`、`monkeypatch`。 控制顺序：L434断言`profile.require_profile(directory, record["snapshot"]["snapshot"]) == record`。 调用`snapshot_inspect`、`copy.deepcopy`、`monkeypatch.setattr`、`profile.require_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_prepare_never_overwrites_existing_profile_or_credentials`（L442–L448）：接收`locked_profile`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`profile.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_actual_engine_seccomp_is_not_default_filter_evidence`（L454–L459）：接收`inspection`、`options`。 控制顺序：L459断言`len(calls) == 2`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_daytona_capability_profile.py sha256: e7f63a428d6f105c5ed3b43efeaea9f46d2d46aecb7f1bbcf7e2336cdd9b376d -->
+````python
+"""Owned build/inspection contracts, not live isolation or privilege experiments."""
+
+import copy
+import difflib
+import json
+from pathlib import Path
+
+import pytest
+
+from scripts import daytona_capability_profile as profile
+from scripts import daytona_local as local
+from scripts.daytona_bootstrap import snapshot_resources
+
+RUNNER = "sha256:" + "a" * 64
+SNAPSHOT = "sha256:" + "b" * 64
+DIGEST = "sha256:" + "c" * 64
+OUTER = "d" * 64
+SANDBOX = "ea997c7d-cbb9-45eb-8352-3f8bc9e2a512"
+
+
+def base_config():
+    services = {
+        name: {
+            "image": tag,
+            "environment": {"OTEL_ENABLED": "false"},
+            "networks": ["daytona-network"],
+        }
+        for name, tag in local.IMAGES.items()
+    }
+    services["gateway"] = local.gateway_service()
+    services["runner"]["privileged"] = True  # Existing local DinD control plane.
+    services["runner"]["environment"]["INTER_SANDBOX_NETWORK_ENABLED"] = "false"
+    return {"services": services, "networks": copy.deepcopy(local.NETWORKS)}
+
+
+def test_profile_transformation_preserves_general_defaults_and_all_other_fields():
+    original = base_config()
+    untouched = copy.deepcopy(original)
+    image = "registry:6000/rnd-python:0123456789abcdef"
+    result = profile.render_profile(original, RUNNER, image)
+    assert original == untouched
+    assert result["name"] == profile.PROJECT
+    assert result["services"]["runner"]["image"] == RUNNER
+    assert result["services"]["runner"]["environment"]["USE_SNAPSHOT_ENTRYPOINT"] == "false"
+    assert result["services"]["runner"]["privileged"] is True
+    assert result["services"]["api"]["environment"]["DEFAULT_SNAPSHOT"] == image
+    # The owned app-container patch does not alter DinD or general defaults.
+    assert "USE_SNAPSHOT_ENTRYPOINT" not in original["services"]["runner"]["environment"]
+    assert local.IMAGES["runner"].startswith("rnd-local/daytona-runner:")
+    assert snapshot_resources({"image": image}) == ({"cpu": 1, "memory": 2, "disk": 5}, True)
+    with pytest.raises(ValueError, match="own disposable"):
+        profile.profile_directory(local.HOME)
+
+
+def snapshot_inspect():
+    identity, _ = profile.recipe_identity()
+    return {
+        "Id": SNAPSHOT,
+        "Os": "linux",
+        "Architecture": "amd64",
+        "RepoDigests": ["127.0.0.1:6000/rnd-python@" + DIGEST],
+        "Config": {
+            "User": "0:0",
+            "WorkingDir": profile.CONTROL_WORKDIR,
+            "Entrypoint": None,
+            "Cmd": None,
+            "Labels": {
+                "org.opencontainers.image.revision": profile.DAYTONA_SOURCE,
+                "rnd.capability.profile": profile.PROFILE,
+                "rnd.capability.recipe": identity,
+            },
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("User", "daytona"),
+        ("User", ""),
+        ("WorkingDir", "/home/daytona"),
+        ("Entrypoint", ["unapproved"]),
+        ("Cmd", ["unapproved"]),
+    ],
+)
+def test_snapshot_requires_declared_control_identity_and_no_inherited_command(field, value):
+    image = snapshot_inspect()
+    identity, _ = profile.recipe_identity()
+    profile.validate_image(image, identity, snapshot=True)
+    image["Config"][field] = value
+    with pytest.raises(ValueError, match="Snapshot must declare"):
+        profile.validate_image(image, identity, snapshot=True)
+
+
+def test_runner_requires_the_explicit_normal_daemon_entrypoint():
+    image = snapshot_inspect()
+    identity, _ = profile.recipe_identity()
+    for env in ([], ["USE_SNAPSHOT_ENTRYPOINT=true"]):
+        image["Config"]["Env"] = env
+        with pytest.raises(ValueError, match="normal daemon"):
+            profile.validate_image(image, identity, snapshot=False)
+    image["Config"]["Env"] = ["USE_SNAPSHOT_ENTRYPOINT=false"]
+    profile.validate_image(image, identity, snapshot=False)
+
+
+def source_fixture(tmp_path, monkeypatch):
+    root, context = tmp_path / "recipes", tmp_path / "context"
+    context.mkdir()
+    source = (
+        "// Copyright Daytona; AGPL-3.0\npackage docker\nvar host = container.HostConfig{\n"
+        + profile.OLD
+        + "}\n"
+    )
+    workspace = "go 1.25.5\n\nuse ./apps/runner\n"
+    for name in profile.RECIPE_PATHS:
+        path = root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("recipe fixture\n")
+    patch = "".join(
+        difflib.unified_diff(
+            source.splitlines(keepends=True),
+            source.replace(profile.OLD, profile.NEW).splitlines(keepends=True),
+            fromfile="a/" + profile.SOURCE_FILE,
+            tofile="b/" + profile.SOURCE_FILE,
+        )
+    )
+    (root / "tools/daytona/capability-runner.patch").write_text(patch)
+
+    def export(directory, command, target):
+        path = Path(target) / profile.SOURCE_FILE
+        path.parent.mkdir(parents=True)
+        path.write_text(source)
+        (Path(target) / "go.work").write_text(workspace)
+        (Path(target) / "apps/runner/go.mod").write_text("module fixture\ngo 1.25.5\n")
+        (Path(target) / "apps/runner/go.sum").write_text("fixture v1 h1:fixture\n")
+
+    monkeypatch.setattr(profile, "ROOT", root)
+    monkeypatch.setattr(profile, "export_source", export)
+    monkeypatch.setattr(profile, "SOURCE_BLOB", profile.blob(source.encode()))
+    monkeypatch.setattr(profile, "WORKSPACE_BLOB", profile.blob(workspace.encode()))
+    return root, context, source, workspace
+
+
+def test_source_preimage_and_patch_are_exact_and_module_inputs_are_preserved(tmp_path, monkeypatch):
+    _, context, source, workspace = source_fixture(tmp_path, monkeypatch)
+    record = profile.source_context(tmp_path, context)
+    assert (context / profile.SOURCE_FILE).read_text() == source.replace(profile.OLD, profile.NEW)
+    assert (context / "go.work").read_text() == workspace
+    assert (context / "apps/runner/go.mod").read_text() == "module fixture\ngo 1.25.5\n"
+    assert (context / "go.work.sum").read_text() == "fixture v1 h1:fixture\n"
+    assert record["source_sha"] == profile.DAYTONA_SOURCE
+    assert (context / "capability-build/NOTICE").is_file()
+
+
+@pytest.mark.parametrize("changed", ["source", "workspace", "patch"])
+def test_source_drift_fails_closed_before_any_build(tmp_path, monkeypatch, changed):
+    root, context, _, _ = source_fixture(tmp_path, monkeypatch)
+    if changed == "source":
+        monkeypatch.setattr(profile, "SOURCE_BLOB", "0" * 40)
+    elif changed == "workspace":
+        monkeypatch.setattr(profile, "WORKSPACE_BLOB", "0" * 40)
+    else:
+        with (root / "tools/daytona/capability-runner.patch").open("a") as file:
+            file.write("unreviewed change\n")
+    with pytest.raises(ValueError, match="does not.*match"):
+        profile.source_context(tmp_path, context)
+
+
+def application_inspect():
+    return {
+        "Name": "/" + SANDBOX,
+        "Image": SNAPSHOT,
+        "State": {"Running": True},
+        "Config": {
+            "User": "0:0",
+            "WorkingDir": profile.CONTROL_WORKDIR,
+            "Entrypoint": ["/usr/local/bin/daytona"],
+            "Cmd": None,
+            "Env": ["SECRET=must-not-be-in-receipt"],
+        },
+        "HostConfig": {"Privileged": False, "NetworkMode": "runner-bridge", "SecurityOpt": None},
+        "Mounts": [
+            {
+                "Type": "bind",
+                "RW": False,
+                "Destination": "/usr/local/bin/daytona",
+                "Source": "/usr/local/bin/.tmp/binaries/daemon-amd64",
+            },
+            {
+                "Type": "bind",
+                "RW": False,
+                "Destination": "/usr/local/lib/daytona-computer-use",
+                "Source": "/usr/local/bin/.tmp/binaries/daytona-computer-use",
+            },
+        ],
+    }
+
+
+@pytest.fixture
+def inspection(tmp_path, monkeypatch):
+    record = {
+        "runner": {"image_id": RUNNER},
+        "snapshot": {"image_id": SNAPSHOT, "digest": "registry:6000/rnd-python@" + DIGEST},
+    }
+    outer = {
+        "Image": RUNNER,
+        "State": {"Running": True},
+        "Config": {
+            "Labels": {
+                "com.docker.compose.project": profile.PROJECT,
+                "com.docker.compose.service": "runner",
+            },
+            "Env": ["USE_SNAPSHOT_ENTRYPOINT=false", "TOKEN=must-not-be-in-receipt"],
+            "Entrypoint": ["/usr/local/bin/dind", "/usr/local/bin/rnd-runner-entry.sh"],
+            "Cmd": None,
+        },
+    }
+    inner, calls = application_inspect(), []
+    monkeypatch.setattr(profile, "require_profile", lambda _: record)
+    monkeypatch.setattr(profile, "compose", lambda *args: OUTER)
+
+    def docker(*args, **kwargs):
+        calls.append(args)
+        if "info" in args:
+            return json.dumps(inner.get("engine_security", ["name=seccomp,profile=builtin"]))
+        return json.dumps([outer if args[0] == "container" else inner])
+
+    monkeypatch.setattr(local, "docker", docker)
+    return tmp_path, outer, inner, calls
+
+
+def test_readonly_inspection_is_scoped_to_owned_uuid_and_redacts_everything_else(inspection):
+    directory, _, _, calls = inspection
+    proof = profile.inspect_created_sandbox(directory, SANDBOX)
+    assert proof["privileged"] is False and proof["seccomp"] == "docker-default"
+    assert proof["snapshot_image_id"] == SNAPSHOT
+    assert calls == [
+        ("container", "inspect", OUTER),
+        (
+            "exec",
+            OUTER,
+            "docker",
+            "--host",
+            "unix:///var/run/docker.sock",
+            "info",
+            "--format",
+            "{{json .SecurityOptions}}",
+        ),
+        (
+            "exec",
+            OUTER,
+            "docker",
+            "--host",
+            "unix:///var/run/docker.sock",
+            "container",
+            "inspect",
+            SANDBOX,
+        ),
+    ]
+    assert "SECRET" not in json.dumps(proof) and "TOKEN" not in json.dumps(proof)
+    with pytest.raises(ValueError):
+        profile.inspect_created_sandbox(directory, "--privileged")
+    assert len(calls) == 3
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda row: row.update(Image="sha256:" + "f" * 64),
+        lambda row: row["Config"].update(User="daytona"),
+        lambda row: row["Config"].update(Entrypoint=["other"]),
+        lambda row: row["Config"].update(Cmd=["other"]),
+        lambda row: row["HostConfig"].update(Privileged=True),
+        lambda row: row["HostConfig"].update(SecurityOpt=["seccomp=unconfined"]),
+        lambda row: row["HostConfig"].update(CapAdd=["SYS_ADMIN"]),
+        lambda row: row["HostConfig"].update(NetworkMode="host"),
+        lambda row: row["HostConfig"].update(PidMode="host"),
+        lambda row: row["Mounts"][0].update(RW=True),
+        lambda row: row["Mounts"][0].update(Source="/var/run/docker.sock"),
+        lambda row: row["Mounts"].append(
+            {
+                "Type": "bind",
+                "RW": False,
+                "Destination": "/docker.sock",
+                "Source": "/var/run/docker.sock",
+            }
+        ),
+    ],
+)
+def test_created_application_rejects_real_inspect_drift(inspection, mutation):
+    directory, _, inner, _ = inspection
+    mutation(inner)
+    with pytest.raises(ValueError, match="container|mounts"):
+        profile.inspect_created_sandbox(directory, SANDBOX)
+
+
+def test_wrong_runner_is_rejected_before_an_inner_exec(inspection):
+    directory, outer, _, calls = inspection
+    outer["Image"] = "sha256:" + "f" * 64
+    with pytest.raises(ValueError, match="Running Runner"):
+        profile.inspect_created_sandbox(directory, SANDBOX)
+    assert len(calls) == 1
+
+
+def test_recipe_keeps_real_embeds_glibc_smoke_license_and_locked_go_inputs():
+    recipe = (profile.ROOT / "tools/daytona/capability-runner.Dockerfile").read_text()
+    for text in (
+        "./apps/daemon/cmd/daemon",
+        "./libs/computer-use",
+        "./apps/runner/cmd/runner",
+        "GOTOOLCHAIN=local",
+        "GOTELEMETRY=off",
+        "-mod=readonly",
+        "sha256sum -c",
+        "source.tar",
+        "COPY LICENSE",
+        "API_PORT=invalid",
+        "Failed to get config",
+        "USE_SNAPSHOT_ENTRYPOINT=false",
+        "rnd-runner-entry.sh",
+    ):
+        assert text in recipe
+    assert "go mod edit" not in recipe and "yarn" not in recipe
+    snapshot = (profile.ROOT / "tools/daytona/capability-snapshot.Dockerfile").read_text()
+    assert snapshot.rstrip().endswith("USER 0:0")
+    assert "WORKDIR /opt/rnd/control" in snapshot
+    assert (
+        (profile.ROOT / "tools/daytona/Dockerfile")
+        .read_text()
+        .rstrip()
+        .endswith("WORKDIR /home/daytona")
+    )
+
+
+@pytest.fixture
+def locked_profile(tmp_path):
+    base = base_config()
+    records = {}
+    for name, service in base["services"].items():
+        tag = service["image"]
+        value = RUNNER if name in profile.BUILT else tag.rsplit(":", 1)[0] + "@" + DIGEST
+        records[name] = {"tag": tag, "image_id" if name in profile.BUILT else "digest": value}
+        service["image"] = value
+    profile.write_compose(tmp_path / "compose.lock.yaml", base)
+    local.private_json(tmp_path / "images.lock.json", records)
+    local.private_json(
+        tmp_path / "installation.json",
+        {
+            "source_sha": profile.DAYTONA_SOURCE,
+            "release": "v" + profile.DAYTONA_VERSION,
+            "deployment": "local-development-only",
+            "cloud_account": False,
+        },
+    )
+    identity, recipes = profile.recipe_identity()
+    bases = {
+        name: {"tag": tag, "digest": tag.rsplit(":", 1)[0] + "@" + DIGEST, "image_id": SNAPSHOT}
+        for name, tag in profile.BASES.items()
+    }
+    stamp = profile.sha256((identity + json.dumps(bases, sort_keys=True)).encode())[:16]
+    image = {
+        "source_hash": stamp,
+        "image": "registry:6000/rnd-python:" + stamp,
+        "snapshot": "rnd-python-" + stamp,
+        "local_tag": "127.0.0.1:6000/rnd-python:" + stamp,
+        "image_id": SNAPSHOT,
+        "digest": "registry:6000/rnd-python@" + DIGEST,
+        "user": "0:0",
+        "working_dir": profile.CONTROL_WORKDIR,
+        "recipe_sha256": recipes["tools/daytona/capability-snapshot.Dockerfile"],
+    }
+    record = {
+        "profile": profile.PROFILE,
+        "recipe_identity": identity,
+        "recipes": recipes,
+        "source": {"source_sha": profile.DAYTONA_SOURCE},
+        "bases": bases,
+        "base_compose_sha256": profile.sha256((tmp_path / "compose.lock.yaml").read_bytes()),
+        "runner": {
+            "tag": "rnd-local/daytona-capability-runner:" + stamp,
+            "image_id": RUNNER,
+            "recipe_sha256": recipes["tools/daytona/capability-runner.Dockerfile"],
+        },
+        "snapshot": image,
+    }
+    profile.write_compose(
+        tmp_path / profile.COMPOSE, profile.render_profile(base, RUNNER, image["image"])
+    )
+    local.private_json(tmp_path / profile.LOCK, record)
+    local.private_json(tmp_path / "snapshot-image.json", image)
+    return tmp_path, record
+
+
+def test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_changes(locked_profile):
+    directory, record = locked_profile
+    ordinary = (directory / "compose.lock.yaml").read_bytes()
+    config, actual = profile.load_profile(directory)
+    assert actual == record
+    config["services"]["runner"]["environment"]["USE_SNAPSHOT_ENTRYPOINT"] = "true"
+    profile.write_compose(directory / profile.COMPOSE, config)
+    with pytest.raises(ValueError, match="exact allowed transformation"):
+        profile.load_profile(directory)
+    assert (directory / "compose.lock.yaml").read_bytes() == ordinary
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda record: record["bases"]["GO_IMAGE"].update(digest="golang:latest"),
+        lambda record: record["snapshot"].update(image="registry:6000/rnd-python:0000000000000000"),
+        lambda record: record["snapshot"].update(user="daytona"),
+        lambda record: record["snapshot"].update(digest="elsewhere.example/image@" + DIGEST),
+        lambda record: record["runner"].update(tag=local.IMAGES["runner"]),
+    ],
+)
+def test_edited_lock_cannot_select_general_or_unpinned_images(locked_profile, mutation):
+    directory, record = locked_profile
+    mutation(record)
+    local.private_json(directory / profile.LOCK, record)
+    local.private_json(directory / "snapshot-image.json", record["snapshot"])
+    with pytest.raises(ValueError, match="lock|identity"):
+        profile.load_profile(directory)
+
+
+def test_required_profile_verifies_image_id_and_registry_digest(locked_profile, monkeypatch):
+    directory, record = locked_profile
+    image = snapshot_inspect()
+    runner = copy.deepcopy(image)
+    runner["Id"] = RUNNER
+    runner["Config"]["Env"] = ["USE_SNAPSHOT_ENTRYPOINT=false"]
+    monkeypatch.setattr(
+        profile, "inspect_image", lambda value: runner if value == RUNNER else image
+    )
+    assert profile.require_profile(directory, record["snapshot"]["snapshot"]) == record
+    with pytest.raises(ValueError, match="explicitly select"):
+        profile.require_profile(directory, "ordinary-snapshot")
+    image["RepoDigests"] = []
+    with pytest.raises(ValueError, match="ID and digest"):
+        profile.require_profile(directory)
+
+
+def test_prepare_never_overwrites_existing_profile_or_credentials(locked_profile, monkeypatch):
+    directory, _ = locked_profile
+    monkeypatch.setattr(
+        local, "docker", lambda *args, **kwargs: pytest.fail("No Docker mutation allowed")
+    )
+    with pytest.raises(ValueError, match="fresh local state"):
+        profile.prepare(directory)
+
+
+@pytest.mark.parametrize(
+    "options", [None, [], ["name=seccomp,profile=unconfined"], ["name=apparmor"]]
+)
+def test_missing_actual_engine_seccomp_is_not_default_filter_evidence(inspection, options):
+    directory, _, inner, calls = inspection
+    inner["engine_security"] = options
+    with pytest.raises(ValueError, match="built-in seccomp"):
+        profile.inspect_created_sandbox(directory, SANDBOX)
+    assert len(calls) == 2
 ````
 
 ### `tests/test_daytona_download.py`
@@ -135473,18 +140264,18 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `stage_for`（L117–L169）：接收`name`。 控制顺序：L119按`name.startswith(("workbench/web/", "ui/"))`分支；L121按`name.startswith("workbench/")`分支；L123按`name.startswith("migrations/") or name == "alembic.ini"`分支；L125按`name.startswith("templates/product/") or name.startswith("templates/frontends/")`分支；L127按`name.startswith("templates/business/common/")`分支；L129按`name.startswith(("templates/vendor/", "templates/business/", "templates/deployment/")…`分支；L131按`name.startswith("examples/")`分支；L133按`name.startswith("tools/daytona/") or name.startswith("scripts/daytona") or name.start…`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`test_stage`。 返回路径：L120的`8`；L122的`MODULE_STAGE[path.stem]`；L124的`2`。
-- `test_stage`（L172–L223）：接收`name`。 控制顺序：L173按`name == "tests/conftest.py"`分支；L175按`name == "tests/news_case.py"`分支；L177按`name.startswith("tests/fixtures/")`分支；L193按`stem in early`分支；L195按`stem == "store"`分支；L197按`stem in {"contracts", "business_contracts"}`分支；L199按`stem in {"llm", "guided_models", "provider_structured_outputs"}`分支；L201按`stem.startswith("daytona") or stem == "local_only"`分支。后续分支沿下方源码相同行号继续阅读。 调用`name.startswith`、`Path(name).stem.removeprefix`、`Path`、`stem.startswith`。 返回路径：L174的`2`；L176的`7`；L178的`10`。
-- `language_for`（L226–L251）：接收`name`、`binary`。 控制顺序：L227按`binary`分支；L229按`name.endswith("uv.lock")`分支；L231按`Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile")`分支。 调用`name.endswith`、`Path(name).name.startswith`、`Path`、`{ ".py": "python", ".md": "markdown", ".toml": "toml", ".yml": "y…`。 返回路径：L228的`"base64"`；L230的`"toml"`；L232的`"dockerfile"`。
-- `chunks`（L254–L293）：接收`data`、`binary`、`name`。 源码说明：Keep ordinary modules together; split only long implementations at real boundaries.。 控制顺序：L256按`binary or name.endswith(("uv.lock", "package-lock.json"))`分支；L260按`len(lines) <= 1000`分支；L263按`name.endswith(".py")`分支；L271按`name.endswith(".md")`分支；L281在`len(lines) - first > 1000`成立时循环；L283按`not options`分支；L291按`first < len(lines)`分支。 调用`name.endswith`、`data.decode`、`content.splitlines`、`len`、`ast.parse`、`min`、`ast.walk`、`isinstance`、`enumerate`等。 返回路径：L257的`[data]`；L261的`[data]`；L293的`result or [b""]`。
-- `source_note`（L326–L357）：接收`name`、`content`、`first`、`last`。 控制顺序：L327按`isinstance(content, bytes)`分支；L328按`generated_frontend_asset(name)`分支；L342按`name in TEACHING_CASES`分支；L344按`not separator`分支；L347遍历`entries.splitlines()`；L349按`match and first <= int(match[1]) <= last`分支；L351按`selected`分支。 调用`isinstance`、`generated_frontend_asset`、`notes`、`detail.replace`、`detail.partition`、`entries.splitlines`、`re.search`、`int`、`selected.append`等。 返回路径：L329的`"这是Vue操作台的构建快照，不是需要手写或阅读的压缩实现。" "请读第08站的ui/src、package-lock.json和vite.config.ts，执行npm ci/b…`；L335的`"该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"`；L345的`head`。
-- `source_pages`（L360–L431）：接收`name`、`content`、`stage`。 控制顺序：L366按`binary`分支；L368按`name.endswith(("uv.lock", "package-lock.json"))`分支；L373遍历`enumerate(pieces)`；L394按`index`分支；L396按`index + 1 < len(pieces)`分支；L405按`not piece`分支；L407按`not binary`分支；L415按`generated_frontend_asset(name)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L425的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
-- `read_content`（L434–L435）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L435的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
-- `render`（L438–L485）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L440按`[stage["id"] for stage in curriculum] != STAGES`分支；L441抛异常，停止当前正常路径；L443遍历`sources()`；L444遍历`files`；L446按`set(output).intersection(pages)`分支；L447抛异常，停止当前正常路径；L456遍历`curriculum`；L461按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L485的`output`。
-- `readme`（L488–L571）：接收`curriculum`、`records`。 控制顺序：L502遍历`curriculum`。 调用`len`。 返回路径：L571的`text`。
-- `main`（L574–L602）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L584按`args.check`分支；L591按`wrong`分支；L592抛异常，停止当前正常路径；L596遍历`actual.difference(expected)`；L598遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `stage_for`（L125–L177）：接收`name`。 控制顺序：L127按`name.startswith(("workbench/web/", "ui/"))`分支；L129按`name.startswith("workbench/")`分支；L131按`name.startswith("migrations/") or name == "alembic.ini"`分支；L133按`name.startswith("templates/product/") or name.startswith("templates/frontends/")`分支；L135按`name.startswith("templates/business/common/")`分支；L137按`name.startswith(("templates/vendor/", "templates/business/", "templates/deployment/")…`分支；L139按`name.startswith("examples/")`分支；L141按`name.startswith("tools/daytona/") or name.startswith("scripts/daytona") or name.start…`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`test_stage`。 返回路径：L128的`8`；L130的`MODULE_STAGE[path.stem]`；L132的`2`。
+- `test_stage`（L180–L231）：接收`name`。 控制顺序：L181按`name == "tests/conftest.py"`分支；L183按`name == "tests/news_case.py"`分支；L185按`name.startswith("tests/fixtures/")`分支；L201按`stem in early`分支；L203按`stem == "store"`分支；L205按`stem in {"contracts", "business_contracts"}`分支；L207按`stem in {"llm", "guided_models", "provider_structured_outputs"}`分支；L209按`stem.startswith("daytona") or stem == "local_only"`分支。后续分支沿下方源码相同行号继续阅读。 调用`name.startswith`、`Path(name).stem.removeprefix`、`Path`、`stem.startswith`。 返回路径：L182的`2`；L184的`7`；L186的`10`。
+- `language_for`（L234–L259）：接收`name`、`binary`。 控制顺序：L235按`binary`分支；L237按`name.endswith("uv.lock")`分支；L239按`Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile")`分支。 调用`name.endswith`、`Path(name).name.startswith`、`Path`、`{ ".py": "python", ".md": "markdown", ".toml": "toml", ".yml": "y…`。 返回路径：L236的`"base64"`；L238的`"toml"`；L240的`"dockerfile"`。
+- `chunks`（L262–L301）：接收`data`、`binary`、`name`。 源码说明：Keep ordinary modules together; split only long implementations at real boundaries.。 控制顺序：L264按`binary or name.endswith(("uv.lock", "package-lock.json"))`分支；L268按`len(lines) <= 1000`分支；L271按`name.endswith(".py")`分支；L279按`name.endswith(".md")`分支；L289在`len(lines) - first > 1000`成立时循环；L291按`not options`分支；L299按`first < len(lines)`分支。 调用`name.endswith`、`data.decode`、`content.splitlines`、`len`、`ast.parse`、`min`、`ast.walk`、`isinstance`、`enumerate`等。 返回路径：L265的`[data]`；L269的`[data]`；L301的`result or [b""]`。
+- `source_note`（L334–L365）：接收`name`、`content`、`first`、`last`。 控制顺序：L335按`isinstance(content, bytes)`分支；L336按`generated_frontend_asset(name)`分支；L350按`name in TEACHING_CASES`分支；L352按`not separator`分支；L355遍历`entries.splitlines()`；L357按`match and first <= int(match[1]) <= last`分支；L359按`selected`分支。 调用`isinstance`、`generated_frontend_asset`、`notes`、`detail.replace`、`detail.partition`、`entries.splitlines`、`re.search`、`int`、`selected.append`等。 返回路径：L337的`"这是Vue操作台的构建快照，不是需要手写或阅读的压缩实现。" "请读第08站的ui/src、package-lock.json和vite.config.ts，执行npm ci/b…`；L343的`"该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"`；L353的`head`。
+- `source_pages`（L368–L439）：接收`name`、`content`、`stage`。 控制顺序：L374按`binary`分支；L376按`name.endswith(("uv.lock", "package-lock.json"))`分支；L381遍历`enumerate(pieces)`；L402按`index`分支；L404按`index + 1 < len(pieces)`分支；L413按`not piece`分支；L415按`not binary`分支；L423按`generated_frontend_asset(name)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L433的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
+- `read_content`（L442–L443）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L443的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
+- `render`（L446–L493）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L448按`[stage["id"] for stage in curriculum] != STAGES`分支；L449抛异常，停止当前正常路径；L451遍历`sources()`；L452遍历`files`；L454按`set(output).intersection(pages)`分支；L455抛异常，停止当前正常路径；L464遍历`curriculum`；L469按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L493的`output`。
+- `readme`（L496–L579）：接收`curriculum`、`records`。 控制顺序：L510遍历`curriculum`。 调用`len`。 返回路径：L579的`text`。
+- `main`（L582–L610）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L592按`args.check`分支；L599按`wrong`分支；L600抛异常，停止当前正常路径；L604遍历`actual.difference(expected)`；L606遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/build_learning_docs.py sha256: 1975cf39de3949e22b7a4273117db502d5ff9008fcce88acce66c9c40016311f -->
+<!-- source-file: scripts/build_learning_docs.py sha256: c519294cb4d14ce3443cd28c0c407923f8b0f797522871ec113a7c973305a796 -->
 ````python
 """Build small, staged lessons and lossless source pages from the actual platform."""
 
@@ -135545,6 +140336,14 @@ MODULE_STAGE = {
     "business_capabilities": 3,
     "filesystem": 4,
     "tools": 4,
+    "capability_contracts": 4,
+    "capability_verification": 4,
+    "capability_isolation": 4,
+    "capability_stack": 4,
+    "module_imports": 4,
+    "template_adapters": 1,
+    "feature_planning": 4,
+    "capability_sandbox": 7,
     "owned_lifecycle": 4,
     "symbols": 4,
     "knowledge": 4,
@@ -137110,6 +141909,686 @@ module.exports = { main, loginNativeSession, verifyInstalledSidebar, nativeScree
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
 ````
 
+### `scripts/capability_browser.cjs`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.capability_browser.；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: scripts/capability_browser.cjs sha256: 688422559bc6ea00a4f2a94ebf2b6e4a051bfc02f3832e96e3f16bea0f63383b -->
+````javascript
+// scripts/capability_browser.cjs
+// Trusted controller-side browser checks; no model JavaScript is evaluated here.
+const fs = require('node:fs')
+const path = require('node:path')
+const crypto = require('node:crypto')
+
+const identity = {
+  protocol: 1,
+  request_id: null,
+  verifier_sha256: crypto.createHash('sha256').update(fs.readFileSync(__filename)).digest('hex'),
+}
+const progress = { phase: 'contract', scenario_index: null, step_index: null, action: null, navigation_status: null }
+let firstFailure = null
+const errorNames = new Set(['Error', 'TypeError', 'SyntaxError', 'ReferenceError', 'TimeoutError'])
+
+function rememberFailure(error) {
+  if (firstFailure) return
+  // Inspect trusted tool errors only to classify them. Never return their text,
+  // command lines, URLs, selectors, payloads, or credential-bearing arguments.
+  const message = error instanceof Error ? error.message : ''
+  let errorCode = 'operation-failed'
+  if (error && error.name === 'TimeoutError') errorCode = 'timeout'
+  else if (message === 'pinned_playwright_required') errorCode = 'tool-version'
+  else if (message === 'browser_channel_rejected') errorCode = 'browser-channel-rejected'
+  else if (message === 'browser_contract_too_large') errorCode = 'contract-too-large'
+  else if (message === 'browser_navigation_outside_product') errorCode = 'origin-rejected'
+  else if (message === 'unknown_browser_action') errorCode = 'action-rejected'
+  else if (message === 'browser_application_error') errorCode = 'application-error'
+  else if (progress.phase === 'tool' && error && error.code === 'MODULE_NOT_FOUND') errorCode = 'tool-missing'
+  else if (progress.phase === 'launch' && /No usable sandbox|Failed to move to new namespace|Running as root without --no-sandbox/.test(message)) errorCode = 'sandbox-unavailable'
+  else if (progress.phase === 'launch' && /Executable doesn't exist|Chromium distribution .* is not found/.test(message)) errorCode = 'browser-missing'
+  else if (progress.phase === 'launch' && /error while loading shared libraries/.test(message)) errorCode = 'browser-dependency'
+  else if (progress.phase === 'navigation' && /net::ERR_NAME_NOT_RESOLVED/.test(message)) errorCode = 'name-resolution'
+  else if (progress.phase === 'navigation' && /net::ERR_CONNECTION_REFUSED/.test(message)) errorCode = 'connection-refused'
+  else if (progress.phase === 'navigation' && /net::ERR_/i.test(message)) errorCode = 'navigation-network'
+  firstFailure = {
+    ...progress,
+    error_code: errorCode,
+    error_type: error && errorNames.has(error.name) ? error.name : 'Other',
+  }
+  // Persist the first safe failure before cleanup, which may itself fail or
+  // outlive the controller deadline. Never append a second error envelope.
+  process.stdout.write(JSON.stringify({ ...identity, passed: false, diagnostic: firstFailure }))
+}
+
+async function main() {
+  const chunks = []
+  for await (const chunk of process.stdin) chunks.push(chunk)
+  const raw = Buffer.concat(chunks)
+  if (raw.length > 1000000) throw new Error('browser_contract_too_large')
+  const contract = JSON.parse(raw.toString('utf8'))
+  if (!/^[a-f0-9]{32}$/.test(contract.request_id)) throw new Error('invalid_request_identity')
+  identity.request_id = contract.request_id
+  progress.phase = 'tool'
+  const modulePath = process.env.PRODUCT_VERIFY_PLAYWRIGHT || path.resolve('.native/browser/node_modules/playwright')
+  if (JSON.parse(fs.readFileSync(path.join(modulePath, 'package.json'), 'utf8')).version !== '1.56.1') throw new Error('pinned_playwright_required')
+  const { chromium } = require(modulePath)
+  // Select only an installed, supported Chrome channel. Never retry without the
+  // OS sandbox or accept caller-supplied executables/arguments. Ubuntu runners
+  // already ship Chrome at its normal system location; no policy is changed.
+  const channel = process.env.PRODUCT_VERIFY_BROWSER_CHANNEL || ''
+  if (channel !== '' && channel !== 'chrome') throw new Error('browser_channel_rejected')
+  const origin = new URL(contract.url).origin
+  progress.phase = 'launch'
+  const browser = await chromium.launch({ ...(channel ? { channel } : {}), headless: true, chromiumSandbox: true, args: ['--force-webrtc-ip-handling-policy=disable_non_proxied_udp', `--host-resolver-rules=MAP ${new URL(origin).hostname} 127.0.0.1`] })
+  const contextOptions = {
+    serviceWorkers: 'block', acceptDownloads: false,
+    extraHTTPHeaders: { 'x-daytona-preview-token': contract.token },
+    viewport: { width: 1280, height: 900 },
+  }
+  const receipts = []
+  try {
+    for (const [scenarioIndex, scenario] of contract.scenarios.entries()) {
+      Object.assign(progress, { phase: 'context', scenario_index: scenarioIndex, step_index: null, action: null, navigation_status: null })
+      const context = await browser.newContext(contextOptions)
+      try {
+        progress.phase = 'routing'
+        await context.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort())
+        await context.routeWebSocket('**/*', socket => socket.close())
+        progress.phase = 'page'
+        const page = await context.newPage()
+        const errors = []
+        page.on('pageerror', () => errors.push('page_error'))
+        for (const [stepIndex, step] of scenario.steps.entries()) {
+          Object.assign(progress, { phase: 'action', step_index: stepIndex, action: ['viewport', 'open', 'fill', 'click', 'visible', 'hidden', 'text'].includes(step.action) ? step.action : null })
+          if (step.action === 'viewport') await page.setViewportSize({ width: step.width, height: step.height })
+          else if (step.action === 'open') {
+            progress.phase = 'navigation'
+            progress.navigation_status = null
+            const url = new URL(step.value, origin)
+            if (url.origin !== origin) throw new Error('browser_navigation_outside_product')
+            const response = await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 15000 })
+            progress.navigation_status = response ? response.status() : null
+          } else {
+            const target = page.locator(step.selector)
+            if (['visible', 'hidden', 'text'].includes(step.action)) progress.phase = 'assertion'
+            if (step.action === 'fill') await target.fill(step.value, { timeout: 10000 })
+            else if (step.action === 'click') await target.click({ timeout: 10000 })
+            else if (step.action === 'visible') await target.waitFor({ state: 'visible', timeout: 10000 })
+            else if (step.action === 'hidden') await target.waitFor({ state: 'hidden', timeout: 10000 })
+            else if (step.action === 'text') {
+              await target.filter({ hasText: step.value }).waitFor({ state: 'visible', timeout: 10000 })
+            } else throw new Error('unknown_browser_action')
+          }
+        }
+        progress.phase = 'application'
+        if (errors.length) throw new Error('browser_application_error')
+        receipts.push({ id: scenario.id, passed: true, steps: scenario.steps.length, real_browser: true, browser_os_sandbox: true })
+      } catch (error) { rememberFailure(error); throw error }
+      finally { progress.phase = 'context-close'; await context.close() }
+    }
+  } catch (error) { rememberFailure(error); throw error }
+  finally { progress.phase = 'browser-close'; await browser.close() }
+  return { ...identity, passed: true, checks: receipts }
+}
+main().then(report => process.stdout.write(JSON.stringify(report))).catch(error => {
+  rememberFailure(error)
+  process.exitCode = 1
+})
+````
+
+### `scripts/capability_fixture.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.capability_fixture；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.capability_contracts`、`workbench.domain`、`workbench.feature_planning`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `make_plan`（L125–L272）：接收`payload`。 控制顺序：L128遍历`("owner", "member", "outsider")`。 调用`CapabilityPlan.model_validate`。 返回路径：L216的`CapabilityPlan.model_validate( { "title": "独立资料协作", "summary": "先构建登录和持久化，再独立实现团队共享与身份投影",…`。
+- `CapabilityFixture`（L275–L318）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `CapabilityFixture.__init__`（L276–L279）：接收`fail_first_sharing`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `CapabilityFixture.complete`（L281–L318）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L283按`schema is FeatureOutline`分支；L285按`schema is Plan`分支；L287按`schema is CapabilityOutline`分支；L289按`schema is CapabilityScenarioBatch`分支；L295按`schema is not CapabilityEdits`分支；L296抛异常，停止当前正常路径；L297按`payload["task"]["id"] == "accounts_records"`分支；L308按`self.fail_first_sharing and self.sharing_calls == 1`分支。 调用`self.calls.append`、`fixture_feature_outline`、`make_plan`、`fixture_baseline`、`schema.model_validate`、`make_plan(payload).model_dump`、`schema`、`AssertionError`、`APP.replace( " # CUSTOM_ACCESS", " from access import readable\n …`等。 返回路径：L284的`fixture_feature_outline(make_plan(payload))`；L286的`fixture_baseline()`；L288的`schema.model_validate(make_plan(payload).model_dump(exclude={"scenarios"}))`。
+- `fixture_baseline`（L321–L335）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Plan.model_validate`。 返回路径：L322的`Plan.model_validate( { "title": "固定资料基础", "data_scope": "per_user", "entities": [ { "name"…`。
+- `fixture_feature_outline`（L338–L366）：接收`plan`。 调用`FeatureOutline.model_validate`、`plan.selection.model_dump`、`task.model_dump`。 返回路径：L339的`FeatureOutline.model_validate( { "summary": "固定模型fixture：保留模板基础，分模块扩展", "selection": plan.…`。
+
+<!-- source-file: scripts/capability_fixture.py sha256: 4b1db0de9e4537a7a7a8149508b00ff5c40a38f7b9ae858e3bd4abb0e63138d7 -->
+````python
+"""Explicit authored source/model fixture for real custom-node acceptance.
+
+It proves the generic execution path with a small real app, not completion of
+the much larger competition request or success against a paid model/provider.
+"""
+
+from workbench.capability_contracts import (
+    CapabilityEdits,
+    CapabilityOutline,
+    CapabilityPlan,
+    CapabilityScenarioBatch,
+)
+from workbench.domain import Plan
+from workbench.feature_planning import FeatureOutline
+
+GOAL = "实现用户登录后创建和保存自己的资料。队主可给同组成员只读访问，并隐藏共享视图中的创建者身份；其他人应被拒绝。保留全部已提出功能，规划并自定义实现模板未覆盖的能力。"
+
+APP = '''import hashlib
+import hmac
+import os
+import secrets
+import sqlite3
+from pathlib import Path
+from fastapi import FastAPI, Header, HTTPException
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, Field
+
+app = FastAPI()
+database = Path(os.environ["DATABASE_URL"].removeprefix("sqlite:///"))
+database.parent.mkdir(parents=True, exist_ok=True)
+
+def connection():
+    c = sqlite3.connect(database)
+    c.row_factory = sqlite3.Row
+    c.execute("PRAGMA foreign_keys=ON")
+    return c
+
+with connection() as c:
+    c.executescript("CREATE TABLE IF NOT EXISTS users(name TEXT PRIMARY KEY, salt TEXT NOT NULL, hash TEXT NOT NULL); CREATE TABLE IF NOT EXISTS sessions(token TEXT PRIMARY KEY, name TEXT NOT NULL REFERENCES users(name)); CREATE TABLE IF NOT EXISTS entries(id INTEGER PRIMARY KEY, owner TEXT NOT NULL REFERENCES users(name), title TEXT NOT NULL); CREATE TABLE IF NOT EXISTS members(entry_id INTEGER REFERENCES entries(id), name TEXT REFERENCES users(name), PRIMARY KEY(entry_id,name));")
+
+class Account(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    password: str = Field(min_length=12, max_length=100)
+
+class Document(BaseModel):
+    title: str = Field(min_length=1, max_length=200)
+
+class Share(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+
+def password_hash(password, salt):
+    return hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), 210000).hex()
+
+def actor(authorization):
+    with connection() as c:
+        row = c.execute("SELECT name FROM sessions WHERE token=?", (authorization.removeprefix("Bearer "),)).fetchone()
+    if not row: raise HTTPException(401, "login required")
+    return row["name"]
+
+@app.get("/health")
+def health(): return {"ok": True}
+
+@app.post("/users", status_code=201)
+def register(account: Account):
+    salt = secrets.token_hex(16)
+    try:
+        with connection() as c: c.execute("INSERT INTO users VALUES(?,?,?)", (account.name,salt,password_hash(account.password,salt)))
+    except sqlite3.IntegrityError: raise HTTPException(409, "name exists")
+    return {"name": account.name}
+
+@app.post("/login")
+def login(account: Account):
+    with connection() as c:
+        row = c.execute("SELECT * FROM users WHERE name=?", (account.name,)).fetchone()
+        if not row or not hmac.compare_digest(row["hash"], password_hash(account.password,row["salt"])): raise HTTPException(401, "invalid login")
+        token = secrets.token_urlsafe(32)
+        c.execute("INSERT INTO sessions VALUES(?,?)", (token,account.name))
+    return {"token": token}
+
+@app.post("/entries", status_code=201)
+def create(document: Document, authorization: str = Header(default="")):
+    name = actor(authorization)
+    with connection() as c:
+        cursor = c.execute("INSERT INTO entries(owner,title) VALUES(?,?)", (name,document.title))
+        return {"id": cursor.lastrowid, "title": document.title}
+
+def record(identifier, authorization):
+    name = actor(authorization)
+    with connection() as c:
+        row = c.execute("SELECT * FROM entries WHERE id=?", (identifier,)).fetchone()
+        member = bool(c.execute("SELECT 1 FROM members WHERE entry_id=? AND name=?", (identifier,name)).fetchone())
+    if not row: raise HTTPException(404, "not found")
+    allowed = row["owner"] == name
+    # CUSTOM_ACCESS
+    if not allowed: raise HTTPException(403, "forbidden")
+    return row, name
+
+@app.get("/entries/{identifier}")
+def read(identifier: int, authorization: str = Header(default="")):
+    row, _ = record(identifier,authorization)
+    return {"id": row["id"], "title": row["title"]}
+
+# CUSTOM_ROUTES
+
+@app.get("/", response_class=HTMLResponse)
+def home():
+    return """<!doctype html><html lang='zh-CN'><meta charset='utf-8'><meta name='viewport' content='width=device-width'><title>资料工作台</title><main><h1>资料工作台</h1><label>账号<input name='name'></label><label>密码<input name='password' type='password'></label><button id='login'>登录</button><p id='session'></p><label>资料标题<input name='title'></label><button id='save'>保存资料</button><p id='result'></p></main><script>
+let token=''; const field=n=>document.querySelector('[name='+n+']');
+document.querySelector('#login').onclick=async()=>{let r=await fetch('/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:field('name').value,password:field('password').value})});if(r.ok){token=(await r.json()).token;document.querySelector('#session').textContent='已登录'}else document.querySelector('#session').textContent='登录失败'};
+document.querySelector('#save').onclick=async()=>{let r=await fetch('/entries',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+token},body:JSON.stringify({title:field('title').value})});document.querySelector('#result').textContent=r.ok?'保存成功':'保存失败'};
+</script></html>"""
+'''
+
+SHARED_ROUTES = """@app.post("/entries/{identifier}/share")
+def share(identifier: int, user: Share, authorization: str = Header(default="")):
+    row, name = record(identifier,authorization)
+    if row["owner"] != name: raise HTTPException(403,"owner required")
+    try:
+        with connection() as c: c.execute("INSERT INTO members VALUES(?,?)",(identifier,user.name))
+    except sqlite3.IntegrityError: raise HTTPException(400,"invalid member")
+    return {"shared": True}
+"""
+
+
+def make_plan(payload):
+    refs = [s["id"] for s in payload["source_units"]]
+    base = []
+    for actor in ("owner", "member", "outsider"):
+        base += [
+            {
+                "method": "POST",
+                "path": "/users",
+                "body": {"name": actor + "-${nonce}", "password": "fixture-only-password"},
+                "status": 201,
+            },
+            {
+                "method": "POST",
+                "path": "/login",
+                "body": {"name": actor + "-${nonce}", "password": "fixture-only-password"},
+                "status": 200,
+                "captures": {actor: "$.token"},
+            },
+        ]
+    create = {
+        "method": "POST",
+        "path": "/entries",
+        "headers": {"Authorization": "Bearer ${owner}"},
+        "body": {"title": "持久化资料-${nonce}"},
+        "status": 201,
+        "captures": {"entry": "$.id"},
+        "equals": {"$.title": "持久化资料-${nonce}"},
+    }
+    own = {
+        "path": "/entries/${entry}",
+        "headers": {"Authorization": "Bearer ${owner}"},
+        "status": 200,
+        "equals": {"$.title": "持久化资料-${nonce}"},
+    }
+    denied = {
+        "path": "/entries/${entry}",
+        "headers": {"Authorization": "Bearer ${outsider}"},
+        "status": 403,
+    }
+    scenarios = [
+        {
+            "id": "private_records",
+            "title": "登录、真实保存、本人访问和越权拒绝",
+            "requirements": refs,
+            "steps": [*base, create, own, denied],
+            "after_restart": [own, denied],
+            "browser": [
+                {"action": "open", "value": "/"},
+                {"action": "fill", "selector": "[name=name]", "value": "owner-${nonce}"},
+                {"action": "fill", "selector": "[name=password]", "value": "fixture-only-password"},
+                {"action": "click", "selector": "#login"},
+                {"action": "text", "selector": "#session", "value": "已登录"},
+                {"action": "viewport", "width": 390, "height": 844},
+                {"action": "fill", "selector": "[name=title]", "value": "手机资料"},
+                {"action": "click", "selector": "#save"},
+                {"action": "text", "selector": "#result", "value": "保存成功"},
+            ],
+        },
+        {
+            "id": "team_sharing",
+            "title": "授权同组只读且隐藏身份，成员不能再次授权",
+            "requirements": refs,
+            "steps": [
+                *base,
+                create,
+                {
+                    "method": "POST",
+                    "path": "/entries/${entry}/share",
+                    "headers": {"Authorization": "Bearer ${owner}"},
+                    "body": {"name": "member-${nonce}"},
+                    "status": 200,
+                    "equals": {"$.shared": True},
+                },
+                {
+                    "path": "/entries/${entry}",
+                    "headers": {"Authorization": "Bearer ${member}"},
+                    "status": 200,
+                    "equals": {"$.title": "持久化资料-${nonce}"},
+                    "absent": ["$.owner", "$.name", "$.school"],
+                },
+                {
+                    "method": "POST",
+                    "path": "/entries/${entry}/share",
+                    "headers": {"Authorization": "Bearer ${member}"},
+                    "body": {"name": "outsider-${nonce}"},
+                    "status": 403,
+                },
+                denied,
+            ],
+        },
+    ]
+    return CapabilityPlan.model_validate(
+        {
+            "title": "独立资料协作",
+            "summary": "先构建登录和持久化，再独立实现团队共享与身份投影",
+            "selection": payload["selection"],
+            "source_digest": payload["source_digest"],
+            "tasks": [
+                {
+                    "id": "accounts_records",
+                    "title": "登录与私有资料",
+                    "requirements": refs,
+                    "files": ["app.py"],
+                    "contract": "真实FastAPI服务，SQLite持久化与登录权限",
+                    "scenarios": ["private_records"],
+                },
+                {
+                    "id": "team_access",
+                    "title": "独立团队只读授权",
+                    "depends_on": ["accounts_records"],
+                    "requirements": refs,
+                    "files": ["app.py", "access.py"],
+                    "contract": "所有者可授予成员只读权限，成员不能再授权，共享投影隐藏身份",
+                    "scenarios": ["team_sharing"],
+                },
+            ],
+            "runtime": {
+                "prepare": [
+                    {
+                        "argv": [
+                            "uv",
+                            "sync",
+                            "--locked",
+                            "--offline",
+                            "--no-dev",
+                            "--python",
+                            "3.14",
+                        ]
+                    }
+                ],
+                "start": {
+                    "argv": [
+                        "./.venv/bin/python",
+                        "-m",
+                        "uvicorn",
+                        "app:app",
+                        "--host",
+                        "0.0.0.0",
+                        "--port",
+                        "8123",
+                    ]
+                },
+                "port": 8123,
+                "database_tables": ["entries"],
+            },
+            "scenarios": scenarios,
+        }
+    )
+
+
+class CapabilityFixture:
+    def __init__(self, fail_first_sharing=False):
+        self.calls = []
+        self.fail_first_sharing = fail_first_sharing
+        self.sharing_calls = 0
+
+    def complete(self, run_id, key, instruction, payload, schema):
+        self.calls.append(key)
+        if schema is FeatureOutline:
+            return fixture_feature_outline(make_plan(payload))
+        if schema is Plan:
+            return fixture_baseline()
+        if schema is CapabilityOutline:
+            return schema.model_validate(make_plan(payload).model_dump(exclude={"scenarios"}))
+        if schema is CapabilityScenarioBatch:
+            full = make_plan(payload)
+            return schema(
+                summary="当前节点的具体运行验收合同",
+                scenarios=[s for s in full.scenarios if s.id in payload["task"]["scenarios"]],
+            )
+        if schema is not CapabilityEdits:
+            raise AssertionError("Unexpected model request in explicit capability fixture")
+        if payload["task"]["id"] == "accounts_records":
+            content = {"app.py": APP}
+        else:
+            self.sharing_calls += 1
+            content = {
+                "app.py": APP.replace(
+                    "    # CUSTOM_ACCESS",
+                    "    from access import readable\n    allowed = readable(row['owner'],name,member)",
+                ).replace("# CUSTOM_ROUTES", SHARED_ROUTES),
+                "access.py": "def readable(owner, actor, member):\n    return owner == actor or member\n",
+            }
+            if self.fail_first_sharing and self.sharing_calls == 1:
+                content["access.py"] = (
+                    "def readable(owner, actor, member):\n    return owner == actor\n"
+                )
+        return CapabilityEdits(
+            explanation="离线固定模型响应；真实源码随后由独立隔离工具执行验收",
+            files=[
+                {"path": name, "before_sha256": payload["file_manifest"].get(name), "content": text}
+                for name, text in content.items()
+            ],
+        )
+
+
+def fixture_baseline():
+    return Plan.model_validate(
+        {
+            "title": "固定资料基础",
+            "data_scope": "per_user",
+            "entities": [
+                {
+                    "name": "entries",
+                    "description": "资料",
+                    "fields": [{"name": "title", "kind": "text"}],
+                }
+            ],
+            "acceptance": ["资料基础由确定性生成器产生；团队行为另由模块验证"],
+        }
+    )
+
+
+def fixture_feature_outline(plan):
+    return FeatureOutline.model_validate(
+        {
+            "summary": "固定模型fixture：保留模板基础，分模块扩展",
+            "selection": plan.selection.model_dump(),
+            "source_digest": plan.source_digest,
+            "features": [
+                {
+                    "id": task.id,
+                    "title": task.title,
+                    "requirements": task.requirements,
+                    "route": "module",
+                    "capability": "fixture-extension",
+                    "module_id": task.id,
+                    "depends_on": task.depends_on,
+                }
+                for task in plan.tasks
+            ],
+            "modules": [
+                {
+                    **task.model_dump(),
+                    "adapter": plan.selection.template,
+                    "extension": "approved-source-module",
+                    "interfaces": ["fixture: reviewed HTTP scenarios"],
+                }
+                for task in plan.tasks
+            ],
+        }
+    )
+````
+
+### `scripts/capability_guard.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.capability_guard；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**逐个入口与控制逻辑：**
+
+- `Ruleset`（L23–L28）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Port`（L31–L32）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `restrict_tcp`（L35–L81）：接收`bind_ports`、`connect_ports`。 控制顺序：L36按`sys.platform != "linux" or platform.machine() not in {"x86_64", "aarch64"}`分支；L37抛异常，停止当前正常路径；L38按`any( not 1024 <= port <= 65535 or port in FORBIDDEN_PORTS for port in bind_ports \| c…`分支；L41抛异常，停止当前正常路径；L45按`abi < 6`分支；L46抛异常，停止当前正常路径；L47按`libc.prctl(38, 1, 0, 0, 0)`分支；L48抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`platform.machine`、`RuntimeError`、`any`、`ctypes.CDLL`、`libc.syscall`、`libc.prctl`、`Ruleset`、`ctypes.byref`、`ctypes.sizeof`等。 返回路径：L81的`int(abi)`。
+- `daemon_denied`（L84–L105）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L85遍历`[ (socket.AF_INET, ("127.0.0.1", 2280)), (socket.AF_INET6, ("::1"…`；L94按`exc.errno == errno.EACCES`分支；L97按`family == socket.AF_INET6 and exc.errno in { errno.EAFNOSUPPORT, errno.EPROTONOSUPPOR…`分支；L102抛异常，停止当前正常路径；L105抛异常，停止当前正常路径。 调用`socket.socket`、`connection.settimeout`、`connection.connect`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L108–L130）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L109按`len(sys.argv) < 4`分支；L110抛异常，停止当前正常路径；L115按`sys.argv[3:] == ["--probe"]`分支；L128按`sys.argv[3] != "--" or len(sys.argv) < 5`分支；L129抛异常，停止当前正常路径。 调用`len`、`RuntimeError`、`int`、`sys.argv[1].split`、`sys.argv[2].split`、`restrict_tcp`、`daemon_denied`、`print`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: scripts/capability_guard.py sha256: 3170b777d2d0f37396a5470fa34cea8f13c448d1121c08dba3385965631f8b53 -->
+````python
+"""Trusted child-process TCP restriction, before any generated command executes.
+
+Run under the dedicated unprivileged product UID with no_new_privs and no
+capabilities. Requires Linux Landlock ABI 6+, never silently degrades. This
+module is copied into the disposable sandbox by trusted control code, not
+imported from the product. Root callers must use the system Python with -I -S.
+"""
+
+import ctypes
+import errno
+import json
+import os
+import platform
+import socket
+import stat
+import sys
+
+CREATE, ADD, RESTRICT = 444, 445, 446
+BIND, CONNECT = 1, 2
+FORBIDDEN_PORTS = {2280}  # pinned Daytona daemon control API, not a product port
+
+
+class Ruleset(ctypes.Structure):
+    _fields_ = [
+        ("filesystem", ctypes.c_uint64),
+        ("network", ctypes.c_uint64),
+        ("scoped", ctypes.c_uint64),
+    ]
+
+
+class Port(ctypes.Structure):
+    _fields_ = [("access", ctypes.c_uint64), ("port", ctypes.c_uint64)]
+
+
+def restrict_tcp(bind_ports, connect_ports):
+    if sys.platform != "linux" or platform.machine() not in {"x86_64", "aarch64"}:
+        raise RuntimeError("Unsupported isolated kernel architecture")
+    if any(
+        not 1024 <= port <= 65535 or port in FORBIDDEN_PORTS for port in bind_ports | connect_ports
+    ):
+        raise RuntimeError("Reserved or invalid isolated port")
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.syscall.restype = ctypes.c_long
+    abi = libc.syscall(CREATE, 0, 0, 1)
+    if abi < 6:
+        raise RuntimeError("Landlock TCP and abstract Unix restrictions require ABI 6 or newer")
+    if libc.prctl(38, 1, 0, 0, 0):  # PR_SET_NO_NEW_PRIVS
+        raise RuntimeError("Cannot enforce no_new_privs")
+    attributes = Ruleset(0, BIND | CONNECT, 3)  # abstract Unix and signal scope
+    descriptor = libc.syscall(CREATE, ctypes.byref(attributes), ctypes.sizeof(attributes), 0)
+    if descriptor < 0:
+        raise RuntimeError("Cannot create TCP restrictions")
+    try:
+        for port in sorted(bind_ports | connect_ports):
+            rule = Port(
+                (BIND if port in bind_ports else 0) | (CONNECT if port in connect_ports else 0),
+                port,
+            )
+            if libc.syscall(ADD, descriptor, 2, ctypes.byref(rule), 0):
+                raise RuntimeError("Cannot configure isolated TCP ports")
+        if libc.syscall(RESTRICT, descriptor, 0):
+            raise RuntimeError("Cannot enforce TCP restrictions")
+    finally:
+        os.close(descriptor)
+    # No socket/control descriptor inherited from the launcher may bypass connect.
+    for name in os.listdir("/proc/self/fd"):
+        descriptor = int(name)
+        if descriptor < 3:
+            mode = os.fstat(descriptor).st_mode
+            # No controlling TTY or arbitrary device inherited from root sessions.
+            if os.isatty(descriptor) or stat.S_ISSOCK(mode):
+                raise RuntimeError("Terminal/socket standard stream is not an isolated launch")
+            if stat.S_ISCHR(mode) and os.readlink(f"/proc/self/fd/{descriptor}") != "/dev/null":
+                raise RuntimeError("Unexpected character device in isolated standard streams")
+        else:
+            try:
+                os.close(descriptor)
+            except OSError as exc:
+                if exc.errno != errno.EBADF:
+                    raise
+    return int(abi)
+
+
+def daemon_denied():
+    for family, destination in [
+        (socket.AF_INET, ("127.0.0.1", 2280)),
+        (socket.AF_INET6, ("::1", 2280)),
+    ]:
+        try:
+            with socket.socket(family, socket.SOCK_STREAM) as connection:
+                connection.settimeout(1)
+                connection.connect(destination)
+        except OSError as exc:
+            if exc.errno == errno.EACCES:
+                continue
+            # A disabled IPv6 stack has no reachable IPv6 daemon surface.
+            if family == socket.AF_INET6 and exc.errno in {
+                errno.EAFNOSUPPORT,
+                errno.EPROTONOSUPPORT,
+            }:
+                continue
+            raise RuntimeError(
+                "Daemon denial must come from access control, not refused routing"
+            ) from None
+        raise RuntimeError("Product can reach the sandbox control daemon")
+
+
+def main():
+    if len(sys.argv) < 4:
+        raise RuntimeError("Guard requires explicit port policy and command")
+    bind_ports = {int(value) for value in sys.argv[1].split(",") if value}
+    connect_ports = {int(value) for value in sys.argv[2].split(",") if value}
+    abi = restrict_tcp(bind_ports, connect_ports)
+    daemon_denied()
+    if sys.argv[3:] == ["--probe"]:
+        print(
+            json.dumps(
+                {
+                    "landlock_abi": abi,
+                    "daemon_tcp_denied": True,
+                    "no_new_privs": True,
+                    "inherited_fds_closed": True,
+                    "standard_streams_detached": True,
+                }
+            )
+        )
+        return
+    if sys.argv[3] != "--" or len(sys.argv) < 5:
+        raise RuntimeError("Missing isolated command separator")
+    os.execvpe(sys.argv[4], sys.argv[4:], os.environ)
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        print(
+            "Isolated command guard unavailable; no product command was executed", file=sys.stderr
+        )
+        sys.exit(78)
+````
+
 ### `scripts/ci_aider_workflow.py`
 
 **作用：基础产品实际Aider编排验收。** 固定响应提出批准业务规则，真实LangGraph调用真实Aider，然后运行独立产品验收。记录工具调用和结果，不能把夹具响应当作付费模型质量证据。
@@ -137275,6 +142754,313 @@ def verify_workflow():
 
 if __name__ == "__main__":
     print(json.dumps(verify_workflow(), ensure_ascii=False, indent=2))
+````
+
+### `scripts/ci_capability_browser_preflight.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.ci_capability_browser_preflight；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.capability_contracts`、`workbench.capability_verification`、`workbench.filesystem`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `FixturePage`（L29–L38）：继承`BaseHTTPRequestHandler`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `FixturePage.do_GET`（L30–L35）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`self.send_response`、`self.send_header`、`str`、`len`、`self.end_headers`、`self.wfile.write`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `FixturePage.log_message`（L37–L38）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `readonly_host_facts`（L41–L53）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L43遍历`{ "apparmor_enabled": "/sys/module/apparmor/parameters/enabled", …`。 调用`{ "apparmor_enabled": "/sys/module/apparmor/parameters/enabled", …`、`Path(filename).read_text(encoding="ascii").strip`、`Path(filename).read_text`、`Path`。 返回路径：L53的`facts`。
+- `probe`（L56–L74）：接收`url`。 调用`SimpleNamespace`、`BrowserStep`、`run_browser`。 返回路径：L69的`{"passed": False, "browser_diagnostic": exc.diagnostic}`；L73的`{"passed": False, "error_code": "preflight-infrastructure"}`；L74的`{"passed": True, "checks": checks}`。
+- `installed_chrome_version`（L77–L90）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L86按`result.returncode == 0 and re.fullmatch(r"[0-9]{1,4}(?:\.[0-9]{1,4}){3}", value)`分支。 调用`subprocess.run`、`clean_env`、`result.stdout.decode("ascii").strip`、`result.stdout.decode`、`re.fullmatch`。 返回路径：L87的`value`；L90的`None`。
+- `main`（L93–L131）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L112按`channel == "chrome"`分支；L127按`not report["passed"]`分支；L128抛异常，停止当前正常路径。 调用`os.environ.get`、`installed_chrome_version`、`sha`、`readonly_host_facts`、`write_json`、`ThreadingHTTPServer`、`threading.Thread`、`thread.start`、`probe`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: scripts/ci_capability_browser_preflight.py sha256: 796452a13f2c4c1742587c5c6d59e45ad9921e3e98d2f3a1852c2859ec3a8bd8 -->
+````python
+"""Real sandboxed controller-browser readiness, never product acceptance.
+
+Run before building Daytona. Only a synthetic loopback page is served; no
+application source, credentials, model, AppArmor policy or sysctl is changed.
+The same trusted driver, pinned Playwright, channel and sandbox settings as the
+product verifier must pass. A bundled-browser failure is retained separately
+for diagnosis when the explicitly selected system Chrome passes.
+"""
+
+import os
+import re
+import subprocess
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from types import SimpleNamespace
+
+from workbench.capability_contracts import BrowserStep
+from workbench.capability_verification import BrowserFailure, run_browser
+from workbench.filesystem import sha, write_json
+from workbench.settings import ROOT
+from workbench.tools import clean_env
+
+PAGE = b"""<!doctype html><meta charset="utf-8"><title>Browser readiness</title>
+<button id="check" onclick="document.querySelector('#result').textContent='Ready'">Check</button>
+<p id="result">Waiting</p>"""
+
+
+class FixturePage(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(PAGE)))
+        self.end_headers()
+        self.wfile.write(PAGE)
+
+    def log_message(self, *args):
+        pass
+
+
+def readonly_host_facts():
+    facts = {}
+    for name, filename in {
+        "apparmor_enabled": "/sys/module/apparmor/parameters/enabled",
+        "apparmor_restrict_unprivileged_userns": "/proc/sys/kernel/apparmor_restrict_unprivileged_userns",
+        "unprivileged_userns_clone": "/proc/sys/kernel/unprivileged_userns_clone",
+    }.items():
+        try:
+            value = Path(filename).read_text(encoding="ascii").strip()
+        except OSError, UnicodeError:
+            value = None
+        facts[name] = value if value in {"0", "1", "Y", "N"} else None
+    return facts
+
+
+def probe(url):
+    scenario = SimpleNamespace(
+        id="controller-browser-readiness",
+        browser=[
+            BrowserStep(action="open", value="/"),
+            BrowserStep(action="text", selector="#result", value="Waiting"),
+            BrowserStep(action="click", selector="#check"),
+            BrowserStep(action="text", selector="#result", value="Ready"),
+        ],
+    )
+    try:
+        checks = run_browser(url, "synthetic-readiness-token", [scenario], {scenario.id: {}}, 60)
+    except BrowserFailure as exc:
+        return {"passed": False, "browser_diagnostic": exc.diagnostic}
+    except Exception:
+        # An unexpected infrastructure exception must not leak environment or
+        # subprocess text, and must never turn into a passing readiness result.
+        return {"passed": False, "error_code": "preflight-infrastructure"}
+    return {"passed": True, "checks": checks}
+
+
+def installed_chrome_version():
+    try:
+        result = subprocess.run(
+            ["/usr/bin/google-chrome", "--product-version"],
+            capture_output=True,
+            timeout=10,
+            env=clean_env(),
+        )
+        value = result.stdout.decode("ascii").strip()
+        if result.returncode == 0 and re.fullmatch(r"[0-9]{1,4}(?:\.[0-9]{1,4}){3}", value):
+            return value
+    except OSError, UnicodeError, subprocess.TimeoutExpired:
+        pass
+    return None
+
+
+def main():
+    channel = os.environ.get("PRODUCT_VERIFY_BROWSER_CHANNEL", "")
+    report = {
+        "passed": False,
+        "scope": "controller-browser-readiness-only",
+        "product_acceptance": False,
+        "channel": channel if channel in {"", "chrome"} else "rejected",
+        "playwright_version": "1.56.1",
+        "chrome_version": installed_chrome_version() if channel == "chrome" else None,
+        "browser_verifier_sha256": sha(ROOT / "scripts/capability_browser.cjs"),
+        "host_facts": readonly_host_facts(),
+    }
+    report_path = ROOT / "reports/capability-browser-preflight.json"
+    write_json(report_path, report)
+    server = ThreadingHTTPServer(("127.0.0.1", 0), FixturePage)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}"
+        if channel == "chrome":
+            # Observe the old bundled launch separately. This result never
+            # satisfies the mandatory probe for the explicitly chosen channel.
+            os.environ["PRODUCT_VERIFY_BROWSER_CHANNEL"] = ""
+            try:
+                report["bundled_probe"] = probe(url)
+            finally:
+                os.environ["PRODUCT_VERIFY_BROWSER_CHANNEL"] = channel
+        report["selected_probe"] = probe(url)
+        report["passed"] = report["selected_probe"]["passed"] is True
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)
+        write_json(report_path, report)
+    if not report["passed"]:
+        raise SystemExit(
+            "Sandboxed browser preflight FAILED; see capability-browser-preflight.json"
+        )
+    print("Sandboxed controller browser readiness PASS; product acceptance is still required.")
+
+
+if __name__ == "__main__":
+    main()
+````
+
+### `scripts/ci_capability_profile.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.ci_capability_profile；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts.capability_fixture`、`scripts.daytona_capability_profile`、`workbench.capability_contracts`、`workbench.capability_sandbox`、`workbench.capability_verification`、`workbench.domain`、`workbench.filesystem`、`workbench.local_only`、`workbench.sandbox`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `fixed_application`（L29–L50）：接收`product`。 控制顺序：L31遍历`("pyproject.toml", "uv.lock")`。 调用`product.mkdir`、`shutil.copyfile`、`(product / "app.py").write_text`、`APP.replace( " # CUSTOM_ACCESS", " from access import readable\n …`、`APP.replace`、`(product / "access.py").write_text`、`make_plan`、`scope_sources`、`digest`。 返回路径：L44的`make_plan( { "source_units": scope_sources([GOAL]), "source_digest": digest([GOAL]), "sele…`。
+- `require_profile_evidence`（L53–L71）：接收`proof`、`**bindings`。 源码说明：Keep strict validation; explain only an allowlisted browser failure.。 控制顺序：L60按`proof.get("passed") is False and isinstance(phase, str) and phase in BROWSER_PHASES a…`分支；L67抛异常，停止当前正常路径；L71抛异常，停止当前正常路径。 调用`require_evidence`、`proof.get`、`diagnostic.get`、`isinstance`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L74–L124）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L85按`settings.sandbox_provider != "daytona"`分支；L86抛异常，停止当前正常路径；L122抛异常，停止当前正常路径。 调用`install_loopback_guard`、`Settings`、`write_json`、`ValueError`、`require_profile`、`tempfile.TemporaryDirectory`、`Path`、`fixed_application`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: scripts/ci_capability_profile.py sha256: 696f918271d412c01dee5d7cd67ce9804ef68cfbdb69624aad2641439c6104db -->
+````python
+"""Positive isolation acceptance with only the repository's fixed authored app.
+
+No model, arbitrary source directory, or task argument is accepted. Unsupported
+kernel/profile prerequisites fail this command; exit 78 is never a passing proof.
+Production source execution remains separately disabled pending review.
+"""
+
+import shutil
+import tempfile
+from pathlib import Path
+
+from scripts.capability_fixture import APP, GOAL, SHARED_ROUTES, make_plan
+from scripts.daytona_capability_profile import HOME, inspect_created_sandbox, require_profile
+from workbench.capability_contracts import scope_sources
+from workbench.capability_sandbox import _verify
+from workbench.capability_verification import (
+    BROWSER_ERROR_CODES,
+    BROWSER_PHASES,
+    CheckFailure,
+    require_evidence,
+)
+from workbench.domain import digest
+from workbench.filesystem import manifest, write_json
+from workbench.local_only import install_loopback_guard
+from workbench.sandbox import client_for, close_client, validate_configuration
+from workbench.settings import ROOT, Settings
+
+
+def fixed_application(product):
+    product.mkdir(parents=True)
+    for name in ("pyproject.toml", "uv.lock"):
+        shutil.copyfile(ROOT / "templates/product" / name, product / name)
+    (product / "app.py").write_text(
+        APP.replace(
+            "    # CUSTOM_ACCESS",
+            "    from access import readable\n    allowed = readable(row['owner'],name,member)",
+        ).replace("# CUSTOM_ROUTES", SHARED_ROUTES),
+        encoding="utf-8",
+    )
+    (product / "access.py").write_text(
+        "def readable(owner, actor, member):\n    return owner == actor or member\n",
+        encoding="utf-8",
+    )
+    return make_plan(
+        {
+            "source_units": scope_sources([GOAL]),
+            "source_digest": digest([GOAL]),
+            "selection": {"template": "python-basic"},
+        }
+    )
+
+
+def require_profile_evidence(proof, **bindings):
+    """Keep strict validation; explain only an allowlisted browser failure."""
+    try:
+        require_evidence(proof, **bindings)
+    except CheckFailure:
+        diagnostic = proof.get("browser_diagnostic", {})
+        phase, code = diagnostic.get("phase"), diagnostic.get("error_code")
+        if (
+            proof.get("passed") is False
+            and isinstance(phase, str)
+            and phase in BROWSER_PHASES
+            and isinstance(code, str)
+            and code in BROWSER_ERROR_CODES
+        ):
+            raise CheckFailure(
+                f"Browser acceptance failed: {phase}/{code}; "
+                "see capability-profile-detail.json; strict evidence rejected"
+            ) from None
+        raise
+
+
+def main():
+    install_loopback_guard()
+    settings = Settings(_env_file=HOME / "workbench.env", tool_timeout=300)
+    report_path = ROOT / "reports/capability-profile.json"
+    summary = {
+        "passed": False,
+        "authored_fixture": True,
+        "paid_model_calls": 0,
+        "production_execution_enabled": False,
+    }
+    write_json(report_path, summary)
+    if settings.sandbox_provider != "daytona":
+        raise ValueError("Positive profile acceptance requires the real local Daytona service")
+    require_profile(HOME, settings.daytona_snapshot)
+    with tempfile.TemporaryDirectory(prefix="rnd-fixed-profile-") as directory:
+        product = Path(directory) / "product"
+        plan = fixed_application(product)
+        selected = plan.selection.model_dump()
+        validate_configuration(settings, selected["template"], selected)
+        client = client_for(settings)
+        try:
+            proof = _verify(
+                product,
+                plan,
+                plan.scenarios,
+                settings,
+                selected,
+                ROOT / "reports/capability-profile-detail.json",
+                client=client,
+                aggregate=True,
+                control_observer=lambda sandbox_id: inspect_created_sandbox(HOME, sandbox_id),
+            )
+            summary["proof"] = settings.redact_data(proof)
+            require_profile_evidence(
+                proof,
+                source_digest=digest(manifest(product)),
+                plan_digest=digest(plan.model_dump()),
+                scenarios=plan.scenarios,
+                selection=selected,
+                database_tables=plan.runtime.database_tables,
+                aggregate=True,
+            )
+            summary["passed"] = True
+        finally:
+            try:
+                close_client(client)
+            except Exception:
+                summary["passed"] = False
+                raise
+            finally:
+                write_json(report_path, summary)
+
+
+if __name__ == "__main__":
+    main()
 ````
 
 ### `scripts/ci_clean_install.py`
@@ -142673,6 +148459,693 @@ def build_storage(directory, command, docker):
         "release": MINIO_RELEASE,
         "recipe_sha256": hashlib.sha256(dockerfile.read_bytes()).hexdigest(),
     }
+````
+
+### `scripts/daytona_capability_profile.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.daytona_capability_profile；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`、`scripts.daytona_build`、`workbench.local_only`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `sha256`（L86–L87）：接收`raw`。 调用`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`。 返回路径：L87的`hashlib.sha256(raw).hexdigest()`。
+- `blob`（L90–L91）：接收`raw`。 调用`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hex…`、`hashlib.sha1`、`str(len(raw)).encode`、`str`、`len`。 返回路径：L91的`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()`。
+- `recipe_identity`（L94–L97）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha256`、`(ROOT / name).read_bytes`、`json.dumps(hashes, sort_keys=True).encode`、`json.dumps`。 返回路径：L97的`identity, hashes`。
+- `profile_directory`（L100–L104）：接收`directory`。 控制顺序：L102按`directory == local.HOME.resolve()`分支；L103抛异常，停止当前正常路径。 调用`Path(directory).resolve`、`Path`、`local.HOME.resolve`、`ValueError`。 返回路径：L104的`directory`。
+- `read_base`（L107–L124）：接收`directory`。 控制顺序：L112按`installation != { "source_sha": DAYTONA_SOURCE, "release": "v" + DAYTONA_VERSION, "de…`分支；L118抛异常，停止当前正常路径；L119遍历`config["services"].items()`；L122按`service["image"] != expected or record["tag"] != local.IMAGES[name]`分支；L123抛异常，停止当前正常路径。 调用`yaml.safe_load`、`(directory / "compose.lock.yaml").read_text`、`local.assert_local_compose`、`json.loads`、`(directory / "images.lock.json").read_text`、`(directory / "installation.json").read_text`、`ValueError`、`config["services"].items`、`record.get`。 返回路径：L124的`config`。
+- `source_context`（L127–L175）：接收`directory`、`context`。 源码说明：Export committed source only; reject drift before applying the exact patch.。 控制顺序：L130按`DAYTONA_SOURCE != PINNED_SOURCE or DAYTONA_VERSION != "0.190.0"`分支；L131抛异常，停止当前正常路径；L135按`blob(raw) != SOURCE_BLOB or raw.count(OLD.encode()) != 1`分支；L136抛异常，停止当前正常路径；L137按`blob((context / "go.work").read_bytes()) != WORKSPACE_BLOB`分支；L138抛异常，停止当前正常路径；L148按`(ROOT / "tools/daytona/capability-runner.patch").read_text() != expected_patch`分支；L149抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`ValueError`、`export_source`、`target.read_bytes`、`blob`、`raw.count`、`OLD.encode`、`(context / "go.work").read_bytes`、`raw.decode().replace`等。 返回路径：L175的`{"source_sha": DAYTONA_SOURCE, "go_inputs": inputs, "patched_sha256": sha256(updated)}`。
+- `download_assets`（L178–L185）：接收`context`。 控制顺序：L180遍历`ASSETS.items()`；L183按`len(raw) > 1_000_000 or sha256(raw) != expected`分支；L184抛异常，停止当前正常路径。 调用`urllib.request.build_opener`、`urllib.request.ProxyHandler`、`ASSETS.items`、`opener.open`、`response.read`、`len`、`sha256`、`ValueError`、`(Path(context) / "apps/daemon/pkg/terminal/static" / name).write_…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `inspect_image`（L188–L195）：接收`reference`。 控制顺序：L190按`len(rows) != 1 or not re.fullmatch(r"sha256:[a-f0-9]{64}", rows[0].get("Id", ""))`分支；L191抛异常，停止当前正常路径；L193按`image.get("Os") != "linux" or image.get("Architecture") != "amd64"`分支；L194抛异常，停止当前正常路径。 调用`json.loads`、`local.docker`、`len`、`re.fullmatch`、`rows[0].get`、`ValueError`、`image.get`。 返回路径：L195的`image`。
+- `resolve_bases`（L198–L208）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L200遍历`BASES.items()`；L205按`len(digests) != 1 or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", digests[0]…`分支；L206抛异常，停止当前正常路径。 调用`BASES.items`、`local.docker`、`inspect_image`、`tag.rsplit`、`image.get`、`value.startswith`、`len`、`re.fullmatch`、`re.escape`等。 返回路径：L208的`result`。
+- `build_image`（L211–L234）：接收`directory`、`context`、`recipe`、`tag`、`bases`、`identity`。 控制顺序：L213遍历`bases.items()`。 调用`bases.items`、`str`、`local.docker`、`(directory / (recipe + ".log")).write_text`、`inspect_image`、`validate_image`。 返回路径：L234的`image`。
+- `validate_image`（L237–L257）：接收`image`、`identity`、`snapshot`。 控制顺序：L240按`labels.get("org.opencontainers.image.revision") != DAYTONA_SOURCE or labels.get("rnd.…`分支；L245抛异常，停止当前正常路径；L246按`snapshot`分支；L247按`config.get("User") != "0:0" or config.get("WorkingDir") != CONTROL_WORKDIR or config.…`分支；L253抛异常，停止当前正常路径；L256按`"USE_SNAPSHOT_ENTRYPOINT=false" not in config.get("Env", [])`分支；L257抛异常，停止当前正常路径。 调用`image.get`、`config.get`、`labels.get`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `render_profile`（L260–L267）：接收`base`、`runner_id`、`image`。 调用`copy.deepcopy`、`local.assert_local_compose`。 返回路径：L267的`config`。
+- `write_compose`（L270–L273）：接收`path`、`config`。 控制顺序：L272按`os.name != "nt"`分支。 调用`path.write_text`、`yaml.safe_dump`、`path.chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `prepare`（L276–L388）：接收`directory`。 控制顺序：L279遍历`(COMPOSE, LOCK, "snapshot-image.json", "api-key.json", "workbench…`；L280按`(directory / name).exists()`分支；L281抛异常，停止当前正常路径；L285按`info.get("OSType") != "linux" or info.get("Architecture") not in {"amd64", "x86_64"}`分支；L286抛异常，停止当前正常路径；L297按`existing.strip()`分支；L298抛异常，停止当前正常路径；L306按`stamp == local.snapshot_stamp()`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`read_base`、`(directory / name).exists`、`ValueError`、`json.loads`、`local.docker`、`info.get`、`str`、`existing.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `load_profile`（L391–L444）：接收`directory`。 控制顺序：L395按`record.get("profile") != PROFILE or record.get("recipe_identity") != identity or reco…`分支；L403抛异常，停止当前正常路径；L405按`set(bases) != set(BASES)`分支；L406抛异常，停止当前正常路径；L407遍历`BASES.items()`；L410按`entry.get("tag") != tag or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", entr…`分支；L415抛异常，停止当前正常路径；L418按`image.get("source_hash") != stamp or image.get("image") != "registry:6000/rnd-python:…`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`json.loads`、`(directory / LOCK).read_text`、`recipe_identity`、`record.get`、`record.get("source", {}).get`、`sha256`、`(directory / "compose.lock.yaml").read_bytes`、`ValueError`等。 返回路径：L444的`config, record`。
+- `compose`（L447–L457）：接收`directory`、`timeout`、`*args`。 调用`load_profile`、`local.docker`、`str`、`Path`。 返回路径：L449的`local.docker( "compose", "--project-name", PROJECT, "--file", str(Path(directory) / COMPOS…`。
+- `require_profile`（L460–L474）：接收`directory`、`snapshot`。 源码说明：Read-only prerequisite check; never a substitute for the isolation receipt.。 控制顺序：L463按`snapshot is not None and snapshot != record["snapshot"]["snapshot"]`分支；L464抛异常，停止当前正常路径；L470按`image["Id"] != record["snapshot"]["image_id"] or expected_digest not in image.get( "R…`分支；L473抛异常，停止当前正常路径。 调用`load_profile`、`ValueError`、`inspect_image`、`validate_image`、`record["snapshot"]["digest"].replace`、`image.get`。 返回路径：L474的`record`。
+- `inspect_created_sandbox`（L477–L585）：接收`directory`、`sandbox_id`。 源码说明：Inspect only the newly owned UUID inside the verified profile Runner. Upstream create.go names the Docker container sandboxDto.Id. No shell, caller-provided Docker options, executable, or general comm。 控制顺序：L486按`not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id`分支；L487抛异常，停止当前正常路径；L490按`not re.fullmatch(r"[a-f0-9]{64}", runner_id)`分支；L491抛异常，停止当前正常路径；L493按`len(rows) != 1`分支；L494抛异常，停止当前正常路径；L497按`runner.get("Image") != record["runner"]["image_id"] or runner.get("State", {}).get("R…`分支；L507抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`str`、`UUID`、`ValueError`、`require_profile`、`compose(directory, "ps", "--quiet", "runner").strip`、`compose`、`re.fullmatch`、`json.loads`等。 返回路径：L574的`{ "profile": PROFILE, "sandbox_id": sandbox_id, "runner_image_id": record["runner"]["image…`。
+- `up`（L588–L626）：接收`directory`。 控制顺序：L600遍历`range(90)`；L607按`any(row.get("State") in {"exited", "dead", "removing"} for row in rows)`分支；L608抛异常，停止当前正常路径；L614按`ready == local.KEEP`分支；L616遍历`endpoints`；L624按`attempt < 89`分支；L626抛异常，停止当前正常路径。 调用`require_profile`、`compose`、`httpx.Client`、`range`、`raw.lstrip().startswith`、`raw.lstrip`、`json.loads`、`raw.splitlines`、`line.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L629–L642）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L634按`args.action == "prepare"`分支；L636按`args.action == "up"`分支；L638按`args.action == "check"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`up`、`require_profile`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: scripts/daytona_capability_profile.py sha256: ab3f81449866762e1ae800bd20ec53752aa289ca612c47ff2516f758302688e3 -->
+````python
+"""Build the owned, fixed-authored capability profile before starting Daytona.
+
+Use a fresh directory with daytona_local prepare/images first. This command never
+changes the ordinary installation, production gates, Docker daemon policy, or
+application security flags. Only the pinned Runner's privileged application
+container default is removed. Live proof is still required by ci_capability_profile.
+"""
+
+import argparse
+import copy
+import difflib
+import hashlib
+import json
+import os
+import re
+import shutil
+import subprocess
+import tempfile
+import time
+import urllib.request
+from pathlib import Path
+
+import yaml
+
+from scripts import daytona_local as local
+from scripts.daytona_build import BUILT, export_source
+from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
+from workbench.settings import ROOT
+
+HOME = ROOT / ".data/daytona-capability"
+PROJECT = "rnd-daytona-capability"
+PROFILE = "fixed-authored-sqlite-v1"
+PINNED_SOURCE = "01c502bb1f1ff8f2885d0cd490e043736083dca8"
+COMPOSE = "compose.capability.lock.yaml"
+LOCK = "capability-profile.lock.json"
+CONTROL_WORKDIR = "/opt/rnd/control"
+SOURCE_FILE = "apps/runner/pkg/docker/container_configs.go"
+SOURCE_BLOB = "d5a97203afa87c3fa0065702723c41645bf284b6"
+WORKSPACE_BLOB = "daf66a070fb41cdf12ecbbdb7dc4a20cf4b9bba0"
+OLD = """		// Privileged mode exposes every /dev/nvidia* node and bypasses the
+		// CDI cgroup rules, so GPU sandboxes have to opt out to keep their
+		// allocated card isolated. Non-GPU sandboxes still need privileged
+		// for their current workloads.
+		Privileged: gpuIndex == nil,
+"""
+NEW = """		// Owned fixed-application profile: all application containers use
+		// Docker's unprivileged defaults, including its default seccomp filter.
+		Privileged: false,
+"""
+RECIPE_PATHS = (
+    "scripts/daytona_capability_profile.py",
+    "tools/daytona/capability-runner.Dockerfile",
+    "tools/daytona/capability-snapshot.Dockerfile",
+    "tools/daytona/capability-runner.patch",
+    "tools/daytona/runner-entry.sh",
+    "templates/product/pyproject.toml",
+    "templates/product/uv.lock",
+)
+BASES = {
+    "GO_IMAGE": "golang:1.25.11-bookworm",
+    # The plugin's upstream CGO baseline is glibc 2.35, from Ubuntu 22.04.
+    "BUILD_IMAGE": "ubuntu:22.04",
+    "DOCKER_IMAGE": "docker:28.5.2-dind-alpine3.22",
+    "RUNTIME_IMAGE": "debian:trixie-slim",
+    "UV_IMAGE": "ghcr.io/astral-sh/uv:0.12.20",
+    "NODE_IMAGE": "node:22.23.2-bookworm-slim",
+    "SANDBOX_IMAGE": "daytonaio/sandbox:0.5.0-slim",
+}
+# Upstream apps/daemon/tools/xterm.go assets, now bounded and SHA-256 checked.
+ASSETS = {
+    "xterm.js": (
+        "https://cdn.jsdelivr.net/npm/xterm@5.3.0/lib/xterm.js",
+        "f0aea0f75f48559013ae6643c2479dd737d26da42d5524e6d2b70915ae6523c7",
+    ),
+    "xterm.css": (
+        "https://cdn.jsdelivr.net/npm/xterm@5.3.0/css/xterm.css",
+        "832f3f2c603b43ad4351ff04970150cc7a873014276db126a6065c6dd81e4872",
+    ),
+    "xterm-addon-fit.js": (
+        "https://cdn.jsdelivr.net/npm/xterm-addon-fit@0.8.0/lib/xterm-addon-fit.js",
+        "10f3194c5f17c1786fb7d5db865c1ec8539b6736a318063fd38bdaaf7c46848f",
+    ),
+}
+
+
+def sha256(raw):
+    return hashlib.sha256(raw).hexdigest()
+
+
+def blob(raw):
+    return hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+
+
+def recipe_identity():
+    hashes = {name: sha256((ROOT / name).read_bytes()) for name in RECIPE_PATHS}
+    identity = sha256(json.dumps(hashes, sort_keys=True).encode())
+    return identity, hashes
+
+
+def profile_directory(directory):
+    directory = Path(directory).resolve()
+    if directory == local.HOME.resolve():
+        raise ValueError("Capability profile requires its own disposable directory")
+    return directory
+
+
+def read_base(directory):
+    config = yaml.safe_load((directory / "compose.lock.yaml").read_text(encoding="utf-8"))
+    local.assert_local_compose(config)
+    records = json.loads((directory / "images.lock.json").read_text(encoding="utf-8"))
+    installation = json.loads((directory / "installation.json").read_text(encoding="utf-8"))
+    if installation != {
+        "source_sha": DAYTONA_SOURCE,
+        "release": "v" + DAYTONA_VERSION,
+        "deployment": "local-development-only",
+        "cloud_account": False,
+    }:
+        raise ValueError("Capability profile requires the pinned local installation")
+    for name, service in config["services"].items():
+        record = records[name]
+        expected = record.get("image_id") if name in BUILT else record.get("digest")
+        if service["image"] != expected or record["tag"] != local.IMAGES[name]:
+            raise ValueError("Original local image lock does not match Compose: " + name)
+    return config
+
+
+def source_context(directory, context):
+    """Export committed source only; reject drift before applying the exact patch."""
+    context = Path(context)
+    if DAYTONA_SOURCE != PINNED_SOURCE or DAYTONA_VERSION != "0.190.0":
+        raise ValueError("Capability profile supports only its exact reviewed upstream revision")
+    export_source(directory, local.command, context)
+    target = context / SOURCE_FILE
+    raw = target.read_bytes()
+    if blob(raw) != SOURCE_BLOB or raw.count(OLD.encode()) != 1:
+        raise ValueError("Pinned Runner source preimage does not match")
+    if blob((context / "go.work").read_bytes()) != WORKSPACE_BLOB:
+        raise ValueError("Pinned Go workspace does not match")
+    updated = raw.decode().replace(OLD, NEW)
+    expected_patch = "".join(
+        difflib.unified_diff(
+            raw.decode().splitlines(keepends=True),
+            updated.splitlines(keepends=True),
+            fromfile="a/" + SOURCE_FILE,
+            tofile="b/" + SOURCE_FILE,
+        )
+    )
+    if (ROOT / "tools/daytona/capability-runner.patch").read_text() != expected_patch:
+        raise ValueError("Profile patch does not exactly match the owned single-change recipe")
+    target.write_text(updated, encoding="utf-8", newline="\n")
+    updated = updated.encode()
+    # Upstream excludes go.work.sum from Git. Seed with its committed checksums;
+    # preserve the full workspace so its selected versions need no go.mod edit.
+    sums = set()
+    for path in sorted(context.glob("**/go.sum")):
+        sums.update(path.read_text(encoding="utf-8").splitlines())
+    (context / "go.work.sum").write_text("\n".join(sorted(sums)) + "\n", encoding="utf-8")
+    inputs = {
+        str(path.relative_to(context)): sha256(path.read_bytes())
+        for path in sorted(context.glob("**/go.*"))
+        if path.name in {"go.mod", "go.sum", "go.work", "go.work.sum"}
+    }
+    support = context / "capability-build"
+    support.mkdir()
+    for name in RECIPE_PATHS:
+        shutil.copyfile(ROOT / name, support / Path(name).name)
+    (support / "NOTICE").write_text(
+        "Daytona, Copyright 2025 Daytona Platforms Inc.; AGPL-3.0.\n"
+        f"Upstream: https://github.com/daytonaio/daytona/tree/{DAYTONA_SOURCE}\n"
+        "Owned fixed-authored SQLite profile: container Privileged is always false.\n"
+        "Complete corresponding source and build recipes: source.tar beside this notice.\n"
+        "This is a local acceptance profile; it does not enable production source execution.\n",
+        encoding="utf-8",
+    )
+    return {"source_sha": DAYTONA_SOURCE, "go_inputs": inputs, "patched_sha256": sha256(updated)}
+
+
+def download_assets(context):
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    for name, (url, expected) in ASSETS.items():
+        with opener.open(url, timeout=90) as response:
+            raw = response.read(1_000_001)
+        if len(raw) > 1_000_000 or sha256(raw) != expected:
+            raise ValueError("Pinned terminal asset checksum does not match: " + name)
+        (Path(context) / "apps/daemon/pkg/terminal/static" / name).write_bytes(raw)
+
+
+def inspect_image(reference):
+    rows = json.loads(local.docker("image", "inspect", reference))
+    if len(rows) != 1 or not re.fullmatch(r"sha256:[a-f0-9]{64}", rows[0].get("Id", "")):
+        raise ValueError("Image must have one immutable local identity")
+    image = rows[0]
+    if image.get("Os") != "linux" or image.get("Architecture") != "amd64":
+        raise ValueError("Capability profile only supports Linux amd64 images")
+    return image
+
+
+def resolve_bases():
+    result = {}
+    for name, tag in BASES.items():
+        local.docker("pull", "--platform=linux/amd64", tag)
+        image = inspect_image(tag)
+        prefix = tag.rsplit(":", 1)[0] + "@sha256:"
+        digests = [value for value in image.get("RepoDigests", []) if value.startswith(prefix)]
+        if len(digests) != 1 or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", digests[0]):
+            raise ValueError("Official builder image has no unique registry digest: " + name)
+        result[name] = {"tag": tag, "digest": digests[0], "image_id": image["Id"]}
+    return result
+
+
+def build_image(directory, context, recipe, tag, bases, identity):
+    argv = ["build", "--progress=plain", "--platform=linux/amd64", "--pull=false"]
+    for name, record in bases.items():
+        argv += ["--build-arg", name + "=" + record["digest"]]
+    argv += [
+        "--file",
+        str(ROOT / "tools/daytona" / recipe),
+        "--label",
+        "org.opencontainers.image.revision=" + DAYTONA_SOURCE,
+        "--label",
+        "org.opencontainers.image.licenses=AGPL-3.0",
+        "--label",
+        "rnd.capability.profile=" + PROFILE,
+        "--label",
+        "rnd.capability.recipe=" + identity,
+        "--tag",
+        tag,
+        str(context),
+    ]
+    log = local.docker(*argv, timeout=3000)
+    (directory / (recipe + ".log")).write_text(log, encoding="utf-8")
+    image = inspect_image(tag)
+    validate_image(image, identity, snapshot=recipe == "capability-snapshot.Dockerfile")
+    return image
+
+
+def validate_image(image, identity, *, snapshot):
+    config = image.get("Config") or {}
+    labels = config.get("Labels") or {}
+    if (
+        labels.get("org.opencontainers.image.revision") != DAYTONA_SOURCE
+        or labels.get("rnd.capability.profile") != PROFILE
+        or labels.get("rnd.capability.recipe") != identity
+    ):
+        raise ValueError("Image does not identify the reviewed capability recipe")
+    if snapshot:
+        if (
+            config.get("User") != "0:0"
+            or config.get("WorkingDir") != CONTROL_WORKDIR
+            or config.get("Entrypoint")
+            or config.get("Cmd")
+        ):
+            raise ValueError(
+                "Snapshot must declare root control identity and trusted working directory"
+            )
+    elif "USE_SNAPSHOT_ENTRYPOINT=false" not in config.get("Env", []):
+        raise ValueError("Profile Runner must explicitly use its normal daemon entrypoint")
+
+
+def render_profile(base, runner_id, image):
+    config = copy.deepcopy(base)
+    config["name"] = PROJECT
+    config["services"]["runner"]["image"] = runner_id
+    config["services"]["runner"]["environment"]["USE_SNAPSHOT_ENTRYPOINT"] = "false"
+    config["services"]["api"]["environment"]["DEFAULT_SNAPSHOT"] = image
+    local.assert_local_compose(config)
+    return config
+
+
+def write_compose(path, config):
+    path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
+    if os.name != "nt":
+        path.chmod(0o600)
+
+
+def prepare(directory=HOME):
+    directory = profile_directory(directory)
+    base = read_base(directory)
+    for name in (COMPOSE, LOCK, "snapshot-image.json", "api-key.json", "workbench.env"):
+        if (directory / name).exists():
+            raise ValueError(
+                "Profile setup requires fresh local state; will not overwrite: " + name
+            )
+    info = json.loads(local.docker("info", "--format", "{{json .}}"))
+    if info.get("OSType") != "linux" or info.get("Architecture") not in {"amd64", "x86_64"}:
+        raise ValueError("Capability profile supports only a local Linux amd64 Docker daemon")
+    existing = local.docker(
+        "compose",
+        "--project-name",
+        PROJECT,
+        "--file",
+        str(directory / "compose.lock.yaml"),
+        "ps",
+        "--all",
+        "--quiet",
+    )
+    if existing.strip():
+        raise ValueError("Capability profile must be prepared before any profile containers exist")
+    identity, recipes = recipe_identity()
+    bases = resolve_bases()
+    # Include resolved immutable dependency images in the snapshot tag identity.
+    stamp = sha256((identity + json.dumps(bases, sort_keys=True)).encode())[:16]
+    runner_tag = "rnd-local/daytona-capability-runner:" + stamp
+    snapshot_tag = "127.0.0.1:6000/rnd-python:" + stamp
+    image_ref = "registry:6000/rnd-python:" + stamp
+    if stamp == local.snapshot_stamp():
+        raise ValueError("Capability profile cannot overwrite the ordinary snapshot tag")
+    with tempfile.TemporaryDirectory(prefix="capability-build-", dir=directory) as temporary:
+        context = Path(temporary)
+        source = source_context(directory, context)
+        local.private_json(
+            context / "capability-build/build-inputs.json",
+            {
+                "profile": PROFILE,
+                "recipe_identity": identity,
+                "recipes": recipes,
+                "bases": bases,
+                "source": source,
+            },
+        )
+        download_assets(context)
+        runner = build_image(
+            directory, context, "capability-runner.Dockerfile", runner_tag, bases, identity
+        )
+    with tempfile.TemporaryDirectory(prefix="capability-snapshot-", dir=directory) as temporary:
+        context = Path(temporary)
+        for name in ("pyproject.toml", "uv.lock"):
+            shutil.copyfile(ROOT / "templates/product" / name, context / name)
+        snapshot = build_image(
+            directory, context, "capability-snapshot.Dockerfile", snapshot_tag, bases, identity
+        )
+    config = render_profile(base, runner["Id"], image_ref)
+    # Registry startup uses the validated profile configuration, with an isolated
+    # Compose project. No API, Runner, or application container starts here.
+    temporary_compose = directory / COMPOSE
+    write_compose(temporary_compose, config)
+    local.docker(
+        "compose",
+        "--project-name",
+        PROJECT,
+        "--file",
+        str(temporary_compose),
+        "up",
+        "-d",
+        "--pull",
+        "never",
+        "registry",
+        "gateway",
+    )
+    local.wait_for_registry()
+    local.docker("push", snapshot_tag)
+    published = inspect_image(snapshot_tag)
+    prefix = "127.0.0.1:6000/rnd-python@sha256:"
+    digests = [value for value in published.get("RepoDigests", []) if value.startswith(prefix)]
+    if len(digests) != 1 or published["Id"] != snapshot["Id"]:
+        raise ValueError("Snapshot publication changed identity or has no unique local digest")
+    record = {
+        "profile": PROFILE,
+        "recipe_identity": identity,
+        "recipes": recipes,
+        "source": source,
+        "bases": bases,
+        "base_compose_sha256": sha256((directory / "compose.lock.yaml").read_bytes()),
+        "runner": {
+            "tag": runner_tag,
+            "image_id": runner["Id"],
+            "user": runner["Config"].get("User", ""),
+            "recipe_sha256": recipes["tools/daytona/capability-runner.Dockerfile"],
+        },
+        "snapshot": {
+            "image": image_ref,
+            "snapshot": "rnd-python-" + stamp,
+            "source_hash": stamp,
+            "local_tag": snapshot_tag,
+            "image_id": snapshot["Id"],
+            "digest": "registry:6000/rnd-python@" + digests[0].split("@", 1)[1],
+            "user": "0:0",
+            "working_dir": CONTROL_WORKDIR,
+            "recipe_sha256": recipes["tools/daytona/capability-snapshot.Dockerfile"],
+        },
+    }
+    # Commit readiness last. A partial build never produces a passing profile lock.
+    write_compose(directory / COMPOSE, config)
+    local.private_json(directory / "snapshot-image.json", record["snapshot"])
+    local.private_json(directory / LOCK, record)
+    print(
+        "Dedicated capability profile built; immutable Runner and root-control snapshot recorded."
+    )
+
+
+def load_profile(directory=HOME):
+    directory = profile_directory(directory)
+    record = json.loads((directory / LOCK).read_text(encoding="utf-8"))
+    identity, recipes = recipe_identity()
+    if (
+        record.get("profile") != PROFILE
+        or record.get("recipe_identity") != identity
+        or record.get("recipes") != recipes
+        or record.get("source", {}).get("source_sha") != DAYTONA_SOURCE
+        or record.get("base_compose_sha256")
+        != sha256((directory / "compose.lock.yaml").read_bytes())
+    ):
+        raise ValueError("Capability profile recipe or original installation changed; unsupported")
+    bases = record.get("bases", {})
+    if set(bases) != set(BASES):
+        raise ValueError("Capability profile builder dependency lock is incomplete")
+    for name, tag in BASES.items():
+        entry = bases[name]
+        prefix = tag.rsplit(":", 1)[0] + "@sha256:"
+        if (
+            entry.get("tag") != tag
+            or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", entry.get("digest", ""))
+            or not re.fullmatch(r"sha256:[a-f0-9]{64}", entry.get("image_id", ""))
+        ):
+            raise ValueError("Capability profile builder dependency is not digest-locked")
+    stamp = sha256((identity + json.dumps(bases, sort_keys=True)).encode())[:16]
+    image = record.get("snapshot", {})
+    if (
+        image.get("source_hash") != stamp
+        or image.get("image") != "registry:6000/rnd-python:" + stamp
+        or image.get("local_tag") != "127.0.0.1:6000/rnd-python:" + stamp
+        or image.get("snapshot") != "rnd-python-" + stamp
+        or image.get("user") != "0:0"
+        or image.get("working_dir") != CONTROL_WORKDIR
+        or image.get("recipe_sha256") != recipes["tools/daytona/capability-snapshot.Dockerfile"]
+        or record.get("runner", {}).get("recipe_sha256")
+        != recipes["tools/daytona/capability-runner.Dockerfile"]
+        or not re.fullmatch(
+            r"registry:6000/rnd-python@sha256:[a-f0-9]{64}", image.get("digest", "")
+        )
+        or not re.fullmatch(r"sha256:[a-f0-9]{64}", image.get("image_id", ""))
+        or record.get("runner", {}).get("tag") != "rnd-local/daytona-capability-runner:" + stamp
+        or not re.fullmatch(r"sha256:[a-f0-9]{64}", record.get("runner", {}).get("image_id", ""))
+    ):
+        raise ValueError("Capability profile image lock does not match its derived identity")
+    base = read_base(directory)
+    config = yaml.safe_load((directory / COMPOSE).read_text(encoding="utf-8"))
+    expected = render_profile(base, record["runner"]["image_id"], record["snapshot"]["image"])
+    if config != expected:
+        raise ValueError("Profile Compose differs from its exact allowed transformation")
+    metadata = json.loads((directory / "snapshot-image.json").read_text(encoding="utf-8"))
+    if metadata != record["snapshot"]:
+        raise ValueError("Profile snapshot metadata differs from its immutable lock")
+    return config, record
+
+
+def compose(directory, *args, timeout=900):
+    load_profile(directory)
+    return local.docker(
+        "compose",
+        "--project-name",
+        PROJECT,
+        "--file",
+        str(Path(directory) / COMPOSE),
+        *args,
+        timeout=timeout,
+    )
+
+
+def require_profile(directory=HOME, snapshot=None):
+    """Read-only prerequisite check; never a substitute for the isolation receipt."""
+    _, record = load_profile(directory)
+    if snapshot is not None and snapshot != record["snapshot"]["snapshot"]:
+        raise ValueError("Fixed application must explicitly select the owned profile snapshot")
+    runner = inspect_image(record["runner"]["image_id"])
+    image = inspect_image(record["snapshot"]["local_tag"])
+    validate_image(runner, record["recipe_identity"], snapshot=False)
+    validate_image(image, record["recipe_identity"], snapshot=True)
+    expected_digest = record["snapshot"]["digest"].replace("registry:6000/", "127.0.0.1:6000/", 1)
+    if image["Id"] != record["snapshot"]["image_id"] or expected_digest not in image.get(
+        "RepoDigests", []
+    ):
+        raise ValueError("Profile snapshot tag no longer matches the recorded ID and digest")
+    return record
+
+
+def inspect_created_sandbox(directory, sandbox_id):
+    """Inspect only the newly owned UUID inside the verified profile Runner.
+
+    Upstream create.go names the Docker container sandboxDto.Id. No shell,
+    caller-provided Docker options, executable, or general command is accepted.
+    The receipt contains no environment, paths, credentials, or user content.
+    """
+    from uuid import UUID
+
+    if not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id:
+        raise ValueError("Owned sandbox must have one canonical UUID")
+    record = require_profile(directory)
+    runner_id = compose(directory, "ps", "--quiet", "runner").strip()
+    if not re.fullmatch(r"[a-f0-9]{64}", runner_id):
+        raise ValueError("Profile requires exactly one running Runner container")
+    rows = json.loads(local.docker("container", "inspect", runner_id))
+    if len(rows) != 1:
+        raise ValueError("Profile Runner container identity is ambiguous")
+    runner = rows[0]
+    labels = runner.get("Config", {}).get("Labels", {})
+    if (
+        runner.get("Image") != record["runner"]["image_id"]
+        or runner.get("State", {}).get("Running") is not True
+        or labels.get("com.docker.compose.project") != PROJECT
+        or labels.get("com.docker.compose.service") != "runner"
+        or "USE_SNAPSHOT_ENTRYPOINT=false" not in runner.get("Config", {}).get("Env", [])
+        or runner.get("Config", {}).get("Entrypoint")
+        != ["/usr/local/bin/dind", "/usr/local/bin/rnd-runner-entry.sh"]
+        or runner.get("Config", {}).get("Cmd")
+    ):
+        raise ValueError("Running Runner does not match the owned profile")
+    security = json.loads(
+        local.docker(
+            "exec",
+            runner_id,
+            "docker",
+            "--host",
+            "unix:///var/run/docker.sock",
+            "info",
+            "--format",
+            "{{json .SecurityOptions}}",
+            timeout=30,
+        )
+    )
+    if not isinstance(security, list) or "name=seccomp,profile=builtin" not in security:
+        raise ValueError("Inner Docker must report its enabled built-in seccomp filter")
+    rows = json.loads(
+        local.docker(
+            "exec",
+            runner_id,
+            "docker",
+            "--host",
+            "unix:///var/run/docker.sock",
+            "container",
+            "inspect",
+            sandbox_id,
+            timeout=30,
+        )
+    )
+    if len(rows) != 1:
+        raise ValueError("Owned application container identity is ambiguous")
+    container = rows[0]
+    config, host = container.get("Config", {}), container.get("HostConfig", {})
+    if (
+        container.get("Name") != "/" + sandbox_id
+        or container.get("Image") != record["snapshot"]["image_id"]
+        or container.get("State", {}).get("Running") is not True
+        or config.get("User") != "0:0"
+        or config.get("WorkingDir") != CONTROL_WORKDIR
+        or config.get("Entrypoint") != ["/usr/local/bin/daytona"]
+        or config.get("Cmd")
+        or host.get("Privileged") is not False
+        or host.get("CapAdd")
+        or host.get("SecurityOpt")
+        or host.get("Devices")
+        or host.get("DeviceRequests")
+        or host.get("PidMode") not in (None, "")
+        or host.get("IpcMode") not in (None, "", "private")
+        or host.get("NetworkMode") in {"host", "none"}
+    ):
+        raise ValueError("Created application container does not match the unprivileged profile")
+    expected = {
+        "/usr/local/bin/daytona": "/usr/local/bin/.tmp/binaries/daemon-amd64",
+        "/usr/local/lib/daytona-computer-use": "/usr/local/bin/.tmp/binaries/daytona-computer-use",
+    }
+    mounts = container.get("Mounts", [])
+    if (
+        len(mounts) != len(expected)
+        or any(
+            mount.get("Type") != "bind"
+            or mount.get("RW") is not False
+            or expected.get(mount.get("Destination")) != mount.get("Source")
+            for mount in mounts
+        )
+        or {mount.get("Destination") for mount in mounts} != set(expected)
+    ):
+        raise ValueError("Application mounts must be only the two trusted read-only binaries")
+    return {
+        "profile": PROFILE,
+        "sandbox_id": sandbox_id,
+        "runner_image_id": record["runner"]["image_id"],
+        "snapshot_image_id": record["snapshot"]["image_id"],
+        "snapshot_digest": record["snapshot"]["digest"],
+        "control_user": "0:0",
+        "privileged": False,
+        "seccomp": "docker-default",
+        "seccomp_engine": "builtin",
+        "trusted_readonly_binary_mounts": True,
+    }
+
+
+def up(directory=HOME):
+    import httpx
+
+    require_profile(directory)
+    compose(directory, "up", "-d", "--pull", "never")
+    endpoints = [
+        "http://127.0.0.1:3000/api/config",
+        "http://127.0.0.1:3003/",
+        "http://127.0.0.1:5556/dex/.well-known/openid-configuration",
+        "http://127.0.0.1:6000/v2/",
+    ]
+    with httpx.Client(timeout=3, trust_env=False, follow_redirects=False) as client:
+        for attempt in range(90):
+            raw = compose(directory, "ps", "--all", "--format", "json")
+            rows = (
+                json.loads(raw)
+                if raw.lstrip().startswith("[")
+                else [json.loads(line) for line in raw.splitlines() if line.strip()]
+            )
+            if any(row.get("State") in {"exited", "dead", "removing"} for row in rows):
+                raise RuntimeError("Capability profile service exited before readiness")
+            ready = {
+                row["Service"]
+                for row in rows
+                if row.get("State") == "running" and row.get("Health", "") in {"", "healthy"}
+            }
+            if ready == local.KEEP:
+                try:
+                    for endpoint in endpoints:
+                        client.get(endpoint).raise_for_status()
+                    print(
+                        "Dedicated capability API, Runner and local identity endpoints are ready."
+                    )
+                    return
+                except httpx.HTTPError:
+                    pass
+            if attempt < 89:
+                time.sleep(2)
+    raise RuntimeError("Capability profile readiness timed out; no passing proof was produced")
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=["prepare", "up", "check", "status", "down"])
+    parser.add_argument("--directory", type=Path, default=HOME)
+    args = parser.parse_args()
+    if args.action == "prepare":
+        prepare(args.directory)
+    elif args.action == "up":
+        up(args.directory)
+    elif args.action == "check":
+        require_profile(args.directory)
+        print("Profile image and recipe identities match; application isolation is not yet proven.")
+    else:
+        print(compose(args.directory, *({"status": ["ps"], "down": ["down"]}[args.action])))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except subprocess.CalledProcessError as error:
+        print((error.stderr or b"").decode("utf-8", errors="replace")[-12000:])
+        raise
 ````
 
 ### `scripts/daytona_diagnostics.py`
@@ -148177,6 +154650,130 @@ if __name__ == "__main__":
     main()
 ````
 
+### `.github/workflows/capability-profile.yml`
+
+**作用：可复现的自动化验收配置。** on决定何时触发，jobs定义隔离机器，steps按顺序安装锁定依赖并运行上文相同脚本。矩阵是不同操作系统/模板的重复验证，不能重复计算为新增独立用例；上传的报告不应含凭据。
+
+**对应关系：** 与本机同一脚本；GitHub Actions仅作为开发验收服务，不是产品运行依赖。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: .github/workflows/capability-profile.yml sha256: efdffa5c20940cd2b223c55441cac19539cec98c86d345569d357bdf217be64e -->
+````yaml
+name: Fixed authored SQLite isolation profile
+on:
+  push:
+    branches: [feature/capability-nodes-transcript]
+    paths:
+      - 'workbench/capability_*.py'
+      - 'scripts/capability_guard.py'
+      - 'scripts/capability_fixture.py'
+      - 'scripts/capability_browser.cjs'
+      - 'tests/test_capability_browser_protocol.py'
+      - 'scripts/ci_capability_profile.py'
+      - 'scripts/ci_capability_browser_preflight.py'
+      - 'tests/test_capability_browser_preflight.py'
+      - 'scripts/daytona_capability_profile.py'
+      - 'tools/daytona/capability*'
+      - '.github/workflows/capability-profile.yml'
+  workflow_dispatch:
+concurrency:
+  group: fixed-sqlite-profile-${{ github.ref }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+env:
+  PLAYWRIGHT_BROWSERS_PATH: '0'
+  PRODUCT_VERIFY_PLAYWRIGHT: ${{ github.workspace }}/.native/browser/node_modules/playwright
+  PRODUCT_VERIFY_BROWSER_CHANNEL: 'chrome'
+jobs:
+  local-service:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked --all-extras
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check ordinary launcher behavior and strict receipt contracts
+        env:
+          RND_REQUIRE_NODE_TESTS: '1'
+        run: uv run pytest -q tests/test_capability_guard.py tests/test_capability_isolation.py tests/test_daytona_capability_profile.py tests/test_capability_browser_protocol.py tests/test_capability_browser_preflight.py
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - name: Require sandboxed browser readiness before building the local service
+        run: uv run python -m scripts.ci_capability_browser_preflight
+      - name: Create the local control plane with random local credentials
+        run: uv run python -m scripts.daytona_local prepare --directory .data/daytona-capability
+      - name: Build pinned release locally and lock immutable images
+        run: uv run python -m scripts.daytona_local images --directory .data/daytona-capability
+      - name: Build the offline snapshot in the local registry
+        run: uv run python -m scripts.daytona_capability_profile prepare
+      - name: Start local API, Runner, Dex, database, registry and storage
+        run: uv run python -m scripts.daytona_capability_profile up
+      - name: Authenticate through real local Dex and API
+        run: uv run python -m scripts.daytona_bootstrap auth --directory .data/daytona-capability
+      - name: Register the prebuilt snapshot without any hosted service
+        run: uv run python -m scripts.daytona_bootstrap snapshot --directory .data/daytona-capability
+      - name: Require positive fixed-application isolation profile and real HTTP browser database restart
+        run: uv run python -m scripts.ci_capability_profile
+      - name: Preserve bounded redacted diagnostics only
+        if: always()
+        run: |
+          python - <<'PY'
+          import json, pathlib, subprocess
+          root = pathlib.Path('.data/daytona-capability')
+          secrets = []
+          for name in ['credentials.json', 'api-key.json']:
+              path = root / name
+              if path.exists():
+                  secrets += [v for v in json.loads(path.read_text()).values() if isinstance(v,str) and len(v)>5]
+          outputs = []
+          compose = root / 'compose.capability.lock.yaml'
+          if compose.exists():
+              for args in [['ps','--all'],['logs','--no-color','--tail','80']]:
+                  run = subprocess.run(['docker','--host','unix:///var/run/docker.sock','compose','-p','rnd-daytona-capability','-f',str(compose),*args], capture_output=True, timeout=60)
+                  text=(run.stdout+run.stderr).decode('utf-8',errors='replace')[-80000:]
+                  for secret in sorted(secrets,key=len,reverse=True):
+                      text=text.replace(secret,'[REDACTED]')
+                  outputs.append(text)
+          reports = pathlib.Path('reports'); reports.mkdir(exist_ok=True)
+          (reports/'daytona-local-diagnostics.log').write_text('\n'.join(outputs),encoding='utf-8')
+          if (root/'images.lock.json').exists():
+              (reports/'daytona-images.lock.json').write_bytes((root/'images.lock.json').read_bytes())
+          profile = root / 'capability-profile.lock.json'
+          if profile.exists():
+              (reports/'capability-image-provenance.json').write_bytes(profile.read_bytes())
+          print('Diagnostics saved without local credentials or environment files.')
+          PY
+      - name: Stop this local test deployment without deleting persistent volumes
+        if: always()
+        run: |
+          if test -f .data/daytona-capability/compose.capability.lock.yaml; then
+            docker --host unix:///var/run/docker.sock compose -p rnd-daytona-capability -f .data/daytona-capability/compose.capability.lock.yaml down
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: fixed-sqlite-profile-${{ github.sha }}-${{ github.run_id }}
+          path: |
+            reports/daytona-local-diagnostics.log
+            reports/daytona-images.lock.json
+            reports/capability-profile.json
+            reports/capability-profile-detail.json
+            reports/capability-image-provenance.json
+            reports/capability-browser-preflight.json
+````
+
 ### `.github/workflows/customer-runtime.yml`
 
 **作用：可复现的自动化验收配置。** on决定何时触发，jobs定义隔离机器，steps按顺序安装锁定依赖并运行上文相同脚本。矩阵是不同操作系统/模板的重复验证，不能重复计算为新增独立用例；上传的报告不应含凭据。
@@ -151228,6 +157825,158 @@ RUN uv python install 3.14.7 && uv sync --locked --no-dev --python 3.14.7 \
 USER daytona
 RUN /opt/rnd/browser/node_modules/.bin/playwright install chromium
 WORKDIR /home/daytona
+````
+
+### `tools/daytona/capability-runner.Dockerfile`
+
+**作用：本机Daytona的预热镜像。** Dockerfile逐层准备Python运行时和产品锁定依赖；只在显式构建时下载软件。网络封锁后的沙箱使用已有缓存离线安装，创建的是本机镜像而非云端工作区。
+
+**对应关系：** scripts.daytona_local snapshot-image → 本机Registry → scripts.daytona_bootstrap snapshot。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/daytona/capability-runner.Dockerfile sha256: 6914b11fecb2d7ea54b5141f5900c5ebf7e2dedeb8fd13a1da1d8c482cea0829 -->
+````text
+# Owned fixed-application profile, based on Daytona's AGPL-3.0 source at the
+# exact revision checked by scripts.daytona_capability_profile. Build graph:
+# daemon + its pinned terminal assets, real computer-use plugin, then Runner.
+# All FROM arguments are official, digest-locked images supplied by the helper.
+ARG GO_IMAGE
+ARG BUILD_IMAGE
+ARG DOCKER_IMAGE
+ARG RUNTIME_IMAGE
+FROM ${GO_IMAGE} AS go-toolchain
+FROM ${BUILD_IMAGE} AS builder
+COPY --from=go-toolchain /usr/local/go/ /usr/local/go/
+ENV PATH="/usr/local/go/bin:${PATH}" GOTOOLCHAIN=local GOTELEMETRY=off \
+    GOOS=linux GOARCH=amd64 GOMAXPROCS=2 GOFLAGS="-mod=readonly -buildvcs=false -trimpath -p=2"
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates gcc libc6-dev libx11-dev libxtst-dev libpng-dev pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+WORKDIR /src
+COPY . .
+# Keep upstream's complete workspace and every go.mod/go.sum unchanged. The
+# upstream tree omits go.work.sum; the helper seeds it from committed module sums.
+# Go may add checksums for the pinned workspace graph, captured with the source.
+RUN mkdir -p apps/runner/pkg/daemon/static /out \
+    && sha256sum go.work $(find apps libs -name go.mod -o -name go.sum | sort) > /tmp/go-inputs.sha256 \
+    && CGO_ENABLED=0 go build -ldflags='-X github.com/daytonaio/daemon/internal.Version=0.190.0' \
+        -o apps/runner/pkg/daemon/static/daemon-amd64 ./apps/daemon/cmd/daemon \
+    && CGO_ENABLED=1 go build -o apps/runner/pkg/daemon/static/daytona-computer-use ./libs/computer-use \
+    && CGO_ENABLED=0 go build -ldflags='-X github.com/daytonaio/runner/internal.Version=0.190.0' \
+        -o /out/daytona-runner ./apps/runner/cmd/runner \
+    && sha256sum -c /tmp/go-inputs.sha256 \
+    && go version -m /out/daytona-runner > /out/runner-build-info.txt \
+    && sha256sum /out/daytona-runner apps/runner/pkg/daemon/static/daemon-amd64 \
+        apps/runner/pkg/daemon/static/daytona-computer-use > /out/binaries.sha256 \
+    && tar --exclude='./apps/runner/pkg/daemon/static/daemon-amd64' \
+        --exclude='./apps/runner/pkg/daemon/static/daytona-computer-use' \
+        -cf /out/source.tar .
+FROM ${DOCKER_IMAGE} AS docker-tools
+FROM ${RUNTIME_IMAGE} AS runner
+# Retain the ordinary Runner's glibc-compatible runtime and local DinD startup.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates curl rsync iptables iproute2 kmod procps openssl xz-utils \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=docker-tools /usr/local/bin/ /usr/local/bin/
+WORKDIR /usr/local/bin
+COPY --from=builder --chmod=0755 /out/daytona-runner /usr/local/bin/daytona-runner
+COPY --chmod=0755 capability-build/runner-entry.sh /usr/local/bin/rnd-runner-entry.sh
+COPY --from=builder /out/source.tar /out/runner-build-info.txt /out/binaries.sha256 /usr/share/daytona-profile/
+COPY LICENSE capability-build/NOTICE /usr/share/daytona-profile/
+RUN set +e; API_PORT=invalid /usr/local/bin/daytona-runner >/tmp/runner-smoke.log 2>&1; \
+    result=$?; set -e; cat /tmp/runner-smoke.log; \
+    test "$result" = 2 && grep -q 'Failed to get config' /tmp/runner-smoke.log \
+    && rm /tmp/runner-smoke.log
+RUN mkdir -p /etc/docker && \
+    printf '%s\n' '{"insecure-registries": ["registry:6000"]}' > /etc/docker/daemon.json
+ENV DO_NOT_TRACK=1 OTEL_SDK_DISABLED=true DOCKER_HOST=unix:///var/run/docker.sock \
+    USE_SNAPSHOT_ENTRYPOINT=false
+VOLUME ["/var/lib/docker"]
+HEALTHCHECK --interval=5s --timeout=3s --start-period=20s --retries=12 \
+    CMD docker info >/dev/null && curl -f http://localhost:3003/
+ENTRYPOINT ["/usr/local/bin/dind", "/usr/local/bin/rnd-runner-entry.sh"]
+````
+
+### `tools/daytona/capability-runner.patch`
+
+**作用：本机Daytona的预热镜像。** Dockerfile逐层准备Python运行时和产品锁定依赖；只在显式构建时下载软件。网络封锁后的沙箱使用已有缓存离线安装，创建的是本机镜像而非云端工作区。
+
+**对应关系：** scripts.daytona_local snapshot-image → 本机Registry → scripts.daytona_bootstrap snapshot。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/daytona/capability-runner.patch sha256: 9f31b01dbcf2ef37fa91800021ace37a5e22e5007cc547de98beb7c04ff8500e -->
+````text
+--- a/apps/runner/pkg/docker/container_configs.go
++++ b/apps/runner/pkg/docker/container_configs.go
+@@ -198,11 +198,9 @@
+ 	}
+ 
+ 	hostConfig := &container.HostConfig{
+-		// Privileged mode exposes every /dev/nvidia* node and bypasses the
+-		// CDI cgroup rules, so GPU sandboxes have to opt out to keep their
+-		// allocated card isolated. Non-GPU sandboxes still need privileged
+-		// for their current workloads.
+-		Privileged: gpuIndex == nil,
++		// Owned fixed-application profile: all application containers use
++		// Docker's unprivileged defaults, including its default seccomp filter.
++		Privileged: false,
+ 		Binds:      binds,
+ 	}
+ 
+````
+
+### `tools/daytona/capability-snapshot.Dockerfile`
+
+**作用：本机Daytona的预热镜像。** Dockerfile逐层准备Python运行时和产品锁定依赖；只在显式构建时下载软件。网络封锁后的沙箱使用已有缓存离线安装，创建的是本机镜像而非云端工作区。
+
+**对应关系：** scripts.daytona_local snapshot-image → 本机Registry → scripts.daytona_bootstrap snapshot。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/daytona/capability-snapshot.Dockerfile sha256: 97c9f52c3e3a395f9d2a5a29924ac7f8c4c4787e782693e10029fc726507971e -->
+````text
+# Build dependencies are downloaded here, not while executing generated code.
+ARG UV_IMAGE
+ARG NODE_IMAGE
+ARG SANDBOX_IMAGE
+FROM ${UV_IMAGE} AS uv
+FROM ${NODE_IMAGE} AS node
+FROM ${SANDBOX_IMAGE}
+USER root
+COPY --from=uv /uv /uvx /usr/local/bin/
+COPY --from=node /usr/local/bin/node /usr/local/bin/node
+COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules
+RUN ln -sf /usr/local/lib/node_modules/npm/bin/npm-cli.js /usr/local/bin/npm
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/rnd/browsers \
+    PRODUCT_VERIFY_PLAYWRIGHT=/opt/rnd/browser/node_modules/playwright
+RUN npm install --prefix /opt/rnd/browser --no-audit --no-fund --package-lock=false playwright@1.56.1 \
+    && /opt/rnd/browser/node_modules/.bin/playwright install-deps chromium
+ENV UV_CACHE_DIR=/opt/rnd/uv-cache \
+    UV_PYTHON_INSTALL_DIR=/opt/rnd/python \
+    UV_PYTHON_PREFERENCE=only-managed \
+    UV_LINK_MODE=copy \
+    UV_NO_PROGRESS=1 \
+    PYTHONUTF8=1 \
+    DO_NOT_TRACK=1
+WORKDIR /opt/rnd/prewarm
+COPY pyproject.toml uv.lock ./
+RUN uv python install 3.14.7 && uv sync --locked --no-dev --python 3.14.7 \
+    && rm -rf .venv && chown -R daytona:daytona /opt/rnd
+USER daytona
+RUN /opt/rnd/browser/node_modules/.bin/playwright install chromium
+WORKDIR /home/daytona
+
+ENTRYPOINT []
+CMD []
+# The normal Daytona daemon uses this declared image identity. The application
+# guard independently drops to UID/GID 20000 with no capabilities or new privileges.
+USER 0:0
+RUN mkdir -p /opt/rnd/control && chown 0:0 /opt/rnd /opt/rnd/control \
+    && chmod 0755 /opt/rnd /opt/rnd/control
+WORKDIR /opt/rnd/control
+USER 0:0
 ````
 
 ### `tools/daytona/matrix.Dockerfile`
@@ -159451,7 +166200,7 @@ Python/SQLite用基础快照；Python/PostgreSQL、FastapiAdmin/PostgreSQL、Yud
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/acceptance-checklist.md sha256: 705a393f79b60d89dbbb8620472e021fadd1d0928e05a6e233b59b8df01e5c7c -->
+<!-- source-file: docs/acceptance-checklist.md sha256: 2e1b70784f2c5ce48d1d16c97005fd112bdb6c9d0fc1662fefd1b92f9fc48516 -->
 ````markdown
 # 功能与验收对照清单
 
@@ -159497,6 +166246,12 @@ Python/SQLite用基础快照；Python/PostgreSQL、FastapiAdmin/PostgreSQL、Yud
 正式CI中的聊天模型通常是明确的固定响应夹具，它验证流程如何处理计划、失败反馈与修复。Aider、Plop、Tree-sitter、Continue、数据库、编译器、浏览器、Daytona和本机向量权重是否真实执行，要看各自脚本及报告，不能由“模型是夹具”推断所有工具都是模拟，也不能反过来声称真实服务商已经验收。
 
 提交验收结论时记录完整commit SHA、工作流/作业链接和对应报告；未结束的矩阵保留pending，失败写出失败层及日志。只有对应要求的真实检查在该提交通过，才把该项标为通过。本文不提前写入最终CI状态，避免后续源码改变后留下过期的“全绿”承诺。
+
+固定自有SQLite隔离profile在Ubuntu 24.04上显式选择runner预装的系统Chrome（`PRODUCT_VERIFY_BROWSER_CHANNEL=chrome`），保留`chromiumSandbox: true`。它不改AppArmor、userns、seccomp或系统策略，也不在失败后关闭沙箱重试。默认未指定channel时仍使用Playwright自带Chromium；除`chrome`外的自定义channel、路径和启动参数不被该验收入口接受。Playwright模块继续固定1.56.1，系统Chrome版本记录在报告中。
+
+先执行`uv run python -m scripts.ci_capability_browser_preflight`，用与产品验收相同的可信driver操作合成回环页面；`reports/capability-browser-preflight.json`分别保留自带浏览器的观察结果、所选浏览器的必须通过结果及只读AppArmor/userns开关。某个开关开启加上启动失败只能支持原因推断，不能冒充内核拒绝审计。预检通过只证明控制侧浏览器就绪，仍须运行`ci_capability_profile`，取得当前源码/计划/场景绑定的HTTP、真实浏览器、物理数据库写入、重启与清理证据。失败`launch/sandbox-unavailable`保留为浏览器失败，不被描述为已经发现源码摘要漂移。
+
+该固定夹具的私有记录与团队共享场景不代表具体产品已完成。完整对话历史、计划后的feature节点、学生自助注册登录和自己的记录、教师/专家/管理员角色，以及上传、预览、导出、盲审分配，必须在用户所选栈逐项实现并验收；Vue3/Ant Design需求不能由通用夹具页面替代，模板缺失也不能通过丢弃需求来取得通过。
 
 ## 所选模板的页面风格
 

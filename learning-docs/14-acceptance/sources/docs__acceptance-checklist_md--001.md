@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/acceptance-checklist.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L57。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/acceptance-checklist.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L63。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10062`。本段原文以LF换行结束。
+本段原始字节数：`11671`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/acceptance-checklist.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "705a393f79b60d89dbbb8620472e021fadd1d0928e05a6e233b59b8df01e5c7c"} -->
+<!-- learning-source: {"path": "docs/acceptance-checklist.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2e1b70784f2c5ce48d1d16c97005fd112bdb6c9d0fc1662fefd1b92f9fc48516"} -->
 ````markdown
 <!-- docs/acceptance-checklist.md -->
 # 功能与验收对照清单
@@ -61,6 +61,12 @@
 正式CI中的聊天模型通常是明确的固定响应夹具，它验证流程如何处理计划、失败反馈与修复。Aider、Plop、Tree-sitter、Continue、数据库、编译器、浏览器、Daytona和本机向量权重是否真实执行，要看各自脚本及报告，不能由“模型是夹具”推断所有工具都是模拟，也不能反过来声称真实服务商已经验收。
 
 提交验收结论时记录完整commit SHA、工作流/作业链接和对应报告；未结束的矩阵保留pending，失败写出失败层及日志。只有对应要求的真实检查在该提交通过，才把该项标为通过。本文不提前写入最终CI状态，避免后续源码改变后留下过期的“全绿”承诺。
+
+固定自有SQLite隔离profile在Ubuntu 24.04上显式选择runner预装的系统Chrome（`PRODUCT_VERIFY_BROWSER_CHANNEL=chrome`），保留`chromiumSandbox: true`。它不改AppArmor、userns、seccomp或系统策略，也不在失败后关闭沙箱重试。默认未指定channel时仍使用Playwright自带Chromium；除`chrome`外的自定义channel、路径和启动参数不被该验收入口接受。Playwright模块继续固定1.56.1，系统Chrome版本记录在报告中。
+
+先执行`uv run python -m scripts.ci_capability_browser_preflight`，用与产品验收相同的可信driver操作合成回环页面；`reports/capability-browser-preflight.json`分别保留自带浏览器的观察结果、所选浏览器的必须通过结果及只读AppArmor/userns开关。某个开关开启加上启动失败只能支持原因推断，不能冒充内核拒绝审计。预检通过只证明控制侧浏览器就绪，仍须运行`ci_capability_profile`，取得当前源码/计划/场景绑定的HTTP、真实浏览器、物理数据库写入、重启与清理证据。失败`launch/sandbox-unavailable`保留为浏览器失败，不被描述为已经发现源码摘要漂移。
+
+该固定夹具的私有记录与团队共享场景不代表具体产品已完成。完整对话历史、计划后的feature节点、学生自助注册登录和自己的记录、教师/专家/管理员角色，以及上传、预览、导出、盲审分配，必须在用户所选栈逐项实现并验收；Vue3/Ant Design需求不能由通用夹具页面替代，模板缺失也不能通过丢弃需求来取得通过。
 
 ## 所选模板的页面风格
 

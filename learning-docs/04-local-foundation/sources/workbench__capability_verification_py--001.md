@@ -1,3 +1,43 @@
+# workbench/capability_verification.py · 1/1
+
+[阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
+
+
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
+
+**先有这些模块：** `workbench.capability_contracts`、`workbench.domain`、`workbench.filesystem`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+<details>
+<summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
+
+- `CheckFailure`（L26–L27）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BrowserFailure`（L30–L35）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `BrowserFailure.__init__`（L33–L35）：接收`diagnostic`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `browser_report`（L80–L138）：接收`raw`、`request_id`、`verifier_sha256`。 源码说明：Return a current, exact-protocol report or a static rejection category.。 控制顺序：L82按`len(raw) > 100000`分支；L88按`not isinstance(value, dict) or type(value.get("protocol")) is not int or value["proto…`分支；L94按`value.get("request_id") != request_id or value.get("verifier_sha256") != verifier_sha…`分支；L97按`value.get("passed") is True`分支；L98按`set(value) != fields \| {"checks"} or not isinstance(value["checks"], list)`分支；L102按`value.get("passed") is not False or set(value) != fields \| {"diagnostic"} or not isi…`分支。 调用`len`、`json.loads`、`isinstance`、`type`、`value.get`、`set`、`detail.get`、`any`。 返回路径：L83的`None, "report-too-large"`；L87的`None, "invalid-json"`；L93的`None, "invalid-schema"`。
+- `preview_url`（L141–L154）：接收`value`、`sandbox_id`、`port`。 控制顺序：L143按`parsed.scheme not in {"http", "https"} or parsed.hostname != f"{port}-{sandbox_id}.pr…`分支；L153抛异常，停止当前正常路径。 调用`urlsplit`、`any`、`ord`、`CheckFailure`、`value.rstrip`。 返回路径：L154的`value.rstrip("/")`。
+- `interpolate`（L157–L176）：接收`value`、`variables`、`path`。 控制顺序：L158按`isinstance(value, list)`分支；L160按`isinstance(value, dict)`分支；L162按`not isinstance(value, str)`分支；L165按`full and not path`分支；L166按`full[1] not in variables`分支；L167抛异常，停止当前正常路径。 调用`isinstance`、`interpolate`、`value.items`、`re.fullmatch`、`CheckFailure`、`re.sub`。 返回路径：L159的`[interpolate(v, variables) for v in value]`；L161的`{k: interpolate(v, variables) for k, v in value.items()}`；L163的`value`。
+- `interpolate.replacement`（L170–L174）：接收`match`。 控制顺序：L171按`match[1] not in variables`分支；L172抛异常，停止当前正常路径。 调用`CheckFailure`、`str`、`quote`。 返回路径：L174的`quote(text, safe="") if path else text`。
+- `values_at`（L179–L195）：接收`value`、`path`。 控制顺序：L180按`path == "$"`分支；L182按`not path.startswith("$.") or len(path) > 300`分支；L183抛异常，停止当前正常路径；L185遍历`path[2:].split(".")`；L187遍历`values`；L188按`part == "*" and isinstance(item, (dict, list))`分支；L190按`isinstance(item, dict) and part in item`分支；L192按`isinstance(item, list) and part.isdigit() and int(part) < len(item)`分支。 调用`path.startswith`、`len`、`CheckFailure`、`path[2:].split`、`isinstance`、`found.extend`、`item.values`、`found.append`、`part.isdigit`等。 返回路径：L181的`[value]`；L195的`values`。
+- `json_equal`（L198–L209）：接收`left`、`right`。 控制顺序：L199按`type(left) is not type(right)`分支；L201按`isinstance(left, dict)`分支；L205按`isinstance(left, list)`分支。 调用`type`、`isinstance`、`left.keys`、`right.keys`、`all`、`json_equal`、`left.items`、`len`、`zip`。 返回路径：L200的`False`；L202的`left.keys() == right.keys() and all( json_equal(value, right[key]) for key, value in left.…`；L206的`len(left) == len(right) and all( json_equal(a, b) for a, b in zip(left, right, strict=True…`。
+- `run_steps`（L212–L266）：接收`client`、`steps`、`variables`。 控制顺序：L214遍历`enumerate(steps)`；L228遍历`response.iter_bytes()`；L230按`len(raw) > 2_000_000`分支；L231抛异常，停止当前正常路径；L234抛异常，停止当前正常路径；L235按`status != step.status`分支；L236抛异常，停止当前正常路径；L238按`step.equals or step.absent or step.captures`分支。后续分支沿下方源码相同行号继续阅读。 调用`enumerate`、`interpolate`、`HttpStep.loopback_path`、`HttpStep.bounded_headers`、`time.monotonic`、`client.stream`、`bytearray`、`response.iter_bytes`、`raw.extend`等。 返回路径：L266的`receipts`。
+- `run_scenarios`（L269–L295）：接收`client`、`scenarios`、`saved`、`after_restart`。 控制顺序：L272遍历`scenarios`；L276按`not steps`分支；L282抛异常，停止当前正常路径。 调用`client.cookies.clear`、`saved.setdefault`、`uuid.uuid4`、`run_steps`、`checks.append`、`digest`、`scenario.model_dump`。 返回路径：L295的`checks, saved`。
+- `run_browser`（L298–L405）：接收`url`、`token`、`scenarios`、`saved`、`timeout`。 控制顺序：L300按`not selected`分支；L303按`not node`分支；L304抛异常，停止当前正常路径；L310抛异常，停止当前正常路径；L347抛异常，停止当前正常路径；L358按`prior and prior["passed"] is False`分支；L359抛异常，停止当前正常路径；L362抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`sha`、`interpolate`、`step.model_dump`、`tempfile.TemporaryFile`、`subprocess.Popen`、`str`等。 返回路径：L301的`[]`；L405的`value["checks"]`。
+- `require_evidence`（L408–L474）：接收`receipt`、`source_digest`、`plan_digest`、`scenarios`、`selection`、`database_tables`、`aggregate`。 控制顺序：L421按`receipt.get("passed") is not True or receipt.get("source_digest") != source_digest or…`分支；L434抛异常，停止当前正常路径；L435按`aggregate`分支；L438按`not required or restarted != required or receipt.get("restarted") is not True`分支；L439抛异常，停止当前正常路径；L443按`stack.get("selection") != selection or not stack.get("source_checks") or stack.get("l…`分支；L454抛异常，停止当前正常路径；L455按`aggregate`分支。后续分支沿下方源码相同行号继续阅读。 调用`require_container_evidence`、`receipt.get`、`require_isolation_evidence`、`digest`、`s.model_dump`、`c.get`、`len`、`any`、`s.get`等。 返回路径：L474的`receipt`。
+
+</details>
+
+**创建路径：** `workbench/capability_verification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L474。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+
+本段原始字节数：`18118`。本段原文以LF换行结束。
+
+<!-- learning-source: {"path": "workbench/capability_verification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "791adcd6a6ba87c62c3adec0c487995e9b20e860b86a5d9e3ebce54387121bf6"} -->
+````python
+# workbench/capability_verification.py
 """Independent HTTP checks run outside the generated application's sandbox.
 
 Only request/expectation data comes from the reviewed plan. Generated test scripts
@@ -472,3 +512,4 @@ def require_evidence(
     ):
         raise CheckFailure("缺少准确计划的真实浏览器验收证据")
     return receipt
+````

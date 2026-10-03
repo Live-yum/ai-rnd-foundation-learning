@@ -1,3 +1,22 @@
+# .github/workflows/capability-profile.yml · 1/1
+
+[阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
+
+
+
+**作用：可复现的自动化验收配置。** on决定何时触发，jobs定义隔离机器，steps按顺序安装锁定依赖并运行上文相同脚本。矩阵是不同操作系统/模板的重复验证，不能重复计算为新增独立用例；上传的报告不应含凭据。
+
+**对应关系：** 与本机同一脚本；GitHub Actions仅作为开发验收服务，不是产品运行依赖。
+
+**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
+
+**创建路径：** `.github/workflows/capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L112。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+
+本段原始字节数：`5781`。本段原文以LF换行结束。
+
+<!-- learning-source: {"path": ".github/workflows/capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "efdffa5c20940cd2b223c55441cac19539cec98c86d345569d357bdf217be64e"} -->
+````yaml
+# .github/workflows/capability-profile.yml
 name: Fixed authored SQLite isolation profile
 on:
   push:
@@ -110,3 +129,4 @@ jobs:
             reports/capability-profile-detail.json
             reports/capability-image-provenance.json
             reports/capability-browser-preflight.json
+````

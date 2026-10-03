@@ -1,3 +1,81 @@
+# tests/test_capability_browser_protocol.py · 1/1
+
+[阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
+
+
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
+
+**先有这些模块：** `workbench`、`workbench.capability_contracts`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+<details>
+<summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
+
+- `assert_redacted`（L97–L100）：接收`value`。 控制顺序：L99遍历`(TOKEN, URL, SELECTOR, "fixture-secret-selector", RAW_ERROR)`；L100断言`secret not in text`。 调用`isinstance`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `diagnostic`（L103–L113）：接收`**changes`。 返回路径：L104的`{ "phase": "assertion", "scenario_index": 0, "step_index": 1, "action": "visible", "naviga…`。
+- `report`（L116–L132）：接收`payload`、`**changes`。 调用`hashlib.sha256(SCRIPT.read_bytes()).hexdigest`、`hashlib.sha256`、`SCRIPT.read_bytes`。 返回路径：L117的`{ "protocol": 1, "request_id": payload["request_id"], "verifier_sha256": hashlib.sha256(SC…`。
+- `failed_report`（L135–L138）：接收`payload`、`**changes`。 调用`report`、`diagnostic`。 返回路径：L138的`value`。
+- `cjs_runner`（L142–L221）：接收`tmp_path`。 控制顺序：L144按`not node`分支；L145按`os.environ.get("RND_REQUIRE_NODE_TESTS") == "1"`分支。 调用`shutil.which`、`os.environ.get`、`pytest.fail`、`pytest.skip`、`module.mkdir`、`(module / "package.json").write_text`、`(module / "index.cjs").write_text`。 返回路径：L221的`run`。
+- `cjs_runner.run`（L154–L219）：接收`steps`、`failures`、`page_error`、`raw`、`version`、`hang_close`、`scenarios`、`channel`。 控制顺序：L189按`scenarios is not None`分支；L207按`not hang_close`分支；L208抛异常，停止当前正常路径；L212断言`not hang_close`；L213断言`result.stderr == b""`；L216断言`value["protocol"] == 1`；L217断言`value["verifier_sha256"] == hashlib.sha256(SCRIPT.read_bytes()).hexdigest()`。 调用`(module / "package.json").write_text`、`json.dumps`、`audit.write_text`、`subprocess.run`、`str`、`json.dumps(payload).encode`、`Path`、`SimpleNamespace`、`assert_redacted`等。 返回路径：L219的`result.returncode, value, events`。
+- `test_actual_cjs_protocol_success_keeps_sandbox_and_original_action_timeouts`（L225–L265）：接收`cjs_runner`。 控制顺序：L233断言`status == 0`；L234断言`value == report( {"request_id": REQUEST_ID}, checks=[ { "id": "fixture-only", "passed…`；L247断言`launch["headless"] is True`；L248断言`launch["chromiumSandbox"] is True`；L249断言`"channel" not in launch`；L250断言`"--no-sandbox" not in launch["args"]`；L251断言`"--force-webrtc-ip-handling-policy=disable_non_proxied_udp" in launch["args"]`；L252断言`next(event for event in events if event["op"] == "context") == { "op": "context", "se…`。后续分支沿下方源码相同行号继续阅读。 调用`cjs_runner`、`report`、`len`、`next`、`all`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_preserves_primary_failure_when_both_closes_fail`（L284–L309）：接收`cjs_runner`、`operation`、`phase`、`action`、`index`。 控制顺序：L299断言`status == 1`；L300断言`value == failed_report( {"request_id": REQUEST_ID}, phase=phase, action=action, step_…`；L307断言`events[-1]["op"] == "browser-close"`；L308按`operation != "context"`分支；L309断言`events[-2]["op"] == "context-close"`。 调用`cjs_runner`、`failed_report`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_launch_failure_returns_only_classification`（L325–L340）：接收`cjs_runner`、`message`、`code`。 控制顺序：L329断言`status == 1`；L330断言`value == failed_report( {"request_id": REQUEST_ID}, phase="launch", scenario_index=No…`；L340断言`[event["op"] for event in events] == ["launch"]`。 调用`cjs_runner`、`failed_report`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_system_chrome_channel_keeps_sandbox_and_does_not_retry`（L344–L357）：接收`cjs_runner`。 控制顺序：L346断言`status == 0`；L348断言`launch["channel"] == "chrome"`；L349断言`launch["chromiumSandbox"] is True`；L350断言`"executablePath" not in launch`；L351断言`"--no-sandbox" not in launch["args"]`；L355断言`status == 1`；L356断言`value["diagnostic"]["error_code"] == "sandbox-unavailable"`；L357断言`[event["op"] for event in events] == ["launch"]`。 调用`cjs_runner`、`next`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unknown_browser_channel_fails_before_launch_without_leaking_input`（L362–L367）：接收`cjs_runner`、`channel`。 控制顺序：L364断言`status == 1`；L365断言`value["diagnostic"]["phase"] == "tool"`；L366断言`value["diagnostic"]["error_code"] == "browser-channel-rejected"`；L367断言`events == []`。 调用`cjs_runner`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_navigation_failure_does_not_leak_url`（L379–L391）：接收`cjs_runner`、`message`、`code`。 控制顺序：L383断言`status == 1`；L384断言`value["diagnostic"] == diagnostic( phase="navigation", step_index=0, action="open", n…`。 调用`cjs_runner`、`diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_failed_second_navigation_cannot_reuse_prior_status`（L395–L411）：接收`cjs_runner`。 控制顺序：L402断言`status == 1`；L403断言`value["diagnostic"] == diagnostic( phase="navigation", step_index=1, action="open", n…`；L411断言`sum(event["op"] == "navigation" for event in events) == 2`。 调用`cjs_runner`、`diagnostic`、`sum`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_successful_actions_do_not_hide_cleanup_failure`（L416–L428）：接收`cjs_runner`、`first_close`。 控制顺序：L418按`first_close == "context-close"`分支；L421断言`status == 1`；L422断言`value == failed_report( {"request_id": REQUEST_ID}, phase=first_close, error_code="op…`；L428断言`events[-1]["op"] == "browser-close"`。 调用`cjs_runner`、`failed_report`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_application_error_survives_cleanup_and_unknown_error_name`（L432–L442）：接收`cjs_runner`。 控制顺序：L436断言`status == 1`；L437断言`value["diagnostic"] == diagnostic( phase="application", error_code="application-error…`；L441断言`status == 1`；L442断言`value["diagnostic"]["error_type"] == "Other"`。 调用`cjs_runner`、`diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_rejects_cross_origin_navigation_before_goto`（L446–L459）：接收`cjs_runner`。 控制顺序：L450断言`status == 1`；L451断言`value["diagnostic"] == diagnostic( phase="navigation", action="open", step_index=0, n…`；L459断言`"navigation" not in [event["op"] for event in events]`。 调用`cjs_runner`、`diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_rejects_wrong_playwright_version_before_launch`（L463–L475）：接收`cjs_runner`。 控制顺序：L465断言`status == 1`；L466断言`value["diagnostic"] == diagnostic( phase="tool", scenario_index=None, step_index=None…`；L475断言`events == []`。 调用`cjs_runner`、`diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_emits_first_failure_once_before_cleanup_can_hang`（L480–L486）：接收`cjs_runner`、`hang_close`。 控制顺序：L484断言`status is None`；L485断言`value == failed_report({"request_id": REQUEST_ID})`；L486断言`events[-1]["op"] == hang_close`。 调用`cjs_runner`、`failed_report`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_identifies_later_scenario_without_returning_partial_success`（L490–L506）：接收`cjs_runner`。 控制顺序：L498断言`status == 1`；L499断言`value == failed_report( {"request_id": REQUEST_ID}, phase="navigation", scenario_inde…`。 调用`cjs_runner`、`failed_report`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_cjs_rejects_damaged_input_before_loading_browser`（L518–L531）：接收`cjs_runner`、`raw`、`code`、`error_type`。 控制顺序：L520断言`status == 1`；L521断言`value == failed_report( {"request_id": None}, phase="contract", scenario_index=None, …`；L531断言`events == []`。 调用`cjs_runner`、`failed_report`、`pytest.mark.parametrize`、`pytest.param`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `browser_process`（L535–L572）：接收`monkeypatch`。 源码说明：Deterministic subprocess boundary fixture; does not launch a browser.。 调用`monkeypatch.setattr`。 返回路径：L572的`install`。
+- `browser_process.install`（L540–L570）：接收`response`、`returncode`、`timeout`、`cleanup_error`。 调用`monkeypatch.setattr`。 返回路径：L570的`instances`。
+- `browser_process.install.Process`（L541–L561）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `browser_process.install.Process.__init__`（L542–L547）：接收`command`、`**options`。 调用`instances.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `browser_process.install.Process.communicate`（L549–L559）：接收`raw`、`timeout`。 控制顺序：L553按`value is None`分支；L558按`self.should_timeout`分支；L559抛异常，停止当前正常路径。 调用`json.loads`、`callable`、`response`、`report`、`self.options["stdout"].write`、`isinstance`、`json.dumps(value).encode`、`json.dumps`、`subprocess.TimeoutExpired`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `browser_process.install.stop`（L563–L566）：接收`process`。 控制顺序：L565按`cleanup_error`分支；L566抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_fixture_browser`（L575–L585）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`BrowserStep`、`verifier.run_browser`。 返回路径：L583的`verifier.run_browser( URL, TOKEN, [scenario], {"fixture-only": {"private_value": TOKEN}}, …`。
+- `capture_failure`（L588–L593）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`run_fixture_browser`、`assert_redacted`、`str`。 返回路径：L593的`raised.value.diagnostic`。
+- `test_python_success_binds_request_sha_and_keeps_secrets_off_command_line`（L596–L612）：接收`browser_process`。 控制顺序：L600断言`checks == report(first.payload)["checks"]`；L601断言`first.command == ["/fixture/node", str(SCRIPT)]`；L602断言`re.fullmatch(r"[a-f0-9]{32}", first.payload["request_id"])`；L603断言`first.payload["token"] == TOKEN`；L604断言`first.payload["scenarios"][0]["steps"][1]["value"] == TOKEN`；L605断言`first.timeout == 23`；L606断言`first.options["stdin"] == subprocess.PIPE`；L607断言`first.options["stderr"] == subprocess.STDOUT`。后续分支沿下方源码相同行号继续阅读。 调用`browser_process`、`run_fixture_browser`、`report`、`str`、`re.fullmatch`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_passes_only_selected_channel_without_inheriting_browser_arguments`（L615–L628）：接收`browser_process`、`monkeypatch`。 控制顺序：L625断言`env["PRODUCT_VERIFY_BROWSER_CHANNEL"] == "chrome"`；L626断言`"PRODUCT_VERIFY_BROWSER_ARGS" not in env`；L627断言`"PRODUCT_VERIFY_BROWSER_EXECUTABLE" not in env`；L628断言`"CLOUD_PRIVATE_TOKEN" not in env`。 调用`monkeypatch.setenv`、`browser_process`、`run_fixture_browser`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_valid_failure_diagnostic_is_retained`（L632–L634）：接收`browser_process`、`returncode`。 控制顺序：L634断言`capture_failure() == {**diagnostic(), "exit_code": returncode}`。 调用`browser_process`、`capture_failure`、`diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_timeout_preserves_primary_error_even_when_cleanup_fails`（L638–L648）：接收`browser_process`、`cleanup_error`。 控制顺序：L642断言`capture_failure() == { "phase": "python-timeout", "error_code": "timeout", "cleanup":…`；L647断言`instances[0].stopped is True`；L648断言`instances[0].options["stdout"].closed`。 调用`browser_process`、`SECRET_ERROR.encode`、`capture_failure`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_timeout_keeps_prior_bound_failure_when_browser_cleanup_hangs`（L652–L662）：接收`browser_process`、`cleanup_error`。 控制顺序：L656断言`capture_failure() == { **diagnostic(), "termination": "python-timeout", "cleanup": "f…`；L661断言`instances[0].stopped is True`；L662断言`instances[0].options["stdout"].closed`。 调用`browser_process`、`capture_failure`、`diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_timeout_does_not_adopt_unbound_or_malformed_prior_report`（L668–L688）：接收`browser_process`、`prior_report`。 控制顺序：L684断言`capture_failure() == { "phase": "python-timeout", "error_code": "timeout", "cleanup":…`。 调用`browser_process`、`capture_failure`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_timeout_does_not_adopt_unbound_or_malformed_prior_report.response`（L671–L681）：接收`payload`。 控制顺序：L672按`prior_report == "success"`分支；L675按`prior_report == "wrong-request"`分支；L677按`prior_report == "wrong-verifier"`分支。 调用`report`、`failed_report`。 返回路径：L673的`report(payload)`；L681的`value`。
+- `test_python_rejects_damaged_oversized_or_unbound_reports`（L709–L718）：接收`browser_process`、`response`、`category`、`returncode`。 控制顺序：L713断言`capture_failure() == { "phase": "python-exit" if returncode else "python-report", "er…`。 调用`browser_process`、`capture_failure`、`pytest.mark.parametrize`、`SECRET_ERROR.encode`、`pytest.param`、`report`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_deep_json_report_is_rejected_without_recursion_escape`（L722–L731）：接收`browser_process`、`returncode`。 控制顺序：L726断言`value.pop("report_error") in {"invalid-json", "invalid-schema"}`；L727断言`value == { "phase": "python-exit" if returncode else "python-report", "error_code": "…`。 调用`browser_process`、`capture_failure`、`value.pop`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_rejects_success_with_nonzero_or_invalid_exit`（L735–L741）：接收`browser_process`、`returncode`。 控制顺序：L737断言`capture_failure() == { "phase": "python-exit", "error_code": "success-with-invalid-ex…`。 调用`browser_process`、`capture_failure`、`type`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_success_checks_must_match_current_plan_and_exact_schema`（L759–L768）：接收`browser_process`、`field`、`value`。 控制顺序：L768断言`capture_failure() == {"phase": "python-report", "error_code": "invalid-checks"}`。 调用`browser_process`、`capture_failure`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_success_checks_must_match_current_plan_and_exact_schema.response`（L762–L765）：接收`payload`。 调用`report`。 返回路径：L765的`result`。
+- `test_python_success_checks_reject_missing_duplicate_or_damaged_entries`（L772–L786）：接收`browser_process`、`kind`。 控制顺序：L786断言`capture_failure() == {"phase": "python-report", "error_code": "invalid-checks"}`。 调用`browser_process`、`capture_failure`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_success_checks_reject_missing_duplicate_or_damaged_entries.response`（L773–L783）：接收`payload`。 控制顺序：L775按`kind == "missing"`分支；L777按`kind == "duplicate"`分支；L779按`kind == "missing-field"`分支。 调用`report`。 返回路径：L783的`result`。
+- `test_python_malformed_diagnostic_including_unhashable_values_fails_closed`（L813–L822）：接收`browser_process`、`field`、`bad_value`。 控制顺序：L817断言`capture_failure() == { "phase": "python-exit", "error_code": "nonzero-exit", "exit_co…`。 调用`browser_process`、`failed_report`、`capture_failure`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_diagnostic_requires_exact_schema`（L826–L838）：接收`browser_process`、`mutation`。 控制顺序：L838断言`capture_failure()["report_error"] == "invalid-diagnostic"`。 调用`browser_process`、`capture_failure`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_diagnostic_requires_exact_schema.response`（L827–L835）：接收`payload`。 控制顺序：L829按`mutation == "missing-field"`分支；L831按`mutation == "extra-field"`分支。 调用`failed_report`。 返回路径：L835的`value`。
+- `test_python_missing_node_and_spawn_failure_are_redacted`（L841–L850）：接收`monkeypatch`。 控制顺序：L843断言`capture_failure() == {"phase": "python-spawn", "error_code": "node-missing"}`；L850断言`capture_failure() == {"phase": "python-spawn", "error_code": "spawn-failed"}`。 调用`monkeypatch.setattr`、`capture_failure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_missing_node_and_spawn_failure_are_redacted.fail`（L846–L847）：接收`*args`、`**kwargs`。 控制顺序：L847抛异常，停止当前正常路径。 调用`OSError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_missing_verifier_fails_before_process_spawn`（L853–L861）：接收`monkeypatch`、`tmp_path`。 控制顺序：L861断言`capture_failure() == {"phase": "python-spawn", "error_code": "verifier-unavailable"}`。 调用`monkeypatch.setattr`、`capture_failure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_missing_verifier_fails_before_process_spawn.unexpected`（L857–L858）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_without_browser_scenarios_does_not_spawn`（L864–L869）：接收`monkeypatch`。 控制顺序：L869断言`verifier.run_browser(URL, TOKEN, [SimpleNamespace(browser=[])], {}, 23) == []`。 调用`monkeypatch.setattr`、`verifier.run_browser`、`SimpleNamespace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_python_without_browser_scenarios_does_not_spawn.unexpected`（L865–L866）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+</details>
+
+**创建路径：** `tests/test_capability_browser_protocol.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L869。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+
+本段原始字节数：`30887`。本段原文以LF换行结束。
+
+<!-- learning-source: {"path": "tests/test_capability_browser_protocol.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "54e552ea708fe895defc48d8410d1fbc6f7fe41002287137c33788add149fa38"} -->
+````python
+# tests/test_capability_browser_protocol.py
 """Browser subprocess protocol regressions, not evidence of a live browser run.
 
 The CJS driver really runs under Node, but its Playwright module is an explicit
@@ -867,3 +945,4 @@ def test_python_without_browser_scenarios_does_not_spawn(monkeypatch):
 
     monkeypatch.setattr(verifier.subprocess, "Popen", unexpected)
     assert verifier.run_browser(URL, TOKEN, [SimpleNamespace(browser=[])], {}, 23) == []
+````
