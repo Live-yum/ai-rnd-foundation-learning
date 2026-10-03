@@ -10,40 +10,42 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
+**先有这些模块：** `workbench.model_diagnostics`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
 **带着一个具体问题阅读：** 服务商把summary分成两段发来时，AssistantStream先提取已完整解码的公开前缀，保存assistant_delta；此刻页面显示草稿。最后整个对象通过schema校验，才写assistant_completed。若后半段不合法，assistant_failed清掉草稿，不能因为用户已经看到一些文字就标成成功。刷新用transcript.cursor续读，而不是再次调用模型。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `public_field`（L24–L32）：接收`schema`。 调用`getattr`、`PUBLIC_FIELDS.get`。 返回路径：L28的`PUBLIC_FIELDS.get(schema.__name__) if getattr(domain, schema.__name__, None) is schema els…`。
-- `public_text`（L35–L37）：接收`value`、`schema`。 调用`public_field`、`str`、`getattr`。 返回路径：L37的`str(getattr(value, field, "")) if field else ""`。
-- `string_projection`（L40–L82）：接收`source`。 源码说明：Return a decoded prefix and whether its public projection is finished. Finishing the UI projection never finishes provider/schema validation. The audited transport still consumes and validates the com。 控制顺序：L47在`index < len(source)`成立时循环；L49按`char == '"'`分支；L52按`char == "\\"`分支；L53按`index + 1 >= len(source)`分支；L56按`end > len(source)`分支；L62按`len(decoded) == 1 and 0xD800 <= ord(decoded) <= 0xDBFF`分支；L63按`end + 6 > len(source) or source[end : end + 2] != "\\u"`分支；L70按`any(0xD800 <= ord(c) <= 0xDFFF for c in decoded)`分支。后续分支沿下方源码相同行号继续阅读。 调用`len`、`json.loads`、`ord`、`any`、`result.append`、`"".join`。 返回路径：L82的`"".join(result)[:MAX_PUBLIC_TEXT], finished`。
-- `string_prefix`（L85–L87）：接收`source`。 源码说明：Decode only complete JSON string characters, including split surrogate pairs.。 调用`string_projection`。 返回路径：L87的`string_projection(source)[0]`。
-- `root_string_projection`（L90–L127）：接收`source`、`field`。 源码说明：Find a root string and its projection boundary, never nested fields.。 控制顺序：L92按`not field`分支；L103按`source[position : position + 1] != "{"`分支；L107在`True`成立时循环；L110按`not isinstance(key, str)`分支；L113按`source[position : position + 1] != ":"`分支；L117按`key == field`分支；L118按`source[position : position + 1] != '"'`分支；L123按`source[position : position + 1] != ","`分支。 调用`json.JSONDecoder`、`whitespace`、`decoder.raw_decode`、`isinstance`、`string_projection`。 返回路径：L93的`"", False`；L104的`"", False`；L111的`"", False`。
-- `root_string_projection.whitespace`（L97–L100）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L99在`position < len(source) and source[position] in " \r\n\t"`成立时循环。 调用`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `root_string_prefix`（L130–L132）：接收`source`、`field`。 源码说明：Find a root string without interpreting nested fields or unfinished objects.。 调用`root_string_projection`。 返回路径：L132的`root_string_projection(source, field)[0]`。
-- `AssistantStream`（L135–L247）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `AssistantStream.__init__`（L138–L169）：接收`store`、`settings`、`run_id`、`response_id`、`stage`、`schema`、`enabled`、`api_key`。 控制顺序：L155按`not self.enabled`分支；L166按`api_key and api_key.get_secret_value()`分支。 调用`callable`、`getattr`、`public_field`、`uuid.uuid4`、`sorted`、`item.get_secret_value`、`vars(settings).values`、`vars`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.refresh_secrets`（L171–L176）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L173按`lock is not None`分支。 调用`getattr`、`set`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.redact`（L178–L183）：接收`value`。 控制顺序：L181遍历`self.secrets`。 调用`self.settings.redact`、`self.refresh_secrets`、`value.replace`。 返回路径：L183的`value`。
-- `AssistantStream.emit`（L185–L187）：接收`kind`、`data`。 控制顺序：L186按`self.enabled`分支。 调用`self.store.assistant_event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.mode`（L189–L191）：接收`transport`。 调用`self.emit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.content`（L193–L232）：接收`fragment`。 控制顺序：L194按`not self.enabled or not self.field or self.projection_finished`分支；L198按`self.projection_finished`分支；L205遍历`self.secrets`；L206遍历`range(1, min(len(secret), len(projected) + 1))`；L207按`projected.endswith(secret[:size])`分支；L209按`hold`分支；L213在`True`成立时循环；L215遍历`self.secrets`。后续分支沿下方源码相同行号继续阅读。 调用`root_string_projection`、`self.redact`、`range`、`min`、`len`、`projected.endswith`、`max`、`projected.find`、`safe.startswith`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.failed`（L234–L239）：接收`code`。 调用`self.emit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `AssistantStream.completed_data`（L241–L247）：接收`value`、`schema`。 调用`self.redact`、`public_text`。 返回路径：L242的`{ **self.data, "content": self.redact(public_text(value, schema))[:MAX_PUBLIC_TEXT], "vali…`。
-- `sse_event`（L250–L256）：接收`event`。 调用`json.dumps`。 返回路径：L251的`f"id: {event['id']}\nevent: {event['kind']}\n" + "data: " + json.dumps(event, ensure_ascii…`。
-- `event_stream`（L259–L287）：接收`request`、`store`、`run_id`、`after`、`interval`。 源码说明：Replay first, then tail committed events; cancellation only closes this iterator.。 控制顺序：L263在`not await request.is_disconnected()`成立时循环；L265遍历`events`；L266按`await request.is_disconnected()`分支；L270按`events`分支；L274按`run["status"] not in {"QUEUED", "RUNNING"}`分支；L276按`await asyncio.to_thread(store.events, run_id, cursor)`分支；L285按`idle_ticks % 40 == 0`分支。 调用`request.is_disconnected`、`asyncio.to_thread`、`sse_event`、`json.dumps`、`asyncio.sleep`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `register_streaming_routes`（L290–L323）：接收`app`、`auth`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `register_streaming_routes.transcript`（L292–L293）：接收`run_id`、`store`。 调用`Depends`、`store.transcript`、`app.get`。 返回路径：L293的`store.transcript(run_id)`。
-- `register_streaming_routes.stream`（L296–L323）：接收`request`、`run_id`、`after`、`last_event_id`、`store`。 控制顺序：L304按`last_event_id is not None`分支；L305按`not last_event_id.isascii() or not last_event_id.isdecimal() or len(last_event_id) > …`分支；L310抛异常，停止当前正常路径；L312按`value > 9223372036854775807`分支；L313抛异常，停止当前正常路径。 调用`Query`、`Header`、`Depends`、`store.get_run`、`last_event_id.isascii`、`last_event_id.isdecimal`、`len`、`HTTPException`、`int`等。 返回路径：L315的`StreamingResponse( event_stream(request, store, run_id, after), media_type="text/event-str…`。
+- `public_field`（L26–L34）：接收`schema`。 调用`getattr`、`PUBLIC_FIELDS.get`。 返回路径：L30的`PUBLIC_FIELDS.get(schema.__name__) if getattr(domain, schema.__name__, None) is schema els…`。
+- `public_text`（L37–L39）：接收`value`、`schema`。 调用`public_field`、`str`、`getattr`。 返回路径：L39的`str(getattr(value, field, "")) if field else ""`。
+- `string_projection`（L42–L84）：接收`source`。 源码说明：Return a decoded prefix and whether its public projection is finished. Finishing the UI projection never finishes provider/schema validation. The audited transport still consumes and validates the com。 控制顺序：L49在`index < len(source)`成立时循环；L51按`char == '"'`分支；L54按`char == "\\"`分支；L55按`index + 1 >= len(source)`分支；L58按`end > len(source)`分支；L64按`len(decoded) == 1 and 0xD800 <= ord(decoded) <= 0xDBFF`分支；L65按`end + 6 > len(source) or source[end : end + 2] != "\\u"`分支；L72按`any(0xD800 <= ord(c) <= 0xDFFF for c in decoded)`分支。后续分支沿下方源码相同行号继续阅读。 调用`len`、`json.loads`、`ord`、`any`、`result.append`、`"".join`。 返回路径：L84的`"".join(result)[:MAX_PUBLIC_TEXT], finished`。
+- `string_prefix`（L87–L89）：接收`source`。 源码说明：Decode only complete JSON string characters, including split surrogate pairs.。 调用`string_projection`。 返回路径：L89的`string_projection(source)[0]`。
+- `root_string_projection`（L92–L129）：接收`source`、`field`。 源码说明：Find a root string and its projection boundary, never nested fields.。 控制顺序：L94按`not field`分支；L105按`source[position : position + 1] != "{"`分支；L109在`True`成立时循环；L112按`not isinstance(key, str)`分支；L115按`source[position : position + 1] != ":"`分支；L119按`key == field`分支；L120按`source[position : position + 1] != '"'`分支；L125按`source[position : position + 1] != ","`分支。 调用`json.JSONDecoder`、`whitespace`、`decoder.raw_decode`、`isinstance`、`string_projection`。 返回路径：L95的`"", False`；L106的`"", False`；L113的`"", False`。
+- `root_string_projection.whitespace`（L99–L102）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L101在`position < len(source) and source[position] in " \r\n\t"`成立时循环。 调用`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `root_string_prefix`（L132–L134）：接收`source`、`field`。 源码说明：Find a root string without interpreting nested fields or unfinished objects.。 调用`root_string_projection`。 返回路径：L134的`root_string_projection(source, field)[0]`。
+- `AssistantStream`（L137–L258）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `AssistantStream.__init__`（L140–L171）：接收`store`、`settings`、`run_id`、`response_id`、`stage`、`schema`、`enabled`、`api_key`。 控制顺序：L157按`not self.enabled`分支；L168按`api_key and api_key.get_secret_value()`分支。 调用`callable`、`getattr`、`public_field`、`uuid.uuid4`、`sorted`、`item.get_secret_value`、`vars(settings).values`、`vars`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.refresh_secrets`（L173–L178）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L175按`lock is not None`分支。 调用`getattr`、`set`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.redact`（L180–L185）：接收`value`。 控制顺序：L183遍历`self.secrets`。 调用`self.settings.redact`、`self.refresh_secrets`、`value.replace`。 返回路径：L185的`value`。
+- `AssistantStream.emit`（L187–L189）：接收`kind`、`data`。 控制顺序：L188按`self.enabled`分支。 调用`self.store.assistant_event`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.mode`（L191–L193）：接收`transport`。 调用`self.emit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.content`（L195–L234）：接收`fragment`。 控制顺序：L196按`not self.enabled or not self.field or self.projection_finished`分支；L200按`self.projection_finished`分支；L207遍历`self.secrets`；L208遍历`range(1, min(len(secret), len(projected) + 1))`；L209按`projected.endswith(secret[:size])`分支；L211按`hold`分支；L215在`True`成立时循环；L217遍历`self.secrets`。后续分支沿下方源码相同行号继续阅读。 调用`root_string_projection`、`self.redact`、`range`、`min`、`len`、`projected.endswith`、`max`、`projected.find`、`safe.startswith`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.failed`（L236–L250）：接收`code`、`attempt`、`details`。 调用`self.emit`、`failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `AssistantStream.completed_data`（L252–L258）：接收`value`、`schema`。 调用`self.redact`、`public_text`。 返回路径：L253的`{ **self.data, "content": self.redact(public_text(value, schema))[:MAX_PUBLIC_TEXT], "vali…`。
+- `sse_event`（L261–L267）：接收`event`。 调用`json.dumps`。 返回路径：L262的`f"id: {event['id']}\nevent: {event['kind']}\n" + "data: " + json.dumps(event, ensure_ascii…`。
+- `event_stream`（L270–L298）：接收`request`、`store`、`run_id`、`after`、`interval`。 源码说明：Replay first, then tail committed events; cancellation only closes this iterator.。 控制顺序：L274在`not await request.is_disconnected()`成立时循环；L276遍历`events`；L277按`await request.is_disconnected()`分支；L281按`events`分支；L285按`run["status"] not in {"QUEUED", "RUNNING"}`分支；L287按`await asyncio.to_thread(store.events, run_id, cursor)`分支；L296按`idle_ticks % 40 == 0`分支。 调用`request.is_disconnected`、`asyncio.to_thread`、`sse_event`、`json.dumps`、`asyncio.sleep`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `register_streaming_routes`（L301–L334）：接收`app`、`auth`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `register_streaming_routes.transcript`（L303–L304）：接收`run_id`、`store`。 调用`Depends`、`store.transcript`、`app.get`。 返回路径：L304的`store.transcript(run_id)`。
+- `register_streaming_routes.stream`（L307–L334）：接收`request`、`run_id`、`after`、`last_event_id`、`store`。 控制顺序：L315按`last_event_id is not None`分支；L316按`not last_event_id.isascii() or not last_event_id.isdecimal() or len(last_event_id) > …`分支；L321抛异常，停止当前正常路径；L323按`value > 9223372036854775807`分支；L324抛异常，停止当前正常路径。 调用`Query`、`Header`、`Depends`、`store.get_run`、`last_event_id.isascii`、`last_event_id.isdecimal`、`len`、`HTTPException`、`int`等。 返回路径：L326的`StreamingResponse( event_stream(request, store, run_id, after), media_type="text/event-str…`。
 
 </details>
 
-**创建路径：** `workbench/streaming.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L323。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/streaming.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L334。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11535`。本段原文以LF换行结束。
+本段原始字节数：`11884`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/streaming.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b9b2f71a7a663ef4401ea3f674650c6bd68cf0bb61a4224fb12d48fa5296a5ab"} -->
+<!-- learning-source: {"path": "workbench/streaming.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9e1b2b9a82f5036865dae993bc6dc1b19fefe5cb2afe76f1408e57cff95fb926"} -->
 ````python
 # workbench/streaming.py
 """Durable, authenticated UI streams. A subscriber never owns the model worker.
@@ -59,6 +61,8 @@ import uuid
 from fastapi import Depends, Header, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse
 from pydantic import SecretStr
+
+from workbench.model_diagnostics import failure_diagnostic
 
 PUBLIC_FIELDS = {
     "Requirement": "summary",
@@ -279,11 +283,20 @@ class AssistantStream:
             self.sent = safe
             self.emit("assistant_delta", {**self.data, "text": delta})
 
-    def failed(self, code):
+    def failed(self, code, *, attempt=None, details=None):
         # Static error codes only. A failed draft must not be presented as a result.
         self.emit(
             "assistant_failed",
-            {**self.data, "validation": "failed", "status": "failed", "code": code, "content": ""},
+            {
+                **self.data,
+                "validation": "failed",
+                "status": "failed",
+                "code": code,
+                "content": "",
+                "diagnostic": failure_diagnostic(
+                    code, trace_id=self.data["response_id"], attempt=attempt, details=details
+                ),
+            },
         )
 
     def completed_data(self, value, schema):

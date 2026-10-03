@@ -17,6 +17,7 @@ from fastapi import Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 from filelock import FileLock, Timeout
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, ValidationError, field_validator
+from starlette.concurrency import run_in_threadpool
 
 from workbench.settings import STAGES, ModelProfile, OutputMode, Provider, validate_model_url
 
@@ -392,7 +393,14 @@ def _same_origin(request):
 
 
 def register_model_settings_routes(app, settings, auth):
+    from workbench.model_connection import (
+        ConnectionTestBusy,
+        ConnectionTestRequest,
+        ModelConnectionTester,
+    )
+
     repository = ModelSettingsRepository(settings)
+    tester = ModelConnectionTester(settings)
 
     @app.get("/settings/models")
     def read_models(request: Request, store=Depends(auth)):
@@ -406,21 +414,7 @@ def register_model_settings_routes(app, settings, auth):
     @app.put("/settings/models")
     async def update_models(request: Request, store=Depends(auth)):
         _same_origin(request)
-        if (
-            request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
-            != "application/json"
-        ):
-            raise HTTPException(415, "模型配置必须使用 JSON")
-        chunks, size = [], 0
-        async for chunk in request.stream():
-            size += len(chunk)
-            if size > MAX_CONFIG_BYTES:
-                raise HTTPException(413, "模型配置请求过大")
-            chunks.append(chunk)
-        try:
-            patch = json.loads(b"".join(chunks))
-        except ValueError, UnicodeDecodeError:
-            raise HTTPException(422, "模型配置必须是有效 JSON") from None
+        patch = await _model_request_body(request)
         try:
             value = repository.update(patch)
             return JSONResponse(value, headers={"Cache-Control": "no-store"})
@@ -428,3 +422,39 @@ def register_model_settings_routes(app, settings, auth):
             raise HTTPException(409, str(exc)) from None
         except ModelSettingsError as exc:
             raise HTTPException(422, str(exc)) from None
+
+    @app.post("/settings/models/test")
+    async def test_models(request: Request, store=Depends(auth)):
+        _same_origin(request)
+        body = await _model_request_body(request)
+        try:
+            command = ConnectionTestRequest.model_validate(body)
+        except ValidationError:
+            raise HTTPException(
+                422, "请提供已保存的配置版本、有效阶段、测试标识并确认本次模型调用费用"
+            ) from None
+        try:
+            result = await run_in_threadpool(tester.test, command)
+            return JSONResponse(result, headers={"Cache-Control": "no-store"})
+        except (RevisionConflict, ConnectionTestBusy) as exc:
+            raise HTTPException(409, str(exc)) from None
+        except ModelSettingsError, OSError:
+            raise HTTPException(503, "本机模型配置无法安全读取；请检查配置文件权限和格式") from None
+
+
+async def _model_request_body(request):
+    if (
+        request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+        != "application/json"
+    ):
+        raise HTTPException(415, "模型配置必须使用 JSON")
+    chunks, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > MAX_CONFIG_BYTES:
+            raise HTTPException(413, "模型配置请求过大")
+        chunks.append(chunk)
+    try:
+        return json.loads(b"".join(chunks))
+    except ValueError, UnicodeDecodeError:
+        raise HTTPException(422, "模型配置必须是有效 JSON") from None

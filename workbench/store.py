@@ -458,6 +458,7 @@ class Store:
                             "transport",
                             "status",
                             "code",
+                            "diagnostic",
                         )
                         if k in data
                     }
@@ -467,6 +468,51 @@ class Store:
                 elif row.kind in {"assistant_completed", "assistant_failed"}:
                     item["content"] = data.get("content", "")
                 item["event_id"] = row.id
+            # Revisions are immutable, durable gate snapshots. Project the user-facing
+            # clarification only, never the full plan or model internals. This also
+            # recovers history created before the transcript UI existed.
+            for revision in session.scalars(
+                select(Revision).where(Revision.run_id == run_id).order_by(Revision.created_at)
+            ):
+                data = revision.data or {}
+                requirement = data.get("requirement", {})
+                questions = requirement.get("questions", [])
+                items = requirement.get("question_items", [])
+                conflicts = data.get("capability_conflicts", [])
+                blocked = data.get("blocked") or requirement.get("unsupported", [])
+                if not any((questions, items, conflicts, blocked)):
+                    continue
+                lines = ["历史澄清与模板能力提示（保留记录，不代表当前仍未解决）"]
+                lines.extend(str(question) for question in questions)
+                for item in items:
+                    if item.get("prompt") not in questions:
+                        lines.append(str(item.get("prompt", "")))
+                    lines.extend(
+                        "可选：" + str(option.get("label", ""))
+                        for option in item.get("options", [])
+                    )
+                for conflict in conflicts:
+                    lines.append(str(conflict.get("message", "")))
+                    lines.extend(
+                        "替代路径：" + str(value) for value in conflict.get("alternatives", [])
+                    )
+                lines.extend(
+                    "能力限制：" + str(value)
+                    for value in (blocked if isinstance(blocked, list) else [blocked])
+                )
+                messages.append(
+                    {
+                        "message_id": "gate-" + revision.gate_id,
+                        "role": "assistant",
+                        "content": self.settings.redact("\n".join(lines)),
+                        "created_at": revision.created_at,
+                        "stage": revision.stage,
+                        "gate_id": revision.gate_id,
+                        "validation": "historical_gate",
+                        "status": "completed",
+                        "transport": None,
+                    }
+                )
             messages.extend(assistants.values())
             messages.sort(key=lambda item: (item["created_at"], item["message_id"]))
             return {"messages": messages, "cursor": cursor}

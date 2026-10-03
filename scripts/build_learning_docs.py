@@ -48,6 +48,8 @@ MODULE_STAGE = {
     "conversation": 3,
     "llm": 3,
     "model_protocol": 3,
+    "model_connection": 3,
+    "model_diagnostics": 3,
     "streaming": 3,
     "entity_requirements": 3,
     "requirement_coverage": 3,

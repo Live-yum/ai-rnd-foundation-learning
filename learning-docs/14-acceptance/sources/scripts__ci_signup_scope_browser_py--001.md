@@ -10,30 +10,32 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.api`、`workbench.domain`、`workbench.filesystem`、`workbench.flow`、`workbench.requirement_intent`、`workbench.runtime`、`workbench.settings`、`workbench.store`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.api`、`workbench.domain`、`workbench.filesystem`、`workbench.flow`、`workbench.llm`、`workbench.requirement_intent`、`workbench.runtime`、`workbench.settings`、`workbench.store`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `ui_snapshot`（L35–L39）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`hashlib.sha256((ROOT / name).read_bytes()).hexdigest`、`hashlib.sha256`、`(ROOT / name).read_bytes`。 返回路径：L36的`{ name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in ("workbench/web…`。
-- `ScopeFixture`（L42–L59）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `ScopeFixture.__init__`（L43–L44）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `ScopeFixture.complete`（L46–L59）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L47断言`schema is Requirement`；L48断言`payload["original_request"] == ORIGINAL`；L49断言`len(payload["fresh_user_corrections"]) == 1`；L50断言`AUTHENTICATED_SCOPE in payload["fresh_user_corrections"][0]`；L51断言`ADMIN_SCOPE not in payload["fresh_user_corrections"][0]`。 调用`len`、`self.calls.append`、`Requirement`。 返回路径：L53的`Requirement( summary=ORIGINAL, users=["参赛者", "管理员"], data_scope="shared", features=[AUTHEN…`。
-- `legacy_failed_run`（L62–L140）：接收`settings`。 源码说明：Write the real pre-upgrade checkpoint without importing optional drivers.。 控制顺序：L122断言`worker.tick()`；L124断言`snapshot.next == ("design",)`；L125断言`pending_interrupt(snapshot) is None`；L127断言`failed["status"] == "FAILED" and failed["pending"] is None`；L128断言`"ModuleNotFoundError" in failed["error"]`；L137断言`len(initial_approvals) == 1 and initial_approvals[0].actor == "delegated-ai"`。 调用`Store`、`store.migrate`、`Requirement`、`store.create_project`、`str`、`uuid.uuid4`、`store.create_run`、`patch.object`、`Runtime`等。 返回路径：L138的`run`。
-- `legacy_failed_run.LegacyFixture`（L74–L90）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `legacy_failed_run.LegacyFixture.complete`（L75–L90）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L76断言`schema is Plan and key == "plan:1"`。 调用`Plan.model_validate`。 返回路径：L77的`Plan.model_validate( { "title": "竞赛报名管理", "data_scope": "shared", "entities": [ { "name": …`。
-- `legacy_failed_run.old_analyse`（L92–L93）：接收`state`。 调用`requirement.gate_dump`。 返回路径：L93的`{"requirement": requirement.gate_dump()}`。
-- `legacy_failed_run.old_requirements`（L95–L102）：接收`state`。 调用`self.gate`。 返回路径：L96的`self.gate( state, "requirements", {"requirement": state["requirement"], "ready": True}, ["…`。
-- `legacy_failed_run.old_import_failure`（L104–L105）：接收`state`。 控制顺序：L105抛异常，停止当前正常路径。 调用`ModuleNotFoundError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L143–L272）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L151遍历`( "browser.log", "scope-blocked.png", "scope-blocked-mobile.png",…`；L184在`not server.started`成立时循环；L185按`time.monotonic() >= deadline`分支；L186抛异常，停止当前正常路径；L216断言`result.returncode == 0`；L219断言`run_id == legacy_run_id`；L221断言`run["status"] == "WAITING_REQUIREMENTS"`；L222断言`run["pending"]["can_approve"] and not run["auto_mode"]`。后续分支沿下方源码相同行号继续阅读。 调用`ui_snapshot`、`socket.socket`、`sock.bind`、`sock.getsockname`、`reports.mkdir`、`(reports / name).unlink`、`write_json`、`ScopeFixture`、`tempfile.TemporaryDirectory`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `diagnostic_failed_run`（L37–L95）：接收`settings`。 源码说明：Real adapter/store, offline invalid provider envelope; never a paid request.。 控制顺序：L90抛异常，停止当前正常路径。 调用`Store`、`store.migrate`、`store.create_project`、`str`、`uuid.uuid4`、`store.create_run`、`store.claim`、`store.gate`、`store.finish`等。 返回路径：L95的`run_id`。
+- `diagnostic_failed_run.invalid_response`（L68–L84）：接收`request`。 调用`httpx.Response`。 返回路径：L69的`httpx.Response( 200, json={ "id": "fixture", "object": "chat.completion", "created": 0, "m…`。
+- `ui_snapshot`（L98–L102）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`hashlib.sha256((ROOT / name).read_bytes()).hexdigest`、`hashlib.sha256`、`(ROOT / name).read_bytes`。 返回路径：L99的`{ name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest() for name in ("workbench/web…`。
+- `ScopeFixture`（L105–L122）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ScopeFixture.__init__`（L106–L107）：不接收显式业务参数，从已配置对象/模块读取依赖。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ScopeFixture.complete`（L109–L122）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L110断言`schema is Requirement`；L111断言`payload["original_request"] == ORIGINAL`；L112断言`len(payload["fresh_user_corrections"]) == 1`；L113断言`AUTHENTICATED_SCOPE in payload["fresh_user_corrections"][0]`；L114断言`ADMIN_SCOPE not in payload["fresh_user_corrections"][0]`。 调用`len`、`self.calls.append`、`Requirement`。 返回路径：L116的`Requirement( summary=ORIGINAL, users=["参赛者", "管理员"], data_scope="shared", features=[AUTHEN…`。
+- `legacy_failed_run`（L125–L203）：接收`settings`。 源码说明：Write the real pre-upgrade checkpoint without importing optional drivers.。 控制顺序：L185断言`worker.tick()`；L187断言`snapshot.next == ("design",)`；L188断言`pending_interrupt(snapshot) is None`；L190断言`failed["status"] == "FAILED" and failed["pending"] is None`；L191断言`"ModuleNotFoundError" in failed["error"]`；L200断言`len(initial_approvals) == 1 and initial_approvals[0].actor == "delegated-ai"`。 调用`Store`、`store.migrate`、`Requirement`、`store.create_project`、`str`、`uuid.uuid4`、`store.create_run`、`patch.object`、`Runtime`等。 返回路径：L201的`run`。
+- `legacy_failed_run.LegacyFixture`（L137–L153）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `legacy_failed_run.LegacyFixture.complete`（L138–L153）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L139断言`schema is Plan and key == "plan:1"`。 调用`Plan.model_validate`。 返回路径：L140的`Plan.model_validate( { "title": "竞赛报名管理", "data_scope": "shared", "entities": [ { "name": …`。
+- `legacy_failed_run.old_analyse`（L155–L156）：接收`state`。 调用`requirement.gate_dump`。 返回路径：L156的`{"requirement": requirement.gate_dump()}`。
+- `legacy_failed_run.old_requirements`（L158–L165）：接收`state`。 调用`self.gate`。 返回路径：L159的`self.gate( state, "requirements", {"requirement": state["requirement"], "ready": True}, ["…`。
+- `legacy_failed_run.old_import_failure`（L167–L168）：接收`state`。 控制顺序：L168抛异常，停止当前正常路径。 调用`ModuleNotFoundError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L206–L340）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L214遍历`( "browser.log", "scope-blocked.png", "scope-blocked-mobile.png",…`；L248在`not server.started`成立时循环；L249按`time.monotonic() >= deadline`分支；L250抛异常，停止当前正常路径；L284断言`result.returncode == 0`；L287断言`run_id == legacy_run_id`；L289断言`run["status"] == "WAITING_REQUIREMENTS"`；L290断言`run["pending"]["can_approve"] and not run["auto_mode"]`。后续分支沿下方源码相同行号继续阅读。 调用`ui_snapshot`、`socket.socket`、`sock.bind`、`sock.getsockname`、`reports.mkdir`、`(reports / name).unlink`、`write_json`、`ScopeFixture`、`tempfile.TemporaryDirectory`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_signup_scope_browser.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L276。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_signup_scope_browser.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L344。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11185`。本段原文以LF换行结束。
+本段原始字节数：`13623`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_signup_scope_browser.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "dedf9e6f02de70ff179553056069c81b7fdc30fd778c44857d9b68c8d478827f"} -->
+<!-- learning-source: {"path": "scripts/ci_signup_scope_browser.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f1d844c9d2c5710e78d99a371f9fe46726c64d8db8aae5f8b4b57453d5803a90"} -->
 ````python
 # scripts/ci_signup_scope_browser.py
 """Real local HTTP/Chromium proof of the registration scope correction UI.
@@ -54,6 +56,7 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
+import httpx
 import uvicorn
 from sqlalchemy import select
 
@@ -61,6 +64,7 @@ from workbench.api import create_app
 from workbench.domain import Plan, Requirement
 from workbench.filesystem import write_json
 from workbench.flow import Workflow
+from workbench.llm import ModelFailure, ModelGateway
 from workbench.requirement_intent import ADMIN_SCOPE, AUTHENTICATED_SCOPE
 from workbench.runtime import Runtime, pending_interrupt
 from workbench.settings import ROOT, Settings
@@ -68,6 +72,67 @@ from workbench.store import Approval, Revision, Store
 from workbench.tools import clean_env
 
 ORIGINAL = "大学生计算机设计大赛报名网站"
+
+
+def diagnostic_failed_run(settings):
+    """Real adapter/store, offline invalid provider envelope; never a paid request."""
+    store = Store(settings)
+    store.migrate()
+    project = store.create_project("模型反馈回归", str(uuid.uuid4()))
+    run_id = store.create_run(
+        project["id"], {"requirement": ORIGINAL, "template": "fastapiadmin"}, str(uuid.uuid4())
+    )["run_id"]
+    job = store.claim()
+    gate = store.gate(
+        run_id,
+        "clarification",
+        1,
+        {
+            "requirement": {
+                "questions": ["参与者将通过哪种入口报名？"],
+                "unsupported": ["模板不支持匿名公开报名页"],
+            }
+        },
+        ["answer"],
+        can_approve=False,
+    )
+    store.finish(job, "WAITING_CLARIFICATION", pending=gate)
+    answer = "参赛者注册并登录后，在现有业务界面自行提交报名，仅管理本人报名记录"
+    store.submit(
+        run_id,
+        {"gate_id": gate["gate_id"], "action": "answer", "text": answer},
+        "diagnostic-answer",
+    )
+    job = store.claim()
+
+    def invalid_response(request):
+        return httpx.Response(
+            200,
+            json={
+                "id": "fixture",
+                "object": "chat.completion",
+                "created": 0,
+                "model": "fixture",
+                "choices": [
+                    {
+                        "index": 0,
+                        "finish_reason": "stop",
+                        "message": {"role": "assistant", "content": '{"summary":123}'},
+                    }
+                ],
+            },
+        )
+
+    try:
+        ModelGateway(
+            settings, store, httpx.MockTransport(invalid_response), streaming=True
+        ).complete(run_id, "requirement:2", "JSON fixture", {}, Requirement)
+        raise AssertionError("Invalid provider fixture must fail strict validation")
+    except ModelFailure:
+        store.finish(job, "FAILED", error="模型返回内容不符合结构化契约；两次尝试后停止")
+    finally:
+        store.engine.dispose()
+    return run_id
 
 
 def ui_snapshot():
@@ -211,6 +276,7 @@ def main():
             _env_file=None,
         )
         legacy_run_id = legacy_failed_run(settings)
+        diagnostic_run_id = diagnostic_failed_run(settings)
         application = create_app(settings, gateway_factory=lambda _: fixture)
         server = uvicorn.Server(
             uvicorn.Config(application, host="127.0.0.1", port=port, log_level="error")
@@ -234,6 +300,7 @@ def main():
                     "admin_scope": ADMIN_SCOPE,
                     "authenticated_scope": AUTHENTICATED_SCOPE,
                     "legacy_run_id": legacy_run_id,
+                    "diagnostic_run_id": diagnostic_run_id,
                 },
             )
             browser = os.getenv(
@@ -243,7 +310,10 @@ def main():
                 ["node", str(ROOT / "scripts/signup_scope_browser.cjs"), str(inputs), browser],
                 cwd=ROOT,
                 env=clean_env(
-                    {"PLAYWRIGHT_BROWSERS_PATH": os.getenv("PLAYWRIGHT_BROWSERS_PATH", "0")}
+                    {
+                        "PLAYWRIGHT_BROWSERS_PATH": os.getenv("PLAYWRIGHT_BROWSERS_PATH", "0"),
+                        "PRODUCT_VERIFY_CHROMIUM": os.getenv("PRODUCT_VERIFY_CHROMIUM", ""),
+                    }
                 ),
                 capture_output=True,
                 text=True,

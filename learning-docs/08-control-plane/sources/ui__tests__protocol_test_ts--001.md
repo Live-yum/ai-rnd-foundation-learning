@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/protocol.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L233。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/protocol.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L259。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7755`。本段原文以LF换行结束。
+本段原始字节数：`8476`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/protocol.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "941a7704838e8fff78cfb83436443351cb4dc236cc157ceb9ed84dbe6e3175c1"} -->
+<!-- learning-source: {"path": "ui/tests/protocol.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e11068e7781db63878741ef02a7531bf0c362960396b428a5ffab568ccc260b2"} -->
 ````typescript
 // ui/tests/protocol.test.ts
 import { describe, it, expect, vi, afterEach } from 'vitest'
@@ -249,5 +249,31 @@ describe('message reducer and authoritative gate identity', () => {
       ]),
     ).toBe(0)
   })
+})
+
+it('preserves safe failure diagnostics identically through terminal event replay', () => {
+  const messages: ChatMessage[] = []
+  const event = {
+    id: 10,
+    kind: 'assistant_failed',
+    data: {
+      message_id: 'failure-1',
+      response_id: 'trace-1',
+      stage: 'requirements',
+      code: 'schema_validation',
+      content: '',
+      validation: 'failed',
+      diagnostic: {
+        phase: 'response_validation',
+        trace_id: 'trace-1',
+        attempt: 2,
+        details: [{ path: ['summary'], type: 'string_type' }],
+      },
+    },
+  }
+  applyMessageEvent(messages, event)
+  applyMessageEvent(messages, event)
+  expect(messages).toHaveLength(1)
+  expect(messages[0]).toMatchObject(event.data)
 })
 ````

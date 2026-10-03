@@ -13,6 +13,8 @@ const sections = [
 ]
 const active = ref('default'),
   loading = ref(false),
+  testing = ref(false),
+  confirmingTest = ref(false),
   notice = ref(''),
   error = ref(''),
   conflict = ref(false),
@@ -27,7 +29,24 @@ const form = reactive({
   model_review: false,
 })
 const baseline = ref('')
-let revision = ''
+const revision = ref('')
+interface ConnectionResult {
+  ok: boolean
+  stage: string
+  revision: string
+  message: string
+  phase: string
+  code: string
+  trace_id: string
+  retryable: boolean
+  attempts: number
+  elapsed_ms: number
+}
+const connectionResult = ref<ConnectionResult | null>(null)
+const busy = computed(() => loading.value || testing.value || confirmingTest.value)
+let mounted = true
+let testController: AbortController | null = null
+let testConfirmation: ReturnType<typeof Modal.confirm> | null = null
 function load() {
   const config = state.settings
   if (!config) return
@@ -42,7 +61,7 @@ function load() {
     model_review: !!config.model_review,
   })
   keyAction.value = 'keep'
-  revision = config.revision
+  revision.value = config.revision
   baseline.value = JSON.stringify(form)
   conflict.value = false
 }
@@ -60,17 +79,41 @@ const validation = computed(() =>
   state.settings?.validation?.find((row: any) => row.stage === active.value),
 )
 const keyConfigured = computed(() => original.value?.api_key === 'configured')
+const effective = computed(() =>
+  active.value === 'default' ? original.value : original.value?.effective,
+)
+const canTest = computed(
+  () =>
+    !!revision.value &&
+    revision.value === state.settings?.revision &&
+    !dirty.value &&
+    !conflict.value &&
+    !loading.value &&
+    !testing.value &&
+    state.online &&
+    !!effective.value?.base_url &&
+    !!effective.value?.model &&
+    effective.value?.api_key === 'configured',
+)
+const currentResult = computed(() =>
+  !dirty.value &&
+  connectionResult.value?.revision === revision.value &&
+  connectionResult.value?.revision === state.settings?.revision &&
+  connectionResult.value?.stage === active.value
+    ? connectionResult.value
+    : null,
+)
 const canSave = computed(
   () =>
     !!state.settings &&
-    !!revision &&
+    !!revision.value &&
     dirty.value &&
     !conflict.value &&
     (!newUrlNeedsKey.value || (keyAction.value === 'replace' && !!form.api_key.trim())) &&
     (keyAction.value !== 'replace' || !!form.api_key.trim()),
 )
 function select(id: string) {
-  if (id === active.value) return
+  if (busy.value || id === active.value) return
   const go = () => {
     active.value = id
     notice.value = ''
@@ -88,6 +131,7 @@ function select(id: string) {
   else go()
 }
 async function refresh() {
+  if (busy.value) return
   const generation = sessionIdentity()
   loading.value = true
   try {
@@ -104,7 +148,7 @@ async function refresh() {
   }
 }
 async function save() {
-  if (loading.value || !canSave.value || !state.online) return
+  if (busy.value || !canSave.value || !state.online) return
   const generation = sessionIdentity()
   loading.value = true
   error.value = ''
@@ -119,7 +163,7 @@ async function save() {
   if (keyAction.value === 'replace') profile.api_key = form.api_key.trim()
   if (keyAction.value === 'clear') profile.api_key = ''
   const body: any = {
-    expected_revision: revision,
+    expected_revision: revision.value,
     ...(active.value === 'default'
       ? { default: profile }
       : { stages: { [active.value]: profile } }),
@@ -141,6 +185,64 @@ async function save() {
     form.api_key = ''
   }
 }
+function confirmConnectionTest() {
+  if (!canTest.value || confirmingTest.value) return
+  const targetStage = active.value,
+    targetRevision = revision.value,
+    generation = sessionIdentity(),
+    tokenLimit = Math.min(effective.value.max_output_tokens || 128, 128)
+  confirmingTest.value = true
+  testConfirmation = Modal.confirm({
+    title: '发起一次真实模型连接测试？',
+    content: `将使用已保存版本 ${targetRevision.slice(0, 8)} 的 ${effective.value.model}（${effective.value.base_url}）发送固定测试内容，最多请求 ${tokenLimit} 个输出 token，可能按服务商价格计费。推理模型可能因测试输出上限被截断。不会发送项目内容，也不会自动重试。`,
+    okText: '确认并测试',
+    cancelText: '取消',
+    onCancel: () => {
+      confirmingTest.value = false
+      testConfirmation = null
+    },
+    onOk: async () => {
+      confirmingTest.value = false
+      if (
+        !mounted ||
+        !isSessionActive(generation) ||
+        !canTest.value ||
+        active.value !== targetStage ||
+        revision.value !== targetRevision
+      ) {
+        testConfirmation = null
+        return
+      }
+      testing.value = true
+      connectionResult.value = null
+      error.value = ''
+      notice.value = ''
+      testController = new AbortController()
+      try {
+        const result = await api<ConnectionResult>('/settings/models/test', {
+          method: 'POST',
+          body: {
+            stage: targetStage,
+            expected_revision: targetRevision,
+            request_id: crypto.randomUUID(),
+            confirm_cost: true,
+          },
+          signal: testController.signal,
+        })
+        if (!mounted || !isSessionActive(generation)) return
+        connectionResult.value = result
+      } catch (e) {
+        if (!mounted || !isSessionActive(generation)) return
+        error.value = errorText(e) + '；未自动重试。若请求已发出，服务商仍可能计费。'
+        if (e instanceof ApiError && e.status === 409) conflict.value = true
+      } finally {
+        testing.value = false
+        testController = null
+        testConfirmation = null
+      }
+    },
+  })
+}
 function beforeUnload(event: BeforeUnloadEvent) {
   if (dirty.value) {
     event.preventDefault()
@@ -149,6 +251,9 @@ function beforeUnload(event: BeforeUnloadEvent) {
 }
 window.addEventListener('beforeunload', beforeUnload)
 onBeforeUnmount(() => {
+  mounted = false
+  testController?.abort()
+  testConfirmation?.destroy()
   window.removeEventListener('beforeunload', beforeUnload)
   form.api_key = ''
 })
@@ -162,8 +267,12 @@ defineExpose({ dirty })
         <h1>模型与服务，一处配置</h1>
         <p>默认连接 + 需求 / 计划 / 编码 / 复核阶段覆盖</p>
       </div>
-      <a-tag :color="state.settings?.ready ? 'green' : 'gold'">{{
-        state.settings?.ready ? '格式有效 · 未测试连接' : '需要配置'
+      <a-tag :color="currentResult?.ok ? 'green' : 'gold'">{{
+        currentResult?.ok
+          ? '当前连接测试通过'
+          : state.settings?.ready
+            ? '格式有效 · 未验证当前连接'
+            : '需要配置'
       }}</a-tag>
     </header>
     <div class="settings-layout">
@@ -175,6 +284,7 @@ defineExpose({ dirty })
             role="tab"
             :aria-selected="active === section.id"
             :class="{ active: active === section.id }"
+            :disabled="busy"
             @click="select(section.id)"
           >
             <strong>{{ section.name }}</strong
@@ -214,7 +324,7 @@ defineExpose({ dirty })
               ><a-select
                 id="model-provider"
                 v-model:value="form.provider"
-                :disabled="loading"
+                :disabled="busy"
                 :options="[
                   ...(active !== 'default' ? [{ value: null, label: '继承默认' }] : []),
                   { value: 'auto', label: '自动识别' },
@@ -229,7 +339,7 @@ defineExpose({ dirty })
               ><a-select
                 id="model-output"
                 v-model:value="form.output_mode"
-                :disabled="loading"
+                :disabled="busy"
                 :options="[
                   ...(active !== 'default' ? [{ value: null, label: '继承默认' }] : []),
                   { value: 'auto', label: '自动' },
@@ -243,7 +353,7 @@ defineExpose({ dirty })
               ><a-input
                 id="model-url"
                 v-model:value="form.base_url"
-                :disabled="loading"
+                :disabled="busy"
                 placeholder="https://api.example.com/v1"
                 autocomplete="off"
                 :maxlength="2048"
@@ -265,7 +375,7 @@ defineExpose({ dirty })
               ><a-input
                 id="model-name"
                 v-model:value="form.model"
-                :disabled="loading"
+                :disabled="busy"
                 placeholder="提供商的实际模型 ID"
                 autocomplete="off"
                 :maxlength="256"
@@ -282,7 +392,7 @@ defineExpose({ dirty })
               <a-select
                 id="key-action"
                 v-model:value="keyAction"
-                :disabled="loading"
+                :disabled="busy"
                 :options="[
                   { value: 'keep', label: '保留现有密钥 / 继承默认' },
                   { value: 'replace', label: '替换为新密钥' },
@@ -293,7 +403,7 @@ defineExpose({ dirty })
                 id="model-key"
                 v-model:value="form.api_key"
                 aria-label="新 API Key"
-                :disabled="loading"
+                :disabled="busy"
                 placeholder="输入此服务的专用 API Key"
                 autocomplete="new-password"
                 :visibility-toggle="false"
@@ -306,7 +416,7 @@ defineExpose({ dirty })
               ><a-input-number
                 id="model-max-tokens"
                 v-model:value="form.max_output_tokens"
-                :disabled="loading"
+                :disabled="busy"
                 :min="1"
                 :max="393216"
                 :precision="0"
@@ -314,7 +424,7 @@ defineExpose({ dirty })
               />
             </div>
             <div v-if="active === 'review'" class="review-toggle">
-              <a-switch v-model:checked="form.model_review" :disabled="loading" /><span
+              <a-switch v-model:checked="form.model_review" :disabled="busy" /><span
                 >启用模型复核</span
               >
               <p class="field-hint">复核覆盖项存在时也会启用。关闭需同时清除覆盖配置。</p>
@@ -329,10 +439,39 @@ defineExpose({ dirty })
           <a-alert v-if="error" type="error" show-icon :message="error" />
           <a-alert v-if="notice" type="success" show-icon :message="notice" />
           <a-alert
-            v-if="!notice && !error"
+            v-if="!notice && !error && !currentResult && !testing"
             :type="dirty ? 'warning' : 'info'"
             :message="dirty ? '配置有未保存的修改' : '保存状态与连接状态分开显示 · 未测试连接'"
           />
+          <a-alert
+            v-if="testing"
+            type="info"
+            show-icon
+            message="正在请求真实模型响应，请等待；不会自动重试"
+          />
+          <a-alert
+            v-if="currentResult"
+            :type="currentResult.ok ? 'success' : 'error'"
+            show-icon
+            :message="currentResult.message"
+          >
+            <template #description>
+              <p>
+                阶段：{{ currentResult.phase }} · 代码：{{ currentResult.code }} · 耗时：{{
+                  currentResult.elapsed_ms
+                }}
+                ms
+              </p>
+              <p>追踪编号：{{ currentResult.trace_id }} · 请求次数：{{ currentResult.attempts }}</p>
+              <p v-if="!currentResult.ok">
+                {{
+                  currentResult.retryable
+                    ? '检查原因后可手动重试，每次重试可能计费。'
+                    : '请先修正配置或响应协议，再重新测试。'
+                }}
+              </p>
+            </template>
+          </a-alert>
           <a-alert
             v-if="validation && !validation.valid && !dirty"
             type="warning"
@@ -345,19 +484,29 @@ defineExpose({ dirty })
             }}</span
             ><a-button v-if="conflict" :loading="loading" @click="refresh"
               ><ReloadOutlined aria-hidden="true" />读取最新配置</a-button
-            ><a-tooltip title="当前服务没有连接测试接口；保存不会发起模型请求或产生模型费用"
-              ><a-button disabled>连接测试未开放</a-button></a-tooltip
+            ><a-tooltip
+              :title="
+                dirty
+                  ? '请先保存修改，再测试已保存的有效连接'
+                  : '发起一次真实模型调用，可能产生费用；确认后才开始'
+              "
+              ><a-button
+                :loading="testing"
+                :disabled="!canTest || confirmingTest"
+                @click="confirmConnectionTest"
+                >测试连接</a-button
+              ></a-tooltip
             ><a-button
               type="primary"
               html-type="submit"
               size="large"
               :loading="loading"
-              :disabled="!canSave || !state.online"
+              :disabled="!canSave || !state.online || busy"
               ><CheckOutlined aria-hidden="true" />保存配置</a-button
             >
           </div>
           <p class="field-hint">
-            保存后，下次模型调用使用新配置；已经执行中的调用保持原配置。此页面不会发起真实模型调用。
+            保存仅校验格式，不产生模型费用。测试连接须单独确认，只测试当前页已保存的有效连接。保存后下一次调用使用新配置，进行中的调用保持原配置。
           </p>
         </form>
         <div class="info-callout">

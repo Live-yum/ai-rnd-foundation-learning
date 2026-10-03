@@ -10,22 +10,74 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/real-model.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L113。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/real-model.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L165。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4427`。本段原文以LF换行结束。
+本段原始字节数：`6559`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/real-model.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d2c287eb983465a1c26615cc708d67ecaec12313402f49dfd2e9944fc3da0c35"} -->
+<!-- learning-source: {"path": ".github/workflows/real-model.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "687d74b290652fd41c86350c83407c30f93029e43ea41755f4fbe3e083c02276"} -->
 ````yaml
 # .github/workflows/real-model.yml
 name: Manual real-model customer acceptance
 on:
   workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Exact reviewed commit for the bounded model-feedback repair job
+        type: string
+        required: false
+        default: ''
+      remaining_budget_cny:
+        description: Remaining authorized cumulative CNY budget (repair only; maximum 10)
+        type: string
+        required: false
+        default: '0'
 permissions:
   contents: read
 concurrency:
   group: rnd-real-model-acceptance
   cancel-in-progress: false
 jobs:
+  model-feedback:
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.repository == 'Live-yum/ai-rnd-foundation-learning' &&
+      github.ref == 'refs/heads/fix/model-feedback-history' &&
+      github.run_attempt == 1
+    environment: rnd
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          ref: ${{ github.sha }}
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - name: Install locked platform without provider credentials
+        run: uv sync --locked
+      - name: Verify bounded harness offline before allowing provider access
+        run: uv run pytest tests/test_model_feedback_ci.py tests/test_model_connection.py -q
+      - name: Explicit bounded connection and signup feedback acceptance
+        env:
+          API_KEY: ${{ secrets.APK_KEY }}
+          BASE_URL: ${{ vars.BASE_URL }}
+          MODE: ${{ vars.MODE }}
+          # User authorized a cumulative CNY 10 ceiling for this repair.
+          # This first-attempt-only manual job is dispatched once; another run
+          # needs a separately reviewed remaining budget, never an automatic retry.
+          APPROVED_MAX_CNY: ${{ inputs.remaining_budget_cny }}
+          REVIEWED_SHA: ${{ inputs.reviewed_sha }}
+          PYTHONUTF8: '1'
+        run: uv run python -m scripts.ci_model_feedback
+      - name: Upload only allowlisted model feedback receipt
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: model-feedback-sanitized-${{ github.run_id }}-${{ github.run_attempt }}
+          path: reports/model-feedback/summary.json
+          if-no-files-found: ignore
+          retention-days: 7
   real-model:
     if: >-
       github.event_name == 'workflow_dispatch' &&

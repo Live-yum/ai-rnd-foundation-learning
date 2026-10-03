@@ -30,6 +30,7 @@
 - [docs/images/customer-service/service-handling-history.png](sources/assets/docs__images__customer-service__service-handling-history_png--001.md)：真实浏览器截图的来源与验收边界；1 段
 - [docs/implementation-labs.md](sources/docs__implementation-labs_md--001.md)：本教材正文的源文件；1 段
 - [docs/implementation.md](sources/docs__implementation_md--001.md)：本教材正文的源文件；1 段
+- [docs/model-feedback-verification.md](sources/docs__model-feedback-verification_md--001.md)：本教材正文的源文件；1 段
 - [docs/native-baseline.md](sources/docs__native-baseline_md--001.md)：本教材正文的源文件；1 段
 - [docs/native-toolchain.md](sources/docs__native-toolchain_md--001.md)：本教材正文的源文件；1 段
 - [docs/provider-structured-outputs.md](sources/docs__provider-structured-outputs_md--001.md)：本教材正文的源文件；1 段
@@ -46,6 +47,7 @@
 - [scripts/ci_guided_browser.py](sources/scripts__ci_guided_browser_py--001.md)：工作台到资讯产品的浏览器验收协调；1 段
 - [scripts/ci_handbook.py](sources/scripts__ci_handbook_py--001.md)：证明一本书足够重建平台；1 段
 - [scripts/ci_learning_docs.py](sources/scripts__ci_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/ci_model_feedback.py](sources/scripts__ci_model_feedback_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_native_runtime.py](sources/scripts__ci_native_runtime_py--001.md)：原框架本身的运行基线验收；1 段
 - [scripts/ci_native_sources.py](sources/scripts__ci_native_sources_py--001.md)：固定原生模板源码完整性检查；1 段
 - [scripts/ci_real_model.py](sources/scripts__ci_real_model_py--001.md)：显式授权的真实模型完整验收；3 段
@@ -75,6 +77,9 @@
 - [tests/test_learning_order.py](sources/tests__test_learning_order_py--001.md)：可重复的验收用例；1 段
 - [tests/test_legacy_date_requirements.py](sources/tests__test_legacy_date_requirements_py--001.md)：可重复的验收用例；1 段
 - [tests/test_legacy_signup_recovery.py](sources/tests__test_legacy_signup_recovery_py--001.md)：可重复的验收用例；1 段
+- [tests/test_model_connection.py](sources/tests__test_model_connection_py--001.md)：可重复的验收用例；1 段
+- [tests/test_model_feedback_ci.py](sources/tests__test_model_feedback_ci_py--001.md)：可重复的验收用例；1 段
+- [tests/test_model_feedback_history.py](sources/tests__test_model_feedback_history_py--001.md)：可重复的验收用例；1 段
 - [tests/test_news_delivery.py](sources/tests__test_news_delivery_py--001.md)：可重复的验收用例；1 段
 - [tests/test_owned_lifecycle.py](sources/tests__test_owned_lifecycle_py--001.md)：可重复的验收用例；1 段
 - [tests/test_permission_analysis_contract.py](sources/tests__test_permission_analysis_contract_py--001.md)：可重复的验收用例；1 段

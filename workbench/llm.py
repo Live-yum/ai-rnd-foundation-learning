@@ -8,6 +8,7 @@ from openai import APIError
 from pydantic import ValidationError
 
 from workbench.domain import digest
+from workbench.model_diagnostics import schema_diagnostics
 from workbench.model_protocol import (
     AuditedTransport,
     OutputFailure,
@@ -62,9 +63,9 @@ class ModelGateway:
         def call():
             observer = None
 
-            def failed(attempt, code):
+            def failed(attempt, code, details=None):
                 if observer is not None:
-                    observer.failed(code)
+                    observer.failed(code, attempt=attempt + 1, details=details)
                 # Immutable audit facts only: no raw response, refusal text, prompts or secrets.
                 self.store.record_event(
                     run_id,
@@ -166,6 +167,9 @@ class ModelGateway:
                             "schema_validation"
                             if isinstance(exc, ValidationError)
                             else "invalid_json",
+                            schema_diagnostics(exc, schema)
+                            if isinstance(exc, ValidationError)
+                            else None,
                         )
                     diagnostics = []
                     if isinstance(exc, ValidationError):
@@ -210,7 +214,7 @@ class ModelGateway:
                     if attempt == 0:
                         time.sleep(0.2)
                 except Exception:
-                    observer.failed("unexpected_model_error")
+                    observer.failed("unexpected_model_error", attempt=attempt + 1)
                     raise
             raise ModelFailure(reason + "；两次尝试后停止，未替换成演示结果")
 

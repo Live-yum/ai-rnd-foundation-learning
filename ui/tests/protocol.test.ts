@@ -231,3 +231,29 @@ describe('message reducer and authoritative gate identity', () => {
     ).toBe(0)
   })
 })
+
+it('preserves safe failure diagnostics identically through terminal event replay', () => {
+  const messages: ChatMessage[] = []
+  const event = {
+    id: 10,
+    kind: 'assistant_failed',
+    data: {
+      message_id: 'failure-1',
+      response_id: 'trace-1',
+      stage: 'requirements',
+      code: 'schema_validation',
+      content: '',
+      validation: 'failed',
+      diagnostic: {
+        phase: 'response_validation',
+        trace_id: 'trace-1',
+        attempt: 2,
+        details: [{ path: ['summary'], type: 'string_type' }],
+      },
+    },
+  }
+  applyMessageEvent(messages, event)
+  applyMessageEvent(messages, event)
+  expect(messages).toHaveLength(1)
+  expect(messages[0]).toMatchObject(event.data)
+})

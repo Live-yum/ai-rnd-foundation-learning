@@ -48,6 +48,8 @@
 - [workbench/conversation.py](03-requirements/sources/workbench__conversation_py--001.md)（1 段）
 - [workbench/entity_requirements.py](03-requirements/sources/workbench__entity_requirements_py--001.md)（1 段）
 - [workbench/llm.py](03-requirements/sources/workbench__llm_py--001.md)（1 段）
+- [workbench/model_connection.py](03-requirements/sources/workbench__model_connection_py--001.md)（1 段）
+- [workbench/model_diagnostics.py](03-requirements/sources/workbench__model_diagnostics_py--001.md)（1 段）
 - [workbench/model_protocol.py](03-requirements/sources/workbench__model_protocol_py--001.md)（1 段）
 - [workbench/requirement_canonical.py](03-requirements/sources/workbench__requirement_canonical_py--001.md)（1 段）
 - [workbench/requirement_coverage.py](03-requirements/sources/workbench__requirement_coverage_py--001.md)（4 段）
@@ -426,6 +428,7 @@
 - [docs/images/customer-service/service-handling-history.png](14-acceptance/sources/assets/docs__images__customer-service__service-handling-history_png--001.md)（1 段）
 - [docs/implementation-labs.md](14-acceptance/sources/docs__implementation-labs_md--001.md)（1 段）
 - [docs/implementation.md](14-acceptance/sources/docs__implementation_md--001.md)（1 段）
+- [docs/model-feedback-verification.md](14-acceptance/sources/docs__model-feedback-verification_md--001.md)（1 段）
 - [docs/native-baseline.md](14-acceptance/sources/docs__native-baseline_md--001.md)（1 段）
 - [docs/native-toolchain.md](14-acceptance/sources/docs__native-toolchain_md--001.md)（1 段）
 - [docs/provider-structured-outputs.md](14-acceptance/sources/docs__provider-structured-outputs_md--001.md)（1 段）
@@ -442,6 +445,7 @@
 - [scripts/ci_guided_browser.py](14-acceptance/sources/scripts__ci_guided_browser_py--001.md)（1 段）
 - [scripts/ci_handbook.py](14-acceptance/sources/scripts__ci_handbook_py--001.md)（1 段）
 - [scripts/ci_learning_docs.py](14-acceptance/sources/scripts__ci_learning_docs_py--001.md)（1 段）
+- [scripts/ci_model_feedback.py](14-acceptance/sources/scripts__ci_model_feedback_py--001.md)（1 段）
 - [scripts/ci_native_runtime.py](14-acceptance/sources/scripts__ci_native_runtime_py--001.md)（1 段）
 - [scripts/ci_native_sources.py](14-acceptance/sources/scripts__ci_native_sources_py--001.md)（1 段）
 - [scripts/ci_real_model.py](14-acceptance/sources/scripts__ci_real_model_py--001.md)（3 段）
@@ -471,6 +475,9 @@
 - [tests/test_learning_order.py](14-acceptance/sources/tests__test_learning_order_py--001.md)（1 段）
 - [tests/test_legacy_date_requirements.py](14-acceptance/sources/tests__test_legacy_date_requirements_py--001.md)（1 段）
 - [tests/test_legacy_signup_recovery.py](14-acceptance/sources/tests__test_legacy_signup_recovery_py--001.md)（1 段）
+- [tests/test_model_connection.py](14-acceptance/sources/tests__test_model_connection_py--001.md)（1 段）
+- [tests/test_model_feedback_ci.py](14-acceptance/sources/tests__test_model_feedback_ci_py--001.md)（1 段）
+- [tests/test_model_feedback_history.py](14-acceptance/sources/tests__test_model_feedback_history_py--001.md)（1 段）
 - [tests/test_news_delivery.py](14-acceptance/sources/tests__test_news_delivery_py--001.md)（1 段）
 - [tests/test_owned_lifecycle.py](14-acceptance/sources/tests__test_owned_lifecycle_py--001.md)（1 段）
 - [tests/test_permission_analysis_contract.py](14-acceptance/sources/tests__test_permission_analysis_contract_py--001.md)（1 段）

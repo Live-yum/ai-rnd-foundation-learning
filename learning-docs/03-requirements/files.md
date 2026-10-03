@@ -16,6 +16,8 @@
 - [workbench/conversation.py](sources/workbench__conversation_py--001.md)：从持久化记录组织对话上下文；1 段
 - [workbench/entity_requirements.py](sources/workbench__entity_requirements_py--001.md)：用户明确封闭的实体与字段清单；1 段
 - [workbench/llm.py](sources/workbench__llm_py--001.md)：唯一的对话模型调用网关；1 段
+- [workbench/model_connection.py](sources/workbench__model_connection_py--001.md)：项目根配置或说明；1 段
+- [workbench/model_diagnostics.py](sources/workbench__model_diagnostics_py--001.md)：项目根配置或说明；1 段
 - [workbench/model_protocol.py](sources/workbench__model_protocol_py--001.md)：项目根配置或说明；1 段
 - [workbench/requirement_canonical.py](sources/workbench__requirement_canonical_py--001.md)：对已确认等价的需求表述进行保守去重；1 段
 - [workbench/requirement_coverage.py](sources/workbench__requirement_coverage_py--001.md)：保留用户事实并检查可执行需求覆盖；4 段
