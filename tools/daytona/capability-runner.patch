@@ -15,13 +15,15 @@
  		Binds:      binds,
  	}
  
-@@ -234,6 +232,17 @@
+@@ -234,6 +232,19 @@
  		}
  	}
  
 +	// Custom-source executions get bounded writable storage on ordinary runners.
 +	// Root control remains distinct; Landlock confines every product write here.
 +	if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {
++		// Bind the primary mode to the same sole bridge checked before source admission.
++		hostConfig.NetworkMode = container.NetworkMode("runner-bridge")
 +		pidLimit := int64(256)
 +		hostConfig.PidsLimit = &pidLimit
 +		hostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"}

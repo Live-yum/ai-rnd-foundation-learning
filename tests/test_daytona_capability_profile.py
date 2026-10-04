@@ -162,6 +162,19 @@ def test_source_preimage_and_patch_are_exact_and_module_inputs_are_preserved(tmp
     assert (context / "capability-build/NOTICE").is_file()
 
 
+def test_custom_source_patch_binds_only_its_reviewed_primary_bridge(tmp_path, monkeypatch):
+    _, context, _, _ = source_fixture(tmp_path, monkeypatch)
+    profile.source_context(tmp_path, context)
+    source = (context / profile.SOURCE_FILE).read_text(encoding="utf-8")
+    assignment = 'hostConfig.NetworkMode = container.NetworkMode("runner-bridge")'
+    assert source.count(assignment) == 1
+    custom = source.split('if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {', 1)[1]
+    assert custom.index(assignment) < custom.index("pidLimit := int64(256)")
+    assert custom.index(assignment) < custom.index('"rnd-source-native-"')
+    assert "Privileged: false" in source
+    assert "NetworkMode" not in source.split("// Custom-source executions", 1)[0]
+
+
 @pytest.mark.parametrize("changed", ["source", "workspace", "patch"])
 def test_source_drift_fails_closed_before_any_build(tmp_path, monkeypatch, changed):
     root, context, _, _ = source_fixture(tmp_path, monkeypatch)
@@ -286,6 +299,11 @@ def test_execution_inspection_still_accepts_exact_resource_network_and_mount_pol
     "mutation,category,facts",
     [
         (
+            lambda row: row["HostConfig"].update(NetworkMode="bridge"),
+            "sandbox_network",
+            {"network_mode": "bridge", "network_count": 1, "runner_bridge_attached": True},
+        ),
+        (
             lambda row: row["HostConfig"].update(NetworkMode="default"),
             "sandbox_network",
             {"network_mode": "default", "network_count": 1, "runner_bridge_attached": True},
@@ -371,9 +389,10 @@ def test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data
     diagnostic = result["isolation_diagnostic"]
     assert diagnostic["container_rejection"] == category
     assert diagnostic.items() >= facts.items()
-    assert json.loads(receipt_path.read_text()) == result
-    assert "secret" not in receipt_path.read_text().lower()
-    assert "must-not-be-in-receipt" not in receipt_path.read_text()
+    receipt_text = receipt_path.read_text(encoding="utf-8")
+    assert json.loads(receipt_text) == result
+    assert "secret" not in receipt_text.lower()
+    assert "must-not-be-in-receipt" not in receipt_text
     assert len(calls) == (3 if category == "sandbox_network" else 4)
 
 

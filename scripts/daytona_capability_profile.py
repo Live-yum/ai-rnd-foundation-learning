@@ -52,6 +52,8 @@ LIMIT_ANCHOR = "\tcontainerRuntime := config.GetContainerRuntime()"
 LIMIT_INSERT = """\t// Custom-source executions get bounded writable storage on ordinary runners.
 \t// Root control remains distinct; Landlock confines every product write here.
 \tif strings.HasPrefix(sandboxDto.Name, "rnd-source-") {
+\t\t// Bind the primary mode to the same sole bridge checked before source admission.
+\t\thostConfig.NetworkMode = container.NetworkMode("runner-bridge")
 \t\tpidLimit := int64(256)
 \t\thostConfig.PidsLimit = &pidLimit
 \t\thostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"}
