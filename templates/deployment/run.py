@@ -27,7 +27,13 @@ from workbench.native_environment import (
     native_environment,
     running_backend,
 )
-from workbench.native_frontend import build_frontend, frontend_environment, frontend_preview
+from workbench.native_frontend import (
+    build_frontend,
+    frontend_environment,
+    frontend_preview,
+    require_frontend_backend,
+)
+from workbench.native_ports import backend_port_lease, saved_backend_port
 from workbench.tools import run_command
 
 HERE = Path(__file__).resolve().parent
@@ -223,109 +229,128 @@ def main():
     template = manifest["template"]
     backend = PRODUCT / "backend"
     frontend = PRODUCT / ("frontend/web" if template == "fastapiadmin" else "frontend-product")
-    url, redis_port = services()
-    marker, ready = ownership(url, manifest)
-    if not ready and template == "yudao-vben":
-        seed_yudao(url, backend)
-    port = int(os.getenv("NATIVE_DELIVERY_PORT", "8001" if template == "fastapiadmin" else "48080"))
-    env = native_environment(
-        template,
-        backend,
-        url,
-        port,
-        redis_port=redis_port,
-        redis_database=int(os.environ["NATIVE_DELIVERY_REDIS_DB"])
-        if os.getenv("NATIVE_DELIVERY_REDIS_DB")
-        else None,
-    )
     reports = PRODUCT / ".deployment/reports"
-    # Compile the new properties into the Java jar, or install the original Python lock.
-    if not args.skip_build:
-        install_backend(template, backend, reports)
-    if not ready and template == "yudao-vben":
-        apply_delivery_sql(url, manifest, marker)
-    with running_backend(template, backend, env, reports) as (base, _):
-        if not ready and template == "fastapiadmin":
+    if args.skip_build and os.getenv("NATIVE_DELIVERY_PORT"):
+        # Reject a stale bundle before replacing a valid saved port receipt.
+        require_frontend_backend(
+            template, frontend, "http://127.0.0.1:" + os.environ["NATIVE_DELIVERY_PORT"]
+        )
+    if args.skip_build and not os.getenv("NATIVE_DELIVERY_PORT"):
+        port_receipt = PRODUCT / ".deployment/backend-port.json"
+        if saved_backend_port(port_receipt) is None:
+            raise ValueError("No backend port for this copy; rebuild without --skip-build")
+    with backend_port_lease(
+        PRODUCT / ".deployment/backend-port.json", os.getenv("NATIVE_DELIVERY_PORT")
+    ) as port:
+        if args.skip_build:
+            require_frontend_backend(template, frontend, f"http://127.0.0.1:{port}")
+        url, redis_port = services()
+        marker, ready = ownership(url, manifest)
+        if not ready and template == "yudao-vben":
+            seed_yudao(url, backend)
+        env = native_environment(
+            template,
+            backend,
+            url,
+            port,
+            redis_port=redis_port,
+            redis_database=int(os.environ["NATIVE_DELIVERY_REDIS_DB"])
+            if os.getenv("NATIVE_DELIVERY_REDIS_DB")
+            else None,
+        )
+        # Compile the new properties into the Java jar, or install the original Python lock.
+        if not args.skip_build:
+            install_backend(template, backend, reports)
+        if not ready and template == "yudao-vben":
             apply_delivery_sql(url, manifest, marker)
-        if args.check or (not ready and not manifest["plan"].get("business")):
-            token = login(template, base)
-            from workbench.portable_checks import check_restored_product
+        with running_backend(template, backend, env, reports) as (base, _):
+            if not ready and template == "fastapiadmin":
+                apply_delivery_sql(url, manifest, marker)
+            if args.check or (not ready and not manifest["plan"].get("business")):
+                token = login(template, base)
+                from workbench.portable_checks import check_restored_product
 
-            outcome = check_restored_product(
-                template, base, token, manifest["targets"], manifest["plan"]
-            )
-            if manifest["plan"].get("business"):
-                from workbench.portable_checks import snapshot_business_records
-
-                before_restart = snapshot_business_records(
-                    template, base, token, manifest["targets"], outcome["business"]
+                outcome = check_restored_product(
+                    template, base, token, manifest["targets"], manifest["plan"]
                 )
-        else:
-            # A regular restart must not require the seed admin's old password.
-            outcome = {"database_initialized": True, "verification_rerun": False}
-        write_json(reports / "portable-start.json", outcome)
-        print("数据库、业务表、菜单和新业务CRUD已就绪。", flush=True)
-    # --check must reach frontend startup; do not report backend-only success.
-    # Full frontend is built while Java is stopped, using already patched source.
-    front_env = frontend_environment(template, f"http://127.0.0.1:{port}")
-    if not args.skip_build:
-        build_frontend(template, frontend, front_env, reports, prepared=True)
-    with ExitStack() as stack:
-        base, _ = stack.enter_context(running_backend(template, backend, env, reports))
-        frontend_url = stack.enter_context(frontend_preview(template, frontend, front_env, reports))
-        if args.check:
-            # The first running_backend context has stopped its process. Verify
-            # persisted rows through a newly authenticated, independently started
-            # delivered backend before any second-process browser mutation.
-            token = login(template, base)
-            if manifest["plan"].get("business"):
-                from workbench.portable_checks import (
-                    require_preserved_business_records,
-                    snapshot_business_records,
-                )
+                if manifest["plan"].get("business"):
+                    from workbench.portable_checks import snapshot_business_records
 
-                after_restart = snapshot_business_records(
-                    template, base, token, manifest["targets"], outcome["business"]
-                )
-                require_preserved_business_records(before_restart, after_restart)
-                outcome["restart_preserved_records"] = True
-                outcome["restart_records"] = after_restart
-                if template == "yudao-vben":
-                    from workbench.domain import Plan
-                    from workbench.yudao_navigation_checks import check_navigation_restart
-
-                    outcome["business"]["installed_navigation_restart"] = check_navigation_restart(
-                        template,
-                        base,
-                        token,
-                        manifest["targets"],
-                        outcome["business"],
-                        Plan.model_validate(manifest["plan"]),
+                    before_restart = snapshot_business_records(
+                        template, base, token, manifest["targets"], outcome["business"]
                     )
-            outcome["restart"] = True
-        if args.check and manifest["plan"].get("business"):
-            from workbench.business_browser import run_business_browser
-            from workbench.domain import Plan
-
-            module = os.getenv("PRODUCT_VERIFY_PLAYWRIGHT")
-            if not module:
-                raise ValueError("Business --check requires pinned local Playwright/Chromium")
-            outcome["browser"] = run_business_browser(
-                template,
-                HERE / "business-browser.cjs",
-                frontend_url,
-                reports,
-                outcome["business"],
-                Plan.model_validate(manifest["plan"]),
-                module,
+            else:
+                # A regular restart must not require the seed admin's old password.
+                outcome = {"database_initialized": True, "verification_rerun": False}
+            write_json(reports / "portable-start.json", outcome)
+            print("数据库、业务表、菜单和新业务CRUD已就绪。", flush=True)
+        # --check must reach frontend startup; do not report backend-only success.
+        # Full frontend is built while Java is stopped, using already patched source.
+        front_env = frontend_environment(template, f"http://127.0.0.1:{port}")
+        if not args.skip_build:
+            build_frontend(template, frontend, front_env, reports, prepared=True)
+        with ExitStack() as stack:
+            base, _ = stack.enter_context(running_backend(template, backend, env, reports))
+            frontend_url = stack.enter_context(
+                frontend_preview(template, frontend, front_env, reports)
             )
-        outcome["frontend_started"] = True
-        write_json(reports / "portable-start.json", outcome)
-        print(f"后端 {base}；前端 {frontend_url}；Ctrl+C停止，数据不会删除。", flush=True)
-        if args.check:
-            return
-        while True:
-            time.sleep(1)
+            if args.check:
+                # The first running_backend context has stopped its process. Verify
+                # persisted rows through a newly authenticated, independently started
+                # delivered backend before any second-process browser mutation.
+                token = login(template, base)
+                if manifest["plan"].get("business"):
+                    from workbench.portable_checks import (
+                        require_preserved_business_records,
+                        snapshot_business_records,
+                    )
+
+                    after_restart = snapshot_business_records(
+                        template, base, token, manifest["targets"], outcome["business"]
+                    )
+                    require_preserved_business_records(before_restart, after_restart)
+                    outcome["restart_preserved_records"] = True
+                    outcome["restart_records"] = after_restart
+                    if template == "yudao-vben":
+                        from workbench.domain import Plan
+                        from workbench.yudao_navigation_checks import check_navigation_restart
+
+                        outcome["business"]["installed_navigation_restart"] = (
+                            check_navigation_restart(
+                                template,
+                                base,
+                                token,
+                                manifest["targets"],
+                                outcome["business"],
+                                Plan.model_validate(manifest["plan"]),
+                            )
+                        )
+                outcome["restart"] = True
+            if args.check and manifest["plan"].get("business"):
+                from workbench.business_browser import run_business_browser
+                from workbench.domain import Plan
+
+                module = os.getenv("PRODUCT_VERIFY_PLAYWRIGHT")
+                if not module:
+                    raise ValueError("Business --check requires pinned local Playwright/Chromium")
+                outcome["browser"] = run_business_browser(
+                    template,
+                    HERE / "business-browser.cjs",
+                    frontend_url,
+                    reports,
+                    outcome["business"],
+                    Plan.model_validate(manifest["plan"]),
+                    module,
+                )
+            outcome["backend_port"] = port
+            outcome["backend_url"] = base
+            outcome["frontend_started"] = True
+            write_json(reports / "portable-start.json", outcome)
+            print(f"后端 {base}；前端 {frontend_url}；Ctrl+C停止，数据不会删除。", flush=True)
+            if args.check:
+                return
+            while True:
+                time.sleep(1)
 
 
 if __name__ == "__main__":

@@ -266,3 +266,15 @@ def adapt_generated_schema(source: str, fields: Sequence[FieldSpec]) -> str:
 
         source = pattern.sub(transform, source)
     return source
+
+
+def configure_vben_backend_proxy(root):
+    """Preserve relative native APIs while routing preview to the leased backend."""
+    path = Path(root) / "apps/web-antd/vite.config.ts"
+    source = path.read_text(encoding="utf-8")
+    old = "target: 'http://localhost:48080/admin-api',"
+    new = "target: `${process.env.VITE_BASE_URL ?? 'http://localhost:48080'}/admin-api`,"
+    if source.count(new) == 1 and old not in source:
+        return
+    changed = checked_replacement(source, old, new, 1, "native backend preview proxy")
+    atomic_text(path, changed)

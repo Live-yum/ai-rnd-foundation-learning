@@ -143,7 +143,13 @@ def local_services(directory):
 
 @contextmanager
 def native_process(product, url, template, reports):
-    base = "http://127.0.0.1:" + ("8001" if template == "fastapiadmin" else "48080")
+    receipt = product / ".deployment/backend-port.json"
+    from workbench.native_ports import saved_backend_port
+
+    port = saved_backend_port(receipt)
+    if port is None:
+        raise ValueError("Native backend port receipt belongs to another product copy")
+    base = f"http://127.0.0.1:{port}"
     env = clean_env(
         {
             "NATIVE_DELIVERY_DATABASE_URL": url,
@@ -180,7 +186,7 @@ def native_process(product, url, template, reports):
         yield base
     finally:
         try:
-            stop_native(process, [8001 if template == "fastapiadmin" else 48080, 5173])
+            stop_native(process, [port, 5173])
         finally:
             log.close()
 

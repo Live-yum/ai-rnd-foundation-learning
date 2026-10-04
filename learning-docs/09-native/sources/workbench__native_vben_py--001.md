@@ -23,14 +23,15 @@
 - `prune_generated_import`（L211–L220）：接收`source`、`identifier`、`declaration`。 源码说明：Remove only an exact unused single import emitted by the pinned generator.。 控制顺序：L213按`declaration not in source`分支；L215按`source.count(declaration) != 1`分支；L216抛异常，停止当前正常路径；L218按`re.search(r"\b" + re.escape(identifier) + r"\b", remaining)`分支。 调用`source.count`、`ValueError`、`source.replace`、`re.search`、`re.escape`。 返回路径：L214的`source`；L219的`source`；L220的`remaining`。
 - `adapt_generated_schema`（L223–L268）：接收`source`、`fields`。 源码说明：Preserve declared value kinds in both generated edit and search forms.。 控制顺序：L228遍历`fields`；L232按`field.kind not in {"integer", "boolean"}`分支；L241按`not 1 <= len(list(pattern.finditer(source))) <= 2`分支；L242抛异常，停止当前正常路径。 调用`prune_generated_import`、`field.name.split`、`"".join`、`piece[:1].upper`、`re.compile`、`re.escape`、`len`、`list`、`pattern.finditer`等。 返回路径：L268的`source`。
 - `adapt_generated_schema.transform`（L244–L265）：接收`match`。 控制顺序：L246按`field.kind == "integer"`分支；L253按`"component: 'Select'," in block`分支；L257按`block.count("component: 'RadioGroup',") != 1`分支；L258抛异常，停止当前正常路径。 调用`match.group`、`checked_replacement`、`block.count`、`ValueError`。 返回路径：L250的`checked_replacement( block, "componentProps: {", "componentProps: {\n precision: 0,", 1, n…`；L259的`checked_replacement( block, "options: [],", "options: [{ label: '是', value: true }, { labe…`。
+- `configure_vben_backend_proxy`（L271–L280）：接收`root`。 源码说明：Preserve relative native APIs while routing preview to the leased backend.。 控制顺序：L277按`source.count(new) == 1 and old not in source`分支。 调用`Path`、`path.read_text`、`source.count`、`checked_replacement`、`atomic_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/native_vben.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L268。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/native_vben.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L280。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13246`。本段原文以LF换行结束。
+本段原始字节数：`13806`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/native_vben.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5c036a371c9d15178345e379b6af6d280714d3f5c04323c3ec4b663538e74924"} -->
+<!-- learning-source: {"path": "workbench/native_vben.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e13e6ea877325bdbba0b2bba1d003e5a44a6a3fbbd26cecffb1f1693e30379a9"} -->
 ````python
 # workbench/native_vben.py
 """Reviewed compatibility for pinned Vben 1b14e889; no routes or type checks removed."""
@@ -301,4 +302,16 @@ def adapt_generated_schema(source: str, fields: Sequence[FieldSpec]) -> str:
 
         source = pattern.sub(transform, source)
     return source
+
+
+def configure_vben_backend_proxy(root):
+    """Preserve relative native APIs while routing preview to the leased backend."""
+    path = Path(root) / "apps/web-antd/vite.config.ts"
+    source = path.read_text(encoding="utf-8")
+    old = "target: 'http://localhost:48080/admin-api',"
+    new = "target: `${process.env.VITE_BASE_URL ?? 'http://localhost:48080'}/admin-api`,"
+    if source.count(new) == 1 and old not in source:
+        return
+    changed = checked_replacement(source, old, new, 1, "native backend preview proxy")
+    atomic_text(path, changed)
 ````

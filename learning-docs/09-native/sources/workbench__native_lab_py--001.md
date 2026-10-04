@@ -10,24 +10,25 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench`、`workbench.domain`、`workbench.filesystem`、`workbench.native_acceptance`、`workbench.native_compatibility`、`workbench.native_environment`、`workbench.native_frontend`、`workbench.native_modules`、`workbench.native_style`、`workbench.portable`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench`、`workbench.domain`、`workbench.filesystem`、`workbench.native_acceptance`、`workbench.native_compatibility`、`workbench.native_environment`、`workbench.native_frontend`、`workbench.native_modules`、`workbench.native_ports`、`workbench.native_style`、`workbench.portable`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **带着一个具体问题阅读：** 把原生流程看成一串证据：固定来源→专用库→真实生成→SQL/菜单→编译/类型检查→HTTP→原生页面。run_acceptance只能在每一步实际完成后汇总报告。某个模板跑通不能替另一个模板写passed，恢复也必须先核对原始Plan、源码与数据库身份。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `generated_browser`（L37–L60）：接收`template`、`front_url`、`reports`。 控制顺序：L59抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run_acceptance`（L63–L337）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L77按`plan.custom_rules and customization is None`分支；L78抛异常，停止当前正常路径；L91按`not resumed`分支；L94按`template == "fastapiadmin"`分支；L98按`not resumed`分支；L115按`not resumed`分支；L119按`template == "fastapiadmin"`分支；L142按`plan.business`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`ValueError`、`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`等。 返回路径：L318的`report`。
-- `run_acceptance.stage`（L108–L110）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `generated_browser`（L38–L61）：接收`template`、`front_url`、`reports`。 控制顺序：L60抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_acceptance`（L64–L89）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`。 源码说明：Hold one non-ephemeral backend lease across all build/restart phases.。 调用`backend_port_lease`、`Path`、`_run_acceptance`。 返回路径：L78的`_run_acceptance( template, source, output, frontend_source, url, reports, plan, redis_port…`。
+- `_run_acceptance`（L92–L367）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`backend_port`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L107按`plan.custom_rules and customization is None`分支；L108抛异常，停止当前正常路径；L121按`not resumed`分支；L124按`template == "fastapiadmin"`分支；L128按`not resumed`分支；L143按`not resumed`分支；L147按`template == "fastapiadmin"`分支；L170按`plan.business`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`ValueError`、`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`等。 返回路径：L348的`report`。
+- `_run_acceptance.stage`（L136–L138）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/native_lab.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L337。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/native_lab.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L367。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14147`。本段原文以LF换行结束。
+本段原始字节数：`14875`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/native_lab.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f3802a04acadb50c543cd5e805f28dcc1a42b61f2b3a90f76e4385332f3cc2a9"} -->
+<!-- learning-source: {"path": "workbench/native_lab.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e10dbf8acb5da1eca02adf382bcbf5910427006feaac7e4d07f4693a397995b0"} -->
 ````python
 # workbench/native_lab.py
 """Actual native generation, mounting, permissions, CRUD, restart and browser acceptance."""
@@ -55,6 +56,7 @@ from workbench.native_environment import (
 )
 from workbench.native_frontend import build_frontend, frontend_environment, frontend_preview
 from workbench.native_modules import create_native_tables, generate_modules, validate_plan
+from workbench.native_ports import backend_port_lease
 from workbench.native_style import verify_native_style
 from workbench.portable import (
     build_native_delivery,
@@ -104,6 +106,35 @@ def run_acceptance(
     *,
     customization=None,
 ):
+    """Hold one non-ephemeral backend lease across all build/restart phases."""
+    with backend_port_lease(Path(reports) / "backend-port.json") as backend_port:
+        return _run_acceptance(
+            template,
+            source,
+            output,
+            frontend_source,
+            url,
+            reports,
+            plan,
+            redis_port,
+            customization=customization,
+            backend_port=backend_port,
+        )
+
+
+def _run_acceptance(
+    template,
+    source,
+    output,
+    frontend_source,
+    url,
+    reports,
+    plan,
+    redis_port=6379,
+    *,
+    customization=None,
+    backend_port,
+):
     """Shared by CLI and CI; never reset an existing database or workspace."""
     plan = validate_plan(plan)
     if plan.custom_rules and customization is None:
@@ -129,9 +160,7 @@ def run_acceptance(
         frontend = output.parent / "frontend-product"
         if not resumed:
             copy_source(frontend_source, frontend)
-    env = native_environment(
-        template, backend, url, 8001 if template == "fastapiadmin" else 48080, redis_port=redis_port
-    )
+    env = native_environment(template, backend, url, backend_port, redis_port=redis_port)
     write_json(reports / "approved-spec.json", plan.model_dump())
     write_json(
         reports / "acceptance.json", {"template": template, "generated_runtime_verified": False}
@@ -315,6 +344,8 @@ def run_acceptance(
         report = {
             "template": template,
             "scope": "generated-native-modules",
+            "backend_port": backend_port,
+            "backend_url": base_url,
             "generated_runtime_verified": True,
             "native_codegen": True,
             "automatic_mount": True,

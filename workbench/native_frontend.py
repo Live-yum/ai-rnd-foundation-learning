@@ -10,7 +10,7 @@ from pathlib import Path
 import httpx
 
 from workbench.filesystem import atomic_text, sha, write_json
-from workbench.native_vben import prepare_vben_source
+from workbench.native_vben import configure_vben_backend_proxy, prepare_vben_source
 from workbench.settings import ROOT
 from workbench.tools import clean_env, process_options, run_command, stop_process
 
@@ -79,6 +79,7 @@ def build_frontend(template, root, env, reports, *, prepared=False):
             prepare_vben_source(root, reports)
         elif not (root / ".git").exists():
             run_command(["git", "init", "--quiet", "--template=", str(root)], root, 30)
+        configure_vben_backend_proxy(root)
         # Vben's own loadAndConvertEnv / runtime-config plugin reads dotenv files,
         # not process.env. Persist only explicitly public VITE_* values in the
         # disposable workspace; never copy platform or database credentials.
@@ -118,6 +119,14 @@ def build_frontend(template, root, env, reports, *, prepared=False):
     if not (app / "dist/index.html").is_file():
         raise ValueError("Frontend build did not produce dist/index.html")
     write_json(
+        app / "dist/native-backend.json",
+        {
+            "backend_url": env[
+                "VITE_API_BASE_URL" if template == "fastapiadmin" else "VITE_BASE_URL"
+            ]
+        },
+    )
+    write_json(
         reports / "frontend-build.json",
         {
             "checks": evidence,
@@ -130,6 +139,9 @@ def build_frontend(template, root, env, reports, *, prepared=False):
 @contextmanager
 def frontend_preview(template, root, env, reports):
     app, reports = frontend_app(template, root), Path(reports).resolve()
+    require_frontend_backend(
+        template, root, env["VITE_API_BASE_URL" if template == "fastapiadmin" else "VITE_BASE_URL"]
+    )
     url = "http://127.0.0.1:5173"
     command = [
         "pnpm",
@@ -193,3 +205,16 @@ def browser_check(template, url, reports):
         },
     )
     atomic_text(Path(reports) / "browser.log", result["log"])
+
+
+def require_frontend_backend(template, root, backend_url):
+    """A preview cannot retarget a previously compiled frontend via process.env."""
+    stamp = frontend_app(template, root) / "dist/native-backend.json"
+    try:
+        actual = json.loads(stamp.read_text(encoding="utf-8"))["backend_url"]
+    except OSError, ValueError, KeyError, TypeError:
+        raise ValueError(
+            "Frontend backend-port receipt missing; rebuild without --skip-build"
+        ) from None
+    if actual != backend_url:
+        raise ValueError("Frontend backend port changed; rebuild without --skip-build")

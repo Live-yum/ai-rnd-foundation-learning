@@ -33,6 +33,7 @@ HELPERS = (
     "filesystem.py",
     "tools.py",
     "native_environment.py",
+    "native_ports.py",
     "yudao_navigation.py",
     "yudao_navigation_checks.py",
     "native_frontend.py",
@@ -355,7 +356,7 @@ def build_native_delivery(template, product, reports, plan, targets, url):
     write_json(deployment / "manifest.json", manifest)
     atomic_text(
         product / "START_HERE.md",
-        f"""# 独立启动已生成的原生产品\n\n模板：{template}。不需要原研发平台、模型 API Key 或原开发数据库。\n\n在 Linux/WSL 2 安装 Python 3.14、uv、Node22、对应 pnpm（FastapiAdmin9.15.3 / Vben11.16.0）、Docker Compose；芋道额外需要JDK17/Maven。然后在本目录执行：\n\n```bash\nuv run --no-project --python 3.14 python start.py\n```\n\n启动器在本产品的独立 Compose 项目创建 PostgreSQL17/Redis7.4、使用新随机数据库密码和本机空闲端口，安装锁定依赖，执行原生初始化、`deployment/database/002-business.sql` 和 `003-menus.sql`，验证新库中的菜单与CRUD，构建前端并启动。\n\n默认管理员只供本机开发：FastapiAdmin super/123456；芋道 admin/admin123。第一次启动后应修改默认管理员密码；再次启动不会覆盖密码或删除记录。公网部署前必须完成额外的安全配置。\n\n已有的专用空本机 PostgreSQL 服务可用 `NATIVE_DELIVERY_DATABASE_URL`（库名以 `_codegen` 结尾）和 `NATIVE_DELIVERY_REDIS_PORT` 指定，不需要 Docker。程序只接受空库或之前被这份不可变交付认领的库，拒绝覆盖其他数据。\n\n首次启动需要互联网下载Python/Java/Node依赖，源码和数据库语句已在包内，不会重新克隆模板。重复启动复用持久数据；Ctrl+C仅停止应用，Compose数据卷保留。\n\n`--check` 在新库初始化并验证后退出；`--skip-build` 仅用于已经成功安装/构建的同一产品，不能拿它代替首次安装。\n\n`.deployment/` 保存本产品生成的数据库凭据，不要提交Git、分享或打包。备份需要同时备份数据库持久卷；源码包含初始化语句但不包含任何用户业务记录。\n""",
+        f"""# 独立启动已生成的原生产品\n\n模板：{template}。不需要原研发平台、模型 API Key 或原开发数据库。\n\n在 Linux/WSL 2 安装 Python 3.14、uv、Node22、对应 pnpm（FastapiAdmin9.15.3 / Vben11.16.0）、Docker Compose；芋道额外需要JDK17/Maven。然后在本目录执行：\n\n```bash\nuv run --no-project --python 3.14 python start.py\n```\n\n启动器在本产品的独立 Compose 项目创建 PostgreSQL17/Redis7.4、使用新随机数据库密码和本机空闲端口，安装锁定依赖，执行原生初始化、`deployment/database/002-business.sql` 和 `003-menus.sql`，验证新库中的菜单与CRUD，构建前端并启动。\n\n默认管理员只供本机开发：FastapiAdmin super/123456；芋道 admin/admin123。第一次启动后应修改默认管理员密码；再次启动不会覆盖密码或删除记录。公网部署前必须完成额外的安全配置。\n\n已有的专用空本机 PostgreSQL 服务可用 `NATIVE_DELIVERY_DATABASE_URL`（库名以 `_codegen` 结尾）和 `NATIVE_DELIVERY_REDIS_PORT` 指定，不需要 Docker。程序只接受空库或之前被这份不可变交付认领的库，拒绝覆盖其他数据。\n\n首次启动需要互联网下载Python/Java/Node依赖，源码和数据库语句已在包内，不会重新克隆模板。重复启动复用持久数据；Ctrl+C仅停止应用，Compose数据卷保留。后端自动分配动态客户端源端口范围外的空闲端口，记录在 `.deployment/backend-port.json` 并跨重启复用。`NATIVE_DELIVERY_PORT` 可指定精确端口，冲突时明确失败，不自动换端口或终止其他进程。\n\n`--check` 在新库初始化并验证后退出；`--skip-build` 仅用于已经成功安装/构建的同一产品，不能拿它代替首次安装。更改端口或复制目录后先正常重建；跳过构建会核对端口回执及前端实际构建地址。\n\n`.deployment/` 保存本产品生成的数据库凭据，不要提交Git、分享或打包。备份需要同时备份数据库持久卷；源码包含初始化语句但不包含任何用户业务记录。\n""",
     )
     return {
         "sql_files": sql_files,

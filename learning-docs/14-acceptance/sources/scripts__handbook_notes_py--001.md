@@ -13,18 +13,18 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `parse`（L701–L707）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L707的`ast.parse(normalized)`。
-- `segment`（L710–L713）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L713的`value if len(value) <= limit else value[:limit] + "…"`。
-- `definitions`（L716–L723）：接收`node`、`prefix`。 控制顺序：L717遍历`ast.iter_child_nodes(node)`；L718按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `body_nodes`（L726–L731）：接收`node`。 控制顺序：L727遍历`ast.iter_child_nodes(node)`；L728按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `parse`（L706–L712）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L712的`ast.parse(normalized)`。
+- `segment`（L715–L718）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L718的`value if len(value) <= limit else value[:limit] + "…"`。
+- `definitions`（L721–L728）：接收`node`、`prefix`。 控制顺序：L722遍历`ast.iter_child_nodes(node)`；L723按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `body_nodes`（L731–L736）：接收`node`。 控制顺序：L732遍历`ast.iter_child_nodes(node)`；L733按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
 </details>
 
-**创建路径：** `scripts/handbook_notes.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L733。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/handbook_notes.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L738。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`64673`。本段原文以LF换行结束。
+本段原始字节数：`65181`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/handbook_notes.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "f91d55e3240edb101da4a1d08fc3b75022a2e51c2223df052f706d1bb889ca04"} -->
+<!-- learning-source: {"path": "scripts/handbook_notes.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "c281e499c27dfde3162d4f148645be2e244c60547cb855f92276f371f82d30ff"} -->
 ````python
 # scripts/handbook_notes.py
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
@@ -290,6 +290,11 @@ MODULES = {
         "原生代码生成接口的公共适配",
         "NativeConfig描述可调用的代码生成服务，NativeClient进行认证请求，native_export把Plan映射为原生生成器元数据并取回真实导出。只导出源码的结果为SOURCE_READY，不能冒充托管运行验收READY。",
         "flow/native_delivery → NativeClient → 本机FastapiAdmin或Yudao生成器；test_native。",
+    ),
+    "native_ports": (
+        "原生后端端口分配与跨重启租约",
+        "读取本机TCP动态源端口范围，自动选择范围外的空闲非特权端口。产品锁与端口锁覆盖构建、启动、重启和清理，副本路径绑定回执稳定记录端口；显式端口不回退，冲突明确失败，不改主机网络配置。",
+        "native_lab/ci_native_runtime/独立run.py → backend_port_lease → 后端配置、前端构建与验收回执；test_native_ports。",
     ),
     "native_environment": (
         "本机原生后端环境和进程",

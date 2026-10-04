@@ -40,6 +40,12 @@ def test_vben_public_build_config_excludes_credentials(tmp_path, monkeypatch):
     (root / "pnpm-lock.yaml").write_text("lockfileVersion: '9.0'\n")
     (app / "dist").mkdir()
     (app / "dist/index.html").write_text("<html></html>")
+    import zipfile
+
+    from workbench.settings import ROOT
+
+    with zipfile.ZipFile(ROOT / "templates/vendor/yudao-frontend.zip") as archive:
+        (app / "vite.config.ts").write_bytes(archive.read("apps/web-antd/vite.config.ts"))
     commands = []
 
     def tool(command, cwd, timeout, env, **kwargs):

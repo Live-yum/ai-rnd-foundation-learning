@@ -25,16 +25,16 @@
 - `install_backend`（L250–L322）：接收`template`、`backend`、`reports`、`navigation_api_only`。 控制顺序：L253按`template == "fastapiadmin"`分支；L285按`os.environ.get("RND_OFFLINE_TOOLS") == "1"`分支；L290按`template == "yudao-vben"`分支；L307按`os.environ.get("UV_CACHE_DIR")`分支；L310遍历`commands`；L318抛异常，停止当前正常路径；L321按`template == "yudao-vben"`分支。 调用`Path`、`reports.mkdir`、`prepare_fastapi_registry`、`prepare_yudao_navigation`、`prepare_yudao_postgres`、`atomic_text`、`os.environ.get`、`str`、`maven_settings.resolve`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `loopback_port_bindable`（L325–L344）：接收`port`。 源码说明：Observe bind availability without connecting to a possibly unowned service. Readiness probes must not allocate an outbound ephemeral socket to their own destination before the server listens (Linux pe。 控制顺序：L334按`os.name != "nt"`分支；L336按`hasattr(socket, "SO_EXCLUSIVEADDRUSE")`分支；L341按`error.errno in {errno.EADDRINUSE, errno.EACCES}`分支；L343抛异常，停止当前正常路径。 调用`socket.socket`、`probe.setsockopt`、`hasattr`、`probe.bind`。 返回路径：L342的`False`；L344的`True`。
 - `backend_port_state`（L347–L397）：接收`port`、`group_pid`。 源码说明：Bounded Linux listener ownership, with no environment or process arguments. Unlike a bind/connect probe this cannot race with server startup. Other platforms retain their existing readiness behavior a。 控制顺序：L354按`os.name != "posix" or not tcp.is_file()`分支；L359遍历`(tcp, Path("/proc/net/tcp6"))`；L360按`path.is_file()`分支；L361遍历`path.read_text(encoding="utf-8").splitlines()[1:8193]`；L363按`len(parts) > 9 and int(parts[1].rsplit(":", 1)[1], 16) == port`分支；L366按`parts[3] == "0A"`分支；L369遍历`list(Path("/proc").glob("[0-9]*/stat"))[:4096]`；L372按`int(fields[2]) == group_pid and int(fields[3]) == group_pid`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`tcp.is_file`、`set`、`path.is_file`、`path.read_text(encoding="utf-8").splitlines`、`path.read_text`、`line.split`、`len`、`int`等。 返回路径：L355的`{"observable": False}`；L387的`{ "observable": True, "listening": bool(listener_inodes), "owned_listener": bool(owners), …`；L397的`{"observable": False}`。
-- `running_backend`（L401–L559）：接收`template`、`backend`、`env`、`reports`。 控制顺序：L404按`template == "fastapiadmin"`分支；L433按`len(jars) != 1`分支；L434抛异常，停止当前正常路径；L438按`not loopback_port_bindable(port)`分支；L439抛异常，停止当前正常路径；L444按`previous.is_file() and not previous.is_symlink() and previous.stat().st_size <= 16384`分支；L447按`type(value) is int and 0 < value < 1_000_000`分支；L474遍历`range(90)`。后续分支沿下方源码相同行号继续阅读。 调用`Path(backend).resolve`、`Path`、`Path(reports).resolve`、`reports.mkdir`、`int`、`str`、`( backend / "yudao-server/src/main/resources/application-native.p…`、`next`、`line.split`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `login`（L562–L600）：接收`template`、`base_url`、`username`、`password`。 控制顺序：L566按`template == "fastapiadmin"`分支；L575按`completed.json().get("code") not in (0, 200)`分支；L576抛异常，停止当前正常路径；L592按`body.get("code", 200) not in (0, 200)`分支；L593抛异常，停止当前正常路径；L598按`not isinstance(token, str) or not token`分支；L599抛异常，停止当前正常路径。 调用`httpx.Client`、`client.get`、`challenge.raise_for_status`、`challenge.json`、`time.sleep`、`client.post`、`completed.raise_for_status`、`completed.json().get`、`completed.json`等。 返回路径：L600的`token`。
+- `running_backend`（L401–L569）：接收`template`、`backend`、`env`、`reports`。 控制顺序：L404按`template == "fastapiadmin"`分支；L433按`len(jars) != 1`分支；L434抛异常，停止当前正常路径；L448按`not loopback_port_bindable(port)`分支；L449抛异常，停止当前正常路径；L454按`previous.is_file() and not previous.is_symlink() and previous.stat().st_size <= 16384`分支；L457按`type(value) is int and 0 < value < 1_000_000`分支；L484遍历`range(90)`。后续分支沿下方源码相同行号继续阅读。 调用`Path(backend).resolve`、`Path`、`Path(reports).resolve`、`reports.mkdir`、`int`、`str`、`( backend / "yudao-server/src/main/resources/application-native.p…`、`next`、`line.split`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `login`（L572–L610）：接收`template`、`base_url`、`username`、`password`。 控制顺序：L576按`template == "fastapiadmin"`分支；L585按`completed.json().get("code") not in (0, 200)`分支；L586抛异常，停止当前正常路径；L602按`body.get("code", 200) not in (0, 200)`分支；L603抛异常，停止当前正常路径；L608按`not isinstance(token, str) or not token`分支；L609抛异常，停止当前正常路径。 调用`httpx.Client`、`client.get`、`challenge.raise_for_status`、`challenge.json`、`time.sleep`、`client.post`、`completed.raise_for_status`、`completed.json().get`、`completed.json`等。 返回路径：L610的`token`。
 
 </details>
 
-**创建路径：** `workbench/native_environment.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L600。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/native_environment.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L610。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`25631`。本段原文以LF换行结束。
+本段原始字节数：`26015`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/native_environment.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e11413aa53440666f0e183201f519d5fa26042ec84a95bc27880bbee56a7b557"} -->
+<!-- learning-source: {"path": "workbench/native_environment.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "801d606e3cc0942d66a6f76d95eda2ac3d1142a4044051cf834e4d36a066907d"} -->
 ````python
 # workbench/native_environment.py
 """Loopback native lab lifecycle. Never resets existing databases or mocks authentication."""
@@ -471,7 +471,17 @@ def running_backend(template, backend, env, reports):
         jars = list((backend / "yudao-server/target").glob("*.jar"))
         if len(jars) != 1:
             raise ValueError("Expected exactly one compiled native server jar")
-        command = ["java", "-Xmx1400m", "-jar", str(jars[0]), "--spring.profiles.active=native"]
+        command = [
+            "java",
+            "-Xmx1400m",
+            "-jar",
+            str(jars[0]),
+            "--spring.profiles.active=native",
+            # Use current explicit native config even when a previously built jar
+            # is reused; it includes both the listener and OpenFeign self URLs.
+            "--spring.config.additional-location="
+            + (backend / "yudao-server/src/main/resources/application-native.properties").as_uri(),
+        ]
         openapi = "/v3/api-docs"
     base_url = f"http://127.0.0.1:{port}"
     if not loopback_port_bindable(port):

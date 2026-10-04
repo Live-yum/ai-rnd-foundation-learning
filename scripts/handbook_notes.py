@@ -262,6 +262,11 @@ MODULES = {
         "NativeConfig描述可调用的代码生成服务，NativeClient进行认证请求，native_export把Plan映射为原生生成器元数据并取回真实导出。只导出源码的结果为SOURCE_READY，不能冒充托管运行验收READY。",
         "flow/native_delivery → NativeClient → 本机FastapiAdmin或Yudao生成器；test_native。",
     ),
+    "native_ports": (
+        "原生后端端口分配与跨重启租约",
+        "读取本机TCP动态源端口范围，自动选择范围外的空闲非特权端口。产品锁与端口锁覆盖构建、启动、重启和清理，副本路径绑定回执稳定记录端口；显式端口不回退，冲突明确失败，不改主机网络配置。",
+        "native_lab/ci_native_runtime/独立run.py → backend_port_lease → 后端配置、前端构建与验收回执；test_native_ports。",
+    ),
     "native_environment": (
         "本机原生后端环境和进程",
         "先确认专用本机数据库，再复制固定源码、初始化种子并生成环境；install_backend准备依赖与构建，running_backend管理进程存活和退出，记录启动轮次、阶段、已拥有进程与目标端口状态。启动失败后清理也失败时保留原始异常并附加清理事实，不杀死占用端口的其他进程，也不把超时改成成功。兼容改动检查原文并记录。",

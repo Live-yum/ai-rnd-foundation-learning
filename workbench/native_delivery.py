@@ -442,9 +442,18 @@ def serve_managed(settings, run_id):
     check_database_identity(receipt, url)
     backend = destination / "backend"
     frontend = destination / ("frontend/web" if template == "fastapiadmin" else "frontend-product")
-    env = native_environment(template, backend, url, 8001 if template == "fastapiadmin" else 48080)
+    # The accepted product's build is bound to the port recorded by native_lab.
+    from workbench.native_frontend import require_frontend_backend
+    from workbench.native_ports import backend_port_lease, saved_backend_port
+
+    port_receipt = destination.parent / "native-evidence/backend-port.json"
     reports = destination.parent / "native-live"
+    if saved_backend_port(port_receipt) is None:
+        raise PrerequisiteError("原生产品端口回执缺失或属于其他副本；请重新验收构建")
     with ExitStack() as stack:
+        port = stack.enter_context(backend_port_lease(port_receipt))
+        require_frontend_backend(template, frontend, f"http://127.0.0.1:{port}")
+        env = native_environment(template, backend, url, port)
         base, _ = stack.enter_context(running_backend(template, backend, env, reports))
         front = stack.enter_context(
             frontend_preview(template, frontend, frontend_environment(template, base), reports)
