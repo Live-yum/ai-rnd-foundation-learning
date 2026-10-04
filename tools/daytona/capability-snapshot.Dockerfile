@@ -6,6 +6,8 @@ FROM ${UV_IMAGE} AS uv
 FROM ${NODE_IMAGE} AS node
 FROM ${SANDBOX_IMAGE}
 USER root
+RUN apt-get update && apt-get install -y --no-install-recommends libseccomp2 procps \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=uv /uv /uvx /usr/local/bin/
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules

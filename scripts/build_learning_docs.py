@@ -60,6 +60,15 @@ MODULE_STAGE = {
     "filesystem": 4,
     "tools": 4,
     "capability_contracts": 4,
+    "capability_policy": 4,
+    "capability_execution": 4,
+    "capability_editing": 7,
+    "capability_services": 4,
+    "capability_browser_isolation": 4,
+    "capability_contest_oracle": 4,
+    "capability_native_runtime": 4,
+    "orchestration": 7,
+    "native_plan_normalization": 9,
     "capability_verification": 4,
     "capability_isolation": 4,
     "capability_stack": 4,
@@ -129,6 +138,8 @@ def stage_for(name):
     path = Path(name)
     if name.startswith(("workbench/web/", "ui/")):
         return 8
+    if name.startswith("scripts/extension_oracles/"):
+        return 4
     if name.startswith("workbench/"):
         return MODULE_STAGE[path.stem]
     if name.startswith("migrations/") or name == "alembic.ini":

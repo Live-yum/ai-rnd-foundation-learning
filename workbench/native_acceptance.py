@@ -44,6 +44,20 @@ def sample_record(entity, suffix="original", template="fastapiadmin", plan=None)
     }
 
 
+def invalid_record(entity, data, template):
+    """Exercise an existing constraint, never invent a required business field."""
+    invalid = dict(data)
+    required = next(
+        (field for field in entity.fields if field.required and field.kind != "boolean"), None
+    )
+    if required is not None:
+        invalid.pop(wire_name(template, required.name))
+        return invalid, "required"
+    field = entity.fields[0]
+    invalid[wire_name(template, field.name)] = {"invalid_scalar": True}
+    return invalid, "type"
+
+
 def list_rows(value):
     if not isinstance(value, dict):
         raise AssertionError("Generated paginated API returned no pagination object")
@@ -97,15 +111,13 @@ def generated_crud(template, base_url, token, targets, plan):
                 assert updated[key] == value, f"Update/read mismatch for {key}"
             rows = list_rows(payload(client.get(listing, headers=admin)))
             assert any(row["id"] == identifier for row in rows)
-            invalid = dict(data)
-            required = next(f for f in entity.fields if f.required and f.kind != "boolean")
-            invalid.pop(wire_name(template, required.name))
+            invalid, validation_kind = invalid_record(entity, data, template)
             response = client.post(target["api"] + "/create", json=invalid, headers=admin)
             assert not successful(response) and response.status_code < 500
             assert response.status_code in (400, 422) or response.json().get("code") in (
                 400,
                 422,
-            ), "Required-field validation must return a client validation error"
+            ), "Declared field validation must return a client validation error"
             if fastapi:
                 payload(
                     client.request(
@@ -127,13 +139,21 @@ def generated_crud(template, base_url, token, targets, plan):
                 payload(client.post(target["api"] + "/create", json=sample, headers=admin))
             )
             target["sample"] = next(
-                str(sample[wire_name(template, f.name)]) for f in entity.fields if f.kind == "text"
+                (
+                    str(sample[wire_name(template, f.name)])
+                    for f in entity.fields
+                    if f.kind == "text"
+                ),
+                "",
             )
+            target["sample_record"] = {"id": persistent, **sample}
             results.append(
                 {
                     "entity": entity.name,
                     "crud": True,
-                    "required_field_rejected": True,
+                    "required_field_rejected": validation_kind == "required",
+                    "invalid_field_rejected": True,
+                    "validation_kind": validation_kind,
                     "persistent_id": persistent,
                     "persistent_data": sample,
                     "unauthenticated_denied": True,

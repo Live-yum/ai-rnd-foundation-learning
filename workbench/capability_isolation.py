@@ -45,6 +45,7 @@ ISOLATION_FLAGS = (
     "inherited_fds_closed",
     "standard_streams_detached",
     "no_controlling_terminal",
+    "socket_filter_enforced",
 )
 
 
@@ -70,13 +71,18 @@ class IsolationUnavailable(CheckFailure):
 
 
 def require_container_evidence(value, sandbox_id):
+    profiles = {
+        "fixed-authored-sqlite-v1": "rnd-python",
+        "native-fastapiadmin-postgresql-v1": "rnd-native-fastapiadmin",
+    }
     if (
         not isinstance(value, dict)
         or not isinstance(sandbox_id, str)
         or not re.fullmatch(
             r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", sandbox_id
         )
-        or value.get("profile") != "fixed-authored-sqlite-v1"
+        or not isinstance(value.get("profile"), str)
+        or value.get("profile") not in profiles
         or value.get("sandbox_id") != sandbox_id
         or value.get("control_user") != "0:0"
         or value.get("privileged") is not False
@@ -88,7 +94,8 @@ def require_container_evidence(value, sandbox_id):
             for key in ("runner_image_id", "snapshot_image_id")
         )
         or not re.fullmatch(
-            r"registry:6000/rnd-python@sha256:[a-f0-9]{64}", str(value.get("snapshot_digest", ""))
+            rf"registry:6000/{profiles.get(value.get('profile'), 'invalid')}@sha256:[a-f0-9]{{64}}",
+            str(value.get("snapshot_digest", "")),
         )
     ):
         raise IsolationUnavailable("缺少当前独占容器的真实非特权/镜像/挂载检查回执")
@@ -107,15 +114,21 @@ def control_exec(sandbox, argv, timeout):
 
 def product_argv(plan, argv, database):
     ports = {plan.runtime.port}
-    if ports & {2280, 55432}:
+    if ports & {2280, 55432, 55433}:
         raise IsolationUnavailable("产品端口与控制/数据库保留端口冲突")
     connect = "55432" if plan.selection.database == "postgresql" else ""
+    if getattr(plan.selection, "template", "") == "fastapiadmin":
+        if plan.runtime.port == 5173:
+            raise IsolationUnavailable("原生后端端口不能占用独立前端端口")
+        ports.add(5173)
+        connect = ",".join(str(value) for value in sorted({plan.runtime.port, 55432, 55433}))
     environment = {
-        "HOME": "/home/" + APP_USER,
+        "HOME": "/tmp/rnd-capability/home",
         "PATH": "/opt/java/openjdk/bin:/usr/local/bin:/usr/bin:/bin",
         "LANG": "C.UTF-8",
         "PYTHONUTF8": "1",
-        "UV_CACHE_DIR": "/opt/rnd/uv-cache",
+        "UV_CACHE_DIR": "/tmp/rnd-capability/cache",
+        "TMPDIR": "/tmp/rnd-capability/tmp",
         "UV_PYTHON_INSTALL_DIR": "/opt/rnd/python",
         "UV_OFFLINE": "1",
         "UV_NO_PROGRESS": "1",
@@ -141,7 +154,7 @@ def product_argv(plan, argv, database):
             "-I",
             "-S",
             GUARD,
-            str(plan.runtime.port),
+            ",".join(str(value) for value in sorted(ports)),
             connect,
             "--",
             "/usr/bin/env",
@@ -244,11 +257,28 @@ def prepare_identity(sandbox, plan, timeout):
         ["/usr/bin/chmod", "700", CONTROL + "/private", "/tmp/rnd-postgres"],
         ["/usr/bin/chmod", "755", CONTROL],
         ["/usr/bin/chmod", "711", "/tmp/rnd-capability"],
-        ["/usr/bin/chown", "-R", APP_USER + ":" + APP_USER, PRODUCT, "/opt/rnd/uv-cache"],
+        ["/usr/bin/mkdir", "-p", "/tmp/rnd-capability/home", "/tmp/rnd-capability/tmp"],
+        ["/usr/bin/cp", "-a", "/opt/rnd/uv-cache", "/tmp/rnd-capability/cache"],
+        [
+            "/usr/bin/chown",
+            "-R",
+            APP_USER + ":" + APP_USER,
+            PRODUCT,
+            "/tmp/rnd-capability/home",
+            "/tmp/rnd-capability/tmp",
+            "/tmp/rnd-capability/cache",
+        ],
     ]
     for argv in commands:
         if control_exec(sandbox, argv, timeout).exit_code != 0:
             raise IsolationUnavailable("隔离环境无法建立专用无权限执行身份，未执行生成源码")
+    if getattr(plan.selection, "template", "") == "fastapiadmin":
+        for argv in (
+            ["/usr/bin/cp", "-a", "/opt/rnd/pnpm-store", "/tmp/rnd-capability/pnpm-store"],
+            ["/usr/bin/chown", "-R", APP_USER + ":" + APP_USER, "/tmp/rnd-capability/pnpm-store"],
+        ):
+            if control_exec(sandbox, argv, timeout).exit_code:
+                raise IsolationUnavailable("原生离线前端缓存未就绪，未执行源码")
     sandbox.fs.upload_file(
         (ROOT / "scripts/capability_guard.py").read_bytes(), GUARD, timeout=timeout
     )

@@ -47,6 +47,19 @@ NEW = """		// Owned fixed-application profile: all application containers use
 		// Docker's unprivileged defaults, including its default seccomp filter.
 		Privileged: false,
 """
+LIMIT_ANCHOR = "\tcontainerRuntime := config.GetContainerRuntime()"
+LIMIT_INSERT = """\t// Custom-source executions get bounded writable storage on ordinary runners.
+\t// Root control remains distinct; Landlock confines every product write here.
+\tif strings.HasPrefix(sandboxDto.Name, "rnd-source-") {
+\t\tpidLimit := int64(256)
+\t\thostConfig.PidsLimit = &pidLimit
+\t\thostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"}
+\t\tif strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {
+\t\t\tpidLimit = 384
+\t\t\thostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=4294967296,mode=1777"}
+\t\t}
+\t}
+"""
 RECIPE_PATHS = (
     "scripts/daytona_capability_profile.py",
     "tools/daytona/capability-runner.Dockerfile",
@@ -137,6 +150,9 @@ def source_context(directory, context):
     if blob((context / "go.work").read_bytes()) != WORKSPACE_BLOB:
         raise ValueError("Pinned Go workspace does not match")
     updated = raw.decode().replace(OLD, NEW)
+    if updated.count(LIMIT_ANCHOR) != 1:
+        raise ValueError("Pinned Runner custom-source resource anchor changed")
+    updated = updated.replace(LIMIT_ANCHOR, LIMIT_INSERT + LIMIT_ANCHOR, 1)
     expected_patch = "".join(
         difflib.unified_diff(
             raw.decode().splitlines(keepends=True),
@@ -474,7 +490,47 @@ def require_profile(directory=HOME, snapshot=None):
     return record
 
 
-def inspect_created_sandbox(directory, sandbox_id):
+def require_execution_resources(host, *, native=False):
+    """Production source needs enforced limits, not API-requested resources.
+
+        Landlock confines candidate writes to the explicitly sized tmpfs. This
+        does not depend on the host's XFS/overlay project-quota configuration.
+    This never changes the user's daemon, disks or container settings.
+    """
+    memory, swap = host.get("Memory"), host.get("MemorySwap")
+    period, quota = host.get("CpuPeriod"), host.get("CpuQuota")
+    storage = host.get("Tmpfs", {})
+    memory_limit = (6 if native else 2) * 1024**3
+    tmpfs_bytes = 4294967296 if native else 1073741824
+    pids = 384 if native else 256
+    if (
+        type(memory) is not int
+        or not 0 < memory <= memory_limit
+        or type(swap) is not int
+        or swap != memory
+        or type(period) is not int
+        or not 0 < period <= 1000000
+        or type(quota) is not int
+        or not 0 < quota <= period * (2 if native else 1)
+        or not isinstance(storage, dict)
+        or storage != {"/tmp": f"rw,nosuid,nodev,size={tmpfs_bytes},mode=1777"}
+        or type(host.get("PidsLimit")) is not int
+        or host["PidsLimit"] != pids
+    ):
+        raise ValueError(
+            "Custom source requires actual bounded CPU, memory, swap and storage quota"
+        )
+    return {
+        "cpu_period": period,
+        "cpu_quota": quota,
+        "memory": memory,
+        "memory_swap": swap,
+        "tmpfs_bytes": tmpfs_bytes,
+        "pids": pids,
+    }
+
+
+def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, selection=None):
     """Inspect only the newly owned UUID inside the verified profile Runner.
 
     Upstream create.go names the Docker container sandboxDto.Id. No shell,
@@ -486,6 +542,11 @@ def inspect_created_sandbox(directory, sandbox_id):
     if not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id:
         raise ValueError("Owned sandbox must have one canonical UUID")
     record = require_profile(directory)
+    native = selection is not None and selection.get("template") == "fastapiadmin"
+    if native:
+        from scripts.daytona_native_capability_profile import require_native_profile
+
+        record = require_native_profile(directory)
     runner_id = compose(directory, "ps", "--quiet", "runner").strip()
     if not re.fullmatch(r"[a-f0-9]{64}", runner_id):
         raise ValueError("Profile requires exactly one running Runner container")
@@ -537,6 +598,31 @@ def inspect_created_sandbox(directory, sandbox_id):
         raise ValueError("Owned application container identity is ambiguous")
     container = rows[0]
     config, host = container.get("Config", {}), container.get("HostConfig", {})
+    if require_resources:
+        networks = container.get("NetworkSettings", {}).get("Networks", {})
+        if set(networks) != {"runner-bridge"} or host.get("NetworkMode") != "runner-bridge":
+            raise ValueError("Custom source must have only the exact owned Runner bridge")
+        bridge = json.loads(
+            local.docker(
+                "exec",
+                runner_id,
+                "docker",
+                "--host",
+                "unix:///var/run/docker.sock",
+                "network",
+                "inspect",
+                "runner-bridge",
+                timeout=30,
+            )
+        )
+        if (
+            len(bridge) != 1
+            or bridge[0].get("EnableIPv6") is not False
+            or bridge[0].get("Driver") != "bridge"
+            or {item.get("Subnet") for item in bridge[0].get("IPAM", {}).get("Config", [])}
+            != {local.RUNNER_BRIDGE_SUBNET}
+        ):
+            raise ValueError("Runner bridge address/IPv6 policy differs from the reviewed profile")
     if (
         container.get("Name") != "/" + sandbox_id
         or container.get("Image") != record["snapshot"]["image_id"]
@@ -560,6 +646,16 @@ def inspect_created_sandbox(directory, sandbox_id):
         "/usr/local/lib/daytona-computer-use": "/usr/local/bin/.tmp/binaries/daytona-computer-use",
     }
     mounts = container.get("Mounts", [])
+    if require_resources:
+        tmpfs = [mount for mount in mounts if mount.get("Type") == "tmpfs"]
+        if len(tmpfs) > 1 or any(
+            mount.get("Destination") != "/tmp"
+            or mount.get("RW") is not True
+            or mount.get("Source") not in (None, "")
+            for mount in tmpfs
+        ):
+            raise ValueError("Only the exact bounded application tmpfs is permitted")
+        mounts = [mount for mount in mounts if mount.get("Type") != "tmpfs"]
     if (
         len(mounts) != len(expected)
         or any(
@@ -571,8 +667,8 @@ def inspect_created_sandbox(directory, sandbox_id):
         or {mount.get("Destination") for mount in mounts} != set(expected)
     ):
         raise ValueError("Application mounts must be only the two trusted read-only binaries")
-    return {
-        "profile": PROFILE,
+    receipt = {
+        "profile": record["profile"],
         "sandbox_id": sandbox_id,
         "runner_image_id": record["runner"]["image_id"],
         "snapshot_image_id": record["snapshot"]["image_id"],
@@ -583,6 +679,9 @@ def inspect_created_sandbox(directory, sandbox_id):
         "seccomp_engine": "builtin",
         "trusted_readonly_binary_mounts": True,
     }
+    if require_resources:
+        receipt["resource_limits"] = require_execution_resources(host, native=native)
+    return receipt
 
 
 def up(directory=HOME):

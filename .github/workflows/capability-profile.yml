@@ -1,7 +1,19 @@
 name: Fixed authored SQLite isolation profile
 on:
+  pull_request:
+    paths:
+      - 'workbench/capability_*.py'
+      - 'scripts/capability*.py'
+      - 'scripts/ci_capability_security.py'
+      - 'scripts/daytona_capability_profile.py'
+      - 'tests/test_capability*.py'
+      - 'tools/daytona/capability*'
+      - 'tools/browser/**'
+      - 'scripts/capability_browser*.cjs'
+      - 'scripts/ci_capability_browser_isolation.py'
+      - '.github/workflows/capability-profile.yml'
   push:
-    branches: [feature/capability-nodes-transcript]
+    branches: [main, feature/durable-capability-orchestration]
     paths:
       - 'workbench/capability_*.py'
       - 'scripts/capability_guard.py'
@@ -13,6 +25,9 @@ on:
       - 'tests/test_capability_browser_preflight.py'
       - 'scripts/daytona_capability_profile.py'
       - 'tools/daytona/capability*'
+      - 'tools/browser/**'
+      - 'scripts/capability_browser*.cjs'
+      - 'scripts/ci_capability_browser_isolation.py'
       - '.github/workflows/capability-profile.yml'
   workflow_dispatch:
 concurrency:
@@ -43,13 +58,20 @@ jobs:
       - name: Check ordinary launcher behavior and strict receipt contracts
         env:
           RND_REQUIRE_NODE_TESTS: '1'
-        run: uv run pytest -q tests/test_capability_guard.py tests/test_capability_isolation.py tests/test_daytona_capability_profile.py tests/test_capability_browser_protocol.py tests/test_capability_browser_preflight.py
+          RND_REQUIRE_LANDLOCK: '1'
+        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
       - name: Install mandatory product browser acceptance tooling
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - name: Require sandboxed browser readiness before building the local service
         run: uv run python -m scripts.ci_capability_browser_preflight
+      - name: Build immutable networkless browser worker in this same job
+        run: |
+          docker --host unix:///var/run/docker.sock build -f tools/browser/Dockerfile -t rnd-capability-browser .
+          echo "CAPABILITY_BROWSER_IMAGE=$(docker --host unix:///var/run/docker.sock image inspect --format '{{.Id}}' rnd-capability-browser)" >> "$GITHUB_ENV"
+      - name: Require real browser network resource and cleanup proof in this same job
+        run: uv run python -m scripts.ci_capability_browser_isolation
       - name: Create the local control plane with random local credentials
         run: uv run python -m scripts.daytona_local prepare --directory .data/daytona-capability
       - name: Build pinned release locally and lock immutable images
@@ -64,6 +86,8 @@ jobs:
         run: uv run python -m scripts.daytona_bootstrap snapshot --directory .data/daytona-capability
       - name: Require positive fixed-application isolation profile and real HTTP browser database restart
         run: uv run python -m scripts.ci_capability_profile
+      - name: Require real adversarial isolation and resource enforcement before source admission
+        run: uv run python -m scripts.ci_capability_security
       - name: Preserve bounded redacted diagnostics only
         if: always()
         run: |
@@ -110,3 +134,6 @@ jobs:
             reports/capability-profile-detail.json
             reports/capability-image-provenance.json
             reports/capability-browser-preflight.json
+            reports/capability-security.json
+            reports/capability-security-detail.json
+            reports/capability-browser-isolation.json

@@ -20,9 +20,16 @@ def custom_requested(messages):
     for text in messages:
         if re.search(r"(?:禁止|不允许|不要)自定义实现|仅(?:使用|用)模板", text):
             enabled = False
-        elif CUSTOM_CHOICE in text or (
-            re.search(r"(?:自己|自定义)(?:开发|实现)|自行(?:开发|实现)", text)
-            and re.search(r"不用模板|不依赖模板|模板(?:未|不|无法|不能)|超出模板", text)
+        elif (
+            CUSTOM_CHOICE in text
+            or re.search(
+                r"(?:这些|那些|全部|所有|不支持的|未支持的).{0,20}(?:自己|自行|自定义)(?:开发|实现)",
+                text,
+            )
+            or (
+                re.search(r"(?:自己|自定义)(?:开发|实现)|自行(?:开发|实现)", text)
+                and re.search(r"不用模板|不依赖模板|模板(?:未|不|无法|不能)|超出模板", text)
+            )
         ):
             enabled = True
     return enabled
@@ -140,6 +147,8 @@ class HttpStep(Contract):
     path: str = Field(min_length=1, max_length=1000)
     headers: dict[str, str] = Field(default_factory=dict, max_length=12)
     body: JsonValue = None
+    body_encoding: Literal["json", "form"] = "json"
+    wait_ms: Annotated[int, Field(strict=True, ge=0, le=1000)] = 0
     status: int = Field(ge=100, le=599)
     equals: dict[str, JsonValue] = Field(default_factory=dict, max_length=40)
     absent: list[str] = Field(default_factory=list, max_length=40)
@@ -161,13 +170,51 @@ class HttpStep(Contract):
     @classmethod
     def bounded_headers(cls, value):
         if any(
-            k.lower() in {"host", "proxy-authorization", "connection", "content-length"}
+            k.lower()
+            in {
+                "host",
+                "proxy-authorization",
+                "connection",
+                "content-length",
+                "content-type",
+                "content-encoding",
+                "transfer-encoding",
+            }
             or k.lower().startswith("x-daytona-")
             or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]{0,63}", k)
             or any(ord(c) < 32 for c in v)
             for k, v in value.items()
         ):
             raise ValueError("验收请求头无效")
+        return value
+
+    @model_validator(mode="after")
+    def form_contract(self):
+        if self.body_encoding == "form":
+            if self.method not in {"POST", "PUT", "PATCH", "DELETE"} or not isinstance(
+                self.body, dict
+            ):
+                raise ValueError("form只支持明确写请求的键值对象")
+            self.bounded_form(self.body)
+        return self
+
+    @staticmethod
+    def bounded_form(value):
+        if not isinstance(value, dict) or not 1 <= len(value) <= 20:
+            raise ValueError("form必须有1至20个明确字段")
+        size = 0
+        for key, item in value.items():
+            if (
+                not isinstance(key, str)
+                or not 1 <= len(key) <= 100
+                or not isinstance(item, str)
+                or len(item) > 4096
+                or any(ord(c) < 32 for c in key)
+            ):
+                raise ValueError("form只接受有界字符串字段")
+            size += len(key.encode("utf-8")) + len(item.encode("utf-8"))
+            if size > 8192:
+                raise ValueError("form超过8KiB内容预算")
         return value
 
 

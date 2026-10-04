@@ -67,6 +67,7 @@ GROUPS = [
             "tools/aider/.python-version",
             "tools/aider/uv.lock",
             "tools/daytona",
+            "tools/browser",
             "tools/embeddings/pyproject.toml",
             "tools/embeddings/uv.lock",
         ],

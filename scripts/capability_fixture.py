@@ -166,7 +166,13 @@ def make_plan(payload):
             "id": "private_records",
             "title": "登录、真实保存、本人访问和越权拒绝",
             "requirements": refs,
-            "steps": [*base, create, own, denied],
+            "steps": [
+                *base,
+                create,
+                own,
+                denied,
+                {**create, "body": {"title": ""}, "status": 422, "captures": {}, "equals": {}},
+            ],
             "after_restart": [own, denied],
             "browser": [
                 {"action": "open", "value": "/"},
@@ -210,6 +216,7 @@ def make_plan(payload):
                     "status": 403,
                 },
                 denied,
+                {**create, "body": {"title": ""}, "status": 422, "captures": {}, "equals": {}},
             ],
         },
     ]

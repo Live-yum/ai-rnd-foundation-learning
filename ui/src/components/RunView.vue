@@ -105,23 +105,35 @@ const completeCount = computed(
 const gateTitle = computed(() =>
   gate.value?.stage === 'requirements'
     ? '先对齐需求，再往前走'
-    : gate.value?.stage === 'design'
+    : ['design', 'extension_design'].includes(gate.value?.stage || '')
       ? '把方案摊开，一起检查'
-      : gate.value?.stage === 'delivery'
+      : ['delivery', 'extension_delivery'].includes(gate.value?.stage || '')
         ? '先看验证证据，再确认交付'
         : '一起把需求说清楚',
 )
+function designData(key: string) {
+  const d = gate.value?.data || {}
+  const plan = d.extension?.baseline || d.plan || {}
+  if (key === 'data') return plan.entities || plan
+  if (key === 'tasks') return d.extension?.implementation?.tasks || d.tasks || {}
+  if (key === 'interfaces')
+    return (
+      d.extension?.implementation?.scenarios || plan.endpoints || plan.api || plan.business || plan
+    )
+  return (
+    d.extension || {
+      ...plan,
+      ...(d.native_normalization?.field_mappings?.length
+        ? { native_normalization: d.native_normalization }
+        : {}),
+    }
+  )
+}
 const reviewData = computed(() => {
   const d = gate.value?.data || {}
   if (gate.value?.stage === 'requirements' || gate.value?.stage === 'clarification')
     return d.requirement || d
-  if (gate.value?.stage === 'design') {
-    if (tab.value === 'data') return d.plan?.entities || d.plan || {}
-    if (tab.value === 'tasks') return d.tasks || {}
-    if (tab.value === 'interfaces')
-      return d.plan?.endpoints || d.plan?.api || d.plan?.business || d.plan || {}
-    return d.plan || d
-  }
+  if (['design', 'extension_design'].includes(gate.value?.stage || '')) return designData(tab.value)
   return d
 })
 const downloadable = computed(() => ['READY', 'SOURCE_READY'].includes(run.value?.status || ''))
@@ -129,10 +141,19 @@ const evidence = computed(
   () => state.report['verification.json'] || state.report['daytona-verification.json'],
 )
 const delivery = computed(() =>
-  gate.value?.stage === 'delivery'
-    ? gate.value.data
+  ['delivery', 'extension_delivery'].includes(gate.value?.stage || '')
+    ? gate.value?.data
     : state.report['delivery.json'] || run.value?.result || {},
 )
+const extensionCoverageNotice = computed(() => {
+  const level =
+    delivery.value?.coverage_level || state.report['extension-coverage.json']?.coverage_level
+  if (level === 'reviewed-executable-contract')
+    return '仅证明已审阅可执行合同通过运行验收，不代表全部原始需求的语义均已证明。请对照原始来源与验收合同查看覆盖范围。'
+  if (level === 'bounded-business-slice')
+    return '仅完成独立业务切片验收；完整原始需求与外部服务义务仍有未完成项，不能交付。'
+  return ''
+})
 const eventsReversed = computed(() =>
   [...state.events].filter((e) => !e.kind.startsWith('assistant_delta')).reverse(),
 )
@@ -710,14 +731,31 @@ function reread() {
             </h2>
             <p>版本 v{{ gate.version }} · AI 生成 / 人工审核</p>
           </div>
-          <a-tabs v-if="gate.stage === 'design'" v-model:active-key="tab"
-            ><a-tab-pane key="overview" tab="架构与模块" /><a-tab-pane
-              key="interfaces"
-              tab="接口与业务" /><a-tab-pane key="data" tab="数据模型" /><a-tab-pane
-              key="tasks"
-              tab="任务与覆盖" /></a-tabs
-          ><Questionnaire
-            v-if="isQuestions"
+          <a-alert
+            v-if="gate.stage === 'extension_design'"
+            type="info"
+            show-icon
+            message="本次批准绑定原始来源和独立验收合同。请审阅业务正例、负例、权限及重启读回；源码节点不能更改已批准的验收标准。来源ID覆盖不等于业务完成。"
+          />
+          <a-tabs
+            v-if="['design', 'extension_design'].includes(gate.stage)"
+            v-model:active-key="tab"
+          >
+            <a-tab-pane key="overview" tab="架构与模块"
+              ><DataDocument :data="designData('overview')"
+            /></a-tab-pane>
+            <a-tab-pane key="interfaces" tab="接口与业务"
+              ><DataDocument :data="designData('interfaces')"
+            /></a-tab-pane>
+            <a-tab-pane key="data" tab="数据模型"
+              ><DataDocument :data="designData('data')"
+            /></a-tab-pane>
+            <a-tab-pane key="tasks" tab="任务与覆盖"
+              ><DataDocument :data="designData('tasks')"
+            /></a-tab-pane>
+          </a-tabs>
+          <Questionnaire
+            v-else-if="isQuestions"
             :gate="gate"
             :disabled="!canSubmit || !modelReady"
             :busy="submitting"
@@ -726,8 +764,16 @@ function reread() {
         </article>
         <aside class="review-actions">
           <div class="panel approval-panel">
-            <a-tag color="gold">等待{{ gate.stage === 'design' ? '设计' : '需求' }}确认</a-tag>
-            <h2>这份{{ gate.stage === 'design' ? '方案' : '需求' }}符合预期吗？</h2>
+            <a-tag color="gold"
+              >等待{{
+                ['design', 'extension_design'].includes(gate.stage) ? '设计' : '需求'
+              }}确认</a-tag
+            >
+            <h2>
+              这份{{
+                ['design', 'extension_design'].includes(gate.stage) ? '方案' : '需求'
+              }}符合预期吗？
+            </h2>
             <p>确认后继续串行流程。需要修改时，将带着意见返回需求分析。</p>
             <a-alert
               v-if="blocked.length"
@@ -759,7 +805,11 @@ function reread() {
               :loading="submitting"
               :disabled="!canSubmit || !modelReady || !canAct(run, 'approve') || !reviewed"
               @click="decide('approve')"
-              >{{ gate.stage === 'design' ? '确认设计，开始生成' : '确认需求，生成计划' }}</a-button
+              >{{
+                ['design', 'extension_design'].includes(gate.stage)
+                  ? '确认设计，开始生成'
+                  : '确认需求，生成计划'
+              }}</a-button
             >
             <div class="approval-secondary">
               <a-button
@@ -908,7 +958,7 @@ function reread() {
             ? '运行级验收与交付确认已完成'
             : run.status === 'SOURCE_READY'
               ? '源码级交付已确认，运行验收尚未证明'
-              : gate?.stage === 'delivery'
+              : ['delivery', 'extension_delivery'].includes(gate?.stage || '')
                 ? '验证结果已保存，等待你的交付确认'
                 : '本轮尚未进入交付确认'
         "
@@ -917,6 +967,13 @@ function reread() {
             ? '可下载已经过哈希校验的交付包。'
             : '批准前交付下载保持锁定。交付不等于自动部署或数据迁移。'
         "
+      />
+      <a-alert
+        v-if="extensionCoverageNotice"
+        class="coverage-notice"
+        type="warning"
+        show-icon
+        :message="extensionCoverageNotice"
       />
       <div class="delivery-grid">
         <section class="panel">

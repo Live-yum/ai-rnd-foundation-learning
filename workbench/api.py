@@ -233,6 +233,12 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
             "source-context/context-receipt.json",
             "daytona-verification.json",
             "tool-failure.json",
+            "extension-progress.json",
+            "extension-proof.json",
+            "extension-coverage.json",
+            "extension-scope.json",
+            "extension-acceptance.json",
+            "extension-review.json",
         ):
             path = inside(directory, name)
             if path.is_file():

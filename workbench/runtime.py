@@ -166,6 +166,8 @@ class Runtime:
                 pending = pending_interrupt(snapshot)
                 if not pending or not self.store.get_run(run_id)["auto_mode"]:
                     break
+                if pending.get("data", {}).get("requires_explicit_review"):
+                    break
                 if pending.get("data", {}).get("capability_conflicts"):
                     self.pause_recommendation(run_id, pending, 0)
                 if pending["can_approve"]:

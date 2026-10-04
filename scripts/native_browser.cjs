@@ -106,8 +106,16 @@ async function main() {
     for (const target of targets) {
       const listing = observe(target.list);
       await page.goto(base + '/#' + target.route, { waitUntil: 'domcontentloaded' });
-      await checked(listing);
+      const listData = await checked(listing);
+      if (target.sample_record) {
+        const rows = listData.items || listData.list;
+        assert(Array.isArray(rows), 'Native listing omitted actual rows');
+        const persisted = rows.find(row => row.id === target.sample_record.id);
+        assert(persisted, 'Native browser list omitted persistent sample');
+        for (const [key, value] of Object.entries(target.sample_record)) assert.deepEqual(persisted[key], value, 'Native browser list field differs: ' + key);
+      }
       await page.locator(fastapi ? '.el-table' : '.vxe-table').first().waitFor({ state: 'visible' });
+      if (target.sample_record && !target.sample) await page.locator(fastapi ? '.el-table__body tbody tr' : '.vxe-table--body tbody tr').first().waitFor({ state: 'visible' });
       if (target.sample) await page.getByText(target.sample, { exact: true }).first().waitFor({ state: 'visible' });
       // Verify the selected template's actual rendered shell and component system.
       // A generic table with matching data is not a native frontend acceptance.

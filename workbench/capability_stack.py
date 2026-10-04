@@ -12,7 +12,12 @@ import shlex
 from pathlib import PurePosixPath
 from xml.etree import ElementTree
 
-from workbench.capability_isolation import CONTROL_SHELL_ENV, control_exec, system_argv
+from workbench.capability_isolation import (
+    CONTROL_SHELL_ENV,
+    control_exec,
+    run_guarded_control,
+    system_argv,
+)
 from workbench.capability_verification import CheckFailure
 from workbench.filesystem import inside, manifest
 
@@ -21,6 +26,7 @@ PG_BIN = "/usr/lib/postgresql/17/bin/"
 PG_PORT = 55432
 PG_ROOT = "/tmp/rnd-postgres"
 PG_SOCKET = PG_ROOT + "/socket"
+PG_VERIFIER_SECRET = "/tmp/rnd-module-control/private/postgres-verifier.json"
 
 
 def inspect_stack(product, plan):
@@ -41,12 +47,28 @@ def inspect_stack(product, plan):
         ]
         if len(modules) != 1:
             raise CheckFailure("FastAPI启动命令必须声明唯一ASGI模块入口")
-        entry = (
-            PurePosixPath(plan.runtime.start.cwd)
-            / (modules[0].split(":")[0].replace(".", "/") + ".py")
-        ).as_posix()
-        if entry not in inventory:
+        module, attribute = modules[0].split(":")
+        base = PurePosixPath(plan.runtime.start.cwd) / module.replace(".", "/")
+        entries = [str(base) + ".py", (base / "__init__.py").as_posix()]
+        found_entries = [name for name in entries if name in inventory]
+        if len(found_entries) != 1:
             raise CheckFailure("FastAPI入口不是本次产物源码")
+        entry = found_entries[0]
+        if selected["backend"] == "fastapiadmin":
+            if (
+                plan.runtime.start.cwd != "backend"
+                or modules != ["app:create_app"]
+                or "--factory" not in argv
+                or entry != "backend/app/__init__.py"
+            ):
+                raise CheckFailure("FastapiAdmin必须保留原生app:create_app包工厂入口")
+            entry_tree = ast.parse(inside(product, entry).read_text(encoding="utf-8"))
+            if not any(
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == attribute
+                for node in entry_tree.body
+            ):
+                raise CheckFailure("FastapiAdmin原生应用工厂不存在")
+        evidence["source_checks"][entry] = inventory[entry]
         found = False
         for name in inventory:
             if not name.endswith(".py"):
@@ -107,17 +129,64 @@ def inspect_stack(product, plan):
     return evidence
 
 
-def database_environment(plan, password=""):
+def database_environment(plan, password="", services=None):
     if plan.selection.database == "sqlite":
         return {"DATABASE_URL": "sqlite:///" + REMOTE + "/product/" + plan.runtime.database_path}
     if not password:
         raise CheckFailure("隔离PostgreSQL缺少专用应用身份")
-    return {
+    result = {
         "DATABASE_URL": f"postgresql+psycopg://rnd_app:{password}@127.0.0.1:{PG_PORT}/rnd_product",
         "SPRING_DATASOURCE_URL": f"jdbc:postgresql://127.0.0.1:{PG_PORT}/rnd_product",
         "SPRING_DATASOURCE_USERNAME": "rnd_app",
         "SPRING_DATASOURCE_PASSWORD": password,
     }
+    if getattr(plan.selection, "template", "") == "fastapiadmin":
+        from workbench.capability_services import REDIS_PORT
+
+        if not services or not services.get("redis_password") or not services.get("session_key"):
+            raise CheckFailure("FastapiAdmin缺少本次独立Redis和会话身份")
+        result.update(
+            {
+                "ENVIRONMENT": "dev",
+                "DATABASE_TYPE": "postgres",
+                "DATABASE_HOST": "127.0.0.1",
+                "DATABASE_PORT": str(PG_PORT),
+                "DATABASE_USER": "rnd_app",
+                "DATABASE_PASSWORD": password,
+                "DATABASE_NAME": "rnd_product",
+                "REDIS_HOST": "127.0.0.1",
+                "REDIS_PORT": str(REDIS_PORT),
+                "REDIS_USER": "rnd_app",
+                "REDIS_PASSWORD": services["redis_password"],
+                "REDIS_DB_NAME": "0",
+                "SECRET_KEY": services["session_key"],
+                "SERVER_HOST": "0.0.0.0",
+                "SERVER_PORT": str(plan.runtime.port),
+                "DEBUG": "False",
+                "WORKERS": "1",
+                "SCHEDULER_ALLOW_CODE_EXEC": "False",
+                "DEMO_ENABLE": "False",
+                "CAPTCHA_ENABLE": "True",
+                "LOGIN_RATE_LIMIT_MAX_ATTEMPTS": "100",
+                "OPENAI_API_KEY": "",
+                "CI": "true",
+                "HUSKY": "0",
+                "NODE_OPTIONS": "--max-old-space-size=3072",
+                "VITE_APP_TITLE": "Native extension",
+                "VITE_VERSION": "3.0.0",
+                "VITE_PORT": "5173",
+                "VITE_BASE_URL": "/",
+                "VITE_APP_BASE_API": "/api/v1",
+                "VITE_API_BASE_URL": f"http://127.0.0.1:{plan.runtime.port}",
+                "VITE_API_TIMEOUT": "120000",
+                "VITE_ACCESS_MODE": "mixed",
+                "VITE_WITH_CREDENTIALS": "false",
+                "VITE_LOCK_ENCRYPT_KEY": "native-lab-only",
+                "RND_OFFLINE_TOOLS": "1",
+                "npm_config_store_dir": "/tmp/rnd-capability/pnpm-store",
+            }
+        )
+    return result
 
 
 def pg_control(argv):
@@ -166,6 +235,14 @@ def prepare_database(sandbox, plan, timeout, *, restart=False, password=""):
         raise CheckFailure("独立PostgreSQL进程无法启动")
     if not restart:
         password = secrets.token_hex(24)
+        verifier_password = secrets.token_hex(32)
+        sandbox.fs.upload_file(
+            json.dumps({"password": verifier_password}).encode(),
+            PG_VERIFIER_SECRET,
+            timeout=timeout,
+        )
+        if control_exec(sandbox, ["/usr/bin/chmod", "600", PG_VERIFIER_SECRET], timeout).exit_code:
+            raise CheckFailure("无法保护独立数据库验证身份")
         command = [
             PG_BIN + "createdb",
             "-h",
@@ -179,7 +256,7 @@ def prepare_database(sandbox, plan, timeout, *, restart=False, password=""):
         ]
         if control_exec(sandbox, pg_control(command), timeout).exit_code:
             raise CheckFailure("无法建立非应用拥有的验证数据库")
-        sql = f"CREATE ROLE rnd_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{password}'; REVOKE ALL ON DATABASE rnd_product FROM PUBLIC; GRANT CONNECT,TEMPORARY ON DATABASE rnd_product TO rnd_app; REVOKE ALL ON SCHEMA public FROM PUBLIC; GRANT USAGE,CREATE ON SCHEMA public TO rnd_app;"
+        sql = f"CREATE ROLE rnd_app LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{password}'; CREATE ROLE rnd_verify LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION NOBYPASSRLS PASSWORD '{verifier_password}'; REVOKE CONNECT ON DATABASE postgres,template1 FROM PUBLIC; REVOKE ALL ON DATABASE rnd_product FROM PUBLIC; GRANT CONNECT,TEMPORARY ON DATABASE rnd_product TO rnd_app; REVOKE ALL ON SCHEMA public FROM PUBLIC; GRANT USAGE,CREATE ON SCHEMA public TO rnd_app; GRANT CONNECT ON DATABASE rnd_product TO rnd_verify; GRANT USAGE ON SCHEMA public TO rnd_verify; ALTER DEFAULT PRIVILEGES FOR ROLE rnd_app IN SCHEMA public GRANT SELECT ON TABLES TO rnd_verify;"
         command = [
             PG_BIN + "psql",
             "-X",
@@ -241,29 +318,117 @@ print(json.dumps({t:c.execute('SELECT count(*) FROM '+t).fetchone()[0] if t in n
         for table in tables:
             # Table identifiers are constrained by the reviewed Pydantic contract.
             query = f"SELECT CASE WHEN pg_catalog.to_regclass('public.{table}') IS NULL THEN 0 WHEN (SELECT relkind='r' AND relpersistence='p' FROM pg_catalog.pg_class WHERE oid=pg_catalog.to_regclass('public.{table}')) THEN (pg_catalog.xpath('/row/c/text()',pg_catalog.query_to_xml('SELECT pg_catalog.count(*) AS c FROM public.{table}',false,true,'')))[1]::text::bigint ELSE -1 END"
-            argv = [
-                PG_BIN + "psql",
-                "-X",
-                "-q",
-                "-v",
-                "ON_ERROR_STOP=1",
-                "-h",
-                PG_SOCKET,
-                "-p",
-                str(PG_PORT),
-                "-U",
-                "postgres",
-                "-d",
-                "rnd_product",
-                "-A",
-                "-t",
-                "-c",
-                query,
-            ]
-            result = control_exec(sandbox, pg_control(argv), timeout)
-            if result.exit_code != 0 or not re.fullmatch(r"\d+\s*", result.result or ""):
+            status, output = run_guarded_control(sandbox, pg_verifier_argv(query), timeout)
+            if status != 0 or not re.fullmatch(r"\d+\s*", output or ""):
                 raise CheckFailure("独立PostgreSQL物理数据探针失败，未采用模型声称的存储证据")
-            values[table] = int(result.result.strip())
+            values[table] = int(output.strip())
     if set(values) != set(tables) or any(type(v) is not int or v < 0 for v in values.values()):
         raise CheckFailure("物理数据库证据与批准表清单不一致")
     return values
+
+
+def owned_database_identity(sandbox, timeout):
+    query = "SELECT pg_catalog.json_build_object('database',current_database(),'database_oid',(SELECT oid FROM pg_catalog.pg_database WHERE datname=current_database()),'cluster',system_identifier::text,'directory',current_setting('data_directory')) FROM pg_catalog.pg_control_system()"
+    argv = [
+        PG_BIN + "psql",
+        "-X",
+        "-At",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-h",
+        PG_SOCKET,
+        "-p",
+        str(PG_PORT),
+        "-U",
+        "postgres",
+        "-d",
+        "rnd_product",
+        "-c",
+        query,
+    ]
+    result = control_exec(sandbox, pg_control(argv), timeout)
+    try:
+        value = json.loads(result.result) if len(result.result) <= 4096 else None
+    except ValueError, TypeError:
+        value = None
+    if (
+        result.exit_code
+        or not isinstance(value, dict)
+        or set(value) != {"database", "database_oid", "cluster", "directory"}
+        or value["database"] != "rnd_product"
+        or value["directory"] != PG_ROOT + "/data"
+        or type(value["database_oid"]) is not int
+        or not re.fullmatch(r"[0-9]{1,30}", str(value["cluster"]))
+    ):
+        raise CheckFailure("私有临时数据库身份无法确认")
+    return {**value, "sandbox_id": sandbox.id}
+
+
+def recreate_owned_native_database(sandbox, plan, timeout, ownership):
+    """Replace only this sandbox's disposable DB after the app UID is drained.
+
+    The fixed name, private peer socket and postgres identity cannot be supplied
+    by candidate code. Never call this against a configured external database.
+    """
+    if plan.selection.template != "fastapiadmin" or plan.selection.database != "postgresql":
+        raise CheckFailure("只有独立原生PostgreSQL测试profile可重建本次临时数据库")
+    from workbench.capability_sandbox import restart_application_identity
+
+    restart_application_identity(sandbox, plan.runtime.port, timeout, extra_ports=(5173,))
+    if owned_database_identity(sandbox, timeout) != ownership:
+        raise CheckFailure("临时数据库/集群/沙箱身份发生变化，未执行重建")
+    base = ["-h", PG_SOCKET, "-p", str(PG_PORT), "-U", "postgres"]
+    commands = [
+        [PG_BIN + "dropdb", *base, "rnd_product"],
+        [PG_BIN + "createdb", *base, "--owner=postgres", "--template=template0", "rnd_product"],
+        [
+            PG_BIN + "psql",
+            "-X",
+            "-v",
+            "ON_ERROR_STOP=1",
+            *base,
+            "-d",
+            "rnd_product",
+            "-c",
+            "REVOKE ALL ON DATABASE rnd_product FROM PUBLIC; "
+            "GRANT CONNECT,TEMPORARY ON DATABASE rnd_product TO rnd_app; "
+            "REVOKE ALL ON SCHEMA public FROM PUBLIC; "
+            "GRANT USAGE,CREATE ON SCHEMA public TO rnd_app; "
+            "GRANT CONNECT ON DATABASE rnd_product TO rnd_verify; "
+            "GRANT USAGE ON SCHEMA public TO rnd_verify; "
+            "ALTER DEFAULT PRIVILEGES FOR ROLE rnd_app IN SCHEMA public GRANT SELECT ON TABLES TO rnd_verify;",
+        ],
+    ]
+    for command in commands:
+        if control_exec(sandbox, pg_control(command), timeout).exit_code:
+            raise CheckFailure("独立临时PostgreSQL重建失败，不能报告新库复测通过")
+    current = owned_database_identity(sandbox, timeout)
+    if (
+        current["cluster"] != ownership["cluster"]
+        or current["sandbox_id"] != ownership["sandbox_id"]
+        or current["database_oid"] == ownership["database_oid"]
+    ):
+        raise CheckFailure("新库身份未在同一私有集群中改变")
+    return current
+
+
+PG_VERIFIER_EXEC = r"""
+import json,os,pathlib,resource,sys
+secret=pathlib.Path('/tmp/rnd-module-control/private/postgres-verifier.json')
+assert secret.stat().st_size<1024 and secret.stat().st_uid==0 and secret.stat().st_mode&0o077==0
+password=json.loads(secret.read_text())['password']
+assert isinstance(password,str) and len(password)==64
+resource.setrlimit(resource.RLIMIT_FSIZE,(65536,65536))
+resource.setrlimit(resource.RLIMIT_CPU,(10,10))
+resource.setrlimit(resource.RLIMIT_AS,(268435456,268435456))
+env={'PATH':'/usr/bin:/bin','HOME':'/nonexistent','PGPASSWORD':password,
+ 'PGOPTIONS':'-c default_transaction_read_only=on -c search_path=pg_catalog -c statement_timeout=3000 -c lock_timeout=1000 -c row_security=off -c enable_indexscan=off -c enable_indexonlyscan=off -c enable_bitmapscan=off -c max_parallel_workers_per_gather=0'}
+os.execve('/usr/lib/postgresql/17/bin/psql',['psql','-X','-q','-At','-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p','55432','-U','rnd_verify','-d','rnd_product','-c',sys.argv[1]],env)
+"""
+
+
+def pg_verifier_argv(query):
+    """Actual low-privilege authentication, never SET ROLE on an admin session."""
+    if not isinstance(query, str) or len(query.encode()) > 32768:
+        raise CheckFailure("数据库验证SQL超过控制端预算")
+    return ["/usr/bin/python3", "-I", "-S", "-c", PG_VERIFIER_EXEC, query]

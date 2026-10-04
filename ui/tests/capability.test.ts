@@ -190,3 +190,92 @@ it('keeps failed-attempt diagnostics and historical questions readable after the
   expect(wrapper.find('form.question-card').exists()).toBe(false)
   wrapper.unmount()
 })
+
+it('keeps blocked design feedback usable and renders each tab content inside its panel', async () => {
+  state.run!.pending = {
+    gate_id: 'a'.repeat(64),
+    digest: 'b'.repeat(64),
+    version: 7,
+    stage: 'design',
+    actions: ['approve', 'revise', 'reject', 'recommend'],
+    can_approve: false,
+    data: {
+      blocked: ['实体 registration 字段 status 与框架保留字段冲突'],
+      plan: {
+        title: '竞赛报名',
+        entities: [{ name: 'registration', fields: [{ name: 'status' }] }],
+      },
+      tasks: [{ id: 'registration-module', title: '报名模块' }],
+    },
+  }
+  const wrapper = mount(RunView, {
+    props: { runId: 'saved-run', view: 'review' },
+    global: { plugins: [Antd] },
+  })
+  const field = wrapper.find('textarea[aria-label="审核修改意见"]')
+  expect(field.attributes('disabled')).toBeUndefined()
+  const submit = wrapper.findAll('button').find((button) => button.text() === '提交修改意见')!
+  expect(submit.attributes('disabled')).toBeDefined()
+  await field.setValue('保留报名业务状态，修复框架字段冲突')
+  expect(submit.attributes('disabled')).toBeUndefined()
+  const approval = wrapper
+    .findAll('button')
+    .find((button) => button.text().includes('确认设计，开始生成'))!
+  expect(approval.attributes('disabled')).toBeDefined()
+  const dataTab = wrapper.findAll('[role="tab"]').find((tab) => tab.text() === '数据模型')!
+  await dataTab.trigger('click')
+  expect(wrapper.find('[role="tabpanel"][aria-hidden="false"]').text()).toContain('registration')
+  await submit.trigger('click')
+  expect(api).toHaveBeenCalledWith(
+    '/runs/saved-run/resume',
+    expect.objectContaining({
+      body: expect.objectContaining({
+        action: 'revise',
+        text: '保留报名业务状态，修复框架字段冲突',
+        version: 7,
+        digest: 'b'.repeat(64),
+      }),
+    }),
+  )
+  wrapper.unmount()
+})
+
+it('labels generic extension READY as reviewed executable contract, not full semantic proof', () => {
+  state.run!.status = 'READY'
+  state.run!.pending = null
+  state.run!.result = {
+    coverage_level: 'reviewed-executable-contract',
+    full_request_complete: null,
+    source_units: [{ id: 'source-0-0', text: '保留原始业务要求' }],
+  }
+  const wrapper = mount(RunView, {
+    props: { runId: 'saved-run', view: 'delivery' },
+    global: { plugins: [Antd] },
+  })
+  expect(wrapper.find('.coverage-notice').text()).toContain('仅证明已审阅可执行合同')
+  expect(wrapper.find('.coverage-notice').text()).toContain('不代表全部原始需求')
+  expect(wrapper.text()).toContain('保留原始业务要求')
+  wrapper.unmount()
+})
+
+it('keeps bounded contest evidence explicitly incomplete and download locked', () => {
+  state.run!.pending = null
+  state.report = {
+    'extension-coverage.json': {
+      coverage_level: 'bounded-business-slice',
+      full_request_complete: false,
+      remaining_obligations: ['original.full_source'],
+    },
+  }
+  const wrapper = mount(RunView, {
+    props: { runId: 'saved-run', view: 'delivery' },
+    global: { plugins: [Antd] },
+  })
+  expect(wrapper.find('.coverage-notice').text()).toContain('不能交付')
+  expect(wrapper.text()).toContain('下载锁定')
+  const download = wrapper
+    .findAll('button')
+    .find((button) => button.text().includes('下载完整交付包'))
+  expect(download?.attributes('disabled')).toBeDefined()
+  wrapper.unmount()
+})

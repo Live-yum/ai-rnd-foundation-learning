@@ -110,6 +110,8 @@ def source_fixture(tmp_path, monkeypatch):
         "// Copyright Daytona; AGPL-3.0\npackage docker\nvar host = container.HostConfig{\n"
         + profile.OLD
         + "}\n"
+        + profile.LIMIT_ANCHOR
+        + "\n"
     )
     workspace = "go 1.25.5\n\nuse ./apps/runner\n"
     for name in profile.RECIPE_PATHS:
@@ -119,7 +121,9 @@ def source_fixture(tmp_path, monkeypatch):
     patch = "".join(
         difflib.unified_diff(
             source.splitlines(keepends=True),
-            source.replace(profile.OLD, profile.NEW).splitlines(keepends=True),
+            source.replace(profile.OLD, profile.NEW)
+            .replace(profile.LIMIT_ANCHOR, profile.LIMIT_INSERT + profile.LIMIT_ANCHOR, 1)
+            .splitlines(keepends=True),
             fromfile="a/" + profile.SOURCE_FILE,
             tofile="b/" + profile.SOURCE_FILE,
         )
@@ -146,7 +150,9 @@ def source_fixture(tmp_path, monkeypatch):
 def test_source_preimage_and_patch_are_exact_and_module_inputs_are_preserved(tmp_path, monkeypatch):
     _, context, source, workspace = source_fixture(tmp_path, monkeypatch)
     record = profile.source_context(tmp_path, context)
-    assert (context / profile.SOURCE_FILE).read_text() == source.replace(profile.OLD, profile.NEW)
+    assert (context / profile.SOURCE_FILE).read_text() == source.replace(
+        profile.OLD, profile.NEW
+    ).replace(profile.LIMIT_ANCHOR, profile.LIMIT_INSERT + profile.LIMIT_ANCHOR, 1)
     assert (context / "go.work").read_text() == workspace
     assert (context / "apps/runner/go.mod").read_text() == "module fixture\ngo 1.25.5\n"
     assert (context / "go.work.sum").read_text() == "fixture v1 h1:fixture\n"
@@ -201,6 +207,7 @@ def application_inspect():
 @pytest.fixture
 def inspection(tmp_path, monkeypatch):
     record = {
+        "profile": profile.PROFILE,
         "runner": {"image_id": RUNNER},
         "snapshot": {"image_id": SNAPSHOT, "digest": "registry:6000/rnd-python@" + DIGEST},
     }

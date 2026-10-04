@@ -140,7 +140,11 @@ def test_physical_count_probe_uses_same_outer_shell_environment(engine):
     )
     sandbox = SimpleNamespace(process=SimpleNamespace(exec=execute))
     assert database_counts(sandbox, plan, 10) == {"entries": 7}
-    assert len(calls) == 1
+    assert len(calls) == (1 if engine == "sqlite" else 2)
+    if engine == "postgresql":
+        assert "rnd_verify" in calls[0][-1]
+        assert "postgres-verifier.json" in calls[0][-1]
+        assert "head" in " ".join(calls[1])
 
 
 @pytest.mark.parametrize("database", ["sqlite", "postgresql"])
@@ -326,8 +330,9 @@ BROWSER_FAILURE_FIXTURES = {
 @pytest.mark.parametrize(
     "failure", [None, "baseline", "initial", "restart-health", "restart", *BROWSER_FAILURE_FIXTURES]
 )
+@pytest.mark.parametrize("secure_execution", [False, True])
 def test_verifier_closes_health_opened_http_clients_on_all_paths(
-    settings, tmp_path, monkeypatch, failure
+    settings, tmp_path, monkeypatch, failure, secure_execution
 ):
     """Real HTTPX lifecycle with transport/process fixtures, not live isolation proof."""
     import httpx
@@ -360,6 +365,9 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
 
     sandbox = SimpleNamespace(
         id=identifier,
+        public=False,
+        network_block_all=True,
+        refresh_data=lambda: events.append("network-refreshed"),
         fs=SimpleNamespace(create_folder=lambda *a: None, upload_file=lambda *a, **k: None),
         process=SimpleNamespace(
             create_session=lambda *a: None,
@@ -386,6 +394,7 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         assert parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60
         assert parameters.network_block_all is True
         assert parameters.public is False
+        assert parameters.name.startswith("rnd-source-" if secure_execution else "rnd-capability-")
         sandbox.auto_delete_interval = parameters.auto_delete_interval
         return sandbox
 
@@ -423,13 +432,32 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
     monkeypatch.setattr(verifier, "control_exec", lambda *a: SimpleNamespace(exit_code=0))
     monkeypatch.setattr(verifier, "database_counts", database_counts)
     monkeypatch.setattr(verifier, "run_scenarios", run_scenarios)
-    monkeypatch.setattr(verifier, "run_browser", run_browser)
+
+    def fixed_browser(*args):
+        assert not secure_execution, "Custom source must never fall back to host Chromium"
+        return run_browser(*args)
+
+    def isolated_browser(*args, image):
+        assert secure_execution
+        assert image == settings.capability_browser_image
+        events.append("isolated-browser")
+        return run_browser(*args)
+
+    monkeypatch.setattr(verifier, "run_browser", fixed_browser)
+    monkeypatch.setattr(
+        "workbench.capability_browser_isolation.run_isolated_browser", isolated_browser
+    )
     monkeypatch.setattr(verifier.httpx, "Client", build_http)
     monkeypatch.setattr(
         "workbench.daytona_sessions.run_session_command",
         lambda *a, **k: SimpleNamespace(exit_code=0),
     )
     settings.daytona_snapshot = "fixture-owned-snapshot"
+
+    def security_probe(*args):
+        events.append("security-probed")
+        return {"fixture_only": True}
+
     try:
         result = verifier._verify(
             product,
@@ -441,6 +469,7 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
             client=daytona,
             aggregate=True,
             control_observer=lambda _: {},
+            security_probe=security_probe if secure_execution else None,
         )
         assert result["passed"] is (failure is None)
         assert result["restarted"] is (failure is None)
@@ -460,6 +489,15 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
                 assert persisted["error"] == "真实浏览器场景未通过；查看安全阶段诊断，未跳过"
                 assert "删除未确认" in persisted["cleanup_error"]
         if failure is None:
+            assert result["restart_kind"] == (
+                "application_process" if secure_execution else "container"
+            )
+            if secure_execution:
+                assert "stopped" not in events and "started" not in events
+                assert events.count("security-probed") == 2
+                assert result["restart_security_checks"] == result["security_checks"]
+            else:
+                assert "stopped" in events and "started" in events
             assert [check["phase"] for check in result["checks"]] == ["initial", "restart"]
             assert (0, "/openapi.json") in events
             assert (0, "/fixture-initial") in events and (1, "/fixture-restart") in events
