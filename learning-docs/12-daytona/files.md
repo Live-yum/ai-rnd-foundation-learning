@@ -8,7 +8,10 @@
 - [scripts/ci_daytona_matrix.py](sources/scripts__ci_daytona_matrix_py--001.md)：数据库与模板矩阵的沙箱验收入口；1 段
 - [scripts/daytona_bootstrap.py](sources/scripts__daytona_bootstrap_py--001.md)：真实本机身份认证与快照注册；1 段
 - [scripts/daytona_build.py](sources/scripts__daytona_build_py--001.md)：从固定来源构建并锁定本机镜像；1 段
-- [scripts/daytona_capability_profile.py](sources/scripts__daytona_capability_profile_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/daytona_capability_profile.py](sources/scripts__daytona_capability_profile_py--001.md)：本机维护、构建或集成验收入口；2 段
+- [scripts/daytona_dependency_build.lock.json](sources/scripts__daytona_dependency_build_lock_json--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/daytona_dependency_build.py](sources/scripts__daytona_dependency_build_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/daytona_dependency_image.py](sources/scripts__daytona_dependency_image_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/daytona_diagnostics.py](sources/scripts__daytona_diagnostics_py--001.md)：保留有界且脱敏的失败诊断；1 段
 - [scripts/daytona_gateway.py](sources/scripts__daytona_gateway_py--001.md)：固定端口的本机网络入口；1 段
 - [scripts/daytona_local.py](sources/scripts__daytona_local_py--001.md)：安装和管理本机Daytona开发服务；1 段
@@ -18,6 +21,8 @@
 - [tests/test_daytona_bootstrap_contract.py](sources/tests__test_daytona_bootstrap_contract_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_build.py](sources/tests__test_daytona_build_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_capability_profile.py](sources/tests__test_daytona_capability_profile_py--001.md)：可重复的验收用例；1 段
+- [tests/test_daytona_dependency_build.py](sources/tests__test_daytona_dependency_build_py--001.md)：可重复的验收用例；1 段
+- [tests/test_daytona_dependency_image.py](sources/tests__test_daytona_dependency_image_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_download.py](sources/tests__test_daytona_download_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_gateway.py](sources/tests__test_daytona_gateway_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_matrix.py](sources/tests__test_daytona_matrix_py--001.md)：可重复的验收用例；1 段

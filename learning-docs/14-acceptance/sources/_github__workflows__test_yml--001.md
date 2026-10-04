@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/test.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L233。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/test.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L410。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8447`。本段原文以LF换行结束。
+本段原始字节数：`16059`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/test.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "db72663a3dbbc2136b5611f4073f07bcb93f7f688ffc2e9b20486b1d58189702"} -->
+<!-- learning-source: {"path": ".github/workflows/test.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "82b31421d37c8dd4bf63d486f41657dcb490b823852dc3b11dc4c54ce562d292"} -->
 ````yaml
 # .github/workflows/test.yml
 name: Python 3.14 acceptance
@@ -39,6 +39,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -48,15 +51,21 @@ jobs:
       - run: npm run build --prefix ui
       - name: Verify committed local UI bundle matches its source
         run: git diff --exit-code -- workbench/web
-  tests:
+      - name: Bind successful stage evidence to this exact run
+        run: uv run --no-project python -m scripts.ci_acceptance receipt frontend
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-${{ github.run_attempt }}-frontend
+          path: reports/
+          if-no-files-found: error
+  source-validation:
     strategy:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
-    # Windows includes a cold native dependency install before the complete suite.
-    # Keep individual test/browser deadlines unchanged; bound each job explicitly.
-    timeout-minutes: ${{ matrix.os == 'windows-latest' && 60 || 35 }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
@@ -75,22 +84,59 @@ jobs:
       - run: npm run build --prefix tools/node
       - run: uv sync --locked --all-extras
       - run: uv run python --version
-      - name: Check capability protocol and receipt portability before full acceptance
+      - name: Verify capability protocol and receipt portability independently
         env:
           RND_REQUIRE_NODE_TESTS: '1'
-        run: uv run pytest -q tests/test_capability_browser_protocol.py tests/test_capability_isolation.py tests/test_daytona_capability_profile.py tests/test_capability_browser_preflight.py
+        run: uv run pytest -q tests/test_capability_browser_protocol.py tests/test_capability_isolation.py tests/test_daytona_capability_profile.py tests/test_capability_browser_preflight.py --junitxml=reports/protocol.xml
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run python -m scripts.build_handbook --check
       - run: uv run python -m scripts.build_learning_docs --check
-      - run: uv run pytest -m "not postgres" --junitxml=reports/tests.xml --cov=workbench --cov-report=term-missing
+      - name: Bind successful stage evidence to this exact run
+        run: uv run --no-project python -m scripts.ci_acceptance receipt source-validation-${{ matrix.os }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-${{ github.run_attempt }}-source-validation-${{ matrix.os }}
+          path: reports/
+          if-no-files-found: error
+  tests:
+    # Every shard independently collects the COMPLETE current platform inventory.
+    # Matrix fail-fast is disabled; no unrelated acceptance is hidden by a failure.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        shard: [0, 1, 2, 3]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: ${{ matrix.os == 'windows-latest' && 60 || 35 }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - run: npm ci --prefix tools/node --no-audit --no-fund
+      - run: npm run build --prefix tools/node
+      - run: uv sync --locked --all-extras
+      - name: Run complete deterministic non-PostgreSQL partition
+        run: uv run python -m scripts.ci_pytest --index ${{ matrix.shard }} --count 4 --output reports/shard
         env:
           RND_REQUIRE_NODE_TESTS: '1'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: tests-${{ matrix.os }}
-          path: reports/
+          name: acceptance-${{ github.run_attempt }}-source-${{ matrix.os }}-${{ matrix.shard }}
+          path: reports/shard/
+          if-no-files-found: error
   postgres:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -124,11 +170,14 @@ jobs:
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - run: uv sync --locked --all-extras
       - run: uv run pytest -m postgres -q --junitxml=reports/postgres.xml
+      - name: Bind successful stage evidence to this exact run
+        run: uv run --no-project python -m scripts.ci_acceptance receipt postgres
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: postgres-evidence
+          name: acceptance-${{ github.run_attempt }}-postgres
           path: reports/
+          if-no-files-found: error
   clean-install:
     strategy:
       fail-fast: false
@@ -152,11 +201,14 @@ jobs:
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - run: uv sync --locked
       - run: uv run python -m scripts.ci_clean_install
+      - name: Bind successful stage evidence to this exact run
+        run: uv run --no-project python -m scripts.ci_acceptance receipt clean-install-${{ matrix.os }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: clean-install-${{ matrix.os }}
+          name: acceptance-${{ github.run_attempt }}-clean-install-${{ matrix.os }}
           path: reports/
+          if-no-files-found: error
   native-sources:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -169,11 +221,14 @@ jobs:
           python-version: '3.14'
       - run: uv sync --locked
       - run: uv run python -m scripts.ci_native_sources
+      - name: Bind successful stage evidence to this exact run
+        run: uv run --no-project python -m scripts.ci_acceptance receipt native-sources
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: pinned-native-source-evidence
+          name: acceptance-${{ github.run_attempt }}-native-sources
           path: reports/
+          if-no-files-found: error
   handbook-only:
     runs-on: ubuntu-latest
     timeout-minutes: 40
@@ -184,7 +239,35 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
       - run: uv sync --locked --all-extras
+      - name: Reconstruct, byte-roundtrip, rebuild Vue and verify pinned sources from learning-docs only
+        run: uv run python -m scripts.ci_learning_docs --prepare-artifact reports/restored-source
+      - name: Bind successful stage evidence to this exact run
+        run: uv run --no-project python -m scripts.ci_acceptance receipt handbook-only
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-${{ github.run_attempt }}-handbook-only
+          path: reports/
+          if-no-files-found: error
+  restored-tests:
+    needs: handbook-only
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3]
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -192,18 +275,82 @@ jobs:
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
-      - name: Reconstruct from only learning-docs and test the complete platform
-        run: uv run python -m scripts.ci_learning_docs
+      - uses: actions/download-artifact@v4
+        with:
+          name: acceptance-${{ github.run_attempt }}-handbook-only
+          path: .ci-artifact
+      - name: Run tests only from immutable reconstructed source in its own locked venv
+        run: uv run --no-project python -m scripts.ci_restored --artifact .ci-artifact/restored-source --phase tests --output reports/shard --index ${{ matrix.shard }} --count 4
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: handbook-clean-room
-          path: |
-            reports/handbook-clean-room.json
-            reports/handbook-tests.xml
-            reports/handbook-test-status.json
-            reports/learning-docs-clean-room.json
-            reports/learning-docs-tests.xml
+          name: acceptance-${{ github.run_attempt }}-restored-ubuntu-latest-${{ matrix.shard }}
+          path: reports/shard/
+          if-no-files-found: error
+  restored-browser:
+    needs: handbook-only
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: acceptance-${{ github.run_attempt }}-handbook-only
+          path: .ci-artifact
+      - name: Run browser only from immutable reconstructed source in its own locked venv
+        run: uv run --no-project python -m scripts.ci_restored --artifact .ci-artifact/restored-source --phase browser --output reports/restored
+      - name: Bind successful stage evidence to this exact run
+        run: uv run --no-project python -m scripts.ci_acceptance receipt restored-browser
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-${{ github.run_attempt }}-restored-browser
+          path: reports/
+          if-no-files-found: error
+  restored-install:
+    needs: handbook-only
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install mandatory product browser acceptance tooling
+        run: |
+          npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
+          node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
+      - uses: actions/download-artifact@v4
+        with:
+          name: acceptance-${{ github.run_attempt }}-handbook-only
+          path: .ci-artifact
+      - name: Run install only from immutable reconstructed source in its own locked venv
+        run: uv run --no-project python -m scripts.ci_restored --artifact .ci-artifact/restored-source --phase install --output reports/restored
+      - name: Bind successful stage evidence to this exact run
+        run: uv run --no-project python -m scripts.ci_acceptance receipt restored-install
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: acceptance-${{ github.run_attempt }}-restored-install
+          path: reports/
+          if-no-files-found: error
   browser:
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -229,13 +376,43 @@ jobs:
       - run: uv run python -m scripts.ci_guided_browser
       - name: Verify persisted registration scope recovery in the real workbench
         run: uv run python -m scripts.ci_signup_scope_browser
+      - name: Bind successful stage evidence to this exact run
+        run: uv run --no-project python -m scripts.ci_acceptance receipt browser
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: guided-workbench-and-news-browser
+          name: acceptance-${{ github.run_attempt }}-browser
           path: reports/
+          if-no-files-found: error
+  acceptance:
+    if: always()
+    needs: [frontend, source-validation, tests, postgres, clean-install, native-sources, handbook-only, restored-tests, restored-browser, restored-install, browser]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: '3.14'
+      - run: uv sync --locked
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: acceptance-${{ github.run_attempt }}-*
+          path: acceptance-artifacts
+      - name: Require every job and exact complete inventory, JUnit, outcome and source binding
+        env:
+          CI_NEEDS: ${{ toJSON(needs) }}
+        run: uv run python -m scripts.ci_acceptance aggregate
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: complete-acceptance-${{ github.run_attempt }}
+          path: reports/acceptance.json
+          if-no-files-found: error
   delivery:
-    needs: [frontend, tests, postgres, clean-install, native-sources, handbook-only, browser]
+    needs: acceptance
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:

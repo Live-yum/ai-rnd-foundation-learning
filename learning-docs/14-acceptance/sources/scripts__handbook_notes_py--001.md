@@ -22,9 +22,9 @@
 
 **创建路径：** `scripts/handbook_notes.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L738。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`65181`。本段原文以LF换行结束。
+本段原始字节数：`65312`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/handbook_notes.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "c281e499c27dfde3162d4f148645be2e244c60547cb855f92276f371f82d30ff"} -->
+<!-- learning-source: {"path": "scripts/handbook_notes.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "bd56ffee457508fc9f6bb69cc847532b03e2b7800900f706b7ae53ec4dd55692"} -->
 ````python
 # scripts/handbook_notes.py
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
@@ -567,8 +567,8 @@ SCRIPT_ROLES = {
     ),
     "ci_handbook.py": (
         "证明一本书足够重建平台",
-        "把教材单独复制进临时目录，恢复所有文本与二进制截图，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue。完整非PG套件有明确1800秒预算，外层仍40分钟；超时中断自有测试进程、保留阶段与已有JUnit且仍失败，不增加单项等待。",
-        "handbook-only工作流 → 本脚本 → handbook-test-status.json/JUnit；完整通过才产生handbook-clean-room.json。",
+        "把教材单独复制进临时目录，恢复所有文本与二进制截图，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue。CI将准确重建源码交给独立测试分片、浏览器和安装关卡，聚合逐项核对完整证据；本地完整入口仍保留。超时中断自有测试进程、保留阶段与已有JUnit且仍失败，不增加单项等待。",
+        "handbook-only准备关卡 → 重建产物 → 独立测试/浏览器/安装 → acceptance完整证据门 → delivery；本地完整验收仍输出handbook-clean-room.json。",
     ),
     "ci_clean_install.py": (
         "独立依赖环境与成品干净解压验收",

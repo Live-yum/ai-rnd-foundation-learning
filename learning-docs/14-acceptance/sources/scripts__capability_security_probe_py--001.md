@@ -15,17 +15,17 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `run_security_probe`（L90–L120）：接收`sandbox`、`plan`、`timeout`、`container_evidence`、`environment`。 控制顺序：L91按`not container_evidence.get("resource_limits")`分支；L92抛异常，停止当前正常路径；L94遍历`(CONTROL + "/private/security-sentinel", "/tmp/rnd-postgres/secur…`；L96按`result.exit_code != 0`分支；L97抛异常，停止当前正常路径；L108抛异常，停止当前正常路径；L110按`plan.selection.template == "fastapiadmin"`分支；L112按`result != 0 or not isinstance(checks, dict) or set(checks) != expected or any(value i…`分支。后续分支沿下方源码相同行号继续阅读。 调用`container_evidence.get`、`IsolationUnavailable`、`control_exec`、`run_guarded_control`、`product_argv`、`json.loads`、`set`、`expected.remove`、`isinstance`等。 返回路径：L120的`checks`。
-- `security_probe_for_profile`（L123–L136）：接收`directory`、`record`。 返回路径：L136的`probe`。
-- `security_probe_for_profile.probe`（L124–L134）：接收`sandbox`、`plan`、`timeout`、`container_evidence`、`environment`。 控制顺序：L126按`plan.selection.template == "fastapiadmin"`分支。 调用`run_security_probe`、`checks.update`、`verify_native_services`、`verify_native_planner_identity`、`verify_native_egress`。 返回路径：L134的`checks`。
+- `run_security_probe`（L106–L136）：接收`sandbox`、`plan`、`timeout`、`container_evidence`、`environment`。 控制顺序：L107按`not container_evidence.get("resource_limits")`分支；L108抛异常，停止当前正常路径；L110遍历`(CONTROL + "/private/security-sentinel", "/tmp/rnd-postgres/secur…`；L112按`result.exit_code != 0`分支；L113抛异常，停止当前正常路径；L124抛异常，停止当前正常路径；L126按`plan.selection.template == "fastapiadmin"`分支；L128按`result != 0 or not isinstance(checks, dict) or set(checks) != expected or any(value i…`分支。后续分支沿下方源码相同行号继续阅读。 调用`container_evidence.get`、`IsolationUnavailable`、`control_exec`、`run_guarded_control`、`product_argv`、`json.loads`、`set`、`expected.remove`、`isinstance`等。 返回路径：L136的`checks`。
+- `security_probe_for_profile`（L139–L152）：接收`directory`、`record`。 返回路径：L152的`probe`。
+- `security_probe_for_profile.probe`（L140–L150）：接收`sandbox`、`plan`、`timeout`、`container_evidence`、`environment`。 控制顺序：L142按`plan.selection.template == "fastapiadmin"`分支。 调用`run_security_probe`、`checks.update`、`verify_native_services`、`verify_native_planner_identity`、`verify_native_egress`。 返回路径：L150的`checks`。
 
 </details>
 
-**创建路径：** `scripts/capability_security_probe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L136。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/capability_security_probe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L152。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6945`。本段原文以LF换行结束。
+本段原始字节数：`8003`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/capability_security_probe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5e43c3ac23bb76dd0e97dff5853d24fa0529ba7c15070a2c2e49f8cf9abad641"} -->
+<!-- learning-source: {"path": "scripts/capability_security_probe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a1007f88e14675659b909387b984090abcee7fa204eed4c15dd4bb699e9c8bf1"} -->
 ````python
 # scripts/capability_security_probe.py
 """Bounded adversarial checks in the *real* disposable product identity.
@@ -97,7 +97,9 @@ denied('proc_symlink_write_denied',lambda:open('/proc/self/root/home/rnd-module/
 mounts=[line.split() for line in pathlib.Path('/proc/self/mountinfo').read_text().splitlines()]
 matching=[row for row in mounts if row[4]=='/tmp' and row[row.index('-')+1]=='tmpfs']
 assert len(matching)==1
-fs=os.statvfs('/tmp');assert 0 < fs.f_blocks*fs.f_frsize <= (4294967296 if native else 1073741824)
+fs=os.statvfs('/tmp');assert fs.f_flag & os.ST_NOEXEC
+checks['tmpfs_noexec_enforced']=True
+assert 0 < fs.f_blocks*fs.f_frsize <= (4294967296 if native else 1073741824)
 checks['tmpfs_storage_bound']=True
 cgroup=pathlib.Path('/sys/fs/cgroup')
 assert 0 < int((cgroup/'memory.max').read_text()) <= (6 if native else 2)*1024**3
@@ -113,6 +115,20 @@ checks['resource_limits_enforced']=True
 p=pathlib.Path('/tmp/rnd-capability/tmp/security-writable')
 p.write_text('bounded synthetic probe');assert p.read_text()=='bounded synthetic probe';p.unlink()
 checks['ordinary_product_write_allowed']=True
+manifest=pathlib.Path('/opt/rnd/runtime/dependency-manifest.json')
+assert manifest.is_file() and not manifest.is_symlink()
+with manifest.open('rb') as stream:assert stream.read(1)
+roots=[pathlib.Path('/opt/rnd/runtime/fastapiadmin/backend/.venv' if native else '/opt/rnd/runtime/python-basic/.venv')]
+if native:roots.append(pathlib.Path('/opt/rnd/runtime/fastapiadmin/frontend/node_modules'))
+for root in roots:
+ assert root.is_dir() and not root.is_symlink()
+ assert os.access(root,os.R_OK|os.X_OK) and not os.access(root,os.W_OK)
+ # No bytes of application or private data leave this product-identity probe.
+ assert next(root.iterdir(),None) is not None
+ denied('immutable_dependency_write_denied',lambda:open(root/'security-forbidden-write','wb'))
+ denied('immutable_dependency_write_denied',lambda:open('/proc/self/root'+str(root/'security-forbidden-write'),'wb'))
+denied('immutable_dependency_write_denied',lambda:open(manifest,'ab'))
+checks['immutable_dependency_read_allowed']=True
 print(json.dumps(checks,sort_keys=True))
 """
 

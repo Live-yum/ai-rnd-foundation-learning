@@ -15,42 +15,42 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `product`（L22–L44）：接收`tmp_path`。 控制顺序：L25遍历`("backend", "deployment")`。 调用`atomic_text`、`json.dumps`。 返回路径：L44的`root`。
-- `foundation`（L48–L54）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L49的`{ "profile": native.base.PROFILE, "recipe_identity": "e" * 64, "runner": {"image_id": RUNN…`。
-- `image_for`（L57–L79）：接收`record`。 返回路径：L58的`{ "Id": IMAGE, "Os": "linux", "Architecture": "amd64", "RepoDigests": ["127.0.0.1:6000/" +…`。
-- `prepared`（L83–L116）：接收`tmp_path`、`product`、`foundation`、`monkeypatch`。 调用`directory.mkdir`、`native.product_inputs`、`native.recipe_identity`、`native.base_identity`、`native.native_stamp`、`native.selection`、`copy.deepcopy`、`dict`、`image_for`等。 返回路径：L116的`directory, record, image`。
-- `test_filtered_dependency_context_never_copies_product_code_secrets_or_hooks`（L119–L135）：接收`product`、`tmp_path`。 控制顺序：L125断言`paths == {"product/" + name for name in native.DESCRIPTORS} \| { "Dockerfile", "harne…`；L130断言`"https://pypi.org/simple" in (context / "product/backend/uv.lock").read_text()`；L131断言`"tuna.tsinghua" in (product / "backend/uv.lock").read_text()`；L132断言`native.product_inputs(product) == expected`；L133断言`not any( "must-not-be-copied" in path.read_text() for path in context.rglob("*") if p…`。 调用`native.product_inputs`、`context.mkdir`、`native.prepare_context`、`path.relative_to(context).as_posix`、`path.relative_to`、`context.rglob`、`path.is_file`、`(context / "product/backend/uv.lock").read_text`、`(product / "backend/uv.lock").read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_registry_credentials_are_rejected_before_build`（L146–L149）：接收`product`、`value`。 调用`atomic_text`、`pytest.raises`、`native.product_inputs`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_secret_files_are_filtered_but_dependency_and_source_drift_are_distinct`（L152–L161）：接收`product`。 控制顺序：L155断言`native.product_inputs(product) == original`；L158断言`changed["dependency_identity"] == original["dependency_identity"]`；L159断言`changed["source_identity"] != original["source_identity"]`；L161断言`native.product_inputs(product)["dependency_identity"] != original["dependency_identit…`。 调用`native.product_inputs`、`atomic_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_only_exact_native_manifest_selection_is_supported`（L172–L175）：接收`product`、`metadata`。 调用`atomic_text`、`json.dumps`、`pytest.raises`、`native.product_inputs`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_locks_and_symlinks_are_rejected`（L178–L184）：接收`product`、`tmp_path`。 调用`(product / "backend/uv.lock").unlink`、`pytest.raises`、`native.product_inputs`、`(product / "backend/uv.lock").symlink_to`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_context_rejects_source_drift`（L187–L191）：接收`product`、`tmp_path`。 调用`native.product_inputs`、`atomic_text`、`pytest.raises`、`native.prepare_context`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_readonly_check_revalidates_base_snapshot_and_normalizes_native_record`（L194–L208）：接收`prepared`、`monkeypatch`、`foundation`。 控制顺序：L202断言`native.require_native_profile(directory, record["snapshot"]["snapshot"]) == record`；L203断言`checked == [directory]`；L204断言`record["runner"] == foundation["runner"]`；L205断言`record["selection"]["database"] == "postgresql"`；L206断言`record["resources"] == {"cpu": 2, "memory": 6, "disk": 30}`。 调用`monkeypatch.setattr`、`checked.append`、`native.require_native_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_record_tampering_fails_closed`（L228–L233）：接收`prepared`、`mutation`。 调用`mutation`、`atomic_text`、`json.dumps`、`pytest.raises`、`native.require_native_profile`、`pytest.mark.parametrize`、`record.update`、`record["runner"].update`、`record["base"].update`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_live_image_drift_is_rejected`（L249–L253）：接收`prepared`、`mutation`。 调用`mutation`、`pytest.raises`、`native.require_native_profile`、`pytest.mark.parametrize`、`image.update`、`image["Config"].update`、`image["Config"]["Labels"].update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_product_lock_drift_prevents_reusing_native_profile`（L256–L260）：接收`prepared`、`product`。 调用`atomic_text`、`pytest.raises`、`native.require_native_profile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_prepare_uses_only_owned_base_and_separate_ready_record`（L264–L314）：接收`prepared`、`product`、`monkeypatch`、`failure`。 控制顺序：L276遍历`protected`；L302按`failure`分支；L305断言`not (directory / native.LOCK).exists()`；L308断言`result == expected`；L309断言`native.require_native_profile(directory) == result`；L310断言`not (directory / native.ENVIRONMENT).exists()`；L311按`os.name != "nt"`分支；L312断言`(directory / native.LOCK).stat().st_mode & 0o777 == 0o600`。后续分支沿下方源码相同行号继续阅读。 调用`(directory / native.LOCK).unlink`、`atomic_text`、`monkeypatch.setattr`、`calls.append`、`pytest.raises`、`native.prepare`、`(directory / native.LOCK).exists`、`native.require_native_profile`、`(directory / native.ENVIRONMENT).exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_prepare_uses_only_owned_base_and_separate_ready_record.docker`（L280–L295）：接收`*args`、`**kwargs`。 控制顺序：L282按`args[0] == "build"`分支；L284断言`not (context / "product/.env").exists()`；L285断言`not (context / "product/backend/main.py").exists()`；L286断言`"BASE_IMAGE=127.0.0.1:6000/rnd-python@" + DIGEST in args`；L287断言`"--pull=false" in args`；L288按`failure == "input"`分支；L290按`args[0] == "push"`分支；L291按`failure == "push"`分支。后续分支沿下方源码相同行号继续阅读。 调用`calls.append`、`Path`、`(context / "product/.env").exists`、`(context / "product/backend/main.py").exists`、`atomic_text`、`RuntimeError`。 返回路径：L295的`""`。
-- `test_prepare_refuses_overwrite_before_docker`（L317–L323）：接收`prepared`、`product`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`native.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base`（L327–L396）：接收`prepared`、`monkeypatch`、`failure`。 控制顺序：L344按`failure == "source"`分支；L346按`failure == "state"`分支；L348按`failure == "resources"`分支；L379按`failure`分支；L382断言`not (directory / native.ENVIRONMENT).exists()`；L386断言`KEY in content and "fastapiadmin/postgresql" in content`；L387断言`"CAPABILITY_EXECUTION_ENABLED" not in content`；L388断言`"local" in content`。后续分支沿下方源码相同行号继续阅读。 调用`atomic_text`、`json.dumps`、`SimpleNamespace`、`Snapshots`、`monkeypatch.setattr`、`calls.append`、`pytest.raises`、`native.register_worker`、`(directory / native.ENVIRONMENT).exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.Snapshots`（L351–L359）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.Snapshots.create`（L352–L359）：接收`params`、`**kwargs`。 控制顺序：L354断言`params.image == snapshot["digest"]`；L355断言`{ name: getattr(params.resources, name) for name in native.RESOURCES } == native.RESO…`；L358断言`params.region_id == "local" and kwargs["timeout"] == 600`。 调用`calls.append`、`getattr`。 返回路径：L359的`existing`。
-- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.factory`（L363–L367）：接收`settings`。 控制顺序：L364断言`settings.daytona_api_key.get_secret_value() == KEY`；L365断言`settings.daytona_api_url == "http://127.0.0.1:3000/api"`；L366断言`settings.daytona_target == "local"`。 调用`settings.daytona_api_key.get_secret_value`。 返回路径：L367的`client`。
-- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.close`（L369–L373）：接收`value`。 控制顺序：L370断言`value is client`；L372按`failure == "close"`分支；L373抛异常，停止当前正常路径。 调用`calls.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_registration_has_bounded_subprocess_and_no_key_in_argv`（L399–L407）：接收`prepared`、`monkeypatch`。 控制顺序：L405断言`args[0][1:4] == ["-m", "scripts.daytona_native_capability_profile", "register-worker"…`；L406断言`kwargs["timeout"] == 720`；L407断言`KEY not in repr(calls)`。 调用`monkeypatch.setattr`、`calls.append`、`native.register`、`repr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_registration_does_not_overwrite_other_native_credentials`（L410–L418）：接收`prepared`、`monkeypatch`。 调用`atomic_text`、`json.dumps`、`native.write_private_new`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`native.register_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_recipe_keeps_control_identity_pinned_tools_and_no_product_execution`（L421–L443）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L423遍历`( "ARG BASE_IMAGE", "FROM ${BASE_IMAGE}", "libseccomp2 procps", "…`；L440断言`text in recipe`；L441断言`recipe.rstrip().endswith("USER 0:0")`；L442断言`"warm.py" not in recipe and "vite build" not in recipe`；L443断言`"CAPABILITY_EXECUTION_ENABLED" not in recipe`。 调用`(native.ROOT / native.DOCKERFILE).read_text`、`recipe.rstrip().endswith`、`recipe.rstrip`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_existing_key_cannot_inject_environment_or_shell_syntax`（L449–L451）：接收`key`。 调用`pytest.raises`、`native.environment_text`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_existing_native_environment_must_remain_private`（L454–L463）：接收`prepared`。 控制顺序：L455按`os.name == "nt"`分支。 调用`pytest.skip`、`atomic_text`、`json.dumps`、`native.environment_text`、`path.chmod`、`pytest.raises`、`native.register_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_metadata_cannot_be_adopted_through_a_symlink`（L466–L473）：接收`prepared`、`tmp_path`。 调用`atomic_text`、`json.dumps`、`(directory / native.LOCK).unlink`、`(directory / native.LOCK).symlink_to`、`pytest.raises`、`native.require_native_profile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `product`（L22–L49）：接收`tmp_path`。 控制顺序：L25遍历`("backend", "deployment")`。 调用`atomic_text`、`json.dumps`。 返回路径：L49的`root`。
+- `foundation`（L53–L73）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L54的`{ "profile": native.base.PROFILE, "recipe_identity": "e" * 64, "runner": { "image_id": RUN…`。
+- `image_for`（L76–L98）：接收`record`。 返回路径：L77的`{ "Id": IMAGE, "Os": "linux", "Architecture": "amd64", "RepoDigests": ["127.0.0.1:6000/" +…`。
+- `prepared`（L102–L149）：接收`tmp_path`、`product`、`foundation`、`monkeypatch`。 调用`directory.mkdir`、`native.product_inputs`、`native.recipe_identity`、`native.base_identity`、`native.native_stamp`、`native.selection`、`copy.deepcopy`、`dict`、`monkeypatch.setattr`等。 返回路径：L149的`directory, record, image`。
+- `test_filtered_dependency_context_never_copies_product_code_secrets_or_hooks`（L152–L172）：接收`product`、`tmp_path`。 控制顺序：L158断言`paths == {"product/" + name for name in native.DESCRIPTORS} \| { "Dockerfile", "harne…`；L167断言`"https://pypi.org/simple" in (context / "product/backend/uv.lock").read_text()`；L168断言`"tuna.tsinghua" in (product / "backend/uv.lock").read_text()`；L169断言`native.product_inputs(product) == expected`；L170断言`not any( "must-not-be-copied" in path.read_text() for path in context.rglob("*") if p…`。 调用`native.product_inputs`、`context.mkdir`、`native.prepare_context`、`path.relative_to(context).as_posix`、`path.relative_to`、`context.rglob`、`path.is_file`、`(context / "product/backend/uv.lock").read_text`、`(product / "backend/uv.lock").read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_registry_credentials_are_rejected_before_build`（L183–L186）：接收`product`、`value`。 调用`atomic_text`、`pytest.raises`、`native.product_inputs`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_secret_files_are_filtered_but_dependency_and_source_drift_are_distinct`（L189–L200）：接收`product`。 控制顺序：L194断言`native.product_inputs(product) == original`；L197断言`changed["dependency_identity"] == original["dependency_identity"]`；L198断言`changed["source_identity"] != original["source_identity"]`；L200断言`native.product_inputs(product)["dependency_identity"] != original["dependency_identit…`。 调用`native.product_inputs`、`atomic_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_exact_native_manifest_selection_is_supported`（L211–L214）：接收`product`、`metadata`。 调用`atomic_text`、`json.dumps`、`pytest.raises`、`native.product_inputs`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_locks_and_symlinks_are_rejected`（L217–L223）：接收`product`、`tmp_path`。 调用`(product / "backend/uv.lock").unlink`、`pytest.raises`、`native.product_inputs`、`(product / "backend/uv.lock").symlink_to`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_context_rejects_source_drift`（L226–L230）：接收`product`、`tmp_path`。 调用`native.product_inputs`、`atomic_text`、`pytest.raises`、`native.prepare_context`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_readonly_check_revalidates_base_snapshot_and_normalizes_native_record`（L233–L247）：接收`prepared`、`monkeypatch`、`foundation`。 控制顺序：L241断言`native.require_native_profile(directory, record["snapshot"]["snapshot"]) == record`；L242断言`checked == [directory]`；L243断言`record["runner"] == foundation["runner"]`；L244断言`record["selection"]["database"] == "postgresql"`；L245断言`record["resources"] == {"cpu": 2, "memory": 6, "disk": 30}`。 调用`monkeypatch.setattr`、`checked.append`、`native.require_native_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_record_tampering_fails_closed`（L267–L272）：接收`prepared`、`mutation`。 调用`mutation`、`atomic_text`、`json.dumps`、`pytest.raises`、`native.require_native_profile`、`pytest.mark.parametrize`、`record.update`、`record["runner"].update`、`record["base"].update`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_image_drift_is_rejected`（L288–L292）：接收`prepared`、`mutation`。 调用`mutation`、`pytest.raises`、`native.require_native_profile`、`pytest.mark.parametrize`、`image.update`、`image["Config"].update`、`image["Config"]["Labels"].update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_product_lock_drift_prevents_reusing_native_profile`（L295–L299）：接收`prepared`、`product`。 调用`atomic_text`、`pytest.raises`、`native.require_native_profile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_prepare_uses_only_owned_base_and_separate_ready_record`（L303–L353）：接收`prepared`、`product`、`monkeypatch`、`failure`。 控制顺序：L315遍历`protected`；L341按`failure`分支；L344断言`not (directory / native.LOCK).exists()`；L347断言`result == expected`；L348断言`native.require_native_profile(directory) == result`；L349断言`not (directory / native.ENVIRONMENT).exists()`；L350按`os.name != "nt"`分支；L351断言`(directory / native.LOCK).stat().st_mode & 0o777 == 0o600`。后续分支沿下方源码相同行号继续阅读。 调用`(directory / native.LOCK).unlink`、`atomic_text`、`monkeypatch.setattr`、`calls.append`、`pytest.raises`、`native.prepare`、`(directory / native.LOCK).exists`、`native.require_native_profile`、`(directory / native.ENVIRONMENT).exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_prepare_uses_only_owned_base_and_separate_ready_record.docker`（L319–L334）：接收`*args`、`**kwargs`。 控制顺序：L321按`args[0] == "build"`分支；L323断言`not (context / "product/.env").exists()`；L324断言`not (context / "product/backend/main.py").exists()`；L325断言`"BASE_IMAGE=127.0.0.1:6000/rnd-python@" + DIGEST in args`；L326断言`"--pull=false" in args`；L327按`failure == "input"`分支；L329按`args[0] == "push"`分支；L330按`failure == "push"`分支。后续分支沿下方源码相同行号继续阅读。 调用`calls.append`、`Path`、`(context / "product/.env").exists`、`(context / "product/backend/main.py").exists`、`atomic_text`、`RuntimeError`。 返回路径：L334的`""`。
+- `test_prepare_refuses_overwrite_before_docker`（L356–L364）：接收`prepared`、`product`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`native.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base`（L368–L437）：接收`prepared`、`monkeypatch`、`failure`。 控制顺序：L385按`failure == "source"`分支；L387按`failure == "state"`分支；L389按`failure == "resources"`分支；L420按`failure`分支；L423断言`not (directory / native.ENVIRONMENT).exists()`；L427断言`KEY in content and "fastapiadmin/postgresql" in content`；L428断言`"CAPABILITY_EXECUTION_ENABLED" not in content`；L429断言`"local" in content`。后续分支沿下方源码相同行号继续阅读。 调用`atomic_text`、`json.dumps`、`SimpleNamespace`、`Snapshots`、`monkeypatch.setattr`、`calls.append`、`pytest.raises`、`native.register_worker`、`(directory / native.ENVIRONMENT).exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.Snapshots`（L392–L400）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.Snapshots.create`（L393–L400）：接收`params`、`**kwargs`。 控制顺序：L395断言`params.image == snapshot["digest"]`；L396断言`{ name: getattr(params.resources, name) for name in native.RESOURCES } == native.RESO…`；L399断言`params.region_id == "local" and kwargs["timeout"] == 600`。 调用`calls.append`、`getattr`。 返回路径：L400的`existing`。
+- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.factory`（L404–L408）：接收`settings`。 控制顺序：L405断言`settings.daytona_api_key.get_secret_value() == KEY`；L406断言`settings.daytona_api_url == "http://127.0.0.1:3000/api"`；L407断言`settings.daytona_target == "local"`。 调用`settings.daytona_api_key.get_secret_value`。 返回路径：L408的`client`。
+- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.close`（L410–L414）：接收`value`。 控制顺序：L411断言`value is client`；L413按`failure == "close"`分支；L414抛异常，停止当前正常路径。 调用`calls.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_registration_has_bounded_subprocess_and_no_key_in_argv`（L440–L452）：接收`prepared`、`monkeypatch`。 控制顺序：L446断言`args[0][1:4] == [ "-m", "scripts.daytona_native_capability_profile", "register-worker…`；L451断言`kwargs["timeout"] == 720`；L452断言`KEY not in repr(calls)`。 调用`monkeypatch.setattr`、`calls.append`、`native.register`、`repr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_registration_does_not_overwrite_other_native_credentials`（L455–L463）：接收`prepared`、`monkeypatch`。 调用`atomic_text`、`json.dumps`、`native.write_private_new`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`native.register_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_recipe_keeps_control_identity_pinned_tools_and_no_product_execution`（L466–L491）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L468遍历`( "ARG BASE_IMAGE", "FROM ${BASE_IMAGE}", "libseccomp2 procps", "…`；L488断言`text in recipe`；L489断言`recipe.rstrip().endswith("USER 0:0")`；L490断言`"warm.py" not in recipe and "vite build" not in recipe`；L491断言`"CAPABILITY_EXECUTION_ENABLED" not in recipe`。 调用`(native.ROOT / native.DOCKERFILE).read_text`、`recipe.rstrip().endswith`、`recipe.rstrip`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_key_cannot_inject_environment_or_shell_syntax`（L498–L500）：接收`key`。 调用`pytest.raises`、`native.environment_text`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_native_environment_must_remain_private`（L503–L512）：接收`prepared`。 控制顺序：L504按`os.name == "nt"`分支。 调用`pytest.skip`、`atomic_text`、`json.dumps`、`native.environment_text`、`path.chmod`、`pytest.raises`、`native.register_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_metadata_cannot_be_adopted_through_a_symlink`（L515–L522）：接收`prepared`、`tmp_path`。 调用`atomic_text`、`json.dumps`、`(directory / native.LOCK).unlink`、`(directory / native.LOCK).symlink_to`、`pytest.raises`、`native.require_native_profile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_native_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L473。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_native_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L522。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`18938`。本段原文以LF换行结束。
+本段原始字节数：`20026`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f0996cb74171e7d7ef1863328ba00b04cac25521651d93c09d4af7354715806b"} -->
+<!-- learning-source: {"path": "tests/test_native_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c649e47c8555e34770b661e06e4cf3322ee6541a8657c91765391e4f7b43b30b"} -->
 ````python
 # tests/test_native_capability_profile.py
 """Native preparation contracts use explicit fakes, never live Docker/runtime proof."""
@@ -79,17 +79,22 @@ def product(tmp_path):
     atomic_text(root / "deployment/manifest.json", json.dumps({"template": "fastapiadmin"}))
     for folder in ("backend", "deployment"):
         atomic_text(
-            root / folder / "pyproject.toml", '[project]\nname = "fixture"\nversion = "1"\n'
+            root / folder / "pyproject.toml",
+            '[project]\nname = "fixture"\nversion = "1"\n',
         )
         atomic_text(
             root / folder / "uv.lock",
             'version = 1\nregistry = "https://pypi.tuna.tsinghua.edu.cn/simple"\n',
         )
     atomic_text(
-        root / "frontend/web/package.json", '{"name":"fixture","scripts":{"prepare":"DO_NOT_RUN"}}'
+        root / "frontend/web/package.json",
+        '{"name":"fixture","scripts":{"prepare":"DO_NOT_RUN"}}',
     )
     atomic_text(root / "frontend/web/pnpm-lock.yaml", "lockfileVersion: '9.0'\n")
-    atomic_text(root / "backend/main.py", "raise RuntimeError('never execute candidate source')\n")
+    atomic_text(
+        root / "backend/main.py",
+        "raise RuntimeError('never execute candidate source')\n",
+    )
     atomic_text(
         root / "deployment/workbench/native_environment.py",
         "raise RuntimeError('untrusted control')\n",
@@ -104,8 +109,22 @@ def foundation():
     return {
         "profile": native.base.PROFILE,
         "recipe_identity": "e" * 64,
-        "runner": {"image_id": RUNNER, "tag": "fixed-base-runner", "recipe_sha256": "f" * 64},
-        "snapshot": {"image_id": BASE_IMAGE, "digest": "registry:6000/rnd-python@" + DIGEST},
+        "runner": {
+            "image_id": RUNNER,
+            "tag": "fixed-base-runner",
+            "recipe_sha256": "f" * 64,
+        },
+        "snapshot": {
+            "image_id": BASE_IMAGE,
+            "digest": "registry:6000/rnd-python@" + DIGEST,
+        },
+        "bases": {
+            "RUST_IMAGE": {
+                "tag": "rust:1.85.1-bookworm",
+                "digest": "rust@" + DIGEST,
+                "image_id": BASE_IMAGE,
+            }
+        },
     }
 
 
@@ -164,6 +183,20 @@ def prepared(tmp_path, product, foundation, monkeypatch):
             "recipe_sha256": recipes[native.DOCKERFILE],
         },
     }
+    dependency_record = {
+        "schema": 1,
+        "profile": "fastapiadmin",
+        "image_id": IMAGE,
+        "manifest_sha256": "1" * 64,
+        "installed_tree_sha256": "2" * 64,
+        "original_descriptors": inputs["descriptors"],
+    }
+    record["snapshot"]["dependency_manifest"] = dependency_record
+    monkeypatch.setattr(
+        native.base,
+        "inspect_dependency_manifest",
+        lambda *args: copy.deepcopy(dependency_record),
+    )
     image = image_for(record)
     atomic_text(directory / native.LOCK, json.dumps(record))
     monkeypatch.setattr(native.base, "require_profile", lambda path: copy.deepcopy(foundation))
@@ -181,6 +214,10 @@ def test_filtered_dependency_context_never_copies_product_code_secrets_or_hooks(
         "Dockerfile",
         "harness/pyproject.toml",
         "harness/uv.lock",
+        "dependency-image.py",
+        "dependency-build.py",
+        "dependency-build.lock.json",
+        "dependency-inputs.json",
     }
     assert "https://pypi.org/simple" in (context / "product/backend/uv.lock").read_text()
     assert "tuna.tsinghua" in (product / "backend/uv.lock").read_text()
@@ -204,7 +241,9 @@ def test_registry_credentials_are_rejected_before_build(product, value):
         native.product_inputs(product)
 
 
-def test_secret_files_are_filtered_but_dependency_and_source_drift_are_distinct(product):
+def test_secret_files_are_filtered_but_dependency_and_source_drift_are_distinct(
+    product,
+):
     original = native.product_inputs(product)
     atomic_text(product / ".env", "CHANGED_PRIVATE_SECRET=ignored\n")
     assert native.product_inputs(product) == original
@@ -372,7 +411,9 @@ def test_prepare_uses_only_owned_base_and_separate_ready_record(
 def test_prepare_refuses_overwrite_before_docker(prepared, product, monkeypatch):
     directory, _, _ = prepared
     monkeypatch.setattr(
-        native.local, "docker", lambda *args, **kwargs: pytest.fail("Docker must not run")
+        native.local,
+        "docker",
+        lambda *args, **kwargs: pytest.fail("Docker must not run"),
     )
     with pytest.raises(ValueError, match="refuses to overwrite"):
         native.prepare(product, directory)
@@ -457,7 +498,11 @@ def test_registration_has_bounded_subprocess_and_no_key_in_argv(prepared, monkey
     monkeypatch.setattr(native, "run_command", lambda *args, **kwargs: calls.append((args, kwargs)))
     native.register(directory)
     args, kwargs = calls[0]
-    assert args[0][1:4] == ["-m", "scripts.daytona_native_capability_profile", "register-worker"]
+    assert args[0][1:4] == [
+        "-m",
+        "scripts.daytona_native_capability_profile",
+        "register-worker",
+    ]
     assert kwargs["timeout"] == 720
     assert KEY not in repr(calls)
 
@@ -482,7 +527,10 @@ def test_native_recipe_keeps_control_identity_pinned_tools_and_no_product_execut
         "postgresql-17",
         "redis-server",
         "pnpm@9.15.3",
-        "--no-install-project",
+        "dependency-build.py install",
+        "RUN --network=none",
+        "USER daytona",
+        "--package-import-method=copy",
         "--ignore-scripts",
         "--frozen-lockfile",
         "--store-dir /opt/rnd/pnpm-store",
@@ -499,7 +547,8 @@ def test_native_recipe_keeps_control_identity_pinned_tools_and_no_product_execut
 
 
 @pytest.mark.parametrize(
-    "key", ["key\nREMOTE=x", "key;touch-payload", "key$(payload)", "key'quoted", "", None]
+    "key",
+    ["key\nREMOTE=x", "key;touch-payload", "key$(payload)", "key'quoted", "", None],
 )
 def test_existing_key_cannot_inject_environment_or_shell_syntax(key):
     with pytest.raises(ValueError, match="safely written"):

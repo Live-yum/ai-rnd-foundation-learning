@@ -65,7 +65,19 @@ def cleanup_owned_descendants(owned):
                 pass
 
 
-def run_full_tests(argv, directory, env, junit, reports, *, timeout=FULL_SUITE_TIMEOUT):
+def run_full_tests(
+    argv,
+    directory,
+    env,
+    junit,
+    reports,
+    *,
+    timeout=FULL_SUITE_TIMEOUT,
+    status_name="handbook-test-status.json",
+    junit_name="handbook-tests.xml",
+    stdout=None,
+    binding=None,
+):
     """Bound the whole expanded suite, retain failure status, and own its cleanup.
 
     This is a suite orchestration budget, not a browser or individual-test wait.
@@ -80,7 +92,8 @@ def run_full_tests(argv, directory, env, junit, reports, *, timeout=FULL_SUITE_T
     owned = None
     print(f"Handbook full non-PostgreSQL suite: deadline {timeout}s", flush=True)
     try:
-        process = subprocess.Popen(argv, cwd=directory, env=env, **process_options())
+        output = {"stdout": stdout, "stderr": subprocess.STDOUT} if stdout is not None else {}
+        process = subprocess.Popen(argv, cwd=directory, env=env, **output, **process_options())
         try:
             process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -124,11 +137,11 @@ def run_full_tests(argv, directory, env, junit, reports, *, timeout=FULL_SUITE_T
             "owned_processes_at_timeout": len(owned) if owned is not None else None,
             "junit_available": junit.is_file(),
         }
-        if junit.is_file():
-            (reports / "handbook-tests.xml").write_bytes(junit.read_bytes())
-        (reports / "handbook-test-status.json").write_text(
-            json.dumps(status, indent=2) + "\n", encoding="utf-8"
-        )
+        if binding is not None:
+            status["binding"] = binding
+        if junit.is_file() and junit_name is not None:
+            (reports / junit_name).write_bytes(junit.read_bytes())
+        (reports / status_name).write_text(json.dumps(status, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(status), flush=True)
     if timed_out:
         raise subprocess.TimeoutExpired("handbook full non-PostgreSQL suite", timeout)

@@ -15,25 +15,27 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `settings`（L11–L12）：接收`tmp_path`。 调用`Settings`。 返回路径：L12的`Settings(data_dir=tmp_path / "state", install_products=False, _env_file=None)`。
-- `store`（L16–L20）：接收`settings`。 调用`Store`、`value.migrate`、`value.engine.dispose`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `plan`（L24–L42）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Plan.model_validate`。 返回路径：L25的`Plan.model_validate( { "title": "任务管理", "data_scope": "per_user", "acceptance": ["CRUD 和两用…`。
-- `requirement`（L45–L53）：接收`questions`、`scope`。 调用`Requirement`。 返回路径：L46的`Requirement( summary="任务管理", users=["个人用户"], data_scope=scope, features=["CRUD"], acceptan…`。
-- `FixtureGateway`（L56–L91）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `FixtureGateway.__init__`（L59–L63）：接收`plan`、`require_question`、`fail_first_code`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `FixtureGateway.complete`（L65–L91）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L67按`schema is Requirement`分支；L71按`schema is Plan`分支；L73按`schema is Patches`分支；L75按`self.fail_first_code and key == "coding:0"`分支；L91抛异常，停止当前正常路径。 调用`self.calls.append`、`requirement`、`Patches.model_validate`、`AssertionError`。 返回路径：L68的`requirement( ["谁使用？"] if self.require_question and key == "requirement:1" else [] )`；L72的`self.plan`；L77的`Patches.model_validate( { "explanation": "test fixture rule", "patches": [ { "path": "cust…`。
-- `new_run`（L94–L98）：接收`store`、`template`。 调用`store.create_project`、`str`、`uuid.uuid4`、`store.create_run`。 返回路径：L96的`store.create_run( project["id"], {"requirement": "个人任务 CRUD", "template": template}, str(u…`。
-- `decision`（L101–L112）：接收`store`、`run_id`、`action`、`text`。 调用`store.get_run`、`store.submit`、`str`、`uuid.uuid4`。 返回路径：L103的`store.submit( run_id, { "gate_id": pending["gate_id"], "action": action, "approved": True …`。
+- `pytest_make_parametrize_id`（L11–L16）：接收`config`、`val`、`argname`。 源码说明：Keep adversarial payloads intact without copying megabytes into reports.。 控制顺序：L13按`type(val) not in (str, bytes) or len(val) <= 80`分支。 调用`type`、`len`、`val.encode`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`。 返回路径：L14的`None`；L16的`f"{argname}-{type(val).__name__}-{len(val)}-{hashlib.sha256(raw).hexdigest()[:16]}"`。
+- `settings`（L20–L21）：接收`tmp_path`。 调用`Settings`。 返回路径：L21的`Settings(data_dir=tmp_path / "state", install_products=False, _env_file=None)`。
+- `store`（L25–L29）：接收`settings`。 调用`Store`、`value.migrate`、`value.engine.dispose`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `plan`（L33–L51）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Plan.model_validate`。 返回路径：L34的`Plan.model_validate( { "title": "任务管理", "data_scope": "per_user", "acceptance": ["CRUD 和两用…`。
+- `requirement`（L54–L62）：接收`questions`、`scope`。 调用`Requirement`。 返回路径：L55的`Requirement( summary="任务管理", users=["个人用户"], data_scope=scope, features=["CRUD"], acceptan…`。
+- `FixtureGateway`（L65–L100）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `FixtureGateway.__init__`（L68–L72）：接收`plan`、`require_question`、`fail_first_code`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `FixtureGateway.complete`（L74–L100）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L76按`schema is Requirement`分支；L80按`schema is Plan`分支；L82按`schema is Patches`分支；L84按`self.fail_first_code and key == "coding:0"`分支；L100抛异常，停止当前正常路径。 调用`self.calls.append`、`requirement`、`Patches.model_validate`、`AssertionError`。 返回路径：L77的`requirement( ["谁使用？"] if self.require_question and key == "requirement:1" else [] )`；L81的`self.plan`；L86的`Patches.model_validate( { "explanation": "test fixture rule", "patches": [ { "path": "cust…`。
+- `new_run`（L103–L107）：接收`store`、`template`。 调用`store.create_project`、`str`、`uuid.uuid4`、`store.create_run`。 返回路径：L105的`store.create_run( project["id"], {"requirement": "个人任务 CRUD", "template": template}, str(u…`。
+- `decision`（L110–L121）：接收`store`、`run_id`、`action`、`text`。 调用`store.get_run`、`store.submit`、`str`、`uuid.uuid4`。 返回路径：L112的`store.submit( run_id, { "gate_id": pending["gate_id"], "action": action, "approved": True …`。
 
 </details>
 
-**创建路径：** `tests/conftest.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L112。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/conftest.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L121。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3517`。本段原文以LF换行结束。
+本段原始字节数：`3925`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/conftest.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d143624b6d22736af4bfe3f4895fec6cefc2def026e5eaeb2a98f3545d819563"} -->
+<!-- learning-source: {"path": "tests/conftest.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5b76c4930a62d60fb46d574e896f68a24d770855ea584533816e2a3b70512f6d"} -->
 ````python
 # tests/conftest.py
+import hashlib
 import uuid
 
 import pytest
@@ -41,6 +43,14 @@ import pytest
 from workbench.domain import Patches, Plan, Requirement
 from workbench.settings import Settings
 from workbench.store import Store
+
+
+def pytest_make_parametrize_id(config, val, argname):
+    """Keep adversarial payloads intact without copying megabytes into reports."""
+    if type(val) not in (str, bytes) or len(val) <= 80:
+        return None
+    raw = val.encode("utf-8", errors="surrogatepass") if type(val) is str else val
+    return f"{argname}-{type(val).__name__}-{len(val)}-{hashlib.sha256(raw).hexdigest()[:16]}"
 
 
 @pytest.fixture

@@ -19,17 +19,17 @@
 - `login_steps`（L88–L118）：接收`actor`、`username`、`password`。 返回路径：L89的`[ { "path": "/system/auth/captcha/get", "status": 200, "equals": {"$.code": 0, "$.data.ena…`。
 - `native_browser_steps`（L121–L145）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L124的`[ {"action": "open", "value": "/#/login"}, {"action": "visible", "selector": ".login-page-…`。
 - `fixed_plan`（L148–L333）：接收`product`。 调用`baseline_table`、`scope_sources`、`login_steps`、`native_browser_steps`、`CapabilityPlan.model_validate`、`digest`、`selection`。 返回路径：L295的`CapabilityPlan.model_validate( { "title": "Native FastapiAdmin security positive", "summar…`。
-- `require_native_positive`（L336–L369）：接收`proof`、`plan`、`source_digest`、`browser_image`。 控制顺序：L348按`proof.get("restart_kind") != "application_process" or not isinstance(restarted_checks…`分支；L361抛异常，停止当前正常路径；L365按`any( database["after"][name] <= database["baseline"][name] for name in plan.runtime.d…`分支；L369抛异常，停止当前正常路径。 调用`require_profile_evidence`、`digest`、`plan.model_dump`、`plan.selection.model_dump`、`proof.get`、`isinstance`、`any`、`restarted_checks.values`、`set`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `certify`（L372–L464）：接收`product`、`directory`。 控制顺序：L397按`settings.sandbox_provider != "daytona"`分支；L398抛异常，停止当前正常路径；L403按`record["inputs"]["product"] != str(product) or record["inputs"][ "source_identity" ] …`分支；L406抛异常，停止当前正常路径；L448按`require_native_profile(directory, record["snapshot"]["snapshot"]) != record or manife…`分支；L452抛异常，停止当前正常路径；L453按`require_browser_acceptance(settings.capability_browser_image) != browser_image`分支；L454抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(directory).resolve`、`selection`、`inside`、`receipt_name`、`write_json`、`install_loopback_guard`、`Settings`等。 返回路径：L458的`acceptance`。
-- `main`（L467–L475）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`certify`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_native_positive`（L336–L374）：接收`proof`、`plan`、`source_digest`、`browser_image`。 控制顺序：L348按`proof.get("restart_kind") != "application_process" or not isinstance(restarted_checks…`分支；L366抛异常，停止当前正常路径；L370按`any( database["after"][name] <= database["baseline"][name] for name in plan.runtime.d…`分支；L374抛异常，停止当前正常路径。 调用`require_profile_evidence`、`digest`、`plan.model_dump`、`plan.selection.model_dump`、`proof.get`、`isinstance`、`any`、`restarted_checks.values`、`set`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `certify`（L377–L472）：接收`product`、`directory`。 控制顺序：L402按`settings.sandbox_provider != "daytona"`分支；L403抛异常，停止当前正常路径；L408按`record["inputs"]["product"] != str(product) or record["inputs"][ "source_identity" ] …`分支；L411抛异常，停止当前正常路径；L456按`require_native_profile(directory, record["snapshot"]["snapshot"]) != record or manife…`分支；L460抛异常，停止当前正常路径；L461按`require_browser_acceptance(settings.capability_browser_image) != browser_image`分支；L462抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(directory).resolve`、`selection`、`inside`、`receipt_name`、`write_json`、`install_loopback_guard`、`Settings`等。 返回路径：L466的`acceptance`。
+- `main`（L475–L483）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`certify`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_native_capability_security.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L479。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_native_capability_security.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L487。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19546`。本段原文以LF换行结束。
+本段原始字节数：`19798`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_native_capability_security.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0f7e96abae11fe577b406b1f48d887b096eda4b5c4f056e6c573338d6e5ac2d3"} -->
+<!-- learning-source: {"path": "scripts/ci_native_capability_security.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6ec3dcd45efa4f0439447b6736a340610801f6a39a445caf8b709dd2e81ccdc6"} -->
 ````python
 # scripts/ci_native_capability_security.py
 """Live native security certification against the registered generated CI baseline.
@@ -387,7 +387,12 @@ def require_native_positive(proof, plan, source_digest, browser_image):
         or proof.get("browser_image") != browser_image
         or not isinstance(build, dict)
         or set(build)
-        != {"offline_install", "frontend_build", "frontend_typecheck", "source_frozen"}
+        != {
+            "preinstalled_dependencies_verified",
+            "frontend_build",
+            "frontend_typecheck",
+            "source_frozen",
+        }
         or any(value is not True for value in build.values())
         or proof.get("native_frontend_started") is not True
         or proof.get("native_frontend_restart") is not True
@@ -454,6 +459,7 @@ def certify(product=PRODUCT, directory=HOME):
             detail_path,
             client=client,
             aggregate=True,
+            profile_record=record,
             control_observer=lambda sandbox_id: inspect_created_sandbox(
                 directory, sandbox_id, require_resources=True, selection=selected
             ),
@@ -473,6 +479,8 @@ def certify(product=PRODUCT, directory=HOME):
             "paid_model_calls": 0,
             "restart_kind": proof["restart_kind"],
             "browser_image": browser_image,
+            "preinstalled_dependencies": proof["preinstalled_dependencies"],
+            "positive_source_digest": proof["source_digest"],
         }
         require_security_receipt(acceptance, record, browser_image=browser_image)
         closing_client = client

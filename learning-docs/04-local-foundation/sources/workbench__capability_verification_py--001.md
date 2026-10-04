@@ -37,15 +37,15 @@
 - `run_steps`（L363–L455）：接收`client`、`steps`、`variables`、`capture_budget`、`deadline`。 控制顺序：L367遍历`enumerate(steps)`；L379按`started + wait >= deadline`分支；L380抛异常，停止当前正常路径；L381按`wait`分支；L384按`step.body is not None`分支；L386按`step.body_encoding == "form"`分支；L390抛异常，停止当前正常路径；L397按`remaining <= 0`分支。后续分支沿下方源码相同行号继续阅读。 调用`http_phase_deadline`、`CaptureBudget`、`enumerate`、`interpolate`、`HttpStep.loopback_path`、`HttpStep.bounded_headers`、`httpx.Headers`、`time.monotonic`、`CheckFailure`等。 返回路径：L455的`receipts`。
 - `run_scenarios`（L458–L499）：接收`client`、`scenarios`、`saved`、`after_restart`。 控制顺序：L469遍历`scenarios`；L471按`scenario.id not in saved`分支；L478按`not steps`分支；L486抛异常，停止当前正常路径。 调用`http_phase_deadline`、`CaptureBudget`、`client.cookies.clear`、`uuid.uuid4`、`capture_budget.add_namespace`、`run_steps`、`checks.append`、`digest`、`scenario.model_dump`。 返回路径：L499的`checks, saved`。
 - `run_browser`（L502–L609）：接收`url`、`token`、`scenarios`、`saved`、`timeout`。 控制顺序：L504按`not selected`分支；L507按`not node`分支；L508抛异常，停止当前正常路径；L514抛异常，停止当前正常路径；L551抛异常，停止当前正常路径；L562按`prior and prior["passed"] is False`分支；L563抛异常，停止当前正常路径；L566抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`sha`、`interpolate`、`step.model_dump`、`tempfile.TemporaryFile`、`subprocess.Popen`、`str`等。 返回路径：L505的`[]`；L609的`value["checks"]`。
-- `require_evidence`（L612–L678）：接收`receipt`、`source_digest`、`plan_digest`、`scenarios`、`selection`、`database_tables`、`aggregate`。 控制顺序：L625按`receipt.get("passed") is not True or receipt.get("source_digest") != source_digest or…`分支；L638抛异常，停止当前正常路径；L639按`aggregate`分支；L642按`not required or restarted != required or receipt.get("restarted") is not True`分支；L643抛异常，停止当前正常路径；L647按`stack.get("selection") != selection or not stack.get("source_checks") or stack.get("l…`分支；L658抛异常，停止当前正常路径；L659按`aggregate`分支。后续分支沿下方源码相同行号继续阅读。 调用`require_container_evidence`、`receipt.get`、`require_isolation_evidence`、`digest`、`s.model_dump`、`c.get`、`len`、`any`、`s.get`等。 返回路径：L678的`receipt`。
+- `require_evidence`（L612–L710）：接收`receipt`、`source_digest`、`plan_digest`、`scenarios`、`selection`、`database_tables`、`aggregate`。 控制顺序：L627按`not isinstance(dependency_profile, dict) or dependency_profile.get("profile") != sele…`分支；L633抛异常，停止当前正常路径；L645按`aggregate`分支；L652抛异常，停止当前正常路径；L657按`receipt.get("passed") is not True or receipt.get("source_digest") != source_digest or…`分支；L670抛异常，停止当前正常路径；L671按`aggregate`分支；L674按`not required or restarted != required or receipt.get("restarted") is not True`分支。后续分支沿下方源码相同行号继续阅读。 调用`require_container_evidence`、`receipt.get`、`require_dependency_manifest`、`isinstance`、`dependency_profile.get`、`container.get`、`CheckFailure`、`require_preinstalled_evidence`、`require_isolation_evidence`等。 返回路径：L710的`receipt`。
 
 </details>
 
-**创建路径：** `workbench/capability_verification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L678。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_verification.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L710。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26379`。本段原文以LF换行结束。
+本段原始字节数：`27798`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_verification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "831ed8213a509f0d437748f9b1e31013d6587657e22a2bcab85d3444e1cf9c91"} -->
+<!-- learning-source: {"path": "workbench/capability_verification.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "95d0a25055d66b585cb5942c9e59378c4a15498c5c02031855f16bb4d36de62c"} -->
 ````python
 # workbench/capability_verification.py
 """Independent HTTP checks run outside the generated application's sandbox.
@@ -662,12 +662,44 @@ def run_browser(url, token, scenarios, saved, timeout):
 def require_evidence(
     receipt, *, source_digest, plan_digest, scenarios, selection, database_tables, aggregate=False
 ):
+    from workbench.capability_dependencies import require_dependency_manifest
+    from workbench.capability_execution import VERIFIER, require_preinstalled_evidence
     from workbench.capability_isolation import (
         require_container_evidence,
         require_isolation_evidence,
     )
 
     require_container_evidence(receipt.get("container_isolation"), receipt.get("sandbox_id"))
+    dependency_profile = require_dependency_manifest(
+        receipt.get("dependency_profile"), selection["template"]
+    )
+    container = receipt["container_isolation"]
+    if (
+        not isinstance(dependency_profile, dict)
+        or dependency_profile.get("profile") != selection["template"]
+        or dependency_profile.get("image_id") != container.get("snapshot_image_id")
+        or container.get("dependency_manifest") != dependency_profile
+    ):
+        raise CheckFailure("只读依赖证明未绑定实际镜像和当前技术栈")
+    try:
+        require_preinstalled_evidence(
+            receipt.get("preinstalled_dependencies"),
+            dependency_profile,
+            source_digest=source_digest,
+        )
+        require_preinstalled_evidence(
+            receipt.get("final_preinstalled_dependencies"),
+            dependency_profile,
+            source_digest=source_digest,
+        )
+        if aggregate:
+            require_preinstalled_evidence(
+                receipt.get("restart_preinstalled_dependencies"),
+                dependency_profile,
+                source_digest=source_digest,
+            )
+    except ValueError:
+        raise CheckFailure("缺少已验证的只读预装依赖证明，不能沿用安装回执") from None
     require_isolation_evidence(receipt.get("execution_isolation"))
     expected = {s.id: digest(s.model_dump()) for s in scenarios}
     checks = receipt.get("checks", [])
@@ -676,7 +708,7 @@ def require_evidence(
         receipt.get("passed") is not True
         or receipt.get("source_digest") != source_digest
         or receipt.get("plan_digest") != plan_digest
-        or receipt.get("verifier") != "controller-http-contract-v3"
+        or receipt.get("verifier") != VERIFIER
         or receipt.get("network_block_all") is not True
         or receipt.get("credentials_uploaded") is not False
         or receipt.get("cleanup") != "deleted"

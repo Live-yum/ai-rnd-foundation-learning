@@ -15,20 +15,22 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `security_checks_for`（L108–L113）：接收`selection`。 控制顺序：L109按`selection.get("template") == "fastapiadmin"`分支。 调用`selection.get`、`set`。 返回路径：L110的`(set(SECURITY_CHECKS) - {"all_tcp_destinations_denied"}) \| set( NATIVE_SECURITY_CHECKS )`；L113的`set(SECURITY_CHECKS)`。
-- `receipt_name`（L116–L121）：接收`selection`。 调用`selection.get`。 返回路径：L117的`"native-fastapiadmin-security-acceptance.json" if selection.get("template") == "fastapiadm…`。
-- `verifier_identity`（L124–L125）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`digest`、`sha`。 返回路径：L125的`digest({name: sha(ROOT / name) for name in SOURCE_FILES})`。
-- `profile_binding`（L128–L135）：接收`record`。 返回路径：L129的`{ "recipe_identity": record["recipe_identity"], "runner_image_id": record["runner"]["image…`。
-- `require_security_receipt`（L138–L174）：接收`value`、`record`、`browser_image`。 控制顺序：L154按`not isinstance(value, dict) or set(value) != expected or value.get("protocol") != PRO…`分支；L173抛异常，停止当前正常路径。 调用`record.get`、`Selection(template="python-basic").model_dump`、`Selection`、`security_checks_for`、`isinstance`、`set`、`value.get`、`verifier_identity`、`profile_binding`等。 返回路径：L174的`value`。
-- `capability_execution_prerequisites`（L177–L232）：接收`settings`、`selection`。 源码说明：Read-only gate; never runs candidate code or calls a model. Return the exact verified profile directory/record. Missing conditions are recoverable execution blockers; callers must retain the plan and 。 控制顺序：L187按`not settings.capability_execution_enabled`分支；L188抛异常，停止当前正常路径；L192按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L196抛异常，停止当前正常路径；L200按`settings.sandbox_provider != "daytona"`分支；L201抛异常，停止当前正常路径；L212按`directory.is_relative_to(runs)`分支；L213抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`Selection.model_validate(selection).model_dump`、`Selection.model_validate`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`require_browser_acceptance`、`Path(settings.capability_profile_directory).resolve`、`Path`等。 返回路径：L232的`directory, record`。
+- `security_checks_for`（L119–L124）：接收`selection`。 控制顺序：L120按`selection.get("template") == "fastapiadmin"`分支。 调用`selection.get`、`set`。 返回路径：L121的`(set(SECURITY_CHECKS) - {"all_tcp_destinations_denied"}) \| set( NATIVE_SECURITY_CHECKS )`；L124的`set(SECURITY_CHECKS)`。
+- `receipt_name`（L127–L132）：接收`selection`。 调用`selection.get`。 返回路径：L128的`"native-fastapiadmin-security-acceptance.json" if selection.get("template") == "fastapiadm…`。
+- `verifier_identity`（L135–L136）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`digest`、`sha`。 返回路径：L136的`digest({name: sha(ROOT / name) for name in SOURCE_FILES})`。
+- `profile_binding`（L139–L160）：接收`record`。 控制顺序：L143按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L147抛异常，停止当前正常路径；L151按`dependency_profile["image_id"] != record["snapshot"]["image_id"]`分支；L152抛异常，停止当前正常路径。 调用`record.get`、`Selection().model_dump`、`Selection`、`Selection(template="python-basic").model_dump`、`Selection(template="fastapiadmin").model_dump`、`ValueError`、`require_dependency_manifest`。 返回路径：L153的`{ "recipe_identity": record["recipe_identity"], "runner_image_id": record["runner"]["image…`。
+- `require_preinstalled_evidence`（L163–L199）：接收`value`、`expected`、`source_digest`。 源码说明：A verified image dependency tree is not a runtime installation receipt.。 控制顺序：L179按`not isinstance(expected, dict) or not isinstance(value, dict) or set(value) != keys o…`分支；L198抛异常，停止当前正常路径。 调用`isinstance`、`set`、`type`、`value.get`、`any`、`expected.get`、`re.fullmatch`、`str`、`ValueError`。 返回路径：L199的`value`。
+- `require_profile_container_binding`（L202–L212）：接收`record`、`container`。 源码说明：Do not trust a matching descriptor unless the inspected image is pinned.。 控制顺序：L205按`not isinstance(container, dict) or any( container.get(key) != bound[key] for key in (…`分支；L209抛异常，停止当前正常路径；L210按`container.get("dependency_manifest") != bound["dependency_manifest"]`分支；L211抛异常，停止当前正常路径。 调用`profile_binding`、`isinstance`、`any`、`container.get`、`ValueError`。 返回路径：L212的`container`。
+- `require_security_receipt`（L215–L258）：接收`value`、`record`、`browser_image`。 控制顺序：L233按`not isinstance(value, dict) or set(value) != expected or value.get("protocol") != PRO…`分支；L252抛异常，停止当前正常路径。 调用`record.get`、`Selection(template="python-basic").model_dump`、`Selection`、`security_checks_for`、`isinstance`、`set`、`value.get`、`verifier_identity`、`profile_binding`等。 返回路径：L258的`value`。
+- `capability_execution_prerequisites`（L261–L316）：接收`settings`、`selection`。 源码说明：Read-only gate; never runs candidate code or calls a model. Return the exact verified profile directory/record. Missing conditions are recoverable execution blockers; callers must retain the plan and 。 控制顺序：L271按`not settings.capability_execution_enabled`分支；L272抛异常，停止当前正常路径；L276按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L280抛异常，停止当前正常路径；L284按`settings.sandbox_provider != "daytona"`分支；L285抛异常，停止当前正常路径；L296按`directory.is_relative_to(runs)`分支；L297抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`Selection.model_validate(selection).model_dump`、`Selection.model_validate`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`require_browser_acceptance`、`Path(settings.capability_profile_directory).resolve`、`Path`等。 返回路径：L316的`directory, record`。
 
 </details>
 
-**创建路径：** `workbench/capability_execution.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L232。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_execution.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L316。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9179`。本段原文以LF换行结束。
+本段原始字节数：`12664`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_execution.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e8e0aa6c7b438d2bbce18548a264016c33bbe637ccdc60d0dfb3dd2344908fbc"} -->
+<!-- learning-source: {"path": "workbench/capability_execution.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5c98fce64e49ebabd5e29752886583f12dae7f3d65127eeb576d55e4348e1edb"} -->
 ````python
 # workbench/capability_execution.py
 """Fail-closed admission for reviewed custom-source execution.
@@ -52,13 +54,21 @@ from workbench.filesystem import sha
 from workbench.settings import ROOT
 
 RECEIPT = "capability-security-acceptance.json"
-PROTOCOL = "custom-source-isolation-v1"
+PROTOCOL = "custom-source-isolation-v2"
+VERIFIER = "controller-http-contract-v4"
 SOURCE_FILES = (
     "scripts/capability_browser_apparmor.cjs",
     "workbench/capability_browser_policy.py",
     "scripts/capability_browser_seccomp_probe.c",
     "tools/browser/review-only-v2/chromium141-docker28-native-amd64.proposal.json",
     "workbench/capability_execution.py",
+    "workbench/capability_dependencies.py",
+    "workbench/daytona_profiles.py",
+    "scripts/daytona_dependency_image.py",
+    "scripts/daytona_dependency_build.py",
+    "scripts/daytona_dependency_build.lock.json",
+    "tools/daytona/capability-snapshot.Dockerfile",
+    "tools/daytona/capability-native-snapshot.Dockerfile",
     "workbench/capability_sandbox.py",
     "workbench/capability_isolation.py",
     "workbench/capability_stack.py",
@@ -125,6 +135,9 @@ SECURITY_CHECKS = (
     "all_tcp_destinations_denied",
     "unix_stream_pair_allowed",
     "io_uring_denied",
+    "immutable_dependency_read_allowed",
+    "immutable_dependency_write_denied",
+    "tmpfs_noexec_enforced",
 )
 
 
@@ -159,13 +172,79 @@ def verifier_identity():
 
 
 def profile_binding(record):
+    from workbench.capability_dependencies import require_dependency_manifest
+
+    selected = record.get("selection", Selection().model_dump())
+    if selected not in (
+        Selection(template="python-basic").model_dump(),
+        Selection(template="fastapiadmin").model_dump(),
+    ):
+        raise ValueError("No immutable dependency profile for the selected source stack")
+    dependency_profile = require_dependency_manifest(
+        record["snapshot"]["dependency_manifest"], selected["template"]
+    )
+    if dependency_profile["image_id"] != record["snapshot"]["image_id"]:
+        raise ValueError("Immutable dependency provenance is bound to a different image")
     return {
         "recipe_identity": record["recipe_identity"],
         "runner_image_id": record["runner"]["image_id"],
         "snapshot_image_id": record["snapshot"]["image_id"],
         "snapshot_digest": record["snapshot"]["digest"],
         "snapshot": record["snapshot"]["snapshot"],
+        "dependency_manifest": dependency_profile,
     }
+
+
+def require_preinstalled_evidence(value, expected, *, source_digest):
+    """A verified image dependency tree is not a runtime installation receipt."""
+    flags = {
+        "descriptors_verified",
+        "installed_tree_verified",
+        "readonly_verified",
+        "product_links_verified",
+        "source_inventory_verified",
+    }
+    keys = {
+        "schema",
+        "profile",
+        "manifest_sha256",
+        "installed_tree_sha256",
+        "source_inventory_sha256",
+    } | flags
+    if (
+        not isinstance(expected, dict)
+        or not isinstance(value, dict)
+        or set(value) != keys
+        or type(value.get("schema")) is not int
+        or value["schema"] != 1
+        or value.get("profile") not in {"python-basic", "fastapiadmin"}
+        or any(
+            value.get(key) != expected.get(key)
+            for key in keys - flags - {"source_inventory_sha256"}
+        )
+        or any(
+            not re.fullmatch(r"[a-f0-9]{64}", str(value.get(key, "")))
+            for key in ("manifest_sha256", "installed_tree_sha256")
+        )
+        or not re.fullmatch(r"[a-f0-9]{64}", str(source_digest))
+        or value.get("source_inventory_sha256") != source_digest
+        or any(value.get(key) is not True for key in flags)
+    ):
+        raise ValueError("Missing, stale or incompatible verified preinstalled dependency proof")
+    return value
+
+
+def require_profile_container_binding(record, container):
+    """Do not trust a matching descriptor unless the inspected image is pinned."""
+    bound = profile_binding(record)
+    if not isinstance(container, dict) or any(
+        container.get(key) != bound[key]
+        for key in ("runner_image_id", "snapshot_image_id", "snapshot_digest")
+    ):
+        raise ValueError("Inspected container does not match the admitted dependency image")
+    if container.get("dependency_manifest") != bound["dependency_manifest"]:
+        raise ValueError("Inspector is missing exact immutable dependency provenance")
+    return container
 
 
 def require_security_receipt(value, record, *, browser_image=None):
@@ -183,6 +262,8 @@ def require_security_receipt(value, record, *, browser_image=None):
         "paid_model_calls",
         "restart_kind",
         "browser_image",
+        "preinstalled_dependencies",
+        "positive_source_digest",
     }
     if (
         not isinstance(value, dict)
@@ -204,6 +285,11 @@ def require_security_receipt(value, record, *, browser_image=None):
         or value["paid_model_calls"] != 0
     ):
         raise ValueError("Live isolation receipt is missing, stale, incomplete or incompatible")
+    require_preinstalled_evidence(
+        value["preinstalled_dependencies"],
+        record["snapshot"]["dependency_manifest"],
+        source_digest=value["positive_source_digest"],
+    )
     return value
 
 

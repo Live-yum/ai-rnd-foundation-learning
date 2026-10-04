@@ -72,6 +72,7 @@ MODULE_STAGE = {
     "native_plan_normalization": 9,
     "capability_verification": 4,
     "capability_isolation": 4,
+    "capability_dependencies": 4,
     "capability_stack": 4,
     "module_imports": 4,
     "template_adapters": 1,

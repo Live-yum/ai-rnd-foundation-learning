@@ -15,23 +15,24 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `captured_script`（L11–L21）：接收`monkeypatch`。 调用`SimpleNamespace`、`monkeypatch.setattr`、`runtime.verify_and_freeze_native_sources`。 返回路径：L21的`scripts[0]`。
-- `captured_script.capture`（L15–L17）：接收`sandbox`、`argv`、`timeout`。 调用`scripts.append`、`SimpleNamespace`。 返回路径：L17的`SimpleNamespace(exit_code=0)`。
-- `test_ancestor_symlink_rejected_before_privileged_mkdir_or_chown`（L25–L48）：接收`tmp_path`、`monkeypatch`、`relative`。 控制顺序：L47断言`mutations == []`；L48断言`list(outside.iterdir()) == []`。 调用`captured_script`、`root.mkdir`、`(root / "frontend/web/dist").mkdir`、`(root / "frontend/web/dist/index.html").write_text`、`outside.mkdir`、`target.parent.mkdir`、`target.symlink_to`、`control.write_text`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_writable_hardlink_cannot_restore_protected_source_write_access`（L51–L73）：接收`tmp_path`、`monkeypatch`。 控制顺序：L72断言`mutations == []`；L73断言`source.read_text() == "protected = True"`。 调用`captured_script`、`(root / "frontend/web/dist").mkdir`、`(root / "frontend/web/dist/index.html").write_text`、`(root / "backend/app").mkdir`、`source.write_text`、`(root / "backend/logs").mkdir`、`os.link`、`control.write_text`、`script.replace("/tmp/rnd-capability/product", str(root)).replace`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `captured_script`（L12–L22）：接收`monkeypatch`。 调用`SimpleNamespace`、`monkeypatch.setattr`、`runtime.verify_and_freeze_native_sources`。 返回路径：L22的`scripts[0]`。
+- `captured_script.capture`（L16–L18）：接收`sandbox`、`argv`、`timeout`。 调用`scripts.append`、`SimpleNamespace`。 返回路径：L18的`SimpleNamespace(exit_code=0)`。
+- `test_ancestor_symlink_rejected_before_privileged_mkdir_or_chown`（L26–L49）：接收`tmp_path`、`monkeypatch`、`relative`。 控制顺序：L48断言`mutations == []`；L49断言`list(outside.iterdir()) == []`。 调用`captured_script`、`root.mkdir`、`(root / "frontend/web/dist").mkdir`、`(root / "frontend/web/dist/index.html").write_text`、`outside.mkdir`、`target.parent.mkdir`、`target.symlink_to`、`control.write_text`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_writable_hardlink_cannot_restore_protected_source_write_access`（L52–L72）：接收`tmp_path`、`monkeypatch`。 控制顺序：L71断言`mutations == []`；L72断言`source.read_text() == "protected = True"`。 调用`captured_script`、`(root / "frontend/web/dist").mkdir`、`(root / "frontend/web/dist/index.html").write_text`、`(root / "backend/app").mkdir`、`source.write_text`、`(root / "backend/logs").mkdir`、`os.link`、`control.write_text`、`script.replace("/tmp/rnd-capability/product", root.as_posix()).re…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_native_freeze.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L73。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_native_freeze.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L72。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2761`。本段原文以LF换行结束。
+本段原始字节数：`2812`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_native_freeze.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b22a7b5de07b56df701186101deab0456aaa6455076536e4cd56ced87a92b871"} -->
+<!-- learning-source: {"path": "tests/test_capability_native_freeze.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "19f87ea92f9f0b3928fc2bbdbeab46bd4176cb5d908799bb3f85324af2c1143e"} -->
 ````python
 # tests/test_capability_native_freeze.py
 """Exercise trusted freeze script against owned hostile symlink fixtures only."""
 
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -68,11 +69,11 @@ def test_ancestor_symlink_rejected_before_privileged_mkdir_or_chown(
     target.symlink_to(outside, target_is_directory=True)
     control = tmp_path / "manifest.json"
     control.write_text(json.dumps({}))
-    script = script.replace("/tmp/rnd-capability/product", str(root)).replace(
-        "/tmp/rnd-module-control/private/source-manifest.json", str(control)
+    script = script.replace("/tmp/rnd-capability/product", root.as_posix()).replace(
+        "/tmp/rnd-module-control/private/source-manifest.json", control.as_posix()
     )
     mutations = []
-    monkeypatch.setattr("os.chown", lambda *a: mutations.append(a))
+    monkeypatch.setattr(os, "chown", lambda *a: mutations.append(a), raising=False)
     with pytest.raises(AssertionError):
         exec(compile(script, "<owned-freeze-test>", "exec"), {})
     assert mutations == []
@@ -80,8 +81,6 @@ def test_ancestor_symlink_rejected_before_privileged_mkdir_or_chown(
 
 
 def test_writable_hardlink_cannot_restore_protected_source_write_access(tmp_path, monkeypatch):
-    import os
-
     script = captured_script(monkeypatch)
     root = tmp_path / "product"
     (root / "frontend/web/dist").mkdir(parents=True)
@@ -93,11 +92,11 @@ def test_writable_hardlink_cannot_restore_protected_source_write_access(tmp_path
     os.link(source, root / "backend/logs/source-link")
     control = tmp_path / "manifest.json"
     control.write_text("{}")
-    script = script.replace("/tmp/rnd-capability/product", str(root)).replace(
-        "/tmp/rnd-module-control/private/source-manifest.json", str(control)
+    script = script.replace("/tmp/rnd-capability/product", root.as_posix()).replace(
+        "/tmp/rnd-module-control/private/source-manifest.json", control.as_posix()
     )
     mutations = []
-    monkeypatch.setattr("os.chown", lambda *a: mutations.append(a))
+    monkeypatch.setattr(os, "chown", lambda *a: mutations.append(a), raising=False)
     with pytest.raises(AssertionError):
         exec(compile(script, "<owned-hardlink-test>", "exec"), {})
     assert mutations == []

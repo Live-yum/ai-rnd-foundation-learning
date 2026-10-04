@@ -15,15 +15,15 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `main`（L30–L103）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L44按`settings.sandbox_provider != "daytona"`分支；L45抛异常，停止当前正常路径；L80按`proof.get("restart_security_checks") != proof.get("security_checks")`分支；L81抛异常，停止当前正常路径；L101按`client is not None`分支。 调用`install_loopback_guard`、`Settings`、`write_json`、`ValueError`、`require_profile`、`require_browser_acceptance`、`client_for`、`tempfile.TemporaryDirectory`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L30–L115）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L44按`settings.sandbox_provider != "daytona"`分支；L45抛异常，停止当前正常路径；L82按`proof.get("restart_security_checks") != proof.get("security_checks")`分支；L83抛异常，停止当前正常路径；L105按`require_profile(HOME, record["snapshot"]["snapshot"]) != record`分支；L106抛异常，停止当前正常路径；L107按`require_browser_acceptance(settings.capability_browser_image) != browser_image`分支；L108抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`install_loopback_guard`、`Settings`、`write_json`、`ValueError`、`require_profile`、`require_browser_acceptance`、`verifier_identity`、`client_for`、`tempfile.TemporaryDirectory`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_capability_security.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L107。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_capability_security.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L119。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4403`。本段原文以LF换行结束。
+本段原始字节数：`5242`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_capability_security.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6620dc993c1eedac14e17a2fb682b6dece4a88d88a9b22b8ae7bc0a3bc232e5a"} -->
+<!-- learning-source: {"path": "scripts/ci_capability_security.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3cd9fc3932968f0f361f7c4498bd10139d69bac2400b3bbaed0119a7f548b767"} -->
 ````python
 # scripts/ci_capability_security.py
 """Real local-service safety acceptance; never accepts candidate/source inputs.
@@ -75,6 +75,7 @@ def main():
     from workbench.capability_browser_isolation import require_browser_acceptance
 
     browser_image = require_browser_acceptance(settings.capability_browser_image)
+    verifier = verifier_identity()
     client = client_for(settings)
     try:
         with tempfile.TemporaryDirectory(prefix="rnd-security-positive-") as directory:
@@ -91,6 +92,7 @@ def main():
                 ROOT / "reports/capability-security-detail.json",
                 client=client,
                 aggregate=True,
+                profile_record=record,
                 control_observer=lambda sandbox_id: inspect_created_sandbox(
                     HOME, sandbox_id, require_resources=True
                 ),
@@ -110,7 +112,7 @@ def main():
             acceptance = {
                 "protocol": PROTOCOL,
                 "passed": True,
-                "verifier_identity": verifier_identity(),
+                "verifier_identity": verifier,
                 "profile": profile_binding(record),
                 "selection": selected,
                 "checks": proof["security_checks"],
@@ -119,10 +121,20 @@ def main():
                 "paid_model_calls": 0,
                 "restart_kind": proof.get("restart_kind"),
                 "browser_image": browser_image,
+                "preinstalled_dependencies": proof["preinstalled_dependencies"],
+                "positive_source_digest": proof["source_digest"],
             }
             require_security_receipt(acceptance, record, browser_image=browser_image)
         close_client(client)
         client = None
+        # Bind the exact revision tested, then recheck the live installation
+        # after transport cleanup. A mid-run code/image change cannot certify
+        # a different verifier or immutable dependency image.
+        if require_profile(HOME, record["snapshot"]["snapshot"]) != record:
+            raise ValueError("Profile changed during live certification")
+        if require_browser_acceptance(settings.capability_browser_image) != browser_image:
+            raise ValueError("Accepted browser image changed during live certification")
+        require_security_receipt(acceptance, record, browser_image=browser_image)
         write_json(destination, acceptance)
         summary.update(acceptance)
     finally:

@@ -17,15 +17,15 @@
 
 - `fixed_application`（L29–L50）：接收`product`。 控制顺序：L31遍历`("pyproject.toml", "uv.lock")`。 调用`product.mkdir`、`shutil.copyfile`、`(product / "app.py").write_text`、`APP.replace( " # CUSTOM_ACCESS", " from access import readable\n …`、`APP.replace`、`(product / "access.py").write_text`、`make_plan`、`scope_sources`、`digest`。 返回路径：L44的`make_plan( { "source_units": scope_sources([GOAL]), "source_digest": digest([GOAL]), "sele…`。
 - `require_profile_evidence`（L53–L71）：接收`proof`、`**bindings`。 源码说明：Keep strict validation; explain only an allowlisted browser failure.。 控制顺序：L60按`proof.get("passed") is False and isinstance(phase, str) and phase in BROWSER_PHASES a…`分支；L67抛异常，停止当前正常路径；L71抛异常，停止当前正常路径。 调用`require_evidence`、`proof.get`、`diagnostic.get`、`isinstance`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L74–L124）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L85按`settings.sandbox_provider != "daytona"`分支；L86抛异常，停止当前正常路径；L122抛异常，停止当前正常路径。 调用`install_loopback_guard`、`Settings`、`write_json`、`ValueError`、`require_profile`、`tempfile.TemporaryDirectory`、`Path`、`fixed_application`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L74–L125）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L85按`settings.sandbox_provider != "daytona"`分支；L86抛异常，停止当前正常路径；L123抛异常，停止当前正常路径。 调用`install_loopback_guard`、`Settings`、`write_json`、`ValueError`、`require_profile`、`tempfile.TemporaryDirectory`、`Path`、`fixed_application`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L128。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L129。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4692`。本段原文以LF换行结束。
+本段原始字节数：`4740`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "696f918271d412c01dee5d7cd67ce9804ef68cfbdb69624aad2641439c6104db"} -->
+<!-- learning-source: {"path": "scripts/ci_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "11f382945d3604dc1c3ea3a64b32721804f4d163a9c227e4ede38f07eac53332"} -->
 ````python
 # scripts/ci_capability_profile.py
 """Positive isolation acceptance with only the repository's fixed authored app.
@@ -114,7 +114,7 @@ def main():
     write_json(report_path, summary)
     if settings.sandbox_provider != "daytona":
         raise ValueError("Positive profile acceptance requires the real local Daytona service")
-    require_profile(HOME, settings.daytona_snapshot)
+    record = require_profile(HOME, settings.daytona_snapshot)
     with tempfile.TemporaryDirectory(prefix="rnd-fixed-profile-") as directory:
         product = Path(directory) / "product"
         plan = fixed_application(product)
@@ -131,6 +131,7 @@ def main():
                 ROOT / "reports/capability-profile-detail.json",
                 client=client,
                 aggregate=True,
+                profile_record=record,
                 control_observer=lambda sandbox_id: inspect_created_sandbox(HOME, sandbox_id),
             )
             summary["proof"] = settings.redact_data(proof)

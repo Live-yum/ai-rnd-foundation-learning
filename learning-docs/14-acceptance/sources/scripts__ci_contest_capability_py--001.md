@@ -17,15 +17,15 @@
 
 - `install_authored_fixture`（L31–L39）：接收`product`。 控制顺序：L33按`destination.exists() or destination.is_symlink()`分支；L34抛异常，停止当前正常路径；L37按`not marker.exists()`分支。 调用`destination.exists`、`destination.is_symlink`、`ValueError`、`destination.parent.mkdir`、`marker.exists`、`marker.write_text`、`shutil.copytree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `require_business_proof`（L42–L55）：接收`proof`。 控制顺序：L44按`proof.get("passed") is not True or proof.get("cleanup") != "deleted" or business.get(…`分支；L55抛异常，停止当前正常路径。 调用`proof.get`、`business.get`、`list`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L58–L124）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L122按`client is not None`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`install_loopback_guard`、`Settings`、`write_json`、`capability_execution_prerequisites`、`selection`、`require_native_profile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L58–L125）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L123按`client is not None`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`install_loopback_guard`、`Settings`、`write_json`、`capability_execution_prerequisites`、`selection`、`require_native_profile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_contest_capability.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L128。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_contest_capability.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L129。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4896`。本段原文以LF换行结束。
+本段原始字节数：`4935`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_contest_capability.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "dbc786083e1035904177554582dba928581ac7b7862929ccf3557efd77df6fba"} -->
+<!-- learning-source: {"path": "scripts/ci_contest_capability.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ba9912ce39c5dd035f7339dfcb17fa843d469fdeb264f384d9eac7569489f880"} -->
 ````python
 # scripts/ci_contest_capability.py
 """Authored native contest slice against trusted independent business assertions.
@@ -135,6 +135,7 @@ def main():
                 ROOT / "reports/contest-capability-detail.json",
                 client=client,
                 aggregate=True,
+                profile_record=record,
                 control_observer=lambda sandbox_id: inspect_created_sandbox(
                     directory, sandbox_id, require_resources=True, selection=selection()
                 ),

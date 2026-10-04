@@ -15,30 +15,30 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `product`（L22–L51）：接收`tmp_path`。 控制顺序：L45遍历`( "backend/app/__init__.py", "backend/app/plugin/module_rnd/devic…`。 调用`acceptance_spec().model_dump`、`acceptance_spec`、`digest`、`atomic_text`、`json.dumps`。 返回路径：L51的`root`。
-- `test_authored_native_contract_has_real_captcha_form_login_and_typed_crud`（L54–L91）：接收`product`。 控制顺序：L56断言`plan.selection.model_dump() == ci.selection()`；L57断言`plan.runtime.database_tables == ["sys_user", TABLE]`；L58断言`plan.runtime.prepare == []`；L59断言`native_start_command(plan) == plan.runtime.start`；L60断言`plan.runtime.port == 8000 and plan.runtime.health_path == "/openapi.json"`；L62断言`signup.steps[0].path == "/system/user/register"`；L63断言`signup.steps[0].body["username"] == ci.SIGNUP_USER`；L64断言`len(ci.SIGNUP_USER) <= 32`。后续分支沿下方源码相同行号继续阅读。 调用`ci.fixed_plan`、`plan.selection.model_dump`、`ci.selection`、`native_start_command`、`len`、`all`、`step.path.endswith`、`any`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_wrong_native_baseline_cannot_be_certified`（L106–L112）：接收`product`、`mutation`。 调用`json.loads`、`path.read_text`、`mutation`、`path.write_text`、`json.dumps`、`pytest.raises`、`ci.fixed_plan`、`pytest.mark.parametrize`、`metadata.update`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `positive`（L115–L135）：接收`plan`。 调用`dict.fromkeys`、`security_checks_for`、`ci.selection`。 返回路径：L117的`{ "passed": True, "cleanup": "deleted", "restart_kind": "application_process", "security_c…`。
-- `test_native_specific_positive_evidence_cannot_be_omitted_or_truthy`（L153–L162）：接收`product`、`monkeypatch`、`mutation`。 调用`ci.fixed_plan`、`positive`、`monkeypatch.setattr`、`ci.require_native_positive`、`mutation`、`pytest.raises`、`pytest.mark.parametrize`、`proof.update`、`proof["restart_security_checks"].update`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_generic_independent_evidence_validation_is_never_replaced`（L165–L185）：接收`product`、`monkeypatch`。 控制顺序：L176断言`calls == [ { "aggregate": True, "source_digest": "a" * 64, "plan_digest": digest(plan…`。 调用`ci.fixed_plan`、`monkeypatch.setattr`、`pytest.raises`、`ci.require_native_positive`、`positive`、`digest`、`plan.model_dump`、`ci.selection`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_generic_independent_evidence_validation_is_never_replaced.check`（L169–L171）：接收`value`、`**bindings`。 控制顺序：L171抛异常，停止当前正常路径。 调用`calls.append`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `setup_certification`（L189–L247）：接收`tmp_path`、`product`、`monkeypatch`。 调用`directory.mkdir`、`Settings`、`ci.selection`、`str`、`digest`、`manifest`、`positive`、`ci.fixed_plan`、`SimpleNamespace`等。 返回路径：L247的`directory, product, record, proof, events`。
-- `setup_certification.verify`（L234–L240）：接收`*args`、`**kwargs`。 控制顺序：L235断言`kwargs["client"] is client and kwargs["aggregate"] is True`；L236断言`kwargs["security_probe"] == "native-security-probe"`；L237断言`args[4] == ci.selection()`。 调用`ci.selection`、`kwargs["control_observer"]`、`events.append`、`copy.deepcopy`。 返回路径：L240的`copy.deepcopy(proof)`。
-- `test_certificate_publishes_only_native_receipt_after_cleanup_and_revalidation`（L250–L266）：接收`setup_certification`。 控制顺序：L257断言`result["passed"] is True and result["paid_model_calls"] == 0`；L258断言`result["profile"] == ci.profile_binding(record)`；L259断言`result["browser_image"] == IMAGE`；L260断言`result["checks"].keys() == security_checks_for(ci.selection())`；L262断言`saved == result`；L263断言`events[-1] == "close"`；L265断言`observer[1] == {"require_resources": True, "selection": ci.selection()}`；L266断言`base.read_text() == "base-receipt-unchanged"`。 调用`atomic_text`、`ci.certify`、`ci.profile_binding`、`result["checks"].keys`、`security_checks_for`、`ci.selection`、`json.loads`、`(directory / ci.receipt_name(ci.selection())).read_text`、`ci.receipt_name`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_certification_failure_invalidates_old_receipt_and_never_publishes_success`（L281–L324）：接收`setup_certification`、`monkeypatch`、`failure`。 控制顺序：L287按`failure == "wrong-baseline"`分支；L289按`failure == "wrong-browser"`分支；L291按`failure == "missing-security"`分支；L293按`failure == "restart"`分支；L295按`failure == "close"`分支；L302按`failure == "source-drift"`分支；L309按`failure == "profile-drift"`分支；L318断言`json.loads(receipt.read_text())["passed"] is False`。后续分支沿下方源码相同行号继续阅读。 调用`ci.receipt_name`、`ci.selection`、`atomic_text`、`proof["security_checks"].pop`、`monkeypatch.setattr`、`pytest.raises`、`ci.certify`、`json.loads`、`receipt.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_certification_failure_invalidates_old_receipt_and_never_publishes_success.close`（L297–L299）：接收`value`。 控制顺序：L299抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_certification_failure_invalidates_old_receipt_and_never_publishes_success.close`（L304–L306）：接收`value`。 调用`events.append`、`atomic_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_certification_failure_invalidates_old_receipt_and_never_publishes_success.close`（L311–L313）：接收`value`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_fixed_http_protocol_replays_captures_form_bodies_crud_and_restart`（L327–L414）：接收`product`、`monkeypatch`。 控制顺序：L410断言`len(observed_forms) == 3`；L411断言`len(records) == 1 and next(iter(records.values()))["quantity"] == 7`；L412断言`{row["phase"] for row in initial} == {"initial"}`；L413断言`{row["phase"] for row in restarted} == {"restart"}`；L414断言`{row["id"] for row in restarted} == {"native_signup", "native_device_crud"}`。 调用`ci.fixed_plan`、`monkeypatch.setattr`、`httpx.Client`、`httpx.MockTransport`、`verifier.run_scenarios`、`len`、`next`、`iter`、`records.values`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_fixed_http_protocol_replays_captures_form_bodies_crud_and_restart.transport`（L339–L400）：接收`request`。 控制顺序：L343按`request.content`分支；L344按`request.headers.get("content-type") == "application/x-www-form-urlencoded"`分支；L352按`path.endswith("/captcha/get")`分支；L354按`path.endswith("/slider/complete")`分支；L355断言`data == {"captcha_key": "captcha-key"}`；L357按`path == "/system/user/register"`分支；L360按`path == "/system/auth/login"`分支；L361断言`data["captcha_key"] == "captcha-key" and data["login_type"] == "PC端"`。后续分支沿下方源码相同行号继续阅读。 调用`request.headers.get`、`parse_qs`、`request.content.decode`、`observed_forms.append`、`form.items`、`json.loads`、`path.endswith`、`int`、`path.rsplit`等。 返回路径：L393的`httpx.Response( status, stream=httpx.ByteStream( json.dumps( {"code": 0 if status == 200 e…`。
+- `product`（L23–L52）：接收`tmp_path`。 控制顺序：L46遍历`( "backend/app/__init__.py", "backend/app/plugin/module_rnd/devic…`。 调用`acceptance_spec().model_dump`、`acceptance_spec`、`digest`、`atomic_text`、`json.dumps`。 返回路径：L52的`root`。
+- `test_authored_native_contract_has_real_captcha_form_login_and_typed_crud`（L55–L92）：接收`product`。 控制顺序：L57断言`plan.selection.model_dump() == ci.selection()`；L58断言`plan.runtime.database_tables == ["sys_user", TABLE]`；L59断言`plan.runtime.prepare == []`；L60断言`native_start_command(plan) == plan.runtime.start`；L61断言`plan.runtime.port == 8000 and plan.runtime.health_path == "/openapi.json"`；L63断言`signup.steps[0].path == "/system/user/register"`；L64断言`signup.steps[0].body["username"] == ci.SIGNUP_USER`；L65断言`len(ci.SIGNUP_USER) <= 32`。后续分支沿下方源码相同行号继续阅读。 调用`ci.fixed_plan`、`plan.selection.model_dump`、`ci.selection`、`native_start_command`、`len`、`all`、`step.path.endswith`、`any`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_wrong_native_baseline_cannot_be_certified`（L107–L113）：接收`product`、`mutation`。 调用`json.loads`、`path.read_text`、`mutation`、`path.write_text`、`json.dumps`、`pytest.raises`、`ci.fixed_plan`、`pytest.mark.parametrize`、`metadata.update`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `positive`（L116–L143）：接收`plan`。 调用`digest`、`dict.fromkeys`、`security_checks_for`、`ci.selection`、`dependency_evidence`、`dependency_profile`。 返回路径：L118的`{ "passed": True, "source_digest": digest({}), "cleanup": "deleted", "restart_kind": "appl…`。
+- `test_native_specific_positive_evidence_cannot_be_omitted_or_truthy`（L161–L170）：接收`product`、`monkeypatch`、`mutation`。 调用`ci.fixed_plan`、`positive`、`monkeypatch.setattr`、`ci.require_native_positive`、`mutation`、`pytest.raises`、`pytest.mark.parametrize`、`proof.update`、`proof["restart_security_checks"].update`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generic_independent_evidence_validation_is_never_replaced`（L173–L193）：接收`product`、`monkeypatch`。 控制顺序：L184断言`calls == [ { "aggregate": True, "source_digest": "a" * 64, "plan_digest": digest(plan…`。 调用`ci.fixed_plan`、`monkeypatch.setattr`、`pytest.raises`、`ci.require_native_positive`、`positive`、`digest`、`plan.model_dump`、`ci.selection`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generic_independent_evidence_validation_is_never_replaced.check`（L177–L179）：接收`value`、`**bindings`。 控制顺序：L179抛异常，停止当前正常路径。 调用`calls.append`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `setup_certification`（L197–L257）：接收`tmp_path`、`product`、`monkeypatch`。 调用`directory.mkdir`、`Settings`、`ci.selection`、`dependency_profile`、`str`、`digest`、`manifest`、`positive`、`ci.fixed_plan`等。 返回路径：L257的`directory, product, record, proof, events`。
+- `setup_certification.verify`（L243–L250）：接收`*args`、`**kwargs`。 控制顺序：L244断言`kwargs["client"] is client and kwargs["aggregate"] is True`；L245断言`kwargs["security_probe"] == "native-security-probe"`；L246断言`kwargs["profile_record"] == record`；L247断言`args[4] == ci.selection()`。 调用`ci.selection`、`kwargs["control_observer"]`、`events.append`、`copy.deepcopy`。 返回路径：L250的`copy.deepcopy(proof)`。
+- `test_certificate_publishes_only_native_receipt_after_cleanup_and_revalidation`（L260–L276）：接收`setup_certification`。 控制顺序：L267断言`result["passed"] is True and result["paid_model_calls"] == 0`；L268断言`result["profile"] == ci.profile_binding(record)`；L269断言`result["browser_image"] == IMAGE`；L270断言`result["checks"].keys() == security_checks_for(ci.selection())`；L272断言`saved == result`；L273断言`events[-1] == "close"`；L275断言`observer[1] == {"require_resources": True, "selection": ci.selection()}`；L276断言`base.read_text() == "base-receipt-unchanged"`。 调用`atomic_text`、`ci.certify`、`ci.profile_binding`、`result["checks"].keys`、`security_checks_for`、`ci.selection`、`json.loads`、`(directory / ci.receipt_name(ci.selection())).read_text`、`ci.receipt_name`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_certification_failure_invalidates_old_receipt_and_never_publishes_success`（L291–L334）：接收`setup_certification`、`monkeypatch`、`failure`。 控制顺序：L297按`failure == "wrong-baseline"`分支；L299按`failure == "wrong-browser"`分支；L301按`failure == "missing-security"`分支；L303按`failure == "restart"`分支；L305按`failure == "close"`分支；L312按`failure == "source-drift"`分支；L319按`failure == "profile-drift"`分支；L328断言`json.loads(receipt.read_text())["passed"] is False`。后续分支沿下方源码相同行号继续阅读。 调用`ci.receipt_name`、`ci.selection`、`atomic_text`、`proof["security_checks"].pop`、`monkeypatch.setattr`、`pytest.raises`、`ci.certify`、`json.loads`、`receipt.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_certification_failure_invalidates_old_receipt_and_never_publishes_success.close`（L307–L309）：接收`value`。 控制顺序：L309抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_certification_failure_invalidates_old_receipt_and_never_publishes_success.close`（L314–L316）：接收`value`。 调用`events.append`、`atomic_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_certification_failure_invalidates_old_receipt_and_never_publishes_success.close`（L321–L323）：接收`value`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fixed_http_protocol_replays_captures_form_bodies_crud_and_restart`（L337–L424）：接收`product`、`monkeypatch`。 控制顺序：L420断言`len(observed_forms) == 3`；L421断言`len(records) == 1 and next(iter(records.values()))["quantity"] == 7`；L422断言`{row["phase"] for row in initial} == {"initial"}`；L423断言`{row["phase"] for row in restarted} == {"restart"}`；L424断言`{row["id"] for row in restarted} == {"native_signup", "native_device_crud"}`。 调用`ci.fixed_plan`、`monkeypatch.setattr`、`httpx.Client`、`httpx.MockTransport`、`verifier.run_scenarios`、`len`、`next`、`iter`、`records.values`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fixed_http_protocol_replays_captures_form_bodies_crud_and_restart.transport`（L349–L410）：接收`request`。 控制顺序：L353按`request.content`分支；L354按`request.headers.get("content-type") == "application/x-www-form-urlencoded"`分支；L362按`path.endswith("/captcha/get")`分支；L364按`path.endswith("/slider/complete")`分支；L365断言`data == {"captcha_key": "captcha-key"}`；L367按`path == "/system/user/register"`分支；L370按`path == "/system/auth/login"`分支；L371断言`data["captcha_key"] == "captcha-key" and data["login_type"] == "PC端"`。后续分支沿下方源码相同行号继续阅读。 调用`request.headers.get`、`parse_qs`、`request.content.decode`、`observed_forms.append`、`form.items`、`json.loads`、`path.endswith`、`int`、`path.rsplit`等。 返回路径：L403的`httpx.Response( status, stream=httpx.ByteStream( json.dumps( {"code": 0 if status == 200 e…`。
 
 </details>
 
-**创建路径：** `tests/test_ci_native_capability_security.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L414。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_ci_native_capability_security.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L424。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16608`。本段原文以LF换行结束。
+本段原始字节数：`17041`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_ci_native_capability_security.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6f7fba1e8c4dcfa85fa86a09bd6609d430b337123c3cae3da77214cb3ec906a1"} -->
+<!-- learning-source: {"path": "tests/test_ci_native_capability_security.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e1a8e5c8706063fd87fb53f0bac925ab1979204b56ef31ed8a37b27bc7c8408a"} -->
 ````python
 # tests/test_ci_native_capability_security.py
 """Mocked certificate orchestration; never represents live native security proof."""
@@ -48,6 +48,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from capability_dependency_fixtures import dependency_evidence, dependency_profile
 
 from scripts import ci_native_capability_security as ci
 from scripts.ci_native_generated import acceptance_spec
@@ -159,6 +160,7 @@ def positive(plan):
     tables = plan.runtime.database_tables
     return {
         "passed": True,
+        "source_digest": digest({}),
         "cleanup": "deleted",
         "restart_kind": "application_process",
         "security_checks": dict.fromkeys(security_checks_for(ci.selection()), True),
@@ -166,8 +168,14 @@ def positive(plan):
         "browser_image": IMAGE,
         "native_build": {
             name: True
-            for name in ("offline_install", "frontend_build", "frontend_typecheck", "source_frozen")
+            for name in (
+                "preinstalled_dependencies_verified",
+                "frontend_build",
+                "frontend_typecheck",
+                "source_frozen",
+            )
         },
+        "preinstalled_dependencies": dependency_evidence(dependency_profile("fastapiadmin")),
         "native_frontend_started": True,
         "native_frontend_restart": True,
         "database": {
@@ -248,7 +256,8 @@ def setup_certification(tmp_path, product, monkeypatch):
         "runner": {"image_id": "sha256:" + "b" * 64},
         "snapshot": {
             "snapshot": "native-fixture-snapshot",
-            "image_id": "sha256:" + "c" * 64,
+            "image_id": "sha256:" + "3" * 64,
+            "dependency_manifest": dependency_profile("fastapiadmin"),
             "digest": "registry:6000/rnd-native-fastapiadmin@sha256:" + "d" * 64,
         },
         "inputs": {"product": str(product), "source_identity": digest(manifest(product))},
@@ -277,6 +286,7 @@ def setup_certification(tmp_path, product, monkeypatch):
     def verify(*args, **kwargs):
         assert kwargs["client"] is client and kwargs["aggregate"] is True
         assert kwargs["security_probe"] == "native-security-probe"
+        assert kwargs["profile_record"] == record
         assert args[4] == ci.selection()
         kwargs["control_observer"]("owned-native-sandbox")
         events.append("verify")

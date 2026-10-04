@@ -17,18 +17,18 @@
 
 - `startup_failure_diagnostic`（L53–L86）：接收`output`、`http_status`、`http_error`、`tmpfs_noexec`。 源码说明：Candidate output supplies hints only; no raw output, path or token escapes.。 调用`type`、`patterns.items`、`any`、`bool`。 返回路径：L74的`{ "phase": "health_deadline", "http_status": http_status if type(http_status) is int and 1…`。
 - `restart_application_identity`（L89–L139）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L138按`result.exit_code != 0`分支；L139抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify_capabilities`（L142–L229）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L148按`plan.selection.model_dump() != selection`分支；L149抛异常，停止当前正常路径；L155按`selection["template"] == "fastapiadmin"`分支；L158按`dependency_identity(product) != profile["dependency_identity"]`分支；L159抛异常，停止当前正常路径；L195按`len(body) > 1_000_000`分支；L196抛异常，停止当前正常路径；L218抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`、`Path`等。 返回路径：L153的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L229的`receipt`。
-- `_verify`（L232–L650）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`。 控制顺序：L251按`trusted_oracle not in (None, "contest-business-v2")`分支；L252抛异常，停止当前正常路径；L253按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L256抛异常，停止当前正常路径；L281按`aggregate`分支；L290按`security_probe is not None`分支；L292按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L293抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`CheckFailure`、`manifest`、`uuid.uuid4`、`digest`、`plan.model_dump`、`inspect_stack`、`write_json`、`params_for`、`client.create`等。 返回路径：L650的`receipt`。
-- `_verify.start`（L386–L470）：接收`command`、`port`、`health_path`。 控制顺序：L406按`not response.cmd_id`分支；L407抛异常，停止当前正常路径；L410按`not isinstance(preview.token, str) or not preview.token`分支；L411抛异常，停止当前正常路径；L423在`time.monotonic() < deadline`成立时循环；L427按`200 <= check.status_code < 300`分支；L460按`type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}`分支；L467抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`、`shlex.quote`、`shlex.join`、`CheckFailure`等。 返回路径：L428的`http, url, preview.token`。
-- `main`（L653–L695）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L655按`len(body) > 1_000_000`分支；L656抛异常，停止当前正常路径；L665按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L671抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_capabilities`（L142–L232）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L148按`plan.selection.model_dump() != selection`分支；L149抛异常，停止当前正常路径；L158按`selection["template"] == "fastapiadmin"`分支；L161按`dependency_identity(product) != profile["dependency_identity"]`分支；L162抛异常，停止当前正常路径；L198按`len(body) > 1_000_000`分支；L199抛异常，停止当前正常路径；L221抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`require_dependency_descriptors`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`等。 返回路径：L153的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L232的`receipt`。
+- `_verify`（L235–L739）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L271按`trusted_oracle not in (None, "contest-business-v2")`分支；L272抛异常，停止当前正常路径；L273按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L276抛异常，停止当前正常路径；L279按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L283抛异常，停止当前正常路径；L284按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L289抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L739的`receipt`。
+- `_verify.start`（L422–L517）：接收`command`、`port`、`health_path`。 控制顺序：L453按`not response.cmd_id`分支；L454抛异常，停止当前正常路径；L457按`not isinstance(preview.token, str) or not preview.token`分支；L458抛异常，停止当前正常路径；L470在`time.monotonic() < deadline`成立时循环；L474按`200 <= check.status_code < 300`分支；L507按`type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}`分支；L514抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`readonly_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`等。 返回路径：L475的`http, url, preview.token`。
+- `main`（L742–L785）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L744按`len(body) > 1_000_000`分支；L745抛异常，停止当前正常路径；L754按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L760抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L699。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L789。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`30979`。本段原文以LF换行结束。
+本段原始字节数：`35033`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "576a38b6e3ef80fa89775113a32428b5938d8a2072c45db3bd9efe1149361550"} -->
+<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6de9d538733fce31cc50e0a59e8891f6c35e6b910868e49e231a768f89508e45"} -->
 ````python
 # workbench/capability_sandbox.py
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
@@ -185,6 +185,9 @@ def verify_capabilities(
     except (CheckFailure, ValueError) as exc:
         return {"passed": False, "kind": "source_contract", "error": str(exc)}
     directory, profile = capability_execution_prerequisites(settings, selection)
+    from workbench.capability_dependencies import require_dependency_descriptors
+
+    require_dependency_descriptors(product, plan, profile)
     if selection["template"] == "fastapiadmin":
         from workbench.daytona_profiles import dependency_identity
 
@@ -275,24 +278,59 @@ def _verify(
     control_observer=None,
     security_probe=None,
     trusted_oracle=None,
+    profile_record=None,
 ):
     from daytona import SessionExecuteRequest
 
+    from workbench.capability_dependencies import (
+        prepare_readonly_dependencies,
+        readonly_prepare_commands,
+        readonly_start_command,
+        require_dependency_descriptors,
+        verify_readonly_dependencies,
+    )
+    from workbench.capability_execution import (
+        VERIFIER,
+        require_preinstalled_evidence,
+        require_profile_container_binding,
+    )
+    from workbench.catalog import Selection
     from workbench.daytona_sessions import run_session_command
     from workbench.sandbox import params_for, source_archive
 
+    # Even a direct caller rejected during admission must not leave a prior
+    # successful receipt available at the requested output path.
+    write_json(receipt_path, {"passed": False, "cleanup": "not-created", "verifier": VERIFIER})
     if trusted_oracle not in (None, "contest-business-v2"):
         raise CheckFailure("未知控制端业务oracle，拒绝候选自定义验证器")
     if trusted_oracle and (
         not aggregate or selection["template"] != "fastapiadmin" or security_probe is None
     ):
         raise CheckFailure("独立竞赛oracle必须使用原生完整隔离验收")
+    # This boundary is shared by production and certification callers. Neither
+    # direct calls nor a missing outer CLI preflight can waive exact provenance.
+    if selection != plan.selection.model_dump() or selection not in (
+        Selection(template="python-basic").model_dump(),
+        Selection(template="fastapiadmin").model_dump(),
+    ):
+        raise CheckFailure("隔离验证的技术栈与已批准计划或登记的只读依赖profile不一致")
+    if (
+        not isinstance(profile_record, dict)
+        or profile_record.get("selection", Selection(template="python-basic").model_dump())
+        != selection
+    ):
+        raise CheckFailure("只读依赖镜像profile没有绑定当前技术栈")
+    require_dependency_descriptors(product, plan, profile_record)
+    commands = readonly_prepare_commands(plan)
+    readonly_start_command(plan)
+    dependency_profile = profile_record["snapshot"]["dependency_manifest"]
     before = manifest(product)
     native = selection["template"] == "fastapiadmin"
     prefix = "rnd-source-native-" if native else "rnd-source-"
     name = (prefix if security_probe is not None else "rnd-capability-") + uuid.uuid4().hex
     receipt = {
-        "verifier": "controller-http-contract-v3",
+        "verifier": VERIFIER,
+        "dependency_profile": dependency_profile,
         "passed": False,
         "source_digest": digest(before),
         "plan_digest": digest(plan.model_dump()),
@@ -330,6 +368,7 @@ def _verify(
             receipt["container_isolation"] = require_container_evidence(
                 control_observer(sandbox.id), sandbox.id
             )
+            require_profile_container_binding(profile_record, receipt["container_isolation"])
         except ContainerInspectionRejected as exc:
             raise IsolationUnavailable(
                 "实际容器不符合已批准的非特权策略，未上传或执行源码",
@@ -352,6 +391,17 @@ def _verify(
         if result.exit_code != 0:
             raise CheckFailure("自定义产品源码解压失败")
         receipt["execution_isolation"] = prepare_identity(sandbox, plan, settings.tool_timeout)
+        receipt["preinstalled_dependencies"] = require_preinstalled_evidence(
+            prepare_readonly_dependencies(
+                sandbox,
+                plan,
+                settings.tool_timeout,
+                expected=dependency_profile,
+                source_inventory=before,
+            ),
+            dependency_profile,
+            source_digest=receipt["source_digest"],
+        )
         database_password = prepare_database(sandbox, plan, settings.tool_timeout)
         if database_password:
             with settings._model_keys_lock:
@@ -371,20 +421,6 @@ def _verify(
             receipt["security_checks"] = security_probe(
                 sandbox, plan, settings.tool_timeout, receipt["container_isolation"], database
             )
-        commands = plan.runtime.prepare
-        if native:
-            from workbench.capability_native_runtime import (
-                native_prepare_commands,
-                native_start_command,
-            )
-
-            native_start_command(plan)
-            trusted = native_prepare_commands()
-            if commands and commands != trusted:
-                raise CheckFailure(
-                    "原生构建只允许控制端登记命令，不接受可改写受保护文件的额外prepare脚本"
-                )
-            commands = trusted
         for index, command in enumerate(commands):
             evidence = {}
             guarded_command, command_output = redirected_command(
@@ -410,16 +446,27 @@ def _verify(
             )
             verify_and_freeze_native_sources(sandbox, before, settings.tool_timeout)
             receipt["native_build"] = {
-                "offline_install": True,
+                "preinstalled_dependencies_verified": True,
                 "frontend_build": True,
                 "frontend_typecheck": True,
                 "source_frozen": True,
             }
 
         def start(command=None, port=None, health_path=None):
+            command = readonly_start_command(plan, command)
+            require_preinstalled_evidence(
+                verify_readonly_dependencies(
+                    sandbox,
+                    plan,
+                    settings.tool_timeout,
+                    expected=dependency_profile,
+                    source_inventory=before,
+                ),
+                dependency_profile,
+                source_digest=receipt["source_digest"],
+            )
             session = "rnd-app-" + uuid.uuid4().hex
             sandbox.process.create_session(session)
-            command = command or plan.runtime.start
             port = port or plan.runtime.port
             health_path = health_path or plan.runtime.health_path
             guarded_command, command_output = redirected_command(
@@ -581,10 +628,33 @@ def _verify(
                 restarted_container = require_container_evidence(
                     control_observer(sandbox.id), sandbox.id
                 )
+                require_profile_container_binding(profile_record, restarted_container)
+                receipt["restart_preinstalled_dependencies"] = require_preinstalled_evidence(
+                    verify_readonly_dependencies(
+                        sandbox,
+                        plan,
+                        settings.tool_timeout,
+                        expected=dependency_profile,
+                        source_inventory=before,
+                    ),
+                    dependency_profile,
+                    source_digest=receipt["source_digest"],
+                )
                 receipt["restart_security_checks"] = security_probe(
                     sandbox, plan, settings.tool_timeout, restarted_container, database
                 )
             if security_probe is None:
+                receipt["restart_preinstalled_dependencies"] = require_preinstalled_evidence(
+                    verify_readonly_dependencies(
+                        sandbox,
+                        plan,
+                        settings.tool_timeout,
+                        expected=dependency_profile,
+                        source_inventory=before,
+                    ),
+                    dependency_profile,
+                    source_digest=receipt["source_digest"],
+                )
                 prepare_database(
                     sandbox, plan, settings.tool_timeout, restart=True, password=database_password
                 )
@@ -642,6 +712,25 @@ def _verify(
                     distinct_database_oid=oracle_database_ownership["database_oid"]
                     != fresh_identity["database_oid"],
                 )
+        # Drain candidate processes before the final exact tree/link inventory;
+        # a successful live response cannot hide additional executable modules.
+        restart_application_identity(
+            sandbox,
+            plan.runtime.port,
+            settings.tool_timeout,
+            extra_ports=(5173,) if native else (),
+        )
+        receipt["final_preinstalled_dependencies"] = require_preinstalled_evidence(
+            verify_readonly_dependencies(
+                sandbox,
+                plan,
+                settings.tool_timeout,
+                expected=dependency_profile,
+                source_inventory=before,
+            ),
+            dependency_profile,
+            source_digest=receipt["source_digest"],
+        )
         if manifest(product) != before:
             raise CheckFailure("隔离验收期间宿主源码发生变化")
         receipt["passed"] = True
@@ -723,6 +812,7 @@ def main():
             ),
             security_probe=security_probe_for_profile(directory, record),
             trusted_oracle=payload.get("trusted_oracle"),
+            profile_record=record,
         )
     finally:
         close_client(client)
