@@ -3,6 +3,7 @@
 import json
 import os
 import socket
+import sys
 from contextlib import closing
 
 import pytest
@@ -10,6 +11,7 @@ import pytest
 from workbench import native_ports as ports
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux client-source/listener bind collision")
 def test_established_source_socket_blocks_later_server_bind():
     # Reproduce the observed Java-owned ESTABLISHED socket, without a foreign
     # listener or readiness request: an outbound source port can block bind.
@@ -265,25 +267,36 @@ def test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy(
     assert len(service_calls) == 2
 
 
-def test_pinned_vben_relative_api_proxy_uses_selected_backend(tmp_path):
+def test_pinned_vben_relative_api_proxy_uses_selected_backend(tmp_path, monkeypatch):
+    # Force the legacy Windows default even when Python UTF-8 mode is enabled.
+    # Explicit UTF-8 requests still use Python's original encoding resolution.
+    import io
     import subprocess
     import zipfile
 
     from workbench.native_vben import configure_vben_backend_proxy
     from workbench.settings import ROOT
 
+    text_encoding = io.text_encoding
+
+    def legacy_text_encoding(encoding, stacklevel=2):
+        return "cp1252" if encoding in {None, "locale"} else text_encoding(encoding, stacklevel)
+
+    monkeypatch.setattr(io, "text_encoding", legacy_text_encoding)
     app = tmp_path / "apps/web-antd"
     app.mkdir(parents=True)
     with zipfile.ZipFile(ROOT / "templates/vendor/yudao-frontend.zip") as archive:
         original = archive.read("apps/web-antd/vite.config.ts").decode()
         hooks = archive.read("packages/effects/hooks/src/use-app-config.ts").decode()
     assert "VITE_GLOB_API_URL" in hooks
+    with pytest.raises(UnicodeEncodeError):
+        (tmp_path / "legacy-default.txt").write_text(original)
     config = app / "vite.config.ts"
-    config.write_text(original)
+    config.write_text(original, encoding="utf-8", newline="\n")
     configure_vben_backend_proxy(tmp_path)
-    adapted = config.read_text()
+    adapted = config.read_text(encoding="utf-8")
     configure_vben_backend_proxy(tmp_path)
-    assert config.read_text() == adapted
+    assert config.read_text(encoding="utf-8") == adapted
     script = adapted.replace(
         "import { defineConfig } from '@vben/vite-config';", "const defineConfig = fn => fn();"
     ).replace("export default", "const pending =")

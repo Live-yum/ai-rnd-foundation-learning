@@ -15,35 +15,36 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `test_established_source_socket_blocks_later_server_bind`（L13–L23）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`closing`、`socket.socket`、`upstream.bind`、`upstream.listen`、`client.connect`、`upstream.getsockname`、`upstream.accept`、`pytest.raises`、`backend.bind`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_lease_excludes_dynamic_range_and_survives_restart`（L26–L38）：接收`tmp_path`、`monkeypatch`。 控制顺序：L30断言`1024 <= selected < 12000`；L31断言`json.loads(state.read_text())["port"] == selected`；L33断言`selected != other`；L38断言`restarted == selected`。 调用`monkeypatch.setattr`、`ports.backend_port_lease`、`json.loads`、`state.read_text`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_receipt_from_another_copy_is_reallocated`（L41–L48）：接收`tmp_path`、`monkeypatch`。 控制顺序：L47断言`other != selected`；L48断言`json.loads(second.read_text())["owner"] == str(second.resolve())`。 调用`monkeypatch.setattr`、`ports.backend_port_lease`、`second.write_bytes`、`first.read_bytes`、`json.loads`、`second.read_text`、`str`、`second.resolve`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_explicit_port_conflict_is_fail_closed`（L51–L58）：接收`tmp_path`。 控制顺序：L58断言`listener.fileno() >= 0`。 调用`closing`、`socket.socket`、`listener.bind`、`listener.listen`、`pytest.raises`、`ports.backend_port_lease`、`listener.getsockname`、`listener.fileno`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_explicit_ephemeral_port_is_preserved_and_released`（L61–L69）：接收`tmp_path`。 控制顺序：L67断言`port == selected`；L69断言`port == selected`。 调用`closing`、`socket.socket`、`listener.bind`、`listener.getsockname`、`ports.backend_port_lease`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_changed_dynamic_range_fails_closed_for_saved_port`（L72–L80）：接收`tmp_path`、`monkeypatch`。 调用`monkeypatch.setattr`、`ports.backend_port_lease`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_server_time_wait_does_not_prevent_reacquiring_saved_port`（L84–L99）：接收`tmp_path`。 控制顺序：L96断言`client.recv(1) == b""`；L97断言`loopback_port_bindable(selected)`；L99断言`restarted == selected`。 调用`ports.backend_port_lease`、`closing`、`socket.socket`、`server.setsockopt`、`server.bind`、`server.listen`、`client.connect`、`server.getsockname`、`server.accept`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_platform_dynamic_range_discovery`（L103–L111）：接收`system`、`monkeypatch`。 控制顺序：L111断言`ports.dynamic_tcp_range() == (49152, 65535)`。 调用`monkeypatch.setattr`、`iter`、`"起始端口 : 49152\n端口数 : 16384\n".encode`、`next`、`ports.dynamic_tcp_range`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_unknown_or_malformed_dynamic_range_is_not_guessed`（L114–L121）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`ports.dynamic_tcp_range`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_port_receipt_symlink_rejected`（L124–L132）：接收`tmp_path`。 控制顺序：L132断言`target.read_text() == "{}"`。 调用`target.write_text`、`link.symlink_to`、`pytest.raises`、`ports.backend_port_lease`、`target.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_frontend_skip_build_rejects_changed_target`（L135–L145）：接收`tmp_path`。 调用`dist.mkdir`、`pytest.raises`、`require_frontend_backend`、`(dist / "native-backend.json").write_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_portable_export_includes_allocator_and_no_runtime_receipt`（L148–L153）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L152断言`"native_ports.py" in HELPERS`；L153断言`".deployment" in EXCLUDED_DIRS`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy`（L157–L265）：接收`tmp_path`、`monkeypatch`、`template`。 控制顺序：L240断言`backend_ports == [selected, selected]`；L241断言`frontend_urls == [f"http://127.0.0.1:{selected}"]`；L243断言`outcome["backend_port"] == selected and outcome["backend_url"] == frontend_urls[0]`；L246断言`backend_ports == [selected] * 4 and len(service_calls) == 2`；L254断言`len(service_calls) == 2`；L255断言`ports.saved_backend_port(product / ".deployment/backend-port.json") == selected`；L265断言`len(service_calls) == 2`。 调用`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`deployment.mkdir`、`write_json`、`monkeypatch.setattr`、`launcher.main`、`ports.saved_backend_port`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy.services`（L181–L183）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`service_calls.append`。 返回路径：L183的`"postgresql+psycopg://native:unused@127.0.0.1:5432/test_codegen", 6379`。
-- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy.backend`（L197–L220）：接收`template`、`root`、`env`、`reports`。 控制顺序：L198按`template == "fastapiadmin"`分支；L211断言`f"spring.cloud.openfeign.client.config.yudao-system.url=http://127.0.0.1:{port}" in p…`；L215断言`f"spring.cloud.openfeign.client.config.yudao-infra.url=http://127.0.0.1:{port}" in pr…`。 调用`int`、`( root / "yudao-server/src/main/resources/application-native.prop…`、`next`、`row.split`、`properties.splitlines`、`row.startswith`、`backend_ports.append`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy.build`（L225–L228）：接收`template`、`root`、`env`、`reports`、`**kwargs`。 调用`frontend_urls.append`、`write_json`、`frontend_app`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy.frontend`（L233–L234）：接收`*args`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `test_pinned_vben_relative_api_proxy_uses_selected_backend`（L268–L308）：接收`tmp_path`。 控制顺序：L280断言`"VITE_GLOB_API_URL" in hooks`；L286断言`config.read_text() == adapted`；L305断言`json.loads(result.stdout) == { "target": "http://127.0.0.1:18081/admin-api", "path": …`。 调用`app.mkdir`、`zipfile.ZipFile`、`archive.read("apps/web-antd/vite.config.ts").decode`、`archive.read`、`archive.read("packages/effects/hooks/src/use-app-config.ts").deco…`、`config.write_text`、`configure_vben_backend_proxy`、`config.read_text`、`adapted.replace( "import { defineConfig } from '@vben/vite-config…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_independent_process_cannot_take_a_live_copy_port_lease`（L311–L336）：接收`tmp_path`。 控制顺序：L336断言`result.stdout.strip() == "independent-copy lease PASS"`。 调用`ports.backend_port_lease`、`subprocess.run`、`str`、`result.stdout.strip`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_unreadable_or_oversized_port_receipt_is_not_replaced`（L339–L346）：接收`tmp_path`。 控制顺序：L341遍历`("[]", '{"format": 99}', '"' + "x" * 5000 + '"')`；L346断言`state.read_text() == contents`。 调用`state.write_text`、`pytest.raises`、`ports.backend_port_lease`、`state.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_managed_preview_requires_existing_build_port_before_source_changes`（L349–L374）：接收`tmp_path`、`monkeypatch`。 调用`str`、`uuid.uuid4`、`write_json`、`monkeypatch.setattr`、`pytest.fail`、`SimpleNamespace`、`pytest.raises`、`native_delivery.serve_managed`、`ports.backend_port_lease`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_established_source_socket_blocks_later_server_bind`（L15–L25）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`closing`、`socket.socket`、`upstream.bind`、`upstream.listen`、`client.connect`、`upstream.getsockname`、`upstream.accept`、`pytest.raises`、`backend.bind`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_lease_excludes_dynamic_range_and_survives_restart`（L28–L40）：接收`tmp_path`、`monkeypatch`。 控制顺序：L32断言`1024 <= selected < 12000`；L33断言`json.loads(state.read_text())["port"] == selected`；L35断言`selected != other`；L40断言`restarted == selected`。 调用`monkeypatch.setattr`、`ports.backend_port_lease`、`json.loads`、`state.read_text`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_receipt_from_another_copy_is_reallocated`（L43–L50）：接收`tmp_path`、`monkeypatch`。 控制顺序：L49断言`other != selected`；L50断言`json.loads(second.read_text())["owner"] == str(second.resolve())`。 调用`monkeypatch.setattr`、`ports.backend_port_lease`、`second.write_bytes`、`first.read_bytes`、`json.loads`、`second.read_text`、`str`、`second.resolve`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_port_conflict_is_fail_closed`（L53–L60）：接收`tmp_path`。 控制顺序：L60断言`listener.fileno() >= 0`。 调用`closing`、`socket.socket`、`listener.bind`、`listener.listen`、`pytest.raises`、`ports.backend_port_lease`、`listener.getsockname`、`listener.fileno`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_ephemeral_port_is_preserved_and_released`（L63–L71）：接收`tmp_path`。 控制顺序：L69断言`port == selected`；L71断言`port == selected`。 调用`closing`、`socket.socket`、`listener.bind`、`listener.getsockname`、`ports.backend_port_lease`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_changed_dynamic_range_fails_closed_for_saved_port`（L74–L82）：接收`tmp_path`、`monkeypatch`。 调用`monkeypatch.setattr`、`ports.backend_port_lease`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_server_time_wait_does_not_prevent_reacquiring_saved_port`（L86–L101）：接收`tmp_path`。 控制顺序：L98断言`client.recv(1) == b""`；L99断言`loopback_port_bindable(selected)`；L101断言`restarted == selected`。 调用`ports.backend_port_lease`、`closing`、`socket.socket`、`server.setsockopt`、`server.bind`、`server.listen`、`client.connect`、`server.getsockname`、`server.accept`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_platform_dynamic_range_discovery`（L105–L113）：接收`system`、`monkeypatch`。 控制顺序：L113断言`ports.dynamic_tcp_range() == (49152, 65535)`。 调用`monkeypatch.setattr`、`iter`、`"起始端口 : 49152\n端口数 : 16384\n".encode`、`next`、`ports.dynamic_tcp_range`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unknown_or_malformed_dynamic_range_is_not_guessed`（L116–L123）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`ports.dynamic_tcp_range`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_port_receipt_symlink_rejected`（L126–L134）：接收`tmp_path`。 控制顺序：L134断言`target.read_text() == "{}"`。 调用`target.write_text`、`link.symlink_to`、`pytest.raises`、`ports.backend_port_lease`、`target.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_frontend_skip_build_rejects_changed_target`（L137–L147）：接收`tmp_path`。 调用`dist.mkdir`、`pytest.raises`、`require_frontend_backend`、`(dist / "native-backend.json").write_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_portable_export_includes_allocator_and_no_runtime_receipt`（L150–L155）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L154断言`"native_ports.py" in HELPERS`；L155断言`".deployment" in EXCLUDED_DIRS`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy`（L159–L267）：接收`tmp_path`、`monkeypatch`、`template`。 控制顺序：L242断言`backend_ports == [selected, selected]`；L243断言`frontend_urls == [f"http://127.0.0.1:{selected}"]`；L245断言`outcome["backend_port"] == selected and outcome["backend_url"] == frontend_urls[0]`；L248断言`backend_ports == [selected] * 4 and len(service_calls) == 2`；L256断言`len(service_calls) == 2`；L257断言`ports.saved_backend_port(product / ".deployment/backend-port.json") == selected`；L267断言`len(service_calls) == 2`。 调用`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`deployment.mkdir`、`write_json`、`monkeypatch.setattr`、`launcher.main`、`ports.saved_backend_port`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy.services`（L183–L185）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`service_calls.append`。 返回路径：L185的`"postgresql+psycopg://native:unused@127.0.0.1:5432/test_codegen", 6379`。
+- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy.backend`（L199–L222）：接收`template`、`root`、`env`、`reports`。 控制顺序：L200按`template == "fastapiadmin"`分支；L213断言`f"spring.cloud.openfeign.client.config.yudao-system.url=http://127.0.0.1:{port}" in p…`；L217断言`f"spring.cloud.openfeign.client.config.yudao-infra.url=http://127.0.0.1:{port}" in pr…`。 调用`int`、`( root / "yudao-server/src/main/resources/application-native.prop…`、`next`、`row.split`、`properties.splitlines`、`row.startswith`、`backend_ports.append`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy.build`（L227–L230）：接收`template`、`root`、`env`、`reports`、`**kwargs`。 调用`frontend_urls.append`、`write_json`、`frontend_app`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy.frontend`（L235–L236）：接收`*args`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_pinned_vben_relative_api_proxy_uses_selected_backend`（L270–L321）：接收`tmp_path`、`monkeypatch`。 控制顺序：L291断言`"VITE_GLOB_API_URL" in hooks`；L299断言`config.read_text(encoding="utf-8") == adapted`；L318断言`json.loads(result.stdout) == { "target": "http://127.0.0.1:18081/admin-api", "path": …`。 调用`monkeypatch.setattr`、`app.mkdir`、`zipfile.ZipFile`、`archive.read("apps/web-antd/vite.config.ts").decode`、`archive.read`、`archive.read("packages/effects/hooks/src/use-app-config.ts").deco…`、`pytest.raises`、`(tmp_path / "legacy-default.txt").write_text`、`config.write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pinned_vben_relative_api_proxy_uses_selected_backend.legacy_text_encoding`（L282–L283）：接收`encoding`、`stacklevel`。 调用`text_encoding`。 返回路径：L283的`"cp1252" if encoding in {None, "locale"} else text_encoding(encoding, stacklevel)`。
+- `test_independent_process_cannot_take_a_live_copy_port_lease`（L324–L349）：接收`tmp_path`。 控制顺序：L349断言`result.stdout.strip() == "independent-copy lease PASS"`。 调用`ports.backend_port_lease`、`subprocess.run`、`str`、`result.stdout.strip`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unreadable_or_oversized_port_receipt_is_not_replaced`（L352–L359）：接收`tmp_path`。 控制顺序：L354遍历`("[]", '{"format": 99}', '"' + "x" * 5000 + '"')`；L359断言`state.read_text() == contents`。 调用`state.write_text`、`pytest.raises`、`ports.backend_port_lease`、`state.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_managed_preview_requires_existing_build_port_before_source_changes`（L362–L387）：接收`tmp_path`、`monkeypatch`。 调用`str`、`uuid.uuid4`、`write_json`、`monkeypatch.setattr`、`pytest.fail`、`SimpleNamespace`、`pytest.raises`、`native_delivery.serve_managed`、`ports.backend_port_lease`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_native_ports.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L374。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_native_ports.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L387。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`15345`。本段原文以LF换行结束。
+本段原始字节数：`16068`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_ports.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "70ecb4078b4f11e7cd19ed6e831c0a1721a5301c368719e3863400e24d4f4c35"} -->
+<!-- learning-source: {"path": "tests/test_native_ports.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f7d372df331df880ce535016aea4be179d818b5676191605fdb494a2341865c2"} -->
 ````python
 # tests/test_native_ports.py
 """Non-ephemeral backend leases and real source-socket collision regressions."""
@@ -51,6 +52,7 @@
 import json
 import os
 import socket
+import sys
 from contextlib import closing
 
 import pytest
@@ -58,6 +60,7 @@ import pytest
 from workbench import native_ports as ports
 
 
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux client-source/listener bind collision")
 def test_established_source_socket_blocks_later_server_bind():
     # Reproduce the observed Java-owned ESTABLISHED socket, without a foreign
     # listener or readiness request: an outbound source port can block bind.
@@ -313,25 +316,36 @@ def test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy(
     assert len(service_calls) == 2
 
 
-def test_pinned_vben_relative_api_proxy_uses_selected_backend(tmp_path):
+def test_pinned_vben_relative_api_proxy_uses_selected_backend(tmp_path, monkeypatch):
+    # Force the legacy Windows default even when Python UTF-8 mode is enabled.
+    # Explicit UTF-8 requests still use Python's original encoding resolution.
+    import io
     import subprocess
     import zipfile
 
     from workbench.native_vben import configure_vben_backend_proxy
     from workbench.settings import ROOT
 
+    text_encoding = io.text_encoding
+
+    def legacy_text_encoding(encoding, stacklevel=2):
+        return "cp1252" if encoding in {None, "locale"} else text_encoding(encoding, stacklevel)
+
+    monkeypatch.setattr(io, "text_encoding", legacy_text_encoding)
     app = tmp_path / "apps/web-antd"
     app.mkdir(parents=True)
     with zipfile.ZipFile(ROOT / "templates/vendor/yudao-frontend.zip") as archive:
         original = archive.read("apps/web-antd/vite.config.ts").decode()
         hooks = archive.read("packages/effects/hooks/src/use-app-config.ts").decode()
     assert "VITE_GLOB_API_URL" in hooks
+    with pytest.raises(UnicodeEncodeError):
+        (tmp_path / "legacy-default.txt").write_text(original)
     config = app / "vite.config.ts"
-    config.write_text(original)
+    config.write_text(original, encoding="utf-8", newline="\n")
     configure_vben_backend_proxy(tmp_path)
-    adapted = config.read_text()
+    adapted = config.read_text(encoding="utf-8")
     configure_vben_backend_proxy(tmp_path)
-    assert config.read_text() == adapted
+    assert config.read_text(encoding="utf-8") == adapted
     script = adapted.replace(
         "import { defineConfig } from '@vben/vite-config';", "const defineConfig = fn => fn();"
     ).replace("export default", "const pending =")

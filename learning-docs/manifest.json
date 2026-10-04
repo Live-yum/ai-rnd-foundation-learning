@@ -3216,8 +3216,8 @@
     },
     {
       "path": "tests/test_native_ports.py",
-      "bytes": 15345,
-      "sha256": "70ecb4078b4f11e7cd19ed6e831c0a1721a5301c368719e3863400e24d4f4c35",
+      "bytes": 16068,
+      "sha256": "f7d372df331df880ce535016aea4be179d818b5676191605fdb494a2341865c2",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_native_ports_py--001.md"
