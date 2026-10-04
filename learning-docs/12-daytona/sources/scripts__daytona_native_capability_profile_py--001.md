@@ -46,7 +46,7 @@
 
 本段原始字节数：`32449`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/daytona_native_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c328e12a1d859e65c127298903800766c14946ad65963d5c49c8772698c4c836"} -->
+<!-- learning-source: {"path": "scripts/daytona_native_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "927686ecb7b67616984c12b8d9229c9c63eb184afa20815ecbf9546e8a127d17"} -->
 ````python
 # scripts/daytona_native_capability_profile.py
 """Prepare/register the opt-in native profile without changing the base installation.
@@ -120,7 +120,7 @@ DESCRIPTORS = (
 )
 DIAGNOSTIC_SCAN_BYTES = 65536
 DIAGNOSTIC_REPORT_BYTES = 4096
-REVIEWED_DOCKERFILE_SHA256 = "e15accbd38f1f929a6499d767868d190c95b6d1e9bb290849ac0dc1fb1d5f540"
+REVIEWED_DOCKERFILE_SHA256 = "1e9aa22679e06236a0c5f5cfbafe5fc2ff7f128f3f8e96aa38e398364e2bf5db"
 DIAGNOSTIC_STAGES = {
     "prepare-profile-validation",
     "prepare-input-validation",

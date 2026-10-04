@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `tools/daytona/capability-native-snapshot.Dockerfile`；**本文件共有 1 段**。本段覆盖源文件 L1–L82。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tools/daytona/capability-native-snapshot.Dockerfile`；**本文件共有 1 段**。本段覆盖源文件 L1–L84。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4986`。本段原文以LF换行结束。
+本段原始字节数：`5173`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tools/daytona/capability-native-snapshot.Dockerfile", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e15accbd38f1f929a6499d767868d190c95b6d1e9bb290849ac0dc1fb1d5f540"} -->
+<!-- learning-source: {"path": "tools/daytona/capability-native-snapshot.Dockerfile", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1e9aa22679e06236a0c5f5cfbafe5fc2ff7f128f3f8e96aa38e398364e2bf5db"} -->
 ````dockerfile
 # tools/daytona/capability-native-snapshot.Dockerfile
 # syntax=docker/dockerfile:1
@@ -76,8 +76,10 @@ USER daytona
 RUN /opt/rnd/bin/python-build -I -S /opt/rnd/bin/dependency-build.py install --project /opt/rnd/runtime/fastapiadmin/backend \
     && /opt/rnd/bin/python-build -I -S /opt/rnd/bin/dependency-build.py install --harness --project /opt/rnd/harness
 WORKDIR /opt/rnd/runtime/fastapiadmin/frontend
+# fetch imports the virtual store too; install reuses those files rather than
+# replacing hardlinks left by an earlier auto-mode fetch. Both steps must copy.
 RUN test "$(pnpm --version)" = "9.15.3" \
-    && pnpm fetch --frozen-lockfile --ignore-scripts --store-dir /opt/rnd/pnpm-store \
+    && pnpm fetch --frozen-lockfile --ignore-scripts --package-import-method=copy --store-dir /opt/rnd/pnpm-store \
     && pnpm install --frozen-lockfile --offline --ignore-scripts --package-import-method=copy \
         --store-dir /opt/rnd/pnpm-store \
     && test -f node_modules/vue/package.json && test -f node_modules/vite/package.json \

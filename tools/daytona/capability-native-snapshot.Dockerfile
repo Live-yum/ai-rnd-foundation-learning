@@ -57,8 +57,10 @@ USER daytona
 RUN /opt/rnd/bin/python-build -I -S /opt/rnd/bin/dependency-build.py install --project /opt/rnd/runtime/fastapiadmin/backend \
     && /opt/rnd/bin/python-build -I -S /opt/rnd/bin/dependency-build.py install --harness --project /opt/rnd/harness
 WORKDIR /opt/rnd/runtime/fastapiadmin/frontend
+# fetch imports the virtual store too; install reuses those files rather than
+# replacing hardlinks left by an earlier auto-mode fetch. Both steps must copy.
 RUN test "$(pnpm --version)" = "9.15.3" \
-    && pnpm fetch --frozen-lockfile --ignore-scripts --store-dir /opt/rnd/pnpm-store \
+    && pnpm fetch --frozen-lockfile --ignore-scripts --package-import-method=copy --store-dir /opt/rnd/pnpm-store \
     && pnpm install --frozen-lockfile --offline --ignore-scripts --package-import-method=copy \
         --store-dir /opt/rnd/pnpm-store \
     && test -f node_modules/vue/package.json && test -f node_modules/vite/package.json \

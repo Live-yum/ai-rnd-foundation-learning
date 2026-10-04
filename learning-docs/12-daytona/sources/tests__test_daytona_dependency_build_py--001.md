@@ -53,14 +53,15 @@
 - `test_recipes_separate_nonroot_offline_build_and_never_relocate_environments`（L771–L781）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L774断言`"AS dependency-builder" in base and "AS dependency-builder" in native`；L775断言`"RUN --network=none /opt/rnd/bin/python-build" in native`；L776断言`"USER daytona" in native.split("RUN --network=none")[0]`；L777断言`"PYO3_USE_ABI3_FORWARD_COMPATIBILITY" not in native`；L778断言`"rm -rf .venv" not in base and "rm -rf /opt/rnd/prewarm" not in native`；L779断言`"--mount=" not in native and "--mount=" not in base`；L780断言`"chown -R" not in native and "chmod -R" not in native`；L781断言`"--ignore-scripts" in native and "--package-import-method=copy" in native`。 调用`(ROOT / "tools/daytona/capability-snapshot.Dockerfile").read_text`、`(ROOT / "tools/daytona/capability-native-snapshot.Dockerfile").re…`、`native.split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_native_source_build_does_not_silently_accept_pure_python_fallback`（L784–L795）：接收`tmp_path`。 控制顺序：L794断言`len(outputs["native_extensions"]) == 1`；L795断言`outputs["wheel_tags"] == ["py3-none-any"]`。 调用`zipfile.ZipFile`、`archive.writestr`、`pytest.raises`、`build.wheel_outputs`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_profile_workflows_execute_real_dependency_cli_checks_before_image_builds`（L798–L818）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L801遍历`("capability-profile.yml", "native-capability-profile.yml")`；L814断言`"tests/test_daytona_dependency_build.py" in preflight["run"]`；L815断言`"tests/test_daytona_dependency_image.py" in preflight["run"]`；L816断言`preflight["env"]["RND_REQUIRE_LANDLOCK"] == "1"`；L817断言`preflight["env"]["RND_REQUIRE_SECCOMP_BPF"] == "1"`；L818断言`steps.index(preflight) < steps.index(build_images)`。 调用`yaml.safe_load`、`(ROOT / ".github/workflows" / name).read_text`、`next`、`step.get`、`steps.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_fetch_and_install_both_copy_the_virtual_store`（L821–L836）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L824遍历`recipe.replace("\\\n", " ").split("&&")`；L826按`len(words) > 1 and words[0] == "pnpm" and words[1] in {"fetch", "install"}`分支；L827断言`words[1] not in commands`；L829断言`set(commands) == {"fetch", "install"}`；L830遍历`commands.values()`；L833断言`"--package-import-method=copy" in command`；L834断言`"--ignore-scripts" in command`；L835断言`"--frozen-lockfile" in command`。后续分支沿下方源码相同行号继续阅读。 调用`(ROOT / "tools/daytona/capability-native-snapshot.Dockerfile").re…`、`recipe.replace("\\\n", " ").split`、`recipe.replace`、`clause.split`、`len`、`set`、`commands.values`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_daytona_dependency_build.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L818。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_daytona_dependency_build.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L836。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`32335`。本段原文以LF换行结束。
+本段原始字节数：`33212`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_daytona_dependency_build.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "046e310c633c80551aee8d5b65e524435d3719dc2a29e3ac539ad451350d5107"} -->
+<!-- learning-source: {"path": "tests/test_daytona_dependency_build.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f43d6061a43003ed5a6cf9d82ed605a282c3b46e39f7a65dac58ee97c8d32cae"} -->
 ````python
 # tests/test_daytona_dependency_build.py
 """Locked dependency build contracts; never execute source hooks in these tests."""
@@ -881,4 +882,22 @@ def test_profile_workflows_execute_real_dependency_cli_checks_before_image_build
         assert preflight["env"]["RND_REQUIRE_LANDLOCK"] == "1"
         assert preflight["env"]["RND_REQUIRE_SECCOMP_BPF"] == "1"
         assert steps.index(preflight) < steps.index(build_images)
+
+
+def test_native_fetch_and_install_both_copy_the_virtual_store():
+    recipe = (ROOT / "tools/daytona/capability-native-snapshot.Dockerfile").read_text()
+    commands = {}
+    for clause in recipe.replace("\\\n", " ").split("&&"):
+        words = clause.split()
+        if len(words) > 1 and words[0] == "pnpm" and words[1] in {"fetch", "install"}:
+            assert words[1] not in commands
+            commands[words[1]] = words
+    assert set(commands) == {"fetch", "install"}
+    for command in commands.values():
+        # fetch has already materialized node_modules/.pnpm. Adding copy only to
+        # the subsequent install cannot undo existing links to the package store.
+        assert "--package-import-method=copy" in command
+        assert "--ignore-scripts" in command
+        assert "--frozen-lockfile" in command
+    assert "--offline" in commands["install"]
 ````

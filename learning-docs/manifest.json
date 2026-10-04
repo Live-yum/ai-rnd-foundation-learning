@@ -3137,7 +3137,7 @@
     {
       "path": "scripts/daytona_native_capability_profile.py",
       "bytes": 32449,
-      "sha256": "c328e12a1d859e65c127298903800766c14946ad65963d5c49c8772698c4c836",
+      "sha256": "927686ecb7b67616984c12b8d9229c9c63eb184afa20815ecbf9546e8a127d17",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_native_capability_profile_py--001.md"
@@ -3172,8 +3172,8 @@
     },
     {
       "path": "tests/test_daytona_dependency_build.py",
-      "bytes": 32335,
-      "sha256": "046e310c633c80551aee8d5b65e524435d3719dc2a29e3ac539ad451350d5107",
+      "bytes": 33212,
+      "sha256": "f43d6061a43003ed5a6cf9d82ed605a282c3b46e39f7a65dac58ee97c8d32cae",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tests__test_daytona_dependency_build_py--001.md"
@@ -3262,8 +3262,8 @@
     },
     {
       "path": "tools/daytona/capability-native-snapshot.Dockerfile",
-      "bytes": 4986,
-      "sha256": "e15accbd38f1f929a6499d767868d190c95b6d1e9bb290849ac0dc1fb1d5f540",
+      "bytes": 5173,
+      "sha256": "1e9aa22679e06236a0c5f5cfbafe5fc2ff7f128f3f8e96aa38e398364e2bf5db",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tools__daytona__capability-native-snapshot_Dockerfile--001.md"

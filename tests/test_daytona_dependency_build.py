@@ -816,3 +816,21 @@ def test_profile_workflows_execute_real_dependency_cli_checks_before_image_build
         assert preflight["env"]["RND_REQUIRE_LANDLOCK"] == "1"
         assert preflight["env"]["RND_REQUIRE_SECCOMP_BPF"] == "1"
         assert steps.index(preflight) < steps.index(build_images)
+
+
+def test_native_fetch_and_install_both_copy_the_virtual_store():
+    recipe = (ROOT / "tools/daytona/capability-native-snapshot.Dockerfile").read_text()
+    commands = {}
+    for clause in recipe.replace("\\\n", " ").split("&&"):
+        words = clause.split()
+        if len(words) > 1 and words[0] == "pnpm" and words[1] in {"fetch", "install"}:
+            assert words[1] not in commands
+            commands[words[1]] = words
+    assert set(commands) == {"fetch", "install"}
+    for command in commands.values():
+        # fetch has already materialized node_modules/.pnpm. Adding copy only to
+        # the subsequent install cannot undo existing links to the package store.
+        assert "--package-import-method=copy" in command
+        assert "--ignore-scripts" in command
+        assert "--frozen-lockfile" in command
+    assert "--offline" in commands["install"]
