@@ -17,17 +17,18 @@
 
 - `frontend_environment`（L18–L63）：接收`template`、`backend_url`、`title`。 控制顺序：L26按`template == "fastapiadmin"`分支；L40按`template != "yudao-vben"`分支；L41抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L27的`{ **common, "VITE_APP_TITLE": title, "VITE_VERSION": "3.0.0", "VITE_PORT": "5173", "VITE_B…`；L42的`{ **common, "VITE_APP_TITLE": title, "VITE_APP_NAMESPACE": "native-lab-vben", # Bound Rust…`。
 - `frontend_app`（L66–L68）：接收`template`、`root`。 调用`Path(root).resolve`、`Path`。 返回路径：L68的`root if template == "fastapiadmin" else root / "apps/web-antd"`。
-- `build_frontend`（L71–L127）：接收`template`、`root`、`env`、`reports`、`prepared`。 控制顺序：L75按`not (root / "pnpm-lock.yaml").is_file()`分支；L76抛异常，停止当前正常路径；L77按`template == "yudao-vben"`分支；L78按`not prepared`分支；L80按`not (root / ".git").exists()`分支；L110遍历`checks`；L115抛异常，停止当前正常路径；L118按`not (app / "dist/index.html").is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(root).resolve`、`Path`、`Path(reports).resolve`、`reports.mkdir`、`frontend_app`、`(root / "pnpm-lock.yaml").is_file`、`ValueError`、`prepare_vben_source`、`(root / ".git").exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `frontend_preview`（L131–L171）：接收`template`、`root`、`env`、`reports`。 控制顺序：L156遍历`range(60)`；L157按`process.poll() is not None`分支；L158抛异常，停止当前正常路径；L161按`response.status_code == 200 and "<html" in response.text.lower()`分支；L167抛异常，停止当前正常路径。 调用`frontend_app`、`Path(reports).resolve`、`Path`、`(reports / "frontend-runtime.log").open`、`subprocess.Popen`、`clean_env`、`process_options`、`httpx.Client`、`range`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `browser_check`（L174–L195）：接收`template`、`url`、`reports`。 控制顺序：L177按`not playwright_module.exists()`分支；L178抛异常，停止当前正常路径。 调用`playwright_module.exists`、`ValueError`、`run_command`、`str`、`Path(reports).resolve`、`Path`、`os.environ.get`、`atomic_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `build_frontend`（L71–L136）：接收`template`、`root`、`env`、`reports`、`prepared`。 控制顺序：L75按`not (root / "pnpm-lock.yaml").is_file()`分支；L76抛异常，停止当前正常路径；L77按`template == "yudao-vben"`分支；L78按`not prepared`分支；L80按`not (root / ".git").exists()`分支；L111遍历`checks`；L116抛异常，停止当前正常路径；L119按`not (app / "dist/index.html").is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(root).resolve`、`Path`、`Path(reports).resolve`、`reports.mkdir`、`frontend_app`、`(root / "pnpm-lock.yaml").is_file`、`ValueError`、`prepare_vben_source`、`(root / ".git").exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `frontend_preview`（L140–L183）：接收`template`、`root`、`env`、`reports`。 控制顺序：L168遍历`range(60)`；L169按`process.poll() is not None`分支；L170抛异常，停止当前正常路径；L173按`response.status_code == 200 and "<html" in response.text.lower()`分支；L179抛异常，停止当前正常路径。 调用`frontend_app`、`Path(reports).resolve`、`Path`、`require_frontend_backend`、`(reports / "frontend-runtime.log").open`、`subprocess.Popen`、`clean_env`、`process_options`、`httpx.Client`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `browser_check`（L186–L207）：接收`template`、`url`、`reports`。 控制顺序：L189按`not playwright_module.exists()`分支；L190抛异常，停止当前正常路径。 调用`playwright_module.exists`、`ValueError`、`run_command`、`str`、`Path(reports).resolve`、`Path`、`os.environ.get`、`atomic_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_frontend_backend`（L210–L220）：接收`template`、`root`、`backend_url`。 源码说明：A preview cannot retarget a previously compiled frontend via process.env.。 控制顺序：L216抛异常，停止当前正常路径；L219按`actual != backend_url`分支；L220抛异常，停止当前正常路径。 调用`frontend_app`、`json.loads`、`stamp.read_text`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/native_frontend.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L195。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/native_frontend.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L220。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7099`。本段原文以LF换行结束。
+本段原始字节数：`8127`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/native_frontend.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "13e3fc09aeb24d19851530bde86721432d672da98aed8ec1b030791aaf9de46a"} -->
+<!-- learning-source: {"path": "workbench/native_frontend.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ce150159f6a71a141218411de16eeaa9f784eb2e7b55d024cfac435268924b33"} -->
 ````python
 # workbench/native_frontend.py
 """Build the original native application with any generated modules already mounted."""
@@ -42,7 +43,7 @@ from pathlib import Path
 import httpx
 
 from workbench.filesystem import atomic_text, sha, write_json
-from workbench.native_vben import prepare_vben_source
+from workbench.native_vben import configure_vben_backend_proxy, prepare_vben_source
 from workbench.settings import ROOT
 from workbench.tools import clean_env, process_options, run_command, stop_process
 
@@ -111,6 +112,7 @@ def build_frontend(template, root, env, reports, *, prepared=False):
             prepare_vben_source(root, reports)
         elif not (root / ".git").exists():
             run_command(["git", "init", "--quiet", "--template=", str(root)], root, 30)
+        configure_vben_backend_proxy(root)
         # Vben's own loadAndConvertEnv / runtime-config plugin reads dotenv files,
         # not process.env. Persist only explicitly public VITE_* values in the
         # disposable workspace; never copy platform or database credentials.
@@ -150,6 +152,14 @@ def build_frontend(template, root, env, reports, *, prepared=False):
     if not (app / "dist/index.html").is_file():
         raise ValueError("Frontend build did not produce dist/index.html")
     write_json(
+        app / "dist/native-backend.json",
+        {
+            "backend_url": env[
+                "VITE_API_BASE_URL" if template == "fastapiadmin" else "VITE_BASE_URL"
+            ]
+        },
+    )
+    write_json(
         reports / "frontend-build.json",
         {
             "checks": evidence,
@@ -162,6 +172,9 @@ def build_frontend(template, root, env, reports, *, prepared=False):
 @contextmanager
 def frontend_preview(template, root, env, reports):
     app, reports = frontend_app(template, root), Path(reports).resolve()
+    require_frontend_backend(
+        template, root, env["VITE_API_BASE_URL" if template == "fastapiadmin" else "VITE_BASE_URL"]
+    )
     url = "http://127.0.0.1:5173"
     command = [
         "pnpm",
@@ -225,4 +238,17 @@ def browser_check(template, url, reports):
         },
     )
     atomic_text(Path(reports) / "browser.log", result["log"])
+
+
+def require_frontend_backend(template, root, backend_url):
+    """A preview cannot retarget a previously compiled frontend via process.env."""
+    stamp = frontend_app(template, root) / "dist/native-backend.json"
+    try:
+        actual = json.loads(stamp.read_text(encoding="utf-8"))["backend_url"]
+    except OSError, ValueError, KeyError, TypeError:
+        raise ValueError(
+            "Frontend backend-port receipt missing; rebuild without --skip-build"
+        ) from None
+    if actual != backend_url:
+        raise ValueError("Frontend backend port changed; rebuild without --skip-build")
 ````

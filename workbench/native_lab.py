@@ -23,6 +23,7 @@ from workbench.native_environment import (
 )
 from workbench.native_frontend import build_frontend, frontend_environment, frontend_preview
 from workbench.native_modules import create_native_tables, generate_modules, validate_plan
+from workbench.native_ports import backend_port_lease
 from workbench.native_style import verify_native_style
 from workbench.portable import (
     build_native_delivery,
@@ -72,6 +73,35 @@ def run_acceptance(
     *,
     customization=None,
 ):
+    """Hold one non-ephemeral backend lease across all build/restart phases."""
+    with backend_port_lease(Path(reports) / "backend-port.json") as backend_port:
+        return _run_acceptance(
+            template,
+            source,
+            output,
+            frontend_source,
+            url,
+            reports,
+            plan,
+            redis_port,
+            customization=customization,
+            backend_port=backend_port,
+        )
+
+
+def _run_acceptance(
+    template,
+    source,
+    output,
+    frontend_source,
+    url,
+    reports,
+    plan,
+    redis_port=6379,
+    *,
+    customization=None,
+    backend_port,
+):
     """Shared by CLI and CI; never reset an existing database or workspace."""
     plan = validate_plan(plan)
     if plan.custom_rules and customization is None:
@@ -97,9 +127,7 @@ def run_acceptance(
         frontend = output.parent / "frontend-product"
         if not resumed:
             copy_source(frontend_source, frontend)
-    env = native_environment(
-        template, backend, url, 8001 if template == "fastapiadmin" else 48080, redis_port=redis_port
-    )
+    env = native_environment(template, backend, url, backend_port, redis_port=redis_port)
     write_json(reports / "approved-spec.json", plan.model_dump())
     write_json(
         reports / "acceptance.json", {"template": template, "generated_runtime_verified": False}
@@ -283,6 +311,8 @@ def run_acceptance(
         report = {
             "template": template,
             "scope": "generated-native-modules",
+            "backend_port": backend_port,
+            "backend_url": base_url,
             "generated_runtime_verified": True,
             "native_codegen": True,
             "automatic_mount": True,

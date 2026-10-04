@@ -432,7 +432,17 @@ def running_backend(template, backend, env, reports):
         jars = list((backend / "yudao-server/target").glob("*.jar"))
         if len(jars) != 1:
             raise ValueError("Expected exactly one compiled native server jar")
-        command = ["java", "-Xmx1400m", "-jar", str(jars[0]), "--spring.profiles.active=native"]
+        command = [
+            "java",
+            "-Xmx1400m",
+            "-jar",
+            str(jars[0]),
+            "--spring.profiles.active=native",
+            # Use current explicit native config even when a previously built jar
+            # is reused; it includes both the listener and OpenFeign self URLs.
+            "--spring.config.additional-location="
+            + (backend / "yudao-server/src/main/resources/application-native.properties").as_uri(),
+        ]
         openapi = "/v3/api-docs"
     base_url = f"http://127.0.0.1:{port}"
     if not loopback_port_bindable(port):

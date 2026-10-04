@@ -17,18 +17,18 @@
 
 - `test_database_identity_does_not_retain_credentials`（L17–L24）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L20断言`"oldpassword" not in identity`。 调用`database_identity`、`check_database_identity`、`original.replace`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_catalog_config_does_not_claim_acceptance`（L27–L33）：接收`tmp_path`。 控制顺序：L31断言`entry["level"] == "managed-runtime"`；L32断言`entry["configured"] is True`；L33断言`entry["runtime_verified"] is False`。 调用`Settings`、`write_runtime_example`、`next`、`catalog`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_vben_public_build_config_excludes_credentials`（L36–L59）：接收`tmp_path`、`monkeypatch`。 控制顺序：L55断言`data["VITE_GLOB_API_URL"] == "/admin-api"`；L56断言`data["VITE_NITRO_MOCK"] == "false"`；L57断言`"API_KEY" not in data`；L58断言`"never-serialize-this" not in (app / ".env.production.example").read_text()`；L59断言`len(commands) == 3`。 调用`app.mkdir`、`(root / "pnpm-lock.yaml").write_text`、`(app / "dist").mkdir`、`(app / "dist/index.html").write_text`、`monkeypatch.setattr`、`native_frontend.frontend_environment`、`native_frontend.build_frontend`、`dotenv_values`、`(app / ".env.production.example").read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_vben_public_build_config_excludes_credentials.tool`（L45–L47）：接收`command`、`cwd`、`timeout`、`env`、`**kwargs`。 调用`commands.append`。 返回路径：L47的`{"log": "fixture only", "returncode": 0}`。
-- `test_full_vben_build_has_bounded_rust_parallelism`（L62–L65）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L64断言`env["RAYON_NUM_THREADS"] == "2"`；L65断言`"8192" in env["NODE_OPTIONS"]`。 调用`native_frontend.frontend_environment`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_generated_native_product_uses_approved_project_title`（L69–L73）：接收`template`。 控制顺序：L72断言`env["VITE_APP_TITLE"] == title`；L73断言`env["VITE_APP_TITLE"] != "Native lab"`。 调用`native_frontend.frontend_environment`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_vben_public_build_config_excludes_credentials`（L36–L65）：接收`tmp_path`、`monkeypatch`。 控制顺序：L61断言`data["VITE_GLOB_API_URL"] == "/admin-api"`；L62断言`data["VITE_NITRO_MOCK"] == "false"`；L63断言`"API_KEY" not in data`；L64断言`"never-serialize-this" not in (app / ".env.production.example").read_text()`；L65断言`len(commands) == 3`。 调用`app.mkdir`、`(root / "pnpm-lock.yaml").write_text`、`(app / "dist").mkdir`、`(app / "dist/index.html").write_text`、`zipfile.ZipFile`、`(app / "vite.config.ts").write_bytes`、`archive.read`、`monkeypatch.setattr`、`native_frontend.frontend_environment`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_vben_public_build_config_excludes_credentials.tool`（L51–L53）：接收`command`、`cwd`、`timeout`、`env`、`**kwargs`。 调用`commands.append`。 返回路径：L53的`{"log": "fixture only", "returncode": 0}`。
+- `test_full_vben_build_has_bounded_rust_parallelism`（L68–L71）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L70断言`env["RAYON_NUM_THREADS"] == "2"`；L71断言`"8192" in env["NODE_OPTIONS"]`。 调用`native_frontend.frontend_environment`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generated_native_product_uses_approved_project_title`（L75–L79）：接收`template`。 控制顺序：L78断言`env["VITE_APP_TITLE"] == title`；L79断言`env["VITE_APP_TITLE"] != "Native lab"`。 调用`native_frontend.frontend_environment`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_native_frontend_lifecycle.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L73。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_native_frontend_lifecycle.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L79。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3069`。本段原文以LF换行结束。
+本段原始字节数：`3304`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_frontend_lifecycle.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3aed450870f9bff476ee858d5ac71394c9ed6fc5985767c9bd944decf9b7c272"} -->
+<!-- learning-source: {"path": "tests/test_native_frontend_lifecycle.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6bb5323ceece81d287deb94be4b66b88e2127cadfbf8102bf64e37eea00fff0f"} -->
 ````python
 # tests/test_native_frontend_lifecycle.py
 """Local regressions are contracts, not native browser acceptance evidence."""
@@ -73,6 +73,12 @@ def test_vben_public_build_config_excludes_credentials(tmp_path, monkeypatch):
     (root / "pnpm-lock.yaml").write_text("lockfileVersion: '9.0'\n")
     (app / "dist").mkdir()
     (app / "dist/index.html").write_text("<html></html>")
+    import zipfile
+
+    from workbench.settings import ROOT
+
+    with zipfile.ZipFile(ROOT / "templates/vendor/yudao-frontend.zip") as archive:
+        (app / "vite.config.ts").write_bytes(archive.read("apps/web-antd/vite.config.ts"))
     commands = []
 
     def tool(command, cwd, timeout, env, **kwargs):

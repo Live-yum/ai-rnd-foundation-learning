@@ -220,6 +220,7 @@
 - [workbench/native_frontend.py](09-native/sources/workbench__native_frontend_py--001.md)（1 段）
 - [workbench/native_lab.py](09-native/sources/workbench__native_lab_py--001.md)（1 段）
 - [workbench/native_modules.py](09-native/sources/workbench__native_modules_py--001.md)（1 段）
+- [workbench/native_ports.py](09-native/sources/workbench__native_ports_py--001.md)（1 段）
 - [workbench/native_recovery.py](09-native/sources/workbench__native_recovery_py--001.md)（1 段）
 - [workbench/native_resources.py](09-native/sources/workbench__native_resources_py--001.md)（1 段）
 - [workbench/native_style.py](09-native/sources/workbench__native_style_py--001.md)（1 段）
@@ -385,6 +386,7 @@
 - [tests/test_native_managed.py](13-delivery/sources/tests__test_native_managed_py--001.md)（1 段）
 - [tests/test_native_modules.py](13-delivery/sources/tests__test_native_modules_py--001.md)（1 段）
 - [tests/test_native_optional_dependencies.py](13-delivery/sources/tests__test_native_optional_dependencies_py--001.md)（1 段）
+- [tests/test_native_ports.py](13-delivery/sources/tests__test_native_ports_py--001.md)（1 段）
 - [tests/test_native_postgres_contract.py](13-delivery/sources/tests__test_native_postgres_contract_py--001.md)（1 段）
 - [tests/test_native_projection_gate.py](13-delivery/sources/tests__test_native_projection_gate_py--001.md)（1 段）
 - [tests/test_native_recovery.py](13-delivery/sources/tests__test_native_recovery_py--001.md)（1 段）

@@ -988,9 +988,11 @@ def test_native_progress_allowlist_covers_real_literal_stages():
     import inspect
 
     from scripts.ci_real_model import NATIVE_PROGRESS_STAGES
-    from workbench.native_lab import run_acceptance
+    from workbench import native_lab
 
-    tree = ast.parse(inspect.getsource(run_acceptance))
+    # The public entrypoint owns the port lease; the module contains the actual
+    # acceptance phases, including the implementation called within that lease.
+    tree = ast.parse(inspect.getsource(native_lab))
     stages = {
         node.args[0].value
         for node in ast.walk(tree)

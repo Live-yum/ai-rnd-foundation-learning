@@ -29,15 +29,15 @@
 - `require_native_runtime`（L327–L361）：接收`report`。 源码说明：Shared fail-closed runtime/deployment gates for production and zero-model CI.。 控制顺序：L341按`any(report.get(name) is not True for name in gates)`分支；L342抛异常，停止当前正常路径；L353按`not isinstance(restored, dict) or any(restored.get(key) is not True for key in requir…`分支；L358抛异常，停止当前正常路径。 调用`any`、`report.get`、`PrerequisiteError`、`isinstance`、`restored.get`。 返回路径：L361的`gates`。
 - `managed_verify`（L364–L402）：接收`destination`、`receipt`。 控制顺序：L367按`not report_path.is_file()`分支；L368抛异常，停止当前正常路径；L369按`report_path.stat().st_size > MAX_ACCEPTANCE_BYTES`分支；L370抛异常，停止当前正常路径；L373按`len(raw) > MAX_ACCEPTANCE_BYTES`分支；L374抛异常，停止当前正常路径；L375按`hashlib.sha256(raw).hexdigest() != receipt.get("evidence_sha256")`分支；L376抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`report_path.is_file`、`PrerequisiteError`、`report_path.stat`、`report_path.open`、`handle.read`、`len`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`等。 返回路径：L402的`result`。
 - `managed_package`（L405–L427）：接收`destination`、`report`。 控制顺序：L411按`report != verified`分支；L412抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`managed_verify`、`PrerequisiteError`、`manifest`、`pack_source`、`sha`、`write_json`。 返回路径：L427的`result`。
-- `serve_managed`（L430–L456）：接收`settings`、`run_id`。 控制顺序：L434按`not receipt_path.is_file()`分支；L435抛异常，停止当前正常路径；L437按`receipt.get("execution") != "managed-runtime"`分支；L438抛异常，停止当前正常路径；L455在`True`成立时循环。 调用`str`、`uuid.UUID`、`receipt_path.is_file`、`PrerequisiteError`、`json.loads`、`receipt_path.read_text`、`receipt.get`、`managed_verify`、`runtime_config`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `serve_managed`（L430–L465）：接收`settings`、`run_id`。 控制顺序：L434按`not receipt_path.is_file()`分支；L435抛异常，停止当前正常路径；L437按`receipt.get("execution") != "managed-runtime"`分支；L438抛异常，停止当前正常路径；L451按`saved_backend_port(port_receipt) is None`分支；L452抛异常，停止当前正常路径；L464在`True`成立时循环。 调用`str`、`uuid.UUID`、`receipt_path.is_file`、`PrerequisiteError`、`json.loads`、`receipt_path.read_text`、`receipt.get`、`managed_verify`、`runtime_config`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/native_delivery.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L456。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/native_delivery.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L465。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19070`。本段原文以LF换行结束。
+本段原始字节数：`19645`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/native_delivery.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8e499a60c1c9099b00a5e44d924edcda5b2809432af407bf69a627ee39f95312"} -->
+<!-- learning-source: {"path": "workbench/native_delivery.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3f3872d1d65b8c4594b7f7761aa9ec7b2a9c288635a45babb721a02a9bc29110"} -->
 ````python
 # workbench/native_delivery.py
 """Explicitly authorized local native runtime delivery; source export is a separate mode."""
@@ -484,9 +484,18 @@ def serve_managed(settings, run_id):
     check_database_identity(receipt, url)
     backend = destination / "backend"
     frontend = destination / ("frontend/web" if template == "fastapiadmin" else "frontend-product")
-    env = native_environment(template, backend, url, 8001 if template == "fastapiadmin" else 48080)
+    # The accepted product's build is bound to the port recorded by native_lab.
+    from workbench.native_frontend import require_frontend_backend
+    from workbench.native_ports import backend_port_lease, saved_backend_port
+
+    port_receipt = destination.parent / "native-evidence/backend-port.json"
     reports = destination.parent / "native-live"
+    if saved_backend_port(port_receipt) is None:
+        raise PrerequisiteError("原生产品端口回执缺失或属于其他副本；请重新验收构建")
     with ExitStack() as stack:
+        port = stack.enter_context(backend_port_lease(port_receipt))
+        require_frontend_backend(template, frontend, f"http://127.0.0.1:{port}")
+        env = native_environment(template, backend, url, port)
         base, _ = stack.enter_context(running_backend(template, backend, env, reports))
         front = stack.enter_context(
             frontend_preview(template, frontend, frontend_environment(template, base), reports)

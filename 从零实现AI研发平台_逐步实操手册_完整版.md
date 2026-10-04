@@ -1538,7 +1538,9 @@ deployment/
 uv run --no-project --python 3.14 python start.py
 ```
 
-无需原平台、原开发库或模型API_KEY。首次自动创建本产品的服务，随机数据库密码，配置在`.deployment/services.json`，数据库卷持久化。控制台打印后端和前端地址，浏览器打开前端（默认5173）。默认后端FA为8001、芋道48080；可用NATIVE_DELIVERY_PORT调整后端端口，前端适配读取相应实际地址。
+无需原平台、原开发库或模型API_KEY。首次自动创建本产品的服务，随机数据库密码，配置在`.deployment/services.json`，数据库卷持久化。控制台打印后端和前端地址，浏览器打开前端（默认5173）。后端自动选择本机 TCP 动态客户端端口范围之外的空闲非特权端口，避免 Java 连接 PostgreSQL/Redis 时先占用 48080 再导致 HTTP 监听失败。选择记录在该副本的 `.deployment/backend-port.json`；产品锁和端口锁跨构建、两次启动和清理持续持有，重启复用相同端口，独立副本重新分配。前端构建和验收使用同一实际后端地址。不会修改主机网络设置或结束占用端口的其他进程，已记录端口发生冲突就明确失败。
+
+`NATIVE_DELIVERY_PORT` 仍表示用户明确指定的精确端口，不会在冲突时换端口；若自行指定动态范围内端口，调用方承担出站源端口碰撞风险。未知操作系统或无法读取动态范围时，自动选择明确失败，可按该主机网络配置显式指定端口。平台 CI 和托管原生验收使用相同分配器；已有外部原生服务配置及上游生产默认端口不变。
 
 只有自己已经准备好新的专用空数据库与Redis时，才显式设置：
 
@@ -1550,7 +1552,7 @@ uv run --no-project --python 3.14 python start.py
 
 这样的环境不需要自动Docker服务。库名以_codegen结尾，必须空或由同一产品认领；不能指向生产库。启动器的SQL清单和数据库注释防止误重复初始化另一产品。运行默认种子账号只供本机开发，首次成功后修改密码；普通重启不重置密码也不要求旧默认密码。
 
-首次安装完成后可 `start.py --skip-build` 复用该副本的构建输出；不要在全新目录跳过构建。`start.py --check` 完成后端和前端都启动并验证后退出，适合干净交付验收而非普通长时间使用。Ctrl+C停止应用但不删除数据库卷。
+首次安装完成后可 `start.py --skip-build` 复用该副本的构建输出；不要在全新目录跳过构建。该模式检查副本端口回执及前端构建地址，改变端口或复制目录后应先不带 `--skip-build` 重建；Java 启动读取当前 native 配置，包含监听端口及 OpenFeign 自调用地址。`start.py --check` 完成后端和前端都启动并验证后退出，适合干净交付验收而非普通长时间使用。Ctrl+C停止应用但不删除数据库卷。
 
 源代码和初始化SQL不等于用户数据备份。产品使用后，迁往另一主机还要备份真实PG数据及必要配置；不要将`.deployment`密钥或数据库导出提交Git/源码ZIP。首启失败若数据库标为claimed，保留现场按日志修正后在同一产品恢复；未知/部分不一致业务表不自动覆盖。
 
@@ -18594,9 +18596,9 @@ def prepare_fastapi_transactions(backend: Path) -> list[dict]:
 - `require_native_runtime`（L327–L361）：接收`report`。 源码说明：Shared fail-closed runtime/deployment gates for production and zero-model CI.。 控制顺序：L341按`any(report.get(name) is not True for name in gates)`分支；L342抛异常，停止当前正常路径；L353按`not isinstance(restored, dict) or any(restored.get(key) is not True for key in requir…`分支；L358抛异常，停止当前正常路径。 调用`any`、`report.get`、`PrerequisiteError`、`isinstance`、`restored.get`。 返回路径：L361的`gates`。
 - `managed_verify`（L364–L402）：接收`destination`、`receipt`。 控制顺序：L367按`not report_path.is_file()`分支；L368抛异常，停止当前正常路径；L369按`report_path.stat().st_size > MAX_ACCEPTANCE_BYTES`分支；L370抛异常，停止当前正常路径；L373按`len(raw) > MAX_ACCEPTANCE_BYTES`分支；L374抛异常，停止当前正常路径；L375按`hashlib.sha256(raw).hexdigest() != receipt.get("evidence_sha256")`分支；L376抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`report_path.is_file`、`PrerequisiteError`、`report_path.stat`、`report_path.open`、`handle.read`、`len`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`等。 返回路径：L402的`result`。
 - `managed_package`（L405–L427）：接收`destination`、`report`。 控制顺序：L411按`report != verified`分支；L412抛异常，停止当前正常路径。 调用`Path`、`json.loads`、`(destination.parent / "native-generation.json").read_text`、`managed_verify`、`PrerequisiteError`、`manifest`、`pack_source`、`sha`、`write_json`。 返回路径：L427的`result`。
-- `serve_managed`（L430–L456）：接收`settings`、`run_id`。 控制顺序：L434按`not receipt_path.is_file()`分支；L435抛异常，停止当前正常路径；L437按`receipt.get("execution") != "managed-runtime"`分支；L438抛异常，停止当前正常路径；L455在`True`成立时循环。 调用`str`、`uuid.UUID`、`receipt_path.is_file`、`PrerequisiteError`、`json.loads`、`receipt_path.read_text`、`receipt.get`、`managed_verify`、`runtime_config`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `serve_managed`（L430–L465）：接收`settings`、`run_id`。 控制顺序：L434按`not receipt_path.is_file()`分支；L435抛异常，停止当前正常路径；L437按`receipt.get("execution") != "managed-runtime"`分支；L438抛异常，停止当前正常路径；L451按`saved_backend_port(port_receipt) is None`分支；L452抛异常，停止当前正常路径；L464在`True`成立时循环。 调用`str`、`uuid.UUID`、`receipt_path.is_file`、`PrerequisiteError`、`json.loads`、`receipt_path.read_text`、`receipt.get`、`managed_verify`、`runtime_config`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/native_delivery.py sha256: 8e499a60c1c9099b00a5e44d924edcda5b2809432af407bf69a627ee39f95312 -->
+<!-- source-file: workbench/native_delivery.py sha256: 3f3872d1d65b8c4594b7f7761aa9ec7b2a9c288635a45babb721a02a9bc29110 -->
 ````python
 """Explicitly authorized local native runtime delivery; source export is a separate mode."""
 
@@ -19042,9 +19044,18 @@ def serve_managed(settings, run_id):
     check_database_identity(receipt, url)
     backend = destination / "backend"
     frontend = destination / ("frontend/web" if template == "fastapiadmin" else "frontend-product")
-    env = native_environment(template, backend, url, 8001 if template == "fastapiadmin" else 48080)
+    # The accepted product's build is bound to the port recorded by native_lab.
+    from workbench.native_frontend import require_frontend_backend
+    from workbench.native_ports import backend_port_lease, saved_backend_port
+
+    port_receipt = destination.parent / "native-evidence/backend-port.json"
     reports = destination.parent / "native-live"
+    if saved_backend_port(port_receipt) is None:
+        raise PrerequisiteError("原生产品端口回执缺失或属于其他副本；请重新验收构建")
     with ExitStack() as stack:
+        port = stack.enter_context(backend_port_lease(port_receipt))
+        require_frontend_backend(template, frontend, f"http://127.0.0.1:{port}")
+        env = native_environment(template, backend, url, port)
         base, _ = stack.enter_context(running_backend(template, backend, env, reports))
         front = stack.enter_context(
             frontend_preview(template, frontend, frontend_environment(template, base), reports)
@@ -19078,10 +19089,10 @@ def serve_managed(settings, run_id):
 - `install_backend`（L250–L322）：接收`template`、`backend`、`reports`、`navigation_api_only`。 控制顺序：L253按`template == "fastapiadmin"`分支；L285按`os.environ.get("RND_OFFLINE_TOOLS") == "1"`分支；L290按`template == "yudao-vben"`分支；L307按`os.environ.get("UV_CACHE_DIR")`分支；L310遍历`commands`；L318抛异常，停止当前正常路径；L321按`template == "yudao-vben"`分支。 调用`Path`、`reports.mkdir`、`prepare_fastapi_registry`、`prepare_yudao_navigation`、`prepare_yudao_postgres`、`atomic_text`、`os.environ.get`、`str`、`maven_settings.resolve`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `loopback_port_bindable`（L325–L344）：接收`port`。 源码说明：Observe bind availability without connecting to a possibly unowned service. Readiness probes must not allocate an outbound ephemeral socket to their own destination before the server listens (Linux pe。 控制顺序：L334按`os.name != "nt"`分支；L336按`hasattr(socket, "SO_EXCLUSIVEADDRUSE")`分支；L341按`error.errno in {errno.EADDRINUSE, errno.EACCES}`分支；L343抛异常，停止当前正常路径。 调用`socket.socket`、`probe.setsockopt`、`hasattr`、`probe.bind`。 返回路径：L342的`False`；L344的`True`。
 - `backend_port_state`（L347–L397）：接收`port`、`group_pid`。 源码说明：Bounded Linux listener ownership, with no environment or process arguments. Unlike a bind/connect probe this cannot race with server startup. Other platforms retain their existing readiness behavior a。 控制顺序：L354按`os.name != "posix" or not tcp.is_file()`分支；L359遍历`(tcp, Path("/proc/net/tcp6"))`；L360按`path.is_file()`分支；L361遍历`path.read_text(encoding="utf-8").splitlines()[1:8193]`；L363按`len(parts) > 9 and int(parts[1].rsplit(":", 1)[1], 16) == port`分支；L366按`parts[3] == "0A"`分支；L369遍历`list(Path("/proc").glob("[0-9]*/stat"))[:4096]`；L372按`int(fields[2]) == group_pid and int(fields[3]) == group_pid`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`tcp.is_file`、`set`、`path.is_file`、`path.read_text(encoding="utf-8").splitlines`、`path.read_text`、`line.split`、`len`、`int`等。 返回路径：L355的`{"observable": False}`；L387的`{ "observable": True, "listening": bool(listener_inodes), "owned_listener": bool(owners), …`；L397的`{"observable": False}`。
-- `running_backend`（L401–L559）：接收`template`、`backend`、`env`、`reports`。 控制顺序：L404按`template == "fastapiadmin"`分支；L433按`len(jars) != 1`分支；L434抛异常，停止当前正常路径；L438按`not loopback_port_bindable(port)`分支；L439抛异常，停止当前正常路径；L444按`previous.is_file() and not previous.is_symlink() and previous.stat().st_size <= 16384`分支；L447按`type(value) is int and 0 < value < 1_000_000`分支；L474遍历`range(90)`。后续分支沿下方源码相同行号继续阅读。 调用`Path(backend).resolve`、`Path`、`Path(reports).resolve`、`reports.mkdir`、`int`、`str`、`( backend / "yudao-server/src/main/resources/application-native.p…`、`next`、`line.split`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `login`（L562–L600）：接收`template`、`base_url`、`username`、`password`。 控制顺序：L566按`template == "fastapiadmin"`分支；L575按`completed.json().get("code") not in (0, 200)`分支；L576抛异常，停止当前正常路径；L592按`body.get("code", 200) not in (0, 200)`分支；L593抛异常，停止当前正常路径；L598按`not isinstance(token, str) or not token`分支；L599抛异常，停止当前正常路径。 调用`httpx.Client`、`client.get`、`challenge.raise_for_status`、`challenge.json`、`time.sleep`、`client.post`、`completed.raise_for_status`、`completed.json().get`、`completed.json`等。 返回路径：L600的`token`。
+- `running_backend`（L401–L569）：接收`template`、`backend`、`env`、`reports`。 控制顺序：L404按`template == "fastapiadmin"`分支；L433按`len(jars) != 1`分支；L434抛异常，停止当前正常路径；L448按`not loopback_port_bindable(port)`分支；L449抛异常，停止当前正常路径；L454按`previous.is_file() and not previous.is_symlink() and previous.stat().st_size <= 16384`分支；L457按`type(value) is int and 0 < value < 1_000_000`分支；L484遍历`range(90)`。后续分支沿下方源码相同行号继续阅读。 调用`Path(backend).resolve`、`Path`、`Path(reports).resolve`、`reports.mkdir`、`int`、`str`、`( backend / "yudao-server/src/main/resources/application-native.p…`、`next`、`line.split`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `login`（L572–L610）：接收`template`、`base_url`、`username`、`password`。 控制顺序：L576按`template == "fastapiadmin"`分支；L585按`completed.json().get("code") not in (0, 200)`分支；L586抛异常，停止当前正常路径；L602按`body.get("code", 200) not in (0, 200)`分支；L603抛异常，停止当前正常路径；L608按`not isinstance(token, str) or not token`分支；L609抛异常，停止当前正常路径。 调用`httpx.Client`、`client.get`、`challenge.raise_for_status`、`challenge.json`、`time.sleep`、`client.post`、`completed.raise_for_status`、`completed.json().get`、`completed.json`等。 返回路径：L610的`token`。
 
-<!-- source-file: workbench/native_environment.py sha256: e11413aa53440666f0e183201f519d5fa26042ec84a95bc27880bbee56a7b557 -->
+<!-- source-file: workbench/native_environment.py sha256: 801d606e3cc0942d66a6f76d95eda2ac3d1142a4044051cf834e4d36a066907d -->
 ````python
 """Loopback native lab lifecycle. Never resets existing databases or mocks authentication."""
 
@@ -19517,7 +19528,17 @@ def running_backend(template, backend, env, reports):
         jars = list((backend / "yudao-server/target").glob("*.jar"))
         if len(jars) != 1:
             raise ValueError("Expected exactly one compiled native server jar")
-        command = ["java", "-Xmx1400m", "-jar", str(jars[0]), "--spring.profiles.active=native"]
+        command = [
+            "java",
+            "-Xmx1400m",
+            "-jar",
+            str(jars[0]),
+            "--spring.profiles.active=native",
+            # Use current explicit native config even when a previously built jar
+            # is reused; it includes both the listener and OpenFeign self URLs.
+            "--spring.config.additional-location="
+            + (backend / "yudao-server/src/main/resources/application-native.properties").as_uri(),
+        ]
         openapi = "/v3/api-docs"
     base_url = f"http://127.0.0.1:{port}"
     if not loopback_port_bindable(port):
@@ -20385,11 +20406,12 @@ def native_review_evidence(report, plan, files, evidence_sha256):
 
 - `frontend_environment`（L18–L63）：接收`template`、`backend_url`、`title`。 控制顺序：L26按`template == "fastapiadmin"`分支；L40按`template != "yudao-vben"`分支；L41抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L27的`{ **common, "VITE_APP_TITLE": title, "VITE_VERSION": "3.0.0", "VITE_PORT": "5173", "VITE_B…`；L42的`{ **common, "VITE_APP_TITLE": title, "VITE_APP_NAMESPACE": "native-lab-vben", # Bound Rust…`。
 - `frontend_app`（L66–L68）：接收`template`、`root`。 调用`Path(root).resolve`、`Path`。 返回路径：L68的`root if template == "fastapiadmin" else root / "apps/web-antd"`。
-- `build_frontend`（L71–L127）：接收`template`、`root`、`env`、`reports`、`prepared`。 控制顺序：L75按`not (root / "pnpm-lock.yaml").is_file()`分支；L76抛异常，停止当前正常路径；L77按`template == "yudao-vben"`分支；L78按`not prepared`分支；L80按`not (root / ".git").exists()`分支；L110遍历`checks`；L115抛异常，停止当前正常路径；L118按`not (app / "dist/index.html").is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(root).resolve`、`Path`、`Path(reports).resolve`、`reports.mkdir`、`frontend_app`、`(root / "pnpm-lock.yaml").is_file`、`ValueError`、`prepare_vben_source`、`(root / ".git").exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `frontend_preview`（L131–L171）：接收`template`、`root`、`env`、`reports`。 控制顺序：L156遍历`range(60)`；L157按`process.poll() is not None`分支；L158抛异常，停止当前正常路径；L161按`response.status_code == 200 and "<html" in response.text.lower()`分支；L167抛异常，停止当前正常路径。 调用`frontend_app`、`Path(reports).resolve`、`Path`、`(reports / "frontend-runtime.log").open`、`subprocess.Popen`、`clean_env`、`process_options`、`httpx.Client`、`range`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `browser_check`（L174–L195）：接收`template`、`url`、`reports`。 控制顺序：L177按`not playwright_module.exists()`分支；L178抛异常，停止当前正常路径。 调用`playwright_module.exists`、`ValueError`、`run_command`、`str`、`Path(reports).resolve`、`Path`、`os.environ.get`、`atomic_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `build_frontend`（L71–L136）：接收`template`、`root`、`env`、`reports`、`prepared`。 控制顺序：L75按`not (root / "pnpm-lock.yaml").is_file()`分支；L76抛异常，停止当前正常路径；L77按`template == "yudao-vben"`分支；L78按`not prepared`分支；L80按`not (root / ".git").exists()`分支；L111遍历`checks`；L116抛异常，停止当前正常路径；L119按`not (app / "dist/index.html").is_file()`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(root).resolve`、`Path`、`Path(reports).resolve`、`reports.mkdir`、`frontend_app`、`(root / "pnpm-lock.yaml").is_file`、`ValueError`、`prepare_vben_source`、`(root / ".git").exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `frontend_preview`（L140–L183）：接收`template`、`root`、`env`、`reports`。 控制顺序：L168遍历`range(60)`；L169按`process.poll() is not None`分支；L170抛异常，停止当前正常路径；L173按`response.status_code == 200 and "<html" in response.text.lower()`分支；L179抛异常，停止当前正常路径。 调用`frontend_app`、`Path(reports).resolve`、`Path`、`require_frontend_backend`、`(reports / "frontend-runtime.log").open`、`subprocess.Popen`、`clean_env`、`process_options`、`httpx.Client`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `browser_check`（L186–L207）：接收`template`、`url`、`reports`。 控制顺序：L189按`not playwright_module.exists()`分支；L190抛异常，停止当前正常路径。 调用`playwright_module.exists`、`ValueError`、`run_command`、`str`、`Path(reports).resolve`、`Path`、`os.environ.get`、`atomic_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_frontend_backend`（L210–L220）：接收`template`、`root`、`backend_url`。 源码说明：A preview cannot retarget a previously compiled frontend via process.env.。 控制顺序：L216抛异常，停止当前正常路径；L219按`actual != backend_url`分支；L220抛异常，停止当前正常路径。 调用`frontend_app`、`json.loads`、`stamp.read_text`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/native_frontend.py sha256: 13e3fc09aeb24d19851530bde86721432d672da98aed8ec1b030791aaf9de46a -->
+<!-- source-file: workbench/native_frontend.py sha256: ce150159f6a71a141218411de16eeaa9f784eb2e7b55d024cfac435268924b33 -->
 ````python
 """Build the original native application with any generated modules already mounted."""
 
@@ -20403,7 +20425,7 @@ from pathlib import Path
 import httpx
 
 from workbench.filesystem import atomic_text, sha, write_json
-from workbench.native_vben import prepare_vben_source
+from workbench.native_vben import configure_vben_backend_proxy, prepare_vben_source
 from workbench.settings import ROOT
 from workbench.tools import clean_env, process_options, run_command, stop_process
 
@@ -20472,6 +20494,7 @@ def build_frontend(template, root, env, reports, *, prepared=False):
             prepare_vben_source(root, reports)
         elif not (root / ".git").exists():
             run_command(["git", "init", "--quiet", "--template=", str(root)], root, 30)
+        configure_vben_backend_proxy(root)
         # Vben's own loadAndConvertEnv / runtime-config plugin reads dotenv files,
         # not process.env. Persist only explicitly public VITE_* values in the
         # disposable workspace; never copy platform or database credentials.
@@ -20511,6 +20534,14 @@ def build_frontend(template, root, env, reports, *, prepared=False):
     if not (app / "dist/index.html").is_file():
         raise ValueError("Frontend build did not produce dist/index.html")
     write_json(
+        app / "dist/native-backend.json",
+        {
+            "backend_url": env[
+                "VITE_API_BASE_URL" if template == "fastapiadmin" else "VITE_BASE_URL"
+            ]
+        },
+    )
+    write_json(
         reports / "frontend-build.json",
         {
             "checks": evidence,
@@ -20523,6 +20554,9 @@ def build_frontend(template, root, env, reports, *, prepared=False):
 @contextmanager
 def frontend_preview(template, root, env, reports):
     app, reports = frontend_app(template, root), Path(reports).resolve()
+    require_frontend_backend(
+        template, root, env["VITE_API_BASE_URL" if template == "fastapiadmin" else "VITE_BASE_URL"]
+    )
     url = "http://127.0.0.1:5173"
     command = [
         "pnpm",
@@ -20586,6 +20620,19 @@ def browser_check(template, url, reports):
         },
     )
     atomic_text(Path(reports) / "browser.log", result["log"])
+
+
+def require_frontend_backend(template, root, backend_url):
+    """A preview cannot retarget a previously compiled frontend via process.env."""
+    stamp = frontend_app(template, root) / "dist/native-backend.json"
+    try:
+        actual = json.loads(stamp.read_text(encoding="utf-8"))["backend_url"]
+    except OSError, ValueError, KeyError, TypeError:
+        raise ValueError(
+            "Frontend backend-port receipt missing; rebuild without --skip-build"
+        ) from None
+    if actual != backend_url:
+        raise ValueError("Frontend backend port changed; rebuild without --skip-build")
 ````
 
 ### `workbench/native_lab.py`
@@ -20596,15 +20643,16 @@ def browser_check(template, url, reports):
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `workbench`、`workbench.domain`、`workbench.filesystem`、`workbench.native_acceptance`、`workbench.native_compatibility`、`workbench.native_environment`、`workbench.native_frontend`、`workbench.native_modules`、`workbench.native_style`、`workbench.portable`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench`、`workbench.domain`、`workbench.filesystem`、`workbench.native_acceptance`、`workbench.native_compatibility`、`workbench.native_environment`、`workbench.native_frontend`、`workbench.native_modules`、`workbench.native_ports`、`workbench.native_style`、`workbench.portable`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `generated_browser`（L37–L60）：接收`template`、`front_url`、`reports`。 控制顺序：L59抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run_acceptance`（L63–L337）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L77按`plan.custom_rules and customization is None`分支；L78抛异常，停止当前正常路径；L91按`not resumed`分支；L94按`template == "fastapiadmin"`分支；L98按`not resumed`分支；L115按`not resumed`分支；L119按`template == "fastapiadmin"`分支；L142按`plan.business`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`ValueError`、`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`等。 返回路径：L318的`report`。
-- `run_acceptance.stage`（L108–L110）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `generated_browser`（L38–L61）：接收`template`、`front_url`、`reports`。 控制顺序：L60抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_acceptance`（L64–L89）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`。 源码说明：Hold one non-ephemeral backend lease across all build/restart phases.。 调用`backend_port_lease`、`Path`、`_run_acceptance`。 返回路径：L78的`_run_acceptance( template, source, output, frontend_source, url, reports, plan, redis_port…`。
+- `_run_acceptance`（L92–L367）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`backend_port`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L107按`plan.custom_rules and customization is None`分支；L108抛异常，停止当前正常路径；L121按`not resumed`分支；L124按`template == "fastapiadmin"`分支；L128按`not resumed`分支；L143按`not resumed`分支；L147按`template == "fastapiadmin"`分支；L170按`plan.business`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`ValueError`、`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`等。 返回路径：L348的`report`。
+- `_run_acceptance.stage`（L136–L138）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/native_lab.py sha256: f3802a04acadb50c543cd5e805f28dcc1a42b61f2b3a90f76e4385332f3cc2a9 -->
+<!-- source-file: workbench/native_lab.py sha256: e10dbf8acb5da1eca02adf382bcbf5910427006feaac7e4d07f4693a397995b0 -->
 ````python
 """Actual native generation, mounting, permissions, CRUD, restart and browser acceptance."""
 
@@ -20631,6 +20679,7 @@ from workbench.native_environment import (
 )
 from workbench.native_frontend import build_frontend, frontend_environment, frontend_preview
 from workbench.native_modules import create_native_tables, generate_modules, validate_plan
+from workbench.native_ports import backend_port_lease
 from workbench.native_style import verify_native_style
 from workbench.portable import (
     build_native_delivery,
@@ -20680,6 +20729,35 @@ def run_acceptance(
     *,
     customization=None,
 ):
+    """Hold one non-ephemeral backend lease across all build/restart phases."""
+    with backend_port_lease(Path(reports) / "backend-port.json") as backend_port:
+        return _run_acceptance(
+            template,
+            source,
+            output,
+            frontend_source,
+            url,
+            reports,
+            plan,
+            redis_port,
+            customization=customization,
+            backend_port=backend_port,
+        )
+
+
+def _run_acceptance(
+    template,
+    source,
+    output,
+    frontend_source,
+    url,
+    reports,
+    plan,
+    redis_port=6379,
+    *,
+    customization=None,
+    backend_port,
+):
     """Shared by CLI and CI; never reset an existing database or workspace."""
     plan = validate_plan(plan)
     if plan.custom_rules and customization is None:
@@ -20705,9 +20783,7 @@ def run_acceptance(
         frontend = output.parent / "frontend-product"
         if not resumed:
             copy_source(frontend_source, frontend)
-    env = native_environment(
-        template, backend, url, 8001 if template == "fastapiadmin" else 48080, redis_port=redis_port
-    )
+    env = native_environment(template, backend, url, backend_port, redis_port=redis_port)
     write_json(reports / "approved-spec.json", plan.model_dump())
     write_json(
         reports / "acceptance.json", {"template": template, "generated_runtime_verified": False}
@@ -20891,6 +20967,8 @@ def run_acceptance(
         report = {
             "template": template,
             "scope": "generated-native-modules",
+            "backend_port": backend_port,
+            "backend_url": base_url,
             "generated_runtime_verified": True,
             "native_codegen": True,
             "automatic_mount": True,
@@ -21547,6 +21625,211 @@ def generate_modules(template, backend, frontend, base_url, openapi, token, mapp
     return targets
 ````
 
+### `workbench/native_ports.py`
+
+**作用：原生后端端口分配与跨重启租约。** 读取本机TCP动态源端口范围，自动选择范围外的空闲非特权端口。产品锁与端口锁覆盖构建、启动、重启和清理，副本路径绑定回执稳定记录端口；显式端口不回退，冲突明确失败，不改主机网络配置。
+
+**对应关系：** native_lab/ci_native_runtime/独立run.py → backend_port_lease → 后端配置、前端构建与验收回执；test_native_ports。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.filesystem`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `dynamic_tcp_range`（L27–L58）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Read the IPv4 source-port range; unknown/unreadable hosts fail closed.。 控制顺序：L30按`system == "Linux"`分支；L32按`system == "Darwin"`分支；L39按`system == "Windows"`分支；L47按`len(rows) != 2`分支；L48抛异常，停止当前正常路径；L52抛异常，停止当前正常路径；L53按`len(values) != 2`分支；L54抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`platform.system`、`Path("/proc/sys/net/ipv4/ip_local_port_range").read_text().split`、`Path("/proc/sys/net/ipv4/ip_local_port_range").read_text`、`Path`、`subprocess.check_output( ["sysctl", "-n", f"net.inet.ip.portrange…`、`subprocess.check_output`、`subprocess.check_output( ["netsh", "interface", "ipv4", "show", "…`、`re.findall`、`len`等。 返回路径：L58的`first, last`。
+- `_valid_port`（L61–L67）：接收`value`。 控制顺序：L62按`isinstance(value, bool) or not str(value).isascii() or not str(value).isdecimal()`分支；L63抛异常，停止当前正常路径；L65按`not 1024 <= port <= 65535`分支；L66抛异常，停止当前正常路径。 调用`isinstance`、`str(value).isascii`、`str`、`str(value).isdecimal`、`ValueError`、`int`。 返回路径：L67的`port`。
+- `saved_backend_port`（L70–L86）：接收`receipt`。 源码说明：Read a bounded path-bound receipt; copies do not inherit port ownership.。 控制顺序：L73按`receipt.is_symlink() or receipt.is_junction()`分支；L74抛异常，停止当前正常路径；L75按`not receipt.exists()`分支；L79按`len(raw) > 4096`分支；L80抛异常，停止当前正常路径；L82按`not isinstance(value, dict) or value.get("format") != 1`分支；L83抛异常，停止当前正常路径；L84按`value.get("owner") != str(receipt.resolve())`分支。 调用`Path`、`receipt.is_symlink`、`receipt.is_junction`、`ValueError`、`receipt.exists`、`receipt.open`、`stream.read`、`len`、`json.loads`等。 返回路径：L76的`None`；L85的`None`；L86的`_valid_port(value.get("port"))`。
+- `_bindable`（L89–L101）：接收`port`。 控制顺序：L91按`os.name != "nt"`分支；L93按`hasattr(socket, "SO_EXCLUSIVEADDRUSE")`分支；L98按`error.errno in {errno.EADDRINUSE, errno.EACCES}`分支；L100抛异常，停止当前正常路径。 调用`socket.socket`、`sock.setsockopt`、`hasattr`、`sock.bind`。 返回路径：L99的`False`；L101的`True`。
+- `_backend_port_lease`（L105–L163）：接收`receipt`、`explicit`。 源码说明：Keep one selected port stable for this product's entire invocation. Automatic choices persist in runtime-only state. Copied receipts are not adopted by a new path. Explicit configuration always means 。 控制顺序：L117按`not fixed`分支；L119按`selected is not None and dynamic[0] <= selected <= dynamic[1]`分支；L120抛异常，停止当前正常路径；L128按`not stat.S_ISDIR(info.st_mode) or directory.is_junction() or (os.name != "nt" and (in…`分支；L133抛异常，停止当前正常路径；L143按`selected is None`分支；L145遍历`candidates`；L150按`selected is not None`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(receipt).resolve`、`Path`、`str`、`_valid_port`、`dynamic_tcp_range`、`saved_backend_port`、`ValueError`、`tempfile.gettempdir`、`hasattr`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `backend_port_lease`（L167–L182）：接收`receipt`、`explicit`。 控制顺序：L169按`receipt.is_symlink() or receipt.is_junction()`分支；L170抛异常，停止当前正常路径；L177抛异常，停止当前正常路径。 调用`Path`、`receipt.is_symlink`、`receipt.is_junction`、`ValueError`、`receipt.resolve`、`receipt.parent.mkdir`、`FileLock`、`str`、`product_lock.acquire`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+
+<!-- source-file: workbench/native_ports.py sha256: 8ab2d6c94d221f4866d3b97ca9c82f0fc81c7c54e6b09ac3a890c2b532677645 -->
+````python
+"""Per-product backend leases outside automatic TCP client source-port ranges.
+
+A bind-and-close check alone cannot reserve an ephemeral port: Java may acquire
+that same port for PostgreSQL/Redis before Tomcat binds. Never change host network
+settings. Cooperating copies hold a file lease across builds and restarts; an
+unrelated process racing the bind still fails closed in running_backend.
+"""
+
+import errno
+import json
+import os
+import platform
+import random
+import re
+import socket
+import stat
+import subprocess
+import tempfile
+from contextlib import contextmanager
+from pathlib import Path
+
+from filelock import FileLock, Timeout
+
+from workbench.filesystem import write_json
+
+
+def dynamic_tcp_range():
+    """Read the IPv4 source-port range; unknown/unreadable hosts fail closed."""
+    system = platform.system()
+    if system == "Linux":
+        values = Path("/proc/sys/net/ipv4/ip_local_port_range").read_text().split()
+    elif system == "Darwin":
+        values = [
+            subprocess.check_output(
+                ["sysctl", "-n", f"net.inet.ip.portrange.{name}"], text=True, timeout=10
+            ).strip()
+            for name in ("first", "last")
+        ]
+    elif system == "Windows":
+        output = subprocess.check_output(
+            ["netsh", "interface", "ipv4", "show", "dynamicport", "tcp"],
+            timeout=10,
+        ).decode("ascii", errors="replace")
+        # Labels are localized, but the final two colon-delimited integers are
+        # the start and number of ports on supported Windows versions.
+        rows = re.findall(r":\s*(\d+)\s*$", output, re.MULTILINE)
+        if len(rows) != 2:
+            raise ValueError("Cannot read Windows dynamic TCP port range")
+        first, count = map(int, rows)
+        values = [first, first + count - 1]
+    else:
+        raise ValueError("Unknown dynamic TCP port range; configure an explicit backend port")
+    if len(values) != 2:
+        raise ValueError("Invalid dynamic TCP port range")
+    first, last = map(int, values)
+    if not 1 <= first <= last <= 65535:
+        raise ValueError("Invalid dynamic TCP port range")
+    return first, last
+
+
+def _valid_port(value):
+    if isinstance(value, bool) or not str(value).isascii() or not str(value).isdecimal():
+        raise ValueError("Invalid native backend port")
+    port = int(value)
+    if not 1024 <= port <= 65535:
+        raise ValueError("Invalid native backend port")
+    return port
+
+
+def saved_backend_port(receipt):
+    """Read a bounded path-bound receipt; copies do not inherit port ownership."""
+    receipt = Path(receipt)
+    if receipt.is_symlink() or receipt.is_junction():
+        raise ValueError("Backend port receipt must not be a link")
+    if not receipt.exists():
+        return None
+    with receipt.open("rb") as stream:
+        raw = stream.read(4097)
+    if len(raw) > 4096:
+        raise ValueError("Oversized backend port receipt")
+    value = json.loads(raw)
+    if not isinstance(value, dict) or value.get("format") != 1:
+        raise ValueError("Invalid backend port receipt")
+    if value.get("owner") != str(receipt.resolve()):
+        return None
+    return _valid_port(value.get("port"))
+
+
+def _bindable(port):
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        if os.name != "nt":
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        elif hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        try:
+            sock.bind(("127.0.0.1", port))
+        except OSError as error:
+            if error.errno in {errno.EADDRINUSE, errno.EACCES}:
+                return False
+            raise
+    return True
+
+
+@contextmanager
+def _backend_port_lease(receipt, explicit=None):
+    """Keep one selected port stable for this product's entire invocation.
+
+    Automatic choices persist in runtime-only state. Copied receipts are not
+    adopted by a new path. Explicit configuration always means that exact port,
+    even inside the dynamic range, and never silently falls back on conflict.
+    """
+    receipt = Path(receipt).resolve()
+    owner = str(receipt)
+    fixed = explicit is not None
+    selected = _valid_port(explicit) if fixed else None
+    dynamic = None if fixed else dynamic_tcp_range()
+    if not fixed:
+        selected = saved_backend_port(receipt)
+        if selected is not None and dynamic[0] <= selected <= dynamic[1]:
+            raise ValueError("Saved backend port is now inside the dynamic TCP range")
+    # Locks only coordinate launches by this user. Foreign users/processes are
+    # never stopped; the actual socket check remains authoritative.
+    directory = Path(tempfile.gettempdir()) / (
+        "rnd-native-ports-" + str(os.getuid() if hasattr(os, "getuid") else "user")
+    )
+    directory.mkdir(mode=0o700, exist_ok=True)
+    info = directory.lstat()
+    if (
+        not stat.S_ISDIR(info.st_mode)
+        or directory.is_junction()
+        or (os.name != "nt" and (info.st_uid != os.getuid() or info.st_mode & 0o077))
+    ):
+        raise ValueError("Unsafe native backend port lock directory")
+    candidates = (
+        [selected]
+        if selected is not None
+        else [
+            port
+            for port in range(1024, 65536)
+            if port != 5173 and not dynamic[0] <= port <= dynamic[1]
+        ]
+    )
+    if selected is None:
+        random.SystemRandom().shuffle(candidates)
+    for port in candidates:
+        lock = FileLock(directory / f"{port}.lock")
+        try:
+            lock.acquire(timeout=0)
+        except Timeout:
+            if selected is not None:
+                raise RuntimeError("Native backend port lease is already in use") from None
+            continue
+        try:
+            if not _bindable(port):
+                if selected is not None:
+                    raise RuntimeError("Native backend port is already occupied")
+                continue
+            write_json(receipt, {"format": 1, "owner": owner, "port": port, "explicit": fixed})
+            yield port
+            return
+        finally:
+            lock.release()
+    raise RuntimeError("No available backend port outside the dynamic TCP range")
+
+
+@contextmanager
+def backend_port_lease(receipt, explicit=None):
+    receipt = Path(receipt)
+    if receipt.is_symlink() or receipt.is_junction():
+        raise ValueError("Backend port receipt must not be a link")
+    receipt = receipt.resolve()
+    receipt.parent.mkdir(parents=True, exist_ok=True)
+    product_lock = FileLock(str(receipt) + ".lock")
+    try:
+        product_lock.acquire(timeout=0)
+    except Timeout:
+        raise RuntimeError("Native product port lease is already in use") from None
+    try:
+        with _backend_port_lease(receipt, explicit) as port:
+            yield port
+    finally:
+        product_lock.release()
+````
+
 ### `workbench/native_recovery.py`
 
 **作用：身份绑定的原生中断检查点。** identity绑定模板、批准Plan、数据库身份和前后端来源；save记录实际文件清单与可恢复阶段；load只接受同一身份、完整且未篡改的可恢复现场。不可重放阶段中断不能自动重置数据库。
@@ -21868,8 +22151,9 @@ def verify_native_style(template, source_frontend, generated_frontend, plan, rep
 - `prune_generated_import`（L211–L220）：接收`source`、`identifier`、`declaration`。 源码说明：Remove only an exact unused single import emitted by the pinned generator.。 控制顺序：L213按`declaration not in source`分支；L215按`source.count(declaration) != 1`分支；L216抛异常，停止当前正常路径；L218按`re.search(r"\b" + re.escape(identifier) + r"\b", remaining)`分支。 调用`source.count`、`ValueError`、`source.replace`、`re.search`、`re.escape`。 返回路径：L214的`source`；L219的`source`；L220的`remaining`。
 - `adapt_generated_schema`（L223–L268）：接收`source`、`fields`。 源码说明：Preserve declared value kinds in both generated edit and search forms.。 控制顺序：L228遍历`fields`；L232按`field.kind not in {"integer", "boolean"}`分支；L241按`not 1 <= len(list(pattern.finditer(source))) <= 2`分支；L242抛异常，停止当前正常路径。 调用`prune_generated_import`、`field.name.split`、`"".join`、`piece[:1].upper`、`re.compile`、`re.escape`、`len`、`list`、`pattern.finditer`等。 返回路径：L268的`source`。
 - `adapt_generated_schema.transform`（L244–L265）：接收`match`。 控制顺序：L246按`field.kind == "integer"`分支；L253按`"component: 'Select'," in block`分支；L257按`block.count("component: 'RadioGroup',") != 1`分支；L258抛异常，停止当前正常路径。 调用`match.group`、`checked_replacement`、`block.count`、`ValueError`。 返回路径：L250的`checked_replacement( block, "componentProps: {", "componentProps: {\n precision: 0,", 1, n…`；L259的`checked_replacement( block, "options: [],", "options: [{ label: '是', value: true }, { labe…`。
+- `configure_vben_backend_proxy`（L271–L280）：接收`root`。 源码说明：Preserve relative native APIs while routing preview to the leased backend.。 控制顺序：L277按`source.count(new) == 1 and old not in source`分支。 调用`Path`、`path.read_text`、`source.count`、`checked_replacement`、`atomic_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/native_vben.py sha256: 5c036a371c9d15178345e379b6af6d280714d3f5c04323c3ec4b663538e74924 -->
+<!-- source-file: workbench/native_vben.py sha256: e13e6ea877325bdbba0b2bba1d003e5a44a6a3fbbd26cecffb1f1693e30379a9 -->
 ````python
 """Reviewed compatibility for pinned Vben 1b14e889; no routes or type checks removed."""
 
@@ -22139,6 +22423,18 @@ def adapt_generated_schema(source: str, fields: Sequence[FieldSpec]) -> str:
 
         source = pattern.sub(transform, source)
     return source
+
+
+def configure_vben_backend_proxy(root):
+    """Preserve relative native APIs while routing preview to the leased backend."""
+    path = Path(root) / "apps/web-antd/vite.config.ts"
+    source = path.read_text(encoding="utf-8")
+    old = "target: 'http://localhost:48080/admin-api',"
+    new = "target: `${process.env.VITE_BASE_URL ?? 'http://localhost:48080'}/admin-api`,"
+    if source.count(new) == 1 and old not in source:
+        return
+    changed = checked_replacement(source, old, new, 1, "native backend preview proxy")
+    atomic_text(path, changed)
 ````
 
 ### `workbench/owned_lifecycle.py`
@@ -22210,17 +22506,17 @@ def stop_native(process, ports):
 
 **逐个入口与控制逻辑：**
 
-- `_diagnostic_redact`（L60–L72）：接收`text`、`url`。 源码说明：The child receives no model credentials; exclude its explicit DB secret too.。 控制顺序：L64遍历`sorted(secrets, key=len, reverse=True)`。 调用`checked_database`、`quote`、`quote_plus`、`sorted`、`text.replace`、`re.sub`。 返回路径：L72的`re.sub(r"(://[^/@:\s]+:)[^@\s]+@", r"\1[REDACTED]@", text)`。
-- `_diagnostic_lifecycle`（L75–L138）：接收`value`。 源码说明：Select scalar process facts, never arbitrary messages, paths or environment.。 控制顺序：L77按`not isinstance(value, dict)`分支；L80遍历`( "port", "pid", "startup_attempt", "runtime_log_start_bytes", "r…`；L88按`name in value and ( type(value[name]) is int or name.startswith("returncode") and val…`分支；L92遍历`("owned_process_group", "started", "port_released")`；L93按`type(value.get(name)) is bool`分支；L96按`value.get("phase") in phases`分支；L98遍历`("failure", "cleanup_failure")`；L100按`isinstance(row, dict)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`type`、`name.startswith`、`value.get`、`row.get`、`counts.items`、`re.fullmatch`。 返回路径：L78的`{}`；L138的`result`。
-- `capture_native_delivery_failure`（L141–L221）：接收`product`、`reports`、`url`、`error`。 源码说明：Preserve bounded selected evidence before the owned temporary copy is deleted. Never copy the runtime directory, services credentials, generated user rows, arbitrary files, symlinks or junctions. This。 控制顺序：L153按`error is not None`分支；L155遍历`("returncode", "timed_out")`；L157按`type(value) in {int, bool}`分支；L170按`len(raw) > 16384`分支；L178按`"cleanup_failure" in result["backend"] and "failure" not in result["backend"]`分支；L183遍历`DIAGNOSTIC_LOGS`；L184按`remaining <= 0`分支；L196按`start`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`getattr`、`selected_path`、`path.open`、`stream.read`、`len`、`_diagnostic_lifecycle`、`json.loads`、`result["backend"].get("failure", {}).get`等。 返回路径：L221的`result`。
-- `capture_native_delivery_failure.selected_path`（L160–L164）：接收`name`。 控制顺序：L162按`not stat.S_ISREG(path.stat().st_mode)`分支；L163抛异常，停止当前正常路径。 调用`inside`、`stat.S_ISREG`、`path.stat`、`ValueError`。 返回路径：L164的`path`。
-- `connection_url`（L224–L225）：接收`url`。 调用`checked_database(url).set(drivername="postgresql").render_as_stri…`、`checked_database(url).set`、`checked_database`。 返回路径：L225的`checked_database(url).set(drivername="postgresql").render_as_string(hide_password=False)`。
-- `menu_snapshot`（L228–L235）：接收`template`、`url`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`digest`、`json.loads`等。 返回路径：L235的`{row["id"]: digest(json.loads(json.dumps(row, default=str))) for row in rows}`。
-- `export_menu_sql`（L238–L277）：接收`template`、`url`、`before`、`target`。 控制顺序：L249按`not changed`分支；L250抛异常，停止当前正常路径；L254遍历`changed`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`before.get`、`digest`等。 返回路径：L277的`{"table": table, "row_ids": [row["id"] for row in changed], "sha256": sha(target)}`。
-- `build_native_delivery`（L280–L365）：接收`template`、`product`、`reports`、`plan`、`targets`、`url`。 控制顺序：L285遍历`("pyproject.toml", "uv.lock", ".python-version", "services.yaml",…`；L288按`plan.business`分支；L297遍历`HELPERS`；L303按`plan.business`分支；L304遍历`( ("business-extension-schema.sql", "004-business-extension.sql")…`；L309按`source_file.is_file()`分支；L312按`plan.business`分支；L313按`template == "fastapiadmin"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`deployment.mkdir`、`shutil.copyfile`、`helper_root.mkdir`、`sql_dir.mkdir`、`source_file.is_file`、`json.loads`、`(reports / "business-extension.json").read_text`、`(reports / "business-yudao.json").read_text`等。 返回路径：L360的`{ "sql_files": sql_files, "sql_digest": manifest["sql_digest"], "standalone_start": "uv ru…`。
-- `verify_native_delivery`（L368–L456）：接收`product`、`url`、`reports`、`redis_port`、`template`。 源码说明：Restore the distributable ZIP; run startup against a DIFFERENT empty DB.。 控制顺序：L378按`template not in {"fastapiadmin", "yudao-vben"}`分支；L379抛异常，停止当前正常路径；L392按`restored != packaged or manifest(copy) != listing`分支；L393抛异常，停止当前正常路径；L418按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L425抛异常，停止当前正常路径；L438按`hasattr(exc, "log")`分支；L452抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`uuid.uuid4`、`ValueError`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`等。 返回路径：L436的`result`。
+- `_diagnostic_redact`（L61–L73）：接收`text`、`url`。 源码说明：The child receives no model credentials; exclude its explicit DB secret too.。 控制顺序：L65遍历`sorted(secrets, key=len, reverse=True)`。 调用`checked_database`、`quote`、`quote_plus`、`sorted`、`text.replace`、`re.sub`。 返回路径：L73的`re.sub(r"(://[^/@:\s]+:)[^@\s]+@", r"\1[REDACTED]@", text)`。
+- `_diagnostic_lifecycle`（L76–L139）：接收`value`。 源码说明：Select scalar process facts, never arbitrary messages, paths or environment.。 控制顺序：L78按`not isinstance(value, dict)`分支；L81遍历`( "port", "pid", "startup_attempt", "runtime_log_start_bytes", "r…`；L89按`name in value and ( type(value[name]) is int or name.startswith("returncode") and val…`分支；L93遍历`("owned_process_group", "started", "port_released")`；L94按`type(value.get(name)) is bool`分支；L97按`value.get("phase") in phases`分支；L99遍历`("failure", "cleanup_failure")`；L101按`isinstance(row, dict)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`type`、`name.startswith`、`value.get`、`row.get`、`counts.items`、`re.fullmatch`。 返回路径：L79的`{}`；L139的`result`。
+- `capture_native_delivery_failure`（L142–L222）：接收`product`、`reports`、`url`、`error`。 源码说明：Preserve bounded selected evidence before the owned temporary copy is deleted. Never copy the runtime directory, services credentials, generated user rows, arbitrary files, symlinks or junctions. This。 控制顺序：L154按`error is not None`分支；L156遍历`("returncode", "timed_out")`；L158按`type(value) in {int, bool}`分支；L171按`len(raw) > 16384`分支；L179按`"cleanup_failure" in result["backend"] and "failure" not in result["backend"]`分支；L184遍历`DIAGNOSTIC_LOGS`；L185按`remaining <= 0`分支；L197按`start`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`getattr`、`selected_path`、`path.open`、`stream.read`、`len`、`_diagnostic_lifecycle`、`json.loads`、`result["backend"].get("failure", {}).get`等。 返回路径：L222的`result`。
+- `capture_native_delivery_failure.selected_path`（L161–L165）：接收`name`。 控制顺序：L163按`not stat.S_ISREG(path.stat().st_mode)`分支；L164抛异常，停止当前正常路径。 调用`inside`、`stat.S_ISREG`、`path.stat`、`ValueError`。 返回路径：L165的`path`。
+- `connection_url`（L225–L226）：接收`url`。 调用`checked_database(url).set(drivername="postgresql").render_as_stri…`、`checked_database(url).set`、`checked_database`。 返回路径：L226的`checked_database(url).set(drivername="postgresql").render_as_string(hide_password=False)`。
+- `menu_snapshot`（L229–L236）：接收`template`、`url`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`digest`、`json.loads`等。 返回路径：L236的`{row["id"]: digest(json.loads(json.dumps(row, default=str))) for row in rows}`。
+- `export_menu_sql`（L239–L278）：接收`template`、`url`、`before`、`target`。 控制顺序：L250按`not changed`分支；L251抛异常，停止当前正常路径；L255遍历`changed`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`before.get`、`digest`等。 返回路径：L278的`{"table": table, "row_ids": [row["id"] for row in changed], "sha256": sha(target)}`。
+- `build_native_delivery`（L281–L366）：接收`template`、`product`、`reports`、`plan`、`targets`、`url`。 控制顺序：L286遍历`("pyproject.toml", "uv.lock", ".python-version", "services.yaml",…`；L289按`plan.business`分支；L298遍历`HELPERS`；L304按`plan.business`分支；L305遍历`( ("business-extension-schema.sql", "004-business-extension.sql")…`；L310按`source_file.is_file()`分支；L313按`plan.business`分支；L314按`template == "fastapiadmin"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`deployment.mkdir`、`shutil.copyfile`、`helper_root.mkdir`、`sql_dir.mkdir`、`source_file.is_file`、`json.loads`、`(reports / "business-extension.json").read_text`、`(reports / "business-yudao.json").read_text`等。 返回路径：L361的`{ "sql_files": sql_files, "sql_digest": manifest["sql_digest"], "standalone_start": "uv ru…`。
+- `verify_native_delivery`（L369–L457）：接收`product`、`url`、`reports`、`redis_port`、`template`。 源码说明：Restore the distributable ZIP; run startup against a DIFFERENT empty DB.。 控制顺序：L379按`template not in {"fastapiadmin", "yudao-vben"}`分支；L380抛异常，停止当前正常路径；L393按`restored != packaged or manifest(copy) != listing`分支；L394抛异常，停止当前正常路径；L419按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L426抛异常，停止当前正常路径；L439按`hasattr(exc, "log")`分支；L453抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`uuid.uuid4`、`ValueError`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`等。 返回路径：L437的`result`。
 
-<!-- source-file: workbench/portable.py sha256: eb36016ba55ef8c2fcf5c2dcee6c3ce8cef9a94289cb5cf8142ed5b22b6fbbd4 -->
+<!-- source-file: workbench/portable.py sha256: 906a38adcc809b12ee7f275c56b6cd20bac09bfac1a8c51b50b691f4cadea8a9 -->
 ````python
 """Export a self-contained native launcher, immutable SQL and menu seed (no user data)."""
 
@@ -22257,6 +22553,7 @@ HELPERS = (
     "filesystem.py",
     "tools.py",
     "native_environment.py",
+    "native_ports.py",
     "yudao_navigation.py",
     "yudao_navigation_checks.py",
     "native_frontend.py",
@@ -22579,7 +22876,7 @@ def build_native_delivery(template, product, reports, plan, targets, url):
     write_json(deployment / "manifest.json", manifest)
     atomic_text(
         product / "START_HERE.md",
-        f"""# 独立启动已生成的原生产品\n\n模板：{template}。不需要原研发平台、模型 API Key 或原开发数据库。\n\n在 Linux/WSL 2 安装 Python 3.14、uv、Node22、对应 pnpm（FastapiAdmin9.15.3 / Vben11.16.0）、Docker Compose；芋道额外需要JDK17/Maven。然后在本目录执行：\n\n```bash\nuv run --no-project --python 3.14 python start.py\n```\n\n启动器在本产品的独立 Compose 项目创建 PostgreSQL17/Redis7.4、使用新随机数据库密码和本机空闲端口，安装锁定依赖，执行原生初始化、`deployment/database/002-business.sql` 和 `003-menus.sql`，验证新库中的菜单与CRUD，构建前端并启动。\n\n默认管理员只供本机开发：FastapiAdmin super/123456；芋道 admin/admin123。第一次启动后应修改默认管理员密码；再次启动不会覆盖密码或删除记录。公网部署前必须完成额外的安全配置。\n\n已有的专用空本机 PostgreSQL 服务可用 `NATIVE_DELIVERY_DATABASE_URL`（库名以 `_codegen` 结尾）和 `NATIVE_DELIVERY_REDIS_PORT` 指定，不需要 Docker。程序只接受空库或之前被这份不可变交付认领的库，拒绝覆盖其他数据。\n\n首次启动需要互联网下载Python/Java/Node依赖，源码和数据库语句已在包内，不会重新克隆模板。重复启动复用持久数据；Ctrl+C仅停止应用，Compose数据卷保留。\n\n`--check` 在新库初始化并验证后退出；`--skip-build` 仅用于已经成功安装/构建的同一产品，不能拿它代替首次安装。\n\n`.deployment/` 保存本产品生成的数据库凭据，不要提交Git、分享或打包。备份需要同时备份数据库持久卷；源码包含初始化语句但不包含任何用户业务记录。\n""",
+        f"""# 独立启动已生成的原生产品\n\n模板：{template}。不需要原研发平台、模型 API Key 或原开发数据库。\n\n在 Linux/WSL 2 安装 Python 3.14、uv、Node22、对应 pnpm（FastapiAdmin9.15.3 / Vben11.16.0）、Docker Compose；芋道额外需要JDK17/Maven。然后在本目录执行：\n\n```bash\nuv run --no-project --python 3.14 python start.py\n```\n\n启动器在本产品的独立 Compose 项目创建 PostgreSQL17/Redis7.4、使用新随机数据库密码和本机空闲端口，安装锁定依赖，执行原生初始化、`deployment/database/002-business.sql` 和 `003-menus.sql`，验证新库中的菜单与CRUD，构建前端并启动。\n\n默认管理员只供本机开发：FastapiAdmin super/123456；芋道 admin/admin123。第一次启动后应修改默认管理员密码；再次启动不会覆盖密码或删除记录。公网部署前必须完成额外的安全配置。\n\n已有的专用空本机 PostgreSQL 服务可用 `NATIVE_DELIVERY_DATABASE_URL`（库名以 `_codegen` 结尾）和 `NATIVE_DELIVERY_REDIS_PORT` 指定，不需要 Docker。程序只接受空库或之前被这份不可变交付认领的库，拒绝覆盖其他数据。\n\n首次启动需要互联网下载Python/Java/Node依赖，源码和数据库语句已在包内，不会重新克隆模板。重复启动复用持久数据；Ctrl+C仅停止应用，Compose数据卷保留。后端自动分配动态客户端源端口范围外的空闲端口，记录在 `.deployment/backend-port.json` 并跨重启复用。`NATIVE_DELIVERY_PORT` 可指定精确端口，冲突时明确失败，不自动换端口或终止其他进程。\n\n`--check` 在新库初始化并验证后退出；`--skip-build` 仅用于已经成功安装/构建的同一产品，不能拿它代替首次安装。更改端口或复制目录后先正常重建；跳过构建会核对端口回执及前端实际构建地址。\n\n`.deployment/` 保存本产品生成的数据库凭据，不要提交Git、分享或打包。备份需要同时备份数据库持久卷；源码包含初始化语句但不包含任何用户业务记录。\n""",
     )
     return {
         "sql_files": sql_files,
@@ -64675,21 +64972,21 @@ package = false
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `workbench.domain`、`workbench.filesystem`、`workbench.native_environment`、`workbench.native_frontend`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.domain`、`workbench.filesystem`、`workbench.native_environment`、`workbench.native_frontend`、`workbench.native_ports`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `free_port`（L37–L40）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`socket.socket`、`sock.bind`、`sock.getsockname`。 返回路径：L40的`sock.getsockname()[1]`。
-- `services`（L43–L86）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Use explicit external local services, or start only this delivery's Compose project.。 控制顺序：L46按`explicit`分支；L51按`not path.exists()`分支。 调用`os.getenv`、`int`、`state.mkdir`、`path.exists`、`secrets.token_urlsafe`、`free_port`、`secrets.token_hex`、`path.open`、`json.dump`等。 返回路径：L47的`explicit, int(os.getenv("NATIVE_DELIVERY_REDIS_PORT", "6379"))`；L83的`( f"postgresql+psycopg://native:{value['password']}@127.0.0.1:{value['pg_port']}/product_c…`。
-- `db_url`（L89–L90）：接收`url`。 调用`checked_database(url).set(drivername="postgresql").render_as_stri…`、`checked_database(url).set`、`checked_database`。 返回路径：L90的`checked_database(url).set(drivername="postgresql").render_as_string(hide_password=False)`。
-- `ownership`（L93–L113）：接收`url`、`manifest`。 源码说明：Refuse anything except an empty DB or a DB already claimed by this exact product.。 控制顺序：L101按`current in {marker + ":claimed", marker + ":ready"}`分支；L106按`count or current`分支；L107抛异常，停止当前正常路径。 调用`checked_database`、`psycopg.connect`、`db_url`、`c.execute( "SELECT shobj_description(oid, 'pg_database') FROM pg_…`、`c.execute`、`current.endswith`、`c.execute( "SELECT count(*) FROM pg_class c JOIN pg_namespace n O…`、`ValueError`、`sql.SQL("COMMENT ON DATABASE {} IS {}").format`等。 返回路径：L102的`marker, current.endswith(":ready")`；L113的`marker, False`。
-- `seed_yudao`（L116–L121）：接收`url`、`backend`。 控制顺序：L119按`present`分支。 调用`psycopg.connect`、`db_url`、`c.execute("SELECT to_regclass('public.system_users')").fetchone`、`c.execute`、`(backend / "sql/postgresql/ruoyi-vue-pro.sql").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `apply_delivery_sql`（L124–L152）：接收`url`、`manifest`、`marker`。 源码说明：Schema and menu SQL is trusted generated metadata, never raw model SQL.。 控制顺序：L126按`manifest.get("business_schema")`分支；L133遍历`existing`；L135按`actual != set(manifest["tables"][name])`分支；L136抛异常，停止当前正常路径；L143按`not existing`分支；L145按`existing != set(manifest["tables"])`分支；L146抛异常，停止当前正常路径。 调用`manifest.get`、`apply_business_delivery_sql`、`create_engine`、`engine.connect`、`inspect`、`inspector.has_table`、`inspector.get_columns`、`set`、`ValueError`等。 返回路径：L127的`apply_business_delivery_sql(url, manifest, marker)`。
-- `apply_business_delivery_sql`（L155–L199）：接收`url`、`manifest`、`marker`。 控制顺序：L164按`existing and existing != set(manifest["tables"])`分支；L165抛异常，停止当前正常路径；L167按`installed`分支；L169按`existing`分支；L170遍历`existing`；L176按`table_signature(connection, name) != expected`分支；L177抛异常，停止当前正常路径；L179按`not existing`分支。后续分支沿下方源码相同行号继续阅读。 调用`create_engine`、`engine.connect`、`inspect`、`inspector.has_table`、`set`、`ValueError`、`bool`、`verify_tables`、`dict`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify_manifest`（L202–L207）：接收`data`。 控制顺序：L203遍历`data["sql_files"].items()`；L204按`sha(HERE / name) != expected`分支；L205抛异常，停止当前正常路径；L206按`digest(data["sql_files"]) != data["sql_digest"]`分支；L207抛异常，停止当前正常路径。 调用`data["sql_files"].items`、`sha`、`ValueError`、`digest`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L210–L328）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L228按`not ready and template == "yudao-vben"`分支；L243按`not args.skip_build`分支；L245按`not ready and template == "yudao-vben"`分支；L248按`not ready and template == "fastapiadmin"`分支；L250按`args.check or (not ready and not manifest["plan"].get("business"))`分支；L257按`manifest["plan"].get("business")`分支；L271按`not args.skip_build`分支；L276按`args.check`分支。后续分支沿下方源码相同行号继续阅读。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`json.loads`、`(HERE / "manifest.json").read_text`、`verify_manifest`、`services`、`ownership`、`seed_yudao`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `free_port`（L43–L46）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`socket.socket`、`sock.bind`、`sock.getsockname`。 返回路径：L46的`sock.getsockname()[1]`。
+- `services`（L49–L92）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Use explicit external local services, or start only this delivery's Compose project.。 控制顺序：L52按`explicit`分支；L57按`not path.exists()`分支。 调用`os.getenv`、`int`、`state.mkdir`、`path.exists`、`secrets.token_urlsafe`、`free_port`、`secrets.token_hex`、`path.open`、`json.dump`等。 返回路径：L53的`explicit, int(os.getenv("NATIVE_DELIVERY_REDIS_PORT", "6379"))`；L89的`( f"postgresql+psycopg://native:{value['password']}@127.0.0.1:{value['pg_port']}/product_c…`。
+- `db_url`（L95–L96）：接收`url`。 调用`checked_database(url).set(drivername="postgresql").render_as_stri…`、`checked_database(url).set`、`checked_database`。 返回路径：L96的`checked_database(url).set(drivername="postgresql").render_as_string(hide_password=False)`。
+- `ownership`（L99–L119）：接收`url`、`manifest`。 源码说明：Refuse anything except an empty DB or a DB already claimed by this exact product.。 控制顺序：L107按`current in {marker + ":claimed", marker + ":ready"}`分支；L112按`count or current`分支；L113抛异常，停止当前正常路径。 调用`checked_database`、`psycopg.connect`、`db_url`、`c.execute( "SELECT shobj_description(oid, 'pg_database') FROM pg_…`、`c.execute`、`current.endswith`、`c.execute( "SELECT count(*) FROM pg_class c JOIN pg_namespace n O…`、`ValueError`、`sql.SQL("COMMENT ON DATABASE {} IS {}").format`等。 返回路径：L108的`marker, current.endswith(":ready")`；L119的`marker, False`。
+- `seed_yudao`（L122–L127）：接收`url`、`backend`。 控制顺序：L125按`present`分支。 调用`psycopg.connect`、`db_url`、`c.execute("SELECT to_regclass('public.system_users')").fetchone`、`c.execute`、`(backend / "sql/postgresql/ruoyi-vue-pro.sql").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `apply_delivery_sql`（L130–L158）：接收`url`、`manifest`、`marker`。 源码说明：Schema and menu SQL is trusted generated metadata, never raw model SQL.。 控制顺序：L132按`manifest.get("business_schema")`分支；L139遍历`existing`；L141按`actual != set(manifest["tables"][name])`分支；L142抛异常，停止当前正常路径；L149按`not existing`分支；L151按`existing != set(manifest["tables"])`分支；L152抛异常，停止当前正常路径。 调用`manifest.get`、`apply_business_delivery_sql`、`create_engine`、`engine.connect`、`inspect`、`inspector.has_table`、`inspector.get_columns`、`set`、`ValueError`等。 返回路径：L133的`apply_business_delivery_sql(url, manifest, marker)`。
+- `apply_business_delivery_sql`（L161–L205）：接收`url`、`manifest`、`marker`。 控制顺序：L170按`existing and existing != set(manifest["tables"])`分支；L171抛异常，停止当前正常路径；L173按`installed`分支；L175按`existing`分支；L176遍历`existing`；L182按`table_signature(connection, name) != expected`分支；L183抛异常，停止当前正常路径；L185按`not existing`分支。后续分支沿下方源码相同行号继续阅读。 调用`create_engine`、`engine.connect`、`inspect`、`inspector.has_table`、`set`、`ValueError`、`bool`、`verify_tables`、`dict`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_manifest`（L208–L213）：接收`data`。 控制顺序：L209遍历`data["sql_files"].items()`；L210按`sha(HERE / name) != expected`分支；L211抛异常，停止当前正常路径；L212按`digest(data["sql_files"]) != data["sql_digest"]`分支；L213抛异常，停止当前正常路径。 调用`data["sql_files"].items`、`sha`、`ValueError`、`digest`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L216–L353）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L233按`args.skip_build and os.getenv("NATIVE_DELIVERY_PORT")`分支；L238按`args.skip_build and not os.getenv("NATIVE_DELIVERY_PORT")`分支；L240按`saved_backend_port(port_receipt) is None`分支；L241抛异常，停止当前正常路径；L245按`args.skip_build`分支；L249按`not ready and template == "yudao-vben"`分支；L262按`not args.skip_build`分支；L264按`not ready and template == "yudao-vben"`分支。后续分支沿下方源码相同行号继续阅读。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`json.loads`、`(HERE / "manifest.json").read_text`、`verify_manifest`、`os.getenv`、`require_frontend_backend`、`saved_backend_port`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: templates/deployment/run.py sha256: ef71c69e0a0311363b0cf7fc9592f7b546439e26c96463d17a5abb873a1035b7 -->
+<!-- source-file: templates/deployment/run.py sha256: 6c6ceef859b517f7a57f1e420df4e140dac6d2197fec7502eacfb7ea95975af3 -->
 ````python
 """Initialize the delivered product into a NEW owned database, restore menus, then start.
 
@@ -64720,7 +65017,13 @@ from workbench.native_environment import (
     native_environment,
     running_backend,
 )
-from workbench.native_frontend import build_frontend, frontend_environment, frontend_preview
+from workbench.native_frontend import (
+    build_frontend,
+    frontend_environment,
+    frontend_preview,
+    require_frontend_backend,
+)
+from workbench.native_ports import backend_port_lease, saved_backend_port
 from workbench.tools import run_command
 
 HERE = Path(__file__).resolve().parent
@@ -64916,109 +65219,128 @@ def main():
     template = manifest["template"]
     backend = PRODUCT / "backend"
     frontend = PRODUCT / ("frontend/web" if template == "fastapiadmin" else "frontend-product")
-    url, redis_port = services()
-    marker, ready = ownership(url, manifest)
-    if not ready and template == "yudao-vben":
-        seed_yudao(url, backend)
-    port = int(os.getenv("NATIVE_DELIVERY_PORT", "8001" if template == "fastapiadmin" else "48080"))
-    env = native_environment(
-        template,
-        backend,
-        url,
-        port,
-        redis_port=redis_port,
-        redis_database=int(os.environ["NATIVE_DELIVERY_REDIS_DB"])
-        if os.getenv("NATIVE_DELIVERY_REDIS_DB")
-        else None,
-    )
     reports = PRODUCT / ".deployment/reports"
-    # Compile the new properties into the Java jar, or install the original Python lock.
-    if not args.skip_build:
-        install_backend(template, backend, reports)
-    if not ready and template == "yudao-vben":
-        apply_delivery_sql(url, manifest, marker)
-    with running_backend(template, backend, env, reports) as (base, _):
-        if not ready and template == "fastapiadmin":
+    if args.skip_build and os.getenv("NATIVE_DELIVERY_PORT"):
+        # Reject a stale bundle before replacing a valid saved port receipt.
+        require_frontend_backend(
+            template, frontend, "http://127.0.0.1:" + os.environ["NATIVE_DELIVERY_PORT"]
+        )
+    if args.skip_build and not os.getenv("NATIVE_DELIVERY_PORT"):
+        port_receipt = PRODUCT / ".deployment/backend-port.json"
+        if saved_backend_port(port_receipt) is None:
+            raise ValueError("No backend port for this copy; rebuild without --skip-build")
+    with backend_port_lease(
+        PRODUCT / ".deployment/backend-port.json", os.getenv("NATIVE_DELIVERY_PORT")
+    ) as port:
+        if args.skip_build:
+            require_frontend_backend(template, frontend, f"http://127.0.0.1:{port}")
+        url, redis_port = services()
+        marker, ready = ownership(url, manifest)
+        if not ready and template == "yudao-vben":
+            seed_yudao(url, backend)
+        env = native_environment(
+            template,
+            backend,
+            url,
+            port,
+            redis_port=redis_port,
+            redis_database=int(os.environ["NATIVE_DELIVERY_REDIS_DB"])
+            if os.getenv("NATIVE_DELIVERY_REDIS_DB")
+            else None,
+        )
+        # Compile the new properties into the Java jar, or install the original Python lock.
+        if not args.skip_build:
+            install_backend(template, backend, reports)
+        if not ready and template == "yudao-vben":
             apply_delivery_sql(url, manifest, marker)
-        if args.check or (not ready and not manifest["plan"].get("business")):
-            token = login(template, base)
-            from workbench.portable_checks import check_restored_product
+        with running_backend(template, backend, env, reports) as (base, _):
+            if not ready and template == "fastapiadmin":
+                apply_delivery_sql(url, manifest, marker)
+            if args.check or (not ready and not manifest["plan"].get("business")):
+                token = login(template, base)
+                from workbench.portable_checks import check_restored_product
 
-            outcome = check_restored_product(
-                template, base, token, manifest["targets"], manifest["plan"]
-            )
-            if manifest["plan"].get("business"):
-                from workbench.portable_checks import snapshot_business_records
-
-                before_restart = snapshot_business_records(
-                    template, base, token, manifest["targets"], outcome["business"]
+                outcome = check_restored_product(
+                    template, base, token, manifest["targets"], manifest["plan"]
                 )
-        else:
-            # A regular restart must not require the seed admin's old password.
-            outcome = {"database_initialized": True, "verification_rerun": False}
-        write_json(reports / "portable-start.json", outcome)
-        print("数据库、业务表、菜单和新业务CRUD已就绪。", flush=True)
-    # --check must reach frontend startup; do not report backend-only success.
-    # Full frontend is built while Java is stopped, using already patched source.
-    front_env = frontend_environment(template, f"http://127.0.0.1:{port}")
-    if not args.skip_build:
-        build_frontend(template, frontend, front_env, reports, prepared=True)
-    with ExitStack() as stack:
-        base, _ = stack.enter_context(running_backend(template, backend, env, reports))
-        frontend_url = stack.enter_context(frontend_preview(template, frontend, front_env, reports))
-        if args.check:
-            # The first running_backend context has stopped its process. Verify
-            # persisted rows through a newly authenticated, independently started
-            # delivered backend before any second-process browser mutation.
-            token = login(template, base)
-            if manifest["plan"].get("business"):
-                from workbench.portable_checks import (
-                    require_preserved_business_records,
-                    snapshot_business_records,
-                )
+                if manifest["plan"].get("business"):
+                    from workbench.portable_checks import snapshot_business_records
 
-                after_restart = snapshot_business_records(
-                    template, base, token, manifest["targets"], outcome["business"]
-                )
-                require_preserved_business_records(before_restart, after_restart)
-                outcome["restart_preserved_records"] = True
-                outcome["restart_records"] = after_restart
-                if template == "yudao-vben":
-                    from workbench.domain import Plan
-                    from workbench.yudao_navigation_checks import check_navigation_restart
-
-                    outcome["business"]["installed_navigation_restart"] = check_navigation_restart(
-                        template,
-                        base,
-                        token,
-                        manifest["targets"],
-                        outcome["business"],
-                        Plan.model_validate(manifest["plan"]),
+                    before_restart = snapshot_business_records(
+                        template, base, token, manifest["targets"], outcome["business"]
                     )
-            outcome["restart"] = True
-        if args.check and manifest["plan"].get("business"):
-            from workbench.business_browser import run_business_browser
-            from workbench.domain import Plan
-
-            module = os.getenv("PRODUCT_VERIFY_PLAYWRIGHT")
-            if not module:
-                raise ValueError("Business --check requires pinned local Playwright/Chromium")
-            outcome["browser"] = run_business_browser(
-                template,
-                HERE / "business-browser.cjs",
-                frontend_url,
-                reports,
-                outcome["business"],
-                Plan.model_validate(manifest["plan"]),
-                module,
+            else:
+                # A regular restart must not require the seed admin's old password.
+                outcome = {"database_initialized": True, "verification_rerun": False}
+            write_json(reports / "portable-start.json", outcome)
+            print("数据库、业务表、菜单和新业务CRUD已就绪。", flush=True)
+        # --check must reach frontend startup; do not report backend-only success.
+        # Full frontend is built while Java is stopped, using already patched source.
+        front_env = frontend_environment(template, f"http://127.0.0.1:{port}")
+        if not args.skip_build:
+            build_frontend(template, frontend, front_env, reports, prepared=True)
+        with ExitStack() as stack:
+            base, _ = stack.enter_context(running_backend(template, backend, env, reports))
+            frontend_url = stack.enter_context(
+                frontend_preview(template, frontend, front_env, reports)
             )
-        outcome["frontend_started"] = True
-        write_json(reports / "portable-start.json", outcome)
-        print(f"后端 {base}；前端 {frontend_url}；Ctrl+C停止，数据不会删除。", flush=True)
-        if args.check:
-            return
-        while True:
-            time.sleep(1)
+            if args.check:
+                # The first running_backend context has stopped its process. Verify
+                # persisted rows through a newly authenticated, independently started
+                # delivered backend before any second-process browser mutation.
+                token = login(template, base)
+                if manifest["plan"].get("business"):
+                    from workbench.portable_checks import (
+                        require_preserved_business_records,
+                        snapshot_business_records,
+                    )
+
+                    after_restart = snapshot_business_records(
+                        template, base, token, manifest["targets"], outcome["business"]
+                    )
+                    require_preserved_business_records(before_restart, after_restart)
+                    outcome["restart_preserved_records"] = True
+                    outcome["restart_records"] = after_restart
+                    if template == "yudao-vben":
+                        from workbench.domain import Plan
+                        from workbench.yudao_navigation_checks import check_navigation_restart
+
+                        outcome["business"]["installed_navigation_restart"] = (
+                            check_navigation_restart(
+                                template,
+                                base,
+                                token,
+                                manifest["targets"],
+                                outcome["business"],
+                                Plan.model_validate(manifest["plan"]),
+                            )
+                        )
+                outcome["restart"] = True
+            if args.check and manifest["plan"].get("business"):
+                from workbench.business_browser import run_business_browser
+                from workbench.domain import Plan
+
+                module = os.getenv("PRODUCT_VERIFY_PLAYWRIGHT")
+                if not module:
+                    raise ValueError("Business --check requires pinned local Playwright/Chromium")
+                outcome["browser"] = run_business_browser(
+                    template,
+                    HERE / "business-browser.cjs",
+                    frontend_url,
+                    reports,
+                    outcome["business"],
+                    Plan.model_validate(manifest["plan"]),
+                    module,
+                )
+            outcome["backend_port"] = port
+            outcome["backend_url"] = base
+            outcome["frontend_started"] = True
+            write_json(reports / "portable-start.json", outcome)
+            print(f"后端 {base}；前端 {frontend_url}；Ctrl+C停止，数据不会删除。", flush=True)
+            if args.check:
+                return
+            while True:
+                time.sleep(1)
 
 
 if __name__ == "__main__":
@@ -117743,11 +118065,11 @@ def test_existing_non_directory_is_not_removed(tmp_path, plan):
 
 - `test_news_design_covers_date_enum_and_selected_postgres`（L17–L23）：接收`tmp_path`。 控制顺序：L20断言`result["tasks"]`；L21断言`"date published_on" in (tmp_path / "design-er.mmd").read_text()`；L22断言`"string category" in (tmp_path / "design-er.mmd").read_text()`；L23断言`"Product PostgreSQL" in (tmp_path / "architecture.mmd").read_text()`。 调用`Plan.model_validate`、`news_spec`、`design_pack`、`(tmp_path / "design-er.mmd").read_text`、`(tmp_path / "architecture.mmd").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_http_control_words_cannot_turn_into_questions`（L27–L29）：接收`value`。 调用`pytest.raises`、`ResumeInput`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_standalone_check_waits_for_frontend_after_backend_success`（L32–L83）：接收`tmp_path`、`monkeypatch`。 控制顺序：L82断言`"frontend-build" in stages and "frontend-start" in stages`；L83断言`writes[-1]["passed"] is True and writes[-1]["frontend_started"] is True`。 调用`(tmp_path / "manifest.json").write_text`、`json.dumps`、`SimpleNamespace`、`stages.append`、`writes.append`、`dict`、`__import__`、`monkeypatch.setattr`、`ast.parse`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_standalone_check_waits_for_frontend_after_backend_success.backend`（L43–L46）：接收`*args`。 调用`stages.append`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_standalone_check_waits_for_frontend_after_backend_success`（L32–L86）：接收`tmp_path`、`monkeypatch`。 控制顺序：L85断言`"frontend-build" in stages and "frontend-start" in stages`；L86断言`writes[-1]["passed"] is True and writes[-1]["frontend_started"] is True`。 调用`(tmp_path / "manifest.json").write_text`、`json.dumps`、`SimpleNamespace`、`stages.append`、`writes.append`、`dict`、`__import__`、`monkeypatch.setattr`、`ast.parse`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_standalone_check_waits_for_frontend_after_backend_success.backend`（L43–L46）：接收`template`、`path`、`env`、`reports`。 调用`stages.append`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `test_standalone_check_waits_for_frontend_after_backend_success.frontend`（L49–L51）：接收`*args`。 调用`stages.append`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
-<!-- source-file: tests/test_guided_completion.py sha256: de3f2b12198e9c2674795d1fe87c1036235041d1d4b482bef7f13c9b52056e01 -->
+<!-- source-file: tests/test_guided_completion.py sha256: 5b63c2937e5a9185a3e90bb48c2587efbe7306b3372a01cf8df761de5ae385e2 -->
 ````python
 """Regression for real news fields and the entire delivered --check lifecycle."""
 
@@ -117791,9 +118113,9 @@ def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, mon
     )
 
     @contextmanager
-    def backend(*args):
+    def backend(template, path, env, reports):
         stages.append("backend-start")
-        yield "http://127.0.0.1:8001", "/openapi.json"
+        yield f"http://127.0.0.1:{env['SERVER_PORT']}", "/openapi.json"
         stages.append("backend-stop")
 
     @contextmanager
@@ -117802,7 +118124,10 @@ def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, mon
         yield "http://127.0.0.1:5173"
 
     writes = []
+    from workbench.native_ports import backend_port_lease
+
     namespace = {
+        "backend_port_lease": backend_port_lease,
         "argparse": argparse,
         "json": json,
         "os": SimpleNamespace(getenv=lambda name, default=None: default, environ={}),
@@ -117811,7 +118136,7 @@ def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, mon
         "verify_manifest": lambda *a: None,
         "services": lambda: ("unused", 6379),
         "ownership": lambda *a: ("marker", False),
-        "native_environment": lambda *a, **k: {},
+        "native_environment": lambda template, backend, url, port, **k: {"SERVER_PORT": port},
         "install_backend": lambda *a: stages.append("install"),
         "apply_delivery_sql": lambda *a: stages.append("sql"),
         "running_backend": backend,
@@ -126808,12 +127133,12 @@ def test_decoration_controls_and_query_capture_match_pinned_native_source():
 
 - `test_database_identity_does_not_retain_credentials`（L17–L24）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L20断言`"oldpassword" not in identity`。 调用`database_identity`、`check_database_identity`、`original.replace`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_catalog_config_does_not_claim_acceptance`（L27–L33）：接收`tmp_path`。 控制顺序：L31断言`entry["level"] == "managed-runtime"`；L32断言`entry["configured"] is True`；L33断言`entry["runtime_verified"] is False`。 调用`Settings`、`write_runtime_example`、`next`、`catalog`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_vben_public_build_config_excludes_credentials`（L36–L59）：接收`tmp_path`、`monkeypatch`。 控制顺序：L55断言`data["VITE_GLOB_API_URL"] == "/admin-api"`；L56断言`data["VITE_NITRO_MOCK"] == "false"`；L57断言`"API_KEY" not in data`；L58断言`"never-serialize-this" not in (app / ".env.production.example").read_text()`；L59断言`len(commands) == 3`。 调用`app.mkdir`、`(root / "pnpm-lock.yaml").write_text`、`(app / "dist").mkdir`、`(app / "dist/index.html").write_text`、`monkeypatch.setattr`、`native_frontend.frontend_environment`、`native_frontend.build_frontend`、`dotenv_values`、`(app / ".env.production.example").read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_vben_public_build_config_excludes_credentials.tool`（L45–L47）：接收`command`、`cwd`、`timeout`、`env`、`**kwargs`。 调用`commands.append`。 返回路径：L47的`{"log": "fixture only", "returncode": 0}`。
-- `test_full_vben_build_has_bounded_rust_parallelism`（L62–L65）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L64断言`env["RAYON_NUM_THREADS"] == "2"`；L65断言`"8192" in env["NODE_OPTIONS"]`。 调用`native_frontend.frontend_environment`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_generated_native_product_uses_approved_project_title`（L69–L73）：接收`template`。 控制顺序：L72断言`env["VITE_APP_TITLE"] == title`；L73断言`env["VITE_APP_TITLE"] != "Native lab"`。 调用`native_frontend.frontend_environment`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_vben_public_build_config_excludes_credentials`（L36–L65）：接收`tmp_path`、`monkeypatch`。 控制顺序：L61断言`data["VITE_GLOB_API_URL"] == "/admin-api"`；L62断言`data["VITE_NITRO_MOCK"] == "false"`；L63断言`"API_KEY" not in data`；L64断言`"never-serialize-this" not in (app / ".env.production.example").read_text()`；L65断言`len(commands) == 3`。 调用`app.mkdir`、`(root / "pnpm-lock.yaml").write_text`、`(app / "dist").mkdir`、`(app / "dist/index.html").write_text`、`zipfile.ZipFile`、`(app / "vite.config.ts").write_bytes`、`archive.read`、`monkeypatch.setattr`、`native_frontend.frontend_environment`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_vben_public_build_config_excludes_credentials.tool`（L51–L53）：接收`command`、`cwd`、`timeout`、`env`、`**kwargs`。 调用`commands.append`。 返回路径：L53的`{"log": "fixture only", "returncode": 0}`。
+- `test_full_vben_build_has_bounded_rust_parallelism`（L68–L71）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L70断言`env["RAYON_NUM_THREADS"] == "2"`；L71断言`"8192" in env["NODE_OPTIONS"]`。 调用`native_frontend.frontend_environment`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_generated_native_product_uses_approved_project_title`（L75–L79）：接收`template`。 控制顺序：L78断言`env["VITE_APP_TITLE"] == title`；L79断言`env["VITE_APP_TITLE"] != "Native lab"`。 调用`native_frontend.frontend_environment`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_native_frontend_lifecycle.py sha256: 3aed450870f9bff476ee858d5ac71394c9ed6fc5985767c9bd944decf9b7c272 -->
+<!-- source-file: tests/test_native_frontend_lifecycle.py sha256: 6bb5323ceece81d287deb94be4b66b88e2127cadfbf8102bf64e37eea00fff0f -->
 ````python
 """Local regressions are contracts, not native browser acceptance evidence."""
 
@@ -126857,6 +127182,12 @@ def test_vben_public_build_config_excludes_credentials(tmp_path, monkeypatch):
     (root / "pnpm-lock.yaml").write_text("lockfileVersion: '9.0'\n")
     (app / "dist").mkdir()
     (app / "dist/index.html").write_text("<html></html>")
+    import zipfile
+
+    from workbench.settings import ROOT
+
+    with zipfile.ZipFile(ROOT / "templates/vendor/yudao-frontend.zip") as archive:
+        (app / "vite.config.ts").write_bytes(archive.read("apps/web-antd/vite.config.ts"))
     commands = []
 
     def tool(command, cwd, timeout, env, **kwargs):
@@ -128202,6 +128533,418 @@ def test_legacy_failed_native_design_resumes_same_persisted_run(tmp_path):
         """,
         tmp_path / "state",
     )
+````
+
+### `tests/test_native_ports.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_established_source_socket_blocks_later_server_bind`（L13–L23）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`closing`、`socket.socket`、`upstream.bind`、`upstream.listen`、`client.connect`、`upstream.getsockname`、`upstream.accept`、`pytest.raises`、`backend.bind`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_lease_excludes_dynamic_range_and_survives_restart`（L26–L38）：接收`tmp_path`、`monkeypatch`。 控制顺序：L30断言`1024 <= selected < 12000`；L31断言`json.loads(state.read_text())["port"] == selected`；L33断言`selected != other`；L38断言`restarted == selected`。 调用`monkeypatch.setattr`、`ports.backend_port_lease`、`json.loads`、`state.read_text`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_receipt_from_another_copy_is_reallocated`（L41–L48）：接收`tmp_path`、`monkeypatch`。 控制顺序：L47断言`other != selected`；L48断言`json.loads(second.read_text())["owner"] == str(second.resolve())`。 调用`monkeypatch.setattr`、`ports.backend_port_lease`、`second.write_bytes`、`first.read_bytes`、`json.loads`、`second.read_text`、`str`、`second.resolve`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_port_conflict_is_fail_closed`（L51–L58）：接收`tmp_path`。 控制顺序：L58断言`listener.fileno() >= 0`。 调用`closing`、`socket.socket`、`listener.bind`、`listener.listen`、`pytest.raises`、`ports.backend_port_lease`、`listener.getsockname`、`listener.fileno`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_explicit_ephemeral_port_is_preserved_and_released`（L61–L69）：接收`tmp_path`。 控制顺序：L67断言`port == selected`；L69断言`port == selected`。 调用`closing`、`socket.socket`、`listener.bind`、`listener.getsockname`、`ports.backend_port_lease`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_changed_dynamic_range_fails_closed_for_saved_port`（L72–L80）：接收`tmp_path`、`monkeypatch`。 调用`monkeypatch.setattr`、`ports.backend_port_lease`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_server_time_wait_does_not_prevent_reacquiring_saved_port`（L84–L99）：接收`tmp_path`。 控制顺序：L96断言`client.recv(1) == b""`；L97断言`loopback_port_bindable(selected)`；L99断言`restarted == selected`。 调用`ports.backend_port_lease`、`closing`、`socket.socket`、`server.setsockopt`、`server.bind`、`server.listen`、`client.connect`、`server.getsockname`、`server.accept`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_platform_dynamic_range_discovery`（L103–L111）：接收`system`、`monkeypatch`。 控制顺序：L111断言`ports.dynamic_tcp_range() == (49152, 65535)`。 调用`monkeypatch.setattr`、`iter`、`"起始端口 : 49152\n端口数 : 16384\n".encode`、`next`、`ports.dynamic_tcp_range`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unknown_or_malformed_dynamic_range_is_not_guessed`（L114–L121）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`ports.dynamic_tcp_range`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_port_receipt_symlink_rejected`（L124–L132）：接收`tmp_path`。 控制顺序：L132断言`target.read_text() == "{}"`。 调用`target.write_text`、`link.symlink_to`、`pytest.raises`、`ports.backend_port_lease`、`target.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_frontend_skip_build_rejects_changed_target`（L135–L145）：接收`tmp_path`。 调用`dist.mkdir`、`pytest.raises`、`require_frontend_backend`、`(dist / "native-backend.json").write_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_portable_export_includes_allocator_and_no_runtime_receipt`（L148–L153）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L152断言`"native_ports.py" in HELPERS`；L153断言`".deployment" in EXCLUDED_DIRS`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy`（L157–L265）：接收`tmp_path`、`monkeypatch`、`template`。 控制顺序：L240断言`backend_ports == [selected, selected]`；L241断言`frontend_urls == [f"http://127.0.0.1:{selected}"]`；L243断言`outcome["backend_port"] == selected and outcome["backend_url"] == frontend_urls[0]`；L246断言`backend_ports == [selected] * 4 and len(service_calls) == 2`；L254断言`len(service_calls) == 2`；L255断言`ports.saved_backend_port(product / ".deployment/backend-port.json") == selected`；L265断言`len(service_calls) == 2`。 调用`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`deployment.mkdir`、`write_json`、`monkeypatch.setattr`、`launcher.main`、`ports.saved_backend_port`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy.services`（L181–L183）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`service_calls.append`。 返回路径：L183的`"postgresql+psycopg://native:unused@127.0.0.1:5432/test_codegen", 6379`。
+- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy.backend`（L197–L220）：接收`template`、`root`、`env`、`reports`。 控制顺序：L198按`template == "fastapiadmin"`分支；L211断言`f"spring.cloud.openfeign.client.config.yudao-system.url=http://127.0.0.1:{port}" in p…`；L215断言`f"spring.cloud.openfeign.client.config.yudao-infra.url=http://127.0.0.1:{port}" in pr…`。 调用`int`、`( root / "yudao-server/src/main/resources/application-native.prop…`、`next`、`row.split`、`properties.splitlines`、`row.startswith`、`backend_ports.append`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy.build`（L225–L228）：接收`template`、`root`、`env`、`reports`、`**kwargs`。 调用`frontend_urls.append`、`write_json`、`frontend_app`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy.frontend`（L233–L234）：接收`*args`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_pinned_vben_relative_api_proxy_uses_selected_backend`（L268–L308）：接收`tmp_path`。 控制顺序：L280断言`"VITE_GLOB_API_URL" in hooks`；L286断言`config.read_text() == adapted`；L305断言`json.loads(result.stdout) == { "target": "http://127.0.0.1:18081/admin-api", "path": …`。 调用`app.mkdir`、`zipfile.ZipFile`、`archive.read("apps/web-antd/vite.config.ts").decode`、`archive.read`、`archive.read("packages/effects/hooks/src/use-app-config.ts").deco…`、`config.write_text`、`configure_vben_backend_proxy`、`config.read_text`、`adapted.replace( "import { defineConfig } from '@vben/vite-config…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_independent_process_cannot_take_a_live_copy_port_lease`（L311–L336）：接收`tmp_path`。 控制顺序：L336断言`result.stdout.strip() == "independent-copy lease PASS"`。 调用`ports.backend_port_lease`、`subprocess.run`、`str`、`result.stdout.strip`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unreadable_or_oversized_port_receipt_is_not_replaced`（L339–L346）：接收`tmp_path`。 控制顺序：L341遍历`("[]", '{"format": 99}', '"' + "x" * 5000 + '"')`；L346断言`state.read_text() == contents`。 调用`state.write_text`、`pytest.raises`、`ports.backend_port_lease`、`state.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_managed_preview_requires_existing_build_port_before_source_changes`（L349–L374）：接收`tmp_path`、`monkeypatch`。 调用`str`、`uuid.uuid4`、`write_json`、`monkeypatch.setattr`、`pytest.fail`、`SimpleNamespace`、`pytest.raises`、`native_delivery.serve_managed`、`ports.backend_port_lease`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_native_ports.py sha256: 70ecb4078b4f11e7cd19ed6e831c0a1721a5301c368719e3863400e24d4f4c35 -->
+````python
+"""Non-ephemeral backend leases and real source-socket collision regressions."""
+
+import json
+import os
+import socket
+from contextlib import closing
+
+import pytest
+
+from workbench import native_ports as ports
+
+
+def test_established_source_socket_blocks_later_server_bind():
+    # Reproduce the observed Java-owned ESTABLISHED socket, without a foreign
+    # listener or readiness request: an outbound source port can block bind.
+    with closing(socket.socket()) as upstream, closing(socket.socket()) as client:
+        upstream.bind(("127.0.0.1", 0))
+        upstream.listen()
+        client.connect(upstream.getsockname())
+        accepted, _ = upstream.accept()
+        with accepted, closing(socket.socket()) as backend:
+            with pytest.raises(OSError):
+                backend.bind(client.getsockname())
+
+
+def test_lease_excludes_dynamic_range_and_survives_restart(tmp_path, monkeypatch):
+    monkeypatch.setattr(ports, "dynamic_tcp_range", lambda: (12000, 65535))
+    state = tmp_path / "state.json"
+    with ports.backend_port_lease(state) as selected:
+        assert 1024 <= selected < 12000
+        assert json.loads(state.read_text())["port"] == selected
+        with ports.backend_port_lease(tmp_path / "other.json") as other:
+            assert selected != other
+        with pytest.raises(RuntimeError, match="in use"):
+            with ports.backend_port_lease(state):
+                pass
+    with ports.backend_port_lease(state) as restarted:
+        assert restarted == selected
+
+
+def test_receipt_from_another_copy_is_reallocated(tmp_path, monkeypatch):
+    monkeypatch.setattr(ports, "dynamic_tcp_range", lambda: (32768, 60999))
+    first, second = tmp_path / "first.json", tmp_path / "second.json"
+    with ports.backend_port_lease(first) as selected:
+        second.write_bytes(first.read_bytes())
+        with ports.backend_port_lease(second) as other:
+            assert other != selected
+            assert json.loads(second.read_text())["owner"] == str(second.resolve())
+
+
+def test_explicit_port_conflict_is_fail_closed(tmp_path):
+    with closing(socket.socket()) as listener:
+        listener.bind(("127.0.0.1", 0))
+        listener.listen()
+        with pytest.raises(RuntimeError, match="occupied"):
+            with ports.backend_port_lease(tmp_path / "state.json", listener.getsockname()[1]):
+                pass
+        assert listener.fileno() >= 0
+
+
+def test_explicit_ephemeral_port_is_preserved_and_released(tmp_path):
+    with closing(socket.socket()) as listener:
+        listener.bind(("127.0.0.1", 0))
+        selected = listener.getsockname()[1]
+    state = tmp_path / "state.json"
+    with ports.backend_port_lease(state, selected) as port:
+        assert port == selected
+    with ports.backend_port_lease(state, selected) as port:
+        assert port == selected
+
+
+def test_changed_dynamic_range_fails_closed_for_saved_port(tmp_path, monkeypatch):
+    monkeypatch.setattr(ports, "dynamic_tcp_range", lambda: (32768, 60999))
+    state = tmp_path / "state.json"
+    with ports.backend_port_lease(state) as selected:
+        pass
+    monkeypatch.setattr(ports, "dynamic_tcp_range", lambda: (selected, selected))
+    with pytest.raises(ValueError, match="dynamic"):
+        with ports.backend_port_lease(state):
+            pass
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX server-side TIME_WAIT reuse semantics")
+def test_server_time_wait_does_not_prevent_reacquiring_saved_port(tmp_path):
+    from workbench.native_environment import loopback_port_bindable
+
+    state = tmp_path / "state.json"
+    with ports.backend_port_lease(state) as selected:
+        with closing(socket.socket()) as server, closing(socket.socket()) as client:
+            server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            server.bind(("127.0.0.1", selected))
+            server.listen()
+            client.connect(server.getsockname())
+            accepted, _ = server.accept()
+            accepted.close()  # server active-close creates server-side TIME_WAIT
+            assert client.recv(1) == b""
+        assert loopback_port_bindable(selected)
+    with ports.backend_port_lease(state) as restarted:
+        assert restarted == selected
+
+
+@pytest.mark.parametrize("system", ["Darwin", "Windows"])
+def test_platform_dynamic_range_discovery(system, monkeypatch):
+    monkeypatch.setattr(ports.platform, "system", lambda: system)
+    output = iter(
+        ["49152\n", "65535\n"]
+        if system == "Darwin"
+        else ["起始端口 : 49152\n端口数 : 16384\n".encode("gbk")]
+    )
+    monkeypatch.setattr(ports.subprocess, "check_output", lambda *a, **k: next(output))
+    assert ports.dynamic_tcp_range() == (49152, 65535)
+
+
+def test_unknown_or_malformed_dynamic_range_is_not_guessed(monkeypatch):
+    monkeypatch.setattr(ports.platform, "system", lambda: "Unknown")
+    with pytest.raises(ValueError, match="Unknown"):
+        ports.dynamic_tcp_range()
+    monkeypatch.setattr(ports.platform, "system", lambda: "Windows")
+    monkeypatch.setattr(ports.subprocess, "check_output", lambda *a, **k: b"unavailable")
+    with pytest.raises(ValueError, match="Cannot read"):
+        ports.dynamic_tcp_range()
+
+
+def test_port_receipt_symlink_rejected(tmp_path):
+    target = tmp_path / "target.json"
+    target.write_text("{}")
+    link = tmp_path / "link.json"
+    link.symlink_to(target)
+    with pytest.raises(ValueError, match="link"):
+        with ports.backend_port_lease(link):
+            pass
+    assert target.read_text() == "{}"
+
+
+def test_frontend_skip_build_rejects_changed_target(tmp_path):
+    from workbench.native_frontend import require_frontend_backend
+
+    dist = tmp_path / "dist"
+    dist.mkdir()
+    with pytest.raises(ValueError, match="receipt missing"):
+        require_frontend_backend("fastapiadmin", tmp_path, "http://127.0.0.1:18080")
+    (dist / "native-backend.json").write_text('{"backend_url":"http://127.0.0.1:18080"}')
+    require_frontend_backend("fastapiadmin", tmp_path, "http://127.0.0.1:18080")
+    with pytest.raises(ValueError, match="port changed"):
+        require_frontend_backend("fastapiadmin", tmp_path, "http://127.0.0.1:18081")
+
+
+def test_portable_export_includes_allocator_and_no_runtime_receipt():
+    from workbench.filesystem import EXCLUDED_DIRS
+    from workbench.portable import HELPERS
+
+    assert "native_ports.py" in HELPERS
+    assert ".deployment" in EXCLUDED_DIRS
+
+
+@pytest.mark.parametrize("template", ["fastapiadmin", "yudao-vben"])
+def test_delivered_launcher_propagates_one_port_and_skip_build_is_bound_to_copy(
+    tmp_path, monkeypatch, template
+):
+    import importlib.util
+    from contextlib import contextmanager
+
+    from workbench.filesystem import write_json
+    from workbench.native_frontend import frontend_app
+    from workbench.settings import ROOT
+
+    spec = importlib.util.spec_from_file_location(
+        "delivered_run", ROOT / "templates/deployment/run.py"
+    )
+    launcher = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(launcher)
+    product = tmp_path / "product"
+    deployment = product / "deployment"
+    deployment.mkdir(parents=True)
+    write_json(deployment / "manifest.json", {"template": template, "targets": [], "plan": {}})
+    monkeypatch.setattr(launcher, "HERE", deployment)
+    monkeypatch.setattr(launcher, "PRODUCT", product)
+    monkeypatch.setattr(launcher, "verify_manifest", lambda _: None)
+    service_calls = []
+
+    def services():
+        service_calls.append(True)
+        return "postgresql+psycopg://native:unused@127.0.0.1:5432/test_codegen", 6379
+
+    monkeypatch.setattr(launcher, "services", services)
+    monkeypatch.setattr(launcher, "ownership", lambda *a: ("marker", True))
+    monkeypatch.setattr(launcher, "install_backend", lambda *a: None)
+    monkeypatch.setattr(launcher, "login", lambda *a: "token")
+    import workbench.portable_checks
+
+    monkeypatch.setattr(
+        workbench.portable_checks, "check_restored_product", lambda *a: {"passed": True}
+    )
+    backend_ports = []
+
+    @contextmanager
+    def backend(template, root, env, reports):
+        if template == "fastapiadmin":
+            port = int(env["SERVER_PORT"])
+        else:
+            properties = (
+                root / "yudao-server/src/main/resources/application-native.properties"
+            ).read_text()
+            port = int(
+                next(
+                    row.split("=", 1)[1]
+                    for row in properties.splitlines()
+                    if row.startswith("server.port=")
+                )
+            )
+            assert (
+                f"spring.cloud.openfeign.client.config.yudao-system.url=http://127.0.0.1:{port}"
+                in properties
+            )
+            assert (
+                f"spring.cloud.openfeign.client.config.yudao-infra.url=http://127.0.0.1:{port}"
+                in properties
+            )
+        backend_ports.append(port)
+        yield f"http://127.0.0.1:{port}", "/openapi.json"
+
+    monkeypatch.setattr(launcher, "running_backend", backend)
+    frontend_urls = []
+
+    def build(template, root, env, reports, **kwargs):
+        url = env["VITE_API_BASE_URL" if template == "fastapiadmin" else "VITE_BASE_URL"]
+        frontend_urls.append(url)
+        write_json(frontend_app(template, root) / "dist/native-backend.json", {"backend_url": url})
+
+    monkeypatch.setattr(launcher, "build_frontend", build)
+
+    @contextmanager
+    def frontend(*args):
+        yield "http://127.0.0.1:5173"
+
+    monkeypatch.setattr(launcher, "frontend_preview", frontend)
+    monkeypatch.setattr("sys.argv", ["run.py", "--check"])
+    launcher.main()
+    selected = ports.saved_backend_port(product / ".deployment/backend-port.json")
+    assert backend_ports == [selected, selected]
+    assert frontend_urls == [f"http://127.0.0.1:{selected}"]
+    outcome = json.loads((product / ".deployment/reports/portable-start.json").read_text())
+    assert outcome["backend_port"] == selected and outcome["backend_url"] == frontend_urls[0]
+    monkeypatch.setattr("sys.argv", ["run.py", "--check", "--skip-build"])
+    launcher.main()
+    assert backend_ports == [selected] * 4 and len(service_calls) == 2
+    with ports.backend_port_lease(tmp_path / "other-port.json") as changed:
+        # Release the other lease first: this tests the stale bundle check,
+        # rather than failing earlier on an actively held port lease.
+        pass
+    monkeypatch.setenv("NATIVE_DELIVERY_PORT", str(changed))
+    with pytest.raises(ValueError, match="port changed"):
+        launcher.main()
+    assert len(service_calls) == 2
+    assert ports.saved_backend_port(product / ".deployment/backend-port.json") == selected
+    monkeypatch.delenv("NATIVE_DELIVERY_PORT")
+    copy = tmp_path / "copy"
+    (copy / ".deployment").mkdir(parents=True)
+    (copy / ".deployment/backend-port.json").write_bytes(
+        (product / ".deployment/backend-port.json").read_bytes()
+    )
+    monkeypatch.setattr(launcher, "PRODUCT", copy)
+    with pytest.raises(ValueError, match="this copy"):
+        launcher.main()
+    assert len(service_calls) == 2
+
+
+def test_pinned_vben_relative_api_proxy_uses_selected_backend(tmp_path):
+    import subprocess
+    import zipfile
+
+    from workbench.native_vben import configure_vben_backend_proxy
+    from workbench.settings import ROOT
+
+    app = tmp_path / "apps/web-antd"
+    app.mkdir(parents=True)
+    with zipfile.ZipFile(ROOT / "templates/vendor/yudao-frontend.zip") as archive:
+        original = archive.read("apps/web-antd/vite.config.ts").decode()
+        hooks = archive.read("packages/effects/hooks/src/use-app-config.ts").decode()
+    assert "VITE_GLOB_API_URL" in hooks
+    config = app / "vite.config.ts"
+    config.write_text(original)
+    configure_vben_backend_proxy(tmp_path)
+    adapted = config.read_text()
+    configure_vben_backend_proxy(tmp_path)
+    assert config.read_text() == adapted
+    script = adapted.replace(
+        "import { defineConfig } from '@vben/vite-config';", "const defineConfig = fn => fn();"
+    ).replace("export default", "const pending =")
+    # Execute the exact pinned proxy configuration with only its build-tool
+    # wrapper stubbed; no copied implementation of target/rewrite expressions.
+    result = subprocess.run(
+        [
+            "node",
+            "-e",
+            "process.env.VITE_BASE_URL='http://127.0.0.1:18081';\n"
+            + script
+            + "\npending.then(c => { const p=c.vite.server.proxy['/admin-api']; console.log(JSON.stringify({target:p.target,path:p.rewrite('/admin-api/system/auth/login')})); });",
+        ],
+        text=True,
+        capture_output=True,
+        check=True,
+        timeout=10,
+    )
+    assert json.loads(result.stdout) == {
+        "target": "http://127.0.0.1:18081/admin-api",
+        "path": "/system/auth/login",
+    }
+
+
+def test_independent_process_cannot_take_a_live_copy_port_lease(tmp_path):
+    import subprocess
+    import sys
+
+    state = tmp_path / "state.json"
+    with ports.backend_port_lease(state) as selected:
+        code = """import sys
+from pathlib import Path
+from workbench.native_ports import backend_port_lease
+try:
+    with backend_port_lease(Path(sys.argv[1])):
+        raise AssertionError('same copy acquired twice')
+except RuntimeError as error:
+    assert 'in use' in str(error)
+with backend_port_lease(Path(sys.argv[2])) as other:
+    assert other != int(sys.argv[3])
+print('independent-copy lease PASS')
+"""
+        result = subprocess.run(
+            [sys.executable, "-c", code, str(state), str(tmp_path / "second.json"), str(selected)],
+            text=True,
+            capture_output=True,
+            check=True,
+            timeout=20,
+        )
+        assert result.stdout.strip() == "independent-copy lease PASS"
+
+
+def test_unreadable_or_oversized_port_receipt_is_not_replaced(tmp_path):
+    state = tmp_path / "state.json"
+    for contents in ("[]", '{"format": 99}', '"' + "x" * 5000 + '"'):
+        state.write_text(contents)
+        with pytest.raises(ValueError):
+            with ports.backend_port_lease(state):
+                pass
+        assert state.read_text() == contents
+
+
+def test_managed_preview_requires_existing_build_port_before_source_changes(tmp_path, monkeypatch):
+    import uuid
+    from types import SimpleNamespace
+
+    from workbench import native_delivery
+    from workbench.filesystem import write_json
+    from workbench.generator import PrerequisiteError
+
+    run_id = str(uuid.uuid4())
+    run = tmp_path / "runs" / run_id
+    write_json(
+        run / "native-generation.json", {"execution": "managed-runtime", "template": "fastapiadmin"}
+    )
+    monkeypatch.setattr(native_delivery, "managed_verify", lambda *a: None)
+    monkeypatch.setattr(native_delivery, "runtime_config", lambda *a, **k: ({}, "unused"))
+    monkeypatch.setattr(native_delivery, "check_database_identity", lambda *a: None)
+    monkeypatch.setattr(
+        native_delivery, "native_environment", lambda *a: pytest.fail("must not change source")
+    )
+    settings = SimpleNamespace(data_dir=tmp_path)
+    with pytest.raises(PrerequisiteError, match="端口回执"):
+        native_delivery.serve_managed(settings, run_id)
+    with ports.backend_port_lease(run / "native-evidence/backend-port.json"):
+        pass
+    with pytest.raises(ValueError, match="receipt missing"):
+        native_delivery.serve_managed(settings, run_id)
 ````
 
 ### `tests/test_native_postgres_contract.py`
@@ -132433,28 +133176,28 @@ def test_each_local_group_inherits_the_explicit_entity_without_fanning_out(text)
 - `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget.Store`（L965–L974）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget.Store.get_run`（L966–L971）：接收`run_id`。 返回路径：L967的`{ "status": "FAILED", "template": "fastapiadmin", "error": "RuntimeError：native_modules.py…`。
 - `test_runtime_diagnostics_prioritize_failure_over_shared_coverage_budget.Store.latest_revision`（L973–L974）：接收`run_id`、`stage`。 返回路径：L974的`{}`。
-- `test_native_progress_allowlist_covers_real_literal_stages`（L986–L1001）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1001断言`stages == NATIVE_PROGRESS_STAGES`。 调用`ast.parse`、`inspect.getsource`、`ast.walk`、`isinstance`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_exception_headline_redaction_precedes_truncation_and_ignores_log`（L1004–L1020）：接收`tmp_path`。 控制顺序：L1018断言`len(message) == 600`；L1019断言`"private" not in json.dumps(result)`；L1020断言`message.endswith("[REDA")`。 调用`(tmp_path / "failure.log").write_text`、`DiagnosticTextBudget`、`safe_runtime_details`、`len`、`json.dumps`、`message.endswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_approved_plan_replay_preserves_exact_normalized_customer_contract`（L1023–L1043）：接收`tmp_path`。 控制顺序：L1035断言`result["status"] == "saved" and result["exact_normalized_plan"] is True`；L1036断言`result["file"] == destination.name`；L1037断言`result["bytes"] == len(destination.read_bytes())`；L1038断言`json.loads(destination.read_text(encoding="utf-8")) == Plan.model_validate(plan).mode…`；L1042断言`list(destination.parent.iterdir()) == [destination]`；L1043断言`"unselected secret" not in destination.read_text(encoding="utf-8")`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`reports.mkdir`、`(reports / "approved-spec.json").write_text`、`json.dumps`、`(reports / "raw-provider-response.json").write_text`、`DiagnosticTextBudget`、`preserve_approved_customer_plan`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_approved_plan_replay_rejects_credentials_before_persistence`（L1058–L1070）：接收`tmp_path`、`secret_text`。 控制顺序：L1068断言`result == {"status": "secret_scan_rejected"}`；L1069断言`not destination.exists()`；L1070断言`secret_text not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`plan["acceptance"].append`、`(tmp_path / "approved-spec.json").write_text`、`json.dumps`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`、`destination.exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_approved_plan_replay_rejects_unknown_schema_and_does_not_read_other_files`（L1073–L1088）：接收`tmp_path`。 控制顺序：L1079断言`preserve_approved_customer_plan(tmp_path, destination, budget) == { "status": "unavai…`；L1085断言`preserve_approved_customer_plan(tmp_path, destination, budget) == { "status": "invali…`；L1088断言`not destination.exists()`。 调用`DiagnosticTextBudget`、`(tmp_path / "design.json").write_text`、`preserve_approved_customer_plan`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`(tmp_path / "approved-spec.json").write_text`、`json.dumps`、`destination.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_approved_plan_replay_size_is_bounded_on_read_and_normalized_write`（L1091–L1112）：接收`tmp_path`。 控制顺序：L1101断言`preserve_approved_customer_plan(tmp_path, destination, DiagnosticTextBudget()) == { "…`；L1107断言`len(compact.encode("utf-8")) > MAX_REPLAY_PLAN_BYTES`；L1109断言`preserve_approved_customer_plan(tmp_path, destination, DiagnosticTextBudget()) == { "…`；L1112断言`not destination.exists()`。 调用`source.write_bytes`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`json.dumps`、`len`、`compact.encode`、`source.write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_approved_plan_replay_rejects_linked_input`（L1115–L1135）：接收`tmp_path`、`monkeypatch`。 控制顺序：L1132断言`preserve_approved_customer_plan(reports, destination, DiagnosticTextBudget()) == { "s…`；L1135断言`not destination.exists()`。 调用`real.write_bytes`、`(ROOT / "examples/plans/customer-service.json").read_bytes`、`reports.mkdir`、`(reports / "approved-spec.json").symlink_to`、`type`、`monkeypatch.setattr`、`original`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_failed_native_harness_preserves_replay_before_private_cleanup`（L1138–L1205）：接收`tmp_path`、`monkeypatch`。 控制顺序：L1196断言`details["terminal_state"] == "FAILED"`；L1197断言`details["runtime_diagnostics"]["native_stage"] == "customer-service-http"`；L1198断言`"HTTP 422" in details["runtime_diagnostics"]["native_exception"]["message_excerpt"]`；L1199断言`details["approved_plan_replay"]["status"] == "saved"`；L1200断言`"test-only-secret" not in json.dumps(details)`；L1201断言`"raw log" not in json.dumps(details)`；L1202断言`not directory.exists()`；L1204断言`json.loads(replay.read_text(encoding="utf-8"))["business"] == plan["business"]`。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`public_root.mkdir`、`monkeypatch.setattr`、`SimpleNamespace`、`Store`、`tempfile.TemporaryDirectory`、`Path`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store`（L1156–L1166）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store.get_run`（L1157–L1163）：接收`run_id`。 控制顺序：L1158断言`run_id == "test-run"`。 返回路径：L1159的`{ "status": "FAILED", "template": "fastapiadmin", "error": "AssertionError：business_probe.…`。
-- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store.latest_revision`（L1165–L1166）：接收`run_id`、`stage`。 返回路径：L1166的`{"plan": plan} if stage == "design" else {}`。
-- `test_failed_native_harness_preserves_replay_before_private_cleanup.failed_browser`（L1177–L1188）：接收`command`、`**kwargs`。 调用`write_json`、`(reports / "failure.log").write_text`、`SimpleNamespace`。 返回路径：L1188的`SimpleNamespace(returncode=1)`。
-- `test_schema_root_validation_reason_is_bounded_redacted_without_input`（L1208–L1247）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1236断言`first["schema_errors"][0]["field_path"] == []`；L1237断言`first["schema_errors"][0]["message"].startswith("Value error, Known transition requir…`；L1238断言`len(first["schema_errors"][0]["message"]) == 600`；L1239断言`len(second["schema_errors"][0]["message"]) == 200`；L1241遍历`( "exact-private-canary", "provider-input-never-exported", "reaso…`；L1246断言`forbidden not in encoded`；L1247断言`"[REDACTED]" in encoded`。 调用`json.dumps( { "choices": [ { "finish_reason": "stop", "message": …`、`json.dumps`、`DiagnosticTextBudget`、`response_receipt`、`first["schema_errors"][0]["message"].startswith`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_schema_root_validation_reason_is_bounded_redacted_without_input.Contract`（L1213–L1218）：继承`BaseModel`。声明的数据项为`value`；类型约束/数据库列参数以完整定义为准。
-- `test_schema_root_validation_reason_is_bounded_redacted_without_input.Contract.validate_contract`（L1217–L1218）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1218抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_employee_task_scope_binds_approved_requirement`（L1251–L1274）：接收`scope`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`permissions.append`、`Requirement`、`deepcopy`、`require_customer_spec`、`approved.model_dump`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_customer_employee_tasks_remain_read_only_under_each_allowed_scope`（L1281–L1289）：接收`scope`、`action`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`permissions.append`、`pytest.raises`、`require_customer_spec`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_approved_replay_uses_only_registered_generated_artifact`（L1300–L1322）：接收`tmp_path`、`template`、`leaf`。 控制顺序：L1308断言`source == tmp_path / "runs/synthetic-run" / leaf`；L1313断言`preserve_approved_customer_plan(source, destination, DiagnosticTextBudget())["status"…`；L1318断言`preserve_approved_customer_plan(source, destination, DiagnosticTextBudget())["status"…`；L1322断言`json.loads(destination.read_text(encoding="utf-8"))["business"] == plan["business"]`。 调用`approved_plan_artifact_directory`、`source.mkdir`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`(source / "candidate-plan.json").write_text`、`json.dumps`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`、`(source / "approved-spec.json").write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_approved_replay_rejects_invalid_run_artifact_identity`（L1326–L1329）：接收`tmp_path`、`run_id`。 控制顺序：L1329断言`approved_plan_artifact_directory(tmp_path, run_id, "python-basic") is None`。 调用`approved_plan_artifact_directory`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_notification_schema_exposes_existing_cross_field_invariants`（L1332–L1338）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1336断言`"never null or a wildcard" in fields["transition"]["description"]`；L1337断言`"per named transition and recipient" in fields["transition"]["description"]`；L1338断言`"other events require null" in fields["due_field"]["description"]`。 调用`NotificationSpec.model_json_schema`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_progress_allowlist_covers_real_literal_stages`（L986–L1003）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1003断言`stages == NATIVE_PROGRESS_STAGES`。 调用`ast.parse`、`inspect.getsource`、`ast.walk`、`isinstance`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_exception_headline_redaction_precedes_truncation_and_ignores_log`（L1006–L1022）：接收`tmp_path`。 控制顺序：L1020断言`len(message) == 600`；L1021断言`"private" not in json.dumps(result)`；L1022断言`message.endswith("[REDA")`。 调用`(tmp_path / "failure.log").write_text`、`DiagnosticTextBudget`、`safe_runtime_details`、`len`、`json.dumps`、`message.endswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_preserves_exact_normalized_customer_contract`（L1025–L1045）：接收`tmp_path`。 控制顺序：L1037断言`result["status"] == "saved" and result["exact_normalized_plan"] is True`；L1038断言`result["file"] == destination.name`；L1039断言`result["bytes"] == len(destination.read_bytes())`；L1040断言`json.loads(destination.read_text(encoding="utf-8")) == Plan.model_validate(plan).mode…`；L1044断言`list(destination.parent.iterdir()) == [destination]`；L1045断言`"unselected secret" not in destination.read_text(encoding="utf-8")`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`reports.mkdir`、`(reports / "approved-spec.json").write_text`、`json.dumps`、`(reports / "raw-provider-response.json").write_text`、`DiagnosticTextBudget`、`preserve_approved_customer_plan`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_rejects_credentials_before_persistence`（L1060–L1072）：接收`tmp_path`、`secret_text`。 控制顺序：L1070断言`result == {"status": "secret_scan_rejected"}`；L1071断言`not destination.exists()`；L1072断言`secret_text not in json.dumps(result)`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`plan["acceptance"].append`、`(tmp_path / "approved-spec.json").write_text`、`json.dumps`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`、`destination.exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_rejects_unknown_schema_and_does_not_read_other_files`（L1075–L1090）：接收`tmp_path`。 控制顺序：L1081断言`preserve_approved_customer_plan(tmp_path, destination, budget) == { "status": "unavai…`；L1087断言`preserve_approved_customer_plan(tmp_path, destination, budget) == { "status": "invali…`；L1090断言`not destination.exists()`。 调用`DiagnosticTextBudget`、`(tmp_path / "design.json").write_text`、`preserve_approved_customer_plan`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`(tmp_path / "approved-spec.json").write_text`、`json.dumps`、`destination.exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_size_is_bounded_on_read_and_normalized_write`（L1093–L1114）：接收`tmp_path`。 控制顺序：L1103断言`preserve_approved_customer_plan(tmp_path, destination, DiagnosticTextBudget()) == { "…`；L1109断言`len(compact.encode("utf-8")) > MAX_REPLAY_PLAN_BYTES`；L1111断言`preserve_approved_customer_plan(tmp_path, destination, DiagnosticTextBudget()) == { "…`；L1114断言`not destination.exists()`。 调用`source.write_bytes`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`json.dumps`、`len`、`compact.encode`、`source.write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_plan_replay_rejects_linked_input`（L1117–L1137）：接收`tmp_path`、`monkeypatch`。 控制顺序：L1134断言`preserve_approved_customer_plan(reports, destination, DiagnosticTextBudget()) == { "s…`；L1137断言`not destination.exists()`。 调用`real.write_bytes`、`(ROOT / "examples/plans/customer-service.json").read_bytes`、`reports.mkdir`、`(reports / "approved-spec.json").symlink_to`、`type`、`monkeypatch.setattr`、`original`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup`（L1140–L1207）：接收`tmp_path`、`monkeypatch`。 控制顺序：L1198断言`details["terminal_state"] == "FAILED"`；L1199断言`details["runtime_diagnostics"]["native_stage"] == "customer-service-http"`；L1200断言`"HTTP 422" in details["runtime_diagnostics"]["native_exception"]["message_excerpt"]`；L1201断言`details["approved_plan_replay"]["status"] == "saved"`；L1202断言`"test-only-secret" not in json.dumps(details)`；L1203断言`"raw log" not in json.dumps(details)`；L1204断言`not directory.exists()`；L1206断言`json.loads(replay.read_text(encoding="utf-8"))["business"] == plan["business"]`。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`public_root.mkdir`、`monkeypatch.setattr`、`SimpleNamespace`、`Store`、`tempfile.TemporaryDirectory`、`Path`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store`（L1158–L1168）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store.get_run`（L1159–L1165）：接收`run_id`。 控制顺序：L1160断言`run_id == "test-run"`。 返回路径：L1161的`{ "status": "FAILED", "template": "fastapiadmin", "error": "AssertionError：business_probe.…`。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup.Store.latest_revision`（L1167–L1168）：接收`run_id`、`stage`。 返回路径：L1168的`{"plan": plan} if stage == "design" else {}`。
+- `test_failed_native_harness_preserves_replay_before_private_cleanup.failed_browser`（L1179–L1190）：接收`command`、`**kwargs`。 调用`write_json`、`(reports / "failure.log").write_text`、`SimpleNamespace`。 返回路径：L1190的`SimpleNamespace(returncode=1)`。
+- `test_schema_root_validation_reason_is_bounded_redacted_without_input`（L1210–L1249）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1238断言`first["schema_errors"][0]["field_path"] == []`；L1239断言`first["schema_errors"][0]["message"].startswith("Value error, Known transition requir…`；L1240断言`len(first["schema_errors"][0]["message"]) == 600`；L1241断言`len(second["schema_errors"][0]["message"]) == 200`；L1243遍历`( "exact-private-canary", "provider-input-never-exported", "reaso…`；L1248断言`forbidden not in encoded`；L1249断言`"[REDACTED]" in encoded`。 调用`json.dumps( { "choices": [ { "finish_reason": "stop", "message": …`、`json.dumps`、`DiagnosticTextBudget`、`response_receipt`、`first["schema_errors"][0]["message"].startswith`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_schema_root_validation_reason_is_bounded_redacted_without_input.Contract`（L1215–L1220）：继承`BaseModel`。声明的数据项为`value`；类型约束/数据库列参数以完整定义为准。
+- `test_schema_root_validation_reason_is_bounded_redacted_without_input.Contract.validate_contract`（L1219–L1220）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1220抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_employee_task_scope_binds_approved_requirement`（L1253–L1276）：接收`scope`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`permissions.append`、`Requirement`、`deepcopy`、`require_customer_spec`、`approved.model_dump`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_customer_employee_tasks_remain_read_only_under_each_allowed_scope`（L1283–L1291）：接收`scope`、`action`。 调用`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`permissions.append`、`pytest.raises`、`require_customer_spec`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_replay_uses_only_registered_generated_artifact`（L1302–L1324）：接收`tmp_path`、`template`、`leaf`。 控制顺序：L1310断言`source == tmp_path / "runs/synthetic-run" / leaf`；L1315断言`preserve_approved_customer_plan(source, destination, DiagnosticTextBudget())["status"…`；L1320断言`preserve_approved_customer_plan(source, destination, DiagnosticTextBudget())["status"…`；L1324断言`json.loads(destination.read_text(encoding="utf-8"))["business"] == plan["business"]`。 调用`approved_plan_artifact_directory`、`source.mkdir`、`json.loads`、`(ROOT / "examples/plans/customer-service.json").read_text`、`(source / "candidate-plan.json").write_text`、`json.dumps`、`preserve_approved_customer_plan`、`DiagnosticTextBudget`、`(source / "approved-spec.json").write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_approved_replay_rejects_invalid_run_artifact_identity`（L1328–L1331）：接收`tmp_path`、`run_id`。 控制顺序：L1331断言`approved_plan_artifact_directory(tmp_path, run_id, "python-basic") is None`。 调用`approved_plan_artifact_directory`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_notification_schema_exposes_existing_cross_field_invariants`（L1334–L1340）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1338断言`"never null or a wildcard" in fields["transition"]["description"]`；L1339断言`"per named transition and recipient" in fields["transition"]["description"]`；L1340断言`"other events require null" in fields["due_field"]["description"]`。 调用`NotificationSpec.model_json_schema`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_real_model_ci.py sha256: 65ebe78ade13a2b9aaccbb87ae262ee5687ce41d12603beb6d117d5994e7282f -->
+<!-- source-file: tests/test_real_model_ci.py sha256: d364e55dbb0f655752a123897e8ae5a18491480bbafa573cf4ef28bdecc691e1 -->
 ````python
 """No paid calls here: test doubles only test the real-run harness' safety boundaries."""
 
@@ -133446,9 +134189,11 @@ def test_native_progress_allowlist_covers_real_literal_stages():
     import inspect
 
     from scripts.ci_real_model import NATIVE_PROGRESS_STAGES
-    from workbench.native_lab import run_acceptance
+    from workbench import native_lab
 
-    tree = ast.parse(inspect.getsource(run_acceptance))
+    # The public entrypoint owns the port lease; the module contains the actual
+    # acceptance phases, including the implementation called within that lease.
+    tree = ast.parse(inspect.getsource(native_lab))
     stages = {
         node.args[0].value
         for node in ast.walk(tree)
@@ -142699,18 +143444,18 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `stage_for`（L127–L179）：接收`name`。 控制顺序：L129按`name.startswith(("workbench/web/", "ui/"))`分支；L131按`name.startswith("workbench/")`分支；L133按`name.startswith("migrations/") or name == "alembic.ini"`分支；L135按`name.startswith("templates/product/") or name.startswith("templates/frontends/")`分支；L137按`name.startswith("templates/business/common/")`分支；L139按`name.startswith(("templates/vendor/", "templates/business/", "templates/deployment/")…`分支；L141按`name.startswith("examples/")`分支；L143按`name.startswith("tools/daytona/") or name.startswith("scripts/daytona") or name.start…`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`test_stage`。 返回路径：L130的`8`；L132的`MODULE_STAGE[path.stem]`；L134的`2`。
-- `test_stage`（L182–L233）：接收`name`。 控制顺序：L183按`name == "tests/conftest.py"`分支；L185按`name == "tests/news_case.py"`分支；L187按`name.startswith("tests/fixtures/")`分支；L203按`stem in early`分支；L205按`stem == "store"`分支；L207按`stem in {"contracts", "business_contracts"}`分支；L209按`stem in {"llm", "guided_models", "provider_structured_outputs"}`分支；L211按`stem.startswith("daytona") or stem == "local_only"`分支。后续分支沿下方源码相同行号继续阅读。 调用`name.startswith`、`Path(name).stem.removeprefix`、`Path`、`stem.startswith`。 返回路径：L184的`2`；L186的`7`；L188的`10`。
-- `language_for`（L236–L261）：接收`name`、`binary`。 控制顺序：L237按`binary`分支；L239按`name.endswith("uv.lock")`分支；L241按`Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile")`分支。 调用`name.endswith`、`Path(name).name.startswith`、`Path`、`{ ".py": "python", ".md": "markdown", ".toml": "toml", ".yml": "y…`。 返回路径：L238的`"base64"`；L240的`"toml"`；L242的`"dockerfile"`。
-- `chunks`（L264–L303）：接收`data`、`binary`、`name`。 源码说明：Keep ordinary modules together; split only long implementations at real boundaries.。 控制顺序：L266按`binary or name.endswith(("uv.lock", "package-lock.json"))`分支；L270按`len(lines) <= 1000`分支；L273按`name.endswith(".py")`分支；L281按`name.endswith(".md")`分支；L291在`len(lines) - first > 1000`成立时循环；L293按`not options`分支；L301按`first < len(lines)`分支。 调用`name.endswith`、`data.decode`、`content.splitlines`、`len`、`ast.parse`、`min`、`ast.walk`、`isinstance`、`enumerate`等。 返回路径：L267的`[data]`；L271的`[data]`；L303的`result or [b""]`。
-- `source_note`（L336–L367）：接收`name`、`content`、`first`、`last`。 控制顺序：L337按`isinstance(content, bytes)`分支；L338按`generated_frontend_asset(name)`分支；L352按`name in TEACHING_CASES`分支；L354按`not separator`分支；L357遍历`entries.splitlines()`；L359按`match and first <= int(match[1]) <= last`分支；L361按`selected`分支。 调用`isinstance`、`generated_frontend_asset`、`notes`、`detail.replace`、`detail.partition`、`entries.splitlines`、`re.search`、`int`、`selected.append`等。 返回路径：L339的`"这是Vue操作台的构建快照，不是需要手写或阅读的压缩实现。" "请读第08站的ui/src、package-lock.json和vite.config.ts，执行npm ci/b…`；L345的`"该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"`；L355的`head`。
-- `source_pages`（L370–L441）：接收`name`、`content`、`stage`。 控制顺序：L376按`binary`分支；L378按`name.endswith(("uv.lock", "package-lock.json"))`分支；L383遍历`enumerate(pieces)`；L404按`index`分支；L406按`index + 1 < len(pieces)`分支；L415按`not piece`分支；L417按`not binary`分支；L425按`generated_frontend_asset(name)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L435的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
-- `read_content`（L444–L445）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L445的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
-- `render`（L448–L495）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L450按`[stage["id"] for stage in curriculum] != STAGES`分支；L451抛异常，停止当前正常路径；L453遍历`sources()`；L454遍历`files`；L456按`set(output).intersection(pages)`分支；L457抛异常，停止当前正常路径；L466遍历`curriculum`；L471按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L495的`output`。
-- `readme`（L498–L581）：接收`curriculum`、`records`。 控制顺序：L512遍历`curriculum`。 调用`len`。 返回路径：L581的`text`。
-- `main`（L584–L612）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L594按`args.check`分支；L601按`wrong`分支；L602抛异常，停止当前正常路径；L606遍历`actual.difference(expected)`；L608遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `stage_for`（L128–L180）：接收`name`。 控制顺序：L130按`name.startswith(("workbench/web/", "ui/"))`分支；L132按`name.startswith("workbench/")`分支；L134按`name.startswith("migrations/") or name == "alembic.ini"`分支；L136按`name.startswith("templates/product/") or name.startswith("templates/frontends/")`分支；L138按`name.startswith("templates/business/common/")`分支；L140按`name.startswith(("templates/vendor/", "templates/business/", "templates/deployment/")…`分支；L142按`name.startswith("examples/")`分支；L144按`name.startswith("tools/daytona/") or name.startswith("scripts/daytona") or name.start…`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`test_stage`。 返回路径：L131的`8`；L133的`MODULE_STAGE[path.stem]`；L135的`2`。
+- `test_stage`（L183–L234）：接收`name`。 控制顺序：L184按`name == "tests/conftest.py"`分支；L186按`name == "tests/news_case.py"`分支；L188按`name.startswith("tests/fixtures/")`分支；L204按`stem in early`分支；L206按`stem == "store"`分支；L208按`stem in {"contracts", "business_contracts"}`分支；L210按`stem in {"llm", "guided_models", "provider_structured_outputs"}`分支；L212按`stem.startswith("daytona") or stem == "local_only"`分支。后续分支沿下方源码相同行号继续阅读。 调用`name.startswith`、`Path(name).stem.removeprefix`、`Path`、`stem.startswith`。 返回路径：L185的`2`；L187的`7`；L189的`10`。
+- `language_for`（L237–L262）：接收`name`、`binary`。 控制顺序：L238按`binary`分支；L240按`name.endswith("uv.lock")`分支；L242按`Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile")`分支。 调用`name.endswith`、`Path(name).name.startswith`、`Path`、`{ ".py": "python", ".md": "markdown", ".toml": "toml", ".yml": "y…`。 返回路径：L239的`"base64"`；L241的`"toml"`；L243的`"dockerfile"`。
+- `chunks`（L265–L304）：接收`data`、`binary`、`name`。 源码说明：Keep ordinary modules together; split only long implementations at real boundaries.。 控制顺序：L267按`binary or name.endswith(("uv.lock", "package-lock.json"))`分支；L271按`len(lines) <= 1000`分支；L274按`name.endswith(".py")`分支；L282按`name.endswith(".md")`分支；L292在`len(lines) - first > 1000`成立时循环；L294按`not options`分支；L302按`first < len(lines)`分支。 调用`name.endswith`、`data.decode`、`content.splitlines`、`len`、`ast.parse`、`min`、`ast.walk`、`isinstance`、`enumerate`等。 返回路径：L268的`[data]`；L272的`[data]`；L304的`result or [b""]`。
+- `source_note`（L337–L368）：接收`name`、`content`、`first`、`last`。 控制顺序：L338按`isinstance(content, bytes)`分支；L339按`generated_frontend_asset(name)`分支；L353按`name in TEACHING_CASES`分支；L355按`not separator`分支；L358遍历`entries.splitlines()`；L360按`match and first <= int(match[1]) <= last`分支；L362按`selected`分支。 调用`isinstance`、`generated_frontend_asset`、`notes`、`detail.replace`、`detail.partition`、`entries.splitlines`、`re.search`、`int`、`selected.append`等。 返回路径：L340的`"这是Vue操作台的构建快照，不是需要手写或阅读的压缩实现。" "请读第08站的ui/src、package-lock.json和vite.config.ts，执行npm ci/b…`；L346的`"该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"`；L356的`head`。
+- `source_pages`（L371–L442）：接收`name`、`content`、`stage`。 控制顺序：L377按`binary`分支；L379按`name.endswith(("uv.lock", "package-lock.json"))`分支；L384遍历`enumerate(pieces)`；L405按`index`分支；L407按`index + 1 < len(pieces)`分支；L416按`not piece`分支；L418按`not binary`分支；L426按`generated_frontend_asset(name)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L436的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
+- `read_content`（L445–L446）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L446的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
+- `render`（L449–L496）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L451按`[stage["id"] for stage in curriculum] != STAGES`分支；L452抛异常，停止当前正常路径；L454遍历`sources()`；L455遍历`files`；L457按`set(output).intersection(pages)`分支；L458抛异常，停止当前正常路径；L467遍历`curriculum`；L472按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L496的`output`。
+- `readme`（L499–L582）：接收`curriculum`、`records`。 控制顺序：L513遍历`curriculum`。 调用`len`。 返回路径：L582的`text`。
+- `main`（L585–L613）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L595按`args.check`分支；L602按`wrong`分支；L603抛异常，停止当前正常路径；L607遍历`actual.difference(expected)`；L609遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/build_learning_docs.py sha256: 13ceee0b87f256762c6ec01e451522d4f788ab7a3f0f71e180d19c37498622ca -->
+<!-- source-file: scripts/build_learning_docs.py sha256: 30ab080f650841892bf8d05890cf31de994b0cff1499aa9f5e23020f8407b4b2 -->
 ````python
 """Build small, staged lessons and lossless source pages from the actual platform."""
 
@@ -142815,6 +143560,7 @@ MODULE_STAGE = {
     "native_frontend": 9,
     "native_lab": 9,
     "native_modules": 9,
+    "native_ports": 9,
     "native_recovery": 9,
     "native_resources": 9,
     "native_style": 9,
@@ -148165,13 +148911,13 @@ if __name__ == "__main__":
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `workbench.filesystem`、`workbench.native_checks`、`workbench.native_environment`、`workbench.native_frontend`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.filesystem`、`workbench.native_checks`、`workbench.native_environment`、`workbench.native_frontend`、`workbench.native_ports`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `main`（L25–L86）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L39按`args.frontend and args.template == "yudao-vben"`分支；L50按`not isinstance(token, str) or len(token) < 10`分支；L51抛异常，停止当前正常路径；L65按`args.frontend`分支；L86抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`Path`、`parser.parse_args`、`Path("reports/native").resolve`、`reports.mkdir`、`copy_source`、`native_environment`、`bootstrap_database`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L26–L86）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L40按`args.frontend and args.template == "yudao-vben"`分支；L50按`not isinstance(token, str) or len(token) < 10`分支；L51抛异常，停止当前正常路径；L65按`args.frontend`分支；L86抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`Path`、`parser.parse_args`、`Path("reports/native").resolve`、`reports.mkdir`、`copy_source`、`backend_port_lease`、`native_environment`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_native_runtime.py sha256: 0c431907c32fdae222553b76a0c25953d6aaa4515ea2b4afcbaa42a7e13d4bd0 -->
+<!-- source-file: scripts/ci_native_runtime.py sha256: 6694a000a0370b7b9c31406dfd18db8339b3b6bc9cbaf0a8ad48c5f2fc7ef340 -->
 ````python
 """Native baseline acceptance against empty test databases, not generated-module acceptance."""
 
@@ -148195,6 +148941,7 @@ from workbench.native_frontend import (
     frontend_environment,
     frontend_preview,
 )
+from workbench.native_ports import backend_port_lease
 
 
 def main():
@@ -148214,51 +148961,50 @@ def main():
     if args.frontend and args.template == "yudao-vben":
         frontend = args.output.parent / "frontend-product"
         copy_source(args.frontend_source, frontend)
-    env = native_environment(
-        args.template, backend, url, 8001 if args.template == "fastapiadmin" else 48080
-    )
-    try:
-        bootstrap_database(args.template, backend, url)
-        install_backend(args.template, backend, reports, navigation_api_only=not args.frontend)
-        with running_backend(args.template, backend, env, reports) as (base_url, _):
-            token = login(args.template, base_url)
-            if not isinstance(token, str) or len(token) < 10:
-                raise AssertionError("Native login did not return an access token")
-            write_json(
-                reports / "baseline.json",
-                {
-                    "template": args.template,
-                    "database": "postgresql",
-                    "native_login": True,
-                    "server_started": True,
-                    "generated_runtime_verified": False,
-                },
+    with backend_port_lease(reports / "backend-port.json") as port:
+        env = native_environment(args.template, backend, url, port)
+        try:
+            bootstrap_database(args.template, backend, url)
+            install_backend(args.template, backend, reports, navigation_api_only=not args.frontend)
+            with running_backend(args.template, backend, env, reports) as (base_url, _):
+                token = login(args.template, base_url)
+                if not isinstance(token, str) or len(token) < 10:
+                    raise AssertionError("Native login did not return an access token")
+                write_json(
+                    reports / "baseline.json",
+                    {
+                        "template": args.template,
+                        "database": "postgresql",
+                        "native_login": True,
+                        "server_started": True,
+                        "generated_runtime_verified": False,
+                    },
+                )
+                permissions = check_native_permissions(args.template, base_url, token)
+                write_json(reports / "permissions.json", permissions)
+                print("Original native backend: login and role permissions PASS")
+                if args.frontend:
+                    front_env = frontend_environment(args.template, base_url)
+                    build_frontend(args.template, frontend, front_env, reports)
+                    with frontend_preview(args.template, frontend, front_env, reports) as front_url:
+                        browser_check(args.template, front_url, reports)
+                write_json(
+                    reports / "acceptance.json",
+                    {
+                        "template": args.template,
+                        "scope": "original-native-baseline",
+                        "backend_login": True,
+                        "native_permissions": True,
+                        "frontend_browser": args.frontend,
+                        "generated_runtime_verified": False,
+                    },
+                )
+        except Exception as exc:
+            atomic_text(
+                reports / "failure.log",
+                type(exc).__name__ + ": " + str(exc) + "\n" + getattr(exc, "log", ""),
             )
-            permissions = check_native_permissions(args.template, base_url, token)
-            write_json(reports / "permissions.json", permissions)
-            print("Original native backend: login and role permissions PASS")
-            if args.frontend:
-                front_env = frontend_environment(args.template, base_url)
-                build_frontend(args.template, frontend, front_env, reports)
-                with frontend_preview(args.template, frontend, front_env, reports) as front_url:
-                    browser_check(args.template, front_url, reports)
-            write_json(
-                reports / "acceptance.json",
-                {
-                    "template": args.template,
-                    "scope": "original-native-baseline",
-                    "backend_login": True,
-                    "native_permissions": True,
-                    "frontend_browser": args.frontend,
-                    "generated_runtime_verified": False,
-                },
-            )
-    except Exception as exc:
-        atomic_text(
-            reports / "failure.log",
-            type(exc).__name__ + ": " + str(exc) + "\n" + getattr(exc, "log", ""),
-        )
-        raise
+            raise
 
 
 if __name__ == "__main__":
@@ -153055,13 +153801,13 @@ if __name__ == "__main__":
 - `redact`（L38–L41）：接收`value`。 控制顺序：L39遍历`PROBE_SECRETS`。 调用`value.replace`。 返回路径：L41的`value`。
 - `local_services`（L45–L141）：接收`directory`。 源码说明：Never contacts or changes a host database. Files and processes are owned by this probe.。 控制顺序：L111遍历`range(60)`；L112按`any(p.poll() is not None for p in processes)`分支；L113抛异常，停止当前正常路径；L117按`run_command(["redis-cli", "-h", "127.0.0.1", "ping"], directory, 5)[ "log" ].strip() …`分支；L125按`attempt == 59`分支；L126抛异常，停止当前正常路径；L136遍历`reversed(processes)`；L140按`any(process.poll() is None for process in processes)`分支。后续分支沿下方源码相同行号继续阅读。 调用`directory.mkdir`、`secrets.token_hex`、`PROBE_SECRETS.append`、`pwfile.write_text`、`pwfile.chmod`、`run_command`、`str`、`(directory / "services.log").open`、`processes.append`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `local_services.create`（L129–L132）：接收`name`。 调用`psycopg.connect`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`。 返回路径：L132的`f"postgresql+psycopg://rnd:{password}@127.0.0.1:5432/{name}"`。
-- `native_process`（L145–L185）：接收`product`、`url`、`template`、`reports`。 控制顺序：L165遍历`range(360)`；L166按`process.poll() is not None`分支；L167抛异常，停止当前正常路径；L173按`api.status_code == 200 and front.status_code == 200`分支；L177按`attempt == 359`分支；L178抛异常，停止当前正常路径。 调用`clean_env`、`(reports / "launcher.log").open`、`subprocess.Popen`、`str`、`process_options`、`httpx.Client`、`range`、`process.poll`、`RuntimeError`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `native_probe`（L188–L300）：接收`template`、`product`、`create`、`reports`。 控制顺序：L190按`metadata["template"] != template`分支；L191抛异常，停止当前正常路径；L194遍历`zip(targets, plan.entities, strict=True)`；L198按`rule`分支；L219按`restored.get("passed") is not True or restored.get("frontend_started") is not True`分支；L220抛异常，停止当前正常路径；L221按`plan.business`分支；L226按`business.get("passed") is not True or browser.get("passed") is not True or browser.ge…`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`(product / "deployment/manifest.json").read_text`、`ValueError`、`Plan.model_validate`、`zip`、`field.model_dump`、`target.pop`、`next`、`wire`等。 返回路径：L243的`{ "http": True, "restart": True, "fresh_database": True, "frontend_build": True, "frontend…`；L285的`{ "http": True, "restart": persistence["process_restart_preserves_records"], "fresh_databa…`。
-- `basic_runtime_evidence`（L303–L317）：接收`report`、`database`。 控制顺序：L304按`database not in {"sqlite", "postgresql"}`分支；L305抛异常，停止当前正常路径；L306按`any(report.get(name) is not True for name in ("passed", "http", "restart"))`分支；L307抛异常，停止当前正常路径；L308按`report.get("database") != "real-isolated-" + database`分支；L309抛异常，停止当前正常路径。 调用`ValueError`、`any`、`report.get`。 返回路径：L312的`{ **report, "runtime_database": report["database"], "database": database, "fresh_database"…`。
-- `basic_probe`（L320–L350）：接收`product`、`create`、`reports`、`database`。 调用`run_command`、`create`、`environment.update`、`str`、`json.loads`、`(reports / "basic.json").read_text`、`basic_runtime_evidence`。 返回路径：L350的`basic_runtime_evidence(report, database)`。
-- `main`（L353–L412）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L368按`profile != expected`分支；L369抛异常，停止当前正常路径；L372按`os.environ.get("RND_OFFLINE_TOOLS") != "1"`分支；L373抛异常，停止当前正常路径；L400抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`Path.cwd().resolve`、`Path.cwd`、`manifest`、`json.loads`、`Path("/opt/rnd/profile.json").read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_process`（L145–L191）：接收`product`、`url`、`template`、`reports`。 控制顺序：L150按`port is None`分支；L151抛异常，停止当前正常路径；L171遍历`range(360)`；L172按`process.poll() is not None`分支；L173抛异常，停止当前正常路径；L179按`api.status_code == 200 and front.status_code == 200`分支；L183按`attempt == 359`分支；L184抛异常，停止当前正常路径。 调用`saved_backend_port`、`ValueError`、`clean_env`、`(reports / "launcher.log").open`、`subprocess.Popen`、`str`、`process_options`、`httpx.Client`、`range`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `native_probe`（L194–L306）：接收`template`、`product`、`create`、`reports`。 控制顺序：L196按`metadata["template"] != template`分支；L197抛异常，停止当前正常路径；L200遍历`zip(targets, plan.entities, strict=True)`；L204按`rule`分支；L225按`restored.get("passed") is not True or restored.get("frontend_started") is not True`分支；L226抛异常，停止当前正常路径；L227按`plan.business`分支；L232按`business.get("passed") is not True or browser.get("passed") is not True or browser.ge…`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`(product / "deployment/manifest.json").read_text`、`ValueError`、`Plan.model_validate`、`zip`、`field.model_dump`、`target.pop`、`next`、`wire`等。 返回路径：L249的`{ "http": True, "restart": True, "fresh_database": True, "frontend_build": True, "frontend…`；L291的`{ "http": True, "restart": persistence["process_restart_preserves_records"], "fresh_databa…`。
+- `basic_runtime_evidence`（L309–L323）：接收`report`、`database`。 控制顺序：L310按`database not in {"sqlite", "postgresql"}`分支；L311抛异常，停止当前正常路径；L312按`any(report.get(name) is not True for name in ("passed", "http", "restart"))`分支；L313抛异常，停止当前正常路径；L314按`report.get("database") != "real-isolated-" + database`分支；L315抛异常，停止当前正常路径。 调用`ValueError`、`any`、`report.get`。 返回路径：L318的`{ **report, "runtime_database": report["database"], "database": database, "fresh_database"…`。
+- `basic_probe`（L326–L356）：接收`product`、`create`、`reports`、`database`。 调用`run_command`、`create`、`environment.update`、`str`、`json.loads`、`(reports / "basic.json").read_text`、`basic_runtime_evidence`。 返回路径：L356的`basic_runtime_evidence(report, database)`。
+- `main`（L359–L418）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L374按`profile != expected`分支；L375抛异常，停止当前正常路径；L378按`os.environ.get("RND_OFFLINE_TOOLS") != "1"`分支；L379抛异常，停止当前正常路径；L406抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`Path.cwd().resolve`、`Path.cwd`、`manifest`、`json.loads`、`Path("/opt/rnd/profile.json").read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/daytona_matrix_probe.py sha256: 50873105d27d0a920c0e3a373c7b43cee0a64ba92f0e51a49db8932fe70f8e20 -->
+<!-- source-file: scripts/daytona_matrix_probe.py sha256: f5d02a4bcbc4fcc09560cb3b249a2fb8e13003721b001c25b878c160e4cb4bfd -->
 ````python
 """Trusted verifier inside a no-egress sandbox, not the application's startup dependency.
 
@@ -153208,7 +153954,13 @@ def local_services(directory):
 
 @contextmanager
 def native_process(product, url, template, reports):
-    base = "http://127.0.0.1:" + ("8001" if template == "fastapiadmin" else "48080")
+    receipt = product / ".deployment/backend-port.json"
+    from workbench.native_ports import saved_backend_port
+
+    port = saved_backend_port(receipt)
+    if port is None:
+        raise ValueError("Native backend port receipt belongs to another product copy")
+    base = f"http://127.0.0.1:{port}"
     env = clean_env(
         {
             "NATIVE_DELIVERY_DATABASE_URL": url,
@@ -153245,7 +153997,7 @@ def native_process(product, url, template, reports):
         yield base
     finally:
         try:
-            stop_native(process, [8001 if template == "fastapiadmin" else 48080, 5173])
+            stop_native(process, [port, 5173])
         finally:
             log.close()
 
@@ -154706,14 +155458,14 @@ main().catch((e) => {
 
 **逐个入口与控制逻辑：**
 
-- `parse`（L701–L707）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L707的`ast.parse(normalized)`。
-- `segment`（L710–L713）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L713的`value if len(value) <= limit else value[:limit] + "…"`。
-- `definitions`（L716–L723）：接收`node`、`prefix`。 控制顺序：L717遍历`ast.iter_child_nodes(node)`；L718按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `body_nodes`（L726–L731）：接收`node`。 控制顺序：L727遍历`ast.iter_child_nodes(node)`；L728按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `purpose`（L734–L946）：接收`name`。 控制顺序：L736按`name.startswith("ui/")`分支；L765按`name == "workbench/__init__.py"`分支；L771按`name.startswith("workbench/") and path.stem in MODULES`分支；L773按`name.startswith("templates/business/")`分支；L774按`role := BUSINESS_FILES.get(name.removeprefix("templates/business/"))`分支；L781按`name == "examples/requirements/customer-service.md"`分支；L787按`name == "examples/requirements/customer-service-decisions.md"`分支；L793按`name == "examples/requirements/customer-service-contract.md"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`roles.get`、`BUSINESS_FILES.get`、`name.removeprefix`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L757的`( "Vue 3 / Ant Design本机操作台源码", roles.get( name, "这是操作台自有的源码或测试支持文件，按路径保留。测试使用合成数据和受控接口，不接触…`；L766的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L772的`MODULES[path.stem]`。
-- `notes`（L949–L1059）：接收`name`、`content`。 控制顺序：L953按`not name.endswith(".py")`分支；L960遍历`tree.body`；L961按`isinstance(node, ast.ImportFrom) and node.module`分支；L963按`isinstance(node, ast.Import)`分支；L966按`own`分支；L973按`not rows`分支；L976遍历`rows`；L978按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L954的`out`；L958的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L974的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
+- `parse`（L706–L712）：接收`content`。 调用`re.sub`、`ast.parse`。 返回路径：L712的`ast.parse(normalized)`。
+- `segment`（L715–L718）：接收`content`、`node`、`limit`。 调用`ast.get_source_segment`、`type`、`" ".join(value.split()).replace`、`" ".join`、`value.split`、`len`。 返回路径：L718的`value if len(value) <= limit else value[:limit] + "…"`。
+- `definitions`（L721–L728）：接收`node`、`prefix`。 控制顺序：L722遍历`ast.iter_child_nodes(node)`；L723按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`definitions`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `body_nodes`（L731–L736）：接收`node`。 控制顺序：L732遍历`ast.iter_child_nodes(node)`；L733按`isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))`分支。 调用`ast.iter_child_nodes`、`isinstance`、`body_nodes`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `purpose`（L739–L951）：接收`name`。 控制顺序：L741按`name.startswith("ui/")`分支；L770按`name == "workbench/__init__.py"`分支；L776按`name.startswith("workbench/") and path.stem in MODULES`分支；L778按`name.startswith("templates/business/")`分支；L779按`role := BUSINESS_FILES.get(name.removeprefix("templates/business/"))`分支；L786按`name == "examples/requirements/customer-service.md"`分支；L792按`name == "examples/requirements/customer-service-decisions.md"`分支；L798按`name == "examples/requirements/customer-service-contract.md"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`roles.get`、`BUSINESS_FILES.get`、`name.removeprefix`、`PRODUCT.get`、`name[:-3].replace`、`name.endswith`。 返回路径：L762的`( "Vue 3 / Ant Design本机操作台源码", roles.get( name, "这是操作台自有的源码或测试支持文件，按路径保留。测试使用合成数据和受控接口，不接触…`；L771的`( "包入口", "导入workbench时只关闭继承的托管遥测，不立即启动HTTP服务、创建数据库或调用模型。", "所有workbench子模块首先经过此入口；数据库初学步骤因…`；L777的`MODULES[path.stem]`。
+- `notes`（L954–L1064）：接收`name`、`content`。 控制顺序：L958按`not name.endswith(".py")`分支；L965遍历`tree.body`；L966按`isinstance(node, ast.ImportFrom) and node.module`分支；L968按`isinstance(node, ast.Import)`分支；L971按`own`分支；L978按`not rows`分支；L981遍历`rows`；L983按`isinstance(node, ast.ClassDef)`分支。后续分支沿下方源码相同行号继续阅读。 调用`purpose`、`name.endswith`、`parse`、`isinstance`、`imports.append`、`imports.extend`、`sorted`、`set`、`i.startswith`等。 返回路径：L959的`out`；L963的`out + "此文件包含运行时专用语法；依照正文使用Python3.14，完整实现见下方源码。\n\n"`；L979的`out + "**执行顺序：** 本文件没有函数入口，模块导入时按从上到下执行顶层语句。\n\n"`。
 
-<!-- source-file: scripts/handbook_notes.py sha256: 0a989bcd69d6ad8628ca254d670c8a856c4821232a57bf16422316a1096a6697 -->
+<!-- source-file: scripts/handbook_notes.py sha256: db7346b696bc1add4b0fd506c794df9f0d8b789bf070409b43bd9cedf9dbf039 -->
 ````python
 """Teaching notes tied to real source lines; no remote model or generated pseudo-code."""
 
@@ -154978,6 +155730,11 @@ MODULES = {
         "原生代码生成接口的公共适配",
         "NativeConfig描述可调用的代码生成服务，NativeClient进行认证请求，native_export把Plan映射为原生生成器元数据并取回真实导出。只导出源码的结果为SOURCE_READY，不能冒充托管运行验收READY。",
         "flow/native_delivery → NativeClient → 本机FastapiAdmin或Yudao生成器；test_native。",
+    ),
+    "native_ports": (
+        "原生后端端口分配与跨重启租约",
+        "读取本机TCP动态源端口范围，自动选择范围外的空闲非特权端口。产品锁与端口锁覆盖构建、启动、重启和清理，副本路径绑定回执稳定记录端口；显式端口不回退，冲突明确失败，不改主机网络配置。",
+        "native_lab/ci_native_runtime/独立run.py → backend_port_lease → 后端配置、前端构建与验收回执；test_native_ports。",
     ),
     "native_environment": (
         "本机原生后端环境和进程",
@@ -167756,7 +168513,7 @@ with TemporaryDirectory(prefix="rnd-generation-lesson-") as temporary:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/native-baseline.md sha256: 3a202005e814051cd3c85a9d68205d0025719d2fb344a02467360a78839c656a -->
+<!-- source-file: docs/native-baseline.md sha256: fd86229cac7577c22ac05079d19f7ae104ffb25647e7909eff7b4d420468b6ee -->
 ````markdown
 ## 19. 原生全栈：自带源码、自动生成与独立新数据库交付
 
@@ -167983,7 +168740,9 @@ deployment/
 uv run --no-project --python 3.14 python start.py
 ```
 
-无需原平台、原开发库或模型API_KEY。首次自动创建本产品的服务，随机数据库密码，配置在`.deployment/services.json`，数据库卷持久化。控制台打印后端和前端地址，浏览器打开前端（默认5173）。默认后端FA为8001、芋道48080；可用NATIVE_DELIVERY_PORT调整后端端口，前端适配读取相应实际地址。
+无需原平台、原开发库或模型API_KEY。首次自动创建本产品的服务，随机数据库密码，配置在`.deployment/services.json`，数据库卷持久化。控制台打印后端和前端地址，浏览器打开前端（默认5173）。后端自动选择本机 TCP 动态客户端端口范围之外的空闲非特权端口，避免 Java 连接 PostgreSQL/Redis 时先占用 48080 再导致 HTTP 监听失败。选择记录在该副本的 `.deployment/backend-port.json`；产品锁和端口锁跨构建、两次启动和清理持续持有，重启复用相同端口，独立副本重新分配。前端构建和验收使用同一实际后端地址。不会修改主机网络设置或结束占用端口的其他进程，已记录端口发生冲突就明确失败。
+
+`NATIVE_DELIVERY_PORT` 仍表示用户明确指定的精确端口，不会在冲突时换端口；若自行指定动态范围内端口，调用方承担出站源端口碰撞风险。未知操作系统或无法读取动态范围时，自动选择明确失败，可按该主机网络配置显式指定端口。平台 CI 和托管原生验收使用相同分配器；已有外部原生服务配置及上游生产默认端口不变。
 
 只有自己已经准备好新的专用空数据库与Redis时，才显式设置：
 
@@ -167995,7 +168754,7 @@ uv run --no-project --python 3.14 python start.py
 
 这样的环境不需要自动Docker服务。库名以_codegen结尾，必须空或由同一产品认领；不能指向生产库。启动器的SQL清单和数据库注释防止误重复初始化另一产品。运行默认种子账号只供本机开发，首次成功后修改密码；普通重启不重置密码也不要求旧默认密码。
 
-首次安装完成后可 `start.py --skip-build` 复用该副本的构建输出；不要在全新目录跳过构建。`start.py --check` 完成后端和前端都启动并验证后退出，适合干净交付验收而非普通长时间使用。Ctrl+C停止应用但不删除数据库卷。
+首次安装完成后可 `start.py --skip-build` 复用该副本的构建输出；不要在全新目录跳过构建。该模式检查副本端口回执及前端构建地址，改变端口或复制目录后应先不带 `--skip-build` 重建；Java 启动读取当前 native 配置，包含监听端口及 OpenFeign 自调用地址。`start.py --check` 完成后端和前端都启动并验证后退出，适合干净交付验收而非普通长时间使用。Ctrl+C停止应用但不删除数据库卷。
 
 源代码和初始化SQL不等于用户数据备份。产品使用后，迁往另一主机还要备份真实PG数据及必要配置；不要将`.deployment`密钥或数据库导出提交Git/源码ZIP。首启失败若数据库标为claimed，保留现场按日志修正后在同一产品恢复；未知/部分不一致业务表不自动覆盖。
 

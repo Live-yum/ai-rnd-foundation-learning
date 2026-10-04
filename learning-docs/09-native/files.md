@@ -58,6 +58,7 @@
 - [workbench/native_frontend.py](sources/workbench__native_frontend_py--001.md)：完整原生前端构建和浏览器入口；1 段
 - [workbench/native_lab.py](sources/workbench__native_lab_py--001.md)：两套原生全链路验收的总协调；1 段
 - [workbench/native_modules.py](sources/workbench__native_modules_py--001.md)：把Plan的实体挂载成原生业务模块；1 段
+- [workbench/native_ports.py](sources/workbench__native_ports_py--001.md)：原生后端端口分配与跨重启租约；1 段
 - [workbench/native_recovery.py](sources/workbench__native_recovery_py--001.md)：身份绑定的原生中断检查点；1 段
 - [workbench/native_resources.py](sources/workbench__native_resources_py--001.md)：为一次运行分配隔离资源；1 段
 - [workbench/native_style.py](sources/workbench__native_style_py--001.md)：原生UI壳、主题和组件族的身份检查；1 段

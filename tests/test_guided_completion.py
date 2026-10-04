@@ -40,9 +40,9 @@ def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, mon
     )
 
     @contextmanager
-    def backend(*args):
+    def backend(template, path, env, reports):
         stages.append("backend-start")
-        yield "http://127.0.0.1:8001", "/openapi.json"
+        yield f"http://127.0.0.1:{env['SERVER_PORT']}", "/openapi.json"
         stages.append("backend-stop")
 
     @contextmanager
@@ -51,7 +51,10 @@ def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, mon
         yield "http://127.0.0.1:5173"
 
     writes = []
+    from workbench.native_ports import backend_port_lease
+
     namespace = {
+        "backend_port_lease": backend_port_lease,
         "argparse": argparse,
         "json": json,
         "os": SimpleNamespace(getenv=lambda name, default=None: default, environ={}),
@@ -60,7 +63,7 @@ def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, mon
         "verify_manifest": lambda *a: None,
         "services": lambda: ("unused", 6379),
         "ownership": lambda *a: ("marker", False),
-        "native_environment": lambda *a, **k: {},
+        "native_environment": lambda template, backend, url, port, **k: {"SERVER_PORT": port},
         "install_backend": lambda *a: stages.append("install"),
         "apply_delivery_sql": lambda *a: stages.append("sql"),
         "running_backend": backend,

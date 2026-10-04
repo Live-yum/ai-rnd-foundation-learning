@@ -17,17 +17,17 @@
 
 - `test_news_design_covers_date_enum_and_selected_postgres`（L17–L23）：接收`tmp_path`。 控制顺序：L20断言`result["tasks"]`；L21断言`"date published_on" in (tmp_path / "design-er.mmd").read_text()`；L22断言`"string category" in (tmp_path / "design-er.mmd").read_text()`；L23断言`"Product PostgreSQL" in (tmp_path / "architecture.mmd").read_text()`。 调用`Plan.model_validate`、`news_spec`、`design_pack`、`(tmp_path / "design-er.mmd").read_text`、`(tmp_path / "architecture.mmd").read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_http_control_words_cannot_turn_into_questions`（L27–L29）：接收`value`。 调用`pytest.raises`、`ResumeInput`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_standalone_check_waits_for_frontend_after_backend_success`（L32–L83）：接收`tmp_path`、`monkeypatch`。 控制顺序：L82断言`"frontend-build" in stages and "frontend-start" in stages`；L83断言`writes[-1]["passed"] is True and writes[-1]["frontend_started"] is True`。 调用`(tmp_path / "manifest.json").write_text`、`json.dumps`、`SimpleNamespace`、`stages.append`、`writes.append`、`dict`、`__import__`、`monkeypatch.setattr`、`ast.parse`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_standalone_check_waits_for_frontend_after_backend_success.backend`（L43–L46）：接收`*args`。 调用`stages.append`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `test_standalone_check_waits_for_frontend_after_backend_success`（L32–L86）：接收`tmp_path`、`monkeypatch`。 控制顺序：L85断言`"frontend-build" in stages and "frontend-start" in stages`；L86断言`writes[-1]["passed"] is True and writes[-1]["frontend_started"] is True`。 调用`(tmp_path / "manifest.json").write_text`、`json.dumps`、`SimpleNamespace`、`stages.append`、`writes.append`、`dict`、`__import__`、`monkeypatch.setattr`、`ast.parse`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_standalone_check_waits_for_frontend_after_backend_success.backend`（L43–L46）：接收`template`、`path`、`env`、`reports`。 调用`stages.append`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `test_standalone_check_waits_for_frontend_after_backend_success.frontend`（L49–L51）：接收`*args`。 调用`stages.append`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 
 </details>
 
-**创建路径：** `tests/test_guided_completion.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L83。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_guided_completion.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L86。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3425`。本段原文以LF换行结束。
+本段原始字节数：`3619`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_guided_completion.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "de3f2b12198e9c2674795d1fe87c1036235041d1d4b482bef7f13c9b52056e01"} -->
+<!-- learning-source: {"path": "tests/test_guided_completion.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5b63c2937e5a9185a3e90bb48c2587efbe7306b3372a01cf8df761de5ae385e2"} -->
 ````python
 # tests/test_guided_completion.py
 """Regression for real news fields and the entire delivered --check lifecycle."""
@@ -72,9 +72,9 @@ def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, mon
     )
 
     @contextmanager
-    def backend(*args):
+    def backend(template, path, env, reports):
         stages.append("backend-start")
-        yield "http://127.0.0.1:8001", "/openapi.json"
+        yield f"http://127.0.0.1:{env['SERVER_PORT']}", "/openapi.json"
         stages.append("backend-stop")
 
     @contextmanager
@@ -83,7 +83,10 @@ def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, mon
         yield "http://127.0.0.1:5173"
 
     writes = []
+    from workbench.native_ports import backend_port_lease
+
     namespace = {
+        "backend_port_lease": backend_port_lease,
         "argparse": argparse,
         "json": json,
         "os": SimpleNamespace(getenv=lambda name, default=None: default, environ={}),
@@ -92,7 +95,7 @@ def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, mon
         "verify_manifest": lambda *a: None,
         "services": lambda: ("unused", 6379),
         "ownership": lambda *a: ("marker", False),
-        "native_environment": lambda *a, **k: {},
+        "native_environment": lambda template, backend, url, port, **k: {"SERVER_PORT": port},
         "install_backend": lambda *a: stages.append("install"),
         "apply_delivery_sql": lambda *a: stages.append("sql"),
         "running_backend": backend,

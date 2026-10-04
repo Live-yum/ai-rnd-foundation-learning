@@ -1539,8 +1539,8 @@
     },
     {
       "path": "templates/deployment/run.py",
-      "bytes": 14210,
-      "sha256": "ef71c69e0a0311363b0cf7fc9592f7b546439e26c96463d17a5abb873a1035b7",
+      "bytes": 15603,
+      "sha256": "6c6ceef859b517f7a57f1e420df4e140dac6d2197fec7502eacfb7ea95975af3",
       "stage": "09-native",
       "parts": [
         "09-native/sources/templates__deployment__run_py--001.md"
@@ -1738,8 +1738,8 @@
     },
     {
       "path": "workbench/native_delivery.py",
-      "bytes": 19070,
-      "sha256": "8e499a60c1c9099b00a5e44d924edcda5b2809432af407bf69a627ee39f95312",
+      "bytes": 19645,
+      "sha256": "3f3872d1d65b8c4594b7f7761aa9ec7b2a9c288635a45babb721a02a9bc29110",
       "stage": "09-native",
       "parts": [
         "09-native/sources/workbench__native_delivery_py--001.md"
@@ -1747,8 +1747,8 @@
     },
     {
       "path": "workbench/native_environment.py",
-      "bytes": 25631,
-      "sha256": "e11413aa53440666f0e183201f519d5fa26042ec84a95bc27880bbee56a7b557",
+      "bytes": 26015,
+      "sha256": "801d606e3cc0942d66a6f76d95eda2ac3d1142a4044051cf834e4d36a066907d",
       "stage": "09-native",
       "parts": [
         "09-native/sources/workbench__native_environment_py--001.md"
@@ -1765,8 +1765,8 @@
     },
     {
       "path": "workbench/native_frontend.py",
-      "bytes": 7099,
-      "sha256": "13e3fc09aeb24d19851530bde86721432d672da98aed8ec1b030791aaf9de46a",
+      "bytes": 8127,
+      "sha256": "ce150159f6a71a141218411de16eeaa9f784eb2e7b55d024cfac435268924b33",
       "stage": "09-native",
       "parts": [
         "09-native/sources/workbench__native_frontend_py--001.md"
@@ -1774,8 +1774,8 @@
     },
     {
       "path": "workbench/native_lab.py",
-      "bytes": 14147,
-      "sha256": "f3802a04acadb50c543cd5e805f28dcc1a42b61f2b3a90f76e4385332f3cc2a9",
+      "bytes": 14875,
+      "sha256": "e10dbf8acb5da1eca02adf382bcbf5910427006feaac7e4d07f4693a397995b0",
       "stage": "09-native",
       "parts": [
         "09-native/sources/workbench__native_lab_py--001.md"
@@ -1788,6 +1788,15 @@
       "stage": "09-native",
       "parts": [
         "09-native/sources/workbench__native_modules_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/native_ports.py",
+      "bytes": 6848,
+      "sha256": "8ab2d6c94d221f4866d3b97ca9c82f0fc81c7c54e6b09ac3a890c2b532677645",
+      "stage": "09-native",
+      "parts": [
+        "09-native/sources/workbench__native_ports_py--001.md"
       ]
     },
     {
@@ -1819,8 +1828,8 @@
     },
     {
       "path": "workbench/native_vben.py",
-      "bytes": 13246,
-      "sha256": "5c036a371c9d15178345e379b6af6d280714d3f5c04323c3ec4b663538e74924",
+      "bytes": 13806,
+      "sha256": "e13e6ea877325bdbba0b2bba1d003e5a44a6a3fbbd26cecffb1f1693e30379a9",
       "stage": "09-native",
       "parts": [
         "09-native/sources/workbench__native_vben_py--001.md"
@@ -1828,8 +1837,8 @@
     },
     {
       "path": "workbench/portable.py",
-      "bytes": 20874,
-      "sha256": "eb36016ba55ef8c2fcf5c2dcee6c3ce8cef9a94289cb5cf8142ed5b22b6fbbd4",
+      "bytes": 21253,
+      "sha256": "906a38adcc809b12ee7f275c56b6cd20bac09bfac1a8c51b50b691f4cadea8a9",
       "stage": "09-native",
       "parts": [
         "09-native/sources/workbench__portable_py--001.md"
@@ -2820,8 +2829,8 @@
     },
     {
       "path": "scripts/daytona_matrix_probe.py",
-      "bytes": 14972,
-      "sha256": "50873105d27d0a920c0e3a373c7b43cee0a64ba92f0e51a49db8932fe70f8e20",
+      "bytes": 15147,
+      "sha256": "f5d02a4bcbc4fcc09560cb3b249a2fb8e13003721b001c25b878c160e4cb4bfd",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_matrix_probe_py--001.md"
@@ -3153,8 +3162,8 @@
     },
     {
       "path": "tests/test_native_frontend_lifecycle.py",
-      "bytes": 3069,
-      "sha256": "3aed450870f9bff476ee858d5ac71394c9ed6fc5985767c9bd944decf9b7c272",
+      "bytes": 3304,
+      "sha256": "6bb5323ceece81d287deb94be4b66b88e2127cadfbf8102bf64e37eea00fff0f",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_native_frontend_lifecycle_py--001.md"
@@ -3203,6 +3212,15 @@
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_native_optional_dependencies_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_native_ports.py",
+      "bytes": 15345,
+      "sha256": "70ecb4078b4f11e7cd19ed6e831c0a1721a5301c368719e3863400e24d4f4c35",
+      "stage": "13-delivery",
+      "parts": [
+        "13-delivery/sources/tests__test_native_ports_py--001.md"
       ]
     },
     {
@@ -3585,8 +3603,8 @@
     },
     {
       "path": "docs/native-baseline.md",
-      "bytes": 21685,
-      "sha256": "3a202005e814051cd3c85a9d68205d0025719d2fb344a02467360a78839c656a",
+      "bytes": 22733,
+      "sha256": "fd86229cac7577c22ac05079d19f7ae104ffb25647e7909eff7b4d420468b6ee",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__native-baseline_md--001.md"
@@ -3648,8 +3666,8 @@
     },
     {
       "path": "scripts/build_learning_docs.py",
-      "bytes": 35631,
-      "sha256": "13ceee0b87f256762c6ec01e451522d4f788ab7a3f0f71e180d19c37498622ca",
+      "bytes": 35654,
+      "sha256": "30ab080f650841892bf8d05890cf31de994b0cff1499aa9f5e23020f8407b4b2",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_learning_docs_py--001.md"
@@ -3738,8 +3756,8 @@
     },
     {
       "path": "scripts/ci_native_runtime.py",
-      "bytes": 3668,
-      "sha256": "0c431907c32fdae222553b76a0c25953d6aaa4515ea2b4afcbaa42a7e13d4bd0",
+      "bytes": 3902,
+      "sha256": "6694a000a0370b7b9c31406dfd18db8339b3b6bc9cbaf0a8ad48c5f2fc7ef340",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_native_runtime_py--001.md"
@@ -3776,8 +3794,8 @@
     },
     {
       "path": "scripts/handbook_notes.py",
-      "bytes": 87802,
-      "sha256": "0a989bcd69d6ad8628ca254d670c8a856c4821232a57bf16422316a1096a6697",
+      "bytes": 88310,
+      "sha256": "db7346b696bc1add4b0fd506c794df9f0d8b789bf070409b43bd9cedf9dbf039",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__handbook_notes_py--001.md",
@@ -3885,8 +3903,8 @@
     },
     {
       "path": "tests/test_guided_completion.py",
-      "bytes": 3425,
-      "sha256": "de3f2b12198e9c2674795d1fe87c1036235041d1d4b482bef7f13c9b52056e01",
+      "bytes": 3619,
+      "sha256": "5b63c2937e5a9185a3e90bb48c2587efbe7306b3372a01cf8df761de5ae385e2",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_guided_completion_py--001.md"
@@ -4092,8 +4110,8 @@
     },
     {
       "path": "tests/test_real_model_ci.py",
-      "bytes": 55335,
-      "sha256": "65ebe78ade13a2b9aaccbb87ae262ee5687ce41d12603beb6d117d5994e7282f",
+      "bytes": 55476,
+      "sha256": "d364e55dbb0f655752a123897e8ae5a18491480bbafa573cf4ef28bdecc691e1",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_real_model_ci_py--001.md",

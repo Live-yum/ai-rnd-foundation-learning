@@ -101,6 +101,7 @@ MODULE_STAGE = {
     "native_frontend": 9,
     "native_lab": 9,
     "native_modules": 9,
+    "native_ports": 9,
     "native_recovery": 9,
     "native_resources": 9,
     "native_style": 9,

@@ -18,19 +18,19 @@
 - `redact`（L38–L41）：接收`value`。 控制顺序：L39遍历`PROBE_SECRETS`。 调用`value.replace`。 返回路径：L41的`value`。
 - `local_services`（L45–L141）：接收`directory`。 源码说明：Never contacts or changes a host database. Files and processes are owned by this probe.。 控制顺序：L111遍历`range(60)`；L112按`any(p.poll() is not None for p in processes)`分支；L113抛异常，停止当前正常路径；L117按`run_command(["redis-cli", "-h", "127.0.0.1", "ping"], directory, 5)[ "log" ].strip() …`分支；L125按`attempt == 59`分支；L126抛异常，停止当前正常路径；L136遍历`reversed(processes)`；L140按`any(process.poll() is None for process in processes)`分支。后续分支沿下方源码相同行号继续阅读。 调用`directory.mkdir`、`secrets.token_hex`、`PROBE_SECRETS.append`、`pwfile.write_text`、`pwfile.chmod`、`run_command`、`str`、`(directory / "services.log").open`、`processes.append`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `local_services.create`（L129–L132）：接收`name`。 调用`psycopg.connect`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`。 返回路径：L132的`f"postgresql+psycopg://rnd:{password}@127.0.0.1:5432/{name}"`。
-- `native_process`（L145–L185）：接收`product`、`url`、`template`、`reports`。 控制顺序：L165遍历`range(360)`；L166按`process.poll() is not None`分支；L167抛异常，停止当前正常路径；L173按`api.status_code == 200 and front.status_code == 200`分支；L177按`attempt == 359`分支；L178抛异常，停止当前正常路径。 调用`clean_env`、`(reports / "launcher.log").open`、`subprocess.Popen`、`str`、`process_options`、`httpx.Client`、`range`、`process.poll`、`RuntimeError`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `native_probe`（L188–L300）：接收`template`、`product`、`create`、`reports`。 控制顺序：L190按`metadata["template"] != template`分支；L191抛异常，停止当前正常路径；L194遍历`zip(targets, plan.entities, strict=True)`；L198按`rule`分支；L219按`restored.get("passed") is not True or restored.get("frontend_started") is not True`分支；L220抛异常，停止当前正常路径；L221按`plan.business`分支；L226按`business.get("passed") is not True or browser.get("passed") is not True or browser.ge…`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`(product / "deployment/manifest.json").read_text`、`ValueError`、`Plan.model_validate`、`zip`、`field.model_dump`、`target.pop`、`next`、`wire`等。 返回路径：L243的`{ "http": True, "restart": True, "fresh_database": True, "frontend_build": True, "frontend…`；L285的`{ "http": True, "restart": persistence["process_restart_preserves_records"], "fresh_databa…`。
-- `basic_runtime_evidence`（L303–L317）：接收`report`、`database`。 控制顺序：L304按`database not in {"sqlite", "postgresql"}`分支；L305抛异常，停止当前正常路径；L306按`any(report.get(name) is not True for name in ("passed", "http", "restart"))`分支；L307抛异常，停止当前正常路径；L308按`report.get("database") != "real-isolated-" + database`分支；L309抛异常，停止当前正常路径。 调用`ValueError`、`any`、`report.get`。 返回路径：L312的`{ **report, "runtime_database": report["database"], "database": database, "fresh_database"…`。
-- `basic_probe`（L320–L350）：接收`product`、`create`、`reports`、`database`。 调用`run_command`、`create`、`environment.update`、`str`、`json.loads`、`(reports / "basic.json").read_text`、`basic_runtime_evidence`。 返回路径：L350的`basic_runtime_evidence(report, database)`。
-- `main`（L353–L412）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L368按`profile != expected`分支；L369抛异常，停止当前正常路径；L372按`os.environ.get("RND_OFFLINE_TOOLS") != "1"`分支；L373抛异常，停止当前正常路径；L400抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`Path.cwd().resolve`、`Path.cwd`、`manifest`、`json.loads`、`Path("/opt/rnd/profile.json").read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_process`（L145–L191）：接收`product`、`url`、`template`、`reports`。 控制顺序：L150按`port is None`分支；L151抛异常，停止当前正常路径；L171遍历`range(360)`；L172按`process.poll() is not None`分支；L173抛异常，停止当前正常路径；L179按`api.status_code == 200 and front.status_code == 200`分支；L183按`attempt == 359`分支；L184抛异常，停止当前正常路径。 调用`saved_backend_port`、`ValueError`、`clean_env`、`(reports / "launcher.log").open`、`subprocess.Popen`、`str`、`process_options`、`httpx.Client`、`range`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `native_probe`（L194–L306）：接收`template`、`product`、`create`、`reports`。 控制顺序：L196按`metadata["template"] != template`分支；L197抛异常，停止当前正常路径；L200遍历`zip(targets, plan.entities, strict=True)`；L204按`rule`分支；L225按`restored.get("passed") is not True or restored.get("frontend_started") is not True`分支；L226抛异常，停止当前正常路径；L227按`plan.business`分支；L232按`business.get("passed") is not True or browser.get("passed") is not True or browser.ge…`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`(product / "deployment/manifest.json").read_text`、`ValueError`、`Plan.model_validate`、`zip`、`field.model_dump`、`target.pop`、`next`、`wire`等。 返回路径：L249的`{ "http": True, "restart": True, "fresh_database": True, "frontend_build": True, "frontend…`；L291的`{ "http": True, "restart": persistence["process_restart_preserves_records"], "fresh_databa…`。
+- `basic_runtime_evidence`（L309–L323）：接收`report`、`database`。 控制顺序：L310按`database not in {"sqlite", "postgresql"}`分支；L311抛异常，停止当前正常路径；L312按`any(report.get(name) is not True for name in ("passed", "http", "restart"))`分支；L313抛异常，停止当前正常路径；L314按`report.get("database") != "real-isolated-" + database`分支；L315抛异常，停止当前正常路径。 调用`ValueError`、`any`、`report.get`。 返回路径：L318的`{ **report, "runtime_database": report["database"], "database": database, "fresh_database"…`。
+- `basic_probe`（L326–L356）：接收`product`、`create`、`reports`、`database`。 调用`run_command`、`create`、`environment.update`、`str`、`json.loads`、`(reports / "basic.json").read_text`、`basic_runtime_evidence`。 返回路径：L356的`basic_runtime_evidence(report, database)`。
+- `main`（L359–L418）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L374按`profile != expected`分支；L375抛异常，停止当前正常路径；L378按`os.environ.get("RND_OFFLINE_TOOLS") != "1"`分支；L379抛异常，停止当前正常路径；L406抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`Path.cwd().resolve`、`Path.cwd`、`manifest`、`json.loads`、`Path("/opt/rnd/profile.json").read_text`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/daytona_matrix_probe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L416。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/daytona_matrix_probe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L422。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14972`。本段原文以LF换行结束。
+本段原始字节数：`15147`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/daytona_matrix_probe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "50873105d27d0a920c0e3a373c7b43cee0a64ba92f0e51a49db8932fe70f8e20"} -->
+<!-- learning-source: {"path": "scripts/daytona_matrix_probe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f5d02a4bcbc4fcc09560cb3b249a2fb8e13003721b001c25b878c160e4cb4bfd"} -->
 ````python
 # scripts/daytona_matrix_probe.py
 """Trusted verifier inside a no-egress sandbox, not the application's startup dependency.
@@ -178,7 +178,13 @@ def local_services(directory):
 
 @contextmanager
 def native_process(product, url, template, reports):
-    base = "http://127.0.0.1:" + ("8001" if template == "fastapiadmin" else "48080")
+    receipt = product / ".deployment/backend-port.json"
+    from workbench.native_ports import saved_backend_port
+
+    port = saved_backend_port(receipt)
+    if port is None:
+        raise ValueError("Native backend port receipt belongs to another product copy")
+    base = f"http://127.0.0.1:{port}"
     env = clean_env(
         {
             "NATIVE_DELIVERY_DATABASE_URL": url,
@@ -215,7 +221,7 @@ def native_process(product, url, template, reports):
         yield base
     finally:
         try:
-            stop_native(process, [8001 if template == "fastapiadmin" else 48080, 5173])
+            stop_native(process, [port, 5173])
         finally:
             log.close()
 
