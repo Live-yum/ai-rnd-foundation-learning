@@ -78,6 +78,39 @@ BROWSER_ERROR_TYPES = {
 }
 
 
+BROWSER_SECURITY_FLAGS = {
+    "uid_zero",
+    "no_new_privileges",
+    "effective_capabilities",
+    "apparmor_enabled",
+    "apparmor_userns_restricted",
+    "unprivileged_userns_enabled",
+}
+BROWSER_SANDBOX_REASONS = {"root-launch", "namespace-entry-failed", "no-usable-sandbox"}
+
+
+def valid_browser_launch_detail(detail):
+    facts = detail.get("security_facts")
+    reason = detail.get("sandbox_reason")
+    return (
+        isinstance(facts, dict)
+        and set(facts) == BROWSER_SECURITY_FLAGS | {"seccomp_mode", "apparmor_profile"}
+        and all(facts[key] is None or type(facts[key]) is bool for key in BROWSER_SECURITY_FLAGS)
+        and (
+            facts["seccomp_mode"] is None
+            or (type(facts["seccomp_mode"]) is int and facts["seccomp_mode"] in {0, 1, 2})
+        )
+        and isinstance(facts["apparmor_profile"], str)
+        and facts["apparmor_profile"]
+        in {"docker-default", "unconfined", "other-enforced", "unknown"}
+        and (
+            isinstance(reason, str) and reason in BROWSER_SANDBOX_REASONS
+            if detail.get("error_code") == "sandbox-unavailable"
+            else reason is None
+        )
+    )
+
+
 def browser_report(raw, request_id, verifier_sha256):
     """Return a current, exact-protocol report or a static rejection category."""
     if len(raw) > 100000:
@@ -114,6 +147,8 @@ def browser_report(raw, request_id, verifier_sha256):
             "action",
             "navigation_status",
         }
+        | ({"sandbox_reason", "security_facts"} if detail.get("phase") == "launch" else set())
+        or (detail.get("phase") == "launch" and not valid_browser_launch_detail(detail))
         or not isinstance(detail.get("phase"), str)
         or detail["phase"] not in BROWSER_PHASES
         or not isinstance(detail.get("error_code"), str)
