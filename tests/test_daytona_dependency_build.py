@@ -12,7 +12,7 @@ import sys
 import tarfile
 import tomllib
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import pytest
 
@@ -445,6 +445,81 @@ def metadata_image(tmp_path, monkeypatch):
     return image, descriptors
 
 
+def assert_metadata_config_paths(env, path_type=Path):
+    home = path_type(env["HOME"])
+    for key, filename in (
+        ("npm_config_userconfig", "user.npmrc"),
+        ("npm_config_globalconfig", "global.npmrc"),
+    ):
+        config = path_type(env[key])
+        assert config.parent == home
+        assert config.name == filename
+
+
+@pytest.mark.parametrize(
+    "path_type,home",
+    [
+        (PurePosixPath, "/tmp/build/metadata-fresh"),
+        (PureWindowsPath, r"C:\Users\runner\Temp\build\metadata-fresh"),
+    ],
+)
+@pytest.mark.parametrize("key", ["npm_config_userconfig", "npm_config_globalconfig"])
+def test_metadata_config_paths_require_exact_home_and_filename_on_both_platforms(
+    path_type, home, key
+):
+    home = path_type(home)
+    env = {
+        "HOME": str(home),
+        "npm_config_userconfig": str(home / "user.npmrc"),
+        "npm_config_globalconfig": str(home / "global.npmrc"),
+    }
+    assert_metadata_config_paths(env, path_type)
+    filename = path_type(env[key]).name
+    rejected_paths = [
+        home.parent / filename,
+        home.with_name(home.name + "-other") / filename,
+        home / "nested" / filename,
+        home / ".." / filename,
+        home / (filename + ".other"),
+        path_type(filename),
+    ]
+    if path_type is PureWindowsPath:
+        rejected_paths += [
+            path_type("D:/") / home.relative_to(home.anchor) / filename,
+            path_type("//server/share") / home.relative_to(home.anchor) / filename,
+        ]
+    for rejected in rejected_paths:
+        with pytest.raises(AssertionError):
+            assert_metadata_config_paths({**env, key: str(rejected)}, path_type)
+
+
+@pytest.mark.parametrize(
+    "interpreter",
+    [
+        PurePosixPath("/opt/rnd/bin/python-build"),
+        PureWindowsPath(r"C:\image\bin\python-build"),
+    ],
+)
+def test_collect_preserves_interpreter_command_path_flavor(tmp_path, monkeypatch, interpreter):
+    inputs = tmp_path / "inputs.json"
+    inputs.write_text('{"normalized_descriptors": {}}')
+    monkeypatch.setattr(build, "PYTHON_BUILD", interpreter)
+
+    class ProbeChecked(Exception):
+        pass
+
+    def probe(command, cwd, **kwargs):
+        assert command[0] == str(interpreter)
+        assert command[1:5] == ["-I", "-S", "-B", "-c"]
+        assert cwd == build.BUILD
+        assert kwargs == {"offline": True, "metadata": True}
+        raise ProbeChecked
+
+    monkeypatch.setattr(build, "run", probe)
+    with pytest.raises(ProbeChecked):
+        build.collect(inputs, tmp_path / "must-not-exist.json")
+
+
 @pytest.mark.parametrize("native", [False, True])
 def test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration(
     tmp_path, monkeypatch, metadata_image, capsys, native
@@ -496,8 +571,7 @@ def test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration
         assert env["UV_PYTHON_DOWNLOADS"] == "never"
         assert env["RUSTUP_AUTO_INSTALL"] == env["COREPACK_ENABLE_NETWORK"] == "0"
         assert env["DISABLE_V8_COMPILE_CACHE"] == env["NODE_DISABLE_COMPILE_CACHE"] == "1"
-        assert env["npm_config_userconfig"].startswith(env["HOME"] + "/")
-        assert env["npm_config_globalconfig"].startswith(env["HOME"] + "/")
+        assert_metadata_config_paths(env)
         if command[0] == str(build.PYTHON_BUILD):
             assert command[1:5] == ["-I", "-S", "-B", "-c"]
             stdout = json.dumps({"version": [3, 14, 7], "machine": "x86_64", "system": "Linux"})

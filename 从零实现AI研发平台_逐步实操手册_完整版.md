@@ -131651,19 +131651,24 @@ def test_missing_actual_engine_seccomp_is_not_default_filter_evidence(inspection
 - `test_every_dependency_subprocess_uses_the_bounded_nonroot_runner`（L392–L404）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L404断言`calls == [("run", "run")]`。 调用`ast.parse`、`inspect.getsource`、`isinstance`、`ast.walk`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `metadata_image`（L408–L445）：接收`tmp_path`、`monkeypatch`。 源码说明：Map only fixed image paths; descriptor reads and hashes remain real.。 控制顺序：L425遍历`{ "runtime/python-basic": ("pyproject.toml", "uv.lock"), "runtime…`；L430遍历`names`。 调用`builder.mkdir`、`interpreter.parent.mkdir`、`interpreter.write_bytes`、`interpreter.chmod`、`{ "runtime/python-basic": ("pyproject.toml", "uv.lock"), "runtime…`、`path.parent.mkdir`、`path.write_text`、`path.chmod`、`build.sha`等。 返回路径：L445的`image, descriptors`。
 - `metadata_image.image_path`（L412–L416）：接收`value`。 控制顺序：L414按`path.is_relative_to("/opt/rnd")`分支。 调用`Path`、`path.is_relative_to`、`path.relative_to`。 返回路径：L415的`image / path.relative_to("/opt/rnd")`；L416的`path`。
-- `test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration`（L449–L541）：接收`tmp_path`、`monkeypatch`、`metadata_image`、`capsys`、`native`。 控制顺序：L454遍历`( "UV_CACHE_DIR", "UV_CONFIG_FILE", "HOME", "XDG_CONFIG_HOME", "P…`；L475按`native`分支；L519断言`collected["toolchain"]["python"] == str(build.PYTHON_BUILD.resolve(strict=True))`；L520断言`collected["original_descriptors"] == original["original_descriptors"]`；L521断言`collected["normalized_descriptors"] == original["normalized_descriptors"]`；L522断言`{path: build.sha(path) for path in descriptors} == descriptors`；L523断言`len(calls) == (7 if native else 4)`；L524断言`not any(command[1:3] == ["python", "find"] for command in calls)`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setenv`、`next`、`iter`、`descriptors.values`、`build.sha`、`inputs.write_text`、`json.dumps`、`monkeypatch.setattr`、`build.collect`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration.probe`（L482–L513）：接收`command`、`**kwargs`。 控制顺序：L484断言`kwargs["cwd"].parent == image / "build"`；L485断言`kwargs["cwd"].name.startswith("metadata-")`；L486断言`not list(kwargs["cwd"].iterdir())`；L487断言`kwargs["timeout"] == 60`；L488断言`kwargs["check"] is True and kwargs["capture_output"] is True`；L489断言`kwargs["text"] is True and kwargs["preexec_fn"] is build.limits`；L491断言`secret not in json.dumps(env)`；L492断言`env["UV_CACHE_DIR"] == str(image / "build/uv-cache")`。后续分支沿下方源码相同行号继续阅读。 调用`calls.append`、`kwargs["cwd"].name.startswith`、`list`、`kwargs["cwd"].iterdir`、`json.dumps`、`str`、`env["npm_config_userconfig"].startswith`、`env["npm_config_globalconfig"].startswith`、`subprocess.CompletedProcess`。 返回路径：L513的`subprocess.CompletedProcess(command, 0, stdout=stdout, stderr=secret)`。
-- `test_metadata_and_dependency_commands_cannot_run_as_root`（L545–L548）：接收`monkeypatch`、`tmp_path`、`metadata`。 调用`monkeypatch.setattr`、`pytest.raises`、`build.run`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_collect_probe_failures_leave_no_manifest_or_raw_output`（L552–L572）：接收`tmp_path`、`monkeypatch`、`metadata_image`、`capsys`、`failure`。 控制顺序：L569断言`private not in str(error.value)`；L570断言`not output.exists()`；L571断言`not list((image / "build").glob("metadata-*"))`；L572断言`capsys.readouterr() == ("", "")`。 调用`inputs.write_text`、`monkeypatch.setattr`、`pytest.raises`、`build.collect`、`str`、`output.exists`、`list`、`(image / "build").glob`、`capsys.readouterr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_collect_probe_failures_leave_no_manifest_or_raw_output.fail`（L561–L564）：接收`command`、`**kwargs`。 控制顺序：L562按`failure == "timeout"`分支；L563抛异常，停止当前正常路径；L564抛异常，停止当前正常路径。 调用`subprocess.TimeoutExpired`、`subprocess.CalledProcessError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_build_commands_keep_existing_limits_and_validated_project_configuration`（L575–L591）：接收`tmp_path`、`monkeypatch`。 调用`monkeypatch.setattr`、`build.run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_build_commands_keep_existing_limits_and_validated_project_configuration.execute`（L580–L588）：接收`command`、`**kwargs`。 控制顺序：L581断言`kwargs["timeout"] == 1800`；L582断言`kwargs["cwd"] == tmp_path`；L583断言`kwargs["preexec_fn"] is build.limits`；L584断言`kwargs["capture_output"] is False`；L585断言`"UV_NO_CONFIG" not in kwargs["env"]`；L586断言`kwargs["env"]["UV_OFFLINE"] == "1"`；L587断言`kwargs["env"]["CARGO_NET_OFFLINE"] == "true"`。 调用`subprocess.CompletedProcess`。 返回路径：L588的`subprocess.CompletedProcess(command, 0)`。
-- `test_metadata_real_uv_and_python_ignore_unwritable_cache_config_and_secrets`（L598–L694）：接收`tmp_path`、`monkeypatch`、`capsys`。 控制顺序：L602断言`uv`；L614遍历`( "HOME", "UV_CACHE_DIR", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "P…`；L647断言`control.returncode != 0 and "Permission denied" in control.stderr`；L652断言`watcher >= 0`；L653遍历`(inherited, config)`；L654断言`libc.inotify_add_watch(watcher, os.fsencode(path), 0x00000FFF) >= 0`；L656断言`version.stdout.startswith("uv ")`；L677断言`result.stdout.strip() == "isolated"`。后续分支沿下方源码相同行号继续阅读。 调用`shutil.which`、`inherited.mkdir`、`config.write_text`、`config.chmod`、`inherited.chmod`、`config.read_bytes`、`config.stat`、`inherited.stat`、`builder.mkdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_recipes_separate_nonroot_offline_build_and_never_relocate_environments`（L697–L707）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L700断言`"AS dependency-builder" in base and "AS dependency-builder" in native`；L701断言`"RUN --network=none /opt/rnd/bin/python-build" in native`；L702断言`"USER daytona" in native.split("RUN --network=none")[0]`；L703断言`"PYO3_USE_ABI3_FORWARD_COMPATIBILITY" not in native`；L704断言`"rm -rf .venv" not in base and "rm -rf /opt/rnd/prewarm" not in native`；L705断言`"--mount=" not in native and "--mount=" not in base`；L706断言`"chown -R" not in native and "chmod -R" not in native`；L707断言`"--ignore-scripts" in native and "--package-import-method=copy" in native`。 调用`(ROOT / "tools/daytona/capability-snapshot.Dockerfile").read_text`、`(ROOT / "tools/daytona/capability-native-snapshot.Dockerfile").re…`、`native.split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_source_build_does_not_silently_accept_pure_python_fallback`（L710–L721）：接收`tmp_path`。 控制顺序：L720断言`len(outputs["native_extensions"]) == 1`；L721断言`outputs["wheel_tags"] == ["py3-none-any"]`。 调用`zipfile.ZipFile`、`archive.writestr`、`pytest.raises`、`build.wheel_outputs`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_profile_workflows_execute_real_dependency_cli_checks_before_image_builds`（L724–L744）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L727遍历`("capability-profile.yml", "native-capability-profile.yml")`；L740断言`"tests/test_daytona_dependency_build.py" in preflight["run"]`；L741断言`"tests/test_daytona_dependency_image.py" in preflight["run"]`；L742断言`preflight["env"]["RND_REQUIRE_LANDLOCK"] == "1"`；L743断言`preflight["env"]["RND_REQUIRE_SECCOMP_BPF"] == "1"`；L744断言`steps.index(preflight) < steps.index(build_images)`。 调用`yaml.safe_load`、`(ROOT / ".github/workflows" / name).read_text`、`next`、`step.get`、`steps.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `assert_metadata_config_paths`（L448–L456）：接收`env`、`path_type`。 控制顺序：L450遍历`( ("npm_config_userconfig", "user.npmrc"), ("npm_config_globalcon…`；L455断言`config.parent == home`；L456断言`config.name == filename`。 调用`path_type`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_metadata_config_paths_require_exact_home_and_filename_on_both_platforms`（L467–L493）：接收`path_type`、`home`、`key`。 控制顺序：L486按`path_type is PureWindowsPath`分支；L491遍历`rejected_paths`。 调用`path_type`、`str`、`assert_metadata_config_paths`、`home.with_name`、`home.relative_to`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_collect_preserves_interpreter_command_path_flavor`（L503–L520）：接收`tmp_path`、`monkeypatch`、`interpreter`。 调用`inputs.write_text`、`monkeypatch.setattr`、`pytest.raises`、`build.collect`、`pytest.mark.parametrize`、`PurePosixPath`、`PureWindowsPath`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_collect_preserves_interpreter_command_path_flavor.ProbeChecked`（L508–L509）：继承`Exception`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_collect_preserves_interpreter_command_path_flavor.probe`（L511–L516）：接收`command`、`cwd`、`**kwargs`。 控制顺序：L512断言`command[0] == str(interpreter)`；L513断言`command[1:5] == ["-I", "-S", "-B", "-c"]`；L514断言`cwd == build.BUILD`；L515断言`kwargs == {"offline": True, "metadata": True}`；L516抛异常，停止当前正常路径。 调用`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration`（L524–L615）：接收`tmp_path`、`monkeypatch`、`metadata_image`、`capsys`、`native`。 控制顺序：L529遍历`( "UV_CACHE_DIR", "UV_CONFIG_FILE", "HOME", "XDG_CONFIG_HOME", "P…`；L550按`native`分支；L593断言`collected["toolchain"]["python"] == str(build.PYTHON_BUILD.resolve(strict=True))`；L594断言`collected["original_descriptors"] == original["original_descriptors"]`；L595断言`collected["normalized_descriptors"] == original["normalized_descriptors"]`；L596断言`{path: build.sha(path) for path in descriptors} == descriptors`；L597断言`len(calls) == (7 if native else 4)`；L598断言`not any(command[1:3] == ["python", "find"] for command in calls)`。后续分支沿下方源码相同行号继续阅读。 调用`monkeypatch.setenv`、`next`、`iter`、`descriptors.values`、`build.sha`、`inputs.write_text`、`json.dumps`、`monkeypatch.setattr`、`build.collect`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration.probe`（L557–L587）：接收`command`、`**kwargs`。 控制顺序：L559断言`kwargs["cwd"].parent == image / "build"`；L560断言`kwargs["cwd"].name.startswith("metadata-")`；L561断言`not list(kwargs["cwd"].iterdir())`；L562断言`kwargs["timeout"] == 60`；L563断言`kwargs["check"] is True and kwargs["capture_output"] is True`；L564断言`kwargs["text"] is True and kwargs["preexec_fn"] is build.limits`；L566断言`secret not in json.dumps(env)`；L567断言`env["UV_CACHE_DIR"] == str(image / "build/uv-cache")`。后续分支沿下方源码相同行号继续阅读。 调用`calls.append`、`kwargs["cwd"].name.startswith`、`list`、`kwargs["cwd"].iterdir`、`json.dumps`、`str`、`assert_metadata_config_paths`、`subprocess.CompletedProcess`。 返回路径：L587的`subprocess.CompletedProcess(command, 0, stdout=stdout, stderr=secret)`。
+- `test_metadata_and_dependency_commands_cannot_run_as_root`（L619–L622）：接收`monkeypatch`、`tmp_path`、`metadata`。 调用`monkeypatch.setattr`、`pytest.raises`、`build.run`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_collect_probe_failures_leave_no_manifest_or_raw_output`（L626–L646）：接收`tmp_path`、`monkeypatch`、`metadata_image`、`capsys`、`failure`。 控制顺序：L643断言`private not in str(error.value)`；L644断言`not output.exists()`；L645断言`not list((image / "build").glob("metadata-*"))`；L646断言`capsys.readouterr() == ("", "")`。 调用`inputs.write_text`、`monkeypatch.setattr`、`pytest.raises`、`build.collect`、`str`、`output.exists`、`list`、`(image / "build").glob`、`capsys.readouterr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_collect_probe_failures_leave_no_manifest_or_raw_output.fail`（L635–L638）：接收`command`、`**kwargs`。 控制顺序：L636按`failure == "timeout"`分支；L637抛异常，停止当前正常路径；L638抛异常，停止当前正常路径。 调用`subprocess.TimeoutExpired`、`subprocess.CalledProcessError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_build_commands_keep_existing_limits_and_validated_project_configuration`（L649–L665）：接收`tmp_path`、`monkeypatch`。 调用`monkeypatch.setattr`、`build.run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_build_commands_keep_existing_limits_and_validated_project_configuration.execute`（L654–L662）：接收`command`、`**kwargs`。 控制顺序：L655断言`kwargs["timeout"] == 1800`；L656断言`kwargs["cwd"] == tmp_path`；L657断言`kwargs["preexec_fn"] is build.limits`；L658断言`kwargs["capture_output"] is False`；L659断言`"UV_NO_CONFIG" not in kwargs["env"]`；L660断言`kwargs["env"]["UV_OFFLINE"] == "1"`；L661断言`kwargs["env"]["CARGO_NET_OFFLINE"] == "true"`。 调用`subprocess.CompletedProcess`。 返回路径：L662的`subprocess.CompletedProcess(command, 0)`。
+- `test_metadata_real_uv_and_python_ignore_unwritable_cache_config_and_secrets`（L672–L768）：接收`tmp_path`、`monkeypatch`、`capsys`。 控制顺序：L676断言`uv`；L688遍历`( "HOME", "UV_CACHE_DIR", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "P…`；L721断言`control.returncode != 0 and "Permission denied" in control.stderr`；L726断言`watcher >= 0`；L727遍历`(inherited, config)`；L728断言`libc.inotify_add_watch(watcher, os.fsencode(path), 0x00000FFF) >= 0`；L730断言`version.stdout.startswith("uv ")`；L751断言`result.stdout.strip() == "isolated"`。后续分支沿下方源码相同行号继续阅读。 调用`shutil.which`、`inherited.mkdir`、`config.write_text`、`config.chmod`、`inherited.chmod`、`config.read_bytes`、`config.stat`、`inherited.stat`、`builder.mkdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_recipes_separate_nonroot_offline_build_and_never_relocate_environments`（L771–L781）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L774断言`"AS dependency-builder" in base and "AS dependency-builder" in native`；L775断言`"RUN --network=none /opt/rnd/bin/python-build" in native`；L776断言`"USER daytona" in native.split("RUN --network=none")[0]`；L777断言`"PYO3_USE_ABI3_FORWARD_COMPATIBILITY" not in native`；L778断言`"rm -rf .venv" not in base and "rm -rf /opt/rnd/prewarm" not in native`；L779断言`"--mount=" not in native and "--mount=" not in base`；L780断言`"chown -R" not in native and "chmod -R" not in native`；L781断言`"--ignore-scripts" in native and "--package-import-method=copy" in native`。 调用`(ROOT / "tools/daytona/capability-snapshot.Dockerfile").read_text`、`(ROOT / "tools/daytona/capability-native-snapshot.Dockerfile").re…`、`native.split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_source_build_does_not_silently_accept_pure_python_fallback`（L784–L795）：接收`tmp_path`。 控制顺序：L794断言`len(outputs["native_extensions"]) == 1`；L795断言`outputs["wheel_tags"] == ["py3-none-any"]`。 调用`zipfile.ZipFile`、`archive.writestr`、`pytest.raises`、`build.wheel_outputs`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_profile_workflows_execute_real_dependency_cli_checks_before_image_builds`（L798–L818）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L801遍历`("capability-profile.yml", "native-capability-profile.yml")`；L814断言`"tests/test_daytona_dependency_build.py" in preflight["run"]`；L815断言`"tests/test_daytona_dependency_image.py" in preflight["run"]`；L816断言`preflight["env"]["RND_REQUIRE_LANDLOCK"] == "1"`；L817断言`preflight["env"]["RND_REQUIRE_SECCOMP_BPF"] == "1"`；L818断言`steps.index(preflight) < steps.index(build_images)`。 调用`yaml.safe_load`、`(ROOT / ".github/workflows" / name).read_text`、`next`、`step.get`、`steps.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_daytona_dependency_build.py sha256: e23b4773a4a1bc1daa3808f0ea489c9ff143c6c1e0f7e1c946a210653edbed8c -->
+<!-- source-file: tests/test_daytona_dependency_build.py sha256: 046e310c633c80551aee8d5b65e524435d3719dc2a29e3ac539ad451350d5107 -->
 ````python
 """Locked dependency build contracts; never execute source hooks in these tests."""
 
@@ -131679,7 +131684,7 @@ import sys
 import tarfile
 import tomllib
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import pytest
 
@@ -132112,6 +132117,81 @@ def metadata_image(tmp_path, monkeypatch):
     return image, descriptors
 
 
+def assert_metadata_config_paths(env, path_type=Path):
+    home = path_type(env["HOME"])
+    for key, filename in (
+        ("npm_config_userconfig", "user.npmrc"),
+        ("npm_config_globalconfig", "global.npmrc"),
+    ):
+        config = path_type(env[key])
+        assert config.parent == home
+        assert config.name == filename
+
+
+@pytest.mark.parametrize(
+    "path_type,home",
+    [
+        (PurePosixPath, "/tmp/build/metadata-fresh"),
+        (PureWindowsPath, r"C:\Users\runner\Temp\build\metadata-fresh"),
+    ],
+)
+@pytest.mark.parametrize("key", ["npm_config_userconfig", "npm_config_globalconfig"])
+def test_metadata_config_paths_require_exact_home_and_filename_on_both_platforms(
+    path_type, home, key
+):
+    home = path_type(home)
+    env = {
+        "HOME": str(home),
+        "npm_config_userconfig": str(home / "user.npmrc"),
+        "npm_config_globalconfig": str(home / "global.npmrc"),
+    }
+    assert_metadata_config_paths(env, path_type)
+    filename = path_type(env[key]).name
+    rejected_paths = [
+        home.parent / filename,
+        home.with_name(home.name + "-other") / filename,
+        home / "nested" / filename,
+        home / ".." / filename,
+        home / (filename + ".other"),
+        path_type(filename),
+    ]
+    if path_type is PureWindowsPath:
+        rejected_paths += [
+            path_type("D:/") / home.relative_to(home.anchor) / filename,
+            path_type("//server/share") / home.relative_to(home.anchor) / filename,
+        ]
+    for rejected in rejected_paths:
+        with pytest.raises(AssertionError):
+            assert_metadata_config_paths({**env, key: str(rejected)}, path_type)
+
+
+@pytest.mark.parametrize(
+    "interpreter",
+    [
+        PurePosixPath("/opt/rnd/bin/python-build"),
+        PureWindowsPath(r"C:\image\bin\python-build"),
+    ],
+)
+def test_collect_preserves_interpreter_command_path_flavor(tmp_path, monkeypatch, interpreter):
+    inputs = tmp_path / "inputs.json"
+    inputs.write_text('{"normalized_descriptors": {}}')
+    monkeypatch.setattr(build, "PYTHON_BUILD", interpreter)
+
+    class ProbeChecked(Exception):
+        pass
+
+    def probe(command, cwd, **kwargs):
+        assert command[0] == str(interpreter)
+        assert command[1:5] == ["-I", "-S", "-B", "-c"]
+        assert cwd == build.BUILD
+        assert kwargs == {"offline": True, "metadata": True}
+        raise ProbeChecked
+
+    monkeypatch.setattr(build, "run", probe)
+    with pytest.raises(ProbeChecked):
+        build.collect(inputs, tmp_path / "must-not-exist.json")
+
+
 @pytest.mark.parametrize("native", [False, True])
 def test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration(
     tmp_path, monkeypatch, metadata_image, capsys, native
@@ -132163,8 +132243,7 @@ def test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration
         assert env["UV_PYTHON_DOWNLOADS"] == "never"
         assert env["RUSTUP_AUTO_INSTALL"] == env["COREPACK_ENABLE_NETWORK"] == "0"
         assert env["DISABLE_V8_COMPILE_CACHE"] == env["NODE_DISABLE_COMPILE_CACHE"] == "1"
-        assert env["npm_config_userconfig"].startswith(env["HOME"] + "/")
-        assert env["npm_config_globalconfig"].startswith(env["HOME"] + "/")
+        assert_metadata_config_paths(env)
         if command[0] == str(build.PYTHON_BUILD):
             assert command[1:5] == ["-I", "-S", "-B", "-c"]
             stdout = json.dumps({"version": [3, 14, 7], "machine": "x86_64", "system": "Linux"})
