@@ -255,7 +255,24 @@ static void run_child_case(const struct child_case *test) {
     }
 }
 
+static bool apparmor_enforced(void) {
+    char label[128] = {0};
+    FILE *stream = fopen("/proc/self/attr/current", "r");
+    if (stream == NULL) return false;
+    size_t size = fread(label, 1, sizeof(label) - 1, stream);
+    static const char expected[] = "docker-default (enforce)";
+    bool ok = !ferror(stream) &&
+        ((size == sizeof(expected) - 1 && memcmp(label, expected, size) == 0) ||
+         (size == sizeof(expected) && memcmp(label, expected, size - 1) == 0 && label[size - 1] == '\n'));
+    if (fclose(stream) != 0) ok = false;
+    return ok;
+}
+
 int main(void) {
+    if (!apparmor_enforced()) {
+        puts("{\"protocol\":\"browser-seccomp-transport-v1\",\"passed\":false,\"error\":\"apparmor_not_enforced\"}");
+        return 2;
+    }
     socket_case("native_inet_socket", AF_INET, false, true);
     socket_case("native_unix_socket", AF_UNIX, false, true);
     socket_case("native_unix_socketpair", AF_UNIX, true, true);

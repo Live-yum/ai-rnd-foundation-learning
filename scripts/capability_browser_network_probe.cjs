@@ -31,6 +31,8 @@ function requireReadOnly(api = fs, uid = process.getuid()) {
 }
 
 async function main() {
+  const apparmor = process.env.CAPABILITY_BROWSER_REQUIRE_APPARMOR === '1'
+  if (apparmor) require('./capability_browser_apparmor.cjs').requireAppArmor()
   assert.equal(process.arch, 'x64')
   assert.equal(process.platform, 'linux')
   assert.equal(require('playwright/package.json').version, '1.56.1')
@@ -112,7 +114,7 @@ async function main() {
     }
   } finally { for (const child of children) child.kill('SIGKILL') }
   assert(pidDenied)
-  process.stdout.write(JSON.stringify({passed:true, kernel_resource_limits:true, network_none:true, tmpfs_exhaustion:true, pid_exhaustion:true, readonly_root:true, browser_build:true}))
+  process.stdout.write(JSON.stringify({passed:true, kernel_resource_limits:true, network_none:true, tmpfs_exhaustion:true, pid_exhaustion:true, readonly_root:true, browser_build:true, ...(apparmor ? {apparmor_enforced:true} : {})}))
 }
 module.exports = {requireNoRoute, requireReadOnly}
 if (require.main === module) main().catch(() => {process.exitCode=1})

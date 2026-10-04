@@ -1,4 +1,5 @@
 // Trusted stdio relay; no candidate code, credentials, or host mounts are loaded.
+if (process.env.CAPABILITY_BROWSER_REQUIRE_APPARMOR === '1') require('./capability_browser_apparmor.cjs').requireAppArmor()
 const http = require('node:http')
 const readline = require('node:readline')
 const {spawn} = require('node:child_process')

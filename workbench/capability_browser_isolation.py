@@ -46,6 +46,7 @@ BROWSER_SOURCES = (
     "workbench/capability_browser_policy.py",
     POLICY_SOURCE,
     "scripts/capability_browser_seccomp_probe.c",
+    "scripts/capability_browser_apparmor.cjs",
     "workbench/capability_browser_isolation.py",
     "workbench/capability_verification.py",
     "scripts/capability_browser.cjs",
@@ -57,6 +58,7 @@ BROWSER_SOURCES = (
 )
 BROWSER_ACCEPTANCE = ROOT / "reports/capability-browser-isolation.json"
 IMAGE_SOURCES = {
+    "scripts/capability_browser_apparmor.cjs": "/opt/verifier/capability_browser_apparmor.cjs",
     POLICY_SOURCE: "/opt/verifier/browser-seccomp-v2.json",
     "scripts/capability_browser_seccomp_probe.c": "/opt/verifier/capability_browser_seccomp_probe.c",
     "scripts/capability_browser.cjs": "/opt/verifier/capability_browser.cjs",
@@ -265,6 +267,7 @@ def require_browser_acceptance(image=None):
             "pid_exhaustion": True,
             "readonly_root": True,
             "browser_build": True,
+            **({"apparmor_enforced": True} if selected_policy() is not None else {}),
         },
         "positive": True,
         "error": True,
@@ -343,7 +346,15 @@ def worker_command(image, name):
         "--read-only",
         "--cap-drop=ALL",
         "--security-opt=no-new-privileges:true",
-        *(["--security-opt=seccomp=" + str(policy)] if policy is not None else []),
+        *(
+            [
+                "--security-opt=seccomp=" + str(policy),
+                "--security-opt=apparmor=docker-default",
+                "--env=CAPABILITY_BROWSER_REQUIRE_APPARMOR=1",
+            ]
+            if policy is not None
+            else []
+        ),
         "--user=1000:1000",
         "--cpus=1",
         "--memory=768m",
@@ -359,6 +370,15 @@ def worker_command(image, name):
         "-i",
         image,
     ]
+
+
+def apparmor_runtime_env(value):
+    return (
+        isinstance(value, list)
+        and all(isinstance(item, str) for item in value)
+        and [item for item in value if item.startswith("CAPABILITY_BROWSER_REQUIRE_APPARMOR=")]
+        == ["CAPABILITY_BROWSER_REQUIRE_APPARMOR=1"]
+    )
 
 
 def require_worker_inspection(value, image):
@@ -386,7 +406,13 @@ def require_worker_inspection(value, image):
         or host.get("CapDrop") != ["ALL"]
         or host.get("CapAdd")
         or not security_options_match(host.get("SecurityOpt"))
-        or (selected_policy() is not None and record.get("AppArmorProfile") != "docker-default")
+        or (
+            selected_policy() is not None
+            and (
+                record.get("AppArmorProfile") != "docker-default"
+                or not apparmor_runtime_env(config.get("Env"))
+            )
+        )
         or host.get("Binds")
         or host.get("PortBindings")
         or host.get("Devices")
@@ -396,7 +422,17 @@ def require_worker_inspection(value, image):
         or host.get("LogConfig", {}).get("Type") != "none"
         or any(m.get("Type") != "tmpfs" for m in record.get("Mounts", []))
     ):
-        raise ValueError("Browser worker isolation mismatch")
+        mismatches = []
+        if not security_options_match(host.get("SecurityOpt")):
+            mismatches.append("security-options")
+        if selected_policy() is not None:
+            if record.get("AppArmorProfile") != "docker-default":
+                mismatches.append("apparmor-config")
+            if not apparmor_runtime_env(config.get("Env")):
+                mismatches.append("apparmor-runtime-guard")
+        raise ValueError(
+            "Browser worker isolation mismatch: " + ",".join(mismatches or ["outer-boundary"])
+        )
     return {"image": image, "network": "none", "bounded": True}
 
 

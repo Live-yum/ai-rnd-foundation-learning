@@ -158,9 +158,12 @@ def security_options_match(options):
     path = selected_policy()
     if path is None:
         return options == ["no-new-privileges:true"]
-    if not isinstance(options, list) or len(options) != 2:
+    if not isinstance(options, list) or len(options) != 3:
         return False
-    if options.count("no-new-privileges:true") != 1:
+    if (
+        options.count("no-new-privileges:true") != 1
+        or options.count("apparmor=docker-default") != 1
+    ):
         return False
     selected = [v for v in options if isinstance(v, str) and v.startswith("seccomp=")]
     if len(selected) != 1:

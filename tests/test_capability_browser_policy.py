@@ -135,7 +135,7 @@ def test_command_requires_runtime_before_create(monkeypatch):
 def test_inspect_matches_inline_content_not_path_or_unconfined(monkeypatch):
     approved(monkeypatch)
     content = json.loads(policy.selected_policy().read_bytes())
-    good = ["no-new-privileges:true", "seccomp=" + json.dumps(content)]
+    good = ["no-new-privileges:true", "apparmor=docker-default", "seccomp=" + json.dumps(content)]
     assert policy.security_options_match(good)
     for bad in (
         ["no-new-privileges:true"],
@@ -178,7 +178,7 @@ def worker_inspection():
         {
             "Image": IMAGE,
             "AppArmorProfile": "docker-default",
-            "Config": {"User": "1000:1000"},
+            "Config": {"User": "1000:1000", "Env": ["CAPABILITY_BROWSER_REQUIRE_APPARMOR=1"]},
             "Mounts": [],
             "HostConfig": {
                 "NetworkMode": "none",
@@ -195,6 +195,7 @@ def worker_inspection():
                 "CapAdd": [],
                 "SecurityOpt": [
                     "no-new-privileges:true",
+                    "apparmor=docker-default",
                     "seccomp=" + policy.selected_policy().read_text(),
                 ],
                 "Tmpfs": {"/tmp": "rw,nosuid,nodev,noexec,size=134217728,mode=1777"},
@@ -298,6 +299,7 @@ def test_selected_receipt_requires_exact_runtime_and_raw_proof(monkeypatch, tmp_
                     "pid_exhaustion",
                     "readonly_root",
                     "browser_build",
+                    "apparmor_enforced",
                 ],
                 True,
             ),

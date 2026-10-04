@@ -9,7 +9,7 @@ WORKDIR /opt/verifier
 COPY --from=probe-build /opt/browser-seccomp-probe /opt/browser-seccomp-probe
 RUN npm install --ignore-scripts --no-audit --no-fund --package-lock=false playwright@1.56.1
 COPY scripts/capability_browser.cjs scripts/capability_browser_worker.cjs scripts/capability_browser_network_probe.cjs ./
-COPY scripts/capability_browser_seccomp_probe.c ./
+COPY scripts/capability_browser_apparmor.cjs scripts/capability_browser_seccomp_probe.c ./
 COPY tools/browser/review-only-v2/chromium141-docker28-native-amd64.proposal.json ./browser-seccomp-v2.json
 COPY tools/browser/Dockerfile ./Dockerfile
 COPY tools/browser/seccomp.playwright-1.56.1.json tools/browser/LICENSE.playwright ./

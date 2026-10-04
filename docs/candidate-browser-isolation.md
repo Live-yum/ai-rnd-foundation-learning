@@ -73,7 +73,10 @@ profile only for their disposable offline browser workers. Selection requires
 Docker server 28.0.4, the fixed policy SHA-256, supported daemon/image/controller
 architecture and the approved Actions repository/workflow. No arbitrary path or
 candidate-supplied policy is accepted. The created container's inline profile
-and Docker AppArmor label are inspected before start. See
+and explicit `apparmor=docker-default` configuration are inspected before start.
+The trusted worker and probes also read the actual kernel label and require exact
+`docker-default (enforce)` bytes before browser or syscall work; an empty inspect
+field is never accepted as proof. See
 `tools/browser/review-only-v2/README.md` for exact allowances and risks.
 
 The v3 receipt binds policy, source and immutable image to observed engine,
