@@ -102,14 +102,20 @@ def test_real_unresponsive_pipe_honors_deadline(child_processes, direction):
     assert process.poll() is None
 
 
-def test_real_closed_read_end_is_broken_pipe_not_timeout(child_processes):
+def test_real_closed_read_end_reports_platform_error_not_timeout(child_processes):
     launch, _ = child_processes
     process = launch(
         "pass", stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
     )
     assert process.wait(timeout=5) == 0
-    with pytest.raises(BrokenPipeError):
+    # CPython's subprocess._stdin_write documents Windows EINVAL when the child
+    # exited or closed stdin (bpo-19612/bpo-30418); POSIX reports EPIPE instead.
+    error, code = (
+        (OSError, errno.EINVAL) if sys.platform == "win32" else (BrokenPipeError, errno.EPIPE)
+    )
+    with pytest.raises(error) as raised:
         isolation._write_pipe(process.stdin, b"not delivered", time.monotonic() + 5)
+    assert type(raised.value) is error and raised.value.errno == code
     assert isolation._read_pipe(process.stdout, time.monotonic() + 5, "deadline") == b""
 
 
@@ -196,7 +202,7 @@ def test_simulated_expired_deadline_does_not_attempt_io(simulated_pipes, directi
 
 
 @pytest.mark.parametrize("direction", ["read", "write"])
-@pytest.mark.parametrize("code", [errno.EBADF, errno.EIO, errno.EPIPE])
+@pytest.mark.parametrize("code", [errno.EBADF, errno.EIO, errno.EPIPE, errno.EINVAL])
 def test_simulated_real_pipe_errors_propagate(simulated_pipes, direction, code):
     state, stream = simulated_pipes
     error = OSError(code, "genuine pipe failure")
@@ -436,13 +442,49 @@ def test_final_process_wait_never_adds_minimum_grace(monkeypatch, operation):
     assert state.waits == pytest.approx([0.025, 5])
 
 
-def test_real_eof_before_exit_still_times_out_and_cleans_up(monkeypatch, child_processes):
+def test_real_report_then_linger_times_out_and_cleans_up(monkeypatch, child_processes):
     script = (
-        "import os,sys,time; sys.stdin.readline(); "
-        'print(\'{"type":"report","report":{},"exit_code":0}\', flush=True); '
+        "import os,sys,time; sys.stdout.buffer.write(b'ready\\n'); sys.stdout.flush(); "
+        "sys.stdin.readline(); "
+        'print(\'{"type":"report","report":{"completed":true},"exit_code":0}\', flush=True); '
         "os.close(sys.stdout.fileno()); time.sleep(30)"
     )
+    # Exclude interpreter cold-start from this one-second report/linger test,
+    # while proving the real child has started before execute_worker's deadline.
+    launch, _ = child_processes
+    process = launch(
+        script, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+    )
+    ready = bytearray()
+    deadline = time.monotonic() + 5
+    while b"\n" not in ready:
+        chunk = isolation._read_pipe(process.stdout, deadline, "child startup deadline")
+        assert chunk, "Child exited before readiness handshake"
+        ready.extend(chunk)
+    assert ready == b"ready\n"
     calls, processes = setup_worker(monkeypatch, child_processes, script)
-    with pytest.raises(subprocess.TimeoutExpired):
+    monkeypatch.setattr(isolation.subprocess, "Popen", lambda *args, **kwargs: process)
+    received = bytearray()
+    real_read = isolation._read_pipe
+
+    def read(stream, deadline, message):
+        chunk = real_read(stream, deadline, message)
+        received.extend(chunk)
+        return chunk
+
+    monkeypatch.setattr(isolation, "_read_pipe", read)
+    # Windows launchers may retain stdout handles until exit. Both waiting for
+    # EOF and waiting after EOF must honor the same deadline; the controlled
+    # EOF-to-wait test above separately checks the exact remaining wait budget.
+    with pytest.raises((TimeoutError, subprocess.TimeoutExpired)) as raised:
         isolation.execute_worker({}, "http://127.0.0.1:3456", "secret", 1, image=IMAGE)
+    assert json.loads(received) == {
+        "type": "report",
+        "report": {"completed": True},
+        "exit_code": 0,
+    }
+    if isinstance(raised.value, TimeoutError):
+        assert str(raised.value) == "Browser worker deadline exceeded"
+    else:
+        assert raised.value.cmd == process.args and 0 < raised.value.timeout <= 1
     assert_worker_cleaned(calls, processes)

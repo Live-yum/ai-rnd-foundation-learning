@@ -1,5 +1,8 @@
 """Locked dependency build contracts; never execute source hooks in these tests."""
 
+import ast
+import ctypes
+import inspect
 import io
 import json
 import os
@@ -14,6 +17,7 @@ from pathlib import Path
 import pytest
 
 from scripts import daytona_dependency_build as build
+from scripts import daytona_dependency_image as dependency_image
 from scripts.daytona_native_capability_profile import ROOT
 
 
@@ -383,6 +387,311 @@ def test_source_build_real_uv_parser_without_executing_backend(
     monkeypatch.setattr(build, "run", run)
     with pytest.raises(ParserChecked):
         build.build_sources()
+
+
+def test_every_dependency_subprocess_uses_the_bounded_nonroot_runner():
+    tree = ast.parse(inspect.getsource(build))
+    calls = [
+        (function.name, node.func.attr)
+        for function in tree.body
+        if isinstance(function, ast.FunctionDef)
+        for node in ast.walk(function)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "subprocess"
+    ]
+    assert calls == [("run", "run")]
+
+
+@pytest.fixture
+def metadata_image(tmp_path, monkeypatch):
+    """Map only fixed image paths; descriptor reads and hashes remain real."""
+    image = tmp_path / "image"
+
+    def image_path(value):
+        path = Path(value)
+        if path.is_relative_to("/opt/rnd"):
+            return image / path.relative_to("/opt/rnd")
+        return path
+
+    builder = image / "build"
+    builder.mkdir(parents=True)
+    interpreter = image / "bin/python-build"
+    interpreter.parent.mkdir()
+    interpreter.write_bytes(b"sealed interpreter identity")
+    interpreter.chmod(0o444)
+    descriptors = {}
+    for profile, names in {
+        "runtime/python-basic": ("pyproject.toml", "uv.lock"),
+        "runtime/fastapiadmin": ("backend/pyproject.toml", "backend/uv.lock"),
+        "harness": ("pyproject.toml", "uv.lock"),
+    }.items():
+        for name in names:
+            path = image / profile / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("descriptor-content-must-not-be-emitted\n")
+            path.chmod(0o444)
+            descriptors[path] = build.sha(path)
+    (image / "bin/dependency-build.lock.json").write_text('{"tools": []}')
+    (image / "build-tools-manifest.json").write_text(
+        json.dumps({"installed_tree_sha256": "a" * 64})
+    )
+    (builder / "source-builds.json").write_text("[]")
+    monkeypatch.setattr(build, "BUILD", builder)
+    monkeypatch.setattr(build, "PYTHON_BUILD", interpreter)
+    monkeypatch.setattr(build, "Path", image_path)
+    monkeypatch.setattr(build.os, "geteuid", lambda: 1000, raising=False)
+    return image, descriptors
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration(
+    tmp_path, monkeypatch, metadata_image, capsys, native
+):
+    image, descriptors = metadata_image
+    secret = "inherited-secret-must-not-be-emitted"
+    for name in (
+        "UV_CACHE_DIR",
+        "UV_CONFIG_FILE",
+        "HOME",
+        "XDG_CONFIG_HOME",
+        "PYTHONPATH",
+        "NODE_OPTIONS",
+        "NPM_TOKEN",
+        "npm_config_userconfig",
+        "RUSTUP_HOME",
+        "RUSTC_WRAPPER",
+        "LD_PRELOAD",
+        "HTTP_PROXY",
+    ):
+        monkeypatch.setenv(name, secret)
+    prefix = "backend/" if native else ""
+    inputs = tmp_path / "inputs.json"
+    hashes = {
+        prefix + name: next(iter(descriptors.values())) for name in ("pyproject.toml", "uv.lock")
+    }
+    original = {"original_descriptors": hashes, "normalized_descriptors": hashes}
+    if native:
+        original["harness_descriptors"] = {
+            name: build.sha(image / "harness" / name) for name in ("pyproject.toml", "uv.lock")
+        }
+    inputs.write_text(json.dumps(original))
+    calls = []
+
+    def probe(command, **kwargs):
+        calls.append(command)
+        assert kwargs["cwd"].parent == image / "build"
+        assert kwargs["cwd"].name.startswith("metadata-")
+        assert not list(kwargs["cwd"].iterdir())
+        assert kwargs["timeout"] == 60
+        assert kwargs["check"] is True and kwargs["capture_output"] is True
+        assert kwargs["text"] is True and kwargs["preexec_fn"] is build.limits
+        env = kwargs["env"]
+        assert secret not in json.dumps(env)
+        assert env["UV_CACHE_DIR"] == str(image / "build/uv-cache")
+        assert env["HOME"] == str(kwargs["cwd"])
+        assert env["UV_OFFLINE"] == env["UV_NO_CONFIG"] == "1"
+        assert env["CARGO_NET_OFFLINE"] == "true"
+        assert env["UV_PYTHON_DOWNLOADS"] == "never"
+        assert env["RUSTUP_AUTO_INSTALL"] == env["COREPACK_ENABLE_NETWORK"] == "0"
+        assert env["DISABLE_V8_COMPILE_CACHE"] == env["NODE_DISABLE_COMPILE_CACHE"] == "1"
+        assert env["npm_config_userconfig"].startswith(env["HOME"] + "/")
+        assert env["npm_config_globalconfig"].startswith(env["HOME"] + "/")
+        if command[0] == str(build.PYTHON_BUILD):
+            assert command[1:5] == ["-I", "-S", "-B", "-c"]
+            stdout = json.dumps({"version": [3, 14, 7], "machine": "x86_64", "system": "Linux"})
+        else:
+            stdout = {
+                build.UV: "uv 0.12.20",
+                "/usr/local/bin/node": "v22.23.2",
+                "/usr/bin/dpkg-query": "package=1",
+                "/usr/local/cargo/bin/rustc": "rustc 1.85.1",
+                "/usr/bin/cc": "cc (Debian) 12.2.0",
+                "/usr/local/bin/pnpm": "9.15.3",
+            }[command[0]]
+        return subprocess.CompletedProcess(command, 0, stdout=stdout, stderr=secret)
+
+    monkeypatch.setattr(build.subprocess, "run", probe)
+    output = tmp_path / "output.json"
+    build.collect(inputs, output, native=native)
+    collected = json.loads(output.read_text())
+    assert collected["toolchain"]["python"] == str(build.PYTHON_BUILD.resolve(strict=True))
+    assert collected["original_descriptors"] == original["original_descriptors"]
+    assert collected["normalized_descriptors"] == original["normalized_descriptors"]
+    assert {path: build.sha(path) for path in descriptors} == descriptors
+    assert len(calls) == (7 if native else 4)
+    assert not any(command[1:3] == ["python", "find"] for command in calls)
+    assert secret not in output.read_text()
+    assert "descriptor-content-must-not-be-emitted" not in output.read_text()
+    profile = "fastapiadmin" if native else "python-basic"
+    record = {
+        **collected,
+        "recipe_identity": "a" * 64,
+        "roots": dependency_image.ROOTS[profile],
+        "groups": dependency_image.GROUPS[profile],
+        "entries": {},
+        "installed_tree_sha256": dependency_image.digest({}),
+    }
+    assert (
+        dependency_image.validate_manifest({"schema": 1, "profiles": {profile: record}}, profile)
+        == record
+    )
+    assert not list((image / "build").glob("metadata-*"))
+    assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize("metadata", [False, True])
+def test_metadata_and_dependency_commands_cannot_run_as_root(monkeypatch, tmp_path, metadata):
+    monkeypatch.setattr(build.os, "geteuid", lambda: 0, raising=False)
+    with pytest.raises(ValueError, match="non-root"):
+        build.run(["must-not-execute"], tmp_path, metadata=metadata)
+
+
+@pytest.mark.parametrize("failure", ["timeout", "exit"])
+def test_collect_probe_failures_leave_no_manifest_or_raw_output(
+    tmp_path, monkeypatch, metadata_image, capsys, failure
+):
+    image, _ = metadata_image
+    inputs = tmp_path / "inputs.json"
+    inputs.write_text('{"normalized_descriptors": {}}')
+    output = tmp_path / "output.json"
+    private = "private-subprocess-output"
+
+    def fail(command, **kwargs):
+        if failure == "timeout":
+            raise subprocess.TimeoutExpired(command, 60, output=private, stderr=private)
+        raise subprocess.CalledProcessError(1, command, output=private, stderr=private)
+
+    monkeypatch.setattr(build.subprocess, "run", fail)
+    with pytest.raises((subprocess.TimeoutExpired, subprocess.CalledProcessError)) as error:
+        build.collect(inputs, output)
+    assert private not in str(error.value)
+    assert not output.exists()
+    assert not list((image / "build").glob("metadata-*"))
+    assert capsys.readouterr() == ("", "")
+
+
+def test_build_commands_keep_existing_limits_and_validated_project_configuration(
+    tmp_path, monkeypatch
+):
+    monkeypatch.setattr(build.os, "geteuid", lambda: 1000, raising=False)
+
+    def execute(command, **kwargs):
+        assert kwargs["timeout"] == 1800
+        assert kwargs["cwd"] == tmp_path
+        assert kwargs["preexec_fn"] is build.limits
+        assert kwargs["capture_output"] is False
+        assert "UV_NO_CONFIG" not in kwargs["env"]
+        assert kwargs["env"]["UV_OFFLINE"] == "1"
+        assert kwargs["env"]["CARGO_NET_OFFLINE"] == "true"
+        return subprocess.CompletedProcess(command, 0)
+
+    monkeypatch.setattr(build.subprocess, "run", execute)
+    build.run([build.UV, "build", "--offline"], tmp_path, offline=True)
+
+
+@pytest.mark.skipif(
+    sys.platform != "linux" or getattr(os, "geteuid", lambda: 0)() == 0,
+    reason="Actual read-only Linux builder regression requires a non-root process",
+)
+def test_metadata_real_uv_and_python_ignore_unwritable_cache_config_and_secrets(
+    tmp_path, monkeypatch, capsys
+):
+    uv = shutil.which("uv")
+    assert uv, "Install the official uv CLI required by the repository test workflow"
+    inherited = tmp_path / "inherited-readonly"
+    inherited.mkdir()
+    config = inherited / "uv.toml"
+    config.write_text("invalid configuration must never be read = [\n")
+    config.chmod(0o444)
+    inherited.chmod(0o555)
+    original = (config.read_bytes(), config.stat().st_mtime_ns, inherited.stat().st_mtime_ns)
+    builder = tmp_path / "build"
+    builder.mkdir()
+    monkeypatch.setattr(build, "BUILD", builder)
+    secret = "inherited-secret-must-not-be-emitted"
+    for key in (
+        "HOME",
+        "UV_CACHE_DIR",
+        "XDG_CONFIG_HOME",
+        "XDG_CACHE_HOME",
+        "PYTHONHOME",
+        "PYTHONPATH",
+        "CARGO_HOME",
+        "RUSTUP_HOME",
+    ):
+        monkeypatch.setenv(key, str(inherited))
+    monkeypatch.setenv("UV_CONFIG_FILE", str(config))
+    monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", secret)
+    monkeypatch.setenv("NODE_OPTIONS", "--require=" + str(config))
+    monkeypatch.setenv("npm_config_userconfig", str(config))
+    monkeypatch.setenv("HTTPS_PROXY", "https://" + secret + ".invalid")
+    watcher = -1
+    try:
+        # Negative control: a read-only uv lookup itself tries to initialize its
+        # inherited cache. The fixed metadata path must not use this operation.
+        control = subprocess.run(
+            [uv, "python", "find", sys.executable],
+            cwd=builder,
+            env={
+                "UV_CACHE_DIR": str(inherited),
+                "UV_NO_CONFIG": "1",
+                "UV_OFFLINE": "1",
+                "UV_PYTHON_DOWNLOADS": "never",
+            },
+            capture_output=True,
+            text=True,
+            timeout=60,
+        )
+        assert control.returncode != 0 and "Permission denied" in control.stderr
+        # Observe actual opens/reads/writes, rather than infer isolation only
+        # from a successful return code and unchanged bytes.
+        libc = ctypes.CDLL(None, use_errno=True)
+        watcher = libc.inotify_init1(os.O_NONBLOCK | os.O_CLOEXEC)
+        assert watcher >= 0
+        for path in (inherited, config):
+            assert libc.inotify_add_watch(watcher, os.fsencode(path), 0x00000FFF) >= 0
+        version = build.run([uv, "--version"], builder, metadata=True)
+        assert version.stdout.startswith("uv ")
+        result = build.run(
+            [
+                sys.executable,
+                "-I",
+                "-S",
+                "-B",
+                "-c",
+                "import os,resource,sys; "
+                "assert os.geteuid() != 0; "
+                "assert sys.flags.isolated and sys.flags.no_site and sys.dont_write_bytecode; "
+                "assert not any(key in os.environ for key in "
+                "('AWS_SECRET_ACCESS_KEY','NODE_OPTIONS','UV_CONFIG_FILE','HTTPS_PROXY',"
+                "'PYTHONHOME','PYTHONPATH')); "
+                "assert resource.getrlimit(resource.RLIMIT_CPU) == (1800,1800); "
+                "assert resource.getrlimit(resource.RLIMIT_AS) == (6*1024**3,6*1024**3); "
+                "print('isolated')",
+            ],
+            builder,
+            metadata=True,
+        )
+        assert result.stdout.strip() == "isolated"
+        with pytest.raises(BlockingIOError):
+            os.read(watcher, 65536)
+        assert not list(builder.iterdir())
+        assert list(inherited.iterdir()) == [config]
+        assert original == (
+            config.read_bytes(),
+            config.stat().st_mtime_ns,
+            inherited.stat().st_mtime_ns,
+        )
+        assert config.stat().st_mode & 0o777 == 0o444
+        assert inherited.stat().st_mode & 0o777 == 0o555
+        assert capsys.readouterr() == ("", "")
+    finally:
+        if watcher >= 0:
+            os.close(watcher)
+        # Restore only this test fixture for pytest cleanup, never image paths.
+        inherited.chmod(0o755)
 
 
 def test_recipes_separate_nonroot_offline_build_and_never_relocate_environments():

@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/candidate-browser-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L109。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/candidate-browser-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L115。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6900`。本段原文以LF换行结束。
+本段原始字节数：`7283`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/candidate-browser-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f32922a391745afd95cd728759e0d1f22be120cf5a93015ebfc6f527329e7049"} -->
+<!-- learning-source: {"path": "docs/candidate-browser-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "77ee141d42d13c04e947e9f1d501a0b884e1bcdec39a0a910beb196738ffae0d"} -->
 ````markdown
 <!-- docs/candidate-browser-isolation.md -->
 # Candidate browser isolation (experimental, fail closed)
@@ -75,6 +75,12 @@ writes on Windows and POSIX. Socket-only selectors are not used for pipe handles
 Partial or zero writes, an empty but open pipe, EOF, large frames and image-copy
 output keep the original absolute deadline and byte limits. No helper thread or
 late-success grace period can outlive owned-process/container cleanup.
+
+Closed-pipe tests assert the documented platform error (Windows EINVAL versus
+POSIX EPIPE), never an arbitrary exception. The real report-then-linger test
+synchronizes child readiness and verifies the received report before checking
+the unchanged one-second worker deadline and cleanup; a separate controlled
+EOF-to-wait test proves that process waiting cannot extend the deadline.
 
 The raw-syscall binary is a native Linux amd64 proof, so only its two compiled
 fixture tests require that host platform. Portable source/policy and broker

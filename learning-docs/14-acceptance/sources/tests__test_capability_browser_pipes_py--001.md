@@ -23,42 +23,43 @@
 - `read_all`（L61–L65）：接收`stream`、`deadline`。 控制顺序：L63在`chunk := isolation._read_pipe(stream, deadline, "test pipe deadli…`成立时循环。 调用`bytearray`、`isolation._read_pipe`、`output.extend`、`bytes`。 返回路径：L65的`bytes(output)`。
 - `test_real_pipe_transfers_large_binary_payload_and_eof`（L68–L82）：接收`child_processes`。 控制顺序：L81断言`read_all(process.stdout, deadline) == hashlib.sha256(body).digest()`；L82断言`process.wait(timeout=5) == 0`。 调用`bytes`、`range`、`launch`、`time.monotonic`、`isolation._write_pipe`、`process.stdin.close`、`read_all`、`hashlib.sha256(body).digest`、`hashlib.sha256`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_unresponsive_pipe_honors_deadline`（L86–L102）：接收`child_processes`、`direction`。 控制顺序：L97按`direction == "write"`分支；L101断言`time.monotonic() - started < 2`；L102断言`process.poll() is None`。 调用`launch`、`time.monotonic`、`pytest.raises`、`isolation._write_pipe`、`isolation._read_pipe`、`process.poll`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_closed_read_end_is_broken_pipe_not_timeout`（L105–L113）：接收`child_processes`。 控制顺序：L110断言`process.wait(timeout=5) == 0`；L113断言`isolation._read_pipe(process.stdout, time.monotonic() + 5, "deadline") == b""`。 调用`launch`、`process.wait`、`pytest.raises`、`isolation._write_pipe`、`time.monotonic`、`isolation._read_pipe`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `simulated_pipes`（L117–L151）：接收`monkeypatch`。 调用`SimpleNamespace`、`monkeypatch.setattr`、`state.modes.append`。 返回路径：L151的`state, SimpleNamespace(fileno=lambda: 17)`。
-- `simulated_pipes.sleep`（L120–L123）：接收`seconds`。 控制顺序：L121断言`0 < seconds <= isolation.PIPE_POLL_INTERVAL`。 调用`state.sleeps.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `simulated_pipes.operation`（L125–L129）：接收`events`。 控制顺序：L127按`isinstance(event, Exception)`分支；L128抛异常，停止当前正常路径。 调用`events.pop`、`isinstance`。 返回路径：L129的`event`。
-- `simulated_pipes.read`（L131–L133）：接收`fd`、`size`。 控制顺序：L132断言`fd == 17 and size == isolation.PIPE_CHUNK`。 调用`operation`。 返回路径：L133的`operation(state.reads)`。
-- `simulated_pipes.write`（L135–L138）：接收`fd`、`data`。 控制顺序：L136断言`fd == 17 and 0 < len(data) <= isolation.PIPE_CHUNK`。 调用`len`、`state.attempts.append`、`bytes`、`operation`。 返回路径：L138的`operation(state.writes)`。
-- `test_simulated_windows_partial_zero_and_full_pipe_writes`（L154–L160）：接收`simulated_pipes`。 控制顺序：L158断言`state.modes == [(17, False)]`；L159断言`state.attempts == [b"abcdef", b"cdef", b"cdef", b"cdef", b"def"]`；L160断言`len(state.sleeps) == 2`。 调用`BlockingIOError`、`isolation._write_pipe`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_simulated_windows_empty_pipe_is_not_eof`（L163–L169）：接收`simulated_pipes`。 控制顺序：L166断言`isolation._read_pipe(stream, 101, "deadline") == b"partial"`；L167断言`isolation._read_pipe(stream, 101, "deadline") == b""`；L168断言`state.modes == [(17, False), (17, False)]`；L169断言`len(state.sleeps) == 1`。 调用`BlockingIOError`、`isolation._read_pipe`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_simulated_blocked_pipe_never_extends_absolute_deadline`（L173–L184）：接收`simulated_pipes`、`direction`。 控制顺序：L179按`direction == "read"`分支；L183断言`state.now == deadline`；L184断言`sum(state.sleeps) == pytest.approx(0.025)`。 调用`BlockingIOError`、`pytest.raises`、`isolation._read_pipe`、`isolation._write_pipe`、`sum`、`pytest.approx`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_simulated_expired_deadline_does_not_attempt_io`（L188–L195）：接收`simulated_pipes`、`direction`。 控制顺序：L191按`direction == "read"`分支；L195断言`state.attempts == state.sleeps == []`。 调用`pytest.raises`、`isolation._read_pipe`、`isolation._write_pipe`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_simulated_real_pipe_errors_propagate`（L200–L210）：接收`simulated_pipes`、`direction`、`code`。 控制顺序：L205按`direction == "read"`分支；L209断言`raised.value is error`；L210断言`not state.sleeps`。 调用`OSError`、`pytest.raises`、`isolation._read_pipe`、`isolation._write_pipe`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `setup_worker`（L213–L225）：接收`monkeypatch`、`child_processes`、`script`。 调用`monkeypatch.setattr`、`launch`。 返回路径：L225的`calls, processes`。
-- `setup_worker.run`（L217–L219）：接收`args`、`**kwargs`。 调用`calls.append`、`SimpleNamespace`。 返回路径：L219的`SimpleNamespace(returncode=0, stdout=b"[{}]")`。
-- `assert_worker_cleaned`（L228–L236）：接收`calls`、`processes`。 控制顺序：L229断言`len(processes) == 1`；L230断言`processes[0].poll() is not None`；L231断言`processes[0].stdin.closed and processes[0].stdout.closed`；L234断言`len(creates) == len(removes) == 1`；L236断言`removes[0] == [*isolation.DOCKER, "rm", "-f", name]`。 调用`len`、`processes[0].poll`、`creates[0].index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_worker_success_with_large_bidirectional_frames`（L239–L275）：接收`monkeypatch`、`child_processes`。 控制顺序：L271断言`status == 0`；L272断言`json.loads(report) == {"digest": hashlib.sha256(bytes(range(256)) * 8192).hexdigest()…`；L273断言`len(relayed) == 1`；L274断言`all("controller-only-token" not in str(args) for args in calls)`。 调用`setup_worker`、`monkeypatch.setattr`、`isolation.execute_worker`、`json.loads`、`hashlib.sha256(bytes(range(256)) * 8192).hexdigest`、`hashlib.sha256`、`bytes`、`range`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_worker_success_with_large_bidirectional_frames.relay`（L261–L265）：接收`client`、`frame`、`deadline`。本机入口只按固定端口选择内部服务，逐字节转发并保留半关闭语义；不解析用户传入URL、目标地址或模型密钥，超时与退出时关闭两侧连接。 控制顺序：L262断言`client.headers["x-daytona-preview-token"] == "controller-only-token"`；L263断言`deadline > time.monotonic()`。 调用`time.monotonic`、`relayed.append`。 返回路径：L265的`{"type": "response", "id": 1, "body": frame["body"]}, 4 * 1024 * 1024`。
-- `test_real_worker_pipe_failures_cleanup`（L298–L305）：接收`monkeypatch`、`child_processes`、`mode`、`script`、`error`、`message`。 调用`setup_worker`、`pytest.raises`、`isolation.execute_worker`、`assert_worker_cleaned`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_provenance_pipe_bounds_and_cleanup`（L309–L340）：接收`monkeypatch`、`child_processes`、`mode`。 控制顺序：L320按`mode == "timeout"`分支；L329按`mode == "success"`分支；L330断言`isolation._image_file_archive(NAME, "/source") == bytes(range(256)) * 1000`；L339断言`len(processes) == 1`；L340断言`processes[0].poll() is not None and processes[0].stdout.closed`。 调用`monkeypatch.setattr`、`launch`、`isolation._image_file_archive`、`bytes`、`range`、`pytest.raises`、`len`、`processes[0].poll`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_provenance_pipe_bounds_and_cleanup.read`（L324–L326）：接收`stream`、`deadline`、`message`。 调用`deadlines.append`、`real_read`、`min`、`time.monotonic`。 返回路径：L326的`real_read(stream, min(deadline, time.monotonic() + 0.1), message)`。
-- `test_read_and_write_requests_are_chunk_bounded`（L343–L349）：接收`simulated_pipes`。 控制顺序：L348断言`b"".join(state.attempts) == body`；L349断言`max(map(len, state.attempts)) == isolation.PIPE_CHUNK`。 调用`isolation._write_pipe`、`b"".join`、`max`、`map`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_progress_does_not_reset_or_overrun_absolute_deadline`（L353–L374）：接收`monkeypatch`、`simulated_pipes`、`direction`。 控制顺序：L370按`direction == "read"`分支；L374断言`state.sleeps == []`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation._read_pipe`、`isolation._write_pipe`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_progress_does_not_reset_or_overrun_absolute_deadline.slow_read`（L359–L361）：接收`fd`、`size`。 返回路径：L361的`b"arrived too late"`。
-- `test_progress_does_not_reset_or_overrun_absolute_deadline.slow_write`（L363–L365）：接收`fd`、`data`。 调用`len`。 返回路径：L365的`len(data)`。
-- `test_real_blocked_reply_uses_original_deadline_and_cleans_up`（L377–L397）：接收`monkeypatch`、`child_processes`。 控制顺序：L396断言`len(deadlines) == 2 and deadlines[0] == deadlines[1]`。 调用`setup_worker`、`monkeypatch.setattr`、`pytest.raises`、`isolation.execute_worker`、`len`、`assert_worker_cleaned`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_blocked_reply_uses_original_deadline_and_cleans_up.write`（L389–L391）：接收`stream`、`data`、`deadline`。 调用`deadlines.append`、`real_write`。 返回路径：L391的`real_write(stream, data, deadline)`。
-- `test_final_process_wait_never_adds_minimum_grace`（L401–L436）：接收`monkeypatch`、`operation`。 控制顺序：L427按`operation == "worker"`分支；L428断言`isolation.execute_worker({}, "http://127.0.0.1:3456", "secret", 1, image=IMAGE) == ( …`；L432断言`state.closed == ["stdin", "stdout"]`；L434断言`isolation._image_file_archive(NAME, "/source") == b""`；L435断言`state.closed == ["stdout"]`；L436断言`state.waits == pytest.approx([0.025, 5])`。 调用`SimpleNamespace`、`state.closed.append`、`state.waits.append`、`monkeypatch.setattr`、`isolation.execute_worker`、`isolation._image_file_archive`、`pytest.approx`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_final_process_wait_never_adds_minimum_grace.read`（L422–L424）：接收`stream`、`deadline`、`message`。 调用`frames.pop`。 返回路径：L424的`frames.pop(0) if operation == "worker" else b""`。
-- `test_real_eof_before_exit_still_times_out_and_cleans_up`（L439–L448）：接收`monkeypatch`、`child_processes`。 调用`setup_worker`、`pytest.raises`、`isolation.execute_worker`、`assert_worker_cleaned`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_closed_read_end_reports_platform_error_not_timeout`（L105–L119）：接收`child_processes`。 控制顺序：L110断言`process.wait(timeout=5) == 0`；L118断言`type(raised.value) is error and raised.value.errno == code`；L119断言`isolation._read_pipe(process.stdout, time.monotonic() + 5, "deadline") == b""`。 调用`launch`、`process.wait`、`pytest.raises`、`isolation._write_pipe`、`time.monotonic`、`type`、`isolation._read_pipe`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `simulated_pipes`（L123–L157）：接收`monkeypatch`。 调用`SimpleNamespace`、`monkeypatch.setattr`、`state.modes.append`。 返回路径：L157的`state, SimpleNamespace(fileno=lambda: 17)`。
+- `simulated_pipes.sleep`（L126–L129）：接收`seconds`。 控制顺序：L127断言`0 < seconds <= isolation.PIPE_POLL_INTERVAL`。 调用`state.sleeps.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `simulated_pipes.operation`（L131–L135）：接收`events`。 控制顺序：L133按`isinstance(event, Exception)`分支；L134抛异常，停止当前正常路径。 调用`events.pop`、`isinstance`。 返回路径：L135的`event`。
+- `simulated_pipes.read`（L137–L139）：接收`fd`、`size`。 控制顺序：L138断言`fd == 17 and size == isolation.PIPE_CHUNK`。 调用`operation`。 返回路径：L139的`operation(state.reads)`。
+- `simulated_pipes.write`（L141–L144）：接收`fd`、`data`。 控制顺序：L142断言`fd == 17 and 0 < len(data) <= isolation.PIPE_CHUNK`。 调用`len`、`state.attempts.append`、`bytes`、`operation`。 返回路径：L144的`operation(state.writes)`。
+- `test_simulated_windows_partial_zero_and_full_pipe_writes`（L160–L166）：接收`simulated_pipes`。 控制顺序：L164断言`state.modes == [(17, False)]`；L165断言`state.attempts == [b"abcdef", b"cdef", b"cdef", b"cdef", b"def"]`；L166断言`len(state.sleeps) == 2`。 调用`BlockingIOError`、`isolation._write_pipe`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_simulated_windows_empty_pipe_is_not_eof`（L169–L175）：接收`simulated_pipes`。 控制顺序：L172断言`isolation._read_pipe(stream, 101, "deadline") == b"partial"`；L173断言`isolation._read_pipe(stream, 101, "deadline") == b""`；L174断言`state.modes == [(17, False), (17, False)]`；L175断言`len(state.sleeps) == 1`。 调用`BlockingIOError`、`isolation._read_pipe`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_simulated_blocked_pipe_never_extends_absolute_deadline`（L179–L190）：接收`simulated_pipes`、`direction`。 控制顺序：L185按`direction == "read"`分支；L189断言`state.now == deadline`；L190断言`sum(state.sleeps) == pytest.approx(0.025)`。 调用`BlockingIOError`、`pytest.raises`、`isolation._read_pipe`、`isolation._write_pipe`、`sum`、`pytest.approx`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_simulated_expired_deadline_does_not_attempt_io`（L194–L201）：接收`simulated_pipes`、`direction`。 控制顺序：L197按`direction == "read"`分支；L201断言`state.attempts == state.sleeps == []`。 调用`pytest.raises`、`isolation._read_pipe`、`isolation._write_pipe`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_simulated_real_pipe_errors_propagate`（L206–L216）：接收`simulated_pipes`、`direction`、`code`。 控制顺序：L211按`direction == "read"`分支；L215断言`raised.value is error`；L216断言`not state.sleeps`。 调用`OSError`、`pytest.raises`、`isolation._read_pipe`、`isolation._write_pipe`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `setup_worker`（L219–L231）：接收`monkeypatch`、`child_processes`、`script`。 调用`monkeypatch.setattr`、`launch`。 返回路径：L231的`calls, processes`。
+- `setup_worker.run`（L223–L225）：接收`args`、`**kwargs`。 调用`calls.append`、`SimpleNamespace`。 返回路径：L225的`SimpleNamespace(returncode=0, stdout=b"[{}]")`。
+- `assert_worker_cleaned`（L234–L242）：接收`calls`、`processes`。 控制顺序：L235断言`len(processes) == 1`；L236断言`processes[0].poll() is not None`；L237断言`processes[0].stdin.closed and processes[0].stdout.closed`；L240断言`len(creates) == len(removes) == 1`；L242断言`removes[0] == [*isolation.DOCKER, "rm", "-f", name]`。 调用`len`、`processes[0].poll`、`creates[0].index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_success_with_large_bidirectional_frames`（L245–L281）：接收`monkeypatch`、`child_processes`。 控制顺序：L277断言`status == 0`；L278断言`json.loads(report) == {"digest": hashlib.sha256(bytes(range(256)) * 8192).hexdigest()…`；L279断言`len(relayed) == 1`；L280断言`all("controller-only-token" not in str(args) for args in calls)`。 调用`setup_worker`、`monkeypatch.setattr`、`isolation.execute_worker`、`json.loads`、`hashlib.sha256(bytes(range(256)) * 8192).hexdigest`、`hashlib.sha256`、`bytes`、`range`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_success_with_large_bidirectional_frames.relay`（L267–L271）：接收`client`、`frame`、`deadline`。本机入口只按固定端口选择内部服务，逐字节转发并保留半关闭语义；不解析用户传入URL、目标地址或模型密钥，超时与退出时关闭两侧连接。 控制顺序：L268断言`client.headers["x-daytona-preview-token"] == "controller-only-token"`；L269断言`deadline > time.monotonic()`。 调用`time.monotonic`、`relayed.append`。 返回路径：L271的`{"type": "response", "id": 1, "body": frame["body"]}, 4 * 1024 * 1024`。
+- `test_real_worker_pipe_failures_cleanup`（L304–L311）：接收`monkeypatch`、`child_processes`、`mode`、`script`、`error`、`message`。 调用`setup_worker`、`pytest.raises`、`isolation.execute_worker`、`assert_worker_cleaned`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_provenance_pipe_bounds_and_cleanup`（L315–L346）：接收`monkeypatch`、`child_processes`、`mode`。 控制顺序：L326按`mode == "timeout"`分支；L335按`mode == "success"`分支；L336断言`isolation._image_file_archive(NAME, "/source") == bytes(range(256)) * 1000`；L345断言`len(processes) == 1`；L346断言`processes[0].poll() is not None and processes[0].stdout.closed`。 调用`monkeypatch.setattr`、`launch`、`isolation._image_file_archive`、`bytes`、`range`、`pytest.raises`、`len`、`processes[0].poll`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_provenance_pipe_bounds_and_cleanup.read`（L330–L332）：接收`stream`、`deadline`、`message`。 调用`deadlines.append`、`real_read`、`min`、`time.monotonic`。 返回路径：L332的`real_read(stream, min(deadline, time.monotonic() + 0.1), message)`。
+- `test_read_and_write_requests_are_chunk_bounded`（L349–L355）：接收`simulated_pipes`。 控制顺序：L354断言`b"".join(state.attempts) == body`；L355断言`max(map(len, state.attempts)) == isolation.PIPE_CHUNK`。 调用`isolation._write_pipe`、`b"".join`、`max`、`map`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_progress_does_not_reset_or_overrun_absolute_deadline`（L359–L380）：接收`monkeypatch`、`simulated_pipes`、`direction`。 控制顺序：L376按`direction == "read"`分支；L380断言`state.sleeps == []`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation._read_pipe`、`isolation._write_pipe`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_progress_does_not_reset_or_overrun_absolute_deadline.slow_read`（L365–L367）：接收`fd`、`size`。 返回路径：L367的`b"arrived too late"`。
+- `test_progress_does_not_reset_or_overrun_absolute_deadline.slow_write`（L369–L371）：接收`fd`、`data`。 调用`len`。 返回路径：L371的`len(data)`。
+- `test_real_blocked_reply_uses_original_deadline_and_cleans_up`（L383–L403）：接收`monkeypatch`、`child_processes`。 控制顺序：L402断言`len(deadlines) == 2 and deadlines[0] == deadlines[1]`。 调用`setup_worker`、`monkeypatch.setattr`、`pytest.raises`、`isolation.execute_worker`、`len`、`assert_worker_cleaned`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_blocked_reply_uses_original_deadline_and_cleans_up.write`（L395–L397）：接收`stream`、`data`、`deadline`。 调用`deadlines.append`、`real_write`。 返回路径：L397的`real_write(stream, data, deadline)`。
+- `test_final_process_wait_never_adds_minimum_grace`（L407–L442）：接收`monkeypatch`、`operation`。 控制顺序：L433按`operation == "worker"`分支；L434断言`isolation.execute_worker({}, "http://127.0.0.1:3456", "secret", 1, image=IMAGE) == ( …`；L438断言`state.closed == ["stdin", "stdout"]`；L440断言`isolation._image_file_archive(NAME, "/source") == b""`；L441断言`state.closed == ["stdout"]`；L442断言`state.waits == pytest.approx([0.025, 5])`。 调用`SimpleNamespace`、`state.closed.append`、`state.waits.append`、`monkeypatch.setattr`、`isolation.execute_worker`、`isolation._image_file_archive`、`pytest.approx`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_final_process_wait_never_adds_minimum_grace.read`（L428–L430）：接收`stream`、`deadline`、`message`。 调用`frames.pop`。 返回路径：L430的`frames.pop(0) if operation == "worker" else b""`。
+- `test_real_report_then_linger_times_out_and_cleans_up`（L445–L490）：接收`monkeypatch`、`child_processes`。 控制顺序：L460在`b"\n" not in ready`成立时循环；L462断言`chunk`；L464断言`ready == b"ready\n"`；L481断言`json.loads(received) == { "type": "report", "report": {"completed": True}, "exit_code…`；L486按`isinstance(raised.value, TimeoutError)`分支；L487断言`str(raised.value) == "Browser worker deadline exceeded"`；L489断言`raised.value.cmd == process.args and 0 < raised.value.timeout <= 1`。 调用`launch`、`bytearray`、`time.monotonic`、`isolation._read_pipe`、`ready.extend`、`setup_worker`、`monkeypatch.setattr`、`pytest.raises`、`isolation.execute_worker`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_report_then_linger_times_out_and_cleans_up.read`（L470–L473）：接收`stream`、`deadline`、`message`。 调用`real_read`、`received.extend`。 返回路径：L473的`chunk`。
 
 </details>
 
-**创建路径：** `tests/test_capability_browser_pipes.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L448。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_browser_pipes.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L490。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17119`。本段原文以LF换行结束。
+本段原始字节数：`19144`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_browser_pipes.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b6befcfbdedd2fc2dcc8c70cf8701bab35faf03606713406878792e67b4bdcff"} -->
+<!-- learning-source: {"path": "tests/test_capability_browser_pipes.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b297ba0c2168a34e40bb0258af4f638af7d60147409e3d5378ff0fcee7e4e933"} -->
 ````python
 # tests/test_capability_browser_pipes.py
 """Portable real pipes and simulated Windows backpressure; no Docker certification."""
@@ -165,14 +166,20 @@ def test_real_unresponsive_pipe_honors_deadline(child_processes, direction):
     assert process.poll() is None
 
 
-def test_real_closed_read_end_is_broken_pipe_not_timeout(child_processes):
+def test_real_closed_read_end_reports_platform_error_not_timeout(child_processes):
     launch, _ = child_processes
     process = launch(
         "pass", stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
     )
     assert process.wait(timeout=5) == 0
-    with pytest.raises(BrokenPipeError):
+    # CPython's subprocess._stdin_write documents Windows EINVAL when the child
+    # exited or closed stdin (bpo-19612/bpo-30418); POSIX reports EPIPE instead.
+    error, code = (
+        (OSError, errno.EINVAL) if sys.platform == "win32" else (BrokenPipeError, errno.EPIPE)
+    )
+    with pytest.raises(error) as raised:
         isolation._write_pipe(process.stdin, b"not delivered", time.monotonic() + 5)
+    assert type(raised.value) is error and raised.value.errno == code
     assert isolation._read_pipe(process.stdout, time.monotonic() + 5, "deadline") == b""
 
 
@@ -259,7 +266,7 @@ def test_simulated_expired_deadline_does_not_attempt_io(simulated_pipes, directi
 
 
 @pytest.mark.parametrize("direction", ["read", "write"])
-@pytest.mark.parametrize("code", [errno.EBADF, errno.EIO, errno.EPIPE])
+@pytest.mark.parametrize("code", [errno.EBADF, errno.EIO, errno.EPIPE, errno.EINVAL])
 def test_simulated_real_pipe_errors_propagate(simulated_pipes, direction, code):
     state, stream = simulated_pipes
     error = OSError(code, "genuine pipe failure")
@@ -499,14 +506,50 @@ def test_final_process_wait_never_adds_minimum_grace(monkeypatch, operation):
     assert state.waits == pytest.approx([0.025, 5])
 
 
-def test_real_eof_before_exit_still_times_out_and_cleans_up(monkeypatch, child_processes):
+def test_real_report_then_linger_times_out_and_cleans_up(monkeypatch, child_processes):
     script = (
-        "import os,sys,time; sys.stdin.readline(); "
-        'print(\'{"type":"report","report":{},"exit_code":0}\', flush=True); '
+        "import os,sys,time; sys.stdout.buffer.write(b'ready\\n'); sys.stdout.flush(); "
+        "sys.stdin.readline(); "
+        'print(\'{"type":"report","report":{"completed":true},"exit_code":0}\', flush=True); '
         "os.close(sys.stdout.fileno()); time.sleep(30)"
     )
+    # Exclude interpreter cold-start from this one-second report/linger test,
+    # while proving the real child has started before execute_worker's deadline.
+    launch, _ = child_processes
+    process = launch(
+        script, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+    )
+    ready = bytearray()
+    deadline = time.monotonic() + 5
+    while b"\n" not in ready:
+        chunk = isolation._read_pipe(process.stdout, deadline, "child startup deadline")
+        assert chunk, "Child exited before readiness handshake"
+        ready.extend(chunk)
+    assert ready == b"ready\n"
     calls, processes = setup_worker(monkeypatch, child_processes, script)
-    with pytest.raises(subprocess.TimeoutExpired):
+    monkeypatch.setattr(isolation.subprocess, "Popen", lambda *args, **kwargs: process)
+    received = bytearray()
+    real_read = isolation._read_pipe
+
+    def read(stream, deadline, message):
+        chunk = real_read(stream, deadline, message)
+        received.extend(chunk)
+        return chunk
+
+    monkeypatch.setattr(isolation, "_read_pipe", read)
+    # Windows launchers may retain stdout handles until exit. Both waiting for
+    # EOF and waiting after EOF must honor the same deadline; the controlled
+    # EOF-to-wait test above separately checks the exact remaining wait budget.
+    with pytest.raises((TimeoutError, subprocess.TimeoutExpired)) as raised:
         isolation.execute_worker({}, "http://127.0.0.1:3456", "secret", 1, image=IMAGE)
+    assert json.loads(received) == {
+        "type": "report",
+        "report": {"completed": True},
+        "exit_code": 0,
+    }
+    if isinstance(raised.value, TimeoutError):
+        assert str(raised.value) == "Browser worker deadline exceeded"
+    else:
+        assert raised.value.cmd == process.args and 0 < raised.value.timeout <= 1
     assert_worker_cleaned(calls, processes)
 ````

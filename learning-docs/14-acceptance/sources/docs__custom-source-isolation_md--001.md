@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L166。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L172。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12477`。本段原文以LF换行结束。
+本段原始字节数：`13016`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4881ae94ed4225e9eacf21de819753202fdfe5aaf68023616ea8ff146c496f86"} -->
+<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "89a27d7d66449fa7845e09c056c2d938c13c822652a6737d31675d42a72da7dc"} -->
 ````markdown
 <!-- docs/custom-source-isolation.md -->
 # 自定义源码执行：有证据的启用门
@@ -80,6 +80,12 @@ socket，禁止其他网络域、DGRAM/RAW/SEQPACKET（含类型标志组合）�
 镜像安装使用 `uv pip sync` 的位置参数传入带哈希的锁定requirements文件；`-r` 只用于
 相应的 `pip install` 命令。两个profile在长镜像构建前先执行真实uv解析和离线轮包
 dry-run回归，确保basic、native与harness路径均匹配实际CLI，而非仅检查命令字符串。
+
+产物收集直接读取已绑定的只读 `python-build` 解释器身份，不再让 `uv python find`
+隐式初始化root缓存。Python、uv、Node、系统包、Rust、C编译器和pnpm的版本探针统一
+使用非root受限环境、全新临时cwd/HOME、离线配置及60秒预算；Python显式使用`-B`，
+避免`-I`忽略环境变量后产生字节码写入。不会放宽根缓存或工具目录权限。禁配置只作用于
+身份探针，原始构建/安装的锁文件、default-groups与extras选择语义保持不变。
 
 SQLite 数据库只允许独立非源码子目录中的 `.db`、`.sqlite` 或 `.sqlite3` 文件，不能
 把 Python 模块、原生库或源码目录声明为可写数据库。应用重启前后仍验证完整源码与

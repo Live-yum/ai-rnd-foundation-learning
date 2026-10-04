@@ -3073,8 +3073,8 @@
     },
     {
       "path": "scripts/daytona_dependency_build.py",
-      "bytes": 20099,
-      "sha256": "4a2d33685e41df4f7a42aeaa1cb861a51763f35a15fc1753167aae9f6c70e33e",
+      "bytes": 21662,
+      "sha256": "a81486d08895fa457bf1be78566c9034d3e046cb73bfba4c1525a113db412e04",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_dependency_build_py--001.md"
@@ -3172,8 +3172,8 @@
     },
     {
       "path": "tests/test_daytona_dependency_build.py",
-      "bytes": 17099,
-      "sha256": "89236af7627533fb9b4594e164b244a8ef89891264a794a777af3edd0e3c15ab",
+      "bytes": 29874,
+      "sha256": "e23b4773a4a1bc1daa3808f0ea489c9ff143c6c1e0f7e1c946a210653edbed8c",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tests__test_daytona_dependency_build_py--001.md"
@@ -3865,8 +3865,8 @@
     },
     {
       "path": "docs/candidate-browser-isolation.md",
-      "bytes": 6900,
-      "sha256": "f32922a391745afd95cd728759e0d1f22be120cf5a93015ebfc6f527329e7049",
+      "bytes": 7283,
+      "sha256": "77ee141d42d13c04e947e9f1d501a0b884e1bcdec39a0a910beb196738ffae0d",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__candidate-browser-isolation_md--001.md"
@@ -3883,8 +3883,8 @@
     },
     {
       "path": "docs/custom-source-isolation.md",
-      "bytes": 12477,
-      "sha256": "4881ae94ed4225e9eacf21de819753202fdfe5aaf68023616ea8ff146c496f86",
+      "bytes": 13016,
+      "sha256": "89a27d7d66449fa7845e09c056c2d938c13c822652a6737d31675d42a72da7dc",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__custom-source-isolation_md--001.md"
@@ -4444,8 +4444,8 @@
     },
     {
       "path": "tests/test_capability_browser_pipes.py",
-      "bytes": 17119,
-      "sha256": "b6befcfbdedd2fc2dcc8c70cf8701bab35faf03606713406878792e67b4bdcff",
+      "bytes": 19144,
+      "sha256": "b297ba0c2168a34e40bb0258af4f638af7d60147409e3d5378ff0fcee7e4e933",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_browser_pipes_py--001.md"

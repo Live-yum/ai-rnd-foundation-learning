@@ -15,12 +15,15 @@ import tarfile
 import tomllib
 import urllib.request
 import zipfile
+from contextlib import nullcontext
 from pathlib import Path, PurePosixPath
+from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
 
 BUILD = Path("/opt/rnd/build")
 TOOLS = Path("/opt/rnd/build-tools")
 PYTHON = "3.14.7"
+PYTHON_BUILD = Path("/opt/rnd/bin/python-build")
 UV = "/usr/local/bin/uv"
 MIRRORS = {
     "https://pypi.tuna.tsinghua.edu.cn/simple": "https://pypi.org/simple",
@@ -154,7 +157,7 @@ def limits():
     resource.setrlimit(resource.RLIMIT_NPROC, (384, 384))
 
 
-def run(command, cwd, *, offline=False):
+def run(command, cwd, *, offline=False, metadata=False):
     if os.geteuid() == 0:
         raise ValueError("Dependency subprocess must run in the separate non-root builder")
     env = {
@@ -175,16 +178,39 @@ def run(command, cwd, *, offline=False):
         "CI": "true",
         "HUSKY": "0",
     }
-    return subprocess.run(
-        command,
-        cwd=cwd,
-        env=env,
-        check=True,
-        timeout=1800,
-        preexec_fn=limits,
-        text=True,
-        capture_output=False,
-    )
+    context = TemporaryDirectory(prefix="metadata-", dir=BUILD) if metadata else nullcontext()
+    with context as directory:
+        if metadata:
+            # Version probes must not discover project/user configuration or install
+            # toolchains. Keep every writable location inside the existing builder
+            # area, never the inherited root-owned interpreter/tool/cache trees.
+            home = Path(directory)
+            cwd = home
+            env.update(
+                HOME=str(home),
+                XDG_CONFIG_HOME=str(home / ".config"),
+                XDG_CACHE_HOME=str(home / ".cache"),
+                XDG_DATA_HOME=str(home / ".local/share"),
+                UV_NO_CONFIG="1",
+                UV_OFFLINE="1",
+                CARGO_NET_OFFLINE="true",
+                RUSTUP_AUTO_INSTALL="0",
+                COREPACK_ENABLE_NETWORK="0",
+                DISABLE_V8_COMPILE_CACHE="1",
+                NODE_DISABLE_COMPILE_CACHE="1",
+                npm_config_userconfig=str(home / "user.npmrc"),
+                npm_config_globalconfig=str(home / "global.npmrc"),
+            )
+        return subprocess.run(
+            command,
+            cwd=cwd,
+            env=env,
+            check=True,
+            timeout=60 if metadata else 1800,
+            preexec_fn=limits,
+            text=True,
+            capture_output=metadata,
+        )
 
 
 def download(record, destination):
@@ -436,16 +462,19 @@ def install(project, *, basic=False, harness=False):
 def collect(inputs, output, *, native=False):
     value = json.loads(Path(inputs).read_bytes())
     python_runtime = json.loads(
-        subprocess.check_output(
+        run(
             [
-                "/opt/rnd/bin/python-build",
+                str(PYTHON_BUILD),
                 "-I",
                 "-S",
+                "-B",
                 "-c",
                 'import json,sys,sysconfig,platform;print(json.dumps({"version":list(sys.version_info[:3]),"build":sys.version,"soabi":sysconfig.get_config_var("SOABI"),"machine":platform.machine(),"system":platform.system()}))',
             ],
-            text=True,
-        )
+            BUILD,
+            offline=True,
+            metadata=True,
+        ).stdout
     )
     if (
         python_runtime["version"] != [3, 14, 7]
@@ -469,7 +498,6 @@ def collect(inputs, output, *, native=False):
     commands = {
         "uv": [UV, "--version"],
         "node": ["/usr/local/bin/node", "--version"],
-        "python": [UV, "python", "find", PYTHON],
         "system_packages": ["/usr/bin/dpkg-query", "-W", "-f=${Package}=${Version}\\n"],
     }
     if native:
@@ -479,8 +507,12 @@ def collect(inputs, output, *, native=False):
             pnpm=["/usr/local/bin/pnpm", "--version"],
         )
     value["toolchain"] = {
-        name: subprocess.check_output(argv, text=True).strip() for name, argv in commands.items()
+        name: run(argv, BUILD, offline=True, metadata=True).stdout.strip()
+        for name, argv in commands.items()
     }
+    # The foundation already fixed this interpreter identity. Rediscovering it
+    # with `uv python find` initializes uv's cache even for a metadata lookup.
+    value["toolchain"]["python"] = str(PYTHON_BUILD.resolve(strict=True))
     if value["toolchain"]["node"] != "v22.23.2" or not re.fullmatch(
         r"uv 0\.12\.20(?: .*)?", value["toolchain"]["uv"]
     ):

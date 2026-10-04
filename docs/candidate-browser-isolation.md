@@ -57,6 +57,12 @@ Partial or zero writes, an empty but open pipe, EOF, large frames and image-copy
 output keep the original absolute deadline and byte limits. No helper thread or
 late-success grace period can outlive owned-process/container cleanup.
 
+Closed-pipe tests assert the documented platform error (Windows EINVAL versus
+POSIX EPIPE), never an arbitrary exception. The real report-then-linger test
+synchronizes child readiness and verifies the received report before checking
+the unchanged one-second worker deadline and cleanup; a separate controlled
+EOF-to-wait test proves that process waiting cannot extend the deadline.
+
 The raw-syscall binary is a native Linux amd64 proof, so only its two compiled
 fixture tests require that host platform. Portable source/policy and broker
 contracts still run on Windows; skipping a host-only fixture does not certify
