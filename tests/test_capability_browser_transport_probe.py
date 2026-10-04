@@ -6,10 +6,12 @@ Actual denial/kill receipts must come from the authorized disposable worker.
 
 import hashlib
 import json
+import platform
 import re
 import shutil
 import struct
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -51,6 +53,12 @@ EXPECTED_CHECKS = {
 
 @pytest.fixture(scope="module")
 def compiled_probe(tmp_path_factory):
+    if (
+        sys.platform != "linux"
+        or platform.machine().lower() not in {"x86_64", "amd64"}
+        or struct.calcsize("P") != 8
+    ):
+        pytest.skip("ELF/raw-syscall compilation requires native Linux amd64; source contracts run")
     compiler = shutil.which("gcc")
     assert compiler, "Static native-amd64 probe compilation is required; no skipped pass"
     output = tmp_path_factory.mktemp("inspect-only-browser-probe") / "probe-do-not-run"
@@ -199,3 +207,44 @@ def test_native_negative_cases_are_outside_every_reviewed_allow_rule():
     for syscall in ("setns", "mount", "io_uring_setup", "io_uring_enter", "io_uring_register"):
         assert not list(_native_allow_rules(profile, syscall))
     assert profile["defaultAction"] == "SCMP_ACT_ERRNO" and profile["defaultErrnoRet"] == 1
+
+
+@pytest.mark.parametrize(
+    ("host", "machine", "pointer_size"),
+    [
+        ("win32", "AMD64", 8),
+        ("darwin", "x86_64", 8),
+        ("linux", "aarch64", 8),
+        ("linux", "x86_64", 4),
+    ],
+)
+def test_only_native_compile_fixture_has_platform_precondition(
+    monkeypatch, host, machine, pointer_size
+):
+    from types import SimpleNamespace
+
+    module = sys.modules[__name__]
+    monkeypatch.setattr(module, "sys", SimpleNamespace(platform=host))
+    monkeypatch.setattr(module, "platform", SimpleNamespace(machine=lambda: machine))
+    monkeypatch.setattr(module, "struct", SimpleNamespace(calcsize=lambda _: pointer_size))
+    monkeypatch.setattr(
+        shutil, "which", lambda _: pytest.fail("compiler queried on unsupported ABI")
+    )
+    with pytest.raises(pytest.skip.Exception, match="native Linux amd64"):
+        compiled_probe.__wrapped__(None)
+    # Source/receipt contracts and every policy case remain checked even here.
+    test_probe_case_count_and_bounded_json_contract()
+    test_native_negative_cases_are_outside_every_reviewed_allow_rule()
+
+
+@pytest.mark.parametrize("machine", ["x86_64", "AMD64"])
+def test_supported_native_compile_cannot_skip_missing_compiler(monkeypatch, machine):
+    from types import SimpleNamespace
+
+    module = sys.modules[__name__]
+    monkeypatch.setattr(module, "sys", SimpleNamespace(platform="linux"))
+    monkeypatch.setattr(module, "platform", SimpleNamespace(machine=lambda: machine))
+    monkeypatch.setattr(module, "struct", SimpleNamespace(calcsize=lambda _: 8))
+    monkeypatch.setattr(shutil, "which", lambda _: None)
+    with pytest.raises(AssertionError, match="compilation is required"):
+        compiled_probe.__wrapped__(None)

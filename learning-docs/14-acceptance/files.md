@@ -84,6 +84,7 @@
 - [tests/test_capability_browser_apparmor_review.py](sources/tests__test_capability_browser_apparmor_review_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_isolation.py](sources/tests__test_capability_browser_isolation_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_oom_diagnostics.py](sources/tests__test_capability_browser_oom_diagnostics_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_browser_pipes.py](sources/tests__test_capability_browser_pipes_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_policy.py](sources/tests__test_capability_browser_policy_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_preflight.py](sources/tests__test_capability_browser_preflight_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_protocol.py](sources/tests__test_capability_browser_protocol_py--001.md)：可重复的验收用例；2 段

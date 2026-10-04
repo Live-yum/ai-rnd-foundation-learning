@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/candidate-browser-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L96。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/candidate-browser-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L109。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6165`。本段原文以LF换行结束。
+本段原始字节数：`6900`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/candidate-browser-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "38d554f22dd32a1fff278525d0925d5708a12d9bdaf7eb702a3bcecbe979b2b4"} -->
+<!-- learning-source: {"path": "docs/candidate-browser-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f32922a391745afd95cd728759e0d1f22be120cf5a93015ebfc6f527329e7049"} -->
 ````markdown
 <!-- docs/candidate-browser-isolation.md -->
 # Candidate browser isolation (experimental, fail closed)
@@ -67,6 +67,19 @@ dictionary-entry overhead. Replacing a variable credits its previous size;
 ordinary reuse does not consume the budget repeatedly. Non-finite numbers,
 oversized values and over-budget interpolation fail before retention or request
 construction. These limits reject excessive data rather than silently truncating it.
+
+## Portable controller pipes
+
+The Python 3.14 controller uses bounded nonblocking anonymous-pipe reads and
+writes on Windows and POSIX. Socket-only selectors are not used for pipe handles.
+Partial or zero writes, an empty but open pipe, EOF, large frames and image-copy
+output keep the original absolute deadline and byte limits. No helper thread or
+late-success grace period can outlive owned-process/container cleanup.
+
+The raw-syscall binary is a native Linux amd64 proof, so only its two compiled
+fixture tests require that host platform. Portable source/policy and broker
+contracts still run on Windows; skipping a host-only fixture does not certify
+isolation. The actual Docker profile still requires every live kernel outcome.
 
 ## Real proof
 

@@ -430,8 +430,8 @@
     },
     {
       "path": "workbench/capability_browser_isolation.py",
-      "bytes": 26289,
-      "sha256": "d318a6d1a0cde0fc0dbc15b938831a3bbad5ae29a7c913366cecface50999c24",
+      "bytes": 26553,
+      "sha256": "b2d94211803c0a4d0c389b918e9b27aa3aa9eae7fe5f7ac2f359d8303ddb4bba",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_browser_isolation_py--001.md"
@@ -3073,8 +3073,8 @@
     },
     {
       "path": "scripts/daytona_dependency_build.py",
-      "bytes": 20036,
-      "sha256": "ba48e57e65a4640cd5011e7bbe35c5a63212014c95e0af575956ab547554826a",
+      "bytes": 20099,
+      "sha256": "4a2d33685e41df4f7a42aeaa1cb861a51763f35a15fc1753167aae9f6c70e33e",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_dependency_build_py--001.md"
@@ -3172,8 +3172,8 @@
     },
     {
       "path": "tests/test_daytona_dependency_build.py",
-      "bytes": 7880,
-      "sha256": "a158d37a97ff32f4e99dd561c892f0075bc5bb152a0aceee052cab18a94de30a",
+      "bytes": 17099,
+      "sha256": "89236af7627533fb9b4594e164b244a8ef89891264a794a777af3edd0e3c15ab",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tests__test_daytona_dependency_build_py--001.md"
@@ -3730,8 +3730,8 @@
     },
     {
       "path": ".github/workflows/capability-profile.yml",
-      "bytes": 7442,
-      "sha256": "e1f45405a67c049d1f7459a351e51a25b646b1fc8962df03fd2dc6a7520edfcf",
+      "bytes": 7520,
+      "sha256": "e4c3726adf4f74df2ca50539eb7acf1775cef145cf8da468b445f24bdd32432e",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__capability-profile_yml--001.md"
@@ -3766,8 +3766,8 @@
     },
     {
       "path": ".github/workflows/native-capability-profile.yml",
-      "bytes": 9692,
-      "sha256": "3c37154e88fe67e522f2b4fd7bdd356ef99a733d08ca24fc9491fd131a7fe3fa",
+      "bytes": 9770,
+      "sha256": "c34c8a2ef66d7353cfbafde82ab497bd18e9c9b8db13d64d4da6c3aa7631974e",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__native-capability-profile_yml--001.md"
@@ -3865,8 +3865,8 @@
     },
     {
       "path": "docs/candidate-browser-isolation.md",
-      "bytes": 6165,
-      "sha256": "38d554f22dd32a1fff278525d0925d5708a12d9bdaf7eb702a3bcecbe979b2b4",
+      "bytes": 6900,
+      "sha256": "f32922a391745afd95cd728759e0d1f22be120cf5a93015ebfc6f527329e7049",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__candidate-browser-isolation_md--001.md"
@@ -3883,8 +3883,8 @@
     },
     {
       "path": "docs/custom-source-isolation.md",
-      "bytes": 12155,
-      "sha256": "04ee35fcfb9aee109fa678a6a09868e304b2a585e0146b65d5451c12d8d9dcf4",
+      "bytes": 12477,
+      "sha256": "4881ae94ed4225e9eacf21de819753202fdfe5aaf68023616ea8ff146c496f86",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__custom-source-isolation_md--001.md"
@@ -4426,8 +4426,8 @@
     },
     {
       "path": "tests/test_capability_browser_isolation.py",
-      "bytes": 18273,
-      "sha256": "94dd3ce39bc9e4833ad048b6217d6ee26350aad3d0849edcaf97f4a8ce819d06",
+      "bytes": 18783,
+      "sha256": "3086efb10bfdd5a5dac4833eeacafecab90565c6d1b24a73a7dd883261751423",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_browser_isolation_py--001.md"
@@ -4440,6 +4440,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_browser_oom_diagnostics_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_capability_browser_pipes.py",
+      "bytes": 17119,
+      "sha256": "b6befcfbdedd2fc2dcc8c70cf8701bab35faf03606713406878792e67b4bdcff",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_capability_browser_pipes_py--001.md"
       ]
     },
     {
@@ -4490,8 +4499,8 @@
     },
     {
       "path": "tests/test_capability_browser_transport_probe.py",
-      "bytes": 7617,
-      "sha256": "e2b1a7e0db3a4ebdc7d565d29918d688b8dd21832a11effadd6c9cb8c5c347b8",
+      "bytes": 9611,
+      "sha256": "cf83e2e3cba680001ac37348a9bb2cfb3117ba2d6a16453b8bf55432507d3e47",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_browser_transport_probe_py--001.md"

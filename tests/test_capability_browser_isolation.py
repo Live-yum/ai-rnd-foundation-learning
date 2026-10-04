@@ -176,6 +176,7 @@ def test_failures_always_remove_owned_container(monkeypatch, mode):
 
     real_popen = subprocess.Popen
     calls = []
+    processes = []
 
     def fake_run(args, **kwargs):
         calls.append(args)
@@ -192,14 +193,23 @@ def test_failures_always_remove_owned_container(monkeypatch, mode):
             "timeout": "import sys,time;sys.stdin.readline();time.sleep(10)",
             "cleanup-fails": "import sys;sys.stdin.readline();print('invalid-json',flush=True)",
         }[mode]
-        return real_popen([sys.executable, "-c", script], **kwargs)
+        process = real_popen([sys.executable, "-I", "-S", "-c", script], **kwargs)
+        processes.append(process)
+        return process
 
     monkeypatch.setattr(isolation.subprocess, "run", fake_run)
     monkeypatch.setattr(isolation.subprocess, "Popen", fake_popen)
     if mode != "bad-inspection":
         monkeypatch.setattr(isolation, "require_worker_inspection", lambda *args: {})
         monkeypatch.setattr(isolation, "require_image_sources", lambda *args: {})
-    with pytest.raises((ValueError, RuntimeError, TimeoutError)):
+    error, message = {
+        "invalid-json": (json.JSONDecodeError, "Expecting value"),
+        "timeout": (TimeoutError, "deadline exceeded"),
+        "oversized": (ValueError, "frame budget exceeded"),
+        "bad-inspection": (ValueError, "isolation mismatch"),
+        "cleanup-fails": (RuntimeError, "cleanup unconfirmed"),
+    }[mode]
+    with pytest.raises(error, match=message):
         isolation.execute_worker(
             {"request_id": "a" * 32, "scenarios": []},
             "http://127.0.0.1:3456",
@@ -209,6 +219,7 @@ def test_failures_always_remove_owned_container(monkeypatch, mode):
         )
     assert any("rm" in args and "-f" in args for args in calls)
     assert all("secret-test-preview-token" not in str(args) for args in calls)
+    assert all(p.poll() is not None and p.stdin.closed and p.stdout.closed for p in processes)
 
 
 def test_live_receipt_binds_image_sources_and_all_real_checks(monkeypatch, tmp_path):

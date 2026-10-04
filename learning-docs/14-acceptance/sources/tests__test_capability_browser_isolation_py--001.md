@@ -25,32 +25,32 @@
 - `test_preview_token_stays_controller_owned.respond`（L123–L129）：接收`request`。 调用`seen.append`、`httpx.Response`、`httpx.ByteStream`。 返回路径：L125的`httpx.Response( 200, stream=httpx.ByteStream(b"hello"), headers={"content-type": "text/pla…`。
 - `test_response_budgets_and_redirects`（L152–L157）：接收`response`。 调用`httpx.Client`、`httpx.MockTransport`、`pytest.raises`、`relay_request`、`frame`、`pytest.mark.parametrize`、`httpx.Response`、`httpx.ByteStream`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_inspection_never_accepts_missing_or_privileged_profile`（L160–L163）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L161遍历`(None, [], [{}], [{"Image": IMAGE, "HostConfig": {"Privileged": T…`。 调用`pytest.raises`、`require_worker_inspection`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_failures_always_remove_owned_container`（L169–L211）：接收`monkeypatch`、`mode`。 控制顺序：L199按`mode != "bad-inspection"`分支；L210断言`any("rm" in args and "-f" in args for args in calls)`；L211断言`all("secret-test-preview-token" not in str(args) for args in calls)`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation.execute_worker`、`any`、`all`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_failures_always_remove_owned_container.fake_run`（L180–L186）：接收`args`、`**kwargs`。 控制顺序：L182按`"inspect" in args`分支；L184按`"rm" in args and mode == "cleanup-fails"`分支。 调用`calls.append`、`SimpleNamespace`、`json.dumps([{}]).encode`、`json.dumps`。 返回路径：L183的`SimpleNamespace(returncode=0, stdout=json.dumps([{}]).encode())`；L185的`SimpleNamespace(returncode=1, stdout=b"")`；L186的`SimpleNamespace(returncode=0, stdout=b"owned")`。
-- `test_failures_always_remove_owned_container.fake_popen`（L188–L195）：接收`args`、`**kwargs`。 调用`real_popen`。 返回路径：L195的`real_popen([sys.executable, "-c", script], **kwargs)`。
-- `test_live_receipt_binds_image_sources_and_all_real_checks`（L214–L260）：接收`monkeypatch`、`tmp_path`。 控制顺序：L248断言`isolation.require_browser_acceptance() == IMAGE`；L249遍历`( ("mocked", True), ("image", "sha256:" + "c" * 64), ("sources", …`。 调用`monkeypatch.setattr`、`monkeypatch.setenv`、`isolation.browser_source_identity`、`isolation.image_source_identity`、`path.write_text`、`json.dumps`、`isolation.require_browser_acceptance`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_browser_context_cookies_cannot_leak_from_relay_jar`（L263–L277）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L277断言`seen == ["sid=explicit", None]`。 调用`httpx.Client`、`httpx.MockTransport`、`relay_request`、`frame`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_browser_context_cookies_cannot_leak_from_relay_jar.respond`（L266–L270）：接收`request`。 调用`seen.append`、`request.headers.get`、`httpx.Response`、`httpx.ByteStream`。 返回路径：L268的`httpx.Response( 200, stream=httpx.ByteStream(b"ok"), headers={"set-cookie": "sid=old; Path…`。
-- `test_json_size_is_proved_before_encoding`（L295–L303）：接收`value`。 控制顺序：L301断言`bounded_json(value, len(expected)) == expected`。 调用`json.dumps(value, ensure_ascii=True, allow_nan=False, separators=…`、`json.dumps`、`bounded_json`、`len`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_oversize_json_is_not_serialized_and_creates_no_worker`（L306–L322）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`isolation.execute_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_capture_expansion_is_rejected_before_worker_or_large_string_allocation`（L325–L353）：接收`monkeypatch`。 控制顺序：L353断言`result["value"] == "123"`。 调用`monkeypatch.setattr`、`pytest.fail`、`SimpleNamespace`、`BrowserStep`、`range`、`pytest.raises`、`isolation.run_isolated_browser`、`isolation.bounded_browser_step`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_cumulative_contract_budget_covers_many_individually_valid_steps`（L356–L370）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`BrowserStep`、`range`、`pytest.raises`、`isolation.browser_contract`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `tar_source`（L373–L387）：接收`name`、`body`、`link`、`duplicate`。 控制顺序：L381按`link`分支；L385按`duplicate`分支。 调用`io.BytesIO`、`tarfile.open`、`tarfile.TarInfo`、`len`、`archive.addfile`、`output.getvalue`。 返回路径：L387的`output.getvalue()`。
-- `test_image_provenance_rejects_wrong_or_unbounded_tar_members`（L391–L405）：接收`mode`。 控制顺序：L402按`mode == "compressed"`分支。 调用`tar_source`、`gzip.compress`、`pytest.raises`、`isolation.image_archive_digest`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start`（L408–L454）：接收`monkeypatch`。 控制顺序：L424断言`isolation.require_image_sources(NAME) == isolation.image_source_identity()`；L425断言`isolation.image_archive_digest(tar_source("x", b"hello"), "x") == hashlib.sha256(b"he…`；L454断言`any("rm" in args and "-f" in args for args in calls)`。 调用`monkeypatch.setattr`、`isolation.require_image_sources`、`isolation.image_source_identity`、`isolation.image_archive_digest`、`tar_source`、`hashlib.sha256(b"hello").hexdigest`、`hashlib.sha256`、`pytest.fail`、`path.rsplit`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start.current`（L415–L421）：接收`name`、`path`。 控制顺序：L416断言`name == NAME`。 调用`next`、`isolation.IMAGE_SOURCES.items`、`(isolation.ROOT / source).read_bytes`、`tar_source`、`path.rsplit`。 返回路径：L421的`tar_source(path.rsplit("/", 1)[1], body)`。
-- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start.fake_run`（L432–L434）：接收`args`、`**kwargs`。 调用`calls.append`、`SimpleNamespace`、`json.dumps([{}]).encode`、`json.dumps`。 返回路径：L434的`SimpleNamespace(returncode=0, stdout=json.dumps([{}]).encode())`。
-- `test_provenance_pipe_is_bounded_without_buffering_an_entire_archive`（L457–L479）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation._image_file_archive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_provenance_pipe_is_bounded_without_buffering_an_entire_archive.fake_popen`（L465–L475）：接收`args`、`**kwargs`。 调用`real_popen`。 返回路径：L466的`real_popen( [ sys.executable, "-I", "-S", "-c", "import sys;sys.stdout.buffer.write(b'x'*6…`。
-- `test_live_probe_rejects_refusal_timeout_and_dac_errors_without_network_calls`（L482–L529）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L489按`node is None`分支；L528断言`result.returncode == 0`；L529断言`result.stdout == "specific-probe-errors-passed"`。 调用`shutil.which`、`pytest.skip`、`subprocess.run`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failures_always_remove_owned_container`（L169–L222）：接收`monkeypatch`、`mode`。 控制顺序：L202按`mode != "bad-inspection"`分支；L220断言`any("rm" in args and "-f" in args for args in calls)`；L221断言`all("secret-test-preview-token" not in str(args) for args in calls)`；L222断言`all(p.poll() is not None and p.stdin.closed and p.stdout.closed for p in processes)`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation.execute_worker`、`any`、`all`、`str`、`p.poll`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failures_always_remove_owned_container.fake_run`（L181–L187）：接收`args`、`**kwargs`。 控制顺序：L183按`"inspect" in args`分支；L185按`"rm" in args and mode == "cleanup-fails"`分支。 调用`calls.append`、`SimpleNamespace`、`json.dumps([{}]).encode`、`json.dumps`。 返回路径：L184的`SimpleNamespace(returncode=0, stdout=json.dumps([{}]).encode())`；L186的`SimpleNamespace(returncode=1, stdout=b"")`；L187的`SimpleNamespace(returncode=0, stdout=b"owned")`。
+- `test_failures_always_remove_owned_container.fake_popen`（L189–L198）：接收`args`、`**kwargs`。 调用`real_popen`、`processes.append`。 返回路径：L198的`process`。
+- `test_live_receipt_binds_image_sources_and_all_real_checks`（L225–L271）：接收`monkeypatch`、`tmp_path`。 控制顺序：L259断言`isolation.require_browser_acceptance() == IMAGE`；L260遍历`( ("mocked", True), ("image", "sha256:" + "c" * 64), ("sources", …`。 调用`monkeypatch.setattr`、`monkeypatch.setenv`、`isolation.browser_source_identity`、`isolation.image_source_identity`、`path.write_text`、`json.dumps`、`isolation.require_browser_acceptance`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_browser_context_cookies_cannot_leak_from_relay_jar`（L274–L288）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L288断言`seen == ["sid=explicit", None]`。 调用`httpx.Client`、`httpx.MockTransport`、`relay_request`、`frame`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_browser_context_cookies_cannot_leak_from_relay_jar.respond`（L277–L281）：接收`request`。 调用`seen.append`、`request.headers.get`、`httpx.Response`、`httpx.ByteStream`。 返回路径：L279的`httpx.Response( 200, stream=httpx.ByteStream(b"ok"), headers={"set-cookie": "sid=old; Path…`。
+- `test_json_size_is_proved_before_encoding`（L306–L314）：接收`value`。 控制顺序：L312断言`bounded_json(value, len(expected)) == expected`。 调用`json.dumps(value, ensure_ascii=True, allow_nan=False, separators=…`、`json.dumps`、`bounded_json`、`len`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_oversize_json_is_not_serialized_and_creates_no_worker`（L317–L333）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`isolation.execute_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_capture_expansion_is_rejected_before_worker_or_large_string_allocation`（L336–L364）：接收`monkeypatch`。 控制顺序：L364断言`result["value"] == "123"`。 调用`monkeypatch.setattr`、`pytest.fail`、`SimpleNamespace`、`BrowserStep`、`range`、`pytest.raises`、`isolation.run_isolated_browser`、`isolation.bounded_browser_step`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cumulative_contract_budget_covers_many_individually_valid_steps`（L367–L381）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`BrowserStep`、`range`、`pytest.raises`、`isolation.browser_contract`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `tar_source`（L384–L398）：接收`name`、`body`、`link`、`duplicate`。 控制顺序：L392按`link`分支；L396按`duplicate`分支。 调用`io.BytesIO`、`tarfile.open`、`tarfile.TarInfo`、`len`、`archive.addfile`、`output.getvalue`。 返回路径：L398的`output.getvalue()`。
+- `test_image_provenance_rejects_wrong_or_unbounded_tar_members`（L402–L416）：接收`mode`。 控制顺序：L413按`mode == "compressed"`分支。 调用`tar_source`、`gzip.compress`、`pytest.raises`、`isolation.image_archive_digest`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start`（L419–L465）：接收`monkeypatch`。 控制顺序：L435断言`isolation.require_image_sources(NAME) == isolation.image_source_identity()`；L436断言`isolation.image_archive_digest(tar_source("x", b"hello"), "x") == hashlib.sha256(b"he…`；L465断言`any("rm" in args and "-f" in args for args in calls)`。 调用`monkeypatch.setattr`、`isolation.require_image_sources`、`isolation.image_source_identity`、`isolation.image_archive_digest`、`tar_source`、`hashlib.sha256(b"hello").hexdigest`、`hashlib.sha256`、`pytest.fail`、`path.rsplit`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start.current`（L426–L432）：接收`name`、`path`。 控制顺序：L427断言`name == NAME`。 调用`next`、`isolation.IMAGE_SOURCES.items`、`(isolation.ROOT / source).read_bytes`、`tar_source`、`path.rsplit`。 返回路径：L432的`tar_source(path.rsplit("/", 1)[1], body)`。
+- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start.fake_run`（L443–L445）：接收`args`、`**kwargs`。 调用`calls.append`、`SimpleNamespace`、`json.dumps([{}]).encode`、`json.dumps`。 返回路径：L445的`SimpleNamespace(returncode=0, stdout=json.dumps([{}]).encode())`。
+- `test_provenance_pipe_is_bounded_without_buffering_an_entire_archive`（L468–L490）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation._image_file_archive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_provenance_pipe_is_bounded_without_buffering_an_entire_archive.fake_popen`（L476–L486）：接收`args`、`**kwargs`。 调用`real_popen`。 返回路径：L477的`real_popen( [ sys.executable, "-I", "-S", "-c", "import sys;sys.stdout.buffer.write(b'x'*6…`。
+- `test_live_probe_rejects_refusal_timeout_and_dac_errors_without_network_calls`（L493–L540）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L500按`node is None`分支；L539断言`result.returncode == 0`；L540断言`result.stdout == "specific-probe-errors-passed"`。 调用`shutil.which`、`pytest.skip`、`subprocess.run`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_browser_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L529。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_browser_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L540。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`18273`。本段原文以LF换行结束。
+本段原始字节数：`18783`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_browser_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "94dd3ce39bc9e4833ad048b6217d6ee26350aad3d0849edcaf97f4a8ce819d06"} -->
+<!-- learning-source: {"path": "tests/test_capability_browser_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3086efb10bfdd5a5dac4833eeacafecab90565c6d1b24a73a7dd883261751423"} -->
 ````python
 # tests/test_capability_browser_isolation.py
 """Policy and protocol tests; these do not certify actual Docker confinement."""
@@ -231,6 +231,7 @@ def test_failures_always_remove_owned_container(monkeypatch, mode):
 
     real_popen = subprocess.Popen
     calls = []
+    processes = []
 
     def fake_run(args, **kwargs):
         calls.append(args)
@@ -247,14 +248,23 @@ def test_failures_always_remove_owned_container(monkeypatch, mode):
             "timeout": "import sys,time;sys.stdin.readline();time.sleep(10)",
             "cleanup-fails": "import sys;sys.stdin.readline();print('invalid-json',flush=True)",
         }[mode]
-        return real_popen([sys.executable, "-c", script], **kwargs)
+        process = real_popen([sys.executable, "-I", "-S", "-c", script], **kwargs)
+        processes.append(process)
+        return process
 
     monkeypatch.setattr(isolation.subprocess, "run", fake_run)
     monkeypatch.setattr(isolation.subprocess, "Popen", fake_popen)
     if mode != "bad-inspection":
         monkeypatch.setattr(isolation, "require_worker_inspection", lambda *args: {})
         monkeypatch.setattr(isolation, "require_image_sources", lambda *args: {})
-    with pytest.raises((ValueError, RuntimeError, TimeoutError)):
+    error, message = {
+        "invalid-json": (json.JSONDecodeError, "Expecting value"),
+        "timeout": (TimeoutError, "deadline exceeded"),
+        "oversized": (ValueError, "frame budget exceeded"),
+        "bad-inspection": (ValueError, "isolation mismatch"),
+        "cleanup-fails": (RuntimeError, "cleanup unconfirmed"),
+    }[mode]
+    with pytest.raises(error, match=message):
         isolation.execute_worker(
             {"request_id": "a" * 32, "scenarios": []},
             "http://127.0.0.1:3456",
@@ -264,6 +274,7 @@ def test_failures_always_remove_owned_container(monkeypatch, mode):
         )
     assert any("rm" in args and "-f" in args for args in calls)
     assert all("secret-test-preview-token" not in str(args) for args in calls)
+    assert all(p.poll() is not None and p.stdin.closed and p.stdout.closed for p in processes)
 
 
 def test_live_receipt_binds_image_sources_and_all_real_checks(monkeypatch, tmp_path):

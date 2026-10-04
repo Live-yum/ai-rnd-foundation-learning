@@ -49,6 +49,19 @@ ordinary reuse does not consume the budget repeatedly. Non-finite numbers,
 oversized values and over-budget interpolation fail before retention or request
 construction. These limits reject excessive data rather than silently truncating it.
 
+## Portable controller pipes
+
+The Python 3.14 controller uses bounded nonblocking anonymous-pipe reads and
+writes on Windows and POSIX. Socket-only selectors are not used for pipe handles.
+Partial or zero writes, an empty but open pipe, EOF, large frames and image-copy
+output keep the original absolute deadline and byte limits. No helper thread or
+late-success grace period can outlive owned-process/container cleanup.
+
+The raw-syscall binary is a native Linux amd64 proof, so only its two compiled
+fixture tests require that host platform. Portable source/policy and broker
+contracts still run on Windows; skipping a host-only fixture does not certify
+isolation. The actual Docker profile still requires every live kernel outcome.
+
 ## Real proof
 
 Build `tools/browser/Dockerfile` with Docker, select the resulting immutable image

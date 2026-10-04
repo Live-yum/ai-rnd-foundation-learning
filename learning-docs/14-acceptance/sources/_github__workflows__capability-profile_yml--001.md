@@ -12,9 +12,9 @@
 
 **创建路径：** `.github/workflows/capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L142。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7442`。本段原文以LF换行结束。
+本段原始字节数：`7520`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e1f45405a67c049d1f7459a351e51a25b646b1fc8962df03fd2dc6a7520edfcf"} -->
+<!-- learning-source: {"path": ".github/workflows/capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e4c3726adf4f74df2ca50539eb7acf1775cef145cf8da468b445f24bdd32432e"} -->
 ````yaml
 # .github/workflows/capability-profile.yml
 name: Fixed authored SQLite isolation profile
@@ -79,7 +79,7 @@ jobs:
           RND_REQUIRE_NODE_TESTS: '1'
           RND_REQUIRE_LANDLOCK: '1'
           RND_REQUIRE_SECCOMP_BPF: '1'
-        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
+        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_daytona_dependency_build.py tests/test_daytona_dependency_image.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
       - name: Install mandatory product browser acceptance tooling
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1

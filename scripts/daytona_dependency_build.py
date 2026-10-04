@@ -424,7 +424,7 @@ def install(project, *, basic=False, harness=False):
             "--no-build",
             "--index-url",
             "https://pypi.org/simple",
-            "-r",
+            # Unlike `pip install -r`, `pip sync` takes positional source files.
             str(export),
         ],
         project,

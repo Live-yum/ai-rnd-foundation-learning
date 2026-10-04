@@ -8235,28 +8235,31 @@ extend_business = install_yudao_business
 
 **逐个入口与控制逻辑：**
 
-- `image_source_identity`（L72–L73）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`。 返回路径：L73的`{name: sha(ROOT / name) for name in IMAGE_SOURCES}`。
-- `bounded_json`（L76–L134）：接收`value`、`limit`。 源码说明：Prove the encoded size before allocating JSON or escaped strings.。 控制顺序：L132按`len(encoded) != used`分支；L133抛异常，停止当前正常路径。 调用`visit`、`json.dumps(value, ensure_ascii=True, allow_nan=False, separators=…`、`json.dumps`、`len`、`ValueError`。 返回路径：L134的`encoded`。
-- `bounded_json.add`（L80–L84）：接收`size`。 控制顺序：L83按`used > limit`分支；L84抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `bounded_json.string`（L86–L102）：接收`value`。 控制顺序：L89按`len(value) > limit - used`分支；L90抛异常，停止当前正常路径；L92遍历`value`。 调用`len`、`ValueError`、`add`、`ord`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `bounded_json.visit`（L104–L128）：接收`item`、`depth`。 控制顺序：L105按`depth > 32`分支；L106抛异常，停止当前正常路径；L107按`isinstance(item, str)`分支；L109按`item is None or type(item) is bool`分支；L111按`type(item) in (int, float)`分支；L112按`type(item) is int and item.bit_length() > limit * 4`分支；L113抛异常，停止当前正常路径；L115按`isinstance(item, (list, tuple))`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`isinstance`、`string`、`type`、`add`、`item.bit_length`、`len`、`json.dumps`、`max`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `bounded_browser_step`（L137–L160）：接收`step`、`variables`。 源码说明：Reject substitution expansion before constructing candidate strings.。 控制顺序：L140遍历`(("selector", 500), ("value", 10000))`；L143遍历`re.finditer(r"\$\{([a-z][a-z0-9_-]*)\}", template)`；L145按`name not in variables or type(variables[name]) not in (str, int, float, bool)`分支；L146抛异常，停止当前正常路径；L148按`not isinstance(replacement, str)`分支；L152按`used > limit`分支；L153抛异常，停止当前正常路径；L157按`used + len(tail) > limit`分支。后续分支沿下方源码相同行号继续阅读。 调用`step.model_dump`、`re.finditer`、`type`、`ValueError`、`isinstance`、`str`、`match.start`、`len`、`parts.extend`等。 返回路径：L160的`BrowserStep.model_validate(value).model_dump()`。
-- `browser_contract`（L163–L182）：接收`request_id`、`selected`、`saved`。 控制顺序：L170遍历`selected`；L173按`used > MAX_CONTRACT`分支；L174抛异常，停止当前正常路径；L175遍历`scenario.browser`；L178按`used > MAX_CONTRACT`分支；L179抛异常，停止当前正常路径。 调用`len`、`bounded_json`、`bool`、`ValueError`、`bounded_browser_step`、`row["steps"].append`、`payload["scenarios"].append`。 返回路径：L182的`payload`。
-- `_image_file_archive`（L185–L215）：接收`name`、`path`。 源码说明：Read a bounded raw tar from a stopped owned container; never extract it.。 控制顺序：L196在`True`成立时循环；L198按`remaining <= 0`分支；L199抛异常，停止当前正常路径；L200按`not poll.select(min(remaining, 1))`分支；L203按`not chunk`分支；L205按`len(chunk) > MAX_IMAGE_FILE * 2 - len(output)`分支；L206抛异常，停止当前正常路径；L208按`process.wait(timeout=max(0.1, deadline - time.monotonic()))`分支。后续分支沿下方源码相同行号继续阅读。 调用`subprocess.Popen`、`clean_env`、`time.monotonic`、`bytearray`、`selectors.DefaultSelector`、`poll.register`、`TimeoutError`、`poll.select`、`min`等。 返回路径：L210的`bytes(output)`。
-- `image_archive_digest`（L218–L237）：接收`raw`、`basename`。 控制顺序：L219按`len(raw) > MAX_IMAGE_FILE * 2`分支；L220抛异常，停止当前正常路径；L223按`len(members) != 1`分支；L224抛异常，停止当前正常路径；L226按`member.name != basename or not member.isfile() or member.issparse() or not 0 < member…`分支；L232抛异常，停止当前正常路径；L235按`len(body) != member.size`分支；L236抛异常，停止当前正常路径。 调用`len`、`ValueError`、`tarfile.open`、`io.BytesIO`、`archive.getmembers`、`member.isfile`、`member.issparse`、`archive.extractfile`、`source.read`等。 返回路径：L237的`hashlib.sha256(body).hexdigest()`。
-- `require_image_sources`（L240–L249）：接收`name`。 控制顺序：L241按`not re.fullmatch(r"rnd-browser-[a-f0-9]{32}", name)`分支；L242抛异常，停止当前正常路径；L247按`actual != image_source_identity()`分支；L248抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`、`image_archive_digest`、`_image_file_archive`、`path.rsplit`、`IMAGE_SOURCES.items`、`image_source_identity`。 返回路径：L249的`actual`。
-- `browser_source_identity`（L252–L253）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`。 返回路径：L253的`{name: sha(ROOT / name) for name in BROWSER_SOURCES}`。
-- `require_browser_acceptance`（L256–L306）：接收`image`。 控制顺序：L258按`BROWSER_ACCEPTANCE.stat().st_size > 100000`分支；L259抛异常，停止当前正常路径；L279按`not isinstance(record, dict) or set(record) != { "protocol", "passed", "image", "mock…`分支；L305抛异常，停止当前正常路径。 调用`browser_image_identity`、`BROWSER_ACCEPTANCE.stat`、`ValueError`、`json.loads`、`BROWSER_ACCEPTANCE.read_text`、`selected_policy`、`isinstance`、`set`、`record.get`等。 返回路径：L306的`image`。
-- `browser_image_identity`（L309–L313）：接收`image`。 控制顺序：L311按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image)`分支；L312抛异常，停止当前正常路径。 调用`os.environ.get`、`re.fullmatch`、`ValueError`。 返回路径：L313的`image`。
-- `_write_pipe`（L316–L328）：接收`stream`、`data`、`deadline`。 控制顺序：L320在`view`成立时循环；L322按`remaining <= 0`分支；L323抛异常，停止当前正常路径；L324按`poll.select(min(remaining, 1))`分支。 调用`memoryview`、`selectors.DefaultSelector`、`poll.register`、`time.monotonic`、`TimeoutError`、`poll.select`、`min`、`os.write`、`stream.fileno`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `worker_command`（L331–L372）：接收`image`、`name`。 控制顺序：L332按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image)`分支；L333抛异常，停止当前正常路径；L334按`not re.fullmatch(r"rnd-browser-[a-f0-9]{32}", name)`分支；L335抛异常，停止当前正常路径；L337按`policy is not None`分支。 调用`re.fullmatch`、`ValueError`、`selected_policy`、`runtime_identity`、`str`。 返回路径：L339的`[ *DOCKER, "create", "--name", name, "--pull=never", "--network=none", "--read-only", "--c…`。
-- `apparmor_runtime_env`（L375–L381）：接收`value`。 调用`isinstance`、`all`、`item.startswith`。 返回路径：L376的`isinstance(value, list) and all(isinstance(item, str) for item in value) and [item for ite…`。
-- `require_worker_inspection`（L384–L436）：接收`value`、`image`。 控制顺序：L385按`not isinstance(value, list) or len(value) != 1`分支；L386抛异常，停止当前正常路径；L402按`record.get("Image") != image or config.get("User") != "1000:1000" or any(host.get(k) …`分支；L426按`not security_options_match(host.get("SecurityOpt"))`分支；L428按`selected_policy() is not None`分支；L429按`record.get("AppArmorProfile") != "docker-default"`分支；L431按`not apparmor_runtime_env(config.get("Env"))`分支；L433抛异常，停止当前正常路径。 调用`isinstance`、`len`、`ValueError`、`record.get`、`config.get`、`any`、`host.get`、`expected.items`、`security_options_match`等。 返回路径：L436的`{"image": image, "network": "none", "bounded": True}`。
-- `relay_request`（L439–L517）：接收`client`、`frame`、`deadline`。 源码说明：Candidate-controlled requests cannot select a host, token, or proxy.。 控制顺序：L441按`not isinstance(frame, dict) or set(frame) != { "type", "id", "method", "path", "heade…`分支；L449抛异常，停止当前正常路径；L450按`frame["type"] != "request" or type(frame["id"]) is not int or not 1 <= frame["id"] <=…`分支；L455抛异常，停止当前正常路径；L457按`not isinstance(path, str) or len(path) > 8192 or not path.startswith("/") or path.sta…`分支；L468抛异常，停止当前正常路径；L469按`frame["method"] not in {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}`分支；L470抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`set`、`ValueError`、`type`、`len`、`path.startswith`、`any`、`ord`、`urlsplit`等。 返回路径：L511的`{ "type": "response", "id": frame["id"], "status": response.status_code, "headers": output…`。
-- `execute_worker`（L520–L631）：接收`payload`、`url`、`token`、`timeout`、`image`。 源码说明：Bound stdout before parsing; bound runtime independently of HTTP progress.。 控制顺序：L523按`origin.scheme != "http" or origin.path not in {"", "/"} or origin.query or origin.fra…`分支；L531抛异常，停止当前正常路径；L533按`not (origin.hostname == "127.0.0.1" or (origin.hostname or "").endswith(".localhost")…`分支；L534抛异常，停止当前正常路径；L546按`created.returncode`分支；L547抛异常，停止当前正常路径；L551按`inspected.returncode or len(inspected.stdout) > 100000`分支；L552抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`urlsplit`、`ValueError`、`(origin.hostname or "").endswith`、`bounded_json`、`uuid.uuid4`、`worker_command`、`time.monotonic`、`min`、`max`等。 返回路径：L614的`report`。
-- `run_isolated_browser`（L634–L670）：接收`url`、`token`、`scenarios`、`saved`、`timeout`、`image`。 控制顺序：L636按`not selected`分支；L639按`not image or not shutil.which("docker")`分支；L640抛异常，停止当前正常路径；L647抛异常，停止当前正常路径；L654按`error or value is None`分支；L655抛异常，停止当前正常路径；L656按`value["passed"] is False`分支；L657抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`os.environ.get`、`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`browser_contract`、`execute_worker`、`browser_report`、`sha`、`type`等。 返回路径：L637的`[]`；L670的`expected`。
+- `image_source_identity`（L73–L74）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`。 返回路径：L74的`{name: sha(ROOT / name) for name in IMAGE_SOURCES}`。
+- `bounded_json`（L77–L135）：接收`value`、`limit`。 源码说明：Prove the encoded size before allocating JSON or escaped strings.。 控制顺序：L133按`len(encoded) != used`分支；L134抛异常，停止当前正常路径。 调用`visit`、`json.dumps(value, ensure_ascii=True, allow_nan=False, separators=…`、`json.dumps`、`len`、`ValueError`。 返回路径：L135的`encoded`。
+- `bounded_json.add`（L81–L85）：接收`size`。 控制顺序：L84按`used > limit`分支；L85抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `bounded_json.string`（L87–L103）：接收`value`。 控制顺序：L90按`len(value) > limit - used`分支；L91抛异常，停止当前正常路径；L93遍历`value`。 调用`len`、`ValueError`、`add`、`ord`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `bounded_json.visit`（L105–L129）：接收`item`、`depth`。 控制顺序：L106按`depth > 32`分支；L107抛异常，停止当前正常路径；L108按`isinstance(item, str)`分支；L110按`item is None or type(item) is bool`分支；L112按`type(item) in (int, float)`分支；L113按`type(item) is int and item.bit_length() > limit * 4`分支；L114抛异常，停止当前正常路径；L116按`isinstance(item, (list, tuple))`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`isinstance`、`string`、`type`、`add`、`item.bit_length`、`len`、`json.dumps`、`max`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `bounded_browser_step`（L138–L161）：接收`step`、`variables`。 源码说明：Reject substitution expansion before constructing candidate strings.。 控制顺序：L141遍历`(("selector", 500), ("value", 10000))`；L144遍历`re.finditer(r"\$\{([a-z][a-z0-9_-]*)\}", template)`；L146按`name not in variables or type(variables[name]) not in (str, int, float, bool)`分支；L147抛异常，停止当前正常路径；L149按`not isinstance(replacement, str)`分支；L153按`used > limit`分支；L154抛异常，停止当前正常路径；L158按`used + len(tail) > limit`分支。后续分支沿下方源码相同行号继续阅读。 调用`step.model_dump`、`re.finditer`、`type`、`ValueError`、`isinstance`、`str`、`match.start`、`len`、`parts.extend`等。 返回路径：L161的`BrowserStep.model_validate(value).model_dump()`。
+- `browser_contract`（L164–L183）：接收`request_id`、`selected`、`saved`。 控制顺序：L171遍历`selected`；L174按`used > MAX_CONTRACT`分支；L175抛异常，停止当前正常路径；L176遍历`scenario.browser`；L179按`used > MAX_CONTRACT`分支；L180抛异常，停止当前正常路径。 调用`len`、`bounded_json`、`bool`、`ValueError`、`bounded_browser_step`、`row["steps"].append`、`payload["scenarios"].append`。 返回路径：L183的`payload`。
+- `_image_file_archive`（L186–L211）：接收`name`、`path`。 源码说明：Read a bounded raw tar from a stopped owned container; never extract it.。 控制顺序：L196在`True`成立时循环；L198按`not chunk`分支；L200按`len(chunk) > MAX_IMAGE_FILE * 2 - len(output)`分支；L201抛异常，停止当前正常路径；L203按`process.wait(timeout=_remaining(deadline, message))`分支；L204抛异常，停止当前正常路径；L208按`process.poll() is None`分支。 调用`subprocess.Popen`、`clean_env`、`time.monotonic`、`bytearray`、`_read_pipe`、`len`、`ValueError`、`output.extend`、`process.wait`等。 返回路径：L206的`bytes(output)`。
+- `image_archive_digest`（L214–L233）：接收`raw`、`basename`。 控制顺序：L215按`len(raw) > MAX_IMAGE_FILE * 2`分支；L216抛异常，停止当前正常路径；L219按`len(members) != 1`分支；L220抛异常，停止当前正常路径；L222按`member.name != basename or not member.isfile() or member.issparse() or not 0 < member…`分支；L228抛异常，停止当前正常路径；L231按`len(body) != member.size`分支；L232抛异常，停止当前正常路径。 调用`len`、`ValueError`、`tarfile.open`、`io.BytesIO`、`archive.getmembers`、`member.isfile`、`member.issparse`、`archive.extractfile`、`source.read`等。 返回路径：L233的`hashlib.sha256(body).hexdigest()`。
+- `require_image_sources`（L236–L245）：接收`name`。 控制顺序：L237按`not re.fullmatch(r"rnd-browser-[a-f0-9]{32}", name)`分支；L238抛异常，停止当前正常路径；L243按`actual != image_source_identity()`分支；L244抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`、`image_archive_digest`、`_image_file_archive`、`path.rsplit`、`IMAGE_SOURCES.items`、`image_source_identity`。 返回路径：L245的`actual`。
+- `browser_source_identity`（L248–L249）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`。 返回路径：L249的`{name: sha(ROOT / name) for name in BROWSER_SOURCES}`。
+- `require_browser_acceptance`（L252–L302）：接收`image`。 控制顺序：L254按`BROWSER_ACCEPTANCE.stat().st_size > 100000`分支；L255抛异常，停止当前正常路径；L275按`not isinstance(record, dict) or set(record) != { "protocol", "passed", "image", "mock…`分支；L301抛异常，停止当前正常路径。 调用`browser_image_identity`、`BROWSER_ACCEPTANCE.stat`、`ValueError`、`json.loads`、`BROWSER_ACCEPTANCE.read_text`、`selected_policy`、`isinstance`、`set`、`record.get`等。 返回路径：L302的`image`。
+- `browser_image_identity`（L305–L309）：接收`image`。 控制顺序：L307按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image)`分支；L308抛异常，停止当前正常路径。 调用`os.environ.get`、`re.fullmatch`、`ValueError`。 返回路径：L309的`image`。
+- `_remaining`（L312–L316）：接收`deadline`、`message`。 控制顺序：L314按`remaining <= 0`分支；L315抛异常，停止当前正常路径。 调用`time.monotonic`、`TimeoutError`。 返回路径：L316的`remaining`。
+- `_pipe_pause`（L319–L320）：接收`deadline`、`message`。 调用`time.sleep`、`min`、`_remaining`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_read_pipe`（L323–L340）：接收`stream`、`deadline`、`message`。 源码说明：Read one bounded chunk or EOF, without socket-only Windows selectors. Python 3.14 supports nonblocking anonymous pipes on Windows and POSIX. Empty/full pipes raise BlockingIOError; only a successful e。 控制顺序：L332在`True`成立时循环。 调用`stream.fileno`、`os.set_blocking`、`_remaining`、`os.read`、`_pipe_pause`。 返回路径：L340的`chunk`。
+- `_write_pipe`（L343–L358）：接收`stream`、`data`、`deadline`。 控制顺序：L348在`view`成立时循环；L354按`written`分支。 调用`stream.fileno`、`os.set_blocking`、`memoryview`、`_remaining`、`os.write`、`_pipe_pause`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `worker_command`（L361–L402）：接收`image`、`name`。 控制顺序：L362按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image)`分支；L363抛异常，停止当前正常路径；L364按`not re.fullmatch(r"rnd-browser-[a-f0-9]{32}", name)`分支；L365抛异常，停止当前正常路径；L367按`policy is not None`分支。 调用`re.fullmatch`、`ValueError`、`selected_policy`、`runtime_identity`、`str`。 返回路径：L369的`[ *DOCKER, "create", "--name", name, "--pull=never", "--network=none", "--read-only", "--c…`。
+- `apparmor_runtime_env`（L405–L411）：接收`value`。 调用`isinstance`、`all`、`item.startswith`。 返回路径：L406的`isinstance(value, list) and all(isinstance(item, str) for item in value) and [item for ite…`。
+- `require_worker_inspection`（L414–L466）：接收`value`、`image`。 控制顺序：L415按`not isinstance(value, list) or len(value) != 1`分支；L416抛异常，停止当前正常路径；L432按`record.get("Image") != image or config.get("User") != "1000:1000" or any(host.get(k) …`分支；L456按`not security_options_match(host.get("SecurityOpt"))`分支；L458按`selected_policy() is not None`分支；L459按`record.get("AppArmorProfile") != "docker-default"`分支；L461按`not apparmor_runtime_env(config.get("Env"))`分支；L463抛异常，停止当前正常路径。 调用`isinstance`、`len`、`ValueError`、`record.get`、`config.get`、`any`、`host.get`、`expected.items`、`security_options_match`等。 返回路径：L466的`{"image": image, "network": "none", "bounded": True}`。
+- `relay_request`（L469–L547）：接收`client`、`frame`、`deadline`。 源码说明：Candidate-controlled requests cannot select a host, token, or proxy.。 控制顺序：L471按`not isinstance(frame, dict) or set(frame) != { "type", "id", "method", "path", "heade…`分支；L479抛异常，停止当前正常路径；L480按`frame["type"] != "request" or type(frame["id"]) is not int or not 1 <= frame["id"] <=…`分支；L485抛异常，停止当前正常路径；L487按`not isinstance(path, str) or len(path) > 8192 or not path.startswith("/") or path.sta…`分支；L498抛异常，停止当前正常路径；L499按`frame["method"] not in {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}`分支；L500抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`set`、`ValueError`、`type`、`len`、`path.startswith`、`any`、`ord`、`urlsplit`等。 返回路径：L541的`{ "type": "response", "id": frame["id"], "status": response.status_code, "headers": output…`。
+- `execute_worker`（L550–L653）：接收`payload`、`url`、`token`、`timeout`、`image`。 源码说明：Bound stdout before parsing; bound runtime independently of HTTP progress.。 控制顺序：L553按`origin.scheme != "http" or origin.path not in {"", "/"} or origin.query or origin.fra…`分支；L561抛异常，停止当前正常路径；L563按`not (origin.hostname == "127.0.0.1" or (origin.hostname or "").endswith(".localhost")…`分支；L564抛异常，停止当前正常路径；L576按`created.returncode`分支；L577抛异常，停止当前正常路径；L581按`inspected.returncode or len(inspected.stdout) > 100000`分支；L582抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`urlsplit`、`ValueError`、`(origin.hostname or "").endswith`、`bounded_json`、`uuid.uuid4`、`worker_command`、`time.monotonic`、`min`、`max`等。 返回路径：L636的`report`。
+- `run_isolated_browser`（L656–L692）：接收`url`、`token`、`scenarios`、`saved`、`timeout`、`image`。 控制顺序：L658按`not selected`分支；L661按`not image or not shutil.which("docker")`分支；L662抛异常，停止当前正常路径；L669抛异常，停止当前正常路径；L676按`error or value is None`分支；L677抛异常，停止当前正常路径；L678按`value["passed"] is False`分支；L679抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`os.environ.get`、`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`browser_contract`、`execute_worker`、`browser_report`、`sha`、`type`等。 返回路径：L659的`[]`；L692的`expected`。
 
-<!-- source-file: workbench/capability_browser_isolation.py sha256: d318a6d1a0cde0fc0dbc15b938831a3bbad5ae29a7c913366cecface50999c24 -->
+<!-- source-file: workbench/capability_browser_isolation.py sha256: b2d94211803c0a4d0c389b918e9b27aa3aa9eae7fe5f7ac2f359d8303ddb4bba -->
 ````python
 """Offline, bounded browser worker. Never falls back to host Chromium.
 
@@ -8271,7 +8274,6 @@ import io
 import json
 import os
 import re
-import selectors
 import shutil
 import subprocess
 import tarfile
@@ -8299,6 +8301,8 @@ MAX_REQUESTS = 256
 MAX_FRAME = 6 * 1024 * 1024
 MAX_CONTRACT = 1_000_000
 MAX_IMAGE_FILE = 256 * 1024
+PIPE_CHUNK = 65536
+PIPE_POLL_INTERVAL = 0.001
 DOCKER = ["docker", "--host", "unix:///var/run/docker.sock"]
 
 
@@ -8451,22 +8455,17 @@ def _image_file_archive(name, path):
     deadline = time.monotonic() + 10
     output = bytearray()
     try:
-        with selectors.DefaultSelector() as poll:
-            poll.register(process.stdout, selectors.EVENT_READ)
-            while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError("Browser image provenance read timed out")
-                if not poll.select(min(remaining, 1)):
-                    continue
-                chunk = os.read(process.stdout.fileno(), 65536)
-                if not chunk:
-                    break
-                if len(chunk) > MAX_IMAGE_FILE * 2 - len(output):
-                    raise ValueError("Browser image provenance archive too large")
-                output.extend(chunk)
-        if process.wait(timeout=max(0.1, deadline - time.monotonic())):
+        message = "Browser image provenance read timed out"
+        while True:
+            chunk = _read_pipe(process.stdout, deadline, message)
+            if not chunk:
+                break
+            if len(chunk) > MAX_IMAGE_FILE * 2 - len(output):
+                raise ValueError("Browser image provenance archive too large")
+            output.extend(chunk)
+        if process.wait(timeout=_remaining(deadline, message)):
             raise ValueError("Browser image provenance unavailable")
+        _remaining(deadline, message)
         return bytes(output)
     finally:
         if process.poll() is None:
@@ -8573,19 +8572,53 @@ def browser_image_identity(image=None):
     return image
 
 
+def _remaining(deadline, message):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError(message)
+    return remaining
+
+
+def _pipe_pause(deadline, message):
+    time.sleep(min(PIPE_POLL_INTERVAL, _remaining(deadline, message)))
+
+
+def _read_pipe(stream, deadline, message):
+    """Read one bounded chunk or EOF, without socket-only Windows selectors.
+
+    Python 3.14 supports nonblocking anonymous pipes on Windows and POSIX.
+    Empty/full pipes raise BlockingIOError; only a successful empty read is EOF.
+    No reader threads or extra handles outlive the owning process cleanup.
+    """
+    fd = stream.fileno()
+    os.set_blocking(fd, False)
+    while True:
+        _remaining(deadline, message)
+        try:
+            chunk = os.read(fd, PIPE_CHUNK)
+        except BlockingIOError:
+            _pipe_pause(deadline, message)
+            continue
+        _remaining(deadline, message)
+        return chunk
+
+
 def _write_pipe(stream, data, deadline):
+    fd = stream.fileno()
+    os.set_blocking(fd, False)
+    message = "Browser pipe deadline exceeded"
     view = memoryview(data)
-    with selectors.DefaultSelector() as poll:
-        poll.register(stream, selectors.EVENT_WRITE)
-        while view:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError("Browser pipe deadline exceeded")
-            if poll.select(min(remaining, 1)):
-                try:
-                    view = view[os.write(stream.fileno(), view) :]
-                except BlockingIOError:
-                    pass
+    while view:
+        _remaining(deadline, message)
+        try:
+            written = os.write(fd, view[:PIPE_CHUNK])
+        except BlockingIOError:
+            written = 0
+        if written:
+            view = view[written:]
+        else:
+            _pipe_pause(deadline, message)
+    _remaining(deadline, message)
 
 
 def worker_command(image, name):
@@ -8819,29 +8852,20 @@ def execute_worker(payload, url, token, timeout, *, image):
             stderr=subprocess.DEVNULL,
             env=clean_env(),
         )
-        os.set_blocking(process.stdin.fileno(), False)
         _write_pipe(process.stdin, encoded, deadline)
         buffer = bytearray()
         total = count = 0
         report = None
-        with (
-            selectors.DefaultSelector() as poll,
-            httpx.Client(
-                base_url=url,
-                headers={"x-daytona-preview-token": token},
-                follow_redirects=False,
-                trust_env=False,
-                timeout=5,
-            ) as client,
-        ):
-            poll.register(process.stdout, selectors.EVENT_READ)
+        with httpx.Client(
+            base_url=url,
+            headers={"x-daytona-preview-token": token},
+            follow_redirects=False,
+            trust_env=False,
+            timeout=5,
+        ) as client:
+            message = "Browser worker deadline exceeded"
             while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError("Browser worker deadline exceeded")
-                if not poll.select(min(remaining, 1)):
-                    continue
-                chunk = os.read(process.stdout.fileno(), 65536)
+                chunk = _read_pipe(process.stdout, deadline, message)
                 if not chunk:
                     break
                 buffer.extend(chunk)
@@ -8868,7 +8892,8 @@ def execute_worker(payload, url, token, timeout, *, image):
                     _write_pipe(
                         process.stdin, bounded_json(response, MAX_FRAME - 1) + b"\n", deadline
                     )
-            status = process.wait(timeout=max(0.1, deadline - time.monotonic()))
+            status = process.wait(timeout=_remaining(deadline, message))
+            _remaining(deadline, message)
         if buffer or report is None or status != 0:
             raise ValueError("Incomplete browser worker report")
         return report
@@ -114500,26 +114525,26 @@ process.stdout.write(JSON.stringify({passed}));
 - `test_preview_token_stays_controller_owned.respond`（L123–L129）：接收`request`。 调用`seen.append`、`httpx.Response`、`httpx.ByteStream`。 返回路径：L125的`httpx.Response( 200, stream=httpx.ByteStream(b"hello"), headers={"content-type": "text/pla…`。
 - `test_response_budgets_and_redirects`（L152–L157）：接收`response`。 调用`httpx.Client`、`httpx.MockTransport`、`pytest.raises`、`relay_request`、`frame`、`pytest.mark.parametrize`、`httpx.Response`、`httpx.ByteStream`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_inspection_never_accepts_missing_or_privileged_profile`（L160–L163）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L161遍历`(None, [], [{}], [{"Image": IMAGE, "HostConfig": {"Privileged": T…`。 调用`pytest.raises`、`require_worker_inspection`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_failures_always_remove_owned_container`（L169–L211）：接收`monkeypatch`、`mode`。 控制顺序：L199按`mode != "bad-inspection"`分支；L210断言`any("rm" in args and "-f" in args for args in calls)`；L211断言`all("secret-test-preview-token" not in str(args) for args in calls)`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation.execute_worker`、`any`、`all`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_failures_always_remove_owned_container.fake_run`（L180–L186）：接收`args`、`**kwargs`。 控制顺序：L182按`"inspect" in args`分支；L184按`"rm" in args and mode == "cleanup-fails"`分支。 调用`calls.append`、`SimpleNamespace`、`json.dumps([{}]).encode`、`json.dumps`。 返回路径：L183的`SimpleNamespace(returncode=0, stdout=json.dumps([{}]).encode())`；L185的`SimpleNamespace(returncode=1, stdout=b"")`；L186的`SimpleNamespace(returncode=0, stdout=b"owned")`。
-- `test_failures_always_remove_owned_container.fake_popen`（L188–L195）：接收`args`、`**kwargs`。 调用`real_popen`。 返回路径：L195的`real_popen([sys.executable, "-c", script], **kwargs)`。
-- `test_live_receipt_binds_image_sources_and_all_real_checks`（L214–L260）：接收`monkeypatch`、`tmp_path`。 控制顺序：L248断言`isolation.require_browser_acceptance() == IMAGE`；L249遍历`( ("mocked", True), ("image", "sha256:" + "c" * 64), ("sources", …`。 调用`monkeypatch.setattr`、`monkeypatch.setenv`、`isolation.browser_source_identity`、`isolation.image_source_identity`、`path.write_text`、`json.dumps`、`isolation.require_browser_acceptance`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_browser_context_cookies_cannot_leak_from_relay_jar`（L263–L277）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L277断言`seen == ["sid=explicit", None]`。 调用`httpx.Client`、`httpx.MockTransport`、`relay_request`、`frame`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_browser_context_cookies_cannot_leak_from_relay_jar.respond`（L266–L270）：接收`request`。 调用`seen.append`、`request.headers.get`、`httpx.Response`、`httpx.ByteStream`。 返回路径：L268的`httpx.Response( 200, stream=httpx.ByteStream(b"ok"), headers={"set-cookie": "sid=old; Path…`。
-- `test_json_size_is_proved_before_encoding`（L295–L303）：接收`value`。 控制顺序：L301断言`bounded_json(value, len(expected)) == expected`。 调用`json.dumps(value, ensure_ascii=True, allow_nan=False, separators=…`、`json.dumps`、`bounded_json`、`len`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_oversize_json_is_not_serialized_and_creates_no_worker`（L306–L322）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`isolation.execute_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_capture_expansion_is_rejected_before_worker_or_large_string_allocation`（L325–L353）：接收`monkeypatch`。 控制顺序：L353断言`result["value"] == "123"`。 调用`monkeypatch.setattr`、`pytest.fail`、`SimpleNamespace`、`BrowserStep`、`range`、`pytest.raises`、`isolation.run_isolated_browser`、`isolation.bounded_browser_step`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_cumulative_contract_budget_covers_many_individually_valid_steps`（L356–L370）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`BrowserStep`、`range`、`pytest.raises`、`isolation.browser_contract`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `tar_source`（L373–L387）：接收`name`、`body`、`link`、`duplicate`。 控制顺序：L381按`link`分支；L385按`duplicate`分支。 调用`io.BytesIO`、`tarfile.open`、`tarfile.TarInfo`、`len`、`archive.addfile`、`output.getvalue`。 返回路径：L387的`output.getvalue()`。
-- `test_image_provenance_rejects_wrong_or_unbounded_tar_members`（L391–L405）：接收`mode`。 控制顺序：L402按`mode == "compressed"`分支。 调用`tar_source`、`gzip.compress`、`pytest.raises`、`isolation.image_archive_digest`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start`（L408–L454）：接收`monkeypatch`。 控制顺序：L424断言`isolation.require_image_sources(NAME) == isolation.image_source_identity()`；L425断言`isolation.image_archive_digest(tar_source("x", b"hello"), "x") == hashlib.sha256(b"he…`；L454断言`any("rm" in args and "-f" in args for args in calls)`。 调用`monkeypatch.setattr`、`isolation.require_image_sources`、`isolation.image_source_identity`、`isolation.image_archive_digest`、`tar_source`、`hashlib.sha256(b"hello").hexdigest`、`hashlib.sha256`、`pytest.fail`、`path.rsplit`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start.current`（L415–L421）：接收`name`、`path`。 控制顺序：L416断言`name == NAME`。 调用`next`、`isolation.IMAGE_SOURCES.items`、`(isolation.ROOT / source).read_bytes`、`tar_source`、`path.rsplit`。 返回路径：L421的`tar_source(path.rsplit("/", 1)[1], body)`。
-- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start.fake_run`（L432–L434）：接收`args`、`**kwargs`。 调用`calls.append`、`SimpleNamespace`、`json.dumps([{}]).encode`、`json.dumps`。 返回路径：L434的`SimpleNamespace(returncode=0, stdout=json.dumps([{}]).encode())`。
-- `test_provenance_pipe_is_bounded_without_buffering_an_entire_archive`（L457–L479）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation._image_file_archive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_provenance_pipe_is_bounded_without_buffering_an_entire_archive.fake_popen`（L465–L475）：接收`args`、`**kwargs`。 调用`real_popen`。 返回路径：L466的`real_popen( [ sys.executable, "-I", "-S", "-c", "import sys;sys.stdout.buffer.write(b'x'*6…`。
-- `test_live_probe_rejects_refusal_timeout_and_dac_errors_without_network_calls`（L482–L529）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L489按`node is None`分支；L528断言`result.returncode == 0`；L529断言`result.stdout == "specific-probe-errors-passed"`。 调用`shutil.which`、`pytest.skip`、`subprocess.run`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failures_always_remove_owned_container`（L169–L222）：接收`monkeypatch`、`mode`。 控制顺序：L202按`mode != "bad-inspection"`分支；L220断言`any("rm" in args and "-f" in args for args in calls)`；L221断言`all("secret-test-preview-token" not in str(args) for args in calls)`；L222断言`all(p.poll() is not None and p.stdin.closed and p.stdout.closed for p in processes)`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation.execute_worker`、`any`、`all`、`str`、`p.poll`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failures_always_remove_owned_container.fake_run`（L181–L187）：接收`args`、`**kwargs`。 控制顺序：L183按`"inspect" in args`分支；L185按`"rm" in args and mode == "cleanup-fails"`分支。 调用`calls.append`、`SimpleNamespace`、`json.dumps([{}]).encode`、`json.dumps`。 返回路径：L184的`SimpleNamespace(returncode=0, stdout=json.dumps([{}]).encode())`；L186的`SimpleNamespace(returncode=1, stdout=b"")`；L187的`SimpleNamespace(returncode=0, stdout=b"owned")`。
+- `test_failures_always_remove_owned_container.fake_popen`（L189–L198）：接收`args`、`**kwargs`。 调用`real_popen`、`processes.append`。 返回路径：L198的`process`。
+- `test_live_receipt_binds_image_sources_and_all_real_checks`（L225–L271）：接收`monkeypatch`、`tmp_path`。 控制顺序：L259断言`isolation.require_browser_acceptance() == IMAGE`；L260遍历`( ("mocked", True), ("image", "sha256:" + "c" * 64), ("sources", …`。 调用`monkeypatch.setattr`、`monkeypatch.setenv`、`isolation.browser_source_identity`、`isolation.image_source_identity`、`path.write_text`、`json.dumps`、`isolation.require_browser_acceptance`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_browser_context_cookies_cannot_leak_from_relay_jar`（L274–L288）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L288断言`seen == ["sid=explicit", None]`。 调用`httpx.Client`、`httpx.MockTransport`、`relay_request`、`frame`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_browser_context_cookies_cannot_leak_from_relay_jar.respond`（L277–L281）：接收`request`。 调用`seen.append`、`request.headers.get`、`httpx.Response`、`httpx.ByteStream`。 返回路径：L279的`httpx.Response( 200, stream=httpx.ByteStream(b"ok"), headers={"set-cookie": "sid=old; Path…`。
+- `test_json_size_is_proved_before_encoding`（L306–L314）：接收`value`。 控制顺序：L312断言`bounded_json(value, len(expected)) == expected`。 调用`json.dumps(value, ensure_ascii=True, allow_nan=False, separators=…`、`json.dumps`、`bounded_json`、`len`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_oversize_json_is_not_serialized_and_creates_no_worker`（L317–L333）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`isolation.execute_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_capture_expansion_is_rejected_before_worker_or_large_string_allocation`（L336–L364）：接收`monkeypatch`。 控制顺序：L364断言`result["value"] == "123"`。 调用`monkeypatch.setattr`、`pytest.fail`、`SimpleNamespace`、`BrowserStep`、`range`、`pytest.raises`、`isolation.run_isolated_browser`、`isolation.bounded_browser_step`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cumulative_contract_budget_covers_many_individually_valid_steps`（L367–L381）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`BrowserStep`、`range`、`pytest.raises`、`isolation.browser_contract`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `tar_source`（L384–L398）：接收`name`、`body`、`link`、`duplicate`。 控制顺序：L392按`link`分支；L396按`duplicate`分支。 调用`io.BytesIO`、`tarfile.open`、`tarfile.TarInfo`、`len`、`archive.addfile`、`output.getvalue`。 返回路径：L398的`output.getvalue()`。
+- `test_image_provenance_rejects_wrong_or_unbounded_tar_members`（L402–L416）：接收`mode`。 控制顺序：L413按`mode == "compressed"`分支。 调用`tar_source`、`gzip.compress`、`pytest.raises`、`isolation.image_archive_digest`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start`（L419–L465）：接收`monkeypatch`。 控制顺序：L435断言`isolation.require_image_sources(NAME) == isolation.image_source_identity()`；L436断言`isolation.image_archive_digest(tar_source("x", b"hello"), "x") == hashlib.sha256(b"he…`；L465断言`any("rm" in args and "-f" in args for args in calls)`。 调用`monkeypatch.setattr`、`isolation.require_image_sources`、`isolation.image_source_identity`、`isolation.image_archive_digest`、`tar_source`、`hashlib.sha256(b"hello").hexdigest`、`hashlib.sha256`、`pytest.fail`、`path.rsplit`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start.current`（L426–L432）：接收`name`、`path`。 控制顺序：L427断言`name == NAME`。 调用`next`、`isolation.IMAGE_SOURCES.items`、`(isolation.ROOT / source).read_bytes`、`tar_source`、`path.rsplit`。 返回路径：L432的`tar_source(path.rsplit("/", 1)[1], body)`。
+- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start.fake_run`（L443–L445）：接收`args`、`**kwargs`。 调用`calls.append`、`SimpleNamespace`、`json.dumps([{}]).encode`、`json.dumps`。 返回路径：L445的`SimpleNamespace(returncode=0, stdout=json.dumps([{}]).encode())`。
+- `test_provenance_pipe_is_bounded_without_buffering_an_entire_archive`（L468–L490）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation._image_file_archive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_provenance_pipe_is_bounded_without_buffering_an_entire_archive.fake_popen`（L476–L486）：接收`args`、`**kwargs`。 调用`real_popen`。 返回路径：L477的`real_popen( [ sys.executable, "-I", "-S", "-c", "import sys;sys.stdout.buffer.write(b'x'*6…`。
+- `test_live_probe_rejects_refusal_timeout_and_dac_errors_without_network_calls`（L493–L540）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L500按`node is None`分支；L539断言`result.returncode == 0`；L540断言`result.stdout == "specific-probe-errors-passed"`。 调用`shutil.which`、`pytest.skip`、`subprocess.run`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_capability_browser_isolation.py sha256: 94dd3ce39bc9e4833ad048b6217d6ee26350aad3d0849edcaf97f4a8ce819d06 -->
+<!-- source-file: tests/test_capability_browser_isolation.py sha256: 3086efb10bfdd5a5dac4833eeacafecab90565c6d1b24a73a7dd883261751423 -->
 ````python
 """Policy and protocol tests; these do not certify actual Docker confinement."""
 
@@ -114699,6 +114724,7 @@ def test_failures_always_remove_owned_container(monkeypatch, mode):
 
     real_popen = subprocess.Popen
     calls = []
+    processes = []
 
     def fake_run(args, **kwargs):
         calls.append(args)
@@ -114715,14 +114741,23 @@ def test_failures_always_remove_owned_container(monkeypatch, mode):
             "timeout": "import sys,time;sys.stdin.readline();time.sleep(10)",
             "cleanup-fails": "import sys;sys.stdin.readline();print('invalid-json',flush=True)",
         }[mode]
-        return real_popen([sys.executable, "-c", script], **kwargs)
+        process = real_popen([sys.executable, "-I", "-S", "-c", script], **kwargs)
+        processes.append(process)
+        return process
 
     monkeypatch.setattr(isolation.subprocess, "run", fake_run)
     monkeypatch.setattr(isolation.subprocess, "Popen", fake_popen)
     if mode != "bad-inspection":
         monkeypatch.setattr(isolation, "require_worker_inspection", lambda *args: {})
         monkeypatch.setattr(isolation, "require_image_sources", lambda *args: {})
-    with pytest.raises((ValueError, RuntimeError, TimeoutError)):
+    error, message = {
+        "invalid-json": (json.JSONDecodeError, "Expecting value"),
+        "timeout": (TimeoutError, "deadline exceeded"),
+        "oversized": (ValueError, "frame budget exceeded"),
+        "bad-inspection": (ValueError, "isolation mismatch"),
+        "cleanup-fails": (RuntimeError, "cleanup unconfirmed"),
+    }[mode]
+    with pytest.raises(error, match=message):
         isolation.execute_worker(
             {"request_id": "a" * 32, "scenarios": []},
             "http://127.0.0.1:3456",
@@ -114732,6 +114767,7 @@ def test_failures_always_remove_owned_container(monkeypatch, mode):
         )
     assert any("rm" in args and "-f" in args for args in calls)
     assert all("secret-test-preview-token" not in str(args) for args in calls)
+    assert all(p.poll() is not None and p.stdin.closed and p.stdout.closed for p in processes)
 
 
 def test_live_receipt_binds_image_sources_and_all_real_checks(monkeypatch, tmp_path):
@@ -115223,6 +115259,507 @@ def test_oom_gate_preserves_original_proof_budget_and_cleanup(
         assert report["diagnostic"]["inspection_failed"] is (
             case in {"inspect_failure", "malformed_state"}
         )
+````
+
+### `tests/test_capability_browser_pipes.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `no_pipe_selectors`（L22–L33）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fixture`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `no_pipe_selectors.unavailable`（L25–L26）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `no_pipe_selectors.no_threads`（L30–L31）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `child_processes`（L37–L58）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L51遍历`processes`；L52按`process.poll() is None`分支；L55遍历`(process.stdin, process.stdout, process.stderr)`；L56按`stream is not None`分支；L58断言`not set(threading.enumerate()) - before`。 调用`set`、`threading.enumerate`、`process.poll`、`process.kill`、`process.wait`、`stream.close`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `child_processes.launch`（L42–L48）：接收`script`、`**kwargs`。 调用`real_popen`、`processes.append`。 返回路径：L48的`process`。
+- `read_all`（L61–L65）：接收`stream`、`deadline`。 控制顺序：L63在`chunk := isolation._read_pipe(stream, deadline, "test pipe deadli…`成立时循环。 调用`bytearray`、`isolation._read_pipe`、`output.extend`、`bytes`。 返回路径：L65的`bytes(output)`。
+- `test_real_pipe_transfers_large_binary_payload_and_eof`（L68–L82）：接收`child_processes`。 控制顺序：L81断言`read_all(process.stdout, deadline) == hashlib.sha256(body).digest()`；L82断言`process.wait(timeout=5) == 0`。 调用`bytes`、`range`、`launch`、`time.monotonic`、`isolation._write_pipe`、`process.stdin.close`、`read_all`、`hashlib.sha256(body).digest`、`hashlib.sha256`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_unresponsive_pipe_honors_deadline`（L86–L102）：接收`child_processes`、`direction`。 控制顺序：L97按`direction == "write"`分支；L101断言`time.monotonic() - started < 2`；L102断言`process.poll() is None`。 调用`launch`、`time.monotonic`、`pytest.raises`、`isolation._write_pipe`、`isolation._read_pipe`、`process.poll`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_closed_read_end_is_broken_pipe_not_timeout`（L105–L113）：接收`child_processes`。 控制顺序：L110断言`process.wait(timeout=5) == 0`；L113断言`isolation._read_pipe(process.stdout, time.monotonic() + 5, "deadline") == b""`。 调用`launch`、`process.wait`、`pytest.raises`、`isolation._write_pipe`、`time.monotonic`、`isolation._read_pipe`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `simulated_pipes`（L117–L151）：接收`monkeypatch`。 调用`SimpleNamespace`、`monkeypatch.setattr`、`state.modes.append`。 返回路径：L151的`state, SimpleNamespace(fileno=lambda: 17)`。
+- `simulated_pipes.sleep`（L120–L123）：接收`seconds`。 控制顺序：L121断言`0 < seconds <= isolation.PIPE_POLL_INTERVAL`。 调用`state.sleeps.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `simulated_pipes.operation`（L125–L129）：接收`events`。 控制顺序：L127按`isinstance(event, Exception)`分支；L128抛异常，停止当前正常路径。 调用`events.pop`、`isinstance`。 返回路径：L129的`event`。
+- `simulated_pipes.read`（L131–L133）：接收`fd`、`size`。 控制顺序：L132断言`fd == 17 and size == isolation.PIPE_CHUNK`。 调用`operation`。 返回路径：L133的`operation(state.reads)`。
+- `simulated_pipes.write`（L135–L138）：接收`fd`、`data`。 控制顺序：L136断言`fd == 17 and 0 < len(data) <= isolation.PIPE_CHUNK`。 调用`len`、`state.attempts.append`、`bytes`、`operation`。 返回路径：L138的`operation(state.writes)`。
+- `test_simulated_windows_partial_zero_and_full_pipe_writes`（L154–L160）：接收`simulated_pipes`。 控制顺序：L158断言`state.modes == [(17, False)]`；L159断言`state.attempts == [b"abcdef", b"cdef", b"cdef", b"cdef", b"def"]`；L160断言`len(state.sleeps) == 2`。 调用`BlockingIOError`、`isolation._write_pipe`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_simulated_windows_empty_pipe_is_not_eof`（L163–L169）：接收`simulated_pipes`。 控制顺序：L166断言`isolation._read_pipe(stream, 101, "deadline") == b"partial"`；L167断言`isolation._read_pipe(stream, 101, "deadline") == b""`；L168断言`state.modes == [(17, False), (17, False)]`；L169断言`len(state.sleeps) == 1`。 调用`BlockingIOError`、`isolation._read_pipe`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_simulated_blocked_pipe_never_extends_absolute_deadline`（L173–L184）：接收`simulated_pipes`、`direction`。 控制顺序：L179按`direction == "read"`分支；L183断言`state.now == deadline`；L184断言`sum(state.sleeps) == pytest.approx(0.025)`。 调用`BlockingIOError`、`pytest.raises`、`isolation._read_pipe`、`isolation._write_pipe`、`sum`、`pytest.approx`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_simulated_expired_deadline_does_not_attempt_io`（L188–L195）：接收`simulated_pipes`、`direction`。 控制顺序：L191按`direction == "read"`分支；L195断言`state.attempts == state.sleeps == []`。 调用`pytest.raises`、`isolation._read_pipe`、`isolation._write_pipe`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_simulated_real_pipe_errors_propagate`（L200–L210）：接收`simulated_pipes`、`direction`、`code`。 控制顺序：L205按`direction == "read"`分支；L209断言`raised.value is error`；L210断言`not state.sleeps`。 调用`OSError`、`pytest.raises`、`isolation._read_pipe`、`isolation._write_pipe`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `setup_worker`（L213–L225）：接收`monkeypatch`、`child_processes`、`script`。 调用`monkeypatch.setattr`、`launch`。 返回路径：L225的`calls, processes`。
+- `setup_worker.run`（L217–L219）：接收`args`、`**kwargs`。 调用`calls.append`、`SimpleNamespace`。 返回路径：L219的`SimpleNamespace(returncode=0, stdout=b"[{}]")`。
+- `assert_worker_cleaned`（L228–L236）：接收`calls`、`processes`。 控制顺序：L229断言`len(processes) == 1`；L230断言`processes[0].poll() is not None`；L231断言`processes[0].stdin.closed and processes[0].stdout.closed`；L234断言`len(creates) == len(removes) == 1`；L236断言`removes[0] == [*isolation.DOCKER, "rm", "-f", name]`。 调用`len`、`processes[0].poll`、`creates[0].index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_success_with_large_bidirectional_frames`（L239–L275）：接收`monkeypatch`、`child_processes`。 控制顺序：L271断言`status == 0`；L272断言`json.loads(report) == {"digest": hashlib.sha256(bytes(range(256)) * 8192).hexdigest()…`；L273断言`len(relayed) == 1`；L274断言`all("controller-only-token" not in str(args) for args in calls)`。 调用`setup_worker`、`monkeypatch.setattr`、`isolation.execute_worker`、`json.loads`、`hashlib.sha256(bytes(range(256)) * 8192).hexdigest`、`hashlib.sha256`、`bytes`、`range`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_worker_success_with_large_bidirectional_frames.relay`（L261–L265）：接收`client`、`frame`、`deadline`。本机入口只按固定端口选择内部服务，逐字节转发并保留半关闭语义；不解析用户传入URL、目标地址或模型密钥，超时与退出时关闭两侧连接。 控制顺序：L262断言`client.headers["x-daytona-preview-token"] == "controller-only-token"`；L263断言`deadline > time.monotonic()`。 调用`time.monotonic`、`relayed.append`。 返回路径：L265的`{"type": "response", "id": 1, "body": frame["body"]}, 4 * 1024 * 1024`。
+- `test_real_worker_pipe_failures_cleanup`（L298–L305）：接收`monkeypatch`、`child_processes`、`mode`、`script`、`error`、`message`。 调用`setup_worker`、`pytest.raises`、`isolation.execute_worker`、`assert_worker_cleaned`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_provenance_pipe_bounds_and_cleanup`（L309–L340）：接收`monkeypatch`、`child_processes`、`mode`。 控制顺序：L320按`mode == "timeout"`分支；L329按`mode == "success"`分支；L330断言`isolation._image_file_archive(NAME, "/source") == bytes(range(256)) * 1000`；L339断言`len(processes) == 1`；L340断言`processes[0].poll() is not None and processes[0].stdout.closed`。 调用`monkeypatch.setattr`、`launch`、`isolation._image_file_archive`、`bytes`、`range`、`pytest.raises`、`len`、`processes[0].poll`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_provenance_pipe_bounds_and_cleanup.read`（L324–L326）：接收`stream`、`deadline`、`message`。 调用`deadlines.append`、`real_read`、`min`、`time.monotonic`。 返回路径：L326的`real_read(stream, min(deadline, time.monotonic() + 0.1), message)`。
+- `test_read_and_write_requests_are_chunk_bounded`（L343–L349）：接收`simulated_pipes`。 控制顺序：L348断言`b"".join(state.attempts) == body`；L349断言`max(map(len, state.attempts)) == isolation.PIPE_CHUNK`。 调用`isolation._write_pipe`、`b"".join`、`max`、`map`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_progress_does_not_reset_or_overrun_absolute_deadline`（L353–L374）：接收`monkeypatch`、`simulated_pipes`、`direction`。 控制顺序：L370按`direction == "read"`分支；L374断言`state.sleeps == []`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation._read_pipe`、`isolation._write_pipe`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_progress_does_not_reset_or_overrun_absolute_deadline.slow_read`（L359–L361）：接收`fd`、`size`。 返回路径：L361的`b"arrived too late"`。
+- `test_progress_does_not_reset_or_overrun_absolute_deadline.slow_write`（L363–L365）：接收`fd`、`data`。 调用`len`。 返回路径：L365的`len(data)`。
+- `test_real_blocked_reply_uses_original_deadline_and_cleans_up`（L377–L397）：接收`monkeypatch`、`child_processes`。 控制顺序：L396断言`len(deadlines) == 2 and deadlines[0] == deadlines[1]`。 调用`setup_worker`、`monkeypatch.setattr`、`pytest.raises`、`isolation.execute_worker`、`len`、`assert_worker_cleaned`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_blocked_reply_uses_original_deadline_and_cleans_up.write`（L389–L391）：接收`stream`、`data`、`deadline`。 调用`deadlines.append`、`real_write`。 返回路径：L391的`real_write(stream, data, deadline)`。
+- `test_final_process_wait_never_adds_minimum_grace`（L401–L436）：接收`monkeypatch`、`operation`。 控制顺序：L427按`operation == "worker"`分支；L428断言`isolation.execute_worker({}, "http://127.0.0.1:3456", "secret", 1, image=IMAGE) == ( …`；L432断言`state.closed == ["stdin", "stdout"]`；L434断言`isolation._image_file_archive(NAME, "/source") == b""`；L435断言`state.closed == ["stdout"]`；L436断言`state.waits == pytest.approx([0.025, 5])`。 调用`SimpleNamespace`、`state.closed.append`、`state.waits.append`、`monkeypatch.setattr`、`isolation.execute_worker`、`isolation._image_file_archive`、`pytest.approx`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_final_process_wait_never_adds_minimum_grace.read`（L422–L424）：接收`stream`、`deadline`、`message`。 调用`frames.pop`。 返回路径：L424的`frames.pop(0) if operation == "worker" else b""`。
+- `test_real_eof_before_exit_still_times_out_and_cleans_up`（L439–L448）：接收`monkeypatch`、`child_processes`。 调用`setup_worker`、`pytest.raises`、`isolation.execute_worker`、`assert_worker_cleaned`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_browser_pipes.py sha256: b6befcfbdedd2fc2dcc8c70cf8701bab35faf03606713406878792e67b4bdcff -->
+````python
+"""Portable real pipes and simulated Windows backpressure; no Docker certification."""
+
+import errno
+import hashlib
+import json
+import selectors
+import subprocess
+import sys
+import threading
+import time
+from types import SimpleNamespace
+
+import pytest
+
+from workbench import capability_browser_isolation as isolation
+
+IMAGE = "sha256:" + "a" * 64
+NAME = "rnd-browser-" + "b" * 32
+
+
+@pytest.fixture(autouse=True)
+def no_pipe_selectors(monkeypatch):
+    # Windows select accepts sockets only. Exercise every path with selectors
+    # forbidden, including success: converting WinError to a failure cannot pass.
+    def unavailable(*args, **kwargs):
+        pytest.fail("Anonymous pipes must not use Windows socket-only selectors")
+
+    monkeypatch.setattr(selectors, "DefaultSelector", unavailable)
+
+    def no_threads(*args, **kwargs):
+        pytest.fail("Bounded pipe I/O must not create uncancellable helper threads")
+
+    monkeypatch.setattr(threading.Thread, "start", no_threads)
+
+
+@pytest.fixture
+def child_processes():
+    before = set(threading.enumerate())
+    processes = []
+    real_popen = subprocess.Popen
+
+    def launch(script, **kwargs):
+        process = real_popen(
+            [sys.executable, "-I", "-S", "-c", script],
+            **kwargs,
+        )
+        processes.append(process)
+        return process
+
+    yield launch, processes
+    for process in processes:
+        if process.poll() is None:
+            process.kill()
+        process.wait(timeout=5)
+        for stream in (process.stdin, process.stdout, process.stderr):
+            if stream is not None:
+                stream.close()
+    assert not set(threading.enumerate()) - before
+
+
+def read_all(stream, deadline):
+    output = bytearray()
+    while chunk := isolation._read_pipe(stream, deadline, "test pipe deadline"):
+        output.extend(chunk)
+    return bytes(output)
+
+
+def test_real_pipe_transfers_large_binary_payload_and_eof(child_processes):
+    launch, _ = child_processes
+    body = bytes(range(256)) * 8192
+    process = launch(
+        "import hashlib,sys; data=sys.stdin.buffer.read(); "
+        "sys.stdout.buffer.write(hashlib.sha256(data).digest()); sys.stdout.flush()",
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    deadline = time.monotonic() + 10
+    isolation._write_pipe(process.stdin, body, deadline)
+    process.stdin.close()
+    assert read_all(process.stdout, deadline) == hashlib.sha256(body).digest()
+    assert process.wait(timeout=5) == 0
+
+
+@pytest.mark.parametrize("direction", ["read", "write"])
+def test_real_unresponsive_pipe_honors_deadline(child_processes, direction):
+    launch, _ = child_processes
+    process = launch(
+        "import time; time.sleep(30)",
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+    )
+    started = time.monotonic()
+    deadline = started + 0.15
+    with pytest.raises(TimeoutError, match="deadline"):
+        if direction == "write":
+            isolation._write_pipe(process.stdin, b"x" * 2_000_000, deadline)
+        else:
+            isolation._read_pipe(process.stdout, deadline, "test read deadline")
+    assert time.monotonic() - started < 2
+    assert process.poll() is None
+
+
+def test_real_closed_read_end_is_broken_pipe_not_timeout(child_processes):
+    launch, _ = child_processes
+    process = launch(
+        "pass", stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL
+    )
+    assert process.wait(timeout=5) == 0
+    with pytest.raises(BrokenPipeError):
+        isolation._write_pipe(process.stdin, b"not delivered", time.monotonic() + 5)
+    assert isolation._read_pipe(process.stdout, time.monotonic() + 5, "deadline") == b""
+
+
+@pytest.fixture
+def simulated_pipes(monkeypatch):
+    state = SimpleNamespace(now=100.0, sleeps=[], modes=[], reads=[], writes=[])
+
+    def sleep(seconds):
+        assert 0 < seconds <= isolation.PIPE_POLL_INTERVAL
+        state.sleeps.append(seconds)
+        state.now += seconds
+
+    def operation(events):
+        event = events.pop(0)
+        if isinstance(event, Exception):
+            raise event
+        return event
+
+    def read(fd, size):
+        assert fd == 17 and size == isolation.PIPE_CHUNK
+        return operation(state.reads)
+
+    def write(fd, data):
+        assert fd == 17 and 0 < len(data) <= isolation.PIPE_CHUNK
+        state.attempts.append(bytes(data))
+        return operation(state.writes)
+
+    state.attempts = []
+    monkeypatch.setattr(
+        isolation, "time", SimpleNamespace(monotonic=lambda: state.now, sleep=sleep)
+    )
+    monkeypatch.setattr(
+        isolation,
+        "os",
+        SimpleNamespace(
+            set_blocking=lambda fd, flag: state.modes.append((fd, flag)), read=read, write=write
+        ),
+    )
+    return state, SimpleNamespace(fileno=lambda: 17)
+
+
+def test_simulated_windows_partial_zero_and_full_pipe_writes(simulated_pipes):
+    state, stream = simulated_pipes
+    state.writes = [2, 0, BlockingIOError(errno.EAGAIN, "full pipe"), 1, 3]
+    isolation._write_pipe(stream, b"abcdef", 101)
+    assert state.modes == [(17, False)]
+    assert state.attempts == [b"abcdef", b"cdef", b"cdef", b"cdef", b"def"]
+    assert len(state.sleeps) == 2
+
+
+def test_simulated_windows_empty_pipe_is_not_eof(simulated_pipes):
+    state, stream = simulated_pipes
+    state.reads = [BlockingIOError(errno.EAGAIN, "empty pipe"), b"partial", b""]
+    assert isolation._read_pipe(stream, 101, "deadline") == b"partial"
+    assert isolation._read_pipe(stream, 101, "deadline") == b""
+    assert state.modes == [(17, False), (17, False)]
+    assert len(state.sleeps) == 1
+
+
+@pytest.mark.parametrize("direction", ["read", "write", "zero-write"])
+def test_simulated_blocked_pipe_never_extends_absolute_deadline(simulated_pipes, direction):
+    state, stream = simulated_pipes
+    state.reads = [BlockingIOError(errno.EAGAIN, "empty")] * 40
+    state.writes = [0 if direction == "zero-write" else BlockingIOError(errno.EAGAIN, "full")] * 40
+    deadline = state.now + 0.025
+    with pytest.raises(TimeoutError, match="deadline"):
+        if direction == "read":
+            isolation._read_pipe(stream, deadline, "deadline")
+        else:
+            isolation._write_pipe(stream, b"x", deadline)
+    assert state.now == deadline
+    assert sum(state.sleeps) == pytest.approx(0.025)
+
+
+@pytest.mark.parametrize("direction", ["read", "write"])
+def test_simulated_expired_deadline_does_not_attempt_io(simulated_pipes, direction):
+    state, stream = simulated_pipes
+    with pytest.raises(TimeoutError, match="deadline"):
+        if direction == "read":
+            isolation._read_pipe(stream, state.now, "deadline")
+        else:
+            isolation._write_pipe(stream, b"x", state.now)
+    assert state.attempts == state.sleeps == []
+
+
+@pytest.mark.parametrize("direction", ["read", "write"])
+@pytest.mark.parametrize("code", [errno.EBADF, errno.EIO, errno.EPIPE])
+def test_simulated_real_pipe_errors_propagate(simulated_pipes, direction, code):
+    state, stream = simulated_pipes
+    error = OSError(code, "genuine pipe failure")
+    state.reads = state.writes = [error]
+    with pytest.raises(OSError) as raised:
+        if direction == "read":
+            isolation._read_pipe(stream, 101, "deadline")
+        else:
+            isolation._write_pipe(stream, b"x", 101)
+    assert raised.value is error
+    assert not state.sleeps
+
+
+def setup_worker(monkeypatch, child_processes, script):
+    launch, processes = child_processes
+    calls = []
+
+    def run(args, **kwargs):
+        calls.append(args)
+        return SimpleNamespace(returncode=0, stdout=b"[{}]")
+
+    monkeypatch.setattr(isolation.subprocess, "run", run)
+    monkeypatch.setattr(isolation.subprocess, "Popen", lambda args, **kw: launch(script, **kw))
+    monkeypatch.setattr(isolation, "require_worker_inspection", lambda *args: {})
+    monkeypatch.setattr(isolation, "require_image_sources", lambda *args: {})
+    return calls, processes
+
+
+def assert_worker_cleaned(calls, processes):
+    assert len(processes) == 1
+    assert processes[0].poll() is not None
+    assert processes[0].stdin.closed and processes[0].stdout.closed
+    creates = [args for args in calls if "create" in args]
+    removes = [args for args in calls if "rm" in args]
+    assert len(creates) == len(removes) == 1
+    name = creates[0][creates[0].index("--name") + 1]
+    assert removes[0] == [*isolation.DOCKER, "rm", "-f", name]
+
+
+def test_real_worker_success_with_large_bidirectional_frames(monkeypatch, child_processes):
+    script = """
+import base64, hashlib, json, sys
+request = json.loads(sys.stdin.buffer.readline())
+assert request['token'] == ''
+assert request['url'] == 'http://127.0.0.1:18080'
+assert len(request['padding']) == 800000
+body = bytes(range(256)) * 8192
+frame = {'type':'request', 'id':1, 'method':'POST', 'path':'/large',
+         'headers':{}, 'body':base64.b64encode(body).decode()}
+sys.stdout.write(json.dumps(frame) + '\\n')
+sys.stdout.flush()
+response = json.loads(sys.stdin.buffer.readline())
+assert response['id'] == 1
+assert base64.b64decode(response['body']) == body
+report = {'digest':hashlib.sha256(body).hexdigest()}
+sys.stdout.write(json.dumps({'type':'report', 'report':report, 'exit_code':0}) + '\\n')
+sys.stdout.flush()
+"""
+    calls, processes = setup_worker(monkeypatch, child_processes, script)
+    relayed = []
+
+    def relay(client, frame, *, deadline):
+        assert client.headers["x-daytona-preview-token"] == "controller-only-token"
+        assert deadline > time.monotonic()
+        relayed.append(frame)
+        return {"type": "response", "id": 1, "body": frame["body"]}, 4 * 1024 * 1024
+
+    monkeypatch.setattr(isolation, "relay_request", relay)
+    report, status = isolation.execute_worker(
+        {"padding": "x" * 800000}, "http://127.0.0.1:3456", "controller-only-token", 15, image=IMAGE
+    )
+    assert status == 0
+    assert json.loads(report) == {"digest": hashlib.sha256(bytes(range(256)) * 8192).hexdigest()}
+    assert len(relayed) == 1
+    assert all("controller-only-token" not in str(args) for args in calls)
+    assert_worker_cleaned(calls, processes)
+
+
+@pytest.mark.parametrize(
+    ("mode", "script", "error", "message"),
+    [
+        ("blocked-input", "import time; time.sleep(30)", TimeoutError, "pipe deadline"),
+        ("eof", "import sys; sys.stdin.readline()", ValueError, "Incomplete"),
+        (
+            "partial-eof",
+            "import sys; sys.stdin.readline(); sys.stdout.write('{'); sys.stdout.flush()",
+            ValueError,
+            "Incomplete",
+        ),
+        (
+            "partial-stall",
+            "import sys,time; sys.stdin.readline(); sys.stdout.write('{'); "
+            "sys.stdout.flush(); time.sleep(30)",
+            TimeoutError,
+            "worker deadline",
+        ),
+    ],
+)
+def test_real_worker_pipe_failures_cleanup(
+    monkeypatch, child_processes, mode, script, error, message
+):
+    calls, processes = setup_worker(monkeypatch, child_processes, script)
+    payload = {"padding": "x" * 800000} if mode == "blocked-input" else {}
+    with pytest.raises(error, match=message):
+        isolation.execute_worker(payload, "http://127.0.0.1:3456", "secret", 1, image=IMAGE)
+    assert_worker_cleaned(calls, processes)
+
+
+@pytest.mark.parametrize("mode", ["success", "oversized", "nonzero", "timeout"])
+def test_real_provenance_pipe_bounds_and_cleanup(monkeypatch, child_processes, mode):
+    launch, processes = child_processes
+    scripts = {
+        "success": "import sys; sys.stdout.buffer.write(bytes(range(256))*1000)",
+        "oversized": "import sys; sys.stdout.buffer.write(b'x'*600000); sys.stdout.flush()",
+        "nonzero": "import sys; sys.stdout.write('partial'); sys.exit(2)",
+        "timeout": "import time; time.sleep(30)",
+    }
+    monkeypatch.setattr(
+        isolation.subprocess, "Popen", lambda args, **kw: launch(scripts[mode], **kw)
+    )
+    if mode == "timeout":
+        real_read = isolation._read_pipe
+        deadlines = []
+
+        def read(stream, deadline, message):
+            deadlines.append(deadline)
+            return real_read(stream, min(deadline, time.monotonic() + 0.1), message)
+
+        monkeypatch.setattr(isolation, "_read_pipe", read)
+    if mode == "success":
+        assert isolation._image_file_archive(NAME, "/source") == bytes(range(256)) * 1000
+    else:
+        error, message = {
+            "oversized": (ValueError, "too large"),
+            "nonzero": (ValueError, "unavailable"),
+            "timeout": (TimeoutError, "timed out"),
+        }[mode]
+        with pytest.raises(error, match=message):
+            isolation._image_file_archive(NAME, "/source")
+    assert len(processes) == 1
+    assert processes[0].poll() is not None and processes[0].stdout.closed
+
+
+def test_read_and_write_requests_are_chunk_bounded(simulated_pipes):
+    state, stream = simulated_pipes
+    body = b"x" * (2 * isolation.PIPE_CHUNK + 7)
+    state.writes = [isolation.PIPE_CHUNK, isolation.PIPE_CHUNK, 7]
+    isolation._write_pipe(stream, body, 101)
+    assert b"".join(state.attempts) == body
+    assert max(map(len, state.attempts)) == isolation.PIPE_CHUNK
+
+
+@pytest.mark.parametrize("direction", ["read", "write"])
+def test_progress_does_not_reset_or_overrun_absolute_deadline(
+    monkeypatch, simulated_pipes, direction
+):
+    state, stream = simulated_pipes
+    deadline = state.now + 0.01
+
+    def slow_read(fd, size):
+        state.now = deadline
+        return b"arrived too late"
+
+    def slow_write(fd, data):
+        state.now = deadline
+        return len(data)
+
+    monkeypatch.setattr(isolation.os, "read", slow_read)
+    monkeypatch.setattr(isolation.os, "write", slow_write)
+    with pytest.raises(TimeoutError, match="deadline"):
+        if direction == "read":
+            isolation._read_pipe(stream, deadline, "deadline")
+        else:
+            isolation._write_pipe(stream, b"sent too late", deadline)
+    assert state.sleeps == []
+
+
+def test_real_blocked_reply_uses_original_deadline_and_cleans_up(monkeypatch, child_processes):
+    script = (
+        "import sys,time; sys.stdin.readline(); "
+        'print(\'{"type":"request","id":1}\', flush=True); time.sleep(30)'
+    )
+    calls, processes = setup_worker(monkeypatch, child_processes, script)
+    monkeypatch.setattr(
+        isolation, "relay_request", lambda *a, **k: ({"body": "x" * 900000}, 900000)
+    )
+    deadlines = []
+    real_write = isolation._write_pipe
+
+    def write(stream, data, deadline):
+        deadlines.append(deadline)
+        return real_write(stream, data, deadline)
+
+    monkeypatch.setattr(isolation, "_write_pipe", write)
+    with pytest.raises(TimeoutError, match="pipe deadline"):
+        isolation.execute_worker({}, "http://127.0.0.1:3456", "secret", 1, image=IMAGE)
+    assert len(deadlines) == 2 and deadlines[0] == deadlines[1]
+    assert_worker_cleaned(calls, processes)
+
+
+@pytest.mark.parametrize("operation", ["worker", "provenance"])
+def test_final_process_wait_never_adds_minimum_grace(monkeypatch, operation):
+    state = SimpleNamespace(now=100.0, waits=[], closed=[])
+    streams = {
+        name: SimpleNamespace(close=lambda name=name: state.closed.append(name))
+        for name in ("stdin", "stdout")
+    }
+    process = SimpleNamespace(
+        **streams,
+        poll=lambda: 0,
+        wait=lambda *, timeout: state.waits.append(timeout) or 0,
+    )
+    monkeypatch.setattr(isolation, "time", SimpleNamespace(monotonic=lambda: state.now))
+    monkeypatch.setattr(isolation.subprocess, "Popen", lambda *args, **kwargs: process)
+    monkeypatch.setattr(
+        isolation.subprocess, "run", lambda *a, **k: SimpleNamespace(returncode=0, stdout=b"[{}]")
+    )
+    monkeypatch.setattr(isolation, "require_worker_inspection", lambda *a: {})
+    monkeypatch.setattr(isolation, "require_image_sources", lambda *a: {})
+    monkeypatch.setattr(isolation, "_write_pipe", lambda *a: None)
+    frames = [b'{"type":"report","report":{},"exit_code":0}\n', b""]
+
+    def read(stream, deadline, message):
+        state.now = deadline - 0.025
+        return frames.pop(0) if operation == "worker" else b""
+
+    monkeypatch.setattr(isolation, "_read_pipe", read)
+    if operation == "worker":
+        assert isolation.execute_worker({}, "http://127.0.0.1:3456", "secret", 1, image=IMAGE) == (
+            b"{}",
+            0,
+        )
+        assert state.closed == ["stdin", "stdout"]
+    else:
+        assert isolation._image_file_archive(NAME, "/source") == b""
+        assert state.closed == ["stdout"]
+    assert state.waits == pytest.approx([0.025, 5])
+
+
+def test_real_eof_before_exit_still_times_out_and_cleans_up(monkeypatch, child_processes):
+    script = (
+        "import os,sys,time; sys.stdin.readline(); "
+        'print(\'{"type":"report","report":{},"exit_code":0}\', flush=True); '
+        "os.close(sys.stdout.fileno()); time.sleep(30)"
+    )
+    calls, processes = setup_worker(monkeypatch, child_processes, script)
+    with pytest.raises(subprocess.TimeoutExpired):
+        isolation.execute_worker({}, "http://127.0.0.1:3456", "secret", 1, image=IMAGE)
+    assert_worker_cleaned(calls, processes)
 ````
 
 ### `tests/test_capability_browser_policy.py`
@@ -117295,15 +117832,17 @@ def test_v2_requires_explicit_approved_actions_selection():
 
 **逐个入口与控制逻辑：**
 
-- `compiled_probe`（L53–L79）：接收`tmp_path_factory`。 控制顺序：L55断言`compiler`；L77断言`result.returncode == 0`。 调用`shutil.which`、`tmp_path_factory.mktemp`、`subprocess.run`、`str`、`pytest.fixture`。 返回路径：L79的`output`。
-- `test_probe_is_static_native_amd64_and_contains_complete_receipt`（L82–L95）：接收`compiled_probe`。 控制顺序：L84断言`data[:6] == b"\x7fELF\x02\x01"`；L85断言`struct.unpack_from("<HH", data, 16) == (2, 62)`；L91断言`not {2, 3} & program_types`；L92遍历`EXPECTED_CHECKS`；L93断言`name.encode() + b"\0" in data`；L94断言`hashlib.sha256(PROFILE.read_bytes()).hexdigest().encode() in data`；L95断言`b"browser-seccomp-transport-v1" in data`。 调用`compiled_probe.read_bytes`、`struct.unpack_from`、`range`、`name.encode`、`hashlib.sha256(PROFILE.read_bytes()).hexdigest().encode`、`hashlib.sha256(PROFILE.read_bytes()).hexdigest`、`hashlib.sha256`、`PROFILE.read_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_compiled_probe_enters_both_raw_syscall_abis`（L98–L113）：接收`compiled_probe`。 控制顺序：L100断言`disassembler`；L107断言`result.returncode == 0`；L110断言`native and re.search(r"\bsyscall\b", native[1])`；L111断言`compat and re.search(r"\bint\s+\$0x80\b", compat[1])`；L113断言`not re.search(r"\bcallq?\b", native[1] + compat[1])`。 调用`shutil.which`、`subprocess.run`、`str`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_probe_case_count_and_bounded_json_contract`（L116–L151）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L126断言`recorded_names == EXPECTED_CHECKS`；L127断言`int(re.search(r"bool passed = result_count == (\d+);", source)[1]) == len( EXPECTED_C…`；L130断言`len(EXPECTED_CHECKS) <= int(re.search(r"#define MAX_RESULTS (\d+)U", source)[1])`；L151断言`len(json.dumps(largest).encode()) < 12_000`。 调用`SOURCE.read_text`、`set`、`re.findall`、`recorded_names.update`、`int`、`re.search`、`len`、`dict.fromkeys`、`json.dumps(largest).encode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `_native_allow_rules`（L154–L162）：接收`profile`、`syscall`。 控制顺序：L155遍历`profile["syscalls"]`；L157按`include.get("caps") or "amd64" in exclude.get("arches", [])`分支；L159按`include.get("arches") and "amd64" not in include["arches"]`分支；L161按`syscall in rule["names"] and rule["action"] == "SCMP_ACT_ALLOW"`分支。 调用`rule.get`、`include.get`、`exclude.get`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `_matches`（L165–L177）：接收`rule`、`argument`。 控制顺序：L166遍历`rule.get("args", [])`；L167断言`predicate["index"] == 0`；L169按`predicate["op"] == "SCMP_CMP_MASKED_EQ"`分支；L170按`argument & value != predicate.get("valueTwo", 0)`分支；L172按`predicate["op"] == "SCMP_CMP_EQ"`分支；L173按`argument != value`分支。 调用`rule.get`、`predicate.get`、`pytest.fail`。 返回路径：L171的`False`；L174的`False`；L177的`True`。
-- `test_native_negative_cases_are_outside_every_reviewed_allow_rule`（L180–L201）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L187断言`len(domains) == 4`；L188断言`{value >> 32 for value in domains} == {0, 1, 0x80000000, 0xFFFFFFFF}`；L189断言`all(value & 0xFFFFFFFF == 40 for value in domains)`；L190遍历`("socket", "socketpair")`；L191遍历`domains`；L192断言`not any(_matches(rule, domain) for rule in _native_allow_rules(profile, syscall))`；L194断言`len(namespace_cases) == 5`；L195遍历`namespace_cases`。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`PROFILE.read_text`、`SOURCE.read_text`、`int`、`re.findall`、`len`、`all`、`any`、`_matches`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `compiled_probe`（L55–L87）：接收`tmp_path_factory`。 控制顺序：L56按`sys.platform != "linux" or platform.machine().lower() not in {"x86_64", "amd64"} or s…`分支；L63断言`compiler`；L85断言`result.returncode == 0`。 调用`platform.machine().lower`、`platform.machine`、`struct.calcsize`、`pytest.skip`、`shutil.which`、`tmp_path_factory.mktemp`、`subprocess.run`、`str`、`pytest.fixture`。 返回路径：L87的`output`。
+- `test_probe_is_static_native_amd64_and_contains_complete_receipt`（L90–L103）：接收`compiled_probe`。 控制顺序：L92断言`data[:6] == b"\x7fELF\x02\x01"`；L93断言`struct.unpack_from("<HH", data, 16) == (2, 62)`；L99断言`not {2, 3} & program_types`；L100遍历`EXPECTED_CHECKS`；L101断言`name.encode() + b"\0" in data`；L102断言`hashlib.sha256(PROFILE.read_bytes()).hexdigest().encode() in data`；L103断言`b"browser-seccomp-transport-v1" in data`。 调用`compiled_probe.read_bytes`、`struct.unpack_from`、`range`、`name.encode`、`hashlib.sha256(PROFILE.read_bytes()).hexdigest().encode`、`hashlib.sha256(PROFILE.read_bytes()).hexdigest`、`hashlib.sha256`、`PROFILE.read_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_compiled_probe_enters_both_raw_syscall_abis`（L106–L121）：接收`compiled_probe`。 控制顺序：L108断言`disassembler`；L115断言`result.returncode == 0`；L118断言`native and re.search(r"\bsyscall\b", native[1])`；L119断言`compat and re.search(r"\bint\s+\$0x80\b", compat[1])`；L121断言`not re.search(r"\bcallq?\b", native[1] + compat[1])`。 调用`shutil.which`、`subprocess.run`、`str`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_probe_case_count_and_bounded_json_contract`（L124–L159）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134断言`recorded_names == EXPECTED_CHECKS`；L135断言`int(re.search(r"bool passed = result_count == (\d+);", source)[1]) == len( EXPECTED_C…`；L138断言`len(EXPECTED_CHECKS) <= int(re.search(r"#define MAX_RESULTS (\d+)U", source)[1])`；L159断言`len(json.dumps(largest).encode()) < 12_000`。 调用`SOURCE.read_text`、`set`、`re.findall`、`recorded_names.update`、`int`、`re.search`、`len`、`dict.fromkeys`、`json.dumps(largest).encode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_native_allow_rules`（L162–L170）：接收`profile`、`syscall`。 控制顺序：L163遍历`profile["syscalls"]`；L165按`include.get("caps") or "amd64" in exclude.get("arches", [])`分支；L167按`include.get("arches") and "amd64" not in include["arches"]`分支；L169按`syscall in rule["names"] and rule["action"] == "SCMP_ACT_ALLOW"`分支。 调用`rule.get`、`include.get`、`exclude.get`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_matches`（L173–L185）：接收`rule`、`argument`。 控制顺序：L174遍历`rule.get("args", [])`；L175断言`predicate["index"] == 0`；L177按`predicate["op"] == "SCMP_CMP_MASKED_EQ"`分支；L178按`argument & value != predicate.get("valueTwo", 0)`分支；L180按`predicate["op"] == "SCMP_CMP_EQ"`分支；L181按`argument != value`分支。 调用`rule.get`、`predicate.get`、`pytest.fail`。 返回路径：L179的`False`；L182的`False`；L185的`True`。
+- `test_native_negative_cases_are_outside_every_reviewed_allow_rule`（L188–L209）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L195断言`len(domains) == 4`；L196断言`{value >> 32 for value in domains} == {0, 1, 0x80000000, 0xFFFFFFFF}`；L197断言`all(value & 0xFFFFFFFF == 40 for value in domains)`；L198遍历`("socket", "socketpair")`；L199遍历`domains`；L200断言`not any(_matches(rule, domain) for rule in _native_allow_rules(profile, syscall))`；L202断言`len(namespace_cases) == 5`；L203遍历`namespace_cases`。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`PROFILE.read_text`、`SOURCE.read_text`、`int`、`re.findall`、`len`、`all`、`any`、`_matches`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_native_compile_fixture_has_platform_precondition`（L221–L237）：接收`monkeypatch`、`host`、`machine`、`pointer_size`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`pytest.fail`、`pytest.raises`、`compiled_probe.__wrapped__`、`test_probe_case_count_and_bounded_json_contract`、`test_native_negative_cases_are_outside_every_reviewed_allow_rule`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_supported_native_compile_cannot_skip_missing_compiler`（L241–L250）：接收`monkeypatch`、`machine`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`pytest.raises`、`compiled_probe.__wrapped__`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_capability_browser_transport_probe.py sha256: e2b1a7e0db3a4ebdc7d565d29918d688b8dd21832a11effadd6c9cb8c5c347b8 -->
+<!-- source-file: tests/test_capability_browser_transport_probe.py sha256: cf83e2e3cba680001ac37348a9bb2cfb3117ba2d6a16453b8bf55432507d3e47 -->
 ````python
 """Compile/inspect the live probe; NEVER execute it or load a seccomp filter here.
 
@@ -117313,10 +117852,12 @@ Actual denial/kill receipts must come from the authorized disposable worker.
 
 import hashlib
 import json
+import platform
 import re
 import shutil
 import struct
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -117358,6 +117899,12 @@ EXPECTED_CHECKS = {
 
 @pytest.fixture(scope="module")
 def compiled_probe(tmp_path_factory):
+    if (
+        sys.platform != "linux"
+        or platform.machine().lower() not in {"x86_64", "amd64"}
+        or struct.calcsize("P") != 8
+    ):
+        pytest.skip("ELF/raw-syscall compilation requires native Linux amd64; source contracts run")
     compiler = shutil.which("gcc")
     assert compiler, "Static native-amd64 probe compilation is required; no skipped pass"
     output = tmp_path_factory.mktemp("inspect-only-browser-probe") / "probe-do-not-run"
@@ -117506,6 +118053,47 @@ def test_native_negative_cases_are_outside_every_reviewed_allow_rule():
     for syscall in ("setns", "mount", "io_uring_setup", "io_uring_enter", "io_uring_register"):
         assert not list(_native_allow_rules(profile, syscall))
     assert profile["defaultAction"] == "SCMP_ACT_ERRNO" and profile["defaultErrnoRet"] == 1
+
+
+@pytest.mark.parametrize(
+    ("host", "machine", "pointer_size"),
+    [
+        ("win32", "AMD64", 8),
+        ("darwin", "x86_64", 8),
+        ("linux", "aarch64", 8),
+        ("linux", "x86_64", 4),
+    ],
+)
+def test_only_native_compile_fixture_has_platform_precondition(
+    monkeypatch, host, machine, pointer_size
+):
+    from types import SimpleNamespace
+
+    module = sys.modules[__name__]
+    monkeypatch.setattr(module, "sys", SimpleNamespace(platform=host))
+    monkeypatch.setattr(module, "platform", SimpleNamespace(machine=lambda: machine))
+    monkeypatch.setattr(module, "struct", SimpleNamespace(calcsize=lambda _: pointer_size))
+    monkeypatch.setattr(
+        shutil, "which", lambda _: pytest.fail("compiler queried on unsupported ABI")
+    )
+    with pytest.raises(pytest.skip.Exception, match="native Linux amd64"):
+        compiled_probe.__wrapped__(None)
+    # Source/receipt contracts and every policy case remain checked even here.
+    test_probe_case_count_and_bounded_json_contract()
+    test_native_negative_cases_are_outside_every_reviewed_allow_rule()
+
+
+@pytest.mark.parametrize("machine", ["x86_64", "AMD64"])
+def test_supported_native_compile_cannot_skip_missing_compiler(monkeypatch, machine):
+    from types import SimpleNamespace
+
+    module = sys.modules[__name__]
+    monkeypatch.setattr(module, "sys", SimpleNamespace(platform="linux"))
+    monkeypatch.setattr(module, "platform", SimpleNamespace(machine=lambda: machine))
+    monkeypatch.setattr(module, "struct", SimpleNamespace(calcsize=lambda _: 8))
+    monkeypatch.setattr(shutil, "which", lambda _: None)
+    with pytest.raises(AssertionError, match="compilation is required"):
+        compiled_probe.__wrapped__(None)
 ````
 
 ### `tests/test_capability_capture_bounds.py`
@@ -130998,32 +131586,98 @@ def test_missing_actual_engine_seccomp_is_not_default_filter_evidence(inspection
 
 **逐个入口与控制逻辑：**
 
-- `test_reviewed_bundled_native_graph_includes_required_sdists_and_exact_default_groups`（L15–L36）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L24断言`"sqlglot[rs]==27.8.0" in tomllib.loads(project.decode())["project"]["dependencies"]`；L25断言`tomllib.loads(project.decode())["tool"]["uv"]["default-groups"] == ["dev"]`；L28遍历`spec["sdists"]`；L29断言`packages[record["name"]]["version"] == record["version"]`；L30断言`packages[record["name"]]["sdist"]["hash"] == "sha256:" + record["sha256"]`；L31断言`packages[record["name"]]["sdist"]["url"] == record["url"]`；L32断言`{row["name"] for row in spec["sdists"]} == { "crcmod", "esdk-obs-python", "sqlglotrs"…`。 调用`zipfile.ZipFile`、`build.normalize`、`archive.read`、`build.validate_python`、`build.validate_node`、`tomllib.loads`、`project.decode`、`json.loads`、`(ROOT / "scripts/daytona_dependency_build.lock.json").read_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_candidate_build_backends_and_local_configuration_rejected`（L47–L52）：接收`extra`。 调用`pytest.raises`、`build.validate_python`、`('[project]\nname="fixture"\nversion="1"\n' + extra).encode`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_local_and_workspace_lock_packages_rejected`（L59–L64）：接收`source`。 调用`pytest.raises`、`build.validate_python`、`('[[package]]\nname="evil"\nsource=' + source + "\n").encode`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_registry_authentication_and_unreviewed_hosts_rejected`（L76–L78）：接收`url`。 调用`pytest.raises`、`build.public_url`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_hooks_local_sources_and_unhashed_artifacts_rejected`（L100–L102）：接收`package`、`lock`。 调用`pytest.raises`、`build.validate_node`、`json.dumps(package).encode`、`json.dumps`、`lock.encode`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_archive_does_not_extract_links_traversal_or_cargo_hooks`（L115–L128）：接收`tmp_path`、`kind`、`name`。 控制顺序：L128断言`not (tmp_path / "output").exists()`。 调用`tarfile.open`、`tarfile.TarInfo`、`archive.addfile`、`io.BytesIO`、`pytest.raises`、`build.extract_source`、`(tmp_path / "output").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_built_wheel_replacement_preserves_other_hashes_and_markers`（L131–L150）：接收`tmp_path`。 控制顺序：L147断言`"crcmod @ " + wheel.as_uri() + ' ; python_version >= "3.14"' in replaced`；L148断言`"c" * 64 in replaced and "a" * 64 not in replaced and "b" * 64 in replaced`。 调用`(tmp_path / "crcmod-1.7-cp314-cp314-linux_x86_64.whl").absolute`、`str`、`build.replace_source_requirements`、`wheel.as_uri`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_install_uses_locked_export_runtime_groups_no_project_hooks_or_sdists`（L153–L175）：接收`tmp_path`、`monkeypatch`。 控制顺序：L172断言`"--locked" in calls[0] and "--no-emit-project" in calls[0] and "--no-dev" in calls[0]`；L173断言`str(project / ".venv") in calls[1]`；L174断言`"--require-hashes" in calls[2] and "--no-build" in calls[2]`；L175断言`"--all-extras" not in repr(calls)`。 调用`project.mkdir`、`(project / "pyproject.toml").write_text`、`(project / "uv.lock").write_text`、`monkeypatch.setattr`、`build.install`、`str`、`repr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_install_uses_locked_export_runtime_groups_no_project_hooks_or_sdists.run`（L163–L168）：接收`command`、`cwd`、`**kwargs`。 控制顺序：L165按`command[1] == "export"`分支。 调用`calls.append`、`(tmp_path / (project.name + "-requirements.lock.txt")).write_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_recipes_separate_nonroot_offline_build_and_never_relocate_environments`（L178–L188）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L181断言`"AS dependency-builder" in base and "AS dependency-builder" in native`；L182断言`"RUN --network=none /opt/rnd/bin/python-build" in native`；L183断言`"USER daytona" in native.split("RUN --network=none")[0]`；L184断言`"PYO3_USE_ABI3_FORWARD_COMPATIBILITY" not in native`；L185断言`"rm -rf .venv" not in base and "rm -rf /opt/rnd/prewarm" not in native`；L186断言`"--mount=" not in native and "--mount=" not in base`；L187断言`"chown -R" not in native and "chmod -R" not in native`；L188断言`"--ignore-scripts" in native and "--package-import-method=copy" in native`。 调用`(ROOT / "tools/daytona/capability-snapshot.Dockerfile").read_text`、`(ROOT / "tools/daytona/capability-native-snapshot.Dockerfile").re…`、`native.split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_source_build_does_not_silently_accept_pure_python_fallback`（L191–L202）：接收`tmp_path`。 控制顺序：L201断言`len(outputs["native_extensions"]) == 1`；L202断言`outputs["wheel_tags"] == ["py3-none-any"]`。 调用`zipfile.ZipFile`、`archive.writestr`、`pytest.raises`、`build.wheel_outputs`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `uv_cli`（L21–L52）：接收`tmp_path`。 源码说明：Exercise the installed uv, with no user config, credentials or network.。 控制顺序：L24断言`executable`。 调用`shutil.which`、`env.update`、`str`。 返回路径：L52的`invoke`。
+- `uv_cli.invoke`（L40–L50）：接收`command`、`cwd`、`extra`。 控制顺序：L49断言`result.returncode == 0`。 调用`subprocess.run`。 返回路径：L50的`result`。
+- `metadata_wheel`（L55–L67）：接收`directory`、`name`。 源码说明：A data-only wheel: no source, backend, importable code or install hooks.。 调用`name.replace`、`zipfile.ZipFile`、`archive.writestr`。 返回路径：L67的`path`。
+- `test_reviewed_bundled_native_graph_includes_required_sdists_and_exact_default_groups`（L70–L91）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L79断言`"sqlglot[rs]==27.8.0" in tomllib.loads(project.decode())["project"]["dependencies"]`；L80断言`tomllib.loads(project.decode())["tool"]["uv"]["default-groups"] == ["dev"]`；L83遍历`spec["sdists"]`；L84断言`packages[record["name"]]["version"] == record["version"]`；L85断言`packages[record["name"]]["sdist"]["hash"] == "sha256:" + record["sha256"]`；L86断言`packages[record["name"]]["sdist"]["url"] == record["url"]`；L87断言`{row["name"] for row in spec["sdists"]} == { "crcmod", "esdk-obs-python", "sqlglotrs"…`。 调用`zipfile.ZipFile`、`build.normalize`、`archive.read`、`build.validate_python`、`build.validate_node`、`tomllib.loads`、`project.decode`、`json.loads`、`(ROOT / "scripts/daytona_dependency_build.lock.json").read_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_candidate_build_backends_and_local_configuration_rejected`（L102–L107）：接收`extra`。 调用`pytest.raises`、`build.validate_python`、`('[project]\nname="fixture"\nversion="1"\n' + extra).encode`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_and_workspace_lock_packages_rejected`（L114–L119）：接收`source`。 调用`pytest.raises`、`build.validate_python`、`('[[package]]\nname="evil"\nsource=' + source + "\n").encode`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_registry_authentication_and_unreviewed_hosts_rejected`（L131–L133）：接收`url`。 调用`pytest.raises`、`build.public_url`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_hooks_local_sources_and_unhashed_artifacts_rejected`（L155–L157）：接收`package`、`lock`。 调用`pytest.raises`、`build.validate_node`、`json.dumps(package).encode`、`json.dumps`、`lock.encode`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_archive_does_not_extract_links_traversal_or_cargo_hooks`（L170–L183）：接收`tmp_path`、`kind`、`name`。 控制顺序：L183断言`not (tmp_path / "output").exists()`。 调用`tarfile.open`、`tarfile.TarInfo`、`archive.addfile`、`io.BytesIO`、`pytest.raises`、`build.extract_source`、`(tmp_path / "output").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_built_wheel_replacement_preserves_other_hashes_and_markers`（L186–L205）：接收`tmp_path`。 控制顺序：L202断言`"crcmod @ " + wheel.as_uri() + ' ; python_version >= "3.14"' in replaced`；L203断言`"c" * 64 in replaced and "a" * 64 not in replaced and "b" * 64 in replaced`。 调用`(tmp_path / "crcmod-1.7-cp314-cp314-linux_x86_64.whl").absolute`、`str`、`build.replace_source_requirements`、`wheel.as_uri`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_install_uses_locked_export_runtime_groups_no_project_hooks_or_sdists`（L209–L236）：接收`tmp_path`、`monkeypatch`、`uv_cli`、`mode`。 控制顺序：L231断言`"--locked" in calls[0] and "--no-emit-project" in calls[0]`；L232断言`("--no-dev" in calls[0]) is (mode == "basic")`；L233断言`("--all-extras" in calls[0]) is (mode == "harness")`；L234断言`str(project / ".venv") in calls[1]`；L235断言`"--require-hashes" in calls[2] and "--no-build" in calls[2]`；L236断言`calls[2][-1] == str(tmp_path / "runtime-requirements.lock.txt")`。 调用`project.mkdir`、`(project / "pyproject.toml").write_text`、`(project / "uv.lock").write_text`、`monkeypatch.setattr`、`(tmp_path / "source-builds.json").write_text`、`build.install`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_install_uses_locked_export_runtime_groups_no_project_hooks_or_sdists.run`（L220–L227）：接收`command`、`cwd`、`**kwargs`。 控制顺序：L224按`command[1] == "export"`分支。 调用`calls.append`、`uv_cli`、`(tmp_path / (project.name + "-requirements.lock.txt")).write_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_install_real_uv_offline_hashed_wheel_dry_run`（L248–L322）：接收`tmp_path`、`monkeypatch`、`uv_cli`、`mode`、`expected`。 控制顺序：L278遍历`wheels.items()`；L316遍历`wheels.items()`；L317断言`("fixture-" + group in requirements) is (group in expected)`；L318断言`(build.sha(wheel) in requirements) is (group in expected)`；L319断言`("fixture-runtime @ " in requirements) is (mode == "native")`；L320断言`f"Would install {len(expected)} package" in results[-1].stderr`；L321断言`original == {name: build.sha(project / name) for name in original}`；L322断言`not list((project / ".venv").rglob("fixture*.dist-info"))`。 调用`project.mkdir`、`wheelhouse.mkdir`、`metadata_wheel`、`(project / "pyproject.toml").write_text`、`wheels.items`、`build.sha`、`wheel.stat`、`(project / "uv.lock").write_text`、`(tmp_path / "source-builds.json").write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_install_real_uv_offline_hashed_wheel_dry_run.run`（L304–L311）：接收`command`、`cwd`、`**kwargs`。 调用`str`、`results.append`、`uv_cli`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fetch_real_uv_parser_keeps_install_requirements_flag`（L325–L359）：接收`tmp_path`、`monkeypatch`、`uv_cli`。 控制顺序：L356断言`command[1:3] == ["pip", "install"]`；L357断言`command[-2:] == ["-r", str(tmp_path / "build-tools.txt")]`；L358断言`{"--no-deps", "--no-build", "--require-hashes", "--no-index"} <= set(command)`；L359断言`kwargs == {"offline": True}`。 调用`project.mkdir`、`(project / "uv.lock").write_text`、`metadata_wheel`、`lock.write_text`、`json.dumps`、`build.sha`、`monkeypatch.setattr`、`build.fetch`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fetch_real_uv_parser_keeps_install_requirements_flag.run`（L349–L351）：接收`command`、`cwd`、`**kwargs`。 调用`calls.append`、`uv_cli`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_build_real_uv_parser_without_executing_backend`（L363–L385）：接收`tmp_path`、`monkeypatch`、`uv_cli`、`package`。 调用`(tmp_path / "sources.json").write_text`、`json.dumps`、`str`、`monkeypatch.setattr`、`pytest.raises`、`build.build_sources`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_build_real_uv_parser_without_executing_backend.ParserChecked`（L371–L372）：继承`Exception`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_source_build_real_uv_parser_without_executing_backend.run`（L374–L381）：接收`command`、`cwd`、`**kwargs`。 控制顺序：L376断言`command[1:4] == ["build", "--wheel", "--no-build-isolation"]`；L377断言`"--offline" in command and kwargs == {"offline": True}`；L378按`package == "sqlglotrs"`分支；L379断言`command[-3:-1] == ["--config-setting", "build-args=--locked --offline"]`；L380断言`Path(command[-1]).name == "never-execute"`；L381抛异常，停止当前正常路径。 调用`uv_cli`、`Path`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_recipes_separate_nonroot_offline_build_and_never_relocate_environments`（L388–L398）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L391断言`"AS dependency-builder" in base and "AS dependency-builder" in native`；L392断言`"RUN --network=none /opt/rnd/bin/python-build" in native`；L393断言`"USER daytona" in native.split("RUN --network=none")[0]`；L394断言`"PYO3_USE_ABI3_FORWARD_COMPATIBILITY" not in native`；L395断言`"rm -rf .venv" not in base and "rm -rf /opt/rnd/prewarm" not in native`；L396断言`"--mount=" not in native and "--mount=" not in base`；L397断言`"chown -R" not in native and "chmod -R" not in native`；L398断言`"--ignore-scripts" in native and "--package-import-method=copy" in native`。 调用`(ROOT / "tools/daytona/capability-snapshot.Dockerfile").read_text`、`(ROOT / "tools/daytona/capability-native-snapshot.Dockerfile").re…`、`native.split`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_source_build_does_not_silently_accept_pure_python_fallback`（L401–L412）：接收`tmp_path`。 控制顺序：L411断言`len(outputs["native_extensions"]) == 1`；L412断言`outputs["wheel_tags"] == ["py3-none-any"]`。 调用`zipfile.ZipFile`、`archive.writestr`、`pytest.raises`、`build.wheel_outputs`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_profile_workflows_execute_real_dependency_cli_checks_before_image_builds`（L415–L435）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L418遍历`("capability-profile.yml", "native-capability-profile.yml")`；L431断言`"tests/test_daytona_dependency_build.py" in preflight["run"]`；L432断言`"tests/test_daytona_dependency_image.py" in preflight["run"]`；L433断言`preflight["env"]["RND_REQUIRE_LANDLOCK"] == "1"`；L434断言`preflight["env"]["RND_REQUIRE_SECCOMP_BPF"] == "1"`；L435断言`steps.index(preflight) < steps.index(build_images)`。 调用`yaml.safe_load`、`(ROOT / ".github/workflows" / name).read_text`、`next`、`step.get`、`steps.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_daytona_dependency_build.py sha256: a158d37a97ff32f4e99dd561c892f0075bc5bb152a0aceee052cab18a94de30a -->
+<!-- source-file: tests/test_daytona_dependency_build.py sha256: 89236af7627533fb9b4594e164b244a8ef89891264a794a777af3edd0e3c15ab -->
 ````python
 """Locked dependency build contracts; never execute source hooks in these tests."""
 
 import io
 import json
+import os
+import shutil
+import subprocess
+import sys
 import tarfile
 import tomllib
 import zipfile
+from pathlib import Path
 
 import pytest
 
 from scripts import daytona_dependency_build as build
 from scripts.daytona_native_capability_profile import ROOT
+
+
+@pytest.fixture
+def uv_cli(tmp_path):
+    """Exercise the installed uv, with no user config, credentials or network."""
+    executable = shutil.which("uv")
+    assert executable, "Install the official uv CLI required by the repository test workflow"
+    env = {key: os.environ[key] for key in ("PATH", "SYSTEMROOT", "WINDIR") if key in os.environ}
+    env.update(
+        HOME=str(tmp_path),
+        USERPROFILE=str(tmp_path),
+        TMP=str(tmp_path),
+        TEMP=str(tmp_path),
+        UV_CACHE_DIR=str(tmp_path / "uv-cache"),
+        UV_PYTHON=sys.executable,
+        UV_PYTHON_DOWNLOADS="never",
+        UV_OFFLINE="1",
+        UV_NO_CONFIG="1",
+        UV_NO_PROGRESS="1",
+        UV_LINK_MODE="copy",
+    )
+
+    def invoke(command, cwd, *, extra=()):
+        result = subprocess.run(
+            [executable, *command[1:], *extra, "--offline", "--no-config"],
+            cwd=cwd,
+            env=env,
+            text=True,
+            capture_output=True,
+            timeout=60,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        return result
+
+    return invoke
+
+
+def metadata_wheel(directory, name):
+    """A data-only wheel: no source, backend, importable code or install hooks."""
+    path = directory / (name.replace("-", "_") + "-1.0-py3-none-any.whl")
+    dist_info = name.replace("-", "_") + "-1.0.dist-info/"
+    with zipfile.ZipFile(path, "w") as archive:
+        archive.writestr(
+            dist_info + "METADATA", f"Metadata-Version: 2.3\nName: {name}\nVersion: 1.0\n"
+        )
+        archive.writestr(
+            dist_info + "WHEEL", "Wheel-Version: 1.0\nRoot-Is-Purelib: true\nTag: py3-none-any\n"
+        )
+        archive.writestr(dist_info + "RECORD", "")
+    return path
 
 
 def test_reviewed_bundled_native_graph_includes_required_sdists_and_exact_default_groups():
@@ -131164,8 +131818,9 @@ def test_built_wheel_replacement_preserves_other_hashes_and_markers(tmp_path):
         build.replace_source_requirements("other==1\n", [item])
 
 
+@pytest.mark.parametrize("mode", ["basic", "native", "harness"])
 def test_install_uses_locked_export_runtime_groups_no_project_hooks_or_sdists(
-    tmp_path, monkeypatch
+    tmp_path, monkeypatch, uv_cli, mode
 ):
     project = tmp_path / "runtime"
     project.mkdir()
@@ -131173,20 +131828,174 @@ def test_install_uses_locked_export_runtime_groups_no_project_hooks_or_sdists(
     (project / "uv.lock").write_text("version=1\n")
     calls = []
     monkeypatch.setattr(build, "BUILD", tmp_path)
+    (tmp_path / "source-builds.json").write_text("[]")
 
     def run(command, cwd, **kwargs):
         calls.append(command)
+        # Let the actual parser reject invalid argument names and mappings.
+        uv_cli(command, cwd, extra=("--help",))
         if command[1] == "export":
             (tmp_path / (project.name + "-requirements.lock.txt")).write_text(
                 "package==1 --hash=sha256:" + "a" * 64 + "\n"
             )
 
     monkeypatch.setattr(build, "run", run)
-    build.install(project, basic=True)
-    assert "--locked" in calls[0] and "--no-emit-project" in calls[0] and "--no-dev" in calls[0]
+    build.install(project, basic=mode == "basic", harness=mode == "harness")
+    assert "--locked" in calls[0] and "--no-emit-project" in calls[0]
+    assert ("--no-dev" in calls[0]) is (mode == "basic")
+    assert ("--all-extras" in calls[0]) is (mode == "harness")
     assert str(project / ".venv") in calls[1]
     assert "--require-hashes" in calls[2] and "--no-build" in calls[2]
-    assert "--all-extras" not in repr(calls)
+    assert calls[2][-1] == str(tmp_path / "runtime-requirements.lock.txt")
+
+
+@pytest.mark.skipif(os.name == "nt", reason="Image builder uses Linux venv interpreter paths")
+@pytest.mark.parametrize(
+    "mode,expected",
+    [
+        ("basic", {"runtime"}),
+        ("native", {"runtime", "dev"}),
+        ("harness", {"runtime", "dev", "extra"}),
+    ],
+)
+def test_install_real_uv_offline_hashed_wheel_dry_run(
+    tmp_path, monkeypatch, uv_cli, mode, expected
+):
+    project = tmp_path / "project"
+    project.mkdir()
+    wheelhouse = tmp_path / "wheels"
+    wheelhouse.mkdir()
+    wheels = {
+        group: metadata_wheel(wheelhouse, "fixture-" + group)
+        for group in ("runtime", "dev", "extra")
+    }
+    (project / "pyproject.toml").write_text(
+        '[project]\nname="fixture"\nversion="1"\nrequires-python=">=3.14"\n'
+        'dependencies=["fixture-runtime==1.0"]\n'
+        '[project.optional-dependencies]\nextra=["fixture-extra==1.0"]\n'
+        '[dependency-groups]\ndev=["fixture-dev==1.0"]\n'
+        "[tool.uv]\npackage=false\n"
+    )
+    lock = (
+        'version=1\nrevision=3\nrequires-python=">=3.14"\n'
+        '[[package]]\nname="fixture"\nversion="1"\nsource={virtual="."}\n'
+        'dependencies=[{name="fixture-runtime"}]\n'
+        '[package.optional-dependencies]\nextra=[{name="fixture-extra"}]\n'
+        '[package.dev-dependencies]\ndev=[{name="fixture-dev"}]\n'
+        "[package.metadata]\nrequires-dist=["
+        '{name="fixture-runtime",specifier="==1.0"},'
+        '{name="fixture-extra",specifier="==1.0",marker="extra == \'extra\'"}]\n'
+        'provides-extras=["extra"]\n'
+        '[package.metadata.requires-dev]\ndev=[{name="fixture-dev",specifier="==1.0"}]\n'
+    )
+    for group, wheel in wheels.items():
+        lock += (
+            f'[[package]]\nname="fixture-{group}"\nversion="1.0"\n'
+            'source={registry="https://pypi.org/simple"}\n'
+            f'wheels=[{{url="https://files.pythonhosted.org/packages/{wheel.name}",'
+            f'hash="sha256:{build.sha(wheel)}",size={wheel.stat().st_size}}}]\n'
+        )
+    (project / "uv.lock").write_text(lock)
+    original = {name: build.sha(project / name) for name in ("pyproject.toml", "uv.lock")}
+    wheel = wheels["runtime"]
+    (tmp_path / "source-builds.json").write_text(
+        json.dumps(
+            [
+                {
+                    "name": "fixture-runtime",
+                    "version": "1.0",
+                    "wheel": str(wheel),
+                    "wheel_sha256": build.sha(wheel),
+                }
+            ]
+        )
+    )
+    monkeypatch.setattr(build, "BUILD", tmp_path)
+    monkeypatch.setattr(build, "PYTHON", sys.executable)
+    results = []
+
+    def run(command, cwd, **kwargs):
+        # Only metadata-only local wheels can be resolved; nothing is installed.
+        extra = (
+            ("--dry-run", "--no-index", "--find-links", str(wheelhouse))
+            if command[1:3] == ["pip", "sync"]
+            else ()
+        )
+        results.append(uv_cli(command, cwd, extra=extra))
+
+    monkeypatch.setattr(build, "run", run)
+    build.install(project, basic=mode == "basic", harness=mode == "harness")
+    requirements = (tmp_path / "project-requirements.lock.txt").read_text()
+    for group, wheel in wheels.items():
+        assert ("fixture-" + group in requirements) is (group in expected)
+        assert (build.sha(wheel) in requirements) is (group in expected)
+    assert ("fixture-runtime @ " in requirements) is (mode == "native")
+    assert f"Would install {len(expected)} package" in results[-1].stderr
+    assert original == {name: build.sha(project / name) for name in original}
+    assert not list((project / ".venv").rglob("fixture*.dist-info"))
+
+
+def test_fetch_real_uv_parser_keeps_install_requirements_flag(tmp_path, monkeypatch, uv_cli):
+    project = tmp_path / "project"
+    project.mkdir()
+    (project / "uv.lock").write_text("package=[]\n")
+    wheel = metadata_wheel(tmp_path, "fixture-tool")
+    lock = tmp_path / "tools.json"
+    lock.write_text(
+        json.dumps(
+            {
+                "tools": [
+                    {
+                        "url": "https://files.pythonhosted.org/" + wheel.name,
+                        "sha256": build.sha(wheel),
+                    }
+                ],
+                "sdists": [],
+            }
+        )
+    )
+    calls = []
+    monkeypatch.setattr(build, "BUILD", tmp_path)
+    monkeypatch.setattr(build.os, "geteuid", lambda: 1000, raising=False)
+    monkeypatch.setattr(build, "download", lambda *args: wheel)
+
+    def run(command, cwd, **kwargs):
+        calls.append((command, kwargs))
+        uv_cli(command, cwd, extra=("--help",))
+
+    monkeypatch.setattr(build, "run", run)
+    build.fetch(lock, project)
+    command, kwargs = calls[-1]
+    assert command[1:3] == ["pip", "install"]
+    assert command[-2:] == ["-r", str(tmp_path / "build-tools.txt")]
+    assert {"--no-deps", "--no-build", "--require-hashes", "--no-index"} <= set(command)
+    assert kwargs == {"offline": True}
+
+
+@pytest.mark.parametrize("package", ["crcmod", "esdk-obs-python", "sqlglotrs"])
+def test_source_build_real_uv_parser_without_executing_backend(
+    tmp_path, monkeypatch, uv_cli, package
+):
+    (tmp_path / "sources.json").write_text(
+        json.dumps([{"name": package, "source": str(tmp_path / "never-execute")}])
+    )
+    monkeypatch.setattr(build, "BUILD", tmp_path)
+
+    class ParserChecked(Exception):
+        pass
+
+    def run(command, cwd, **kwargs):
+        uv_cli(command, cwd, extra=("--help",))
+        assert command[1:4] == ["build", "--wheel", "--no-build-isolation"]
+        assert "--offline" in command and kwargs == {"offline": True}
+        if package == "sqlglotrs":
+            assert command[-3:-1] == ["--config-setting", "build-args=--locked --offline"]
+        assert Path(command[-1]).name == "never-execute"
+        raise ParserChecked
+
+    monkeypatch.setattr(build, "run", run)
+    with pytest.raises(ParserChecked):
+        build.build_sources()
 
 
 def test_recipes_separate_nonroot_offline_build_and_never_relocate_environments():
@@ -131214,6 +132023,29 @@ def test_native_source_build_does_not_silently_accept_pure_python_fallback(tmp_p
     outputs = build.wheel_outputs(path, "crcmod")
     assert len(outputs["native_extensions"]) == 1
     assert outputs["wheel_tags"] == ["py3-none-any"]
+
+
+def test_profile_workflows_execute_real_dependency_cli_checks_before_image_builds():
+    import yaml
+
+    for name in ("capability-profile.yml", "native-capability-profile.yml"):
+        document = yaml.safe_load((ROOT / ".github/workflows" / name).read_text(encoding="utf-8"))
+        steps = document["jobs"]["local-service"]["steps"]
+        preflight = next(
+            step
+            for step in steps
+            if step.get("name") == "Check ordinary launcher behavior and strict receipt contracts"
+        )
+        build_images = next(
+            step
+            for step in steps
+            if step.get("name") == "Build pinned release locally and lock immutable images"
+        )
+        assert "tests/test_daytona_dependency_build.py" in preflight["run"]
+        assert "tests/test_daytona_dependency_image.py" in preflight["run"]
+        assert preflight["env"]["RND_REQUIRE_LANDLOCK"] == "1"
+        assert preflight["env"]["RND_REQUIRE_SECCOMP_BPF"] == "1"
+        assert steps.index(preflight) < steps.index(build_images)
 ````
 
 ### `tests/test_daytona_dependency_image.py`
@@ -174593,7 +175425,7 @@ if __name__ == "__main__":
 - `collect`（L436–L503）：接收`inputs`、`output`、`native`。 控制顺序：L450按`python_runtime["version"] != [3, 14, 7] or python_runtime["machine"] != "x86_64" or p…`分支；L455抛异常，停止当前正常路径；L456遍历`value["normalized_descriptors"].items()`；L457按`native and name.startswith("deployment/")`分支；L464按`sha(target) != expected`分支；L465抛异常，停止当前正常路径；L466遍历`value.get("harness_descriptors", {}).items()`；L467按`sha(Path("/opt/rnd/harness") / name) != expected`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`Path(inputs).read_bytes`、`Path`、`subprocess.check_output`、`ValueError`、`value["normalized_descriptors"].items`、`name.startswith`、`name.replace`、`sha`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `main`（L506–L524）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L517按`args.action == "fetch"`分支；L519按`args.action == "build-sources"`分支；L521按`args.action == "install"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`fetch`、`build_sources`、`install`、`collect`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/daytona_dependency_build.py sha256: ba48e57e65a4640cd5011e7bbe35c5a63212014c95e0af575956ab547554826a -->
+<!-- source-file: scripts/daytona_dependency_build.py sha256: 4a2d33685e41df4f7a42aeaa1cb861a51763f35a15fc1753167aae9f6c70e33e -->
 ````python
 """Reviewed descriptor-only dependency build; never import candidate code.
 
@@ -175021,7 +175853,7 @@ def install(project, *, basic=False, harness=False):
             "--no-build",
             "--index-url",
             "https://pypi.org/simple",
-            "-r",
+            # Unlike `pip install -r`, `pip sync` takes positional source files.
             str(export),
         ],
         project,
@@ -182046,7 +182878,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/capability-profile.yml sha256: e1f45405a67c049d1f7459a351e51a25b646b1fc8962df03fd2dc6a7520edfcf -->
+<!-- source-file: .github/workflows/capability-profile.yml sha256: e4c3726adf4f74df2ca50539eb7acf1775cef145cf8da468b445f24bdd32432e -->
 ````yaml
 name: Fixed authored SQLite isolation profile
 on:
@@ -182110,7 +182942,7 @@ jobs:
           RND_REQUIRE_NODE_TESTS: '1'
           RND_REQUIRE_LANDLOCK: '1'
           RND_REQUIRE_SECCOMP_BPF: '1'
-        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
+        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_daytona_dependency_build.py tests/test_daytona_dependency_image.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
       - name: Install mandatory product browser acceptance tooling
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
@@ -182552,7 +183384,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/native-capability-profile.yml sha256: 3c37154e88fe67e522f2b4fd7bdd356ef99a733d08ca24fc9491fd131a7fe3fa -->
+<!-- source-file: .github/workflows/native-capability-profile.yml sha256: c34c8a2ef66d7353cfbafde82ab497bd18e9c9b8db13d64d4da6c3aa7631974e -->
 ````yaml
 name: Authored native PostgreSQL isolation profile
 on:
@@ -182644,7 +183476,7 @@ jobs:
           RND_REQUIRE_NODE_TESTS: '1'
           RND_REQUIRE_LANDLOCK: '1'
           RND_REQUIRE_SECCOMP_BPF: '1'
-        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
+        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_daytona_dependency_build.py tests/test_daytona_dependency_image.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
       - name: Install mandatory product browser acceptance tooling
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
@@ -192518,7 +193350,7 @@ Unexpected failures must stop the gate, not trigger broader fallback permissions
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/candidate-browser-isolation.md sha256: 38d554f22dd32a1fff278525d0925d5708a12d9bdaf7eb702a3bcecbe979b2b4 -->
+<!-- source-file: docs/candidate-browser-isolation.md sha256: f32922a391745afd95cd728759e0d1f22be120cf5a93015ebfc6f527329e7049 -->
 ````markdown
 # Candidate browser isolation (experimental, fail closed)
 
@@ -192570,6 +193402,19 @@ dictionary-entry overhead. Replacing a variable credits its previous size;
 ordinary reuse does not consume the budget repeatedly. Non-finite numbers,
 oversized values and over-budget interpolation fail before retention or request
 construction. These limits reject excessive data rather than silently truncating it.
+
+## Portable controller pipes
+
+The Python 3.14 controller uses bounded nonblocking anonymous-pipe reads and
+writes on Windows and POSIX. Socket-only selectors are not used for pipe handles.
+Partial or zero writes, an empty but open pipe, EOF, large frames and image-copy
+output keep the original absolute deadline and byte limits. No helper thread or
+late-success grace period can outlive owned-process/container cleanup.
+
+The raw-syscall binary is a native Linux amd64 proof, so only its two compiled
+fixture tests require that host platform. Portable source/policy and broker
+contracts still run on Windows; skipping a host-only fixture does not certify
+isolation. The actual Docker profile still requires every live kernel outcome.
 
 ## Real proof
 
@@ -192743,7 +193588,7 @@ and pass these trusted gates; an authored fixture must never be relabeled as tha
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/custom-source-isolation.md sha256: 04ee35fcfb9aee109fa678a6a09868e304b2a585e0146b65d5451c12d8d9dcf4 -->
+<!-- source-file: docs/custom-source-isolation.md sha256: 4881ae94ed4225e9eacf21de819753202fdfe5aaf68023616ea8ff146c496f86 -->
 ````markdown
 # 自定义源码执行：有证据的启用门
 
@@ -192804,6 +193649,10 @@ socket，禁止其他网络域、DGRAM/RAW/SEQPACKET（含类型标志组合）�
 均校验摘要。运行前后核对完整文件、目录、权限及链接图，绑定实际镜像 ID、依赖清单
 和本次源码清单。额外模块、描述符漂移、硬链接、越界或被替换的符号链接都必须失败。
 候选自身的构建脚本不能成为具有特权的镜像构建输入。
+
+镜像安装使用 `uv pip sync` 的位置参数传入带哈希的锁定requirements文件；`-r` 只用于
+相应的 `pip install` 命令。两个profile在长镜像构建前先执行真实uv解析和离线轮包
+dry-run回归，确保basic、native与harness路径均匹配实际CLI，而非仅检查命令字符串。
 
 SQLite 数据库只允许独立非源码子目录中的 `.db`、`.sqlite` 或 `.sqlite3` 文件，不能
 把 Python 模块、原生库或源码目录声明为可写数据库。应用重启前后仍验证完整源码与

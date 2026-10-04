@@ -15,34 +15,37 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `image_source_identity`（L72–L73）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`。 返回路径：L73的`{name: sha(ROOT / name) for name in IMAGE_SOURCES}`。
-- `bounded_json`（L76–L134）：接收`value`、`limit`。 源码说明：Prove the encoded size before allocating JSON or escaped strings.。 控制顺序：L132按`len(encoded) != used`分支；L133抛异常，停止当前正常路径。 调用`visit`、`json.dumps(value, ensure_ascii=True, allow_nan=False, separators=…`、`json.dumps`、`len`、`ValueError`。 返回路径：L134的`encoded`。
-- `bounded_json.add`（L80–L84）：接收`size`。 控制顺序：L83按`used > limit`分支；L84抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `bounded_json.string`（L86–L102）：接收`value`。 控制顺序：L89按`len(value) > limit - used`分支；L90抛异常，停止当前正常路径；L92遍历`value`。 调用`len`、`ValueError`、`add`、`ord`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `bounded_json.visit`（L104–L128）：接收`item`、`depth`。 控制顺序：L105按`depth > 32`分支；L106抛异常，停止当前正常路径；L107按`isinstance(item, str)`分支；L109按`item is None or type(item) is bool`分支；L111按`type(item) in (int, float)`分支；L112按`type(item) is int and item.bit_length() > limit * 4`分支；L113抛异常，停止当前正常路径；L115按`isinstance(item, (list, tuple))`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`isinstance`、`string`、`type`、`add`、`item.bit_length`、`len`、`json.dumps`、`max`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `bounded_browser_step`（L137–L160）：接收`step`、`variables`。 源码说明：Reject substitution expansion before constructing candidate strings.。 控制顺序：L140遍历`(("selector", 500), ("value", 10000))`；L143遍历`re.finditer(r"\$\{([a-z][a-z0-9_-]*)\}", template)`；L145按`name not in variables or type(variables[name]) not in (str, int, float, bool)`分支；L146抛异常，停止当前正常路径；L148按`not isinstance(replacement, str)`分支；L152按`used > limit`分支；L153抛异常，停止当前正常路径；L157按`used + len(tail) > limit`分支。后续分支沿下方源码相同行号继续阅读。 调用`step.model_dump`、`re.finditer`、`type`、`ValueError`、`isinstance`、`str`、`match.start`、`len`、`parts.extend`等。 返回路径：L160的`BrowserStep.model_validate(value).model_dump()`。
-- `browser_contract`（L163–L182）：接收`request_id`、`selected`、`saved`。 控制顺序：L170遍历`selected`；L173按`used > MAX_CONTRACT`分支；L174抛异常，停止当前正常路径；L175遍历`scenario.browser`；L178按`used > MAX_CONTRACT`分支；L179抛异常，停止当前正常路径。 调用`len`、`bounded_json`、`bool`、`ValueError`、`bounded_browser_step`、`row["steps"].append`、`payload["scenarios"].append`。 返回路径：L182的`payload`。
-- `_image_file_archive`（L185–L215）：接收`name`、`path`。 源码说明：Read a bounded raw tar from a stopped owned container; never extract it.。 控制顺序：L196在`True`成立时循环；L198按`remaining <= 0`分支；L199抛异常，停止当前正常路径；L200按`not poll.select(min(remaining, 1))`分支；L203按`not chunk`分支；L205按`len(chunk) > MAX_IMAGE_FILE * 2 - len(output)`分支；L206抛异常，停止当前正常路径；L208按`process.wait(timeout=max(0.1, deadline - time.monotonic()))`分支。后续分支沿下方源码相同行号继续阅读。 调用`subprocess.Popen`、`clean_env`、`time.monotonic`、`bytearray`、`selectors.DefaultSelector`、`poll.register`、`TimeoutError`、`poll.select`、`min`等。 返回路径：L210的`bytes(output)`。
-- `image_archive_digest`（L218–L237）：接收`raw`、`basename`。 控制顺序：L219按`len(raw) > MAX_IMAGE_FILE * 2`分支；L220抛异常，停止当前正常路径；L223按`len(members) != 1`分支；L224抛异常，停止当前正常路径；L226按`member.name != basename or not member.isfile() or member.issparse() or not 0 < member…`分支；L232抛异常，停止当前正常路径；L235按`len(body) != member.size`分支；L236抛异常，停止当前正常路径。 调用`len`、`ValueError`、`tarfile.open`、`io.BytesIO`、`archive.getmembers`、`member.isfile`、`member.issparse`、`archive.extractfile`、`source.read`等。 返回路径：L237的`hashlib.sha256(body).hexdigest()`。
-- `require_image_sources`（L240–L249）：接收`name`。 控制顺序：L241按`not re.fullmatch(r"rnd-browser-[a-f0-9]{32}", name)`分支；L242抛异常，停止当前正常路径；L247按`actual != image_source_identity()`分支；L248抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`、`image_archive_digest`、`_image_file_archive`、`path.rsplit`、`IMAGE_SOURCES.items`、`image_source_identity`。 返回路径：L249的`actual`。
-- `browser_source_identity`（L252–L253）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`。 返回路径：L253的`{name: sha(ROOT / name) for name in BROWSER_SOURCES}`。
-- `require_browser_acceptance`（L256–L306）：接收`image`。 控制顺序：L258按`BROWSER_ACCEPTANCE.stat().st_size > 100000`分支；L259抛异常，停止当前正常路径；L279按`not isinstance(record, dict) or set(record) != { "protocol", "passed", "image", "mock…`分支；L305抛异常，停止当前正常路径。 调用`browser_image_identity`、`BROWSER_ACCEPTANCE.stat`、`ValueError`、`json.loads`、`BROWSER_ACCEPTANCE.read_text`、`selected_policy`、`isinstance`、`set`、`record.get`等。 返回路径：L306的`image`。
-- `browser_image_identity`（L309–L313）：接收`image`。 控制顺序：L311按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image)`分支；L312抛异常，停止当前正常路径。 调用`os.environ.get`、`re.fullmatch`、`ValueError`。 返回路径：L313的`image`。
-- `_write_pipe`（L316–L328）：接收`stream`、`data`、`deadline`。 控制顺序：L320在`view`成立时循环；L322按`remaining <= 0`分支；L323抛异常，停止当前正常路径；L324按`poll.select(min(remaining, 1))`分支。 调用`memoryview`、`selectors.DefaultSelector`、`poll.register`、`time.monotonic`、`TimeoutError`、`poll.select`、`min`、`os.write`、`stream.fileno`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `worker_command`（L331–L372）：接收`image`、`name`。 控制顺序：L332按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image)`分支；L333抛异常，停止当前正常路径；L334按`not re.fullmatch(r"rnd-browser-[a-f0-9]{32}", name)`分支；L335抛异常，停止当前正常路径；L337按`policy is not None`分支。 调用`re.fullmatch`、`ValueError`、`selected_policy`、`runtime_identity`、`str`。 返回路径：L339的`[ *DOCKER, "create", "--name", name, "--pull=never", "--network=none", "--read-only", "--c…`。
-- `apparmor_runtime_env`（L375–L381）：接收`value`。 调用`isinstance`、`all`、`item.startswith`。 返回路径：L376的`isinstance(value, list) and all(isinstance(item, str) for item in value) and [item for ite…`。
-- `require_worker_inspection`（L384–L436）：接收`value`、`image`。 控制顺序：L385按`not isinstance(value, list) or len(value) != 1`分支；L386抛异常，停止当前正常路径；L402按`record.get("Image") != image or config.get("User") != "1000:1000" or any(host.get(k) …`分支；L426按`not security_options_match(host.get("SecurityOpt"))`分支；L428按`selected_policy() is not None`分支；L429按`record.get("AppArmorProfile") != "docker-default"`分支；L431按`not apparmor_runtime_env(config.get("Env"))`分支；L433抛异常，停止当前正常路径。 调用`isinstance`、`len`、`ValueError`、`record.get`、`config.get`、`any`、`host.get`、`expected.items`、`security_options_match`等。 返回路径：L436的`{"image": image, "network": "none", "bounded": True}`。
-- `relay_request`（L439–L517）：接收`client`、`frame`、`deadline`。 源码说明：Candidate-controlled requests cannot select a host, token, or proxy.。 控制顺序：L441按`not isinstance(frame, dict) or set(frame) != { "type", "id", "method", "path", "heade…`分支；L449抛异常，停止当前正常路径；L450按`frame["type"] != "request" or type(frame["id"]) is not int or not 1 <= frame["id"] <=…`分支；L455抛异常，停止当前正常路径；L457按`not isinstance(path, str) or len(path) > 8192 or not path.startswith("/") or path.sta…`分支；L468抛异常，停止当前正常路径；L469按`frame["method"] not in {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}`分支；L470抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`set`、`ValueError`、`type`、`len`、`path.startswith`、`any`、`ord`、`urlsplit`等。 返回路径：L511的`{ "type": "response", "id": frame["id"], "status": response.status_code, "headers": output…`。
-- `execute_worker`（L520–L631）：接收`payload`、`url`、`token`、`timeout`、`image`。 源码说明：Bound stdout before parsing; bound runtime independently of HTTP progress.。 控制顺序：L523按`origin.scheme != "http" or origin.path not in {"", "/"} or origin.query or origin.fra…`分支；L531抛异常，停止当前正常路径；L533按`not (origin.hostname == "127.0.0.1" or (origin.hostname or "").endswith(".localhost")…`分支；L534抛异常，停止当前正常路径；L546按`created.returncode`分支；L547抛异常，停止当前正常路径；L551按`inspected.returncode or len(inspected.stdout) > 100000`分支；L552抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`urlsplit`、`ValueError`、`(origin.hostname or "").endswith`、`bounded_json`、`uuid.uuid4`、`worker_command`、`time.monotonic`、`min`、`max`等。 返回路径：L614的`report`。
-- `run_isolated_browser`（L634–L670）：接收`url`、`token`、`scenarios`、`saved`、`timeout`、`image`。 控制顺序：L636按`not selected`分支；L639按`not image or not shutil.which("docker")`分支；L640抛异常，停止当前正常路径；L647抛异常，停止当前正常路径；L654按`error or value is None`分支；L655抛异常，停止当前正常路径；L656按`value["passed"] is False`分支；L657抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`os.environ.get`、`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`browser_contract`、`execute_worker`、`browser_report`、`sha`、`type`等。 返回路径：L637的`[]`；L670的`expected`。
+- `image_source_identity`（L73–L74）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`。 返回路径：L74的`{name: sha(ROOT / name) for name in IMAGE_SOURCES}`。
+- `bounded_json`（L77–L135）：接收`value`、`limit`。 源码说明：Prove the encoded size before allocating JSON or escaped strings.。 控制顺序：L133按`len(encoded) != used`分支；L134抛异常，停止当前正常路径。 调用`visit`、`json.dumps(value, ensure_ascii=True, allow_nan=False, separators=…`、`json.dumps`、`len`、`ValueError`。 返回路径：L135的`encoded`。
+- `bounded_json.add`（L81–L85）：接收`size`。 控制顺序：L84按`used > limit`分支；L85抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `bounded_json.string`（L87–L103）：接收`value`。 控制顺序：L90按`len(value) > limit - used`分支；L91抛异常，停止当前正常路径；L93遍历`value`。 调用`len`、`ValueError`、`add`、`ord`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `bounded_json.visit`（L105–L129）：接收`item`、`depth`。 控制顺序：L106按`depth > 32`分支；L107抛异常，停止当前正常路径；L108按`isinstance(item, str)`分支；L110按`item is None or type(item) is bool`分支；L112按`type(item) in (int, float)`分支；L113按`type(item) is int and item.bit_length() > limit * 4`分支；L114抛异常，停止当前正常路径；L116按`isinstance(item, (list, tuple))`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`isinstance`、`string`、`type`、`add`、`item.bit_length`、`len`、`json.dumps`、`max`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `bounded_browser_step`（L138–L161）：接收`step`、`variables`。 源码说明：Reject substitution expansion before constructing candidate strings.。 控制顺序：L141遍历`(("selector", 500), ("value", 10000))`；L144遍历`re.finditer(r"\$\{([a-z][a-z0-9_-]*)\}", template)`；L146按`name not in variables or type(variables[name]) not in (str, int, float, bool)`分支；L147抛异常，停止当前正常路径；L149按`not isinstance(replacement, str)`分支；L153按`used > limit`分支；L154抛异常，停止当前正常路径；L158按`used + len(tail) > limit`分支。后续分支沿下方源码相同行号继续阅读。 调用`step.model_dump`、`re.finditer`、`type`、`ValueError`、`isinstance`、`str`、`match.start`、`len`、`parts.extend`等。 返回路径：L161的`BrowserStep.model_validate(value).model_dump()`。
+- `browser_contract`（L164–L183）：接收`request_id`、`selected`、`saved`。 控制顺序：L171遍历`selected`；L174按`used > MAX_CONTRACT`分支；L175抛异常，停止当前正常路径；L176遍历`scenario.browser`；L179按`used > MAX_CONTRACT`分支；L180抛异常，停止当前正常路径。 调用`len`、`bounded_json`、`bool`、`ValueError`、`bounded_browser_step`、`row["steps"].append`、`payload["scenarios"].append`。 返回路径：L183的`payload`。
+- `_image_file_archive`（L186–L211）：接收`name`、`path`。 源码说明：Read a bounded raw tar from a stopped owned container; never extract it.。 控制顺序：L196在`True`成立时循环；L198按`not chunk`分支；L200按`len(chunk) > MAX_IMAGE_FILE * 2 - len(output)`分支；L201抛异常，停止当前正常路径；L203按`process.wait(timeout=_remaining(deadline, message))`分支；L204抛异常，停止当前正常路径；L208按`process.poll() is None`分支。 调用`subprocess.Popen`、`clean_env`、`time.monotonic`、`bytearray`、`_read_pipe`、`len`、`ValueError`、`output.extend`、`process.wait`等。 返回路径：L206的`bytes(output)`。
+- `image_archive_digest`（L214–L233）：接收`raw`、`basename`。 控制顺序：L215按`len(raw) > MAX_IMAGE_FILE * 2`分支；L216抛异常，停止当前正常路径；L219按`len(members) != 1`分支；L220抛异常，停止当前正常路径；L222按`member.name != basename or not member.isfile() or member.issparse() or not 0 < member…`分支；L228抛异常，停止当前正常路径；L231按`len(body) != member.size`分支；L232抛异常，停止当前正常路径。 调用`len`、`ValueError`、`tarfile.open`、`io.BytesIO`、`archive.getmembers`、`member.isfile`、`member.issparse`、`archive.extractfile`、`source.read`等。 返回路径：L233的`hashlib.sha256(body).hexdigest()`。
+- `require_image_sources`（L236–L245）：接收`name`。 控制顺序：L237按`not re.fullmatch(r"rnd-browser-[a-f0-9]{32}", name)`分支；L238抛异常，停止当前正常路径；L243按`actual != image_source_identity()`分支；L244抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`、`image_archive_digest`、`_image_file_archive`、`path.rsplit`、`IMAGE_SOURCES.items`、`image_source_identity`。 返回路径：L245的`actual`。
+- `browser_source_identity`（L248–L249）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`。 返回路径：L249的`{name: sha(ROOT / name) for name in BROWSER_SOURCES}`。
+- `require_browser_acceptance`（L252–L302）：接收`image`。 控制顺序：L254按`BROWSER_ACCEPTANCE.stat().st_size > 100000`分支；L255抛异常，停止当前正常路径；L275按`not isinstance(record, dict) or set(record) != { "protocol", "passed", "image", "mock…`分支；L301抛异常，停止当前正常路径。 调用`browser_image_identity`、`BROWSER_ACCEPTANCE.stat`、`ValueError`、`json.loads`、`BROWSER_ACCEPTANCE.read_text`、`selected_policy`、`isinstance`、`set`、`record.get`等。 返回路径：L302的`image`。
+- `browser_image_identity`（L305–L309）：接收`image`。 控制顺序：L307按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image)`分支；L308抛异常，停止当前正常路径。 调用`os.environ.get`、`re.fullmatch`、`ValueError`。 返回路径：L309的`image`。
+- `_remaining`（L312–L316）：接收`deadline`、`message`。 控制顺序：L314按`remaining <= 0`分支；L315抛异常，停止当前正常路径。 调用`time.monotonic`、`TimeoutError`。 返回路径：L316的`remaining`。
+- `_pipe_pause`（L319–L320）：接收`deadline`、`message`。 调用`time.sleep`、`min`、`_remaining`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_read_pipe`（L323–L340）：接收`stream`、`deadline`、`message`。 源码说明：Read one bounded chunk or EOF, without socket-only Windows selectors. Python 3.14 supports nonblocking anonymous pipes on Windows and POSIX. Empty/full pipes raise BlockingIOError; only a successful e。 控制顺序：L332在`True`成立时循环。 调用`stream.fileno`、`os.set_blocking`、`_remaining`、`os.read`、`_pipe_pause`。 返回路径：L340的`chunk`。
+- `_write_pipe`（L343–L358）：接收`stream`、`data`、`deadline`。 控制顺序：L348在`view`成立时循环；L354按`written`分支。 调用`stream.fileno`、`os.set_blocking`、`memoryview`、`_remaining`、`os.write`、`_pipe_pause`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `worker_command`（L361–L402）：接收`image`、`name`。 控制顺序：L362按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image)`分支；L363抛异常，停止当前正常路径；L364按`not re.fullmatch(r"rnd-browser-[a-f0-9]{32}", name)`分支；L365抛异常，停止当前正常路径；L367按`policy is not None`分支。 调用`re.fullmatch`、`ValueError`、`selected_policy`、`runtime_identity`、`str`。 返回路径：L369的`[ *DOCKER, "create", "--name", name, "--pull=never", "--network=none", "--read-only", "--c…`。
+- `apparmor_runtime_env`（L405–L411）：接收`value`。 调用`isinstance`、`all`、`item.startswith`。 返回路径：L406的`isinstance(value, list) and all(isinstance(item, str) for item in value) and [item for ite…`。
+- `require_worker_inspection`（L414–L466）：接收`value`、`image`。 控制顺序：L415按`not isinstance(value, list) or len(value) != 1`分支；L416抛异常，停止当前正常路径；L432按`record.get("Image") != image or config.get("User") != "1000:1000" or any(host.get(k) …`分支；L456按`not security_options_match(host.get("SecurityOpt"))`分支；L458按`selected_policy() is not None`分支；L459按`record.get("AppArmorProfile") != "docker-default"`分支；L461按`not apparmor_runtime_env(config.get("Env"))`分支；L463抛异常，停止当前正常路径。 调用`isinstance`、`len`、`ValueError`、`record.get`、`config.get`、`any`、`host.get`、`expected.items`、`security_options_match`等。 返回路径：L466的`{"image": image, "network": "none", "bounded": True}`。
+- `relay_request`（L469–L547）：接收`client`、`frame`、`deadline`。 源码说明：Candidate-controlled requests cannot select a host, token, or proxy.。 控制顺序：L471按`not isinstance(frame, dict) or set(frame) != { "type", "id", "method", "path", "heade…`分支；L479抛异常，停止当前正常路径；L480按`frame["type"] != "request" or type(frame["id"]) is not int or not 1 <= frame["id"] <=…`分支；L485抛异常，停止当前正常路径；L487按`not isinstance(path, str) or len(path) > 8192 or not path.startswith("/") or path.sta…`分支；L498抛异常，停止当前正常路径；L499按`frame["method"] not in {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}`分支；L500抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`set`、`ValueError`、`type`、`len`、`path.startswith`、`any`、`ord`、`urlsplit`等。 返回路径：L541的`{ "type": "response", "id": frame["id"], "status": response.status_code, "headers": output…`。
+- `execute_worker`（L550–L653）：接收`payload`、`url`、`token`、`timeout`、`image`。 源码说明：Bound stdout before parsing; bound runtime independently of HTTP progress.。 控制顺序：L553按`origin.scheme != "http" or origin.path not in {"", "/"} or origin.query or origin.fra…`分支；L561抛异常，停止当前正常路径；L563按`not (origin.hostname == "127.0.0.1" or (origin.hostname or "").endswith(".localhost")…`分支；L564抛异常，停止当前正常路径；L576按`created.returncode`分支；L577抛异常，停止当前正常路径；L581按`inspected.returncode or len(inspected.stdout) > 100000`分支；L582抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`urlsplit`、`ValueError`、`(origin.hostname or "").endswith`、`bounded_json`、`uuid.uuid4`、`worker_command`、`time.monotonic`、`min`、`max`等。 返回路径：L636的`report`。
+- `run_isolated_browser`（L656–L692）：接收`url`、`token`、`scenarios`、`saved`、`timeout`、`image`。 控制顺序：L658按`not selected`分支；L661按`not image or not shutil.which("docker")`分支；L662抛异常，停止当前正常路径；L669抛异常，停止当前正常路径；L676按`error or value is None`分支；L677抛异常，停止当前正常路径；L678按`value["passed"] is False`分支；L679抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`os.environ.get`、`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`browser_contract`、`execute_worker`、`browser_report`、`sha`、`type`等。 返回路径：L659的`[]`；L692的`expected`。
 
 </details>
 
-**创建路径：** `workbench/capability_browser_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L670。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_browser_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L692。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26289`。本段原文以LF换行结束。
+本段原始字节数：`26553`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_browser_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d318a6d1a0cde0fc0dbc15b938831a3bbad5ae29a7c913366cecface50999c24"} -->
+<!-- learning-source: {"path": "workbench/capability_browser_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b2d94211803c0a4d0c389b918e9b27aa3aa9eae7fe5f7ac2f359d8303ddb4bba"} -->
 ````python
 # workbench/capability_browser_isolation.py
 """Offline, bounded browser worker. Never falls back to host Chromium.
@@ -58,7 +61,6 @@ import io
 import json
 import os
 import re
-import selectors
 import shutil
 import subprocess
 import tarfile
@@ -86,6 +88,8 @@ MAX_REQUESTS = 256
 MAX_FRAME = 6 * 1024 * 1024
 MAX_CONTRACT = 1_000_000
 MAX_IMAGE_FILE = 256 * 1024
+PIPE_CHUNK = 65536
+PIPE_POLL_INTERVAL = 0.001
 DOCKER = ["docker", "--host", "unix:///var/run/docker.sock"]
 
 
@@ -238,22 +242,17 @@ def _image_file_archive(name, path):
     deadline = time.monotonic() + 10
     output = bytearray()
     try:
-        with selectors.DefaultSelector() as poll:
-            poll.register(process.stdout, selectors.EVENT_READ)
-            while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError("Browser image provenance read timed out")
-                if not poll.select(min(remaining, 1)):
-                    continue
-                chunk = os.read(process.stdout.fileno(), 65536)
-                if not chunk:
-                    break
-                if len(chunk) > MAX_IMAGE_FILE * 2 - len(output):
-                    raise ValueError("Browser image provenance archive too large")
-                output.extend(chunk)
-        if process.wait(timeout=max(0.1, deadline - time.monotonic())):
+        message = "Browser image provenance read timed out"
+        while True:
+            chunk = _read_pipe(process.stdout, deadline, message)
+            if not chunk:
+                break
+            if len(chunk) > MAX_IMAGE_FILE * 2 - len(output):
+                raise ValueError("Browser image provenance archive too large")
+            output.extend(chunk)
+        if process.wait(timeout=_remaining(deadline, message)):
             raise ValueError("Browser image provenance unavailable")
+        _remaining(deadline, message)
         return bytes(output)
     finally:
         if process.poll() is None:
@@ -360,19 +359,53 @@ def browser_image_identity(image=None):
     return image
 
 
+def _remaining(deadline, message):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError(message)
+    return remaining
+
+
+def _pipe_pause(deadline, message):
+    time.sleep(min(PIPE_POLL_INTERVAL, _remaining(deadline, message)))
+
+
+def _read_pipe(stream, deadline, message):
+    """Read one bounded chunk or EOF, without socket-only Windows selectors.
+
+    Python 3.14 supports nonblocking anonymous pipes on Windows and POSIX.
+    Empty/full pipes raise BlockingIOError; only a successful empty read is EOF.
+    No reader threads or extra handles outlive the owning process cleanup.
+    """
+    fd = stream.fileno()
+    os.set_blocking(fd, False)
+    while True:
+        _remaining(deadline, message)
+        try:
+            chunk = os.read(fd, PIPE_CHUNK)
+        except BlockingIOError:
+            _pipe_pause(deadline, message)
+            continue
+        _remaining(deadline, message)
+        return chunk
+
+
 def _write_pipe(stream, data, deadline):
+    fd = stream.fileno()
+    os.set_blocking(fd, False)
+    message = "Browser pipe deadline exceeded"
     view = memoryview(data)
-    with selectors.DefaultSelector() as poll:
-        poll.register(stream, selectors.EVENT_WRITE)
-        while view:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError("Browser pipe deadline exceeded")
-            if poll.select(min(remaining, 1)):
-                try:
-                    view = view[os.write(stream.fileno(), view) :]
-                except BlockingIOError:
-                    pass
+    while view:
+        _remaining(deadline, message)
+        try:
+            written = os.write(fd, view[:PIPE_CHUNK])
+        except BlockingIOError:
+            written = 0
+        if written:
+            view = view[written:]
+        else:
+            _pipe_pause(deadline, message)
+    _remaining(deadline, message)
 
 
 def worker_command(image, name):
@@ -606,29 +639,20 @@ def execute_worker(payload, url, token, timeout, *, image):
             stderr=subprocess.DEVNULL,
             env=clean_env(),
         )
-        os.set_blocking(process.stdin.fileno(), False)
         _write_pipe(process.stdin, encoded, deadline)
         buffer = bytearray()
         total = count = 0
         report = None
-        with (
-            selectors.DefaultSelector() as poll,
-            httpx.Client(
-                base_url=url,
-                headers={"x-daytona-preview-token": token},
-                follow_redirects=False,
-                trust_env=False,
-                timeout=5,
-            ) as client,
-        ):
-            poll.register(process.stdout, selectors.EVENT_READ)
+        with httpx.Client(
+            base_url=url,
+            headers={"x-daytona-preview-token": token},
+            follow_redirects=False,
+            trust_env=False,
+            timeout=5,
+        ) as client:
+            message = "Browser worker deadline exceeded"
             while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError("Browser worker deadline exceeded")
-                if not poll.select(min(remaining, 1)):
-                    continue
-                chunk = os.read(process.stdout.fileno(), 65536)
+                chunk = _read_pipe(process.stdout, deadline, message)
                 if not chunk:
                     break
                 buffer.extend(chunk)
@@ -655,7 +679,8 @@ def execute_worker(payload, url, token, timeout, *, image):
                     _write_pipe(
                         process.stdin, bounded_json(response, MAX_FRAME - 1) + b"\n", deadline
                     )
-            status = process.wait(timeout=max(0.1, deadline - time.monotonic()))
+            status = process.wait(timeout=_remaining(deadline, message))
+            _remaining(deadline, message)
         if buffer or report is None or status != 0:
             raise ValueError("Incomplete browser worker report")
         return report

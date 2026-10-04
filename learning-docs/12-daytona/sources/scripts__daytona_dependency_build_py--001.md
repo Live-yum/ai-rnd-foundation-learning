@@ -35,9 +35,9 @@
 
 **创建路径：** `scripts/daytona_dependency_build.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L528。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20036`。本段原文以LF换行结束。
+本段原始字节数：`20099`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/daytona_dependency_build.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ba48e57e65a4640cd5011e7bbe35c5a63212014c95e0af575956ab547554826a"} -->
+<!-- learning-source: {"path": "scripts/daytona_dependency_build.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4a2d33685e41df4f7a42aeaa1cb861a51763f35a15fc1753167aae9f6c70e33e"} -->
 ````python
 # scripts/daytona_dependency_build.py
 """Reviewed descriptor-only dependency build; never import candidate code.
@@ -466,7 +466,7 @@ def install(project, *, basic=False, harness=False):
             "--no-build",
             "--index-url",
             "https://pypi.org/simple",
-            "-r",
+            # Unlike `pip install -r`, `pip sync` takes positional source files.
             str(export),
         ],
         project,

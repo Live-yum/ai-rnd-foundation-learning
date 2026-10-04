@@ -524,6 +524,7 @@
 - [tests/test_capability_browser_apparmor_review.py](14-acceptance/sources/tests__test_capability_browser_apparmor_review_py--001.md)（1 段）
 - [tests/test_capability_browser_isolation.py](14-acceptance/sources/tests__test_capability_browser_isolation_py--001.md)（1 段）
 - [tests/test_capability_browser_oom_diagnostics.py](14-acceptance/sources/tests__test_capability_browser_oom_diagnostics_py--001.md)（1 段）
+- [tests/test_capability_browser_pipes.py](14-acceptance/sources/tests__test_capability_browser_pipes_py--001.md)（1 段）
 - [tests/test_capability_browser_policy.py](14-acceptance/sources/tests__test_capability_browser_policy_py--001.md)（1 段）
 - [tests/test_capability_browser_preflight.py](14-acceptance/sources/tests__test_capability_browser_preflight_py--001.md)（1 段）
 - [tests/test_capability_browser_protocol.py](14-acceptance/sources/tests__test_capability_browser_protocol_py--001.md)（2 段）

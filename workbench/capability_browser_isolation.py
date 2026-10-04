@@ -11,7 +11,6 @@ import io
 import json
 import os
 import re
-import selectors
 import shutil
 import subprocess
 import tarfile
@@ -39,6 +38,8 @@ MAX_REQUESTS = 256
 MAX_FRAME = 6 * 1024 * 1024
 MAX_CONTRACT = 1_000_000
 MAX_IMAGE_FILE = 256 * 1024
+PIPE_CHUNK = 65536
+PIPE_POLL_INTERVAL = 0.001
 DOCKER = ["docker", "--host", "unix:///var/run/docker.sock"]
 
 
@@ -191,22 +192,17 @@ def _image_file_archive(name, path):
     deadline = time.monotonic() + 10
     output = bytearray()
     try:
-        with selectors.DefaultSelector() as poll:
-            poll.register(process.stdout, selectors.EVENT_READ)
-            while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError("Browser image provenance read timed out")
-                if not poll.select(min(remaining, 1)):
-                    continue
-                chunk = os.read(process.stdout.fileno(), 65536)
-                if not chunk:
-                    break
-                if len(chunk) > MAX_IMAGE_FILE * 2 - len(output):
-                    raise ValueError("Browser image provenance archive too large")
-                output.extend(chunk)
-        if process.wait(timeout=max(0.1, deadline - time.monotonic())):
+        message = "Browser image provenance read timed out"
+        while True:
+            chunk = _read_pipe(process.stdout, deadline, message)
+            if not chunk:
+                break
+            if len(chunk) > MAX_IMAGE_FILE * 2 - len(output):
+                raise ValueError("Browser image provenance archive too large")
+            output.extend(chunk)
+        if process.wait(timeout=_remaining(deadline, message)):
             raise ValueError("Browser image provenance unavailable")
+        _remaining(deadline, message)
         return bytes(output)
     finally:
         if process.poll() is None:
@@ -313,19 +309,53 @@ def browser_image_identity(image=None):
     return image
 
 
+def _remaining(deadline, message):
+    remaining = deadline - time.monotonic()
+    if remaining <= 0:
+        raise TimeoutError(message)
+    return remaining
+
+
+def _pipe_pause(deadline, message):
+    time.sleep(min(PIPE_POLL_INTERVAL, _remaining(deadline, message)))
+
+
+def _read_pipe(stream, deadline, message):
+    """Read one bounded chunk or EOF, without socket-only Windows selectors.
+
+    Python 3.14 supports nonblocking anonymous pipes on Windows and POSIX.
+    Empty/full pipes raise BlockingIOError; only a successful empty read is EOF.
+    No reader threads or extra handles outlive the owning process cleanup.
+    """
+    fd = stream.fileno()
+    os.set_blocking(fd, False)
+    while True:
+        _remaining(deadline, message)
+        try:
+            chunk = os.read(fd, PIPE_CHUNK)
+        except BlockingIOError:
+            _pipe_pause(deadline, message)
+            continue
+        _remaining(deadline, message)
+        return chunk
+
+
 def _write_pipe(stream, data, deadline):
+    fd = stream.fileno()
+    os.set_blocking(fd, False)
+    message = "Browser pipe deadline exceeded"
     view = memoryview(data)
-    with selectors.DefaultSelector() as poll:
-        poll.register(stream, selectors.EVENT_WRITE)
-        while view:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError("Browser pipe deadline exceeded")
-            if poll.select(min(remaining, 1)):
-                try:
-                    view = view[os.write(stream.fileno(), view) :]
-                except BlockingIOError:
-                    pass
+    while view:
+        _remaining(deadline, message)
+        try:
+            written = os.write(fd, view[:PIPE_CHUNK])
+        except BlockingIOError:
+            written = 0
+        if written:
+            view = view[written:]
+        else:
+            _pipe_pause(deadline, message)
+    _remaining(deadline, message)
 
 
 def worker_command(image, name):
@@ -559,29 +589,20 @@ def execute_worker(payload, url, token, timeout, *, image):
             stderr=subprocess.DEVNULL,
             env=clean_env(),
         )
-        os.set_blocking(process.stdin.fileno(), False)
         _write_pipe(process.stdin, encoded, deadline)
         buffer = bytearray()
         total = count = 0
         report = None
-        with (
-            selectors.DefaultSelector() as poll,
-            httpx.Client(
-                base_url=url,
-                headers={"x-daytona-preview-token": token},
-                follow_redirects=False,
-                trust_env=False,
-                timeout=5,
-            ) as client,
-        ):
-            poll.register(process.stdout, selectors.EVENT_READ)
+        with httpx.Client(
+            base_url=url,
+            headers={"x-daytona-preview-token": token},
+            follow_redirects=False,
+            trust_env=False,
+            timeout=5,
+        ) as client:
+            message = "Browser worker deadline exceeded"
             while True:
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
-                    raise TimeoutError("Browser worker deadline exceeded")
-                if not poll.select(min(remaining, 1)):
-                    continue
-                chunk = os.read(process.stdout.fileno(), 65536)
+                chunk = _read_pipe(process.stdout, deadline, message)
                 if not chunk:
                     break
                 buffer.extend(chunk)
@@ -608,7 +629,8 @@ def execute_worker(payload, url, token, timeout, *, image):
                     _write_pipe(
                         process.stdin, bounded_json(response, MAX_FRAME - 1) + b"\n", deadline
                     )
-            status = process.wait(timeout=max(0.1, deadline - time.monotonic()))
+            status = process.wait(timeout=_remaining(deadline, message))
+            _remaining(deadline, message)
         if buffer or report is None or status != 0:
             raise ValueError("Incomplete browser worker report")
         return report
