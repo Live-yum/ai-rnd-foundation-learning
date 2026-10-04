@@ -3136,8 +3136,8 @@
     },
     {
       "path": "scripts/daytona_native_capability_profile.py",
-      "bytes": 20452,
-      "sha256": "372bb7bc199011914d675d55c8c0189826a5c5fe83686fc5b27db7757d8264b7",
+      "bytes": 32449,
+      "sha256": "c328e12a1d859e65c127298903800766c14946ad65963d5c49c8772698c4c836",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_native_capability_profile_py--001.md"
@@ -3478,8 +3478,8 @@
     },
     {
       "path": "tests/test_native_capability_profile.py",
-      "bytes": 20026,
-      "sha256": "c649e47c8555e34770b661e06e4cf3322ee6541a8657c91765391e4f7b43b30b",
+      "bytes": 31781,
+      "sha256": "7ceaa2a6998cdb894a48bd96c7ecd1c461ba2d53ee1cbd3e46f77029ca672de3",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_native_capability_profile_py--001.md"
@@ -3766,8 +3766,8 @@
     },
     {
       "path": ".github/workflows/native-capability-profile.yml",
-      "bytes": 9770,
-      "sha256": "c34c8a2ef66d7353cfbafde82ab497bd18e9c9b8db13d64d4da6c3aa7631974e",
+      "bytes": 9946,
+      "sha256": "fb1cdb9a4be1ad516d3ae0f9e57994dcccf4d14a5839a1147c7bf7d9c0cb3f29",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__native-capability-profile_yml--001.md"
@@ -3883,8 +3883,8 @@
     },
     {
       "path": "docs/custom-source-isolation.md",
-      "bytes": 13016,
-      "sha256": "89a27d7d66449fa7845e09c056c2d938c13c822652a6737d31675d42a72da7dc",
+      "bytes": 14051,
+      "sha256": "fe2d0a0b5c424b0afa5cc93ece984ff758aed3bba37ec87e06db8ee4815a6419",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__custom-source-isolation_md--001.md"

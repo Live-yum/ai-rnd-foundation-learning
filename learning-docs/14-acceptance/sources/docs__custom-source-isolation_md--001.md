@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L172。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L189。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13016`。本段原文以LF换行结束。
+本段原始字节数：`14051`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "89a27d7d66449fa7845e09c056c2d938c13c822652a6737d31675d42a72da7dc"} -->
+<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fe2d0a0b5c424b0afa5cc93ece984ff758aed3bba37ec87e06db8ee4815a6419"} -->
 ````markdown
 <!-- docs/custom-source-isolation.md -->
 # 自定义源码执行：有证据的启用门
@@ -144,6 +144,23 @@ tmpfs 随容器停止清空。因此候选 profile 记录的是 `restart_kind=ap
 新库重放只重建本次沙箱的临时 `rnd_product`：先确认应用 UID 没有存活线程，核对
 控制端保存的沙箱 ID、PG 集群标识、数据目录和原 OID；重建后确认同集群的新 OID、
 空业务表，再重放请求。没有使用用户数据库或候选指定的连接配置。
+
+## Bounded native preparation diagnostics
+
+Native preparation and registration may emit separate failure-only JSON receipts
+through the explicit `--diagnostics` option. The workflow archives these receipts
+alongside the existing profile evidence. They contain finite stage, error and
+reviewed Dockerfile RUN identifiers, bounded return codes and booleans only. Build
+output scanning is limited to 64 KiB and each receipt to 4 KiB; raw logs, exception
+messages, commands, dependency names, paths, URLs and environment values are never
+copied into these new receipts. Unknown or changed recipe commands remain unknown.
+
+The diagnostic writer creates files exclusively and preserves a more precise
+worker receipt. Failure to save a diagnostic never converts the original failure
+into success. No build timeout, dependency lock, network isolation, non-root build
+condition or readiness check is relaxed. Diagnostic receipts are not readiness or
+acceptance evidence, and later native runtime stages remain untested when preparation
+fails.
 
 ## Durable extension workflow and coverage levels
 

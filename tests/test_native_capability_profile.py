@@ -3,6 +3,8 @@
 import copy
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -299,9 +301,10 @@ def test_product_lock_drift_prevents_reusing_native_profile(prepared, product):
         native.require_native_profile(directory)
 
 
+@pytest.mark.parametrize("diagnostics", [False, True])
 @pytest.mark.parametrize("failure", [None, "push", "image", "input"])
 def test_prepare_uses_only_owned_base_and_separate_ready_record(
-    prepared, product, monkeypatch, failure
+    prepared, product, monkeypatch, failure, diagnostics
 ):
     directory, expected, image = prepared
     (directory / native.LOCK).unlink()
@@ -338,17 +341,33 @@ def test_prepare_uses_only_owned_base_and_separate_ready_record(
         native.base, "compose", lambda *args, **kwargs: calls.append((args, kwargs))
     )
     monkeypatch.setattr(native.local, "wait_for_registry", lambda: None)
+    report = directory / "diagnostic.json"
+    options = {"diagnostics": report} if diagnostics else {}
     if failure:
         with pytest.raises((ValueError, RuntimeError)):
-            native.prepare(product, directory)
+            native.prepare(product, directory, **options)
         assert not (directory / native.LOCK).exists()
+        if diagnostics:
+            value = json.loads(report.read_text())
+            assert (
+                value["stage"]
+                == {
+                    "push": "prepare-image-push",
+                    "image": "prepare-published-image-validation",
+                    "input": "prepare-final-identity-validation",
+                }[failure]
+            )
+            assert value["passed"] is False and value["affects_acceptance"] is False
     else:
-        result = native.prepare(product, directory)
+        result = native.prepare(product, directory, **options)
         assert result == expected
         assert native.require_native_profile(directory) == result
         assert not (directory / native.ENVIRONMENT).exists()
         if os.name != "nt":
             assert (directory / native.LOCK).stat().st_mode & 0o777 == 0o600
+        assert not report.exists()
+    if not diagnostics:
+        assert not report.exists()
     assert all((directory / name).read_text() == "base-must-stay-unchanged" for name in protected)
     assert any(args[0] == "build" for args, _ in calls)
 
@@ -364,9 +383,10 @@ def test_prepare_refuses_overwrite_before_docker(prepared, product, monkeypatch)
         native.prepare(product, directory)
 
 
+@pytest.mark.parametrize("diagnostics", [False, True])
 @pytest.mark.parametrize("failure", [None, "source", "state", "resources", "close"])
 def test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base(
-    prepared, monkeypatch, failure
+    prepared, monkeypatch, failure, diagnostics
 ):
     directory, record, _ = prepared
     atomic_text(directory / "api-key.json", json.dumps({"value": KEY}))
@@ -417,21 +437,34 @@ def test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base(
     monkeypatch.setattr(native, "client_for", factory)
     monkeypatch.setattr(native, "close_client", close)
     monkeypatch.setattr(native, "snapshot_named", lambda service, name: None)
+    report = directory / "diagnostic.json"
+    options = {"diagnostics": report} if diagnostics else {}
     if failure:
         with pytest.raises((ValueError, RuntimeError)):
-            native.register_worker(directory)
+            native.register_worker(directory, **options)
         assert not (directory / native.ENVIRONMENT).exists()
+        if diagnostics:
+            value = json.loads(report.read_text())
+            assert value["stage"] == (
+                "register-worker-client-close"
+                if failure == "close"
+                else "register-worker-snapshot-validation"
+            )
+            assert KEY not in report.read_text()
     else:
-        native.register_worker(directory)
+        native.register_worker(directory, **options)
         content = (directory / native.ENVIRONMENT).read_text()
         assert KEY in content and "fastapiadmin/postgresql" in content
         assert "CAPABILITY_EXECUTION_ENABLED" not in content
         assert "local" in content
         monkeypatch.setattr(native, "snapshot_named", lambda service, name: existing)
-        native.register_worker(directory)
+        native.register_worker(directory, **options)
         assert calls.count("create") == 1
         if os.name != "nt":
             assert (directory / native.ENVIRONMENT).stat().st_mode & 0o777 == 0o600
+        assert not report.exists()
+    if not diagnostics:
+        assert not report.exists()
     assert calls[-1] == "close"
     assert (directory / "workbench.env").read_text() == "base-environment-unchanged"
     assert json.loads((directory / "api-key.json").read_text()) == {"value": KEY}
@@ -520,3 +553,230 @@ def test_native_metadata_cannot_be_adopted_through_a_symlink(prepared, tmp_path)
     (directory / native.LOCK).symlink_to(outside)
     with pytest.raises(ValueError):
         native.require_native_profile(directory)
+
+
+@pytest.mark.parametrize("form", ["header", "footer", "process", "continued-process"])
+@pytest.mark.parametrize("run", [row[1] for row in native.REVIEWED_RUNS])
+def test_build_diagnostics_match_only_complete_reviewed_run_commands(form, run):
+    (stage, command), _ = next(
+        (key, value) for key, value in native.reviewed_run_commands().items() if value == run
+    )
+    if form == "header":
+        log = f"#19 [{stage} 7/16] RUN {command}\n#19 ERROR: private failure"
+    elif form == "footer":
+        log = f" > [{stage} 7/16] RUN {command}:\nprivate failure"
+    else:
+        if form == "continued-process":
+            command = command.replace(" && ", " \\\n    && ")
+        process = json.dumps("/bin/sh -c " + command)
+        log = (
+            f"ERROR: failed to solve: process {process} did not complete successfully: exit code: 1"
+        )
+    facts = native.build_failure_facts(log)
+    assert (facts["stage"], facts["run"]) == (stage, run)
+    assert "private" not in json.dumps(facts)
+    assert command not in json.dumps(facts)
+
+
+@pytest.mark.parametrize(
+    "signature,category",
+    [
+        ("Permission denied (os error 13) at cache", "cache-permission-denied"),
+        ("error: unexpected argument\nUsage: uv pip sync", "uv-cli-rejected"),
+        ("Failed to build a private source", "source-build-failed"),
+        ("error: could not compile a private crate", "compiler-failed"),
+        ("failed to get private as a dependency of package private", "rust-dependency-failed"),
+        ("configured Python interpreter version is newer than PyO3", "python-version-unsupported"),
+        ("no matching package named private found in offline mode", "offline-dependency-missing"),
+        ("private wheel hash mismatch", "dependency-hash-mismatch"),
+        ("failed to download https://private.invalid", "registry-fetch-failed"),
+        ("ERR_PNPM_OUTDATED_LOCKFILE private contents", "node-install-failed"),
+        ("Dependency symlink escapes the complete image graph", "image-seal-rejected"),
+    ],
+)
+def test_build_diagnostics_emit_only_fixed_known_error_categories(signature, category):
+    (stage, command), _ = next(
+        (key, value)
+        for key, value in native.reviewed_run_commands().items()
+        if value == "build-native-sources"
+    )
+    log = f"#12 [{stage} 6/16] RUN {command}\n#12 ERROR: {signature}"
+    value = native.build_failure_facts(log)
+    assert category in value["categories"]
+    assert signature not in json.dumps(value)
+    assert "private" not in json.dumps(value)
+
+
+def test_build_diagnostics_do_not_adopt_unreviewed_commands_or_ambient_text():
+    command = next(iter(native.reviewed_run_commands()))[1] + " && echo private-secret"
+    for log in (
+        f"#12 [native-system 1/2] RUN {command}\n#12 ERROR: private-secret",
+        f"ERROR: process {json.dumps('/bin/sh -c ' + command)} did not complete successfully: exit code: 1",
+        "private-package private-path https://private.invalid API_KEY=private-secret\n",
+    ):
+        assert native.build_failure_facts(log) == {
+            "stage": "unknown",
+            "run": "unknown",
+            "categories": ["unknown"],
+        }
+
+
+@pytest.mark.parametrize("mutation", ["same-count-edit", "reordered", "missing", "oversized"])
+def test_diagnostic_run_mapping_requires_exact_reviewed_recipe(tmp_path, monkeypatch, mutation):
+    recipe = (native.ROOT / native.DOCKERFILE).read_text()
+    commands = list(native.reviewed_run_commands())
+    if mutation == "same-count-edit":
+        recipe = recipe.replace("libseccomp2 procps", "libseccomp2 unreviewed", 1)
+    elif mutation == "reordered":
+        first = recipe.index("RUN ")
+        second = recipe.index("\nRUN ", first) + 1
+        end = recipe.index("\nENV ", second)
+        recipe = recipe[:first] + recipe[second:end] + "\n" + recipe[first:second] + recipe[end:]
+    elif mutation == "oversized":
+        recipe += "#" * (native.DIAGNOSTIC_SCAN_BYTES + 1)
+    if mutation != "missing":
+        (tmp_path / "Dockerfile").write_text(recipe)
+    monkeypatch.setattr(native, "ROOT", tmp_path)
+    monkeypatch.setattr(native, "DOCKERFILE", "Dockerfile")
+    assert native.reviewed_run_commands() == {}
+    stage, command = commands[0]
+    result = native.build_failure_facts(f"#1 [{stage} 1/2] RUN {command}\n#1 ERROR: failure")
+    assert result == {"stage": "unknown", "run": "unknown", "categories": ["unknown"]}
+
+
+@pytest.mark.parametrize("code", [-9, 1, True, 1.5, 2**40, "private-secret"])
+def test_failure_diagnostics_are_bounded_and_never_serialize_hostile_payloads(code):
+    secret = 'private-secret\n"token":"value"\r\x00https://person:password@private.invalid?key=x'
+    error = subprocess.CalledProcessError(
+        code, [secret], output=(secret + "界") * 20000, stderr=(secret + "\ud800") * 20000
+    )
+    report = native.failure_diagnostic(
+        {"action": "prepare", "stage": "prepare-docker-build"}, error
+    )
+    encoded = json.dumps(report).encode()
+    assert len(encoded) <= native.DIAGNOSTIC_REPORT_BYTES
+    assert report["build"]["scanned_bytes"] <= native.DIAGNOSTIC_SCAN_BYTES
+    assert report["build"]["truncated"] is True
+    assert report["error"]["returncode"] == (
+        code if type(code) is int and abs(code) < 2**31 else None
+    )
+    assert report["error"]["timed_out"] is False
+    for fragment in ("private-secret", "password", "private.invalid", "token", "界"):
+        assert fragment.encode() not in encoded
+    assert (
+        native.failure_diagnostic({"action": secret, "stage": secret}, RuntimeError(secret))[
+            "stage"
+        ]
+        == "unknown"
+    )
+
+
+def test_prepare_build_failure_preserves_failure_and_never_writes_readiness(
+    prepared, product, monkeypatch
+):
+    directory, _, _ = prepared
+    (directory / native.LOCK).unlink()
+    report = directory / "diagnostic.json"
+    error = subprocess.CalledProcessError(23, ["private command"], stderr=b"Permission denied")
+
+    def fail(*args, **kwargs):
+        assert args[0] == "build" and kwargs == {"timeout": 3600}
+        raise error
+
+    monkeypatch.setattr(native.local, "docker", fail)
+    with pytest.raises(subprocess.CalledProcessError) as caught:
+        native.prepare(product, directory, diagnostics=report)
+    assert caught.value is error
+    value = json.loads(report.read_text())
+    assert value["stage"] == "prepare-docker-build"
+    assert value["error"]["returncode"] == 23
+    assert not (directory / native.LOCK).exists()
+    assert not (directory / native.ENVIRONMENT).exists()
+    assert not list(directory.glob("native-capability-build-*"))
+    if os.name != "nt":
+        assert report.stat().st_mode & 0o777 == 0o600
+
+
+def test_stale_ready_profile_and_existing_report_cannot_be_overwritten(
+    prepared, product, monkeypatch
+):
+    directory, _, _ = prepared
+    before = (directory / native.LOCK).read_bytes()
+    monkeypatch.setattr(native.local, "docker", lambda *a, **k: pytest.fail("No build permitted"))
+    with pytest.raises(ValueError, match="refuses to overwrite"):
+        native.prepare(product, directory, diagnostics=directory / native.LOCK)
+    assert (directory / native.LOCK).read_bytes() == before
+
+
+def test_register_parent_preserves_exact_worker_report_and_failure(prepared, monkeypatch):
+    directory, _, _ = prepared
+    report = directory / "diagnostic.json"
+    error = native.ToolFailure("private parent log")
+    error.log = "token=private-child-secret"
+    error.returncode = 1
+    expected = {}
+
+    def worker(command, cwd, **kwargs):
+        assert command[-2:] == ["--diagnostics", str(report.absolute())]
+        assert kwargs["timeout"] == 720
+        with pytest.raises(subprocess.TimeoutExpired):
+            with native.diagnostic_scope(report, "register-worker") as progress:
+                progress["stage"] = "register-worker-snapshot-create"
+                raise subprocess.TimeoutExpired(
+                    "private SDK request", 600, output=b"private-secret"
+                )
+        expected.update(json.loads(report.read_text()))
+        raise error
+
+    monkeypatch.setattr(native, "run_command", worker)
+    with pytest.raises(native.ToolFailure) as caught:
+        native.register(directory, diagnostics=report)
+    assert caught.value is error
+    assert json.loads(report.read_text()) == expected
+    assert expected["stage"] == "register-worker-snapshot-create"
+    assert expected["error"]["timed_out"] is True
+    assert "private" not in report.read_text()
+    assert not (directory / native.ENVIRONMENT).exists()
+
+
+@pytest.mark.parametrize("action", ["prepare", "register", "register-worker"])
+@pytest.mark.parametrize("diagnostics", [False, True])
+def test_native_cli_remains_compatible_and_success_does_not_emit_diagnostics(
+    tmp_path, monkeypatch, capsys, action, diagnostics
+):
+    calls = []
+    report = tmp_path / "diagnostic.json"
+    command = ["native-profile", action, "--directory", str(tmp_path)]
+    if action == "prepare":
+        command += ["--product", str(tmp_path / "product")]
+    if diagnostics:
+        command += ["--diagnostics", str(report)]
+    monkeypatch.setattr(sys, "argv", command)
+    monkeypatch.setattr(native, action.replace("-", "_"), lambda *a, **k: calls.append((a, k)))
+    native.main()
+    assert calls[0][1] == ({"diagnostics": report} if diagnostics else {})
+    assert not report.exists()
+    assert capsys.readouterr().out == (
+        "Native snapshot identity step completed; runtime/isolation acceptance is still required.\n"
+    )
+
+
+def test_native_workflow_collects_separate_bounded_prepare_and_register_diagnostics():
+    import yaml
+
+    workflow = yaml.safe_load(
+        (native.ROOT / ".github/workflows/native-capability-profile.yml").read_text()
+    )
+    steps = workflow["jobs"]["local-service"]["steps"]
+    build = next(
+        step
+        for step in steps
+        if step.get("name") == "Build and register exact native offline dependency profile"
+    )
+    upload = next(
+        step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@")
+    )
+    assert "--diagnostics reports/native-profile-prepare-diagnostic.json" in build["run"]
+    assert "--diagnostics reports/native-profile-register-diagnostic.json" in build["run"]
+    assert upload["if"] == "always()"
+    assert "reports/native-profile-*-diagnostic.json" in upload["with"]["path"]

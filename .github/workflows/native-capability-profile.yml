@@ -130,8 +130,8 @@ jobs:
         run: uv run python -m scripts.ci_capability_security
       - name: Build and register exact native offline dependency profile
         run: |
-          uv run python -m scripts.daytona_native_capability_profile prepare --product .native/tool-product
-          uv run python -m scripts.daytona_native_capability_profile register
+          uv run python -m scripts.daytona_native_capability_profile prepare --product .native/tool-product --diagnostics reports/native-profile-prepare-diagnostic.json
+          uv run python -m scripts.daytona_native_capability_profile register --diagnostics reports/native-profile-register-diagnostic.json
       - name: Require native factory PostgreSQL Redis Vue browser and isolation proof
         run: uv run python -m scripts.ci_native_capability_security
       - name: Require independent authored contest oracle against native source
@@ -187,4 +187,5 @@ jobs:
             reports/capability-browser-isolation.json
             reports/capability-browser-raw-syscalls.json
             reports/native-capability-security*.json
+            reports/native-profile-*-diagnostic.json
             reports/contest-capability*.json

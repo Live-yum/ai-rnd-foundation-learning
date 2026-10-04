@@ -144148,42 +144148,56 @@ def test_delivered_launcher_captures_before_process_exit_and_checks_before_brows
 
 **逐个入口与控制逻辑：**
 
-- `product`（L22–L49）：接收`tmp_path`。 控制顺序：L25遍历`("backend", "deployment")`。 调用`atomic_text`、`json.dumps`。 返回路径：L49的`root`。
-- `foundation`（L53–L73）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L54的`{ "profile": native.base.PROFILE, "recipe_identity": "e" * 64, "runner": { "image_id": RUN…`。
-- `image_for`（L76–L98）：接收`record`。 返回路径：L77的`{ "Id": IMAGE, "Os": "linux", "Architecture": "amd64", "RepoDigests": ["127.0.0.1:6000/" +…`。
-- `prepared`（L102–L149）：接收`tmp_path`、`product`、`foundation`、`monkeypatch`。 调用`directory.mkdir`、`native.product_inputs`、`native.recipe_identity`、`native.base_identity`、`native.native_stamp`、`native.selection`、`copy.deepcopy`、`dict`、`monkeypatch.setattr`等。 返回路径：L149的`directory, record, image`。
-- `test_filtered_dependency_context_never_copies_product_code_secrets_or_hooks`（L152–L172）：接收`product`、`tmp_path`。 控制顺序：L158断言`paths == {"product/" + name for name in native.DESCRIPTORS} \| { "Dockerfile", "harne…`；L167断言`"https://pypi.org/simple" in (context / "product/backend/uv.lock").read_text()`；L168断言`"tuna.tsinghua" in (product / "backend/uv.lock").read_text()`；L169断言`native.product_inputs(product) == expected`；L170断言`not any( "must-not-be-copied" in path.read_text() for path in context.rglob("*") if p…`。 调用`native.product_inputs`、`context.mkdir`、`native.prepare_context`、`path.relative_to(context).as_posix`、`path.relative_to`、`context.rglob`、`path.is_file`、`(context / "product/backend/uv.lock").read_text`、`(product / "backend/uv.lock").read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_registry_credentials_are_rejected_before_build`（L183–L186）：接收`product`、`value`。 调用`atomic_text`、`pytest.raises`、`native.product_inputs`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_secret_files_are_filtered_but_dependency_and_source_drift_are_distinct`（L189–L200）：接收`product`。 控制顺序：L194断言`native.product_inputs(product) == original`；L197断言`changed["dependency_identity"] == original["dependency_identity"]`；L198断言`changed["source_identity"] != original["source_identity"]`；L200断言`native.product_inputs(product)["dependency_identity"] != original["dependency_identit…`。 调用`native.product_inputs`、`atomic_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_only_exact_native_manifest_selection_is_supported`（L211–L214）：接收`product`、`metadata`。 调用`atomic_text`、`json.dumps`、`pytest.raises`、`native.product_inputs`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_locks_and_symlinks_are_rejected`（L217–L223）：接收`product`、`tmp_path`。 调用`(product / "backend/uv.lock").unlink`、`pytest.raises`、`native.product_inputs`、`(product / "backend/uv.lock").symlink_to`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_context_rejects_source_drift`（L226–L230）：接收`product`、`tmp_path`。 调用`native.product_inputs`、`atomic_text`、`pytest.raises`、`native.prepare_context`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_readonly_check_revalidates_base_snapshot_and_normalizes_native_record`（L233–L247）：接收`prepared`、`monkeypatch`、`foundation`。 控制顺序：L241断言`native.require_native_profile(directory, record["snapshot"]["snapshot"]) == record`；L242断言`checked == [directory]`；L243断言`record["runner"] == foundation["runner"]`；L244断言`record["selection"]["database"] == "postgresql"`；L245断言`record["resources"] == {"cpu": 2, "memory": 6, "disk": 30}`。 调用`monkeypatch.setattr`、`checked.append`、`native.require_native_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_record_tampering_fails_closed`（L267–L272）：接收`prepared`、`mutation`。 调用`mutation`、`atomic_text`、`json.dumps`、`pytest.raises`、`native.require_native_profile`、`pytest.mark.parametrize`、`record.update`、`record["runner"].update`、`record["base"].update`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_live_image_drift_is_rejected`（L288–L292）：接收`prepared`、`mutation`。 调用`mutation`、`pytest.raises`、`native.require_native_profile`、`pytest.mark.parametrize`、`image.update`、`image["Config"].update`、`image["Config"]["Labels"].update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_product_lock_drift_prevents_reusing_native_profile`（L295–L299）：接收`prepared`、`product`。 调用`atomic_text`、`pytest.raises`、`native.require_native_profile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_prepare_uses_only_owned_base_and_separate_ready_record`（L303–L353）：接收`prepared`、`product`、`monkeypatch`、`failure`。 控制顺序：L315遍历`protected`；L341按`failure`分支；L344断言`not (directory / native.LOCK).exists()`；L347断言`result == expected`；L348断言`native.require_native_profile(directory) == result`；L349断言`not (directory / native.ENVIRONMENT).exists()`；L350按`os.name != "nt"`分支；L351断言`(directory / native.LOCK).stat().st_mode & 0o777 == 0o600`。后续分支沿下方源码相同行号继续阅读。 调用`(directory / native.LOCK).unlink`、`atomic_text`、`monkeypatch.setattr`、`calls.append`、`pytest.raises`、`native.prepare`、`(directory / native.LOCK).exists`、`native.require_native_profile`、`(directory / native.ENVIRONMENT).exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_prepare_uses_only_owned_base_and_separate_ready_record.docker`（L319–L334）：接收`*args`、`**kwargs`。 控制顺序：L321按`args[0] == "build"`分支；L323断言`not (context / "product/.env").exists()`；L324断言`not (context / "product/backend/main.py").exists()`；L325断言`"BASE_IMAGE=127.0.0.1:6000/rnd-python@" + DIGEST in args`；L326断言`"--pull=false" in args`；L327按`failure == "input"`分支；L329按`args[0] == "push"`分支；L330按`failure == "push"`分支。后续分支沿下方源码相同行号继续阅读。 调用`calls.append`、`Path`、`(context / "product/.env").exists`、`(context / "product/backend/main.py").exists`、`atomic_text`、`RuntimeError`。 返回路径：L334的`""`。
-- `test_prepare_refuses_overwrite_before_docker`（L356–L364）：接收`prepared`、`product`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`native.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base`（L368–L437）：接收`prepared`、`monkeypatch`、`failure`。 控制顺序：L385按`failure == "source"`分支；L387按`failure == "state"`分支；L389按`failure == "resources"`分支；L420按`failure`分支；L423断言`not (directory / native.ENVIRONMENT).exists()`；L427断言`KEY in content and "fastapiadmin/postgresql" in content`；L428断言`"CAPABILITY_EXECUTION_ENABLED" not in content`；L429断言`"local" in content`。后续分支沿下方源码相同行号继续阅读。 调用`atomic_text`、`json.dumps`、`SimpleNamespace`、`Snapshots`、`monkeypatch.setattr`、`calls.append`、`pytest.raises`、`native.register_worker`、`(directory / native.ENVIRONMENT).exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.Snapshots`（L392–L400）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.Snapshots.create`（L393–L400）：接收`params`、`**kwargs`。 控制顺序：L395断言`params.image == snapshot["digest"]`；L396断言`{ name: getattr(params.resources, name) for name in native.RESOURCES } == native.RESO…`；L399断言`params.region_id == "local" and kwargs["timeout"] == 600`。 调用`calls.append`、`getattr`。 返回路径：L400的`existing`。
-- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.factory`（L404–L408）：接收`settings`。 控制顺序：L405断言`settings.daytona_api_key.get_secret_value() == KEY`；L406断言`settings.daytona_api_url == "http://127.0.0.1:3000/api"`；L407断言`settings.daytona_target == "local"`。 调用`settings.daytona_api_key.get_secret_value`。 返回路径：L408的`client`。
-- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.close`（L410–L414）：接收`value`。 控制顺序：L411断言`value is client`；L413按`failure == "close"`分支；L414抛异常，停止当前正常路径。 调用`calls.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_registration_has_bounded_subprocess_and_no_key_in_argv`（L440–L452）：接收`prepared`、`monkeypatch`。 控制顺序：L446断言`args[0][1:4] == [ "-m", "scripts.daytona_native_capability_profile", "register-worker…`；L451断言`kwargs["timeout"] == 720`；L452断言`KEY not in repr(calls)`。 调用`monkeypatch.setattr`、`calls.append`、`native.register`、`repr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_registration_does_not_overwrite_other_native_credentials`（L455–L463）：接收`prepared`、`monkeypatch`。 调用`atomic_text`、`json.dumps`、`native.write_private_new`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`native.register_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_recipe_keeps_control_identity_pinned_tools_and_no_product_execution`（L466–L491）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L468遍历`( "ARG BASE_IMAGE", "FROM ${BASE_IMAGE}", "libseccomp2 procps", "…`；L488断言`text in recipe`；L489断言`recipe.rstrip().endswith("USER 0:0")`；L490断言`"warm.py" not in recipe and "vite build" not in recipe`；L491断言`"CAPABILITY_EXECUTION_ENABLED" not in recipe`。 调用`(native.ROOT / native.DOCKERFILE).read_text`、`recipe.rstrip().endswith`、`recipe.rstrip`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_existing_key_cannot_inject_environment_or_shell_syntax`（L498–L500）：接收`key`。 调用`pytest.raises`、`native.environment_text`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_existing_native_environment_must_remain_private`（L503–L512）：接收`prepared`。 控制顺序：L504按`os.name == "nt"`分支。 调用`pytest.skip`、`atomic_text`、`json.dumps`、`native.environment_text`、`path.chmod`、`pytest.raises`、`native.register_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_metadata_cannot_be_adopted_through_a_symlink`（L515–L522）：接收`prepared`、`tmp_path`。 调用`atomic_text`、`json.dumps`、`(directory / native.LOCK).unlink`、`(directory / native.LOCK).symlink_to`、`pytest.raises`、`native.require_native_profile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `product`（L24–L51）：接收`tmp_path`。 控制顺序：L27遍历`("backend", "deployment")`。 调用`atomic_text`、`json.dumps`。 返回路径：L51的`root`。
+- `foundation`（L55–L75）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L56的`{ "profile": native.base.PROFILE, "recipe_identity": "e" * 64, "runner": { "image_id": RUN…`。
+- `image_for`（L78–L100）：接收`record`。 返回路径：L79的`{ "Id": IMAGE, "Os": "linux", "Architecture": "amd64", "RepoDigests": ["127.0.0.1:6000/" +…`。
+- `prepared`（L104–L151）：接收`tmp_path`、`product`、`foundation`、`monkeypatch`。 调用`directory.mkdir`、`native.product_inputs`、`native.recipe_identity`、`native.base_identity`、`native.native_stamp`、`native.selection`、`copy.deepcopy`、`dict`、`monkeypatch.setattr`等。 返回路径：L151的`directory, record, image`。
+- `test_filtered_dependency_context_never_copies_product_code_secrets_or_hooks`（L154–L174）：接收`product`、`tmp_path`。 控制顺序：L160断言`paths == {"product/" + name for name in native.DESCRIPTORS} \| { "Dockerfile", "harne…`；L169断言`"https://pypi.org/simple" in (context / "product/backend/uv.lock").read_text()`；L170断言`"tuna.tsinghua" in (product / "backend/uv.lock").read_text()`；L171断言`native.product_inputs(product) == expected`；L172断言`not any( "must-not-be-copied" in path.read_text() for path in context.rglob("*") if p…`。 调用`native.product_inputs`、`context.mkdir`、`native.prepare_context`、`path.relative_to(context).as_posix`、`path.relative_to`、`context.rglob`、`path.is_file`、`(context / "product/backend/uv.lock").read_text`、`(product / "backend/uv.lock").read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_registry_credentials_are_rejected_before_build`（L185–L188）：接收`product`、`value`。 调用`atomic_text`、`pytest.raises`、`native.product_inputs`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_secret_files_are_filtered_but_dependency_and_source_drift_are_distinct`（L191–L202）：接收`product`。 控制顺序：L196断言`native.product_inputs(product) == original`；L199断言`changed["dependency_identity"] == original["dependency_identity"]`；L200断言`changed["source_identity"] != original["source_identity"]`；L202断言`native.product_inputs(product)["dependency_identity"] != original["dependency_identit…`。 调用`native.product_inputs`、`atomic_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_exact_native_manifest_selection_is_supported`（L213–L216）：接收`product`、`metadata`。 调用`atomic_text`、`json.dumps`、`pytest.raises`、`native.product_inputs`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_locks_and_symlinks_are_rejected`（L219–L225）：接收`product`、`tmp_path`。 调用`(product / "backend/uv.lock").unlink`、`pytest.raises`、`native.product_inputs`、`(product / "backend/uv.lock").symlink_to`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_context_rejects_source_drift`（L228–L232）：接收`product`、`tmp_path`。 调用`native.product_inputs`、`atomic_text`、`pytest.raises`、`native.prepare_context`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_readonly_check_revalidates_base_snapshot_and_normalizes_native_record`（L235–L249）：接收`prepared`、`monkeypatch`、`foundation`。 控制顺序：L243断言`native.require_native_profile(directory, record["snapshot"]["snapshot"]) == record`；L244断言`checked == [directory]`；L245断言`record["runner"] == foundation["runner"]`；L246断言`record["selection"]["database"] == "postgresql"`；L247断言`record["resources"] == {"cpu": 2, "memory": 6, "disk": 30}`。 调用`monkeypatch.setattr`、`checked.append`、`native.require_native_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_record_tampering_fails_closed`（L269–L274）：接收`prepared`、`mutation`。 调用`mutation`、`atomic_text`、`json.dumps`、`pytest.raises`、`native.require_native_profile`、`pytest.mark.parametrize`、`record.update`、`record["runner"].update`、`record["base"].update`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_image_drift_is_rejected`（L290–L294）：接收`prepared`、`mutation`。 调用`mutation`、`pytest.raises`、`native.require_native_profile`、`pytest.mark.parametrize`、`image.update`、`image["Config"].update`、`image["Config"]["Labels"].update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_product_lock_drift_prevents_reusing_native_profile`（L297–L301）：接收`prepared`、`product`。 调用`atomic_text`、`pytest.raises`、`native.require_native_profile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_prepare_uses_only_owned_base_and_separate_ready_record`（L306–L372）：接收`prepared`、`product`、`monkeypatch`、`failure`、`diagnostics`。 控制顺序：L318遍历`protected`；L346按`failure`分支；L349断言`not (directory / native.LOCK).exists()`；L350按`diagnostics`分支；L352断言`value["stage"] == { "push": "prepare-image-push", "image": "prepare-published-image-v…`；L360断言`value["passed"] is False and value["affects_acceptance"] is False`；L363断言`result == expected`；L364断言`native.require_native_profile(directory) == result`。后续分支沿下方源码相同行号继续阅读。 调用`(directory / native.LOCK).unlink`、`atomic_text`、`monkeypatch.setattr`、`calls.append`、`pytest.raises`、`native.prepare`、`(directory / native.LOCK).exists`、`json.loads`、`report.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_prepare_uses_only_owned_base_and_separate_ready_record.docker`（L322–L337）：接收`*args`、`**kwargs`。 控制顺序：L324按`args[0] == "build"`分支；L326断言`not (context / "product/.env").exists()`；L327断言`not (context / "product/backend/main.py").exists()`；L328断言`"BASE_IMAGE=127.0.0.1:6000/rnd-python@" + DIGEST in args`；L329断言`"--pull=false" in args`；L330按`failure == "input"`分支；L332按`args[0] == "push"`分支；L333按`failure == "push"`分支。后续分支沿下方源码相同行号继续阅读。 调用`calls.append`、`Path`、`(context / "product/.env").exists`、`(context / "product/backend/main.py").exists`、`atomic_text`、`RuntimeError`。 返回路径：L337的`""`。
+- `test_prepare_refuses_overwrite_before_docker`（L375–L383）：接收`prepared`、`product`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`native.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base`（L388–L470）：接收`prepared`、`monkeypatch`、`failure`、`diagnostics`。 控制顺序：L405按`failure == "source"`分支；L407按`failure == "state"`分支；L409按`failure == "resources"`分支；L442按`failure`分支；L445断言`not (directory / native.ENVIRONMENT).exists()`；L446按`diagnostics`分支；L448断言`value["stage"] == ( "register-worker-client-close" if failure == "close" else "regist…`；L453断言`KEY not in report.read_text()`。后续分支沿下方源码相同行号继续阅读。 调用`atomic_text`、`json.dumps`、`SimpleNamespace`、`Snapshots`、`monkeypatch.setattr`、`calls.append`、`pytest.raises`、`native.register_worker`、`(directory / native.ENVIRONMENT).exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.Snapshots`（L412–L420）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.Snapshots.create`（L413–L420）：接收`params`、`**kwargs`。 控制顺序：L415断言`params.image == snapshot["digest"]`；L416断言`{ name: getattr(params.resources, name) for name in native.RESOURCES } == native.RESO…`；L419断言`params.region_id == "local" and kwargs["timeout"] == 600`。 调用`calls.append`、`getattr`。 返回路径：L420的`existing`。
+- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.factory`（L424–L428）：接收`settings`。 控制顺序：L425断言`settings.daytona_api_key.get_secret_value() == KEY`；L426断言`settings.daytona_api_url == "http://127.0.0.1:3000/api"`；L427断言`settings.daytona_target == "local"`。 调用`settings.daytona_api_key.get_secret_value`。 返回路径：L428的`client`。
+- `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.close`（L430–L434）：接收`value`。 控制顺序：L431断言`value is client`；L433按`failure == "close"`分支；L434抛异常，停止当前正常路径。 调用`calls.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_registration_has_bounded_subprocess_and_no_key_in_argv`（L473–L485）：接收`prepared`、`monkeypatch`。 控制顺序：L479断言`args[0][1:4] == [ "-m", "scripts.daytona_native_capability_profile", "register-worker…`；L484断言`kwargs["timeout"] == 720`；L485断言`KEY not in repr(calls)`。 调用`monkeypatch.setattr`、`calls.append`、`native.register`、`repr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_registration_does_not_overwrite_other_native_credentials`（L488–L496）：接收`prepared`、`monkeypatch`。 调用`atomic_text`、`json.dumps`、`native.write_private_new`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`native.register_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_recipe_keeps_control_identity_pinned_tools_and_no_product_execution`（L499–L524）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L501遍历`( "ARG BASE_IMAGE", "FROM ${BASE_IMAGE}", "libseccomp2 procps", "…`；L521断言`text in recipe`；L522断言`recipe.rstrip().endswith("USER 0:0")`；L523断言`"warm.py" not in recipe and "vite build" not in recipe`；L524断言`"CAPABILITY_EXECUTION_ENABLED" not in recipe`。 调用`(native.ROOT / native.DOCKERFILE).read_text`、`recipe.rstrip().endswith`、`recipe.rstrip`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_key_cannot_inject_environment_or_shell_syntax`（L531–L533）：接收`key`。 调用`pytest.raises`、`native.environment_text`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_native_environment_must_remain_private`（L536–L545）：接收`prepared`。 控制顺序：L537按`os.name == "nt"`分支。 调用`pytest.skip`、`atomic_text`、`json.dumps`、`native.environment_text`、`path.chmod`、`pytest.raises`、`native.register_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_metadata_cannot_be_adopted_through_a_symlink`（L548–L555）：接收`prepared`、`tmp_path`。 调用`atomic_text`、`json.dumps`、`(directory / native.LOCK).unlink`、`(directory / native.LOCK).symlink_to`、`pytest.raises`、`native.require_native_profile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_build_diagnostics_match_only_complete_reviewed_run_commands`（L560–L578）：接收`form`、`run`。 控制顺序：L564按`form == "header"`分支；L566按`form == "footer"`分支；L569按`form == "continued-process"`分支；L576断言`(facts["stage"], facts["run"]) == (stage, run)`；L577断言`"private" not in json.dumps(facts)`；L578断言`command not in json.dumps(facts)`。 调用`next`、`native.reviewed_run_commands().items`、`native.reviewed_run_commands`、`command.replace`、`json.dumps`、`native.build_failure_facts`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_build_diagnostics_emit_only_fixed_known_error_categories`（L597–L607）：接收`signature`、`category`。 控制顺序：L605断言`category in value["categories"]`；L606断言`signature not in json.dumps(value)`；L607断言`"private" not in json.dumps(value)`。 调用`next`、`native.reviewed_run_commands().items`、`native.reviewed_run_commands`、`native.build_failure_facts`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_build_diagnostics_do_not_adopt_unreviewed_commands_or_ambient_text`（L610–L621）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L612遍历`( f"#12 [native-system 1/2] RUN {command}\n#12 ERROR: private-sec…`；L617断言`native.build_failure_facts(log) == { "stage": "unknown", "run": "unknown", "categorie…`。 调用`next`、`iter`、`native.reviewed_run_commands`、`json.dumps`、`native.build_failure_facts`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostic_run_mapping_requires_exact_reviewed_recipe`（L625–L644）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L628按`mutation == "same-count-edit"`分支；L630按`mutation == "reordered"`分支；L635按`mutation == "oversized"`分支；L637按`mutation != "missing"`分支；L641断言`native.reviewed_run_commands() == {}`；L644断言`result == {"stage": "unknown", "run": "unknown", "categories": ["unknown"]}`。 调用`(native.ROOT / native.DOCKERFILE).read_text`、`list`、`native.reviewed_run_commands`、`recipe.replace`、`recipe.index`、`(tmp_path / "Dockerfile").write_text`、`monkeypatch.setattr`、`native.build_failure_facts`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failure_diagnostics_are_bounded_and_never_serialize_hostile_payloads`（L648–L671）：接收`code`。 控制顺序：L657断言`len(encoded) <= native.DIAGNOSTIC_REPORT_BYTES`；L658断言`report["build"]["scanned_bytes"] <= native.DIAGNOSTIC_SCAN_BYTES`；L659断言`report["build"]["truncated"] is True`；L660断言`report["error"]["returncode"] == ( code if type(code) is int and abs(code) < 2**31 el…`；L663断言`report["error"]["timed_out"] is False`；L664遍历`("private-secret", "password", "private.invalid", "token", "界")`；L665断言`fragment.encode() not in encoded`；L666断言`native.failure_diagnostic({"action": secret, "stage": secret}, RuntimeError(secret))[…`。 调用`subprocess.CalledProcessError`、`native.failure_diagnostic`、`json.dumps(report).encode`、`json.dumps`、`len`、`type`、`abs`、`fragment.encode`、`RuntimeError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_prepare_build_failure_preserves_failure_and_never_writes_readiness`（L674–L697）：接收`prepared`、`product`、`monkeypatch`。 控制顺序：L689断言`caught.value is error`；L691断言`value["stage"] == "prepare-docker-build"`；L692断言`value["error"]["returncode"] == 23`；L693断言`not (directory / native.LOCK).exists()`；L694断言`not (directory / native.ENVIRONMENT).exists()`；L695断言`not list(directory.glob("native-capability-build-*"))`；L696按`os.name != "nt"`分支；L697断言`report.stat().st_mode & 0o777 == 0o600`。 调用`(directory / native.LOCK).unlink`、`subprocess.CalledProcessError`、`monkeypatch.setattr`、`pytest.raises`、`native.prepare`、`json.loads`、`report.read_text`、`(directory / native.LOCK).exists`、`(directory / native.ENVIRONMENT).exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_prepare_build_failure_preserves_failure_and_never_writes_readiness.fail`（L682–L684）：接收`*args`、`**kwargs`。 控制顺序：L683断言`args[0] == "build" and kwargs == {"timeout": 3600}`；L684抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_stale_ready_profile_and_existing_report_cannot_be_overwritten`（L700–L708）：接收`prepared`、`product`、`monkeypatch`。 控制顺序：L708断言`(directory / native.LOCK).read_bytes() == before`。 调用`(directory / native.LOCK).read_bytes`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`native.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_register_parent_preserves_exact_worker_report_and_failure`（L711–L739）：接收`prepared`、`monkeypatch`。 控制顺序：L734断言`caught.value is error`；L735断言`json.loads(report.read_text()) == expected`；L736断言`expected["stage"] == "register-worker-snapshot-create"`；L737断言`expected["error"]["timed_out"] is True`；L738断言`"private" not in report.read_text()`；L739断言`not (directory / native.ENVIRONMENT).exists()`。 调用`native.ToolFailure`、`monkeypatch.setattr`、`pytest.raises`、`native.register`、`json.loads`、`report.read_text`、`(directory / native.ENVIRONMENT).exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_register_parent_preserves_exact_worker_report_and_failure.worker`（L719–L729）：接收`command`、`cwd`、`**kwargs`。 控制顺序：L720断言`command[-2:] == ["--diagnostics", str(report.absolute())]`；L721断言`kwargs["timeout"] == 720`；L725抛异常，停止当前正常路径；L729抛异常，停止当前正常路径。 调用`str`、`report.absolute`、`pytest.raises`、`native.diagnostic_scope`、`subprocess.TimeoutExpired`、`expected.update`、`json.loads`、`report.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_cli_remains_compatible_and_success_does_not_emit_diagnostics`（L744–L761）：接收`tmp_path`、`monkeypatch`、`capsys`、`action`、`diagnostics`。 控制顺序：L750按`action == "prepare"`分支；L752按`diagnostics`分支；L757断言`calls[0][1] == ({"diagnostics": report} if diagnostics else {})`；L758断言`not report.exists()`；L759断言`capsys.readouterr().out == ( "Native snapshot identity step completed; runtime/isolat…`。 调用`str`、`monkeypatch.setattr`、`action.replace`、`calls.append`、`native.main`、`report.exists`、`capsys.readouterr`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_workflow_collects_separate_bounded_prepare_and_register_diagnostics`（L764–L782）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L779断言`"--diagnostics reports/native-profile-prepare-diagnostic.json" in build["run"]`；L780断言`"--diagnostics reports/native-profile-register-diagnostic.json" in build["run"]`；L781断言`upload["if"] == "always()"`；L782断言`"reports/native-profile-*-diagnostic.json" in upload["with"]["path"]`。 调用`yaml.safe_load`、`(native.ROOT / ".github/workflows/native-capability-profile.yml")…`、`next`、`step.get`、`step.get("uses", "").startswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_native_capability_profile.py sha256: c649e47c8555e34770b661e06e4cf3322ee6541a8657c91765391e4f7b43b30b -->
+<!-- source-file: tests/test_native_capability_profile.py sha256: 7ceaa2a6998cdb894a48bd96c7ecd1c461ba2d53ee1cbd3e46f77029ca672de3 -->
 ````python
 """Native preparation contracts use explicit fakes, never live Docker/runtime proof."""
 
 import copy
 import json
 import os
+import subprocess
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -144480,9 +144494,10 @@ def test_product_lock_drift_prevents_reusing_native_profile(prepared, product):
         native.require_native_profile(directory)
 
 
+@pytest.mark.parametrize("diagnostics", [False, True])
 @pytest.mark.parametrize("failure", [None, "push", "image", "input"])
 def test_prepare_uses_only_owned_base_and_separate_ready_record(
-    prepared, product, monkeypatch, failure
+    prepared, product, monkeypatch, failure, diagnostics
 ):
     directory, expected, image = prepared
     (directory / native.LOCK).unlink()
@@ -144519,17 +144534,33 @@ def test_prepare_uses_only_owned_base_and_separate_ready_record(
         native.base, "compose", lambda *args, **kwargs: calls.append((args, kwargs))
     )
     monkeypatch.setattr(native.local, "wait_for_registry", lambda: None)
+    report = directory / "diagnostic.json"
+    options = {"diagnostics": report} if diagnostics else {}
     if failure:
         with pytest.raises((ValueError, RuntimeError)):
-            native.prepare(product, directory)
+            native.prepare(product, directory, **options)
         assert not (directory / native.LOCK).exists()
+        if diagnostics:
+            value = json.loads(report.read_text())
+            assert (
+                value["stage"]
+                == {
+                    "push": "prepare-image-push",
+                    "image": "prepare-published-image-validation",
+                    "input": "prepare-final-identity-validation",
+                }[failure]
+            )
+            assert value["passed"] is False and value["affects_acceptance"] is False
     else:
-        result = native.prepare(product, directory)
+        result = native.prepare(product, directory, **options)
         assert result == expected
         assert native.require_native_profile(directory) == result
         assert not (directory / native.ENVIRONMENT).exists()
         if os.name != "nt":
             assert (directory / native.LOCK).stat().st_mode & 0o777 == 0o600
+        assert not report.exists()
+    if not diagnostics:
+        assert not report.exists()
     assert all((directory / name).read_text() == "base-must-stay-unchanged" for name in protected)
     assert any(args[0] == "build" for args, _ in calls)
 
@@ -144545,9 +144576,10 @@ def test_prepare_refuses_overwrite_before_docker(prepared, product, monkeypatch)
         native.prepare(product, directory)
 
 
+@pytest.mark.parametrize("diagnostics", [False, True])
 @pytest.mark.parametrize("failure", [None, "source", "state", "resources", "close"])
 def test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base(
-    prepared, monkeypatch, failure
+    prepared, monkeypatch, failure, diagnostics
 ):
     directory, record, _ = prepared
     atomic_text(directory / "api-key.json", json.dumps({"value": KEY}))
@@ -144598,21 +144630,34 @@ def test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base(
     monkeypatch.setattr(native, "client_for", factory)
     monkeypatch.setattr(native, "close_client", close)
     monkeypatch.setattr(native, "snapshot_named", lambda service, name: None)
+    report = directory / "diagnostic.json"
+    options = {"diagnostics": report} if diagnostics else {}
     if failure:
         with pytest.raises((ValueError, RuntimeError)):
-            native.register_worker(directory)
+            native.register_worker(directory, **options)
         assert not (directory / native.ENVIRONMENT).exists()
+        if diagnostics:
+            value = json.loads(report.read_text())
+            assert value["stage"] == (
+                "register-worker-client-close"
+                if failure == "close"
+                else "register-worker-snapshot-validation"
+            )
+            assert KEY not in report.read_text()
     else:
-        native.register_worker(directory)
+        native.register_worker(directory, **options)
         content = (directory / native.ENVIRONMENT).read_text()
         assert KEY in content and "fastapiadmin/postgresql" in content
         assert "CAPABILITY_EXECUTION_ENABLED" not in content
         assert "local" in content
         monkeypatch.setattr(native, "snapshot_named", lambda service, name: existing)
-        native.register_worker(directory)
+        native.register_worker(directory, **options)
         assert calls.count("create") == 1
         if os.name != "nt":
             assert (directory / native.ENVIRONMENT).stat().st_mode & 0o777 == 0o600
+        assert not report.exists()
+    if not diagnostics:
+        assert not report.exists()
     assert calls[-1] == "close"
     assert (directory / "workbench.env").read_text() == "base-environment-unchanged"
     assert json.loads((directory / "api-key.json").read_text()) == {"value": KEY}
@@ -144701,6 +144746,233 @@ def test_native_metadata_cannot_be_adopted_through_a_symlink(prepared, tmp_path)
     (directory / native.LOCK).symlink_to(outside)
     with pytest.raises(ValueError):
         native.require_native_profile(directory)
+
+
+@pytest.mark.parametrize("form", ["header", "footer", "process", "continued-process"])
+@pytest.mark.parametrize("run", [row[1] for row in native.REVIEWED_RUNS])
+def test_build_diagnostics_match_only_complete_reviewed_run_commands(form, run):
+    (stage, command), _ = next(
+        (key, value) for key, value in native.reviewed_run_commands().items() if value == run
+    )
+    if form == "header":
+        log = f"#19 [{stage} 7/16] RUN {command}\n#19 ERROR: private failure"
+    elif form == "footer":
+        log = f" > [{stage} 7/16] RUN {command}:\nprivate failure"
+    else:
+        if form == "continued-process":
+            command = command.replace(" && ", " \\\n    && ")
+        process = json.dumps("/bin/sh -c " + command)
+        log = (
+            f"ERROR: failed to solve: process {process} did not complete successfully: exit code: 1"
+        )
+    facts = native.build_failure_facts(log)
+    assert (facts["stage"], facts["run"]) == (stage, run)
+    assert "private" not in json.dumps(facts)
+    assert command not in json.dumps(facts)
+
+
+@pytest.mark.parametrize(
+    "signature,category",
+    [
+        ("Permission denied (os error 13) at cache", "cache-permission-denied"),
+        ("error: unexpected argument\nUsage: uv pip sync", "uv-cli-rejected"),
+        ("Failed to build a private source", "source-build-failed"),
+        ("error: could not compile a private crate", "compiler-failed"),
+        ("failed to get private as a dependency of package private", "rust-dependency-failed"),
+        ("configured Python interpreter version is newer than PyO3", "python-version-unsupported"),
+        ("no matching package named private found in offline mode", "offline-dependency-missing"),
+        ("private wheel hash mismatch", "dependency-hash-mismatch"),
+        ("failed to download https://private.invalid", "registry-fetch-failed"),
+        ("ERR_PNPM_OUTDATED_LOCKFILE private contents", "node-install-failed"),
+        ("Dependency symlink escapes the complete image graph", "image-seal-rejected"),
+    ],
+)
+def test_build_diagnostics_emit_only_fixed_known_error_categories(signature, category):
+    (stage, command), _ = next(
+        (key, value)
+        for key, value in native.reviewed_run_commands().items()
+        if value == "build-native-sources"
+    )
+    log = f"#12 [{stage} 6/16] RUN {command}\n#12 ERROR: {signature}"
+    value = native.build_failure_facts(log)
+    assert category in value["categories"]
+    assert signature not in json.dumps(value)
+    assert "private" not in json.dumps(value)
+
+
+def test_build_diagnostics_do_not_adopt_unreviewed_commands_or_ambient_text():
+    command = next(iter(native.reviewed_run_commands()))[1] + " && echo private-secret"
+    for log in (
+        f"#12 [native-system 1/2] RUN {command}\n#12 ERROR: private-secret",
+        f"ERROR: process {json.dumps('/bin/sh -c ' + command)} did not complete successfully: exit code: 1",
+        "private-package private-path https://private.invalid API_KEY=private-secret\n",
+    ):
+        assert native.build_failure_facts(log) == {
+            "stage": "unknown",
+            "run": "unknown",
+            "categories": ["unknown"],
+        }
+
+
+@pytest.mark.parametrize("mutation", ["same-count-edit", "reordered", "missing", "oversized"])
+def test_diagnostic_run_mapping_requires_exact_reviewed_recipe(tmp_path, monkeypatch, mutation):
+    recipe = (native.ROOT / native.DOCKERFILE).read_text()
+    commands = list(native.reviewed_run_commands())
+    if mutation == "same-count-edit":
+        recipe = recipe.replace("libseccomp2 procps", "libseccomp2 unreviewed", 1)
+    elif mutation == "reordered":
+        first = recipe.index("RUN ")
+        second = recipe.index("\nRUN ", first) + 1
+        end = recipe.index("\nENV ", second)
+        recipe = recipe[:first] + recipe[second:end] + "\n" + recipe[first:second] + recipe[end:]
+    elif mutation == "oversized":
+        recipe += "#" * (native.DIAGNOSTIC_SCAN_BYTES + 1)
+    if mutation != "missing":
+        (tmp_path / "Dockerfile").write_text(recipe)
+    monkeypatch.setattr(native, "ROOT", tmp_path)
+    monkeypatch.setattr(native, "DOCKERFILE", "Dockerfile")
+    assert native.reviewed_run_commands() == {}
+    stage, command = commands[0]
+    result = native.build_failure_facts(f"#1 [{stage} 1/2] RUN {command}\n#1 ERROR: failure")
+    assert result == {"stage": "unknown", "run": "unknown", "categories": ["unknown"]}
+
+
+@pytest.mark.parametrize("code", [-9, 1, True, 1.5, 2**40, "private-secret"])
+def test_failure_diagnostics_are_bounded_and_never_serialize_hostile_payloads(code):
+    secret = 'private-secret\n"token":"value"\r\x00https://person:password@private.invalid?key=x'
+    error = subprocess.CalledProcessError(
+        code, [secret], output=(secret + "界") * 20000, stderr=(secret + "\ud800") * 20000
+    )
+    report = native.failure_diagnostic(
+        {"action": "prepare", "stage": "prepare-docker-build"}, error
+    )
+    encoded = json.dumps(report).encode()
+    assert len(encoded) <= native.DIAGNOSTIC_REPORT_BYTES
+    assert report["build"]["scanned_bytes"] <= native.DIAGNOSTIC_SCAN_BYTES
+    assert report["build"]["truncated"] is True
+    assert report["error"]["returncode"] == (
+        code if type(code) is int and abs(code) < 2**31 else None
+    )
+    assert report["error"]["timed_out"] is False
+    for fragment in ("private-secret", "password", "private.invalid", "token", "界"):
+        assert fragment.encode() not in encoded
+    assert (
+        native.failure_diagnostic({"action": secret, "stage": secret}, RuntimeError(secret))[
+            "stage"
+        ]
+        == "unknown"
+    )
+
+
+def test_prepare_build_failure_preserves_failure_and_never_writes_readiness(
+    prepared, product, monkeypatch
+):
+    directory, _, _ = prepared
+    (directory / native.LOCK).unlink()
+    report = directory / "diagnostic.json"
+    error = subprocess.CalledProcessError(23, ["private command"], stderr=b"Permission denied")
+
+    def fail(*args, **kwargs):
+        assert args[0] == "build" and kwargs == {"timeout": 3600}
+        raise error
+
+    monkeypatch.setattr(native.local, "docker", fail)
+    with pytest.raises(subprocess.CalledProcessError) as caught:
+        native.prepare(product, directory, diagnostics=report)
+    assert caught.value is error
+    value = json.loads(report.read_text())
+    assert value["stage"] == "prepare-docker-build"
+    assert value["error"]["returncode"] == 23
+    assert not (directory / native.LOCK).exists()
+    assert not (directory / native.ENVIRONMENT).exists()
+    assert not list(directory.glob("native-capability-build-*"))
+    if os.name != "nt":
+        assert report.stat().st_mode & 0o777 == 0o600
+
+
+def test_stale_ready_profile_and_existing_report_cannot_be_overwritten(
+    prepared, product, monkeypatch
+):
+    directory, _, _ = prepared
+    before = (directory / native.LOCK).read_bytes()
+    monkeypatch.setattr(native.local, "docker", lambda *a, **k: pytest.fail("No build permitted"))
+    with pytest.raises(ValueError, match="refuses to overwrite"):
+        native.prepare(product, directory, diagnostics=directory / native.LOCK)
+    assert (directory / native.LOCK).read_bytes() == before
+
+
+def test_register_parent_preserves_exact_worker_report_and_failure(prepared, monkeypatch):
+    directory, _, _ = prepared
+    report = directory / "diagnostic.json"
+    error = native.ToolFailure("private parent log")
+    error.log = "token=private-child-secret"
+    error.returncode = 1
+    expected = {}
+
+    def worker(command, cwd, **kwargs):
+        assert command[-2:] == ["--diagnostics", str(report.absolute())]
+        assert kwargs["timeout"] == 720
+        with pytest.raises(subprocess.TimeoutExpired):
+            with native.diagnostic_scope(report, "register-worker") as progress:
+                progress["stage"] = "register-worker-snapshot-create"
+                raise subprocess.TimeoutExpired(
+                    "private SDK request", 600, output=b"private-secret"
+                )
+        expected.update(json.loads(report.read_text()))
+        raise error
+
+    monkeypatch.setattr(native, "run_command", worker)
+    with pytest.raises(native.ToolFailure) as caught:
+        native.register(directory, diagnostics=report)
+    assert caught.value is error
+    assert json.loads(report.read_text()) == expected
+    assert expected["stage"] == "register-worker-snapshot-create"
+    assert expected["error"]["timed_out"] is True
+    assert "private" not in report.read_text()
+    assert not (directory / native.ENVIRONMENT).exists()
+
+
+@pytest.mark.parametrize("action", ["prepare", "register", "register-worker"])
+@pytest.mark.parametrize("diagnostics", [False, True])
+def test_native_cli_remains_compatible_and_success_does_not_emit_diagnostics(
+    tmp_path, monkeypatch, capsys, action, diagnostics
+):
+    calls = []
+    report = tmp_path / "diagnostic.json"
+    command = ["native-profile", action, "--directory", str(tmp_path)]
+    if action == "prepare":
+        command += ["--product", str(tmp_path / "product")]
+    if diagnostics:
+        command += ["--diagnostics", str(report)]
+    monkeypatch.setattr(sys, "argv", command)
+    monkeypatch.setattr(native, action.replace("-", "_"), lambda *a, **k: calls.append((a, k)))
+    native.main()
+    assert calls[0][1] == ({"diagnostics": report} if diagnostics else {})
+    assert not report.exists()
+    assert capsys.readouterr().out == (
+        "Native snapshot identity step completed; runtime/isolation acceptance is still required.\n"
+    )
+
+
+def test_native_workflow_collects_separate_bounded_prepare_and_register_diagnostics():
+    import yaml
+
+    workflow = yaml.safe_load(
+        (native.ROOT / ".github/workflows/native-capability-profile.yml").read_text()
+    )
+    steps = workflow["jobs"]["local-service"]["steps"]
+    build = next(
+        step
+        for step in steps
+        if step.get("name") == "Build and register exact native offline dependency profile"
+    )
+    upload = next(
+        step for step in steps if step.get("uses", "").startswith("actions/upload-artifact@")
+    )
+    assert "--diagnostics reports/native-profile-prepare-diagnostic.json" in build["run"]
+    assert "--diagnostics reports/native-profile-register-diagnostic.json" in build["run"]
+    assert upload["if"] == "always()"
+    assert "reports/native-profile-*-diagnostic.json" in upload["with"]["path"]
 ````
 
 ### `tests/test_native_delivery_boundaries.py`
@@ -178155,23 +178427,32 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `recipe_identity`（L69–L71）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`、`digest`。 返回路径：L71的`digest(recipes), recipes`。
-- `selection`（L74–L75）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Selection(template="fastapiadmin").model_dump`、`Selection`。 返回路径：L75的`Selection(template="fastapiadmin").model_dump()`。
-- `reject_credentials`（L78–L85）：接收`text`。 源码说明：Never send authenticated registry configuration into Docker build layers.。 控制顺序：L80按`re.search(r"(?:_auth\|authToken\|password\|username)\s*[=:]\|\$\{", text, re.IGNORECA…`分支；L81抛异常，停止当前正常路径；L82遍历`re.findall(r"https?://[^\s\"'<>]+", text)`；L84按`parsed.username is not None or parsed.password is not None or parsed.query`分支；L85抛异常，停止当前正常路径。 调用`re.search`、`ValueError`、`re.findall`、`urlsplit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `product_inputs`（L88–L118）：接收`product`。 控制顺序：L93按`not isinstance(metadata, dict) or metadata.get("template") != "fastapiadmin"`分支；L94抛异常，停止当前正常路径；L95按`"selection" in metadata and Selection.model_validate(metadata["selection"]).model_dum…`分支；L99抛异常，停止当前正常路径；L100按`"database" in metadata and metadata["database"] != "postgresql"`分支；L101抛异常，停止当前正常路径；L102遍历`files(product)`；L103按`path.name == ".npmrc"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`manifest`、`inside`、`json.loads`、`metadata_path.read_text`、`isinstance`、`metadata.get`、`ValueError`等。 返回路径：L112的`{ "product": str(product), "source_identity": digest(before), "manifest_sha256": before["d…`。
-- `prepare_context`（L121–L191）：接收`product`、`context`、`expected`。先确定模板源码位置与摘要，再生成检索上下文；返回的内容在规划节点使用，不是只写报告后丢弃。 源码说明：Copy allowlisted lock inputs only, never executable product sources/hooks.。 控制顺序：L124按`product_inputs(product) != expected`分支；L125抛异常，停止当前正常路径；L126遍历`DESCRIPTORS`；L130按`base.sha256(raw) != expected["descriptors"][name]`分支；L131抛异常，停止当前正常路径；L132按`name.startswith("backend/")`分支；L157遍历`("pyproject.toml", "uv.lock")`；L164遍历`("image", "build")`。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`product_inputs`、`ValueError`、`inside`、`target.parent.mkdir`、`inside(product, name).read_bytes`、`base.sha256`、`name.startswith`、`raw.decode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `base_identity`（L194–L202）：接收`record`。 调用`copy.deepcopy`。 返回路径：L195的`{ "profile": record["profile"], "recipe_identity": record["recipe_identity"], "snapshot_im…`。
-- `native_stamp`（L205–L214）：接收`identity`、`foundation`、`inputs`。 调用`digest`、`selection`。 返回路径：L206的`digest( { "recipe_identity": identity, "base": foundation, "inputs": inputs, "selection": …`。
-- `validate_image`（L217–L236）：接收`image`、`record`。 控制顺序：L220按`image.get("Os") != "linux" or image.get("Architecture") != "amd64" or labels.get("org…`分支；L236抛异常，停止当前正常路径。 调用`image.get`、`config.get`、`labels.get`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `write_private_new`（L239–L245）：接收`path`、`text`。 源码说明：Exclusive creation prevents replacing base metadata or an existing credential.。 调用`os.open`、`os.fdopen`、`output.write`、`output.flush`、`os.fsync`、`output.fileno`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `prepare`（L248–L335）：接收`product`、`directory`。 控制顺序：L252按`any((directory / name).exists() for name in (LOCK, ENVIRONMENT))`分支；L253抛异常，停止当前正常路径；L293遍历`labels.items()`；L310按`len(digests) != 1 or published["Id"] != image["Id"]`分支；L311抛异常，停止当前正常路径；L327按`base_identity(base.require_profile(directory)) != foundation or product_inputs(produc…`分支；L332抛异常，停止当前正常路径。 调用`base.profile_directory`、`base_identity`、`base.require_profile`、`any`、`(directory / name).exists`、`ValueError`、`product_inputs`、`recipe_identity`、`native_stamp`等。 返回路径：L335的`record`。
-- `require_native_profile`（L338–L380）：接收`directory`、`snapshot`。 源码说明：Read-only identity proof; runtime isolation/resource evidence is separate.。 控制顺序：L345按`record.get("profile") != PROFILE or record.get("selection") != selection() or record.…`分支；L357抛异常，停止当前正常路径；L361按`image.get("source_hash") != stamp or image.get("local_tag") != "127.0.0.1:6000/" + FA…`分支；L373抛异常，停止当前正常路径；L377按`inspected["Id"] != image["image_id"] or local_digest not in inspected.get("RepoDigest…`分支；L378抛异常，停止当前正常路径。 调用`base.profile_directory`、`base_identity`、`base.require_profile`、`json.loads`、`inside(directory, LOCK).read_text`、`inside`、`recipe_identity`、`record.get`、`selection`等。 返回路径：L380的`record`。
-- `environment_text`（L383–L394）：接收`key`、`snapshot`。 控制顺序：L384按`not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9._-]{1,4096}", key)`分支；L385抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`ValueError`、`json.dumps`。 返回路径：L386的`"SANDBOX_PROVIDER=daytona\nDAYTONA_ALLOW_LOCAL_EXECUTION=true\n" "DAYTONA_API_URL=http://1…`。
-- `register`（L397–L412）：接收`directory`。 调用`base.profile_directory`、`require_native_profile`、`run_command`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `register_worker`（L415–L464）：接收`directory`。 控制顺序：L422按`path.exists() and os.name != "nt" and path.stat().st_mode & 0o777 != 0o600`分支；L423抛异常，停止当前正常路径；L424按`path.exists() and path.read_text(encoding="utf-8") != content`分支；L425抛异常，停止当前正常路径；L440按`existing is None`分支；L450按`existing.name != metadata["snapshot"] or existing.image_name != metadata["digest"] or…`分支；L459抛异常，停止当前正常路径；L463按`not path.exists()`分支。 调用`base.profile_directory`、`require_native_profile`、`json.loads`、`(directory / "api-key.json").read_text`、`environment_text`、`inside`、`path.exists`、`path.stat`、`ValueError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L467–L483）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L473按`args.action == "prepare"`分支；L474按`args.product is None`分支；L477按`args.action == "check"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`parser.error`、`prepare`、`require_native_profile`、`{"register": register, "register-worker": register_worker}[args.a…`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `diagnostic_log`（L114–L133）：接收`exc`。 源码说明：Inspect bounded subprocess output only; never stringify arbitrary errors.。 控制顺序：L116按`isinstance(exc, (subprocess.CalledProcessError, subprocess.TimeoutExpired))`分支；L118按`isinstance(exc, ToolFailure)`分支；L124遍历`streams`；L125按`type(value) not in (bytes, str)`分支。 调用`isinstance`、`getattr`、`max`、`len`、`type`、`value.encode`、`chunks.append`、`b"".join`、`raw.decode`。 返回路径：L133的`raw.decode("utf-8", errors="replace"), len(raw), truncated`。
+- `reviewed_run_commands`（L136–L155）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Match complete commands from the fixed reviewed recipe, never log text.。 控制顺序：L143按`len(raw) > DIAGNOSTIC_SCAN_BYTES or hashlib.sha256(raw).hexdigest() != REVIEWED_DOCKE…`分支；L150按`len(commands) != len(REVIEWED_RUNS)`分支。 调用`(ROOT / DOCKERFILE).open`、`source.read`、`len`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`、`raw.decode("utf-8").replace("\\\n", " ").splitlines`、`raw.decode("utf-8").replace`、`raw.decode`、`line.removeprefix`等。 返回路径：L142的`{}`；L147的`{}`；L151的`{}`。
+- `normalized_run`（L158–L159）：接收`command`。 调用`" ".join`、`command.removeprefix("--network=none ").replace("\\\n", " ").spli…`、`command.removeprefix("--network=none ").replace`、`command.removeprefix`。 返回路径：L159的`" ".join(command.removeprefix("--network=none ").replace("\\\n", " ").split())`。
+- `build_failure_facts`（L162–L241）：接收`text`。 源码说明：Return finite labels only, never captured paths, commands, versions or URLs.。 控制顺序：L167遍历`text.splitlines()`；L169按`match`分支；L172按`identifier`分支；L175按`failed and failed[1] in headers`分支；L178按`footer`分支；L181按`identifier`分支；L188按`start >= 0 and end > start and end - start <= 8192`分支；L193按`type(process) is str and process.startswith("/bin/sh -c ")`分支。后续分支沿下方源码相同行号继续阅读。 调用`reviewed_run_commands`、`text.splitlines`、`re.fullmatch`、`match.groups`、`commands.get`、`normalized_run`、`re.match`、`footer.groups`、`line.find`等。 返回路径：L241的`result`。
+- `failure_diagnostic`（L244–L285）：接收`progress`、`exc`。 控制顺序：L251遍历`( (subprocess.TimeoutExpired, "timeout"), (subprocess.CalledProce…`；L258按`isinstance(exc, error_type)`分支；L278按`stage == "prepare-docker-build"`分支。 调用`getattr`、`type`、`isinstance`、`progress.get`、`diagnostic_log`、`build_failure_facts`。 返回路径：L285的`report`。
+- `diagnostic_scope`（L289–L305）：接收`path`、`action`。 控制顺序：L294按`path is not None`分支；L297按`len(body.encode("utf-8")) > DIAGNOSTIC_REPORT_BYTES`分支；L298抛异常，停止当前正常路径；L305抛异常，停止当前正常路径。 调用`json.dumps`、`failure_diagnostic`、`len`、`body.encode`、`ValueError`、`Path(path).parent.mkdir`、`Path`、`write_private_new`、`print`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `recipe_identity`（L308–L310）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`、`digest`。 返回路径：L310的`digest(recipes), recipes`。
+- `selection`（L313–L314）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Selection(template="fastapiadmin").model_dump`、`Selection`。 返回路径：L314的`Selection(template="fastapiadmin").model_dump()`。
+- `reject_credentials`（L317–L324）：接收`text`。 源码说明：Never send authenticated registry configuration into Docker build layers.。 控制顺序：L319按`re.search(r"(?:_auth\|authToken\|password\|username)\s*[=:]\|\$\{", text, re.IGNORECA…`分支；L320抛异常，停止当前正常路径；L321遍历`re.findall(r"https?://[^\s\"'<>]+", text)`；L323按`parsed.username is not None or parsed.password is not None or parsed.query`分支；L324抛异常，停止当前正常路径。 调用`re.search`、`ValueError`、`re.findall`、`urlsplit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `product_inputs`（L327–L357）：接收`product`。 控制顺序：L332按`not isinstance(metadata, dict) or metadata.get("template") != "fastapiadmin"`分支；L333抛异常，停止当前正常路径；L334按`"selection" in metadata and Selection.model_validate(metadata["selection"]).model_dum…`分支；L338抛异常，停止当前正常路径；L339按`"database" in metadata and metadata["database"] != "postgresql"`分支；L340抛异常，停止当前正常路径；L341遍历`files(product)`；L342按`path.name == ".npmrc"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`manifest`、`inside`、`json.loads`、`metadata_path.read_text`、`isinstance`、`metadata.get`、`ValueError`等。 返回路径：L351的`{ "product": str(product), "source_identity": digest(before), "manifest_sha256": before["d…`。
+- `prepare_context`（L360–L430）：接收`product`、`context`、`expected`。先确定模板源码位置与摘要，再生成检索上下文；返回的内容在规划节点使用，不是只写报告后丢弃。 源码说明：Copy allowlisted lock inputs only, never executable product sources/hooks.。 控制顺序：L363按`product_inputs(product) != expected`分支；L364抛异常，停止当前正常路径；L365遍历`DESCRIPTORS`；L369按`base.sha256(raw) != expected["descriptors"][name]`分支；L370抛异常，停止当前正常路径；L371按`name.startswith("backend/")`分支；L396遍历`("pyproject.toml", "uv.lock")`；L403遍历`("image", "build")`。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`product_inputs`、`ValueError`、`inside`、`target.parent.mkdir`、`inside(product, name).read_bytes`、`base.sha256`、`name.startswith`、`raw.decode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `base_identity`（L433–L441）：接收`record`。 调用`copy.deepcopy`。 返回路径：L434的`{ "profile": record["profile"], "recipe_identity": record["recipe_identity"], "snapshot_im…`。
+- `native_stamp`（L444–L453）：接收`identity`、`foundation`、`inputs`。 调用`digest`、`selection`。 返回路径：L445的`digest( { "recipe_identity": identity, "base": foundation, "inputs": inputs, "selection": …`。
+- `validate_image`（L456–L475）：接收`image`、`record`。 控制顺序：L459按`image.get("Os") != "linux" or image.get("Architecture") != "amd64" or labels.get("org…`分支；L475抛异常，停止当前正常路径。 调用`image.get`、`config.get`、`labels.get`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `write_private_new`（L478–L484）：接收`path`、`text`。 源码说明：Exclusive creation prevents replacing base metadata or an existing credential.。 调用`os.open`、`os.fdopen`、`output.write`、`output.flush`、`os.fsync`、`output.fileno`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `prepare`（L487–L489）：接收`product`、`directory`、`diagnostics`。 调用`diagnostic_scope`、`_prepare`。 返回路径：L489的`_prepare(product, directory, progress)`。
+- `_prepare`（L492–L589）：接收`product`、`directory`、`progress`。 控制顺序：L496按`any((directory / name).exists() for name in (LOCK, ENVIRONMENT))`分支；L497抛异常，停止当前正常路径；L539遍历`labels.items()`；L561按`len(digests) != 1 or published["Id"] != image["Id"]`分支；L562抛异常，停止当前正常路径；L580按`base_identity(base.require_profile(directory)) != foundation or product_inputs(produc…`分支；L585抛异常，停止当前正常路径。 调用`base.profile_directory`、`base_identity`、`base.require_profile`、`any`、`(directory / name).exists`、`ValueError`、`product_inputs`、`recipe_identity`、`native_stamp`等。 返回路径：L589的`record`。
+- `require_native_profile`（L592–L634）：接收`directory`、`snapshot`。 源码说明：Read-only identity proof; runtime isolation/resource evidence is separate.。 控制顺序：L599按`record.get("profile") != PROFILE or record.get("selection") != selection() or record.…`分支；L611抛异常，停止当前正常路径；L615按`image.get("source_hash") != stamp or image.get("local_tag") != "127.0.0.1:6000/" + FA…`分支；L627抛异常，停止当前正常路径；L631按`inspected["Id"] != image["image_id"] or local_digest not in inspected.get("RepoDigest…`分支；L632抛异常，停止当前正常路径。 调用`base.profile_directory`、`base_identity`、`base.require_profile`、`json.loads`、`inside(directory, LOCK).read_text`、`inside`、`recipe_identity`、`record.get`、`selection`等。 返回路径：L634的`record`。
+- `environment_text`（L637–L648）：接收`key`、`snapshot`。 控制顺序：L638按`not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9._-]{1,4096}", key)`分支；L639抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`ValueError`、`json.dumps`。 返回路径：L640的`"SANDBOX_PROVIDER=daytona\nDAYTONA_ALLOW_LOCAL_EXECUTION=true\n" "DAYTONA_API_URL=http://1…`。
+- `register`（L651–L653）：接收`directory`、`diagnostics`。 调用`diagnostic_scope`、`_register`。 返回路径：L653的`_register(directory, progress, diagnostics)`。
+- `_register`（L656–L675）：接收`directory`、`progress`、`diagnostics`。 控制顺序：L667按`diagnostics is not None`分支。 调用`base.profile_directory`、`require_native_profile`、`str`、`Path(diagnostics).absolute`、`Path`、`run_command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `register_worker`（L678–L680）：接收`directory`、`diagnostics`。 调用`diagnostic_scope`、`_register_worker`。 返回路径：L680的`_register_worker(directory, progress)`。
+- `_register_worker`（L683–L744）：接收`directory`、`progress`。 控制顺序：L692按`path.exists() and os.name != "nt" and path.stat().st_mode & 0o777 != 0o600`分支；L693抛异常，停止当前正常路径；L694按`path.exists() and path.read_text(encoding="utf-8") != content`分支；L695抛异常，停止当前正常路径；L713按`existing is None`分支；L725按`existing.name != metadata["snapshot"] or existing.image_name != metadata["digest"] or…`分支；L734抛异常，停止当前正常路径；L742按`not path.exists()`分支。 调用`base.profile_directory`、`require_native_profile`、`json.loads`、`(directory / "api-key.json").read_text`、`environment_text`、`inside`、`path.exists`、`path.stat`、`ValueError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L747–L767）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L755按`args.action == "prepare"`分支；L756按`args.product is None`分支；L759按`args.action == "check"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`parser.error`、`prepare`、`require_native_profile`、`{"register": register, "register-worker": register_worker}[args.a…`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/daytona_native_capability_profile.py sha256: 372bb7bc199011914d675d55c8c0189826a5c5fe83686fc5b27db7757d8264b7 -->
+<!-- source-file: scripts/daytona_native_capability_profile.py sha256: c328e12a1d859e65c127298903800766c14946ad65963d5c49c8772698c4c836 -->
 ````python
 """Prepare/register the opt-in native profile without changing the base installation.
 
@@ -178182,13 +178463,16 @@ The warmed image is not runtime, browser, database or isolation acceptance evide
 
 import argparse
 import copy
+import hashlib
 import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import tomllib
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -178205,7 +178489,7 @@ from workbench.filesystem import files, inside, manifest, sha
 from workbench.local_only import install_loopback_guard
 from workbench.sandbox import client_for, close_client
 from workbench.settings import ROOT, Settings
-from workbench.tools import run_command
+from workbench.tools import ToolFailure, run_command
 
 HOME = base.HOME
 PROFILE = "native-fastapiadmin-postgresql-v1"
@@ -178239,6 +178523,242 @@ DESCRIPTORS = (
     "frontend/web/package.json",
     "frontend/web/pnpm-lock.yaml",
 )
+DIAGNOSTIC_SCAN_BYTES = 65536
+DIAGNOSTIC_REPORT_BYTES = 4096
+REVIEWED_DOCKERFILE_SHA256 = "e15accbd38f1f929a6499d767868d190c95b6d1e9bb290849ac0dc1fb1d5f540"
+DIAGNOSTIC_STAGES = {
+    "prepare-profile-validation",
+    "prepare-input-validation",
+    "prepare-context",
+    "prepare-docker-build",
+    "prepare-image-validation",
+    "prepare-registry-start",
+    "prepare-image-push",
+    "prepare-published-image-validation",
+    "prepare-manifest-validation",
+    "prepare-final-identity-validation",
+    "prepare-readiness-write",
+    "register-profile-validation",
+    "register-worker-execution",
+    "register-worker-profile-validation",
+    "register-worker-credential-read",
+    "register-worker-environment-validation",
+    "register-worker-loopback-guard",
+    "register-worker-client-create",
+    "register-worker-snapshot-lookup",
+    "register-worker-snapshot-create",
+    "register-worker-snapshot-validation",
+    "register-worker-client-close",
+    "register-worker-final-identity-validation",
+    "register-worker-environment-write",
+}
+REVIEWED_RUNS = (
+    ("native-system", "system-packages"),
+    ("native-system", "node-tooling"),
+    ("dependency-builder", "build-system-packages"),
+    ("dependency-builder", "fetch-native-sources"),
+    ("dependency-builder", "seal-build-tools"),
+    ("dependency-builder", "build-native-sources"),
+    ("dependency-builder", "prepare-install-directories"),
+    ("dependency-builder", "install-python-dependencies"),
+    ("dependency-builder", "install-node-dependencies"),
+    ("dependency-builder", "collect-dependency-metadata"),
+    ("stage-3", "seal-runtime-image"),
+)
+
+
+def diagnostic_log(exc):
+    """Inspect bounded subprocess output only; never stringify arbitrary errors."""
+    if isinstance(exc, (subprocess.CalledProcessError, subprocess.TimeoutExpired)):
+        streams = (exc.stdout, exc.stderr)
+    elif isinstance(exc, ToolFailure):
+        streams = (getattr(exc, "log", None),)
+    else:
+        streams = ()
+    budget = DIAGNOSTIC_SCAN_BYTES // max(1, len(streams))
+    chunks, truncated = [], False
+    for value in streams:
+        if type(value) not in (bytes, str):
+            continue
+        truncated |= len(value) > budget
+        value = value[-budget:]
+        raw = value.encode("utf-8", errors="replace") if type(value) is str else value
+        truncated |= len(raw) > budget
+        chunks.append(raw[-budget:])
+    raw = b"".join(chunks)
+    return raw.decode("utf-8", errors="replace"), len(raw), truncated
+
+
+def reviewed_run_commands():
+    """Match complete commands from the fixed reviewed recipe, never log text."""
+    try:
+        with (ROOT / DOCKERFILE).open("rb") as source:
+            raw = source.read(DIAGNOSTIC_SCAN_BYTES + 1)
+    except OSError:
+        return {}
+    if (
+        len(raw) > DIAGNOSTIC_SCAN_BYTES
+        or hashlib.sha256(raw).hexdigest() != REVIEWED_DOCKERFILE_SHA256
+    ):
+        return {}
+    lines = raw.decode("utf-8").replace("\\\n", " ").splitlines()
+    commands = [line.removeprefix("RUN ") for line in lines if line.startswith("RUN ")]
+    if len(commands) != len(REVIEWED_RUNS):
+        return {}
+    return {
+        (stage, normalized_run(command)): identifier
+        for (stage, identifier), command in zip(REVIEWED_RUNS, commands, strict=True)
+    }
+
+
+def normalized_run(command):
+    return " ".join(command.removeprefix("--network=none ").replace("\\\n", " ").split())
+
+
+def build_failure_facts(text):
+    """Return finite labels only, never captured paths, commands, versions or URLs."""
+    commands = reviewed_run_commands()
+    result = {"stage": "unknown", "run": "unknown", "categories": []}
+    headers = {}
+    for line in text.splitlines():
+        match = re.fullmatch(r"#([0-9]{1,6}) \[([^\]]{1,64}) [0-9]+/[0-9]+\] RUN (.{1,4096})", line)
+        if match:
+            number, stage, command = match.groups()
+            identifier = commands.get((stage, normalized_run(command)))
+            if identifier:
+                headers[number] = (stage, identifier)
+        failed = re.match(r"#([0-9]{1,6}) ERROR:", line)
+        if failed and failed[1] in headers:
+            result["stage"], result["run"] = headers[failed[1]]
+        footer = re.fullmatch(r"\s*> \[([^\]]{1,64}) [0-9]+/[0-9]+\] RUN (.{1,4096}):", line)
+        if footer:
+            stage, command = footer.groups()
+            identifier = commands.get((stage, normalized_run(command)))
+            if identifier:
+                result["stage"], result["run"] = stage, identifier
+        # BuildKit's terminal process error uses a quoted/escaped shell command.
+        # Decode only that bounded string, then require a unique full recipe match.
+        marker = 'process "'
+        start = line.find(marker)
+        end = line.rfind('" did not complete successfully: exit code: ')
+        if start >= 0 and end > start and end - start <= 8192:
+            try:
+                process = json.loads(line[start + len("process ") : end + 1])
+            except ValueError, UnicodeError:
+                continue
+            if type(process) is str and process.startswith("/bin/sh -c "):
+                command = normalized_run(process.removeprefix("/bin/sh -c "))
+                matches = [
+                    (stage, run) for (stage, text), run in commands.items() if text == command
+                ]
+                if len(matches) == 1:
+                    result["stage"], result["run"] = matches[0]
+    lower = text.lower()
+    permission = "permission denied" in lower or "os error 13" in lower
+    signatures = {
+        "permission-denied": permission,
+        "cache-permission-denied": permission and "cache" in lower,
+        "uv-cli-rejected": "unexpected argument" in lower and "usage: uv " in lower,
+        "source-build-failed": result["run"] == "build-native-sources"
+        and any(
+            value in lower
+            for value in ("failed to build", "build backend failed", "failed building wheel")
+        ),
+        "compiler-failed": "could not compile" in lower
+        or bool(re.search(r"error: command .{0,128}(?:gcc|cc|clang).{0,128}failed", lower)),
+        "rust-dependency-failed": "failed to get" in lower
+        and "as a dependency of package" in lower,
+        "python-version-unsupported": "configured python interpreter version" in lower
+        and "newer than pyo3" in lower,
+        "offline-dependency-missing": "offline" in lower
+        and any(
+            value in lower for value in ("no matching package named", "not found in the cache")
+        ),
+        "dependency-hash-mismatch": any(
+            value in lower for value in ("hash mismatch", "checksum mismatch")
+        ),
+        "registry-fetch-failed": "failed to download" in lower or "failed to fetch" in lower,
+        "node-install-failed": any(
+            value in lower
+            for value in ("err_pnpm_fetch_", "err_pnpm_offline_", "err_pnpm_outdated_lockfile")
+        ),
+        "image-seal-rejected": any(
+            value in lower
+            for value in (
+                "dependency symlink escapes",
+                "hardlinked dependency",
+                "unsafe entry during dependency sealing",
+                "dependency must be root-owned",
+                "dependency is application-writable",
+            )
+        ),
+    }
+    result["categories"] = [name for name, matched in signatures.items() if matched] or ["unknown"]
+    return result
+
+
+def failure_diagnostic(progress, exc):
+    code = getattr(exc, "returncode", None)
+    code = code if type(code) is int and -(2**31) <= code < 2**31 else None
+    timed_out = (
+        isinstance(exc, subprocess.TimeoutExpired) or getattr(exc, "timed_out", None) is True
+    )
+    category = "unexpected"
+    for error_type, label in (
+        (subprocess.TimeoutExpired, "timeout"),
+        (subprocess.CalledProcessError, "subprocess-exit"),
+        (ToolFailure, "tool-exit"),
+        (ValueError, "validation"),
+        (OSError, "os-error"),
+    ):
+        if isinstance(exc, error_type):
+            category = label
+            break
+    stage = progress.get("stage")
+    stage = stage if type(stage) is str and stage in DIAGNOSTIC_STAGES else "unknown"
+    action = progress.get("action")
+    action = (
+        action
+        if type(action) is str and action in {"prepare", "register", "register-worker"}
+        else "unknown"
+    )
+    report = {
+        "schema": 1,
+        "action": action,
+        "stage": stage,
+        "status": "failed",
+        "passed": False,
+        "affects_acceptance": False,
+        "error": {"category": category, "returncode": code, "timed_out": timed_out},
+    }
+    if stage == "prepare-docker-build":
+        text, scanned, truncated = diagnostic_log(exc)
+        report["build"] = {
+            **build_failure_facts(text),
+            "scanned_bytes": scanned,
+            "truncated": truncated,
+        }
+    return report
+
+
+@contextmanager
+def diagnostic_scope(path, action):
+    progress = {"action": action, "stage": action + "-profile-validation"}
+    try:
+        yield progress
+    except Exception as exc:
+        if path is not None:
+            try:
+                body = json.dumps(failure_diagnostic(progress, exc), sort_keys=True) + "\n"
+                if len(body.encode("utf-8")) > DIAGNOSTIC_REPORT_BYTES:
+                    raise ValueError("Native diagnostic exceeds its fixed budget")
+                Path(path).parent.mkdir(parents=True, exist_ok=True)
+                # Preserve a more precise worker report; never overwrite readiness,
+                # credentials, symlinks, or any pre-existing diagnostic file.
+                write_private_new(path, body)
+            except Exception:
+                print("Native diagnostic could not be saved; the original failure is preserved.")
+        raise
 
 
 def recipe_identity():
@@ -178420,12 +178940,18 @@ def write_private_new(path, text):
         os.fsync(output.fileno())
 
 
-def prepare(product, directory=HOME):
+def prepare(product, directory=HOME, *, diagnostics=None):
+    with diagnostic_scope(diagnostics, "prepare") as progress:
+        return _prepare(product, directory, progress)
+
+
+def _prepare(product, directory, progress):
     directory = base.profile_directory(directory)
     # The verified root-control Runner is reused unchanged, never rebuilt here.
     foundation = base_identity(base.require_profile(directory))
     if any((directory / name).exists() for name in (LOCK, ENVIRONMENT)):
         raise ValueError("Native setup refuses to overwrite an existing profile or environment")
+    progress["stage"] = "prepare-input-validation"
     inputs = product_inputs(product)
     identity, recipes = recipe_identity()
     stamp = native_stamp(identity, foundation, inputs)
@@ -178442,6 +178968,7 @@ def prepare(product, directory=HOME):
         "resources": dict(RESOURCES),
     }
     with tempfile.TemporaryDirectory(prefix="native-capability-build-", dir=directory) as temporary:
+        progress["stage"] = "prepare-context"
         context = Path(temporary)
         prepare_context(product, context, inputs)
         argv = [
@@ -178468,12 +178995,17 @@ def prepare(product, directory=HOME):
         for name, value in labels.items():
             argv += ["--label", name + "=" + value]
         argv += ["--tag", tag, str(context)]
+        progress["stage"] = "prepare-docker-build"
         local.docker(*argv, timeout=3600)
+    progress["stage"] = "prepare-image-validation"
     image = base.inspect_image(tag)
     validate_image(image, record)
+    progress["stage"] = "prepare-registry-start"
     base.compose(directory, "up", "-d", "--pull", "never", "registry", "gateway")
     local.wait_for_registry()
+    progress["stage"] = "prepare-image-push"
     local.docker("push", tag, timeout=1200)
+    progress["stage"] = "prepare-published-image-validation"
     published = base.inspect_image(tag)
     validate_image(published, record)
     prefix = "127.0.0.1:6000/" + FAMILY + "@sha256:"
@@ -178496,9 +179028,11 @@ def prepare(product, directory=HOME):
         "working_dir": base.CONTROL_WORKDIR,
         "recipe_sha256": recipes[DOCKERFILE],
     }
+    progress["stage"] = "prepare-manifest-validation"
     record["snapshot"]["dependency_manifest"] = base.inspect_dependency_manifest(
         image["Id"], "fastapiadmin", inputs["descriptors"]
     )
+    progress["stage"] = "prepare-final-identity-validation"
     if (
         base_identity(base.require_profile(directory)) != foundation
         or product_inputs(product) != inputs
@@ -178506,6 +179040,7 @@ def prepare(product, directory=HOME):
     ):
         raise ValueError("Native build inputs or base profile changed during preparation")
     # Publish readiness last. Base snapshot-image.json/workbench.env are untouched.
+    progress["stage"] = "prepare-readiness-write"
     write_private_new(directory / LOCK, json.dumps(record, indent=2, ensure_ascii=False) + "\n")
     return record
 
@@ -178569,30 +179104,46 @@ def environment_text(key, snapshot):
     )
 
 
-def register(directory=HOME):
+def register(directory=HOME, *, diagnostics=None):
+    with diagnostic_scope(diagnostics, "register") as progress:
+        return _register(directory, progress, diagnostics)
+
+
+def _register(directory, progress, diagnostics):
     directory = base.profile_directory(directory)
     require_native_profile(directory)
+    command = [
+        sys.executable,
+        "-m",
+        "scripts.daytona_native_capability_profile",
+        "register-worker",
+        "--directory",
+        str(directory),
+    ]
+    if diagnostics is not None:
+        command += ["--diagnostics", str(Path(diagnostics).absolute())]
+    progress["stage"] = "register-worker-execution"
     run_command(
-        [
-            sys.executable,
-            "-m",
-            "scripts.daytona_native_capability_profile",
-            "register-worker",
-            "--directory",
-            str(directory),
-        ],
+        command,
         ROOT,
         timeout=720,
         heartbeat="Local native snapshot registration",
     )
 
 
-def register_worker(directory=HOME):
+def register_worker(directory=HOME, *, diagnostics=None):
+    with diagnostic_scope(diagnostics, "register-worker") as progress:
+        return _register_worker(directory, progress)
+
+
+def _register_worker(directory, progress):
     directory = base.profile_directory(directory)
     record = require_native_profile(directory)
     metadata = record["snapshot"]
+    progress["stage"] = "register-worker-credential-read"
     key = json.loads((directory / "api-key.json").read_text(encoding="utf-8"))["value"]
     content = environment_text(key, metadata["snapshot"])
+    progress["stage"] = "register-worker-environment-validation"
     path = inside(directory, ENVIRONMENT)
     if path.exists() and os.name != "nt" and path.stat().st_mode & 0o777 != 0o600:
         raise ValueError("Existing native environment does not have private permissions")
@@ -178600,9 +179151,11 @@ def register_worker(directory=HOME):
         raise ValueError(
             "Native environment already exists with different values; refusing overwrite"
         )
+    progress["stage"] = "register-worker-loopback-guard"
     install_loopback_guard()
     from daytona import CreateSnapshotParams, Resources
 
+    progress["stage"] = "register-worker-client-create"
     settings = Settings(
         _env_file=None,
         daytona_api_key=SecretStr(key),
@@ -178611,8 +179164,10 @@ def register_worker(directory=HOME):
     )
     client = client_for(settings)
     try:
+        progress["stage"] = "register-worker-snapshot-lookup"
         existing = snapshot_named(client.snapshot, metadata["snapshot"])
         if existing is None:
+            progress["stage"] = "register-worker-snapshot-create"
             existing = client.snapshot.create(
                 CreateSnapshotParams(
                     name=metadata["snapshot"],
@@ -178622,6 +179177,7 @@ def register_worker(directory=HOME):
                 ),
                 timeout=600,
             )
+        progress["stage"] = "register-worker-snapshot-validation"
         if (
             existing.name != metadata["snapshot"]
             or existing.image_name != metadata["digest"]
@@ -178633,9 +179189,14 @@ def register_worker(directory=HOME):
         ):
             raise ValueError("Existing native snapshot differs in identity, state or resources")
     finally:
+        previous = progress["stage"]
+        progress["stage"] = "register-worker-client-close"
         close_client(client)
+        progress["stage"] = previous
+    progress["stage"] = "register-worker-final-identity-validation"
     require_native_profile(directory, metadata["snapshot"])
     if not path.exists():
+        progress["stage"] = "register-worker-environment-write"
         write_private_new(path, content)
 
 
@@ -178644,15 +179205,19 @@ def main():
     parser.add_argument("action", choices=["prepare", "register", "register-worker", "check"])
     parser.add_argument("--directory", type=Path, default=HOME)
     parser.add_argument("--product", type=Path)
+    parser.add_argument("--diagnostics", type=Path)
     args = parser.parse_args()
+    options = {"diagnostics": args.diagnostics} if args.diagnostics is not None else {}
     if args.action == "prepare":
         if args.product is None:
             parser.error("prepare requires --product pointing to an already-generated product")
-        prepare(args.product, args.directory)
+        prepare(args.product, args.directory, **options)
     elif args.action == "check":
         require_native_profile(args.directory)
     else:
-        {"register": register, "register-worker": register_worker}[args.action](args.directory)
+        {"register": register, "register-worker": register_worker}[args.action](
+            args.directory, **options
+        )
     print(
         "Native snapshot identity step completed; runtime/isolation acceptance is still required."
     )
@@ -183858,7 +184423,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/native-capability-profile.yml sha256: c34c8a2ef66d7353cfbafde82ab497bd18e9c9b8db13d64d4da6c3aa7631974e -->
+<!-- source-file: .github/workflows/native-capability-profile.yml sha256: fb1cdb9a4be1ad516d3ae0f9e57994dcccf4d14a5839a1147c7bf7d9c0cb3f29 -->
 ````yaml
 name: Authored native PostgreSQL isolation profile
 on:
@@ -183992,8 +184557,8 @@ jobs:
         run: uv run python -m scripts.ci_capability_security
       - name: Build and register exact native offline dependency profile
         run: |
-          uv run python -m scripts.daytona_native_capability_profile prepare --product .native/tool-product
-          uv run python -m scripts.daytona_native_capability_profile register
+          uv run python -m scripts.daytona_native_capability_profile prepare --product .native/tool-product --diagnostics reports/native-profile-prepare-diagnostic.json
+          uv run python -m scripts.daytona_native_capability_profile register --diagnostics reports/native-profile-register-diagnostic.json
       - name: Require native factory PostgreSQL Redis Vue browser and isolation proof
         run: uv run python -m scripts.ci_native_capability_security
       - name: Require independent authored contest oracle against native source
@@ -184049,6 +184614,7 @@ jobs:
             reports/capability-browser-isolation.json
             reports/capability-browser-raw-syscalls.json
             reports/native-capability-security*.json
+            reports/native-profile-*-diagnostic.json
             reports/contest-capability*.json
 ````
 
@@ -194068,7 +194634,7 @@ and pass these trusted gates; an authored fixture must never be relabeled as tha
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/custom-source-isolation.md sha256: 89a27d7d66449fa7845e09c056c2d938c13c822652a6737d31675d42a72da7dc -->
+<!-- source-file: docs/custom-source-isolation.md sha256: fe2d0a0b5c424b0afa5cc93ece984ff758aed3bba37ec87e06db8ee4815a6419 -->
 ````markdown
 # 自定义源码执行：有证据的启用门
 
@@ -194197,6 +194763,23 @@ tmpfs 随容器停止清空。因此候选 profile 记录的是 `restart_kind=ap
 新库重放只重建本次沙箱的临时 `rnd_product`：先确认应用 UID 没有存活线程，核对
 控制端保存的沙箱 ID、PG 集群标识、数据目录和原 OID；重建后确认同集群的新 OID、
 空业务表，再重放请求。没有使用用户数据库或候选指定的连接配置。
+
+## Bounded native preparation diagnostics
+
+Native preparation and registration may emit separate failure-only JSON receipts
+through the explicit `--diagnostics` option. The workflow archives these receipts
+alongside the existing profile evidence. They contain finite stage, error and
+reviewed Dockerfile RUN identifiers, bounded return codes and booleans only. Build
+output scanning is limited to 64 KiB and each receipt to 4 KiB; raw logs, exception
+messages, commands, dependency names, paths, URLs and environment values are never
+copied into these new receipts. Unknown or changed recipe commands remain unknown.
+
+The diagnostic writer creates files exclusively and preserves a more precise
+worker receipt. Failure to save a diagnostic never converts the original failure
+into success. No build timeout, dependency lock, network isolation, non-root build
+condition or readiness check is relaxed. Diagnostic receipts are not readiness or
+acceptance evidence, and later native runtime stages remain untested when preparation
+fails.
 
 ## Durable extension workflow and coverage levels
 

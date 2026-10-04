@@ -7,13 +7,16 @@ The warmed image is not runtime, browser, database or isolation acceptance evide
 
 import argparse
 import copy
+import hashlib
 import json
 import os
 import re
 import shutil
+import subprocess
 import sys
 import tempfile
 import tomllib
+from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -30,7 +33,7 @@ from workbench.filesystem import files, inside, manifest, sha
 from workbench.local_only import install_loopback_guard
 from workbench.sandbox import client_for, close_client
 from workbench.settings import ROOT, Settings
-from workbench.tools import run_command
+from workbench.tools import ToolFailure, run_command
 
 HOME = base.HOME
 PROFILE = "native-fastapiadmin-postgresql-v1"
@@ -64,6 +67,242 @@ DESCRIPTORS = (
     "frontend/web/package.json",
     "frontend/web/pnpm-lock.yaml",
 )
+DIAGNOSTIC_SCAN_BYTES = 65536
+DIAGNOSTIC_REPORT_BYTES = 4096
+REVIEWED_DOCKERFILE_SHA256 = "e15accbd38f1f929a6499d767868d190c95b6d1e9bb290849ac0dc1fb1d5f540"
+DIAGNOSTIC_STAGES = {
+    "prepare-profile-validation",
+    "prepare-input-validation",
+    "prepare-context",
+    "prepare-docker-build",
+    "prepare-image-validation",
+    "prepare-registry-start",
+    "prepare-image-push",
+    "prepare-published-image-validation",
+    "prepare-manifest-validation",
+    "prepare-final-identity-validation",
+    "prepare-readiness-write",
+    "register-profile-validation",
+    "register-worker-execution",
+    "register-worker-profile-validation",
+    "register-worker-credential-read",
+    "register-worker-environment-validation",
+    "register-worker-loopback-guard",
+    "register-worker-client-create",
+    "register-worker-snapshot-lookup",
+    "register-worker-snapshot-create",
+    "register-worker-snapshot-validation",
+    "register-worker-client-close",
+    "register-worker-final-identity-validation",
+    "register-worker-environment-write",
+}
+REVIEWED_RUNS = (
+    ("native-system", "system-packages"),
+    ("native-system", "node-tooling"),
+    ("dependency-builder", "build-system-packages"),
+    ("dependency-builder", "fetch-native-sources"),
+    ("dependency-builder", "seal-build-tools"),
+    ("dependency-builder", "build-native-sources"),
+    ("dependency-builder", "prepare-install-directories"),
+    ("dependency-builder", "install-python-dependencies"),
+    ("dependency-builder", "install-node-dependencies"),
+    ("dependency-builder", "collect-dependency-metadata"),
+    ("stage-3", "seal-runtime-image"),
+)
+
+
+def diagnostic_log(exc):
+    """Inspect bounded subprocess output only; never stringify arbitrary errors."""
+    if isinstance(exc, (subprocess.CalledProcessError, subprocess.TimeoutExpired)):
+        streams = (exc.stdout, exc.stderr)
+    elif isinstance(exc, ToolFailure):
+        streams = (getattr(exc, "log", None),)
+    else:
+        streams = ()
+    budget = DIAGNOSTIC_SCAN_BYTES // max(1, len(streams))
+    chunks, truncated = [], False
+    for value in streams:
+        if type(value) not in (bytes, str):
+            continue
+        truncated |= len(value) > budget
+        value = value[-budget:]
+        raw = value.encode("utf-8", errors="replace") if type(value) is str else value
+        truncated |= len(raw) > budget
+        chunks.append(raw[-budget:])
+    raw = b"".join(chunks)
+    return raw.decode("utf-8", errors="replace"), len(raw), truncated
+
+
+def reviewed_run_commands():
+    """Match complete commands from the fixed reviewed recipe, never log text."""
+    try:
+        with (ROOT / DOCKERFILE).open("rb") as source:
+            raw = source.read(DIAGNOSTIC_SCAN_BYTES + 1)
+    except OSError:
+        return {}
+    if (
+        len(raw) > DIAGNOSTIC_SCAN_BYTES
+        or hashlib.sha256(raw).hexdigest() != REVIEWED_DOCKERFILE_SHA256
+    ):
+        return {}
+    lines = raw.decode("utf-8").replace("\\\n", " ").splitlines()
+    commands = [line.removeprefix("RUN ") for line in lines if line.startswith("RUN ")]
+    if len(commands) != len(REVIEWED_RUNS):
+        return {}
+    return {
+        (stage, normalized_run(command)): identifier
+        for (stage, identifier), command in zip(REVIEWED_RUNS, commands, strict=True)
+    }
+
+
+def normalized_run(command):
+    return " ".join(command.removeprefix("--network=none ").replace("\\\n", " ").split())
+
+
+def build_failure_facts(text):
+    """Return finite labels only, never captured paths, commands, versions or URLs."""
+    commands = reviewed_run_commands()
+    result = {"stage": "unknown", "run": "unknown", "categories": []}
+    headers = {}
+    for line in text.splitlines():
+        match = re.fullmatch(r"#([0-9]{1,6}) \[([^\]]{1,64}) [0-9]+/[0-9]+\] RUN (.{1,4096})", line)
+        if match:
+            number, stage, command = match.groups()
+            identifier = commands.get((stage, normalized_run(command)))
+            if identifier:
+                headers[number] = (stage, identifier)
+        failed = re.match(r"#([0-9]{1,6}) ERROR:", line)
+        if failed and failed[1] in headers:
+            result["stage"], result["run"] = headers[failed[1]]
+        footer = re.fullmatch(r"\s*> \[([^\]]{1,64}) [0-9]+/[0-9]+\] RUN (.{1,4096}):", line)
+        if footer:
+            stage, command = footer.groups()
+            identifier = commands.get((stage, normalized_run(command)))
+            if identifier:
+                result["stage"], result["run"] = stage, identifier
+        # BuildKit's terminal process error uses a quoted/escaped shell command.
+        # Decode only that bounded string, then require a unique full recipe match.
+        marker = 'process "'
+        start = line.find(marker)
+        end = line.rfind('" did not complete successfully: exit code: ')
+        if start >= 0 and end > start and end - start <= 8192:
+            try:
+                process = json.loads(line[start + len("process ") : end + 1])
+            except ValueError, UnicodeError:
+                continue
+            if type(process) is str and process.startswith("/bin/sh -c "):
+                command = normalized_run(process.removeprefix("/bin/sh -c "))
+                matches = [
+                    (stage, run) for (stage, text), run in commands.items() if text == command
+                ]
+                if len(matches) == 1:
+                    result["stage"], result["run"] = matches[0]
+    lower = text.lower()
+    permission = "permission denied" in lower or "os error 13" in lower
+    signatures = {
+        "permission-denied": permission,
+        "cache-permission-denied": permission and "cache" in lower,
+        "uv-cli-rejected": "unexpected argument" in lower and "usage: uv " in lower,
+        "source-build-failed": result["run"] == "build-native-sources"
+        and any(
+            value in lower
+            for value in ("failed to build", "build backend failed", "failed building wheel")
+        ),
+        "compiler-failed": "could not compile" in lower
+        or bool(re.search(r"error: command .{0,128}(?:gcc|cc|clang).{0,128}failed", lower)),
+        "rust-dependency-failed": "failed to get" in lower
+        and "as a dependency of package" in lower,
+        "python-version-unsupported": "configured python interpreter version" in lower
+        and "newer than pyo3" in lower,
+        "offline-dependency-missing": "offline" in lower
+        and any(
+            value in lower for value in ("no matching package named", "not found in the cache")
+        ),
+        "dependency-hash-mismatch": any(
+            value in lower for value in ("hash mismatch", "checksum mismatch")
+        ),
+        "registry-fetch-failed": "failed to download" in lower or "failed to fetch" in lower,
+        "node-install-failed": any(
+            value in lower
+            for value in ("err_pnpm_fetch_", "err_pnpm_offline_", "err_pnpm_outdated_lockfile")
+        ),
+        "image-seal-rejected": any(
+            value in lower
+            for value in (
+                "dependency symlink escapes",
+                "hardlinked dependency",
+                "unsafe entry during dependency sealing",
+                "dependency must be root-owned",
+                "dependency is application-writable",
+            )
+        ),
+    }
+    result["categories"] = [name for name, matched in signatures.items() if matched] or ["unknown"]
+    return result
+
+
+def failure_diagnostic(progress, exc):
+    code = getattr(exc, "returncode", None)
+    code = code if type(code) is int and -(2**31) <= code < 2**31 else None
+    timed_out = (
+        isinstance(exc, subprocess.TimeoutExpired) or getattr(exc, "timed_out", None) is True
+    )
+    category = "unexpected"
+    for error_type, label in (
+        (subprocess.TimeoutExpired, "timeout"),
+        (subprocess.CalledProcessError, "subprocess-exit"),
+        (ToolFailure, "tool-exit"),
+        (ValueError, "validation"),
+        (OSError, "os-error"),
+    ):
+        if isinstance(exc, error_type):
+            category = label
+            break
+    stage = progress.get("stage")
+    stage = stage if type(stage) is str and stage in DIAGNOSTIC_STAGES else "unknown"
+    action = progress.get("action")
+    action = (
+        action
+        if type(action) is str and action in {"prepare", "register", "register-worker"}
+        else "unknown"
+    )
+    report = {
+        "schema": 1,
+        "action": action,
+        "stage": stage,
+        "status": "failed",
+        "passed": False,
+        "affects_acceptance": False,
+        "error": {"category": category, "returncode": code, "timed_out": timed_out},
+    }
+    if stage == "prepare-docker-build":
+        text, scanned, truncated = diagnostic_log(exc)
+        report["build"] = {
+            **build_failure_facts(text),
+            "scanned_bytes": scanned,
+            "truncated": truncated,
+        }
+    return report
+
+
+@contextmanager
+def diagnostic_scope(path, action):
+    progress = {"action": action, "stage": action + "-profile-validation"}
+    try:
+        yield progress
+    except Exception as exc:
+        if path is not None:
+            try:
+                body = json.dumps(failure_diagnostic(progress, exc), sort_keys=True) + "\n"
+                if len(body.encode("utf-8")) > DIAGNOSTIC_REPORT_BYTES:
+                    raise ValueError("Native diagnostic exceeds its fixed budget")
+                Path(path).parent.mkdir(parents=True, exist_ok=True)
+                # Preserve a more precise worker report; never overwrite readiness,
+                # credentials, symlinks, or any pre-existing diagnostic file.
+                write_private_new(path, body)
+            except Exception:
+                print("Native diagnostic could not be saved; the original failure is preserved.")
+        raise
 
 
 def recipe_identity():
@@ -245,12 +484,18 @@ def write_private_new(path, text):
         os.fsync(output.fileno())
 
 
-def prepare(product, directory=HOME):
+def prepare(product, directory=HOME, *, diagnostics=None):
+    with diagnostic_scope(diagnostics, "prepare") as progress:
+        return _prepare(product, directory, progress)
+
+
+def _prepare(product, directory, progress):
     directory = base.profile_directory(directory)
     # The verified root-control Runner is reused unchanged, never rebuilt here.
     foundation = base_identity(base.require_profile(directory))
     if any((directory / name).exists() for name in (LOCK, ENVIRONMENT)):
         raise ValueError("Native setup refuses to overwrite an existing profile or environment")
+    progress["stage"] = "prepare-input-validation"
     inputs = product_inputs(product)
     identity, recipes = recipe_identity()
     stamp = native_stamp(identity, foundation, inputs)
@@ -267,6 +512,7 @@ def prepare(product, directory=HOME):
         "resources": dict(RESOURCES),
     }
     with tempfile.TemporaryDirectory(prefix="native-capability-build-", dir=directory) as temporary:
+        progress["stage"] = "prepare-context"
         context = Path(temporary)
         prepare_context(product, context, inputs)
         argv = [
@@ -293,12 +539,17 @@ def prepare(product, directory=HOME):
         for name, value in labels.items():
             argv += ["--label", name + "=" + value]
         argv += ["--tag", tag, str(context)]
+        progress["stage"] = "prepare-docker-build"
         local.docker(*argv, timeout=3600)
+    progress["stage"] = "prepare-image-validation"
     image = base.inspect_image(tag)
     validate_image(image, record)
+    progress["stage"] = "prepare-registry-start"
     base.compose(directory, "up", "-d", "--pull", "never", "registry", "gateway")
     local.wait_for_registry()
+    progress["stage"] = "prepare-image-push"
     local.docker("push", tag, timeout=1200)
+    progress["stage"] = "prepare-published-image-validation"
     published = base.inspect_image(tag)
     validate_image(published, record)
     prefix = "127.0.0.1:6000/" + FAMILY + "@sha256:"
@@ -321,9 +572,11 @@ def prepare(product, directory=HOME):
         "working_dir": base.CONTROL_WORKDIR,
         "recipe_sha256": recipes[DOCKERFILE],
     }
+    progress["stage"] = "prepare-manifest-validation"
     record["snapshot"]["dependency_manifest"] = base.inspect_dependency_manifest(
         image["Id"], "fastapiadmin", inputs["descriptors"]
     )
+    progress["stage"] = "prepare-final-identity-validation"
     if (
         base_identity(base.require_profile(directory)) != foundation
         or product_inputs(product) != inputs
@@ -331,6 +584,7 @@ def prepare(product, directory=HOME):
     ):
         raise ValueError("Native build inputs or base profile changed during preparation")
     # Publish readiness last. Base snapshot-image.json/workbench.env are untouched.
+    progress["stage"] = "prepare-readiness-write"
     write_private_new(directory / LOCK, json.dumps(record, indent=2, ensure_ascii=False) + "\n")
     return record
 
@@ -394,30 +648,46 @@ def environment_text(key, snapshot):
     )
 
 
-def register(directory=HOME):
+def register(directory=HOME, *, diagnostics=None):
+    with diagnostic_scope(diagnostics, "register") as progress:
+        return _register(directory, progress, diagnostics)
+
+
+def _register(directory, progress, diagnostics):
     directory = base.profile_directory(directory)
     require_native_profile(directory)
+    command = [
+        sys.executable,
+        "-m",
+        "scripts.daytona_native_capability_profile",
+        "register-worker",
+        "--directory",
+        str(directory),
+    ]
+    if diagnostics is not None:
+        command += ["--diagnostics", str(Path(diagnostics).absolute())]
+    progress["stage"] = "register-worker-execution"
     run_command(
-        [
-            sys.executable,
-            "-m",
-            "scripts.daytona_native_capability_profile",
-            "register-worker",
-            "--directory",
-            str(directory),
-        ],
+        command,
         ROOT,
         timeout=720,
         heartbeat="Local native snapshot registration",
     )
 
 
-def register_worker(directory=HOME):
+def register_worker(directory=HOME, *, diagnostics=None):
+    with diagnostic_scope(diagnostics, "register-worker") as progress:
+        return _register_worker(directory, progress)
+
+
+def _register_worker(directory, progress):
     directory = base.profile_directory(directory)
     record = require_native_profile(directory)
     metadata = record["snapshot"]
+    progress["stage"] = "register-worker-credential-read"
     key = json.loads((directory / "api-key.json").read_text(encoding="utf-8"))["value"]
     content = environment_text(key, metadata["snapshot"])
+    progress["stage"] = "register-worker-environment-validation"
     path = inside(directory, ENVIRONMENT)
     if path.exists() and os.name != "nt" and path.stat().st_mode & 0o777 != 0o600:
         raise ValueError("Existing native environment does not have private permissions")
@@ -425,9 +695,11 @@ def register_worker(directory=HOME):
         raise ValueError(
             "Native environment already exists with different values; refusing overwrite"
         )
+    progress["stage"] = "register-worker-loopback-guard"
     install_loopback_guard()
     from daytona import CreateSnapshotParams, Resources
 
+    progress["stage"] = "register-worker-client-create"
     settings = Settings(
         _env_file=None,
         daytona_api_key=SecretStr(key),
@@ -436,8 +708,10 @@ def register_worker(directory=HOME):
     )
     client = client_for(settings)
     try:
+        progress["stage"] = "register-worker-snapshot-lookup"
         existing = snapshot_named(client.snapshot, metadata["snapshot"])
         if existing is None:
+            progress["stage"] = "register-worker-snapshot-create"
             existing = client.snapshot.create(
                 CreateSnapshotParams(
                     name=metadata["snapshot"],
@@ -447,6 +721,7 @@ def register_worker(directory=HOME):
                 ),
                 timeout=600,
             )
+        progress["stage"] = "register-worker-snapshot-validation"
         if (
             existing.name != metadata["snapshot"]
             or existing.image_name != metadata["digest"]
@@ -458,9 +733,14 @@ def register_worker(directory=HOME):
         ):
             raise ValueError("Existing native snapshot differs in identity, state or resources")
     finally:
+        previous = progress["stage"]
+        progress["stage"] = "register-worker-client-close"
         close_client(client)
+        progress["stage"] = previous
+    progress["stage"] = "register-worker-final-identity-validation"
     require_native_profile(directory, metadata["snapshot"])
     if not path.exists():
+        progress["stage"] = "register-worker-environment-write"
         write_private_new(path, content)
 
 
@@ -469,15 +749,19 @@ def main():
     parser.add_argument("action", choices=["prepare", "register", "register-worker", "check"])
     parser.add_argument("--directory", type=Path, default=HOME)
     parser.add_argument("--product", type=Path)
+    parser.add_argument("--diagnostics", type=Path)
     args = parser.parse_args()
+    options = {"diagnostics": args.diagnostics} if args.diagnostics is not None else {}
     if args.action == "prepare":
         if args.product is None:
             parser.error("prepare requires --product pointing to an already-generated product")
-        prepare(args.product, args.directory)
+        prepare(args.product, args.directory, **options)
     elif args.action == "check":
         require_native_profile(args.directory)
     else:
-        {"register": register, "register-worker": register_worker}[args.action](args.directory)
+        {"register": register, "register-worker": register_worker}[args.action](
+            args.directory, **options
+        )
     print(
         "Native snapshot identity step completed; runtime/isolation acceptance is still required."
     )

@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/native-capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L190。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/native-capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L191。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9770`。本段原文以LF换行结束。
+本段原始字节数：`9946`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/native-capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c34c8a2ef66d7353cfbafde82ab497bd18e9c9b8db13d64d4da6c3aa7631974e"} -->
+<!-- learning-source: {"path": ".github/workflows/native-capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fb1cdb9a4be1ad516d3ae0f9e57994dcccf4d14a5839a1147c7bf7d9c0cb3f29"} -->
 ````yaml
 # .github/workflows/native-capability-profile.yml
 name: Authored native PostgreSQL isolation profile
@@ -149,8 +149,8 @@ jobs:
         run: uv run python -m scripts.ci_capability_security
       - name: Build and register exact native offline dependency profile
         run: |
-          uv run python -m scripts.daytona_native_capability_profile prepare --product .native/tool-product
-          uv run python -m scripts.daytona_native_capability_profile register
+          uv run python -m scripts.daytona_native_capability_profile prepare --product .native/tool-product --diagnostics reports/native-profile-prepare-diagnostic.json
+          uv run python -m scripts.daytona_native_capability_profile register --diagnostics reports/native-profile-register-diagnostic.json
       - name: Require native factory PostgreSQL Redis Vue browser and isolation proof
         run: uv run python -m scripts.ci_native_capability_security
       - name: Require independent authored contest oracle against native source
@@ -206,5 +206,6 @@ jobs:
             reports/capability-browser-isolation.json
             reports/capability-browser-raw-syscalls.json
             reports/native-capability-security*.json
+            reports/native-profile-*-diagnostic.json
             reports/contest-capability*.json
 ````
