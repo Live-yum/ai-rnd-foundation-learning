@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/tests/capability.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L192。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/tests/capability.test.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L281。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6805`。本段原文以LF换行结束。
+本段原始字节数：`10248`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/tests/capability.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "19a0fb94f3c25cf1ce57d2fefaf1ad770b7b0046a70f7b430df14ac95867bcc7"} -->
+<!-- learning-source: {"path": "ui/tests/capability.test.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9b8210241a8e93c2382fe6474d90abeea889b572480e55b1da510fefc9366761"} -->
 ````typescript
 // ui/tests/capability.test.ts
 import { mount } from '@vue/test-utils'
@@ -207,6 +207,95 @@ it('keeps failed-attempt diagnostics and historical questions readable after the
   expect(wrapper.text()).toContain('无需重填已提交的回答')
   expect(wrapper.text()).not.toContain('暂无可展示的摘要')
   expect(wrapper.find('form.question-card').exists()).toBe(false)
+  wrapper.unmount()
+})
+
+it('keeps blocked design feedback usable and renders each tab content inside its panel', async () => {
+  state.run!.pending = {
+    gate_id: 'a'.repeat(64),
+    digest: 'b'.repeat(64),
+    version: 7,
+    stage: 'design',
+    actions: ['approve', 'revise', 'reject', 'recommend'],
+    can_approve: false,
+    data: {
+      blocked: ['实体 registration 字段 status 与框架保留字段冲突'],
+      plan: {
+        title: '竞赛报名',
+        entities: [{ name: 'registration', fields: [{ name: 'status' }] }],
+      },
+      tasks: [{ id: 'registration-module', title: '报名模块' }],
+    },
+  }
+  const wrapper = mount(RunView, {
+    props: { runId: 'saved-run', view: 'review' },
+    global: { plugins: [Antd] },
+  })
+  const field = wrapper.find('textarea[aria-label="审核修改意见"]')
+  expect(field.attributes('disabled')).toBeUndefined()
+  const submit = wrapper.findAll('button').find((button) => button.text() === '提交修改意见')!
+  expect(submit.attributes('disabled')).toBeDefined()
+  await field.setValue('保留报名业务状态，修复框架字段冲突')
+  expect(submit.attributes('disabled')).toBeUndefined()
+  const approval = wrapper
+    .findAll('button')
+    .find((button) => button.text().includes('确认设计，开始生成'))!
+  expect(approval.attributes('disabled')).toBeDefined()
+  const dataTab = wrapper.findAll('[role="tab"]').find((tab) => tab.text() === '数据模型')!
+  await dataTab.trigger('click')
+  expect(wrapper.find('[role="tabpanel"][aria-hidden="false"]').text()).toContain('registration')
+  await submit.trigger('click')
+  expect(api).toHaveBeenCalledWith(
+    '/runs/saved-run/resume',
+    expect.objectContaining({
+      body: expect.objectContaining({
+        action: 'revise',
+        text: '保留报名业务状态，修复框架字段冲突',
+        version: 7,
+        digest: 'b'.repeat(64),
+      }),
+    }),
+  )
+  wrapper.unmount()
+})
+
+it('labels generic extension READY as reviewed executable contract, not full semantic proof', () => {
+  state.run!.status = 'READY'
+  state.run!.pending = null
+  state.run!.result = {
+    coverage_level: 'reviewed-executable-contract',
+    full_request_complete: null,
+    source_units: [{ id: 'source-0-0', text: '保留原始业务要求' }],
+  }
+  const wrapper = mount(RunView, {
+    props: { runId: 'saved-run', view: 'delivery' },
+    global: { plugins: [Antd] },
+  })
+  expect(wrapper.find('.coverage-notice').text()).toContain('仅证明已审阅可执行合同')
+  expect(wrapper.find('.coverage-notice').text()).toContain('不代表全部原始需求')
+  expect(wrapper.text()).toContain('保留原始业务要求')
+  wrapper.unmount()
+})
+
+it('keeps bounded contest evidence explicitly incomplete and download locked', () => {
+  state.run!.pending = null
+  state.report = {
+    'extension-coverage.json': {
+      coverage_level: 'bounded-business-slice',
+      full_request_complete: false,
+      remaining_obligations: ['original.full_source'],
+    },
+  }
+  const wrapper = mount(RunView, {
+    props: { runId: 'saved-run', view: 'delivery' },
+    global: { plugins: [Antd] },
+  })
+  expect(wrapper.find('.coverage-notice').text()).toContain('不能交付')
+  expect(wrapper.text()).toContain('下载锁定')
+  const download = wrapper
+    .findAll('button')
+    .find((button) => button.text().includes('下载完整交付包'))
+  expect(download?.attributes('disabled')).toBeDefined()
   wrapper.unmount()
 })
 ````

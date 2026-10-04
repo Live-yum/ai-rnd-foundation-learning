@@ -15,20 +15,20 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `make_plan`（L125–L272）：接收`payload`。 控制顺序：L128遍历`("owner", "member", "outsider")`。 调用`CapabilityPlan.model_validate`。 返回路径：L216的`CapabilityPlan.model_validate( { "title": "独立资料协作", "summary": "先构建登录和持久化，再独立实现团队共享与身份投影",…`。
-- `CapabilityFixture`（L275–L318）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `CapabilityFixture.__init__`（L276–L279）：接收`fail_first_sharing`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `CapabilityFixture.complete`（L281–L318）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L283按`schema is FeatureOutline`分支；L285按`schema is Plan`分支；L287按`schema is CapabilityOutline`分支；L289按`schema is CapabilityScenarioBatch`分支；L295按`schema is not CapabilityEdits`分支；L296抛异常，停止当前正常路径；L297按`payload["task"]["id"] == "accounts_records"`分支；L308按`self.fail_first_sharing and self.sharing_calls == 1`分支。 调用`self.calls.append`、`fixture_feature_outline`、`make_plan`、`fixture_baseline`、`schema.model_validate`、`make_plan(payload).model_dump`、`schema`、`AssertionError`、`APP.replace( " # CUSTOM_ACCESS", " from access import readable\n …`等。 返回路径：L284的`fixture_feature_outline(make_plan(payload))`；L286的`fixture_baseline()`；L288的`schema.model_validate(make_plan(payload).model_dump(exclude={"scenarios"}))`。
-- `fixture_baseline`（L321–L335）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Plan.model_validate`。 返回路径：L322的`Plan.model_validate( { "title": "固定资料基础", "data_scope": "per_user", "entities": [ { "name"…`。
-- `fixture_feature_outline`（L338–L366）：接收`plan`。 调用`FeatureOutline.model_validate`、`plan.selection.model_dump`、`task.model_dump`。 返回路径：L339的`FeatureOutline.model_validate( { "summary": "固定模型fixture：保留模板基础，分模块扩展", "selection": plan.…`。
+- `make_plan`（L125–L279）：接收`payload`。 控制顺序：L128遍历`("owner", "member", "outsider")`。 调用`CapabilityPlan.model_validate`。 返回路径：L223的`CapabilityPlan.model_validate( { "title": "独立资料协作", "summary": "先构建登录和持久化，再独立实现团队共享与身份投影",…`。
+- `CapabilityFixture`（L282–L325）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `CapabilityFixture.__init__`（L283–L286）：接收`fail_first_sharing`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `CapabilityFixture.complete`（L288–L325）：接收`run_id`、`key`、`instruction`、`payload`、`schema`。 控制顺序：L290按`schema is FeatureOutline`分支；L292按`schema is Plan`分支；L294按`schema is CapabilityOutline`分支；L296按`schema is CapabilityScenarioBatch`分支；L302按`schema is not CapabilityEdits`分支；L303抛异常，停止当前正常路径；L304按`payload["task"]["id"] == "accounts_records"`分支；L315按`self.fail_first_sharing and self.sharing_calls == 1`分支。 调用`self.calls.append`、`fixture_feature_outline`、`make_plan`、`fixture_baseline`、`schema.model_validate`、`make_plan(payload).model_dump`、`schema`、`AssertionError`、`APP.replace( " # CUSTOM_ACCESS", " from access import readable\n …`等。 返回路径：L291的`fixture_feature_outline(make_plan(payload))`；L293的`fixture_baseline()`；L295的`schema.model_validate(make_plan(payload).model_dump(exclude={"scenarios"}))`。
+- `fixture_baseline`（L328–L342）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Plan.model_validate`。 返回路径：L329的`Plan.model_validate( { "title": "固定资料基础", "data_scope": "per_user", "entities": [ { "name"…`。
+- `fixture_feature_outline`（L345–L373）：接收`plan`。 调用`FeatureOutline.model_validate`、`plan.selection.model_dump`、`task.model_dump`。 返回路径：L346的`FeatureOutline.model_validate( { "summary": "固定模型fixture：保留模板基础，分模块扩展", "selection": plan.…`。
 
 </details>
 
-**创建路径：** `scripts/capability_fixture.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L366。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/capability_fixture.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L373。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`15455`。本段原文以LF换行结束。
+本段原始字节数：`15726`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/capability_fixture.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4b1db0de9e4537a7a7a8149508b00ff5c40a38f7b9ae858e3bd4abb0e63138d7"} -->
+<!-- learning-source: {"path": "scripts/capability_fixture.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1a485006ec3a803c70be85e8d98d6d7e1cfa0f121b2731a8cb4f277449d7262b"} -->
 ````python
 # scripts/capability_fixture.py
 """Explicit authored source/model fixture for real custom-node acceptance.
@@ -199,7 +199,13 @@ def make_plan(payload):
             "id": "private_records",
             "title": "登录、真实保存、本人访问和越权拒绝",
             "requirements": refs,
-            "steps": [*base, create, own, denied],
+            "steps": [
+                *base,
+                create,
+                own,
+                denied,
+                {**create, "body": {"title": ""}, "status": 422, "captures": {}, "equals": {}},
+            ],
             "after_restart": [own, denied],
             "browser": [
                 {"action": "open", "value": "/"},
@@ -243,6 +249,7 @@ def make_plan(payload):
                     "status": 403,
                 },
                 denied,
+                {**create, "body": {"title": ""}, "status": 422, "captures": {}, "equals": {}},
             ],
         },
     ]

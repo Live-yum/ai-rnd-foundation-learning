@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `tools/daytona/capability-snapshot.Dockerfile`；**本文件共有 1 段**。本段覆盖源文件 L1–L40。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tools/daytona/capability-snapshot.Dockerfile`；**本文件共有 1 段**。本段覆盖源文件 L1–L42。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`1593`。本段原文以LF换行结束。
+本段原始字节数：`1714`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tools/daytona/capability-snapshot.Dockerfile", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "97c9f52c3e3a395f9d2a5a29924ac7f8c4c4787e782693e10029fc726507971e"} -->
+<!-- learning-source: {"path": "tools/daytona/capability-snapshot.Dockerfile", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3616154912f59b0c8b51725ba3bad8050ac8c69a5e12452440a3a87102f5e9e9"} -->
 ````dockerfile
 # tools/daytona/capability-snapshot.Dockerfile
 # Build dependencies are downloaded here, not while executing generated code.
@@ -25,6 +25,8 @@ FROM ${UV_IMAGE} AS uv
 FROM ${NODE_IMAGE} AS node
 FROM ${SANDBOX_IMAGE}
 USER root
+RUN apt-get update && apt-get install -y --no-install-recommends libseccomp2 procps \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=uv /uv /uvx /usr/local/bin/
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
 COPY --from=node /usr/local/lib/node_modules /usr/local/lib/node_modules

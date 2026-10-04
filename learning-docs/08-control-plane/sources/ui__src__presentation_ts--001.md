@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `ui/src/presentation.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L238。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `ui/src/presentation.ts`；**本文件共有 1 段**。本段覆盖源文件 L1–L264。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7613`。本段原文以LF换行结束。
+本段原始字节数：`8283`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "ui/src/presentation.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1f57d192291bf8aafb8d03d2a0842fd4983e51d47c2445f048d355c8a9389328"} -->
+<!-- learning-source: {"path": "ui/src/presentation.ts", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c66bccc015aa8ccd7f1723ba3aaaa5ffb16c6f24ca63cb05f99b4b7dfec6900f"} -->
 ````typescript
 // ui/src/presentation.ts
 import type { Gate, Run, RunEvent, ChatMessage } from './types'
@@ -25,25 +25,44 @@ export const stages = [
     description: '补充角色、范围与目标',
     steps: ['analyse', 'requirements', 'source_context'],
   },
-  { key: 'plan', label: '开发计划', description: '拆解任务与验收标准', steps: ['plan'] },
-  { key: 'design', label: '设计评审', description: '确认架构与数据模型', steps: ['design'] },
+  {
+    key: 'plan',
+    label: '开发计划',
+    description: '拆解任务与验收标准',
+    steps: ['plan', 'extension_plan'],
+  },
+  {
+    key: 'design',
+    label: '设计评审',
+    description: '确认架构与数据模型',
+    steps: ['design', 'extension_design'],
+  },
   {
     key: 'code',
     label: '生成与编码',
     description: '按已批准方案串行执行',
-    steps: ['generate', 'code'],
+    steps: ['generate', 'code', 'extension_generate', 'extension_code'],
   },
   {
     key: 'verify',
     label: '验证与修复',
     description: '验证、修复与环境检查',
-    steps: ['verify', 'repair', 'sandbox', 'model_review'],
+    steps: [
+      'verify',
+      'repair',
+      'sandbox',
+      'model_review',
+      'extension_verify',
+      'extension_repair',
+      'extension_aggregate',
+      'extension_integration_repair',
+    ],
   },
   {
     key: 'delivery',
     label: '交付确认',
     description: '审核证据后开放下载',
-    steps: ['package', 'delivery'],
+    steps: ['package', 'delivery', 'extension_package', 'extension_delivery'],
   },
 ]
 export const statusLabels: Record<string, string> = {
@@ -54,6 +73,8 @@ export const statusLabels: Record<string, string> = {
   WAITING_PLAN: '等待计划确认',
   WAITING_DESIGN: '等待设计确认',
   WAITING_DELIVERY: '等待交付确认',
+  WAITING_EXTENSION_DESIGN: '等待模块设计确认',
+  WAITING_EXTENSION_DELIVERY: '等待模块交付确认',
   BLOCKED: '存在阻塞',
   FAILED: '运行失败',
   PAUSED_LIMIT: '预算暂停',
@@ -235,6 +256,11 @@ export const fieldLabels: Record<string, string> = {
   filterable: '精确筛选',
   date_range: '日期范围筛选',
   validation_level: '验收等级',
+  coverage_level: '覆盖证明范围',
+  full_request_complete: '全部原始需求是否独立证明',
+  source_units: '原始需求来源',
+  acceptance_policy: '独立验收策略',
+  acceptance_contract_digest: '已批准验收合同摘要',
   custom_rules: '自定义业务规则',
   accept_examples: '应通过的示例',
   reject_examples: '应拒绝的示例',

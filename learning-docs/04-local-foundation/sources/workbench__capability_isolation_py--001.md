@@ -15,25 +15,25 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `require_isolation_evidence`（L51–L63）：接收`value`。 控制顺序：L52按`not isinstance(value, dict) or value.get("profile") != ISOLATION_PROFILE or type(valu…`分支；L62抛异常，停止当前正常路径。 调用`isinstance`、`value.get`、`type`、`sha`、`any`、`IsolationUnavailable`。 返回路径：L63的`value`。
-- `IsolationUnavailable`（L66–L69）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `IsolationUnavailable.__init__`（L67–L69）：接收`message`、`evidence`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `require_container_evidence`（L72–L95）：接收`value`、`sandbox_id`。 控制顺序：L73按`not isinstance(value, dict) or not isinstance(sandbox_id, str) or not re.fullmatch( r…`分支；L94抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`value.get`、`any`、`str`、`IsolationUnavailable`。 返回路径：L95的`value`。
-- `system_argv`（L98–L99）：接收`argv`。 返回路径：L99的`["/usr/bin/env", "-i", "PATH=" + SYSTEM_PATH, "LANG=C.UTF-8", "HOME=/nonexistent", *argv]`。
-- `control_exec`（L102–L105）：接收`sandbox`、`argv`、`timeout`。 调用`sandbox.process.exec`、`shlex.join`、`system_argv`、`dict`。 返回路径：L103的`sandbox.process.exec( shlex.join(system_argv(argv)), env=dict(CONTROL_SHELL_ENV), timeout=…`。
-- `product_argv`（L108–L152）：接收`plan`、`argv`、`database`。 控制顺序：L110按`ports & {2280, 55432}`分支；L111抛异常，停止当前正常路径。 调用`IsolationUnavailable`、`system_argv`、`str`、`environment.items`。 返回路径：L126的`system_argv( [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/setpriv", "--reuid=" + APP…`。
-- `redirected_command`（L155–L159）：接收`argv`。 源码说明：Dedicated data-only stdio; never share a privileged control terminal.。 调用`uuid.uuid4`、`shlex.join`、`shlex.quote`。 返回路径：L159的`["/bin/sh", "-c", command], output`。
-- `read_command_output`（L162–L170）：接收`sandbox`、`path`、`timeout`、`limit`。 控制顺序：L163按`not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix( CONTROL + "/p…`分支；L166抛异常，停止当前正常路径；L168按`result.exit_code != 0`分支；L169抛异常，停止当前正常路径。 调用`path.startswith`、`path.removeprefix`、`IsolationUnavailable`、`control_exec`、`str`。 返回路径：L170的`result.result or ""`。
-- `run_guarded_control`（L173–L176）：接收`sandbox`、`argv`、`timeout`。 调用`redirected_command`、`control_exec`、`read_command_output`。 返回路径：L176的`result.exit_code, read_command_output(sandbox, output, timeout)`。
-- `prepare_identity`（L207–L318）：接收`sandbox`、`plan`、`timeout`。 控制顺序：L228按`type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0`分支；L229抛异常，停止当前正常路径；L249遍历`commands`；L250按`control_exec(sandbox, argv, timeout).exit_code != 0`分支；L251抛异常，停止当前正常路径；L255按`control_exec(sandbox, ["/usr/bin/chmod", "644", GUARD], timeout).exit_code`分支；L256抛异常，停止当前正常路径；L281抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`isinstance`、`root.result.strip`、`re.fullmatch`、`int`、`type`、`len`、`output.lower`、`IsolationUnavailable`等。 返回路径：L310的`require_isolation_evidence( { **guard_receipt, **receipt, "profile": ISOLATION_PROFILE, "g…`。
+- `require_isolation_evidence`（L52–L64）：接收`value`。 控制顺序：L53按`not isinstance(value, dict) or value.get("profile") != ISOLATION_PROFILE or type(valu…`分支；L63抛异常，停止当前正常路径。 调用`isinstance`、`value.get`、`type`、`sha`、`any`、`IsolationUnavailable`。 返回路径：L64的`value`。
+- `IsolationUnavailable`（L67–L70）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `IsolationUnavailable.__init__`（L68–L70）：接收`message`、`evidence`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_container_evidence`（L73–L102）：接收`value`、`sandbox_id`。 控制顺序：L78按`not isinstance(value, dict) or not isinstance(sandbox_id, str) or not re.fullmatch( r…`分支；L101抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`value.get`、`any`、`str`、`profiles.get`、`IsolationUnavailable`。 返回路径：L102的`value`。
+- `system_argv`（L105–L106）：接收`argv`。 返回路径：L106的`["/usr/bin/env", "-i", "PATH=" + SYSTEM_PATH, "LANG=C.UTF-8", "HOME=/nonexistent", *argv]`。
+- `control_exec`（L109–L112）：接收`sandbox`、`argv`、`timeout`。 调用`sandbox.process.exec`、`shlex.join`、`system_argv`、`dict`。 返回路径：L110的`sandbox.process.exec( shlex.join(system_argv(argv)), env=dict(CONTROL_SHELL_ENV), timeout=…`。
+- `product_argv`（L115–L165）：接收`plan`、`argv`、`database`。 控制顺序：L117按`ports & {2280, 55432, 55433}`分支；L118抛异常，停止当前正常路径；L120按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L121按`plan.runtime.port == 5173`分支；L122抛异常，停止当前正常路径。 调用`IsolationUnavailable`、`getattr`、`ports.add`、`",".join`、`str`、`sorted`、`system_argv`、`environment.items`。 返回路径：L139的`system_argv( [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/setpriv", "--reuid=" + APP…`。
+- `redirected_command`（L168–L172）：接收`argv`。 源码说明：Dedicated data-only stdio; never share a privileged control terminal.。 调用`uuid.uuid4`、`shlex.join`、`shlex.quote`。 返回路径：L172的`["/bin/sh", "-c", command], output`。
+- `read_command_output`（L175–L183）：接收`sandbox`、`path`、`timeout`、`limit`。 控制顺序：L176按`not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix( CONTROL + "/p…`分支；L179抛异常，停止当前正常路径；L181按`result.exit_code != 0`分支；L182抛异常，停止当前正常路径。 调用`path.startswith`、`path.removeprefix`、`IsolationUnavailable`、`control_exec`、`str`。 返回路径：L183的`result.result or ""`。
+- `run_guarded_control`（L186–L189）：接收`sandbox`、`argv`、`timeout`。 调用`redirected_command`、`control_exec`、`read_command_output`。 返回路径：L189的`result.exit_code, read_command_output(sandbox, output, timeout)`。
+- `prepare_identity`（L220–L348）：接收`sandbox`、`plan`、`timeout`。 控制顺序：L241按`type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0`分支；L242抛异常，停止当前正常路径；L272遍历`commands`；L273按`control_exec(sandbox, argv, timeout).exit_code != 0`分支；L274抛异常，停止当前正常路径；L275按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L276遍历`( ["/usr/bin/cp", "-a", "/opt/rnd/pnpm-store", "/tmp/rnd-capabili…`；L280按`control_exec(sandbox, argv, timeout).exit_code`分支。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`isinstance`、`root.result.strip`、`re.fullmatch`、`int`、`type`、`len`、`output.lower`、`IsolationUnavailable`等。 返回路径：L340的`require_isolation_evidence( { **guard_receipt, **receipt, "profile": ISOLATION_PROFILE, "g…`。
 
 </details>
 
-**创建路径：** `workbench/capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L318。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L348。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12382`。本段原文以LF换行结束。
+本段原始字节数：`13833`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "707f2c1edae2fe13bfef78be265a4559006c5a45fc192903a774f20ae56c1379"} -->
+<!-- learning-source: {"path": "workbench/capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4edd4fdd43a383285c6e4d43ddcd37beb3149ca5e2ba939017122daf696011fa"} -->
 ````python
 # workbench/capability_isolation.py
 """Disposable Linux identity and control-channel separation for module commands.
@@ -83,6 +83,7 @@ ISOLATION_FLAGS = (
     "inherited_fds_closed",
     "standard_streams_detached",
     "no_controlling_terminal",
+    "socket_filter_enforced",
 )
 
 
@@ -108,13 +109,18 @@ class IsolationUnavailable(CheckFailure):
 
 
 def require_container_evidence(value, sandbox_id):
+    profiles = {
+        "fixed-authored-sqlite-v1": "rnd-python",
+        "native-fastapiadmin-postgresql-v1": "rnd-native-fastapiadmin",
+    }
     if (
         not isinstance(value, dict)
         or not isinstance(sandbox_id, str)
         or not re.fullmatch(
             r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", sandbox_id
         )
-        or value.get("profile") != "fixed-authored-sqlite-v1"
+        or not isinstance(value.get("profile"), str)
+        or value.get("profile") not in profiles
         or value.get("sandbox_id") != sandbox_id
         or value.get("control_user") != "0:0"
         or value.get("privileged") is not False
@@ -126,7 +132,8 @@ def require_container_evidence(value, sandbox_id):
             for key in ("runner_image_id", "snapshot_image_id")
         )
         or not re.fullmatch(
-            r"registry:6000/rnd-python@sha256:[a-f0-9]{64}", str(value.get("snapshot_digest", ""))
+            rf"registry:6000/{profiles.get(value.get('profile'), 'invalid')}@sha256:[a-f0-9]{{64}}",
+            str(value.get("snapshot_digest", "")),
         )
     ):
         raise IsolationUnavailable("缺少当前独占容器的真实非特权/镜像/挂载检查回执")
@@ -145,15 +152,21 @@ def control_exec(sandbox, argv, timeout):
 
 def product_argv(plan, argv, database):
     ports = {plan.runtime.port}
-    if ports & {2280, 55432}:
+    if ports & {2280, 55432, 55433}:
         raise IsolationUnavailable("产品端口与控制/数据库保留端口冲突")
     connect = "55432" if plan.selection.database == "postgresql" else ""
+    if getattr(plan.selection, "template", "") == "fastapiadmin":
+        if plan.runtime.port == 5173:
+            raise IsolationUnavailable("原生后端端口不能占用独立前端端口")
+        ports.add(5173)
+        connect = ",".join(str(value) for value in sorted({plan.runtime.port, 55432, 55433}))
     environment = {
-        "HOME": "/home/" + APP_USER,
+        "HOME": "/tmp/rnd-capability/home",
         "PATH": "/opt/java/openjdk/bin:/usr/local/bin:/usr/bin:/bin",
         "LANG": "C.UTF-8",
         "PYTHONUTF8": "1",
-        "UV_CACHE_DIR": "/opt/rnd/uv-cache",
+        "UV_CACHE_DIR": "/tmp/rnd-capability/cache",
+        "TMPDIR": "/tmp/rnd-capability/tmp",
         "UV_PYTHON_INSTALL_DIR": "/opt/rnd/python",
         "UV_OFFLINE": "1",
         "UV_NO_PROGRESS": "1",
@@ -179,7 +192,7 @@ def product_argv(plan, argv, database):
             "-I",
             "-S",
             GUARD,
-            str(plan.runtime.port),
+            ",".join(str(value) for value in sorted(ports)),
             connect,
             "--",
             "/usr/bin/env",
@@ -282,11 +295,28 @@ def prepare_identity(sandbox, plan, timeout):
         ["/usr/bin/chmod", "700", CONTROL + "/private", "/tmp/rnd-postgres"],
         ["/usr/bin/chmod", "755", CONTROL],
         ["/usr/bin/chmod", "711", "/tmp/rnd-capability"],
-        ["/usr/bin/chown", "-R", APP_USER + ":" + APP_USER, PRODUCT, "/opt/rnd/uv-cache"],
+        ["/usr/bin/mkdir", "-p", "/tmp/rnd-capability/home", "/tmp/rnd-capability/tmp"],
+        ["/usr/bin/cp", "-a", "/opt/rnd/uv-cache", "/tmp/rnd-capability/cache"],
+        [
+            "/usr/bin/chown",
+            "-R",
+            APP_USER + ":" + APP_USER,
+            PRODUCT,
+            "/tmp/rnd-capability/home",
+            "/tmp/rnd-capability/tmp",
+            "/tmp/rnd-capability/cache",
+        ],
     ]
     for argv in commands:
         if control_exec(sandbox, argv, timeout).exit_code != 0:
             raise IsolationUnavailable("隔离环境无法建立专用无权限执行身份，未执行生成源码")
+    if getattr(plan.selection, "template", "") == "fastapiadmin":
+        for argv in (
+            ["/usr/bin/cp", "-a", "/opt/rnd/pnpm-store", "/tmp/rnd-capability/pnpm-store"],
+            ["/usr/bin/chown", "-R", APP_USER + ":" + APP_USER, "/tmp/rnd-capability/pnpm-store"],
+        ):
+            if control_exec(sandbox, argv, timeout).exit_code:
+                raise IsolationUnavailable("原生离线前端缓存未就绪，未执行源码")
     sandbox.fs.upload_file(
         (ROOT / "scripts/capability_guard.py").read_bytes(), GUARD, timeout=timeout
     )

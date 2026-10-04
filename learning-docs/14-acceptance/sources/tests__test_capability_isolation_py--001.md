@@ -21,34 +21,37 @@
 - `test_exact_root_identity_progresses_to_setup_without_weaker_parsing.execute`（L66–L70）：接收`command`、`env`、`timeout`。 调用`calls.append`、`shlex.split`、`SimpleNamespace`、`len`。 返回路径：L68的`SimpleNamespace( result="0\n" if len(calls) == 1 else "", exit_code=0 if len(calls) == 1 e…`。
 - `test_actual_sdk_env_protocol_prevents_outer_shell_contamination`（L80–L121）：接收`tmp_path`。 源码说明：Real SDK + subprocess protocol fixture, not the missing live CI output.。 控制顺序：L116断言`noisy.exit_code == 0`；L117断言`"setlocale" in noisy.result and "private-bootstrap-sentinel" in noisy.result`；L118断言`noisy.result.strip() != str(os.geteuid())`；L120断言`safe.exit_code == 0 and safe.result.strip() == str(os.geteuid())`；L121断言`requests[-1].envs == CONTROL_SHELL_ENV`。 调用`bootstrap.write_text`、`httpx.Client`、`Process`、`SimpleNamespace`、`sdk.exec`、`shlex.join`、`system_argv`、`noisy.result.strip`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_actual_sdk_env_protocol_prevents_outer_shell_contamination.execute_command`（L91–L110）：接收`request`、`**kwargs`。 调用`requests.append`、`subprocess.run`、`str`、`SimpleNamespace`。 返回路径：L108的`SimpleNamespace( result=result.stdout, exit_code=result.returncode, additional_properties=…`。
-- `test_physical_count_probe_uses_same_outer_shell_environment`（L125–L143）：接收`engine`。 控制顺序：L142断言`database_counts(sandbox, plan, 10) == {"entries": 7}`；L143断言`len(calls) == 1`。 调用`SimpleNamespace`、`database_counts`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_physical_count_probe_uses_same_outer_shell_environment`（L125–L147）：接收`engine`。 控制顺序：L142断言`database_counts(sandbox, plan, 10) == {"entries": 7}`；L143断言`len(calls) == (1 if engine == "sqlite" else 2)`；L144按`engine == "postgresql"`分支；L145断言`"rnd_verify" in calls[0][-1]`；L146断言`"postgres-verifier.json" in calls[0][-1]`；L147断言`"head" in " ".join(calls[1])`。 调用`SimpleNamespace`、`database_counts`、`len`、`" ".join`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_physical_count_probe_uses_same_outer_shell_environment.execute`（L131–L135）：接收`command`、`env`、`timeout`。 控制顺序：L133断言`env == CONTROL_SHELL_ENV and timeout == 10`；L134断言`calls[-1][:2] == ["/usr/bin/env", "-i"]`。 调用`calls.append`、`shlex.split`、`SimpleNamespace`。 返回路径：L135的`SimpleNamespace(exit_code=0, result='{"entries":7}' if engine == "sqlite" else "7\n")`。
-- `test_generated_prepare_and_start_cannot_bypass_identity_or_network_guard`（L147–L181）：接收`database`。 控制顺序：L153断言`result[:2] == ["/usr/bin/env", "-i"]`；L154断言`"--reuid=rnd-module" in result and "--regid=rnd-module" in result`；L156断言`result[session : session + 4] == [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/s…`；L162遍历`( "--clear-groups", "--no-new-privs", "--bounding-set=-all", "--i…`；L169断言`flag in result`；L171断言`result[index : index + 6] == [ "/usr/bin/python3", "-I", "-S", "/tmp/rnd-module-contr…`；L179断言`result[-len(command) :] == command`；L180断言`result.index("--") < index`。后续分支沿下方源码相同行号继续阅读。 调用`SimpleNamespace`、`product_argv`、`result.index`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_product_cannot_allow_its_control_or_database_listener`（L185–L190）：接收`port`。 调用`SimpleNamespace`、`pytest.raises`、`product_argv`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_isolation_receipt_requires_each_field_actual_abi_and_current_guard_digest`（L193–L219）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L210断言`require_isolation_evidence(value) == value`；L211遍历`list(value)`；L215遍历`[True, 5, "6"]`。 调用`sha`、`dict.fromkeys`、`require_isolation_evidence`、`list`、`value.items`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_detached_session_waits_for_ordinary_command_and_preserves_exit`（L224–L244）：接收`tmp_path`、`exit_code`。 控制顺序：L243断言`result.returncode == exit_code`；L244断言`completed.read_text(encoding="utf-8") == "completed"`。 调用`subprocess.run`、`str`、`completed.read_text`、`pytest.mark.skipif`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_container_receipt_requires_current_sandbox_and_all_boundaries`（L247–L270）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L263断言`require_container_evidence(value, identifier) == value`；L264遍历`value`。 调用`require_container_evidence`、`pytest.raises`、`value.items`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_live_container_inspection_failure_stops_before_source_upload`（L273–L305）：接收`settings`、`tmp_path`。 控制顺序：L304断言`result["passed"] is False and result["cleanup"] == "deleted"`；L305断言`result["kind"] == "isolation_environment" and operations == ["deleted"]`。 调用`fixed_application`、`SimpleNamespace`、`operations.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_live_container_inspection_failure_stops_before_source_upload.forbidden`（L281–L282）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths`（L329–L469）：接收`settings`、`tmp_path`、`monkeypatch`、`failure`。 源码说明：Real HTTPX lifecycle with transport/process fixtures, not live isolation proof.。 控制顺序：L445断言`result["passed"] is (failure is None)`；L446断言`result["restarted"] is (failure is None)`；L447断言`result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")`；L448断言`events[-1] == "deleted"`；L449断言`len(clients) == ( 1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} …`；L452断言`all(client.is_closed for client in clients)`；L453断言`(0, "/health") in events`；L455断言`persisted == result`。后续分支沿下方源码相同行号继续阅读。 调用`fixed_application`、`SimpleNamespace`、`events.append`、`iter`、`monkeypatch.setattr`、`verifier._verify`、`plan.selection.model_dump`、`len`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http`（L345–L359）：接收`**kwargs`。 控制顺序：L347断言`kwargs["headers"] == {"x-daytona-preview-token": "fixture-private-token"}`；L348断言`kwargs["trust_env"] is False and kwargs["follow_redirects"] is False`。 调用`len`、`original_client`、`httpx.MockTransport`、`clients.append`。 返回路径：L359的`client`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http.respond`（L350–L355）：接收`request`。 控制顺序：L352断言`request.url.host == f"8123-{identifier}.proxy.localhost"`；L353按`failure == "restart-health" and launch == 1`分支；L354抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`httpx.Response`。 返回路径：L355的`httpx.Response(200, json={"ok": True})`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.delete`（L373–L376）：接收`*args`、`**kwargs`。 控制顺序：L375按`failure == "browser-cleanup"`分支；L376抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.create`（L378–L390）：接收`parameters`、`**kwargs`。 控制顺序：L385断言`ordinary.auto_delete_interval == 0`；L386断言`parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60`；L387断言`parameters.network_block_all is True`；L388断言`parameters.public is False`。 调用`params_for`。 返回路径：L390的`sandbox`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.stop`（L392–L394）：接收`*args`、`**kwargs`。 控制顺序：L393断言`sandbox.auto_delete_interval > 0`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.database_counts`（L404–L407）：接收`*args`。 控制顺序：L405按`failure == "baseline"`分支；L406抛异常，停止当前正常路径。 调用`CheckFailure`、`next`。 返回路径：L407的`{"entries": next(counts)}`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_scenarios`（L409–L414）：接收`http`、`scenarios`、`saved`、`after_restart`。 控制顺序：L411断言`http.get("/fixture-" + phase).status_code == 200`；L412按`failure == phase`分支；L413抛异常，停止当前正常路径。 调用`http.get`、`CheckFailure`。 返回路径：L414的`[{"phase": phase, "fixture_only": True}], {}`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_browser`（L416–L419）：接收`*args`。 控制顺序：L417按`failure in BROWSER_FAILURE_FIXTURES`分支；L418抛异常，停止当前正常路径。 调用`BrowserFailure`、`BROWSER_FAILURE_FIXTURES[failure].copy`。 返回路径：L419的`[{"fixture_only": True}]`。
-- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup`（L472–L504）：接收`settings`、`tmp_path`。 控制顺序：L502断言`calls == ["created", "deleted"]`；L503断言`result["passed"] is False`；L504断言`result["cleanup"] == "deleted"`。 调用`fixed_application`、`SimpleNamespace`、`calls.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup.create`（L482–L486）：接收`parameters`、`**kwargs`。 控制顺序：L483断言`parameters.auto_delete_interval == 0`；L484断言`parameters.network_block_all is True and parameters.public is False`。 调用`calls.append`。 返回路径：L486的`sandbox`。
+- `test_generated_prepare_and_start_cannot_bypass_identity_or_network_guard`（L151–L185）：接收`database`。 控制顺序：L157断言`result[:2] == ["/usr/bin/env", "-i"]`；L158断言`"--reuid=rnd-module" in result and "--regid=rnd-module" in result`；L160断言`result[session : session + 4] == [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/s…`；L166遍历`( "--clear-groups", "--no-new-privs", "--bounding-set=-all", "--i…`；L173断言`flag in result`；L175断言`result[index : index + 6] == [ "/usr/bin/python3", "-I", "-S", "/tmp/rnd-module-contr…`；L183断言`result[-len(command) :] == command`；L184断言`result.index("--") < index`。后续分支沿下方源码相同行号继续阅读。 调用`SimpleNamespace`、`product_argv`、`result.index`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_product_cannot_allow_its_control_or_database_listener`（L189–L194）：接收`port`。 调用`SimpleNamespace`、`pytest.raises`、`product_argv`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_isolation_receipt_requires_each_field_actual_abi_and_current_guard_digest`（L197–L223）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L214断言`require_isolation_evidence(value) == value`；L215遍历`list(value)`；L219遍历`[True, 5, "6"]`。 调用`sha`、`dict.fromkeys`、`require_isolation_evidence`、`list`、`value.items`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_detached_session_waits_for_ordinary_command_and_preserves_exit`（L228–L248）：接收`tmp_path`、`exit_code`。 控制顺序：L247断言`result.returncode == exit_code`；L248断言`completed.read_text(encoding="utf-8") == "completed"`。 调用`subprocess.run`、`str`、`completed.read_text`、`pytest.mark.skipif`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_container_receipt_requires_current_sandbox_and_all_boundaries`（L251–L274）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L267断言`require_container_evidence(value, identifier) == value`；L268遍历`value`。 调用`require_container_evidence`、`pytest.raises`、`value.items`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_container_inspection_failure_stops_before_source_upload`（L277–L309）：接收`settings`、`tmp_path`。 控制顺序：L308断言`result["passed"] is False and result["cleanup"] == "deleted"`；L309断言`result["kind"] == "isolation_environment" and operations == ["deleted"]`。 调用`fixed_application`、`SimpleNamespace`、`operations.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_container_inspection_failure_stops_before_source_upload.forbidden`（L285–L286）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths`（L334–L507）：接收`settings`、`tmp_path`、`monkeypatch`、`failure`、`secure_execution`。 源码说明：Real HTTPX lifecycle with transport/process fixtures, not live isolation proof.。 控制顺序：L474断言`result["passed"] is (failure is None)`；L475断言`result["restarted"] is (failure is None)`；L476断言`result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")`；L477断言`events[-1] == "deleted"`；L478断言`len(clients) == ( 1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} …`；L481断言`all(client.is_closed for client in clients)`；L482断言`(0, "/health") in events`；L484断言`persisted == result`。后续分支沿下方源码相同行号继续阅读。 调用`fixed_application`、`SimpleNamespace`、`events.append`、`iter`、`monkeypatch.setattr`、`verifier._verify`、`plan.selection.model_dump`、`len`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http`（L350–L364）：接收`**kwargs`。 控制顺序：L352断言`kwargs["headers"] == {"x-daytona-preview-token": "fixture-private-token"}`；L353断言`kwargs["trust_env"] is False and kwargs["follow_redirects"] is False`。 调用`len`、`original_client`、`httpx.MockTransport`、`clients.append`。 返回路径：L364的`client`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http.respond`（L355–L360）：接收`request`。 控制顺序：L357断言`request.url.host == f"8123-{identifier}.proxy.localhost"`；L358按`failure == "restart-health" and launch == 1`分支；L359抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`httpx.Response`。 返回路径：L360的`httpx.Response(200, json={"ok": True})`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.delete`（L381–L384）：接收`*args`、`**kwargs`。 控制顺序：L383按`failure == "browser-cleanup"`分支；L384抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.create`（L386–L399）：接收`parameters`、`**kwargs`。 控制顺序：L393断言`ordinary.auto_delete_interval == 0`；L394断言`parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60`；L395断言`parameters.network_block_all is True`；L396断言`parameters.public is False`；L397断言`parameters.name.startswith("rnd-source-" if secure_execution else "rnd-capability-")`。 调用`params_for`、`parameters.name.startswith`。 返回路径：L399的`sandbox`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.stop`（L401–L403）：接收`*args`、`**kwargs`。 控制顺序：L402断言`sandbox.auto_delete_interval > 0`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.database_counts`（L413–L416）：接收`*args`。 控制顺序：L414按`failure == "baseline"`分支；L415抛异常，停止当前正常路径。 调用`CheckFailure`、`next`。 返回路径：L416的`{"entries": next(counts)}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_scenarios`（L418–L423）：接收`http`、`scenarios`、`saved`、`after_restart`。 控制顺序：L420断言`http.get("/fixture-" + phase).status_code == 200`；L421按`failure == phase`分支；L422抛异常，停止当前正常路径。 调用`http.get`、`CheckFailure`。 返回路径：L423的`[{"phase": phase, "fixture_only": True}], {}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_browser`（L425–L428）：接收`*args`。 控制顺序：L426按`failure in BROWSER_FAILURE_FIXTURES`分支；L427抛异常，停止当前正常路径。 调用`BrowserFailure`、`BROWSER_FAILURE_FIXTURES[failure].copy`。 返回路径：L428的`[{"fixture_only": True}]`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.fixed_browser`（L436–L438）：接收`*args`。 控制顺序：L437断言`not secure_execution`。 调用`run_browser`。 返回路径：L438的`run_browser(*args)`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.isolated_browser`（L440–L444）：接收`image`、`*args`。 控制顺序：L441断言`secure_execution`；L442断言`image == settings.capability_browser_image`。 调用`events.append`、`run_browser`。 返回路径：L444的`run_browser(*args)`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.security_probe`（L457–L459）：接收`*args`。 调用`events.append`。 返回路径：L459的`{"fixture_only": True}`。
+- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup`（L510–L542）：接收`settings`、`tmp_path`。 控制顺序：L540断言`calls == ["created", "deleted"]`；L541断言`result["passed"] is False`；L542断言`result["cleanup"] == "deleted"`。 调用`fixed_application`、`SimpleNamespace`、`calls.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup.create`（L520–L524）：接收`parameters`、`**kwargs`。 控制顺序：L521断言`parameters.auto_delete_interval == 0`；L522断言`parameters.network_block_all is True and parameters.public is False`。 调用`calls.append`。 返回路径：L524的`sandbox`。
 
 </details>
 
-**创建路径：** `tests/test_capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L504。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L542。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19821`。本段原文以LF换行结束。
+本段原始字节数：`21469`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "06a5ca7db2d10be2d9c672c2279308f8401834ce0b99affc24fa393d7d752bd9"} -->
+<!-- learning-source: {"path": "tests/test_capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c221c064fe55541f0f6c2986b3891da1a488fa1a575e20ef403a7119d5a8e109"} -->
 ````python
 # tests/test_capability_isolation.py
 """Verify every source command is composed through the same non-bypassable launcher."""
@@ -193,7 +196,11 @@ def test_physical_count_probe_uses_same_outer_shell_environment(engine):
     )
     sandbox = SimpleNamespace(process=SimpleNamespace(exec=execute))
     assert database_counts(sandbox, plan, 10) == {"entries": 7}
-    assert len(calls) == 1
+    assert len(calls) == (1 if engine == "sqlite" else 2)
+    if engine == "postgresql":
+        assert "rnd_verify" in calls[0][-1]
+        assert "postgres-verifier.json" in calls[0][-1]
+        assert "head" in " ".join(calls[1])
 
 
 @pytest.mark.parametrize("database", ["sqlite", "postgresql"])
@@ -379,8 +386,9 @@ BROWSER_FAILURE_FIXTURES = {
 @pytest.mark.parametrize(
     "failure", [None, "baseline", "initial", "restart-health", "restart", *BROWSER_FAILURE_FIXTURES]
 )
+@pytest.mark.parametrize("secure_execution", [False, True])
 def test_verifier_closes_health_opened_http_clients_on_all_paths(
-    settings, tmp_path, monkeypatch, failure
+    settings, tmp_path, monkeypatch, failure, secure_execution
 ):
     """Real HTTPX lifecycle with transport/process fixtures, not live isolation proof."""
     import httpx
@@ -413,6 +421,9 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
 
     sandbox = SimpleNamespace(
         id=identifier,
+        public=False,
+        network_block_all=True,
+        refresh_data=lambda: events.append("network-refreshed"),
         fs=SimpleNamespace(create_folder=lambda *a: None, upload_file=lambda *a, **k: None),
         process=SimpleNamespace(
             create_session=lambda *a: None,
@@ -439,6 +450,7 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         assert parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60
         assert parameters.network_block_all is True
         assert parameters.public is False
+        assert parameters.name.startswith("rnd-source-" if secure_execution else "rnd-capability-")
         sandbox.auto_delete_interval = parameters.auto_delete_interval
         return sandbox
 
@@ -476,13 +488,32 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
     monkeypatch.setattr(verifier, "control_exec", lambda *a: SimpleNamespace(exit_code=0))
     monkeypatch.setattr(verifier, "database_counts", database_counts)
     monkeypatch.setattr(verifier, "run_scenarios", run_scenarios)
-    monkeypatch.setattr(verifier, "run_browser", run_browser)
+
+    def fixed_browser(*args):
+        assert not secure_execution, "Custom source must never fall back to host Chromium"
+        return run_browser(*args)
+
+    def isolated_browser(*args, image):
+        assert secure_execution
+        assert image == settings.capability_browser_image
+        events.append("isolated-browser")
+        return run_browser(*args)
+
+    monkeypatch.setattr(verifier, "run_browser", fixed_browser)
+    monkeypatch.setattr(
+        "workbench.capability_browser_isolation.run_isolated_browser", isolated_browser
+    )
     monkeypatch.setattr(verifier.httpx, "Client", build_http)
     monkeypatch.setattr(
         "workbench.daytona_sessions.run_session_command",
         lambda *a, **k: SimpleNamespace(exit_code=0),
     )
     settings.daytona_snapshot = "fixture-owned-snapshot"
+
+    def security_probe(*args):
+        events.append("security-probed")
+        return {"fixture_only": True}
+
     try:
         result = verifier._verify(
             product,
@@ -494,6 +525,7 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
             client=daytona,
             aggregate=True,
             control_observer=lambda _: {},
+            security_probe=security_probe if secure_execution else None,
         )
         assert result["passed"] is (failure is None)
         assert result["restarted"] is (failure is None)
@@ -513,6 +545,15 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
                 assert persisted["error"] == "真实浏览器场景未通过；查看安全阶段诊断，未跳过"
                 assert "删除未确认" in persisted["cleanup_error"]
         if failure is None:
+            assert result["restart_kind"] == (
+                "application_process" if secure_execution else "container"
+            )
+            if secure_execution:
+                assert "stopped" not in events and "started" not in events
+                assert events.count("security-probed") == 2
+                assert result["restart_security_checks"] == result["security_checks"]
+            else:
+                assert "stopped" in events and "started" in events
             assert [check["phase"] for check in result["checks"]] == ["initial", "restart"]
             assert (0, "/openapi.json") in events
             assert (0, "/fixture-initial") in events and (1, "/fixture-restart") in events

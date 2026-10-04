@@ -17,11 +17,11 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `coverage_gaps.gap`（L2303–L2331）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L2305按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `coverage_gaps.gap`（L2309–L2337）：接收`message`、`code`、`targets`、`attribute`、`expected`、`actual`。 控制顺序：L2311按`diagnostics is not None`分支。 调用`gaps.append`、`diagnostics.append`、`dict`、`any`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L2303–L2730。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L2309–L2736。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
 本段原始字节数：`20381`。本段原文以LF换行结束。
 

@@ -16,6 +16,7 @@
 - [tests/test_native_business_probes.py](sources/tests__test_native_business_probes_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_business_query_browser.py](sources/tests__test_native_business_query_browser_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_business_restart.py](sources/tests__test_native_business_restart_py--001.md)：可重复的验收用例；1 段
+- [tests/test_native_capability_profile.py](sources/tests__test_native_capability_profile_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_delivery_diagnostics.py](sources/tests__test_native_delivery_diagnostics_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_fastapi_screenshot_readiness.py](sources/tests__test_native_fastapi_screenshot_readiness_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_frontend_lifecycle.py](sources/tests__test_native_frontend_lifecycle_py--001.md)：可重复的验收用例；1 段
@@ -23,7 +24,9 @@
 - [tests/test_native_login_readiness.py](sources/tests__test_native_login_readiness_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_managed.py](sources/tests__test_native_managed_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_modules.py](sources/tests__test_native_modules_py--001.md)：可重复的验收用例；1 段
+- [tests/test_native_optional_acceptance.py](sources/tests__test_native_optional_acceptance_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_optional_dependencies.py](sources/tests__test_native_optional_dependencies_py--001.md)：可重复的验收用例；1 段
+- [tests/test_native_plan_normalization.py](sources/tests__test_native_plan_normalization_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_ports.py](sources/tests__test_native_ports_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_postgres_contract.py](sources/tests__test_native_postgres_contract_py--001.md)：可重复的验收用例；1 段
 - [tests/test_native_projection_gate.py](sources/tests__test_native_projection_gate_py--001.md)：可重复的验收用例；1 段

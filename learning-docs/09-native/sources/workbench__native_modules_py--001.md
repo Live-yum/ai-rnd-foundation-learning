@@ -17,20 +17,20 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `validate_plan`（L59–L100）：接收`plan`。 控制顺序：L61按`plan.unsupported`分支；L62抛异常，停止当前正常路径；L63按`len({rule.entity for rule in plan.custom_rules}) != len(plan.custom_rules)`分支；L64抛异常，停止当前正常路径；L67按`any(field.name in RULE_RESERVED for entity in plan.entities for field in entity.field…`分支；L68抛异常，停止当前正常路径；L69按`plan.data_scope != "shared"`分支；L70抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`ValueError`、`len`、`any`、`e.name.replace`、`re.fullmatch`。 返回路径：L100的`plan`。
-- `native_metadata`（L103–L216）：接收`template`、`plan`、`url`、`run_id`。 源码说明：Include the framework audit columns and PG sequence used by the generated ORM.。 控制顺序：L108按`template == "fastapiadmin"`分支；L110按`template == "yudao-vben" and plan.business`分支；L121遍历`plan.entities`；L123按`template == "fastapiadmin"`分支；L150按`template == "yudao-vben"`分支；L172抛异常，停止当前正常路径；L173遍历`entity.fields`；L184按`relation`分支。后续分支沿下方源码相同行号继续阅读。 调用`checked_database`、`validate_plan`、`MetaData`、`Table`、`Column`、`digest`、`String`、`text`、`DateTime`等。 返回路径：L216的`metadata, tables, mapping`。
-- `create_native_tables`（L219–L244）：接收`template`、`plan`、`url`、`run_id`、`reports`。 控制顺序：L225按`existing.intersection(mapping.values())`分支；L226抛异常，停止当前正常路径；L231遍历`metadata.sorted_tables`；L232按`table not in tables`分支；L234按`template == "yudao-vben"`分支；L239遍历`sorted(table.indexes, key=lambda item: item.name)`。 调用`native_metadata`、`create_engine`、`engine.begin`、`set`、`inspect(connection).get_table_names`、`inspect`、`existing.intersection`、`mapping.values`、`ValueError`等。 返回路径：L244的`mapping`。
-- `yudao_menu`（L247–L249）：接收`client`、`data`。 调用`client.client.post`、`record_id`、`payload`。 返回路径：L249的`record_id(payload(response))`。
-- `mount_yudao_export`（L252–L345）：接收`export`、`backend`、`frontend`、`entity`、`reports`、`used_errors`。 源码说明：Mount only generated feature paths; resolve ErrorCodeConstants TODO deterministically.。 控制顺序：L260遍历`sorted(root.rglob("*"))`；L261按`not file.is_file()`分支；L265按`"ErrorCodeConstants_手动操作" in name`分支；L268按`name.startswith("sql/")`分支；L270按`name.startswith("yudao-module-infra/") and "/src/main/" in name`分支；L272按`not (f"/{slug}/" in name or f"/mapper/{slug}/" in name)`分支；L273抛异常，停止当前正常路径；L275按`target.exists()`分支。后续分支沿下方源码相同行号继续阅读。 调用`tempfile.TemporaryDirectory`、`Path`、`archive.write_bytes`、`unpack`、`sorted`、`root.rglob`、`file.is_file`、`file.relative_to(root).as_posix`、`file.relative_to`等。 返回路径：L345的`{"files": writes, "error_constants": added}`。
-- `generate_modules`（L348–L579）：接收`template`、`backend`、`frontend`、`base_url`、`openapi`、`token`、`mapping`、`plan`、`reports`。 源码说明：Native APIs generate every feature. No fake controller replaces upstream codegen.。 控制顺序：L364按`template == "fastapiadmin"`分支；L369遍历`plan.entities`；L397按`export.headers.get("X-Skipped-Tables")`分支；L398抛异常，停止当前正常路径；L430按`template == "yudao-vben"`分支；L454按`len(ids) != len(plan.entities)`分支；L455抛异常，停止当前正常路径；L466遍历`zip(plan.entities, ids, strict=True)`。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`Path`、`reports.mkdir`、`NativeClient`、`NativeConfig`、`client.payload`、`client.request`、`list`、`mapping.values`等。 返回路径：L579的`targets`。
+- `validate_plan`（L59–L99）：接收`plan`。 控制顺序：L61按`plan.unsupported`分支；L62抛异常，停止当前正常路径；L63按`len({rule.entity for rule in plan.custom_rules}) != len(plan.custom_rules)`分支；L64抛异常，停止当前正常路径；L67遍历`plan.entities`；L68遍历`entity.fields`；L69按`field.name in RULE_RESERVED`分支；L70抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Plan.model_validate`、`ValueError`、`len`、`e.name.replace`、`re.fullmatch`、`any`。 返回路径：L99的`plan`。
+- `native_metadata`（L102–L215）：接收`template`、`plan`、`url`、`run_id`。 源码说明：Include the framework audit columns and PG sequence used by the generated ORM.。 控制顺序：L107按`template == "fastapiadmin"`分支；L109按`template == "yudao-vben" and plan.business`分支；L120遍历`plan.entities`；L122按`template == "fastapiadmin"`分支；L149按`template == "yudao-vben"`分支；L171抛异常，停止当前正常路径；L172遍历`entity.fields`；L183按`relation`分支。后续分支沿下方源码相同行号继续阅读。 调用`checked_database`、`validate_plan`、`MetaData`、`Table`、`Column`、`digest`、`String`、`text`、`DateTime`等。 返回路径：L215的`metadata, tables, mapping`。
+- `create_native_tables`（L218–L243）：接收`template`、`plan`、`url`、`run_id`、`reports`。 控制顺序：L224按`existing.intersection(mapping.values())`分支；L225抛异常，停止当前正常路径；L230遍历`metadata.sorted_tables`；L231按`table not in tables`分支；L233按`template == "yudao-vben"`分支；L238遍历`sorted(table.indexes, key=lambda item: item.name)`。 调用`native_metadata`、`create_engine`、`engine.begin`、`set`、`inspect(connection).get_table_names`、`inspect`、`existing.intersection`、`mapping.values`、`ValueError`等。 返回路径：L243的`mapping`。
+- `yudao_menu`（L246–L248）：接收`client`、`data`。 调用`client.client.post`、`record_id`、`payload`。 返回路径：L248的`record_id(payload(response))`。
+- `mount_yudao_export`（L251–L344）：接收`export`、`backend`、`frontend`、`entity`、`reports`、`used_errors`。 源码说明：Mount only generated feature paths; resolve ErrorCodeConstants TODO deterministically.。 控制顺序：L259遍历`sorted(root.rglob("*"))`；L260按`not file.is_file()`分支；L264按`"ErrorCodeConstants_手动操作" in name`分支；L267按`name.startswith("sql/")`分支；L269按`name.startswith("yudao-module-infra/") and "/src/main/" in name`分支；L271按`not (f"/{slug}/" in name or f"/mapper/{slug}/" in name)`分支；L272抛异常，停止当前正常路径；L274按`target.exists()`分支。后续分支沿下方源码相同行号继续阅读。 调用`tempfile.TemporaryDirectory`、`Path`、`archive.write_bytes`、`unpack`、`sorted`、`root.rglob`、`file.is_file`、`file.relative_to(root).as_posix`、`file.relative_to`等。 返回路径：L344的`{"files": writes, "error_constants": added}`。
+- `generate_modules`（L347–L578）：接收`template`、`backend`、`frontend`、`base_url`、`openapi`、`token`、`mapping`、`plan`、`reports`。 源码说明：Native APIs generate every feature. No fake controller replaces upstream codegen.。 控制顺序：L363按`template == "fastapiadmin"`分支；L368遍历`plan.entities`；L396按`export.headers.get("X-Skipped-Tables")`分支；L397抛异常，停止当前正常路径；L429按`template == "yudao-vben"`分支；L453按`len(ids) != len(plan.entities)`分支；L454抛异常，停止当前正常路径；L465遍历`zip(plan.entities, ids, strict=True)`。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`Path`、`reports.mkdir`、`NativeClient`、`NativeConfig`、`client.payload`、`client.request`、`list`、`mapping.values`等。 返回路径：L578的`targets`。
 
 </details>
 
-**创建路径：** `workbench/native_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L579。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/native_modules.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L578。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`24738`。本段原文以LF换行结束。
+本段原始字节数：`24534`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/native_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "78c7aea7893d42830dccc1fb62843f7a26c58cb8d437075ad2846232208db3c0"} -->
+<!-- learning-source: {"path": "workbench/native_modules.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "491158fbebfa2a0ea077cc2f4f37de748182b75e934af1748bb3182e8e09d46b"} -->
 ````python
 # workbench/native_modules.py
 """Native codegen -> deterministic mounting -> native menu metadata. No model-written CRUD."""
@@ -99,8 +99,10 @@ def validate_plan(plan):
         raise ValueError("每个原生实体只能有一个合并后的业务规则及完整正反例")
     from workbench.native_coding import RESERVED as RULE_RESERVED
 
-    if any(field.name in RULE_RESERVED for entity in plan.entities for field in entity.fields):
-        raise ValueError("Native field uses a reserved runtime name")
+    for entity in plan.entities:
+        for field in entity.fields:
+            if field.name in RULE_RESERVED:
+                raise ValueError("Native field uses a reserved runtime name")
     if plan.data_scope != "shared":
         raise ValueError(
             "Native runtime currently requires explicitly approved shared data with role permissions"
@@ -118,10 +120,6 @@ def validate_plan(plan):
                     "Native adapters do not yet execute searchable/filterable/date_range/min_length; "
                     "use a supported template or explicitly revise the requirement"
                 )
-        if not any(field.kind == "text" and field.required for field in entity.fields):
-            raise ValueError(
-                "Native runtime requires a required text field in each entity for independent UI acceptance"
-            )
         if len(entity.name) > 20 or not re.fullmatch(r"[a-z][a-z0-9_]*", entity.name):
             raise ValueError(
                 "Native entity identifiers must be lowercase and at most 20 characters"
@@ -130,8 +128,9 @@ def validate_plan(plan):
             c in entity.description for c in "\r\n\t"
         ):
             raise ValueError("Native labels cannot contain code delimiters or multiline text")
-        if any(field.name in RESERVED for field in entity.fields):
-            raise ValueError("Field conflicts with native framework audit columns")
+        for field in entity.fields:
+            if field.name in RESERVED:
+                raise ValueError("Field conflicts with native framework audit columns")
     return plan
 
 

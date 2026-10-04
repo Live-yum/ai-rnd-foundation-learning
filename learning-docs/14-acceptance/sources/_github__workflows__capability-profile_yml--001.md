@@ -10,17 +10,29 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L112。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L139。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`5781`。本段原文以LF换行结束。
+本段原始字节数：`7212`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "efdffa5c20940cd2b223c55441cac19539cec98c86d345569d357bdf217be64e"} -->
+<!-- learning-source: {"path": ".github/workflows/capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "31d0325c087a3b0115f899c19283f02f9506c777da689aa2239b7ca334ca1f05"} -->
 ````yaml
 # .github/workflows/capability-profile.yml
 name: Fixed authored SQLite isolation profile
 on:
+  pull_request:
+    paths:
+      - 'workbench/capability_*.py'
+      - 'scripts/capability*.py'
+      - 'scripts/ci_capability_security.py'
+      - 'scripts/daytona_capability_profile.py'
+      - 'tests/test_capability*.py'
+      - 'tools/daytona/capability*'
+      - 'tools/browser/**'
+      - 'scripts/capability_browser*.cjs'
+      - 'scripts/ci_capability_browser_isolation.py'
+      - '.github/workflows/capability-profile.yml'
   push:
-    branches: [feature/capability-nodes-transcript]
+    branches: [main, feature/durable-capability-orchestration]
     paths:
       - 'workbench/capability_*.py'
       - 'scripts/capability_guard.py'
@@ -32,6 +44,9 @@ on:
       - 'tests/test_capability_browser_preflight.py'
       - 'scripts/daytona_capability_profile.py'
       - 'tools/daytona/capability*'
+      - 'tools/browser/**'
+      - 'scripts/capability_browser*.cjs'
+      - 'scripts/ci_capability_browser_isolation.py'
       - '.github/workflows/capability-profile.yml'
   workflow_dispatch:
 concurrency:
@@ -62,13 +77,20 @@ jobs:
       - name: Check ordinary launcher behavior and strict receipt contracts
         env:
           RND_REQUIRE_NODE_TESTS: '1'
-        run: uv run pytest -q tests/test_capability_guard.py tests/test_capability_isolation.py tests/test_daytona_capability_profile.py tests/test_capability_browser_protocol.py tests/test_capability_browser_preflight.py
+          RND_REQUIRE_LANDLOCK: '1'
+        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
       - name: Install mandatory product browser acceptance tooling
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
           node .native/browser/node_modules/playwright/cli.js install --with-deps chromium
       - name: Require sandboxed browser readiness before building the local service
         run: uv run python -m scripts.ci_capability_browser_preflight
+      - name: Build immutable networkless browser worker in this same job
+        run: |
+          docker --host unix:///var/run/docker.sock build -f tools/browser/Dockerfile -t rnd-capability-browser .
+          echo "CAPABILITY_BROWSER_IMAGE=$(docker --host unix:///var/run/docker.sock image inspect --format '{{.Id}}' rnd-capability-browser)" >> "$GITHUB_ENV"
+      - name: Require real browser network resource and cleanup proof in this same job
+        run: uv run python -m scripts.ci_capability_browser_isolation
       - name: Create the local control plane with random local credentials
         run: uv run python -m scripts.daytona_local prepare --directory .data/daytona-capability
       - name: Build pinned release locally and lock immutable images
@@ -83,6 +105,8 @@ jobs:
         run: uv run python -m scripts.daytona_bootstrap snapshot --directory .data/daytona-capability
       - name: Require positive fixed-application isolation profile and real HTTP browser database restart
         run: uv run python -m scripts.ci_capability_profile
+      - name: Require real adversarial isolation and resource enforcement before source admission
+        run: uv run python -m scripts.ci_capability_security
       - name: Preserve bounded redacted diagnostics only
         if: always()
         run: |
@@ -129,4 +153,7 @@ jobs:
             reports/capability-profile-detail.json
             reports/capability-image-provenance.json
             reports/capability-browser-preflight.json
+            reports/capability-security.json
+            reports/capability-security-detail.json
+            reports/capability-browser-isolation.json
 ````

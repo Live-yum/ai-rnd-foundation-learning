@@ -17,21 +17,22 @@
 
 - `wire_name`（L20–L24）：接收`template`、`name`。 控制顺序：L21按`template == "fastapiadmin"`分支。 调用`name.split`、`"".join`、`piece[:1].upper`。 返回路径：L22的`name`；L24的`first + "".join(piece[:1].upper() + piece[1:] for piece in rest)`。
 - `sample_record`（L27–L44）：接收`entity`、`suffix`、`template`、`plan`。 控制顺序：L28按`plan is not None`分支；L32按`rule`分支。 调用`next`、`wire`、`wire_name`。 返回路径：L34的`wire(template, rule.accept_examples[index])`；L35的`{ wire_name(template, f.name): ( f"{entity.name}-{suffix}"[: f.max_length] if f.kind == "t…`。
-- `list_rows`（L47–L53）：接收`value`。 控制顺序：L48按`not isinstance(value, dict)`分支；L49抛异常，停止当前正常路径；L51按`not isinstance(rows, list)`分支；L52抛异常，停止当前正常路径。 调用`isinstance`、`AssertionError`、`value.get`。 返回路径：L53的`rows`。
-- `generated_crud`（L56–L143）：接收`template`、`base_url`、`token`、`targets`、`plan`。 控制顺序：L63遍历`zip(targets, plan.entities, strict=True)`；L70断言`type(identifier) is int and identifier > 0`；L82遍历`data.items()`；L83断言`saved[key] == value`；L85按`fastapi`分支；L96遍历`changed.items()`；L97断言`updated[key] == value`；L99断言`any(row["id"] == identifier for row in rows)`。后续分支沿下方源码相同行号继续阅读。 调用`httpx.Client`、`zip`、`denied`、`client.get`、`sample_record`、`payload`、`client.post`、`record_id`、`type`等。 返回路径：L143的`results`。
-- `generated_crud.get_item`（L72–L79）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L73按`fastapi`分支。 调用`payload`、`client.get`。 返回路径：L74的`payload( client.get(target["api"] + f"/detail/{identifier}", headers=admin) )`；L77的`payload( client.get(target["api"] + "/get", params={"id": identifier}, headers=admin) )`。
-- `check_generated_persistence`（L146–L158）：接收`template`、`base_url`、`token`、`targets`、`records`。 控制顺序：L153遍历`zip(targets, records, strict=True)`；L156遍历`record["persistent_data"].items()`；L157断言`saved[key] == value`。 调用`httpx.Client`、`zip`、`list_rows`、`payload`、`client.get`、`next`、`record["persistent_data"].items`、`len`。 返回路径：L158的`{"process_restart_preserves_records": True, "entity_count": len(records)}`。
-- `generated_permissions`（L161–L311）：接收`template`、`base_url`、`token`、`targets`、`plan`。 源码说明：Grant/read/create/revoke using original role APIs, never by editing auth code.。 控制顺序：L181遍历`targets`；L183遍历`("query", "create", "update", "delete")`；L203按`not fastapi`分支；L241遍历`targets`；L243断言`not payload(client.get(info, headers=none)).get("menus")`；L246按`not fastapi`分支；L247遍历`targets`；L250断言`menus`。后续分支沿下方源码相同行号继续阅读。 调用`httpx.Client`、`list`、`flatten`、`payload`、`client.get`、`set`、`read_ids.update`、`read_menu_ids`、`full_ids.update`等。 返回路径：L298的`{ "owned_user_id": user_id, "owned_role_id": role_id, "attempt_id": attempt_id, "empty_rol…`。
-- `generated_permissions.assign`（L212–L234）：接收`ids`。 控制顺序：L213按`fastapi`分支；L231按`fastapi`分支；L234断言`actual == set(ids)`。 调用`client.put`、`sorted`、`client.post`、`payload`、`client.get`、`set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `generated_permissions.identity`（L236–L237）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`login`。 返回路径：L237的`{"Authorization": "Bearer " + login(template, base_url, username, password)}`。
+- `invalid_record`（L47–L58）：接收`entity`、`data`、`template`。 源码说明：Exercise an existing constraint, never invent a required business field.。 控制顺序：L53按`required is not None`分支。 调用`dict`、`next`、`invalid.pop`、`wire_name`。 返回路径：L55的`invalid, "required"`；L58的`invalid, "type"`。
+- `list_rows`（L61–L67）：接收`value`。 控制顺序：L62按`not isinstance(value, dict)`分支；L63抛异常，停止当前正常路径；L65按`not isinstance(rows, list)`分支；L66抛异常，停止当前正常路径。 调用`isinstance`、`AssertionError`、`value.get`。 返回路径：L67的`rows`。
+- `generated_crud`（L70–L163）：接收`template`、`base_url`、`token`、`targets`、`plan`。 控制顺序：L77遍历`zip(targets, plan.entities, strict=True)`；L84断言`type(identifier) is int and identifier > 0`；L96遍历`data.items()`；L97断言`saved[key] == value`；L99按`fastapi`分支；L110遍历`changed.items()`；L111断言`updated[key] == value`；L113断言`any(row["id"] == identifier for row in rows)`。后续分支沿下方源码相同行号继续阅读。 调用`httpx.Client`、`zip`、`denied`、`client.get`、`sample_record`、`payload`、`client.post`、`record_id`、`type`等。 返回路径：L163的`results`。
+- `generated_crud.get_item`（L86–L93）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L87按`fastapi`分支。 调用`payload`、`client.get`。 返回路径：L88的`payload( client.get(target["api"] + f"/detail/{identifier}", headers=admin) )`；L91的`payload( client.get(target["api"] + "/get", params={"id": identifier}, headers=admin) )`。
+- `check_generated_persistence`（L166–L178）：接收`template`、`base_url`、`token`、`targets`、`records`。 控制顺序：L173遍历`zip(targets, records, strict=True)`；L176遍历`record["persistent_data"].items()`；L177断言`saved[key] == value`。 调用`httpx.Client`、`zip`、`list_rows`、`payload`、`client.get`、`next`、`record["persistent_data"].items`、`len`。 返回路径：L178的`{"process_restart_preserves_records": True, "entity_count": len(records)}`。
+- `generated_permissions`（L181–L331）：接收`template`、`base_url`、`token`、`targets`、`plan`。 源码说明：Grant/read/create/revoke using original role APIs, never by editing auth code.。 控制顺序：L201遍历`targets`；L203遍历`("query", "create", "update", "delete")`；L223按`not fastapi`分支；L261遍历`targets`；L263断言`not payload(client.get(info, headers=none)).get("menus")`；L266按`not fastapi`分支；L267遍历`targets`；L270断言`menus`。后续分支沿下方源码相同行号继续阅读。 调用`httpx.Client`、`list`、`flatten`、`payload`、`client.get`、`set`、`read_ids.update`、`read_menu_ids`、`full_ids.update`等。 返回路径：L318的`{ "owned_user_id": user_id, "owned_role_id": role_id, "attempt_id": attempt_id, "empty_rol…`。
+- `generated_permissions.assign`（L232–L254）：接收`ids`。 控制顺序：L233按`fastapi`分支；L251按`fastapi`分支；L254断言`actual == set(ids)`。 调用`client.put`、`sorted`、`client.post`、`payload`、`client.get`、`set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `generated_permissions.identity`（L256–L257）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`login`。 返回路径：L257的`{"Authorization": "Bearer " + login(template, base_url, username, password)}`。
 
 </details>
 
-**创建路径：** `workbench/native_acceptance.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L311。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/native_acceptance.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L331。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12879`。本段原文以LF换行结束。
+本段原始字节数：`13597`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/native_acceptance.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "121a4c6e046644e48de9dff233896fd19b8c003b7b840a10a2fbe9e84ae0b302"} -->
+<!-- learning-source: {"path": "workbench/native_acceptance.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0acccbf3674fc8d1beb8ef99fccc0aff7b89cc2ec071662443d6bae1aeb4f228"} -->
 ````python
 # workbench/native_acceptance.py
 """Independent HTTP checks for the ACTUAL generated modules and native RBAC APIs."""
@@ -78,6 +79,20 @@ def sample_record(entity, suffix="original", template="fastapiadmin", plan=None)
         )
         for f in entity.fields
     }
+
+
+def invalid_record(entity, data, template):
+    """Exercise an existing constraint, never invent a required business field."""
+    invalid = dict(data)
+    required = next(
+        (field for field in entity.fields if field.required and field.kind != "boolean"), None
+    )
+    if required is not None:
+        invalid.pop(wire_name(template, required.name))
+        return invalid, "required"
+    field = entity.fields[0]
+    invalid[wire_name(template, field.name)] = {"invalid_scalar": True}
+    return invalid, "type"
 
 
 def list_rows(value):
@@ -133,15 +148,13 @@ def generated_crud(template, base_url, token, targets, plan):
                 assert updated[key] == value, f"Update/read mismatch for {key}"
             rows = list_rows(payload(client.get(listing, headers=admin)))
             assert any(row["id"] == identifier for row in rows)
-            invalid = dict(data)
-            required = next(f for f in entity.fields if f.required and f.kind != "boolean")
-            invalid.pop(wire_name(template, required.name))
+            invalid, validation_kind = invalid_record(entity, data, template)
             response = client.post(target["api"] + "/create", json=invalid, headers=admin)
             assert not successful(response) and response.status_code < 500
             assert response.status_code in (400, 422) or response.json().get("code") in (
                 400,
                 422,
-            ), "Required-field validation must return a client validation error"
+            ), "Declared field validation must return a client validation error"
             if fastapi:
                 payload(
                     client.request(
@@ -163,13 +176,21 @@ def generated_crud(template, base_url, token, targets, plan):
                 payload(client.post(target["api"] + "/create", json=sample, headers=admin))
             )
             target["sample"] = next(
-                str(sample[wire_name(template, f.name)]) for f in entity.fields if f.kind == "text"
+                (
+                    str(sample[wire_name(template, f.name)])
+                    for f in entity.fields
+                    if f.kind == "text"
+                ),
+                "",
             )
+            target["sample_record"] = {"id": persistent, **sample}
             results.append(
                 {
                     "entity": entity.name,
                     "crud": True,
-                    "required_field_rejected": True,
+                    "required_field_rejected": validation_kind == "required",
+                    "invalid_field_rejected": True,
+                    "validation_kind": validation_kind,
                     "persistent_id": persistent,
                     "persistent_data": sample,
                     "unauthenticated_denied": True,

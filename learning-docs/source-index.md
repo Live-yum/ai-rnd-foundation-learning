@@ -58,8 +58,15 @@
 - [workbench/streaming.py](03-requirements/sources/workbench__streaming_py--001.md)（1 段）
 ## [04-local-foundation · 文件安全与源码检索](04-local-foundation/README.md)
 
+- [scripts/extension_oracles/contest.py](04-local-foundation/sources/scripts__extension_oracles__contest_py--001.md)（1 段）
+- [workbench/capability_browser_isolation.py](04-local-foundation/sources/workbench__capability_browser_isolation_py--001.md)（1 段）
+- [workbench/capability_contest_oracle.py](04-local-foundation/sources/workbench__capability_contest_oracle_py--001.md)（1 段）
 - [workbench/capability_contracts.py](04-local-foundation/sources/workbench__capability_contracts_py--001.md)（1 段）
+- [workbench/capability_execution.py](04-local-foundation/sources/workbench__capability_execution_py--001.md)（1 段）
 - [workbench/capability_isolation.py](04-local-foundation/sources/workbench__capability_isolation_py--001.md)（1 段）
+- [workbench/capability_native_runtime.py](04-local-foundation/sources/workbench__capability_native_runtime_py--001.md)（1 段）
+- [workbench/capability_policy.py](04-local-foundation/sources/workbench__capability_policy_py--001.md)（1 段）
+- [workbench/capability_services.py](04-local-foundation/sources/workbench__capability_services_py--001.md)（1 段）
 - [workbench/capability_stack.py](04-local-foundation/sources/workbench__capability_stack_py--001.md)（1 段）
 - [workbench/capability_verification.py](04-local-foundation/sources/workbench__capability_verification_py--001.md)（1 段）
 - [workbench/context_mcp.py](04-local-foundation/sources/workbench__context_mcp_py--001.md)（1 段）
@@ -112,11 +119,13 @@
 - [tests/test_recommendation_stage_budget.py](07-orchestration/sources/tests__test_recommendation_stage_budget_py--001.md)（1 段）
 - [tests/test_workflow.py](07-orchestration/sources/tests__test_workflow_py--001.md)（1 段）
 - [workbench/aider_tool.py](07-orchestration/sources/workbench__aider_tool_py--001.md)（1 段）
+- [workbench/capability_editing.py](07-orchestration/sources/workbench__capability_editing_py--001.md)（1 段）
 - [workbench/capability_sandbox.py](07-orchestration/sources/workbench__capability_sandbox_py--001.md)（1 段）
 - [workbench/coding.py](07-orchestration/sources/workbench__coding_py--001.md)（1 段）
 - [workbench/continue_index.py](07-orchestration/sources/workbench__continue_index_py--001.md)（1 段）
 - [workbench/daytona_profiles.py](07-orchestration/sources/workbench__daytona_profiles_py--001.md)（1 段）
 - [workbench/flow.py](07-orchestration/sources/workbench__flow_py--001.md)（1 段）
+- [workbench/orchestration.py](07-orchestration/sources/workbench__orchestration_py--001.md)（1 段）
 - [workbench/recommendation.py](07-orchestration/sources/workbench__recommendation_py--001.md)（1 段）
 - [workbench/runtime.py](07-orchestration/sources/workbench__runtime_py--001.md)（1 段）
 - [workbench/sandbox.py](07-orchestration/sources/workbench__sandbox_py--001.md)（1 段）
@@ -220,6 +229,7 @@
 - [workbench/native_frontend.py](09-native/sources/workbench__native_frontend_py--001.md)（1 段）
 - [workbench/native_lab.py](09-native/sources/workbench__native_lab_py--001.md)（1 段）
 - [workbench/native_modules.py](09-native/sources/workbench__native_modules_py--001.md)（1 段）
+- [workbench/native_plan_normalization.py](09-native/sources/workbench__native_plan_normalization_py--001.md)（1 段）
 - [workbench/native_ports.py](09-native/sources/workbench__native_ports_py--001.md)（1 段）
 - [workbench/native_recovery.py](09-native/sources/workbench__native_recovery_py--001.md)（1 段）
 - [workbench/native_resources.py](09-native/sources/workbench__native_resources_py--001.md)（1 段）
@@ -233,6 +243,11 @@
 - [workbench/yudao_navigation_checks.py](09-native/sources/workbench__yudao_navigation_checks_py--001.md)（1 段）
 ## [10-business · 角色权限与客服业务](10-business/README.md)
 
+- [tests/fixtures/contest_native/README.md](10-business/sources/tests__fixtures__contest_native__README_md--001.md)（1 段）
+- [tests/fixtures/contest_native/module_contest/__init__.py](10-business/sources/tests__fixtures__contest_native__module_contest____init___py--001.md)（1 段）
+- [tests/fixtures/contest_native/module_contest/controller.py](10-business/sources/tests__fixtures__contest_native__module_contest__controller_py--001.md)（1 段）
+- [tests/fixtures/contest_native/module_contest/model.py](10-business/sources/tests__fixtures__contest_native__module_contest__model_py--001.md)（1 段）
+- [tests/fixtures/contest_oracle/original_requirement.json](10-business/sources/tests__fixtures__contest_oracle__original_requirement_json--001.md)（1 段）
 - [tests/fixtures/customer_approved_replays/README.md](10-business/sources/tests__fixtures__customer_approved_replays__README_md--001.md)（1 段）
 - [tests/fixtures/customer_approved_replays/fastapi-0e8.json](10-business/sources/tests__fixtures__customer_approved_replays__fastapi-0e8_json--001.md)（1 段）
 - [tests/fixtures/customer_approved_replays/yudao-1d7.json](10-business/sources/tests__fixtures__customer_approved_replays__yudao-1d7_json--001.md)（1 段）
@@ -315,6 +330,10 @@
 - [tools/aider/offline_runner.py](11-local-tools/sources/tools__aider__offline_runner_py--001.md)（1 段）
 - [tools/aider/pyproject.toml](11-local-tools/sources/tools__aider__pyproject_toml--001.md)（1 段）
 - [tools/aider/uv.lock](11-local-tools/sources/locks/tools__aider__uv_lock--001.md)（1 段）
+- [tools/browser/Dockerfile](11-local-tools/sources/tools__browser__Dockerfile--001.md)（1 段）
+- [tools/browser/LICENSE.playwright](11-local-tools/sources/tools__browser__LICENSE_playwright--001.md)（1 段）
+- [tools/browser/SECCOMP-REVIEW.md](11-local-tools/sources/tools__browser__SECCOMP-REVIEW_md--001.md)（1 段）
+- [tools/browser/seccomp.playwright-1.56.1.json](11-local-tools/sources/tools__browser__seccomp_playwright-1_56_1_json--001.md)（1 段）
 - [tools/embeddings/pyproject.toml](11-local-tools/sources/tools__embeddings__pyproject_toml--001.md)（1 段）
 - [tools/embeddings/uv.lock](11-local-tools/sources/locks/tools__embeddings__uv_lock--001.md)（1 段）
 - [tools/node/build.mjs](11-local-tools/sources/tools__node__build_mjs--001.md)（1 段）
@@ -342,6 +361,7 @@
 - [scripts/daytona_local.py](12-daytona/sources/scripts__daytona_local_py--001.md)（1 段）
 - [scripts/daytona_matrix_image.py](12-daytona/sources/scripts__daytona_matrix_image_py--001.md)（1 段）
 - [scripts/daytona_matrix_probe.py](12-daytona/sources/scripts__daytona_matrix_probe_py--001.md)（1 段）
+- [scripts/daytona_native_capability_profile.py](12-daytona/sources/scripts__daytona_native_capability_profile_py--001.md)（1 段）
 - [tests/test_daytona_bootstrap_contract.py](12-daytona/sources/tests__test_daytona_bootstrap_contract_py--001.md)（1 段）
 - [tests/test_daytona_build.py](12-daytona/sources/tests__test_daytona_build_py--001.md)（1 段）
 - [tests/test_daytona_capability_profile.py](12-daytona/sources/tests__test_daytona_capability_profile_py--001.md)（1 段）
@@ -353,6 +373,7 @@
 - [tests/test_daytona_startup_diagnostics.py](12-daytona/sources/tests__test_daytona_startup_diagnostics_py--001.md)（1 段）
 - [tests/test_local_only.py](12-daytona/sources/tests__test_local_only_py--001.md)（1 段）
 - [tools/daytona/Dockerfile](12-daytona/sources/tools__daytona__Dockerfile--001.md)（1 段）
+- [tools/daytona/capability-native-snapshot.Dockerfile](12-daytona/sources/tools__daytona__capability-native-snapshot_Dockerfile--001.md)（1 段）
 - [tools/daytona/capability-runner.Dockerfile](12-daytona/sources/tools__daytona__capability-runner_Dockerfile--001.md)（1 段）
 - [tools/daytona/capability-runner.patch](12-daytona/sources/tools__daytona__capability-runner_patch--001.md)（1 段）
 - [tools/daytona/capability-snapshot.Dockerfile](12-daytona/sources/tools__daytona__capability-snapshot_Dockerfile--001.md)（1 段）
@@ -378,6 +399,7 @@
 - [tests/test_native_business_probes.py](13-delivery/sources/tests__test_native_business_probes_py--001.md)（1 段）
 - [tests/test_native_business_query_browser.py](13-delivery/sources/tests__test_native_business_query_browser_py--001.md)（1 段）
 - [tests/test_native_business_restart.py](13-delivery/sources/tests__test_native_business_restart_py--001.md)（1 段）
+- [tests/test_native_capability_profile.py](13-delivery/sources/tests__test_native_capability_profile_py--001.md)（1 段）
 - [tests/test_native_delivery_diagnostics.py](13-delivery/sources/tests__test_native_delivery_diagnostics_py--001.md)（1 段）
 - [tests/test_native_fastapi_screenshot_readiness.py](13-delivery/sources/tests__test_native_fastapi_screenshot_readiness_py--001.md)（1 段）
 - [tests/test_native_frontend_lifecycle.py](13-delivery/sources/tests__test_native_frontend_lifecycle_py--001.md)（1 段）
@@ -385,7 +407,9 @@
 - [tests/test_native_login_readiness.py](13-delivery/sources/tests__test_native_login_readiness_py--001.md)（1 段）
 - [tests/test_native_managed.py](13-delivery/sources/tests__test_native_managed_py--001.md)（1 段）
 - [tests/test_native_modules.py](13-delivery/sources/tests__test_native_modules_py--001.md)（1 段）
+- [tests/test_native_optional_acceptance.py](13-delivery/sources/tests__test_native_optional_acceptance_py--001.md)（1 段）
 - [tests/test_native_optional_dependencies.py](13-delivery/sources/tests__test_native_optional_dependencies_py--001.md)（1 段）
+- [tests/test_native_plan_normalization.py](13-delivery/sources/tests__test_native_plan_normalization_py--001.md)（1 段）
 - [tests/test_native_ports.py](13-delivery/sources/tests__test_native_ports_py--001.md)（1 段）
 - [tests/test_native_postgres_contract.py](13-delivery/sources/tests__test_native_postgres_contract_py--001.md)（1 段）
 - [tests/test_native_projection_gate.py](13-delivery/sources/tests__test_native_projection_gate_py--001.md)（1 段）
@@ -404,10 +428,12 @@
 - [tests/test_yudao_screenshot_readiness.py](13-delivery/sources/tests__test_yudao_screenshot_readiness_py--001.md)（1 段）
 ## [14-acceptance · 全平台验收与证据阅读](14-acceptance/README.md)
 
+- [.github/workflows/capability-browser-isolation.yml](14-acceptance/sources/_github__workflows__capability-browser-isolation_yml--001.md)（1 段）
 - [.github/workflows/capability-profile.yml](14-acceptance/sources/_github__workflows__capability-profile_yml--001.md)（1 段）
 - [.github/workflows/customer-runtime.yml](14-acceptance/sources/_github__workflows__customer-runtime_yml--001.md)（1 段）
 - [.github/workflows/daytona-local.yml](14-acceptance/sources/_github__workflows__daytona-local_yml--001.md)（1 段）
 - [.github/workflows/local-embeddings.yml](14-acceptance/sources/_github__workflows__local-embeddings_yml--001.md)（1 段）
+- [.github/workflows/native-capability-profile.yml](14-acceptance/sources/_github__workflows__native-capability-profile_yml--001.md)（1 段）
 - [.github/workflows/native-probe.yml](14-acceptance/sources/_github__workflows__native-probe_yml--001.md)（1 段）
 - [.github/workflows/native-runtime.yml](14-acceptance/sources/_github__workflows__native-runtime_yml--001.md)（1 段）
 - [.github/workflows/native-toolchain-daytona.yml](14-acceptance/sources/_github__workflows__native-toolchain-daytona_yml--001.md)（1 段）
@@ -418,6 +444,9 @@
 - [SECURITY.md](14-acceptance/sources/SECURITY_md--001.md)（1 段）
 - [docs/acceptance-checklist.md](14-acceptance/sources/docs__acceptance-checklist_md--001.md)（1 段）
 - [docs/business-platform.md](14-acceptance/sources/docs__business-platform_md--001.md)（1 段）
+- [docs/candidate-browser-isolation.md](14-acceptance/sources/docs__candidate-browser-isolation_md--001.md)（1 段）
+- [docs/contest-extension-oracle.md](14-acceptance/sources/docs__contest-extension-oracle_md--001.md)（1 段）
+- [docs/custom-source-isolation.md](14-acceptance/sources/docs__custom-source-isolation_md--001.md)（1 段）
 - [docs/from-zero-checkpoints.md](14-acceptance/sources/docs__from-zero-checkpoints_md--001.md)（1 段）
 - [docs/guide.md](14-acceptance/sources/docs__guide_md--001.md)（1 段）
 - [docs/images/customer-service/employee-native-list.png](14-acceptance/sources/assets/docs__images__customer-service__employee-native-list_png--001.md)（1 段）
@@ -440,14 +469,23 @@
 - [scripts/build_handbook.py](14-acceptance/sources/scripts__build_handbook_py--001.md)（1 段）
 - [scripts/build_learning_docs.py](14-acceptance/sources/scripts__build_learning_docs_py--001.md)（1 段）
 - [scripts/capability_browser.cjs](14-acceptance/sources/scripts__capability_browser_cjs--001.md)（1 段）
+- [scripts/capability_browser_network_probe.cjs](14-acceptance/sources/scripts__capability_browser_network_probe_cjs--001.md)（1 段）
+- [scripts/capability_browser_worker.cjs](14-acceptance/sources/scripts__capability_browser_worker_cjs--001.md)（1 段）
 - [scripts/capability_fixture.py](14-acceptance/sources/scripts__capability_fixture_py--001.md)（1 段）
 - [scripts/capability_guard.py](14-acceptance/sources/scripts__capability_guard_py--001.md)（1 段）
+- [scripts/capability_native_egress.py](14-acceptance/sources/scripts__capability_native_egress_py--001.md)（1 段）
+- [scripts/capability_native_planner_probe.py](14-acceptance/sources/scripts__capability_native_planner_probe_py--001.md)（1 段）
+- [scripts/capability_security_probe.py](14-acceptance/sources/scripts__capability_security_probe_py--001.md)（1 段）
+- [scripts/ci_capability_browser_isolation.py](14-acceptance/sources/scripts__ci_capability_browser_isolation_py--001.md)（1 段）
 - [scripts/ci_capability_browser_preflight.py](14-acceptance/sources/scripts__ci_capability_browser_preflight_py--001.md)（1 段）
 - [scripts/ci_capability_profile.py](14-acceptance/sources/scripts__ci_capability_profile_py--001.md)（1 段）
+- [scripts/ci_capability_security.py](14-acceptance/sources/scripts__ci_capability_security_py--001.md)（1 段）
+- [scripts/ci_contest_capability.py](14-acceptance/sources/scripts__ci_contest_capability_py--001.md)（1 段）
 - [scripts/ci_guided_browser.py](14-acceptance/sources/scripts__ci_guided_browser_py--001.md)（1 段）
 - [scripts/ci_handbook.py](14-acceptance/sources/scripts__ci_handbook_py--001.md)（1 段）
 - [scripts/ci_learning_docs.py](14-acceptance/sources/scripts__ci_learning_docs_py--001.md)（1 段）
 - [scripts/ci_model_feedback.py](14-acceptance/sources/scripts__ci_model_feedback_py--001.md)（1 段）
+- [scripts/ci_native_capability_security.py](14-acceptance/sources/scripts__ci_native_capability_security_py--001.md)（1 段）
 - [scripts/ci_native_runtime.py](14-acceptance/sources/scripts__ci_native_runtime_py--001.md)（1 段）
 - [scripts/ci_native_sources.py](14-acceptance/sources/scripts__ci_native_sources_py--001.md)（1 段）
 - [scripts/ci_real_model.py](14-acceptance/sources/scripts__ci_real_model_py--001.md)（3 段）
@@ -457,13 +495,32 @@
 - [scripts/rebuild_from_handbook.py](14-acceptance/sources/scripts__rebuild_from_handbook_py--001.md)（1 段）
 - [scripts/rebuild_learning_docs.py](14-acceptance/sources/scripts__rebuild_learning_docs_py--001.md)（1 段）
 - [scripts/signup_scope_browser.cjs](14-acceptance/sources/scripts__signup_scope_browser_cjs--001.md)（1 段）
+- [tests/test_capability_browser_isolation.py](14-acceptance/sources/tests__test_capability_browser_isolation_py--001.md)（1 段）
 - [tests/test_capability_browser_preflight.py](14-acceptance/sources/tests__test_capability_browser_preflight_py--001.md)（1 段）
-- [tests/test_capability_browser_protocol.py](14-acceptance/sources/tests__test_capability_browser_protocol_py--001.md)（1 段）
+- [tests/test_capability_browser_protocol.py](14-acceptance/sources/tests__test_capability_browser_protocol_py--001.md)（2 段）
+- [tests/test_capability_capture_bounds.py](14-acceptance/sources/tests__test_capability_capture_bounds_py--001.md)（1 段）
+- [tests/test_capability_contest_adapter.py](14-acceptance/sources/tests__test_capability_contest_adapter_py--001.md)（1 段）
+- [tests/test_capability_contest_integration.py](14-acceptance/sources/tests__test_capability_contest_integration_py--001.md)（1 段）
+- [tests/test_capability_editing.py](14-acceptance/sources/tests__test_capability_editing_py--001.md)（1 段）
+- [tests/test_capability_execution_gate.py](14-acceptance/sources/tests__test_capability_execution_gate_py--001.md)（1 段）
+- [tests/test_capability_form_dispatch.py](14-acceptance/sources/tests__test_capability_form_dispatch_py--001.md)（1 段）
 - [tests/test_capability_guard.py](14-acceptance/sources/tests__test_capability_guard_py--001.md)（1 段）
+- [tests/test_capability_http_bounds.py](14-acceptance/sources/tests__test_capability_http_bounds_py--001.md)（1 段）
 - [tests/test_capability_isolation.py](14-acceptance/sources/tests__test_capability_isolation_py--001.md)（1 段）
+- [tests/test_capability_native_database_reset.py](14-acceptance/sources/tests__test_capability_native_database_reset_py--001.md)（1 段）
+- [tests/test_capability_native_egress.py](14-acceptance/sources/tests__test_capability_native_egress_py--001.md)（1 段）
+- [tests/test_capability_native_freeze.py](14-acceptance/sources/tests__test_capability_native_freeze_py--001.md)（1 段）
+- [tests/test_capability_native_planner_probe.py](14-acceptance/sources/tests__test_capability_native_planner_probe_py--001.md)（1 段）
+- [tests/test_capability_native_services.py](14-acceptance/sources/tests__test_capability_native_services_py--001.md)（1 段）
+- [tests/test_capability_orchestration.py](14-acceptance/sources/tests__test_capability_orchestration_py--001.md)（1 段）
+- [tests/test_capability_policy.py](14-acceptance/sources/tests__test_capability_policy_py--001.md)（1 段）
+- [tests/test_capability_policy_review.py](14-acceptance/sources/tests__test_capability_policy_review_py--001.md)（1 段）
 - [tests/test_capability_recovery_controls.py](14-acceptance/sources/tests__test_capability_recovery_controls_py--001.md)（1 段）
+- [tests/test_capability_restart_thread_drain.py](14-acceptance/sources/tests__test_capability_restart_thread_drain_py--001.md)（1 段）
+- [tests/test_ci_native_capability_security.py](14-acceptance/sources/tests__test_ci_native_capability_security_py--001.md)（1 段）
 - [tests/test_description_facts.py](14-acceptance/sources/tests__test_description_facts_py--001.md)（1 段）
 - [tests/test_entity_group_clause_scope.py](14-acceptance/sources/tests__test_entity_group_clause_scope_py--001.md)（1 段）
+- [tests/test_extension_business_oracle.py](14-acceptance/sources/tests__test_extension_business_oracle_py--001.md)（1 段）
 - [tests/test_guided_completion.py](14-acceptance/sources/tests__test_guided_completion_py--001.md)（1 段）
 - [tests/test_guided_postgres.py](14-acceptance/sources/tests__test_guided_postgres_py--001.md)（1 段）
 - [tests/test_handbook.py](14-acceptance/sources/tests__test_handbook_py--001.md)（1 段）

@@ -31,16 +31,16 @@
 - `_legacy_scalar_constraints`（L2112–L2134）：接收`text`。 源码说明：Shared scalar predicate extraction after entity/field subject binding.。 控制顺序：L2123按`not validation`分支；L2124按`re.search(r"必填\|required", text, re.I) and not optional`分支；L2126按`optional or re.search(r"可选", text)`分支；L2128遍历`( ("max_length", r"上限\|最大\|max_length\|最多\|最长"), ("min_length", r…`；L2133按`number`分支。 调用`bool`、`re.search`、`int`、`number.group`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `explicit_legacy_field_constraints`（L2137–L2207）：接收`requirement`。 源码说明：Reliably bound scalar constraints using Requirement vocabulary only. This is a read-only projection for source-conflict detection, not a new requirements ledger or an excuse to discard unsupported tex。 控制顺序：L2151按`not fields`分支；L2163遍历`texts`；L2167遍历`enumerate( _legacy_clauses(_legacy_operation_text(text, fields), …`；L2170遍历`_legacy_targets(clause, fields)`；L2172遍历`_legacy_scalar_constraints(clause)`；L2183遍历`enumerate( _fact_constraints(requirement.facts, fields) )`；L2186按`subject not in vocabulary`分支；L2188遍历`("required", "min_length", "max_length")`。后续分支沿下方源码相同行号继续阅读。 调用`SimpleNamespace`、`vocabulary.items`、`enumerate`、`getattr`、`texts.extend`、`_fact_texts`、`_legacy_field_exclusions`、`_metric_clauses`、`_query_predicate_text`等。 返回路径：L2152的`[]`；L2207的`result`。
 - `_legacy_declared_fields`（L2210–L2280）：接收`text`、`fields`。 源码说明：Recognize explicit field declarations, never infer fields from bare prose. This is a compatibility guard, not a general-language parser. Typed ledgers remain independent. Only a schema heading/imperat。 控制顺序：L2220按`heading`分支；L2222按`owner`分支；L2225按`match`分支；L2244按`declaration`分支；L2246按`body[:1] in "（([【"`分支；L2255按`not descriptor`分支；L2259遍历`_top_level_parts(body, separators)`；L2261按`not subject`分支。后续分支沿下方源码相同行号继续阅读。 调用`_fact_entity`、`_entity_subject_heading`、`re.search`、`re.escape`、`match.end`、`ALIASES.values`、`name.isascii`、`"\|".join`、`re.match`等。 返回路径：L2256的`[]`；L2280的`result`。
-- `coverage_gaps`（L2283–L2730）：接收`requirement`、`plan`、`diagnostics`。 源码说明：Return blocking messages; optionally record the exact deterministic provenance. Diagnostic source indices refer to the retained Requirement, never a model verdict. Consumers exporting diagnostics must。 控制顺序：L2333按`plan.data_scope != requirement.data_scope`分支；L2340遍历`enumerate(requirement.field_requirements)`；L2348按`len(matches) != 1`分支；L2352遍历`obligation.model_dump().items()`；L2353按`key in {"field", "entity"} or value is None`分支；L2357按`key in {"searchable", "filterable", "date_range"} and type(value) is bool`分支；L2359按`not matches_constraint`分支；L2377遍历`enumerate(structured)`。后续分支沿下方源码相同行号继续阅读。 调用`entity_gaps`、`gap`、`enumerate`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_matches_constraint`、`type`等。 返回路径：L2730的`list(dict.fromkeys(gaps))`。
-- `coverage_gaps.query_matches`（L2295–L2301）：接收`field`、`attribute`、`expected`。 控制顺序：L2297按`key in typed_queries`分支。 调用`id`、`getattr`。 返回路径：L2298的`typed_queries[key]`；L2301的`getattr(field, attribute) is expected`。
+- `coverage_gaps`（L2283–L2736）：接收`requirement`、`plan`、`diagnostics`、`native_normalization`。 源码说明：Return blocking messages; optionally record the exact deterministic provenance. Diagnostic source indices refer to the retained Requirement, never a model verdict. Consumers exporting diagnostics must。 控制顺序：L2291按`native_normalization`分支；L2339按`plan.data_scope != requirement.data_scope`分支；L2346遍历`enumerate(requirement.field_requirements)`；L2354按`len(matches) != 1`分支；L2358遍历`obligation.model_dump().items()`；L2359按`key in {"field", "entity"} or value is None`分支；L2363按`key in {"searchable", "filterable", "date_range"} and type(value) is bool`分支；L2365按`not matches_constraint`分支。后续分支沿下方源码相同行号继续阅读。 调用`source_plan`、`entity_gaps`、`gap`、`enumerate`、`len`、`obligation.model_dump().items`、`obligation.model_dump`、`getattr`、`_matches_constraint`等。 返回路径：L2736的`list(dict.fromkeys(gaps))`。
+- `coverage_gaps.query_matches`（L2301–L2307）：接收`field`、`attribute`、`expected`。 控制顺序：L2303按`key in typed_queries`分支。 调用`id`、`getattr`。 返回路径：L2304的`typed_queries[key]`；L2307的`getattr(field, attribute) is expected`。
 
 </details>
 
-**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L1711–L2302。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/requirement_coverage.py`；**本文件共有 4 段**。本段覆盖源文件 L1711–L2308。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26707`。本段原文以LF换行结束。
+本段原始字节数：`26893`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 3, "parts": 4, "encoding": "utf-8", "sha256": "d23ce20d17681452b06d338b77fcc7bcfd3a2d56ffe4dbe091d93062e8a8a71e"} -->
+<!-- learning-source: {"path": "workbench/requirement_coverage.py", "part": 3, "parts": 4, "encoding": "utf-8", "sha256": "a1262b00edbe16266c2bab2d6f8ac79f8618e605b3ae248f8e4db22c078413bb"} -->
 ````python
 # workbench/requirement_coverage.py
     def consume(fragment, context="", inherited=False):
@@ -615,12 +615,18 @@ def _legacy_declared_fields(text, fields):
     return result
 
 
-def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> list[str]:
+def coverage_gaps(
+    requirement: Requirement, plan: Plan, *, diagnostics=None, native_normalization=None
+) -> list[str]:
     """Return blocking messages; optionally record the exact deterministic provenance.
 
     Diagnostic source indices refer to the retained Requirement, never a model
     verdict. Consumers exporting diagnostics must allowlist values separately.
     """
+    if native_normalization:
+        from workbench.native_plan_normalization import source_plan
+
+        plan = source_plan(plan, native_normalization)
     gaps = entity_gaps(requirement, plan, diagnostics=diagnostics)
     fields = [(entity.name, field) for entity in plan.entities for field in entity.fields]
     typed_queries = {}

@@ -10,23 +10,24 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.capability_contracts`、`workbench.capability_isolation`、`workbench.capability_stack`、`workbench.capability_verification`、`workbench.domain`、`workbench.errors`、`workbench.filesystem`、`workbench.generator`、`workbench.local_only`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.capability_contracts`、`workbench.capability_isolation`、`workbench.capability_stack`、`workbench.capability_verification`、`workbench.domain`、`workbench.filesystem`、`workbench.generator`、`workbench.local_only`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `verify_capabilities`（L53–L139）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`。 控制顺序：L57按`plan.selection.model_dump() != selection`分支；L58抛异常，停止当前正常路径；L63按`settings.sandbox_provider != "daytona"`分支；L64抛异常，停止当前正常路径；L71抛异常，停止当前正常路径；L77抛异常，停止当前正常路径；L108按`len(body) > 1_000_000`分支；L109抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`UnsupportedScope`、`validate_configuration`、`Path(product).resolve`、`Path`、`plan.model_dump`等。 返回路径：L62的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L139的`receipt`。
-- `_verify`（L142–L351）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`。 控制顺序：L180按`aggregate`分支；L189按`control_observer is None`分支；L190抛异常，停止当前正常路径；L196抛异常，停止当前正常路径；L209按`result.exit_code != 0`分支；L210抛异常，停止当前正常路径；L213按`database_password`分支；L217遍历`enumerate(plan.runtime.prepare)`。后续分支沿下方源码相同行号继续阅读。 调用`manifest`、`uuid.uuid4`、`digest`、`plan.model_dump`、`inspect_stack`、`write_json`、`params_for`、`client.create`、`receipt.update`等。 返回路径：L351的`receipt`。
-- `_verify.start`（L235–L278）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L251按`not response.cmd_id`分支；L252抛异常，停止当前正常路径；L255按`not isinstance(preview.token, str) or not preview.token`分支；L256抛异常，停止当前正常路径；L267在`time.monotonic() < deadline`成立时循环；L270按`200 <= check.status_code < 300`分支；L275抛异常，停止当前正常路径；L278抛异常，停止当前正常路径。 调用`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`、`shlex.quote`、`shlex.join`、`CheckFailure`等。 返回路径：L271的`http, url, preview.token`。
-- `main`（L354–L380）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L355抛异常，停止当前正常路径；L357按`len(body) > 1_000_000`分支；L358抛异常，停止当前正常路径。 调用`UnsupportedScope`、`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`client_for`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `restart_application_identity`（L52–L102）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L101按`result.exit_code != 0`分支；L102抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_capabilities`（L105–L192）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L111按`plan.selection.model_dump() != selection`分支；L112抛异常，停止当前正常路径；L118按`selection["template"] == "fastapiadmin"`分支；L121按`dependency_identity(product) != profile["dependency_identity"]`分支；L122抛异常，停止当前正常路径；L158按`len(body) > 1_000_000`分支；L159抛异常，停止当前正常路径；L181抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`、`Path`等。 返回路径：L116的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L192的`receipt`。
+- `_verify`（L195–L569）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`。 控制顺序：L214按`trusted_oracle not in (None, "contest-business-v2")`分支；L215抛异常，停止当前正常路径；L216按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L219抛异常，停止当前正常路径；L244按`aggregate`分支；L253按`security_probe is not None`分支；L255按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L256抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`CheckFailure`、`manifest`、`uuid.uuid4`、`digest`、`plan.model_dump`、`inspect_stack`、`write_json`、`params_for`、`client.create`等。 返回路径：L569的`receipt`。
+- `_verify.start`（L344–L389）：接收`command`、`port`、`health_path`。 控制顺序：L362按`not response.cmd_id`分支；L363抛异常，停止当前正常路径；L366按`not isinstance(preview.token, str) or not preview.token`分支；L367抛异常，停止当前正常路径；L378在`time.monotonic() < deadline`成立时循环；L381按`200 <= check.status_code < 300`分支；L386抛异常，停止当前正常路径；L389抛异常，停止当前正常路径。 调用`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`、`shlex.quote`、`shlex.join`、`CheckFailure`等。 返回路径：L382的`http, url, preview.token`。
+- `main`（L572–L614）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L574按`len(body) > 1_000_000`分支；L575抛异常，停止当前正常路径；L584按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L590抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L384。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L618。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16237`。本段原文以LF换行结束。
+本段原始字节数：`26916`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "71c164a92df7b0b3a3201374b224d53ccc42d3cbc3ce79099582bcd1ffc06a08"} -->
+<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e69452fbdb021c723a549a714a9b10132021745b888635bfbcd6b9480e7c66fa"} -->
 ````python
 # workbench/capability_sandbox.py
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
@@ -72,7 +73,6 @@ from workbench.capability_verification import (
     run_scenarios,
 )
 from workbench.domain import digest
-from workbench.errors import UnsupportedScope
 from workbench.filesystem import manifest, write_json
 from workbench.generator import PrerequisiteError
 from workbench.local_only import install_loopback_guard
@@ -81,8 +81,63 @@ from workbench.tools import clean_env, process_options, stop_process
 REMOTE = "/tmp/rnd-capability"
 
 
-def verify_capabilities(product, plan, scenarios, settings, *, aggregate, selection=None):
-    from workbench.sandbox import validate_configuration
+def restart_application_identity(sandbox, port, timeout, *, extra_ports=()):
+    """Stop only this sandbox's dedicated application UID, then prove closure.
+
+    Bounded tmpfs survives this process restart, not a container restart. The
+    controller and independent database identity are never selected by the kill.
+    """
+    script = """import os,pathlib,signal,sys,time
+uid=20000;ports={int(value) for value in sys.argv[1:]};end=time.monotonic()+10
+def live():
+ result=[]
+ entries=list(pathlib.Path('/proc').glob('[0-9]*/task/[0-9]*/status'))
+ if len(entries)>4096:raise RuntimeError('Process inventory limit exceeded')
+ for path in entries:
+  try:
+   fields=dict(line.split(':',1) for line in path.read_text().splitlines())
+   if uid in [int(v) for v in fields['Uid'].split()] and not fields['State'].strip().startswith('Z'):
+    result.append(int(path.parents[2].name))
+  except FileNotFoundError:pass
+ return sorted(set(result))
+while True:
+ active=live()
+ if not active:
+  time.sleep(.05)
+  if not live():break
+ for pid in active:
+  try:
+   fd=os.pidfd_open(pid)
+   try:
+    fields=dict(line.split(':',1) for line in pathlib.Path('/proc',str(pid),'status').read_text().splitlines())
+    if uid in [int(v) for v in fields['Uid'].split()]:signal.pidfd_send_signal(fd,signal.SIGKILL)
+   finally:os.close(fd)
+  except ProcessLookupError:pass
+  except FileNotFoundError:pass
+ if time.monotonic()>=end:raise SystemExit(1)
+ time.sleep(.05)
+for name in ('tcp','tcp6'):
+ path=pathlib.Path('/proc/net')/name
+ if not path.exists():continue
+ with path.open() as f:lines=f.read(4000001)
+ if len(lines)>4000000:raise SystemExit(1)
+ for line in lines.splitlines()[1:]:
+  fields=line.split()
+  if len(fields)>3 and int(fields[1].rsplit(':',1)[1],16) in ports and fields[3]=='0A':raise SystemExit(1)
+"""
+    result = control_exec(
+        sandbox,
+        ["/usr/bin/python3", "-I", "-S", "-c", script, str(port), *(str(p) for p in extra_ports)],
+        min(timeout, 15),
+    )
+    if result.exit_code != 0:
+        raise CheckFailure("应用身份仍有存活进程或旧端口未关闭，拒绝伪造重启成功")
+
+
+def verify_capabilities(
+    product, plan, scenarios, settings, *, aggregate, selection=None, trusted_oracle=None
+):
+    from workbench.capability_execution import capability_execution_prerequisites
 
     selection = selection or {"template": "python-basic", "database": "sqlite"}
     if plan.selection.model_dump() != selection:
@@ -91,28 +146,19 @@ def verify_capabilities(product, plan, scenarios, settings, *, aggregate, select
         inspect_stack(product, plan)
     except (CheckFailure, ValueError) as exc:
         return {"passed": False, "kind": "source_contract", "error": str(exc)}
-    if settings.sandbox_provider != "daytona":
-        raise UnsupportedScope(
-            "自定义源码已保存，等待隔离验证环境：请配置本机 Daytona 和对应离线快照。"
-            "生成代码不会在平台宿主执行；配置后重试同一运行，不会重做已保存模型响应。"
-        )
-    try:
-        validate_configuration(settings, selection["template"], selection)
-    except ValueError, PrerequisiteError:
-        raise UnsupportedScope(
-            "自定义验证环境尚未就绪；请检查本机 Daytona 授权、技术栈离线快照及配置，再重试同一运行。"
-        ) from None
-    # The pinned stock daemon exposes an unauthenticated in-sandbox execution
-    # channel. A same-container database/tool probe cannot be trusted until the
-    # new executor's application and control identities are actually separated.
-    raise UnsupportedScope(
-        "自定义源码已保存，但当前Daytona镜像的控制通道与数据库验证身份尚未完成隔离验收；"
-        "已停止执行，保留原技术栈和同一运行候选，不会将不可信探针标为通过。"
-    )
+    directory, profile = capability_execution_prerequisites(settings, selection)
+    if selection["template"] == "fastapiadmin":
+        from workbench.daytona_profiles import dependency_identity
+
+        if dependency_identity(product) != profile["dependency_identity"]:
+            raise PrerequisiteError("原生候选依赖与已验收快照不一致，未执行或更换技术栈")
     product = Path(product).resolve()
     receipt_path = product.parent / (
         product.name + ("-aggregate" if aggregate else "-node") + "-verification.json"
     )
+    # Never adopt an older successful attempt if the verifier dies before
+    # writing its own fresh report.
+    write_json(receipt_path, {"passed": False, "cleanup": "not-started"})
     payload = {
         "product": str(product),
         "receipt": str(receipt_path),
@@ -120,6 +166,7 @@ def verify_capabilities(product, plan, scenarios, settings, *, aggregate, select
         "plan": plan.model_dump(),
         "scenario_ids": [s.id for s in scenarios],
         "aggregate": aggregate,
+        "trusted_oracle": trusted_oracle,
         "settings": {
             name: getattr(settings, name)
             for name in (
@@ -131,9 +178,13 @@ def verify_capabilities(product, plan, scenarios, settings, *, aggregate, select
                 "daytona_target",
                 "daytona_runtime_timeout",
                 "tool_timeout",
+                "daytona_snapshots",
+                "capability_execution_enabled",
+                "capability_browser_image",
             )
         },
     }
+    payload["settings"]["capability_profile_directory"] = str(directory)
     payload["settings"]["daytona_api_key"] = settings.daytona_api_key.get_secret_value()
     body = json.dumps(payload).encode()
     if len(body) > 1_000_000:
@@ -148,6 +199,7 @@ def verify_capabilities(product, plan, scenarios, settings, *, aggregate, select
                 {
                     "PRODUCT_VERIFY_PLAYWRIGHT": os.environ.get("PRODUCT_VERIFY_PLAYWRIGHT", ""),
                     "PLAYWRIGHT_BROWSERS_PATH": os.environ.get("PLAYWRIGHT_BROWSERS_PATH", "0"),
+                    "CAPABILITY_BROWSER_IMAGE": settings.capability_browser_image,
                 }
             ),
             **process_options(),
@@ -164,6 +216,8 @@ def verify_capabilities(product, plan, scenarios, settings, *, aggregate, select
         if process.returncode:
             # The child prints only a static classified error. Never echo provider/SDK objects.
             raise PrerequisiteError("自定义隔离验证进程失败；查看该节点的脱敏验证回执")
+    if receipt_path.stat().st_size > 1_000_000:
+        raise PrerequisiteError("自定义隔离验证回执超过大小上限，已阻止交付")
     receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     if receipt.get("cleanup") != "deleted":
         raise PrerequisiteError("自定义隔离环境清理未确认；已阻止交付，请按回执中的沙箱名称检查")
@@ -181,14 +235,24 @@ def _verify(
     client,
     aggregate,
     control_observer=None,
+    security_probe=None,
+    trusted_oracle=None,
 ):
     from daytona import SessionExecuteRequest
 
     from workbench.daytona_sessions import run_session_command
     from workbench.sandbox import params_for, source_archive
 
+    if trusted_oracle not in (None, "contest-business-v2"):
+        raise CheckFailure("未知控制端业务oracle，拒绝候选自定义验证器")
+    if trusted_oracle and (
+        not aggregate or selection["template"] != "fastapiadmin" or security_probe is None
+    ):
+        raise CheckFailure("独立竞赛oracle必须使用原生完整隔离验收")
     before = manifest(product)
-    name = "rnd-capability-" + uuid.uuid4().hex
+    native = selection["template"] == "fastapiadmin"
+    prefix = "rnd-source-native-" if native else "rnd-source-"
+    name = (prefix if security_probe is not None else "rnd-capability-") + uuid.uuid4().hex
     receipt = {
         "verifier": "controller-http-contract-v3",
         "passed": False,
@@ -205,6 +269,7 @@ def _verify(
     }
     write_json(receipt_path, receipt)
     sandbox = None
+    oracle_adapter = None
     try:
         parameters = params_for(settings, name, selection["template"], selection)
         parameters.os_user = "root"
@@ -217,6 +282,10 @@ def _verify(
         sandbox = client.create(parameters, timeout=settings.tool_timeout)
         receipt.update(sandbox_id=sandbox.id, cleanup="pending")
         write_json(receipt_path, receipt)
+        if security_probe is not None:
+            sandbox.refresh_data()
+            if sandbox.network_block_all is not True or sandbox.public is not False:
+                raise IsolationUnavailable("实际沙箱未确认私有且禁止网络出口，未上传或执行源码")
         if control_observer is None:
             raise IsolationUnavailable("缺少可信控制面的实际容器检查，未上传或执行源码")
         try:
@@ -244,8 +313,36 @@ def _verify(
         if database_password:
             with settings._model_keys_lock:
                 settings._model_keys.add(database_password)
-        database = database_environment(plan, database_password)
-        for index, command in enumerate(plan.runtime.prepare):
+        from workbench.capability_services import prepare_native_services
+
+        services = prepare_native_services(sandbox, plan, settings.tool_timeout)
+        if services:
+            with settings._model_keys_lock:
+                settings._model_keys.update(services.values())
+        database = database_environment(plan, database_password, services)
+        if trusted_oracle:
+            from workbench.capability_stack import owned_database_identity
+
+            oracle_database_ownership = owned_database_identity(sandbox, settings.tool_timeout)
+        if security_probe is not None:
+            receipt["security_checks"] = security_probe(
+                sandbox, plan, settings.tool_timeout, receipt["container_isolation"], database
+            )
+        commands = plan.runtime.prepare
+        if native:
+            from workbench.capability_native_runtime import (
+                native_prepare_commands,
+                native_start_command,
+            )
+
+            native_start_command(plan)
+            trusted = native_prepare_commands()
+            if commands and commands != trusted:
+                raise CheckFailure(
+                    "原生构建只允许控制端登记命令，不接受可改写受保护文件的额外prepare脚本"
+                )
+            commands = trusted
+        for index, command in enumerate(commands):
             evidence = {}
             guarded_command, command_output = redirected_command(
                 product_argv(plan, command.argv, database)
@@ -262,11 +359,26 @@ def _verify(
                     read_command_output(sandbox, command_output, settings.tool_timeout)
                 )[-4000:]
                 raise CheckFailure(f"第 {index + 1} 个隔离准备/构建命令失败；检查节点构建诊断")
+        if native:
+            from workbench.capability_native_runtime import verify_and_freeze_native_sources
 
-        def start():
+            restart_application_identity(
+                sandbox, plan.runtime.port, settings.tool_timeout, extra_ports=(5173,)
+            )
+            verify_and_freeze_native_sources(sandbox, before, settings.tool_timeout)
+            receipt["native_build"] = {
+                "offline_install": True,
+                "frontend_build": True,
+                "frontend_typecheck": True,
+                "source_frozen": True,
+            }
+
+        def start(command=None, port=None, health_path=None):
             session = "rnd-app-" + uuid.uuid4().hex
             sandbox.process.create_session(session)
-            command = plan.runtime.start
+            command = command or plan.runtime.start
+            port = port or plan.runtime.port
+            health_path = health_path or plan.runtime.health_path
             guarded_command, _ = redirected_command(product_argv(plan, command.argv, database))
             response = sandbox.process.execute_session_command(
                 session,
@@ -281,8 +393,8 @@ def _verify(
             )
             if not response.cmd_id:
                 raise CheckFailure("隔离应用启动未返回命令标识")
-            preview = sandbox.get_preview_link(plan.runtime.port)
-            url = preview_url(preview.url, sandbox.id, plan.runtime.port)
+            preview = sandbox.get_preview_link(port)
+            url = preview_url(preview.url, sandbox.id, port)
             if not isinstance(preview.token, str) or not preview.token:
                 raise CheckFailure("私有隔离预览缺少授权标识")
             # The pinned local proxy consumes/strips this token before forwarding.
@@ -297,7 +409,7 @@ def _verify(
                 deadline = time.monotonic() + plan.runtime.startup_seconds
                 while time.monotonic() < deadline:
                     try:
-                        with http.stream("GET", plan.runtime.health_path) as check:
+                        with http.stream("GET", health_path) as check:
                             if 200 <= check.status_code < 300:
                                 return http, url, preview.token
                     except httpx.HTTPError:
@@ -309,6 +421,15 @@ def _verify(
                 raise
 
         http, url, token = start()
+        browser_url, browser_token = url, token
+        if native:
+            from workbench.capability_native_runtime import FRONTEND_PORT, frontend_start_command
+
+            frontend_http, browser_url, browser_token = start(
+                frontend_start_command(), FRONTEND_PORT, "/"
+            )
+            frontend_http.close()
+            receipt["native_frontend_started"] = True
         # The health request already opened this client; entering it again is
         # invalid. Own its close even when the independent baseline probe fails.
         with closing(http):
@@ -317,9 +438,39 @@ def _verify(
                 with http.stream("GET", "/openapi.json") as response:
                     if response.status_code != 200:
                         raise CheckFailure("实际运行服务没有FastAPI OpenAPI契约，拒绝技术栈替换")
+            if trusted_oracle:
+                from scripts.extension_oracles import contest
+                from workbench.capability_contest_oracle import ContestOracleAdapter
+
+                oracle_adapter = ContestOracleAdapter(url, token, sandbox, settings.tool_timeout)
+                oracle_state, oracle_witnesses = contest.initial(
+                    oracle_adapter.http,
+                    oracle_adapter.probe,
+                    oracle_adapter.actor_ids,
+                    uuid.uuid4().hex,
+                )
+                receipt["business_oracle"] = {
+                    "protocol": trusted_oracle,
+                    "witnesses": oracle_witnesses,
+                    "full_request_complete": False,
+                    "remaining_obligations": list(contest.REMAINING),
+                }
             checks, saved = run_scenarios(http, scenarios)
             receipt["checks"].extend(checks)
-        receipt["browser"] = run_browser(url, token, scenarios, saved, settings.tool_timeout)
+        if security_probe is not None:
+            from workbench.capability_browser_isolation import run_isolated_browser
+
+            receipt["browser"] = run_isolated_browser(
+                browser_url,
+                browser_token,
+                scenarios,
+                saved,
+                settings.tool_timeout,
+                image=settings.capability_browser_image,
+            )
+            receipt["browser_image"] = settings.capability_browser_image
+        else:
+            receipt["browser"] = run_browser(url, token, scenarios, saved, settings.tool_timeout)
         counts = database_counts(sandbox, plan, settings.tool_timeout)
         if not any(counts[name] > baseline_counts[name] for name in counts):
             raise CheckFailure(
@@ -332,13 +483,44 @@ def _verify(
             "observed_writes": True,
         }
         if aggregate:
-            client.stop(sandbox, timeout=settings.tool_timeout)
-            client.start(sandbox, timeout=settings.tool_timeout)
-            prepare_database(
-                sandbox, plan, settings.tool_timeout, restart=True, password=database_password
-            )
+            if security_probe is not None:
+                restart_application_identity(
+                    sandbox,
+                    plan.runtime.port,
+                    settings.tool_timeout,
+                    extra_ports=(5173,) if native else (),
+                )
+                receipt["restart_kind"] = "application_process"
+            else:
+                client.stop(sandbox, timeout=settings.tool_timeout)
+                client.start(sandbox, timeout=settings.tool_timeout)
+                receipt["restart_kind"] = "container"
+            if security_probe is not None:
+                restarted_container = require_container_evidence(
+                    control_observer(sandbox.id), sandbox.id
+                )
+                receipt["restart_security_checks"] = security_probe(
+                    sandbox, plan, settings.tool_timeout, restarted_container, database
+                )
+            if security_probe is None:
+                prepare_database(
+                    sandbox, plan, settings.tool_timeout, restart=True, password=database_password
+                )
             http, _, _ = start()
+            if native:
+                frontend_http, _, _ = start(frontend_start_command(), FRONTEND_PORT, "/")
+                frontend_http.close()
+                receipt["native_frontend_restart"] = True
             with closing(http):
+                if trusted_oracle:
+                    oracle_witnesses.update(
+                        contest.after_restart(
+                            oracle_adapter.http,
+                            oracle_adapter.probe,
+                            oracle_state,
+                            uuid.uuid4().hex,
+                        )
+                    )
                 checks, _ = run_scenarios(http, scenarios, saved=saved, after_restart=True)
                 receipt["checks"].extend(checks)
             receipt["restarted"] = True
@@ -346,6 +528,38 @@ def _verify(
             if any(restarted[name] < counts[name] for name in counts):
                 raise CheckFailure("独立数据库重启后丢失已写入的记录")
             receipt["database"]["after_restart"] = restarted
+            if trusted_oracle:
+                from workbench.capability_stack import recreate_owned_native_database
+
+                oracle_adapter.close()
+                fresh_identity = recreate_owned_native_database(
+                    sandbox, plan, settings.tool_timeout, oracle_database_ownership
+                )
+                from workbench.capability_services import reset_owned_native_cache
+
+                reset_owned_native_cache(sandbox, settings.tool_timeout)
+                http, url, token = start()
+                http.close()
+                frontend_http, _, _ = start(frontend_start_command(), FRONTEND_PORT, "/")
+                frontend_http.close()
+                oracle_adapter = ContestOracleAdapter(url, token, sandbox, settings.tool_timeout)
+                oracle_witnesses.update(contest.fresh_database(oracle_adapter.probe, oracle_state))
+                _, replay = contest.initial(
+                    oracle_adapter.http,
+                    oracle_adapter.probe,
+                    oracle_adapter.actor_ids,
+                    uuid.uuid4().hex,
+                )
+                if not all(replay.get(name) is True for name in contest.SEMANTICS[:5]):
+                    raise CheckFailure("新库业务请求重放未通过")
+                oracle_adapter.close()
+                receipt["business_oracle"].update(
+                    witnesses=oracle_witnesses,
+                    fresh_replay=True,
+                    same_cluster=oracle_database_ownership["cluster"] == fresh_identity["cluster"],
+                    distinct_database_oid=oracle_database_ownership["database_oid"]
+                    != fresh_identity["database_oid"],
+                )
         if manifest(product) != before:
             raise CheckFailure("隔离验收期间宿主源码发生变化")
         receipt["passed"] = True
@@ -362,6 +576,11 @@ def _verify(
             "本机隔离服务未完成验收（" + type(exc).__name__ + "），未使用本机执行回退"
         )
     finally:
+        if oracle_adapter is not None:
+            try:
+                oracle_adapter.close()
+            except Exception:
+                receipt.update(passed=False, error="可信业务验证器连接清理失败")
         if sandbox is None:
             receipt["cleanup"] = "create-failed-unknown"
             try:
@@ -383,7 +602,6 @@ def _verify(
 
 
 def main():
-    raise UnsupportedScope("生产自定义执行入口尚未完成独立隔离验收，禁止直接启动")
     body = sys.stdin.buffer.read(1_000_001)
     if len(body) > 1_000_000:
         raise ValueError("自定义验收控制契约过大")
@@ -395,6 +613,18 @@ def main():
     settings = Settings(_env_file=None, **payload["settings"])
     plan = CapabilityPlan.model_validate(payload["plan"])
     scenarios = [s for s in plan.scenarios if s.id in payload["scenario_ids"]]
+    if (
+        len(scenarios) != len(payload["scenario_ids"])
+        or not scenarios
+        or type(payload["aggregate"]) is not bool
+        or payload["selection"] != plan.selection.model_dump()
+    ):
+        raise ValueError("自定义验证输入未绑定准确场景、技术栈或验收模式")
+    from scripts.capability_security_probe import security_probe_for_profile
+    from scripts.daytona_capability_profile import inspect_created_sandbox
+    from workbench.capability_execution import capability_execution_prerequisites
+
+    directory, record = capability_execution_prerequisites(settings, payload["selection"])
     client = client_for(settings)
     try:
         _verify(
@@ -406,6 +636,11 @@ def main():
             Path(payload["receipt"]),
             client=client,
             aggregate=payload["aggregate"],
+            control_observer=lambda sandbox_id: inspect_created_sandbox(
+                directory, sandbox_id, require_resources=True, selection=payload["selection"]
+            ),
+            security_probe=security_probe_for_profile(directory, record),
+            trusted_oracle=payload.get("trusted_oracle"),
         )
     finally:
         close_client(client)

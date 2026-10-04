@@ -17,6 +17,10 @@
 - [tools/aider/offline_runner.py](sources/tools__aider__offline_runner_py--001.md)：Aider本机禁网入口；1 段
 - [tools/aider/pyproject.toml](sources/tools__aider__pyproject_toml--001.md)：Aider独立运行环境；1 段
 - [tools/aider/uv.lock](sources/locks/tools__aider__uv_lock--001.md)：精确依赖锁；1 段
+- [tools/browser/Dockerfile](sources/tools__browser__Dockerfile--001.md)：项目根配置或说明；1 段
+- [tools/browser/LICENSE.playwright](sources/tools__browser__LICENSE_playwright--001.md)：项目根配置或说明；1 段
+- [tools/browser/SECCOMP-REVIEW.md](sources/tools__browser__SECCOMP-REVIEW_md--001.md)：项目根配置或说明；1 段
+- [tools/browser/seccomp.playwright-1.56.1.json](sources/tools__browser__seccomp_playwright-1_56_1_json--001.md)：项目根配置或说明；1 段
 - [tools/embeddings/pyproject.toml](sources/tools__embeddings__pyproject_toml--001.md)：真实本机向量模型的独立验证环境；1 段
 - [tools/embeddings/uv.lock](sources/locks/tools__embeddings__uv_lock--001.md)：精确依赖锁；1 段
 - [tools/node/build.mjs](sources/tools__node__build_mjs--001.md)：本机Node索引运行边界；1 段

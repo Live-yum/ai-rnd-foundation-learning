@@ -4,8 +4,15 @@
 
 按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件在 sources/locks，截图及Vue构建快照编码在 sources/assets 下，先读实现模块，需要校对时再打开资源。
 
+- [scripts/extension_oracles/contest.py](sources/scripts__extension_oracles__contest_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [workbench/capability_browser_isolation.py](sources/workbench__capability_browser_isolation_py--001.md)：项目根配置或说明；1 段
+- [workbench/capability_contest_oracle.py](sources/workbench__capability_contest_oracle_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_contracts.py](sources/workbench__capability_contracts_py--001.md)：项目根配置或说明；1 段
+- [workbench/capability_execution.py](sources/workbench__capability_execution_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_isolation.py](sources/workbench__capability_isolation_py--001.md)：项目根配置或说明；1 段
+- [workbench/capability_native_runtime.py](sources/workbench__capability_native_runtime_py--001.md)：项目根配置或说明；1 段
+- [workbench/capability_policy.py](sources/workbench__capability_policy_py--001.md)：项目根配置或说明；1 段
+- [workbench/capability_services.py](sources/workbench__capability_services_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_stack.py](sources/workbench__capability_stack_py--001.md)：项目根配置或说明；1 段
 - [workbench/capability_verification.py](sources/workbench__capability_verification_py--001.md)：项目根配置或说明；1 段
 - [workbench/context_mcp.py](sources/workbench__context_mcp_py--001.md)：只读本机MCP适配器；1 段

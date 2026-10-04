@@ -15,19 +15,19 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `generated_frontend_asset`（L98–L100）：接收`name`。 源码说明：Vite output is a lossless runtime snapshot, not handwritten lesson source.。 调用`name.startswith`。 返回路径：L100的`name.startswith(GENERATED_FRONTEND_PREFIX)`。
-- `sources`（L103–L151）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L105遍历`GROUPS`；L107遍历`paths`；L109按`not path.exists()`分支；L110抛异常，停止当前正常路径；L116遍历`items`；L117按`not item.is_file() or item.suffix == ".pyc" or any( part in { "__pycache__", ".venv",…`分支；L138按`name in { ".github/workflows/prepare-local-tools.yml", ".github/workflows/runtime-con…`分支；L143按`name not in seen`分支。 调用`set`、`path.exists`、`FileNotFoundError`、`path.is_dir`、`sorted`、`path.rglob`、`item.relative_to(ROOT).as_posix`、`item.relative_to`、`item.is_file`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `guide_text`（L154–L161）：接收`name`。 源码说明：Keep image links valid in both the chapter and the root-level handbook.。 调用`(ROOT / name).read_text(encoding="utf-8").rstrip`、`(ROOT / name).read_text`、`re.sub`、`Path(name).parent.as_posix`、`Path`。 返回路径：L157的`re.sub( r"(!\[[^\]\n]*\]\()images/", lambda match: match[1] + Path(name).parent.as_posix()…`。
-- `render`（L164–L218）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L167遍历`sources()`；L169遍历`rows`；L170按`isinstance(content, bytes)`分支。 调用`"\n\n".join`、`guide_text`、`sources`、`isinstance`、`hashlib.sha256(content).hexdigest`、`hashlib.sha256`、`"\n".join`、`textwrap.wrap`、`base64.b64encode(content).decode`等。 返回路径：L218的`text`。
-- `main`（L221–L234）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L226按`args.check`分支；L227按`not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != expected`分支；L228抛异常，停止当前正常路径；L229按`len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) != 1`分支；L230抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`OUTPUT.read_text`、`SystemExit`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `generated_frontend_asset`（L102–L104）：接收`name`。 源码说明：Vite output is a lossless runtime snapshot, not handwritten lesson source.。 调用`name.startswith`。 返回路径：L104的`name.startswith(GENERATED_FRONTEND_PREFIX)`。
+- `sources`（L107–L155）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L109遍历`GROUPS`；L111遍历`paths`；L113按`not path.exists()`分支；L114抛异常，停止当前正常路径；L120遍历`items`；L121按`not item.is_file() or item.suffix == ".pyc" or any( part in { "__pycache__", ".venv",…`分支；L142按`name in { ".github/workflows/prepare-local-tools.yml", ".github/workflows/runtime-con…`分支；L147按`name not in seen`分支。 调用`set`、`path.exists`、`FileNotFoundError`、`path.is_dir`、`sorted`、`path.rglob`、`item.relative_to(ROOT).as_posix`、`item.relative_to`、`item.is_file`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `guide_text`（L158–L165）：接收`name`。 源码说明：Keep image links valid in both the chapter and the root-level handbook.。 调用`(ROOT / name).read_text(encoding="utf-8").rstrip`、`(ROOT / name).read_text`、`re.sub`、`Path(name).parent.as_posix`、`Path`。 返回路径：L161的`re.sub( r"(!\[[^\]\n]*\]\()images/", lambda match: match[1] + Path(name).parent.as_posix()…`。
+- `render`（L168–L222）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L171遍历`sources()`；L173遍历`rows`；L174按`isinstance(content, bytes)`分支。 调用`"\n\n".join`、`guide_text`、`sources`、`isinstance`、`hashlib.sha256(content).hexdigest`、`hashlib.sha256`、`"\n".join`、`textwrap.wrap`、`base64.b64encode(content).decode`等。 返回路径：L222的`text`。
+- `main`（L225–L238）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L230按`args.check`分支；L231按`not OUTPUT.exists() or OUTPUT.read_text(encoding="utf-8") != expected`分支；L232抛异常，停止当前正常路径；L233按`len(list(ROOT.glob("从零实现AI研发平台_逐步实操手册_完整版*.md"))) != 1`分支；L234抛异常，停止当前正常路径。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`OUTPUT.read_text`、`SystemExit`、`len`、`list`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/build_handbook.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L238。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/build_handbook.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L242。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9100`。本段原文以LF换行结束。
+本段原始字节数：`9275`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/build_handbook.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9d05f9d03cd262643314afc5892d09a3a9d35083ec3a699dc37b5cb8afca0520"} -->
+<!-- learning-source: {"path": "scripts/build_handbook.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "323423a7e134aee088752784d719ab8e003468235fc7171541f9a75cebf28779"} -->
 `````python
 # scripts/build_handbook.py
 """Render a complete, reconstructable handbook from tracked source, never from memory."""
@@ -99,6 +99,10 @@ GROUPS = [
             "tools/aider/.python-version",
             "tools/aider/uv.lock",
             "tools/daytona",
+            "tools/browser",
+            "docs/candidate-browser-isolation.md",
+            "docs/contest-extension-oracle.md",
+            "docs/custom-source-isolation.md",
             "tools/embeddings/pyproject.toml",
             "tools/embeddings/uv.lock",
         ],
