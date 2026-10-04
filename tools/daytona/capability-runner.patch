@@ -15,7 +15,7 @@
  		Binds:      binds,
  	}
  
-@@ -234,6 +232,19 @@
+@@ -234,6 +232,26 @@
  		}
  	}
  
@@ -24,13 +24,20 @@
 +	if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {
 +		// Bind the primary mode to the same sole bridge checked before source admission.
 +		hostConfig.NetworkMode = container.NetworkMode("runner-bridge")
++		// The local upstream disables ordinary quotas; custom source cannot inherit that.
++		hostConfig.CPUPeriod = 100000
++		hostConfig.CPUQuota = 100000
++		hostConfig.Memory = 2 * 1024 * 1024 * 1024
 +		pidLimit := int64(256)
 +		hostConfig.PidsLimit = &pidLimit
 +		hostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"}
 +		if strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {
++			hostConfig.CPUQuota = 200000
++			hostConfig.Memory = 6 * 1024 * 1024 * 1024
 +			pidLimit = 384
 +			hostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=4294967296,mode=1777"}
 +		}
++		hostConfig.MemorySwap = hostConfig.Memory
 +	}
  	containerRuntime := config.GetContainerRuntime()
  	if containerRuntime != "" {

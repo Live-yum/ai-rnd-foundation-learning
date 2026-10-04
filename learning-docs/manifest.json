@@ -3045,8 +3045,8 @@
     },
     {
       "path": "scripts/daytona_capability_profile.py",
-      "bytes": 35555,
-      "sha256": "6482f6f14ee6cd826b41cb188091452015eceb04036c91c6cd6af9ea9852e9ac",
+      "bytes": 35886,
+      "sha256": "0454e1f317c8c061b42ba8a9ac2da21e45f3e55e3847f4a931b02e71320f357b",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_capability_profile_py--001.md"
@@ -3126,8 +3126,8 @@
     },
     {
       "path": "tests/test_daytona_capability_profile.py",
-      "bytes": 25648,
-      "sha256": "04bcb8cfe244540a14f88a9a31d5ef1ea435dbe0e000273f66226d7e472fe172",
+      "bytes": 27886,
+      "sha256": "7e1a89d2b50e07a33c18f31caab6a56b67e44bf1410fc08734094023a07311d5",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tests__test_daytona_capability_profile_py--001.md"
@@ -3225,8 +3225,8 @@
     },
     {
       "path": "tools/daytona/capability-runner.patch",
-      "bytes": 1507,
-      "sha256": "d852b0ea79081f349ee1832c31a9a40dc3714dc8ecb7d74c42293e2cf7ffca89",
+      "bytes": 1829,
+      "sha256": "5f29b0e86b5cdff4a04d318fdcfcb1f237e4d750771f1bebcb7a0fa36e5a800c",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tools__daytona__capability-runner_patch--001.md"

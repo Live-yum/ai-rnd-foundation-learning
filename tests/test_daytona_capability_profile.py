@@ -37,6 +37,7 @@ def base_config():
 
 def test_profile_transformation_preserves_general_defaults_and_all_other_fields():
     original = base_config()
+    original["services"]["runner"]["environment"]["RESOURCE_LIMITS_DISABLED"] = "true"
     untouched = copy.deepcopy(original)
     image = "registry:6000/rnd-python:0123456789abcdef"
     result = profile.render_profile(original, RUNNER, image)
@@ -45,6 +46,7 @@ def test_profile_transformation_preserves_general_defaults_and_all_other_fields(
     assert result["services"]["runner"]["image"] == RUNNER
     assert result["services"]["runner"]["environment"]["USE_SNAPSHOT_ENTRYPOINT"] == "false"
     assert result["services"]["runner"]["privileged"] is True
+    assert result["services"]["runner"]["environment"]["RESOURCE_LIMITS_DISABLED"] == "true"
     assert result["services"]["api"]["environment"]["DEFAULT_SNAPSHOT"] == image
     # The owned app-container patch does not alter DinD or general defaults.
     assert "USE_SNAPSHOT_ENTRYPOINT" not in original["services"]["runner"]["environment"]
@@ -175,6 +177,50 @@ def test_custom_source_patch_binds_only_its_reviewed_primary_bridge(tmp_path, mo
     assert "NetworkMode" not in source.split("// Custom-source executions", 1)[0]
 
 
+def test_custom_source_patch_pins_cpu_memory_and_no_extra_swap_independent_of_global_flag():
+    custom, native = profile.LIMIT_INSERT.split(
+        'if strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {', 1
+    )
+    assert 'if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {' in custom
+    assert "resourceLimitsDisabled" not in profile.LIMIT_INSERT
+    assert "hostConfig.CPUPeriod = 100000" in custom
+    assert "hostConfig.CPUQuota = 100000" in custom
+    assert "hostConfig.Memory = 2 * 1024 * 1024 * 1024" in custom
+    assert "hostConfig.CPUQuota = 200000" in native
+    assert "hostConfig.Memory = 6 * 1024 * 1024 * 1024" in native
+    assert native.endswith("\t\t}\n\t\thostConfig.MemorySwap = hostConfig.Memory\n\t}\n")
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_complete_source_resource_mapping_preserves_strict_bounds(native):
+    memory = (6 if native else 2) * 1024**3
+    quota = 200000 if native else 100000
+    tmpfs = 4294967296 if native else 1073741824
+    host = {
+        "CpuPeriod": 100000,
+        "CpuQuota": quota,
+        "Memory": memory,
+        "MemorySwap": memory,
+        "PidsLimit": 384 if native else 256,
+        "Tmpfs": {"/tmp": f"rw,nosuid,nodev,size={tmpfs},mode=1777"},
+    }
+    proof = profile.require_execution_resources(host, native=native)
+    assert proof["cpu_quota"] == quota
+    assert proof["memory"] == proof["memory_swap"] == memory
+    for field, value in (
+        ("CpuPeriod", 0),
+        ("CpuQuota", 0),
+        ("CpuQuota", quota + 1),
+        ("Memory", 0),
+        ("Memory", memory + 1),
+        ("MemorySwap", 0),
+        ("MemorySwap", memory + 1),
+        ("MemorySwap", -1),
+    ):
+        with pytest.raises(ContainerInspectionRejected):
+            profile.require_execution_resources({**host, field: value}, native=native)
+
+
 @pytest.mark.parametrize("changed", ["source", "workspace", "patch"])
 def test_source_drift_fails_closed_before_any_build(tmp_path, monkeypatch, changed):
     root, context, _, _ = source_fixture(tmp_path, monkeypatch)
@@ -298,6 +344,11 @@ def test_execution_inspection_still_accepts_exact_resource_network_and_mount_pol
 @pytest.mark.parametrize(
     "mutation,category,facts",
     [
+        (
+            lambda row: row["HostConfig"].update(CpuPeriod=0, CpuQuota=0, Memory=0, MemorySwap=0),
+            "resource_limits",
+            {"cpu_period": 0, "cpu_quota": 0, "memory": 0, "memory_swap": 0},
+        ),
         (
             lambda row: row["HostConfig"].update(NetworkMode="bridge"),
             "sandbox_network",

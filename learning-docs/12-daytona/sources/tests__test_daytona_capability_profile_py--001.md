@@ -16,41 +16,43 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `base_config`（L23–L35）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local.IMAGES.items`、`local.gateway_service`、`copy.deepcopy`。 返回路径：L35的`{"services": services, "networks": copy.deepcopy(local.NETWORKS)}`。
-- `test_profile_transformation_preserves_general_defaults_and_all_other_fields`（L38–L54）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L43断言`original == untouched`；L44断言`result["name"] == profile.PROJECT`；L45断言`result["services"]["runner"]["image"] == RUNNER`；L46断言`result["services"]["runner"]["environment"]["USE_SNAPSHOT_ENTRYPOINT"] == "false"`；L47断言`result["services"]["runner"]["privileged"] is True`；L48断言`result["services"]["api"]["environment"]["DEFAULT_SNAPSHOT"] == image`；L50断言`"USE_SNAPSHOT_ENTRYPOINT" not in original["services"]["runner"]["environment"]`；L51断言`local.IMAGES["runner"].startswith("rnd-local/daytona-runner:")`。后续分支沿下方源码相同行号继续阅读。 调用`base_config`、`copy.deepcopy`、`profile.render_profile`、`local.IMAGES["runner"].startswith`、`snapshot_resources`、`pytest.raises`、`profile.profile_directory`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `snapshot_inspect`（L57–L75）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`profile.recipe_identity`。 返回路径：L59的`{ "Id": SNAPSHOT, "Os": "linux", "Architecture": "amd64", "RepoDigests": ["127.0.0.1:6000/…`。
-- `test_snapshot_requires_declared_control_identity_and_no_inherited_command`（L88–L94）：接收`field`、`value`。 调用`snapshot_inspect`、`profile.recipe_identity`、`profile.validate_image`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runner_requires_the_explicit_normal_daemon_entrypoint`（L97–L105）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L100遍历`([], ["USE_SNAPSHOT_ENTRYPOINT=true"])`。 调用`snapshot_inspect`、`profile.recipe_identity`、`pytest.raises`、`profile.validate_image`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `source_fixture`（L108–L149）：接收`tmp_path`、`monkeypatch`。 控制顺序：L119遍历`profile.RECIPE_PATHS`。 调用`context.mkdir`、`path.parent.mkdir`、`path.write_text`、`"".join`、`difflib.unified_diff`、`source.splitlines`、`source.replace(profile.OLD, profile.NEW) .replace(profile.LIMIT_A…`、`source.replace(profile.OLD, profile.NEW) .replace`、`source.replace`等。 返回路径：L149的`root, context, source, workspace`。
-- `source_fixture.export`（L135–L143）：接收`directory`、`command`、`target`。 调用`Path`、`path.parent.mkdir`、`path.write_bytes`、`source.encode`、`(Path(target) / "go.work").write_bytes`、`workspace.encode`、`(Path(target) / "apps/runner/go.mod").write_bytes`、`(Path(target) / "apps/runner/go.sum").write_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_preimage_and_patch_are_exact_and_module_inputs_are_preserved`（L152–L162）：接收`tmp_path`、`monkeypatch`。 控制顺序：L155断言`(context / profile.SOURCE_FILE).read_text() == source.replace( profile.OLD, profile.N…`；L158断言`(context / "go.work").read_text() == workspace`；L159断言`(context / "apps/runner/go.mod").read_text() == "module fixture\ngo 1.25.5\n"`；L160断言`(context / "go.work.sum").read_text() == "fixture v1 h1:fixture\n"`；L161断言`record["source_sha"] == profile.DAYTONA_SOURCE`；L162断言`(context / "capability-build/NOTICE").is_file()`。 调用`source_fixture`、`profile.source_context`、`(context / profile.SOURCE_FILE).read_text`、`source.replace( profile.OLD, profile.NEW ).replace`、`source.replace`、`(context / "go.work").read_text`、`(context / "apps/runner/go.mod").read_text`、`(context / "go.work.sum").read_text`、`(context / "capability-build/NOTICE").is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_custom_source_patch_binds_only_its_reviewed_primary_bridge`（L165–L175）：接收`tmp_path`、`monkeypatch`。 控制顺序：L170断言`source.count(assignment) == 1`；L172断言`custom.index(assignment) < custom.index("pidLimit := int64(256)")`；L173断言`custom.index(assignment) < custom.index('"rnd-source-native-"')`；L174断言`"Privileged: false" in source`；L175断言`"NetworkMode" not in source.split("// Custom-source executions", 1)[0]`。 调用`source_fixture`、`profile.source_context`、`(context / profile.SOURCE_FILE).read_text`、`source.count`、`source.split`、`custom.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_drift_fails_closed_before_any_build`（L179–L189）：接收`tmp_path`、`monkeypatch`、`changed`。 控制顺序：L181按`changed == "source"`分支；L183按`changed == "workspace"`分支。 调用`source_fixture`、`monkeypatch.setattr`、`(root / "tools/daytona/capability-runner.patch").open`、`file.write`、`pytest.raises`、`profile.source_context`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `application_inspect`（L192–L219）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L193的`{ "Name": "/" + SANDBOX, "Image": SNAPSHOT, "State": {"Running": True}, "Config": { "User"…`。
-- `inspection`（L223–L255）：接收`tmp_path`、`monkeypatch`。 调用`application_inspect`、`monkeypatch.setattr`。 返回路径：L255的`tmp_path, outer, inner, calls`。
-- `inspection.docker`（L246–L252）：接收`*args`、`**kwargs`。 控制顺序：L248按`"info" in args`分支；L250按`"network" in args`分支。 调用`calls.append`、`json.dumps`、`inner.get`。 返回路径：L249的`json.dumps(inner.get("engine_security", ["name=seccomp,profile=builtin"]))`；L251的`json.dumps(inner["bridge_inspect"])`；L252的`json.dumps([outer if args[0] == "container" else inner])`。
-- `execution_inspection`（L259–L278）：接收`inspection`。 调用`inner["HostConfig"].update`、`inner["Mounts"].append`。 返回路径：L278的`inspection`。
-- `test_execution_inspection_still_accepts_exact_resource_network_and_mount_policy`（L281–L295）：接收`execution_inspection`。 控制顺序：L286断言`proof["resource_limits"] == { "cpu_period": 100000, "cpu_quota": 100000, "memory": 2 …`；L294断言`proof["trusted_readonly_binary_mounts"] is True`；L295断言`len(calls) == 4`。 调用`profile.inspect_created_sandbox`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data`（L348–L396）：接收`execution_inspection`、`settings`、`mutation`、`category`、`facts`。 控制顺序：L386断言`result["passed"] is False and result["cleanup"] == "deleted"`；L387断言`result["kind"] == "isolation_environment" and operations == ["deleted"]`；L388断言`"container_isolation" not in result`；L390断言`diagnostic["container_rejection"] == category`；L391断言`diagnostic.items() >= facts.items()`；L393断言`json.loads(receipt_text) == result`；L394断言`"secret" not in receipt_text.lower()`；L395断言`"must-not-be-in-receipt" not in receipt_text`。后续分支沿下方源码相同行号继续阅读。 调用`mutation`、`fixed_application`、`SimpleNamespace`、`operations.append`、`_verify`、`plan.selection.model_dump`、`profile.inspect_created_sandbox`、`diagnostic.items`、`facts.items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data.forbidden`（L360–L361）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_inspector_diagnostics_allow_only_finite_fields_values_and_bounded_numbers`（L399–L427）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L423断言`error.diagnostic() == expected`；L425断言`error.diagnostic() == expected`；L427断言`error.diagnostic() == {}`。 调用`ContainerInspectionRejected`、`error.diagnostic`、`error._facts.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_readonly_inspection_is_scoped_to_owned_uuid_and_redacts_everything_else`（L430–L461）：接收`inspection`。 控制顺序：L433断言`proof["privileged"] is False and proof["seccomp"] == "docker-default"`；L434断言`proof["snapshot_image_id"] == SNAPSHOT`；L435断言`calls == [ ("container", "inspect", OUTER), ( "exec", OUTER, "docker", "--host", "uni…`；L458断言`"SECRET" not in json.dumps(proof) and "TOKEN" not in json.dumps(proof)`；L461断言`len(calls) == 3`。 调用`profile.inspect_created_sandbox`、`json.dumps`、`pytest.raises`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_created_application_rejects_real_inspect_drift`（L488–L492）：接收`inspection`、`mutation`。 调用`mutation`、`pytest.raises`、`profile.inspect_created_sandbox`、`pytest.mark.parametrize`、`row.update`、`row["Config"].update`、`row["HostConfig"].update`、`row["Mounts"][0].update`、`row["Mounts"].append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_wrong_runner_is_rejected_before_an_inner_exec`（L495–L500）：接收`inspection`。 控制顺序：L500断言`len(calls) == 1`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_recipe_keeps_real_embeds_glibc_smoke_license_and_locked_go_inputs`（L503–L530）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L505遍历`( "./apps/daemon/cmd/daemon", "./libs/computer-use", "./apps/runn…`；L520断言`text in recipe`；L521断言`"go mod edit" not in recipe and "yarn" not in recipe`；L523断言`snapshot.rstrip().endswith("USER 0:0")`；L524断言`"WORKDIR /opt/rnd/control" in snapshot`；L525断言`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip() .endswith("WORKDIR…`。 调用`(profile.ROOT / "tools/daytona/capability-runner.Dockerfile").rea…`、`(profile.ROOT / "tools/daytona/capability-snapshot.Dockerfile").r…`、`snapshot.rstrip().endswith`、`snapshot.rstrip`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip(…`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `locked_profile`（L534–L589）：接收`tmp_path`。 控制顺序：L537遍历`base["services"].items()`。 调用`base_config`、`base["services"].items`、`tag.rsplit`、`profile.write_compose`、`local.private_json`、`profile.recipe_identity`、`profile.BASES.items`、`profile.sha256`、`(identity + json.dumps(bases, sort_keys=True)).encode`等。 返回路径：L589的`tmp_path, record`。
-- `test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_changes`（L592–L601）：接收`locked_profile`。 控制顺序：L596断言`actual == record`；L601断言`(directory / "compose.lock.yaml").read_bytes() == ordinary`。 调用`(directory / "compose.lock.yaml").read_bytes`、`profile.load_profile`、`profile.write_compose`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_edited_lock_cannot_select_general_or_unpinned_images`（L614–L620）：接收`locked_profile`、`mutation`。 调用`mutation`、`local.private_json`、`pytest.raises`、`profile.load_profile`、`pytest.mark.parametrize`、`record["bases"]["GO_IMAGE"].update`、`record["snapshot"].update`、`record["runner"].update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_required_profile_verifies_image_id_and_registry_digest`（L623–L637）：接收`locked_profile`、`monkeypatch`。 控制顺序：L632断言`profile.require_profile(directory, record["snapshot"]["snapshot"]) == record`。 调用`snapshot_inspect`、`copy.deepcopy`、`monkeypatch.setattr`、`profile.require_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_prepare_never_overwrites_existing_profile_or_credentials`（L640–L646）：接收`locked_profile`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`profile.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_actual_engine_seccomp_is_not_default_filter_evidence`（L652–L657）：接收`inspection`、`options`。 控制顺序：L657断言`len(calls) == 2`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_profile_transformation_preserves_general_defaults_and_all_other_fields`（L38–L56）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L44断言`original == untouched`；L45断言`result["name"] == profile.PROJECT`；L46断言`result["services"]["runner"]["image"] == RUNNER`；L47断言`result["services"]["runner"]["environment"]["USE_SNAPSHOT_ENTRYPOINT"] == "false"`；L48断言`result["services"]["runner"]["privileged"] is True`；L49断言`result["services"]["runner"]["environment"]["RESOURCE_LIMITS_DISABLED"] == "true"`；L50断言`result["services"]["api"]["environment"]["DEFAULT_SNAPSHOT"] == image`；L52断言`"USE_SNAPSHOT_ENTRYPOINT" not in original["services"]["runner"]["environment"]`。后续分支沿下方源码相同行号继续阅读。 调用`base_config`、`copy.deepcopy`、`profile.render_profile`、`local.IMAGES["runner"].startswith`、`snapshot_resources`、`pytest.raises`、`profile.profile_directory`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `snapshot_inspect`（L59–L77）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`profile.recipe_identity`。 返回路径：L61的`{ "Id": SNAPSHOT, "Os": "linux", "Architecture": "amd64", "RepoDigests": ["127.0.0.1:6000/…`。
+- `test_snapshot_requires_declared_control_identity_and_no_inherited_command`（L90–L96）：接收`field`、`value`。 调用`snapshot_inspect`、`profile.recipe_identity`、`profile.validate_image`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runner_requires_the_explicit_normal_daemon_entrypoint`（L99–L107）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L102遍历`([], ["USE_SNAPSHOT_ENTRYPOINT=true"])`。 调用`snapshot_inspect`、`profile.recipe_identity`、`pytest.raises`、`profile.validate_image`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `source_fixture`（L110–L151）：接收`tmp_path`、`monkeypatch`。 控制顺序：L121遍历`profile.RECIPE_PATHS`。 调用`context.mkdir`、`path.parent.mkdir`、`path.write_text`、`"".join`、`difflib.unified_diff`、`source.splitlines`、`source.replace(profile.OLD, profile.NEW) .replace(profile.LIMIT_A…`、`source.replace(profile.OLD, profile.NEW) .replace`、`source.replace`等。 返回路径：L151的`root, context, source, workspace`。
+- `source_fixture.export`（L137–L145）：接收`directory`、`command`、`target`。 调用`Path`、`path.parent.mkdir`、`path.write_bytes`、`source.encode`、`(Path(target) / "go.work").write_bytes`、`workspace.encode`、`(Path(target) / "apps/runner/go.mod").write_bytes`、`(Path(target) / "apps/runner/go.sum").write_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_preimage_and_patch_are_exact_and_module_inputs_are_preserved`（L154–L164）：接收`tmp_path`、`monkeypatch`。 控制顺序：L157断言`(context / profile.SOURCE_FILE).read_text() == source.replace( profile.OLD, profile.N…`；L160断言`(context / "go.work").read_text() == workspace`；L161断言`(context / "apps/runner/go.mod").read_text() == "module fixture\ngo 1.25.5\n"`；L162断言`(context / "go.work.sum").read_text() == "fixture v1 h1:fixture\n"`；L163断言`record["source_sha"] == profile.DAYTONA_SOURCE`；L164断言`(context / "capability-build/NOTICE").is_file()`。 调用`source_fixture`、`profile.source_context`、`(context / profile.SOURCE_FILE).read_text`、`source.replace( profile.OLD, profile.NEW ).replace`、`source.replace`、`(context / "go.work").read_text`、`(context / "apps/runner/go.mod").read_text`、`(context / "go.work.sum").read_text`、`(context / "capability-build/NOTICE").is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_custom_source_patch_binds_only_its_reviewed_primary_bridge`（L167–L177）：接收`tmp_path`、`monkeypatch`。 控制顺序：L172断言`source.count(assignment) == 1`；L174断言`custom.index(assignment) < custom.index("pidLimit := int64(256)")`；L175断言`custom.index(assignment) < custom.index('"rnd-source-native-"')`；L176断言`"Privileged: false" in source`；L177断言`"NetworkMode" not in source.split("// Custom-source executions", 1)[0]`。 调用`source_fixture`、`profile.source_context`、`(context / profile.SOURCE_FILE).read_text`、`source.count`、`source.split`、`custom.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_custom_source_patch_pins_cpu_memory_and_no_extra_swap_independent_of_global_flag`（L180–L191）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L184断言`'if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {' in custom`；L185断言`"resourceLimitsDisabled" not in profile.LIMIT_INSERT`；L186断言`"hostConfig.CPUPeriod = 100000" in custom`；L187断言`"hostConfig.CPUQuota = 100000" in custom`；L188断言`"hostConfig.Memory = 2 * 1024 * 1024 * 1024" in custom`；L189断言`"hostConfig.CPUQuota = 200000" in native`；L190断言`"hostConfig.Memory = 6 * 1024 * 1024 * 1024" in native`；L191断言`native.endswith("\t\t}\n\t\thostConfig.MemorySwap = hostConfig.Memory\n\t}\n")`。 调用`profile.LIMIT_INSERT.split`、`native.endswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_complete_source_resource_mapping_preserves_strict_bounds`（L195–L221）：接收`native`。 控制顺序：L208断言`proof["cpu_quota"] == quota`；L209断言`proof["memory"] == proof["memory_swap"] == memory`；L210遍历`( ("CpuPeriod", 0), ("CpuQuota", 0), ("CpuQuota", quota + 1), ("M…`。 调用`profile.require_execution_resources`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_drift_fails_closed_before_any_build`（L225–L235）：接收`tmp_path`、`monkeypatch`、`changed`。 控制顺序：L227按`changed == "source"`分支；L229按`changed == "workspace"`分支。 调用`source_fixture`、`monkeypatch.setattr`、`(root / "tools/daytona/capability-runner.patch").open`、`file.write`、`pytest.raises`、`profile.source_context`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `application_inspect`（L238–L265）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L239的`{ "Name": "/" + SANDBOX, "Image": SNAPSHOT, "State": {"Running": True}, "Config": { "User"…`。
+- `inspection`（L269–L301）：接收`tmp_path`、`monkeypatch`。 调用`application_inspect`、`monkeypatch.setattr`。 返回路径：L301的`tmp_path, outer, inner, calls`。
+- `inspection.docker`（L292–L298）：接收`*args`、`**kwargs`。 控制顺序：L294按`"info" in args`分支；L296按`"network" in args`分支。 调用`calls.append`、`json.dumps`、`inner.get`。 返回路径：L295的`json.dumps(inner.get("engine_security", ["name=seccomp,profile=builtin"]))`；L297的`json.dumps(inner["bridge_inspect"])`；L298的`json.dumps([outer if args[0] == "container" else inner])`。
+- `execution_inspection`（L305–L324）：接收`inspection`。 调用`inner["HostConfig"].update`、`inner["Mounts"].append`。 返回路径：L324的`inspection`。
+- `test_execution_inspection_still_accepts_exact_resource_network_and_mount_policy`（L327–L341）：接收`execution_inspection`。 控制顺序：L332断言`proof["resource_limits"] == { "cpu_period": 100000, "cpu_quota": 100000, "memory": 2 …`；L340断言`proof["trusted_readonly_binary_mounts"] is True`；L341断言`len(calls) == 4`。 调用`profile.inspect_created_sandbox`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data`（L399–L447）：接收`execution_inspection`、`settings`、`mutation`、`category`、`facts`。 控制顺序：L437断言`result["passed"] is False and result["cleanup"] == "deleted"`；L438断言`result["kind"] == "isolation_environment" and operations == ["deleted"]`；L439断言`"container_isolation" not in result`；L441断言`diagnostic["container_rejection"] == category`；L442断言`diagnostic.items() >= facts.items()`；L444断言`json.loads(receipt_text) == result`；L445断言`"secret" not in receipt_text.lower()`；L446断言`"must-not-be-in-receipt" not in receipt_text`。后续分支沿下方源码相同行号继续阅读。 调用`mutation`、`fixed_application`、`SimpleNamespace`、`operations.append`、`_verify`、`plan.selection.model_dump`、`profile.inspect_created_sandbox`、`diagnostic.items`、`facts.items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data.forbidden`（L411–L412）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inspector_diagnostics_allow_only_finite_fields_values_and_bounded_numbers`（L450–L478）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L474断言`error.diagnostic() == expected`；L476断言`error.diagnostic() == expected`；L478断言`error.diagnostic() == {}`。 调用`ContainerInspectionRejected`、`error.diagnostic`、`error._facts.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_readonly_inspection_is_scoped_to_owned_uuid_and_redacts_everything_else`（L481–L512）：接收`inspection`。 控制顺序：L484断言`proof["privileged"] is False and proof["seccomp"] == "docker-default"`；L485断言`proof["snapshot_image_id"] == SNAPSHOT`；L486断言`calls == [ ("container", "inspect", OUTER), ( "exec", OUTER, "docker", "--host", "uni…`；L509断言`"SECRET" not in json.dumps(proof) and "TOKEN" not in json.dumps(proof)`；L512断言`len(calls) == 3`。 调用`profile.inspect_created_sandbox`、`json.dumps`、`pytest.raises`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_created_application_rejects_real_inspect_drift`（L539–L543）：接收`inspection`、`mutation`。 调用`mutation`、`pytest.raises`、`profile.inspect_created_sandbox`、`pytest.mark.parametrize`、`row.update`、`row["Config"].update`、`row["HostConfig"].update`、`row["Mounts"][0].update`、`row["Mounts"].append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_wrong_runner_is_rejected_before_an_inner_exec`（L546–L551）：接收`inspection`。 控制顺序：L551断言`len(calls) == 1`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_recipe_keeps_real_embeds_glibc_smoke_license_and_locked_go_inputs`（L554–L581）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L556遍历`( "./apps/daemon/cmd/daemon", "./libs/computer-use", "./apps/runn…`；L571断言`text in recipe`；L572断言`"go mod edit" not in recipe and "yarn" not in recipe`；L574断言`snapshot.rstrip().endswith("USER 0:0")`；L575断言`"WORKDIR /opt/rnd/control" in snapshot`；L576断言`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip() .endswith("WORKDIR…`。 调用`(profile.ROOT / "tools/daytona/capability-runner.Dockerfile").rea…`、`(profile.ROOT / "tools/daytona/capability-snapshot.Dockerfile").r…`、`snapshot.rstrip().endswith`、`snapshot.rstrip`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip(…`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `locked_profile`（L585–L640）：接收`tmp_path`。 控制顺序：L588遍历`base["services"].items()`。 调用`base_config`、`base["services"].items`、`tag.rsplit`、`profile.write_compose`、`local.private_json`、`profile.recipe_identity`、`profile.BASES.items`、`profile.sha256`、`(identity + json.dumps(bases, sort_keys=True)).encode`等。 返回路径：L640的`tmp_path, record`。
+- `test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_changes`（L643–L652）：接收`locked_profile`。 控制顺序：L647断言`actual == record`；L652断言`(directory / "compose.lock.yaml").read_bytes() == ordinary`。 调用`(directory / "compose.lock.yaml").read_bytes`、`profile.load_profile`、`profile.write_compose`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_edited_lock_cannot_select_general_or_unpinned_images`（L665–L671）：接收`locked_profile`、`mutation`。 调用`mutation`、`local.private_json`、`pytest.raises`、`profile.load_profile`、`pytest.mark.parametrize`、`record["bases"]["GO_IMAGE"].update`、`record["snapshot"].update`、`record["runner"].update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_required_profile_verifies_image_id_and_registry_digest`（L674–L688）：接收`locked_profile`、`monkeypatch`。 控制顺序：L683断言`profile.require_profile(directory, record["snapshot"]["snapshot"]) == record`。 调用`snapshot_inspect`、`copy.deepcopy`、`monkeypatch.setattr`、`profile.require_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_prepare_never_overwrites_existing_profile_or_credentials`（L691–L697）：接收`locked_profile`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`profile.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_actual_engine_seccomp_is_not_default_filter_evidence`（L703–L708）：接收`inspection`、`options`。 控制顺序：L708断言`len(calls) == 2`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_daytona_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L657。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_daytona_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L708。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`25648`。本段原文以LF换行结束。
+本段原始字节数：`27886`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_daytona_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "04bcb8cfe244540a14f88a9a31d5ef1ea435dbe0e000273f66226d7e472fe172"} -->
+<!-- learning-source: {"path": "tests/test_daytona_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7e1a89d2b50e07a33c18f31caab6a56b67e44bf1410fc08734094023a07311d5"} -->
 ````python
 # tests/test_daytona_capability_profile.py
 """Owned build/inspection contracts, not live isolation or privilege experiments."""
@@ -92,6 +94,7 @@ def base_config():
 
 def test_profile_transformation_preserves_general_defaults_and_all_other_fields():
     original = base_config()
+    original["services"]["runner"]["environment"]["RESOURCE_LIMITS_DISABLED"] = "true"
     untouched = copy.deepcopy(original)
     image = "registry:6000/rnd-python:0123456789abcdef"
     result = profile.render_profile(original, RUNNER, image)
@@ -100,6 +103,7 @@ def test_profile_transformation_preserves_general_defaults_and_all_other_fields(
     assert result["services"]["runner"]["image"] == RUNNER
     assert result["services"]["runner"]["environment"]["USE_SNAPSHOT_ENTRYPOINT"] == "false"
     assert result["services"]["runner"]["privileged"] is True
+    assert result["services"]["runner"]["environment"]["RESOURCE_LIMITS_DISABLED"] == "true"
     assert result["services"]["api"]["environment"]["DEFAULT_SNAPSHOT"] == image
     # The owned app-container patch does not alter DinD or general defaults.
     assert "USE_SNAPSHOT_ENTRYPOINT" not in original["services"]["runner"]["environment"]
@@ -230,6 +234,50 @@ def test_custom_source_patch_binds_only_its_reviewed_primary_bridge(tmp_path, mo
     assert "NetworkMode" not in source.split("// Custom-source executions", 1)[0]
 
 
+def test_custom_source_patch_pins_cpu_memory_and_no_extra_swap_independent_of_global_flag():
+    custom, native = profile.LIMIT_INSERT.split(
+        'if strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {', 1
+    )
+    assert 'if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {' in custom
+    assert "resourceLimitsDisabled" not in profile.LIMIT_INSERT
+    assert "hostConfig.CPUPeriod = 100000" in custom
+    assert "hostConfig.CPUQuota = 100000" in custom
+    assert "hostConfig.Memory = 2 * 1024 * 1024 * 1024" in custom
+    assert "hostConfig.CPUQuota = 200000" in native
+    assert "hostConfig.Memory = 6 * 1024 * 1024 * 1024" in native
+    assert native.endswith("\t\t}\n\t\thostConfig.MemorySwap = hostConfig.Memory\n\t}\n")
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_complete_source_resource_mapping_preserves_strict_bounds(native):
+    memory = (6 if native else 2) * 1024**3
+    quota = 200000 if native else 100000
+    tmpfs = 4294967296 if native else 1073741824
+    host = {
+        "CpuPeriod": 100000,
+        "CpuQuota": quota,
+        "Memory": memory,
+        "MemorySwap": memory,
+        "PidsLimit": 384 if native else 256,
+        "Tmpfs": {"/tmp": f"rw,nosuid,nodev,size={tmpfs},mode=1777"},
+    }
+    proof = profile.require_execution_resources(host, native=native)
+    assert proof["cpu_quota"] == quota
+    assert proof["memory"] == proof["memory_swap"] == memory
+    for field, value in (
+        ("CpuPeriod", 0),
+        ("CpuQuota", 0),
+        ("CpuQuota", quota + 1),
+        ("Memory", 0),
+        ("Memory", memory + 1),
+        ("MemorySwap", 0),
+        ("MemorySwap", memory + 1),
+        ("MemorySwap", -1),
+    ):
+        with pytest.raises(ContainerInspectionRejected):
+            profile.require_execution_resources({**host, field: value}, native=native)
+
+
 @pytest.mark.parametrize("changed", ["source", "workspace", "patch"])
 def test_source_drift_fails_closed_before_any_build(tmp_path, monkeypatch, changed):
     root, context, _, _ = source_fixture(tmp_path, monkeypatch)
@@ -353,6 +401,11 @@ def test_execution_inspection_still_accepts_exact_resource_network_and_mount_pol
 @pytest.mark.parametrize(
     "mutation,category,facts",
     [
+        (
+            lambda row: row["HostConfig"].update(CpuPeriod=0, CpuQuota=0, Memory=0, MemorySwap=0),
+            "resource_limits",
+            {"cpu_period": 0, "cpu_quota": 0, "memory": 0, "memory_swap": 0},
+        ),
         (
             lambda row: row["HostConfig"].update(NetworkMode="bridge"),
             "sandbox_network",

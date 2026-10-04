@@ -54,13 +54,20 @@ LIMIT_INSERT = """\t// Custom-source executions get bounded writable storage on 
 \tif strings.HasPrefix(sandboxDto.Name, "rnd-source-") {
 \t\t// Bind the primary mode to the same sole bridge checked before source admission.
 \t\thostConfig.NetworkMode = container.NetworkMode("runner-bridge")
+\t\t// The local upstream disables ordinary quotas; custom source cannot inherit that.
+\t\thostConfig.CPUPeriod = 100000
+\t\thostConfig.CPUQuota = 100000
+\t\thostConfig.Memory = 2 * 1024 * 1024 * 1024
 \t\tpidLimit := int64(256)
 \t\thostConfig.PidsLimit = &pidLimit
 \t\thostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"}
 \t\tif strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {
+\t\t\thostConfig.CPUQuota = 200000
+\t\t\thostConfig.Memory = 6 * 1024 * 1024 * 1024
 \t\t\tpidLimit = 384
 \t\t\thostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=4294967296,mode=1777"}
 \t\t}
+\t\thostConfig.MemorySwap = hostConfig.Memory
 \t}
 """
 RECIPE_PATHS = (

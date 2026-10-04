@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `tools/daytona/capability-runner.patch`；**本文件共有 1 段**。本段覆盖源文件 L1–L37。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tools/daytona/capability-runner.patch`；**本文件共有 1 段**。本段覆盖源文件 L1–L44。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`1507`。本段原文以LF换行结束。
+本段原始字节数：`1829`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tools/daytona/capability-runner.patch", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d852b0ea79081f349ee1832c31a9a40dc3714dc8ecb7d74c42293e2cf7ffca89"} -->
+<!-- learning-source: {"path": "tools/daytona/capability-runner.patch", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5f29b0e86b5cdff4a04d318fdcfcb1f237e4d750771f1bebcb7a0fa36e5a800c"} -->
 ````text
 # tools/daytona/capability-runner.patch
 --- a/apps/runner/pkg/docker/container_configs.go
@@ -34,7 +34,7 @@
  		Binds:      binds,
  	}
  
-@@ -234,6 +232,19 @@
+@@ -234,6 +232,26 @@
  		}
  	}
  
@@ -43,13 +43,20 @@
 +	if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {
 +		// Bind the primary mode to the same sole bridge checked before source admission.
 +		hostConfig.NetworkMode = container.NetworkMode("runner-bridge")
++		// The local upstream disables ordinary quotas; custom source cannot inherit that.
++		hostConfig.CPUPeriod = 100000
++		hostConfig.CPUQuota = 100000
++		hostConfig.Memory = 2 * 1024 * 1024 * 1024
 +		pidLimit := int64(256)
 +		hostConfig.PidsLimit = &pidLimit
 +		hostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"}
 +		if strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {
++			hostConfig.CPUQuota = 200000
++			hostConfig.Memory = 6 * 1024 * 1024 * 1024
 +			pidLimit = 384
 +			hostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=4294967296,mode=1777"}
 +		}
++		hostConfig.MemorySwap = hostConfig.Memory
 +	}
  	containerRuntime := config.GetContainerRuntime()
  	if containerRuntime != "" {
