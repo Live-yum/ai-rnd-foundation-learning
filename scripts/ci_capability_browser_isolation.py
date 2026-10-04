@@ -48,6 +48,34 @@ def run(args, timeout=30):
     return value.stdout
 
 
+def memory_probe_diagnostic(process, state, *, timed_out=False, inspection_failed=False):
+    """Expose finite exit facts only, never Docker errors, logs or process output."""
+    state = state if type(state) is dict else {}
+
+    def flag(name):
+        value = state.get(name)
+        return value if type(value) is bool else None
+
+    def integer(value):
+        return value if type(value) is int and -(2**31) <= value < 2**31 else None
+
+    status = state.get("Status")
+    statuses = {"created", "running", "paused", "restarting", "removing", "exited", "dead"}
+    return {
+        "phase": "memory_exhaustion",
+        "timed_out": timed_out is True,
+        "inspection_failed": inspection_failed is True,
+        "docker_start_returncode": integer(getattr(process, "returncode", None)),
+        "container_status": status if type(status) is str and status in statuses else "other",
+        "container_running": flag("Running"),
+        "container_oom_killed": flag("OOMKilled"),
+        "container_exit_code": integer(state.get("ExitCode")),
+        "container_dead": flag("Dead"),
+        "container_restarting": flag("Restarting"),
+        "container_error_present": type(state.get("Error")) is str and bool(state["Error"]),
+    }
+
+
 def main():
     image = browser_image_identity()
     report = {
@@ -98,11 +126,22 @@ def main():
         oom_command.extend(["-e", "const a=[];while(true)a.push(Buffer.alloc(16*1024*1024,255))"])
         run(oom_command)
         require_worker_inspection(json.loads(run([*DOCKER, "inspect", name])), image)
-        subprocess.run(
-            [*DOCKER, "start", "-a", name], capture_output=True, timeout=30, env=clean_env()
-        )
-        state = json.loads(run([*DOCKER, "inspect", name]))[0]["State"]
+        try:
+            oom_run = subprocess.run(
+                [*DOCKER, "start", "-a", name], capture_output=True, timeout=30, env=clean_env()
+            )
+        except subprocess.TimeoutExpired:
+            report["diagnostic"] = memory_probe_diagnostic(None, {}, timed_out=True)
+            raise
+        try:
+            state = json.loads(run([*DOCKER, "inspect", name]))[0]["State"]
+            if type(state) is not dict:
+                raise ValueError("Memory probe container state is malformed")
+        except Exception:
+            report["diagnostic"] = memory_probe_diagnostic(oom_run, {}, inspection_failed=True)
+            raise
         if state.get("OOMKilled") is not True or state.get("Running") is not False:
+            report["diagnostic"] = memory_probe_diagnostic(oom_run, state)
             raise RuntimeError("Memory cgroup did not stop abusive worker")
         run([*DOCKER, "rm", "-f", name])
         report["checks"]["memory_exhaustion"] = True

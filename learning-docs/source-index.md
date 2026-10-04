@@ -511,6 +511,7 @@
 - [tests/test_capability_browser_apparmor.py](14-acceptance/sources/tests__test_capability_browser_apparmor_py--001.md)（1 段）
 - [tests/test_capability_browser_apparmor_review.py](14-acceptance/sources/tests__test_capability_browser_apparmor_review_py--001.md)（1 段）
 - [tests/test_capability_browser_isolation.py](14-acceptance/sources/tests__test_capability_browser_isolation_py--001.md)（1 段）
+- [tests/test_capability_browser_oom_diagnostics.py](14-acceptance/sources/tests__test_capability_browser_oom_diagnostics_py--001.md)（1 段）
 - [tests/test_capability_browser_policy.py](14-acceptance/sources/tests__test_capability_browser_policy_py--001.md)（1 段）
 - [tests/test_capability_browser_preflight.py](14-acceptance/sources/tests__test_capability_browser_preflight_py--001.md)（1 段）
 - [tests/test_capability_browser_protocol.py](14-acceptance/sources/tests__test_capability_browser_protocol_py--001.md)（2 段）
@@ -536,6 +537,7 @@
 - [tests/test_capability_policy_review.py](14-acceptance/sources/tests__test_capability_policy_review_py--001.md)（1 段）
 - [tests/test_capability_recovery_controls.py](14-acceptance/sources/tests__test_capability_recovery_controls_py--001.md)（1 段）
 - [tests/test_capability_restart_thread_drain.py](14-acceptance/sources/tests__test_capability_restart_thread_drain_py--001.md)（1 段）
+- [tests/test_capability_startup_diagnostics.py](14-acceptance/sources/tests__test_capability_startup_diagnostics_py--001.md)（1 段）
 - [tests/test_ci_native_capability_security.py](14-acceptance/sources/tests__test_ci_native_capability_security_py--001.md)（1 段）
 - [tests/test_container_diagnostic_review.py](14-acceptance/sources/tests__test_container_diagnostic_review_py--001.md)（1 段）
 - [tests/test_description_facts.py](14-acceptance/sources/tests__test_description_facts_py--001.md)（1 段）

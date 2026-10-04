@@ -935,8 +935,8 @@
     },
     {
       "path": "workbench/capability_sandbox.py",
-      "bytes": 27229,
-      "sha256": "081e3be07999d747758af32b4928d38070ff7af317f72c6515058037b101f118",
+      "bytes": 30979,
+      "sha256": "576a38b6e3ef80fa89775113a32428b5938d8a2072c45db3bd9efe1149361550",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__capability_sandbox_py--001.md"
@@ -4116,8 +4116,8 @@
     },
     {
       "path": "scripts/ci_capability_browser_isolation.py",
-      "bytes": 6810,
-      "sha256": "3644c3bcdb2a7d92a8b8a23199dbe51dee28520c71a0213de69704a78b7a21f3",
+      "bytes": 8583,
+      "sha256": "a1bdbf48b563752191012f80d8ec4058faeb75ff706acb881344c09f20fab98f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_capability_browser_isolation_py--001.md"
@@ -4325,6 +4325,15 @@
       ]
     },
     {
+      "path": "tests/test_capability_browser_oom_diagnostics.py",
+      "bytes": 5764,
+      "sha256": "5c746d8ba9630867cb25dde90dcf65da9d2c93373d7eb84ebdb4cd7a2735f0e5",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_capability_browser_oom_diagnostics_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_capability_browser_policy.py",
       "bytes": 11606,
       "sha256": "31e8b204a8cbe61164def1d65ea7fd0dba14c554fb83628a45b01d7675564b33",
@@ -4453,8 +4462,8 @@
     },
     {
       "path": "tests/test_capability_isolation.py",
-      "bytes": 22039,
-      "sha256": "81be23405b39d05469ec6a27d6ad7814cf2cf7a274d739b419546848bf030f24",
+      "bytes": 25680,
+      "sha256": "2ddea68fe1690ba2beb0d0fbbd56a0de9a1be25eff98a429e4f0374eacfa90ec",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_isolation_py--001.md"
@@ -4548,6 +4557,15 @@
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_restart_thread_drain_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_capability_startup_diagnostics.py",
+      "bytes": 2429,
+      "sha256": "82d117c7d50732da5bf4c8eca7122ad81af2b1608a1635d181fc773b50204e78",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_capability_startup_diagnostics_py--001.md"
       ]
     },
     {

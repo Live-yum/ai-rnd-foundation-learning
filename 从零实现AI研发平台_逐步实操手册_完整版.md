@@ -11347,13 +11347,14 @@ def business_coverage(policy, proof):
 
 **逐个入口与控制逻辑：**
 
-- `restart_application_identity`（L53–L103）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L102按`result.exit_code != 0`分支；L103抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify_capabilities`（L106–L193）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L112按`plan.selection.model_dump() != selection`分支；L113抛异常，停止当前正常路径；L119按`selection["template"] == "fastapiadmin"`分支；L122按`dependency_identity(product) != profile["dependency_identity"]`分支；L123抛异常，停止当前正常路径；L159按`len(body) > 1_000_000`分支；L160抛异常，停止当前正常路径；L182抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`、`Path`等。 返回路径：L117的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L193的`receipt`。
-- `_verify`（L196–L575）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`。 控制顺序：L215按`trusted_oracle not in (None, "contest-business-v2")`分支；L216抛异常，停止当前正常路径；L217按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L220抛异常，停止当前正常路径；L245按`aggregate`分支；L254按`security_probe is not None`分支；L256按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L257抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`CheckFailure`、`manifest`、`uuid.uuid4`、`digest`、`plan.model_dump`、`inspect_stack`、`write_json`、`params_for`、`client.create`等。 返回路径：L575的`receipt`。
-- `_verify.start`（L350–L395）：接收`command`、`port`、`health_path`。 控制顺序：L368按`not response.cmd_id`分支；L369抛异常，停止当前正常路径；L372按`not isinstance(preview.token, str) or not preview.token`分支；L373抛异常，停止当前正常路径；L384在`time.monotonic() < deadline`成立时循环；L387按`200 <= check.status_code < 300`分支；L392抛异常，停止当前正常路径；L395抛异常，停止当前正常路径。 调用`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`、`shlex.quote`、`shlex.join`、`CheckFailure`等。 返回路径：L388的`http, url, preview.token`。
-- `main`（L578–L620）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L580按`len(body) > 1_000_000`分支；L581抛异常，停止当前正常路径；L590按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L596抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `startup_failure_diagnostic`（L53–L86）：接收`output`、`http_status`、`http_error`、`tmpfs_noexec`。 源码说明：Candidate output supplies hints only; no raw output, path or token escapes.。 调用`type`、`patterns.items`、`any`、`bool`。 返回路径：L74的`{ "phase": "health_deadline", "http_status": http_status if type(http_status) is int and 1…`。
+- `restart_application_identity`（L89–L139）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L138按`result.exit_code != 0`分支；L139抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_capabilities`（L142–L229）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L148按`plan.selection.model_dump() != selection`分支；L149抛异常，停止当前正常路径；L155按`selection["template"] == "fastapiadmin"`分支；L158按`dependency_identity(product) != profile["dependency_identity"]`分支；L159抛异常，停止当前正常路径；L195按`len(body) > 1_000_000`分支；L196抛异常，停止当前正常路径；L218抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`、`Path`等。 返回路径：L153的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L229的`receipt`。
+- `_verify`（L232–L650）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`。 控制顺序：L251按`trusted_oracle not in (None, "contest-business-v2")`分支；L252抛异常，停止当前正常路径；L253按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L256抛异常，停止当前正常路径；L281按`aggregate`分支；L290按`security_probe is not None`分支；L292按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L293抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`CheckFailure`、`manifest`、`uuid.uuid4`、`digest`、`plan.model_dump`、`inspect_stack`、`write_json`、`params_for`、`client.create`等。 返回路径：L650的`receipt`。
+- `_verify.start`（L386–L470）：接收`command`、`port`、`health_path`。 控制顺序：L406按`not response.cmd_id`分支；L407抛异常，停止当前正常路径；L410按`not isinstance(preview.token, str) or not preview.token`分支；L411抛异常，停止当前正常路径；L423在`time.monotonic() < deadline`成立时循环；L427按`200 <= check.status_code < 300`分支；L460按`type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}`分支；L467抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`、`shlex.quote`、`shlex.join`、`CheckFailure`等。 返回路径：L428的`http, url, preview.token`。
+- `main`（L653–L695）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L655按`len(body) > 1_000_000`分支；L656抛异常，停止当前正常路径；L665按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L671抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/capability_sandbox.py sha256: 081e3be07999d747758af32b4928d38070ff7af317f72c6515058037b101f118 -->
+<!-- source-file: workbench/capability_sandbox.py sha256: 576a38b6e3ef80fa89775113a32428b5938d8a2072c45db3bd9efe1149361550 -->
 ````python
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
 
@@ -11405,6 +11406,42 @@ from workbench.local_only import install_loopback_guard
 from workbench.tools import clean_env, process_options, stop_process
 
 REMOTE = "/tmp/rnd-capability"
+
+
+def startup_failure_diagnostic(output, http_status, http_error, tmpfs_noexec=None):
+    """Candidate output supplies hints only; no raw output, path or token escapes."""
+    readable = type(output) is str
+    output = output[:8000] if readable else ""
+    patterns = {
+        "permission-denied": ("PermissionError", "Permission denied", "Operation not permitted"),
+        "missing-module": ("ModuleNotFoundError", "No module named"),
+        "import-error": ("ImportError",),
+        "native-library-mapping": ("failed to map segment from shared object",),
+        "missing-file": ("No such file or directory",),
+        "address-in-use": ("Address already in use", "address already in use"),
+        "readonly-filesystem": ("Read-only file system",),
+        "storage-full": ("No space left on device",),
+        "memory-error": ("MemoryError", "out of memory"),
+        "syntax-error": ("SyntaxError",),
+        "executable-format": ("Exec format error",),
+    }
+    categories = [key for key, markers in patterns.items() if any(m in output for m in markers)]
+    modules = ("uvicorn", "fastapi", "sqlalchemy", "pydantic", "app", "access")
+    known = [module for module in modules if "No module named '" + module + "'" in output]
+    errors = {"none", "connect", "timeout", "protocol", "other"}
+    return {
+        "phase": "health_deadline",
+        "http_status": http_status
+        if type(http_status) is int and 100 <= http_status <= 599
+        else None,
+        "http_error": http_error if type(http_error) is str and http_error in errors else "other",
+        "output_readable": readable,
+        "output_nonempty": bool(output),
+        "output_hints": categories,
+        "known_missing_modules": known,
+        "application_startup_reported": "Application startup complete" in output,
+        "tmpfs_noexec": tmpfs_noexec if type(tmpfs_noexec) is bool else None,
+    }
 
 
 def restart_application_identity(sandbox, port, timeout, *, extra_ports=()):
@@ -11710,7 +11747,9 @@ def _verify(
             command = command or plan.runtime.start
             port = port or plan.runtime.port
             health_path = health_path or plan.runtime.health_path
-            guarded_command, _ = redirected_command(product_argv(plan, command.argv, database))
+            guarded_command, command_output = redirected_command(
+                product_argv(plan, command.argv, database)
+            )
             response = sandbox.process.execute_session_command(
                 session,
                 SessionExecuteRequest(
@@ -11738,14 +11777,51 @@ def _verify(
             )
             try:
                 deadline = time.monotonic() + plan.runtime.startup_seconds
+                last_http_status, last_http_error = None, "none"
                 while time.monotonic() < deadline:
                     try:
                         with http.stream("GET", health_path) as check:
+                            last_http_status, last_http_error = check.status_code, "none"
                             if 200 <= check.status_code < 300:
                                 return http, url, preview.token
-                    except httpx.HTTPError:
-                        pass
+                    except httpx.HTTPError as exc:
+                        last_http_error = (
+                            "timeout"
+                            if isinstance(exc, httpx.TimeoutException)
+                            else "connect"
+                            if isinstance(exc, httpx.ConnectError)
+                            else "protocol"
+                            if isinstance(exc, httpx.ProtocolError)
+                            else "other"
+                        )
                     time.sleep(0.2)
+                try:
+                    startup_output = read_command_output(
+                        sandbox, command_output, min(settings.tool_timeout, 5)
+                    )
+                except Exception:
+                    startup_output = None
+                tmpfs_noexec = None
+                try:
+                    mode = control_exec(
+                        sandbox,
+                        [
+                            "/usr/bin/python3",
+                            "-I",
+                            "-S",
+                            "-c",
+                            "import os; print(int(bool(os.statvfs('/tmp').f_flag & os.ST_NOEXEC)))",
+                        ],
+                        min(settings.tool_timeout, 5),
+                    )
+                    value = mode.result.strip() if type(mode.result) is str else ""
+                    if type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}:
+                        tmpfs_noexec = value == "1"
+                except Exception:
+                    pass
+                receipt["startup_diagnostic"] = startup_failure_diagnostic(
+                    startup_output, last_http_status, last_http_error, tmpfs_noexec
+                )
                 raise CheckFailure("隔离应用未在约定时间内通过健康检查")
             except BaseException:
                 http.close()
@@ -114087,6 +114163,179 @@ main().catch(error => {console.error(error);process.exitCode=1})
     assert result.stdout == "specific-probe-errors-passed"
 ````
 
+### `tests/test_capability_browser_oom_diagnostics.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_memory_diagnostics_never_release_raw_errors_output_or_unknown_state`（L12–L40）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L26断言`result == { "phase": "memory_exhaustion", "timed_out": False, "inspection_failed": Fa…`；L39断言`"secret" not in json.dumps(result)`；L40断言`len(json.dumps(result)) < 512`。 调用`probe.memory_probe_diagnostic`、`SimpleNamespace`、`json.dumps`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_malformed_memory_state_can_only_produce_empty_finite_facts`（L44–L48）：接收`state`。 控制顺序：L46断言`result["container_status"] == "other"`；L47断言`result["container_oom_killed"] is None`；L48断言`"secret" not in json.dumps(result)`。 调用`probe.memory_probe_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_oom_gate_preserves_original_proof_budget_and_cleanup`（L64–L150）：接收`monkeypatch`、`tmp_path`、`case`、`oom`、`running`、`exit_code`。 控制顺序：L136按`case == "genuine_oom"`分支；L142断言`report["passed"] is (case == "genuine_oom")`；L143断言`report["checks"].get("memory_exhaustion") is (True if case == "genuine_oom" else None…`；L144断言`operations == ["memory_start", "final_cleanup", "server_shutdown", "server_close"]`；L145断言`"secret" not in json.dumps(report)`；L146按`case != "genuine_oom"`分支；L147断言`report["diagnostic"]["timed_out"] is (case == "timeout")`；L148断言`report["diagnostic"]["inspection_failed"] is ( case in {"inspect_failure", "malformed…`。 调用`SimpleNamespace`、`operations.append`、`monkeypatch.setattr`、`probe.main`、`pytest.raises`、`json.loads`、`(tmp_path / "reports/capability-browser-isolation.json").read_byt…`、`report["checks"].get`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_oom_gate_preserves_original_proof_budget_and_cleanup.run`（L98–L108）：接收`args`、`timeout`。 控制顺序：L100按`"inspect" in args`分支；L102按`inspections == 3 and case == "inspect_failure"`分支；L103抛异常，停止当前正常路径；L106按`"start" in args`分支。 调用`RuntimeError`、`json.dumps([{"State": value}]).encode`、`json.dumps`。 返回路径：L105的`json.dumps([{"State": value}]).encode()`；L107的`b"{}"`；L108的`b""`。
+- `test_oom_gate_preserves_original_proof_budget_and_cleanup.process`（L110–L120）：接收`args`、`**kwargs`。 控制顺序：L111按`"start" in args`分支；L113断言`kwargs["timeout"] == 30`；L114按`case == "timeout"`分支；L115抛异常，停止当前正常路径；L117断言`"rm" in args and "-f" in args`；L119断言`kwargs["timeout"] == 15`。 调用`operations.append`、`subprocess.TimeoutExpired`、`SimpleNamespace`。 返回路径：L116的`SimpleNamespace(returncode=exit_code, stdout=b"secret", stderr=b"secret")`；L120的`SimpleNamespace(returncode=0)`。
+- `test_oom_gate_preserves_original_proof_budget_and_cleanup.browser`（L122–L131）：接收`url`、`token`、`scenarios`、`*args`。 控制顺序：L124按`mode == "positive"`分支；L131抛异常，停止当前正常路径。 调用`probe.BrowserFailure`。 返回路径：L125的`[True]`。
+
+<!-- source-file: tests/test_capability_browser_oom_diagnostics.py sha256: 5c746d8ba9630867cb25dde90dcf65da9d2c93373d7eb84ebdb4cd7a2735f0e5 -->
+````python
+"""Bounded OOM diagnostics preserve rejection; mocked transport is not live proof."""
+
+import json
+import subprocess
+from types import SimpleNamespace
+
+import pytest
+
+from scripts import ci_capability_browser_isolation as probe
+
+
+def test_memory_diagnostics_never_release_raw_errors_output_or_unknown_state():
+    result = probe.memory_probe_diagnostic(
+        SimpleNamespace(returncode=2**100, stdout=b"secret stdout", stderr=b"secret stderr"),
+        {
+            "Status": "secret status",
+            "Running": 0,
+            "OOMKilled": 1,
+            "ExitCode": True,
+            "Dead": "secret",
+            "Restarting": [],
+            "Error": "secret Docker path and credentials",
+            "Env": ["secret"],
+        },
+    )
+    assert result == {
+        "phase": "memory_exhaustion",
+        "timed_out": False,
+        "inspection_failed": False,
+        "docker_start_returncode": None,
+        "container_status": "other",
+        "container_running": None,
+        "container_oom_killed": None,
+        "container_exit_code": None,
+        "container_dead": None,
+        "container_restarting": None,
+        "container_error_present": True,
+    }
+    assert "secret" not in json.dumps(result)
+    assert len(json.dumps(result)) < 512
+
+
+@pytest.mark.parametrize("state", [None, [], "secret", 1, True])
+def test_malformed_memory_state_can_only_produce_empty_finite_facts(state):
+    result = probe.memory_probe_diagnostic(None, state)
+    assert result["container_status"] == "other"
+    assert result["container_oom_killed"] is None
+    assert "secret" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "case,oom,running,exit_code",
+    [
+        ("genuine_oom", True, False, 137),
+        ("node_abort", False, False, 134),
+        ("unproven_sigkill", False, False, 137),
+        ("still_running", True, True, 137),
+        ("start_failure", False, False, 125),
+        ("timeout", False, True, 0),
+        ("inspect_failure", False, False, 0),
+        ("malformed_state", False, False, 0),
+    ],
+)
+def test_oom_gate_preserves_original_proof_budget_and_cleanup(
+    monkeypatch, tmp_path, case, oom, running, exit_code
+):
+    image = "sha256:" + "a" * 64
+    operations = []
+    inspections = 0
+    state = {
+        "Status": "running" if running else "exited",
+        "Running": running,
+        "OOMKilled": oom,
+        "ExitCode": exit_code,
+        "Error": "secret internal runtime path",
+        "Dead": False,
+        "Restarting": False,
+    }
+    server = SimpleNamespace(
+        server_port=1234,
+        serve_forever=lambda: None,
+        shutdown=lambda: operations.append("server_shutdown"),
+        server_close=lambda: operations.append("server_close"),
+    )
+    monkeypatch.setattr(probe, "ROOT", tmp_path)
+    monkeypatch.setattr(probe, "browser_image_identity", lambda: image)
+    monkeypatch.setattr(probe, "browser_source_identity", lambda: {})
+    monkeypatch.setattr(probe, "runtime_identity", lambda image: {})
+    monkeypatch.setattr(probe, "selected_policy", lambda: None)
+    monkeypatch.setattr(probe, "require_image_sources", lambda name: {})
+    monkeypatch.setattr(probe, "require_worker_inspection", lambda *args: None)
+    monkeypatch.setattr(probe, "worker_command", lambda image, name: ["docker", "create", image])
+    monkeypatch.setattr(probe, "ThreadingHTTPServer", lambda *args: server)
+    monkeypatch.setattr(
+        probe.threading, "Thread", lambda **kwargs: SimpleNamespace(start=lambda: None)
+    )
+
+    def run(args, timeout=30):
+        nonlocal inspections
+        if "inspect" in args:
+            inspections += 1
+            if inspections == 3 and case == "inspect_failure":
+                raise RuntimeError("secret inspection failure")
+            value = [] if case == "malformed_state" else state
+            return json.dumps([{"State": value}]).encode()
+        if "start" in args:
+            return b"{}"
+        return b""
+
+    def process(args, **kwargs):
+        if "start" in args:
+            operations.append("memory_start")
+            assert kwargs["timeout"] == 30
+            if case == "timeout":
+                raise subprocess.TimeoutExpired(args, 30, output=b"secret output")
+            return SimpleNamespace(returncode=exit_code, stdout=b"secret", stderr=b"secret")
+        assert "rm" in args and "-f" in args
+        operations.append("final_cleanup")
+        assert kwargs["timeout"] == 15
+        return SimpleNamespace(returncode=0)
+
+    def browser(url, token, scenarios, *args):
+        mode = scenarios[0].id
+        if mode == "positive":
+            return [True]
+        diagnostic = (
+            {"error_code": "application-error"}
+            if mode == "error"
+            else {"error_type": "TimeoutError"}
+        )
+        raise probe.BrowserFailure(diagnostic)
+
+    monkeypatch.setattr(probe, "run", run)
+    monkeypatch.setattr(probe.subprocess, "run", process)
+    monkeypatch.setattr(probe, "run_isolated_browser", browser)
+    if case == "genuine_oom":
+        probe.main()
+    else:
+        with pytest.raises((RuntimeError, ValueError, subprocess.TimeoutExpired)):
+            probe.main()
+    report = json.loads((tmp_path / "reports/capability-browser-isolation.json").read_bytes())
+    assert report["passed"] is (case == "genuine_oom")
+    assert report["checks"].get("memory_exhaustion") is (True if case == "genuine_oom" else None)
+    assert operations == ["memory_start", "final_cleanup", "server_shutdown", "server_close"]
+    assert "secret" not in json.dumps(report)
+    if case != "genuine_oom":
+        assert report["diagnostic"]["timed_out"] is (case == "timeout")
+        assert report["diagnostic"]["inspection_failed"] is (
+            case in {"inspect_failure", "malformed_state"}
+        )
+````
+
 ### `tests/test_capability_browser_policy.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -117815,22 +118064,24 @@ def test_raw_budget_rejects_overflow_and_stops_consuming(chunks):
 - `test_live_container_inspection_failure_stops_before_source_upload`（L278–L322）：接收`settings`、`tmp_path`、`unknown_error`。 控制顺序：L319断言`result["passed"] is False and result["cleanup"] == "deleted"`；L320断言`result["kind"] == "isolation_environment" and operations == ["deleted"]`；L321断言`result["isolation_diagnostic"] == {}`；L322断言`"must-not-leak" not in json.dumps(result) and "private/path" not in json.dumps(result…`。 调用`fixed_application`、`SimpleNamespace`、`operations.append`、`_verify`、`plan.selection.model_dump`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_live_container_inspection_failure_stops_before_source_upload.forbidden`（L288–L289）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_live_container_inspection_failure_stops_before_source_upload.observer`（L291–L297）：接收`_`。 控制顺序：L292按`unknown_error`分支；L296抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L297的`{}`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths`（L347–L520）：接收`settings`、`tmp_path`、`monkeypatch`、`failure`、`secure_execution`。 源码说明：Real HTTPX lifecycle with transport/process fixtures, not live isolation proof.。 控制顺序：L487断言`result["passed"] is (failure is None)`；L488断言`result["restarted"] is (failure is None)`；L489断言`result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")`；L490断言`events[-1] == "deleted"`；L491断言`len(clients) == ( 1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} …`；L494断言`all(client.is_closed for client in clients)`；L495断言`(0, "/health") in events`；L497断言`persisted == result`。后续分支沿下方源码相同行号继续阅读。 调用`fixed_application`、`SimpleNamespace`、`events.append`、`iter`、`monkeypatch.setattr`、`verifier._verify`、`plan.selection.model_dump`、`len`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http`（L363–L377）：接收`**kwargs`。 控制顺序：L365断言`kwargs["headers"] == {"x-daytona-preview-token": "fixture-private-token"}`；L366断言`kwargs["trust_env"] is False and kwargs["follow_redirects"] is False`。 调用`len`、`original_client`、`httpx.MockTransport`、`clients.append`。 返回路径：L377的`client`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http.respond`（L368–L373）：接收`request`。 控制顺序：L370断言`request.url.host == f"8123-{identifier}.proxy.localhost"`；L371按`failure == "restart-health" and launch == 1`分支；L372抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`httpx.Response`。 返回路径：L373的`httpx.Response(200, json={"ok": True})`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.delete`（L394–L397）：接收`*args`、`**kwargs`。 控制顺序：L396按`failure == "browser-cleanup"`分支；L397抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.create`（L399–L412）：接收`parameters`、`**kwargs`。 控制顺序：L406断言`ordinary.auto_delete_interval == 0`；L407断言`parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60`；L408断言`parameters.network_block_all is True`；L409断言`parameters.public is False`；L410断言`parameters.name.startswith("rnd-source-" if secure_execution else "rnd-capability-")`。 调用`params_for`、`parameters.name.startswith`。 返回路径：L412的`sandbox`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.stop`（L414–L416）：接收`*args`、`**kwargs`。 控制顺序：L415断言`sandbox.auto_delete_interval > 0`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.database_counts`（L426–L429）：接收`*args`。 控制顺序：L427按`failure == "baseline"`分支；L428抛异常，停止当前正常路径。 调用`CheckFailure`、`next`。 返回路径：L429的`{"entries": next(counts)}`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_scenarios`（L431–L436）：接收`http`、`scenarios`、`saved`、`after_restart`。 控制顺序：L433断言`http.get("/fixture-" + phase).status_code == 200`；L434按`failure == phase`分支；L435抛异常，停止当前正常路径。 调用`http.get`、`CheckFailure`。 返回路径：L436的`[{"phase": phase, "fixture_only": True}], {}`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_browser`（L438–L441）：接收`*args`。 控制顺序：L439按`failure in BROWSER_FAILURE_FIXTURES`分支；L440抛异常，停止当前正常路径。 调用`BrowserFailure`、`BROWSER_FAILURE_FIXTURES[failure].copy`。 返回路径：L441的`[{"fixture_only": True}]`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.fixed_browser`（L449–L451）：接收`*args`。 控制顺序：L450断言`not secure_execution`。 调用`run_browser`。 返回路径：L451的`run_browser(*args)`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.isolated_browser`（L453–L457）：接收`image`、`*args`。 控制顺序：L454断言`secure_execution`；L455断言`image == settings.capability_browser_image`。 调用`events.append`、`run_browser`。 返回路径：L457的`run_browser(*args)`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.security_probe`（L470–L472）：接收`*args`。 调用`events.append`。 返回路径：L472的`{"fixture_only": True}`。
-- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup`（L523–L555）：接收`settings`、`tmp_path`。 控制顺序：L553断言`calls == ["created", "deleted"]`；L554断言`result["passed"] is False`；L555断言`result["cleanup"] == "deleted"`。 调用`fixed_application`、`SimpleNamespace`、`calls.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup.create`（L533–L537）：接收`parameters`、`**kwargs`。 控制顺序：L534断言`parameters.auto_delete_interval == 0`；L535断言`parameters.network_block_all is True and parameters.public is False`。 调用`calls.append`。 返回路径：L537的`sandbox`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths`（L369–L617）：接收`settings`、`tmp_path`、`monkeypatch`、`failure`、`secure_execution`。 源码说明：Real HTTPX lifecycle with transport/process fixtures, not live isolation proof.。 控制顺序：L381按`failure in STARTUP_FAILURE_FIXTURES`分支；L551断言`result["passed"] is (failure is None)`；L552断言`result["restarted"] is (failure is None)`；L553断言`result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")`；L554断言`events[-1] == "deleted"`；L555断言`len(clients) == ( 1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES, …`；L561断言`all(client.is_closed for client in clients)`；L562断言`(0, "/health") in events`。后续分支沿下方源码相同行号继续阅读。 调用`fixed_application`、`monkeypatch.setattr`、`clock.__setitem__`、`SimpleNamespace`、`events.append`、`iter`、`verifier._verify`、`plan.selection.model_dump`、`len`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http`（L390–L410）：接收`**kwargs`。 控制顺序：L392断言`kwargs["headers"] == {"x-daytona-preview-token": "fixture-private-token"}`；L393断言`kwargs["trust_env"] is False and kwargs["follow_redirects"] is False`。 调用`len`、`original_client`、`httpx.MockTransport`、`clients.append`。 返回路径：L410的`client`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http.respond`（L395–L406）：接收`request`。 控制顺序：L397断言`request.url.host == f"8123-{identifier}.proxy.localhost"`；L398按`failure == "startup-connect"`分支；L399抛异常，停止当前正常路径；L400按`failure == "startup-timeout"`分支；L401抛异常，停止当前正常路径；L402按`failure in STARTUP_FAILURE_FIXTURES`分支；L404按`failure == "restart-health" and launch == 1`分支；L405抛异常，停止当前正常路径。 调用`events.append`、`httpx.ConnectError`、`httpx.ReadTimeout`、`httpx.Response`、`RuntimeError`。 返回路径：L403的`httpx.Response(503)`；L406的`httpx.Response(200, json={"ok": True})`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.delete`（L427–L430）：接收`*args`、`**kwargs`。 控制顺序：L429按`failure == "browser-cleanup"`分支；L430抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.create`（L432–L445）：接收`parameters`、`**kwargs`。 控制顺序：L439断言`ordinary.auto_delete_interval == 0`；L440断言`parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60`；L441断言`parameters.network_block_all is True`；L442断言`parameters.public is False`；L443断言`parameters.name.startswith("rnd-source-" if secure_execution else "rnd-capability-")`。 调用`params_for`、`parameters.name.startswith`。 返回路径：L445的`sandbox`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.stop`（L447–L449）：接收`*args`、`**kwargs`。 控制顺序：L448断言`sandbox.auto_delete_interval > 0`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.database_counts`（L459–L462）：接收`*args`。 控制顺序：L460按`failure == "baseline"`分支；L461抛异常，停止当前正常路径。 调用`CheckFailure`、`next`。 返回路径：L462的`{"entries": next(counts)}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_scenarios`（L464–L469）：接收`http`、`scenarios`、`saved`、`after_restart`。 控制顺序：L466断言`http.get("/fixture-" + phase).status_code == 200`；L467按`failure == phase`分支；L468抛异常，停止当前正常路径。 调用`http.get`、`CheckFailure`。 返回路径：L469的`[{"phase": phase, "fixture_only": True}], {}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_browser`（L471–L474）：接收`*args`。 控制顺序：L472按`failure in BROWSER_FAILURE_FIXTURES`分支；L473抛异常，停止当前正常路径。 调用`BrowserFailure`、`BROWSER_FAILURE_FIXTURES[failure].copy`。 返回路径：L474的`[{"fixture_only": True}]`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.control`（L479–L497）：接收`sandbox`、`argv`、`timeout`。 控制顺序：L480按`"os.statvfs('/tmp')" in argv[-1]`分支；L481断言`timeout <= 5`；L483按`failure == "startup-probe-error"`分支；L484抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`SimpleNamespace`。 返回路径：L485的`SimpleNamespace( exit_code=1 if failure == "startup-probe-nonzero" else False if failure =…`；L497的`SimpleNamespace(exit_code=0)`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.startup_output`（L501–L507）：接收`sandbox`、`path`、`timeout`。 控制顺序：L502断言`path.startswith("/tmp/rnd-module-control/private/")`；L503断言`timeout <= 5`；L505按`failure == "startup-output-unavailable"`分支；L506抛异常，停止当前正常路径。 调用`path.startswith`、`events.append`、`RuntimeError`。 返回路径：L507的`"PermissionError: secret path, content and fixture-private-token"`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.fixed_browser`（L513–L515）：接收`*args`。 控制顺序：L514断言`not secure_execution`。 调用`run_browser`。 返回路径：L515的`run_browser(*args)`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.isolated_browser`（L517–L521）：接收`image`、`*args`。 控制顺序：L518断言`secure_execution`；L519断言`image == settings.capability_browser_image`。 调用`events.append`、`run_browser`。 返回路径：L521的`run_browser(*args)`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.security_probe`（L534–L536）：接收`*args`。 调用`events.append`。 返回路径：L536的`{"fixture_only": True}`。
+- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup`（L620–L652）：接收`settings`、`tmp_path`。 控制顺序：L650断言`calls == ["created", "deleted"]`；L651断言`result["passed"] is False`；L652断言`result["cleanup"] == "deleted"`。 调用`fixed_application`、`SimpleNamespace`、`calls.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup.create`（L630–L634）：接收`parameters`、`**kwargs`。 控制顺序：L631断言`parameters.auto_delete_interval == 0`；L632断言`parameters.network_block_all is True and parameters.public is False`。 调用`calls.append`。 返回路径：L634的`sandbox`。
 
-<!-- source-file: tests/test_capability_isolation.py sha256: 81be23405b39d05469ec6a27d6ad7814cf2cf7a274d739b419546848bf030f24 -->
+<!-- source-file: tests/test_capability_isolation.py sha256: 2ddea68fe1690ba2beb0d0fbbd56a0de9a1be25eff98a429e4f0374eacfa90ec -->
 ````python
 """Verify every source command is composed through the same non-bypassable launcher."""
 
@@ -118174,8 +118425,30 @@ BROWSER_FAILURE_FIXTURES = {
 }
 
 
+STARTUP_FAILURE_FIXTURES = {
+    "startup-status",
+    "startup-connect",
+    "startup-timeout",
+    "startup-output-unavailable",
+    "startup-probe-error",
+    "startup-probe-nonzero",
+    "startup-probe-malformed",
+    "startup-probe-boolean",
+    "startup-probe-executable",
+}
+
+
 @pytest.mark.parametrize(
-    "failure", [None, "baseline", "initial", "restart-health", "restart", *BROWSER_FAILURE_FIXTURES]
+    "failure",
+    [
+        None,
+        "baseline",
+        "initial",
+        "restart-health",
+        "restart",
+        *BROWSER_FAILURE_FIXTURES,
+        *sorted(STARTUP_FAILURE_FIXTURES),
+    ],
 )
 @pytest.mark.parametrize("secure_execution", [False, True])
 def test_verifier_closes_health_opened_http_clients_on_all_paths(
@@ -118190,6 +118463,11 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
 
     product = tmp_path / "product"
     plan = fixed_application(product)
+    if failure in STARTUP_FAILURE_FIXTURES:
+        plan.runtime.startup_seconds = 1
+        clock = [0]
+        monkeypatch.setattr(verifier.time, "monotonic", lambda: clock[0])
+        monkeypatch.setattr(verifier.time, "sleep", lambda _: clock.__setitem__(0, clock[0] + 1))
     identifier = "00000000-0000-0000-0000-000000000001"
     events, clients = [], []
     original_client = httpx.Client
@@ -118202,6 +118480,12 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         def respond(request):
             events.append((launch, request.url.path))
             assert request.url.host == f"8123-{identifier}.proxy.localhost"
+            if failure == "startup-connect":
+                raise httpx.ConnectError("secret transport path and token", request=request)
+            if failure == "startup-timeout":
+                raise httpx.ReadTimeout("secret transport path and token", request=request)
+            if failure in STARTUP_FAILURE_FIXTURES:
+                return httpx.Response(503)
             if failure == "restart-health" and launch == 1:
                 raise RuntimeError("fixture health failure")
             return httpx.Response(200, json={"ok": True})
@@ -118276,7 +118560,38 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
 
     monkeypatch.setattr(verifier, "require_container_evidence", lambda *a: {"fixture_only": True})
     monkeypatch.setattr(verifier, "prepare_identity", lambda *a: {"fixture_only": True})
-    monkeypatch.setattr(verifier, "control_exec", lambda *a: SimpleNamespace(exit_code=0))
+
+    def control(sandbox, argv, timeout):
+        if "os.statvfs('/tmp')" in argv[-1]:
+            assert timeout <= 5
+            events.append("tmpfs-mode-read")
+            if failure == "startup-probe-error":
+                raise RuntimeError("secret probe failure")
+            return SimpleNamespace(
+                exit_code=1
+                if failure == "startup-probe-nonzero"
+                else False
+                if failure == "startup-probe-boolean"
+                else 0,
+                result="secret"
+                if failure == "startup-probe-malformed"
+                else "0\n"
+                if failure == "startup-probe-executable"
+                else "1\n",
+            )
+        return SimpleNamespace(exit_code=0)
+
+    monkeypatch.setattr(verifier, "control_exec", control)
+
+    def startup_output(sandbox, path, timeout):
+        assert path.startswith("/tmp/rnd-module-control/private/")
+        assert timeout <= 5
+        events.append("startup-output-read")
+        if failure == "startup-output-unavailable":
+            raise RuntimeError("secret private log path")
+        return "PermissionError: secret path, content and fixture-private-token"
+
+    monkeypatch.setattr(verifier, "read_command_output", startup_output)
     monkeypatch.setattr(verifier, "database_counts", database_counts)
     monkeypatch.setattr(verifier, "run_scenarios", run_scenarios)
 
@@ -118323,12 +118638,45 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         assert result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")
         assert events[-1] == "deleted"
         assert len(clients) == (
-            1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} else 2
+            1
+            if failure
+            in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES, *STARTUP_FAILURE_FIXTURES}
+            else 2
         )
         assert all(client.is_closed for client in clients)
         assert (0, "/health") in events
         persisted = json.loads((tmp_path / "receipt.json").read_text(encoding="utf-8"))
         assert persisted == result
+        if failure in STARTUP_FAILURE_FIXTURES:
+            diagnostic = persisted["startup_diagnostic"]
+            assert diagnostic["phase"] == "health_deadline"
+            assert diagnostic["http_error"] == (
+                "connect"
+                if failure == "startup-connect"
+                else "timeout"
+                if failure == "startup-timeout"
+                else "none"
+            )
+            assert diagnostic["http_status"] == (
+                None if failure in {"startup-connect", "startup-timeout"} else 503
+            )
+            assert diagnostic["output_hints"] == (
+                [] if failure == "startup-output-unavailable" else ["permission-denied"]
+            )
+            assert events.count("startup-output-read") == 1
+            assert events.count("tmpfs-mode-read") == 1
+            assert diagnostic["tmpfs_noexec"] is (
+                False
+                if failure == "startup-probe-executable"
+                else None
+                if failure.startswith("startup-probe-")
+                else True
+            )
+            assert "secret" not in json.dumps(persisted)
+            assert "fixture-private-token" not in json.dumps(persisted)
+        else:
+            assert "startup-output-read" not in events and "tmpfs-mode-read" not in events
+            assert "startup_diagnostic" not in persisted
         if failure in BROWSER_FAILURE_FIXTURES:
             assert persisted["browser_diagnostic"] == BROWSER_FAILURE_FIXTURES[failure]
             assert "fixture-private-token" not in json.dumps(persisted)
@@ -119791,6 +120139,94 @@ def test_restart_inventory_sees_live_thread_under_zombie_group_leader(monkeypatc
     finally:
         child.kill()
         child.wait(timeout=5)
+````
+
+### `tests/test_capability_startup_diagnostics.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.capability_sandbox`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_startup_hints_are_finite_even_for_secret_bearing_tracebacks`（L10–L31）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L18断言`result == { "phase": "health_deadline", "http_status": 503, "http_error": "other", "o…`；L29断言`"secret" not in json.dumps(result)`；L30断言`len(json.dumps(result)) < 512`；L31断言`"passed" not in result`。 调用`startup_failure_diagnostic`、`json.dumps`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_nontext_startup_output_never_stringifies_candidate_data`（L35–L41）：接收`output`。 控制顺序：L37断言`result["output_readable"] is False`；L38断言`result["http_status"] is None`；L39断言`result["http_error"] == "other"`；L40断言`result["output_hints"] == []`；L41断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_exact_public_module_names_can_be_reported`（L47–L54）：接收`module`。 控制顺序：L51断言`result["known_missing_modules"] == [module]`；L52断言`startup_failure_diagnostic("x" * 8000 + "PermissionError", 0, "none")["output_hints"]…`。 调用`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_loader_failure_is_not_mislabeled_as_missing_module`（L57–L67）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L64断言`result["output_hints"] == ["import-error", "native-library-mapping"]`；L65断言`result["tmpfs_noexec"] is True`；L66断言`"secret" not in json.dumps(result)`；L67断言`startup_failure_diagnostic("", None, "none", "secret")["tmpfs_noexec"] is None`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_startup_diagnostics.py sha256: 82d117c7d50732da5bf4c8eca7122ad81af2b1608a1635d181fc773b50204e78 -->
+````python
+"""Startup hints cannot become product acceptance or disclose candidate output."""
+
+import json
+
+import pytest
+
+from workbench.capability_sandbox import startup_failure_diagnostic
+
+
+def test_startup_hints_are_finite_even_for_secret_bearing_tracebacks():
+    result = startup_failure_diagnostic(
+        "secret content /private/secret token=secret\n"
+        "ModuleNotFoundError: No module named 'secret.module'\n"
+        "PermissionError: secret path\nApplication startup complete",
+        503,
+        "secret transport error",
+    )
+    assert result == {
+        "phase": "health_deadline",
+        "http_status": 503,
+        "http_error": "other",
+        "output_readable": True,
+        "output_nonempty": True,
+        "output_hints": ["permission-denied", "missing-module"],
+        "known_missing_modules": [],
+        "application_startup_reported": True,
+        "tmpfs_noexec": None,
+    }
+    assert "secret" not in json.dumps(result)
+    assert len(json.dumps(result)) < 512
+    assert "passed" not in result
+
+
+@pytest.mark.parametrize("output", [None, [], {"secret": "private"}, True])
+def test_nontext_startup_output_never_stringifies_candidate_data(output):
+    result = startup_failure_diagnostic(output, True, [])
+    assert result["output_readable"] is False
+    assert result["http_status"] is None
+    assert result["http_error"] == "other"
+    assert result["output_hints"] == []
+    assert "secret" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "module", ["uvicorn", "fastapi", "sqlalchemy", "pydantic", "app", "access"]
+)
+def test_only_exact_public_module_names_can_be_reported(module):
+    result = startup_failure_diagnostic(
+        "ModuleNotFoundError: No module named '" + module + "'", 502, "none"
+    )
+    assert result["known_missing_modules"] == [module]
+    assert (
+        startup_failure_diagnostic("x" * 8000 + "PermissionError", 0, "none")["output_hints"] == []
+    )
+
+
+def test_native_loader_failure_is_not_mislabeled_as_missing_module():
+    result = startup_failure_diagnostic(
+        "ImportError: /private/secret: failed to map segment from shared object",
+        502,
+        "none",
+        True,
+    )
+    assert result["output_hints"] == ["import-error", "native-library-mapping"]
+    assert result["tmpfs_noexec"] is True
+    assert "secret" not in json.dumps(result)
+    assert startup_failure_diagnostic("", None, "none", "secret")["tmpfs_noexec"] is None
 ````
 
 ### `tests/test_ci_native_capability_security.py`
@@ -159146,9 +159582,12 @@ if __name__ == "__main__":
 - `Page.do_GET`（L28–L38）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pages.get`、`self.send_response`、`self.send_header`、`self.end_headers`、`self.wfile.write`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Page.log_message`（L40–L41）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `run`（L44–L48）：接收`args`、`timeout`。 控制顺序：L46按`value.returncode or len(value.stdout) > 100000`分支；L47抛异常，停止当前正常路径。 调用`subprocess.run`、`clean_env`、`len`、`RuntimeError`。 返回路径：L48的`value.stdout`。
-- `main`（L51–L152）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L78按`selected_policy() is not None`分支；L86按`len(raw_run.stdout) > 20000`分支；L87抛异常，停止当前正常路径；L90按`raw_run.returncode`分支；L91抛异常，停止当前正常路径；L105按`state.get("OOMKilled") is not True or state.get("Running") is not False`分支；L106抛异常，停止当前正常路径；L109遍历`("positive", "error", "abuse")`。后续分支沿下方源码相同行号继续阅读。 调用`browser_image_identity`、`browser_source_identity`、`runtime_identity`、`write_json`、`uuid.uuid4`、`ThreadingHTTPServer`、`threading.Thread`、`thread.start`、`worker_command`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `memory_probe_diagnostic`（L51–L76）：接收`process`、`state`、`timed_out`、`inspection_failed`。 源码说明：Expose finite exit facts only, never Docker errors, logs or process output.。 调用`type`、`state.get`、`integer`、`getattr`、`flag`、`bool`。 返回路径：L64的`{ "phase": "memory_exhaustion", "timed_out": timed_out is True, "inspection_failed": inspe…`。
+- `memory_probe_diagnostic.flag`（L55–L57）：接收`name`。 调用`state.get`、`type`。 返回路径：L57的`value if type(value) is bool else None`。
+- `memory_probe_diagnostic.integer`（L59–L60）：接收`value`。 调用`type`。 返回路径：L60的`value if type(value) is int and -(2**31) <= value < 2**31 else None`。
+- `main`（L79–L191）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L106按`selected_policy() is not None`分支；L114按`len(raw_run.stdout) > 20000`分支；L115抛异常，停止当前正常路径；L118按`raw_run.returncode`分支；L119抛异常，停止当前正常路径；L135抛异常，停止当前正常路径；L138按`type(state) is not dict`分支；L139抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`browser_image_identity`、`browser_source_identity`、`runtime_identity`、`write_json`、`uuid.uuid4`、`ThreadingHTTPServer`、`threading.Thread`、`thread.start`、`worker_command`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_capability_browser_isolation.py sha256: 3644c3bcdb2a7d92a8b8a23199dbe51dee28520c71a0213de69704a78b7a21f3 -->
+<!-- source-file: scripts/ci_capability_browser_isolation.py sha256: a1bdbf48b563752191012f80d8ec4058faeb75ff706acb881344c09f20fab98f -->
 ````python
 """Live Docker-only browser gate; never certifies from mocks or host Chromium."""
 
@@ -159198,6 +159637,34 @@ def run(args, timeout=30):
     if value.returncode or len(value.stdout) > 100000:
         raise RuntimeError("Live browser infrastructure probe failed")
     return value.stdout
+
+
+def memory_probe_diagnostic(process, state, *, timed_out=False, inspection_failed=False):
+    """Expose finite exit facts only, never Docker errors, logs or process output."""
+    state = state if type(state) is dict else {}
+
+    def flag(name):
+        value = state.get(name)
+        return value if type(value) is bool else None
+
+    def integer(value):
+        return value if type(value) is int and -(2**31) <= value < 2**31 else None
+
+    status = state.get("Status")
+    statuses = {"created", "running", "paused", "restarting", "removing", "exited", "dead"}
+    return {
+        "phase": "memory_exhaustion",
+        "timed_out": timed_out is True,
+        "inspection_failed": inspection_failed is True,
+        "docker_start_returncode": integer(getattr(process, "returncode", None)),
+        "container_status": status if type(status) is str and status in statuses else "other",
+        "container_running": flag("Running"),
+        "container_oom_killed": flag("OOMKilled"),
+        "container_exit_code": integer(state.get("ExitCode")),
+        "container_dead": flag("Dead"),
+        "container_restarting": flag("Restarting"),
+        "container_error_present": type(state.get("Error")) is str and bool(state["Error"]),
+    }
 
 
 def main():
@@ -159250,11 +159717,22 @@ def main():
         oom_command.extend(["-e", "const a=[];while(true)a.push(Buffer.alloc(16*1024*1024,255))"])
         run(oom_command)
         require_worker_inspection(json.loads(run([*DOCKER, "inspect", name])), image)
-        subprocess.run(
-            [*DOCKER, "start", "-a", name], capture_output=True, timeout=30, env=clean_env()
-        )
-        state = json.loads(run([*DOCKER, "inspect", name]))[0]["State"]
+        try:
+            oom_run = subprocess.run(
+                [*DOCKER, "start", "-a", name], capture_output=True, timeout=30, env=clean_env()
+            )
+        except subprocess.TimeoutExpired:
+            report["diagnostic"] = memory_probe_diagnostic(None, {}, timed_out=True)
+            raise
+        try:
+            state = json.loads(run([*DOCKER, "inspect", name]))[0]["State"]
+            if type(state) is not dict:
+                raise ValueError("Memory probe container state is malformed")
+        except Exception:
+            report["diagnostic"] = memory_probe_diagnostic(oom_run, {}, inspection_failed=True)
+            raise
         if state.get("OOMKilled") is not True or state.get("Running") is not False:
+            report["diagnostic"] = memory_probe_diagnostic(oom_run, state)
             raise RuntimeError("Memory cgroup did not stop abusive worker")
         run([*DOCKER, "rm", "-f", name])
         report["checks"]["memory_exhaustion"] = True

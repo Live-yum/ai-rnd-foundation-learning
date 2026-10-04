@@ -340,8 +340,30 @@ BROWSER_FAILURE_FIXTURES = {
 }
 
 
+STARTUP_FAILURE_FIXTURES = {
+    "startup-status",
+    "startup-connect",
+    "startup-timeout",
+    "startup-output-unavailable",
+    "startup-probe-error",
+    "startup-probe-nonzero",
+    "startup-probe-malformed",
+    "startup-probe-boolean",
+    "startup-probe-executable",
+}
+
+
 @pytest.mark.parametrize(
-    "failure", [None, "baseline", "initial", "restart-health", "restart", *BROWSER_FAILURE_FIXTURES]
+    "failure",
+    [
+        None,
+        "baseline",
+        "initial",
+        "restart-health",
+        "restart",
+        *BROWSER_FAILURE_FIXTURES,
+        *sorted(STARTUP_FAILURE_FIXTURES),
+    ],
 )
 @pytest.mark.parametrize("secure_execution", [False, True])
 def test_verifier_closes_health_opened_http_clients_on_all_paths(
@@ -356,6 +378,11 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
 
     product = tmp_path / "product"
     plan = fixed_application(product)
+    if failure in STARTUP_FAILURE_FIXTURES:
+        plan.runtime.startup_seconds = 1
+        clock = [0]
+        monkeypatch.setattr(verifier.time, "monotonic", lambda: clock[0])
+        monkeypatch.setattr(verifier.time, "sleep", lambda _: clock.__setitem__(0, clock[0] + 1))
     identifier = "00000000-0000-0000-0000-000000000001"
     events, clients = [], []
     original_client = httpx.Client
@@ -368,6 +395,12 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         def respond(request):
             events.append((launch, request.url.path))
             assert request.url.host == f"8123-{identifier}.proxy.localhost"
+            if failure == "startup-connect":
+                raise httpx.ConnectError("secret transport path and token", request=request)
+            if failure == "startup-timeout":
+                raise httpx.ReadTimeout("secret transport path and token", request=request)
+            if failure in STARTUP_FAILURE_FIXTURES:
+                return httpx.Response(503)
             if failure == "restart-health" and launch == 1:
                 raise RuntimeError("fixture health failure")
             return httpx.Response(200, json={"ok": True})
@@ -442,7 +475,38 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
 
     monkeypatch.setattr(verifier, "require_container_evidence", lambda *a: {"fixture_only": True})
     monkeypatch.setattr(verifier, "prepare_identity", lambda *a: {"fixture_only": True})
-    monkeypatch.setattr(verifier, "control_exec", lambda *a: SimpleNamespace(exit_code=0))
+
+    def control(sandbox, argv, timeout):
+        if "os.statvfs('/tmp')" in argv[-1]:
+            assert timeout <= 5
+            events.append("tmpfs-mode-read")
+            if failure == "startup-probe-error":
+                raise RuntimeError("secret probe failure")
+            return SimpleNamespace(
+                exit_code=1
+                if failure == "startup-probe-nonzero"
+                else False
+                if failure == "startup-probe-boolean"
+                else 0,
+                result="secret"
+                if failure == "startup-probe-malformed"
+                else "0\n"
+                if failure == "startup-probe-executable"
+                else "1\n",
+            )
+        return SimpleNamespace(exit_code=0)
+
+    monkeypatch.setattr(verifier, "control_exec", control)
+
+    def startup_output(sandbox, path, timeout):
+        assert path.startswith("/tmp/rnd-module-control/private/")
+        assert timeout <= 5
+        events.append("startup-output-read")
+        if failure == "startup-output-unavailable":
+            raise RuntimeError("secret private log path")
+        return "PermissionError: secret path, content and fixture-private-token"
+
+    monkeypatch.setattr(verifier, "read_command_output", startup_output)
     monkeypatch.setattr(verifier, "database_counts", database_counts)
     monkeypatch.setattr(verifier, "run_scenarios", run_scenarios)
 
@@ -489,12 +553,45 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         assert result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")
         assert events[-1] == "deleted"
         assert len(clients) == (
-            1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} else 2
+            1
+            if failure
+            in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES, *STARTUP_FAILURE_FIXTURES}
+            else 2
         )
         assert all(client.is_closed for client in clients)
         assert (0, "/health") in events
         persisted = json.loads((tmp_path / "receipt.json").read_text(encoding="utf-8"))
         assert persisted == result
+        if failure in STARTUP_FAILURE_FIXTURES:
+            diagnostic = persisted["startup_diagnostic"]
+            assert diagnostic["phase"] == "health_deadline"
+            assert diagnostic["http_error"] == (
+                "connect"
+                if failure == "startup-connect"
+                else "timeout"
+                if failure == "startup-timeout"
+                else "none"
+            )
+            assert diagnostic["http_status"] == (
+                None if failure in {"startup-connect", "startup-timeout"} else 503
+            )
+            assert diagnostic["output_hints"] == (
+                [] if failure == "startup-output-unavailable" else ["permission-denied"]
+            )
+            assert events.count("startup-output-read") == 1
+            assert events.count("tmpfs-mode-read") == 1
+            assert diagnostic["tmpfs_noexec"] is (
+                False
+                if failure == "startup-probe-executable"
+                else None
+                if failure.startswith("startup-probe-")
+                else True
+            )
+            assert "secret" not in json.dumps(persisted)
+            assert "fixture-private-token" not in json.dumps(persisted)
+        else:
+            assert "startup-output-read" not in events and "tmpfs-mode-read" not in events
+            assert "startup_diagnostic" not in persisted
         if failure in BROWSER_FAILURE_FIXTURES:
             assert persisted["browser_diagnostic"] == BROWSER_FAILURE_FIXTURES[failure]
             assert "fixture-private-token" not in json.dumps(persisted)

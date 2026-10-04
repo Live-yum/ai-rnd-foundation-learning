@@ -19,15 +19,18 @@
 - `Page.do_GET`（L28–L38）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pages.get`、`self.send_response`、`self.send_header`、`self.end_headers`、`self.wfile.write`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `Page.log_message`（L40–L41）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `run`（L44–L48）：接收`args`、`timeout`。 控制顺序：L46按`value.returncode or len(value.stdout) > 100000`分支；L47抛异常，停止当前正常路径。 调用`subprocess.run`、`clean_env`、`len`、`RuntimeError`。 返回路径：L48的`value.stdout`。
-- `main`（L51–L152）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L78按`selected_policy() is not None`分支；L86按`len(raw_run.stdout) > 20000`分支；L87抛异常，停止当前正常路径；L90按`raw_run.returncode`分支；L91抛异常，停止当前正常路径；L105按`state.get("OOMKilled") is not True or state.get("Running") is not False`分支；L106抛异常，停止当前正常路径；L109遍历`("positive", "error", "abuse")`。后续分支沿下方源码相同行号继续阅读。 调用`browser_image_identity`、`browser_source_identity`、`runtime_identity`、`write_json`、`uuid.uuid4`、`ThreadingHTTPServer`、`threading.Thread`、`thread.start`、`worker_command`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `memory_probe_diagnostic`（L51–L76）：接收`process`、`state`、`timed_out`、`inspection_failed`。 源码说明：Expose finite exit facts only, never Docker errors, logs or process output.。 调用`type`、`state.get`、`integer`、`getattr`、`flag`、`bool`。 返回路径：L64的`{ "phase": "memory_exhaustion", "timed_out": timed_out is True, "inspection_failed": inspe…`。
+- `memory_probe_diagnostic.flag`（L55–L57）：接收`name`。 调用`state.get`、`type`。 返回路径：L57的`value if type(value) is bool else None`。
+- `memory_probe_diagnostic.integer`（L59–L60）：接收`value`。 调用`type`。 返回路径：L60的`value if type(value) is int and -(2**31) <= value < 2**31 else None`。
+- `main`（L79–L191）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L106按`selected_policy() is not None`分支；L114按`len(raw_run.stdout) > 20000`分支；L115抛异常，停止当前正常路径；L118按`raw_run.returncode`分支；L119抛异常，停止当前正常路径；L135抛异常，停止当前正常路径；L138按`type(state) is not dict`分支；L139抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`browser_image_identity`、`browser_source_identity`、`runtime_identity`、`write_json`、`uuid.uuid4`、`ThreadingHTTPServer`、`threading.Thread`、`thread.start`、`worker_command`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_capability_browser_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L156。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_capability_browser_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L195。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`6810`。本段原文以LF换行结束。
+本段原始字节数：`8583`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_capability_browser_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3644c3bcdb2a7d92a8b8a23199dbe51dee28520c71a0213de69704a78b7a21f3"} -->
+<!-- learning-source: {"path": "scripts/ci_capability_browser_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a1bdbf48b563752191012f80d8ec4058faeb75ff706acb881344c09f20fab98f"} -->
 ````python
 # scripts/ci_capability_browser_isolation.py
 """Live Docker-only browser gate; never certifies from mocks or host Chromium."""
@@ -80,6 +83,34 @@ def run(args, timeout=30):
     return value.stdout
 
 
+def memory_probe_diagnostic(process, state, *, timed_out=False, inspection_failed=False):
+    """Expose finite exit facts only, never Docker errors, logs or process output."""
+    state = state if type(state) is dict else {}
+
+    def flag(name):
+        value = state.get(name)
+        return value if type(value) is bool else None
+
+    def integer(value):
+        return value if type(value) is int and -(2**31) <= value < 2**31 else None
+
+    status = state.get("Status")
+    statuses = {"created", "running", "paused", "restarting", "removing", "exited", "dead"}
+    return {
+        "phase": "memory_exhaustion",
+        "timed_out": timed_out is True,
+        "inspection_failed": inspection_failed is True,
+        "docker_start_returncode": integer(getattr(process, "returncode", None)),
+        "container_status": status if type(status) is str and status in statuses else "other",
+        "container_running": flag("Running"),
+        "container_oom_killed": flag("OOMKilled"),
+        "container_exit_code": integer(state.get("ExitCode")),
+        "container_dead": flag("Dead"),
+        "container_restarting": flag("Restarting"),
+        "container_error_present": type(state.get("Error")) is str and bool(state["Error"]),
+    }
+
+
 def main():
     image = browser_image_identity()
     report = {
@@ -130,11 +161,22 @@ def main():
         oom_command.extend(["-e", "const a=[];while(true)a.push(Buffer.alloc(16*1024*1024,255))"])
         run(oom_command)
         require_worker_inspection(json.loads(run([*DOCKER, "inspect", name])), image)
-        subprocess.run(
-            [*DOCKER, "start", "-a", name], capture_output=True, timeout=30, env=clean_env()
-        )
-        state = json.loads(run([*DOCKER, "inspect", name]))[0]["State"]
+        try:
+            oom_run = subprocess.run(
+                [*DOCKER, "start", "-a", name], capture_output=True, timeout=30, env=clean_env()
+            )
+        except subprocess.TimeoutExpired:
+            report["diagnostic"] = memory_probe_diagnostic(None, {}, timed_out=True)
+            raise
+        try:
+            state = json.loads(run([*DOCKER, "inspect", name]))[0]["State"]
+            if type(state) is not dict:
+                raise ValueError("Memory probe container state is malformed")
+        except Exception:
+            report["diagnostic"] = memory_probe_diagnostic(oom_run, {}, inspection_failed=True)
+            raise
         if state.get("OOMKilled") is not True or state.get("Running") is not False:
+            report["diagnostic"] = memory_probe_diagnostic(oom_run, state)
             raise RuntimeError("Memory cgroup did not stop abusive worker")
         run([*DOCKER, "rm", "-f", name])
         report["checks"]["memory_exhaustion"] = True

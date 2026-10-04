@@ -77,6 +77,7 @@
 - [tests/test_capability_browser_apparmor.py](sources/tests__test_capability_browser_apparmor_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_apparmor_review.py](sources/tests__test_capability_browser_apparmor_review_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_isolation.py](sources/tests__test_capability_browser_isolation_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_browser_oom_diagnostics.py](sources/tests__test_capability_browser_oom_diagnostics_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_policy.py](sources/tests__test_capability_browser_policy_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_preflight.py](sources/tests__test_capability_browser_preflight_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_protocol.py](sources/tests__test_capability_browser_protocol_py--001.md)：可重复的验收用例；2 段
@@ -102,6 +103,7 @@
 - [tests/test_capability_policy_review.py](sources/tests__test_capability_policy_review_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_recovery_controls.py](sources/tests__test_capability_recovery_controls_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_restart_thread_drain.py](sources/tests__test_capability_restart_thread_drain_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_startup_diagnostics.py](sources/tests__test_capability_startup_diagnostics_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_native_capability_security.py](sources/tests__test_ci_native_capability_security_py--001.md)：可重复的验收用例；1 段
 - [tests/test_container_diagnostic_review.py](sources/tests__test_container_diagnostic_review_py--001.md)：可重复的验收用例；1 段
 - [tests/test_description_facts.py](sources/tests__test_description_facts_py--001.md)：可重复的验收用例；1 段

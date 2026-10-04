@@ -50,6 +50,42 @@ from workbench.tools import clean_env, process_options, stop_process
 REMOTE = "/tmp/rnd-capability"
 
 
+def startup_failure_diagnostic(output, http_status, http_error, tmpfs_noexec=None):
+    """Candidate output supplies hints only; no raw output, path or token escapes."""
+    readable = type(output) is str
+    output = output[:8000] if readable else ""
+    patterns = {
+        "permission-denied": ("PermissionError", "Permission denied", "Operation not permitted"),
+        "missing-module": ("ModuleNotFoundError", "No module named"),
+        "import-error": ("ImportError",),
+        "native-library-mapping": ("failed to map segment from shared object",),
+        "missing-file": ("No such file or directory",),
+        "address-in-use": ("Address already in use", "address already in use"),
+        "readonly-filesystem": ("Read-only file system",),
+        "storage-full": ("No space left on device",),
+        "memory-error": ("MemoryError", "out of memory"),
+        "syntax-error": ("SyntaxError",),
+        "executable-format": ("Exec format error",),
+    }
+    categories = [key for key, markers in patterns.items() if any(m in output for m in markers)]
+    modules = ("uvicorn", "fastapi", "sqlalchemy", "pydantic", "app", "access")
+    known = [module for module in modules if "No module named '" + module + "'" in output]
+    errors = {"none", "connect", "timeout", "protocol", "other"}
+    return {
+        "phase": "health_deadline",
+        "http_status": http_status
+        if type(http_status) is int and 100 <= http_status <= 599
+        else None,
+        "http_error": http_error if type(http_error) is str and http_error in errors else "other",
+        "output_readable": readable,
+        "output_nonempty": bool(output),
+        "output_hints": categories,
+        "known_missing_modules": known,
+        "application_startup_reported": "Application startup complete" in output,
+        "tmpfs_noexec": tmpfs_noexec if type(tmpfs_noexec) is bool else None,
+    }
+
+
 def restart_application_identity(sandbox, port, timeout, *, extra_ports=()):
     """Stop only this sandbox's dedicated application UID, then prove closure.
 
@@ -353,7 +389,9 @@ def _verify(
             command = command or plan.runtime.start
             port = port or plan.runtime.port
             health_path = health_path or plan.runtime.health_path
-            guarded_command, _ = redirected_command(product_argv(plan, command.argv, database))
+            guarded_command, command_output = redirected_command(
+                product_argv(plan, command.argv, database)
+            )
             response = sandbox.process.execute_session_command(
                 session,
                 SessionExecuteRequest(
@@ -381,14 +419,51 @@ def _verify(
             )
             try:
                 deadline = time.monotonic() + plan.runtime.startup_seconds
+                last_http_status, last_http_error = None, "none"
                 while time.monotonic() < deadline:
                     try:
                         with http.stream("GET", health_path) as check:
+                            last_http_status, last_http_error = check.status_code, "none"
                             if 200 <= check.status_code < 300:
                                 return http, url, preview.token
-                    except httpx.HTTPError:
-                        pass
+                    except httpx.HTTPError as exc:
+                        last_http_error = (
+                            "timeout"
+                            if isinstance(exc, httpx.TimeoutException)
+                            else "connect"
+                            if isinstance(exc, httpx.ConnectError)
+                            else "protocol"
+                            if isinstance(exc, httpx.ProtocolError)
+                            else "other"
+                        )
                     time.sleep(0.2)
+                try:
+                    startup_output = read_command_output(
+                        sandbox, command_output, min(settings.tool_timeout, 5)
+                    )
+                except Exception:
+                    startup_output = None
+                tmpfs_noexec = None
+                try:
+                    mode = control_exec(
+                        sandbox,
+                        [
+                            "/usr/bin/python3",
+                            "-I",
+                            "-S",
+                            "-c",
+                            "import os; print(int(bool(os.statvfs('/tmp').f_flag & os.ST_NOEXEC)))",
+                        ],
+                        min(settings.tool_timeout, 5),
+                    )
+                    value = mode.result.strip() if type(mode.result) is str else ""
+                    if type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}:
+                        tmpfs_noexec = value == "1"
+                except Exception:
+                    pass
+                receipt["startup_diagnostic"] = startup_failure_diagnostic(
+                    startup_output, last_http_status, last_http_error, tmpfs_noexec
+                )
                 raise CheckFailure("隔离应用未在约定时间内通过健康检查")
             except BaseException:
                 http.close()
