@@ -19,7 +19,7 @@
 - `stream_packets`（L41–L56）：接收`value`、`model`。 源码说明：Real OpenAI wire protocol, including a JSON surrogate split between deltas.。 控制顺序：L51遍历`fragments`。 调用`json.dumps(value, ensure_ascii=False).replace`、`json.dumps`、`content.index`、`prefix.find`、`sorted`、`len`、`zip`、`_stream_packet`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `_stream_packet`（L59–L73）：接收`model`、`delta`、`finish`。 调用`( "data: " + json.dumps( { "id": "explicit-fixture", "object": "c…`、`json.dumps`。 返回路径：L60的`( "data: " + json.dumps( { "id": "explicit-fixture", "object": "chat.completion.chunk", "c…`。
 - `ui_build_snapshot`（L76–L81）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`str`、`path.relative_to`、`hashlib.sha256(path.read_bytes()).hexdigest`、`hashlib.sha256`、`path.read_bytes`、`sorted`、`(ROOT / "workbench/web").rglob`、`path.is_file`。 返回路径：L77的`{ str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in s…`。
-- `main`（L84–L522）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L86断言`"workbench/web/index.html" in build_before and "workbench/web/app.js" in build_before`；L272遍历`range(100)`；L273按`server.started`分支；L277抛异常，停止当前正常路径；L311断言`first.returncode == 0`；L312断言`not failures`；L313断言`first_draft.is_set() and completed.is_set()`；L314断言`all(call["stream"] for call in calls)`。后续分支沿下方源码相同行号继续阅读。 调用`ui_build_snapshot`、`threading.Event`、`ThreadingHTTPServer`、`threading.Thread(target=provider.serve_forever, daemon=True).star…`、`threading.Thread`、`reports.mkdir`、`write_json`、`tempfile.TemporaryDirectory`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L84–L560）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L86断言`"workbench/web/index.html" in build_before and "workbench/web/app.js" in build_before`；L272遍历`range(100)`；L273按`server.started`分支；L277抛异常，停止当前正常路径；L311断言`first.returncode == 0`；L312断言`not failures`；L313断言`first_draft.is_set() and completed.is_set()`；L314断言`all(call["stream"] for call in calls)`。后续分支沿下方源码相同行号继续阅读。 调用`ui_build_snapshot`、`threading.Event`、`ThreadingHTTPServer`、`threading.Thread(target=provider.serve_forever, daemon=True).star…`、`threading.Thread`、`reports.mkdir`、`write_json`、`tempfile.TemporaryDirectory`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `main.Provider`（L94–L236）：继承`BaseHTTPRequestHandler`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `main.Provider.log_message`（L95–L96）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `main.Provider.do_GET`（L98–L109）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L99按`self.path != "/fixture/status"`分支。 调用`self.send_error`、`self.json_response`、`first_draft.is_set`、`completed.is_set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
@@ -29,11 +29,11 @@
 
 </details>
 
-**创建路径：** `scripts/ci_guided_browser.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L526。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_guided_browser.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L564。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`21062`。本段原文以LF换行结束。
+本段原始字节数：`22777`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_guided_browser.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0442407cdc17b789b222565a4ca17d93f06f3846d49ab3433b6c0ffefc5da88a"} -->
+<!-- learning-source: {"path": "scripts/ci_guided_browser.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4a67bc56509d0d52cdc13bf73530d1db851e8b4029ef99924bab9642d153b0e3"} -->
 ````python
 # scripts/ci_guided_browser.py
 """Real local HTTP and Chromium regression; model servers are explicit test fixtures only."""
@@ -381,6 +381,43 @@ def main():
             (reports / "manual.log").write_text(manual.stdout + manual.stderr, encoding="utf-8")
             assert manual.returncode == 0, manual.stdout + manual.stderr
             assert not failures, failures
+            # Keep the real overlapping-response regression in every CI acceptance run.
+            stale_reports = reports / "manual-stale"
+            stale_reports.mkdir(exist_ok=True)
+            stale_evidence = directory / "manual-stale-input.json"
+            write_json(stale_evidence, {**config, "reports": str(stale_reports)})
+            stale = subprocess.run(
+                [
+                    "node",
+                    str(ROOT / "scripts/guided_browser.cjs"),
+                    "manual-stale",
+                    str(stale_evidence),
+                    str(browser),
+                ],
+                cwd=ROOT,
+                env=browser_env,
+                text=True,
+                capture_output=True,
+                timeout=120,
+            )
+            (stale_reports / "manual.log").write_text(stale.stdout + stale.stderr, encoding="utf-8")
+            assert stale.returncode == 0, stale.stdout + stale.stderr
+            assert not failures, failures
+            stale_outcome = json.loads((stale_reports / "manual.json").read_text())
+            assert all(
+                stale_outcome.get(field) is True
+                for field in (
+                    "passed",
+                    "real_delayed_refresh",
+                    "delayed_refresh_released",
+                    "stale_delivery_rereview",
+                    "verified_delivery_prerequisites",
+                    "rereview_did_not_submit",
+                    "rereview_did_not_call_provider",
+                    "approval_bound_to_delivery_gate",
+                )
+            )
+            assert stale_outcome["explicit_approval_count"] == 3
             recovery = subprocess.run(
                 [
                     "node",
@@ -542,6 +579,7 @@ def main():
                     "unicode_split_replay_dedupe": True,
                     "concurrent_stale_gate_rereview": True,
                     "explicit_manual_gates_and_delivery_lock": True,
+                    "real_delayed_delivery_rereview": True,
                     "failed_provider_same_run_retry": True,
                     "desktop_and_mobile_screenshots": True,
                     "secret_safe_settings": True,

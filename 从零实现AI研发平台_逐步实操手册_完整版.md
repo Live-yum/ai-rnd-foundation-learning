@@ -135685,6 +135685,143 @@ def test_standalone_check_waits_for_frontend_after_backend_success(tmp_path, mon
     assert writes[-1]["passed"] is True and writes[-1]["frontend_started"] is True
 ````
 
+### `tests/test_guided_delivery_rereview.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**逐个入口与控制逻辑：**
+
+- `test_delivery_browser_review_contract`（L23–L121）：接收`scenario`。 控制顺序：L121断言`result.returncode == 0`。 调用`Path(__file__).resolve`、`Path`、`subprocess.run`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_guided_delivery_rereview.py sha256: b0c9b4dffcc1841ac65bdd4305457e549f97e98b29367017895dc2af63fb69b3 -->
+````python
+"""Driver contract for real-current-gate rereview and bounded diagnostics."""
+
+import subprocess
+from pathlib import Path
+
+import pytest
+
+
+@pytest.mark.parametrize(
+    "scenario",
+    [
+        "fresh",
+        "stale",
+        "stale-unlocked",
+        "stale-expired",
+        "invalid",
+        "redacted",
+        "drain-late",
+        "drain-failed",
+        "drain-expired",
+    ],
+)
+def test_delivery_browser_review_contract(scenario):
+    script = r"""
+const assert = require('node:assert/strict');
+const { deliveryFacts, requireDeliveryFacts, rereviewDelivery, observeRunRefreshes } = require(process.argv[1]);
+const scenario = process.argv[2];
+const gate = {stage:'delivery',can_approve:true,actions:['approve'],gate_id:'a'.repeat(64),digest:'b'.repeat(64),version:1,data:{sha256:'c'.repeat(64)}};
+const run = {status:'WAITING_DELIVERY',auto_mode:false,pending:gate};
+const report = {
+  'delivery.json': {sha256:'c'.repeat(64),validation_level:'runtime',cleanroom:{passed:true,http:true,restart:true,database:'real-isolated-sqlite'}},
+  'verification.json': {passed:true,source_digest:'d'.repeat(64),browser:{passed:true,real_browser:true}},
+};
+(async () => {
+  if (scenario.startsWith('drain-')) {
+    const { EventEmitter } = require('node:events');
+    const page = new EventEmitter();
+    let applied = false;
+    page.evaluate = async () => {applied = true;};
+    const tracker = observeRunRefreshes(page,'test-run');
+    const request = {method:()=>'GET',url:()=>'http://127.0.0.1/runs/test-run/report'};
+    page.emit('request',request);
+    if (scenario === 'drain-expired') {
+      await assert.rejects(tracker.drain(Date.now()-1), /existing browser deadline/);
+      assert.equal(applied,false);
+    } else {
+      const pending = tracker.drain(Date.now()+1000);
+      page.emit('response',request);
+      await Promise.resolve();
+      assert.equal(applied,false,'Response headers must not count as a finished refresh');
+      page.emit(scenario === 'drain-failed' ? 'requestfailed' : 'requestfinished',request);
+      await pending;
+      assert.equal(applied,true);
+    }
+    tracker.close();
+    assert.equal(page.listenerCount('request'),0);
+    assert.equal(page.listenerCount('requestfinished'),0);
+    assert.equal(page.listenerCount('requestfailed'),0);
+    return;
+  }
+  const facts = deliveryFacts(run, report);
+  requireDeliveryFacts(facts);
+  if (scenario === 'invalid') {
+    for (const name of Object.keys(facts)) {
+      assert.throws(() => requireDeliveryFacts({...facts,[name]:null}), /Missing delivery prerequisite/);
+      assert.throws(() => requireDeliveryFacts({...facts,[name]:false}), /Missing delivery prerequisite/);
+    }
+    const blocked = deliveryFacts({...run,pending:{...gate,can_approve:false}}, report);
+    assert.throws(() => requireDeliveryFacts(blocked), /can_approve/);
+    const changed = deliveryFacts(run, {...report,'delivery.json':{...report['delivery.json'],sha256:'e'.repeat(64)}});
+    assert.throws(() => requireDeliveryFacts(changed), /gate_artifact_matches/);
+    return;
+  }
+  if (scenario === 'redacted') {
+    const secret = 'DO-NOT-SAVE-ARBITRARY-API-CONTENT';
+    const data = deliveryFacts({status:secret,auto_mode:secret,pending:{stage:secret,gate_id:secret,digest:secret,version:secret,data:{sha256:secret},actions:[secret]}},
+      {'delivery.json':{sha256:secret,validation_level:secret,cleanroom:{database:secret,error:secret}},'verification.json':{source_digest:secret,message:secret}});
+    assert(!JSON.stringify(data).includes(secret));
+    assert(Object.values(data).every(value => value === null || typeof value === 'boolean'));
+    assert(JSON.stringify(data).length < 1500);
+    return;
+  }
+  const events = [];
+  const stale = scenario.startsWith('stale');
+  const page = {
+    getByRole(role, {name,exact}) {
+      assert.equal(exact,true);
+      if (role === 'button' && name === '查看最新版本') return {
+        isVisible:async()=>stale,
+        click:async()=>events.push('explicit-rereview'),
+        waitFor:async({state})=>{assert.equal(state,'hidden');events.push('stale-cleared');},
+      };
+      assert.equal(role,'checkbox');assert.equal(name,'我已阅读本次验收证据与交付等级');
+      return {isDisabled:async()=>{events.push('stale-locked');return scenario !== 'stale-unlocked';},check:async()=>assert.fail('Rereview must not acknowledge or approve')};
+    },
+    evaluate:async(callback,hash)=>{assert.equal(hash,'run/test-run/delivery');events.push('delivery-evidence');},
+  };
+  if (scenario === 'stale-expired') {
+    await assert.rejects(() => rereviewDelivery(page,'test-run',Date.now()-1), /existing browser deadline/);
+    assert.deepEqual(events,[]);
+    return;
+  }
+  if (scenario === 'stale-unlocked') {
+    await assert.rejects(() => rereviewDelivery(page,'test-run'), /stale delivery cannot be acknowledged/);
+    assert.deepEqual(events,['stale-locked']);
+    return;
+  }
+  assert.equal(await rereviewDelivery(page,'test-run'),stale);
+  assert.deepEqual(events,stale ? ['stale-locked','explicit-rereview','stale-cleared','delivery-evidence'] : []);
+})().catch(error=>{console.error(error);process.exitCode=1;});
+"""
+    driver = Path(__file__).resolve().parents[1] / "scripts/guided_browser.cjs"
+    result = subprocess.run(
+        ["node", "-e", script, str(driver), scenario],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=10,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+````
+
 ### `tests/test_guided_models.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -167883,7 +168020,7 @@ def restore_source_artifact(artifact, destination, binding):
 - `stream_packets`（L41–L56）：接收`value`、`model`。 源码说明：Real OpenAI wire protocol, including a JSON surrogate split between deltas.。 控制顺序：L51遍历`fragments`。 调用`json.dumps(value, ensure_ascii=False).replace`、`json.dumps`、`content.index`、`prefix.find`、`sorted`、`len`、`zip`、`_stream_packet`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `_stream_packet`（L59–L73）：接收`model`、`delta`、`finish`。 调用`( "data: " + json.dumps( { "id": "explicit-fixture", "object": "c…`、`json.dumps`。 返回路径：L60的`( "data: " + json.dumps( { "id": "explicit-fixture", "object": "chat.completion.chunk", "c…`。
 - `ui_build_snapshot`（L76–L81）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`str`、`path.relative_to`、`hashlib.sha256(path.read_bytes()).hexdigest`、`hashlib.sha256`、`path.read_bytes`、`sorted`、`(ROOT / "workbench/web").rglob`、`path.is_file`。 返回路径：L77的`{ str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest() for path in s…`。
-- `main`（L84–L522）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L86断言`"workbench/web/index.html" in build_before and "workbench/web/app.js" in build_before`；L272遍历`range(100)`；L273按`server.started`分支；L277抛异常，停止当前正常路径；L311断言`first.returncode == 0`；L312断言`not failures`；L313断言`first_draft.is_set() and completed.is_set()`；L314断言`all(call["stream"] for call in calls)`。后续分支沿下方源码相同行号继续阅读。 调用`ui_build_snapshot`、`threading.Event`、`ThreadingHTTPServer`、`threading.Thread(target=provider.serve_forever, daemon=True).star…`、`threading.Thread`、`reports.mkdir`、`write_json`、`tempfile.TemporaryDirectory`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L84–L560）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L86断言`"workbench/web/index.html" in build_before and "workbench/web/app.js" in build_before`；L272遍历`range(100)`；L273按`server.started`分支；L277抛异常，停止当前正常路径；L311断言`first.returncode == 0`；L312断言`not failures`；L313断言`first_draft.is_set() and completed.is_set()`；L314断言`all(call["stream"] for call in calls)`。后续分支沿下方源码相同行号继续阅读。 调用`ui_build_snapshot`、`threading.Event`、`ThreadingHTTPServer`、`threading.Thread(target=provider.serve_forever, daemon=True).star…`、`threading.Thread`、`reports.mkdir`、`write_json`、`tempfile.TemporaryDirectory`、`Path`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `main.Provider`（L94–L236）：继承`BaseHTTPRequestHandler`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `main.Provider.log_message`（L95–L96）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `main.Provider.do_GET`（L98–L109）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L99按`self.path != "/fixture/status"`分支。 调用`self.send_error`、`self.json_response`、`first_draft.is_set`、`completed.is_set`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
@@ -167891,7 +168028,7 @@ def restore_source_artifact(artifact, destination, binding):
 - `main.Provider.do_POST`（L119–L132）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L120按`self.path == "/fixture/start"`分支；L124按`self.path == "/fixture/release"`分支；L132抛异常，停止当前正常路径。 调用`start_stream.set`、`self.json_response`、`release.set`、`self.model_response`、`failures.append`、`type`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `main.Provider.model_response`（L134–L236）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L136断言`self.headers["Authorization"] == "Bearer " + FIXTURE_KEY`；L141按`model == "denied-fixture"`分支；L147按`model == "requirements-fixture"`分支；L148按`payload.get("autonomous")`分支；L155按`payload.get("original_request") == "交互选项验收"`分支；L181按`model == "planning-fixture"`分支；L184按`model == "review-fixture"`分支；L191抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`self.rfile.read`、`int`、`calls.append`、`body.get`、`len`、`self.json_response`、`payload.get`、`assert_resolution`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_guided_browser.py sha256: 0442407cdc17b789b222565a4ca17d93f06f3846d49ab3433b6c0ffefc5da88a -->
+<!-- source-file: scripts/ci_guided_browser.py sha256: 4a67bc56509d0d52cdc13bf73530d1db851e8b4029ef99924bab9642d153b0e3 -->
 ````python
 """Real local HTTP and Chromium regression; model servers are explicit test fixtures only."""
 
@@ -168238,6 +168375,43 @@ def main():
             (reports / "manual.log").write_text(manual.stdout + manual.stderr, encoding="utf-8")
             assert manual.returncode == 0, manual.stdout + manual.stderr
             assert not failures, failures
+            # Keep the real overlapping-response regression in every CI acceptance run.
+            stale_reports = reports / "manual-stale"
+            stale_reports.mkdir(exist_ok=True)
+            stale_evidence = directory / "manual-stale-input.json"
+            write_json(stale_evidence, {**config, "reports": str(stale_reports)})
+            stale = subprocess.run(
+                [
+                    "node",
+                    str(ROOT / "scripts/guided_browser.cjs"),
+                    "manual-stale",
+                    str(stale_evidence),
+                    str(browser),
+                ],
+                cwd=ROOT,
+                env=browser_env,
+                text=True,
+                capture_output=True,
+                timeout=120,
+            )
+            (stale_reports / "manual.log").write_text(stale.stdout + stale.stderr, encoding="utf-8")
+            assert stale.returncode == 0, stale.stdout + stale.stderr
+            assert not failures, failures
+            stale_outcome = json.loads((stale_reports / "manual.json").read_text())
+            assert all(
+                stale_outcome.get(field) is True
+                for field in (
+                    "passed",
+                    "real_delayed_refresh",
+                    "delayed_refresh_released",
+                    "stale_delivery_rereview",
+                    "verified_delivery_prerequisites",
+                    "rereview_did_not_submit",
+                    "rereview_did_not_call_provider",
+                    "approval_bound_to_delivery_gate",
+                )
+            )
+            assert stale_outcome["explicit_approval_count"] == 3
             recovery = subprocess.run(
                 [
                     "node",
@@ -168399,6 +168573,7 @@ def main():
                     "unicode_split_replay_dedupe": True,
                     "concurrent_stale_gate_rereview": True,
                     "explicit_manual_gates_and_delivery_lock": True,
+                    "real_delayed_delivery_rereview": True,
                     "failed_provider_same_run_retry": True,
                     "desktop_and_mobile_screenshots": True,
                     "secret_safe_settings": True,
@@ -179578,7 +179753,7 @@ def state_dict(state):
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/guided_browser.cjs sha256: 128a186426c310d294902b1e70764dd1a88b049795cd6013724e271993a48e36 -->
+<!-- source-file: scripts/guided_browser.cjs sha256: e6f8cbc6bb93b6993be7d3f9fbf4bdfd0ca766e8ae4c656ca5c779ee90956e08 -->
 ````javascript
 // Real local application and provider HTTP. No fulfilled page routes or preapproved gates.
 const fs = require("node:fs");
@@ -179700,8 +179875,10 @@ async function api(page, cfg, endpoint, options = {}) {
   );
   return response.json();
 }
-async function fixture(page, cfg) {
-  const response = await page.request.get(cfg.fixture + "/fixture/status");
+async function fixture(page, cfg, timeout = 60000) {
+  const response = await page.request.get(cfg.fixture + "/fixture/status", {
+    timeout,
+  });
   assert(response.ok());
   return response.json();
 }
@@ -179798,17 +179975,31 @@ async function checkSettings(page, cfg, errors) {
   page.on("response", watch);
   await route(page, "settings");
   await page.getByRole("heading", { name: "模型与服务，一处配置" }).waitFor();
-  const connectionTest = page.getByRole("button", { name: "测试连接", exact: true });
-  assert(await connectionTest.isEnabled(), "Saved configuration exposes the explicit probe");
+  const connectionTest = page.getByRole("button", {
+    name: "测试连接",
+    exact: true,
+  });
+  assert(
+    await connectionTest.isEnabled(),
+    "Saved configuration exposes the explicit probe",
+  );
   await connectionTest.click();
   const probeConfirmation = page.getByRole("dialog");
-  await probeConfirmation.getByText("发起一次真实模型连接测试？", { exact: true }).waitFor();
-  assert.equal((await fixture(page, cfg)).calls.length, callsBefore,
-    "Opening the cost confirmation must not call a model");
+  await probeConfirmation
+    .getByText("发起一次真实模型连接测试？", { exact: true })
+    .waitFor();
+  assert.equal(
+    (await fixture(page, cfg)).calls.length,
+    callsBefore,
+    "Opening the cost confirmation must not call a model",
+  );
   await probeConfirmation.getByRole("button", { name: /^取\s*消$/ }).click();
   await probeConfirmation.waitFor({ state: "hidden" });
-  assert.equal((await fixture(page, cfg)).calls.length, callsBefore,
-    "Cancelling a connection test must not call a model");
+  assert.equal(
+    (await fixture(page, cfg)).calls.length,
+    callsBefore,
+    "Cancelling a connection test must not call a model",
+  );
   await page.getByRole("tab", { name: /^计划阶段/ }).click();
   await page.locator("#model-url").fill(cfg.fixture + "/another-v1");
   const save = page.getByRole("button", { name: "保存配置", exact: true });
@@ -180194,13 +180385,173 @@ async function recovery(page, cfg) {
   );
 }
 
-async function manual(page, cfg) {
+// Only bounded status/boolean/hash fields are retained, never arbitrary API text.
+function deliveryFacts(run, report) {
+  const hash = (value) =>
+    typeof value === "string" && /^[a-f0-9]{64}$/.test(value) ? value : null;
+  const gate = run.pending || {};
+  const delivery = report["delivery.json"] || {};
+  const verification = report["verification.json"] || {};
+  return {
+    waiting_delivery: run.status === "WAITING_DELIVERY",
+    manual_mode: run.auto_mode === false,
+    delivery_gate: gate.stage === "delivery",
+    can_approve: gate.can_approve === true,
+    approve_action:
+      Array.isArray(gate.actions) && gate.actions.includes("approve"),
+    gate_id: hash(gate.gate_id),
+    gate_digest: hash(gate.digest),
+    gate_version:
+      Number.isSafeInteger(gate.version) && gate.version >= 0
+        ? gate.version
+        : null,
+    artifact_sha256: hash(delivery.sha256),
+    gate_artifact_matches:
+      hash(gate.data?.sha256) !== null && gate.data.sha256 === delivery.sha256,
+    runtime_validation: delivery.validation_level === "runtime",
+    verification_passed: verification.passed === true,
+    verification_source_sha256: hash(verification.source_digest),
+    browser_passed: verification.browser?.passed === true,
+    real_browser: verification.browser?.real_browser === true,
+    cleanroom_passed: delivery.cleanroom?.passed === true,
+    cleanroom_http: delivery.cleanroom?.http === true,
+    cleanroom_restart: delivery.cleanroom?.restart === true,
+    isolated_sqlite: delivery.cleanroom?.database === "real-isolated-sqlite",
+  };
+}
+
+function requireDeliveryFacts(facts) {
+  for (const [name, value] of Object.entries(facts))
+    assert(
+      value !== null && value !== false,
+      "Missing delivery prerequisite: " + name,
+    );
+}
+
+function reviewTimeout(deadline) {
+  const remaining = deadline - Date.now();
+  assert(
+    remaining > 0,
+    "Delivery rereview exceeded the existing browser deadline",
+  );
+  return remaining;
+}
+
+async function currentDeliveryFacts(
+  page,
+  cfg,
+  runId,
+  deadline = Date.now() + 3000,
+) {
+  const [run, report] = await Promise.all([
+    api(page, cfg, `/runs/${runId}`, {
+      timeout: Math.min(3000, reviewTimeout(deadline)),
+    }),
+    api(page, cfg, `/runs/${runId}/report`, {
+      timeout: Math.min(3000, reviewTimeout(deadline)),
+    }),
+  ]);
+  return deliveryFacts(run, report);
+}
+
+async function rereviewDelivery(page, runId, deadline = Date.now() + 60000) {
+  reviewTimeout(deadline);
+  const latest = page.getByRole("button", {
+    name: "查看最新版本",
+    exact: true,
+  });
+  const stale = await latest.isVisible();
+  if (stale) {
+    const checkbox = page.getByRole("checkbox", {
+      name: "我已阅读本次验收证据与交付等级",
+      exact: true,
+    });
+    assert(
+      await checkbox.isDisabled(),
+      "A stale delivery cannot be acknowledged",
+    );
+    await latest.click({ timeout: reviewTimeout(deadline) });
+    await latest.waitFor({ state: "hidden", timeout: reviewTimeout(deadline) });
+    // The existing reread action opens the generic current-version view.
+    // Return to its dedicated delivery evidence before making a fresh decision.
+    await route(page, `run/${runId}/delivery`);
+  }
+  return stale;
+}
+
+function observeRunRefreshes(page, runId) {
+  const pending = new Map();
+  const paths = new Set([
+    `/runs/${runId}`,
+    `/runs/${runId}/report`,
+    `/runs/${runId}/models`,
+  ]);
+  const started = (request) => {
+    if (
+      request.method() !== "GET" ||
+      !paths.has(new URL(request.url()).pathname)
+    )
+      return;
+    let done;
+    const promise = new Promise((resolve) => {
+      done = resolve;
+    });
+    pending.set(request, { promise, done });
+  };
+  const finished = (request) => {
+    pending.get(request)?.done();
+    pending.delete(request);
+  };
+  page.on("request", started);
+  page.on("requestfinished", finished);
+  page.on("requestfailed", finished);
+  return {
+    async drain(deadline) {
+      let timer;
+      try {
+        await Promise.race([
+          (async () => {
+            while (pending.size)
+              await Promise.all(
+                [...pending.values()].map((entry) => entry.promise),
+              );
+          })(),
+          new Promise((_, reject) => {
+            timer = setTimeout(
+              () =>
+                reject(
+                  new Error(
+                    "UI refresh reads did not settle within the existing browser deadline",
+                  ),
+                ),
+              reviewTimeout(deadline),
+            );
+          }),
+        ]);
+        // Cross a browser task boundary after response bodies finish so Vue can apply them.
+        await page.evaluate(
+          () => new Promise((resolve) => requestAnimationFrame(resolve)),
+        );
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+    close() {
+      page.off("request", started);
+      page.off("requestfinished", finished);
+      page.off("requestfailed", finished);
+    },
+  };
+}
+
+async function manual(page, cfg, delayedRefresh = false) {
   await connect(page, cfg);
   const runId = await createRun(
     page,
     { ...cfg, requirement: "人工审批验收" },
     "人工审核完整交付验收",
   );
+  const refreshes = observeRunRefreshes(page, runId);
   await waitStatus(page, "WAITING_REQUIREMENTS");
   await page
     .getByRole("button", { name: "查看并审核当前版本", exact: true })
@@ -180268,6 +180619,26 @@ async function manual(page, cfg) {
   await page
     .getByRole("checkbox", { name: "我已阅读并核对当前版本", exact: true })
     .check();
+  let releaseRefresh;
+  let heldRefresh = false;
+  let releasedRefresh = false;
+  const held = new Promise((resolve) => {
+    releaseRefresh = resolve;
+  });
+  if (delayedRefresh)
+    await page.route(`**/runs/${runId}/report`, async (request) => {
+      const status = await page.evaluate(
+        () =>
+          document.querySelector('[data-testid="run-workspace"]')?.dataset
+            .status,
+      );
+      if (!heldRefresh && status === "RUNNING") {
+        heldRefresh = true;
+        // Delay one genuine read in an older refresh batch. Never fulfill/mock it.
+        await held;
+      }
+      await request.continue();
+    });
   await approve.click();
   await page.getByRole("button", { name: "查看进度", exact: true }).click();
   await page
@@ -180279,6 +180650,21 @@ async function manual(page, cfg) {
     fullPage: true,
   });
   await waitStatus(page, "WAITING_DELIVERY", 100000);
+  const reviewDeadline = Date.now() + 60000;
+  if (delayedRefresh) {
+    assert(
+      heldRefresh,
+      "The regression must delay a real in-flight RUNNING refresh",
+    );
+    releaseRefresh();
+    releasedRefresh = true;
+    await page
+      .getByText("审核内容已更新，需要重新阅读", { exact: true })
+      .waitFor({ timeout: reviewTimeout(reviewDeadline) });
+    await page.unroute(`**/runs/${runId}/report`);
+  }
+  await refreshes.drain(reviewDeadline);
+  await waitStatus(page, "WAITING_DELIVERY", reviewTimeout(reviewDeadline));
   await route(page, `run/${runId}/delivery`);
   const download = page.getByRole("button", {
     name: "下载完整交付包",
@@ -180304,16 +180690,81 @@ async function manual(page, cfg) {
     path: path.join(cfg.reports, "workbench-delivery-review-desktop.png"),
     fullPage: true,
   });
-  await page
-    .getByRole("checkbox", {
-      name: "我已阅读本次验收证据与交付等级",
-      exact: true,
-    })
-    .check();
-  await deliver.click();
+  const prerequisites = await currentDeliveryFacts(
+    page,
+    cfg,
+    runId,
+    reviewDeadline,
+  );
+  fs.writeFileSync(
+    path.join(cfg.reports, "manual-delivery-prerequisites.json"),
+    JSON.stringify(prerequisites, null, 2),
+  );
+  requireDeliveryFacts(prerequisites);
+  const providerCallsBeforeRereview = (
+    await fixture(page, cfg, reviewTimeout(reviewDeadline))
+  ).calls.length;
+  const approvalsBeforeRereview = submissions.length;
+  if (delayedRefresh)
+    await page
+      .getByRole("button", { name: "查看最新版本", exact: true })
+      .waitFor({ timeout: reviewTimeout(reviewDeadline) });
+  const staleRereview = await rereviewDelivery(page, runId, reviewDeadline);
+  if (delayedRefresh)
+    assert(staleRereview, "The real delayed snapshot must require rereview");
+  const acknowledgment = page.getByRole("checkbox", {
+    name: "我已阅读本次验收证据与交付等级",
+    exact: true,
+  });
+  assert.equal(
+    await acknowledgment.isChecked(),
+    false,
+    "A fresh delivery requires fresh acknowledgment",
+  );
+  assert(
+    await deliver.isDisabled(),
+    "Rereview alone must not approve delivery",
+  );
+  assert.deepEqual(
+    await currentDeliveryFacts(page, cfg, runId, reviewDeadline),
+    prerequisites,
+    "Rereview must retain the same verified delivery gate",
+  );
+  assert.equal(
+    submissions.length,
+    approvalsBeforeRereview,
+    "Rereview must not submit a decision",
+  );
+  assert.equal(
+    (await fixture(page, cfg, reviewTimeout(reviewDeadline))).calls.length,
+    providerCallsBeforeRereview,
+    "Rereview must not call any model provider",
+  );
+  if (staleRereview)
+    await capture(page, {
+      animations: "disabled",
+      path: path.join(cfg.reports, "workbench-delivery-rereview-desktop.png"),
+      fullPage: true,
+    });
+  await acknowledgment.check({ timeout: reviewTimeout(reviewDeadline) });
+  await deliver.click({ timeout: reviewTimeout(reviewDeadline) });
   await waitStatus(page, "READY");
   assert.equal(submissions.length, 3);
+  assert.deepEqual(
+    {
+      gate_id: submissions[2].gate_id,
+      version: submissions[2].version,
+      digest: submissions[2].digest,
+    },
+    {
+      gate_id: prerequisites.gate_id,
+      version: prerequisites.gate_version,
+      digest: prerequisites.gate_digest,
+    },
+    "Approval must bind the exact verified delivery gate",
+  );
   assert.equal((await api(page, cfg, `/runs/${runId}`)).auto_mode, false);
+  refreshes.close();
   fs.writeFileSync(
     path.join(cfg.reports, "manual.json"),
     JSON.stringify(
@@ -180324,6 +180775,13 @@ async function manual(page, cfg) {
         double_click_single_approval: true,
         design_tabs: true,
         download_locked_until_delivery: true,
+        stale_delivery_rereview: staleRereview,
+        real_delayed_refresh: delayedRefresh && heldRefresh,
+        delayed_refresh_released: delayedRefresh && releasedRefresh,
+        verified_delivery_prerequisites: true,
+        rereview_did_not_submit: true,
+        rereview_did_not_call_provider: true,
+        approval_bound_to_delivery_gate: true,
         explicit_approval_count: submissions.length,
       },
       null,
@@ -180669,6 +181127,7 @@ async function main() {
     if (mode === "workbench") await workbench(page, cfg, errors);
     else if (mode === "recovery") await recovery(page, cfg);
     else if (mode === "manual") await manual(page, cfg);
+    else if (mode === "manual-stale") await manual(page, cfg, true);
     else if (mode === "interaction") await interaction(page, cfg, errors);
     else {
       await page.goto(cfg.product);
@@ -180769,20 +181228,53 @@ async function main() {
     }
     assert.equal(errors.length, 0, "Browser errors");
   } catch (error) {
+    try {
+      const runId = await page
+        .evaluate(
+          () =>
+            document
+              .querySelector('[data-testid="run-workspace"]')
+              ?.getAttribute("data-run-id") || null,
+        )
+        .catch(() => null);
+      if (runId && /^[a-f0-9-]{36}$/.test(runId)) {
+        const facts = await currentDeliveryFacts(page, cfg, runId).catch(
+          () => ({
+            unavailable: true,
+          }),
+        );
+        facts.stale_review_visible = await page
+          .getByRole("button", { name: "查看最新版本", exact: true })
+          .isVisible();
+        fs.writeFileSync(
+          path.join(cfg.reports, mode + "-failure-facts.json"),
+          JSON.stringify(facts, null, 2),
+        );
+      }
+    } catch {
+      // Optional diagnostics cannot replace the original browser failure.
+    }
     await capture(page, {
       animations: "disabled",
       path: path.join(cfg.reports, mode + "-failure.png"),
       fullPage: true,
-    });
+    }).catch(() => {});
     throw error;
   } finally {
     await browser.close();
   }
 }
-main().catch((e) => {
-  console.error(e.stack);
-  process.exitCode = 1;
-});
+module.exports = {
+  deliveryFacts,
+  requireDeliveryFacts,
+  rereviewDelivery,
+  observeRunRefreshes,
+};
+if (require.main === module)
+  main().catch((e) => {
+    console.error(e.stack);
+    process.exitCode = 1;
+  });
 ````
 
 ### `scripts/handbook_notes.py`

@@ -122,6 +122,7 @@
 - [tests/test_entity_group_clause_scope.py](sources/tests__test_entity_group_clause_scope_py--001.md)：可重复的验收用例；1 段
 - [tests/test_extension_business_oracle.py](sources/tests__test_extension_business_oracle_py--001.md)：可重复的验收用例；1 段
 - [tests/test_guided_completion.py](sources/tests__test_guided_completion_py--001.md)：可重复的验收用例；1 段
+- [tests/test_guided_delivery_rereview.py](sources/tests__test_guided_delivery_rereview_py--001.md)：可重复的验收用例；1 段
 - [tests/test_guided_postgres.py](sources/tests__test_guided_postgres_py--001.md)：可重复的验收用例；1 段
 - [tests/test_handbook.py](sources/tests__test_handbook_py--001.md)：可重复的验收用例；1 段
 - [tests/test_handbook_customer.py](sources/tests__test_handbook_customer_py--001.md)：可重复的验收用例；1 段
