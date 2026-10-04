@@ -19,13 +19,21 @@ from workbench.filesystem import sha
 from workbench.settings import ROOT
 
 RECEIPT = "capability-security-acceptance.json"
-PROTOCOL = "custom-source-isolation-v1"
+PROTOCOL = "custom-source-isolation-v2"
+VERIFIER = "controller-http-contract-v4"
 SOURCE_FILES = (
     "scripts/capability_browser_apparmor.cjs",
     "workbench/capability_browser_policy.py",
     "scripts/capability_browser_seccomp_probe.c",
     "tools/browser/review-only-v2/chromium141-docker28-native-amd64.proposal.json",
     "workbench/capability_execution.py",
+    "workbench/capability_dependencies.py",
+    "workbench/daytona_profiles.py",
+    "scripts/daytona_dependency_image.py",
+    "scripts/daytona_dependency_build.py",
+    "scripts/daytona_dependency_build.lock.json",
+    "tools/daytona/capability-snapshot.Dockerfile",
+    "tools/daytona/capability-native-snapshot.Dockerfile",
     "workbench/capability_sandbox.py",
     "workbench/capability_isolation.py",
     "workbench/capability_stack.py",
@@ -92,6 +100,9 @@ SECURITY_CHECKS = (
     "all_tcp_destinations_denied",
     "unix_stream_pair_allowed",
     "io_uring_denied",
+    "immutable_dependency_read_allowed",
+    "immutable_dependency_write_denied",
+    "tmpfs_noexec_enforced",
 )
 
 
@@ -126,13 +137,79 @@ def verifier_identity():
 
 
 def profile_binding(record):
+    from workbench.capability_dependencies import require_dependency_manifest
+
+    selected = record.get("selection", Selection().model_dump())
+    if selected not in (
+        Selection(template="python-basic").model_dump(),
+        Selection(template="fastapiadmin").model_dump(),
+    ):
+        raise ValueError("No immutable dependency profile for the selected source stack")
+    dependency_profile = require_dependency_manifest(
+        record["snapshot"]["dependency_manifest"], selected["template"]
+    )
+    if dependency_profile["image_id"] != record["snapshot"]["image_id"]:
+        raise ValueError("Immutable dependency provenance is bound to a different image")
     return {
         "recipe_identity": record["recipe_identity"],
         "runner_image_id": record["runner"]["image_id"],
         "snapshot_image_id": record["snapshot"]["image_id"],
         "snapshot_digest": record["snapshot"]["digest"],
         "snapshot": record["snapshot"]["snapshot"],
+        "dependency_manifest": dependency_profile,
     }
+
+
+def require_preinstalled_evidence(value, expected, *, source_digest):
+    """A verified image dependency tree is not a runtime installation receipt."""
+    flags = {
+        "descriptors_verified",
+        "installed_tree_verified",
+        "readonly_verified",
+        "product_links_verified",
+        "source_inventory_verified",
+    }
+    keys = {
+        "schema",
+        "profile",
+        "manifest_sha256",
+        "installed_tree_sha256",
+        "source_inventory_sha256",
+    } | flags
+    if (
+        not isinstance(expected, dict)
+        or not isinstance(value, dict)
+        or set(value) != keys
+        or type(value.get("schema")) is not int
+        or value["schema"] != 1
+        or value.get("profile") not in {"python-basic", "fastapiadmin"}
+        or any(
+            value.get(key) != expected.get(key)
+            for key in keys - flags - {"source_inventory_sha256"}
+        )
+        or any(
+            not re.fullmatch(r"[a-f0-9]{64}", str(value.get(key, "")))
+            for key in ("manifest_sha256", "installed_tree_sha256")
+        )
+        or not re.fullmatch(r"[a-f0-9]{64}", str(source_digest))
+        or value.get("source_inventory_sha256") != source_digest
+        or any(value.get(key) is not True for key in flags)
+    ):
+        raise ValueError("Missing, stale or incompatible verified preinstalled dependency proof")
+    return value
+
+
+def require_profile_container_binding(record, container):
+    """Do not trust a matching descriptor unless the inspected image is pinned."""
+    bound = profile_binding(record)
+    if not isinstance(container, dict) or any(
+        container.get(key) != bound[key]
+        for key in ("runner_image_id", "snapshot_image_id", "snapshot_digest")
+    ):
+        raise ValueError("Inspected container does not match the admitted dependency image")
+    if container.get("dependency_manifest") != bound["dependency_manifest"]:
+        raise ValueError("Inspector is missing exact immutable dependency provenance")
+    return container
 
 
 def require_security_receipt(value, record, *, browser_image=None):
@@ -150,6 +227,8 @@ def require_security_receipt(value, record, *, browser_image=None):
         "paid_model_calls",
         "restart_kind",
         "browser_image",
+        "preinstalled_dependencies",
+        "positive_source_digest",
     }
     if (
         not isinstance(value, dict)
@@ -171,6 +250,11 @@ def require_security_receipt(value, record, *, browser_image=None):
         or value["paid_model_calls"] != 0
     ):
         raise ValueError("Live isolation receipt is missing, stale, incomplete or incompatible")
+    require_preinstalled_evidence(
+        value["preinstalled_dependencies"],
+        record["snapshot"]["dependency_manifest"],
+        source_digest=value["positive_source_digest"],
+    )
     return value
 
 

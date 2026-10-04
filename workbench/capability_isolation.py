@@ -206,6 +206,7 @@ def product_argv(plan, argv, database):
         "PATH": "/opt/java/openjdk/bin:/usr/local/bin:/usr/bin:/bin",
         "LANG": "C.UTF-8",
         "PYTHONUTF8": "1",
+        "PYTHONDONTWRITEBYTECODE": "1",
         "UV_CACHE_DIR": "/tmp/rnd-capability/cache",
         "TMPDIR": "/tmp/rnd-capability/tmp",
         "UV_PYTHON_INSTALL_DIR": "/opt/rnd/python",
@@ -215,6 +216,17 @@ def product_argv(plan, argv, database):
         "COREPACK_ENABLE_NETWORK": "0",
         **database,
     }
+    template = getattr(plan.selection, "template", "")
+    if template in {"python-basic", "fastapiadmin"}:
+        python_root = "/opt/rnd/runtime/" + (
+            "fastapiadmin/backend/.venv" if template == "fastapiadmin" else "python-basic/.venv"
+        )
+        environment["VIRTUAL_ENV"] = python_root
+        environment["PATH"] = python_root + "/bin:" + environment["PATH"]
+        if template == "fastapiadmin":
+            environment["PATH"] = (
+                "/opt/rnd/runtime/fastapiadmin/frontend/node_modules/.bin:" + environment["PATH"]
+            )
     return system_argv(
         [
             "/usr/bin/setsid",
@@ -336,13 +348,9 @@ def prepare_identity(sandbox, plan, timeout):
         ["/usr/bin/chmod", "700", CONTROL + "/private", "/tmp/rnd-postgres"],
         ["/usr/bin/chmod", "755", CONTROL],
         ["/usr/bin/chmod", "711", "/tmp/rnd-capability"],
-        ["/usr/bin/mkdir", "-p", "/tmp/rnd-capability/home", "/tmp/rnd-capability/tmp"],
-        ["/usr/bin/cp", "-a", "/opt/rnd/uv-cache", "/tmp/rnd-capability/cache"],
         [
-            "/usr/bin/chown",
-            "-R",
-            APP_USER + ":" + APP_USER,
-            PRODUCT,
+            "/usr/bin/mkdir",
+            "-p",
             "/tmp/rnd-capability/home",
             "/tmp/rnd-capability/tmp",
             "/tmp/rnd-capability/cache",
@@ -351,13 +359,25 @@ def prepare_identity(sandbox, plan, timeout):
     for argv in commands:
         if control_exec(sandbox, argv, timeout).exit_code != 0:
             raise IsolationUnavailable("隔离环境无法建立专用无权限执行身份，未执行生成源码")
-    if getattr(plan.selection, "template", "") == "fastapiadmin":
-        for argv in (
-            ["/usr/bin/cp", "-a", "/opt/rnd/pnpm-store", "/tmp/rnd-capability/pnpm-store"],
-            ["/usr/bin/chown", "-R", APP_USER + ":" + APP_USER, "/tmp/rnd-capability/pnpm-store"],
-        ):
-            if control_exec(sandbox, argv, timeout).exit_code:
-                raise IsolationUnavailable("原生离线前端缓存未就绪，未执行源码")
+    # Never recursively chown through candidate links, including during initial
+    # identity setup. Preflight the entire extracted tree before any mutation.
+    ownership = r"""
+import os,pathlib,stat
+roots=[pathlib.Path('/tmp/rnd-capability')/name for name in ('product','home','tmp','cache')]
+entries=[]
+for root in roots:
+ assert root.is_dir() and not root.is_symlink()
+ entries.append(root)
+ for directory,dirs,names in os.walk(root,followlinks=False):
+  for name in [*dirs,*names]:
+   p=pathlib.Path(directory)/name;entry=p.lstat()
+   assert not stat.S_ISLNK(entry.st_mode)
+   assert stat.S_ISDIR(entry.st_mode) or (stat.S_ISREG(entry.st_mode) and entry.st_nlink==1)
+   entries.append(p)
+for path in entries:os.chown(path,20000,20000,follow_symlinks=False)
+"""
+    if control_exec(sandbox, ["/usr/bin/python3", "-I", "-S", "-c", ownership], timeout).exit_code:
+        raise IsolationUnavailable("隔离源码包含链接或特殊文件，未执行生成源码")
     sandbox.fs.upload_file(
         (ROOT / "scripts/capability_guard.py").read_bytes(), GUARD, timeout=timeout
     )

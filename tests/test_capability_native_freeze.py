@@ -1,6 +1,7 @@
 """Exercise trusted freeze script against owned hostile symlink fixtures only."""
 
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
@@ -37,11 +38,11 @@ def test_ancestor_symlink_rejected_before_privileged_mkdir_or_chown(
     target.symlink_to(outside, target_is_directory=True)
     control = tmp_path / "manifest.json"
     control.write_text(json.dumps({}))
-    script = script.replace("/tmp/rnd-capability/product", str(root)).replace(
-        "/tmp/rnd-module-control/private/source-manifest.json", str(control)
+    script = script.replace("/tmp/rnd-capability/product", root.as_posix()).replace(
+        "/tmp/rnd-module-control/private/source-manifest.json", control.as_posix()
     )
     mutations = []
-    monkeypatch.setattr("os.chown", lambda *a: mutations.append(a))
+    monkeypatch.setattr(os, "chown", lambda *a: mutations.append(a), raising=False)
     with pytest.raises(AssertionError):
         exec(compile(script, "<owned-freeze-test>", "exec"), {})
     assert mutations == []
@@ -49,8 +50,6 @@ def test_ancestor_symlink_rejected_before_privileged_mkdir_or_chown(
 
 
 def test_writable_hardlink_cannot_restore_protected_source_write_access(tmp_path, monkeypatch):
-    import os
-
     script = captured_script(monkeypatch)
     root = tmp_path / "product"
     (root / "frontend/web/dist").mkdir(parents=True)
@@ -62,11 +61,11 @@ def test_writable_hardlink_cannot_restore_protected_source_write_access(tmp_path
     os.link(source, root / "backend/logs/source-link")
     control = tmp_path / "manifest.json"
     control.write_text("{}")
-    script = script.replace("/tmp/rnd-capability/product", str(root)).replace(
-        "/tmp/rnd-module-control/private/source-manifest.json", str(control)
+    script = script.replace("/tmp/rnd-capability/product", root.as_posix()).replace(
+        "/tmp/rnd-module-control/private/source-manifest.json", control.as_posix()
     )
     mutations = []
-    monkeypatch.setattr("os.chown", lambda *a: mutations.append(a))
+    monkeypatch.setattr(os, "chown", lambda *a: mutations.append(a), raising=False)
     with pytest.raises(AssertionError):
         exec(compile(script, "<owned-hardlink-test>", "exec"), {})
     assert mutations == []

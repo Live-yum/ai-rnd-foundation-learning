@@ -353,7 +353,12 @@ def require_native_positive(proof, plan, source_digest, browser_image):
         or proof.get("browser_image") != browser_image
         or not isinstance(build, dict)
         or set(build)
-        != {"offline_install", "frontend_build", "frontend_typecheck", "source_frozen"}
+        != {
+            "preinstalled_dependencies_verified",
+            "frontend_build",
+            "frontend_typecheck",
+            "source_frozen",
+        }
         or any(value is not True for value in build.values())
         or proof.get("native_frontend_started") is not True
         or proof.get("native_frontend_restart") is not True
@@ -420,6 +425,7 @@ def certify(product=PRODUCT, directory=HOME):
             detail_path,
             client=client,
             aggregate=True,
+            profile_record=record,
             control_observer=lambda sandbox_id: inspect_created_sandbox(
                 directory, sandbox_id, require_resources=True, selection=selected
             ),
@@ -439,6 +445,8 @@ def certify(product=PRODUCT, directory=HOME):
             "paid_model_calls": 0,
             "restart_kind": proof["restart_kind"],
             "browser_image": browser_image,
+            "preinstalled_dependencies": proof["preinstalled_dependencies"],
+            "positive_source_digest": proof["source_digest"],
         }
         require_security_receipt(acceptance, record, browser_image=browser_image)
         closing_client = client

@@ -20,6 +20,20 @@ OUTER = "d" * 64
 SANDBOX = "ea997c7d-cbb9-45eb-8352-3f8bc9e2a512"
 
 
+def dependency_record():
+    return {
+        "schema": 1,
+        "profile": "python-basic",
+        "image_id": SNAPSHOT,
+        "manifest_sha256": "1" * 64,
+        "installed_tree_sha256": "2" * 64,
+        "original_descriptors": {
+            name: profile.sha256((profile.ROOT / "templates/product" / name).read_bytes())
+            for name in ("pyproject.toml", "uv.lock")
+        },
+    }
+
+
 def base_config():
     services = {
         name: {
@@ -51,7 +65,10 @@ def test_profile_transformation_preserves_general_defaults_and_all_other_fields(
     # The owned app-container patch does not alter DinD or general defaults.
     assert "USE_SNAPSHOT_ENTRYPOINT" not in original["services"]["runner"]["environment"]
     assert local.IMAGES["runner"].startswith("rnd-local/daytona-runner:")
-    assert snapshot_resources({"image": image}) == ({"cpu": 1, "memory": 2, "disk": 5}, True)
+    assert snapshot_resources({"image": image}) == (
+        {"cpu": 1, "memory": 2, "disk": 5},
+        True,
+    )
     with pytest.raises(ValueError, match="own disposable"):
         profile.profile_directory(local.HOME)
 
@@ -247,7 +264,11 @@ def application_inspect():
             "Cmd": None,
             "Env": ["SECRET=must-not-be-in-receipt"],
         },
-        "HostConfig": {"Privileged": False, "NetworkMode": "runner-bridge", "SecurityOpt": None},
+        "HostConfig": {
+            "Privileged": False,
+            "NetworkMode": "runner-bridge",
+            "SecurityOpt": None,
+        },
         "Mounts": [
             {
                 "Type": "bind",
@@ -270,7 +291,11 @@ def inspection(tmp_path, monkeypatch):
     record = {
         "profile": profile.PROFILE,
         "runner": {"image_id": RUNNER},
-        "snapshot": {"image_id": SNAPSHOT, "digest": "registry:6000/rnd-python@" + DIGEST},
+        "snapshot": {
+            "image_id": SNAPSHOT,
+            "digest": "registry:6000/rnd-python@" + DIGEST,
+            "dependency_manifest": dependency_record(),
+        },
     }
     outer = {
         "Image": RUNNER,
@@ -352,22 +377,38 @@ def test_execution_inspection_still_accepts_exact_resource_network_and_mount_pol
         (
             lambda row: row["HostConfig"].update(NetworkMode="bridge"),
             "sandbox_network",
-            {"network_mode": "bridge", "network_count": 1, "runner_bridge_attached": True},
+            {
+                "network_mode": "bridge",
+                "network_count": 1,
+                "runner_bridge_attached": True,
+            },
         ),
         (
             lambda row: row["HostConfig"].update(NetworkMode="default"),
             "sandbox_network",
-            {"network_mode": "default", "network_count": 1, "runner_bridge_attached": True},
+            {
+                "network_mode": "default",
+                "network_count": 1,
+                "runner_bridge_attached": True,
+            },
         ),
         (
             lambda row: row["NetworkSettings"]["Networks"].update({"secret-network": {}}),
             "sandbox_network",
-            {"network_mode": "runner-bridge", "network_count": 2, "runner_bridge_attached": True},
+            {
+                "network_mode": "runner-bridge",
+                "network_count": 2,
+                "runner_bridge_attached": True,
+            },
         ),
         (
             lambda row: row["HostConfig"].update(NetworkMode="secret-network"),
             "sandbox_network",
-            {"network_mode": "other", "network_count": 1, "runner_bridge_attached": True},
+            {
+                "network_mode": "other",
+                "network_count": 1,
+                "runner_bridge_attached": True,
+            },
         ),
         (
             lambda row: row["bridge_inspect"][0].update(EnableIPv6=True),
@@ -387,12 +428,20 @@ def test_execution_inspection_still_accepts_exact_resource_network_and_mount_pol
         (
             lambda row: row["Mounts"][0].update(Source="/secret-path"),
             "binary_mounts",
-            {"mount_sources_match": False, "mount_readonly_matches": True, "mount_count": 2},
+            {
+                "mount_sources_match": False,
+                "mount_readonly_matches": True,
+                "mount_count": 2,
+            },
         ),
         (
             lambda row: row["Mounts"][-1].update(Destination="/secret-path", RW=False),
             "tmpfs_mounts",
-            {"mount_destinations_match": False, "mount_writable_matches": False, "mount_count": 1},
+            {
+                "mount_destinations_match": False,
+                "mount_writable_matches": False,
+                "mount_count": 1,
+            },
         ),
     ],
 )
@@ -417,7 +466,8 @@ def test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data
         process=SimpleNamespace(exec=forbidden),
     )
     client = SimpleNamespace(
-        create=lambda *a, **k: sandbox, delete=lambda *a, **k: operations.append("deleted")
+        create=lambda *a, **k: sandbox,
+        delete=lambda *a, **k: operations.append("deleted"),
     )
     settings.daytona_snapshot = "fixture-owned-snapshot"
     receipt_path = directory / "receipt.json"
@@ -430,6 +480,7 @@ def test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data
         receipt_path,
         client=client,
         aggregate=True,
+        profile_record=profile.require_profile(directory),
         control_observer=lambda identifier: profile.inspect_created_sandbox(
             directory, identifier, require_resources=True
         ),
@@ -478,7 +529,9 @@ def test_inspector_diagnostics_allow_only_finite_fields_values_and_bounded_numbe
     assert error.diagnostic() == {}
 
 
-def test_readonly_inspection_is_scoped_to_owned_uuid_and_redacts_everything_else(inspection):
+def test_readonly_inspection_is_scoped_to_owned_uuid_and_redacts_everything_else(
+    inspection,
+):
     directory, _, _, calls = inspection
     proof = profile.inspect_created_sandbox(directory, SANDBOX)
     assert proof["privileged"] is False and proof["seccomp"] == "docker-default"
@@ -588,7 +641,10 @@ def locked_profile(tmp_path):
     for name, service in base["services"].items():
         tag = service["image"]
         value = RUNNER if name in profile.BUILT else tag.rsplit(":", 1)[0] + "@" + DIGEST
-        records[name] = {"tag": tag, "image_id" if name in profile.BUILT else "digest": value}
+        records[name] = {
+            "tag": tag,
+            "image_id" if name in profile.BUILT else "digest": value,
+        }
         service["image"] = value
     profile.write_compose(tmp_path / "compose.lock.yaml", base)
     local.private_json(tmp_path / "images.lock.json", records)
@@ -603,11 +659,16 @@ def locked_profile(tmp_path):
     )
     identity, recipes = profile.recipe_identity()
     bases = {
-        name: {"tag": tag, "digest": tag.rsplit(":", 1)[0] + "@" + DIGEST, "image_id": SNAPSHOT}
+        name: {
+            "tag": tag,
+            "digest": tag.rsplit(":", 1)[0] + "@" + DIGEST,
+            "image_id": SNAPSHOT,
+        }
         for name, tag in profile.BASES.items()
     }
     stamp = profile.sha256((identity + json.dumps(bases, sort_keys=True)).encode())[:16]
     image = {
+        "dependency_manifest": dependency_record(),
         "source_hash": stamp,
         "image": "registry:6000/rnd-python:" + stamp,
         "snapshot": "rnd-python-" + stamp,
@@ -640,7 +701,9 @@ def locked_profile(tmp_path):
     return tmp_path, record
 
 
-def test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_changes(locked_profile):
+def test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_changes(
+    locked_profile,
+):
     directory, record = locked_profile
     ordinary = (directory / "compose.lock.yaml").read_bytes()
     config, actual = profile.load_profile(directory)
@@ -680,6 +743,7 @@ def test_required_profile_verifies_image_id_and_registry_digest(locked_profile, 
     monkeypatch.setattr(
         profile, "inspect_image", lambda value: runner if value == RUNNER else image
     )
+    monkeypatch.setattr(profile, "inspect_dependency_manifest", lambda *args: dependency_record())
     assert profile.require_profile(directory, record["snapshot"]["snapshot"]) == record
     with pytest.raises(ValueError, match="explicitly select"):
         profile.require_profile(directory, "ordinary-snapshot")
@@ -691,7 +755,9 @@ def test_required_profile_verifies_image_id_and_registry_digest(locked_profile, 
 def test_prepare_never_overwrites_existing_profile_or_credentials(locked_profile, monkeypatch):
     directory, _ = locked_profile
     monkeypatch.setattr(
-        local, "docker", lambda *args, **kwargs: pytest.fail("No Docker mutation allowed")
+        local,
+        "docker",
+        lambda *args, **kwargs: pytest.fail("No Docker mutation allowed"),
     )
     with pytest.raises(ValueError, match="fresh local state"):
         profile.prepare(directory)

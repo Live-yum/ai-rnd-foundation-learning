@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from capability_dependency_fixtures import container_binding, dependency_evidence, profile_record
 
 from scripts.ci_capability_profile import fixed_application
 from scripts.ci_contest_capability import require_business_proof
@@ -47,6 +48,26 @@ def test_native_oracle_runs_initial_restart_and_fresh_replay(settings, tmp_path,
     )
     for name in ("inspect_stack", "require_container_evidence", "prepare_identity"):
         monkeypatch.setattr(verifier, name, lambda *a: {})
+    admitted = profile_record(template="fastapiadmin")
+    monkeypatch.setattr(
+        verifier, "require_container_evidence", lambda *a: container_binding(admitted)
+    )
+    # This authored business-oracle wiring fixture is not dependency admission.
+    # Separate dependency contract tests exercise the strict real validators.
+    from workbench import capability_dependencies as dependencies
+
+    monkeypatch.setattr(dependencies, "require_dependency_descriptors", lambda *a: None)
+    monkeypatch.setattr(dependencies, "readonly_prepare_commands", lambda *a: [])
+    monkeypatch.setattr(
+        dependencies,
+        "readonly_start_command",
+        lambda plan, command=None: command or plan.runtime.start,
+    )
+    proof = dependency_evidence(
+        admitted["snapshot"]["dependency_manifest"], verifier.manifest(product)
+    )
+    for name in ("prepare_readonly_dependencies", "verify_readonly_dependencies"):
+        monkeypatch.setattr(dependencies, name, lambda *a, **k: proof.copy())
     monkeypatch.setattr(verifier, "control_exec", lambda *a: SimpleNamespace(exit_code=0))
     monkeypatch.setattr(verifier, "prepare_database", lambda *a: "synthetic")
     monkeypatch.setattr(verifier, "database_environment", lambda *a: {})
@@ -114,6 +135,7 @@ def test_native_oracle_runs_initial_restart_and_fresh_replay(settings, tmp_path,
         tmp_path / "receipt.json",
         client=daytona,
         aggregate=True,
+        profile_record=admitted,
         control_observer=lambda _: {},
         security_probe=lambda *a: {},
         trusted_oracle=contest.CONTRACT_VERSION,

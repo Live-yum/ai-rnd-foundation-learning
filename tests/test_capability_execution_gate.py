@@ -8,24 +8,18 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+from capability_dependency_fixtures import dependency_evidence, profile_record
 
 from scripts import daytona_capability_profile as profile
 from workbench import capability_execution as execution
 from workbench.catalog import Selection
+from workbench.domain import digest
 from workbench.errors import UnsupportedScope
 from workbench.settings import ROOT, Settings
 
 
 def record():
-    return {
-        "recipe_identity": "1" * 64,
-        "runner": {"image_id": "sha256:" + "2" * 64},
-        "snapshot": {
-            "image_id": "sha256:" + "3" * 64,
-            "digest": "registry:6000/rnd-python@sha256:" + "4" * 64,
-            "snapshot": "rnd-python-test",
-        },
-    }
+    return profile_record()
 
 
 def receipt():
@@ -41,6 +35,8 @@ def receipt():
         "paid_model_calls": 0,
         "restart_kind": "application_process",
         "browser_image": "sha256:" + "5" * 64,
+        "preinstalled_dependencies": dependency_evidence(),
+        "positive_source_digest": digest({}),
     }
 
 
@@ -58,6 +54,9 @@ def receipt():
         ("selection", Selection(template="fastapiadmin").model_dump()),
         ("profile", {}),
         ("protocol", "fixed-authored-app"),
+        ("protocol", "custom-source-isolation-v1"),
+        ("preinstalled_dependencies", {"offline_install": True}),
+        ("positive_source_digest", "0" * 64),
     ],
 )
 def test_old_partial_wrong_scope_or_forged_success_never_admits(field, value):

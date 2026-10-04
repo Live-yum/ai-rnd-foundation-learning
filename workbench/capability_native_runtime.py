@@ -3,6 +3,7 @@
 import json
 
 from workbench.capability_contracts import TaskCommand
+from workbench.capability_dependencies import NATIVE_LINK_CODE, NATIVE_NODE_ROOT
 from workbench.capability_isolation import CONTROL, control_exec
 from workbench.capability_verification import CheckFailure
 
@@ -69,11 +70,18 @@ def verify_and_freeze_native_sources(sandbox, inventory, timeout):
     # Vite preview otherwise inherits server.open=true from the pinned native
     # config and may try to spawn another browser. Use its public JS API with an
     # explicit closed preview policy; this trusted launcher runs as app UID.
-    launcher = """import {preview} from '/tmp/rnd-capability/product/frontend/web/node_modules/vite/dist/node/index.js';
+    launcher = (
+        "import {preview} from '"
+        + NATIVE_NODE_ROOT
+        + "/vite/dist/node/index.js';\n"
+        + """
 await preview({root:'/tmp/rnd-capability/product/frontend/web',mode:'production',preview:{host:'0.0.0.0',port:5173,strictPort:true,open:false}});
 """
+    )
     sandbox.fs.upload_file(launcher.encode(), CONTROL + "/native-preview.mjs", timeout=timeout)
-    script = r"""
+    script = (
+        NATIVE_LINK_CODE
+        + r"""
 import hashlib,json,os,pathlib,stat
 root=pathlib.Path('/tmp/rnd-capability/product')
 expected=json.loads(pathlib.Path('/tmp/rnd-module-control/private/source-manifest.json').read_text())
@@ -85,6 +93,36 @@ for name,digest in expected.items():
  assert not p.is_symlink() and p.resolve().is_relative_to(root.resolve()) and p.is_file()
  with p.open('rb') as stream:assert hashlib.file_digest(stream,'sha256').hexdigest()==digest
 assert (root/'frontend/web/dist/index.html').is_file()
+# A whole-tree inventory is required: hashing only the original files lets a
+# build add importable Python/JS, replace dependency links, or hide hardlinks.
+# Only actual frontend output and the known Vite/config generation paths vary.
+generated={
+ 'frontend/web/src/types/auto-imports.d.ts',
+ 'frontend/web/src/types/components.d.ts',
+ 'frontend/web/.eslintrc-auto-import.json',
+}
+variable=('frontend/web/dist','frontend/web/node_modules/.vite-temp')
+allowed_directories={'.'}
+for relative in [*expected,*generated]:
+ p=pathlib.PurePosixPath(relative).parent
+ while str(p)!='.':allowed_directories.add(str(p));p=p.parent
+for relative in ('backend/data','backend/logs','backend/static/upload',*variable):
+ p=pathlib.PurePosixPath(relative)
+ while str(p)!='.':allowed_directories.add(str(p));p=p.parent
+for directory,dirs,names in os.walk(root,followlinks=False):
+ for name in [*dirs,*names]:
+  p=pathlib.Path(directory)/name;relative=p.relative_to(root).as_posix();entry=p.lstat()
+  dependency=relative=='frontend/web/node_modules' or relative.startswith('frontend/web/node_modules/')
+  varying=any(relative==prefix or relative.startswith(prefix+'/') for prefix in variable)
+  if stat.S_ISLNK(entry.st_mode):
+   assert dependency
+  elif stat.S_ISDIR(entry.st_mode):
+   assert dependency or varying or relative in allowed_directories
+  else:
+   assert stat.S_ISREG(entry.st_mode) and entry.st_nlink==1
+   assert relative in expected or relative in generated or varying
+assert link_manifest.is_file() and not link_manifest.is_symlink()
+validate_links()
 writable=('backend/data','backend/logs','backend/static/upload','frontend/web/node_modules/.vite-temp')
 # The app UID has already been drained by the trusted supervisor. Check every
 # existing component BEFORE root mkdir/chown, including an absent leaf's parent.
@@ -109,9 +147,9 @@ for directory,dirs,names in os.walk(root,followlinks=False):
  for name in [*dirs,*names]:
   p=pathlib.Path(directory)/name
   if p.is_symlink():continue
-  os.chown(p,0,0)
+  os.chown(p,0,0,follow_symlinks=False)
   p.chmod(0o755 if p.is_dir() or os.access(p,os.X_OK) else 0o644)
-os.chown(root,0,0);root.chmod(0o755)
+os.chown(root,0,0,follow_symlinks=False);root.chmod(0o755)
 for relative in writable:
  p=root/relative;p.mkdir(parents=True,exist_ok=True)
  assert not p.is_symlink() and p.resolve().is_relative_to(root.resolve())
@@ -119,9 +157,10 @@ for relative in writable:
   for name in [*dirs,*names]:
    child=pathlib.Path(directory)/name
    assert not child.is_symlink()
-   os.chown(child,20000,20000)
- os.chown(p,20000,20000);p.chmod(0o700)
+   os.chown(child,20000,20000,follow_symlinks=False)
+ os.chown(p,20000,20000,follow_symlinks=False);p.chmod(0o700)
 """
+    )
     result = control_exec(sandbox, ["/usr/bin/python3", "-I", "-S", "-c", script], timeout)
     if result.exit_code != 0:
         raise CheckFailure("原生构建改变受保护源码、缺少真实前端构建产物或无法冻结源码")

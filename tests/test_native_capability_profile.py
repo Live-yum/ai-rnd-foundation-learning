@@ -24,17 +24,22 @@ def product(tmp_path):
     atomic_text(root / "deployment/manifest.json", json.dumps({"template": "fastapiadmin"}))
     for folder in ("backend", "deployment"):
         atomic_text(
-            root / folder / "pyproject.toml", '[project]\nname = "fixture"\nversion = "1"\n'
+            root / folder / "pyproject.toml",
+            '[project]\nname = "fixture"\nversion = "1"\n',
         )
         atomic_text(
             root / folder / "uv.lock",
             'version = 1\nregistry = "https://pypi.tuna.tsinghua.edu.cn/simple"\n',
         )
     atomic_text(
-        root / "frontend/web/package.json", '{"name":"fixture","scripts":{"prepare":"DO_NOT_RUN"}}'
+        root / "frontend/web/package.json",
+        '{"name":"fixture","scripts":{"prepare":"DO_NOT_RUN"}}',
     )
     atomic_text(root / "frontend/web/pnpm-lock.yaml", "lockfileVersion: '9.0'\n")
-    atomic_text(root / "backend/main.py", "raise RuntimeError('never execute candidate source')\n")
+    atomic_text(
+        root / "backend/main.py",
+        "raise RuntimeError('never execute candidate source')\n",
+    )
     atomic_text(
         root / "deployment/workbench/native_environment.py",
         "raise RuntimeError('untrusted control')\n",
@@ -49,8 +54,22 @@ def foundation():
     return {
         "profile": native.base.PROFILE,
         "recipe_identity": "e" * 64,
-        "runner": {"image_id": RUNNER, "tag": "fixed-base-runner", "recipe_sha256": "f" * 64},
-        "snapshot": {"image_id": BASE_IMAGE, "digest": "registry:6000/rnd-python@" + DIGEST},
+        "runner": {
+            "image_id": RUNNER,
+            "tag": "fixed-base-runner",
+            "recipe_sha256": "f" * 64,
+        },
+        "snapshot": {
+            "image_id": BASE_IMAGE,
+            "digest": "registry:6000/rnd-python@" + DIGEST,
+        },
+        "bases": {
+            "RUST_IMAGE": {
+                "tag": "rust:1.85.1-bookworm",
+                "digest": "rust@" + DIGEST,
+                "image_id": BASE_IMAGE,
+            }
+        },
     }
 
 
@@ -109,6 +128,20 @@ def prepared(tmp_path, product, foundation, monkeypatch):
             "recipe_sha256": recipes[native.DOCKERFILE],
         },
     }
+    dependency_record = {
+        "schema": 1,
+        "profile": "fastapiadmin",
+        "image_id": IMAGE,
+        "manifest_sha256": "1" * 64,
+        "installed_tree_sha256": "2" * 64,
+        "original_descriptors": inputs["descriptors"],
+    }
+    record["snapshot"]["dependency_manifest"] = dependency_record
+    monkeypatch.setattr(
+        native.base,
+        "inspect_dependency_manifest",
+        lambda *args: copy.deepcopy(dependency_record),
+    )
     image = image_for(record)
     atomic_text(directory / native.LOCK, json.dumps(record))
     monkeypatch.setattr(native.base, "require_profile", lambda path: copy.deepcopy(foundation))
@@ -126,6 +159,10 @@ def test_filtered_dependency_context_never_copies_product_code_secrets_or_hooks(
         "Dockerfile",
         "harness/pyproject.toml",
         "harness/uv.lock",
+        "dependency-image.py",
+        "dependency-build.py",
+        "dependency-build.lock.json",
+        "dependency-inputs.json",
     }
     assert "https://pypi.org/simple" in (context / "product/backend/uv.lock").read_text()
     assert "tuna.tsinghua" in (product / "backend/uv.lock").read_text()
@@ -149,7 +186,9 @@ def test_registry_credentials_are_rejected_before_build(product, value):
         native.product_inputs(product)
 
 
-def test_secret_files_are_filtered_but_dependency_and_source_drift_are_distinct(product):
+def test_secret_files_are_filtered_but_dependency_and_source_drift_are_distinct(
+    product,
+):
     original = native.product_inputs(product)
     atomic_text(product / ".env", "CHANGED_PRIVATE_SECRET=ignored\n")
     assert native.product_inputs(product) == original
@@ -317,7 +356,9 @@ def test_prepare_uses_only_owned_base_and_separate_ready_record(
 def test_prepare_refuses_overwrite_before_docker(prepared, product, monkeypatch):
     directory, _, _ = prepared
     monkeypatch.setattr(
-        native.local, "docker", lambda *args, **kwargs: pytest.fail("Docker must not run")
+        native.local,
+        "docker",
+        lambda *args, **kwargs: pytest.fail("Docker must not run"),
     )
     with pytest.raises(ValueError, match="refuses to overwrite"):
         native.prepare(product, directory)
@@ -402,7 +443,11 @@ def test_registration_has_bounded_subprocess_and_no_key_in_argv(prepared, monkey
     monkeypatch.setattr(native, "run_command", lambda *args, **kwargs: calls.append((args, kwargs)))
     native.register(directory)
     args, kwargs = calls[0]
-    assert args[0][1:4] == ["-m", "scripts.daytona_native_capability_profile", "register-worker"]
+    assert args[0][1:4] == [
+        "-m",
+        "scripts.daytona_native_capability_profile",
+        "register-worker",
+    ]
     assert kwargs["timeout"] == 720
     assert KEY not in repr(calls)
 
@@ -427,7 +472,10 @@ def test_native_recipe_keeps_control_identity_pinned_tools_and_no_product_execut
         "postgresql-17",
         "redis-server",
         "pnpm@9.15.3",
-        "--no-install-project",
+        "dependency-build.py install",
+        "RUN --network=none",
+        "USER daytona",
+        "--package-import-method=copy",
         "--ignore-scripts",
         "--frozen-lockfile",
         "--store-dir /opt/rnd/pnpm-store",
@@ -444,7 +492,8 @@ def test_native_recipe_keeps_control_identity_pinned_tools_and_no_product_execut
 
 
 @pytest.mark.parametrize(
-    "key", ["key\nREMOTE=x", "key;touch-payload", "key$(payload)", "key'quoted", "", None]
+    "key",
+    ["key\nREMOTE=x", "key;touch-payload", "key$(payload)", "key'quoted", "", None],
 )
 def test_existing_key_cannot_inject_environment_or_shell_syntax(key):
     with pytest.raises(ValueError, match="safely written"):

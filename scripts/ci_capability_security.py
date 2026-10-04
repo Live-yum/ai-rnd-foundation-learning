@@ -47,6 +47,7 @@ def main():
     from workbench.capability_browser_isolation import require_browser_acceptance
 
     browser_image = require_browser_acceptance(settings.capability_browser_image)
+    verifier = verifier_identity()
     client = client_for(settings)
     try:
         with tempfile.TemporaryDirectory(prefix="rnd-security-positive-") as directory:
@@ -63,6 +64,7 @@ def main():
                 ROOT / "reports/capability-security-detail.json",
                 client=client,
                 aggregate=True,
+                profile_record=record,
                 control_observer=lambda sandbox_id: inspect_created_sandbox(
                     HOME, sandbox_id, require_resources=True
                 ),
@@ -82,7 +84,7 @@ def main():
             acceptance = {
                 "protocol": PROTOCOL,
                 "passed": True,
-                "verifier_identity": verifier_identity(),
+                "verifier_identity": verifier,
                 "profile": profile_binding(record),
                 "selection": selected,
                 "checks": proof["security_checks"],
@@ -91,10 +93,20 @@ def main():
                 "paid_model_calls": 0,
                 "restart_kind": proof.get("restart_kind"),
                 "browser_image": browser_image,
+                "preinstalled_dependencies": proof["preinstalled_dependencies"],
+                "positive_source_digest": proof["source_digest"],
             }
             require_security_receipt(acceptance, record, browser_image=browser_image)
         close_client(client)
         client = None
+        # Bind the exact revision tested, then recheck the live installation
+        # after transport cleanup. A mid-run code/image change cannot certify
+        # a different verifier or immutable dependency image.
+        if require_profile(HOME, record["snapshot"]["snapshot"]) != record:
+            raise ValueError("Profile changed during live certification")
+        if require_browser_acceptance(settings.capability_browser_image) != browser_image:
+            raise ValueError("Accepted browser image changed during live certification")
+        require_security_receipt(acceptance, record, browser_image=browser_image)
         write_json(destination, acceptance)
         summary.update(acceptance)
     finally:

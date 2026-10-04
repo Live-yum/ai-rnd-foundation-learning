@@ -105,6 +105,7 @@ def main():
                 ROOT / "reports/contest-capability-detail.json",
                 client=client,
                 aggregate=True,
+                profile_record=record,
                 control_observer=lambda sandbox_id: inspect_created_sandbox(
                     directory, sandbox_id, require_resources=True, selection=selection()
                 ),

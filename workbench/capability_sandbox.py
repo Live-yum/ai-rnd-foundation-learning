@@ -152,6 +152,9 @@ def verify_capabilities(
     except (CheckFailure, ValueError) as exc:
         return {"passed": False, "kind": "source_contract", "error": str(exc)}
     directory, profile = capability_execution_prerequisites(settings, selection)
+    from workbench.capability_dependencies import require_dependency_descriptors
+
+    require_dependency_descriptors(product, plan, profile)
     if selection["template"] == "fastapiadmin":
         from workbench.daytona_profiles import dependency_identity
 
@@ -242,24 +245,59 @@ def _verify(
     control_observer=None,
     security_probe=None,
     trusted_oracle=None,
+    profile_record=None,
 ):
     from daytona import SessionExecuteRequest
 
+    from workbench.capability_dependencies import (
+        prepare_readonly_dependencies,
+        readonly_prepare_commands,
+        readonly_start_command,
+        require_dependency_descriptors,
+        verify_readonly_dependencies,
+    )
+    from workbench.capability_execution import (
+        VERIFIER,
+        require_preinstalled_evidence,
+        require_profile_container_binding,
+    )
+    from workbench.catalog import Selection
     from workbench.daytona_sessions import run_session_command
     from workbench.sandbox import params_for, source_archive
 
+    # Even a direct caller rejected during admission must not leave a prior
+    # successful receipt available at the requested output path.
+    write_json(receipt_path, {"passed": False, "cleanup": "not-created", "verifier": VERIFIER})
     if trusted_oracle not in (None, "contest-business-v2"):
         raise CheckFailure("未知控制端业务oracle，拒绝候选自定义验证器")
     if trusted_oracle and (
         not aggregate or selection["template"] != "fastapiadmin" or security_probe is None
     ):
         raise CheckFailure("独立竞赛oracle必须使用原生完整隔离验收")
+    # This boundary is shared by production and certification callers. Neither
+    # direct calls nor a missing outer CLI preflight can waive exact provenance.
+    if selection != plan.selection.model_dump() or selection not in (
+        Selection(template="python-basic").model_dump(),
+        Selection(template="fastapiadmin").model_dump(),
+    ):
+        raise CheckFailure("隔离验证的技术栈与已批准计划或登记的只读依赖profile不一致")
+    if (
+        not isinstance(profile_record, dict)
+        or profile_record.get("selection", Selection(template="python-basic").model_dump())
+        != selection
+    ):
+        raise CheckFailure("只读依赖镜像profile没有绑定当前技术栈")
+    require_dependency_descriptors(product, plan, profile_record)
+    commands = readonly_prepare_commands(plan)
+    readonly_start_command(plan)
+    dependency_profile = profile_record["snapshot"]["dependency_manifest"]
     before = manifest(product)
     native = selection["template"] == "fastapiadmin"
     prefix = "rnd-source-native-" if native else "rnd-source-"
     name = (prefix if security_probe is not None else "rnd-capability-") + uuid.uuid4().hex
     receipt = {
-        "verifier": "controller-http-contract-v3",
+        "verifier": VERIFIER,
+        "dependency_profile": dependency_profile,
         "passed": False,
         "source_digest": digest(before),
         "plan_digest": digest(plan.model_dump()),
@@ -297,6 +335,7 @@ def _verify(
             receipt["container_isolation"] = require_container_evidence(
                 control_observer(sandbox.id), sandbox.id
             )
+            require_profile_container_binding(profile_record, receipt["container_isolation"])
         except ContainerInspectionRejected as exc:
             raise IsolationUnavailable(
                 "实际容器不符合已批准的非特权策略，未上传或执行源码",
@@ -319,6 +358,17 @@ def _verify(
         if result.exit_code != 0:
             raise CheckFailure("自定义产品源码解压失败")
         receipt["execution_isolation"] = prepare_identity(sandbox, plan, settings.tool_timeout)
+        receipt["preinstalled_dependencies"] = require_preinstalled_evidence(
+            prepare_readonly_dependencies(
+                sandbox,
+                plan,
+                settings.tool_timeout,
+                expected=dependency_profile,
+                source_inventory=before,
+            ),
+            dependency_profile,
+            source_digest=receipt["source_digest"],
+        )
         database_password = prepare_database(sandbox, plan, settings.tool_timeout)
         if database_password:
             with settings._model_keys_lock:
@@ -338,20 +388,6 @@ def _verify(
             receipt["security_checks"] = security_probe(
                 sandbox, plan, settings.tool_timeout, receipt["container_isolation"], database
             )
-        commands = plan.runtime.prepare
-        if native:
-            from workbench.capability_native_runtime import (
-                native_prepare_commands,
-                native_start_command,
-            )
-
-            native_start_command(plan)
-            trusted = native_prepare_commands()
-            if commands and commands != trusted:
-                raise CheckFailure(
-                    "原生构建只允许控制端登记命令，不接受可改写受保护文件的额外prepare脚本"
-                )
-            commands = trusted
         for index, command in enumerate(commands):
             evidence = {}
             guarded_command, command_output = redirected_command(
@@ -377,16 +413,27 @@ def _verify(
             )
             verify_and_freeze_native_sources(sandbox, before, settings.tool_timeout)
             receipt["native_build"] = {
-                "offline_install": True,
+                "preinstalled_dependencies_verified": True,
                 "frontend_build": True,
                 "frontend_typecheck": True,
                 "source_frozen": True,
             }
 
         def start(command=None, port=None, health_path=None):
+            command = readonly_start_command(plan, command)
+            require_preinstalled_evidence(
+                verify_readonly_dependencies(
+                    sandbox,
+                    plan,
+                    settings.tool_timeout,
+                    expected=dependency_profile,
+                    source_inventory=before,
+                ),
+                dependency_profile,
+                source_digest=receipt["source_digest"],
+            )
             session = "rnd-app-" + uuid.uuid4().hex
             sandbox.process.create_session(session)
-            command = command or plan.runtime.start
             port = port or plan.runtime.port
             health_path = health_path or plan.runtime.health_path
             guarded_command, command_output = redirected_command(
@@ -548,10 +595,33 @@ def _verify(
                 restarted_container = require_container_evidence(
                     control_observer(sandbox.id), sandbox.id
                 )
+                require_profile_container_binding(profile_record, restarted_container)
+                receipt["restart_preinstalled_dependencies"] = require_preinstalled_evidence(
+                    verify_readonly_dependencies(
+                        sandbox,
+                        plan,
+                        settings.tool_timeout,
+                        expected=dependency_profile,
+                        source_inventory=before,
+                    ),
+                    dependency_profile,
+                    source_digest=receipt["source_digest"],
+                )
                 receipt["restart_security_checks"] = security_probe(
                     sandbox, plan, settings.tool_timeout, restarted_container, database
                 )
             if security_probe is None:
+                receipt["restart_preinstalled_dependencies"] = require_preinstalled_evidence(
+                    verify_readonly_dependencies(
+                        sandbox,
+                        plan,
+                        settings.tool_timeout,
+                        expected=dependency_profile,
+                        source_inventory=before,
+                    ),
+                    dependency_profile,
+                    source_digest=receipt["source_digest"],
+                )
                 prepare_database(
                     sandbox, plan, settings.tool_timeout, restart=True, password=database_password
                 )
@@ -609,6 +679,25 @@ def _verify(
                     distinct_database_oid=oracle_database_ownership["database_oid"]
                     != fresh_identity["database_oid"],
                 )
+        # Drain candidate processes before the final exact tree/link inventory;
+        # a successful live response cannot hide additional executable modules.
+        restart_application_identity(
+            sandbox,
+            plan.runtime.port,
+            settings.tool_timeout,
+            extra_ports=(5173,) if native else (),
+        )
+        receipt["final_preinstalled_dependencies"] = require_preinstalled_evidence(
+            verify_readonly_dependencies(
+                sandbox,
+                plan,
+                settings.tool_timeout,
+                expected=dependency_profile,
+                source_inventory=before,
+            ),
+            dependency_profile,
+            source_digest=receipt["source_digest"],
+        )
         if manifest(product) != before:
             raise CheckFailure("隔离验收期间宿主源码发生变化")
         receipt["passed"] = True
@@ -690,6 +779,7 @@ def main():
             ),
             security_probe=security_probe_for_profile(directory, record),
             trusted_oracle=payload.get("trusted_oracle"),
+            profile_record=record,
         )
     finally:
         close_client(client)

@@ -612,12 +612,44 @@ def run_browser(url, token, scenarios, saved, timeout):
 def require_evidence(
     receipt, *, source_digest, plan_digest, scenarios, selection, database_tables, aggregate=False
 ):
+    from workbench.capability_dependencies import require_dependency_manifest
+    from workbench.capability_execution import VERIFIER, require_preinstalled_evidence
     from workbench.capability_isolation import (
         require_container_evidence,
         require_isolation_evidence,
     )
 
     require_container_evidence(receipt.get("container_isolation"), receipt.get("sandbox_id"))
+    dependency_profile = require_dependency_manifest(
+        receipt.get("dependency_profile"), selection["template"]
+    )
+    container = receipt["container_isolation"]
+    if (
+        not isinstance(dependency_profile, dict)
+        or dependency_profile.get("profile") != selection["template"]
+        or dependency_profile.get("image_id") != container.get("snapshot_image_id")
+        or container.get("dependency_manifest") != dependency_profile
+    ):
+        raise CheckFailure("只读依赖证明未绑定实际镜像和当前技术栈")
+    try:
+        require_preinstalled_evidence(
+            receipt.get("preinstalled_dependencies"),
+            dependency_profile,
+            source_digest=source_digest,
+        )
+        require_preinstalled_evidence(
+            receipt.get("final_preinstalled_dependencies"),
+            dependency_profile,
+            source_digest=source_digest,
+        )
+        if aggregate:
+            require_preinstalled_evidence(
+                receipt.get("restart_preinstalled_dependencies"),
+                dependency_profile,
+                source_digest=source_digest,
+            )
+    except ValueError:
+        raise CheckFailure("缺少已验证的只读预装依赖证明，不能沿用安装回执") from None
     require_isolation_evidence(receipt.get("execution_isolation"))
     expected = {s.id: digest(s.model_dump()) for s in scenarios}
     checks = receipt.get("checks", [])
@@ -626,7 +658,7 @@ def require_evidence(
         receipt.get("passed") is not True
         or receipt.get("source_digest") != source_digest
         or receipt.get("plan_digest") != plan_digest
-        or receipt.get("verifier") != "controller-http-contract-v3"
+        or receipt.get("verifier") != VERIFIER
         or receipt.get("network_block_all") is not True
         or receipt.get("credentials_uploaded") is not False
         or receipt.get("cleanup") != "deleted"

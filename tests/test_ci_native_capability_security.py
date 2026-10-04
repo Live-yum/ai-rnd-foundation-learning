@@ -5,6 +5,7 @@ import json
 from types import SimpleNamespace
 
 import pytest
+from capability_dependency_fixtures import dependency_evidence, dependency_profile
 
 from scripts import ci_native_capability_security as ci
 from scripts.ci_native_generated import acceptance_spec
@@ -116,6 +117,7 @@ def positive(plan):
     tables = plan.runtime.database_tables
     return {
         "passed": True,
+        "source_digest": digest({}),
         "cleanup": "deleted",
         "restart_kind": "application_process",
         "security_checks": dict.fromkeys(security_checks_for(ci.selection()), True),
@@ -123,8 +125,14 @@ def positive(plan):
         "browser_image": IMAGE,
         "native_build": {
             name: True
-            for name in ("offline_install", "frontend_build", "frontend_typecheck", "source_frozen")
+            for name in (
+                "preinstalled_dependencies_verified",
+                "frontend_build",
+                "frontend_typecheck",
+                "source_frozen",
+            )
         },
+        "preinstalled_dependencies": dependency_evidence(dependency_profile("fastapiadmin")),
         "native_frontend_started": True,
         "native_frontend_restart": True,
         "database": {
@@ -205,7 +213,8 @@ def setup_certification(tmp_path, product, monkeypatch):
         "runner": {"image_id": "sha256:" + "b" * 64},
         "snapshot": {
             "snapshot": "native-fixture-snapshot",
-            "image_id": "sha256:" + "c" * 64,
+            "image_id": "sha256:" + "3" * 64,
+            "dependency_manifest": dependency_profile("fastapiadmin"),
             "digest": "registry:6000/rnd-native-fastapiadmin@sha256:" + "d" * 64,
         },
         "inputs": {"product": str(product), "source_identity": digest(manifest(product))},
@@ -234,6 +243,7 @@ def setup_certification(tmp_path, product, monkeypatch):
     def verify(*args, **kwargs):
         assert kwargs["client"] is client and kwargs["aggregate"] is True
         assert kwargs["security_probe"] == "native-security-probe"
+        assert kwargs["profile_record"] == record
         assert args[4] == ci.selection()
         kwargs["control_observer"]("owned-native-sandbox")
         events.append("verify")

@@ -20,6 +20,7 @@ from urllib.parse import urlsplit
 from pydantic import SecretStr
 
 from scripts import daytona_capability_profile as base
+from scripts import daytona_dependency_build as dependencies
 from scripts import daytona_local as local
 from scripts.daytona_bootstrap import snapshot_named
 from workbench.catalog import Selection
@@ -40,6 +41,9 @@ RESOURCES = {"cpu": 2, "memory": 6, "disk": 30}
 DOCKERFILE = "tools/daytona/capability-native-snapshot.Dockerfile"
 RECIPE_PATHS = (
     "scripts/daytona_native_capability_profile.py",
+    "scripts/daytona_dependency_image.py",
+    "scripts/daytona_dependency_build.py",
+    "scripts/daytona_dependency_build.lock.json",
     DOCKERFILE,
     # Record the matrix recipe lineage as well as the distinct safe warming recipe.
     "scripts/daytona_matrix_image.py",
@@ -73,7 +77,7 @@ def selection():
 
 def reject_credentials(text):
     """Never send authenticated registry configuration into Docker build layers."""
-    if re.search(r"(?:_auth|authToken|password|username)\s*[=:]|\$\{", text, re.I):
+    if re.search(r"(?:_auth|authToken|password|username)\s*[=:]|\$\{", text, re.IGNORECASE):
         raise ValueError("Authenticated dependency configuration is not a native build input")
     for url in re.findall(r"https?://[^\s\"'<>]+", text):
         parsed = urlsplit(url)
@@ -140,10 +144,48 @@ def prepare_context(product, context, expected):
             tomllib.loads(text)
             raw = text.encode("utf-8")
         target.write_bytes(raw)
+    dependencies.validate_python(
+        (context / "product/backend/pyproject.toml").read_bytes(),
+        (context / "product/backend/uv.lock").read_bytes(),
+    )
+    dependencies.validate_node(
+        (context / "product/frontend/web/package.json").read_bytes(),
+        (context / "product/frontend/web/pnpm-lock.yaml").read_bytes(),
+    )
     harness = context / "harness"
     harness.mkdir()
     for name in ("pyproject.toml", "uv.lock"):
         shutil.copyfile(ROOT / name, harness / name)
+    dependencies.validate_python(
+        (harness / "pyproject.toml").read_bytes(),
+        (harness / "uv.lock").read_bytes(),
+        trusted_project=True,
+    )
+    for name in ("image", "build"):
+        shutil.copyfile(
+            ROOT / f"scripts/daytona_dependency_{name}.py",
+            context / f"dependency-{name}.py",
+        )
+    shutil.copyfile(
+        ROOT / "scripts/daytona_dependency_build.lock.json",
+        context / "dependency-build.lock.json",
+    )
+    (context / "dependency-inputs.json").write_text(
+        json.dumps(
+            {
+                "recipe_identity": recipe_identity()[0],
+                "original_descriptors": expected["descriptors"],
+                "harness_descriptors": {
+                    name: sha(harness / name) for name in ("pyproject.toml", "uv.lock")
+                },
+                "normalized_descriptors": {
+                    name: sha(context / "product" / name) for name in DESCRIPTORS
+                },
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
     shutil.copyfile(ROOT / DOCKERFILE, context / "Dockerfile")
     if product_inputs(product) != expected:
         raise ValueError("Native input changed while preparing the build context")
@@ -156,6 +198,7 @@ def base_identity(record):
         "snapshot_image_id": record["snapshot"]["image_id"],
         "snapshot_digest": record["snapshot"]["digest"],
         "runner": copy.deepcopy(record["runner"]),
+        "rust_image": copy.deepcopy(record["bases"]["RUST_IMAGE"]),
     }
 
 
@@ -234,6 +277,8 @@ def prepare(product, directory=HOME):
             "--build-arg",
             "BASE_IMAGE="
             + foundation["snapshot_digest"].replace("registry:6000/", "127.0.0.1:6000/", 1),
+            "--build-arg",
+            "RUST_IMAGE=" + foundation["rust_image"]["digest"],
         ]
         labels = {
             "org.opencontainers.image.revision": base.DAYTONA_SOURCE,
@@ -276,6 +321,9 @@ def prepare(product, directory=HOME):
         "working_dir": base.CONTROL_WORKDIR,
         "recipe_sha256": recipes[DOCKERFILE],
     }
+    record["snapshot"]["dependency_manifest"] = base.inspect_dependency_manifest(
+        image["Id"], "fastapiadmin", inputs["descriptors"]
+    )
     if (
         base_identity(base.require_profile(directory)) != foundation
         or product_inputs(product) != inputs
@@ -328,6 +376,7 @@ def require_native_profile(directory=HOME, snapshot=None):
     local_digest = expected_digest.replace("registry:6000/", "127.0.0.1:6000/", 1)
     if inspected["Id"] != image["image_id"] or local_digest not in inspected.get("RepoDigests", []):
         raise ValueError("Native snapshot tag no longer matches its immutable ID and digest")
+    base.require_dependency_manifest(record, "fastapiadmin", inputs["descriptors"])
     return record
 
 

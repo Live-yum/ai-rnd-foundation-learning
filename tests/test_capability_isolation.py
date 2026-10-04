@@ -8,6 +8,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+from capability_dependency_fixtures import container_binding, dependency_evidence, profile_record
 
 from workbench.capability_isolation import IsolationUnavailable, product_argv
 
@@ -314,6 +315,7 @@ def test_live_container_inspection_failure_stops_before_source_upload(
         tmp_path / "receipt.json",
         client=client,
         aggregate=True,
+        profile_record=profile_record(product),
         control_observer=observer,
     )
     assert result["passed"] is False and result["cleanup"] == "deleted"
@@ -473,7 +475,19 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
             raise BrowserFailure(BROWSER_FAILURE_FIXTURES[failure].copy())
         return [{"fixture_only": True}]
 
-    monkeypatch.setattr(verifier, "require_container_evidence", lambda *a: {"fixture_only": True})
+    admitted = profile_record(product)
+    monkeypatch.setattr(
+        verifier, "require_container_evidence", lambda *a: container_binding(admitted)
+    )
+    # Transport fixtures do not attest a real installed dependency tree. Keep
+    # descriptor/launcher admission real and mock only remote verification.
+    proof = dependency_evidence(
+        admitted["snapshot"]["dependency_manifest"], verifier.manifest(product)
+    )
+    for name in ("prepare_readonly_dependencies", "verify_readonly_dependencies"):
+        monkeypatch.setattr(
+            "workbench.capability_dependencies." + name, lambda *a, **k: proof.copy()
+        )
     monkeypatch.setattr(verifier, "prepare_identity", lambda *a: {"fixture_only": True})
 
     def control(sandbox, argv, timeout):
@@ -545,6 +559,7 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
             tmp_path / "receipt.json",
             client=daytona,
             aggregate=True,
+            profile_record=admitted,
             control_observer=lambda _: {},
             security_probe=security_probe if secure_execution else None,
         )
@@ -643,6 +658,7 @@ def test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup(settin
         tmp_path / "receipt.json",
         client=client,
         aggregate=False,
+        profile_record=profile_record(product),
         # Deliberately reject before source upload; this is a lifecycle contract
         # regression and supplies no live container or application evidence.
         control_observer=lambda identifier: {},

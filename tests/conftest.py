@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 
 import pytest
@@ -5,6 +6,14 @@ import pytest
 from workbench.domain import Patches, Plan, Requirement
 from workbench.settings import Settings
 from workbench.store import Store
+
+
+def pytest_make_parametrize_id(config, val, argname):
+    """Keep adversarial payloads intact without copying megabytes into reports."""
+    if type(val) not in (str, bytes) or len(val) <= 80:
+        return None
+    raw = val.encode("utf-8", errors="surrogatepass") if type(val) is str else val
+    return f"{argname}-{type(val).__name__}-{len(val)}-{hashlib.sha256(raw).hexdigest()[:16]}"
 
 
 @pytest.fixture

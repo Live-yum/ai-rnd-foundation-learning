@@ -22,6 +22,7 @@ from pathlib import Path
 
 import yaml
 
+from scripts import daytona_dependency_build as dependencies
 from scripts import daytona_local as local
 from scripts.daytona_build import BUILT, export_source
 from workbench.capability_isolation import ContainerInspectionRejected
@@ -72,6 +73,9 @@ LIMIT_INSERT = """\t// Custom-source executions get bounded writable storage on 
 """
 RECIPE_PATHS = (
     "scripts/daytona_capability_profile.py",
+    "scripts/daytona_dependency_image.py",
+    "scripts/daytona_dependency_build.py",
+    "scripts/daytona_dependency_build.lock.json",
     "tools/daytona/capability-runner.Dockerfile",
     "tools/daytona/capability-snapshot.Dockerfile",
     "tools/daytona/capability-runner.patch",
@@ -88,6 +92,7 @@ BASES = {
     "UV_IMAGE": "ghcr.io/astral-sh/uv:0.12.20",
     "NODE_IMAGE": "node:22.23.2-bookworm-slim",
     "SANDBOX_IMAGE": "daytonaio/sandbox:0.5.0-slim",
+    "RUST_IMAGE": "rust:1.85.1-bookworm",
 }
 # Upstream apps/daemon/tools/xterm.go assets, now bounded and SHA-256 checked.
 ASSETS = {
@@ -198,7 +203,11 @@ def source_context(directory, context):
         "This is a local acceptance profile; it does not enable production source execution.\n",
         encoding="utf-8",
     )
-    return {"source_sha": DAYTONA_SOURCE, "go_inputs": inputs, "patched_sha256": sha256(updated)}
+    return {
+        "source_sha": DAYTONA_SOURCE,
+        "go_inputs": inputs,
+        "patched_sha256": sha256(updated),
+    }
 
 
 def download_assets(context):
@@ -299,6 +308,118 @@ def write_compose(path, config):
         path.chmod(0o600)
 
 
+def prepare_dependency_context(context, identity):
+    context = Path(context)
+    descriptors = {}
+    for name in ("pyproject.toml", "uv.lock"):
+        raw = (ROOT / "templates/product" / name).read_bytes()
+        (context / name).write_bytes(raw)
+        descriptors[name] = sha256(raw)
+    dependencies.validate_python(
+        (context / "pyproject.toml").read_bytes(), (context / "uv.lock").read_bytes()
+    )
+    for name in ("image", "build"):
+        shutil.copyfile(
+            ROOT / f"scripts/daytona_dependency_{name}.py",
+            context / f"dependency-{name}.py",
+        )
+    (context / "dependency-inputs.json").write_text(
+        json.dumps(
+            {
+                "recipe_identity": identity,
+                "original_descriptors": descriptors,
+                "normalized_descriptors": descriptors,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+
+def inspect_dependency_manifest(image_id, profile, descriptors):
+    if not re.fullmatch(r"sha256:[a-f0-9]{64}", image_id):
+        raise ValueError("Dependency inventory requires an immutable image ID")
+    raw = local.docker(
+        "run",
+        "--rm",
+        "--network=none",
+        "--read-only",
+        "--cap-drop=ALL",
+        "--security-opt=no-new-privileges",
+        "--user=65534:65534",
+        "--pids-limit=64",
+        "--memory=512m",
+        "--entrypoint=/usr/bin/python3",
+        image_id,
+        "-I",
+        "-S",
+        "/opt/rnd/bin/dependency-image.py",
+        "inspect",
+        "--profile",
+        profile,
+        timeout=300,
+    )
+    result = json.loads(raw)
+    if (
+        not isinstance(result, dict)
+        or set(result)
+        != {
+            "schema",
+            "profile",
+            "manifest_sha256",
+            "installed_tree_sha256",
+            "original_descriptors",
+        }
+        or type(result.get("schema")) is not int
+        or result.get("schema") != 1
+        or result.get("profile") != profile
+        or result.get("original_descriptors") != descriptors
+        or any(
+            not isinstance(result.get(name), str)
+            or not re.fullmatch(r"[a-f0-9]{64}", result.get(name, ""))
+            for name in ("manifest_sha256", "installed_tree_sha256")
+        )
+    ):
+        raise ValueError("Image dependency manifest does not match exact descriptor inputs")
+    return {**result, "image_id": image_id}
+
+
+def validate_dependency_binding(value, image_id, profile, descriptors):
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "schema",
+            "profile",
+            "image_id",
+            "manifest_sha256",
+            "installed_tree_sha256",
+            "original_descriptors",
+        }
+        or type(value.get("schema")) is not int
+        or value.get("schema") != 1
+        or value.get("profile") != profile
+        or value.get("image_id") != image_id
+        or value.get("original_descriptors") != descriptors
+        or any(
+            not isinstance(value.get(name), str) or not re.fullmatch(r"[a-f0-9]{64}", value[name])
+            for name in ("manifest_sha256", "installed_tree_sha256")
+        )
+    ):
+        raise ValueError("Dependency manifest lock lacks exact image/descriptor binding")
+
+
+def require_dependency_manifest(record, profile, descriptors):
+    image = record["snapshot"]
+    validate_dependency_binding(
+        image.get("dependency_manifest"), image["image_id"], profile, descriptors
+    )
+    expected = inspect_dependency_manifest(image["image_id"], profile, descriptors)
+    if image.get("dependency_manifest") != expected:
+        raise ValueError("Dependency manifest is not bound to the immutable profile image")
+    return expected
+
+
 def prepare(directory=HOME):
     directory = profile_directory(directory)
     base = read_base(directory)
@@ -308,7 +429,10 @@ def prepare(directory=HOME):
                 "Profile setup requires fresh local state; will not overwrite: " + name
             )
     info = json.loads(local.docker("info", "--format", "{{json .}}"))
-    if info.get("OSType") != "linux" or info.get("Architecture") not in {"amd64", "x86_64"}:
+    if info.get("OSType") != "linux" or info.get("Architecture") not in {
+        "amd64",
+        "x86_64",
+    }:
         raise ValueError("Capability profile supports only a local Linux amd64 Docker daemon")
     existing = local.docker(
         "compose",
@@ -346,14 +470,23 @@ def prepare(directory=HOME):
         )
         download_assets(context)
         runner = build_image(
-            directory, context, "capability-runner.Dockerfile", runner_tag, bases, identity
+            directory,
+            context,
+            "capability-runner.Dockerfile",
+            runner_tag,
+            bases,
+            identity,
         )
     with tempfile.TemporaryDirectory(prefix="capability-snapshot-", dir=directory) as temporary:
         context = Path(temporary)
-        for name in ("pyproject.toml", "uv.lock"):
-            shutil.copyfile(ROOT / "templates/product" / name, context / name)
+        prepare_dependency_context(context, identity)
         snapshot = build_image(
-            directory, context, "capability-snapshot.Dockerfile", snapshot_tag, bases, identity
+            directory,
+            context,
+            "capability-snapshot.Dockerfile",
+            snapshot_tag,
+            bases,
+            identity,
         )
     config = render_profile(base, runner["Id"], image_ref)
     # Registry startup uses the validated profile configuration, with an isolated
@@ -405,6 +538,14 @@ def prepare(directory=HOME):
             "recipe_sha256": recipes["tools/daytona/capability-snapshot.Dockerfile"],
         },
     }
+    record["snapshot"]["dependency_manifest"] = inspect_dependency_manifest(
+        snapshot["Id"],
+        "python-basic",
+        {
+            name: sha256((ROOT / "templates/product" / name).read_bytes())
+            for name in ("pyproject.toml", "uv.lock")
+        },
+    )
     # Commit readiness last. A partial build never produces a passing profile lock.
     write_compose(directory / COMPOSE, config)
     local.private_json(directory / "snapshot-image.json", record["snapshot"])
@@ -459,6 +600,15 @@ def load_profile(directory=HOME):
         or not re.fullmatch(r"sha256:[a-f0-9]{64}", record.get("runner", {}).get("image_id", ""))
     ):
         raise ValueError("Capability profile image lock does not match its derived identity")
+    validate_dependency_binding(
+        image.get("dependency_manifest"),
+        image["image_id"],
+        "python-basic",
+        {
+            name: sha256((ROOT / "templates/product" / name).read_bytes())
+            for name in ("pyproject.toml", "uv.lock")
+        },
+    )
     base = read_base(directory)
     config = yaml.safe_load((directory / COMPOSE).read_text(encoding="utf-8"))
     expected = render_profile(base, record["runner"]["image_id"], record["snapshot"]["image"])
@@ -497,6 +647,14 @@ def require_profile(directory=HOME, snapshot=None):
         "RepoDigests", []
     ):
         raise ValueError("Profile snapshot tag no longer matches the recorded ID and digest")
+    require_dependency_manifest(
+        record,
+        "python-basic",
+        {
+            name: sha256((ROOT / "templates/product" / name).read_bytes())
+            for name in ("pyproject.toml", "uv.lock")
+        },
+    )
     return record
 
 
@@ -574,7 +732,8 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
     runner_id = compose(directory, "ps", "--quiet", "runner").strip()
     if not re.fullmatch(r"[a-f0-9]{64}", runner_id):
         raise ContainerInspectionRejected(
-            "Profile requires exactly one running Runner container", category="runner_unavailable"
+            "Profile requires exactly one running Runner container",
+            category="runner_unavailable",
         )
     rows = json.loads(local.docker("container", "inspect", runner_id))
     if len(rows) != 1:
@@ -594,7 +753,8 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         or runner.get("Config", {}).get("Cmd")
     ):
         raise ContainerInspectionRejected(
-            "Running Runner does not match the owned profile", category="runner_identity"
+            "Running Runner does not match the owned profile",
+            category="runner_identity",
         )
     security = json.loads(
         local.docker(
@@ -629,7 +789,8 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
     )
     if len(rows) != 1:
         raise ContainerInspectionRejected(
-            "Owned application container identity is ambiguous", category="container_identity"
+            "Owned application container identity is ambiguous",
+            category="container_identity",
         )
     container = rows[0]
     config, host = container.get("Config", {}), container.get("HostConfig", {})
@@ -767,6 +928,7 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         "runner_image_id": record["runner"]["image_id"],
         "snapshot_image_id": record["snapshot"]["image_id"],
         "snapshot_digest": record["snapshot"]["digest"],
+        "dependency_manifest": copy.deepcopy(record["snapshot"]["dependency_manifest"]),
         "control_user": "0:0",
         "privileged": False,
         "seccomp": "docker-default",

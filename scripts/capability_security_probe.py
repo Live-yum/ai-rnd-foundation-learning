@@ -67,7 +67,9 @@ denied('proc_symlink_write_denied',lambda:open('/proc/self/root/home/rnd-module/
 mounts=[line.split() for line in pathlib.Path('/proc/self/mountinfo').read_text().splitlines()]
 matching=[row for row in mounts if row[4]=='/tmp' and row[row.index('-')+1]=='tmpfs']
 assert len(matching)==1
-fs=os.statvfs('/tmp');assert 0 < fs.f_blocks*fs.f_frsize <= (4294967296 if native else 1073741824)
+fs=os.statvfs('/tmp');assert fs.f_flag & os.ST_NOEXEC
+checks['tmpfs_noexec_enforced']=True
+assert 0 < fs.f_blocks*fs.f_frsize <= (4294967296 if native else 1073741824)
 checks['tmpfs_storage_bound']=True
 cgroup=pathlib.Path('/sys/fs/cgroup')
 assert 0 < int((cgroup/'memory.max').read_text()) <= (6 if native else 2)*1024**3
@@ -83,6 +85,20 @@ checks['resource_limits_enforced']=True
 p=pathlib.Path('/tmp/rnd-capability/tmp/security-writable')
 p.write_text('bounded synthetic probe');assert p.read_text()=='bounded synthetic probe';p.unlink()
 checks['ordinary_product_write_allowed']=True
+manifest=pathlib.Path('/opt/rnd/runtime/dependency-manifest.json')
+assert manifest.is_file() and not manifest.is_symlink()
+with manifest.open('rb') as stream:assert stream.read(1)
+roots=[pathlib.Path('/opt/rnd/runtime/fastapiadmin/backend/.venv' if native else '/opt/rnd/runtime/python-basic/.venv')]
+if native:roots.append(pathlib.Path('/opt/rnd/runtime/fastapiadmin/frontend/node_modules'))
+for root in roots:
+ assert root.is_dir() and not root.is_symlink()
+ assert os.access(root,os.R_OK|os.X_OK) and not os.access(root,os.W_OK)
+ # No bytes of application or private data leave this product-identity probe.
+ assert next(root.iterdir(),None) is not None
+ denied('immutable_dependency_write_denied',lambda:open(root/'security-forbidden-write','wb'))
+ denied('immutable_dependency_write_denied',lambda:open('/proc/self/root'+str(root/'security-forbidden-write'),'wb'))
+denied('immutable_dependency_write_denied',lambda:open(manifest,'ab'))
+checks['immutable_dependency_read_allowed']=True
 print(json.dumps(checks,sort_keys=True))
 """
 
