@@ -628,7 +628,7 @@ SCRIPT_ROLES = {
     ),
     "daytona_build.py": (
         "从固定来源构建并锁定本机镜像",
-        "验证源码Git对象、Runner发布字节与许可证，在干净构建上下文编译控制面和存储，记录不可变镜像身份；不猜测latest标签或切换云端服务。",
+        "验证源码Git对象、Runner发布字节与许可证，在干净构建上下文编译控制面和存储；API摘要分隔符修复只匹配固定源码blob及完整补丁，镜像标签和锁记录补丁与修改后源码SHA256。运行准入核对当前来源及实际API镜像ID/标签，拒绝旧锁或漂移，不猜测latest标签或切换云端服务。",
         "daytona_local images → Docker本机构建 → images.lock/compose.lock。",
     ),
     "daytona_bootstrap.py": (

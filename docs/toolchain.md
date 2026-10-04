@@ -322,7 +322,7 @@ ci_daytona_local生成一个独立SQLite产品，在本机Daytona中创建沙箱
 uv run python -m scripts.daytona_local down
 ```
 
-down不带-v，不删除持久卷、用户、Key或快照。已有安装用up继续，不再次prepare覆盖。确实要销毁实验环境时先确认没有需要保留的数据，再由你在Docker中明确处理该项目的卷；平台不自动删除未知资源。
+down不带-v，不删除持久卷、用户、Key或快照。镜像来源与当前实现一致的已有安装可用up继续，不再次prepare覆盖。升级到API digest修复前，应先用原版本完成清理；旧镜像锁缺少补丁来源证明时，新版本的up、down和status都会拒绝复用，不能把检查关闭或改回可变tag。迁移边界见[不可变镜像引用与API补丁来源](custom-source-isolation.md#固定上游的摘要引用修复)。确实要销毁实验环境时先确认没有需要保留的数据，再由你在Docker中明确处理该项目的卷；平台不自动删除未知资源。
 
 ### 20.9 接线和验收对应关系
 

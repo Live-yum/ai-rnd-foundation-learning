@@ -38,31 +38,33 @@
 - `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.factory`（L424–L428）：接收`settings`。 控制顺序：L425断言`settings.daytona_api_key.get_secret_value() == KEY`；L426断言`settings.daytona_api_url == "http://127.0.0.1:3000/api"`；L427断言`settings.daytona_target == "local"`。 调用`settings.daytona_api_key.get_secret_value`。 返回路径：L428的`client`。
 - `test_registration_reuses_existing_key_in_local_sdk_without_rewriting_base.close`（L430–L434）：接收`value`。 控制顺序：L431断言`value is client`；L433按`failure == "close"`分支；L434抛异常，停止当前正常路径。 调用`calls.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_registration_has_bounded_subprocess_and_no_key_in_argv`（L473–L485）：接收`prepared`、`monkeypatch`。 控制顺序：L479断言`args[0][1:4] == [ "-m", "scripts.daytona_native_capability_profile", "register-worker…`；L484断言`kwargs["timeout"] == 720`；L485断言`KEY not in repr(calls)`。 调用`monkeypatch.setattr`、`calls.append`、`native.register`、`repr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_registration_does_not_overwrite_other_native_credentials`（L488–L496）：接收`prepared`、`monkeypatch`。 调用`atomic_text`、`json.dumps`、`native.write_private_new`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`native.register_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_recipe_keeps_control_identity_pinned_tools_and_no_product_execution`（L499–L524）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L501遍历`( "ARG BASE_IMAGE", "FROM ${BASE_IMAGE}", "libseccomp2 procps", "…`；L521断言`text in recipe`；L522断言`recipe.rstrip().endswith("USER 0:0")`；L523断言`"warm.py" not in recipe and "vite build" not in recipe`；L524断言`"CAPABILITY_EXECUTION_ENABLED" not in recipe`。 调用`(native.ROOT / native.DOCKERFILE).read_text`、`recipe.rstrip().endswith`、`recipe.rstrip`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_existing_key_cannot_inject_environment_or_shell_syntax`（L531–L533）：接收`key`。 调用`pytest.raises`、`native.environment_text`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_existing_native_environment_must_remain_private`（L536–L545）：接收`prepared`。 控制顺序：L537按`os.name == "nt"`分支。 调用`pytest.skip`、`atomic_text`、`json.dumps`、`native.environment_text`、`path.chmod`、`pytest.raises`、`native.register_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_metadata_cannot_be_adopted_through_a_symlink`（L548–L555）：接收`prepared`、`tmp_path`。 调用`atomic_text`、`json.dumps`、`(directory / native.LOCK).unlink`、`(directory / native.LOCK).symlink_to`、`pytest.raises`、`native.require_native_profile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_build_diagnostics_match_only_complete_reviewed_run_commands`（L560–L578）：接收`form`、`run`。 控制顺序：L564按`form == "header"`分支；L566按`form == "footer"`分支；L569按`form == "continued-process"`分支；L576断言`(facts["stage"], facts["run"]) == (stage, run)`；L577断言`"private" not in json.dumps(facts)`；L578断言`command not in json.dumps(facts)`。 调用`next`、`native.reviewed_run_commands().items`、`native.reviewed_run_commands`、`command.replace`、`json.dumps`、`native.build_failure_facts`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_build_diagnostics_emit_only_fixed_known_error_categories`（L597–L607）：接收`signature`、`category`。 控制顺序：L605断言`category in value["categories"]`；L606断言`signature not in json.dumps(value)`；L607断言`"private" not in json.dumps(value)`。 调用`next`、`native.reviewed_run_commands().items`、`native.reviewed_run_commands`、`native.build_failure_facts`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_build_diagnostics_do_not_adopt_unreviewed_commands_or_ambient_text`（L610–L621）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L612遍历`( f"#12 [native-system 1/2] RUN {command}\n#12 ERROR: private-sec…`；L617断言`native.build_failure_facts(log) == { "stage": "unknown", "run": "unknown", "categorie…`。 调用`next`、`iter`、`native.reviewed_run_commands`、`json.dumps`、`native.build_failure_facts`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_diagnostic_run_mapping_requires_exact_reviewed_recipe`（L625–L644）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L628按`mutation == "same-count-edit"`分支；L630按`mutation == "reordered"`分支；L635按`mutation == "oversized"`分支；L637按`mutation != "missing"`分支；L641断言`native.reviewed_run_commands() == {}`；L644断言`result == {"stage": "unknown", "run": "unknown", "categories": ["unknown"]}`。 调用`(native.ROOT / native.DOCKERFILE).read_text`、`list`、`native.reviewed_run_commands`、`recipe.replace`、`recipe.index`、`(tmp_path / "Dockerfile").write_text`、`monkeypatch.setattr`、`native.build_failure_facts`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_failure_diagnostics_are_bounded_and_never_serialize_hostile_payloads`（L648–L671）：接收`code`。 控制顺序：L657断言`len(encoded) <= native.DIAGNOSTIC_REPORT_BYTES`；L658断言`report["build"]["scanned_bytes"] <= native.DIAGNOSTIC_SCAN_BYTES`；L659断言`report["build"]["truncated"] is True`；L660断言`report["error"]["returncode"] == ( code if type(code) is int and abs(code) < 2**31 el…`；L663断言`report["error"]["timed_out"] is False`；L664遍历`("private-secret", "password", "private.invalid", "token", "界")`；L665断言`fragment.encode() not in encoded`；L666断言`native.failure_diagnostic({"action": secret, "stage": secret}, RuntimeError(secret))[…`。 调用`subprocess.CalledProcessError`、`native.failure_diagnostic`、`json.dumps(report).encode`、`json.dumps`、`len`、`type`、`abs`、`fragment.encode`、`RuntimeError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_prepare_build_failure_preserves_failure_and_never_writes_readiness`（L674–L697）：接收`prepared`、`product`、`monkeypatch`。 控制顺序：L689断言`caught.value is error`；L691断言`value["stage"] == "prepare-docker-build"`；L692断言`value["error"]["returncode"] == 23`；L693断言`not (directory / native.LOCK).exists()`；L694断言`not (directory / native.ENVIRONMENT).exists()`；L695断言`not list(directory.glob("native-capability-build-*"))`；L696按`os.name != "nt"`分支；L697断言`report.stat().st_mode & 0o777 == 0o600`。 调用`(directory / native.LOCK).unlink`、`subprocess.CalledProcessError`、`monkeypatch.setattr`、`pytest.raises`、`native.prepare`、`json.loads`、`report.read_text`、`(directory / native.LOCK).exists`、`(directory / native.ENVIRONMENT).exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_prepare_build_failure_preserves_failure_and_never_writes_readiness.fail`（L682–L684）：接收`*args`、`**kwargs`。 控制顺序：L683断言`args[0] == "build" and kwargs == {"timeout": 3600}`；L684抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_stale_ready_profile_and_existing_report_cannot_be_overwritten`（L700–L708）：接收`prepared`、`product`、`monkeypatch`。 控制顺序：L708断言`(directory / native.LOCK).read_bytes() == before`。 调用`(directory / native.LOCK).read_bytes`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`native.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_register_parent_preserves_exact_worker_report_and_failure`（L711–L739）：接收`prepared`、`monkeypatch`。 控制顺序：L734断言`caught.value is error`；L735断言`json.loads(report.read_text()) == expected`；L736断言`expected["stage"] == "register-worker-snapshot-create"`；L737断言`expected["error"]["timed_out"] is True`；L738断言`"private" not in report.read_text()`；L739断言`not (directory / native.ENVIRONMENT).exists()`。 调用`native.ToolFailure`、`monkeypatch.setattr`、`pytest.raises`、`native.register`、`json.loads`、`report.read_text`、`(directory / native.ENVIRONMENT).exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_register_parent_preserves_exact_worker_report_and_failure.worker`（L719–L729）：接收`command`、`cwd`、`**kwargs`。 控制顺序：L720断言`command[-2:] == ["--diagnostics", str(report.absolute())]`；L721断言`kwargs["timeout"] == 720`；L725抛异常，停止当前正常路径；L729抛异常，停止当前正常路径。 调用`str`、`report.absolute`、`pytest.raises`、`native.diagnostic_scope`、`subprocess.TimeoutExpired`、`expected.update`、`json.loads`、`report.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_cli_remains_compatible_and_success_does_not_emit_diagnostics`（L744–L761）：接收`tmp_path`、`monkeypatch`、`capsys`、`action`、`diagnostics`。 控制顺序：L750按`action == "prepare"`分支；L752按`diagnostics`分支；L757断言`calls[0][1] == ({"diagnostics": report} if diagnostics else {})`；L758断言`not report.exists()`；L759断言`capsys.readouterr().out == ( "Native snapshot identity step completed; runtime/isolat…`。 调用`str`、`monkeypatch.setattr`、`action.replace`、`calls.append`、`native.main`、`report.exists`、`capsys.readouterr`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_workflow_collects_separate_bounded_prepare_and_register_diagnostics`（L764–L782）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L779断言`"--diagnostics reports/native-profile-prepare-diagnostic.json" in build["run"]`；L780断言`"--diagnostics reports/native-profile-register-diagnostic.json" in build["run"]`；L781断言`upload["if"] == "always()"`；L782断言`"reports/native-profile-*-diagnostic.json" in upload["with"]["path"]`。 调用`yaml.safe_load`、`(native.ROOT / ".github/workflows/native-capability-profile.yml")…`、`next`、`step.get`、`step.get("uses", "").startswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_registration_real_sdk_serializes_digest_without_tag_substitution`（L488–L558）：接收`prepared`、`monkeypatch`。 源码说明：Run register_worker through the actual SDK and JSON transport; only HTTP is fake.。 控制顺序：L499遍历`tuple(os.environ)`；L500按`name.lower().endswith("_proxy")`分支；L556断言`[method for method, _ in calls] == ["GET", "POST", "GET"]`；L557断言`created["imageName"] == snapshot["digest"]`；L558断言`snapshot["snapshot"] in (directory / native.ENVIRONMENT).read_text()`。 调用`atomic_text`、`json.dumps`、`tuple`、`name.lower().endswith`、`name.lower`、`monkeypatch.delenv`、`monkeypatch.setattr`、`native.register_worker`、`(directory / native.ENVIRONMENT).read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_registration_real_sdk_serializes_digest_without_tag_substitution.request`（L503–L549）：接收`_pool`、`method`、`url`、`**kwargs`。 控制顺序：L504断言`url.startswith("http://127.0.0.1:3000/api/snapshots")`；L506按`method == "GET"`分支；L507按`len(calls) == 1`分支；L510断言`len(calls) == 3`；L511断言`url == "http://127.0.0.1:3000/api/snapshots/" + created["id"]`；L514断言`method == "POST" and url == "http://127.0.0.1:3000/api/snapshots"`；L516断言`isinstance(kwargs["body"], str)`；L518断言`data["imageName"] == snapshot["digest"]`。后续分支沿下方源码相同行号继续阅读。 调用`url.startswith`、`calls.append`、`len`、`isinstance`、`json.loads`、`created.update`、`urllib3.HTTPResponse`、`json.dumps(data).encode`、`json.dumps`。 返回路径：L545的`urllib3.HTTPResponse( body=json.dumps(data).encode(), status=200, headers={"Content-Type":…`。
+- `test_registration_does_not_overwrite_other_native_credentials`（L561–L569）：接收`prepared`、`monkeypatch`。 调用`atomic_text`、`json.dumps`、`native.write_private_new`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`native.register_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_recipe_keeps_control_identity_pinned_tools_and_no_product_execution`（L572–L597）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L574遍历`( "ARG BASE_IMAGE", "FROM ${BASE_IMAGE}", "libseccomp2 procps", "…`；L594断言`text in recipe`；L595断言`recipe.rstrip().endswith("USER 0:0")`；L596断言`"warm.py" not in recipe and "vite build" not in recipe`；L597断言`"CAPABILITY_EXECUTION_ENABLED" not in recipe`。 调用`(native.ROOT / native.DOCKERFILE).read_text`、`recipe.rstrip().endswith`、`recipe.rstrip`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_key_cannot_inject_environment_or_shell_syntax`（L604–L606）：接收`key`。 调用`pytest.raises`、`native.environment_text`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_native_environment_must_remain_private`（L609–L618）：接收`prepared`。 控制顺序：L610按`os.name == "nt"`分支。 调用`pytest.skip`、`atomic_text`、`json.dumps`、`native.environment_text`、`path.chmod`、`pytest.raises`、`native.register_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_metadata_cannot_be_adopted_through_a_symlink`（L621–L628）：接收`prepared`、`tmp_path`。 调用`atomic_text`、`json.dumps`、`(directory / native.LOCK).unlink`、`(directory / native.LOCK).symlink_to`、`pytest.raises`、`native.require_native_profile`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_build_diagnostics_match_only_complete_reviewed_run_commands`（L633–L651）：接收`form`、`run`。 控制顺序：L637按`form == "header"`分支；L639按`form == "footer"`分支；L642按`form == "continued-process"`分支；L649断言`(facts["stage"], facts["run"]) == (stage, run)`；L650断言`"private" not in json.dumps(facts)`；L651断言`command not in json.dumps(facts)`。 调用`next`、`native.reviewed_run_commands().items`、`native.reviewed_run_commands`、`command.replace`、`json.dumps`、`native.build_failure_facts`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_build_diagnostics_emit_only_fixed_known_error_categories`（L670–L680）：接收`signature`、`category`。 控制顺序：L678断言`category in value["categories"]`；L679断言`signature not in json.dumps(value)`；L680断言`"private" not in json.dumps(value)`。 调用`next`、`native.reviewed_run_commands().items`、`native.reviewed_run_commands`、`native.build_failure_facts`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_build_diagnostics_do_not_adopt_unreviewed_commands_or_ambient_text`（L683–L694）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L685遍历`( f"#12 [native-system 1/2] RUN {command}\n#12 ERROR: private-sec…`；L690断言`native.build_failure_facts(log) == { "stage": "unknown", "run": "unknown", "categorie…`。 调用`next`、`iter`、`native.reviewed_run_commands`、`json.dumps`、`native.build_failure_facts`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_diagnostic_run_mapping_requires_exact_reviewed_recipe`（L698–L717）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L701按`mutation == "same-count-edit"`分支；L703按`mutation == "reordered"`分支；L708按`mutation == "oversized"`分支；L710按`mutation != "missing"`分支；L714断言`native.reviewed_run_commands() == {}`；L717断言`result == {"stage": "unknown", "run": "unknown", "categories": ["unknown"]}`。 调用`(native.ROOT / native.DOCKERFILE).read_text`、`list`、`native.reviewed_run_commands`、`recipe.replace`、`recipe.index`、`(tmp_path / "Dockerfile").write_text`、`monkeypatch.setattr`、`native.build_failure_facts`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_failure_diagnostics_are_bounded_and_never_serialize_hostile_payloads`（L721–L744）：接收`code`。 控制顺序：L730断言`len(encoded) <= native.DIAGNOSTIC_REPORT_BYTES`；L731断言`report["build"]["scanned_bytes"] <= native.DIAGNOSTIC_SCAN_BYTES`；L732断言`report["build"]["truncated"] is True`；L733断言`report["error"]["returncode"] == ( code if type(code) is int and abs(code) < 2**31 el…`；L736断言`report["error"]["timed_out"] is False`；L737遍历`("private-secret", "password", "private.invalid", "token", "界")`；L738断言`fragment.encode() not in encoded`；L739断言`native.failure_diagnostic({"action": secret, "stage": secret}, RuntimeError(secret))[…`。 调用`subprocess.CalledProcessError`、`native.failure_diagnostic`、`json.dumps(report).encode`、`json.dumps`、`len`、`type`、`abs`、`fragment.encode`、`RuntimeError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_prepare_build_failure_preserves_failure_and_never_writes_readiness`（L747–L770）：接收`prepared`、`product`、`monkeypatch`。 控制顺序：L762断言`caught.value is error`；L764断言`value["stage"] == "prepare-docker-build"`；L765断言`value["error"]["returncode"] == 23`；L766断言`not (directory / native.LOCK).exists()`；L767断言`not (directory / native.ENVIRONMENT).exists()`；L768断言`not list(directory.glob("native-capability-build-*"))`；L769按`os.name != "nt"`分支；L770断言`report.stat().st_mode & 0o777 == 0o600`。 调用`(directory / native.LOCK).unlink`、`subprocess.CalledProcessError`、`monkeypatch.setattr`、`pytest.raises`、`native.prepare`、`json.loads`、`report.read_text`、`(directory / native.LOCK).exists`、`(directory / native.ENVIRONMENT).exists`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_prepare_build_failure_preserves_failure_and_never_writes_readiness.fail`（L755–L757）：接收`*args`、`**kwargs`。 控制顺序：L756断言`args[0] == "build" and kwargs == {"timeout": 3600}`；L757抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_stale_ready_profile_and_existing_report_cannot_be_overwritten`（L773–L781）：接收`prepared`、`product`、`monkeypatch`。 控制顺序：L781断言`(directory / native.LOCK).read_bytes() == before`。 调用`(directory / native.LOCK).read_bytes`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`native.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_register_parent_preserves_exact_worker_report_and_failure`（L784–L812）：接收`prepared`、`monkeypatch`。 控制顺序：L807断言`caught.value is error`；L808断言`json.loads(report.read_text()) == expected`；L809断言`expected["stage"] == "register-worker-snapshot-create"`；L810断言`expected["error"]["timed_out"] is True`；L811断言`"private" not in report.read_text()`；L812断言`not (directory / native.ENVIRONMENT).exists()`。 调用`native.ToolFailure`、`monkeypatch.setattr`、`pytest.raises`、`native.register`、`json.loads`、`report.read_text`、`(directory / native.ENVIRONMENT).exists`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_register_parent_preserves_exact_worker_report_and_failure.worker`（L792–L802）：接收`command`、`cwd`、`**kwargs`。 控制顺序：L793断言`command[-2:] == ["--diagnostics", str(report.absolute())]`；L794断言`kwargs["timeout"] == 720`；L798抛异常，停止当前正常路径；L802抛异常，停止当前正常路径。 调用`str`、`report.absolute`、`pytest.raises`、`native.diagnostic_scope`、`subprocess.TimeoutExpired`、`expected.update`、`json.loads`、`report.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_cli_remains_compatible_and_success_does_not_emit_diagnostics`（L817–L834）：接收`tmp_path`、`monkeypatch`、`capsys`、`action`、`diagnostics`。 控制顺序：L823按`action == "prepare"`分支；L825按`diagnostics`分支；L830断言`calls[0][1] == ({"diagnostics": report} if diagnostics else {})`；L831断言`not report.exists()`；L832断言`capsys.readouterr().out == ( "Native snapshot identity step completed; runtime/isolat…`。 调用`str`、`monkeypatch.setattr`、`action.replace`、`calls.append`、`native.main`、`report.exists`、`capsys.readouterr`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_workflow_collects_separate_bounded_prepare_and_register_diagnostics`（L837–L855）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L852断言`"--diagnostics reports/native-profile-prepare-diagnostic.json" in build["run"]`；L853断言`"--diagnostics reports/native-profile-register-diagnostic.json" in build["run"]`；L854断言`upload["if"] == "always()"`；L855断言`"reports/native-profile-*-diagnostic.json" in upload["with"]["path"]`。 调用`yaml.safe_load`、`(native.ROOT / ".github/workflows/native-capability-profile.yml")…`、`next`、`step.get`、`step.get("uses", "").startswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_native_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L782。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_native_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L855。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`31781`。本段原文以LF换行结束。
+本段原始字节数：`35068`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_native_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "7ceaa2a6998cdb894a48bd96c7ecd1c461ba2d53ee1cbd3e46f77029ca672de3"} -->
+<!-- learning-source: {"path": "tests/test_native_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "29ae86a9727032c6ef376182344e76ddf22675931133f90d4cba59887c90e339"} -->
 ````python
 # tests/test_native_capability_profile.py
 """Native preparation contracts use explicit fakes, never live Docker/runtime proof."""
@@ -550,6 +552,79 @@ def test_registration_has_bounded_subprocess_and_no_key_in_argv(prepared, monkey
     ]
     assert kwargs["timeout"] == 720
     assert KEY not in repr(calls)
+
+
+def test_registration_real_sdk_serializes_digest_without_tag_substitution(prepared, monkeypatch):
+    """Run register_worker through the actual SDK and JSON transport; only HTTP is fake."""
+    import urllib3
+
+    directory, record, _ = prepared
+    atomic_text(directory / "api-key.json", json.dumps({"value": KEY}))
+    snapshot = record["snapshot"]
+    calls = []
+    created = {}
+
+    # The production registration subprocess uses clean_env; match that boundary.
+    for name in tuple(os.environ):
+        if name.lower().endswith("_proxy"):
+            monkeypatch.delenv(name)
+
+    def request(_pool, method, url, **kwargs):
+        assert url.startswith("http://127.0.0.1:3000/api/snapshots")
+        calls.append((method, url))
+        if method == "GET":
+            if len(calls) == 1:
+                data = {"items": [], "total": 0, "page": 1, "totalPages": 0}
+            else:
+                assert len(calls) == 3
+                assert url == "http://127.0.0.1:3000/api/snapshots/" + created["id"]
+                data = created | {"state": "active"}
+        else:
+            assert method == "POST" and url == "http://127.0.0.1:3000/api/snapshots"
+            # This is the JSON string after SDK model and REST serialization.
+            assert isinstance(kwargs["body"], str)
+            data = json.loads(kwargs["body"])
+            assert data["imageName"] == snapshot["digest"]
+            assert "@sha256:" in data["imageName"]
+            assert ":sha256:" not in data["imageName"]
+            assert data["name"] == snapshot["snapshot"]
+            assert data["regionId"] == "local"
+            assert {name: data[name] for name in native.RESOURCES} == native.RESOURCES
+            assert "buildInfo" not in data
+            data = {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "general": False,
+                "name": data["name"],
+                "imageName": data["imageName"],
+                "state": "pending",
+                # Upstream's internal propagation ref is separate from imageName.
+                "ref": "registry:6000/daytona/daytona-" + "d" * 64 + ":daytona",
+                "size": 1,
+                "entrypoint": [],
+                "cpu": data["cpu"],
+                "mem": data["memory"],
+                "disk": data["disk"],
+                "gpu": 0,
+                "errorReason": None,
+                "createdAt": "2026-01-01T00:00:00Z",
+                "updatedAt": "2026-01-01T00:00:00Z",
+                "lastUsedAt": None,
+            }
+            created.update(data)
+        return urllib3.HTTPResponse(
+            body=json.dumps(data).encode(),
+            status=200,
+            headers={"Content-Type": "application/json"},
+        )
+
+    monkeypatch.setattr(urllib3.PoolManager, "request", request)
+    # Installing a process-wide socket guard here would affect unrelated tests.
+    # The production path keeps it; only this in-process transport fixture omits it.
+    monkeypatch.setattr(native, "install_loopback_guard", lambda: None)
+    native.register_worker(directory)
+    assert [method for method, _ in calls] == ["GET", "POST", "GET"]
+    assert created["imageName"] == snapshot["digest"]
+    assert snapshot["snapshot"] in (directory / native.ENVIRONMENT).read_text()
 
 
 def test_registration_does_not_overwrite_other_native_credentials(prepared, monkeypatch):

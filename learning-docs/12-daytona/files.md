@@ -18,6 +18,7 @@
 - [scripts/daytona_matrix_image.py](sources/scripts__daytona_matrix_image_py--001.md)：为每个技术栈制作离线依赖快照；1 段
 - [scripts/daytona_matrix_probe.py](sources/scripts__daytona_matrix_probe_py--001.md)：沙箱内独立数据库和产品验收；1 段
 - [scripts/daytona_native_capability_profile.py](sources/scripts__daytona_native_capability_profile_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [tests/test_daytona_api_digest.py](sources/tests__test_daytona_api_digest_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_bootstrap_contract.py](sources/tests__test_daytona_bootstrap_contract_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_build.py](sources/tests__test_daytona_build_py--001.md)：可重复的验收用例；1 段
 - [tests/test_daytona_capability_profile.py](sources/tests__test_daytona_capability_profile_py--001.md)：可重复的验收用例；1 段
@@ -31,6 +32,7 @@
 - [tests/test_daytona_startup_diagnostics.py](sources/tests__test_daytona_startup_diagnostics_py--001.md)：可重复的验收用例；1 段
 - [tests/test_local_only.py](sources/tests__test_local_only_py--001.md)：可重复的验收用例；1 段
 - [tools/daytona/Dockerfile](sources/tools__daytona__Dockerfile--001.md)：本机Daytona的预热镜像；1 段
+- [tools/daytona/api-digest-reference.patch](sources/tools__daytona__api-digest-reference_patch--001.md)：本机Daytona的预热镜像；1 段
 - [tools/daytona/capability-native-snapshot.Dockerfile](sources/tools__daytona__capability-native-snapshot_Dockerfile--001.md)：本机Daytona的预热镜像；1 段
 - [tools/daytona/capability-runner.Dockerfile](sources/tools__daytona__capability-runner_Dockerfile--001.md)：本机Daytona的预热镜像；1 段
 - [tools/daytona/capability-runner.patch](sources/tools__daytona__capability-runner_patch--001.md)：本机Daytona的预热镜像；1 段

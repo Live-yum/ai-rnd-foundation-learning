@@ -12,9 +12,9 @@
 
 **创建路径：** `.github/workflows/native-capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L191。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9946`。本段原文以LF换行结束。
+本段原始字节数：`9979`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/native-capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fb1cdb9a4be1ad516d3ae0f9e57994dcccf4d14a5839a1147c7bf7d9c0cb3f29"} -->
+<!-- learning-source: {"path": ".github/workflows/native-capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "525285d1ff16c300cf078495977a819ca3580b926c89108da75c9bf9ee81e17a"} -->
 ````yaml
 # .github/workflows/native-capability-profile.yml
 name: Authored native PostgreSQL isolation profile
@@ -107,7 +107,7 @@ jobs:
           RND_REQUIRE_NODE_TESTS: '1'
           RND_REQUIRE_LANDLOCK: '1'
           RND_REQUIRE_SECCOMP_BPF: '1'
-        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_daytona_dependency_build.py tests/test_daytona_dependency_image.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
+        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_daytona_api_digest.py tests/test_daytona_dependency_build.py tests/test_daytona_dependency_image.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
       - name: Install mandatory product browser acceptance tooling
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1

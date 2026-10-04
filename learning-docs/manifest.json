@@ -2340,6 +2340,33 @@
       ]
     },
     {
+      "path": "tests/fixtures/daytona/LICENSE",
+      "bytes": 34490,
+      "sha256": "4b79a5dfd597a889deaa51d5aa48de4e80a5e7a1796a113632f85ac21c80b155",
+      "stage": "10-business",
+      "parts": [
+        "10-business/sources/tests__fixtures__daytona__LICENSE--001.md"
+      ]
+    },
+    {
+      "path": "tests/fixtures/daytona/README.md",
+      "bytes": 849,
+      "sha256": "b4a3848ad2ab13d01a4e1a3c5585690fe4735337097b6f4211ccac71216b2026",
+      "stage": "10-business",
+      "parts": [
+        "10-business/sources/tests__fixtures__daytona__README_md--001.md"
+      ]
+    },
+    {
+      "path": "tests/fixtures/daytona/docker-image.util.ts",
+      "bytes": 5371,
+      "sha256": "5c70d35d81782422a0a748d6dd55e3d9a90d9af0c005832731137f7e36060ad8",
+      "stage": "10-business",
+      "parts": [
+        "10-business/sources/tests__fixtures__daytona__docker-image_util_ts--001.md"
+      ]
+    },
+    {
       "path": "tests/fixtures/yudao-native-date/WbRequestsDO.java",
       "bytes": 1404,
       "sha256": "135b456126ac65b24c9a914cbf84323f42afc0797ea0671c8182b5e17ac81a5e",
@@ -3045,8 +3072,8 @@
     },
     {
       "path": "scripts/daytona_build.py",
-      "bytes": 10200,
-      "sha256": "fd5280c2312b9f38e00e92400d1e51fd43158ce4b1ee317e2765733acc2bf7a8",
+      "bytes": 14784,
+      "sha256": "b200039a1ba2e28c2b09da4434d614f9cdeb26a98e488ca8ea5adc317d2821a2",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_build_py--001.md"
@@ -3054,8 +3081,8 @@
     },
     {
       "path": "scripts/daytona_capability_profile.py",
-      "bytes": 40893,
-      "sha256": "e6282e608d2191743294418bf4f058c9468e6ad00cfd6a7007c4353ec00795b6",
+      "bytes": 40968,
+      "sha256": "c75a7a557f16754e7c2bf5dc5f8ba712c059336dcbbfbddac63e9d9aeda47479",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_capability_profile_py--001.md",
@@ -3109,8 +3136,8 @@
     },
     {
       "path": "scripts/daytona_local.py",
-      "bytes": 21665,
-      "sha256": "637be560a398469d0913d58f9c4c08c060d3d38d247cc275e2627706c373483c",
+      "bytes": 21734,
+      "sha256": "9693d78bbf7b86326cd8889bea435f238d2bf4757a699db5b4b693e4cd55f683",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_local_py--001.md"
@@ -3144,6 +3171,15 @@
       ]
     },
     {
+      "path": "tests/test_daytona_api_digest.py",
+      "bytes": 14207,
+      "sha256": "093ba211d6a6ea6c6d426d246665e9aed84da1d0d23ad4a9f9330f10f27ba4e9",
+      "stage": "12-daytona",
+      "parts": [
+        "12-daytona/sources/tests__test_daytona_api_digest_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_daytona_bootstrap_contract.py",
       "bytes": 6777,
       "sha256": "a7c0e339427e3e798247b0fea79cc41de35b601c3a8d0f93790d19a7690bae31",
@@ -3154,8 +3190,8 @@
     },
     {
       "path": "tests/test_daytona_build.py",
-      "bytes": 12274,
-      "sha256": "6ac2838f7f06cd48c78e60b3d80a9284cf565ba2f456e2d905500d9b4e80f942",
+      "bytes": 13015,
+      "sha256": "7672c7b884c8a902ff6fa57baabf74bd6b7c731c7432d48b83dbe16635582969",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tests__test_daytona_build_py--001.md"
@@ -3163,8 +3199,8 @@
     },
     {
       "path": "tests/test_daytona_capability_profile.py",
-      "bytes": 29159,
-      "sha256": "c0d9a5077d9af506f75e40d9484201aeb1f90303cc3d30f7f357808ae39f132d",
+      "bytes": 29961,
+      "sha256": "dfce02ff61166cde0b0f91715f258d128675b9aeb3a700924e5747006f909384",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tests__test_daytona_capability_profile_py--001.md"
@@ -3258,6 +3294,15 @@
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tools__daytona__Dockerfile--001.md"
+      ]
+    },
+    {
+      "path": "tools/daytona/api-digest-reference.patch",
+      "bytes": 373,
+      "sha256": "d547f0e6dc75aea73b1fd907fd7cebe928d11782f18230ffec212c4cbc31a437",
+      "stage": "12-daytona",
+      "parts": [
+        "12-daytona/sources/tools__daytona__api-digest-reference_patch--001.md"
       ]
     },
     {
@@ -3478,8 +3523,8 @@
     },
     {
       "path": "tests/test_native_capability_profile.py",
-      "bytes": 31781,
-      "sha256": "7ceaa2a6998cdb894a48bd96c7ecd1c461ba2d53ee1cbd3e46f77029ca672de3",
+      "bytes": 35068,
+      "sha256": "29ae86a9727032c6ef376182344e76ddf22675931133f90d4cba59887c90e339",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_native_capability_profile_py--001.md"
@@ -3730,8 +3775,8 @@
     },
     {
       "path": ".github/workflows/capability-profile.yml",
-      "bytes": 7520,
-      "sha256": "e4c3726adf4f74df2ca50539eb7acf1775cef145cf8da468b445f24bdd32432e",
+      "bytes": 7553,
+      "sha256": "124ef1108586a18687c8cb7a6f5589507b1e2b8026ff462a60937c7122d945eb",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__capability-profile_yml--001.md"
@@ -3766,8 +3811,8 @@
     },
     {
       "path": ".github/workflows/native-capability-profile.yml",
-      "bytes": 9946,
-      "sha256": "fb1cdb9a4be1ad516d3ae0f9e57994dcccf4d14a5839a1147c7bf7d9c0cb3f29",
+      "bytes": 9979,
+      "sha256": "525285d1ff16c300cf078495977a819ca3580b926c89108da75c9bf9ee81e17a",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__native-capability-profile_yml--001.md"
@@ -3883,8 +3928,8 @@
     },
     {
       "path": "docs/custom-source-isolation.md",
-      "bytes": 14051,
-      "sha256": "fe2d0a0b5c424b0afa5cc93ece984ff758aed3bba37ec87e06db8ee4815a6419",
+      "bytes": 16268,
+      "sha256": "e9770d23110af3f45139a4d4b0a307afb1429ff92fc181ac624f813839497c8f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__custom-source-isolation_md--001.md"
@@ -4054,8 +4099,8 @@
     },
     {
       "path": "docs/toolchain.md",
-      "bytes": 34719,
-      "sha256": "cbeeb28245c6f94bee84f59ce5b80e456be0a8f1cdf5a3172ed927584f6abf6a",
+      "bytes": 35078,
+      "sha256": "316a4fdc38e87a0a9913e7f53eb06c16c2b3480c9a291965b2618fa94c3d6603",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__toolchain_md--001.md"
@@ -4344,8 +4389,8 @@
     },
     {
       "path": "scripts/handbook_notes.py",
-      "bytes": 88441,
-      "sha256": "eacb7ed6df672d7349a3905137e5c150ddd71e8eafaa2efa8bd39f91ec29eeb7",
+      "bytes": 88619,
+      "sha256": "1727d1ea743c42d8375e139d952fb4a526ad7319a9fc8a71eaa01ad7fcde905a",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__handbook_notes_py--001.md",

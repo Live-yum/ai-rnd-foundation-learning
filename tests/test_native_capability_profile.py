@@ -485,6 +485,79 @@ def test_registration_has_bounded_subprocess_and_no_key_in_argv(prepared, monkey
     assert KEY not in repr(calls)
 
 
+def test_registration_real_sdk_serializes_digest_without_tag_substitution(prepared, monkeypatch):
+    """Run register_worker through the actual SDK and JSON transport; only HTTP is fake."""
+    import urllib3
+
+    directory, record, _ = prepared
+    atomic_text(directory / "api-key.json", json.dumps({"value": KEY}))
+    snapshot = record["snapshot"]
+    calls = []
+    created = {}
+
+    # The production registration subprocess uses clean_env; match that boundary.
+    for name in tuple(os.environ):
+        if name.lower().endswith("_proxy"):
+            monkeypatch.delenv(name)
+
+    def request(_pool, method, url, **kwargs):
+        assert url.startswith("http://127.0.0.1:3000/api/snapshots")
+        calls.append((method, url))
+        if method == "GET":
+            if len(calls) == 1:
+                data = {"items": [], "total": 0, "page": 1, "totalPages": 0}
+            else:
+                assert len(calls) == 3
+                assert url == "http://127.0.0.1:3000/api/snapshots/" + created["id"]
+                data = created | {"state": "active"}
+        else:
+            assert method == "POST" and url == "http://127.0.0.1:3000/api/snapshots"
+            # This is the JSON string after SDK model and REST serialization.
+            assert isinstance(kwargs["body"], str)
+            data = json.loads(kwargs["body"])
+            assert data["imageName"] == snapshot["digest"]
+            assert "@sha256:" in data["imageName"]
+            assert ":sha256:" not in data["imageName"]
+            assert data["name"] == snapshot["snapshot"]
+            assert data["regionId"] == "local"
+            assert {name: data[name] for name in native.RESOURCES} == native.RESOURCES
+            assert "buildInfo" not in data
+            data = {
+                "id": "00000000-0000-4000-8000-000000000001",
+                "general": False,
+                "name": data["name"],
+                "imageName": data["imageName"],
+                "state": "pending",
+                # Upstream's internal propagation ref is separate from imageName.
+                "ref": "registry:6000/daytona/daytona-" + "d" * 64 + ":daytona",
+                "size": 1,
+                "entrypoint": [],
+                "cpu": data["cpu"],
+                "mem": data["memory"],
+                "disk": data["disk"],
+                "gpu": 0,
+                "errorReason": None,
+                "createdAt": "2026-01-01T00:00:00Z",
+                "updatedAt": "2026-01-01T00:00:00Z",
+                "lastUsedAt": None,
+            }
+            created.update(data)
+        return urllib3.HTTPResponse(
+            body=json.dumps(data).encode(),
+            status=200,
+            headers={"Content-Type": "application/json"},
+        )
+
+    monkeypatch.setattr(urllib3.PoolManager, "request", request)
+    # Installing a process-wide socket guard here would affect unrelated tests.
+    # The production path keeps it; only this in-process transport fixture omits it.
+    monkeypatch.setattr(native, "install_loopback_guard", lambda: None)
+    native.register_worker(directory)
+    assert [method for method, _ in calls] == ["GET", "POST", "GET"]
+    assert created["imageName"] == snapshot["digest"]
+    assert snapshot["snapshot"] in (directory / native.ENVIRONMENT).read_text()
+
+
 def test_registration_does_not_overwrite_other_native_credentials(prepared, monkeypatch):
     directory, _, _ = prepared
     atomic_text(directory / "api-key.json", json.dumps({"value": KEY}))

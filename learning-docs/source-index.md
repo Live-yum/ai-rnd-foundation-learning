@@ -283,6 +283,9 @@
 - [tests/fixtures/customer_design_diagnostics/python-basic.json](10-business/sources/tests__fixtures__customer_design_diagnostics__python-basic_json--001.md)（1 段）
 - [tests/fixtures/customer_design_diagnostics/yudao-vben.json](10-business/sources/tests__fixtures__customer_design_diagnostics__yudao-vben_json--001.md)（1 段）
 - [tests/fixtures/customer_evidence_receipt_unit_only.json](10-business/sources/tests__fixtures__customer_evidence_receipt_unit_only_json--001.md)（1 段）
+- [tests/fixtures/daytona/LICENSE](10-business/sources/tests__fixtures__daytona__LICENSE--001.md)（1 段）
+- [tests/fixtures/daytona/README.md](10-business/sources/tests__fixtures__daytona__README_md--001.md)（1 段）
+- [tests/fixtures/daytona/docker-image.util.ts](10-business/sources/tests__fixtures__daytona__docker-image_util_ts--001.md)（1 段）
 - [tests/fixtures/yudao-native-date/WbRequestsDO.java](10-business/sources/tests__fixtures__yudao-native-date__WbRequestsDO_java--001.md)（1 段）
 - [tests/fixtures/yudao-native-date/WbRequestsPageReqVO.java](10-business/sources/tests__fixtures__yudao-native-date__WbRequestsPageReqVO_java--001.md)（1 段）
 - [tests/fixtures/yudao-native-date/WbRequestsRespVO.java](10-business/sources/tests__fixtures__yudao-native-date__WbRequestsRespVO_java--001.md)（1 段）
@@ -376,6 +379,7 @@
 - [scripts/daytona_matrix_image.py](12-daytona/sources/scripts__daytona_matrix_image_py--001.md)（1 段）
 - [scripts/daytona_matrix_probe.py](12-daytona/sources/scripts__daytona_matrix_probe_py--001.md)（1 段）
 - [scripts/daytona_native_capability_profile.py](12-daytona/sources/scripts__daytona_native_capability_profile_py--001.md)（1 段）
+- [tests/test_daytona_api_digest.py](12-daytona/sources/tests__test_daytona_api_digest_py--001.md)（1 段）
 - [tests/test_daytona_bootstrap_contract.py](12-daytona/sources/tests__test_daytona_bootstrap_contract_py--001.md)（1 段）
 - [tests/test_daytona_build.py](12-daytona/sources/tests__test_daytona_build_py--001.md)（1 段）
 - [tests/test_daytona_capability_profile.py](12-daytona/sources/tests__test_daytona_capability_profile_py--001.md)（1 段）
@@ -389,6 +393,7 @@
 - [tests/test_daytona_startup_diagnostics.py](12-daytona/sources/tests__test_daytona_startup_diagnostics_py--001.md)（1 段）
 - [tests/test_local_only.py](12-daytona/sources/tests__test_local_only_py--001.md)（1 段）
 - [tools/daytona/Dockerfile](12-daytona/sources/tools__daytona__Dockerfile--001.md)（1 段）
+- [tools/daytona/api-digest-reference.patch](12-daytona/sources/tools__daytona__api-digest-reference_patch--001.md)（1 段）
 - [tools/daytona/capability-native-snapshot.Dockerfile](12-daytona/sources/tools__daytona__capability-native-snapshot_Dockerfile--001.md)（1 段）
 - [tools/daytona/capability-runner.Dockerfile](12-daytona/sources/tools__daytona__capability-runner_Dockerfile--001.md)（1 段）
 - [tools/daytona/capability-runner.patch](12-daytona/sources/tools__daytona__capability-runner_patch--001.md)（1 段）

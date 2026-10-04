@@ -23,6 +23,33 @@ Yudao 的候选保留原生栈，等待对应 profile；不能借用 SQLite 成�
 代码里有入口、单元测试通过都不等于获得执行资格。真实 CI 尚未通过时仍然默认关闭。
 这里没有声称已经完成全部竞赛业务或真实模型代码生成验收。
 
+### 固定上游的摘要引用修复
+
+Daytona v0.190.0 的固定源码 `01c502bb1f1ff8f2885d0cd490e043736083dca8`
+存在一处 API 引用重组错误：SDK 的 `imageName` 和 API 快照记录保留
+`registry:6000/repository@sha256:…`，但 SnapshotManager 调用的
+`DockerImage.getFullName()` 把摘要前的 `@` 重组成 `:`，使 Runner 的
+`INSPECT_SNAPSHOT_IN_REGISTRY` 收到非法 `repository:sha256:…`。
+上游位置是 [docker-image.util.ts](https://github.com/daytonaio/daytona/blob/01c502bb1f1ff8f2885d0cd490e043736083dca8/apps/api/src/common/utils/docker-image.util.ts)。
+
+`scripts.daytona_build` 只在干净导出的 API 构建上下文应用
+`tools/daytona/api-digest-reference.patch`：SHA-256 摘要使用 `@`，普通标签仍使用
+`:`。先核对固定版本、源码 Git blob `b0b03b28ce08b2865db9d2dc291c1745cb6492cf`
+和完整补丁字节，任何漂移直接停止；不修改上游工作树、SDK 参数、Runner 或网络设置。
+API 镜像标签及 `images.lock.json` 的 `source_patch` 记录补丁与修改后文件的 SHA-256，
+实际镜像 ID 继续固定在 Compose 中。本机 Compose 启动与 capability 基础配置准入前，
+共享检查器要求锁内含完整、精确的当前补丁来源，并按不可变 API 镜像 ID 检查实际 ID
+和版本、源码、补丁标签；旧锁、缺字段、篡改值或标签漂移均拒绝。需要按原安装流程
+重新构建 API，不能靠重新登记同一个已失败快照假装完成恢复。
+该来源检查也适用于 Compose 诊断和关闭子命令；本补丁不会自动迁移或关闭旧安装。
+应在升级前完成原有清理，验收使用新的空目录。
+
+`tests/test_daytona_api_digest.py` 直接执行固定上游 TypeScript 文件，覆盖摘要往返、
+带端口仓库、多层命名空间、普通标签、无标签和原有非法摘要拒绝行为；原生登记测试
+经真实固定 SDK 的 HTTP JSON 序列化检查 `imageName` 字节。注册仍只接受原先绑定的
+不可变摘要、镜像 ID、依赖清单、active 状态和精确资源预算，不提供可变标签回退。
+这些回归不等于真实注册或运行时隔离通过；仍须完整 profile CI 的实际证据。
+
 ## 每个候选都重新验证
 
 普通固定应用 CI 保留原来的容器重启测试。`rnd-source-*` 专用候选容器由固定 Runner

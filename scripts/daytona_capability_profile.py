@@ -24,7 +24,7 @@ import yaml
 
 from scripts import daytona_dependency_build as dependencies
 from scripts import daytona_local as local
-from scripts.daytona_build import BUILT, export_source
+from scripts.daytona_build import BUILT, export_source, require_api_image
 from workbench.capability_isolation import ContainerInspectionRejected
 from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
 from workbench.settings import ROOT
@@ -149,6 +149,7 @@ def read_base(directory):
         expected = record.get("image_id") if name in BUILT else record.get("digest")
         if service["image"] != expected or record["tag"] != local.IMAGES[name]:
             raise ValueError("Original local image lock does not match Compose: " + name)
+    require_api_image(records.get("api"), local.docker)
     return config
 
 

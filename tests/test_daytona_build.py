@@ -100,6 +100,21 @@ def test_images_build_locally_and_lock_service_ids(tmp_path, monkeypatch):
     def docker(*args, **kwargs):
         calls.append(args)
         if args[:2] == ("image", "inspect"):
+            if args[2] == "sha256:" + "a" * 64:
+                return json.dumps(
+                    [
+                        {
+                            "Id": args[2],
+                            "Config": {
+                                "Labels": {
+                                    "org.opencontainers.image.revision": build.DAYTONA_SOURCE,
+                                    "org.opencontainers.image.version": build.DAYTONA_VERSION,
+                                    **build.api_patch_labels(),
+                                }
+                            },
+                        }
+                    ]
+                )
             prefix = args[2].rsplit(":", 1)[0]
             return json.dumps([{"RepoDigests": [prefix + "@sha256:" + "b" * 64]}])
         return ""
@@ -109,6 +124,7 @@ def test_images_build_locally_and_lock_service_ids(tmp_path, monkeypatch):
         name: {"tag": build.local_tag(name), "image_id": "sha256:" + "a" * 64}
         for name in build.BUILT
     }
+    built["api"].update(source_sha=build.DAYTONA_SOURCE, source_patch=build.api_patch_identity())
     monkeypatch.setattr(local, "build_images", lambda *args: built.copy())
     local.images(tmp_path)
     assert all(not args[1].startswith("rnd-local/") for args in calls if args[0] == "pull")

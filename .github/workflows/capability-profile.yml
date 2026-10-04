@@ -60,7 +60,7 @@ jobs:
           RND_REQUIRE_NODE_TESTS: '1'
           RND_REQUIRE_LANDLOCK: '1'
           RND_REQUIRE_SECCOMP_BPF: '1'
-        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_daytona_dependency_build.py tests/test_daytona_dependency_image.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
+        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_daytona_api_digest.py tests/test_daytona_dependency_build.py tests/test_daytona_dependency_image.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
       - name: Install mandatory product browser acceptance tooling
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1

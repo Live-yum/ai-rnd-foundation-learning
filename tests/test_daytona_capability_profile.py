@@ -8,6 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from scripts import daytona_build as build
 from scripts import daytona_capability_profile as profile
 from scripts import daytona_local as local
 from scripts.daytona_bootstrap import snapshot_resources
@@ -635,7 +636,7 @@ def test_recipe_keeps_real_embeds_glibc_smoke_license_and_locked_go_inputs():
 
 
 @pytest.fixture
-def locked_profile(tmp_path):
+def locked_profile(tmp_path, monkeypatch):
     base = base_config()
     records = {}
     for name, service in base["services"].items():
@@ -646,6 +647,28 @@ def locked_profile(tmp_path):
             "image_id" if name in profile.BUILT else "digest": value,
         }
         service["image"] = value
+    records["api"].update(source_sha=build.DAYTONA_SOURCE, source_patch=build.api_patch_identity())
+
+    def inspect_api(*args, **kwargs):
+        assert args == ("image", "inspect", records["api"]["image_id"]), (
+            "No Docker mutation allowed"
+        )
+        return json.dumps(
+            [
+                {
+                    "Id": records["api"]["image_id"],
+                    "Config": {
+                        "Labels": {
+                            "org.opencontainers.image.revision": build.DAYTONA_SOURCE,
+                            "org.opencontainers.image.version": build.DAYTONA_VERSION,
+                            **build.api_patch_labels(),
+                        }
+                    },
+                }
+            ]
+        )
+
+    monkeypatch.setattr(local, "docker", inspect_api)
     profile.write_compose(tmp_path / "compose.lock.yaml", base)
     local.private_json(tmp_path / "images.lock.json", records)
     local.private_json(
@@ -752,13 +775,9 @@ def test_required_profile_verifies_image_id_and_registry_digest(locked_profile, 
         profile.require_profile(directory)
 
 
-def test_prepare_never_overwrites_existing_profile_or_credentials(locked_profile, monkeypatch):
+def test_prepare_never_overwrites_existing_profile_or_credentials(locked_profile):
     directory, _ = locked_profile
-    monkeypatch.setattr(
-        local,
-        "docker",
-        lambda *args, **kwargs: pytest.fail("No Docker mutation allowed"),
-    )
+    # locked_profile permits only the exact read-only API image inspection.
     with pytest.raises(ValueError, match="fresh local state"):
         profile.prepare(directory)
 

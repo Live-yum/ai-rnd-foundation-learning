@@ -42,6 +42,9 @@
 - [tests/fixtures/customer_design_diagnostics/python-basic.json](sources/tests__fixtures__customer_design_diagnostics__python-basic_json--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/customer_design_diagnostics/yudao-vben.json](sources/tests__fixtures__customer_design_diagnostics__yudao-vben_json--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/customer_evidence_receipt_unit_only.json](sources/tests__fixtures__customer_evidence_receipt_unit_only_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/daytona/LICENSE](sources/tests__fixtures__daytona__LICENSE--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/daytona/README.md](sources/tests__fixtures__daytona__README_md--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/daytona/docker-image.util.ts](sources/tests__fixtures__daytona__docker-image_util_ts--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/yudao-native-date/WbRequestsDO.java](sources/tests__fixtures__yudao-native-date__WbRequestsDO_java--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/yudao-native-date/WbRequestsPageReqVO.java](sources/tests__fixtures__yudao-native-date__WbRequestsPageReqVO_java--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/yudao-native-date/WbRequestsRespVO.java](sources/tests__fixtures__yudao-native-date__WbRequestsRespVO_java--001.md)：可重复的验收用例；1 段

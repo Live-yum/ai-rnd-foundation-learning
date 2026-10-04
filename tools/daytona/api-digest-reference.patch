@@ -1,0 +1,12 @@
+--- a/apps/api/src/common/utils/docker-image.util.ts
++++ b/apps/api/src/common/utils/docker-image.util.ts
+@@ -43,7 +43,8 @@
+       name = `${this.registry}/${name}`
+     }
+     if (this.tag) {
+-      name = `${name}:${this.tag}`
++      const separator = this.tag.startsWith('sha256:') ? '@' : ':'
++      name = `${name}${separator}${this.tag}`
+     }
+     return name
+   }

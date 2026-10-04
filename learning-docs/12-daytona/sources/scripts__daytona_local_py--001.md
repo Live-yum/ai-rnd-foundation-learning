@@ -24,20 +24,20 @@
 - `assert_local_compose`（L194–L254）：接收`config`。 控制顺序：L196按`control_plane.get("internal") is not True`分支；L197抛异常，停止当前正常路径；L200按`not isinstance(ranges, list) or len(ranges) != 1 or not isinstance(ranges[0], dict) o…`分支；L206抛异常，停止当前正常路径；L210抛异常，停止当前正常路径；L211按`subnet.version != 4 or not subnet.is_private or subnet.overlaps(ipaddress.ip_network(…`分支；L216抛异常，停止当前正常路径；L217按`config.get("networks") != NETWORKS`分支。后续分支沿下方源码相同行号继续阅读。 调用`config.get("networks", {}).get`、`config.get`、`control_plane.get`、`ValueError`、`isinstance`、`ipam.get`、`len`、`ranges[0].get`、`ipaddress.ip_network`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `prepare`（L257–L335）：接收`directory`。 控制顺序：L259按`directory.exists() and any(directory.iterdir())`分支；L260抛异常，停止当前正常路径；L262按`os.name != "nt"`分支；L279按`command(["git", "rev-parse", "HEAD"], cwd=source) != DAYTONA_SOURCE`分支；L280抛异常，停止当前正常路径；L320遍历`(("compose.yaml", config), ("dex.yaml", dex))`；L323按`os.name != "nt"`分支。 调用`Path(directory).resolve`、`Path`、`directory.exists`、`any`、`directory.iterdir`、`ValueError`、`directory.mkdir`、`directory.chmod`、`source.mkdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `images`（L338–L366）：接收`directory`。先在本机从固定源码或校验后的同版本发布文件构建Daytona，再锁定Image ID；其他基础依赖记录Registry摘要。启动对照两份锁且禁止自动拉取替代版本。 控制顺序：L343按`locked.exists()`分支；L344抛异常，停止当前正常路径；L347遍历`config["services"].items()`；L348按`name in BUILT`分支；L355按`not matching`分支；L356抛异常，停止当前正常路径；L360遍历`BUILT`；L363按`os.name != "nt"`分支。 调用`Path`、`yaml.safe_load`、`(directory / "compose.yaml").read_text`、`assert_local_compose`、`locked.exists`、`ValueError`、`config["services"].items`、`docker`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `compose`（L369–L379）：接收`directory`、`timeout`、`*args`。 控制顺序：L374遍历`config["services"].items()`；L377按`service["image"] != expected or record["tag"] != IMAGES[name]`分支；L378抛异常，停止当前正常路径。 调用`Path`、`yaml.safe_load`、`path.read_text`、`assert_local_compose`、`json.loads`、`(Path(directory) / "images.lock.json").read_text`、`config["services"].items`、`record.get`、`ValueError`等。 返回路径：L379的`docker("compose", "--project-name", PROJECT, "--file", str(path), *args, timeout=timeout)`。
-- `snapshot_stamp`（L382–L387）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`hashlib.sha256( (ROOT / "tools/daytona/Dockerfile").read_bytes() …`、`hashlib.sha256`、`(ROOT / "tools/daytona/Dockerfile").read_bytes`、`(ROOT / "templates/product/uv.lock").read_bytes`、`(ROOT / "templates/product/pyproject.toml").read_bytes`。 返回路径：L383的`hashlib.sha256( (ROOT / "tools/daytona/Dockerfile").read_bytes() + (ROOT / "templates/prod…`。
-- `wait_for_registry`（L390–L407）：不接收显式业务参数，从已配置对象/模块读取依赖。检测宿主机127.0.0.1上的真实Registry响应，而不是只检查容器存在；限时重试失败即停止，不上传到云端仓库。 源码说明：Check real host-loopback reachability, not merely a running container state.。 控制顺序：L395遍历`range(30)`；L399按`response.json() != {}`分支；L400抛异常，停止当前正常路径；L403按`attempt == 29`分支；L404抛异常，停止当前正常路径。 调用`httpx.Client`、`range`、`client.get`、`response.raise_for_status`、`response.json`、`ValueError`、`RuntimeError`、`time.sleep`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `snapshot_image`（L410–L440）：接收`directory`。构建上下文只有Dockerfile与产品依赖文件，不含模型Key、平台源码或用户数据库。镜像进入本机Registry供本机Runner读取。 控制顺序：L415遍历`("pyproject.toml", "uv.lock")`；L424按`stamp != snapshot_stamp()`分支；L425抛异常，停止当前正常路径。 调用`Path`、`context.mkdir`、`shutil.copyfile`、`hashlib.sha256( b"".join( (context / name).read_bytes() for name …`、`hashlib.sha256`、`b"".join`、`(context / name).read_bytes`、`snapshot_stamp`、`ValueError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `up`（L443–L482）：接收`directory`。 源码说明：A started container is not a ready API; reject early exits before authentication.。 控制顺序：L455遍历`range(90)`；L465按`dead`分支；L466抛异常，停止当前正常路径；L472按`running == KEEP`分支；L474遍历`endpoints`；L480按`attempt != 89`分支；L482抛异常，停止当前正常路径。 调用`compose`、`httpx.Client`、`range`、`raw.lstrip().startswith`、`raw.lstrip`、`json.loads`、`raw.splitlines`、`line.strip`、`row.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L485–L502）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L492按`args.action == "prepare"`分支；L494按`args.action == "images"`分支；L496按`args.action == "snapshot-image"`分支；L498按`args.action == "up"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`images`、`snapshot_image`、`up`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `compose`（L369–L380）：接收`directory`、`timeout`、`*args`。 控制顺序：L374遍历`config["services"].items()`；L377按`service["image"] != expected or record["tag"] != IMAGES[name]`分支；L378抛异常，停止当前正常路径。 调用`Path`、`yaml.safe_load`、`path.read_text`、`assert_local_compose`、`json.loads`、`(Path(directory) / "images.lock.json").read_text`、`config["services"].items`、`record.get`、`ValueError`等。 返回路径：L380的`docker("compose", "--project-name", PROJECT, "--file", str(path), *args, timeout=timeout)`。
+- `snapshot_stamp`（L383–L388）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`hashlib.sha256( (ROOT / "tools/daytona/Dockerfile").read_bytes() …`、`hashlib.sha256`、`(ROOT / "tools/daytona/Dockerfile").read_bytes`、`(ROOT / "templates/product/uv.lock").read_bytes`、`(ROOT / "templates/product/pyproject.toml").read_bytes`。 返回路径：L384的`hashlib.sha256( (ROOT / "tools/daytona/Dockerfile").read_bytes() + (ROOT / "templates/prod…`。
+- `wait_for_registry`（L391–L408）：不接收显式业务参数，从已配置对象/模块读取依赖。检测宿主机127.0.0.1上的真实Registry响应，而不是只检查容器存在；限时重试失败即停止，不上传到云端仓库。 源码说明：Check real host-loopback reachability, not merely a running container state.。 控制顺序：L396遍历`range(30)`；L400按`response.json() != {}`分支；L401抛异常，停止当前正常路径；L404按`attempt == 29`分支；L405抛异常，停止当前正常路径。 调用`httpx.Client`、`range`、`client.get`、`response.raise_for_status`、`response.json`、`ValueError`、`RuntimeError`、`time.sleep`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `snapshot_image`（L411–L441）：接收`directory`。构建上下文只有Dockerfile与产品依赖文件，不含模型Key、平台源码或用户数据库。镜像进入本机Registry供本机Runner读取。 控制顺序：L416遍历`("pyproject.toml", "uv.lock")`；L425按`stamp != snapshot_stamp()`分支；L426抛异常，停止当前正常路径。 调用`Path`、`context.mkdir`、`shutil.copyfile`、`hashlib.sha256( b"".join( (context / name).read_bytes() for name …`、`hashlib.sha256`、`b"".join`、`(context / name).read_bytes`、`snapshot_stamp`、`ValueError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `up`（L444–L483）：接收`directory`。 源码说明：A started container is not a ready API; reject early exits before authentication.。 控制顺序：L456遍历`range(90)`；L466按`dead`分支；L467抛异常，停止当前正常路径；L473按`running == KEEP`分支；L475遍历`endpoints`；L481按`attempt != 89`分支；L483抛异常，停止当前正常路径。 调用`compose`、`httpx.Client`、`range`、`raw.lstrip().startswith`、`raw.lstrip`、`json.loads`、`raw.splitlines`、`line.strip`、`row.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L486–L503）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L493按`args.action == "prepare"`分支；L495按`args.action == "images"`分支；L497按`args.action == "snapshot-image"`分支；L499按`args.action == "up"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`images`、`snapshot_image`、`up`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/daytona_local.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L520。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/daytona_local.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L521。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`21665`。本段原文以LF换行结束。
+本段原始字节数：`21734`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/daytona_local.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "637be560a398469d0913d58f9c4c08c060d3d38d247cc275e2627706c373483c"} -->
+<!-- learning-source: {"path": "scripts/daytona_local.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9693d78bbf7b86326cd8889bea435f238d2bf4757a699db5b4b693e4cd55f683"} -->
 ````python
 # scripts/daytona_local.py
 """Install the pinned, development-only Daytona stack on this machine.
@@ -63,7 +63,7 @@ from pathlib import Path
 
 import yaml
 
-from scripts.daytona_build import BUILT, build_images, local_tag
+from scripts.daytona_build import BUILT, build_images, local_tag, require_api_image
 from scripts.daytona_gateway import TARGETS
 from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
 from workbench.settings import ROOT
@@ -418,6 +418,7 @@ def compose(directory, *args, timeout=900):
         expected = record.get("image_id") if name in BUILT else record.get("digest")
         if service["image"] != expected or record["tag"] != IMAGES[name]:
             raise ValueError("本机镜像锁与Compose不一致：" + name)
+    require_api_image(records.get("api"), docker)
     return docker("compose", "--project-name", PROJECT, "--file", str(path), *args, timeout=timeout)
 
 

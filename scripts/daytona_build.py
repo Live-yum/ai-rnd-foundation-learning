@@ -5,8 +5,10 @@ SHA-256-verified official binary from the SAME release (which includes its daemo
 Only installation downloads public dependencies. Runtime never uses these URLs.
 """
 
+import difflib
 import hashlib
 import json
+import re
 import tarfile
 import tempfile
 import urllib.request
@@ -23,6 +25,17 @@ SOURCE_RECIPES = {
     "api": ("daytona", "2033dac0951f6e7aedb435824cfc1396959f8b5e"),
     "proxy": ("proxy", "bceb07f8bcad800fc5b32f0b2d6ebaab8c5b44f8"),
 }
+API_PATCH_SOURCE = "01c502bb1f1ff8f2885d0cd490e043736083dca8"
+API_IMAGE_FILE = "apps/api/src/common/utils/docker-image.util.ts"
+API_IMAGE_BLOB = "b0b03b28ce08b2865db9d2dc291c1745cb6492cf"
+API_IMAGE_PATCH = "tools/daytona/api-digest-reference.patch"
+API_IMAGE_PATCH_SHA256 = "d547f0e6dc75aea73b1fd907fd7cebe928d11782f18230ffec212c4cbc31a437"
+API_IMAGE_PATCHED_SHA256 = "28a51752e5a1d12a6172723b27612b07917fd4612b49d48874dcc18a1b7736b9"
+API_IMAGE_OLD = "      name = `${name}:${this.tag}`\n"
+API_IMAGE_NEW = (
+    "      const separator = this.tag.startsWith('sha256:') ? '@' : ':'\n"
+    "      name = `${name}${separator}${this.tag}`\n"
+)
 RUNNER_SHA256 = "4265d2bb58ad6375b3c4c526ffa2bc2e1d197d94b92b431e532bf827c8f4dfa9"
 RUNNER_BYTES = 156006775
 BUILD_ENV = (
@@ -50,6 +63,81 @@ def recipe(service, source):
     if "ENV CI=true\n" not in text:
         raise ValueError("Daytona构建环境标记缺失")
     return target, text.replace("ENV CI=true\n", "ENV CI=true\n" + BUILD_ENV)
+
+
+def api_patch_identity():
+    """The current reviewed API provenance, also required by runtime lock readers."""
+    if DAYTONA_SOURCE != API_PATCH_SOURCE or DAYTONA_VERSION != "0.190.0":
+        raise ValueError("API digest patch requires its exact reviewed upstream revision")
+    if hashlib.sha256((ROOT / API_IMAGE_PATCH).read_bytes()).hexdigest() != API_IMAGE_PATCH_SHA256:
+        raise ValueError("API digest patch differs from its exact reviewed change")
+    return {
+        "path": API_IMAGE_FILE,
+        "preimage_blob": API_IMAGE_BLOB,
+        "patched_sha256": API_IMAGE_PATCHED_SHA256,
+        "patch_sha256": API_IMAGE_PATCH_SHA256,
+    }
+
+
+def api_patch_labels():
+    return {
+        "rnd.daytona.api-source-sha256": API_IMAGE_PATCHED_SHA256,
+        "rnd.daytona.api-patch-sha256": API_IMAGE_PATCH_SHA256,
+    }
+
+
+def require_api_image(record, docker):
+    """Reject old/tampered locks and inspect the exact API ID before service admission."""
+    expected = api_patch_identity()
+    if (
+        type(record) is not dict
+        or record.get("source_patch") != expected
+        or record.get("source_sha") != API_PATCH_SOURCE
+        or record.get("tag") != local_tag("api")
+        or not re.fullmatch(r"sha256:[a-f0-9]{64}", str(record.get("image_id", "")))
+    ):
+        raise ValueError("API image lock lacks the exact current source patch provenance")
+    inspected = json.loads(docker("image", "inspect", record["image_id"]))
+    if type(inspected) is not list or len(inspected) != 1 or type(inspected[0]) is not dict:
+        raise ValueError("API image inspection has no unique immutable image identity")
+    image = inspected[0]
+    labels = image.get("Config", {}).get("Labels") or {}
+    if image.get("Id") != record["image_id"] or any(
+        labels.get(key) != value
+        for key, value in {
+            "org.opencontainers.image.revision": API_PATCH_SOURCE,
+            "org.opencontainers.image.version": DAYTONA_VERSION,
+            **api_patch_labels(),
+        }.items()
+    ):
+        raise ValueError("API image ID or labels differ from the exact current source patch")
+
+
+def patch_api_image_reference(source):
+    """Preserve immutable digest separators in the pinned API's exported source only."""
+    expected = api_patch_identity()
+    target = Path(source) / API_IMAGE_FILE
+    raw = target.read_bytes()
+    identity = hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()
+    if identity != API_IMAGE_BLOB or raw.count(API_IMAGE_OLD.encode()) != 1:
+        raise ValueError("Pinned API image reference source preimage does not match")
+    updated = raw.decode("utf-8").replace(API_IMAGE_OLD, API_IMAGE_NEW)
+    expected_patch = "".join(
+        difflib.unified_diff(
+            raw.decode("utf-8").splitlines(keepends=True),
+            updated.splitlines(keepends=True),
+            fromfile="a/" + API_IMAGE_FILE,
+            tofile="b/" + API_IMAGE_FILE,
+        )
+    ).encode()
+    patch = (ROOT / API_IMAGE_PATCH).read_bytes()
+    if (
+        patch != expected_patch
+        or hashlib.sha256(updated.encode()).hexdigest() != expected["patched_sha256"]
+    ):
+        raise ValueError("API digest patch differs from its exact reviewed change")
+    target.write_text(updated, encoding="utf-8", newline="\n")
+    return expected
 
 
 def download_runner(destination):
@@ -117,6 +205,9 @@ def build_images(directory, command, docker):
 
 
 def build_exported(directory, context, docker):
+    # Fail before any builds/downloads if the reviewed API source or patch drifted.
+    # Never repair the request by substituting a mutable tag for its digest.
+    api_patch = patch_api_image_reference(context)
     recipes = directory / "build-recipes"
     recipes.mkdir(exist_ok=True)
     runner_context = directory / "runner-context"
@@ -135,6 +226,10 @@ def build_exported(directory, context, docker):
             build_context = context
         else:
             target, dockerfile, build_context = "runner", runner_recipe, runner_context
+        patch_labels = api_patch_labels() if service == "api" else {}
+        label_args = [
+            arg for key, value in patch_labels.items() for arg in ("--label", key + "=" + value)
+        ]
         log = run_command(
             [
                 "docker",
@@ -151,6 +246,7 @@ def build_exported(directory, context, docker):
                 "org.opencontainers.image.revision=" + DAYTONA_SOURCE,
                 "--label",
                 "org.opencontainers.image.version=" + DAYTONA_VERSION,
+                *label_args,
                 "--tag",
                 local_tag(service),
                 str(build_context),
@@ -165,6 +261,7 @@ def build_exported(directory, context, docker):
         if (
             labels.get("org.opencontainers.image.revision") != DAYTONA_SOURCE
             or labels.get("org.opencontainers.image.version") != DAYTONA_VERSION
+            or any(labels.get(key) != value for key, value in patch_labels.items())
         ):
             raise ValueError("构建镜像缺少固定源码或版本标签：" + service)
         metadata[service] = {
@@ -175,6 +272,8 @@ def build_exported(directory, context, docker):
         }
         if service == "runner":
             metadata[service]["release_binary_sha256"] = RUNNER_SHA256
+        if service == "api":
+            metadata[service]["source_patch"] = api_patch
     return metadata
 
 
