@@ -38,10 +38,13 @@ jobs:
           python-version: '3.14'
       - run: uv sync --locked
       - name: Validate isolation policy and bounded relay protocol
-        run: uv run pytest -q tests/test_capability_browser_isolation.py
+        env:
+          RND_REQUIRE_SECCOMP_BPF: '1'
+        run: uv run pytest -q tests/test_capability_browser*.py
       - name: Build pinned official Playwright worker
         run: |
           docker --host unix:///var/run/docker.sock build -f tools/browser/Dockerfile -t rnd-capability-browser .
+          echo "CAPABILITY_BROWSER_APPROVED_POLICY=9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f" >> "$GITHUB_ENV"
           echo "CAPABILITY_BROWSER_IMAGE=$(docker --host unix:///var/run/docker.sock image inspect --format '{{.Id}}' rnd-capability-browser)" >> "$GITHUB_ENV"
       - name: Require real kernel network resource browser and cleanup proof
         run: uv run python -m scripts.ci_capability_browser_isolation
@@ -55,4 +58,6 @@ jobs:
         if: always()
         with:
           name: browser-isolation-${{ github.sha }}-${{ github.run_id }}
-          path: reports/capability-browser-isolation.json
+          path: |
+            reports/capability-browser-isolation.json
+            reports/capability-browser-raw-syscalls.json

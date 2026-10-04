@@ -220,7 +220,8 @@ def test_live_receipt_binds_image_sources_and_all_real_checks(monkeypatch, tmp_p
     monkeypatch.setattr(isolation, "BROWSER_ACCEPTANCE", path)
     monkeypatch.setenv("CAPABILITY_BROWSER_IMAGE", IMAGE)
     valid = {
-        "protocol": "offline-browser-isolation-v2",
+        "protocol": "offline-browser-isolation-v3",
+        "runtime": {"policy_sha256": None, "mode": "docker-default"},
         "passed": True,
         "image": IMAGE,
         "mocked": False,
@@ -234,6 +235,7 @@ def test_live_receipt_binds_image_sources_and_all_real_checks(monkeypatch, tmp_p
                 "tmpfs_exhaustion": True,
                 "pid_exhaustion": True,
                 "readonly_root": True,
+                "browser_build": True,
             },
             "positive": True,
             "error": True,

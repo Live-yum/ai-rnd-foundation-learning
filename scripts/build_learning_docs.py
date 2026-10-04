@@ -65,6 +65,7 @@ MODULE_STAGE = {
     "capability_editing": 7,
     "capability_services": 4,
     "capability_browser_isolation": 4,
+    "capability_browser_policy": 4,
     "capability_contest_oracle": 4,
     "capability_native_runtime": 4,
     "orchestration": 7,

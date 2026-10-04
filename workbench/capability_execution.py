@@ -21,6 +21,9 @@ from workbench.settings import ROOT
 RECEIPT = "capability-security-acceptance.json"
 PROTOCOL = "custom-source-isolation-v1"
 SOURCE_FILES = (
+    "workbench/capability_browser_policy.py",
+    "scripts/capability_browser_seccomp_probe.c",
+    "tools/browser/review-only-v2/chromium141-docker28-native-amd64.proposal.json",
     "workbench/capability_execution.py",
     "workbench/capability_sandbox.py",
     "workbench/capability_isolation.py",

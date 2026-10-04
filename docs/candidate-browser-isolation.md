@@ -67,11 +67,27 @@ otherwise writable worker-owned directory; a generic permission error fails.
 The runtime probe also requires UID/GID 1000, no-new-privileges, active seccomp
 filter mode and zero inheritable/permitted/effective/bounding/ambient capabilities.
 
-The image currently uses the standard Docker security profile. Whether the
-runner permits Chromium's user namespaces is deliberately established by live
-CI rather than assumed; failure keeps arbitrary-source execution unavailable.
-An unmodified pinned upstream profile is prepared for review only; see
-`tools/browser/SECCOMP-REVIEW.md` for its exact namespace rule and activation
-requirements. It is image/receipt-bound but is not automatically selected.
+Ordinary callers use the standard Docker security profile. The three approved
+Actions isolation workflows explicitly select the reviewed native-amd64 v2
+profile only for their disposable offline browser workers. Selection requires
+Docker server 28.0.4, the fixed policy SHA-256, supported daemon/image/controller
+architecture and the approved Actions repository/workflow. No arbitrary path or
+candidate-supplied policy is accepted. The created container's inline profile
+and Docker AppArmor label are inspected before start. See
+`tools/browser/review-only-v2/README.md` for exact allowances and risks.
+
+The v3 receipt binds policy, source and immutable image to observed engine,
+kernel, runtime versions and matching runtime build metadata. The fixed
+`/usr/bin/runc` artifact must match the daemon-reported version and commit;
+its hash and reported libseccomp version are retained as matching-build evidence.
+Docker's API does not attest the daemon's exact linked libseccomp library, and
+this artifact observation is not represented as such an attestation.
+
+The trusted worker verifies native Node/Chromium ABI and pinned versions. A
+separate raw-syscall probe requires 28 exact native-socket, high-word VSOCK,
+x86/x32, namespace, clone3 and io_uring outcomes. Failure, a different errno,
+missing kernel support, crash or timeout cannot certify isolation. Positive
+browser behavior and all existing resource/cleanup gates remain mandatory;
+AppArmor or namespace incompatibility stays a blocking failure.
 The report is only one prerequisite: application sandbox/network/database
 acceptance and exact source/image binding remain mandatory separately.

@@ -16,6 +16,7 @@ from workbench.capability_browser_isolation import (
     run_isolated_browser,
     worker_command,
 )
+from workbench.capability_browser_policy import require_raw_probe, runtime_identity, selected_policy
 from workbench.capability_contracts import BrowserStep
 from workbench.capability_verification import BrowserFailure
 from workbench.filesystem import write_json
@@ -50,12 +51,13 @@ def run(args, timeout=30):
 def main():
     image = browser_image_identity()
     report = {
-        "protocol": "offline-browser-isolation-v2",
+        "protocol": "offline-browser-isolation-v3",
         "passed": False,
         "image": image,
         "mocked": False,
         "sources": browser_source_identity(),
         "image_sources": {},
+        "runtime": runtime_identity(image),
         "checks": {},
     }
     output = ROOT / "reports/capability-browser-isolation.json"
@@ -73,6 +75,22 @@ def main():
         report["image_sources"] = require_image_sources(name)
         report["checks"]["kernel_and_network"] = json.loads(run([*DOCKER, "start", "-a", name]))
         run([*DOCKER, "rm", "-f", name])
+        if selected_policy() is not None:
+            raw_command = worker_command(image, name)
+            raw_command[-1:-1] = ["--entrypoint=/opt/browser-seccomp-probe"]
+            run(raw_command)
+            require_worker_inspection(json.loads(run([*DOCKER, "inspect", name])), image)
+            raw_run = subprocess.run(
+                [*DOCKER, "start", "-a", name], capture_output=True, timeout=60, env=clean_env()
+            )
+            if len(raw_run.stdout) > 20000:
+                raise ValueError("Raw-syscall report exceeded bound")
+            raw = json.loads(raw_run.stdout)
+            write_json(ROOT / "reports/capability-browser-raw-syscalls.json", raw)
+            if raw_run.returncode:
+                raise ValueError("Live raw-syscall probe failed")
+            report["checks"]["raw_syscalls"] = require_raw_probe(raw)
+            run([*DOCKER, "rm", "-f", name])
         # A separate owned worker must be killed by its memory cgroup, not by
         # a JavaScript heap ceiling, and its descendants must still be removed.
         oom_command = worker_command(image, name)

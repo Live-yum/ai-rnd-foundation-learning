@@ -1,0 +1,176 @@
+{
+  "status": "inactive-review-only",
+  "activation_authorized": false,
+  "live_validation": false,
+  "scope": {
+    "engine": "28.0.4",
+    "architecture": "amd64",
+    "chromium": "141.0.7390.37",
+    "playwright": "1.56.1",
+    "initial_capability_bounding_set": []
+  },
+  "baseline": {
+    "file": "moby-v28.0.4-default.json",
+    "upstream_url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/profiles/seccomp/default.json",
+    "upstream_commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+    "sha256": "9c1025c88ccaa517b648da571961838744ea2137f176bfe6a48b21294cae9c76",
+    "representation": "UTF-8 content returned by the GitHub connector, preserved without reformatting"
+  },
+  "proposal": {
+    "file": "chromium141-docker28-amd64.proposal.json",
+    "sha256": "f62d10d5ce466dfd0714d61891ef7b94445367c8a6a303302f4c3956687f3504"
+  },
+  "upstream_license": "LICENSE.moby",
+  "chromium_sources": [
+    {
+      "url": "https://github.com/chromium/chromium/blob/9f043f63b0e5b728c8d09f3e3ddfc1681a4bd58e/sandbox/linux/services/namespace_sandbox.cc",
+      "sha256": "ae3ecf1e474c970cfbe5413b1ec3aa99895f3dcced7c1ae774955c307218cd8c",
+      "representation": "UTF-8 content returned by the GitHub connector"
+    },
+    {
+      "url": "https://github.com/chromium/chromium/blob/9f043f63b0e5b728c8d09f3e3ddfc1681a4bd58e/sandbox/linux/services/credentials.cc",
+      "sha256": "43e3968be3683c5c81b3992c97e113668d5bc83e06e0f0e3ca9236f4dedce372",
+      "representation": "UTF-8 content returned by the GitHub connector"
+    },
+    {
+      "url": "https://github.com/chromium/chromium/blob/9f043f63b0e5b728c8d09f3e3ddfc1681a4bd58e/base/process/launch_posix.cc",
+      "sha256": "6b4c567d78c6ae4ec5899521c152ed4765041b9d29baf269370743c9efe264e0",
+      "representation": "UTF-8 content returned by the GitHub connector"
+    },
+    {
+      "url": "https://github.com/chromium/chromium/blob/9f043f63b0e5b728c8d09f3e3ddfc1681a4bd58e/sandbox/linux/services/namespace_utils.cc",
+      "sha256": "ccc94e6dc8ec2d7f0eeb1e37362dbbd343ef23da952ecabe801f491d69cff1c0",
+      "representation": "UTF-8 content returned by the GitHub connector"
+    }
+  ],
+  "json_patch": [
+    {
+      "op": "add",
+      "path": "/syscalls/-",
+      "value": {
+        "names": [
+          "clone"
+        ],
+        "action": "SCMP_ACT_ALLOW",
+        "includes": {
+          "arches": [
+            "amd64"
+          ]
+        },
+        "excludes": {
+          "caps": [
+            "CAP_SYS_ADMIN"
+          ]
+        },
+        "args": [
+          {
+            "index": 0,
+            "value": 268435473,
+            "op": "SCMP_CMP_EQ"
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/syscalls/-",
+      "value": {
+        "names": [
+          "clone"
+        ],
+        "action": "SCMP_ACT_ALLOW",
+        "includes": {
+          "arches": [
+            "amd64"
+          ]
+        },
+        "excludes": {
+          "caps": [
+            "CAP_SYS_ADMIN"
+          ]
+        },
+        "args": [
+          {
+            "index": 0,
+            "value": 1879048209,
+            "op": "SCMP_CMP_EQ"
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/syscalls/-",
+      "value": {
+        "names": [
+          "clone"
+        ],
+        "action": "SCMP_ACT_ALLOW",
+        "includes": {
+          "arches": [
+            "amd64"
+          ]
+        },
+        "excludes": {
+          "caps": [
+            "CAP_SYS_ADMIN"
+          ]
+        },
+        "args": [
+          {
+            "index": 0,
+            "value": 536870929,
+            "op": "SCMP_CMP_EQ"
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/syscalls/-",
+      "value": {
+        "names": [
+          "unshare"
+        ],
+        "action": "SCMP_ACT_ALLOW",
+        "includes": {
+          "arches": [
+            "amd64"
+          ]
+        },
+        "excludes": {
+          "caps": [
+            "CAP_SYS_ADMIN"
+          ]
+        },
+        "args": [
+          {
+            "index": 0,
+            "value": 268435456,
+            "op": "SCMP_CMP_EQ"
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/syscalls/-",
+      "value": {
+        "names": [
+          "chroot"
+        ],
+        "action": "SCMP_ACT_ALLOW",
+        "includes": {
+          "arches": [
+            "amd64"
+          ]
+        },
+        "excludes": {
+          "caps": [
+            "CAP_SYS_ADMIN"
+          ]
+        }
+      }
+    }
+  ]
+}

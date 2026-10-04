@@ -21,6 +21,12 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from workbench.capability_browser_policy import (
+    POLICY_SOURCE,
+    runtime_identity,
+    security_options_match,
+    selected_policy,
+)
 from workbench.capability_contracts import BrowserStep
 from workbench.capability_verification import BrowserFailure, browser_report
 from workbench.filesystem import sha
@@ -37,6 +43,9 @@ DOCKER = ["docker", "--host", "unix:///var/run/docker.sock"]
 
 
 BROWSER_SOURCES = (
+    "workbench/capability_browser_policy.py",
+    POLICY_SOURCE,
+    "scripts/capability_browser_seccomp_probe.c",
     "workbench/capability_browser_isolation.py",
     "workbench/capability_verification.py",
     "scripts/capability_browser.cjs",
@@ -48,6 +57,8 @@ BROWSER_SOURCES = (
 )
 BROWSER_ACCEPTANCE = ROOT / "reports/capability-browser-isolation.json"
 IMAGE_SOURCES = {
+    POLICY_SOURCE: "/opt/verifier/browser-seccomp-v2.json",
+    "scripts/capability_browser_seccomp_probe.c": "/opt/verifier/capability_browser_seccomp_probe.c",
     "scripts/capability_browser.cjs": "/opt/verifier/capability_browser.cjs",
     "scripts/capability_browser_worker.cjs": "/opt/verifier/capability_browser_worker.cjs",
     "scripts/capability_browser_network_probe.cjs": "/opt/verifier/capability_browser_network_probe.cjs",
@@ -253,21 +264,33 @@ def require_browser_acceptance(image=None):
             "tmpfs_exhaustion": True,
             "pid_exhaustion": True,
             "readonly_root": True,
+            "browser_build": True,
         },
         "positive": True,
         "error": True,
         "abuse": True,
         "failure_cleanup": True,
         "memory_exhaustion": True,
+        **({"raw_syscalls": True} if selected_policy() is not None else {}),
     }
     if (
         not isinstance(record, dict)
         or set(record)
-        != {"protocol", "passed", "image", "mocked", "sources", "image_sources", "checks"}
-        or record.get("protocol") != "offline-browser-isolation-v2"
+        != {
+            "protocol",
+            "passed",
+            "image",
+            "mocked",
+            "sources",
+            "image_sources",
+            "checks",
+            "runtime",
+        }
+        or record.get("protocol") != "offline-browser-isolation-v3"
         or record.get("passed") is not True
         or record.get("mocked") is not False
         or record.get("image") != image
+        or record.get("runtime") != runtime_identity(image)
         or record.get("sources") != browser_source_identity()
         or record.get("image_sources") != image_source_identity()
         or record.get("checks") != expected_checks
@@ -307,6 +330,9 @@ def worker_command(image, name):
         raise ValueError("Immutable browser image ID required")
     if not re.fullmatch(r"rnd-browser-[a-f0-9]{32}", name):
         raise ValueError("Invalid worker identity")
+    policy = selected_policy()
+    if policy is not None:
+        runtime_identity(image)
     return [
         *DOCKER,
         "create",
@@ -317,6 +343,7 @@ def worker_command(image, name):
         "--read-only",
         "--cap-drop=ALL",
         "--security-opt=no-new-privileges:true",
+        *(["--security-opt=seccomp=" + str(policy)] if policy is not None else []),
         "--user=1000:1000",
         "--cpus=1",
         "--memory=768m",
@@ -358,7 +385,8 @@ def require_worker_inspection(value, image):
         or any(host.get(k) != v for k, v in expected.items())
         or host.get("CapDrop") != ["ALL"]
         or host.get("CapAdd")
-        or host.get("SecurityOpt") != ["no-new-privileges:true"]
+        or not security_options_match(host.get("SecurityOpt"))
+        or (selected_policy() is not None and record.get("AppArmorProfile") != "docker-default")
         or host.get("Binds")
         or host.get("PortBindings")
         or host.get("Devices")

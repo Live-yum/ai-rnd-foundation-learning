@@ -4,7 +4,7 @@ const net = require('node:net')
 const os = require('node:os')
 const dgram = require('node:dgram')
 const assert = require('node:assert/strict')
-const {spawn} = require('node:child_process')
+const {spawn, spawnSync} = require('node:child_process')
 
 async function requireNoRoute(host, port, connect = options => net.connect(options)) {
   return await new Promise((resolve, reject) => {
@@ -31,6 +31,21 @@ function requireReadOnly(api = fs, uid = process.getuid()) {
 }
 
 async function main() {
+  assert.equal(process.arch, 'x64')
+  assert.equal(process.platform, 'linux')
+  assert.equal(require('playwright/package.json').version, '1.56.1')
+  const executable = require('playwright').chromium.executablePath()
+  const executableFd = fs.openSync(executable, 'r')
+  const elf = Buffer.alloc(64)
+  try { assert.equal(fs.readSync(executableFd, elf, 0, 64, 0), 64) }
+  finally { fs.closeSync(executableFd) }
+  assert.equal(elf.subarray(0, 4).toString('hex'), '7f454c46')
+  assert.equal(elf[4], 2) // ELFCLASS64
+  assert.equal(elf[5], 1) // little endian
+  assert.equal(elf.readUInt16LE(18), 62) // EM_X86_64
+  const version = spawnSync(executable, ['--version'], {encoding:'utf8', timeout:10000, maxBuffer:4096})
+  assert.equal(version.status, 0)
+  assert.equal(version.stdout.trim(), 'Chromium 141.0.7390.37')
   assert.equal(process.getuid(), 1000)
   assert.equal(process.getgid(), 1000)
   const status = Object.fromEntries(fs.readFileSync('/proc/self/status','utf8').trim().split('\n').map(line => {
@@ -97,7 +112,7 @@ async function main() {
     }
   } finally { for (const child of children) child.kill('SIGKILL') }
   assert(pidDenied)
-  process.stdout.write(JSON.stringify({passed:true, kernel_resource_limits:true, network_none:true, tmpfs_exhaustion:true, pid_exhaustion:true, readonly_root:true}))
+  process.stdout.write(JSON.stringify({passed:true, kernel_resource_limits:true, network_none:true, tmpfs_exhaustion:true, pid_exhaustion:true, readonly_root:true, browser_build:true}))
 }
 module.exports = {requireNoRoute, requireReadOnly}
 if (require.main === module) main().catch(() => {process.exitCode=1})

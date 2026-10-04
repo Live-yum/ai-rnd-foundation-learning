@@ -59,6 +59,7 @@ jobs:
         env:
           RND_REQUIRE_NODE_TESTS: '1'
           RND_REQUIRE_LANDLOCK: '1'
+          RND_REQUIRE_SECCOMP_BPF: '1'
         run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
       - name: Install mandatory product browser acceptance tooling
         run: |
@@ -69,6 +70,7 @@ jobs:
       - name: Build immutable networkless browser worker in this same job
         run: |
           docker --host unix:///var/run/docker.sock build -f tools/browser/Dockerfile -t rnd-capability-browser .
+          echo "CAPABILITY_BROWSER_APPROVED_POLICY=9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f" >> "$GITHUB_ENV"
           echo "CAPABILITY_BROWSER_IMAGE=$(docker --host unix:///var/run/docker.sock image inspect --format '{{.Id}}' rnd-capability-browser)" >> "$GITHUB_ENV"
       - name: Require real browser network resource and cleanup proof in this same job
         run: uv run python -m scripts.ci_capability_browser_isolation
@@ -137,3 +139,4 @@ jobs:
             reports/capability-security.json
             reports/capability-security-detail.json
             reports/capability-browser-isolation.json
+            reports/capability-browser-raw-syscalls.json
