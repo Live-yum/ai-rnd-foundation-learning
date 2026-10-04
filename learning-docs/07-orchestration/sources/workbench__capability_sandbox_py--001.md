@@ -15,19 +15,19 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `restart_application_identity`（L52–L102）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L101按`result.exit_code != 0`分支；L102抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify_capabilities`（L105–L192）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L111按`plan.selection.model_dump() != selection`分支；L112抛异常，停止当前正常路径；L118按`selection["template"] == "fastapiadmin"`分支；L121按`dependency_identity(product) != profile["dependency_identity"]`分支；L122抛异常，停止当前正常路径；L158按`len(body) > 1_000_000`分支；L159抛异常，停止当前正常路径；L181抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`、`Path`等。 返回路径：L116的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L192的`receipt`。
-- `_verify`（L195–L569）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`。 控制顺序：L214按`trusted_oracle not in (None, "contest-business-v2")`分支；L215抛异常，停止当前正常路径；L216按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L219抛异常，停止当前正常路径；L244按`aggregate`分支；L253按`security_probe is not None`分支；L255按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L256抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`CheckFailure`、`manifest`、`uuid.uuid4`、`digest`、`plan.model_dump`、`inspect_stack`、`write_json`、`params_for`、`client.create`等。 返回路径：L569的`receipt`。
-- `_verify.start`（L344–L389）：接收`command`、`port`、`health_path`。 控制顺序：L362按`not response.cmd_id`分支；L363抛异常，停止当前正常路径；L366按`not isinstance(preview.token, str) or not preview.token`分支；L367抛异常，停止当前正常路径；L378在`time.monotonic() < deadline`成立时循环；L381按`200 <= check.status_code < 300`分支；L386抛异常，停止当前正常路径；L389抛异常，停止当前正常路径。 调用`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`、`shlex.quote`、`shlex.join`、`CheckFailure`等。 返回路径：L382的`http, url, preview.token`。
-- `main`（L572–L614）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L574按`len(body) > 1_000_000`分支；L575抛异常，停止当前正常路径；L584按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L590抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `restart_application_identity`（L53–L103）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L102按`result.exit_code != 0`分支；L103抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_capabilities`（L106–L193）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L112按`plan.selection.model_dump() != selection`分支；L113抛异常，停止当前正常路径；L119按`selection["template"] == "fastapiadmin"`分支；L122按`dependency_identity(product) != profile["dependency_identity"]`分支；L123抛异常，停止当前正常路径；L159按`len(body) > 1_000_000`分支；L160抛异常，停止当前正常路径；L182抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`、`Path`等。 返回路径：L117的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L193的`receipt`。
+- `_verify`（L196–L575）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`。 控制顺序：L215按`trusted_oracle not in (None, "contest-business-v2")`分支；L216抛异常，停止当前正常路径；L217按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L220抛异常，停止当前正常路径；L245按`aggregate`分支；L254按`security_probe is not None`分支；L256按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L257抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`CheckFailure`、`manifest`、`uuid.uuid4`、`digest`、`plan.model_dump`、`inspect_stack`、`write_json`、`params_for`、`client.create`等。 返回路径：L575的`receipt`。
+- `_verify.start`（L350–L395）：接收`command`、`port`、`health_path`。 控制顺序：L368按`not response.cmd_id`分支；L369抛异常，停止当前正常路径；L372按`not isinstance(preview.token, str) or not preview.token`分支；L373抛异常，停止当前正常路径；L384在`time.monotonic() < deadline`成立时循环；L387按`200 <= check.status_code < 300`分支；L392抛异常，停止当前正常路径；L395抛异常，停止当前正常路径。 调用`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`、`shlex.quote`、`shlex.join`、`CheckFailure`等。 返回路径：L388的`http, url, preview.token`。
+- `main`（L578–L620）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L580按`len(body) > 1_000_000`分支；L581抛异常，停止当前正常路径；L590按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L596抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L618。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L624。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26916`。本段原文以LF换行结束。
+本段原始字节数：`27229`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e69452fbdb021c723a549a714a9b10132021745b888635bfbcd6b9480e7c66fa"} -->
+<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "081e3be07999d747758af32b4928d38070ff7af317f72c6515058037b101f118"} -->
 ````python
 # workbench/capability_sandbox.py
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
@@ -51,6 +51,7 @@ import httpx
 
 from workbench.capability_contracts import CapabilityPlan
 from workbench.capability_isolation import (
+    ContainerInspectionRejected,
     IsolationUnavailable,
     control_exec,
     prepare_identity,
@@ -292,6 +293,11 @@ def _verify(
             receipt["container_isolation"] = require_container_evidence(
                 control_observer(sandbox.id), sandbox.id
             )
+        except ContainerInspectionRejected as exc:
+            raise IsolationUnavailable(
+                "实际容器不符合已批准的非特权策略，未上传或执行源码",
+                evidence=ContainerInspectionRejected.diagnostic(exc),
+            ) from None
         except ValueError:
             raise IsolationUnavailable(
                 "实际容器不符合已批准的非特权策略，未上传或执行源码"

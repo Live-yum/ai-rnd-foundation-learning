@@ -8226,31 +8226,32 @@ extend_business = install_yudao_business
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `workbench.capability_contracts`、`workbench.capability_verification`、`workbench.filesystem`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.capability_browser_policy`、`workbench.capability_contracts`、`workbench.capability_verification`、`workbench.filesystem`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `image_source_identity`（L59–L60）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`。 返回路径：L60的`{name: sha(ROOT / name) for name in IMAGE_SOURCES}`。
-- `bounded_json`（L63–L121）：接收`value`、`limit`。 源码说明：Prove the encoded size before allocating JSON or escaped strings.。 控制顺序：L119按`len(encoded) != used`分支；L120抛异常，停止当前正常路径。 调用`visit`、`json.dumps(value, ensure_ascii=True, allow_nan=False, separators=…`、`json.dumps`、`len`、`ValueError`。 返回路径：L121的`encoded`。
-- `bounded_json.add`（L67–L71）：接收`size`。 控制顺序：L70按`used > limit`分支；L71抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `bounded_json.string`（L73–L89）：接收`value`。 控制顺序：L76按`len(value) > limit - used`分支；L77抛异常，停止当前正常路径；L79遍历`value`。 调用`len`、`ValueError`、`add`、`ord`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `bounded_json.visit`（L91–L115）：接收`item`、`depth`。 控制顺序：L92按`depth > 32`分支；L93抛异常，停止当前正常路径；L94按`isinstance(item, str)`分支；L96按`item is None or type(item) is bool`分支；L98按`type(item) in (int, float)`分支；L99按`type(item) is int and item.bit_length() > limit * 4`分支；L100抛异常，停止当前正常路径；L102按`isinstance(item, (list, tuple))`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`isinstance`、`string`、`type`、`add`、`item.bit_length`、`len`、`json.dumps`、`max`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `bounded_browser_step`（L124–L147）：接收`step`、`variables`。 源码说明：Reject substitution expansion before constructing candidate strings.。 控制顺序：L127遍历`(("selector", 500), ("value", 10000))`；L130遍历`re.finditer(r"\$\{([a-z][a-z0-9_-]*)\}", template)`；L132按`name not in variables or type(variables[name]) not in (str, int, float, bool)`分支；L133抛异常，停止当前正常路径；L135按`not isinstance(replacement, str)`分支；L139按`used > limit`分支；L140抛异常，停止当前正常路径；L144按`used + len(tail) > limit`分支。后续分支沿下方源码相同行号继续阅读。 调用`step.model_dump`、`re.finditer`、`type`、`ValueError`、`isinstance`、`str`、`match.start`、`len`、`parts.extend`等。 返回路径：L147的`BrowserStep.model_validate(value).model_dump()`。
-- `browser_contract`（L150–L169）：接收`request_id`、`selected`、`saved`。 控制顺序：L157遍历`selected`；L160按`used > MAX_CONTRACT`分支；L161抛异常，停止当前正常路径；L162遍历`scenario.browser`；L165按`used > MAX_CONTRACT`分支；L166抛异常，停止当前正常路径。 调用`len`、`bounded_json`、`bool`、`ValueError`、`bounded_browser_step`、`row["steps"].append`、`payload["scenarios"].append`。 返回路径：L169的`payload`。
-- `_image_file_archive`（L172–L202）：接收`name`、`path`。 源码说明：Read a bounded raw tar from a stopped owned container; never extract it.。 控制顺序：L183在`True`成立时循环；L185按`remaining <= 0`分支；L186抛异常，停止当前正常路径；L187按`not poll.select(min(remaining, 1))`分支；L190按`not chunk`分支；L192按`len(chunk) > MAX_IMAGE_FILE * 2 - len(output)`分支；L193抛异常，停止当前正常路径；L195按`process.wait(timeout=max(0.1, deadline - time.monotonic()))`分支。后续分支沿下方源码相同行号继续阅读。 调用`subprocess.Popen`、`clean_env`、`time.monotonic`、`bytearray`、`selectors.DefaultSelector`、`poll.register`、`TimeoutError`、`poll.select`、`min`等。 返回路径：L197的`bytes(output)`。
-- `image_archive_digest`（L205–L224）：接收`raw`、`basename`。 控制顺序：L206按`len(raw) > MAX_IMAGE_FILE * 2`分支；L207抛异常，停止当前正常路径；L210按`len(members) != 1`分支；L211抛异常，停止当前正常路径；L213按`member.name != basename or not member.isfile() or member.issparse() or not 0 < member…`分支；L219抛异常，停止当前正常路径；L222按`len(body) != member.size`分支；L223抛异常，停止当前正常路径。 调用`len`、`ValueError`、`tarfile.open`、`io.BytesIO`、`archive.getmembers`、`member.isfile`、`member.issparse`、`archive.extractfile`、`source.read`等。 返回路径：L224的`hashlib.sha256(body).hexdigest()`。
-- `require_image_sources`（L227–L236）：接收`name`。 控制顺序：L228按`not re.fullmatch(r"rnd-browser-[a-f0-9]{32}", name)`分支；L229抛异常，停止当前正常路径；L234按`actual != image_source_identity()`分支；L235抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`、`image_archive_digest`、`_image_file_archive`、`path.rsplit`、`IMAGE_SOURCES.items`、`image_source_identity`。 返回路径：L236的`actual`。
-- `browser_source_identity`（L239–L240）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`。 返回路径：L240的`{name: sha(ROOT / name) for name in BROWSER_SOURCES}`。
-- `require_browser_acceptance`（L243–L280）：接收`image`。 控制顺序：L245按`BROWSER_ACCEPTANCE.stat().st_size > 100000`分支；L246抛异常，停止当前正常路径；L263按`not isinstance(record, dict) or set(record) != {"protocol", "passed", "image", "mocke…`分支；L279抛异常，停止当前正常路径。 调用`browser_image_identity`、`BROWSER_ACCEPTANCE.stat`、`ValueError`、`json.loads`、`BROWSER_ACCEPTANCE.read_text`、`isinstance`、`set`、`record.get`、`browser_source_identity`等。 返回路径：L280的`image`。
-- `browser_image_identity`（L283–L287）：接收`image`。 控制顺序：L285按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image)`分支；L286抛异常，停止当前正常路径。 调用`os.environ.get`、`re.fullmatch`、`ValueError`。 返回路径：L287的`image`。
-- `_write_pipe`（L290–L302）：接收`stream`、`data`、`deadline`。 控制顺序：L294在`view`成立时循环；L296按`remaining <= 0`分支；L297抛异常，停止当前正常路径；L298按`poll.select(min(remaining, 1))`分支。 调用`memoryview`、`selectors.DefaultSelector`、`poll.register`、`time.monotonic`、`TimeoutError`、`poll.select`、`min`、`os.write`、`stream.fileno`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `worker_command`（L305–L334）：接收`image`、`name`。 控制顺序：L306按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image)`分支；L307抛异常，停止当前正常路径；L308按`not re.fullmatch(r"rnd-browser-[a-f0-9]{32}", name)`分支；L309抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`。 返回路径：L310的`[ *DOCKER, "create", "--name", name, "--pull=never", "--network=none", "--read-only", "--c…`。
-- `require_worker_inspection`（L337–L372）：接收`value`、`image`。 控制顺序：L338按`not isinstance(value, list) or len(value) != 1`分支；L339抛异常，停止当前正常路径；L355按`record.get("Image") != image or config.get("User") != "1000:1000" or any(host.get(k) …`分支；L371抛异常，停止当前正常路径。 调用`isinstance`、`len`、`ValueError`、`record.get`、`config.get`、`any`、`host.get`、`expected.items`、`host.get("LogConfig", {}).get`等。 返回路径：L372的`{"image": image, "network": "none", "bounded": True}`。
-- `relay_request`（L375–L453）：接收`client`、`frame`、`deadline`。 源码说明：Candidate-controlled requests cannot select a host, token, or proxy.。 控制顺序：L377按`not isinstance(frame, dict) or set(frame) != { "type", "id", "method", "path", "heade…`分支；L385抛异常，停止当前正常路径；L386按`frame["type"] != "request" or type(frame["id"]) is not int or not 1 <= frame["id"] <=…`分支；L391抛异常，停止当前正常路径；L393按`not isinstance(path, str) or len(path) > 8192 or not path.startswith("/") or path.sta…`分支；L404抛异常，停止当前正常路径；L405按`frame["method"] not in {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}`分支；L406抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`set`、`ValueError`、`type`、`len`、`path.startswith`、`any`、`ord`、`urlsplit`等。 返回路径：L447的`{ "type": "response", "id": frame["id"], "status": response.status_code, "headers": output…`。
-- `execute_worker`（L456–L567）：接收`payload`、`url`、`token`、`timeout`、`image`。 源码说明：Bound stdout before parsing; bound runtime independently of HTTP progress.。 控制顺序：L459按`origin.scheme != "http" or origin.path not in {"", "/"} or origin.query or origin.fra…`分支；L467抛异常，停止当前正常路径；L469按`not (origin.hostname == "127.0.0.1" or (origin.hostname or "").endswith(".localhost")…`分支；L470抛异常，停止当前正常路径；L482按`created.returncode`分支；L483抛异常，停止当前正常路径；L487按`inspected.returncode or len(inspected.stdout) > 100000`分支；L488抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`urlsplit`、`ValueError`、`(origin.hostname or "").endswith`、`bounded_json`、`uuid.uuid4`、`worker_command`、`time.monotonic`、`min`、`max`等。 返回路径：L550的`report`。
-- `run_isolated_browser`（L570–L606）：接收`url`、`token`、`scenarios`、`saved`、`timeout`、`image`。 控制顺序：L572按`not selected`分支；L575按`not image or not shutil.which("docker")`分支；L576抛异常，停止当前正常路径；L583抛异常，停止当前正常路径；L590按`error or value is None`分支；L591抛异常，停止当前正常路径；L592按`value["passed"] is False`分支；L593抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`os.environ.get`、`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`browser_contract`、`execute_worker`、`browser_report`、`sha`、`type`等。 返回路径：L573的`[]`；L606的`expected`。
+- `image_source_identity`（L72–L73）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`。 返回路径：L73的`{name: sha(ROOT / name) for name in IMAGE_SOURCES}`。
+- `bounded_json`（L76–L134）：接收`value`、`limit`。 源码说明：Prove the encoded size before allocating JSON or escaped strings.。 控制顺序：L132按`len(encoded) != used`分支；L133抛异常，停止当前正常路径。 调用`visit`、`json.dumps(value, ensure_ascii=True, allow_nan=False, separators=…`、`json.dumps`、`len`、`ValueError`。 返回路径：L134的`encoded`。
+- `bounded_json.add`（L80–L84）：接收`size`。 控制顺序：L83按`used > limit`分支；L84抛异常，停止当前正常路径。 调用`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `bounded_json.string`（L86–L102）：接收`value`。 控制顺序：L89按`len(value) > limit - used`分支；L90抛异常，停止当前正常路径；L92遍历`value`。 调用`len`、`ValueError`、`add`、`ord`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `bounded_json.visit`（L104–L128）：接收`item`、`depth`。 控制顺序：L105按`depth > 32`分支；L106抛异常，停止当前正常路径；L107按`isinstance(item, str)`分支；L109按`item is None or type(item) is bool`分支；L111按`type(item) in (int, float)`分支；L112按`type(item) is int and item.bit_length() > limit * 4`分支；L113抛异常，停止当前正常路径；L115按`isinstance(item, (list, tuple))`分支。后续分支沿下方源码相同行号继续阅读。 调用`ValueError`、`isinstance`、`string`、`type`、`add`、`item.bit_length`、`len`、`json.dumps`、`max`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `bounded_browser_step`（L137–L160）：接收`step`、`variables`。 源码说明：Reject substitution expansion before constructing candidate strings.。 控制顺序：L140遍历`(("selector", 500), ("value", 10000))`；L143遍历`re.finditer(r"\$\{([a-z][a-z0-9_-]*)\}", template)`；L145按`name not in variables or type(variables[name]) not in (str, int, float, bool)`分支；L146抛异常，停止当前正常路径；L148按`not isinstance(replacement, str)`分支；L152按`used > limit`分支；L153抛异常，停止当前正常路径；L157按`used + len(tail) > limit`分支。后续分支沿下方源码相同行号继续阅读。 调用`step.model_dump`、`re.finditer`、`type`、`ValueError`、`isinstance`、`str`、`match.start`、`len`、`parts.extend`等。 返回路径：L160的`BrowserStep.model_validate(value).model_dump()`。
+- `browser_contract`（L163–L182）：接收`request_id`、`selected`、`saved`。 控制顺序：L170遍历`selected`；L173按`used > MAX_CONTRACT`分支；L174抛异常，停止当前正常路径；L175遍历`scenario.browser`；L178按`used > MAX_CONTRACT`分支；L179抛异常，停止当前正常路径。 调用`len`、`bounded_json`、`bool`、`ValueError`、`bounded_browser_step`、`row["steps"].append`、`payload["scenarios"].append`。 返回路径：L182的`payload`。
+- `_image_file_archive`（L185–L215）：接收`name`、`path`。 源码说明：Read a bounded raw tar from a stopped owned container; never extract it.。 控制顺序：L196在`True`成立时循环；L198按`remaining <= 0`分支；L199抛异常，停止当前正常路径；L200按`not poll.select(min(remaining, 1))`分支；L203按`not chunk`分支；L205按`len(chunk) > MAX_IMAGE_FILE * 2 - len(output)`分支；L206抛异常，停止当前正常路径；L208按`process.wait(timeout=max(0.1, deadline - time.monotonic()))`分支。后续分支沿下方源码相同行号继续阅读。 调用`subprocess.Popen`、`clean_env`、`time.monotonic`、`bytearray`、`selectors.DefaultSelector`、`poll.register`、`TimeoutError`、`poll.select`、`min`等。 返回路径：L210的`bytes(output)`。
+- `image_archive_digest`（L218–L237）：接收`raw`、`basename`。 控制顺序：L219按`len(raw) > MAX_IMAGE_FILE * 2`分支；L220抛异常，停止当前正常路径；L223按`len(members) != 1`分支；L224抛异常，停止当前正常路径；L226按`member.name != basename or not member.isfile() or member.issparse() or not 0 < member…`分支；L232抛异常，停止当前正常路径；L235按`len(body) != member.size`分支；L236抛异常，停止当前正常路径。 调用`len`、`ValueError`、`tarfile.open`、`io.BytesIO`、`archive.getmembers`、`member.isfile`、`member.issparse`、`archive.extractfile`、`source.read`等。 返回路径：L237的`hashlib.sha256(body).hexdigest()`。
+- `require_image_sources`（L240–L249）：接收`name`。 控制顺序：L241按`not re.fullmatch(r"rnd-browser-[a-f0-9]{32}", name)`分支；L242抛异常，停止当前正常路径；L247按`actual != image_source_identity()`分支；L248抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`、`image_archive_digest`、`_image_file_archive`、`path.rsplit`、`IMAGE_SOURCES.items`、`image_source_identity`。 返回路径：L249的`actual`。
+- `browser_source_identity`（L252–L253）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`。 返回路径：L253的`{name: sha(ROOT / name) for name in BROWSER_SOURCES}`。
+- `require_browser_acceptance`（L256–L306）：接收`image`。 控制顺序：L258按`BROWSER_ACCEPTANCE.stat().st_size > 100000`分支；L259抛异常，停止当前正常路径；L279按`not isinstance(record, dict) or set(record) != { "protocol", "passed", "image", "mock…`分支；L305抛异常，停止当前正常路径。 调用`browser_image_identity`、`BROWSER_ACCEPTANCE.stat`、`ValueError`、`json.loads`、`BROWSER_ACCEPTANCE.read_text`、`selected_policy`、`isinstance`、`set`、`record.get`等。 返回路径：L306的`image`。
+- `browser_image_identity`（L309–L313）：接收`image`。 控制顺序：L311按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image)`分支；L312抛异常，停止当前正常路径。 调用`os.environ.get`、`re.fullmatch`、`ValueError`。 返回路径：L313的`image`。
+- `_write_pipe`（L316–L328）：接收`stream`、`data`、`deadline`。 控制顺序：L320在`view`成立时循环；L322按`remaining <= 0`分支；L323抛异常，停止当前正常路径；L324按`poll.select(min(remaining, 1))`分支。 调用`memoryview`、`selectors.DefaultSelector`、`poll.register`、`time.monotonic`、`TimeoutError`、`poll.select`、`min`、`os.write`、`stream.fileno`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `worker_command`（L331–L372）：接收`image`、`name`。 控制顺序：L332按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image)`分支；L333抛异常，停止当前正常路径；L334按`not re.fullmatch(r"rnd-browser-[a-f0-9]{32}", name)`分支；L335抛异常，停止当前正常路径；L337按`policy is not None`分支。 调用`re.fullmatch`、`ValueError`、`selected_policy`、`runtime_identity`、`str`。 返回路径：L339的`[ *DOCKER, "create", "--name", name, "--pull=never", "--network=none", "--read-only", "--c…`。
+- `apparmor_runtime_env`（L375–L381）：接收`value`。 调用`isinstance`、`all`、`item.startswith`。 返回路径：L376的`isinstance(value, list) and all(isinstance(item, str) for item in value) and [item for ite…`。
+- `require_worker_inspection`（L384–L436）：接收`value`、`image`。 控制顺序：L385按`not isinstance(value, list) or len(value) != 1`分支；L386抛异常，停止当前正常路径；L402按`record.get("Image") != image or config.get("User") != "1000:1000" or any(host.get(k) …`分支；L426按`not security_options_match(host.get("SecurityOpt"))`分支；L428按`selected_policy() is not None`分支；L429按`record.get("AppArmorProfile") != "docker-default"`分支；L431按`not apparmor_runtime_env(config.get("Env"))`分支；L433抛异常，停止当前正常路径。 调用`isinstance`、`len`、`ValueError`、`record.get`、`config.get`、`any`、`host.get`、`expected.items`、`security_options_match`等。 返回路径：L436的`{"image": image, "network": "none", "bounded": True}`。
+- `relay_request`（L439–L517）：接收`client`、`frame`、`deadline`。 源码说明：Candidate-controlled requests cannot select a host, token, or proxy.。 控制顺序：L441按`not isinstance(frame, dict) or set(frame) != { "type", "id", "method", "path", "heade…`分支；L449抛异常，停止当前正常路径；L450按`frame["type"] != "request" or type(frame["id"]) is not int or not 1 <= frame["id"] <=…`分支；L455抛异常，停止当前正常路径；L457按`not isinstance(path, str) or len(path) > 8192 or not path.startswith("/") or path.sta…`分支；L468抛异常，停止当前正常路径；L469按`frame["method"] not in {"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}`分支；L470抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`set`、`ValueError`、`type`、`len`、`path.startswith`、`any`、`ord`、`urlsplit`等。 返回路径：L511的`{ "type": "response", "id": frame["id"], "status": response.status_code, "headers": output…`。
+- `execute_worker`（L520–L631）：接收`payload`、`url`、`token`、`timeout`、`image`。 源码说明：Bound stdout before parsing; bound runtime independently of HTTP progress.。 控制顺序：L523按`origin.scheme != "http" or origin.path not in {"", "/"} or origin.query or origin.fra…`分支；L531抛异常，停止当前正常路径；L533按`not (origin.hostname == "127.0.0.1" or (origin.hostname or "").endswith(".localhost")…`分支；L534抛异常，停止当前正常路径；L546按`created.returncode`分支；L547抛异常，停止当前正常路径；L551按`inspected.returncode or len(inspected.stdout) > 100000`分支；L552抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`urlsplit`、`ValueError`、`(origin.hostname or "").endswith`、`bounded_json`、`uuid.uuid4`、`worker_command`、`time.monotonic`、`min`、`max`等。 返回路径：L614的`report`。
+- `run_isolated_browser`（L634–L670）：接收`url`、`token`、`scenarios`、`saved`、`timeout`、`image`。 控制顺序：L636按`not selected`分支；L639按`not image or not shutil.which("docker")`分支；L640抛异常，停止当前正常路径；L647抛异常，停止当前正常路径；L654按`error or value is None`分支；L655抛异常，停止当前正常路径；L656按`value["passed"] is False`分支；L657抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`os.environ.get`、`shutil.which`、`BrowserFailure`、`uuid.uuid4`、`browser_contract`、`execute_worker`、`browser_report`、`sha`、`type`等。 返回路径：L637的`[]`；L670的`expected`。
 
-<!-- source-file: workbench/capability_browser_isolation.py sha256: 2480290e83ce99eefa6990190adbba16a6b1f6744519daf7e41f3bf92fad1849 -->
+<!-- source-file: workbench/capability_browser_isolation.py sha256: d318a6d1a0cde0fc0dbc15b938831a3bbad5ae29a7c913366cecface50999c24 -->
 ````python
 """Offline, bounded browser worker. Never falls back to host Chromium.
 
@@ -8275,6 +8276,12 @@ from urllib.parse import urlsplit
 
 import httpx
 
+from workbench.capability_browser_policy import (
+    POLICY_SOURCE,
+    runtime_identity,
+    security_options_match,
+    selected_policy,
+)
 from workbench.capability_contracts import BrowserStep
 from workbench.capability_verification import BrowserFailure, browser_report
 from workbench.filesystem import sha
@@ -8291,6 +8298,10 @@ DOCKER = ["docker", "--host", "unix:///var/run/docker.sock"]
 
 
 BROWSER_SOURCES = (
+    "workbench/capability_browser_policy.py",
+    POLICY_SOURCE,
+    "scripts/capability_browser_seccomp_probe.c",
+    "scripts/capability_browser_apparmor.cjs",
     "workbench/capability_browser_isolation.py",
     "workbench/capability_verification.py",
     "scripts/capability_browser.cjs",
@@ -8302,6 +8313,9 @@ BROWSER_SOURCES = (
 )
 BROWSER_ACCEPTANCE = ROOT / "reports/capability-browser-isolation.json"
 IMAGE_SOURCES = {
+    "scripts/capability_browser_apparmor.cjs": "/opt/verifier/capability_browser_apparmor.cjs",
+    POLICY_SOURCE: "/opt/verifier/browser-seccomp-v2.json",
+    "scripts/capability_browser_seccomp_probe.c": "/opt/verifier/capability_browser_seccomp_probe.c",
     "scripts/capability_browser.cjs": "/opt/verifier/capability_browser.cjs",
     "scripts/capability_browser_worker.cjs": "/opt/verifier/capability_browser_worker.cjs",
     "scripts/capability_browser_network_probe.cjs": "/opt/verifier/capability_browser_network_probe.cjs",
@@ -8507,21 +8521,34 @@ def require_browser_acceptance(image=None):
             "tmpfs_exhaustion": True,
             "pid_exhaustion": True,
             "readonly_root": True,
+            "browser_build": True,
+            **({"apparmor_enforced": True} if selected_policy() is not None else {}),
         },
         "positive": True,
         "error": True,
         "abuse": True,
         "failure_cleanup": True,
         "memory_exhaustion": True,
+        **({"raw_syscalls": True} if selected_policy() is not None else {}),
     }
     if (
         not isinstance(record, dict)
         or set(record)
-        != {"protocol", "passed", "image", "mocked", "sources", "image_sources", "checks"}
-        or record.get("protocol") != "offline-browser-isolation-v2"
+        != {
+            "protocol",
+            "passed",
+            "image",
+            "mocked",
+            "sources",
+            "image_sources",
+            "checks",
+            "runtime",
+        }
+        or record.get("protocol") != "offline-browser-isolation-v3"
         or record.get("passed") is not True
         or record.get("mocked") is not False
         or record.get("image") != image
+        or record.get("runtime") != runtime_identity(image)
         or record.get("sources") != browser_source_identity()
         or record.get("image_sources") != image_source_identity()
         or record.get("checks") != expected_checks
@@ -8561,6 +8588,9 @@ def worker_command(image, name):
         raise ValueError("Immutable browser image ID required")
     if not re.fullmatch(r"rnd-browser-[a-f0-9]{32}", name):
         raise ValueError("Invalid worker identity")
+    policy = selected_policy()
+    if policy is not None:
+        runtime_identity(image)
     return [
         *DOCKER,
         "create",
@@ -8571,6 +8601,15 @@ def worker_command(image, name):
         "--read-only",
         "--cap-drop=ALL",
         "--security-opt=no-new-privileges:true",
+        *(
+            [
+                "--security-opt=seccomp=" + str(policy),
+                "--security-opt=apparmor=docker-default",
+                "--env=CAPABILITY_BROWSER_REQUIRE_APPARMOR=1",
+            ]
+            if policy is not None
+            else []
+        ),
         "--user=1000:1000",
         "--cpus=1",
         "--memory=768m",
@@ -8586,6 +8625,15 @@ def worker_command(image, name):
         "-i",
         image,
     ]
+
+
+def apparmor_runtime_env(value):
+    return (
+        isinstance(value, list)
+        and all(isinstance(item, str) for item in value)
+        and [item for item in value if item.startswith("CAPABILITY_BROWSER_REQUIRE_APPARMOR=")]
+        == ["CAPABILITY_BROWSER_REQUIRE_APPARMOR=1"]
+    )
 
 
 def require_worker_inspection(value, image):
@@ -8612,7 +8660,14 @@ def require_worker_inspection(value, image):
         or any(host.get(k) != v for k, v in expected.items())
         or host.get("CapDrop") != ["ALL"]
         or host.get("CapAdd")
-        or host.get("SecurityOpt") != ["no-new-privileges:true"]
+        or not security_options_match(host.get("SecurityOpt"))
+        or (
+            selected_policy() is not None
+            and (
+                record.get("AppArmorProfile") != "docker-default"
+                or not apparmor_runtime_env(config.get("Env"))
+            )
+        )
         or host.get("Binds")
         or host.get("PortBindings")
         or host.get("Devices")
@@ -8622,7 +8677,17 @@ def require_worker_inspection(value, image):
         or host.get("LogConfig", {}).get("Type") != "none"
         or any(m.get("Type") != "tmpfs" for m in record.get("Mounts", []))
     ):
-        raise ValueError("Browser worker isolation mismatch")
+        mismatches = []
+        if not security_options_match(host.get("SecurityOpt")):
+            mismatches.append("security-options")
+        if selected_policy() is not None:
+            if record.get("AppArmorProfile") != "docker-default":
+                mismatches.append("apparmor-config")
+            if not apparmor_runtime_env(config.get("Env")):
+                mismatches.append("apparmor-runtime-guard")
+        raise ValueError(
+            "Browser worker isolation mismatch: " + ",".join(mismatches or ["outer-boundary"])
+        )
     return {"image": image, "network": "none", "bounded": True}
 
 
@@ -8858,6 +8923,302 @@ def run_isolated_browser(url, token, scenarios, saved, timeout, *, image=None):
     if type(status) is not int or status != 0 or value["checks"] != expected:
         raise BrowserFailure({"phase": "python-report", "error_code": "invalid-checks"})
     return expected
+````
+
+### `workbench/capability_browser_policy.py`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `selected_policy`（L28–L44）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L30按`not selected`分支；L32按`selected != POLICY_SHA256 or os.environ.get("GITHUB_ACTIONS") != "true" or os.environ…`分支；L39抛异常，停止当前正常路径；L42按`hashlib.sha256(raw).hexdigest() != POLICY_SHA256`分支；L43抛异常，停止当前正常路径。 调用`os.environ.get`、`re.fullmatch`、`ValueError`、`path.read_bytes`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`。 返回路径：L31的`None`；L44的`path`。
+- `_read_json`（L47–L51）：接收`args`。 控制顺序：L49按`value.returncode or len(value.stdout) > 100000`分支；L50抛异常，停止当前正常路径。 调用`subprocess.run`、`clean_env`、`len`、`ValueError`、`json.loads`。 返回路径：L51的`json.loads(value.stdout)`。
+- `_text`（L54–L55）：接收`value`。 调用`isinstance`、`bool`、`re.fullmatch`。 返回路径：L55的`isinstance(value, str) and bool(re.fullmatch(r"[a-zA-Z0-9._+ /()-]{1,160}", value))`。
+- `validate_target`（L58–L118）：接收`version`、`info`、`image`、`expected_image`。 控制顺序：L60按`not isinstance(info, dict) or not isinstance(image, list) or len(image) != 1`分支；L61抛异常，停止当前正常路径；L73按`server.get("Version") != "28.0.4" or server.get("Os") != "linux" or server.get("Arch"…`分支；L99抛异常，停止当前正常路径。 调用`isinstance`、`version.get`、`len`、`ValueError`、`server.get`、`part.get`、`details.get("runc", {}).get`、`details.get`、`info.get("Runtimes", {}).get`等。 返回路径：L103的`{ "policy_sha256": POLICY_SHA256, "engine": "28.0.4", "daemon_arch": "amd64", "image_arch"…`。
+- `runtime_identity`（L121–L154）：接收`image`。 控制顺序：L122按`selected_policy() is None`分支；L133按`version.returncode or len(version.stdout) > 4096`分支；L134抛异常，停止当前正常路径；L139按`not runtime or not library or not commit or commit[1] != identity["runc_reported_comm…`分支；L146抛异常，停止当前正常路径；L148按`not 0 < binary.stat().st_size <= 32 * 1024 * 1024`分支；L149抛异常，停止当前正常路径。 调用`selected_policy`、`validate_target`、`_read_json`、`subprocess.run`、`clean_env`、`len`、`ValueError`、`version.stdout.decode`、`re.search`等。 返回路径：L123的`{"policy_sha256": None, "mode": "docker-default"}`；L154的`identity`。
+- `security_options_match`（L157–L177）：接收`options`。 控制顺序：L159按`path is None`分支；L161按`not isinstance(options, list) or len(options) != 3`分支；L163按`options.count("no-new-privileges:true") != 1 or options.count("apparmor=docker-defaul…`分支；L169按`len(selected) != 1`分支。 调用`selected_policy`、`isinstance`、`len`、`options.count`、`v.startswith`、`json.loads`、`path.read_bytes`。 返回路径：L160的`options == ["no-new-privileges:true"]`；L162的`False`；L167的`False`。
+- `require_raw_probe`（L209–L272）：接收`value`。 控制顺序：L210按`not isinstance(value, dict) or set(value) != { "protocol", "architecture", "expected_…`分支；L231抛异常，停止当前正常路径；L232遍历`value["observations"].items()`；L233按`not isinstance(observation, dict) or set(observation) != {"returned", "return", "errn…`分支；L245抛异常，停止当前正常路径；L246按`name.endswith("_killed")`分支；L270按`not meaningful`分支；L271抛异常，停止当前正常路径。 调用`isinstance`、`set`、`value.get`、`any`、`value["checks"].values`、`ValueError`、`value["observations"].items`、`type`、`abs`等。 返回路径：L272的`True`。
+
+<!-- source-file: workbench/capability_browser_policy.py sha256: 4427209e32348f52c815d7c36f567f03d33bc7e1a62b27fe5edd5986c9b7b30d -->
+````python
+"""Fixed, explicitly approved Actions-only browser policy selection.
+
+Environment values select one reviewed policy; they never supply policy content
+or paths. The created container's inline policy is checked before any start.
+"""
+
+import hashlib
+import json
+import os
+import platform
+import re
+import subprocess
+from pathlib import Path
+
+from workbench.settings import ROOT
+from workbench.tools import clean_env
+
+POLICY_SHA256 = "9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f"
+POLICY_SOURCE = "tools/browser/review-only-v2/chromium141-docker28-native-amd64.proposal.json"
+DOCKER = ["docker", "--host", "unix:///var/run/docker.sock"]
+WORKFLOWS = {
+    "Offline candidate browser isolation",
+    "Fixed authored SQLite isolation profile",
+    "Authored native PostgreSQL isolation profile",
+}
+
+
+def selected_policy():
+    selected = os.environ.get("CAPABILITY_BROWSER_APPROVED_POLICY", "")
+    if not selected:
+        return None
+    if (
+        selected != POLICY_SHA256
+        or os.environ.get("GITHUB_ACTIONS") != "true"
+        or os.environ.get("GITHUB_REPOSITORY") != "Live-yum/ai-rnd-foundation-learning"
+        or os.environ.get("GITHUB_WORKFLOW") not in WORKFLOWS
+        or not re.fullmatch(r"[1-9][0-9]{0,19}", os.environ.get("GITHUB_RUN_ID", ""))
+    ):
+        raise ValueError("Reviewed browser policy requires its approved Actions scope")
+    path = ROOT / POLICY_SOURCE
+    raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != POLICY_SHA256:
+        raise ValueError("Reviewed browser policy bytes changed")
+    return path
+
+
+def _read_json(args):
+    value = subprocess.run([*DOCKER, *args], capture_output=True, timeout=10, env=clean_env())
+    if value.returncode or len(value.stdout) > 100000:
+        raise ValueError("Browser runtime provenance unavailable")
+    return json.loads(value.stdout)
+
+
+def _text(value):
+    return isinstance(value, str) and bool(re.fullmatch(r"[a-zA-Z0-9._+ /()-]{1,160}", value))
+
+
+def validate_target(version, info, image, expected_image):
+    server = version.get("Server", {}) if isinstance(version, dict) else {}
+    if not isinstance(info, dict) or not isinstance(image, list) or len(image) != 1:
+        raise ValueError("Browser runtime provenance missing")
+    metadata = image[0]
+    components = server.get("Components", [])
+    versions = {
+        part.get("Name"): part.get("Version") for part in components if isinstance(part, dict)
+    }
+    details = {
+        part.get("Name"): part.get("Details", {}) for part in components if isinstance(part, dict)
+    }
+    runc_commit = details.get("runc", {}).get("GitCommit")
+    runtime_config = info.get("Runtimes", {}).get("runc", {})
+    options = info.get("SecurityOptions", [])
+    if (
+        server.get("Version") != "28.0.4"
+        or server.get("Os") != "linux"
+        or server.get("Arch") != "amd64"
+        or info.get("OSType") != "linux"
+        or info.get("Architecture") not in {"x86_64", "amd64"}
+        or info.get("DefaultRuntime") != "runc"
+        or runtime_config.get("path") not in {"runc", "/usr/bin/runc"}
+        or runtime_config.get("runtimeArgs")
+        or runtime_config.get("runtimeType") not in {None, "", "io.containerd.runc.v2"}
+        or not _text(runc_commit)
+        or info.get("DockerRootDir") != "/var/lib/docker"
+        or not isinstance(options, list)
+        or "name=apparmor" not in options
+        or "name=seccomp,profile=builtin" not in options
+        or any("rootless" in str(v) for v in options)
+        or metadata.get("Id") != expected_image
+        or metadata.get("Os") != "linux"
+        or metadata.get("Architecture") != "amd64"
+        or metadata.get("Config", {}).get("User") != "1000:1000"
+        or platform.system() != "Linux"
+        or platform.machine() != "x86_64"
+        or not _text(server.get("KernelVersion"))
+        or not _text(versions.get("runc"))
+        or not _text(versions.get("containerd"))
+    ):
+        raise ValueError("Unsupported browser runtime; no policy fallback")
+    # Engine version pins its profile compiler; runc/containerd/kernel are
+    # observed, not inferred from runner image inventory. Docker does not expose
+    # libseccomp's version here, so no independent library-version claim is made.
+    return {
+        "policy_sha256": POLICY_SHA256,
+        "engine": "28.0.4",
+        "daemon_arch": "amd64",
+        "image_arch": "amd64",
+        "controller_abi": "x86_64",
+        "playwright": "1.56.1",
+        "chromium": "141.0.7390.37",
+        "kernel": server["KernelVersion"],
+        "runc": versions["runc"],
+        "runc_reported_commit": runc_commit,
+        "runc_configured_path": runtime_config["path"],
+        "containerd": versions["containerd"],
+        "apparmor": "docker-default",
+        "libseccomp": "not-exposed-by-docker-api",
+    }
+
+
+def runtime_identity(image):
+    if selected_policy() is None:
+        return {"policy_sha256": None, "mode": "docker-default"}
+    identity = validate_target(
+        _read_json(["version", "--format", "{{json .}}"]),
+        _read_json(["info", "--format", "{{json .}}"]),
+        _read_json(["image", "inspect", image]),
+        image,
+    )
+    version = subprocess.run(
+        ["/usr/bin/runc", "--version"], capture_output=True, timeout=10, env=clean_env()
+    )
+    if version.returncode or len(version.stdout) > 4096:
+        raise ValueError("Runtime compiler provenance unavailable")
+    text = version.stdout.decode("ascii", errors="strict")
+    runtime = re.search(r"(?m)^runc version ([a-zA-Z0-9.+_-]+)$", text)
+    commit = re.search(r"(?m)^commit: ([a-zA-Z0-9.+_-]+)$", text)
+    library = re.search(r"(?m)^libseccomp: ([0-9]+\.[0-9]+\.[0-9]+)$", text)
+    if (
+        not runtime
+        or not library
+        or not commit
+        or commit[1] != identity["runc_reported_commit"]
+        or runtime[1].removeprefix("v") != identity["runc"].removeprefix("v")
+    ):
+        raise ValueError("Runtime compiler provenance mismatch")
+    binary = Path("/usr/bin/runc")
+    if not 0 < binary.stat().st_size <= 32 * 1024 * 1024:
+        raise ValueError("Runtime executable provenance exceeds bound")
+    identity["runc_observed_binary_sha256"] = hashlib.sha256(binary.read_bytes()).hexdigest()
+    identity["runc_observed_binary_path"] = "/usr/bin/runc"
+    identity["libseccomp_observed_matching_build"] = library[1]
+    identity["libseccomp"] = "daemon-linkage-not-exposed-by-docker-api"
+    return identity
+
+
+def security_options_match(options):
+    path = selected_policy()
+    if path is None:
+        return options == ["no-new-privileges:true"]
+    if not isinstance(options, list) or len(options) != 3:
+        return False
+    if (
+        options.count("no-new-privileges:true") != 1
+        or options.count("apparmor=docker-default") != 1
+    ):
+        return False
+    selected = [v for v in options if isinstance(v, str) and v.startswith("seccomp=")]
+    if len(selected) != 1:
+        return False
+    try:
+        # Docker normalizes the selected file to inline JSON in HostConfig.
+        # Comparing parsed content binds the effective policy after file reading;
+        # a changed file during create cannot authorize a container start.
+        return json.loads(selected[0][8:]) == json.loads(path.read_bytes())
+    except ValueError, OSError:
+        return False
+
+
+RAW_CHECKS = {
+    "native_inet_socket",
+    "native_unix_socket",
+    "native_unix_socketpair",
+    *(
+        f"vsock_{operation}_{word}_high_word"
+        for operation in ("socket", "socketpair")
+        for word in ("zero", "one", "sign", "max")
+    ),
+    "io_uring_setup",
+    "io_uring_enter",
+    "io_uring_register",
+    "clone3_enosys",
+    "setns_denied",
+    "mount_denied",
+    "x32_socket_killed",
+    "x32_socketpair_killed",
+    "i386_socketcall_socket_killed",
+    "i386_socketcall_socketpair_killed",
+    "i386_socket_killed",
+    "i386_socketpair_killed",
+    "clone_user_extra_mount_denied",
+    "clone_user_pid_net_extra_mount_denied",
+    "clone_pid_extra_mount_denied",
+    "unshare_user_extra_mount_denied",
+    "unshare_user_extra_net_denied",
+}
+
+
+def require_raw_probe(value):
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "protocol",
+            "architecture",
+            "expected_profile_sha256",
+            "passed",
+            "checks",
+            "observations",
+        }
+        or value.get("protocol") != "browser-seccomp-transport-v1"
+        or value.get("architecture") != "native-amd64"
+        or value.get("expected_profile_sha256") != POLICY_SHA256
+        or value.get("passed") is not True
+        or not isinstance(value.get("checks"), dict)
+        or set(value["checks"]) != RAW_CHECKS
+        or any(v is not True for v in value["checks"].values())
+        or not isinstance(value.get("observations"), dict)
+        or set(value["observations"]) != RAW_CHECKS
+    ):
+        raise ValueError("Live raw-syscall policy proof incomplete")
+    for name, observation in value["observations"].items():
+        if (
+            not isinstance(observation, dict)
+            or set(observation)
+            != {"returned", "return", "errno", "signal", "exit_status", "setup_errno", "timed_out"}
+            or type(observation["returned"]) is not bool
+            or observation["timed_out"] is not False
+            or any(
+                type(observation[k]) is not int or abs(observation[k]) > 2**63
+                for k in ("return", "errno", "signal", "exit_status", "setup_errno")
+            )
+            or observation["setup_errno"] != 0
+        ):
+            raise ValueError("Live raw-syscall observations invalid")
+        if name.endswith("_killed"):
+            meaningful = (
+                observation["returned"] is False
+                and observation["signal"] == 31
+                and observation["exit_status"] == -1
+                and observation["return"] == 0
+                and observation["errno"] == 0
+            )
+        else:
+            expected_errno = (
+                0 if name.startswith("native_") else 38 if name == "clone3_enosys" else 1
+            )
+            meaningful = (
+                observation["returned"] is True
+                and observation["signal"] == 0
+                and observation["errno"] == expected_errno
+                and (name != "native_unix_socketpair" or observation["return"] == 0)
+                and (
+                    observation["return"] >= 0
+                    if expected_errno == 0
+                    else observation["return"] == -expected_errno
+                )
+                and observation["exit_status"] == (0 if "extra_" in name else -1)
+            )
+        if not meaningful:
+            raise ValueError("Raw-syscall result does not prove expected denial or success")
+    return True
 ````
 
 ### `workbench/capability_contest_oracle.py`
@@ -9905,14 +10266,14 @@ def apply_candidate(product, edits, task, selection, destination, settings=None)
 
 **逐个入口与控制逻辑：**
 
-- `security_checks_for`（L104–L109）：接收`selection`。 控制顺序：L105按`selection.get("template") == "fastapiadmin"`分支。 调用`selection.get`、`set`。 返回路径：L106的`(set(SECURITY_CHECKS) - {"all_tcp_destinations_denied"}) \| set( NATIVE_SECURITY_CHECKS )`；L109的`set(SECURITY_CHECKS)`。
-- `receipt_name`（L112–L117）：接收`selection`。 调用`selection.get`。 返回路径：L113的`"native-fastapiadmin-security-acceptance.json" if selection.get("template") == "fastapiadm…`。
-- `verifier_identity`（L120–L121）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`digest`、`sha`。 返回路径：L121的`digest({name: sha(ROOT / name) for name in SOURCE_FILES})`。
-- `profile_binding`（L124–L131）：接收`record`。 返回路径：L125的`{ "recipe_identity": record["recipe_identity"], "runner_image_id": record["runner"]["image…`。
-- `require_security_receipt`（L134–L170）：接收`value`、`record`、`browser_image`。 控制顺序：L150按`not isinstance(value, dict) or set(value) != expected or value.get("protocol") != PRO…`分支；L169抛异常，停止当前正常路径。 调用`record.get`、`Selection(template="python-basic").model_dump`、`Selection`、`security_checks_for`、`isinstance`、`set`、`value.get`、`verifier_identity`、`profile_binding`等。 返回路径：L170的`value`。
-- `capability_execution_prerequisites`（L173–L228）：接收`settings`、`selection`。 源码说明：Read-only gate; never runs candidate code or calls a model. Return the exact verified profile directory/record. Missing conditions are recoverable execution blockers; callers must retain the plan and 。 控制顺序：L183按`not settings.capability_execution_enabled`分支；L184抛异常，停止当前正常路径；L188按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L192抛异常，停止当前正常路径；L196按`settings.sandbox_provider != "daytona"`分支；L197抛异常，停止当前正常路径；L208按`directory.is_relative_to(runs)`分支；L209抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`Selection.model_validate(selection).model_dump`、`Selection.model_validate`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`require_browser_acceptance`、`Path(settings.capability_profile_directory).resolve`、`Path`等。 返回路径：L228的`directory, record`。
+- `security_checks_for`（L108–L113）：接收`selection`。 控制顺序：L109按`selection.get("template") == "fastapiadmin"`分支。 调用`selection.get`、`set`。 返回路径：L110的`(set(SECURITY_CHECKS) - {"all_tcp_destinations_denied"}) \| set( NATIVE_SECURITY_CHECKS )`；L113的`set(SECURITY_CHECKS)`。
+- `receipt_name`（L116–L121）：接收`selection`。 调用`selection.get`。 返回路径：L117的`"native-fastapiadmin-security-acceptance.json" if selection.get("template") == "fastapiadm…`。
+- `verifier_identity`（L124–L125）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`digest`、`sha`。 返回路径：L125的`digest({name: sha(ROOT / name) for name in SOURCE_FILES})`。
+- `profile_binding`（L128–L135）：接收`record`。 返回路径：L129的`{ "recipe_identity": record["recipe_identity"], "runner_image_id": record["runner"]["image…`。
+- `require_security_receipt`（L138–L174）：接收`value`、`record`、`browser_image`。 控制顺序：L154按`not isinstance(value, dict) or set(value) != expected or value.get("protocol") != PRO…`分支；L173抛异常，停止当前正常路径。 调用`record.get`、`Selection(template="python-basic").model_dump`、`Selection`、`security_checks_for`、`isinstance`、`set`、`value.get`、`verifier_identity`、`profile_binding`等。 返回路径：L174的`value`。
+- `capability_execution_prerequisites`（L177–L232）：接收`settings`、`selection`。 源码说明：Read-only gate; never runs candidate code or calls a model. Return the exact verified profile directory/record. Missing conditions are recoverable execution blockers; callers must retain the plan and 。 控制顺序：L187按`not settings.capability_execution_enabled`分支；L188抛异常，停止当前正常路径；L192按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L196抛异常，停止当前正常路径；L200按`settings.sandbox_provider != "daytona"`分支；L201抛异常，停止当前正常路径；L212按`directory.is_relative_to(runs)`分支；L213抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`Selection.model_validate(selection).model_dump`、`Selection.model_validate`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`require_browser_acceptance`、`Path(settings.capability_profile_directory).resolve`、`Path`等。 返回路径：L232的`directory, record`。
 
-<!-- source-file: workbench/capability_execution.py sha256: 1571be0273ed5206f863fb6b0fb1738f2c6f9ca4a9ed2923ddd8c90ec9e289ff -->
+<!-- source-file: workbench/capability_execution.py sha256: e8e0aa6c7b438d2bbce18548a264016c33bbe637ccdc60d0dfb3dd2344908fbc -->
 ````python
 """Fail-closed admission for reviewed custom-source execution.
 
@@ -9937,6 +10298,10 @@ from workbench.settings import ROOT
 RECEIPT = "capability-security-acceptance.json"
 PROTOCOL = "custom-source-isolation-v1"
 SOURCE_FILES = (
+    "scripts/capability_browser_apparmor.cjs",
+    "workbench/capability_browser_policy.py",
+    "scripts/capability_browser_seccomp_probe.c",
+    "tools/browser/review-only-v2/chromium141-docker28-native-amd64.proposal.json",
     "workbench/capability_execution.py",
     "workbench/capability_sandbox.py",
     "workbench/capability_isolation.py",
@@ -10159,16 +10524,19 @@ def capability_execution_prerequisites(settings, selection):
 - `require_isolation_evidence`（L52–L64）：接收`value`。 控制顺序：L53按`not isinstance(value, dict) or value.get("profile") != ISOLATION_PROFILE or type(valu…`分支；L63抛异常，停止当前正常路径。 调用`isinstance`、`value.get`、`type`、`sha`、`any`、`IsolationUnavailable`。 返回路径：L64的`value`。
 - `IsolationUnavailable`（L67–L70）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `IsolationUnavailable.__init__`（L68–L70）：接收`message`、`evidence`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `require_container_evidence`（L73–L102）：接收`value`、`sandbox_id`。 控制顺序：L78按`not isinstance(value, dict) or not isinstance(sandbox_id, str) or not re.fullmatch( r…`分支；L101抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`value.get`、`any`、`str`、`profiles.get`、`IsolationUnavailable`。 返回路径：L102的`value`。
-- `system_argv`（L105–L106）：接收`argv`。 返回路径：L106的`["/usr/bin/env", "-i", "PATH=" + SYSTEM_PATH, "LANG=C.UTF-8", "HOME=/nonexistent", *argv]`。
-- `control_exec`（L109–L112）：接收`sandbox`、`argv`、`timeout`。 调用`sandbox.process.exec`、`shlex.join`、`system_argv`、`dict`。 返回路径：L110的`sandbox.process.exec( shlex.join(system_argv(argv)), env=dict(CONTROL_SHELL_ENV), timeout=…`。
-- `product_argv`（L115–L165）：接收`plan`、`argv`、`database`。 控制顺序：L117按`ports & {2280, 55432, 55433}`分支；L118抛异常，停止当前正常路径；L120按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L121按`plan.runtime.port == 5173`分支；L122抛异常，停止当前正常路径。 调用`IsolationUnavailable`、`getattr`、`ports.add`、`",".join`、`str`、`sorted`、`system_argv`、`environment.items`。 返回路径：L139的`system_argv( [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/setpriv", "--reuid=" + APP…`。
-- `redirected_command`（L168–L172）：接收`argv`。 源码说明：Dedicated data-only stdio; never share a privileged control terminal.。 调用`uuid.uuid4`、`shlex.join`、`shlex.quote`。 返回路径：L172的`["/bin/sh", "-c", command], output`。
-- `read_command_output`（L175–L183）：接收`sandbox`、`path`、`timeout`、`limit`。 控制顺序：L176按`not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix( CONTROL + "/p…`分支；L179抛异常，停止当前正常路径；L181按`result.exit_code != 0`分支；L182抛异常，停止当前正常路径。 调用`path.startswith`、`path.removeprefix`、`IsolationUnavailable`、`control_exec`、`str`。 返回路径：L183的`result.result or ""`。
-- `run_guarded_control`（L186–L189）：接收`sandbox`、`argv`、`timeout`。 调用`redirected_command`、`control_exec`、`read_command_output`。 返回路径：L189的`result.exit_code, read_command_output(sandbox, output, timeout)`。
-- `prepare_identity`（L220–L348）：接收`sandbox`、`plan`、`timeout`。 控制顺序：L241按`type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0`分支；L242抛异常，停止当前正常路径；L272遍历`commands`；L273按`control_exec(sandbox, argv, timeout).exit_code != 0`分支；L274抛异常，停止当前正常路径；L275按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L276遍历`( ["/usr/bin/cp", "-a", "/opt/rnd/pnpm-store", "/tmp/rnd-capabili…`；L280按`control_exec(sandbox, argv, timeout).exit_code`分支。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`isinstance`、`root.result.strip`、`re.fullmatch`、`int`、`type`、`len`、`output.lower`、`IsolationUnavailable`等。 返回路径：L340的`require_isolation_evidence( { **guard_receipt, **receipt, "profile": ISOLATION_PROFILE, "g…`。
+- `ContainerInspectionRejected`（L73–L149）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ContainerInspectionRejected.__init__`（L126–L130）：接收`message`、`category`、`facts`。 调用`super().__init__`、`super`、`type`、`ContainerInspectionRejected.diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ContainerInspectionRejected.diagnostic`（L132–L149）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134按`type(self._category) is not str or self._category not in schema._CATEGORIES`分支；L138遍历`schema._NUMBERS \| schema._FLAGS \| {"network_mode"}`；L139按`key not in facts`分支；L142按`key in schema._NUMBERS`分支；L144按`key in schema._FLAGS`分支。 调用`type`。 返回路径：L135的`{}`；L149的`evidence`。
+- `require_container_evidence`（L152–L181）：接收`value`、`sandbox_id`。 控制顺序：L157按`not isinstance(value, dict) or not isinstance(sandbox_id, str) or not re.fullmatch( r…`分支；L180抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`value.get`、`any`、`str`、`profiles.get`、`IsolationUnavailable`。 返回路径：L181的`value`。
+- `system_argv`（L184–L185）：接收`argv`。 返回路径：L185的`["/usr/bin/env", "-i", "PATH=" + SYSTEM_PATH, "LANG=C.UTF-8", "HOME=/nonexistent", *argv]`。
+- `control_exec`（L188–L191）：接收`sandbox`、`argv`、`timeout`。 调用`sandbox.process.exec`、`shlex.join`、`system_argv`、`dict`。 返回路径：L189的`sandbox.process.exec( shlex.join(system_argv(argv)), env=dict(CONTROL_SHELL_ENV), timeout=…`。
+- `product_argv`（L194–L244）：接收`plan`、`argv`、`database`。 控制顺序：L196按`ports & {2280, 55432, 55433}`分支；L197抛异常，停止当前正常路径；L199按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L200按`plan.runtime.port == 5173`分支；L201抛异常，停止当前正常路径。 调用`IsolationUnavailable`、`getattr`、`ports.add`、`",".join`、`str`、`sorted`、`system_argv`、`environment.items`。 返回路径：L218的`system_argv( [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/setpriv", "--reuid=" + APP…`。
+- `redirected_command`（L247–L251）：接收`argv`。 源码说明：Dedicated data-only stdio; never share a privileged control terminal.。 调用`uuid.uuid4`、`shlex.join`、`shlex.quote`。 返回路径：L251的`["/bin/sh", "-c", command], output`。
+- `read_command_output`（L254–L262）：接收`sandbox`、`path`、`timeout`、`limit`。 控制顺序：L255按`not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix( CONTROL + "/p…`分支；L258抛异常，停止当前正常路径；L260按`result.exit_code != 0`分支；L261抛异常，停止当前正常路径。 调用`path.startswith`、`path.removeprefix`、`IsolationUnavailable`、`control_exec`、`str`。 返回路径：L262的`result.result or ""`。
+- `run_guarded_control`（L265–L268）：接收`sandbox`、`argv`、`timeout`。 调用`redirected_command`、`control_exec`、`read_command_output`。 返回路径：L268的`result.exit_code, read_command_output(sandbox, output, timeout)`。
+- `prepare_identity`（L299–L427）：接收`sandbox`、`plan`、`timeout`。 控制顺序：L320按`type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0`分支；L321抛异常，停止当前正常路径；L351遍历`commands`；L352按`control_exec(sandbox, argv, timeout).exit_code != 0`分支；L353抛异常，停止当前正常路径；L354按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L355遍历`( ["/usr/bin/cp", "-a", "/opt/rnd/pnpm-store", "/tmp/rnd-capabili…`；L359按`control_exec(sandbox, argv, timeout).exit_code`分支。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`isinstance`、`root.result.strip`、`re.fullmatch`、`int`、`type`、`len`、`output.lower`、`IsolationUnavailable`等。 返回路径：L419的`require_isolation_evidence( { **guard_receipt, **receipt, "profile": ISOLATION_PROFILE, "g…`。
 
-<!-- source-file: workbench/capability_isolation.py sha256: 4edd4fdd43a383285c6e4d43ddcd37beb3149ca5e2ba939017122daf696011fa -->
+<!-- source-file: workbench/capability_isolation.py sha256: 60a485fde42df97a4eb1a42df13a27ae8dd6affd173ec0eb032fad975d1e6c96 -->
 ````python
 """Disposable Linux identity and control-channel separation for module commands.
 
@@ -10240,6 +10608,85 @@ class IsolationUnavailable(CheckFailure):
     def __init__(self, message, *, evidence=None):
         super().__init__(message)
         self.evidence = evidence or {}
+
+
+class ContainerInspectionRejected(ValueError):
+    """Trusted inspector rejection with bounded facts, never raw inspect output.
+
+    Unknown exception text, Docker paths, environment and arbitrary network
+    names are not diagnostic evidence. Revalidate on access as well as creation
+    so callers cannot extend the receipt by mutating an exception's attributes.
+    """
+
+    _CATEGORIES = frozenset(
+        {
+            "sandbox_identity",
+            "runner_unavailable",
+            "runner_identity",
+            "engine_seccomp",
+            "container_identity",
+            "sandbox_network",
+            "runner_bridge",
+            "container_policy",
+            "tmpfs_mounts",
+            "binary_mounts",
+            "resource_limits",
+        }
+    )
+    _NUMBERS = frozenset(
+        {
+            "memory",
+            "memory_swap",
+            "cpu_period",
+            "cpu_quota",
+            "pids_limit",
+            "network_count",
+            "bridge_count",
+            "mount_count",
+        }
+    )
+    _FLAGS = frozenset(
+        {
+            "native_resources",
+            "tmpfs_keys_match",
+            "tmpfs_options_match",
+            "runner_bridge_attached",
+            "bridge_ipv6_disabled",
+            "bridge_driver_matches",
+            "bridge_subnets_match",
+            "mount_types_match",
+            "mount_destinations_match",
+            "mount_sources_match",
+            "mount_readonly_matches",
+            "mount_writable_matches",
+        }
+    )
+    _NETWORK_MODES = frozenset({"", "default", "bridge", "runner-bridge", "host", "none"})
+
+    def __init__(self, message, *, category, facts=None):
+        super().__init__(message)
+        self._category = category
+        self._facts = facts if type(facts) is dict else {}
+        self._facts = ContainerInspectionRejected.diagnostic(self)
+
+    def diagnostic(self):
+        schema = ContainerInspectionRejected
+        if type(self._category) is not str or self._category not in schema._CATEGORIES:
+            return {}
+        evidence = {"container_rejection": self._category}
+        facts = self._facts if type(self._facts) is dict else {}
+        for key in schema._NUMBERS | schema._FLAGS | {"network_mode"}:
+            if key not in facts:
+                continue
+            value = facts[key]
+            if key in schema._NUMBERS:
+                value = value if type(value) is int and -(2**63) <= value < 2**63 else None
+            elif key in schema._FLAGS:
+                value = value if type(value) is bool else None
+            else:
+                value = value if type(value) is str and value in schema._NETWORK_MODES else "other"
+            evidence[key] = value
+        return evidence
 
 
 def require_container_evidence(value, sandbox_id):
@@ -10900,13 +11347,13 @@ def business_coverage(policy, proof):
 
 **逐个入口与控制逻辑：**
 
-- `restart_application_identity`（L52–L102）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L101按`result.exit_code != 0`分支；L102抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify_capabilities`（L105–L192）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L111按`plan.selection.model_dump() != selection`分支；L112抛异常，停止当前正常路径；L118按`selection["template"] == "fastapiadmin"`分支；L121按`dependency_identity(product) != profile["dependency_identity"]`分支；L122抛异常，停止当前正常路径；L158按`len(body) > 1_000_000`分支；L159抛异常，停止当前正常路径；L181抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`、`Path`等。 返回路径：L116的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L192的`receipt`。
-- `_verify`（L195–L569）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`。 控制顺序：L214按`trusted_oracle not in (None, "contest-business-v2")`分支；L215抛异常，停止当前正常路径；L216按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L219抛异常，停止当前正常路径；L244按`aggregate`分支；L253按`security_probe is not None`分支；L255按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L256抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`CheckFailure`、`manifest`、`uuid.uuid4`、`digest`、`plan.model_dump`、`inspect_stack`、`write_json`、`params_for`、`client.create`等。 返回路径：L569的`receipt`。
-- `_verify.start`（L344–L389）：接收`command`、`port`、`health_path`。 控制顺序：L362按`not response.cmd_id`分支；L363抛异常，停止当前正常路径；L366按`not isinstance(preview.token, str) or not preview.token`分支；L367抛异常，停止当前正常路径；L378在`time.monotonic() < deadline`成立时循环；L381按`200 <= check.status_code < 300`分支；L386抛异常，停止当前正常路径；L389抛异常，停止当前正常路径。 调用`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`、`shlex.quote`、`shlex.join`、`CheckFailure`等。 返回路径：L382的`http, url, preview.token`。
-- `main`（L572–L614）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L574按`len(body) > 1_000_000`分支；L575抛异常，停止当前正常路径；L584按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L590抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `restart_application_identity`（L53–L103）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L102按`result.exit_code != 0`分支；L103抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_capabilities`（L106–L193）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L112按`plan.selection.model_dump() != selection`分支；L113抛异常，停止当前正常路径；L119按`selection["template"] == "fastapiadmin"`分支；L122按`dependency_identity(product) != profile["dependency_identity"]`分支；L123抛异常，停止当前正常路径；L159按`len(body) > 1_000_000`分支；L160抛异常，停止当前正常路径；L182抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`、`Path`等。 返回路径：L117的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L193的`receipt`。
+- `_verify`（L196–L575）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`。 控制顺序：L215按`trusted_oracle not in (None, "contest-business-v2")`分支；L216抛异常，停止当前正常路径；L217按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L220抛异常，停止当前正常路径；L245按`aggregate`分支；L254按`security_probe is not None`分支；L256按`sandbox.network_block_all is not True or sandbox.public is not False`分支；L257抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`CheckFailure`、`manifest`、`uuid.uuid4`、`digest`、`plan.model_dump`、`inspect_stack`、`write_json`、`params_for`、`client.create`等。 返回路径：L575的`receipt`。
+- `_verify.start`（L350–L395）：接收`command`、`port`、`health_path`。 控制顺序：L368按`not response.cmd_id`分支；L369抛异常，停止当前正常路径；L372按`not isinstance(preview.token, str) or not preview.token`分支；L373抛异常，停止当前正常路径；L384在`time.monotonic() < deadline`成立时循环；L387按`200 <= check.status_code < 300`分支；L392抛异常，停止当前正常路径；L395抛异常，停止当前正常路径。 调用`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`、`shlex.quote`、`shlex.join`、`CheckFailure`等。 返回路径：L388的`http, url, preview.token`。
+- `main`（L578–L620）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L580按`len(body) > 1_000_000`分支；L581抛异常，停止当前正常路径；L590按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L596抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/capability_sandbox.py sha256: e69452fbdb021c723a549a714a9b10132021745b888635bfbcd6b9480e7c66fa -->
+<!-- source-file: workbench/capability_sandbox.py sha256: 081e3be07999d747758af32b4928d38070ff7af317f72c6515058037b101f118 -->
 ````python
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
 
@@ -10929,6 +11376,7 @@ import httpx
 
 from workbench.capability_contracts import CapabilityPlan
 from workbench.capability_isolation import (
+    ContainerInspectionRejected,
     IsolationUnavailable,
     control_exec,
     prepare_identity,
@@ -11170,6 +11618,11 @@ def _verify(
             receipt["container_isolation"] = require_container_evidence(
                 control_observer(sandbox.id), sandbox.id
             )
+        except ContainerInspectionRejected as exc:
+            raise IsolationUnavailable(
+                "实际容器不符合已批准的非特权策略，未上传或执行源码",
+                evidence=ContainerInspectionRejected.diagnostic(exc),
+            ) from None
         except ValueError:
             raise IsolationUnavailable(
                 "实际容器不符合已批准的非特权策略，未上传或执行源码"
@@ -112721,6 +113174,345 @@ def test_notification_display_preserves_raw_message_and_stable_read_controls():
     assert "record.display_message || record.message" in panel
 ````
 
+### `tests/test_capability_browser_activation_review.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `raw_receipt`（L11–L33）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L13遍历`policy.RAW_CHECKS`。 调用`name.endswith`、`name.startswith`、`dict.fromkeys`。 返回路径：L26的`{ "protocol": "browser-seccomp-transport-v1", "architecture": "native-amd64", "expected_pr…`。
+- `test_claimed_pass_cannot_override_contradictory_raw_evidence`（L46–L52）：接收`case`、`changes`。 控制顺序：L48断言`policy.require_raw_probe(receipt) is True`。 调用`raw_receipt`、`policy.require_raw_probe`、`copy.deepcopy`、`changed["observations"][case].update`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_same_runc_version_different_build_is_not_compiler_provenance`（L55–L104）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`object`、`iter`、`next`、`SimpleNamespace`、`( "runc version 1.2.5\ncommit: " + "b" * 40 + "\nspec: 1.2.0\nlib…`、`pytest.raises`、`policy.runtime_identity`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_browser_activation_review.py sha256: 65424164b15859b1ac374071fc22c1ed2c0215f3244660683f9a475b83b040f2 -->
+````python
+"""Independent activation regressions; mocked provenance only, no live syscalls."""
+
+import copy
+from types import SimpleNamespace
+
+import pytest
+
+from workbench import capability_browser_policy as policy
+
+
+def raw_receipt():
+    observations = {}
+    for name in policy.RAW_CHECKS:
+        killed = name.endswith("_killed")
+        positive = name.startswith("native_")
+        error = 38 if name == "clone3_enosys" else 1
+        observations[name] = {
+            "returned": not killed,
+            "return": 0 if killed or positive else -error,
+            "errno": 0 if killed or positive else error,
+            "signal": 31 if killed else 0,
+            "exit_status": 0 if name.startswith(("clone_user", "clone_pid", "unshare_")) else -1,
+            "setup_errno": 0,
+            "timed_out": False,
+        }
+    return {
+        "protocol": "browser-seccomp-transport-v1",
+        "architecture": "native-amd64",
+        "expected_profile_sha256": policy.POLICY_SHA256,
+        "passed": True,
+        "checks": dict.fromkeys(policy.RAW_CHECKS, True),
+        "observations": observations,
+    }
+
+
+@pytest.mark.parametrize(
+    "case,changes",
+    [
+        ("vsock_socket_one_high_word", {"return": 7, "errno": 0}),
+        ("x32_socket_killed", {"returned": True, "return": 7, "signal": 0}),
+        ("clone3_enosys", {"return": -22, "errno": 22}),
+        ("clone_user_extra_mount_denied", {"exit_status": 101}),
+        ("native_unix_socketpair", {"return": 7}),
+    ],
+)
+def test_claimed_pass_cannot_override_contradictory_raw_evidence(case, changes):
+    receipt = raw_receipt()
+    assert policy.require_raw_probe(receipt) is True
+    changed = copy.deepcopy(receipt)
+    changed["observations"][case].update(changes)
+    with pytest.raises(ValueError):
+        policy.require_raw_probe(changed)
+
+
+def test_same_runc_version_different_build_is_not_compiler_provenance(monkeypatch):
+    image_id = "sha256:" + "a" * 64
+    monkeypatch.setattr(policy, "selected_policy", lambda: object())
+    records = iter(
+        [
+            {
+                "Server": {
+                    "Version": "28.0.4",
+                    "Os": "linux",
+                    "Arch": "amd64",
+                    "KernelVersion": "6.17.0-1022-azure",
+                    "Components": [
+                        {"Name": "runc", "Version": "1.2.5", "Details": {"GitCommit": "a" * 40}},
+                        {"Name": "containerd", "Version": "1.7.25"},
+                    ],
+                }
+            },
+            {
+                "OSType": "linux",
+                "Architecture": "x86_64",
+                "DefaultRuntime": "runc",
+                "DockerRootDir": "/var/lib/docker",
+                "SecurityOptions": ["name=apparmor", "name=seccomp,profile=builtin"],
+                "Runtimes": {"runc": {"path": "runc", "runtimeArgs": []}},
+            },
+            [
+                {
+                    "Id": image_id,
+                    "Os": "linux",
+                    "Architecture": "amd64",
+                    "Config": {"User": "1000:1000"},
+                }
+            ],
+        ]
+    )
+    monkeypatch.setattr(policy, "_read_json", lambda args: next(records))
+    monkeypatch.setattr(policy.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(policy.platform, "machine", lambda: "x86_64")
+    monkeypatch.setattr(
+        policy.subprocess,
+        "run",
+        lambda *a, **k: SimpleNamespace(
+            returncode=0,
+            stdout=(
+                "runc version 1.2.5\ncommit: " + "b" * 40 + "\nspec: 1.2.0\nlibseccomp: 2.5.5\n"
+            ).encode(),
+        ),
+    )
+    with pytest.raises(ValueError):
+        policy.runtime_identity(image_id)
+````
+
+### `tests/test_capability_browser_apparmor.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_explicit_default_required_in_both_lifecycle_states`（L16–L28）：接收`monkeypatch`、`state`。 控制顺序：L20断言`"--security-opt=apparmor=docker-default" in command`；L21断言`"--env=CAPABILITY_BROWSER_REQUIRE_APPARMOR=1" in command`；L25遍历`("", None, "unconfined", "different")`。 调用`approved`、`monkeypatch.setattr`、`isolation.worker_command`、`worker_inspection`、`isolation.require_worker_inspection`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_apparmor_option_and_runtime_guard_cannot_be_dropped`（L31–L40）：接收`monkeypatch`。 调用`approved`、`worker_inspection`、`value[0]["HostConfig"]["SecurityOpt"].remove`、`pytest.raises`、`isolation.require_worker_inspection`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_kernel_label_must_be_exact_enforce`（L59–L85）：接收`label`。 控制顺序：L61按`not node`分支；L81断言`result.returncode == 0`；L82断言`json.loads(result.stdout) == { "passed": label in {"docker-default (enforce)", "docke…`。 调用`shutil.which`、`pytest.skip`、`Path(__file__).resolve`、`Path`、`subprocess.run`、`str`、`json.dumps`、`json.loads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_raw_probe_checks_label_before_any_syscall_case`（L88–L96）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L93断言`main.index("if (!apparmor_enforced())") < main.index('socket_case("native_inet_socket…`；L94断言`policy.POLICY_SHA256 == "9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4…`。 调用`( Path(__file__).resolve().parents[1] / "scripts/capability_brows…`、`Path(__file__).resolve`、`Path`、`source.index`、`main.index`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_guard_environment_is_unique`（L109–L114）：接收`monkeypatch`、`env`。 调用`approved`、`worker_inspection`、`pytest.raises`、`isolation.require_worker_inspection`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_browser_apparmor.py sha256: effaf7e20d0f6c5280565dcf109890dc95a6531865338950693acde69874cd0b -->
+````python
+"""Same-default AppArmor binding regressions; no live security policy changes."""
+
+import json
+import shutil
+import subprocess
+from pathlib import Path
+
+import pytest
+
+from tests.test_capability_browser_policy import IMAGE, NAME, approved, worker_inspection
+from workbench import capability_browser_isolation as isolation
+from workbench import capability_browser_policy as policy
+
+
+@pytest.mark.parametrize("state", ["created", "running"])
+def test_explicit_default_required_in_both_lifecycle_states(monkeypatch, state):
+    approved(monkeypatch)
+    monkeypatch.setattr(isolation, "runtime_identity", lambda image: {})
+    command = isolation.worker_command(IMAGE, NAME)
+    assert "--security-opt=apparmor=docker-default" in command
+    assert "--env=CAPABILITY_BROWSER_REQUIRE_APPARMOR=1" in command
+    value = worker_inspection()
+    value[0]["State"] = {"Status": state, "Running": state == "running"}
+    isolation.require_worker_inspection(value, IMAGE)
+    for label in ("", None, "unconfined", "different"):
+        value[0]["AppArmorProfile"] = label
+        with pytest.raises(ValueError, match="apparmor-config"):
+            isolation.require_worker_inspection(value, IMAGE)
+
+
+def test_apparmor_option_and_runtime_guard_cannot_be_dropped(monkeypatch):
+    approved(monkeypatch)
+    value = worker_inspection()
+    value[0]["HostConfig"]["SecurityOpt"].remove("apparmor=docker-default")
+    with pytest.raises(ValueError, match="security-options"):
+        isolation.require_worker_inspection(value, IMAGE)
+    value = worker_inspection()
+    value[0]["Config"]["Env"] = []
+    with pytest.raises(ValueError, match="apparmor-runtime-guard"):
+        isolation.require_worker_inspection(value, IMAGE)
+
+
+@pytest.mark.parametrize(
+    "label",
+    [
+        "docker-default (enforce)",
+        "docker-default (enforce)\n",
+        "",
+        "unconfined\n",
+        "docker-default (complain)\n",
+        "other (enforce)\n",
+        " docker-default (enforce)\n",
+        "docker-default (enforce)\nextra",
+        "docker-default (enforce)\x00extra",
+        "\u00e4ocker-default (enforce)",
+        None,
+    ],
+)
+def test_actual_kernel_label_must_be_exact_enforce(label):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node tooling unavailable; mandatory on Actions")
+    script = Path(__file__).resolve().parents[1] / "scripts/capability_browser_apparmor.cjs"
+    harness = """
+const {requireAppArmor} = require(process.argv[1])
+const input = JSON.parse(process.argv[2]);let closed=0
+const api = {
+ openSync: (path, mode) => {if(path!='/proc/self/attr/current'||mode!='r')throw Error('path');if(input===null)throw Error('unreadable');return 3},
+ readSync: (_fd,b,_o,size,_p) => {if(size!==128)throw Error('bound');return b.write(input)},
+ closeSync:()=>closed++,
+}
+let passed=false;try{passed=requireAppArmor(api)}catch{}
+process.stdout.write(JSON.stringify({passed,closed}))
+"""
+    result = subprocess.run(
+        [node, "-e", harness, str(script), json.dumps(label)],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0
+    assert json.loads(result.stdout) == {
+        "passed": label in {"docker-default (enforce)", "docker-default (enforce)\n"},
+        "closed": 0 if label is None else 1,
+    }
+
+
+def test_raw_probe_checks_label_before_any_syscall_case():
+    source = (
+        Path(__file__).resolve().parents[1] / "scripts/capability_browser_seccomp_probe.c"
+    ).read_text()
+    main = source[source.index("int main(void)") :]
+    assert main.index("if (!apparmor_enforced())") < main.index('socket_case("native_inet_socket"')
+    assert (
+        policy.POLICY_SHA256 == "9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f"
+    )
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        None,
+        "CAPABILITY_BROWSER_REQUIRE_APPARMOR=1",
+        ["CAPABILITY_BROWSER_REQUIRE_APPARMOR=1", "CAPABILITY_BROWSER_REQUIRE_APPARMOR=0"],
+        ["CAPABILITY_BROWSER_REQUIRE_APPARMOR=1", "CAPABILITY_BROWSER_REQUIRE_APPARMOR=1"],
+        ["CAPABILITY_BROWSER_REQUIRE_APPARMOR=1", None],
+    ],
+)
+def test_runtime_guard_environment_is_unique(monkeypatch, env):
+    approved(monkeypatch)
+    value = worker_inspection()
+    value[0]["Config"]["Env"] = env
+    with pytest.raises(ValueError, match="apparmor-runtime-guard"):
+        isolation.require_worker_inspection(value, IMAGE)
+````
+
+### `tests/test_capability_browser_apparmor_review.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_ambiguous_guard_environment_is_rejected`（L21–L26）：接收`monkeypatch`、`environment`。 调用`approved`、`worker_inspection`、`pytest.raises`、`isolation.require_worker_inspection`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_kernel_label_requires_exact_bytes`（L33–L60）：接收`suffix`、`high_bit`。 控制顺序：L35按`not node`分支；L38按`high_bit`分支；L59断言`result.returncode == 0`；L60断言`json.loads(result.stdout) == {"passed": False}`。 调用`shutil.which`、`pytest.skip`、`bytearray`、`subprocess.run`、`str`、`json.dumps`、`list`、`json.loads`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_browser_apparmor_review.py sha256: 31330dd4abe8c02131bd6371112a9db7010ec3dcb93446aafeaa808c3b0d3e89 -->
+````python
+"""Independent exact-label/guard regressions; no policy or live-probe execution."""
+
+import json
+import shutil
+import subprocess
+
+import pytest
+
+from tests.test_capability_browser_policy import IMAGE, approved, worker_inspection
+from workbench import capability_browser_isolation as isolation
+
+
+@pytest.mark.parametrize(
+    "environment",
+    [
+        ["CAPABILITY_BROWSER_REQUIRE_APPARMOR=1", "CAPABILITY_BROWSER_REQUIRE_APPARMOR=0"],
+        ["CAPABILITY_BROWSER_REQUIRE_APPARMOR=1", "CAPABILITY_BROWSER_REQUIRE_APPARMOR=1"],
+        "CAPABILITY_BROWSER_REQUIRE_APPARMOR=1",
+    ],
+)
+def test_ambiguous_guard_environment_is_rejected(monkeypatch, environment):
+    approved(monkeypatch)
+    value = worker_inspection()
+    value[0]["Config"]["Env"] = environment
+    with pytest.raises(ValueError):
+        isolation.require_worker_inspection(value, IMAGE)
+
+
+@pytest.mark.parametrize(
+    "suffix,high_bit",
+    [(b"\0extra", False), (b"", True)],
+)
+def test_kernel_label_requires_exact_bytes(suffix, high_bit):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("Node unavailable; required by the supported review job")
+    data = bytearray(b"docker-default (enforce)" + suffix)
+    if high_bit:
+        data[0] |= 128
+    harness = """
+const {requireAppArmor} = require(process.argv[1]);
+const input = Buffer.from(JSON.parse(process.argv[2]));
+const api = {openSync:()=>3, closeSync:()=>{}, readSync:(_fd,b)=>{input.copy(b);return input.length}};
+let passed=false;try{passed=requireAppArmor(api)}catch{}
+process.stdout.write(JSON.stringify({passed}));
+"""
+    result = subprocess.run(
+        [
+            node,
+            "-e",
+            harness,
+            str(isolation.ROOT / "scripts/capability_browser_apparmor.cjs"),
+            json.dumps(list(data)),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert result.returncode == 0
+    assert json.loads(result.stdout) == {"passed": False}
+````
+
 ### `tests/test_capability_browser_isolation.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -112746,23 +113538,23 @@ def test_notification_display_preserves_raw_message_and_stable_read_controls():
 - `test_failures_always_remove_owned_container`（L169–L211）：接收`monkeypatch`、`mode`。 控制顺序：L199按`mode != "bad-inspection"`分支；L210断言`any("rm" in args and "-f" in args for args in calls)`；L211断言`all("secret-test-preview-token" not in str(args) for args in calls)`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation.execute_worker`、`any`、`all`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_failures_always_remove_owned_container.fake_run`（L180–L186）：接收`args`、`**kwargs`。 控制顺序：L182按`"inspect" in args`分支；L184按`"rm" in args and mode == "cleanup-fails"`分支。 调用`calls.append`、`SimpleNamespace`、`json.dumps([{}]).encode`、`json.dumps`。 返回路径：L183的`SimpleNamespace(returncode=0, stdout=json.dumps([{}]).encode())`；L185的`SimpleNamespace(returncode=1, stdout=b"")`；L186的`SimpleNamespace(returncode=0, stdout=b"owned")`。
 - `test_failures_always_remove_owned_container.fake_popen`（L188–L195）：接收`args`、`**kwargs`。 调用`real_popen`。 返回路径：L195的`real_popen([sys.executable, "-c", script], **kwargs)`。
-- `test_live_receipt_binds_image_sources_and_all_real_checks`（L214–L258）：接收`monkeypatch`、`tmp_path`。 控制顺序：L246断言`isolation.require_browser_acceptance() == IMAGE`；L247遍历`( ("mocked", True), ("image", "sha256:" + "c" * 64), ("sources", …`。 调用`monkeypatch.setattr`、`monkeypatch.setenv`、`isolation.browser_source_identity`、`isolation.image_source_identity`、`path.write_text`、`json.dumps`、`isolation.require_browser_acceptance`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_browser_context_cookies_cannot_leak_from_relay_jar`（L261–L275）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L275断言`seen == ["sid=explicit", None]`。 调用`httpx.Client`、`httpx.MockTransport`、`relay_request`、`frame`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_browser_context_cookies_cannot_leak_from_relay_jar.respond`（L264–L268）：接收`request`。 调用`seen.append`、`request.headers.get`、`httpx.Response`、`httpx.ByteStream`。 返回路径：L266的`httpx.Response( 200, stream=httpx.ByteStream(b"ok"), headers={"set-cookie": "sid=old; Path…`。
-- `test_json_size_is_proved_before_encoding`（L293–L301）：接收`value`。 控制顺序：L299断言`bounded_json(value, len(expected)) == expected`。 调用`json.dumps(value, ensure_ascii=True, allow_nan=False, separators=…`、`json.dumps`、`bounded_json`、`len`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_oversize_json_is_not_serialized_and_creates_no_worker`（L304–L320）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`isolation.execute_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_capture_expansion_is_rejected_before_worker_or_large_string_allocation`（L323–L351）：接收`monkeypatch`。 控制顺序：L351断言`result["value"] == "123"`。 调用`monkeypatch.setattr`、`pytest.fail`、`SimpleNamespace`、`BrowserStep`、`range`、`pytest.raises`、`isolation.run_isolated_browser`、`isolation.bounded_browser_step`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_cumulative_contract_budget_covers_many_individually_valid_steps`（L354–L368）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`BrowserStep`、`range`、`pytest.raises`、`isolation.browser_contract`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `tar_source`（L371–L385）：接收`name`、`body`、`link`、`duplicate`。 控制顺序：L379按`link`分支；L383按`duplicate`分支。 调用`io.BytesIO`、`tarfile.open`、`tarfile.TarInfo`、`len`、`archive.addfile`、`output.getvalue`。 返回路径：L385的`output.getvalue()`。
-- `test_image_provenance_rejects_wrong_or_unbounded_tar_members`（L389–L403）：接收`mode`。 控制顺序：L400按`mode == "compressed"`分支。 调用`tar_source`、`gzip.compress`、`pytest.raises`、`isolation.image_archive_digest`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start`（L406–L452）：接收`monkeypatch`。 控制顺序：L422断言`isolation.require_image_sources(NAME) == isolation.image_source_identity()`；L423断言`isolation.image_archive_digest(tar_source("x", b"hello"), "x") == hashlib.sha256(b"he…`；L452断言`any("rm" in args and "-f" in args for args in calls)`。 调用`monkeypatch.setattr`、`isolation.require_image_sources`、`isolation.image_source_identity`、`isolation.image_archive_digest`、`tar_source`、`hashlib.sha256(b"hello").hexdigest`、`hashlib.sha256`、`pytest.fail`、`path.rsplit`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start.current`（L413–L419）：接收`name`、`path`。 控制顺序：L414断言`name == NAME`。 调用`next`、`isolation.IMAGE_SOURCES.items`、`(isolation.ROOT / source).read_bytes`、`tar_source`、`path.rsplit`。 返回路径：L419的`tar_source(path.rsplit("/", 1)[1], body)`。
-- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start.fake_run`（L430–L432）：接收`args`、`**kwargs`。 调用`calls.append`、`SimpleNamespace`、`json.dumps([{}]).encode`、`json.dumps`。 返回路径：L432的`SimpleNamespace(returncode=0, stdout=json.dumps([{}]).encode())`。
-- `test_provenance_pipe_is_bounded_without_buffering_an_entire_archive`（L455–L477）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation._image_file_archive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_provenance_pipe_is_bounded_without_buffering_an_entire_archive.fake_popen`（L463–L473）：接收`args`、`**kwargs`。 调用`real_popen`。 返回路径：L464的`real_popen( [ sys.executable, "-I", "-S", "-c", "import sys;sys.stdout.buffer.write(b'x'*6…`。
-- `test_live_probe_rejects_refusal_timeout_and_dac_errors_without_network_calls`（L480–L527）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L487按`node is None`分支；L526断言`result.returncode == 0`；L527断言`result.stdout == "specific-probe-errors-passed"`。 调用`shutil.which`、`pytest.skip`、`subprocess.run`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_receipt_binds_image_sources_and_all_real_checks`（L214–L260）：接收`monkeypatch`、`tmp_path`。 控制顺序：L248断言`isolation.require_browser_acceptance() == IMAGE`；L249遍历`( ("mocked", True), ("image", "sha256:" + "c" * 64), ("sources", …`。 调用`monkeypatch.setattr`、`monkeypatch.setenv`、`isolation.browser_source_identity`、`isolation.image_source_identity`、`path.write_text`、`json.dumps`、`isolation.require_browser_acceptance`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_browser_context_cookies_cannot_leak_from_relay_jar`（L263–L277）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L277断言`seen == ["sid=explicit", None]`。 调用`httpx.Client`、`httpx.MockTransport`、`relay_request`、`frame`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_browser_context_cookies_cannot_leak_from_relay_jar.respond`（L266–L270）：接收`request`。 调用`seen.append`、`request.headers.get`、`httpx.Response`、`httpx.ByteStream`。 返回路径：L268的`httpx.Response( 200, stream=httpx.ByteStream(b"ok"), headers={"set-cookie": "sid=old; Path…`。
+- `test_json_size_is_proved_before_encoding`（L295–L303）：接收`value`。 控制顺序：L301断言`bounded_json(value, len(expected)) == expected`。 调用`json.dumps(value, ensure_ascii=True, allow_nan=False, separators=…`、`json.dumps`、`bounded_json`、`len`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_oversize_json_is_not_serialized_and_creates_no_worker`（L306–L322）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`isolation.execute_worker`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_capture_expansion_is_rejected_before_worker_or_large_string_allocation`（L325–L353）：接收`monkeypatch`。 控制顺序：L353断言`result["value"] == "123"`。 调用`monkeypatch.setattr`、`pytest.fail`、`SimpleNamespace`、`BrowserStep`、`range`、`pytest.raises`、`isolation.run_isolated_browser`、`isolation.bounded_browser_step`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cumulative_contract_budget_covers_many_individually_valid_steps`（L356–L370）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`BrowserStep`、`range`、`pytest.raises`、`isolation.browser_contract`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `tar_source`（L373–L387）：接收`name`、`body`、`link`、`duplicate`。 控制顺序：L381按`link`分支；L385按`duplicate`分支。 调用`io.BytesIO`、`tarfile.open`、`tarfile.TarInfo`、`len`、`archive.addfile`、`output.getvalue`。 返回路径：L387的`output.getvalue()`。
+- `test_image_provenance_rejects_wrong_or_unbounded_tar_members`（L391–L405）：接收`mode`。 控制顺序：L402按`mode == "compressed"`分支。 调用`tar_source`、`gzip.compress`、`pytest.raises`、`isolation.image_archive_digest`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start`（L408–L454）：接收`monkeypatch`。 控制顺序：L424断言`isolation.require_image_sources(NAME) == isolation.image_source_identity()`；L425断言`isolation.image_archive_digest(tar_source("x", b"hello"), "x") == hashlib.sha256(b"he…`；L454断言`any("rm" in args and "-f" in args for args in calls)`。 调用`monkeypatch.setattr`、`isolation.require_image_sources`、`isolation.image_source_identity`、`isolation.image_archive_digest`、`tar_source`、`hashlib.sha256(b"hello").hexdigest`、`hashlib.sha256`、`pytest.fail`、`path.rsplit`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start.current`（L415–L421）：接收`name`、`path`。 控制顺序：L416断言`name == NAME`。 调用`next`、`isolation.IMAGE_SOURCES.items`、`(isolation.ROOT / source).read_bytes`、`tar_source`、`path.rsplit`。 返回路径：L421的`tar_source(path.rsplit("/", 1)[1], body)`。
+- `test_actual_image_files_must_match_current_sources_and_stale_image_cannot_start.fake_run`（L432–L434）：接收`args`、`**kwargs`。 调用`calls.append`、`SimpleNamespace`、`json.dumps([{}]).encode`、`json.dumps`。 返回路径：L434的`SimpleNamespace(returncode=0, stdout=json.dumps([{}]).encode())`。
+- `test_provenance_pipe_is_bounded_without_buffering_an_entire_archive`（L457–L479）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation._image_file_archive`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_provenance_pipe_is_bounded_without_buffering_an_entire_archive.fake_popen`（L465–L475）：接收`args`、`**kwargs`。 调用`real_popen`。 返回路径：L466的`real_popen( [ sys.executable, "-I", "-S", "-c", "import sys;sys.stdout.buffer.write(b'x'*6…`。
+- `test_live_probe_rejects_refusal_timeout_and_dac_errors_without_network_calls`（L482–L529）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L489按`node is None`分支；L528断言`result.returncode == 0`；L529断言`result.stdout == "specific-probe-errors-passed"`。 调用`shutil.which`、`pytest.skip`、`subprocess.run`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_capability_browser_isolation.py sha256: 097d17f2c245c81892157e5991f89d1c057a7e2d373c7228509277c1e61bf3b1 -->
+<!-- source-file: tests/test_capability_browser_isolation.py sha256: 94dd3ce39bc9e4833ad048b6217d6ee26350aad3d0849edcaf97f4a8ce819d06 -->
 ````python
 """Policy and protocol tests; these do not certify actual Docker confinement."""
 
@@ -112986,7 +113778,8 @@ def test_live_receipt_binds_image_sources_and_all_real_checks(monkeypatch, tmp_p
     monkeypatch.setattr(isolation, "BROWSER_ACCEPTANCE", path)
     monkeypatch.setenv("CAPABILITY_BROWSER_IMAGE", IMAGE)
     valid = {
-        "protocol": "offline-browser-isolation-v2",
+        "protocol": "offline-browser-isolation-v3",
+        "runtime": {"policy_sha256": None, "mode": "docker-default"},
         "passed": True,
         "image": IMAGE,
         "mocked": False,
@@ -113000,6 +113793,7 @@ def test_live_receipt_binds_image_sources_and_all_real_checks(monkeypatch, tmp_p
                 "tmpfs_exhaustion": True,
                 "pid_exhaustion": True,
                 "readonly_root": True,
+                "browser_build": True,
             },
             "positive": True,
             "error": True,
@@ -113291,6 +114085,372 @@ main().catch(error => {console.error(error);process.exitCode=1})
     )
     assert result.returncode == 0, result.stderr
     assert result.stdout == "specific-probe-errors-passed"
+````
+
+### `tests/test_capability_browser_policy.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `native_test_controller`（L17–L19）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fixture`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `approved`（L22–L30）：接收`monkeypatch`。 控制顺序：L23遍历`{ "CAPABILITY_BROWSER_APPROVED_POLICY": policy.POLICY_SHA256, "GI…`。 调用`{ "CAPABILITY_BROWSER_APPROVED_POLICY": policy.POLICY_SHA256, "GI…`、`monkeypatch.setenv`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `target`（L33–L56）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L34的`( { "Server": { "Version": "28.0.4", "Os": "linux", "Arch": "amd64", "KernelVersion": "6.1…`。
+- `test_no_implicit_activation`（L59–L62）：接收`monkeypatch`。 控制顺序：L61断言`policy.selected_policy() is None`；L62断言`not any("seccomp=" in v for v in isolation.worker_command(IMAGE, NAME))`。 调用`monkeypatch.delenv`、`policy.selected_policy`、`any`、`isolation.worker_command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_scope_rejects_before_create`（L76–L81）：接收`monkeypatch`、`key`、`value`。 调用`approved`、`monkeypatch.setenv`、`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`isolation.worker_command`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_changed_policy_rejected`（L84–L91）：接收`monkeypatch`、`tmp_path`。 调用`approved`、`path.parent.mkdir`、`path.write_text`、`monkeypatch.setattr`、`pytest.raises`、`policy.selected_policy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unknown_or_wrong_target_rejected`（L111–L116）：接收`section`、`key`、`value`。 调用`copy.deepcopy`、`target`、`pytest.raises`、`policy.validate_target`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_target_records_observed_versions`（L119–L122）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L121断言`got["policy_sha256"] == policy.POLICY_SHA256`；L122断言`got["runc"] == "1.2.5" and got["kernel"] == "6.17.0-1022-azure"`。 调用`policy.validate_target`、`target`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_command_requires_runtime_before_create`（L125–L132）：接收`monkeypatch`。 控制顺序：L130断言`seen == [IMAGE]`；L131断言`"--security-opt=seccomp=" + str(policy.selected_policy()) in args`；L132断言`"--network=none" in args and "--cap-drop=ALL" in args`。 调用`approved`、`monkeypatch.setattr`、`seen.append`、`isolation.worker_command`、`str`、`policy.selected_policy`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inspect_matches_inline_content_not_path_or_unconfined`（L135–L148）：接收`monkeypatch`。 控制顺序：L139断言`policy.security_options_match(good)`；L140遍历`( ["no-new-privileges:true"], good + ["apparmor=unconfined"], ["n…`；L146断言`not policy.security_options_match(bad)`；L148断言`not policy.security_options_match([good[0], "seccomp=" + json.dumps(content)])`。 调用`approved`、`json.loads`、`policy.selected_policy().read_bytes`、`policy.selected_policy`、`json.dumps`、`policy.security_options_match`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_requires_matching_compiler_provenance`（L151–L173）：接收`monkeypatch`、`tmp_path`。 控制顺序：L165断言`policy.runtime_identity(IMAGE)["libseccomp_observed_matching_build"] == "2.5.5"`。 调用`binary.write_bytes`、`monkeypatch.setattr`、`approved`、`iter`、`target`、`next`、`SimpleNamespace`、`policy.runtime_identity`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `worker_inspection`（L176–L205）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`policy.selected_policy().read_text`、`policy.selected_policy`。 返回路径：L177的`[ { "Image": IMAGE, "AppArmorProfile": "docker-default", "Config": {"User": "1000:1000", "…`。
+- `test_effective_policy_and_outer_boundary_required`（L220–L227）：接收`monkeypatch`、`section`、`key`、`value`。 调用`approved`、`worker_inspection`、`isolation.require_worker_inspection`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `raw_proof`（L230–L251）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L232遍历`policy.RAW_CHECKS`。 调用`name.endswith`、`name.startswith`、`dict.fromkeys`。 返回路径：L244的`{ "protocol": "browser-seccomp-transport-v1", "architecture": "native-amd64", "expected_pr…`。
+- `test_complete_raw_proof`（L254–L255）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L255断言`policy.require_raw_probe(raw_proof()) is True`。 调用`policy.require_raw_probe`、`raw_proof`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_incomplete_raw_proof_rejected`（L270–L274）：接收`mutation`。 调用`raw_proof`、`mutation`、`pytest.raises`、`policy.require_raw_probe`、`pytest.mark.parametrize`、`r.update`、`r["checks"].pop`、`r["checks"].update`、`r["observations"]["mount_denied"].update`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_selected_receipt_requires_exact_runtime_and_raw_proof`（L277–L332）：接收`monkeypatch`、`tmp_path`。 控制顺序：L320断言`isolation.require_browser_acceptance(IMAGE) == IMAGE`；L321遍历`( lambda r: r.update(protocol="offline-browser-isolation-v2"), la…`。 调用`approved`、`policy.validate_target`、`target`、`monkeypatch.setattr`、`isolation.browser_source_identity`、`isolation.image_source_identity`、`dict.fromkeys`、`path.write_text`、`json.dumps`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_browser_policy.py sha256: 31e8b204a8cbe61164def1d65ea7fd0dba14c554fb83628a45b01d7675564b33 -->
+````python
+"""Approved Actions selector tests; no daemon or policy is executed."""
+
+import copy
+import json
+from types import SimpleNamespace
+
+import pytest
+
+from workbench import capability_browser_isolation as isolation
+from workbench import capability_browser_policy as policy
+
+IMAGE = "sha256:" + "a" * 64
+NAME = "rnd-browser-" + "b" * 32
+
+
+@pytest.fixture(autouse=True)
+def native_test_controller(monkeypatch):
+    monkeypatch.setattr(policy.platform, "system", lambda: "Linux")
+    monkeypatch.setattr(policy.platform, "machine", lambda: "x86_64")
+
+
+def approved(monkeypatch):
+    for key, value in {
+        "CAPABILITY_BROWSER_APPROVED_POLICY": policy.POLICY_SHA256,
+        "GITHUB_ACTIONS": "true",
+        "GITHUB_REPOSITORY": "Live-yum/ai-rnd-foundation-learning",
+        "GITHUB_WORKFLOW": "Offline candidate browser isolation",
+        "GITHUB_RUN_ID": "12345",
+    }.items():
+        monkeypatch.setenv(key, value)
+
+
+def target():
+    return (
+        {
+            "Server": {
+                "Version": "28.0.4",
+                "Os": "linux",
+                "Arch": "amd64",
+                "KernelVersion": "6.17.0-1022-azure",
+                "Components": [
+                    {"Name": "runc", "Version": "1.2.5", "Details": {"GitCommit": "abc123"}},
+                    {"Name": "containerd", "Version": "1.7.25"},
+                ],
+            }
+        },
+        {
+            "OSType": "linux",
+            "Architecture": "x86_64",
+            "DefaultRuntime": "runc",
+            "Runtimes": {"runc": {"path": "runc"}},
+            "DockerRootDir": "/var/lib/docker",
+            "SecurityOptions": ["name=apparmor", "name=seccomp,profile=builtin"],
+        },
+        [{"Id": IMAGE, "Os": "linux", "Architecture": "amd64", "Config": {"User": "1000:1000"}}],
+    )
+
+
+def test_no_implicit_activation(monkeypatch):
+    monkeypatch.delenv("CAPABILITY_BROWSER_APPROVED_POLICY", raising=False)
+    assert policy.selected_policy() is None
+    assert not any("seccomp=" in v for v in isolation.worker_command(IMAGE, NAME))
+
+
+@pytest.mark.parametrize(
+    "key,value",
+    [
+        ("CAPABILITY_BROWSER_APPROVED_POLICY", "/tmp/arbitrary.json"),
+        ("GITHUB_ACTIONS", "false"),
+        ("GITHUB_REPOSITORY", "other/repo"),
+        ("GITHUB_WORKFLOW", "Python 3.14 acceptance"),
+        ("GITHUB_RUN_ID", ""),
+        ("GITHUB_RUN_ID", "../1"),
+    ],
+)
+def test_scope_rejects_before_create(monkeypatch, key, value):
+    approved(monkeypatch)
+    monkeypatch.setenv(key, value)
+    monkeypatch.setattr(policy.subprocess, "run", lambda *a, **k: pytest.fail("subprocess reached"))
+    with pytest.raises(ValueError):
+        isolation.worker_command(IMAGE, NAME)
+
+
+def test_changed_policy_rejected(monkeypatch, tmp_path):
+    approved(monkeypatch)
+    path = tmp_path / policy.POLICY_SOURCE
+    path.parent.mkdir(parents=True)
+    path.write_text("{}")
+    monkeypatch.setattr(policy, "ROOT", tmp_path)
+    with pytest.raises(ValueError, match="bytes changed"):
+        policy.selected_policy()
+
+
+@pytest.mark.parametrize(
+    "section,key,value",
+    [
+        (0, "Version", "28.0.5"),
+        (0, "Arch", "arm64"),
+        (0, "Os", "windows"),
+        (0, "KernelVersion", None),
+        (0, "Components", []),
+        (1, "DefaultRuntime", "other"),
+        (1, "Architecture", "aarch64"),
+        (1, "SecurityOptions", []),
+        (1, "DockerRootDir", "/other"),
+        (2, "Id", "sha256:" + "b" * 64),
+        (2, "Architecture", "arm64"),
+        (2, "Config", {"User": "0"}),
+    ],
+)
+def test_unknown_or_wrong_target_rejected(section, key, value):
+    values = copy.deepcopy(target())
+    selected = values[0]["Server"] if section == 0 else values[1] if section == 1 else values[2][0]
+    selected[key] = value
+    with pytest.raises(ValueError):
+        policy.validate_target(*values, IMAGE)
+
+
+def test_target_records_observed_versions():
+    got = policy.validate_target(*target(), IMAGE)
+    assert got["policy_sha256"] == policy.POLICY_SHA256
+    assert got["runc"] == "1.2.5" and got["kernel"] == "6.17.0-1022-azure"
+
+
+def test_command_requires_runtime_before_create(monkeypatch):
+    approved(monkeypatch)
+    seen = []
+    monkeypatch.setattr(isolation, "runtime_identity", lambda image: seen.append(image))
+    args = isolation.worker_command(IMAGE, NAME)
+    assert seen == [IMAGE]
+    assert "--security-opt=seccomp=" + str(policy.selected_policy()) in args
+    assert "--network=none" in args and "--cap-drop=ALL" in args
+
+
+def test_inspect_matches_inline_content_not_path_or_unconfined(monkeypatch):
+    approved(monkeypatch)
+    content = json.loads(policy.selected_policy().read_bytes())
+    good = ["no-new-privileges:true", "apparmor=docker-default", "seccomp=" + json.dumps(content)]
+    assert policy.security_options_match(good)
+    for bad in (
+        ["no-new-privileges:true"],
+        good + ["apparmor=unconfined"],
+        ["no-new-privileges:true", "seccomp=unconfined"],
+        ["no-new-privileges:true", "seccomp=" + str(policy.selected_policy())],
+    ):
+        assert not policy.security_options_match(bad)
+    content["defaultAction"] = "SCMP_ACT_ALLOW"
+    assert not policy.security_options_match([good[0], "seccomp=" + json.dumps(content)])
+
+
+def test_runtime_requires_matching_compiler_provenance(monkeypatch, tmp_path):
+    binary = tmp_path / "runc"
+    binary.write_bytes(b"synthetic-runc-build")
+    monkeypatch.setattr(policy, "Path", lambda path: binary)
+    approved(monkeypatch)
+    values = iter(target())
+    monkeypatch.setattr(policy, "_read_json", lambda args: next(values))
+    monkeypatch.setattr(
+        policy.subprocess,
+        "run",
+        lambda *a, **k: SimpleNamespace(
+            returncode=0, stdout=b"runc version 1.2.5\ncommit: abc123\nlibseccomp: 2.5.5\n"
+        ),
+    )
+    assert policy.runtime_identity(IMAGE)["libseccomp_observed_matching_build"] == "2.5.5"
+    values = iter(target())
+    monkeypatch.setattr(
+        policy.subprocess,
+        "run",
+        lambda *a, **k: SimpleNamespace(returncode=0, stdout=b"runc version 1.3.0\n"),
+    )
+    with pytest.raises(ValueError, match="provenance mismatch"):
+        policy.runtime_identity(IMAGE)
+
+
+def worker_inspection():
+    return [
+        {
+            "Image": IMAGE,
+            "AppArmorProfile": "docker-default",
+            "Config": {"User": "1000:1000", "Env": ["CAPABILITY_BROWSER_REQUIRE_APPARMOR=1"]},
+            "Mounts": [],
+            "HostConfig": {
+                "NetworkMode": "none",
+                "ReadonlyRootfs": True,
+                "Privileged": False,
+                "NanoCpus": 1000000000,
+                "Memory": 805306368,
+                "MemorySwap": 805306368,
+                "PidsLimit": 128,
+                "IpcMode": "private",
+                "CgroupnsMode": "private",
+                "ShmSize": 67108864,
+                "CapDrop": ["ALL"],
+                "CapAdd": [],
+                "SecurityOpt": [
+                    "no-new-privileges:true",
+                    "apparmor=docker-default",
+                    "seccomp=" + policy.selected_policy().read_text(),
+                ],
+                "Tmpfs": {"/tmp": "rw,nosuid,nodev,noexec,size=134217728,mode=1777"},
+                "LogConfig": {"Type": "none"},
+            },
+        }
+    ]
+
+
+@pytest.mark.parametrize(
+    "section,key,value",
+    [
+        ("record", "AppArmorProfile", "unconfined"),
+        ("host", "CapAdd", ["SYS_ADMIN"]),
+        ("host", "NetworkMode", "host"),
+        ("host", "Privileged", True),
+        ("host", "SecurityOpt", ["no-new-privileges:true"]),
+        ("host", "Binds", ["/:/host"]),
+        ("host", "PidMode", "host"),
+    ],
+)
+def test_effective_policy_and_outer_boundary_required(monkeypatch, section, key, value):
+    approved(monkeypatch)
+    data = worker_inspection()
+    isolation.require_worker_inspection(data, IMAGE)
+    record = data[0] if section == "record" else data[0]["HostConfig"]
+    record[key] = value
+    with pytest.raises(ValueError):
+        isolation.require_worker_inspection(data, IMAGE)
+
+
+def raw_proof():
+    observations = {}
+    for name in policy.RAW_CHECKS:
+        killed = name.endswith("_killed")
+        error = 0 if name.startswith("native_") or killed else 38 if name == "clone3_enosys" else 1
+        observations[name] = {
+            "returned": not killed,
+            "return": -error,
+            "errno": error,
+            "signal": 31 if killed else 0,
+            "exit_status": 0 if "extra_" in name else -1,
+            "setup_errno": 0,
+            "timed_out": False,
+        }
+    return {
+        "protocol": "browser-seccomp-transport-v1",
+        "architecture": "native-amd64",
+        "expected_profile_sha256": policy.POLICY_SHA256,
+        "passed": True,
+        "checks": dict.fromkeys(policy.RAW_CHECKS, True),
+        "observations": observations,
+    }
+
+
+def test_complete_raw_proof():
+    assert policy.require_raw_probe(raw_proof()) is True
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda r: r.update(passed=1),
+        lambda r: r.update(expected_profile_sha256="wrong"),
+        lambda r: r["checks"].pop("clone3_enosys"),
+        lambda r: r["checks"].update(mount_denied=False),
+        lambda r: r["checks"].update(mount_denied=1),
+        lambda r: r["observations"]["mount_denied"].update(timed_out=True),
+        lambda r: r["observations"].pop("mount_denied"),
+    ],
+)
+def test_incomplete_raw_proof_rejected(mutation):
+    data = raw_proof()
+    mutation(data)
+    with pytest.raises(ValueError):
+        policy.require_raw_probe(data)
+
+
+def test_selected_receipt_requires_exact_runtime_and_raw_proof(monkeypatch, tmp_path):
+    approved(monkeypatch)
+    runtime = policy.validate_target(*target(), IMAGE)
+    runtime["libseccomp"] = "2.5.5"
+    monkeypatch.setattr(isolation, "runtime_identity", lambda image: runtime)
+    path = tmp_path / "receipt.json"
+    monkeypatch.setattr(isolation, "BROWSER_ACCEPTANCE", path)
+    record = {
+        "protocol": "offline-browser-isolation-v3",
+        "passed": True,
+        "image": IMAGE,
+        "mocked": False,
+        "runtime": runtime,
+        "sources": isolation.browser_source_identity(),
+        "image_sources": isolation.image_source_identity(),
+        "checks": {
+            "kernel_and_network": dict.fromkeys(
+                [
+                    "passed",
+                    "kernel_resource_limits",
+                    "network_none",
+                    "tmpfs_exhaustion",
+                    "pid_exhaustion",
+                    "readonly_root",
+                    "browser_build",
+                    "apparmor_enforced",
+                ],
+                True,
+            ),
+            **dict.fromkeys(
+                [
+                    "positive",
+                    "error",
+                    "abuse",
+                    "failure_cleanup",
+                    "memory_exhaustion",
+                    "raw_syscalls",
+                ],
+                True,
+            ),
+        },
+    }
+    path.write_text(json.dumps(record))
+    assert isolation.require_browser_acceptance(IMAGE) == IMAGE
+    for mutation in (
+        lambda r: r.update(protocol="offline-browser-isolation-v2"),
+        lambda r: r["runtime"].update(policy_sha256=None),
+        lambda r: r["runtime"].update(kernel="other"),
+        lambda r: r["checks"].pop("raw_syscalls"),
+        lambda r: r["checks"].update(raw_syscalls=1),
+    ):
+        bad = copy.deepcopy(record)
+        mutation(bad)
+        path.write_text(json.dumps(bad))
+        with pytest.raises(ValueError):
+            isolation.require_browser_acceptance(IMAGE)
 ````
 
 ### `tests/test_capability_browser_preflight.py`
@@ -114530,6 +115690,684 @@ def test_launch_detail_unknown_kernel_facts_never_make_failure_pass():
     )
     assert error is None
     assert result["passed"] is False
+````
+
+### `tests/test_capability_browser_seccomp_proposal.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.capability_browser_isolation`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `read`（L18–L19）：接收`name`。 调用`json.loads`、`(DIRECTORY / name).read_text`。 返回路径：L19的`json.loads((DIRECTORY / name).read_text())`。
+- `added_rule`（L22–L31）：接收`name`、`value`。 控制顺序：L29按`value is not None`分支。 返回路径：L31的`rule`。
+- `profiles`（L43–L44）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`read`。 返回路径：L44的`read("moby-v28.0.4-default.json"), read("chromium141-docker28-amd64.proposal.json")`。
+- `test_pinned_provenance_hashes_and_inactive_status`（L47–L62）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L49断言`manifest["status"] == "inactive-review-only"`；L50断言`manifest["activation_authorized"] is False`；L51断言`manifest["live_validation"] is False`；L52断言`manifest["scope"]["initial_capability_bounding_set"] == []`；L53遍历`(("baseline", BASELINE_SHA256), ("proposal", PROPOSAL_SHA256))`；L55断言`hashlib.sha256((DIRECTORY / record["file"]).read_bytes()).hexdigest() == expected`；L56断言`record["sha256"] == expected`；L57断言`manifest["baseline"]["upstream_commit"] == "6430e49a55babd9b8f4d08e70ecb2b68900770fe"`。后续分支沿下方源码相同行号继续阅读。 调用`read`、`hashlib.sha256((DIRECTORY / record["file"]).read_bytes()).hexdige…`、`hashlib.sha256`、`(DIRECTORY / record["file"]).read_bytes`、`len`、`all`、`(DIRECTORY / manifest["upstream_license"]).read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_append_only_delta_preserves_every_baseline_rule_and_property`（L65–L76）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L69断言`proposal == expected`；L71断言`patch == [{"op": "add", "path": "/syscalls/-", "value": r} for r in EXPECTED_DELTA]`；L73遍历`patch`；L75断言`replay == proposal`；L76断言`{n for r in EXPECTED_DELTA for n in r["names"]} == {"clone", "unshare", "chroot"}`。 调用`profiles`、`copy.deepcopy`、`expected["syscalls"].extend`、`read`、`replay["syscalls"].append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `applies`（L79–L87）：接收`rule`、`host_arch`、`caps`。 源码说明：Moby host filtering only; not a kernel/seccomp emulator or ABI proof.。 调用`rule.get`、`inc.get`、`exc.get`、`all`、`any`。 返回路径：L82的`(not inc.get("arches") or host_arch in inc["arches"]) and host_arch not in exc.get("arches…`。
+- `decision`（L90–L109）：接收`profile`、`name`、`arg0`、`host_arch`。 源码说明：Evaluate the explicit scalar rules used by these negative test cases.。 控制顺序：L92遍历`profile["syscalls"]`；L93按`name not in rule["names"] or not applies(rule, host_arch)`分支；L96遍历`rule.get("args") or []`；L97断言`arg["index"] == 0`；L99按`op == "SCMP_CMP_EQ"`分支；L101按`op == "SCMP_CMP_NE"`分支；L103按`op == "SCMP_CMP_MASKED_EQ"`分支；L106抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`applies`、`rule.get`、`arg.get`、`AssertionError`。 返回路径：L108的`rule["action"], rule.get("errnoRet")`；L109的`profile["defaultAction"], profile["defaultErrnoRet"]`。
+- `test_only_source_justified_calls_become_allowed`（L122–L125）：接收`name`、`arg`。 控制顺序：L124断言`decision(base, name, arg)[0] == "SCMP_ACT_ERRNO"`；L125断言`decision(proposal, name, arg)[0] == "SCMP_ACT_ALLOW"`。 调用`profiles`、`decision`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_forbidden_calls_extra_flags_and_alternate_signals_stay_denied`（L157–L162）：接收`name`、`arg`。 控制顺序：L159断言`decision(base, name, arg) == decision(proposal, name, arg)`；L160断言`decision(proposal, name, arg)[0] == "SCMP_ACT_ERRNO"`；L161按`name == "clone3"`分支；L162断言`decision(proposal, name, arg) == ("SCMP_ACT_ERRNO", 38)`。 调用`profiles`、`decision`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unrelated_baseline_allowances_are_preserved`（L176–L179）：接收`name`、`arg`。 控制顺序：L178断言`decision(base, name, arg) == decision(proposal, name, arg)`；L179断言`decision(proposal, name, arg)[0] == "SCMP_ACT_ALLOW"`。 调用`profiles`、`decision`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inherited_vsock_limits_do_not_claim_complete_abi_containment`（L183–L192）：接收`name`、`arg`。 控制顺序：L188断言`decision(base, name, arg) == decision(proposal, name, arg)`；L189断言`decision(proposal, name, arg)[0] == "SCMP_ACT_ALLOW"`；L190断言`decision(proposal, "socket", 40)[0] == "SCMP_ACT_ERRNO"`；L192断言`{"SCMP_ARCH_X86", "SCMP_ARCH_X32"} <= set(compat["subArchitectures"])`。 调用`profiles`、`decision`、`next`、`set`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_proposal_is_not_selected_copied_or_part_of_existing_acceptance`（L195–L211）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L197断言`[c for c in command if c.startswith("--security-opt")] == [ "--security-opt=no-new-pr…`；L200断言`"--cap-drop=ALL" in command`；L201遍历`[ ROOT / "tools/browser/Dockerfile", *ROOT.glob(".github/workflow…`；L208断言`"chromium141-docker28-amd64.proposal.json" not in text`；L209断言`"tools/browser/review-only/" not in text`；L210断言`all(not applies(r, "arm64") for r in EXPECTED_DELTA)`；L211断言`all(not applies(r, caps=("CAP_SYS_ADMIN",)) for r in EXPECTED_DELTA)`。 调用`worker_command`、`c.startswith`、`ROOT.glob`、`path.read_text`、`all`、`applies`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_browser_seccomp_proposal.py sha256: c52ebdedbbe3619355d0e3af1e8ad42e92eeca38eba4c0aa88992e382e75339d -->
+````python
+"""Static review-artifact checks; never load seccomp or launch containers."""
+
+import copy
+import hashlib
+import json
+from pathlib import Path
+
+import pytest
+
+from workbench.capability_browser_isolation import worker_command
+
+ROOT = Path(__file__).resolve().parents[1]
+DIRECTORY = ROOT / "tools/browser/review-only"
+BASELINE_SHA256 = "9c1025c88ccaa517b648da571961838744ea2137f176bfe6a48b21294cae9c76"
+PROPOSAL_SHA256 = "f62d10d5ce466dfd0714d61891ef7b94445367c8a6a303302f4c3956687f3504"
+
+
+def read(name):
+    return json.loads((DIRECTORY / name).read_text())
+
+
+def added_rule(name, value=None):
+    rule = {
+        "names": [name],
+        "action": "SCMP_ACT_ALLOW",
+        "includes": {"arches": ["amd64"]},
+        "excludes": {"caps": ["CAP_SYS_ADMIN"]},
+    }
+    if value is not None:
+        rule["args"] = [{"index": 0, "value": value, "op": "SCMP_CMP_EQ"}]
+    return rule
+
+
+EXPECTED_DELTA = [
+    added_rule("clone", 0x10000011),
+    added_rule("clone", 0x70000011),
+    added_rule("clone", 0x20000011),
+    added_rule("unshare", 0x10000000),
+    added_rule("chroot"),
+]
+
+
+def profiles():
+    return read("moby-v28.0.4-default.json"), read("chromium141-docker28-amd64.proposal.json")
+
+
+def test_pinned_provenance_hashes_and_inactive_status():
+    manifest = read("proposal-manifest.json")
+    assert manifest["status"] == "inactive-review-only"
+    assert manifest["activation_authorized"] is False
+    assert manifest["live_validation"] is False
+    assert manifest["scope"]["initial_capability_bounding_set"] == []
+    for key, expected in (("baseline", BASELINE_SHA256), ("proposal", PROPOSAL_SHA256)):
+        record = manifest[key]
+        assert hashlib.sha256((DIRECTORY / record["file"]).read_bytes()).hexdigest() == expected
+        assert record["sha256"] == expected
+    assert manifest["baseline"]["upstream_commit"] == "6430e49a55babd9b8f4d08e70ecb2b68900770fe"
+    assert len(manifest["chromium_sources"]) == 4
+    assert all(
+        "9f043f63b0e5b728c8d09f3e3ddfc1681a4bd58e" in s["url"] for s in manifest["chromium_sources"]
+    )
+    assert "Apache License" in (DIRECTORY / manifest["upstream_license"]).read_text()
+
+
+def test_exact_append_only_delta_preserves_every_baseline_rule_and_property():
+    base, proposal = profiles()
+    expected = copy.deepcopy(base)
+    expected["syscalls"].extend(EXPECTED_DELTA)
+    assert proposal == expected
+    patch = read("proposal-manifest.json")["json_patch"]
+    assert patch == [{"op": "add", "path": "/syscalls/-", "value": r} for r in EXPECTED_DELTA]
+    replay = copy.deepcopy(base)
+    for operation in patch:
+        replay["syscalls"].append(operation["value"])
+    assert replay == proposal
+    assert {n for r in EXPECTED_DELTA for n in r["names"]} == {"clone", "unshare", "chroot"}
+
+
+def applies(rule, host_arch="amd64", caps=()):
+    """Moby host filtering only; not a kernel/seccomp emulator or ABI proof."""
+    inc, exc = rule.get("includes", {}), rule.get("excludes", {})
+    return (
+        (not inc.get("arches") or host_arch in inc["arches"])
+        and host_arch not in exc.get("arches", [])
+        and all(c in caps for c in inc.get("caps", []))
+        and not any(c in caps for c in exc.get("caps", []))
+    )
+
+
+def decision(profile, name, arg0=0, host_arch="amd64"):
+    """Evaluate the explicit scalar rules used by these negative test cases."""
+    for rule in profile["syscalls"]:
+        if name not in rule["names"] or not applies(rule, host_arch):
+            continue
+        matches = True
+        for arg in rule.get("args") or []:
+            assert arg["index"] == 0  # Non-amd64 clone layouts are not simulated.
+            op, value = arg["op"], arg["value"]
+            if op == "SCMP_CMP_EQ":
+                matches &= arg0 == value
+            elif op == "SCMP_CMP_NE":
+                matches &= arg0 != value
+            elif op == "SCMP_CMP_MASKED_EQ":
+                matches &= arg0 & value == arg.get("valueTwo", 0)
+            else:
+                raise AssertionError("Untested argument operation")
+        if matches:
+            return rule["action"], rule.get("errnoRet")
+    return profile["defaultAction"], profile["defaultErrnoRet"]
+
+
+@pytest.mark.parametrize(
+    "name,arg",
+    [
+        ("clone", 0x10000011),
+        ("clone", 0x70000011),
+        ("clone", 0x20000011),
+        ("unshare", 0x10000000),
+        ("chroot", 12345),
+    ],
+)
+def test_only_source_justified_calls_become_allowed(name, arg):
+    base, proposal = profiles()
+    assert decision(base, name, arg)[0] == "SCMP_ACT_ERRNO"
+    assert decision(proposal, name, arg)[0] == "SCMP_ACT_ALLOW"
+
+
+@pytest.mark.parametrize(
+    "name,arg",
+    [
+        ("clone3", 0),
+        ("setns", 0),
+        ("setns", 0x10000000),
+        ("io_uring_setup", 0),
+        ("io_uring_enter", 0),
+        ("io_uring_register", 0),
+        ("socket", 40),
+        ("mount", 0),
+        ("pivot_root", 0),
+        ("unshare", 0),
+        ("unshare", 0x40000000),
+        ("unshare", 0x20000),
+        ("unshare", 0x70000000),
+        ("unshare", 0x10000001),
+        ("clone", 0x30000011),
+        ("clone", 0x50000011),
+        ("clone", 0x10000000),
+        ("clone", 0x10000009),
+        ("clone", 0x10020011),
+        ("clone", 0x18000011),
+        ("clone", 0x70000111),
+        ("clone", 0x70000211),
+        ("clone", 0x70010011),
+        ("clone", 0x170000011),
+    ],
+)
+def test_forbidden_calls_extra_flags_and_alternate_signals_stay_denied(name, arg):
+    base, proposal = profiles()
+    assert decision(base, name, arg) == decision(proposal, name, arg)
+    assert decision(proposal, name, arg)[0] == "SCMP_ACT_ERRNO"
+    if name == "clone3":
+        assert decision(proposal, name, arg) == ("SCMP_ACT_ERRNO", 38)
+
+
+@pytest.mark.parametrize(
+    "name,arg",
+    [
+        ("clone", 0x84311),
+        ("clone", 17),
+        ("socket", 2),
+        ("landlock_create_ruleset", 0),
+        ("openat2", 0),
+        ("close_range", 0),
+    ],
+)
+def test_unrelated_baseline_allowances_are_preserved(name, arg):
+    base, proposal = profiles()
+    assert decision(base, name, arg) == decision(proposal, name, arg)
+    assert decision(proposal, name, arg)[0] == "SCMP_ACT_ALLOW"
+
+
+@pytest.mark.parametrize("name,arg", [("socketcall", 1), ("socket", 0x100000028)])
+def test_inherited_vsock_limits_do_not_claim_complete_abi_containment(name, arg):
+    # Static rule matching only: neither compiled BPF nor successful socket
+    # creation is established. The full-word comparison precedes kernel int
+    # truncation; socketcall remains relevant to inherited compatibility ABIs.
+    base, proposal = profiles()
+    assert decision(base, name, arg) == decision(proposal, name, arg)
+    assert decision(proposal, name, arg)[0] == "SCMP_ACT_ALLOW"
+    assert decision(proposal, "socket", 40)[0] == "SCMP_ACT_ERRNO"
+    compat = next(row for row in proposal["archMap"] if row["architecture"] == "SCMP_ARCH_X86_64")
+    assert {"SCMP_ARCH_X86", "SCMP_ARCH_X32"} <= set(compat["subArchitectures"])
+
+
+def test_proposal_is_not_selected_copied_or_part_of_existing_acceptance():
+    command = worker_command("sha256:" + "a" * 64, "rnd-browser-" + "b" * 32)
+    assert [c for c in command if c.startswith("--security-opt")] == [
+        "--security-opt=no-new-privileges:true"
+    ]
+    assert "--cap-drop=ALL" in command
+    for path in [
+        ROOT / "tools/browser/Dockerfile",
+        *ROOT.glob(".github/workflows/*.yml"),
+        *ROOT.glob("workbench/*.py"),
+        *ROOT.glob("scripts/*.py"),
+    ]:
+        text = path.read_text()
+        assert "chromium141-docker28-amd64.proposal.json" not in text
+        assert "tools/browser/review-only/" not in text
+    assert all(not applies(r, "arm64") for r in EXPECTED_DELTA)
+    assert all(not applies(r, caps=("CAP_SYS_ADMIN",)) for r in EXPECTED_DELTA)
+````
+
+### `tests/test_capability_browser_seccomp_v2.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `workbench.capability_browser_isolation`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `baseline`（L24–L30）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L26断言`hashlib.sha256(path.read_bytes()).hexdigest() == "9c1025c88ccaa517b648da571961838744e…`。 调用`hashlib.sha256(path.read_bytes()).hexdigest`、`hashlib.sha256`、`path.read_bytes`、`json.loads`、`path.read_text`。 返回路径：L30的`json.loads(path.read_text())`。
+- `proposal`（L33–L36）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L35断言`hashlib.sha256(data).hexdigest() == PROPOSAL_SHA`。 调用`(DIRECTORY / "chromium141-docker28-native-amd64.proposal.json").r…`、`hashlib.sha256(data).hexdigest`、`hashlib.sha256`、`json.loads`。 返回路径：L36的`json.loads(data)`。
+- `test_exact_restrictive_transport_abi_delta_and_namespace_allowances`（L39–L62）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L41断言`value == review.build_profile(base)`；L42断言`value["defaultAction"] == base["defaultAction"] == "SCMP_ACT_ERRNO"`；L43断言`value["defaultErrnoRet"] == base["defaultErrnoRet"] == 1`；L44断言`value["archMap"] == [{"architecture": "SCMP_ARCH_X86_64", "subArchitectures": []}]`；L48遍历`base["syscalls"]`；L49按`row["names"] == ["socket"]`分支；L54断言`value["syscalls"][: len(original)] == original`；L55断言`value["syscalls"][len(original) :] == review.namespace_rules() + review.transport_rul…`。后续分支沿下方源码相同行号继续阅读。 调用`baseline`、`proposal`、`review.build_profile`、`json.loads`、`json.dumps`、`original.append`、`len`、`review.namespace_rules`、`review.transport_rules`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_review_target_rejects_other_arch_abi_caps_version_or_unknown`（L79–L89）：接收`change`。 调用`dict`、`review.require_target`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `bpf`（L93–L103）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L99按`not available`分支；L100按`os.getenv("RND_REQUIRE_SECCOMP_BPF") == "1"`分支。 调用`platform.system`、`platform.machine`、`ctypes.util.find_library`、`os.getenv`、`pytest.fail`、`pytest.skip`、`review.compile_bpf`、`proposal`、`pytest.fixture`。 返回路径：L103的`review.compile_bpf(proposal())`。
+- `test_compiled_low32_vsock_denial_covers_socket_and_socketpair`（L106–L115）：接收`bpf`。 控制顺序：L109遍历`(41, 53)`；L110遍历`highs`；L111断言`review.evaluate_bpf(bpf, number, args=((high << 32) \| 40,)) == review.ERRNO \| 1`；L112遍历`[*range(128), 0x7FFFFFFF, 0xFFFFFFFF]`；L113遍历`(0, 1, 0xFFFFFFFF)`；L115断言`review.evaluate_bpf(bpf, number, args=((high << 32) \| low,)) == expected`。 调用`random.Random`、`randoms.getrandbits`、`range`、`review.evaluate_bpf`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_compiled_x86_socketcall_and_direct_socket_abis_fail_closed`（L119–L120）：接收`bpf`、`number`、`args`。 控制顺序：L120断言`review.evaluate_bpf(bpf, number, arch=0x40000003, args=args) in {0, 0x80000000}`。 调用`review.evaluate_bpf`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_compiled_x32_syscall_bit_fails_closed`（L124–L125）：接收`bpf`、`number`。 控制顺序：L125断言`review.evaluate_bpf(bpf, 0x40000000 \| number, args=(40,)) in {0, 0x80000000}`。 调用`review.evaluate_bpf`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_compiled_other_audit_architectures_fail_closed`（L129–L130）：接收`bpf`、`arch`。 控制顺序：L130断言`review.evaluate_bpf(bpf, 41, arch=arch, args=(2,)) in {0, 0x80000000}`。 调用`review.evaluate_bpf`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_compiled_only_justified_namespace_calls_allow_and_other_guards_hold`（L133–L144）：接收`bpf`。 控制顺序：L134遍历`(0x10000011, 0x70000011, 0x20000011, 17, 0x84311)`；L135断言`review.evaluate_bpf(bpf, 56, args=(flags,)) == review.ALLOW`；L136遍历`(0x10000009, 0x30000011, 0x50000011, 0x70000111, 0x10020011, 0x17…`；L137断言`review.evaluate_bpf(bpf, 56, args=(flags,)) == review.ERRNO \| 1`；L138断言`review.evaluate_bpf(bpf, 272, args=(0x10000000,)) == review.ALLOW`；L139遍历`(0, 0x40000000, 0x70000000, 0x10000001)`；L140断言`review.evaluate_bpf(bpf, 272, args=(flags,)) == review.ERRNO \| 1`；L141断言`review.evaluate_bpf(bpf, 161, args=(12345,)) == review.ALLOW`。后续分支沿下方源码相同行号继续阅读。 调用`review.evaluate_bpf`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_offline_export_symbols_are_used`（L147–L171）：接收`monkeypatch`、`bpf`。 控制顺序：L170断言`review.compile_bpf(proposal()) == bpf`；L171断言`observed == allowed`。 调用`set`、`monkeypatch.setattr`、`review.compile_bpf`、`proposal`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_offline_export_symbols_are_used.Proxy`（L160–L167）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_only_offline_export_symbols_are_used.Proxy.__init__`（L161–L162）：接收`path`。 调用`real`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_offline_export_symbols_are_used.Proxy.__getattr__`（L164–L167）：接收`name`。 控制顺序：L165断言`name in allowed`。 调用`observed.add`、`getattr`。 返回路径：L167的`getattr(self.inner, name)`。
+- `test_v2_requires_explicit_approved_actions_selection`（L174–L183）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L176断言`manifest["status"] == "approved-actions-only-pending-live-proof"`；L177断言`manifest["activation_authorized"] is True`；L178断言`manifest["live_validation"] is False`；L179断言`manifest["proposal_sha256"] == PROPOSAL_SHA`；L181断言`[word for word in command if word.startswith("--security-opt")] == [ "--security-opt=…`。 调用`json.loads`、`(DIRECTORY / "proposal-manifest.json").read_text`、`worker_command`、`word.startswith`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_browser_seccomp_v2.py sha256: c891bb904484051fde354f2ef2a0d4dbbad4620dcc6f8087b6575500d79d7b7d -->
+````python
+"""Fixed policy validation: static artifacts and offline BPF; no filter is loaded."""
+
+import ctypes.util
+import hashlib
+import importlib.util
+import json
+import os
+import platform
+import random
+from pathlib import Path
+
+import pytest
+
+from workbench.capability_browser_isolation import worker_command
+
+ROOT = Path(__file__).resolve().parents[1]
+DIRECTORY = ROOT / "tools/browser/review-only-v2"
+SPEC = importlib.util.spec_from_file_location("review_profile", DIRECTORY / "review_profile.py")
+review = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(review)
+PROPOSAL_SHA = "9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f"
+
+
+def baseline():
+    path = ROOT / "tools/browser/review-only/moby-v28.0.4-default.json"
+    assert (
+        hashlib.sha256(path.read_bytes()).hexdigest()
+        == "9c1025c88ccaa517b648da571961838744ea2137f176bfe6a48b21294cae9c76"
+    )
+    return json.loads(path.read_text())
+
+
+def proposal():
+    data = (DIRECTORY / "chromium141-docker28-native-amd64.proposal.json").read_bytes()
+    assert hashlib.sha256(data).hexdigest() == PROPOSAL_SHA
+    return json.loads(data)
+
+
+def test_exact_restrictive_transport_abi_delta_and_namespace_allowances():
+    base, value = baseline(), proposal()
+    assert value == review.build_profile(base)
+    assert value["defaultAction"] == base["defaultAction"] == "SCMP_ACT_ERRNO"
+    assert value["defaultErrnoRet"] == base["defaultErrnoRet"] == 1
+    assert value["archMap"] == [{"architecture": "SCMP_ARCH_X86_64", "subArchitectures": []}]
+    # Baseline rule order/properties preserved except the explicitly removed
+    # native socket allowance and two names removed from the broad allow group.
+    original = []
+    for row in base["syscalls"]:
+        if row["names"] == ["socket"]:
+            continue
+        row = json.loads(json.dumps(row))
+        row["names"] = [name for name in row["names"] if name not in {"socketcall", "socketpair"}]
+        original.append(row)
+    assert value["syscalls"][: len(original)] == original
+    assert value["syscalls"][len(original) :] == review.namespace_rules() + review.transport_rules()
+    assert len(review.namespace_rules()) == 5
+    assert len(review.transport_rules()) == 64
+    assert all("socketcall" not in row["names"] for row in value["syscalls"])
+    assert not any(
+        row["names"] == ["socket"] and row.get("args", [{}])[0].get("op") == "SCMP_CMP_NE"
+        for row in value["syscalls"]
+    )
+
+
+@pytest.mark.parametrize(
+    "change",
+    [
+        {"daemon_arch": "arm64"},
+        {"daemon_arch": None},
+        {"image_arch": "arm64"},
+        {"docker_version": "28.0.5"},
+        {"process_abi": "x86"},
+        {"process_abi": "x32"},
+        {"initial_caps": ["CAP_SYS_ADMIN"]},
+        {"initial_caps": None},
+        {"initial_caps": ()},
+    ],
+)
+def test_review_target_rejects_other_arch_abi_caps_version_or_unknown(change):
+    data = dict(
+        daemon_arch="amd64",
+        image_arch="amd64",
+        docker_version="28.0.4",
+        initial_caps=[],
+        process_abi="x86_64",
+    )
+    review.require_target(**data)
+    with pytest.raises(ValueError, match="no fallback"):
+        review.require_target(**{**data, **change})
+
+
+@pytest.fixture(scope="module")
+def bpf():
+    available = (
+        platform.system() == "Linux"
+        and platform.machine() == "x86_64"
+        and ctypes.util.find_library("seccomp")
+    )
+    if not available:
+        if os.getenv("RND_REQUIRE_SECCOMP_BPF") == "1":
+            pytest.fail("Native Linux amd64/libseccomp offline compilation is mandatory")
+        pytest.skip("Offline compiler unavailable; this is not live acceptance")
+    return review.compile_bpf(proposal())
+
+
+def test_compiled_low32_vsock_denial_covers_socket_and_socketpair(bpf):
+    randoms = random.Random(14128)
+    highs = [0, 1, 0x7FFFFFFF, 0xFFFFFFFF, *[randoms.getrandbits(32) for _ in range(100)]]
+    for number in (41, 53):
+        for high in highs:
+            assert review.evaluate_bpf(bpf, number, args=((high << 32) | 40,)) == review.ERRNO | 1
+        for low in [*range(128), 0x7FFFFFFF, 0xFFFFFFFF]:
+            for high in (0, 1, 0xFFFFFFFF):
+                expected = review.ERRNO | 1 if low == 40 else review.ALLOW
+                assert review.evaluate_bpf(bpf, number, args=((high << 32) | low,)) == expected
+
+
+@pytest.mark.parametrize("number,args", [(102, (1,)), (102, (8,)), (359, (40,)), (360, (40,))])
+def test_compiled_x86_socketcall_and_direct_socket_abis_fail_closed(bpf, number, args):
+    assert review.evaluate_bpf(bpf, number, arch=0x40000003, args=args) in {0, 0x80000000}
+
+
+@pytest.mark.parametrize("number", [41, 53, 56, 161, 272, 435])
+def test_compiled_x32_syscall_bit_fails_closed(bpf, number):
+    assert review.evaluate_bpf(bpf, 0x40000000 | number, args=(40,)) in {0, 0x80000000}
+
+
+@pytest.mark.parametrize("arch", [0xC00000B7, 0x40000028, 0, 0xFFFFFFFF])
+def test_compiled_other_audit_architectures_fail_closed(bpf, arch):
+    assert review.evaluate_bpf(bpf, 41, arch=arch, args=(2,)) in {0, 0x80000000}
+
+
+def test_compiled_only_justified_namespace_calls_allow_and_other_guards_hold(bpf):
+    for flags in (0x10000011, 0x70000011, 0x20000011, 17, 0x84311):
+        assert review.evaluate_bpf(bpf, 56, args=(flags,)) == review.ALLOW
+    for flags in (0x10000009, 0x30000011, 0x50000011, 0x70000111, 0x10020011, 0x170000011):
+        assert review.evaluate_bpf(bpf, 56, args=(flags,)) == review.ERRNO | 1
+    assert review.evaluate_bpf(bpf, 272, args=(0x10000000,)) == review.ALLOW
+    for flags in (0, 0x40000000, 0x70000000, 0x10000001):
+        assert review.evaluate_bpf(bpf, 272, args=(flags,)) == review.ERRNO | 1
+    assert review.evaluate_bpf(bpf, 161, args=(12345,)) == review.ALLOW
+    assert review.evaluate_bpf(bpf, 435) == review.ERRNO | 38
+    for number in (308, 425, 426, 427, 165, 155):
+        assert review.evaluate_bpf(bpf, number) == review.ERRNO | 1
+
+
+def test_only_offline_export_symbols_are_used(monkeypatch, bpf):
+    # Recompile through a symbol-restricted proxy. No policy-loading symbol is
+    # reachable through this helper; export writes bytes to a temporary file.
+    real = review.ctypes.CDLL
+    observed = set()
+    allowed = {
+        "seccomp_init",
+        "seccomp_release",
+        "seccomp_syscall_resolve_name",
+        "seccomp_rule_add_array",
+        "seccomp_export_bpf",
+    }
+
+    class Proxy:
+        def __init__(self, path):
+            self.inner = real(path)
+
+        def __getattr__(self, name):
+            assert name in allowed
+            observed.add(name)
+            return getattr(self.inner, name)
+
+    monkeypatch.setattr(review.ctypes, "CDLL", Proxy)
+    assert review.compile_bpf(proposal()) == bpf
+    assert observed == allowed
+
+
+def test_v2_requires_explicit_approved_actions_selection():
+    manifest = json.loads((DIRECTORY / "proposal-manifest.json").read_text())
+    assert manifest["status"] == "approved-actions-only-pending-live-proof"
+    assert manifest["activation_authorized"] is True
+    assert manifest["live_validation"] is False
+    assert manifest["proposal_sha256"] == PROPOSAL_SHA
+    command = worker_command("sha256:" + "a" * 64, "rnd-browser-" + "b" * 32)
+    assert [word for word in command if word.startswith("--security-opt")] == [
+        "--security-opt=no-new-privileges:true"
+    ]
+````
+
+### `tests/test_capability_browser_transport_probe.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**逐个入口与控制逻辑：**
+
+- `compiled_probe`（L53–L79）：接收`tmp_path_factory`。 控制顺序：L55断言`compiler`；L77断言`result.returncode == 0`。 调用`shutil.which`、`tmp_path_factory.mktemp`、`subprocess.run`、`str`、`pytest.fixture`。 返回路径：L79的`output`。
+- `test_probe_is_static_native_amd64_and_contains_complete_receipt`（L82–L95）：接收`compiled_probe`。 控制顺序：L84断言`data[:6] == b"\x7fELF\x02\x01"`；L85断言`struct.unpack_from("<HH", data, 16) == (2, 62)`；L91断言`not {2, 3} & program_types`；L92遍历`EXPECTED_CHECKS`；L93断言`name.encode() + b"\0" in data`；L94断言`hashlib.sha256(PROFILE.read_bytes()).hexdigest().encode() in data`；L95断言`b"browser-seccomp-transport-v1" in data`。 调用`compiled_probe.read_bytes`、`struct.unpack_from`、`range`、`name.encode`、`hashlib.sha256(PROFILE.read_bytes()).hexdigest().encode`、`hashlib.sha256(PROFILE.read_bytes()).hexdigest`、`hashlib.sha256`、`PROFILE.read_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_compiled_probe_enters_both_raw_syscall_abis`（L98–L113）：接收`compiled_probe`。 控制顺序：L100断言`disassembler`；L107断言`result.returncode == 0`；L110断言`native and re.search(r"\bsyscall\b", native[1])`；L111断言`compat and re.search(r"\bint\s+\$0x80\b", compat[1])`；L113断言`not re.search(r"\bcallq?\b", native[1] + compat[1])`。 调用`shutil.which`、`subprocess.run`、`str`、`re.search`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_probe_case_count_and_bounded_json_contract`（L116–L151）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L126断言`recorded_names == EXPECTED_CHECKS`；L127断言`int(re.search(r"bool passed = result_count == (\d+);", source)[1]) == len( EXPECTED_C…`；L130断言`len(EXPECTED_CHECKS) <= int(re.search(r"#define MAX_RESULTS (\d+)U", source)[1])`；L151断言`len(json.dumps(largest).encode()) < 12_000`。 调用`SOURCE.read_text`、`set`、`re.findall`、`recorded_names.update`、`int`、`re.search`、`len`、`dict.fromkeys`、`json.dumps(largest).encode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_native_allow_rules`（L154–L162）：接收`profile`、`syscall`。 控制顺序：L155遍历`profile["syscalls"]`；L157按`include.get("caps") or "amd64" in exclude.get("arches", [])`分支；L159按`include.get("arches") and "amd64" not in include["arches"]`分支；L161按`syscall in rule["names"] and rule["action"] == "SCMP_ACT_ALLOW"`分支。 调用`rule.get`、`include.get`、`exclude.get`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `_matches`（L165–L177）：接收`rule`、`argument`。 控制顺序：L166遍历`rule.get("args", [])`；L167断言`predicate["index"] == 0`；L169按`predicate["op"] == "SCMP_CMP_MASKED_EQ"`分支；L170按`argument & value != predicate.get("valueTwo", 0)`分支；L172按`predicate["op"] == "SCMP_CMP_EQ"`分支；L173按`argument != value`分支。 调用`rule.get`、`predicate.get`、`pytest.fail`。 返回路径：L171的`False`；L174的`False`；L177的`True`。
+- `test_native_negative_cases_are_outside_every_reviewed_allow_rule`（L180–L201）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L187断言`len(domains) == 4`；L188断言`{value >> 32 for value in domains} == {0, 1, 0x80000000, 0xFFFFFFFF}`；L189断言`all(value & 0xFFFFFFFF == 40 for value in domains)`；L190遍历`("socket", "socketpair")`；L191遍历`domains`；L192断言`not any(_matches(rule, domain) for rule in _native_allow_rules(profile, syscall))`；L194断言`len(namespace_cases) == 5`；L195遍历`namespace_cases`。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`PROFILE.read_text`、`SOURCE.read_text`、`int`、`re.findall`、`len`、`all`、`any`、`_matches`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_capability_browser_transport_probe.py sha256: e2b1a7e0db3a4ebdc7d565d29918d688b8dd21832a11effadd6c9cb8c5c347b8 -->
+````python
+"""Compile/inspect the live probe; NEVER execute it or load a seccomp filter here.
+
+These tests establish build, ABI, case coverage and policy consistency only.
+Actual denial/kill receipts must come from the authorized disposable worker.
+"""
+
+import hashlib
+import json
+import re
+import shutil
+import struct
+import subprocess
+from pathlib import Path
+
+import pytest
+
+ROOT = Path(__file__).resolve().parents[1]
+SOURCE = ROOT / "scripts/capability_browser_seccomp_probe.c"
+PROFILE = ROOT / "tools/browser/review-only-v2/chromium141-docker28-native-amd64.proposal.json"
+EXPECTED_CHECKS = {
+    "native_inet_socket",
+    "native_unix_socket",
+    "native_unix_socketpair",
+    "vsock_socket_zero_high_word",
+    "vsock_socketpair_zero_high_word",
+    "vsock_socket_one_high_word",
+    "vsock_socketpair_one_high_word",
+    "vsock_socket_sign_high_word",
+    "vsock_socketpair_sign_high_word",
+    "vsock_socket_max_high_word",
+    "vsock_socketpair_max_high_word",
+    "io_uring_setup",
+    "io_uring_enter",
+    "io_uring_register",
+    "clone3_enosys",
+    "setns_denied",
+    "mount_denied",
+    "x32_socket_killed",
+    "x32_socketpair_killed",
+    "i386_socketcall_socket_killed",
+    "i386_socketcall_socketpair_killed",
+    "i386_socket_killed",
+    "i386_socketpair_killed",
+    "clone_user_extra_mount_denied",
+    "clone_user_pid_net_extra_mount_denied",
+    "clone_pid_extra_mount_denied",
+    "unshare_user_extra_mount_denied",
+    "unshare_user_extra_net_denied",
+}
+
+
+@pytest.fixture(scope="module")
+def compiled_probe(tmp_path_factory):
+    compiler = shutil.which("gcc")
+    assert compiler, "Static native-amd64 probe compilation is required; no skipped pass"
+    output = tmp_path_factory.mktemp("inspect-only-browser-probe") / "probe-do-not-run"
+    result = subprocess.run(
+        [
+            compiler,
+            "-std=c11",
+            "-O2",
+            "-Wall",
+            "-Wextra",
+            "-Werror",
+            "-pedantic",
+            "-static",
+            "-fno-pie",
+            "-no-pie",
+            str(SOURCE),
+            "-o",
+            str(output),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    # Never invoke output. Read ELF bytes and disassemble only.
+    return output
+
+
+def test_probe_is_static_native_amd64_and_contains_complete_receipt(compiled_probe):
+    data = compiled_probe.read_bytes()
+    assert data[:6] == b"\x7fELF\x02\x01"  # ELF64, little endian
+    assert struct.unpack_from("<HH", data, 16) == (2, 62)  # ET_EXEC, EM_X86_64
+    program_offset = struct.unpack_from("<Q", data, 32)[0]
+    entry_size, count = struct.unpack_from("<HH", data, 54)
+    program_types = {
+        struct.unpack_from("<I", data, program_offset + i * entry_size)[0] for i in range(count)
+    }
+    assert not {2, 3} & program_types  # Neither PT_DYNAMIC nor PT_INTERP
+    for name in EXPECTED_CHECKS:
+        assert name.encode() + b"\0" in data
+    assert hashlib.sha256(PROFILE.read_bytes()).hexdigest().encode() in data
+    assert b"browser-seccomp-transport-v1" in data
+
+
+def test_compiled_probe_enters_both_raw_syscall_abis(compiled_probe):
+    disassembler = shutil.which("objdump")
+    assert disassembler, "Instruction inspection is required; no skipped pass"
+    result = subprocess.run(
+        [disassembler, "-d", str(compiled_probe)],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    assert result.returncode == 0, result.stderr
+    native = re.search(r"<raw_syscall6[^>]*>:\n(.*?)(?=\n\n)", result.stdout, flags=re.DOTALL)
+    compat = re.search(r"<raw_i386_syscall4[^>]*>:\n(.*?)(?=\n\n)", result.stdout, flags=re.DOTALL)
+    assert native and re.search(r"\bsyscall\b", native[1])
+    assert compat and re.search(r"\bint\s+\$0x80\b", compat[1])
+    # These functions must enter the kernel directly, without a libc wrapper.
+    assert not re.search(r"\bcallq?\b", native[1] + compat[1])
+
+
+def test_probe_case_count_and_bounded_json_contract():
+    source = SOURCE.read_text()
+    recorded_names = set(re.findall(r'(?:socket_case|errno_case)\("([a-z0-9_]+)"', source))
+    child_rows = re.findall(r'\{"([a-z0-9_]+)",\s*[A-Z0-9_]+,', source)
+    domain_rows = re.findall(
+        r'\{"(vsock_[a-z_]+)",\s*"(vsock_[a-z_]+)",\s*UINT64_C\((0x[0-9a-f]+)\)',
+        source,
+    )
+    recorded_names.update(child_rows)
+    recorded_names.update(name for row in domain_rows for name in row[:2])
+    assert recorded_names == EXPECTED_CHECKS
+    assert int(re.search(r"bool passed = result_count == (\d+);", source)[1]) == len(
+        EXPECTED_CHECKS
+    )
+    assert len(EXPECTED_CHECKS) <= int(re.search(r"#define MAX_RESULTS (\d+)U", source)[1])
+    # Even pessimistic signed-long-sized numeric observations fit the controller's budget.
+    largest = {
+        "protocol": "browser-seccomp-transport-v1",
+        "architecture": "native-amd64",
+        "expected_profile_sha256": "f" * 64,
+        "passed": False,
+        "checks": dict.fromkeys(EXPECTED_CHECKS, False),
+        "observations": {
+            name: {
+                "returned": False,
+                "return": -(2**63),
+                "errno": 4095,
+                "signal": 64,
+                "exit_status": 255,
+                "setup_errno": 4095,
+                "timed_out": False,
+            }
+            for name in EXPECTED_CHECKS
+        },
+    }
+    assert len(json.dumps(largest).encode()) < 12_000
+
+
+def _native_allow_rules(profile, syscall):
+    for rule in profile["syscalls"]:
+        include, exclude = rule.get("includes", {}), rule.get("excludes", {})
+        if include.get("caps") or "amd64" in exclude.get("arches", []):
+            continue
+        if include.get("arches") and "amd64" not in include["arches"]:
+            continue
+        if syscall in rule["names"] and rule["action"] == "SCMP_ACT_ALLOW":
+            yield rule
+
+
+def _matches(rule, argument):
+    for predicate in rule.get("args", []):
+        assert predicate["index"] == 0
+        value = predicate["value"]
+        if predicate["op"] == "SCMP_CMP_MASKED_EQ":
+            if argument & value != predicate.get("valueTwo", 0):
+                return False
+        elif predicate["op"] == "SCMP_CMP_EQ":
+            if argument != value:
+                return False
+        else:
+            pytest.fail(f"Unexpected predicate in reviewed syscall: {predicate}")
+    return True
+
+
+def test_native_negative_cases_are_outside_every_reviewed_allow_rule():
+    profile = json.loads(PROFILE.read_text())
+    source = SOURCE.read_text()
+    domains = [
+        int(value, 16)
+        for value in re.findall(r'"vsock_socketpair_[a-z_]+", UINT64_C\((0x[0-9a-f]+)\)', source)
+    ]
+    assert len(domains) == 4
+    assert {value >> 32 for value in domains} == {0, 1, 0x80000000, 0xFFFFFFFF}
+    assert all(value & 0xFFFFFFFF == 40 for value in domains)
+    for syscall in ("socket", "socketpair"):
+        for domain in domains:
+            assert not any(_matches(rule, domain) for rule in _native_allow_rules(profile, syscall))
+    namespace_cases = re.findall(r"EXTRA_(CLONE|UNSHARE), UINT64_C\((0x[0-9a-f]+)\)", source)
+    assert len(namespace_cases) == 5
+    for syscall, value in namespace_cases:
+        assert not any(
+            _matches(rule, int(value, 16)) for rule in _native_allow_rules(profile, syscall.lower())
+        )
+    for syscall in ("setns", "mount", "io_uring_setup", "io_uring_enter", "io_uring_register"):
+        assert not list(_native_allow_rules(profile, syscall))
+    assert profile["defaultAction"] == "SCMP_ACT_ERRNO" and profile["defaultErrnoRet"] == 1
 ````
 
 ### `tests/test_capability_capture_bounds.py`
@@ -115974,24 +117812,25 @@ def test_raw_budget_rejects_overflow_and_stops_consuming(chunks):
 - `test_isolation_receipt_requires_each_field_actual_abi_and_current_guard_digest`（L197–L223）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L214断言`require_isolation_evidence(value) == value`；L215遍历`list(value)`；L219遍历`[True, 5, "6"]`。 调用`sha`、`dict.fromkeys`、`require_isolation_evidence`、`list`、`value.items`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_detached_session_waits_for_ordinary_command_and_preserves_exit`（L228–L248）：接收`tmp_path`、`exit_code`。 控制顺序：L247断言`result.returncode == exit_code`；L248断言`completed.read_text(encoding="utf-8") == "completed"`。 调用`subprocess.run`、`str`、`completed.read_text`、`pytest.mark.skipif`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_container_receipt_requires_current_sandbox_and_all_boundaries`（L251–L274）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L267断言`require_container_evidence(value, identifier) == value`；L268遍历`value`。 调用`require_container_evidence`、`pytest.raises`、`value.items`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_live_container_inspection_failure_stops_before_source_upload`（L277–L309）：接收`settings`、`tmp_path`。 控制顺序：L308断言`result["passed"] is False and result["cleanup"] == "deleted"`；L309断言`result["kind"] == "isolation_environment" and operations == ["deleted"]`。 调用`fixed_application`、`SimpleNamespace`、`operations.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_live_container_inspection_failure_stops_before_source_upload.forbidden`（L285–L286）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths`（L334–L507）：接收`settings`、`tmp_path`、`monkeypatch`、`failure`、`secure_execution`。 源码说明：Real HTTPX lifecycle with transport/process fixtures, not live isolation proof.。 控制顺序：L474断言`result["passed"] is (failure is None)`；L475断言`result["restarted"] is (failure is None)`；L476断言`result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")`；L477断言`events[-1] == "deleted"`；L478断言`len(clients) == ( 1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} …`；L481断言`all(client.is_closed for client in clients)`；L482断言`(0, "/health") in events`；L484断言`persisted == result`。后续分支沿下方源码相同行号继续阅读。 调用`fixed_application`、`SimpleNamespace`、`events.append`、`iter`、`monkeypatch.setattr`、`verifier._verify`、`plan.selection.model_dump`、`len`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http`（L350–L364）：接收`**kwargs`。 控制顺序：L352断言`kwargs["headers"] == {"x-daytona-preview-token": "fixture-private-token"}`；L353断言`kwargs["trust_env"] is False and kwargs["follow_redirects"] is False`。 调用`len`、`original_client`、`httpx.MockTransport`、`clients.append`。 返回路径：L364的`client`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http.respond`（L355–L360）：接收`request`。 控制顺序：L357断言`request.url.host == f"8123-{identifier}.proxy.localhost"`；L358按`failure == "restart-health" and launch == 1`分支；L359抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`httpx.Response`。 返回路径：L360的`httpx.Response(200, json={"ok": True})`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.delete`（L381–L384）：接收`*args`、`**kwargs`。 控制顺序：L383按`failure == "browser-cleanup"`分支；L384抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.create`（L386–L399）：接收`parameters`、`**kwargs`。 控制顺序：L393断言`ordinary.auto_delete_interval == 0`；L394断言`parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60`；L395断言`parameters.network_block_all is True`；L396断言`parameters.public is False`；L397断言`parameters.name.startswith("rnd-source-" if secure_execution else "rnd-capability-")`。 调用`params_for`、`parameters.name.startswith`。 返回路径：L399的`sandbox`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.stop`（L401–L403）：接收`*args`、`**kwargs`。 控制顺序：L402断言`sandbox.auto_delete_interval > 0`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.database_counts`（L413–L416）：接收`*args`。 控制顺序：L414按`failure == "baseline"`分支；L415抛异常，停止当前正常路径。 调用`CheckFailure`、`next`。 返回路径：L416的`{"entries": next(counts)}`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_scenarios`（L418–L423）：接收`http`、`scenarios`、`saved`、`after_restart`。 控制顺序：L420断言`http.get("/fixture-" + phase).status_code == 200`；L421按`failure == phase`分支；L422抛异常，停止当前正常路径。 调用`http.get`、`CheckFailure`。 返回路径：L423的`[{"phase": phase, "fixture_only": True}], {}`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_browser`（L425–L428）：接收`*args`。 控制顺序：L426按`failure in BROWSER_FAILURE_FIXTURES`分支；L427抛异常，停止当前正常路径。 调用`BrowserFailure`、`BROWSER_FAILURE_FIXTURES[failure].copy`。 返回路径：L428的`[{"fixture_only": True}]`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.fixed_browser`（L436–L438）：接收`*args`。 控制顺序：L437断言`not secure_execution`。 调用`run_browser`。 返回路径：L438的`run_browser(*args)`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.isolated_browser`（L440–L444）：接收`image`、`*args`。 控制顺序：L441断言`secure_execution`；L442断言`image == settings.capability_browser_image`。 调用`events.append`、`run_browser`。 返回路径：L444的`run_browser(*args)`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.security_probe`（L457–L459）：接收`*args`。 调用`events.append`。 返回路径：L459的`{"fixture_only": True}`。
-- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup`（L510–L542）：接收`settings`、`tmp_path`。 控制顺序：L540断言`calls == ["created", "deleted"]`；L541断言`result["passed"] is False`；L542断言`result["cleanup"] == "deleted"`。 调用`fixed_application`、`SimpleNamespace`、`calls.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup.create`（L520–L524）：接收`parameters`、`**kwargs`。 控制顺序：L521断言`parameters.auto_delete_interval == 0`；L522断言`parameters.network_block_all is True and parameters.public is False`。 调用`calls.append`。 返回路径：L524的`sandbox`。
+- `test_live_container_inspection_failure_stops_before_source_upload`（L278–L322）：接收`settings`、`tmp_path`、`unknown_error`。 控制顺序：L319断言`result["passed"] is False and result["cleanup"] == "deleted"`；L320断言`result["kind"] == "isolation_environment" and operations == ["deleted"]`；L321断言`result["isolation_diagnostic"] == {}`；L322断言`"must-not-leak" not in json.dumps(result) and "private/path" not in json.dumps(result…`。 调用`fixed_application`、`SimpleNamespace`、`operations.append`、`_verify`、`plan.selection.model_dump`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_container_inspection_failure_stops_before_source_upload.forbidden`（L288–L289）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_container_inspection_failure_stops_before_source_upload.observer`（L291–L297）：接收`_`。 控制顺序：L292按`unknown_error`分支；L296抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L297的`{}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths`（L347–L520）：接收`settings`、`tmp_path`、`monkeypatch`、`failure`、`secure_execution`。 源码说明：Real HTTPX lifecycle with transport/process fixtures, not live isolation proof.。 控制顺序：L487断言`result["passed"] is (failure is None)`；L488断言`result["restarted"] is (failure is None)`；L489断言`result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")`；L490断言`events[-1] == "deleted"`；L491断言`len(clients) == ( 1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} …`；L494断言`all(client.is_closed for client in clients)`；L495断言`(0, "/health") in events`；L497断言`persisted == result`。后续分支沿下方源码相同行号继续阅读。 调用`fixed_application`、`SimpleNamespace`、`events.append`、`iter`、`monkeypatch.setattr`、`verifier._verify`、`plan.selection.model_dump`、`len`、`all`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http`（L363–L377）：接收`**kwargs`。 控制顺序：L365断言`kwargs["headers"] == {"x-daytona-preview-token": "fixture-private-token"}`；L366断言`kwargs["trust_env"] is False and kwargs["follow_redirects"] is False`。 调用`len`、`original_client`、`httpx.MockTransport`、`clients.append`。 返回路径：L377的`client`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.build_http.respond`（L368–L373）：接收`request`。 控制顺序：L370断言`request.url.host == f"8123-{identifier}.proxy.localhost"`；L371按`failure == "restart-health" and launch == 1`分支；L372抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`httpx.Response`。 返回路径：L373的`httpx.Response(200, json={"ok": True})`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.delete`（L394–L397）：接收`*args`、`**kwargs`。 控制顺序：L396按`failure == "browser-cleanup"`分支；L397抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.create`（L399–L412）：接收`parameters`、`**kwargs`。 控制顺序：L406断言`ordinary.auto_delete_interval == 0`；L407断言`parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60`；L408断言`parameters.network_block_all is True`；L409断言`parameters.public is False`；L410断言`parameters.name.startswith("rnd-source-" if secure_execution else "rnd-capability-")`。 调用`params_for`、`parameters.name.startswith`。 返回路径：L412的`sandbox`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.stop`（L414–L416）：接收`*args`、`**kwargs`。 控制顺序：L415断言`sandbox.auto_delete_interval > 0`。 调用`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.database_counts`（L426–L429）：接收`*args`。 控制顺序：L427按`failure == "baseline"`分支；L428抛异常，停止当前正常路径。 调用`CheckFailure`、`next`。 返回路径：L429的`{"entries": next(counts)}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_scenarios`（L431–L436）：接收`http`、`scenarios`、`saved`、`after_restart`。 控制顺序：L433断言`http.get("/fixture-" + phase).status_code == 200`；L434按`failure == phase`分支；L435抛异常，停止当前正常路径。 调用`http.get`、`CheckFailure`。 返回路径：L436的`[{"phase": phase, "fixture_only": True}], {}`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.run_browser`（L438–L441）：接收`*args`。 控制顺序：L439按`failure in BROWSER_FAILURE_FIXTURES`分支；L440抛异常，停止当前正常路径。 调用`BrowserFailure`、`BROWSER_FAILURE_FIXTURES[failure].copy`。 返回路径：L441的`[{"fixture_only": True}]`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.fixed_browser`（L449–L451）：接收`*args`。 控制顺序：L450断言`not secure_execution`。 调用`run_browser`。 返回路径：L451的`run_browser(*args)`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.isolated_browser`（L453–L457）：接收`image`、`*args`。 控制顺序：L454断言`secure_execution`；L455断言`image == settings.capability_browser_image`。 调用`events.append`、`run_browser`。 返回路径：L457的`run_browser(*args)`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.security_probe`（L470–L472）：接收`*args`。 调用`events.append`。 返回路径：L472的`{"fixture_only": True}`。
+- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup`（L523–L555）：接收`settings`、`tmp_path`。 控制顺序：L553断言`calls == ["created", "deleted"]`；L554断言`result["passed"] is False`；L555断言`result["cleanup"] == "deleted"`。 调用`fixed_application`、`SimpleNamespace`、`calls.append`、`_verify`、`plan.selection.model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup.create`（L533–L537）：接收`parameters`、`**kwargs`。 控制顺序：L534断言`parameters.auto_delete_interval == 0`；L535断言`parameters.network_block_all is True and parameters.public is False`。 调用`calls.append`。 返回路径：L537的`sandbox`。
 
-<!-- source-file: tests/test_capability_isolation.py sha256: c221c064fe55541f0f6c2986b3891da1a488fa1a575e20ef403a7119d5a8e109 -->
+<!-- source-file: tests/test_capability_isolation.py sha256: 81be23405b39d05469ec6a27d6ad7814cf2cf7a274d739b419546848bf030f24 -->
 ````python
 """Verify every source command is composed through the same non-bypassable launcher."""
 
@@ -116269,7 +118108,10 @@ def test_container_receipt_requires_current_sandbox_and_all_boundaries():
         require_container_evidence({**value, "privileged": True}, identifier)
 
 
-def test_live_container_inspection_failure_stops_before_source_upload(settings, tmp_path):
+@pytest.mark.parametrize("unknown_error", [False, True])
+def test_live_container_inspection_failure_stops_before_source_upload(
+    settings, tmp_path, unknown_error
+):
     from scripts.ci_capability_profile import fixed_application
     from workbench.capability_sandbox import _verify
 
@@ -116279,6 +118121,14 @@ def test_live_container_inspection_failure_stops_before_source_upload(settings, 
 
     def forbidden(*args, **kwargs):
         pytest.fail("No source upload or command before container policy verification")
+
+    def observer(_):
+        if unknown_error:
+            error = ValueError("secret error /private/path TOKEN=must-not-leak")
+            # An arbitrary provider exception cannot opt in to trusted evidence.
+            error.evidence = {"container_rejection": "resource_limits", "TOKEN": "must-not-leak"}
+            raise error
+        return {}
 
     sandbox = SimpleNamespace(
         id="00000000-0000-0000-0000-000000000001",
@@ -116298,10 +118148,12 @@ def test_live_container_inspection_failure_stops_before_source_upload(settings, 
         tmp_path / "receipt.json",
         client=client,
         aggregate=True,
-        control_observer=lambda _: {},
+        control_observer=observer,
     )
     assert result["passed"] is False and result["cleanup"] == "deleted"
     assert result["kind"] == "isolation_environment" and operations == ["deleted"]
+    assert result["isolation_diagnostic"] == {}
+    assert "must-not-leak" not in json.dumps(result) and "private/path" not in json.dumps(result)
 
 
 BROWSER_FAILURE_FIXTURES = {
@@ -118740,6 +120592,99 @@ def test_cli_checks_health_and_handles_later_disconnect(monkeypatch, settings, d
     ]
     assert result.exit_code == int(disconnect), result.output
     assert ("uv run rnd start" if disconnect else "READY") in result.output
+````
+
+### `tests/test_container_diagnostic_review.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`、`workbench.capability_isolation`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `test_instance_shadowed_allowlists_cannot_release_strings`（L16–L28）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L21断言`result == { "container_rejection": "resource_limits", "network_mode": "other", "memor…`；L28断言`ContainerInspectionRejected.diagnostic(error) == {}`。 调用`ContainerInspectionRejected`、`ContainerInspectionRejected.diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_mutated_malformed_facts_preserve_only_finite_category`（L32–L37）：接收`facts`。 控制顺序：L35断言`ContainerInspectionRejected.diagnostic(error) == { "container_rejection": "resource_l…`。 调用`ContainerInspectionRejected`、`ContainerInspectionRejected.diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_all_diagnostic_fields_are_bounded_and_type_strict`（L40–L57）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L52断言`len(json.dumps(result)) < 1500`；L53断言`"secret" not in json.dumps(result)`；L54遍历`ContainerInspectionRejected._NUMBERS`；L55遍历`[True, 1.0, 2**63, -(2**63) - 1, "secret"]`；L57断言`error.diagnostic()[name] is None`。 调用`ContainerInspectionRejected`、`dict.fromkeys`、`error.diagnostic`、`len`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_malformed_rejected_facts_do_not_replace_trusted_category`（L61–L72）：接收`request`、`case`。 控制顺序：L63按`case == "binary_mounts"`分支；L71断言`diagnostic["container_rejection"] == case`；L72断言`"secret" not in json.dumps(diagnostic)`。 调用`request.getfixturevalue`、`pytest.raises`、`profile.inspect_created_sandbox`、`caught.value.diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_container_diagnostic_review.py sha256: c20cbc5b319faaecc4e8dd2074be18a9522898dfea1b228418c929baf38ef90b -->
+````python
+"""Independent bounded-diagnostic regressions; no container execution."""
+
+import json
+
+import pytest
+
+from scripts import daytona_capability_profile as profile
+from tests.test_daytona_capability_profile import (  # noqa: F401
+    SANDBOX,
+    execution_inspection,
+    inspection,
+)
+from workbench.capability_isolation import ContainerInspectionRejected
+
+
+def test_instance_shadowed_allowlists_cannot_release_strings():
+    error = ContainerInspectionRejected("secret message", category="resource_limits")
+    error._NETWORK_MODES = {"secret network"}
+    error._facts = {"network_mode": "secret network", "memory": "secret memory"}
+    result = ContainerInspectionRejected.diagnostic(error)
+    assert result == {
+        "container_rejection": "resource_limits",
+        "network_mode": "other",
+        "memory": None,
+    }
+    error._CATEGORIES = {"secret category"}
+    error._category = "secret category"
+    assert ContainerInspectionRejected.diagnostic(error) == {}
+
+
+@pytest.mark.parametrize("facts", [None, [], "memory secret", 123, True])
+def test_mutated_malformed_facts_preserve_only_finite_category(facts):
+    error = ContainerInspectionRejected("secret message", category="resource_limits")
+    error._facts = facts
+    assert ContainerInspectionRejected.diagnostic(error) == {
+        "container_rejection": "resource_limits"
+    }
+
+
+def test_all_diagnostic_fields_are_bounded_and_type_strict():
+    error = ContainerInspectionRejected(
+        "secret message",
+        category="resource_limits",
+        facts={
+            **dict.fromkeys(ContainerInspectionRejected._NUMBERS, -(2**63)),
+            **dict.fromkeys(ContainerInspectionRejected._FLAGS, False),
+            "network_mode": "host",
+            "unknown": "secret",
+        },
+    )
+    result = error.diagnostic()
+    assert len(json.dumps(result)) < 1500
+    assert "secret" not in json.dumps(result)
+    for name in ContainerInspectionRejected._NUMBERS:
+        for value in [True, 1.0, 2**63, -(2**63) - 1, "secret"]:
+            error._facts[name] = value
+            assert error.diagnostic()[name] is None
+
+
+@pytest.mark.parametrize("case", ["binary_mounts", "runner_bridge"])
+def test_malformed_rejected_facts_do_not_replace_trusted_category(request, case):
+    directory, _, inner, _ = request.getfixturevalue("execution_inspection")
+    if case == "binary_mounts":
+        inner["Mounts"] = [{"Type": "bind", "Destination": [], "Source": "secret", "RW": False}]
+    else:
+        inner["bridge_inspect"][0]["Driver"] = "unexpected"
+        inner["bridge_inspect"][0]["IPAM"] = {"Config": [{"Subnet": ["secret"]}]}
+    with pytest.raises(ContainerInspectionRejected) as caught:
+        profile.inspect_created_sandbox(directory, SANDBOX, require_resources=True)
+    diagnostic = caught.value.diagnostic()
+    assert diagnostic["container_rejection"] == case
+    assert "secret" not in json.dumps(diagnostic)
 ````
 
 ### `tests/test_continue_index.py`
@@ -123718,34 +125663,39 @@ def test_invalid_or_overlapping_control_plane_ipam_fails_before_docker(ipam, tmp
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `scripts`、`scripts.daytona_bootstrap`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts`、`scripts.daytona_bootstrap`、`workbench.capability_isolation`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `base_config`（L21–L33）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local.IMAGES.items`、`local.gateway_service`、`copy.deepcopy`。 返回路径：L33的`{"services": services, "networks": copy.deepcopy(local.NETWORKS)}`。
-- `test_profile_transformation_preserves_general_defaults_and_all_other_fields`（L36–L52）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L41断言`original == untouched`；L42断言`result["name"] == profile.PROJECT`；L43断言`result["services"]["runner"]["image"] == RUNNER`；L44断言`result["services"]["runner"]["environment"]["USE_SNAPSHOT_ENTRYPOINT"] == "false"`；L45断言`result["services"]["runner"]["privileged"] is True`；L46断言`result["services"]["api"]["environment"]["DEFAULT_SNAPSHOT"] == image`；L48断言`"USE_SNAPSHOT_ENTRYPOINT" not in original["services"]["runner"]["environment"]`；L49断言`local.IMAGES["runner"].startswith("rnd-local/daytona-runner:")`。后续分支沿下方源码相同行号继续阅读。 调用`base_config`、`copy.deepcopy`、`profile.render_profile`、`local.IMAGES["runner"].startswith`、`snapshot_resources`、`pytest.raises`、`profile.profile_directory`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `snapshot_inspect`（L55–L73）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`profile.recipe_identity`。 返回路径：L57的`{ "Id": SNAPSHOT, "Os": "linux", "Architecture": "amd64", "RepoDigests": ["127.0.0.1:6000/…`。
-- `test_snapshot_requires_declared_control_identity_and_no_inherited_command`（L86–L92）：接收`field`、`value`。 调用`snapshot_inspect`、`profile.recipe_identity`、`profile.validate_image`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runner_requires_the_explicit_normal_daemon_entrypoint`（L95–L103）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L98遍历`([], ["USE_SNAPSHOT_ENTRYPOINT=true"])`。 调用`snapshot_inspect`、`profile.recipe_identity`、`pytest.raises`、`profile.validate_image`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `source_fixture`（L106–L147）：接收`tmp_path`、`monkeypatch`。 控制顺序：L117遍历`profile.RECIPE_PATHS`。 调用`context.mkdir`、`path.parent.mkdir`、`path.write_text`、`"".join`、`difflib.unified_diff`、`source.splitlines`、`source.replace(profile.OLD, profile.NEW) .replace(profile.LIMIT_A…`、`source.replace(profile.OLD, profile.NEW) .replace`、`source.replace`等。 返回路径：L147的`root, context, source, workspace`。
-- `source_fixture.export`（L133–L141）：接收`directory`、`command`、`target`。 调用`Path`、`path.parent.mkdir`、`path.write_bytes`、`source.encode`、`(Path(target) / "go.work").write_bytes`、`workspace.encode`、`(Path(target) / "apps/runner/go.mod").write_bytes`、`(Path(target) / "apps/runner/go.sum").write_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_preimage_and_patch_are_exact_and_module_inputs_are_preserved`（L150–L160）：接收`tmp_path`、`monkeypatch`。 控制顺序：L153断言`(context / profile.SOURCE_FILE).read_text() == source.replace( profile.OLD, profile.N…`；L156断言`(context / "go.work").read_text() == workspace`；L157断言`(context / "apps/runner/go.mod").read_text() == "module fixture\ngo 1.25.5\n"`；L158断言`(context / "go.work.sum").read_text() == "fixture v1 h1:fixture\n"`；L159断言`record["source_sha"] == profile.DAYTONA_SOURCE`；L160断言`(context / "capability-build/NOTICE").is_file()`。 调用`source_fixture`、`profile.source_context`、`(context / profile.SOURCE_FILE).read_text`、`source.replace( profile.OLD, profile.NEW ).replace`、`source.replace`、`(context / "go.work").read_text`、`(context / "apps/runner/go.mod").read_text`、`(context / "go.work.sum").read_text`、`(context / "capability-build/NOTICE").is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_source_drift_fails_closed_before_any_build`（L164–L174）：接收`tmp_path`、`monkeypatch`、`changed`。 控制顺序：L166按`changed == "source"`分支；L168按`changed == "workspace"`分支。 调用`source_fixture`、`monkeypatch.setattr`、`(root / "tools/daytona/capability-runner.patch").open`、`file.write`、`pytest.raises`、`profile.source_context`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `application_inspect`（L177–L204）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L178的`{ "Name": "/" + SANDBOX, "Image": SNAPSHOT, "State": {"Running": True}, "Config": { "User"…`。
-- `inspection`（L208–L238）：接收`tmp_path`、`monkeypatch`。 调用`application_inspect`、`monkeypatch.setattr`。 返回路径：L238的`tmp_path, outer, inner, calls`。
-- `inspection.docker`（L231–L235）：接收`*args`、`**kwargs`。 控制顺序：L233按`"info" in args`分支。 调用`calls.append`、`json.dumps`、`inner.get`。 返回路径：L234的`json.dumps(inner.get("engine_security", ["name=seccomp,profile=builtin"]))`；L235的`json.dumps([outer if args[0] == "container" else inner])`。
-- `test_readonly_inspection_is_scoped_to_owned_uuid_and_redacts_everything_else`（L241–L272）：接收`inspection`。 控制顺序：L244断言`proof["privileged"] is False and proof["seccomp"] == "docker-default"`；L245断言`proof["snapshot_image_id"] == SNAPSHOT`；L246断言`calls == [ ("container", "inspect", OUTER), ( "exec", OUTER, "docker", "--host", "uni…`；L269断言`"SECRET" not in json.dumps(proof) and "TOKEN" not in json.dumps(proof)`；L272断言`len(calls) == 3`。 调用`profile.inspect_created_sandbox`、`json.dumps`、`pytest.raises`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_created_application_rejects_real_inspect_drift`（L299–L303）：接收`inspection`、`mutation`。 调用`mutation`、`pytest.raises`、`profile.inspect_created_sandbox`、`pytest.mark.parametrize`、`row.update`、`row["Config"].update`、`row["HostConfig"].update`、`row["Mounts"][0].update`、`row["Mounts"].append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_wrong_runner_is_rejected_before_an_inner_exec`（L306–L311）：接收`inspection`。 控制顺序：L311断言`len(calls) == 1`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_recipe_keeps_real_embeds_glibc_smoke_license_and_locked_go_inputs`（L314–L341）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L316遍历`( "./apps/daemon/cmd/daemon", "./libs/computer-use", "./apps/runn…`；L331断言`text in recipe`；L332断言`"go mod edit" not in recipe and "yarn" not in recipe`；L334断言`snapshot.rstrip().endswith("USER 0:0")`；L335断言`"WORKDIR /opt/rnd/control" in snapshot`；L336断言`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip() .endswith("WORKDIR…`。 调用`(profile.ROOT / "tools/daytona/capability-runner.Dockerfile").rea…`、`(profile.ROOT / "tools/daytona/capability-snapshot.Dockerfile").r…`、`snapshot.rstrip().endswith`、`snapshot.rstrip`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip(…`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `locked_profile`（L345–L400）：接收`tmp_path`。 控制顺序：L348遍历`base["services"].items()`。 调用`base_config`、`base["services"].items`、`tag.rsplit`、`profile.write_compose`、`local.private_json`、`profile.recipe_identity`、`profile.BASES.items`、`profile.sha256`、`(identity + json.dumps(bases, sort_keys=True)).encode`等。 返回路径：L400的`tmp_path, record`。
-- `test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_changes`（L403–L412）：接收`locked_profile`。 控制顺序：L407断言`actual == record`；L412断言`(directory / "compose.lock.yaml").read_bytes() == ordinary`。 调用`(directory / "compose.lock.yaml").read_bytes`、`profile.load_profile`、`profile.write_compose`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_edited_lock_cannot_select_general_or_unpinned_images`（L425–L431）：接收`locked_profile`、`mutation`。 调用`mutation`、`local.private_json`、`pytest.raises`、`profile.load_profile`、`pytest.mark.parametrize`、`record["bases"]["GO_IMAGE"].update`、`record["snapshot"].update`、`record["runner"].update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_required_profile_verifies_image_id_and_registry_digest`（L434–L448）：接收`locked_profile`、`monkeypatch`。 控制顺序：L443断言`profile.require_profile(directory, record["snapshot"]["snapshot"]) == record`。 调用`snapshot_inspect`、`copy.deepcopy`、`monkeypatch.setattr`、`profile.require_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_prepare_never_overwrites_existing_profile_or_credentials`（L451–L457）：接收`locked_profile`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`profile.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_actual_engine_seccomp_is_not_default_filter_evidence`（L463–L468）：接收`inspection`、`options`。 控制顺序：L468断言`len(calls) == 2`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `base_config`（L23–L35）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`local.IMAGES.items`、`local.gateway_service`、`copy.deepcopy`。 返回路径：L35的`{"services": services, "networks": copy.deepcopy(local.NETWORKS)}`。
+- `test_profile_transformation_preserves_general_defaults_and_all_other_fields`（L38–L54）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L43断言`original == untouched`；L44断言`result["name"] == profile.PROJECT`；L45断言`result["services"]["runner"]["image"] == RUNNER`；L46断言`result["services"]["runner"]["environment"]["USE_SNAPSHOT_ENTRYPOINT"] == "false"`；L47断言`result["services"]["runner"]["privileged"] is True`；L48断言`result["services"]["api"]["environment"]["DEFAULT_SNAPSHOT"] == image`；L50断言`"USE_SNAPSHOT_ENTRYPOINT" not in original["services"]["runner"]["environment"]`；L51断言`local.IMAGES["runner"].startswith("rnd-local/daytona-runner:")`。后续分支沿下方源码相同行号继续阅读。 调用`base_config`、`copy.deepcopy`、`profile.render_profile`、`local.IMAGES["runner"].startswith`、`snapshot_resources`、`pytest.raises`、`profile.profile_directory`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `snapshot_inspect`（L57–L75）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`profile.recipe_identity`。 返回路径：L59的`{ "Id": SNAPSHOT, "Os": "linux", "Architecture": "amd64", "RepoDigests": ["127.0.0.1:6000/…`。
+- `test_snapshot_requires_declared_control_identity_and_no_inherited_command`（L88–L94）：接收`field`、`value`。 调用`snapshot_inspect`、`profile.recipe_identity`、`profile.validate_image`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runner_requires_the_explicit_normal_daemon_entrypoint`（L97–L105）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L100遍历`([], ["USE_SNAPSHOT_ENTRYPOINT=true"])`。 调用`snapshot_inspect`、`profile.recipe_identity`、`pytest.raises`、`profile.validate_image`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `source_fixture`（L108–L149）：接收`tmp_path`、`monkeypatch`。 控制顺序：L119遍历`profile.RECIPE_PATHS`。 调用`context.mkdir`、`path.parent.mkdir`、`path.write_text`、`"".join`、`difflib.unified_diff`、`source.splitlines`、`source.replace(profile.OLD, profile.NEW) .replace(profile.LIMIT_A…`、`source.replace(profile.OLD, profile.NEW) .replace`、`source.replace`等。 返回路径：L149的`root, context, source, workspace`。
+- `source_fixture.export`（L135–L143）：接收`directory`、`command`、`target`。 调用`Path`、`path.parent.mkdir`、`path.write_bytes`、`source.encode`、`(Path(target) / "go.work").write_bytes`、`workspace.encode`、`(Path(target) / "apps/runner/go.mod").write_bytes`、`(Path(target) / "apps/runner/go.sum").write_bytes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_preimage_and_patch_are_exact_and_module_inputs_are_preserved`（L152–L162）：接收`tmp_path`、`monkeypatch`。 控制顺序：L155断言`(context / profile.SOURCE_FILE).read_text() == source.replace( profile.OLD, profile.N…`；L158断言`(context / "go.work").read_text() == workspace`；L159断言`(context / "apps/runner/go.mod").read_text() == "module fixture\ngo 1.25.5\n"`；L160断言`(context / "go.work.sum").read_text() == "fixture v1 h1:fixture\n"`；L161断言`record["source_sha"] == profile.DAYTONA_SOURCE`；L162断言`(context / "capability-build/NOTICE").is_file()`。 调用`source_fixture`、`profile.source_context`、`(context / profile.SOURCE_FILE).read_text`、`source.replace( profile.OLD, profile.NEW ).replace`、`source.replace`、`(context / "go.work").read_text`、`(context / "apps/runner/go.mod").read_text`、`(context / "go.work.sum").read_text`、`(context / "capability-build/NOTICE").is_file`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_source_drift_fails_closed_before_any_build`（L166–L176）：接收`tmp_path`、`monkeypatch`、`changed`。 控制顺序：L168按`changed == "source"`分支；L170按`changed == "workspace"`分支。 调用`source_fixture`、`monkeypatch.setattr`、`(root / "tools/daytona/capability-runner.patch").open`、`file.write`、`pytest.raises`、`profile.source_context`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `application_inspect`（L179–L206）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L180的`{ "Name": "/" + SANDBOX, "Image": SNAPSHOT, "State": {"Running": True}, "Config": { "User"…`。
+- `inspection`（L210–L242）：接收`tmp_path`、`monkeypatch`。 调用`application_inspect`、`monkeypatch.setattr`。 返回路径：L242的`tmp_path, outer, inner, calls`。
+- `inspection.docker`（L233–L239）：接收`*args`、`**kwargs`。 控制顺序：L235按`"info" in args`分支；L237按`"network" in args`分支。 调用`calls.append`、`json.dumps`、`inner.get`。 返回路径：L236的`json.dumps(inner.get("engine_security", ["name=seccomp,profile=builtin"]))`；L238的`json.dumps(inner["bridge_inspect"])`；L239的`json.dumps([outer if args[0] == "container" else inner])`。
+- `execution_inspection`（L246–L265）：接收`inspection`。 调用`inner["HostConfig"].update`、`inner["Mounts"].append`。 返回路径：L265的`inspection`。
+- `test_execution_inspection_still_accepts_exact_resource_network_and_mount_policy`（L268–L282）：接收`execution_inspection`。 控制顺序：L273断言`proof["resource_limits"] == { "cpu_period": 100000, "cpu_quota": 100000, "memory": 2 …`；L281断言`proof["trusted_readonly_binary_mounts"] is True`；L282断言`len(calls) == 4`。 调用`profile.inspect_created_sandbox`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data`（L330–L377）：接收`execution_inspection`、`settings`、`mutation`、`category`、`facts`。 控制顺序：L368断言`result["passed"] is False and result["cleanup"] == "deleted"`；L369断言`result["kind"] == "isolation_environment" and operations == ["deleted"]`；L370断言`"container_isolation" not in result`；L372断言`diagnostic["container_rejection"] == category`；L373断言`diagnostic.items() >= facts.items()`；L374断言`json.loads(receipt_path.read_text()) == result`；L375断言`"secret" not in receipt_path.read_text().lower()`；L376断言`"must-not-be-in-receipt" not in receipt_path.read_text()`。后续分支沿下方源码相同行号继续阅读。 调用`mutation`、`fixed_application`、`SimpleNamespace`、`operations.append`、`_verify`、`plan.selection.model_dump`、`profile.inspect_created_sandbox`、`diagnostic.items`、`facts.items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data.forbidden`（L342–L343）：接收`*args`、`**kwargs`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inspector_diagnostics_allow_only_finite_fields_values_and_bounded_numbers`（L380–L408）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L404断言`error.diagnostic() == expected`；L406断言`error.diagnostic() == expected`；L408断言`error.diagnostic() == {}`。 调用`ContainerInspectionRejected`、`error.diagnostic`、`error._facts.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_readonly_inspection_is_scoped_to_owned_uuid_and_redacts_everything_else`（L411–L442）：接收`inspection`。 控制顺序：L414断言`proof["privileged"] is False and proof["seccomp"] == "docker-default"`；L415断言`proof["snapshot_image_id"] == SNAPSHOT`；L416断言`calls == [ ("container", "inspect", OUTER), ( "exec", OUTER, "docker", "--host", "uni…`；L439断言`"SECRET" not in json.dumps(proof) and "TOKEN" not in json.dumps(proof)`；L442断言`len(calls) == 3`。 调用`profile.inspect_created_sandbox`、`json.dumps`、`pytest.raises`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_created_application_rejects_real_inspect_drift`（L469–L473）：接收`inspection`、`mutation`。 调用`mutation`、`pytest.raises`、`profile.inspect_created_sandbox`、`pytest.mark.parametrize`、`row.update`、`row["Config"].update`、`row["HostConfig"].update`、`row["Mounts"][0].update`、`row["Mounts"].append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_wrong_runner_is_rejected_before_an_inner_exec`（L476–L481）：接收`inspection`。 控制顺序：L481断言`len(calls) == 1`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_recipe_keeps_real_embeds_glibc_smoke_license_and_locked_go_inputs`（L484–L511）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L486遍历`( "./apps/daemon/cmd/daemon", "./libs/computer-use", "./apps/runn…`；L501断言`text in recipe`；L502断言`"go mod edit" not in recipe and "yarn" not in recipe`；L504断言`snapshot.rstrip().endswith("USER 0:0")`；L505断言`"WORKDIR /opt/rnd/control" in snapshot`；L506断言`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip() .endswith("WORKDIR…`。 调用`(profile.ROOT / "tools/daytona/capability-runner.Dockerfile").rea…`、`(profile.ROOT / "tools/daytona/capability-snapshot.Dockerfile").r…`、`snapshot.rstrip().endswith`、`snapshot.rstrip`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip(…`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text() .rstrip`、`(profile.ROOT / "tools/daytona/Dockerfile") .read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `locked_profile`（L515–L570）：接收`tmp_path`。 控制顺序：L518遍历`base["services"].items()`。 调用`base_config`、`base["services"].items`、`tag.rsplit`、`profile.write_compose`、`local.private_json`、`profile.recipe_identity`、`profile.BASES.items`、`profile.sha256`、`(identity + json.dumps(bases, sort_keys=True)).encode`等。 返回路径：L570的`tmp_path, record`。
+- `test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_changes`（L573–L582）：接收`locked_profile`。 控制顺序：L577断言`actual == record`；L582断言`(directory / "compose.lock.yaml").read_bytes() == ordinary`。 调用`(directory / "compose.lock.yaml").read_bytes`、`profile.load_profile`、`profile.write_compose`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_edited_lock_cannot_select_general_or_unpinned_images`（L595–L601）：接收`locked_profile`、`mutation`。 调用`mutation`、`local.private_json`、`pytest.raises`、`profile.load_profile`、`pytest.mark.parametrize`、`record["bases"]["GO_IMAGE"].update`、`record["snapshot"].update`、`record["runner"].update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_required_profile_verifies_image_id_and_registry_digest`（L604–L618）：接收`locked_profile`、`monkeypatch`。 控制顺序：L613断言`profile.require_profile(directory, record["snapshot"]["snapshot"]) == record`。 调用`snapshot_inspect`、`copy.deepcopy`、`monkeypatch.setattr`、`profile.require_profile`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_prepare_never_overwrites_existing_profile_or_credentials`（L621–L627）：接收`locked_profile`、`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`profile.prepare`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_actual_engine_seccomp_is_not_default_filter_evidence`（L633–L638）：接收`inspection`、`options`。 控制顺序：L638断言`len(calls) == 2`。 调用`pytest.raises`、`profile.inspect_created_sandbox`、`len`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_daytona_capability_profile.py sha256: f43c002b41f471cbaf08968a7c84403c44c24e58304fd8a70db722c6498e61f4 -->
+<!-- source-file: tests/test_daytona_capability_profile.py sha256: c522f04cc9f30d659e904f25abba3cca5f10fd88567666fb2309769ae339851c -->
 ````python
 """Owned build/inspection contracts, not live isolation or privilege experiments."""
 
@@ -123753,12 +125703,14 @@ import copy
 import difflib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from scripts import daytona_capability_profile as profile
 from scripts import daytona_local as local
 from scripts.daytona_bootstrap import snapshot_resources
+from workbench.capability_isolation import ContainerInspectionRejected
 
 RUNNER = "sha256:" + "a" * 64
 SNAPSHOT = "sha256:" + "b" * 64
@@ -123981,10 +125933,178 @@ def inspection(tmp_path, monkeypatch):
         calls.append(args)
         if "info" in args:
             return json.dumps(inner.get("engine_security", ["name=seccomp,profile=builtin"]))
+        if "network" in args:
+            return json.dumps(inner["bridge_inspect"])
         return json.dumps([outer if args[0] == "container" else inner])
 
     monkeypatch.setattr(local, "docker", docker)
     return tmp_path, outer, inner, calls
+
+
+@pytest.fixture
+def execution_inspection(inspection):
+    _, _, inner, _ = inspection
+    inner["HostConfig"].update(
+        Memory=2 * 1024**3,
+        MemorySwap=2 * 1024**3,
+        CpuPeriod=100000,
+        CpuQuota=100000,
+        PidsLimit=256,
+        Tmpfs={"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"},
+    )
+    inner["NetworkSettings"] = {"Networks": {"runner-bridge": {}}}
+    inner["bridge_inspect"] = [
+        {
+            "EnableIPv6": False,
+            "Driver": "bridge",
+            "IPAM": {"Config": [{"Subnet": local.RUNNER_BRIDGE_SUBNET}]},
+        }
+    ]
+    inner["Mounts"].append({"Type": "tmpfs", "Destination": "/tmp", "RW": True, "Source": ""})
+    return inspection
+
+
+def test_execution_inspection_still_accepts_exact_resource_network_and_mount_policy(
+    execution_inspection,
+):
+    directory, _, _, calls = execution_inspection
+    proof = profile.inspect_created_sandbox(directory, SANDBOX, require_resources=True)
+    assert proof["resource_limits"] == {
+        "cpu_period": 100000,
+        "cpu_quota": 100000,
+        "memory": 2 * 1024**3,
+        "memory_swap": 2 * 1024**3,
+        "tmpfs_bytes": 1073741824,
+        "pids": 256,
+    }
+    assert proof["trusted_readonly_binary_mounts"] is True
+    assert len(calls) == 4
+
+
+@pytest.mark.parametrize(
+    "mutation,category,facts",
+    [
+        (
+            lambda row: row["HostConfig"].update(NetworkMode="default"),
+            "sandbox_network",
+            {"network_mode": "default", "network_count": 1, "runner_bridge_attached": True},
+        ),
+        (
+            lambda row: row["NetworkSettings"]["Networks"].update({"secret-network": {}}),
+            "sandbox_network",
+            {"network_mode": "runner-bridge", "network_count": 2, "runner_bridge_attached": True},
+        ),
+        (
+            lambda row: row["HostConfig"].update(NetworkMode="secret-network"),
+            "sandbox_network",
+            {"network_mode": "other", "network_count": 1, "runner_bridge_attached": True},
+        ),
+        (
+            lambda row: row["bridge_inspect"][0].update(EnableIPv6=True),
+            "runner_bridge",
+            {"bridge_ipv6_disabled": False, "bridge_driver_matches": True},
+        ),
+        (
+            lambda row: row["HostConfig"].update(MemorySwap=-1),
+            "resource_limits",
+            {"memory_swap": -1, "memory": 2 * 1024**3, "tmpfs_options_match": True},
+        ),
+        (
+            lambda row: row["HostConfig"].update(Tmpfs={"/secret-path": "secret-option"}),
+            "resource_limits",
+            {"tmpfs_keys_match": False, "tmpfs_options_match": False},
+        ),
+        (
+            lambda row: row["Mounts"][0].update(Source="/secret-path"),
+            "binary_mounts",
+            {"mount_sources_match": False, "mount_readonly_matches": True, "mount_count": 2},
+        ),
+        (
+            lambda row: row["Mounts"][-1].update(Destination="/secret-path", RW=False),
+            "tmpfs_mounts",
+            {"mount_destinations_match": False, "mount_writable_matches": False, "mount_count": 1},
+        ),
+    ],
+)
+def test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data(
+    execution_inspection, settings, mutation, category, facts
+):
+    from scripts.ci_capability_profile import fixed_application
+    from workbench.capability_sandbox import _verify
+
+    directory, _, inner, calls = execution_inspection
+    mutation(inner)
+    product = directory / "product"
+    plan = fixed_application(product)
+    operations = []
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Inspector rejection must stop before source upload or execution")
+
+    sandbox = SimpleNamespace(
+        id=SANDBOX,
+        fs=SimpleNamespace(create_folder=forbidden, upload_file=forbidden),
+        process=SimpleNamespace(exec=forbidden),
+    )
+    client = SimpleNamespace(
+        create=lambda *a, **k: sandbox, delete=lambda *a, **k: operations.append("deleted")
+    )
+    settings.daytona_snapshot = "fixture-owned-snapshot"
+    receipt_path = directory / "receipt.json"
+    result = _verify(
+        product,
+        plan,
+        plan.scenarios,
+        settings,
+        plan.selection.model_dump(),
+        receipt_path,
+        client=client,
+        aggregate=True,
+        control_observer=lambda identifier: profile.inspect_created_sandbox(
+            directory, identifier, require_resources=True
+        ),
+    )
+    assert result["passed"] is False and result["cleanup"] == "deleted"
+    assert result["kind"] == "isolation_environment" and operations == ["deleted"]
+    assert "container_isolation" not in result
+    diagnostic = result["isolation_diagnostic"]
+    assert diagnostic["container_rejection"] == category
+    assert diagnostic.items() >= facts.items()
+    assert json.loads(receipt_path.read_text()) == result
+    assert "secret" not in receipt_path.read_text().lower()
+    assert "must-not-be-in-receipt" not in receipt_path.read_text()
+    assert len(calls) == (3 if category == "sandbox_network" else 4)
+
+
+def test_inspector_diagnostics_allow_only_finite_fields_values_and_bounded_numbers():
+    error = ContainerInspectionRejected(
+        "secret exception text",
+        category="resource_limits",
+        facts={
+            "memory": 2 * 1024**3,
+            "memory_swap": -(2**100),
+            "cpu_period": True,
+            "cpu_quota": "secret quota",
+            "pids_limit": 256,
+            "tmpfs_options_match": "secret flag",
+            "environment": {"TOKEN": "secret"},
+            "mount_path": "/secret",
+        },
+    )
+    expected = {
+        "container_rejection": "resource_limits",
+        "memory": 2 * 1024**3,
+        "memory_swap": None,
+        "cpu_period": None,
+        "cpu_quota": None,
+        "pids_limit": 256,
+        "tmpfs_options_match": None,
+    }
+    assert error.diagnostic() == expected
+    error._facts.update(environment="secret", cpu_quota="secret")
+    assert error.diagnostic() == expected
+    error._category = "secret category"
+    assert error.diagnostic() == {}
 
 
 def test_readonly_inspection_is_scoped_to_owned_uuid_and_redacts_everything_else(inspection):
@@ -153193,18 +155313,18 @@ if __name__ == "__main__":
 
 **逐个入口与控制逻辑：**
 
-- `stage_for`（L137–L191）：接收`name`。 控制顺序：L139按`name.startswith(("workbench/web/", "ui/"))`分支；L141按`name.startswith("scripts/extension_oracles/")`分支；L143按`name.startswith("workbench/")`分支；L145按`name.startswith("migrations/") or name == "alembic.ini"`分支；L147按`name.startswith("templates/product/") or name.startswith("templates/frontends/")`分支；L149按`name.startswith("templates/business/common/")`分支；L151按`name.startswith(("templates/vendor/", "templates/business/", "templates/deployment/")…`分支；L153按`name.startswith("examples/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`test_stage`。 返回路径：L140的`8`；L142的`4`；L144的`MODULE_STAGE[path.stem]`。
-- `test_stage`（L194–L245）：接收`name`。 控制顺序：L195按`name == "tests/conftest.py"`分支；L197按`name == "tests/news_case.py"`分支；L199按`name.startswith("tests/fixtures/")`分支；L215按`stem in early`分支；L217按`stem == "store"`分支；L219按`stem in {"contracts", "business_contracts"}`分支；L221按`stem in {"llm", "guided_models", "provider_structured_outputs"}`分支；L223按`stem.startswith("daytona") or stem == "local_only"`分支。后续分支沿下方源码相同行号继续阅读。 调用`name.startswith`、`Path(name).stem.removeprefix`、`Path`、`stem.startswith`。 返回路径：L196的`2`；L198的`7`；L200的`10`。
-- `language_for`（L248–L273）：接收`name`、`binary`。 控制顺序：L249按`binary`分支；L251按`name.endswith("uv.lock")`分支；L253按`Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile")`分支。 调用`name.endswith`、`Path(name).name.startswith`、`Path`、`{ ".py": "python", ".md": "markdown", ".toml": "toml", ".yml": "y…`。 返回路径：L250的`"base64"`；L252的`"toml"`；L254的`"dockerfile"`。
-- `chunks`（L276–L315）：接收`data`、`binary`、`name`。 源码说明：Keep ordinary modules together; split only long implementations at real boundaries.。 控制顺序：L278按`binary or name.endswith(("uv.lock", "package-lock.json"))`分支；L282按`len(lines) <= 1000`分支；L285按`name.endswith(".py")`分支；L293按`name.endswith(".md")`分支；L303在`len(lines) - first > 1000`成立时循环；L305按`not options`分支；L313按`first < len(lines)`分支。 调用`name.endswith`、`data.decode`、`content.splitlines`、`len`、`ast.parse`、`min`、`ast.walk`、`isinstance`、`enumerate`等。 返回路径：L279的`[data]`；L283的`[data]`；L315的`result or [b""]`。
-- `source_note`（L348–L379）：接收`name`、`content`、`first`、`last`。 控制顺序：L349按`isinstance(content, bytes)`分支；L350按`generated_frontend_asset(name)`分支；L364按`name in TEACHING_CASES`分支；L366按`not separator`分支；L369遍历`entries.splitlines()`；L371按`match and first <= int(match[1]) <= last`分支；L373按`selected`分支。 调用`isinstance`、`generated_frontend_asset`、`notes`、`detail.replace`、`detail.partition`、`entries.splitlines`、`re.search`、`int`、`selected.append`等。 返回路径：L351的`"这是Vue操作台的构建快照，不是需要手写或阅读的压缩实现。" "请读第08站的ui/src、package-lock.json和vite.config.ts，执行npm ci/b…`；L357的`"该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"`；L367的`head`。
-- `source_pages`（L382–L453）：接收`name`、`content`、`stage`。 控制顺序：L388按`binary`分支；L390按`name.endswith(("uv.lock", "package-lock.json"))`分支；L395遍历`enumerate(pieces)`；L416按`index`分支；L418按`index + 1 < len(pieces)`分支；L427按`not piece`分支；L429按`not binary`分支；L437按`generated_frontend_asset(name)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L447的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
-- `read_content`（L456–L457）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L457的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
-- `render`（L460–L507）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L462按`[stage["id"] for stage in curriculum] != STAGES`分支；L463抛异常，停止当前正常路径；L465遍历`sources()`；L466遍历`files`；L468按`set(output).intersection(pages)`分支；L469抛异常，停止当前正常路径；L478遍历`curriculum`；L483按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L507的`output`。
-- `readme`（L510–L593）：接收`curriculum`、`records`。 控制顺序：L524遍历`curriculum`。 调用`len`。 返回路径：L593的`text`。
-- `main`（L596–L624）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L606按`args.check`分支；L613按`wrong`分支；L614抛异常，停止当前正常路径；L618遍历`actual.difference(expected)`；L620遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `stage_for`（L138–L192）：接收`name`。 控制顺序：L140按`name.startswith(("workbench/web/", "ui/"))`分支；L142按`name.startswith("scripts/extension_oracles/")`分支；L144按`name.startswith("workbench/")`分支；L146按`name.startswith("migrations/") or name == "alembic.ini"`分支；L148按`name.startswith("templates/product/") or name.startswith("templates/frontends/")`分支；L150按`name.startswith("templates/business/common/")`分支；L152按`name.startswith(("templates/vendor/", "templates/business/", "templates/deployment/")…`分支；L154按`name.startswith("examples/")`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`name.startswith`、`test_stage`。 返回路径：L141的`8`；L143的`4`；L145的`MODULE_STAGE[path.stem]`。
+- `test_stage`（L195–L246）：接收`name`。 控制顺序：L196按`name == "tests/conftest.py"`分支；L198按`name == "tests/news_case.py"`分支；L200按`name.startswith("tests/fixtures/")`分支；L216按`stem in early`分支；L218按`stem == "store"`分支；L220按`stem in {"contracts", "business_contracts"}`分支；L222按`stem in {"llm", "guided_models", "provider_structured_outputs"}`分支；L224按`stem.startswith("daytona") or stem == "local_only"`分支。后续分支沿下方源码相同行号继续阅读。 调用`name.startswith`、`Path(name).stem.removeprefix`、`Path`、`stem.startswith`。 返回路径：L197的`2`；L199的`7`；L201的`10`。
+- `language_for`（L249–L274）：接收`name`、`binary`。 控制顺序：L250按`binary`分支；L252按`name.endswith("uv.lock")`分支；L254按`Path(name).name.startswith("Dockerfile") or name.endswith(".Dockerfile")`分支。 调用`name.endswith`、`Path(name).name.startswith`、`Path`、`{ ".py": "python", ".md": "markdown", ".toml": "toml", ".yml": "y…`。 返回路径：L251的`"base64"`；L253的`"toml"`；L255的`"dockerfile"`。
+- `chunks`（L277–L316）：接收`data`、`binary`、`name`。 源码说明：Keep ordinary modules together; split only long implementations at real boundaries.。 控制顺序：L279按`binary or name.endswith(("uv.lock", "package-lock.json"))`分支；L283按`len(lines) <= 1000`分支；L286按`name.endswith(".py")`分支；L294按`name.endswith(".md")`分支；L304在`len(lines) - first > 1000`成立时循环；L306按`not options`分支；L314按`first < len(lines)`分支。 调用`name.endswith`、`data.decode`、`content.splitlines`、`len`、`ast.parse`、`min`、`ast.walk`、`isinstance`、`enumerate`等。 返回路径：L280的`[data]`；L284的`[data]`；L316的`result or [b""]`。
+- `source_note`（L349–L380）：接收`name`、`content`、`first`、`last`。 控制顺序：L350按`isinstance(content, bytes)`分支；L351按`generated_frontend_asset(name)`分支；L365按`name in TEACHING_CASES`分支；L367按`not separator`分支；L370遍历`entries.splitlines()`；L372按`match and first <= int(match[1]) <= last`分支；L374按`selected`分支。 调用`isinstance`、`generated_frontend_asset`、`notes`、`detail.replace`、`detail.partition`、`entries.splitlines`、`re.search`、`int`、`selected.append`等。 返回路径：L352的`"这是Vue操作台的构建快照，不是需要手写或阅读的压缩实现。" "请读第08站的ui/src、package-lock.json和vite.config.ts，执行npm ci/b…`；L358的`"该资源是真实操作截图的原始字节。Base64按顺序解码后拼接，不把它当代码执行；文件总SHA-256校验后才能用作图片。\n\n"`；L368的`head`。
+- `source_pages`（L383–L454）：接收`name`、`content`、`stage`。 控制顺序：L389按`binary`分支；L391按`name.endswith(("uv.lock", "package-lock.json"))`分支；L396遍历`enumerate(pieces)`；L417按`index`分支；L419按`index + 1 < len(pieces)`分支；L428按`not piece`分支；L430按`not binary`分支；L438按`generated_frontend_asset(name)`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`content.encode`、`chunks`、`name.replace("/", "__").replace`、`name.replace`、`name.endswith`、`range`、`len`、`language_for`等。 返回路径：L448的`result, { "path": name, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest(), "s…`。
+- `read_content`（L457–L458）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`json.loads`、`CONTENT.read_text`。 返回路径：L458的`json.loads(CONTENT.read_text(encoding="utf-8"))`。
+- `render`（L461–L508）：不接收显式业务参数，从已配置对象/模块读取依赖。生成物完全由正文源文件和实际源码计算；检查模式比较整份结果，不允许手动修改生成手册来掩盖源码不同步。 控制顺序：L463按`[stage["id"] for stage in curriculum] != STAGES`分支；L464抛异常，停止当前正常路径；L466遍历`sources()`；L467遍历`files`；L469按`set(output).intersection(pages)`分支；L470抛异常，停止当前正常路径；L479遍历`curriculum`；L484按`pos`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_content`、`ValueError`、`sources`、`source_pages`、`stage_for`、`set(output).intersection`、`set`、`output.update`、`records.append`等。 返回路径：L508的`output`。
+- `readme`（L511–L594）：接收`curriculum`、`records`。 控制顺序：L525遍历`curriculum`。 调用`len`。 返回路径：L594的`text`。
+- `main`（L597–L625）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L607按`args.check`分支；L614按`wrong`分支；L615抛异常，停止当前正常路径；L619遍历`actual.difference(expected)`；L621遍历`expected.items()`。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`render`、`OUTPUT.exists`、`path.relative_to(OUTPUT).as_posix`、`path.relative_to`、`OUTPUT.rglob`、`path.is_file`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/build_learning_docs.py sha256: 02534663699dc95d10efd1f946b4c377dac04e0ce939b35eda2a2683cb2d6872 -->
+<!-- source-file: scripts/build_learning_docs.py sha256: b3bda9e54cba60144fc6db8c596d8b9c58c091d26984b62dbc98a5a0009280a1 -->
 ````python
 """Build small, staged lessons and lossless source pages from the actual platform."""
 
@@ -153273,6 +155393,7 @@ MODULE_STAGE = {
     "capability_editing": 7,
     "capability_services": 4,
     "capability_browser_isolation": 4,
+    "capability_browser_policy": 4,
     "capability_contest_oracle": 4,
     "capability_native_runtime": 4,
     "orchestration": 7,
@@ -155024,6 +157145,33 @@ main().then(report => process.stdout.write(JSON.stringify(report))).catch(error 
 })
 ````
 
+### `scripts/capability_browser_apparmor.cjs`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.capability_browser_apparmor.；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: scripts/capability_browser_apparmor.cjs sha256: f65a9695f879d21e87760b8d20b546e2bea39ecde83b9cb0b7586cf5c41b795e -->
+````javascript
+// Read the kernel's actual current label before any candidate/browser work.
+const fs = require('node:fs')
+function requireAppArmor(api = fs) {
+  const fd = api.openSync('/proc/self/attr/current', 'r')
+  const buffer = Buffer.alloc(128)
+  try {
+    const size = api.readSync(fd, buffer, 0, buffer.length, 0)
+    const label = buffer.subarray(0, size)
+    if (!label.equals(Buffer.from('docker-default (enforce)')) && !label.equals(Buffer.from('docker-default (enforce)\n'))) {
+      throw new Error('worker_apparmor_not_enforced')
+    }
+  } finally { api.closeSync(fd) }
+  return true
+}
+module.exports = {requireAppArmor}
+````
+
 ### `scripts/capability_browser_network_probe.cjs`
 
 **作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
@@ -155032,7 +157180,7 @@ main().then(report => process.stdout.write(JSON.stringify(report))).catch(error 
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/capability_browser_network_probe.cjs sha256: 4333e78423ad57953cde78af9e6d4518ba37f19a45ff71dee61a1e506b925a60 -->
+<!-- source-file: scripts/capability_browser_network_probe.cjs sha256: a508ba9c134e8414ba169f585cd31f479e8cadd06bcff5ca2273ba5a710bf2b0 -->
 ````javascript
 // Trusted live namespace/resource probe, not an application acceptance report.
 const fs = require('node:fs')
@@ -155040,7 +157188,7 @@ const net = require('node:net')
 const os = require('node:os')
 const dgram = require('node:dgram')
 const assert = require('node:assert/strict')
-const {spawn} = require('node:child_process')
+const {spawn, spawnSync} = require('node:child_process')
 
 async function requireNoRoute(host, port, connect = options => net.connect(options)) {
   return await new Promise((resolve, reject) => {
@@ -155067,6 +157215,23 @@ function requireReadOnly(api = fs, uid = process.getuid()) {
 }
 
 async function main() {
+  const apparmor = process.env.CAPABILITY_BROWSER_REQUIRE_APPARMOR === '1'
+  if (apparmor) require('./capability_browser_apparmor.cjs').requireAppArmor()
+  assert.equal(process.arch, 'x64')
+  assert.equal(process.platform, 'linux')
+  assert.equal(require('playwright/package.json').version, '1.56.1')
+  const executable = require('playwright').chromium.executablePath()
+  const executableFd = fs.openSync(executable, 'r')
+  const elf = Buffer.alloc(64)
+  try { assert.equal(fs.readSync(executableFd, elf, 0, 64, 0), 64) }
+  finally { fs.closeSync(executableFd) }
+  assert.equal(elf.subarray(0, 4).toString('hex'), '7f454c46')
+  assert.equal(elf[4], 2) // ELFCLASS64
+  assert.equal(elf[5], 1) // little endian
+  assert.equal(elf.readUInt16LE(18), 62) // EM_X86_64
+  const version = spawnSync(executable, ['--version'], {encoding:'utf8', timeout:10000, maxBuffer:4096})
+  assert.equal(version.status, 0)
+  assert.equal(version.stdout.trim(), 'Chromium 141.0.7390.37')
   assert.equal(process.getuid(), 1000)
   assert.equal(process.getgid(), 1000)
   const status = Object.fromEntries(fs.readFileSync('/proc/self/status','utf8').trim().split('\n').map(line => {
@@ -155133,10 +157298,342 @@ async function main() {
     }
   } finally { for (const child of children) child.kill('SIGKILL') }
   assert(pidDenied)
-  process.stdout.write(JSON.stringify({passed:true, kernel_resource_limits:true, network_none:true, tmpfs_exhaustion:true, pid_exhaustion:true, readonly_root:true}))
+  process.stdout.write(JSON.stringify({passed:true, kernel_resource_limits:true, network_none:true, tmpfs_exhaustion:true, pid_exhaustion:true, readonly_root:true, browser_build:true, ...(apparmor ? {apparmor_enforced:true} : {})}))
 }
 module.exports = {requireNoRoute, requireReadOnly}
 if (require.main === module) main().catch(() => {process.exitCode=1})
+````
+
+### `scripts/capability_browser_seccomp_probe.c`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.capability_browser_seccomp_prob；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: scripts/capability_browser_seccomp_probe.c sha256: 1bc0dfb59b514027f52516bcbf8d158e613de0e578f78b9e94a6436966110b9c -->
+````text
+/*
+ * Live negative evidence for the approved, native-amd64 browser policy.
+ * Build/inspect only outside the authorized disposable, network-none worker.
+ * This program NEVER installs a filter or changes host security settings.
+ * Its expected hash is an assertion to be bound by the controller's independent
+ * Docker inspection and source receipts, not a measurement of the loaded BPF.
+ */
+#define _GNU_SOURCE
+#if !defined(__linux__) || !defined(__x86_64__) || defined(__ILP32__)
+#error "This live probe requires native Linux amd64; no compatibility fallback."
+#endif
+#include <asm/unistd.h>
+#include <errno.h>
+#include <inttypes.h>
+#include <signal.h>
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <string.h>
+#include <sys/mman.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
+
+_Static_assert(sizeof(long) == 8 && sizeof(void *) == 8, "native amd64 ABI required");
+_Static_assert(__NR_socket == 41 && __NR_socketpair == 53 && __NR_clone == 56,
+               "unexpected native syscall table");
+_Static_assert(__NR_io_uring_setup == 425 && __NR_io_uring_enter == 426 &&
+               __NR_io_uring_register == 427 && __NR_clone3 == 435,
+               "unexpected native syscall table");
+
+#define PROFILE_HASH "9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f"
+#define X32_BIT UINT64_C(0x40000000)
+#define I386_SOCKETCALL 102U
+#define I386_SOCKET 359U
+#define I386_SOCKETPAIR 360U
+#define MAX_RESULTS 32U
+#define CHILD_WAIT_POLLS 200U
+#define CHILD_POLL_NS 10000000L
+
+/* Keep all 64 argument bits: libc's typed socket wrappers would truncate them. */
+__attribute__((noinline)) static long raw_syscall6(uint64_t number, uint64_t a1,
+        uint64_t a2, uint64_t a3, uint64_t a4, uint64_t a5, uint64_t a6) {
+    register uint64_t r10 __asm__("r10") = a4;
+    register uint64_t r8 __asm__("r8") = a5;
+    register uint64_t r9 __asm__("r9") = a6;
+    long result;
+    __asm__ __volatile__("syscall" : "=a"(result)
+        : "a"(number), "D"(a1), "S"(a2), "d"(a3), "r"(r10), "r"(r8), "r"(r9)
+        : "rcx", "r11", "memory", "cc");
+    return result;
+}
+
+/* int 0x80 enters the i386 syscall ABI even from a native 64-bit executable. */
+__attribute__((noinline)) static long raw_i386_syscall4(uint32_t number, uint32_t a1,
+        uint32_t a2, uint32_t a3, uint32_t a4) {
+    uint32_t result;
+    __asm__ __volatile__("int $0x80" : "=a"(result)
+        : "a"(number), "b"(a1), "c"(a2), "d"(a3), "S"(a4)
+        : "r8", "r9", "r10", "r11", "memory", "cc");
+    return (int32_t)result;
+}
+
+struct result {
+    const char *name;
+    bool passed, returned, timed_out;
+    long value;
+    int signal_number, exit_status, setup_errno;
+};
+static struct result results[MAX_RESULTS];
+static size_t result_count;
+
+static struct result *new_result(const char *name) {
+    if (result_count == MAX_RESULTS) {
+        puts("{\"protocol\":\"browser-seccomp-transport-v1\",\"passed\":false,"
+             "\"error\":\"result_capacity\"}");
+        (void)fflush(stdout);
+        _exit(2);
+    }
+    struct result *r = &results[result_count++];
+    r->name = name;
+    r->exit_status = -1;
+    return r;
+}
+
+static int raw_errno(long result) {
+    return result < 0 && result >= -4095 ? (int)-result : 0;
+}
+
+static bool close_fd(long fd) {
+    return fd >= 0 && raw_syscall6(__NR_close, (uint64_t)fd, 0, 0, 0, 0, 0) == 0;
+}
+
+static void socket_case(const char *name, uint64_t domain, bool pair, bool allowed) {
+    int fds[2] = {-1, -1};
+    struct result *r = new_result(name);
+    r->value = raw_syscall6(pair ? __NR_socketpair : __NR_socket, domain,
+        SOCK_STREAM | SOCK_CLOEXEC, 0, (uintptr_t)fds, 0, 0);
+    r->returned = true;
+    r->passed = allowed ? (pair ? r->value == 0 : r->value >= 0) : r->value == -EPERM;
+    /* Close unexpected successes too; a denial failure must not leak resources. */
+    if (pair && r->value == 0) {
+        bool closed0 = close_fd(fds[0]);
+        bool closed1 = close_fd(fds[1]);
+        r->passed = r->passed && closed0 && closed1;
+    } else if (!pair && r->value >= 0) {
+        r->passed = close_fd(r->value) && r->passed;
+    }
+}
+
+static void errno_case(const char *name, uint64_t number, uint64_t a1, uint64_t a2,
+        uint64_t a3, uint64_t a4, uint64_t a5, int expected) {
+    struct result *r = new_result(name);
+    r->value = raw_syscall6(number, a1, a2, a3, a4, a5, 0);
+    r->returned = true;
+    r->passed = r->value == -expected;
+    if (number == __NR_io_uring_setup && r->value >= 0)
+        (void)close_fd(r->value);
+}
+
+enum child_kind { X32_SOCKET, X32_PAIR, I386_CALL_SOCKET, I386_CALL_PAIR,
+                  I386_DIRECT_SOCKET, I386_DIRECT_PAIR, EXTRA_CLONE, EXTRA_UNSHARE };
+struct child_case { const char *name; enum child_kind kind; uint64_t flags; };
+static const struct child_case child_cases[] = {
+    {"x32_socket_killed", X32_SOCKET, 0},
+    {"x32_socketpair_killed", X32_PAIR, 0},
+    {"i386_socketcall_socket_killed", I386_CALL_SOCKET, 0},
+    {"i386_socketcall_socketpair_killed", I386_CALL_PAIR, 0},
+    {"i386_socket_killed", I386_DIRECT_SOCKET, 0},
+    {"i386_socketpair_killed", I386_DIRECT_PAIR, 0},
+    /* Exact allowed clone flags plus CLONE_NEWNS; none is an allowed pattern. */
+    {"clone_user_extra_mount_denied", EXTRA_CLONE, UINT64_C(0x10020011)},
+    {"clone_user_pid_net_extra_mount_denied", EXTRA_CLONE, UINT64_C(0x70020011)},
+    {"clone_pid_extra_mount_denied", EXTRA_CLONE, UINT64_C(0x20020011)},
+    {"unshare_user_extra_mount_denied", EXTRA_UNSHARE, UINT64_C(0x10020000)},
+    {"unshare_user_extra_net_denied", EXTRA_UNSHARE, UINT64_C(0x50000000)},
+};
+
+/* Shared return evidence prevents a later SIGSYS (e.g. on exit) being mistaken
+ * for a syscall kill. MAP_32BIT gives compat syscalls actual valid pointers. */
+struct shared_result {
+    uint32_t arguments[4];
+    int fds[2];
+    volatile sig_atomic_t entered, returned;
+    volatile long value;
+};
+
+static long child_syscall(const struct child_case *test, struct shared_result *shared) {
+    uint32_t pointer = (uint32_t)(uintptr_t)shared->fds;
+    uint32_t argument_pointer = (uint32_t)(uintptr_t)shared->arguments;
+    shared->entered = 1;
+    switch (test->kind) {
+    case X32_SOCKET:
+        return raw_syscall6(X32_BIT | __NR_socket, 40, SOCK_STREAM, 0, 0, 0, 0);
+    case X32_PAIR:
+        return raw_syscall6(X32_BIT | __NR_socketpair, 40, SOCK_STREAM, 0, pointer, 0, 0);
+    case I386_CALL_SOCKET:
+        return raw_i386_syscall4(I386_SOCKETCALL, 1, argument_pointer, 0, 0);
+    case I386_CALL_PAIR:
+        return raw_i386_syscall4(I386_SOCKETCALL, 8, argument_pointer, 0, 0);
+    case I386_DIRECT_SOCKET:
+        return raw_i386_syscall4(I386_SOCKET, 40, SOCK_STREAM, 0, 0);
+    case I386_DIRECT_PAIR:
+        return raw_i386_syscall4(I386_SOCKETPAIR, 40, SOCK_STREAM, 0, pointer);
+    case EXTRA_CLONE:
+        return raw_syscall6(__NR_clone, test->flags, 0, 0, 0, 0, 0);
+    case EXTRA_UNSHARE:
+        return raw_syscall6(__NR_unshare, test->flags, 0, 0, 0, 0, 0);
+    }
+    return -EINVAL;
+}
+
+static bool reap_bounded(pid_t pid, int *status, struct result *r) {
+    const struct timespec delay = {.tv_sec = 0, .tv_nsec = CHILD_POLL_NS};
+    for (unsigned i = 0; i < CHILD_WAIT_POLLS; ++i) {
+        pid_t found = waitpid(pid, status, WNOHANG);
+        if (found == pid)
+            return true;
+        if (found < 0 && errno != EINTR) {
+            r->setup_errno = errno;
+            break;
+        }
+        (void)nanosleep(&delay, NULL);
+    }
+    r->timed_out = true;
+    (void)kill(pid, SIGKILL);
+    for (unsigned i = 0; i < CHILD_WAIT_POLLS; ++i) {
+        pid_t found = waitpid(pid, status, WNOHANG);
+        if (found == pid)
+            return true;
+        if (found < 0 && errno != EINTR)
+            break;
+        (void)nanosleep(&delay, NULL);
+    }
+    return false;
+}
+
+static void run_child_case(const struct child_case *test) {
+    struct result *r = new_result(test->name);
+    struct shared_result *shared = mmap(NULL, 4096, PROT_READ | PROT_WRITE,
+        MAP_SHARED | MAP_ANONYMOUS | MAP_32BIT, -1, 0);
+    if (shared == MAP_FAILED) {
+        r->setup_errno = errno;
+        return; /* This result remains false; setup failure is never a skip/pass. */
+    }
+    if ((uintptr_t)shared > UINT32_MAX - 4096) {
+        r->setup_errno = EOVERFLOW;
+        (void)munmap(shared, 4096);
+        return;
+    }
+    memset(shared, 0, sizeof(*shared));
+    shared->fds[0] = shared->fds[1] = -1;
+    shared->arguments[0] = 40;
+    shared->arguments[1] = SOCK_STREAM;
+    shared->arguments[3] = (uint32_t)(uintptr_t)shared->fds;
+    long pid = raw_syscall6(__NR_fork, 0, 0, 0, 0, 0, 0);
+    if (pid == 0) {
+        long value = child_syscall(test, shared);
+        /* If broken filtering permitted clone, terminate its new child before
+         * it can overwrite the original probe child's shared return evidence. */
+        if (test->kind == EXTRA_CLONE && value == 0)
+            _exit(101);
+        shared->value = value;
+        shared->returned = 1;
+        if (test->kind == EXTRA_CLONE && value > 0) {
+            int nested_status;
+            (void)waitpid((pid_t)value, &nested_status, 0);
+        }
+        _exit(0); /* The parent validates the exact return, not merely this exit. */
+    }
+    if (pid < 0) {
+        r->setup_errno = raw_errno(pid);
+        (void)munmap(shared, 4096);
+        return;
+    }
+    int status = 0;
+    bool reaped = reap_bounded((pid_t)pid, &status, r);
+    r->returned = shared->returned != 0;
+    r->value = shared->value;
+    if (reaped) {
+        if (WIFSIGNALED(status))
+            r->signal_number = WTERMSIG(status);
+        if (WIFEXITED(status))
+            r->exit_status = WEXITSTATUS(status);
+        bool expected_kill = test->kind <= I386_DIRECT_PAIR;
+        r->passed = shared->entered == 1 && !r->timed_out && r->setup_errno == 0 &&
+            (expected_kill ? (!r->returned && r->signal_number == SIGSYS) :
+             (r->returned && r->value == -EPERM && r->exit_status == 0));
+    }
+    if (munmap(shared, 4096) != 0) {
+        r->setup_errno = errno;
+        r->passed = false;
+    }
+}
+
+static bool apparmor_enforced(void) {
+    char label[128] = {0};
+    FILE *stream = fopen("/proc/self/attr/current", "r");
+    if (stream == NULL) return false;
+    size_t size = fread(label, 1, sizeof(label) - 1, stream);
+    static const char expected[] = "docker-default (enforce)";
+    bool ok = !ferror(stream) &&
+        ((size == sizeof(expected) - 1 && memcmp(label, expected, size) == 0) ||
+         (size == sizeof(expected) && memcmp(label, expected, size - 1) == 0 && label[size - 1] == '\n'));
+    if (fclose(stream) != 0) ok = false;
+    return ok;
+}
+
+int main(void) {
+    if (!apparmor_enforced()) {
+        puts("{\"protocol\":\"browser-seccomp-transport-v1\",\"passed\":false,\"error\":\"apparmor_not_enforced\"}");
+        return 2;
+    }
+    socket_case("native_inet_socket", AF_INET, false, true);
+    socket_case("native_unix_socket", AF_UNIX, false, true);
+    socket_case("native_unix_socketpair", AF_UNIX, true, true);
+    static const struct { const char *socket_name, *pair_name; uint64_t domain; } vsock[] = {
+        {"vsock_socket_zero_high_word", "vsock_socketpair_zero_high_word", UINT64_C(0x0000000000000028)},
+        {"vsock_socket_one_high_word", "vsock_socketpair_one_high_word", UINT64_C(0x0000000100000028)},
+        {"vsock_socket_sign_high_word", "vsock_socketpair_sign_high_word", UINT64_C(0x8000000000000028)},
+        {"vsock_socket_max_high_word", "vsock_socketpair_max_high_word", UINT64_C(0xffffffff00000028)},
+    };
+    for (size_t i = 0; i < sizeof(vsock) / sizeof(vsock[0]); ++i) {
+        socket_case(vsock[i].socket_name, vsock[i].domain, false, false);
+        socket_case(vsock[i].pair_name, vsock[i].domain, true, false);
+    }
+    /* Invalid arguments bound effects if filtering is broken. An unrelated
+     * EINVAL/EFAULT/EBADF/ENOSYS does NOT satisfy an EPERM denial expectation. */
+    errno_case("io_uring_setup", __NR_io_uring_setup, 0, 0, 0, 0, 0, EPERM);
+    errno_case("io_uring_enter", __NR_io_uring_enter, UINT64_MAX, 0, 0, 0, 0, EPERM);
+    errno_case("io_uring_register", __NR_io_uring_register, UINT64_MAX, 0, 0, 0, 0, EPERM);
+    errno_case("clone3_enosys", __NR_clone3, 0, 0, 0, 0, 0, ENOSYS);
+    errno_case("setns_denied", __NR_setns, UINT64_MAX, 0, 0, 0, 0, EPERM);
+    errno_case("mount_denied", __NR_mount, 0, 0, 0, 0, 0, EPERM);
+    for (size_t i = 0; i < sizeof(child_cases) / sizeof(child_cases[0]); ++i)
+        run_child_case(&child_cases[i]);
+
+    bool passed = result_count == 28;
+    for (size_t i = 0; i < result_count; ++i)
+        passed = passed && results[i].passed;
+    printf("{\"protocol\":\"browser-seccomp-transport-v1\","
+        "\"architecture\":\"native-amd64\",\"expected_profile_sha256\":\"%s\","
+        "\"passed\":%s,\"checks\":{", PROFILE_HASH, passed ? "true" : "false");
+    for (size_t i = 0; i < result_count; ++i)
+        printf("%s\"%s\":%s", i ? "," : "", results[i].name,
+            results[i].passed ? "true" : "false");
+    fputs("},\"observations\":{", stdout);
+    for (size_t i = 0; i < result_count; ++i) {
+        struct result *r = &results[i];
+        printf("%s\"%s\":{\"returned\":%s,\"return\":%ld,\"errno\":%d,"
+            "\"signal\":%d,\"exit_status\":%d,\"setup_errno\":%d,\"timed_out\":%s}",
+            i ? "," : "", r->name, r->returned ? "true" : "false", r->value,
+            r->returned ? raw_errno(r->value) : 0, r->signal_number, r->exit_status,
+            r->setup_errno, r->timed_out ? "true" : "false");
+    }
+    fputs("}}\n", stdout);
+    return passed ? 0 : 1;
+}
 ````
 
 ### `scripts/capability_browser_worker.cjs`
@@ -155147,9 +157644,10 @@ if (require.main === module) main().catch(() => {process.exitCode=1})
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: scripts/capability_browser_worker.cjs sha256: 0c599895446e316dc21353046a51d5a2c96e69d802e603c73b7c41ec31023a33 -->
+<!-- source-file: scripts/capability_browser_worker.cjs sha256: def41b0b7c8ea06854aa24b9d1a328274db42844e49a60bba9f64a78941899b5 -->
 ````javascript
 // Trusted stdio relay; no candidate code, credentials, or host mounts are loaded.
+if (process.env.CAPABILITY_BROWSER_REQUIRE_APPARMOR === '1') require('./capability_browser_apparmor.cjs').requireAppArmor()
 const http = require('node:http')
 const readline = require('node:readline')
 const {spawn} = require('node:child_process')
@@ -156567,17 +159065,17 @@ if __name__ == "__main__":
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `workbench.capability_browser_isolation`、`workbench.capability_contracts`、`workbench.capability_verification`、`workbench.filesystem`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.capability_browser_isolation`、`workbench.capability_browser_policy`、`workbench.capability_contracts`、`workbench.capability_verification`、`workbench.filesystem`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `Page`（L26–L40）：继承`BaseHTTPRequestHandler`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `Page.do_GET`（L27–L37）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pages.get`、`self.send_response`、`self.send_header`、`self.end_headers`、`self.wfile.write`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Page.log_message`（L39–L40）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run`（L43–L47）：接收`args`、`timeout`。 控制顺序：L45按`value.returncode or len(value.stdout) > 100000`分支；L46抛异常，停止当前正常路径。 调用`subprocess.run`、`clean_env`、`len`、`RuntimeError`。 返回路径：L47的`value.stdout`。
-- `main`（L50–L134）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L87按`state.get("OOMKilled") is not True or state.get("Running") is not False`分支；L88抛异常，停止当前正常路径；L91遍历`("positive", "error", "abuse")`；L94按`mode == "positive"`分支；L108按`mode != "positive"`分支；L109抛异常，停止当前正常路径；L112按`mode == "positive"`分支；L114抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`browser_image_identity`、`browser_source_identity`、`write_json`、`uuid.uuid4`、`ThreadingHTTPServer`、`threading.Thread`、`thread.start`、`worker_command`、`command.append`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Page`（L27–L41）：继承`BaseHTTPRequestHandler`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Page.do_GET`（L28–L38）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pages.get`、`self.send_response`、`self.send_header`、`self.end_headers`、`self.wfile.write`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Page.log_message`（L40–L41）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run`（L44–L48）：接收`args`、`timeout`。 控制顺序：L46按`value.returncode or len(value.stdout) > 100000`分支；L47抛异常，停止当前正常路径。 调用`subprocess.run`、`clean_env`、`len`、`RuntimeError`。 返回路径：L48的`value.stdout`。
+- `main`（L51–L152）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L78按`selected_policy() is not None`分支；L86按`len(raw_run.stdout) > 20000`分支；L87抛异常，停止当前正常路径；L90按`raw_run.returncode`分支；L91抛异常，停止当前正常路径；L105按`state.get("OOMKilled") is not True or state.get("Running") is not False`分支；L106抛异常，停止当前正常路径；L109遍历`("positive", "error", "abuse")`。后续分支沿下方源码相同行号继续阅读。 调用`browser_image_identity`、`browser_source_identity`、`runtime_identity`、`write_json`、`uuid.uuid4`、`ThreadingHTTPServer`、`threading.Thread`、`thread.start`、`worker_command`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_capability_browser_isolation.py sha256: 57bd904fda8a3202360aadbe81b5070ba2db16a5a5b95361ff02ca56d0205fed -->
+<!-- source-file: scripts/ci_capability_browser_isolation.py sha256: 3644c3bcdb2a7d92a8b8a23199dbe51dee28520c71a0213de69704a78b7a21f3 -->
 ````python
 """Live Docker-only browser gate; never certifies from mocks or host Chromium."""
 
@@ -156597,6 +159095,7 @@ from workbench.capability_browser_isolation import (
     run_isolated_browser,
     worker_command,
 )
+from workbench.capability_browser_policy import require_raw_probe, runtime_identity, selected_policy
 from workbench.capability_contracts import BrowserStep
 from workbench.capability_verification import BrowserFailure
 from workbench.filesystem import write_json
@@ -156631,12 +159130,13 @@ def run(args, timeout=30):
 def main():
     image = browser_image_identity()
     report = {
-        "protocol": "offline-browser-isolation-v2",
+        "protocol": "offline-browser-isolation-v3",
         "passed": False,
         "image": image,
         "mocked": False,
         "sources": browser_source_identity(),
         "image_sources": {},
+        "runtime": runtime_identity(image),
         "checks": {},
     }
     output = ROOT / "reports/capability-browser-isolation.json"
@@ -156654,6 +159154,22 @@ def main():
         report["image_sources"] = require_image_sources(name)
         report["checks"]["kernel_and_network"] = json.loads(run([*DOCKER, "start", "-a", name]))
         run([*DOCKER, "rm", "-f", name])
+        if selected_policy() is not None:
+            raw_command = worker_command(image, name)
+            raw_command[-1:-1] = ["--entrypoint=/opt/browser-seccomp-probe"]
+            run(raw_command)
+            require_worker_inspection(json.loads(run([*DOCKER, "inspect", name])), image)
+            raw_run = subprocess.run(
+                [*DOCKER, "start", "-a", name], capture_output=True, timeout=60, env=clean_env()
+            )
+            if len(raw_run.stdout) > 20000:
+                raise ValueError("Raw-syscall report exceeded bound")
+            raw = json.loads(raw_run.stdout)
+            write_json(ROOT / "reports/capability-browser-raw-syscalls.json", raw)
+            if raw_run.returncode:
+                raise ValueError("Live raw-syscall probe failed")
+            report["checks"]["raw_syscalls"] = require_raw_probe(raw)
+            run([*DOCKER, "rm", "-f", name])
         # A separate owned worker must be killed by its memory cgroup, not by
         # a JavaScript heap ceiling, and its descendants must still be removed.
         oom_command = worker_command(image, name)
@@ -163821,33 +166337,33 @@ def build_storage(directory, command, docker):
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `scripts`、`scripts.daytona_build`、`workbench.local_only`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts`、`scripts.daytona_build`、`workbench.capability_isolation`、`workbench.local_only`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `sha256`（L99–L100）：接收`raw`。 调用`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`。 返回路径：L100的`hashlib.sha256(raw).hexdigest()`。
-- `blob`（L103–L104）：接收`raw`。 调用`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hex…`、`hashlib.sha1`、`str(len(raw)).encode`、`str`、`len`。 返回路径：L104的`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()`。
-- `recipe_identity`（L107–L110）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha256`、`(ROOT / name).read_bytes`、`json.dumps(hashes, sort_keys=True).encode`、`json.dumps`。 返回路径：L110的`identity, hashes`。
-- `profile_directory`（L113–L117）：接收`directory`。 控制顺序：L115按`directory == local.HOME.resolve()`分支；L116抛异常，停止当前正常路径。 调用`Path(directory).resolve`、`Path`、`local.HOME.resolve`、`ValueError`。 返回路径：L117的`directory`。
-- `read_base`（L120–L137）：接收`directory`。 控制顺序：L125按`installation != { "source_sha": DAYTONA_SOURCE, "release": "v" + DAYTONA_VERSION, "de…`分支；L131抛异常，停止当前正常路径；L132遍历`config["services"].items()`；L135按`service["image"] != expected or record["tag"] != local.IMAGES[name]`分支；L136抛异常，停止当前正常路径。 调用`yaml.safe_load`、`(directory / "compose.lock.yaml").read_text`、`local.assert_local_compose`、`json.loads`、`(directory / "images.lock.json").read_text`、`(directory / "installation.json").read_text`、`ValueError`、`config["services"].items`、`record.get`。 返回路径：L137的`config`。
-- `source_context`（L140–L191）：接收`directory`、`context`。 源码说明：Export committed source only; reject drift before applying the exact patch.。 控制顺序：L143按`DAYTONA_SOURCE != PINNED_SOURCE or DAYTONA_VERSION != "0.190.0"`分支；L144抛异常，停止当前正常路径；L148按`blob(raw) != SOURCE_BLOB or raw.count(OLD.encode()) != 1`分支；L149抛异常，停止当前正常路径；L150按`blob((context / "go.work").read_bytes()) != WORKSPACE_BLOB`分支；L151抛异常，停止当前正常路径；L153按`updated.count(LIMIT_ANCHOR) != 1`分支；L154抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`ValueError`、`export_source`、`target.read_bytes`、`blob`、`raw.count`、`OLD.encode`、`(context / "go.work").read_bytes`、`raw.decode().replace`等。 返回路径：L191的`{"source_sha": DAYTONA_SOURCE, "go_inputs": inputs, "patched_sha256": sha256(updated)}`。
-- `download_assets`（L194–L201）：接收`context`。 控制顺序：L196遍历`ASSETS.items()`；L199按`len(raw) > 1_000_000 or sha256(raw) != expected`分支；L200抛异常，停止当前正常路径。 调用`urllib.request.build_opener`、`urllib.request.ProxyHandler`、`ASSETS.items`、`opener.open`、`response.read`、`len`、`sha256`、`ValueError`、`(Path(context) / "apps/daemon/pkg/terminal/static" / name).write_…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `inspect_image`（L204–L211）：接收`reference`。 控制顺序：L206按`len(rows) != 1 or not re.fullmatch(r"sha256:[a-f0-9]{64}", rows[0].get("Id", ""))`分支；L207抛异常，停止当前正常路径；L209按`image.get("Os") != "linux" or image.get("Architecture") != "amd64"`分支；L210抛异常，停止当前正常路径。 调用`json.loads`、`local.docker`、`len`、`re.fullmatch`、`rows[0].get`、`ValueError`、`image.get`。 返回路径：L211的`image`。
-- `resolve_bases`（L214–L224）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L216遍历`BASES.items()`；L221按`len(digests) != 1 or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", digests[0]…`分支；L222抛异常，停止当前正常路径。 调用`BASES.items`、`local.docker`、`inspect_image`、`tag.rsplit`、`image.get`、`value.startswith`、`len`、`re.fullmatch`、`re.escape`等。 返回路径：L224的`result`。
-- `build_image`（L227–L250）：接收`directory`、`context`、`recipe`、`tag`、`bases`、`identity`。 控制顺序：L229遍历`bases.items()`。 调用`bases.items`、`str`、`local.docker`、`(directory / (recipe + ".log")).write_text`、`inspect_image`、`validate_image`。 返回路径：L250的`image`。
-- `validate_image`（L253–L273）：接收`image`、`identity`、`snapshot`。 控制顺序：L256按`labels.get("org.opencontainers.image.revision") != DAYTONA_SOURCE or labels.get("rnd.…`分支；L261抛异常，停止当前正常路径；L262按`snapshot`分支；L263按`config.get("User") != "0:0" or config.get("WorkingDir") != CONTROL_WORKDIR or config.…`分支；L269抛异常，停止当前正常路径；L272按`"USE_SNAPSHOT_ENTRYPOINT=false" not in config.get("Env", [])`分支；L273抛异常，停止当前正常路径。 调用`image.get`、`config.get`、`labels.get`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `render_profile`（L276–L283）：接收`base`、`runner_id`、`image`。 调用`copy.deepcopy`、`local.assert_local_compose`。 返回路径：L283的`config`。
-- `write_compose`（L286–L289）：接收`path`、`config`。 控制顺序：L288按`os.name != "nt"`分支。 调用`path.write_text`、`yaml.safe_dump`、`path.chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `prepare`（L292–L404）：接收`directory`。 控制顺序：L295遍历`(COMPOSE, LOCK, "snapshot-image.json", "api-key.json", "workbench…`；L296按`(directory / name).exists()`分支；L297抛异常，停止当前正常路径；L301按`info.get("OSType") != "linux" or info.get("Architecture") not in {"amd64", "x86_64"}`分支；L302抛异常，停止当前正常路径；L313按`existing.strip()`分支；L314抛异常，停止当前正常路径；L322按`stamp == local.snapshot_stamp()`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`read_base`、`(directory / name).exists`、`ValueError`、`json.loads`、`local.docker`、`info.get`、`str`、`existing.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `load_profile`（L407–L460）：接收`directory`。 控制顺序：L411按`record.get("profile") != PROFILE or record.get("recipe_identity") != identity or reco…`分支；L419抛异常，停止当前正常路径；L421按`set(bases) != set(BASES)`分支；L422抛异常，停止当前正常路径；L423遍历`BASES.items()`；L426按`entry.get("tag") != tag or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", entr…`分支；L431抛异常，停止当前正常路径；L434按`image.get("source_hash") != stamp or image.get("image") != "registry:6000/rnd-python:…`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`json.loads`、`(directory / LOCK).read_text`、`recipe_identity`、`record.get`、`record.get("source", {}).get`、`sha256`、`(directory / "compose.lock.yaml").read_bytes`、`ValueError`等。 返回路径：L460的`config, record`。
-- `compose`（L463–L473）：接收`directory`、`timeout`、`*args`。 调用`load_profile`、`local.docker`、`str`、`Path`。 返回路径：L465的`local.docker( "compose", "--project-name", PROJECT, "--file", str(Path(directory) / COMPOS…`。
-- `require_profile`（L476–L490）：接收`directory`、`snapshot`。 源码说明：Read-only prerequisite check; never a substitute for the isolation receipt.。 控制顺序：L479按`snapshot is not None and snapshot != record["snapshot"]["snapshot"]`分支；L480抛异常，停止当前正常路径；L486按`image["Id"] != record["snapshot"]["image_id"] or expected_digest not in image.get( "R…`分支；L489抛异常，停止当前正常路径。 调用`load_profile`、`ValueError`、`inspect_image`、`validate_image`、`record["snapshot"]["digest"].replace`、`image.get`。 返回路径：L490的`record`。
-- `require_execution_resources`（L493–L530）：接收`host`、`native`。 源码说明：Production source needs enforced limits, not API-requested resources. Landlock confines candidate writes to the explicitly sized tmpfs. This does not depend on the host's XFS/overlay project-quota con。 控制顺序：L506按`type(memory) is not int or not 0 < memory <= memory_limit or type(swap) is not int or…`分支；L520抛异常，停止当前正常路径。 调用`host.get`、`type`、`isinstance`、`ValueError`。 返回路径：L523的`{ "cpu_period": period, "cpu_quota": quota, "memory": memory, "memory_swap": swap, "tmpfs_…`。
-- `inspect_created_sandbox`（L533–L684）：接收`directory`、`sandbox_id`、`require_resources`、`selection`。 源码说明：Inspect only the newly owned UUID inside the verified profile Runner. Upstream create.go names the Docker container sandboxDto.Id. No shell, caller-provided Docker options, executable, or general comm。 控制顺序：L542按`not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id`分支；L543抛异常，停止当前正常路径；L546按`native`分支；L551按`not re.fullmatch(r"[a-f0-9]{64}", runner_id)`分支；L552抛异常，停止当前正常路径；L554按`len(rows) != 1`分支；L555抛异常，停止当前正常路径；L558按`runner.get("Image") != record["runner"]["image_id"] or runner.get("State", {}).get("R…`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`str`、`UUID`、`ValueError`、`require_profile`、`selection.get`、`require_native_profile`、`compose(directory, "ps", "--quiet", "runner").strip`、`compose`等。 返回路径：L684的`receipt`。
-- `up`（L687–L725）：接收`directory`。 控制顺序：L699遍历`range(90)`；L706按`any(row.get("State") in {"exited", "dead", "removing"} for row in rows)`分支；L707抛异常，停止当前正常路径；L713按`ready == local.KEEP`分支；L715遍历`endpoints`；L723按`attempt < 89`分支；L725抛异常，停止当前正常路径。 调用`require_profile`、`compose`、`httpx.Client`、`range`、`raw.lstrip().startswith`、`raw.lstrip`、`json.loads`、`raw.splitlines`、`line.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L728–L741）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L733按`args.action == "prepare"`分支；L735按`args.action == "up"`分支；L737按`args.action == "check"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`up`、`require_profile`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `sha256`（L100–L101）：接收`raw`。 调用`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`。 返回路径：L101的`hashlib.sha256(raw).hexdigest()`。
+- `blob`（L104–L105）：接收`raw`。 调用`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hex…`、`hashlib.sha1`、`str(len(raw)).encode`、`str`、`len`。 返回路径：L105的`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()`。
+- `recipe_identity`（L108–L111）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha256`、`(ROOT / name).read_bytes`、`json.dumps(hashes, sort_keys=True).encode`、`json.dumps`。 返回路径：L111的`identity, hashes`。
+- `profile_directory`（L114–L118）：接收`directory`。 控制顺序：L116按`directory == local.HOME.resolve()`分支；L117抛异常，停止当前正常路径。 调用`Path(directory).resolve`、`Path`、`local.HOME.resolve`、`ValueError`。 返回路径：L118的`directory`。
+- `read_base`（L121–L138）：接收`directory`。 控制顺序：L126按`installation != { "source_sha": DAYTONA_SOURCE, "release": "v" + DAYTONA_VERSION, "de…`分支；L132抛异常，停止当前正常路径；L133遍历`config["services"].items()`；L136按`service["image"] != expected or record["tag"] != local.IMAGES[name]`分支；L137抛异常，停止当前正常路径。 调用`yaml.safe_load`、`(directory / "compose.lock.yaml").read_text`、`local.assert_local_compose`、`json.loads`、`(directory / "images.lock.json").read_text`、`(directory / "installation.json").read_text`、`ValueError`、`config["services"].items`、`record.get`。 返回路径：L138的`config`。
+- `source_context`（L141–L192）：接收`directory`、`context`。 源码说明：Export committed source only; reject drift before applying the exact patch.。 控制顺序：L144按`DAYTONA_SOURCE != PINNED_SOURCE or DAYTONA_VERSION != "0.190.0"`分支；L145抛异常，停止当前正常路径；L149按`blob(raw) != SOURCE_BLOB or raw.count(OLD.encode()) != 1`分支；L150抛异常，停止当前正常路径；L151按`blob((context / "go.work").read_bytes()) != WORKSPACE_BLOB`分支；L152抛异常，停止当前正常路径；L154按`updated.count(LIMIT_ANCHOR) != 1`分支；L155抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`ValueError`、`export_source`、`target.read_bytes`、`blob`、`raw.count`、`OLD.encode`、`(context / "go.work").read_bytes`、`raw.decode().replace`等。 返回路径：L192的`{"source_sha": DAYTONA_SOURCE, "go_inputs": inputs, "patched_sha256": sha256(updated)}`。
+- `download_assets`（L195–L202）：接收`context`。 控制顺序：L197遍历`ASSETS.items()`；L200按`len(raw) > 1_000_000 or sha256(raw) != expected`分支；L201抛异常，停止当前正常路径。 调用`urllib.request.build_opener`、`urllib.request.ProxyHandler`、`ASSETS.items`、`opener.open`、`response.read`、`len`、`sha256`、`ValueError`、`(Path(context) / "apps/daemon/pkg/terminal/static" / name).write_…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `inspect_image`（L205–L212）：接收`reference`。 控制顺序：L207按`len(rows) != 1 or not re.fullmatch(r"sha256:[a-f0-9]{64}", rows[0].get("Id", ""))`分支；L208抛异常，停止当前正常路径；L210按`image.get("Os") != "linux" or image.get("Architecture") != "amd64"`分支；L211抛异常，停止当前正常路径。 调用`json.loads`、`local.docker`、`len`、`re.fullmatch`、`rows[0].get`、`ValueError`、`image.get`。 返回路径：L212的`image`。
+- `resolve_bases`（L215–L225）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L217遍历`BASES.items()`；L222按`len(digests) != 1 or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", digests[0]…`分支；L223抛异常，停止当前正常路径。 调用`BASES.items`、`local.docker`、`inspect_image`、`tag.rsplit`、`image.get`、`value.startswith`、`len`、`re.fullmatch`、`re.escape`等。 返回路径：L225的`result`。
+- `build_image`（L228–L251）：接收`directory`、`context`、`recipe`、`tag`、`bases`、`identity`。 控制顺序：L230遍历`bases.items()`。 调用`bases.items`、`str`、`local.docker`、`(directory / (recipe + ".log")).write_text`、`inspect_image`、`validate_image`。 返回路径：L251的`image`。
+- `validate_image`（L254–L274）：接收`image`、`identity`、`snapshot`。 控制顺序：L257按`labels.get("org.opencontainers.image.revision") != DAYTONA_SOURCE or labels.get("rnd.…`分支；L262抛异常，停止当前正常路径；L263按`snapshot`分支；L264按`config.get("User") != "0:0" or config.get("WorkingDir") != CONTROL_WORKDIR or config.…`分支；L270抛异常，停止当前正常路径；L273按`"USE_SNAPSHOT_ENTRYPOINT=false" not in config.get("Env", [])`分支；L274抛异常，停止当前正常路径。 调用`image.get`、`config.get`、`labels.get`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `render_profile`（L277–L284）：接收`base`、`runner_id`、`image`。 调用`copy.deepcopy`、`local.assert_local_compose`。 返回路径：L284的`config`。
+- `write_compose`（L287–L290）：接收`path`、`config`。 控制顺序：L289按`os.name != "nt"`分支。 调用`path.write_text`、`yaml.safe_dump`、`path.chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `prepare`（L293–L405）：接收`directory`。 控制顺序：L296遍历`(COMPOSE, LOCK, "snapshot-image.json", "api-key.json", "workbench…`；L297按`(directory / name).exists()`分支；L298抛异常，停止当前正常路径；L302按`info.get("OSType") != "linux" or info.get("Architecture") not in {"amd64", "x86_64"}`分支；L303抛异常，停止当前正常路径；L314按`existing.strip()`分支；L315抛异常，停止当前正常路径；L323按`stamp == local.snapshot_stamp()`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`read_base`、`(directory / name).exists`、`ValueError`、`json.loads`、`local.docker`、`info.get`、`str`、`existing.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `load_profile`（L408–L461）：接收`directory`。 控制顺序：L412按`record.get("profile") != PROFILE or record.get("recipe_identity") != identity or reco…`分支；L420抛异常，停止当前正常路径；L422按`set(bases) != set(BASES)`分支；L423抛异常，停止当前正常路径；L424遍历`BASES.items()`；L427按`entry.get("tag") != tag or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", entr…`分支；L432抛异常，停止当前正常路径；L435按`image.get("source_hash") != stamp or image.get("image") != "registry:6000/rnd-python:…`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`json.loads`、`(directory / LOCK).read_text`、`recipe_identity`、`record.get`、`record.get("source", {}).get`、`sha256`、`(directory / "compose.lock.yaml").read_bytes`、`ValueError`等。 返回路径：L461的`config, record`。
+- `compose`（L464–L474）：接收`directory`、`timeout`、`*args`。 调用`load_profile`、`local.docker`、`str`、`Path`。 返回路径：L466的`local.docker( "compose", "--project-name", PROJECT, "--file", str(Path(directory) / COMPOS…`。
+- `require_profile`（L477–L491）：接收`directory`、`snapshot`。 源码说明：Read-only prerequisite check; never a substitute for the isolation receipt.。 控制顺序：L480按`snapshot is not None and snapshot != record["snapshot"]["snapshot"]`分支；L481抛异常，停止当前正常路径；L487按`image["Id"] != record["snapshot"]["image_id"] or expected_digest not in image.get( "R…`分支；L490抛异常，停止当前正常路径。 调用`load_profile`、`ValueError`、`inspect_image`、`validate_image`、`record["snapshot"]["digest"].replace`、`image.get`。 返回路径：L491的`record`。
+- `require_execution_resources`（L494–L543）：接收`host`、`native`。 源码说明：Production source needs enforced limits, not API-requested resources. Landlock confines candidate writes to the explicitly sized tmpfs. This does not depend on the host's XFS/overlay project-quota con。 控制顺序：L507按`type(memory) is not int or not 0 < memory <= memory_limit or type(swap) is not int or…`分支；L521抛异常，停止当前正常路径。 调用`host.get`、`type`、`isinstance`、`ContainerInspectionRejected`、`set`。 返回路径：L536的`{ "cpu_period": period, "cpu_quota": quota, "memory": memory, "memory_swap": swap, "tmpfs_…`。
+- `inspect_created_sandbox`（L546–L769）：接收`directory`、`sandbox_id`、`require_resources`、`selection`。 源码说明：Inspect only the newly owned UUID inside the verified profile Runner. Upstream create.go names the Docker container sandboxDto.Id. No shell, caller-provided Docker options, executable, or general comm。 控制顺序：L555按`not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id`分支；L556抛异常，停止当前正常路径；L561按`native`分支；L566按`not re.fullmatch(r"[a-f0-9]{64}", runner_id)`分支；L567抛异常，停止当前正常路径；L571按`len(rows) != 1`分支；L572抛异常，停止当前正常路径；L577按`runner.get("Image") != record["runner"]["image_id"] or runner.get("State", {}).get("R…`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`str`、`UUID`、`ContainerInspectionRejected`、`require_profile`、`selection.get`、`require_native_profile`、`compose(directory, "ps", "--quiet", "runner").strip`、`compose`等。 返回路径：L769的`receipt`。
+- `up`（L772–L810）：接收`directory`。 控制顺序：L784遍历`range(90)`；L791按`any(row.get("State") in {"exited", "dead", "removing"} for row in rows)`分支；L792抛异常，停止当前正常路径；L798按`ready == local.KEEP`分支；L800遍历`endpoints`；L808按`attempt < 89`分支；L810抛异常，停止当前正常路径。 调用`require_profile`、`compose`、`httpx.Client`、`range`、`raw.lstrip().startswith`、`raw.lstrip`、`json.loads`、`raw.splitlines`、`line.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L813–L826）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L818按`args.action == "prepare"`分支；L820按`args.action == "up"`分支；L822按`args.action == "check"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`up`、`require_profile`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/daytona_capability_profile.py sha256: fa0e0d61a915118c1b69d28a759fe4b7b910850f06a26b0bed94ad549f94cdd2 -->
+<!-- source-file: scripts/daytona_capability_profile.py sha256: 9b4820828fb5d5c01aaa9794ddac929e53a42ca79c7e1f95637ea512bb0dda74 -->
 ````python
 """Build the owned, fixed-authored capability profile before starting Daytona.
 
@@ -163875,6 +166391,7 @@ import yaml
 
 from scripts import daytona_local as local
 from scripts.daytona_build import BUILT, export_source
+from workbench.capability_isolation import ContainerInspectionRejected
 from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
 from workbench.settings import ROOT
 
@@ -164368,8 +166885,20 @@ def require_execution_resources(host, *, native=False):
         or type(host.get("PidsLimit")) is not int
         or host["PidsLimit"] != pids
     ):
-        raise ValueError(
-            "Custom source requires actual bounded CPU, memory, swap and storage quota"
+        raise ContainerInspectionRejected(
+            "Custom source requires actual bounded CPU, memory, swap and storage quota",
+            category="resource_limits",
+            facts={
+                "native_resources": native,
+                "memory": memory,
+                "memory_swap": swap,
+                "cpu_period": period,
+                "cpu_quota": quota,
+                "pids_limit": host.get("PidsLimit"),
+                "tmpfs_keys_match": isinstance(storage, dict) and set(storage) == {"/tmp"},
+                "tmpfs_options_match": storage
+                == {"/tmp": f"rw,nosuid,nodev,size={tmpfs_bytes},mode=1777"},
+            },
         )
     return {
         "cpu_period": period,
@@ -164391,7 +166920,9 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
     from uuid import UUID
 
     if not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id:
-        raise ValueError("Owned sandbox must have one canonical UUID")
+        raise ContainerInspectionRejected(
+            "Owned sandbox must have one canonical UUID", category="sandbox_identity"
+        )
     record = require_profile(directory)
     native = selection is not None and selection.get("template") == "fastapiadmin"
     if native:
@@ -164400,10 +166931,14 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         record = require_native_profile(directory)
     runner_id = compose(directory, "ps", "--quiet", "runner").strip()
     if not re.fullmatch(r"[a-f0-9]{64}", runner_id):
-        raise ValueError("Profile requires exactly one running Runner container")
+        raise ContainerInspectionRejected(
+            "Profile requires exactly one running Runner container", category="runner_unavailable"
+        )
     rows = json.loads(local.docker("container", "inspect", runner_id))
     if len(rows) != 1:
-        raise ValueError("Profile Runner container identity is ambiguous")
+        raise ContainerInspectionRejected(
+            "Profile Runner container identity is ambiguous", category="runner_identity"
+        )
     runner = rows[0]
     labels = runner.get("Config", {}).get("Labels", {})
     if (
@@ -164416,7 +166951,9 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         != ["/usr/local/bin/dind", "/usr/local/bin/rnd-runner-entry.sh"]
         or runner.get("Config", {}).get("Cmd")
     ):
-        raise ValueError("Running Runner does not match the owned profile")
+        raise ContainerInspectionRejected(
+            "Running Runner does not match the owned profile", category="runner_identity"
+        )
     security = json.loads(
         local.docker(
             "exec",
@@ -164431,7 +166968,10 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         )
     )
     if not isinstance(security, list) or "name=seccomp,profile=builtin" not in security:
-        raise ValueError("Inner Docker must report its enabled built-in seccomp filter")
+        raise ContainerInspectionRejected(
+            "Inner Docker must report its enabled built-in seccomp filter",
+            category="engine_seccomp",
+        )
     rows = json.loads(
         local.docker(
             "exec",
@@ -164446,13 +166986,23 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         )
     )
     if len(rows) != 1:
-        raise ValueError("Owned application container identity is ambiguous")
+        raise ContainerInspectionRejected(
+            "Owned application container identity is ambiguous", category="container_identity"
+        )
     container = rows[0]
     config, host = container.get("Config", {}), container.get("HostConfig", {})
     if require_resources:
         networks = container.get("NetworkSettings", {}).get("Networks", {})
         if set(networks) != {"runner-bridge"} or host.get("NetworkMode") != "runner-bridge":
-            raise ValueError("Custom source must have only the exact owned Runner bridge")
+            raise ContainerInspectionRejected(
+                "Custom source must have only the exact owned Runner bridge",
+                category="sandbox_network",
+                facts={
+                    "network_mode": host.get("NetworkMode"),
+                    "network_count": len(networks),
+                    "runner_bridge_attached": "runner-bridge" in networks,
+                },
+            )
         bridge = json.loads(
             local.docker(
                 "exec",
@@ -164473,7 +167023,24 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
             or {item.get("Subnet") for item in bridge[0].get("IPAM", {}).get("Config", [])}
             != {local.RUNNER_BRIDGE_SUBNET}
         ):
-            raise ValueError("Runner bridge address/IPv6 policy differs from the reviewed profile")
+            actual = bridge[0] if len(bridge) == 1 else {}
+            ipam = actual.get("IPAM")
+            subnets = ipam.get("Config") if isinstance(ipam, dict) else None
+            raise ContainerInspectionRejected(
+                "Runner bridge address/IPv6 policy differs from the reviewed profile",
+                category="runner_bridge",
+                facts={
+                    "bridge_count": len(bridge),
+                    "bridge_ipv6_disabled": actual.get("EnableIPv6") is False,
+                    "bridge_driver_matches": actual.get("Driver") == "bridge",
+                    "bridge_subnets_match": isinstance(subnets, list)
+                    and bool(subnets)
+                    and all(
+                        isinstance(item, dict) and item.get("Subnet") == local.RUNNER_BRIDGE_SUBNET
+                        for item in subnets
+                    ),
+                },
+            )
     if (
         container.get("Name") != "/" + sandbox_id
         or container.get("Image") != record["snapshot"]["image_id"]
@@ -164491,7 +167058,10 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         or host.get("IpcMode") not in (None, "", "private")
         or host.get("NetworkMode") in {"host", "none"}
     ):
-        raise ValueError("Created application container does not match the unprivileged profile")
+        raise ContainerInspectionRejected(
+            "Created application container does not match the unprivileged profile",
+            category="container_policy",
+        )
     expected = {
         "/usr/local/bin/daytona": "/usr/local/bin/.tmp/binaries/daemon-amd64",
         "/usr/local/lib/daytona-computer-use": "/usr/local/bin/.tmp/binaries/daytona-computer-use",
@@ -164505,7 +167075,16 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
             or mount.get("Source") not in (None, "")
             for mount in tmpfs
         ):
-            raise ValueError("Only the exact bounded application tmpfs is permitted")
+            raise ContainerInspectionRejected(
+                "Only the exact bounded application tmpfs is permitted",
+                category="tmpfs_mounts",
+                facts={
+                    "mount_count": len(tmpfs),
+                    "mount_destinations_match": all(m.get("Destination") == "/tmp" for m in tmpfs),
+                    "mount_writable_matches": all(m.get("RW") is True for m in tmpfs),
+                    "mount_sources_match": all(m.get("Source") in (None, "") for m in tmpfs),
+                },
+            )
         mounts = [mount for mount in mounts if mount.get("Type") != "tmpfs"]
     if (
         len(mounts) != len(expected)
@@ -164517,7 +167096,29 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         )
         or {mount.get("Destination") for mount in mounts} != set(expected)
     ):
-        raise ValueError("Application mounts must be only the two trusted read-only binaries")
+        destinations = [m.get("Destination") for m in mounts if isinstance(m, dict)]
+        raise ContainerInspectionRejected(
+            "Application mounts must be only the two trusted read-only binaries",
+            category="binary_mounts",
+            facts={
+                "mount_count": len(mounts),
+                "mount_types_match": all(
+                    isinstance(m, dict) and m.get("Type") == "bind" for m in mounts
+                ),
+                "mount_readonly_matches": all(
+                    isinstance(m, dict) and m.get("RW") is False for m in mounts
+                ),
+                "mount_destinations_match": len(destinations) == len(mounts)
+                and all(isinstance(value, str) for value in destinations)
+                and set(destinations) == set(expected),
+                "mount_sources_match": all(
+                    isinstance(m, dict)
+                    and isinstance(m.get("Destination"), str)
+                    and expected.get(m["Destination"]) == m.get("Source")
+                    for m in mounts
+                ),
+            },
+        )
     receipt = {
         "profile": record["profile"],
         "sandbox_id": sandbox_id,
@@ -170974,7 +173575,7 @@ if __name__ == "__main__":
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/capability-browser-isolation.yml sha256: eb341f763f2880e029c1d10669fead8046a6e4970646c09ad9fcc9cfba55b73a -->
+<!-- source-file: .github/workflows/capability-browser-isolation.yml sha256: e817776be0db9ddac16d15fa9fc9b30156188fa19c2ac241d30b1a3b86df37b4 -->
 ````yaml
 name: Offline candidate browser isolation
 on:
@@ -171016,10 +173617,13 @@ jobs:
           python-version: '3.14'
       - run: uv sync --locked
       - name: Validate isolation policy and bounded relay protocol
-        run: uv run pytest -q tests/test_capability_browser_isolation.py
+        env:
+          RND_REQUIRE_SECCOMP_BPF: '1'
+        run: uv run pytest -q tests/test_capability_browser*.py
       - name: Build pinned official Playwright worker
         run: |
           docker --host unix:///var/run/docker.sock build -f tools/browser/Dockerfile -t rnd-capability-browser .
+          echo "CAPABILITY_BROWSER_APPROVED_POLICY=9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f" >> "$GITHUB_ENV"
           echo "CAPABILITY_BROWSER_IMAGE=$(docker --host unix:///var/run/docker.sock image inspect --format '{{.Id}}' rnd-capability-browser)" >> "$GITHUB_ENV"
       - name: Require real kernel network resource browser and cleanup proof
         run: uv run python -m scripts.ci_capability_browser_isolation
@@ -171033,7 +173637,9 @@ jobs:
         if: always()
         with:
           name: browser-isolation-${{ github.sha }}-${{ github.run_id }}
-          path: reports/capability-browser-isolation.json
+          path: |
+            reports/capability-browser-isolation.json
+            reports/capability-browser-raw-syscalls.json
 ````
 
 ### `.github/workflows/capability-profile.yml`
@@ -171044,7 +173650,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/capability-profile.yml sha256: 31d0325c087a3b0115f899c19283f02f9506c777da689aa2239b7ca334ca1f05 -->
+<!-- source-file: .github/workflows/capability-profile.yml sha256: e1f45405a67c049d1f7459a351e51a25b646b1fc8962df03fd2dc6a7520edfcf -->
 ````yaml
 name: Fixed authored SQLite isolation profile
 on:
@@ -171107,6 +173713,7 @@ jobs:
         env:
           RND_REQUIRE_NODE_TESTS: '1'
           RND_REQUIRE_LANDLOCK: '1'
+          RND_REQUIRE_SECCOMP_BPF: '1'
         run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
       - name: Install mandatory product browser acceptance tooling
         run: |
@@ -171117,6 +173724,7 @@ jobs:
       - name: Build immutable networkless browser worker in this same job
         run: |
           docker --host unix:///var/run/docker.sock build -f tools/browser/Dockerfile -t rnd-capability-browser .
+          echo "CAPABILITY_BROWSER_APPROVED_POLICY=9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f" >> "$GITHUB_ENV"
           echo "CAPABILITY_BROWSER_IMAGE=$(docker --host unix:///var/run/docker.sock image inspect --format '{{.Id}}' rnd-capability-browser)" >> "$GITHUB_ENV"
       - name: Require real browser network resource and cleanup proof in this same job
         run: uv run python -m scripts.ci_capability_browser_isolation
@@ -171185,6 +173793,7 @@ jobs:
             reports/capability-security.json
             reports/capability-security-detail.json
             reports/capability-browser-isolation.json
+            reports/capability-browser-raw-syscalls.json
 ````
 
 ### `.github/workflows/customer-runtime.yml`
@@ -171547,7 +174156,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/native-capability-profile.yml sha256: 2eed0aa9264030bda3e3646c3bede216c4a1b4f7e1392654cdfb0bf731f3fc82 -->
+<!-- source-file: .github/workflows/native-capability-profile.yml sha256: 3c37154e88fe67e522f2b4fd7bdd356ef99a733d08ca24fc9491fd131a7fe3fa -->
 ````yaml
 name: Authored native PostgreSQL isolation profile
 on:
@@ -171638,6 +174247,7 @@ jobs:
         env:
           RND_REQUIRE_NODE_TESTS: '1'
           RND_REQUIRE_LANDLOCK: '1'
+          RND_REQUIRE_SECCOMP_BPF: '1'
         run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
       - name: Install mandatory product browser acceptance tooling
         run: |
@@ -171648,6 +174258,7 @@ jobs:
       - name: Build immutable networkless browser worker in this same job
         run: |
           docker --host unix:///var/run/docker.sock build -f tools/browser/Dockerfile -t rnd-capability-browser .
+          echo "CAPABILITY_BROWSER_APPROVED_POLICY=9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f" >> "$GITHUB_ENV"
           echo "CAPABILITY_BROWSER_IMAGE=$(docker --host unix:///var/run/docker.sock image inspect --format '{{.Id}}' rnd-capability-browser)" >> "$GITHUB_ENV"
       - name: Require real browser network resource and cleanup proof in this same job
         run: uv run python -m scripts.ci_capability_browser_isolation
@@ -171734,6 +174345,7 @@ jobs:
             reports/capability-security.json
             reports/capability-security-detail.json
             reports/capability-browser-isolation.json
+            reports/capability-browser-raw-syscalls.json
             reports/native-capability-security*.json
             reports/contest-capability*.json
 ````
@@ -174973,13 +177585,21 @@ print("Locked native dependencies prepared; no runtime result asserted.")
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: tools/browser/Dockerfile sha256: f072619286d03c53af3605385fcaf1e5b3fbd4427fac8467dbcf761953fcb03f -->
+<!-- source-file: tools/browser/Dockerfile sha256: 6aa72b5bd2661dc474e4c7f964fe7de1c34bc5572ea50cad3ac41009ca8201d5 -->
 ````text
 # Build-time network is only for pinned official tooling; runtime has no network.
+FROM mcr.microsoft.com/playwright:v1.56.1-noble AS probe-build
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev && rm -rf /var/lib/apt/lists/*
+COPY scripts/capability_browser_seccomp_probe.c /tmp/probe.c
+RUN gcc -std=c11 -O2 -Wall -Wextra -Werror -static -fno-pie -no-pie /tmp/probe.c -o /opt/browser-seccomp-probe
+
 FROM mcr.microsoft.com/playwright:v1.56.1-noble
 WORKDIR /opt/verifier
+COPY --from=probe-build /opt/browser-seccomp-probe /opt/browser-seccomp-probe
 RUN npm install --ignore-scripts --no-audit --no-fund --package-lock=false playwright@1.56.1
 COPY scripts/capability_browser.cjs scripts/capability_browser_worker.cjs scripts/capability_browser_network_probe.cjs ./
+COPY scripts/capability_browser_apparmor.cjs scripts/capability_browser_seccomp_probe.c ./
+COPY tools/browser/review-only-v2/chromium141-docker28-native-amd64.proposal.json ./browser-seccomp-v2.json
 COPY tools/browser/Dockerfile ./Dockerfile
 COPY tools/browser/seccomp.playwright-1.56.1.json tools/browser/LICENSE.playwright ./
 RUN chmod -R a-w /opt/verifier && mkdir /opt/readonly-probe && chown 1000:1000 /opt/readonly-probe && chmod 700 /opt/readonly-probe
@@ -175258,6 +177878,5161 @@ changing its enforcement therefore invalidates existing evidence. A future
 active policy must also be identified explicitly in the receipt and checked
 against the actual container SecurityOpt; old Docker-default receipts must not
 authorize it.
+````
+
+### `tools/browser/review-only-v2/README.md`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/browser/review-only-v2/README.md sha256: ac7d3070874970f00f1a4743571d34d1da881d658d43540bcdbe8ca4a68d222c -->
+````markdown
+# Actions-only v2: native-amd64 Chromium namespace profile
+
+The exact policy below has been reviewed and approved for disposable, offline
+Actions browser workers only. `capability_browser_policy` requires an explicit
+fixed-hash selector, approved repository/workflow and observed native-amd64
+Docker 28.0.4 target. Ordinary callers retain their existing default profile.
+This configuration is not a live certification; all positive and adversarial
+checks must pass on the published commit before candidate admission.
+
+## Provenance and exact changes
+
+The baseline remains the byte-verified Docker 28.0.4 profile and license in
+`../review-only/`. Its pinned upstream commit/source hashes and the independently
+verified Chromium 141.0.7390.37 call sites are retained in that directory's
+`proposal-manifest.json`. The baseline file itself is unchanged.
+
+Candidate SHA-256:
+`9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f`
+
+`review_profile.build_profile` is the reproducible exact transformation:
+
+1. Retain only the native `SCMP_ARCH_X86_64` ABI, without x86/x32 compatibility
+   ABIs. Remove `socketcall` from the broad allow list. The shipped Node and
+   Chromium target is native amd64; compatibility executables are unsupported.
+2. Remove the baseline's unrestricted `socketpair` entry and its full-word
+   `socket != 40` allowance. For **each** of `socket` and `socketpair`, 32 bit-mask
+   allow clauses express exactly `(arg0 & 0xffffffff) != 40`. Any high-word variant
+   of AF_VSOCK therefore reaches default EPERM. All non-VSOCK family values retain
+   their baseline allowance, which is not a promise of kernel socket availability.
+3. Append the same five source-justified Chromium allowances as v1:
+   - clone arg0 EQ `0x10000011`: NEWUSER | SIGCHLD
+   - clone arg0 EQ `0x70000011`: NEWUSER | NEWPID | NEWNET | SIGCHLD
+   - clone arg0 EQ `0x20000011`: NEWPID | SIGCHLD
+   - unshare arg0 EQ `0x10000000`: NEWUSER only
+   - chroot, with its pathname not filterable by classic seccomp
+
+The new clauses are restricted to Moby's amd64 host selector and exclude initial
+CAP_SYS_ADMIN. Every other baseline rule/property is preserved. In particular,
+clone3's ENOSYS fallback, io_uring denial, and setns/mount/pivot_root restrictions
+remain unchanged for the intended empty initial capability bounding set. There
+is no unrestricted clone, unshare or setns permission.
+
+The 64 transport clauses are intentionally explicit: Moby/libseccomp lacks a
+masked-NE argument operator. Simply appending a deny that overlaps the baseline
+allow is unsafe; offline exported-BPF evaluation showed the overlapping allow can
+win. Removing that overlap and using the complement of low-32 equality makes the
+transport cases disjoint. Socketpair is covered rather than relying on a current
+kernel's lack of VSOCK socketpair support.
+
+## Fail-closed target contract
+
+Supported proposal target: Docker server 28.0.4, daemon and image architecture
+amd64, native process ABI x86_64, and an empty initial capability bounding set.
+The runtime selector observes Docker server, image and controller architecture,
+engine/kernel/runtime versions and host runc/libseccomp version. Before start,
+inspection must match the exact inline profile and Docker AppArmor confinement.
+The trusted live probe checks Node and Chromium ELF ABI, pinned browser versions,
+all zero capability sets, NNP and resource/network limits. A new v3 receipt binds
+the observed runtime and policy to source/image hashes. Unknown targets fail.
+The offline helper remains an export-only model, separate from live execution.
+
+## Offline checks and limits
+
+`review_profile.compile_bpf` uses the installed system libseccomp to **export** a
+filter into a temporary file; it never loads a filter, starts a container or
+changes process/kernel policy. It models the declared native-amd64,
+empty-capability, kernel-6.17 review conditions. A bounded classic-BPF interpreter
+checks the exported instructions against synthetic syscall inputs:
+
+- socket and socketpair family 40 with canonical and high-word/truncated variants
+- x86 socketcall/direct-socket and x32 syscall-bit attempts, which fail closed
+- other audit architectures, exact allowed clone/unshare cases, extra flags and
+  alternative signals, retained clone3 ENOSYS, and io_uring/setns/mount denial
+- non-VSOCK family preservation and a symbol-restricted compiler interface
+
+These are stronger than testing the JSON evaluator alone, but are **not kernel,
+AppArmor, Docker/runc-compiler or live network-containment evidence**. The CI
+runtime may use a different compiler/version. Windows or missing-libseccomp test
+runs cannot establish these results; `RND_REQUIRE_SECCOMP_BPF=1` makes absence a
+failure for the supported offline review job. A real activation still needs actual
+runtime/kernel/compiler provenance and positive/adversarial execution evidence.
+
+## Risk and maintained containment
+
+User-namespace creation exposes additional kernel attack surface and grants
+namespace-scoped capabilities to child namespaces. NNP does not prevent that.
+The calls are available to compromised code too, not just Chromium. `chroot`
+requires CAP_SYS_CHROOT in the caller's user namespace; the initial worker lacks
+it, but a child user namespace can possess it. Its pathname cannot be constrained
+by this policy, and chroot alone is not a jail. The native-only ABI restriction
+reduces compatibility surface but does not establish freedom from kernel bugs.
+
+NNP, cap-drop=ALL, non-root UID, network-none, read-only root, no host mounts,
+ports or devices, private namespaces, resource limits and Chromium's own sandbox
+remain mandatory and unchanged. The JSON cannot enforce those outer settings.
+AppArmor may independently block launch; this proposal does not disable or alter
+it. Never broaden permissions, switch to host Chrome, add capabilities or turn
+off Chromium's sandbox when a check fails.
+
+## Required live evidence
+
+Independent review of this exact delta/hash and helper; explicit per-action user
+approval; reviewed target selection/effective-policy inspection; receipts bound
+to exact policy and actual engine/kernel/image/compiler provenance; and fresh
+positive/adversarial browser, network (including ABI/argument-width cases),
+filesystem, namespace, resource and cleanup checks are all required. Unknown or
+failed evidence must block candidate admission. Any additional permission needs
+a separate decision. Approval is limited to the documented disposable Actions scope.
+````
+
+### `tools/browser/review-only-v2/chromium141-docker28-native-amd64.proposal.json`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/browser/review-only-v2/chromium141-docker28-native-amd64.proposal.json sha256: 9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f -->
+````json
+{
+  "defaultAction": "SCMP_ACT_ERRNO",
+  "defaultErrnoRet": 1,
+  "archMap": [
+    {
+      "architecture": "SCMP_ARCH_X86_64",
+      "subArchitectures": []
+    }
+  ],
+  "syscalls": [
+    {
+      "names": [
+        "accept",
+        "accept4",
+        "access",
+        "adjtimex",
+        "alarm",
+        "bind",
+        "brk",
+        "cachestat",
+        "capget",
+        "capset",
+        "chdir",
+        "chmod",
+        "chown",
+        "chown32",
+        "clock_adjtime",
+        "clock_adjtime64",
+        "clock_getres",
+        "clock_getres_time64",
+        "clock_gettime",
+        "clock_gettime64",
+        "clock_nanosleep",
+        "clock_nanosleep_time64",
+        "close",
+        "close_range",
+        "connect",
+        "copy_file_range",
+        "creat",
+        "dup",
+        "dup2",
+        "dup3",
+        "epoll_create",
+        "epoll_create1",
+        "epoll_ctl",
+        "epoll_ctl_old",
+        "epoll_pwait",
+        "epoll_pwait2",
+        "epoll_wait",
+        "epoll_wait_old",
+        "eventfd",
+        "eventfd2",
+        "execve",
+        "execveat",
+        "exit",
+        "exit_group",
+        "faccessat",
+        "faccessat2",
+        "fadvise64",
+        "fadvise64_64",
+        "fallocate",
+        "fanotify_mark",
+        "fchdir",
+        "fchmod",
+        "fchmodat",
+        "fchmodat2",
+        "fchown",
+        "fchown32",
+        "fchownat",
+        "fcntl",
+        "fcntl64",
+        "fdatasync",
+        "fgetxattr",
+        "flistxattr",
+        "flock",
+        "fork",
+        "fremovexattr",
+        "fsetxattr",
+        "fstat",
+        "fstat64",
+        "fstatat64",
+        "fstatfs",
+        "fstatfs64",
+        "fsync",
+        "ftruncate",
+        "ftruncate64",
+        "futex",
+        "futex_requeue",
+        "futex_time64",
+        "futex_wait",
+        "futex_waitv",
+        "futex_wake",
+        "futimesat",
+        "getcpu",
+        "getcwd",
+        "getdents",
+        "getdents64",
+        "getegid",
+        "getegid32",
+        "geteuid",
+        "geteuid32",
+        "getgid",
+        "getgid32",
+        "getgroups",
+        "getgroups32",
+        "getitimer",
+        "getpeername",
+        "getpgid",
+        "getpgrp",
+        "getpid",
+        "getppid",
+        "getpriority",
+        "getrandom",
+        "getresgid",
+        "getresgid32",
+        "getresuid",
+        "getresuid32",
+        "getrlimit",
+        "get_robust_list",
+        "getrusage",
+        "getsid",
+        "getsockname",
+        "getsockopt",
+        "get_thread_area",
+        "gettid",
+        "gettimeofday",
+        "getuid",
+        "getuid32",
+        "getxattr",
+        "inotify_add_watch",
+        "inotify_init",
+        "inotify_init1",
+        "inotify_rm_watch",
+        "io_cancel",
+        "ioctl",
+        "io_destroy",
+        "io_getevents",
+        "io_pgetevents",
+        "io_pgetevents_time64",
+        "ioprio_get",
+        "ioprio_set",
+        "io_setup",
+        "io_submit",
+        "ipc",
+        "kill",
+        "landlock_add_rule",
+        "landlock_create_ruleset",
+        "landlock_restrict_self",
+        "lchown",
+        "lchown32",
+        "lgetxattr",
+        "link",
+        "linkat",
+        "listen",
+        "listxattr",
+        "llistxattr",
+        "_llseek",
+        "lremovexattr",
+        "lseek",
+        "lsetxattr",
+        "lstat",
+        "lstat64",
+        "madvise",
+        "map_shadow_stack",
+        "membarrier",
+        "memfd_create",
+        "memfd_secret",
+        "mincore",
+        "mkdir",
+        "mkdirat",
+        "mknod",
+        "mknodat",
+        "mlock",
+        "mlock2",
+        "mlockall",
+        "mmap",
+        "mmap2",
+        "mprotect",
+        "mq_getsetattr",
+        "mq_notify",
+        "mq_open",
+        "mq_timedreceive",
+        "mq_timedreceive_time64",
+        "mq_timedsend",
+        "mq_timedsend_time64",
+        "mq_unlink",
+        "mremap",
+        "msgctl",
+        "msgget",
+        "msgrcv",
+        "msgsnd",
+        "msync",
+        "munlock",
+        "munlockall",
+        "munmap",
+        "name_to_handle_at",
+        "nanosleep",
+        "newfstatat",
+        "_newselect",
+        "open",
+        "openat",
+        "openat2",
+        "pause",
+        "pidfd_open",
+        "pidfd_send_signal",
+        "pipe",
+        "pipe2",
+        "pkey_alloc",
+        "pkey_free",
+        "pkey_mprotect",
+        "poll",
+        "ppoll",
+        "ppoll_time64",
+        "prctl",
+        "pread64",
+        "preadv",
+        "preadv2",
+        "prlimit64",
+        "process_mrelease",
+        "pselect6",
+        "pselect6_time64",
+        "pwrite64",
+        "pwritev",
+        "pwritev2",
+        "read",
+        "readahead",
+        "readlink",
+        "readlinkat",
+        "readv",
+        "recv",
+        "recvfrom",
+        "recvmmsg",
+        "recvmmsg_time64",
+        "recvmsg",
+        "remap_file_pages",
+        "removexattr",
+        "rename",
+        "renameat",
+        "renameat2",
+        "restart_syscall",
+        "rmdir",
+        "rseq",
+        "rt_sigaction",
+        "rt_sigpending",
+        "rt_sigprocmask",
+        "rt_sigqueueinfo",
+        "rt_sigreturn",
+        "rt_sigsuspend",
+        "rt_sigtimedwait",
+        "rt_sigtimedwait_time64",
+        "rt_tgsigqueueinfo",
+        "sched_getaffinity",
+        "sched_getattr",
+        "sched_getparam",
+        "sched_get_priority_max",
+        "sched_get_priority_min",
+        "sched_getscheduler",
+        "sched_rr_get_interval",
+        "sched_rr_get_interval_time64",
+        "sched_setaffinity",
+        "sched_setattr",
+        "sched_setparam",
+        "sched_setscheduler",
+        "sched_yield",
+        "seccomp",
+        "select",
+        "semctl",
+        "semget",
+        "semop",
+        "semtimedop",
+        "semtimedop_time64",
+        "send",
+        "sendfile",
+        "sendfile64",
+        "sendmmsg",
+        "sendmsg",
+        "sendto",
+        "setfsgid",
+        "setfsgid32",
+        "setfsuid",
+        "setfsuid32",
+        "setgid",
+        "setgid32",
+        "setgroups",
+        "setgroups32",
+        "setitimer",
+        "setpgid",
+        "setpriority",
+        "setregid",
+        "setregid32",
+        "setresgid",
+        "setresgid32",
+        "setresuid",
+        "setresuid32",
+        "setreuid",
+        "setreuid32",
+        "setrlimit",
+        "set_robust_list",
+        "setsid",
+        "setsockopt",
+        "set_thread_area",
+        "set_tid_address",
+        "setuid",
+        "setuid32",
+        "setxattr",
+        "shmat",
+        "shmctl",
+        "shmdt",
+        "shmget",
+        "shutdown",
+        "sigaltstack",
+        "signalfd",
+        "signalfd4",
+        "sigprocmask",
+        "sigreturn",
+        "splice",
+        "stat",
+        "stat64",
+        "statfs",
+        "statfs64",
+        "statx",
+        "symlink",
+        "symlinkat",
+        "sync",
+        "sync_file_range",
+        "syncfs",
+        "sysinfo",
+        "tee",
+        "tgkill",
+        "time",
+        "timer_create",
+        "timer_delete",
+        "timer_getoverrun",
+        "timer_gettime",
+        "timer_gettime64",
+        "timer_settime",
+        "timer_settime64",
+        "timerfd_create",
+        "timerfd_gettime",
+        "timerfd_gettime64",
+        "timerfd_settime",
+        "timerfd_settime64",
+        "times",
+        "tkill",
+        "truncate",
+        "truncate64",
+        "ugetrlimit",
+        "umask",
+        "uname",
+        "unlink",
+        "unlinkat",
+        "utime",
+        "utimensat",
+        "utimensat_time64",
+        "utimes",
+        "vfork",
+        "vmsplice",
+        "wait4",
+        "waitid",
+        "waitpid",
+        "write",
+        "writev"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "names": [
+        "process_vm_readv",
+        "process_vm_writev",
+        "ptrace"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "minKernel": "4.8"
+      }
+    },
+    {
+      "names": [
+        "personality"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 0,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "personality"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 8,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "personality"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 131072,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "personality"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 131080,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "personality"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 4294967295,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "sync_file_range2",
+        "swapcontext"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "ppc64le"
+        ]
+      }
+    },
+    {
+      "names": [
+        "arm_fadvise64_64",
+        "arm_sync_file_range",
+        "sync_file_range2",
+        "breakpoint",
+        "cacheflush",
+        "set_tls"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "arm",
+          "arm64"
+        ]
+      }
+    },
+    {
+      "names": [
+        "arch_prctl"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "amd64",
+          "x32"
+        ]
+      }
+    },
+    {
+      "names": [
+        "modify_ldt"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "amd64",
+          "x32",
+          "x86"
+        ]
+      }
+    },
+    {
+      "names": [
+        "s390_pci_mmio_read",
+        "s390_pci_mmio_write",
+        "s390_runtime_instr"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "s390",
+          "s390x"
+        ]
+      }
+    },
+    {
+      "names": [
+        "riscv_flush_icache"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "riscv64"
+        ]
+      }
+    },
+    {
+      "names": [
+        "open_by_handle_at"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_DAC_READ_SEARCH"
+        ]
+      }
+    },
+    {
+      "names": [
+        "bpf",
+        "clone",
+        "clone3",
+        "fanotify_init",
+        "fsconfig",
+        "fsmount",
+        "fsopen",
+        "fspick",
+        "lookup_dcookie",
+        "mount",
+        "mount_setattr",
+        "move_mount",
+        "open_tree",
+        "perf_event_open",
+        "quotactl",
+        "quotactl_fd",
+        "setdomainname",
+        "sethostname",
+        "setns",
+        "syslog",
+        "umount",
+        "umount2",
+        "unshare"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "clone"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 2114060288,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ],
+        "arches": [
+          "s390",
+          "s390x"
+        ]
+      }
+    },
+    {
+      "names": [
+        "clone"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 1,
+          "value": 2114060288,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "comment": "s390 parameter ordering for clone is different",
+      "includes": {
+        "arches": [
+          "s390",
+          "s390x"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "clone3"
+      ],
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 38,
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "reboot"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_BOOT"
+        ]
+      }
+    },
+    {
+      "names": [
+        "chroot"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_CHROOT"
+        ]
+      }
+    },
+    {
+      "names": [
+        "delete_module",
+        "init_module",
+        "finit_module"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_MODULE"
+        ]
+      }
+    },
+    {
+      "names": [
+        "acct"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_PACCT"
+        ]
+      }
+    },
+    {
+      "names": [
+        "kcmp",
+        "pidfd_getfd",
+        "process_madvise",
+        "process_vm_readv",
+        "process_vm_writev",
+        "ptrace"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_PTRACE"
+        ]
+      }
+    },
+    {
+      "names": [
+        "iopl",
+        "ioperm"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_RAWIO"
+        ]
+      }
+    },
+    {
+      "names": [
+        "settimeofday",
+        "stime",
+        "clock_settime",
+        "clock_settime64"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_TIME"
+        ]
+      }
+    },
+    {
+      "names": [
+        "vhangup"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_TTY_CONFIG"
+        ]
+      }
+    },
+    {
+      "names": [
+        "get_mempolicy",
+        "mbind",
+        "set_mempolicy",
+        "set_mempolicy_home_node"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_NICE"
+        ]
+      }
+    },
+    {
+      "names": [
+        "syslog"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYSLOG"
+        ]
+      }
+    },
+    {
+      "names": [
+        "bpf"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_BPF"
+        ]
+      }
+    },
+    {
+      "names": [
+        "perf_event_open"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_PERFMON"
+        ]
+      }
+    },
+    {
+      "names": [
+        "clone"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      },
+      "args": [
+        {
+          "index": 0,
+          "value": 268435473,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "clone"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      },
+      "args": [
+        {
+          "index": 0,
+          "value": 1879048209,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "clone"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      },
+      "args": [
+        {
+          "index": 0,
+          "value": 536870929,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "unshare"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      },
+      "args": [
+        {
+          "index": 0,
+          "value": 268435456,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "chroot"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 1,
+          "valueTwo": 1,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 2,
+          "valueTwo": 2,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 4,
+          "valueTwo": 4,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 8,
+          "valueTwo": 0,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 16,
+          "valueTwo": 16,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 32,
+          "valueTwo": 0,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 64,
+          "valueTwo": 64,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 128,
+          "valueTwo": 128,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 256,
+          "valueTwo": 256,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 512,
+          "valueTwo": 512,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 1024,
+          "valueTwo": 1024,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 2048,
+          "valueTwo": 2048,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 4096,
+          "valueTwo": 4096,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 8192,
+          "valueTwo": 8192,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 16384,
+          "valueTwo": 16384,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 32768,
+          "valueTwo": 32768,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 65536,
+          "valueTwo": 65536,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 131072,
+          "valueTwo": 131072,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 262144,
+          "valueTwo": 262144,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 524288,
+          "valueTwo": 524288,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 1048576,
+          "valueTwo": 1048576,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 2097152,
+          "valueTwo": 2097152,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 4194304,
+          "valueTwo": 4194304,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 8388608,
+          "valueTwo": 8388608,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 16777216,
+          "valueTwo": 16777216,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 33554432,
+          "valueTwo": 33554432,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 67108864,
+          "valueTwo": 67108864,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 134217728,
+          "valueTwo": 134217728,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 268435456,
+          "valueTwo": 268435456,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 536870912,
+          "valueTwo": 536870912,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 1073741824,
+          "valueTwo": 1073741824,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 2147483648,
+          "valueTwo": 2147483648,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 1,
+          "valueTwo": 1,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 2,
+          "valueTwo": 2,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 4,
+          "valueTwo": 4,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 8,
+          "valueTwo": 0,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 16,
+          "valueTwo": 16,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 32,
+          "valueTwo": 0,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 64,
+          "valueTwo": 64,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 128,
+          "valueTwo": 128,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 256,
+          "valueTwo": 256,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 512,
+          "valueTwo": 512,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 1024,
+          "valueTwo": 1024,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 2048,
+          "valueTwo": 2048,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 4096,
+          "valueTwo": 4096,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 8192,
+          "valueTwo": 8192,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 16384,
+          "valueTwo": 16384,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 32768,
+          "valueTwo": 32768,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 65536,
+          "valueTwo": 65536,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 131072,
+          "valueTwo": 131072,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 262144,
+          "valueTwo": 262144,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 524288,
+          "valueTwo": 524288,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 1048576,
+          "valueTwo": 1048576,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 2097152,
+          "valueTwo": 2097152,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 4194304,
+          "valueTwo": 4194304,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 8388608,
+          "valueTwo": 8388608,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 16777216,
+          "valueTwo": 16777216,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 33554432,
+          "valueTwo": 33554432,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 67108864,
+          "valueTwo": 67108864,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 134217728,
+          "valueTwo": 134217728,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 268435456,
+          "valueTwo": 268435456,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 536870912,
+          "valueTwo": 536870912,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 1073741824,
+          "valueTwo": 1073741824,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "socketpair"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 2147483648,
+          "valueTwo": 2147483648,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    }
+  ]
+}
+````
+
+### `tools/browser/review-only-v2/proposal-manifest.json`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/browser/review-only-v2/proposal-manifest.json sha256: 14b57c1a21026efa35184b68522415a4b838e8aed9c9697816d1c253f2305f75 -->
+````json
+{
+  "status": "approved-actions-only-pending-live-proof",
+  "activation_authorized": true,
+  "live_validation": false,
+  "baseline_path": "../review-only/moby-v28.0.4-default.json",
+  "baseline_sha256": "9c1025c88ccaa517b648da571961838744ea2137f176bfe6a48b21294cae9c76",
+  "baseline_provenance_manifest": "../review-only/proposal-manifest.json",
+  "proposal_file": "chromium141-docker28-native-amd64.proposal.json",
+  "proposal_sha256": "9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f",
+  "supported_target": {
+    "daemon_arch": "amd64",
+    "image_arch": "amd64",
+    "docker_version": "28.0.4",
+    "initial_caps": [],
+    "process_abi": "x86_64"
+  },
+  "allowed_syscall_abis": [
+    "SCMP_ARCH_X86_64"
+  ],
+  "changes": [
+    "native amd64 syscall ABI only; no x86/x32 compatibility ABI",
+    "remove socketcall from unconditional allows",
+    "replace socket and socketpair broad allowances with exact low32 != AF_VSOCK complement",
+    "preserve the five exact Chromium namespace/chroot allowances from v1"
+  ],
+  "offline_validation": "libseccomp export plus bounded classic-BPF evaluation only; no filter loaded; not CI compiler or kernel proof",
+  "required_before_activation": [
+    "independent review",
+    "explicit per-action approval",
+    "wire and review fail-closed observed-target guard",
+    "actual runtime/compiler/kernel/policy provenance and receipt binding",
+    "fresh positive and adversarial network, filesystem, resource, namespace and cleanup evidence"
+  ],
+  "activation_scope": "Disposable offline Actions browser workers only; explicit fixed-hash selector"
+}
+````
+
+### `tools/browser/review-only-v2/review_profile.py`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**逐个入口与控制逻辑：**
+
+- `require_target`（L15–L22）：接收`daemon_arch`、`image_arch`、`docker_version`、`initial_caps`、`process_abi`。 控制顺序：L16按`(daemon_arch, image_arch, docker_version, process_abi) != ("amd64", "amd64", "28.0.4"…`分支；L22抛异常，停止当前正常路径。 调用`type`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `namespace_rules`（L25–L44）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L34遍历`values`；L41按`value is not None`分支。 调用`result.append`。 返回路径：L44的`result`。
+- `transport_rules`（L47–L69）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`range`。 返回路径：L52的`[ { "names": [name], "action": "SCMP_ACT_ALLOW", "args": [ { "index": 0, "value": 1 << bit…`。
+- `build_profile`（L72–L98）：接收`baseline`。 控制顺序：L74断言`profile["archMap"][0] == { "architecture": "SCMP_ARCH_X86_64", "subArchitectures": ["…`；L83遍历`profile["syscalls"]`；L84按`"socket" in rule["names"]`分支；L85断言`rule == { "names": ["socket"], "action": "SCMP_ACT_ALLOW", "args": [{"index": 0, "val…`；L92按`"socketpair" in rule["names"] or "socketcall" in rule["names"]`分支；L93断言`rule["action"] == "SCMP_ACT_ALLOW" and not rule.get("args")`；L96断言`removed_socket == 1`。 调用`copy.deepcopy`、`rule.get`、`rules.append`、`namespace_rules`、`transport_rules`。 返回路径：L98的`profile`。
+- `_applies`（L101–L113）：接收`rule`。 控制顺序：L103遍历`(inc, exc)`；L104按`set(condition) - {"arches", "caps", "minKernel"}`分支；L105抛异常，停止当前正常路径。 调用`rule.get`、`set`、`ValueError`、`tuple`、`map`、`inc.get("minKernel", "0").split`、`inc.get`、`exc.get`。 返回路径：L107的`not inc.get("caps") and not (inc.get("arches") and "amd64" not in inc["arches"]) and "amd6…`。
+- `compile_bpf`（L116–L184）：接收`profile`。 源码说明：Export with installed libseccomp, without seccomp_load or child execution. Models the reviewed amd64/empty-initial-capability/kernel-6.17 conditions. This is not proof of the CI runtime's compiler, Ap。 控制顺序：L122按`platform.system() != "Linux" or platform.machine() != "x86_64"`分支；L123抛异常，停止当前正常路径；L124按`profile["archMap"] != [{"architecture": "SCMP_ARCH_X86_64", "subArchitectures": []}]`分支；L125抛异常，停止当前正常路径；L127按`not library`分支；L128抛异常，停止当前正常路径；L153按`profile["defaultAction"] != "SCMP_ACT_ERRNO"`分支；L154抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`platform.system`、`platform.machine`、`ValueError`、`ctypes.util.find_library`、`ctypes.CDLL`、`ctypes.POINTER`、`lib.seccomp_init`、`_applies`、`rule.get`等。 返回路径：L182的`output`。
+- `compile_bpf.Arg`（L137–L143）：继承`ctypes.Structure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `evaluate_bpf`（L187–L219）：接收`program`、`number`、`arch`、`args`。 源码说明：Interpret exported classic BPF against synthetic seccomp_data only.。 控制顺序：L189按`len(args) > 6`分支；L190抛异常，停止当前正常路径；L194遍历`range(len(code) + 1)`；L195按`not 0 <= pc < len(code)`分支；L196抛异常，停止当前正常路径；L198按`operation == 0x20`分支；L199按`value > len(data) - 4`分支；L200抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`len`、`ValueError`、`struct.pack`、`struct.unpack`、`range`、`struct.unpack_from`、`bool`。 返回路径：L215的`value`。
+
+<!-- source-file: tools/browser/review-only-v2/review_profile.py sha256: 960682500404ac0f4f34e519c0c448f0509c3b944fb9105b9c41cbc4d76b002b -->
+````python
+"""Offline review helper: build/export/evaluate BPF; NEVER load a filter."""
+
+import copy
+import ctypes
+import ctypes.util
+import platform
+import struct
+import tempfile
+
+ALLOW = 0x7FFF0000
+ERRNO = 0x00050000
+NATIVE_ARCH = 0xC000003E
+
+
+def require_target(daemon_arch, image_arch, docker_version, initial_caps, process_abi):
+    if (
+        (daemon_arch, image_arch, docker_version, process_abi)
+        != ("amd64", "amd64", "28.0.4", "x86_64")
+        or type(initial_caps) is not list
+        or initial_caps
+    ):
+        raise ValueError("Review profile supports only native amd64 Docker 28.0.4; no fallback")
+
+
+def namespace_rules():
+    values = [
+        ("clone", 0x10000011),
+        ("clone", 0x70000011),
+        ("clone", 0x20000011),
+        ("unshare", 0x10000000),
+        ("chroot", None),
+    ]
+    result = []
+    for name, value in values:
+        rule = {
+            "names": [name],
+            "action": "SCMP_ACT_ALLOW",
+            "includes": {"arches": ["amd64"]},
+            "excludes": {"caps": ["CAP_SYS_ADMIN"]},
+        }
+        if value is not None:
+            rule["args"] = [{"index": 0, "value": value, "op": "SCMP_CMP_EQ"}]
+        result.append(rule)
+    return result
+
+
+def transport_rules():
+    # OR of bit mismatches is exactly (arg0 & 0xffffffff) != AF_VSOCK.
+    # Do not append an overlapping deny: libseccomp can retain the earlier
+    # broad allow. These disjoint-from-VSOCK allowances reach default EPERM
+    # for every high-word variant of family 40, including socketpair.
+    return [
+        {
+            "names": [name],
+            "action": "SCMP_ACT_ALLOW",
+            "args": [
+                {
+                    "index": 0,
+                    "value": 1 << bit,
+                    "valueTwo": (40 ^ (1 << bit)) & (1 << bit),
+                    "op": "SCMP_CMP_MASKED_EQ",
+                }
+            ],
+            "includes": {"arches": ["amd64"]},
+            "excludes": {"caps": ["CAP_SYS_ADMIN"]},
+        }
+        for name in ("socket", "socketpair")
+        for bit in range(32)
+    ]
+
+
+def build_profile(baseline):
+    profile = copy.deepcopy(baseline)
+    assert profile["archMap"][0] == {
+        "architecture": "SCMP_ARCH_X86_64",
+        "subArchitectures": ["SCMP_ARCH_X86", "SCMP_ARCH_X32"],
+    }
+    # Explicit ABI restriction. Unsupported daemon/image targets must also be
+    # rejected by require_target BEFORE any future container creation.
+    profile["archMap"] = [{"architecture": "SCMP_ARCH_X86_64", "subArchitectures": []}]
+    rules = []
+    removed_socket = 0
+    for rule in profile["syscalls"]:
+        if "socket" in rule["names"]:
+            assert rule == {
+                "names": ["socket"],
+                "action": "SCMP_ACT_ALLOW",
+                "args": [{"index": 0, "value": 40, "op": "SCMP_CMP_NE"}],
+            }
+            removed_socket += 1
+            continue
+        if "socketpair" in rule["names"] or "socketcall" in rule["names"]:
+            assert rule["action"] == "SCMP_ACT_ALLOW" and not rule.get("args")
+            rule["names"] = [n for n in rule["names"] if n not in {"socketpair", "socketcall"}]
+        rules.append(rule)
+    assert removed_socket == 1
+    profile["syscalls"] = rules + namespace_rules() + transport_rules()
+    return profile
+
+
+def _applies(rule):
+    inc, exc = rule.get("includes", {}), rule.get("excludes", {})
+    for condition in (inc, exc):
+        if set(condition) - {"arches", "caps", "minKernel"}:
+            raise ValueError("Unsupported review condition")
+    minimum = tuple(map(int, inc.get("minKernel", "0").split(".")))
+    return (
+        not inc.get("caps")
+        and not (inc.get("arches") and "amd64" not in inc["arches"])
+        and "amd64" not in exc.get("arches", [])
+        and minimum <= (6, 17)
+        and not exc.get("minKernel")
+    )
+
+
+def compile_bpf(profile):
+    """Export with installed libseccomp, without seccomp_load or child execution.
+
+    Models the reviewed amd64/empty-initial-capability/kernel-6.17 conditions.
+    This is not proof of the CI runtime's compiler, AppArmor, or live behavior.
+    """
+    if platform.system() != "Linux" or platform.machine() != "x86_64":
+        raise ValueError("Offline BPF compiler requires native Linux x86_64")
+    if profile["archMap"] != [{"architecture": "SCMP_ARCH_X86_64", "subArchitectures": []}]:
+        raise ValueError("Only native ABI review is supported")
+    library = ctypes.util.find_library("seccomp")
+    if not library:
+        raise ValueError("libseccomp unavailable")
+    lib = ctypes.CDLL(library)
+    lib.seccomp_init.argtypes, lib.seccomp_init.restype = [ctypes.c_uint32], ctypes.c_void_p
+    lib.seccomp_release.argtypes = [ctypes.c_void_p]
+    lib.seccomp_syscall_resolve_name.argtypes = [ctypes.c_char_p]
+    lib.seccomp_syscall_resolve_name.restype = ctypes.c_int
+    lib.seccomp_export_bpf.argtypes = [ctypes.c_void_p, ctypes.c_int]
+    lib.seccomp_export_bpf.restype = ctypes.c_int
+
+    class Arg(ctypes.Structure):
+        _fields_ = [
+            ("arg", ctypes.c_uint),
+            ("op", ctypes.c_uint),
+            ("a", ctypes.c_uint64),
+            ("b", ctypes.c_uint64),
+        ]
+
+    lib.seccomp_rule_add_array.argtypes = [
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.c_int,
+        ctypes.c_uint,
+        ctypes.POINTER(Arg),
+    ]
+    lib.seccomp_rule_add_array.restype = ctypes.c_int
+    if profile["defaultAction"] != "SCMP_ACT_ERRNO":
+        raise ValueError("Unexpected default action")
+    context = lib.seccomp_init(ERRNO | profile["defaultErrnoRet"])
+    if not context:
+        raise ValueError("Cannot allocate review filter")
+    op = {"SCMP_CMP_NE": 1, "SCMP_CMP_EQ": 4, "SCMP_CMP_MASKED_EQ": 7}
+    try:
+        for rule in profile["syscalls"]:
+            if not _applies(rule):
+                continue
+            action = ALLOW if rule["action"] == "SCMP_ACT_ALLOW" else ERRNO | rule["errnoRet"]
+            args = rule.get("args", [])
+            array = (Arg * len(args))(
+                *(Arg(a["index"], op[a["op"]], a["value"], a.get("valueTwo", 0)) for a in args)
+            )
+            for name in rule["names"]:
+                number = lib.seccomp_syscall_resolve_name(name.encode())
+                if number < 0:  # Non-native ABI names cannot be reached in this filter.
+                    continue
+                result = lib.seccomp_rule_add_array(context, action, number, len(args), array)
+                if result != 0:
+                    raise ValueError(f"BPF rule compilation failed: {name} ({result})")
+        with tempfile.TemporaryFile() as stream:
+            if lib.seccomp_export_bpf(context, stream.fileno()) != 0:
+                raise ValueError("Cannot export review BPF")
+            stream.seek(0)
+            output = stream.read(32769)
+            if len(output) > 32768 or len(output) % 8:
+                raise ValueError("Unexpected BPF size")
+            return output
+    finally:
+        lib.seccomp_release(context)
+
+
+def evaluate_bpf(program, number, arch=NATIVE_ARCH, args=()):
+    """Interpret exported classic BPF against synthetic seccomp_data only."""
+    if len(args) > 6:
+        raise ValueError("Too many syscall arguments")
+    data = struct.pack("<iIQ6Q", number, arch, 0, *args, *([0] * (6 - len(args))))
+    code = [struct.unpack("<HBBI", program[i : i + 8]) for i in range(0, len(program), 8)]
+    pc, accumulator = 0, 0
+    for _ in range(len(code) + 1):
+        if not 0 <= pc < len(code):
+            raise ValueError("Invalid BPF jump")
+        operation, yes, no, value = code[pc]
+        if operation == 0x20:
+            if value > len(data) - 4:
+                raise ValueError("Invalid BPF load")
+            accumulator = struct.unpack_from("<I", data, value)[0]
+        elif operation == 0x54:
+            accumulator &= value
+        elif operation == 0x05:
+            pc += value
+        elif operation in {0x15, 0x25, 0x35, 0x45}:
+            condition = {
+                0x15: accumulator == value,
+                0x25: accumulator > value,
+                0x35: accumulator >= value,
+                0x45: bool(accumulator & value),
+            }[operation]
+            pc += yes if condition else no
+        elif operation == 0x06:
+            return value
+        else:
+            raise ValueError(f"Unsupported BPF instruction: {operation}")
+        pc += 1
+    raise ValueError("BPF step bound exceeded")
+````
+
+### `tools/browser/review-only/LICENSE.moby`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/browser/review-only/LICENSE.moby sha256: 7c87873291f289713ac5df48b1f2010eb6963752bbd6b530416ab99fc37914a8 -->
+````text
+
+                                 Apache License
+                           Version 2.0, January 2004
+                        https://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must give any other recipients of the Work or
+          Derivative Works a copy of this License; and
+
+      (b) You must cause any modified files to carry prominent notices
+          stating that You changed the files; and
+
+      (c) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (d) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   Copyright 2013-2018 Docker, Inc.
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       https://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+````
+
+### `tools/browser/review-only/README.md`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/browser/review-only/README.md sha256: 840d3e2a7e6f4895c06931c5ae143377a1c3a4f90fd8bc9e0d71d8f95f116356 -->
+````markdown
+# INACTIVE: Chromium 141 / Docker 28.0.4 seccomp proposal
+
+This directory is a **review artifact, not an active runtime policy**. No launcher,
+workflow, image-copy instruction, receipt gate, AppArmor profile, host setting,
+capability bounding set, or browser argument selects it. Activation is **not
+approved**. No container was launched with it and no live compatibility or
+containment result is claimed. Static tests are not acceptance evidence.
+
+## Provenance and scope
+
+`moby-v28.0.4-default.json` preserves the UTF-8 payload retrieved from Moby
+v28.0.4. `proposal-manifest.json` contains its commit-pinned upstream URL, SHA-256,
+Chromium source URLs/hashes, candidate hash, and an append-only RFC 6902 JSON
+patch. The original baseline JSON object and every baseline rule remain
+unchanged. The Moby Apache 2.0 license is preserved in `LICENSE.moby`.
+
+The current runner inventory lists Docker 28.0.4 and Linux 6.17.0-1022-azure:
+https://github.com/actions/runner-images/blob/ubuntu24/20260927.320/images/ubuntu/Ubuntu2404-Readme.md
+This is an image inventory, not an attestation of the active daemon or kernel.
+Any activation review must re-establish actual versions and policy provenance.
+
+The candidate is scoped to an **amd64 host**, Chromium 141.0.7390.37 (Playwright
+1.56.1), all user/PID/network namespace features present, and an empty initial
+container capability bounding set. Moby's `includes.arches` selects the host
+architecture; it does **not** limit a rule to the native syscall ABI. The
+unchanged amd64 archMap also includes x86/x32 compatibility ABIs. This inherited
+compatibility surface requires review; this proposal makes no native-ABI-only
+claim. Other host architectures receive no appended allowances.
+
+## Exact delta: five appended rules, three syscall names
+
+All new rules use SCMP_ACT_ALLOW, include only host arch `amd64`, and exclude
+containers initially holding CAP_SYS_ADMIN. This condition is evaluated by Docker
+at container creation; it is not a dynamic check of child namespace privileges.
+
+| Syscall | Argument constraint | Decimal | Chromium source justification |
+|---|---|---:|---|
+| clone | arg0 EQ CLONE_NEWUSER \| SIGCHLD | 268435473 | Credentials::CanCreateProcessInNewUserNS availability probe |
+| clone | arg0 EQ CLONE_NEWUSER \| CLONE_NEWPID \| CLONE_NEWNET \| SIGCHLD | 1879048209 | NamespaceSandbox default launch, with LaunchProcess adding SIGCHLD |
+| clone | arg0 EQ CLONE_NEWPID \| SIGCHLD | 536870929 | NamespaceSandbox::ForkInNewPidNamespace |
+| unshare | arg0 EQ CLONE_NEWUSER | 268435456 | Credentials availability probe and MoveToNewUserNS |
+| chroot | No argument filter is possible for the pointed-to path | n/a | Credentials::DropFileSystemAccess / ChrootToSelfFdinfo |
+
+No setns rule is added. No new namespace-flag masks or unrestricted clone/unshare
+rule are added. No allowance is made for partially supported namespace launch
+combinations. The original namespace-free clone rule already covers the
+CLONE_FS/VM/VFORK/SETTLS helper used by Chromium's chroot implementation.
+
+Source references, pinned to Chromium's version commit:
+- [Credentials](https://github.com/chromium/chromium/blob/9f043f63b0e5b728c8d09f3e3ddfc1681a4bd58e/sandbox/linux/services/credentials.cc)
+- [NamespaceSandbox](https://github.com/chromium/chromium/blob/9f043f63b0e5b728c8d09f3e3ddfc1681a4bd58e/sandbox/linux/services/namespace_sandbox.cc)
+- [LaunchProcess / ForkWithFlags](https://github.com/chromium/chromium/blob/9f043f63b0e5b728c8d09f3e3ddfc1681a4bd58e/base/process/launch_posix.cc)
+- [Namespace feature detection](https://github.com/chromium/chromium/blob/9f043f63b0e5b728c8d09f3e3ddfc1681a4bd58e/sandbox/linux/services/namespace_utils.cc)
+
+## Preserved restrictions and limitations
+
+The exact baseline prefix is retained: clone3 returns ENOSYS without
+CAP_SYS_ADMIN; io_uring remains denied; the canonical socket argument-40
+restriction is preserved; setns, mount, pivot_root and unrelated namespace creation remain denied under the
+intended empty-capability profile. Newer baseline allowances such as Landlock,
+openat2 and close_range are retained. This is **not** the older Playwright JSON.
+
+This is not proof of complete AF_VSOCK containment. The inherited baseline permits
+`socketcall`, which is relevant to the retained x86 compatibility ABI. Its
+full-word `socket` argument comparison also permits `0x100000028` in the static
+model; the kernel may then truncate an `int` argument to 40. These inherited
+compatibility/argument-width gaps are unchanged by this proposal. The tests
+record them instead of silently hardening the baseline or claiming them away.
+Actual compiled-filter and transport containment remain unproven activation-review
+obligations. See [seccomp argument truncation](https://man7.org/linux/man-pages/man2/seccomp.2.html)
+and [socketcall(2)](https://man7.org/linux/man-pages/man2/socketcall.2.html).
+
+The profile does not provide capabilities or override AppArmor. Docker's
+no-new-privileges, cap-drop=ALL, UID 1000, network=none, read-only root, no host
+mounts/devices/ports, private namespaces, bounded tmpfs, CPU/memory/PID limits and
+Chromium sandbox remain mandatory and unchanged. However, a seccomp JSON file
+cannot enforce those Docker settings. Any future selector must independently
+validate them and reject capability additions or unsupported versions.
+
+Allowing user-namespace creation necessarily exposes additional kernel code and
+permits namespace-scoped capabilities in newly created child namespaces; it does
+not give capabilities in the parent/host user namespace. NNP prevents privilege
+gains through exec, but does not prohibit gaining capabilities when creating a
+new user namespace. This is a real security-policy expansion, even though its
+purpose is enabling Chromium's inner sandbox. A compromised process can use
+these exact allowances too; seccomp does not bind them to Chromium call sites.
+
+`chroot` still requires CAP_SYS_CHROOT **in the caller's user namespace**. The
+initial worker lacks that capability, but Chromium can obtain it within its own
+new user namespace. Classic seccomp cannot dereference the path pointer and
+cannot constrain the allowed path to Chromium's fdinfo path, so the proposed
+rule allows any kernel-authorized chroot. chroot alone is not a secure jail;
+open descriptors, cwd and parent namespaces require separate containment. The
+unchanged outer mount/network/cgroup boundaries remain essential, and kernel
+vulnerabilities remain a residual risk. See [chroot(2)](https://man7.org/linux/man-pages/man2/chroot.2.html),
+[user_namespaces(7)](https://man7.org/linux/man-pages/man7/user_namespaces.7.html)
+and [NNP](https://www.kernel.org/doc/html/latest/userspace-api/no_new_privs.html).
+
+AppArmor may still prevent namespace operations. Its restriction flag alone does
+not prove a particular denial, and this proposal neither changes nor bypasses
+AppArmor. It may also fail on runtime/browser differences or other syscalls.
+Unexpected failures must stop the gate, not trigger broader fallback permissions.
+
+## Required before any activation
+
+1. Independent security review of this exact hash/delta, including compatibility
+   ABIs, socketcall/argument-width containment gaps, child-namespace/chroot
+   consequences and current engine/kernel provenance.
+2. Explicit per-action approval for selecting this container-scoped policy.
+   This preparation approval does not authorize activation or experiments.
+3. Separately reviewed selector/inspection and policy-bound receipt changes;
+   Docker-default or old receipts must not certify a changed profile.
+4. After approval only, fresh positive browser and adversarial network,
+   filesystem, namespace, resource and cleanup proofs under the exact profile.
+   Static tests here do not simulate the kernel, AppArmor or libseccomp compiler.
+5. Stop for a separate decision if additional permissions are needed. Never
+   weaken host settings, add capabilities, disable sandboxing, use unconfined
+   policies, or substitute host-browser success for isolated acceptance.
+````
+
+### `tools/browser/review-only/chromium141-docker28-amd64.proposal.json`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/browser/review-only/chromium141-docker28-amd64.proposal.json sha256: f62d10d5ce466dfd0714d61891ef7b94445367c8a6a303302f4c3956687f3504 -->
+````json
+{
+  "defaultAction": "SCMP_ACT_ERRNO",
+  "defaultErrnoRet": 1,
+  "archMap": [
+    {
+      "architecture": "SCMP_ARCH_X86_64",
+      "subArchitectures": [
+        "SCMP_ARCH_X86",
+        "SCMP_ARCH_X32"
+      ]
+    },
+    {
+      "architecture": "SCMP_ARCH_AARCH64",
+      "subArchitectures": [
+        "SCMP_ARCH_ARM"
+      ]
+    },
+    {
+      "architecture": "SCMP_ARCH_MIPS64",
+      "subArchitectures": [
+        "SCMP_ARCH_MIPS",
+        "SCMP_ARCH_MIPS64N32"
+      ]
+    },
+    {
+      "architecture": "SCMP_ARCH_MIPS64N32",
+      "subArchitectures": [
+        "SCMP_ARCH_MIPS",
+        "SCMP_ARCH_MIPS64"
+      ]
+    },
+    {
+      "architecture": "SCMP_ARCH_MIPSEL64",
+      "subArchitectures": [
+        "SCMP_ARCH_MIPSEL",
+        "SCMP_ARCH_MIPSEL64N32"
+      ]
+    },
+    {
+      "architecture": "SCMP_ARCH_MIPSEL64N32",
+      "subArchitectures": [
+        "SCMP_ARCH_MIPSEL",
+        "SCMP_ARCH_MIPSEL64"
+      ]
+    },
+    {
+      "architecture": "SCMP_ARCH_S390X",
+      "subArchitectures": [
+        "SCMP_ARCH_S390"
+      ]
+    },
+    {
+      "architecture": "SCMP_ARCH_RISCV64",
+      "subArchitectures": null
+    }
+  ],
+  "syscalls": [
+    {
+      "names": [
+        "accept",
+        "accept4",
+        "access",
+        "adjtimex",
+        "alarm",
+        "bind",
+        "brk",
+        "cachestat",
+        "capget",
+        "capset",
+        "chdir",
+        "chmod",
+        "chown",
+        "chown32",
+        "clock_adjtime",
+        "clock_adjtime64",
+        "clock_getres",
+        "clock_getres_time64",
+        "clock_gettime",
+        "clock_gettime64",
+        "clock_nanosleep",
+        "clock_nanosleep_time64",
+        "close",
+        "close_range",
+        "connect",
+        "copy_file_range",
+        "creat",
+        "dup",
+        "dup2",
+        "dup3",
+        "epoll_create",
+        "epoll_create1",
+        "epoll_ctl",
+        "epoll_ctl_old",
+        "epoll_pwait",
+        "epoll_pwait2",
+        "epoll_wait",
+        "epoll_wait_old",
+        "eventfd",
+        "eventfd2",
+        "execve",
+        "execveat",
+        "exit",
+        "exit_group",
+        "faccessat",
+        "faccessat2",
+        "fadvise64",
+        "fadvise64_64",
+        "fallocate",
+        "fanotify_mark",
+        "fchdir",
+        "fchmod",
+        "fchmodat",
+        "fchmodat2",
+        "fchown",
+        "fchown32",
+        "fchownat",
+        "fcntl",
+        "fcntl64",
+        "fdatasync",
+        "fgetxattr",
+        "flistxattr",
+        "flock",
+        "fork",
+        "fremovexattr",
+        "fsetxattr",
+        "fstat",
+        "fstat64",
+        "fstatat64",
+        "fstatfs",
+        "fstatfs64",
+        "fsync",
+        "ftruncate",
+        "ftruncate64",
+        "futex",
+        "futex_requeue",
+        "futex_time64",
+        "futex_wait",
+        "futex_waitv",
+        "futex_wake",
+        "futimesat",
+        "getcpu",
+        "getcwd",
+        "getdents",
+        "getdents64",
+        "getegid",
+        "getegid32",
+        "geteuid",
+        "geteuid32",
+        "getgid",
+        "getgid32",
+        "getgroups",
+        "getgroups32",
+        "getitimer",
+        "getpeername",
+        "getpgid",
+        "getpgrp",
+        "getpid",
+        "getppid",
+        "getpriority",
+        "getrandom",
+        "getresgid",
+        "getresgid32",
+        "getresuid",
+        "getresuid32",
+        "getrlimit",
+        "get_robust_list",
+        "getrusage",
+        "getsid",
+        "getsockname",
+        "getsockopt",
+        "get_thread_area",
+        "gettid",
+        "gettimeofday",
+        "getuid",
+        "getuid32",
+        "getxattr",
+        "inotify_add_watch",
+        "inotify_init",
+        "inotify_init1",
+        "inotify_rm_watch",
+        "io_cancel",
+        "ioctl",
+        "io_destroy",
+        "io_getevents",
+        "io_pgetevents",
+        "io_pgetevents_time64",
+        "ioprio_get",
+        "ioprio_set",
+        "io_setup",
+        "io_submit",
+        "ipc",
+        "kill",
+        "landlock_add_rule",
+        "landlock_create_ruleset",
+        "landlock_restrict_self",
+        "lchown",
+        "lchown32",
+        "lgetxattr",
+        "link",
+        "linkat",
+        "listen",
+        "listxattr",
+        "llistxattr",
+        "_llseek",
+        "lremovexattr",
+        "lseek",
+        "lsetxattr",
+        "lstat",
+        "lstat64",
+        "madvise",
+        "map_shadow_stack",
+        "membarrier",
+        "memfd_create",
+        "memfd_secret",
+        "mincore",
+        "mkdir",
+        "mkdirat",
+        "mknod",
+        "mknodat",
+        "mlock",
+        "mlock2",
+        "mlockall",
+        "mmap",
+        "mmap2",
+        "mprotect",
+        "mq_getsetattr",
+        "mq_notify",
+        "mq_open",
+        "mq_timedreceive",
+        "mq_timedreceive_time64",
+        "mq_timedsend",
+        "mq_timedsend_time64",
+        "mq_unlink",
+        "mremap",
+        "msgctl",
+        "msgget",
+        "msgrcv",
+        "msgsnd",
+        "msync",
+        "munlock",
+        "munlockall",
+        "munmap",
+        "name_to_handle_at",
+        "nanosleep",
+        "newfstatat",
+        "_newselect",
+        "open",
+        "openat",
+        "openat2",
+        "pause",
+        "pidfd_open",
+        "pidfd_send_signal",
+        "pipe",
+        "pipe2",
+        "pkey_alloc",
+        "pkey_free",
+        "pkey_mprotect",
+        "poll",
+        "ppoll",
+        "ppoll_time64",
+        "prctl",
+        "pread64",
+        "preadv",
+        "preadv2",
+        "prlimit64",
+        "process_mrelease",
+        "pselect6",
+        "pselect6_time64",
+        "pwrite64",
+        "pwritev",
+        "pwritev2",
+        "read",
+        "readahead",
+        "readlink",
+        "readlinkat",
+        "readv",
+        "recv",
+        "recvfrom",
+        "recvmmsg",
+        "recvmmsg_time64",
+        "recvmsg",
+        "remap_file_pages",
+        "removexattr",
+        "rename",
+        "renameat",
+        "renameat2",
+        "restart_syscall",
+        "rmdir",
+        "rseq",
+        "rt_sigaction",
+        "rt_sigpending",
+        "rt_sigprocmask",
+        "rt_sigqueueinfo",
+        "rt_sigreturn",
+        "rt_sigsuspend",
+        "rt_sigtimedwait",
+        "rt_sigtimedwait_time64",
+        "rt_tgsigqueueinfo",
+        "sched_getaffinity",
+        "sched_getattr",
+        "sched_getparam",
+        "sched_get_priority_max",
+        "sched_get_priority_min",
+        "sched_getscheduler",
+        "sched_rr_get_interval",
+        "sched_rr_get_interval_time64",
+        "sched_setaffinity",
+        "sched_setattr",
+        "sched_setparam",
+        "sched_setscheduler",
+        "sched_yield",
+        "seccomp",
+        "select",
+        "semctl",
+        "semget",
+        "semop",
+        "semtimedop",
+        "semtimedop_time64",
+        "send",
+        "sendfile",
+        "sendfile64",
+        "sendmmsg",
+        "sendmsg",
+        "sendto",
+        "setfsgid",
+        "setfsgid32",
+        "setfsuid",
+        "setfsuid32",
+        "setgid",
+        "setgid32",
+        "setgroups",
+        "setgroups32",
+        "setitimer",
+        "setpgid",
+        "setpriority",
+        "setregid",
+        "setregid32",
+        "setresgid",
+        "setresgid32",
+        "setresuid",
+        "setresuid32",
+        "setreuid",
+        "setreuid32",
+        "setrlimit",
+        "set_robust_list",
+        "setsid",
+        "setsockopt",
+        "set_thread_area",
+        "set_tid_address",
+        "setuid",
+        "setuid32",
+        "setxattr",
+        "shmat",
+        "shmctl",
+        "shmdt",
+        "shmget",
+        "shutdown",
+        "sigaltstack",
+        "signalfd",
+        "signalfd4",
+        "sigprocmask",
+        "sigreturn",
+        "socketcall",
+        "socketpair",
+        "splice",
+        "stat",
+        "stat64",
+        "statfs",
+        "statfs64",
+        "statx",
+        "symlink",
+        "symlinkat",
+        "sync",
+        "sync_file_range",
+        "syncfs",
+        "sysinfo",
+        "tee",
+        "tgkill",
+        "time",
+        "timer_create",
+        "timer_delete",
+        "timer_getoverrun",
+        "timer_gettime",
+        "timer_gettime64",
+        "timer_settime",
+        "timer_settime64",
+        "timerfd_create",
+        "timerfd_gettime",
+        "timerfd_gettime64",
+        "timerfd_settime",
+        "timerfd_settime64",
+        "times",
+        "tkill",
+        "truncate",
+        "truncate64",
+        "ugetrlimit",
+        "umask",
+        "uname",
+        "unlink",
+        "unlinkat",
+        "utime",
+        "utimensat",
+        "utimensat_time64",
+        "utimes",
+        "vfork",
+        "vmsplice",
+        "wait4",
+        "waitid",
+        "waitpid",
+        "write",
+        "writev"
+      ],
+      "action": "SCMP_ACT_ALLOW"
+    },
+    {
+      "names": [
+        "process_vm_readv",
+        "process_vm_writev",
+        "ptrace"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "minKernel": "4.8"
+      }
+    },
+    {
+      "names": [
+        "socket"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 40,
+          "op": "SCMP_CMP_NE"
+        }
+      ]
+    },
+    {
+      "names": [
+        "personality"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 0,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "personality"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 8,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "personality"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 131072,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "personality"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 131080,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "personality"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 4294967295,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "sync_file_range2",
+        "swapcontext"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "ppc64le"
+        ]
+      }
+    },
+    {
+      "names": [
+        "arm_fadvise64_64",
+        "arm_sync_file_range",
+        "sync_file_range2",
+        "breakpoint",
+        "cacheflush",
+        "set_tls"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "arm",
+          "arm64"
+        ]
+      }
+    },
+    {
+      "names": [
+        "arch_prctl"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "amd64",
+          "x32"
+        ]
+      }
+    },
+    {
+      "names": [
+        "modify_ldt"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "amd64",
+          "x32",
+          "x86"
+        ]
+      }
+    },
+    {
+      "names": [
+        "s390_pci_mmio_read",
+        "s390_pci_mmio_write",
+        "s390_runtime_instr"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "s390",
+          "s390x"
+        ]
+      }
+    },
+    {
+      "names": [
+        "riscv_flush_icache"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "riscv64"
+        ]
+      }
+    },
+    {
+      "names": [
+        "open_by_handle_at"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_DAC_READ_SEARCH"
+        ]
+      }
+    },
+    {
+      "names": [
+        "bpf",
+        "clone",
+        "clone3",
+        "fanotify_init",
+        "fsconfig",
+        "fsmount",
+        "fsopen",
+        "fspick",
+        "lookup_dcookie",
+        "mount",
+        "mount_setattr",
+        "move_mount",
+        "open_tree",
+        "perf_event_open",
+        "quotactl",
+        "quotactl_fd",
+        "setdomainname",
+        "sethostname",
+        "setns",
+        "syslog",
+        "umount",
+        "umount2",
+        "unshare"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "clone"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 0,
+          "value": 2114060288,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ],
+        "arches": [
+          "s390",
+          "s390x"
+        ]
+      }
+    },
+    {
+      "names": [
+        "clone"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "args": [
+        {
+          "index": 1,
+          "value": 2114060288,
+          "op": "SCMP_CMP_MASKED_EQ"
+        }
+      ],
+      "comment": "s390 parameter ordering for clone is different",
+      "includes": {
+        "arches": [
+          "s390",
+          "s390x"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "clone3"
+      ],
+      "action": "SCMP_ACT_ERRNO",
+      "errnoRet": 38,
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    },
+    {
+      "names": [
+        "reboot"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_BOOT"
+        ]
+      }
+    },
+    {
+      "names": [
+        "chroot"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_CHROOT"
+        ]
+      }
+    },
+    {
+      "names": [
+        "delete_module",
+        "init_module",
+        "finit_module"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_MODULE"
+        ]
+      }
+    },
+    {
+      "names": [
+        "acct"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_PACCT"
+        ]
+      }
+    },
+    {
+      "names": [
+        "kcmp",
+        "pidfd_getfd",
+        "process_madvise",
+        "process_vm_readv",
+        "process_vm_writev",
+        "ptrace"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_PTRACE"
+        ]
+      }
+    },
+    {
+      "names": [
+        "iopl",
+        "ioperm"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_RAWIO"
+        ]
+      }
+    },
+    {
+      "names": [
+        "settimeofday",
+        "stime",
+        "clock_settime",
+        "clock_settime64"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_TIME"
+        ]
+      }
+    },
+    {
+      "names": [
+        "vhangup"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_TTY_CONFIG"
+        ]
+      }
+    },
+    {
+      "names": [
+        "get_mempolicy",
+        "mbind",
+        "set_mempolicy",
+        "set_mempolicy_home_node"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYS_NICE"
+        ]
+      }
+    },
+    {
+      "names": [
+        "syslog"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_SYSLOG"
+        ]
+      }
+    },
+    {
+      "names": [
+        "bpf"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_BPF"
+        ]
+      }
+    },
+    {
+      "names": [
+        "perf_event_open"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "caps": [
+          "CAP_PERFMON"
+        ]
+      }
+    },
+    {
+      "names": [
+        "clone"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      },
+      "args": [
+        {
+          "index": 0,
+          "value": 268435473,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "clone"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      },
+      "args": [
+        {
+          "index": 0,
+          "value": 1879048209,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "clone"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      },
+      "args": [
+        {
+          "index": 0,
+          "value": 536870929,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "unshare"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      },
+      "args": [
+        {
+          "index": 0,
+          "value": 268435456,
+          "op": "SCMP_CMP_EQ"
+        }
+      ]
+    },
+    {
+      "names": [
+        "chroot"
+      ],
+      "action": "SCMP_ACT_ALLOW",
+      "includes": {
+        "arches": [
+          "amd64"
+        ]
+      },
+      "excludes": {
+        "caps": [
+          "CAP_SYS_ADMIN"
+        ]
+      }
+    }
+  ]
+}
+````
+
+### `tools/browser/review-only/moby-v28.0.4-default.json`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/browser/review-only/moby-v28.0.4-default.json sha256: 9c1025c88ccaa517b648da571961838744ea2137f176bfe6a48b21294cae9c76 -->
+````json
+{
+	"defaultAction": "SCMP_ACT_ERRNO",
+	"defaultErrnoRet": 1,
+	"archMap": [
+		{
+			"architecture": "SCMP_ARCH_X86_64",
+			"subArchitectures": [
+				"SCMP_ARCH_X86",
+				"SCMP_ARCH_X32"
+			]
+		},
+		{
+			"architecture": "SCMP_ARCH_AARCH64",
+			"subArchitectures": [
+				"SCMP_ARCH_ARM"
+			]
+		},
+		{
+			"architecture": "SCMP_ARCH_MIPS64",
+			"subArchitectures": [
+				"SCMP_ARCH_MIPS",
+				"SCMP_ARCH_MIPS64N32"
+			]
+		},
+		{
+			"architecture": "SCMP_ARCH_MIPS64N32",
+			"subArchitectures": [
+				"SCMP_ARCH_MIPS",
+				"SCMP_ARCH_MIPS64"
+			]
+		},
+		{
+			"architecture": "SCMP_ARCH_MIPSEL64",
+			"subArchitectures": [
+				"SCMP_ARCH_MIPSEL",
+				"SCMP_ARCH_MIPSEL64N32"
+			]
+		},
+		{
+			"architecture": "SCMP_ARCH_MIPSEL64N32",
+			"subArchitectures": [
+				"SCMP_ARCH_MIPSEL",
+				"SCMP_ARCH_MIPSEL64"
+			]
+		},
+		{
+			"architecture": "SCMP_ARCH_S390X",
+			"subArchitectures": [
+				"SCMP_ARCH_S390"
+			]
+		},
+		{
+			"architecture": "SCMP_ARCH_RISCV64",
+			"subArchitectures": null
+		}
+	],
+	"syscalls": [
+		{
+			"names": [
+				"accept",
+				"accept4",
+				"access",
+				"adjtimex",
+				"alarm",
+				"bind",
+				"brk",
+				"cachestat",
+				"capget",
+				"capset",
+				"chdir",
+				"chmod",
+				"chown",
+				"chown32",
+				"clock_adjtime",
+				"clock_adjtime64",
+				"clock_getres",
+				"clock_getres_time64",
+				"clock_gettime",
+				"clock_gettime64",
+				"clock_nanosleep",
+				"clock_nanosleep_time64",
+				"close",
+				"close_range",
+				"connect",
+				"copy_file_range",
+				"creat",
+				"dup",
+				"dup2",
+				"dup3",
+				"epoll_create",
+				"epoll_create1",
+				"epoll_ctl",
+				"epoll_ctl_old",
+				"epoll_pwait",
+				"epoll_pwait2",
+				"epoll_wait",
+				"epoll_wait_old",
+				"eventfd",
+				"eventfd2",
+				"execve",
+				"execveat",
+				"exit",
+				"exit_group",
+				"faccessat",
+				"faccessat2",
+				"fadvise64",
+				"fadvise64_64",
+				"fallocate",
+				"fanotify_mark",
+				"fchdir",
+				"fchmod",
+				"fchmodat",
+				"fchmodat2",
+				"fchown",
+				"fchown32",
+				"fchownat",
+				"fcntl",
+				"fcntl64",
+				"fdatasync",
+				"fgetxattr",
+				"flistxattr",
+				"flock",
+				"fork",
+				"fremovexattr",
+				"fsetxattr",
+				"fstat",
+				"fstat64",
+				"fstatat64",
+				"fstatfs",
+				"fstatfs64",
+				"fsync",
+				"ftruncate",
+				"ftruncate64",
+				"futex",
+				"futex_requeue",
+				"futex_time64",
+				"futex_wait",
+				"futex_waitv",
+				"futex_wake",
+				"futimesat",
+				"getcpu",
+				"getcwd",
+				"getdents",
+				"getdents64",
+				"getegid",
+				"getegid32",
+				"geteuid",
+				"geteuid32",
+				"getgid",
+				"getgid32",
+				"getgroups",
+				"getgroups32",
+				"getitimer",
+				"getpeername",
+				"getpgid",
+				"getpgrp",
+				"getpid",
+				"getppid",
+				"getpriority",
+				"getrandom",
+				"getresgid",
+				"getresgid32",
+				"getresuid",
+				"getresuid32",
+				"getrlimit",
+				"get_robust_list",
+				"getrusage",
+				"getsid",
+				"getsockname",
+				"getsockopt",
+				"get_thread_area",
+				"gettid",
+				"gettimeofday",
+				"getuid",
+				"getuid32",
+				"getxattr",
+				"inotify_add_watch",
+				"inotify_init",
+				"inotify_init1",
+				"inotify_rm_watch",
+				"io_cancel",
+				"ioctl",
+				"io_destroy",
+				"io_getevents",
+				"io_pgetevents",
+				"io_pgetevents_time64",
+				"ioprio_get",
+				"ioprio_set",
+				"io_setup",
+				"io_submit",
+				"ipc",
+				"kill",
+				"landlock_add_rule",
+				"landlock_create_ruleset",
+				"landlock_restrict_self",
+				"lchown",
+				"lchown32",
+				"lgetxattr",
+				"link",
+				"linkat",
+				"listen",
+				"listxattr",
+				"llistxattr",
+				"_llseek",
+				"lremovexattr",
+				"lseek",
+				"lsetxattr",
+				"lstat",
+				"lstat64",
+				"madvise",
+				"map_shadow_stack",
+				"membarrier",
+				"memfd_create",
+				"memfd_secret",
+				"mincore",
+				"mkdir",
+				"mkdirat",
+				"mknod",
+				"mknodat",
+				"mlock",
+				"mlock2",
+				"mlockall",
+				"mmap",
+				"mmap2",
+				"mprotect",
+				"mq_getsetattr",
+				"mq_notify",
+				"mq_open",
+				"mq_timedreceive",
+				"mq_timedreceive_time64",
+				"mq_timedsend",
+				"mq_timedsend_time64",
+				"mq_unlink",
+				"mremap",
+				"msgctl",
+				"msgget",
+				"msgrcv",
+				"msgsnd",
+				"msync",
+				"munlock",
+				"munlockall",
+				"munmap",
+				"name_to_handle_at",
+				"nanosleep",
+				"newfstatat",
+				"_newselect",
+				"open",
+				"openat",
+				"openat2",
+				"pause",
+				"pidfd_open",
+				"pidfd_send_signal",
+				"pipe",
+				"pipe2",
+				"pkey_alloc",
+				"pkey_free",
+				"pkey_mprotect",
+				"poll",
+				"ppoll",
+				"ppoll_time64",
+				"prctl",
+				"pread64",
+				"preadv",
+				"preadv2",
+				"prlimit64",
+				"process_mrelease",
+				"pselect6",
+				"pselect6_time64",
+				"pwrite64",
+				"pwritev",
+				"pwritev2",
+				"read",
+				"readahead",
+				"readlink",
+				"readlinkat",
+				"readv",
+				"recv",
+				"recvfrom",
+				"recvmmsg",
+				"recvmmsg_time64",
+				"recvmsg",
+				"remap_file_pages",
+				"removexattr",
+				"rename",
+				"renameat",
+				"renameat2",
+				"restart_syscall",
+				"rmdir",
+				"rseq",
+				"rt_sigaction",
+				"rt_sigpending",
+				"rt_sigprocmask",
+				"rt_sigqueueinfo",
+				"rt_sigreturn",
+				"rt_sigsuspend",
+				"rt_sigtimedwait",
+				"rt_sigtimedwait_time64",
+				"rt_tgsigqueueinfo",
+				"sched_getaffinity",
+				"sched_getattr",
+				"sched_getparam",
+				"sched_get_priority_max",
+				"sched_get_priority_min",
+				"sched_getscheduler",
+				"sched_rr_get_interval",
+				"sched_rr_get_interval_time64",
+				"sched_setaffinity",
+				"sched_setattr",
+				"sched_setparam",
+				"sched_setscheduler",
+				"sched_yield",
+				"seccomp",
+				"select",
+				"semctl",
+				"semget",
+				"semop",
+				"semtimedop",
+				"semtimedop_time64",
+				"send",
+				"sendfile",
+				"sendfile64",
+				"sendmmsg",
+				"sendmsg",
+				"sendto",
+				"setfsgid",
+				"setfsgid32",
+				"setfsuid",
+				"setfsuid32",
+				"setgid",
+				"setgid32",
+				"setgroups",
+				"setgroups32",
+				"setitimer",
+				"setpgid",
+				"setpriority",
+				"setregid",
+				"setregid32",
+				"setresgid",
+				"setresgid32",
+				"setresuid",
+				"setresuid32",
+				"setreuid",
+				"setreuid32",
+				"setrlimit",
+				"set_robust_list",
+				"setsid",
+				"setsockopt",
+				"set_thread_area",
+				"set_tid_address",
+				"setuid",
+				"setuid32",
+				"setxattr",
+				"shmat",
+				"shmctl",
+				"shmdt",
+				"shmget",
+				"shutdown",
+				"sigaltstack",
+				"signalfd",
+				"signalfd4",
+				"sigprocmask",
+				"sigreturn",
+				"socketcall",
+				"socketpair",
+				"splice",
+				"stat",
+				"stat64",
+				"statfs",
+				"statfs64",
+				"statx",
+				"symlink",
+				"symlinkat",
+				"sync",
+				"sync_file_range",
+				"syncfs",
+				"sysinfo",
+				"tee",
+				"tgkill",
+				"time",
+				"timer_create",
+				"timer_delete",
+				"timer_getoverrun",
+				"timer_gettime",
+				"timer_gettime64",
+				"timer_settime",
+				"timer_settime64",
+				"timerfd_create",
+				"timerfd_gettime",
+				"timerfd_gettime64",
+				"timerfd_settime",
+				"timerfd_settime64",
+				"times",
+				"tkill",
+				"truncate",
+				"truncate64",
+				"ugetrlimit",
+				"umask",
+				"uname",
+				"unlink",
+				"unlinkat",
+				"utime",
+				"utimensat",
+				"utimensat_time64",
+				"utimes",
+				"vfork",
+				"vmsplice",
+				"wait4",
+				"waitid",
+				"waitpid",
+				"write",
+				"writev"
+			],
+			"action": "SCMP_ACT_ALLOW"
+		},
+		{
+			"names": [
+				"process_vm_readv",
+				"process_vm_writev",
+				"ptrace"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"minKernel": "4.8"
+			}
+		},
+		{
+			"names": [
+				"socket"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"args": [
+				{
+					"index": 0,
+					"value": 40,
+					"op": "SCMP_CMP_NE"
+				}
+			]
+		},
+		{
+			"names": [
+				"personality"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"args": [
+				{
+					"index": 0,
+					"value": 0,
+					"op": "SCMP_CMP_EQ"
+				}
+			]
+		},
+		{
+			"names": [
+				"personality"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"args": [
+				{
+					"index": 0,
+					"value": 8,
+					"op": "SCMP_CMP_EQ"
+				}
+			]
+		},
+		{
+			"names": [
+				"personality"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"args": [
+				{
+					"index": 0,
+					"value": 131072,
+					"op": "SCMP_CMP_EQ"
+				}
+			]
+		},
+		{
+			"names": [
+				"personality"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"args": [
+				{
+					"index": 0,
+					"value": 131080,
+					"op": "SCMP_CMP_EQ"
+				}
+			]
+		},
+		{
+			"names": [
+				"personality"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"args": [
+				{
+					"index": 0,
+					"value": 4294967295,
+					"op": "SCMP_CMP_EQ"
+				}
+			]
+		},
+		{
+			"names": [
+				"sync_file_range2",
+				"swapcontext"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"arches": [
+					"ppc64le"
+				]
+			}
+		},
+		{
+			"names": [
+				"arm_fadvise64_64",
+				"arm_sync_file_range",
+				"sync_file_range2",
+				"breakpoint",
+				"cacheflush",
+				"set_tls"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"arches": [
+					"arm",
+					"arm64"
+				]
+			}
+		},
+		{
+			"names": [
+				"arch_prctl"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"arches": [
+					"amd64",
+					"x32"
+				]
+			}
+		},
+		{
+			"names": [
+				"modify_ldt"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"arches": [
+					"amd64",
+					"x32",
+					"x86"
+				]
+			}
+		},
+		{
+			"names": [
+				"s390_pci_mmio_read",
+				"s390_pci_mmio_write",
+				"s390_runtime_instr"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"arches": [
+					"s390",
+					"s390x"
+				]
+			}
+		},
+		{
+			"names": [
+				"riscv_flush_icache"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"arches": [
+					"riscv64"
+				]
+			}
+		},
+		{
+			"names": [
+				"open_by_handle_at"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"caps": [
+					"CAP_DAC_READ_SEARCH"
+				]
+			}
+		},
+		{
+			"names": [
+				"bpf",
+				"clone",
+				"clone3",
+				"fanotify_init",
+				"fsconfig",
+				"fsmount",
+				"fsopen",
+				"fspick",
+				"lookup_dcookie",
+				"mount",
+				"mount_setattr",
+				"move_mount",
+				"open_tree",
+				"perf_event_open",
+				"quotactl",
+				"quotactl_fd",
+				"setdomainname",
+				"sethostname",
+				"setns",
+				"syslog",
+				"umount",
+				"umount2",
+				"unshare"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"caps": [
+					"CAP_SYS_ADMIN"
+				]
+			}
+		},
+		{
+			"names": [
+				"clone"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"args": [
+				{
+					"index": 0,
+					"value": 2114060288,
+					"op": "SCMP_CMP_MASKED_EQ"
+				}
+			],
+			"excludes": {
+				"caps": [
+					"CAP_SYS_ADMIN"
+				],
+				"arches": [
+					"s390",
+					"s390x"
+				]
+			}
+		},
+		{
+			"names": [
+				"clone"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"args": [
+				{
+					"index": 1,
+					"value": 2114060288,
+					"op": "SCMP_CMP_MASKED_EQ"
+				}
+			],
+			"comment": "s390 parameter ordering for clone is different",
+			"includes": {
+				"arches": [
+					"s390",
+					"s390x"
+				]
+			},
+			"excludes": {
+				"caps": [
+					"CAP_SYS_ADMIN"
+				]
+			}
+		},
+		{
+			"names": [
+				"clone3"
+			],
+			"action": "SCMP_ACT_ERRNO",
+			"errnoRet": 38,
+			"excludes": {
+				"caps": [
+					"CAP_SYS_ADMIN"
+				]
+			}
+		},
+		{
+			"names": [
+				"reboot"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"caps": [
+					"CAP_SYS_BOOT"
+				]
+			}
+		},
+		{
+			"names": [
+				"chroot"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"caps": [
+					"CAP_SYS_CHROOT"
+				]
+			}
+		},
+		{
+			"names": [
+				"delete_module",
+				"init_module",
+				"finit_module"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"caps": [
+					"CAP_SYS_MODULE"
+				]
+			}
+		},
+		{
+			"names": [
+				"acct"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"caps": [
+					"CAP_SYS_PACCT"
+				]
+			}
+		},
+		{
+			"names": [
+				"kcmp",
+				"pidfd_getfd",
+				"process_madvise",
+				"process_vm_readv",
+				"process_vm_writev",
+				"ptrace"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"caps": [
+					"CAP_SYS_PTRACE"
+				]
+			}
+		},
+		{
+			"names": [
+				"iopl",
+				"ioperm"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"caps": [
+					"CAP_SYS_RAWIO"
+				]
+			}
+		},
+		{
+			"names": [
+				"settimeofday",
+				"stime",
+				"clock_settime",
+				"clock_settime64"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"caps": [
+					"CAP_SYS_TIME"
+				]
+			}
+		},
+		{
+			"names": [
+				"vhangup"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"caps": [
+					"CAP_SYS_TTY_CONFIG"
+				]
+			}
+		},
+		{
+			"names": [
+				"get_mempolicy",
+				"mbind",
+				"set_mempolicy",
+				"set_mempolicy_home_node"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"caps": [
+					"CAP_SYS_NICE"
+				]
+			}
+		},
+		{
+			"names": [
+				"syslog"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"caps": [
+					"CAP_SYSLOG"
+				]
+			}
+		},
+		{
+			"names": [
+				"bpf"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"caps": [
+					"CAP_BPF"
+				]
+			}
+		},
+		{
+			"names": [
+				"perf_event_open"
+			],
+			"action": "SCMP_ACT_ALLOW",
+			"includes": {
+				"caps": [
+					"CAP_PERFMON"
+				]
+			}
+		}
+	]
+}
+````
+
+### `tools/browser/review-only/proposal-manifest.json`
+
+**作用：项目根配置或说明。** 按文件名原样保存到项目根目录；点号开头的文件也是实际文件。Python代码读取.env，uv读取pyproject及锁，Git读取忽略/换行规则，Alembic读取迁移配置；各文件不是任意替换关系。
+
+**对应关系：** 先按正文准备基础文件，再安装依赖；README是演示入口，完整实现路径在本教材。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+<!-- source-file: tools/browser/review-only/proposal-manifest.json sha256: 8b82fca4f81ea0f2ad244ca9fe4d2c4a740cf88b74b71266836008db0cf7d36b -->
+````json
+{
+  "status": "inactive-review-only",
+  "activation_authorized": false,
+  "live_validation": false,
+  "scope": {
+    "engine": "28.0.4",
+    "architecture": "amd64",
+    "chromium": "141.0.7390.37",
+    "playwright": "1.56.1",
+    "initial_capability_bounding_set": []
+  },
+  "baseline": {
+    "file": "moby-v28.0.4-default.json",
+    "upstream_url": "https://github.com/moby/moby/blob/6430e49a55babd9b8f4d08e70ecb2b68900770fe/profiles/seccomp/default.json",
+    "upstream_commit": "6430e49a55babd9b8f4d08e70ecb2b68900770fe",
+    "sha256": "9c1025c88ccaa517b648da571961838744ea2137f176bfe6a48b21294cae9c76",
+    "representation": "UTF-8 content returned by the GitHub connector, preserved without reformatting"
+  },
+  "proposal": {
+    "file": "chromium141-docker28-amd64.proposal.json",
+    "sha256": "f62d10d5ce466dfd0714d61891ef7b94445367c8a6a303302f4c3956687f3504"
+  },
+  "upstream_license": "LICENSE.moby",
+  "chromium_sources": [
+    {
+      "url": "https://github.com/chromium/chromium/blob/9f043f63b0e5b728c8d09f3e3ddfc1681a4bd58e/sandbox/linux/services/namespace_sandbox.cc",
+      "sha256": "ae3ecf1e474c970cfbe5413b1ec3aa99895f3dcced7c1ae774955c307218cd8c",
+      "representation": "UTF-8 content returned by the GitHub connector"
+    },
+    {
+      "url": "https://github.com/chromium/chromium/blob/9f043f63b0e5b728c8d09f3e3ddfc1681a4bd58e/sandbox/linux/services/credentials.cc",
+      "sha256": "43e3968be3683c5c81b3992c97e113668d5bc83e06e0f0e3ca9236f4dedce372",
+      "representation": "UTF-8 content returned by the GitHub connector"
+    },
+    {
+      "url": "https://github.com/chromium/chromium/blob/9f043f63b0e5b728c8d09f3e3ddfc1681a4bd58e/base/process/launch_posix.cc",
+      "sha256": "6b4c567d78c6ae4ec5899521c152ed4765041b9d29baf269370743c9efe264e0",
+      "representation": "UTF-8 content returned by the GitHub connector"
+    },
+    {
+      "url": "https://github.com/chromium/chromium/blob/9f043f63b0e5b728c8d09f3e3ddfc1681a4bd58e/sandbox/linux/services/namespace_utils.cc",
+      "sha256": "ccc94e6dc8ec2d7f0eeb1e37362dbbd343ef23da952ecabe801f491d69cff1c0",
+      "representation": "UTF-8 content returned by the GitHub connector"
+    }
+  ],
+  "json_patch": [
+    {
+      "op": "add",
+      "path": "/syscalls/-",
+      "value": {
+        "names": [
+          "clone"
+        ],
+        "action": "SCMP_ACT_ALLOW",
+        "includes": {
+          "arches": [
+            "amd64"
+          ]
+        },
+        "excludes": {
+          "caps": [
+            "CAP_SYS_ADMIN"
+          ]
+        },
+        "args": [
+          {
+            "index": 0,
+            "value": 268435473,
+            "op": "SCMP_CMP_EQ"
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/syscalls/-",
+      "value": {
+        "names": [
+          "clone"
+        ],
+        "action": "SCMP_ACT_ALLOW",
+        "includes": {
+          "arches": [
+            "amd64"
+          ]
+        },
+        "excludes": {
+          "caps": [
+            "CAP_SYS_ADMIN"
+          ]
+        },
+        "args": [
+          {
+            "index": 0,
+            "value": 1879048209,
+            "op": "SCMP_CMP_EQ"
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/syscalls/-",
+      "value": {
+        "names": [
+          "clone"
+        ],
+        "action": "SCMP_ACT_ALLOW",
+        "includes": {
+          "arches": [
+            "amd64"
+          ]
+        },
+        "excludes": {
+          "caps": [
+            "CAP_SYS_ADMIN"
+          ]
+        },
+        "args": [
+          {
+            "index": 0,
+            "value": 536870929,
+            "op": "SCMP_CMP_EQ"
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/syscalls/-",
+      "value": {
+        "names": [
+          "unshare"
+        ],
+        "action": "SCMP_ACT_ALLOW",
+        "includes": {
+          "arches": [
+            "amd64"
+          ]
+        },
+        "excludes": {
+          "caps": [
+            "CAP_SYS_ADMIN"
+          ]
+        },
+        "args": [
+          {
+            "index": 0,
+            "value": 268435456,
+            "op": "SCMP_CMP_EQ"
+          }
+        ]
+      }
+    },
+    {
+      "op": "add",
+      "path": "/syscalls/-",
+      "value": {
+        "names": [
+          "chroot"
+        ],
+        "action": "SCMP_ACT_ALLOW",
+        "includes": {
+          "arches": [
+            "amd64"
+          ]
+        },
+        "excludes": {
+          "caps": [
+            "CAP_SYS_ADMIN"
+          ]
+        }
+      }
+    }
+  ]
+}
 ````
 
 ### `tools/browser/seccomp.playwright-1.56.1.json`
@@ -176111,7 +183886,7 @@ authorize it.
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/candidate-browser-isolation.md sha256: e4c3a9e9e56c77806d0dd74cf2c21985e5625f40755a77ef10b20f03dc8275fe -->
+<!-- source-file: docs/candidate-browser-isolation.md sha256: 38d554f22dd32a1fff278525d0925d5708a12d9bdaf7eb702a3bcecbe979b2b4 -->
 ````markdown
 # Candidate browser isolation (experimental, fail closed)
 
@@ -176182,12 +183957,31 @@ otherwise writable worker-owned directory; a generic permission error fails.
 The runtime probe also requires UID/GID 1000, no-new-privileges, active seccomp
 filter mode and zero inheritable/permitted/effective/bounding/ambient capabilities.
 
-The image currently uses the standard Docker security profile. Whether the
-runner permits Chromium's user namespaces is deliberately established by live
-CI rather than assumed; failure keeps arbitrary-source execution unavailable.
-An unmodified pinned upstream profile is prepared for review only; see
-`tools/browser/SECCOMP-REVIEW.md` for its exact namespace rule and activation
-requirements. It is image/receipt-bound but is not automatically selected.
+Ordinary callers use the standard Docker security profile. The three approved
+Actions isolation workflows explicitly select the reviewed native-amd64 v2
+profile only for their disposable offline browser workers. Selection requires
+Docker server 28.0.4, the fixed policy SHA-256, supported daemon/image/controller
+architecture and the approved Actions repository/workflow. No arbitrary path or
+candidate-supplied policy is accepted. The created container's inline profile
+and explicit `apparmor=docker-default` configuration are inspected before start.
+The trusted worker and probes also read the actual kernel label and require exact
+`docker-default (enforce)` bytes before browser or syscall work; an empty inspect
+field is never accepted as proof. See
+`tools/browser/review-only-v2/README.md` for exact allowances and risks.
+
+The v3 receipt binds policy, source and immutable image to observed engine,
+kernel, runtime versions and matching runtime build metadata. The fixed
+`/usr/bin/runc` artifact must match the daemon-reported version and commit;
+its hash and reported libseccomp version are retained as matching-build evidence.
+Docker's API does not attest the daemon's exact linked libseccomp library, and
+this artifact observation is not represented as such an attestation.
+
+The trusted worker verifies native Node/Chromium ABI and pinned versions. A
+separate raw-syscall probe requires 28 exact native-socket, high-word VSOCK,
+x86/x32, namespace, clone3 and io_uring outcomes. Failure, a different errno,
+missing kernel support, crash or timeout cannot certify isolation. Positive
+browser behavior and all existing resource/cleanup gates remain mandatory;
+AppArmor or namespace incompatibility stays a blocking failure.
 The report is only one prerequisite: application sandbox/network/database
 acceptance and exact source/image binding remain mandatory separately.
 ````

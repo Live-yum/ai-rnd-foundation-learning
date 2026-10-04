@@ -4,12 +4,14 @@ import copy
 import difflib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
 from scripts import daytona_capability_profile as profile
 from scripts import daytona_local as local
 from scripts.daytona_bootstrap import snapshot_resources
+from workbench.capability_isolation import ContainerInspectionRejected
 
 RUNNER = "sha256:" + "a" * 64
 SNAPSHOT = "sha256:" + "b" * 64
@@ -232,10 +234,178 @@ def inspection(tmp_path, monkeypatch):
         calls.append(args)
         if "info" in args:
             return json.dumps(inner.get("engine_security", ["name=seccomp,profile=builtin"]))
+        if "network" in args:
+            return json.dumps(inner["bridge_inspect"])
         return json.dumps([outer if args[0] == "container" else inner])
 
     monkeypatch.setattr(local, "docker", docker)
     return tmp_path, outer, inner, calls
+
+
+@pytest.fixture
+def execution_inspection(inspection):
+    _, _, inner, _ = inspection
+    inner["HostConfig"].update(
+        Memory=2 * 1024**3,
+        MemorySwap=2 * 1024**3,
+        CpuPeriod=100000,
+        CpuQuota=100000,
+        PidsLimit=256,
+        Tmpfs={"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"},
+    )
+    inner["NetworkSettings"] = {"Networks": {"runner-bridge": {}}}
+    inner["bridge_inspect"] = [
+        {
+            "EnableIPv6": False,
+            "Driver": "bridge",
+            "IPAM": {"Config": [{"Subnet": local.RUNNER_BRIDGE_SUBNET}]},
+        }
+    ]
+    inner["Mounts"].append({"Type": "tmpfs", "Destination": "/tmp", "RW": True, "Source": ""})
+    return inspection
+
+
+def test_execution_inspection_still_accepts_exact_resource_network_and_mount_policy(
+    execution_inspection,
+):
+    directory, _, _, calls = execution_inspection
+    proof = profile.inspect_created_sandbox(directory, SANDBOX, require_resources=True)
+    assert proof["resource_limits"] == {
+        "cpu_period": 100000,
+        "cpu_quota": 100000,
+        "memory": 2 * 1024**3,
+        "memory_swap": 2 * 1024**3,
+        "tmpfs_bytes": 1073741824,
+        "pids": 256,
+    }
+    assert proof["trusted_readonly_binary_mounts"] is True
+    assert len(calls) == 4
+
+
+@pytest.mark.parametrize(
+    "mutation,category,facts",
+    [
+        (
+            lambda row: row["HostConfig"].update(NetworkMode="default"),
+            "sandbox_network",
+            {"network_mode": "default", "network_count": 1, "runner_bridge_attached": True},
+        ),
+        (
+            lambda row: row["NetworkSettings"]["Networks"].update({"secret-network": {}}),
+            "sandbox_network",
+            {"network_mode": "runner-bridge", "network_count": 2, "runner_bridge_attached": True},
+        ),
+        (
+            lambda row: row["HostConfig"].update(NetworkMode="secret-network"),
+            "sandbox_network",
+            {"network_mode": "other", "network_count": 1, "runner_bridge_attached": True},
+        ),
+        (
+            lambda row: row["bridge_inspect"][0].update(EnableIPv6=True),
+            "runner_bridge",
+            {"bridge_ipv6_disabled": False, "bridge_driver_matches": True},
+        ),
+        (
+            lambda row: row["HostConfig"].update(MemorySwap=-1),
+            "resource_limits",
+            {"memory_swap": -1, "memory": 2 * 1024**3, "tmpfs_options_match": True},
+        ),
+        (
+            lambda row: row["HostConfig"].update(Tmpfs={"/secret-path": "secret-option"}),
+            "resource_limits",
+            {"tmpfs_keys_match": False, "tmpfs_options_match": False},
+        ),
+        (
+            lambda row: row["Mounts"][0].update(Source="/secret-path"),
+            "binary_mounts",
+            {"mount_sources_match": False, "mount_readonly_matches": True, "mount_count": 2},
+        ),
+        (
+            lambda row: row["Mounts"][-1].update(Destination="/secret-path", RW=False),
+            "tmpfs_mounts",
+            {"mount_destinations_match": False, "mount_writable_matches": False, "mount_count": 1},
+        ),
+    ],
+)
+def test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data(
+    execution_inspection, settings, mutation, category, facts
+):
+    from scripts.ci_capability_profile import fixed_application
+    from workbench.capability_sandbox import _verify
+
+    directory, _, inner, calls = execution_inspection
+    mutation(inner)
+    product = directory / "product"
+    plan = fixed_application(product)
+    operations = []
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Inspector rejection must stop before source upload or execution")
+
+    sandbox = SimpleNamespace(
+        id=SANDBOX,
+        fs=SimpleNamespace(create_folder=forbidden, upload_file=forbidden),
+        process=SimpleNamespace(exec=forbidden),
+    )
+    client = SimpleNamespace(
+        create=lambda *a, **k: sandbox, delete=lambda *a, **k: operations.append("deleted")
+    )
+    settings.daytona_snapshot = "fixture-owned-snapshot"
+    receipt_path = directory / "receipt.json"
+    result = _verify(
+        product,
+        plan,
+        plan.scenarios,
+        settings,
+        plan.selection.model_dump(),
+        receipt_path,
+        client=client,
+        aggregate=True,
+        control_observer=lambda identifier: profile.inspect_created_sandbox(
+            directory, identifier, require_resources=True
+        ),
+    )
+    assert result["passed"] is False and result["cleanup"] == "deleted"
+    assert result["kind"] == "isolation_environment" and operations == ["deleted"]
+    assert "container_isolation" not in result
+    diagnostic = result["isolation_diagnostic"]
+    assert diagnostic["container_rejection"] == category
+    assert diagnostic.items() >= facts.items()
+    assert json.loads(receipt_path.read_text()) == result
+    assert "secret" not in receipt_path.read_text().lower()
+    assert "must-not-be-in-receipt" not in receipt_path.read_text()
+    assert len(calls) == (3 if category == "sandbox_network" else 4)
+
+
+def test_inspector_diagnostics_allow_only_finite_fields_values_and_bounded_numbers():
+    error = ContainerInspectionRejected(
+        "secret exception text",
+        category="resource_limits",
+        facts={
+            "memory": 2 * 1024**3,
+            "memory_swap": -(2**100),
+            "cpu_period": True,
+            "cpu_quota": "secret quota",
+            "pids_limit": 256,
+            "tmpfs_options_match": "secret flag",
+            "environment": {"TOKEN": "secret"},
+            "mount_path": "/secret",
+        },
+    )
+    expected = {
+        "container_rejection": "resource_limits",
+        "memory": 2 * 1024**3,
+        "memory_swap": None,
+        "cpu_period": None,
+        "cpu_quota": None,
+        "pids_limit": 256,
+        "tmpfs_options_match": None,
+    }
+    assert error.diagnostic() == expected
+    error._facts.update(environment="secret", cpu_quota="secret")
+    assert error.diagnostic() == expected
+    error._category = "secret category"
+    assert error.diagnostic() == {}
 
 
 def test_readonly_inspection_is_scoped_to_owned_uuid_and_redacts_everything_else(inspection):

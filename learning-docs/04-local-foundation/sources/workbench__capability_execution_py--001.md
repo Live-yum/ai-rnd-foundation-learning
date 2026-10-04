@@ -15,20 +15,20 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `security_checks_for`（L104–L109）：接收`selection`。 控制顺序：L105按`selection.get("template") == "fastapiadmin"`分支。 调用`selection.get`、`set`。 返回路径：L106的`(set(SECURITY_CHECKS) - {"all_tcp_destinations_denied"}) \| set( NATIVE_SECURITY_CHECKS )`；L109的`set(SECURITY_CHECKS)`。
-- `receipt_name`（L112–L117）：接收`selection`。 调用`selection.get`。 返回路径：L113的`"native-fastapiadmin-security-acceptance.json" if selection.get("template") == "fastapiadm…`。
-- `verifier_identity`（L120–L121）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`digest`、`sha`。 返回路径：L121的`digest({name: sha(ROOT / name) for name in SOURCE_FILES})`。
-- `profile_binding`（L124–L131）：接收`record`。 返回路径：L125的`{ "recipe_identity": record["recipe_identity"], "runner_image_id": record["runner"]["image…`。
-- `require_security_receipt`（L134–L170）：接收`value`、`record`、`browser_image`。 控制顺序：L150按`not isinstance(value, dict) or set(value) != expected or value.get("protocol") != PRO…`分支；L169抛异常，停止当前正常路径。 调用`record.get`、`Selection(template="python-basic").model_dump`、`Selection`、`security_checks_for`、`isinstance`、`set`、`value.get`、`verifier_identity`、`profile_binding`等。 返回路径：L170的`value`。
-- `capability_execution_prerequisites`（L173–L228）：接收`settings`、`selection`。 源码说明：Read-only gate; never runs candidate code or calls a model. Return the exact verified profile directory/record. Missing conditions are recoverable execution blockers; callers must retain the plan and 。 控制顺序：L183按`not settings.capability_execution_enabled`分支；L184抛异常，停止当前正常路径；L188按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L192抛异常，停止当前正常路径；L196按`settings.sandbox_provider != "daytona"`分支；L197抛异常，停止当前正常路径；L208按`directory.is_relative_to(runs)`分支；L209抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`Selection.model_validate(selection).model_dump`、`Selection.model_validate`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`require_browser_acceptance`、`Path(settings.capability_profile_directory).resolve`、`Path`等。 返回路径：L228的`directory, record`。
+- `security_checks_for`（L108–L113）：接收`selection`。 控制顺序：L109按`selection.get("template") == "fastapiadmin"`分支。 调用`selection.get`、`set`。 返回路径：L110的`(set(SECURITY_CHECKS) - {"all_tcp_destinations_denied"}) \| set( NATIVE_SECURITY_CHECKS )`；L113的`set(SECURITY_CHECKS)`。
+- `receipt_name`（L116–L121）：接收`selection`。 调用`selection.get`。 返回路径：L117的`"native-fastapiadmin-security-acceptance.json" if selection.get("template") == "fastapiadm…`。
+- `verifier_identity`（L124–L125）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`digest`、`sha`。 返回路径：L125的`digest({name: sha(ROOT / name) for name in SOURCE_FILES})`。
+- `profile_binding`（L128–L135）：接收`record`。 返回路径：L129的`{ "recipe_identity": record["recipe_identity"], "runner_image_id": record["runner"]["image…`。
+- `require_security_receipt`（L138–L174）：接收`value`、`record`、`browser_image`。 控制顺序：L154按`not isinstance(value, dict) or set(value) != expected or value.get("protocol") != PRO…`分支；L173抛异常，停止当前正常路径。 调用`record.get`、`Selection(template="python-basic").model_dump`、`Selection`、`security_checks_for`、`isinstance`、`set`、`value.get`、`verifier_identity`、`profile_binding`等。 返回路径：L174的`value`。
+- `capability_execution_prerequisites`（L177–L232）：接收`settings`、`selection`。 源码说明：Read-only gate; never runs candidate code or calls a model. Return the exact verified profile directory/record. Missing conditions are recoverable execution blockers; callers must retain the plan and 。 控制顺序：L187按`not settings.capability_execution_enabled`分支；L188抛异常，停止当前正常路径；L192按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L196抛异常，停止当前正常路径；L200按`settings.sandbox_provider != "daytona"`分支；L201抛异常，停止当前正常路径；L212按`directory.is_relative_to(runs)`分支；L213抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`Selection.model_validate(selection).model_dump`、`Selection.model_validate`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`require_browser_acceptance`、`Path(settings.capability_profile_directory).resolve`、`Path`等。 返回路径：L232的`directory, record`。
 
 </details>
 
-**创建路径：** `workbench/capability_execution.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L228。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_execution.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L232。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`8952`。本段原文以LF换行结束。
+本段原始字节数：`9179`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_execution.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1571be0273ed5206f863fb6b0fb1738f2c6f9ca4a9ed2923ddd8c90ec9e289ff"} -->
+<!-- learning-source: {"path": "workbench/capability_execution.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e8e0aa6c7b438d2bbce18548a264016c33bbe637ccdc60d0dfb3dd2344908fbc"} -->
 ````python
 # workbench/capability_execution.py
 """Fail-closed admission for reviewed custom-source execution.
@@ -54,6 +54,10 @@ from workbench.settings import ROOT
 RECEIPT = "capability-security-acceptance.json"
 PROTOCOL = "custom-source-isolation-v1"
 SOURCE_FILES = (
+    "scripts/capability_browser_apparmor.cjs",
+    "workbench/capability_browser_policy.py",
+    "scripts/capability_browser_seccomp_probe.c",
+    "tools/browser/review-only-v2/chromium141-docker28-native-amd64.proposal.json",
     "workbench/capability_execution.py",
     "workbench/capability_sandbox.py",
     "workbench/capability_isolation.py",

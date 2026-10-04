@@ -60,6 +60,7 @@
 
 - [scripts/extension_oracles/contest.py](04-local-foundation/sources/scripts__extension_oracles__contest_py--001.md)（1 段）
 - [workbench/capability_browser_isolation.py](04-local-foundation/sources/workbench__capability_browser_isolation_py--001.md)（1 段）
+- [workbench/capability_browser_policy.py](04-local-foundation/sources/workbench__capability_browser_policy_py--001.md)（1 段）
 - [workbench/capability_contest_oracle.py](04-local-foundation/sources/workbench__capability_contest_oracle_py--001.md)（1 段）
 - [workbench/capability_contracts.py](04-local-foundation/sources/workbench__capability_contracts_py--001.md)（1 段）
 - [workbench/capability_execution.py](04-local-foundation/sources/workbench__capability_execution_py--001.md)（1 段）
@@ -333,6 +334,15 @@
 - [tools/browser/Dockerfile](11-local-tools/sources/tools__browser__Dockerfile--001.md)（1 段）
 - [tools/browser/LICENSE.playwright](11-local-tools/sources/tools__browser__LICENSE_playwright--001.md)（1 段）
 - [tools/browser/SECCOMP-REVIEW.md](11-local-tools/sources/tools__browser__SECCOMP-REVIEW_md--001.md)（1 段）
+- [tools/browser/review-only-v2/README.md](11-local-tools/sources/tools__browser__review-only-v2__README_md--001.md)（1 段）
+- [tools/browser/review-only-v2/chromium141-docker28-native-amd64.proposal.json](11-local-tools/sources/tools__browser__review-only-v2__chromium141-docker28-native-amd64_proposal_json--001.md)（1 段）
+- [tools/browser/review-only-v2/proposal-manifest.json](11-local-tools/sources/tools__browser__review-only-v2__proposal-manifest_json--001.md)（1 段）
+- [tools/browser/review-only-v2/review_profile.py](11-local-tools/sources/tools__browser__review-only-v2__review_profile_py--001.md)（1 段）
+- [tools/browser/review-only/LICENSE.moby](11-local-tools/sources/tools__browser__review-only__LICENSE_moby--001.md)（1 段）
+- [tools/browser/review-only/README.md](11-local-tools/sources/tools__browser__review-only__README_md--001.md)（1 段）
+- [tools/browser/review-only/chromium141-docker28-amd64.proposal.json](11-local-tools/sources/tools__browser__review-only__chromium141-docker28-amd64_proposal_json--001.md)（1 段）
+- [tools/browser/review-only/moby-v28.0.4-default.json](11-local-tools/sources/tools__browser__review-only__moby-v28_0_4-default_json--001.md)（1 段）
+- [tools/browser/review-only/proposal-manifest.json](11-local-tools/sources/tools__browser__review-only__proposal-manifest_json--001.md)（1 段）
 - [tools/browser/seccomp.playwright-1.56.1.json](11-local-tools/sources/tools__browser__seccomp_playwright-1_56_1_json--001.md)（1 段）
 - [tools/embeddings/pyproject.toml](11-local-tools/sources/tools__embeddings__pyproject_toml--001.md)（1 段）
 - [tools/embeddings/uv.lock](11-local-tools/sources/locks/tools__embeddings__uv_lock--001.md)（1 段）
@@ -469,7 +479,9 @@
 - [scripts/build_handbook.py](14-acceptance/sources/scripts__build_handbook_py--001.md)（1 段）
 - [scripts/build_learning_docs.py](14-acceptance/sources/scripts__build_learning_docs_py--001.md)（1 段）
 - [scripts/capability_browser.cjs](14-acceptance/sources/scripts__capability_browser_cjs--001.md)（1 段）
+- [scripts/capability_browser_apparmor.cjs](14-acceptance/sources/scripts__capability_browser_apparmor_cjs--001.md)（1 段）
 - [scripts/capability_browser_network_probe.cjs](14-acceptance/sources/scripts__capability_browser_network_probe_cjs--001.md)（1 段）
+- [scripts/capability_browser_seccomp_probe.c](14-acceptance/sources/scripts__capability_browser_seccomp_probe_c--001.md)（1 段）
 - [scripts/capability_browser_worker.cjs](14-acceptance/sources/scripts__capability_browser_worker_cjs--001.md)（1 段）
 - [scripts/capability_fixture.py](14-acceptance/sources/scripts__capability_fixture_py--001.md)（1 段）
 - [scripts/capability_guard.py](14-acceptance/sources/scripts__capability_guard_py--001.md)（1 段）
@@ -495,9 +507,16 @@
 - [scripts/rebuild_from_handbook.py](14-acceptance/sources/scripts__rebuild_from_handbook_py--001.md)（1 段）
 - [scripts/rebuild_learning_docs.py](14-acceptance/sources/scripts__rebuild_learning_docs_py--001.md)（1 段）
 - [scripts/signup_scope_browser.cjs](14-acceptance/sources/scripts__signup_scope_browser_cjs--001.md)（1 段）
+- [tests/test_capability_browser_activation_review.py](14-acceptance/sources/tests__test_capability_browser_activation_review_py--001.md)（1 段）
+- [tests/test_capability_browser_apparmor.py](14-acceptance/sources/tests__test_capability_browser_apparmor_py--001.md)（1 段）
+- [tests/test_capability_browser_apparmor_review.py](14-acceptance/sources/tests__test_capability_browser_apparmor_review_py--001.md)（1 段）
 - [tests/test_capability_browser_isolation.py](14-acceptance/sources/tests__test_capability_browser_isolation_py--001.md)（1 段）
+- [tests/test_capability_browser_policy.py](14-acceptance/sources/tests__test_capability_browser_policy_py--001.md)（1 段）
 - [tests/test_capability_browser_preflight.py](14-acceptance/sources/tests__test_capability_browser_preflight_py--001.md)（1 段）
 - [tests/test_capability_browser_protocol.py](14-acceptance/sources/tests__test_capability_browser_protocol_py--001.md)（2 段）
+- [tests/test_capability_browser_seccomp_proposal.py](14-acceptance/sources/tests__test_capability_browser_seccomp_proposal_py--001.md)（1 段）
+- [tests/test_capability_browser_seccomp_v2.py](14-acceptance/sources/tests__test_capability_browser_seccomp_v2_py--001.md)（1 段）
+- [tests/test_capability_browser_transport_probe.py](14-acceptance/sources/tests__test_capability_browser_transport_probe_py--001.md)（1 段）
 - [tests/test_capability_capture_bounds.py](14-acceptance/sources/tests__test_capability_capture_bounds_py--001.md)（1 段）
 - [tests/test_capability_contest_adapter.py](14-acceptance/sources/tests__test_capability_contest_adapter_py--001.md)（1 段）
 - [tests/test_capability_contest_integration.py](14-acceptance/sources/tests__test_capability_contest_integration_py--001.md)（1 段）
@@ -518,6 +537,7 @@
 - [tests/test_capability_recovery_controls.py](14-acceptance/sources/tests__test_capability_recovery_controls_py--001.md)（1 段）
 - [tests/test_capability_restart_thread_drain.py](14-acceptance/sources/tests__test_capability_restart_thread_drain_py--001.md)（1 段）
 - [tests/test_ci_native_capability_security.py](14-acceptance/sources/tests__test_ci_native_capability_security_py--001.md)（1 段）
+- [tests/test_container_diagnostic_review.py](14-acceptance/sources/tests__test_container_diagnostic_review_py--001.md)（1 段）
 - [tests/test_description_facts.py](14-acceptance/sources/tests__test_description_facts_py--001.md)（1 段）
 - [tests/test_entity_group_clause_scope.py](14-acceptance/sources/tests__test_entity_group_clause_scope_py--001.md)（1 段）
 - [tests/test_extension_business_oracle.py](14-acceptance/sources/tests__test_extension_business_oracle_py--001.md)（1 段）

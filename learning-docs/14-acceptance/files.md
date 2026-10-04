@@ -45,7 +45,9 @@
 - [scripts/build_handbook.py](sources/scripts__build_handbook_py--001.md)：生成唯一完整教材；1 段
 - [scripts/build_learning_docs.py](sources/scripts__build_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/capability_browser.cjs](sources/scripts__capability_browser_cjs--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/capability_browser_apparmor.cjs](sources/scripts__capability_browser_apparmor_cjs--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/capability_browser_network_probe.cjs](sources/scripts__capability_browser_network_probe_cjs--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/capability_browser_seccomp_probe.c](sources/scripts__capability_browser_seccomp_probe_c--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/capability_browser_worker.cjs](sources/scripts__capability_browser_worker_cjs--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/capability_fixture.py](sources/scripts__capability_fixture_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/capability_guard.py](sources/scripts__capability_guard_py--001.md)：本机维护、构建或集成验收入口；1 段
@@ -71,9 +73,16 @@
 - [scripts/rebuild_from_handbook.py](sources/scripts__rebuild_from_handbook_py--001.md)：从一本书还原安全的新项目；1 段
 - [scripts/rebuild_learning_docs.py](sources/scripts__rebuild_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/signup_scope_browser.cjs](sources/scripts__signup_scope_browser_cjs--001.md)：在真实浏览器确认Vue报名能力范围；1 段
+- [tests/test_capability_browser_activation_review.py](sources/tests__test_capability_browser_activation_review_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_browser_apparmor.py](sources/tests__test_capability_browser_apparmor_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_browser_apparmor_review.py](sources/tests__test_capability_browser_apparmor_review_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_isolation.py](sources/tests__test_capability_browser_isolation_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_browser_policy.py](sources/tests__test_capability_browser_policy_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_preflight.py](sources/tests__test_capability_browser_preflight_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_browser_protocol.py](sources/tests__test_capability_browser_protocol_py--001.md)：可重复的验收用例；2 段
+- [tests/test_capability_browser_seccomp_proposal.py](sources/tests__test_capability_browser_seccomp_proposal_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_browser_seccomp_v2.py](sources/tests__test_capability_browser_seccomp_v2_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_browser_transport_probe.py](sources/tests__test_capability_browser_transport_probe_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_capture_bounds.py](sources/tests__test_capability_capture_bounds_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_contest_adapter.py](sources/tests__test_capability_contest_adapter_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_contest_integration.py](sources/tests__test_capability_contest_integration_py--001.md)：可重复的验收用例；1 段
@@ -94,6 +103,7 @@
 - [tests/test_capability_recovery_controls.py](sources/tests__test_capability_recovery_controls_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_restart_thread_drain.py](sources/tests__test_capability_restart_thread_drain_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_native_capability_security.py](sources/tests__test_ci_native_capability_security_py--001.md)：可重复的验收用例；1 段
+- [tests/test_container_diagnostic_review.py](sources/tests__test_container_diagnostic_review_py--001.md)：可重复的验收用例；1 段
 - [tests/test_description_facts.py](sources/tests__test_description_facts_py--001.md)：可重复的验收用例；1 段
 - [tests/test_entity_group_clause_scope.py](sources/tests__test_entity_group_clause_scope_py--001.md)：可重复的验收用例；1 段
 - [tests/test_extension_business_oracle.py](sources/tests__test_extension_business_oracle_py--001.md)：可重复的验收用例；1 段

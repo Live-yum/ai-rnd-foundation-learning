@@ -18,22 +18,25 @@
 - `require_isolation_evidence`（L52–L64）：接收`value`。 控制顺序：L53按`not isinstance(value, dict) or value.get("profile") != ISOLATION_PROFILE or type(valu…`分支；L63抛异常，停止当前正常路径。 调用`isinstance`、`value.get`、`type`、`sha`、`any`、`IsolationUnavailable`。 返回路径：L64的`value`。
 - `IsolationUnavailable`（L67–L70）：继承`CheckFailure`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
 - `IsolationUnavailable.__init__`（L68–L70）：接收`message`、`evidence`。 调用`super().__init__`、`super`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `require_container_evidence`（L73–L102）：接收`value`、`sandbox_id`。 控制顺序：L78按`not isinstance(value, dict) or not isinstance(sandbox_id, str) or not re.fullmatch( r…`分支；L101抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`value.get`、`any`、`str`、`profiles.get`、`IsolationUnavailable`。 返回路径：L102的`value`。
-- `system_argv`（L105–L106）：接收`argv`。 返回路径：L106的`["/usr/bin/env", "-i", "PATH=" + SYSTEM_PATH, "LANG=C.UTF-8", "HOME=/nonexistent", *argv]`。
-- `control_exec`（L109–L112）：接收`sandbox`、`argv`、`timeout`。 调用`sandbox.process.exec`、`shlex.join`、`system_argv`、`dict`。 返回路径：L110的`sandbox.process.exec( shlex.join(system_argv(argv)), env=dict(CONTROL_SHELL_ENV), timeout=…`。
-- `product_argv`（L115–L165）：接收`plan`、`argv`、`database`。 控制顺序：L117按`ports & {2280, 55432, 55433}`分支；L118抛异常，停止当前正常路径；L120按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L121按`plan.runtime.port == 5173`分支；L122抛异常，停止当前正常路径。 调用`IsolationUnavailable`、`getattr`、`ports.add`、`",".join`、`str`、`sorted`、`system_argv`、`environment.items`。 返回路径：L139的`system_argv( [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/setpriv", "--reuid=" + APP…`。
-- `redirected_command`（L168–L172）：接收`argv`。 源码说明：Dedicated data-only stdio; never share a privileged control terminal.。 调用`uuid.uuid4`、`shlex.join`、`shlex.quote`。 返回路径：L172的`["/bin/sh", "-c", command], output`。
-- `read_command_output`（L175–L183）：接收`sandbox`、`path`、`timeout`、`limit`。 控制顺序：L176按`not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix( CONTROL + "/p…`分支；L179抛异常，停止当前正常路径；L181按`result.exit_code != 0`分支；L182抛异常，停止当前正常路径。 调用`path.startswith`、`path.removeprefix`、`IsolationUnavailable`、`control_exec`、`str`。 返回路径：L183的`result.result or ""`。
-- `run_guarded_control`（L186–L189）：接收`sandbox`、`argv`、`timeout`。 调用`redirected_command`、`control_exec`、`read_command_output`。 返回路径：L189的`result.exit_code, read_command_output(sandbox, output, timeout)`。
-- `prepare_identity`（L220–L348）：接收`sandbox`、`plan`、`timeout`。 控制顺序：L241按`type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0`分支；L242抛异常，停止当前正常路径；L272遍历`commands`；L273按`control_exec(sandbox, argv, timeout).exit_code != 0`分支；L274抛异常，停止当前正常路径；L275按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L276遍历`( ["/usr/bin/cp", "-a", "/opt/rnd/pnpm-store", "/tmp/rnd-capabili…`；L280按`control_exec(sandbox, argv, timeout).exit_code`分支。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`isinstance`、`root.result.strip`、`re.fullmatch`、`int`、`type`、`len`、`output.lower`、`IsolationUnavailable`等。 返回路径：L340的`require_isolation_evidence( { **guard_receipt, **receipt, "profile": ISOLATION_PROFILE, "g…`。
+- `ContainerInspectionRejected`（L73–L149）：继承`ValueError`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `ContainerInspectionRejected.__init__`（L126–L130）：接收`message`、`category`、`facts`。 调用`super().__init__`、`super`、`type`、`ContainerInspectionRejected.diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ContainerInspectionRejected.diagnostic`（L132–L149）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L134按`type(self._category) is not str or self._category not in schema._CATEGORIES`分支；L138遍历`schema._NUMBERS \| schema._FLAGS \| {"network_mode"}`；L139按`key not in facts`分支；L142按`key in schema._NUMBERS`分支；L144按`key in schema._FLAGS`分支。 调用`type`。 返回路径：L135的`{}`；L149的`evidence`。
+- `require_container_evidence`（L152–L181）：接收`value`、`sandbox_id`。 控制顺序：L157按`not isinstance(value, dict) or not isinstance(sandbox_id, str) or not re.fullmatch( r…`分支；L180抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`value.get`、`any`、`str`、`profiles.get`、`IsolationUnavailable`。 返回路径：L181的`value`。
+- `system_argv`（L184–L185）：接收`argv`。 返回路径：L185的`["/usr/bin/env", "-i", "PATH=" + SYSTEM_PATH, "LANG=C.UTF-8", "HOME=/nonexistent", *argv]`。
+- `control_exec`（L188–L191）：接收`sandbox`、`argv`、`timeout`。 调用`sandbox.process.exec`、`shlex.join`、`system_argv`、`dict`。 返回路径：L189的`sandbox.process.exec( shlex.join(system_argv(argv)), env=dict(CONTROL_SHELL_ENV), timeout=…`。
+- `product_argv`（L194–L244）：接收`plan`、`argv`、`database`。 控制顺序：L196按`ports & {2280, 55432, 55433}`分支；L197抛异常，停止当前正常路径；L199按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L200按`plan.runtime.port == 5173`分支；L201抛异常，停止当前正常路径。 调用`IsolationUnavailable`、`getattr`、`ports.add`、`",".join`、`str`、`sorted`、`system_argv`、`environment.items`。 返回路径：L218的`system_argv( [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/setpriv", "--reuid=" + APP…`。
+- `redirected_command`（L247–L251）：接收`argv`。 源码说明：Dedicated data-only stdio; never share a privileged control terminal.。 调用`uuid.uuid4`、`shlex.join`、`shlex.quote`。 返回路径：L251的`["/bin/sh", "-c", command], output`。
+- `read_command_output`（L254–L262）：接收`sandbox`、`path`、`timeout`、`limit`。 控制顺序：L255按`not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix( CONTROL + "/p…`分支；L258抛异常，停止当前正常路径；L260按`result.exit_code != 0`分支；L261抛异常，停止当前正常路径。 调用`path.startswith`、`path.removeprefix`、`IsolationUnavailable`、`control_exec`、`str`。 返回路径：L262的`result.result or ""`。
+- `run_guarded_control`（L265–L268）：接收`sandbox`、`argv`、`timeout`。 调用`redirected_command`、`control_exec`、`read_command_output`。 返回路径：L268的`result.exit_code, read_command_output(sandbox, output, timeout)`。
+- `prepare_identity`（L299–L427）：接收`sandbox`、`plan`、`timeout`。 控制顺序：L320按`type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0`分支；L321抛异常，停止当前正常路径；L351遍历`commands`；L352按`control_exec(sandbox, argv, timeout).exit_code != 0`分支；L353抛异常，停止当前正常路径；L354按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L355遍历`( ["/usr/bin/cp", "-a", "/opt/rnd/pnpm-store", "/tmp/rnd-capabili…`；L359按`control_exec(sandbox, argv, timeout).exit_code`分支。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`isinstance`、`root.result.strip`、`re.fullmatch`、`int`、`type`、`len`、`output.lower`、`IsolationUnavailable`等。 返回路径：L419的`require_isolation_evidence( { **guard_receipt, **receipt, "profile": ISOLATION_PROFILE, "g…`。
 
 </details>
 
-**创建路径：** `workbench/capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L348。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L427。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13833`。本段原文以LF换行结束。
+本段原始字节数：`16566`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4edd4fdd43a383285c6e4d43ddcd37beb3149ca5e2ba939017122daf696011fa"} -->
+<!-- learning-source: {"path": "workbench/capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "60a485fde42df97a4eb1a42df13a27ae8dd6affd173ec0eb032fad975d1e6c96"} -->
 ````python
 # workbench/capability_isolation.py
 """Disposable Linux identity and control-channel separation for module commands.
@@ -106,6 +109,85 @@ class IsolationUnavailable(CheckFailure):
     def __init__(self, message, *, evidence=None):
         super().__init__(message)
         self.evidence = evidence or {}
+
+
+class ContainerInspectionRejected(ValueError):
+    """Trusted inspector rejection with bounded facts, never raw inspect output.
+
+    Unknown exception text, Docker paths, environment and arbitrary network
+    names are not diagnostic evidence. Revalidate on access as well as creation
+    so callers cannot extend the receipt by mutating an exception's attributes.
+    """
+
+    _CATEGORIES = frozenset(
+        {
+            "sandbox_identity",
+            "runner_unavailable",
+            "runner_identity",
+            "engine_seccomp",
+            "container_identity",
+            "sandbox_network",
+            "runner_bridge",
+            "container_policy",
+            "tmpfs_mounts",
+            "binary_mounts",
+            "resource_limits",
+        }
+    )
+    _NUMBERS = frozenset(
+        {
+            "memory",
+            "memory_swap",
+            "cpu_period",
+            "cpu_quota",
+            "pids_limit",
+            "network_count",
+            "bridge_count",
+            "mount_count",
+        }
+    )
+    _FLAGS = frozenset(
+        {
+            "native_resources",
+            "tmpfs_keys_match",
+            "tmpfs_options_match",
+            "runner_bridge_attached",
+            "bridge_ipv6_disabled",
+            "bridge_driver_matches",
+            "bridge_subnets_match",
+            "mount_types_match",
+            "mount_destinations_match",
+            "mount_sources_match",
+            "mount_readonly_matches",
+            "mount_writable_matches",
+        }
+    )
+    _NETWORK_MODES = frozenset({"", "default", "bridge", "runner-bridge", "host", "none"})
+
+    def __init__(self, message, *, category, facts=None):
+        super().__init__(message)
+        self._category = category
+        self._facts = facts if type(facts) is dict else {}
+        self._facts = ContainerInspectionRejected.diagnostic(self)
+
+    def diagnostic(self):
+        schema = ContainerInspectionRejected
+        if type(self._category) is not str or self._category not in schema._CATEGORIES:
+            return {}
+        evidence = {"container_rejection": self._category}
+        facts = self._facts if type(self._facts) is dict else {}
+        for key in schema._NUMBERS | schema._FLAGS | {"network_mode"}:
+            if key not in facts:
+                continue
+            value = facts[key]
+            if key in schema._NUMBERS:
+                value = value if type(value) is int and -(2**63) <= value < 2**63 else None
+            elif key in schema._FLAGS:
+                value = value if type(value) is bool else None
+            else:
+                value = value if type(value) is str and value in schema._NETWORK_MODES else "other"
+            evidence[key] = value
+        return evidence
 
 
 def require_container_evidence(value, sandbox_id):

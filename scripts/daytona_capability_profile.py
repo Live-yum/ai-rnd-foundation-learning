@@ -24,6 +24,7 @@ import yaml
 
 from scripts import daytona_local as local
 from scripts.daytona_build import BUILT, export_source
+from workbench.capability_isolation import ContainerInspectionRejected
 from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
 from workbench.settings import ROOT
 
@@ -517,8 +518,20 @@ def require_execution_resources(host, *, native=False):
         or type(host.get("PidsLimit")) is not int
         or host["PidsLimit"] != pids
     ):
-        raise ValueError(
-            "Custom source requires actual bounded CPU, memory, swap and storage quota"
+        raise ContainerInspectionRejected(
+            "Custom source requires actual bounded CPU, memory, swap and storage quota",
+            category="resource_limits",
+            facts={
+                "native_resources": native,
+                "memory": memory,
+                "memory_swap": swap,
+                "cpu_period": period,
+                "cpu_quota": quota,
+                "pids_limit": host.get("PidsLimit"),
+                "tmpfs_keys_match": isinstance(storage, dict) and set(storage) == {"/tmp"},
+                "tmpfs_options_match": storage
+                == {"/tmp": f"rw,nosuid,nodev,size={tmpfs_bytes},mode=1777"},
+            },
         )
     return {
         "cpu_period": period,
@@ -540,7 +553,9 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
     from uuid import UUID
 
     if not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id:
-        raise ValueError("Owned sandbox must have one canonical UUID")
+        raise ContainerInspectionRejected(
+            "Owned sandbox must have one canonical UUID", category="sandbox_identity"
+        )
     record = require_profile(directory)
     native = selection is not None and selection.get("template") == "fastapiadmin"
     if native:
@@ -549,10 +564,14 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         record = require_native_profile(directory)
     runner_id = compose(directory, "ps", "--quiet", "runner").strip()
     if not re.fullmatch(r"[a-f0-9]{64}", runner_id):
-        raise ValueError("Profile requires exactly one running Runner container")
+        raise ContainerInspectionRejected(
+            "Profile requires exactly one running Runner container", category="runner_unavailable"
+        )
     rows = json.loads(local.docker("container", "inspect", runner_id))
     if len(rows) != 1:
-        raise ValueError("Profile Runner container identity is ambiguous")
+        raise ContainerInspectionRejected(
+            "Profile Runner container identity is ambiguous", category="runner_identity"
+        )
     runner = rows[0]
     labels = runner.get("Config", {}).get("Labels", {})
     if (
@@ -565,7 +584,9 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         != ["/usr/local/bin/dind", "/usr/local/bin/rnd-runner-entry.sh"]
         or runner.get("Config", {}).get("Cmd")
     ):
-        raise ValueError("Running Runner does not match the owned profile")
+        raise ContainerInspectionRejected(
+            "Running Runner does not match the owned profile", category="runner_identity"
+        )
     security = json.loads(
         local.docker(
             "exec",
@@ -580,7 +601,10 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         )
     )
     if not isinstance(security, list) or "name=seccomp,profile=builtin" not in security:
-        raise ValueError("Inner Docker must report its enabled built-in seccomp filter")
+        raise ContainerInspectionRejected(
+            "Inner Docker must report its enabled built-in seccomp filter",
+            category="engine_seccomp",
+        )
     rows = json.loads(
         local.docker(
             "exec",
@@ -595,13 +619,23 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         )
     )
     if len(rows) != 1:
-        raise ValueError("Owned application container identity is ambiguous")
+        raise ContainerInspectionRejected(
+            "Owned application container identity is ambiguous", category="container_identity"
+        )
     container = rows[0]
     config, host = container.get("Config", {}), container.get("HostConfig", {})
     if require_resources:
         networks = container.get("NetworkSettings", {}).get("Networks", {})
         if set(networks) != {"runner-bridge"} or host.get("NetworkMode") != "runner-bridge":
-            raise ValueError("Custom source must have only the exact owned Runner bridge")
+            raise ContainerInspectionRejected(
+                "Custom source must have only the exact owned Runner bridge",
+                category="sandbox_network",
+                facts={
+                    "network_mode": host.get("NetworkMode"),
+                    "network_count": len(networks),
+                    "runner_bridge_attached": "runner-bridge" in networks,
+                },
+            )
         bridge = json.loads(
             local.docker(
                 "exec",
@@ -622,7 +656,24 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
             or {item.get("Subnet") for item in bridge[0].get("IPAM", {}).get("Config", [])}
             != {local.RUNNER_BRIDGE_SUBNET}
         ):
-            raise ValueError("Runner bridge address/IPv6 policy differs from the reviewed profile")
+            actual = bridge[0] if len(bridge) == 1 else {}
+            ipam = actual.get("IPAM")
+            subnets = ipam.get("Config") if isinstance(ipam, dict) else None
+            raise ContainerInspectionRejected(
+                "Runner bridge address/IPv6 policy differs from the reviewed profile",
+                category="runner_bridge",
+                facts={
+                    "bridge_count": len(bridge),
+                    "bridge_ipv6_disabled": actual.get("EnableIPv6") is False,
+                    "bridge_driver_matches": actual.get("Driver") == "bridge",
+                    "bridge_subnets_match": isinstance(subnets, list)
+                    and bool(subnets)
+                    and all(
+                        isinstance(item, dict) and item.get("Subnet") == local.RUNNER_BRIDGE_SUBNET
+                        for item in subnets
+                    ),
+                },
+            )
     if (
         container.get("Name") != "/" + sandbox_id
         or container.get("Image") != record["snapshot"]["image_id"]
@@ -640,7 +691,10 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         or host.get("IpcMode") not in (None, "", "private")
         or host.get("NetworkMode") in {"host", "none"}
     ):
-        raise ValueError("Created application container does not match the unprivileged profile")
+        raise ContainerInspectionRejected(
+            "Created application container does not match the unprivileged profile",
+            category="container_policy",
+        )
     expected = {
         "/usr/local/bin/daytona": "/usr/local/bin/.tmp/binaries/daemon-amd64",
         "/usr/local/lib/daytona-computer-use": "/usr/local/bin/.tmp/binaries/daytona-computer-use",
@@ -654,7 +708,16 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
             or mount.get("Source") not in (None, "")
             for mount in tmpfs
         ):
-            raise ValueError("Only the exact bounded application tmpfs is permitted")
+            raise ContainerInspectionRejected(
+                "Only the exact bounded application tmpfs is permitted",
+                category="tmpfs_mounts",
+                facts={
+                    "mount_count": len(tmpfs),
+                    "mount_destinations_match": all(m.get("Destination") == "/tmp" for m in tmpfs),
+                    "mount_writable_matches": all(m.get("RW") is True for m in tmpfs),
+                    "mount_sources_match": all(m.get("Source") in (None, "") for m in tmpfs),
+                },
+            )
         mounts = [mount for mount in mounts if mount.get("Type") != "tmpfs"]
     if (
         len(mounts) != len(expected)
@@ -666,7 +729,29 @@ def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, s
         )
         or {mount.get("Destination") for mount in mounts} != set(expected)
     ):
-        raise ValueError("Application mounts must be only the two trusted read-only binaries")
+        destinations = [m.get("Destination") for m in mounts if isinstance(m, dict)]
+        raise ContainerInspectionRejected(
+            "Application mounts must be only the two trusted read-only binaries",
+            category="binary_mounts",
+            facts={
+                "mount_count": len(mounts),
+                "mount_types_match": all(
+                    isinstance(m, dict) and m.get("Type") == "bind" for m in mounts
+                ),
+                "mount_readonly_matches": all(
+                    isinstance(m, dict) and m.get("RW") is False for m in mounts
+                ),
+                "mount_destinations_match": len(destinations) == len(mounts)
+                and all(isinstance(value, str) for value in destinations)
+                and set(destinations) == set(expected),
+                "mount_sources_match": all(
+                    isinstance(m, dict)
+                    and isinstance(m.get("Destination"), str)
+                    and expected.get(m["Destination"]) == m.get("Source")
+                    for m in mounts
+                ),
+            },
+        )
     receipt = {
         "profile": record["profile"],
         "sandbox_id": sandbox_id,

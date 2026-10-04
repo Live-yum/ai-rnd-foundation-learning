@@ -10,14 +10,15 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `scripts/capability_browser_worker.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L67。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/capability_browser_worker.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L68。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`3031`。本段原文以LF换行结束。
+本段原始字节数：`3155`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/capability_browser_worker.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0c599895446e316dc21353046a51d5a2c96e69d802e603c73b7c41ec31023a33"} -->
+<!-- learning-source: {"path": "scripts/capability_browser_worker.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "def41b0b7c8ea06854aa24b9d1a328274db42844e49a60bba9f64a78941899b5"} -->
 ````javascript
 // scripts/capability_browser_worker.cjs
 // Trusted stdio relay; no candidate code, credentials, or host mounts are loaded.
+if (process.env.CAPABILITY_BROWSER_REQUIRE_APPARMOR === '1') require('./capability_browser_apparmor.cjs').requireAppArmor()
 const http = require('node:http')
 const readline = require('node:readline')
 const {spawn} = require('node:child_process')

@@ -20,6 +20,15 @@
 - [tools/browser/Dockerfile](sources/tools__browser__Dockerfile--001.md)：项目根配置或说明；1 段
 - [tools/browser/LICENSE.playwright](sources/tools__browser__LICENSE_playwright--001.md)：项目根配置或说明；1 段
 - [tools/browser/SECCOMP-REVIEW.md](sources/tools__browser__SECCOMP-REVIEW_md--001.md)：项目根配置或说明；1 段
+- [tools/browser/review-only-v2/README.md](sources/tools__browser__review-only-v2__README_md--001.md)：项目根配置或说明；1 段
+- [tools/browser/review-only-v2/chromium141-docker28-native-amd64.proposal.json](sources/tools__browser__review-only-v2__chromium141-docker28-native-amd64_proposal_json--001.md)：项目根配置或说明；1 段
+- [tools/browser/review-only-v2/proposal-manifest.json](sources/tools__browser__review-only-v2__proposal-manifest_json--001.md)：项目根配置或说明；1 段
+- [tools/browser/review-only-v2/review_profile.py](sources/tools__browser__review-only-v2__review_profile_py--001.md)：项目根配置或说明；1 段
+- [tools/browser/review-only/LICENSE.moby](sources/tools__browser__review-only__LICENSE_moby--001.md)：项目根配置或说明；1 段
+- [tools/browser/review-only/README.md](sources/tools__browser__review-only__README_md--001.md)：项目根配置或说明；1 段
+- [tools/browser/review-only/chromium141-docker28-amd64.proposal.json](sources/tools__browser__review-only__chromium141-docker28-amd64_proposal_json--001.md)：项目根配置或说明；1 段
+- [tools/browser/review-only/moby-v28.0.4-default.json](sources/tools__browser__review-only__moby-v28_0_4-default_json--001.md)：项目根配置或说明；1 段
+- [tools/browser/review-only/proposal-manifest.json](sources/tools__browser__review-only__proposal-manifest_json--001.md)：项目根配置或说明；1 段
 - [tools/browser/seccomp.playwright-1.56.1.json](sources/tools__browser__seccomp_playwright-1_56_1_json--001.md)：项目根配置或说明；1 段
 - [tools/embeddings/pyproject.toml](sources/tools__embeddings__pyproject_toml--001.md)：真实本机向量模型的独立验证环境；1 段
 - [tools/embeddings/uv.lock](sources/locks/tools__embeddings__uv_lock--001.md)：精确依赖锁；1 段

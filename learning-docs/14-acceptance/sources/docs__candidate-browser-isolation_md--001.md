@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/candidate-browser-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L77。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/candidate-browser-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L96。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4891`。本段原文以LF换行结束。
+本段原始字节数：`6165`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/candidate-browser-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e4c3a9e9e56c77806d0dd74cf2c21985e5625f40755a77ef10b20f03dc8275fe"} -->
+<!-- learning-source: {"path": "docs/candidate-browser-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "38d554f22dd32a1fff278525d0925d5708a12d9bdaf7eb702a3bcecbe979b2b4"} -->
 ````markdown
 <!-- docs/candidate-browser-isolation.md -->
 # Candidate browser isolation (experimental, fail closed)
@@ -86,12 +86,31 @@ otherwise writable worker-owned directory; a generic permission error fails.
 The runtime probe also requires UID/GID 1000, no-new-privileges, active seccomp
 filter mode and zero inheritable/permitted/effective/bounding/ambient capabilities.
 
-The image currently uses the standard Docker security profile. Whether the
-runner permits Chromium's user namespaces is deliberately established by live
-CI rather than assumed; failure keeps arbitrary-source execution unavailable.
-An unmodified pinned upstream profile is prepared for review only; see
-`tools/browser/SECCOMP-REVIEW.md` for its exact namespace rule and activation
-requirements. It is image/receipt-bound but is not automatically selected.
+Ordinary callers use the standard Docker security profile. The three approved
+Actions isolation workflows explicitly select the reviewed native-amd64 v2
+profile only for their disposable offline browser workers. Selection requires
+Docker server 28.0.4, the fixed policy SHA-256, supported daemon/image/controller
+architecture and the approved Actions repository/workflow. No arbitrary path or
+candidate-supplied policy is accepted. The created container's inline profile
+and explicit `apparmor=docker-default` configuration are inspected before start.
+The trusted worker and probes also read the actual kernel label and require exact
+`docker-default (enforce)` bytes before browser or syscall work; an empty inspect
+field is never accepted as proof. See
+`tools/browser/review-only-v2/README.md` for exact allowances and risks.
+
+The v3 receipt binds policy, source and immutable image to observed engine,
+kernel, runtime versions and matching runtime build metadata. The fixed
+`/usr/bin/runc` artifact must match the daemon-reported version and commit;
+its hash and reported libseccomp version are retained as matching-build evidence.
+Docker's API does not attest the daemon's exact linked libseccomp library, and
+this artifact observation is not represented as such an attestation.
+
+The trusted worker verifies native Node/Chromium ABI and pinned versions. A
+separate raw-syscall probe requires 28 exact native-socket, high-word VSOCK,
+x86/x32, namespace, clone3 and io_uring outcomes. Failure, a different errno,
+missing kernel support, crash or timeout cannot certify isolation. Positive
+browser behavior and all existing resource/cleanup gates remain mandatory;
+AppArmor or namespace incompatibility stays a blocking failure.
 The report is only one prerequisite: application sandbox/network/database
 acceptance and exact source/image binding remain mandatory separately.
 ````

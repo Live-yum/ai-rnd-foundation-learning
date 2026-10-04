@@ -274,7 +274,10 @@ def test_container_receipt_requires_current_sandbox_and_all_boundaries():
         require_container_evidence({**value, "privileged": True}, identifier)
 
 
-def test_live_container_inspection_failure_stops_before_source_upload(settings, tmp_path):
+@pytest.mark.parametrize("unknown_error", [False, True])
+def test_live_container_inspection_failure_stops_before_source_upload(
+    settings, tmp_path, unknown_error
+):
     from scripts.ci_capability_profile import fixed_application
     from workbench.capability_sandbox import _verify
 
@@ -284,6 +287,14 @@ def test_live_container_inspection_failure_stops_before_source_upload(settings, 
 
     def forbidden(*args, **kwargs):
         pytest.fail("No source upload or command before container policy verification")
+
+    def observer(_):
+        if unknown_error:
+            error = ValueError("secret error /private/path TOKEN=must-not-leak")
+            # An arbitrary provider exception cannot opt in to trusted evidence.
+            error.evidence = {"container_rejection": "resource_limits", "TOKEN": "must-not-leak"}
+            raise error
+        return {}
 
     sandbox = SimpleNamespace(
         id="00000000-0000-0000-0000-000000000001",
@@ -303,10 +314,12 @@ def test_live_container_inspection_failure_stops_before_source_upload(settings, 
         tmp_path / "receipt.json",
         client=client,
         aggregate=True,
-        control_observer=lambda _: {},
+        control_observer=observer,
     )
     assert result["passed"] is False and result["cleanup"] == "deleted"
     assert result["kind"] == "isolation_environment" and operations == ["deleted"]
+    assert result["isolation_diagnostic"] == {}
+    assert "must-not-leak" not in json.dumps(result) and "private/path" not in json.dumps(result)
 
 
 BROWSER_FAILURE_FIXTURES = {

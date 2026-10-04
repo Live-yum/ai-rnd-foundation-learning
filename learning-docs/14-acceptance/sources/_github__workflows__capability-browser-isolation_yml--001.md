@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/capability-browser-isolation.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L58。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/capability-browser-isolation.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L63。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2408`。本段原文以LF换行结束。
+本段原始字节数：`2656`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/capability-browser-isolation.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "eb341f763f2880e029c1d10669fead8046a6e4970646c09ad9fcc9cfba55b73a"} -->
+<!-- learning-source: {"path": ".github/workflows/capability-browser-isolation.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e817776be0db9ddac16d15fa9fc9b30156188fa19c2ac241d30b1a3b86df37b4"} -->
 ````yaml
 # .github/workflows/capability-browser-isolation.yml
 name: Offline candidate browser isolation
@@ -57,10 +57,13 @@ jobs:
           python-version: '3.14'
       - run: uv sync --locked
       - name: Validate isolation policy and bounded relay protocol
-        run: uv run pytest -q tests/test_capability_browser_isolation.py
+        env:
+          RND_REQUIRE_SECCOMP_BPF: '1'
+        run: uv run pytest -q tests/test_capability_browser*.py
       - name: Build pinned official Playwright worker
         run: |
           docker --host unix:///var/run/docker.sock build -f tools/browser/Dockerfile -t rnd-capability-browser .
+          echo "CAPABILITY_BROWSER_APPROVED_POLICY=9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f" >> "$GITHUB_ENV"
           echo "CAPABILITY_BROWSER_IMAGE=$(docker --host unix:///var/run/docker.sock image inspect --format '{{.Id}}' rnd-capability-browser)" >> "$GITHUB_ENV"
       - name: Require real kernel network resource browser and cleanup proof
         run: uv run python -m scripts.ci_capability_browser_isolation
@@ -74,5 +77,7 @@ jobs:
         if: always()
         with:
           name: browser-isolation-${{ github.sha }}-${{ github.run_id }}
-          path: reports/capability-browser-isolation.json
+          path: |
+            reports/capability-browser-isolation.json
+            reports/capability-browser-raw-syscalls.json
 ````

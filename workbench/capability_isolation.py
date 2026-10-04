@@ -70,6 +70,85 @@ class IsolationUnavailable(CheckFailure):
         self.evidence = evidence or {}
 
 
+class ContainerInspectionRejected(ValueError):
+    """Trusted inspector rejection with bounded facts, never raw inspect output.
+
+    Unknown exception text, Docker paths, environment and arbitrary network
+    names are not diagnostic evidence. Revalidate on access as well as creation
+    so callers cannot extend the receipt by mutating an exception's attributes.
+    """
+
+    _CATEGORIES = frozenset(
+        {
+            "sandbox_identity",
+            "runner_unavailable",
+            "runner_identity",
+            "engine_seccomp",
+            "container_identity",
+            "sandbox_network",
+            "runner_bridge",
+            "container_policy",
+            "tmpfs_mounts",
+            "binary_mounts",
+            "resource_limits",
+        }
+    )
+    _NUMBERS = frozenset(
+        {
+            "memory",
+            "memory_swap",
+            "cpu_period",
+            "cpu_quota",
+            "pids_limit",
+            "network_count",
+            "bridge_count",
+            "mount_count",
+        }
+    )
+    _FLAGS = frozenset(
+        {
+            "native_resources",
+            "tmpfs_keys_match",
+            "tmpfs_options_match",
+            "runner_bridge_attached",
+            "bridge_ipv6_disabled",
+            "bridge_driver_matches",
+            "bridge_subnets_match",
+            "mount_types_match",
+            "mount_destinations_match",
+            "mount_sources_match",
+            "mount_readonly_matches",
+            "mount_writable_matches",
+        }
+    )
+    _NETWORK_MODES = frozenset({"", "default", "bridge", "runner-bridge", "host", "none"})
+
+    def __init__(self, message, *, category, facts=None):
+        super().__init__(message)
+        self._category = category
+        self._facts = facts if type(facts) is dict else {}
+        self._facts = ContainerInspectionRejected.diagnostic(self)
+
+    def diagnostic(self):
+        schema = ContainerInspectionRejected
+        if type(self._category) is not str or self._category not in schema._CATEGORIES:
+            return {}
+        evidence = {"container_rejection": self._category}
+        facts = self._facts if type(self._facts) is dict else {}
+        for key in schema._NUMBERS | schema._FLAGS | {"network_mode"}:
+            if key not in facts:
+                continue
+            value = facts[key]
+            if key in schema._NUMBERS:
+                value = value if type(value) is int and -(2**63) <= value < 2**63 else None
+            elif key in schema._FLAGS:
+                value = value if type(value) is bool else None
+            else:
+                value = value if type(value) is str and value in schema._NETWORK_MODES else "other"
+            evidence[key] = value
+        return evidence
+
+
 def require_container_evidence(value, sandbox_id):
     profiles = {
         "fixed-authored-sqlite-v1": "rnd-python",

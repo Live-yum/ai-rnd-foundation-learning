@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L139。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L142。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7212`。本段原文以LF换行结束。
+本段原始字节数：`7442`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "31d0325c087a3b0115f899c19283f02f9506c777da689aa2239b7ca334ca1f05"} -->
+<!-- learning-source: {"path": ".github/workflows/capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e1f45405a67c049d1f7459a351e51a25b646b1fc8962df03fd2dc6a7520edfcf"} -->
 ````yaml
 # .github/workflows/capability-profile.yml
 name: Fixed authored SQLite isolation profile
@@ -78,6 +78,7 @@ jobs:
         env:
           RND_REQUIRE_NODE_TESTS: '1'
           RND_REQUIRE_LANDLOCK: '1'
+          RND_REQUIRE_SECCOMP_BPF: '1'
         run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
       - name: Install mandatory product browser acceptance tooling
         run: |
@@ -88,6 +89,7 @@ jobs:
       - name: Build immutable networkless browser worker in this same job
         run: |
           docker --host unix:///var/run/docker.sock build -f tools/browser/Dockerfile -t rnd-capability-browser .
+          echo "CAPABILITY_BROWSER_APPROVED_POLICY=9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f" >> "$GITHUB_ENV"
           echo "CAPABILITY_BROWSER_IMAGE=$(docker --host unix:///var/run/docker.sock image inspect --format '{{.Id}}' rnd-capability-browser)" >> "$GITHUB_ENV"
       - name: Require real browser network resource and cleanup proof in this same job
         run: uv run python -m scripts.ci_capability_browser_isolation
@@ -156,4 +158,5 @@ jobs:
             reports/capability-security.json
             reports/capability-security-detail.json
             reports/capability-browser-isolation.json
+            reports/capability-browser-raw-syscalls.json
 ````

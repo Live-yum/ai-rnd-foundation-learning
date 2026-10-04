@@ -10,24 +10,24 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `workbench.capability_browser_isolation`、`workbench.capability_contracts`、`workbench.capability_verification`、`workbench.filesystem`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.capability_browser_isolation`、`workbench.capability_browser_policy`、`workbench.capability_contracts`、`workbench.capability_verification`、`workbench.filesystem`、`workbench.settings`、`workbench.tools`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `Page`（L26–L40）：继承`BaseHTTPRequestHandler`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `Page.do_GET`（L27–L37）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pages.get`、`self.send_response`、`self.send_header`、`self.end_headers`、`self.wfile.write`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `Page.log_message`（L39–L40）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run`（L43–L47）：接收`args`、`timeout`。 控制顺序：L45按`value.returncode or len(value.stdout) > 100000`分支；L46抛异常，停止当前正常路径。 调用`subprocess.run`、`clean_env`、`len`、`RuntimeError`。 返回路径：L47的`value.stdout`。
-- `main`（L50–L134）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L87按`state.get("OOMKilled") is not True or state.get("Running") is not False`分支；L88抛异常，停止当前正常路径；L91遍历`("positive", "error", "abuse")`；L94按`mode == "positive"`分支；L108按`mode != "positive"`分支；L109抛异常，停止当前正常路径；L112按`mode == "positive"`分支；L114抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`browser_image_identity`、`browser_source_identity`、`write_json`、`uuid.uuid4`、`ThreadingHTTPServer`、`threading.Thread`、`thread.start`、`worker_command`、`command.append`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Page`（L27–L41）：继承`BaseHTTPRequestHandler`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `Page.do_GET`（L28–L38）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pages.get`、`self.send_response`、`self.send_header`、`self.end_headers`、`self.wfile.write`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `Page.log_message`（L40–L41）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run`（L44–L48）：接收`args`、`timeout`。 控制顺序：L46按`value.returncode or len(value.stdout) > 100000`分支；L47抛异常，停止当前正常路径。 调用`subprocess.run`、`clean_env`、`len`、`RuntimeError`。 返回路径：L48的`value.stdout`。
+- `main`（L51–L152）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L78按`selected_policy() is not None`分支；L86按`len(raw_run.stdout) > 20000`分支；L87抛异常，停止当前正常路径；L90按`raw_run.returncode`分支；L91抛异常，停止当前正常路径；L105按`state.get("OOMKilled") is not True or state.get("Running") is not False`分支；L106抛异常，停止当前正常路径；L109遍历`("positive", "error", "abuse")`。后续分支沿下方源码相同行号继续阅读。 调用`browser_image_identity`、`browser_source_identity`、`runtime_identity`、`write_json`、`uuid.uuid4`、`ThreadingHTTPServer`、`threading.Thread`、`thread.start`、`worker_command`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_capability_browser_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L138。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_capability_browser_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L156。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`5766`。本段原文以LF换行结束。
+本段原始字节数：`6810`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_capability_browser_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "57bd904fda8a3202360aadbe81b5070ba2db16a5a5b95361ff02ca56d0205fed"} -->
+<!-- learning-source: {"path": "scripts/ci_capability_browser_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3644c3bcdb2a7d92a8b8a23199dbe51dee28520c71a0213de69704a78b7a21f3"} -->
 ````python
 # scripts/ci_capability_browser_isolation.py
 """Live Docker-only browser gate; never certifies from mocks or host Chromium."""
@@ -48,6 +48,7 @@ from workbench.capability_browser_isolation import (
     run_isolated_browser,
     worker_command,
 )
+from workbench.capability_browser_policy import require_raw_probe, runtime_identity, selected_policy
 from workbench.capability_contracts import BrowserStep
 from workbench.capability_verification import BrowserFailure
 from workbench.filesystem import write_json
@@ -82,12 +83,13 @@ def run(args, timeout=30):
 def main():
     image = browser_image_identity()
     report = {
-        "protocol": "offline-browser-isolation-v2",
+        "protocol": "offline-browser-isolation-v3",
         "passed": False,
         "image": image,
         "mocked": False,
         "sources": browser_source_identity(),
         "image_sources": {},
+        "runtime": runtime_identity(image),
         "checks": {},
     }
     output = ROOT / "reports/capability-browser-isolation.json"
@@ -105,6 +107,22 @@ def main():
         report["image_sources"] = require_image_sources(name)
         report["checks"]["kernel_and_network"] = json.loads(run([*DOCKER, "start", "-a", name]))
         run([*DOCKER, "rm", "-f", name])
+        if selected_policy() is not None:
+            raw_command = worker_command(image, name)
+            raw_command[-1:-1] = ["--entrypoint=/opt/browser-seccomp-probe"]
+            run(raw_command)
+            require_worker_inspection(json.loads(run([*DOCKER, "inspect", name])), image)
+            raw_run = subprocess.run(
+                [*DOCKER, "start", "-a", name], capture_output=True, timeout=60, env=clean_env()
+            )
+            if len(raw_run.stdout) > 20000:
+                raise ValueError("Raw-syscall report exceeded bound")
+            raw = json.loads(raw_run.stdout)
+            write_json(ROOT / "reports/capability-browser-raw-syscalls.json", raw)
+            if raw_run.returncode:
+                raise ValueError("Live raw-syscall probe failed")
+            report["checks"]["raw_syscalls"] = require_raw_probe(raw)
+            run([*DOCKER, "rm", "-f", name])
         # A separate owned worker must be killed by its memory cgroup, not by
         # a JavaScript heap ceiling, and its descendants must still be removed.
         oom_command = worker_command(image, name)

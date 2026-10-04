@@ -19,6 +19,7 @@ import httpx
 
 from workbench.capability_contracts import CapabilityPlan
 from workbench.capability_isolation import (
+    ContainerInspectionRejected,
     IsolationUnavailable,
     control_exec,
     prepare_identity,
@@ -260,6 +261,11 @@ def _verify(
             receipt["container_isolation"] = require_container_evidence(
                 control_observer(sandbox.id), sandbox.id
             )
+        except ContainerInspectionRejected as exc:
+            raise IsolationUnavailable(
+                "实际容器不符合已批准的非特权策略，未上传或执行源码",
+                evidence=ContainerInspectionRejected.diagnostic(exc),
+            ) from None
         except ValueError:
             raise IsolationUnavailable(
                 "实际容器不符合已批准的非特权策略，未上传或执行源码"

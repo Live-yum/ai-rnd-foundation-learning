@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `scripts/capability_browser_network_probe.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L103。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/capability_browser_network_probe.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L120。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4829`。本段原文以LF换行结束。
+本段原始字节数：`5873`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/capability_browser_network_probe.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4333e78423ad57953cde78af9e6d4518ba37f19a45ff71dee61a1e506b925a60"} -->
+<!-- learning-source: {"path": "scripts/capability_browser_network_probe.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a508ba9c134e8414ba169f585cd31f479e8cadd06bcff5ca2273ba5a710bf2b0"} -->
 ````javascript
 // scripts/capability_browser_network_probe.cjs
 // Trusted live namespace/resource probe, not an application acceptance report.
@@ -23,7 +23,7 @@ const net = require('node:net')
 const os = require('node:os')
 const dgram = require('node:dgram')
 const assert = require('node:assert/strict')
-const {spawn} = require('node:child_process')
+const {spawn, spawnSync} = require('node:child_process')
 
 async function requireNoRoute(host, port, connect = options => net.connect(options)) {
   return await new Promise((resolve, reject) => {
@@ -50,6 +50,23 @@ function requireReadOnly(api = fs, uid = process.getuid()) {
 }
 
 async function main() {
+  const apparmor = process.env.CAPABILITY_BROWSER_REQUIRE_APPARMOR === '1'
+  if (apparmor) require('./capability_browser_apparmor.cjs').requireAppArmor()
+  assert.equal(process.arch, 'x64')
+  assert.equal(process.platform, 'linux')
+  assert.equal(require('playwright/package.json').version, '1.56.1')
+  const executable = require('playwright').chromium.executablePath()
+  const executableFd = fs.openSync(executable, 'r')
+  const elf = Buffer.alloc(64)
+  try { assert.equal(fs.readSync(executableFd, elf, 0, 64, 0), 64) }
+  finally { fs.closeSync(executableFd) }
+  assert.equal(elf.subarray(0, 4).toString('hex'), '7f454c46')
+  assert.equal(elf[4], 2) // ELFCLASS64
+  assert.equal(elf[5], 1) // little endian
+  assert.equal(elf.readUInt16LE(18), 62) // EM_X86_64
+  const version = spawnSync(executable, ['--version'], {encoding:'utf8', timeout:10000, maxBuffer:4096})
+  assert.equal(version.status, 0)
+  assert.equal(version.stdout.trim(), 'Chromium 141.0.7390.37')
   assert.equal(process.getuid(), 1000)
   assert.equal(process.getgid(), 1000)
   const status = Object.fromEntries(fs.readFileSync('/proc/self/status','utf8').trim().split('\n').map(line => {
@@ -116,7 +133,7 @@ async function main() {
     }
   } finally { for (const child of children) child.kill('SIGKILL') }
   assert(pidDenied)
-  process.stdout.write(JSON.stringify({passed:true, kernel_resource_limits:true, network_none:true, tmpfs_exhaustion:true, pid_exhaustion:true, readonly_root:true}))
+  process.stdout.write(JSON.stringify({passed:true, kernel_resource_limits:true, network_none:true, tmpfs_exhaustion:true, pid_exhaustion:true, readonly_root:true, browser_build:true, ...(apparmor ? {apparmor_enforced:true} : {})}))
 }
 module.exports = {requireNoRoute, requireReadOnly}
 if (require.main === module) main().catch(() => {process.exitCode=1})
