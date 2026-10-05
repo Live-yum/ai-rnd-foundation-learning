@@ -15,21 +15,24 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `normalize_sgr`（L22–L24）：接收`output`。 源码说明：Remove only bounded numeric SGR, never OSC or arbitrary terminal commands.。 调用`SGR.sub`。 返回路径：L24的`SGR.sub("", output)`。
-- `_json_unique`（L27–L36）：接收`text`。 调用`json.loads`。 返回路径：L36的`json.loads(text, object_pairs_hook=pairs)`。
-- `_json_unique.pairs`（L28–L34）：接收`values`。 控制顺序：L30遍历`values`；L31按`key in result`分支；L32抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L34的`result`。
-- `output_shapes`（L39–L65）：接收`output`。 源码说明：Untrusted format hints, with no captured message or dynamic path.。 控制顺序：L41按`type(output) is not str`分支。 调用`type`、`normalize_sgr`、`patterns.items`、`re.search`。 返回路径：L42的`[]`；L61的`[ label for label, pattern in patterns.items() if re.search(pattern, raw if label == "ansi…`。
-- `native_startup_smoke`（L76–L125）：接收`sandbox`、`plan`、`database`、`identity_options`、`timeout`。 源码说明：Exercise the same isolated launcher, without importing candidate code.。 控制顺序：L104按`type(result.exit_code) is int and 0 <= result.exit_code <= 255`分支；L109按`type(output) is not str or len(output.encode()) > SMOKE_OUTPUT_LIMIT`分支；L112按`receipt["exit_status"] == "zero"`分支；L114按`type(value) is dict and set(value) == {"version_matches", "executable_matches", "cwd_…`分支。 调用`time.monotonic`、`min`、`_DEADLINE.set`、`redirected_command`、`product_argv`、`control_exec`、`shlex.join`、`remaining`、`type`等。 返回路径：L110的`receipt`；L121的`receipt`；L123的`receipt`。
-- `native_startup_smoke.remaining`（L83–L89）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L87按`value < 1`分支；L88抛异常，停止当前正常路径。 调用`int`、`time.monotonic`、`TimeoutError`。 返回路径：L89的`value`。
-- `native_startup_paths`（L227–L277）：接收`sandbox`、`timeout`。 源码说明：Return a fresh finite receipt or unknown; never serialize probe failures.。 控制顺序：L233按`budget < 1`分支；L236按`type(result.exit_code) is not int or result.exit_code != 0`分支；L238按`type(result.result) is not str or len(result.result.encode()) > 2048`分支；L241按`type(value) is not dict or set(value) != {"paths", "native_binary"}`分支；L244按`type(paths) is not dict or set(paths) != set(PATH_ROLES)`分支；L246遍历`paths.values()`；L247按`type(row) is not dict or set(row) != {"entry", "target", "dac_read", "dac_exec"}`分支；L249按`any(type(row[k]) is not str or row[k] not in KINDS for k in ("entry", "target"))`分支。后续分支沿下方源码相同行号继续阅读。 调用`_DEADLINE.set`、`time.monotonic`、`min`、`int`、`control_exec`、`type`、`len`、`result.result.encode`、`_json_unique`等。 返回路径：L234的`unknown`；L237的`unknown`；L239的`unknown`。
+- `bounded_output_bytes`（L186–L188）：接收`output`、`limit`。 源码说明：Cap raw UTF-8 bytes before normalization; never refill from later text.。 调用`output[:limit].encode`。 返回路径：L188的`output[:limit].encode("utf-8", errors="replace")[:limit]`。
+- `normalize_sgr`（L191–L193）：接收`output`。 源码说明：Remove only bounded numeric SGR, never OSC or arbitrary terminal commands.。 调用`SGR.sub`。 返回路径：L193的`SGR.sub("", output)`。
+- `exception_lines`（L196–L214）：接收`output`。 源码说明：Only bounded indentation and a single known Rich panel border unwrap. Use only for the terminal exception hint, never to join traceback frames for the stricter multiprocessing component classifier.。 控制顺序：L203遍历`output.split("\n")`；L207按`line.startswith("│ ") and line.endswith(" │")`分支。 调用`output.split`、`re.fullmatch`、`line.startswith`、`line.endswith`、`lines.append`、`"\n".join`。 返回路径：L214的`"\n".join(lines)`。
+- `public_exception`（L217–L219）：接收`name`。 源码说明：Return only literal, reviewed exception names, never an unknown suffix.。 调用`FRAMEWORK_EXCEPTIONS.get`。 返回路径：L219的`name if name in BUILTIN_EXCEPTIONS else FRAMEWORK_EXCEPTIONS.get(name, "unknown")`。
+- `_json_unique`（L222–L231）：接收`text`。 调用`json.loads`。 返回路径：L231的`json.loads(text, object_pairs_hook=pairs)`。
+- `_json_unique.pairs`（L223–L229）：接收`values`。 控制顺序：L225遍历`values`；L226按`key in result`分支；L227抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L229的`result`。
+- `output_shapes`（L234–L265）：接收`output`。 源码说明：Untrusted format hints, with no captured message or dynamic path.。 控制顺序：L236按`type(output) is not str`分支。 调用`type`、`bounded_output_bytes(output).decode`、`bounded_output_bytes`、`normalize_sgr`、`patterns.items`、`re.search`。 返回路径：L237的`[]`；L261的`[ label for label, pattern in patterns.items() if re.search(pattern, raw if label == "ansi…`。
+- `native_startup_smoke`（L276–L325）：接收`sandbox`、`plan`、`database`、`identity_options`、`timeout`。 源码说明：Exercise the same isolated launcher, without importing candidate code.。 控制顺序：L304按`type(result.exit_code) is int and 0 <= result.exit_code <= 255`分支；L309按`type(output) is not str or len(output.encode()) > SMOKE_OUTPUT_LIMIT`分支；L312按`receipt["exit_status"] == "zero"`分支；L314按`type(value) is dict and set(value) == {"version_matches", "executable_matches", "cwd_…`分支。 调用`time.monotonic`、`min`、`_DEADLINE.set`、`redirected_command`、`product_argv`、`control_exec`、`shlex.join`、`remaining`、`type`等。 返回路径：L310的`receipt`；L321的`receipt`；L323的`receipt`。
+- `native_startup_smoke.remaining`（L283–L289）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L287按`value < 1`分支；L288抛异常，停止当前正常路径。 调用`int`、`time.monotonic`、`TimeoutError`。 返回路径：L289的`value`。
+- `native_startup_paths`（L427–L477）：接收`sandbox`、`timeout`。 源码说明：Return a fresh finite receipt or unknown; never serialize probe failures.。 控制顺序：L433按`budget < 1`分支；L436按`type(result.exit_code) is not int or result.exit_code != 0`分支；L438按`type(result.result) is not str or len(result.result.encode()) > 2048`分支；L441按`type(value) is not dict or set(value) != {"paths", "native_binary"}`分支；L444按`type(paths) is not dict or set(paths) != set(PATH_ROLES)`分支；L446遍历`paths.values()`；L447按`type(row) is not dict or set(row) != {"entry", "target", "dac_read", "dac_exec"}`分支；L449按`any(type(row[k]) is not str or row[k] not in KINDS for k in ("entry", "target"))`分支。后续分支沿下方源码相同行号继续阅读。 调用`_DEADLINE.set`、`time.monotonic`、`min`、`int`、`control_exec`、`type`、`len`、`result.result.encode`、`_json_unique`等。 返回路径：L434的`unknown`；L437的`unknown`；L439的`unknown`。
 
 </details>
 
-**创建路径：** `workbench/capability_startup_paths.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L277。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_startup_paths.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L477。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10653`。本段原文以LF换行结束。
+本段原始字节数：`17508`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_startup_paths.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1597478308b4480ec90a0600b15d5b9af7f4999c13f146f1f052c652563d49b6"} -->
+<!-- learning-source: {"path": "workbench/capability_startup_paths.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "38962fb51613c3f84f17976cd1475fc29ceb8617cb5cf456cfd47f7370264763"} -->
 ````python
 # workbench/capability_startup_paths.py
 """Failure-only fixed launch metadata and isolated, source-free interpreter smoke."""
@@ -51,11 +54,206 @@ PATH_OUTPUT_LIMIT = 2048
 SMOKE_OUTPUT_LIMIT = 512
 NATIVE_TAIL_LIMIT = 8000 - PATH_OUTPUT_LIMIT - SMOKE_OUTPUT_LIMIT
 SGR = re.compile(r"\x1b\[[0-9;]{0,32}m")
+OTHER_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+
+# Literal public vocabulary only. Never discover classes from candidate output
+# or import the candidate/application to classify its traceback.
+BUILTIN_EXCEPTIONS = frozenset(
+    {
+        "ArithmeticError",
+        "AssertionError",
+        "AttributeError",
+        "BaseException",
+        "BaseExceptionGroup",
+        "BlockingIOError",
+        "BrokenPipeError",
+        "BufferError",
+        "ChildProcessError",
+        "ConnectionAbortedError",
+        "ConnectionError",
+        "ConnectionRefusedError",
+        "ConnectionResetError",
+        "EOFError",
+        "Exception",
+        "ExceptionGroup",
+        "FileExistsError",
+        "FileNotFoundError",
+        "FloatingPointError",
+        "GeneratorExit",
+        "ImportError",
+        "IndentationError",
+        "IndexError",
+        "InterruptedError",
+        "IsADirectoryError",
+        "KeyError",
+        "KeyboardInterrupt",
+        "LookupError",
+        "MemoryError",
+        "ModuleNotFoundError",
+        "NameError",
+        "NotADirectoryError",
+        "NotImplementedError",
+        "OSError",
+        "OverflowError",
+        "PermissionError",
+        "ProcessLookupError",
+        "PythonFinalizationError",
+        "RecursionError",
+        "ReferenceError",
+        "RuntimeError",
+        "StopAsyncIteration",
+        "StopIteration",
+        "SyntaxError",
+        "SystemError",
+        "SystemExit",
+        "TabError",
+        "TimeoutError",
+        "TypeError",
+        "UnboundLocalError",
+        "UnicodeDecodeError",
+        "UnicodeEncodeError",
+        "UnicodeError",
+        "UnicodeTranslateError",
+        "ValueError",
+        "ZeroDivisionError",
+    }
+)
+# Public non-Warning exception inventory verified as source data against native
+# SQLAlchemy 2.0.51, Pydantic 2.12.5 and pydantic-core 2.41.5. The same names
+# exist in controller versions 2.0.54, 2.13.5 and 2.46.5. No runtime discovery.
+# Rich emits short headings; these hints do not prove the originating package.
+FRAMEWORK_EXCEPTION_NAMES = {
+    "sqlalchemy.exc": (
+        "AmbiguousForeignKeysError",
+        "ArgumentError",
+        "AwaitRequired",
+        "CircularDependencyError",
+        "CompileError",
+        "ConstraintColumnNotFoundError",
+        "DBAPIError",
+        "DataError",
+        "DatabaseError",
+        "DisconnectionError",
+        "DuplicateColumnError",
+        "IdentifierError",
+        "IllegalStateChangeError",
+        "IntegrityError",
+        "InterfaceError",
+        "InternalError",
+        "InvalidRequestError",
+        "InvalidatePoolError",
+        "MissingGreenlet",
+        "MultipleResultsFound",
+        "NoForeignKeysError",
+        "NoInspectionAvailable",
+        "NoReferenceError",
+        "NoReferencedColumnError",
+        "NoReferencedTableError",
+        "NoResultFound",
+        "NoSuchColumnError",
+        "NoSuchModuleError",
+        "NoSuchTableError",
+        "NotSupportedError",
+        "ObjectNotExecutableError",
+        "OperationalError",
+        "PendingRollbackError",
+        "ProgrammingError",
+        "ResourceClosedError",
+        "SQLAlchemyError",
+        "StatementError",
+        "TimeoutError",
+        "UnboundExecutionError",
+        "UnreflectableTableError",
+        "UnsupportedCompilationError",
+    ),
+    "sqlalchemy.orm.exc": (
+        "DetachedInstanceError",
+        "FlushError",
+        "LoaderStrategyException",
+        "MappedAnnotationError",
+        "ObjectDeletedError",
+        "ObjectDereferencedError",
+        "StaleDataError",
+        "UnmappedClassError",
+        "UnmappedColumnError",
+        "UnmappedError",
+        "UnmappedInstanceError",
+    ),
+    "pydantic.errors": (
+        "PydanticForbiddenQualifier",
+        "PydanticImportError",
+        "PydanticInvalidForJsonSchema",
+        "PydanticSchemaGenerationError",
+        "PydanticUndefinedAnnotation",
+        "PydanticUserError",
+    ),
+    "pydantic_core._pydantic_core": (
+        "PydanticCustomError",
+        "PydanticKnownError",
+        "PydanticOmit",
+        "PydanticSerializationError",
+        "PydanticSerializationUnexpectedValue",
+        "PydanticUseDefault",
+        "SchemaError",
+        "ValidationError",
+    ),
+}
+FRAMEWORK_EXCEPTIONS = {
+    alias: name
+    for module, names in FRAMEWORK_EXCEPTION_NAMES.items()
+    for name in names
+    for alias in (name, module + "." + name)
+}
+FRAMEWORK_EXCEPTIONS.update(
+    {
+        **{"pydantic." + name: name for name in FRAMEWORK_EXCEPTION_NAMES["pydantic.errors"]},
+        **{
+            "pydantic_core." + name: name
+            for name in FRAMEWORK_EXCEPTION_NAMES["pydantic_core._pydantic_core"]
+        },
+        "pydantic.ValidationError": "ValidationError",
+        "ConcurrentModificationError": "StaleDataError",
+        "sqlalchemy.orm.exc.ConcurrentModificationError": "StaleDataError",
+        "sqlalchemy.orm.exc.NoResultFound": "NoResultFound",
+        "sqlalchemy.orm.exc.MultipleResultsFound": "MultipleResultsFound",
+    }
+)
+
+
+def bounded_output_bytes(output, limit=8000):
+    """Cap raw UTF-8 bytes before normalization; never refill from later text."""
+    return output[:limit].encode("utf-8", errors="replace")[:limit]
 
 
 def normalize_sgr(output):
     """Remove only bounded numeric SGR, never OSC or arbitrary terminal commands."""
     return SGR.sub("", output)
+
+
+def exception_lines(output):
+    """Only bounded indentation and a single known Rich panel border unwrap.
+
+    Use only for the terminal exception hint, never to join traceback frames
+    for the stricter multiprocessing component classifier.
+    """
+    lines = []
+    for line in output.split("\n"):
+        # Do not strip arbitrary Unicode, terminal controls or dynamic prefixes.
+        match = re.fullmatch(r"[ \t]{0,32}(│ .* │|[A-Za-z_].*)", line)
+        line = match[1] if match else line
+        if line.startswith("│ ") and line.endswith(" │"):
+            line = line[2:-2]
+            # Rich pads empty-message class headings to the panel width. Trim
+            # only this bounded ASCII padding inside a complete known border.
+            match = re.fullmatch(r"[ \t]{0,32}([A-Za-z_].*?) {0,512}", line)
+            line = match[1] if match else line
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def public_exception(name):
+    """Return only literal, reviewed exception names, never an unknown suffix."""
+    return name if name in BUILTIN_EXCEPTIONS else FRAMEWORK_EXCEPTIONS.get(name, "unknown")
 
 
 def _json_unique(text):
@@ -74,7 +272,7 @@ def output_shapes(output):
     """Untrusted format hints, with no captured message or dynamic path."""
     if type(output) is not str:
         return []
-    output = output[:8000]
+    output = bounded_output_bytes(output).decode("utf-8", errors="ignore")
     raw = output
     output = normalize_sgr(output)
     patterns = {
@@ -88,6 +286,11 @@ def output_shapes(output):
         "shared-library-open": r"cannot open shared object file:",
         "guard-rejection": r"(?m)^Isolated command guard unavailable; no product command was executed$",
         "python-traceback": r"Traceback \(most recent call last\):",
+        "rich-traceback": r"(?m)^[ \t]{0,32}╭─{1,512} Traceback \(most recent call last\) ─{1,512}╮[ \t]*$",
+        "cli-usage": r"(?m)^[ \t]{0,32}[Uu]sage: [^\n]{1,512}$",
+        "cli-error": r"(?m)^(?:[A-Za-z0-9_./ -]{1,128}: error: |Error: )",
+        "pydantic-validation": r"https://errors\.pydantic\.dev/[0-9]{1,2}\.[0-9]{1,2}/v/[a-z_]{1,64}(?:\s|$)",
+        "sqlalchemy-error": r"https://sqlalche\.me/e/[0-9]{2}/[a-z0-9]{4}\)",
         "file-not-found-type": r"FileNotFoundError:",
         "vendor-loguru": r"(?m)^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \| (?:DEBUG|INFO|WARNING|ERROR|CRITICAL)\s*\|",
         "ansi-control": r"\x1b\[[0-9;]{0,32}m",

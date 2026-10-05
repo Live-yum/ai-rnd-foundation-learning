@@ -12169,17 +12169,18 @@ def business_coverage(policy, proof):
 
 **逐个入口与控制逻辑：**
 
-- `startup_command_exit_status`（L54–L70）：接收`process`、`session`、`command_id`、`timeout`。 源码说明：Read one bounded SDK status, without exposing commands, IDs or exceptions.。 控制顺序：L63按`command.id == command_id and type(command.exit_code) is int`分支；L64按`0 <= command.exit_code <= 255`分支。 调用`_DEADLINE.set`、`time.monotonic`、`process.get_session_command`、`type`、`_DEADLINE.reset`。 返回路径：L65的`"zero" if command.exit_code == 0 else "nonzero"`；L70的`"unknown"`。
-- `startup_failure_diagnostic`（L73–L196）：接收`output`、`http_status`、`http_error`、`tmpfs_noexec`、`command_exit_status`。 源码说明：Candidate output supplies hints only; no raw output, path or token escapes.。 控制顺序：L148按`exception not in {"PermissionError", "FileNotFoundError", "OSError", "TimeoutError"}`分支；L154遍历`re.split(r"(?m)^Traceback \(most recent call last\):\n", output)[…`；L156按`not trace_errors`分支；L160按`failure[1] in {"PermissionError", "OSError"} and failure[2] in {"1", "13"} and frame(…`分支；L169按`"Waiting for application startup." in output or "Application startup failed." in outp…`分支；L171按`frame("app/__init__.py", "create_app")`分支；L173按`frame("uvicorn/importer.py", "import_from_string")`分支。 调用`type`、`output[:8000].encode("utf-8", errors="replace")[:8000].decode`、`output[:8000].encode`、`normalize_sgr`、`patterns.items`、`any`、`re.compile`、`exceptions_in`、`exceptions[-1].groups`等。 返回路径：L176的`{ "phase": "health_deadline", "http_status": http_status if type(http_status) is int and 1…`。
-- `startup_failure_diagnostic.frame`（L108–L119）：接收`path`、`function`、`trace`。 调用`re.search`、`re.escape`。 返回路径：L109的`re.search( r'(?m)^\s*File "[^"\n]{1,512}/' + re.escape(path) + r'", line [0-9]{1,7}, in ' …`。
-- `startup_failure_diagnostic.exceptions_in`（L125–L130）：接收`trace`。 调用`exception_pattern.finditer`、`item[1].endswith`。 返回路径：L126的`[ item for item in exception_pattern.finditer(trace) if item[1].endswith(("Error", "Except…`。
-- `restart_application_identity`（L199–L249）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L248按`result.exit_code != 0`分支；L249抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify_capabilities`（L252–L342）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L258按`plan.selection.model_dump() != selection`分支；L259抛异常，停止当前正常路径；L268按`selection["template"] == "fastapiadmin"`分支；L271按`dependency_identity(product) != profile["dependency_identity"]`分支；L272抛异常，停止当前正常路径；L308按`len(body) > 1_000_000`分支；L309抛异常，停止当前正常路径；L331抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`require_dependency_descriptors`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`等。 返回路径：L263的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L342的`receipt`。
-- `_verify`（L345–L898）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L381按`trusted_oracle not in (None, "contest-business-v2")`分支；L382抛异常，停止当前正常路径；L383按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L386抛异常，停止当前正常路径；L389按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L393抛异常，停止当前正常路径；L394按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L399抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L898的`receipt`。
-- `_verify.start`（L539–L670）：接收`command`、`port`、`health_path`。 控制顺序：L570按`not response.cmd_id`分支；L571抛异常，停止当前正常路径；L574按`not isinstance(preview.token, str) or not preview.token`分支；L575抛异常，停止当前正常路径；L587在`time.monotonic() < deadline`成立时循环；L591按`200 <= check.status_code < 300`分支；L630按`type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}`分支；L643按`native`分支。后续分支沿下方源码相同行号继续阅读。 调用`readonly_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`等。 返回路径：L592的`http, url, preview.token`。
-- `main`（L901–L946）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L903按`len(body) > 1_000_000`分支；L904抛异常，停止当前正常路径；L913按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L919抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `startup_command_exit_facts`（L54–L73）：接收`process`、`session`、`command_id`、`timeout`。 源码说明：Read one bounded SDK status, without exposing commands, IDs or exceptions.。 控制顺序：L63按`command.id == command_id and type(command.exit_code) is int`分支；L64按`0 <= command.exit_code <= 255`分支。 调用`_DEADLINE.set`、`time.monotonic`、`process.get_session_command`、`type`、`_DEADLINE.reset`。 返回路径：L65的`{ "command_exit_status": "zero" if command.exit_code == 0 else "nonzero", "command_exit_co…`；L73的`{"command_exit_status": "unknown", "command_exit_code": None}`。
+- `startup_command_exit_status`（L76–L78）：接收`process`、`session`、`command_id`、`timeout`。 源码说明：Compatibility view of the same single-query, bounded SDK facts.。 调用`startup_command_exit_facts`。 返回路径：L78的`startup_command_exit_facts(process, session, command_id, timeout)["command_exit_status"]`。
+- `startup_failure_diagnostic`（L81–L242）：接收`output`、`http_status`、`http_error`、`tmpfs_noexec`、`command_exit_status`、`command_exit_code`、`output_limit`。 源码说明：Candidate output supplies hints only; no raw output, path or token escapes.。 控制顺序：L102按`type(output_limit) is not int or not 1 <= output_limit <= 8000`分支；L173按`exceptions and len(raw_bytes) == output_limit and not output.endswith(("\n", " │")) a…`分支；L184按`exception not in {"PermissionError", "FileNotFoundError", "OSError", "TimeoutError"}`分支；L190遍历`re.split(r"(?m)^Traceback \(most recent call last\):\n", output)[…`；L192按`not trace_errors`分支；L196按`failure[1] in {"PermissionError", "OSError"} and failure[2] in {"1", "13"} and frame(…`分支；L205按`"Waiting for application startup." in output or "Application startup failed." in outp…`分支；L207按`frame("app/__init__.py", "create_app")`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`bounded_output_bytes`、`raw_bytes.decode`、`normalize_sgr`、`patterns.items`、`any`、`re.compile`、`exception_lines`、`exceptions_in`等。 返回路径：L216的`{ "phase": "health_deadline", "http_status": http_status if type(http_status) is int and 1…`。
+- `startup_failure_diagnostic.frame`（L130–L141）：接收`path`、`function`、`trace`。 调用`re.search`、`re.escape`。 返回路径：L131的`re.search( r'(?m)^\s*File "[^"\n]{1,512}/' + re.escape(path) + r'", line [0-9]{1,7}, in ' …`。
+- `startup_failure_diagnostic.exceptions_in`（L150–L168）：接收`trace`、`terminal`。 调用`pattern.finditer`、`item[1].endswith`、`public_exception`、`trace.startswith`、`item.end`、`trace[item.end() :].strip`、`re.fullmatch`。 返回路径：L152的`[ item for item in pattern.finditer(trace) if item[1].endswith(("Error", "Exception")) or …`。
+- `restart_application_identity`（L245–L295）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L294按`result.exit_code != 0`分支；L295抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_capabilities`（L298–L388）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L304按`plan.selection.model_dump() != selection`分支；L305抛异常，停止当前正常路径；L314按`selection["template"] == "fastapiadmin"`分支；L317按`dependency_identity(product) != profile["dependency_identity"]`分支；L318抛异常，停止当前正常路径；L354按`len(body) > 1_000_000`分支；L355抛异常，停止当前正常路径；L377抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`require_dependency_descriptors`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`等。 返回路径：L309的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L388的`receipt`。
+- `_verify`（L391–L945）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L427按`trusted_oracle not in (None, "contest-business-v2")`分支；L428抛异常，停止当前正常路径；L429按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L432抛异常，停止当前正常路径；L435按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L439抛异常，停止当前正常路径；L440按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L445抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L945的`receipt`。
+- `_verify.start`（L585–L717）：接收`command`、`port`、`health_path`。 控制顺序：L616按`not response.cmd_id`分支；L617抛异常，停止当前正常路径；L620按`not isinstance(preview.token, str) or not preview.token`分支；L621抛异常，停止当前正常路径；L633在`time.monotonic() < deadline`成立时循环；L637按`200 <= check.status_code < 300`分支；L676按`type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}`分支；L690按`native`分支。后续分支沿下方源码相同行号继续阅读。 调用`readonly_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`等。 返回路径：L638的`http, url, preview.token`。
+- `main`（L948–L993）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L950按`len(body) > 1_000_000`分支；L951抛异常，停止当前正常路径；L960按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L966抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/capability_sandbox.py sha256: 107866503fdd671db197e04e05fa0565b8300e1afb9ef4ea9d0faad6dbe37e66 -->
+<!-- source-file: workbench/capability_sandbox.py sha256: 1ce38275ce415fa325e5db800478d02402e779f4764129b4c518864cefb2c898 -->
 ````python
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
 
@@ -12234,7 +12235,7 @@ from workbench.tools import clean_env, process_options, stop_process
 REMOTE = "/tmp/rnd-capability"
 
 
-def startup_command_exit_status(process, session, command_id, timeout):
+def startup_command_exit_facts(process, session, command_id, timeout):
     """Read one bounded SDK status, without exposing commands, IDs or exceptions."""
     from workbench.daytona_sessions import _DEADLINE
 
@@ -12245,26 +12246,48 @@ def startup_command_exit_status(process, session, command_id, timeout):
         command = process.get_session_command(session, command_id)
         if command.id == command_id and type(command.exit_code) is int:
             if 0 <= command.exit_code <= 255:
-                return "zero" if command.exit_code == 0 else "nonzero"
+                return {
+                    "command_exit_status": "zero" if command.exit_code == 0 else "nonzero",
+                    "command_exit_code": command.exit_code,
+                }
     except Exception:
         pass
     finally:
         _DEADLINE.reset(token)
-    return "unknown"
+    return {"command_exit_status": "unknown", "command_exit_code": None}
+
+
+def startup_command_exit_status(process, session, command_id, timeout):
+    """Compatibility view of the same single-query, bounded SDK facts."""
+    return startup_command_exit_facts(process, session, command_id, timeout)["command_exit_status"]
 
 
 def startup_failure_diagnostic(
-    output, http_status, http_error, tmpfs_noexec=None, command_exit_status="unknown"
+    output,
+    http_status,
+    http_error,
+    tmpfs_noexec=None,
+    command_exit_status="unknown",
+    *,
+    command_exit_code=None,
+    output_limit=8000,
 ):
     """Candidate output supplies hints only; no raw output, path or token escapes."""
-    from workbench.capability_startup_paths import normalize_sgr, output_shapes
+    from workbench.capability_startup_paths import (
+        OTHER_CONTROL,
+        bounded_output_bytes,
+        exception_lines,
+        normalize_sgr,
+        output_shapes,
+        public_exception,
+    )
 
     readable = type(output) is str
-    output = (
-        output[:8000].encode("utf-8", errors="replace")[:8000].decode("utf-8", errors="replace")
-        if readable
-        else ""
-    )
+    if type(output_limit) is not int or not 1 <= output_limit <= 8000:
+        output_limit = 8000
+    raw_bytes = bounded_output_bytes(output, output_limit) if readable else b""
+    # Dropping an incomplete terminal codepoint cannot create extra scan bytes.
+    output = raw_bytes.decode("utf-8", errors="ignore")
     # Bound raw bytes BEFORE stripping already observed color sequences. Never
     # refill the budget with text beyond the original read or interpret OSC.
     raw_output = output
@@ -12304,29 +12327,43 @@ def startup_failure_diagnostic(
     exception_pattern = re.compile(
         r"(?m)^([A-Za-z_][A-Za-z0-9_.]{0,127}):(?: \[Errno ([0-9]{1,10})\])?"
     )
+    terminal_exception_pattern = re.compile(
+        r"(?m)^([A-Za-z_][A-Za-z0-9_.<>]{0,255})(?::(?: \[Errno ([0-9]{1,10})\])?|[ \t]{0,32}$)"
+    )
 
-    def exceptions_in(trace):
+    def exceptions_in(trace, *, terminal=False):
+        pattern = terminal_exception_pattern if terminal else exception_pattern
         return [
             item
-            for item in exception_pattern.finditer(trace)
+            for item in pattern.finditer(trace)
             if item[1].endswith(("Error", "Exception"))
+            or (
+                terminal
+                and (
+                    public_exception(item[1]) != "unknown"
+                    # Wrapped documentation URLs are not exception headings.
+                    or (":" in item[0] and not trace.startswith("//", item.end()))
+                    # Unknown empty headings may use lowercase names too.
+                    # Ignore bare words inside a longer exception message.
+                    or not trace[item.end() :].strip()
+                    or re.fullmatch(r"[ \t\r\n]*╰─{1,512}╯[ \t\r\n]*", trace[item.end() :])
+                )
+            )
         ]
 
-    exceptions = exceptions_in(output)
+    terminal_output = exception_lines(output)
+    exceptions = exceptions_in(terminal_output, terminal=True)
     exception, number = exceptions[-1].groups() if exceptions else ("unknown", "")
-    exception_types = {
-        "PermissionError",
-        "FileNotFoundError",
-        "OSError",
-        "ImportError",
-        "ModuleNotFoundError",
-        "RuntimeError",
-        "MemoryError",
-        "SyntaxError",
-        "TimeoutError",
-        "ValueError",
-    }
-    exception = exception if exception in exception_types else "unknown"
+    if (
+        exceptions
+        and len(raw_bytes) == output_limit
+        and not output.endswith(("\n", " │"))
+        and exceptions[-1].end() == len(terminal_output)
+        and ":" not in exceptions[-1][0]
+    ):
+        # A cut TypeErrorPrivate must not become a known empty TypeError.
+        exception, number = "unknown", None
+    exception = public_exception(exception)
     exception_errno = int(number) if number in {"1", "2", "13", "28", "30"} else None
     if exception not in {"PermissionError", "FileNotFoundError", "OSError", "TimeoutError"}:
         exception_errno = None
@@ -12356,6 +12393,10 @@ def startup_failure_diagnostic(
     elif frame("uvicorn/importer.py", "import_from_string"):
         startup_phase = "import"
     errors = {"none", "connect", "timeout", "protocol", "other"}
+    if type(command_exit_code) is not int or not 0 <= command_exit_code <= 255:
+        command_exit_code = None
+    else:
+        command_exit_status = "zero" if command_exit_code == 0 else "nonzero"
     return {
         "phase": "health_deadline",
         "http_status": http_status
@@ -12363,7 +12404,12 @@ def startup_failure_diagnostic(
         else None,
         "http_error": http_error if type(http_error) is str and http_error in errors else "other",
         "output_readable": readable,
-        "output_nonempty": bool(raw_output),
+        "output_nonempty": bool(raw_bytes),
+        "output_raw_bytes": len(raw_bytes) if readable else None,
+        "output_normalized_bytes": len(output.encode("utf-8")) if readable else None,
+        "output_normalized_nonspace": bool(output.strip()) if readable else None,
+        "output_read_limit_reached": len(raw_bytes) == output_limit if readable else None,
+        "output_has_non_sgr_control": bool(OTHER_CONTROL.search(output)) if readable else None,
         "output_hints": categories,
         "output_shapes": output_shapes(raw_output),
         "known_missing_modules": known,
@@ -12376,6 +12422,7 @@ def startup_failure_diagnostic(
         "command_exit_status": command_exit_status
         if type(command_exit_status) is str and command_exit_status in {"zero", "nonzero"}
         else "unknown",
+        "command_exit_code": command_exit_code,
     }
 
 
@@ -12819,9 +12866,10 @@ def _verify(
                     last_http_status,
                     last_http_error,
                     tmpfs_noexec,
-                    startup_command_exit_status(
+                    **startup_command_exit_facts(
                         sandbox.process, session, response.cmd_id, min(settings.tool_timeout, 5)
                     ),
+                    output_limit=NATIVE_TAIL_LIMIT if native else 8000,
                 )
                 if native:
                     from workbench.capability_startup_paths import (
@@ -13807,15 +13855,18 @@ def pg_verifier_argv(query):
 
 **逐个入口与控制逻辑：**
 
-- `normalize_sgr`（L22–L24）：接收`output`。 源码说明：Remove only bounded numeric SGR, never OSC or arbitrary terminal commands.。 调用`SGR.sub`。 返回路径：L24的`SGR.sub("", output)`。
-- `_json_unique`（L27–L36）：接收`text`。 调用`json.loads`。 返回路径：L36的`json.loads(text, object_pairs_hook=pairs)`。
-- `_json_unique.pairs`（L28–L34）：接收`values`。 控制顺序：L30遍历`values`；L31按`key in result`分支；L32抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L34的`result`。
-- `output_shapes`（L39–L65）：接收`output`。 源码说明：Untrusted format hints, with no captured message or dynamic path.。 控制顺序：L41按`type(output) is not str`分支。 调用`type`、`normalize_sgr`、`patterns.items`、`re.search`。 返回路径：L42的`[]`；L61的`[ label for label, pattern in patterns.items() if re.search(pattern, raw if label == "ansi…`。
-- `native_startup_smoke`（L76–L125）：接收`sandbox`、`plan`、`database`、`identity_options`、`timeout`。 源码说明：Exercise the same isolated launcher, without importing candidate code.。 控制顺序：L104按`type(result.exit_code) is int and 0 <= result.exit_code <= 255`分支；L109按`type(output) is not str or len(output.encode()) > SMOKE_OUTPUT_LIMIT`分支；L112按`receipt["exit_status"] == "zero"`分支；L114按`type(value) is dict and set(value) == {"version_matches", "executable_matches", "cwd_…`分支。 调用`time.monotonic`、`min`、`_DEADLINE.set`、`redirected_command`、`product_argv`、`control_exec`、`shlex.join`、`remaining`、`type`等。 返回路径：L110的`receipt`；L121的`receipt`；L123的`receipt`。
-- `native_startup_smoke.remaining`（L83–L89）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L87按`value < 1`分支；L88抛异常，停止当前正常路径。 调用`int`、`time.monotonic`、`TimeoutError`。 返回路径：L89的`value`。
-- `native_startup_paths`（L227–L277）：接收`sandbox`、`timeout`。 源码说明：Return a fresh finite receipt or unknown; never serialize probe failures.。 控制顺序：L233按`budget < 1`分支；L236按`type(result.exit_code) is not int or result.exit_code != 0`分支；L238按`type(result.result) is not str or len(result.result.encode()) > 2048`分支；L241按`type(value) is not dict or set(value) != {"paths", "native_binary"}`分支；L244按`type(paths) is not dict or set(paths) != set(PATH_ROLES)`分支；L246遍历`paths.values()`；L247按`type(row) is not dict or set(row) != {"entry", "target", "dac_read", "dac_exec"}`分支；L249按`any(type(row[k]) is not str or row[k] not in KINDS for k in ("entry", "target"))`分支。后续分支沿下方源码相同行号继续阅读。 调用`_DEADLINE.set`、`time.monotonic`、`min`、`int`、`control_exec`、`type`、`len`、`result.result.encode`、`_json_unique`等。 返回路径：L234的`unknown`；L237的`unknown`；L239的`unknown`。
+- `bounded_output_bytes`（L186–L188）：接收`output`、`limit`。 源码说明：Cap raw UTF-8 bytes before normalization; never refill from later text.。 调用`output[:limit].encode`。 返回路径：L188的`output[:limit].encode("utf-8", errors="replace")[:limit]`。
+- `normalize_sgr`（L191–L193）：接收`output`。 源码说明：Remove only bounded numeric SGR, never OSC or arbitrary terminal commands.。 调用`SGR.sub`。 返回路径：L193的`SGR.sub("", output)`。
+- `exception_lines`（L196–L214）：接收`output`。 源码说明：Only bounded indentation and a single known Rich panel border unwrap. Use only for the terminal exception hint, never to join traceback frames for the stricter multiprocessing component classifier.。 控制顺序：L203遍历`output.split("\n")`；L207按`line.startswith("│ ") and line.endswith(" │")`分支。 调用`output.split`、`re.fullmatch`、`line.startswith`、`line.endswith`、`lines.append`、`"\n".join`。 返回路径：L214的`"\n".join(lines)`。
+- `public_exception`（L217–L219）：接收`name`。 源码说明：Return only literal, reviewed exception names, never an unknown suffix.。 调用`FRAMEWORK_EXCEPTIONS.get`。 返回路径：L219的`name if name in BUILTIN_EXCEPTIONS else FRAMEWORK_EXCEPTIONS.get(name, "unknown")`。
+- `_json_unique`（L222–L231）：接收`text`。 调用`json.loads`。 返回路径：L231的`json.loads(text, object_pairs_hook=pairs)`。
+- `_json_unique.pairs`（L223–L229）：接收`values`。 控制顺序：L225遍历`values`；L226按`key in result`分支；L227抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L229的`result`。
+- `output_shapes`（L234–L265）：接收`output`。 源码说明：Untrusted format hints, with no captured message or dynamic path.。 控制顺序：L236按`type(output) is not str`分支。 调用`type`、`bounded_output_bytes(output).decode`、`bounded_output_bytes`、`normalize_sgr`、`patterns.items`、`re.search`。 返回路径：L237的`[]`；L261的`[ label for label, pattern in patterns.items() if re.search(pattern, raw if label == "ansi…`。
+- `native_startup_smoke`（L276–L325）：接收`sandbox`、`plan`、`database`、`identity_options`、`timeout`。 源码说明：Exercise the same isolated launcher, without importing candidate code.。 控制顺序：L304按`type(result.exit_code) is int and 0 <= result.exit_code <= 255`分支；L309按`type(output) is not str or len(output.encode()) > SMOKE_OUTPUT_LIMIT`分支；L312按`receipt["exit_status"] == "zero"`分支；L314按`type(value) is dict and set(value) == {"version_matches", "executable_matches", "cwd_…`分支。 调用`time.monotonic`、`min`、`_DEADLINE.set`、`redirected_command`、`product_argv`、`control_exec`、`shlex.join`、`remaining`、`type`等。 返回路径：L310的`receipt`；L321的`receipt`；L323的`receipt`。
+- `native_startup_smoke.remaining`（L283–L289）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L287按`value < 1`分支；L288抛异常，停止当前正常路径。 调用`int`、`time.monotonic`、`TimeoutError`。 返回路径：L289的`value`。
+- `native_startup_paths`（L427–L477）：接收`sandbox`、`timeout`。 源码说明：Return a fresh finite receipt or unknown; never serialize probe failures.。 控制顺序：L433按`budget < 1`分支；L436按`type(result.exit_code) is not int or result.exit_code != 0`分支；L438按`type(result.result) is not str or len(result.result.encode()) > 2048`分支；L441按`type(value) is not dict or set(value) != {"paths", "native_binary"}`分支；L444按`type(paths) is not dict or set(paths) != set(PATH_ROLES)`分支；L446遍历`paths.values()`；L447按`type(row) is not dict or set(row) != {"entry", "target", "dac_read", "dac_exec"}`分支；L449按`any(type(row[k]) is not str or row[k] not in KINDS for k in ("entry", "target"))`分支。后续分支沿下方源码相同行号继续阅读。 调用`_DEADLINE.set`、`time.monotonic`、`min`、`int`、`control_exec`、`type`、`len`、`result.result.encode`、`_json_unique`等。 返回路径：L434的`unknown`；L437的`unknown`；L439的`unknown`。
 
-<!-- source-file: workbench/capability_startup_paths.py sha256: 1597478308b4480ec90a0600b15d5b9af7f4999c13f146f1f052c652563d49b6 -->
+<!-- source-file: workbench/capability_startup_paths.py sha256: 38962fb51613c3f84f17976cd1475fc29ceb8617cb5cf456cfd47f7370264763 -->
 ````python
 """Failure-only fixed launch metadata and isolated, source-free interpreter smoke."""
 
@@ -13836,11 +13887,206 @@ PATH_OUTPUT_LIMIT = 2048
 SMOKE_OUTPUT_LIMIT = 512
 NATIVE_TAIL_LIMIT = 8000 - PATH_OUTPUT_LIMIT - SMOKE_OUTPUT_LIMIT
 SGR = re.compile(r"\x1b\[[0-9;]{0,32}m")
+OTHER_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+
+# Literal public vocabulary only. Never discover classes from candidate output
+# or import the candidate/application to classify its traceback.
+BUILTIN_EXCEPTIONS = frozenset(
+    {
+        "ArithmeticError",
+        "AssertionError",
+        "AttributeError",
+        "BaseException",
+        "BaseExceptionGroup",
+        "BlockingIOError",
+        "BrokenPipeError",
+        "BufferError",
+        "ChildProcessError",
+        "ConnectionAbortedError",
+        "ConnectionError",
+        "ConnectionRefusedError",
+        "ConnectionResetError",
+        "EOFError",
+        "Exception",
+        "ExceptionGroup",
+        "FileExistsError",
+        "FileNotFoundError",
+        "FloatingPointError",
+        "GeneratorExit",
+        "ImportError",
+        "IndentationError",
+        "IndexError",
+        "InterruptedError",
+        "IsADirectoryError",
+        "KeyError",
+        "KeyboardInterrupt",
+        "LookupError",
+        "MemoryError",
+        "ModuleNotFoundError",
+        "NameError",
+        "NotADirectoryError",
+        "NotImplementedError",
+        "OSError",
+        "OverflowError",
+        "PermissionError",
+        "ProcessLookupError",
+        "PythonFinalizationError",
+        "RecursionError",
+        "ReferenceError",
+        "RuntimeError",
+        "StopAsyncIteration",
+        "StopIteration",
+        "SyntaxError",
+        "SystemError",
+        "SystemExit",
+        "TabError",
+        "TimeoutError",
+        "TypeError",
+        "UnboundLocalError",
+        "UnicodeDecodeError",
+        "UnicodeEncodeError",
+        "UnicodeError",
+        "UnicodeTranslateError",
+        "ValueError",
+        "ZeroDivisionError",
+    }
+)
+# Public non-Warning exception inventory verified as source data against native
+# SQLAlchemy 2.0.51, Pydantic 2.12.5 and pydantic-core 2.41.5. The same names
+# exist in controller versions 2.0.54, 2.13.5 and 2.46.5. No runtime discovery.
+# Rich emits short headings; these hints do not prove the originating package.
+FRAMEWORK_EXCEPTION_NAMES = {
+    "sqlalchemy.exc": (
+        "AmbiguousForeignKeysError",
+        "ArgumentError",
+        "AwaitRequired",
+        "CircularDependencyError",
+        "CompileError",
+        "ConstraintColumnNotFoundError",
+        "DBAPIError",
+        "DataError",
+        "DatabaseError",
+        "DisconnectionError",
+        "DuplicateColumnError",
+        "IdentifierError",
+        "IllegalStateChangeError",
+        "IntegrityError",
+        "InterfaceError",
+        "InternalError",
+        "InvalidRequestError",
+        "InvalidatePoolError",
+        "MissingGreenlet",
+        "MultipleResultsFound",
+        "NoForeignKeysError",
+        "NoInspectionAvailable",
+        "NoReferenceError",
+        "NoReferencedColumnError",
+        "NoReferencedTableError",
+        "NoResultFound",
+        "NoSuchColumnError",
+        "NoSuchModuleError",
+        "NoSuchTableError",
+        "NotSupportedError",
+        "ObjectNotExecutableError",
+        "OperationalError",
+        "PendingRollbackError",
+        "ProgrammingError",
+        "ResourceClosedError",
+        "SQLAlchemyError",
+        "StatementError",
+        "TimeoutError",
+        "UnboundExecutionError",
+        "UnreflectableTableError",
+        "UnsupportedCompilationError",
+    ),
+    "sqlalchemy.orm.exc": (
+        "DetachedInstanceError",
+        "FlushError",
+        "LoaderStrategyException",
+        "MappedAnnotationError",
+        "ObjectDeletedError",
+        "ObjectDereferencedError",
+        "StaleDataError",
+        "UnmappedClassError",
+        "UnmappedColumnError",
+        "UnmappedError",
+        "UnmappedInstanceError",
+    ),
+    "pydantic.errors": (
+        "PydanticForbiddenQualifier",
+        "PydanticImportError",
+        "PydanticInvalidForJsonSchema",
+        "PydanticSchemaGenerationError",
+        "PydanticUndefinedAnnotation",
+        "PydanticUserError",
+    ),
+    "pydantic_core._pydantic_core": (
+        "PydanticCustomError",
+        "PydanticKnownError",
+        "PydanticOmit",
+        "PydanticSerializationError",
+        "PydanticSerializationUnexpectedValue",
+        "PydanticUseDefault",
+        "SchemaError",
+        "ValidationError",
+    ),
+}
+FRAMEWORK_EXCEPTIONS = {
+    alias: name
+    for module, names in FRAMEWORK_EXCEPTION_NAMES.items()
+    for name in names
+    for alias in (name, module + "." + name)
+}
+FRAMEWORK_EXCEPTIONS.update(
+    {
+        **{"pydantic." + name: name for name in FRAMEWORK_EXCEPTION_NAMES["pydantic.errors"]},
+        **{
+            "pydantic_core." + name: name
+            for name in FRAMEWORK_EXCEPTION_NAMES["pydantic_core._pydantic_core"]
+        },
+        "pydantic.ValidationError": "ValidationError",
+        "ConcurrentModificationError": "StaleDataError",
+        "sqlalchemy.orm.exc.ConcurrentModificationError": "StaleDataError",
+        "sqlalchemy.orm.exc.NoResultFound": "NoResultFound",
+        "sqlalchemy.orm.exc.MultipleResultsFound": "MultipleResultsFound",
+    }
+)
+
+
+def bounded_output_bytes(output, limit=8000):
+    """Cap raw UTF-8 bytes before normalization; never refill from later text."""
+    return output[:limit].encode("utf-8", errors="replace")[:limit]
 
 
 def normalize_sgr(output):
     """Remove only bounded numeric SGR, never OSC or arbitrary terminal commands."""
     return SGR.sub("", output)
+
+
+def exception_lines(output):
+    """Only bounded indentation and a single known Rich panel border unwrap.
+
+    Use only for the terminal exception hint, never to join traceback frames
+    for the stricter multiprocessing component classifier.
+    """
+    lines = []
+    for line in output.split("\n"):
+        # Do not strip arbitrary Unicode, terminal controls or dynamic prefixes.
+        match = re.fullmatch(r"[ \t]{0,32}(│ .* │|[A-Za-z_].*)", line)
+        line = match[1] if match else line
+        if line.startswith("│ ") and line.endswith(" │"):
+            line = line[2:-2]
+            # Rich pads empty-message class headings to the panel width. Trim
+            # only this bounded ASCII padding inside a complete known border.
+            match = re.fullmatch(r"[ \t]{0,32}([A-Za-z_].*?) {0,512}", line)
+            line = match[1] if match else line
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def public_exception(name):
+    """Return only literal, reviewed exception names, never an unknown suffix."""
+    return name if name in BUILTIN_EXCEPTIONS else FRAMEWORK_EXCEPTIONS.get(name, "unknown")
 
 
 def _json_unique(text):
@@ -13859,7 +14105,7 @@ def output_shapes(output):
     """Untrusted format hints, with no captured message or dynamic path."""
     if type(output) is not str:
         return []
-    output = output[:8000]
+    output = bounded_output_bytes(output).decode("utf-8", errors="ignore")
     raw = output
     output = normalize_sgr(output)
     patterns = {
@@ -13873,6 +14119,11 @@ def output_shapes(output):
         "shared-library-open": r"cannot open shared object file:",
         "guard-rejection": r"(?m)^Isolated command guard unavailable; no product command was executed$",
         "python-traceback": r"Traceback \(most recent call last\):",
+        "rich-traceback": r"(?m)^[ \t]{0,32}╭─{1,512} Traceback \(most recent call last\) ─{1,512}╮[ \t]*$",
+        "cli-usage": r"(?m)^[ \t]{0,32}[Uu]sage: [^\n]{1,512}$",
+        "cli-error": r"(?m)^(?:[A-Za-z0-9_./ -]{1,128}: error: |Error: )",
+        "pydantic-validation": r"https://errors\.pydantic\.dev/[0-9]{1,2}\.[0-9]{1,2}/v/[a-z_]{1,64}(?:\s|$)",
+        "sqlalchemy-error": r"https://sqlalche\.me/e/[0-9]{2}/[a-z0-9]{4}\)",
         "file-not-found-type": r"FileNotFoundError:",
         "vendor-loguru": r"(?m)^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \| (?:DEBUG|INFO|WARNING|ERROR|CRITICAL)\s*\|",
         "ansi-control": r"\x1b\[[0-9;]{0,32}m",
@@ -126123,70 +126374,122 @@ def test_restart_inventory_sees_live_thread_under_zombie_group_leader(monkeypatc
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `workbench.capability_sandbox`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `workbench.capability_sandbox`、`workbench.capability_startup_paths`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `test_startup_hints_are_finite_even_for_secret_bearing_tracebacks`（L11–L38）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L19断言`result == { "phase": "health_deadline", "http_status": 503, "http_error": "other", "o…`；L36断言`"secret" not in json.dumps(result)`；L37断言`len(json.dumps(result)) < 768`；L38断言`"passed" not in result`。 调用`startup_failure_diagnostic`、`json.dumps`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_nontext_startup_output_never_stringifies_candidate_data`（L42–L52）：接收`output`。 控制顺序：L44断言`result["output_readable"] is False`；L45断言`result["http_status"] is None`；L46断言`result["http_error"] == "other"`；L47断言`result["output_hints"] == []`；L48断言`result["startup_phase_hint"] == "unknown"`；L49断言`result["failure_component"] == "unknown"`；L50断言`result["exception_type"] == "unknown"`；L51断言`result["exception_errno"] is None`。后续分支沿下方源码相同行号继续阅读。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_only_exact_public_module_names_can_be_reported`（L58–L65）：接收`module`。 控制顺序：L62断言`result["known_missing_modules"] == [module]`；L63断言`startup_failure_diagnostic("x" * 8000 + "PermissionError", 0, "none")["output_hints"]…`。 调用`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_loader_failure_is_not_mislabeled_as_missing_module`（L68–L78）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L75断言`result["output_hints"] == ["import-error", "native-library-mapping"]`；L76断言`result["tmpfs_noexec"] is True`；L77断言`"secret" not in json.dumps(result)`；L78断言`startup_failure_diagnostic("", None, "none", "secret")["tmpfs_noexec"] is None`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `colored`（L92–L93）：接收`text`。 调用`"\x1b[0m\x1b[38;2;1;2;3m".join`。 返回路径：L93的`"\x1b[31m" + "\x1b[0m\x1b[38;2;1;2;3m".join(text) + "\x1b[0m"`。
-- `test_observed_sgr_can_split_exception_words_and_errno`（L96–L102）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L99断言`result["exception_type"] == "FileNotFoundError"`；L100断言`result["exception_errno"] == 2`；L101断言`result["output_hints"] == ["missing-file"]`；L102断言`result["output_shapes"] == ["file-not-found-type", "ansi-control"]`。 调用`colored`、`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_sgr_trace_retains_same_trace_association_with_later_cleanup`（L105–L114）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L112断言`result["failure_component"] == "multiprocessing-semaphore"`；L113断言`result["exception_type"] == "FileNotFoundError" and result["exception_errno"] == 2`；L114断言`"secret" not in json.dumps(result)`。 调用`"\n".join`、`SEMAPHORE_TRACE.splitlines`、`colored`、`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_incomplete_oversize_and_non_sgr_sequences_are_not_interpreted`（L120–L124）：接收`prefix`。 控制顺序：L122断言`result["exception_type"] == "unknown"`；L123断言`result["failure_component"] == "unknown"`；L124断言`"private" not in json.dumps(result) and "secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_stripped_control_bytes_do_not_create_a_larger_scan_window`（L127–L133）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L131断言`result["output_nonempty"] is True`；L132断言`result["exception_type"] == "unknown" and result["output_hints"] == []`；L133断言`result["output_shapes"] == ["ansi-control"]`。 调用`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_sgr_from_another_trace_cannot_supply_a_semaphore_denial`（L136–L140）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L140断言`startup_failure_diagnostic(trace, 502, "none")["failure_component"] == "unknown"`。 调用`SEMAPHORE_TRACE.replace`、`"\n".join`、`(first + second).splitlines`、`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_semaphore_failure_requires_known_constructor_frames_and_denial`（L143–L151）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L145断言`result["failure_component"] == "multiprocessing-semaphore"`；L146断言`result["exception_type"] == "PermissionError"`；L147断言`result["exception_errno"] == 13`；L148断言`result["startup_phase_hint"] == "factory"`；L149断言`result["application_startup_reported"] is False`；L150断言`"secret" not in json.dumps(result)`；L151断言`"passed" not in result`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_partial_or_unrelated_trace_does_not_claim_semaphore`（L166–L169）：接收`old`、`new`。 控制顺序：L168断言`result["failure_component"] == "unknown"`；L169断言`"private_constructor" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`SEMAPHORE_TRACE.replace`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_only_fixed_errno_values_are_emitted`（L173–L175）：接收`number`。 控制顺序：L175断言`result["exception_errno"] == number`。 调用`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_unknown_errno_is_not_copied`（L179–L182）：接收`number`。 控制顺序：L181断言`result["exception_errno"] is None`；L182断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_terminal_unknown_error_does_not_hide_complete_earlier_trace`（L185–L192）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L189断言`result["exception_type"] == "unknown"`；L190断言`result["exception_errno"] is None`；L191断言`result["failure_component"] == "multiprocessing-semaphore"`；L192断言`"SecretError" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_secondary_traceback_keeps_primary_semaphore_hint_and_terminal_errno`（L203–L216）：接收`separator`。 控制顺序：L212断言`result["failure_component"] == "multiprocessing-semaphore"`；L213断言`result["exception_type"] == "FileNotFoundError"`；L214断言`result["exception_errno"] == 2`；L215断言`result["output_hints"] == ["permission-denied", "missing-file"]`；L216断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_unrelated_permission_error_cannot_complete_a_constructor_trace`（L220–L229）：接收`header`。 控制顺序：L227断言`result["exception_type"] == "PermissionError"`；L228断言`result["exception_errno"] == 13`；L229断言`result["failure_component"] == "unknown"`。 调用`SEMAPHORE_TRACE.replace("PermissionError", "FileNotFoundError").r…`、`SEMAPHORE_TRACE.replace`、`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_incomplete_traceback_cannot_supply_a_semaphore_hint`（L232–L237）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L235遍历`(no_header, no_error.ljust(8000) + "PermissionError: [Errno 13] p…`；L237断言`result["failure_component"] == "unknown"`。 调用`SEMAPHORE_TRACE.split`、`no_error.ljust`、`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_startup_phase_is_only_a_fixed_hint`（L250–L253）：接收`output`、`phase`。 控制顺序：L252断言`result["startup_phase_hint"] == phase`；L253断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_context_outside_the_existing_output_bound_cannot_supply_a_hint`（L256–L261）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L258断言`result["failure_component"] == "unknown"`；L259断言`result["startup_phase_hint"] == "unknown"`；L260断言`result["exception_type"] == "unknown"`；L261断言`result["exception_errno"] is None`。 调用`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_tail_traceback_preserves_final_error_without_joining_truncated_primary_trace`（L264–L279）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L276断言`result["failure_component"] == "unknown"`；L277断言`result["exception_type"] == "PermissionError"`；L278断言`result["exception_errno"] == 13`；L279断言`"secret" not in json.dumps(result)`。 调用`SEMAPHORE_TRACE.replace("PermissionError", "FileNotFoundError").r…`、`SEMAPHORE_TRACE.replace`、`primary.split`、`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_non_ascii_output_has_same_byte_budget_before_any_parsing`（L282–L288）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L284断言`result["failure_component"] == "unknown"`；L285断言`result["startup_phase_hint"] == "unknown"`；L286断言`result["exception_type"] == "unknown"`；L287断言`result["exception_errno"] is None`；L288断言`"汉" not in json.dumps(result, ensure_ascii=False)`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_split_utf8_and_surrogate_data_never_escape_diagnostic`（L291–L297）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L295断言`result["exception_type"] == "PermissionError"`；L296断言`result["exception_errno"] == 13`；L297断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_pinned_sdk_command_exit_facts_use_status_only`（L304–L335）：接收`value`、`expected`、`monkeypatch`。 控制顺序：L330断言`startup_command_exit_status(process, "private-session", "private-command", 5) == expe…`；L334断言`seen == [5]`；L335断言`daytona_sessions._DEADLINE.get() is None`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`seen.append`、`daytona_sessions.harden_toolbox_transport`、`httpx.Client`、`Process`、`startup_command_exit_status`、`daytona_sessions._DEADLINE.get`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_pinned_sdk_command_exit_facts_use_status_only.get_command`（L321–L326）：接收`session_id`、`command_id`。 控制顺序：L322断言`session_id == "private-session" and command_id == "private-command"`。 调用`rest.request`、`Command.from_dict`。 返回路径：L324的`Command.from_dict( {"id": command_id, "command": "secret TOKEN=secret", "exitCode": value}…`。
-- `test_pinned_sdk_null_or_omitted_exit_never_proves_running`（L339–L347）：接收`exit_present`。 控制顺序：L343按`exit_present`分支；L347断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`Command.from_dict`、`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_pinned_sdk_strict_exit_model_rejection_is_safe`（L351–L361）：接收`value`。 控制顺序：L361断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`pytest.raises`、`get_command`、`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_pinned_sdk_strict_exit_model_rejection_is_safe.get_command`（L355–L356）：接收`*args`。 调用`Command.from_dict`。 返回路径：L356的`Command.from_dict({"id": "fixture-command", "command": "secret", "exitCode": value})`。
-- `test_malformed_exit_values_remain_unknown`（L365–L369）：接收`value`。 控制顺序：L369断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_or_different_command_remains_unknown`（L376–L378）：接收`command`。 控制顺序：L378断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_sdk_method_and_status_error_remain_unknown_and_restore_deadline`（L381–L395）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L389遍历`(SimpleNamespace(), SimpleNamespace(get_session_command=unavailab…`；L390断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`；L393断言`daytona_sessions._DEADLINE.get() == 123`。 调用`daytona_sessions._DEADLINE.set`、`SimpleNamespace`、`startup_command_exit_status`、`daytona_sessions._DEADLINE.get`、`daytona_sessions._DEADLINE.reset`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_sdk_method_and_status_error_remain_unknown_and_restore_deadline.unavailable`（L384–L385）：接收`*args`。 控制顺序：L385抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_command_status_classifier_cannot_disclose_arbitrary_values`（L399–L402）：接收`value`。 控制顺序：L401断言`result["command_exit_status"] == "unknown"`；L402断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_startup_hints_are_finite_even_for_secret_bearing_tracebacks`（L23–L55）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L30断言`result == { "phase": "health_deadline", "http_status": 503, "http_error": "other", "o…`；L53断言`"secret" not in json.dumps(result)`；L54断言`len(json.dumps(result)) < 1024`；L55断言`"passed" not in result`。 调用`startup_failure_diagnostic`、`len`、`output.encode`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_nontext_startup_output_never_stringifies_candidate_data`（L59–L77）：接收`output`。 控制顺序：L61断言`result["output_readable"] is False`；L62断言`result["http_status"] is None`；L63断言`result["http_error"] == "other"`；L64断言`result["output_hints"] == []`；L65断言`result["startup_phase_hint"] == "unknown"`；L66断言`result["failure_component"] == "unknown"`；L67断言`result["exception_type"] == "unknown"`；L68断言`result["exception_errno"] is None`。后续分支沿下方源码相同行号继续阅读。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_exact_public_module_names_can_be_reported`（L83–L90）：接收`module`。 控制顺序：L87断言`result["known_missing_modules"] == [module]`；L88断言`startup_failure_diagnostic("x" * 8000 + "PermissionError", 0, "none")["output_hints"]…`。 调用`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_loader_failure_is_not_mislabeled_as_missing_module`（L93–L103）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L100断言`result["output_hints"] == ["import-error", "native-library-mapping"]`；L101断言`result["tmpfs_noexec"] is True`；L102断言`"secret" not in json.dumps(result)`；L103断言`startup_failure_diagnostic("", None, "none", "secret")["tmpfs_noexec"] is None`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `colored`（L117–L118）：接收`text`。 调用`"\x1b[0m\x1b[38;2;1;2;3m".join`。 返回路径：L118的`"\x1b[31m" + "\x1b[0m\x1b[38;2;1;2;3m".join(text) + "\x1b[0m"`。
+- `test_observed_sgr_can_split_exception_words_and_errno`（L121–L127）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L124断言`result["exception_type"] == "FileNotFoundError"`；L125断言`result["exception_errno"] == 2`；L126断言`result["output_hints"] == ["missing-file"]`；L127断言`result["output_shapes"] == ["file-not-found-type", "ansi-control"]`。 调用`colored`、`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_sgr_trace_retains_same_trace_association_with_later_cleanup`（L130–L139）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L137断言`result["failure_component"] == "multiprocessing-semaphore"`；L138断言`result["exception_type"] == "FileNotFoundError" and result["exception_errno"] == 2`；L139断言`"secret" not in json.dumps(result)`。 调用`"\n".join`、`SEMAPHORE_TRACE.splitlines`、`colored`、`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_incomplete_oversize_and_non_sgr_sequences_are_not_interpreted`（L145–L149）：接收`prefix`。 控制顺序：L147断言`result["exception_type"] == "unknown"`；L148断言`result["failure_component"] == "unknown"`；L149断言`"private" not in json.dumps(result) and "secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_stripped_control_bytes_do_not_create_a_larger_scan_window`（L152–L158）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L156断言`result["output_nonempty"] is True`；L157断言`result["exception_type"] == "unknown" and result["output_hints"] == []`；L158断言`result["output_shapes"] == ["ansi-control"]`。 调用`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_sgr_from_another_trace_cannot_supply_a_semaphore_denial`（L161–L165）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L165断言`startup_failure_diagnostic(trace, 502, "none")["failure_component"] == "unknown"`。 调用`SEMAPHORE_TRACE.replace`、`"\n".join`、`(first + second).splitlines`、`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_semaphore_failure_requires_known_constructor_frames_and_denial`（L168–L176）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L170断言`result["failure_component"] == "multiprocessing-semaphore"`；L171断言`result["exception_type"] == "PermissionError"`；L172断言`result["exception_errno"] == 13`；L173断言`result["startup_phase_hint"] == "factory"`；L174断言`result["application_startup_reported"] is False`；L175断言`"secret" not in json.dumps(result)`；L176断言`"passed" not in result`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_partial_or_unrelated_trace_does_not_claim_semaphore`（L191–L194）：接收`old`、`new`。 控制顺序：L193断言`result["failure_component"] == "unknown"`；L194断言`"private_constructor" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`SEMAPHORE_TRACE.replace`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_fixed_errno_values_are_emitted`（L198–L200）：接收`number`。 控制顺序：L200断言`result["exception_errno"] == number`。 调用`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unknown_errno_is_not_copied`（L204–L207）：接收`number`。 控制顺序：L206断言`result["exception_errno"] is None`；L207断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_terminal_unknown_error_does_not_hide_complete_earlier_trace`（L210–L217）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L214断言`result["exception_type"] == "unknown"`；L215断言`result["exception_errno"] is None`；L216断言`result["failure_component"] == "multiprocessing-semaphore"`；L217断言`"SecretError" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_secondary_traceback_keeps_primary_semaphore_hint_and_terminal_errno`（L228–L241）：接收`separator`。 控制顺序：L237断言`result["failure_component"] == "multiprocessing-semaphore"`；L238断言`result["exception_type"] == "FileNotFoundError"`；L239断言`result["exception_errno"] == 2`；L240断言`result["output_hints"] == ["permission-denied", "missing-file"]`；L241断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unrelated_permission_error_cannot_complete_a_constructor_trace`（L245–L254）：接收`header`。 控制顺序：L252断言`result["exception_type"] == "PermissionError"`；L253断言`result["exception_errno"] == 13`；L254断言`result["failure_component"] == "unknown"`。 调用`SEMAPHORE_TRACE.replace("PermissionError", "FileNotFoundError").r…`、`SEMAPHORE_TRACE.replace`、`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_incomplete_traceback_cannot_supply_a_semaphore_hint`（L257–L262）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L260遍历`(no_header, no_error.ljust(8000) + "PermissionError: [Errno 13] p…`；L262断言`result["failure_component"] == "unknown"`。 调用`SEMAPHORE_TRACE.split`、`no_error.ljust`、`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_startup_phase_is_only_a_fixed_hint`（L275–L278）：接收`output`、`phase`。 控制顺序：L277断言`result["startup_phase_hint"] == phase`；L278断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_context_outside_the_existing_output_bound_cannot_supply_a_hint`（L281–L286）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L283断言`result["failure_component"] == "unknown"`；L284断言`result["startup_phase_hint"] == "unknown"`；L285断言`result["exception_type"] == "unknown"`；L286断言`result["exception_errno"] is None`。 调用`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_tail_traceback_preserves_final_error_without_joining_truncated_primary_trace`（L289–L304）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L301断言`result["failure_component"] == "unknown"`；L302断言`result["exception_type"] == "PermissionError"`；L303断言`result["exception_errno"] == 13`；L304断言`"secret" not in json.dumps(result)`。 调用`SEMAPHORE_TRACE.replace("PermissionError", "FileNotFoundError").r…`、`SEMAPHORE_TRACE.replace`、`primary.split`、`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_non_ascii_output_has_same_byte_budget_before_any_parsing`（L307–L313）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L309断言`result["failure_component"] == "unknown"`；L310断言`result["startup_phase_hint"] == "unknown"`；L311断言`result["exception_type"] == "unknown"`；L312断言`result["exception_errno"] is None`；L313断言`"汉" not in json.dumps(result, ensure_ascii=False)`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_split_utf8_and_surrogate_data_never_escape_diagnostic`（L316–L322）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L320断言`result["exception_type"] == "PermissionError"`；L321断言`result["exception_errno"] == 13`；L322断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pinned_sdk_command_exit_facts_use_status_only`（L329–L360）：接收`value`、`expected`、`monkeypatch`。 控制顺序：L355断言`startup_command_exit_facts(process, "private-session", "private-command", 5) == { "co…`；L359断言`seen == [5]`；L360断言`daytona_sessions._DEADLINE.get() is None`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`seen.append`、`daytona_sessions.harden_toolbox_transport`、`httpx.Client`、`Process`、`startup_command_exit_facts`、`daytona_sessions._DEADLINE.get`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pinned_sdk_command_exit_facts_use_status_only.get_command`（L346–L351）：接收`session_id`、`command_id`。 控制顺序：L347断言`session_id == "private-session" and command_id == "private-command"`。 调用`rest.request`、`Command.from_dict`。 返回路径：L349的`Command.from_dict( {"id": command_id, "command": "secret TOKEN=secret", "exitCode": value}…`。
+- `test_pinned_sdk_null_or_omitted_exit_never_proves_running`（L364–L372）：接收`exit_present`。 控制顺序：L368按`exit_present`分支；L372断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`Command.from_dict`、`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pinned_sdk_strict_exit_model_rejection_is_safe`（L376–L386）：接收`value`。 控制顺序：L386断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`pytest.raises`、`get_command`、`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pinned_sdk_strict_exit_model_rejection_is_safe.get_command`（L380–L381）：接收`*args`。 调用`Command.from_dict`。 返回路径：L381的`Command.from_dict({"id": "fixture-command", "command": "secret", "exitCode": value})`。
+- `test_malformed_exit_values_remain_unknown`（L390–L394）：接收`value`。 控制顺序：L394断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_or_different_command_remains_unknown`（L401–L403）：接收`command`。 控制顺序：L403断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_sdk_method_and_status_error_remain_unknown_and_restore_deadline`（L406–L420）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L414遍历`(SimpleNamespace(), SimpleNamespace(get_session_command=unavailab…`；L415断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`；L418断言`daytona_sessions._DEADLINE.get() == 123`。 调用`daytona_sessions._DEADLINE.set`、`SimpleNamespace`、`startup_command_exit_status`、`daytona_sessions._DEADLINE.get`、`daytona_sessions._DEADLINE.reset`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_sdk_method_and_status_error_remain_unknown_and_restore_deadline.unavailable`（L409–L410）：接收`*args`。 控制顺序：L410抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_command_status_classifier_cannot_disclose_arbitrary_values`（L424–L427）：接收`value`。 控制顺序：L426断言`result["command_exit_status"] == "unknown"`；L427断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `rich_trace`（L430–L449）：接收`exc`、`panel`、`width`。 源码说明：Render real Rich 15 tracebacks, including its actual SGR and borders.。 控制顺序：L441抛异常，停止当前正常路径；L448断言`"\x1b[" in value`。 调用`StringIO`、`Console`、`Traceback.from_exception`、`type`、`console.print`、`Panel`、`output.getvalue`。 返回路径：L449的`value`。
+- `test_real_rich_builtin_exception_matrix`（L488–L499）：接收`name`、`panel`。 控制顺序：L490断言`len(output.encode()) < NATIVE_TAIL_LIMIT`；L492断言`result["exception_type"] == name`；L493断言`result["output_raw_bytes"] == len(output.encode())`；L494断言`result["output_normalized_bytes"] < result["output_raw_bytes"]`；L495断言`result["output_normalized_nonspace"] is True`；L496断言`result["output_has_non_sgr_control"] is False`；L497断言`"ansi-control" in result["output_shapes"]`；L498断言`result["failure_component"] == "unknown"`。后续分支沿下方源码相同行号继续阅读。 调用`rich_trace`、`getattr(builtins, name)`、`getattr`、`len`、`output.encode`、`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_empty_message_exception_headers`（L506–L508）：接收`renderer`、`exc`。 控制顺序：L508断言`result["exception_type"] == type(exc).__name__`。 调用`startup_failure_diagnostic`、`renderer`、`type`、`pytest.mark.parametrize`、`"".join`、`traceback.format_exception`、`AssertionError`、`KeyboardInterrupt`、`SystemExit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_rich_panel_padding_preserves_empty_exception_headers`（L513–L518）：接收`width`、`exception`。 控制顺序：L515断言`len(output.encode()) < NATIVE_TAIL_LIMIT`；L517断言`result["exception_type"] == exception.__name__`；L518断言`result["failure_component"] == "unknown"`。 调用`rich_trace`、`exception`、`len`、`output.encode`、`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_rich_panel_padding_does_not_publish_unknown_empty_exception`（L522–L531）：接收`width`。 控制顺序：L529断言`result["exception_type"] == "unknown"`；L530断言`result["failure_component"] == "unknown"`；L531断言`"PrivateSentinel" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`rich_trace`、`PrivateSentinelError`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_rich_panel_padding_does_not_publish_unknown_empty_exception.PrivateSentinelError`（L523–L524）：继承`Exception`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_padding_normalization_requires_complete_bounded_known_panel`（L543–L545）：接收`output`。 控制顺序：L545断言`result["exception_type"] == "unknown"`。 调用`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_rich_chained_trace_preserves_terminal_exception`（L549–L555）：接收`panel`。 控制顺序：L553断言`result["exception_type"] == "KeyError"`；L554断言`result["failure_component"] == "unknown"`；L555断言`"private" not in json.dumps(result)`。 调用`KeyError`、`TypeError`、`startup_failure_diagnostic`、`rich_trace`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_rich_unknown_exception_remains_unknown`（L559–L568）：接收`panel`。 控制顺序：L566断言`result["exception_type"] == "unknown"`；L567断言`"PrivateSentinel" not in json.dumps(result)`；L568断言`"private-sentinel" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`rich_trace`、`PrivateSentinelError`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_rich_unknown_exception_remains_unknown.PrivateSentinelError`（L560–L561）：继承`Exception`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_unrecognized_prefix_is_not_normalized_into_a_builtin`（L574–L577）：接收`prefix`。 控制顺序：L576断言`result["exception_type"] == "unknown"`；L577断言`"private" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_bounded_standard_exception_indentation`（L581–L583）：接收`prefix`。 控制顺序：L583断言`result["exception_type"] == "TypeError"`。 调用`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_rich_wrappers_cannot_complete_a_semaphore_trace`（L586–L594）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L592断言`result["exception_type"] == "PermissionError"`；L593断言`result["exception_errno"] == 13`；L594断言`result["failure_component"] == "unknown"`。 调用`SEMAPHORE_TRACE.replace("PermissionError", "FileNotFoundError").r…`、`SEMAPHORE_TRACE.replace`、`rich_trace`、`PermissionError`、`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_raw_budget_precedes_sgr_rich_wrappers_and_exception_search`（L599–L607）：接收`limit`、`prefix`。 控制顺序：L602断言`result["output_raw_bytes"] == limit`；L603断言`0 <= result["output_normalized_bytes"] <= limit`；L604断言`result["output_read_limit_reached"] is True`；L605断言`result["exception_type"] == "unknown"`；L606断言`result["failure_component"] == "unknown"`；L607断言`"private" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_measured_output_facts_do_not_serialize_text`（L623–L630）：接收`output`、`normalized`、`nonspace`、`control`。 控制顺序：L625断言`result["output_raw_bytes"] == len(output.encode())`；L626断言`result["output_normalized_bytes"] == len(normalized.encode())`；L627断言`result["output_normalized_nonspace"] is nonspace`；L628断言`result["output_has_non_sgr_control"] is control`；L629断言`result["output_read_limit_reached"] is False`；L630断言`"private" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`len`、`output.encode`、`normalized.encode`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_read_limit_fact_measures_observed_cap_without_claiming_truncation`（L635–L639）：接收`limit`、`length`。 控制顺序：L637断言`result["output_read_limit_reached"] is (length >= 0)`；L638断言`result["output_raw_bytes"] == min(limit + length, limit)`；L639断言`"truncated" not in result`。 调用`startup_failure_diagnostic`、`min`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_read_limit_cannot_expand_existing_budget`（L643–L648）：接收`limit`。 控制顺序：L647断言`result["output_raw_bytes"] == 8000`；L648断言`result["exception_type"] == "unknown"`。 调用`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_exact_exit_code_is_authoritative_and_finite`（L652–L657）：接收`code`。 控制顺序：L656断言`result["command_exit_code"] == code`；L657断言`result["command_exit_status"] == ("zero" if code == 0 else "nonzero")`。 调用`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_exit_code_is_never_serialized`（L661–L664）：接收`code`。 控制顺序：L663断言`result["command_exit_code"] is None`；L664断言`result["command_exit_status"] == "unknown"`。 调用`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_owned_argparse_fixture_reports_real_exit_two_without_exception`（L667–L691）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L683断言`result.returncode == 2 and result.stdout == ""`；L687断言`diagnostic["command_exit_status"] == "nonzero"`；L688断言`diagnostic["command_exit_code"] == 2`；L689断言`diagnostic["exception_type"] == "unknown"`；L690断言`diagnostic["output_shapes"] == ["cli-usage", "cli-error"]`；L691断言`"private" not in json.dumps(diagnostic)`。 调用`subprocess.run`、`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_owned_argparse_success_does_not_claim_failure_or_usage`（L694–L714）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L708断言`result.returncode == 0`；L712断言`diagnostic["command_exit_code"] == 0`；L713断言`diagnostic["output_shapes"] == []`；L714断言`diagnostic["output_nonempty"] is False`。 调用`subprocess.run`、`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_pydantic_validation_error_has_only_fixed_public_facts`（L720–L734）：接收`renderer`。 控制顺序：L731断言`result["exception_type"] == "ValidationError"`；L732断言`"pydantic-validation" in result["output_shapes"]`；L733断言`"private" not in json.dumps(result)`；L734断言`"OwnedModel" not in json.dumps(result)`。 调用`OwnedModel`、`renderer`、`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`、`"".join`、`traceback.format_exception`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_pydantic_validation_error_has_only_fixed_public_facts.OwnedModel`（L723–L724）：继承`BaseModel`。声明的数据项为`value`；类型约束/数据库列参数以完整定义为准。
+- `test_real_sqlalchemy_dbapi_error_uses_exact_public_alias`（L743–L753）：接收`renderer`、`name`。 控制顺序：L751断言`result["exception_type"] == name`；L752断言`"sqlalchemy-error" in result["output_shapes"]`；L753断言`"private" not in json.dumps(result)`。 调用`getattr(exc, name)`、`getattr`、`RuntimeError`、`renderer`、`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`、`"".join`、`traceback.format_exception`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_framework_message_tails_supply_only_finite_format_hints`（L756–L776）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L768遍历`( (pydantic_output, "pydantic-validation"), (sql_output, "sqlalch…`；L774断言`result["exception_type"] == "unknown"`；L775断言`shape in result["output_shapes"]`；L776断言`"private" not in json.dumps(result)`。 调用`create_model`、`range`、`model`、`rich_trace`、`OperationalError`、`RuntimeError`、`output.encode()[-NATIVE_TAIL_LIMIT:].decode`、`output.encode`、`startup_failure_diagnostic`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_qualified_unknown_classes_do_not_inherit_public_suffixes`（L782–L785）：接收`name`。 控制顺序：L784断言`result["exception_type"] == "unknown"`；L785断言`"private" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `public_framework_classes`（L788–L816）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Check the installed packages independently of production's frozen list. Their 66 non-warning defining classes also match the native tagged sources: SQLAlchemy 2.0.51, Pydantic 2.12.5, pydantic-core 2.。 控制顺序：L796遍历`( "pydantic", "pydantic.errors", "pydantic_core", "sqlalchemy.exc…`；L804遍历`getattr(module, "__all__", vars(module))`；L805按`name.startswith("_")`分支；L808按`inspect.isclass(value) and issubclass(value, Exception) and not issubclass(value, War…`分支。 调用`importlib.import_module`、`getattr`、`vars`、`name.startswith`、`inspect.isclass`、`issubclass`、`sorted`、`classes.items`。 返回路径：L816的`sorted(classes.items())`。
+- `test_verified_public_framework_inventory_has_no_missing_alias`（L820–L824）：接收`alias`、`canonical`。 控制顺序：L822断言`result["exception_type"] == canonical`；L823断言`result["failure_component"] == "unknown"`；L824断言`"private" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`、`public_framework_classes`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `framework_exception_examples`（L827–L872）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`errors.PydanticUserError`、`errors.PydanticUndefinedAnnotation`、`errors.PydanticImportError`、`errors.PydanticSchemaGenerationError`、`errors.PydanticInvalidForJsonSchema`、`errors.PydanticForbiddenQualifier`、`PydanticCustomError`、`PydanticKnownError`、`PydanticOmit`等。 返回路径：L846的`[ errors.PydanticUserError("private-sentinel", code=None), errors.PydanticUndefinedAnnotat…`。
+- `test_real_extended_framework_exception_renderers`（L885–L890）：接收`renderer`、`exc`。 控制顺序：L887断言`result["exception_type"] == type(exc).__name__`；L888断言`result["failure_component"] == "unknown"`；L889断言`"private" not in json.dumps(result)`；L890断言`"PrivateSentinel" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`renderer`、`type`、`json.dumps`、`pytest.mark.parametrize`、`rich_trace`、`"".join`、`traceback.format_exception`、`framework_exception_examples`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_terminal_suffixless_unknown_suppresses_prior_known_exception`（L904–L917）：接收`renderer`、`message`、`lowercase`。 控制顺序：L914断言`result["exception_type"] == "unknown"`；L915断言`result["failure_component"] == "unknown"`；L916断言`"PrivateFailure" not in json.dumps(result)`；L917断言`"private" not in json.dumps(result)`。 调用`privatefailure if lowercase else PrivateFailure`、`TypeError`、`startup_failure_diagnostic`、`renderer`、`json.dumps`、`pytest.mark.parametrize`、`rich_trace`、`"".join`、`traceback.format_exception`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_terminal_suffixless_unknown_suppresses_prior_known_exception.PrivateFailure`（L905–L906）：继承`Exception`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_terminal_suffixless_unknown_suppresses_prior_known_exception.privatefailure`（L908–L909）：继承`Exception`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `test_framework_prefix_never_authorizes_a_private_exception`（L930–L936）：接收`alias`。 控制顺序：L934断言`result["exception_type"] == "unknown"`；L935断言`"PrivateFailure" not in json.dumps(result)`；L936断言`"private" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cut_unknown_name_cannot_become_a_known_empty_exception`（L940–L946）：接收`prefix`。 控制顺序：L945断言`result["output_read_limit_reached"] is True`；L946断言`result["exception_type"] == "unknown"`。 调用`len`、`(prefix + "TypeError").encode`、`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_complete_bare_exception_newline_remains_known_at_exact_cap`（L949–L953）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L952断言`result["output_read_limit_reached"] is True`；L953断言`result["exception_type"] == "TypeError"`。 调用`startup_failure_diagnostic`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_capability_startup_diagnostics.py sha256: 9980b548241a09cfd17fdbee915a3ff6dcb03536ba2f26b66daa48773765d5e6 -->
+<!-- source-file: tests/test_capability_startup_diagnostics.py sha256: ed048263c9e451aaf1fd1a912b42ed1eef680044f3eec7569b6f2a24cf6c4845 -->
 ````python
 """Startup hints cannot become product acceptance or disclose candidate output."""
 
+import builtins
+import importlib
+import inspect
 import json
+import subprocess
+import sys
+import traceback
+from io import StringIO
 from types import SimpleNamespace
 
 import pytest
 
-from workbench.capability_sandbox import startup_command_exit_status, startup_failure_diagnostic
+from workbench.capability_sandbox import (
+    startup_command_exit_facts,
+    startup_command_exit_status,
+    startup_failure_diagnostic,
+)
+from workbench.capability_startup_paths import NATIVE_TAIL_LIMIT
 
 
 def test_startup_hints_are_finite_even_for_secret_bearing_tracebacks():
-    result = startup_failure_diagnostic(
+    output = (
         "secret content /private/secret token=secret\n"
         "ModuleNotFoundError: No module named 'secret.module'\n"
-        "PermissionError: secret path\nApplication startup complete",
-        503,
-        "secret transport error",
+        "PermissionError: secret path\nApplication startup complete"
     )
+    result = startup_failure_diagnostic(output, 503, "secret transport error")
     assert result == {
         "phase": "health_deadline",
         "http_status": 503,
         "http_error": "other",
         "output_readable": True,
         "output_nonempty": True,
+        "output_raw_bytes": len(output.encode()),
+        "output_normalized_bytes": len(output.encode()),
+        "output_normalized_nonspace": True,
+        "output_read_limit_reached": False,
+        "output_has_non_sgr_control": False,
         "output_hints": ["permission-denied", "missing-module"],
         "output_shapes": [],
         "known_missing_modules": [],
@@ -126197,9 +126500,10 @@ def test_startup_hints_are_finite_even_for_secret_bearing_tracebacks():
         "application_startup_reported": True,
         "tmpfs_noexec": None,
         "command_exit_status": "unknown",
+        "command_exit_code": None,
     }
     assert "secret" not in json.dumps(result)
-    assert len(json.dumps(result)) < 768
+    assert len(json.dumps(result)) < 1024
     assert "passed" not in result
 
 
@@ -126214,6 +126518,14 @@ def test_nontext_startup_output_never_stringifies_candidate_data(output):
     assert result["failure_component"] == "unknown"
     assert result["exception_type"] == "unknown"
     assert result["exception_errno"] is None
+    for name in (
+        "output_raw_bytes",
+        "output_normalized_bytes",
+        "output_normalized_nonspace",
+        "output_read_limit_reached",
+        "output_has_non_sgr_control",
+    ):
+        assert result[name] is None
     assert "secret" not in json.dumps(result)
 
 
@@ -126492,10 +126804,10 @@ def test_pinned_sdk_command_exit_facts_use_status_only(value, expected, monkeypa
 
     with httpx.Client(trust_env=False) as client:
         process = Process("python", SimpleNamespace(get_session_command=get_command), client)
-        assert (
-            startup_command_exit_status(process, "private-session", "private-command", 5)
-            == expected
-        )
+        assert startup_command_exit_facts(process, "private-session", "private-command", 5) == {
+            "command_exit_status": expected,
+            "command_exit_code": value,
+        }
     assert seen == [5]
     assert daytona_sessions._DEADLINE.get() is None
 
@@ -126565,6 +126877,532 @@ def test_command_status_classifier_cannot_disclose_arbitrary_values(value):
     result = startup_failure_diagnostic("", 502, "none", command_exit_status=value)
     assert result["command_exit_status"] == "unknown"
     assert "secret" not in json.dumps(result)
+
+
+def rich_trace(exc, *, panel=False, width=100):
+    """Render real Rich 15 tracebacks, including its actual SGR and borders."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.traceback import Traceback
+
+    output = StringIO()
+    console = Console(
+        file=output, width=width, force_terminal=True, color_system="truecolor", no_color=False
+    )
+    try:
+        raise exc
+    except BaseException as caught:
+        rendered = Traceback.from_exception(
+            type(caught), caught, caught.__traceback__, show_locals=False, extra_lines=0
+        )
+        console.print(Panel(rendered) if panel else rendered)
+    value = output.getvalue()
+    assert "\x1b[" in value
+    return value
+
+
+@pytest.mark.parametrize("panel", [False, True])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "TypeError",
+        "AttributeError",
+        "KeyError",
+        "IndexError",
+        "NameError",
+        "UnboundLocalError",
+        "AssertionError",
+        "ValueError",
+        "RuntimeError",
+        "RecursionError",
+        "NotImplementedError",
+        "ImportError",
+        "ModuleNotFoundError",
+        "MemoryError",
+        "SyntaxError",
+        "IndentationError",
+        "OSError",
+        "FileNotFoundError",
+        "PermissionError",
+        "TimeoutError",
+        "ConnectionRefusedError",
+        "ZeroDivisionError",
+        "OverflowError",
+        "EOFError",
+        "StopIteration",
+        "SystemExit",
+        "KeyboardInterrupt",
+        "GeneratorExit",
+        "Exception",
+        "BaseException",
+    ],
+)
+def test_real_rich_builtin_exception_matrix(name, panel):
+    output = rich_trace(getattr(builtins, name)("private-sentinel /private/token"), panel=panel)
+    assert len(output.encode()) < NATIVE_TAIL_LIMIT
+    result = startup_failure_diagnostic(output, 502, "none", output_limit=NATIVE_TAIL_LIMIT)
+    assert result["exception_type"] == name
+    assert result["output_raw_bytes"] == len(output.encode())
+    assert result["output_normalized_bytes"] < result["output_raw_bytes"]
+    assert result["output_normalized_nonspace"] is True
+    assert result["output_has_non_sgr_control"] is False
+    assert "ansi-control" in result["output_shapes"]
+    assert result["failure_component"] == "unknown"
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "renderer", [rich_trace, lambda exc: "".join(traceback.format_exception(exc))]
+)
+@pytest.mark.parametrize("exc", [AssertionError(), KeyboardInterrupt(), SystemExit()])
+def test_real_empty_message_exception_headers(renderer, exc):
+    result = startup_failure_diagnostic(renderer(exc), 502, "none")
+    assert result["exception_type"] == type(exc).__name__
+
+
+@pytest.mark.parametrize("width", [80, 100, 120])
+@pytest.mark.parametrize("exception", [TypeError, KeyError, SystemExit])
+def test_real_rich_panel_padding_preserves_empty_exception_headers(width, exception):
+    output = rich_trace(exception(), panel=True, width=width)
+    assert len(output.encode()) < NATIVE_TAIL_LIMIT
+    result = startup_failure_diagnostic(output, 502, "none", output_limit=NATIVE_TAIL_LIMIT)
+    assert result["exception_type"] == exception.__name__
+    assert result["failure_component"] == "unknown"
+
+
+@pytest.mark.parametrize("width", [80, 100, 120])
+def test_real_rich_panel_padding_does_not_publish_unknown_empty_exception(width):
+    class PrivateSentinelError(Exception):
+        pass
+
+    result = startup_failure_diagnostic(
+        rich_trace(PrivateSentinelError(), panel=True, width=width), 502, "none"
+    )
+    assert result["exception_type"] == "unknown"
+    assert result["failure_component"] == "unknown"
+    assert "PrivateSentinel" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        "TypeError" + " " * 80,
+        "│ TypeError" + " " * 80,
+        "| TypeError" + " " * 80 + " |",
+        "│ TypeError" + " " * 600 + " │",
+    ],
+)
+def test_padding_normalization_requires_complete_bounded_known_panel(output):
+    result = startup_failure_diagnostic(output, 502, "none")
+    assert result["exception_type"] == "unknown"
+
+
+@pytest.mark.parametrize("panel", [False, True])
+def test_real_rich_chained_trace_preserves_terminal_exception(panel):
+    terminal = KeyError("private-terminal")
+    terminal.__cause__ = TypeError("private-primary")
+    result = startup_failure_diagnostic(rich_trace(terminal, panel=panel), 502, "none")
+    assert result["exception_type"] == "KeyError"
+    assert result["failure_component"] == "unknown"
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("panel", [False, True])
+def test_real_rich_unknown_exception_remains_unknown(panel):
+    class PrivateSentinelError(Exception):
+        pass
+
+    result = startup_failure_diagnostic(
+        rich_trace(PrivateSentinelError("private-sentinel"), panel=panel), 502, "none"
+    )
+    assert result["exception_type"] == "unknown"
+    assert "PrivateSentinel" not in json.dumps(result)
+    assert "private-sentinel" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "prefix", ["secret.", "prefix ", "│ ", "\x1b]0;private\x07", "\x1b[2J", "\x1b[", " " * 33]
+)
+def test_unrecognized_prefix_is_not_normalized_into_a_builtin(prefix):
+    result = startup_failure_diagnostic(prefix + "TypeError: private", 502, "none")
+    assert result["exception_type"] == "unknown"
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("prefix", ["", "  ", "\t", " " * 32])
+def test_bounded_standard_exception_indentation(prefix):
+    result = startup_failure_diagnostic(prefix + "TypeError: private", 502, "none")
+    assert result["exception_type"] == "TypeError"
+
+
+def test_rich_wrappers_cannot_complete_a_semaphore_trace():
+    first = SEMAPHORE_TRACE.replace("PermissionError", "FileNotFoundError").replace(
+        "[Errno 13]", "[Errno 2]"
+    )
+    output = first + rich_trace(PermissionError(13, "private-sentinel"), panel=True)
+    result = startup_failure_diagnostic(output, 502, "none")
+    assert result["exception_type"] == "PermissionError"
+    assert result["exception_errno"] == 13
+    assert result["failure_component"] == "unknown"
+
+
+@pytest.mark.parametrize("limit", [NATIVE_TAIL_LIMIT, 8000])
+@pytest.mark.parametrize("prefix", ["x", "\x1b[0m", "汉", "\x1b]0;secret\x07"])
+def test_raw_budget_precedes_sgr_rich_wrappers_and_exception_search(limit, prefix):
+    output = prefix * limit + "\n│ TypeError: private │\n"
+    result = startup_failure_diagnostic(output, 502, "none", output_limit=limit)
+    assert result["output_raw_bytes"] == limit
+    assert 0 <= result["output_normalized_bytes"] <= limit
+    assert result["output_read_limit_reached"] is True
+    assert result["exception_type"] == "unknown"
+    assert result["failure_component"] == "unknown"
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "output,normalized,nonspace,control",
+    [
+        ("", "", False, False),
+        ("\x1b[0m\x1b[31m", "", False, False),
+        ("\x1b[0m \n\t\r", " \n\t\r", False, False),
+        ("\x1b[31munmatched私\x1b[0m", "unmatched私", True, False),
+        ("\x1b]0;private\x07", "\x1b]0;private\x07", True, True),
+        ("\x1b[2J", "\x1b[2J", True, True),
+        ("\x1b[", "\x1b[", True, True),
+        ("\x00\x08\x7f\x9b", "\x00\x08\x7f\x9b", True, True),
+    ],
+)
+def test_measured_output_facts_do_not_serialize_text(output, normalized, nonspace, control):
+    result = startup_failure_diagnostic(output, 502, "none")
+    assert result["output_raw_bytes"] == len(output.encode())
+    assert result["output_normalized_bytes"] == len(normalized.encode())
+    assert result["output_normalized_nonspace"] is nonspace
+    assert result["output_has_non_sgr_control"] is control
+    assert result["output_read_limit_reached"] is False
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("limit", [NATIVE_TAIL_LIMIT, 8000])
+@pytest.mark.parametrize("length", [-1, 0, 1])
+def test_read_limit_fact_measures_observed_cap_without_claiming_truncation(limit, length):
+    result = startup_failure_diagnostic("x" * (limit + length), 502, "none", output_limit=limit)
+    assert result["output_read_limit_reached"] is (length >= 0)
+    assert result["output_raw_bytes"] == min(limit + length, limit)
+    assert "truncated" not in result
+
+
+@pytest.mark.parametrize("limit", [None, True, "5440", 0, -1, 8001, 10**100])
+def test_invalid_read_limit_cannot_expand_existing_budget(limit):
+    result = startup_failure_diagnostic(
+        "x" * 8000 + "\nTypeError: private", 502, "none", output_limit=limit
+    )
+    assert result["output_raw_bytes"] == 8000
+    assert result["exception_type"] == "unknown"
+
+
+@pytest.mark.parametrize("code", [0, 1, 2, 127, 137, 255])
+def test_exact_exit_code_is_authoritative_and_finite(code):
+    result = startup_failure_diagnostic(
+        "", 502, "none", command_exit_status="unknown", command_exit_code=code
+    )
+    assert result["command_exit_code"] == code
+    assert result["command_exit_status"] == ("zero" if code == 0 else "nonzero")
+
+
+@pytest.mark.parametrize("code", [None, True, False, "1", 1.0, [], {}, -1, 256, 10**100])
+def test_invalid_exit_code_is_never_serialized(code):
+    result = startup_failure_diagnostic("", 502, "none", command_exit_code=code)
+    assert result["command_exit_code"] is None
+    assert result["command_exit_status"] == "unknown"
+
+
+def test_owned_argparse_fixture_reports_real_exit_two_without_exception():
+    # This owned stdlib fixture executes no candidate code or application imports.
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            "-c",
+            "import argparse; argparse.ArgumentParser(prog='private-sentinel').parse_args()",
+            "--unknown-private",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode == 2 and result.stdout == ""
+    diagnostic = startup_failure_diagnostic(
+        result.stderr, 502, "none", command_exit_code=result.returncode
+    )
+    assert diagnostic["command_exit_status"] == "nonzero"
+    assert diagnostic["command_exit_code"] == 2
+    assert diagnostic["exception_type"] == "unknown"
+    assert diagnostic["output_shapes"] == ["cli-usage", "cli-error"]
+    assert "private" not in json.dumps(diagnostic)
+
+
+def test_owned_argparse_success_does_not_claim_failure_or_usage():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            "-c",
+            "import argparse; argparse.ArgumentParser().parse_args()",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode == 0
+    diagnostic = startup_failure_diagnostic(
+        result.stderr, 502, "none", command_exit_code=result.returncode
+    )
+    assert diagnostic["command_exit_code"] == 0
+    assert diagnostic["output_shapes"] == []
+    assert diagnostic["output_nonempty"] is False
+
+
+@pytest.mark.parametrize(
+    "renderer", [rich_trace, lambda exc: "".join(traceback.format_exception(exc))]
+)
+def test_real_pydantic_validation_error_has_only_fixed_public_facts(renderer):
+    from pydantic import BaseModel, ValidationError
+
+    class OwnedModel(BaseModel):
+        value: int
+
+    try:
+        OwnedModel(value="private-sentinel")
+    except ValidationError as exc:
+        output = renderer(exc)
+    result = startup_failure_diagnostic(output, 502, "none")
+    assert result["exception_type"] == "ValidationError"
+    assert "pydantic-validation" in result["output_shapes"]
+    assert "private" not in json.dumps(result)
+    assert "OwnedModel" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "renderer", [rich_trace, lambda exc: "".join(traceback.format_exception(exc))]
+)
+@pytest.mark.parametrize(
+    "name", ["InterfaceError", "OperationalError", "ProgrammingError", "IntegrityError"]
+)
+def test_real_sqlalchemy_dbapi_error_uses_exact_public_alias(renderer, name):
+    from sqlalchemy import exc
+
+    error = getattr(exc, name)(
+        "private-sql", {"private-key": "private-value"}, RuntimeError("private-error")
+    )
+    output = renderer(error)
+    result = startup_failure_diagnostic(output, 502, "none")
+    assert result["exception_type"] == name
+    assert "sqlalchemy-error" in result["output_shapes"]
+    assert "private" not in json.dumps(result)
+
+
+def test_real_framework_message_tails_supply_only_finite_format_hints():
+    from pydantic import ValidationError, create_model
+    from sqlalchemy.exc import OperationalError
+
+    model = create_model("PrivateSentinel", **{f"field{n}": (int, ...) for n in range(100)})
+    try:
+        model(**{f"field{n}": "private-sentinel" for n in range(100)})
+    except ValidationError as exc:
+        pydantic_output = rich_trace(exc)
+    sql_output = rich_trace(
+        OperationalError("private-sentinel" * 1000, {}, RuntimeError("private-error"))
+    )
+    for output, shape in (
+        (pydantic_output, "pydantic-validation"),
+        (sql_output, "sqlalchemy-error"),
+    ):
+        tail = output.encode()[-NATIVE_TAIL_LIMIT:].decode("utf-8", errors="ignore")
+        result = startup_failure_diagnostic(tail, 502, "none", output_limit=NATIVE_TAIL_LIMIT)
+        assert result["exception_type"] == "unknown"
+        assert shape in result["output_shapes"]
+        assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "name", ["private.ValidationError", "private.OperationalError", "custom.TypeError"]
+)
+def test_qualified_unknown_classes_do_not_inherit_public_suffixes(name):
+    result = startup_failure_diagnostic(name + ": private-sentinel", 502, "none")
+    assert result["exception_type"] == "unknown"
+    assert "private" not in json.dumps(result)
+
+
+def public_framework_classes():
+    """Check the installed packages independently of production's frozen list.
+
+    Their 66 non-warning defining classes also match the native tagged sources:
+    SQLAlchemy 2.0.51, Pydantic 2.12.5, pydantic-core 2.41.5. Tests inspect only
+    controller dependencies; no candidate module or downloaded source executes.
+    """
+    classes = {}
+    for module_name in (
+        "pydantic",
+        "pydantic.errors",
+        "pydantic_core",
+        "sqlalchemy.exc",
+        "sqlalchemy.orm.exc",
+    ):
+        module = importlib.import_module(module_name)
+        for name in getattr(module, "__all__", vars(module)):
+            if name.startswith("_"):
+                continue
+            value = getattr(module, name, None)
+            if (
+                inspect.isclass(value)
+                and issubclass(value, Exception)
+                and not issubclass(value, Warning)
+            ):
+                classes[module_name + "." + name] = value.__name__
+                classes[value.__module__ + "." + value.__name__] = value.__name__
+                classes[name] = value.__name__
+    return sorted(classes.items())
+
+
+@pytest.mark.parametrize("alias,canonical", public_framework_classes())
+def test_verified_public_framework_inventory_has_no_missing_alias(alias, canonical):
+    result = startup_failure_diagnostic(alias + ": private-sentinel", 502, "none")
+    assert result["exception_type"] == canonical
+    assert result["failure_component"] == "unknown"
+    assert "private" not in json.dumps(result)
+
+
+def framework_exception_examples():
+    from pydantic import errors
+    from pydantic_core import (
+        PydanticCustomError,
+        PydanticKnownError,
+        PydanticOmit,
+        PydanticSerializationError,
+        PydanticSerializationUnexpectedValue,
+        PydanticUseDefault,
+        SchemaError,
+    )
+    from sqlalchemy import exc
+    from sqlalchemy.orm.exc import (
+        DetachedInstanceError,
+        FlushError,
+        MappedAnnotationError,
+        StaleDataError,
+    )
+
+    return [
+        errors.PydanticUserError("private-sentinel", code=None),
+        errors.PydanticUndefinedAnnotation("PrivateSentinel", "private-sentinel"),
+        errors.PydanticImportError("private-sentinel"),
+        errors.PydanticSchemaGenerationError("private-sentinel"),
+        errors.PydanticInvalidForJsonSchema("private-sentinel"),
+        errors.PydanticForbiddenQualifier("final", "private-sentinel"),
+        PydanticCustomError("private-kind", "private-sentinel"),
+        PydanticKnownError("int_parsing"),
+        PydanticOmit(),
+        PydanticUseDefault(),
+        PydanticSerializationError("private-sentinel"),
+        PydanticSerializationUnexpectedValue("private-sentinel"),
+        SchemaError("private-sentinel"),
+        exc.InvalidRequestError("private-sentinel"),
+        exc.MissingGreenlet("private-sentinel"),
+        exc.AwaitRequired("private-sentinel"),
+        exc.NoResultFound(),
+        exc.MultipleResultsFound(),
+        exc.DataError("private-sql", {}, RuntimeError("private-sentinel")),
+        exc.InternalError("private-sql", {}, RuntimeError("private-sentinel")),
+        exc.NotSupportedError("private-sql", {}, RuntimeError("private-sentinel")),
+        DetachedInstanceError("private-sentinel"),
+        FlushError("private-sentinel"),
+        MappedAnnotationError("private-sentinel"),
+        StaleDataError("private-sentinel"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "renderer",
+    [
+        rich_trace,
+        lambda exc: rich_trace(exc, panel=True),
+        lambda exc: "".join(traceback.format_exception(exc)),
+    ],
+    ids=["rich", "rich-panel", "plain"],
+)
+@pytest.mark.parametrize("exc", framework_exception_examples(), ids=lambda exc: type(exc).__name__)
+def test_real_extended_framework_exception_renderers(renderer, exc):
+    result = startup_failure_diagnostic(renderer(exc), 502, "none")
+    assert result["exception_type"] == type(exc).__name__
+    assert result["failure_component"] == "unknown"
+    assert "private" not in json.dumps(result)
+    assert "PrivateSentinel" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "renderer",
+    [
+        rich_trace,
+        lambda exc: rich_trace(exc, panel=True),
+        lambda exc: "".join(traceback.format_exception(exc)),
+    ],
+    ids=["rich", "rich-panel", "plain"],
+)
+@pytest.mark.parametrize("message", [(), ("private-sentinel",)])
+@pytest.mark.parametrize("lowercase", [False, True])
+def test_terminal_suffixless_unknown_suppresses_prior_known_exception(renderer, message, lowercase):
+    class PrivateFailure(Exception):
+        pass
+
+    class privatefailure(Exception):
+        pass
+
+    terminal = (privatefailure if lowercase else PrivateFailure)(*message)
+    terminal.__cause__ = TypeError("private-primary")
+    result = startup_failure_diagnostic(renderer(terminal), 502, "none")
+    assert result["exception_type"] == "unknown"
+    assert result["failure_component"] == "unknown"
+    assert "PrivateFailure" not in json.dumps(result)
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "alias",
+    [
+        "private.MissingGreenlet",
+        "private.PydanticUserError",
+        "sqlalchemy.exc.PrivateFailure",
+        "pydantic.errors.PrivateFailure",
+        "pydantic_core._pydantic_core.PrivateFailure",
+    ],
+)
+def test_framework_prefix_never_authorizes_a_private_exception(alias):
+    result = startup_failure_diagnostic(
+        "TypeError: private-first\n" + alias + ": private-last", 502, "none"
+    )
+    assert result["exception_type"] == "unknown"
+    assert "PrivateFailure" not in json.dumps(result)
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("prefix", ["", "\x1b[31m", "TypeError: private-primary\n"])
+def test_cut_unknown_name_cannot_become_a_known_empty_exception(prefix):
+    limit = len((prefix + "TypeError").encode())
+    result = startup_failure_diagnostic(
+        prefix + "TypeErrorPrivate", 502, "none", output_limit=limit
+    )
+    assert result["output_read_limit_reached"] is True
+    assert result["exception_type"] == "unknown"
+
+
+def test_complete_bare_exception_newline_remains_known_at_exact_cap():
+    output = "TypeError\n"
+    result = startup_failure_diagnostic(output, 502, "none", output_limit=len(output))
+    assert result["output_read_limit_reached"] is True
+    assert result["exception_type"] == "TypeError"
 ````
 
 ### `tests/test_capability_startup_paths.py`
@@ -126605,12 +127443,12 @@ def test_command_status_classifier_cannot_disclose_arbitrary_values(value):
 - `test_all_native_diagnostic_reads_fit_existing_byte_budget`（L311–L316）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L312断言`diagnostic.NATIVE_TAIL_LIMIT + diagnostic.PATH_OUTPUT_LIMIT + diagnostic.SMOKE_OUTPUT…`；L316断言`len(json.dumps(receipt()).encode()) < diagnostic.PATH_OUTPUT_LIMIT`。 调用`len`、`json.dumps(receipt()).encode`、`json.dumps`、`receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_sdk_integer_model_reaches_api_with_shared_transport_deadline`（L321–L374）：接收`monkeypatch`、`probe`、`fail`。 控制顺序：L365断言`len(requests) == (1 if probe == "metadata" or fail else 2)`；L366断言`len(transports) == len(requests)`；L367断言`_DEADLINE.get() == 999.0`；L368按`probe == "metadata"`分支；L369断言`result["status"] == ("unknown" if fail else "observed")`；L371断言`result["checks"] == (None if fail else smoke_checks())`；L372断言`"private-sentinel" not in json.dumps(result)`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`transports.append`、`harden_toolbox_transport`、`_DEADLINE.set`、`httpx.Client`、`Process`、`diagnostic.native_startup_paths`、`diagnostic.native_startup_smoke`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_sdk_integer_model_reaches_api_with_shared_transport_deadline.execute_command`（L338–L350）：接收`request`、`**kwargs`。 控制顺序：L340断言`type(request.timeout) is int and 1 <= request.timeout <= 5`；L341断言`_DEADLINE.get() == 15`；L346断言`0 < transports[-1] <= 15 - clock[0]`；L347按`fail`分支；L348抛异常，停止当前正常路径。 调用`requests.append`、`type`、`_DEADLINE.get`、`rest.request`、`RuntimeError`、`receipt`、`smoke_checks`、`SimpleNamespace`、`json.dumps`。 返回路径：L350的`SimpleNamespace(result=json.dumps(value), exit_code=0, additional_properties={})`。
-- `test_actual_native_start_keeps_health_failure_and_closes_http`（L378–L467）：接收`monkeypatch`、`failure`。 控制顺序：L461断言`events == ["tail", "paths", "smoke", "closed"]`；L462断言`state["command_exit_status"] == "nonzero"`；L463断言`state["launch_paths"]["status"] == ("unknown" if failure == "paths" else "observed")`；L464断言`state["interpreter_probe"]["exit_status"] == ( "unknown" if failure == "smoke" else "…`；L467断言`"private-sentinel" not in json.dumps(state)`。 调用`Path`、`next`、`ast.walk`、`ast.parse`、`source.read_text`、`isinstance`、`complete_native_plan`、`iter`、`SimpleNamespace`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_native_start_keeps_health_failure_and_closes_http.paths`（L400–L404）：接收`*args`。 控制顺序：L402按`failure == "paths"`分支；L403抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`receipt`。 返回路径：L404的`{"status": "observed", **receipt()}`。
-- `test_actual_native_start_keeps_health_failure_and_closes_http.smoke`（L406–L410）：接收`*args`。 控制顺序：L408按`failure == "smoke"`分支；L409抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`smoke_checks`。 返回路径：L410的`{"exit_status": "zero", "output_shapes": [], "checks": smoke_checks()}`。
-- `test_actual_native_start_keeps_health_failure_and_closes_http.read`（L415–L418）：接收`limit`、`tail`、`*args`。 控制顺序：L416断言`limit == diagnostic.NATIVE_TAIL_LIMIT and tail is True`。 调用`events.append`。 返回路径：L418的`"/usr/bin/env: private-sentinel: No such file or directory"`。
+- `test_actual_start_keeps_health_failure_and_closes_http`（L379–L480）：接收`monkeypatch`、`failure`、`native`。 控制顺序：L468断言`events == (["tail", "paths", "smoke", "closed"] if native else ["tail", "closed"])`；L469断言`state["command_exit_status"] == "nonzero"`；L470断言`state["command_exit_code"] == 2`；L471断言`state["output_raw_bytes"] == output_limit`；L472断言`state["output_read_limit_reached"] is True`；L473按`native`分支；L474断言`state["launch_paths"]["status"] == ("unknown" if failure == "paths" else "observed")`；L475断言`state["interpreter_probe"]["exit_status"] == ( "unknown" if failure == "smoke" else "…`。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`next`、`ast.walk`、`ast.parse`、`source.read_text`、`isinstance`、`complete_native_plan`、`iter`、`SimpleNamespace`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_start_keeps_health_failure_and_closes_http.paths`（L401–L405）：接收`*args`。 控制顺序：L403按`failure == "paths"`分支；L404抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`receipt`。 返回路径：L405的`{"status": "observed", **receipt()}`。
+- `test_actual_start_keeps_health_failure_and_closes_http.smoke`（L407–L411）：接收`*args`。 控制顺序：L409按`failure == "smoke"`分支；L410抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`smoke_checks`。 返回路径：L411的`{"exit_status": "zero", "output_shapes": [], "checks": smoke_checks()}`。
+- `test_actual_start_keeps_health_failure_and_closes_http.read`（L419–L422）：接收`limit`、`tail`、`*args`。 控制顺序：L420断言`limit == output_limit and tail is True`。 调用`events.append`。 返回路径：L422的`output`。
 
-<!-- source-file: tests/test_capability_startup_paths.py sha256: 741252377a579cf1da362285a9601b5b554682e37c35dbd88049e7270b1ada0c -->
+<!-- source-file: tests/test_capability_startup_paths.py sha256: b981f638afcf6426c71d1006048874bfb8f0fa3d15fb7713f34027fa2d4bc292 -->
 ````python
 """Finite metadata from real owned launch fixtures, without candidate execution."""
 
@@ -126989,7 +127827,8 @@ def test_real_sdk_integer_model_reaches_api_with_shared_transport_deadline(
 
 
 @pytest.mark.parametrize("failure", [None, "paths", "smoke"])
-def test_actual_native_start_keeps_health_failure_and_closes_http(monkeypatch, failure):
+@pytest.mark.parametrize("native", [False, True])
+def test_actual_start_keeps_health_failure_and_closes_http(monkeypatch, failure, native):
     import uuid
     from pathlib import Path
 
@@ -127026,10 +127865,13 @@ def test_actual_native_start_keeps_health_failure_and_closes_http(monkeypatch, f
     monkeypatch.setattr(diagnostic, "native_startup_paths", paths)
     monkeypatch.setattr(diagnostic, "native_startup_smoke", smoke)
 
+    output_limit = diagnostic.NATIVE_TAIL_LIMIT if native else 8000
+    output = "/usr/bin/env: private-sentinel: No such file or directory".ljust(output_limit)
+
     def read(*args, limit, tail):
-        assert limit == diagnostic.NATIVE_TAIL_LIMIT and tail is True
+        assert limit == output_limit and tail is True
         events.append("tail")
-        return "/usr/bin/env: private-sentinel: No such file or directory"
+        return output
 
     state = {}
     process = SimpleNamespace(
@@ -127064,20 +127906,29 @@ def test_actual_native_start_keeps_health_failure_and_closes_http(monkeypatch, f
         "read_command_output": read,
         "control_exec": lambda *a: SimpleNamespace(exit_code=0, result="1"),
         "startup_failure_diagnostic": startup_failure_diagnostic,
-        "startup_command_exit_status": lambda *a: "nonzero",
-        "native": True,
+        "startup_command_exit_facts": lambda *a: {
+            "command_exit_status": "nonzero",
+            "command_exit_code": 2,
+        },
+        "native": native,
         "CheckFailure": CheckFailure,
     }
     exec(compile(ast.Module([start], []), "actual-start-function", "exec"), scope)
     with pytest.raises(CheckFailure, match="健康检查"):
         scope["start"]()
     state = scope["receipt"]["startup_diagnostic"]
-    assert events == ["tail", "paths", "smoke", "closed"]
+    assert events == (["tail", "paths", "smoke", "closed"] if native else ["tail", "closed"])
     assert state["command_exit_status"] == "nonzero"
-    assert state["launch_paths"]["status"] == ("unknown" if failure == "paths" else "observed")
-    assert state["interpreter_probe"]["exit_status"] == (
-        "unknown" if failure == "smoke" else "zero"
-    )
+    assert state["command_exit_code"] == 2
+    assert state["output_raw_bytes"] == output_limit
+    assert state["output_read_limit_reached"] is True
+    if native:
+        assert state["launch_paths"]["status"] == ("unknown" if failure == "paths" else "observed")
+        assert state["interpreter_probe"]["exit_status"] == (
+            "unknown" if failure == "smoke" else "zero"
+        )
+    else:
+        assert "launch_paths" not in state and "interpreter_probe" not in state
     assert "private-sentinel" not in json.dumps(state)
 ````
 
@@ -203620,7 +204471,7 @@ and pass these trusted gates; an authored fixture must never be relabeled as tha
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/custom-source-isolation.md sha256: fe63d7a38ac91d707c6b23f30f3d2b47a88365163486d203955211290d09feee -->
+<!-- source-file: docs/custom-source-isolation.md sha256: 2db1a6940553956d64b8621303c7e09e70d263c3344489fc9b07255c852145b8 -->
 ````markdown
 # 自定义源码执行：有证据的启用门
 
@@ -203786,6 +204637,11 @@ tmpfs 随容器停止清空。因此候选 profile 记录的是 `restart_kind=ap
 实际失败输出已观察到 ANSI 颜色序列；分类前先截取原字节预算，再仅删除参数长度
 不超过 32 的数字/分号 SGR。不会解释 OSC、其他终端命令、断裂或超长序列，也不会
 在删去颜色字节后补读更多正文；原输出非空状态和颜色格式提示仍保留。
+异常提示使用固定 Python 基础异常表与已核实的框架别名，并识别已知 Rich 包装及
+缩进；未知类名仍为 unknown。退出回执同时保留会话/命令归属匹配的严格 0–255 整数，
+缺失或无效值为 null。原始及规范化字节数、规范化后是否有非空白文本、是否达到读取
+上限及是否残留非 SGR 控制符，仅描述本次有界样本，不代表完整日志长度，也不能单凭
+“达到上限”推断 SDK 截断。真实 Rich 与 CLI 夹具覆盖成功分类、未知类和截断反例。
 原生 CI 另在默认 guard 下实际构造 spawn 进程池，验证未明确启用原生共享内存策略时，
 只读范围外的信号量申请仍被拒绝。诊断与默认拒绝测试不改变调度器或应用健康期限。
 

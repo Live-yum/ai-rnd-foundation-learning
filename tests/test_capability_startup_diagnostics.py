@@ -1,27 +1,43 @@
 """Startup hints cannot become product acceptance or disclose candidate output."""
 
+import builtins
+import importlib
+import inspect
 import json
+import subprocess
+import sys
+import traceback
+from io import StringIO
 from types import SimpleNamespace
 
 import pytest
 
-from workbench.capability_sandbox import startup_command_exit_status, startup_failure_diagnostic
+from workbench.capability_sandbox import (
+    startup_command_exit_facts,
+    startup_command_exit_status,
+    startup_failure_diagnostic,
+)
+from workbench.capability_startup_paths import NATIVE_TAIL_LIMIT
 
 
 def test_startup_hints_are_finite_even_for_secret_bearing_tracebacks():
-    result = startup_failure_diagnostic(
+    output = (
         "secret content /private/secret token=secret\n"
         "ModuleNotFoundError: No module named 'secret.module'\n"
-        "PermissionError: secret path\nApplication startup complete",
-        503,
-        "secret transport error",
+        "PermissionError: secret path\nApplication startup complete"
     )
+    result = startup_failure_diagnostic(output, 503, "secret transport error")
     assert result == {
         "phase": "health_deadline",
         "http_status": 503,
         "http_error": "other",
         "output_readable": True,
         "output_nonempty": True,
+        "output_raw_bytes": len(output.encode()),
+        "output_normalized_bytes": len(output.encode()),
+        "output_normalized_nonspace": True,
+        "output_read_limit_reached": False,
+        "output_has_non_sgr_control": False,
         "output_hints": ["permission-denied", "missing-module"],
         "output_shapes": [],
         "known_missing_modules": [],
@@ -32,9 +48,10 @@ def test_startup_hints_are_finite_even_for_secret_bearing_tracebacks():
         "application_startup_reported": True,
         "tmpfs_noexec": None,
         "command_exit_status": "unknown",
+        "command_exit_code": None,
     }
     assert "secret" not in json.dumps(result)
-    assert len(json.dumps(result)) < 768
+    assert len(json.dumps(result)) < 1024
     assert "passed" not in result
 
 
@@ -49,6 +66,14 @@ def test_nontext_startup_output_never_stringifies_candidate_data(output):
     assert result["failure_component"] == "unknown"
     assert result["exception_type"] == "unknown"
     assert result["exception_errno"] is None
+    for name in (
+        "output_raw_bytes",
+        "output_normalized_bytes",
+        "output_normalized_nonspace",
+        "output_read_limit_reached",
+        "output_has_non_sgr_control",
+    ):
+        assert result[name] is None
     assert "secret" not in json.dumps(result)
 
 
@@ -327,10 +352,10 @@ def test_pinned_sdk_command_exit_facts_use_status_only(value, expected, monkeypa
 
     with httpx.Client(trust_env=False) as client:
         process = Process("python", SimpleNamespace(get_session_command=get_command), client)
-        assert (
-            startup_command_exit_status(process, "private-session", "private-command", 5)
-            == expected
-        )
+        assert startup_command_exit_facts(process, "private-session", "private-command", 5) == {
+            "command_exit_status": expected,
+            "command_exit_code": value,
+        }
     assert seen == [5]
     assert daytona_sessions._DEADLINE.get() is None
 
@@ -400,3 +425,529 @@ def test_command_status_classifier_cannot_disclose_arbitrary_values(value):
     result = startup_failure_diagnostic("", 502, "none", command_exit_status=value)
     assert result["command_exit_status"] == "unknown"
     assert "secret" not in json.dumps(result)
+
+
+def rich_trace(exc, *, panel=False, width=100):
+    """Render real Rich 15 tracebacks, including its actual SGR and borders."""
+    from rich.console import Console
+    from rich.panel import Panel
+    from rich.traceback import Traceback
+
+    output = StringIO()
+    console = Console(
+        file=output, width=width, force_terminal=True, color_system="truecolor", no_color=False
+    )
+    try:
+        raise exc
+    except BaseException as caught:
+        rendered = Traceback.from_exception(
+            type(caught), caught, caught.__traceback__, show_locals=False, extra_lines=0
+        )
+        console.print(Panel(rendered) if panel else rendered)
+    value = output.getvalue()
+    assert "\x1b[" in value
+    return value
+
+
+@pytest.mark.parametrize("panel", [False, True])
+@pytest.mark.parametrize(
+    "name",
+    [
+        "TypeError",
+        "AttributeError",
+        "KeyError",
+        "IndexError",
+        "NameError",
+        "UnboundLocalError",
+        "AssertionError",
+        "ValueError",
+        "RuntimeError",
+        "RecursionError",
+        "NotImplementedError",
+        "ImportError",
+        "ModuleNotFoundError",
+        "MemoryError",
+        "SyntaxError",
+        "IndentationError",
+        "OSError",
+        "FileNotFoundError",
+        "PermissionError",
+        "TimeoutError",
+        "ConnectionRefusedError",
+        "ZeroDivisionError",
+        "OverflowError",
+        "EOFError",
+        "StopIteration",
+        "SystemExit",
+        "KeyboardInterrupt",
+        "GeneratorExit",
+        "Exception",
+        "BaseException",
+    ],
+)
+def test_real_rich_builtin_exception_matrix(name, panel):
+    output = rich_trace(getattr(builtins, name)("private-sentinel /private/token"), panel=panel)
+    assert len(output.encode()) < NATIVE_TAIL_LIMIT
+    result = startup_failure_diagnostic(output, 502, "none", output_limit=NATIVE_TAIL_LIMIT)
+    assert result["exception_type"] == name
+    assert result["output_raw_bytes"] == len(output.encode())
+    assert result["output_normalized_bytes"] < result["output_raw_bytes"]
+    assert result["output_normalized_nonspace"] is True
+    assert result["output_has_non_sgr_control"] is False
+    assert "ansi-control" in result["output_shapes"]
+    assert result["failure_component"] == "unknown"
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "renderer", [rich_trace, lambda exc: "".join(traceback.format_exception(exc))]
+)
+@pytest.mark.parametrize("exc", [AssertionError(), KeyboardInterrupt(), SystemExit()])
+def test_real_empty_message_exception_headers(renderer, exc):
+    result = startup_failure_diagnostic(renderer(exc), 502, "none")
+    assert result["exception_type"] == type(exc).__name__
+
+
+@pytest.mark.parametrize("width", [80, 100, 120])
+@pytest.mark.parametrize("exception", [TypeError, KeyError, SystemExit])
+def test_real_rich_panel_padding_preserves_empty_exception_headers(width, exception):
+    output = rich_trace(exception(), panel=True, width=width)
+    assert len(output.encode()) < NATIVE_TAIL_LIMIT
+    result = startup_failure_diagnostic(output, 502, "none", output_limit=NATIVE_TAIL_LIMIT)
+    assert result["exception_type"] == exception.__name__
+    assert result["failure_component"] == "unknown"
+
+
+@pytest.mark.parametrize("width", [80, 100, 120])
+def test_real_rich_panel_padding_does_not_publish_unknown_empty_exception(width):
+    class PrivateSentinelError(Exception):
+        pass
+
+    result = startup_failure_diagnostic(
+        rich_trace(PrivateSentinelError(), panel=True, width=width), 502, "none"
+    )
+    assert result["exception_type"] == "unknown"
+    assert result["failure_component"] == "unknown"
+    assert "PrivateSentinel" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        "TypeError" + " " * 80,
+        "│ TypeError" + " " * 80,
+        "| TypeError" + " " * 80 + " |",
+        "│ TypeError" + " " * 600 + " │",
+    ],
+)
+def test_padding_normalization_requires_complete_bounded_known_panel(output):
+    result = startup_failure_diagnostic(output, 502, "none")
+    assert result["exception_type"] == "unknown"
+
+
+@pytest.mark.parametrize("panel", [False, True])
+def test_real_rich_chained_trace_preserves_terminal_exception(panel):
+    terminal = KeyError("private-terminal")
+    terminal.__cause__ = TypeError("private-primary")
+    result = startup_failure_diagnostic(rich_trace(terminal, panel=panel), 502, "none")
+    assert result["exception_type"] == "KeyError"
+    assert result["failure_component"] == "unknown"
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("panel", [False, True])
+def test_real_rich_unknown_exception_remains_unknown(panel):
+    class PrivateSentinelError(Exception):
+        pass
+
+    result = startup_failure_diagnostic(
+        rich_trace(PrivateSentinelError("private-sentinel"), panel=panel), 502, "none"
+    )
+    assert result["exception_type"] == "unknown"
+    assert "PrivateSentinel" not in json.dumps(result)
+    assert "private-sentinel" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "prefix", ["secret.", "prefix ", "│ ", "\x1b]0;private\x07", "\x1b[2J", "\x1b[", " " * 33]
+)
+def test_unrecognized_prefix_is_not_normalized_into_a_builtin(prefix):
+    result = startup_failure_diagnostic(prefix + "TypeError: private", 502, "none")
+    assert result["exception_type"] == "unknown"
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("prefix", ["", "  ", "\t", " " * 32])
+def test_bounded_standard_exception_indentation(prefix):
+    result = startup_failure_diagnostic(prefix + "TypeError: private", 502, "none")
+    assert result["exception_type"] == "TypeError"
+
+
+def test_rich_wrappers_cannot_complete_a_semaphore_trace():
+    first = SEMAPHORE_TRACE.replace("PermissionError", "FileNotFoundError").replace(
+        "[Errno 13]", "[Errno 2]"
+    )
+    output = first + rich_trace(PermissionError(13, "private-sentinel"), panel=True)
+    result = startup_failure_diagnostic(output, 502, "none")
+    assert result["exception_type"] == "PermissionError"
+    assert result["exception_errno"] == 13
+    assert result["failure_component"] == "unknown"
+
+
+@pytest.mark.parametrize("limit", [NATIVE_TAIL_LIMIT, 8000])
+@pytest.mark.parametrize("prefix", ["x", "\x1b[0m", "汉", "\x1b]0;secret\x07"])
+def test_raw_budget_precedes_sgr_rich_wrappers_and_exception_search(limit, prefix):
+    output = prefix * limit + "\n│ TypeError: private │\n"
+    result = startup_failure_diagnostic(output, 502, "none", output_limit=limit)
+    assert result["output_raw_bytes"] == limit
+    assert 0 <= result["output_normalized_bytes"] <= limit
+    assert result["output_read_limit_reached"] is True
+    assert result["exception_type"] == "unknown"
+    assert result["failure_component"] == "unknown"
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "output,normalized,nonspace,control",
+    [
+        ("", "", False, False),
+        ("\x1b[0m\x1b[31m", "", False, False),
+        ("\x1b[0m \n\t\r", " \n\t\r", False, False),
+        ("\x1b[31munmatched私\x1b[0m", "unmatched私", True, False),
+        ("\x1b]0;private\x07", "\x1b]0;private\x07", True, True),
+        ("\x1b[2J", "\x1b[2J", True, True),
+        ("\x1b[", "\x1b[", True, True),
+        ("\x00\x08\x7f\x9b", "\x00\x08\x7f\x9b", True, True),
+    ],
+)
+def test_measured_output_facts_do_not_serialize_text(output, normalized, nonspace, control):
+    result = startup_failure_diagnostic(output, 502, "none")
+    assert result["output_raw_bytes"] == len(output.encode())
+    assert result["output_normalized_bytes"] == len(normalized.encode())
+    assert result["output_normalized_nonspace"] is nonspace
+    assert result["output_has_non_sgr_control"] is control
+    assert result["output_read_limit_reached"] is False
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("limit", [NATIVE_TAIL_LIMIT, 8000])
+@pytest.mark.parametrize("length", [-1, 0, 1])
+def test_read_limit_fact_measures_observed_cap_without_claiming_truncation(limit, length):
+    result = startup_failure_diagnostic("x" * (limit + length), 502, "none", output_limit=limit)
+    assert result["output_read_limit_reached"] is (length >= 0)
+    assert result["output_raw_bytes"] == min(limit + length, limit)
+    assert "truncated" not in result
+
+
+@pytest.mark.parametrize("limit", [None, True, "5440", 0, -1, 8001, 10**100])
+def test_invalid_read_limit_cannot_expand_existing_budget(limit):
+    result = startup_failure_diagnostic(
+        "x" * 8000 + "\nTypeError: private", 502, "none", output_limit=limit
+    )
+    assert result["output_raw_bytes"] == 8000
+    assert result["exception_type"] == "unknown"
+
+
+@pytest.mark.parametrize("code", [0, 1, 2, 127, 137, 255])
+def test_exact_exit_code_is_authoritative_and_finite(code):
+    result = startup_failure_diagnostic(
+        "", 502, "none", command_exit_status="unknown", command_exit_code=code
+    )
+    assert result["command_exit_code"] == code
+    assert result["command_exit_status"] == ("zero" if code == 0 else "nonzero")
+
+
+@pytest.mark.parametrize("code", [None, True, False, "1", 1.0, [], {}, -1, 256, 10**100])
+def test_invalid_exit_code_is_never_serialized(code):
+    result = startup_failure_diagnostic("", 502, "none", command_exit_code=code)
+    assert result["command_exit_code"] is None
+    assert result["command_exit_status"] == "unknown"
+
+
+def test_owned_argparse_fixture_reports_real_exit_two_without_exception():
+    # This owned stdlib fixture executes no candidate code or application imports.
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            "-c",
+            "import argparse; argparse.ArgumentParser(prog='private-sentinel').parse_args()",
+            "--unknown-private",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode == 2 and result.stdout == ""
+    diagnostic = startup_failure_diagnostic(
+        result.stderr, 502, "none", command_exit_code=result.returncode
+    )
+    assert diagnostic["command_exit_status"] == "nonzero"
+    assert diagnostic["command_exit_code"] == 2
+    assert diagnostic["exception_type"] == "unknown"
+    assert diagnostic["output_shapes"] == ["cli-usage", "cli-error"]
+    assert "private" not in json.dumps(diagnostic)
+
+
+def test_owned_argparse_success_does_not_claim_failure_or_usage():
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-I",
+            "-S",
+            "-c",
+            "import argparse; argparse.ArgumentParser().parse_args()",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+    )
+    assert result.returncode == 0
+    diagnostic = startup_failure_diagnostic(
+        result.stderr, 502, "none", command_exit_code=result.returncode
+    )
+    assert diagnostic["command_exit_code"] == 0
+    assert diagnostic["output_shapes"] == []
+    assert diagnostic["output_nonempty"] is False
+
+
+@pytest.mark.parametrize(
+    "renderer", [rich_trace, lambda exc: "".join(traceback.format_exception(exc))]
+)
+def test_real_pydantic_validation_error_has_only_fixed_public_facts(renderer):
+    from pydantic import BaseModel, ValidationError
+
+    class OwnedModel(BaseModel):
+        value: int
+
+    try:
+        OwnedModel(value="private-sentinel")
+    except ValidationError as exc:
+        output = renderer(exc)
+    result = startup_failure_diagnostic(output, 502, "none")
+    assert result["exception_type"] == "ValidationError"
+    assert "pydantic-validation" in result["output_shapes"]
+    assert "private" not in json.dumps(result)
+    assert "OwnedModel" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "renderer", [rich_trace, lambda exc: "".join(traceback.format_exception(exc))]
+)
+@pytest.mark.parametrize(
+    "name", ["InterfaceError", "OperationalError", "ProgrammingError", "IntegrityError"]
+)
+def test_real_sqlalchemy_dbapi_error_uses_exact_public_alias(renderer, name):
+    from sqlalchemy import exc
+
+    error = getattr(exc, name)(
+        "private-sql", {"private-key": "private-value"}, RuntimeError("private-error")
+    )
+    output = renderer(error)
+    result = startup_failure_diagnostic(output, 502, "none")
+    assert result["exception_type"] == name
+    assert "sqlalchemy-error" in result["output_shapes"]
+    assert "private" not in json.dumps(result)
+
+
+def test_real_framework_message_tails_supply_only_finite_format_hints():
+    from pydantic import ValidationError, create_model
+    from sqlalchemy.exc import OperationalError
+
+    model = create_model("PrivateSentinel", **{f"field{n}": (int, ...) for n in range(100)})
+    try:
+        model(**{f"field{n}": "private-sentinel" for n in range(100)})
+    except ValidationError as exc:
+        pydantic_output = rich_trace(exc)
+    sql_output = rich_trace(
+        OperationalError("private-sentinel" * 1000, {}, RuntimeError("private-error"))
+    )
+    for output, shape in (
+        (pydantic_output, "pydantic-validation"),
+        (sql_output, "sqlalchemy-error"),
+    ):
+        tail = output.encode()[-NATIVE_TAIL_LIMIT:].decode("utf-8", errors="ignore")
+        result = startup_failure_diagnostic(tail, 502, "none", output_limit=NATIVE_TAIL_LIMIT)
+        assert result["exception_type"] == "unknown"
+        assert shape in result["output_shapes"]
+        assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "name", ["private.ValidationError", "private.OperationalError", "custom.TypeError"]
+)
+def test_qualified_unknown_classes_do_not_inherit_public_suffixes(name):
+    result = startup_failure_diagnostic(name + ": private-sentinel", 502, "none")
+    assert result["exception_type"] == "unknown"
+    assert "private" not in json.dumps(result)
+
+
+def public_framework_classes():
+    """Check the installed packages independently of production's frozen list.
+
+    Their 66 non-warning defining classes also match the native tagged sources:
+    SQLAlchemy 2.0.51, Pydantic 2.12.5, pydantic-core 2.41.5. Tests inspect only
+    controller dependencies; no candidate module or downloaded source executes.
+    """
+    classes = {}
+    for module_name in (
+        "pydantic",
+        "pydantic.errors",
+        "pydantic_core",
+        "sqlalchemy.exc",
+        "sqlalchemy.orm.exc",
+    ):
+        module = importlib.import_module(module_name)
+        for name in getattr(module, "__all__", vars(module)):
+            if name.startswith("_"):
+                continue
+            value = getattr(module, name, None)
+            if (
+                inspect.isclass(value)
+                and issubclass(value, Exception)
+                and not issubclass(value, Warning)
+            ):
+                classes[module_name + "." + name] = value.__name__
+                classes[value.__module__ + "." + value.__name__] = value.__name__
+                classes[name] = value.__name__
+    return sorted(classes.items())
+
+
+@pytest.mark.parametrize("alias,canonical", public_framework_classes())
+def test_verified_public_framework_inventory_has_no_missing_alias(alias, canonical):
+    result = startup_failure_diagnostic(alias + ": private-sentinel", 502, "none")
+    assert result["exception_type"] == canonical
+    assert result["failure_component"] == "unknown"
+    assert "private" not in json.dumps(result)
+
+
+def framework_exception_examples():
+    from pydantic import errors
+    from pydantic_core import (
+        PydanticCustomError,
+        PydanticKnownError,
+        PydanticOmit,
+        PydanticSerializationError,
+        PydanticSerializationUnexpectedValue,
+        PydanticUseDefault,
+        SchemaError,
+    )
+    from sqlalchemy import exc
+    from sqlalchemy.orm.exc import (
+        DetachedInstanceError,
+        FlushError,
+        MappedAnnotationError,
+        StaleDataError,
+    )
+
+    return [
+        errors.PydanticUserError("private-sentinel", code=None),
+        errors.PydanticUndefinedAnnotation("PrivateSentinel", "private-sentinel"),
+        errors.PydanticImportError("private-sentinel"),
+        errors.PydanticSchemaGenerationError("private-sentinel"),
+        errors.PydanticInvalidForJsonSchema("private-sentinel"),
+        errors.PydanticForbiddenQualifier("final", "private-sentinel"),
+        PydanticCustomError("private-kind", "private-sentinel"),
+        PydanticKnownError("int_parsing"),
+        PydanticOmit(),
+        PydanticUseDefault(),
+        PydanticSerializationError("private-sentinel"),
+        PydanticSerializationUnexpectedValue("private-sentinel"),
+        SchemaError("private-sentinel"),
+        exc.InvalidRequestError("private-sentinel"),
+        exc.MissingGreenlet("private-sentinel"),
+        exc.AwaitRequired("private-sentinel"),
+        exc.NoResultFound(),
+        exc.MultipleResultsFound(),
+        exc.DataError("private-sql", {}, RuntimeError("private-sentinel")),
+        exc.InternalError("private-sql", {}, RuntimeError("private-sentinel")),
+        exc.NotSupportedError("private-sql", {}, RuntimeError("private-sentinel")),
+        DetachedInstanceError("private-sentinel"),
+        FlushError("private-sentinel"),
+        MappedAnnotationError("private-sentinel"),
+        StaleDataError("private-sentinel"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "renderer",
+    [
+        rich_trace,
+        lambda exc: rich_trace(exc, panel=True),
+        lambda exc: "".join(traceback.format_exception(exc)),
+    ],
+    ids=["rich", "rich-panel", "plain"],
+)
+@pytest.mark.parametrize("exc", framework_exception_examples(), ids=lambda exc: type(exc).__name__)
+def test_real_extended_framework_exception_renderers(renderer, exc):
+    result = startup_failure_diagnostic(renderer(exc), 502, "none")
+    assert result["exception_type"] == type(exc).__name__
+    assert result["failure_component"] == "unknown"
+    assert "private" not in json.dumps(result)
+    assert "PrivateSentinel" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "renderer",
+    [
+        rich_trace,
+        lambda exc: rich_trace(exc, panel=True),
+        lambda exc: "".join(traceback.format_exception(exc)),
+    ],
+    ids=["rich", "rich-panel", "plain"],
+)
+@pytest.mark.parametrize("message", [(), ("private-sentinel",)])
+@pytest.mark.parametrize("lowercase", [False, True])
+def test_terminal_suffixless_unknown_suppresses_prior_known_exception(renderer, message, lowercase):
+    class PrivateFailure(Exception):
+        pass
+
+    class privatefailure(Exception):
+        pass
+
+    terminal = (privatefailure if lowercase else PrivateFailure)(*message)
+    terminal.__cause__ = TypeError("private-primary")
+    result = startup_failure_diagnostic(renderer(terminal), 502, "none")
+    assert result["exception_type"] == "unknown"
+    assert result["failure_component"] == "unknown"
+    assert "PrivateFailure" not in json.dumps(result)
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "alias",
+    [
+        "private.MissingGreenlet",
+        "private.PydanticUserError",
+        "sqlalchemy.exc.PrivateFailure",
+        "pydantic.errors.PrivateFailure",
+        "pydantic_core._pydantic_core.PrivateFailure",
+    ],
+)
+def test_framework_prefix_never_authorizes_a_private_exception(alias):
+    result = startup_failure_diagnostic(
+        "TypeError: private-first\n" + alias + ": private-last", 502, "none"
+    )
+    assert result["exception_type"] == "unknown"
+    assert "PrivateFailure" not in json.dumps(result)
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("prefix", ["", "\x1b[31m", "TypeError: private-primary\n"])
+def test_cut_unknown_name_cannot_become_a_known_empty_exception(prefix):
+    limit = len((prefix + "TypeError").encode())
+    result = startup_failure_diagnostic(
+        prefix + "TypeErrorPrivate", 502, "none", output_limit=limit
+    )
+    assert result["output_read_limit_reached"] is True
+    assert result["exception_type"] == "unknown"
+
+
+def test_complete_bare_exception_newline_remains_known_at_exact_cap():
+    output = "TypeError\n"
+    result = startup_failure_diagnostic(output, 502, "none", output_limit=len(output))
+    assert result["output_read_limit_reached"] is True
+    assert result["exception_type"] == "TypeError"

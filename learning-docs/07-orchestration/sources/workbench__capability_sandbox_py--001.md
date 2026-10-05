@@ -15,23 +15,24 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `startup_command_exit_status`（L54–L70）：接收`process`、`session`、`command_id`、`timeout`。 源码说明：Read one bounded SDK status, without exposing commands, IDs or exceptions.。 控制顺序：L63按`command.id == command_id and type(command.exit_code) is int`分支；L64按`0 <= command.exit_code <= 255`分支。 调用`_DEADLINE.set`、`time.monotonic`、`process.get_session_command`、`type`、`_DEADLINE.reset`。 返回路径：L65的`"zero" if command.exit_code == 0 else "nonzero"`；L70的`"unknown"`。
-- `startup_failure_diagnostic`（L73–L196）：接收`output`、`http_status`、`http_error`、`tmpfs_noexec`、`command_exit_status`。 源码说明：Candidate output supplies hints only; no raw output, path or token escapes.。 控制顺序：L148按`exception not in {"PermissionError", "FileNotFoundError", "OSError", "TimeoutError"}`分支；L154遍历`re.split(r"(?m)^Traceback \(most recent call last\):\n", output)[…`；L156按`not trace_errors`分支；L160按`failure[1] in {"PermissionError", "OSError"} and failure[2] in {"1", "13"} and frame(…`分支；L169按`"Waiting for application startup." in output or "Application startup failed." in outp…`分支；L171按`frame("app/__init__.py", "create_app")`分支；L173按`frame("uvicorn/importer.py", "import_from_string")`分支。 调用`type`、`output[:8000].encode("utf-8", errors="replace")[:8000].decode`、`output[:8000].encode`、`normalize_sgr`、`patterns.items`、`any`、`re.compile`、`exceptions_in`、`exceptions[-1].groups`等。 返回路径：L176的`{ "phase": "health_deadline", "http_status": http_status if type(http_status) is int and 1…`。
-- `startup_failure_diagnostic.frame`（L108–L119）：接收`path`、`function`、`trace`。 调用`re.search`、`re.escape`。 返回路径：L109的`re.search( r'(?m)^\s*File "[^"\n]{1,512}/' + re.escape(path) + r'", line [0-9]{1,7}, in ' …`。
-- `startup_failure_diagnostic.exceptions_in`（L125–L130）：接收`trace`。 调用`exception_pattern.finditer`、`item[1].endswith`。 返回路径：L126的`[ item for item in exception_pattern.finditer(trace) if item[1].endswith(("Error", "Except…`。
-- `restart_application_identity`（L199–L249）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L248按`result.exit_code != 0`分支；L249抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify_capabilities`（L252–L342）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L258按`plan.selection.model_dump() != selection`分支；L259抛异常，停止当前正常路径；L268按`selection["template"] == "fastapiadmin"`分支；L271按`dependency_identity(product) != profile["dependency_identity"]`分支；L272抛异常，停止当前正常路径；L308按`len(body) > 1_000_000`分支；L309抛异常，停止当前正常路径；L331抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`require_dependency_descriptors`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`等。 返回路径：L263的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L342的`receipt`。
-- `_verify`（L345–L898）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L381按`trusted_oracle not in (None, "contest-business-v2")`分支；L382抛异常，停止当前正常路径；L383按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L386抛异常，停止当前正常路径；L389按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L393抛异常，停止当前正常路径；L394按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L399抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L898的`receipt`。
-- `_verify.start`（L539–L670）：接收`command`、`port`、`health_path`。 控制顺序：L570按`not response.cmd_id`分支；L571抛异常，停止当前正常路径；L574按`not isinstance(preview.token, str) or not preview.token`分支；L575抛异常，停止当前正常路径；L587在`time.monotonic() < deadline`成立时循环；L591按`200 <= check.status_code < 300`分支；L630按`type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}`分支；L643按`native`分支。后续分支沿下方源码相同行号继续阅读。 调用`readonly_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`等。 返回路径：L592的`http, url, preview.token`。
-- `main`（L901–L946）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L903按`len(body) > 1_000_000`分支；L904抛异常，停止当前正常路径；L913按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L919抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `startup_command_exit_facts`（L54–L73）：接收`process`、`session`、`command_id`、`timeout`。 源码说明：Read one bounded SDK status, without exposing commands, IDs or exceptions.。 控制顺序：L63按`command.id == command_id and type(command.exit_code) is int`分支；L64按`0 <= command.exit_code <= 255`分支。 调用`_DEADLINE.set`、`time.monotonic`、`process.get_session_command`、`type`、`_DEADLINE.reset`。 返回路径：L65的`{ "command_exit_status": "zero" if command.exit_code == 0 else "nonzero", "command_exit_co…`；L73的`{"command_exit_status": "unknown", "command_exit_code": None}`。
+- `startup_command_exit_status`（L76–L78）：接收`process`、`session`、`command_id`、`timeout`。 源码说明：Compatibility view of the same single-query, bounded SDK facts.。 调用`startup_command_exit_facts`。 返回路径：L78的`startup_command_exit_facts(process, session, command_id, timeout)["command_exit_status"]`。
+- `startup_failure_diagnostic`（L81–L242）：接收`output`、`http_status`、`http_error`、`tmpfs_noexec`、`command_exit_status`、`command_exit_code`、`output_limit`。 源码说明：Candidate output supplies hints only; no raw output, path or token escapes.。 控制顺序：L102按`type(output_limit) is not int or not 1 <= output_limit <= 8000`分支；L173按`exceptions and len(raw_bytes) == output_limit and not output.endswith(("\n", " │")) a…`分支；L184按`exception not in {"PermissionError", "FileNotFoundError", "OSError", "TimeoutError"}`分支；L190遍历`re.split(r"(?m)^Traceback \(most recent call last\):\n", output)[…`；L192按`not trace_errors`分支；L196按`failure[1] in {"PermissionError", "OSError"} and failure[2] in {"1", "13"} and frame(…`分支；L205按`"Waiting for application startup." in output or "Application startup failed." in outp…`分支；L207按`frame("app/__init__.py", "create_app")`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`bounded_output_bytes`、`raw_bytes.decode`、`normalize_sgr`、`patterns.items`、`any`、`re.compile`、`exception_lines`、`exceptions_in`等。 返回路径：L216的`{ "phase": "health_deadline", "http_status": http_status if type(http_status) is int and 1…`。
+- `startup_failure_diagnostic.frame`（L130–L141）：接收`path`、`function`、`trace`。 调用`re.search`、`re.escape`。 返回路径：L131的`re.search( r'(?m)^\s*File "[^"\n]{1,512}/' + re.escape(path) + r'", line [0-9]{1,7}, in ' …`。
+- `startup_failure_diagnostic.exceptions_in`（L150–L168）：接收`trace`、`terminal`。 调用`pattern.finditer`、`item[1].endswith`、`public_exception`、`trace.startswith`、`item.end`、`trace[item.end() :].strip`、`re.fullmatch`。 返回路径：L152的`[ item for item in pattern.finditer(trace) if item[1].endswith(("Error", "Exception")) or …`。
+- `restart_application_identity`（L245–L295）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L294按`result.exit_code != 0`分支；L295抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_capabilities`（L298–L388）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L304按`plan.selection.model_dump() != selection`分支；L305抛异常，停止当前正常路径；L314按`selection["template"] == "fastapiadmin"`分支；L317按`dependency_identity(product) != profile["dependency_identity"]`分支；L318抛异常，停止当前正常路径；L354按`len(body) > 1_000_000`分支；L355抛异常，停止当前正常路径；L377抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`require_dependency_descriptors`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`等。 返回路径：L309的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L388的`receipt`。
+- `_verify`（L391–L945）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L427按`trusted_oracle not in (None, "contest-business-v2")`分支；L428抛异常，停止当前正常路径；L429按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L432抛异常，停止当前正常路径；L435按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L439抛异常，停止当前正常路径；L440按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L445抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L945的`receipt`。
+- `_verify.start`（L585–L717）：接收`command`、`port`、`health_path`。 控制顺序：L616按`not response.cmd_id`分支；L617抛异常，停止当前正常路径；L620按`not isinstance(preview.token, str) or not preview.token`分支；L621抛异常，停止当前正常路径；L633在`time.monotonic() < deadline`成立时循环；L637按`200 <= check.status_code < 300`分支；L676按`type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}`分支；L690按`native`分支。后续分支沿下方源码相同行号继续阅读。 调用`readonly_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`等。 返回路径：L638的`http, url, preview.token`。
+- `main`（L948–L993）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L950按`len(body) > 1_000_000`分支；L951抛异常，停止当前正常路径；L960按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L966抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L950。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L997。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`41766`。本段原文以LF换行结束。
+本段原始字节数：`44258`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "107866503fdd671db197e04e05fa0565b8300e1afb9ef4ea9d0faad6dbe37e66"} -->
+<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1ce38275ce415fa325e5db800478d02402e779f4764129b4c518864cefb2c898"} -->
 ````python
 # workbench/capability_sandbox.py
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
@@ -87,7 +88,7 @@ from workbench.tools import clean_env, process_options, stop_process
 REMOTE = "/tmp/rnd-capability"
 
 
-def startup_command_exit_status(process, session, command_id, timeout):
+def startup_command_exit_facts(process, session, command_id, timeout):
     """Read one bounded SDK status, without exposing commands, IDs or exceptions."""
     from workbench.daytona_sessions import _DEADLINE
 
@@ -98,26 +99,48 @@ def startup_command_exit_status(process, session, command_id, timeout):
         command = process.get_session_command(session, command_id)
         if command.id == command_id and type(command.exit_code) is int:
             if 0 <= command.exit_code <= 255:
-                return "zero" if command.exit_code == 0 else "nonzero"
+                return {
+                    "command_exit_status": "zero" if command.exit_code == 0 else "nonzero",
+                    "command_exit_code": command.exit_code,
+                }
     except Exception:
         pass
     finally:
         _DEADLINE.reset(token)
-    return "unknown"
+    return {"command_exit_status": "unknown", "command_exit_code": None}
+
+
+def startup_command_exit_status(process, session, command_id, timeout):
+    """Compatibility view of the same single-query, bounded SDK facts."""
+    return startup_command_exit_facts(process, session, command_id, timeout)["command_exit_status"]
 
 
 def startup_failure_diagnostic(
-    output, http_status, http_error, tmpfs_noexec=None, command_exit_status="unknown"
+    output,
+    http_status,
+    http_error,
+    tmpfs_noexec=None,
+    command_exit_status="unknown",
+    *,
+    command_exit_code=None,
+    output_limit=8000,
 ):
     """Candidate output supplies hints only; no raw output, path or token escapes."""
-    from workbench.capability_startup_paths import normalize_sgr, output_shapes
+    from workbench.capability_startup_paths import (
+        OTHER_CONTROL,
+        bounded_output_bytes,
+        exception_lines,
+        normalize_sgr,
+        output_shapes,
+        public_exception,
+    )
 
     readable = type(output) is str
-    output = (
-        output[:8000].encode("utf-8", errors="replace")[:8000].decode("utf-8", errors="replace")
-        if readable
-        else ""
-    )
+    if type(output_limit) is not int or not 1 <= output_limit <= 8000:
+        output_limit = 8000
+    raw_bytes = bounded_output_bytes(output, output_limit) if readable else b""
+    # Dropping an incomplete terminal codepoint cannot create extra scan bytes.
+    output = raw_bytes.decode("utf-8", errors="ignore")
     # Bound raw bytes BEFORE stripping already observed color sequences. Never
     # refill the budget with text beyond the original read or interpret OSC.
     raw_output = output
@@ -157,29 +180,43 @@ def startup_failure_diagnostic(
     exception_pattern = re.compile(
         r"(?m)^([A-Za-z_][A-Za-z0-9_.]{0,127}):(?: \[Errno ([0-9]{1,10})\])?"
     )
+    terminal_exception_pattern = re.compile(
+        r"(?m)^([A-Za-z_][A-Za-z0-9_.<>]{0,255})(?::(?: \[Errno ([0-9]{1,10})\])?|[ \t]{0,32}$)"
+    )
 
-    def exceptions_in(trace):
+    def exceptions_in(trace, *, terminal=False):
+        pattern = terminal_exception_pattern if terminal else exception_pattern
         return [
             item
-            for item in exception_pattern.finditer(trace)
+            for item in pattern.finditer(trace)
             if item[1].endswith(("Error", "Exception"))
+            or (
+                terminal
+                and (
+                    public_exception(item[1]) != "unknown"
+                    # Wrapped documentation URLs are not exception headings.
+                    or (":" in item[0] and not trace.startswith("//", item.end()))
+                    # Unknown empty headings may use lowercase names too.
+                    # Ignore bare words inside a longer exception message.
+                    or not trace[item.end() :].strip()
+                    or re.fullmatch(r"[ \t\r\n]*╰─{1,512}╯[ \t\r\n]*", trace[item.end() :])
+                )
+            )
         ]
 
-    exceptions = exceptions_in(output)
+    terminal_output = exception_lines(output)
+    exceptions = exceptions_in(terminal_output, terminal=True)
     exception, number = exceptions[-1].groups() if exceptions else ("unknown", "")
-    exception_types = {
-        "PermissionError",
-        "FileNotFoundError",
-        "OSError",
-        "ImportError",
-        "ModuleNotFoundError",
-        "RuntimeError",
-        "MemoryError",
-        "SyntaxError",
-        "TimeoutError",
-        "ValueError",
-    }
-    exception = exception if exception in exception_types else "unknown"
+    if (
+        exceptions
+        and len(raw_bytes) == output_limit
+        and not output.endswith(("\n", " │"))
+        and exceptions[-1].end() == len(terminal_output)
+        and ":" not in exceptions[-1][0]
+    ):
+        # A cut TypeErrorPrivate must not become a known empty TypeError.
+        exception, number = "unknown", None
+    exception = public_exception(exception)
     exception_errno = int(number) if number in {"1", "2", "13", "28", "30"} else None
     if exception not in {"PermissionError", "FileNotFoundError", "OSError", "TimeoutError"}:
         exception_errno = None
@@ -209,6 +246,10 @@ def startup_failure_diagnostic(
     elif frame("uvicorn/importer.py", "import_from_string"):
         startup_phase = "import"
     errors = {"none", "connect", "timeout", "protocol", "other"}
+    if type(command_exit_code) is not int or not 0 <= command_exit_code <= 255:
+        command_exit_code = None
+    else:
+        command_exit_status = "zero" if command_exit_code == 0 else "nonzero"
     return {
         "phase": "health_deadline",
         "http_status": http_status
@@ -216,7 +257,12 @@ def startup_failure_diagnostic(
         else None,
         "http_error": http_error if type(http_error) is str and http_error in errors else "other",
         "output_readable": readable,
-        "output_nonempty": bool(raw_output),
+        "output_nonempty": bool(raw_bytes),
+        "output_raw_bytes": len(raw_bytes) if readable else None,
+        "output_normalized_bytes": len(output.encode("utf-8")) if readable else None,
+        "output_normalized_nonspace": bool(output.strip()) if readable else None,
+        "output_read_limit_reached": len(raw_bytes) == output_limit if readable else None,
+        "output_has_non_sgr_control": bool(OTHER_CONTROL.search(output)) if readable else None,
         "output_hints": categories,
         "output_shapes": output_shapes(raw_output),
         "known_missing_modules": known,
@@ -229,6 +275,7 @@ def startup_failure_diagnostic(
         "command_exit_status": command_exit_status
         if type(command_exit_status) is str and command_exit_status in {"zero", "nonzero"}
         else "unknown",
+        "command_exit_code": command_exit_code,
     }
 
 
@@ -672,9 +719,10 @@ def _verify(
                     last_http_status,
                     last_http_error,
                     tmpfs_noexec,
-                    startup_command_exit_status(
+                    **startup_command_exit_facts(
                         sandbox.process, session, response.cmd_id, min(settings.tool_timeout, 5)
                     ),
+                    output_limit=NATIVE_TAIL_LIMIT if native else 8000,
                 )
                 if native:
                     from workbench.capability_startup_paths import (

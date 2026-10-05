@@ -375,7 +375,8 @@ def test_real_sdk_integer_model_reaches_api_with_shared_transport_deadline(
 
 
 @pytest.mark.parametrize("failure", [None, "paths", "smoke"])
-def test_actual_native_start_keeps_health_failure_and_closes_http(monkeypatch, failure):
+@pytest.mark.parametrize("native", [False, True])
+def test_actual_start_keeps_health_failure_and_closes_http(monkeypatch, failure, native):
     import uuid
     from pathlib import Path
 
@@ -412,10 +413,13 @@ def test_actual_native_start_keeps_health_failure_and_closes_http(monkeypatch, f
     monkeypatch.setattr(diagnostic, "native_startup_paths", paths)
     monkeypatch.setattr(diagnostic, "native_startup_smoke", smoke)
 
+    output_limit = diagnostic.NATIVE_TAIL_LIMIT if native else 8000
+    output = "/usr/bin/env: private-sentinel: No such file or directory".ljust(output_limit)
+
     def read(*args, limit, tail):
-        assert limit == diagnostic.NATIVE_TAIL_LIMIT and tail is True
+        assert limit == output_limit and tail is True
         events.append("tail")
-        return "/usr/bin/env: private-sentinel: No such file or directory"
+        return output
 
     state = {}
     process = SimpleNamespace(
@@ -450,18 +454,27 @@ def test_actual_native_start_keeps_health_failure_and_closes_http(monkeypatch, f
         "read_command_output": read,
         "control_exec": lambda *a: SimpleNamespace(exit_code=0, result="1"),
         "startup_failure_diagnostic": startup_failure_diagnostic,
-        "startup_command_exit_status": lambda *a: "nonzero",
-        "native": True,
+        "startup_command_exit_facts": lambda *a: {
+            "command_exit_status": "nonzero",
+            "command_exit_code": 2,
+        },
+        "native": native,
         "CheckFailure": CheckFailure,
     }
     exec(compile(ast.Module([start], []), "actual-start-function", "exec"), scope)
     with pytest.raises(CheckFailure, match="健康检查"):
         scope["start"]()
     state = scope["receipt"]["startup_diagnostic"]
-    assert events == ["tail", "paths", "smoke", "closed"]
+    assert events == (["tail", "paths", "smoke", "closed"] if native else ["tail", "closed"])
     assert state["command_exit_status"] == "nonzero"
-    assert state["launch_paths"]["status"] == ("unknown" if failure == "paths" else "observed")
-    assert state["interpreter_probe"]["exit_status"] == (
-        "unknown" if failure == "smoke" else "zero"
-    )
+    assert state["command_exit_code"] == 2
+    assert state["output_raw_bytes"] == output_limit
+    assert state["output_read_limit_reached"] is True
+    if native:
+        assert state["launch_paths"]["status"] == ("unknown" if failure == "paths" else "observed")
+        assert state["interpreter_probe"]["exit_status"] == (
+            "unknown" if failure == "smoke" else "zero"
+        )
+    else:
+        assert "launch_paths" not in state and "interpreter_probe" not in state
     assert "private-sentinel" not in json.dumps(state)

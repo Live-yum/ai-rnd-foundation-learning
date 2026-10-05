@@ -51,7 +51,7 @@ from workbench.tools import clean_env, process_options, stop_process
 REMOTE = "/tmp/rnd-capability"
 
 
-def startup_command_exit_status(process, session, command_id, timeout):
+def startup_command_exit_facts(process, session, command_id, timeout):
     """Read one bounded SDK status, without exposing commands, IDs or exceptions."""
     from workbench.daytona_sessions import _DEADLINE
 
@@ -62,26 +62,48 @@ def startup_command_exit_status(process, session, command_id, timeout):
         command = process.get_session_command(session, command_id)
         if command.id == command_id and type(command.exit_code) is int:
             if 0 <= command.exit_code <= 255:
-                return "zero" if command.exit_code == 0 else "nonzero"
+                return {
+                    "command_exit_status": "zero" if command.exit_code == 0 else "nonzero",
+                    "command_exit_code": command.exit_code,
+                }
     except Exception:
         pass
     finally:
         _DEADLINE.reset(token)
-    return "unknown"
+    return {"command_exit_status": "unknown", "command_exit_code": None}
+
+
+def startup_command_exit_status(process, session, command_id, timeout):
+    """Compatibility view of the same single-query, bounded SDK facts."""
+    return startup_command_exit_facts(process, session, command_id, timeout)["command_exit_status"]
 
 
 def startup_failure_diagnostic(
-    output, http_status, http_error, tmpfs_noexec=None, command_exit_status="unknown"
+    output,
+    http_status,
+    http_error,
+    tmpfs_noexec=None,
+    command_exit_status="unknown",
+    *,
+    command_exit_code=None,
+    output_limit=8000,
 ):
     """Candidate output supplies hints only; no raw output, path or token escapes."""
-    from workbench.capability_startup_paths import normalize_sgr, output_shapes
+    from workbench.capability_startup_paths import (
+        OTHER_CONTROL,
+        bounded_output_bytes,
+        exception_lines,
+        normalize_sgr,
+        output_shapes,
+        public_exception,
+    )
 
     readable = type(output) is str
-    output = (
-        output[:8000].encode("utf-8", errors="replace")[:8000].decode("utf-8", errors="replace")
-        if readable
-        else ""
-    )
+    if type(output_limit) is not int or not 1 <= output_limit <= 8000:
+        output_limit = 8000
+    raw_bytes = bounded_output_bytes(output, output_limit) if readable else b""
+    # Dropping an incomplete terminal codepoint cannot create extra scan bytes.
+    output = raw_bytes.decode("utf-8", errors="ignore")
     # Bound raw bytes BEFORE stripping already observed color sequences. Never
     # refill the budget with text beyond the original read or interpret OSC.
     raw_output = output
@@ -121,29 +143,43 @@ def startup_failure_diagnostic(
     exception_pattern = re.compile(
         r"(?m)^([A-Za-z_][A-Za-z0-9_.]{0,127}):(?: \[Errno ([0-9]{1,10})\])?"
     )
+    terminal_exception_pattern = re.compile(
+        r"(?m)^([A-Za-z_][A-Za-z0-9_.<>]{0,255})(?::(?: \[Errno ([0-9]{1,10})\])?|[ \t]{0,32}$)"
+    )
 
-    def exceptions_in(trace):
+    def exceptions_in(trace, *, terminal=False):
+        pattern = terminal_exception_pattern if terminal else exception_pattern
         return [
             item
-            for item in exception_pattern.finditer(trace)
+            for item in pattern.finditer(trace)
             if item[1].endswith(("Error", "Exception"))
+            or (
+                terminal
+                and (
+                    public_exception(item[1]) != "unknown"
+                    # Wrapped documentation URLs are not exception headings.
+                    or (":" in item[0] and not trace.startswith("//", item.end()))
+                    # Unknown empty headings may use lowercase names too.
+                    # Ignore bare words inside a longer exception message.
+                    or not trace[item.end() :].strip()
+                    or re.fullmatch(r"[ \t\r\n]*╰─{1,512}╯[ \t\r\n]*", trace[item.end() :])
+                )
+            )
         ]
 
-    exceptions = exceptions_in(output)
+    terminal_output = exception_lines(output)
+    exceptions = exceptions_in(terminal_output, terminal=True)
     exception, number = exceptions[-1].groups() if exceptions else ("unknown", "")
-    exception_types = {
-        "PermissionError",
-        "FileNotFoundError",
-        "OSError",
-        "ImportError",
-        "ModuleNotFoundError",
-        "RuntimeError",
-        "MemoryError",
-        "SyntaxError",
-        "TimeoutError",
-        "ValueError",
-    }
-    exception = exception if exception in exception_types else "unknown"
+    if (
+        exceptions
+        and len(raw_bytes) == output_limit
+        and not output.endswith(("\n", " │"))
+        and exceptions[-1].end() == len(terminal_output)
+        and ":" not in exceptions[-1][0]
+    ):
+        # A cut TypeErrorPrivate must not become a known empty TypeError.
+        exception, number = "unknown", None
+    exception = public_exception(exception)
     exception_errno = int(number) if number in {"1", "2", "13", "28", "30"} else None
     if exception not in {"PermissionError", "FileNotFoundError", "OSError", "TimeoutError"}:
         exception_errno = None
@@ -173,6 +209,10 @@ def startup_failure_diagnostic(
     elif frame("uvicorn/importer.py", "import_from_string"):
         startup_phase = "import"
     errors = {"none", "connect", "timeout", "protocol", "other"}
+    if type(command_exit_code) is not int or not 0 <= command_exit_code <= 255:
+        command_exit_code = None
+    else:
+        command_exit_status = "zero" if command_exit_code == 0 else "nonzero"
     return {
         "phase": "health_deadline",
         "http_status": http_status
@@ -180,7 +220,12 @@ def startup_failure_diagnostic(
         else None,
         "http_error": http_error if type(http_error) is str and http_error in errors else "other",
         "output_readable": readable,
-        "output_nonempty": bool(raw_output),
+        "output_nonempty": bool(raw_bytes),
+        "output_raw_bytes": len(raw_bytes) if readable else None,
+        "output_normalized_bytes": len(output.encode("utf-8")) if readable else None,
+        "output_normalized_nonspace": bool(output.strip()) if readable else None,
+        "output_read_limit_reached": len(raw_bytes) == output_limit if readable else None,
+        "output_has_non_sgr_control": bool(OTHER_CONTROL.search(output)) if readable else None,
         "output_hints": categories,
         "output_shapes": output_shapes(raw_output),
         "known_missing_modules": known,
@@ -193,6 +238,7 @@ def startup_failure_diagnostic(
         "command_exit_status": command_exit_status
         if type(command_exit_status) is str and command_exit_status in {"zero", "nonzero"}
         else "unknown",
+        "command_exit_code": command_exit_code,
     }
 
 
@@ -636,9 +682,10 @@ def _verify(
                     last_http_status,
                     last_http_error,
                     tmpfs_noexec,
-                    startup_command_exit_status(
+                    **startup_command_exit_facts(
                         sandbox.process, session, response.cmd_id, min(settings.tool_timeout, 5)
                     ),
+                    output_limit=NATIVE_TAIL_LIMIT if native else 8000,
                 )
                 if native:
                     from workbench.capability_startup_paths import (

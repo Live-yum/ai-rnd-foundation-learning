@@ -17,11 +17,206 @@ PATH_OUTPUT_LIMIT = 2048
 SMOKE_OUTPUT_LIMIT = 512
 NATIVE_TAIL_LIMIT = 8000 - PATH_OUTPUT_LIMIT - SMOKE_OUTPUT_LIMIT
 SGR = re.compile(r"\x1b\[[0-9;]{0,32}m")
+OTHER_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+
+# Literal public vocabulary only. Never discover classes from candidate output
+# or import the candidate/application to classify its traceback.
+BUILTIN_EXCEPTIONS = frozenset(
+    {
+        "ArithmeticError",
+        "AssertionError",
+        "AttributeError",
+        "BaseException",
+        "BaseExceptionGroup",
+        "BlockingIOError",
+        "BrokenPipeError",
+        "BufferError",
+        "ChildProcessError",
+        "ConnectionAbortedError",
+        "ConnectionError",
+        "ConnectionRefusedError",
+        "ConnectionResetError",
+        "EOFError",
+        "Exception",
+        "ExceptionGroup",
+        "FileExistsError",
+        "FileNotFoundError",
+        "FloatingPointError",
+        "GeneratorExit",
+        "ImportError",
+        "IndentationError",
+        "IndexError",
+        "InterruptedError",
+        "IsADirectoryError",
+        "KeyError",
+        "KeyboardInterrupt",
+        "LookupError",
+        "MemoryError",
+        "ModuleNotFoundError",
+        "NameError",
+        "NotADirectoryError",
+        "NotImplementedError",
+        "OSError",
+        "OverflowError",
+        "PermissionError",
+        "ProcessLookupError",
+        "PythonFinalizationError",
+        "RecursionError",
+        "ReferenceError",
+        "RuntimeError",
+        "StopAsyncIteration",
+        "StopIteration",
+        "SyntaxError",
+        "SystemError",
+        "SystemExit",
+        "TabError",
+        "TimeoutError",
+        "TypeError",
+        "UnboundLocalError",
+        "UnicodeDecodeError",
+        "UnicodeEncodeError",
+        "UnicodeError",
+        "UnicodeTranslateError",
+        "ValueError",
+        "ZeroDivisionError",
+    }
+)
+# Public non-Warning exception inventory verified as source data against native
+# SQLAlchemy 2.0.51, Pydantic 2.12.5 and pydantic-core 2.41.5. The same names
+# exist in controller versions 2.0.54, 2.13.5 and 2.46.5. No runtime discovery.
+# Rich emits short headings; these hints do not prove the originating package.
+FRAMEWORK_EXCEPTION_NAMES = {
+    "sqlalchemy.exc": (
+        "AmbiguousForeignKeysError",
+        "ArgumentError",
+        "AwaitRequired",
+        "CircularDependencyError",
+        "CompileError",
+        "ConstraintColumnNotFoundError",
+        "DBAPIError",
+        "DataError",
+        "DatabaseError",
+        "DisconnectionError",
+        "DuplicateColumnError",
+        "IdentifierError",
+        "IllegalStateChangeError",
+        "IntegrityError",
+        "InterfaceError",
+        "InternalError",
+        "InvalidRequestError",
+        "InvalidatePoolError",
+        "MissingGreenlet",
+        "MultipleResultsFound",
+        "NoForeignKeysError",
+        "NoInspectionAvailable",
+        "NoReferenceError",
+        "NoReferencedColumnError",
+        "NoReferencedTableError",
+        "NoResultFound",
+        "NoSuchColumnError",
+        "NoSuchModuleError",
+        "NoSuchTableError",
+        "NotSupportedError",
+        "ObjectNotExecutableError",
+        "OperationalError",
+        "PendingRollbackError",
+        "ProgrammingError",
+        "ResourceClosedError",
+        "SQLAlchemyError",
+        "StatementError",
+        "TimeoutError",
+        "UnboundExecutionError",
+        "UnreflectableTableError",
+        "UnsupportedCompilationError",
+    ),
+    "sqlalchemy.orm.exc": (
+        "DetachedInstanceError",
+        "FlushError",
+        "LoaderStrategyException",
+        "MappedAnnotationError",
+        "ObjectDeletedError",
+        "ObjectDereferencedError",
+        "StaleDataError",
+        "UnmappedClassError",
+        "UnmappedColumnError",
+        "UnmappedError",
+        "UnmappedInstanceError",
+    ),
+    "pydantic.errors": (
+        "PydanticForbiddenQualifier",
+        "PydanticImportError",
+        "PydanticInvalidForJsonSchema",
+        "PydanticSchemaGenerationError",
+        "PydanticUndefinedAnnotation",
+        "PydanticUserError",
+    ),
+    "pydantic_core._pydantic_core": (
+        "PydanticCustomError",
+        "PydanticKnownError",
+        "PydanticOmit",
+        "PydanticSerializationError",
+        "PydanticSerializationUnexpectedValue",
+        "PydanticUseDefault",
+        "SchemaError",
+        "ValidationError",
+    ),
+}
+FRAMEWORK_EXCEPTIONS = {
+    alias: name
+    for module, names in FRAMEWORK_EXCEPTION_NAMES.items()
+    for name in names
+    for alias in (name, module + "." + name)
+}
+FRAMEWORK_EXCEPTIONS.update(
+    {
+        **{"pydantic." + name: name for name in FRAMEWORK_EXCEPTION_NAMES["pydantic.errors"]},
+        **{
+            "pydantic_core." + name: name
+            for name in FRAMEWORK_EXCEPTION_NAMES["pydantic_core._pydantic_core"]
+        },
+        "pydantic.ValidationError": "ValidationError",
+        "ConcurrentModificationError": "StaleDataError",
+        "sqlalchemy.orm.exc.ConcurrentModificationError": "StaleDataError",
+        "sqlalchemy.orm.exc.NoResultFound": "NoResultFound",
+        "sqlalchemy.orm.exc.MultipleResultsFound": "MultipleResultsFound",
+    }
+)
+
+
+def bounded_output_bytes(output, limit=8000):
+    """Cap raw UTF-8 bytes before normalization; never refill from later text."""
+    return output[:limit].encode("utf-8", errors="replace")[:limit]
 
 
 def normalize_sgr(output):
     """Remove only bounded numeric SGR, never OSC or arbitrary terminal commands."""
     return SGR.sub("", output)
+
+
+def exception_lines(output):
+    """Only bounded indentation and a single known Rich panel border unwrap.
+
+    Use only for the terminal exception hint, never to join traceback frames
+    for the stricter multiprocessing component classifier.
+    """
+    lines = []
+    for line in output.split("\n"):
+        # Do not strip arbitrary Unicode, terminal controls or dynamic prefixes.
+        match = re.fullmatch(r"[ \t]{0,32}(│ .* │|[A-Za-z_].*)", line)
+        line = match[1] if match else line
+        if line.startswith("│ ") and line.endswith(" │"):
+            line = line[2:-2]
+            # Rich pads empty-message class headings to the panel width. Trim
+            # only this bounded ASCII padding inside a complete known border.
+            match = re.fullmatch(r"[ \t]{0,32}([A-Za-z_].*?) {0,512}", line)
+            line = match[1] if match else line
+        lines.append(line)
+    return "\n".join(lines)
+
+
+def public_exception(name):
+    """Return only literal, reviewed exception names, never an unknown suffix."""
+    return name if name in BUILTIN_EXCEPTIONS else FRAMEWORK_EXCEPTIONS.get(name, "unknown")
 
 
 def _json_unique(text):
@@ -40,7 +235,7 @@ def output_shapes(output):
     """Untrusted format hints, with no captured message or dynamic path."""
     if type(output) is not str:
         return []
-    output = output[:8000]
+    output = bounded_output_bytes(output).decode("utf-8", errors="ignore")
     raw = output
     output = normalize_sgr(output)
     patterns = {
@@ -54,6 +249,11 @@ def output_shapes(output):
         "shared-library-open": r"cannot open shared object file:",
         "guard-rejection": r"(?m)^Isolated command guard unavailable; no product command was executed$",
         "python-traceback": r"Traceback \(most recent call last\):",
+        "rich-traceback": r"(?m)^[ \t]{0,32}╭─{1,512} Traceback \(most recent call last\) ─{1,512}╮[ \t]*$",
+        "cli-usage": r"(?m)^[ \t]{0,32}[Uu]sage: [^\n]{1,512}$",
+        "cli-error": r"(?m)^(?:[A-Za-z0-9_./ -]{1,128}: error: |Error: )",
+        "pydantic-validation": r"https://errors\.pydantic\.dev/[0-9]{1,2}\.[0-9]{1,2}/v/[a-z_]{1,64}(?:\s|$)",
+        "sqlalchemy-error": r"https://sqlalche\.me/e/[0-9]{2}/[a-z0-9]{4}\)",
         "file-not-found-type": r"FileNotFoundError:",
         "vendor-loguru": r"(?m)^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \| (?:DEBUG|INFO|WARNING|ERROR|CRITICAL)\s*\|",
         "ansi-control": r"\x1b\[[0-9;]{0,32}m",

@@ -41,18 +41,18 @@
 - `test_all_native_diagnostic_reads_fit_existing_byte_budget`（L311–L316）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L312断言`diagnostic.NATIVE_TAIL_LIMIT + diagnostic.PATH_OUTPUT_LIMIT + diagnostic.SMOKE_OUTPUT…`；L316断言`len(json.dumps(receipt()).encode()) < diagnostic.PATH_OUTPUT_LIMIT`。 调用`len`、`json.dumps(receipt()).encode`、`json.dumps`、`receipt`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_sdk_integer_model_reaches_api_with_shared_transport_deadline`（L321–L374）：接收`monkeypatch`、`probe`、`fail`。 控制顺序：L365断言`len(requests) == (1 if probe == "metadata" or fail else 2)`；L366断言`len(transports) == len(requests)`；L367断言`_DEADLINE.get() == 999.0`；L368按`probe == "metadata"`分支；L369断言`result["status"] == ("unknown" if fail else "observed")`；L371断言`result["checks"] == (None if fail else smoke_checks())`；L372断言`"private-sentinel" not in json.dumps(result)`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`transports.append`、`harden_toolbox_transport`、`_DEADLINE.set`、`httpx.Client`、`Process`、`diagnostic.native_startup_paths`、`diagnostic.native_startup_smoke`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_real_sdk_integer_model_reaches_api_with_shared_transport_deadline.execute_command`（L338–L350）：接收`request`、`**kwargs`。 控制顺序：L340断言`type(request.timeout) is int and 1 <= request.timeout <= 5`；L341断言`_DEADLINE.get() == 15`；L346断言`0 < transports[-1] <= 15 - clock[0]`；L347按`fail`分支；L348抛异常，停止当前正常路径。 调用`requests.append`、`type`、`_DEADLINE.get`、`rest.request`、`RuntimeError`、`receipt`、`smoke_checks`、`SimpleNamespace`、`json.dumps`。 返回路径：L350的`SimpleNamespace(result=json.dumps(value), exit_code=0, additional_properties={})`。
-- `test_actual_native_start_keeps_health_failure_and_closes_http`（L378–L467）：接收`monkeypatch`、`failure`。 控制顺序：L461断言`events == ["tail", "paths", "smoke", "closed"]`；L462断言`state["command_exit_status"] == "nonzero"`；L463断言`state["launch_paths"]["status"] == ("unknown" if failure == "paths" else "observed")`；L464断言`state["interpreter_probe"]["exit_status"] == ( "unknown" if failure == "smoke" else "…`；L467断言`"private-sentinel" not in json.dumps(state)`。 调用`Path`、`next`、`ast.walk`、`ast.parse`、`source.read_text`、`isinstance`、`complete_native_plan`、`iter`、`SimpleNamespace`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_native_start_keeps_health_failure_and_closes_http.paths`（L400–L404）：接收`*args`。 控制顺序：L402按`failure == "paths"`分支；L403抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`receipt`。 返回路径：L404的`{"status": "observed", **receipt()}`。
-- `test_actual_native_start_keeps_health_failure_and_closes_http.smoke`（L406–L410）：接收`*args`。 控制顺序：L408按`failure == "smoke"`分支；L409抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`smoke_checks`。 返回路径：L410的`{"exit_status": "zero", "output_shapes": [], "checks": smoke_checks()}`。
-- `test_actual_native_start_keeps_health_failure_and_closes_http.read`（L415–L418）：接收`limit`、`tail`、`*args`。 控制顺序：L416断言`limit == diagnostic.NATIVE_TAIL_LIMIT and tail is True`。 调用`events.append`。 返回路径：L418的`"/usr/bin/env: private-sentinel: No such file or directory"`。
+- `test_actual_start_keeps_health_failure_and_closes_http`（L379–L480）：接收`monkeypatch`、`failure`、`native`。 控制顺序：L468断言`events == (["tail", "paths", "smoke", "closed"] if native else ["tail", "closed"])`；L469断言`state["command_exit_status"] == "nonzero"`；L470断言`state["command_exit_code"] == 2`；L471断言`state["output_raw_bytes"] == output_limit`；L472断言`state["output_read_limit_reached"] is True`；L473按`native`分支；L474断言`state["launch_paths"]["status"] == ("unknown" if failure == "paths" else "observed")`；L475断言`state["interpreter_probe"]["exit_status"] == ( "unknown" if failure == "smoke" else "…`。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`next`、`ast.walk`、`ast.parse`、`source.read_text`、`isinstance`、`complete_native_plan`、`iter`、`SimpleNamespace`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_start_keeps_health_failure_and_closes_http.paths`（L401–L405）：接收`*args`。 控制顺序：L403按`failure == "paths"`分支；L404抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`receipt`。 返回路径：L405的`{"status": "observed", **receipt()}`。
+- `test_actual_start_keeps_health_failure_and_closes_http.smoke`（L407–L411）：接收`*args`。 控制顺序：L409按`failure == "smoke"`分支；L410抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`smoke_checks`。 返回路径：L411的`{"exit_status": "zero", "output_shapes": [], "checks": smoke_checks()}`。
+- `test_actual_start_keeps_health_failure_and_closes_http.read`（L419–L422）：接收`limit`、`tail`、`*args`。 控制顺序：L420断言`limit == output_limit and tail is True`。 调用`events.append`。 返回路径：L422的`output`。
 
 </details>
 
-**创建路径：** `tests/test_capability_startup_paths.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L467。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_startup_paths.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L480。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`18257`。本段原文以LF换行结束。
+本段原始字节数：`18793`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_startup_paths.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "741252377a579cf1da362285a9601b5b554682e37c35dbd88049e7270b1ada0c"} -->
+<!-- learning-source: {"path": "tests/test_capability_startup_paths.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b981f638afcf6426c71d1006048874bfb8f0fa3d15fb7713f34027fa2d4bc292"} -->
 ````python
 # tests/test_capability_startup_paths.py
 """Finite metadata from real owned launch fixtures, without candidate execution."""
@@ -432,7 +432,8 @@ def test_real_sdk_integer_model_reaches_api_with_shared_transport_deadline(
 
 
 @pytest.mark.parametrize("failure", [None, "paths", "smoke"])
-def test_actual_native_start_keeps_health_failure_and_closes_http(monkeypatch, failure):
+@pytest.mark.parametrize("native", [False, True])
+def test_actual_start_keeps_health_failure_and_closes_http(monkeypatch, failure, native):
     import uuid
     from pathlib import Path
 
@@ -469,10 +470,13 @@ def test_actual_native_start_keeps_health_failure_and_closes_http(monkeypatch, f
     monkeypatch.setattr(diagnostic, "native_startup_paths", paths)
     monkeypatch.setattr(diagnostic, "native_startup_smoke", smoke)
 
+    output_limit = diagnostic.NATIVE_TAIL_LIMIT if native else 8000
+    output = "/usr/bin/env: private-sentinel: No such file or directory".ljust(output_limit)
+
     def read(*args, limit, tail):
-        assert limit == diagnostic.NATIVE_TAIL_LIMIT and tail is True
+        assert limit == output_limit and tail is True
         events.append("tail")
-        return "/usr/bin/env: private-sentinel: No such file or directory"
+        return output
 
     state = {}
     process = SimpleNamespace(
@@ -507,19 +511,28 @@ def test_actual_native_start_keeps_health_failure_and_closes_http(monkeypatch, f
         "read_command_output": read,
         "control_exec": lambda *a: SimpleNamespace(exit_code=0, result="1"),
         "startup_failure_diagnostic": startup_failure_diagnostic,
-        "startup_command_exit_status": lambda *a: "nonzero",
-        "native": True,
+        "startup_command_exit_facts": lambda *a: {
+            "command_exit_status": "nonzero",
+            "command_exit_code": 2,
+        },
+        "native": native,
         "CheckFailure": CheckFailure,
     }
     exec(compile(ast.Module([start], []), "actual-start-function", "exec"), scope)
     with pytest.raises(CheckFailure, match="健康检查"):
         scope["start"]()
     state = scope["receipt"]["startup_diagnostic"]
-    assert events == ["tail", "paths", "smoke", "closed"]
+    assert events == (["tail", "paths", "smoke", "closed"] if native else ["tail", "closed"])
     assert state["command_exit_status"] == "nonzero"
-    assert state["launch_paths"]["status"] == ("unknown" if failure == "paths" else "observed")
-    assert state["interpreter_probe"]["exit_status"] == (
-        "unknown" if failure == "smoke" else "zero"
-    )
+    assert state["command_exit_code"] == 2
+    assert state["output_raw_bytes"] == output_limit
+    assert state["output_read_limit_reached"] is True
+    if native:
+        assert state["launch_paths"]["status"] == ("unknown" if failure == "paths" else "observed")
+        assert state["interpreter_probe"]["exit_status"] == (
+            "unknown" if failure == "smoke" else "zero"
+        )
+    else:
+        assert "launch_paths" not in state and "interpreter_probe" not in state
     assert "private-sentinel" not in json.dumps(state)
 ````
