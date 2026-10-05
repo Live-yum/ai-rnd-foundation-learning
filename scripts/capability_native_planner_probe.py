@@ -17,14 +17,37 @@ from workbench.capability_verification import CheckFailure
 CHECK = "postgres_planner_identity_restricted"
 COMPLETE = "owned-planner-probe-command-complete"
 APP_SQL = r"""
-import os,subprocess,sys
+import os,selectors,subprocess,sys,time
 environment={'PATH':'/usr/bin:/bin','HOME':'/nonexistent',
  'PGPASSWORD':os.environ['DATABASE_PASSWORD'],
  'PGOPTIONS':'-c search_path=pg_catalog -c statement_timeout=3000 -c lock_timeout=1000'}
-result=subprocess.run(['/usr/lib/postgresql/17/bin/psql','-X','-q','-At','-w',
- '-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p','55432','-U','rnd_app','-d','rnd_product',
- '-c',sys.argv[1]],env=environment,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=8)
-if result.returncode:raise SystemExit(1)
+# Landlock denies opening /dev/null for writing after the guard. Drain a pipe
+# instead, discarding at most 4096 bytes within one deadline; never expose SQL
+# diagnostics, paths, credentials or arbitrary child output to the controller.
+process=None
+try:
+ deadline=time.monotonic()+8
+ process=subprocess.Popen(['/usr/lib/postgresql/17/bin/psql','-X','-q','-At','-w',
+  '-v','ON_ERROR_STOP=1','-h','127.0.0.1','-p','55432','-U','rnd_app','-d','rnd_product',
+  '-c',sys.argv[1]],env=environment,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+ with process.stdout,selectors.DefaultSelector() as selector:
+  selector.register(process.stdout,selectors.EVENT_READ)
+  remaining=4096
+  while True:
+   wait=deadline-time.monotonic()
+   if wait<=0 or not selector.select(wait):raise TimeoutError
+   chunk=os.read(process.stdout.fileno(),remaining+1)
+   if not chunk:break
+   remaining-=len(chunk)
+   if remaining<0:raise OverflowError
+  if process.wait(timeout=max(0,deadline-time.monotonic())):raise RuntimeError
+except Exception:
+ if process is not None:
+  try:
+   process.kill()
+   process.wait(timeout=1)
+  except Exception:pass
+ raise SystemExit(1) from None
 print('owned-planner-probe-command-complete')
 """
 
@@ -77,18 +100,32 @@ def verify_native_planner_identity(sandbox, plan, environment, timeout):
         )
         return status == 0 and output.strip() == COMPLETE
 
+    phase = "create"
+    primary_failure = "none"
     try:
         if not app_command(create):
             raise CheckFailure("应用身份无法建立有界规划器反例")
+        phase = "count"
         count_plan = SimpleNamespace(
             selection=plan.selection, runtime=SimpleNamespace(database_tables=[name])
         )
         if database_counts(sandbox, count_plan, min(timeout, 15)) != {name: 1}:
             raise CheckFailure("独立低权限身份未正确读取规划器反例物理表")
+        phase = "identity"
         status, output = run_guarded_control(sandbox, pg_verifier_argv(read), min(timeout, 15))
         if status != 0 or output.strip() != "restricted":
             raise CheckFailure("数据库规划器未保持独立低权限认证身份")
+    except Exception:
+        primary_failure = phase
+        raise
     finally:
-        if not app_command(cleanup):
-            raise CheckFailure("本次规划器探针对象清理未确认，禁止交付")
+        try:
+            cleaned = app_command(cleanup)
+        except Exception:
+            cleaned = False
+        if not cleaned:
+            raise CheckFailure(
+                "本次规划器探针对象清理未确认，禁止交付"
+                f"（primary={primary_failure}; cleanup=failed）"
+            ) from None
     return {CHECK: True}

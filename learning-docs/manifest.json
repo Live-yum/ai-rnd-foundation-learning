@@ -3208,8 +3208,8 @@
     },
     {
       "path": "tests/test_daytona_dependency_build.py",
-      "bytes": 34141,
-      "sha256": "e8b2948919389ac02ff30591ed15415c4fde06a70d20128b5c90f08e7accc1a3",
+      "bytes": 36368,
+      "sha256": "ffd87a22143619a120fdd90b4a1cde370dc634272f1baba39e31930bbeeb901c",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tests__test_daytona_dependency_build_py--001.md"
@@ -3928,8 +3928,8 @@
     },
     {
       "path": "docs/custom-source-isolation.md",
-      "bytes": 18531,
-      "sha256": "326d2f5ee3d50122ba651853f07e69a2f068a53aa6bdec9074723283cb22a184",
+      "bytes": 19223,
+      "sha256": "192671759bc30d732ed4969e51cf13a65a1612afe4fdfd0847d8600f8bdee77d",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__custom-source-isolation_md--001.md"
@@ -4198,8 +4198,8 @@
     },
     {
       "path": "scripts/capability_native_planner_probe.py",
-      "bytes": 4355,
-      "sha256": "7ab5dc6fe4b8f222ef0d5c03d1541c330fec2f6b03f09becc7580c35694c6694",
+      "bytes": 5591,
+      "sha256": "690bc72672dc4bad7888f0ca20075406f61c65c03bff71be6101967c59dc3ed1",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__capability_native_planner_probe_py--001.md"
@@ -4670,8 +4670,8 @@
     },
     {
       "path": "tests/test_capability_native_planner_probe.py",
-      "bytes": 3431,
-      "sha256": "01b0c242bac297084b1e2280b9ff37f3b174cf061ae25843113f8e0513d8b9c1",
+      "bytes": 13907,
+      "sha256": "19dea61bcced430fe0833128d870bb96f3e978c1426efe75dde1793e99c3e9f3",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_native_planner_probe_py--001.md"

@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L243。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L250。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`18531`。本段原文以LF换行结束。
+本段原始字节数：`19223`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "326d2f5ee3d50122ba651853f07e69a2f068a53aa6bdec9074723283cb22a184"} -->
+<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "192671759bc30d732ed4969e51cf13a65a1612afe4fdfd0847d8600f8bdee77d"} -->
 ````markdown
 <!-- docs/custom-source-isolation.md -->
 # 自定义源码执行：有证据的启用门
@@ -156,6 +156,13 @@ tmpfs 随容器停止清空。因此候选 profile 记录的是 `restart_kind=ap
 应用角色不能管理角色、其他数据库、
 服务器文件或外部程序。Redis 是本沙箱专用实例/DB0；应用不能管理 ACL、配置、复制、
 清空全库或切换数据库，不声称适用于已有混合业务的 Redis 实例。
+
+规划器反例探针仍通过应用身份建立/清理临时对象，由独立只读身份验证。受限进程不能
+重新以可写方式打开 `/dev/null`；固定 psql 子进程改用合并管道，最多排空并丢弃 4096
+字节，读取和退出共用原有 8 秒期限。超量、超时或 I/O 异常均失败并终止、回收直接
+子进程；后代持有管道也不能拖长期限，最终仍由独占沙箱删除负责整个容器的清理。
+清理失败不签发证明；同时保留固定 create/count/identity 阶段分类，不输出 SQL、
+异常内容或子进程输出。设备访问、执行身份与 guard 权限不变；真实内核验收仍必须由 CI 通过。
 
 浏览器也执行候选 JavaScript，因此自定义源码不能走宿主浏览器。它使用单独的无网络、
 只读根、CPU/内存/PID/tmpfs 有界容器，通过有界标准流 relay 访问唯一私有预览。

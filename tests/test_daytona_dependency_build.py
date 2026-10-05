@@ -3,6 +3,7 @@
 import ast
 import base64
 import ctypes
+import hashlib
 import inspect
 import io
 import json
@@ -406,9 +407,10 @@ def test_every_dependency_subprocess_uses_the_bounded_nonroot_runner():
 
 
 @pytest.fixture
-def metadata_image(tmp_path, monkeypatch):
+def metadata_image(tmp_path, monkeypatch, request):
     """Map only fixed image paths; descriptor reads and hashes remain real."""
     image = tmp_path / "image"
+    descriptor_bytes = b"descriptor-content-must-not-be-emitted" + getattr(request, "param", b"\n")
 
     def image_path(value):
         path = Path(value)
@@ -436,7 +438,7 @@ def metadata_image(tmp_path, monkeypatch):
         for name in names:
             path = image / profile / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text("descriptor-content-must-not-be-emitted\n")
+            path.write_bytes(descriptor_bytes)
             path.chmod(0o444)
             descriptors[path] = build.sha(path)
     (image / "bin/dependency-build.lock.json").write_text('{"tools": []}')
@@ -527,6 +529,7 @@ def test_collect_preserves_interpreter_command_path_flavor(tmp_path, monkeypatch
 
 
 @pytest.mark.parametrize("native", [False, True])
+@pytest.mark.parametrize("metadata_image", [b"\n", b"\r\n"], indirect=True, ids=["lf", "crlf"])
 def test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration(
     tmp_path, monkeypatch, metadata_image, capsys, native
 ):
@@ -556,7 +559,7 @@ def test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration
     if native:
         roles = build.native_descriptor_roles()
         original["descriptor_roles"] = roles
-        payload = b"descriptor-content-must-not-be-emitted\n"
+        payload = next(iter(descriptors)).read_bytes()
         names = [name for paths in roles.values() for name in paths]
         hashes.update(dict.fromkeys(names, next(iter(descriptors.values()))))
         original["source_descriptor_bytes"] = {
@@ -633,6 +636,51 @@ def test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration
     )
     assert not list((image / "build").glob("metadata-*"))
     assert capsys.readouterr() == ("", "")
+
+
+@pytest.mark.parametrize("metadata_image", [b"\n", b"\r\n"], indirect=True, ids=["lf", "crlf"])
+@pytest.mark.parametrize(
+    "field", ["source_descriptor_bytes", "original_descriptors", "normalized_descriptors"]
+)
+def test_native_source_descriptor_line_endings_require_exact_byte_hash_identity(
+    tmp_path, monkeypatch, metadata_image, field
+):
+    _, descriptors = metadata_image
+    payload = next(iter(descriptors)).read_bytes()
+    changed = (
+        payload.replace(b"\r\n", b"\n") if b"\r\n" in payload else payload.replace(b"\n", b"\r\n")
+    )
+    expected_hash = hashlib.sha256(payload).hexdigest()
+    changed_hash = hashlib.sha256(changed).hexdigest()
+    assert changed_hash != expected_hash
+    assert set(descriptors.values()) == {expected_hash}
+    roles = build.native_descriptor_roles()
+    hashes = {name: expected_hash for paths in roles.values() for name in paths}
+    original = {
+        "descriptor_roles": roles,
+        "original_descriptors": hashes,
+        "normalized_descriptors": dict(hashes),
+        "source_descriptor_bytes": {
+            name: base64.b64encode(payload).decode("ascii")
+            for name in [*roles["portable_launcher"], *roles["auxiliary_source"]]
+        },
+    }
+    assert build.validate_native_descriptor_inputs(original) == roles
+    monkeypatch.setattr(
+        build, "run", lambda *a, **kw: pytest.fail("Executed before descriptor data validation")
+    )
+    inputs, output = tmp_path / "inputs.json", tmp_path / "must-not-exist.json"
+    for name in original["source_descriptor_bytes"]:
+        replacement = (
+            base64.b64encode(changed).decode("ascii")
+            if field == "source_descriptor_bytes"
+            else changed_hash
+        )
+        drifted = {**original, field: {**original[field], name: replacement}}
+        inputs.write_text(json.dumps(drifted))
+        with pytest.raises(ValueError, match="source-only descriptor bytes or immutable hashes"):
+            build.collect(inputs, output, native=True)
+        assert not output.exists()
 
 
 @pytest.mark.parametrize("metadata", [False, True])
