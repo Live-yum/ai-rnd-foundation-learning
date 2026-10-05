@@ -944,8 +944,8 @@
     },
     {
       "path": "workbench/capability_sandbox.py",
-      "bytes": 35033,
-      "sha256": "6de9d538733fce31cc50e0a59e8891f6c35e6b910868e49e231a768f89508e45",
+      "bytes": 37968,
+      "sha256": "9354ea395f3205bb1820c69845580835ecff2fc852ef86da6b823d0e0bde1956",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__capability_sandbox_py--001.md"
@@ -3928,8 +3928,8 @@
     },
     {
       "path": "docs/custom-source-isolation.md",
-      "bytes": 19892,
-      "sha256": "2165a93993d8f70b1d6680079aced79c09be72a6eb0b43b6845807c4b5fb6ee3",
+      "bytes": 20549,
+      "sha256": "31130bb60cb401a7d963c09327f88bd5b65c16f35e3a285ae6c372cd1690e1bc",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__custom-source-isolation_md--001.md"
@@ -4598,8 +4598,8 @@
     },
     {
       "path": "tests/test_capability_execution_gate.py",
-      "bytes": 12030,
-      "sha256": "ad63ebea8a86e42744bfdee4f493a39a722668212415532d49d0b5bfc6682f58",
+      "bytes": 15288,
+      "sha256": "64ddb8340f04142265d10dee33029403335c0c85ebd1356a31d7e6d965aa93c7",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_execution_gate_py--001.md"
@@ -4751,8 +4751,8 @@
     },
     {
       "path": "tests/test_capability_startup_diagnostics.py",
-      "bytes": 2429,
-      "sha256": "82d117c7d50732da5bf4c8eca7122ad81af2b1608a1635d181fc773b50204e78",
+      "bytes": 8376,
+      "sha256": "3dbde794ee5e68b63a5717e2f48e43534c8b145f72d7704d728fb9e9836f43c1",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_startup_diagnostics_py--001.md"

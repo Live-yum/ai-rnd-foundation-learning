@@ -15,27 +15,28 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `record`（L21–L22）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`profile_record`。 返回路径：L22的`profile_record()`。
-- `receipt`（L25–L40）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`execution.verifier_identity`、`execution.profile_binding`、`record`、`Selection().model_dump`、`Selection`、`dict.fromkeys`、`dependency_evidence`、`digest`。 返回路径：L26的`{ "protocol": execution.PROTOCOL, "passed": True, "verifier_identity": execution.verifier_…`。
-- `test_old_partial_wrong_scope_or_forged_success_never_admits`（L62–L66）：接收`field`、`value`。 调用`receipt`、`pytest.raises`、`execution.require_security_receipt`、`record`、`pytest.mark.parametrize`、`Selection(template="fastapiadmin").model_dump`、`Selection`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_receipt_requires_every_adversarial_check_and_exact_schema`（L69–L80）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L71断言`execution.require_security_receipt(good, record()) == good`；L72遍历`execution.SECURITY_CHECKS`。 调用`receipt`、`execution.require_security_receipt`、`record`、`copy.deepcopy`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_opt_in_is_not_enough_and_missing_gate_does_not_invoke_profile`（L83–L97）：接收`tmp_path`、`monkeypatch`。 控制顺序：L88断言`not settings.capability_execution_enabled`。 调用`monkeypatch.setattr`、`pytest.fail`、`Settings`、`pytest.raises`、`execution.capability_execution_prerequisites`、`Selection().model_dump`、`Selection`、`Selection(template="yudao-vben").model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_preflight_binds_live_profile_and_receipt_then_rejects_drift`（L100–L139）：接收`tmp_path`、`monkeypatch`。 控制顺序：L126断言`execution.capability_execution_prerequisites(settings, Selection().model_dump()) == (…`；L130断言`calls == [(installation, "rnd-python-test")]`；L139断言`len(calls) == 2`。 调用`installation.mkdir`、`path.write_text`、`json.dumps`、`receipt`、`monkeypatch.setattr`、`Settings`、`execution.capability_execution_prerequisites`、`Selection().model_dump`、`Selection`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_preflight_binds_live_profile_and_receipt_then_rejects_drift.verified`（L112–L114）：接收`directory`、`snapshot`。 调用`calls.append`、`record`。 返回路径：L114的`record()`。
-- `resources`（L142–L150）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L143的`{ "Memory": 2 * 1024**3, "MemorySwap": 2 * 1024**3, "CpuPeriod": 100000, "CpuQuota": 10000…`。
-- `test_actual_resources_cannot_be_unlimited_or_merely_requested`（L167–L172）：接收`field`、`value`。 控制顺序：L169断言`profile.require_execution_resources(host)["tmpfs_bytes"] == 1073741824`。 调用`resources`、`profile.require_execution_resources`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_child_resource_limits_do_not_change_parent_limits`（L176–L194）：接收`tmp_path`。 控制顺序：L189断言`result.returncode == 0`；L191断言`actual["RLIMIT_FSIZE"] == [32 * 1024 * 1024] * 2`；L192断言`actual["RLIMIT_NPROC"][1] <= 128`；L193断言`actual["RLIMIT_NOFILE"][1] <= 256`；L194断言`resource.getrlimit(resource.RLIMIT_NOFILE) == before`。 调用`resource.getrlimit`、`str`、`subprocess.run`、`json.loads`、`pytest.mark.skipif`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_package_factory_is_recognized_without_allowing_stack_replacement`（L197–L219）：接收`tmp_path`。 控制顺序：L216断言`inspect_stack(tmp_path, plan)["launcher"] == "uvicorn"`。 调用`entry.parent.mkdir`、`entry.write_text`、`front.mkdir`、`(front / "package.json").write_text`、`(front / "Page.vue").write_text`、`SimpleNamespace`、`Selection`、`inspect_stack`、`plan.runtime.start.argv.remove`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_landlock_denies_symlink_proc_and_inherited_fd_escapes`（L223–L256）：接收`tmp_path`。 控制顺序：L251按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L253断言`process.returncode == 0`；L254断言`process.stdout.strip() == "real-kernel-confinement-passed"`；L255断言`outside.read_text() == "original"`；L256断言`(writable / "ordinary").read_text() == "allowed"`。 调用`writable.mkdir`、`outside.write_text`、`(writable / "escape").symlink_to`、`str`、`subprocess.run`、`os.environ.get`、`pytest.skip`、`process.stdout.strip`、`outside.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_real_libseccomp_blocks_socket_type_flags_and_all_connect_destinations`（L260–L295）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L292按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L294断言`process.returncode == 0`；L295断言`process.stdout.strip() == "real-seccomp-passed"`。 调用`str`、`subprocess.run`、`os.environ.get`、`pytest.skip`、`process.stdout.strip`、`pytest.mark.skipif`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `record`（L22–L23）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`profile_record`。 返回路径：L23的`profile_record()`。
+- `receipt`（L26–L41）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`execution.verifier_identity`、`execution.profile_binding`、`record`、`Selection().model_dump`、`Selection`、`dict.fromkeys`、`dependency_evidence`、`digest`。 返回路径：L27的`{ "protocol": execution.PROTOCOL, "passed": True, "verifier_identity": execution.verifier_…`。
+- `test_old_partial_wrong_scope_or_forged_success_never_admits`（L63–L67）：接收`field`、`value`。 调用`receipt`、`pytest.raises`、`execution.require_security_receipt`、`record`、`pytest.mark.parametrize`、`Selection(template="fastapiadmin").model_dump`、`Selection`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_receipt_requires_every_adversarial_check_and_exact_schema`（L70–L81）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L72断言`execution.require_security_receipt(good, record()) == good`；L73遍历`execution.SECURITY_CHECKS`。 调用`receipt`、`execution.require_security_receipt`、`record`、`copy.deepcopy`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_opt_in_is_not_enough_and_missing_gate_does_not_invoke_profile`（L84–L98）：接收`tmp_path`、`monkeypatch`。 控制顺序：L89断言`not settings.capability_execution_enabled`。 调用`monkeypatch.setattr`、`pytest.fail`、`Settings`、`pytest.raises`、`execution.capability_execution_prerequisites`、`Selection().model_dump`、`Selection`、`Selection(template="yudao-vben").model_dump`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_preflight_binds_live_profile_and_receipt_then_rejects_drift`（L101–L140）：接收`tmp_path`、`monkeypatch`。 控制顺序：L127断言`execution.capability_execution_prerequisites(settings, Selection().model_dump()) == (…`；L131断言`calls == [(installation, "rnd-python-test")]`；L140断言`len(calls) == 2`。 调用`installation.mkdir`、`path.write_text`、`json.dumps`、`receipt`、`monkeypatch.setattr`、`Settings`、`execution.capability_execution_prerequisites`、`Selection().model_dump`、`Selection`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_preflight_binds_live_profile_and_receipt_then_rejects_drift.verified`（L113–L115）：接收`directory`、`snapshot`。 调用`calls.append`、`record`。 返回路径：L115的`record()`。
+- `resources`（L143–L151）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L144的`{ "Memory": 2 * 1024**3, "MemorySwap": 2 * 1024**3, "CpuPeriod": 100000, "CpuQuota": 10000…`。
+- `test_actual_resources_cannot_be_unlimited_or_merely_requested`（L168–L173）：接收`field`、`value`。 控制顺序：L170断言`profile.require_execution_resources(host)["tmpfs_bytes"] == 1073741824`。 调用`resources`、`profile.require_execution_resources`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_child_resource_limits_do_not_change_parent_limits`（L177–L195）：接收`tmp_path`。 控制顺序：L190断言`result.returncode == 0`；L192断言`actual["RLIMIT_FSIZE"] == [32 * 1024 * 1024] * 2`；L193断言`actual["RLIMIT_NPROC"][1] <= 128`；L194断言`actual["RLIMIT_NOFILE"][1] <= 256`；L195断言`resource.getrlimit(resource.RLIMIT_NOFILE) == before`。 调用`resource.getrlimit`、`str`、`subprocess.run`、`json.loads`、`pytest.mark.skipif`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_package_factory_is_recognized_without_allowing_stack_replacement`（L198–L220）：接收`tmp_path`。 控制顺序：L217断言`inspect_stack(tmp_path, plan)["launcher"] == "uvicorn"`。 调用`entry.parent.mkdir`、`entry.write_text`、`front.mkdir`、`(front / "package.json").write_text`、`(front / "Page.vue").write_text`、`SimpleNamespace`、`Selection`、`inspect_stack`、`plan.runtime.start.argv.remove`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_landlock_denies_symlink_proc_and_inherited_fd_escapes`（L224–L257）：接收`tmp_path`。 控制顺序：L252按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L254断言`process.returncode == 0`；L255断言`process.stdout.strip() == "real-kernel-confinement-passed"`；L256断言`outside.read_text() == "original"`；L257断言`(writable / "ordinary").read_text() == "allowed"`。 调用`writable.mkdir`、`outside.write_text`、`(writable / "escape").symlink_to`、`str`、`subprocess.run`、`os.environ.get`、`pytest.skip`、`process.stdout.strip`、`outside.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_native_guard_denies_spawn_process_pool_constructor`（L261–L333）：接收`tmp_path`。 源码说明：Exercise the constructor used by pinned APScheduler, not a mocked syscall. No task is submitted and no worker is intentionally started. The full guard runs unchanged except for its writable root point。 控制顺序：L322按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L324断言`process.returncode == 0`；L326断言`evidence in [ {"constructor": "denied", "errno": 1}, {"constructor": "denied", "errno…`；L331断言`diagnostic["failure_component"] == "multiprocessing-semaphore"`；L332断言`diagnostic["exception_errno"] == evidence["errno"]`；L333断言`list(writable.iterdir()) == []`。 调用`writable.mkdir`、`str`、`subprocess.Popen`、`process.communicate`、`os.killpg`、`process.wait`、`os.environ.get`、`pytest.skip`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_libseccomp_blocks_socket_type_flags_and_all_connect_destinations`（L337–L372）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L369按`process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L371断言`process.returncode == 0`；L372断言`process.stdout.strip() == "real-seccomp-passed"`。 调用`str`、`subprocess.run`、`os.environ.get`、`pytest.skip`、`process.stdout.strip`、`pytest.mark.skipif`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_execution_gate.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L295。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_execution_gate.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L372。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12030`。本段原文以LF换行结束。
+本段原始字节数：`15288`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_execution_gate.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ad63ebea8a86e42744bfdee4f493a39a722668212415532d49d0b5bfc6682f58"} -->
+<!-- learning-source: {"path": "tests/test_capability_execution_gate.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "64ddb8340f04142265d10dee33029403335c0c85ebd1356a31d7e6d965aa93c7"} -->
 ````python
 # tests/test_capability_execution_gate.py
 """Admission contracts; fixtures here never create a live safety attestation."""
@@ -43,6 +44,7 @@
 import copy
 import json
 import os
+import signal
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -294,6 +296,82 @@ print('real-kernel-confinement-passed')
     assert process.stdout.strip() == "real-kernel-confinement-passed"
     assert outside.read_text() == "original"
     assert (writable / "ordinary").read_text() == "allowed"
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux-only native semaphore confinement")
+def test_real_native_guard_denies_spawn_process_pool_constructor(tmp_path):
+    """Exercise the constructor used by pinned APScheduler, not a mocked syscall.
+
+    No task is submitted and no worker is intentionally started. The full guard
+    runs unchanged except for its writable root pointing to this owned fixture.
+    CI requires the kernel check; unsupported developer kernels may only skip.
+    """
+    from workbench.capability_sandbox import startup_failure_diagnostic
+
+    writable = tmp_path / "allowed"
+    writable.mkdir()
+    constructor = """
+import concurrent.futures,errno,json,multiprocessing,traceback
+from multiprocessing import resource_tracker
+pool=None
+try:
+ try:
+  pool=concurrent.futures.ProcessPoolExecutor(max_workers=1,mp_context=multiprocessing.get_context('spawn'))
+ except OSError as exc:
+  assert exc.errno in (errno.EACCES,errno.EPERM)
+  frames=traceback.extract_tb(exc.__traceback__)
+  assert frames[-1].filename.endswith('/multiprocessing/synchronize.py')
+  assert frames[-1].name=='__init__' and '_multiprocessing.SemLock(' in frames[-1].line
+  traceback.print_exc()
+  evidence={'constructor':'denied','errno':exc.errno}
+ else:
+  raise AssertionError('Process pool unexpectedly acquired a semaphore outside the writable root')
+finally:
+ if pool is not None:pool.shutdown(wait=True,cancel_futures=True)
+ resource_tracker._resource_tracker._stop()
+assert not multiprocessing.active_children()
+print(json.dumps(evidence))
+"""
+    source = f"""
+import ctypes,os,runpy,sys
+libc=ctypes.CDLL(None,use_errno=True);libc.syscall.restype=ctypes.c_long
+if libc.syscall(444,0,0,1)<6:sys.exit(78)
+m=runpy.run_path({str(ROOT / "scripts/capability_guard.py")!r})
+m['main'].__globals__['WRITABLE_ROOT']={str(writable)!r}
+os.environ['TMPDIR']={str(writable)!r}
+sys.argv=['guard','5173,8001','8001,55432,55433','--',sys.executable,'-I','-S','-c',{constructor!r}]
+m['main']()
+"""
+    process = subprocess.Popen(
+        [sys.executable, "-I", "-S", "-c", source],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=15)
+    finally:
+        # Only the new test session is selected, including a resource tracker if
+        # an unexpected constructor outcome or timeout interrupted its shutdown.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.wait(timeout=5)
+    if process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1":
+        pytest.skip("Host kernel/security profile cannot run mandatory live Landlock checks")
+    assert process.returncode == 0, stderr
+    evidence = json.loads(stdout)
+    assert evidence in [
+        {"constructor": "denied", "errno": 1},
+        {"constructor": "denied", "errno": 13},
+    ]
+    diagnostic = startup_failure_diagnostic(stderr, 502, "none")
+    assert diagnostic["failure_component"] == "multiprocessing-semaphore"
+    assert diagnostic["exception_errno"] == evidence["errno"]
+    assert list(writable.iterdir()) == []
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux-only per-process seccomp")

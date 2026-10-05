@@ -6,6 +6,7 @@ filesystem/process namespace. A product-authored JSON report cannot pass a task.
 
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -70,6 +71,76 @@ def startup_failure_diagnostic(output, http_status, http_error, tmpfs_noexec=Non
     categories = [key for key, markers in patterns.items() if any(m in output for m in markers)]
     modules = ("uvicorn", "fastapi", "sqlalchemy", "pydantic", "app", "access")
     known = [module for module in modules if "No module named '" + module + "'" in output]
+
+    # These are untrusted, bounded traceback hints, never kernel evidence or an
+    # acceptance signal. Do not return captured paths, messages or class names.
+    def frame(path, function, trace=output):
+        return (
+            re.search(
+                r'(?m)^\s*File "[^"\n]{1,512}/'
+                + re.escape(path)
+                + r'", line [0-9]{1,7}, in '
+                + re.escape(function)
+                + r"\s*$",
+                trace,
+            )
+            is not None
+        )
+
+    exception_pattern = re.compile(
+        r"(?m)^([A-Za-z_][A-Za-z0-9_.]{0,127}):(?: \[Errno ([0-9]{1,10})\])?"
+    )
+
+    def exceptions_in(trace):
+        return [
+            item
+            for item in exception_pattern.finditer(trace)
+            if item[1].endswith(("Error", "Exception"))
+        ]
+
+    exceptions = exceptions_in(output)
+    exception, number = exceptions[-1].groups() if exceptions else ("unknown", "")
+    exception_types = {
+        "PermissionError",
+        "FileNotFoundError",
+        "OSError",
+        "ImportError",
+        "ModuleNotFoundError",
+        "RuntimeError",
+        "MemoryError",
+        "SyntaxError",
+        "TimeoutError",
+        "ValueError",
+    }
+    exception = exception if exception in exception_types else "unknown"
+    exception_errno = int(number) if number in {"1", "2", "13", "28", "30"} else None
+    if exception not in {"PermissionError", "FileNotFoundError", "OSError", "TimeoutError"}:
+        exception_errno = None
+    # A cleanup traceback may follow the primary error. Keep that final error's
+    # type/errno above, but associate constructor frames with their OWN error.
+    # Neither a separate denial nor a truncated traceback can complete a match.
+    semaphore = False
+    for trace in re.split(r"(?m)^Traceback \(most recent call last\):\n", output)[1:]:
+        trace_errors = exceptions_in(trace)
+        if not trace_errors:
+            continue
+        failure = trace_errors[0]
+        frames = trace[: failure.start()]
+        if (
+            failure[1] in {"PermissionError", "OSError"}
+            and failure[2] in {"1", "13"}
+            and frame("concurrent/futures/process.py", "__init__", frames)
+            and frame("multiprocessing/synchronize.py", "__init__", frames)
+            and "_multiprocessing.SemLock(" in frames
+        ):
+            semaphore = True
+    startup_phase = "unknown"
+    if "Waiting for application startup." in output or "Application startup failed." in output:
+        startup_phase = "lifespan"
+    elif frame("app/__init__.py", "create_app"):
+        startup_phase = "factory"
+    elif frame("uvicorn/importer.py", "import_from_string"):
+        startup_phase = "import"
     errors = {"none", "connect", "timeout", "protocol", "other"}
     return {
         "phase": "health_deadline",
@@ -81,6 +152,10 @@ def startup_failure_diagnostic(output, http_status, http_error, tmpfs_noexec=Non
         "output_nonempty": bool(output),
         "output_hints": categories,
         "known_missing_modules": known,
+        "startup_phase_hint": startup_phase,
+        "failure_component": "multiprocessing-semaphore" if semaphore else "unknown",
+        "exception_type": exception,
+        "exception_errno": exception_errno,
         "application_startup_reported": "Application startup complete" in output,
         "tmpfs_noexec": tmpfs_noexec if type(tmpfs_noexec) is bool else None,
     }

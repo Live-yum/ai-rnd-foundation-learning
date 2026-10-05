@@ -15,20 +15,22 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `startup_failure_diagnostic`（L53–L86）：接收`output`、`http_status`、`http_error`、`tmpfs_noexec`。 源码说明：Candidate output supplies hints only; no raw output, path or token escapes.。 调用`type`、`patterns.items`、`any`、`bool`。 返回路径：L74的`{ "phase": "health_deadline", "http_status": http_status if type(http_status) is int and 1…`。
-- `restart_application_identity`（L89–L139）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L138按`result.exit_code != 0`分支；L139抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `verify_capabilities`（L142–L232）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L148按`plan.selection.model_dump() != selection`分支；L149抛异常，停止当前正常路径；L158按`selection["template"] == "fastapiadmin"`分支；L161按`dependency_identity(product) != profile["dependency_identity"]`分支；L162抛异常，停止当前正常路径；L198按`len(body) > 1_000_000`分支；L199抛异常，停止当前正常路径；L221抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`require_dependency_descriptors`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`等。 返回路径：L153的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L232的`receipt`。
-- `_verify`（L235–L739）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L271按`trusted_oracle not in (None, "contest-business-v2")`分支；L272抛异常，停止当前正常路径；L273按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L276抛异常，停止当前正常路径；L279按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L283抛异常，停止当前正常路径；L284按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L289抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L739的`receipt`。
-- `_verify.start`（L422–L517）：接收`command`、`port`、`health_path`。 控制顺序：L453按`not response.cmd_id`分支；L454抛异常，停止当前正常路径；L457按`not isinstance(preview.token, str) or not preview.token`分支；L458抛异常，停止当前正常路径；L470在`time.monotonic() < deadline`成立时循环；L474按`200 <= check.status_code < 300`分支；L507按`type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}`分支；L514抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`readonly_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`等。 返回路径：L475的`http, url, preview.token`。
-- `main`（L742–L785）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L744按`len(body) > 1_000_000`分支；L745抛异常，停止当前正常路径；L754按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L760抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `startup_failure_diagnostic`（L54–L161）：接收`output`、`http_status`、`http_error`、`tmpfs_noexec`。 源码说明：Candidate output supplies hints only; no raw output, path or token escapes.。 控制顺序：L117按`exception not in {"PermissionError", "FileNotFoundError", "OSError", "TimeoutError"}`分支；L123遍历`re.split(r"(?m)^Traceback \(most recent call last\):\n", output)[…`；L125按`not trace_errors`分支；L129按`failure[1] in {"PermissionError", "OSError"} and failure[2] in {"1", "13"} and frame(…`分支；L138按`"Waiting for application startup." in output or "Application startup failed." in outp…`分支；L140按`frame("app/__init__.py", "create_app")`分支；L142按`frame("uvicorn/importer.py", "import_from_string")`分支。 调用`type`、`patterns.items`、`any`、`re.compile`、`exceptions_in`、`exceptions[-1].groups`、`int`、`re.split`、`failure.start`等。 返回路径：L145的`{ "phase": "health_deadline", "http_status": http_status if type(http_status) is int and 1…`。
+- `startup_failure_diagnostic.frame`（L77–L88）：接收`path`、`function`、`trace`。 调用`re.search`、`re.escape`。 返回路径：L78的`re.search( r'(?m)^\s*File "[^"\n]{1,512}/' + re.escape(path) + r'", line [0-9]{1,7}, in ' …`。
+- `startup_failure_diagnostic.exceptions_in`（L94–L99）：接收`trace`。 调用`exception_pattern.finditer`、`item[1].endswith`。 返回路径：L95的`[ item for item in exception_pattern.finditer(trace) if item[1].endswith(("Error", "Except…`。
+- `restart_application_identity`（L164–L214）：接收`sandbox`、`port`、`timeout`、`extra_ports`。 源码说明：Stop only this sandbox's dedicated application UID, then prove closure. Bounded tmpfs survives this process restart, not a container restart. The controller and independent database identity are never。 控制顺序：L213按`result.exit_code != 0`分支；L214抛异常，停止当前正常路径。 调用`control_exec`、`str`、`min`、`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_capabilities`（L217–L307）：接收`product`、`plan`、`scenarios`、`settings`、`aggregate`、`selection`、`trusted_oracle`。 控制顺序：L223按`plan.selection.model_dump() != selection`分支；L224抛异常，停止当前正常路径；L233按`selection["template"] == "fastapiadmin"`分支；L236按`dependency_identity(product) != profile["dependency_identity"]`分支；L237抛异常，停止当前正常路径；L273按`len(body) > 1_000_000`分支；L274抛异常，停止当前正常路径；L296抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`plan.selection.model_dump`、`CheckFailure`、`inspect_stack`、`str`、`capability_execution_prerequisites`、`require_dependency_descriptors`、`dependency_identity`、`PrerequisiteError`、`Path(product).resolve`等。 返回路径：L228的`{"passed": False, "kind": "source_contract", "error": str(exc)}`；L307的`receipt`。
+- `_verify`（L310–L814）：接收`product`、`plan`、`scenarios`、`settings`、`selection`、`receipt_path`、`client`、`aggregate`、`control_observer`、`security_probe`、`trusted_oracle`、`profile_record`。 控制顺序：L346按`trusted_oracle not in (None, "contest-business-v2")`分支；L347抛异常，停止当前正常路径；L348按`trusted_oracle and ( not aggregate or selection["template"] != "fastapiadmin" or secu…`分支；L351抛异常，停止当前正常路径；L354按`selection != plan.selection.model_dump() or selection not in ( Selection(template="py…`分支；L358抛异常，停止当前正常路径；L359按`not isinstance(profile_record, dict) or profile_record.get("selection", Selection(tem…`分支；L364抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`write_json`、`CheckFailure`、`plan.selection.model_dump`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`isinstance`、`profile_record.get`、`require_dependency_descriptors`等。 返回路径：L814的`receipt`。
+- `_verify.start`（L497–L592）：接收`command`、`port`、`health_path`。 控制顺序：L528按`not response.cmd_id`分支；L529抛异常，停止当前正常路径；L532按`not isinstance(preview.token, str) or not preview.token`分支；L533抛异常，停止当前正常路径；L545在`time.monotonic() < deadline`成立时循环；L549按`200 <= check.status_code < 300`分支；L582按`type(mode.exit_code) is int and mode.exit_code == 0 and value in {"0", "1"}`分支；L589抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`readonly_start_command`、`require_preinstalled_evidence`、`verify_readonly_dependencies`、`uuid.uuid4`、`sandbox.process.create_session`、`redirected_command`、`product_argv`、`sandbox.process.execute_session_command`、`SessionExecuteRequest`等。 返回路径：L550的`http, url, preview.token`。
+- `main`（L817–L860）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L819按`len(body) > 1_000_000`分支；L820抛异常，停止当前正常路径；L829按`len(scenarios) != len(payload["scenario_ids"]) or not scenarios or type(payload["aggr…`分支；L835抛异常，停止当前正常路径。 调用`sys.stdin.buffer.read`、`len`、`ValueError`、`json.loads`、`install_loopback_guard`、`Settings`、`CapabilityPlan.model_validate`、`type`、`plan.selection.model_dump`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L789。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_sandbox.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L864。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`35033`。本段原文以LF换行结束。
+本段原始字节数：`37968`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "6de9d538733fce31cc50e0a59e8891f6c35e6b910868e49e231a768f89508e45"} -->
+<!-- learning-source: {"path": "workbench/capability_sandbox.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9354ea395f3205bb1820c69845580835ecff2fc852ef86da6b823d0e0bde1956"} -->
 ````python
 # workbench/capability_sandbox.py
 """Custom source runs only in a private, network-blocked local Daytona sandbox.
@@ -39,6 +41,7 @@ filesystem/process namespace. A product-authored JSON report cannot pass a task.
 
 import json
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -103,6 +106,76 @@ def startup_failure_diagnostic(output, http_status, http_error, tmpfs_noexec=Non
     categories = [key for key, markers in patterns.items() if any(m in output for m in markers)]
     modules = ("uvicorn", "fastapi", "sqlalchemy", "pydantic", "app", "access")
     known = [module for module in modules if "No module named '" + module + "'" in output]
+
+    # These are untrusted, bounded traceback hints, never kernel evidence or an
+    # acceptance signal. Do not return captured paths, messages or class names.
+    def frame(path, function, trace=output):
+        return (
+            re.search(
+                r'(?m)^\s*File "[^"\n]{1,512}/'
+                + re.escape(path)
+                + r'", line [0-9]{1,7}, in '
+                + re.escape(function)
+                + r"\s*$",
+                trace,
+            )
+            is not None
+        )
+
+    exception_pattern = re.compile(
+        r"(?m)^([A-Za-z_][A-Za-z0-9_.]{0,127}):(?: \[Errno ([0-9]{1,10})\])?"
+    )
+
+    def exceptions_in(trace):
+        return [
+            item
+            for item in exception_pattern.finditer(trace)
+            if item[1].endswith(("Error", "Exception"))
+        ]
+
+    exceptions = exceptions_in(output)
+    exception, number = exceptions[-1].groups() if exceptions else ("unknown", "")
+    exception_types = {
+        "PermissionError",
+        "FileNotFoundError",
+        "OSError",
+        "ImportError",
+        "ModuleNotFoundError",
+        "RuntimeError",
+        "MemoryError",
+        "SyntaxError",
+        "TimeoutError",
+        "ValueError",
+    }
+    exception = exception if exception in exception_types else "unknown"
+    exception_errno = int(number) if number in {"1", "2", "13", "28", "30"} else None
+    if exception not in {"PermissionError", "FileNotFoundError", "OSError", "TimeoutError"}:
+        exception_errno = None
+    # A cleanup traceback may follow the primary error. Keep that final error's
+    # type/errno above, but associate constructor frames with their OWN error.
+    # Neither a separate denial nor a truncated traceback can complete a match.
+    semaphore = False
+    for trace in re.split(r"(?m)^Traceback \(most recent call last\):\n", output)[1:]:
+        trace_errors = exceptions_in(trace)
+        if not trace_errors:
+            continue
+        failure = trace_errors[0]
+        frames = trace[: failure.start()]
+        if (
+            failure[1] in {"PermissionError", "OSError"}
+            and failure[2] in {"1", "13"}
+            and frame("concurrent/futures/process.py", "__init__", frames)
+            and frame("multiprocessing/synchronize.py", "__init__", frames)
+            and "_multiprocessing.SemLock(" in frames
+        ):
+            semaphore = True
+    startup_phase = "unknown"
+    if "Waiting for application startup." in output or "Application startup failed." in output:
+        startup_phase = "lifespan"
+    elif frame("app/__init__.py", "create_app"):
+        startup_phase = "factory"
+    elif frame("uvicorn/importer.py", "import_from_string"):
+        startup_phase = "import"
     errors = {"none", "connect", "timeout", "protocol", "other"}
     return {
         "phase": "health_deadline",
@@ -114,6 +187,10 @@ def startup_failure_diagnostic(output, http_status, http_error, tmpfs_noexec=Non
         "output_nonempty": bool(output),
         "output_hints": categories,
         "known_missing_modules": known,
+        "startup_phase_hint": startup_phase,
+        "failure_component": "multiprocessing-semaphore" if semaphore else "unknown",
+        "exception_type": exception,
+        "exception_errno": exception_errno,
         "application_startup_reported": "Application startup complete" in output,
         "tmpfs_noexec": tmpfs_noexec if type(tmpfs_noexec) is bool else None,
     }

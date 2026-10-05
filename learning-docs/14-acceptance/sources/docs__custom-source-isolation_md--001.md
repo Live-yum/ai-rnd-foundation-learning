@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L257。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L264。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19892`。本段原文以LF换行结束。
+本段原始字节数：`20549`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2165a93993d8f70b1d6680079aced79c09be72a6eb0b43b6845807c4b5fb6ee3"} -->
+<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "31130bb60cb401a7d963c09327f88bd5b65c16f35e3a285ae6c372cd1690e1bc"} -->
 ````markdown
 <!-- docs/custom-source-isolation.md -->
 # 自定义源码执行：有证据的启用门
@@ -170,6 +170,13 @@ tmpfs 随容器停止清空。因此候选 profile 记录的是 `restart_kind=ap
 这只是构建调度约束，不是任意候选 JavaScript 的安全边界。真实限制仍由 guard 与
 容器施加，类型检查继续执行；不提高限额、不外部化缺失模块或删除依赖。CI 复用已安装
 的固定原生工具图执行配置/插件保留及失败反例，实际应用回执仍要求完整隔离验收。
+
+启动失败回执只扫描既有上限内的输出，报告固定阶段、异常类及 errno 白名单。共享
+内存信号量分类要求同一完整 traceback 内出现准确的进程池构造和 SemLock 帧及权限
+拒绝；后续清理异常可单独保留为终止异常。缺少匹配信息时明确记录 unknown，不泄露
+路径、异常正文或凭据。这些分类来自不可信输出，仅用于定位，不能替代真实内核证据。
+原生 CI 另在原 guard 下实际构造 spawn 进程池，验证只读范围外的信号量申请仍被拒绝；
+没有开放共享内存写入、改变调度器功能或延长应用健康期限。
 
 浏览器也执行候选 JavaScript，因此自定义源码不能走宿主浏览器。它使用单独的无网络、
 只读根、CPU/内存/PID/tmpfs 有界容器，通过有界标准流 relay 访问唯一私有预览。

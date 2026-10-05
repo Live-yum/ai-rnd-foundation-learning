@@ -3,6 +3,7 @@
 import copy
 import json
 import os
+import signal
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -254,6 +255,82 @@ print('real-kernel-confinement-passed')
     assert process.stdout.strip() == "real-kernel-confinement-passed"
     assert outside.read_text() == "original"
     assert (writable / "ordinary").read_text() == "allowed"
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Linux-only native semaphore confinement")
+def test_real_native_guard_denies_spawn_process_pool_constructor(tmp_path):
+    """Exercise the constructor used by pinned APScheduler, not a mocked syscall.
+
+    No task is submitted and no worker is intentionally started. The full guard
+    runs unchanged except for its writable root pointing to this owned fixture.
+    CI requires the kernel check; unsupported developer kernels may only skip.
+    """
+    from workbench.capability_sandbox import startup_failure_diagnostic
+
+    writable = tmp_path / "allowed"
+    writable.mkdir()
+    constructor = """
+import concurrent.futures,errno,json,multiprocessing,traceback
+from multiprocessing import resource_tracker
+pool=None
+try:
+ try:
+  pool=concurrent.futures.ProcessPoolExecutor(max_workers=1,mp_context=multiprocessing.get_context('spawn'))
+ except OSError as exc:
+  assert exc.errno in (errno.EACCES,errno.EPERM)
+  frames=traceback.extract_tb(exc.__traceback__)
+  assert frames[-1].filename.endswith('/multiprocessing/synchronize.py')
+  assert frames[-1].name=='__init__' and '_multiprocessing.SemLock(' in frames[-1].line
+  traceback.print_exc()
+  evidence={'constructor':'denied','errno':exc.errno}
+ else:
+  raise AssertionError('Process pool unexpectedly acquired a semaphore outside the writable root')
+finally:
+ if pool is not None:pool.shutdown(wait=True,cancel_futures=True)
+ resource_tracker._resource_tracker._stop()
+assert not multiprocessing.active_children()
+print(json.dumps(evidence))
+"""
+    source = f"""
+import ctypes,os,runpy,sys
+libc=ctypes.CDLL(None,use_errno=True);libc.syscall.restype=ctypes.c_long
+if libc.syscall(444,0,0,1)<6:sys.exit(78)
+m=runpy.run_path({str(ROOT / "scripts/capability_guard.py")!r})
+m['main'].__globals__['WRITABLE_ROOT']={str(writable)!r}
+os.environ['TMPDIR']={str(writable)!r}
+sys.argv=['guard','5173,8001','8001,55432,55433','--',sys.executable,'-I','-S','-c',{constructor!r}]
+m['main']()
+"""
+    process = subprocess.Popen(
+        [sys.executable, "-I", "-S", "-c", source],
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        stdout, stderr = process.communicate(timeout=15)
+    finally:
+        # Only the new test session is selected, including a resource tracker if
+        # an unexpected constructor outcome or timeout interrupted its shutdown.
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        process.wait(timeout=5)
+    if process.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1":
+        pytest.skip("Host kernel/security profile cannot run mandatory live Landlock checks")
+    assert process.returncode == 0, stderr
+    evidence = json.loads(stdout)
+    assert evidence in [
+        {"constructor": "denied", "errno": 1},
+        {"constructor": "denied", "errno": 13},
+    ]
+    diagnostic = startup_failure_diagnostic(stderr, 502, "none")
+    assert diagnostic["failure_component"] == "multiprocessing-semaphore"
+    assert diagnostic["exception_errno"] == evidence["errno"]
+    assert list(writable.iterdir()) == []
 
 
 @pytest.mark.skipif(sys.platform != "linux", reason="Linux-only per-process seccomp")
