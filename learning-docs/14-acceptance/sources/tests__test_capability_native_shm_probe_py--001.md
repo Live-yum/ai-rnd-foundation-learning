@@ -15,57 +15,67 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `plan`（L27–L28）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`Selection`。 返回路径：L28的`SimpleNamespace(selection=Selection(template="fastapiadmin"))`。
-- `argv_passthrough`（L31–L35）：接收`plan`、`argv`、`environment`、`native_semaphore_storage`。 控制顺序：L32断言`plan.selection.template == "fastapiadmin"`；L33断言`environment == {} and native_semaphore_storage is True`；L34断言`argv[:4] == ["/usr/bin/python3", "-I", "-S", "-c"]`。 返回路径：L35的`argv`。
-- `test_runtime_requires_exact_true_checkset_and_explicit_guard`（L38–L52）：接收`monkeypatch`。 控制顺序：L47断言`probe.verify_native_shm("owned", plan(), 900) == dict.fromkeys( probe.RUNTIME_CHECKS,…`；L50断言`len(calls) == 1 and calls[0][0] == "owned" and calls[0][2] == 45`；L51断言`calls[0][1][4] == probe.PROBE`；L52断言`len(calls[0][1][5]) == 32`。 调用`monkeypatch.setattr`、`probe.verify_native_shm`、`plan`、`dict.fromkeys`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_requires_exact_true_checkset_and_explicit_guard.guarded`（L42–L44）：接收`sandbox`、`argv`、`timeout`。 调用`calls.append`、`json.dumps`、`dict.fromkeys`。 返回路径：L44的`0, json.dumps(dict.fromkeys(probe.RUNTIME_CHECKS, True))`。
-- `test_runtime_rejects_incomplete_or_untrusted_receipts_without_echo`（L67–L74）：接收`monkeypatch`、`status`、`receipt`。 控制顺序：L74断言`"private" not in str(error.value)`。 调用`monkeypatch.setattr`、`json.dumps`、`pytest.raises`、`probe.verify_native_shm`、`plan`、`str`、`pytest.mark.parametrize`、`dict.fromkeys`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_failure_diagnostics_are_finite`（L78–L86）：接收`monkeypatch`、`stage`。 调用`monkeypatch.setattr`、`json.dumps`、`pytest.raises`、`probe.verify_native_shm`、`plan`、`pytest.mark.parametrize`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_parse_errors_are_suppressed`（L90–L96）：接收`monkeypatch`、`output`。 控制顺序：L95断言`error.value.__suppress_context__`；L96断言`"synthetic" not in str(error.value)`。 调用`monkeypatch.setattr`、`pytest.raises`、`probe.verify_native_shm`、`plan`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `marker_runner`（L99–L131）：接收`monkeypatch`、`tmp_path`、`shared`、`corrupt`、`fail_cleanup`。 控制顺序：L102遍历`((FIRST, "first"), (SECOND, "second"))`。 调用`root.mkdir`、`monkeypatch.setattr`、`SimpleNamespace`。 返回路径：L131的`roots, calls`。
-- `marker_runner.guarded`（L109–L128）：接收`sandbox`、`argv`、`timeout`。 控制顺序：L110断言`argv[4] == probe.MARKER`；L112断言`nonce == NONCE and timeout <= 15`；L114按`fail_cleanup and operation == "cleanup" and sandbox.id == FIRST`分支；L115抛异常，停止当前正常路径；L117按`corrupt and operation == "verify" and sandbox.id == FIRST`分支；L127断言`result.stderr == ""`。 调用`calls.append`、`RuntimeError`、`(root / f"rnd-shm-pair-{NONCE}-shared").write_text`、`probe.MARKER.replace`、`str`、`subprocess.run`。 返回路径：L128的`result.returncode, result.stdout`。
-- `execute_pair`（L134–L137）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`probe.verify_native_shm_isolation`、`SimpleNamespace`、`plan`。 返回路径：L135的`probe.verify_native_shm_isolation( SimpleNamespace(id=FIRST), SimpleNamespace(id=SECOND), …`。
-- `test_real_marker_protocol_checks_both_directions_and_cleans_all_owned_files`（L140–L156）：接收`monkeypatch`、`tmp_path`。 控制顺序：L144断言`execute_pair() == dict.fromkeys(probe.PAIR_CHECKS, True)`；L145断言`calls == [ (FIRST, "empty"), (SECOND, "empty"), (FIRST, "create"), (SECOND, "empty"),…`；L156断言`all(list(root.iterdir()) == [] for root in roots.values())`。 调用`marker_runner`、`execute_pair`、`dict.fromkeys`、`all`、`list`、`root.iterdir`、`roots.values`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_shared_namespace_or_marker_tampering_fails_and_still_cleans`（L160–L167）：接收`monkeypatch`、`tmp_path`、`changes`。 控制顺序：L166断言`calls[-2:] == [(FIRST, "cleanup"), (SECOND, "cleanup")]`；L167断言`all(list(root.iterdir()) == [] for root in roots.values())`。 调用`marker_runner`、`pytest.raises`、`execute_pair`、`all`、`list`、`root.iterdir`、`roots.values`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_marker_cleanup_failure_still_attempts_second_cleanup`（L170–L177）：接收`monkeypatch`、`tmp_path`。 控制顺序：L174断言`"primary=none; cleanup=failed" in str(error.value)`；L175断言`"synthetic" not in str(error.value)`；L176断言`calls[-2:] == [(FIRST, "cleanup"), (SECOND, "cleanup")]`；L177断言`list(roots[SECOND].iterdir()) == []`。 调用`marker_runner`、`pytest.raises`、`execute_pair`、`str`、`list`、`roots[SECOND].iterdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_existing_marker_is_not_deleted_as_probe_property`（L180–L187）：接收`monkeypatch`、`tmp_path`。 控制顺序：L186断言`original.read_text() == "preexisting"`；L187断言`(SECOND, "cleanup") not in calls`。 调用`marker_runner`、`original.write_text`、`pytest.raises`、`execute_pair`、`original.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_pair_requires_distinct_known_sandboxes_before_any_command`（L191–L196）：接收`monkeypatch`、`identifier`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`probe.verify_native_shm_isolation`、`SimpleNamespace`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `container_evidence`（L199–L220）：接收`identifier`。 返回路径：L200的`{ "profile": "native-fastapiadmin-postgresql-v1", "sandbox_id": identifier, "control_user"…`。
-- `lifecycle`（L223–L324）：接收`monkeypatch`、`create_error`、`delete_error`、`foreign`、`unknown`。 调用`plan().selection.model_dump`、`plan`、`SimpleNamespace`、`events.append`、`container_evidence`、`monkeypatch.setattr`。 返回路径：L322的`SimpleNamespace( execute=execute, events=events, record=record, evidence=evidence, first=f…`。
-- `lifecycle.params`（L236–L244）：接收`settings`、`name`、`template`、`selection`。 调用`events.append`、`SimpleNamespace`。 返回路径：L238的`SimpleNamespace( name=name, snapshot="owned-native", network_block_all=True, public=False,…`。
-- `lifecycle.create`（L246–L254）：接收`parameters`、`timeout`。 控制顺序：L250按`foreign`分支；L252按`create_error`分支；L253抛异常，停止当前正常路径。 调用`events.append`、`dict`、`RuntimeError`。 返回路径：L254的`peer`。
-- `lifecycle.get`（L256–L260）：接收`name`。 控制顺序：L258按`unknown`分支；L259抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。 返回路径：L260的`peer`。
-- `lifecycle.delete`（L262–L266）：接收`sandbox`、`timeout`。 控制顺序：L263断言`sandbox is peer`；L265按`delete_error`分支；L266抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `lifecycle.inspect`（L268–L272）：接收`directory`、`identifier`、`require_resources`、`selection`。 控制顺序：L269断言`directory == "owned-directory" and require_resources is True`；L270断言`selection == record["selection"]`。 调用`events.append`。 返回路径：L272的`evidence[identifier]`。
-- `lifecycle.binding`（L274–L277）：接收`current_record`、`container`。 控制顺序：L275断言`current_record is record`；L276按`container.get("snapshot_image_id") != SNAPSHOT`分支；L277抛异常，停止当前正常路径。 调用`container.get`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `lifecycle.prepare`（L279–L282）：接收`sandbox`、`selected_plan`、`timeout`、`native_semaphore_storage`。 控制顺序：L280断言`sandbox is peer and native_semaphore_storage is True`。 调用`events.append`、`dict`。 返回路径：L282的`{"native_shared_memory": dict(NATIVE_SHARED_MEMORY_EVIDENCE)}`。
-- `lifecycle.pair`（L284–L287）：接收`one`、`two`、`selected_plan`、`timeout`。 控制顺序：L285断言`one is first and two is peer`。 调用`events.append`、`dict.fromkeys`。 返回路径：L287的`dict.fromkeys(probe.PAIR_CHECKS, True)`。
-- `lifecycle.docker`（L289–L306）：接收`*args`、`**kwargs`。 控制顺序：L291断言`args == ( "exec", RUNNER, "docker", "--host", "unix:///var/run/docker.sock", "contain…`；L305断言`set(kwargs) == {"timeout"} and 0 < kwargs["timeout"] <= 15`。 调用`events.append`、`set`。 返回路径：L306的`""`。
-- `lifecycle.execute`（L317–L320）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`probe.verify_native_shm_peer`、`plan`。 返回路径：L318的`probe.verify_native_shm_peer( client, settings, "owned-directory", record, first, plan(), …`。
-- `test_peer_lifecycle_uses_same_sdk_profile_and_proves_physical_cleanup`（L327–L352）：接收`monkeypatch`。 控制顺序：L329断言`fixture.execute() == {"cross_container_shm_private": True, "peer_cleanup": True}`；L332断言`creation.os_user == "root"`；L333断言`creation.name == "rnd-source-native-shm-peer-" + NONCE`；L334断言`creation.labels["rnd-shm-probe"] == NONCE`；L335断言`[event[0] for event in events] == [ "refresh", "inspect", "params", "create", "refres…`；L349断言`[event[1:] for event in events if event[0] == "folder"] == [ ("/tmp/rnd-capability", …`。 调用`lifecycle`、`fixture.execute`、`next`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_invalid_incoming_native_binding_creates_no_peer`（L367–L372）：接收`monkeypatch`、`change`。 控制顺序：L372断言`not any(event[0] in {"create", "get", "delete", "docker"} for event in fixture.events…`。 调用`lifecycle`、`change`、`pytest.raises`、`fixture.execute`、`any`、`pytest.mark.parametrize`、`f.evidence[FIRST].update`、`f.record["snapshot"].update`、`setattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_peer_wrong_image_is_deleted_without_identity_preparation`（L375–L381）：接收`monkeypatch`。 控制顺序：L380断言`not any(event[0] == "prepare" for event in fixture.events)`；L381断言`[event[0] for event in fixture.events][-2:] == ["delete", "docker"]`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_partial_create_recovers_exact_owned_name_without_recreating`（L384–L391）：接收`monkeypatch`。 控制顺序：L388断言`"synthetic" not in str(error.value)`；L389断言`[event[0] for event in fixture.events].count("create") == 1`；L390断言`("get", "rnd-source-native-shm-peer-" + NONCE) in fixture.events`；L391断言`[event[0] for event in fixture.events][-2:] == ["delete", "docker"]`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`str`、`[event[0] for event in fixture.events].count`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_uncertain_or_foreign_ownership_never_deletes_another_container`（L395–L399）：接收`monkeypatch`、`changes`。 控制顺序：L399断言`not any(event[0] in {"delete", "docker"} for event in fixture.events)`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_sdk_delete_failure_prevents_any_success`（L402–L408）：接收`monkeypatch`。 控制顺序：L406断言`"synthetic" not in str(error.value)`；L407断言`error.value.__suppress_context__`；L408断言`fixture.events[-1][0] == "delete"`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_dangling_physical_container_cannot_certify_cleanup`（L411–L417）：接收`monkeypatch`。 调用`lifecycle`、`monkeypatch.setattr`、`iter`、`next`、`pytest.raises`、`fixture.execute`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_empty_stdout_from_failed_docker_command_is_not_cleanup`（L420–L428）：接收`monkeypatch`。 调用`lifecycle`、`monkeypatch.setattr`、`pytest.raises`、`fixture.execute`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_empty_stdout_from_failed_docker_command_is_not_cleanup.failed`（L423–L424）：接收`*args`、`**kwargs`。 控制顺序：L424抛异常，停止当前正常路径。 调用`subprocess.CalledProcessError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_non_native_profiles_never_execute_or_create`（L431–L439）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`SimpleNamespace`、`Selection`、`pytest.raises`、`probe.verify_native_shm`、`probe.verify_native_shm_isolation`、`probe.verify_native_shm_peer`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_peer_environment_cannot_silently_skip_live_evidence`（L442–L444）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`probe.verify_native_shm_peer`、`plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_cleanup_diagnostic_keeps_only_own_validated_recovery_identifiers`（L455–L468）：接收`monkeypatch`、`changes`、`identifier`、`stage`。 控制顺序：L462断言`diagnostic == { "peer_name": "rnd-source-native-shm-peer-" + NONCE, "peer_id": identi…`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`probe.native_shm_cleanup_diagnostic`、`changes.get`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_unsafe_cleanup_diagnostics_never_serialize`（L483–L488）：接收`field`、`value`。 控制顺序：L488断言`probe.native_shm_cleanup_diagnostic(error) == {}`。 调用`probe.NativeShmCleanupFailure`、`probe.native_shm_cleanup_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_ordinary_exception_attributes_cannot_impersonate_cleanup_diagnostic`（L491–L494）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L494断言`probe.native_shm_cleanup_diagnostic(error) == {}`。 调用`CheckFailure`、`probe.native_shm_cleanup_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_peer_cannot_expand_existing_native_resource_gates`（L509–L514）：接收`monkeypatch`、`key`、`value`。 控制顺序：L514断言`not any(event[0] == "create" for event in fixture.events)`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_physical_cleanup_lookup_rejects_noncanonical_identifiers`（L518–L521）：接收`monkeypatch`、`identifier`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`probe._require_peer_absent`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `outside_fragment`（L32–L80）：接收`inside`、`outside`、`legacy_exclusive`。 源码说明：Execute the actual authored outside-write block, changing only owned paths.。 调用`ast.parse`、`next`、`isinstance`、`enumerate`、`ast.Module`、`ast.unparse`、`ast.fix_missing_locations`、`OwnedPaths().visit`、`OwnedPaths`。 返回路径：L80的`ast.unparse(ast.fix_missing_locations(OwnedPaths().visit(module)))`。
+- `outside_fragment.OwnedPaths`（L55–L77）：继承`ast.NodeTransformer`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `outside_fragment.OwnedPaths.visit_Constant`（L56–L64）：接收`node`。 控制顺序：L57按`isinstance(node.value, str)`分支；L58遍历`( ("/home/rnd-module", str(outside)), ("/tmp/rnd-capability", str…`；L62按`node.value.startswith(old)`分支。 调用`isinstance`、`str`、`node.value.startswith`、`ast.copy_location`、`ast.Constant`、`len`。 返回路径：L63的`ast.copy_location(ast.Constant(new + node.value[len(old) :]), node)`；L64的`node`。
+- `outside_fragment.OwnedPaths.visit_Call`（L66–L77）：接收`node`。 控制顺序：L68按`legacy_exclusive and isinstance(node.func, ast.Name) and node.func.id == "open" and l…`分支。 调用`self.generic_visit`、`isinstance`、`len`、`ast.Constant`。 返回路径：L77的`node`。
+- `test_outside_probe_follows_owned_symlink_instead_of_testing_eexist`（L85–L123）：接收`tmp_path`、`legacy`。 控制顺序：L111按`legacy`分支；L116断言`namespace["checks"] == {"native_shm_outside_writes_denied": True}`；L117断言`len(attempted) == 3`；L118断言`attempted[-1][1] == ("xb" if legacy else "ab")`；L119断言`not list(outside.iterdir())`；L121遍历`namespace["paths"]`；L123断言`not list((inside / "tmp").iterdir())`。 调用`(inside / "tmp").mkdir`、`outside.mkdir`、`pytest.raises`、`exec`、`outside_fragment`、`len`、`list`、`outside.iterdir`、`Path(path).unlink`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_outside_probe_follows_owned_symlink_instead_of_testing_eexist.confined_open`（L91–L100）：接收`path`、`mode`。 控制顺序：L95按`mode == "xb" and os.path.lexists(path)`分支；L98按`Path(resolved).resolve().is_relative_to(outside)`分支；L99抛异常，停止当前正常路径。 调用`attempted.append`、`str`、`os.path.lexists`、`builtins.open`、`str(path).removeprefix`、`Path(resolved).resolve().is_relative_to`、`Path(resolved).resolve`、`Path`、`PermissionError`。 返回路径：L96的`builtins.open(path, mode)`；L100的`builtins.open(path, mode)`。
+- `test_outside_probe_never_overwrites_an_existing_target`（L127–L136）：接收`tmp_path`。 控制顺序：L136断言`target.read_bytes() == b"keep-owned-fixture" and namespace["paths"] == []`。 调用`(inside / "tmp").mkdir`、`outside.mkdir`、`target.write_bytes`、`pytest.raises`、`exec`、`outside_fragment`、`target.read_bytes`、`pytest.mark.skipif`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_outside_probe_block_remains_denied_by_real_guard`（L140–L171）：接收`tmp_path`。 控制顺序：L166按`result.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1"`分支；L168断言`result.returncode == 0`；L169断言`result.stdout == "outside-write-denied\n" and result.stderr == ""`；L170断言`[path.name for path in outside.iterdir()] == ["writable-before-confinement"]`；L171断言`not list((inside / "tmp").iterdir())`。 调用`(inside / "tmp").mkdir`、`outside.mkdir`、`(outside / "writable-before-confinement").write_bytes`、`outside_fragment`、`Path(__file__).resolve`、`Path`、`str`、`subprocess.run`、`os.environ.get`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `plan`（L174–L175）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`Selection`。 返回路径：L175的`SimpleNamespace(selection=Selection(template="fastapiadmin"))`。
+- `argv_passthrough`（L178–L182）：接收`plan`、`argv`、`environment`、`native_semaphore_storage`。 控制顺序：L179断言`plan.selection.template == "fastapiadmin"`；L180断言`environment == {} and native_semaphore_storage is True`；L181断言`argv[:4] == ["/usr/bin/python3", "-I", "-S", "-c"]`。 返回路径：L182的`argv`。
+- `test_runtime_requires_exact_true_checkset_and_explicit_guard`（L185–L199）：接收`monkeypatch`。 控制顺序：L194断言`probe.verify_native_shm("owned", plan(), 900) == dict.fromkeys( probe.RUNTIME_CHECKS,…`；L197断言`len(calls) == 1 and calls[0][0] == "owned" and calls[0][2] == 45`；L198断言`calls[0][1][4] == probe.PROBE`；L199断言`len(calls[0][1][5]) == 32`。 调用`monkeypatch.setattr`、`probe.verify_native_shm`、`plan`、`dict.fromkeys`、`len`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_requires_exact_true_checkset_and_explicit_guard.guarded`（L189–L191）：接收`sandbox`、`argv`、`timeout`。 调用`calls.append`、`json.dumps`、`dict.fromkeys`。 返回路径：L191的`0, json.dumps(dict.fromkeys(probe.RUNTIME_CHECKS, True))`。
+- `test_runtime_rejects_incomplete_or_untrusted_receipts_without_echo`（L214–L221）：接收`monkeypatch`、`status`、`receipt`。 控制顺序：L221断言`"private" not in str(error.value)`。 调用`monkeypatch.setattr`、`json.dumps`、`pytest.raises`、`probe.verify_native_shm`、`plan`、`str`、`pytest.mark.parametrize`、`dict.fromkeys`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_failure_diagnostics_are_finite`（L225–L233）：接收`monkeypatch`、`stage`。 调用`monkeypatch.setattr`、`json.dumps`、`pytest.raises`、`probe.verify_native_shm`、`plan`、`pytest.mark.parametrize`、`sorted`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_parse_errors_are_suppressed`（L237–L243）：接收`monkeypatch`、`output`。 控制顺序：L242断言`error.value.__suppress_context__`；L243断言`"synthetic" not in str(error.value)`。 调用`monkeypatch.setattr`、`pytest.raises`、`probe.verify_native_shm`、`plan`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `marker_runner`（L246–L282）：接收`monkeypatch`、`tmp_path`、`shared`、`corrupt`、`fail_cleanup`。 控制顺序：L247按`not all(hasattr(os, name) for name in ("O_NOFOLLOW", "getuid"))`分支；L253遍历`((FIRST, "first"), (SECOND, "second"))`。 调用`all`、`hasattr`、`pytest.skip`、`root.mkdir`、`monkeypatch.setattr`、`SimpleNamespace`。 返回路径：L282的`roots, calls`。
+- `marker_runner.guarded`（L260–L279）：接收`sandbox`、`argv`、`timeout`。 控制顺序：L261断言`argv[4] == probe.MARKER`；L263断言`nonce == NONCE and timeout <= 15`；L265按`fail_cleanup and operation == "cleanup" and sandbox.id == FIRST`分支；L266抛异常，停止当前正常路径；L268按`corrupt and operation == "verify" and sandbox.id == FIRST`分支；L278断言`result.stderr == ""`。 调用`calls.append`、`RuntimeError`、`(root / f"rnd-shm-pair-{NONCE}-shared").write_text`、`probe.MARKER.replace`、`str`、`subprocess.run`。 返回路径：L279的`result.returncode, result.stdout`。
+- `execute_pair`（L285–L288）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`probe.verify_native_shm_isolation`、`SimpleNamespace`、`plan`。 返回路径：L286的`probe.verify_native_shm_isolation( SimpleNamespace(id=FIRST), SimpleNamespace(id=SECOND), …`。
+- `test_pair_controller_protocol_and_cleanup_remain_cross_platform`（L303–L349）：接收`monkeypatch`、`case`。 源码说明：Data-only channel fixture, separate from real POSIX marker-file tests.。 控制顺序：L340按`case == "isolated"`分支；L341断言`execute_pair() == dict.fromkeys(probe.PAIR_CHECKS, True)`；L342断言`(FIRST, "verify") in calls and (SECOND, "verify") in calls`；L346断言`"untrusted-result" not in str(caught.value)`；L347断言`calls[-2:] == [(FIRST, "cleanup"), (SECOND, "cleanup")]`；L348按`case != "cleanup"`分支；L349断言`not first and not second`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`execute_pair`、`dict.fromkeys`、`pytest.raises`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pair_controller_protocol_and_cleanup_remain_cross_platform.guarded`（L311–L337）：接收`sandbox`、`argv`、`timeout`。 控制顺序：L312断言`argv[4] == probe.MARKER`；L314断言`nonce == NONCE and timeout <= 15`；L319按`operation == "empty"`分支；L321按`operation == "create"`分支；L322按`case == side + "-create"`分支；L325按`valid`分支；L327按`operation == "verify"`分支；L329按`case == "wrong-token" or case == "second-verify" and side == "second"`分支。后续分支沿下方源码相同行号继续阅读。 调用`calls.append`、`files.update`、`files.get`、`files.clear`、`pytest.fail`。 返回路径：L323的`1, ""`；L330的`0, "untrusted-result"`；L333的`1, ""`。
+- `test_real_marker_protocol_checks_both_directions_and_cleans_all_owned_files`（L352–L368）：接收`monkeypatch`、`tmp_path`。 控制顺序：L356断言`execute_pair() == dict.fromkeys(probe.PAIR_CHECKS, True)`；L357断言`calls == [ (FIRST, "empty"), (SECOND, "empty"), (FIRST, "create"), (SECOND, "empty"),…`；L368断言`all(list(root.iterdir()) == [] for root in roots.values())`。 调用`marker_runner`、`execute_pair`、`dict.fromkeys`、`all`、`list`、`root.iterdir`、`roots.values`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_shared_namespace_or_marker_tampering_fails_and_still_cleans`（L372–L379）：接收`monkeypatch`、`tmp_path`、`changes`。 控制顺序：L378断言`calls[-2:] == [(FIRST, "cleanup"), (SECOND, "cleanup")]`；L379断言`all(list(root.iterdir()) == [] for root in roots.values())`。 调用`marker_runner`、`pytest.raises`、`execute_pair`、`all`、`list`、`root.iterdir`、`roots.values`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_marker_cleanup_failure_still_attempts_second_cleanup`（L382–L389）：接收`monkeypatch`、`tmp_path`。 控制顺序：L386断言`"primary=none; cleanup=failed" in str(error.value)`；L387断言`"synthetic" not in str(error.value)`；L388断言`calls[-2:] == [(FIRST, "cleanup"), (SECOND, "cleanup")]`；L389断言`list(roots[SECOND].iterdir()) == []`。 调用`marker_runner`、`pytest.raises`、`execute_pair`、`str`、`list`、`roots[SECOND].iterdir`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_existing_marker_is_not_deleted_as_probe_property`（L392–L399）：接收`monkeypatch`、`tmp_path`。 控制顺序：L398断言`original.read_text() == "preexisting"`；L399断言`(SECOND, "cleanup") not in calls`。 调用`marker_runner`、`original.write_text`、`pytest.raises`、`execute_pair`、`original.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pair_requires_distinct_known_sandboxes_before_any_command`（L403–L408）：接收`monkeypatch`、`identifier`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`probe.verify_native_shm_isolation`、`SimpleNamespace`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `container_evidence`（L411–L432）：接收`identifier`。 返回路径：L412的`{ "profile": "native-fastapiadmin-postgresql-v1", "sandbox_id": identifier, "control_user"…`。
+- `lifecycle`（L435–L536）：接收`monkeypatch`、`create_error`、`delete_error`、`foreign`、`unknown`。 调用`plan().selection.model_dump`、`plan`、`SimpleNamespace`、`events.append`、`container_evidence`、`monkeypatch.setattr`。 返回路径：L534的`SimpleNamespace( execute=execute, events=events, record=record, evidence=evidence, first=f…`。
+- `lifecycle.params`（L448–L456）：接收`settings`、`name`、`template`、`selection`。 调用`events.append`、`SimpleNamespace`。 返回路径：L450的`SimpleNamespace( name=name, snapshot="owned-native", network_block_all=True, public=False,…`。
+- `lifecycle.create`（L458–L466）：接收`parameters`、`timeout`。 控制顺序：L462按`foreign`分支；L464按`create_error`分支；L465抛异常，停止当前正常路径。 调用`events.append`、`dict`、`RuntimeError`。 返回路径：L466的`peer`。
+- `lifecycle.get`（L468–L472）：接收`name`。 控制顺序：L470按`unknown`分支；L471抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。 返回路径：L472的`peer`。
+- `lifecycle.delete`（L474–L478）：接收`sandbox`、`timeout`。 控制顺序：L475断言`sandbox is peer`；L477按`delete_error`分支；L478抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `lifecycle.inspect`（L480–L484）：接收`directory`、`identifier`、`require_resources`、`selection`。 控制顺序：L481断言`directory == "owned-directory" and require_resources is True`；L482断言`selection == record["selection"]`。 调用`events.append`。 返回路径：L484的`evidence[identifier]`。
+- `lifecycle.binding`（L486–L489）：接收`current_record`、`container`。 控制顺序：L487断言`current_record is record`；L488按`container.get("snapshot_image_id") != SNAPSHOT`分支；L489抛异常，停止当前正常路径。 调用`container.get`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `lifecycle.prepare`（L491–L494）：接收`sandbox`、`selected_plan`、`timeout`、`native_semaphore_storage`。 控制顺序：L492断言`sandbox is peer and native_semaphore_storage is True`。 调用`events.append`、`dict`。 返回路径：L494的`{"native_shared_memory": dict(NATIVE_SHARED_MEMORY_EVIDENCE)}`。
+- `lifecycle.pair`（L496–L499）：接收`one`、`two`、`selected_plan`、`timeout`。 控制顺序：L497断言`one is first and two is peer`。 调用`events.append`、`dict.fromkeys`。 返回路径：L499的`dict.fromkeys(probe.PAIR_CHECKS, True)`。
+- `lifecycle.docker`（L501–L518）：接收`*args`、`**kwargs`。 控制顺序：L503断言`args == ( "exec", RUNNER, "docker", "--host", "unix:///var/run/docker.sock", "contain…`；L517断言`set(kwargs) == {"timeout"} and 0 < kwargs["timeout"] <= 15`。 调用`events.append`、`set`。 返回路径：L518的`""`。
+- `lifecycle.execute`（L529–L532）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`probe.verify_native_shm_peer`、`plan`。 返回路径：L530的`probe.verify_native_shm_peer( client, settings, "owned-directory", record, first, plan(), …`。
+- `test_peer_lifecycle_uses_same_sdk_profile_and_proves_physical_cleanup`（L539–L564）：接收`monkeypatch`。 控制顺序：L541断言`fixture.execute() == {"cross_container_shm_private": True, "peer_cleanup": True}`；L544断言`creation.os_user == "root"`；L545断言`creation.name == "rnd-source-native-shm-peer-" + NONCE`；L546断言`creation.labels["rnd-shm-probe"] == NONCE`；L547断言`[event[0] for event in events] == [ "refresh", "inspect", "params", "create", "refres…`；L561断言`[event[1:] for event in events if event[0] == "folder"] == [ ("/tmp/rnd-capability", …`。 调用`lifecycle`、`fixture.execute`、`next`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_incoming_native_binding_creates_no_peer`（L579–L584）：接收`monkeypatch`、`change`。 控制顺序：L584断言`not any(event[0] in {"create", "get", "delete", "docker"} for event in fixture.events…`。 调用`lifecycle`、`change`、`pytest.raises`、`fixture.execute`、`any`、`pytest.mark.parametrize`、`f.evidence[FIRST].update`、`f.record["snapshot"].update`、`setattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_peer_wrong_image_is_deleted_without_identity_preparation`（L587–L593）：接收`monkeypatch`。 控制顺序：L592断言`not any(event[0] == "prepare" for event in fixture.events)`；L593断言`[event[0] for event in fixture.events][-2:] == ["delete", "docker"]`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`any`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_partial_create_recovers_exact_owned_name_without_recreating`（L596–L603）：接收`monkeypatch`。 控制顺序：L600断言`"synthetic" not in str(error.value)`；L601断言`[event[0] for event in fixture.events].count("create") == 1`；L602断言`("get", "rnd-source-native-shm-peer-" + NONCE) in fixture.events`；L603断言`[event[0] for event in fixture.events][-2:] == ["delete", "docker"]`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`str`、`[event[0] for event in fixture.events].count`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_uncertain_or_foreign_ownership_never_deletes_another_container`（L607–L611）：接收`monkeypatch`、`changes`。 控制顺序：L611断言`not any(event[0] in {"delete", "docker"} for event in fixture.events)`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_sdk_delete_failure_prevents_any_success`（L614–L620）：接收`monkeypatch`。 控制顺序：L618断言`"synthetic" not in str(error.value)`；L619断言`error.value.__suppress_context__`；L620断言`fixture.events[-1][0] == "delete"`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`str`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_dangling_physical_container_cannot_certify_cleanup`（L623–L629）：接收`monkeypatch`。 调用`lifecycle`、`monkeypatch.setattr`、`iter`、`next`、`pytest.raises`、`fixture.execute`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_empty_stdout_from_failed_docker_command_is_not_cleanup`（L632–L640）：接收`monkeypatch`。 调用`lifecycle`、`monkeypatch.setattr`、`pytest.raises`、`fixture.execute`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_empty_stdout_from_failed_docker_command_is_not_cleanup.failed`（L635–L636）：接收`*args`、`**kwargs`。 控制顺序：L636抛异常，停止当前正常路径。 调用`subprocess.CalledProcessError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_non_native_profiles_never_execute_or_create`（L643–L651）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`SimpleNamespace`、`Selection`、`pytest.raises`、`probe.verify_native_shm`、`probe.verify_native_shm_isolation`、`probe.verify_native_shm_peer`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_peer_environment_cannot_silently_skip_live_evidence`（L654–L656）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`pytest.raises`、`probe.verify_native_shm_peer`、`plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cleanup_diagnostic_keeps_only_own_validated_recovery_identifiers`（L667–L680）：接收`monkeypatch`、`changes`、`identifier`、`stage`。 控制顺序：L674断言`diagnostic == { "peer_name": "rnd-source-native-shm-peer-" + NONCE, "peer_id": identi…`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`probe.native_shm_cleanup_diagnostic`、`changes.get`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unsafe_cleanup_diagnostics_never_serialize`（L695–L700）：接收`field`、`value`。 控制顺序：L700断言`probe.native_shm_cleanup_diagnostic(error) == {}`。 调用`probe.NativeShmCleanupFailure`、`probe.native_shm_cleanup_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_ordinary_exception_attributes_cannot_impersonate_cleanup_diagnostic`（L703–L706）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L706断言`probe.native_shm_cleanup_diagnostic(error) == {}`。 调用`CheckFailure`、`probe.native_shm_cleanup_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_peer_cannot_expand_existing_native_resource_gates`（L721–L726）：接收`monkeypatch`、`key`、`value`。 控制顺序：L726断言`not any(event[0] == "create" for event in fixture.events)`。 调用`lifecycle`、`pytest.raises`、`fixture.execute`、`any`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_physical_cleanup_lookup_rejects_noncanonical_identifiers`（L730–L733）：接收`monkeypatch`、`identifier`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`probe._require_peer_absent`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_native_shm_probe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L521。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_native_shm_probe.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L733。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20333`。本段原文以LF换行结束。
+本段原始字节数：`28949`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_native_shm_probe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9bfea31050698c7edc31624bab486032d5c759903614513bed36b532369dfd50"} -->
+<!-- learning-source: {"path": "tests/test_capability_native_shm_probe.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "24f2ab9bbbe2b9a500c9c32eb6ca4f738bf638a2715bad3247db5ad351473f76"} -->
 ````python
 # tests/test_capability_native_shm_probe.py
 """Probe protocol and owned peer lifecycle tests, not a live shm certificate.
@@ -75,9 +85,14 @@ The marker programs use only test-owned ordinary directories here. Actual
 approved disposable containers, never against a developer machine's shm root.
 """
 
+import ast
+import builtins
+import errno
 import json
+import os
 import subprocess
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -92,6 +107,148 @@ SECOND = "22222222-2222-2222-2222-222222222222"
 NONCE = "a" * 32
 RUNNER = "b" * 64
 SNAPSHOT = "sha256:" + "c" * 64
+
+
+def outside_fragment(inside, outside, *, legacy_exclusive=False):
+    """Execute the actual authored outside-write block, changing only owned paths."""
+    tree = ast.parse(probe.PROBE)
+    denied = next(
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "denied"
+    )
+    body = next(node.body for node in tree.body if isinstance(node, ast.Try))
+    start = next(
+        index
+        for index, node in enumerate(body)
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, ast.Constant)
+        and node.value.value == "outside"
+    )
+    end = next(
+        index
+        for index, node in enumerate(body[start:], start)
+        if isinstance(node, ast.Assign)
+        and isinstance(node.targets[0], ast.Subscript)
+        and isinstance(node.targets[0].slice, ast.Constant)
+        and node.targets[0].slice.value == "native_shm_outside_writes_denied"
+    )
+
+    class OwnedPaths(ast.NodeTransformer):
+        def visit_Constant(self, node):
+            if isinstance(node.value, str):
+                for old, new in (
+                    ("/home/rnd-module", str(outside)),
+                    ("/tmp/rnd-capability", str(inside)),
+                ):
+                    if node.value.startswith(old):
+                        return ast.copy_location(ast.Constant(new + node.value[len(old) :]), node)
+            return node
+
+        def visit_Call(self, node):
+            self.generic_visit(node)
+            if (
+                legacy_exclusive
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "open"
+                and len(node.args) == 2
+                and isinstance(node.args[0], ast.Name)
+                and node.args[0].id == "escape"
+            ):
+                node.args[1] = ast.Constant("xb")
+            return node
+
+    module = ast.Module(body=[denied, *body[start : end + 1]], type_ignores=[])
+    return ast.unparse(ast.fix_missing_locations(OwnedPaths().visit(module)))
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Actual POSIX symlink/O_EXCL fixture")
+@pytest.mark.parametrize("legacy", [False, True])
+def test_outside_probe_follows_owned_symlink_instead_of_testing_eexist(tmp_path, legacy):
+    inside, outside = tmp_path / "inside", tmp_path / "outside"
+    (inside / "tmp").mkdir(parents=True)
+    outside.mkdir()
+    attempted = []
+
+    def confined_open(path, mode):
+        attempted.append((str(path), mode))
+        # Real O_EXCL refuses a symlink before resolving its target, independent
+        # of filesystem confinement. The remaining permission check is modeled.
+        if mode == "xb" and os.path.lexists(path):
+            return builtins.open(path, mode)
+        resolved = str(path).removeprefix("/proc/self/root")
+        if Path(resolved).resolve().is_relative_to(outside):
+            raise PermissionError(errno.EACCES, "owned fixture permission denial")
+        return builtins.open(path, mode)
+
+    namespace = {
+        "os": os,
+        "errno": errno,
+        "nonce": NONCE,
+        "paths": [],
+        "checks": {},
+        "open": confined_open,
+    }
+    try:
+        if legacy:
+            with pytest.raises(AssertionError):
+                exec(outside_fragment(inside, outside, legacy_exclusive=True), namespace)
+        else:
+            exec(outside_fragment(inside, outside), namespace)
+            assert namespace["checks"] == {"native_shm_outside_writes_denied": True}
+        assert len(attempted) == 3
+        assert attempted[-1][1] == ("xb" if legacy else "ab")
+        assert not list(outside.iterdir())
+    finally:
+        for path in namespace["paths"]:
+            Path(path).unlink(missing_ok=True)
+    assert not list((inside / "tmp").iterdir())
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Actual POSIX symlink target fixture")
+def test_outside_probe_never_overwrites_an_existing_target(tmp_path):
+    inside, outside = tmp_path / "inside", tmp_path / "outside"
+    (inside / "tmp").mkdir(parents=True)
+    outside.mkdir()
+    target = outside / ("rnd-shm-" + NONCE + "-outside")
+    target.write_bytes(b"keep-owned-fixture")
+    namespace = {"os": os, "errno": errno, "nonce": NONCE, "paths": [], "checks": {}}
+    with pytest.raises(AssertionError):
+        exec(outside_fragment(inside, outside), namespace)
+    assert target.read_bytes() == b"keep-owned-fixture" and namespace["paths"] == []
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Real Linux Landlock outside-write check")
+def test_actual_outside_probe_block_remains_denied_by_real_guard(tmp_path):
+    inside, outside = tmp_path / "inside", tmp_path / "outside"
+    (inside / "tmp").mkdir(parents=True)
+    outside.mkdir()
+    (outside / "writable-before-confinement").write_bytes(b"owned")
+    command = (
+        "import os,errno\n"
+        + f"nonce={NONCE!r};paths=[];checks={{}}\n"
+        + outside_fragment(inside, outside)
+    )
+    command += (
+        "\nassert checks=={'native_shm_outside_writes_denied':True}\nprint('outside-write-denied')"
+    )
+    guard = Path(__file__).resolve().parents[1] / "scripts/capability_guard.py"
+    source = f"""
+import ctypes,runpy,sys
+libc=ctypes.CDLL(None,use_errno=True);libc.syscall.restype=ctypes.c_long
+if libc.syscall(444,0,0,1)<6:sys.exit(78)
+module=runpy.run_path({str(guard)!r})
+module['main'].__globals__['WRITABLE_ROOT']={str(inside)!r}
+sys.argv=['guard','8123','','--',sys.executable,'-I','-S','-c',{command!r}]
+module['main']()
+"""
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "-c", source], capture_output=True, text=True, timeout=15
+    )
+    if result.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1":
+        pytest.skip("Host kernel/security profile cannot run mandatory live Landlock checks")
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "outside-write-denied\n" and result.stderr == ""
+    assert [path.name for path in outside.iterdir()] == ["writable-before-confinement"]
+    assert not list((inside / "tmp").iterdir())
 
 
 def plan():
@@ -167,6 +324,10 @@ def test_runtime_parse_errors_are_suppressed(monkeypatch, output):
 
 
 def marker_runner(monkeypatch, tmp_path, *, shared=False, corrupt=False, fail_cleanup=False):
+    if not all(hasattr(os, name) for name in ("O_NOFOLLOW", "getuid")):
+        pytest.skip(
+            "Actual POSIX no-follow/ownership marker program; protocol tests remain enabled"
+        )
     roots = {}
     calls = []
     for identifier, name in ((FIRST, "first"), (SECOND, "second")):
@@ -205,6 +366,67 @@ def execute_pair():
     return probe.verify_native_shm_isolation(
         SimpleNamespace(id=FIRST), SimpleNamespace(id=SECOND), plan(), 30
     )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "isolated",
+        "shared",
+        "first-create",
+        "second-create",
+        "wrong-token",
+        "second-verify",
+        "cleanup",
+    ],
+)
+def test_pair_controller_protocol_and_cleanup_remain_cross_platform(monkeypatch, case):
+    """Data-only channel fixture, separate from real POSIX marker-file tests."""
+    first, second = {}, {}
+    stores = {FIRST: first, SECOND: first if case == "shared" else second}
+    calls = []
+    monkeypatch.setattr(probe, "product_argv", argv_passthrough)
+    monkeypatch.setattr(probe.uuid, "uuid4", lambda: SimpleNamespace(hex=NONCE))
+
+    def guarded(sandbox, argv, timeout):
+        assert argv[4] == probe.MARKER
+        operation, nonce, side = argv[5:]
+        assert nonce == NONCE and timeout <= 15
+        calls.append((sandbox.id, operation))
+        files = stores[sandbox.id]
+        other = "second" if side == "first" else "first"
+        valid = True
+        if operation == "empty":
+            valid = not files
+        elif operation == "create":
+            if case == side + "-create":
+                return 1, ""
+            valid = not files
+            if valid:
+                files.update({side: side, "shared": side})
+        elif operation == "verify":
+            valid = other not in files and files.get(side) == files.get("shared") == side
+            if case == "wrong-token" or case == "second-verify" and side == "second":
+                return 0, "untrusted-result"
+        elif operation == "cleanup":
+            if case == "cleanup" and sandbox.id == FIRST:
+                return 1, ""
+            files.clear()
+        else:
+            pytest.fail("Unexpected marker protocol operation")
+        return (0, probe.COMPLETE) if valid else (1, "")
+
+    monkeypatch.setattr(probe, "run_guarded_control", guarded)
+    if case == "isolated":
+        assert execute_pair() == dict.fromkeys(probe.PAIR_CHECKS, True)
+        assert (FIRST, "verify") in calls and (SECOND, "verify") in calls
+    else:
+        with pytest.raises(CheckFailure) as caught:
+            execute_pair()
+        assert "untrusted-result" not in str(caught.value)
+    assert calls[-2:] == [(FIRST, "cleanup"), (SECOND, "cleanup")]
+    if case != "cleanup":
+        assert not first and not second
 
 
 def test_real_marker_protocol_checks_both_directions_and_cleans_all_owned_files(

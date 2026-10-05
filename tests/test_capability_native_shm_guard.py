@@ -3,6 +3,9 @@
 import errno
 import os
 import stat
+import subprocess
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -14,6 +17,8 @@ from workbench import capability_isolation as isolation
 @pytest.fixture
 def owned_shm(tmp_path, monkeypatch):
     """Substitute metadata only; this does not attest a tmpfs or private IPC."""
+    if sys.platform != "linux":
+        pytest.skip("Actual Linux no-follow FD/mount fixture; portable policy tests remain enabled")
     device = tmp_path / "dev"
     device.mkdir()
     (device / "shm").mkdir()
@@ -126,15 +131,50 @@ def test_native_shm_rejects_wrong_ownership_and_type(owned_shm, field, value):
         ("f_blocks", 0),
         ("f_blocks", 16383),
         ("f_blocks", 16385),
-        ("f_flag", os.ST_NOSUID | os.ST_NODEV),
-        ("f_flag", os.ST_NOEXEC | os.ST_NODEV),
-        ("f_flag", os.ST_NOEXEC | os.ST_NOSUID),
-        ("f_flag", os.ST_NOEXEC | os.ST_NOSUID | os.ST_NODEV | os.ST_RDONLY),
+        ("f_flag", "missing-noexec"),
+        ("f_flag", "missing-nosuid"),
+        ("f_flag", "missing-nodev"),
+        ("f_flag", "readonly"),
     ],
 )
 def test_native_shm_rejects_wrong_actual_size_or_flags(owned_shm, field, value):
+    if field == "f_flag":
+        value = {
+            "missing-noexec": os.ST_NOSUID | os.ST_NODEV,
+            "missing-nosuid": os.ST_NOEXEC | os.ST_NODEV,
+            "missing-nodev": os.ST_NOEXEC | os.ST_NOSUID,
+            "readonly": os.ST_NOEXEC | os.ST_NOSUID | os.ST_NODEV | os.ST_RDONLY,
+        }[value]
     owned_shm.filesystem[field] = value
     assert_rejected(owned_shm)
+
+
+def test_module_collects_without_posix_apis_and_only_mount_fixture_skips():
+    root = Path(__file__).resolve().parents[1]
+    source = """
+import os,runpy,sys
+import pytest
+sys.path.insert(0,sys.argv[1])
+for name in ('ST_NOEXEC','ST_NOSUID','ST_NODEV','ST_RDONLY','fstatvfs','major','minor','O_DIRECTORY','O_NOFOLLOW'):
+ if hasattr(os,name):delattr(os,name)
+module=runpy.run_path(sys.argv[2])
+module['test_native_shm_rights_are_only_regular_file_operations']()
+module['test_native_shm_flag_requires_explicit_trusted_launch_keyword']()
+module['test_native_shared_memory_receipt_requires_exact_typed_finite_fields']()
+sys.platform='win32'
+try:module['owned_shm'].__wrapped__(None,None)
+except pytest.skip.Exception as exc:assert 'Actual Linux no-follow FD/mount fixture' in str(exc)
+else:raise AssertionError('Platform-specific fixture did not declare its prerequisite')
+print('portable-shm-tests-collected')
+"""
+    result = subprocess.run(
+        [sys.executable, "-I", "-c", source, str(root), str(Path(__file__).resolve())],
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "portable-shm-tests-collected"
 
 
 @pytest.mark.parametrize(

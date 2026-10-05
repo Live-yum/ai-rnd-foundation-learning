@@ -4207,8 +4207,8 @@
     },
     {
       "path": "scripts/capability_native_shm_probe.py",
-      "bytes": 21303,
-      "sha256": "01af618d208b85ed8b4ad6d0b04979adc2b0399e975b7da7bec0704b5ad929b9",
+      "bytes": 21531,
+      "sha256": "18d054601e0253dcb6922cb97d2d476dc42f2b4109d6d3cbef440737ab519529",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__capability_native_shm_probe_py--001.md"
@@ -4715,8 +4715,8 @@
     },
     {
       "path": "tests/test_capability_native_shm_guard.py",
-      "bytes": 14234,
-      "sha256": "f40c08f35ccd6a511729c7ac8b94d3a38a726ccbbdfca9c3a530737bed43f94e",
+      "bytes": 15881,
+      "sha256": "f210a97ec3e3a9fa7222d62d22707687cb1bd60da5e4e43035b856ef59ba13df",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_native_shm_guard_py--001.md"
@@ -4724,8 +4724,8 @@
     },
     {
       "path": "tests/test_capability_native_shm_probe.py",
-      "bytes": 20333,
-      "sha256": "9bfea31050698c7edc31624bab486032d5c759903614513bed36b532369dfd50",
+      "bytes": 28949,
+      "sha256": "24f2ab9bbbe2b9a500c9c32eb6ca4f738bf638a2715bad3247db5ad351473f76",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_native_shm_probe_py--001.md"

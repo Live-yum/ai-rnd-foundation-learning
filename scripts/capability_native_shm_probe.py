@@ -194,7 +194,10 @@ try:
  assert not os.path.lexists(escape)
  paths.append(escape)
  os.symlink(outside,escape)
- denied(lambda:open(escape,'xb'))
+ # Exclusive creation refuses an existing symlink with EEXIST before following
+ # it. Append-open follows the checked-absent target without truncating anything;
+ # the helper closes unexpected success without writing any bytes.
+ denied(lambda:open(escape,'ab'))
  os.unlink(escape)
  checks['native_shm_outside_writes_denied']=True
 except BaseException:

@@ -5,9 +5,14 @@ The marker programs use only test-owned ordinary directories here. Actual
 approved disposable containers, never against a developer machine's shm root.
 """
 
+import ast
+import builtins
+import errno
 import json
+import os
 import subprocess
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -22,6 +27,148 @@ SECOND = "22222222-2222-2222-2222-222222222222"
 NONCE = "a" * 32
 RUNNER = "b" * 64
 SNAPSHOT = "sha256:" + "c" * 64
+
+
+def outside_fragment(inside, outside, *, legacy_exclusive=False):
+    """Execute the actual authored outside-write block, changing only owned paths."""
+    tree = ast.parse(probe.PROBE)
+    denied = next(
+        node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == "denied"
+    )
+    body = next(node.body for node in tree.body if isinstance(node, ast.Try))
+    start = next(
+        index
+        for index, node in enumerate(body)
+        if isinstance(node, ast.Assign)
+        and isinstance(node.value, ast.Constant)
+        and node.value.value == "outside"
+    )
+    end = next(
+        index
+        for index, node in enumerate(body[start:], start)
+        if isinstance(node, ast.Assign)
+        and isinstance(node.targets[0], ast.Subscript)
+        and isinstance(node.targets[0].slice, ast.Constant)
+        and node.targets[0].slice.value == "native_shm_outside_writes_denied"
+    )
+
+    class OwnedPaths(ast.NodeTransformer):
+        def visit_Constant(self, node):
+            if isinstance(node.value, str):
+                for old, new in (
+                    ("/home/rnd-module", str(outside)),
+                    ("/tmp/rnd-capability", str(inside)),
+                ):
+                    if node.value.startswith(old):
+                        return ast.copy_location(ast.Constant(new + node.value[len(old) :]), node)
+            return node
+
+        def visit_Call(self, node):
+            self.generic_visit(node)
+            if (
+                legacy_exclusive
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "open"
+                and len(node.args) == 2
+                and isinstance(node.args[0], ast.Name)
+                and node.args[0].id == "escape"
+            ):
+                node.args[1] = ast.Constant("xb")
+            return node
+
+    module = ast.Module(body=[denied, *body[start : end + 1]], type_ignores=[])
+    return ast.unparse(ast.fix_missing_locations(OwnedPaths().visit(module)))
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Actual POSIX symlink/O_EXCL fixture")
+@pytest.mark.parametrize("legacy", [False, True])
+def test_outside_probe_follows_owned_symlink_instead_of_testing_eexist(tmp_path, legacy):
+    inside, outside = tmp_path / "inside", tmp_path / "outside"
+    (inside / "tmp").mkdir(parents=True)
+    outside.mkdir()
+    attempted = []
+
+    def confined_open(path, mode):
+        attempted.append((str(path), mode))
+        # Real O_EXCL refuses a symlink before resolving its target, independent
+        # of filesystem confinement. The remaining permission check is modeled.
+        if mode == "xb" and os.path.lexists(path):
+            return builtins.open(path, mode)
+        resolved = str(path).removeprefix("/proc/self/root")
+        if Path(resolved).resolve().is_relative_to(outside):
+            raise PermissionError(errno.EACCES, "owned fixture permission denial")
+        return builtins.open(path, mode)
+
+    namespace = {
+        "os": os,
+        "errno": errno,
+        "nonce": NONCE,
+        "paths": [],
+        "checks": {},
+        "open": confined_open,
+    }
+    try:
+        if legacy:
+            with pytest.raises(AssertionError):
+                exec(outside_fragment(inside, outside, legacy_exclusive=True), namespace)
+        else:
+            exec(outside_fragment(inside, outside), namespace)
+            assert namespace["checks"] == {"native_shm_outside_writes_denied": True}
+        assert len(attempted) == 3
+        assert attempted[-1][1] == ("xb" if legacy else "ab")
+        assert not list(outside.iterdir())
+    finally:
+        for path in namespace["paths"]:
+            Path(path).unlink(missing_ok=True)
+    assert not list((inside / "tmp").iterdir())
+
+
+@pytest.mark.skipif(os.name != "posix", reason="Actual POSIX symlink target fixture")
+def test_outside_probe_never_overwrites_an_existing_target(tmp_path):
+    inside, outside = tmp_path / "inside", tmp_path / "outside"
+    (inside / "tmp").mkdir(parents=True)
+    outside.mkdir()
+    target = outside / ("rnd-shm-" + NONCE + "-outside")
+    target.write_bytes(b"keep-owned-fixture")
+    namespace = {"os": os, "errno": errno, "nonce": NONCE, "paths": [], "checks": {}}
+    with pytest.raises(AssertionError):
+        exec(outside_fragment(inside, outside), namespace)
+    assert target.read_bytes() == b"keep-owned-fixture" and namespace["paths"] == []
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="Real Linux Landlock outside-write check")
+def test_actual_outside_probe_block_remains_denied_by_real_guard(tmp_path):
+    inside, outside = tmp_path / "inside", tmp_path / "outside"
+    (inside / "tmp").mkdir(parents=True)
+    outside.mkdir()
+    (outside / "writable-before-confinement").write_bytes(b"owned")
+    command = (
+        "import os,errno\n"
+        + f"nonce={NONCE!r};paths=[];checks={{}}\n"
+        + outside_fragment(inside, outside)
+    )
+    command += (
+        "\nassert checks=={'native_shm_outside_writes_denied':True}\nprint('outside-write-denied')"
+    )
+    guard = Path(__file__).resolve().parents[1] / "scripts/capability_guard.py"
+    source = f"""
+import ctypes,runpy,sys
+libc=ctypes.CDLL(None,use_errno=True);libc.syscall.restype=ctypes.c_long
+if libc.syscall(444,0,0,1)<6:sys.exit(78)
+module=runpy.run_path({str(guard)!r})
+module['main'].__globals__['WRITABLE_ROOT']={str(inside)!r}
+sys.argv=['guard','8123','','--',sys.executable,'-I','-S','-c',{command!r}]
+module['main']()
+"""
+    result = subprocess.run(
+        [sys.executable, "-I", "-S", "-c", source], capture_output=True, text=True, timeout=15
+    )
+    if result.returncode == 78 and os.environ.get("RND_REQUIRE_LANDLOCK") != "1":
+        pytest.skip("Host kernel/security profile cannot run mandatory live Landlock checks")
+    assert result.returncode == 0, result.stderr
+    assert result.stdout == "outside-write-denied\n" and result.stderr == ""
+    assert [path.name for path in outside.iterdir()] == ["writable-before-confinement"]
+    assert not list((inside / "tmp").iterdir())
 
 
 def plan():
@@ -97,6 +244,10 @@ def test_runtime_parse_errors_are_suppressed(monkeypatch, output):
 
 
 def marker_runner(monkeypatch, tmp_path, *, shared=False, corrupt=False, fail_cleanup=False):
+    if not all(hasattr(os, name) for name in ("O_NOFOLLOW", "getuid")):
+        pytest.skip(
+            "Actual POSIX no-follow/ownership marker program; protocol tests remain enabled"
+        )
     roots = {}
     calls = []
     for identifier, name in ((FIRST, "first"), (SECOND, "second")):
@@ -135,6 +286,67 @@ def execute_pair():
     return probe.verify_native_shm_isolation(
         SimpleNamespace(id=FIRST), SimpleNamespace(id=SECOND), plan(), 30
     )
+
+
+@pytest.mark.parametrize(
+    "case",
+    [
+        "isolated",
+        "shared",
+        "first-create",
+        "second-create",
+        "wrong-token",
+        "second-verify",
+        "cleanup",
+    ],
+)
+def test_pair_controller_protocol_and_cleanup_remain_cross_platform(monkeypatch, case):
+    """Data-only channel fixture, separate from real POSIX marker-file tests."""
+    first, second = {}, {}
+    stores = {FIRST: first, SECOND: first if case == "shared" else second}
+    calls = []
+    monkeypatch.setattr(probe, "product_argv", argv_passthrough)
+    monkeypatch.setattr(probe.uuid, "uuid4", lambda: SimpleNamespace(hex=NONCE))
+
+    def guarded(sandbox, argv, timeout):
+        assert argv[4] == probe.MARKER
+        operation, nonce, side = argv[5:]
+        assert nonce == NONCE and timeout <= 15
+        calls.append((sandbox.id, operation))
+        files = stores[sandbox.id]
+        other = "second" if side == "first" else "first"
+        valid = True
+        if operation == "empty":
+            valid = not files
+        elif operation == "create":
+            if case == side + "-create":
+                return 1, ""
+            valid = not files
+            if valid:
+                files.update({side: side, "shared": side})
+        elif operation == "verify":
+            valid = other not in files and files.get(side) == files.get("shared") == side
+            if case == "wrong-token" or case == "second-verify" and side == "second":
+                return 0, "untrusted-result"
+        elif operation == "cleanup":
+            if case == "cleanup" and sandbox.id == FIRST:
+                return 1, ""
+            files.clear()
+        else:
+            pytest.fail("Unexpected marker protocol operation")
+        return (0, probe.COMPLETE) if valid else (1, "")
+
+    monkeypatch.setattr(probe, "run_guarded_control", guarded)
+    if case == "isolated":
+        assert execute_pair() == dict.fromkeys(probe.PAIR_CHECKS, True)
+        assert (FIRST, "verify") in calls and (SECOND, "verify") in calls
+    else:
+        with pytest.raises(CheckFailure) as caught:
+            execute_pair()
+        assert "untrusted-result" not in str(caught.value)
+    assert calls[-2:] == [(FIRST, "cleanup"), (SECOND, "cleanup")]
+    if case != "cleanup":
+        assert not first and not second
 
 
 def test_real_marker_protocol_checks_both_directions_and_cleans_all_owned_files(
