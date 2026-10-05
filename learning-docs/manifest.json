@@ -520,8 +520,8 @@
     },
     {
       "path": "workbench/capability_stack.py",
-      "bytes": 19458,
-      "sha256": "696d5dbd58e56ec64991a27d3ebfed1f05812b7d95e35705fb10188e74c97e4b",
+      "bytes": 19558,
+      "sha256": "4b876b2c247a571c7cd23560ef06b7682ec537060d120e2f62289d0c8dbb6558",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_stack_py--001.md"
@@ -3938,8 +3938,8 @@
     },
     {
       "path": "docs/custom-source-isolation.md",
-      "bytes": 26617,
-      "sha256": "0f496f7379dc1380b8f746be959c2ae90fb13ef6dc4c6f7509e6b55d43a89461",
+      "bytes": 27044,
+      "sha256": "e8aa6e336846eb50b9bc2136988bf9e1542a87d5e8ca1f2c919d01748a760ec7",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__custom-source-isolation_md--001.md"
@@ -4671,8 +4671,8 @@
     },
     {
       "path": "tests/test_capability_native_database_reset.py",
-      "bytes": 3547,
-      "sha256": "889da4b47f3a8ffb7e8c7213d94b00475e833195bd887ce15dc9dc816c3ffde8",
+      "bytes": 7242,
+      "sha256": "e73df324651715b65d058b3f45b3d5d4573f7e9e17c2b89fd01ff48f70212b2d",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_native_database_reset_py--001.md"
@@ -4806,8 +4806,8 @@
     },
     {
       "path": "tests/test_capability_startup_diagnostics.py",
-      "bytes": 47187,
-      "sha256": "ead5ac530d1095cdb806abd04b12c1456a2cbad5fe425f12d5acd2735f0d0bbf",
+      "bytes": 49917,
+      "sha256": "93ff1d37e04856fc17e43df84fc7675465dffe1a9268393aa73e7816cf044270",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_startup_diagnostics_py--001.md",

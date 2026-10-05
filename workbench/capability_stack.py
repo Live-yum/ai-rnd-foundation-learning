@@ -328,7 +328,8 @@ print(json.dumps({t:c.execute('SELECT count(*) FROM '+t).fetchone()[0] if t in n
 
 
 def owned_database_identity(sandbox, timeout):
-    query = "SELECT pg_catalog.json_build_object('database',current_database(),'database_oid',(SELECT oid FROM pg_catalog.pg_database WHERE datname=current_database()),'cluster',system_identifier::text,'directory',current_setting('data_directory')) FROM pg_catalog.pg_control_system()"
+    # PostgreSQL JSON encodes oid as text; int8 preserves its full unsigned range.
+    query = "SELECT pg_catalog.json_build_object('database',current_database(),'database_oid',(SELECT oid::pg_catalog.int8 FROM pg_catalog.pg_database WHERE datname=current_database()),'cluster',system_identifier::text,'directory',current_setting('data_directory')) FROM pg_catalog.pg_control_system()"
     argv = [
         PG_BIN + "psql",
         "-X",

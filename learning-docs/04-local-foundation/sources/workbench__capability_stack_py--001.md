@@ -20,17 +20,17 @@
 - `pg_control`（L192–L199）：接收`argv`。 调用`system_argv`。 返回路径：L193的`[ "/usr/sbin/runuser", "-u", "postgres", "--", *system_argv(["/usr/bin/env", "PGOPTIONS=-c…`。
 - `prepare_database`（L202–L278）：接收`sandbox`、`plan`、`timeout`、`restart`、`password`。 控制顺序：L203按`plan.selection.database == "sqlite"`分支；L205按`not restart`分支；L206遍历`( ["/usr/bin/mkdir", "-p", PG_SOCKET], ["/usr/bin/chown", "-R", "…`；L211按`control_exec(sandbox, argv, timeout).exit_code`分支；L212抛异常，停止当前正常路径；L221按`control_exec(sandbox, pg_control(command), timeout).exit_code`分支；L222抛异常，停止当前正常路径；L234按`control_exec(sandbox, pg_control(command), timeout).exit_code`分支。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`CheckFailure`、`pg_control`、`secrets.token_hex`、`sandbox.fs.upload_file`、`json.dumps({"password": verifier_password}).encode`、`json.dumps`、`str`。 返回路径：L204的`""`；L278的`password`。
 - `database_counts`（L281–L327）：接收`sandbox`、`plan`、`timeout`。 控制顺序：L283按`plan.selection.database == "sqlite"`分支；L310按`result.exit_code != 0`分支；L311抛异常，停止当前正常路径；L315抛异常，停止当前正常路径；L318遍历`tables`；L322按`status != 0 or not re.fullmatch(r"\d+\s*", output or "")`分支；L323抛异常，停止当前正常路径；L325按`set(values) != set(tables) or any(type(v) is not int or v < 0 for v in values.values(…`分支。后续分支沿下方源码相同行号继续阅读。 调用`sandbox.process.exec`、`shlex.join`、`dict`、`CheckFailure`、`json.loads`、`run_guarded_control`、`pg_verifier_argv`、`re.fullmatch`、`int`等。 返回路径：L327的`values`。
-- `owned_database_identity`（L330–L364）：接收`sandbox`、`timeout`。 控制顺序：L354按`result.exit_code or not isinstance(value, dict) or set(value) != {"database", "databa…`分支；L363抛异常，停止当前正常路径。 调用`str`、`control_exec`、`pg_control`、`len`、`json.loads`、`isinstance`、`set`、`type`、`re.fullmatch`等。 返回路径：L364的`{**value, "sandbox_id": sandbox.id}`。
-- `recreate_owned_native_database`（L367–L412）：接收`sandbox`、`plan`、`timeout`、`ownership`。 源码说明：Replace only this sandbox's disposable DB after the app UID is drained. The fixed name, private peer socket and postgres identity cannot be supplied by candidate code. Never call this against a config。 控制顺序：L373按`plan.selection.template != "fastapiadmin" or plan.selection.database != "postgresql"`分支；L374抛异常，停止当前正常路径；L378按`owned_database_identity(sandbox, timeout) != ownership`分支；L379抛异常，停止当前正常路径；L402遍历`commands`；L403按`control_exec(sandbox, pg_control(command), timeout).exit_code`分支；L404抛异常，停止当前正常路径；L406按`current["cluster"] != ownership["cluster"] or current["sandbox_id"] != ownership["san…`分支。后续分支沿下方源码相同行号继续阅读。 调用`CheckFailure`、`restart_application_identity`、`owned_database_identity`、`str`、`control_exec`、`pg_control`。 返回路径：L412的`current`。
-- `pg_verifier_argv`（L430–L434）：接收`query`。 源码说明：Actual low-privilege authentication, never SET ROLE on an admin session.。 控制顺序：L432按`not isinstance(query, str) or len(query.encode()) > 32768`分支；L433抛异常，停止当前正常路径。 调用`isinstance`、`len`、`query.encode`、`CheckFailure`。 返回路径：L434的`["/usr/bin/python3", "-I", "-S", "-c", PG_VERIFIER_EXEC, query]`。
+- `owned_database_identity`（L330–L365）：接收`sandbox`、`timeout`。 控制顺序：L355按`result.exit_code or not isinstance(value, dict) or set(value) != {"database", "databa…`分支；L364抛异常，停止当前正常路径。 调用`str`、`control_exec`、`pg_control`、`len`、`json.loads`、`isinstance`、`set`、`type`、`re.fullmatch`等。 返回路径：L365的`{**value, "sandbox_id": sandbox.id}`。
+- `recreate_owned_native_database`（L368–L413）：接收`sandbox`、`plan`、`timeout`、`ownership`。 源码说明：Replace only this sandbox's disposable DB after the app UID is drained. The fixed name, private peer socket and postgres identity cannot be supplied by candidate code. Never call this against a config。 控制顺序：L374按`plan.selection.template != "fastapiadmin" or plan.selection.database != "postgresql"`分支；L375抛异常，停止当前正常路径；L379按`owned_database_identity(sandbox, timeout) != ownership`分支；L380抛异常，停止当前正常路径；L403遍历`commands`；L404按`control_exec(sandbox, pg_control(command), timeout).exit_code`分支；L405抛异常，停止当前正常路径；L407按`current["cluster"] != ownership["cluster"] or current["sandbox_id"] != ownership["san…`分支。后续分支沿下方源码相同行号继续阅读。 调用`CheckFailure`、`restart_application_identity`、`owned_database_identity`、`str`、`control_exec`、`pg_control`。 返回路径：L413的`current`。
+- `pg_verifier_argv`（L431–L435）：接收`query`。 源码说明：Actual low-privilege authentication, never SET ROLE on an admin session.。 控制顺序：L433按`not isinstance(query, str) or len(query.encode()) > 32768`分支；L434抛异常，停止当前正常路径。 调用`isinstance`、`len`、`query.encode`、`CheckFailure`。 返回路径：L435的`["/usr/bin/python3", "-I", "-S", "-c", PG_VERIFIER_EXEC, query]`。
 
 </details>
 
-**创建路径：** `workbench/capability_stack.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L434。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_stack.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L435。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19458`。本段原文以LF换行结束。
+本段原始字节数：`19558`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_stack.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "696d5dbd58e56ec64991a27d3ebfed1f05812b7d95e35705fb10188e74c97e4b"} -->
+<!-- learning-source: {"path": "workbench/capability_stack.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "4b876b2c247a571c7cd23560ef06b7682ec537060d120e2f62289d0c8dbb6558"} -->
 ````python
 # workbench/capability_stack.py
 """Independent selected-language/framework and physical-database evidence.
@@ -363,7 +363,8 @@ print(json.dumps({t:c.execute('SELECT count(*) FROM '+t).fetchone()[0] if t in n
 
 
 def owned_database_identity(sandbox, timeout):
-    query = "SELECT pg_catalog.json_build_object('database',current_database(),'database_oid',(SELECT oid FROM pg_catalog.pg_database WHERE datname=current_database()),'cluster',system_identifier::text,'directory',current_setting('data_directory')) FROM pg_catalog.pg_control_system()"
+    # PostgreSQL JSON encodes oid as text; int8 preserves its full unsigned range.
+    query = "SELECT pg_catalog.json_build_object('database',current_database(),'database_oid',(SELECT oid::pg_catalog.int8 FROM pg_catalog.pg_database WHERE datname=current_database()),'cluster',system_identifier::text,'directory',current_setting('data_directory')) FROM pg_catalog.pg_control_system()"
     argv = [
         PG_BIN + "psql",
         "-X",

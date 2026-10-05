@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L329。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L333。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26617`。本段原文以LF换行结束。
+本段原始字节数：`27044`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0f496f7379dc1380b8f746be959c2ae90fb13ef6dc4c6f7509e6b55d43a89461"} -->
+<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e8aa6e336846eb50b9bc2136988bf9e1542a87d5e8ca1f2c919d01748a760ec7"} -->
 ````markdown
 <!-- docs/custom-source-isolation.md -->
 # 自定义源码执行：有证据的启用门
@@ -214,6 +214,8 @@ Vite 对照只验证兼容逻辑及失败分支；真实监听、应用健康与
 输出路径、二进制内容或环境。解释器探针保持相同 guard、身份和对应工作目录，后端运行
 固定 `-I -S` Python 探针，前端运行固定 Node 探针；均不加载候选源码。Node 输出只解析
 有界、完整错误记录中的固定错误码、errno 和 syscall，未知或不完整记录保持 unknown。
+跨平台 Node 格式夹具先按宿主 libuv 的 errno 表构造异常，再设置合成的目标 Linux
+errno 字段；Windows 数值映射另有回归。这些是格式契约测试，不代表宿主真实内核错误。
 探针执行和读取共用 5 秒期限，结果仅为诊断，不能替代应用健康或安全验收；任何诊断
 失败都保留原健康失败和容器删除路径。
 
@@ -257,6 +259,8 @@ sticky bit 继续保护不同 UID 的文件，标准根权限保留同容器 Pos
 新库重放只重建本次沙箱的临时 `rnd_product`：先确认应用 UID 没有存活线程，核对
 控制端保存的沙箱 ID、PG 集群标识、数据目录和原 OID；重建后确认同集群的新 OID、
 空业务表，再重放请求。没有使用用户数据库或候选指定的连接配置。
+固定身份 SQL 将 PostgreSQL 的 oid 显式转为 `pg_catalog.int8` 后再构造 JSON，确保
+返回数字；消费端继续拒绝字符串或布尔 OID，不以类型强制转换绕过身份校验。
 
 ### CI 的已验证纯源码交接
 

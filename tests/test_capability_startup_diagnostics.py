@@ -1055,21 +1055,18 @@ def test_node_properties_cannot_cross_error_records_or_truncated_boundaries():
         assert "private" not in json.dumps(result)
 
 
-@pytest.mark.skipif(
-    shutil.which("node") is None, reason="Trusted Node unavailable for owned formatter fixture"
-)
-@pytest.mark.parametrize(
-    "code,errno", [("ERR_SYSTEM_ERROR", 1), ("EACCES", -13), ("ENOENT", -2), ("EMFILE", -24)]
-)
-@pytest.mark.parametrize("logged", [False, True])
-def test_actual_node_formatter_produces_only_verified_public_facts(code, errno, logged):
+def node_error_fixture_script(code, errno, logged):
     # Trusted Node's own formatter with synthetic context; no candidate imports,
     # kernel-error claim, permission changes, or filesystem/network operations.
     if code == "ERR_SYSTEM_ERROR":
-        construct = "new codes.ERR_SYSTEM_ERROR({errno:1,code:'Unknown system error 1',message:'Unknown system error 1',syscall:'uv_interface_addresses'})"
+        construct = "const e=new codes.ERR_SYSTEM_ERROR({errno:1,code:'Unknown system error 1',message:'Unknown system error 1',syscall:'uv_interface_addresses'});"
     else:
+        # UVException ignores ctx.code and looks up ctx.errno in HOST libuv.
+        # Construct with that host number, then render the synthetic Linux
+        # container errno. Windows uses -4092/-4058/-4066, not -13/-2/-24.
+        # Node v22.23.2: lib/internal/errors.js:598 and deps/uv/include/uv/errno.h.
         construct = (
-            "new UVException("
+            "const ctx="
             + json.dumps(
                 {
                     "errno": errno,
@@ -1079,14 +1076,27 @@ def test_actual_node_formatter_produces_only_verified_public_facts(code, errno, 
                     "path": "/private-sentinel",
                 }
             )
-            + ")"
+            + ";const host=[...require('node:util').getSystemErrorMap()]"
+            ".find(([,entry])=>entry[0]===ctx.code);"
+            "if(!host)throw Error('owned errno lookup failed');"
+            "const e=new UVException({...ctx,errno:host[0]});e.errno=ctx.errno;"
         )
-    script = (
-        "Error.stackTraceLimit=1;const {codes,UVException}=require('internal/errors');const e="
+    return (
+        "Error.stackTraceLimit=1;const {codes,UVException}=require('internal/errors');"
         + construct
-        + ";"
         + ("console.error(e);" if logged else "throw e;")
     )
+
+
+@pytest.mark.skipif(
+    shutil.which("node") is None, reason="Trusted Node unavailable for owned formatter fixture"
+)
+@pytest.mark.parametrize(
+    "code,errno", [("ERR_SYSTEM_ERROR", 1), ("EACCES", -13), ("ENOENT", -2), ("EMFILE", -24)]
+)
+@pytest.mark.parametrize("logged", [False, True])
+def test_actual_node_formatter_produces_only_verified_public_facts(code, errno, logged):
+    script = node_error_fixture_script(code, errno, logged)
     process = subprocess.run(
         [shutil.which("node"), "--expose-internals", "-e", script],
         capture_output=True,
@@ -1107,6 +1117,58 @@ def test_actual_node_formatter_produces_only_verified_public_facts(code, errno, 
         "node-interface-enumeration" if code == "ERR_SYSTEM_ERROR" else "unknown"
     )
     assert "private" not in json.dumps(result)
+
+
+@pytest.mark.skipif(
+    shutil.which("node") is None, reason="Trusted Node unavailable for owned formatter fixture"
+)
+@pytest.mark.parametrize(
+    "code,errno,windows_errno",
+    [("EACCES", -13, -4092), ("ENOENT", -2, -4058), ("EMFILE", -24, -4066)],
+)
+@pytest.mark.parametrize("logged", [False, True])
+def test_real_node_fixture_handles_windows_libuv_map(code, errno, windows_errno, logged):
+    # Inject the verified Windows map only into this owned child process. The
+    # real UVException constructor and Node formatter remain unchanged.
+    windows = (
+        "const uv=require('internal/test/binding').internalBinding('uv');"
+        "const windowsMap=new Map([[-4092,['EACCES','permission denied']],"
+        "[-4058,['ENOENT','no such file or directory']],"
+        "[-4066,['EMFILE','too many open files']]]);"
+        "uv.getErrorMap=()=>new Map(windowsMap);uv.errmap=new Map(windowsMap);"
+        "const before=new (require('internal/errors').UVException)("
+        + json.dumps({"errno": errno, "code": code, "syscall": "open"})
+        + ");process.stdout.write(JSON.stringify({old_code:before.code,host_errno:"
+        "[...require('node:util').getSystemErrorMap()].find(([,entry])=>entry[0]==="
+        + json.dumps(code)
+        + ")[0]}));"
+    )
+    process = subprocess.run(
+        [
+            shutil.which("node"),
+            "--no-warnings",
+            "--expose-internals",
+            "-e",
+            windows + node_error_fixture_script(code, errno, logged),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+        env={
+            key: value
+            for key, value in os.environ.items()
+            if key not in {"NODE_OPTIONS", "NODE_PATH"}
+        },
+    )
+    assert process.returncode == (0 if logged else 1)
+    assert json.loads(process.stdout) == {"old_code": "UNKNOWN", "host_errno": windows_errno}
+    assert node_failure_facts(process.stderr) == {
+        "error_code": code,
+        "errno": errno,
+        "syscall": "open",
+        "component": "unknown",
+    }
 
 
 @pytest.mark.parametrize("value", [None, True, "", [], "x" * 129])

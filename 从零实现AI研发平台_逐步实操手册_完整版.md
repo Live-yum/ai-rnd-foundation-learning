@@ -13468,11 +13468,11 @@ def reset_owned_native_cache(sandbox, timeout):
 - `pg_control`（L192–L199）：接收`argv`。 调用`system_argv`。 返回路径：L193的`[ "/usr/sbin/runuser", "-u", "postgres", "--", *system_argv(["/usr/bin/env", "PGOPTIONS=-c…`。
 - `prepare_database`（L202–L278）：接收`sandbox`、`plan`、`timeout`、`restart`、`password`。 控制顺序：L203按`plan.selection.database == "sqlite"`分支；L205按`not restart`分支；L206遍历`( ["/usr/bin/mkdir", "-p", PG_SOCKET], ["/usr/bin/chown", "-R", "…`；L211按`control_exec(sandbox, argv, timeout).exit_code`分支；L212抛异常，停止当前正常路径；L221按`control_exec(sandbox, pg_control(command), timeout).exit_code`分支；L222抛异常，停止当前正常路径；L234按`control_exec(sandbox, pg_control(command), timeout).exit_code`分支。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`CheckFailure`、`pg_control`、`secrets.token_hex`、`sandbox.fs.upload_file`、`json.dumps({"password": verifier_password}).encode`、`json.dumps`、`str`。 返回路径：L204的`""`；L278的`password`。
 - `database_counts`（L281–L327）：接收`sandbox`、`plan`、`timeout`。 控制顺序：L283按`plan.selection.database == "sqlite"`分支；L310按`result.exit_code != 0`分支；L311抛异常，停止当前正常路径；L315抛异常，停止当前正常路径；L318遍历`tables`；L322按`status != 0 or not re.fullmatch(r"\d+\s*", output or "")`分支；L323抛异常，停止当前正常路径；L325按`set(values) != set(tables) or any(type(v) is not int or v < 0 for v in values.values(…`分支。后续分支沿下方源码相同行号继续阅读。 调用`sandbox.process.exec`、`shlex.join`、`dict`、`CheckFailure`、`json.loads`、`run_guarded_control`、`pg_verifier_argv`、`re.fullmatch`、`int`等。 返回路径：L327的`values`。
-- `owned_database_identity`（L330–L364）：接收`sandbox`、`timeout`。 控制顺序：L354按`result.exit_code or not isinstance(value, dict) or set(value) != {"database", "databa…`分支；L363抛异常，停止当前正常路径。 调用`str`、`control_exec`、`pg_control`、`len`、`json.loads`、`isinstance`、`set`、`type`、`re.fullmatch`等。 返回路径：L364的`{**value, "sandbox_id": sandbox.id}`。
-- `recreate_owned_native_database`（L367–L412）：接收`sandbox`、`plan`、`timeout`、`ownership`。 源码说明：Replace only this sandbox's disposable DB after the app UID is drained. The fixed name, private peer socket and postgres identity cannot be supplied by candidate code. Never call this against a config。 控制顺序：L373按`plan.selection.template != "fastapiadmin" or plan.selection.database != "postgresql"`分支；L374抛异常，停止当前正常路径；L378按`owned_database_identity(sandbox, timeout) != ownership`分支；L379抛异常，停止当前正常路径；L402遍历`commands`；L403按`control_exec(sandbox, pg_control(command), timeout).exit_code`分支；L404抛异常，停止当前正常路径；L406按`current["cluster"] != ownership["cluster"] or current["sandbox_id"] != ownership["san…`分支。后续分支沿下方源码相同行号继续阅读。 调用`CheckFailure`、`restart_application_identity`、`owned_database_identity`、`str`、`control_exec`、`pg_control`。 返回路径：L412的`current`。
-- `pg_verifier_argv`（L430–L434）：接收`query`。 源码说明：Actual low-privilege authentication, never SET ROLE on an admin session.。 控制顺序：L432按`not isinstance(query, str) or len(query.encode()) > 32768`分支；L433抛异常，停止当前正常路径。 调用`isinstance`、`len`、`query.encode`、`CheckFailure`。 返回路径：L434的`["/usr/bin/python3", "-I", "-S", "-c", PG_VERIFIER_EXEC, query]`。
+- `owned_database_identity`（L330–L365）：接收`sandbox`、`timeout`。 控制顺序：L355按`result.exit_code or not isinstance(value, dict) or set(value) != {"database", "databa…`分支；L364抛异常，停止当前正常路径。 调用`str`、`control_exec`、`pg_control`、`len`、`json.loads`、`isinstance`、`set`、`type`、`re.fullmatch`等。 返回路径：L365的`{**value, "sandbox_id": sandbox.id}`。
+- `recreate_owned_native_database`（L368–L413）：接收`sandbox`、`plan`、`timeout`、`ownership`。 源码说明：Replace only this sandbox's disposable DB after the app UID is drained. The fixed name, private peer socket and postgres identity cannot be supplied by candidate code. Never call this against a config。 控制顺序：L374按`plan.selection.template != "fastapiadmin" or plan.selection.database != "postgresql"`分支；L375抛异常，停止当前正常路径；L379按`owned_database_identity(sandbox, timeout) != ownership`分支；L380抛异常，停止当前正常路径；L403遍历`commands`；L404按`control_exec(sandbox, pg_control(command), timeout).exit_code`分支；L405抛异常，停止当前正常路径；L407按`current["cluster"] != ownership["cluster"] or current["sandbox_id"] != ownership["san…`分支。后续分支沿下方源码相同行号继续阅读。 调用`CheckFailure`、`restart_application_identity`、`owned_database_identity`、`str`、`control_exec`、`pg_control`。 返回路径：L413的`current`。
+- `pg_verifier_argv`（L431–L435）：接收`query`。 源码说明：Actual low-privilege authentication, never SET ROLE on an admin session.。 控制顺序：L433按`not isinstance(query, str) or len(query.encode()) > 32768`分支；L434抛异常，停止当前正常路径。 调用`isinstance`、`len`、`query.encode`、`CheckFailure`。 返回路径：L435的`["/usr/bin/python3", "-I", "-S", "-c", PG_VERIFIER_EXEC, query]`。
 
-<!-- source-file: workbench/capability_stack.py sha256: 696d5dbd58e56ec64991a27d3ebfed1f05812b7d95e35705fb10188e74c97e4b -->
+<!-- source-file: workbench/capability_stack.py sha256: 4b876b2c247a571c7cd23560ef06b7682ec537060d120e2f62289d0c8dbb6558 -->
 ````python
 """Independent selected-language/framework and physical-database evidence.
 
@@ -13804,7 +13804,8 @@ print(json.dumps({t:c.execute('SELECT count(*) FROM '+t).fetchone()[0] if t in n
 
 
 def owned_database_identity(sandbox, timeout):
-    query = "SELECT pg_catalog.json_build_object('database',current_database(),'database_oid',(SELECT oid FROM pg_catalog.pg_database WHERE datname=current_database()),'cluster',system_identifier::text,'directory',current_setting('data_directory')) FROM pg_catalog.pg_control_system()"
+    # PostgreSQL JSON encodes oid as text; int8 preserves its full unsigned range.
+    query = "SELECT pg_catalog.json_build_object('database',current_database(),'database_oid',(SELECT oid::pg_catalog.int8 FROM pg_catalog.pg_database WHERE datname=current_database()),'cluster',system_identifier::text,'directory',current_setting('data_directory')) FROM pg_catalog.pg_control_system()"
     argv = [
         PG_BIN + "psql",
         "-X",
@@ -122810,25 +122811,32 @@ def test_native_ci_requires_real_vite_after_baseline_before_source_admission():
 
 **逐个入口与控制逻辑：**
 
-- `identity`（L14–L21）：接收`oid`。 调用`dict`。 返回路径：L15的`dict( database="rnd_product", database_oid=oid, cluster="987654321", directory=stack.PG_RO…`。
-- `plan`（L24–L27）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`Selection`。 返回路径：L25的`SimpleNamespace( selection=Selection(template="fastapiadmin"), runtime=SimpleNamespace(por…`。
-- `test_reset_drains_before_identity_check_and_fixed_owned_ddl`（L30–L56）：接收`monkeypatch`。 控制顺序：L51断言`events[:2] == ["drain", "identity"]`；L52断言`len([row for row in events if isinstance(row, list)]) == 3`；L53断言`result["database_oid"] == 101`；L54断言`all(stack.PG_SOCKET in row for row in events if isinstance(row, list))`；L55断言`"dropdb" in " ".join(events[2]) and events[2][-1] == "rnd_product"`；L56断言`"--force" not in events[2]`。 调用`iter`、`identity`、`monkeypatch.setattr`、`events.append`、`stack.recreate_owned_native_database`、`SimpleNamespace`、`plan`、`len`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_reset_drains_before_identity_check_and_fixed_owned_ddl.owned`（L37–L39）：接收`*args`。 调用`events.append`、`next`。 返回路径：L39的`next(replies)`。
-- `test_reset_drains_before_identity_check_and_fixed_owned_ddl.execute`（L43–L45）：接收`sandbox`、`argv`、`timeout`。 调用`events.append`、`SimpleNamespace`。 返回路径：L45的`SimpleNamespace(exit_code=0)`。
-- `test_identity_drift_prevents_any_drop`（L63–L72）：接收`monkeypatch`、`field`、`value`。 调用`monkeypatch.setattr`、`identity`、`pytest.fail`、`pytest.raises`、`stack.recreate_owned_native_database`、`SimpleNamespace`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_live_thread_blocks_before_identity_or_ddl`（L75–L84）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`stack.recreate_owned_native_database`、`SimpleNamespace`、`plan`、`identity`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_live_thread_blocks_before_identity_or_ddl.fail`（L76–L77）：接收`*args`、`**kwargs`。 控制顺序：L77抛异常，停止当前正常路径。 调用`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_identity_reads_only_fixed_private_database`（L87–L100）：接收`monkeypatch`。 控制顺序：L97断言`stack.owned_database_identity(SimpleNamespace(id="owned-sandbox"), 30) == identity()`；L99断言`stack.PG_SOCKET in command and "rnd_product" in command`；L100断言`"pg_catalog.pg_control_system()" in command[-1]`。 调用`identity`、`body.pop`、`monkeypatch.setattr`、`stack.owned_database_identity`、`SimpleNamespace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_identity_reads_only_fixed_private_database.execute`（L92–L94）：接收`sandbox`、`argv`、`timeout`。 调用`seen.append`、`SimpleNamespace`、`json.dumps`。 返回路径：L94的`SimpleNamespace(exit_code=0, result=json.dumps(body))`。
+- `identity`（L16–L23）：接收`oid`。 调用`dict`。 返回路径：L17的`dict( database="rnd_product", database_oid=oid, cluster="987654321", directory=stack.PG_RO…`。
+- `plan`（L26–L29）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`Selection`。 返回路径：L27的`SimpleNamespace( selection=Selection(template="fastapiadmin"), runtime=SimpleNamespace(por…`。
+- `test_reset_drains_before_identity_check_and_fixed_owned_ddl`（L32–L58）：接收`monkeypatch`。 控制顺序：L53断言`events[:2] == ["drain", "identity"]`；L54断言`len([row for row in events if isinstance(row, list)]) == 3`；L55断言`result["database_oid"] == 101`；L56断言`all(stack.PG_SOCKET in row for row in events if isinstance(row, list))`；L57断言`"dropdb" in " ".join(events[2]) and events[2][-1] == "rnd_product"`；L58断言`"--force" not in events[2]`。 调用`iter`、`identity`、`monkeypatch.setattr`、`events.append`、`stack.recreate_owned_native_database`、`SimpleNamespace`、`plan`、`len`、`isinstance`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_reset_drains_before_identity_check_and_fixed_owned_ddl.owned`（L39–L41）：接收`*args`。 调用`events.append`、`next`。 返回路径：L41的`next(replies)`。
+- `test_reset_drains_before_identity_check_and_fixed_owned_ddl.execute`（L45–L47）：接收`sandbox`、`argv`、`timeout`。 调用`events.append`、`SimpleNamespace`。 返回路径：L47的`SimpleNamespace(exit_code=0)`。
+- `test_identity_drift_prevents_any_drop`（L71–L80）：接收`monkeypatch`、`field`、`value`。 调用`monkeypatch.setattr`、`identity`、`pytest.fail`、`pytest.raises`、`stack.recreate_owned_native_database`、`SimpleNamespace`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_thread_blocks_before_identity_or_ddl`（L83–L92）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`pytest.fail`、`pytest.raises`、`stack.recreate_owned_native_database`、`SimpleNamespace`、`plan`、`identity`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_live_thread_blocks_before_identity_or_ddl.fail`（L84–L85）：接收`*args`、`**kwargs`。 控制顺序：L85抛异常，停止当前正常路径。 调用`CheckFailure`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_reset_rejects_cluster_sandbox_drift_or_unchanged_oid`（L99–L107）：接收`monkeypatch`、`field`、`value`。 调用`iter`、`identity`、`monkeypatch.setattr`、`next`、`SimpleNamespace`、`pytest.raises`、`stack.recreate_owned_native_database`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_identity_reads_only_fixed_private_database`（L110–L126）：接收`monkeypatch`。 控制顺序：L120断言`stack.owned_database_identity(SimpleNamespace(id="owned-sandbox"), 30) == identity()`；L122断言`command[:4] == ["/usr/sbin/runuser", "-u", "postgres", "--"]`；L123断言`"PGOPTIONS=-c search_path=pg_catalog" in command`；L124断言`stack.PG_SOCKET in command and "rnd_product" in command`；L125断言`"pg_catalog.pg_control_system()" in command[-1]`；L126断言`"SELECT oid::pg_catalog.int8 FROM pg_catalog.pg_database" in command[-1]`。 调用`identity`、`body.pop`、`monkeypatch.setattr`、`stack.owned_database_identity`、`SimpleNamespace`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_identity_reads_only_fixed_private_database.execute`（L115–L117）：接收`sandbox`、`argv`、`timeout`。 调用`seen.append`、`SimpleNamespace`、`json.dumps`。 返回路径：L117的`SimpleNamespace(exit_code=0, result=json.dumps(body))`。
+- `test_identity_rejects_untrusted_fields_without_coercion`（L144–L152）：接收`monkeypatch`、`field`、`value`。 调用`identity`、`body.pop`、`monkeypatch.setattr`、`SimpleNamespace`、`json.dumps`、`pytest.raises`、`stack.owned_database_identity`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_identity_rejects_missing_malformed_or_oversize_reply`（L156–L159）：接收`monkeypatch`、`body`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`pytest.raises`、`stack.owned_database_identity`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_identity_rejects_failed_command_even_with_valid_json`（L162–L169）：接收`monkeypatch`。 调用`identity`、`body.pop`、`monkeypatch.setattr`、`SimpleNamespace`、`json.dumps`、`pytest.raises`、`stack.owned_database_identity`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_postgres_oid_json_requires_int8_cast`（L173–L192）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L175按`not url`分支；L186断言`type(value["original_oid"]) is str`；L187断言`type(value["numeric_oid"]) is int`；L188断言`value["numeric_oid"] == int(value["original_oid"]) > 0`；L189断言`type(value["maximum_oid"]) is int`；L190断言`value["maximum_oid"] == 2**32 - 1`。 调用`os.getenv`、`pytest.skip`、`create_engine`、`engine.connect`、`connection.exec_driver_sql( "SELECT pg_catalog.json_build_object(…`、`connection.exec_driver_sql`、`type`、`int`、`engine.dispose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_capability_native_database_reset.py sha256: 889da4b47f3a8ffb7e8c7213d94b00475e833195bd887ce15dc9dc816c3ffde8 -->
+<!-- source-file: tests/test_capability_native_database_reset.py sha256: e73df324651715b65d058b3f45b3d5d4573f7e9e17c2b89fd01ff48f70212b2d -->
 ````python
 """Controller resets only its attested ephemeral cluster; never user databases."""
 
 import json
+import os
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy import create_engine
 
 from workbench import capability_sandbox
 from workbench import capability_stack as stack
@@ -122883,7 +122891,13 @@ def test_reset_drains_before_identity_check_and_fixed_owned_ddl(monkeypatch):
 
 @pytest.mark.parametrize(
     "field,value",
-    [("cluster", "other"), ("sandbox_id", "other"), ("database", "userdb"), ("database_oid", 999)],
+    [
+        ("cluster", "other"),
+        ("sandbox_id", "other"),
+        ("database", "userdb"),
+        ("directory", "/other/data"),
+        ("database_oid", 999),
+    ],
 )
 def test_identity_drift_prevents_any_drop(monkeypatch, field, value):
     monkeypatch.setattr(capability_sandbox, "restart_application_identity", lambda *a, **kw: None)
@@ -122909,6 +122923,21 @@ def test_live_thread_blocks_before_identity_or_ddl(monkeypatch):
         )
 
 
+@pytest.mark.parametrize(
+    "field,value",
+    [("cluster", "other"), ("sandbox_id", "other"), ("database_oid", 100)],
+)
+def test_reset_rejects_cluster_sandbox_drift_or_unchanged_oid(monkeypatch, field, value):
+    replies = iter([identity(), {**identity(101), field: value}])
+    monkeypatch.setattr(capability_sandbox, "restart_application_identity", lambda *a, **kw: None)
+    monkeypatch.setattr(stack, "owned_database_identity", lambda *a: next(replies))
+    monkeypatch.setattr(stack, "control_exec", lambda *a: SimpleNamespace(exit_code=0))
+    with pytest.raises(CheckFailure, match="新库身份"):
+        stack.recreate_owned_native_database(
+            SimpleNamespace(id="owned-sandbox"), plan(), 30, identity()
+        )
+
+
 def test_identity_reads_only_fixed_private_database(monkeypatch):
     seen = []
     body = identity()
@@ -122921,8 +122950,77 @@ def test_identity_reads_only_fixed_private_database(monkeypatch):
     monkeypatch.setattr(stack, "control_exec", execute)
     assert stack.owned_database_identity(SimpleNamespace(id="owned-sandbox"), 30) == identity()
     command = seen[0]
+    assert command[:4] == ["/usr/sbin/runuser", "-u", "postgres", "--"]
+    assert "PGOPTIONS=-c search_path=pg_catalog" in command
     assert stack.PG_SOCKET in command and "rnd_product" in command
     assert "pg_catalog.pg_control_system()" in command[-1]
+    assert "SELECT oid::pg_catalog.int8 FROM pg_catalog.pg_database" in command[-1]
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("database", "userdb"),
+        ("directory", "/other/data"),
+        ("database_oid", "100"),
+        ("database_oid", True),
+        ("database_oid", 100.0),
+        ("database_oid", None),
+        ("cluster", ""),
+        ("cluster", "other"),
+        ("cluster", "1" * 31),
+        ("unexpected", True),
+    ],
+)
+def test_identity_rejects_untrusted_fields_without_coercion(monkeypatch, field, value):
+    body = identity()
+    body.pop("sandbox_id")
+    body[field] = value
+    monkeypatch.setattr(
+        stack, "control_exec", lambda *a: SimpleNamespace(exit_code=0, result=json.dumps(body))
+    )
+    with pytest.raises(CheckFailure, match="私有临时数据库身份"):
+        stack.owned_database_identity(SimpleNamespace(id="owned-sandbox"), 30)
+
+
+@pytest.mark.parametrize("body", ["", "not-json", "null", "[]", "{}", " " * 4097])
+def test_identity_rejects_missing_malformed_or_oversize_reply(monkeypatch, body):
+    monkeypatch.setattr(stack, "control_exec", lambda *a: SimpleNamespace(exit_code=0, result=body))
+    with pytest.raises(CheckFailure, match="私有临时数据库身份"):
+        stack.owned_database_identity(SimpleNamespace(id="owned-sandbox"), 30)
+
+
+def test_identity_rejects_failed_command_even_with_valid_json(monkeypatch):
+    body = identity()
+    body.pop("sandbox_id")
+    monkeypatch.setattr(
+        stack, "control_exec", lambda *a: SimpleNamespace(exit_code=1, result=json.dumps(body))
+    )
+    with pytest.raises(CheckFailure, match="私有临时数据库身份"):
+        stack.owned_database_identity(SimpleNamespace(id="owned-sandbox"), 30)
+
+
+@pytest.mark.postgres
+def test_postgres_oid_json_requires_int8_cast():
+    url = os.getenv("TEST_DATABASE_URL")
+    if not url:
+        pytest.skip("TEST_DATABASE_URL not set; mandatory in postgres Actions job")
+    engine = create_engine(url)
+    try:
+        with engine.connect() as connection:
+            value = connection.exec_driver_sql(
+                "SELECT pg_catalog.json_build_object("
+                "'original_oid',oid,'numeric_oid',oid::pg_catalog.int8,"
+                "'maximum_oid',4294967295::pg_catalog.oid::pg_catalog.int8) "
+                "FROM pg_catalog.pg_database WHERE datname=current_database()"
+            ).scalar_one()
+        assert type(value["original_oid"]) is str
+        assert type(value["numeric_oid"]) is int
+        assert value["numeric_oid"] == int(value["original_oid"]) > 0
+        assert type(value["maximum_oid"]) is int
+        assert value["maximum_oid"] == 2**32 - 1
+    finally:
+        engine.dispose()
 ````
 
 ### `tests/test_capability_native_egress.py`
@@ -127198,13 +127296,15 @@ def test_restart_inventory_sees_live_thread_under_zombie_group_leader(monkeypatc
 - `test_node_interface_failure_requires_same_closed_info_block`（L1009–L1020）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1010断言`node_failure_facts(NODE_SYSTEM_ERROR) == { "error_code": "ERR_SYSTEM_ERROR", "errno":…`；L1019断言`node_failure_facts(colored_output) == node_failure_facts(NODE_SYSTEM_ERROR)`；L1020断言`"private" not in json.dumps(node_failure_facts(NODE_SYSTEM_ERROR))`。 调用`node_failure_facts`、`"\n".join`、`NODE_SYSTEM_ERROR.splitlines`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_node_missing_conflicting_or_unrelated_properties_stay_unknown`（L1035–L1039）：接收`old`、`new`。 控制顺序：L1037断言`result["component"] == "unknown" and result["syscall"] == "unknown"`；L1038断言`"private" not in json.dumps(result)`；L1039断言`"ERR_PRIVATE" not in json.dumps(result)`。 调用`node_failure_facts`、`NODE_SYSTEM_ERROR.replace`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_node_properties_cannot_cross_error_records_or_truncated_boundaries`（L1042–L1055）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1045遍历`( first + second, NODE_SYSTEM_ERROR + "Error: private-terminal\n …`；L1054断言`result["component"] == "unknown"`；L1055断言`"private" not in json.dumps(result)`。 调用`NODE_SYSTEM_ERROR.replace`、`NODE_SYSTEM_ERROR.index`、`node_failure_facts`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_node_formatter_produces_only_verified_public_facts`（L1065–L1109）：接收`code`、`errno`、`logged`。 控制顺序：L1068按`code == "ERR_SYSTEM_ERROR"`分支；L1102断言`process.returncode == (0 if logged else 1)`；L1104断言`result["error_code"] == code and result["errno"] == errno`；L1105断言`result["syscall"] == ("uv_interface_addresses" if code == "ERR_SYSTEM_ERROR" else "op…`；L1106断言`result["component"] == ( "node-interface-enumeration" if code == "ERR_SYSTEM_ERROR" e…`；L1109断言`"private" not in json.dumps(result)`。 调用`json.dumps`、`subprocess.run`、`shutil.which`、`os.environ.items`、`node_failure_facts`、`pytest.mark.skipif`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_invalid_command_identity_cannot_issue_a_status_query`（L1114–L1123）：接收`value`、`field`。 控制顺序：L1120断言`startup_command_exit_facts(process, **identities, timeout=5) == { "command_exit_statu…`。 调用`SimpleNamespace`、`pytest.fail`、`startup_command_exit_facts`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_node_suffixless_terminal_error_cannot_borrow_prior_component`（L1131–L1164）：接收`name`、`logged`。 控制顺序：L1154断言`process.returncode == (0 if logged else 1)`；L1155断言`"ERR_SYSTEM_ERROR" in process.stderr and name + ": private-sentinel" in process.stder…`；L1156断言`len(process.stderr.encode()) < NATIVE_TAIL_LIMIT`；L1158断言`result == { "error_code": "unknown", "errno": None, "syscall": "unknown", "component"…`；L1164断言`name not in json.dumps(result, ensure_ascii=False)`。 调用`json.dumps`、`subprocess.run`、`shutil.which`、`os.environ.items`、`len`、`process.stderr.encode`、`node_failure_facts`、`pytest.mark.skipif`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_unknown_or_partial_terminal_record_remains_conservative`（L1177–L1184）：接收`terminal`。 控制顺序：L1179断言`result == { "error_code": "unknown", "errno": None, "syscall": "unknown", "component"…`。 调用`node_failure_facts`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_node_latest_known_record_and_raw_budget_do_not_borrow_other_records`（L1187–L1204）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1196断言`node_failure_facts(NODE_SYSTEM_ERROR + denied) == { "error_code": "EACCES", "errno": …`；L1202断言`node_failure_facts( NODE_SYSTEM_ERROR.ljust(NATIVE_TAIL_LIMIT) + "PrivateFailure: out…`。 调用`node_failure_facts`、`NODE_SYSTEM_ERROR.ljust`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `node_error_fixture_script`（L1058–L1088）：接收`code`、`errno`、`logged`。 控制顺序：L1061按`code == "ERR_SYSTEM_ERROR"`分支。 调用`json.dumps`。 返回路径：L1084的`"Error.stackTraceLimit=1;const {codes,UVException}=require('internal/errors');" + construc…`。
+- `test_actual_node_formatter_produces_only_verified_public_facts`（L1098–L1119）：接收`code`、`errno`、`logged`。 控制顺序：L1112断言`process.returncode == (0 if logged else 1)`；L1114断言`result["error_code"] == code and result["errno"] == errno`；L1115断言`result["syscall"] == ("uv_interface_addresses" if code == "ERR_SYSTEM_ERROR" else "op…`；L1116断言`result["component"] == ( "node-interface-enumeration" if code == "ERR_SYSTEM_ERROR" e…`；L1119断言`"private" not in json.dumps(result)`。 调用`node_error_fixture_script`、`subprocess.run`、`shutil.which`、`os.environ.items`、`node_failure_facts`、`json.dumps`、`pytest.mark.skipif`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_real_node_fixture_handles_windows_libuv_map`（L1130–L1171）：接收`code`、`errno`、`windows_errno`、`logged`。 控制顺序：L1164断言`process.returncode == (0 if logged else 1)`；L1165断言`json.loads(process.stdout) == {"old_code": "UNKNOWN", "host_errno": windows_errno}`；L1166断言`node_failure_facts(process.stderr) == { "error_code": code, "errno": errno, "syscall"…`。 调用`json.dumps`、`subprocess.run`、`shutil.which`、`node_error_fixture_script`、`os.environ.items`、`json.loads`、`node_failure_facts`、`pytest.mark.skipif`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_invalid_command_identity_cannot_issue_a_status_query`（L1176–L1185）：接收`value`、`field`。 控制顺序：L1182断言`startup_command_exit_facts(process, **identities, timeout=5) == { "command_exit_statu…`。 调用`SimpleNamespace`、`pytest.fail`、`startup_command_exit_facts`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_node_suffixless_terminal_error_cannot_borrow_prior_component`（L1193–L1226）：接收`name`、`logged`。 控制顺序：L1216断言`process.returncode == (0 if logged else 1)`；L1217断言`"ERR_SYSTEM_ERROR" in process.stderr and name + ": private-sentinel" in process.stder…`；L1218断言`len(process.stderr.encode()) < NATIVE_TAIL_LIMIT`；L1220断言`result == { "error_code": "unknown", "errno": None, "syscall": "unknown", "component"…`；L1226断言`name not in json.dumps(result, ensure_ascii=False)`。 调用`json.dumps`、`subprocess.run`、`shutil.which`、`os.environ.items`、`len`、`process.stderr.encode`、`node_failure_facts`、`pytest.mark.skipif`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_unknown_or_partial_terminal_record_remains_conservative`（L1239–L1246）：接收`terminal`。 控制顺序：L1241断言`result == { "error_code": "unknown", "errno": None, "syscall": "unknown", "component"…`。 调用`node_failure_facts`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_node_latest_known_record_and_raw_budget_do_not_borrow_other_records`（L1249–L1266）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1258断言`node_failure_facts(NODE_SYSTEM_ERROR + denied) == { "error_code": "EACCES", "errno": …`；L1264断言`node_failure_facts( NODE_SYSTEM_ERROR.ljust(NATIVE_TAIL_LIMIT) + "PrivateFailure: out…`。 调用`node_failure_facts`、`NODE_SYSTEM_ERROR.ljust`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: tests/test_capability_startup_diagnostics.py sha256: ead5ac530d1095cdb806abd04b12c1456a2cbad5fe425f12d5acd2735f0d0bbf -->
+<!-- source-file: tests/test_capability_startup_diagnostics.py sha256: 93ff1d37e04856fc17e43df84fc7675465dffe1a9268393aa73e7816cf044270 -->
 ````python
 """Startup hints cannot become product acceptance or disclose candidate output."""
 
@@ -128263,21 +128363,18 @@ def test_node_properties_cannot_cross_error_records_or_truncated_boundaries():
         assert "private" not in json.dumps(result)
 
 
-@pytest.mark.skipif(
-    shutil.which("node") is None, reason="Trusted Node unavailable for owned formatter fixture"
-)
-@pytest.mark.parametrize(
-    "code,errno", [("ERR_SYSTEM_ERROR", 1), ("EACCES", -13), ("ENOENT", -2), ("EMFILE", -24)]
-)
-@pytest.mark.parametrize("logged", [False, True])
-def test_actual_node_formatter_produces_only_verified_public_facts(code, errno, logged):
+def node_error_fixture_script(code, errno, logged):
     # Trusted Node's own formatter with synthetic context; no candidate imports,
     # kernel-error claim, permission changes, or filesystem/network operations.
     if code == "ERR_SYSTEM_ERROR":
-        construct = "new codes.ERR_SYSTEM_ERROR({errno:1,code:'Unknown system error 1',message:'Unknown system error 1',syscall:'uv_interface_addresses'})"
+        construct = "const e=new codes.ERR_SYSTEM_ERROR({errno:1,code:'Unknown system error 1',message:'Unknown system error 1',syscall:'uv_interface_addresses'});"
     else:
+        # UVException ignores ctx.code and looks up ctx.errno in HOST libuv.
+        # Construct with that host number, then render the synthetic Linux
+        # container errno. Windows uses -4092/-4058/-4066, not -13/-2/-24.
+        # Node v22.23.2: lib/internal/errors.js:598 and deps/uv/include/uv/errno.h.
         construct = (
-            "new UVException("
+            "const ctx="
             + json.dumps(
                 {
                     "errno": errno,
@@ -128287,14 +128384,27 @@ def test_actual_node_formatter_produces_only_verified_public_facts(code, errno, 
                     "path": "/private-sentinel",
                 }
             )
-            + ")"
+            + ";const host=[...require('node:util').getSystemErrorMap()]"
+            ".find(([,entry])=>entry[0]===ctx.code);"
+            "if(!host)throw Error('owned errno lookup failed');"
+            "const e=new UVException({...ctx,errno:host[0]});e.errno=ctx.errno;"
         )
-    script = (
-        "Error.stackTraceLimit=1;const {codes,UVException}=require('internal/errors');const e="
+    return (
+        "Error.stackTraceLimit=1;const {codes,UVException}=require('internal/errors');"
         + construct
-        + ";"
         + ("console.error(e);" if logged else "throw e;")
     )
+
+
+@pytest.mark.skipif(
+    shutil.which("node") is None, reason="Trusted Node unavailable for owned formatter fixture"
+)
+@pytest.mark.parametrize(
+    "code,errno", [("ERR_SYSTEM_ERROR", 1), ("EACCES", -13), ("ENOENT", -2), ("EMFILE", -24)]
+)
+@pytest.mark.parametrize("logged", [False, True])
+def test_actual_node_formatter_produces_only_verified_public_facts(code, errno, logged):
+    script = node_error_fixture_script(code, errno, logged)
     process = subprocess.run(
         [shutil.which("node"), "--expose-internals", "-e", script],
         capture_output=True,
@@ -128315,6 +128425,58 @@ def test_actual_node_formatter_produces_only_verified_public_facts(code, errno, 
         "node-interface-enumeration" if code == "ERR_SYSTEM_ERROR" else "unknown"
     )
     assert "private" not in json.dumps(result)
+
+
+@pytest.mark.skipif(
+    shutil.which("node") is None, reason="Trusted Node unavailable for owned formatter fixture"
+)
+@pytest.mark.parametrize(
+    "code,errno,windows_errno",
+    [("EACCES", -13, -4092), ("ENOENT", -2, -4058), ("EMFILE", -24, -4066)],
+)
+@pytest.mark.parametrize("logged", [False, True])
+def test_real_node_fixture_handles_windows_libuv_map(code, errno, windows_errno, logged):
+    # Inject the verified Windows map only into this owned child process. The
+    # real UVException constructor and Node formatter remain unchanged.
+    windows = (
+        "const uv=require('internal/test/binding').internalBinding('uv');"
+        "const windowsMap=new Map([[-4092,['EACCES','permission denied']],"
+        "[-4058,['ENOENT','no such file or directory']],"
+        "[-4066,['EMFILE','too many open files']]]);"
+        "uv.getErrorMap=()=>new Map(windowsMap);uv.errmap=new Map(windowsMap);"
+        "const before=new (require('internal/errors').UVException)("
+        + json.dumps({"errno": errno, "code": code, "syscall": "open"})
+        + ");process.stdout.write(JSON.stringify({old_code:before.code,host_errno:"
+        "[...require('node:util').getSystemErrorMap()].find(([,entry])=>entry[0]==="
+        + json.dumps(code)
+        + ")[0]}));"
+    )
+    process = subprocess.run(
+        [
+            shutil.which("node"),
+            "--no-warnings",
+            "--expose-internals",
+            "-e",
+            windows + node_error_fixture_script(code, errno, logged),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+        env={
+            key: value
+            for key, value in os.environ.items()
+            if key not in {"NODE_OPTIONS", "NODE_PATH"}
+        },
+    )
+    assert process.returncode == (0 if logged else 1)
+    assert json.loads(process.stdout) == {"old_code": "UNKNOWN", "host_errno": windows_errno}
+    assert node_failure_facts(process.stderr) == {
+        "error_code": code,
+        "errno": errno,
+        "syscall": "open",
+        "component": "unknown",
+    }
 
 
 @pytest.mark.parametrize("value", [None, True, "", [], "x" * 129])
@@ -206584,7 +206746,7 @@ and pass these trusted gates; an authored fixture must never be relabeled as tha
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/custom-source-isolation.md sha256: 0f496f7379dc1380b8f746be959c2ae90fb13ef6dc4c6f7509e6b55d43a89461 -->
+<!-- source-file: docs/custom-source-isolation.md sha256: e8aa6e336846eb50b9bc2136988bf9e1542a87d5e8ca1f2c919d01748a760ec7 -->
 ````markdown
 # 自定义源码执行：有证据的启用门
 
@@ -206783,6 +206945,8 @@ Vite 对照只验证兼容逻辑及失败分支；真实监听、应用健康与
 输出路径、二进制内容或环境。解释器探针保持相同 guard、身份和对应工作目录，后端运行
 固定 `-I -S` Python 探针，前端运行固定 Node 探针；均不加载候选源码。Node 输出只解析
 有界、完整错误记录中的固定错误码、errno 和 syscall，未知或不完整记录保持 unknown。
+跨平台 Node 格式夹具先按宿主 libuv 的 errno 表构造异常，再设置合成的目标 Linux
+errno 字段；Windows 数值映射另有回归。这些是格式契约测试，不代表宿主真实内核错误。
 探针执行和读取共用 5 秒期限，结果仅为诊断，不能替代应用健康或安全验收；任何诊断
 失败都保留原健康失败和容器删除路径。
 
@@ -206826,6 +206990,8 @@ sticky bit 继续保护不同 UID 的文件，标准根权限保留同容器 Pos
 新库重放只重建本次沙箱的临时 `rnd_product`：先确认应用 UID 没有存活线程，核对
 控制端保存的沙箱 ID、PG 集群标识、数据目录和原 OID；重建后确认同集群的新 OID、
 空业务表，再重放请求。没有使用用户数据库或候选指定的连接配置。
+固定身份 SQL 将 PostgreSQL 的 oid 显式转为 `pg_catalog.int8` 后再构造 JSON，确保
+返回数字；消费端继续拒绝字符串或布尔 OID，不以类型强制转换绕过身份校验。
 
 ### CI 的已验证纯源码交接
 
