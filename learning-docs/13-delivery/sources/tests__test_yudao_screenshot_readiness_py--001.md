@@ -13,19 +13,25 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `test_native_pixels_require_visible_fonts_and_stable_business_content`（L189–L197）：接收`tmp_path`、`monkeypatch`、`mode`。 控制顺序：L193按`not module or not Path(module).is_dir()`分支。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`monkeypatch.setattr`、`harness._run_driver`、`str`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `_capture_failure_summary`（L172–L223）：接收`path`。 源码说明：Expose only bounded numeric/boolean facts and a fixed phase vocabulary.。 控制顺序：L177按`len(raw) > 65536`分支；L182按`not isinstance(data, dict)`分支；L186按`data.get("phase") in ( "notice-settlement", "visible-fonts-and-layout", "native-pixel…`分支；L193遍历`("capture_attempts", "visible_text_nodes")`；L195按`type(value) is int and 0 <= value <= 1_000_000`分支；L197按`type(data.get("images_ready")) is bool`分支；L199遍历`( ( "timing", ("notice_ms", "sampling_ms", "pixels_ms", "samples"…`；L208按`isinstance(values, dict)`分支。后续分支沿下方源码相同行号继续阅读。 调用`path.open`、`source.read`、`len`、`json.loads`、`isinstance`、`data.get`、`type`、`values.get`、`all`等。 返回路径：L178的`{"available": False}`；L181的`{"available": False}`；L183的`{"available": False}`。
+- `test_native_pixels_require_visible_fonts_and_stable_business_content`（L246–L259）：接收`tmp_path`、`monkeypatch`、`mode`。 控制顺序：L250按`not module or not Path(module).is_dir()`分支；L259抛异常，停止当前正常路径。 调用`os.getenv`、`Path(module).is_dir`、`Path`、`pytest.skip`、`monkeypatch.setattr`、`harness._run_driver`、`str`、`_capture_failure_summary`、`print`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_capture_failure_summary_keeps_only_bounded_typed_facts`（L262–L298）：接收`tmp_path`。 控制顺序：L287断言`_capture_failure_summary(path) == { "available": True, "phase": "native-pixel-capture…`；L298断言`_capture_failure_summary(path) == {"available": True}`。 调用`path.write_text`、`json.dumps`、`_capture_failure_summary`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_capture_failure_summary_rejects_missing_malformed_or_oversized_data`（L302–L306）：接收`tmp_path`、`raw`。 控制顺序：L304按`raw is not None`分支；L306断言`_capture_failure_summary(path) == {"available": False}`。 调用`path.write_bytes`、`_capture_failure_summary`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fixture_failure_prints_sanitized_capture_summary`（L309–L332）：接收`tmp_path`、`monkeypatch`、`capsys`。 控制顺序：L329断言`capsys.readouterr().out == ( 'Native screenshot capture summary: {"available": true, …`。 调用`monkeypatch.setenv`、`str`、`monkeypatch.setattr`、`pytest.raises`、`test_native_pixels_require_visible_fonts_and_stable_business_cont…`、`capsys.readouterr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fixture_failure_prints_sanitized_capture_summary.fail_driver`（L312–L322）：接收`*args`。 控制顺序：L322抛异常，停止当前正常路径。 调用`(tmp_path / "capture.png.capture.json").write_text`、`json.dumps`、`AssertionError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_yudao_screenshot_readiness.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L197。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_yudao_screenshot_readiness.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L332。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12774`。本段原文以LF换行结束。
+本段原始字节数：`17966`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_yudao_screenshot_readiness.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9004c0ad77f87cd85c95040ab7575fc07cf0bf4c30fd5a07a921ae8081f3abcd"} -->
+<!-- learning-source: {"path": "tests/test_yudao_screenshot_readiness.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a64f175383669dcfa887085fe485aed93d73fef395dc74e83c7612e561cc4d11"} -->
 ````python
 # tests/test_yudao_screenshot_readiness.py
 """Real Chromium capture semantics; these fixtures are not native-stack receipts."""
 
+import json
 import os
 from pathlib import Path
 
@@ -45,8 +51,10 @@ const server=http.createServer((req,res)=>{
  if(req.url==='/missing-font'){res.writeHead(404);res.end();return;}
  res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'});
  const font=mode==='missing-visible-font'?'/missing-font':'/slow-font';
+ // Only the live-clock scenario needs equal-width digits. Generic monospace
+ // metrics can change during Chromium's first beyond-viewport capture.
  res.end(`<style>@font-face{font-family:CaptureProbe;src:url('${font}');${mode==='pending-unicode-range'?'unicode-range:U+20BB7;':''}}body{font-family:Arial,sans-serif;background:white;color:black}#record{margin:30px;padding:10px}</style>
- ${mode==='blank-business'?'':`<main id="record">Fixture customer title 123<input id="field" value="Private control value"><span id="clock" style="font-family:monospace">111</span><div id="hidden" style="display:none;font-family:CaptureProbe">Hidden text</div></main>`}
+ ${mode==='blank-business'?'':`<main id="record">Fixture customer title 123<input id="field" value="Private control value"><span id="clock" style="${mode==='refreshing-text'?'font-family:monospace':''}">111</span><div id="hidden" style="display:none;font-family:CaptureProbe">Hidden text</div></main>`}
  <script>
  if(${JSON.stringify(mode)}.includes('font')&&${JSON.stringify(mode)}!=='capture-visible-font'){
   if(${JSON.stringify(mode)}==='pending-control-font')document.querySelector('#field').style.fontFamily='CaptureProbe,Arial';
@@ -192,6 +200,60 @@ const server=http.createServer((req,res)=>{
 """
 
 
+def _capture_failure_summary(path):
+    """Expose only bounded numeric/boolean facts and a fixed phase vocabulary."""
+    try:
+        with path.open("rb") as source:
+            raw = source.read(65537)
+        if len(raw) > 65536:
+            return {"available": False}
+        data = json.loads(raw)
+    except OSError, ValueError, RecursionError:
+        return {"available": False}
+    if not isinstance(data, dict):
+        return {"available": False}
+
+    summary = {"available": True}
+    if data.get("phase") in (
+        "notice-settlement",
+        "visible-fonts-and-layout",
+        "native-pixel-capture",
+        "post-capture-readiness",
+    ):
+        summary["phase"] = data["phase"]
+    for key in ("capture_attempts", "visible_text_nodes"):
+        value = data.get(key)
+        if type(value) is int and 0 <= value <= 1_000_000:
+            summary[key] = value
+    if type(data.get("images_ready")) is bool:
+        summary["images_ready"] = data["images_ready"]
+    for group, keys, expected_type in (
+        (
+            "timing",
+            ("notice_ms", "sampling_ms", "pixels_ms", "samples", "duration_ms"),
+            int,
+        ),
+        ("last_capture_changes", ("layout", "text", "fonts", "images"), bool),
+    ):
+        values = data.get(group)
+        if isinstance(values, dict):
+            summary[group] = {
+                key: value
+                for key in keys
+                if type(value := values.get(key)) is expected_type
+                and (expected_type is bool or 0 <= value <= 1_000_000)
+            }
+    fonts = data.get("visible_fonts")
+    if (
+        isinstance(fonts, list)
+        and len(fonts) <= 64
+        and all(isinstance(font, dict) and type(font.get("loaded")) is bool for font in fonts)
+    ):
+        summary["visible_fonts_checked"] = len(fonts)
+        summary["visible_fonts_unready"] = sum(not font["loaded"] for font in fonts)
+    return summary
+
+
 @pytest.mark.parametrize(
     "mode",
     [
@@ -220,5 +282,83 @@ def test_native_pixels_require_visible_fonts_and_stable_business_content(
         pytest.skip("Actual pinned Playwright/Chromium required")
     # Reuse the already-tested, bounded owned-process runner, not pipe-only teardown.
     monkeypatch.setattr(harness, "DRIVER", DRIVER)
-    harness._run_driver(mode, str(tmp_path), module)
+    try:
+        harness._run_driver(mode, str(tmp_path), module)
+    except AssertionError:
+        summary = _capture_failure_summary(tmp_path / "capture.png.capture.json")
+        print("Native screenshot capture summary: " + json.dumps(summary, sort_keys=True))
+        raise
+
+
+def test_capture_failure_summary_keeps_only_bounded_typed_facts(tmp_path):
+    path = tmp_path / "capture.json"
+    private = "private page text https://secret.invalid/token local/private/path"
+    path.write_text(
+        json.dumps(
+            {
+                "phase": "native-pixel-capture",
+                "capture_attempts": 2,
+                "visible_text_nodes": True,
+                "images_ready": False,
+                "timing": {
+                    "notice_ms": 5,
+                    "sampling_ms": -1,
+                    "pixels_ms": 1_000_001,
+                    "samples": True,
+                    "duration_ms": 1500,
+                    "exception": private,
+                },
+                "last_capture_changes": {"layout": True, "text": private, "fonts": 1},
+                "visible_fonts": [{"font": private, "loaded": False}],
+                "font_faces": [{"family": private, "status": private}],
+                "exception": private,
+            }
+        )
+    )
+    assert _capture_failure_summary(path) == {
+        "available": True,
+        "phase": "native-pixel-capture",
+        "capture_attempts": 2,
+        "images_ready": False,
+        "timing": {"notice_ms": 5, "duration_ms": 1500},
+        "last_capture_changes": {"layout": True},
+        "visible_fonts_checked": 1,
+        "visible_fonts_unready": 1,
+    }
+    path.write_text(json.dumps({"phase": private, "visible_fonts": [{"loaded": 1}]}))
+    assert _capture_failure_summary(path) == {"available": True}
+
+
+@pytest.mark.parametrize("raw", [None, b"{", b"[]", b"\xff", b" " * 65537])
+def test_capture_failure_summary_rejects_missing_malformed_or_oversized_data(tmp_path, raw):
+    path = tmp_path / "capture.json"
+    if raw is not None:
+        path.write_bytes(raw)
+    assert _capture_failure_summary(path) == {"available": False}
+
+
+def test_fixture_failure_prints_sanitized_capture_summary(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("PRODUCT_VERIFY_PLAYWRIGHT", str(tmp_path))
+
+    def fail_driver(*args):
+        (tmp_path / "capture.png.capture.json").write_text(
+            json.dumps(
+                {
+                    "phase": "native-pixel-capture",
+                    "capture_attempts": 2,
+                    "exception": "private page text and token",
+                }
+            )
+        )
+        raise AssertionError("fixture failed")
+
+    monkeypatch.setattr(harness, "_run_driver", fail_driver)
+    with pytest.raises(AssertionError, match="fixture failed"):
+        test_native_pixels_require_visible_fonts_and_stable_business_content(
+            tmp_path, monkeypatch, "scrolled-long-page"
+        )
+    assert capsys.readouterr().out == (
+        'Native screenshot capture summary: {"available": true, '
+        '"capture_attempts": 2, "phase": "native-pixel-capture"}\n'
+    )
 ````

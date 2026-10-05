@@ -22,8 +22,11 @@ from pathlib import Path
 
 import yaml
 
+from scripts import daytona_dependency_build as dependencies
 from scripts import daytona_local as local
-from scripts.daytona_build import BUILT, export_source
+from scripts.daytona_build import BUILT, export_source, require_api_image
+from workbench.capability_dependencies import valid_native_runtime_patches
+from workbench.capability_isolation import ContainerInspectionRejected
 from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
 from workbench.settings import ROOT
 
@@ -34,6 +37,7 @@ PINNED_SOURCE = "01c502bb1f1ff8f2885d0cd490e043736083dca8"
 COMPOSE = "compose.capability.lock.yaml"
 LOCK = "capability-profile.lock.json"
 CONTROL_WORKDIR = "/opt/rnd/control"
+NATIVE_SHARED_MEMORY_BYTES = 67108864
 SOURCE_FILE = "apps/runner/pkg/docker/container_configs.go"
 SOURCE_BLOB = "d5a97203afa87c3fa0065702723c41645bf284b6"
 WORKSPACE_BLOB = "daf66a070fb41cdf12ecbbdb7dc4a20cf4b9bba0"
@@ -47,8 +51,35 @@ NEW = """		// Owned fixed-application profile: all application containers use
 		// Docker's unprivileged defaults, including its default seccomp filter.
 		Privileged: false,
 """
+LIMIT_ANCHOR = "\tcontainerRuntime := config.GetContainerRuntime()"
+LIMIT_INSERT = """\t// Custom-source executions get bounded writable storage on ordinary runners.
+\t// Root control remains distinct; Landlock confines every product write here.
+\tif strings.HasPrefix(sandboxDto.Name, "rnd-source-") {
+\t\t// Bind the primary mode to the same sole bridge checked before source admission.
+\t\thostConfig.NetworkMode = container.NetworkMode("runner-bridge")
+\t\t// The local upstream disables ordinary quotas; custom source cannot inherit that.
+\t\thostConfig.CPUPeriod = 100000
+\t\thostConfig.CPUQuota = 100000
+\t\thostConfig.Memory = 2 * 1024 * 1024 * 1024
+\t\tpidLimit := int64(256)
+\t\thostConfig.PidsLimit = &pidLimit
+\t\thostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"}
+\t\tif strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {
+\t\t\thostConfig.IpcMode = container.IpcMode("private")
+\t\t\thostConfig.ShmSize = 67108864
+\t\t\thostConfig.CPUQuota = 200000
+\t\t\thostConfig.Memory = 6 * 1024 * 1024 * 1024
+\t\t\tpidLimit = 384
+\t\t\thostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=4294967296,mode=1777"}
+\t\t}
+\t\thostConfig.MemorySwap = hostConfig.Memory
+\t}
+"""
 RECIPE_PATHS = (
     "scripts/daytona_capability_profile.py",
+    "scripts/daytona_dependency_image.py",
+    "scripts/daytona_dependency_build.py",
+    "scripts/daytona_dependency_build.lock.json",
     "tools/daytona/capability-runner.Dockerfile",
     "tools/daytona/capability-snapshot.Dockerfile",
     "tools/daytona/capability-runner.patch",
@@ -65,6 +96,7 @@ BASES = {
     "UV_IMAGE": "ghcr.io/astral-sh/uv:0.12.20",
     "NODE_IMAGE": "node:22.23.2-bookworm-slim",
     "SANDBOX_IMAGE": "daytonaio/sandbox:0.5.0-slim",
+    "RUST_IMAGE": "rust:1.85.1-bookworm",
 }
 # Upstream apps/daemon/tools/xterm.go assets, now bounded and SHA-256 checked.
 ASSETS = {
@@ -121,6 +153,7 @@ def read_base(directory):
         expected = record.get("image_id") if name in BUILT else record.get("digest")
         if service["image"] != expected or record["tag"] != local.IMAGES[name]:
             raise ValueError("Original local image lock does not match Compose: " + name)
+    require_api_image(records.get("api"), local.docker)
     return config
 
 
@@ -137,6 +170,9 @@ def source_context(directory, context):
     if blob((context / "go.work").read_bytes()) != WORKSPACE_BLOB:
         raise ValueError("Pinned Go workspace does not match")
     updated = raw.decode().replace(OLD, NEW)
+    if updated.count(LIMIT_ANCHOR) != 1:
+        raise ValueError("Pinned Runner custom-source resource anchor changed")
+    updated = updated.replace(LIMIT_ANCHOR, LIMIT_INSERT + LIMIT_ANCHOR, 1)
     expected_patch = "".join(
         difflib.unified_diff(
             raw.decode().splitlines(keepends=True),
@@ -172,7 +208,11 @@ def source_context(directory, context):
         "This is a local acceptance profile; it does not enable production source execution.\n",
         encoding="utf-8",
     )
-    return {"source_sha": DAYTONA_SOURCE, "go_inputs": inputs, "patched_sha256": sha256(updated)}
+    return {
+        "source_sha": DAYTONA_SOURCE,
+        "go_inputs": inputs,
+        "patched_sha256": sha256(updated),
+    }
 
 
 def download_assets(context):
@@ -273,6 +313,134 @@ def write_compose(path, config):
         path.chmod(0o600)
 
 
+def prepare_dependency_context(context, identity):
+    context = Path(context)
+    descriptors = {}
+    for name in ("pyproject.toml", "uv.lock"):
+        raw = (ROOT / "templates/product" / name).read_bytes()
+        (context / name).write_bytes(raw)
+        descriptors[name] = sha256(raw)
+    dependencies.validate_python(
+        (context / "pyproject.toml").read_bytes(), (context / "uv.lock").read_bytes()
+    )
+    for name in ("image", "build"):
+        shutil.copyfile(
+            ROOT / f"scripts/daytona_dependency_{name}.py",
+            context / f"dependency-{name}.py",
+        )
+    (context / "dependency-inputs.json").write_text(
+        json.dumps(
+            {
+                "recipe_identity": identity,
+                "original_descriptors": descriptors,
+                "normalized_descriptors": descriptors,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+
+def inspect_dependency_manifest(image_id, profile, descriptors):
+    if not re.fullmatch(r"sha256:[a-f0-9]{64}", image_id):
+        raise ValueError("Dependency inventory requires an immutable image ID")
+    raw = local.docker(
+        "run",
+        "--rm",
+        "--network=none",
+        "--read-only",
+        "--cap-drop=ALL",
+        "--security-opt=no-new-privileges",
+        "--user=65534:65534",
+        "--pids-limit=64",
+        "--memory=512m",
+        "--entrypoint=/usr/bin/python3",
+        image_id,
+        "-I",
+        "-S",
+        "/opt/rnd/bin/dependency-image.py",
+        "inspect",
+        "--profile",
+        profile,
+        timeout=300,
+    )
+    result = json.loads(raw)
+    if (
+        not isinstance(result, dict)
+        or set(result)
+        != {
+            "schema",
+            "profile",
+            "manifest_sha256",
+            "installed_tree_sha256",
+            "original_descriptors",
+        }
+        | ({"descriptor_roles", "runtime_patches"} if profile == "fastapiadmin" else set())
+        or type(result.get("schema")) is not int
+        or result.get("schema") != 1
+        or result.get("profile") != profile
+        or result.get("original_descriptors") != descriptors
+        or profile == "fastapiadmin"
+        and (
+            result.get("descriptor_roles") != dependencies.native_descriptor_roles()
+            or not valid_native_runtime_patches(result.get("runtime_patches"))
+            or set(descriptors)
+            != {name for paths in dependencies.native_descriptor_roles().values() for name in paths}
+        )
+        or any(
+            not isinstance(result.get(name), str)
+            or not re.fullmatch(r"[a-f0-9]{64}", result.get(name, ""))
+            for name in ("manifest_sha256", "installed_tree_sha256")
+        )
+    ):
+        raise ValueError("Image dependency manifest does not match exact descriptor inputs")
+    return {**result, "image_id": image_id}
+
+
+def validate_dependency_binding(value, image_id, profile, descriptors):
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "schema",
+            "profile",
+            "image_id",
+            "manifest_sha256",
+            "installed_tree_sha256",
+            "original_descriptors",
+        }
+        | ({"descriptor_roles", "runtime_patches"} if profile == "fastapiadmin" else set())
+        or type(value.get("schema")) is not int
+        or value.get("schema") != 1
+        or value.get("profile") != profile
+        or value.get("image_id") != image_id
+        or value.get("original_descriptors") != descriptors
+        or profile == "fastapiadmin"
+        and (
+            value.get("descriptor_roles") != dependencies.native_descriptor_roles()
+            or not valid_native_runtime_patches(value.get("runtime_patches"))
+            or set(descriptors)
+            != {name for paths in dependencies.native_descriptor_roles().values() for name in paths}
+        )
+        or any(
+            not isinstance(value.get(name), str) or not re.fullmatch(r"[a-f0-9]{64}", value[name])
+            for name in ("manifest_sha256", "installed_tree_sha256")
+        )
+    ):
+        raise ValueError("Dependency manifest lock lacks exact image/descriptor binding")
+
+
+def require_dependency_manifest(record, profile, descriptors):
+    image = record["snapshot"]
+    validate_dependency_binding(
+        image.get("dependency_manifest"), image["image_id"], profile, descriptors
+    )
+    expected = inspect_dependency_manifest(image["image_id"], profile, descriptors)
+    if image.get("dependency_manifest") != expected:
+        raise ValueError("Dependency manifest is not bound to the immutable profile image")
+    return expected
+
+
 def prepare(directory=HOME):
     directory = profile_directory(directory)
     base = read_base(directory)
@@ -282,7 +450,10 @@ def prepare(directory=HOME):
                 "Profile setup requires fresh local state; will not overwrite: " + name
             )
     info = json.loads(local.docker("info", "--format", "{{json .}}"))
-    if info.get("OSType") != "linux" or info.get("Architecture") not in {"amd64", "x86_64"}:
+    if info.get("OSType") != "linux" or info.get("Architecture") not in {
+        "amd64",
+        "x86_64",
+    }:
         raise ValueError("Capability profile supports only a local Linux amd64 Docker daemon")
     existing = local.docker(
         "compose",
@@ -320,14 +491,23 @@ def prepare(directory=HOME):
         )
         download_assets(context)
         runner = build_image(
-            directory, context, "capability-runner.Dockerfile", runner_tag, bases, identity
+            directory,
+            context,
+            "capability-runner.Dockerfile",
+            runner_tag,
+            bases,
+            identity,
         )
     with tempfile.TemporaryDirectory(prefix="capability-snapshot-", dir=directory) as temporary:
         context = Path(temporary)
-        for name in ("pyproject.toml", "uv.lock"):
-            shutil.copyfile(ROOT / "templates/product" / name, context / name)
+        prepare_dependency_context(context, identity)
         snapshot = build_image(
-            directory, context, "capability-snapshot.Dockerfile", snapshot_tag, bases, identity
+            directory,
+            context,
+            "capability-snapshot.Dockerfile",
+            snapshot_tag,
+            bases,
+            identity,
         )
     config = render_profile(base, runner["Id"], image_ref)
     # Registry startup uses the validated profile configuration, with an isolated
@@ -379,6 +559,14 @@ def prepare(directory=HOME):
             "recipe_sha256": recipes["tools/daytona/capability-snapshot.Dockerfile"],
         },
     }
+    record["snapshot"]["dependency_manifest"] = inspect_dependency_manifest(
+        snapshot["Id"],
+        "python-basic",
+        {
+            name: sha256((ROOT / "templates/product" / name).read_bytes())
+            for name in ("pyproject.toml", "uv.lock")
+        },
+    )
     # Commit readiness last. A partial build never produces a passing profile lock.
     write_compose(directory / COMPOSE, config)
     local.private_json(directory / "snapshot-image.json", record["snapshot"])
@@ -433,6 +621,15 @@ def load_profile(directory=HOME):
         or not re.fullmatch(r"sha256:[a-f0-9]{64}", record.get("runner", {}).get("image_id", ""))
     ):
         raise ValueError("Capability profile image lock does not match its derived identity")
+    validate_dependency_binding(
+        image.get("dependency_manifest"),
+        image["image_id"],
+        "python-basic",
+        {
+            name: sha256((ROOT / "templates/product" / name).read_bytes())
+            for name in ("pyproject.toml", "uv.lock")
+        },
+    )
     base = read_base(directory)
     config = yaml.safe_load((directory / COMPOSE).read_text(encoding="utf-8"))
     expected = render_profile(base, record["runner"]["image_id"], record["snapshot"]["image"])
@@ -471,10 +668,88 @@ def require_profile(directory=HOME, snapshot=None):
         "RepoDigests", []
     ):
         raise ValueError("Profile snapshot tag no longer matches the recorded ID and digest")
+    require_dependency_manifest(
+        record,
+        "python-basic",
+        {
+            name: sha256((ROOT / "templates/product" / name).read_bytes())
+            for name in ("pyproject.toml", "uv.lock")
+        },
+    )
     return record
 
 
-def inspect_created_sandbox(directory, sandbox_id):
+def require_execution_resources(host, *, native=False):
+    """Production source needs enforced limits, not API-requested resources.
+
+        Landlock confines candidate writes to the explicitly sized tmpfs. This
+        does not depend on the host's XFS/overlay project-quota configuration.
+    This never changes the user's daemon, disks or container settings.
+    """
+    memory, swap = host.get("Memory"), host.get("MemorySwap")
+    period, quota = host.get("CpuPeriod"), host.get("CpuQuota")
+    storage = host.get("Tmpfs", {})
+    memory_limit = (6 if native else 2) * 1024**3
+    tmpfs_bytes = 4294967296 if native else 1073741824
+    pids = 384 if native else 256
+    if (
+        type(memory) is not int
+        or not 0 < memory <= memory_limit
+        or type(swap) is not int
+        or swap != memory
+        or type(period) is not int
+        or not 0 < period <= 1000000
+        or type(quota) is not int
+        or not 0 < quota <= period * (2 if native else 1)
+        or not isinstance(storage, dict)
+        or storage != {"/tmp": f"rw,nosuid,nodev,size={tmpfs_bytes},mode=1777"}
+        or type(host.get("PidsLimit")) is not int
+        or host["PidsLimit"] != pids
+    ):
+        raise ContainerInspectionRejected(
+            "Custom source requires actual bounded CPU, memory, swap and storage quota",
+            category="resource_limits",
+            facts={
+                "native_resources": native,
+                "memory": memory,
+                "memory_swap": swap,
+                "cpu_period": period,
+                "cpu_quota": quota,
+                "pids_limit": host.get("PidsLimit"),
+                "tmpfs_keys_match": isinstance(storage, dict) and set(storage) == {"/tmp"},
+                "tmpfs_options_match": storage
+                == {"/tmp": f"rw,nosuid,nodev,size={tmpfs_bytes},mode=1777"},
+            },
+        )
+    return {
+        "cpu_period": period,
+        "cpu_quota": quota,
+        "memory": memory,
+        "memory_swap": swap,
+        "tmpfs_bytes": tmpfs_bytes,
+        "pids": pids,
+    }
+
+
+def require_native_shared_memory(host):
+    """Bind native execution to Docker's private, fixed-size default shm mount."""
+    ipc_private = host.get("IpcMode") == "private"
+    size_matches = (
+        type(host.get("ShmSize")) is int and host["ShmSize"] == NATIVE_SHARED_MEMORY_BYTES
+    )
+    if not ipc_private or not size_matches:
+        raise ContainerInspectionRejected(
+            "Native source requires exact private IPC and 64 MiB shared memory",
+            category="shared_memory",
+            facts={
+                "shared_memory_ipc_private": ipc_private,
+                "shared_memory_size_match": size_matches,
+            },
+        )
+    return {"ipc_mode": "private", "size_bytes": NATIVE_SHARED_MEMORY_BYTES}
+
+
+def inspect_created_sandbox(directory, sandbox_id, *, require_resources=False, selection=None):
     """Inspect only the newly owned UUID inside the verified profile Runner.
 
     Upstream create.go names the Docker container sandboxDto.Id. No shell,
@@ -484,14 +759,26 @@ def inspect_created_sandbox(directory, sandbox_id):
     from uuid import UUID
 
     if not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id:
-        raise ValueError("Owned sandbox must have one canonical UUID")
+        raise ContainerInspectionRejected(
+            "Owned sandbox must have one canonical UUID", category="sandbox_identity"
+        )
     record = require_profile(directory)
+    native = selection is not None and selection.get("template") == "fastapiadmin"
+    if native:
+        from scripts.daytona_native_capability_profile import require_native_profile
+
+        record = require_native_profile(directory)
     runner_id = compose(directory, "ps", "--quiet", "runner").strip()
     if not re.fullmatch(r"[a-f0-9]{64}", runner_id):
-        raise ValueError("Profile requires exactly one running Runner container")
+        raise ContainerInspectionRejected(
+            "Profile requires exactly one running Runner container",
+            category="runner_unavailable",
+        )
     rows = json.loads(local.docker("container", "inspect", runner_id))
     if len(rows) != 1:
-        raise ValueError("Profile Runner container identity is ambiguous")
+        raise ContainerInspectionRejected(
+            "Profile Runner container identity is ambiguous", category="runner_identity"
+        )
     runner = rows[0]
     labels = runner.get("Config", {}).get("Labels", {})
     if (
@@ -504,7 +791,10 @@ def inspect_created_sandbox(directory, sandbox_id):
         != ["/usr/local/bin/dind", "/usr/local/bin/rnd-runner-entry.sh"]
         or runner.get("Config", {}).get("Cmd")
     ):
-        raise ValueError("Running Runner does not match the owned profile")
+        raise ContainerInspectionRejected(
+            "Running Runner does not match the owned profile",
+            category="runner_identity",
+        )
     security = json.loads(
         local.docker(
             "exec",
@@ -519,7 +809,10 @@ def inspect_created_sandbox(directory, sandbox_id):
         )
     )
     if not isinstance(security, list) or "name=seccomp,profile=builtin" not in security:
-        raise ValueError("Inner Docker must report its enabled built-in seccomp filter")
+        raise ContainerInspectionRejected(
+            "Inner Docker must report its enabled built-in seccomp filter",
+            category="engine_seccomp",
+        )
     rows = json.loads(
         local.docker(
             "exec",
@@ -534,9 +827,63 @@ def inspect_created_sandbox(directory, sandbox_id):
         )
     )
     if len(rows) != 1:
-        raise ValueError("Owned application container identity is ambiguous")
+        raise ContainerInspectionRejected(
+            "Owned application container identity is ambiguous",
+            category="container_identity",
+        )
     container = rows[0]
     config, host = container.get("Config", {}), container.get("HostConfig", {})
+    shared_memory = require_native_shared_memory(host) if native else None
+    if require_resources:
+        networks = container.get("NetworkSettings", {}).get("Networks", {})
+        if set(networks) != {"runner-bridge"} or host.get("NetworkMode") != "runner-bridge":
+            raise ContainerInspectionRejected(
+                "Custom source must have only the exact owned Runner bridge",
+                category="sandbox_network",
+                facts={
+                    "network_mode": host.get("NetworkMode"),
+                    "network_count": len(networks),
+                    "runner_bridge_attached": "runner-bridge" in networks,
+                },
+            )
+        bridge = json.loads(
+            local.docker(
+                "exec",
+                runner_id,
+                "docker",
+                "--host",
+                "unix:///var/run/docker.sock",
+                "network",
+                "inspect",
+                "runner-bridge",
+                timeout=30,
+            )
+        )
+        if (
+            len(bridge) != 1
+            or bridge[0].get("EnableIPv6") is not False
+            or bridge[0].get("Driver") != "bridge"
+            or {item.get("Subnet") for item in bridge[0].get("IPAM", {}).get("Config", [])}
+            != {local.RUNNER_BRIDGE_SUBNET}
+        ):
+            actual = bridge[0] if len(bridge) == 1 else {}
+            ipam = actual.get("IPAM")
+            subnets = ipam.get("Config") if isinstance(ipam, dict) else None
+            raise ContainerInspectionRejected(
+                "Runner bridge address/IPv6 policy differs from the reviewed profile",
+                category="runner_bridge",
+                facts={
+                    "bridge_count": len(bridge),
+                    "bridge_ipv6_disabled": actual.get("EnableIPv6") is False,
+                    "bridge_driver_matches": actual.get("Driver") == "bridge",
+                    "bridge_subnets_match": isinstance(subnets, list)
+                    and bool(subnets)
+                    and all(
+                        isinstance(item, dict) and item.get("Subnet") == local.RUNNER_BRIDGE_SUBNET
+                        for item in subnets
+                    ),
+                },
+            )
     if (
         container.get("Name") != "/" + sandbox_id
         or container.get("Image") != record["snapshot"]["image_id"]
@@ -554,12 +901,34 @@ def inspect_created_sandbox(directory, sandbox_id):
         or host.get("IpcMode") not in (None, "", "private")
         or host.get("NetworkMode") in {"host", "none"}
     ):
-        raise ValueError("Created application container does not match the unprivileged profile")
+        raise ContainerInspectionRejected(
+            "Created application container does not match the unprivileged profile",
+            category="container_policy",
+        )
     expected = {
         "/usr/local/bin/daytona": "/usr/local/bin/.tmp/binaries/daemon-amd64",
         "/usr/local/lib/daytona-computer-use": "/usr/local/bin/.tmp/binaries/daytona-computer-use",
     }
     mounts = container.get("Mounts", [])
+    if require_resources:
+        tmpfs = [mount for mount in mounts if mount.get("Type") == "tmpfs"]
+        if len(tmpfs) > 1 or any(
+            mount.get("Destination") != "/tmp"
+            or mount.get("RW") is not True
+            or mount.get("Source") not in (None, "")
+            for mount in tmpfs
+        ):
+            raise ContainerInspectionRejected(
+                "Only the exact bounded application tmpfs is permitted",
+                category="tmpfs_mounts",
+                facts={
+                    "mount_count": len(tmpfs),
+                    "mount_destinations_match": all(m.get("Destination") == "/tmp" for m in tmpfs),
+                    "mount_writable_matches": all(m.get("RW") is True for m in tmpfs),
+                    "mount_sources_match": all(m.get("Source") in (None, "") for m in tmpfs),
+                },
+            )
+        mounts = [mount for mount in mounts if mount.get("Type") != "tmpfs"]
     if (
         len(mounts) != len(expected)
         or any(
@@ -570,19 +939,47 @@ def inspect_created_sandbox(directory, sandbox_id):
         )
         or {mount.get("Destination") for mount in mounts} != set(expected)
     ):
-        raise ValueError("Application mounts must be only the two trusted read-only binaries")
-    return {
-        "profile": PROFILE,
+        destinations = [m.get("Destination") for m in mounts if isinstance(m, dict)]
+        raise ContainerInspectionRejected(
+            "Application mounts must be only the two trusted read-only binaries",
+            category="binary_mounts",
+            facts={
+                "mount_count": len(mounts),
+                "mount_types_match": all(
+                    isinstance(m, dict) and m.get("Type") == "bind" for m in mounts
+                ),
+                "mount_readonly_matches": all(
+                    isinstance(m, dict) and m.get("RW") is False for m in mounts
+                ),
+                "mount_destinations_match": len(destinations) == len(mounts)
+                and all(isinstance(value, str) for value in destinations)
+                and set(destinations) == set(expected),
+                "mount_sources_match": all(
+                    isinstance(m, dict)
+                    and isinstance(m.get("Destination"), str)
+                    and expected.get(m["Destination"]) == m.get("Source")
+                    for m in mounts
+                ),
+            },
+        )
+    receipt = {
+        "profile": record["profile"],
         "sandbox_id": sandbox_id,
         "runner_image_id": record["runner"]["image_id"],
         "snapshot_image_id": record["snapshot"]["image_id"],
         "snapshot_digest": record["snapshot"]["digest"],
+        "dependency_manifest": copy.deepcopy(record["snapshot"]["dependency_manifest"]),
         "control_user": "0:0",
         "privileged": False,
         "seccomp": "docker-default",
         "seccomp_engine": "builtin",
         "trusted_readonly_binary_mounts": True,
     }
+    if require_resources:
+        receipt["resource_limits"] = require_execution_resources(host, native=native)
+    if native:
+        receipt["shared_memory"] = shared_memory
+    return receipt
 
 
 def up(directory=HOME):

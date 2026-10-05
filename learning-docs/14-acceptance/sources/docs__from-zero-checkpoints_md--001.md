@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/from-zero-checkpoints.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L138。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/from-zero-checkpoints.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L143。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12983`。本段原文以LF换行结束。
+本段原始字节数：`13671`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/from-zero-checkpoints.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1ea5bb1ed41c5a4037c5c0335e8c84cd9950a5d1a869467d05ffa4c42f86d952"} -->
+<!-- learning-source: {"path": "docs/from-zero-checkpoints.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a204dc7bdf42b9bb7ff015d44136032bf6fb004b5a6bd580db3ff4c57f974bbf"} -->
 ````markdown
 <!-- docs/from-zero-checkpoints.md -->
 # 从空目录到可信交付：逐站实操与证据阅读
@@ -47,16 +47,21 @@ uv run python -m scripts.build_handbook --check
 
 最后一条必须输出`Single handbook source consistency PASS`。如果只有你手写的源码而没有根目录生成手册，先运行不带`--check`的`build_handbook`生成它，再检查。这里验证源码与正文一致，不代表数据库、浏览器或Daytona已经运行过。
 
-独立的 `handbook-only` Actions 会把这一本书复制到临时目录，重建自有源码、固定第三方
-归档和 Continue，再实际执行完整非 PostgreSQL 套件。整套测试子进程的明确预算为
-1800 秒，外层 job 仍限制 40 分钟；安装等其他步骤沿用自己的预算，单项测试和浏览器等待
-没有因此放宽。超时始终失败，只中断和清理本次启动的测试进程，尽量让 pytest 写出 JUnit。
-`handbook-test-status.json` 记录阶段、预算、退出码、超时与清理状态，已产生的 JUnit 也会
-保留；这些诊断不能替代完整测试通过后的 `handbook-clean-room.json`。
+Actions 将源码检查、完整测试与教材重建拆成独立关卡。Ubuntu 和 Windows 各运行四个
+确定性测试分片；每个分片先收集当前平台的完整非 PostgreSQL 测试清单，再分配自己的
+用例。最终核对各分片并集、计数和摘要，缺片、重复、漏测或错误提交的产物均失败。
+PostgreSQL、浏览器、前端、干净安装与上游源码验收继续独立运行。
 
-普通全套测试的 job 总预算按平台区分：Linux 为 35 分钟，Windows 为 60 分钟，包含安装
-依赖和运行完整测试。Windows 的冷安装会占用较长前置时间；这个外层预算不修改任何
-浏览器、接口或单个测试的超时，也不会让被中断的套件变成通过。捕获子进程文本明确按
+`handbook-only` 只使用教材恢复项目，验证逐文件内容、教材往返、前端和固定第三方源码，
+输出绑定准确提交、运行及源码摘要的重建产物。后续四个完整测试分片、真实浏览器和独立
+安装关卡只从校验过的重建项目执行，不能导入原检出目录来代替教材可重建性证明。
+原有不带分片参数的本地教材验收入口仍保留完整流程。
+
+每个关卡保留诊断、日志或 JUnit；最终 `acceptance` 聚合关卡始终执行，只接受所有必需
+job 与对应证据真正通过，随后才允许 `delivery` 产生交付包。失败、取消、跳过、缺失或过期证据都不能变成绿色。
+测试分片的 job 总预算仍为 Linux 35 分钟、Windows 60 分钟；单项浏览器、接口及测试
+等待不因此放宽。重建后的三个执行 job 外层上限为90分钟，用于覆盖900秒锁定安装、3300秒工作进程预算及安装/上传余量，避免Actions先强杀而丢失清理证据；这不是单项业务等待时间。超时清理只作用于本次启动的进程。巨大攻击输入采用有界摘要测试名，
+原始测试数据与断言保持完整，避免把数兆字节参数复制进日志。捕获子进程文本明确按
 UTF-8 解码，不能依赖 Windows 当前的 cp1252 等本地编码。
 
 第三方框架不由你从零重写。按书中完整的`vendor_templates.py`、manifest和许可证重建固定上游源码归档，再运行`rnd init`。`uv.lock`、Node的`package-lock.json`和模板固定提交各自约束不同依赖，不可互相替代。

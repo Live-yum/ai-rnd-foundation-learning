@@ -2280,12 +2280,18 @@ def _legacy_declared_fields(text, fields):
     return result
 
 
-def coverage_gaps(requirement: Requirement, plan: Plan, *, diagnostics=None) -> list[str]:
+def coverage_gaps(
+    requirement: Requirement, plan: Plan, *, diagnostics=None, native_normalization=None
+) -> list[str]:
     """Return blocking messages; optionally record the exact deterministic provenance.
 
     Diagnostic source indices refer to the retained Requirement, never a model
     verdict. Consumers exporting diagnostics must allowlist values separately.
     """
+    if native_normalization:
+        from workbench.native_plan_normalization import source_plan
+
+        plan = source_plan(plan, native_normalization)
     gaps = entity_gaps(requirement, plan, diagnostics=diagnostics)
     fields = [(entity.name, field) for entity in plan.entities for field in entity.fields]
     typed_queries = {}

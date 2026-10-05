@@ -1,0 +1,35 @@
+{
+  "status": "approved-actions-only-pending-live-proof",
+  "activation_authorized": true,
+  "live_validation": false,
+  "baseline_path": "../review-only/moby-v28.0.4-default.json",
+  "baseline_sha256": "9c1025c88ccaa517b648da571961838744ea2137f176bfe6a48b21294cae9c76",
+  "baseline_provenance_manifest": "../review-only/proposal-manifest.json",
+  "proposal_file": "chromium141-docker28-native-amd64.proposal.json",
+  "proposal_sha256": "9e4d4398b47e0bdbd937121091aa846ebdba68e758561b417951d9a56bd4c69f",
+  "supported_target": {
+    "daemon_arch": "amd64",
+    "image_arch": "amd64",
+    "docker_version": "28.0.4",
+    "initial_caps": [],
+    "process_abi": "x86_64"
+  },
+  "allowed_syscall_abis": [
+    "SCMP_ARCH_X86_64"
+  ],
+  "changes": [
+    "native amd64 syscall ABI only; no x86/x32 compatibility ABI",
+    "remove socketcall from unconditional allows",
+    "replace socket and socketpair broad allowances with exact low32 != AF_VSOCK complement",
+    "preserve the five exact Chromium namespace/chroot allowances from v1"
+  ],
+  "offline_validation": "libseccomp export plus bounded classic-BPF evaluation only; no filter loaded; not CI compiler or kernel proof",
+  "required_before_activation": [
+    "independent review",
+    "explicit per-action approval",
+    "wire and review fail-closed observed-target guard",
+    "actual runtime/compiler/kernel/policy provenance and receipt binding",
+    "fresh positive and adversarial network, filesystem, resource, namespace and cleanup evidence"
+  ],
+  "activation_scope": "Disposable offline Actions browser workers only; explicit fixed-hash selector"
+}

@@ -538,8 +538,8 @@ SCRIPT_ROLES = {
     ),
     "ci_handbook.py": (
         "证明一本书足够重建平台",
-        "把教材单独复制进临时目录，恢复所有文本与二进制截图，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue。完整非PG套件有明确1800秒预算，外层仍40分钟；超时中断自有测试进程、保留阶段与已有JUnit且仍失败，不增加单项等待。",
-        "handbook-only工作流 → 本脚本 → handbook-test-status.json/JUnit；完整通过才产生handbook-clean-room.json。",
+        "把教材单独复制进临时目录，恢复所有文本与二进制截图，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue。CI将准确重建源码交给独立测试分片、浏览器和安装关卡，聚合逐项核对完整证据；本地完整入口仍保留。超时中断自有测试进程、保留阶段与已有JUnit且仍失败，不增加单项等待。",
+        "handbook-only准备关卡 → 重建产物 → 独立测试/浏览器/安装 → acceptance完整证据门 → delivery；本地完整验收仍输出handbook-clean-room.json。",
     ),
     "ci_clean_install.py": (
         "独立依赖环境与成品干净解压验收",
@@ -628,7 +628,7 @@ SCRIPT_ROLES = {
     ),
     "daytona_build.py": (
         "从固定来源构建并锁定本机镜像",
-        "验证源码Git对象、Runner发布字节与许可证，在干净构建上下文编译控制面和存储，记录不可变镜像身份；不猜测latest标签或切换云端服务。",
+        "验证源码Git对象、Runner发布字节与许可证，在干净构建上下文编译控制面和存储；API摘要分隔符修复只匹配固定源码blob及完整补丁，镜像标签和锁记录补丁与修改后源码SHA256。运行准入核对当前来源及实际API镜像ID/标签，拒绝旧锁或漂移，不猜测latest标签或切换云端服务。",
         "daytona_local images → Docker本机构建 → images.lock/compose.lock。",
     ),
     "daytona_bootstrap.py": (

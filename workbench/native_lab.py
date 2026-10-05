@@ -72,6 +72,7 @@ def run_acceptance(
     redis_port=6379,
     *,
     customization=None,
+    source_handoff=None,
 ):
     """Hold one non-ephemeral backend lease across all build/restart phases."""
     with backend_port_lease(Path(reports) / "backend-port.json") as backend_port:
@@ -85,6 +86,7 @@ def run_acceptance(
             plan,
             redis_port,
             customization=customization,
+            **({"source_handoff": source_handoff} if source_handoff is not None else {}),
             backend_port=backend_port,
         )
 
@@ -100,6 +102,7 @@ def _run_acceptance(
     redis_port=6379,
     *,
     customization=None,
+    source_handoff=None,
     backend_port,
 ):
     """Shared by CLI and CI; never reset an existing database or workspace."""
@@ -338,7 +341,12 @@ def _run_acceptance(
         )
         stage("independent-native-delivery")
         report["portable_restored"] = verify_native_delivery(
-            product_root, url, reports, redis_port, template=template
+            product_root,
+            url,
+            reports,
+            redis_port,
+            template=template,
+            **({"source_handoff": source_handoff} if source_handoff is not None else {}),
         )
         stage("accepted")
         write_json(reports / "acceptance.json", report)

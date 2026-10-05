@@ -13,6 +13,42 @@ const progress = { phase: 'contract', scenario_index: null, step_index: null, ac
 let firstFailure = null
 const errorNames = new Set(['Error', 'TypeError', 'SyntaxError', 'ReferenceError', 'TimeoutError'])
 
+// Fixed local kernel interfaces only. Cap every read and return finite values;
+// unavailable facts stay unknown and never authorize a sandbox fallback.
+// Facts describe this verifier process, not proof of the browser denial cause.
+function browserSecurityFacts() {
+  function read(filename) {
+    let fd
+    try {
+      fd = fs.openSync(filename, 'r')
+      const buffer = Buffer.alloc(8193)
+      const size = fs.readSync(fd, buffer, 0, buffer.length, 0)
+      return size <= 8192 ? buffer.subarray(0, size).toString('ascii').trim() : null
+    } catch { return null }
+    finally { if (fd !== undefined) { try { fs.closeSync(fd) } catch {} } }
+  }
+  function flag(filename) {
+    const value = read(filename)
+    return value === '1' || value === 'Y' ? true : value === '0' || value === 'N' ? false : null
+  }
+  const status = read('/proc/self/status')
+  function field(name) { return status === null ? null : status.match(new RegExp(`^${name}:\\s*([0-9a-f]+)$`, 'm'))?.[1] ?? null }
+  const nnp = field('NoNewPrivs')
+  const seccomp = field('Seccomp')
+  const caps = field('CapEff')
+  const profile = read('/proc/self/attr/current')
+  return {
+    uid_zero: typeof process.getuid === 'function' ? process.getuid() === 0 : null,
+    no_new_privileges: nnp === '1' ? true : nnp === '0' ? false : null,
+    seccomp_mode: ['0', '1', '2'].includes(seccomp) ? Number(seccomp) : null,
+    effective_capabilities: caps !== null && /^[0-9a-f]{16}$/.test(caps) ? /[1-9a-f]/.test(caps) : null,
+    apparmor_profile: profile === 'docker-default (enforce)' ? 'docker-default' : profile === 'unconfined' ? 'unconfined' : profile !== null && / \(enforce\)$/.test(profile) ? 'other-enforced' : 'unknown',
+    apparmor_enabled: flag('/sys/module/apparmor/parameters/enabled'),
+    apparmor_userns_restricted: flag('/proc/sys/kernel/apparmor_restrict_unprivileged_userns'),
+    unprivileged_userns_enabled: flag('/proc/sys/kernel/unprivileged_userns_clone'),
+  }
+}
+
 function rememberFailure(error) {
   if (firstFailure) return
   // Inspect trusted tool errors only to classify them. Never return their text,
@@ -33,8 +69,13 @@ function rememberFailure(error) {
   else if (progress.phase === 'navigation' && /net::ERR_NAME_NOT_RESOLVED/.test(message)) errorCode = 'name-resolution'
   else if (progress.phase === 'navigation' && /net::ERR_CONNECTION_REFUSED/.test(message)) errorCode = 'connection-refused'
   else if (progress.phase === 'navigation' && /net::ERR_/i.test(message)) errorCode = 'navigation-network'
+  const sandboxReason = errorCode !== 'sandbox-unavailable' ? null
+    : /Running as root without --no-sandbox/.test(message) ? 'root-launch'
+    : /Failed to move to new namespace/.test(message) ? 'namespace-entry-failed'
+    : 'no-usable-sandbox'
   firstFailure = {
     ...progress,
+    ...(progress.phase === 'launch' ? { sandbox_reason: sandboxReason, security_facts: browserSecurityFacts() } : {}),
     error_code: errorCode,
     error_type: error && errorNames.has(error.name) ? error.name : 'Other',
   }

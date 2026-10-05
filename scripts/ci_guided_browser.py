@@ -343,6 +343,43 @@ def main():
             (reports / "manual.log").write_text(manual.stdout + manual.stderr, encoding="utf-8")
             assert manual.returncode == 0, manual.stdout + manual.stderr
             assert not failures, failures
+            # Keep the real overlapping-response regression in every CI acceptance run.
+            stale_reports = reports / "manual-stale"
+            stale_reports.mkdir(exist_ok=True)
+            stale_evidence = directory / "manual-stale-input.json"
+            write_json(stale_evidence, {**config, "reports": str(stale_reports)})
+            stale = subprocess.run(
+                [
+                    "node",
+                    str(ROOT / "scripts/guided_browser.cjs"),
+                    "manual-stale",
+                    str(stale_evidence),
+                    str(browser),
+                ],
+                cwd=ROOT,
+                env=browser_env,
+                text=True,
+                capture_output=True,
+                timeout=120,
+            )
+            (stale_reports / "manual.log").write_text(stale.stdout + stale.stderr, encoding="utf-8")
+            assert stale.returncode == 0, stale.stdout + stale.stderr
+            assert not failures, failures
+            stale_outcome = json.loads((stale_reports / "manual.json").read_text())
+            assert all(
+                stale_outcome.get(field) is True
+                for field in (
+                    "passed",
+                    "real_delayed_refresh",
+                    "delayed_refresh_released",
+                    "stale_delivery_rereview",
+                    "verified_delivery_prerequisites",
+                    "rereview_did_not_submit",
+                    "rereview_did_not_call_provider",
+                    "approval_bound_to_delivery_gate",
+                )
+            )
+            assert stale_outcome["explicit_approval_count"] == 3
             recovery = subprocess.run(
                 [
                     "node",
@@ -504,6 +541,7 @@ def main():
                     "unicode_split_replay_dedupe": True,
                     "concurrent_stale_gate_rereview": True,
                     "explicit_manual_gates_and_delivery_lock": True,
+                    "real_delayed_delivery_rereview": True,
                     "failed_provider_same_run_retry": True,
                     "desktop_and_mobile_screenshots": True,
                     "secret_safe_settings": True,

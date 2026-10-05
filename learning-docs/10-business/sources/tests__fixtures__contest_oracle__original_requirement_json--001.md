@@ -1,0 +1,543 @@
+# tests/fixtures/contest_oracle/original_requirement.json · 1/1
+
+[阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
+
+
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
+
+**创建路径：** `tests/fixtures/contest_oracle/original_requirement.json`；**本文件共有 1 段**。本段覆盖源文件 L1–L523。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+
+本段原始字节数：`24713`。本段原文以LF换行结束。
+
+<!-- learning-source: {"path": "tests/fixtures/contest_oracle/original_requirement.json", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5cd44a9aa58d0d248071845dd4d10a158bc1c569455cb7e54d6f96538c3ceae5"} -->
+````json
+// tests/fixtures/contest_oracle/original_requirement.json
+{
+  "contract_version": "contest-business-v2",
+  "fixture_kind": "authored_reference_contract_not_user_approved_implementation",
+  "requirement_text": "一、 项目建设目标 (Project Objectives)\n本网站旨在构建一个高效、规范、透明的数字化赛事管理平台，全面替代传统的线下或表单收集模式，实现赛事报名的全流程信息化管理。\n\n业务流程闭环：实现从“学生注册/组队 -> 作品提交 -> 指导老师审核 -> 赛事管理员终审 -> 在线评审 -> 成绩公示”的全生命周期线上流转。\n\n多角色协同与权限控制：精准划分参赛学生、指导老师、评审专家和系统管理员的权限，确保数据安全与操作合规。\n\n提升赛事管理效率：自动化处理作品编号、数据统计、Excel/PDF 导出等高频行政任务，大幅降低人工组织成本。\n\n公平公正的评审机制：提供盲审模式、专家随机分配、多维度打分及防作弊机制，保障竞赛评审结果的公正性。\n\n良好的用户体验（UX）：页面设计简洁直观，响应式布局适配 PC 端与移动端，确保高峰期高并发访问的稳定性。\n\n二、 系统功能描述 (System Description)\n根据不同的用户角色，系统主要划分为以下四大功能模块：\n\n1. 参赛学生端（核心参与者）\n账号与身份认证：支持学号注册、邮箱/手机验证，完善个人基本信息（院校、专业、学号等）。\n\n组队管理：\n\n支持队长创建队伍并生成邀请码，队员通过邀请码加入队伍（限制每支队伍的最大人数及跨校组队规则）。\n\n灵活调整队员排序及贡献说明。\n\n作品报名与提交：\n\n填写作品基本信息（作品名称、参赛赛道、分类、摘要等）。\n\n绑定指导老师信息（需老师账号确认）。\n\n上传参赛材料：包括但不限于设计文档（PDF）、源代码压缩包、演示视频（支持大文件直传云存储或内嵌链接）、作品封面图等。\n\n状态与结果追踪：实时查看审核进度（待审核、已驳回、已报名成功）以及最终的评审成绩和奖项。\n\n2. 指导老师端（审核与把关）\n队伍绑定与审核：接收学生发起的指导请求，对学生提交的参赛作品及材料进行第一关的学术与合规性审查（可选择同意并签字，或驳回修改）。\n\n所带队伍总览：一目了然地查看自己名下所有参赛队伍的状态、作品及最终成绩。\n\n3. 评审专家端（线上评分）\n专家工作台：查看系统分配给自己的待评审作品列表。\n\n在线评审与打分：\n\n支持在线预览文档、观看视频、下载代码。\n\n根据赛事设定的评分标准（如：创新性、技术实现、实用价值、文档规范等）进行多维度打分，并填写评审评语。\n\n匿名/盲审支持：自动隐藏学生姓名、学校等敏感信息，确保评审客观公正。\n\n4. 赛事管理员端（系统总控）\n赛事配置管理：发布和编辑赛事通知、设置报名起止时间、开放赛道与组别分类、自定义评分标准与权重。\n\n用户与权限管理：管理所有注册用户（学生、老师、专家），批量导入/导出专家账号，分配评审任务（支持按赛道或随机分配）。\n\n审核终审：对学校或老师初审通过的队伍材料进行最终复核。\n\n数据统计与导出：\n\n实时大屏：统计报名总数、各赛道分布比例、各院校参赛情况。\n\n一键导出终审结果、获奖名单、评审汇总表（Excel 格式）。\n\n",
+  "source_units": [
+    {
+      "id": "source-0-0",
+      "message_index": 0,
+      "start": 0,
+      "end": 31,
+      "text": "一、 项目建设目标 (Project Objectives)\n",
+      "sha256": "4a602296c29c1504850b21f318e8c84aa89043429ed2518473acdf3f09a59480"
+    },
+    {
+      "id": "source-0-1",
+      "message_index": 0,
+      "start": 31,
+      "end": 94,
+      "text": "本网站旨在构建一个高效、规范、透明的数字化赛事管理平台，全面替代传统的线下或表单收集模式，实现赛事报名的全流程信息化管理。\n\n",
+      "sha256": "7095982e64bdb623441b8efc425e882cc04a982124f10d4d3d9068bb925161de"
+    },
+    {
+      "id": "source-0-2",
+      "message_index": 0,
+      "start": 94,
+      "end": 171,
+      "text": "业务流程闭环：实现从“学生注册/组队 -> 作品提交 -> 指导老师审核 -> 赛事管理员终审 -> 在线评审 -> 成绩公示”的全生命周期线上流转。\n\n",
+      "sha256": "b29194e46b0ffb1ee35d1c764f4a3f110ae49cc6c886616fc2e6d4dcc8271830"
+    },
+    {
+      "id": "source-0-3",
+      "message_index": 0,
+      "start": 171,
+      "end": 224,
+      "text": "多角色协同与权限控制：精准划分参赛学生、指导老师、评审专家和系统管理员的权限，确保数据安全与操作合规。\n\n",
+      "sha256": "0dc3a26d92466523c9b43f6289a27a223d250e65e81d8b534be6c6f096321427"
+    },
+    {
+      "id": "source-0-4",
+      "message_index": 0,
+      "start": 224,
+      "end": 281,
+      "text": "提升赛事管理效率：自动化处理作品编号、数据统计、Excel/PDF 导出等高频行政任务，大幅降低人工组织成本。\n\n",
+      "sha256": "3b49a50e0e3e38cbf936a0be99384b338393ae38b4543989f968546b58548b03"
+    },
+    {
+      "id": "source-0-5",
+      "message_index": 0,
+      "start": 281,
+      "end": 332,
+      "text": "公平公正的评审机制：提供盲审模式、专家随机分配、多维度打分及防作弊机制，保障竞赛评审结果的公正性。\n\n",
+      "sha256": "d076671099f8b66ffccd213299e88d28b7acc7490658a272efabd01eedd63a70"
+    },
+    {
+      "id": "source-0-6",
+      "message_index": 0,
+      "start": 332,
+      "end": 387,
+      "text": "良好的用户体验（UX）：页面设计简洁直观，响应式布局适配 PC 端与移动端，确保高峰期高并发访问的稳定性。\n\n",
+      "sha256": "84fb82f780a46ee50070e8c8c60e17f6905427c6a24a9742345f3e54dd581d29"
+    },
+    {
+      "id": "source-0-7",
+      "message_index": 0,
+      "start": 387,
+      "end": 418,
+      "text": "二、 系统功能描述 (System Description)\n",
+      "sha256": "c83fc963c65183ba4b8fe403318dc148529c2b508a3e0756f9e514a22b14a374"
+    },
+    {
+      "id": "source-0-8",
+      "message_index": 0,
+      "start": 418,
+      "end": 446,
+      "text": "根据不同的用户角色，系统主要划分为以下四大功能模块：\n\n",
+      "sha256": "f42412ab1971127b87e444e20e76ef73d33c817d640d35d571ce8f6f704c711c"
+    },
+    {
+      "id": "source-0-9",
+      "message_index": 0,
+      "start": 446,
+      "end": 462,
+      "text": "1. 参赛学生端（核心参与者）\n",
+      "sha256": "7322755ff4906ab233120af21240ead1ae4f309b338985b0fb2465493a8dce04"
+    },
+    {
+      "id": "source-0-10",
+      "message_index": 0,
+      "start": 462,
+      "end": 507,
+      "text": "账号与身份认证：支持学号注册、邮箱/手机验证，完善个人基本信息（院校、专业、学号等）。\n\n",
+      "sha256": "01ef65533f3f1725dc9ef596e662413c1265efaa62234e7d2fb85b0354d88989"
+    },
+    {
+      "id": "source-0-11",
+      "message_index": 0,
+      "start": 507,
+      "end": 514,
+      "text": "组队管理：\n\n",
+      "sha256": "6ce72c687de4d7541b46cc026d15be4aabd4e5cd126df407bc78ccf8ecb02184"
+    },
+    {
+      "id": "source-0-12",
+      "message_index": 0,
+      "start": 514,
+      "end": 563,
+      "text": "支持队长创建队伍并生成邀请码，队员通过邀请码加入队伍（限制每支队伍的最大人数及跨校组队规则）。\n\n",
+      "sha256": "4f95875c23c0fc0cf6a950c6a4c4be1aa06024500739edd99d94fca477935c76"
+    },
+    {
+      "id": "source-0-13",
+      "message_index": 0,
+      "start": 563,
+      "end": 579,
+      "text": "灵活调整队员排序及贡献说明。\n\n",
+      "sha256": "aa2aa4d04bfaf8701c31c19abd1cdaf81d05b1c171b954b18dafe0c9297bad1f"
+    },
+    {
+      "id": "source-0-14",
+      "message_index": 0,
+      "start": 579,
+      "end": 589,
+      "text": "作品报名与提交：\n\n",
+      "sha256": "dfda658b448499d6ba6cfe16d7344cd0ce2b6e8d998a3bab6e686d0fdd4731e0"
+    },
+    {
+      "id": "source-0-15",
+      "message_index": 0,
+      "start": 589,
+      "end": 618,
+      "text": "填写作品基本信息（作品名称、参赛赛道、分类、摘要等）。\n\n",
+      "sha256": "94b0ba853c45a71ff785e8e146e5c39e2b7008144cd837ccb70b6431fdb2c283"
+    },
+    {
+      "id": "source-0-16",
+      "message_index": 0,
+      "start": 618,
+      "end": 638,
+      "text": "绑定指导老师信息（需老师账号确认）。\n\n",
+      "sha256": "9d23d7578629711e27e8b1223ca03a3b002957a96b6ef0892ea59fe364f4c226"
+    },
+    {
+      "id": "source-0-17",
+      "message_index": 0,
+      "start": 638,
+      "end": 699,
+      "text": "上传参赛材料：包括但不限于设计文档（PDF）、源代码压缩包、演示视频（支持大文件直传云存储或内嵌链接）、作品封面图等。\n\n",
+      "sha256": "a5f0d4b72418d937cacbbd38abcecc74403b1ac9a2a0c44c88e70fcce2bba5e2"
+    },
+    {
+      "id": "source-0-18",
+      "message_index": 0,
+      "start": 699,
+      "end": 745,
+      "text": "状态与结果追踪：实时查看审核进度（待审核、已驳回、已报名成功）以及最终的评审成绩和奖项。\n\n",
+      "sha256": "74a3d23321828e5385570807d844d852ea8da1715827ebb77fb175e3721ff4bc"
+    },
+    {
+      "id": "source-0-19",
+      "message_index": 0,
+      "start": 745,
+      "end": 761,
+      "text": "2. 指导老师端（审核与把关）\n",
+      "sha256": "f36a9f457a470bd3cb16510aefd128029472517ef002ee82736ce9e91be2a3a9"
+    },
+    {
+      "id": "source-0-20",
+      "message_index": 0,
+      "start": 761,
+      "end": 827,
+      "text": "队伍绑定与审核：接收学生发起的指导请求，对学生提交的参赛作品及材料进行第一关的学术与合规性审查（可选择同意并签字，或驳回修改）。\n\n",
+      "sha256": "a302c131955ba28ff58b8f1473dc6f1726f6385540cfc790aec6ee1b6fdcbe9c"
+    },
+    {
+      "id": "source-0-21",
+      "message_index": 0,
+      "start": 827,
+      "end": 865,
+      "text": "所带队伍总览：一目了然地查看自己名下所有参赛队伍的状态、作品及最终成绩。\n\n",
+      "sha256": "da55dc7baa9a0d7ddaf44e6a8d26c9ecef1a2ca1b17e112f67ff1af103353b64"
+    },
+    {
+      "id": "source-0-22",
+      "message_index": 0,
+      "start": 865,
+      "end": 880,
+      "text": "3. 评审专家端（线上评分）\n",
+      "sha256": "eb122079ae9d5893ee9f5206085c2775ce6086e1d3a167634ebd12f685654239"
+    },
+    {
+      "id": "source-0-23",
+      "message_index": 0,
+      "start": 880,
+      "end": 906,
+      "text": "专家工作台：查看系统分配给自己的待评审作品列表。\n\n",
+      "sha256": "e2d03f48acf2837926b1d4196e54b4bf0b0dac33df300f3d60bed91047f09c39"
+    },
+    {
+      "id": "source-0-24",
+      "message_index": 0,
+      "start": 906,
+      "end": 916,
+      "text": "在线评审与打分：\n\n",
+      "sha256": "4aab2cd4a06138943877e2462cf02fcb296467a0b9b094c1015bcd745edda754"
+    },
+    {
+      "id": "source-0-25",
+      "message_index": 0,
+      "start": 916,
+      "end": 937,
+      "text": "支持在线预览文档、观看视频、下载代码。\n\n",
+      "sha256": "69bbadfd8307a14edcc3e862e64e08ec4d50e70e7399cd1c2fe92754d885b209"
+    },
+    {
+      "id": "source-0-26",
+      "message_index": 0,
+      "start": 937,
+      "end": 989,
+      "text": "根据赛事设定的评分标准（如：创新性、技术实现、实用价值、文档规范等）进行多维度打分，并填写评审评语。\n\n",
+      "sha256": "b974016bb243a3734e000dc7daaddb8fa4fd7d197abf6d84eca52ef23f6ee256"
+    },
+    {
+      "id": "source-0-27",
+      "message_index": 0,
+      "start": 989,
+      "end": 1025,
+      "text": "匿名/盲审支持：自动隐藏学生姓名、学校等敏感信息，确保评审客观公正。\n\n",
+      "sha256": "fa75696a0876767ef987b4018ac6045a9f41ed48d64e3bb41f1c65aa46d28220"
+    },
+    {
+      "id": "source-0-28",
+      "message_index": 0,
+      "start": 1025,
+      "end": 1041,
+      "text": "4. 赛事管理员端（系统总控）\n",
+      "sha256": "088173c9ff67724e617185c6f1bd637125d64979308173e5d41d3c2c45d6e11e"
+    },
+    {
+      "id": "source-0-29",
+      "message_index": 0,
+      "start": 1041,
+      "end": 1090,
+      "text": "赛事配置管理：发布和编辑赛事通知、设置报名起止时间、开放赛道与组别分类、自定义评分标准与权重。\n\n",
+      "sha256": "a117ed3877573ca5fa64baf4654483047abcba4796815ac81cf7905020b47a31"
+    },
+    {
+      "id": "source-0-30",
+      "message_index": 0,
+      "start": 1090,
+      "end": 1150,
+      "text": "用户与权限管理：管理所有注册用户（学生、老师、专家），批量导入/导出专家账号，分配评审任务（支持按赛道或随机分配）。\n\n",
+      "sha256": "32ecfe385d3cdab17ccbffa6e8516fc3fe6c3d81512a0b6bd40e2f42c2b41e65"
+    },
+    {
+      "id": "source-0-31",
+      "message_index": 0,
+      "start": 1150,
+      "end": 1179,
+      "text": "审核终审：对学校或老师初审通过的队伍材料进行最终复核。\n\n",
+      "sha256": "424a328aef6c21db6b17edc0fa89fbfc59366c3c5d0831319f58938a95ea22d4"
+    },
+    {
+      "id": "source-0-32",
+      "message_index": 0,
+      "start": 1179,
+      "end": 1189,
+      "text": "数据统计与导出：\n\n",
+      "sha256": "b6ea4669b656321f935d8a142a7a8d374313229ed37b6c72f5d026f59eb25ca9"
+    },
+    {
+      "id": "source-0-33",
+      "message_index": 0,
+      "start": 1189,
+      "end": 1219,
+      "text": "实时大屏：统计报名总数、各赛道分布比例、各院校参赛情况。\n\n",
+      "sha256": "57d9f2d7c89ffad2fa59304881b9e32e3c3c4a08507930cb75b7f0ec1fbbcf54"
+    },
+    {
+      "id": "source-0-34",
+      "message_index": 0,
+      "start": 1219,
+      "end": 1251,
+      "text": "一键导出终审结果、获奖名单、评审汇总表（Excel 格式）。\n\n",
+      "sha256": "840e161ae213b254b49670bd64bc683ab200054b9b3f2c86e2a3b3a4259c92a2"
+    }
+  ],
+  "goals": [
+    {
+      "goal_id": "goal-bfcffea82ba6feb2fa57553c",
+      "source_id": "source-0-0",
+      "source_text": "一、 项目建设目标 (Project Objectives)\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-b174f62dc8f86ed64b075122",
+      "source_id": "source-0-1",
+      "source_text": "本网站旨在构建一个高效、规范、透明的数字化赛事管理平台，全面替代传统的线下或表单收集模式，实现赛事报名的全流程信息化管理。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-9a1b381850dd61f303b8651d",
+      "source_id": "source-0-2",
+      "source_text": "业务流程闭环：实现从“学生注册/组队 -> 作品提交 -> 指导老师审核 -> 赛事管理员终审 -> 在线评审 -> 成绩公示”的全生命周期线上流转。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-21eb6b0c36d9934dac51d6dc",
+      "source_id": "source-0-3",
+      "source_text": "多角色协同与权限控制：精准划分参赛学生、指导老师、评审专家和系统管理员的权限，确保数据安全与操作合规。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-7c5662778b330501d2021c2a",
+      "source_id": "source-0-4",
+      "source_text": "提升赛事管理效率：自动化处理作品编号、数据统计、Excel/PDF 导出等高频行政任务，大幅降低人工组织成本。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-c71fa7e8ce56049675600a2f",
+      "source_id": "source-0-5",
+      "source_text": "公平公正的评审机制：提供盲审模式、专家随机分配、多维度打分及防作弊机制，保障竞赛评审结果的公正性。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-7790739178d99913e76a2373",
+      "source_id": "source-0-6",
+      "source_text": "良好的用户体验（UX）：页面设计简洁直观，响应式布局适配 PC 端与移动端，确保高峰期高并发访问的稳定性。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-aa16ea60bab1896dd0de9f81",
+      "source_id": "source-0-7",
+      "source_text": "二、 系统功能描述 (System Description)\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-c1762679f71d699102748660",
+      "source_id": "source-0-8",
+      "source_text": "根据不同的用户角色，系统主要划分为以下四大功能模块：\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-d86a2b5ca7c9986f22388de3",
+      "source_id": "source-0-9",
+      "source_text": "1. 参赛学生端（核心参与者）\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-17ba713005fab9f4b0b8dee3",
+      "source_id": "source-0-10",
+      "source_text": "账号与身份认证：支持学号注册、邮箱/手机验证，完善个人基本信息（院校、专业、学号等）。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-0f048bd10c5c57a9a18169f9",
+      "source_id": "source-0-11",
+      "source_text": "组队管理：\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-df273bacdcbcc7d3c26b791c",
+      "source_id": "source-0-12",
+      "source_text": "支持队长创建队伍并生成邀请码，队员通过邀请码加入队伍（限制每支队伍的最大人数及跨校组队规则）。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-ec4475e3158ad4a460a06c3a",
+      "source_id": "source-0-13",
+      "source_text": "灵活调整队员排序及贡献说明。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-c0b23bbb9ac09a2ee6b3d23e",
+      "source_id": "source-0-14",
+      "source_text": "作品报名与提交：\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-1bc6c878407534dcaaa61d06",
+      "source_id": "source-0-15",
+      "source_text": "填写作品基本信息（作品名称、参赛赛道、分类、摘要等）。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-bcc3f397a16af4f8ed4ba977",
+      "source_id": "source-0-16",
+      "source_text": "绑定指导老师信息（需老师账号确认）。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-a98114f5409c15c20bb017a0",
+      "source_id": "source-0-17",
+      "source_text": "上传参赛材料：包括但不限于设计文档（PDF）、源代码压缩包、演示视频（支持大文件直传云存储或内嵌链接）、作品封面图等。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-28fb374cda20b9abd7cecba2",
+      "source_id": "source-0-18",
+      "source_text": "状态与结果追踪：实时查看审核进度（待审核、已驳回、已报名成功）以及最终的评审成绩和奖项。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-f0d5cf9065464f57a706ec08",
+      "source_id": "source-0-19",
+      "source_text": "2. 指导老师端（审核与把关）\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-9f41f21e9f301827ecf17789",
+      "source_id": "source-0-20",
+      "source_text": "队伍绑定与审核：接收学生发起的指导请求，对学生提交的参赛作品及材料进行第一关的学术与合规性审查（可选择同意并签字，或驳回修改）。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-f083aca567cc708940096094",
+      "source_id": "source-0-21",
+      "source_text": "所带队伍总览：一目了然地查看自己名下所有参赛队伍的状态、作品及最终成绩。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-3f8a65f9c6bb4474220f42a6",
+      "source_id": "source-0-22",
+      "source_text": "3. 评审专家端（线上评分）\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-c81c5c040dbbc02e22bb21f1",
+      "source_id": "source-0-23",
+      "source_text": "专家工作台：查看系统分配给自己的待评审作品列表。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-85846c20b7eebbb4366f0bc5",
+      "source_id": "source-0-24",
+      "source_text": "在线评审与打分：\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-00e277196e921483eb5ed62a",
+      "source_id": "source-0-25",
+      "source_text": "支持在线预览文档、观看视频、下载代码。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-3b9831a23ed5ade97d22f7f9",
+      "source_id": "source-0-26",
+      "source_text": "根据赛事设定的评分标准（如：创新性、技术实现、实用价值、文档规范等）进行多维度打分，并填写评审评语。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-a3c87892b01ad6bbae260ba9",
+      "source_id": "source-0-27",
+      "source_text": "匿名/盲审支持：自动隐藏学生姓名、学校等敏感信息，确保评审客观公正。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-977f7ba89da916d7f1fa9d84",
+      "source_id": "source-0-28",
+      "source_text": "4. 赛事管理员端（系统总控）\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-28c1da6d30c6996f0193ed0d",
+      "source_id": "source-0-29",
+      "source_text": "赛事配置管理：发布和编辑赛事通知、设置报名起止时间、开放赛道与组别分类、自定义评分标准与权重。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-c8bf9f03003c892b09576066",
+      "source_id": "source-0-30",
+      "source_text": "用户与权限管理：管理所有注册用户（学生、老师、专家），批量导入/导出专家账号，分配评审任务（支持按赛道或随机分配）。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-fa0a94deac0e2df15e5c760a",
+      "source_id": "source-0-31",
+      "source_text": "审核终审：对学校或老师初审通过的队伍材料进行最终复核。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-df92a6a3ea69e7b3b09511b0",
+      "source_id": "source-0-32",
+      "source_text": "数据统计与导出：\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-e34221dbc8b9ddf27a2194d3",
+      "source_id": "source-0-33",
+      "source_text": "实时大屏：统计报名总数、各赛道分布比例、各院校参赛情况。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-2909de5fbe3267a983de52d6",
+      "source_id": "source-0-34",
+      "source_text": "一键导出终审结果、获奖名单、评审汇总表（Excel 格式）。\n\n",
+      "semantic": "original.full_source"
+    },
+    {
+      "goal_id": "goal-908b4f6a4fc27255e6bf7efd",
+      "source_id": "source-0-12",
+      "source_text": "支持队长创建队伍并生成邀请码，队员通过邀请码加入队伍（限制每支队伍的最大人数及跨校组队规则）。\n\n",
+      "semantic": "team.capacity_atomic"
+    },
+    {
+      "goal_id": "goal-a25414d7f86743b6d61dc793",
+      "source_id": "source-0-12",
+      "source_text": "支持队长创建队伍并生成邀请码，队员通过邀请码加入队伍（限制每支队伍的最大人数及跨校组队规则）。\n\n",
+      "semantic": "team.invitation_code_join"
+    },
+    {
+      "goal_id": "goal-ac41b3591aee723c99159ef6",
+      "source_id": "source-0-27",
+      "source_text": "匿名/盲审支持：自动隐藏学生姓名、学校等敏感信息，确保评审客观公正。\n\n",
+      "semantic": "review.identity_blind"
+    },
+    {
+      "goal_id": "goal-6f25f3a30c1716847923f844",
+      "source_id": "source-0-3",
+      "source_text": "多角色协同与权限控制：精准划分参赛学生、指导老师、评审专家和系统管理员的权限，确保数据安全与操作合规。\n\n",
+      "semantic": "access.outsider_denied"
+    }
+  ]
+}
+````

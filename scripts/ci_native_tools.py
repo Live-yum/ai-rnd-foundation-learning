@@ -19,7 +19,24 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("template", choices=["fastapiadmin", "yudao-vben"])
     parser.add_argument("--output", type=Path, default=ROOT / ".native/tool-product")
+    parser.add_argument("--capability-source", type=Path)
     args = parser.parse_args()
+    reports = ROOT / "reports/native-tools"
+    handoff = None
+    if args.capability_source is not None:
+        if args.template != "fastapiadmin":
+            parser.error("--capability-source requires the authored fastapiadmin baseline")
+        from scripts.ci_native_capability_source import SourceHandoff, ordinary_path
+
+        source_output, build_output = (
+            ordinary_path(args.capability_source),
+            ordinary_path(args.output),
+        )
+        if source_output.is_relative_to(build_output) or build_output.is_relative_to(source_output):
+            raise ValueError(
+                "CI source handoff must be independent of the original native buildtree"
+            )
+        handoff = SourceHandoff(source_output, reports / "capability-source.json")
     settings = Settings(
         data_dir=ROOT / ".data/native-tools",
         coding_engine="aider",
@@ -40,7 +57,6 @@ def main():
         )
     ]
     fixture = NativeCodingFixture(fail_first=True)
-    reports = ROOT / "reports/native-tools"
     outcome = {
         "passed": False,
         "template": args.template,
@@ -109,6 +125,7 @@ def main():
             reports,
             plan,
             customization=actual_customization,
+            **({"source_handoff": handoff.capture} if handoff is not None else {}),
         )
         final_permissions = json.loads(
             (reports / "generated/permissions.json").read_text(encoding="utf-8")
@@ -133,6 +150,8 @@ def main():
         )
     finally:
         write_json(reports / "toolchain-acceptance.json", outcome)
+    if handoff is not None:
+        handoff.complete(report, args.output)
     print(
         json.dumps(
             {

@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `scripts/capability_browser.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L119。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/capability_browser.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L160。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`7560`。本段原文以LF换行结束。
+本段原始字节数：`9881`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/capability_browser.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "688422559bc6ea00a4f2a94ebf2b6e4a051bfc02f3832e96e3f16bea0f63383b"} -->
+<!-- learning-source: {"path": "scripts/capability_browser.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "26e1057f64edf285e84c1238e37036b01b543052b2ea7ebb4b15016dc6402cd4"} -->
 ````javascript
 // scripts/capability_browser.cjs
 // scripts/capability_browser.cjs
@@ -31,6 +31,42 @@ const identity = {
 const progress = { phase: 'contract', scenario_index: null, step_index: null, action: null, navigation_status: null }
 let firstFailure = null
 const errorNames = new Set(['Error', 'TypeError', 'SyntaxError', 'ReferenceError', 'TimeoutError'])
+
+// Fixed local kernel interfaces only. Cap every read and return finite values;
+// unavailable facts stay unknown and never authorize a sandbox fallback.
+// Facts describe this verifier process, not proof of the browser denial cause.
+function browserSecurityFacts() {
+  function read(filename) {
+    let fd
+    try {
+      fd = fs.openSync(filename, 'r')
+      const buffer = Buffer.alloc(8193)
+      const size = fs.readSync(fd, buffer, 0, buffer.length, 0)
+      return size <= 8192 ? buffer.subarray(0, size).toString('ascii').trim() : null
+    } catch { return null }
+    finally { if (fd !== undefined) { try { fs.closeSync(fd) } catch {} } }
+  }
+  function flag(filename) {
+    const value = read(filename)
+    return value === '1' || value === 'Y' ? true : value === '0' || value === 'N' ? false : null
+  }
+  const status = read('/proc/self/status')
+  function field(name) { return status === null ? null : status.match(new RegExp(`^${name}:\\s*([0-9a-f]+)$`, 'm'))?.[1] ?? null }
+  const nnp = field('NoNewPrivs')
+  const seccomp = field('Seccomp')
+  const caps = field('CapEff')
+  const profile = read('/proc/self/attr/current')
+  return {
+    uid_zero: typeof process.getuid === 'function' ? process.getuid() === 0 : null,
+    no_new_privileges: nnp === '1' ? true : nnp === '0' ? false : null,
+    seccomp_mode: ['0', '1', '2'].includes(seccomp) ? Number(seccomp) : null,
+    effective_capabilities: caps !== null && /^[0-9a-f]{16}$/.test(caps) ? /[1-9a-f]/.test(caps) : null,
+    apparmor_profile: profile === 'docker-default (enforce)' ? 'docker-default' : profile === 'unconfined' ? 'unconfined' : profile !== null && / \(enforce\)$/.test(profile) ? 'other-enforced' : 'unknown',
+    apparmor_enabled: flag('/sys/module/apparmor/parameters/enabled'),
+    apparmor_userns_restricted: flag('/proc/sys/kernel/apparmor_restrict_unprivileged_userns'),
+    unprivileged_userns_enabled: flag('/proc/sys/kernel/unprivileged_userns_clone'),
+  }
+}
 
 function rememberFailure(error) {
   if (firstFailure) return
@@ -52,8 +88,13 @@ function rememberFailure(error) {
   else if (progress.phase === 'navigation' && /net::ERR_NAME_NOT_RESOLVED/.test(message)) errorCode = 'name-resolution'
   else if (progress.phase === 'navigation' && /net::ERR_CONNECTION_REFUSED/.test(message)) errorCode = 'connection-refused'
   else if (progress.phase === 'navigation' && /net::ERR_/i.test(message)) errorCode = 'navigation-network'
+  const sandboxReason = errorCode !== 'sandbox-unavailable' ? null
+    : /Running as root without --no-sandbox/.test(message) ? 'root-launch'
+    : /Failed to move to new namespace/.test(message) ? 'namespace-entry-failed'
+    : 'no-usable-sandbox'
   firstFailure = {
     ...progress,
+    ...(progress.phase === 'launch' ? { sandbox_reason: sandboxReason, security_facts: browserSecurityFacts() } : {}),
     error_code: errorCode,
     error_type: error && errorNames.has(error.name) ? error.name : 'Other',
   }

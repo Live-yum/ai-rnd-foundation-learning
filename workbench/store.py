@@ -270,6 +270,10 @@ class Store:
             if data["action"] == "approve" and not pending.get("can_approve", False):
                 raise Conflict("存在未支持项或先决条件尚未满足，不能批准")
             if data["action"] == "recommend" and pending.get("data", {}).get(
+                "requires_explicit_review"
+            ):
+                raise Conflict("本次权限或依赖变更需要明确人工审阅，不能智能推荐批准")
+            if data["action"] == "recommend" and pending.get("data", {}).get(
                 "capability_conflicts"
             ):
                 raise Conflict("模板能力尚未改变；智能推荐不能取消明确需求，请先答复范围选择")
@@ -559,6 +563,17 @@ class Store:
                     },
                 )
             )
+            if (
+                enabled
+                and run.pending
+                and run.pending.get("data", {}).get("requires_explicit_review")
+            ):
+                return {
+                    "run_id": run_id,
+                    "auto_mode": enabled,
+                    "status": run.status,
+                    "message": "本次模块权限变更仍需明确人工审批；自动模式不会消费当前关卡",
+                }
             if enabled and run.pending and run.pending.get("data", {}).get("capability_conflicts"):
                 # Delegation can choose missing details, not cancel a user's goal.
                 # Keep this exact gate and avoid a new model job for known limits.
@@ -596,7 +611,12 @@ class Store:
     def auto_approve(self, run_id, gate):
         with self.tx() as session:
             run = session.get(Run, run_id)
-            if not run or not run.auto_mode or not gate["can_approve"]:
+            if (
+                not run
+                or not run.auto_mode
+                or not gate["can_approve"]
+                or gate.get("data", {}).get("requires_explicit_review")
+            ):
                 raise Conflict("没有有效智能推荐授权，或存在不能自动通过的阻塞项")
             current = session.get(Approval, gate["gate_id"])
             if current and not current.decision:
@@ -685,6 +705,8 @@ class Store:
         ):
             raise Conflict("工作流恢复凭据与等待点不一致")
         if value["action"] == "recommend":
+            if gate.get("data", {}).get("requires_explicit_review"):
+                raise Conflict("该模块权限变更需要明确人工审批")
             if value.get("approved") is not True or not self.get_run(run_id)["auto_mode"]:
                 raise Conflict("没有有效的智能推荐授权")
         if value["action"] == "approve" and not gate.get("can_approve", False):

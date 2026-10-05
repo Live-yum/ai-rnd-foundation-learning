@@ -10,13 +10,379 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `scripts/guided_browser.cjs`；**本文件共有 2 段**。本段覆盖源文件 L873–L1203。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/guided_browser.cjs`；**本文件共有 2 段**。本段覆盖源文件 L790–L1520。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`11763`。本段原文以LF换行结束。
+本段原始字节数：`25356`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "fa0c3b9678a718fbffd2ef1443490812aedbc99e16d816ca62cabb79dc78451d"} -->
+<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 2, "parts": 2, "encoding": "utf-8", "sha256": "eba39b807277ef3c2329e228b7779de2d20f77f68638237147b8734f67899063"} -->
 ````javascript
 // scripts/guided_browser.cjs
+async function manual(page, cfg, delayedRefresh = false) {
+  await connect(page, cfg);
+  const runId = await createRun(
+    page,
+    { ...cfg, requirement: "人工审批验收" },
+    "人工审核完整交付验收",
+  );
+  const refreshes = observeRunRefreshes(page, runId);
+  await waitStatus(page, "WAITING_REQUIREMENTS");
+  await page
+    .getByRole("button", { name: "查看并审核当前版本", exact: true })
+    .click();
+  let approve = page.getByRole("button", {
+    name: "确认需求，生成计划",
+    exact: true,
+  });
+  assert(
+    await approve.isDisabled(),
+    "Reading acknowledgment must precede approval",
+  );
+  await capture(page, {
+    animations: "disabled",
+    path: path.join(cfg.reports, "workbench-requirements-desktop.png"),
+    fullPage: true,
+  });
+  const submissions = [];
+  page.on("request", (request) => {
+    if (request.url().endsWith(`/runs/${runId}/resume`))
+      submissions.push(request.postDataJSON());
+  });
+  await page
+    .getByRole("checkbox", { name: "我已阅读并核对当前版本", exact: true })
+    .check();
+  await approve.dblclick();
+  await waitStatus(page, "WAITING_DESIGN");
+  assert.equal(
+    submissions.length,
+    1,
+    "Repeated approval clicks consume a gate only once",
+  );
+  assert.equal(submissions[0].approved, true);
+  assert(
+    submissions[0].gate_id && submissions[0].version && submissions[0].digest,
+  );
+  await page
+    .getByRole("button", { name: "查看并审核当前版本", exact: true })
+    .click();
+  approve = page.getByRole("button", {
+    name: "确认设计，开始生成",
+    exact: true,
+  });
+  assert(
+    await approve.isDisabled(),
+    "A new design requires its own fresh review",
+  );
+  for (const name of ["接口与业务", "数据模型", "任务与覆盖", "架构与模块"])
+    await page.getByRole("tab", { name, exact: true }).click();
+  await capture(page, {
+    animations: "disabled",
+    path: path.join(cfg.reports, "workbench-design-desktop.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator("#main-content").focus();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await noHorizontalOverflow(page);
+  await capture(page, {
+    animations: "disabled",
+    path: path.join(cfg.reports, "workbench-design-mobile.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await page
+    .getByRole("checkbox", { name: "我已阅读并核对当前版本", exact: true })
+    .check();
+  let releaseRefresh;
+  let heldRefresh = false;
+  let releasedRefresh = false;
+  const held = new Promise((resolve) => {
+    releaseRefresh = resolve;
+  });
+  if (delayedRefresh)
+    await page.route(`**/runs/${runId}/report`, async (request) => {
+      const status = await page.evaluate(
+        () =>
+          document.querySelector('[data-testid="run-workspace"]')?.dataset
+            .status,
+      );
+      if (!heldRefresh && status === "RUNNING") {
+        heldRefresh = true;
+        // Delay one genuine read in an older refresh batch. Never fulfill/mock it.
+        await held;
+      }
+      await request.continue();
+    });
+  await approve.click();
+  await page.getByRole("button", { name: "查看进度", exact: true }).click();
+  await page
+    .getByRole("heading", { name: "每个阶段，都有可追溯的结果", exact: true })
+    .waitFor();
+  await capture(page, {
+    animations: "disabled",
+    path: path.join(cfg.reports, "workbench-progress-desktop.png"),
+    fullPage: true,
+  });
+  await waitStatus(page, "WAITING_DELIVERY", 100000);
+  const reviewDeadline = Date.now() + 60000;
+  if (delayedRefresh) {
+    assert(
+      heldRefresh,
+      "The regression must delay a real in-flight RUNNING refresh",
+    );
+    releaseRefresh();
+    releasedRefresh = true;
+    await page
+      .getByText("审核内容已更新，需要重新阅读", { exact: true })
+      .waitFor({ timeout: reviewTimeout(reviewDeadline) });
+    await page.unroute(`**/runs/${runId}/report`);
+  }
+  await refreshes.drain(reviewDeadline);
+  await waitStatus(page, "WAITING_DELIVERY", reviewTimeout(reviewDeadline));
+  await route(page, `run/${runId}/delivery`);
+  const download = page.getByRole("button", {
+    name: "下载完整交付包",
+    exact: true,
+  });
+  await download.waitFor();
+  assert(
+    await download.isDisabled(),
+    "Download stays locked before human delivery approval",
+  );
+  const forbidden = await page.request.get(
+    cfg.platform + `/runs/${runId}/download`,
+    { headers: { Authorization: "Bearer " + cfg.token } },
+  );
+  assert.equal(forbidden.status(), 409);
+  const deliver = page.getByRole("button", {
+    name: "确认交付并开放下载",
+    exact: true,
+  });
+  assert(await deliver.isDisabled());
+  await capture(page, {
+    animations: "disabled",
+    path: path.join(cfg.reports, "workbench-delivery-review-desktop.png"),
+    fullPage: true,
+  });
+  const prerequisites = await currentDeliveryFacts(
+    page,
+    cfg,
+    runId,
+    reviewDeadline,
+  );
+  fs.writeFileSync(
+    path.join(cfg.reports, "manual-delivery-prerequisites.json"),
+    JSON.stringify(prerequisites, null, 2),
+  );
+  requireDeliveryFacts(prerequisites);
+  const providerCallsBeforeRereview = (
+    await fixture(page, cfg, reviewTimeout(reviewDeadline))
+  ).calls.length;
+  const approvalsBeforeRereview = submissions.length;
+  if (delayedRefresh)
+    await page
+      .getByRole("button", { name: "查看最新版本", exact: true })
+      .waitFor({ timeout: reviewTimeout(reviewDeadline) });
+  const staleRereview = await rereviewDelivery(page, runId, reviewDeadline);
+  if (delayedRefresh)
+    assert(staleRereview, "The real delayed snapshot must require rereview");
+  const acknowledgment = page.getByRole("checkbox", {
+    name: "我已阅读本次验收证据与交付等级",
+    exact: true,
+  });
+  assert.equal(
+    await acknowledgment.isChecked(),
+    false,
+    "A fresh delivery requires fresh acknowledgment",
+  );
+  assert(
+    await deliver.isDisabled(),
+    "Rereview alone must not approve delivery",
+  );
+  assert.deepEqual(
+    await currentDeliveryFacts(page, cfg, runId, reviewDeadline),
+    prerequisites,
+    "Rereview must retain the same verified delivery gate",
+  );
+  assert.equal(
+    submissions.length,
+    approvalsBeforeRereview,
+    "Rereview must not submit a decision",
+  );
+  assert.equal(
+    (await fixture(page, cfg, reviewTimeout(reviewDeadline))).calls.length,
+    providerCallsBeforeRereview,
+    "Rereview must not call any model provider",
+  );
+  if (staleRereview)
+    await capture(page, {
+      animations: "disabled",
+      path: path.join(cfg.reports, "workbench-delivery-rereview-desktop.png"),
+      fullPage: true,
+    });
+  await acknowledgment.check({ timeout: reviewTimeout(reviewDeadline) });
+  await deliver.click({ timeout: reviewTimeout(reviewDeadline) });
+  await waitStatus(page, "READY");
+  assert.equal(submissions.length, 3);
+  assert.deepEqual(
+    {
+      gate_id: submissions[2].gate_id,
+      version: submissions[2].version,
+      digest: submissions[2].digest,
+    },
+    {
+      gate_id: prerequisites.gate_id,
+      version: prerequisites.gate_version,
+      digest: prerequisites.gate_digest,
+    },
+    "Approval must bind the exact verified delivery gate",
+  );
+  assert.equal((await api(page, cfg, `/runs/${runId}`)).auto_mode, false);
+  refreshes.close();
+  fs.writeFileSync(
+    path.join(cfg.reports, "manual.json"),
+    JSON.stringify(
+      {
+        passed: true,
+        run_id: runId,
+        fresh_review_per_gate: true,
+        double_click_single_approval: true,
+        design_tabs: true,
+        download_locked_until_delivery: true,
+        stale_delivery_rereview: staleRereview,
+        real_delayed_refresh: delayedRefresh && heldRefresh,
+        delayed_refresh_released: delayedRefresh && releasedRefresh,
+        verified_delivery_prerequisites: true,
+        rereview_did_not_submit: true,
+        rereview_did_not_call_provider: true,
+        approval_bound_to_delivery_gate: true,
+        explicit_approval_count: submissions.length,
+      },
+      null,
+      2,
+    ),
+  );
+}
+
+async function choices(page, cfg) {
+  await route(page, "home");
+  const runId = await createRun(
+    page,
+    { ...cfg, requirement: "交互选项验收" },
+    "真实选项与即时对话验收",
+  );
+  await waitStatus(page, "WAITING_CLARIFICATION");
+  const submit = page.getByRole("button", {
+    name: "提交本组答案",
+    exact: true,
+  });
+  assert(
+    await submit.isDisabled(),
+    "Required choices cannot be submitted empty",
+  );
+  await page
+    .getByRole("radio", { name: "其他，我来补充", exact: true })
+    .check();
+  const other = page.getByRole("textbox", {
+    name: "这次采用哪种使用方式？的补充回答",
+    exact: true,
+  });
+  await other.fill("切换到固定选项后必须丢弃的隐藏文字");
+  await page.getByRole("radio", { name: "个人管理", exact: true }).check();
+  assert.equal(await other.count(), 0);
+  await page.getByRole("checkbox", { name: "搜索", exact: true }).check();
+  await page.getByRole("checkbox", { name: "日期筛选", exact: true }).check();
+  const extra = "浏览器确认后的补充只显示一次";
+  await page.locator("#question-extra").fill(extra);
+  const requests = [];
+  const watch = (request) => {
+    if (request.url().endsWith(`/runs/${runId}/resume`))
+      requests.push(request.postDataJSON());
+  };
+  page.on("request", watch);
+  const accepted = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/runs/${runId}/resume`) &&
+      response.status() === 202,
+  );
+  await submit.dblclick();
+  await accepted;
+  // The stored human answer must enter the visible transcript immediately, not only on reload.
+  await page.locator(".user-message").filter({ hasText: extra }).waitFor();
+  assert.equal(
+    await page.locator(".user-message").filter({ hasText: extra }).count(),
+    1,
+  );
+  assert.equal(requests.length, 1, "Double-clicking answers submits once");
+  assert(
+    !JSON.stringify(requests).includes("切换到固定选项后必须丢弃的隐藏文字"),
+  );
+  assert.deepEqual(
+    requests[0].answers.find((answer) => answer.question_id === "audience"),
+    { question_id: "audience", option_ids: ["personal"], text: "" },
+  );
+  assert.deepEqual(
+    requests[0].answers.find((answer) => answer.question_id === "filters")
+      .option_ids,
+    ["search", "date"],
+  );
+  await waitStatus(page, "WAITING_CLARIFICATION");
+  await page.waitForTimeout(1200);
+  assert.equal(
+    await page
+      .getByText("实时连接已中断，正在保留最后一次数据", { exact: true })
+      .count(),
+    0,
+    "Normal idle SSE close is not a network failure",
+  );
+  await route(page, `run/${runId}/progress`);
+  await page
+    .getByRole("heading", { name: "每个阶段，都有可追溯的结果", exact: true })
+    .waitFor();
+  await route(page, `run/${runId}/conversation`);
+  await page.locator(".user-message").filter({ hasText: extra }).waitFor();
+  assert.equal(
+    await page.locator(".user-message").filter({ hasText: extra }).count(),
+    1,
+  );
+  const saved = await api(page, cfg, `/runs/${runId}/transcript`);
+  assert.equal(
+    saved.messages.filter(
+      (message) => message.role === "user" && message.content.includes(extra),
+    ).length,
+    1,
+  );
+  assert(!JSON.stringify(saved).includes("切换到固定选项后必须丢弃的隐藏文字"));
+  await capture(page, {
+    animations: "disabled",
+    path: path.join(cfg.reports, "workbench-choices-desktop.png"),
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.locator("#main-content").focus();
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await noHorizontalOverflow(page);
+  await page
+    .locator(".question-card")
+    .evaluate((element) => element.scrollIntoView({ block: "start" }));
+  await page.evaluate(() => window.scrollBy(0, -80));
+  await capture(page, {
+    animations: "disabled",
+    path: path.join(cfg.reports, "workbench-choices-mobile.png"),
+    fullPage: false,
+  });
+  await page
+    .getByRole("button", { name: "提交本组答案", exact: true })
+    .evaluate((element) => element.scrollIntoView({ block: "center" }));
+  await capture(page, {
+    animations: "disabled",
+    path: path.join(cfg.reports, "workbench-choices-mobile-submit.png"),
+    fullPage: false,
+  });
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  page.off("request", watch);
+  return runId;
+}
+
 async function navigationDialogGuards(page, cfg, runId) {
   const completed = (await api(page, cfg, "/runs")).find(
     (run) => run.status === "READY" && run.auto_mode,
@@ -234,6 +600,7 @@ async function main() {
     if (mode === "workbench") await workbench(page, cfg, errors);
     else if (mode === "recovery") await recovery(page, cfg);
     else if (mode === "manual") await manual(page, cfg);
+    else if (mode === "manual-stale") await manual(page, cfg, true);
     else if (mode === "interaction") await interaction(page, cfg, errors);
     else {
       await page.goto(cfg.product);
@@ -334,18 +701,51 @@ async function main() {
     }
     assert.equal(errors.length, 0, "Browser errors");
   } catch (error) {
+    try {
+      const runId = await page
+        .evaluate(
+          () =>
+            document
+              .querySelector('[data-testid="run-workspace"]')
+              ?.getAttribute("data-run-id") || null,
+        )
+        .catch(() => null);
+      if (runId && /^[a-f0-9-]{36}$/.test(runId)) {
+        const facts = await currentDeliveryFacts(page, cfg, runId).catch(
+          () => ({
+            unavailable: true,
+          }),
+        );
+        facts.stale_review_visible = await page
+          .getByRole("button", { name: "查看最新版本", exact: true })
+          .isVisible();
+        fs.writeFileSync(
+          path.join(cfg.reports, mode + "-failure-facts.json"),
+          JSON.stringify(facts, null, 2),
+        );
+      }
+    } catch {
+      // Optional diagnostics cannot replace the original browser failure.
+    }
     await capture(page, {
       animations: "disabled",
       path: path.join(cfg.reports, mode + "-failure.png"),
       fullPage: true,
-    });
+    }).catch(() => {});
     throw error;
   } finally {
     await browser.close();
   }
 }
-main().catch((e) => {
-  console.error(e.stack);
-  process.exitCode = 1;
-});
+module.exports = {
+  deliveryFacts,
+  requireDeliveryFacts,
+  rereviewDelivery,
+  observeRunRefreshes,
+};
+if (require.main === module)
+  main().catch((e) => {
+    console.error(e.stack);
+    process.exitCode = 1;
+  });
 ````

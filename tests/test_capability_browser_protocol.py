@@ -335,8 +335,18 @@ def test_actual_cjs_launch_failure_returns_only_classification(cjs_runner, messa
         failures={"launch": {"message": f"{message}: {SECRET_ERROR}"}}
     )
     assert status == 1
+    detail = value["diagnostic"]
+    reason = {
+        "No usable sandbox": "no-usable-sandbox",
+        "Failed to move to new namespace": "namespace-entry-failed",
+        "Running as root without --no-sandbox": "root-launch",
+    }.get(message)
+    assert detail["sandbox_reason"] == reason
+    assert verifier.valid_browser_launch_detail(detail)
     assert value == failed_report(
         {"request_id": REQUEST_ID},
+        sandbox_reason=reason,
+        security_facts=detail["security_facts"],
         phase="launch",
         scenario_index=None,
         step_index=None,
@@ -875,3 +885,127 @@ def test_python_without_browser_scenarios_does_not_spawn(monkeypatch):
 
     monkeypatch.setattr(verifier.subprocess, "Popen", unexpected)
     assert verifier.run_browser(URL, TOKEN, [SimpleNamespace(browser=[])], {}, 23) == []
+
+
+@pytest.mark.node_tools
+@pytest.mark.parametrize("mode", ["valid", "unavailable", "oversized", "malformed"])
+def test_security_facts_are_bounded_readonly_and_finite(mode):
+    node = shutil.which("node")
+    if not node:
+        pytest.fail("Node is required to validate security diagnostics")
+    source = SCRIPT.read_text()
+    helper = source[
+        source.index("function browserSecurityFacts()") : source.index("function rememberFailure")
+    ]
+    harness = r"""
+const vm = require('node:vm')
+const input = JSON.parse(require('node:fs').readFileSync(0, 'utf8'))
+const reads = [], closed = []
+const status = 'NoNewPrivs:\t1\nSeccomp:\t2\nCapEff:\t0000000000000000\n'
+const contents = {
+  '/proc/self/status': status,
+  '/proc/self/attr/current': 'docker-default (enforce)',
+  '/sys/module/apparmor/parameters/enabled': 'Y',
+  '/proc/sys/kernel/apparmor_restrict_unprivileged_userns': '1',
+  '/proc/sys/kernel/unprivileged_userns_clone': '0',
+}
+const fs = {
+  openSync: (path, flags) => {
+    if (!(path in contents) || flags !== 'r') throw Error('unexpected read')
+    reads.push(path)
+    if (input.mode === 'unavailable') throw Error(input.secret)
+    return path
+  },
+  readSync: (fd, buffer, offset, length, position) => {
+    if (length !== 8193 || buffer.length !== 8193 || offset !== 0 || position !== 0) throw Error('unbounded read')
+    const text = input.mode === 'oversized' ? 'x'.repeat(8193)
+      : input.mode === 'malformed' ? input.secret : contents[fd]
+    return buffer.write(text, 'ascii')
+  },
+  closeSync: fd => closed.push(fd),
+}
+const result = vm.runInNewContext(input.helper + '\nbrowserSecurityFacts()', {
+  fs, Buffer, process: {getuid: () => 1000},
+})
+process.stdout.write(JSON.stringify({result, reads, closed}))
+"""
+    run = subprocess.run(
+        [node, "-e", harness],
+        input=json.dumps({"mode": mode, "helper": helper, "secret": SECRET_ERROR}),
+        capture_output=True,
+        text=True,
+        timeout=10,
+    )
+    assert run.returncode == 0, run.stderr
+    assert_redacted(run.stdout)
+    data = json.loads(run.stdout)
+    facts = data["result"]
+    assert len(data["reads"]) == 5
+    assert len(data["closed"]) == (0 if mode == "unavailable" else 5)
+    expected = {
+        "uid_zero": False,
+        "no_new_privileges": True,
+        "seccomp_mode": 2,
+        "effective_capabilities": False,
+        "apparmor_profile": "docker-default",
+        "apparmor_enabled": True,
+        "apparmor_userns_restricted": True,
+        "unprivileged_userns_enabled": False,
+    }
+    if mode != "valid":
+        expected = {key: None for key in expected}
+        expected.update(uid_zero=False, apparmor_profile="unknown")
+    assert facts == expected
+
+
+def launch_diagnostic():
+    return diagnostic(
+        phase="launch",
+        error_code="sandbox-unavailable",
+        error_type="Error",
+        sandbox_reason="namespace-entry-failed",
+        security_facts={
+            **dict.fromkeys(verifier.BROWSER_SECURITY_FLAGS),
+            "seccomp_mode": None,
+            "apparmor_profile": "unknown",
+        },
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda d: d.update(sandbox_reason=SECRET_ERROR),
+        lambda d: d.update(sandbox_reason=[]),
+        lambda d: d.update(sandbox_reason=None),
+        lambda d: d.update(security_facts=[]),
+        lambda d: d["security_facts"].update(uid_zero=1),
+        lambda d: d["security_facts"].update(seccomp_mode=True),
+        lambda d: d["security_facts"].update(seccomp_mode=3),
+        lambda d: d["security_facts"].update(apparmor_profile=SECRET_ERROR),
+        lambda d: d["security_facts"].update(apparmor_profile=[]),
+        lambda d: d["security_facts"].update(raw=SECRET_ERROR),
+        lambda d: d["security_facts"].pop("no_new_privileges"),
+        lambda d: d.pop("sandbox_reason"),
+        lambda d: d.update(error_code="operation-failed"),
+        lambda d: d.update(phase="navigation"),
+    ],
+)
+def test_launch_detail_rejects_missing_extra_unbounded_or_inconsistent_fields(mutation):
+    detail = launch_diagnostic()
+    mutation(detail)
+    value = failed_report({"request_id": REQUEST_ID}, **detail)
+    result, error = verifier.browser_report(
+        json.dumps(value).encode(), REQUEST_ID, hashlib.sha256(SCRIPT.read_bytes()).hexdigest()
+    )
+    assert result is None
+    assert error == "invalid-diagnostic"
+
+
+def test_launch_detail_unknown_kernel_facts_never_make_failure_pass():
+    value = failed_report({"request_id": REQUEST_ID}, **launch_diagnostic())
+    result, error = verifier.browser_report(
+        json.dumps(value).encode(), REQUEST_ID, hashlib.sha256(SCRIPT.read_bytes()).hexdigest()
+    )
+    assert error is None
+    assert result["passed"] is False

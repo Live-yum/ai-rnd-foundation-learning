@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "tools": [
+    {"name": "setuptools", "version": "80.9.0", "url": "https://files.pythonhosted.org/packages/a3/dc/17031897dae0efacfea57dfd3a82fdd2a2aeb58e0ff71b77b87e44edc772/setuptools-80.9.0-py3-none-any.whl", "sha256": "062d34222ad13e0cc312a4c02d73f059e86a4acbfbdea8f8f76b28c99f306922"},
+    {"name": "wheel", "version": "0.45.1", "url": "https://files.pythonhosted.org/packages/0b/2c/87f3254fd8ffd29e4c02732eee68a83a1d3c346ae39bc6822dcbcb697f2b/wheel-0.45.1-py3-none-any.whl", "sha256": "708e7481cc80179af0e556bbf0cc00b8444c7321e2700b8d8580231d13017248"},
+    {"name": "maturin", "version": "1.9.4", "url": "https://files.pythonhosted.org/packages/d2/46/001fcc5c6ad509874896418d6169a61acd619df5b724f99766308c44a99f/maturin-1.9.4-py3-none-manylinux_2_12_x86_64.manylinux2010_x86_64.musllinux_1_1_x86_64.whl", "sha256": "a0868d52934c8a5d1411b42367633fdb5cd5515bec47a534192282167448ec30"}
+  ],
+  "sdists": [
+    {"name": "crcmod", "version": "1.7", "url": "https://files.pythonhosted.org/packages/6b/b0/e595ce2a2527e169c3bcd6c33d2473c1918e0b7f6826a043ca1245dd4e5b/crcmod-1.7.tar.gz", "sha256": "dc7051a0db5f2bd48665a990d3ec1cc305a466a77358ca4492826f41f283601e"},
+    {"name": "esdk-obs-python", "version": "3.26.6", "url": "https://files.pythonhosted.org/packages/e1/d4/c9a2b33935c620678bd5acf5e32feda70ef09f384b24eb17a5719f72f5fe/esdk_obs_python-3.26.6.tar.gz", "sha256": "5014e76e85ffa9eda821169302e74868991867ac947da73bc28eb0e6dfba3ab1"},
+    {"name": "sqlglotrs", "version": "0.6.1", "url": "https://files.pythonhosted.org/packages/59/13/e77dcfd72b849a113bea7ccee79329f77751704e66560410176b1f4657f9/sqlglotrs-0.6.1.tar.gz", "sha256": "f638a7a544698ade8b0c992c8c67feae17bd5c2c760114ab164bd0b7dc8911e1"}
+  ]
+}

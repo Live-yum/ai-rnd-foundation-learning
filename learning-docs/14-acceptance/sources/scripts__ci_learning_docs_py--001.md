@@ -15,24 +15,26 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `verify_frontend_bundle`（L21–L41）：接收`destination`、`expected`。 源码说明：No Git or original checkout: compare the rebuilt complete runtime asset set.。 控制顺序：L24按`not wanted`分支；L25抛异常，停止当前正常路径；L31按`actual.keys() != wanted.keys()`分支；L32抛异常，停止当前正常路径；L38遍历`wanted.items()`；L39按`actual[name] != data`分支；L40抛异常，停止当前正常路径。 调用`expected.items`、`generated_frontend_asset`、`AssertionError`、`path.relative_to(destination).as_posix`、`path.relative_to`、`path.read_bytes`、`(destination / "workbench/web").rglob`、`path.is_file`、`actual.keys`等。 返回路径：L41的`len(wanted)`。
-- `rebuild_frontend`（L44–L49）：接收`destination`、`expected`、`npm`、`run`。 源码说明：Build only from the restored source and its lock; do not accept the saved bundle alone.。 调用`run`、`verify_frontend_bundle`。 返回路径：L49的`verify_frontend_bundle(destination, expected)`。
-- `verify_frontend_browser`（L52–L75）：接收`destination`、`python`、`run`、`reports`。 源码说明：Keep real HTTP/Chromium evidence from the restored platform, including failures.。 控制顺序：L61按`browser_reports.is_dir()`分支；L71按`any(summary.get(field) is not True for field in required)`分支；L72抛异常，停止当前正常路径；L73按`summary.get("model_mode") != "explicit-local-http-fixtures"`分支；L74抛异常，停止当前正常路径。 调用`reports.mkdir`、`run`、`browser_reports.is_dir`、`shutil.copytree`、`json.loads`、`(browser_reports / "summary.json").read_text`、`any`、`summary.get`、`AssertionError`。 返回路径：L75的`{field: summary[field] for field in (*required, "model_mode")}`。
-- `verify_signup_scope_browser`（L94–L164）：接收`destination`、`python`、`run`、`reports`。 源码说明：Prove the restored legacy recovery flow; retain distinct evidence on failure.。 控制顺序：L100按`browser_reports.exists()`分支；L101抛异常，停止当前正常路径；L105按`browser_reports.is_dir()`分支；L108按`any(summary.get(field) is not True for field in SIGNUP_SCOPE_TRUE_FIELDS)`分支；L109抛异常，停止当前正常路径；L110按`summary.get("native_generation_attempted") is not False or summary.get("external_prov…`分支；L117抛异常，停止当前正常路径；L120按`not isinstance(run_id, str) or not run_id or not isinstance(calls, list) or len(calls…`分支。后续分支沿下方源码相同行号继续阅读。 调用`reports.mkdir`、`browser_reports.exists`、`AssertionError`、`run`、`browser_reports.is_dir`、`shutil.copytree`、`json.loads`、`(browser_reports / "browser.json").read_text`、`any`等。 返回路径：L164的`summary`。
-- `main`（L167–L342）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L190遍历`expected.items()`；L191按`(destination / name).read_bytes() != data`分支；L192抛异常，停止当前正常路径；L193按`list((destination / "templates/vendor").glob("*.zip"))`分支；L194抛异常，停止当前正常路径；L197按`not uv or not npm`分支；L198抛异常，停止当前正常路径；L202按`not node or not module or not Path(module).is_dir()`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_bundle`、`reports.mkdir`、`tempfile.TemporaryDirectory`、`Path`、`shutil.copytree`、`dict`、`run`、`str`、`expected.items`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.run`（L185–L186）：接收`argv`、`cwd`、`timeout`。 调用`subprocess.run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `verify_frontend_bundle`（L22–L42）：接收`destination`、`expected`。 源码说明：No Git or original checkout: compare the rebuilt complete runtime asset set.。 控制顺序：L25按`not wanted`分支；L26抛异常，停止当前正常路径；L32按`actual.keys() != wanted.keys()`分支；L33抛异常，停止当前正常路径；L39遍历`wanted.items()`；L40按`actual[name] != data`分支；L41抛异常，停止当前正常路径。 调用`expected.items`、`generated_frontend_asset`、`AssertionError`、`path.relative_to(destination).as_posix`、`path.relative_to`、`path.read_bytes`、`(destination / "workbench/web").rglob`、`path.is_file`、`actual.keys`等。 返回路径：L42的`len(wanted)`。
+- `rebuild_frontend`（L45–L50）：接收`destination`、`expected`、`npm`、`run`。 源码说明：Build only from the restored source and its lock; do not accept the saved bundle alone.。 调用`run`、`verify_frontend_bundle`。 返回路径：L50的`verify_frontend_bundle(destination, expected)`。
+- `verify_frontend_browser`（L53–L76）：接收`destination`、`python`、`run`、`reports`。 源码说明：Keep real HTTP/Chromium evidence from the restored platform, including failures.。 控制顺序：L62按`browser_reports.is_dir()`分支；L72按`any(summary.get(field) is not True for field in required)`分支；L73抛异常，停止当前正常路径；L74按`summary.get("model_mode") != "explicit-local-http-fixtures"`分支；L75抛异常，停止当前正常路径。 调用`reports.mkdir`、`run`、`browser_reports.is_dir`、`shutil.copytree`、`json.loads`、`(browser_reports / "summary.json").read_text`、`any`、`summary.get`、`AssertionError`。 返回路径：L76的`{field: summary[field] for field in (*required, "model_mode")}`。
+- `verify_signup_scope_browser`（L95–L165）：接收`destination`、`python`、`run`、`reports`。 源码说明：Prove the restored legacy recovery flow; retain distinct evidence on failure.。 控制顺序：L101按`browser_reports.exists()`分支；L102抛异常，停止当前正常路径；L106按`browser_reports.is_dir()`分支；L109按`any(summary.get(field) is not True for field in SIGNUP_SCOPE_TRUE_FIELDS)`分支；L110抛异常，停止当前正常路径；L111按`summary.get("native_generation_attempted") is not False or summary.get("external_prov…`分支；L118抛异常，停止当前正常路径；L121按`not isinstance(run_id, str) or not run_id or not isinstance(calls, list) or len(calls…`分支。后续分支沿下方源码相同行号继续阅读。 调用`reports.mkdir`、`browser_reports.exists`、`AssertionError`、`run`、`browser_reports.is_dir`、`shutil.copytree`、`json.loads`、`(browser_reports / "browser.json").read_text`、`any`等。 返回路径：L165的`summary`。
+- `browser_preflight`（L168–L192）：接收`env`、`run`、`base`。 源码说明：Check only the hermetic real browser used by the acceptance drivers.。 控制顺序：L172按`not node or not module or not Path(module).is_dir()`分支；L173抛异常，停止当前正常路径。 调用`shutil.which`、`env.get`、`Path(module).is_dir`、`Path`、`RuntimeError`、`run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L195–L382）：接收`prepare_artifact`。 控制顺序：L220遍历`expected.items()`；L221按`(destination / name).read_bytes() != data`分支；L222抛异常，停止当前正常路径；L223按`list((destination / "templates/vendor").glob("*.zip"))`分支；L224抛异常，停止当前正常路径；L227按`not uv or not npm`分支；L228抛异常，停止当前正常路径；L254按`(destination / LEGACY.name).read_bytes() != LEGACY.read_bytes()`分支。后续分支沿下方源码相同行号继续阅读。 调用`read_bundle`、`reports.mkdir`、`tempfile.TemporaryDirectory`、`Path`、`shutil.copytree`、`dict`、`env.pop`、`run`、`str`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.run`（L215–L216）：接收`argv`、`cwd`、`timeout`。 调用`subprocess.run`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_learning_docs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L346。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_learning_docs.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L389。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16067`。本段原文以LF换行结束。
+本段原始字节数：`18061`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_learning_docs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f6ed37e198dc446773bc067e573a00db82cea0d0662a0ea8de65c05ce3e78632"} -->
+<!-- learning-source: {"path": "scripts/ci_learning_docs.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "c6d8c0bca0a1ecf8df658d43bdb5ea21d6dfdccdd0f337f5cddb5581645e683f"} -->
 ````python
 # scripts/ci_learning_docs.py
 """Prove a directory-only textbook rebuild, then run the actual complete platform suite."""
 
+import argparse
 import hashlib
 import json
 import os
@@ -197,7 +199,34 @@ def verify_signup_scope_browser(destination, python, run, reports):
     return summary
 
 
-def main():
+def browser_preflight(env, run, base):
+    """Check only the hermetic real browser used by the acceptance drivers."""
+    node = shutil.which("node")
+    module = env.get("PRODUCT_VERIFY_PLAYWRIGHT")
+    if not node or not module or not Path(module).is_dir():
+        raise RuntimeError(
+            "Install Playwright 1.56.1/Chromium as stage 06 describes and set "
+            "PRODUCT_VERIFY_PLAYWRIGHT to its absolute module directory"
+        )
+    # Several actual browser tests intentionally use Playwright's hermetic
+    # installation. Check that same location before launching thousands of tests.
+    env["PLAYWRIGHT_BROWSERS_PATH"] = "0"
+    run(
+        [
+            node,
+            "-e",
+            "const {chromium}=require(process.argv[1]); "
+            "(async()=>{const b=await chromium.launch({headless:true}); "
+            "await b.close(); console.log('Hermetic Chromium preflight PASS')})()"
+            ".catch(e=>{console.error(e.message);process.exitCode=1})",
+            module,
+        ],
+        cwd=base,
+        timeout=60,
+    )
+
+
+def main(*, prepare_artifact=None):
     expected = read_bundle(OUTPUT)
     reports = ROOT / "reports"
     reports.mkdir(exist_ok=True)
@@ -214,6 +243,8 @@ def main():
             shutil.copytree(OUTPUT, docs)
             destination = base / "student-project"
             env = dict(os.environ, PYTHONPATH="", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+            env.pop("UV_PROJECT_ENVIRONMENT", None)
+            env.pop("VIRTUAL_ENV", None)
 
             def run(argv, cwd=destination, timeout=900):
                 subprocess.run(argv, cwd=cwd, env=env, check=True, timeout=timeout)
@@ -229,30 +260,6 @@ def main():
             npm = shutil.which("npm")
             if not uv or not npm:
                 raise RuntimeError("Install uv and Node 22/npm before full clean-room acceptance")
-            status["phase"] = "browser_preflight"
-            node = shutil.which("node")
-            module = env.get("PRODUCT_VERIFY_PLAYWRIGHT")
-            if not node or not module or not Path(module).is_dir():
-                raise RuntimeError(
-                    "Install Playwright 1.56.1/Chromium as stage 06 describes and set "
-                    "PRODUCT_VERIFY_PLAYWRIGHT to its absolute module directory"
-                )
-            # Several actual browser tests intentionally use Playwright's hermetic
-            # installation. Check that same location before launching thousands of tests.
-            env["PLAYWRIGHT_BROWSERS_PATH"] = "0"
-            run(
-                [
-                    node,
-                    "-e",
-                    "const {chromium}=require(process.argv[1]); "
-                    "(async()=>{const b=await chromium.launch({headless:true}); "
-                    "await b.close(); console.log('Hermetic Chromium preflight PASS')})()"
-                    ".catch(e=>{console.error(e.message);process.exitCode=1})",
-                    module,
-                ],
-                cwd=base,
-                timeout=60,
-            )
             status["phase"] = "locked_install"
             run([uv, "sync", "--locked", "--all-extras"])
             python = str(
@@ -311,6 +318,40 @@ def main():
             run([python, "-m", "ruff", "check", "."])
             run([python, "-m", "ruff", "format", "--check", "."])
             run([python, "-m", "scripts.build_learning_docs", "--check"])
+            if prepare_artifact is not None:
+                from scripts.ci_evidence import create_source_artifact, run_binding
+
+                # Explicit allowlist: restored owned sources, newly generated books,
+                # and independently fetched/verified vendor archives only. Never venvs,
+                # node_modules, runtime data, caches or credentials.
+                names = set(expected)
+                names.add(LEGACY.name)
+                names.update(
+                    path.relative_to(destination).as_posix()
+                    for path in (destination / "learning-docs").rglob("*")
+                    if path.is_file()
+                )
+                names.update(
+                    path.relative_to(destination).as_posix()
+                    for path in (destination / "templates/vendor").glob("*.zip")
+                )
+                manifest = create_source_artifact(
+                    destination, names, prepare_artifact, run_binding()
+                )
+                status.update(
+                    prepared=True,
+                    phase="prepared_for_independent_acceptance",
+                    files_restored=len(expected),
+                    source_digest=manifest["source_digest"],
+                    manifest_sha256=sha((docs / "manifest.json").read_bytes()),
+                    third_party_fixed_revisions_rebuilt=len(actual["sources"]),
+                    python_environment="independent locked student-project venv",
+                    # Preparation is deliberately not a full-suite/browser pass.
+                    tests_executed=False,
+                )
+                return
+            status["phase"] = "browser_preflight"
+            browser_preflight(env, run, base)
             status["phase"] = "vue_real_browser_acceptance"
             browser_evidence = reports / "learning-docs-guided-browser" / uuid.uuid4().hex
             status["frontend"]["browser"] = {
@@ -376,5 +417,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--prepare-artifact", type=Path)
+    args = parser.parse_args()
+    main(prepare_artifact=args.prepare_artifact.resolve() if args.prepare_artifact else None)
 ````

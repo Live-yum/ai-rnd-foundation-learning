@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `scripts/native_browser.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L206。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/native_browser.cjs`；**本文件共有 1 段**。本段覆盖源文件 L1–L214。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`12872`。本段原文以LF换行结束。
+本段原始字节数：`13551`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/native_browser.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "5078661220ff3d25003eb70198288bba0337db4e2fc91b24dc7a2d3b12c0b5e3"} -->
+<!-- learning-source: {"path": "scripts/native_browser.cjs", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e9bb081a34d7c3a52e02fd0be18de221bfd27cfe7c752ce8b6cf8d1d443d34ad"} -->
 ````javascript
 // scripts/native_browser.cjs
 // Real Chromium against the disposable loopback lab; no route mocks or injected tokens.
@@ -125,8 +125,16 @@ async function main() {
     for (const target of targets) {
       const listing = observe(target.list);
       await page.goto(base + '/#' + target.route, { waitUntil: 'domcontentloaded' });
-      await checked(listing);
+      const listData = await checked(listing);
+      if (target.sample_record) {
+        const rows = listData.items || listData.list;
+        assert(Array.isArray(rows), 'Native listing omitted actual rows');
+        const persisted = rows.find(row => row.id === target.sample_record.id);
+        assert(persisted, 'Native browser list omitted persistent sample');
+        for (const [key, value] of Object.entries(target.sample_record)) assert.deepEqual(persisted[key], value, 'Native browser list field differs: ' + key);
+      }
       await page.locator(fastapi ? '.el-table' : '.vxe-table').first().waitFor({ state: 'visible' });
+      if (target.sample_record && !target.sample) await page.locator(fastapi ? '.el-table__body tbody tr' : '.vxe-table--body tbody tr').first().waitFor({ state: 'visible' });
       if (target.sample) await page.getByText(target.sample, { exact: true }).first().waitFor({ state: 'visible' });
       // Verify the selected template's actual rendered shell and component system.
       // A generic table with matching data is not a native frontend acceptance.

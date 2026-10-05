@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `scripts/guided_browser.cjs`；**本文件共有 2 段**。本段覆盖源文件 L1–L872。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/guided_browser.cjs`；**本文件共有 2 段**。本段覆盖源文件 L1–L789。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`29895`。本段原文以LF换行结束。
+本段原始字节数：`26239`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "72e02e8bed912c16eaab2e8ec1c7d04bf21fd8ef2e674b9a1632a5fa8128497c"} -->
+<!-- learning-source: {"path": "scripts/guided_browser.cjs", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "f0ea97f90fadb9298713c205777dda3050651cb7d13c591709546376074e087f"} -->
 ````javascript
 // scripts/guided_browser.cjs
 // Real local application and provider HTTP. No fulfilled page routes or preapproved gates.
@@ -137,8 +137,10 @@ async function api(page, cfg, endpoint, options = {}) {
   );
   return response.json();
 }
-async function fixture(page, cfg) {
-  const response = await page.request.get(cfg.fixture + "/fixture/status");
+async function fixture(page, cfg, timeout = 60000) {
+  const response = await page.request.get(cfg.fixture + "/fixture/status", {
+    timeout,
+  });
   assert(response.ok());
   return response.json();
 }
@@ -235,17 +237,31 @@ async function checkSettings(page, cfg, errors) {
   page.on("response", watch);
   await route(page, "settings");
   await page.getByRole("heading", { name: "模型与服务，一处配置" }).waitFor();
-  const connectionTest = page.getByRole("button", { name: "测试连接", exact: true });
-  assert(await connectionTest.isEnabled(), "Saved configuration exposes the explicit probe");
+  const connectionTest = page.getByRole("button", {
+    name: "测试连接",
+    exact: true,
+  });
+  assert(
+    await connectionTest.isEnabled(),
+    "Saved configuration exposes the explicit probe",
+  );
   await connectionTest.click();
   const probeConfirmation = page.getByRole("dialog");
-  await probeConfirmation.getByText("发起一次真实模型连接测试？", { exact: true }).waitFor();
-  assert.equal((await fixture(page, cfg)).calls.length, callsBefore,
-    "Opening the cost confirmation must not call a model");
+  await probeConfirmation
+    .getByText("发起一次真实模型连接测试？", { exact: true })
+    .waitFor();
+  assert.equal(
+    (await fixture(page, cfg)).calls.length,
+    callsBefore,
+    "Opening the cost confirmation must not call a model",
+  );
   await probeConfirmation.getByRole("button", { name: /^取\s*消$/ }).click();
   await probeConfirmation.waitFor({ state: "hidden" });
-  assert.equal((await fixture(page, cfg)).calls.length, callsBefore,
-    "Cancelling a connection test must not call a model");
+  assert.equal(
+    (await fixture(page, cfg)).calls.length,
+    callsBefore,
+    "Cancelling a connection test must not call a model",
+  );
   await page.getByRole("tab", { name: /^计划阶段/ }).click();
   await page.locator("#model-url").fill(cfg.fixture + "/another-v1");
   const save = page.getByRole("button", { name: "保存配置", exact: true });
@@ -631,262 +647,163 @@ async function recovery(page, cfg) {
   );
 }
 
-async function manual(page, cfg) {
-  await connect(page, cfg);
-  const runId = await createRun(
-    page,
-    { ...cfg, requirement: "人工审批验收" },
-    "人工审核完整交付验收",
-  );
-  await waitStatus(page, "WAITING_REQUIREMENTS");
-  await page
-    .getByRole("button", { name: "查看并审核当前版本", exact: true })
-    .click();
-  let approve = page.getByRole("button", {
-    name: "确认需求，生成计划",
-    exact: true,
-  });
-  assert(
-    await approve.isDisabled(),
-    "Reading acknowledgment must precede approval",
-  );
-  await capture(page, {
-    animations: "disabled",
-    path: path.join(cfg.reports, "workbench-requirements-desktop.png"),
-    fullPage: true,
-  });
-  const submissions = [];
-  page.on("request", (request) => {
-    if (request.url().endsWith(`/runs/${runId}/resume`))
-      submissions.push(request.postDataJSON());
-  });
-  await page
-    .getByRole("checkbox", { name: "我已阅读并核对当前版本", exact: true })
-    .check();
-  await approve.dblclick();
-  await waitStatus(page, "WAITING_DESIGN");
-  assert.equal(
-    submissions.length,
-    1,
-    "Repeated approval clicks consume a gate only once",
-  );
-  assert.equal(submissions[0].approved, true);
-  assert(
-    submissions[0].gate_id && submissions[0].version && submissions[0].digest,
-  );
-  await page
-    .getByRole("button", { name: "查看并审核当前版本", exact: true })
-    .click();
-  approve = page.getByRole("button", {
-    name: "确认设计，开始生成",
-    exact: true,
-  });
-  assert(
-    await approve.isDisabled(),
-    "A new design requires its own fresh review",
-  );
-  for (const name of ["接口与业务", "数据模型", "任务与覆盖", "架构与模块"])
-    await page.getByRole("tab", { name, exact: true }).click();
-  await capture(page, {
-    animations: "disabled",
-    path: path.join(cfg.reports, "workbench-design-desktop.png"),
-    fullPage: true,
-  });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator("#main-content").focus();
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await noHorizontalOverflow(page);
-  await capture(page, {
-    animations: "disabled",
-    path: path.join(cfg.reports, "workbench-design-mobile.png"),
-    fullPage: false,
-  });
-  await page.setViewportSize({ width: 1440, height: 1100 });
-  await page
-    .getByRole("checkbox", { name: "我已阅读并核对当前版本", exact: true })
-    .check();
-  await approve.click();
-  await page.getByRole("button", { name: "查看进度", exact: true }).click();
-  await page
-    .getByRole("heading", { name: "每个阶段，都有可追溯的结果", exact: true })
-    .waitFor();
-  await capture(page, {
-    animations: "disabled",
-    path: path.join(cfg.reports, "workbench-progress-desktop.png"),
-    fullPage: true,
-  });
-  await waitStatus(page, "WAITING_DELIVERY", 100000);
-  await route(page, `run/${runId}/delivery`);
-  const download = page.getByRole("button", {
-    name: "下载完整交付包",
-    exact: true,
-  });
-  await download.waitFor();
-  assert(
-    await download.isDisabled(),
-    "Download stays locked before human delivery approval",
-  );
-  const forbidden = await page.request.get(
-    cfg.platform + `/runs/${runId}/download`,
-    { headers: { Authorization: "Bearer " + cfg.token } },
-  );
-  assert.equal(forbidden.status(), 409);
-  const deliver = page.getByRole("button", {
-    name: "确认交付并开放下载",
-    exact: true,
-  });
-  assert(await deliver.isDisabled());
-  await capture(page, {
-    animations: "disabled",
-    path: path.join(cfg.reports, "workbench-delivery-review-desktop.png"),
-    fullPage: true,
-  });
-  await page
-    .getByRole("checkbox", {
-      name: "我已阅读本次验收证据与交付等级",
-      exact: true,
-    })
-    .check();
-  await deliver.click();
-  await waitStatus(page, "READY");
-  assert.equal(submissions.length, 3);
-  assert.equal((await api(page, cfg, `/runs/${runId}`)).auto_mode, false);
-  fs.writeFileSync(
-    path.join(cfg.reports, "manual.json"),
-    JSON.stringify(
-      {
-        passed: true,
-        run_id: runId,
-        fresh_review_per_gate: true,
-        double_click_single_approval: true,
-        design_tabs: true,
-        download_locked_until_delivery: true,
-        explicit_approval_count: submissions.length,
-      },
-      null,
-      2,
-    ),
-  );
+// Only bounded status/boolean/hash fields are retained, never arbitrary API text.
+function deliveryFacts(run, report) {
+  const hash = (value) =>
+    typeof value === "string" && /^[a-f0-9]{64}$/.test(value) ? value : null;
+  const gate = run.pending || {};
+  const delivery = report["delivery.json"] || {};
+  const verification = report["verification.json"] || {};
+  return {
+    waiting_delivery: run.status === "WAITING_DELIVERY",
+    manual_mode: run.auto_mode === false,
+    delivery_gate: gate.stage === "delivery",
+    can_approve: gate.can_approve === true,
+    approve_action:
+      Array.isArray(gate.actions) && gate.actions.includes("approve"),
+    gate_id: hash(gate.gate_id),
+    gate_digest: hash(gate.digest),
+    gate_version:
+      Number.isSafeInteger(gate.version) && gate.version >= 0
+        ? gate.version
+        : null,
+    artifact_sha256: hash(delivery.sha256),
+    gate_artifact_matches:
+      hash(gate.data?.sha256) !== null && gate.data.sha256 === delivery.sha256,
+    runtime_validation: delivery.validation_level === "runtime",
+    verification_passed: verification.passed === true,
+    verification_source_sha256: hash(verification.source_digest),
+    browser_passed: verification.browser?.passed === true,
+    real_browser: verification.browser?.real_browser === true,
+    cleanroom_passed: delivery.cleanroom?.passed === true,
+    cleanroom_http: delivery.cleanroom?.http === true,
+    cleanroom_restart: delivery.cleanroom?.restart === true,
+    isolated_sqlite: delivery.cleanroom?.database === "real-isolated-sqlite",
+  };
 }
 
-async function choices(page, cfg) {
-  await route(page, "home");
-  const runId = await createRun(
-    page,
-    { ...cfg, requirement: "交互选项验收" },
-    "真实选项与即时对话验收",
-  );
-  await waitStatus(page, "WAITING_CLARIFICATION");
-  const submit = page.getByRole("button", {
-    name: "提交本组答案",
-    exact: true,
-  });
+function requireDeliveryFacts(facts) {
+  for (const [name, value] of Object.entries(facts))
+    assert(
+      value !== null && value !== false,
+      "Missing delivery prerequisite: " + name,
+    );
+}
+
+function reviewTimeout(deadline) {
+  const remaining = deadline - Date.now();
   assert(
-    await submit.isDisabled(),
-    "Required choices cannot be submitted empty",
+    remaining > 0,
+    "Delivery rereview exceeded the existing browser deadline",
   );
-  await page
-    .getByRole("radio", { name: "其他，我来补充", exact: true })
-    .check();
-  const other = page.getByRole("textbox", {
-    name: "这次采用哪种使用方式？的补充回答",
+  return remaining;
+}
+
+async function currentDeliveryFacts(
+  page,
+  cfg,
+  runId,
+  deadline = Date.now() + 3000,
+) {
+  const [run, report] = await Promise.all([
+    api(page, cfg, `/runs/${runId}`, {
+      timeout: Math.min(3000, reviewTimeout(deadline)),
+    }),
+    api(page, cfg, `/runs/${runId}/report`, {
+      timeout: Math.min(3000, reviewTimeout(deadline)),
+    }),
+  ]);
+  return deliveryFacts(run, report);
+}
+
+async function rereviewDelivery(page, runId, deadline = Date.now() + 60000) {
+  reviewTimeout(deadline);
+  const latest = page.getByRole("button", {
+    name: "查看最新版本",
     exact: true,
   });
-  await other.fill("切换到固定选项后必须丢弃的隐藏文字");
-  await page.getByRole("radio", { name: "个人管理", exact: true }).check();
-  assert.equal(await other.count(), 0);
-  await page.getByRole("checkbox", { name: "搜索", exact: true }).check();
-  await page.getByRole("checkbox", { name: "日期筛选", exact: true }).check();
-  const extra = "浏览器确认后的补充只显示一次";
-  await page.locator("#question-extra").fill(extra);
-  const requests = [];
-  const watch = (request) => {
-    if (request.url().endsWith(`/runs/${runId}/resume`))
-      requests.push(request.postDataJSON());
+  const stale = await latest.isVisible();
+  if (stale) {
+    const checkbox = page.getByRole("checkbox", {
+      name: "我已阅读本次验收证据与交付等级",
+      exact: true,
+    });
+    assert(
+      await checkbox.isDisabled(),
+      "A stale delivery cannot be acknowledged",
+    );
+    await latest.click({ timeout: reviewTimeout(deadline) });
+    await latest.waitFor({ state: "hidden", timeout: reviewTimeout(deadline) });
+    // The existing reread action opens the generic current-version view.
+    // Return to its dedicated delivery evidence before making a fresh decision.
+    await route(page, `run/${runId}/delivery`);
+  }
+  return stale;
+}
+
+function observeRunRefreshes(page, runId) {
+  const pending = new Map();
+  const paths = new Set([
+    `/runs/${runId}`,
+    `/runs/${runId}/report`,
+    `/runs/${runId}/models`,
+  ]);
+  const started = (request) => {
+    if (
+      request.method() !== "GET" ||
+      !paths.has(new URL(request.url()).pathname)
+    )
+      return;
+    let done;
+    const promise = new Promise((resolve) => {
+      done = resolve;
+    });
+    pending.set(request, { promise, done });
   };
-  page.on("request", watch);
-  const accepted = page.waitForResponse(
-    (response) =>
-      response.url().endsWith(`/runs/${runId}/resume`) &&
-      response.status() === 202,
-  );
-  await submit.dblclick();
-  await accepted;
-  // The stored human answer must enter the visible transcript immediately, not only on reload.
-  await page.locator(".user-message").filter({ hasText: extra }).waitFor();
-  assert.equal(
-    await page.locator(".user-message").filter({ hasText: extra }).count(),
-    1,
-  );
-  assert.equal(requests.length, 1, "Double-clicking answers submits once");
-  assert(
-    !JSON.stringify(requests).includes("切换到固定选项后必须丢弃的隐藏文字"),
-  );
-  assert.deepEqual(
-    requests[0].answers.find((answer) => answer.question_id === "audience"),
-    { question_id: "audience", option_ids: ["personal"], text: "" },
-  );
-  assert.deepEqual(
-    requests[0].answers.find((answer) => answer.question_id === "filters")
-      .option_ids,
-    ["search", "date"],
-  );
-  await waitStatus(page, "WAITING_CLARIFICATION");
-  await page.waitForTimeout(1200);
-  assert.equal(
-    await page
-      .getByText("实时连接已中断，正在保留最后一次数据", { exact: true })
-      .count(),
-    0,
-    "Normal idle SSE close is not a network failure",
-  );
-  await route(page, `run/${runId}/progress`);
-  await page
-    .getByRole("heading", { name: "每个阶段，都有可追溯的结果", exact: true })
-    .waitFor();
-  await route(page, `run/${runId}/conversation`);
-  await page.locator(".user-message").filter({ hasText: extra }).waitFor();
-  assert.equal(
-    await page.locator(".user-message").filter({ hasText: extra }).count(),
-    1,
-  );
-  const saved = await api(page, cfg, `/runs/${runId}/transcript`);
-  assert.equal(
-    saved.messages.filter(
-      (message) => message.role === "user" && message.content.includes(extra),
-    ).length,
-    1,
-  );
-  assert(!JSON.stringify(saved).includes("切换到固定选项后必须丢弃的隐藏文字"));
-  await capture(page, {
-    animations: "disabled",
-    path: path.join(cfg.reports, "workbench-choices-desktop.png"),
-    fullPage: true,
-  });
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.locator("#main-content").focus();
-  await page.evaluate(() => window.scrollTo(0, 0));
-  await noHorizontalOverflow(page);
-  await page
-    .locator(".question-card")
-    .evaluate((element) => element.scrollIntoView({ block: "start" }));
-  await page.evaluate(() => window.scrollBy(0, -80));
-  await capture(page, {
-    animations: "disabled",
-    path: path.join(cfg.reports, "workbench-choices-mobile.png"),
-    fullPage: false,
-  });
-  await page
-    .getByRole("button", { name: "提交本组答案", exact: true })
-    .evaluate((element) => element.scrollIntoView({ block: "center" }));
-  await capture(page, {
-    animations: "disabled",
-    path: path.join(cfg.reports, "workbench-choices-mobile-submit.png"),
-    fullPage: false,
-  });
-  await page.setViewportSize({ width: 1440, height: 1100 });
-  page.off("request", watch);
-  return runId;
+  const finished = (request) => {
+    pending.get(request)?.done();
+    pending.delete(request);
+  };
+  page.on("request", started);
+  page.on("requestfinished", finished);
+  page.on("requestfailed", finished);
+  return {
+    async drain(deadline) {
+      let timer;
+      try {
+        await Promise.race([
+          (async () => {
+            while (pending.size)
+              await Promise.all(
+                [...pending.values()].map((entry) => entry.promise),
+              );
+          })(),
+          new Promise((_, reject) => {
+            timer = setTimeout(
+              () =>
+                reject(
+                  new Error(
+                    "UI refresh reads did not settle within the existing browser deadline",
+                  ),
+                ),
+              reviewTimeout(deadline),
+            );
+          }),
+        ]);
+        // Cross a browser task boundary after response bodies finish so Vue can apply them.
+        await page.evaluate(
+          () => new Promise((resolve) => requestAnimationFrame(resolve)),
+        );
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+    close() {
+      page.off("request", started);
+      page.off("requestfinished", finished);
+      page.off("requestfailed", finished);
+    },
+  };
 }
 
 ````

@@ -21,7 +21,9 @@ def test_only_full_suite_has_the_expanded_explicit_budget():
     workflow = (ci_handbook.ROOT / ".github/workflows/test.yml").read_text(encoding="utf-8")
     section = workflow.split("  handbook-only:", 1)[1].split("  browser:", 1)[0]
     assert "timeout-minutes: 40" in section
-    assert "reports/handbook-test-status.json" in section
+    assert "--prepare-artifact reports/restored-source" in section
+    assert "  restored-tests:" in section
+    assert "shard: [0, 1, 2, 3]" in section
     assert "timeout-minutes: ${{ matrix.os == 'windows-latest' && 60 || 35 }}" in workflow
 
 

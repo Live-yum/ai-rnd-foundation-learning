@@ -15,44 +15,46 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `custom_requested`（L17–L28）：接收`messages`。 源码说明：Only explicit human authorization selects this path, never model claims.。 控制顺序：L20遍历`messages`；L21按`re.search(r"(?:禁止\|不允许\|不要)自定义实现\|仅(?:使用\|用)模板", text)`分支；L23按`CUSTOM_CHOICE in text or ( re.search(r"(?:自己\|自定义)(?:开发\|实现)\|自行(?:开发\|实现)", text) an…`分支。 调用`re.search`。 返回路径：L28的`enabled`。
-- `scope_sources`（L31–L57）：接收`messages`。 源码说明：Keep every exact human source; source units are coverage references, not summaries.。 控制顺序：L34遍历`enumerate(messages)`；L35按`text.strip() in {"继续", "请继续", "好的", "好", "确认", "确认继续"}`分支；L38遍历`re.finditer(r"[^。；;\n]+[。；;\n]*", text)`；L40遍历`range(0, len(value), 1000)`；L42按`not quote.strip()`分支；L55按`len(rows) > 256`分支；L56抛异常，停止当前正常路径。 调用`enumerate`、`text.strip`、`re.finditer`、`match.group`、`range`、`len`、`quote.strip`、`rows.append`、`match.start`等。 返回路径：L57的`rows`。
-- `source_path`（L60–L76）：接收`value`。 控制顺序：L62按`not value or len(value) > 300 or p.is_absolute() or any(part in {"", ".", ".."} for p…`分支；L75抛异常，停止当前正常路径。 调用`PurePosixPath`、`len`、`p.is_absolute`、`any`、`value.split`、`ord`、`set`、`secret_name`、`ValueError`。 返回路径：L76的`value`。
-- `TaskCommand`（L79–L95）：继承`Contract`。声明的数据项为`argv`、`cwd`；类型约束/数据库列参数以完整定义为准。
-- `TaskCommand.relative_directory`（L87–L88）：接收`value`。 调用`source_path`、`field_validator`。 返回路径：L88的`value if value == "." else source_path(value)`。
-- `TaskCommand.no_control_characters`（L92–L95）：接收`value`。 控制顺序：L93按`any(any(ord(c) < 32 for c in item) for item in value)`分支；L94抛异常，停止当前正常路径。 调用`any`、`ord`、`ValueError`、`field_validator`。 返回路径：L95的`value`。
-- `RuntimeContract`（L98–L135）：继承`Contract`。声明的数据项为`prepare`、`start`、`port`、`health_path`、`startup_seconds`、`database_path`、`database_tables`；类型约束/数据库列参数以完整定义为准。
-- `RuntimeContract.product_port`（L111–L114）：接收`value`。 控制顺序：L112按`value in {2280, 55432}`分支；L113抛异常，停止当前正常路径。 调用`ValueError`、`field_validator`。 返回路径：L114的`value`。
-- `RuntimeContract.health_is_relative`（L118–L121）：接收`value`。 控制顺序：L119按`not value.startswith("/") or value.startswith("//") or "\\" in value`分支；L120抛异常，停止当前正常路径。 调用`value.startswith`、`ValueError`、`field_validator`。 返回路径：L121的`value`。
-- `RuntimeContract.storage_is_relative`（L125–L135）：接收`value`。 控制顺序：L127按`p.is_absolute() or ".." in p.parts or "\\" in value or ":" in value or value.startswi…`分支；L134抛异常，停止当前正常路径。 调用`PurePosixPath`、`p.is_absolute`、`value.startswith`、`ValueError`、`field_validator`。 返回路径：L135的`value`。
-- `HttpStep`（L138–L171）：继承`Contract`。声明的数据项为`method`、`path`、`headers`、`body`、`status`、`equals`、`absent`、`captures`；类型约束/数据库列参数以完整定义为准。
-- `HttpStep.loopback_path`（L150–L158）：接收`value`。 控制顺序：L151按`not value.startswith("/") or value.startswith("//") or "\\" in value or any(ord(c) < …`分支；L157抛异常，停止当前正常路径。 调用`value.startswith`、`any`、`ord`、`ValueError`、`field_validator`。 返回路径：L158的`value`。
-- `HttpStep.bounded_headers`（L162–L171）：接收`value`。 控制顺序：L163按`any( k.lower() in {"host", "proxy-authorization", "connection", "content-length"} or …`分支；L170抛异常，停止当前正常路径。 调用`any`、`k.lower`、`k.lower().startswith`、`re.fullmatch`、`ord`、`value.items`、`ValueError`、`field_validator`。 返回路径：L171的`value`。
-- `AcceptanceScenario`（L174–L189）：继承`Contract`。声明的数据项为`id`、`title`、`requirements`、`steps`、`after_restart`、`browser`、`evidence`、`external_service`；类型约束/数据库列参数以完整定义为准。
-- `AcceptanceScenario.fixture_identity`（L186–L189）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L187按`(self.evidence == "external_fixture") != (self.external_service is not None)`分支；L188抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L189的`self`。
-- `BrowserStep`（L192–L205）：继承`Contract`。声明的数据项为`action`、`selector`、`value`、`width`、`height`；类型约束/数据库列参数以完整定义为准。
-- `BrowserStep.action_contract`（L200–L205）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L201按`self.action == "open"`分支；L203按`self.action != "viewport" and not self.selector`分支；L204抛异常，停止当前正常路径。 调用`HttpStep.loopback_path`、`ValueError`、`model_validator`。 返回路径：L205的`self`。
-- `ExternalPrerequisite`（L208–L230）：继承`Contract`。声明的数据项为`id`、`kind`、`description`、`requirements`、`configuration_names`、`provider`、`probe`；类型约束/数据库列参数以完整定义为准。
-- `ExternalPrerequisite.bounded_provider_probe`（L219–L230）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L220按`self.provider == "http_json" and ( self.probe is None or self.probe.method != "GET" o…`分支；L227抛异常，停止当前正常路径；L228按`self.provider != "http_json" and self.probe is not None`分支；L229抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L230的`self`。
-- `CapabilityTask`（L233–L249）：继承`Contract`。声明的数据项为`id`、`title`、`depends_on`、`requirements`、`files`、`contract`、`scenarios`；类型约束/数据库列参数以完整定义为准。
-- `CapabilityTask.exact_files`（L244–L249）：接收`values`。 控制顺序：L245遍历`values`；L247按`len({v.casefold() for v in values}) != len(values)`分支；L248抛异常，停止当前正常路径。 调用`source_path`、`len`、`v.casefold`、`ValueError`、`field_validator`。 返回路径：L249的`values`。
-- `CapabilityPlan`（L252–L299）：继承`Contract`。声明的数据项为`title`、`summary`、`selection`、`source_digest`、`tasks`、`runtime`、`scenarios`、`prerequisites`；类型约束/数据库列参数以完整定义为准。
-- `CapabilityPlan.dependency_contract`（L263–L299）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L266按`len(tasks) != len(self.tasks) or len(scenarios) != len(self.scenarios)`分支；L267抛异常，停止当前正常路径；L268按`len({p.id for p in self.prerequisites}) != len(self.prerequisites)`分支；L269抛异常，停止当前正常路径；L283遍历`self.tasks`；L285按`len(set(task.depends_on)) != len(task.depends_on) or not set(task.scenarios) <= scena…`分支；L289抛异常，停止当前正常路径；L290遍历`enumerate(self.tasks)`。后续分支沿下方源码相同行号继续阅读。 调用`len`、`ValueError`、`visit`、`set`、`scenarios.keys`、`enumerate`、`p.casefold`、`model_validator`。 返回路径：L299的`self`。
-- `CapabilityPlan.dependency_contract.visit`（L272–L281）：接收`identifier`、`stack`。 控制顺序：L273按`identifier in stack`分支；L274抛异常，停止当前正常路径；L275按`identifier not in tasks`分支；L276抛异常，停止当前正常路径；L277按`identifier not in ancestors`分支；L279遍历`tasks[identifier].depends_on`。 调用`ValueError`、`set`、`visit`。 返回路径：L281的`ancestors[identifier]`。
-- `CapabilityOutline`（L302–L311）：继承`Contract`。声明的数据项为`title`、`summary`、`selection`、`source_digest`、`tasks`、`runtime`、`prerequisites`；类型约束/数据库列参数以完整定义为准。
-- `CapabilityScenarioBatch`（L314–L316）：继承`Contract`。声明的数据项为`summary`、`scenarios`；类型约束/数据库列参数以完整定义为准。
-- `SourceEdit`（L319–L327）：继承`Contract`。声明的数据项为`path`、`before_sha256`、`content`；类型约束/数据库列参数以完整定义为准。
-- `SourceEdit.path_contract`（L326–L327）：接收`value`。 调用`source_path`、`field_validator`。 返回路径：L327的`source_path(value)`。
-- `CapabilityEdits`（L330–L332）：继承`Contract`。声明的数据项为`explanation`、`files`；类型约束/数据库列参数以完整定义为准。
-- `coverage_errors`（L335–L361）：接收`plan`、`sources`。 控制顺序：L339遍历`plan.tasks`；L347按`not set(task.requirements) <= checked`分支；L354按`expected - covered`分支；L356按`all_refs - expected`分支；L359按`any(s.external_service and s.external_service not in services for s in plan.scenarios…`分支。 调用`set`、`covered.update`、`errors.append`、`", ".join`、`sorted`、`any`。 返回路径：L361的`errors`。
+- `custom_requested`（L17–L35）：接收`messages`。 源码说明：Only explicit human authorization selects this path, never model claims.。 控制顺序：L20遍历`messages`；L21按`re.search(r"(?:禁止\|不允许\|不要)自定义实现\|仅(?:使用\|用)模板", text)`分支；L23按`CUSTOM_CHOICE in text or re.search( r"(?:这些\|那些\|全部\|所有\|不支持的\|未支持的).{0,20}(?:自己\|自行\…`分支。 调用`re.search`。 返回路径：L35的`enabled`。
+- `scope_sources`（L38–L64）：接收`messages`。 源码说明：Keep every exact human source; source units are coverage references, not summaries.。 控制顺序：L41遍历`enumerate(messages)`；L42按`text.strip() in {"继续", "请继续", "好的", "好", "确认", "确认继续"}`分支；L45遍历`re.finditer(r"[^。；;\n]+[。；;\n]*", text)`；L47遍历`range(0, len(value), 1000)`；L49按`not quote.strip()`分支；L62按`len(rows) > 256`分支；L63抛异常，停止当前正常路径。 调用`enumerate`、`text.strip`、`re.finditer`、`match.group`、`range`、`len`、`quote.strip`、`rows.append`、`match.start`等。 返回路径：L64的`rows`。
+- `source_path`（L67–L83）：接收`value`。 控制顺序：L69按`not value or len(value) > 300 or p.is_absolute() or any(part in {"", ".", ".."} for p…`分支；L82抛异常，停止当前正常路径。 调用`PurePosixPath`、`len`、`p.is_absolute`、`any`、`value.split`、`ord`、`set`、`secret_name`、`ValueError`。 返回路径：L83的`value`。
+- `TaskCommand`（L86–L102）：继承`Contract`。声明的数据项为`argv`、`cwd`；类型约束/数据库列参数以完整定义为准。
+- `TaskCommand.relative_directory`（L94–L95）：接收`value`。 调用`source_path`、`field_validator`。 返回路径：L95的`value if value == "." else source_path(value)`。
+- `TaskCommand.no_control_characters`（L99–L102）：接收`value`。 控制顺序：L100按`any(any(ord(c) < 32 for c in item) for item in value)`分支；L101抛异常，停止当前正常路径。 调用`any`、`ord`、`ValueError`、`field_validator`。 返回路径：L102的`value`。
+- `RuntimeContract`（L105–L142）：继承`Contract`。声明的数据项为`prepare`、`start`、`port`、`health_path`、`startup_seconds`、`database_path`、`database_tables`；类型约束/数据库列参数以完整定义为准。
+- `RuntimeContract.product_port`（L118–L121）：接收`value`。 控制顺序：L119按`value in {2280, 55432}`分支；L120抛异常，停止当前正常路径。 调用`ValueError`、`field_validator`。 返回路径：L121的`value`。
+- `RuntimeContract.health_is_relative`（L125–L128）：接收`value`。 控制顺序：L126按`not value.startswith("/") or value.startswith("//") or "\\" in value`分支；L127抛异常，停止当前正常路径。 调用`value.startswith`、`ValueError`、`field_validator`。 返回路径：L128的`value`。
+- `RuntimeContract.storage_is_relative`（L132–L142）：接收`value`。 控制顺序：L134按`p.is_absolute() or ".." in p.parts or "\\" in value or ":" in value or value.startswi…`分支；L141抛异常，停止当前正常路径。 调用`PurePosixPath`、`p.is_absolute`、`value.startswith`、`ValueError`、`field_validator`。 返回路径：L142的`value`。
+- `HttpStep`（L145–L218）：继承`Contract`。声明的数据项为`method`、`path`、`headers`、`body`、`body_encoding`、`wait_ms`、`status`、`equals`、`absent`、`captures`；类型约束/数据库列参数以完整定义为准。
+- `HttpStep.loopback_path`（L159–L167）：接收`value`。 控制顺序：L160按`not value.startswith("/") or value.startswith("//") or "\\" in value or any(ord(c) < …`分支；L166抛异常，停止当前正常路径。 调用`value.startswith`、`any`、`ord`、`ValueError`、`field_validator`。 返回路径：L167的`value`。
+- `HttpStep.bounded_headers`（L171–L189）：接收`value`。 控制顺序：L172按`any( k.lower() in { "host", "proxy-authorization", "connection", "content-length", "c…`分支；L188抛异常，停止当前正常路径。 调用`any`、`k.lower`、`k.lower().startswith`、`re.fullmatch`、`ord`、`value.items`、`ValueError`、`field_validator`。 返回路径：L189的`value`。
+- `HttpStep.form_contract`（L192–L199）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L193按`self.body_encoding == "form"`分支；L194按`self.method not in {"POST", "PUT", "PATCH", "DELETE"} or not isinstance( self.body, d…`分支；L197抛异常，停止当前正常路径。 调用`isinstance`、`ValueError`、`self.bounded_form`、`model_validator`。 返回路径：L199的`self`。
+- `HttpStep.bounded_form`（L202–L218）：接收`value`。 控制顺序：L203按`not isinstance(value, dict) or not 1 <= len(value) <= 20`分支；L204抛异常，停止当前正常路径；L206遍历`value.items()`；L207按`not isinstance(key, str) or not 1 <= len(key) <= 100 or not isinstance(item, str) or …`分支；L214抛异常，停止当前正常路径；L216按`size > 8192`分支；L217抛异常，停止当前正常路径。 调用`isinstance`、`len`、`ValueError`、`value.items`、`any`、`ord`、`key.encode`、`item.encode`。 返回路径：L218的`value`。
+- `AcceptanceScenario`（L221–L236）：继承`Contract`。声明的数据项为`id`、`title`、`requirements`、`steps`、`after_restart`、`browser`、`evidence`、`external_service`；类型约束/数据库列参数以完整定义为准。
+- `AcceptanceScenario.fixture_identity`（L233–L236）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L234按`(self.evidence == "external_fixture") != (self.external_service is not None)`分支；L235抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L236的`self`。
+- `BrowserStep`（L239–L252）：继承`Contract`。声明的数据项为`action`、`selector`、`value`、`width`、`height`；类型约束/数据库列参数以完整定义为准。
+- `BrowserStep.action_contract`（L247–L252）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L248按`self.action == "open"`分支；L250按`self.action != "viewport" and not self.selector`分支；L251抛异常，停止当前正常路径。 调用`HttpStep.loopback_path`、`ValueError`、`model_validator`。 返回路径：L252的`self`。
+- `ExternalPrerequisite`（L255–L277）：继承`Contract`。声明的数据项为`id`、`kind`、`description`、`requirements`、`configuration_names`、`provider`、`probe`；类型约束/数据库列参数以完整定义为准。
+- `ExternalPrerequisite.bounded_provider_probe`（L266–L277）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L267按`self.provider == "http_json" and ( self.probe is None or self.probe.method != "GET" o…`分支；L274抛异常，停止当前正常路径；L275按`self.provider != "http_json" and self.probe is not None`分支；L276抛异常，停止当前正常路径。 调用`ValueError`、`model_validator`。 返回路径：L277的`self`。
+- `CapabilityTask`（L280–L296）：继承`Contract`。声明的数据项为`id`、`title`、`depends_on`、`requirements`、`files`、`contract`、`scenarios`；类型约束/数据库列参数以完整定义为准。
+- `CapabilityTask.exact_files`（L291–L296）：接收`values`。 控制顺序：L292遍历`values`；L294按`len({v.casefold() for v in values}) != len(values)`分支；L295抛异常，停止当前正常路径。 调用`source_path`、`len`、`v.casefold`、`ValueError`、`field_validator`。 返回路径：L296的`values`。
+- `CapabilityPlan`（L299–L346）：继承`Contract`。声明的数据项为`title`、`summary`、`selection`、`source_digest`、`tasks`、`runtime`、`scenarios`、`prerequisites`；类型约束/数据库列参数以完整定义为准。
+- `CapabilityPlan.dependency_contract`（L310–L346）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L313按`len(tasks) != len(self.tasks) or len(scenarios) != len(self.scenarios)`分支；L314抛异常，停止当前正常路径；L315按`len({p.id for p in self.prerequisites}) != len(self.prerequisites)`分支；L316抛异常，停止当前正常路径；L330遍历`self.tasks`；L332按`len(set(task.depends_on)) != len(task.depends_on) or not set(task.scenarios) <= scena…`分支；L336抛异常，停止当前正常路径；L337遍历`enumerate(self.tasks)`。后续分支沿下方源码相同行号继续阅读。 调用`len`、`ValueError`、`visit`、`set`、`scenarios.keys`、`enumerate`、`p.casefold`、`model_validator`。 返回路径：L346的`self`。
+- `CapabilityPlan.dependency_contract.visit`（L319–L328）：接收`identifier`、`stack`。 控制顺序：L320按`identifier in stack`分支；L321抛异常，停止当前正常路径；L322按`identifier not in tasks`分支；L323抛异常，停止当前正常路径；L324按`identifier not in ancestors`分支；L326遍历`tasks[identifier].depends_on`。 调用`ValueError`、`set`、`visit`。 返回路径：L328的`ancestors[identifier]`。
+- `CapabilityOutline`（L349–L358）：继承`Contract`。声明的数据项为`title`、`summary`、`selection`、`source_digest`、`tasks`、`runtime`、`prerequisites`；类型约束/数据库列参数以完整定义为准。
+- `CapabilityScenarioBatch`（L361–L363）：继承`Contract`。声明的数据项为`summary`、`scenarios`；类型约束/数据库列参数以完整定义为准。
+- `SourceEdit`（L366–L374）：继承`Contract`。声明的数据项为`path`、`before_sha256`、`content`；类型约束/数据库列参数以完整定义为准。
+- `SourceEdit.path_contract`（L373–L374）：接收`value`。 调用`source_path`、`field_validator`。 返回路径：L374的`source_path(value)`。
+- `CapabilityEdits`（L377–L379）：继承`Contract`。声明的数据项为`explanation`、`files`；类型约束/数据库列参数以完整定义为准。
+- `coverage_errors`（L382–L408）：接收`plan`、`sources`。 控制顺序：L386遍历`plan.tasks`；L394按`not set(task.requirements) <= checked`分支；L401按`expected - covered`分支；L403按`all_refs - expected`分支；L406按`any(s.external_service and s.external_service not in services for s in plan.scenarios…`分支。 调用`set`、`covered.update`、`errors.append`、`", ".join`、`sorted`、`any`。 返回路径：L408的`errors`。
 
 </details>
 
-**创建路径：** `workbench/capability_contracts.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L361。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_contracts.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L408。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14386`。本段原文以LF换行结束。
+本段原始字节数：`16066`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_contracts.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "af77b993ab002d589f6f51c848ac9bb236d6a7c47763013cf87d2e697e2a0e73"} -->
+<!-- learning-source: {"path": "workbench/capability_contracts.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "934d22c8a161ca3dea53956a104445913bf4110c8bcc6271d417a050ac1b0a49"} -->
 ````python
 # workbench/capability_contracts.py
 """Reviewed source tasks and executable checks, separate from template CRUD schemas."""
@@ -77,9 +79,16 @@ def custom_requested(messages):
     for text in messages:
         if re.search(r"(?:禁止|不允许|不要)自定义实现|仅(?:使用|用)模板", text):
             enabled = False
-        elif CUSTOM_CHOICE in text or (
-            re.search(r"(?:自己|自定义)(?:开发|实现)|自行(?:开发|实现)", text)
-            and re.search(r"不用模板|不依赖模板|模板(?:未|不|无法|不能)|超出模板", text)
+        elif (
+            CUSTOM_CHOICE in text
+            or re.search(
+                r"(?:这些|那些|全部|所有|不支持的|未支持的).{0,20}(?:自己|自行|自定义)(?:开发|实现)",
+                text,
+            )
+            or (
+                re.search(r"(?:自己|自定义)(?:开发|实现)|自行(?:开发|实现)", text)
+                and re.search(r"不用模板|不依赖模板|模板(?:未|不|无法|不能)|超出模板", text)
+            )
         ):
             enabled = True
     return enabled
@@ -197,6 +206,8 @@ class HttpStep(Contract):
     path: str = Field(min_length=1, max_length=1000)
     headers: dict[str, str] = Field(default_factory=dict, max_length=12)
     body: JsonValue = None
+    body_encoding: Literal["json", "form"] = "json"
+    wait_ms: Annotated[int, Field(strict=True, ge=0, le=1000)] = 0
     status: int = Field(ge=100, le=599)
     equals: dict[str, JsonValue] = Field(default_factory=dict, max_length=40)
     absent: list[str] = Field(default_factory=list, max_length=40)
@@ -218,13 +229,51 @@ class HttpStep(Contract):
     @classmethod
     def bounded_headers(cls, value):
         if any(
-            k.lower() in {"host", "proxy-authorization", "connection", "content-length"}
+            k.lower()
+            in {
+                "host",
+                "proxy-authorization",
+                "connection",
+                "content-length",
+                "content-type",
+                "content-encoding",
+                "transfer-encoding",
+            }
             or k.lower().startswith("x-daytona-")
             or not re.fullmatch(r"[A-Za-z][A-Za-z0-9-]{0,63}", k)
             or any(ord(c) < 32 for c in v)
             for k, v in value.items()
         ):
             raise ValueError("验收请求头无效")
+        return value
+
+    @model_validator(mode="after")
+    def form_contract(self):
+        if self.body_encoding == "form":
+            if self.method not in {"POST", "PUT", "PATCH", "DELETE"} or not isinstance(
+                self.body, dict
+            ):
+                raise ValueError("form只支持明确写请求的键值对象")
+            self.bounded_form(self.body)
+        return self
+
+    @staticmethod
+    def bounded_form(value):
+        if not isinstance(value, dict) or not 1 <= len(value) <= 20:
+            raise ValueError("form必须有1至20个明确字段")
+        size = 0
+        for key, item in value.items():
+            if (
+                not isinstance(key, str)
+                or not 1 <= len(key) <= 100
+                or not isinstance(item, str)
+                or len(item) > 4096
+                or any(ord(c) < 32 for c in key)
+            ):
+                raise ValueError("form只接受有界字符串字段")
+            size += len(key.encode("utf-8")) + len(item.encode("utf-8"))
+            if size > 8192:
+                raise ValueError("form超过8KiB内容预算")
         return value
 
 

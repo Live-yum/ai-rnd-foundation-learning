@@ -8,6 +8,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+from capability_dependency_fixtures import container_binding, dependency_evidence, profile_record
 
 from workbench.capability_isolation import IsolationUnavailable, product_argv
 
@@ -76,6 +77,77 @@ def test_exact_root_identity_progresses_to_setup_without_weaker_parsing():
     assert "/usr/sbin/groupadd" in calls[1]
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Pinned Linux control readers require head/tail")
+@pytest.mark.parametrize("tail", [False, True])
+def test_command_output_reads_only_bounded_head_or_tail(tmp_path, monkeypatch, tail):
+    from workbench import capability_isolation as isolation
+    from workbench.capability_sandbox import startup_failure_diagnostic
+
+    output = tmp_path / "private-fixture.log"
+    output.write_bytes(b"prefix\n" + b"x" * 1_000_000 + b"\nFileNotFoundError: secret\n")
+    path = isolation.CONTROL + "/private/fixture.log"
+    calls = []
+
+    def control(sandbox, argv, timeout):
+        calls.append(argv)
+        assert argv == ["/usr/bin/tail" if tail else "/usr/bin/head", "-c", "8000", path]
+        assert timeout == 5
+        result = subprocess.run(
+            [*argv[:-1], str(output)], capture_output=True, timeout=5, check=True
+        )
+        return SimpleNamespace(exit_code=result.returncode, result=result.stdout.decode())
+
+    monkeypatch.setattr(isolation, "control_exec", control)
+    result = isolation.read_command_output(object(), path, 5, tail=tail)
+    assert len(result.encode()) == 8000
+    assert result.endswith("FileNotFoundError: secret\n") is tail
+    diagnostic = startup_failure_diagnostic(result, 502, "none")
+    assert diagnostic["exception_type"] == ("FileNotFoundError" if tail else "unknown")
+    assert "secret" not in json.dumps(diagnostic)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("limit", [-1, 0, 8001, True, "8000"])
+def test_failure_tail_rejects_unbounded_or_malformed_limits(monkeypatch, limit):
+    from workbench import capability_isolation as isolation
+
+    monkeypatch.setattr(
+        isolation, "control_exec", lambda *a: pytest.fail("Invalid tail must not execute")
+    )
+    with pytest.raises(IsolationUnavailable):
+        isolation.read_command_output(
+            object(), isolation.CONTROL + "/private/fixture.log", 5, limit, tail=True
+        )
+
+
+@pytest.mark.parametrize("tail", [False, True])
+def test_command_output_cannot_read_outside_private_control(monkeypatch, tail):
+    from workbench import capability_isolation as isolation
+
+    monkeypatch.setattr(
+        isolation, "control_exec", lambda *a: pytest.fail("Outside path must not execute")
+    )
+    for path in ("/private/secret", isolation.CONTROL + "/private/../secret"):
+        with pytest.raises(IsolationUnavailable):
+            isolation.read_command_output(object(), path, 5, tail=tail)
+
+
+def test_larger_existing_oracle_head_budget_is_unchanged(monkeypatch):
+    from workbench import capability_isolation as isolation
+
+    path = isolation.CONTROL + "/private/fixture.log"
+    calls = []
+    monkeypatch.setattr(
+        isolation,
+        "control_exec",
+        lambda sandbox, argv, timeout: (
+            calls.append(argv) or SimpleNamespace(exit_code=0, result="[]")
+        ),
+    )
+    assert isolation.read_command_output(object(), path, 5, 8001) == "[]"
+    assert calls == [["/usr/bin/head", "-c", "8001", path]]
+
+
 @pytest.mark.skipif(os.name != "posix", reason="Pinned daemon shell fixture requires POSIX bash")
 def test_actual_sdk_env_protocol_prevents_outer_shell_contamination(tmp_path):
     """Real SDK + subprocess protocol fixture, not the missing live CI output."""
@@ -140,7 +212,11 @@ def test_physical_count_probe_uses_same_outer_shell_environment(engine):
     )
     sandbox = SimpleNamespace(process=SimpleNamespace(exec=execute))
     assert database_counts(sandbox, plan, 10) == {"entries": 7}
-    assert len(calls) == 1
+    assert len(calls) == (1 if engine == "sqlite" else 2)
+    if engine == "postgresql":
+        assert "rnd_verify" in calls[0][-1]
+        assert "postgres-verifier.json" in calls[0][-1]
+        assert "head" in " ".join(calls[1])
 
 
 @pytest.mark.parametrize("database", ["sqlite", "postgresql"])
@@ -270,7 +346,10 @@ def test_container_receipt_requires_current_sandbox_and_all_boundaries():
         require_container_evidence({**value, "privileged": True}, identifier)
 
 
-def test_live_container_inspection_failure_stops_before_source_upload(settings, tmp_path):
+@pytest.mark.parametrize("unknown_error", [False, True])
+def test_live_container_inspection_failure_stops_before_source_upload(
+    settings, tmp_path, unknown_error
+):
     from scripts.ci_capability_profile import fixed_application
     from workbench.capability_sandbox import _verify
 
@@ -280,6 +359,14 @@ def test_live_container_inspection_failure_stops_before_source_upload(settings, 
 
     def forbidden(*args, **kwargs):
         pytest.fail("No source upload or command before container policy verification")
+
+    def observer(_):
+        if unknown_error:
+            error = ValueError("secret error /private/path TOKEN=must-not-leak")
+            # An arbitrary provider exception cannot opt in to trusted evidence.
+            error.evidence = {"container_rejection": "resource_limits", "TOKEN": "must-not-leak"}
+            raise error
+        return {}
 
     sandbox = SimpleNamespace(
         id="00000000-0000-0000-0000-000000000001",
@@ -299,10 +386,13 @@ def test_live_container_inspection_failure_stops_before_source_upload(settings, 
         tmp_path / "receipt.json",
         client=client,
         aggregate=True,
-        control_observer=lambda _: {},
+        profile_record=profile_record(product),
+        control_observer=observer,
     )
     assert result["passed"] is False and result["cleanup"] == "deleted"
     assert result["kind"] == "isolation_environment" and operations == ["deleted"]
+    assert result["isolation_diagnostic"] == {}
+    assert "must-not-leak" not in json.dumps(result) and "private/path" not in json.dumps(result)
 
 
 BROWSER_FAILURE_FIXTURES = {
@@ -323,11 +413,40 @@ BROWSER_FAILURE_FIXTURES = {
 }
 
 
+STARTUP_FAILURE_FIXTURES = {
+    "startup-status",
+    "startup-connect",
+    "startup-timeout",
+    "startup-output-unavailable",
+    "startup-output-decode-error",
+    "startup-command-error",
+    "startup-command-missing",
+    "startup-command-null",
+    "startup-command-zero",
+    "startup-command-nonzero",
+    "startup-probe-error",
+    "startup-probe-nonzero",
+    "startup-probe-malformed",
+    "startup-probe-boolean",
+    "startup-probe-executable",
+}
+
+
 @pytest.mark.parametrize(
-    "failure", [None, "baseline", "initial", "restart-health", "restart", *BROWSER_FAILURE_FIXTURES]
+    "failure",
+    [
+        None,
+        "baseline",
+        "initial",
+        "restart-health",
+        "restart",
+        *BROWSER_FAILURE_FIXTURES,
+        *sorted(STARTUP_FAILURE_FIXTURES),
+    ],
 )
+@pytest.mark.parametrize("secure_execution", [False, True])
 def test_verifier_closes_health_opened_http_clients_on_all_paths(
-    settings, tmp_path, monkeypatch, failure
+    settings, tmp_path, monkeypatch, failure, secure_execution
 ):
     """Real HTTPX lifecycle with transport/process fixtures, not live isolation proof."""
     import httpx
@@ -338,6 +457,11 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
 
     product = tmp_path / "product"
     plan = fixed_application(product)
+    if failure in STARTUP_FAILURE_FIXTURES:
+        plan.runtime.startup_seconds = 1
+        clock = [0]
+        monkeypatch.setattr(verifier.time, "monotonic", lambda: clock[0])
+        monkeypatch.setattr(verifier.time, "sleep", lambda _: clock.__setitem__(0, clock[0] + 1))
     identifier = "00000000-0000-0000-0000-000000000001"
     events, clients = [], []
     original_client = httpx.Client
@@ -350,6 +474,12 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         def respond(request):
             events.append((launch, request.url.path))
             assert request.url.host == f"8123-{identifier}.proxy.localhost"
+            if failure == "startup-connect":
+                raise httpx.ConnectError("secret transport path and token", request=request)
+            if failure == "startup-timeout":
+                raise httpx.ReadTimeout("secret transport path and token", request=request)
+            if failure in STARTUP_FAILURE_FIXTURES:
+                return httpx.Response(503)
             if failure == "restart-health" and launch == 1:
                 raise RuntimeError("fixture health failure")
             return httpx.Response(200, json={"ok": True})
@@ -360,6 +490,9 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
 
     sandbox = SimpleNamespace(
         id=identifier,
+        public=False,
+        network_block_all=True,
+        refresh_data=lambda: events.append("network-refreshed"),
         fs=SimpleNamespace(create_folder=lambda *a: None, upload_file=lambda *a, **k: None),
         process=SimpleNamespace(
             create_session=lambda *a: None,
@@ -369,6 +502,28 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
             url=f"http://{port}-{identifier}.proxy.localhost", token="fixture-private-token"
         ),
     )
+
+    def command_status(session, command_id):
+        from workbench.daytona_sessions import _DEADLINE
+
+        assert session.startswith("rnd-app-") and command_id == "fixture-command"
+        assert failure in STARTUP_FAILURE_FIXTURES and clock[0] == 1
+        assert 0 < _DEADLINE.get() - clock[0] <= 5
+        events.append("startup-command-read")
+        if failure == "startup-command-error":
+            raise RuntimeError("secret SDK status failure")
+        return SimpleNamespace(
+            id=command_id,
+            command="secret command and fixture-private-token",
+            exit_code=0
+            if failure == "startup-command-zero"
+            else 1
+            if failure == "startup-command-nonzero"
+            else None,
+        )
+
+    if failure != "startup-command-missing":
+        sandbox.process.get_session_command = command_status
 
     def delete(*args, **kwargs):
         events.append("deleted")
@@ -386,6 +541,7 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
         assert parameters.auto_delete_interval > (2 * settings.tool_timeout) / 60
         assert parameters.network_block_all is True
         assert parameters.public is False
+        assert parameters.name.startswith("rnd-source-" if secure_execution else "rnd-capability-")
         sandbox.auto_delete_interval = parameters.auto_delete_interval
         return sandbox
 
@@ -418,18 +574,82 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
             raise BrowserFailure(BROWSER_FAILURE_FIXTURES[failure].copy())
         return [{"fixture_only": True}]
 
-    monkeypatch.setattr(verifier, "require_container_evidence", lambda *a: {"fixture_only": True})
+    admitted = profile_record(product)
+    monkeypatch.setattr(
+        verifier, "require_container_evidence", lambda *a: container_binding(admitted)
+    )
+    # Transport fixtures do not attest a real installed dependency tree. Keep
+    # descriptor/launcher admission real and mock only remote verification.
+    proof = dependency_evidence(
+        admitted["snapshot"]["dependency_manifest"], verifier.manifest(product)
+    )
+    for name in ("prepare_readonly_dependencies", "verify_readonly_dependencies"):
+        monkeypatch.setattr(
+            "workbench.capability_dependencies." + name, lambda *a, **k: proof.copy()
+        )
     monkeypatch.setattr(verifier, "prepare_identity", lambda *a: {"fixture_only": True})
-    monkeypatch.setattr(verifier, "control_exec", lambda *a: SimpleNamespace(exit_code=0))
+
+    def control(sandbox, argv, timeout):
+        if "os.statvfs('/tmp')" in argv[-1]:
+            assert timeout <= 5
+            events.append("tmpfs-mode-read")
+            if failure == "startup-probe-error":
+                raise RuntimeError("secret probe failure")
+            return SimpleNamespace(
+                exit_code=1
+                if failure == "startup-probe-nonzero"
+                else False
+                if failure == "startup-probe-boolean"
+                else 0,
+                result="secret"
+                if failure == "startup-probe-malformed"
+                else "0\n"
+                if failure == "startup-probe-executable"
+                else "1\n",
+            )
+        return SimpleNamespace(exit_code=0)
+
+    monkeypatch.setattr(verifier, "control_exec", control)
+
+    def startup_output(sandbox, path, timeout, limit=8000, *, tail=False):
+        assert path.startswith("/tmp/rnd-module-control/private/")
+        assert timeout <= 5 and tail is True
+        events.append("startup-output-read")
+        if failure == "startup-output-unavailable":
+            raise RuntimeError("secret private log path")
+        if failure == "startup-output-decode-error":
+            raise UnicodeDecodeError("utf-8", b"\x80secret", 0, 1, "secret body")
+        return "PermissionError: secret path, content and fixture-private-token"
+
+    monkeypatch.setattr(verifier, "read_command_output", startup_output)
     monkeypatch.setattr(verifier, "database_counts", database_counts)
     monkeypatch.setattr(verifier, "run_scenarios", run_scenarios)
-    monkeypatch.setattr(verifier, "run_browser", run_browser)
+
+    def fixed_browser(*args):
+        assert not secure_execution, "Custom source must never fall back to host Chromium"
+        return run_browser(*args)
+
+    def isolated_browser(*args, image):
+        assert secure_execution
+        assert image == settings.capability_browser_image
+        events.append("isolated-browser")
+        return run_browser(*args)
+
+    monkeypatch.setattr(verifier, "run_browser", fixed_browser)
+    monkeypatch.setattr(
+        "workbench.capability_browser_isolation.run_isolated_browser", isolated_browser
+    )
     monkeypatch.setattr(verifier.httpx, "Client", build_http)
     monkeypatch.setattr(
         "workbench.daytona_sessions.run_session_command",
         lambda *a, **k: SimpleNamespace(exit_code=0),
     )
     settings.daytona_snapshot = "fixture-owned-snapshot"
+
+    def security_probe(*args):
+        events.append("security-probed")
+        return {"fixture_only": True}
+
     try:
         result = verifier._verify(
             product,
@@ -440,19 +660,65 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
             tmp_path / "receipt.json",
             client=daytona,
             aggregate=True,
+            profile_record=admitted,
             control_observer=lambda _: {},
+            security_probe=security_probe if secure_execution else None,
         )
         assert result["passed"] is (failure is None)
         assert result["restarted"] is (failure is None)
         assert result["cleanup"] == ("delete-failed" if failure == "browser-cleanup" else "deleted")
         assert events[-1] == "deleted"
         assert len(clients) == (
-            1 if failure in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES} else 2
+            1
+            if failure
+            in {"baseline", "initial", *BROWSER_FAILURE_FIXTURES, *STARTUP_FAILURE_FIXTURES}
+            else 2
         )
         assert all(client.is_closed for client in clients)
         assert (0, "/health") in events
         persisted = json.loads((tmp_path / "receipt.json").read_text(encoding="utf-8"))
         assert persisted == result
+        if failure in STARTUP_FAILURE_FIXTURES:
+            diagnostic = persisted["startup_diagnostic"]
+            assert diagnostic["phase"] == "health_deadline"
+            assert diagnostic["http_error"] == (
+                "connect"
+                if failure == "startup-connect"
+                else "timeout"
+                if failure == "startup-timeout"
+                else "none"
+            )
+            assert diagnostic["http_status"] == (
+                None if failure in {"startup-connect", "startup-timeout"} else 503
+            )
+            assert diagnostic["output_hints"] == (
+                []
+                if failure in {"startup-output-unavailable", "startup-output-decode-error"}
+                else ["permission-denied"]
+            )
+            assert events.count("startup-output-read") == 1
+            assert events.count("tmpfs-mode-read") == 1
+            assert events.count("startup-command-read") == (failure != "startup-command-missing")
+            assert diagnostic["command_exit_status"] == (
+                "zero"
+                if failure == "startup-command-zero"
+                else "nonzero"
+                if failure == "startup-command-nonzero"
+                else "unknown"
+            )
+            assert diagnostic["tmpfs_noexec"] is (
+                False
+                if failure == "startup-probe-executable"
+                else None
+                if failure.startswith("startup-probe-")
+                else True
+            )
+            assert "secret" not in json.dumps(persisted)
+            assert "fixture-private-token" not in json.dumps(persisted)
+        else:
+            assert "startup-output-read" not in events and "tmpfs-mode-read" not in events
+            assert "startup-command-read" not in events
+            assert "startup_diagnostic" not in persisted
         if failure in BROWSER_FAILURE_FIXTURES:
             assert persisted["browser_diagnostic"] == BROWSER_FAILURE_FIXTURES[failure]
             assert "fixture-private-token" not in json.dumps(persisted)
@@ -460,6 +726,15 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
                 assert persisted["error"] == "真实浏览器场景未通过；查看安全阶段诊断，未跳过"
                 assert "删除未确认" in persisted["cleanup_error"]
         if failure is None:
+            assert result["restart_kind"] == (
+                "application_process" if secure_execution else "container"
+            )
+            if secure_execution:
+                assert "stopped" not in events and "started" not in events
+                assert events.count("security-probed") == 2
+                assert result["restart_security_checks"] == result["security_checks"]
+            else:
+                assert "stopped" in events and "started" in events
             assert [check["phase"] for check in result["checks"]] == ["initial", "restart"]
             assert (0, "/openapi.json") in events
             assert (0, "/fixture-initial") in events and (1, "/fixture-restart") in events
@@ -495,6 +770,7 @@ def test_nonaggregate_verifier_keeps_delete_on_stop_and_mandatory_cleanup(settin
         tmp_path / "receipt.json",
         client=client,
         aggregate=False,
+        profile_record=profile_record(product),
         # Deliberately reject before source upload; this is a lifecycle contract
         # regression and supplies no live container or application evidence.
         control_observer=lambda identifier: {},

@@ -1,8 +1,8 @@
-# scripts/daytona_capability_profile.py · 1/1
+# scripts/daytona_capability_profile.py · 1/2
 
 [阶段导读](../README.md) · [本阶段文件顺序](../files.md) · [全部文件索引](../../source-index.md)
 
-
+[下一段](scripts__daytona_capability_profile_py--002.md)
 
 **作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
 
@@ -10,39 +10,42 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `scripts`、`scripts.daytona_build`、`workbench.local_only`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts`、`scripts.daytona_build`、`workbench.capability_dependencies`、`workbench.capability_isolation`、`workbench.local_only`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `sha256`（L86–L87）：接收`raw`。 调用`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`。 返回路径：L87的`hashlib.sha256(raw).hexdigest()`。
-- `blob`（L90–L91）：接收`raw`。 调用`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hex…`、`hashlib.sha1`、`str(len(raw)).encode`、`str`、`len`。 返回路径：L91的`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()`。
-- `recipe_identity`（L94–L97）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha256`、`(ROOT / name).read_bytes`、`json.dumps(hashes, sort_keys=True).encode`、`json.dumps`。 返回路径：L97的`identity, hashes`。
-- `profile_directory`（L100–L104）：接收`directory`。 控制顺序：L102按`directory == local.HOME.resolve()`分支；L103抛异常，停止当前正常路径。 调用`Path(directory).resolve`、`Path`、`local.HOME.resolve`、`ValueError`。 返回路径：L104的`directory`。
-- `read_base`（L107–L124）：接收`directory`。 控制顺序：L112按`installation != { "source_sha": DAYTONA_SOURCE, "release": "v" + DAYTONA_VERSION, "de…`分支；L118抛异常，停止当前正常路径；L119遍历`config["services"].items()`；L122按`service["image"] != expected or record["tag"] != local.IMAGES[name]`分支；L123抛异常，停止当前正常路径。 调用`yaml.safe_load`、`(directory / "compose.lock.yaml").read_text`、`local.assert_local_compose`、`json.loads`、`(directory / "images.lock.json").read_text`、`(directory / "installation.json").read_text`、`ValueError`、`config["services"].items`、`record.get`。 返回路径：L124的`config`。
-- `source_context`（L127–L175）：接收`directory`、`context`。 源码说明：Export committed source only; reject drift before applying the exact patch.。 控制顺序：L130按`DAYTONA_SOURCE != PINNED_SOURCE or DAYTONA_VERSION != "0.190.0"`分支；L131抛异常，停止当前正常路径；L135按`blob(raw) != SOURCE_BLOB or raw.count(OLD.encode()) != 1`分支；L136抛异常，停止当前正常路径；L137按`blob((context / "go.work").read_bytes()) != WORKSPACE_BLOB`分支；L138抛异常，停止当前正常路径；L148按`(ROOT / "tools/daytona/capability-runner.patch").read_text() != expected_patch`分支；L149抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`ValueError`、`export_source`、`target.read_bytes`、`blob`、`raw.count`、`OLD.encode`、`(context / "go.work").read_bytes`、`raw.decode().replace`等。 返回路径：L175的`{"source_sha": DAYTONA_SOURCE, "go_inputs": inputs, "patched_sha256": sha256(updated)}`。
-- `download_assets`（L178–L185）：接收`context`。 控制顺序：L180遍历`ASSETS.items()`；L183按`len(raw) > 1_000_000 or sha256(raw) != expected`分支；L184抛异常，停止当前正常路径。 调用`urllib.request.build_opener`、`urllib.request.ProxyHandler`、`ASSETS.items`、`opener.open`、`response.read`、`len`、`sha256`、`ValueError`、`(Path(context) / "apps/daemon/pkg/terminal/static" / name).write_…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `inspect_image`（L188–L195）：接收`reference`。 控制顺序：L190按`len(rows) != 1 or not re.fullmatch(r"sha256:[a-f0-9]{64}", rows[0].get("Id", ""))`分支；L191抛异常，停止当前正常路径；L193按`image.get("Os") != "linux" or image.get("Architecture") != "amd64"`分支；L194抛异常，停止当前正常路径。 调用`json.loads`、`local.docker`、`len`、`re.fullmatch`、`rows[0].get`、`ValueError`、`image.get`。 返回路径：L195的`image`。
-- `resolve_bases`（L198–L208）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L200遍历`BASES.items()`；L205按`len(digests) != 1 or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", digests[0]…`分支；L206抛异常，停止当前正常路径。 调用`BASES.items`、`local.docker`、`inspect_image`、`tag.rsplit`、`image.get`、`value.startswith`、`len`、`re.fullmatch`、`re.escape`等。 返回路径：L208的`result`。
-- `build_image`（L211–L234）：接收`directory`、`context`、`recipe`、`tag`、`bases`、`identity`。 控制顺序：L213遍历`bases.items()`。 调用`bases.items`、`str`、`local.docker`、`(directory / (recipe + ".log")).write_text`、`inspect_image`、`validate_image`。 返回路径：L234的`image`。
-- `validate_image`（L237–L257）：接收`image`、`identity`、`snapshot`。 控制顺序：L240按`labels.get("org.opencontainers.image.revision") != DAYTONA_SOURCE or labels.get("rnd.…`分支；L245抛异常，停止当前正常路径；L246按`snapshot`分支；L247按`config.get("User") != "0:0" or config.get("WorkingDir") != CONTROL_WORKDIR or config.…`分支；L253抛异常，停止当前正常路径；L256按`"USE_SNAPSHOT_ENTRYPOINT=false" not in config.get("Env", [])`分支；L257抛异常，停止当前正常路径。 调用`image.get`、`config.get`、`labels.get`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `render_profile`（L260–L267）：接收`base`、`runner_id`、`image`。 调用`copy.deepcopy`、`local.assert_local_compose`。 返回路径：L267的`config`。
-- `write_compose`（L270–L273）：接收`path`、`config`。 控制顺序：L272按`os.name != "nt"`分支。 调用`path.write_text`、`yaml.safe_dump`、`path.chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `prepare`（L276–L388）：接收`directory`。 控制顺序：L279遍历`(COMPOSE, LOCK, "snapshot-image.json", "api-key.json", "workbench…`；L280按`(directory / name).exists()`分支；L281抛异常，停止当前正常路径；L285按`info.get("OSType") != "linux" or info.get("Architecture") not in {"amd64", "x86_64"}`分支；L286抛异常，停止当前正常路径；L297按`existing.strip()`分支；L298抛异常，停止当前正常路径；L306按`stamp == local.snapshot_stamp()`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`read_base`、`(directory / name).exists`、`ValueError`、`json.loads`、`local.docker`、`info.get`、`str`、`existing.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `load_profile`（L391–L444）：接收`directory`。 控制顺序：L395按`record.get("profile") != PROFILE or record.get("recipe_identity") != identity or reco…`分支；L403抛异常，停止当前正常路径；L405按`set(bases) != set(BASES)`分支；L406抛异常，停止当前正常路径；L407遍历`BASES.items()`；L410按`entry.get("tag") != tag or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", entr…`分支；L415抛异常，停止当前正常路径；L418按`image.get("source_hash") != stamp or image.get("image") != "registry:6000/rnd-python:…`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`json.loads`、`(directory / LOCK).read_text`、`recipe_identity`、`record.get`、`record.get("source", {}).get`、`sha256`、`(directory / "compose.lock.yaml").read_bytes`、`ValueError`等。 返回路径：L444的`config, record`。
-- `compose`（L447–L457）：接收`directory`、`timeout`、`*args`。 调用`load_profile`、`local.docker`、`str`、`Path`。 返回路径：L449的`local.docker( "compose", "--project-name", PROJECT, "--file", str(Path(directory) / COMPOS…`。
-- `require_profile`（L460–L474）：接收`directory`、`snapshot`。 源码说明：Read-only prerequisite check; never a substitute for the isolation receipt.。 控制顺序：L463按`snapshot is not None and snapshot != record["snapshot"]["snapshot"]`分支；L464抛异常，停止当前正常路径；L470按`image["Id"] != record["snapshot"]["image_id"] or expected_digest not in image.get( "R…`分支；L473抛异常，停止当前正常路径。 调用`load_profile`、`ValueError`、`inspect_image`、`validate_image`、`record["snapshot"]["digest"].replace`、`image.get`。 返回路径：L474的`record`。
-- `inspect_created_sandbox`（L477–L585）：接收`directory`、`sandbox_id`。 源码说明：Inspect only the newly owned UUID inside the verified profile Runner. Upstream create.go names the Docker container sandboxDto.Id. No shell, caller-provided Docker options, executable, or general comm。 控制顺序：L486按`not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id`分支；L487抛异常，停止当前正常路径；L490按`not re.fullmatch(r"[a-f0-9]{64}", runner_id)`分支；L491抛异常，停止当前正常路径；L493按`len(rows) != 1`分支；L494抛异常，停止当前正常路径；L497按`runner.get("Image") != record["runner"]["image_id"] or runner.get("State", {}).get("R…`分支；L507抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`str`、`UUID`、`ValueError`、`require_profile`、`compose(directory, "ps", "--quiet", "runner").strip`、`compose`、`re.fullmatch`、`json.loads`等。 返回路径：L574的`{ "profile": PROFILE, "sandbox_id": sandbox_id, "runner_image_id": record["runner"]["image…`。
-- `up`（L588–L626）：接收`directory`。 控制顺序：L600遍历`range(90)`；L607按`any(row.get("State") in {"exited", "dead", "removing"} for row in rows)`分支；L608抛异常，停止当前正常路径；L614按`ready == local.KEEP`分支；L616遍历`endpoints`；L624按`attempt < 89`分支；L626抛异常，停止当前正常路径。 调用`require_profile`、`compose`、`httpx.Client`、`range`、`raw.lstrip().startswith`、`raw.lstrip`、`json.loads`、`raw.splitlines`、`line.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L629–L642）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L634按`args.action == "prepare"`分支；L636按`args.action == "up"`分支；L638按`args.action == "check"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`up`、`require_profile`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `sha256`（L118–L119）：接收`raw`。 调用`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`。 返回路径：L119的`hashlib.sha256(raw).hexdigest()`。
+- `blob`（L122–L123）：接收`raw`。 调用`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hex…`、`hashlib.sha1`、`str(len(raw)).encode`、`str`、`len`。 返回路径：L123的`hashlib.sha1(b"blob " + str(len(raw)).encode() + b"\0" + raw).hexdigest()`。
+- `recipe_identity`（L126–L129）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha256`、`(ROOT / name).read_bytes`、`json.dumps(hashes, sort_keys=True).encode`、`json.dumps`。 返回路径：L129的`identity, hashes`。
+- `profile_directory`（L132–L136）：接收`directory`。 控制顺序：L134按`directory == local.HOME.resolve()`分支；L135抛异常，停止当前正常路径。 调用`Path(directory).resolve`、`Path`、`local.HOME.resolve`、`ValueError`。 返回路径：L136的`directory`。
+- `read_base`（L139–L157）：接收`directory`。 控制顺序：L144按`installation != { "source_sha": DAYTONA_SOURCE, "release": "v" + DAYTONA_VERSION, "de…`分支；L150抛异常，停止当前正常路径；L151遍历`config["services"].items()`；L154按`service["image"] != expected or record["tag"] != local.IMAGES[name]`分支；L155抛异常，停止当前正常路径。 调用`yaml.safe_load`、`(directory / "compose.lock.yaml").read_text`、`local.assert_local_compose`、`json.loads`、`(directory / "images.lock.json").read_text`、`(directory / "installation.json").read_text`、`ValueError`、`config["services"].items`、`record.get`等。 返回路径：L157的`config`。
+- `source_context`（L160–L215）：接收`directory`、`context`。 源码说明：Export committed source only; reject drift before applying the exact patch.。 控制顺序：L163按`DAYTONA_SOURCE != PINNED_SOURCE or DAYTONA_VERSION != "0.190.0"`分支；L164抛异常，停止当前正常路径；L168按`blob(raw) != SOURCE_BLOB or raw.count(OLD.encode()) != 1`分支；L169抛异常，停止当前正常路径；L170按`blob((context / "go.work").read_bytes()) != WORKSPACE_BLOB`分支；L171抛异常，停止当前正常路径；L173按`updated.count(LIMIT_ANCHOR) != 1`分支；L174抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`ValueError`、`export_source`、`target.read_bytes`、`blob`、`raw.count`、`OLD.encode`、`(context / "go.work").read_bytes`、`raw.decode().replace`等。 返回路径：L211的`{ "source_sha": DAYTONA_SOURCE, "go_inputs": inputs, "patched_sha256": sha256(updated), }`。
+- `download_assets`（L218–L225）：接收`context`。 控制顺序：L220遍历`ASSETS.items()`；L223按`len(raw) > 1_000_000 or sha256(raw) != expected`分支；L224抛异常，停止当前正常路径。 调用`urllib.request.build_opener`、`urllib.request.ProxyHandler`、`ASSETS.items`、`opener.open`、`response.read`、`len`、`sha256`、`ValueError`、`(Path(context) / "apps/daemon/pkg/terminal/static" / name).write_…`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `inspect_image`（L228–L235）：接收`reference`。 控制顺序：L230按`len(rows) != 1 or not re.fullmatch(r"sha256:[a-f0-9]{64}", rows[0].get("Id", ""))`分支；L231抛异常，停止当前正常路径；L233按`image.get("Os") != "linux" or image.get("Architecture") != "amd64"`分支；L234抛异常，停止当前正常路径。 调用`json.loads`、`local.docker`、`len`、`re.fullmatch`、`rows[0].get`、`ValueError`、`image.get`。 返回路径：L235的`image`。
+- `resolve_bases`（L238–L248）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L240遍历`BASES.items()`；L245按`len(digests) != 1 or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", digests[0]…`分支；L246抛异常，停止当前正常路径。 调用`BASES.items`、`local.docker`、`inspect_image`、`tag.rsplit`、`image.get`、`value.startswith`、`len`、`re.fullmatch`、`re.escape`等。 返回路径：L248的`result`。
+- `build_image`（L251–L274）：接收`directory`、`context`、`recipe`、`tag`、`bases`、`identity`。 控制顺序：L253遍历`bases.items()`。 调用`bases.items`、`str`、`local.docker`、`(directory / (recipe + ".log")).write_text`、`inspect_image`、`validate_image`。 返回路径：L274的`image`。
+- `validate_image`（L277–L297）：接收`image`、`identity`、`snapshot`。 控制顺序：L280按`labels.get("org.opencontainers.image.revision") != DAYTONA_SOURCE or labels.get("rnd.…`分支；L285抛异常，停止当前正常路径；L286按`snapshot`分支；L287按`config.get("User") != "0:0" or config.get("WorkingDir") != CONTROL_WORKDIR or config.…`分支；L293抛异常，停止当前正常路径；L296按`"USE_SNAPSHOT_ENTRYPOINT=false" not in config.get("Env", [])`分支；L297抛异常，停止当前正常路径。 调用`image.get`、`config.get`、`labels.get`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `render_profile`（L300–L307）：接收`base`、`runner_id`、`image`。 调用`copy.deepcopy`、`local.assert_local_compose`。 返回路径：L307的`config`。
+- `write_compose`（L310–L313）：接收`path`、`config`。 控制顺序：L312按`os.name != "nt"`分支。 调用`path.write_text`、`yaml.safe_dump`、`path.chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `prepare_dependency_context`（L316–L341）：接收`context`、`identity`。 控制顺序：L319遍历`("pyproject.toml", "uv.lock")`；L326遍历`("image", "build")`。 调用`Path`、`(ROOT / "templates/product" / name).read_bytes`、`(context / name).write_bytes`、`sha256`、`dependencies.validate_python`、`(context / "pyproject.toml").read_bytes`、`(context / "uv.lock").read_bytes`、`shutil.copyfile`、`(context / "dependency-inputs.json").write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `inspect_dependency_manifest`（L344–L397）：接收`image_id`、`profile`、`descriptors`。 控制顺序：L345按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image_id)`分支；L346抛异常，停止当前正常路径；L368按`not isinstance(result, dict) or set(result) != { "schema", "profile", "manifest_sha25…`分支；L396抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`、`local.docker`、`json.loads`、`isinstance`、`set`、`type`、`result.get`、`dependencies.native_descriptor_roles`等。 返回路径：L397的`{**result, "image_id": image_id}`。
+- `validate_dependency_binding`（L400–L430）：接收`value`、`image_id`、`profile`、`descriptors`。 控制顺序：L401按`not isinstance(value, dict) or set(value) != { "schema", "profile", "image_id", "mani…`分支；L430抛异常，停止当前正常路径。 调用`isinstance`、`set`、`type`、`value.get`、`dependencies.native_descriptor_roles`、`valid_native_runtime_patches`、`dependencies.native_descriptor_roles().values`、`any`、`re.fullmatch`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_dependency_manifest`（L433–L441）：接收`record`、`profile`、`descriptors`。 控制顺序：L439按`image.get("dependency_manifest") != expected`分支；L440抛异常，停止当前正常路径。 调用`validate_dependency_binding`、`image.get`、`inspect_dependency_manifest`、`ValueError`。 返回路径：L441的`expected`。
+- `prepare`（L444–L576）：接收`directory`。 控制顺序：L447遍历`(COMPOSE, LOCK, "snapshot-image.json", "api-key.json", "workbench…`；L448按`(directory / name).exists()`分支；L449抛异常，停止当前正常路径；L453按`info.get("OSType") != "linux" or info.get("Architecture") not in { "amd64", "x86_64",…`分支；L457抛异常，停止当前正常路径；L468按`existing.strip()`分支；L469抛异常，停止当前正常路径；L477按`stamp == local.snapshot_stamp()`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`read_base`、`(directory / name).exists`、`ValueError`、`json.loads`、`local.docker`、`info.get`、`str`、`existing.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `load_profile`（L579–L641）：接收`directory`。 控制顺序：L583按`record.get("profile") != PROFILE or record.get("recipe_identity") != identity or reco…`分支；L591抛异常，停止当前正常路径；L593按`set(bases) != set(BASES)`分支；L594抛异常，停止当前正常路径；L595遍历`BASES.items()`；L598按`entry.get("tag") != tag or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", entr…`分支；L603抛异常，停止当前正常路径；L606按`image.get("source_hash") != stamp or image.get("image") != "registry:6000/rnd-python:…`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`json.loads`、`(directory / LOCK).read_text`、`recipe_identity`、`record.get`、`record.get("source", {}).get`、`sha256`、`(directory / "compose.lock.yaml").read_bytes`、`ValueError`等。 返回路径：L641的`config, record`。
+- `compose`（L644–L654）：接收`directory`、`timeout`、`*args`。 调用`load_profile`、`local.docker`、`str`、`Path`。 返回路径：L646的`local.docker( "compose", "--project-name", PROJECT, "--file", str(Path(directory) / COMPOS…`。
+- `require_profile`（L657–L679）：接收`directory`、`snapshot`。 源码说明：Read-only prerequisite check; never a substitute for the isolation receipt.。 控制顺序：L660按`snapshot is not None and snapshot != record["snapshot"]["snapshot"]`分支；L661抛异常，停止当前正常路径；L667按`image["Id"] != record["snapshot"]["image_id"] or expected_digest not in image.get( "R…`分支；L670抛异常，停止当前正常路径。 调用`load_profile`、`ValueError`、`inspect_image`、`validate_image`、`record["snapshot"]["digest"].replace`、`image.get`、`require_dependency_manifest`、`sha256`、`(ROOT / "templates/product" / name).read_bytes`。 返回路径：L679的`record`。
+- `require_execution_resources`（L682–L731）：接收`host`、`native`。 源码说明：Production source needs enforced limits, not API-requested resources. Landlock confines candidate writes to the explicitly sized tmpfs. This does not depend on the host's XFS/overlay project-quota con。 控制顺序：L695按`type(memory) is not int or not 0 < memory <= memory_limit or type(swap) is not int or…`分支；L709抛异常，停止当前正常路径。 调用`host.get`、`type`、`isinstance`、`ContainerInspectionRejected`、`set`。 返回路径：L724的`{ "cpu_period": period, "cpu_quota": quota, "memory": memory, "memory_swap": swap, "tmpfs_…`。
+- `require_native_shared_memory`（L734–L749）：接收`host`。 源码说明：Bind native execution to Docker's private, fixed-size default shm mount.。 控制顺序：L740按`not ipc_private or not size_matches`分支；L741抛异常，停止当前正常路径。 调用`host.get`、`type`、`ContainerInspectionRejected`。 返回路径：L749的`{"ipc_mode": "private", "size_bytes": NATIVE_SHARED_MEMORY_BYTES}`。
 
 </details>
 
-**创建路径：** `scripts/daytona_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L650。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/daytona_capability_profile.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L751。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`27362`。本段原文以LF换行结束。
+本段原始字节数：`30543`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/daytona_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ab3f81449866762e1ae800bd20ec53752aa289ca612c47ff2516f758302688e3"} -->
+<!-- learning-source: {"path": "scripts/daytona_capability_profile.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "9be0487673a2fc99004b2cacfdfbd8fa5c5d87d8d1a11722ba5fb8a355dcfd2b"} -->
 ````python
 # scripts/daytona_capability_profile.py
 """Build the owned, fixed-authored capability profile before starting Daytona.
@@ -69,8 +72,11 @@ from pathlib import Path
 
 import yaml
 
+from scripts import daytona_dependency_build as dependencies
 from scripts import daytona_local as local
-from scripts.daytona_build import BUILT, export_source
+from scripts.daytona_build import BUILT, export_source, require_api_image
+from workbench.capability_dependencies import valid_native_runtime_patches
+from workbench.capability_isolation import ContainerInspectionRejected
 from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
 from workbench.settings import ROOT
 
@@ -81,6 +87,7 @@ PINNED_SOURCE = "01c502bb1f1ff8f2885d0cd490e043736083dca8"
 COMPOSE = "compose.capability.lock.yaml"
 LOCK = "capability-profile.lock.json"
 CONTROL_WORKDIR = "/opt/rnd/control"
+NATIVE_SHARED_MEMORY_BYTES = 67108864
 SOURCE_FILE = "apps/runner/pkg/docker/container_configs.go"
 SOURCE_BLOB = "d5a97203afa87c3fa0065702723c41645bf284b6"
 WORKSPACE_BLOB = "daf66a070fb41cdf12ecbbdb7dc4a20cf4b9bba0"
@@ -94,8 +101,35 @@ NEW = """		// Owned fixed-application profile: all application containers use
 		// Docker's unprivileged defaults, including its default seccomp filter.
 		Privileged: false,
 """
+LIMIT_ANCHOR = "\tcontainerRuntime := config.GetContainerRuntime()"
+LIMIT_INSERT = """\t// Custom-source executions get bounded writable storage on ordinary runners.
+\t// Root control remains distinct; Landlock confines every product write here.
+\tif strings.HasPrefix(sandboxDto.Name, "rnd-source-") {
+\t\t// Bind the primary mode to the same sole bridge checked before source admission.
+\t\thostConfig.NetworkMode = container.NetworkMode("runner-bridge")
+\t\t// The local upstream disables ordinary quotas; custom source cannot inherit that.
+\t\thostConfig.CPUPeriod = 100000
+\t\thostConfig.CPUQuota = 100000
+\t\thostConfig.Memory = 2 * 1024 * 1024 * 1024
+\t\tpidLimit := int64(256)
+\t\thostConfig.PidsLimit = &pidLimit
+\t\thostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"}
+\t\tif strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {
+\t\t\thostConfig.IpcMode = container.IpcMode("private")
+\t\t\thostConfig.ShmSize = 67108864
+\t\t\thostConfig.CPUQuota = 200000
+\t\t\thostConfig.Memory = 6 * 1024 * 1024 * 1024
+\t\t\tpidLimit = 384
+\t\t\thostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=4294967296,mode=1777"}
+\t\t}
+\t\thostConfig.MemorySwap = hostConfig.Memory
+\t}
+"""
 RECIPE_PATHS = (
     "scripts/daytona_capability_profile.py",
+    "scripts/daytona_dependency_image.py",
+    "scripts/daytona_dependency_build.py",
+    "scripts/daytona_dependency_build.lock.json",
     "tools/daytona/capability-runner.Dockerfile",
     "tools/daytona/capability-snapshot.Dockerfile",
     "tools/daytona/capability-runner.patch",
@@ -112,6 +146,7 @@ BASES = {
     "UV_IMAGE": "ghcr.io/astral-sh/uv:0.12.20",
     "NODE_IMAGE": "node:22.23.2-bookworm-slim",
     "SANDBOX_IMAGE": "daytonaio/sandbox:0.5.0-slim",
+    "RUST_IMAGE": "rust:1.85.1-bookworm",
 }
 # Upstream apps/daemon/tools/xterm.go assets, now bounded and SHA-256 checked.
 ASSETS = {
@@ -168,6 +203,7 @@ def read_base(directory):
         expected = record.get("image_id") if name in BUILT else record.get("digest")
         if service["image"] != expected or record["tag"] != local.IMAGES[name]:
             raise ValueError("Original local image lock does not match Compose: " + name)
+    require_api_image(records.get("api"), local.docker)
     return config
 
 
@@ -184,6 +220,9 @@ def source_context(directory, context):
     if blob((context / "go.work").read_bytes()) != WORKSPACE_BLOB:
         raise ValueError("Pinned Go workspace does not match")
     updated = raw.decode().replace(OLD, NEW)
+    if updated.count(LIMIT_ANCHOR) != 1:
+        raise ValueError("Pinned Runner custom-source resource anchor changed")
+    updated = updated.replace(LIMIT_ANCHOR, LIMIT_INSERT + LIMIT_ANCHOR, 1)
     expected_patch = "".join(
         difflib.unified_diff(
             raw.decode().splitlines(keepends=True),
@@ -219,7 +258,11 @@ def source_context(directory, context):
         "This is a local acceptance profile; it does not enable production source execution.\n",
         encoding="utf-8",
     )
-    return {"source_sha": DAYTONA_SOURCE, "go_inputs": inputs, "patched_sha256": sha256(updated)}
+    return {
+        "source_sha": DAYTONA_SOURCE,
+        "go_inputs": inputs,
+        "patched_sha256": sha256(updated),
+    }
 
 
 def download_assets(context):
@@ -320,6 +363,134 @@ def write_compose(path, config):
         path.chmod(0o600)
 
 
+def prepare_dependency_context(context, identity):
+    context = Path(context)
+    descriptors = {}
+    for name in ("pyproject.toml", "uv.lock"):
+        raw = (ROOT / "templates/product" / name).read_bytes()
+        (context / name).write_bytes(raw)
+        descriptors[name] = sha256(raw)
+    dependencies.validate_python(
+        (context / "pyproject.toml").read_bytes(), (context / "uv.lock").read_bytes()
+    )
+    for name in ("image", "build"):
+        shutil.copyfile(
+            ROOT / f"scripts/daytona_dependency_{name}.py",
+            context / f"dependency-{name}.py",
+        )
+    (context / "dependency-inputs.json").write_text(
+        json.dumps(
+            {
+                "recipe_identity": identity,
+                "original_descriptors": descriptors,
+                "normalized_descriptors": descriptors,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+
+def inspect_dependency_manifest(image_id, profile, descriptors):
+    if not re.fullmatch(r"sha256:[a-f0-9]{64}", image_id):
+        raise ValueError("Dependency inventory requires an immutable image ID")
+    raw = local.docker(
+        "run",
+        "--rm",
+        "--network=none",
+        "--read-only",
+        "--cap-drop=ALL",
+        "--security-opt=no-new-privileges",
+        "--user=65534:65534",
+        "--pids-limit=64",
+        "--memory=512m",
+        "--entrypoint=/usr/bin/python3",
+        image_id,
+        "-I",
+        "-S",
+        "/opt/rnd/bin/dependency-image.py",
+        "inspect",
+        "--profile",
+        profile,
+        timeout=300,
+    )
+    result = json.loads(raw)
+    if (
+        not isinstance(result, dict)
+        or set(result)
+        != {
+            "schema",
+            "profile",
+            "manifest_sha256",
+            "installed_tree_sha256",
+            "original_descriptors",
+        }
+        | ({"descriptor_roles", "runtime_patches"} if profile == "fastapiadmin" else set())
+        or type(result.get("schema")) is not int
+        or result.get("schema") != 1
+        or result.get("profile") != profile
+        or result.get("original_descriptors") != descriptors
+        or profile == "fastapiadmin"
+        and (
+            result.get("descriptor_roles") != dependencies.native_descriptor_roles()
+            or not valid_native_runtime_patches(result.get("runtime_patches"))
+            or set(descriptors)
+            != {name for paths in dependencies.native_descriptor_roles().values() for name in paths}
+        )
+        or any(
+            not isinstance(result.get(name), str)
+            or not re.fullmatch(r"[a-f0-9]{64}", result.get(name, ""))
+            for name in ("manifest_sha256", "installed_tree_sha256")
+        )
+    ):
+        raise ValueError("Image dependency manifest does not match exact descriptor inputs")
+    return {**result, "image_id": image_id}
+
+
+def validate_dependency_binding(value, image_id, profile, descriptors):
+    if (
+        not isinstance(value, dict)
+        or set(value)
+        != {
+            "schema",
+            "profile",
+            "image_id",
+            "manifest_sha256",
+            "installed_tree_sha256",
+            "original_descriptors",
+        }
+        | ({"descriptor_roles", "runtime_patches"} if profile == "fastapiadmin" else set())
+        or type(value.get("schema")) is not int
+        or value.get("schema") != 1
+        or value.get("profile") != profile
+        or value.get("image_id") != image_id
+        or value.get("original_descriptors") != descriptors
+        or profile == "fastapiadmin"
+        and (
+            value.get("descriptor_roles") != dependencies.native_descriptor_roles()
+            or not valid_native_runtime_patches(value.get("runtime_patches"))
+            or set(descriptors)
+            != {name for paths in dependencies.native_descriptor_roles().values() for name in paths}
+        )
+        or any(
+            not isinstance(value.get(name), str) or not re.fullmatch(r"[a-f0-9]{64}", value[name])
+            for name in ("manifest_sha256", "installed_tree_sha256")
+        )
+    ):
+        raise ValueError("Dependency manifest lock lacks exact image/descriptor binding")
+
+
+def require_dependency_manifest(record, profile, descriptors):
+    image = record["snapshot"]
+    validate_dependency_binding(
+        image.get("dependency_manifest"), image["image_id"], profile, descriptors
+    )
+    expected = inspect_dependency_manifest(image["image_id"], profile, descriptors)
+    if image.get("dependency_manifest") != expected:
+        raise ValueError("Dependency manifest is not bound to the immutable profile image")
+    return expected
+
+
 def prepare(directory=HOME):
     directory = profile_directory(directory)
     base = read_base(directory)
@@ -329,7 +500,10 @@ def prepare(directory=HOME):
                 "Profile setup requires fresh local state; will not overwrite: " + name
             )
     info = json.loads(local.docker("info", "--format", "{{json .}}"))
-    if info.get("OSType") != "linux" or info.get("Architecture") not in {"amd64", "x86_64"}:
+    if info.get("OSType") != "linux" or info.get("Architecture") not in {
+        "amd64",
+        "x86_64",
+    }:
         raise ValueError("Capability profile supports only a local Linux amd64 Docker daemon")
     existing = local.docker(
         "compose",
@@ -367,14 +541,23 @@ def prepare(directory=HOME):
         )
         download_assets(context)
         runner = build_image(
-            directory, context, "capability-runner.Dockerfile", runner_tag, bases, identity
+            directory,
+            context,
+            "capability-runner.Dockerfile",
+            runner_tag,
+            bases,
+            identity,
         )
     with tempfile.TemporaryDirectory(prefix="capability-snapshot-", dir=directory) as temporary:
         context = Path(temporary)
-        for name in ("pyproject.toml", "uv.lock"):
-            shutil.copyfile(ROOT / "templates/product" / name, context / name)
+        prepare_dependency_context(context, identity)
         snapshot = build_image(
-            directory, context, "capability-snapshot.Dockerfile", snapshot_tag, bases, identity
+            directory,
+            context,
+            "capability-snapshot.Dockerfile",
+            snapshot_tag,
+            bases,
+            identity,
         )
     config = render_profile(base, runner["Id"], image_ref)
     # Registry startup uses the validated profile configuration, with an isolated
@@ -426,6 +609,14 @@ def prepare(directory=HOME):
             "recipe_sha256": recipes["tools/daytona/capability-snapshot.Dockerfile"],
         },
     }
+    record["snapshot"]["dependency_manifest"] = inspect_dependency_manifest(
+        snapshot["Id"],
+        "python-basic",
+        {
+            name: sha256((ROOT / "templates/product" / name).read_bytes())
+            for name in ("pyproject.toml", "uv.lock")
+        },
+    )
     # Commit readiness last. A partial build never produces a passing profile lock.
     write_compose(directory / COMPOSE, config)
     local.private_json(directory / "snapshot-image.json", record["snapshot"])
@@ -480,6 +671,15 @@ def load_profile(directory=HOME):
         or not re.fullmatch(r"sha256:[a-f0-9]{64}", record.get("runner", {}).get("image_id", ""))
     ):
         raise ValueError("Capability profile image lock does not match its derived identity")
+    validate_dependency_binding(
+        image.get("dependency_manifest"),
+        image["image_id"],
+        "python-basic",
+        {
+            name: sha256((ROOT / "templates/product" / name).read_bytes())
+            for name in ("pyproject.toml", "uv.lock")
+        },
+    )
     base = read_base(directory)
     config = yaml.safe_load((directory / COMPOSE).read_text(encoding="utf-8"))
     expected = render_profile(base, record["runner"]["image_id"], record["snapshot"]["image"])
@@ -518,181 +718,85 @@ def require_profile(directory=HOME, snapshot=None):
         "RepoDigests", []
     ):
         raise ValueError("Profile snapshot tag no longer matches the recorded ID and digest")
+    require_dependency_manifest(
+        record,
+        "python-basic",
+        {
+            name: sha256((ROOT / "templates/product" / name).read_bytes())
+            for name in ("pyproject.toml", "uv.lock")
+        },
+    )
     return record
 
 
-def inspect_created_sandbox(directory, sandbox_id):
-    """Inspect only the newly owned UUID inside the verified profile Runner.
+def require_execution_resources(host, *, native=False):
+    """Production source needs enforced limits, not API-requested resources.
 
-    Upstream create.go names the Docker container sandboxDto.Id. No shell,
-    caller-provided Docker options, executable, or general command is accepted.
-    The receipt contains no environment, paths, credentials, or user content.
+        Landlock confines candidate writes to the explicitly sized tmpfs. This
+        does not depend on the host's XFS/overlay project-quota configuration.
+    This never changes the user's daemon, disks or container settings.
     """
-    from uuid import UUID
-
-    if not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id:
-        raise ValueError("Owned sandbox must have one canonical UUID")
-    record = require_profile(directory)
-    runner_id = compose(directory, "ps", "--quiet", "runner").strip()
-    if not re.fullmatch(r"[a-f0-9]{64}", runner_id):
-        raise ValueError("Profile requires exactly one running Runner container")
-    rows = json.loads(local.docker("container", "inspect", runner_id))
-    if len(rows) != 1:
-        raise ValueError("Profile Runner container identity is ambiguous")
-    runner = rows[0]
-    labels = runner.get("Config", {}).get("Labels", {})
+    memory, swap = host.get("Memory"), host.get("MemorySwap")
+    period, quota = host.get("CpuPeriod"), host.get("CpuQuota")
+    storage = host.get("Tmpfs", {})
+    memory_limit = (6 if native else 2) * 1024**3
+    tmpfs_bytes = 4294967296 if native else 1073741824
+    pids = 384 if native else 256
     if (
-        runner.get("Image") != record["runner"]["image_id"]
-        or runner.get("State", {}).get("Running") is not True
-        or labels.get("com.docker.compose.project") != PROJECT
-        or labels.get("com.docker.compose.service") != "runner"
-        or "USE_SNAPSHOT_ENTRYPOINT=false" not in runner.get("Config", {}).get("Env", [])
-        or runner.get("Config", {}).get("Entrypoint")
-        != ["/usr/local/bin/dind", "/usr/local/bin/rnd-runner-entry.sh"]
-        or runner.get("Config", {}).get("Cmd")
+        type(memory) is not int
+        or not 0 < memory <= memory_limit
+        or type(swap) is not int
+        or swap != memory
+        or type(period) is not int
+        or not 0 < period <= 1000000
+        or type(quota) is not int
+        or not 0 < quota <= period * (2 if native else 1)
+        or not isinstance(storage, dict)
+        or storage != {"/tmp": f"rw,nosuid,nodev,size={tmpfs_bytes},mode=1777"}
+        or type(host.get("PidsLimit")) is not int
+        or host["PidsLimit"] != pids
     ):
-        raise ValueError("Running Runner does not match the owned profile")
-    security = json.loads(
-        local.docker(
-            "exec",
-            runner_id,
-            "docker",
-            "--host",
-            "unix:///var/run/docker.sock",
-            "info",
-            "--format",
-            "{{json .SecurityOptions}}",
-            timeout=30,
+        raise ContainerInspectionRejected(
+            "Custom source requires actual bounded CPU, memory, swap and storage quota",
+            category="resource_limits",
+            facts={
+                "native_resources": native,
+                "memory": memory,
+                "memory_swap": swap,
+                "cpu_period": period,
+                "cpu_quota": quota,
+                "pids_limit": host.get("PidsLimit"),
+                "tmpfs_keys_match": isinstance(storage, dict) and set(storage) == {"/tmp"},
+                "tmpfs_options_match": storage
+                == {"/tmp": f"rw,nosuid,nodev,size={tmpfs_bytes},mode=1777"},
+            },
         )
-    )
-    if not isinstance(security, list) or "name=seccomp,profile=builtin" not in security:
-        raise ValueError("Inner Docker must report its enabled built-in seccomp filter")
-    rows = json.loads(
-        local.docker(
-            "exec",
-            runner_id,
-            "docker",
-            "--host",
-            "unix:///var/run/docker.sock",
-            "container",
-            "inspect",
-            sandbox_id,
-            timeout=30,
-        )
-    )
-    if len(rows) != 1:
-        raise ValueError("Owned application container identity is ambiguous")
-    container = rows[0]
-    config, host = container.get("Config", {}), container.get("HostConfig", {})
-    if (
-        container.get("Name") != "/" + sandbox_id
-        or container.get("Image") != record["snapshot"]["image_id"]
-        or container.get("State", {}).get("Running") is not True
-        or config.get("User") != "0:0"
-        or config.get("WorkingDir") != CONTROL_WORKDIR
-        or config.get("Entrypoint") != ["/usr/local/bin/daytona"]
-        or config.get("Cmd")
-        or host.get("Privileged") is not False
-        or host.get("CapAdd")
-        or host.get("SecurityOpt")
-        or host.get("Devices")
-        or host.get("DeviceRequests")
-        or host.get("PidMode") not in (None, "")
-        or host.get("IpcMode") not in (None, "", "private")
-        or host.get("NetworkMode") in {"host", "none"}
-    ):
-        raise ValueError("Created application container does not match the unprivileged profile")
-    expected = {
-        "/usr/local/bin/daytona": "/usr/local/bin/.tmp/binaries/daemon-amd64",
-        "/usr/local/lib/daytona-computer-use": "/usr/local/bin/.tmp/binaries/daytona-computer-use",
-    }
-    mounts = container.get("Mounts", [])
-    if (
-        len(mounts) != len(expected)
-        or any(
-            mount.get("Type") != "bind"
-            or mount.get("RW") is not False
-            or expected.get(mount.get("Destination")) != mount.get("Source")
-            for mount in mounts
-        )
-        or {mount.get("Destination") for mount in mounts} != set(expected)
-    ):
-        raise ValueError("Application mounts must be only the two trusted read-only binaries")
     return {
-        "profile": PROFILE,
-        "sandbox_id": sandbox_id,
-        "runner_image_id": record["runner"]["image_id"],
-        "snapshot_image_id": record["snapshot"]["image_id"],
-        "snapshot_digest": record["snapshot"]["digest"],
-        "control_user": "0:0",
-        "privileged": False,
-        "seccomp": "docker-default",
-        "seccomp_engine": "builtin",
-        "trusted_readonly_binary_mounts": True,
+        "cpu_period": period,
+        "cpu_quota": quota,
+        "memory": memory,
+        "memory_swap": swap,
+        "tmpfs_bytes": tmpfs_bytes,
+        "pids": pids,
     }
 
 
-def up(directory=HOME):
-    import httpx
-
-    require_profile(directory)
-    compose(directory, "up", "-d", "--pull", "never")
-    endpoints = [
-        "http://127.0.0.1:3000/api/config",
-        "http://127.0.0.1:3003/",
-        "http://127.0.0.1:5556/dex/.well-known/openid-configuration",
-        "http://127.0.0.1:6000/v2/",
-    ]
-    with httpx.Client(timeout=3, trust_env=False, follow_redirects=False) as client:
-        for attempt in range(90):
-            raw = compose(directory, "ps", "--all", "--format", "json")
-            rows = (
-                json.loads(raw)
-                if raw.lstrip().startswith("[")
-                else [json.loads(line) for line in raw.splitlines() if line.strip()]
-            )
-            if any(row.get("State") in {"exited", "dead", "removing"} for row in rows):
-                raise RuntimeError("Capability profile service exited before readiness")
-            ready = {
-                row["Service"]
-                for row in rows
-                if row.get("State") == "running" and row.get("Health", "") in {"", "healthy"}
-            }
-            if ready == local.KEEP:
-                try:
-                    for endpoint in endpoints:
-                        client.get(endpoint).raise_for_status()
-                    print(
-                        "Dedicated capability API, Runner and local identity endpoints are ready."
-                    )
-                    return
-                except httpx.HTTPError:
-                    pass
-            if attempt < 89:
-                time.sleep(2)
-    raise RuntimeError("Capability profile readiness timed out; no passing proof was produced")
+def require_native_shared_memory(host):
+    """Bind native execution to Docker's private, fixed-size default shm mount."""
+    ipc_private = host.get("IpcMode") == "private"
+    size_matches = (
+        type(host.get("ShmSize")) is int and host["ShmSize"] == NATIVE_SHARED_MEMORY_BYTES
+    )
+    if not ipc_private or not size_matches:
+        raise ContainerInspectionRejected(
+            "Native source requires exact private IPC and 64 MiB shared memory",
+            category="shared_memory",
+            facts={
+                "shared_memory_ipc_private": ipc_private,
+                "shared_memory_size_match": size_matches,
+            },
+        )
+    return {"ipc_mode": "private", "size_bytes": NATIVE_SHARED_MEMORY_BYTES}
 
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["prepare", "up", "check", "status", "down"])
-    parser.add_argument("--directory", type=Path, default=HOME)
-    args = parser.parse_args()
-    if args.action == "prepare":
-        prepare(args.directory)
-    elif args.action == "up":
-        up(args.directory)
-    elif args.action == "check":
-        require_profile(args.directory)
-        print("Profile image and recipe identities match; application isolation is not yet proven.")
-    else:
-        print(compose(args.directory, *({"status": ["ps"], "down": ["down"]}[args.action])))
-
-
-if __name__ == "__main__":
-    try:
-        main()
-    except subprocess.CalledProcessError as error:
-        print((error.stderr or b"").decode("utf-8", errors="replace")[-12000:])
-        raise
 ````

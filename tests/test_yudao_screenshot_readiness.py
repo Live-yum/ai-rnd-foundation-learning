@@ -1,5 +1,6 @@
 """Real Chromium capture semantics; these fixtures are not native-stack receipts."""
 
+import json
 import os
 from pathlib import Path
 
@@ -19,8 +20,10 @@ const server=http.createServer((req,res)=>{
  if(req.url==='/missing-font'){res.writeHead(404);res.end();return;}
  res.writeHead(200,{'Content-Type':'text/html;charset=utf-8'});
  const font=mode==='missing-visible-font'?'/missing-font':'/slow-font';
+ // Only the live-clock scenario needs equal-width digits. Generic monospace
+ // metrics can change during Chromium's first beyond-viewport capture.
  res.end(`<style>@font-face{font-family:CaptureProbe;src:url('${font}');${mode==='pending-unicode-range'?'unicode-range:U+20BB7;':''}}body{font-family:Arial,sans-serif;background:white;color:black}#record{margin:30px;padding:10px}</style>
- ${mode==='blank-business'?'':`<main id="record">Fixture customer title 123<input id="field" value="Private control value"><span id="clock" style="font-family:monospace">111</span><div id="hidden" style="display:none;font-family:CaptureProbe">Hidden text</div></main>`}
+ ${mode==='blank-business'?'':`<main id="record">Fixture customer title 123<input id="field" value="Private control value"><span id="clock" style="${mode==='refreshing-text'?'font-family:monospace':''}">111</span><div id="hidden" style="display:none;font-family:CaptureProbe">Hidden text</div></main>`}
  <script>
  if(${JSON.stringify(mode)}.includes('font')&&${JSON.stringify(mode)}!=='capture-visible-font'){
   if(${JSON.stringify(mode)}==='pending-control-font')document.querySelector('#field').style.fontFamily='CaptureProbe,Arial';
@@ -166,6 +169,60 @@ const server=http.createServer((req,res)=>{
 """
 
 
+def _capture_failure_summary(path):
+    """Expose only bounded numeric/boolean facts and a fixed phase vocabulary."""
+    try:
+        with path.open("rb") as source:
+            raw = source.read(65537)
+        if len(raw) > 65536:
+            return {"available": False}
+        data = json.loads(raw)
+    except OSError, ValueError, RecursionError:
+        return {"available": False}
+    if not isinstance(data, dict):
+        return {"available": False}
+
+    summary = {"available": True}
+    if data.get("phase") in (
+        "notice-settlement",
+        "visible-fonts-and-layout",
+        "native-pixel-capture",
+        "post-capture-readiness",
+    ):
+        summary["phase"] = data["phase"]
+    for key in ("capture_attempts", "visible_text_nodes"):
+        value = data.get(key)
+        if type(value) is int and 0 <= value <= 1_000_000:
+            summary[key] = value
+    if type(data.get("images_ready")) is bool:
+        summary["images_ready"] = data["images_ready"]
+    for group, keys, expected_type in (
+        (
+            "timing",
+            ("notice_ms", "sampling_ms", "pixels_ms", "samples", "duration_ms"),
+            int,
+        ),
+        ("last_capture_changes", ("layout", "text", "fonts", "images"), bool),
+    ):
+        values = data.get(group)
+        if isinstance(values, dict):
+            summary[group] = {
+                key: value
+                for key in keys
+                if type(value := values.get(key)) is expected_type
+                and (expected_type is bool or 0 <= value <= 1_000_000)
+            }
+    fonts = data.get("visible_fonts")
+    if (
+        isinstance(fonts, list)
+        and len(fonts) <= 64
+        and all(isinstance(font, dict) and type(font.get("loaded")) is bool for font in fonts)
+    ):
+        summary["visible_fonts_checked"] = len(fonts)
+        summary["visible_fonts_unready"] = sum(not font["loaded"] for font in fonts)
+    return summary
+
+
 @pytest.mark.parametrize(
     "mode",
     [
@@ -194,4 +251,82 @@ def test_native_pixels_require_visible_fonts_and_stable_business_content(
         pytest.skip("Actual pinned Playwright/Chromium required")
     # Reuse the already-tested, bounded owned-process runner, not pipe-only teardown.
     monkeypatch.setattr(harness, "DRIVER", DRIVER)
-    harness._run_driver(mode, str(tmp_path), module)
+    try:
+        harness._run_driver(mode, str(tmp_path), module)
+    except AssertionError:
+        summary = _capture_failure_summary(tmp_path / "capture.png.capture.json")
+        print("Native screenshot capture summary: " + json.dumps(summary, sort_keys=True))
+        raise
+
+
+def test_capture_failure_summary_keeps_only_bounded_typed_facts(tmp_path):
+    path = tmp_path / "capture.json"
+    private = "private page text https://secret.invalid/token local/private/path"
+    path.write_text(
+        json.dumps(
+            {
+                "phase": "native-pixel-capture",
+                "capture_attempts": 2,
+                "visible_text_nodes": True,
+                "images_ready": False,
+                "timing": {
+                    "notice_ms": 5,
+                    "sampling_ms": -1,
+                    "pixels_ms": 1_000_001,
+                    "samples": True,
+                    "duration_ms": 1500,
+                    "exception": private,
+                },
+                "last_capture_changes": {"layout": True, "text": private, "fonts": 1},
+                "visible_fonts": [{"font": private, "loaded": False}],
+                "font_faces": [{"family": private, "status": private}],
+                "exception": private,
+            }
+        )
+    )
+    assert _capture_failure_summary(path) == {
+        "available": True,
+        "phase": "native-pixel-capture",
+        "capture_attempts": 2,
+        "images_ready": False,
+        "timing": {"notice_ms": 5, "duration_ms": 1500},
+        "last_capture_changes": {"layout": True},
+        "visible_fonts_checked": 1,
+        "visible_fonts_unready": 1,
+    }
+    path.write_text(json.dumps({"phase": private, "visible_fonts": [{"loaded": 1}]}))
+    assert _capture_failure_summary(path) == {"available": True}
+
+
+@pytest.mark.parametrize("raw", [None, b"{", b"[]", b"\xff", b" " * 65537])
+def test_capture_failure_summary_rejects_missing_malformed_or_oversized_data(tmp_path, raw):
+    path = tmp_path / "capture.json"
+    if raw is not None:
+        path.write_bytes(raw)
+    assert _capture_failure_summary(path) == {"available": False}
+
+
+def test_fixture_failure_prints_sanitized_capture_summary(tmp_path, monkeypatch, capsys):
+    monkeypatch.setenv("PRODUCT_VERIFY_PLAYWRIGHT", str(tmp_path))
+
+    def fail_driver(*args):
+        (tmp_path / "capture.png.capture.json").write_text(
+            json.dumps(
+                {
+                    "phase": "native-pixel-capture",
+                    "capture_attempts": 2,
+                    "exception": "private page text and token",
+                }
+            )
+        )
+        raise AssertionError("fixture failed")
+
+    monkeypatch.setattr(harness, "_run_driver", fail_driver)
+    with pytest.raises(AssertionError, match="fixture failed"):
+        test_native_pixels_require_visible_fonts_and_stable_business_content(
+            tmp_path, monkeypatch, "scrolled-long-page"
+        )
+    assert capsys.readouterr().out == (
+        'Native screenshot capture summary: {"available": true, '
+        '"capture_attempts": 2, "phase": "native-pixel-capture"}\n'
+    )

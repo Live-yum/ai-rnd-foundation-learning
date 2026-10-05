@@ -4,18 +4,35 @@ import copy
 import difflib
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from scripts import daytona_build as build
 from scripts import daytona_capability_profile as profile
 from scripts import daytona_local as local
 from scripts.daytona_bootstrap import snapshot_resources
+from workbench.capability_isolation import ContainerInspectionRejected
 
 RUNNER = "sha256:" + "a" * 64
 SNAPSHOT = "sha256:" + "b" * 64
 DIGEST = "sha256:" + "c" * 64
 OUTER = "d" * 64
 SANDBOX = "ea997c7d-cbb9-45eb-8352-3f8bc9e2a512"
+
+
+def dependency_record():
+    return {
+        "schema": 1,
+        "profile": "python-basic",
+        "image_id": SNAPSHOT,
+        "manifest_sha256": "1" * 64,
+        "installed_tree_sha256": "2" * 64,
+        "original_descriptors": {
+            name: profile.sha256((profile.ROOT / "templates/product" / name).read_bytes())
+            for name in ("pyproject.toml", "uv.lock")
+        },
+    }
 
 
 def base_config():
@@ -35,6 +52,7 @@ def base_config():
 
 def test_profile_transformation_preserves_general_defaults_and_all_other_fields():
     original = base_config()
+    original["services"]["runner"]["environment"]["RESOURCE_LIMITS_DISABLED"] = "true"
     untouched = copy.deepcopy(original)
     image = "registry:6000/rnd-python:0123456789abcdef"
     result = profile.render_profile(original, RUNNER, image)
@@ -43,11 +61,15 @@ def test_profile_transformation_preserves_general_defaults_and_all_other_fields(
     assert result["services"]["runner"]["image"] == RUNNER
     assert result["services"]["runner"]["environment"]["USE_SNAPSHOT_ENTRYPOINT"] == "false"
     assert result["services"]["runner"]["privileged"] is True
+    assert result["services"]["runner"]["environment"]["RESOURCE_LIMITS_DISABLED"] == "true"
     assert result["services"]["api"]["environment"]["DEFAULT_SNAPSHOT"] == image
     # The owned app-container patch does not alter DinD or general defaults.
     assert "USE_SNAPSHOT_ENTRYPOINT" not in original["services"]["runner"]["environment"]
     assert local.IMAGES["runner"].startswith("rnd-local/daytona-runner:")
-    assert snapshot_resources({"image": image}) == ({"cpu": 1, "memory": 2, "disk": 5}, True)
+    assert snapshot_resources({"image": image}) == (
+        {"cpu": 1, "memory": 2, "disk": 5},
+        True,
+    )
     with pytest.raises(ValueError, match="own disposable"):
         profile.profile_directory(local.HOME)
 
@@ -110,6 +132,8 @@ def source_fixture(tmp_path, monkeypatch):
         "// Copyright Daytona; AGPL-3.0\npackage docker\nvar host = container.HostConfig{\n"
         + profile.OLD
         + "}\n"
+        + profile.LIMIT_ANCHOR
+        + "\n"
     )
     workspace = "go 1.25.5\n\nuse ./apps/runner\n"
     for name in profile.RECIPE_PATHS:
@@ -119,7 +143,9 @@ def source_fixture(tmp_path, monkeypatch):
     patch = "".join(
         difflib.unified_diff(
             source.splitlines(keepends=True),
-            source.replace(profile.OLD, profile.NEW).splitlines(keepends=True),
+            source.replace(profile.OLD, profile.NEW)
+            .replace(profile.LIMIT_ANCHOR, profile.LIMIT_INSERT + profile.LIMIT_ANCHOR, 1)
+            .splitlines(keepends=True),
             fromfile="a/" + profile.SOURCE_FILE,
             tofile="b/" + profile.SOURCE_FILE,
         )
@@ -146,12 +172,92 @@ def source_fixture(tmp_path, monkeypatch):
 def test_source_preimage_and_patch_are_exact_and_module_inputs_are_preserved(tmp_path, monkeypatch):
     _, context, source, workspace = source_fixture(tmp_path, monkeypatch)
     record = profile.source_context(tmp_path, context)
-    assert (context / profile.SOURCE_FILE).read_text() == source.replace(profile.OLD, profile.NEW)
+    assert (context / profile.SOURCE_FILE).read_text() == source.replace(
+        profile.OLD, profile.NEW
+    ).replace(profile.LIMIT_ANCHOR, profile.LIMIT_INSERT + profile.LIMIT_ANCHOR, 1)
     assert (context / "go.work").read_text() == workspace
     assert (context / "apps/runner/go.mod").read_text() == "module fixture\ngo 1.25.5\n"
     assert (context / "go.work.sum").read_text() == "fixture v1 h1:fixture\n"
     assert record["source_sha"] == profile.DAYTONA_SOURCE
     assert (context / "capability-build/NOTICE").is_file()
+
+
+def test_custom_source_patch_binds_only_its_reviewed_primary_bridge(tmp_path, monkeypatch):
+    _, context, _, _ = source_fixture(tmp_path, monkeypatch)
+    profile.source_context(tmp_path, context)
+    source = (context / profile.SOURCE_FILE).read_text(encoding="utf-8")
+    assignment = 'hostConfig.NetworkMode = container.NetworkMode("runner-bridge")'
+    assert source.count(assignment) == 1
+    custom = source.split('if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {', 1)[1]
+    assert custom.index(assignment) < custom.index("pidLimit := int64(256)")
+    assert custom.index(assignment) < custom.index('"rnd-source-native-"')
+    assert "Privileged: false" in source
+    assert "NetworkMode" not in source.split("// Custom-source executions", 1)[0]
+
+
+def test_custom_source_patch_pins_cpu_memory_and_no_extra_swap_independent_of_global_flag():
+    custom, native = profile.LIMIT_INSERT.split(
+        'if strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {', 1
+    )
+    assert 'if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {' in custom
+    assert "resourceLimitsDisabled" not in profile.LIMIT_INSERT
+    assert "hostConfig.CPUPeriod = 100000" in custom
+    assert "hostConfig.CPUQuota = 100000" in custom
+    assert "hostConfig.Memory = 2 * 1024 * 1024 * 1024" in custom
+    assert "hostConfig.CPUQuota = 200000" in native
+    assert "hostConfig.Memory = 6 * 1024 * 1024 * 1024" in native
+    assert native.endswith("\t\t}\n\t\thostConfig.MemorySwap = hostConfig.Memory\n\t}\n")
+
+
+def test_shared_memory_patch_is_exact_and_only_changes_the_native_container_branch():
+    custom, native = profile.LIMIT_INSERT.split(
+        'if strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {', 1
+    )
+    native, after_native = native.split("\t\t}\n", 1)
+    for statement in (
+        'hostConfig.IpcMode = container.IpcMode("private")',
+        "hostConfig.ShmSize = 67108864",
+    ):
+        assert native.count(statement) == 1
+        assert statement not in custom + after_native + profile.NEW
+    assert "/dev/shm" not in profile.LIMIT_INSERT
+    assert "Binds" not in profile.LIMIT_INSERT and "Mounts" not in profile.LIMIT_INSERT
+    patch = (profile.ROOT / "tools/daytona/capability-runner.patch").read_bytes()
+    # Regenerated from this verified upstream Git blob, not a hand-edited hunk.
+    assert profile.SOURCE_BLOB == "d5a97203afa87c3fa0065702723c41645bf284b6"
+    assert (
+        profile.sha256(patch) == "637d72fa9426bd186dc729c20a2f47e8b138140d6a339299e0ab59c3c18f8eed"
+    )
+
+
+@pytest.mark.parametrize("native", [False, True])
+def test_complete_source_resource_mapping_preserves_strict_bounds(native):
+    memory = (6 if native else 2) * 1024**3
+    quota = 200000 if native else 100000
+    tmpfs = 4294967296 if native else 1073741824
+    host = {
+        "CpuPeriod": 100000,
+        "CpuQuota": quota,
+        "Memory": memory,
+        "MemorySwap": memory,
+        "PidsLimit": 384 if native else 256,
+        "Tmpfs": {"/tmp": f"rw,nosuid,nodev,size={tmpfs},mode=1777"},
+    }
+    proof = profile.require_execution_resources(host, native=native)
+    assert proof["cpu_quota"] == quota
+    assert proof["memory"] == proof["memory_swap"] == memory
+    for field, value in (
+        ("CpuPeriod", 0),
+        ("CpuQuota", 0),
+        ("CpuQuota", quota + 1),
+        ("Memory", 0),
+        ("Memory", memory + 1),
+        ("MemorySwap", 0),
+        ("MemorySwap", memory + 1),
+        ("MemorySwap", -1),
+    ):
+        with pytest.raises(ContainerInspectionRejected):
+            profile.require_execution_resources({**host, field: value}, native=native)
 
 
 @pytest.mark.parametrize("changed", ["source", "workspace", "patch"])
@@ -180,7 +286,11 @@ def application_inspect():
             "Cmd": None,
             "Env": ["SECRET=must-not-be-in-receipt"],
         },
-        "HostConfig": {"Privileged": False, "NetworkMode": "runner-bridge", "SecurityOpt": None},
+        "HostConfig": {
+            "Privileged": False,
+            "NetworkMode": "runner-bridge",
+            "SecurityOpt": None,
+        },
         "Mounts": [
             {
                 "Type": "bind",
@@ -201,8 +311,13 @@ def application_inspect():
 @pytest.fixture
 def inspection(tmp_path, monkeypatch):
     record = {
+        "profile": profile.PROFILE,
         "runner": {"image_id": RUNNER},
-        "snapshot": {"image_id": SNAPSHOT, "digest": "registry:6000/rnd-python@" + DIGEST},
+        "snapshot": {
+            "image_id": SNAPSHOT,
+            "digest": "registry:6000/rnd-python@" + DIGEST,
+            "dependency_manifest": dependency_record(),
+        },
     }
     outer = {
         "Image": RUNNER,
@@ -225,13 +340,344 @@ def inspection(tmp_path, monkeypatch):
         calls.append(args)
         if "info" in args:
             return json.dumps(inner.get("engine_security", ["name=seccomp,profile=builtin"]))
+        if "network" in args:
+            return json.dumps(inner["bridge_inspect"])
         return json.dumps([outer if args[0] == "container" else inner])
 
     monkeypatch.setattr(local, "docker", docker)
     return tmp_path, outer, inner, calls
 
 
-def test_readonly_inspection_is_scoped_to_owned_uuid_and_redacts_everything_else(inspection):
+@pytest.fixture
+def execution_inspection(inspection):
+    _, _, inner, _ = inspection
+    inner["HostConfig"].update(
+        Memory=2 * 1024**3,
+        MemorySwap=2 * 1024**3,
+        CpuPeriod=100000,
+        CpuQuota=100000,
+        PidsLimit=256,
+        Tmpfs={"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"},
+    )
+    inner["NetworkSettings"] = {"Networks": {"runner-bridge": {}}}
+    inner["bridge_inspect"] = [
+        {
+            "EnableIPv6": False,
+            "Driver": "bridge",
+            "IPAM": {"Config": [{"Subnet": local.RUNNER_BRIDGE_SUBNET}]},
+        }
+    ]
+    inner["Mounts"].append({"Type": "tmpfs", "Destination": "/tmp", "RW": True, "Source": ""})
+    return inspection
+
+
+@pytest.fixture
+def native_inspection(execution_inspection, monkeypatch):
+    from scripts import daytona_native_capability_profile as native
+
+    directory, _, inner, _ = execution_inspection
+    record = copy.deepcopy(profile.require_profile(directory))
+    record["profile"] = native.PROFILE
+    record["snapshot"]["digest"] = "registry:6000/rnd-native-fastapiadmin@" + DIGEST
+    monkeypatch.setattr(native, "require_native_profile", lambda _: record)
+    inner["HostConfig"].update(
+        IpcMode="private",
+        ShmSize=67108864,
+        CpuQuota=200000,
+        Memory=6 * 1024**3,
+        MemorySwap=6 * 1024**3,
+        PidsLimit=384,
+        Tmpfs={"/tmp": "rw,nosuid,nodev,size=4294967296,mode=1777"},
+    )
+    return execution_inspection
+
+
+def test_native_inspection_binds_private_shared_memory_without_expanding_mounts(native_inspection):
+    directory, _, _, calls = native_inspection
+    proof = profile.inspect_created_sandbox(
+        directory, SANDBOX, require_resources=True, selection={"template": "fastapiadmin"}
+    )
+    assert proof["shared_memory"] == {"ipc_mode": "private", "size_bytes": 67108864}
+    assert type(proof["shared_memory"]["size_bytes"]) is int
+    assert proof["resource_limits"] == {
+        "cpu_period": 100000,
+        "cpu_quota": 200000,
+        "memory": 6 * 1024**3,
+        "memory_swap": 6 * 1024**3,
+        "tmpfs_bytes": 4294967296,
+        "pids": 384,
+    }
+    assert proof["trusted_readonly_binary_mounts"] is True
+    assert len(calls) == 4
+
+
+@pytest.mark.parametrize("require_resources", [False, True])
+@pytest.mark.parametrize(
+    "field,value",
+    [
+        ("IpcMode", None),
+        ("IpcMode", ""),
+        ("IpcMode", "host"),
+        ("IpcMode", "shareable"),
+        ("IpcMode", "container:secret-container"),
+        ("IpcMode", True),
+        ("ShmSize", None),
+        ("ShmSize", 0),
+        ("ShmSize", -1),
+        ("ShmSize", 67108863),
+        ("ShmSize", 67108865),
+        ("ShmSize", 67108864.0),
+        ("ShmSize", "67108864"),
+        ("ShmSize", True),
+        ("ShmSize", False),
+    ],
+)
+def test_native_shared_memory_rejects_missing_changed_and_untyped_inspection(
+    native_inspection, require_resources, field, value
+):
+    directory, _, inner, calls = native_inspection
+    if value is None:
+        inner["HostConfig"].pop(field)
+    else:
+        inner["HostConfig"][field] = value
+    with pytest.raises(ContainerInspectionRejected, match="exact private IPC") as error:
+        profile.inspect_created_sandbox(
+            directory,
+            SANDBOX,
+            require_resources=require_resources,
+            selection={"template": "fastapiadmin"},
+        )
+    assert error.value.diagnostic() == {
+        "container_rejection": "shared_memory",
+        "shared_memory_ipc_private": field != "IpcMode",
+        "shared_memory_size_match": field != "ShmSize",
+    }
+    assert "secret" not in json.dumps(error.value.diagnostic())
+    assert len(calls) == 3
+
+
+@pytest.mark.parametrize("ipc_mode", [None, "", "private"])
+def test_sqlite_inspection_keeps_prior_ipc_policy_without_native_shared_memory(
+    execution_inspection, ipc_mode
+):
+    directory, _, inner, _ = execution_inspection
+    if ipc_mode is not None:
+        inner["HostConfig"]["IpcMode"] = ipc_mode
+    proof = profile.inspect_created_sandbox(directory, SANDBOX, require_resources=True)
+    assert "shared_memory" not in proof
+    assert proof["resource_limits"]["memory"] == 2 * 1024**3
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        lambda row: row["HostConfig"].update(Privileged=True),
+        lambda row: row["HostConfig"].update(SecurityOpt=["seccomp=unconfined"]),
+        lambda row: row["HostConfig"].update(CapAdd=["SYS_ADMIN"]),
+        lambda row: row["HostConfig"].update(PidMode="host"),
+        lambda row: row["HostConfig"].update(NetworkMode="default"),
+        lambda row: row["HostConfig"].update(MemorySwap=-1),
+        lambda row: row["HostConfig"].update(Tmpfs={"/dev/shm": "rw,size=67108864"}),
+        lambda row: row["Mounts"].append(
+            {"Type": "bind", "RW": True, "Destination": "/dev/shm", "Source": "/dev/shm"}
+        ),
+        lambda row: row["Mounts"].append(
+            {"Type": "tmpfs", "RW": True, "Destination": "/dev/shm", "Source": ""}
+        ),
+    ],
+)
+def test_native_shared_memory_preserves_all_other_container_predicates(native_inspection, mutation):
+    directory, _, inner, _ = native_inspection
+    mutation(inner)
+    with pytest.raises(ContainerInspectionRejected):
+        profile.inspect_created_sandbox(
+            directory, SANDBOX, require_resources=True, selection={"template": "fastapiadmin"}
+        )
+
+
+def test_execution_inspection_still_accepts_exact_resource_network_and_mount_policy(
+    execution_inspection,
+):
+    directory, _, _, calls = execution_inspection
+    proof = profile.inspect_created_sandbox(directory, SANDBOX, require_resources=True)
+    assert proof["resource_limits"] == {
+        "cpu_period": 100000,
+        "cpu_quota": 100000,
+        "memory": 2 * 1024**3,
+        "memory_swap": 2 * 1024**3,
+        "tmpfs_bytes": 1073741824,
+        "pids": 256,
+    }
+    assert proof["trusted_readonly_binary_mounts"] is True
+    assert len(calls) == 4
+
+
+@pytest.mark.parametrize(
+    "mutation,category,facts",
+    [
+        (
+            lambda row: row["HostConfig"].update(CpuPeriod=0, CpuQuota=0, Memory=0, MemorySwap=0),
+            "resource_limits",
+            {"cpu_period": 0, "cpu_quota": 0, "memory": 0, "memory_swap": 0},
+        ),
+        (
+            lambda row: row["HostConfig"].update(NetworkMode="bridge"),
+            "sandbox_network",
+            {
+                "network_mode": "bridge",
+                "network_count": 1,
+                "runner_bridge_attached": True,
+            },
+        ),
+        (
+            lambda row: row["HostConfig"].update(NetworkMode="default"),
+            "sandbox_network",
+            {
+                "network_mode": "default",
+                "network_count": 1,
+                "runner_bridge_attached": True,
+            },
+        ),
+        (
+            lambda row: row["NetworkSettings"]["Networks"].update({"secret-network": {}}),
+            "sandbox_network",
+            {
+                "network_mode": "runner-bridge",
+                "network_count": 2,
+                "runner_bridge_attached": True,
+            },
+        ),
+        (
+            lambda row: row["HostConfig"].update(NetworkMode="secret-network"),
+            "sandbox_network",
+            {
+                "network_mode": "other",
+                "network_count": 1,
+                "runner_bridge_attached": True,
+            },
+        ),
+        (
+            lambda row: row["bridge_inspect"][0].update(EnableIPv6=True),
+            "runner_bridge",
+            {"bridge_ipv6_disabled": False, "bridge_driver_matches": True},
+        ),
+        (
+            lambda row: row["HostConfig"].update(MemorySwap=-1),
+            "resource_limits",
+            {"memory_swap": -1, "memory": 2 * 1024**3, "tmpfs_options_match": True},
+        ),
+        (
+            lambda row: row["HostConfig"].update(Tmpfs={"/secret-path": "secret-option"}),
+            "resource_limits",
+            {"tmpfs_keys_match": False, "tmpfs_options_match": False},
+        ),
+        (
+            lambda row: row["Mounts"][0].update(Source="/secret-path"),
+            "binary_mounts",
+            {
+                "mount_sources_match": False,
+                "mount_readonly_matches": True,
+                "mount_count": 2,
+            },
+        ),
+        (
+            lambda row: row["Mounts"][-1].update(Destination="/secret-path", RW=False),
+            "tmpfs_mounts",
+            {
+                "mount_destinations_match": False,
+                "mount_writable_matches": False,
+                "mount_count": 1,
+            },
+        ),
+    ],
+)
+def test_actual_inspector_rejections_reach_receipt_without_upload_or_secret_data(
+    execution_inspection, settings, mutation, category, facts
+):
+    from scripts.ci_capability_profile import fixed_application
+    from workbench.capability_sandbox import _verify
+
+    directory, _, inner, calls = execution_inspection
+    mutation(inner)
+    product = directory / "product"
+    plan = fixed_application(product)
+    operations = []
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("Inspector rejection must stop before source upload or execution")
+
+    sandbox = SimpleNamespace(
+        id=SANDBOX,
+        fs=SimpleNamespace(create_folder=forbidden, upload_file=forbidden),
+        process=SimpleNamespace(exec=forbidden),
+    )
+    client = SimpleNamespace(
+        create=lambda *a, **k: sandbox,
+        delete=lambda *a, **k: operations.append("deleted"),
+    )
+    settings.daytona_snapshot = "fixture-owned-snapshot"
+    receipt_path = directory / "receipt.json"
+    result = _verify(
+        product,
+        plan,
+        plan.scenarios,
+        settings,
+        plan.selection.model_dump(),
+        receipt_path,
+        client=client,
+        aggregate=True,
+        profile_record=profile.require_profile(directory),
+        control_observer=lambda identifier: profile.inspect_created_sandbox(
+            directory, identifier, require_resources=True
+        ),
+    )
+    assert result["passed"] is False and result["cleanup"] == "deleted"
+    assert result["kind"] == "isolation_environment" and operations == ["deleted"]
+    assert "container_isolation" not in result
+    diagnostic = result["isolation_diagnostic"]
+    assert diagnostic["container_rejection"] == category
+    assert diagnostic.items() >= facts.items()
+    receipt_text = receipt_path.read_text(encoding="utf-8")
+    assert json.loads(receipt_text) == result
+    assert "secret" not in receipt_text.lower()
+    assert "must-not-be-in-receipt" not in receipt_text
+    assert len(calls) == (3 if category == "sandbox_network" else 4)
+
+
+def test_inspector_diagnostics_allow_only_finite_fields_values_and_bounded_numbers():
+    error = ContainerInspectionRejected(
+        "secret exception text",
+        category="resource_limits",
+        facts={
+            "memory": 2 * 1024**3,
+            "memory_swap": -(2**100),
+            "cpu_period": True,
+            "cpu_quota": "secret quota",
+            "pids_limit": 256,
+            "tmpfs_options_match": "secret flag",
+            "environment": {"TOKEN": "secret"},
+            "mount_path": "/secret",
+        },
+    )
+    expected = {
+        "container_rejection": "resource_limits",
+        "memory": 2 * 1024**3,
+        "memory_swap": None,
+        "cpu_period": None,
+        "cpu_quota": None,
+        "pids_limit": 256,
+        "tmpfs_options_match": None,
+    }
+    assert error.diagnostic() == expected
+    error._facts.update(environment="secret", cpu_quota="secret")
+    assert error.diagnostic() == expected
+    error._category = "secret category"
+    assert error.diagnostic() == {}
+
+
+def test_readonly_inspection_is_scoped_to_owned_uuid_and_redacts_everything_else(
+    inspection,
+):
     directory, _, _, calls = inspection
     proof = profile.inspect_created_sandbox(directory, SANDBOX)
     assert proof["privileged"] is False and proof["seccomp"] == "docker-default"
@@ -335,14 +781,39 @@ def test_recipe_keeps_real_embeds_glibc_smoke_license_and_locked_go_inputs():
 
 
 @pytest.fixture
-def locked_profile(tmp_path):
+def locked_profile(tmp_path, monkeypatch):
     base = base_config()
     records = {}
     for name, service in base["services"].items():
         tag = service["image"]
         value = RUNNER if name in profile.BUILT else tag.rsplit(":", 1)[0] + "@" + DIGEST
-        records[name] = {"tag": tag, "image_id" if name in profile.BUILT else "digest": value}
+        records[name] = {
+            "tag": tag,
+            "image_id" if name in profile.BUILT else "digest": value,
+        }
         service["image"] = value
+    records["api"].update(source_sha=build.DAYTONA_SOURCE, source_patch=build.api_patch_identity())
+
+    def inspect_api(*args, **kwargs):
+        assert args == ("image", "inspect", records["api"]["image_id"]), (
+            "No Docker mutation allowed"
+        )
+        return json.dumps(
+            [
+                {
+                    "Id": records["api"]["image_id"],
+                    "Config": {
+                        "Labels": {
+                            "org.opencontainers.image.revision": build.DAYTONA_SOURCE,
+                            "org.opencontainers.image.version": build.DAYTONA_VERSION,
+                            **build.api_patch_labels(),
+                        }
+                    },
+                }
+            ]
+        )
+
+    monkeypatch.setattr(local, "docker", inspect_api)
     profile.write_compose(tmp_path / "compose.lock.yaml", base)
     local.private_json(tmp_path / "images.lock.json", records)
     local.private_json(
@@ -356,11 +827,16 @@ def locked_profile(tmp_path):
     )
     identity, recipes = profile.recipe_identity()
     bases = {
-        name: {"tag": tag, "digest": tag.rsplit(":", 1)[0] + "@" + DIGEST, "image_id": SNAPSHOT}
+        name: {
+            "tag": tag,
+            "digest": tag.rsplit(":", 1)[0] + "@" + DIGEST,
+            "image_id": SNAPSHOT,
+        }
         for name, tag in profile.BASES.items()
     }
     stamp = profile.sha256((identity + json.dumps(bases, sort_keys=True)).encode())[:16]
     image = {
+        "dependency_manifest": dependency_record(),
         "source_hash": stamp,
         "image": "registry:6000/rnd-python:" + stamp,
         "snapshot": "rnd-python-" + stamp,
@@ -393,7 +869,9 @@ def locked_profile(tmp_path):
     return tmp_path, record
 
 
-def test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_changes(locked_profile):
+def test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_changes(
+    locked_profile,
+):
     directory, record = locked_profile
     ordinary = (directory / "compose.lock.yaml").read_bytes()
     config, actual = profile.load_profile(directory)
@@ -403,6 +881,23 @@ def test_profile_lock_roundtrip_preserves_ordinary_lock_and_rejects_compose_chan
     with pytest.raises(ValueError, match="exact allowed transformation"):
         profile.load_profile(directory)
     assert (directory / "compose.lock.yaml").read_bytes() == ordinary
+
+
+def test_prior_runner_recipe_is_rejected_before_current_shared_memory_admission(locked_profile):
+    directory, record = locked_profile
+    # This internally consistent recipe predates the explicit native IPC/size binding.
+    record["recipes"].update(
+        {
+            "scripts/daytona_capability_profile.py": "97d9296f6793e8f5c884c891ac87e15c0e481c1feb9fcbc425a63a8c086d7b9c",
+            "tools/daytona/capability-runner.patch": "5f29b0e86b5cdff4a04d318fdcfcb1f237e4d750771f1bebcb7a0fa36e5a800c",
+        }
+    )
+    record["recipe_identity"] = profile.sha256(
+        json.dumps(record["recipes"], sort_keys=True).encode()
+    )
+    local.private_json(directory / profile.LOCK, record)
+    with pytest.raises(ValueError, match="recipe or original installation changed"):
+        profile.load_profile(directory)
 
 
 @pytest.mark.parametrize(
@@ -433,6 +928,7 @@ def test_required_profile_verifies_image_id_and_registry_digest(locked_profile, 
     monkeypatch.setattr(
         profile, "inspect_image", lambda value: runner if value == RUNNER else image
     )
+    monkeypatch.setattr(profile, "inspect_dependency_manifest", lambda *args: dependency_record())
     assert profile.require_profile(directory, record["snapshot"]["snapshot"]) == record
     with pytest.raises(ValueError, match="explicitly select"):
         profile.require_profile(directory, "ordinary-snapshot")
@@ -441,11 +937,9 @@ def test_required_profile_verifies_image_id_and_registry_digest(locked_profile, 
         profile.require_profile(directory)
 
 
-def test_prepare_never_overwrites_existing_profile_or_credentials(locked_profile, monkeypatch):
+def test_prepare_never_overwrites_existing_profile_or_credentials(locked_profile):
     directory, _ = locked_profile
-    monkeypatch.setattr(
-        local, "docker", lambda *args, **kwargs: pytest.fail("No Docker mutation allowed")
-    )
+    # locked_profile permits only the exact read-only API image inspection.
     with pytest.raises(ValueError, match="fresh local state"):
         profile.prepare(directory)
 

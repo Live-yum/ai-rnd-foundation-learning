@@ -84,7 +84,7 @@ def main():
     write_json(report_path, summary)
     if settings.sandbox_provider != "daytona":
         raise ValueError("Positive profile acceptance requires the real local Daytona service")
-    require_profile(HOME, settings.daytona_snapshot)
+    record = require_profile(HOME, settings.daytona_snapshot)
     with tempfile.TemporaryDirectory(prefix="rnd-fixed-profile-") as directory:
         product = Path(directory) / "product"
         plan = fixed_application(product)
@@ -101,6 +101,7 @@ def main():
                 ROOT / "reports/capability-profile-detail.json",
                 client=client,
                 aggregate=True,
+                profile_record=record,
                 control_observer=lambda sandbox_id: inspect_created_sandbox(HOME, sandbox_id),
             )
             summary["proof"] = settings.redact_data(proof)

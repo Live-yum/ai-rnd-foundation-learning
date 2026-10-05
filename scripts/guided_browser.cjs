@@ -118,8 +118,10 @@ async function api(page, cfg, endpoint, options = {}) {
   );
   return response.json();
 }
-async function fixture(page, cfg) {
-  const response = await page.request.get(cfg.fixture + "/fixture/status");
+async function fixture(page, cfg, timeout = 60000) {
+  const response = await page.request.get(cfg.fixture + "/fixture/status", {
+    timeout,
+  });
   assert(response.ok());
   return response.json();
 }
@@ -216,17 +218,31 @@ async function checkSettings(page, cfg, errors) {
   page.on("response", watch);
   await route(page, "settings");
   await page.getByRole("heading", { name: "模型与服务，一处配置" }).waitFor();
-  const connectionTest = page.getByRole("button", { name: "测试连接", exact: true });
-  assert(await connectionTest.isEnabled(), "Saved configuration exposes the explicit probe");
+  const connectionTest = page.getByRole("button", {
+    name: "测试连接",
+    exact: true,
+  });
+  assert(
+    await connectionTest.isEnabled(),
+    "Saved configuration exposes the explicit probe",
+  );
   await connectionTest.click();
   const probeConfirmation = page.getByRole("dialog");
-  await probeConfirmation.getByText("发起一次真实模型连接测试？", { exact: true }).waitFor();
-  assert.equal((await fixture(page, cfg)).calls.length, callsBefore,
-    "Opening the cost confirmation must not call a model");
+  await probeConfirmation
+    .getByText("发起一次真实模型连接测试？", { exact: true })
+    .waitFor();
+  assert.equal(
+    (await fixture(page, cfg)).calls.length,
+    callsBefore,
+    "Opening the cost confirmation must not call a model",
+  );
   await probeConfirmation.getByRole("button", { name: /^取\s*消$/ }).click();
   await probeConfirmation.waitFor({ state: "hidden" });
-  assert.equal((await fixture(page, cfg)).calls.length, callsBefore,
-    "Cancelling a connection test must not call a model");
+  assert.equal(
+    (await fixture(page, cfg)).calls.length,
+    callsBefore,
+    "Cancelling a connection test must not call a model",
+  );
   await page.getByRole("tab", { name: /^计划阶段/ }).click();
   await page.locator("#model-url").fill(cfg.fixture + "/another-v1");
   const save = page.getByRole("button", { name: "保存配置", exact: true });
@@ -612,13 +628,173 @@ async function recovery(page, cfg) {
   );
 }
 
-async function manual(page, cfg) {
+// Only bounded status/boolean/hash fields are retained, never arbitrary API text.
+function deliveryFacts(run, report) {
+  const hash = (value) =>
+    typeof value === "string" && /^[a-f0-9]{64}$/.test(value) ? value : null;
+  const gate = run.pending || {};
+  const delivery = report["delivery.json"] || {};
+  const verification = report["verification.json"] || {};
+  return {
+    waiting_delivery: run.status === "WAITING_DELIVERY",
+    manual_mode: run.auto_mode === false,
+    delivery_gate: gate.stage === "delivery",
+    can_approve: gate.can_approve === true,
+    approve_action:
+      Array.isArray(gate.actions) && gate.actions.includes("approve"),
+    gate_id: hash(gate.gate_id),
+    gate_digest: hash(gate.digest),
+    gate_version:
+      Number.isSafeInteger(gate.version) && gate.version >= 0
+        ? gate.version
+        : null,
+    artifact_sha256: hash(delivery.sha256),
+    gate_artifact_matches:
+      hash(gate.data?.sha256) !== null && gate.data.sha256 === delivery.sha256,
+    runtime_validation: delivery.validation_level === "runtime",
+    verification_passed: verification.passed === true,
+    verification_source_sha256: hash(verification.source_digest),
+    browser_passed: verification.browser?.passed === true,
+    real_browser: verification.browser?.real_browser === true,
+    cleanroom_passed: delivery.cleanroom?.passed === true,
+    cleanroom_http: delivery.cleanroom?.http === true,
+    cleanroom_restart: delivery.cleanroom?.restart === true,
+    isolated_sqlite: delivery.cleanroom?.database === "real-isolated-sqlite",
+  };
+}
+
+function requireDeliveryFacts(facts) {
+  for (const [name, value] of Object.entries(facts))
+    assert(
+      value !== null && value !== false,
+      "Missing delivery prerequisite: " + name,
+    );
+}
+
+function reviewTimeout(deadline) {
+  const remaining = deadline - Date.now();
+  assert(
+    remaining > 0,
+    "Delivery rereview exceeded the existing browser deadline",
+  );
+  return remaining;
+}
+
+async function currentDeliveryFacts(
+  page,
+  cfg,
+  runId,
+  deadline = Date.now() + 3000,
+) {
+  const [run, report] = await Promise.all([
+    api(page, cfg, `/runs/${runId}`, {
+      timeout: Math.min(3000, reviewTimeout(deadline)),
+    }),
+    api(page, cfg, `/runs/${runId}/report`, {
+      timeout: Math.min(3000, reviewTimeout(deadline)),
+    }),
+  ]);
+  return deliveryFacts(run, report);
+}
+
+async function rereviewDelivery(page, runId, deadline = Date.now() + 60000) {
+  reviewTimeout(deadline);
+  const latest = page.getByRole("button", {
+    name: "查看最新版本",
+    exact: true,
+  });
+  const stale = await latest.isVisible();
+  if (stale) {
+    const checkbox = page.getByRole("checkbox", {
+      name: "我已阅读本次验收证据与交付等级",
+      exact: true,
+    });
+    assert(
+      await checkbox.isDisabled(),
+      "A stale delivery cannot be acknowledged",
+    );
+    await latest.click({ timeout: reviewTimeout(deadline) });
+    await latest.waitFor({ state: "hidden", timeout: reviewTimeout(deadline) });
+    // The existing reread action opens the generic current-version view.
+    // Return to its dedicated delivery evidence before making a fresh decision.
+    await route(page, `run/${runId}/delivery`);
+  }
+  return stale;
+}
+
+function observeRunRefreshes(page, runId) {
+  const pending = new Map();
+  const paths = new Set([
+    `/runs/${runId}`,
+    `/runs/${runId}/report`,
+    `/runs/${runId}/models`,
+  ]);
+  const started = (request) => {
+    if (
+      request.method() !== "GET" ||
+      !paths.has(new URL(request.url()).pathname)
+    )
+      return;
+    let done;
+    const promise = new Promise((resolve) => {
+      done = resolve;
+    });
+    pending.set(request, { promise, done });
+  };
+  const finished = (request) => {
+    pending.get(request)?.done();
+    pending.delete(request);
+  };
+  page.on("request", started);
+  page.on("requestfinished", finished);
+  page.on("requestfailed", finished);
+  return {
+    async drain(deadline) {
+      let timer;
+      try {
+        await Promise.race([
+          (async () => {
+            while (pending.size)
+              await Promise.all(
+                [...pending.values()].map((entry) => entry.promise),
+              );
+          })(),
+          new Promise((_, reject) => {
+            timer = setTimeout(
+              () =>
+                reject(
+                  new Error(
+                    "UI refresh reads did not settle within the existing browser deadline",
+                  ),
+                ),
+              reviewTimeout(deadline),
+            );
+          }),
+        ]);
+        // Cross a browser task boundary after response bodies finish so Vue can apply them.
+        await page.evaluate(
+          () => new Promise((resolve) => requestAnimationFrame(resolve)),
+        );
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+    close() {
+      page.off("request", started);
+      page.off("requestfinished", finished);
+      page.off("requestfailed", finished);
+    },
+  };
+}
+
+async function manual(page, cfg, delayedRefresh = false) {
   await connect(page, cfg);
   const runId = await createRun(
     page,
     { ...cfg, requirement: "人工审批验收" },
     "人工审核完整交付验收",
   );
+  const refreshes = observeRunRefreshes(page, runId);
   await waitStatus(page, "WAITING_REQUIREMENTS");
   await page
     .getByRole("button", { name: "查看并审核当前版本", exact: true })
@@ -686,6 +862,26 @@ async function manual(page, cfg) {
   await page
     .getByRole("checkbox", { name: "我已阅读并核对当前版本", exact: true })
     .check();
+  let releaseRefresh;
+  let heldRefresh = false;
+  let releasedRefresh = false;
+  const held = new Promise((resolve) => {
+    releaseRefresh = resolve;
+  });
+  if (delayedRefresh)
+    await page.route(`**/runs/${runId}/report`, async (request) => {
+      const status = await page.evaluate(
+        () =>
+          document.querySelector('[data-testid="run-workspace"]')?.dataset
+            .status,
+      );
+      if (!heldRefresh && status === "RUNNING") {
+        heldRefresh = true;
+        // Delay one genuine read in an older refresh batch. Never fulfill/mock it.
+        await held;
+      }
+      await request.continue();
+    });
   await approve.click();
   await page.getByRole("button", { name: "查看进度", exact: true }).click();
   await page
@@ -697,6 +893,21 @@ async function manual(page, cfg) {
     fullPage: true,
   });
   await waitStatus(page, "WAITING_DELIVERY", 100000);
+  const reviewDeadline = Date.now() + 60000;
+  if (delayedRefresh) {
+    assert(
+      heldRefresh,
+      "The regression must delay a real in-flight RUNNING refresh",
+    );
+    releaseRefresh();
+    releasedRefresh = true;
+    await page
+      .getByText("审核内容已更新，需要重新阅读", { exact: true })
+      .waitFor({ timeout: reviewTimeout(reviewDeadline) });
+    await page.unroute(`**/runs/${runId}/report`);
+  }
+  await refreshes.drain(reviewDeadline);
+  await waitStatus(page, "WAITING_DELIVERY", reviewTimeout(reviewDeadline));
   await route(page, `run/${runId}/delivery`);
   const download = page.getByRole("button", {
     name: "下载完整交付包",
@@ -722,16 +933,81 @@ async function manual(page, cfg) {
     path: path.join(cfg.reports, "workbench-delivery-review-desktop.png"),
     fullPage: true,
   });
-  await page
-    .getByRole("checkbox", {
-      name: "我已阅读本次验收证据与交付等级",
-      exact: true,
-    })
-    .check();
-  await deliver.click();
+  const prerequisites = await currentDeliveryFacts(
+    page,
+    cfg,
+    runId,
+    reviewDeadline,
+  );
+  fs.writeFileSync(
+    path.join(cfg.reports, "manual-delivery-prerequisites.json"),
+    JSON.stringify(prerequisites, null, 2),
+  );
+  requireDeliveryFacts(prerequisites);
+  const providerCallsBeforeRereview = (
+    await fixture(page, cfg, reviewTimeout(reviewDeadline))
+  ).calls.length;
+  const approvalsBeforeRereview = submissions.length;
+  if (delayedRefresh)
+    await page
+      .getByRole("button", { name: "查看最新版本", exact: true })
+      .waitFor({ timeout: reviewTimeout(reviewDeadline) });
+  const staleRereview = await rereviewDelivery(page, runId, reviewDeadline);
+  if (delayedRefresh)
+    assert(staleRereview, "The real delayed snapshot must require rereview");
+  const acknowledgment = page.getByRole("checkbox", {
+    name: "我已阅读本次验收证据与交付等级",
+    exact: true,
+  });
+  assert.equal(
+    await acknowledgment.isChecked(),
+    false,
+    "A fresh delivery requires fresh acknowledgment",
+  );
+  assert(
+    await deliver.isDisabled(),
+    "Rereview alone must not approve delivery",
+  );
+  assert.deepEqual(
+    await currentDeliveryFacts(page, cfg, runId, reviewDeadline),
+    prerequisites,
+    "Rereview must retain the same verified delivery gate",
+  );
+  assert.equal(
+    submissions.length,
+    approvalsBeforeRereview,
+    "Rereview must not submit a decision",
+  );
+  assert.equal(
+    (await fixture(page, cfg, reviewTimeout(reviewDeadline))).calls.length,
+    providerCallsBeforeRereview,
+    "Rereview must not call any model provider",
+  );
+  if (staleRereview)
+    await capture(page, {
+      animations: "disabled",
+      path: path.join(cfg.reports, "workbench-delivery-rereview-desktop.png"),
+      fullPage: true,
+    });
+  await acknowledgment.check({ timeout: reviewTimeout(reviewDeadline) });
+  await deliver.click({ timeout: reviewTimeout(reviewDeadline) });
   await waitStatus(page, "READY");
   assert.equal(submissions.length, 3);
+  assert.deepEqual(
+    {
+      gate_id: submissions[2].gate_id,
+      version: submissions[2].version,
+      digest: submissions[2].digest,
+    },
+    {
+      gate_id: prerequisites.gate_id,
+      version: prerequisites.gate_version,
+      digest: prerequisites.gate_digest,
+    },
+    "Approval must bind the exact verified delivery gate",
+  );
   assert.equal((await api(page, cfg, `/runs/${runId}`)).auto_mode, false);
+  refreshes.close();
   fs.writeFileSync(
     path.join(cfg.reports, "manual.json"),
     JSON.stringify(
@@ -742,6 +1018,13 @@ async function manual(page, cfg) {
         double_click_single_approval: true,
         design_tabs: true,
         download_locked_until_delivery: true,
+        stale_delivery_rereview: staleRereview,
+        real_delayed_refresh: delayedRefresh && heldRefresh,
+        delayed_refresh_released: delayedRefresh && releasedRefresh,
+        verified_delivery_prerequisites: true,
+        rereview_did_not_submit: true,
+        rereview_did_not_call_provider: true,
+        approval_bound_to_delivery_gate: true,
         explicit_approval_count: submissions.length,
       },
       null,
@@ -1087,6 +1370,7 @@ async function main() {
     if (mode === "workbench") await workbench(page, cfg, errors);
     else if (mode === "recovery") await recovery(page, cfg);
     else if (mode === "manual") await manual(page, cfg);
+    else if (mode === "manual-stale") await manual(page, cfg, true);
     else if (mode === "interaction") await interaction(page, cfg, errors);
     else {
       await page.goto(cfg.product);
@@ -1187,17 +1471,50 @@ async function main() {
     }
     assert.equal(errors.length, 0, "Browser errors");
   } catch (error) {
+    try {
+      const runId = await page
+        .evaluate(
+          () =>
+            document
+              .querySelector('[data-testid="run-workspace"]')
+              ?.getAttribute("data-run-id") || null,
+        )
+        .catch(() => null);
+      if (runId && /^[a-f0-9-]{36}$/.test(runId)) {
+        const facts = await currentDeliveryFacts(page, cfg, runId).catch(
+          () => ({
+            unavailable: true,
+          }),
+        );
+        facts.stale_review_visible = await page
+          .getByRole("button", { name: "查看最新版本", exact: true })
+          .isVisible();
+        fs.writeFileSync(
+          path.join(cfg.reports, mode + "-failure-facts.json"),
+          JSON.stringify(facts, null, 2),
+        );
+      }
+    } catch {
+      // Optional diagnostics cannot replace the original browser failure.
+    }
     await capture(page, {
       animations: "disabled",
       path: path.join(cfg.reports, mode + "-failure.png"),
       fullPage: true,
-    });
+    }).catch(() => {});
     throw error;
   } finally {
     await browser.close();
   }
 }
-main().catch((e) => {
-  console.error(e.stack);
-  process.exitCode = 1;
-});
+module.exports = {
+  deliveryFacts,
+  requireDeliveryFacts,
+  rereviewDelivery,
+  observeRunRefreshes,
+};
+if (require.main === module)
+  main().catch((e) => {
+    console.error(e.stack);
+    process.exitCode = 1;
+  });

@@ -4,9 +4,9 @@
 
 
 
-**作用：证明一本书足够重建平台。** 把教材单独复制进临时目录，恢复所有文本与二进制截图，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue。完整非PG套件有明确1800秒预算，外层仍40分钟；超时中断自有测试进程、保留阶段与已有JUnit且仍失败，不增加单项等待。
+**作用：证明一本书足够重建平台。** 把教材单独复制进临时目录，恢复所有文本与二进制截图，确认导入来源，验证再次生成相同教材；再重建三个上游归档和Continue。CI将准确重建源码交给独立测试分片、浏览器和安装关卡，聚合逐项核对完整证据；本地完整入口仍保留。超时中断自有测试进程、保留阶段与已有JUnit且仍失败，不增加单项等待。
 
-**对应关系：** handbook-only工作流 → 本脚本 → handbook-test-status.json/JUnit；完整通过才产生handbook-clean-room.json。
+**对应关系：** handbook-only准备关卡 → 重建产物 → 独立测试/浏览器/安装 → acceptance完整证据门 → delivery；本地完整验收仍输出handbook-clean-room.json。
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
@@ -19,16 +19,16 @@
 - `process_identity`（L27–L33）：接收`pid`。 源码说明：Only ancestry and start identity; never commands or process environment.。 调用`Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit(") "…`、`Path(f"/proc/{pid}/stat").read_text(encoding="utf-8").rsplit`、`Path(f"/proc/{pid}/stat").read_text`、`Path`、`int`。 返回路径：L31的`int(fields[1]), fields[19]`；L33的`None`。
 - `capture_owned_descendants`（L36–L53）：接收`process`。 控制顺序：L37按`os.name == "nt" or not Path("/proc").is_dir()`分支；L40按`root is None`分支；L43遍历`Path("/proc").iterdir()`；L44按`path.name.isdecimal() and (identity := process_identity(int(path.name)))`分支；L47在`added := { pid: identity for pid, identity in snapshot.items() if…`成立时循环。 调用`Path("/proc").is_dir`、`Path`、`process_identity`、`Path("/proc").iterdir`、`path.name.isdecimal`、`int`、`snapshot.items`、`owned.update`、`owned.items`。 返回路径：L38的`None`；L41的`None`；L53的`{pid: identity[1] for pid, identity in owned.items()}`。
 - `cleanup_owned_descendants`（L56–L65）：接收`owned`。 控制顺序：L59遍历`reversed(list(owned.items()))`；L61按`current is not None and current[1] == started`分支。 调用`reversed`、`list`、`owned.items`、`process_identity`、`os.kill`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run_full_tests`（L68–L142）：接收`argv`、`directory`、`env`、`junit`、`reports`、`timeout`。 源码说明：Bound the whole expanded suite, retain failure status, and own its cleanup. This is a suite orchestration budget, not a browser or individual-test wait. Crossing it always fails, even if an interrupt 。 控制顺序：L89按`owned is None`分支；L105按`owned is not None`分支；L110按`process is not None and process.poll() is None`分支；L127按`junit.is_file()`分支；L133按`timed_out`分支；L134抛异常，停止当前正常路径；L135按`failure`分支；L136抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`reports.mkdir`、`time.monotonic`、`print`、`subprocess.Popen`、`process_options`、`process.wait`、`capture_owned_descendants`、`stop_process`、`process.send_signal`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L145–L242）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L156断言`not list((destination / "templates/vendor").glob("*.zip"))`；L172断言`(destination / OUTPUT.name).read_bytes() == text`；L177遍历`zip(expected["sources"], actual["sources"], strict=True)`；L179遍历`("name", "sha", "source_digest", "files")`；L180断言`want[field] == got[field]`；L192按`not npm`分支；L193抛异常，停止当前正常路径；L218按`not cases or any( case.find("failure") is not None or case.find("error") is not None …`分支。后续分支沿下方源码相同行号继续阅读。 调用`OUTPUT.read_bytes`、`json.loads`、`(ROOT / "templates/vendor/manifest.json").read_text`、`tempfile.TemporaryDirectory`、`Path`、`book.write_bytes`、`restore`、`extract`、`text.decode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_full_tests`（L68–L155）：接收`argv`、`directory`、`env`、`junit`、`reports`、`timeout`、`status_name`、`junit_name`、`stdout`、`binding`。 源码说明：Bound the whole expanded suite, retain failure status, and own its cleanup. This is a suite orchestration budget, not a browser or individual-test wait. Crossing it always fails, even if an interrupt 。 控制顺序：L102按`owned is None`分支；L118按`owned is not None`分支；L123按`process is not None and process.poll() is None`分支；L140按`binding is not None`分支；L142按`junit.is_file() and junit_name is not None`分支；L146按`timed_out`分支；L147抛异常，停止当前正常路径；L148按`failure`分支。后续分支沿下方源码相同行号继续阅读。 调用`reports.mkdir`、`time.monotonic`、`print`、`subprocess.Popen`、`process_options`、`process.wait`、`capture_owned_descendants`、`stop_process`、`process.send_signal`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L158–L255）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L169断言`not list((destination / "templates/vendor").glob("*.zip"))`；L185断言`(destination / OUTPUT.name).read_bytes() == text`；L190遍历`zip(expected["sources"], actual["sources"], strict=True)`；L192遍历`("name", "sha", "source_digest", "files")`；L193断言`want[field] == got[field]`；L205按`not npm`分支；L206抛异常，停止当前正常路径；L231按`not cases or any( case.find("failure") is not None or case.find("error") is not None …`分支。后续分支沿下方源码相同行号继续阅读。 调用`OUTPUT.read_bytes`、`json.loads`、`(ROOT / "templates/vendor/manifest.json").read_text`、`tempfile.TemporaryDirectory`、`Path`、`book.write_bytes`、`restore`、`extract`、`text.decode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_handbook.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L246。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_handbook.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L259。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10252`。本段原文以LF换行结束。
+本段原始字节数：`10556`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_handbook.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "62b10f10e8def98f52b32e2aca78419c905784e5d0b0a973f172dccda3fab03a"} -->
+<!-- learning-source: {"path": "scripts/ci_handbook.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "770457b7c1dd9c916a272ecad0279565a2e8e310e872683b31510d15a1464071"} -->
 ````python
 # scripts/ci_handbook.py
 """Verify construction from the handbook alone, without original source/archive access."""
@@ -98,7 +98,19 @@ def cleanup_owned_descendants(owned):
                 pass
 
 
-def run_full_tests(argv, directory, env, junit, reports, *, timeout=FULL_SUITE_TIMEOUT):
+def run_full_tests(
+    argv,
+    directory,
+    env,
+    junit,
+    reports,
+    *,
+    timeout=FULL_SUITE_TIMEOUT,
+    status_name="handbook-test-status.json",
+    junit_name="handbook-tests.xml",
+    stdout=None,
+    binding=None,
+):
     """Bound the whole expanded suite, retain failure status, and own its cleanup.
 
     This is a suite orchestration budget, not a browser or individual-test wait.
@@ -113,7 +125,8 @@ def run_full_tests(argv, directory, env, junit, reports, *, timeout=FULL_SUITE_T
     owned = None
     print(f"Handbook full non-PostgreSQL suite: deadline {timeout}s", flush=True)
     try:
-        process = subprocess.Popen(argv, cwd=directory, env=env, **process_options())
+        output = {"stdout": stdout, "stderr": subprocess.STDOUT} if stdout is not None else {}
+        process = subprocess.Popen(argv, cwd=directory, env=env, **output, **process_options())
         try:
             process.wait(timeout=timeout)
         except subprocess.TimeoutExpired:
@@ -157,11 +170,11 @@ def run_full_tests(argv, directory, env, junit, reports, *, timeout=FULL_SUITE_T
             "owned_processes_at_timeout": len(owned) if owned is not None else None,
             "junit_available": junit.is_file(),
         }
-        if junit.is_file():
-            (reports / "handbook-tests.xml").write_bytes(junit.read_bytes())
-        (reports / "handbook-test-status.json").write_text(
-            json.dumps(status, indent=2) + "\n", encoding="utf-8"
-        )
+        if binding is not None:
+            status["binding"] = binding
+        if junit.is_file() and junit_name is not None:
+            (reports / junit_name).write_bytes(junit.read_bytes())
+        (reports / status_name).write_text(json.dumps(status, indent=2) + "\n", encoding="utf-8")
         print(json.dumps(status), flush=True)
     if timed_out:
         raise subprocess.TimeoutExpired("handbook full non-PostgreSQL suite", timeout)

@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `tools/daytona/capability-runner.patch`；**本文件共有 1 段**。本段覆盖源文件 L1–L17。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tools/daytona/capability-runner.patch`；**本文件共有 1 段**。本段覆盖源文件 L1–L46。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`642`。本段原文以LF换行结束。
+本段原始字节数：`1917`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tools/daytona/capability-runner.patch", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9f31b01dbcf2ef37fa91800021ace37a5e22e5007cc547de98beb7c04ff8500e"} -->
+<!-- learning-source: {"path": "tools/daytona/capability-runner.patch", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "637d72fa9426bd186dc729c20a2f47e8b138140d6a339299e0ab59c3c18f8eed"} -->
 ````text
 # tools/daytona/capability-runner.patch
 --- a/apps/runner/pkg/docker/container_configs.go
@@ -34,4 +34,33 @@
  		Binds:      binds,
  	}
  
+@@ -234,6 +232,28 @@
+ 		}
+ 	}
+ 
++	// Custom-source executions get bounded writable storage on ordinary runners.
++	// Root control remains distinct; Landlock confines every product write here.
++	if strings.HasPrefix(sandboxDto.Name, "rnd-source-") {
++		// Bind the primary mode to the same sole bridge checked before source admission.
++		hostConfig.NetworkMode = container.NetworkMode("runner-bridge")
++		// The local upstream disables ordinary quotas; custom source cannot inherit that.
++		hostConfig.CPUPeriod = 100000
++		hostConfig.CPUQuota = 100000
++		hostConfig.Memory = 2 * 1024 * 1024 * 1024
++		pidLimit := int64(256)
++		hostConfig.PidsLimit = &pidLimit
++		hostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=1073741824,mode=1777"}
++		if strings.HasPrefix(sandboxDto.Name, "rnd-source-native-") {
++			hostConfig.IpcMode = container.IpcMode("private")
++			hostConfig.ShmSize = 67108864
++			hostConfig.CPUQuota = 200000
++			hostConfig.Memory = 6 * 1024 * 1024 * 1024
++			pidLimit = 384
++			hostConfig.Tmpfs = map[string]string{"/tmp": "rw,nosuid,nodev,size=4294967296,mode=1777"}
++		}
++		hostConfig.MemorySwap = hostConfig.Memory
++	}
+ 	containerRuntime := config.GetContainerRuntime()
+ 	if containerRuntime != "" {
+ 		hostConfig.Runtime = containerRuntime
 ````

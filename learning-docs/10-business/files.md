@@ -4,6 +4,11 @@
 
 按导读先后理解；同一组需全部写完再导入或运行测试。以下路径相对学生项目根目录，不是教材目录。所有文件逐字节收录，代码分段的第一行路径注释需删除。锁文件在 sources/locks，截图及Vue构建快照编码在 sources/assets 下，先读实现模块，需要校对时再打开资源。
 
+- [tests/fixtures/contest_native/README.md](sources/tests__fixtures__contest_native__README_md--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/contest_native/module_contest/__init__.py](sources/tests__fixtures__contest_native__module_contest____init___py--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/contest_native/module_contest/controller.py](sources/tests__fixtures__contest_native__module_contest__controller_py--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/contest_native/module_contest/model.py](sources/tests__fixtures__contest_native__module_contest__model_py--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/contest_oracle/original_requirement.json](sources/tests__fixtures__contest_oracle__original_requirement_json--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/customer_approved_replays/README.md](sources/tests__fixtures__customer_approved_replays__README_md--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/customer_approved_replays/fastapi-0e8.json](sources/tests__fixtures__customer_approved_replays__fastapi-0e8_json--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/customer_approved_replays/yudao-1d7.json](sources/tests__fixtures__customer_approved_replays__yudao-1d7_json--001.md)：可重复的验收用例；1 段
@@ -37,6 +42,9 @@
 - [tests/fixtures/customer_design_diagnostics/python-basic.json](sources/tests__fixtures__customer_design_diagnostics__python-basic_json--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/customer_design_diagnostics/yudao-vben.json](sources/tests__fixtures__customer_design_diagnostics__yudao-vben_json--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/customer_evidence_receipt_unit_only.json](sources/tests__fixtures__customer_evidence_receipt_unit_only_json--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/daytona/LICENSE](sources/tests__fixtures__daytona__LICENSE--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/daytona/README.md](sources/tests__fixtures__daytona__README_md--001.md)：可重复的验收用例；1 段
+- [tests/fixtures/daytona/docker-image.util.ts](sources/tests__fixtures__daytona__docker-image_util_ts--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/yudao-native-date/WbRequestsDO.java](sources/tests__fixtures__yudao-native-date__WbRequestsDO_java--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/yudao-native-date/WbRequestsPageReqVO.java](sources/tests__fixtures__yudao-native-date__WbRequestsPageReqVO_java--001.md)：可重复的验收用例；1 段
 - [tests/fixtures/yudao-native-date/WbRequestsRespVO.java](sources/tests__fixtures__yudao-native-date__WbRequestsRespVO_java--001.md)：可重复的验收用例；1 段

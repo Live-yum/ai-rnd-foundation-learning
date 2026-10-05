@@ -15,7 +15,7 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `create_app`（L25–L273）：接收`settings`、`gateway_factory`、`start_worker`。定义并返回FastAPI应用对象；内层带路由装饰器的函数在对应HTTP请求到达时调用，而不是定义时立即执行。 调用`Settings`、`FastAPI`、`app.add_middleware`、`HTTPBearer`、`register_model_settings_routes`、`register_streaming_routes`。 返回路径：L273的`app`。
+- `create_app`（L25–L279）：接收`settings`、`gateway_factory`、`start_worker`。定义并返回FastAPI应用对象；内层带路由装饰器的函数在对应HTTP请求到达时调用，而不是定义时立即执行。 调用`Settings`、`FastAPI`、`app.add_middleware`、`HTTPBearer`、`register_model_settings_routes`、`register_streaming_routes`。 返回路径：L279的`app`。
 - `create_app.lifespan`（L29–L51）：接收`app`。 控制顺序：L37按`start_worker`分支。 调用`Store`、`store.token`、`FileLock`、`str`、`store.migrate`、`gateway_factory`、`Runtime`、`threading.Thread`、`worker.start`等。使用yield把资源/结果交给调用方，继续执行后续清理语句。
 - `create_app.response_security`（L60–L72）：接收`request`、`call_next`。 控制顺序：L65按`request.url.path in {"/", "/ui"} or request.url.path.startswith("/ui/")`分支。 调用`call_next`、`request.url.path.startswith`、`app.middleware`。 返回路径：L72的`response`。
 - `create_app.auth`（L74–L79）：接收`request`、`credentials`。核对当前工作台HTTP请求的本机访问令牌；它不是产品用户登录，也不联系Dex或大模型供应商。 控制顺序：L75按`not credentials or not hmac.compare_digest( credentials.credentials, request.app.stat…`分支；L78抛异常，停止当前正常路径。 调用`Depends`、`hmac.compare_digest`、`HTTPException`。 返回路径：L79的`request.app.state.store`。
@@ -41,17 +41,17 @@
 - `create_app.resume`（L207–L212）：接收`run_id`、`body`、`idempotency_key`、`store`。 控制顺序：L210按`body.action != "reject"`分支。 调用`Header`、`Depends`、`require_models`、`store.submit`、`body.model_dump`、`app.post`。 返回路径：L212的`store.submit(run_id, body.model_dump(), idempotency_key)`。
 - `create_app.retry`（L215–L217）：接收`run_id`、`idempotency_key`、`store`。 调用`Header`、`Depends`、`require_models`、`store.retry`、`app.post`。 返回路径：L217的`store.retry(run_id, idempotency_key)`。
 - `create_app.events`（L220–L221）：接收`run_id`、`after`、`store`。 调用`Query`、`Depends`、`store.events`、`app.get`。 返回路径：L221的`store.events(run_id, after)`。
-- `create_app.report`（L224–L240）：接收`run_id`、`store`。 控制顺序：L228遍历`( "generation.json", "verification.json", "delivery.json", "nativ…`；L238按`path.is_file()`分支。 调用`Depends`、`store.get_run`、`inside`、`path.is_file`、`json.loads`、`path.read_text`、`app.get`。 返回路径：L240的`result`。
-- `create_app.download`（L243–L260）：接收`run_id`、`store`。 控制顺序：L245按`run["status"] not in {"READY", "SOURCE_READY"}`分支；L246抛异常，停止当前正常路径；L248按`not path.is_file()`分支；L249抛异常，停止当前正常路径；L251按`hashlib.sha256(data).hexdigest() != run["result"]["sha256"]`分支；L252抛异常，停止当前正常路径。 调用`Depends`、`store.get_run`、`Conflict`、`inside`、`path.is_file`、`Missing`、`path.read_bytes`、`hashlib.sha256(data).hexdigest`、`hashlib.sha256`等。 返回路径：L253的`Response( content=data, media_type="application/zip", headers={ "Content-Disposition": f'a…`。
-- `create_app.templates`（L263–L266）：接收`store`。 调用`Depends`、`catalog`、`app.get`。 返回路径：L266的`catalog(settings)`。
+- `create_app.report`（L224–L246）：接收`run_id`、`store`。 控制顺序：L228遍历`( "generation.json", "verification.json", "delivery.json", "nativ…`；L244按`path.is_file()`分支。 调用`Depends`、`store.get_run`、`inside`、`path.is_file`、`json.loads`、`path.read_text`、`app.get`。 返回路径：L246的`result`。
+- `create_app.download`（L249–L266）：接收`run_id`、`store`。 控制顺序：L251按`run["status"] not in {"READY", "SOURCE_READY"}`分支；L252抛异常，停止当前正常路径；L254按`not path.is_file()`分支；L255抛异常，停止当前正常路径；L257按`hashlib.sha256(data).hexdigest() != run["result"]["sha256"]`分支；L258抛异常，停止当前正常路径。 调用`Depends`、`store.get_run`、`Conflict`、`inside`、`path.is_file`、`Missing`、`path.read_bytes`、`hashlib.sha256(data).hexdigest`、`hashlib.sha256`等。 返回路径：L259的`Response( content=data, media_type="application/zip", headers={ "Content-Disposition": f'a…`。
+- `create_app.templates`（L269–L272）：接收`store`。 调用`Depends`、`catalog`、`app.get`。 返回路径：L272的`catalog(settings)`。
 
 </details>
 
-**创建路径：** `workbench/api.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L276。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/api.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L282。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10811`。本段原文以LF换行结束。
+本段原始字节数：`11039`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/api.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9be76b41042080e1abe5cf5b67456ae181c05f82e68d4d478316c4a77772a6ab"} -->
+<!-- learning-source: {"path": "workbench/api.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a22386c9fb514a05a0faf3376a69605c7259137ddce4ff1400cb79f5c86ce4ea"} -->
 ````python
 # workbench/api.py
 """Local operator API. Authentication protects every data endpoint, including downloads."""
@@ -289,6 +289,12 @@ def create_app(settings=None, gateway_factory=None, start_worker=True):
             "source-context/context-receipt.json",
             "daytona-verification.json",
             "tool-failure.json",
+            "extension-progress.json",
+            "extension-proof.json",
+            "extension-coverage.json",
+            "extension-scope.json",
+            "extension-acceptance.json",
+            "extension-review.json",
         ):
             path = inside(directory, name)
             if path.is_file():

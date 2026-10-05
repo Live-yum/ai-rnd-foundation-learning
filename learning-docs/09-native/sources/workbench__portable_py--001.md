@@ -25,15 +25,15 @@
 - `menu_snapshot`（L229–L236）：接收`template`、`url`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`digest`、`json.loads`等。 返回路径：L236的`{row["id"]: digest(json.loads(json.dumps(row, default=str))) for row in rows}`。
 - `export_menu_sql`（L239–L278）：接收`template`、`url`、`before`、`target`。 控制顺序：L250按`not changed`分支；L251抛异常，停止当前正常路径；L255遍历`changed`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`before.get`、`digest`等。 返回路径：L278的`{"table": table, "row_ids": [row["id"] for row in changed], "sha256": sha(target)}`。
 - `build_native_delivery`（L281–L366）：接收`template`、`product`、`reports`、`plan`、`targets`、`url`。 控制顺序：L286遍历`("pyproject.toml", "uv.lock", ".python-version", "services.yaml",…`；L289按`plan.business`分支；L298遍历`HELPERS`；L304按`plan.business`分支；L305遍历`( ("business-extension-schema.sql", "004-business-extension.sql")…`；L310按`source_file.is_file()`分支；L313按`plan.business`分支；L314按`template == "fastapiadmin"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`deployment.mkdir`、`shutil.copyfile`、`helper_root.mkdir`、`sql_dir.mkdir`、`source_file.is_file`、`json.loads`、`(reports / "business-extension.json").read_text`、`(reports / "business-yudao.json").read_text`等。 返回路径：L361的`{ "sql_files": sql_files, "sql_digest": manifest["sql_digest"], "standalone_start": "uv ru…`。
-- `verify_native_delivery`（L369–L457）：接收`product`、`url`、`reports`、`redis_port`、`template`。 源码说明：Restore the distributable ZIP; run startup against a DIFFERENT empty DB.。 控制顺序：L379按`template not in {"fastapiadmin", "yudao-vben"}`分支；L380抛异常，停止当前正常路径；L393按`restored != packaged or manifest(copy) != listing`分支；L394抛异常，停止当前正常路径；L419按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L426抛异常，停止当前正常路径；L439按`hasattr(exc, "log")`分支；L453抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`uuid.uuid4`、`ValueError`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`等。 返回路径：L437的`result`。
+- `verify_native_delivery`（L369–L469）：接收`product`、`url`、`reports`、`redis_port`、`template`、`source_handoff`。 源码说明：Restore the distributable ZIP; run startup against a DIFFERENT empty DB.。 控制顺序：L381按`template not in {"fastapiadmin", "yudao-vben"}`分支；L382抛异常，停止当前正常路径；L395按`restored != packaged or manifest(copy) != listing`分支；L396抛异常，停止当前正常路径；L397按`source_handoff is not None`分支；L427按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L434抛异常，停止当前正常路径；L444按`source_handoff is not None`分支。后续分支沿下方源码相同行号继续阅读。 调用`uuid.uuid4`、`ValueError`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`等。 返回路径：L449的`result`。
 
 </details>
 
-**创建路径：** `workbench/portable.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L457。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/portable.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L469。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`21253`。本段原文以LF换行结束。
+本段原始字节数：`22017`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/portable.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "906a38adcc809b12ee7f275c56b6cd20bac09bfac1a8c51b50b691f4cadea8a9"} -->
+<!-- learning-source: {"path": "workbench/portable.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a47e1db32c1948be246b9ddaa6ffa125128539fa8f64ea10264155da40c4c0ed"} -->
 ````python
 # workbench/portable.py
 """Export a self-contained native launcher, immutable SQL and menu seed (no user data)."""
@@ -404,7 +404,9 @@ def build_native_delivery(template, product, reports, plan, targets, url):
     }
 
 
-def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
+def verify_native_delivery(
+    product, url, reports, redis_port=6379, *, template, source_handoff=None
+):
     """Restore the distributable ZIP; run startup against a DIFFERENT empty DB."""
     import sys
     import tempfile
@@ -430,6 +432,12 @@ def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
             restored = unpack(archive, copy, template=template)
             if restored != packaged or manifest(copy) != listing:
                 raise ValueError("原生交付ZIP与已验证源码不一致")
+            if source_handoff is not None:
+                # This quiescent, verified ZIP restore has not run any code or
+                # installed dependencies. The CI-only consumer must reject all
+                # physical extras rather than sanitize an already dirty candidate.
+                source_archive_sha256 = sha(archive)
+                source_handoff(copy, dict(listing), source_archive_sha256)
             clean_url = parsed.set(database=name).render_as_string(hide_password=False)
             try:
                 command = run_command(
@@ -471,6 +479,10 @@ def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
                     archive_round_trip=True,
                     archive=restored,
                 )
+                if source_handoff is not None:
+                    if sha(archive) != source_archive_sha256 or manifest(product) != listing:
+                        raise ValueError("原生交付归档或原源码在独立验收期间发生改变")
+                    result["source_archive_sha256"] = source_archive_sha256
                 write_json(Path(reports) / "portable-start.json", result)
                 return result
             except Exception as exc:

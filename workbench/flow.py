@@ -17,6 +17,7 @@ from workbench.errors import PausedLimit, UnsupportedScope
 from workbench.filesystem import sha, write_json
 from workbench.generator import PrerequisiteError, generate_basic
 from workbench.knowledge import design_pack
+from workbench.orchestration import ExtensionWorkflow
 from workbench.requirement_coverage import coverage_gaps, reconcile
 from workbench.requirement_intent import (
     analysis_intent_conflicts,
@@ -111,9 +112,26 @@ class State(TypedDict, total=False):
     model_review: dict
     code_context: dict
     sandbox: dict
+    native_normalization: dict
+    extension_requested_mode: bool
+    extension_design: dict
+    extension_scope: dict
+    extension_errors: list[str]
+    extension_completed: list[dict]
+    extension_attempt: int
+    extension_candidate: str
+    extension_product: str
+    extension_baseline: dict
+    extension_error: str
+    extension_edit_receipt: dict
+    extension_candidate_passed: bool
+    extension_proof: dict
+    extension_integration_attempt: int
+    extension_policy: dict
+    extension_aggregate_passed: bool
 
 
-class Workflow:
+class Workflow(ExtensionWorkflow):
     def __init__(self, settings, store, gateway):
         self.settings, self.store, self.gateway = settings, store, gateway
 
@@ -149,6 +167,8 @@ class Workflow:
         round/gate; prior approvals do not authorize the corrected requirement.
         Interrupted legacy gates are replayed unchanged before analysis resumes.
         """
+        if self.extension_requested(state):
+            return None
         run = self.store.get_run(state["run_id"])
         capabilities = options_for_run(run).capabilities()
         human = [m["content"] for m in self.store.messages(state["run_id"]) if m["role"] == "user"]
@@ -214,9 +234,11 @@ class Workflow:
         }
 
     def analyse(self, state):
+        if self.extension_requested(state):
+            return {"extension_requested_mode": True}
         recovery = self.capability_recovery(state)
         if recovery:
-            return recovery
+            return {**recovery, "extension_requested_mode": False}
         if self.settings.max_rounds and state["round"] > self.settings.max_rounds:
             raise PausedLimit(
                 "达到你配置的MAX_ROUNDS；所有回答已保留。设为0后重试同一运行即可继续。"
@@ -305,6 +327,7 @@ class Workflow:
             "requirement_analysis_diagnostics": diagnostics,
             "requirement_analysis_baseline": (previous or {}) if diagnostics else {},
             "requirement_capability_conflicts": [],
+            "extension_requested_mode": False,
             "requirement_intent_version": 1,
         }
 
@@ -431,10 +454,21 @@ class Workflow:
         value.acceptance = list(
             dict.fromkeys([*state["requirement"]["acceptance"], *value.acceptance])
         )
-        return {"plan": value.model_dump(), "attempt": 0}
+        from workbench.native_plan_normalization import normalize_native_plan
+
+        value, normalization = normalize_native_plan(
+            value,
+            approved,
+            self.store.get_run(state["run_id"])["template"],
+            prior_normalization=state.get("native_normalization"),
+        )
+        return {"plan": value.model_dump(), "attempt": 0, "native_normalization": normalization}
 
     def design(self, state):
         plan = Plan.model_validate(state["plan"])
+        from workbench.native_plan_normalization import source_plan
+
+        source_view = source_plan(plan, state.get("native_normalization", {}))
         reasons = list(plan.unsupported)
         reason_sources = ["planner_unsupported"] * len(reasons)
         coverage_diagnostics = []
@@ -449,13 +483,16 @@ class Workflow:
             reasons.append("设计使用了当前模板不支持的字段类型")
             reason_sources.append("template_field_kind")
         coverage = coverage_gaps(
-            Requirement.model_validate(state["requirement"]), plan, diagnostics=coverage_diagnostics
+            Requirement.model_validate(state["requirement"]),
+            plan,
+            diagnostics=coverage_diagnostics,
+            native_normalization=state.get("native_normalization"),
         )
         reasons.extend(coverage)
         reason_sources.extend(["requirement_coverage"] * len(coverage))
         business = business_gaps(
             Requirement.model_validate(state["requirement"]),
-            plan,
+            source_view,
             diagnostics=business_diagnostics,
         )
         reasons.extend(business)
@@ -464,7 +501,7 @@ class Workflow:
         # approval is recovered by gate() before it can generate any product.
         entrypoint = (
             registration_plan_gaps(
-                plan,
+                source_view,
                 [
                     message["content"]
                     for message in self.store.messages(state["run_id"])
@@ -525,6 +562,7 @@ class Workflow:
                 "block_sources": reason_sources,
                 "coverage_diagnostics": coverage_diagnostics,
                 "business_diagnostics": business_diagnostics,
+                "native_normalization": state.get("native_normalization", {}),
             },
             ["approve", "revise", "reject"],
             not reasons,
@@ -714,13 +752,19 @@ class Workflow:
         # Also protects a checkpoint created before the review gate was enforced.
         self.require_review_clearance(state, state.get("model_review", {"enabled": False}))
         if state.get("requirement"):
+            from workbench.native_plan_normalization import source_plan
+
             gaps = coverage_gaps(
-                Requirement.model_validate(state["requirement"]), Plan.model_validate(state["plan"])
+                Requirement.model_validate(state["requirement"]),
+                Plan.model_validate(state["plan"]),
+                native_normalization=state.get("native_normalization"),
             )
             gaps.extend(
                 business_gaps(
                     Requirement.model_validate(state["requirement"]),
-                    Plan.model_validate(state["plan"]),
+                    source_plan(
+                        Plan.model_validate(state["plan"]), state.get("native_normalization", {})
+                    ),
                 )
             )
             if gaps:
@@ -794,10 +838,26 @@ class Workflow:
             "sandbox",
             "package",
             "delivery",
+            "extension_plan",
+            "extension_design",
+            "extension_generate",
+            "extension_code",
+            "extension_verify",
+            "extension_repair",
+            "extension_aggregate",
+            "extension_integration_repair",
+            "extension_review",
+            "extension_package",
+            "extension_delivery",
         ):
             graph.add_node(name, self.observed_node(name))
         graph.add_edge(START, "analyse")
-        graph.add_edge("analyse", "requirements")
+        graph.add_conditional_edges(
+            "analyse",
+            lambda state: (
+                "extension_plan" if state.get("extension_requested_mode") else "requirements"
+            ),
+        )
         graph.add_conditional_edges(
             "requirements",
             lambda s: (
@@ -832,4 +892,26 @@ class Workflow:
         graph.add_conditional_edges(
             "delivery", lambda s: "analyse" if s["decision"] == "revise" else END
         )
+        graph.add_edge("extension_plan", "extension_design")
+        graph.add_conditional_edges(
+            "extension_design",
+            lambda state: (
+                END
+                if state["decision"] == "reject"
+                else "extension_generate"
+                if state["decision"] == "approve"
+                else "extension_plan"
+                if state["decision"] == "recommend"
+                else "analyse"
+            ),
+        )
+        graph.add_edge("extension_generate", "extension_code")
+        graph.add_edge("extension_code", "extension_verify")
+        graph.add_conditional_edges("extension_verify", self.extension_after_verify)
+        graph.add_edge("extension_repair", "extension_code")
+        graph.add_conditional_edges("extension_aggregate", self.extension_after_aggregate)
+        graph.add_edge("extension_integration_repair", "extension_code")
+        graph.add_edge("extension_review", "extension_package")
+        graph.add_edge("extension_package", "extension_delivery")
+        graph.add_edge("extension_delivery", END)
         return graph.compile(checkpointer=checkpointer)

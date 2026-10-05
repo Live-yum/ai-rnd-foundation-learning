@@ -5,6 +5,7 @@ and reports are never imported or accepted as evidence by this verifier.
 """
 
 import json
+import math
 import os
 import re
 import shutil
@@ -77,6 +78,39 @@ BROWSER_ERROR_TYPES = {
 }
 
 
+BROWSER_SECURITY_FLAGS = {
+    "uid_zero",
+    "no_new_privileges",
+    "effective_capabilities",
+    "apparmor_enabled",
+    "apparmor_userns_restricted",
+    "unprivileged_userns_enabled",
+}
+BROWSER_SANDBOX_REASONS = {"root-launch", "namespace-entry-failed", "no-usable-sandbox"}
+
+
+def valid_browser_launch_detail(detail):
+    facts = detail.get("security_facts")
+    reason = detail.get("sandbox_reason")
+    return (
+        isinstance(facts, dict)
+        and set(facts) == BROWSER_SECURITY_FLAGS | {"seccomp_mode", "apparmor_profile"}
+        and all(facts[key] is None or type(facts[key]) is bool for key in BROWSER_SECURITY_FLAGS)
+        and (
+            facts["seccomp_mode"] is None
+            or (type(facts["seccomp_mode"]) is int and facts["seccomp_mode"] in {0, 1, 2})
+        )
+        and isinstance(facts["apparmor_profile"], str)
+        and facts["apparmor_profile"]
+        in {"docker-default", "unconfined", "other-enforced", "unknown"}
+        and (
+            isinstance(reason, str) and reason in BROWSER_SANDBOX_REASONS
+            if detail.get("error_code") == "sandbox-unavailable"
+            else reason is None
+        )
+    )
+
+
 def browser_report(raw, request_id, verifier_sha256):
     """Return a current, exact-protocol report or a static rejection category."""
     if len(raw) > 100000:
@@ -113,6 +147,8 @@ def browser_report(raw, request_id, verifier_sha256):
             "action",
             "navigation_status",
         }
+        | ({"sandbox_reason", "security_facts"} if detail.get("phase") == "launch" else set())
+        or (detail.get("phase") == "launch" and not valid_browser_launch_detail(detail))
         or not isinstance(detail.get("phase"), str)
         or detail["phase"] not in BROWSER_PHASES
         or not isinstance(detail.get("error_code"), str)
@@ -154,26 +190,127 @@ def preview_url(value, sandbox_id, port):
     return value.rstrip("/")
 
 
+MAX_CAPTURE_VALUE_BYTES = 16384
+MAX_CAPTURE_STATE_BYTES = 1_000_000
+MAX_INTERPOLATED_BYTES = 1_000_000
+
+
+def capture_scalar_size(value):
+    if type(value) is str:
+        if len(value) > MAX_CAPTURE_VALUE_BYTES:
+            raise CheckFailure("验收捕获值超过单值预算")
+        try:
+            size = len(value.encode("utf-8"))
+        except UnicodeError:
+            raise CheckFailure("验收捕获值不是有效Unicode") from None
+    elif type(value) in (int, float, bool):
+        if type(value) is float and not math.isfinite(value):
+            raise CheckFailure("验收捕获数值必须有限")
+        if type(value) is int and value.bit_length() > MAX_CAPTURE_VALUE_BYTES * 4:
+            raise CheckFailure("验收捕获值超过单值预算")
+        try:
+            size = len(str(value))
+        except ValueError:
+            raise CheckFailure("验收捕获值超过单值预算") from None
+    else:
+        raise CheckFailure("验收捕获值必须是单一标量")
+    if size > MAX_CAPTURE_VALUE_BYTES:
+        raise CheckFailure("验收捕获值超过单值预算")
+    return size
+
+
+class CaptureBudget:
+    """Bound all retained scenarios; replacing a variable credits its old cost."""
+
+    def __init__(self, saved):
+        self.used = 0
+        for name, variables in saved.items():
+            self.add_namespace(name, variables)
+
+    @staticmethod
+    def entry_size(name, value):
+        if not isinstance(name, str) or not re.fullmatch(r"[a-z][a-z0-9_-]{0,63}", name):
+            raise CheckFailure("验收捕获变量名无效")
+        # Fixed overhead also bounds the number of tiny retained dictionary entries.
+        return 128 + len(name) + capture_scalar_size(value)
+
+    def add_namespace(self, name, variables):
+        if not isinstance(name, str) or len(name) > 64 or not isinstance(variables, dict):
+            raise CheckFailure("验收捕获状态格式无效")
+        cost = 128 + len(name)
+        for key, value in variables.items():
+            cost += self.entry_size(key, value)
+            if self.used + cost > MAX_CAPTURE_STATE_BYTES:
+                raise CheckFailure("验收捕获状态超过总预算")
+        if self.used + cost > MAX_CAPTURE_STATE_BYTES:
+            raise CheckFailure("验收捕获状态超过总预算")
+        self.used += cost
+
+    def store(self, variables, name, value):
+        cost = self.entry_size(name, value)
+        old = self.entry_size(name, variables[name]) if name in variables else 0
+        if self.used + cost - old > MAX_CAPTURE_STATE_BYTES:
+            raise CheckFailure("验收捕获状态超过总预算")
+        variables[name] = value
+        self.used += cost - old
+
+
 def interpolate(value, variables, *, path=False):
-    if isinstance(value, list):
-        return [interpolate(v, variables) for v in value]
-    if isinstance(value, dict):
-        return {k: interpolate(v, variables) for k, v in value.items()}
-    if not isinstance(value, str):
+    remaining = MAX_INTERPOLATED_BYTES
+
+    def account(text):
+        nonlocal remaining
+        if len(text) > remaining:
+            raise CheckFailure("验收变量替换超过预算")
+        try:
+            size = len(text.encode("utf-8"))
+        except UnicodeError:
+            raise CheckFailure("验收变量替换不是有效Unicode") from None
+        if size > remaining:
+            raise CheckFailure("验收变量替换超过预算")
+        remaining -= size
+
+    def captured(name):
+        if name not in variables:
+            raise CheckFailure("验收引用尚未捕获的变量")
+        value = variables[name]
+        capture_scalar_size(value)
         return value
-    full = re.fullmatch(r"\$\{([a-z][a-z0-9_-]*)\}", value)
-    if full and not path:
-        if full[1] not in variables:
-            raise CheckFailure("验收引用尚未捕获的变量")
-        return variables[full[1]]
 
-    def replacement(match):
-        if match[1] not in variables:
-            raise CheckFailure("验收引用尚未捕获的变量")
-        text = str(variables[match[1]])
-        return quote(text, safe="") if path else text
+    def visit(item, depth=0):
+        if depth > 32:
+            raise CheckFailure("验收变量替换嵌套超过预算")
+        account("x")  # Bound aggregate object/container count as well as strings.
+        if isinstance(item, list):
+            return [visit(v, depth + 1) for v in item]
+        if isinstance(item, dict):
+            result = {}
+            for key, value in item.items():
+                account(key)
+                result[key] = visit(value, depth + 1)
+            return result
+        if not isinstance(item, str):
+            return item
+        full = re.fullmatch(r"\$\{([a-z][a-z0-9_-]*)\}", item)
+        if full and not path:
+            result = captured(full[1])
+            account(str(result))
+            return result
+        parts, offset = [], 0
+        for match in re.finditer(r"\$\{([a-z][a-z0-9_-]*)\}", item):
+            literal = item[offset : match.start()]
+            account(literal)
+            replacement = str(captured(match[1]))
+            replacement = quote(replacement, safe="") if path else replacement
+            account(replacement)
+            parts.extend((literal, replacement))
+            offset = match.end()
+        tail = item[offset:]
+        account(tail)
+        parts.append(tail)
+        return "".join(parts)
 
-    return re.sub(r"\$\{([a-z][a-z0-9_-]*)\}", replacement, value)
+    return visit(value)
 
 
 def values_at(value, path):
@@ -209,27 +346,79 @@ def json_equal(left, right):
     return left == right
 
 
-def run_steps(client, steps, variables):
+MAX_HTTP_PHASE_SECONDS = 300
+MAX_HTTP_PHASE_STEPS = 4096
+MAX_HTTP_PHASE_WAIT_MS = 30_000
+
+
+def http_phase_deadline(steps, deadline=None):
+    if (
+        len(steps) > MAX_HTTP_PHASE_STEPS
+        or sum(step.wait_ms for step in steps) > MAX_HTTP_PHASE_WAIT_MS
+    ):
+        raise CheckFailure("验收HTTP步骤或等待总量超过预算")
+    return time.monotonic() + MAX_HTTP_PHASE_SECONDS if deadline is None else deadline
+
+
+def run_steps(client, steps, variables, *, capture_budget=None, deadline=None):
+    deadline = http_phase_deadline(steps, deadline)
+    capture_budget = CaptureBudget({"": variables}) if capture_budget is None else capture_budget
     receipts = []
     for index, step in enumerate(steps):
         path = interpolate(step.path, variables, path=True)
         HttpStep.loopback_path(path)
         headers = interpolate(step.headers, variables)
         HttpStep.bounded_headers(headers)
+        # Candidate responses are untrusted. HTTPX's decoded iterator can
+        # allocate an arbitrarily expanded compressed block before a caller's
+        # byte-count check. Request identity and never invoke its decoders.
+        headers = httpx.Headers(headers)
+        headers["accept-encoding"] = "identity"
         started = time.monotonic()
+        wait = step.wait_ms / 1000
+        if started + wait >= deadline:
+            raise CheckFailure("验收HTTP总期限不足，未开始下一请求")
+        if wait:
+            time.sleep(wait)
+        request_body = {}
+        if step.body is not None:
+            body = interpolate(step.body, variables)
+            if step.body_encoding == "form":
+                try:
+                    body = HttpStep.bounded_form(body)
+                except ValueError, UnicodeError:
+                    raise CheckFailure("form插值结果超过边界或不是字符串字段") from None
+                request_body["data"] = body
+                headers["content-type"] = "application/x-www-form-urlencoded"
+            else:
+                request_body["json"] = body
+                headers["content-type"] = "application/json"
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise CheckFailure("验收HTTP总期限已耗尽，未发送请求")
         try:
             with client.stream(
                 step.method,
                 path,
                 headers=headers,
-                **({"json": interpolate(step.body, variables)} if step.body is not None else {}),
+                timeout=min(15, remaining),
+                **request_body,
             ) as response:
+                if (
+                    response.headers.get("content-encoding", "identity").strip().lower()
+                    != "identity"
+                ):
+                    raise CheckFailure("验收HTTP响应必须使用未压缩的identity编码")
                 raw = bytearray()
-                for block in response.iter_bytes():
-                    raw.extend(block)
-                    if len(raw) > 2_000_000:
+                for block in response.iter_raw():
+                    if time.monotonic() >= deadline:
+                        raise CheckFailure("验收HTTP总期限已耗尽")
+                    if len(block) > 2_000_000 - len(raw):
                         raise CheckFailure("验收HTTP响应超过2MB预算")
+                    raw.extend(block)
                 status = response.status_code
+                if time.monotonic() >= deadline:
+                    raise CheckFailure("验收HTTP总期限已耗尽")
         except httpx.HTTPError:
             raise CheckFailure(f"第 {index + 1} 个验收请求传输失败") from None
         if status != step.status:
@@ -238,7 +427,7 @@ def run_steps(client, steps, variables):
         if step.equals or step.absent or step.captures:
             try:
                 body = json.loads(raw)
-            except ValueError, UnicodeError:
+            except ValueError, UnicodeError, RecursionError:
                 raise CheckFailure(f"第 {index + 1} 个请求缺少约定JSON响应") from None
         for pointer, expected in step.equals.items():
             actual = values_at(body, pointer)
@@ -252,7 +441,7 @@ def run_steps(client, steps, variables):
             found = values_at(body, pointer)
             if len(found) != 1 or not isinstance(found[0], (str, int, float, bool)):
                 raise CheckFailure(f"第 {index + 1} 个请求缺少单一捕获值")
-            variables[name] = found[0]
+            capture_budget.store(variables, name, found[0])
         receipts.append(
             {
                 "step": index + 1,
@@ -267,16 +456,31 @@ def run_steps(client, steps, variables):
 
 
 def run_scenarios(client, scenarios, *, saved=None, after_restart=False):
+    deadline = http_phase_deadline(
+        [
+            step
+            for scenario in scenarios
+            for step in (scenario.after_restart if after_restart else scenario.steps)
+        ]
+    )
     saved = {} if saved is None else saved
+    capture_budget = CaptureBudget(saved)
     checks = []
     for scenario in scenarios:
         client.cookies.clear()
-        variables = saved.setdefault(scenario.id, {"nonce": uuid.uuid4().hex})
+        if scenario.id not in saved:
+            variables = {"nonce": uuid.uuid4().hex}
+            capture_budget.add_namespace(scenario.id, variables)
+            saved[scenario.id] = variables
+        else:
+            variables = saved[scenario.id]
         steps = scenario.after_restart if after_restart else scenario.steps
         if not steps:
             continue
         try:
-            executed = run_steps(client, steps, variables)
+            executed = run_steps(
+                client, steps, variables, capture_budget=capture_budget, deadline=deadline
+            )
         except CheckFailure as exc:
             exc.scenario_id = scenario.id
             raise
@@ -408,13 +612,68 @@ def run_browser(url, token, scenarios, saved, timeout):
 def require_evidence(
     receipt, *, source_digest, plan_digest, scenarios, selection, database_tables, aggregate=False
 ):
+    from workbench.capability_dependencies import require_dependency_manifest
+    from workbench.capability_execution import (
+        VERIFIER,
+        require_preinstalled_evidence,
+        security_checks_for,
+    )
     from workbench.capability_isolation import (
         require_container_evidence,
         require_isolation_evidence,
     )
 
     require_container_evidence(receipt.get("container_isolation"), receipt.get("sandbox_id"))
-    require_isolation_evidence(receipt.get("execution_isolation"))
+    dependency_profile = require_dependency_manifest(
+        receipt.get("dependency_profile"), selection["template"]
+    )
+    container = receipt["container_isolation"]
+    if selection["template"] == "fastapiadmin" and container.get("profile") != (
+        "native-fastapiadmin-postgresql-v1"
+    ):
+        raise CheckFailure("原生证据未绑定专用私有共享内存容器")
+    if (
+        not isinstance(dependency_profile, dict)
+        or dependency_profile.get("profile") != selection["template"]
+        or dependency_profile.get("image_id") != container.get("snapshot_image_id")
+        or container.get("dependency_manifest") != dependency_profile
+    ):
+        raise CheckFailure("只读依赖证明未绑定实际镜像和当前技术栈")
+    try:
+        require_preinstalled_evidence(
+            receipt.get("preinstalled_dependencies"),
+            dependency_profile,
+            source_digest=source_digest,
+        )
+        require_preinstalled_evidence(
+            receipt.get("final_preinstalled_dependencies"),
+            dependency_profile,
+            source_digest=source_digest,
+        )
+        if aggregate:
+            require_preinstalled_evidence(
+                receipt.get("restart_preinstalled_dependencies"),
+                dependency_profile,
+                source_digest=source_digest,
+            )
+    except ValueError:
+        raise CheckFailure("缺少已验证的只读预装依赖证明，不能沿用安装回执") from None
+    require_isolation_evidence(
+        receipt.get("execution_isolation"),
+        native_semaphore_storage=selection["template"] == "fastapiadmin",
+    )
+    if selection["template"] == "fastapiadmin":
+        required_security = security_checks_for(selection)
+        for field in (
+            ("security_checks", "restart_security_checks") if aggregate else ("security_checks",)
+        ):
+            security = receipt.get(field)
+            if (
+                type(security) is not dict
+                or set(security) != required_security
+                or any(value is not True for value in security.values())
+            ):
+                raise CheckFailure("原生最终证据缺少完整的初始或重启隔离反例及清理证明")
     expected = {s.id: digest(s.model_dump()) for s in scenarios}
     checks = receipt.get("checks", [])
     actual = {c.get("id"): c.get("contract_sha256") for c in checks if c.get("phase") == "initial"}
@@ -422,7 +681,7 @@ def require_evidence(
         receipt.get("passed") is not True
         or receipt.get("source_digest") != source_digest
         or receipt.get("plan_digest") != plan_digest
-        or receipt.get("verifier") != "controller-http-contract-v3"
+        or receipt.get("verifier") != VERIFIER
         or receipt.get("network_block_all") is not True
         or receipt.get("credentials_uploaded") is not False
         or receipt.get("cleanup") != "deleted"

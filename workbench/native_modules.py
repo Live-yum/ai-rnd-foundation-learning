@@ -64,8 +64,10 @@ def validate_plan(plan):
         raise ValueError("每个原生实体只能有一个合并后的业务规则及完整正反例")
     from workbench.native_coding import RESERVED as RULE_RESERVED
 
-    if any(field.name in RULE_RESERVED for entity in plan.entities for field in entity.fields):
-        raise ValueError("Native field uses a reserved runtime name")
+    for entity in plan.entities:
+        for field in entity.fields:
+            if field.name in RULE_RESERVED:
+                raise ValueError("Native field uses a reserved runtime name")
     if plan.data_scope != "shared":
         raise ValueError(
             "Native runtime currently requires explicitly approved shared data with role permissions"
@@ -83,10 +85,6 @@ def validate_plan(plan):
                     "Native adapters do not yet execute searchable/filterable/date_range/min_length; "
                     "use a supported template or explicitly revise the requirement"
                 )
-        if not any(field.kind == "text" and field.required for field in entity.fields):
-            raise ValueError(
-                "Native runtime requires a required text field in each entity for independent UI acceptance"
-            )
         if len(entity.name) > 20 or not re.fullmatch(r"[a-z][a-z0-9_]*", entity.name):
             raise ValueError(
                 "Native entity identifiers must be lowercase and at most 20 characters"
@@ -95,8 +93,9 @@ def validate_plan(plan):
             c in entity.description for c in "\r\n\t"
         ):
             raise ValueError("Native labels cannot contain code delimiters or multiline text")
-        if any(field.name in RESERVED for field in entity.fields):
-            raise ValueError("Field conflicts with native framework audit columns")
+        for field in entity.fields:
+            if field.name in RESERVED:
+                raise ValueError("Field conflicts with native framework audit columns")
     return plan
 
 

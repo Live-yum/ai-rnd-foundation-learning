@@ -21,7 +21,7 @@ from pathlib import Path
 
 import yaml
 
-from scripts.daytona_build import BUILT, build_images, local_tag
+from scripts.daytona_build import BUILT, build_images, local_tag, require_api_image
 from scripts.daytona_gateway import TARGETS
 from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
 from workbench.settings import ROOT
@@ -376,6 +376,7 @@ def compose(directory, *args, timeout=900):
         expected = record.get("image_id") if name in BUILT else record.get("digest")
         if service["image"] != expected or record["tag"] != IMAGES[name]:
             raise ValueError("本机镜像锁与Compose不一致：" + name)
+    require_api_image(records.get("api"), docker)
     return docker("compose", "--project-name", PROJECT, "--file", str(path), *args, timeout=timeout)
 
 

@@ -1,5 +1,6 @@
 """Prove a directory-only textbook rebuild, then run the actual complete platform suite."""
 
+import argparse
 import hashlib
 import json
 import os
@@ -164,7 +165,34 @@ def verify_signup_scope_browser(destination, python, run, reports):
     return summary
 
 
-def main():
+def browser_preflight(env, run, base):
+    """Check only the hermetic real browser used by the acceptance drivers."""
+    node = shutil.which("node")
+    module = env.get("PRODUCT_VERIFY_PLAYWRIGHT")
+    if not node or not module or not Path(module).is_dir():
+        raise RuntimeError(
+            "Install Playwright 1.56.1/Chromium as stage 06 describes and set "
+            "PRODUCT_VERIFY_PLAYWRIGHT to its absolute module directory"
+        )
+    # Several actual browser tests intentionally use Playwright's hermetic
+    # installation. Check that same location before launching thousands of tests.
+    env["PLAYWRIGHT_BROWSERS_PATH"] = "0"
+    run(
+        [
+            node,
+            "-e",
+            "const {chromium}=require(process.argv[1]); "
+            "(async()=>{const b=await chromium.launch({headless:true}); "
+            "await b.close(); console.log('Hermetic Chromium preflight PASS')})()"
+            ".catch(e=>{console.error(e.message);process.exitCode=1})",
+            module,
+        ],
+        cwd=base,
+        timeout=60,
+    )
+
+
+def main(*, prepare_artifact=None):
     expected = read_bundle(OUTPUT)
     reports = ROOT / "reports"
     reports.mkdir(exist_ok=True)
@@ -181,6 +209,8 @@ def main():
             shutil.copytree(OUTPUT, docs)
             destination = base / "student-project"
             env = dict(os.environ, PYTHONPATH="", PYTHONUTF8="1", PYTHONIOENCODING="utf-8")
+            env.pop("UV_PROJECT_ENVIRONMENT", None)
+            env.pop("VIRTUAL_ENV", None)
 
             def run(argv, cwd=destination, timeout=900):
                 subprocess.run(argv, cwd=cwd, env=env, check=True, timeout=timeout)
@@ -196,30 +226,6 @@ def main():
             npm = shutil.which("npm")
             if not uv or not npm:
                 raise RuntimeError("Install uv and Node 22/npm before full clean-room acceptance")
-            status["phase"] = "browser_preflight"
-            node = shutil.which("node")
-            module = env.get("PRODUCT_VERIFY_PLAYWRIGHT")
-            if not node or not module or not Path(module).is_dir():
-                raise RuntimeError(
-                    "Install Playwright 1.56.1/Chromium as stage 06 describes and set "
-                    "PRODUCT_VERIFY_PLAYWRIGHT to its absolute module directory"
-                )
-            # Several actual browser tests intentionally use Playwright's hermetic
-            # installation. Check that same location before launching thousands of tests.
-            env["PLAYWRIGHT_BROWSERS_PATH"] = "0"
-            run(
-                [
-                    node,
-                    "-e",
-                    "const {chromium}=require(process.argv[1]); "
-                    "(async()=>{const b=await chromium.launch({headless:true}); "
-                    "await b.close(); console.log('Hermetic Chromium preflight PASS')})()"
-                    ".catch(e=>{console.error(e.message);process.exitCode=1})",
-                    module,
-                ],
-                cwd=base,
-                timeout=60,
-            )
             status["phase"] = "locked_install"
             run([uv, "sync", "--locked", "--all-extras"])
             python = str(
@@ -278,6 +284,40 @@ def main():
             run([python, "-m", "ruff", "check", "."])
             run([python, "-m", "ruff", "format", "--check", "."])
             run([python, "-m", "scripts.build_learning_docs", "--check"])
+            if prepare_artifact is not None:
+                from scripts.ci_evidence import create_source_artifact, run_binding
+
+                # Explicit allowlist: restored owned sources, newly generated books,
+                # and independently fetched/verified vendor archives only. Never venvs,
+                # node_modules, runtime data, caches or credentials.
+                names = set(expected)
+                names.add(LEGACY.name)
+                names.update(
+                    path.relative_to(destination).as_posix()
+                    for path in (destination / "learning-docs").rglob("*")
+                    if path.is_file()
+                )
+                names.update(
+                    path.relative_to(destination).as_posix()
+                    for path in (destination / "templates/vendor").glob("*.zip")
+                )
+                manifest = create_source_artifact(
+                    destination, names, prepare_artifact, run_binding()
+                )
+                status.update(
+                    prepared=True,
+                    phase="prepared_for_independent_acceptance",
+                    files_restored=len(expected),
+                    source_digest=manifest["source_digest"],
+                    manifest_sha256=sha((docs / "manifest.json").read_bytes()),
+                    third_party_fixed_revisions_rebuilt=len(actual["sources"]),
+                    python_environment="independent locked student-project venv",
+                    # Preparation is deliberately not a full-suite/browser pass.
+                    tests_executed=False,
+                )
+                return
+            status["phase"] = "browser_preflight"
+            browser_preflight(env, run, base)
             status["phase"] = "vue_real_browser_acceptance"
             browser_evidence = reports / "learning-docs-guided-browser" / uuid.uuid4().hex
             status["frontend"]["browser"] = {
@@ -343,4 +383,7 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--prepare-artifact", type=Path)
+    args = parser.parse_args()
+    main(prepare_artifact=args.prepare_artifact.resolve() if args.prepare_artifact else None)
