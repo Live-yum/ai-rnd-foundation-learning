@@ -10811,16 +10811,16 @@ def apply_candidate(product, edits, task, selection, destination, settings=None)
 
 **逐个入口与控制逻辑：**
 
-- `security_checks_for`（L119–L124）：接收`selection`。 控制顺序：L120按`selection.get("template") == "fastapiadmin"`分支。 调用`selection.get`、`set`。 返回路径：L121的`(set(SECURITY_CHECKS) - {"all_tcp_destinations_denied"}) \| set( NATIVE_SECURITY_CHECKS )`；L124的`set(SECURITY_CHECKS)`。
-- `receipt_name`（L127–L132）：接收`selection`。 调用`selection.get`。 返回路径：L128的`"native-fastapiadmin-security-acceptance.json" if selection.get("template") == "fastapiadm…`。
-- `verifier_identity`（L135–L136）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`digest`、`sha`。 返回路径：L136的`digest({name: sha(ROOT / name) for name in SOURCE_FILES})`。
-- `profile_binding`（L139–L160）：接收`record`。 控制顺序：L143按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L147抛异常，停止当前正常路径；L151按`dependency_profile["image_id"] != record["snapshot"]["image_id"]`分支；L152抛异常，停止当前正常路径。 调用`record.get`、`Selection().model_dump`、`Selection`、`Selection(template="python-basic").model_dump`、`Selection(template="fastapiadmin").model_dump`、`ValueError`、`require_dependency_manifest`。 返回路径：L153的`{ "recipe_identity": record["recipe_identity"], "runner_image_id": record["runner"]["image…`。
-- `require_preinstalled_evidence`（L163–L199）：接收`value`、`expected`、`source_digest`。 源码说明：A verified image dependency tree is not a runtime installation receipt.。 控制顺序：L179按`not isinstance(expected, dict) or not isinstance(value, dict) or set(value) != keys o…`分支；L198抛异常，停止当前正常路径。 调用`isinstance`、`set`、`type`、`value.get`、`any`、`expected.get`、`re.fullmatch`、`str`、`ValueError`。 返回路径：L199的`value`。
-- `require_profile_container_binding`（L202–L212）：接收`record`、`container`。 源码说明：Do not trust a matching descriptor unless the inspected image is pinned.。 控制顺序：L205按`not isinstance(container, dict) or any( container.get(key) != bound[key] for key in (…`分支；L209抛异常，停止当前正常路径；L210按`container.get("dependency_manifest") != bound["dependency_manifest"]`分支；L211抛异常，停止当前正常路径。 调用`profile_binding`、`isinstance`、`any`、`container.get`、`ValueError`。 返回路径：L212的`container`。
-- `require_security_receipt`（L215–L258）：接收`value`、`record`、`browser_image`。 控制顺序：L233按`not isinstance(value, dict) or set(value) != expected or value.get("protocol") != PRO…`分支；L252抛异常，停止当前正常路径。 调用`record.get`、`Selection(template="python-basic").model_dump`、`Selection`、`security_checks_for`、`isinstance`、`set`、`value.get`、`verifier_identity`、`profile_binding`等。 返回路径：L258的`value`。
-- `capability_execution_prerequisites`（L261–L316）：接收`settings`、`selection`。 源码说明：Read-only gate; never runs candidate code or calls a model. Return the exact verified profile directory/record. Missing conditions are recoverable execution blockers; callers must retain the plan and 。 控制顺序：L271按`not settings.capability_execution_enabled`分支；L272抛异常，停止当前正常路径；L276按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L280抛异常，停止当前正常路径；L284按`settings.sandbox_provider != "daytona"`分支；L285抛异常，停止当前正常路径；L296按`directory.is_relative_to(runs)`分支；L297抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`Selection.model_validate(selection).model_dump`、`Selection.model_validate`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`require_browser_acceptance`、`Path(settings.capability_profile_directory).resolve`、`Path`等。 返回路径：L316的`directory, record`。
+- `security_checks_for`（L123–L128）：接收`selection`。 控制顺序：L124按`selection.get("template") == "fastapiadmin"`分支。 调用`selection.get`、`set`。 返回路径：L125的`(set(SECURITY_CHECKS) - {"all_tcp_destinations_denied"}) \| set( NATIVE_SECURITY_CHECKS )`；L128的`set(SECURITY_CHECKS)`。
+- `receipt_name`（L131–L136）：接收`selection`。 调用`selection.get`。 返回路径：L132的`"native-fastapiadmin-security-acceptance.json" if selection.get("template") == "fastapiadm…`。
+- `verifier_identity`（L139–L140）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`digest`、`sha`。 返回路径：L140的`digest({name: sha(ROOT / name) for name in SOURCE_FILES})`。
+- `profile_binding`（L143–L164）：接收`record`。 控制顺序：L147按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L151抛异常，停止当前正常路径；L155按`dependency_profile["image_id"] != record["snapshot"]["image_id"]`分支；L156抛异常，停止当前正常路径。 调用`record.get`、`Selection().model_dump`、`Selection`、`Selection(template="python-basic").model_dump`、`Selection(template="fastapiadmin").model_dump`、`ValueError`、`require_dependency_manifest`。 返回路径：L157的`{ "recipe_identity": record["recipe_identity"], "runner_image_id": record["runner"]["image…`。
+- `require_preinstalled_evidence`（L167–L203）：接收`value`、`expected`、`source_digest`。 源码说明：A verified image dependency tree is not a runtime installation receipt.。 控制顺序：L183按`not isinstance(expected, dict) or not isinstance(value, dict) or set(value) != keys o…`分支；L202抛异常，停止当前正常路径。 调用`isinstance`、`set`、`type`、`value.get`、`any`、`expected.get`、`re.fullmatch`、`str`、`ValueError`。 返回路径：L203的`value`。
+- `require_profile_container_binding`（L206–L216）：接收`record`、`container`。 源码说明：Do not trust a matching descriptor unless the inspected image is pinned.。 控制顺序：L209按`not isinstance(container, dict) or any( container.get(key) != bound[key] for key in (…`分支；L213抛异常，停止当前正常路径；L214按`container.get("dependency_manifest") != bound["dependency_manifest"]`分支；L215抛异常，停止当前正常路径。 调用`profile_binding`、`isinstance`、`any`、`container.get`、`ValueError`。 返回路径：L216的`container`。
+- `require_security_receipt`（L219–L262）：接收`value`、`record`、`browser_image`。 控制顺序：L237按`not isinstance(value, dict) or set(value) != expected or value.get("protocol") != PRO…`分支；L256抛异常，停止当前正常路径。 调用`record.get`、`Selection(template="python-basic").model_dump`、`Selection`、`security_checks_for`、`isinstance`、`set`、`value.get`、`verifier_identity`、`profile_binding`等。 返回路径：L262的`value`。
+- `capability_execution_prerequisites`（L265–L320）：接收`settings`、`selection`。 源码说明：Read-only gate; never runs candidate code or calls a model. Return the exact verified profile directory/record. Missing conditions are recoverable execution blockers; callers must retain the plan and 。 控制顺序：L275按`not settings.capability_execution_enabled`分支；L276抛异常，停止当前正常路径；L280按`selected not in ( Selection(template="python-basic").model_dump(), Selection(template…`分支；L284抛异常，停止当前正常路径；L288按`settings.sandbox_provider != "daytona"`分支；L289抛异常，停止当前正常路径；L300按`directory.is_relative_to(runs)`分支；L301抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`UnsupportedScope`、`Selection.model_validate(selection).model_dump`、`Selection.model_validate`、`Selection(template="python-basic").model_dump`、`Selection`、`Selection(template="fastapiadmin").model_dump`、`require_browser_acceptance`、`Path(settings.capability_profile_directory).resolve`、`Path`等。 返回路径：L320的`directory, record`。
 
-<!-- source-file: workbench/capability_execution.py sha256: 5c98fce64e49ebabd5e29752886583f12dae7f3d65127eeb576d55e4348e1edb -->
+<!-- source-file: workbench/capability_execution.py sha256: bb8ca22835d5e2f454c3ca95dce819c2011b051add9e01528a94af3720406467 -->
 ````python
 """Fail-closed admission for reviewed custom-source execution.
 
@@ -10881,6 +10881,10 @@ SOURCE_FILES = (
     "scripts/capability_native_egress.py",
     "scripts/capability_native_planner_probe.py",
     "scripts/ci_native_capability_security.py",
+    "scripts/ci_native_capability_source.py",
+    "scripts/ci_native_tools.py",
+    "workbench/native_lab.py",
+    "workbench/portable.py",
     "scripts/ci_contest_capability.py",
     "scripts/extension_oracles/contest.py",
     "workbench/capability_contest_oracle.py",
@@ -24834,11 +24838,11 @@ def require_frontend_backend(template, root, backend_url):
 **逐个入口与控制逻辑：**
 
 - `generated_browser`（L38–L61）：接收`template`、`front_url`、`reports`。 控制顺序：L60抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run_acceptance`（L64–L89）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`。 源码说明：Hold one non-ephemeral backend lease across all build/restart phases.。 调用`backend_port_lease`、`Path`、`_run_acceptance`。 返回路径：L78的`_run_acceptance( template, source, output, frontend_source, url, reports, plan, redis_port…`。
-- `_run_acceptance`（L92–L367）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`backend_port`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L107按`plan.custom_rules and customization is None`分支；L108抛异常，停止当前正常路径；L121按`not resumed`分支；L124按`template == "fastapiadmin"`分支；L128按`not resumed`分支；L143按`not resumed`分支；L147按`template == "fastapiadmin"`分支；L170按`plan.business`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`ValueError`、`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`等。 返回路径：L348的`report`。
-- `_run_acceptance.stage`（L136–L138）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_acceptance`（L64–L91）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`。 源码说明：Hold one non-ephemeral backend lease across all build/restart phases.。 调用`backend_port_lease`、`Path`、`_run_acceptance`。 返回路径：L79的`_run_acceptance( template, source, output, frontend_source, url, reports, plan, redis_port…`。
+- `_run_acceptance`（L94–L375）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`、`backend_port`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L110按`plan.custom_rules and customization is None`分支；L111抛异常，停止当前正常路径；L124按`not resumed`分支；L127按`template == "fastapiadmin"`分支；L131按`not resumed`分支；L146按`not resumed`分支；L150按`template == "fastapiadmin"`分支；L173按`plan.business`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`ValueError`、`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`等。 返回路径：L356的`report`。
+- `_run_acceptance.stage`（L139–L141）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: workbench/native_lab.py sha256: e10dbf8acb5da1eca02adf382bcbf5910427006feaac7e4d07f4693a397995b0 -->
+<!-- source-file: workbench/native_lab.py sha256: 8949e39e85914c5ee32ee81f2e130cbddaf855999a9437a78aae44f4773ac5ec -->
 ````python
 """Actual native generation, mounting, permissions, CRUD, restart and browser acceptance."""
 
@@ -24914,6 +24918,7 @@ def run_acceptance(
     redis_port=6379,
     *,
     customization=None,
+    source_handoff=None,
 ):
     """Hold one non-ephemeral backend lease across all build/restart phases."""
     with backend_port_lease(Path(reports) / "backend-port.json") as backend_port:
@@ -24927,6 +24932,7 @@ def run_acceptance(
             plan,
             redis_port,
             customization=customization,
+            **({"source_handoff": source_handoff} if source_handoff is not None else {}),
             backend_port=backend_port,
         )
 
@@ -24942,6 +24948,7 @@ def _run_acceptance(
     redis_port=6379,
     *,
     customization=None,
+    source_handoff=None,
     backend_port,
 ):
     """Shared by CLI and CI; never reset an existing database or workspace."""
@@ -25180,7 +25187,12 @@ def _run_acceptance(
         )
         stage("independent-native-delivery")
         report["portable_restored"] = verify_native_delivery(
-            product_root, url, reports, redis_port, template=template
+            product_root,
+            url,
+            reports,
+            redis_port,
+            template=template,
+            **({"source_handoff": source_handoff} if source_handoff is not None else {}),
         )
         stage("accepted")
         write_json(reports / "acceptance.json", report)
@@ -27544,9 +27556,9 @@ def stop_native(process, ports):
 - `menu_snapshot`（L229–L236）：接收`template`、`url`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`digest`、`json.loads`等。 返回路径：L236的`{row["id"]: digest(json.loads(json.dumps(row, default=str))) for row in rows}`。
 - `export_menu_sql`（L239–L278）：接收`template`、`url`、`before`、`target`。 控制顺序：L250按`not changed`分支；L251抛异常，停止当前正常路径；L255遍历`changed`。 调用`psycopg.connect`、`connection_url`、`c.execute( sql.SQL("SELECT * FROM {} ORDER BY id").format(sql.Ide…`、`c.execute`、`sql.SQL("SELECT * FROM {} ORDER BY id").format`、`sql.SQL`、`sql.Identifier`、`before.get`、`digest`等。 返回路径：L278的`{"table": table, "row_ids": [row["id"] for row in changed], "sha256": sha(target)}`。
 - `build_native_delivery`（L281–L366）：接收`template`、`product`、`reports`、`plan`、`targets`、`url`。 控制顺序：L286遍历`("pyproject.toml", "uv.lock", ".python-version", "services.yaml",…`；L289按`plan.business`分支；L298遍历`HELPERS`；L304按`plan.business`分支；L305遍历`( ("business-extension-schema.sql", "004-business-extension.sql")…`；L310按`source_file.is_file()`分支；L313按`plan.business`分支；L314按`template == "fastapiadmin"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`deployment.mkdir`、`shutil.copyfile`、`helper_root.mkdir`、`sql_dir.mkdir`、`source_file.is_file`、`json.loads`、`(reports / "business-extension.json").read_text`、`(reports / "business-yudao.json").read_text`等。 返回路径：L361的`{ "sql_files": sql_files, "sql_digest": manifest["sql_digest"], "standalone_start": "uv ru…`。
-- `verify_native_delivery`（L369–L457）：接收`product`、`url`、`reports`、`redis_port`、`template`。 源码说明：Restore the distributable ZIP; run startup against a DIFFERENT empty DB.。 控制顺序：L379按`template not in {"fastapiadmin", "yudao-vben"}`分支；L380抛异常，停止当前正常路径；L393按`restored != packaged or manifest(copy) != listing`分支；L394抛异常，停止当前正常路径；L419按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L426抛异常，停止当前正常路径；L439按`hasattr(exc, "log")`分支；L453抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`uuid.uuid4`、`ValueError`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`等。 返回路径：L437的`result`。
+- `verify_native_delivery`（L369–L469）：接收`product`、`url`、`reports`、`redis_port`、`template`、`source_handoff`。 源码说明：Restore the distributable ZIP; run startup against a DIFFERENT empty DB.。 控制顺序：L381按`template not in {"fastapiadmin", "yudao-vben"}`分支；L382抛异常，停止当前正常路径；L395按`restored != packaged or manifest(copy) != listing`分支；L396抛异常，停止当前正常路径；L397按`source_handoff is not None`分支；L427按`result.get("passed") is not True or result.get("frontend_started") is not True or res…`分支；L434抛异常，停止当前正常路径；L444按`source_handoff is not None`分支。后续分支沿下方源码相同行号继续阅读。 调用`uuid.uuid4`、`ValueError`、`checked_database`、`psycopg.connect`、`connection_url`、`c.execute`、`sql.SQL("CREATE DATABASE {}").format`、`sql.SQL`、`sql.Identifier`等。 返回路径：L449的`result`。
 
-<!-- source-file: workbench/portable.py sha256: 906a38adcc809b12ee7f275c56b6cd20bac09bfac1a8c51b50b691f4cadea8a9 -->
+<!-- source-file: workbench/portable.py sha256: a47e1db32c1948be246b9ddaa6ffa125128539fa8f64ea10264155da40c4c0ed -->
 ````python
 """Export a self-contained native launcher, immutable SQL and menu seed (no user data)."""
 
@@ -27916,7 +27928,9 @@ def build_native_delivery(template, product, reports, plan, targets, url):
     }
 
 
-def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
+def verify_native_delivery(
+    product, url, reports, redis_port=6379, *, template, source_handoff=None
+):
     """Restore the distributable ZIP; run startup against a DIFFERENT empty DB."""
     import sys
     import tempfile
@@ -27942,6 +27956,12 @@ def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
             restored = unpack(archive, copy, template=template)
             if restored != packaged or manifest(copy) != listing:
                 raise ValueError("原生交付ZIP与已验证源码不一致")
+            if source_handoff is not None:
+                # This quiescent, verified ZIP restore has not run any code or
+                # installed dependencies. The CI-only consumer must reject all
+                # physical extras rather than sanitize an already dirty candidate.
+                source_archive_sha256 = sha(archive)
+                source_handoff(copy, dict(listing), source_archive_sha256)
             clean_url = parsed.set(database=name).render_as_string(hide_password=False)
             try:
                 command = run_command(
@@ -27983,6 +28003,10 @@ def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
                     archive_round_trip=True,
                     archive=restored,
                 )
+                if source_handoff is not None:
+                    if sha(archive) != source_archive_sha256 or manifest(product) != listing:
+                        raise ValueError("原生交付归档或原源码在独立验收期间发生改变")
+                    result["source_archive_sha256"] = source_archive_sha256
                 write_json(Path(reports) / "portable-start.json", result)
                 return result
             except Exception as exc:
@@ -124362,6 +124386,746 @@ def test_fixed_http_protocol_replays_captures_form_bodies_crud_and_restart(produ
     assert {row["id"] for row in restarted} == {"native_signup", "native_device_crud"}
 ````
 
+### `tests/test_ci_native_capability_source.py`
+
+**作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
+
+**对应关系：** 阅读下表用例名、断言和被调函数 → 运行本文件 → 对应实现；conftest定义共享隔离环境。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts`、`scripts.ci_native_capability_security`、`scripts.daytona_native_capability_profile`、`scripts.extension_oracles`、`workbench`、`workbench.capability_dependencies`、`workbench.capability_verification`、`workbench.domain`、`workbench.filesystem`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `product`（L31–L36）：接收`baseline_product`。 控制顺序：L32遍历`DESCRIPTORS`。 调用`atomic_text`、`name.endswith`。 返回路径：L36的`baseline_product`。
+- `accepted`（L39–L50）：接收`archive`。 返回路径：L40的`{ "generated_runtime_verified": True, "portable_restored": { "passed": True, "fresh_databa…`。
+- `ready`（L53–L57）：接收`product`、`tmp_path`。 调用`handoff.SourceHandoff`、`state.capture`、`manifest`、`state.complete`、`accepted`。 返回路径：L57的`state`。
+- `test_exact_source_handoff_preserves_all_bytes_descriptors_and_public_examples`（L61–L75）：接收`product`、`tmp_path`。 控制顺序：L67断言`receipt["inventory"] == original == manifest(state.product) == manifest(product)`；L68断言`receipt["source_identity"] == digest(original)`；L70断言`inputs["source_identity"] == receipt["source_identity"]`；L71断言`inputs["descriptors"] == receipt["descriptors"]`；L72断言`receipt["source_archive_sha256"] == "a" * 64`；L73断言`(state.product / "frontend/web/.env.production.example").exists()`。 调用`manifest`、`ready`、`handoff.require_handoff`、`digest`、`product_inputs`、`(state.product / "frontend/web/.env.production.example").exists`、`profile_record`、`require_dependency_descriptors`、`fixed_plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_dirty_candidate_stays_rejected_while_independent_clean_handoff_is_admitted`（L82–L94）：接收`product`、`tmp_path`、`relative`。 控制顺序：L92断言`not (tmp_path / "must-not-exist").exists()`；L94断言`(product / relative).is_dir()`。 调用`ready`、`(product / relative).mkdir`、`profile_record`、`pytest.raises`、`require_dependency_descriptors`、`fixed_plan`、`handoff.copy_exact_source`、`(tmp_path / "must-not-exist").exists`、`(product / relative).is_dir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_capture_rejects_every_uninventoried_physical_entry`（L112–L139）：接收`product`、`tmp_path`、`mutation`。 控制顺序：L115按`mutation == "extra"`分支；L117按`mutation == "missing"`分支；L119按`mutation == "bytes"`分支；L121按`mutation == "empty-dir"`分支；L123按`mutation == "ignored-dir"`分支；L125按`mutation == "secret"`分支；L127按`mutation == "symlink"`分支；L130按`mutation == "hardlink"`分支。后续分支沿下方源码相同行号继续阅读。 调用`manifest`、`atomic_text`、`path.unlink`、`path.write_text`、`(product / "empty").mkdir`、`path.symlink_to`、`os.link`、`os.mkfifo`、`handoff.SourceHandoff`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_copy_detects_mutations_between_preflight_and_copy`（L146–L175）：接收`product`、`tmp_path`、`monkeypatch`、`mutation`。 调用`manifest`、`monkeypatch.setattr`、`pytest.raises`、`handoff.copy_exact_source`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_copy_detects_mutations_between_preflight_and_copy.changing`（L154–L171）：接收`root`、`expected`。 控制顺序：L158按`calls == 1`分支；L160按`mutation == "source-byte"`分支；L162按`mutation == "source-link"`分支；L165按`mutation == "source-directory-link"`分支；L169按`calls == 2 and mutation == "destination-extra"`分支。 调用`real`、`path.write_text`、`path.unlink`、`path.symlink_to`、`old.rename`、`old.symlink_to`、`atomic_text`。 返回路径：L171的`result`。
+- `test_fd_read_rejects_link_swap_after_stat_without_reading_target`（L179–L200）：接收`product`、`tmp_path`、`monkeypatch`。 控制顺序：L200断言`target.read_text() == "must not be copied"`。 调用`target.write_text`、`manifest`、`monkeypatch.setattr`、`pytest.raises`、`handoff.require_exact_source`、`target.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_fd_read_rejects_link_swap_after_stat_without_reading_target.swap`（L188–L194）：接收`directory`、`name`、`expected`。 控制顺序：L190按`name == "__init__.py" and not changed`分支。 调用`path.unlink`、`path.symlink_to`、`real`。 返回路径：L194的`real(directory, name, expected)`。
+- `test_failed_completion_never_publishes_readiness`（L207–L224）：接收`product`、`tmp_path`、`mutation`。 控制顺序：L209按`mutation != "uncaptured"`分支；L212按`mutation == "source"`分支；L214按`mutation == "descriptor"`分支；L216按`mutation == "archive"`分支；L218按`mutation == "different-archive"`分支；L220按`mutation == "acceptance"`分支；L224断言`json.loads(state.receipt.read_text())["passed"] is False`。 调用`handoff.SourceHandoff`、`state.capture`、`manifest`、`accepted`、`atomic_text`、`(state.product / "backend/uv.lock").write_text`、`pytest.raises`、`state.complete`、`json.loads`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_stale_receipt_invalidated_without_overwriting_or_deleting_existing_source`（L228–L238）：接收`product`、`tmp_path`。 控制顺序：L235断言`manifest(state.product) == original`；L236断言`json.loads(state.receipt.read_text())["passed"] is False`。 调用`ready`、`manifest`、`pytest.raises`、`handoff.SourceHandoff`、`json.loads`、`state.receipt.read_text`、`handoff.require_handoff`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_consumer_rejects_stale_or_tampered_readiness`（L255–L278）：接收`product`、`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L258按`mutation == "run"`分支；L260按`mutation.startswith("receipt-") and mutation in {"receipt-hash", "receipt-descriptor"…`分支；L261按`mutation == "receipt-hash"`分支；L266按`mutation == "source"`分支；L268按`mutation == "dependencies"`分支；L270按`mutation == "receipt-fifo"`分支；L273按`mutation == "receipt-hardlink"`分支。 调用`ready`、`json.loads`、`state.receipt.read_text`、`monkeypatch.setenv`、`mutation.startswith`、`write_json`、`(state.product / "backend/app/__init__.py").write_text`、`(state.product / "backend/.venv").mkdir`、`state.receipt.unlink`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `portable_runtime`（L282–L296）：接收`monkeypatch`。 调用`monkeypatch.setattr`、`Connection`。 返回路径：L296的`operations`。
+- `portable_runtime.Connection`（L285–L293）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `portable_runtime.Connection.__enter__`（L286–L287）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L287的`self`。
+- `portable_runtime.Connection.__exit__`（L289–L290）：接收`*args`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `portable_runtime.Connection.execute`（L292–L293）：接收`statement`。 调用`operations.append`、`statement.as_string`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_capture_precedes_independent_build_and_never_readies_failed_acceptance`（L303–L370）：接收`product`、`tmp_path`、`monkeypatch`、`portable_runtime`、`failure`。 控制顺序：L341按`failure == "roundtrip-extra"`分支；L350按`failure is None`分支；L354断言`events == ["capture", "independent-build"]`；L359断言`manifest(state.product) == inventory`；L360断言`(product / "backend/.venv/leave-intact").exists()`；L366断言`json.loads(state.receipt.read_text())["passed"] is False`；L367断言`len(portable_runtime) == 2`；L368断言`portable_runtime[0].startswith('CREATE DATABASE "restore_')`。后续分支沿下方源码相同行号继续阅读。 调用`manifest`、`handoff.SourceHandoff`、`atomic_text`、`monkeypatch.setattr`、`portable.verify_native_delivery`、`accepted`、`report["portable_restored"].update`、`state.complete`、`handoff.require_handoff`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_capture_precedes_independent_build_and_never_readies_failed_acceptance.capture`（L313–L320）：接收`clean`、`expected`、`archive_sha256`。 控制顺序：L314断言`expected == inventory`；L315按`failure != "roundtrip-extra"`分支；L316断言`not (clean / "backend/.venv").exists()`；L317断言`not (clean / "frontend/web/node_modules").exists()`；L319断言`json.loads(state.receipt.read_text())["passed"] is False`。 调用`(clean / "backend/.venv").exists`、`(clean / "frontend/web/node_modules").exists`、`state.capture`、`json.loads`、`state.receipt.read_text`、`events.append`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_capture_precedes_independent_build_and_never_readies_failed_acceptance.run`（L322–L338）：接收`command`、`cwd`、`*args`、`**kwargs`。 控制顺序：L324断言`events == ["capture"]`；L328按`failure == "launch"`分支；L329抛异常，停止当前正常路径；L330按`failure == "archive-drift"`分支；L332按`failure == "original-drift"`分支。 调用`copies.append`、`events.append`、`atomic_text`、`RuntimeError`、`(cwd.parent / "delivery.zip").write_bytes`、`(product / "backend/uv.lock").write_text`、`write_json`。 返回路径：L338的`{"log": "mocked launcher evidence only"}`。
+- `test_capture_precedes_independent_build_and_never_readies_failed_acceptance.extra`（L344–L347）：接收`archive`、`destination`、`**kwargs`。 调用`original_unpack`、`(destination / "backend/.venv").mkdir`。 返回路径：L347的`result`。
+- `test_native_tools_finalizes_only_after_all_acceptance_and_outcome_write`（L376–L459）：接收`product`、`tmp_path`、`monkeypatch`、`failure`。 控制顺序：L443按`failure == "outcome-write"`分支；L451按`failure is None`分支；L454断言`json.loads((reports / "toolchain-acceptance.json").read_text())["passed"] is True`；L458断言`json.loads(receipt.read_text())["passed"] is False`；L459断言`manifest(product)`。 调用`monkeypatch.setattr`、`write_json`、`monkeypatch.setenv`、`str`、`native_tools.main`、`handoff.validate_receipt`、`json.loads`、`receipt.read_text`、`(reports / "toolchain-acceptance.json").read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_tools_finalizes_only_after_all_acceptance_and_outcome_write.fixture_copy`（L386–L389）：接收`source`、`destination`、`inventory`。 控制顺序：L387断言`manifest(source) == inventory`。 调用`manifest`、`shutil.copytree`。 返回路径：L389的`destination`。
+- `test_native_tools_finalizes_only_after_all_acceptance_and_outcome_write.fixture_inventory`（L391–L393）：接收`source`、`inventory`。 控制顺序：L392断言`manifest(source) == inventory`。 调用`manifest`。 返回路径：L393的`inventory`。
+- `test_native_tools_finalizes_only_after_all_acceptance_and_outcome_write.run`（L420–L440）：接收`*args`、`**kwargs`。 控制顺序：L423断言`json.loads(receipt.read_text())["passed"] is False`；L424按`calls == 1`分支；L427按`calls == 2`分支；L429按`failure == "before-capture"`分支；L430抛异常，停止当前正常路径；L432按`failure == "after-capture"`分支；L433抛异常，停止当前正常路径。 调用`json.loads`、`receipt.read_text`、`write_json`、`kwargs["customization"]`、`native_lab.generated_permissions`、`RuntimeError`、`kwargs["source_handoff"]`、`manifest`、`accepted`。 返回路径：L440的`accepted()`。
+- `test_native_tools_finalizes_only_after_all_acceptance_and_outcome_write.write`（L445–L448）：接收`path`、`value`。 控制顺序：L446按`path.name == "toolchain-acceptance.json"`分支；L447抛异常，停止当前正常路径。 调用`OSError`、`write_json`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_contest_adds_only_authored_inventory_and_keeps_registered_baseline_exact`（L463–L480）：接收`product`、`tmp_path`。 控制顺序：L471断言`set(augmented) - set(baseline["inventory"]) == { "backend/app/plugin/module_rnd/__ini…`；L475断言`handoff.descriptors(augmented) == baseline["descriptors"]`；L476断言`manifest(state.product) == baseline["inventory"]`；L477断言`(target / "frontend/web/.env.production.example").exists()`。 调用`ready`、`handoff.require_handoff`、`handoff.copy_exact_source`、`contest_ci.install_authored_fixture`、`set`、`manifest`、`handoff.descriptors`、`(target / "frontend/web/.env.production.example").exists`、`require_dependency_descriptors`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_contest_consumer_uses_same_ready_profile_source_without_filtering`（L487–L550）：接收`product`、`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L493按`mutation == "wrong-profile-source"`分支；L495按`mutation == "dirty-baseline"`分支；L536按`mutation is None`分支；L538断言`events == ["client", "verify", "close"]`；L539断言`json.loads((tmp_path / "reports/contest-capability.json").read_text())["passed"] is T…`；L545断言`json.loads((tmp_path / "reports/contest-capability.json").read_text())["passed"] is F…`；L549按`mutation in {"wrong-profile-source", "dirty-baseline"}`分支；L550断言`events == []`。 调用`ready`、`profile_record`、`product_inputs`、`str`、`(state.product / "backend/.venv").mkdir`、`monkeypatch.setattr`、`copy.deepcopy`、`events.append`、`object`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_contest_consumer_uses_same_ready_profile_source_without_filtering.verify`（L514–L533）：接收`root`、`plan`、`*args`、`**kwargs`。 控制顺序：L519断言`handoff.descriptors(inventory) == record["inputs"]["descriptors"]`。 调用`events.append`、`manifest`、`handoff.require_exact_source`、`require_dependency_descriptors`、`handoff.descriptors`、`digest`、`list`、`dict.fromkeys`。 返回路径：L520的`{ "passed": True, "cleanup": "deleted", "source_digest": "f" * 64 if mutation == "proof-dr…`。
+- `test_workflow_binds_all_consumers_to_one_clean_product_and_receipt`（L553–L564）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L555断言`"ci_native_tools fastapiadmin --capability-source .native/capability-source" in workf…`；L556遍历`( "ci_native_capability_source", "daytona_native_capability_profi…`；L562断言`command + " --product .native/capability-source" in workflow`；L563断言`workflow.count("--source-receipt reports/native-tools/capability-source.json") == 2`；L564断言`"prepare --product .native/tool-product" not in workflow`。 调用`(handoff.ROOT / ".github/workflows/native-capability-profile.yml"…`、`workflow.count`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_inventory_schema_rejects_non_source_and_ambiguous_paths_on_all_platforms`（L588–L590）：接收`inventory`。 调用`pytest.raises`、`handoff.validate_inventory`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_receipt_schema_and_binding_are_portable`（L597–L630）：接收`product`、`monkeypatch`、`mutation`。 控制顺序：L610按`mutation == "schema"`分支；L612按`mutation == "passed"`分支；L614按`mutation == "path"`分支；L616按`mutation == "run"`分支；L618按`mutation == "identity"`分支；L620按`mutation == "descriptor"`分支；L622按`mutation == "archive"`分支；L624按`mutation == "extra"`分支。后续分支沿下方源码相同行号继续阅读。 调用`manifest`、`str`、`digest`、`handoff.descriptors`、`handoff.run_identity`、`monkeypatch.setenv`、`handoff.validate_receipt`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unsupported_platform_fails_closed_before_opening_source`（L633–L637）：接收`tmp_path`、`monkeypatch`。 调用`monkeypatch.delattr`、`pytest.raises`、`handoff.directory_fd`、`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_parent_traversal_roots_fail_before_any_write`（L640–L652）：接收`product`、`tmp_path`。 控制顺序：L645断言`manifest(product) == inventory`；L646断言`not (product / "unused").exists()`；L647断言`not (product / "new-source").exists()`；L652断言`receipt.read_text() == "existing receipt"`。 调用`manifest`、`pytest.raises`、`handoff.copy_exact_source`、`(product / "unused").exists`、`(product / "new-source").exists`、`receipt.write_text`、`handoff.SourceHandoff`、`receipt.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cli_rejects_overlapping_original_and_handoff_before_any_writes`（L656–L687）：接收`product`、`tmp_path`、`monkeypatch`、`relation`。 控制顺序：L685断言`manifest(product) == inventory`；L686断言`not root.exists()`；L687断言`not (product / "new-handoff").exists()`。 调用`manifest`、`monkeypatch.setattr`、`str`、`pytest.fail`、`pytest.raises`、`native_tools.main`、`root.exists`、`(product / "new-handoff").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: tests/test_ci_native_capability_source.py sha256: 2d42d1dbe82953171f4608fd3ba0e2410abce25681832799604133aa5fe450f3 -->
+````python
+"""CI source handoff contracts only; no live container/native acceptance claims."""
+
+import copy
+import json
+import os
+import shutil
+
+import pytest
+from capability_dependency_fixtures import profile_record
+from test_ci_native_capability_security import product as baseline_product  # noqa: F401
+
+from scripts import ci_contest_capability as contest_ci
+from scripts import ci_native_capability_source as handoff
+from scripts import ci_native_tools as native_tools
+from scripts.ci_native_capability_security import fixed_plan
+from scripts.daytona_native_capability_profile import DESCRIPTORS, product_inputs
+from scripts.extension_oracles import contest
+from workbench import filesystem, native_lab, portable, tools
+from workbench.capability_dependencies import require_dependency_descriptors
+from workbench.capability_verification import CheckFailure
+from workbench.domain import digest
+from workbench.filesystem import atomic_text, manifest, write_json
+
+posix_filesystem = pytest.mark.skipif(
+    not hasattr(os, "O_NOFOLLOW"), reason="CI native source handoff requires POSIX no-follow FDs"
+)
+URL = "postgresql+psycopg://native:ci-only@127.0.0.1/native_codegen"
+
+
+@pytest.fixture
+def product(baseline_product):  # noqa: F811 - imported pytest fixture
+    for name in DESCRIPTORS:
+        atomic_text(baseline_product / name, "{}\n" if name.endswith(".json") else "# exact lock\n")
+    atomic_text(baseline_product / "frontend/web/.env.production.example", "VITE_PUBLIC=example\n")
+    atomic_text(baseline_product / "start.py", "# authored CI source, never run by these tests\n")
+    return baseline_product
+
+
+def accepted(archive="a" * 64):
+    return {
+        "generated_runtime_verified": True,
+        "portable_restored": {
+            "passed": True,
+            "fresh_database": True,
+            "standalone_launcher": True,
+            "archive_round_trip": True,
+            "source_archive_sha256": archive,
+            "business_rules": {"passed": True},
+        },
+    }
+
+
+def ready(product, tmp_path):
+    state = handoff.SourceHandoff(tmp_path / "clean-ci", tmp_path / "source-ready.json")
+    state.capture(product, manifest(product), "a" * 64)
+    state.complete(accepted(), product)
+    return state
+
+
+@posix_filesystem
+def test_exact_source_handoff_preserves_all_bytes_descriptors_and_public_examples(
+    product, tmp_path
+):
+    original = manifest(product)
+    state = ready(product, tmp_path)
+    receipt = handoff.require_handoff(state.product, state.receipt)
+    assert receipt["inventory"] == original == manifest(state.product) == manifest(product)
+    assert receipt["source_identity"] == digest(original)
+    inputs = product_inputs(state.product)
+    assert inputs["source_identity"] == receipt["source_identity"]
+    assert inputs["descriptors"] == receipt["descriptors"]
+    assert receipt["source_archive_sha256"] == "a" * 64
+    assert (state.product / "frontend/web/.env.production.example").exists()
+    record = profile_record(state.product, "fastapiadmin")
+    require_dependency_descriptors(state.product, fixed_plan(state.product), record)
+
+
+@pytest.mark.parametrize(
+    "relative", [".venv", "backend/.venv", "node_modules", "frontend/web/node_modules"]
+)
+@posix_filesystem
+def test_dirty_candidate_stays_rejected_while_independent_clean_handoff_is_admitted(
+    product, tmp_path, relative
+):
+    state = ready(product, tmp_path)
+    (product / relative).mkdir(parents=True)
+    record = profile_record(product, "fastapiadmin")
+    with pytest.raises(CheckFailure, match="虚拟环境或依赖目录"):
+        require_dependency_descriptors(product, fixed_plan(product), record)
+    with pytest.raises(ValueError, match="extra directory"):
+        handoff.copy_exact_source(product, tmp_path / "must-not-exist", state.inventory)
+    assert not (tmp_path / "must-not-exist").exists()
+    require_dependency_descriptors(state.product, fixed_plan(state.product), record)
+    assert (product / relative).is_dir()
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "extra",
+        "missing",
+        "bytes",
+        "empty-dir",
+        "ignored-dir",
+        "secret",
+        "symlink",
+        "hardlink",
+        "fifo",
+    ],
+)
+@posix_filesystem
+def test_capture_rejects_every_uninventoried_physical_entry(product, tmp_path, mutation):
+    inventory = manifest(product)
+    path = product / "backend/app/__init__.py"
+    if mutation == "extra":
+        atomic_text(product / "backend/app/new_import.py", "extra")
+    elif mutation == "missing":
+        path.unlink()
+    elif mutation == "bytes":
+        path.write_text("changed")
+    elif mutation == "empty-dir":
+        (product / "empty").mkdir()
+    elif mutation == "ignored-dir":
+        atomic_text(product / "backend/logs/hidden.py", "extra")
+    elif mutation == "secret":
+        atomic_text(product / ".env", "DUMMY=not-a-credential")
+    elif mutation == "symlink":
+        path.unlink()
+        path.symlink_to(product / "start.py")
+    elif mutation == "hardlink":
+        os.link(path, tmp_path / "hardlink")
+    else:
+        path.unlink()
+        os.mkfifo(path)
+    state = handoff.SourceHandoff(tmp_path / "clean", tmp_path / "receipt.json")
+    with pytest.raises((ValueError, OSError)):
+        state.capture(product, inventory, "a" * 64)
+    assert json.loads(state.receipt.read_text())["passed"] is False
+    assert not state.product.exists()
+
+
+@pytest.mark.parametrize(
+    "mutation", ["source-byte", "source-link", "source-directory-link", "destination-extra"]
+)
+@posix_filesystem
+def test_copy_detects_mutations_between_preflight_and_copy(
+    product, tmp_path, monkeypatch, mutation
+):
+    inventory = manifest(product)
+    destination = tmp_path / "new"
+    real = handoff.require_exact_source
+    calls = 0
+
+    def changing(root, expected):
+        nonlocal calls
+        result = real(root, expected)
+        calls += 1
+        if calls == 1:
+            path = product / "backend/app/__init__.py"
+            if mutation == "source-byte":
+                path.write_text("changed after preflight")
+            elif mutation == "source-link":
+                path.unlink()
+                path.symlink_to(tmp_path / "outside")
+            elif mutation == "source-directory-link":
+                old = product / "backend/app"
+                old.rename(tmp_path / "original-app")
+                old.symlink_to(tmp_path / "original-app", target_is_directory=True)
+        if calls == 2 and mutation == "destination-extra":
+            atomic_text(destination / "hidden.py", "extra")
+        return result
+
+    monkeypatch.setattr(handoff, "require_exact_source", changing)
+    with pytest.raises((ValueError, OSError)):
+        handoff.copy_exact_source(product, destination, inventory)
+
+
+@posix_filesystem
+def test_fd_read_rejects_link_swap_after_stat_without_reading_target(
+    product, tmp_path, monkeypatch
+):
+    target = tmp_path / "outside"
+    target.write_text("must not be copied")
+    path = product / "backend/app/__init__.py"
+    real = handoff.read_regular
+    changed = False
+
+    def swap(directory, name, expected=None):
+        nonlocal changed
+        if name == "__init__.py" and not changed:
+            changed = True
+            path.unlink()
+            path.symlink_to(target)
+        return real(directory, name, expected)
+
+    inventory = manifest(product)
+    monkeypatch.setattr(handoff, "read_regular", swap)
+    with pytest.raises(OSError):
+        handoff.require_exact_source(product, inventory)
+    assert target.read_text() == "must not be copied"
+
+
+@pytest.mark.parametrize(
+    "mutation", ["source", "descriptor", "archive", "different-archive", "acceptance", "uncaptured"]
+)
+@posix_filesystem
+def test_failed_completion_never_publishes_readiness(product, tmp_path, mutation):
+    state = handoff.SourceHandoff(tmp_path / "clean", tmp_path / "receipt.json")
+    if mutation != "uncaptured":
+        state.capture(product, manifest(product), "a" * 64)
+    report = accepted()
+    if mutation == "source":
+        atomic_text(product / "new.py", "changed source")
+    elif mutation == "descriptor":
+        (state.product / "backend/uv.lock").write_text("changed lock")
+    elif mutation == "archive":
+        report["portable_restored"]["source_archive_sha256"] = "not a hash"
+    elif mutation == "different-archive":
+        report["portable_restored"]["source_archive_sha256"] = "b" * 64
+    elif mutation == "acceptance":
+        report["portable_restored"]["passed"] = False
+    with pytest.raises(ValueError):
+        state.complete(report, product)
+    assert json.loads(state.receipt.read_text())["passed"] is False
+
+
+@posix_filesystem
+def test_stale_receipt_invalidated_without_overwriting_or_deleting_existing_source(
+    product, tmp_path
+):
+    state = ready(product, tmp_path)
+    original = manifest(state.product)
+    with pytest.raises(FileExistsError):
+        handoff.SourceHandoff(state.product, state.receipt)
+    assert manifest(state.product) == original
+    assert json.loads(state.receipt.read_text())["passed"] is False
+    with pytest.raises(ValueError):
+        handoff.require_handoff(state.product, state.receipt)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "run",
+        "receipt-hash",
+        "receipt-descriptor",
+        "source",
+        "dependencies",
+        "receipt-fifo",
+        "receipt-hardlink",
+        "duplicate-key",
+    ],
+)
+@posix_filesystem
+def test_consumer_rejects_stale_or_tampered_readiness(product, tmp_path, monkeypatch, mutation):
+    state = ready(product, tmp_path)
+    value = json.loads(state.receipt.read_text())
+    if mutation == "run":
+        monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "changed")
+    elif mutation.startswith("receipt-") and mutation in {"receipt-hash", "receipt-descriptor"}:
+        if mutation == "receipt-hash":
+            value["source_identity"] = "f" * 64
+        else:
+            value["descriptors"]["backend/uv.lock"] = "f" * 64
+        write_json(state.receipt, value)
+    elif mutation == "source":
+        (state.product / "backend/app/__init__.py").write_text("tampered")
+    elif mutation == "dependencies":
+        (state.product / "backend/.venv").mkdir()
+    elif mutation == "receipt-fifo":
+        state.receipt.unlink()
+        os.mkfifo(state.receipt)
+    elif mutation == "receipt-hardlink":
+        os.link(state.receipt, tmp_path / "linked-receipt")
+    else:
+        state.receipt.write_text('{"passed":false,' + state.receipt.read_text()[1:])
+    with pytest.raises((ValueError, OSError)):
+        handoff.require_handoff(state.product, state.receipt)
+
+
+@pytest.fixture
+def portable_runtime(monkeypatch):
+    operations = []
+
+    class Connection:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def execute(self, statement):
+            operations.append(statement.as_string())
+
+    monkeypatch.setattr(portable.psycopg, "connect", lambda *args, **kwargs: Connection())
+    return operations
+
+
+@pytest.mark.parametrize(
+    "failure", [None, "launch", "archive-drift", "original-drift", "roundtrip-extra"]
+)
+@posix_filesystem
+def test_capture_precedes_independent_build_and_never_readies_failed_acceptance(
+    product, tmp_path, monkeypatch, portable_runtime, failure
+):
+    inventory = manifest(product)
+    state = handoff.SourceHandoff(tmp_path / "clean-ci", tmp_path / "ready.json")
+    events, copies = [], []
+    # The native generator's existing buildtree is intentionally dirty.
+    atomic_text(product / "backend/.venv/leave-intact", "installed")
+    atomic_text(product / "frontend/web/node_modules/leave-intact", "installed")
+
+    def capture(clean, expected, archive_sha256):
+        assert expected == inventory
+        if failure != "roundtrip-extra":
+            assert not (clean / "backend/.venv").exists()
+            assert not (clean / "frontend/web/node_modules").exists()
+        state.capture(clean, expected, archive_sha256)
+        assert json.loads(state.receipt.read_text())["passed"] is False
+        events.append("capture")
+
+    def run(command, cwd, *args, **kwargs):
+        copies.append(cwd)
+        assert events == ["capture"]
+        events.append("independent-build")
+        atomic_text(cwd / "backend/.venv/created-by-launcher", "installed")
+        atomic_text(cwd / "frontend/web/node_modules/created-by-launcher", "installed")
+        if failure == "launch":
+            raise RuntimeError("explicit independent launcher failure")
+        if failure == "archive-drift":
+            (cwd.parent / "delivery.zip").write_bytes(b"changed archive")
+        if failure == "original-drift":
+            (product / "backend/uv.lock").write_text("changed lock")
+        write_json(
+            cwd / ".deployment/reports/portable-start.json",
+            {"passed": True, "frontend_started": True, "restart": True},
+        )
+        return {"log": "mocked launcher evidence only"}
+
+    monkeypatch.setattr(tools, "run_command", run)
+    if failure == "roundtrip-extra":
+        original_unpack = filesystem.unpack
+
+        def extra(archive, destination, **kwargs):
+            result = original_unpack(archive, destination, **kwargs)
+            (destination / "backend/.venv").mkdir()
+            return result
+
+        monkeypatch.setattr(filesystem, "unpack", extra)
+    if failure is None:
+        result = portable.verify_native_delivery(
+            product, URL, tmp_path / "reports", template="fastapiadmin", source_handoff=capture
+        )
+        assert events == ["capture", "independent-build"]
+        report = accepted()
+        report["portable_restored"].update(result)
+        state.complete(report, product)
+        handoff.require_handoff(state.product, state.receipt)
+        assert manifest(state.product) == inventory
+        assert (product / "backend/.venv/leave-intact").exists()
+    else:
+        with pytest.raises((ValueError, RuntimeError)):
+            portable.verify_native_delivery(
+                product, URL, tmp_path / "reports", template="fastapiadmin", source_handoff=capture
+            )
+        assert json.loads(state.receipt.read_text())["passed"] is False
+    assert len(portable_runtime) == 2
+    assert portable_runtime[0].startswith('CREATE DATABASE "restore_')
+    assert portable_runtime[1].startswith('DROP DATABASE "restore_')
+    assert all(not path.exists() for path in copies)
+
+
+@pytest.mark.parametrize(
+    "failure", [None, "before-capture", "after-capture", "final-assertion", "outcome-write"]
+)
+def test_native_tools_finalizes_only_after_all_acceptance_and_outcome_write(
+    product, tmp_path, monkeypatch, failure
+):
+    root = tmp_path / "ci"
+    reports = root / "reports/native-tools"
+    destination = root / "clean-ci"
+    receipt = reports / "capability-source.json"
+
+    # Cross-platform CLI ordering test. POSIX physical safety is tested above;
+    # this fixture copies only its known synthetic inputs without native tools.
+    def fixture_copy(source, destination, inventory):
+        assert manifest(source) == inventory
+        shutil.copytree(source, destination)
+        return destination
+
+    def fixture_inventory(source, inventory):
+        assert manifest(source) == inventory
+        return inventory
+
+    monkeypatch.setattr(handoff, "copy_exact_source", fixture_copy)
+    monkeypatch.setattr(handoff, "require_exact_source", fixture_inventory)
+    write_json(receipt, {"passed": True, "stale": True})
+    monkeypatch.setattr(native_tools, "ROOT", root)
+    monkeypatch.setattr(
+        native_tools, "prepare_sources", lambda *a: [{"slot": "fastapiadmin", "path": product}]
+    )
+    monkeypatch.setattr(native_tools, "native_rule_customizer", lambda *a: lambda *args: None)
+    monkeypatch.setattr(
+        native_lab, "generated_permissions", lambda *a: {"attempt_id": "interrupted"}
+    )
+    monkeypatch.setenv("NATIVE_TEST_DATABASE_URL", URL)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "ci-native-tools",
+            "fastapiadmin",
+            "--output",
+            str(product),
+            "--capability-source",
+            str(destination),
+        ],
+    )
+    calls = 0
+
+    def run(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        assert json.loads(receipt.read_text())["passed"] is False
+        if calls == 1:
+            write_json(reports / "recovery.json", {"resumable": True, "targets": ["device"]})
+            kwargs["customization"]()
+        if calls == 2:
+            native_lab.generated_permissions()
+        if failure == "before-capture":
+            raise RuntimeError("before capture")
+        kwargs["source_handoff"](product, manifest(product), "a" * 64)
+        if failure == "after-capture":
+            raise RuntimeError("after capture")
+        write_json(reports / "generated/permissions.json", {"attempt_id": "final"})
+        write_json(
+            reports / "native-coding.json",
+            {"passed": True, "repaired": failure != "final-assertion", "attempts": 2},
+        )
+        write_json(reports / "coding-0.json", {"rolled_back": True, "verified": False})
+        return accepted()
+
+    monkeypatch.setattr(native_tools, "run_acceptance", run)
+    if failure == "outcome-write":
+
+        def write(path, value):
+            if path.name == "toolchain-acceptance.json":
+                raise OSError("explicit outcome write failure")
+            write_json(path, value)
+
+        monkeypatch.setattr(native_tools, "write_json", write)
+    if failure is None:
+        native_tools.main()
+        handoff.validate_receipt(json.loads(receipt.read_text()), destination)
+        assert json.loads((reports / "toolchain-acceptance.json").read_text())["passed"] is True
+    else:
+        with pytest.raises((RuntimeError, AssertionError, OSError)):
+            native_tools.main()
+        assert json.loads(receipt.read_text())["passed"] is False
+    assert manifest(product)
+
+
+@posix_filesystem
+def test_contest_adds_only_authored_inventory_and_keeps_registered_baseline_exact(
+    product, tmp_path
+):
+    state = ready(product, tmp_path)
+    baseline = handoff.require_handoff(state.product, state.receipt)
+    target = tmp_path / "contest"
+    handoff.copy_exact_source(state.product, target, baseline["inventory"])
+    augmented = contest_ci.install_authored_fixture(target)
+    assert set(augmented) - set(baseline["inventory"]) == {
+        "backend/app/plugin/module_rnd/__init__.py",
+        *("backend/app/plugin/module_rnd/contest/" + name for name in manifest(contest_ci.FIXTURE)),
+    }
+    assert handoff.descriptors(augmented) == baseline["descriptors"]
+    assert manifest(state.product) == baseline["inventory"]
+    assert (target / "frontend/web/.env.production.example").exists()
+    require_dependency_descriptors(
+        target, fixed_plan(target), profile_record(state.product, "fastapiadmin")
+    )
+
+
+@pytest.mark.parametrize(
+    "mutation", [None, "wrong-profile-source", "dirty-baseline", "proof-drift"]
+)
+@posix_filesystem
+def test_contest_consumer_uses_same_ready_profile_source_without_filtering(
+    product, tmp_path, monkeypatch, mutation
+):
+    state = ready(product, tmp_path)
+    record = profile_record(state.product, "fastapiadmin")
+    record["inputs"] = product_inputs(state.product)
+    if mutation == "wrong-profile-source":
+        record["inputs"]["product"] = str(product)
+    elif mutation == "dirty-baseline":
+        (state.product / "backend/.venv").mkdir()
+    events = []
+    monkeypatch.setattr(contest_ci, "ROOT", tmp_path)
+    monkeypatch.setattr(contest_ci, "install_loopback_guard", lambda: None)
+    monkeypatch.setattr(
+        contest_ci,
+        "capability_execution_prerequisites",
+        lambda *a: (tmp_path, copy.deepcopy(record)),
+    )
+    monkeypatch.setattr(contest_ci, "require_native_profile", lambda *a: record)
+    monkeypatch.setattr(contest_ci, "client_for", lambda *a: events.append("client") or object())
+    monkeypatch.setattr(contest_ci, "close_client", lambda *a: events.append("close"))
+    monkeypatch.setattr(contest_ci, "security_probe_for_profile", lambda *a: None)
+    monkeypatch.setattr(
+        "sys.argv",
+        ["contest", "--product", str(state.product), "--source-receipt", str(state.receipt)],
+    )
+
+    def verify(root, plan, *args, **kwargs):
+        events.append("verify")
+        inventory = manifest(root)
+        handoff.require_exact_source(root, inventory)
+        require_dependency_descriptors(root, plan, record)
+        assert handoff.descriptors(inventory) == record["inputs"]["descriptors"]
+        return {
+            "passed": True,
+            "cleanup": "deleted",
+            "source_digest": "f" * 64 if mutation == "proof-drift" else digest(inventory),
+            "business_oracle": {
+                "protocol": contest.CONTRACT_VERSION,
+                "full_request_complete": False,
+                "remaining_obligations": list(contest.REMAINING),
+                "fresh_replay": True,
+                "same_cluster": True,
+                "distinct_database_oid": True,
+                "witnesses": dict.fromkeys(contest.SEMANTICS, True),
+            },
+        }
+
+    monkeypatch.setattr(contest_ci, "_verify", verify)
+    if mutation is None:
+        contest_ci.main()
+        assert events == ["client", "verify", "close"]
+        assert (
+            json.loads((tmp_path / "reports/contest-capability.json").read_text())["passed"] is True
+        )
+    else:
+        with pytest.raises(ValueError):
+            contest_ci.main()
+        assert (
+            json.loads((tmp_path / "reports/contest-capability.json").read_text())["passed"]
+            is False
+        )
+        if mutation in {"wrong-profile-source", "dirty-baseline"}:
+            assert events == []
+
+
+def test_workflow_binds_all_consumers_to_one_clean_product_and_receipt():
+    workflow = (handoff.ROOT / ".github/workflows/native-capability-profile.yml").read_text()
+    assert "ci_native_tools fastapiadmin --capability-source .native/capability-source" in workflow
+    for command in (
+        "ci_native_capability_source",
+        "daytona_native_capability_profile prepare",
+        "ci_native_capability_security",
+        "ci_contest_capability",
+    ):
+        assert command + " --product .native/capability-source" in workflow
+    assert workflow.count("--source-receipt reports/native-tools/capability-source.json") == 2
+    assert "prepare --product .native/tool-product" not in workflow
+
+
+@pytest.mark.parametrize(
+    "inventory",
+    [
+        {},
+        [],
+        {"../escape": "a" * 64},
+        {"x": "bad"},
+        {"node_modules/a": "a" * 64},
+        {"backend/.venv/a": "a" * 64},
+        {".env": "a" * 64},
+        {"a.pyc": "a" * 64},
+        {"a\\x": "a" * 64},
+        {"a\x00x": "a" * 64},
+        {"a\nx": "a" * 64},
+        {"a": "a" * 64, "a/x": "b" * 64},
+        {"A": "a" * 64, "a/x": "b" * 64},
+        {"A/x": "a" * 64, "a/y": "b" * 64},
+        {"A": "a" * 64, "a": "b" * 64},
+        {"x" * 4097: "a" * 64},
+    ],
+)
+def test_inventory_schema_rejects_non_source_and_ambiguous_paths_on_all_platforms(inventory):
+    with pytest.raises(ValueError):
+        handoff.validate_inventory(inventory)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [None, "schema", "passed", "path", "run", "identity", "descriptor", "archive", "extra"],
+)
+def test_receipt_schema_and_binding_are_portable(product, monkeypatch, mutation):
+    inventory = manifest(product)
+    value = {
+        "schema": 1,
+        "passed": True,
+        "provenance": handoff.PROVENANCE,
+        "product": str(product),
+        "source_identity": digest(inventory),
+        "source_archive_sha256": "a" * 64,
+        "inventory": inventory,
+        "descriptors": handoff.descriptors(inventory),
+        "run": handoff.run_identity(),
+    }
+    if mutation == "schema":
+        value["schema"] = True
+    elif mutation == "passed":
+        value["passed"] = 1
+    elif mutation == "path":
+        value["product"] += "-different"
+    elif mutation == "run":
+        monkeypatch.setenv("GITHUB_RUN_ATTEMPT", "a-different-attempt")
+    elif mutation == "identity":
+        value["source_identity"] = "b" * 64
+    elif mutation == "descriptor":
+        value["descriptors"]["backend/uv.lock"] = "b" * 64
+    elif mutation == "archive":
+        value["source_archive_sha256"] = "a" * 63
+    elif mutation == "extra":
+        value["untrusted"] = True
+    if mutation is None:
+        assert handoff.validate_receipt(value, product) == value
+    else:
+        with pytest.raises(ValueError):
+            handoff.validate_receipt(value, product)
+
+
+def test_unsupported_platform_fails_closed_before_opening_source(tmp_path, monkeypatch):
+    monkeypatch.delattr(os, "O_NOFOLLOW", raising=False)
+    with pytest.raises(ValueError, match="no-follow"):
+        with handoff.directory_fd(tmp_path):
+            pytest.fail("unsupported platform opened source")
+
+
+def test_parent_traversal_roots_fail_before_any_write(product, tmp_path):
+    inventory = manifest(product)
+    path = product / "unused/../new-source"
+    with pytest.raises(ValueError, match="parent traversal"):
+        handoff.copy_exact_source(product, path, inventory)
+    assert manifest(product) == inventory
+    assert not (product / "unused").exists()
+    assert not (product / "new-source").exists()
+    receipt = tmp_path / "unchanged.json"
+    receipt.write_text("existing receipt")
+    with pytest.raises(ValueError, match="parent traversal"):
+        handoff.SourceHandoff(path, receipt)
+    assert receipt.read_text() == "existing receipt"
+
+
+@pytest.mark.parametrize("relation", ["same", "inside-buildtree", "contains-buildtree"])
+def test_cli_rejects_overlapping_original_and_handoff_before_any_writes(
+    product, tmp_path, monkeypatch, relation
+):
+    destination = {
+        "same": product,
+        "inside-buildtree": product / "new-handoff",
+        "contains-buildtree": product.parent,
+    }[relation]
+    inventory = manifest(product)
+    root = tmp_path / "controller"
+    monkeypatch.setattr(native_tools, "ROOT", root)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "ci-native-tools",
+            "fastapiadmin",
+            "--output",
+            str(product),
+            "--capability-source",
+            str(destination),
+        ],
+    )
+    monkeypatch.setattr(
+        native_tools,
+        "prepare_sources",
+        lambda *a: pytest.fail("native build started before output preflight"),
+    )
+    with pytest.raises(ValueError, match="independent"):
+        native_tools.main()
+    assert manifest(product) == inventory
+    assert not root.exists()
+    assert not (product / "new-handoff").exists()
+````
+
 ### `tests/test_ci_pytest_shards.py`
 
 **作用：可重复的验收用例。** pytest查找test_函数并注入参数同名的fixture（例如tmp_path或monkeypatch）；assert不成立就失败。测试中构造的模型响应/SDK对象只是显式夹具，真实服务测试在ci_脚本单独运行并标明范围。
@@ -168837,15 +169601,15 @@ if __name__ == "__main__":
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-**先有这些模块：** `scripts.capability_security_probe`、`scripts.daytona_capability_profile`、`scripts.daytona_native_capability_profile`、`scripts.extension_oracles`、`workbench.capability_execution`、`workbench.capability_sandbox`、`workbench.filesystem`、`workbench.local_only`、`workbench.sandbox`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.capability_security_probe`、`scripts.ci_native_capability_source`、`scripts.daytona_capability_profile`、`scripts.daytona_native_capability_profile`、`scripts.extension_oracles`、`workbench.capability_execution`、`workbench.capability_sandbox`、`workbench.domain`、`workbench.filesystem`、`workbench.local_only`、`workbench.sandbox`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 **逐个入口与控制逻辑：**
 
-- `install_authored_fixture`（L31–L39）：接收`product`。 控制顺序：L33按`destination.exists() or destination.is_symlink()`分支；L34抛异常，停止当前正常路径；L37按`not marker.exists()`分支。 调用`destination.exists`、`destination.is_symlink`、`ValueError`、`destination.parent.mkdir`、`marker.exists`、`marker.write_text`、`shutil.copytree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `require_business_proof`（L42–L55）：接收`proof`。 控制顺序：L44按`proof.get("passed") is not True or proof.get("cleanup") != "deleted" or business.get(…`分支；L55抛异常，停止当前正常路径。 调用`proof.get`、`business.get`、`list`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L58–L125）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L123按`client is not None`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`install_loopback_guard`、`Settings`、`write_json`、`capability_execution_prerequisites`、`selection`、`require_native_profile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `install_authored_fixture`（L38–L53）：接收`product`。 控制顺序：L41按`destination.exists() or destination.is_symlink()`分支；L42抛异常，停止当前正常路径；L45按`not marker.exists()`分支。 调用`dict`、`require_exact_source`、`manifest`、`destination.exists`、`destination.is_symlink`、`ValueError`、`destination.parent.mkdir`、`marker.exists`、`marker.write_text`等。 返回路径：L53的`expected`。
+- `require_business_proof`（L56–L69）：接收`proof`。 控制顺序：L58按`proof.get("passed") is not True or proof.get("cleanup") != "deleted" or business.get(…`分支；L69抛异常，停止当前正常路径。 调用`proof.get`、`business.get`、`list`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L72–L145）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L98按`record["inputs"]["product"] != handoff["product"] or record["inputs"]["source_identit…`分支；L103抛异常，停止当前正常路径；L133按`proof["source_digest"] != digest(inventory)`分支；L134抛异常，停止当前正常路径；L143按`client is not None`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`install_loopback_guard`、`Settings`、`write_json`、`capability_execution_prerequisites`、`selection`、`require_native_profile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_contest_capability.py sha256: ba9912ce39c5dd035f7339dfcb17fa843d469fdeb264f384d9eac7569489f880 -->
+<!-- source-file: scripts/ci_contest_capability.py sha256: 77529980a49f95589c8ace6f0d4d3c9c7194ea9f51cba9a42226dff87e1d9c7a -->
 ````python
 """Authored native contest slice against trusted independent business assertions.
 
@@ -168854,11 +169618,17 @@ retains its unimplemented obligations regardless of this bounded slice result.
 """
 
 import argparse
-import shutil
 import tempfile
 from pathlib import Path
 
 from scripts.capability_security_probe import security_probe_for_profile
+from scripts.ci_native_capability_source import (
+    PRODUCT,
+    RECEIPT,
+    copy_exact_source,
+    require_exact_source,
+    require_handoff,
+)
 from scripts.daytona_capability_profile import inspect_created_sandbox
 from scripts.daytona_native_capability_profile import (
     ENVIRONMENT,
@@ -168869,7 +169639,8 @@ from scripts.daytona_native_capability_profile import (
 from scripts.extension_oracles import contest
 from workbench.capability_execution import capability_execution_prerequisites
 from workbench.capability_sandbox import _verify
-from workbench.filesystem import write_json
+from workbench.domain import digest
+from workbench.filesystem import manifest, sha, write_json
 from workbench.local_only import install_loopback_guard
 from workbench.sandbox import client_for, close_client
 from workbench.settings import ROOT, Settings
@@ -168878,6 +169649,7 @@ FIXTURE = ROOT / "tests/fixtures/contest_native/module_contest"
 
 
 def install_authored_fixture(product):
+    expected = dict(require_exact_source(product, manifest(product)))
     destination = product / "backend/app/plugin/module_rnd/contest"
     if destination.exists() or destination.is_symlink():
         raise ValueError("Authored fixture must not overwrite another candidate module")
@@ -168885,7 +169657,13 @@ def install_authored_fixture(product):
     marker = destination.parent / "__init__.py"
     if not marker.exists():
         marker.write_text("", encoding="utf-8")
-    shutil.copytree(FIXTURE, destination)
+        expected[marker.relative_to(product).as_posix()] = sha(marker)
+    fixture = manifest(FIXTURE)
+    copy_exact_source(FIXTURE, destination, fixture)
+    prefix = destination.relative_to(product).as_posix() + "/"
+    expected.update({prefix + name: value for name, value in fixture.items()})
+    require_exact_source(product, expected)
+    return expected
 
 
 def require_business_proof(proof):
@@ -168907,7 +169685,8 @@ def require_business_proof(proof):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--directory", type=Path, default=HOME)
-    parser.add_argument("--product", type=Path, default=ROOT / ".native/tool-product")
+    parser.add_argument("--product", type=Path, default=PRODUCT)
+    parser.add_argument("--source-receipt", type=Path, default=RECEIPT)
     args = parser.parse_args()
     install_loopback_guard()
     settings = Settings(
@@ -168928,17 +169707,18 @@ def main():
     try:
         directory, record = capability_execution_prerequisites(settings, selection())
         require_native_profile(directory)
+        handoff = require_handoff(args.product, args.source_receipt)
+        if (
+            record["inputs"]["product"] != handoff["product"]
+            or record["inputs"]["source_identity"] != handoff["source_identity"]
+            or record["inputs"]["descriptors"] != handoff["descriptors"]
+        ):
+            raise ValueError("Authored contest must use the exact registered CI source baseline")
         client = client_for(settings)
         with tempfile.TemporaryDirectory(prefix="rnd-authored-contest-") as temporary:
             product = Path(temporary) / "product"
-            shutil.copytree(
-                args.product,
-                product,
-                ignore=shutil.ignore_patterns(
-                    ".venv", "node_modules", ".git", "__pycache__", ".env", ".env.*", "*.pyc"
-                ),
-            )
-            install_authored_fixture(product)
+            copy_exact_source(args.product, product, handoff["inventory"])
+            inventory = install_authored_fixture(product)
             from scripts.ci_native_capability_security import fixed_plan
 
             plan = fixed_plan(product)
@@ -168962,6 +169742,10 @@ def main():
                 trusted_oracle=contest.CONTRACT_VERSION,
             )
             require_business_proof(proof)
+            require_exact_source(product, inventory)
+            if proof["source_digest"] != digest(inventory):
+                raise ValueError("Authored contest proof does not bind the exact augmented source")
+            require_handoff(args.product, args.source_receipt)
             summary.update(
                 passed=True,
                 business_oracle=proof["business_oracle"],
@@ -171793,10 +172577,10 @@ if __name__ == "__main__":
 - `native_browser_steps`（L121–L145）：不接收显式业务参数，从已配置对象/模块读取依赖。 返回路径：L124的`[ {"action": "open", "value": "/#/login"}, {"action": "visible", "selector": ".login-page-…`。
 - `fixed_plan`（L148–L333）：接收`product`。 调用`baseline_table`、`scope_sources`、`login_steps`、`native_browser_steps`、`CapabilityPlan.model_validate`、`digest`、`selection`。 返回路径：L295的`CapabilityPlan.model_validate( { "title": "Native FastapiAdmin security positive", "summar…`。
 - `require_native_positive`（L336–L374）：接收`proof`、`plan`、`source_digest`、`browser_image`。 控制顺序：L348按`proof.get("restart_kind") != "application_process" or not isinstance(restarted_checks…`分支；L366抛异常，停止当前正常路径；L370按`any( database["after"][name] <= database["baseline"][name] for name in plan.runtime.d…`分支；L374抛异常，停止当前正常路径。 调用`require_profile_evidence`、`digest`、`plan.model_dump`、`plan.selection.model_dump`、`proof.get`、`isinstance`、`any`、`restarted_checks.values`、`set`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `certify`（L377–L472）：接收`product`、`directory`。 控制顺序：L402按`settings.sandbox_provider != "daytona"`分支；L403抛异常，停止当前正常路径；L408按`record["inputs"]["product"] != str(product) or record["inputs"][ "source_identity" ] …`分支；L411抛异常，停止当前正常路径；L456按`require_native_profile(directory, record["snapshot"]["snapshot"]) != record or manife…`分支；L460抛异常，停止当前正常路径；L461按`require_browser_acceptance(settings.capability_browser_image) != browser_image`分支；L462抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(directory).resolve`、`selection`、`inside`、`receipt_name`、`write_json`、`install_loopback_guard`、`Settings`等。 返回路径：L466的`acceptance`。
-- `main`（L475–L483）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`certify`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `certify`（L377–L478）：接收`product`、`directory`、`source_receipt`。 控制顺序：L402按`settings.sandbox_provider != "daytona"`分支；L403抛异常，停止当前正常路径；L407按`source_receipt is not None`分支；L412按`record["inputs"]["product"] != str(product) or record["inputs"][ "source_identity" ] …`分支；L415抛异常，停止当前正常路径；L460按`require_native_profile(directory, record["snapshot"]["snapshot"]) != record or manife…`分支；L464抛异常，停止当前正常路径；L465按`require_browser_acceptance(settings.capability_browser_image) != browser_image`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`Path(directory).resolve`、`selection`、`inside`、`receipt_name`、`write_json`、`install_loopback_guard`、`Settings`等。 返回路径：L472的`acceptance`。
+- `main`（L481–L490）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`certify`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_native_capability_security.py sha256: 6ec3dcd45efa4f0439447b6736a340610801f6a39a445caf8b709dd2e81ccdc6 -->
+<!-- source-file: scripts/ci_native_capability_security.py sha256: 8b5790c0f6ffa02b4ff5dbbe3bdcfa5c9be4ce0ec37579a262c1902a0bf60988 -->
 ````python
 """Live native security certification against the registered generated CI baseline.
 
@@ -172174,7 +172958,7 @@ def require_native_positive(proof, plan, source_digest, browser_image):
         raise ValueError("Native signup and device writes must both reach physical PostgreSQL")
 
 
-def certify(product=PRODUCT, directory=HOME):
+def certify(product=PRODUCT, directory=HOME, *, source_receipt=None):
     product, directory = Path(product).resolve(), Path(directory).resolve()
     selected = selection()
     destination = inside(directory, receipt_name(selected))
@@ -172204,6 +172988,10 @@ def certify(product=PRODUCT, directory=HOME):
         record = require_native_profile(
             directory, snapshot_for(settings, selected["template"], selected)
         )
+        if source_receipt is not None:
+            from scripts.ci_native_capability_source import require_handoff
+
+            require_handoff(product, source_receipt)
         inventory = manifest(product)
         if record["inputs"]["product"] != str(product) or record["inputs"][
             "source_identity"
@@ -172260,6 +173048,8 @@ def certify(product=PRODUCT, directory=HOME):
             raise ValueError("Native profile/source changed during live certification")
         if require_browser_acceptance(settings.capability_browser_image) != browser_image:
             raise ValueError("Accepted isolated browser image changed during certification")
+        if source_receipt is not None:
+            require_handoff(product, source_receipt)
         require_security_receipt(acceptance, record, browser_image=browser_image)
         write_json(destination, acceptance)
         summary.update(acceptance)
@@ -172276,11 +173066,387 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory", type=Path, default=HOME)
     parser.add_argument("--product", type=Path, default=PRODUCT)
+    parser.add_argument("--source-receipt", type=Path)
     args = parser.parse_args()
-    certify(args.product, args.directory)
+    certify(args.product, args.directory, source_receipt=args.source_receipt)
     print(
         "Native live security and fixed HTTP/Vue-form acceptance passed; production remains opt-in."
     )
+
+
+if __name__ == "__main__":
+    main()
+````
+
+### `scripts/ci_native_capability_source.py`
+
+**作用：本机维护、构建或集成验收入口。** main或模块入口按顺序调用本文件函数；它不是HTTP接口。ci_脚本连接真实本机工具或进程并保存证据，build/rebuild脚本负责教材一致性，daytona脚本只安装和控制本机开发服务。
+
+**对应关系：** 终端python -m scripts.ci_native_capability_source；完整命令及成功条件见正文对应章节。
+
+**如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
+
+**先有这些模块：** `scripts.daytona_native_capability_profile`、`workbench.domain`、`workbench.filesystem`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+
+**逐个入口与控制逻辑：**
+
+- `ordinary_path`（L27–L35）：接收`path`。 源码说明：Do not resolve away a linked root or any linked parent.。 控制顺序：L29按`".." in Path(path).parts`分支；L30抛异常，停止当前正常路径；L32遍历`[*reversed(path.parents), path]`；L33按`entry.is_symlink() or (hasattr(entry, "is_junction") and entry.is_junction())`分支；L34抛异常，停止当前正常路径。 调用`Path`、`ValueError`、`Path(path).absolute`、`reversed`、`entry.is_symlink`、`hasattr`、`entry.is_junction`。 返回路径：L35的`path`。
+- `directory_fd`（L39–L57）：接收`path`、`create`。 源码说明：Open every ancestor without following links, including the root argument.。 控制顺序：L41按`not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY")`分支；L42抛异常，停止当前正常路径；L46遍历`path.parts[1:]`；L47按`create`分支。 调用`hasattr`、`ValueError`、`ordinary_path`、`os.open`、`os.mkdir`、`os.close`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `file_identity`（L60–L69）：接收`value`。 返回路径：L61的`( value.st_dev, value.st_ino, value.st_mode, value.st_nlink, value.st_size, value.st_mtime…`。
+- `read_regular`（L72–L92）：接收`directory`、`name`、`expected`。 控制顺序：L76按`not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > 32_000_0…`分支；L83抛异常，停止当前正常路径；L85按`len(data) != before.st_size or file_identity(os.fstat(source.fileno())) != file_ident…`分支；L91抛异常，停止当前正常路径。 调用`os.open`、`os.fdopen`、`os.fstat`、`source.fileno`、`stat.S_ISREG`、`file_identity`、`ValueError`、`source.read`、`len`等。 返回路径：L92的`data`。
+- `validate_inventory`（L95–L125）：接收`inventory`。 控制顺序：L96按`type(inventory) is not dict or not inventory or len(inventory) > 10000`分支；L97抛异常，停止当前正常路径；L99遍历`inventory.items()`；L101按`path is None or not name or path.as_posix() != name or path.is_absolute() or ".." in …`分支；L119抛异常，停止当前正常路径；L123按`len(canonical_directories) != len(directories) or canonical_directories & canonical`分支；L124抛异常，停止当前正常路径。 调用`type`、`len`、`ValueError`、`set`、`inventory.items`、`PurePosixPath`、`path.as_posix`、`path.is_absolute`、`any`等。 返回路径：L125的`directories`。
+- `require_exact_source`（L128–L165）：接收`product`、`inventory`。 源码说明：Inspect every physical entry; no ignore patterns or excluded subtrees.。 控制顺序：L132按`not product.is_dir()`分支；L133抛异常，停止当前正常路径；L140遍历`os.fwalk( ".", dir_fd=root, follow_symlinks=False, onerror=walk_e…`；L143遍历`sorted([*dirs, *names])`；L146按`stat.S_ISDIR(mode.st_mode)`分支；L147按`relative not in directories`分支；L148抛异常，停止当前正常路径；L152按`stat.S_ISREG(mode.st_mode) and mode.st_nlink == 1`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_inventory`、`ordinary_path`、`product.is_dir`、`ValueError`、`set`、`directory_fd`、`os.fwalk`、`sorted`、`(PurePosixPath(base) / name).as_posix`等。 返回路径：L165的`inventory`。
+- `require_exact_source.walk_error`（L136–L137）：接收`error`。 控制顺序：L137抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `copy_exact_source`（L168–L193）：接收`source`、`destination`、`inventory`。 源码说明：A new physical copy of an independently verified clean source, never a filter.。 控制顺序：L172按`destination.is_relative_to(source) or source.is_relative_to(destination)`分支；L173抛异常，停止当前正常路径；L176遍历`sorted(inventory)`；L180按`hashlib.sha256(data).hexdigest() != inventory[name]`分支；L181抛异常，停止当前正常路径。 调用`ordinary_path`、`require_exact_source`、`destination.is_relative_to`、`source.is_relative_to`、`ValueError`、`directory_fd`、`os.mkdir`、`sorted`、`PurePosixPath`等。 返回路径：L193的`destination`。
+- `descriptors`（L196–L201）：接收`inventory`。 控制顺序：L199按`set(observed) != set(DESCRIPTORS)`分支；L200抛异常，停止当前正常路径。 调用`inventory.items`、`Path`、`set`、`ValueError`。 返回路径：L201的`observed`。
+- `run_identity`（L204–L209）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Bind GitHub runs/attempts; local runs instead rely on fresh exclusive output.。 调用`os.environ.get`。 返回路径：L206的`{ name: os.environ.get(name, "") for name in ("GITHUB_SHA", "GITHUB_RUN_ID", "GITHUB_RUN_A…`。
+- `SourceHandoff`（L212–L271）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `SourceHandoff.__init__`（L213–L223）：接收`product`、`receipt`。 控制顺序：L215按`self.receipt.is_relative_to(self.product)`分支；L216抛异常，停止当前正常路径；L219按`self.product.exists()`分支；L220抛异常，停止当前正常路径。 调用`ordinary_path`、`self.receipt.is_relative_to`、`ValueError`、`write_json`、`self.product.exists`、`FileExistsError`、`run_identity`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `SourceHandoff.capture`（L225–L234）：接收`clean_product`、`inventory`、`archive_sha256`。 控制顺序：L226按`self.inventory is not None`分支；L227抛异常，停止当前正常路径；L228按`type(archive_sha256) is not str or not re.fullmatch(r"[a-f0-9]{64}", archive_sha256)`分支；L229抛异常，停止当前正常路径。 调用`ValueError`、`type`、`re.fullmatch`、`dict`、`descriptors`、`copy_exact_source`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `SourceHandoff.complete`（L236–L271）：接收`report`、`original_product`。 控制顺序：L239按`self.inventory is None or self.run != run_identity() or report.get("generated_runtime…`分支；L257抛异常，停止当前正常路径。 调用`report.get`、`restored.get`、`run_identity`、`any`、`type`、`re.fullmatch`、`manifest`、`ValueError`、`require_exact_source`等。 返回路径：L271的`value`。
+- `validate_receipt`（L274–L306）：接收`value`、`product`。 控制顺序：L276按`type(value) is not dict or set(value) != { "schema", "passed", "provenance", "product…`分支；L299抛异常，停止当前正常路径；L302按`value["source_identity"] != digest(inventory) or value["descriptors"] != descriptors(…`分支；L305抛异常，停止当前正常路径。 调用`ordinary_path`、`type`、`set`、`value.get`、`str`、`run_identity`、`re.fullmatch`、`ValueError`、`validate_inventory`等。 返回路径：L306的`value`。
+- `require_handoff`（L309–L327）：接收`product`、`receipt`。 控制顺序：L322按`mode.st_size > 8_000_000`分支；L323抛异常，停止当前正常路径。 调用`ordinary_path`、`directory_fd`、`os.stat`、`ValueError`、`json.loads`、`read_regular`、`validate_receipt`、`require_exact_source`。 返回路径：L327的`value`。
+- `require_handoff.unique_pairs`（L312–L318）：接收`pairs`。 控制顺序：L314遍历`pairs`；L315按`key in result`分支；L316抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L318的`result`。
+- `main`（L330–L336）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`require_handoff`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+
+<!-- source-file: scripts/ci_native_capability_source.py sha256: fddcf07ae075690b6b3594c231816caf1aca4cbf8869d79e702cb465d9052c9a -->
+````python
+"""Exact CI-authored source handoff, never a sanitizer for candidate input.
+
+Capture only the clean ZIP-roundtrip-verified product before its independent
+launcher installs/builds dependencies. The original native build tree is left
+intact. Readiness is published only after the complete native-tools acceptance.
+"""
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import stat
+from contextlib import contextmanager
+from pathlib import Path, PurePosixPath
+
+from scripts.daytona_native_capability_profile import DESCRIPTORS
+from workbench.domain import digest
+from workbench.filesystem import EXCLUDED_DIRS, manifest, secret_name, write_json
+from workbench.settings import ROOT
+
+PRODUCT = ROOT / ".native/capability-source"
+RECEIPT = ROOT / "reports/native-tools/capability-source.json"
+PROVENANCE = "verified-native-delivery-archive-before-independent-build"
+
+
+def ordinary_path(path):
+    """Do not resolve away a linked root or any linked parent."""
+    if ".." in Path(path).parts:
+        raise ValueError("CI source handoff rejects parent traversal in root paths")
+    path = Path(path).absolute()
+    for entry in [*reversed(path.parents), path]:
+        if entry.is_symlink() or (hasattr(entry, "is_junction") and entry.is_junction()):
+            raise ValueError("CI source handoff cannot use linked paths")
+    return path
+
+
+@contextmanager
+def directory_fd(path, *, create=False):
+    """Open every ancestor without following links, including the root argument."""
+    if not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY"):
+        raise ValueError("CI native source handoff requires no-follow directory descriptors")
+    path = ordinary_path(path)
+    descriptor = os.open(path.anchor, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        for part in path.parts[1:]:
+            if create:
+                try:
+                    os.mkdir(part, dir_fd=descriptor)
+                except FileExistsError:
+                    pass
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = child
+        yield descriptor
+    finally:
+        os.close(descriptor)
+
+
+def file_identity(value):
+    return (
+        value.st_dev,
+        value.st_ino,
+        value.st_mode,
+        value.st_nlink,
+        value.st_size,
+        value.st_mtime_ns,
+        value.st_ctime_ns,
+    )
+
+
+def read_regular(directory, name, expected=None):
+    descriptor = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+    with os.fdopen(descriptor, "rb") as source:
+        before = os.fstat(source.fileno())
+        if (
+            not stat.S_ISREG(before.st_mode)
+            or before.st_nlink != 1
+            or before.st_size > 32_000_000
+            or expected is not None
+            and file_identity(expected) != file_identity(before)
+        ):
+            raise ValueError("CI source handoff rejects nonregular, linked, or changed files")
+        data = source.read(32_000_001)
+        if (
+            len(data) != before.st_size
+            or file_identity(os.fstat(source.fileno())) != file_identity(before)
+            or file_identity(os.stat(name, dir_fd=directory, follow_symlinks=False))
+            != file_identity(before)
+        ):
+            raise ValueError("CI source handoff file changed while reading")
+    return data
+
+
+def validate_inventory(inventory):
+    if type(inventory) is not dict or not inventory or len(inventory) > 10000:
+        raise ValueError("CI source handoff requires the complete verified inventory")
+    directories, canonical = set(), set()
+    for name, value in inventory.items():
+        path = PurePosixPath(name) if type(name) is str else None
+        if (
+            path is None
+            or not name
+            or path.as_posix() != name
+            or path.is_absolute()
+            or ".." in path.parts
+            or "\\" in name
+            or ":" in name
+            or len(name) > 4096
+            or any(ord(char) < 32 or ord(char) == 127 for char in name)
+            or name.casefold() in canonical
+            or any(part in EXCLUDED_DIRS for part in path.parts)
+            or secret_name(name)
+            or path.suffix in {".pyc", ".pyo"}
+            or any(part.startswith(".writing-") for part in path.parts)
+            or type(value) is not str
+            or not re.fullmatch(r"[a-f0-9]{64}", value)
+        ):
+            raise ValueError("CI source handoff inventory contains a non-source path or hash")
+        canonical.add(name.casefold())
+        directories.update(parent.as_posix() for parent in path.parents if str(parent) != ".")
+    canonical_directories = {name.casefold() for name in directories}
+    if len(canonical_directories) != len(directories) or canonical_directories & canonical:
+        raise ValueError("CI source handoff file and directory paths collide")
+    return directories
+
+
+def require_exact_source(product, inventory):
+    """Inspect every physical entry; no ignore patterns or excluded subtrees."""
+    directories = validate_inventory(inventory)
+    product = ordinary_path(product)
+    if not product.is_dir():
+        raise ValueError("CI source handoff requires a regular source directory")
+    observed, seen_directories, total_bytes = {}, set(), 0
+
+    def walk_error(error):
+        raise error
+
+    with directory_fd(product) as root:
+        for base, dirs, names, directory in os.fwalk(
+            ".", dir_fd=root, follow_symlinks=False, onerror=walk_error
+        ):
+            for name in sorted([*dirs, *names]):
+                relative = (PurePosixPath(base) / name).as_posix()
+                mode = os.stat(name, dir_fd=directory, follow_symlinks=False)
+                if stat.S_ISDIR(mode.st_mode):
+                    if relative not in directories:
+                        raise ValueError(
+                            "CI source handoff has an extra directory or dependency tree"
+                        )
+                    seen_directories.add(relative)
+                elif stat.S_ISREG(mode.st_mode) and mode.st_nlink == 1:
+                    if relative not in inventory:
+                        raise ValueError("CI source handoff has an extra file")
+                    observed[relative] = hashlib.sha256(
+                        read_regular(directory, name, mode)
+                    ).hexdigest()
+                    total_bytes += mode.st_size
+                    if total_bytes > 200_000_000:
+                        raise ValueError("CI source handoff exceeds the source byte budget")
+                else:
+                    raise ValueError("CI source handoff rejects nonregular or linked files")
+    if observed != inventory or seen_directories != directories:
+        raise ValueError("CI source handoff path set or byte hashes changed")
+    return inventory
+
+
+def copy_exact_source(source, destination, inventory):
+    """A new physical copy of an independently verified clean source, never a filter."""
+    source, destination = ordinary_path(source), ordinary_path(destination)
+    require_exact_source(source, inventory)
+    if destination.is_relative_to(source) or source.is_relative_to(destination):
+        raise ValueError("CI source handoff directories must be independent")
+    with directory_fd(destination.parent, create=True) as parent:
+        os.mkdir(destination.name, dir_fd=parent)
+    for name in sorted(inventory):
+        relative = PurePosixPath(name)
+        with directory_fd(source / relative.parent) as original:
+            data = read_regular(original, relative.name)
+        if hashlib.sha256(data).hexdigest() != inventory[name]:
+            raise ValueError("CI source handoff file changed before copying")
+        with directory_fd(destination / relative.parent, create=True) as target:
+            descriptor = os.open(
+                relative.name,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW,
+                0o644,
+                dir_fd=target,
+            )
+            with os.fdopen(descriptor, "wb") as output:
+                output.write(data)
+    require_exact_source(source, inventory)
+    require_exact_source(destination, inventory)
+    return destination
+
+
+def descriptors(inventory):
+    names = {"pyproject.toml", "uv.lock", "pnpm-lock.yaml", "package.json", "pom.xml"}
+    observed = {name: value for name, value in inventory.items() if Path(name).name in names}
+    if set(observed) != set(DESCRIPTORS):
+        raise ValueError("CI source handoff requires exactly the six native descriptors")
+    return observed
+
+
+def run_identity():
+    """Bind GitHub runs/attempts; local runs instead rely on fresh exclusive output."""
+    return {
+        name: os.environ.get(name, "")
+        for name in ("GITHUB_SHA", "GITHUB_RUN_ID", "GITHUB_RUN_ATTEMPT")
+    }
+
+
+class SourceHandoff:
+    def __init__(self, product, receipt):
+        self.product, self.receipt = ordinary_path(product), ordinary_path(receipt)
+        if self.receipt.is_relative_to(self.product):
+            raise ValueError("CI source readiness must remain outside product source")
+        # Invalidate stale readiness even when capture or the native run later fails.
+        write_json(self.receipt, {"schema": 1, "passed": False, "provenance": PROVENANCE})
+        if self.product.exists():
+            raise FileExistsError("CI source handoff refuses to overwrite an existing product")
+        self.inventory = None
+        self.archive = None
+        self.run = run_identity()
+
+    def capture(self, clean_product, inventory, archive_sha256):
+        if self.inventory is not None:
+            raise ValueError("CI source handoff may capture only one verified archive")
+        if type(archive_sha256) is not str or not re.fullmatch(r"[a-f0-9]{64}", archive_sha256):
+            raise ValueError("CI source handoff requires its verified archive digest at capture")
+        inventory = dict(inventory)
+        descriptors(inventory)
+        copy_exact_source(clean_product, self.product, inventory)
+        self.inventory = inventory
+        self.archive = archive_sha256
+
+    def complete(self, report, original_product):
+        restored = report.get("portable_restored", {})
+        archive = restored.get("source_archive_sha256")
+        if (
+            self.inventory is None
+            or self.run != run_identity()
+            or report.get("generated_runtime_verified") is not True
+            or any(
+                restored.get(name) is not True
+                for name in (
+                    "passed",
+                    "fresh_database",
+                    "standalone_launcher",
+                    "archive_round_trip",
+                )
+            )
+            or type(archive) is not str
+            or not re.fullmatch(r"[a-f0-9]{64}", archive)
+            or archive != self.archive
+            or manifest(original_product) != self.inventory
+        ):
+            raise ValueError("CI source readiness requires unchanged independently accepted source")
+        require_exact_source(self.product, self.inventory)
+        value = {
+            "schema": 1,
+            "passed": True,
+            "provenance": PROVENANCE,
+            "product": str(self.product),
+            "source_identity": digest(self.inventory),
+            "source_archive_sha256": archive,
+            "inventory": self.inventory,
+            "descriptors": descriptors(self.inventory),
+            "run": self.run,
+        }
+        write_json(self.receipt, value)
+        return value
+
+
+def validate_receipt(value, product):
+    product = ordinary_path(product)
+    if (
+        type(value) is not dict
+        or set(value)
+        != {
+            "schema",
+            "passed",
+            "provenance",
+            "product",
+            "source_identity",
+            "source_archive_sha256",
+            "inventory",
+            "descriptors",
+            "run",
+        }
+        or type(value.get("schema")) is not int
+        or value["schema"] != 1
+        or value.get("passed") is not True
+        or value.get("provenance") != PROVENANCE
+        or value.get("product") != str(product)
+        or value.get("run") != run_identity()
+        or type(value.get("source_archive_sha256")) is not str
+        or not re.fullmatch(r"[a-f0-9]{64}", value["source_archive_sha256"])
+    ):
+        raise ValueError("CI source handoff has no current successful readiness receipt")
+    inventory = value["inventory"]
+    validate_inventory(inventory)
+    if value["source_identity"] != digest(inventory) or value["descriptors"] != descriptors(
+        inventory
+    ):
+        raise ValueError("CI source handoff receipt identity changed")
+    return value
+
+
+def require_handoff(product, receipt=RECEIPT):
+    product, receipt = ordinary_path(product), ordinary_path(receipt)
+
+    def unique_pairs(pairs):
+        result = {}
+        for key, value in pairs:
+            if key in result:
+                raise ValueError("CI source handoff receipt has duplicate keys")
+            result[key] = value
+        return result
+
+    with directory_fd(receipt.parent) as parent:
+        mode = os.stat(receipt.name, dir_fd=parent, follow_symlinks=False)
+        if mode.st_size > 8_000_000:
+            raise ValueError("CI source handoff receipt exceeds its input budget")
+        value = json.loads(read_regular(parent, receipt.name, mode), object_pairs_hook=unique_pairs)
+    validate_receipt(value, product)
+    require_exact_source(product, value["inventory"])
+    return value
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--product", type=Path, default=PRODUCT)
+    parser.add_argument("--receipt", type=Path, default=RECEIPT)
+    args = parser.parse_args()
+    require_handoff(args.product, args.receipt)
+    print("Exact CI source inventory and descriptor binding verified; no source was modified.")
 
 
 if __name__ == "__main__":
@@ -172539,11 +173705,11 @@ print(
 
 **逐个入口与控制逻辑：**
 
-- `main`（L18–L146）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L68按`str(exc) != "explicit-test-interruption-after-native-generation"`分支；L69抛异常，停止当前正常路径；L71抛异常，停止当前正常路径；L73断言`checkpoint["resumable"] and checkpoint["targets"]`；L97按`str(exc) != "explicit-test-interruption-after-native-permissions"`分支；L98抛异常，停止当前正常路径；L100抛异常，停止当前正常路径；L116断言`final_permissions["attempt_id"] not in permission_attempts`。后续分支沿下方源码相同行号继续阅读。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`Settings`、`Path`、`prepare_sources`、`acceptance_spec`、`CustomRule`、`NativeCodingFixture`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.interrupted`（L53–L54）：接收`*args`。 控制顺序：L54抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.interrupt_after_permissions`（L79–L82）：接收`*values`。 控制顺序：L82抛异常，停止当前正常路径。 调用`real_permissions`、`permission_attempts.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L18–L165）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L26按`args.capability_source is not None`分支；L27按`args.template != "fastapiadmin"`分支；L35按`source_output.is_relative_to(build_output) or build_output.is_relative_to(source_outp…`分支；L36抛异常，停止当前正常路径；L84按`str(exc) != "explicit-test-interruption-after-native-generation"`分支；L85抛异常，停止当前正常路径；L87抛异常，停止当前正常路径；L89断言`checkpoint["resumable"] and checkpoint["targets"]`。后续分支沿下方源码相同行号继续阅读。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`parser.error`、`ordinary_path`、`source_output.is_relative_to`、`build_output.is_relative_to`、`ValueError`、`SourceHandoff`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.interrupted`（L69–L70）：接收`*args`。 控制顺序：L70抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.interrupt_after_permissions`（L95–L98）：接收`*values`。 控制顺序：L98抛异常，停止当前正常路径。 调用`real_permissions`、`permission_attempts.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
-<!-- source-file: scripts/ci_native_tools.py sha256: 3ccd22a4b12522a9ae4f25cf5b11fe7596133785323f46f44095240ba3f0c1d3 -->
+<!-- source-file: scripts/ci_native_tools.py sha256: d72291268095ebce65dc2f747aa2ba2d8088a692c9380aecb96338a2b86d8336 -->
 ````python
 """Real native Plop + Aider repair + backend/frontend/browser/fresh DB acceptance."""
 
@@ -172566,7 +173732,24 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("template", choices=["fastapiadmin", "yudao-vben"])
     parser.add_argument("--output", type=Path, default=ROOT / ".native/tool-product")
+    parser.add_argument("--capability-source", type=Path)
     args = parser.parse_args()
+    reports = ROOT / "reports/native-tools"
+    handoff = None
+    if args.capability_source is not None:
+        if args.template != "fastapiadmin":
+            parser.error("--capability-source requires the authored fastapiadmin baseline")
+        from scripts.ci_native_capability_source import SourceHandoff, ordinary_path
+
+        source_output, build_output = (
+            ordinary_path(args.capability_source),
+            ordinary_path(args.output),
+        )
+        if source_output.is_relative_to(build_output) or build_output.is_relative_to(source_output):
+            raise ValueError(
+                "CI source handoff must be independent of the original native buildtree"
+            )
+        handoff = SourceHandoff(source_output, reports / "capability-source.json")
     settings = Settings(
         data_dir=ROOT / ".data/native-tools",
         coding_engine="aider",
@@ -172587,7 +173770,6 @@ def main():
         )
     ]
     fixture = NativeCodingFixture(fail_first=True)
-    reports = ROOT / "reports/native-tools"
     outcome = {
         "passed": False,
         "template": args.template,
@@ -172656,6 +173838,7 @@ def main():
             reports,
             plan,
             customization=actual_customization,
+            **({"source_handoff": handoff.capture} if handoff is not None else {}),
         )
         final_permissions = json.loads(
             (reports / "generated/permissions.json").read_text(encoding="utf-8")
@@ -172680,6 +173863,8 @@ def main():
         )
     finally:
         write_json(reports / "toolchain-acceptance.json", outcome)
+    if handoff is not None:
+        handoff.complete(report, args.output)
     print(
         json.dumps(
             {
@@ -186421,7 +187606,7 @@ jobs:
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: .github/workflows/native-capability-profile.yml sha256: 525285d1ff16c300cf078495977a819ca3580b926c89108da75c9bf9ee81e17a -->
+<!-- source-file: .github/workflows/native-capability-profile.yml sha256: dfc951b271f40b6fb531867ddaf84acc3262feb61da43e5c172f75852c9e0032 -->
 ````yaml
 name: Authored native PostgreSQL isolation profile
 on:
@@ -186435,6 +187620,11 @@ on:
       - 'scripts/capability*.py'
       - 'scripts/ci_capability_security.py'
       - 'scripts/ci_native_capability_security.py'
+      - 'scripts/ci_native_capability_source.py'
+      - 'scripts/ci_native_tools.py'
+      - 'workbench/native_lab.py'
+      - 'workbench/portable.py'
+      - 'tests/test_ci_native_capability_source.py'
       - 'scripts/ci_contest_capability.py'
       - 'scripts/extension_oracles/**'
       - 'tests/fixtures/contest_native/**'
@@ -186455,6 +187645,11 @@ on:
       - 'workbench/flow.py'
       - 'workbench/runtime.py'
       - 'workbench/store.py'
+      - 'scripts/ci_native_capability_source.py'
+      - 'scripts/ci_native_tools.py'
+      - 'workbench/native_lab.py'
+      - 'workbench/portable.py'
+      - 'tests/test_ci_native_capability_source.py'
       - 'scripts/capability_guard.py'
       - 'scripts/capability_fixture.py'
       - 'scripts/capability_browser.cjs'
@@ -186513,7 +187708,7 @@ jobs:
           RND_REQUIRE_NODE_TESTS: '1'
           RND_REQUIRE_LANDLOCK: '1'
           RND_REQUIRE_SECCOMP_BPF: '1'
-        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_daytona_api_digest.py tests/test_daytona_dependency_build.py tests/test_daytona_dependency_image.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
+        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_daytona_api_digest.py tests/test_daytona_dependency_build.py tests/test_daytona_dependency_image.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_ci_native_capability_source.py tests/test_extension_business_oracle.py
       - name: Install mandatory product browser acceptance tooling
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
@@ -186534,7 +187729,7 @@ jobs:
           npm run build --prefix tools/node
           npm install --global pnpm@9.15.3
       - name: Produce exact native baseline with deterministic model fixture
-        run: uv run python -m scripts.ci_native_tools fastapiadmin
+        run: uv run python -m scripts.ci_native_tools fastapiadmin --capability-source .native/capability-source
         env:
           NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
       - name: Create the local control plane with random local credentials
@@ -186555,12 +187750,13 @@ jobs:
         run: uv run python -m scripts.ci_capability_security
       - name: Build and register exact native offline dependency profile
         run: |
-          uv run python -m scripts.daytona_native_capability_profile prepare --product .native/tool-product --diagnostics reports/native-profile-prepare-diagnostic.json
+          uv run python -m scripts.ci_native_capability_source --product .native/capability-source
+          uv run python -m scripts.daytona_native_capability_profile prepare --product .native/capability-source --diagnostics reports/native-profile-prepare-diagnostic.json
           uv run python -m scripts.daytona_native_capability_profile register --diagnostics reports/native-profile-register-diagnostic.json
       - name: Require native factory PostgreSQL Redis Vue browser and isolation proof
-        run: uv run python -m scripts.ci_native_capability_security
+        run: uv run python -m scripts.ci_native_capability_security --product .native/capability-source --source-receipt reports/native-tools/capability-source.json
       - name: Require independent authored contest oracle against native source
-        run: uv run python -m scripts.ci_contest_capability
+        run: uv run python -m scripts.ci_contest_capability --product .native/capability-source --source-receipt reports/native-tools/capability-source.json
       - name: Preserve bounded redacted diagnostics only
         if: always()
         run: |
@@ -186612,6 +187808,7 @@ jobs:
             reports/capability-browser-isolation.json
             reports/capability-browser-raw-syscalls.json
             reports/native-capability-security*.json
+            reports/native-tools/capability-source.json
             reports/native-profile-*-diagnostic.json
             reports/contest-capability*.json
 ````
@@ -196658,7 +197855,7 @@ and pass these trusted gates; an authored fixture must never be relabeled as tha
 
 **如何编写：** 新建与标题完全相同的相对路径，完整保存下面代码块；不要复制围栏标记。以下行号从代码块第一行起计，行号不属于文件内容。
 
-<!-- source-file: docs/custom-source-isolation.md sha256: e9770d23110af3f45139a4d4b0a307afb1429ff92fc181ac624f813839497c8f -->
+<!-- source-file: docs/custom-source-isolation.md sha256: 67e91ff3533ad59c5885f0adfa62b32a391b612cea0c693e7aefd657288b4c97 -->
 ````markdown
 # 自定义源码执行：有证据的启用门
 
@@ -196814,6 +198011,23 @@ tmpfs 随容器停止清空。因此候选 profile 记录的是 `restart_kind=ap
 新库重放只重建本次沙箱的临时 `rnd_product`：先确认应用 UID 没有存活线程，核对
 控制端保存的沙箱 ID、PG 集群标识、数据目录和原 OID；重建后确认同集群的新 OID、
 空业务表，再重放请求。没有使用用户数据库或候选指定的连接配置。
+
+### CI 的已验证纯源码交接
+
+原生工具链的构建目录会保留 `.venv` 和 `node_modules`，不能直接作为候选输入。
+CI 使用 `ci_native_tools --capability-source .native/capability-source`：现有独立交付
+ZIP 完成完整源码清单往返校验后、其解压副本启动或安装依赖前，捕获另一个全新的纯源码
+副本。原构建目录保持原样；这不是对收到的候选目录静默过滤依赖。
+
+交接检查逐项核对真实文件集合与 SHA-256，拒绝链接、硬链接、非普通文件、额外目录、
+依赖目录及路径冲突；复制使用 no-follow 文件描述符和排他创建。回执绑定捕获时的 ZIP
+摘要、完整清单、六个依赖描述符与 CI head/run/attempt，只有整套原生工具链验收成功后
+才发布成功状态。缺少平台所需的安全文件接口时直接拒绝，不退回跟随链接的复制。
+
+镜像准备、原生认证和竞赛样例统一读取这份已绑定的干净来源。竞赛仅添加明确人工编写的
+模块文件，再验证完整增量清单与回执摘要；不使用宽泛 ignore 模式丢弃合法示例配置。
+候选自带虚拟环境或依赖目录的拒绝规则不变。交接回执只证明 CI 源码来源一致，不能替代
+真实容器、数据库、浏览器、重启或清理验收。
 
 ## Bounded native preparation diagnostics
 

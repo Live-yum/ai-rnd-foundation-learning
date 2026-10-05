@@ -5,11 +5,17 @@ retains its unimplemented obligations regardless of this bounded slice result.
 """
 
 import argparse
-import shutil
 import tempfile
 from pathlib import Path
 
 from scripts.capability_security_probe import security_probe_for_profile
+from scripts.ci_native_capability_source import (
+    PRODUCT,
+    RECEIPT,
+    copy_exact_source,
+    require_exact_source,
+    require_handoff,
+)
 from scripts.daytona_capability_profile import inspect_created_sandbox
 from scripts.daytona_native_capability_profile import (
     ENVIRONMENT,
@@ -20,7 +26,8 @@ from scripts.daytona_native_capability_profile import (
 from scripts.extension_oracles import contest
 from workbench.capability_execution import capability_execution_prerequisites
 from workbench.capability_sandbox import _verify
-from workbench.filesystem import write_json
+from workbench.domain import digest
+from workbench.filesystem import manifest, sha, write_json
 from workbench.local_only import install_loopback_guard
 from workbench.sandbox import client_for, close_client
 from workbench.settings import ROOT, Settings
@@ -29,6 +36,7 @@ FIXTURE = ROOT / "tests/fixtures/contest_native/module_contest"
 
 
 def install_authored_fixture(product):
+    expected = dict(require_exact_source(product, manifest(product)))
     destination = product / "backend/app/plugin/module_rnd/contest"
     if destination.exists() or destination.is_symlink():
         raise ValueError("Authored fixture must not overwrite another candidate module")
@@ -36,7 +44,13 @@ def install_authored_fixture(product):
     marker = destination.parent / "__init__.py"
     if not marker.exists():
         marker.write_text("", encoding="utf-8")
-    shutil.copytree(FIXTURE, destination)
+        expected[marker.relative_to(product).as_posix()] = sha(marker)
+    fixture = manifest(FIXTURE)
+    copy_exact_source(FIXTURE, destination, fixture)
+    prefix = destination.relative_to(product).as_posix() + "/"
+    expected.update({prefix + name: value for name, value in fixture.items()})
+    require_exact_source(product, expected)
+    return expected
 
 
 def require_business_proof(proof):
@@ -58,7 +72,8 @@ def require_business_proof(proof):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--directory", type=Path, default=HOME)
-    parser.add_argument("--product", type=Path, default=ROOT / ".native/tool-product")
+    parser.add_argument("--product", type=Path, default=PRODUCT)
+    parser.add_argument("--source-receipt", type=Path, default=RECEIPT)
     args = parser.parse_args()
     install_loopback_guard()
     settings = Settings(
@@ -79,17 +94,18 @@ def main():
     try:
         directory, record = capability_execution_prerequisites(settings, selection())
         require_native_profile(directory)
+        handoff = require_handoff(args.product, args.source_receipt)
+        if (
+            record["inputs"]["product"] != handoff["product"]
+            or record["inputs"]["source_identity"] != handoff["source_identity"]
+            or record["inputs"]["descriptors"] != handoff["descriptors"]
+        ):
+            raise ValueError("Authored contest must use the exact registered CI source baseline")
         client = client_for(settings)
         with tempfile.TemporaryDirectory(prefix="rnd-authored-contest-") as temporary:
             product = Path(temporary) / "product"
-            shutil.copytree(
-                args.product,
-                product,
-                ignore=shutil.ignore_patterns(
-                    ".venv", "node_modules", ".git", "__pycache__", ".env", ".env.*", "*.pyc"
-                ),
-            )
-            install_authored_fixture(product)
+            copy_exact_source(args.product, product, handoff["inventory"])
+            inventory = install_authored_fixture(product)
             from scripts.ci_native_capability_security import fixed_plan
 
             plan = fixed_plan(product)
@@ -113,6 +129,10 @@ def main():
                 trusted_oracle=contest.CONTRACT_VERSION,
             )
             require_business_proof(proof)
+            require_exact_source(product, inventory)
+            if proof["source_digest"] != digest(inventory):
+                raise ValueError("Authored contest proof does not bind the exact augmented source")
+            require_handoff(args.product, args.source_receipt)
             summary.update(
                 passed=True,
                 business_oracle=proof["business_oracle"],

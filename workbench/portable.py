@@ -366,7 +366,9 @@ def build_native_delivery(template, product, reports, plan, targets, url):
     }
 
 
-def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
+def verify_native_delivery(
+    product, url, reports, redis_port=6379, *, template, source_handoff=None
+):
     """Restore the distributable ZIP; run startup against a DIFFERENT empty DB."""
     import sys
     import tempfile
@@ -392,6 +394,12 @@ def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
             restored = unpack(archive, copy, template=template)
             if restored != packaged or manifest(copy) != listing:
                 raise ValueError("原生交付ZIP与已验证源码不一致")
+            if source_handoff is not None:
+                # This quiescent, verified ZIP restore has not run any code or
+                # installed dependencies. The CI-only consumer must reject all
+                # physical extras rather than sanitize an already dirty candidate.
+                source_archive_sha256 = sha(archive)
+                source_handoff(copy, dict(listing), source_archive_sha256)
             clean_url = parsed.set(database=name).render_as_string(hide_password=False)
             try:
                 command = run_command(
@@ -433,6 +441,10 @@ def verify_native_delivery(product, url, reports, redis_port=6379, *, template):
                     archive_round_trip=True,
                     archive=restored,
                 )
+                if source_handoff is not None:
+                    if sha(archive) != source_archive_sha256 or manifest(product) != listing:
+                        raise ValueError("原生交付归档或原源码在独立验收期间发生改变")
+                    result["source_archive_sha256"] = source_archive_sha256
                 write_json(Path(reports) / "portable-start.json", result)
                 return result
             except Exception as exc:

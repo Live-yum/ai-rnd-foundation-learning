@@ -153,6 +153,23 @@ tmpfs 随容器停止清空。因此候选 profile 记录的是 `restart_kind=ap
 控制端保存的沙箱 ID、PG 集群标识、数据目录和原 OID；重建后确认同集群的新 OID、
 空业务表，再重放请求。没有使用用户数据库或候选指定的连接配置。
 
+### CI 的已验证纯源码交接
+
+原生工具链的构建目录会保留 `.venv` 和 `node_modules`，不能直接作为候选输入。
+CI 使用 `ci_native_tools --capability-source .native/capability-source`：现有独立交付
+ZIP 完成完整源码清单往返校验后、其解压副本启动或安装依赖前，捕获另一个全新的纯源码
+副本。原构建目录保持原样；这不是对收到的候选目录静默过滤依赖。
+
+交接检查逐项核对真实文件集合与 SHA-256，拒绝链接、硬链接、非普通文件、额外目录、
+依赖目录及路径冲突；复制使用 no-follow 文件描述符和排他创建。回执绑定捕获时的 ZIP
+摘要、完整清单、六个依赖描述符与 CI head/run/attempt，只有整套原生工具链验收成功后
+才发布成功状态。缺少平台所需的安全文件接口时直接拒绝，不退回跟随链接的复制。
+
+镜像准备、原生认证和竞赛样例统一读取这份已绑定的干净来源。竞赛仅添加明确人工编写的
+模块文件，再验证完整增量清单与回执摘要；不使用宽泛 ignore 模式丢弃合法示例配置。
+候选自带虚拟环境或依赖目录的拒绝规则不变。交接回执只证明 CI 源码来源一致，不能替代
+真实容器、数据库、浏览器、重启或清理验收。
+
 ## Bounded native preparation diagnostics
 
 Native preparation and registration may emit separate failure-only JSON receipts

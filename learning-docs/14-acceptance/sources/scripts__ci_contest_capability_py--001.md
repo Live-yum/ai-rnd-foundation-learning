@@ -10,22 +10,22 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `scripts.capability_security_probe`、`scripts.daytona_capability_profile`、`scripts.daytona_native_capability_profile`、`scripts.extension_oracles`、`workbench.capability_execution`、`workbench.capability_sandbox`、`workbench.filesystem`、`workbench.local_only`、`workbench.sandbox`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.capability_security_probe`、`scripts.ci_native_capability_source`、`scripts.daytona_capability_profile`、`scripts.daytona_native_capability_profile`、`scripts.extension_oracles`、`workbench.capability_execution`、`workbench.capability_sandbox`、`workbench.domain`、`workbench.filesystem`、`workbench.local_only`、`workbench.sandbox`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `install_authored_fixture`（L31–L39）：接收`product`。 控制顺序：L33按`destination.exists() or destination.is_symlink()`分支；L34抛异常，停止当前正常路径；L37按`not marker.exists()`分支。 调用`destination.exists`、`destination.is_symlink`、`ValueError`、`destination.parent.mkdir`、`marker.exists`、`marker.write_text`、`shutil.copytree`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `require_business_proof`（L42–L55）：接收`proof`。 控制顺序：L44按`proof.get("passed") is not True or proof.get("cleanup") != "deleted" or business.get(…`分支；L55抛异常，停止当前正常路径。 调用`proof.get`、`business.get`、`list`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L58–L125）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L123按`client is not None`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`install_loopback_guard`、`Settings`、`write_json`、`capability_execution_prerequisites`、`selection`、`require_native_profile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `install_authored_fixture`（L38–L53）：接收`product`。 控制顺序：L41按`destination.exists() or destination.is_symlink()`分支；L42抛异常，停止当前正常路径；L45按`not marker.exists()`分支。 调用`dict`、`require_exact_source`、`manifest`、`destination.exists`、`destination.is_symlink`、`ValueError`、`destination.parent.mkdir`、`marker.exists`、`marker.write_text`等。 返回路径：L53的`expected`。
+- `require_business_proof`（L56–L69）：接收`proof`。 控制顺序：L58按`proof.get("passed") is not True or proof.get("cleanup") != "deleted" or business.get(…`分支；L69抛异常，停止当前正常路径。 调用`proof.get`、`business.get`、`list`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L72–L145）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L98按`record["inputs"]["product"] != handoff["product"] or record["inputs"]["source_identit…`分支；L103抛异常，停止当前正常路径；L133按`proof["source_digest"] != digest(inventory)`分支；L134抛异常，停止当前正常路径；L143按`client is not None`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`install_loopback_guard`、`Settings`、`write_json`、`capability_execution_prerequisites`、`selection`、`require_native_profile`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_contest_capability.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L129。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_contest_capability.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L149。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`4935`。本段原文以LF换行结束。
+本段原始字节数：`6072`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_contest_capability.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ba9912ce39c5dd035f7339dfcb17fa843d469fdeb264f384d9eac7569489f880"} -->
+<!-- learning-source: {"path": "scripts/ci_contest_capability.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "77529980a49f95589c8ace6f0d4d3c9c7194ea9f51cba9a42226dff87e1d9c7a"} -->
 ````python
 # scripts/ci_contest_capability.py
 """Authored native contest slice against trusted independent business assertions.
@@ -35,11 +35,17 @@ retains its unimplemented obligations regardless of this bounded slice result.
 """
 
 import argparse
-import shutil
 import tempfile
 from pathlib import Path
 
 from scripts.capability_security_probe import security_probe_for_profile
+from scripts.ci_native_capability_source import (
+    PRODUCT,
+    RECEIPT,
+    copy_exact_source,
+    require_exact_source,
+    require_handoff,
+)
 from scripts.daytona_capability_profile import inspect_created_sandbox
 from scripts.daytona_native_capability_profile import (
     ENVIRONMENT,
@@ -50,7 +56,8 @@ from scripts.daytona_native_capability_profile import (
 from scripts.extension_oracles import contest
 from workbench.capability_execution import capability_execution_prerequisites
 from workbench.capability_sandbox import _verify
-from workbench.filesystem import write_json
+from workbench.domain import digest
+from workbench.filesystem import manifest, sha, write_json
 from workbench.local_only import install_loopback_guard
 from workbench.sandbox import client_for, close_client
 from workbench.settings import ROOT, Settings
@@ -59,6 +66,7 @@ FIXTURE = ROOT / "tests/fixtures/contest_native/module_contest"
 
 
 def install_authored_fixture(product):
+    expected = dict(require_exact_source(product, manifest(product)))
     destination = product / "backend/app/plugin/module_rnd/contest"
     if destination.exists() or destination.is_symlink():
         raise ValueError("Authored fixture must not overwrite another candidate module")
@@ -66,7 +74,13 @@ def install_authored_fixture(product):
     marker = destination.parent / "__init__.py"
     if not marker.exists():
         marker.write_text("", encoding="utf-8")
-    shutil.copytree(FIXTURE, destination)
+        expected[marker.relative_to(product).as_posix()] = sha(marker)
+    fixture = manifest(FIXTURE)
+    copy_exact_source(FIXTURE, destination, fixture)
+    prefix = destination.relative_to(product).as_posix() + "/"
+    expected.update({prefix + name: value for name, value in fixture.items()})
+    require_exact_source(product, expected)
+    return expected
 
 
 def require_business_proof(proof):
@@ -88,7 +102,8 @@ def require_business_proof(proof):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--directory", type=Path, default=HOME)
-    parser.add_argument("--product", type=Path, default=ROOT / ".native/tool-product")
+    parser.add_argument("--product", type=Path, default=PRODUCT)
+    parser.add_argument("--source-receipt", type=Path, default=RECEIPT)
     args = parser.parse_args()
     install_loopback_guard()
     settings = Settings(
@@ -109,17 +124,18 @@ def main():
     try:
         directory, record = capability_execution_prerequisites(settings, selection())
         require_native_profile(directory)
+        handoff = require_handoff(args.product, args.source_receipt)
+        if (
+            record["inputs"]["product"] != handoff["product"]
+            or record["inputs"]["source_identity"] != handoff["source_identity"]
+            or record["inputs"]["descriptors"] != handoff["descriptors"]
+        ):
+            raise ValueError("Authored contest must use the exact registered CI source baseline")
         client = client_for(settings)
         with tempfile.TemporaryDirectory(prefix="rnd-authored-contest-") as temporary:
             product = Path(temporary) / "product"
-            shutil.copytree(
-                args.product,
-                product,
-                ignore=shutil.ignore_patterns(
-                    ".venv", "node_modules", ".git", "__pycache__", ".env", ".env.*", "*.pyc"
-                ),
-            )
-            install_authored_fixture(product)
+            copy_exact_source(args.product, product, handoff["inventory"])
+            inventory = install_authored_fixture(product)
             from scripts.ci_native_capability_security import fixed_plan
 
             plan = fixed_plan(product)
@@ -143,6 +159,10 @@ def main():
                 trusted_oracle=contest.CONTRACT_VERSION,
             )
             require_business_proof(proof)
+            require_exact_source(product, inventory)
+            if proof["source_digest"] != digest(inventory):
+                raise ValueError("Authored contest proof does not bind the exact augmented source")
+            require_handoff(args.product, args.source_receipt)
             summary.update(
                 passed=True,
                 business_oracle=proof["business_oracle"],

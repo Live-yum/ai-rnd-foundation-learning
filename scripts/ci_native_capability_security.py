@@ -374,7 +374,7 @@ def require_native_positive(proof, plan, source_digest, browser_image):
         raise ValueError("Native signup and device writes must both reach physical PostgreSQL")
 
 
-def certify(product=PRODUCT, directory=HOME):
+def certify(product=PRODUCT, directory=HOME, *, source_receipt=None):
     product, directory = Path(product).resolve(), Path(directory).resolve()
     selected = selection()
     destination = inside(directory, receipt_name(selected))
@@ -404,6 +404,10 @@ def certify(product=PRODUCT, directory=HOME):
         record = require_native_profile(
             directory, snapshot_for(settings, selected["template"], selected)
         )
+        if source_receipt is not None:
+            from scripts.ci_native_capability_source import require_handoff
+
+            require_handoff(product, source_receipt)
         inventory = manifest(product)
         if record["inputs"]["product"] != str(product) or record["inputs"][
             "source_identity"
@@ -460,6 +464,8 @@ def certify(product=PRODUCT, directory=HOME):
             raise ValueError("Native profile/source changed during live certification")
         if require_browser_acceptance(settings.capability_browser_image) != browser_image:
             raise ValueError("Accepted isolated browser image changed during certification")
+        if source_receipt is not None:
+            require_handoff(product, source_receipt)
         require_security_receipt(acceptance, record, browser_image=browser_image)
         write_json(destination, acceptance)
         summary.update(acceptance)
@@ -476,8 +482,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--directory", type=Path, default=HOME)
     parser.add_argument("--product", type=Path, default=PRODUCT)
+    parser.add_argument("--source-receipt", type=Path)
     args = parser.parse_args()
-    certify(args.product, args.directory)
+    certify(args.product, args.directory, source_receipt=args.source_receipt)
     print(
         "Native live security and fixed HTTP/Vue-form acceptance passed; production remains opt-in."
     )

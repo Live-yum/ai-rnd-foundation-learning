@@ -15,17 +15,17 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `main`（L18–L146）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L68按`str(exc) != "explicit-test-interruption-after-native-generation"`分支；L69抛异常，停止当前正常路径；L71抛异常，停止当前正常路径；L73断言`checkpoint["resumable"] and checkpoint["targets"]`；L97按`str(exc) != "explicit-test-interruption-after-native-permissions"`分支；L98抛异常，停止当前正常路径；L100抛异常，停止当前正常路径；L116断言`final_permissions["attempt_id"] not in permission_attempts`。后续分支沿下方源码相同行号继续阅读。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`Settings`、`Path`、`prepare_sources`、`acceptance_spec`、`CustomRule`、`NativeCodingFixture`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.interrupted`（L53–L54）：接收`*args`。 控制顺序：L54抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main.interrupt_after_permissions`（L79–L82）：接收`*values`。 控制顺序：L82抛异常，停止当前正常路径。 调用`real_permissions`、`permission_attempts.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L18–L165）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L26按`args.capability_source is not None`分支；L27按`args.template != "fastapiadmin"`分支；L35按`source_output.is_relative_to(build_output) or build_output.is_relative_to(source_outp…`分支；L36抛异常，停止当前正常路径；L84按`str(exc) != "explicit-test-interruption-after-native-generation"`分支；L85抛异常，停止当前正常路径；L87抛异常，停止当前正常路径；L89断言`checkpoint["resumable"] and checkpoint["targets"]`。后续分支沿下方源码相同行号继续阅读。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`parser.error`、`ordinary_path`、`source_output.is_relative_to`、`build_output.is_relative_to`、`ValueError`、`SourceHandoff`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.interrupted`（L69–L70）：接收`*args`。 控制顺序：L70抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main.interrupt_after_permissions`（L95–L98）：接收`*values`。 控制顺序：L98抛异常，停止当前正常路径。 调用`real_permissions`、`permission_attempts.append`、`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_native_tools.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L150。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_native_tools.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L169。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`5865`。本段原文以LF换行结束。
+本段原始字节数：`6823`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_native_tools.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "3ccd22a4b12522a9ae4f25cf5b11fe7596133785323f46f44095240ba3f0c1d3"} -->
+<!-- learning-source: {"path": "scripts/ci_native_tools.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d72291268095ebce65dc2f747aa2ba2d8088a692c9380aecb96338a2b86d8336"} -->
 ````python
 # scripts/ci_native_tools.py
 """Real native Plop + Aider repair + backend/frontend/browser/fresh DB acceptance."""
@@ -49,7 +49,24 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("template", choices=["fastapiadmin", "yudao-vben"])
     parser.add_argument("--output", type=Path, default=ROOT / ".native/tool-product")
+    parser.add_argument("--capability-source", type=Path)
     args = parser.parse_args()
+    reports = ROOT / "reports/native-tools"
+    handoff = None
+    if args.capability_source is not None:
+        if args.template != "fastapiadmin":
+            parser.error("--capability-source requires the authored fastapiadmin baseline")
+        from scripts.ci_native_capability_source import SourceHandoff, ordinary_path
+
+        source_output, build_output = (
+            ordinary_path(args.capability_source),
+            ordinary_path(args.output),
+        )
+        if source_output.is_relative_to(build_output) or build_output.is_relative_to(source_output):
+            raise ValueError(
+                "CI source handoff must be independent of the original native buildtree"
+            )
+        handoff = SourceHandoff(source_output, reports / "capability-source.json")
     settings = Settings(
         data_dir=ROOT / ".data/native-tools",
         coding_engine="aider",
@@ -70,7 +87,6 @@ def main():
         )
     ]
     fixture = NativeCodingFixture(fail_first=True)
-    reports = ROOT / "reports/native-tools"
     outcome = {
         "passed": False,
         "template": args.template,
@@ -139,6 +155,7 @@ def main():
             reports,
             plan,
             customization=actual_customization,
+            **({"source_handoff": handoff.capture} if handoff is not None else {}),
         )
         final_permissions = json.loads(
             (reports / "generated/permissions.json").read_text(encoding="utf-8")
@@ -163,6 +180,8 @@ def main():
         )
     finally:
         write_json(reports / "toolchain-acceptance.json", outcome)
+    if handoff is not None:
+        handoff.complete(report, args.output)
     print(
         json.dumps(
             {

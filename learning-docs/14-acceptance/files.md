@@ -66,6 +66,7 @@
 - [scripts/ci_learning_docs.py](sources/scripts__ci_learning_docs_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_model_feedback.py](sources/scripts__ci_model_feedback_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_native_capability_security.py](sources/scripts__ci_native_capability_security_py--001.md)：本机维护、构建或集成验收入口；1 段
+- [scripts/ci_native_capability_source.py](sources/scripts__ci_native_capability_source_py--001.md)：本机维护、构建或集成验收入口；1 段
 - [scripts/ci_native_runtime.py](sources/scripts__ci_native_runtime_py--001.md)：原框架本身的运行基线验收；1 段
 - [scripts/ci_native_sources.py](sources/scripts__ci_native_sources_py--001.md)：固定原生模板源码完整性检查；1 段
 - [scripts/ci_process_supervisor.py](sources/scripts__ci_process_supervisor_py--001.md)：本机维护、构建或集成验收入口；1 段
@@ -114,6 +115,7 @@
 - [tests/test_capability_startup_diagnostics.py](sources/tests__test_capability_startup_diagnostics_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_acceptance_gate.py](sources/tests__test_ci_acceptance_gate_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_native_capability_security.py](sources/tests__test_ci_native_capability_security_py--001.md)：可重复的验收用例；1 段
+- [tests/test_ci_native_capability_source.py](sources/tests__test_ci_native_capability_source_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_pytest_shards.py](sources/tests__test_ci_pytest_shards_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_restored_acceptance.py](sources/tests__test_ci_restored_acceptance_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_source_artifact.py](sources/tests__test_ci_source_artifact_py--001.md)：可重复的验收用例；1 段

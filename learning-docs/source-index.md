@@ -511,6 +511,7 @@
 - [scripts/ci_learning_docs.py](14-acceptance/sources/scripts__ci_learning_docs_py--001.md)（1 段）
 - [scripts/ci_model_feedback.py](14-acceptance/sources/scripts__ci_model_feedback_py--001.md)（1 段）
 - [scripts/ci_native_capability_security.py](14-acceptance/sources/scripts__ci_native_capability_security_py--001.md)（1 段）
+- [scripts/ci_native_capability_source.py](14-acceptance/sources/scripts__ci_native_capability_source_py--001.md)（1 段）
 - [scripts/ci_native_runtime.py](14-acceptance/sources/scripts__ci_native_runtime_py--001.md)（1 段）
 - [scripts/ci_native_sources.py](14-acceptance/sources/scripts__ci_native_sources_py--001.md)（1 段）
 - [scripts/ci_process_supervisor.py](14-acceptance/sources/scripts__ci_process_supervisor_py--001.md)（1 段）
@@ -559,6 +560,7 @@
 - [tests/test_capability_startup_diagnostics.py](14-acceptance/sources/tests__test_capability_startup_diagnostics_py--001.md)（1 段）
 - [tests/test_ci_acceptance_gate.py](14-acceptance/sources/tests__test_ci_acceptance_gate_py--001.md)（1 段）
 - [tests/test_ci_native_capability_security.py](14-acceptance/sources/tests__test_ci_native_capability_security_py--001.md)（1 段）
+- [tests/test_ci_native_capability_source.py](14-acceptance/sources/tests__test_ci_native_capability_source_py--001.md)（1 段）
 - [tests/test_ci_pytest_shards.py](14-acceptance/sources/tests__test_ci_pytest_shards_py--001.md)（1 段）
 - [tests/test_ci_restored_acceptance.py](14-acceptance/sources/tests__test_ci_restored_acceptance_py--001.md)（1 段）
 - [tests/test_ci_source_artifact.py](14-acceptance/sources/tests__test_ci_source_artifact_py--001.md)（1 段）

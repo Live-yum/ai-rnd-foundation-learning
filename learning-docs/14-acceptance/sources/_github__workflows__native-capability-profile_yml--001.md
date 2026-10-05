@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `.github/workflows/native-capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L191。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `.github/workflows/native-capability-profile.yml`；**本文件共有 1 段**。本段覆盖源文件 L1–L203。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`9979`。本段原文以LF换行结束。
+本段原始字节数：`10829`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": ".github/workflows/native-capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "525285d1ff16c300cf078495977a819ca3580b926c89108da75c9bf9ee81e17a"} -->
+<!-- learning-source: {"path": ".github/workflows/native-capability-profile.yml", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "dfc951b271f40b6fb531867ddaf84acc3262feb61da43e5c172f75852c9e0032"} -->
 ````yaml
 # .github/workflows/native-capability-profile.yml
 name: Authored native PostgreSQL isolation profile
@@ -29,6 +29,11 @@ on:
       - 'scripts/capability*.py'
       - 'scripts/ci_capability_security.py'
       - 'scripts/ci_native_capability_security.py'
+      - 'scripts/ci_native_capability_source.py'
+      - 'scripts/ci_native_tools.py'
+      - 'workbench/native_lab.py'
+      - 'workbench/portable.py'
+      - 'tests/test_ci_native_capability_source.py'
       - 'scripts/ci_contest_capability.py'
       - 'scripts/extension_oracles/**'
       - 'tests/fixtures/contest_native/**'
@@ -49,6 +54,11 @@ on:
       - 'workbench/flow.py'
       - 'workbench/runtime.py'
       - 'workbench/store.py'
+      - 'scripts/ci_native_capability_source.py'
+      - 'scripts/ci_native_tools.py'
+      - 'workbench/native_lab.py'
+      - 'workbench/portable.py'
+      - 'tests/test_ci_native_capability_source.py'
       - 'scripts/capability_guard.py'
       - 'scripts/capability_fixture.py'
       - 'scripts/capability_browser.cjs'
@@ -107,7 +117,7 @@ jobs:
           RND_REQUIRE_NODE_TESTS: '1'
           RND_REQUIRE_LANDLOCK: '1'
           RND_REQUIRE_SECCOMP_BPF: '1'
-        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_daytona_api_digest.py tests/test_daytona_dependency_build.py tests/test_daytona_dependency_image.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_extension_business_oracle.py
+        run: uv run pytest -q tests/test_capability*.py tests/test_daytona_capability_profile.py tests/test_daytona_api_digest.py tests/test_daytona_dependency_build.py tests/test_daytona_dependency_image.py tests/test_native_capability_profile.py tests/test_ci_native_capability_security.py tests/test_ci_native_capability_source.py tests/test_extension_business_oracle.py
       - name: Install mandatory product browser acceptance tooling
         run: |
           npm install --prefix .native/browser --no-audit --no-fund --package-lock=false playwright@1.56.1
@@ -128,7 +138,7 @@ jobs:
           npm run build --prefix tools/node
           npm install --global pnpm@9.15.3
       - name: Produce exact native baseline with deterministic model fixture
-        run: uv run python -m scripts.ci_native_tools fastapiadmin
+        run: uv run python -m scripts.ci_native_tools fastapiadmin --capability-source .native/capability-source
         env:
           NATIVE_TEST_DATABASE_URL: postgresql+psycopg://native:native-ci-only@127.0.0.1:5432/native_codegen
       - name: Create the local control plane with random local credentials
@@ -149,12 +159,13 @@ jobs:
         run: uv run python -m scripts.ci_capability_security
       - name: Build and register exact native offline dependency profile
         run: |
-          uv run python -m scripts.daytona_native_capability_profile prepare --product .native/tool-product --diagnostics reports/native-profile-prepare-diagnostic.json
+          uv run python -m scripts.ci_native_capability_source --product .native/capability-source
+          uv run python -m scripts.daytona_native_capability_profile prepare --product .native/capability-source --diagnostics reports/native-profile-prepare-diagnostic.json
           uv run python -m scripts.daytona_native_capability_profile register --diagnostics reports/native-profile-register-diagnostic.json
       - name: Require native factory PostgreSQL Redis Vue browser and isolation proof
-        run: uv run python -m scripts.ci_native_capability_security
+        run: uv run python -m scripts.ci_native_capability_security --product .native/capability-source --source-receipt reports/native-tools/capability-source.json
       - name: Require independent authored contest oracle against native source
-        run: uv run python -m scripts.ci_contest_capability
+        run: uv run python -m scripts.ci_contest_capability --product .native/capability-source --source-receipt reports/native-tools/capability-source.json
       - name: Preserve bounded redacted diagnostics only
         if: always()
         run: |
@@ -206,6 +217,7 @@ jobs:
             reports/capability-browser-isolation.json
             reports/capability-browser-raw-syscalls.json
             reports/native-capability-security*.json
+            reports/native-tools/capability-source.json
             reports/native-profile-*-diagnostic.json
             reports/contest-capability*.json
 ````

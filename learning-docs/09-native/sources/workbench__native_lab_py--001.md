@@ -18,17 +18,17 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `generated_browser`（L38–L61）：接收`template`、`front_url`、`reports`。 控制顺序：L60抛异常，停止当前正常路径。 调用`str`、`reports.resolve`、`(reports / "browser-targets.json").resolve`、`run_command`、`os.environ.get`、`atomic_text`、`getattr`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run_acceptance`（L64–L89）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`。 源码说明：Hold one non-ephemeral backend lease across all build/restart phases.。 调用`backend_port_lease`、`Path`、`_run_acceptance`。 返回路径：L78的`_run_acceptance( template, source, output, frontend_source, url, reports, plan, redis_port…`。
-- `_run_acceptance`（L92–L367）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`backend_port`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L107按`plan.custom_rules and customization is None`分支；L108抛异常，停止当前正常路径；L121按`not resumed`分支；L124按`template == "fastapiadmin"`分支；L128按`not resumed`分支；L143按`not resumed`分支；L147按`template == "fastapiadmin"`分支；L170按`plan.business`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`ValueError`、`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`等。 返回路径：L348的`report`。
-- `_run_acceptance.stage`（L136–L138）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_acceptance`（L64–L91）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`。 源码说明：Hold one non-ephemeral backend lease across all build/restart phases.。 调用`backend_port_lease`、`Path`、`_run_acceptance`。 返回路径：L79的`_run_acceptance( template, source, output, frontend_source, url, reports, plan, redis_port…`。
+- `_run_acceptance`（L94–L375）：接收`template`、`source`、`output`、`frontend_source`、`url`、`reports`、`plan`、`redis_port`、`customization`、`source_handoff`、`backend_port`。 源码说明：Shared by CLI and CI; never reset an existing database or workspace.。 控制顺序：L110按`plan.custom_rules and customization is None`分支；L111抛异常，停止当前正常路径；L124按`not resumed`分支；L127按`template == "fastapiadmin"`分支；L131按`not resumed`分支；L146按`not resumed`分支；L150按`template == "fastapiadmin"`分支；L173按`plan.business`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_plan`、`ValueError`、`Path(source).resolve`、`Path`、`Path(output).resolve`、`Path(reports).resolve`、`reports.mkdir`、`manifest`、`native_recovery.identity`等。 返回路径：L356的`report`。
+- `_run_acceptance.stage`（L139–L141）：接收`name`。 调用`write_json`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `workbench/native_lab.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L367。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/native_lab.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L375。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14875`。本段原文以LF换行结束。
+本段原始字节数：`15154`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/native_lab.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "e10dbf8acb5da1eca02adf382bcbf5910427006feaac7e4d07f4693a397995b0"} -->
+<!-- learning-source: {"path": "workbench/native_lab.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8949e39e85914c5ee32ee81f2e130cbddaf855999a9437a78aae44f4773ac5ec"} -->
 ````python
 # workbench/native_lab.py
 """Actual native generation, mounting, permissions, CRUD, restart and browser acceptance."""
@@ -105,6 +105,7 @@ def run_acceptance(
     redis_port=6379,
     *,
     customization=None,
+    source_handoff=None,
 ):
     """Hold one non-ephemeral backend lease across all build/restart phases."""
     with backend_port_lease(Path(reports) / "backend-port.json") as backend_port:
@@ -118,6 +119,7 @@ def run_acceptance(
             plan,
             redis_port,
             customization=customization,
+            **({"source_handoff": source_handoff} if source_handoff is not None else {}),
             backend_port=backend_port,
         )
 
@@ -133,6 +135,7 @@ def _run_acceptance(
     redis_port=6379,
     *,
     customization=None,
+    source_handoff=None,
     backend_port,
 ):
     """Shared by CLI and CI; never reset an existing database or workspace."""
@@ -371,7 +374,12 @@ def _run_acceptance(
         )
         stage("independent-native-delivery")
         report["portable_restored"] = verify_native_delivery(
-            product_root, url, reports, redis_port, template=template
+            product_root,
+            url,
+            reports,
+            redis_port,
+            template=template,
+            **({"source_handoff": source_handoff} if source_handoff is not None else {}),
         )
         stage("accepted")
         write_json(reports / "acceptance.json", report)
