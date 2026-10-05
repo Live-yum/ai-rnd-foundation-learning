@@ -475,8 +475,8 @@
     },
     {
       "path": "workbench/capability_execution.py",
-      "bytes": 13735,
-      "sha256": "96e170aa06bf281a5fd46d07935f8a9b62762c8070c5abf11c9110faddefa6bc",
+      "bytes": 13780,
+      "sha256": "004341f311763ac83a54de89d5974659682ebb7da81b63ad9929e7ba47cfaec1",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_execution_py--001.md"
@@ -944,11 +944,20 @@
     },
     {
       "path": "workbench/capability_sandbox.py",
-      "bytes": 40061,
-      "sha256": "3f13214a0f378f7b7ecb4ae71337c2fab95ca40fb05ccee01c44ed603384e5af",
+      "bytes": 41528,
+      "sha256": "1b18fc21a8fa6f92748b06d569e7d9273131286dade5c6ad5d9f4eb2b055064f",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__capability_sandbox_py--001.md"
+      ]
+    },
+    {
+      "path": "workbench/capability_startup_paths.py",
+      "bytes": 10349,
+      "sha256": "67278b072298ae35d628784c7b9476f6b6e6a2a8528e4066daf583aeb1ae7fcb",
+      "stage": "07-orchestration",
+      "parts": [
+        "07-orchestration/sources/workbench__capability_startup_paths_py--001.md"
       ]
     },
     {
@@ -3928,8 +3937,8 @@
     },
     {
       "path": "docs/custom-source-isolation.md",
-      "bytes": 22623,
-      "sha256": "ad6eb41e685b8201de050489819afdfcef6d7f04925ac44a4bc102afbea2c761",
+      "bytes": 23877,
+      "sha256": "33baf2f6f45ebf8e9dd4c8390ac0effabae9ce2ff6808dab4b64d54a49033074",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__custom-source-isolation_md--001.md"
@@ -4117,8 +4126,8 @@
     },
     {
       "path": "scripts/build_learning_docs.py",
-      "bytes": 36084,
-      "sha256": "7bb9bbb95f025eda1e190f7070fd23eac2112fc9173e79d69ae1a9e963a43dc5",
+      "bytes": 36119,
+      "sha256": "95313390f51418ac1167e54a7fc91d2dc4731ea717d515c81e233ebfafc83fb2",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__build_learning_docs_py--001.md"
@@ -4643,8 +4652,8 @@
     },
     {
       "path": "tests/test_capability_isolation.py",
-      "bytes": 31157,
-      "sha256": "f8c027ca2129b45441db2c780fb140b043bb674e70c26785088059f834cc4933",
+      "bytes": 31169,
+      "sha256": "9208ceff90122148c8d9171b397a93e4a5d1585e45eddef54c7638a9dcf1b920",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_isolation_py--001.md"
@@ -4787,11 +4796,29 @@
     },
     {
       "path": "tests/test_capability_startup_diagnostics.py",
-      "bytes": 14264,
-      "sha256": "866326c326eecc04e7c0a990d69803789b9ed679c47bee9dbd2c9666e69a1520",
+      "bytes": 14293,
+      "sha256": "d7a9aa48f73634532f65a6b694a83db9e9700fcec97d216f315f2c9b80e2950f",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_startup_diagnostics_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_capability_startup_paths.py",
+      "bytes": 18257,
+      "sha256": "741252377a579cf1da362285a9601b5b554682e37c35dbd88049e7270b1ada0c",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_capability_startup_paths_py--001.md"
+      ]
+    },
+    {
+      "path": "tests/test_capability_startup_session.py",
+      "bytes": 10286,
+      "sha256": "79e757a676fb8f7f068812e0a1abb69826dfe72630c20311c0352f930fb0a7bf",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_capability_startup_session_py--001.md"
       ]
     },
     {

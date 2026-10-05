@@ -74,6 +74,8 @@ def startup_failure_diagnostic(
     output, http_status, http_error, tmpfs_noexec=None, command_exit_status="unknown"
 ):
     """Candidate output supplies hints only; no raw output, path or token escapes."""
+    from workbench.capability_startup_paths import output_shapes
+
     readable = type(output) is str
     output = (
         output[:8000].encode("utf-8", errors="replace")[:8000].decode("utf-8", errors="replace")
@@ -176,6 +178,7 @@ def startup_failure_diagnostic(
         "output_readable": readable,
         "output_nonempty": bool(output),
         "output_hints": categories,
+        "output_shapes": output_shapes(output),
         "known_missing_modules": known,
         "startup_phase_hint": startup_phase,
         "failure_component": "multiprocessing-semaphore" if semaphore else "unknown",
@@ -554,7 +557,7 @@ def _verify(
                 SessionExecuteRequest(
                     command="cd "
                     + shlex.quote(REMOTE + "/product/" + command.cwd)
-                    + " && exec "
+                    + " && "
                     + shlex.join(guarded_command),
                     run_async=True,
                 ),
@@ -595,8 +598,14 @@ def _verify(
                         )
                     time.sleep(0.2)
                 try:
+                    from workbench.capability_startup_paths import NATIVE_TAIL_LIMIT
+
                     startup_output = read_command_output(
-                        sandbox, command_output, min(settings.tool_timeout, 5), tail=True
+                        sandbox,
+                        command_output,
+                        min(settings.tool_timeout, 5),
+                        limit=NATIVE_TAIL_LIMIT if native else 8000,
+                        tail=True,
                     )
                 except Exception:
                     startup_output = None
@@ -627,6 +636,30 @@ def _verify(
                         sandbox.process, session, response.cmd_id, min(settings.tool_timeout, 5)
                     ),
                 )
+                if native:
+                    from workbench.capability_startup_paths import (
+                        native_startup_paths,
+                        native_startup_smoke,
+                    )
+
+                    receipt["startup_diagnostic"]["launch_paths"] = {"status": "unknown"}
+                    receipt["startup_diagnostic"]["interpreter_probe"] = {
+                        "exit_status": "unknown",
+                        "output_shapes": [],
+                        "checks": None,
+                    }
+                    try:
+                        receipt["startup_diagnostic"]["launch_paths"] = native_startup_paths(
+                            sandbox, min(settings.tool_timeout, 5)
+                        )
+                    except Exception:
+                        pass
+                    try:
+                        receipt["startup_diagnostic"]["interpreter_probe"] = native_startup_smoke(
+                            sandbox, plan, database, identity_options, min(settings.tool_timeout, 5)
+                        )
+                    except Exception:
+                        pass
                 raise CheckFailure("隔离应用未在约定时间内通过健康检查")
             except BaseException:
                 http.close()

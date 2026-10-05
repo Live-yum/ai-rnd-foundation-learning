@@ -123,6 +123,7 @@
 - [workbench/aider_tool.py](07-orchestration/sources/workbench__aider_tool_py--001.md)（1 段）
 - [workbench/capability_editing.py](07-orchestration/sources/workbench__capability_editing_py--001.md)（1 段）
 - [workbench/capability_sandbox.py](07-orchestration/sources/workbench__capability_sandbox_py--001.md)（1 段）
+- [workbench/capability_startup_paths.py](07-orchestration/sources/workbench__capability_startup_paths_py--001.md)（1 段）
 - [workbench/coding.py](07-orchestration/sources/workbench__coding_py--001.md)（1 段）
 - [workbench/continue_index.py](07-orchestration/sources/workbench__continue_index_py--001.md)（1 段）
 - [workbench/daytona_profiles.py](07-orchestration/sources/workbench__daytona_profiles_py--001.md)（1 段）
@@ -563,6 +564,8 @@
 - [tests/test_capability_recovery_controls.py](14-acceptance/sources/tests__test_capability_recovery_controls_py--001.md)（1 段）
 - [tests/test_capability_restart_thread_drain.py](14-acceptance/sources/tests__test_capability_restart_thread_drain_py--001.md)（1 段）
 - [tests/test_capability_startup_diagnostics.py](14-acceptance/sources/tests__test_capability_startup_diagnostics_py--001.md)（1 段）
+- [tests/test_capability_startup_paths.py](14-acceptance/sources/tests__test_capability_startup_paths_py--001.md)（1 段）
+- [tests/test_capability_startup_session.py](14-acceptance/sources/tests__test_capability_startup_session_py--001.md)（1 段）
 - [tests/test_ci_acceptance_gate.py](14-acceptance/sources/tests__test_ci_acceptance_gate_py--001.md)（1 段）
 - [tests/test_ci_native_capability_full_source.py](14-acceptance/sources/tests__test_ci_native_capability_full_source_py--001.md)（1 段）
 - [tests/test_ci_native_capability_security.py](14-acceptance/sources/tests__test_ci_native_capability_security_py--001.md)（1 段）

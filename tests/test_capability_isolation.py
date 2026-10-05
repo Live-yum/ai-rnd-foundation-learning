@@ -611,7 +611,7 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
 
     monkeypatch.setattr(verifier, "control_exec", control)
 
-    def startup_output(sandbox, path, timeout, *, tail=False):
+    def startup_output(sandbox, path, timeout, limit=8000, *, tail=False):
         assert path.startswith("/tmp/rnd-module-control/private/")
         assert timeout <= 5 and tail is True
         events.append("startup-output-read")

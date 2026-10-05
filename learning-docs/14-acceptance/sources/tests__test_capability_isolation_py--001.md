@@ -47,7 +47,7 @@
 - `test_verifier_closes_health_opened_http_clients_on_all_paths.run_scenarios`（L565–L570）：接收`http`、`scenarios`、`saved`、`after_restart`。 控制顺序：L567断言`http.get("/fixture-" + phase).status_code == 200`；L568按`failure == phase`分支；L569抛异常，停止当前正常路径。 调用`http.get`、`CheckFailure`。 返回路径：L570的`[{"phase": phase, "fixture_only": True}], {}`。
 - `test_verifier_closes_health_opened_http_clients_on_all_paths.run_browser`（L572–L575）：接收`*args`。 控制顺序：L573按`failure in BROWSER_FAILURE_FIXTURES`分支；L574抛异常，停止当前正常路径。 调用`BrowserFailure`、`BROWSER_FAILURE_FIXTURES[failure].copy`。 返回路径：L575的`[{"fixture_only": True}]`。
 - `test_verifier_closes_health_opened_http_clients_on_all_paths.control`（L592–L610）：接收`sandbox`、`argv`、`timeout`。 控制顺序：L593按`"os.statvfs('/tmp')" in argv[-1]`分支；L594断言`timeout <= 5`；L596按`failure == "startup-probe-error"`分支；L597抛异常，停止当前正常路径。 调用`events.append`、`RuntimeError`、`SimpleNamespace`。 返回路径：L598的`SimpleNamespace( exit_code=1 if failure == "startup-probe-nonzero" else False if failure =…`；L610的`SimpleNamespace(exit_code=0)`。
-- `test_verifier_closes_health_opened_http_clients_on_all_paths.startup_output`（L614–L622）：接收`sandbox`、`path`、`timeout`、`tail`。 控制顺序：L615断言`path.startswith("/tmp/rnd-module-control/private/")`；L616断言`timeout <= 5 and tail is True`；L618按`failure == "startup-output-unavailable"`分支；L619抛异常，停止当前正常路径；L620按`failure == "startup-output-decode-error"`分支；L621抛异常，停止当前正常路径。 调用`path.startswith`、`events.append`、`RuntimeError`、`UnicodeDecodeError`。 返回路径：L622的`"PermissionError: secret path, content and fixture-private-token"`。
+- `test_verifier_closes_health_opened_http_clients_on_all_paths.startup_output`（L614–L622）：接收`sandbox`、`path`、`timeout`、`limit`、`tail`。 控制顺序：L615断言`path.startswith("/tmp/rnd-module-control/private/")`；L616断言`timeout <= 5 and tail is True`；L618按`failure == "startup-output-unavailable"`分支；L619抛异常，停止当前正常路径；L620按`failure == "startup-output-decode-error"`分支；L621抛异常，停止当前正常路径。 调用`path.startswith`、`events.append`、`RuntimeError`、`UnicodeDecodeError`。 返回路径：L622的`"PermissionError: secret path, content and fixture-private-token"`。
 - `test_verifier_closes_health_opened_http_clients_on_all_paths.fixed_browser`（L628–L630）：接收`*args`。 控制顺序：L629断言`not secure_execution`。 调用`run_browser`。 返回路径：L630的`run_browser(*args)`。
 - `test_verifier_closes_health_opened_http_clients_on_all_paths.isolated_browser`（L632–L636）：接收`image`、`*args`。 控制顺序：L633断言`secure_execution`；L634断言`image == settings.capability_browser_image`。 调用`events.append`、`run_browser`。 返回路径：L636的`run_browser(*args)`。
 - `test_verifier_closes_health_opened_http_clients_on_all_paths.security_probe`（L649–L651）：接收`*args`。 调用`events.append`。 返回路径：L651的`{"fixture_only": True}`。
@@ -58,9 +58,9 @@
 
 **创建路径：** `tests/test_capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L780。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`31157`。本段原文以LF换行结束。
+本段原始字节数：`31169`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f8c027ca2129b45441db2c780fb140b043bb674e70c26785088059f834cc4933"} -->
+<!-- learning-source: {"path": "tests/test_capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9208ceff90122148c8d9171b397a93e4a5d1585e45eddef54c7638a9dcf1b920"} -->
 ````python
 # tests/test_capability_isolation.py
 """Verify every source command is composed through the same non-bypassable launcher."""
@@ -676,7 +676,7 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
 
     monkeypatch.setattr(verifier, "control_exec", control)
 
-    def startup_output(sandbox, path, timeout, *, tail=False):
+    def startup_output(sandbox, path, timeout, limit=8000, *, tail=False):
         assert path.startswith("/tmp/rnd-module-control/private/")
         assert timeout <= 5 and tail is True
         events.append("startup-output-read")

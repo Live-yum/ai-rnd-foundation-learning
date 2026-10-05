@@ -23,6 +23,7 @@ def test_startup_hints_are_finite_even_for_secret_bearing_tracebacks():
         "output_readable": True,
         "output_nonempty": True,
         "output_hints": ["permission-denied", "missing-module"],
+        "output_shapes": [],
         "known_missing_modules": [],
         "startup_phase_hint": "unknown",
         "failure_component": "unknown",

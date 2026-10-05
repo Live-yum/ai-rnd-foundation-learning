@@ -35,6 +35,7 @@ SOURCE_FILES = (
     "tools/daytona/capability-snapshot.Dockerfile",
     "tools/daytona/capability-native-snapshot.Dockerfile",
     "workbench/capability_sandbox.py",
+    "workbench/capability_startup_paths.py",
     "workbench/capability_isolation.py",
     "workbench/capability_stack.py",
     "workbench/capability_verification.py",
