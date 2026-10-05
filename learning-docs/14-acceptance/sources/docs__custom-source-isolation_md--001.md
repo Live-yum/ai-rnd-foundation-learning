@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L285。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L288。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`22337`。本段原文以LF换行结束。
+本段原始字节数：`22623`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9f7461b9f9a7742abd1a1c35dfbe8073e27a385441fc285990c7ced1077d0a46"} -->
+<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ad6eb41e685b8201de050489819afdfcef6d7f04925ac44a4bc102afbea2c761"} -->
 ````markdown
 <!-- docs/custom-source-isolation.md -->
 # 自定义源码执行：有证据的启用门
@@ -171,7 +171,10 @@ tmpfs 随容器停止清空。因此候选 profile 记录的是 `restart_kind=ap
 容器施加，类型检查继续执行；不提高限额、不外部化缺失模块或删除依赖。CI 复用已安装
 的固定原生工具图执行配置/插件保留及失败反例，实际应用回执仍要求完整隔离验收。
 
-启动失败回执只扫描既有上限内的输出，报告固定阶段、异常类及 errno 白名单。共享
+启动失败回执只扫描末尾至多 8000 字节输出，报告固定阶段、异常类及 errno 白名单。
+失败后另在至多 5 秒的传输期限内查询同一会话、同一命令的退出状态，只记录固定
+`zero`、`nonzero` 或 `unknown`；缺失、仍无退出值或查询失败均为 unknown，不能据此
+推断命令仍在运行，也不延长原健康检查期限。共享
 内存信号量分类要求同一完整 traceback 内出现准确的进程池构造和 SemLock 帧及权限
 拒绝；后续清理异常可单独保留为终止异常。缺少匹配信息时明确记录 unknown，不泄露
 路径、异常正文或凭据。这些分类来自不可信输出，仅用于定位，不能替代真实内核证据。

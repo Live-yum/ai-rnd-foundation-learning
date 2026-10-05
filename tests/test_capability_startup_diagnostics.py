@@ -1,10 +1,11 @@
 """Startup hints cannot become product acceptance or disclose candidate output."""
 
 import json
+from types import SimpleNamespace
 
 import pytest
 
-from workbench.capability_sandbox import startup_failure_diagnostic
+from workbench.capability_sandbox import startup_command_exit_status, startup_failure_diagnostic
 
 
 def test_startup_hints_are_finite_even_for_secret_bearing_tracebacks():
@@ -29,6 +30,7 @@ def test_startup_hints_are_finite_even_for_secret_bearing_tracebacks():
         "exception_errno": None,
         "application_startup_reported": True,
         "tmpfs_noexec": None,
+        "command_exit_status": "unknown",
     }
     assert "secret" not in json.dumps(result)
     assert len(json.dumps(result)) < 768
@@ -205,3 +207,144 @@ def test_context_outside_the_existing_output_bound_cannot_supply_a_hint():
     assert result["startup_phase_hint"] == "unknown"
     assert result["exception_type"] == "unknown"
     assert result["exception_errno"] is None
+
+
+def test_tail_traceback_preserves_final_error_without_joining_truncated_primary_trace():
+    primary = SEMAPHORE_TRACE.replace("PermissionError", "FileNotFoundError").replace(
+        "[Errno 13]", "[Errno 2]"
+    )
+    output = (
+        primary.split("\n", 1)[1]
+        + "\nDuring handling of the above exception, another exception occurred:\n\n"
+        + "Traceback (most recent call last):\n"
+        + '  File "/private/secret/cleanup.py", line 1, in cleanup\n'
+        + "PermissionError: [Errno 13] secret\n"
+    )
+    result = startup_failure_diagnostic(output, 502, "none")
+    assert result["failure_component"] == "unknown"
+    assert result["exception_type"] == "PermissionError"
+    assert result["exception_errno"] == 13
+    assert "secret" not in json.dumps(result)
+
+
+def test_non_ascii_output_has_same_byte_budget_before_any_parsing():
+    result = startup_failure_diagnostic("汉" * 2667 + SEMAPHORE_TRACE, 502, "none")
+    assert result["failure_component"] == "unknown"
+    assert result["startup_phase_hint"] == "unknown"
+    assert result["exception_type"] == "unknown"
+    assert result["exception_errno"] is None
+    assert "汉" not in json.dumps(result, ensure_ascii=False)
+
+
+def test_split_utf8_and_surrogate_data_never_escape_diagnostic():
+    result = startup_failure_diagnostic(
+        "\ufffd\udc80secret\nPermissionError: [Errno 13] secret", 502, "none"
+    )
+    assert result["exception_type"] == "PermissionError"
+    assert result["exception_errno"] == 13
+    assert "secret" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [(0, "zero"), (1, "nonzero"), (137, "nonzero"), (255, "nonzero")],
+)
+def test_pinned_sdk_command_exit_facts_use_status_only(value, expected, monkeypatch):
+    import httpx
+    from daytona._sync.process import Process
+    from daytona_toolbox_api_client.models.command import Command
+
+    from workbench import daytona_sessions
+
+    seen = []
+    monkeypatch.setattr(daytona_sessions.time, "monotonic", lambda: 100)
+    rest = SimpleNamespace(
+        pool_manager=SimpleNamespace(connection_pool_kw={}),
+        request=lambda *a, **k: seen.append(k["_request_timeout"]),
+    )
+    daytona_sessions.harden_toolbox_transport(
+        SimpleNamespace(_toolbox_api_client=SimpleNamespace(rest_client=rest))
+    )
+
+    def get_command(*, session_id, command_id):
+        assert session_id == "private-session" and command_id == "private-command"
+        rest.request("GET", "local")
+        return Command.from_dict(
+            {"id": command_id, "command": "secret TOKEN=secret", "exitCode": value}
+        )
+
+    with httpx.Client(trust_env=False) as client:
+        process = Process("python", SimpleNamespace(get_session_command=get_command), client)
+        assert (
+            startup_command_exit_status(process, "private-session", "private-command", 5)
+            == expected
+        )
+    assert seen == [5]
+    assert daytona_sessions._DEADLINE.get() is None
+
+
+@pytest.mark.parametrize("exit_present", [False, True])
+def test_pinned_sdk_null_or_omitted_exit_never_proves_running(exit_present):
+    from daytona_toolbox_api_client.models.command import Command
+
+    payload = {"id": "fixture-command", "command": "secret"}
+    if exit_present:
+        payload["exitCode"] = None
+    command = Command.from_dict(payload)
+    process = SimpleNamespace(get_session_command=lambda *a: command)
+    assert startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"
+
+
+@pytest.mark.parametrize("value", [True, False, "1", 1.0])
+def test_pinned_sdk_strict_exit_model_rejection_is_safe(value):
+    from daytona_toolbox_api_client.models.command import Command
+    from pydantic import ValidationError
+
+    def get_command(*args):
+        return Command.from_dict({"id": "fixture-command", "command": "secret", "exitCode": value})
+
+    with pytest.raises(ValidationError):
+        get_command()
+    process = SimpleNamespace(get_session_command=get_command)
+    assert startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"
+
+
+@pytest.mark.parametrize("value", [None, True, False, "1", 1.0, [], {}, -1, 256, 10**100])
+def test_malformed_exit_values_remain_unknown(value):
+    process = SimpleNamespace(
+        get_session_command=lambda *a: SimpleNamespace(id="fixture-command", exit_code=value)
+    )
+    assert startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"
+
+
+@pytest.mark.parametrize(
+    "command",
+    [None, SimpleNamespace(), SimpleNamespace(id="other-command", exit_code=1)],
+)
+def test_missing_or_different_command_remains_unknown(command):
+    process = SimpleNamespace(get_session_command=lambda *a: command)
+    assert startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"
+
+
+def test_missing_sdk_method_and_status_error_remain_unknown_and_restore_deadline():
+    from workbench import daytona_sessions
+
+    def unavailable(*args):
+        raise RuntimeError("secret session, command and SDK body")
+
+    token = daytona_sessions._DEADLINE.set(123)
+    try:
+        for process in (SimpleNamespace(), SimpleNamespace(get_session_command=unavailable)):
+            assert (
+                startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"
+            )
+            assert daytona_sessions._DEADLINE.get() == 123
+    finally:
+        daytona_sessions._DEADLINE.reset(token)
+
+
+@pytest.mark.parametrize("value", [True, 1, [], {"secret": "secret"}, "running", "secret"])
+def test_command_status_classifier_cannot_disclose_arbitrary_values(value):
+    result = startup_failure_diagnostic("", 502, "none", command_exit_status=value)
+    assert result["command_exit_status"] == "unknown"
+    assert "secret" not in json.dumps(result)

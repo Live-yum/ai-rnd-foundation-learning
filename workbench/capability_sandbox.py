@@ -51,10 +51,35 @@ from workbench.tools import clean_env, process_options, stop_process
 REMOTE = "/tmp/rnd-capability"
 
 
-def startup_failure_diagnostic(output, http_status, http_error, tmpfs_noexec=None):
+def startup_command_exit_status(process, session, command_id, timeout):
+    """Read one bounded SDK status, without exposing commands, IDs or exceptions."""
+    from workbench.daytona_sessions import _DEADLINE
+
+    token = _DEADLINE.set(time.monotonic() + timeout)
+    try:
+        # Pinned SDK 0.190.0 documents exit_code only for completed commands.
+        # Its optional/default None cannot distinguish running from absent data.
+        command = process.get_session_command(session, command_id)
+        if command.id == command_id and type(command.exit_code) is int:
+            if 0 <= command.exit_code <= 255:
+                return "zero" if command.exit_code == 0 else "nonzero"
+    except Exception:
+        pass
+    finally:
+        _DEADLINE.reset(token)
+    return "unknown"
+
+
+def startup_failure_diagnostic(
+    output, http_status, http_error, tmpfs_noexec=None, command_exit_status="unknown"
+):
     """Candidate output supplies hints only; no raw output, path or token escapes."""
     readable = type(output) is str
-    output = output[:8000] if readable else ""
+    output = (
+        output[:8000].encode("utf-8", errors="replace")[:8000].decode("utf-8", errors="replace")
+        if readable
+        else ""
+    )
     patterns = {
         "permission-denied": ("PermissionError", "Permission denied", "Operation not permitted"),
         "missing-module": ("ModuleNotFoundError", "No module named"),
@@ -158,6 +183,9 @@ def startup_failure_diagnostic(output, http_status, http_error, tmpfs_noexec=Non
         "exception_errno": exception_errno,
         "application_startup_reported": "Application startup complete" in output,
         "tmpfs_noexec": tmpfs_noexec if type(tmpfs_noexec) is bool else None,
+        "command_exit_status": command_exit_status
+        if type(command_exit_status) is str and command_exit_status in {"zero", "nonzero"}
+        else "unknown",
     }
 
 
@@ -568,7 +596,7 @@ def _verify(
                     time.sleep(0.2)
                 try:
                     startup_output = read_command_output(
-                        sandbox, command_output, min(settings.tool_timeout, 5)
+                        sandbox, command_output, min(settings.tool_timeout, 5), tail=True
                     )
                 except Exception:
                     startup_output = None
@@ -591,7 +619,13 @@ def _verify(
                 except Exception:
                     pass
                 receipt["startup_diagnostic"] = startup_failure_diagnostic(
-                    startup_output, last_http_status, last_http_error, tmpfs_noexec
+                    startup_output,
+                    last_http_status,
+                    last_http_error,
+                    tmpfs_noexec,
+                    startup_command_exit_status(
+                        sandbox.process, session, response.cmd_id, min(settings.tool_timeout, 5)
+                    ),
                 )
                 raise CheckFailure("隔离应用未在约定时间内通过健康检查")
             except BaseException:

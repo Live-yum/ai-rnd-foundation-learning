@@ -77,6 +77,77 @@ def test_exact_root_identity_progresses_to_setup_without_weaker_parsing():
     assert "/usr/sbin/groupadd" in calls[1]
 
 
+@pytest.mark.skipif(os.name != "posix", reason="Pinned Linux control readers require head/tail")
+@pytest.mark.parametrize("tail", [False, True])
+def test_command_output_reads_only_bounded_head_or_tail(tmp_path, monkeypatch, tail):
+    from workbench import capability_isolation as isolation
+    from workbench.capability_sandbox import startup_failure_diagnostic
+
+    output = tmp_path / "private-fixture.log"
+    output.write_bytes(b"prefix\n" + b"x" * 1_000_000 + b"\nFileNotFoundError: secret\n")
+    path = isolation.CONTROL + "/private/fixture.log"
+    calls = []
+
+    def control(sandbox, argv, timeout):
+        calls.append(argv)
+        assert argv == ["/usr/bin/tail" if tail else "/usr/bin/head", "-c", "8000", path]
+        assert timeout == 5
+        result = subprocess.run(
+            [*argv[:-1], str(output)], capture_output=True, timeout=5, check=True
+        )
+        return SimpleNamespace(exit_code=result.returncode, result=result.stdout.decode())
+
+    monkeypatch.setattr(isolation, "control_exec", control)
+    result = isolation.read_command_output(object(), path, 5, tail=tail)
+    assert len(result.encode()) == 8000
+    assert result.endswith("FileNotFoundError: secret\n") is tail
+    diagnostic = startup_failure_diagnostic(result, 502, "none")
+    assert diagnostic["exception_type"] == ("FileNotFoundError" if tail else "unknown")
+    assert "secret" not in json.dumps(diagnostic)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("limit", [-1, 0, 8001, True, "8000"])
+def test_failure_tail_rejects_unbounded_or_malformed_limits(monkeypatch, limit):
+    from workbench import capability_isolation as isolation
+
+    monkeypatch.setattr(
+        isolation, "control_exec", lambda *a: pytest.fail("Invalid tail must not execute")
+    )
+    with pytest.raises(IsolationUnavailable):
+        isolation.read_command_output(
+            object(), isolation.CONTROL + "/private/fixture.log", 5, limit, tail=True
+        )
+
+
+@pytest.mark.parametrize("tail", [False, True])
+def test_command_output_cannot_read_outside_private_control(monkeypatch, tail):
+    from workbench import capability_isolation as isolation
+
+    monkeypatch.setattr(
+        isolation, "control_exec", lambda *a: pytest.fail("Outside path must not execute")
+    )
+    for path in ("/private/secret", isolation.CONTROL + "/private/../secret"):
+        with pytest.raises(IsolationUnavailable):
+            isolation.read_command_output(object(), path, 5, tail=tail)
+
+
+def test_larger_existing_oracle_head_budget_is_unchanged(monkeypatch):
+    from workbench import capability_isolation as isolation
+
+    path = isolation.CONTROL + "/private/fixture.log"
+    calls = []
+    monkeypatch.setattr(
+        isolation,
+        "control_exec",
+        lambda sandbox, argv, timeout: (
+            calls.append(argv) or SimpleNamespace(exit_code=0, result="[]")
+        ),
+    )
+    assert isolation.read_command_output(object(), path, 5, 8001) == "[]"
+    assert calls == [["/usr/bin/head", "-c", "8001", path]]
+
+
 @pytest.mark.skipif(os.name != "posix", reason="Pinned daemon shell fixture requires POSIX bash")
 def test_actual_sdk_env_protocol_prevents_outer_shell_contamination(tmp_path):
     """Real SDK + subprocess protocol fixture, not the missing live CI output."""
@@ -347,6 +418,12 @@ STARTUP_FAILURE_FIXTURES = {
     "startup-connect",
     "startup-timeout",
     "startup-output-unavailable",
+    "startup-output-decode-error",
+    "startup-command-error",
+    "startup-command-missing",
+    "startup-command-null",
+    "startup-command-zero",
+    "startup-command-nonzero",
     "startup-probe-error",
     "startup-probe-nonzero",
     "startup-probe-malformed",
@@ -425,6 +502,28 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
             url=f"http://{port}-{identifier}.proxy.localhost", token="fixture-private-token"
         ),
     )
+
+    def command_status(session, command_id):
+        from workbench.daytona_sessions import _DEADLINE
+
+        assert session.startswith("rnd-app-") and command_id == "fixture-command"
+        assert failure in STARTUP_FAILURE_FIXTURES and clock[0] == 1
+        assert 0 < _DEADLINE.get() - clock[0] <= 5
+        events.append("startup-command-read")
+        if failure == "startup-command-error":
+            raise RuntimeError("secret SDK status failure")
+        return SimpleNamespace(
+            id=command_id,
+            command="secret command and fixture-private-token",
+            exit_code=0
+            if failure == "startup-command-zero"
+            else 1
+            if failure == "startup-command-nonzero"
+            else None,
+        )
+
+    if failure != "startup-command-missing":
+        sandbox.process.get_session_command = command_status
 
     def delete(*args, **kwargs):
         events.append("deleted")
@@ -512,12 +611,14 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
 
     monkeypatch.setattr(verifier, "control_exec", control)
 
-    def startup_output(sandbox, path, timeout):
+    def startup_output(sandbox, path, timeout, *, tail=False):
         assert path.startswith("/tmp/rnd-module-control/private/")
-        assert timeout <= 5
+        assert timeout <= 5 and tail is True
         events.append("startup-output-read")
         if failure == "startup-output-unavailable":
             raise RuntimeError("secret private log path")
+        if failure == "startup-output-decode-error":
+            raise UnicodeDecodeError("utf-8", b"\x80secret", 0, 1, "secret body")
         return "PermissionError: secret path, content and fixture-private-token"
 
     monkeypatch.setattr(verifier, "read_command_output", startup_output)
@@ -591,10 +692,20 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
                 None if failure in {"startup-connect", "startup-timeout"} else 503
             )
             assert diagnostic["output_hints"] == (
-                [] if failure == "startup-output-unavailable" else ["permission-denied"]
+                []
+                if failure in {"startup-output-unavailable", "startup-output-decode-error"}
+                else ["permission-denied"]
             )
             assert events.count("startup-output-read") == 1
             assert events.count("tmpfs-mode-read") == 1
+            assert events.count("startup-command-read") == (failure != "startup-command-missing")
+            assert diagnostic["command_exit_status"] == (
+                "zero"
+                if failure == "startup-command-zero"
+                else "nonzero"
+                if failure == "startup-command-nonzero"
+                else "unknown"
+            )
             assert diagnostic["tmpfs_noexec"] is (
                 False
                 if failure == "startup-probe-executable"
@@ -606,6 +717,7 @@ def test_verifier_closes_health_opened_http_clients_on_all_paths(
             assert "fixture-private-token" not in json.dumps(persisted)
         else:
             assert "startup-output-read" not in events and "tmpfs-mode-read" not in events
+            assert "startup-command-read" not in events
             assert "startup_diagnostic" not in persisted
         if failure in BROWSER_FAILURE_FIXTURES:
             assert persisted["browser_diagnostic"] == BROWSER_FAILURE_FIXTURES[failure]

@@ -484,8 +484,8 @@
     },
     {
       "path": "workbench/capability_isolation.py",
-      "bytes": 20082,
-      "sha256": "03f8f3a39078031f4ea0a315619ca4621ea333ccfb4babb263bdd9d9915ce116",
+      "bytes": 20338,
+      "sha256": "fd48f048dabd9f28aee3e989ce477b02fba806b7ced305e28364c3f6127e6abc",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_isolation_py--001.md"
@@ -944,8 +944,8 @@
     },
     {
       "path": "workbench/capability_sandbox.py",
-      "bytes": 38719,
-      "sha256": "3f88c5ed52f7e601b6fbfd4635574b21df0d2f771dc27a68d428ce1db59541df",
+      "bytes": 40061,
+      "sha256": "3f13214a0f378f7b7ecb4ae71337c2fab95ca40fb05ccee01c44ed603384e5af",
       "stage": "07-orchestration",
       "parts": [
         "07-orchestration/sources/workbench__capability_sandbox_py--001.md"
@@ -3928,8 +3928,8 @@
     },
     {
       "path": "docs/custom-source-isolation.md",
-      "bytes": 22337,
-      "sha256": "9f7461b9f9a7742abd1a1c35dfbe8073e27a385441fc285990c7ced1077d0a46",
+      "bytes": 22623,
+      "sha256": "ad6eb41e685b8201de050489819afdfcef6d7f04925ac44a4bc102afbea2c761",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__custom-source-isolation_md--001.md"
@@ -4643,8 +4643,8 @@
     },
     {
       "path": "tests/test_capability_isolation.py",
-      "bytes": 26450,
-      "sha256": "181b2a0a1c752c4d7d7de68d4fbaf49c14628b4e9d1dee49664c3ae88859e7a4",
+      "bytes": 31157,
+      "sha256": "f8c027ca2129b45441db2c780fb140b043bb674e70c26785088059f834cc4933",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_isolation_py--001.md"
@@ -4787,8 +4787,8 @@
     },
     {
       "path": "tests/test_capability_startup_diagnostics.py",
-      "bytes": 8376,
-      "sha256": "3dbde794ee5e68b63a5717e2f48e43534c8b145f72d7704d728fb9e9836f43c1",
+      "bytes": 14264,
+      "sha256": "866326c326eecc04e7c0a990d69803789b9ed679c47bee9dbd2c9666e69a1520",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_startup_diagnostics_py--001.md"

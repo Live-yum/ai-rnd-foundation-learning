@@ -319,12 +319,15 @@ def redirected_command(argv):
     return ["/bin/sh", "-c", command], output
 
 
-def read_command_output(sandbox, path, timeout, limit=8000):
+def read_command_output(sandbox, path, timeout, limit=8000, *, tail=False):
     if not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix(
         CONTROL + "/private/"
     ):
         raise IsolationUnavailable("执行输出路径不属于独立控制目录")
-    result = control_exec(sandbox, ["/usr/bin/head", "-c", str(limit), path], timeout)
+    if type(tail) is not bool or (tail and (type(limit) is not int or not 1 <= limit <= 8000)):
+        raise IsolationUnavailable("启动失败输出尾部必须限制在 8000 字节以内")
+    reader = "/usr/bin/tail" if tail else "/usr/bin/head"
+    result = control_exec(sandbox, [reader, "-c", str(limit), path], timeout)
     if result.exit_code != 0:
         raise IsolationUnavailable("无法读取独立命令回执")
     return result.result or ""

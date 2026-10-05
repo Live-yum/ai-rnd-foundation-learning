@@ -27,17 +27,17 @@
 - `control_exec`（L232–L235）：接收`sandbox`、`argv`、`timeout`。 调用`sandbox.process.exec`、`shlex.join`、`system_argv`、`dict`。 返回路径：L233的`sandbox.process.exec( shlex.join(system_argv(argv)), env=dict(CONTROL_SHELL_ENV), timeout=…`。
 - `product_argv`（L238–L312）：接收`plan`、`argv`、`database`、`native_semaphore_storage`。 控制顺序：L241按`type(native_semaphore_storage) is not bool or native_semaphore_storage and ( getattr(…`分支；L249抛异常，停止当前正常路径；L251按`ports & {2280, 55432, 55433}`分支；L252抛异常，停止当前正常路径；L254按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L255按`plan.runtime.port == 5173`分支；L256抛异常，停止当前正常路径；L275按`template in {"python-basic", "fastapiadmin"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`getattr`、`IsolationUnavailable`、`ports.add`、`",".join`、`str`、`sorted`、`system_argv`、`environment.items`。 返回路径：L285的`system_argv( [ "/usr/bin/setsid", "--fork", "--wait", "/usr/bin/setpriv", "--reuid=" + APP…`。
 - `redirected_command`（L315–L319）：接收`argv`。 源码说明：Dedicated data-only stdio; never share a privileged control terminal.。 调用`uuid.uuid4`、`shlex.join`、`shlex.quote`。 返回路径：L319的`["/bin/sh", "-c", command], output`。
-- `read_command_output`（L322–L330）：接收`sandbox`、`path`、`timeout`、`limit`。 控制顺序：L323按`not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix( CONTROL + "/p…`分支；L326抛异常，停止当前正常路径；L328按`result.exit_code != 0`分支；L329抛异常，停止当前正常路径。 调用`path.startswith`、`path.removeprefix`、`IsolationUnavailable`、`control_exec`、`str`。 返回路径：L330的`result.result or ""`。
-- `run_guarded_control`（L333–L336）：接收`sandbox`、`argv`、`timeout`。 调用`redirected_command`、`control_exec`、`read_command_output`。 返回路径：L336的`result.exit_code, read_command_output(sandbox, output, timeout)`。
-- `prepare_identity`（L367–L509）：接收`sandbox`、`plan`、`timeout`、`native_semaphore_storage`。 控制顺序：L388按`type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0`分支；L389抛异常，停止当前正常路径；L415遍历`commands`；L416按`control_exec(sandbox, argv, timeout).exit_code != 0`分支；L417抛异常，停止当前正常路径；L435按`control_exec(sandbox, ["/usr/bin/python3", "-I", "-S", "-c", ownership], timeout).exi…`分支；L436抛异常，停止当前正常路径；L440按`control_exec(sandbox, ["/usr/bin/chmod", "644", GUARD], timeout).exit_code`分支。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`isinstance`、`root.result.strip`、`re.fullmatch`、`int`、`type`、`len`、`output.lower`、`IsolationUnavailable`等。 返回路径：L500的`require_isolation_evidence( { **guard_receipt, **receipt, "profile": ISOLATION_PROFILE, "g…`。
+- `read_command_output`（L322–L333）：接收`sandbox`、`path`、`timeout`、`limit`、`tail`。 控制顺序：L323按`not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix( CONTROL + "/p…`分支；L326抛异常，停止当前正常路径；L327按`type(tail) is not bool or (tail and (type(limit) is not int or not 1 <= limit <= 8000…`分支；L328抛异常，停止当前正常路径；L331按`result.exit_code != 0`分支；L332抛异常，停止当前正常路径。 调用`path.startswith`、`path.removeprefix`、`IsolationUnavailable`、`type`、`control_exec`、`str`。 返回路径：L333的`result.result or ""`。
+- `run_guarded_control`（L336–L339）：接收`sandbox`、`argv`、`timeout`。 调用`redirected_command`、`control_exec`、`read_command_output`。 返回路径：L339的`result.exit_code, read_command_output(sandbox, output, timeout)`。
+- `prepare_identity`（L370–L512）：接收`sandbox`、`plan`、`timeout`、`native_semaphore_storage`。 控制顺序：L391按`type(root.exit_code) is not int or root.exit_code != 0 or control_uid != 0`分支；L392抛异常，停止当前正常路径；L418遍历`commands`；L419按`control_exec(sandbox, argv, timeout).exit_code != 0`分支；L420抛异常，停止当前正常路径；L438按`control_exec(sandbox, ["/usr/bin/python3", "-I", "-S", "-c", ownership], timeout).exi…`分支；L439抛异常，停止当前正常路径；L443按`control_exec(sandbox, ["/usr/bin/chmod", "644", GUARD], timeout).exit_code`分支。后续分支沿下方源码相同行号继续阅读。 调用`control_exec`、`isinstance`、`root.result.strip`、`re.fullmatch`、`int`、`type`、`len`、`output.lower`、`IsolationUnavailable`等。 返回路径：L503的`require_isolation_evidence( { **guard_receipt, **receipt, "profile": ISOLATION_PROFILE, "g…`。
 
 </details>
 
-**创建路径：** `workbench/capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L509。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_isolation.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L512。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`20082`。本段原文以LF换行结束。
+本段原始字节数：`20338`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "03f8f3a39078031f4ea0a315619ca4621ea333ccfb4babb263bdd9d9915ce116"} -->
+<!-- learning-source: {"path": "workbench/capability_isolation.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fd48f048dabd9f28aee3e989ce477b02fba806b7ced305e28364c3f6127e6abc"} -->
 ````python
 # workbench/capability_isolation.py
 """Disposable Linux identity and control-channel separation for module commands.
@@ -361,12 +361,15 @@ def redirected_command(argv):
     return ["/bin/sh", "-c", command], output
 
 
-def read_command_output(sandbox, path, timeout, limit=8000):
+def read_command_output(sandbox, path, timeout, limit=8000, *, tail=False):
     if not path.startswith(CONTROL + "/private/") or "/" in path.removeprefix(
         CONTROL + "/private/"
     ):
         raise IsolationUnavailable("执行输出路径不属于独立控制目录")
-    result = control_exec(sandbox, ["/usr/bin/head", "-c", str(limit), path], timeout)
+    if type(tail) is not bool or (tail and (type(limit) is not int or not 1 <= limit <= 8000)):
+        raise IsolationUnavailable("启动失败输出尾部必须限制在 8000 字节以内")
+    reader = "/usr/bin/tail" if tail else "/usr/bin/head"
+    result = control_exec(sandbox, [reader, "-c", str(limit), path], timeout)
     if result.exit_code != 0:
         raise IsolationUnavailable("无法读取独立命令回执")
     return result.result or ""
