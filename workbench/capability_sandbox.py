@@ -74,7 +74,7 @@ def startup_failure_diagnostic(
     output, http_status, http_error, tmpfs_noexec=None, command_exit_status="unknown"
 ):
     """Candidate output supplies hints only; no raw output, path or token escapes."""
-    from workbench.capability_startup_paths import output_shapes
+    from workbench.capability_startup_paths import normalize_sgr, output_shapes
 
     readable = type(output) is str
     output = (
@@ -82,6 +82,10 @@ def startup_failure_diagnostic(
         if readable
         else ""
     )
+    # Bound raw bytes BEFORE stripping already observed color sequences. Never
+    # refill the budget with text beyond the original read or interpret OSC.
+    raw_output = output
+    output = normalize_sgr(output)
     patterns = {
         "permission-denied": ("PermissionError", "Permission denied", "Operation not permitted"),
         "missing-module": ("ModuleNotFoundError", "No module named"),
@@ -176,9 +180,9 @@ def startup_failure_diagnostic(
         else None,
         "http_error": http_error if type(http_error) is str and http_error in errors else "other",
         "output_readable": readable,
-        "output_nonempty": bool(output),
+        "output_nonempty": bool(raw_output),
         "output_hints": categories,
-        "output_shapes": output_shapes(output),
+        "output_shapes": output_shapes(raw_output),
         "known_missing_modules": known,
         "startup_phase_hint": startup_phase,
         "failure_component": "multiprocessing-semaphore" if semaphore else "unknown",

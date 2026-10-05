@@ -114,7 +114,9 @@ def startup_submission(*, remote, product_argv=isolation.product_argv):
     assert calls[1][3] == {"timeout": 5}
     assert calls[1][2].run_async is True
     assert namespace["response"].cmd_id == "owned-command"
-    return calls[1][2].command, Path(namespace["command_output"])
+    # This is a remote Linux path even when the controller test runs on Windows.
+    # Converting it to the host Path here changes slash and shell-quoting bytes.
+    return calls[1][2].command, namespace["command_output"]
 
 
 def fixture_submission(tmp_path, monkeypatch, argv):
@@ -130,7 +132,8 @@ def fixture_submission(tmp_path, monkeypatch, argv):
         assert options == {"native_semaphore_storage": True}
         return argv
 
-    return startup_submission(remote=remote, product_argv=harmless_argv)
+    command, output = startup_submission(remote=remote, product_argv=harmless_argv)
+    return command, Path(output)
 
 
 def launch_protocol(tmp_path, command):
@@ -211,6 +214,8 @@ def test_previous_outer_exec_loses_exit_status(tmp_path, monkeypatch):
 
 def test_submission_preserves_inner_exec_and_full_native_guard():
     command, output = startup_submission(remote="/tmp/rnd-capability")
+    assert type(output) is str
+    assert output.startswith("/tmp/rnd-module-control/private/") and "\\" not in output
     prefix = "cd /tmp/rnd-capability/product/backend && "
     assert command.startswith(prefix)
     launcher = shlex.split(command[len(prefix) :])
@@ -224,7 +229,7 @@ def test_submission_preserves_inner_exec_and_full_native_guard():
         native_semaphore_storage=True,
     )
     assert launcher[2] == (
-        "exec " + shlex.join(expected) + " </dev/null >" + shlex.quote(str(output)) + " 2>&1"
+        "exec " + shlex.join(expected) + " </dev/null >" + shlex.quote(output) + " 2>&1"
     )
     guard = expected.index(isolation.GUARD)
     assert expected[guard - 3 : guard] == ["/usr/bin/python3", "-I", "-S"]

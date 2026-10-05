@@ -89,6 +89,57 @@ PermissionError: [Errno 13] Permission denied: '/private/secret'
 """
 
 
+def colored(text):
+    return "\x1b[31m" + "\x1b[0m\x1b[38;2;1;2;3m".join(text) + "\x1b[0m"
+
+
+def test_observed_sgr_can_split_exception_words_and_errno():
+    output = colored("FileNotFoundError: [Errno 2] No such file or directory")
+    result = startup_failure_diagnostic(output, 502, "none")
+    assert result["exception_type"] == "FileNotFoundError"
+    assert result["exception_errno"] == 2
+    assert result["output_hints"] == ["missing-file"]
+    assert result["output_shapes"] == ["file-not-found-type", "ansi-control"]
+
+
+def test_sgr_trace_retains_same_trace_association_with_later_cleanup():
+    # Ordinary per-line coloring stays comfortably within the original budget.
+    trace = "\n".join("\x1b[31m" + line + "\x1b[0m" for line in SEMAPHORE_TRACE.splitlines())
+    trace += "\nTraceback (most recent call last):\n" + colored(
+        "FileNotFoundError: [Errno 2] secret"
+    )
+    result = startup_failure_diagnostic(trace, 502, "none")
+    assert result["failure_component"] == "multiprocessing-semaphore"
+    assert result["exception_type"] == "FileNotFoundError" and result["exception_errno"] == 2
+    assert "secret" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "prefix", ["\x1b[", "\x1b[123", "\x1b[" + "1;" * 10000 + "m", "\x1b]0;private\x07"]
+)
+def test_incomplete_oversize_and_non_sgr_sequences_are_not_interpreted(prefix):
+    result = startup_failure_diagnostic(prefix + "PermissionError: [Errno 13] secret", 502, "none")
+    assert result["exception_type"] == "unknown"
+    assert result["failure_component"] == "unknown"
+    assert "private" not in json.dumps(result) and "secret" not in json.dumps(result)
+
+
+def test_stripped_control_bytes_do_not_create_a_larger_scan_window():
+    result = startup_failure_diagnostic(
+        "\x1b[0m" * 2000 + "PermissionError: [Errno 13] secret", 502, "none"
+    )
+    assert result["output_nonempty"] is True
+    assert result["exception_type"] == "unknown" and result["output_hints"] == []
+    assert result["output_shapes"] == ["ansi-control"]
+
+
+def test_sgr_from_another_trace_cannot_supply_a_semaphore_denial():
+    first = SEMAPHORE_TRACE.replace("PermissionError: [Errno 13]", "FileNotFoundError: [Errno 2]")
+    second = "Traceback (most recent call last):\nPermissionError: [Errno 13] secret"
+    trace = "\n".join("\x1b[31m" + line + "\x1b[0m" for line in (first + second).splitlines())
+    assert startup_failure_diagnostic(trace, 502, "none")["failure_component"] == "unknown"
+
+
 def test_semaphore_failure_requires_known_constructor_frames_and_denial():
     result = startup_failure_diagnostic(SEMAPHORE_TRACE, 502, "none", True)
     assert result["failure_component"] == "multiprocessing-semaphore"

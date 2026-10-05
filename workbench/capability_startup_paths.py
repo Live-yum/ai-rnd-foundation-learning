@@ -16,6 +16,12 @@ from workbench.daytona_sessions import _DEADLINE
 PATH_OUTPUT_LIMIT = 2048
 SMOKE_OUTPUT_LIMIT = 512
 NATIVE_TAIL_LIMIT = 8000 - PATH_OUTPUT_LIMIT - SMOKE_OUTPUT_LIMIT
+SGR = re.compile(r"\x1b\[[0-9;]{0,32}m")
+
+
+def normalize_sgr(output):
+    """Remove only bounded numeric SGR, never OSC or arbitrary terminal commands."""
+    return SGR.sub("", output)
 
 
 def _json_unique(text):
@@ -35,6 +41,8 @@ def output_shapes(output):
     if type(output) is not str:
         return []
     output = output[:8000]
+    raw = output
+    output = normalize_sgr(output)
     patterns = {
         "env-launcher": r"(?m)^(?:/usr/bin/)?env:",
         "setsid-launcher": r"(?m)^(?:/usr/bin/)?setsid:",
@@ -50,7 +58,11 @@ def output_shapes(output):
         "vendor-loguru": r"(?m)^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \| (?:DEBUG|INFO|WARNING|ERROR|CRITICAL)\s*\|",
         "ansi-control": r"\x1b\[[0-9;]{0,32}m",
     }
-    return [label for label, pattern in patterns.items() if re.search(pattern, output)]
+    return [
+        label
+        for label, pattern in patterns.items()
+        if re.search(pattern, raw if label == "ansi-control" else output)
+    ]
 
 
 SMOKE = (

@@ -15,20 +15,21 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `_json_unique`（L21–L30）：接收`text`。 调用`json.loads`。 返回路径：L30的`json.loads(text, object_pairs_hook=pairs)`。
-- `_json_unique.pairs`（L22–L28）：接收`values`。 控制顺序：L24遍历`values`；L25按`key in result`分支；L26抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L28的`result`。
-- `output_shapes`（L33–L53）：接收`output`。 源码说明：Untrusted format hints, with no captured message or dynamic path.。 控制顺序：L35按`type(output) is not str`分支。 调用`type`、`patterns.items`、`re.search`。 返回路径：L36的`[]`；L53的`[label for label, pattern in patterns.items() if re.search(pattern, output)]`。
-- `native_startup_smoke`（L64–L113）：接收`sandbox`、`plan`、`database`、`identity_options`、`timeout`。 源码说明：Exercise the same isolated launcher, without importing candidate code.。 控制顺序：L92按`type(result.exit_code) is int and 0 <= result.exit_code <= 255`分支；L97按`type(output) is not str or len(output.encode()) > SMOKE_OUTPUT_LIMIT`分支；L100按`receipt["exit_status"] == "zero"`分支；L102按`type(value) is dict and set(value) == {"version_matches", "executable_matches", "cwd_…`分支。 调用`time.monotonic`、`min`、`_DEADLINE.set`、`redirected_command`、`product_argv`、`control_exec`、`shlex.join`、`remaining`、`type`等。 返回路径：L98的`receipt`；L109的`receipt`；L111的`receipt`。
-- `native_startup_smoke.remaining`（L71–L77）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L75按`value < 1`分支；L76抛异常，停止当前正常路径。 调用`int`、`time.monotonic`、`TimeoutError`。 返回路径：L77的`value`。
-- `native_startup_paths`（L215–L265）：接收`sandbox`、`timeout`。 源码说明：Return a fresh finite receipt or unknown; never serialize probe failures.。 控制顺序：L221按`budget < 1`分支；L224按`type(result.exit_code) is not int or result.exit_code != 0`分支；L226按`type(result.result) is not str or len(result.result.encode()) > 2048`分支；L229按`type(value) is not dict or set(value) != {"paths", "native_binary"}`分支；L232按`type(paths) is not dict or set(paths) != set(PATH_ROLES)`分支；L234遍历`paths.values()`；L235按`type(row) is not dict or set(row) != {"entry", "target", "dac_read", "dac_exec"}`分支；L237按`any(type(row[k]) is not str or row[k] not in KINDS for k in ("entry", "target"))`分支。后续分支沿下方源码相同行号继续阅读。 调用`_DEADLINE.set`、`time.monotonic`、`min`、`int`、`control_exec`、`type`、`len`、`result.result.encode`、`_json_unique`等。 返回路径：L222的`unknown`；L225的`unknown`；L227的`unknown`。
+- `normalize_sgr`（L22–L24）：接收`output`。 源码说明：Remove only bounded numeric SGR, never OSC or arbitrary terminal commands.。 调用`SGR.sub`。 返回路径：L24的`SGR.sub("", output)`。
+- `_json_unique`（L27–L36）：接收`text`。 调用`json.loads`。 返回路径：L36的`json.loads(text, object_pairs_hook=pairs)`。
+- `_json_unique.pairs`（L28–L34）：接收`values`。 控制顺序：L30遍历`values`；L31按`key in result`分支；L32抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L34的`result`。
+- `output_shapes`（L39–L65）：接收`output`。 源码说明：Untrusted format hints, with no captured message or dynamic path.。 控制顺序：L41按`type(output) is not str`分支。 调用`type`、`normalize_sgr`、`patterns.items`、`re.search`。 返回路径：L42的`[]`；L61的`[ label for label, pattern in patterns.items() if re.search(pattern, raw if label == "ansi…`。
+- `native_startup_smoke`（L76–L125）：接收`sandbox`、`plan`、`database`、`identity_options`、`timeout`。 源码说明：Exercise the same isolated launcher, without importing candidate code.。 控制顺序：L104按`type(result.exit_code) is int and 0 <= result.exit_code <= 255`分支；L109按`type(output) is not str or len(output.encode()) > SMOKE_OUTPUT_LIMIT`分支；L112按`receipt["exit_status"] == "zero"`分支；L114按`type(value) is dict and set(value) == {"version_matches", "executable_matches", "cwd_…`分支。 调用`time.monotonic`、`min`、`_DEADLINE.set`、`redirected_command`、`product_argv`、`control_exec`、`shlex.join`、`remaining`、`type`等。 返回路径：L110的`receipt`；L121的`receipt`；L123的`receipt`。
+- `native_startup_smoke.remaining`（L83–L89）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L87按`value < 1`分支；L88抛异常，停止当前正常路径。 调用`int`、`time.monotonic`、`TimeoutError`。 返回路径：L89的`value`。
+- `native_startup_paths`（L227–L277）：接收`sandbox`、`timeout`。 源码说明：Return a fresh finite receipt or unknown; never serialize probe failures.。 控制顺序：L233按`budget < 1`分支；L236按`type(result.exit_code) is not int or result.exit_code != 0`分支；L238按`type(result.result) is not str or len(result.result.encode()) > 2048`分支；L241按`type(value) is not dict or set(value) != {"paths", "native_binary"}`分支；L244按`type(paths) is not dict or set(paths) != set(PATH_ROLES)`分支；L246遍历`paths.values()`；L247按`type(row) is not dict or set(row) != {"entry", "target", "dac_read", "dac_exec"}`分支；L249按`any(type(row[k]) is not str or row[k] not in KINDS for k in ("entry", "target"))`分支。后续分支沿下方源码相同行号继续阅读。 调用`_DEADLINE.set`、`time.monotonic`、`min`、`int`、`control_exec`、`type`、`len`、`result.result.encode`、`_json_unique`等。 返回路径：L234的`unknown`；L237的`unknown`；L239的`unknown`。
 
 </details>
 
-**创建路径：** `workbench/capability_startup_paths.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L265。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_startup_paths.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L277。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10349`。本段原文以LF换行结束。
+本段原始字节数：`10653`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_startup_paths.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "67278b072298ae35d628784c7b9476f6b6e6a2a8528e4066daf583aeb1ae7fcb"} -->
+<!-- learning-source: {"path": "workbench/capability_startup_paths.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1597478308b4480ec90a0600b15d5b9af7f4999c13f146f1f052c652563d49b6"} -->
 ````python
 # workbench/capability_startup_paths.py
 """Failure-only fixed launch metadata and isolated, source-free interpreter smoke."""
@@ -49,6 +50,12 @@ from workbench.daytona_sessions import _DEADLINE
 PATH_OUTPUT_LIMIT = 2048
 SMOKE_OUTPUT_LIMIT = 512
 NATIVE_TAIL_LIMIT = 8000 - PATH_OUTPUT_LIMIT - SMOKE_OUTPUT_LIMIT
+SGR = re.compile(r"\x1b\[[0-9;]{0,32}m")
+
+
+def normalize_sgr(output):
+    """Remove only bounded numeric SGR, never OSC or arbitrary terminal commands."""
+    return SGR.sub("", output)
 
 
 def _json_unique(text):
@@ -68,6 +75,8 @@ def output_shapes(output):
     if type(output) is not str:
         return []
     output = output[:8000]
+    raw = output
+    output = normalize_sgr(output)
     patterns = {
         "env-launcher": r"(?m)^(?:/usr/bin/)?env:",
         "setsid-launcher": r"(?m)^(?:/usr/bin/)?setsid:",
@@ -83,7 +92,11 @@ def output_shapes(output):
         "vendor-loguru": r"(?m)^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3} \| (?:DEBUG|INFO|WARNING|ERROR|CRITICAL)\s*\|",
         "ansi-control": r"\x1b\[[0-9;]{0,32}m",
     }
-    return [label for label, pattern in patterns.items() if re.search(pattern, output)]
+    return [
+        label
+        for label, pattern in patterns.items()
+        if re.search(pattern, raw if label == "ansi-control" else output)
+    ]
 
 
 SMOKE = (

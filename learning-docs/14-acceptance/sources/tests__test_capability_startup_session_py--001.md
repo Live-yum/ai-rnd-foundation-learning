@@ -16,26 +16,26 @@
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
 - `native_plan`（L33–L55）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`SimpleNamespace`、`Selection`、`RuntimeContract`、`TaskCommand`。 返回路径：L34的`SimpleNamespace( selection=Selection(template="fastapiadmin"), runtime=RuntimeContract( st…`。
-- `startup_submission`（L58–L117）：接收`remote`、`product_argv`。 源码说明：Execute only the actual session-construction statements, never start().。 控制顺序：L111断言`len(calls) == 2`；L112断言`calls[0] == ("create", SESSION)`；L113断言`calls[1][0:2] == ("submit", SESSION)`；L114断言`calls[1][3] == {"timeout": 5}`；L115断言`calls[1][2].run_async is True`；L116断言`namespace["response"].cmd_id == "owned-command"`。 调用`Path`、`ast.parse`、`source.read_text`、`next`、`ast.walk`、`isinstance`、`enumerate`、`assigns`、`native_plan`等。 返回路径：L117的`calls[1][2].command, Path(namespace["command_output"])`。
+- `startup_submission`（L58–L119）：接收`remote`、`product_argv`。 源码说明：Execute only the actual session-construction statements, never start().。 控制顺序：L111断言`len(calls) == 2`；L112断言`calls[0] == ("create", SESSION)`；L113断言`calls[1][0:2] == ("submit", SESSION)`；L114断言`calls[1][3] == {"timeout": 5}`；L115断言`calls[1][2].run_async is True`；L116断言`namespace["response"].cmd_id == "owned-command"`。 调用`Path`、`ast.parse`、`source.read_text`、`next`、`ast.walk`、`isinstance`、`enumerate`、`assigns`、`native_plan`等。 返回路径：L119的`calls[1][2].command, namespace["command_output"]`。
 - `startup_submission.assigns`（L68–L71）：接收`node`、`name`。 调用`isinstance`、`any`。 返回路径：L69的`isinstance(node, ast.Assign) and any( isinstance(target, ast.Name) and target.id == name f…`。
 - `startup_submission.submit`（L77–L79）：接收`session`、`request`、`**kwargs`。 调用`calls.append`、`SimpleNamespace`。 返回路径：L79的`SimpleNamespace(cmd_id="owned-command")`。
-- `fixture_submission`（L120–L133）：接收`tmp_path`、`monkeypatch`、`argv`。 调用`(remote / "product/backend").mkdir`、`(control / "private").mkdir`、`monkeypatch.setattr`、`str`、`startup_submission`。 返回路径：L133的`startup_submission(remote=remote, product_argv=harmless_argv)`。
-- `fixture_submission.harmless_argv`（L127–L131）：接收`plan`、`original`、`database`、`**options`。 控制顺序：L128断言`original == readonly_start_command(plan).argv`；L129断言`database == {}`；L130断言`options == {"native_semaphore_storage": True}`。 调用`readonly_start_command`。 返回路径：L131的`argv`。
-- `launch_protocol`（L136–L147）：接收`tmp_path`、`command`。 调用`command_path.write_text`、`subprocess.Popen`、`str`。 返回路径：L147的`process, status_path`。
-- `stop_owned_group`（L150–L163）：接收`process`。 源码说明：Only the process group created by this fixture is eligible for signals.。 调用`os.killpg`、`process.communicate`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_actual_startup_preserves_session_exit_status`（L168–L189）：接收`tmp_path`、`monkeypatch`、`status`。 控制顺序：L184断言`process.returncode == 0`；L185断言`stdout == stderr == b""`；L186断言`status_path.read_text() == str(status) + "\n"`；L187断言`output.read_text() == "owned\n"`。 调用`fixture_submission`、`str`、`launch_protocol`、`process.communicate`、`status_path.read_text`、`output.read_text`、`stop_owned_group`、`pytest.mark.skipif`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_previous_outer_exec_loses_exit_status`（L193–L209）：接收`tmp_path`、`monkeypatch`。 控制顺序：L201断言`previous != command`；L205断言`process.returncode == 7`；L206断言`not status_path.exists()`；L207断言`output.read_text() == "owned\n"`。 调用`fixture_submission`、`command.replace`、`launch_protocol`、`process.communicate`、`status_path.exists`、`output.read_text`、`stop_owned_group`、`pytest.mark.skipif`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_submission_preserves_inner_exec_and_full_native_guard`（L212–L243）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L215断言`command.startswith(prefix)`；L217断言`launcher[:2] == ["/bin/sh", "-c"]`；L218断言`len(launcher) == 3`；L219断言`launcher[2].startswith("exec ")`；L226断言`launcher[2] == ( "exec " + shlex.join(expected) + " </dev/null >" + shlex.quote(str(o…`；L230断言`expected[guard - 3 : guard] == ["/usr/bin/python3", "-I", "-S"]`；L231断言`expected[guard + 1 : guard + 5] == [ "5173,8001", "8001,55432,55433", "--native-shm",…`；L237遍历`( "--reuid=rnd-module", "--regid=rnd-module", "--no-new-privs", "…`。后续分支沿下方源码相同行号继续阅读。 调用`startup_submission`、`command.startswith`、`shlex.split`、`len`、`launcher[2].startswith`、`isolation.product_argv`、`native_plan`、`readonly_start_command`、`shlex.join`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `live_process`（L246–L250）：接收`pid`。 调用`Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split`、`Path(f"/proc/{pid}/stat").read_text().rsplit`、`Path(f"/proc/{pid}/stat").read_text`、`Path`。 返回路径：L248的`Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"`；L250的`False`。
-- `test_timed_out_fixture_cleans_owned_group_and_descendant`（L254–L290）：接收`tmp_path`、`monkeypatch`。 控制顺序：L274在`not marker.exists()`成立时循环；L275断言`process.poll() is None`；L276断言`time.monotonic() < deadline`；L279断言`len(owned_pids) == 2`；L280断言`all(os.getpgid(pid) == process.pid and live_process(pid) for pid in owned_pids)`；L283断言`not status_path.exists()`；L287在`any(live_process(pid) for pid in owned_pids) and time.monotonic()…`成立时循环；L289断言`owned_pids and all(not live_process(pid) for pid in owned_pids)`。后续分支沿下方源码相同行号继续阅读。 调用`fixture_submission`、`str`、`launch_protocol`、`time.monotonic`、`marker.exists`、`process.poll`、`time.sleep`、`json.loads`、`marker.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `fixture_submission`（L122–L136）：接收`tmp_path`、`monkeypatch`、`argv`。 调用`(remote / "product/backend").mkdir`、`(control / "private").mkdir`、`monkeypatch.setattr`、`str`、`startup_submission`、`Path`。 返回路径：L136的`command, Path(output)`。
+- `fixture_submission.harmless_argv`（L129–L133）：接收`plan`、`original`、`database`、`**options`。 控制顺序：L130断言`original == readonly_start_command(plan).argv`；L131断言`database == {}`；L132断言`options == {"native_semaphore_storage": True}`。 调用`readonly_start_command`。 返回路径：L133的`argv`。
+- `launch_protocol`（L139–L150）：接收`tmp_path`、`command`。 调用`command_path.write_text`、`subprocess.Popen`、`str`。 返回路径：L150的`process, status_path`。
+- `stop_owned_group`（L153–L166）：接收`process`。 源码说明：Only the process group created by this fixture is eligible for signals.。 调用`os.killpg`、`process.communicate`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_actual_startup_preserves_session_exit_status`（L171–L192）：接收`tmp_path`、`monkeypatch`、`status`。 控制顺序：L187断言`process.returncode == 0`；L188断言`stdout == stderr == b""`；L189断言`status_path.read_text() == str(status) + "\n"`；L190断言`output.read_text() == "owned\n"`。 调用`fixture_submission`、`str`、`launch_protocol`、`process.communicate`、`status_path.read_text`、`output.read_text`、`stop_owned_group`、`pytest.mark.skipif`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_previous_outer_exec_loses_exit_status`（L196–L212）：接收`tmp_path`、`monkeypatch`。 控制顺序：L204断言`previous != command`；L208断言`process.returncode == 7`；L209断言`not status_path.exists()`；L210断言`output.read_text() == "owned\n"`。 调用`fixture_submission`、`command.replace`、`launch_protocol`、`process.communicate`、`status_path.exists`、`output.read_text`、`stop_owned_group`、`pytest.mark.skipif`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_submission_preserves_inner_exec_and_full_native_guard`（L215–L248）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L217断言`type(output) is str`；L218断言`output.startswith("/tmp/rnd-module-control/private/") and "\\" not in output`；L220断言`command.startswith(prefix)`；L222断言`launcher[:2] == ["/bin/sh", "-c"]`；L223断言`len(launcher) == 3`；L224断言`launcher[2].startswith("exec ")`；L231断言`launcher[2] == ( "exec " + shlex.join(expected) + " </dev/null >" + shlex.quote(outpu…`；L235断言`expected[guard - 3 : guard] == ["/usr/bin/python3", "-I", "-S"]`。后续分支沿下方源码相同行号继续阅读。 调用`startup_submission`、`type`、`output.startswith`、`command.startswith`、`shlex.split`、`len`、`launcher[2].startswith`、`isolation.product_argv`、`native_plan`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `live_process`（L251–L255）：接收`pid`。 调用`Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split`、`Path(f"/proc/{pid}/stat").read_text().rsplit`、`Path(f"/proc/{pid}/stat").read_text`、`Path`。 返回路径：L253的`Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] != "Z"`；L255的`False`。
+- `test_timed_out_fixture_cleans_owned_group_and_descendant`（L259–L295）：接收`tmp_path`、`monkeypatch`。 控制顺序：L279在`not marker.exists()`成立时循环；L280断言`process.poll() is None`；L281断言`time.monotonic() < deadline`；L284断言`len(owned_pids) == 2`；L285断言`all(os.getpgid(pid) == process.pid and live_process(pid) for pid in owned_pids)`；L288断言`not status_path.exists()`；L292在`any(live_process(pid) for pid in owned_pids) and time.monotonic()…`成立时循环；L294断言`owned_pids and all(not live_process(pid) for pid in owned_pids)`。后续分支沿下方源码相同行号继续阅读。 调用`fixture_submission`、`str`、`launch_protocol`、`time.monotonic`、`marker.exists`、`process.poll`、`time.sleep`、`json.loads`、`marker.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_startup_session.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L290。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_startup_session.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L295。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`10286`。本段原文以LF换行结束。
+本段原始字节数：`10600`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_startup_session.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "79e757a676fb8f7f068812e0a1abb69826dfe72630c20311c0352f930fb0a7bf"} -->
+<!-- learning-source: {"path": "tests/test_capability_startup_session.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "75739acef82c89a81f529e925cbaf1c5a201bba72c6e9d5219db28238ed98266"} -->
 ````python
 # tests/test_capability_startup_session.py
 """Real shell regression for Daytona 0.190.0's sourced-command protocol.
@@ -154,7 +154,9 @@ def startup_submission(*, remote, product_argv=isolation.product_argv):
     assert calls[1][3] == {"timeout": 5}
     assert calls[1][2].run_async is True
     assert namespace["response"].cmd_id == "owned-command"
-    return calls[1][2].command, Path(namespace["command_output"])
+    # This is a remote Linux path even when the controller test runs on Windows.
+    # Converting it to the host Path here changes slash and shell-quoting bytes.
+    return calls[1][2].command, namespace["command_output"]
 
 
 def fixture_submission(tmp_path, monkeypatch, argv):
@@ -170,7 +172,8 @@ def fixture_submission(tmp_path, monkeypatch, argv):
         assert options == {"native_semaphore_storage": True}
         return argv
 
-    return startup_submission(remote=remote, product_argv=harmless_argv)
+    command, output = startup_submission(remote=remote, product_argv=harmless_argv)
+    return command, Path(output)
 
 
 def launch_protocol(tmp_path, command):
@@ -251,6 +254,8 @@ def test_previous_outer_exec_loses_exit_status(tmp_path, monkeypatch):
 
 def test_submission_preserves_inner_exec_and_full_native_guard():
     command, output = startup_submission(remote="/tmp/rnd-capability")
+    assert type(output) is str
+    assert output.startswith("/tmp/rnd-module-control/private/") and "\\" not in output
     prefix = "cd /tmp/rnd-capability/product/backend && "
     assert command.startswith(prefix)
     launcher = shlex.split(command[len(prefix) :])
@@ -264,7 +269,7 @@ def test_submission_preserves_inner_exec_and_full_native_guard():
         native_semaphore_storage=True,
     )
     assert launcher[2] == (
-        "exec " + shlex.join(expected) + " </dev/null >" + shlex.quote(str(output)) + " 2>&1"
+        "exec " + shlex.join(expected) + " </dev/null >" + shlex.quote(output) + " 2>&1"
     )
     guard = expected.index(isolation.GUARD)
     assert expected[guard - 3 : guard] == ["/usr/bin/python3", "-I", "-S"]

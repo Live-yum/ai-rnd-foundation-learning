@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L302。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L305。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`23877`。本段原文以LF换行结束。
+本段原始字节数：`24199`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "33baf2f6f45ebf8e9dd4c8390ac0effabae9ce2ff6808dab4b64d54a49033074"} -->
+<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fe63d7a38ac91d707c6b23f30f3d2b47a88365163486d203955211290d09feee"} -->
 ````markdown
 <!-- docs/custom-source-isolation.md -->
 # 自定义源码执行：有证据的启用门
@@ -178,6 +178,9 @@ tmpfs 随容器停止清空。因此候选 profile 记录的是 `restart_kind=ap
 内存信号量分类要求同一完整 traceback 内出现准确的进程池构造和 SemLock 帧及权限
 拒绝；后续清理异常可单独保留为终止异常。缺少匹配信息时明确记录 unknown，不泄露
 路径、异常正文或凭据。这些分类来自不可信输出，仅用于定位，不能替代真实内核证据。
+实际失败输出已观察到 ANSI 颜色序列；分类前先截取原字节预算，再仅删除参数长度
+不超过 32 的数字/分号 SGR。不会解释 OSC、其他终端命令、断裂或超长序列，也不会
+在删去颜色字节后补读更多正文；原输出非空状态和颜色格式提示仍保留。
 原生 CI 另在默认 guard 下实际构造 spawn 进程池，验证未明确启用原生共享内存策略时，
 只读范围外的信号量申请仍被拒绝。诊断与默认拒绝测试不改变调度器或应用健康期限。
 

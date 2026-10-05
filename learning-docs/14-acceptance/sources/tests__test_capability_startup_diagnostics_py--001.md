@@ -19,37 +19,43 @@
 - `test_nontext_startup_output_never_stringifies_candidate_data`（L42–L52）：接收`output`。 控制顺序：L44断言`result["output_readable"] is False`；L45断言`result["http_status"] is None`；L46断言`result["http_error"] == "other"`；L47断言`result["output_hints"] == []`；L48断言`result["startup_phase_hint"] == "unknown"`；L49断言`result["failure_component"] == "unknown"`；L50断言`result["exception_type"] == "unknown"`；L51断言`result["exception_errno"] is None`。后续分支沿下方源码相同行号继续阅读。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_only_exact_public_module_names_can_be_reported`（L58–L65）：接收`module`。 控制顺序：L62断言`result["known_missing_modules"] == [module]`；L63断言`startup_failure_diagnostic("x" * 8000 + "PermissionError", 0, "none")["output_hints"]…`。 调用`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_native_loader_failure_is_not_mislabeled_as_missing_module`（L68–L78）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L75断言`result["output_hints"] == ["import-error", "native-library-mapping"]`；L76断言`result["tmpfs_noexec"] is True`；L77断言`"secret" not in json.dumps(result)`；L78断言`startup_failure_diagnostic("", None, "none", "secret")["tmpfs_noexec"] is None`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_semaphore_failure_requires_known_constructor_frames_and_denial`（L92–L100）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L94断言`result["failure_component"] == "multiprocessing-semaphore"`；L95断言`result["exception_type"] == "PermissionError"`；L96断言`result["exception_errno"] == 13`；L97断言`result["startup_phase_hint"] == "factory"`；L98断言`result["application_startup_reported"] is False`；L99断言`"secret" not in json.dumps(result)`；L100断言`"passed" not in result`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_partial_or_unrelated_trace_does_not_claim_semaphore`（L115–L118）：接收`old`、`new`。 控制顺序：L117断言`result["failure_component"] == "unknown"`；L118断言`"private_constructor" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`SEMAPHORE_TRACE.replace`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_only_fixed_errno_values_are_emitted`（L122–L124）：接收`number`。 控制顺序：L124断言`result["exception_errno"] == number`。 调用`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_unknown_errno_is_not_copied`（L128–L131）：接收`number`。 控制顺序：L130断言`result["exception_errno"] is None`；L131断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_terminal_unknown_error_does_not_hide_complete_earlier_trace`（L134–L141）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L138断言`result["exception_type"] == "unknown"`；L139断言`result["exception_errno"] is None`；L140断言`result["failure_component"] == "multiprocessing-semaphore"`；L141断言`"SecretError" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_secondary_traceback_keeps_primary_semaphore_hint_and_terminal_errno`（L152–L165）：接收`separator`。 控制顺序：L161断言`result["failure_component"] == "multiprocessing-semaphore"`；L162断言`result["exception_type"] == "FileNotFoundError"`；L163断言`result["exception_errno"] == 2`；L164断言`result["output_hints"] == ["permission-denied", "missing-file"]`；L165断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_unrelated_permission_error_cannot_complete_a_constructor_trace`（L169–L178）：接收`header`。 控制顺序：L176断言`result["exception_type"] == "PermissionError"`；L177断言`result["exception_errno"] == 13`；L178断言`result["failure_component"] == "unknown"`。 调用`SEMAPHORE_TRACE.replace("PermissionError", "FileNotFoundError").r…`、`SEMAPHORE_TRACE.replace`、`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_incomplete_traceback_cannot_supply_a_semaphore_hint`（L181–L186）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L184遍历`(no_header, no_error.ljust(8000) + "PermissionError: [Errno 13] p…`；L186断言`result["failure_component"] == "unknown"`。 调用`SEMAPHORE_TRACE.split`、`no_error.ljust`、`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_startup_phase_is_only_a_fixed_hint`（L199–L202）：接收`output`、`phase`。 控制顺序：L201断言`result["startup_phase_hint"] == phase`；L202断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_context_outside_the_existing_output_bound_cannot_supply_a_hint`（L205–L210）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L207断言`result["failure_component"] == "unknown"`；L208断言`result["startup_phase_hint"] == "unknown"`；L209断言`result["exception_type"] == "unknown"`；L210断言`result["exception_errno"] is None`。 调用`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_tail_traceback_preserves_final_error_without_joining_truncated_primary_trace`（L213–L228）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L225断言`result["failure_component"] == "unknown"`；L226断言`result["exception_type"] == "PermissionError"`；L227断言`result["exception_errno"] == 13`；L228断言`"secret" not in json.dumps(result)`。 调用`SEMAPHORE_TRACE.replace("PermissionError", "FileNotFoundError").r…`、`SEMAPHORE_TRACE.replace`、`primary.split`、`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_non_ascii_output_has_same_byte_budget_before_any_parsing`（L231–L237）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L233断言`result["failure_component"] == "unknown"`；L234断言`result["startup_phase_hint"] == "unknown"`；L235断言`result["exception_type"] == "unknown"`；L236断言`result["exception_errno"] is None`；L237断言`"汉" not in json.dumps(result, ensure_ascii=False)`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_split_utf8_and_surrogate_data_never_escape_diagnostic`（L240–L246）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L244断言`result["exception_type"] == "PermissionError"`；L245断言`result["exception_errno"] == 13`；L246断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_pinned_sdk_command_exit_facts_use_status_only`（L253–L284）：接收`value`、`expected`、`monkeypatch`。 控制顺序：L279断言`startup_command_exit_status(process, "private-session", "private-command", 5) == expe…`；L283断言`seen == [5]`；L284断言`daytona_sessions._DEADLINE.get() is None`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`seen.append`、`daytona_sessions.harden_toolbox_transport`、`httpx.Client`、`Process`、`startup_command_exit_status`、`daytona_sessions._DEADLINE.get`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_pinned_sdk_command_exit_facts_use_status_only.get_command`（L270–L275）：接收`session_id`、`command_id`。 控制顺序：L271断言`session_id == "private-session" and command_id == "private-command"`。 调用`rest.request`、`Command.from_dict`。 返回路径：L273的`Command.from_dict( {"id": command_id, "command": "secret TOKEN=secret", "exitCode": value}…`。
-- `test_pinned_sdk_null_or_omitted_exit_never_proves_running`（L288–L296）：接收`exit_present`。 控制顺序：L292按`exit_present`分支；L296断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`Command.from_dict`、`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_pinned_sdk_strict_exit_model_rejection_is_safe`（L300–L310）：接收`value`。 控制顺序：L310断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`pytest.raises`、`get_command`、`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_pinned_sdk_strict_exit_model_rejection_is_safe.get_command`（L304–L305）：接收`*args`。 调用`Command.from_dict`。 返回路径：L305的`Command.from_dict({"id": "fixture-command", "command": "secret", "exitCode": value})`。
-- `test_malformed_exit_values_remain_unknown`（L314–L318）：接收`value`。 控制顺序：L318断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_or_different_command_remains_unknown`（L325–L327）：接收`command`。 控制顺序：L327断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_sdk_method_and_status_error_remain_unknown_and_restore_deadline`（L330–L344）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L338遍历`(SimpleNamespace(), SimpleNamespace(get_session_command=unavailab…`；L339断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`；L342断言`daytona_sessions._DEADLINE.get() == 123`。 调用`daytona_sessions._DEADLINE.set`、`SimpleNamespace`、`startup_command_exit_status`、`daytona_sessions._DEADLINE.get`、`daytona_sessions._DEADLINE.reset`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_missing_sdk_method_and_status_error_remain_unknown_and_restore_deadline.unavailable`（L333–L334）：接收`*args`。 控制顺序：L334抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_command_status_classifier_cannot_disclose_arbitrary_values`（L348–L351）：接收`value`。 控制顺序：L350断言`result["command_exit_status"] == "unknown"`；L351断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `colored`（L92–L93）：接收`text`。 调用`"\x1b[0m\x1b[38;2;1;2;3m".join`。 返回路径：L93的`"\x1b[31m" + "\x1b[0m\x1b[38;2;1;2;3m".join(text) + "\x1b[0m"`。
+- `test_observed_sgr_can_split_exception_words_and_errno`（L96–L102）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L99断言`result["exception_type"] == "FileNotFoundError"`；L100断言`result["exception_errno"] == 2`；L101断言`result["output_hints"] == ["missing-file"]`；L102断言`result["output_shapes"] == ["file-not-found-type", "ansi-control"]`。 调用`colored`、`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_sgr_trace_retains_same_trace_association_with_later_cleanup`（L105–L114）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L112断言`result["failure_component"] == "multiprocessing-semaphore"`；L113断言`result["exception_type"] == "FileNotFoundError" and result["exception_errno"] == 2`；L114断言`"secret" not in json.dumps(result)`。 调用`"\n".join`、`SEMAPHORE_TRACE.splitlines`、`colored`、`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_incomplete_oversize_and_non_sgr_sequences_are_not_interpreted`（L120–L124）：接收`prefix`。 控制顺序：L122断言`result["exception_type"] == "unknown"`；L123断言`result["failure_component"] == "unknown"`；L124断言`"private" not in json.dumps(result) and "secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_stripped_control_bytes_do_not_create_a_larger_scan_window`（L127–L133）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L131断言`result["output_nonempty"] is True`；L132断言`result["exception_type"] == "unknown" and result["output_hints"] == []`；L133断言`result["output_shapes"] == ["ansi-control"]`。 调用`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_sgr_from_another_trace_cannot_supply_a_semaphore_denial`（L136–L140）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L140断言`startup_failure_diagnostic(trace, 502, "none")["failure_component"] == "unknown"`。 调用`SEMAPHORE_TRACE.replace`、`"\n".join`、`(first + second).splitlines`、`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_semaphore_failure_requires_known_constructor_frames_and_denial`（L143–L151）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L145断言`result["failure_component"] == "multiprocessing-semaphore"`；L146断言`result["exception_type"] == "PermissionError"`；L147断言`result["exception_errno"] == 13`；L148断言`result["startup_phase_hint"] == "factory"`；L149断言`result["application_startup_reported"] is False`；L150断言`"secret" not in json.dumps(result)`；L151断言`"passed" not in result`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_partial_or_unrelated_trace_does_not_claim_semaphore`（L166–L169）：接收`old`、`new`。 控制顺序：L168断言`result["failure_component"] == "unknown"`；L169断言`"private_constructor" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`SEMAPHORE_TRACE.replace`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_only_fixed_errno_values_are_emitted`（L173–L175）：接收`number`。 控制顺序：L175断言`result["exception_errno"] == number`。 调用`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unknown_errno_is_not_copied`（L179–L182）：接收`number`。 控制顺序：L181断言`result["exception_errno"] is None`；L182断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_terminal_unknown_error_does_not_hide_complete_earlier_trace`（L185–L192）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L189断言`result["exception_type"] == "unknown"`；L190断言`result["exception_errno"] is None`；L191断言`result["failure_component"] == "multiprocessing-semaphore"`；L192断言`"SecretError" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_secondary_traceback_keeps_primary_semaphore_hint_and_terminal_errno`（L203–L216）：接收`separator`。 控制顺序：L212断言`result["failure_component"] == "multiprocessing-semaphore"`；L213断言`result["exception_type"] == "FileNotFoundError"`；L214断言`result["exception_errno"] == 2`；L215断言`result["output_hints"] == ["permission-denied", "missing-file"]`；L216断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unrelated_permission_error_cannot_complete_a_constructor_trace`（L220–L229）：接收`header`。 控制顺序：L227断言`result["exception_type"] == "PermissionError"`；L228断言`result["exception_errno"] == 13`；L229断言`result["failure_component"] == "unknown"`。 调用`SEMAPHORE_TRACE.replace("PermissionError", "FileNotFoundError").r…`、`SEMAPHORE_TRACE.replace`、`startup_failure_diagnostic`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_incomplete_traceback_cannot_supply_a_semaphore_hint`（L232–L237）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L235遍历`(no_header, no_error.ljust(8000) + "PermissionError: [Errno 13] p…`；L237断言`result["failure_component"] == "unknown"`。 调用`SEMAPHORE_TRACE.split`、`no_error.ljust`、`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_startup_phase_is_only_a_fixed_hint`（L250–L253）：接收`output`、`phase`。 控制顺序：L252断言`result["startup_phase_hint"] == phase`；L253断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_context_outside_the_existing_output_bound_cannot_supply_a_hint`（L256–L261）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L258断言`result["failure_component"] == "unknown"`；L259断言`result["startup_phase_hint"] == "unknown"`；L260断言`result["exception_type"] == "unknown"`；L261断言`result["exception_errno"] is None`。 调用`startup_failure_diagnostic`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_tail_traceback_preserves_final_error_without_joining_truncated_primary_trace`（L264–L279）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L276断言`result["failure_component"] == "unknown"`；L277断言`result["exception_type"] == "PermissionError"`；L278断言`result["exception_errno"] == 13`；L279断言`"secret" not in json.dumps(result)`。 调用`SEMAPHORE_TRACE.replace("PermissionError", "FileNotFoundError").r…`、`SEMAPHORE_TRACE.replace`、`primary.split`、`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_non_ascii_output_has_same_byte_budget_before_any_parsing`（L282–L288）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L284断言`result["failure_component"] == "unknown"`；L285断言`result["startup_phase_hint"] == "unknown"`；L286断言`result["exception_type"] == "unknown"`；L287断言`result["exception_errno"] is None`；L288断言`"汉" not in json.dumps(result, ensure_ascii=False)`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_split_utf8_and_surrogate_data_never_escape_diagnostic`（L291–L297）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L295断言`result["exception_type"] == "PermissionError"`；L296断言`result["exception_errno"] == 13`；L297断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pinned_sdk_command_exit_facts_use_status_only`（L304–L335）：接收`value`、`expected`、`monkeypatch`。 控制顺序：L330断言`startup_command_exit_status(process, "private-session", "private-command", 5) == expe…`；L334断言`seen == [5]`；L335断言`daytona_sessions._DEADLINE.get() is None`。 调用`monkeypatch.setattr`、`SimpleNamespace`、`seen.append`、`daytona_sessions.harden_toolbox_transport`、`httpx.Client`、`Process`、`startup_command_exit_status`、`daytona_sessions._DEADLINE.get`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pinned_sdk_command_exit_facts_use_status_only.get_command`（L321–L326）：接收`session_id`、`command_id`。 控制顺序：L322断言`session_id == "private-session" and command_id == "private-command"`。 调用`rest.request`、`Command.from_dict`。 返回路径：L324的`Command.from_dict( {"id": command_id, "command": "secret TOKEN=secret", "exitCode": value}…`。
+- `test_pinned_sdk_null_or_omitted_exit_never_proves_running`（L339–L347）：接收`exit_present`。 控制顺序：L343按`exit_present`分支；L347断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`Command.from_dict`、`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pinned_sdk_strict_exit_model_rejection_is_safe`（L351–L361）：接收`value`。 控制顺序：L361断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`pytest.raises`、`get_command`、`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_pinned_sdk_strict_exit_model_rejection_is_safe.get_command`（L355–L356）：接收`*args`。 调用`Command.from_dict`。 返回路径：L356的`Command.from_dict({"id": "fixture-command", "command": "secret", "exitCode": value})`。
+- `test_malformed_exit_values_remain_unknown`（L365–L369）：接收`value`。 控制顺序：L369断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_or_different_command_remains_unknown`（L376–L378）：接收`command`。 控制顺序：L378断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`。 调用`SimpleNamespace`、`startup_command_exit_status`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_sdk_method_and_status_error_remain_unknown_and_restore_deadline`（L381–L395）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L389遍历`(SimpleNamespace(), SimpleNamespace(get_session_command=unavailab…`；L390断言`startup_command_exit_status(process, "session", "fixture-command", 5) == "unknown"`；L393断言`daytona_sessions._DEADLINE.get() == 123`。 调用`daytona_sessions._DEADLINE.set`、`SimpleNamespace`、`startup_command_exit_status`、`daytona_sessions._DEADLINE.get`、`daytona_sessions._DEADLINE.reset`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_missing_sdk_method_and_status_error_remain_unknown_and_restore_deadline.unavailable`（L384–L385）：接收`*args`。 控制顺序：L385抛异常，停止当前正常路径。 调用`RuntimeError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_command_status_classifier_cannot_disclose_arbitrary_values`（L399–L402）：接收`value`。 控制顺序：L401断言`result["command_exit_status"] == "unknown"`；L402断言`"secret" not in json.dumps(result)`。 调用`startup_failure_diagnostic`、`json.dumps`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_startup_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L351。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_startup_diagnostics.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L402。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`14293`。本段原文以LF换行结束。
+本段原始字节数：`16762`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_startup_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d7a9aa48f73634532f65a6b694a83db9e9700fcec97d216f315f2c9b80e2950f"} -->
+<!-- learning-source: {"path": "tests/test_capability_startup_diagnostics.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9980b548241a09cfd17fdbee915a3ff6dcb03536ba2f26b66daa48773765d5e6"} -->
 ````python
 # tests/test_capability_startup_diagnostics.py
 """Startup hints cannot become product acceptance or disclose candidate output."""
@@ -141,6 +147,57 @@ SEMAPHORE_TRACE = """Traceback (most recent call last):
     sl = self._semlock = _multiprocessing.SemLock(
 PermissionError: [Errno 13] Permission denied: '/private/secret'
 """
+
+
+def colored(text):
+    return "\x1b[31m" + "\x1b[0m\x1b[38;2;1;2;3m".join(text) + "\x1b[0m"
+
+
+def test_observed_sgr_can_split_exception_words_and_errno():
+    output = colored("FileNotFoundError: [Errno 2] No such file or directory")
+    result = startup_failure_diagnostic(output, 502, "none")
+    assert result["exception_type"] == "FileNotFoundError"
+    assert result["exception_errno"] == 2
+    assert result["output_hints"] == ["missing-file"]
+    assert result["output_shapes"] == ["file-not-found-type", "ansi-control"]
+
+
+def test_sgr_trace_retains_same_trace_association_with_later_cleanup():
+    # Ordinary per-line coloring stays comfortably within the original budget.
+    trace = "\n".join("\x1b[31m" + line + "\x1b[0m" for line in SEMAPHORE_TRACE.splitlines())
+    trace += "\nTraceback (most recent call last):\n" + colored(
+        "FileNotFoundError: [Errno 2] secret"
+    )
+    result = startup_failure_diagnostic(trace, 502, "none")
+    assert result["failure_component"] == "multiprocessing-semaphore"
+    assert result["exception_type"] == "FileNotFoundError" and result["exception_errno"] == 2
+    assert "secret" not in json.dumps(result)
+
+
+@pytest.mark.parametrize(
+    "prefix", ["\x1b[", "\x1b[123", "\x1b[" + "1;" * 10000 + "m", "\x1b]0;private\x07"]
+)
+def test_incomplete_oversize_and_non_sgr_sequences_are_not_interpreted(prefix):
+    result = startup_failure_diagnostic(prefix + "PermissionError: [Errno 13] secret", 502, "none")
+    assert result["exception_type"] == "unknown"
+    assert result["failure_component"] == "unknown"
+    assert "private" not in json.dumps(result) and "secret" not in json.dumps(result)
+
+
+def test_stripped_control_bytes_do_not_create_a_larger_scan_window():
+    result = startup_failure_diagnostic(
+        "\x1b[0m" * 2000 + "PermissionError: [Errno 13] secret", 502, "none"
+    )
+    assert result["output_nonempty"] is True
+    assert result["exception_type"] == "unknown" and result["output_hints"] == []
+    assert result["output_shapes"] == ["ansi-control"]
+
+
+def test_sgr_from_another_trace_cannot_supply_a_semaphore_denial():
+    first = SEMAPHORE_TRACE.replace("PermissionError: [Errno 13]", "FileNotFoundError: [Errno 2]")
+    second = "Traceback (most recent call last):\nPermissionError: [Errno 13] secret"
+    trace = "\n".join("\x1b[31m" + line + "\x1b[0m" for line in (first + second).splitlines())
+    assert startup_failure_diagnostic(trace, 502, "none")["failure_component"] == "unknown"
 
 
 def test_semaphore_failure_requires_known_constructor_frames_and_denial():
