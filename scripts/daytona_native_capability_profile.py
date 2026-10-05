@@ -65,7 +65,7 @@ DESCRIPTORS = tuple(
 )
 DIAGNOSTIC_SCAN_BYTES = 65536
 DIAGNOSTIC_REPORT_BYTES = 4096
-REVIEWED_DOCKERFILE_SHA256 = "1e9aa22679e06236a0c5f5cfbafe5fc2ff7f128f3f8e96aa38e398364e2bf5db"
+REVIEWED_DOCKERFILE_SHA256 = "ceb125fcca1a7c3ea8e7dae44a2b0ca64a7fb4374926d55be29ea8976ba95d59"
 DIAGNOSTIC_STAGES = {
     "prepare-profile-validation",
     "prepare-input-validation",
@@ -102,6 +102,7 @@ REVIEWED_RUNS = (
     ("dependency-builder", "prepare-install-directories"),
     ("dependency-builder", "install-python-dependencies"),
     ("dependency-builder", "install-node-dependencies"),
+    ("dependency-builder", "patch-native-preview"),
     ("dependency-builder", "collect-dependency-metadata"),
     ("stage-3", "seal-runtime-image"),
 )

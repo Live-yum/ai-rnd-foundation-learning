@@ -17,6 +17,7 @@ import zipfile
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 import pytest
+from capability_dependency_fixtures import runtime_patch_entries, runtime_patches
 
 from scripts import daytona_dependency_build as build
 from scripts import daytona_dependency_image as dependency_image
@@ -449,6 +450,9 @@ def metadata_image(tmp_path, monkeypatch, request):
     monkeypatch.setattr(build, "BUILD", builder)
     monkeypatch.setattr(build, "PYTHON_BUILD", interpreter)
     monkeypatch.setattr(build, "Path", image_path)
+    # This fixture exercises bounded metadata subprocesses. Independent tests
+    # use actual copied Vite bytes and no-follow installed provenance reads.
+    monkeypatch.setattr(build, "native_preview_patch_provenance", runtime_patches)
     monkeypatch.setattr(build.os, "geteuid", lambda: 1000, raising=False)
     return image, descriptors
 
@@ -613,6 +617,7 @@ def test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration
     assert collected["normalized_descriptors"] == original["normalized_descriptors"]
     if native:
         assert collected["descriptor_roles"] == build.native_descriptor_roles()
+        assert collected["runtime_patches"] == runtime_patches()
         assert "source_descriptor_bytes" not in collected
         assert not (image / "runtime/fastapiadmin/frontend/app").exists()
         assert not (image / "runtime/fastapiadmin/frontend/docs").exists()
@@ -622,13 +627,14 @@ def test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration
     assert secret not in output.read_text()
     assert "descriptor-content-must-not-be-emitted" not in output.read_text()
     profile = "fastapiadmin" if native else "python-basic"
+    entries = runtime_patch_entries() if native else {}
     record = {
         **collected,
         "recipe_identity": "a" * 64,
         "roots": dependency_image.ROOTS[profile],
         "groups": dependency_image.GROUPS[profile],
-        "entries": {},
-        "installed_tree_sha256": dependency_image.digest({}),
+        "entries": entries,
+        "installed_tree_sha256": dependency_image.digest(entries),
     }
     assert (
         dependency_image.validate_manifest({"schema": 1, "profiles": {profile: record}}, profile)
@@ -902,3 +908,17 @@ def test_native_fetch_and_install_both_copy_the_virtual_store():
         assert "--ignore-scripts" in command
         assert "--frozen-lockfile" in command
     assert "--offline" in commands["install"]
+
+
+def test_native_preview_patch_runs_offline_nonroot_before_collection_and_sealing():
+    recipe = (ROOT / "tools/daytona/capability-native-snapshot.Dockerfile").read_text()
+    patch = "RUN --network=none /opt/rnd/bin/python-build -I -S /opt/rnd/bin/dependency-build.py patch-native-preview"
+    assert recipe.count(patch) == 1
+    before, after = recipe.split(patch)
+    assert before.rsplit("USER ", 1)[1].startswith("daytona\n")
+    assert before.index("pnpm install") < len(before)
+    assert after.index("collect --native") < after.index("FROM native-system")
+    assert (
+        "patch-native-preview"
+        not in (ROOT / "tools/daytona/capability-snapshot.Dockerfile").read_text()
+    )

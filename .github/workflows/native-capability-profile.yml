@@ -129,7 +129,7 @@ jobs:
           RND_REQUIRE_NODE_TESTS: '1'
           RND_REQUIRE_NATIVE_VITE_TESTS: '1'
           RND_NATIVE_TEST_NODE_MODULES: ${{ github.workspace }}/.native/tool-product/frontend/web/node_modules
-        run: uv run pytest -q tests/test_capability_native_build.py
+        run: uv run pytest -q tests/test_capability_native_build.py tests/test_capability_native_preview_patch.py
       - name: Create the local control plane with random local credentials
         run: uv run python -m scripts.daytona_local prepare --directory .data/daytona-capability
       - name: Build pinned release locally and lock immutable images

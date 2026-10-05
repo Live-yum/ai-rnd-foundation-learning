@@ -16,6 +16,10 @@ from pathlib import Path, PurePosixPath
 
 MANIFEST = Path("/opt/rnd/runtime/dependency-manifest.json")
 HEX = re.compile(r"[a-f0-9]{64}")
+NATIVE_NODE_ROOT = "/opt/rnd/runtime/fastapiadmin/frontend/node_modules"
+VITE_PATCH_PATH = re.compile(
+    r"\.pnpm/vite@7\.3\.3(?:_[A-Za-z0-9@+_.-]+)?/node_modules/vite/dist/node/chunks/config\.js"
+)
 ROOTS = {
     "python-basic": [
         "/opt/rnd/runtime/python-basic/.venv",
@@ -67,6 +71,51 @@ def native_descriptor_roles():
             "frontend/docs/pnpm-lock.yaml",
         ],
     }
+
+
+def native_runtime_patch_identity():
+    """Reviewed physical patch identity; no runtime code loading or execution."""
+    return {
+        "id": "vite-preview-interface-eperm-v1",
+        "package": "vite",
+        "version": "7.3.3",
+        "upstream_sha256": "339ee4656b2ca976ca320b48cffba04361f91ad0899a32a1c60ba9b2910e772e",
+        "patched_sha256": "8df548e7d1456f542321e05139faec50f23f15e64afc5a434c57583308bcc86e",
+    }
+
+
+def validate_runtime_patches(patches, entries):
+    """Bind the exact patch to its no-follow inventory and public Vite link."""
+    identity = native_runtime_patch_identity()
+    if (
+        type(patches) is not list
+        or len(patches) != 1
+        or type(patches[0]) is not dict
+        or set(patches[0]) != {*identity, "relative_path"}
+        or any(patches[0].get(key) != value for key, value in identity.items())
+        or type(patches[0].get("relative_path")) is not str
+        or not VITE_PATCH_PATH.fullmatch(patches[0]["relative_path"])
+    ):
+        raise ValueError("Missing or incompatible native runtime patch identity")
+    relative = patches[0]["relative_path"]
+    physical = NATIVE_NODE_ROOT + "/" + relative
+    entry = entries.get(physical)
+    vite = entries.get(NATIVE_NODE_ROOT + "/vite")
+    if (
+        not isinstance(entry, dict)
+        or entry.get("type") != "file"
+        or entry.get("sha256") != identity["patched_sha256"]
+        or not isinstance(vite, dict)
+        or vite.get("type") != "symlink"
+        or vite.get("target") != relative.removesuffix("/dist/node/chunks/config.js")
+    ):
+        raise ValueError("Native runtime patch file or Vite link differs")
+    parent = PurePosixPath(physical).parent
+    while parent.is_relative_to(NATIVE_NODE_ROOT):
+        directory = entries.get(str(parent))
+        if not isinstance(directory, dict) or directory.get("type") != "directory":
+            raise ValueError("Native runtime patch path is not a physical directory")
+        parent = parent.parent
 
 
 def canonical(value):
@@ -209,9 +258,11 @@ def validate_links(entries, roots):
             resolve(path)
 
 
-def seal(roots):
+def seal(roots, *, runtime_patches=None):
     """Run only after the builder exited, with no app process sharing this layer."""
-    inventory(roots, readonly=False)
+    entries = inventory(roots, readonly=False)
+    if NATIVE_NODE_ROOT in roots:
+        validate_runtime_patches(runtime_patches, entries)
 
     def visit(parent, name):
         info = os.stat(name, dir_fd=parent, follow_symlinks=False)
@@ -279,7 +330,7 @@ def validate_manifest(value, profile):
         "harness_descriptors",
     }
     if profile == "fastapiadmin":
-        required.add("descriptor_roles")
+        required.update({"descriptor_roles", "runtime_patches"})
     if (
         not isinstance(record, dict)
         or not required <= set(record)
@@ -327,6 +378,7 @@ def validate_manifest(value, profile):
             )
         ):
             raise ValueError("Native source descriptor roles or immutable source hashes differ")
+        validate_runtime_patches(record["runtime_patches"], record["entries"])
     return record
 
 
@@ -361,6 +413,7 @@ def receipt(profile, *, product=None, path=MANIFEST):
         "descriptors_verified": product is not None,
         "installed_tree_verified": True,
         "readonly_verified": True,
+        **({"runtime_patches": record["runtime_patches"]} if profile == "fastapiadmin" else {}),
     }
 
 
@@ -372,7 +425,14 @@ def create(profile, inputs, *, path=MANIFEST):
     )
     record = dict(inputs)
     record.update(roots=ROOTS[profile], groups=GROUPS[profile])
-    record["entries"] = seal(record["roots"])
+    if profile == "fastapiadmin":
+        # Validate builder-supplied identities against actual no-follow file
+        # hashes before the first privileged ownership or permission change.
+        record["entries"] = inventory(record["roots"], readonly=False)
+        record["installed_tree_sha256"] = digest(record["entries"])
+        value["profiles"][profile] = record
+        validate_manifest(value, profile)
+    record["entries"] = seal(record["roots"], runtime_patches=record.get("runtime_patches"))
     record["installed_tree_sha256"] = digest(record["entries"])
     value["profiles"][profile] = record
     validate_manifest(value, profile)
@@ -397,7 +457,8 @@ def main():
         )
         os.chmod("/opt/rnd/build-tools-manifest.json", 0o444)
     elif args.action == "seal":
-        seal(ROOTS[args.profile])
+        inputs = json.loads(regular_bytes(args.inputs.absolute())) if args.inputs else {}
+        seal(ROOTS[args.profile], runtime_patches=inputs.get("runtime_patches"))
     elif args.action == "create":
         create(args.profile, json.loads(regular_bytes(args.inputs.absolute())))
     elif args.action == "verify-runtime":
@@ -415,7 +476,10 @@ def main():
                     "installed_tree_sha256": record["installed_tree_sha256"],
                     "original_descriptors": record["original_descriptors"],
                     **(
-                        {"descriptor_roles": record["descriptor_roles"]}
+                        {
+                            "descriptor_roles": record["descriptor_roles"],
+                            "runtime_patches": record["runtime_patches"],
+                        }
                         if args.profile == "fastapiadmin"
                         else {}
                     ),

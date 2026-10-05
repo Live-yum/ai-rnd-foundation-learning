@@ -25,6 +25,7 @@ import yaml
 from scripts import daytona_dependency_build as dependencies
 from scripts import daytona_local as local
 from scripts.daytona_build import BUILT, export_source, require_api_image
+from workbench.capability_dependencies import valid_native_runtime_patches
 from workbench.capability_isolation import ContainerInspectionRejected
 from workbench.local_only import DAYTONA_SOURCE, DAYTONA_VERSION
 from workbench.settings import ROOT
@@ -374,7 +375,7 @@ def inspect_dependency_manifest(image_id, profile, descriptors):
             "installed_tree_sha256",
             "original_descriptors",
         }
-        | ({"descriptor_roles"} if profile == "fastapiadmin" else set())
+        | ({"descriptor_roles", "runtime_patches"} if profile == "fastapiadmin" else set())
         or type(result.get("schema")) is not int
         or result.get("schema") != 1
         or result.get("profile") != profile
@@ -382,6 +383,7 @@ def inspect_dependency_manifest(image_id, profile, descriptors):
         or profile == "fastapiadmin"
         and (
             result.get("descriptor_roles") != dependencies.native_descriptor_roles()
+            or not valid_native_runtime_patches(result.get("runtime_patches"))
             or set(descriptors)
             != {name for paths in dependencies.native_descriptor_roles().values() for name in paths}
         )
@@ -407,7 +409,7 @@ def validate_dependency_binding(value, image_id, profile, descriptors):
             "installed_tree_sha256",
             "original_descriptors",
         }
-        | ({"descriptor_roles"} if profile == "fastapiadmin" else set())
+        | ({"descriptor_roles", "runtime_patches"} if profile == "fastapiadmin" else set())
         or type(value.get("schema")) is not int
         or value.get("schema") != 1
         or value.get("profile") != profile
@@ -416,6 +418,7 @@ def validate_dependency_binding(value, image_id, profile, descriptors):
         or profile == "fastapiadmin"
         and (
             value.get("descriptor_roles") != dependencies.native_descriptor_roles()
+            or not valid_native_runtime_patches(value.get("runtime_patches"))
             or set(descriptors)
             != {name for paths in dependencies.native_descriptor_roles().values() for name in paths}
         )

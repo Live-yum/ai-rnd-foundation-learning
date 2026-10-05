@@ -10,18 +10,18 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `scripts`、`scripts.daytona_build`、`workbench.capability_isolation`、`workbench.local_only`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts`、`scripts.daytona_build`、`workbench.capability_dependencies`、`workbench.capability_isolation`、`workbench.local_only`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `inspect_created_sandbox`（L749–L979）：接收`directory`、`sandbox_id`、`require_resources`、`selection`。 源码说明：Inspect only the newly owned UUID inside the verified profile Runner. Upstream create.go names the Docker container sandboxDto.Id. No shell, caller-provided Docker options, executable, or general comm。 控制顺序：L758按`not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id`分支；L759抛异常，停止当前正常路径；L764按`native`分支；L769按`not re.fullmatch(r"[a-f0-9]{64}", runner_id)`分支；L770抛异常，停止当前正常路径；L775按`len(rows) != 1`分支；L776抛异常，停止当前正常路径；L781按`runner.get("Image") != record["runner"]["image_id"] or runner.get("State", {}).get("R…`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`str`、`UUID`、`ContainerInspectionRejected`、`require_profile`、`selection.get`、`require_native_profile`、`compose(directory, "ps", "--quiet", "runner").strip`、`compose`等。 返回路径：L979的`receipt`。
-- `up`（L982–L1020）：接收`directory`。 控制顺序：L994遍历`range(90)`；L1001按`any(row.get("State") in {"exited", "dead", "removing"} for row in rows)`分支；L1002抛异常，停止当前正常路径；L1008按`ready == local.KEEP`分支；L1010遍历`endpoints`；L1018按`attempt < 89`分支；L1020抛异常，停止当前正常路径。 调用`require_profile`、`compose`、`httpx.Client`、`range`、`raw.lstrip().startswith`、`raw.lstrip`、`json.loads`、`raw.splitlines`、`line.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L1023–L1036）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1028按`args.action == "prepare"`分支；L1030按`args.action == "up"`分支；L1032按`args.action == "check"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`up`、`require_profile`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `inspect_created_sandbox`（L752–L982）：接收`directory`、`sandbox_id`、`require_resources`、`selection`。 源码说明：Inspect only the newly owned UUID inside the verified profile Runner. Upstream create.go names the Docker container sandboxDto.Id. No shell, caller-provided Docker options, executable, or general comm。 控制顺序：L761按`not isinstance(sandbox_id, str) or str(UUID(sandbox_id)) != sandbox_id`分支；L762抛异常，停止当前正常路径；L767按`native`分支；L772按`not re.fullmatch(r"[a-f0-9]{64}", runner_id)`分支；L773抛异常，停止当前正常路径；L778按`len(rows) != 1`分支；L779抛异常，停止当前正常路径；L784按`runner.get("Image") != record["runner"]["image_id"] or runner.get("State", {}).get("R…`分支。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`str`、`UUID`、`ContainerInspectionRejected`、`require_profile`、`selection.get`、`require_native_profile`、`compose(directory, "ps", "--quiet", "runner").strip`、`compose`等。 返回路径：L982的`receipt`。
+- `up`（L985–L1023）：接收`directory`。 控制顺序：L997遍历`range(90)`；L1004按`any(row.get("State") in {"exited", "dead", "removing"} for row in rows)`分支；L1005抛异常，停止当前正常路径；L1011按`ready == local.KEEP`分支；L1013遍历`endpoints`；L1021按`attempt < 89`分支；L1023抛异常，停止当前正常路径。 调用`require_profile`、`compose`、`httpx.Client`、`range`、`raw.lstrip().startswith`、`raw.lstrip`、`json.loads`、`raw.splitlines`、`line.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L1026–L1039）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L1031按`args.action == "prepare"`分支；L1033按`args.action == "up"`分支；L1035按`args.action == "check"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`prepare`、`up`、`require_profile`、`print`、`compose`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/daytona_capability_profile.py`；**本文件共有 2 段**。本段覆盖源文件 L749–L1044。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/daytona_capability_profile.py`；**本文件共有 2 段**。本段覆盖源文件 L752–L1047。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
 本段原始字节数：`12405`。本段原文以LF换行结束。
 

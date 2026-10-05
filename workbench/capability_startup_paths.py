@@ -19,6 +19,36 @@ NATIVE_TAIL_LIMIT = 8000 - PATH_OUTPUT_LIMIT - SMOKE_OUTPUT_LIMIT
 SGR = re.compile(r"\x1b\[[0-9;]{0,32}m")
 OTHER_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
 
+
+def startup_target(plan, command=None, port=None, health_path=None):
+    """Bind diagnostics to the exact registered command before translation."""
+    from workbench.capability_dependencies import readonly_start_command
+    from workbench.capability_verification import CheckFailure
+
+    original = plan.runtime.start if command is None else command
+    translated = readonly_start_command(plan, command)
+    role, expected_port, expected_path = "backend", plan.runtime.port, plan.runtime.health_path
+    if getattr(plan.selection, "template", "") == "fastapiadmin":
+        from workbench.capability_native_runtime import FRONTEND_PORT, frontend_start_command
+
+        if original == frontend_start_command():
+            role, expected_port, expected_path = "frontend", FRONTEND_PORT, "/"
+    if (
+        type(expected_port) is not int
+        or not 1 <= expected_port <= 65535
+        or (port is not None and (type(port) is not int or port != expected_port))
+        or (health_path is not None and health_path != expected_path)
+    ):
+        raise CheckFailure("启动诊断目标必须匹配登记的命令、端口和健康端点")
+    return translated, {
+        "role": role,
+        "interpreter": "node" if role == "frontend" else "python",
+        "port": expected_port,
+        "health_endpoint": "frontend-root" if role == "frontend" else "plan-health",
+        "registered_command_bound": True,
+    }
+
+
 # Literal public vocabulary only. Never discover classes from candidate output
 # or import the candidate/application to classify its traceback.
 BUILTIN_EXCEPTIONS = frozenset(
@@ -265,17 +295,88 @@ def output_shapes(output):
     ]
 
 
+def node_failure_facts(output):
+    """Finite Node 22 hints from one bounded, closed error record only."""
+    unknown = {"error_code": "unknown", "errno": None, "syscall": "unknown", "component": "unknown"}
+    if type(output) is not str:
+        return unknown
+    text = normalize_sgr(
+        bounded_output_bytes(output, NATIVE_TAIL_LIMIT).decode("utf-8", errors="ignore")
+    )
+    headers = list(
+        re.finditer(
+            r"(?m)^[A-Za-z_][A-Za-z0-9_.]{0,127}(?: \[[A-Za-z0-9_.-]{1,64}\])?:[^\n]{0,1024}\n",
+            text,
+        )
+    )
+    if not headers:
+        return unknown
+    # A later unknown error must not borrow an earlier error's structured data.
+    record = text[headers[-1].start() :]
+    end = re.search(r"(?m)^}[ \t]*$", record)
+    if end is None:
+        return unknown
+    # Unknown or truncated terminal records must not inherit an earlier hint.
+    # Only the actual uncaught-error footer and whitespace may follow the object.
+    if not re.fullmatch(
+        r"[ \t\r\n]*(?:Node\.js v[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}[ \t\r\n]*)?",
+        record[end.end() :],
+    ):
+        return unknown
+    record = record[: end.end()]
+    header = record.split("\n", 1)[0]
+    if header.startswith("SystemError [ERR_SYSTEM_ERROR]: "):
+        code = "ERR_SYSTEM_ERROR"
+    else:
+        match = re.match(r"Error: (EACCES|ENOENT|EMFILE): ", header)
+        if match is None:
+            return unknown
+        code = match[1]
+    outer_codes = re.findall(r"(?m)^ {2}code: '([A-Z_]{1,40})',?$", record)
+    if outer_codes != [code]:
+        return unknown
+    result = {**unknown, "error_code": code}
+    if code == "ERR_SYSTEM_ERROR":
+        blocks = re.findall(r"(?m)^ {2}info: \{\n((?: {4}[^\n]{0,512}\n){1,8}) {2}\},?\n", record)
+        if len(blocks) != 1:
+            return result
+        info = blocks[0]
+        errnos = re.findall(r"(?m)^ {4}errno: (-?[0-9]{1,4}),?$", info)
+        calls = re.findall(r"(?m)^ {4}syscall: '([^'\n]{1,64})',?$", info)
+        if errnos == ["1"] and calls == ["uv_interface_addresses"]:
+            result.update(
+                errno=1, syscall="uv_interface_addresses", component="node-interface-enumeration"
+            )
+    else:
+        expected = {"EACCES": "-13", "ENOENT": "-2", "EMFILE": "-24"}[code]
+        if re.findall(r"(?m)^ {2}errno: (-?[0-9]{1,4}),?$", record) == [expected]:
+            result["errno"] = int(expected)
+        if re.findall(r"(?m)^ {2}syscall: '([^'\n]{1,64})',?$", record) == ["open"]:
+            result["syscall"] = "open"
+    return result
+
+
 SMOKE = (
     "import json,os,sys;print(json.dumps({'version_matches':sys.version_info[:3]==(3,14,7),"
     "'executable_matches':sys.executable=='/opt/rnd/runtime/fastapiadmin/backend/.venv/bin/python',"
     "'cwd_matches':os.getcwd()=='/tmp/rnd-capability/product/backend',"
     "'isolated':sys.flags.isolated==1}))"
 )
+NODE_SMOKE = (
+    "console.log(JSON.stringify({version_matches:process.versions.node==='22.23.2',"
+    "executable_matches:process.execPath==='/usr/local/bin/node',"
+    "cwd_matches:process.cwd()==='/tmp/rnd-capability/product/frontend/web',"
+    "no_preload:process.execArgv.length===3&&process.execArgv[0]==='--input-type=module'"
+    "&&process.execArgv[1]==='--eval'"
+    "&&[undefined,'--max-old-space-size=3072'].includes(process.env.NODE_OPTIONS)}))"
+)
 
 
-def native_startup_smoke(sandbox, plan, database, identity_options, timeout):
+def native_startup_smoke(sandbox, plan, database, identity_options, timeout, *, role="backend"):
     """Exercise the same isolated launcher, without importing candidate code."""
     receipt = {"exit_status": "unknown", "output_shapes": [], "checks": None}
+    if type(role) is not str or role not in {"backend", "frontend"}:
+        return receipt
     deadline = time.monotonic() + min(timeout, 5)
     token = _DEADLINE.set(deadline)
     try:
@@ -288,17 +389,23 @@ def native_startup_smoke(sandbox, plan, database, identity_options, timeout):
                 raise TimeoutError("Startup interpreter diagnostic deadline")
             return value
 
+        interpreter = (
+            ["/usr/local/bin/node", "--input-type=module", "--eval", NODE_SMOKE]
+            if role == "frontend"
+            else ["/opt/rnd/runtime/fastapiadmin/backend/.venv/bin/python", "-I", "-S", "-c", SMOKE]
+        )
+        cwd = "frontend/web" if role == "frontend" else "backend"
         argv, path = redirected_command(
             product_argv(
                 plan,
-                ["/opt/rnd/runtime/fastapiadmin/backend/.venv/bin/python", "-I", "-S", "-c", SMOKE],
+                interpreter,
                 database,
                 **identity_options,
             )
         )
         result = control_exec(
             sandbox,
-            ["/bin/sh", "-c", "cd /tmp/rnd-capability/product/backend && " + shlex.join(argv)],
+            ["/bin/sh", "-c", "cd /tmp/rnd-capability/product/" + cwd + " && " + shlex.join(argv)],
             remaining(),
         )
         if type(result.exit_code) is int and 0 <= result.exit_code <= 255:
@@ -314,7 +421,12 @@ def native_startup_smoke(sandbox, plan, database, identity_options, timeout):
             if (
                 type(value) is dict
                 and set(value)
-                == {"version_matches", "executable_matches", "cwd_matches", "isolated"}
+                == {
+                    "version_matches",
+                    "executable_matches",
+                    "cwd_matches",
+                    "no_preload" if role == "frontend" else "isolated",
+                }
                 and all(type(v) is bool for v in value.values())
             ):
                 receipt["checks"] = value
@@ -343,17 +455,32 @@ KINDS = {"regular", "directory", "character", "symlink", "other", "missing", "un
 # No source-supplied path, argv or environment enters this program. It only
 # observes the already selected native launch chain after health has failed.
 # Native dependencies are data here, not imported or executed as controller UID.
-PROBE = r"""
-import json,os,stat,struct
-paths={
- 'shell':'/bin/sh','env':'/usr/bin/env','setsid':'/usr/bin/setsid',
- 'setpriv':'/usr/bin/setpriv','system_python':'/usr/bin/python3',
- 'native_python':'/opt/rnd/runtime/fastapiadmin/backend/.venv/bin/python',
- 'guard':'/tmp/rnd-module-control/guard.py',
- 'backend':'/tmp/rnd-capability/product/backend',
- 'app':'/tmp/rnd-capability/product/backend/app/__init__.py',
- 'null':'/dev/null','elf_loader':'/lib64/ld-linux-x86-64.so.2',
+COMMON_PATHS = {
+    "shell": "/bin/sh",
+    "env": "/usr/bin/env",
+    "setsid": "/usr/bin/setsid",
+    "setpriv": "/usr/bin/setpriv",
+    "system_python": "/usr/bin/python3",
+    "guard": "/tmp/rnd-module-control/guard.py",
+    "null": "/dev/null",
+    "elf_loader": "/lib64/ld-linux-x86-64.so.2",
 }
+BACKEND_PATHS = {
+    **COMMON_PATHS,
+    "native_python": "/opt/rnd/runtime/fastapiadmin/backend/.venv/bin/python",
+    "backend": "/tmp/rnd-capability/product/backend",
+    "app": "/tmp/rnd-capability/product/backend/app/__init__.py",
+}
+FRONTEND_PATHS = {
+    **COMMON_PATHS,
+    "native_node": "/usr/local/bin/node",
+    "vite_entry": "/opt/rnd/runtime/fastapiadmin/frontend/node_modules/vite/dist/node/index.js",
+    "frontend": "/tmp/rnd-capability/product/frontend/web",
+    "dist_index": "/tmp/rnd-capability/product/frontend/web/dist/index.html",
+    "preview_launcher": "/tmp/rnd-module-control/native-preview.mjs",
+}
+NODE_PATH_ROLES = tuple(FRONTEND_PATHS)
+_PATH_PROBE = r"""
 def kind(s):
  for check,label in ((stat.S_ISREG,'regular'),(stat.S_ISDIR,'directory'),
                      (stat.S_ISCHR,'character'),(stat.S_ISLNK,'symlink')):
@@ -417,22 +544,37 @@ def executable_format(path):
  except (OSError,ValueError,struct.error):pass
  return result
 result={'paths':{role:inspect(path) for role,path in paths.items()},
-        'native_binary':executable_format(paths['native_python'])}
+        'native_binary':executable_format(binary_path)}
 output=json.dumps(result,separators=(',',':'))
 assert len(output.encode())<=2048
 print(output)
 """
+PROBE = (
+    "import json,os,stat,struct\npaths="
+    + repr(BACKEND_PATHS)
+    + "\nbinary_path=paths['native_python']\n"
+    + _PATH_PROBE
+)
+NODE_PROBE = (
+    "import json,os,stat,struct\npaths="
+    + repr(FRONTEND_PATHS)
+    + "\nbinary_path=paths['native_node']\n"
+    + _PATH_PROBE
+)
 
 
-def native_startup_paths(sandbox, timeout):
+def native_startup_paths(sandbox, timeout, *, role="backend"):
     """Return a fresh finite receipt or unknown; never serialize probe failures."""
     unknown = {"status": "unknown"}
+    if type(role) is not str or role not in {"backend", "frontend"}:
+        return unknown
     token = _DEADLINE.set(time.monotonic() + min(timeout, 5))
     try:
         budget = int(min(timeout, 5))
         if budget < 1:
             return unknown
-        result = control_exec(sandbox, ["/usr/bin/python3", "-I", "-S", "-c", PROBE], budget)
+        probe = NODE_PROBE if role == "frontend" else PROBE
+        result = control_exec(sandbox, ["/usr/bin/python3", "-I", "-S", "-c", probe], budget)
         if type(result.exit_code) is not int or result.exit_code != 0:
             return unknown
         if type(result.result) is not str or len(result.result.encode()) > 2048:
@@ -441,7 +583,8 @@ def native_startup_paths(sandbox, timeout):
         if type(value) is not dict or set(value) != {"paths", "native_binary"}:
             return unknown
         paths = value["paths"]
-        if type(paths) is not dict or set(paths) != set(PATH_ROLES):
+        expected_roles = NODE_PATH_ROLES if role == "frontend" else PATH_ROLES
+        if type(paths) is not dict or set(paths) != set(expected_roles):
             return unknown
         for row in paths.values():
             if type(row) is not dict or set(row) != {"entry", "target", "dac_read", "dac_exec"}:

@@ -13,33 +13,35 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `native_descriptor_roles`（L52–L69）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Data-only policy, mirrored by the isolated standalone build collector.。 返回路径：L54的`{ "runtime": [ "backend/pyproject.toml", "backend/uv.lock", "frontend/web/package.json", "…`。
-- `canonical`（L72–L73）：接收`value`。 调用`json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_a…`、`json.dumps`。 返回路径：L73的`json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()`。
-- `digest`（L76–L77）：接收`value`。 调用`hashlib.sha256(canonical(value)).hexdigest`、`hashlib.sha256`、`canonical`。 返回路径：L77的`hashlib.sha256(canonical(value)).hexdigest()`。
-- `file_hash`（L80–L84）：接收`fd`。 控制顺序：L82在`block := os.read(fd, 1024 * 1024)`成立时循环。 调用`hashlib.sha256`、`os.read`、`result.update`、`result.hexdigest`。 返回路径：L84的`result.hexdigest()`。
-- `open_absolute`（L87–L104）：接收`path`、`directory`。 源码说明：Open each ancestor O_NOFOLLOW; a real directory is required throughout.。 控制顺序：L90按`not path.is_absolute() or ".." in path.parts`分支；L91抛异常，停止当前正常路径；L94遍历`enumerate(path.parts[1:])`；L96按`directory or index < len(path.parts) - 2`分支；L104抛异常，停止当前正常路径。 调用`Path`、`path.is_absolute`、`ValueError`、`os.open`、`enumerate`、`len`、`os.close`。 返回路径：L101的`fd`。
-- `regular_bytes`（L107–L116）：接收`path`。 控制顺序：L111按`not stat.S_ISREG(info.st_mode) or info.st_nlink != 1`分支；L112抛异常，停止当前正常路径。 调用`open_absolute`、`os.fstat`、`stat.S_ISREG`、`ValueError`、`os.fdopen`、`os.dup`、`stream.read`、`os.close`。 返回路径：L114的`stream.read()`。
-- `check_ancestors`（L119–L127）：接收`path`。 控制顺序：L120遍历`reversed(Path(path).parents)`；L124按`info.st_uid != 0 or info.st_gid != 0 or info.st_mode & 0o022`分支；L125抛异常，停止当前正常路径。 调用`reversed`、`Path`、`open_absolute`、`os.fstat`、`ValueError`、`os.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `inventory`（L130–L180）：接收`roots`、`readonly`。 源码说明：Inventory all entries using directory FDs; reject devices and hardlinks.。 控制顺序：L171遍历`roots`；L172按`readonly`分支。 调用`check_ancestors`、`open_absolute`、`Path`、`visit`、`str`、`os.close`、`validate_links`、`dict`、`sorted`等。 返回路径：L180的`dict(sorted(entries.items()))`。
-- `inventory.visit`（L134–L169）：接收`parent`、`name`、`absolute`。 控制顺序：L138按`info.st_mode & 0o6000`分支；L139抛异常，停止当前正常路径；L140按`readonly and (info.st_uid != 0 or info.st_gid != 0)`分支；L141抛异常，停止当前正常路径；L142按`stat.S_ISLNK(info.st_mode)`分支；L143按`info.st_nlink != 1`分支；L144抛异常，停止当前正常路径；L147按`readonly and mode & 0o022`分支。后续分支沿下方源码相同行号继续阅读。 调用`os.stat`、`stat.S_IMODE`、`ValueError`、`stat.S_ISLNK`、`entry.update`、`os.readlink`、`stat.S_ISREG`、`stat.S_ISDIR`、`os.open`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `validate_links`（L183–L209）：接收`entries`、`roots`。 控制顺序：L207遍历`entries.items()`；L208按`entry["type"] == "symlink"`分支。 调用`entries.items`、`resolve`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `validate_links.permitted`（L184–L185）：接收`value`。 调用`any`、`value.startswith`。 返回路径：L185的`any(value == root or value.startswith(root + "/") for root in roots)`。
-- `validate_links.resolve`（L187–L205）：接收`value`。 控制顺序：L188遍历`range(41)`；L189按`not permitted(value)`分支；L190抛异常，停止当前正常路径；L192遍历`range(2, len(parts) + 1)`；L195按`entry and entry["type"] == "symlink"`分支；L202按`value not in entries`分支；L203抛异常，停止当前正常路径；L205抛异常，停止当前正常路径。 调用`range`、`permitted`、`ValueError`、`value.split`、`len`、`"/".join`、`entries.get`、`posixpath.normpath`、`posixpath.join`等。 返回路径：L204的`value`。
-- `seal`（L212–L248）：接收`roots`。 源码说明：Run only after the builder exited, with no app process sharing this layer.。 控制顺序：L242遍历`roots`。 调用`inventory`、`open_absolute`、`Path`、`visit`、`os.close`。 返回路径：L248的`inventory(roots)`。
-- `seal.visit`（L216–L240）：接收`parent`、`name`。 控制顺序：L218按`stat.S_ISLNK(info.st_mode)`分支；L222按`stat.S_ISDIR(info.st_mode)`分支；L227按`(opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino)`分支；L228抛异常，停止当前正常路径；L229按`stat.S_ISDIR(info.st_mode)`分支；L230遍历`sorted(os.listdir(fd))`；L232按`not stat.S_ISREG(info.st_mode) or info.st_nlink != 1`分支；L233抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`os.stat`、`stat.S_ISLNK`、`os.chown`、`stat.S_ISDIR`、`os.open`、`os.fstat`、`ValueError`、`sorted`、`os.listdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `validate_manifest`（L251–L330）：接收`value`、`profile`。 控制顺序：L252按`not isinstance(value, dict) or set(value) != {"schema", "profiles"} or type(value.get…`分支；L262抛异常，停止当前正常路径；L281按`profile == "fastapiadmin"`分支；L283按`not isinstance(record, dict) or not required <= set(record) or set(record) - required…`分支；L296抛异常，停止当前正常路径；L297遍历`("original_descriptors", "normalized_descriptors")`；L299按`not isinstance(descriptors, dict) or not descriptors`分支；L300抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`set`、`type`、`value.get`、`ValueError`、`value["profiles"].get`、`required.add`、`record.get`、`HEX.fullmatch`等。 返回路径：L330的`record`。
-- `inspect_manifest`（L333–L344）：接收`profile`、`path`、`verify_tree`。 控制顺序：L337按`verify_tree`分支；L340按`info.st_uid or info.st_gid or info.st_mode & 0o022`分支；L341抛异常，停止当前正常路径；L342按`inventory(record["roots"]) != record["entries"]`分支；L343抛异常，停止当前正常路径。 调用`regular_bytes`、`Path(path).absolute`、`Path`、`json.loads`、`validate_manifest`、`check_ancestors`、`Path(path).lstat`、`ValueError`、`inventory`。 返回路径：L344的`raw, record`。
-- `receipt`（L347–L364）：接收`profile`、`product`、`path`。 控制顺序：L349按`product is not None`分支；L350遍历`record["original_descriptors"].items()`；L351按`hashlib.sha256(regular_bytes(Path(product).absolute() / name)).hexdigest() != expecte…`分支；L355抛异常，停止当前正常路径。 调用`inspect_manifest`、`record["original_descriptors"].items`、`hashlib.sha256(regular_bytes(Path(product).absolute() / name)).he…`、`hashlib.sha256`、`regular_bytes`、`Path(product).absolute`、`Path`、`ValueError`、`hashlib.sha256(raw).hexdigest`。 返回路径：L356的`{ "schema": 1, "profile": profile, "manifest_sha256": hashlib.sha256(raw).hexdigest(), "in…`。
-- `create`（L367–L380）：接收`profile`、`inputs`、`path`。 调用`Path(path).exists`、`Path`、`json.loads`、`Path(path).read_bytes`、`dict`、`record.update`、`seal`、`digest`、`validate_manifest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L383–L425）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L393按`args.action == "seal-build-tools"`分支；L399按`args.action == "seal"`分支；L401按`args.action == "create"`分支；L403按`args.action == "verify-runtime"`分支；L404按`args.product is None`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`list`、`parser.parse_args`、`seal`、`Path("/opt/rnd/build-tools-manifest.json").write_bytes`、`Path`、`canonical`、`digest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_descriptor_roles`（L56–L73）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Data-only policy, mirrored by the isolated standalone build collector.。 返回路径：L58的`{ "runtime": [ "backend/pyproject.toml", "backend/uv.lock", "frontend/web/package.json", "…`。
+- `native_runtime_patch_identity`（L76–L84）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Reviewed physical patch identity; no runtime code loading or execution.。 返回路径：L78的`{ "id": "vite-preview-interface-eperm-v1", "package": "vite", "version": "7.3.3", "upstrea…`。
+- `validate_runtime_patches`（L87–L118）：接收`patches`、`entries`。 源码说明：Bind the exact patch to its no-follow inventory and public Vite link.。 控制顺序：L90按`type(patches) is not list or len(patches) != 1 or type(patches[0]) is not dict or set…`分支；L99抛异常，停止当前正常路径；L104按`not isinstance(entry, dict) or entry.get("type") != "file" or entry.get("sha256") != …`分支；L112抛异常，停止当前正常路径；L114在`parent.is_relative_to(NATIVE_NODE_ROOT)`成立时循环；L116按`not isinstance(directory, dict) or directory.get("type") != "directory"`分支；L117抛异常，停止当前正常路径。 调用`native_runtime_patch_identity`、`type`、`len`、`set`、`any`、`patches[0].get`、`identity.items`、`VITE_PATCH_PATH.fullmatch`、`ValueError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `canonical`（L121–L122）：接收`value`。 调用`json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_a…`、`json.dumps`。 返回路径：L122的`json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()`。
+- `digest`（L125–L126）：接收`value`。 调用`hashlib.sha256(canonical(value)).hexdigest`、`hashlib.sha256`、`canonical`。 返回路径：L126的`hashlib.sha256(canonical(value)).hexdigest()`。
+- `file_hash`（L129–L133）：接收`fd`。 控制顺序：L131在`block := os.read(fd, 1024 * 1024)`成立时循环。 调用`hashlib.sha256`、`os.read`、`result.update`、`result.hexdigest`。 返回路径：L133的`result.hexdigest()`。
+- `open_absolute`（L136–L153）：接收`path`、`directory`。 源码说明：Open each ancestor O_NOFOLLOW; a real directory is required throughout.。 控制顺序：L139按`not path.is_absolute() or ".." in path.parts`分支；L140抛异常，停止当前正常路径；L143遍历`enumerate(path.parts[1:])`；L145按`directory or index < len(path.parts) - 2`分支；L153抛异常，停止当前正常路径。 调用`Path`、`path.is_absolute`、`ValueError`、`os.open`、`enumerate`、`len`、`os.close`。 返回路径：L150的`fd`。
+- `regular_bytes`（L156–L165）：接收`path`。 控制顺序：L160按`not stat.S_ISREG(info.st_mode) or info.st_nlink != 1`分支；L161抛异常，停止当前正常路径。 调用`open_absolute`、`os.fstat`、`stat.S_ISREG`、`ValueError`、`os.fdopen`、`os.dup`、`stream.read`、`os.close`。 返回路径：L163的`stream.read()`。
+- `check_ancestors`（L168–L176）：接收`path`。 控制顺序：L169遍历`reversed(Path(path).parents)`；L173按`info.st_uid != 0 or info.st_gid != 0 or info.st_mode & 0o022`分支；L174抛异常，停止当前正常路径。 调用`reversed`、`Path`、`open_absolute`、`os.fstat`、`ValueError`、`os.close`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `inventory`（L179–L229）：接收`roots`、`readonly`。 源码说明：Inventory all entries using directory FDs; reject devices and hardlinks.。 控制顺序：L220遍历`roots`；L221按`readonly`分支。 调用`check_ancestors`、`open_absolute`、`Path`、`visit`、`str`、`os.close`、`validate_links`、`dict`、`sorted`等。 返回路径：L229的`dict(sorted(entries.items()))`。
+- `inventory.visit`（L183–L218）：接收`parent`、`name`、`absolute`。 控制顺序：L187按`info.st_mode & 0o6000`分支；L188抛异常，停止当前正常路径；L189按`readonly and (info.st_uid != 0 or info.st_gid != 0)`分支；L190抛异常，停止当前正常路径；L191按`stat.S_ISLNK(info.st_mode)`分支；L192按`info.st_nlink != 1`分支；L193抛异常，停止当前正常路径；L196按`readonly and mode & 0o022`分支。后续分支沿下方源码相同行号继续阅读。 调用`os.stat`、`stat.S_IMODE`、`ValueError`、`stat.S_ISLNK`、`entry.update`、`os.readlink`、`stat.S_ISREG`、`stat.S_ISDIR`、`os.open`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `validate_links`（L232–L258）：接收`entries`、`roots`。 控制顺序：L256遍历`entries.items()`；L257按`entry["type"] == "symlink"`分支。 调用`entries.items`、`resolve`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `validate_links.permitted`（L233–L234）：接收`value`。 调用`any`、`value.startswith`。 返回路径：L234的`any(value == root or value.startswith(root + "/") for root in roots)`。
+- `validate_links.resolve`（L236–L254）：接收`value`。 控制顺序：L237遍历`range(41)`；L238按`not permitted(value)`分支；L239抛异常，停止当前正常路径；L241遍历`range(2, len(parts) + 1)`；L244按`entry and entry["type"] == "symlink"`分支；L251按`value not in entries`分支；L252抛异常，停止当前正常路径；L254抛异常，停止当前正常路径。 调用`range`、`permitted`、`ValueError`、`value.split`、`len`、`"/".join`、`entries.get`、`posixpath.normpath`、`posixpath.join`等。 返回路径：L253的`value`。
+- `seal`（L261–L299）：接收`roots`、`runtime_patches`。 源码说明：Run only after the builder exited, with no app process sharing this layer.。 控制顺序：L264按`NATIVE_NODE_ROOT in roots`分支；L293遍历`roots`。 调用`inventory`、`validate_runtime_patches`、`open_absolute`、`Path`、`visit`、`os.close`。 返回路径：L299的`inventory(roots)`。
+- `seal.visit`（L267–L291）：接收`parent`、`name`。 控制顺序：L269按`stat.S_ISLNK(info.st_mode)`分支；L273按`stat.S_ISDIR(info.st_mode)`分支；L278按`(opened.st_dev, opened.st_ino) != (info.st_dev, info.st_ino)`分支；L279抛异常，停止当前正常路径；L280按`stat.S_ISDIR(info.st_mode)`分支；L281遍历`sorted(os.listdir(fd))`；L283按`not stat.S_ISREG(info.st_mode) or info.st_nlink != 1`分支；L284抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`os.stat`、`stat.S_ISLNK`、`os.chown`、`stat.S_ISDIR`、`os.open`、`os.fstat`、`ValueError`、`sorted`、`os.listdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `validate_manifest`（L302–L382）：接收`value`、`profile`。 控制顺序：L303按`not isinstance(value, dict) or set(value) != {"schema", "profiles"} or type(value.get…`分支；L313抛异常，停止当前正常路径；L332按`profile == "fastapiadmin"`分支；L334按`not isinstance(record, dict) or not required <= set(record) or set(record) - required…`分支；L347抛异常，停止当前正常路径；L348遍历`("original_descriptors", "normalized_descriptors")`；L350按`not isinstance(descriptors, dict) or not descriptors`分支；L351抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`isinstance`、`set`、`type`、`value.get`、`ValueError`、`value["profiles"].get`、`required.update`、`record.get`、`HEX.fullmatch`等。 返回路径：L382的`record`。
+- `inspect_manifest`（L385–L396）：接收`profile`、`path`、`verify_tree`。 控制顺序：L389按`verify_tree`分支；L392按`info.st_uid or info.st_gid or info.st_mode & 0o022`分支；L393抛异常，停止当前正常路径；L394按`inventory(record["roots"]) != record["entries"]`分支；L395抛异常，停止当前正常路径。 调用`regular_bytes`、`Path(path).absolute`、`Path`、`json.loads`、`validate_manifest`、`check_ancestors`、`Path(path).lstat`、`ValueError`、`inventory`。 返回路径：L396的`raw, record`。
+- `receipt`（L399–L417）：接收`profile`、`product`、`path`。 控制顺序：L401按`product is not None`分支；L402遍历`record["original_descriptors"].items()`；L403按`hashlib.sha256(regular_bytes(Path(product).absolute() / name)).hexdigest() != expecte…`分支；L407抛异常，停止当前正常路径。 调用`inspect_manifest`、`record["original_descriptors"].items`、`hashlib.sha256(regular_bytes(Path(product).absolute() / name)).he…`、`hashlib.sha256`、`regular_bytes`、`Path(product).absolute`、`Path`、`ValueError`、`hashlib.sha256(raw).hexdigest`。 返回路径：L408的`{ "schema": 1, "profile": profile, "manifest_sha256": hashlib.sha256(raw).hexdigest(), "in…`。
+- `create`（L420–L440）：接收`profile`、`inputs`、`path`。 控制顺序：L428按`profile == "fastapiadmin"`分支。 调用`Path(path).exists`、`Path`、`json.loads`、`Path(path).read_bytes`、`dict`、`record.update`、`inventory`、`digest`、`validate_manifest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L443–L489）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L453按`args.action == "seal-build-tools"`分支；L459按`args.action == "seal"`分支；L462按`args.action == "create"`分支；L464按`args.action == "verify-runtime"`分支；L465按`args.product is None`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`list`、`parser.parse_args`、`seal`、`Path("/opt/rnd/build-tools-manifest.json").write_bytes`、`Path`、`canonical`、`digest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/daytona_dependency_image.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L429。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/daytona_dependency_image.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L493。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`15992`。本段原文以LF换行结束。
+本段原始字节数：`19237`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/daytona_dependency_image.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d011ad06ad3246fcd04d8c5274a24ed6c8db6ded84e922ee870d13edd1da0d7f"} -->
+<!-- learning-source: {"path": "scripts/daytona_dependency_image.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f4e7f2fd6af02b846286f8f89f639d8717c2bc2406f8eeb712c790ba95c42360"} -->
 ````python
 # scripts/daytona_dependency_image.py
 """Data-only, no-follow dependency inventory and runtime verification (stdlib only).
@@ -60,6 +62,10 @@ from pathlib import Path, PurePosixPath
 
 MANIFEST = Path("/opt/rnd/runtime/dependency-manifest.json")
 HEX = re.compile(r"[a-f0-9]{64}")
+NATIVE_NODE_ROOT = "/opt/rnd/runtime/fastapiadmin/frontend/node_modules"
+VITE_PATCH_PATH = re.compile(
+    r"\.pnpm/vite@7\.3\.3(?:_[A-Za-z0-9@+_.-]+)?/node_modules/vite/dist/node/chunks/config\.js"
+)
 ROOTS = {
     "python-basic": [
         "/opt/rnd/runtime/python-basic/.venv",
@@ -111,6 +117,51 @@ def native_descriptor_roles():
             "frontend/docs/pnpm-lock.yaml",
         ],
     }
+
+
+def native_runtime_patch_identity():
+    """Reviewed physical patch identity; no runtime code loading or execution."""
+    return {
+        "id": "vite-preview-interface-eperm-v1",
+        "package": "vite",
+        "version": "7.3.3",
+        "upstream_sha256": "339ee4656b2ca976ca320b48cffba04361f91ad0899a32a1c60ba9b2910e772e",
+        "patched_sha256": "8df548e7d1456f542321e05139faec50f23f15e64afc5a434c57583308bcc86e",
+    }
+
+
+def validate_runtime_patches(patches, entries):
+    """Bind the exact patch to its no-follow inventory and public Vite link."""
+    identity = native_runtime_patch_identity()
+    if (
+        type(patches) is not list
+        or len(patches) != 1
+        or type(patches[0]) is not dict
+        or set(patches[0]) != {*identity, "relative_path"}
+        or any(patches[0].get(key) != value for key, value in identity.items())
+        or type(patches[0].get("relative_path")) is not str
+        or not VITE_PATCH_PATH.fullmatch(patches[0]["relative_path"])
+    ):
+        raise ValueError("Missing or incompatible native runtime patch identity")
+    relative = patches[0]["relative_path"]
+    physical = NATIVE_NODE_ROOT + "/" + relative
+    entry = entries.get(physical)
+    vite = entries.get(NATIVE_NODE_ROOT + "/vite")
+    if (
+        not isinstance(entry, dict)
+        or entry.get("type") != "file"
+        or entry.get("sha256") != identity["patched_sha256"]
+        or not isinstance(vite, dict)
+        or vite.get("type") != "symlink"
+        or vite.get("target") != relative.removesuffix("/dist/node/chunks/config.js")
+    ):
+        raise ValueError("Native runtime patch file or Vite link differs")
+    parent = PurePosixPath(physical).parent
+    while parent.is_relative_to(NATIVE_NODE_ROOT):
+        directory = entries.get(str(parent))
+        if not isinstance(directory, dict) or directory.get("type") != "directory":
+            raise ValueError("Native runtime patch path is not a physical directory")
+        parent = parent.parent
 
 
 def canonical(value):
@@ -253,9 +304,11 @@ def validate_links(entries, roots):
             resolve(path)
 
 
-def seal(roots):
+def seal(roots, *, runtime_patches=None):
     """Run only after the builder exited, with no app process sharing this layer."""
-    inventory(roots, readonly=False)
+    entries = inventory(roots, readonly=False)
+    if NATIVE_NODE_ROOT in roots:
+        validate_runtime_patches(runtime_patches, entries)
 
     def visit(parent, name):
         info = os.stat(name, dir_fd=parent, follow_symlinks=False)
@@ -323,7 +376,7 @@ def validate_manifest(value, profile):
         "harness_descriptors",
     }
     if profile == "fastapiadmin":
-        required.add("descriptor_roles")
+        required.update({"descriptor_roles", "runtime_patches"})
     if (
         not isinstance(record, dict)
         or not required <= set(record)
@@ -371,6 +424,7 @@ def validate_manifest(value, profile):
             )
         ):
             raise ValueError("Native source descriptor roles or immutable source hashes differ")
+        validate_runtime_patches(record["runtime_patches"], record["entries"])
     return record
 
 
@@ -405,6 +459,7 @@ def receipt(profile, *, product=None, path=MANIFEST):
         "descriptors_verified": product is not None,
         "installed_tree_verified": True,
         "readonly_verified": True,
+        **({"runtime_patches": record["runtime_patches"]} if profile == "fastapiadmin" else {}),
     }
 
 
@@ -416,7 +471,14 @@ def create(profile, inputs, *, path=MANIFEST):
     )
     record = dict(inputs)
     record.update(roots=ROOTS[profile], groups=GROUPS[profile])
-    record["entries"] = seal(record["roots"])
+    if profile == "fastapiadmin":
+        # Validate builder-supplied identities against actual no-follow file
+        # hashes before the first privileged ownership or permission change.
+        record["entries"] = inventory(record["roots"], readonly=False)
+        record["installed_tree_sha256"] = digest(record["entries"])
+        value["profiles"][profile] = record
+        validate_manifest(value, profile)
+    record["entries"] = seal(record["roots"], runtime_patches=record.get("runtime_patches"))
     record["installed_tree_sha256"] = digest(record["entries"])
     value["profiles"][profile] = record
     validate_manifest(value, profile)
@@ -441,7 +503,8 @@ def main():
         )
         os.chmod("/opt/rnd/build-tools-manifest.json", 0o444)
     elif args.action == "seal":
-        seal(ROOTS[args.profile])
+        inputs = json.loads(regular_bytes(args.inputs.absolute())) if args.inputs else {}
+        seal(ROOTS[args.profile], runtime_patches=inputs.get("runtime_patches"))
     elif args.action == "create":
         create(args.profile, json.loads(regular_bytes(args.inputs.absolute())))
     elif args.action == "verify-runtime":
@@ -459,7 +522,10 @@ def main():
                     "installed_tree_sha256": record["installed_tree_sha256"],
                     "original_descriptors": record["original_descriptors"],
                     **(
-                        {"descriptor_roles": record["descriptor_roles"]}
+                        {
+                            "descriptor_roles": record["descriptor_roles"],
+                            "runtime_patches": record["runtime_patches"],
+                        }
                         if args.profile == "fastapiadmin"
                         else {}
                     ),

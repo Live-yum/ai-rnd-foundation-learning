@@ -1,5 +1,6 @@
 """Pinned commands, data-only admission, and hostile dependency-link fixtures."""
 
+import copy
 import hashlib
 import json
 import os
@@ -8,6 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from capability_dependency_fixtures import runtime_patches
 
 from workbench import capability_dependencies as dependencies
 from workbench import capability_native_runtime as native
@@ -74,7 +76,10 @@ def expected(profile="python-basic"):
         "installed_tree_sha256": "c" * 64,
         "original_descriptors": {name: hashlib.sha256(b"descriptor").hexdigest() for name in names},
         **(
-            {"descriptor_roles": dependencies.native_descriptor_roles()}
+            {
+                "descriptor_roles": dependencies.native_descriptor_roles(),
+                "runtime_patches": runtime_patches(),
+            }
             if profile == "fastapiadmin"
             else {}
         ),
@@ -260,6 +265,63 @@ def test_runtime_admission_requires_whole_trusted_verifier_receipt(monkeypatch, 
             dependencies.PRODUCT,
         ]
     ]
+
+
+@pytest.mark.parametrize("phase", ["initial", "restart"])
+@pytest.mark.parametrize(
+    "mutation", [None, "missing", "stale", "different-path", "extra", "old-profile"]
+)
+def test_native_initial_and_restart_require_exact_runtime_patch_receipt(
+    monkeypatch, phase, mutation
+):
+    value = expected("fastapiadmin")
+    proof = {
+        key: copy.deepcopy(value[key])
+        for key in (
+            "schema",
+            "profile",
+            "manifest_sha256",
+            "installed_tree_sha256",
+            "runtime_patches",
+        )
+    }
+    proof.update({key: True for key in dependencies.RECEIPT_FLAGS})
+    if mutation == "missing":
+        proof.pop("runtime_patches")
+    elif mutation == "stale":
+        proof["runtime_patches"][0]["id"] = "old"
+    elif mutation == "different-path":
+        # Both paths are permitted, but restart must bind the original physical instance.
+        proof["runtime_patches"][0]["relative_path"] = proof["runtime_patches"][0][
+            "relative_path"
+        ].replace("vite@7.3.3/", "vite@7.3.3_jiti@2.6.1/")
+    elif mutation == "extra":
+        proof["runtime_patches"][0]["hook"] = True
+    elif mutation == "old-profile":
+        value.pop("runtime_patches")
+        proof.pop("runtime_patches")
+    calls = []
+
+    def execute(sandbox, argv, timeout):
+        calls.append(argv)
+        return SimpleNamespace(exit_code=0, result=json.dumps(proof))
+
+    monkeypatch.setattr(dependencies, "control_exec", execute)
+    monkeypatch.setattr(dependencies, "_verify_sources", lambda *a, **kw: {})
+    verify = (
+        dependencies.prepare_readonly_dependencies
+        if phase == "initial"
+        else dependencies.verify_readonly_dependencies
+    )
+    if mutation:
+        with pytest.raises(CheckFailure):
+            verify(None, plan("fastapiadmin"), 10, expected=value, source_inventory={})
+        assert len(calls) == (0 if mutation == "old-profile" else 1)
+    else:
+        assert verify(None, plan("fastapiadmin"), 10, expected=value, source_inventory={}) == {
+            **proof,
+            "product_links_verified": True,
+        }
 
 
 @pytest.fixture

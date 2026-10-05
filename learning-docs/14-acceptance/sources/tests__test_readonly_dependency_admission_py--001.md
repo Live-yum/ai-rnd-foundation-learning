@@ -24,20 +24,21 @@
 - `test_image_dependency_failure_precedes_any_product_command.forbidden`（L156–L157）：接收`*a`、`**k`。 调用`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `complete_proof`（L191–L251）：接收`product`、`plan`。 调用`profile_record`、`digest`、`scenario.model_dump`、`manifest`、`plan.model_dump`、`inspected`、`sha`、`dict.fromkeys`、`dependency_evidence`等。 返回路径：L205的`{ "verifier": execution.VERIFIER, "passed": True, "cleanup": "deleted", "network_block_all…`。
 - `complete_native_proof`（L254–L285）：接收`product`、`plan`。 控制顺序：L265遍历`( "preinstalled_dependencies", "restart_preinstalled_dependencies…`；L272遍历`("security_checks", "restart_security_checks")`；L284断言`require_evidence(proof, **bindings) is proof`。 调用`Selection`、`complete_proof`、`profile_record`、`inspected`、`container_binding`、`dict`、`dependency_evidence`、`manifest`、`dict.fromkeys`等。 返回路径：L285的`proof, bindings`。
-- `test_native_delivery_requires_both_complete_security_groups`（L290–L294）：接收`product_plan`、`field`、`replacement`。 调用`complete_native_proof`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_every_native_security_flag_rejects_false_or_truthy_coercion`（L299–L305）：接收`product_plan`、`field`、`value`。 控制顺序：L301遍历`proof[field]`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_delivery_rejects_missing_extra_or_stripped_security_evidence`（L308–L332）：接收`product_plan`。 控制顺序：L310遍历`("security_checks", "restart_security_checks")`；L311遍历`proof[field]`；L320遍历`( ("security_checks",), ("restart_security_checks",), ("security_…`；L326遍历`fields`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`changed.pop`、`proof.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_old_or_unbound_dependency_evidence_never_passes`（L349–L386）：接收`product_plan`、`mutation`。 控制顺序：L360断言`require_evidence(proof, **bindings) is proof`；L361按`mutation == "v3"`分支；L363按`mutation == "absent"`分支；L365按`mutation == "restart-absent"`分支；L367按`mutation == "final-absent"`分支；L369按`mutation == "source-drift"`分支；L371按`mutation == "offline-install-only"`分支；L373按`mutation == "profile-image"`分支。后续分支沿下方源码相同行号继续阅读。 调用`complete_proof`、`dict`、`digest`、`manifest`、`plan.model_dump`、`plan.selection.model_dump`、`require_evidence`、`proof.pop`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_dependency_receipt_flags_require_boolean_true`（L389–L404）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L392断言`execution.require_preinstalled_evidence( good, record["snapshot"]["dependency_manifes…`；L398遍历`good`。 调用`profile_record`、`dependency_evidence`、`execution.require_preinstalled_evidence`、`digest`、`copy.deepcopy`、`bad.pop`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_new_dependency_probes_do_not_replace_existing_security_checks`（L418–L452）：接收`product_plan`、`monkeypatch`、`missing`。 控制顺序：L426断言`len(expected) == 25`；L428按`missing`分支；L432按`missing`分支；L436断言`probe.run_security_probe( object(), plan, 10, {"resource_limits": True} ) == dict.fro…`；L442断言`len(native) == 40`；L443断言`native == (expected - {"all_tcp_destinations_denied"}) \| { "postgres_application_rol…`。 调用`compile`、`set`、`len`、`dict.fromkeys`、`checks.pop`、`monkeypatch.setattr`、`SimpleNamespace`、`json.dumps`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_delivery_binds_runtime_patch_at_initial_restart_and_final`（L297–L313）：接收`product_plan`、`field`、`mutation`。 控制顺序：L304按`mutation == "missing"`分支；L306按`mutation == "stale"`分支。 调用`complete_native_proof`、`copy.deepcopy`、`value.pop`、`value["runtime_patches"][0][ "relative_path" ].replace`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_delivery_requires_both_complete_security_groups`（L318–L322）：接收`product_plan`、`field`、`replacement`。 调用`complete_native_proof`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_every_native_security_flag_rejects_false_or_truthy_coercion`（L327–L333）：接收`product_plan`、`field`、`value`。 控制顺序：L329遍历`proof[field]`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_delivery_rejects_missing_extra_or_stripped_security_evidence`（L336–L360）：接收`product_plan`。 控制顺序：L338遍历`("security_checks", "restart_security_checks")`；L339遍历`proof[field]`；L348遍历`( ("security_checks",), ("restart_security_checks",), ("security_…`；L354遍历`fields`。 调用`complete_native_proof`、`copy.deepcopy`、`pytest.raises`、`require_evidence`、`changed.pop`、`proof.update`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_old_or_unbound_dependency_evidence_never_passes`（L377–L414）：接收`product_plan`、`mutation`。 控制顺序：L388断言`require_evidence(proof, **bindings) is proof`；L389按`mutation == "v3"`分支；L391按`mutation == "absent"`分支；L393按`mutation == "restart-absent"`分支；L395按`mutation == "final-absent"`分支；L397按`mutation == "source-drift"`分支；L399按`mutation == "offline-install-only"`分支；L401按`mutation == "profile-image"`分支。后续分支沿下方源码相同行号继续阅读。 调用`complete_proof`、`dict`、`digest`、`manifest`、`plan.model_dump`、`plan.selection.model_dump`、`require_evidence`、`proof.pop`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_dependency_receipt_flags_require_boolean_true`（L417–L432）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L420断言`execution.require_preinstalled_evidence( good, record["snapshot"]["dependency_manifes…`；L426遍历`good`。 调用`profile_record`、`dependency_evidence`、`execution.require_preinstalled_evidence`、`digest`、`copy.deepcopy`、`bad.pop`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_new_dependency_probes_do_not_replace_existing_security_checks`（L446–L480）：接收`product_plan`、`monkeypatch`、`missing`。 控制顺序：L454断言`len(expected) == 25`；L456按`missing`分支；L460按`missing`分支；L464断言`probe.run_security_probe( object(), plan, 10, {"resource_limits": True} ) == dict.fro…`；L470断言`len(native) == 40`；L471断言`native == (expected - {"all_tcp_destinations_denied"}) \| { "postgres_application_rol…`。 调用`compile`、`set`、`len`、`dict.fromkeys`、`checks.pop`、`monkeypatch.setattr`、`SimpleNamespace`、`json.dumps`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_readonly_dependency_admission.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L452。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_readonly_dependency_admission.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L480。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`16500`。本段原文以LF换行结束。
+本段原始字节数：`17517`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_readonly_dependency_admission.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "bebbc2acda51440ad243adb5d22b1fe9bf106c33fc25f932a18902b93b6e917f"} -->
+<!-- learning-source: {"path": "tests/test_readonly_dependency_admission.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8147ccbbf05d347da186320d60d3289eb3a8c962c82e7b3352d7ef252141c15d"} -->
 ````python
 # tests/test_readonly_dependency_admission.py
 """Fail-closed contract tests with synthetic images, never live certification."""
@@ -325,6 +326,34 @@ def complete_native_proof(product, plan):
     )
     assert require_evidence(proof, **bindings) is proof
     return proof, bindings
+
+
+@pytest.mark.parametrize(
+    "field",
+    [
+        "preinstalled_dependencies",
+        "restart_preinstalled_dependencies",
+        "final_preinstalled_dependencies",
+    ],
+)
+@pytest.mark.parametrize("mutation", ["missing", "stale", "changed-physical-path"])
+def test_native_delivery_binds_runtime_patch_at_initial_restart_and_final(
+    product_plan, field, mutation
+):
+    proof, bindings = complete_native_proof(*product_plan)
+    # These compact fixtures share the profile's list; separate the receipt first.
+    proof[field] = copy.deepcopy(proof[field])
+    value = proof[field]
+    if mutation == "missing":
+        value.pop("runtime_patches")
+    elif mutation == "stale":
+        value["runtime_patches"][0]["id"] = "old"
+    else:
+        value["runtime_patches"][0]["relative_path"] = value["runtime_patches"][0][
+            "relative_path"
+        ].replace("vite@7.3.3/", "vite@7.3.3_jiti@2.6.1/")
+    with pytest.raises(CheckFailure, match="依赖"):
+        require_evidence(proof, **bindings)
 
 
 @pytest.mark.parametrize("field", ["security_checks", "restart_security_checks"])

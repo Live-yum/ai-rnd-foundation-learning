@@ -27,19 +27,19 @@
 - `test_all_auxiliary_descriptors_are_enforced_by_unchanged_candidate_hash_gate`（L228–L244）：接收`descriptor_product`、`name`、`mutation`。 控制顺序：L235按`mutation == "missing"`分支；L237按`mutation == "changed"`分支；L239按`mutation == "extra"`分支。 调用`profile_record`、`fixed_plan`、`path.unlink`、`path.write_bytes`、`path.read_bytes`、`atomic_text`、`path.rename`、`path.with_name`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `descriptor_input`（L247–L259）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`build.native_descriptor_roles`、`("inert data for " + name).encode`、`roles.values`、`hashlib.sha256(data).hexdigest`、`hashlib.sha256`、`raw.items`、`dict`、`base64.b64encode(raw[name]).decode`、`base64.b64encode`。 返回路径：L251的`{ "descriptor_roles": roles, "original_descriptors": hashes, "normalized_descriptors": dic…`。
 - `test_collector_rejects_incomplete_or_modified_metadata_before_any_process`（L282–L333）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L287按`mutation == "missing-name"`分支；L289按`mutation == "extra-name"`分支；L291按`mutation == "wrong-role"`分支；L295按`mutation == "missing-role"`分支；L297按`mutation == "duplicate-role"`分支；L299按`mutation == "bytes"`分支；L301按`mutation == "missing-bytes"`分支；L303按`mutation == "extra-bytes"`分支。后续分支沿下方源码相同行号继续阅读。 调用`descriptor_input`、`next`、`iter`、`value["original_descriptors"].pop`、`value["descriptor_roles"]["runtime"].append`、`value["descriptor_roles"]["auxiliary_source"].pop`、`value.pop`、`base64.b64encode(b"different valid data").decode`、`base64.b64encode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_sealed_image_manifest_requires_exact_roles_and_all_source_hashes`（L349–L381）：接收`mutation`。 控制顺序：L361按`mutation == "wrong-role"`分支；L363按`mutation == "missing-role"`分支；L365按`mutation == "extra-role"`分支；L367按`mutation == "missing-descriptor"`分支；L369按`mutation == "extra-descriptor"`分支；L372按`mutation == "normalized-auxiliary"`分支；L374按`mutation == "raw-transport-retained"`分支；L377按`mutation is None`分支。后续分支沿下方源码相同行号继续阅读。 调用`descriptor_input`、`value.pop`、`image.digest`、`record.pop`、`record["original_descriptors"].pop`、`image.validate_manifest`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_compact_image_binding_and_candidate_admission_bind_native_roles`（L385–L432）：接收`monkeypatch`、`mutation`。 控制顺序：L396按`mutation == "missing"`分支；L398按`mutation == "swapped"`分支；L403按`mutation == "added"`分支；L405按`mutation == "hash"`分支；L407按`mutation == "descriptor"`分支；L411按`mutation is None`分支。 调用`descriptor_input`、`copy.deepcopy`、`compact.pop`、`monkeypatch.setattr`、`json.dumps`、`base.inspect_dependency_manifest`、`base.validate_dependency_binding`、`admission.require_dependency_manifest`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_no_image_install_execution_or_privilege_surface_expands`（L435–L474）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L437断言`sha(native.ROOT / native.DOCKERFILE) == native.REVIEWED_DOCKERFILE_SHA256 == "1e9aa22…`；L442断言`image.ROOTS["fastapiadmin"] == [ "/opt/rnd/runtime/fastapiadmin/backend/.venv", "/opt…`；L451断言`image.GROUPS["fastapiadmin"] == { "python": ["default-groups"], "extras": [], "node":…`；L469断言`len(calls) == 2`；L470断言`all( "source_descriptor_bytes" not in ast.unparse(call) and "descriptor_roles" not in…`。 调用`sha`、`ast.parse`、`inspect.getsource`、`ast.walk`、`isinstance`、`len`、`all`、`ast.unparse`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_packaged_controller_imports_with_scripts_unavailable`（L477–L491）：接收`monkeypatch`。 控制顺序：L491断言`module.native_descriptor_roles() == admission.native_descriptor_roles()`。 调用`monkeypatch.setattr`、`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`module.native_descriptor_roles`、`admission.native_descriptor_roles`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_packaged_controller_imports_with_scripts_unavailable.without_scripts`（L480–L483）：接收`name`、`*args`、`**kwargs`。 控制顺序：L481按`name == "scripts" or name.startswith("scripts.")`分支；L482抛异常，停止当前正常路径。 调用`name.startswith`、`ModuleNotFoundError`、`original_import`。 返回路径：L483的`original_import(name, *args, **kwargs)`。
+- `test_sealed_image_manifest_requires_exact_roles_and_all_source_hashes`（L349–L382）：接收`mutation`。 控制顺序：L362按`mutation == "wrong-role"`分支；L364按`mutation == "missing-role"`分支；L366按`mutation == "extra-role"`分支；L368按`mutation == "missing-descriptor"`分支；L370按`mutation == "extra-descriptor"`分支；L373按`mutation == "normalized-auxiliary"`分支；L375按`mutation == "raw-transport-retained"`分支；L378按`mutation is None`分支。后续分支沿下方源码相同行号继续阅读。 调用`descriptor_input`、`value.pop`、`runtime_patches`、`runtime_patch_entries`、`image.digest`、`record.pop`、`record["original_descriptors"].pop`、`image.validate_manifest`、`pytest.raises`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_compact_image_binding_and_candidate_admission_bind_native_roles`（L386–L434）：接收`monkeypatch`、`mutation`。 控制顺序：L398按`mutation == "missing"`分支；L400按`mutation == "swapped"`分支；L405按`mutation == "added"`分支；L407按`mutation == "hash"`分支；L409按`mutation == "descriptor"`分支；L413按`mutation is None`分支。 调用`descriptor_input`、`runtime_patches`、`copy.deepcopy`、`compact.pop`、`monkeypatch.setattr`、`json.dumps`、`base.inspect_dependency_manifest`、`base.validate_dependency_binding`、`admission.require_dependency_manifest`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_no_image_install_execution_or_privilege_surface_expands`（L437–L476）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L439断言`sha(native.ROOT / native.DOCKERFILE) == native.REVIEWED_DOCKERFILE_SHA256 == "ceb125f…`；L444断言`image.ROOTS["fastapiadmin"] == [ "/opt/rnd/runtime/fastapiadmin/backend/.venv", "/opt…`；L453断言`image.GROUPS["fastapiadmin"] == { "python": ["default-groups"], "extras": [], "node":…`；L471断言`len(calls) == 2`；L472断言`all( "source_descriptor_bytes" not in ast.unparse(call) and "descriptor_roles" not in…`。 调用`sha`、`ast.parse`、`inspect.getsource`、`ast.walk`、`isinstance`、`len`、`all`、`ast.unparse`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_packaged_controller_imports_with_scripts_unavailable`（L479–L493）：接收`monkeypatch`。 控制顺序：L493断言`module.native_descriptor_roles() == admission.native_descriptor_roles()`。 调用`monkeypatch.setattr`、`importlib.util.spec_from_file_location`、`importlib.util.module_from_spec`、`spec.loader.exec_module`、`module.native_descriptor_roles`、`admission.native_descriptor_roles`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_packaged_controller_imports_with_scripts_unavailable.without_scripts`（L482–L485）：接收`name`、`*args`、`**kwargs`。 控制顺序：L483按`name == "scripts" or name.startswith("scripts.")`分支；L484抛异常，停止当前正常路径。 调用`name.startswith`、`ModuleNotFoundError`、`original_import`。 返回路径：L485的`original_import(name, *args, **kwargs)`。
 
 </details>
 
-**创建路径：** `tests/test_ci_native_capability_full_source.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L491。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_ci_native_capability_full_source.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L493。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`19241`。本段原文以LF换行结束。
+本段原始字节数：`19415`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_ci_native_capability_full_source.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "23fb9d7c6b9a35313bda1670c4283998c8c35ad340b66ca78feb11e07c064441"} -->
+<!-- learning-source: {"path": "tests/test_ci_native_capability_full_source.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "f2d9c68943c36a671d65cfc79d860da0486f60a5b00cfea170bf64d768c7ce92"} -->
 ````python
 # tests/test_ci_native_capability_full_source.py
 """Real pinned source/layout regression; all database/runtime execution is stubbed.
@@ -61,7 +61,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from capability_dependency_fixtures import profile_record
+from capability_dependency_fixtures import profile_record, runtime_patch_entries, runtime_patches
 from test_ci_native_capability_security import product as baseline_product  # noqa: F401
 
 from scripts import ci_native_capability_source as handoff
@@ -399,8 +399,9 @@ def test_sealed_image_manifest_requires_exact_roles_and_all_source_hashes(mutati
         "groups": image.GROUPS["fastapiadmin"],
         "recipe_identity": "a" * 64,
         "platform": {"os": "linux", "architecture": "amd64", "python": "3.14.7"},
-        "entries": {},
-        "installed_tree_sha256": image.digest({}),
+        "runtime_patches": runtime_patches(),
+        "entries": runtime_patch_entries(),
+        "installed_tree_sha256": image.digest(runtime_patch_entries()),
     }
     if mutation == "wrong-role":
         record["descriptor_roles"]["runtime"] = record["descriptor_roles"]["auxiliary_source"]
@@ -435,6 +436,7 @@ def test_compact_image_binding_and_candidate_admission_bind_native_roles(monkeyp
         "installed_tree_sha256": "b" * 64,
         "original_descriptors": value["original_descriptors"],
         "descriptor_roles": value["descriptor_roles"],
+        "runtime_patches": runtime_patches(),
     }
     original = copy.deepcopy(compact)
     if mutation == "missing":
@@ -481,7 +483,7 @@ def test_no_image_install_execution_or_privilege_surface_expands():
     assert (
         sha(native.ROOT / native.DOCKERFILE)
         == native.REVIEWED_DOCKERFILE_SHA256
-        == "1e9aa22679e06236a0c5f5cfbafe5fc2ff7f128f3f8e96aa38e398364e2bf5db"
+        == "ceb125fcca1a7c3ea8e7dae44a2b0ca64a7fb4374926d55be29ea8976ba95d59"
     )
     assert image.ROOTS["fastapiadmin"] == [
         "/opt/rnd/runtime/fastapiadmin/backend/.venv",

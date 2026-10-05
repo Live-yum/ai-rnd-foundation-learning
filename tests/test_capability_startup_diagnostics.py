@@ -4,6 +4,8 @@ import builtins
 import importlib
 import inspect
 import json
+import os
+import shutil
 import subprocess
 import sys
 import traceback
@@ -17,7 +19,7 @@ from workbench.capability_sandbox import (
     startup_command_exit_status,
     startup_failure_diagnostic,
 )
-from workbench.capability_startup_paths import NATIVE_TAIL_LIMIT
+from workbench.capability_startup_paths import NATIVE_TAIL_LIMIT, node_failure_facts
 
 
 def test_startup_hints_are_finite_even_for_secret_bearing_tracebacks():
@@ -427,7 +429,7 @@ def test_command_status_classifier_cannot_disclose_arbitrary_values(value):
     assert "secret" not in json.dumps(result)
 
 
-def rich_trace(exc, *, panel=False, width=100):
+def rich_trace(exc, *, panel=False, width=100, legacy_windows=None):
     """Render real Rich 15 tracebacks, including its actual SGR and borders."""
     from rich.console import Console
     from rich.panel import Panel
@@ -435,7 +437,12 @@ def rich_trace(exc, *, panel=False, width=100):
 
     output = StringIO()
     console = Console(
-        file=output, width=width, force_terminal=True, color_system="truecolor", no_color=False
+        file=output,
+        width=width,
+        force_terminal=True,
+        color_system="truecolor",
+        no_color=False,
+        legacy_windows=legacy_windows,
     )
     try:
         raise exc
@@ -917,6 +924,37 @@ def test_terminal_suffixless_unknown_suppresses_prior_known_exception(renderer, 
     assert "private" not in json.dumps(result)
 
 
+@pytest.mark.parametrize("legacy_windows", [False, True])
+@pytest.mark.parametrize("panel", [False, True])
+@pytest.mark.parametrize("empty", [False, True])
+@pytest.mark.parametrize("terminal_kind", ["known", "private", "lowercase"])
+def test_real_rich_console_modes_preserve_terminal_chain(
+    legacy_windows, panel, empty, terminal_kind
+):
+    class PrivateFailure(Exception):
+        pass
+
+    class privatefailure(Exception):
+        pass
+
+    exception = {"known": KeyError, "private": PrivateFailure, "lowercase": privatefailure}[
+        terminal_kind
+    ]
+    terminal = exception() if empty else exception("private-sentinel")
+    terminal.__cause__ = TypeError("private-primary")
+    output = rich_trace(terminal, panel=panel, legacy_windows=legacy_windows)
+    assert len(output.encode()) < NATIVE_TAIL_LIMIT
+    if panel:
+        left, right = ("└", "┘") if legacy_windows else ("╰", "╯")
+        assert left in output.splitlines()[-1] and right in output.splitlines()[-1]
+    result = startup_failure_diagnostic(output, 502, "none", output_limit=NATIVE_TAIL_LIMIT)
+    assert result["exception_type"] == ("KeyError" if terminal_kind == "known" else "unknown")
+    assert result["failure_component"] == "unknown"
+    assert result["output_read_limit_reached"] is False
+    assert "PrivateFailure" not in json.dumps(result)
+    assert "private" not in json.dumps(result)
+
+
 @pytest.mark.parametrize(
     "alias",
     [
@@ -951,3 +989,216 @@ def test_complete_bare_exception_newline_remains_known_at_exact_cap():
     result = startup_failure_diagnostic(output, 502, "none", output_limit=len(output))
     assert result["output_read_limit_reached"] is True
     assert result["exception_type"] == "TypeError"
+
+
+NODE_SYSTEM_ERROR = """SystemError [ERR_SYSTEM_ERROR]: private-sentinel
+    at private-location:1:1 {
+  code: 'ERR_SYSTEM_ERROR',
+  info: {
+    errno: 1,
+    code: 'Unknown system error 1',
+    message: 'private-sentinel',
+    syscall: 'uv_interface_addresses'
+  },
+  errno: [Getter/Setter],
+  syscall: [Getter/Setter]
+}
+"""
+
+
+def test_node_interface_failure_requires_same_closed_info_block():
+    assert node_failure_facts(NODE_SYSTEM_ERROR) == {
+        "error_code": "ERR_SYSTEM_ERROR",
+        "errno": 1,
+        "syscall": "uv_interface_addresses",
+        "component": "node-interface-enumeration",
+    }
+    colored_output = "\n".join(
+        "\x1b[31m" + line + "\x1b[0m" for line in NODE_SYSTEM_ERROR.splitlines()
+    )
+    assert node_failure_facts(colored_output) == node_failure_facts(NODE_SYSTEM_ERROR)
+    assert "private" not in json.dumps(node_failure_facts(NODE_SYSTEM_ERROR))
+
+
+@pytest.mark.parametrize(
+    "old,new",
+    [
+        ("SystemError [ERR_SYSTEM_ERROR]", "PrivateError [ERR_PRIVATE]"),
+        ("    errno: 1,", "    errno: -1,"),
+        ("    errno: 1,", "    errno: 1,\n    errno: 13,"),
+        ("    syscall: 'uv_interface_addresses'", "    syscall: 'private-sentinel'"),
+        ("  info: {", "  private: {"),
+        ("  },", ""),
+        ("  code: 'ERR_SYSTEM_ERROR',", "  code: 'ERR_PRIVATE',"),
+    ],
+)
+def test_node_missing_conflicting_or_unrelated_properties_stay_unknown(old, new):
+    result = node_failure_facts(NODE_SYSTEM_ERROR.replace(old, new))
+    assert result["component"] == "unknown" and result["syscall"] == "unknown"
+    assert "private" not in json.dumps(result)
+    assert "ERR_PRIVATE" not in json.dumps(result)
+
+
+def test_node_properties_cannot_cross_error_records_or_truncated_boundaries():
+    first = NODE_SYSTEM_ERROR.replace("    errno: 1,\n", "")
+    second = NODE_SYSTEM_ERROR.replace("    syscall: 'uv_interface_addresses'\n", "")
+    for text in (
+        first + second,
+        NODE_SYSTEM_ERROR + "Error: private-terminal\n    at private:1:1 {\n}\n",
+        "\x1b[0m" * NATIVE_TAIL_LIMIT + NODE_SYSTEM_ERROR,
+        NODE_SYSTEM_ERROR[: NODE_SYSTEM_ERROR.index("  info:")]
+        + "}\n"
+        + NODE_SYSTEM_ERROR[NODE_SYSTEM_ERROR.index("  info:") :],
+    ):
+        result = node_failure_facts(text)
+        assert result["component"] == "unknown"
+        assert "private" not in json.dumps(result)
+
+
+@pytest.mark.skipif(
+    shutil.which("node") is None, reason="Trusted Node unavailable for owned formatter fixture"
+)
+@pytest.mark.parametrize(
+    "code,errno", [("ERR_SYSTEM_ERROR", 1), ("EACCES", -13), ("ENOENT", -2), ("EMFILE", -24)]
+)
+@pytest.mark.parametrize("logged", [False, True])
+def test_actual_node_formatter_produces_only_verified_public_facts(code, errno, logged):
+    # Trusted Node's own formatter with synthetic context; no candidate imports,
+    # kernel-error claim, permission changes, or filesystem/network operations.
+    if code == "ERR_SYSTEM_ERROR":
+        construct = "new codes.ERR_SYSTEM_ERROR({errno:1,code:'Unknown system error 1',message:'Unknown system error 1',syscall:'uv_interface_addresses'})"
+    else:
+        construct = (
+            "new UVException("
+            + json.dumps(
+                {
+                    "errno": errno,
+                    "code": code,
+                    "message": "private-sentinel",
+                    "syscall": "open",
+                    "path": "/private-sentinel",
+                }
+            )
+            + ")"
+        )
+    script = (
+        "Error.stackTraceLimit=1;const {codes,UVException}=require('internal/errors');const e="
+        + construct
+        + ";"
+        + ("console.error(e);" if logged else "throw e;")
+    )
+    process = subprocess.run(
+        [shutil.which("node"), "--expose-internals", "-e", script],
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+        env={
+            key: value
+            for key, value in os.environ.items()
+            if key not in {"NODE_OPTIONS", "NODE_PATH"}
+        },
+    )
+    assert process.returncode == (0 if logged else 1)
+    result = node_failure_facts(process.stderr)
+    assert result["error_code"] == code and result["errno"] == errno
+    assert result["syscall"] == ("uv_interface_addresses" if code == "ERR_SYSTEM_ERROR" else "open")
+    assert result["component"] == (
+        "node-interface-enumeration" if code == "ERR_SYSTEM_ERROR" else "unknown"
+    )
+    assert "private" not in json.dumps(result)
+
+
+@pytest.mark.parametrize("value", [None, True, "", [], "x" * 129])
+@pytest.mark.parametrize("field", ["session", "command_id"])
+def test_invalid_command_identity_cannot_issue_a_status_query(value, field):
+    identities = {"session": "owned-session", "command_id": "owned-command"}
+    identities[field] = value
+    process = SimpleNamespace(
+        get_session_command=lambda *a: pytest.fail("Invalid identity queried")
+    )
+    assert startup_command_exit_facts(process, **identities, timeout=5) == {
+        "command_exit_status": "unknown",
+        "command_exit_code": None,
+    }
+
+
+@pytest.mark.skipif(
+    shutil.which("node") is None, reason="Trusted Node unavailable for owned formatter fixture"
+)
+@pytest.mark.parametrize("name", ["PrivateFailure", "privatefailure", "私有错误"])
+@pytest.mark.parametrize("logged", [False, True])
+def test_actual_node_suffixless_terminal_error_cannot_borrow_prior_component(name, logged):
+    script = (
+        "Error.stackTraceLimit=1;const {codes}=require('internal/errors');"
+        "console.error(new codes.ERR_SYSTEM_ERROR({errno:1,code:'Unknown system error 1',"
+        "message:'Unknown system error 1',syscall:'uv_interface_addresses'}));"
+        "const terminal=new Error('private-sentinel');terminal.name="
+        + json.dumps(name)
+        + ";"
+        + ("console.error(terminal);" if logged else "throw terminal;")
+    )
+    process = subprocess.run(
+        [shutil.which("node"), "--expose-internals", "-e", script],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        timeout=5,
+        check=False,
+        env={
+            key: value
+            for key, value in os.environ.items()
+            if key not in {"NODE_OPTIONS", "NODE_PATH"}
+        },
+    )
+    assert process.returncode == (0 if logged else 1)
+    assert "ERR_SYSTEM_ERROR" in process.stderr and name + ": private-sentinel" in process.stderr
+    assert len(process.stderr.encode()) < NATIVE_TAIL_LIMIT
+    result = node_failure_facts(process.stderr)
+    assert result == {
+        "error_code": "unknown",
+        "errno": None,
+        "syscall": "unknown",
+        "component": "unknown",
+    }
+    assert name not in json.dumps(result, ensure_ascii=False)
+
+
+@pytest.mark.parametrize(
+    "terminal",
+    [
+        "PrivateFailure: private-sentinel\n",
+        "PrivateFailure:",
+        "PrivateFailure: " + "x" * NATIVE_TAIL_LIMIT,
+        "Private" + "x" * 256 + ": private-sentinel\n",
+        "private-terminal-text\n",
+    ],
+)
+def test_node_unknown_or_partial_terminal_record_remains_conservative(terminal):
+    result = node_failure_facts(NODE_SYSTEM_ERROR + terminal)
+    assert result == {
+        "error_code": "unknown",
+        "errno": None,
+        "syscall": "unknown",
+        "component": "unknown",
+    }
+
+
+def test_node_latest_known_record_and_raw_budget_do_not_borrow_other_records():
+    denied = """Error: EACCES: private-sentinel
+    at private-location:1:1 {
+  errno: -13,
+  syscall: 'open',
+  code: 'EACCES',
+  path: '/private-sentinel'
+}
+"""
+    assert node_failure_facts(NODE_SYSTEM_ERROR + denied) == {
+        "error_code": "EACCES",
+        "errno": -13,
+        "syscall": "open",
+        "component": "unknown",
+    }
+    assert node_failure_facts(
+        NODE_SYSTEM_ERROR.ljust(NATIVE_TAIL_LIMIT) + "PrivateFailure: outside-budget"
+    ) == node_failure_facts(NODE_SYSTEM_ERROR)

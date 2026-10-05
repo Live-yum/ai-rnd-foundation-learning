@@ -15,46 +15,49 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `plan`（L18–L60）：接收`profile`。 调用`SimpleNamespace`、`TaskCommand`。 返回路径：L20的`SimpleNamespace( selection=SimpleNamespace( template=profile, database="postgresql" if nat…`。
-- `expected`（L63–L81）：接收`profile`。 调用`dependencies.native_descriptor_roles().values`、`dependencies.native_descriptor_roles`、`hashlib.sha256(b"descriptor").hexdigest`、`hashlib.sha256`。 返回路径：L69的`{ "schema": 1, "profile": profile, "image_id": "sha256:" + "a" * 64, "manifest_sha256": "b…`。
-- `test_exact_installs_translate_to_immutable_tools_only`（L84–L112）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L86断言`dependencies.readonly_prepare_commands(base) == []`；L87断言`dependencies.readonly_start_command(base).argv[0] == dependencies.PYTHON_ROOT + "/bin…`；L93断言`len(commands) == 2`；L94断言`commands[0] == native.native_frontend_build_command()`；L95断言`commands[0].argv[:3] == [dependencies.NODE, "--input-type=module", "--eval"]`；L96断言`dependencies.NATIVE_NODE_ROOT + "/vite/dist/node/index.js" in commands[0].argv[3]`；L97断言`commands[1].argv == [ dependencies.NODE, dependencies.NATIVE_NODE_ROOT + "/vue-tsc/bi…`；L103断言`dependencies.readonly_start_command(value).argv[0] == dependencies.NATIVE_PYTHON_ROOT…`。后续分支沿下方源码相同行号继续阅读。 调用`plan`、`dependencies.readonly_prepare_commands`、`dependencies.readonly_start_command`、`len`、`native.native_frontend_build_command`、`native.frontend_start_command`、`native.native_prepare_commands`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_alternate_prepare_and_launch_contracts_fail_closed`（L119–L137）：接收`profile`、`mutation`。 控制顺序：L121按`profile == "fastapiadmin"`分支；L123按`mutation == "extra"`分支；L125按`mutation == "install-cwd"`分支；L127按`mutation == "alternate-flag"`分支；L129按`mutation == "shell"`分支；L131按`mutation == "launch-env"`分支。 调用`plan`、`native.native_prepare_commands`、`value.runtime.prepare.append`、`TaskCommand`、`value.runtime.prepare[0].argv.append`、`pytest.raises`、`dependencies.readonly_prepare_commands`、`dependencies.readonly_start_command`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_manifest_requires_strict_known_profile`（L153–L172）：接收`mutation`。 控制顺序：L155按`mutation == "extra-field"`分支；L157按`mutation == "missing-descriptor"`分支；L159按`mutation == "extra-descriptor"`分支；L161按`mutation == "wrong-profile"`分支；L163按`mutation == "boolean-schema"`分支；L165按`mutation == "bad-hash"`分支；L167按`mutation == "bad-image"`分支。 调用`expected`、`value["original_descriptors"].pop`、`pytest.raises`、`dependencies.require_dependency_manifest`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_local_descriptors_are_checked_without_importing_candidate`（L175–L186）：接收`tmp_path`。 控制顺序：L176遍历`("pyproject.toml", "uv.lock")`；L183断言`dependencies.require_dependency_descriptors(tmp_path, plan(), record) == value`。 调用`(tmp_path / name).write_text`、`(tmp_path / "sitecustomize.py").write_text`、`expected`、`dependencies.require_dependency_descriptors`、`plan`、`(tmp_path / "uv.lock").write_text`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_local_binding_rejects_image_drift_and_hidden_dependency_tree`（L190–L202）：接收`tmp_path`、`mutation`。 控制顺序：L191遍历`("pyproject.toml", "uv.lock")`；L195按`mutation == "image"`分支；L197按`mutation == "venv"`分支。 调用`(tmp_path / name).write_text`、`expected`、`(tmp_path / ".venv").mkdir`、`(tmp_path / "package.json").write_text`、`pytest.raises`、`dependencies.require_dependency_descriptors`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_admission_requires_whole_trusted_verifier_receipt`（L208–L262）：接收`monkeypatch`、`mutation`。 控制顺序：L214按`mutation == "manifest"`分支；L216按`mutation == "tree"`分支；L218按`mutation == "false-flag"`分支；L220按`mutation == "extra"`分支；L222按`mutation == "schema"`分支；L236按`mutation`分支；L242断言`dependencies.prepare_readonly_dependencies( None, plan(), 10, expected=value, source_…`；L250断言`calls == [ [ "/usr/bin/python3", "-I", "-S", dependencies.IMAGE_VERIFIER, "verify-run…`。 调用`expected`、`proof.update`、`monkeypatch.setattr`、`pytest.raises`、`dependencies.prepare_readonly_dependencies`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_runtime_admission_requires_whole_trusted_verifier_receipt.execute`（L226–L228）：接收`sandbox`、`argv`、`timeout`。 调用`calls.append`、`SimpleNamespace`、`json.dumps`。 返回路径：L228的`SimpleNamespace(exit_code=1 if mutation == "exit" else 0, result=json.dumps(proof))`。
-- `linked_graph`（L266–L317）：接收`tmp_path`、`monkeypatch`。 源码说明：Real links/inodes; model root ownership only because pytest is unprivileged.。 控制顺序：L268按`os.name != "posix"`分支。 调用`pytest.skip`、`(product / "frontend/web").mkdir`、`(image / ".pnpm/vite/node_modules/vite").mkdir`、`(image / ".pnpm/vue-tsc/node_modules/vue-tsc").mkdir`、`(image / ".pnpm/esbuild/node_modules/@esbuild/linux-x64").mkdir`、`(image / ".pnpm/esbuild/node_modules/@esbuild/linux-x64/esbuild")…`、`(image / "vite").symlink_to`、`(image / "vue-tsc").symlink_to`、`(image / "@esbuild").mkdir`等。 返回路径：L310的`SimpleNamespace( product=product, image=image, control=control, namespace=namespace, reloc…`。
-- `linked_graph.ownership`（L287–L292）：接收`path`、`*args`、`**kwargs`。 调用`original_lstat`、`list`、`os.stat_result`。 返回路径：L292的`os.stat_result(row)`。
-- `linked_graph.relocate`（L298–L303）：接收`script`。 调用`script.replace(dependencies.PRODUCT, product.as_posix()) .replace…`、`script.replace(dependencies.PRODUCT, product.as_posix()) .replace`、`script.replace`、`product.as_posix`、`str`。 返回路径：L299的`script.replace(dependencies.PRODUCT, product.as_posix()) .replace(dependencies.NATIVE_NODE…`。
-- `test_product_dependency_root_is_real_with_exact_complete_image_graph`（L320–L333）：接收`linked_graph`。 控制顺序：L323断言`modules.is_dir() and not modules.is_symlink()`；L324断言`(modules / ".pnpm").resolve() == value.image / ".pnpm"`；L325断言`(modules / "@esbuild").is_dir() and not (modules / "@esbuild").is_symlink()`；L326断言`(modules / "@esbuild/linux-x64/esbuild").read_bytes() == b"native"`；L327断言`not (modules / ".bin").exists()`；L328断言`(modules / ".vite-temp").is_dir() and not (modules / ".vite-temp").is_symlink()`；L329断言`all(path.is_relative_to(value.product) for path in value.mutations)`。 调用`modules.is_dir`、`modules.is_symlink`、`(modules / ".pnpm").resolve`、`(modules / "@esbuild").is_dir`、`(modules / "@esbuild").is_symlink`、`(modules / "@esbuild/linux-x64/esbuild").read_bytes`、`(modules / ".bin").exists`、`(modules / ".vite-temp").is_dir`、`(modules / ".vite-temp").is_symlink`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_postbuild_link_map_rejects_tampering`（L353–L389）：接收`linked_graph`、`mutation`。 控制顺序：L356按`mutation == "replace"`分支；L361按`mutation == "add-link"`分支；L363按`mutation == "add-file"`分支；L365按`mutation == "add-directory"`分支；L367按`mutation == "add-bin"`分支；L369按`mutation == "cache-link"`分支；L371按`mutation == "cache-hardlink"`分支；L373按`mutation == "ancestor-link"`分支。后续分支沿下方源码相同行号继续阅读。 调用`os.readlink`、`link.rename`、`link.symlink_to`、`(modules / "unexpected").symlink_to`、`(modules / "evil.js").write_text`、`(modules / "evil").mkdir`、`(modules / ".bin").symlink_to`、`(modules / ".vite-temp/config.mjs").symlink_to`、`os.link`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `freeze_script`（L392–L403）：接收`monkeypatch`、`inventory`。 调用`monkeypatch.setattr`、`native.verify_and_freeze_native_sources`、`SimpleNamespace`。 返回路径：L403的`scripts[0]`。
-- `freeze_script.execute`（L395–L397）：接收`sandbox`、`argv`、`timeout`。 调用`scripts.append`、`SimpleNamespace`。 返回路径：L397的`SimpleNamespace(exit_code=0)`。
-- `test_freeze_full_inventory_precedes_any_privileged_mutation`（L418–L461）：接收`linked_graph`、`monkeypatch`、`mutation`。 控制顺序：L431按`mutation == "python"`分支；L433按`mutation == "javascript"`分支；L435按`mutation == "unlisted-link"`分支；L437按`mutation == "hardlink"`分支；L439按`mutation == "cache-hardlink"`分支；L441按`mutation == "unknown-directory"`分支；L447按`mutation`分支；L450断言`value.mutations == []`。后续分支沿下方源码相同行号继续阅读。 调用`(value.product / "backend/app").mkdir`、`source.write_text`、`(value.product / "frontend/web/dist").mkdir`、`(value.product / "frontend/web/dist/index.html").write_text`、`(value.product / "frontend/web/dist/app.js").write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`source_manifest.write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run_source_script`（L464–L475）：接收`product`、`control`、`value`、`inventory`、`initial`、`relocate`。 调用`dependencies._source_contract`、`control.write_text`、`json.dumps`、`repr`、`relocate(script) .replace(dependencies.PRODUCT, product.as_posix(…`、`relocate(script) .replace`、`relocate`、`product.as_posix`、`control.as_posix`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_base_source_inventory_freezes_only_after_exact_preflight`（L492–L531）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L499按`mutation == "unexpected-python"`分支；L501按`mutation == "unexpected-pyc"`分支；L503按`mutation == "symlink"`分支；L505按`mutation == "hardlink"`分支；L507按`mutation == "source-change"`分支；L509按`mutation == "root-database"`分支；L511按`mutation == "database-source-overlap"`分支；L517按`mutation`分支。后续分支沿下方源码相同行号继续阅读。 调用`product.mkdir`、`source.write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`plan`、`(product / "injected.py").write_text`、`(product / "injected.pyc").write_bytes`、`(product / "data").symlink_to`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_base_final_inventory_allows_only_exact_database_files`（L537–L562）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L547按`mutation == "added-source"`分支；L549按`mutation == "data-python"`分支；L551按`mutation == "data-link"`分支；L553按`mutation == "db-hardlink"`分支；L556按`mutation == "modified-source"`分支；L558按`mutation`分支。 调用`product.mkdir`、`source.write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`monkeypatch.setattr`、`run_source_script`、`plan`、`(product / "data/app.db").write_bytes`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_native_final_inventory_allows_narrow_runtime_data_only`（L568–L612）：接收`linked_graph`、`mutation`。 控制顺序：L574遍历`("backend/data", "backend/logs", "backend/static/upload", "fronte…`；L576遍历`( "backend/data/jobs.sqlite", "backend/logs/server.log", "backend…`；L584按`mutation == "data-source"`分支；L586按`mutation == "log-source"`分支；L588按`mutation == "upload-source"`分支；L590按`mutation == "dist-link"`分支；L592按`mutation == "outside-module"`分支；L594按`mutation`分支。 调用`(value.product / "backend/app").mkdir`、`source.write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`(value.product / directory).mkdir`、`(value.product / name).write_text`、`(value.product / "backend/data/extra.py").write_text`、`(value.product / "backend/logs/extra.log.py").write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_local_broken_dependency_link_rejected_explicitly`（L615–L622）：接收`tmp_path`。 控制顺序：L616遍历`("pyproject.toml", "uv.lock")`。 调用`(tmp_path / name).write_text`、`(tmp_path / ".venv").symlink_to`、`expected`、`pytest.raises`、`dependencies.require_dependency_descriptors`、`plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_initial_ownership_preflights_whole_tree_before_any_chown`（L626–L668）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L644断言`len(scripts) == 1`；L645断言`not any("/usr/bin/chown" in argv or "/usr/bin/cp" in argv for argv in calls)`；L646遍历`("product", "home", "tmp", "cache")`；L652按`mutation == "symlink"`分支；L667断言`mutations == []`；L668断言`list(outside.iterdir()) == []`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation.prepare_identity`、`plan`、`len`、`any`、`(tmp_path / name).mkdir`、`source.write_text`、`outside.mkdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_initial_ownership_preflights_whole_tree_before_any_chown.control`（L632–L639）：接收`sandbox`、`argv`、`timeout`。 控制顺序：L634按`argv == ["/usr/bin/id", "-u"]`分支；L636按`argv[:4] == ["/usr/bin/python3", "-I", "-S", "-c"]`分支。 调用`calls.append`、`SimpleNamespace`、`scripts.append`。 返回路径：L635的`SimpleNamespace(exit_code=0, result="0\n")`；L638的`SimpleNamespace(exit_code=1, result="")`；L639的`SimpleNamespace(exit_code=0, result="")`。
-- `test_database_code_or_unsafe_location_rejected_before_creation`（L691–L699）：接收`tmp_path`、`database_path`。 控制顺序：L692遍历`("pyproject.toml", "uv.lock")`。 调用`(tmp_path / name).write_text`、`plan`、`expected`、`pytest.raises`、`dependencies.require_dependency_descriptors`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_database_only_suffixes_admitted_before_creation`（L703–L710）：接收`tmp_path`、`database_path`。 控制顺序：L704遍历`("pyproject.toml", "uv.lock")`；L710断言`dependencies.require_dependency_descriptors(tmp_path, value, record) == binding`。 调用`(tmp_path / name).write_text`、`plan`、`expected`、`dependencies.require_dependency_descriptors`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_dependency_profile_database_pair_must_match`（L716–L720）：接收`profile`、`database`。 调用`plan`、`pytest.raises`、`dependencies._profile`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_trusted_source_script_rejects_forged_database_contract_before_mutation`（L727–L751）：接收`tmp_path`、`monkeypatch`、`mode`、`database_path`。 控制顺序：L750断言`mutations == []`；L751断言`sorted(path.name for path in product.iterdir()) == ["app.py"]`。 调用`product.mkdir`、`(product / "app.py").write_text`、`hashlib.sha256(b"source").hexdigest`、`hashlib.sha256`、`control.write_text`、`json.dumps`、`("MODE=" + repr(mode) + "\n" + dependencies.SOURCE_CODE) .replace…`、`("MODE=" + repr(mode) + "\n" + dependencies.SOURCE_CODE) .replace`、`repr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `plan`（L20–L62）：接收`profile`。 调用`SimpleNamespace`、`TaskCommand`。 返回路径：L22的`SimpleNamespace( selection=SimpleNamespace( template=profile, database="postgresql" if nat…`。
+- `expected`（L65–L86）：接收`profile`。 调用`dependencies.native_descriptor_roles().values`、`dependencies.native_descriptor_roles`、`hashlib.sha256(b"descriptor").hexdigest`、`hashlib.sha256`、`runtime_patches`。 返回路径：L71的`{ "schema": 1, "profile": profile, "image_id": "sha256:" + "a" * 64, "manifest_sha256": "b…`。
+- `test_exact_installs_translate_to_immutable_tools_only`（L89–L117）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L91断言`dependencies.readonly_prepare_commands(base) == []`；L92断言`dependencies.readonly_start_command(base).argv[0] == dependencies.PYTHON_ROOT + "/bin…`；L98断言`len(commands) == 2`；L99断言`commands[0] == native.native_frontend_build_command()`；L100断言`commands[0].argv[:3] == [dependencies.NODE, "--input-type=module", "--eval"]`；L101断言`dependencies.NATIVE_NODE_ROOT + "/vite/dist/node/index.js" in commands[0].argv[3]`；L102断言`commands[1].argv == [ dependencies.NODE, dependencies.NATIVE_NODE_ROOT + "/vue-tsc/bi…`；L108断言`dependencies.readonly_start_command(value).argv[0] == dependencies.NATIVE_PYTHON_ROOT…`。后续分支沿下方源码相同行号继续阅读。 调用`plan`、`dependencies.readonly_prepare_commands`、`dependencies.readonly_start_command`、`len`、`native.native_frontend_build_command`、`native.frontend_start_command`、`native.native_prepare_commands`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_alternate_prepare_and_launch_contracts_fail_closed`（L124–L142）：接收`profile`、`mutation`。 控制顺序：L126按`profile == "fastapiadmin"`分支；L128按`mutation == "extra"`分支；L130按`mutation == "install-cwd"`分支；L132按`mutation == "alternate-flag"`分支；L134按`mutation == "shell"`分支；L136按`mutation == "launch-env"`分支。 调用`plan`、`native.native_prepare_commands`、`value.runtime.prepare.append`、`TaskCommand`、`value.runtime.prepare[0].argv.append`、`pytest.raises`、`dependencies.readonly_prepare_commands`、`dependencies.readonly_start_command`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_manifest_requires_strict_known_profile`（L158–L177）：接收`mutation`。 控制顺序：L160按`mutation == "extra-field"`分支；L162按`mutation == "missing-descriptor"`分支；L164按`mutation == "extra-descriptor"`分支；L166按`mutation == "wrong-profile"`分支；L168按`mutation == "boolean-schema"`分支；L170按`mutation == "bad-hash"`分支；L172按`mutation == "bad-image"`分支。 调用`expected`、`value["original_descriptors"].pop`、`pytest.raises`、`dependencies.require_dependency_manifest`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_descriptors_are_checked_without_importing_candidate`（L180–L191）：接收`tmp_path`。 控制顺序：L181遍历`("pyproject.toml", "uv.lock")`；L188断言`dependencies.require_dependency_descriptors(tmp_path, plan(), record) == value`。 调用`(tmp_path / name).write_text`、`(tmp_path / "sitecustomize.py").write_text`、`expected`、`dependencies.require_dependency_descriptors`、`plan`、`(tmp_path / "uv.lock").write_text`、`pytest.raises`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_binding_rejects_image_drift_and_hidden_dependency_tree`（L195–L207）：接收`tmp_path`、`mutation`。 控制顺序：L196遍历`("pyproject.toml", "uv.lock")`；L200按`mutation == "image"`分支；L202按`mutation == "venv"`分支。 调用`(tmp_path / name).write_text`、`expected`、`(tmp_path / ".venv").mkdir`、`(tmp_path / "package.json").write_text`、`pytest.raises`、`dependencies.require_dependency_descriptors`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_admission_requires_whole_trusted_verifier_receipt`（L213–L267）：接收`monkeypatch`、`mutation`。 控制顺序：L219按`mutation == "manifest"`分支；L221按`mutation == "tree"`分支；L223按`mutation == "false-flag"`分支；L225按`mutation == "extra"`分支；L227按`mutation == "schema"`分支；L241按`mutation`分支；L247断言`dependencies.prepare_readonly_dependencies( None, plan(), 10, expected=value, source_…`；L255断言`calls == [ [ "/usr/bin/python3", "-I", "-S", dependencies.IMAGE_VERIFIER, "verify-run…`。 调用`expected`、`proof.update`、`monkeypatch.setattr`、`pytest.raises`、`dependencies.prepare_readonly_dependencies`、`plan`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_runtime_admission_requires_whole_trusted_verifier_receipt.execute`（L231–L233）：接收`sandbox`、`argv`、`timeout`。 调用`calls.append`、`SimpleNamespace`、`json.dumps`。 返回路径：L233的`SimpleNamespace(exit_code=1 if mutation == "exit" else 0, result=json.dumps(proof))`。
+- `test_native_initial_and_restart_require_exact_runtime_patch_receipt`（L274–L324）：接收`monkeypatch`、`phase`、`mutation`。 控制顺序：L289按`mutation == "missing"`分支；L291按`mutation == "stale"`分支；L293按`mutation == "different-path"`分支；L298按`mutation == "extra"`分支；L300按`mutation == "old-profile"`分支；L316按`mutation`分支；L319断言`len(calls) == (0 if mutation == "old-profile" else 1)`；L321断言`verify(None, plan("fastapiadmin"), 10, expected=value, source_inventory={}) == { **pr…`。 调用`expected`、`copy.deepcopy`、`proof.update`、`proof.pop`、`proof["runtime_patches"][0][ "relative_path" ].replace`、`value.pop`、`monkeypatch.setattr`、`pytest.raises`、`verify`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_initial_and_restart_require_exact_runtime_patch_receipt.execute`（L305–L307）：接收`sandbox`、`argv`、`timeout`。 调用`calls.append`、`SimpleNamespace`、`json.dumps`。 返回路径：L307的`SimpleNamespace(exit_code=0, result=json.dumps(proof))`。
+- `linked_graph`（L328–L379）：接收`tmp_path`、`monkeypatch`。 源码说明：Real links/inodes; model root ownership only because pytest is unprivileged.。 控制顺序：L330按`os.name != "posix"`分支。 调用`pytest.skip`、`(product / "frontend/web").mkdir`、`(image / ".pnpm/vite/node_modules/vite").mkdir`、`(image / ".pnpm/vue-tsc/node_modules/vue-tsc").mkdir`、`(image / ".pnpm/esbuild/node_modules/@esbuild/linux-x64").mkdir`、`(image / ".pnpm/esbuild/node_modules/@esbuild/linux-x64/esbuild")…`、`(image / "vite").symlink_to`、`(image / "vue-tsc").symlink_to`、`(image / "@esbuild").mkdir`等。 返回路径：L372的`SimpleNamespace( product=product, image=image, control=control, namespace=namespace, reloc…`。
+- `linked_graph.ownership`（L349–L354）：接收`path`、`*args`、`**kwargs`。 调用`original_lstat`、`list`、`os.stat_result`。 返回路径：L354的`os.stat_result(row)`。
+- `linked_graph.relocate`（L360–L365）：接收`script`。 调用`script.replace(dependencies.PRODUCT, product.as_posix()) .replace…`、`script.replace(dependencies.PRODUCT, product.as_posix()) .replace`、`script.replace`、`product.as_posix`、`str`。 返回路径：L361的`script.replace(dependencies.PRODUCT, product.as_posix()) .replace(dependencies.NATIVE_NODE…`。
+- `test_product_dependency_root_is_real_with_exact_complete_image_graph`（L382–L395）：接收`linked_graph`。 控制顺序：L385断言`modules.is_dir() and not modules.is_symlink()`；L386断言`(modules / ".pnpm").resolve() == value.image / ".pnpm"`；L387断言`(modules / "@esbuild").is_dir() and not (modules / "@esbuild").is_symlink()`；L388断言`(modules / "@esbuild/linux-x64/esbuild").read_bytes() == b"native"`；L389断言`not (modules / ".bin").exists()`；L390断言`(modules / ".vite-temp").is_dir() and not (modules / ".vite-temp").is_symlink()`；L391断言`all(path.is_relative_to(value.product) for path in value.mutations)`。 调用`modules.is_dir`、`modules.is_symlink`、`(modules / ".pnpm").resolve`、`(modules / "@esbuild").is_dir`、`(modules / "@esbuild").is_symlink`、`(modules / "@esbuild/linux-x64/esbuild").read_bytes`、`(modules / ".bin").exists`、`(modules / ".vite-temp").is_dir`、`(modules / ".vite-temp").is_symlink`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_postbuild_link_map_rejects_tampering`（L415–L451）：接收`linked_graph`、`mutation`。 控制顺序：L418按`mutation == "replace"`分支；L423按`mutation == "add-link"`分支；L425按`mutation == "add-file"`分支；L427按`mutation == "add-directory"`分支；L429按`mutation == "add-bin"`分支；L431按`mutation == "cache-link"`分支；L433按`mutation == "cache-hardlink"`分支；L435按`mutation == "ancestor-link"`分支。后续分支沿下方源码相同行号继续阅读。 调用`os.readlink`、`link.rename`、`link.symlink_to`、`(modules / "unexpected").symlink_to`、`(modules / "evil.js").write_text`、`(modules / "evil").mkdir`、`(modules / ".bin").symlink_to`、`(modules / ".vite-temp/config.mjs").symlink_to`、`os.link`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `freeze_script`（L454–L465）：接收`monkeypatch`、`inventory`。 调用`monkeypatch.setattr`、`native.verify_and_freeze_native_sources`、`SimpleNamespace`。 返回路径：L465的`scripts[0]`。
+- `freeze_script.execute`（L457–L459）：接收`sandbox`、`argv`、`timeout`。 调用`scripts.append`、`SimpleNamespace`。 返回路径：L459的`SimpleNamespace(exit_code=0)`。
+- `test_freeze_full_inventory_precedes_any_privileged_mutation`（L480–L523）：接收`linked_graph`、`monkeypatch`、`mutation`。 控制顺序：L493按`mutation == "python"`分支；L495按`mutation == "javascript"`分支；L497按`mutation == "unlisted-link"`分支；L499按`mutation == "hardlink"`分支；L501按`mutation == "cache-hardlink"`分支；L503按`mutation == "unknown-directory"`分支；L509按`mutation`分支；L512断言`value.mutations == []`。后续分支沿下方源码相同行号继续阅读。 调用`(value.product / "backend/app").mkdir`、`source.write_text`、`(value.product / "frontend/web/dist").mkdir`、`(value.product / "frontend/web/dist/index.html").write_text`、`(value.product / "frontend/web/dist/app.js").write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`source_manifest.write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run_source_script`（L526–L537）：接收`product`、`control`、`value`、`inventory`、`initial`、`relocate`。 调用`dependencies._source_contract`、`control.write_text`、`json.dumps`、`repr`、`relocate(script) .replace(dependencies.PRODUCT, product.as_posix(…`、`relocate(script) .replace`、`relocate`、`product.as_posix`、`control.as_posix`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_base_source_inventory_freezes_only_after_exact_preflight`（L554–L593）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L561按`mutation == "unexpected-python"`分支；L563按`mutation == "unexpected-pyc"`分支；L565按`mutation == "symlink"`分支；L567按`mutation == "hardlink"`分支；L569按`mutation == "source-change"`分支；L571按`mutation == "root-database"`分支；L573按`mutation == "database-source-overlap"`分支；L579按`mutation`分支。后续分支沿下方源码相同行号继续阅读。 调用`product.mkdir`、`source.write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`plan`、`(product / "injected.py").write_text`、`(product / "injected.pyc").write_bytes`、`(product / "data").symlink_to`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_base_final_inventory_allows_only_exact_database_files`（L599–L624）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L609按`mutation == "added-source"`分支；L611按`mutation == "data-python"`分支；L613按`mutation == "data-link"`分支；L615按`mutation == "db-hardlink"`分支；L618按`mutation == "modified-source"`分支；L620按`mutation`分支。 调用`product.mkdir`、`source.write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`monkeypatch.setattr`、`run_source_script`、`plan`、`(product / "data/app.db").write_bytes`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_native_final_inventory_allows_narrow_runtime_data_only`（L630–L674）：接收`linked_graph`、`mutation`。 控制顺序：L636遍历`("backend/data", "backend/logs", "backend/static/upload", "fronte…`；L638遍历`( "backend/data/jobs.sqlite", "backend/logs/server.log", "backend…`；L646按`mutation == "data-source"`分支；L648按`mutation == "log-source"`分支；L650按`mutation == "upload-source"`分支；L652按`mutation == "dist-link"`分支；L654按`mutation == "outside-module"`分支；L656按`mutation`分支。 调用`(value.product / "backend/app").mkdir`、`source.write_text`、`hashlib.sha256(source.read_bytes()).hexdigest`、`hashlib.sha256`、`source.read_bytes`、`(value.product / directory).mkdir`、`(value.product / name).write_text`、`(value.product / "backend/data/extra.py").write_text`、`(value.product / "backend/logs/extra.log.py").write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_local_broken_dependency_link_rejected_explicitly`（L677–L684）：接收`tmp_path`。 控制顺序：L678遍历`("pyproject.toml", "uv.lock")`。 调用`(tmp_path / name).write_text`、`(tmp_path / ".venv").symlink_to`、`expected`、`pytest.raises`、`dependencies.require_dependency_descriptors`、`plan`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_initial_ownership_preflights_whole_tree_before_any_chown`（L688–L730）：接收`tmp_path`、`monkeypatch`、`mutation`。 控制顺序：L706断言`len(scripts) == 1`；L707断言`not any("/usr/bin/chown" in argv or "/usr/bin/cp" in argv for argv in calls)`；L708遍历`("product", "home", "tmp", "cache")`；L714按`mutation == "symlink"`分支；L729断言`mutations == []`；L730断言`list(outside.iterdir()) == []`。 调用`monkeypatch.setattr`、`pytest.raises`、`isolation.prepare_identity`、`plan`、`len`、`any`、`(tmp_path / name).mkdir`、`source.write_text`、`outside.mkdir`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_initial_ownership_preflights_whole_tree_before_any_chown.control`（L694–L701）：接收`sandbox`、`argv`、`timeout`。 控制顺序：L696按`argv == ["/usr/bin/id", "-u"]`分支；L698按`argv[:4] == ["/usr/bin/python3", "-I", "-S", "-c"]`分支。 调用`calls.append`、`SimpleNamespace`、`scripts.append`。 返回路径：L697的`SimpleNamespace(exit_code=0, result="0\n")`；L700的`SimpleNamespace(exit_code=1, result="")`；L701的`SimpleNamespace(exit_code=0, result="")`。
+- `test_database_code_or_unsafe_location_rejected_before_creation`（L753–L761）：接收`tmp_path`、`database_path`。 控制顺序：L754遍历`("pyproject.toml", "uv.lock")`。 调用`(tmp_path / name).write_text`、`plan`、`expected`、`pytest.raises`、`dependencies.require_dependency_descriptors`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_database_only_suffixes_admitted_before_creation`（L765–L772）：接收`tmp_path`、`database_path`。 控制顺序：L766遍历`("pyproject.toml", "uv.lock")`；L772断言`dependencies.require_dependency_descriptors(tmp_path, value, record) == binding`。 调用`(tmp_path / name).write_text`、`plan`、`expected`、`dependencies.require_dependency_descriptors`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_dependency_profile_database_pair_must_match`（L778–L782）：接收`profile`、`database`。 调用`plan`、`pytest.raises`、`dependencies._profile`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_trusted_source_script_rejects_forged_database_contract_before_mutation`（L789–L813）：接收`tmp_path`、`monkeypatch`、`mode`、`database_path`。 控制顺序：L812断言`mutations == []`；L813断言`sorted(path.name for path in product.iterdir()) == ["app.py"]`。 调用`product.mkdir`、`(product / "app.py").write_text`、`hashlib.sha256(b"source").hexdigest`、`hashlib.sha256`、`control.write_text`、`json.dumps`、`("MODE=" + repr(mode) + "\n" + dependencies.SOURCE_CODE) .replace…`、`("MODE=" + repr(mode) + "\n" + dependencies.SOURCE_CODE) .replace`、`repr`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_capability_readonly_dependencies.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L751。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_capability_readonly_dependencies.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L813。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`28753`。本段原文以LF换行结束。
+本段原始字节数：`31018`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_capability_readonly_dependencies.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "9b64d7008119bd5b1c5df1cf6370d32689419e1ffd2c9a91957678471a643557"} -->
+<!-- learning-source: {"path": "tests/test_capability_readonly_dependencies.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0fd7baa246bbaff57217f36dc83fb3b51d84ff133110d73fe9bd4afa5f2bd7ab"} -->
 ````python
 # tests/test_capability_readonly_dependencies.py
 """Pinned commands, data-only admission, and hostile dependency-link fixtures."""
 
+import copy
 import hashlib
 import json
 import os
@@ -63,6 +66,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from capability_dependency_fixtures import runtime_patches
 
 from workbench import capability_dependencies as dependencies
 from workbench import capability_native_runtime as native
@@ -129,7 +133,10 @@ def expected(profile="python-basic"):
         "installed_tree_sha256": "c" * 64,
         "original_descriptors": {name: hashlib.sha256(b"descriptor").hexdigest() for name in names},
         **(
-            {"descriptor_roles": dependencies.native_descriptor_roles()}
+            {
+                "descriptor_roles": dependencies.native_descriptor_roles(),
+                "runtime_patches": runtime_patches(),
+            }
             if profile == "fastapiadmin"
             else {}
         ),
@@ -315,6 +322,63 @@ def test_runtime_admission_requires_whole_trusted_verifier_receipt(monkeypatch, 
             dependencies.PRODUCT,
         ]
     ]
+
+
+@pytest.mark.parametrize("phase", ["initial", "restart"])
+@pytest.mark.parametrize(
+    "mutation", [None, "missing", "stale", "different-path", "extra", "old-profile"]
+)
+def test_native_initial_and_restart_require_exact_runtime_patch_receipt(
+    monkeypatch, phase, mutation
+):
+    value = expected("fastapiadmin")
+    proof = {
+        key: copy.deepcopy(value[key])
+        for key in (
+            "schema",
+            "profile",
+            "manifest_sha256",
+            "installed_tree_sha256",
+            "runtime_patches",
+        )
+    }
+    proof.update({key: True for key in dependencies.RECEIPT_FLAGS})
+    if mutation == "missing":
+        proof.pop("runtime_patches")
+    elif mutation == "stale":
+        proof["runtime_patches"][0]["id"] = "old"
+    elif mutation == "different-path":
+        # Both paths are permitted, but restart must bind the original physical instance.
+        proof["runtime_patches"][0]["relative_path"] = proof["runtime_patches"][0][
+            "relative_path"
+        ].replace("vite@7.3.3/", "vite@7.3.3_jiti@2.6.1/")
+    elif mutation == "extra":
+        proof["runtime_patches"][0]["hook"] = True
+    elif mutation == "old-profile":
+        value.pop("runtime_patches")
+        proof.pop("runtime_patches")
+    calls = []
+
+    def execute(sandbox, argv, timeout):
+        calls.append(argv)
+        return SimpleNamespace(exit_code=0, result=json.dumps(proof))
+
+    monkeypatch.setattr(dependencies, "control_exec", execute)
+    monkeypatch.setattr(dependencies, "_verify_sources", lambda *a, **kw: {})
+    verify = (
+        dependencies.prepare_readonly_dependencies
+        if phase == "initial"
+        else dependencies.verify_readonly_dependencies
+    )
+    if mutation:
+        with pytest.raises(CheckFailure):
+            verify(None, plan("fastapiadmin"), 10, expected=value, source_inventory={})
+        assert len(calls) == (0 if mutation == "old-profile" else 1)
+    else:
+        assert verify(None, plan("fastapiadmin"), 10, expected=value, source_inventory={}) == {
+            **proof,
+            "product_links_verified": True,
+        }
 
 
 @pytest.fixture

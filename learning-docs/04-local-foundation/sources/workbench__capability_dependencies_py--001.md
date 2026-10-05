@@ -15,25 +15,27 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `native_descriptor_roles`（L26–L43）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep this wheel-owned data policy equal to both isolated image-side tables.。 返回路径：L28的`{ "runtime": [ "backend/pyproject.toml", "backend/uv.lock", "frontend/web/package.json", "…`。
-- `_profile`（L46–L51）：接收`plan`。 控制顺序：L49按`profile not in supported or plan.selection.database != supported[profile]`分支；L50抛异常，停止当前正常路径。 调用`CheckFailure`。 返回路径：L51的`profile`。
-- `require_dependency_manifest`（L54–L101）：接收`value`、`profile`。 控制顺序：L63按`profile == "fastapiadmin"`分支；L65按`type(value) is not dict or set(value) != fields or type(value.get("schema")) is not i…`分支；L82抛异常，停止当前正常路径；L87按`profile not in descriptors or set(value["original_descriptors"]) != descriptors[profi…`分支；L88抛异常，停止当前正常路径；L89遍历`value["original_descriptors"].items()`；L90按`type(name) is not str or not name or str(PurePosixPath(name)) != name or PurePosixPat…`分支；L100抛异常，停止当前正常路径。 调用`fields.add`、`type`、`set`、`value.get`、`re.fullmatch`、`any`、`native_descriptor_roles`、`CheckFailure`、`native_descriptor_roles().values`等。 返回路径：L101的`value`。
-- `require_dependency_descriptors`（L104–L129）：接收`product`、`plan`、`record`。 源码说明：Local fail-closed preflight before even creating/uploading a sandbox.。 控制顺序：L110按`expected["image_id"] != record["snapshot"].get("image_id")`分支；L111抛异常，停止当前正常路径；L116遍历`roots`；L118按`raw.is_symlink()`分支；L119抛异常，停止当前正常路径；L121按`path.exists()`分支；L122抛异常，停止当前正常路径；L127按`observed != expected["original_descriptors"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`_profile`、`type`、`record.get`、`snapshot.get`、`require_dependency_manifest`、`record["snapshot"].get`、`CheckFailure`、`readonly_prepare_commands`、`readonly_start_command`等。 返回路径：L129的`expected`。
-- `readonly_prepare_commands`（L132–L162）：接收`plan`。 源码说明：Only these exact install contracts are satisfied by verified image data.。 控制顺序：L134按`_profile(plan) == "fastapiadmin"`分支；L143按`plan.runtime.prepare and plan.runtime.prepare != trusted`分支；L144抛异常，停止当前正常路径；L160按`plan.runtime.prepare != expected`分支；L161抛异常，停止当前正常路径。 调用`_profile`、`native_start_command`、`native_prepare_commands`、`CheckFailure`、`native_frontend_build_command`、`TaskCommand`。 返回路径：L145的`[ native_frontend_build_command(), TaskCommand( cwd="frontend/web", argv=[ NODE, NATIVE_NO…`；L162的`[]`。
-- `readonly_start_command`（L165–L193）：接收`plan`、`command`。 源码说明：Translate a validated launcher, never arbitrary command prefixes.。 控制顺序：L168按`profile == "fastapiadmin"`分支；L172按`command is not None and command == frontend_start_command()`分支；L174按`command is not None and command != native`分支；L175抛异常，停止当前正常路径；L181按`command != plan.runtime.start or command.cwd != "." or len(argv) != 8 or argv[0] not …`分支；L192抛异常，停止当前正常路径。 调用`_profile`、`native_start_command`、`frontend_start_command`、`TaskCommand`、`CheckFailure`、`len`、`re.fullmatch`、`str`。 返回路径：L173的`TaskCommand(cwd="frontend/web", argv=[NODE, CONTROL + "/native-preview.mjs"])`；L176的`TaskCommand( cwd=native.cwd, argv=[NATIVE_PYTHON_ROOT + "/bin/python", *native.argv[1:]] )`；L193的`TaskCommand(cwd=".", argv=[PYTHON_ROOT + "/bin/python", *argv[1:]])`。
-- `_verify_image`（L298–L336）：接收`sandbox`、`plan`、`timeout`、`expected`。 控制顺序：L317按`type(result.exit_code) is not int or result.exit_code != 0`分支；L318抛异常，停止当前正常路径；L319按`type(result.result) is not str or len(result.result) > 4096`分支；L320抛异常，停止当前正常路径；L322按`type(value) is not dict or set(value) != {"schema", "profile", "manifest_sha256", "in…`分支；L333抛异常，停止当前正常路径；L335抛异常，停止当前正常路径。 调用`_profile`、`require_dependency_manifest`、`control_exec`、`type`、`len`、`json.loads`、`set`、`value.get`、`any`等。 返回路径：L336的`value`。
-- `_source_contract`（L425–L467）：接收`plan`、`source_inventory`。 控制顺序：L426按`type(source_inventory) is not dict or not source_inventory`分支；L427抛异常，停止当前正常路径；L428遍历`source_inventory.items()`；L429按`type(name) is not str or not name or str(PurePosixPath(name)) != name or PurePosixPat…`分支；L439抛异常，停止当前正常路径；L440按`plan.selection.database == "sqlite"`分支；L444按`str(database) != value or database.is_absolute() or ".." in database.parts or "\\" in…`分支；L461抛异常，停止当前正常路径。 调用`type`、`CheckFailure`、`source_inventory.items`、`str`、`PurePosixPath`、`PurePosixPath(name).is_absolute`、`re.fullmatch`、`database.parent.as_posix`、`database.is_absolute`等。 返回路径：L462的`{ "profile": _profile(plan), "database": plan.selection.database, "database_path": plan.ru…`。
-- `_verify_sources`（L470–L477）：接收`sandbox`、`plan`、`timeout`、`source_inventory`、`initial`。 控制顺序：L475按`result.exit_code != 0`分支；L476抛异常，停止当前正常路径。 调用`_source_contract`、`sandbox.fs.upload_file`、`json.dumps(contract).encode`、`json.dumps`、`repr`、`control_exec`、`CheckFailure`、`digest`。 返回路径：L477的`{"source_inventory_sha256": digest(source_inventory), "source_inventory_verified": True}`。
-- `prepare_readonly_dependencies`（L480–L491）：接收`sandbox`、`plan`、`timeout`、`expected`、`source_inventory`。 控制顺序：L485按`_profile(plan) == "fastapiadmin"`分支；L489按`result.exit_code != 0`分支；L490抛异常，停止当前正常路径。 调用`readonly_prepare_commands`、`readonly_start_command`、`_verify_image`、`_verify_sources`、`_profile`、`control_exec`、`CheckFailure`。 返回路径：L491的`{**receipt, **source, "product_links_verified": True}`。
-- `verify_readonly_dependencies`（L494–L497）：接收`sandbox`、`plan`、`timeout`、`expected`、`source_inventory`。 调用`_verify_image`、`_verify_sources`。 返回路径：L497的`{**receipt, **source, "product_links_verified": True}`。
+- `native_runtime_patch_identity`（L26–L34）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Wheel-owned admission policy, independent of the image's verifier version.。 返回路径：L28的`{ "id": "vite-preview-interface-eperm-v1", "package": "vite", "version": "7.3.3", "upstrea…`。
+- `valid_native_runtime_patches`（L37–L51）：接收`value`。 调用`native_runtime_patch_identity`、`type`、`len`、`set`、`all`、`value[0].get`、`identity.items`、`re.fullmatch`。 返回路径：L39的`type(value) is list and len(value) == 1 and type(value[0]) is dict and set(value[0]) == {*…`。
+- `native_descriptor_roles`（L54–L71）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Keep this wheel-owned data policy equal to both isolated image-side tables.。 返回路径：L56的`{ "runtime": [ "backend/pyproject.toml", "backend/uv.lock", "frontend/web/package.json", "…`。
+- `_profile`（L74–L79）：接收`plan`。 控制顺序：L77按`profile not in supported or plan.selection.database != supported[profile]`分支；L78抛异常，停止当前正常路径。 调用`CheckFailure`。 返回路径：L79的`profile`。
+- `require_dependency_manifest`（L82–L132）：接收`value`、`profile`。 控制顺序：L91按`profile == "fastapiadmin"`分支；L93按`type(value) is not dict or set(value) != fields or type(value.get("schema")) is not i…`分支；L113抛异常，停止当前正常路径；L118按`profile not in descriptors or set(value["original_descriptors"]) != descriptors[profi…`分支；L119抛异常，停止当前正常路径；L120遍历`value["original_descriptors"].items()`；L121按`type(name) is not str or not name or str(PurePosixPath(name)) != name or PurePosixPat…`分支；L131抛异常，停止当前正常路径。 调用`fields.update`、`type`、`set`、`value.get`、`re.fullmatch`、`any`、`native_descriptor_roles`、`valid_native_runtime_patches`、`CheckFailure`等。 返回路径：L132的`value`。
+- `require_dependency_descriptors`（L135–L160）：接收`product`、`plan`、`record`。 源码说明：Local fail-closed preflight before even creating/uploading a sandbox.。 控制顺序：L141按`expected["image_id"] != record["snapshot"].get("image_id")`分支；L142抛异常，停止当前正常路径；L147遍历`roots`；L149按`raw.is_symlink()`分支；L150抛异常，停止当前正常路径；L152按`path.exists()`分支；L153抛异常，停止当前正常路径；L158按`observed != expected["original_descriptors"]`分支。后续分支沿下方源码相同行号继续阅读。 调用`_profile`、`type`、`record.get`、`snapshot.get`、`require_dependency_manifest`、`record["snapshot"].get`、`CheckFailure`、`readonly_prepare_commands`、`readonly_start_command`等。 返回路径：L160的`expected`。
+- `readonly_prepare_commands`（L163–L193）：接收`plan`。 源码说明：Only these exact install contracts are satisfied by verified image data.。 控制顺序：L165按`_profile(plan) == "fastapiadmin"`分支；L174按`plan.runtime.prepare and plan.runtime.prepare != trusted`分支；L175抛异常，停止当前正常路径；L191按`plan.runtime.prepare != expected`分支；L192抛异常，停止当前正常路径。 调用`_profile`、`native_start_command`、`native_prepare_commands`、`CheckFailure`、`native_frontend_build_command`、`TaskCommand`。 返回路径：L176的`[ native_frontend_build_command(), TaskCommand( cwd="frontend/web", argv=[ NODE, NATIVE_NO…`；L193的`[]`。
+- `readonly_start_command`（L196–L224）：接收`plan`、`command`。 源码说明：Translate a validated launcher, never arbitrary command prefixes.。 控制顺序：L199按`profile == "fastapiadmin"`分支；L203按`command is not None and command == frontend_start_command()`分支；L205按`command is not None and command != native`分支；L206抛异常，停止当前正常路径；L212按`command != plan.runtime.start or command.cwd != "." or len(argv) != 8 or argv[0] not …`分支；L223抛异常，停止当前正常路径。 调用`_profile`、`native_start_command`、`frontend_start_command`、`TaskCommand`、`CheckFailure`、`len`、`re.fullmatch`、`str`。 返回路径：L204的`TaskCommand(cwd="frontend/web", argv=[NODE, CONTROL + "/native-preview.mjs"])`；L207的`TaskCommand( cwd=native.cwd, argv=[NATIVE_PYTHON_ROOT + "/bin/python", *native.argv[1:]] )`；L224的`TaskCommand(cwd=".", argv=[PYTHON_ROOT + "/bin/python", *argv[1:]])`。
+- `_verify_image`（L329–L366）：接收`sandbox`、`plan`、`timeout`、`expected`。 控制顺序：L348按`type(result.exit_code) is not int or result.exit_code != 0`分支；L349抛异常，停止当前正常路径；L350按`type(result.result) is not str or len(result.result) > 4096`分支；L351抛异常，停止当前正常路径；L354按`profile == "fastapiadmin"`分支；L356按`type(value) is not dict or set(value) != binding \| set(RECEIPT_FLAGS) or type(value.…`分支；L363抛异常，停止当前正常路径；L365抛异常，停止当前正常路径。 调用`_profile`、`require_dependency_manifest`、`control_exec`、`type`、`len`、`json.loads`、`binding.add`、`set`、`value.get`等。 返回路径：L366的`value`。
+- `_source_contract`（L455–L497）：接收`plan`、`source_inventory`。 控制顺序：L456按`type(source_inventory) is not dict or not source_inventory`分支；L457抛异常，停止当前正常路径；L458遍历`source_inventory.items()`；L459按`type(name) is not str or not name or str(PurePosixPath(name)) != name or PurePosixPat…`分支；L469抛异常，停止当前正常路径；L470按`plan.selection.database == "sqlite"`分支；L474按`str(database) != value or database.is_absolute() or ".." in database.parts or "\\" in…`分支；L491抛异常，停止当前正常路径。 调用`type`、`CheckFailure`、`source_inventory.items`、`str`、`PurePosixPath`、`PurePosixPath(name).is_absolute`、`re.fullmatch`、`database.parent.as_posix`、`database.is_absolute`等。 返回路径：L492的`{ "profile": _profile(plan), "database": plan.selection.database, "database_path": plan.ru…`。
+- `_verify_sources`（L500–L507）：接收`sandbox`、`plan`、`timeout`、`source_inventory`、`initial`。 控制顺序：L505按`result.exit_code != 0`分支；L506抛异常，停止当前正常路径。 调用`_source_contract`、`sandbox.fs.upload_file`、`json.dumps(contract).encode`、`json.dumps`、`repr`、`control_exec`、`CheckFailure`、`digest`。 返回路径：L507的`{"source_inventory_sha256": digest(source_inventory), "source_inventory_verified": True}`。
+- `prepare_readonly_dependencies`（L510–L521）：接收`sandbox`、`plan`、`timeout`、`expected`、`source_inventory`。 控制顺序：L515按`_profile(plan) == "fastapiadmin"`分支；L519按`result.exit_code != 0`分支；L520抛异常，停止当前正常路径。 调用`readonly_prepare_commands`、`readonly_start_command`、`_verify_image`、`_verify_sources`、`_profile`、`control_exec`、`CheckFailure`。 返回路径：L521的`{**receipt, **source, "product_links_verified": True}`。
+- `verify_readonly_dependencies`（L524–L527）：接收`sandbox`、`plan`、`timeout`、`expected`、`source_inventory`。 调用`_verify_image`、`_verify_sources`。 返回路径：L527的`{**receipt, **source, "product_links_verified": True}`。
 
 </details>
 
-**创建路径：** `workbench/capability_dependencies.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L497。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_dependencies.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L527。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`21708`。本段原文以LF换行结束。
+本段原始字节数：`22864`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_dependencies.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a0eb524d2a97ffdad56e7e2ad5bf2b84545ddddad0d554d0b82777d8a5ca7047"} -->
+<!-- learning-source: {"path": "workbench/capability_dependencies.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b53041110f5b12d2f0db6faad3f971469ce5d237faedb1161c8a8890ffbd359c"} -->
 ````python
 # workbench/capability_dependencies.py
 """Admit pinned, immutable dependencies without executing candidate install code.
@@ -59,6 +61,34 @@ NATIVE_NODE_ROOT = "/opt/rnd/runtime/fastapiadmin/frontend/node_modules"
 NODE = "/usr/local/bin/node"
 LINK_MANIFEST = CONTROL + "/private/dependency-links.json"
 RECEIPT_FLAGS = ("descriptors_verified", "installed_tree_verified", "readonly_verified")
+
+
+def native_runtime_patch_identity():
+    """Wheel-owned admission policy, independent of the image's verifier version."""
+    return {
+        "id": "vite-preview-interface-eperm-v1",
+        "package": "vite",
+        "version": "7.3.3",
+        "upstream_sha256": "339ee4656b2ca976ca320b48cffba04361f91ad0899a32a1c60ba9b2910e772e",
+        "patched_sha256": "8df548e7d1456f542321e05139faec50f23f15e64afc5a434c57583308bcc86e",
+    }
+
+
+def valid_native_runtime_patches(value):
+    identity = native_runtime_patch_identity()
+    return (
+        type(value) is list
+        and len(value) == 1
+        and type(value[0]) is dict
+        and set(value[0]) == {*identity, "relative_path"}
+        and all(value[0].get(key) == expected for key, expected in identity.items())
+        and type(value[0].get("relative_path")) is str
+        and re.fullmatch(
+            r"\.pnpm/vite@7\.3\.3(?:_[A-Za-z0-9@+_.-]+)?/node_modules/vite/dist/node/chunks/config\.js",
+            value[0]["relative_path"],
+        )
+        is not None
+    )
 
 
 def native_descriptor_roles():
@@ -99,7 +129,7 @@ def require_dependency_manifest(value, profile):
         "original_descriptors",
     }
     if profile == "fastapiadmin":
-        fields.add("descriptor_roles")
+        fields.update({"descriptor_roles", "runtime_patches"})
     if (
         type(value) is not dict
         or set(value) != fields
@@ -115,7 +145,10 @@ def require_dependency_manifest(value, profile):
         or type(value.get("original_descriptors")) is not dict
         or not value["original_descriptors"]
         or profile == "fastapiadmin"
-        and value.get("descriptor_roles") != native_descriptor_roles()
+        and (
+            value.get("descriptor_roles") != native_descriptor_roles()
+            or not valid_native_runtime_patches(value.get("runtime_patches"))
+        )
     ):
         raise CheckFailure("缺少与当前镜像绑定的只读依赖清单")
     descriptors = {
@@ -357,15 +390,14 @@ def _verify_image(sandbox, plan, timeout, expected):
         if type(result.result) is not str or len(result.result) > 4096:
             raise ValueError
         value = json.loads(result.result)
+        binding = {"schema", "profile", "manifest_sha256", "installed_tree_sha256"}
+        if profile == "fastapiadmin":
+            binding.add("runtime_patches")
         if (
             type(value) is not dict
-            or set(value)
-            != {"schema", "profile", "manifest_sha256", "installed_tree_sha256", *RECEIPT_FLAGS}
+            or set(value) != binding | set(RECEIPT_FLAGS)
             or type(value.get("schema")) is not int
-            or any(
-                value.get(key) != expected[key]
-                for key in ("schema", "profile", "manifest_sha256", "installed_tree_sha256")
-            )
+            or any(value.get(key) != expected[key] for key in binding)
             or any(value.get(key) is not True for key in RECEIPT_FLAGS)
         ):
             raise ValueError

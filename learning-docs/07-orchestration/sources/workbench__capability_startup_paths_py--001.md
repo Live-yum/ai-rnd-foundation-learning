@@ -15,24 +15,26 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `bounded_output_bytes`（L186–L188）：接收`output`、`limit`。 源码说明：Cap raw UTF-8 bytes before normalization; never refill from later text.。 调用`output[:limit].encode`。 返回路径：L188的`output[:limit].encode("utf-8", errors="replace")[:limit]`。
-- `normalize_sgr`（L191–L193）：接收`output`。 源码说明：Remove only bounded numeric SGR, never OSC or arbitrary terminal commands.。 调用`SGR.sub`。 返回路径：L193的`SGR.sub("", output)`。
-- `exception_lines`（L196–L214）：接收`output`。 源码说明：Only bounded indentation and a single known Rich panel border unwrap. Use only for the terminal exception hint, never to join traceback frames for the stricter multiprocessing component classifier.。 控制顺序：L203遍历`output.split("\n")`；L207按`line.startswith("│ ") and line.endswith(" │")`分支。 调用`output.split`、`re.fullmatch`、`line.startswith`、`line.endswith`、`lines.append`、`"\n".join`。 返回路径：L214的`"\n".join(lines)`。
-- `public_exception`（L217–L219）：接收`name`。 源码说明：Return only literal, reviewed exception names, never an unknown suffix.。 调用`FRAMEWORK_EXCEPTIONS.get`。 返回路径：L219的`name if name in BUILTIN_EXCEPTIONS else FRAMEWORK_EXCEPTIONS.get(name, "unknown")`。
-- `_json_unique`（L222–L231）：接收`text`。 调用`json.loads`。 返回路径：L231的`json.loads(text, object_pairs_hook=pairs)`。
-- `_json_unique.pairs`（L223–L229）：接收`values`。 控制顺序：L225遍历`values`；L226按`key in result`分支；L227抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L229的`result`。
-- `output_shapes`（L234–L265）：接收`output`。 源码说明：Untrusted format hints, with no captured message or dynamic path.。 控制顺序：L236按`type(output) is not str`分支。 调用`type`、`bounded_output_bytes(output).decode`、`bounded_output_bytes`、`normalize_sgr`、`patterns.items`、`re.search`。 返回路径：L237的`[]`；L261的`[ label for label, pattern in patterns.items() if re.search(pattern, raw if label == "ansi…`。
-- `native_startup_smoke`（L276–L325）：接收`sandbox`、`plan`、`database`、`identity_options`、`timeout`。 源码说明：Exercise the same isolated launcher, without importing candidate code.。 控制顺序：L304按`type(result.exit_code) is int and 0 <= result.exit_code <= 255`分支；L309按`type(output) is not str or len(output.encode()) > SMOKE_OUTPUT_LIMIT`分支；L312按`receipt["exit_status"] == "zero"`分支；L314按`type(value) is dict and set(value) == {"version_matches", "executable_matches", "cwd_…`分支。 调用`time.monotonic`、`min`、`_DEADLINE.set`、`redirected_command`、`product_argv`、`control_exec`、`shlex.join`、`remaining`、`type`等。 返回路径：L310的`receipt`；L321的`receipt`；L323的`receipt`。
-- `native_startup_smoke.remaining`（L283–L289）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L287按`value < 1`分支；L288抛异常，停止当前正常路径。 调用`int`、`time.monotonic`、`TimeoutError`。 返回路径：L289的`value`。
-- `native_startup_paths`（L427–L477）：接收`sandbox`、`timeout`。 源码说明：Return a fresh finite receipt or unknown; never serialize probe failures.。 控制顺序：L433按`budget < 1`分支；L436按`type(result.exit_code) is not int or result.exit_code != 0`分支；L438按`type(result.result) is not str or len(result.result.encode()) > 2048`分支；L441按`type(value) is not dict or set(value) != {"paths", "native_binary"}`分支；L444按`type(paths) is not dict or set(paths) != set(PATH_ROLES)`分支；L446遍历`paths.values()`；L447按`type(row) is not dict or set(row) != {"entry", "target", "dac_read", "dac_exec"}`分支；L449按`any(type(row[k]) is not str or row[k] not in KINDS for k in ("entry", "target"))`分支。后续分支沿下方源码相同行号继续阅读。 调用`_DEADLINE.set`、`time.monotonic`、`min`、`int`、`control_exec`、`type`、`len`、`result.result.encode`、`_json_unique`等。 返回路径：L434的`unknown`；L437的`unknown`；L439的`unknown`。
+- `startup_target`（L23–L49）：接收`plan`、`command`、`port`、`health_path`。 源码说明：Bind diagnostics to the exact registered command before translation.。 控制顺序：L31按`getattr(plan.selection, "template", "") == "fastapiadmin"`分支；L34按`original == frontend_start_command()`分支；L36按`type(expected_port) is not int or not 1 <= expected_port <= 65535 or (port is not Non…`分支；L42抛异常，停止当前正常路径。 调用`readonly_start_command`、`getattr`、`frontend_start_command`、`type`、`CheckFailure`。 返回路径：L43的`translated, { "role": role, "interpreter": "node" if role == "frontend" else "python", "po…`。
+- `bounded_output_bytes`（L216–L218）：接收`output`、`limit`。 源码说明：Cap raw UTF-8 bytes before normalization; never refill from later text.。 调用`output[:limit].encode`。 返回路径：L218的`output[:limit].encode("utf-8", errors="replace")[:limit]`。
+- `normalize_sgr`（L221–L223）：接收`output`。 源码说明：Remove only bounded numeric SGR, never OSC or arbitrary terminal commands.。 调用`SGR.sub`。 返回路径：L223的`SGR.sub("", output)`。
+- `exception_lines`（L226–L244）：接收`output`。 源码说明：Only bounded indentation and a single known Rich panel border unwrap. Use only for the terminal exception hint, never to join traceback frames for the stricter multiprocessing component classifier.。 控制顺序：L233遍历`output.split("\n")`；L237按`line.startswith("│ ") and line.endswith(" │")`分支。 调用`output.split`、`re.fullmatch`、`line.startswith`、`line.endswith`、`lines.append`、`"\n".join`。 返回路径：L244的`"\n".join(lines)`。
+- `public_exception`（L247–L249）：接收`name`。 源码说明：Return only literal, reviewed exception names, never an unknown suffix.。 调用`FRAMEWORK_EXCEPTIONS.get`。 返回路径：L249的`name if name in BUILTIN_EXCEPTIONS else FRAMEWORK_EXCEPTIONS.get(name, "unknown")`。
+- `_json_unique`（L252–L261）：接收`text`。 调用`json.loads`。 返回路径：L261的`json.loads(text, object_pairs_hook=pairs)`。
+- `_json_unique.pairs`（L253–L259）：接收`values`。 控制顺序：L255遍历`values`；L256按`key in result`分支；L257抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L259的`result`。
+- `output_shapes`（L264–L295）：接收`output`。 源码说明：Untrusted format hints, with no captured message or dynamic path.。 控制顺序：L266按`type(output) is not str`分支。 调用`type`、`bounded_output_bytes(output).decode`、`bounded_output_bytes`、`normalize_sgr`、`patterns.items`、`re.search`。 返回路径：L267的`[]`；L291的`[ label for label, pattern in patterns.items() if re.search(pattern, raw if label == "ansi…`。
+- `node_failure_facts`（L298–L356）：接收`output`。 源码说明：Finite Node 22 hints from one bounded, closed error record only.。 控制顺序：L301按`type(output) is not str`分支；L312按`not headers`分支；L317按`end is None`分支；L321按`not re.fullmatch( r"[ \t\r\n]*(?:Node\.js v[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}[ \t\r\n…`分支；L328按`header.startswith("SystemError [ERR_SYSTEM_ERROR]: ")`分支；L332按`match is None`分支；L336按`outer_codes != [code]`分支；L339按`code == "ERR_SYSTEM_ERROR"`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`normalize_sgr`、`bounded_output_bytes(output, NATIVE_TAIL_LIMIT).decode`、`bounded_output_bytes`、`list`、`re.finditer`、`headers[-1].start`、`re.search`、`re.fullmatch`等。 返回路径：L302的`unknown`；L313的`unknown`；L318的`unknown`。
+- `native_startup_smoke`（L375–L437）：接收`sandbox`、`plan`、`database`、`identity_options`、`timeout`、`role`。 源码说明：Exercise the same isolated launcher, without importing candidate code.。 控制顺序：L378按`type(role) is not str or role not in {"backend", "frontend"}`分支；L411按`type(result.exit_code) is int and 0 <= result.exit_code <= 255`分支；L416按`type(output) is not str or len(output.encode()) > SMOKE_OUTPUT_LIMIT`分支；L419按`receipt["exit_status"] == "zero"`分支；L421按`type(value) is dict and set(value) == { "version_matches", "executable_matches", "cwd…`分支。 调用`type`、`time.monotonic`、`min`、`_DEADLINE.set`、`redirected_command`、`product_argv`、`control_exec`、`shlex.join`、`remaining`等。 返回路径：L379的`receipt`；L417的`receipt`；L433的`receipt`。
+- `native_startup_smoke.remaining`（L384–L390）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L388按`value < 1`分支；L389抛异常，停止当前正常路径。 调用`int`、`time.monotonic`、`TimeoutError`。 返回路径：L390的`value`。
+- `native_startup_paths`（L566–L620）：接收`sandbox`、`timeout`、`role`。 源码说明：Return a fresh finite receipt or unknown; never serialize probe failures.。 控制顺序：L569按`type(role) is not str or role not in {"backend", "frontend"}`分支；L574按`budget < 1`分支；L578按`type(result.exit_code) is not int or result.exit_code != 0`分支；L580按`type(result.result) is not str or len(result.result.encode()) > 2048`分支；L583按`type(value) is not dict or set(value) != {"paths", "native_binary"}`分支；L587按`type(paths) is not dict or set(paths) != set(expected_roles)`分支；L589遍历`paths.values()`；L590按`type(row) is not dict or set(row) != {"entry", "target", "dac_read", "dac_exec"}`分支。后续分支沿下方源码相同行号继续阅读。 调用`type`、`_DEADLINE.set`、`time.monotonic`、`min`、`int`、`control_exec`、`len`、`result.result.encode`、`_json_unique`等。 返回路径：L570的`unknown`；L575的`unknown`；L579的`unknown`。
 
 </details>
 
-**创建路径：** `workbench/capability_startup_paths.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L477。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `workbench/capability_startup_paths.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L620。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17508`。本段原文以LF换行结束。
+本段原始字节数：`23492`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "workbench/capability_startup_paths.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "38962fb51613c3f84f17976cd1475fc29ceb8617cb5cf456cfd47f7370264763"} -->
+<!-- learning-source: {"path": "workbench/capability_startup_paths.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "b10dde2d8952fe1e0841aabec1c3cb624bc9e174eb1234863c3d28b55097ba32"} -->
 ````python
 # workbench/capability_startup_paths.py
 """Failure-only fixed launch metadata and isolated, source-free interpreter smoke."""
@@ -55,6 +57,36 @@ SMOKE_OUTPUT_LIMIT = 512
 NATIVE_TAIL_LIMIT = 8000 - PATH_OUTPUT_LIMIT - SMOKE_OUTPUT_LIMIT
 SGR = re.compile(r"\x1b\[[0-9;]{0,32}m")
 OTHER_CONTROL = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
+
+
+def startup_target(plan, command=None, port=None, health_path=None):
+    """Bind diagnostics to the exact registered command before translation."""
+    from workbench.capability_dependencies import readonly_start_command
+    from workbench.capability_verification import CheckFailure
+
+    original = plan.runtime.start if command is None else command
+    translated = readonly_start_command(plan, command)
+    role, expected_port, expected_path = "backend", plan.runtime.port, plan.runtime.health_path
+    if getattr(plan.selection, "template", "") == "fastapiadmin":
+        from workbench.capability_native_runtime import FRONTEND_PORT, frontend_start_command
+
+        if original == frontend_start_command():
+            role, expected_port, expected_path = "frontend", FRONTEND_PORT, "/"
+    if (
+        type(expected_port) is not int
+        or not 1 <= expected_port <= 65535
+        or (port is not None and (type(port) is not int or port != expected_port))
+        or (health_path is not None and health_path != expected_path)
+    ):
+        raise CheckFailure("启动诊断目标必须匹配登记的命令、端口和健康端点")
+    return translated, {
+        "role": role,
+        "interpreter": "node" if role == "frontend" else "python",
+        "port": expected_port,
+        "health_endpoint": "frontend-root" if role == "frontend" else "plan-health",
+        "registered_command_bound": True,
+    }
+
 
 # Literal public vocabulary only. Never discover classes from candidate output
 # or import the candidate/application to classify its traceback.
@@ -302,17 +334,88 @@ def output_shapes(output):
     ]
 
 
+def node_failure_facts(output):
+    """Finite Node 22 hints from one bounded, closed error record only."""
+    unknown = {"error_code": "unknown", "errno": None, "syscall": "unknown", "component": "unknown"}
+    if type(output) is not str:
+        return unknown
+    text = normalize_sgr(
+        bounded_output_bytes(output, NATIVE_TAIL_LIMIT).decode("utf-8", errors="ignore")
+    )
+    headers = list(
+        re.finditer(
+            r"(?m)^[A-Za-z_][A-Za-z0-9_.]{0,127}(?: \[[A-Za-z0-9_.-]{1,64}\])?:[^\n]{0,1024}\n",
+            text,
+        )
+    )
+    if not headers:
+        return unknown
+    # A later unknown error must not borrow an earlier error's structured data.
+    record = text[headers[-1].start() :]
+    end = re.search(r"(?m)^}[ \t]*$", record)
+    if end is None:
+        return unknown
+    # Unknown or truncated terminal records must not inherit an earlier hint.
+    # Only the actual uncaught-error footer and whitespace may follow the object.
+    if not re.fullmatch(
+        r"[ \t\r\n]*(?:Node\.js v[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}[ \t\r\n]*)?",
+        record[end.end() :],
+    ):
+        return unknown
+    record = record[: end.end()]
+    header = record.split("\n", 1)[0]
+    if header.startswith("SystemError [ERR_SYSTEM_ERROR]: "):
+        code = "ERR_SYSTEM_ERROR"
+    else:
+        match = re.match(r"Error: (EACCES|ENOENT|EMFILE): ", header)
+        if match is None:
+            return unknown
+        code = match[1]
+    outer_codes = re.findall(r"(?m)^ {2}code: '([A-Z_]{1,40})',?$", record)
+    if outer_codes != [code]:
+        return unknown
+    result = {**unknown, "error_code": code}
+    if code == "ERR_SYSTEM_ERROR":
+        blocks = re.findall(r"(?m)^ {2}info: \{\n((?: {4}[^\n]{0,512}\n){1,8}) {2}\},?\n", record)
+        if len(blocks) != 1:
+            return result
+        info = blocks[0]
+        errnos = re.findall(r"(?m)^ {4}errno: (-?[0-9]{1,4}),?$", info)
+        calls = re.findall(r"(?m)^ {4}syscall: '([^'\n]{1,64})',?$", info)
+        if errnos == ["1"] and calls == ["uv_interface_addresses"]:
+            result.update(
+                errno=1, syscall="uv_interface_addresses", component="node-interface-enumeration"
+            )
+    else:
+        expected = {"EACCES": "-13", "ENOENT": "-2", "EMFILE": "-24"}[code]
+        if re.findall(r"(?m)^ {2}errno: (-?[0-9]{1,4}),?$", record) == [expected]:
+            result["errno"] = int(expected)
+        if re.findall(r"(?m)^ {2}syscall: '([^'\n]{1,64})',?$", record) == ["open"]:
+            result["syscall"] = "open"
+    return result
+
+
 SMOKE = (
     "import json,os,sys;print(json.dumps({'version_matches':sys.version_info[:3]==(3,14,7),"
     "'executable_matches':sys.executable=='/opt/rnd/runtime/fastapiadmin/backend/.venv/bin/python',"
     "'cwd_matches':os.getcwd()=='/tmp/rnd-capability/product/backend',"
     "'isolated':sys.flags.isolated==1}))"
 )
+NODE_SMOKE = (
+    "console.log(JSON.stringify({version_matches:process.versions.node==='22.23.2',"
+    "executable_matches:process.execPath==='/usr/local/bin/node',"
+    "cwd_matches:process.cwd()==='/tmp/rnd-capability/product/frontend/web',"
+    "no_preload:process.execArgv.length===3&&process.execArgv[0]==='--input-type=module'"
+    "&&process.execArgv[1]==='--eval'"
+    "&&[undefined,'--max-old-space-size=3072'].includes(process.env.NODE_OPTIONS)}))"
+)
 
 
-def native_startup_smoke(sandbox, plan, database, identity_options, timeout):
+def native_startup_smoke(sandbox, plan, database, identity_options, timeout, *, role="backend"):
     """Exercise the same isolated launcher, without importing candidate code."""
     receipt = {"exit_status": "unknown", "output_shapes": [], "checks": None}
+    if type(role) is not str or role not in {"backend", "frontend"}:
+        return receipt
     deadline = time.monotonic() + min(timeout, 5)
     token = _DEADLINE.set(deadline)
     try:
@@ -325,17 +428,23 @@ def native_startup_smoke(sandbox, plan, database, identity_options, timeout):
                 raise TimeoutError("Startup interpreter diagnostic deadline")
             return value
 
+        interpreter = (
+            ["/usr/local/bin/node", "--input-type=module", "--eval", NODE_SMOKE]
+            if role == "frontend"
+            else ["/opt/rnd/runtime/fastapiadmin/backend/.venv/bin/python", "-I", "-S", "-c", SMOKE]
+        )
+        cwd = "frontend/web" if role == "frontend" else "backend"
         argv, path = redirected_command(
             product_argv(
                 plan,
-                ["/opt/rnd/runtime/fastapiadmin/backend/.venv/bin/python", "-I", "-S", "-c", SMOKE],
+                interpreter,
                 database,
                 **identity_options,
             )
         )
         result = control_exec(
             sandbox,
-            ["/bin/sh", "-c", "cd /tmp/rnd-capability/product/backend && " + shlex.join(argv)],
+            ["/bin/sh", "-c", "cd /tmp/rnd-capability/product/" + cwd + " && " + shlex.join(argv)],
             remaining(),
         )
         if type(result.exit_code) is int and 0 <= result.exit_code <= 255:
@@ -351,7 +460,12 @@ def native_startup_smoke(sandbox, plan, database, identity_options, timeout):
             if (
                 type(value) is dict
                 and set(value)
-                == {"version_matches", "executable_matches", "cwd_matches", "isolated"}
+                == {
+                    "version_matches",
+                    "executable_matches",
+                    "cwd_matches",
+                    "no_preload" if role == "frontend" else "isolated",
+                }
                 and all(type(v) is bool for v in value.values())
             ):
                 receipt["checks"] = value
@@ -380,17 +494,32 @@ KINDS = {"regular", "directory", "character", "symlink", "other", "missing", "un
 # No source-supplied path, argv or environment enters this program. It only
 # observes the already selected native launch chain after health has failed.
 # Native dependencies are data here, not imported or executed as controller UID.
-PROBE = r"""
-import json,os,stat,struct
-paths={
- 'shell':'/bin/sh','env':'/usr/bin/env','setsid':'/usr/bin/setsid',
- 'setpriv':'/usr/bin/setpriv','system_python':'/usr/bin/python3',
- 'native_python':'/opt/rnd/runtime/fastapiadmin/backend/.venv/bin/python',
- 'guard':'/tmp/rnd-module-control/guard.py',
- 'backend':'/tmp/rnd-capability/product/backend',
- 'app':'/tmp/rnd-capability/product/backend/app/__init__.py',
- 'null':'/dev/null','elf_loader':'/lib64/ld-linux-x86-64.so.2',
+COMMON_PATHS = {
+    "shell": "/bin/sh",
+    "env": "/usr/bin/env",
+    "setsid": "/usr/bin/setsid",
+    "setpriv": "/usr/bin/setpriv",
+    "system_python": "/usr/bin/python3",
+    "guard": "/tmp/rnd-module-control/guard.py",
+    "null": "/dev/null",
+    "elf_loader": "/lib64/ld-linux-x86-64.so.2",
 }
+BACKEND_PATHS = {
+    **COMMON_PATHS,
+    "native_python": "/opt/rnd/runtime/fastapiadmin/backend/.venv/bin/python",
+    "backend": "/tmp/rnd-capability/product/backend",
+    "app": "/tmp/rnd-capability/product/backend/app/__init__.py",
+}
+FRONTEND_PATHS = {
+    **COMMON_PATHS,
+    "native_node": "/usr/local/bin/node",
+    "vite_entry": "/opt/rnd/runtime/fastapiadmin/frontend/node_modules/vite/dist/node/index.js",
+    "frontend": "/tmp/rnd-capability/product/frontend/web",
+    "dist_index": "/tmp/rnd-capability/product/frontend/web/dist/index.html",
+    "preview_launcher": "/tmp/rnd-module-control/native-preview.mjs",
+}
+NODE_PATH_ROLES = tuple(FRONTEND_PATHS)
+_PATH_PROBE = r"""
 def kind(s):
  for check,label in ((stat.S_ISREG,'regular'),(stat.S_ISDIR,'directory'),
                      (stat.S_ISCHR,'character'),(stat.S_ISLNK,'symlink')):
@@ -454,22 +583,37 @@ def executable_format(path):
  except (OSError,ValueError,struct.error):pass
  return result
 result={'paths':{role:inspect(path) for role,path in paths.items()},
-        'native_binary':executable_format(paths['native_python'])}
+        'native_binary':executable_format(binary_path)}
 output=json.dumps(result,separators=(',',':'))
 assert len(output.encode())<=2048
 print(output)
 """
+PROBE = (
+    "import json,os,stat,struct\npaths="
+    + repr(BACKEND_PATHS)
+    + "\nbinary_path=paths['native_python']\n"
+    + _PATH_PROBE
+)
+NODE_PROBE = (
+    "import json,os,stat,struct\npaths="
+    + repr(FRONTEND_PATHS)
+    + "\nbinary_path=paths['native_node']\n"
+    + _PATH_PROBE
+)
 
 
-def native_startup_paths(sandbox, timeout):
+def native_startup_paths(sandbox, timeout, *, role="backend"):
     """Return a fresh finite receipt or unknown; never serialize probe failures."""
     unknown = {"status": "unknown"}
+    if type(role) is not str or role not in {"backend", "frontend"}:
+        return unknown
     token = _DEADLINE.set(time.monotonic() + min(timeout, 5))
     try:
         budget = int(min(timeout, 5))
         if budget < 1:
             return unknown
-        result = control_exec(sandbox, ["/usr/bin/python3", "-I", "-S", "-c", PROBE], budget)
+        probe = NODE_PROBE if role == "frontend" else PROBE
+        result = control_exec(sandbox, ["/usr/bin/python3", "-I", "-S", "-c", probe], budget)
         if type(result.exit_code) is not int or result.exit_code != 0:
             return unknown
         if type(result.result) is not str or len(result.result.encode()) > 2048:
@@ -478,7 +622,8 @@ def native_startup_paths(sandbox, timeout):
         if type(value) is not dict or set(value) != {"paths", "native_binary"}:
             return unknown
         paths = value["paths"]
-        if type(paths) is not dict or set(paths) != set(PATH_ROLES):
+        expected_roles = NODE_PATH_ROLES if role == "frontend" else PATH_ROLES
+        if type(paths) is not dict or set(paths) != set(expected_roles):
             return unknown
         for row in paths.values():
             if type(row) is not dict or set(row) != {"entry", "target", "dac_read", "dac_exec"}:

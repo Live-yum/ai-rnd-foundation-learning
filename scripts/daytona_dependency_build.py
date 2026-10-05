@@ -2,7 +2,8 @@
 
 Registry sdists are an explicit hash allowlist. Fetch and build are separate
 Docker stages/steps: build runs non-root, offline, without secrets or host mounts.
-Unsupported source builds fail; locks, source and ABI compatibility are not edited.
+Unsupported Python source builds fail without lock, source or ABI workarounds.
+Native Vite preview has one separately hash-bound, data-only advisory URL patch.
 """
 
 import argparse
@@ -11,12 +12,13 @@ import hashlib
 import json
 import os
 import re
+import stat
 import subprocess
 import tarfile
 import tomllib
 import urllib.request
 import zipfile
-from contextlib import nullcontext
+from contextlib import contextmanager, nullcontext
 from pathlib import Path, PurePosixPath
 from tempfile import TemporaryDirectory
 from urllib.parse import urlsplit
@@ -32,6 +34,166 @@ MIRRORS = {
 }
 
 SOURCE_DESCRIPTOR_BYTES = 8_000_000
+NATIVE_FRONTEND_MODULES = Path("/opt/rnd/runtime/fastapiadmin/frontend/node_modules")
+VITE_PREVIEW_UPSTREAM_SHA256 = "339ee4656b2ca976ca320b48cffba04361f91ad0899a32a1c60ba9b2910e772e"
+VITE_PREVIEW_PATCHED_SHA256 = "8df548e7d1456f542321e05139faec50f23f15e64afc5a434c57583308bcc86e"
+VITE_PREVIEW_PACKAGE_PATH = r"\.pnpm/vite@7\.3\.3(?:_[A-Za-z0-9@+_.-]+)?/node_modules/vite"
+VITE_PREVIEW_SUFFIX = "/dist/node/chunks/config.js"
+
+
+def adapt_native_preview_source(raw):
+    """Patch the reviewed advisory call only, never a catch around preview/hooks.
+
+    Upstream: vitejs/vite v7.3.3, packages/vite/src/node/{utils,preview}.ts.
+    The official published dist file is hash-bound before and after these exact
+    substitutions. Socket restrictions and the real listener are unchanged.
+    """
+    if hashlib.sha256(raw).hexdigest() != VITE_PREVIEW_UPSTREAM_SHA256:
+        raise ValueError("Native preview Vite upstream source hash mismatch")
+    source = raw.decode("utf-8")
+    changes = (
+        (
+            "function resolveServerUrls(server, options$1, hostname, httpsOptions, config$2) {",
+            "function resolveServerUrls(server, options$1, hostname, httpsOptions, config$2, "
+            "rndNativePreview = false) {",
+        ),
+        (
+            "} else Object.values(os.networkInterfaces()).flatMap",
+            """} else {
+  let rndInterfaces;
+  try { rndInterfaces = os.networkInterfaces(); }
+  catch (error) {
+   if (!rndNativePreview || error?.code !== 'ERR_SYSTEM_ERROR' ||
+       error.info?.syscall !== 'uv_interface_addresses' || error.info?.errno !== 1 ||
+       options$1 !== config$2.preview || options$1.host !== '0.0.0.0' ||
+       options$1.port !== 5173 || options$1.strictPort !== true || options$1.open !== false ||
+       options$1.https || hostname.host !== '0.0.0.0' || !server.listening ||
+       address.address !== '0.0.0.0' || address.family !== 'IPv4' || address.port !== 5173) throw error;
+   return {local:[`http://127.0.0.1:5173${base}`],network:[]};
+  }
+  Object.values(rndInterfaces).flatMap""",
+        ),
+        (
+            "\tconst hostnamesFromCert = extractHostnamesFromCerts(httpsOptions?.cert);",
+            "\t}\n\tconst hostnamesFromCert = extractHostnamesFromCerts(httpsOptions?.cert);",
+        ),
+        (
+            "server.resolvedUrls = resolveServerUrls(httpServer, config$2.preview, "
+            "hostname, httpsOptions, config$2);",
+            "server.resolvedUrls = resolveServerUrls(httpServer, config$2.preview, "
+            "hostname, httpsOptions, config$2, true);",
+        ),
+    )
+    for old, new in changes:
+        if source.count(old) != 1:
+            raise ValueError("Native preview Vite patch anchor is missing or ambiguous")
+        source = source.replace(old, new)
+    result = source.encode("utf-8")
+    if hashlib.sha256(result).hexdigest() != VITE_PREVIEW_PATCHED_SHA256:
+        raise ValueError("Native preview Vite derived source hash mismatch")
+    return result
+
+
+def _preview_patch_record(relative):
+    return {
+        "id": "vite-preview-interface-eperm-v1",
+        "package": "vite",
+        "version": "7.3.3",
+        "relative_path": relative,
+        "upstream_sha256": VITE_PREVIEW_UPSTREAM_SHA256,
+        "patched_sha256": VITE_PREVIEW_PATCHED_SHA256,
+    }
+
+
+@contextmanager
+def _native_preview_file(*, writable=False):
+    """Resolve one known pnpm link as data, then open every component no-follow."""
+    root = NATIVE_FRONTEND_MODULES
+    if not root.is_absolute() or ".." in root.parts:
+        raise ValueError("Native preview dependency root is not absolute and normalized")
+    parent = os.open("/", os.O_RDONLY | os.O_DIRECTORY)
+    descriptor = None
+    try:
+        for part in root.parts[1:]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+            os.close(parent)
+            parent = child
+        link = os.stat("vite", dir_fd=parent, follow_symlinks=False)
+        if not stat.S_ISLNK(link.st_mode) or link.st_nlink != 1:
+            raise ValueError("Native preview Vite package must be one independent pnpm link")
+        target = os.readlink("vite", dir_fd=parent)
+        if not re.fullmatch(VITE_PREVIEW_PACKAGE_PATH, target):
+            raise ValueError("Native preview Vite package link escapes its exact pinned scope")
+        relative = target + VITE_PREVIEW_SUFFIX
+        for part in PurePosixPath(relative).parts[:-1]:
+            child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+            os.close(parent)
+            parent = child
+        before = os.stat("config.js", dir_fd=parent, follow_symlinks=False)
+        if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_mode & 0o6000:
+            raise ValueError("Native preview Vite source is not an independent regular file")
+        descriptor = os.open(
+            "config.js",
+            (os.O_RDWR if writable else os.O_RDONLY) | os.O_NOFOLLOW | os.O_NONBLOCK,
+            dir_fd=parent,
+        )
+        opened = os.fstat(descriptor)
+        if (
+            (before.st_dev, before.st_ino) != (opened.st_dev, opened.st_ino)
+            or not stat.S_ISREG(opened.st_mode)
+            or opened.st_nlink != 1
+            or opened.st_mode & 0o6000
+            or not 0 < opened.st_size <= 2_000_000
+        ):
+            raise ValueError("Native preview Vite source identity or size changed")
+        yield descriptor, relative
+    finally:
+        if descriptor is not None:
+            os.close(descriptor)
+        os.close(parent)
+
+
+def _preview_source_bytes(descriptor):
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    with os.fdopen(os.dup(descriptor), "rb") as stream:
+        raw = stream.read(2_000_001)
+    if len(raw) > 2_000_000 or os.fstat(descriptor).st_nlink != 1:
+        raise ValueError("Native preview Vite source size or link identity changed")
+    return raw
+
+
+def patch_native_preview():
+    """Data-only mutation in the existing non-root, credential-free builder."""
+    if os.geteuid() == 0:
+        raise ValueError("Native preview patch must run in the separate non-root builder")
+    with _native_preview_file(writable=True) as (descriptor, relative):
+        patched = adapt_native_preview_source(_preview_source_bytes(descriptor))
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        remaining = memoryview(patched)
+        while remaining:
+            written = os.write(descriptor, remaining)
+            if written <= 0:
+                raise ValueError("Native preview Vite source write did not progress")
+            remaining = remaining[written:]
+        os.ftruncate(descriptor, len(patched))
+        os.fsync(descriptor)
+        if (
+            hashlib.sha256(_preview_source_bytes(descriptor)).hexdigest()
+            != VITE_PREVIEW_PATCHED_SHA256
+        ):
+            raise ValueError("Native preview Vite installed patch hash mismatch")
+        return _preview_patch_record(relative)
+
+
+def native_preview_patch_provenance():
+    """The collector reopens the installed bytes; a patch sidecar is insufficient."""
+    with _native_preview_file() as (descriptor, relative):
+        if (
+            hashlib.sha256(_preview_source_bytes(descriptor)).hexdigest()
+            != VITE_PREVIEW_PATCHED_SHA256
+        ):
+            raise ValueError("Native preview Vite installed patch is missing or stale")
+        return [_preview_patch_record(relative)]
 
 
 def native_descriptor_roles():
@@ -605,12 +767,15 @@ def collect(inputs, output, *, native=False):
         # Retain all eleven hashes and exact roles in the sealed image manifest.
         # The seven source-only projects never become install/runtime directories.
         del value["source_descriptor_bytes"]
+        value["runtime_patches"] = native_preview_patch_provenance()
     Path(output).write_text(json.dumps(value, sort_keys=True))
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=["fetch", "build-sources", "install", "collect"])
+    parser.add_argument(
+        "action", choices=["fetch", "build-sources", "install", "patch-native-preview", "collect"]
+    )
     parser.add_argument("--project", type=Path)
     parser.add_argument("--lock", type=Path)
     parser.add_argument("--inputs", type=Path)
@@ -625,6 +790,8 @@ def main():
         build_sources()
     elif args.action == "install":
         install(args.project, basic=args.basic, harness=args.harness)
+    elif args.action == "patch-native-preview":
+        patch_native_preview()
     else:
         collect(args.inputs, args.output, native=args.native)
 

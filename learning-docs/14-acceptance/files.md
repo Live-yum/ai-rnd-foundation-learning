@@ -107,6 +107,7 @@
 - [tests/test_capability_native_egress.py](sources/tests__test_capability_native_egress_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_native_freeze.py](sources/tests__test_capability_native_freeze_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_native_planner_probe.py](sources/tests__test_capability_native_planner_probe_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_native_preview_patch.py](sources/tests__test_capability_native_preview_patch_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_native_services.py](sources/tests__test_capability_native_services_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_native_shm_binding.py](sources/tests__test_capability_native_shm_binding_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_native_shm_guard.py](sources/tests__test_capability_native_shm_guard_py--001.md)：可重复的验收用例；1 段
@@ -117,7 +118,7 @@
 - [tests/test_capability_readonly_dependencies.py](sources/tests__test_capability_readonly_dependencies_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_recovery_controls.py](sources/tests__test_capability_recovery_controls_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_restart_thread_drain.py](sources/tests__test_capability_restart_thread_drain_py--001.md)：可重复的验收用例；1 段
-- [tests/test_capability_startup_diagnostics.py](sources/tests__test_capability_startup_diagnostics_py--001.md)：可重复的验收用例；1 段
+- [tests/test_capability_startup_diagnostics.py](sources/tests__test_capability_startup_diagnostics_py--001.md)：可重复的验收用例；2 段
 - [tests/test_capability_startup_paths.py](sources/tests__test_capability_startup_paths_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_startup_session.py](sources/tests__test_capability_startup_session_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_acceptance_gate.py](sources/tests__test_ci_acceptance_gate_py--001.md)：可重复的验收用例；1 段

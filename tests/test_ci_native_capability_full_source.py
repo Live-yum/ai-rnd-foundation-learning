@@ -17,7 +17,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from capability_dependency_fixtures import profile_record
+from capability_dependency_fixtures import profile_record, runtime_patch_entries, runtime_patches
 from test_ci_native_capability_security import product as baseline_product  # noqa: F401
 
 from scripts import ci_native_capability_source as handoff
@@ -355,8 +355,9 @@ def test_sealed_image_manifest_requires_exact_roles_and_all_source_hashes(mutati
         "groups": image.GROUPS["fastapiadmin"],
         "recipe_identity": "a" * 64,
         "platform": {"os": "linux", "architecture": "amd64", "python": "3.14.7"},
-        "entries": {},
-        "installed_tree_sha256": image.digest({}),
+        "runtime_patches": runtime_patches(),
+        "entries": runtime_patch_entries(),
+        "installed_tree_sha256": image.digest(runtime_patch_entries()),
     }
     if mutation == "wrong-role":
         record["descriptor_roles"]["runtime"] = record["descriptor_roles"]["auxiliary_source"]
@@ -391,6 +392,7 @@ def test_compact_image_binding_and_candidate_admission_bind_native_roles(monkeyp
         "installed_tree_sha256": "b" * 64,
         "original_descriptors": value["original_descriptors"],
         "descriptor_roles": value["descriptor_roles"],
+        "runtime_patches": runtime_patches(),
     }
     original = copy.deepcopy(compact)
     if mutation == "missing":
@@ -437,7 +439,7 @@ def test_no_image_install_execution_or_privilege_surface_expands():
     assert (
         sha(native.ROOT / native.DOCKERFILE)
         == native.REVIEWED_DOCKERFILE_SHA256
-        == "1e9aa22679e06236a0c5f5cfbafe5fc2ff7f128f3f8e96aa38e398364e2bf5db"
+        == "ceb125fcca1a7c3ea8e7dae44a2b0ca64a7fb4374926d55be29ea8976ba95d59"
     )
     assert image.ROOTS["fastapiadmin"] == [
         "/opt/rnd/runtime/fastapiadmin/backend/.venv",

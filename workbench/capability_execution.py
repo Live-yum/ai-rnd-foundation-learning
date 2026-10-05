@@ -178,6 +178,8 @@ def profile_binding(record):
 
 def require_preinstalled_evidence(value, expected, *, source_digest):
     """A verified image dependency tree is not a runtime installation receipt."""
+    from workbench.capability_dependencies import valid_native_runtime_patches
+
     flags = {
         "descriptors_verified",
         "installed_tree_verified",
@@ -192,6 +194,9 @@ def require_preinstalled_evidence(value, expected, *, source_digest):
         "installed_tree_sha256",
         "source_inventory_sha256",
     } | flags
+    native = isinstance(expected, dict) and expected.get("profile") == "fastapiadmin"
+    if native:
+        keys.add("runtime_patches")
     if (
         not isinstance(expected, dict)
         or not isinstance(value, dict)
@@ -199,6 +204,8 @@ def require_preinstalled_evidence(value, expected, *, source_digest):
         or type(value.get("schema")) is not int
         or value["schema"] != 1
         or value.get("profile") not in {"python-basic", "fastapiadmin"}
+        or native
+        and not valid_native_runtime_patches(expected.get("runtime_patches"))
         or any(
             value.get(key) != expected.get(key)
             for key in keys - flags - {"source_inventory_sha256"}

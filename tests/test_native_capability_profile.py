@@ -9,6 +9,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from capability_dependency_fixtures import runtime_patches
 
 from scripts import daytona_native_capability_profile as native
 from workbench.filesystem import atomic_text
@@ -140,6 +141,7 @@ def prepared(tmp_path, product, foundation, monkeypatch):
         "installed_tree_sha256": "2" * 64,
         "original_descriptors": inputs["descriptors"],
         "descriptor_roles": inputs["descriptor_roles"],
+        "runtime_patches": runtime_patches(),
     }
     record["snapshot"]["dependency_manifest"] = dependency_record
     monkeypatch.setattr(

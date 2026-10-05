@@ -10,34 +10,65 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `scripts.daytona_dependency_build`、`scripts.daytona_native_capability_profile`、`workbench.catalog`、`workbench.domain`、`workbench.filesystem`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.daytona_dependency_build`、`scripts.daytona_native_capability_profile`、`workbench.capability_dependencies`、`workbench.catalog`、`workbench.domain`、`workbench.filesystem`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `dependency_profile`（L12–L22）：接收`template`、`descriptors`。 调用`dict.fromkeys`、`native_descriptor_roles`。 返回路径：L14的`{ "schema": 1, "profile": template, "image_id": "sha256:" + "3" * 64, "manifest_sha256": "…`。
-- `profile_record`（L25–L48）：接收`product`、`template`。 控制顺序：L27按`product is not None`分支。 调用`manifest(product).items`、`manifest`、`Path`、`dependency_profile`、`Selection(template=template).model_dump`、`Selection`。 返回路径：L35的`{ "recipe_identity": "1" * 64, "selection": Selection(template=template).model_dump(), "ru…`。
-- `dependency_evidence`（L51–L64）：接收`profile`、`inventory`。 调用`dependency_profile`、`digest`。 返回路径：L53的`{ **{ name: profile[name] for name in ("schema", "profile", "manifest_sha256", "installed_…`。
-- `container_binding`（L67–L81）：接收`record`。 调用`record.get("selection", {}).get`、`record.get`。 返回路径：L68的`{ **( { "profile": "native-fastapiadmin-postgresql-v1", "shared_memory": {"ipc_mode": "pri…`。
+- `runtime_patches`（L13–L19）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`native_runtime_patch_identity`。 返回路径：L14的`[ { **native_runtime_patch_identity(), "relative_path": ".pnpm/vite@7.3.3/node_modules/vit…`。
+- `runtime_patch_entries`（L22–L38）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Synthetic complete physical path and its one public package link.。 控制顺序：L30遍历`path.parents`；L31按`parent.is_relative_to(NATIVE_NODE_ROOT)`分支。 调用`runtime_patches`、`PurePosixPath`、`str`、`parent.is_relative_to`、`patch["relative_path"].removesuffix`。 返回路径：L38的`entries`。
+- `dependency_profile`（L41–L55）：接收`template`、`descriptors`。 调用`dict.fromkeys`、`native_descriptor_roles`、`runtime_patches`。 返回路径：L43的`{ "schema": 1, "profile": template, "image_id": "sha256:" + "3" * 64, "manifest_sha256": "…`。
+- `profile_record`（L58–L81）：接收`product`、`template`。 控制顺序：L60按`product is not None`分支。 调用`manifest(product).items`、`manifest`、`Path`、`dependency_profile`、`Selection(template=template).model_dump`、`Selection`。 返回路径：L68的`{ "recipe_identity": "1" * 64, "selection": Selection(template=template).model_dump(), "ru…`。
+- `dependency_evidence`（L84–L102）：接收`profile`、`inventory`。 调用`dependency_profile`、`digest`。 返回路径：L86的`{ **{ name: profile[name] for name in ("schema", "profile", "manifest_sha256", "installed_…`。
+- `container_binding`（L105–L119）：接收`record`。 调用`record.get("selection", {}).get`、`record.get`。 返回路径：L106的`{ **( { "profile": "native-fastapiadmin-postgresql-v1", "shared_memory": {"ipc_mode": "pri…`。
 
 </details>
 
-**创建路径：** `tests/capability_dependency_fixtures.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L81。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/capability_dependency_fixtures.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L119。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2931`。本段原文以LF换行结束。
+本段原始字节数：`4214`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/capability_dependency_fixtures.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d5383db24aef905ca0e4b88c7da76b73bc27349611378612d6683e7c2c047c47"} -->
+<!-- learning-source: {"path": "tests/capability_dependency_fixtures.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "02a1d1a6ac5b8121d5c3e40a30033b7a21313d917dfac4ffffc422337ba6459b"} -->
 ````python
 # tests/capability_dependency_fixtures.py
 """Synthetic provenance for contract tests only; never a live image attestation."""
 
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from scripts.daytona_dependency_build import native_descriptor_roles
 from scripts.daytona_native_capability_profile import DESCRIPTORS
+from workbench.capability_dependencies import NATIVE_NODE_ROOT, native_runtime_patch_identity
 from workbench.catalog import Selection
 from workbench.domain import digest
 from workbench.filesystem import manifest
+
+
+def runtime_patches():
+    return [
+        {
+            **native_runtime_patch_identity(),
+            "relative_path": ".pnpm/vite@7.3.3/node_modules/vite/dist/node/chunks/config.js",
+        }
+    ]
+
+
+def runtime_patch_entries():
+    """Synthetic complete physical path and its one public package link."""
+    patch = runtime_patches()[0]
+    path = PurePosixPath(NATIVE_NODE_ROOT) / patch["relative_path"]
+    metadata = {"uid": 0, "gid": 0, "mode": 0o555}
+    entries = {
+        str(path): {**metadata, "type": "file", "sha256": patch["patched_sha256"], "size": 1}
+    }
+    for parent in path.parents:
+        if parent.is_relative_to(NATIVE_NODE_ROOT):
+            entries[str(parent)] = {**metadata, "type": "directory"}
+    entries[NATIVE_NODE_ROOT + "/vite"] = {
+        **metadata,
+        "type": "symlink",
+        "target": patch["relative_path"].removesuffix("/dist/node/chunks/config.js"),
+    }
+    return entries
 
 
 def dependency_profile(template="python-basic", descriptors=None):
@@ -49,7 +80,11 @@ def dependency_profile(template="python-basic", descriptors=None):
         "manifest_sha256": "6" * 64,
         "installed_tree_sha256": "7" * 64,
         "original_descriptors": descriptors or dict.fromkeys(names, "8" * 64),
-        **({"descriptor_roles": native_descriptor_roles()} if template == "fastapiadmin" else {}),
+        **(
+            {"descriptor_roles": native_descriptor_roles(), "runtime_patches": runtime_patches()}
+            if template == "fastapiadmin"
+            else {}
+        ),
     }
 
 
@@ -92,6 +127,11 @@ def dependency_evidence(profile=None, inventory=None):
         "product_links_verified": True,
         "source_inventory_verified": True,
         "source_inventory_sha256": digest(inventory or {}),
+        **(
+            {"runtime_patches": profile["runtime_patches"]}
+            if profile["profile"] == "fastapiadmin"
+            else {}
+        ),
     }
 
 

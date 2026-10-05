@@ -5,8 +5,10 @@ import copy
 import json
 import os
 import shlex
+import shutil
 import stat
 import struct
+import subprocess
 from types import SimpleNamespace
 
 import pytest
@@ -318,8 +320,9 @@ def test_all_native_diagnostic_reads_fit_existing_byte_budget():
 
 @pytest.mark.parametrize("probe", ["metadata", "smoke"])
 @pytest.mark.parametrize("fail", [False, True])
+@pytest.mark.parametrize("role", ["backend", "frontend"])
 def test_real_sdk_integer_model_reaches_api_with_shared_transport_deadline(
-    monkeypatch, probe, fail
+    monkeypatch, probe, fail, role
 ):
     import httpx
     from daytona._sync.process import Process
@@ -327,6 +330,13 @@ def test_real_sdk_integer_model_reaches_api_with_shared_transport_deadline(
     from workbench.daytona_sessions import _DEADLINE, harden_toolbox_transport
 
     clock = [10.0]
+    expected_checks = smoke_checks()
+    expected_paths = receipt()
+    if role == "frontend":
+        expected_checks["no_preload"] = expected_checks.pop("isolated")
+        expected_paths["paths"] = {
+            key: next(iter(expected_paths["paths"].values())) for key in diagnostic.NODE_PATH_ROLES
+        }
     monkeypatch.setattr(diagnostic.time, "monotonic", lambda: clock[0])
     requests, transports = [], []
     rest = SimpleNamespace(
@@ -346,7 +356,7 @@ def test_real_sdk_integer_model_reaches_api_with_shared_transport_deadline(
         assert 0 < transports[-1] <= 15 - clock[0]
         if fail:
             raise RuntimeError("private-sentinel")
-        value = receipt() if probe == "metadata" else smoke_checks()
+        value = expected_paths if probe == "metadata" else expected_checks
         return SimpleNamespace(result=json.dumps(value), exit_code=0, additional_properties={})
 
     outer = _DEADLINE.set(999.0)
@@ -356,10 +366,10 @@ def test_real_sdk_integer_model_reaches_api_with_shared_transport_deadline(
                 process=Process("python", SimpleNamespace(execute_command=execute_command), client)
             )
             result = (
-                diagnostic.native_startup_paths(sandbox, 5)
+                diagnostic.native_startup_paths(sandbox, 5, role=role)
                 if probe == "metadata"
                 else diagnostic.native_startup_smoke(
-                    sandbox, native_plan(), {}, {"native_semaphore_storage": True}, 5
+                    sandbox, native_plan(), {}, {"native_semaphore_storage": True}, 5, role=role
                 )
             )
         assert len(requests) == (1 if probe == "metadata" or fail else 2)
@@ -368,7 +378,7 @@ def test_real_sdk_integer_model_reaches_api_with_shared_transport_deadline(
         if probe == "metadata":
             assert result["status"] == ("unknown" if fail else "observed")
         else:
-            assert result["checks"] == (None if fail else smoke_checks())
+            assert result["checks"] == (None if fail else expected_checks)
         assert "private-sentinel" not in json.dumps(result)
     finally:
         _DEADLINE.reset(outer)
@@ -398,13 +408,15 @@ def test_actual_start_keeps_health_failure_and_closes_http(monkeypatch, failure,
     clock = iter((0, plan.runtime.startup_seconds + 1))
     client = SimpleNamespace(close=lambda: events.append("closed"))
 
-    def paths(*args):
+    def paths(*args, role):
+        assert role == "backend"
         events.append("paths")
         if failure == "paths":
             raise RuntimeError("private-sentinel")
         return {"status": "observed", **receipt()}
 
-    def smoke(*args):
+    def smoke(*args, role):
+        assert role == "backend"
         events.append("smoke")
         if failure == "smoke":
             raise RuntimeError("private-sentinel")
@@ -478,3 +490,380 @@ def test_actual_start_keeps_health_failure_and_closes_http(monkeypatch, failure,
     else:
         assert "launch_paths" not in state and "interpreter_probe" not in state
     assert "private-sentinel" not in json.dumps(state)
+
+
+@pytest.mark.parametrize("role", ["backend", "frontend"])
+def test_startup_target_binds_registered_original_command(role):
+    from test_capability_startup_session import native_plan as complete_native_plan
+
+    from workbench.capability_native_runtime import frontend_start_command
+
+    plan = complete_native_plan()
+    original = frontend_start_command() if role == "frontend" else plan.runtime.start
+    command, target = diagnostic.startup_target(plan, original)
+    assert target == {
+        "role": role,
+        "interpreter": "node" if role == "frontend" else "python",
+        "port": 5173 if role == "frontend" else plan.runtime.port,
+        "health_endpoint": "frontend-root" if role == "frontend" else "plan-health",
+        "registered_command_bound": True,
+    }
+    assert command.argv[0] == (
+        "/usr/local/bin/node"
+        if role == "frontend"
+        else "/opt/rnd/runtime/fastapiadmin/backend/.venv/bin/python"
+    )
+    assert plan.runtime.health_path not in json.dumps(target)
+
+
+@pytest.mark.parametrize(
+    "frontend,port,health",
+    [
+        (False, 5173, None),
+        (False, True, None),
+        (False, 0, None),
+        (False, None, "/"),
+        (True, 8001, None),
+        (True, None, "/openapi.json"),
+        (True, "5173", "/"),
+    ],
+)
+def test_startup_target_rejects_role_port_or_endpoint_mismatch(frontend, port, health):
+    from test_capability_startup_session import native_plan as complete_native_plan
+
+    from workbench.capability_native_runtime import frontend_start_command
+    from workbench.capability_verification import CheckFailure
+
+    with pytest.raises(CheckFailure):
+        diagnostic.startup_target(
+            complete_native_plan(), frontend_start_command() if frontend else None, port, health
+        )
+
+
+def test_startup_target_rejects_unregistered_command():
+    from test_capability_startup_session import native_plan as complete_native_plan
+
+    from workbench.capability_contracts import TaskCommand
+    from workbench.capability_verification import CheckFailure
+
+    with pytest.raises(CheckFailure):
+        diagnostic.startup_target(
+            complete_native_plan(), TaskCommand(cwd="frontend/web", argv=["node", "private.js"])
+        )
+
+
+def test_frontend_paths_read_only_fixed_node_and_vite_metadata(monkeypatch):
+    value = receipt()
+    value["paths"] = {
+        key: next(iter(value["paths"].values())) for key in diagnostic.NODE_PATH_ROLES
+    }
+    calls = []
+
+    def execute(sandbox, argv, timeout):
+        calls.append((argv, timeout))
+        return SimpleNamespace(exit_code=0, result=json.dumps(value))
+
+    monkeypatch.setattr(diagnostic, "control_exec", execute)
+    assert diagnostic.native_startup_paths(object(), 5, role="frontend") == {
+        "status": "observed",
+        **value,
+    }
+    assert calls == [(["/usr/bin/python3", "-I", "-S", "-c", diagnostic.NODE_PROBE], 5)]
+    assert {"native_node", "vite_entry", "frontend", "dist_index", "preview_launcher"} <= set(
+        value["paths"]
+    )
+    assert {"native_python", "backend", "app"}.isdisjoint(value["paths"])
+    assert len(json.dumps(value).encode()) < diagnostic.PATH_OUTPUT_LIMIT
+    # A Python receipt cannot be presented as frontend metadata.
+    monkeypatch.setattr(
+        diagnostic,
+        "control_exec",
+        lambda *a: SimpleNamespace(exit_code=0, result=json.dumps(receipt())),
+    )
+    assert diagnostic.native_startup_paths(object(), 5, role="frontend") == {"status": "unknown"}
+
+
+def test_frontend_smoke_uses_same_guard_identity_environment_and_frontend_cwd(monkeypatch):
+    plan = native_plan()
+    database = {
+        "DATABASE_PASSWORD": "private-sentinel",
+        "NODE_OPTIONS": "--max-old-space-size=3072",
+    }
+    identity = {"native_semaphore_storage": True}
+    clock = [0.0]
+    monkeypatch.setattr(diagnostic.time, "monotonic", lambda: clock[0])
+    expected = diagnostic.product_argv(
+        plan,
+        ["/usr/local/bin/node", "--input-type=module", "--eval", diagnostic.NODE_SMOKE],
+        database,
+        **identity,
+    )
+    checks = {
+        "version_matches": True,
+        "executable_matches": True,
+        "cwd_matches": True,
+        "no_preload": True,
+    }
+
+    def execute(sandbox, argv, timeout):
+        assert timeout == 5
+        assert argv[:2] == ["/bin/sh", "-c"]
+        assert argv[2].startswith("cd /tmp/rnd-capability/product/frontend/web && ")
+        inner = shlex.split(argv[2].split(" && ", 1)[1])
+        launcher = shlex.split(inner[2].split(" </dev/null ", 1)[0])
+        assert launcher == ["exec", *expected]
+        clock[0] = 4
+        return SimpleNamespace(exit_code=0)
+
+    def read(sandbox, path, timeout, limit, tail):
+        assert timeout == 1 and limit == 512 and tail is True
+        return json.dumps(checks)
+
+    monkeypatch.setattr(diagnostic, "control_exec", execute)
+    monkeypatch.setattr(diagnostic, "read_command_output", read)
+    result = diagnostic.native_startup_smoke(
+        object(), plan, database, identity, 99, role="frontend"
+    )
+    assert result == {"exit_status": "zero", "output_shapes": [], "checks": checks}
+    assert "private-sentinel" not in json.dumps(result)
+
+
+@pytest.mark.skipif(
+    shutil.which("node") is None, reason="Trusted Node unavailable for owned smoke fixture"
+)
+@pytest.mark.parametrize(
+    "node_options,expected",
+    [(None, True), ("--max-old-space-size=3072", True), ("--stack-trace-limit=2", False)],
+)
+def test_source_free_node_smoke_runs_as_owned_fixture(tmp_path, node_options, expected):
+    environment = {
+        key: value for key, value in os.environ.items() if key not in {"NODE_OPTIONS", "NODE_PATH"}
+    }
+    if node_options is not None:
+        environment["NODE_OPTIONS"] = node_options
+    result = subprocess.run(
+        [shutil.which("node"), "--input-type=module", "--eval", diagnostic.NODE_SMOKE],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=5,
+        check=False,
+        env=environment,
+    )
+    assert result.returncode == 0 and result.stderr == ""
+    value = json.loads(result.stdout)
+    assert set(value) == {"version_matches", "executable_matches", "cwd_matches", "no_preload"}
+    assert all(type(item) is bool for item in value.values())
+    assert value["no_preload"] is expected and value["cwd_matches"] is False
+    assert len(result.stdout.encode()) < diagnostic.SMOKE_OUTPUT_LIMIT
+
+
+@pytest.mark.parametrize("role", [None, [], {}, True, "private-sentinel"])
+def test_invalid_probe_roles_do_not_execute(monkeypatch, role):
+    monkeypatch.setattr(
+        diagnostic, "control_exec", lambda *a: pytest.fail("Unknown target executed")
+    )
+    assert diagnostic.native_startup_paths(object(), 5, role=role) == {"status": "unknown"}
+    assert (
+        diagnostic.native_startup_smoke(object(), native_plan(), {}, {}, 5, role=role)["checks"]
+        is None
+    )
+
+
+@pytest.mark.parametrize("failed_role", ["backend", "frontend"])
+@pytest.mark.parametrize("status", [1, None, True, "1", -1, 256, "wrong-command", "missing"])
+@pytest.mark.parametrize("phase", ["initial", "restart"])
+def test_actual_sequential_start_binds_failed_target_and_closes_both_clients(
+    monkeypatch, failed_role, status, phase
+):
+    from contextlib import closing, contextmanager
+    from pathlib import Path
+
+    from daytona import SessionExecuteRequest
+    from test_capability_startup_session import native_plan as complete_native_plan
+
+    from workbench.capability_native_runtime import FRONTEND_PORT, frontend_start_command
+    from workbench.capability_sandbox import startup_command_exit_facts, startup_failure_diagnostic
+    from workbench.capability_verification import CheckFailure
+
+    source = Path(__file__).parents[1] / "workbench/capability_sandbox.py"
+    tree = ast.parse(source.read_text())
+    outer = next(
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Try)
+        and any(isinstance(child, ast.FunctionDef) and child.name == "start" for child in n.body)
+    )
+    first = next(
+        i for i, n in enumerate(outer.body) if isinstance(n, ast.FunctionDef) and n.name == "start"
+    )
+    last = next(i for i in range(first, len(outer.body)) if isinstance(outer.body[i], ast.With))
+    body = outer.body[first : last + 1]
+    if phase == "restart":
+        parent = next(
+            n
+            for n in ast.walk(outer)
+            if isinstance(n, ast.If)
+            and any(
+                isinstance(child, ast.Assign)
+                and isinstance(child.targets[0], ast.Tuple)
+                and [item.id for item in child.targets[0].elts if isinstance(item, ast.Name)]
+                == ["http", "_", "_"]
+                for child in n.body
+            )
+        )
+        begin = next(
+            i
+            for i, child in enumerate(parent.body)
+            if isinstance(child, ast.Assign)
+            and isinstance(child.targets[0], ast.Tuple)
+            and [item.id for item in child.targets[0].elts if isinstance(item, ast.Name)]
+            == ["http", "_", "_"]
+        )
+        finish = next(
+            i for i in range(begin, len(parent.body)) if isinstance(parent.body[i], ast.With)
+        )
+        body = [outer.body[first], *parent.body[begin : finish + 1]]
+    tested = ast.Try(body=body, handlers=[], orelse=[], finalbody=outer.finalbody)
+    plan = complete_native_plan()
+    plan.runtime.health_path = "/private-health-sentinel"
+    events, sessions, outputs = [], {}, {}
+    moments = iter(
+        [0, 0, plan.runtime.startup_seconds + 1]
+        if failed_role == "backend"
+        else [0, 0, 0, 0, plan.runtime.startup_seconds + 1]
+    )
+    ids = iter(["b" * 32, "f" * 32])
+
+    class Client:
+        def __init__(self, base_url, **kwargs):
+            self.role = "frontend" if base_url.endswith("5173") else "backend"
+
+        @contextmanager
+        def stream(self, method, endpoint):
+            assert method == "GET"
+            assert endpoint == ("/" if self.role == "frontend" else plan.runtime.health_path)
+            events.append(("health", self.role, endpoint))
+            yield SimpleNamespace(
+                status_code=200 if self.role == "backend" and failed_role == "frontend" else 503
+            )
+
+        def close(self):
+            events.append(("closed", self.role))
+
+    def redirect(argv):
+        role = "frontend" if "/usr/local/bin/node" in argv else "backend"
+        command, path = diagnostic.redirected_command(argv)
+        outputs[role] = path
+        return command, path
+
+    def submit(session, request, **kwargs):
+        role = "frontend" if "native-preview.mjs" in request.command else "backend"
+        sessions[role] = session
+        return SimpleNamespace(cmd_id=role + "-owned-id")
+
+    def command_status(session, command):
+        assert session == sessions[failed_role]
+        assert command == failed_role + "-owned-id"
+        events.append(("status", failed_role))
+        if status == "missing":
+            return None
+        return SimpleNamespace(
+            id="another-owned-id" if status == "wrong-command" else command, exit_code=status
+        )
+
+    def read(sandbox, path, timeout, *, limit, tail):
+        assert (
+            path == outputs[failed_role] and limit == diagnostic.NATIVE_TAIL_LIMIT and tail is True
+        )
+        return "private-sentinel"
+
+    def paths(sandbox, timeout, *, role):
+        assert role == failed_role and timeout == 5
+        events.append(("paths", role))
+        return {"status": "unknown"}
+
+    def smoke(sandbox, passed_plan, database, identity, timeout, *, role):
+        assert role == failed_role and passed_plan is plan and timeout == 5
+        events.append(("smoke", role))
+        return {"exit_status": "unknown", "output_shapes": [], "checks": None}
+
+    monkeypatch.setattr(diagnostic, "native_startup_paths", paths)
+    monkeypatch.setattr(diagnostic, "native_startup_smoke", smoke)
+    sandbox = SimpleNamespace(
+        id="owned",
+        process=SimpleNamespace(
+            create_session=lambda *a: None,
+            execute_session_command=submit,
+            get_session_command=command_status,
+        ),
+        get_preview_link=lambda port: SimpleNamespace(url="private-preview", token="private-token"),
+    )
+    scope = {
+        "require_preinstalled_evidence": lambda *a, **k: None,
+        "verify_readonly_dependencies": lambda *a, **k: {},
+        "dependency_profile": {},
+        "before": {},
+        # A previous backend observation must not survive a failed new attempt.
+        "receipt": {
+            "source_digest": "bound",
+            "passed": False,
+            "cleanup": "pending",
+            "backend_health_observed": True,
+        },
+        "plan": plan,
+        "settings": SimpleNamespace(tool_timeout=20),
+        "sandbox": sandbox,
+        "uuid": SimpleNamespace(uuid4=lambda: SimpleNamespace(hex=next(ids))),
+        "database": {},
+        "identity_options": {"native_semaphore_storage": True},
+        "product_argv": diagnostic.product_argv,
+        "redirected_command": redirect,
+        "SessionExecuteRequest": SessionExecuteRequest,
+        "REMOTE": "/tmp/rnd-capability",
+        "shlex": shlex,
+        "preview_url": lambda url, sid, port: "https://owned.invalid/" + str(port),
+        "httpx": SimpleNamespace(Client=Client),
+        "time": SimpleNamespace(monotonic=lambda: next(moments), sleep=lambda *a: None),
+        "read_command_output": read,
+        "control_exec": lambda *a: SimpleNamespace(exit_code=0, result="1"),
+        "startup_failure_diagnostic": startup_failure_diagnostic,
+        "startup_command_exit_facts": startup_command_exit_facts,
+        "native": True,
+        "FRONTEND_PORT": FRONTEND_PORT,
+        "frontend_start_command": frontend_start_command,
+        "CheckFailure": CheckFailure,
+        "closing": closing,
+        "oracle_adapter": None,
+        "client": SimpleNamespace(
+            delete=lambda actual, **k: events.append(("deleted", actual is sandbox))
+        ),
+        "write_json": lambda *a: None,
+        "receipt_path": "unused",
+    }
+    with pytest.raises(CheckFailure, match="健康检查"):
+        exec(
+            compile(
+                ast.fix_missing_locations(ast.Module([tested], [])),
+                "actual-sequential-start-and-cleanup",
+                "exec",
+            ),
+            scope,
+        )
+    state = scope["receipt"]["startup_diagnostic"]
+    assert state["target"] == {
+        "role": failed_role,
+        "interpreter": "node" if failed_role == "frontend" else "python",
+        "port": 5173 if failed_role == "frontend" else plan.runtime.port,
+        "health_endpoint": "frontend-root" if failed_role == "frontend" else "plan-health",
+        "registered_command_bound": True,
+        "backend_health_observed": failed_role == "frontend",
+    }
+    assert state["command_exit_code"] == (1 if type(status) is int and status == 1 else None)
+    assert events.count(("status", failed_role)) == 1
+    assert ("node_error" in state) is (failed_role == "frontend")
+    assert ("closed", failed_role) in events and ("closed", "backend") in events
+    assert events[-1] == ("deleted", True) and scope["receipt"]["cleanup"] == "deleted"
+    assert scope["receipt"]["passed"] is False
+    assert "private" not in json.dumps(scope["receipt"])
+    assert "owned-id" not in json.dumps(scope["receipt"])

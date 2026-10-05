@@ -122,7 +122,7 @@
 - [tests/test_workflow.py](07-orchestration/sources/tests__test_workflow_py--001.md)（1 段）
 - [workbench/aider_tool.py](07-orchestration/sources/workbench__aider_tool_py--001.md)（1 段）
 - [workbench/capability_editing.py](07-orchestration/sources/workbench__capability_editing_py--001.md)（1 段）
-- [workbench/capability_sandbox.py](07-orchestration/sources/workbench__capability_sandbox_py--001.md)（1 段）
+- [workbench/capability_sandbox.py](07-orchestration/sources/workbench__capability_sandbox_py--001.md)（2 段）
 - [workbench/capability_startup_paths.py](07-orchestration/sources/workbench__capability_startup_paths_py--001.md)（1 段）
 - [workbench/coding.py](07-orchestration/sources/workbench__coding_py--001.md)（1 段）
 - [workbench/continue_index.py](07-orchestration/sources/workbench__continue_index_py--001.md)（1 段）
@@ -553,6 +553,7 @@
 - [tests/test_capability_native_egress.py](14-acceptance/sources/tests__test_capability_native_egress_py--001.md)（1 段）
 - [tests/test_capability_native_freeze.py](14-acceptance/sources/tests__test_capability_native_freeze_py--001.md)（1 段）
 - [tests/test_capability_native_planner_probe.py](14-acceptance/sources/tests__test_capability_native_planner_probe_py--001.md)（1 段）
+- [tests/test_capability_native_preview_patch.py](14-acceptance/sources/tests__test_capability_native_preview_patch_py--001.md)（1 段）
 - [tests/test_capability_native_services.py](14-acceptance/sources/tests__test_capability_native_services_py--001.md)（1 段）
 - [tests/test_capability_native_shm_binding.py](14-acceptance/sources/tests__test_capability_native_shm_binding_py--001.md)（1 段）
 - [tests/test_capability_native_shm_guard.py](14-acceptance/sources/tests__test_capability_native_shm_guard_py--001.md)（1 段）
@@ -563,7 +564,7 @@
 - [tests/test_capability_readonly_dependencies.py](14-acceptance/sources/tests__test_capability_readonly_dependencies_py--001.md)（1 段）
 - [tests/test_capability_recovery_controls.py](14-acceptance/sources/tests__test_capability_recovery_controls_py--001.md)（1 段）
 - [tests/test_capability_restart_thread_drain.py](14-acceptance/sources/tests__test_capability_restart_thread_drain_py--001.md)（1 段）
-- [tests/test_capability_startup_diagnostics.py](14-acceptance/sources/tests__test_capability_startup_diagnostics_py--001.md)（1 段）
+- [tests/test_capability_startup_diagnostics.py](14-acceptance/sources/tests__test_capability_startup_diagnostics_py--001.md)（2 段）
 - [tests/test_capability_startup_paths.py](14-acceptance/sources/tests__test_capability_startup_paths_py--001.md)（1 段）
 - [tests/test_capability_startup_session.py](14-acceptance/sources/tests__test_capability_startup_session_py--001.md)（1 段）
 - [tests/test_ci_acceptance_gate.py](14-acceptance/sources/tests__test_ci_acceptance_gate_py--001.md)（1 段）

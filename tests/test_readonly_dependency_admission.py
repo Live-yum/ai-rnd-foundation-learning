@@ -285,6 +285,34 @@ def complete_native_proof(product, plan):
     return proof, bindings
 
 
+@pytest.mark.parametrize(
+    "field",
+    [
+        "preinstalled_dependencies",
+        "restart_preinstalled_dependencies",
+        "final_preinstalled_dependencies",
+    ],
+)
+@pytest.mark.parametrize("mutation", ["missing", "stale", "changed-physical-path"])
+def test_native_delivery_binds_runtime_patch_at_initial_restart_and_final(
+    product_plan, field, mutation
+):
+    proof, bindings = complete_native_proof(*product_plan)
+    # These compact fixtures share the profile's list; separate the receipt first.
+    proof[field] = copy.deepcopy(proof[field])
+    value = proof[field]
+    if mutation == "missing":
+        value.pop("runtime_patches")
+    elif mutation == "stale":
+        value["runtime_patches"][0]["id"] = "old"
+    else:
+        value["runtime_patches"][0]["relative_path"] = value["runtime_patches"][0][
+            "relative_path"
+        ].replace("vite@7.3.3/", "vite@7.3.3_jiti@2.6.1/")
+    with pytest.raises(CheckFailure, match="依赖"):
+        require_evidence(proof, **bindings)
+
+
 @pytest.mark.parametrize("field", ["security_checks", "restart_security_checks"])
 @pytest.mark.parametrize("replacement", [None, {}, [], True, "complete"])
 def test_native_delivery_requires_both_complete_security_groups(product_plan, field, replacement):

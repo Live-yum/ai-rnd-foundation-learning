@@ -23,6 +23,34 @@ LINK_MANIFEST = CONTROL + "/private/dependency-links.json"
 RECEIPT_FLAGS = ("descriptors_verified", "installed_tree_verified", "readonly_verified")
 
 
+def native_runtime_patch_identity():
+    """Wheel-owned admission policy, independent of the image's verifier version."""
+    return {
+        "id": "vite-preview-interface-eperm-v1",
+        "package": "vite",
+        "version": "7.3.3",
+        "upstream_sha256": "339ee4656b2ca976ca320b48cffba04361f91ad0899a32a1c60ba9b2910e772e",
+        "patched_sha256": "8df548e7d1456f542321e05139faec50f23f15e64afc5a434c57583308bcc86e",
+    }
+
+
+def valid_native_runtime_patches(value):
+    identity = native_runtime_patch_identity()
+    return (
+        type(value) is list
+        and len(value) == 1
+        and type(value[0]) is dict
+        and set(value[0]) == {*identity, "relative_path"}
+        and all(value[0].get(key) == expected for key, expected in identity.items())
+        and type(value[0].get("relative_path")) is str
+        and re.fullmatch(
+            r"\.pnpm/vite@7\.3\.3(?:_[A-Za-z0-9@+_.-]+)?/node_modules/vite/dist/node/chunks/config\.js",
+            value[0]["relative_path"],
+        )
+        is not None
+    )
+
+
 def native_descriptor_roles():
     """Keep this wheel-owned data policy equal to both isolated image-side tables."""
     return {
@@ -61,7 +89,7 @@ def require_dependency_manifest(value, profile):
         "original_descriptors",
     }
     if profile == "fastapiadmin":
-        fields.add("descriptor_roles")
+        fields.update({"descriptor_roles", "runtime_patches"})
     if (
         type(value) is not dict
         or set(value) != fields
@@ -77,7 +105,10 @@ def require_dependency_manifest(value, profile):
         or type(value.get("original_descriptors")) is not dict
         or not value["original_descriptors"]
         or profile == "fastapiadmin"
-        and value.get("descriptor_roles") != native_descriptor_roles()
+        and (
+            value.get("descriptor_roles") != native_descriptor_roles()
+            or not valid_native_runtime_patches(value.get("runtime_patches"))
+        )
     ):
         raise CheckFailure("缺少与当前镜像绑定的只读依赖清单")
     descriptors = {
@@ -319,15 +350,14 @@ def _verify_image(sandbox, plan, timeout, expected):
         if type(result.result) is not str or len(result.result) > 4096:
             raise ValueError
         value = json.loads(result.result)
+        binding = {"schema", "profile", "manifest_sha256", "installed_tree_sha256"}
+        if profile == "fastapiadmin":
+            binding.add("runtime_patches")
         if (
             type(value) is not dict
-            or set(value)
-            != {"schema", "profile", "manifest_sha256", "installed_tree_sha256", *RECEIPT_FLAGS}
+            or set(value) != binding | set(RECEIPT_FLAGS)
             or type(value.get("schema")) is not int
-            or any(
-                value.get(key) != expected[key]
-                for key in ("schema", "profile", "manifest_sha256", "installed_tree_sha256")
-            )
+            or any(value.get(key) != expected[key] for key in binding)
             or any(value.get(key) is not True for key in RECEIPT_FLAGS)
         ):
             raise ValueError

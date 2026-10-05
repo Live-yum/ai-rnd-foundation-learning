@@ -65,6 +65,9 @@ RUN test "$(pnpm --version)" = "9.15.3" \
         --store-dir /opt/rnd/pnpm-store \
     && test -f node_modules/vue/package.json && test -f node_modules/vite/package.json \
     && test -f node_modules/vue-tsc/package.json
+# Patch only Vite's advisory preview URL enumeration, as daytona and offline.
+# The collector and final verifier bind both source hashes and installed bytes.
+RUN --network=none /opt/rnd/bin/python-build -I -S /opt/rnd/bin/dependency-build.py patch-native-preview
 RUN /opt/rnd/bin/python-build -I -S /opt/rnd/bin/dependency-build.py collect --native \
     --inputs /opt/rnd/build-inputs.json --output /opt/rnd/build/runtime-inputs.json
 

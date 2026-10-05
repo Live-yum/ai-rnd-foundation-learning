@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `tools/daytona/capability-native-snapshot.Dockerfile`；**本文件共有 1 段**。本段覆盖源文件 L1–L84。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tools/daytona/capability-native-snapshot.Dockerfile`；**本文件共有 1 段**。本段覆盖源文件 L1–L87。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`5173`。本段原文以LF换行结束。
+本段原始字节数：`5436`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tools/daytona/capability-native-snapshot.Dockerfile", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "1e9aa22679e06236a0c5f5cfbafe5fc2ff7f128f3f8e96aa38e398364e2bf5db"} -->
+<!-- learning-source: {"path": "tools/daytona/capability-native-snapshot.Dockerfile", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ceb125fcca1a7c3ea8e7dae44a2b0ca64a7fb4374926d55be29ea8976ba95d59"} -->
 ````dockerfile
 # tools/daytona/capability-native-snapshot.Dockerfile
 # syntax=docker/dockerfile:1
@@ -84,6 +84,9 @@ RUN test "$(pnpm --version)" = "9.15.3" \
         --store-dir /opt/rnd/pnpm-store \
     && test -f node_modules/vue/package.json && test -f node_modules/vite/package.json \
     && test -f node_modules/vue-tsc/package.json
+# Patch only Vite's advisory preview URL enumeration, as daytona and offline.
+# The collector and final verifier bind both source hashes and installed bytes.
+RUN --network=none /opt/rnd/bin/python-build -I -S /opt/rnd/bin/dependency-build.py patch-native-preview
 RUN /opt/rnd/bin/python-build -I -S /opt/rnd/bin/dependency-build.py collect --native \
     --inputs /opt/rnd/build-inputs.json --output /opt/rnd/build/runtime-inputs.json
 
