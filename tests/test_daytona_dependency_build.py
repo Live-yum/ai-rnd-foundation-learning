@@ -1,6 +1,7 @@
 """Locked dependency build contracts; never execute source hooks in these tests."""
 
 import ast
+import base64
 import ctypes
 import inspect
 import io
@@ -424,7 +425,12 @@ def metadata_image(tmp_path, monkeypatch):
     descriptors = {}
     for profile, names in {
         "runtime/python-basic": ("pyproject.toml", "uv.lock"),
-        "runtime/fastapiadmin": ("backend/pyproject.toml", "backend/uv.lock"),
+        "runtime/fastapiadmin": (
+            "backend/pyproject.toml",
+            "backend/uv.lock",
+            "frontend/package.json",
+            "frontend/pnpm-lock.yaml",
+        ),
         "harness": ("pyproject.toml", "uv.lock"),
     }.items():
         for name in names:
@@ -548,6 +554,15 @@ def test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration
     }
     original = {"original_descriptors": hashes, "normalized_descriptors": hashes}
     if native:
+        roles = build.native_descriptor_roles()
+        original["descriptor_roles"] = roles
+        payload = b"descriptor-content-must-not-be-emitted\n"
+        names = [name for paths in roles.values() for name in paths]
+        hashes.update(dict.fromkeys(names, next(iter(descriptors.values()))))
+        original["source_descriptor_bytes"] = {
+            name: base64.b64encode(payload).decode("ascii")
+            for name in [*roles["portable_launcher"], *roles["auxiliary_source"]]
+        }
         original["harness_descriptors"] = {
             name: build.sha(image / "harness" / name) for name in ("pyproject.toml", "uv.lock")
         }
@@ -593,6 +608,11 @@ def test_collect_all_probes_are_offline_bounded_and_do_not_inherit_configuration
     assert collected["toolchain"]["python"] == str(build.PYTHON_BUILD.resolve(strict=True))
     assert collected["original_descriptors"] == original["original_descriptors"]
     assert collected["normalized_descriptors"] == original["normalized_descriptors"]
+    if native:
+        assert collected["descriptor_roles"] == build.native_descriptor_roles()
+        assert "source_descriptor_bytes" not in collected
+        assert not (image / "runtime/fastapiadmin/frontend/app").exists()
+        assert not (image / "runtime/fastapiadmin/frontend/docs").exists()
     assert {path: build.sha(path) for path in descriptors} == descriptors
     assert len(calls) == (7 if native else 4)
     assert not any(command[1:3] == ["python", "find"] for command in calls)

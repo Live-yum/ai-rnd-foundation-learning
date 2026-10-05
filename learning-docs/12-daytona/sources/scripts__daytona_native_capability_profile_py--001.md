@@ -15,38 +15,38 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `diagnostic_log`（L114–L133）：接收`exc`。 源码说明：Inspect bounded subprocess output only; never stringify arbitrary errors.。 控制顺序：L116按`isinstance(exc, (subprocess.CalledProcessError, subprocess.TimeoutExpired))`分支；L118按`isinstance(exc, ToolFailure)`分支；L124遍历`streams`；L125按`type(value) not in (bytes, str)`分支。 调用`isinstance`、`getattr`、`max`、`len`、`type`、`value.encode`、`chunks.append`、`b"".join`、`raw.decode`。 返回路径：L133的`raw.decode("utf-8", errors="replace"), len(raw), truncated`。
-- `reviewed_run_commands`（L136–L155）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Match complete commands from the fixed reviewed recipe, never log text.。 控制顺序：L143按`len(raw) > DIAGNOSTIC_SCAN_BYTES or hashlib.sha256(raw).hexdigest() != REVIEWED_DOCKE…`分支；L150按`len(commands) != len(REVIEWED_RUNS)`分支。 调用`(ROOT / DOCKERFILE).open`、`source.read`、`len`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`、`raw.decode("utf-8").replace("\\\n", " ").splitlines`、`raw.decode("utf-8").replace`、`raw.decode`、`line.removeprefix`等。 返回路径：L142的`{}`；L147的`{}`；L151的`{}`。
-- `normalized_run`（L158–L159）：接收`command`。 调用`" ".join`、`command.removeprefix("--network=none ").replace("\\\n", " ").spli…`、`command.removeprefix("--network=none ").replace`、`command.removeprefix`。 返回路径：L159的`" ".join(command.removeprefix("--network=none ").replace("\\\n", " ").split())`。
-- `build_failure_facts`（L162–L241）：接收`text`。 源码说明：Return finite labels only, never captured paths, commands, versions or URLs.。 控制顺序：L167遍历`text.splitlines()`；L169按`match`分支；L172按`identifier`分支；L175按`failed and failed[1] in headers`分支；L178按`footer`分支；L181按`identifier`分支；L188按`start >= 0 and end > start and end - start <= 8192`分支；L193按`type(process) is str and process.startswith("/bin/sh -c ")`分支。后续分支沿下方源码相同行号继续阅读。 调用`reviewed_run_commands`、`text.splitlines`、`re.fullmatch`、`match.groups`、`commands.get`、`normalized_run`、`re.match`、`footer.groups`、`line.find`等。 返回路径：L241的`result`。
-- `failure_diagnostic`（L244–L285）：接收`progress`、`exc`。 控制顺序：L251遍历`( (subprocess.TimeoutExpired, "timeout"), (subprocess.CalledProce…`；L258按`isinstance(exc, error_type)`分支；L278按`stage == "prepare-docker-build"`分支。 调用`getattr`、`type`、`isinstance`、`progress.get`、`diagnostic_log`、`build_failure_facts`。 返回路径：L285的`report`。
-- `diagnostic_scope`（L289–L305）：接收`path`、`action`。 控制顺序：L294按`path is not None`分支；L297按`len(body.encode("utf-8")) > DIAGNOSTIC_REPORT_BYTES`分支；L298抛异常，停止当前正常路径；L305抛异常，停止当前正常路径。 调用`json.dumps`、`failure_diagnostic`、`len`、`body.encode`、`ValueError`、`Path(path).parent.mkdir`、`Path`、`write_private_new`、`print`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `recipe_identity`（L308–L310）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`、`digest`。 返回路径：L310的`digest(recipes), recipes`。
-- `selection`（L313–L314）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Selection(template="fastapiadmin").model_dump`、`Selection`。 返回路径：L314的`Selection(template="fastapiadmin").model_dump()`。
-- `reject_credentials`（L317–L324）：接收`text`。 源码说明：Never send authenticated registry configuration into Docker build layers.。 控制顺序：L319按`re.search(r"(?:_auth\|authToken\|password\|username)\s*[=:]\|\$\{", text, re.IGNORECA…`分支；L320抛异常，停止当前正常路径；L321遍历`re.findall(r"https?://[^\s\"'<>]+", text)`；L323按`parsed.username is not None or parsed.password is not None or parsed.query`分支；L324抛异常，停止当前正常路径。 调用`re.search`、`ValueError`、`re.findall`、`urlsplit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `product_inputs`（L327–L357）：接收`product`。 控制顺序：L332按`not isinstance(metadata, dict) or metadata.get("template") != "fastapiadmin"`分支；L333抛异常，停止当前正常路径；L334按`"selection" in metadata and Selection.model_validate(metadata["selection"]).model_dum…`分支；L338抛异常，停止当前正常路径；L339按`"database" in metadata and metadata["database"] != "postgresql"`分支；L340抛异常，停止当前正常路径；L341遍历`files(product)`；L342按`path.name == ".npmrc"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`manifest`、`inside`、`json.loads`、`metadata_path.read_text`、`isinstance`、`metadata.get`、`ValueError`等。 返回路径：L351的`{ "product": str(product), "source_identity": digest(before), "manifest_sha256": before["d…`。
-- `prepare_context`（L360–L430）：接收`product`、`context`、`expected`。先确定模板源码位置与摘要，再生成检索上下文；返回的内容在规划节点使用，不是只写报告后丢弃。 源码说明：Copy allowlisted lock inputs only, never executable product sources/hooks.。 控制顺序：L363按`product_inputs(product) != expected`分支；L364抛异常，停止当前正常路径；L365遍历`DESCRIPTORS`；L369按`base.sha256(raw) != expected["descriptors"][name]`分支；L370抛异常，停止当前正常路径；L371按`name.startswith("backend/")`分支；L396遍历`("pyproject.toml", "uv.lock")`；L403遍历`("image", "build")`。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`product_inputs`、`ValueError`、`inside`、`target.parent.mkdir`、`inside(product, name).read_bytes`、`base.sha256`、`name.startswith`、`raw.decode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `base_identity`（L433–L441）：接收`record`。 调用`copy.deepcopy`。 返回路径：L434的`{ "profile": record["profile"], "recipe_identity": record["recipe_identity"], "snapshot_im…`。
-- `native_stamp`（L444–L453）：接收`identity`、`foundation`、`inputs`。 调用`digest`、`selection`。 返回路径：L445的`digest( { "recipe_identity": identity, "base": foundation, "inputs": inputs, "selection": …`。
-- `validate_image`（L456–L475）：接收`image`、`record`。 控制顺序：L459按`image.get("Os") != "linux" or image.get("Architecture") != "amd64" or labels.get("org…`分支；L475抛异常，停止当前正常路径。 调用`image.get`、`config.get`、`labels.get`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `write_private_new`（L478–L484）：接收`path`、`text`。 源码说明：Exclusive creation prevents replacing base metadata or an existing credential.。 调用`os.open`、`os.fdopen`、`output.write`、`output.flush`、`os.fsync`、`output.fileno`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `prepare`（L487–L489）：接收`product`、`directory`、`diagnostics`。 调用`diagnostic_scope`、`_prepare`。 返回路径：L489的`_prepare(product, directory, progress)`。
-- `_prepare`（L492–L589）：接收`product`、`directory`、`progress`。 控制顺序：L496按`any((directory / name).exists() for name in (LOCK, ENVIRONMENT))`分支；L497抛异常，停止当前正常路径；L539遍历`labels.items()`；L561按`len(digests) != 1 or published["Id"] != image["Id"]`分支；L562抛异常，停止当前正常路径；L580按`base_identity(base.require_profile(directory)) != foundation or product_inputs(produc…`分支；L585抛异常，停止当前正常路径。 调用`base.profile_directory`、`base_identity`、`base.require_profile`、`any`、`(directory / name).exists`、`ValueError`、`product_inputs`、`recipe_identity`、`native_stamp`等。 返回路径：L589的`record`。
-- `require_native_profile`（L592–L634）：接收`directory`、`snapshot`。 源码说明：Read-only identity proof; runtime isolation/resource evidence is separate.。 控制顺序：L599按`record.get("profile") != PROFILE or record.get("selection") != selection() or record.…`分支；L611抛异常，停止当前正常路径；L615按`image.get("source_hash") != stamp or image.get("local_tag") != "127.0.0.1:6000/" + FA…`分支；L627抛异常，停止当前正常路径；L631按`inspected["Id"] != image["image_id"] or local_digest not in inspected.get("RepoDigest…`分支；L632抛异常，停止当前正常路径。 调用`base.profile_directory`、`base_identity`、`base.require_profile`、`json.loads`、`inside(directory, LOCK).read_text`、`inside`、`recipe_identity`、`record.get`、`selection`等。 返回路径：L634的`record`。
-- `environment_text`（L637–L648）：接收`key`、`snapshot`。 控制顺序：L638按`not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9._-]{1,4096}", key)`分支；L639抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`ValueError`、`json.dumps`。 返回路径：L640的`"SANDBOX_PROVIDER=daytona\nDAYTONA_ALLOW_LOCAL_EXECUTION=true\n" "DAYTONA_API_URL=http://1…`。
-- `register`（L651–L653）：接收`directory`、`diagnostics`。 调用`diagnostic_scope`、`_register`。 返回路径：L653的`_register(directory, progress, diagnostics)`。
-- `_register`（L656–L675）：接收`directory`、`progress`、`diagnostics`。 控制顺序：L667按`diagnostics is not None`分支。 调用`base.profile_directory`、`require_native_profile`、`str`、`Path(diagnostics).absolute`、`Path`、`run_command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `register_worker`（L678–L680）：接收`directory`、`diagnostics`。 调用`diagnostic_scope`、`_register_worker`。 返回路径：L680的`_register_worker(directory, progress)`。
-- `_register_worker`（L683–L744）：接收`directory`、`progress`。 控制顺序：L692按`path.exists() and os.name != "nt" and path.stat().st_mode & 0o777 != 0o600`分支；L693抛异常，停止当前正常路径；L694按`path.exists() and path.read_text(encoding="utf-8") != content`分支；L695抛异常，停止当前正常路径；L713按`existing is None`分支；L725按`existing.name != metadata["snapshot"] or existing.image_name != metadata["digest"] or…`分支；L734抛异常，停止当前正常路径；L742按`not path.exists()`分支。 调用`base.profile_directory`、`require_native_profile`、`json.loads`、`(directory / "api-key.json").read_text`、`environment_text`、`inside`、`path.exists`、`path.stat`、`ValueError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L747–L767）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L755按`args.action == "prepare"`分支；L756按`args.product is None`分支；L759按`args.action == "check"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`parser.error`、`prepare`、`require_native_profile`、`{"register": register, "register-worker": register_worker}[args.a…`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `diagnostic_log`（L110–L129）：接收`exc`。 源码说明：Inspect bounded subprocess output only; never stringify arbitrary errors.。 控制顺序：L112按`isinstance(exc, (subprocess.CalledProcessError, subprocess.TimeoutExpired))`分支；L114按`isinstance(exc, ToolFailure)`分支；L120遍历`streams`；L121按`type(value) not in (bytes, str)`分支。 调用`isinstance`、`getattr`、`max`、`len`、`type`、`value.encode`、`chunks.append`、`b"".join`、`raw.decode`。 返回路径：L129的`raw.decode("utf-8", errors="replace"), len(raw), truncated`。
+- `reviewed_run_commands`（L132–L151）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Match complete commands from the fixed reviewed recipe, never log text.。 控制顺序：L139按`len(raw) > DIAGNOSTIC_SCAN_BYTES or hashlib.sha256(raw).hexdigest() != REVIEWED_DOCKE…`分支；L146按`len(commands) != len(REVIEWED_RUNS)`分支。 调用`(ROOT / DOCKERFILE).open`、`source.read`、`len`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`、`raw.decode("utf-8").replace("\\\n", " ").splitlines`、`raw.decode("utf-8").replace`、`raw.decode`、`line.removeprefix`等。 返回路径：L138的`{}`；L143的`{}`；L147的`{}`。
+- `normalized_run`（L154–L155）：接收`command`。 调用`" ".join`、`command.removeprefix("--network=none ").replace("\\\n", " ").spli…`、`command.removeprefix("--network=none ").replace`、`command.removeprefix`。 返回路径：L155的`" ".join(command.removeprefix("--network=none ").replace("\\\n", " ").split())`。
+- `build_failure_facts`（L158–L237）：接收`text`。 源码说明：Return finite labels only, never captured paths, commands, versions or URLs.。 控制顺序：L163遍历`text.splitlines()`；L165按`match`分支；L168按`identifier`分支；L171按`failed and failed[1] in headers`分支；L174按`footer`分支；L177按`identifier`分支；L184按`start >= 0 and end > start and end - start <= 8192`分支；L189按`type(process) is str and process.startswith("/bin/sh -c ")`分支。后续分支沿下方源码相同行号继续阅读。 调用`reviewed_run_commands`、`text.splitlines`、`re.fullmatch`、`match.groups`、`commands.get`、`normalized_run`、`re.match`、`footer.groups`、`line.find`等。 返回路径：L237的`result`。
+- `failure_diagnostic`（L240–L281）：接收`progress`、`exc`。 控制顺序：L247遍历`( (subprocess.TimeoutExpired, "timeout"), (subprocess.CalledProce…`；L254按`isinstance(exc, error_type)`分支；L274按`stage == "prepare-docker-build"`分支。 调用`getattr`、`type`、`isinstance`、`progress.get`、`diagnostic_log`、`build_failure_facts`。 返回路径：L281的`report`。
+- `diagnostic_scope`（L285–L301）：接收`path`、`action`。 控制顺序：L290按`path is not None`分支；L293按`len(body.encode("utf-8")) > DIAGNOSTIC_REPORT_BYTES`分支；L294抛异常，停止当前正常路径；L301抛异常，停止当前正常路径。 调用`json.dumps`、`failure_diagnostic`、`len`、`body.encode`、`ValueError`、`Path(path).parent.mkdir`、`Path`、`write_private_new`、`print`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `recipe_identity`（L304–L306）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`sha`、`digest`。 返回路径：L306的`digest(recipes), recipes`。
+- `selection`（L309–L310）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`Selection(template="fastapiadmin").model_dump`、`Selection`。 返回路径：L310的`Selection(template="fastapiadmin").model_dump()`。
+- `reject_credentials`（L313–L320）：接收`text`。 源码说明：Never send authenticated registry configuration into Docker build layers.。 控制顺序：L315按`re.search(r"(?:_auth\|authToken\|password\|username)\s*[=:]\|\$\{", text, re.IGNORECA…`分支；L316抛异常，停止当前正常路径；L317遍历`re.findall(r"https?://[^\s\"'<>]+", text)`；L319按`parsed.username is not None or parsed.password is not None or parsed.query`分支；L320抛异常，停止当前正常路径。 调用`re.search`、`ValueError`、`re.findall`、`urlsplit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `product_inputs`（L323–L357）：接收`product`。 控制顺序：L328按`not isinstance(metadata, dict) or metadata.get("template") != "fastapiadmin"`分支；L329抛异常，停止当前正常路径；L330按`"selection" in metadata and Selection.model_validate(metadata["selection"]).model_dum…`分支；L334抛异常，停止当前正常路径；L335按`"database" in metadata and metadata["database"] != "postgresql"`分支；L336抛异常，停止当前正常路径；L337遍历`files(product)`；L338按`path.name == ".npmrc"`分支。后续分支沿下方源码相同行号继续阅读。 调用`Path(product).resolve`、`Path`、`manifest`、`inside`、`json.loads`、`metadata_path.read_text`、`isinstance`、`metadata.get`、`ValueError`等。 返回路径：L350的`{ "product": str(product), "source_identity": digest(before), "manifest_sha256": before["d…`。
+- `prepare_context`（L360–L433）：接收`product`、`context`、`expected`。先确定模板源码位置与摘要，再生成检索上下文；返回的内容在规划节点使用，不是只写报告后丢弃。 源码说明：Copy allowlisted lock inputs only, never executable product sources/hooks.。 控制顺序：L363按`product_inputs(product) != expected`分支；L364抛异常，停止当前正常路径；L365遍历`DESCRIPTORS`；L369按`base.sha256(raw) != expected["descriptors"][name]`分支；L370抛异常，停止当前正常路径；L371按`name.startswith("backend/")`分支；L396遍历`("pyproject.toml", "uv.lock")`；L403遍历`("image", "build")`。后续分支沿下方源码相同行号继续阅读。 调用`Path`、`product_inputs`、`ValueError`、`inside`、`target.parent.mkdir`、`inside(product, name).read_bytes`、`base.sha256`、`name.startswith`、`raw.decode`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `base_identity`（L436–L444）：接收`record`。 调用`copy.deepcopy`。 返回路径：L437的`{ "profile": record["profile"], "recipe_identity": record["recipe_identity"], "snapshot_im…`。
+- `native_stamp`（L447–L456）：接收`identity`、`foundation`、`inputs`。 调用`digest`、`selection`。 返回路径：L448的`digest( { "recipe_identity": identity, "base": foundation, "inputs": inputs, "selection": …`。
+- `validate_image`（L459–L478）：接收`image`、`record`。 控制顺序：L462按`image.get("Os") != "linux" or image.get("Architecture") != "amd64" or labels.get("org…`分支；L478抛异常，停止当前正常路径。 调用`image.get`、`config.get`、`labels.get`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `write_private_new`（L481–L487）：接收`path`、`text`。 源码说明：Exclusive creation prevents replacing base metadata or an existing credential.。 调用`os.open`、`os.fdopen`、`output.write`、`output.flush`、`os.fsync`、`output.fileno`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `prepare`（L490–L492）：接收`product`、`directory`、`diagnostics`。 调用`diagnostic_scope`、`_prepare`。 返回路径：L492的`_prepare(product, directory, progress)`。
+- `_prepare`（L495–L592）：接收`product`、`directory`、`progress`。 控制顺序：L499按`any((directory / name).exists() for name in (LOCK, ENVIRONMENT))`分支；L500抛异常，停止当前正常路径；L542遍历`labels.items()`；L564按`len(digests) != 1 or published["Id"] != image["Id"]`分支；L565抛异常，停止当前正常路径；L583按`base_identity(base.require_profile(directory)) != foundation or product_inputs(produc…`分支；L588抛异常，停止当前正常路径。 调用`base.profile_directory`、`base_identity`、`base.require_profile`、`any`、`(directory / name).exists`、`ValueError`、`product_inputs`、`recipe_identity`、`native_stamp`等。 返回路径：L592的`record`。
+- `require_native_profile`（L595–L637）：接收`directory`、`snapshot`。 源码说明：Read-only identity proof; runtime isolation/resource evidence is separate.。 控制顺序：L602按`record.get("profile") != PROFILE or record.get("selection") != selection() or record.…`分支；L614抛异常，停止当前正常路径；L618按`image.get("source_hash") != stamp or image.get("local_tag") != "127.0.0.1:6000/" + FA…`分支；L630抛异常，停止当前正常路径；L634按`inspected["Id"] != image["image_id"] or local_digest not in inspected.get("RepoDigest…`分支；L635抛异常，停止当前正常路径。 调用`base.profile_directory`、`base_identity`、`base.require_profile`、`json.loads`、`inside(directory, LOCK).read_text`、`inside`、`recipe_identity`、`record.get`、`selection`等。 返回路径：L637的`record`。
+- `environment_text`（L640–L651）：接收`key`、`snapshot`。 控制顺序：L641按`not isinstance(key, str) or not re.fullmatch(r"[A-Za-z0-9._-]{1,4096}", key)`分支；L642抛异常，停止当前正常路径。 调用`isinstance`、`re.fullmatch`、`ValueError`、`json.dumps`。 返回路径：L643的`"SANDBOX_PROVIDER=daytona\nDAYTONA_ALLOW_LOCAL_EXECUTION=true\n" "DAYTONA_API_URL=http://1…`。
+- `register`（L654–L656）：接收`directory`、`diagnostics`。 调用`diagnostic_scope`、`_register`。 返回路径：L656的`_register(directory, progress, diagnostics)`。
+- `_register`（L659–L678）：接收`directory`、`progress`、`diagnostics`。 控制顺序：L670按`diagnostics is not None`分支。 调用`base.profile_directory`、`require_native_profile`、`str`、`Path(diagnostics).absolute`、`Path`、`run_command`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `register_worker`（L681–L683）：接收`directory`、`diagnostics`。 调用`diagnostic_scope`、`_register_worker`。 返回路径：L683的`_register_worker(directory, progress)`。
+- `_register_worker`（L686–L747）：接收`directory`、`progress`。 控制顺序：L695按`path.exists() and os.name != "nt" and path.stat().st_mode & 0o777 != 0o600`分支；L696抛异常，停止当前正常路径；L697按`path.exists() and path.read_text(encoding="utf-8") != content`分支；L698抛异常，停止当前正常路径；L716按`existing is None`分支；L728按`existing.name != metadata["snapshot"] or existing.image_name != metadata["digest"] or…`分支；L737抛异常，停止当前正常路径；L745按`not path.exists()`分支。 调用`base.profile_directory`、`require_native_profile`、`json.loads`、`(directory / "api-key.json").read_text`、`environment_text`、`inside`、`path.exists`、`path.stat`、`ValueError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L750–L770）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L758按`args.action == "prepare"`分支；L759按`args.product is None`分支；L762按`args.action == "check"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`parser.error`、`prepare`、`require_native_profile`、`{"register": register, "register-worker": register_worker}[args.a…`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/daytona_native_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L777。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/daytona_native_capability_profile.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L780。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`32449`。本段原文以LF换行结束。
+本段原始字节数：`32997`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/daytona_native_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "927686ecb7b67616984c12b8d9229c9c63eb184afa20815ecbf9546e8a127d17"} -->
+<!-- learning-source: {"path": "scripts/daytona_native_capability_profile.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "061fafc1a31f683f24318e7ada5180497135e52b637676f33e53cbe3ebb0f299"} -->
 ````python
 # scripts/daytona_native_capability_profile.py
 """Prepare/register the opt-in native profile without changing the base installation.
@@ -57,6 +57,7 @@ The warmed image is not runtime, browser, database or isolation acceptance evide
 """
 
 import argparse
+import base64
 import copy
 import hashlib
 import json
@@ -110,13 +111,8 @@ RECIPE_PATHS = (
     "pyproject.toml",
     "uv.lock",
 )
-DESCRIPTORS = (
-    "backend/pyproject.toml",
-    "backend/uv.lock",
-    "deployment/pyproject.toml",
-    "deployment/uv.lock",
-    "frontend/web/package.json",
-    "frontend/web/pnpm-lock.yaml",
+DESCRIPTORS = tuple(
+    name for paths in dependencies.native_descriptor_roles().values() for name in paths
 )
 DIAGNOSTIC_SCAN_BYTES = 65536
 DIAGNOSTIC_REPORT_BYTES = 4096
@@ -396,6 +392,9 @@ def product_inputs(product):
         if name not in before:
             raise ValueError("Native snapshot is missing a dependency descriptor: " + name)
         reject_credentials(inside(product, name).read_text(encoding="utf-8"))
+    names = {"pyproject.toml", "uv.lock", "pnpm-lock.yaml", "package.json", "pom.xml"}
+    if {name for name in before if Path(name).name in names} != set(DESCRIPTORS):
+        raise ValueError("Native snapshot contains an unregistered dependency descriptor")
     identity = dependency_identity(product)
     if manifest(product) != before:
         raise ValueError("Native input changed while computing its identity")
@@ -404,6 +403,7 @@ def product_inputs(product):
         "source_identity": digest(before),
         "manifest_sha256": before["deployment/manifest.json"],
         "descriptors": {name: before[name] for name in DESCRIPTORS},
+        "descriptor_roles": dependencies.native_descriptor_roles(),
         "dependency_identity": identity,
     }
 
@@ -460,20 +460,23 @@ def prepare_context(product, context, expected):
         ROOT / "scripts/daytona_dependency_build.lock.json",
         context / "dependency-build.lock.json",
     )
+    roles = dependencies.native_descriptor_roles()
+    descriptor_inputs = {
+        "recipe_identity": recipe_identity()[0],
+        "original_descriptors": expected["descriptors"],
+        "harness_descriptors": {
+            name: sha(harness / name) for name in ("pyproject.toml", "uv.lock")
+        },
+        "normalized_descriptors": {name: sha(context / "product" / name) for name in DESCRIPTORS},
+        "descriptor_roles": roles,
+        "source_descriptor_bytes": {
+            name: base64.b64encode((context / "product" / name).read_bytes()).decode("ascii")
+            for name in [*roles["portable_launcher"], *roles["auxiliary_source"]]
+        },
+    }
+    dependencies.validate_native_descriptor_inputs(descriptor_inputs)
     (context / "dependency-inputs.json").write_text(
-        json.dumps(
-            {
-                "recipe_identity": recipe_identity()[0],
-                "original_descriptors": expected["descriptors"],
-                "harness_descriptors": {
-                    name: sha(harness / name) for name in ("pyproject.toml", "uv.lock")
-                },
-                "normalized_descriptors": {
-                    name: sha(context / "product" / name) for name in DESCRIPTORS
-                },
-            },
-            sort_keys=True,
-        ),
+        json.dumps(descriptor_inputs, sort_keys=True),
         encoding="utf-8",
     )
     shutil.copyfile(ROOT / DOCKERFILE, context / "Dockerfile")

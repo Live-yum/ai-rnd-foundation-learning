@@ -29,22 +29,22 @@
 - `render_profile`（L296–L303）：接收`base`、`runner_id`、`image`。 调用`copy.deepcopy`、`local.assert_local_compose`。 返回路径：L303的`config`。
 - `write_compose`（L306–L309）：接收`path`、`config`。 控制顺序：L308按`os.name != "nt"`分支。 调用`path.write_text`、`yaml.safe_dump`、`path.chmod`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `prepare_dependency_context`（L312–L337）：接收`context`、`identity`。 控制顺序：L315遍历`("pyproject.toml", "uv.lock")`；L322遍历`("image", "build")`。 调用`Path`、`(ROOT / "templates/product" / name).read_bytes`、`(context / name).write_bytes`、`sha256`、`dependencies.validate_python`、`(context / "pyproject.toml").read_bytes`、`(context / "uv.lock").read_bytes`、`shutil.copyfile`、`(context / "dependency-inputs.json").write_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `inspect_dependency_manifest`（L340–L385）：接收`image_id`、`profile`、`descriptors`。 控制顺序：L341按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image_id)`分支；L342抛异常，停止当前正常路径；L364按`not isinstance(result, dict) or set(result) != { "schema", "profile", "manifest_sha25…`分支；L384抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`、`local.docker`、`json.loads`、`isinstance`、`set`、`type`、`result.get`、`any`。 返回路径：L385的`{**result, "image_id": image_id}`。
-- `validate_dependency_binding`（L388–L410）：接收`value`、`image_id`、`profile`、`descriptors`。 控制顺序：L389按`not isinstance(value, dict) or set(value) != { "schema", "profile", "image_id", "mani…`分支；L410抛异常，停止当前正常路径。 调用`isinstance`、`set`、`type`、`value.get`、`any`、`re.fullmatch`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `require_dependency_manifest`（L413–L421）：接收`record`、`profile`、`descriptors`。 控制顺序：L419按`image.get("dependency_manifest") != expected`分支；L420抛异常，停止当前正常路径。 调用`validate_dependency_binding`、`image.get`、`inspect_dependency_manifest`、`ValueError`。 返回路径：L421的`expected`。
-- `prepare`（L424–L556）：接收`directory`。 控制顺序：L427遍历`(COMPOSE, LOCK, "snapshot-image.json", "api-key.json", "workbench…`；L428按`(directory / name).exists()`分支；L429抛异常，停止当前正常路径；L433按`info.get("OSType") != "linux" or info.get("Architecture") not in { "amd64", "x86_64",…`分支；L437抛异常，停止当前正常路径；L448按`existing.strip()`分支；L449抛异常，停止当前正常路径；L457按`stamp == local.snapshot_stamp()`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`read_base`、`(directory / name).exists`、`ValueError`、`json.loads`、`local.docker`、`info.get`、`str`、`existing.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `load_profile`（L559–L621）：接收`directory`。 控制顺序：L563按`record.get("profile") != PROFILE or record.get("recipe_identity") != identity or reco…`分支；L571抛异常，停止当前正常路径；L573按`set(bases) != set(BASES)`分支；L574抛异常，停止当前正常路径；L575遍历`BASES.items()`；L578按`entry.get("tag") != tag or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", entr…`分支；L583抛异常，停止当前正常路径；L586按`image.get("source_hash") != stamp or image.get("image") != "registry:6000/rnd-python:…`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`json.loads`、`(directory / LOCK).read_text`、`recipe_identity`、`record.get`、`record.get("source", {}).get`、`sha256`、`(directory / "compose.lock.yaml").read_bytes`、`ValueError`等。 返回路径：L621的`config, record`。
-- `compose`（L624–L634）：接收`directory`、`timeout`、`*args`。 调用`load_profile`、`local.docker`、`str`、`Path`。 返回路径：L626的`local.docker( "compose", "--project-name", PROJECT, "--file", str(Path(directory) / COMPOS…`。
-- `require_profile`（L637–L659）：接收`directory`、`snapshot`。 源码说明：Read-only prerequisite check; never a substitute for the isolation receipt.。 控制顺序：L640按`snapshot is not None and snapshot != record["snapshot"]["snapshot"]`分支；L641抛异常，停止当前正常路径；L647按`image["Id"] != record["snapshot"]["image_id"] or expected_digest not in image.get( "R…`分支；L650抛异常，停止当前正常路径。 调用`load_profile`、`ValueError`、`inspect_image`、`validate_image`、`record["snapshot"]["digest"].replace`、`image.get`、`require_dependency_manifest`、`sha256`、`(ROOT / "templates/product" / name).read_bytes`。 返回路径：L659的`record`。
-- `require_execution_resources`（L662–L711）：接收`host`、`native`。 源码说明：Production source needs enforced limits, not API-requested resources. Landlock confines candidate writes to the explicitly sized tmpfs. This does not depend on the host's XFS/overlay project-quota con。 控制顺序：L675按`type(memory) is not int or not 0 < memory <= memory_limit or type(swap) is not int or…`分支；L689抛异常，停止当前正常路径。 调用`host.get`、`type`、`isinstance`、`ContainerInspectionRejected`、`set`。 返回路径：L704的`{ "cpu_period": period, "cpu_quota": quota, "memory": memory, "memory_swap": swap, "tmpfs_…`。
+- `inspect_dependency_manifest`（L340–L392）：接收`image_id`、`profile`、`descriptors`。 控制顺序：L341按`not re.fullmatch(r"sha256:[a-f0-9]{64}", image_id)`分支；L342抛异常，停止当前正常路径；L364按`not isinstance(result, dict) or set(result) != { "schema", "profile", "manifest_sha25…`分支；L391抛异常，停止当前正常路径。 调用`re.fullmatch`、`ValueError`、`local.docker`、`json.loads`、`isinstance`、`set`、`type`、`result.get`、`dependencies.native_descriptor_roles`等。 返回路径：L392的`{**result, "image_id": image_id}`。
+- `validate_dependency_binding`（L395–L424）：接收`value`、`image_id`、`profile`、`descriptors`。 控制顺序：L396按`not isinstance(value, dict) or set(value) != { "schema", "profile", "image_id", "mani…`分支；L424抛异常，停止当前正常路径。 调用`isinstance`、`set`、`type`、`value.get`、`dependencies.native_descriptor_roles`、`dependencies.native_descriptor_roles().values`、`any`、`re.fullmatch`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `require_dependency_manifest`（L427–L435）：接收`record`、`profile`、`descriptors`。 控制顺序：L433按`image.get("dependency_manifest") != expected`分支；L434抛异常，停止当前正常路径。 调用`validate_dependency_binding`、`image.get`、`inspect_dependency_manifest`、`ValueError`。 返回路径：L435的`expected`。
+- `prepare`（L438–L570）：接收`directory`。 控制顺序：L441遍历`(COMPOSE, LOCK, "snapshot-image.json", "api-key.json", "workbench…`；L442按`(directory / name).exists()`分支；L443抛异常，停止当前正常路径；L447按`info.get("OSType") != "linux" or info.get("Architecture") not in { "amd64", "x86_64",…`分支；L451抛异常，停止当前正常路径；L462按`existing.strip()`分支；L463抛异常，停止当前正常路径；L471按`stamp == local.snapshot_stamp()`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`read_base`、`(directory / name).exists`、`ValueError`、`json.loads`、`local.docker`、`info.get`、`str`、`existing.strip`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `load_profile`（L573–L635）：接收`directory`。 控制顺序：L577按`record.get("profile") != PROFILE or record.get("recipe_identity") != identity or reco…`分支；L585抛异常，停止当前正常路径；L587按`set(bases) != set(BASES)`分支；L588抛异常，停止当前正常路径；L589遍历`BASES.items()`；L592按`entry.get("tag") != tag or not re.fullmatch(re.escape(prefix) + r"[a-f0-9]{64}", entr…`分支；L597抛异常，停止当前正常路径；L600按`image.get("source_hash") != stamp or image.get("image") != "registry:6000/rnd-python:…`分支。后续分支沿下方源码相同行号继续阅读。 调用`profile_directory`、`json.loads`、`(directory / LOCK).read_text`、`recipe_identity`、`record.get`、`record.get("source", {}).get`、`sha256`、`(directory / "compose.lock.yaml").read_bytes`、`ValueError`等。 返回路径：L635的`config, record`。
+- `compose`（L638–L648）：接收`directory`、`timeout`、`*args`。 调用`load_profile`、`local.docker`、`str`、`Path`。 返回路径：L640的`local.docker( "compose", "--project-name", PROJECT, "--file", str(Path(directory) / COMPOS…`。
+- `require_profile`（L651–L673）：接收`directory`、`snapshot`。 源码说明：Read-only prerequisite check; never a substitute for the isolation receipt.。 控制顺序：L654按`snapshot is not None and snapshot != record["snapshot"]["snapshot"]`分支；L655抛异常，停止当前正常路径；L661按`image["Id"] != record["snapshot"]["image_id"] or expected_digest not in image.get( "R…`分支；L664抛异常，停止当前正常路径。 调用`load_profile`、`ValueError`、`inspect_image`、`validate_image`、`record["snapshot"]["digest"].replace`、`image.get`、`require_dependency_manifest`、`sha256`、`(ROOT / "templates/product" / name).read_bytes`。 返回路径：L673的`record`。
+- `require_execution_resources`（L676–L725）：接收`host`、`native`。 源码说明：Production source needs enforced limits, not API-requested resources. Landlock confines candidate writes to the explicitly sized tmpfs. This does not depend on the host's XFS/overlay project-quota con。 控制顺序：L689按`type(memory) is not int or not 0 < memory <= memory_limit or type(swap) is not int or…`分支；L703抛异常，停止当前正常路径。 调用`host.get`、`type`、`isinstance`、`ContainerInspectionRejected`、`set`。 返回路径：L718的`{ "cpu_period": period, "cpu_quota": quota, "memory": memory, "memory_swap": swap, "tmpfs_…`。
 
 </details>
 
-**创建路径：** `scripts/daytona_capability_profile.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L713。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/daytona_capability_profile.py`；**本文件共有 2 段**。本段覆盖源文件 L1–L727。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`28702`。本段原文以LF换行结束。
+本段原始字节数：`29405`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/daytona_capability_profile.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "1264545c2771aaa08a6f1156379cc8b5cd47623d981dc50a9981b2f4a83d5426"} -->
+<!-- learning-source: {"path": "scripts/daytona_capability_profile.py", "part": 1, "parts": 2, "encoding": "utf-8", "sha256": "f4e557d13b8591e9f982fa411f6651e5a0a63f011b4aeb618157a9dc530b0fc5"} -->
 ````python
 # scripts/daytona_capability_profile.py
 """Build the owned, fixed-authored capability profile before starting Daytona.
@@ -420,10 +420,17 @@ def inspect_dependency_manifest(image_id, profile, descriptors):
             "installed_tree_sha256",
             "original_descriptors",
         }
+        | ({"descriptor_roles"} if profile == "fastapiadmin" else set())
         or type(result.get("schema")) is not int
         or result.get("schema") != 1
         or result.get("profile") != profile
         or result.get("original_descriptors") != descriptors
+        or profile == "fastapiadmin"
+        and (
+            result.get("descriptor_roles") != dependencies.native_descriptor_roles()
+            or set(descriptors)
+            != {name for paths in dependencies.native_descriptor_roles().values() for name in paths}
+        )
         or any(
             not isinstance(result.get(name), str)
             or not re.fullmatch(r"[a-f0-9]{64}", result.get(name, ""))
@@ -446,11 +453,18 @@ def validate_dependency_binding(value, image_id, profile, descriptors):
             "installed_tree_sha256",
             "original_descriptors",
         }
+        | ({"descriptor_roles"} if profile == "fastapiadmin" else set())
         or type(value.get("schema")) is not int
         or value.get("schema") != 1
         or value.get("profile") != profile
         or value.get("image_id") != image_id
         or value.get("original_descriptors") != descriptors
+        or profile == "fastapiadmin"
+        and (
+            value.get("descriptor_roles") != dependencies.native_descriptor_roles()
+            or set(descriptors)
+            != {name for paths in dependencies.native_descriptor_roles().values() for name in paths}
+        )
         or any(
             not isinstance(value.get(name), str) or not re.fullmatch(r"[a-f0-9]{64}", value[name])
             for name in ("manifest_sha256", "installed_tree_sha256")

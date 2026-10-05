@@ -47,18 +47,18 @@
 - `test_contest_consumer_uses_same_ready_profile_source_without_filtering.verify`（L514–L533）：接收`root`、`plan`、`*args`、`**kwargs`。 控制顺序：L519断言`handoff.descriptors(inventory) == record["inputs"]["descriptors"]`。 调用`events.append`、`manifest`、`handoff.require_exact_source`、`require_dependency_descriptors`、`handoff.descriptors`、`digest`、`list`、`dict.fromkeys`。 返回路径：L520的`{ "passed": True, "cleanup": "deleted", "source_digest": "f" * 64 if mutation == "proof-dr…`。
 - `test_workflow_binds_all_consumers_to_one_clean_product_and_receipt`（L553–L564）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L555断言`"ci_native_tools fastapiadmin --capability-source .native/capability-source" in workf…`；L556遍历`( "ci_native_capability_source", "daytona_native_capability_profi…`；L562断言`command + " --product .native/capability-source" in workflow`；L563断言`workflow.count("--source-receipt reports/native-tools/capability-source.json") == 2`；L564断言`"prepare --product .native/tool-product" not in workflow`。 调用`(handoff.ROOT / ".github/workflows/native-capability-profile.yml"…`、`workflow.count`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 - `test_inventory_schema_rejects_non_source_and_ambiguous_paths_on_all_platforms`（L588–L590）：接收`inventory`。 调用`pytest.raises`、`handoff.validate_inventory`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_receipt_schema_and_binding_are_portable`（L597–L630）：接收`product`、`monkeypatch`、`mutation`。 控制顺序：L610按`mutation == "schema"`分支；L612按`mutation == "passed"`分支；L614按`mutation == "path"`分支；L616按`mutation == "run"`分支；L618按`mutation == "identity"`分支；L620按`mutation == "descriptor"`分支；L622按`mutation == "archive"`分支；L624按`mutation == "extra"`分支。后续分支沿下方源码相同行号继续阅读。 调用`manifest`、`str`、`digest`、`handoff.descriptors`、`handoff.run_identity`、`monkeypatch.setenv`、`handoff.validate_receipt`、`pytest.raises`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_unsupported_platform_fails_closed_before_opening_source`（L633–L637）：接收`tmp_path`、`monkeypatch`。 调用`monkeypatch.delattr`、`pytest.raises`、`handoff.directory_fd`、`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_parent_traversal_roots_fail_before_any_write`（L640–L652）：接收`product`、`tmp_path`。 控制顺序：L645断言`manifest(product) == inventory`；L646断言`not (product / "unused").exists()`；L647断言`not (product / "new-source").exists()`；L652断言`receipt.read_text() == "existing receipt"`。 调用`manifest`、`pytest.raises`、`handoff.copy_exact_source`、`(product / "unused").exists`、`(product / "new-source").exists`、`receipt.write_text`、`handoff.SourceHandoff`、`receipt.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `test_cli_rejects_overlapping_original_and_handoff_before_any_writes`（L656–L687）：接收`product`、`tmp_path`、`monkeypatch`、`relation`。 控制顺序：L685断言`manifest(product) == inventory`；L686断言`not root.exists()`；L687断言`not (product / "new-handoff").exists()`。 调用`manifest`、`monkeypatch.setattr`、`str`、`pytest.fail`、`pytest.raises`、`native_tools.main`、`root.exists`、`(product / "new-handoff").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_receipt_schema_and_binding_are_portable`（L609–L647）：接收`product`、`monkeypatch`、`mutation`。 控制顺序：L623按`mutation == "schema"`分支；L625按`mutation == "passed"`分支；L627按`mutation == "path"`分支；L629按`mutation == "run"`分支；L631按`mutation == "identity"`分支；L633按`mutation == "descriptor"`分支；L635按`mutation == "archive"`分支；L637按`mutation == "extra"`分支。后续分支沿下方源码相同行号继续阅读。 调用`manifest`、`str`、`digest`、`handoff.descriptors`、`handoff.native_descriptor_roles`、`handoff.run_identity`、`monkeypatch.setenv`、`value.pop`、`handoff.validate_receipt`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_unsupported_platform_fails_closed_before_opening_source`（L650–L654）：接收`tmp_path`、`monkeypatch`。 调用`monkeypatch.delattr`、`pytest.raises`、`handoff.directory_fd`、`pytest.fail`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_parent_traversal_roots_fail_before_any_write`（L657–L669）：接收`product`、`tmp_path`。 控制顺序：L662断言`manifest(product) == inventory`；L663断言`not (product / "unused").exists()`；L664断言`not (product / "new-source").exists()`；L669断言`receipt.read_text() == "existing receipt"`。 调用`manifest`、`pytest.raises`、`handoff.copy_exact_source`、`(product / "unused").exists`、`(product / "new-source").exists`、`receipt.write_text`、`handoff.SourceHandoff`、`receipt.read_text`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `test_cli_rejects_overlapping_original_and_handoff_before_any_writes`（L673–L704）：接收`product`、`tmp_path`、`monkeypatch`、`relation`。 控制顺序：L702断言`manifest(product) == inventory`；L703断言`not root.exists()`；L704断言`not (product / "new-handoff").exists()`。 调用`manifest`、`monkeypatch.setattr`、`str`、`pytest.fail`、`pytest.raises`、`native_tools.main`、`root.exists`、`(product / "new-handoff").exists`、`pytest.mark.parametrize`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `tests/test_ci_native_capability_source.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L687。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/test_ci_native_capability_source.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L704。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`26607`。本段原文以LF换行结束。
+本段原始字节数：`27002`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/test_ci_native_capability_source.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "2d42d1dbe82953171f4608fd3ba0e2410abce25681832799604133aa5fe450f3"} -->
+<!-- learning-source: {"path": "tests/test_ci_native_capability_source.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "0095c223473529017f6c37dbbd8403b21eba24ed7847317b7d3751115efa0005"} -->
 ````python
 # tests/test_ci_native_capability_source.py
 """CI source handoff contracts only; no live container/native acceptance claims."""
@@ -655,7 +655,19 @@ def test_inventory_schema_rejects_non_source_and_ambiguous_paths_on_all_platform
 
 @pytest.mark.parametrize(
     "mutation",
-    [None, "schema", "passed", "path", "run", "identity", "descriptor", "archive", "extra"],
+    [
+        None,
+        "schema",
+        "passed",
+        "path",
+        "run",
+        "identity",
+        "descriptor",
+        "archive",
+        "extra",
+        "role-missing",
+        "role-swapped",
+    ],
 )
 def test_receipt_schema_and_binding_are_portable(product, monkeypatch, mutation):
     inventory = manifest(product)
@@ -668,6 +680,7 @@ def test_receipt_schema_and_binding_are_portable(product, monkeypatch, mutation)
         "source_archive_sha256": "a" * 64,
         "inventory": inventory,
         "descriptors": handoff.descriptors(inventory),
+        "descriptor_roles": handoff.native_descriptor_roles(),
         "run": handoff.run_identity(),
     }
     if mutation == "schema":
@@ -686,6 +699,10 @@ def test_receipt_schema_and_binding_are_portable(product, monkeypatch, mutation)
         value["source_archive_sha256"] = "a" * 63
     elif mutation == "extra":
         value["untrusted"] = True
+    elif mutation == "role-missing":
+        value.pop("descriptor_roles")
+    elif mutation == "role-swapped":
+        value["descriptor_roles"]["runtime"] = value["descriptor_roles"]["auxiliary_source"]
     if mutation is None:
         assert handoff.validate_receipt(value, product) == value
     else:

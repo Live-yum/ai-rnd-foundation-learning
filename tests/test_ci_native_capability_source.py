@@ -592,7 +592,19 @@ def test_inventory_schema_rejects_non_source_and_ambiguous_paths_on_all_platform
 
 @pytest.mark.parametrize(
     "mutation",
-    [None, "schema", "passed", "path", "run", "identity", "descriptor", "archive", "extra"],
+    [
+        None,
+        "schema",
+        "passed",
+        "path",
+        "run",
+        "identity",
+        "descriptor",
+        "archive",
+        "extra",
+        "role-missing",
+        "role-swapped",
+    ],
 )
 def test_receipt_schema_and_binding_are_portable(product, monkeypatch, mutation):
     inventory = manifest(product)
@@ -605,6 +617,7 @@ def test_receipt_schema_and_binding_are_portable(product, monkeypatch, mutation)
         "source_archive_sha256": "a" * 64,
         "inventory": inventory,
         "descriptors": handoff.descriptors(inventory),
+        "descriptor_roles": handoff.native_descriptor_roles(),
         "run": handoff.run_identity(),
     }
     if mutation == "schema":
@@ -623,6 +636,10 @@ def test_receipt_schema_and_binding_are_portable(product, monkeypatch, mutation)
         value["source_archive_sha256"] = "a" * 63
     elif mutation == "extra":
         value["untrusted"] = True
+    elif mutation == "role-missing":
+        value.pop("descriptor_roles")
+    elif mutation == "role-swapped":
+        value["descriptor_roles"]["runtime"] = value["descriptor_roles"]["auxiliary_source"]
     if mutation is None:
         assert handoff.validate_receipt(value, product) == value
     else:

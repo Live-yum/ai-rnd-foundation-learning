@@ -6,6 +6,7 @@ The warmed image is not runtime, browser, database or isolation acceptance evide
 """
 
 import argparse
+import base64
 import copy
 import hashlib
 import json
@@ -59,13 +60,8 @@ RECIPE_PATHS = (
     "pyproject.toml",
     "uv.lock",
 )
-DESCRIPTORS = (
-    "backend/pyproject.toml",
-    "backend/uv.lock",
-    "deployment/pyproject.toml",
-    "deployment/uv.lock",
-    "frontend/web/package.json",
-    "frontend/web/pnpm-lock.yaml",
+DESCRIPTORS = tuple(
+    name for paths in dependencies.native_descriptor_roles().values() for name in paths
 )
 DIAGNOSTIC_SCAN_BYTES = 65536
 DIAGNOSTIC_REPORT_BYTES = 4096
@@ -345,6 +341,9 @@ def product_inputs(product):
         if name not in before:
             raise ValueError("Native snapshot is missing a dependency descriptor: " + name)
         reject_credentials(inside(product, name).read_text(encoding="utf-8"))
+    names = {"pyproject.toml", "uv.lock", "pnpm-lock.yaml", "package.json", "pom.xml"}
+    if {name for name in before if Path(name).name in names} != set(DESCRIPTORS):
+        raise ValueError("Native snapshot contains an unregistered dependency descriptor")
     identity = dependency_identity(product)
     if manifest(product) != before:
         raise ValueError("Native input changed while computing its identity")
@@ -353,6 +352,7 @@ def product_inputs(product):
         "source_identity": digest(before),
         "manifest_sha256": before["deployment/manifest.json"],
         "descriptors": {name: before[name] for name in DESCRIPTORS},
+        "descriptor_roles": dependencies.native_descriptor_roles(),
         "dependency_identity": identity,
     }
 
@@ -409,20 +409,23 @@ def prepare_context(product, context, expected):
         ROOT / "scripts/daytona_dependency_build.lock.json",
         context / "dependency-build.lock.json",
     )
+    roles = dependencies.native_descriptor_roles()
+    descriptor_inputs = {
+        "recipe_identity": recipe_identity()[0],
+        "original_descriptors": expected["descriptors"],
+        "harness_descriptors": {
+            name: sha(harness / name) for name in ("pyproject.toml", "uv.lock")
+        },
+        "normalized_descriptors": {name: sha(context / "product" / name) for name in DESCRIPTORS},
+        "descriptor_roles": roles,
+        "source_descriptor_bytes": {
+            name: base64.b64encode((context / "product" / name).read_bytes()).decode("ascii")
+            for name in [*roles["portable_launcher"], *roles["auxiliary_source"]]
+        },
+    }
+    dependencies.validate_native_descriptor_inputs(descriptor_inputs)
     (context / "dependency-inputs.json").write_text(
-        json.dumps(
-            {
-                "recipe_identity": recipe_identity()[0],
-                "original_descriptors": expected["descriptors"],
-                "harness_descriptors": {
-                    name: sha(harness / name) for name in ("pyproject.toml", "uv.lock")
-                },
-                "normalized_descriptors": {
-                    name: sha(context / "product" / name) for name in DESCRIPTORS
-                },
-            },
-            sort_keys=True,
-        ),
+        json.dumps(descriptor_inputs, sort_keys=True),
         encoding="utf-8",
     )
     shutil.copyfile(ROOT / DOCKERFILE, context / "Dockerfile")

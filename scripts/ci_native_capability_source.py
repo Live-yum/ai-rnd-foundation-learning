@@ -14,6 +14,7 @@ import stat
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 
+from scripts.daytona_dependency_build import native_descriptor_roles
 from scripts.daytona_native_capability_profile import DESCRIPTORS
 from workbench.domain import digest
 from workbench.filesystem import EXCLUDED_DIRS, manifest, secret_name, write_json
@@ -197,7 +198,7 @@ def descriptors(inventory):
     names = {"pyproject.toml", "uv.lock", "pnpm-lock.yaml", "package.json", "pom.xml"}
     observed = {name: value for name, value in inventory.items() if Path(name).name in names}
     if set(observed) != set(DESCRIPTORS):
-        raise ValueError("CI source handoff requires exactly the six native descriptors")
+        raise ValueError("CI source handoff requires exactly the eleven native source descriptors")
     return observed
 
 
@@ -265,6 +266,7 @@ class SourceHandoff:
             "source_archive_sha256": archive,
             "inventory": self.inventory,
             "descriptors": descriptors(self.inventory),
+            "descriptor_roles": native_descriptor_roles(),
             "run": self.run,
         }
         write_json(self.receipt, value)
@@ -285,6 +287,7 @@ def validate_receipt(value, product):
             "source_archive_sha256",
             "inventory",
             "descriptors",
+            "descriptor_roles",
             "run",
         }
         or type(value.get("schema")) is not int
@@ -293,6 +296,7 @@ def validate_receipt(value, product):
         or value.get("provenance") != PROVENANCE
         or value.get("product") != str(product)
         or value.get("run") != run_identity()
+        or value.get("descriptor_roles") != native_descriptor_roles()
         or type(value.get("source_archive_sha256")) is not str
         or not re.fullmatch(r"[a-f0-9]{64}", value["source_archive_sha256"])
     ):

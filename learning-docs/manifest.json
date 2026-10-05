@@ -466,8 +466,8 @@
     },
     {
       "path": "workbench/capability_dependencies.py",
-      "bytes": 21222,
-      "sha256": "4e818313defedc4037e6bfd8233426dc01fbbe1eaa4bc9bd5ca38149178c5008",
+      "bytes": 21917,
+      "sha256": "c228851d155f9a8bba321990f934a07a1fab1845e5fc4792a8e3eb2f072bbae8",
       "stage": "04-local-foundation",
       "parts": [
         "04-local-foundation/sources/workbench__capability_dependencies_py--001.md"
@@ -3081,8 +3081,8 @@
     },
     {
       "path": "scripts/daytona_capability_profile.py",
-      "bytes": 40968,
-      "sha256": "c75a7a557f16754e7c2bf5dc5f8ba712c059336dcbbfbddac63e9d9aeda47479",
+      "bytes": 41671,
+      "sha256": "97d9296f6793e8f5c884c891ac87e15c0e481c1feb9fcbc425a63a8c086d7b9c",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_capability_profile_py--001.md",
@@ -3100,8 +3100,8 @@
     },
     {
       "path": "scripts/daytona_dependency_build.py",
-      "bytes": 21662,
-      "sha256": "a81486d08895fa457bf1be78566c9034d3e046cb73bfba4c1525a113db412e04",
+      "bytes": 24947,
+      "sha256": "d1fff76b5919fdbdc325e95e16a38d6db4494b149b987bf384d2873ca5163eb3",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_dependency_build_py--001.md"
@@ -3109,8 +3109,8 @@
     },
     {
       "path": "scripts/daytona_dependency_image.py",
-      "bytes": 14452,
-      "sha256": "a913b525f95041850fa8d55f66ec2a00c7816bc2b17d62895f7911404a6243b5",
+      "bytes": 15992,
+      "sha256": "d011ad06ad3246fcd04d8c5274a24ed6c8db6ded84e922ee870d13edd1da0d7f",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_dependency_image_py--001.md"
@@ -3163,8 +3163,8 @@
     },
     {
       "path": "scripts/daytona_native_capability_profile.py",
-      "bytes": 32449,
-      "sha256": "927686ecb7b67616984c12b8d9229c9c63eb184afa20815ecbf9546e8a127d17",
+      "bytes": 32997,
+      "sha256": "061fafc1a31f683f24318e7ada5180497135e52b637676f33e53cbe3ebb0f299",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/scripts__daytona_native_capability_profile_py--001.md"
@@ -3208,8 +3208,8 @@
     },
     {
       "path": "tests/test_daytona_dependency_build.py",
-      "bytes": 33212,
-      "sha256": "f43d6061a43003ed5a6cf9d82ed605a282c3b46e39f7a65dac58ee97c8d32cae",
+      "bytes": 34141,
+      "sha256": "e8b2948919389ac02ff30591ed15415c4fde06a70d20128b5c90f08e7accc1a3",
       "stage": "12-daytona",
       "parts": [
         "12-daytona/sources/tests__test_daytona_dependency_build_py--001.md"
@@ -3523,8 +3523,8 @@
     },
     {
       "path": "tests/test_native_capability_profile.py",
-      "bytes": 35068,
-      "sha256": "29ae86a9727032c6ef376182344e76ddf22675931133f90d4cba59887c90e339",
+      "bytes": 35304,
+      "sha256": "52144dd79f0d7a9b2a36d1dab09efa1784317339db8b1bb00cee94f57fc57928",
       "stage": "13-delivery",
       "parts": [
         "13-delivery/sources/tests__test_native_capability_profile_py--001.md"
@@ -3811,8 +3811,8 @@
     },
     {
       "path": ".github/workflows/native-capability-profile.yml",
-      "bytes": 10829,
-      "sha256": "dfc951b271f40b6fb531867ddaf84acc3262feb61da43e5c172f75852c9e0032",
+      "bytes": 10893,
+      "sha256": "6ff08ed6d46e94639e5021d759d50038935b9e06255bc9685bf703cd2fe69ba9",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/_github__workflows__native-capability-profile_yml--001.md"
@@ -3928,8 +3928,8 @@
     },
     {
       "path": "docs/custom-source-isolation.md",
-      "bytes": 17609,
-      "sha256": "67e91ff3533ad59c5885f0adfa62b32a391b612cea0c693e7aefd657288b4c97",
+      "bytes": 18531,
+      "sha256": "326d2f5ee3d50122ba651853f07e69a2f068a53aa6bdec9074723283cb22a184",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/docs__custom-source-isolation_md--001.md"
@@ -4261,8 +4261,8 @@
     },
     {
       "path": "scripts/ci_contest_capability.py",
-      "bytes": 6072,
-      "sha256": "77529980a49f95589c8ace6f0d4d3c9c7194ea9f51cba9a42226dff87e1d9c7a",
+      "bytes": 6155,
+      "sha256": "6ad95db456f0f62f2f505ccaac2625f4cb5d62c9329d4cf481c605ecf0791dcf",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_contest_capability_py--001.md"
@@ -4324,8 +4324,8 @@
     },
     {
       "path": "scripts/ci_native_capability_source.py",
-      "bytes": 13967,
-      "sha256": "fddcf07ae075690b6b3594c231816caf1aca4cbf8869d79e702cb465d9052c9a",
+      "bytes": 14207,
+      "sha256": "8a5e04677e9bf426bd24928740fc590968a2454fb41832103e1b86cdf98ae720",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/scripts__ci_native_capability_source_py--001.md"
@@ -4444,8 +4444,8 @@
     },
     {
       "path": "tests/capability_dependency_fixtures.py",
-      "bytes": 2469,
-      "sha256": "ca0cb7dfdbf9849d4e0a22001635b09ed3412588129630338d7f82a2332b7ed8",
+      "bytes": 2637,
+      "sha256": "59aa673e63e2a068b89f45b44c88a15ce17890497d55be75760e5d36a99c3e43",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__capability_dependency_fixtures_py--001.md"
@@ -4715,8 +4715,8 @@
     },
     {
       "path": "tests/test_capability_readonly_dependencies.py",
-      "bytes": 28688,
-      "sha256": "c557545e7318d033c3107daef8614fc9b9e010334676ce8edc513962318a87b4",
+      "bytes": 28691,
+      "sha256": "0ae8488e847aea8c71780d0e67c252d1c3cacf836fbaacd52c8c51ee8eef8a86",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_capability_readonly_dependencies_py--001.md"
@@ -4759,6 +4759,15 @@
       ]
     },
     {
+      "path": "tests/test_ci_native_capability_full_source.py",
+      "bytes": 19241,
+      "sha256": "23fb9d7c6b9a35313bda1670c4283998c8c35ad340b66ca78feb11e07c064441",
+      "stage": "14-acceptance",
+      "parts": [
+        "14-acceptance/sources/tests__test_ci_native_capability_full_source_py--001.md"
+      ]
+    },
+    {
       "path": "tests/test_ci_native_capability_security.py",
       "bytes": 17041,
       "sha256": "e1a8e5c8706063fd87fb53f0bac925ab1979204b56ef31ed8a37b27bc7c8408a",
@@ -4769,8 +4778,8 @@
     },
     {
       "path": "tests/test_ci_native_capability_source.py",
-      "bytes": 26607,
-      "sha256": "2d42d1dbe82953171f4608fd3ba0e2410abce25681832799604133aa5fe450f3",
+      "bytes": 27002,
+      "sha256": "0095c223473529017f6c37dbbd8403b21eba24ed7847317b7d3751115efa0005",
       "stage": "14-acceptance",
       "parts": [
         "14-acceptance/sources/tests__test_ci_native_capability_source_py--001.md"

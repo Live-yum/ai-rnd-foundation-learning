@@ -23,6 +23,26 @@ LINK_MANIFEST = CONTROL + "/private/dependency-links.json"
 RECEIPT_FLAGS = ("descriptors_verified", "installed_tree_verified", "readonly_verified")
 
 
+def native_descriptor_roles():
+    """Keep this wheel-owned data policy equal to both isolated image-side tables."""
+    return {
+        "runtime": [
+            "backend/pyproject.toml",
+            "backend/uv.lock",
+            "frontend/web/package.json",
+            "frontend/web/pnpm-lock.yaml",
+        ],
+        "portable_launcher": ["deployment/pyproject.toml", "deployment/uv.lock"],
+        "auxiliary_source": [
+            "frontend/app/package.json",
+            "frontend/app/pnpm-lock.yaml",
+            "frontend/app/src/uni_modules/mp-html/package.json",
+            "frontend/docs/package.json",
+            "frontend/docs/pnpm-lock.yaml",
+        ],
+    }
+
+
 def _profile(plan):
     profile = plan.selection.template
     supported = {"python-basic": "sqlite", "fastapiadmin": "postgresql"}
@@ -40,6 +60,8 @@ def require_dependency_manifest(value, profile):
         "installed_tree_sha256",
         "original_descriptors",
     }
+    if profile == "fastapiadmin":
+        fields.add("descriptor_roles")
     if (
         type(value) is not dict
         or set(value) != fields
@@ -54,18 +76,13 @@ def require_dependency_manifest(value, profile):
         )
         or type(value.get("original_descriptors")) is not dict
         or not value["original_descriptors"]
+        or profile == "fastapiadmin"
+        and value.get("descriptor_roles") != native_descriptor_roles()
     ):
         raise CheckFailure("缺少与当前镜像绑定的只读依赖清单")
     descriptors = {
         "python-basic": {"pyproject.toml", "uv.lock"},
-        "fastapiadmin": {
-            "backend/pyproject.toml",
-            "backend/uv.lock",
-            "deployment/pyproject.toml",
-            "deployment/uv.lock",
-            "frontend/web/package.json",
-            "frontend/web/pnpm-lock.yaml",
-        },
+        "fastapiadmin": {name for paths in native_descriptor_roles().values() for name in paths},
     }
     if profile not in descriptors or set(value["original_descriptors"]) != descriptors[profile]:
         raise CheckFailure("只读依赖描述符集合不属于已登记技术栈")

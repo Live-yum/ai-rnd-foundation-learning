@@ -559,6 +559,7 @@
 - [tests/test_capability_restart_thread_drain.py](14-acceptance/sources/tests__test_capability_restart_thread_drain_py--001.md)（1 段）
 - [tests/test_capability_startup_diagnostics.py](14-acceptance/sources/tests__test_capability_startup_diagnostics_py--001.md)（1 段）
 - [tests/test_ci_acceptance_gate.py](14-acceptance/sources/tests__test_ci_acceptance_gate_py--001.md)（1 段）
+- [tests/test_ci_native_capability_full_source.py](14-acceptance/sources/tests__test_ci_native_capability_full_source_py--001.md)（1 段）
 - [tests/test_ci_native_capability_security.py](14-acceptance/sources/tests__test_ci_native_capability_security_py--001.md)（1 段）
 - [tests/test_ci_native_capability_source.py](14-acceptance/sources/tests__test_ci_native_capability_source_py--001.md)（1 段）
 - [tests/test_ci_pytest_shards.py](14-acceptance/sources/tests__test_ci_pytest_shards_py--001.md)（1 段）

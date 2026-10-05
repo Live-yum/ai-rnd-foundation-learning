@@ -49,6 +49,26 @@ GROUPS = {
 }
 
 
+def native_descriptor_roles():
+    """Data-only policy, mirrored by the isolated standalone build collector."""
+    return {
+        "runtime": [
+            "backend/pyproject.toml",
+            "backend/uv.lock",
+            "frontend/web/package.json",
+            "frontend/web/pnpm-lock.yaml",
+        ],
+        "portable_launcher": ["deployment/pyproject.toml", "deployment/uv.lock"],
+        "auxiliary_source": [
+            "frontend/app/package.json",
+            "frontend/app/pnpm-lock.yaml",
+            "frontend/app/src/uni_modules/mp-html/package.json",
+            "frontend/docs/package.json",
+            "frontend/docs/pnpm-lock.yaml",
+        ],
+    }
+
+
 def canonical(value):
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
 
@@ -258,6 +278,8 @@ def validate_manifest(value, profile):
         "build_tool_installed_sha256",
         "harness_descriptors",
     }
+    if profile == "fastapiadmin":
+        required.add("descriptor_roles")
     if (
         not isinstance(record, dict)
         or not required <= set(record)
@@ -293,6 +315,18 @@ def validate_manifest(value, profile):
                 raise ValueError("Unsafe dependency descriptor identity")
     if set(record["original_descriptors"]) != set(record["normalized_descriptors"]):
         raise ValueError("Normalized descriptor membership differs")
+    if profile == "fastapiadmin":
+        roles = native_descriptor_roles()
+        if (
+            record["descriptor_roles"] != roles
+            or set(record["original_descriptors"])
+            != {name for paths in roles.values() for name in paths}
+            or any(
+                record["original_descriptors"][name] != record["normalized_descriptors"][name]
+                for name in [*roles["portable_launcher"], *roles["auxiliary_source"]]
+            )
+        ):
+            raise ValueError("Native source descriptor roles or immutable source hashes differ")
     return record
 
 
@@ -380,6 +414,11 @@ def main():
                     "manifest_sha256": hashlib.sha256(raw).hexdigest(),
                     "installed_tree_sha256": record["installed_tree_sha256"],
                     "original_descriptors": record["original_descriptors"],
+                    **(
+                        {"descriptor_roles": record["descriptor_roles"]}
+                        if args.profile == "fastapiadmin"
+                        else {}
+                    ),
                 },
                 sort_keys=True,
             )

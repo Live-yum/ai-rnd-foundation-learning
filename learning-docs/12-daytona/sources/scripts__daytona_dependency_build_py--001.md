@@ -13,31 +13,33 @@
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `sha`（L34–L35）：接收`path`。 调用`hashlib.sha256(Path(path).read_bytes()).hexdigest`、`hashlib.sha256`、`Path(path).read_bytes`、`Path`。 返回路径：L35的`hashlib.sha256(Path(path).read_bytes()).hexdigest()`。
-- `normalize`（L38–L44）：接收`raw`。 控制顺序：L41遍历`MIRRORS.items()`。 调用`raw.decode`、`tomllib.loads`、`MIRRORS.items`、`text.replace`、`text.encode`。 返回路径：L44的`text.encode("utf-8")`。
-- `public_url`（L47–L58）：接收`url`、`hosts`。 控制顺序：L49按`value.scheme != "https" or value.hostname not in hosts or value.username is not None …`分支；L58抛异常，停止当前正常路径。 调用`urlsplit`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `validate_python`（L61–L103）：接收`project_raw`、`lock_raw`、`trusted_project`。 控制顺序：L64按`project.get("project", {}).get("dynamic")`分支；L65抛异常，停止当前正常路径；L66按`project.get("build-system") and not trusted_project`分支；L67抛异常，停止当前正常路径；L69遍历`project.get("project", {}).get("optional-dependencies", {}).value…`；L71遍历`project.get("dependency-groups", {}).values()`；L73按`any( not isinstance(value, str) or "@" in value or re.search(r"(?:https?:\|git[+:]\|f…`分支；L79抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`tomllib.loads`、`project_raw.decode`、`lock_raw.decode`、`project.get("project", {}).get`、`project.get`、`ValueError`、`list`、`project.get("project", {}).get("optional-dependencies", {}).value…`、`requirements.extend`等。 返回路径：L103的`lock`。
-- `validate_node`（L106–L147）：接收`package_raw`、`lock_raw`。 控制顺序：L110遍历`( "dependencies", "devDependencies", "optionalDependencies", "pee…`；L116遍历`package.get(group, {}).values()`；L117按`not isinstance(spec, str) or re.search( r"(?:https?:\|git[+:]\|file:\|link:\|workspac…`分支；L120抛异常，停止当前正常路径；L122按`set(pnpm) - {"overrides"} or package.get("workspaces")`分支；L123抛异常，停止当前正常路径；L124遍历`pnpm.get("overrides", {}).values()`；L125按`not isinstance(spec, str) or not re.fullmatch(r"[0-9A-Za-z.^~*<>=\| +_-]+", spec)`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`package.get(group, {}).values`、`package.get`、`isinstance`、`re.search`、`ValueError`、`set`、`pnpm.get("overrides", {}).values`、`pnpm.get`等。 返回路径：L147的`lock`。
-- `limits`（L150–L157）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`resource.setrlimit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `run`（L160–L213）：接收`command`、`cwd`、`offline`、`metadata`。 控制顺序：L161按`os.geteuid() == 0`分支；L162抛异常，停止当前正常路径；L183按`metadata`分支。 调用`os.geteuid`、`ValueError`、`str`、`TemporaryDirectory`、`nullcontext`、`Path`、`env.update`、`subprocess.run`。 返回路径：L204的`subprocess.run( command, cwd=cwd, env=env, check=True, timeout=60 if metadata else 1800, p…`。
-- `download`（L216–L226）：接收`record`、`destination`。 控制顺序：L222按`len(raw) > 64 * 1024**2 or hashlib.sha256(raw).hexdigest() != record["sha256"]`分支；L223抛异常，停止当前正常路径。 调用`public_url`、`urllib.request.build_opener`、`urllib.request.ProxyHandler`、`opener.open`、`response.read`、`len`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`、`ValueError`等。 返回路径：L226的`path`。
-- `extract_source`（L229–L249）：接收`path`、`destination`。 控制顺序：L232按`len(members) > 10000 or sum(item.size for item in members) > 128 * 1024**2`分支；L233抛异常，停止当前正常路径；L235遍历`members`；L237按`name.is_absolute() or ".." in name.parts or not (item.isdir() or item.isfile()) or ".…`分支；L244抛异常，停止当前正常路径；L246按`len(top) != 1`分支；L247抛异常，停止当前正常路径。 调用`tarfile.open`、`archive.getmembers`、`len`、`sum`、`ValueError`、`set`、`PurePosixPath`、`name.is_absolute`、`item.isdir`等。 返回路径：L249的`destination / top.pop()`。
-- `fetch`（L252–L318）：接收`lock_path`、`backend`。 控制顺序：L253按`os.geteuid() == 0`分支；L254抛异常，停止当前正常路径；L260遍历`spec["tools"]`；L289遍历`spec["sdists"]`；L291按`package.get("version") != record["version"] or package.get("sdist", {}).get("hash") !…`分支；L295抛异常，停止当前正常路径；L298按`record["name"] == "sqlglotrs"`分支；L300遍历`cargo["package"]`。后续分支沿下方源码相同行号继续阅读。 调用`os.geteuid`、`ValueError`、`json.loads`、`Path(lock_path).read_bytes`、`Path`、`tomllib.loads`、`(Path(backend) / "uv.lock").read_text`、`downloads.mkdir`、`download`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `wheel_outputs`（L321–L344）：接收`path`、`package`。 源码说明：Record real native payloads; do not accept crcmod's silent C-build fallback.。 控制顺序：L326遍历`archive.infolist()`；L328按`name.is_absolute() or ".." in name.parts or ((item.external_attr >> 16) & 0o170000) =…`分支；L333抛异常，停止当前正常路径；L334按`item.filename.endswith(".so")`分支；L336按`item.filename.endswith(".dist-info/WHEEL")`分支；L342按`not tags or (package in {"crcmod", "sqlglotrs"} and not native)`分支；L343抛异常，停止当前正常路径。 调用`zipfile.ZipFile`、`archive.infolist`、`PurePosixPath`、`name.is_absolute`、`ValueError`、`item.filename.endswith`、`hashlib.sha256(archive.read(item)).hexdigest`、`hashlib.sha256`、`archive.read`等。 返回路径：L344的`{"wheel_tags": tags, "native_extensions": native}`。
-- `build_sources`（L347–L385）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L351遍历`json.loads((BUILD / "sources.json").read_bytes())`；L364按`item["name"] == "sqlglotrs"`分支；L367按`item.get("cargo_lock_sha256") and sha(source / "Cargo.lock") != item["cargo_lock_sha2…`分支；L371抛异常，停止当前正常路径；L375按`len(matches) != 1`分支；L376抛异常，停止当前正常路径。 调用`output.mkdir`、`json.loads`、`(BUILD / "sources.json").read_bytes`、`Path`、`str`、`run`、`item.get`、`sha`、`ValueError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `replace_source_requirements`（L388–L412）：接收`raw`、`builds`。 控制顺序：L389遍历`builds`；L410按`count != 1`分支；L411抛异常，停止当前正常路径。 调用`re.escape`、`re.subn`、`ValueError`。 返回路径：L412的`raw`。
-- `replace_source_requirements.replace`（L398–L407）：接收`match`。 调用`match[1].rstrip().removesuffix("\\").strip`、`match[1].rstrip().removesuffix`、`match[1].rstrip`、`Path(item["wheel"]).as_uri`、`Path`。 返回路径：L400的`item["name"] + " @ " + Path(item["wheel"]).as_uri() + (" " + marker if marker else "") + "…`。
-- `install`（L415–L459）：接收`project`、`basic`、`harness`。 控制顺序：L431按`basic`分支；L433按`harness`分支；L439按`environment.is_symlink() or (environment.exists() and any(environment.iterdir()))`分支；L440抛异常，停止当前正常路径；L458按`original != {name: sha(project / name) for name in original}`分支；L459抛异常，停止当前正常路径。 调用`Path`、`sha`、`str`、`run`、`json.loads`、`(BUILD / "source-builds.json").read_bytes`、`export.write_text`、`replace_source_requirements`、`export.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `collect`（L462–L535）：接收`inputs`、`output`、`native`。 控制顺序：L479按`python_runtime["version"] != [3, 14, 7] or python_runtime["machine"] != "x86_64" or p…`分支；L484抛异常，停止当前正常路径；L485遍历`value["normalized_descriptors"].items()`；L486按`native and name.startswith("deployment/")`分支；L493按`sha(target) != expected`分支；L494抛异常，停止当前正常路径；L495遍历`value.get("harness_descriptors", {}).items()`；L496按`sha(Path("/opt/rnd/harness") / name) != expected`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`Path(inputs).read_bytes`、`Path`、`run`、`str`、`ValueError`、`value["normalized_descriptors"].items`、`name.startswith`、`name.replace`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `main`（L538–L556）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L549按`args.action == "fetch"`分支；L551按`args.action == "build-sources"`分支；L553按`args.action == "install"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`fetch`、`build_sources`、`install`、`collect`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `native_descriptor_roles`（L37–L58）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Exact source metadata roles; only runtime projects have image install paths. Keep the standalone image verifier's data-only table identical. Both scripts run with -I -S in the image and cannot import 。 返回路径：L43的`{ "runtime": [ "backend/pyproject.toml", "backend/uv.lock", "frontend/web/package.json", "…`。
+- `validate_native_descriptor_inputs`（L61–L99）：接收`value`。 源码说明：Hash inert source descriptor bytes without parsing or running their projects.。 控制顺序：L65按`type(value) is not dict or value.get("descriptor_roles") != roles`分支；L66抛异常，停止当前正常路径；L67遍历`("original_descriptors", "normalized_descriptors")`；L69按`type(observed) is not dict or set(observed) != names or any( type(item) is not str or…`分支；L77抛异常，停止当前正常路径；L80按`type(contents) is not dict or set(contents) != source_names`分支；L81抛异常，停止当前正常路径；L83遍历`source_names`。后续分支沿下方源码相同行号继续阅读。 调用`native_descriptor_roles`、`roles.values`、`type`、`value.get`、`ValueError`、`set`、`any`、`re.fullmatch`、`observed.values`等。 返回路径：L99的`roles`。
+- `sha`（L102–L103）：接收`path`。 调用`hashlib.sha256(Path(path).read_bytes()).hexdigest`、`hashlib.sha256`、`Path(path).read_bytes`、`Path`。 返回路径：L103的`hashlib.sha256(Path(path).read_bytes()).hexdigest()`。
+- `normalize`（L106–L112）：接收`raw`。 控制顺序：L109遍历`MIRRORS.items()`。 调用`raw.decode`、`tomllib.loads`、`MIRRORS.items`、`text.replace`、`text.encode`。 返回路径：L112的`text.encode("utf-8")`。
+- `public_url`（L115–L126）：接收`url`、`hosts`。 控制顺序：L117按`value.scheme != "https" or value.hostname not in hosts or value.username is not None …`分支；L126抛异常，停止当前正常路径。 调用`urlsplit`、`ValueError`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `validate_python`（L129–L171）：接收`project_raw`、`lock_raw`、`trusted_project`。 控制顺序：L132按`project.get("project", {}).get("dynamic")`分支；L133抛异常，停止当前正常路径；L134按`project.get("build-system") and not trusted_project`分支；L135抛异常，停止当前正常路径；L137遍历`project.get("project", {}).get("optional-dependencies", {}).value…`；L139遍历`project.get("dependency-groups", {}).values()`；L141按`any( not isinstance(value, str) or "@" in value or re.search(r"(?:https?:\|git[+:]\|f…`分支；L147抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`tomllib.loads`、`project_raw.decode`、`lock_raw.decode`、`project.get("project", {}).get`、`project.get`、`ValueError`、`list`、`project.get("project", {}).get("optional-dependencies", {}).value…`、`requirements.extend`等。 返回路径：L171的`lock`。
+- `validate_node`（L174–L215）：接收`package_raw`、`lock_raw`。 控制顺序：L178遍历`( "dependencies", "devDependencies", "optionalDependencies", "pee…`；L184遍历`package.get(group, {}).values()`；L185按`not isinstance(spec, str) or re.search( r"(?:https?:\|git[+:]\|file:\|link:\|workspac…`分支；L188抛异常，停止当前正常路径；L190按`set(pnpm) - {"overrides"} or package.get("workspaces")`分支；L191抛异常，停止当前正常路径；L192遍历`pnpm.get("overrides", {}).values()`；L193按`not isinstance(spec, str) or not re.fullmatch(r"[0-9A-Za-z.^~*<>=\| +_-]+", spec)`分支。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`package.get(group, {}).values`、`package.get`、`isinstance`、`re.search`、`ValueError`、`set`、`pnpm.get("overrides", {}).values`、`pnpm.get`等。 返回路径：L215的`lock`。
+- `limits`（L218–L225）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`resource.setrlimit`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `run`（L228–L281）：接收`command`、`cwd`、`offline`、`metadata`。 控制顺序：L229按`os.geteuid() == 0`分支；L230抛异常，停止当前正常路径；L251按`metadata`分支。 调用`os.geteuid`、`ValueError`、`str`、`TemporaryDirectory`、`nullcontext`、`Path`、`env.update`、`subprocess.run`。 返回路径：L272的`subprocess.run( command, cwd=cwd, env=env, check=True, timeout=60 if metadata else 1800, p…`。
+- `download`（L284–L294）：接收`record`、`destination`。 控制顺序：L290按`len(raw) > 64 * 1024**2 or hashlib.sha256(raw).hexdigest() != record["sha256"]`分支；L291抛异常，停止当前正常路径。 调用`public_url`、`urllib.request.build_opener`、`urllib.request.ProxyHandler`、`opener.open`、`response.read`、`len`、`hashlib.sha256(raw).hexdigest`、`hashlib.sha256`、`ValueError`等。 返回路径：L294的`path`。
+- `extract_source`（L297–L317）：接收`path`、`destination`。 控制顺序：L300按`len(members) > 10000 or sum(item.size for item in members) > 128 * 1024**2`分支；L301抛异常，停止当前正常路径；L303遍历`members`；L305按`name.is_absolute() or ".." in name.parts or not (item.isdir() or item.isfile()) or ".…`分支；L312抛异常，停止当前正常路径；L314按`len(top) != 1`分支；L315抛异常，停止当前正常路径。 调用`tarfile.open`、`archive.getmembers`、`len`、`sum`、`ValueError`、`set`、`PurePosixPath`、`name.is_absolute`、`item.isdir`等。 返回路径：L317的`destination / top.pop()`。
+- `fetch`（L320–L386）：接收`lock_path`、`backend`。 控制顺序：L321按`os.geteuid() == 0`分支；L322抛异常，停止当前正常路径；L328遍历`spec["tools"]`；L357遍历`spec["sdists"]`；L359按`package.get("version") != record["version"] or package.get("sdist", {}).get("hash") !…`分支；L363抛异常，停止当前正常路径；L366按`record["name"] == "sqlglotrs"`分支；L368遍历`cargo["package"]`。后续分支沿下方源码相同行号继续阅读。 调用`os.geteuid`、`ValueError`、`json.loads`、`Path(lock_path).read_bytes`、`Path`、`tomllib.loads`、`(Path(backend) / "uv.lock").read_text`、`downloads.mkdir`、`download`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `wheel_outputs`（L389–L412）：接收`path`、`package`。 源码说明：Record real native payloads; do not accept crcmod's silent C-build fallback.。 控制顺序：L394遍历`archive.infolist()`；L396按`name.is_absolute() or ".." in name.parts or ((item.external_attr >> 16) & 0o170000) =…`分支；L401抛异常，停止当前正常路径；L402按`item.filename.endswith(".so")`分支；L404按`item.filename.endswith(".dist-info/WHEEL")`分支；L410按`not tags or (package in {"crcmod", "sqlglotrs"} and not native)`分支；L411抛异常，停止当前正常路径。 调用`zipfile.ZipFile`、`archive.infolist`、`PurePosixPath`、`name.is_absolute`、`ValueError`、`item.filename.endswith`、`hashlib.sha256(archive.read(item)).hexdigest`、`hashlib.sha256`、`archive.read`等。 返回路径：L412的`{"wheel_tags": tags, "native_extensions": native}`。
+- `build_sources`（L415–L453）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L419遍历`json.loads((BUILD / "sources.json").read_bytes())`；L432按`item["name"] == "sqlglotrs"`分支；L435按`item.get("cargo_lock_sha256") and sha(source / "Cargo.lock") != item["cargo_lock_sha2…`分支；L439抛异常，停止当前正常路径；L443按`len(matches) != 1`分支；L444抛异常，停止当前正常路径。 调用`output.mkdir`、`json.loads`、`(BUILD / "sources.json").read_bytes`、`Path`、`str`、`run`、`item.get`、`sha`、`ValueError`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `replace_source_requirements`（L456–L480）：接收`raw`、`builds`。 控制顺序：L457遍历`builds`；L478按`count != 1`分支；L479抛异常，停止当前正常路径。 调用`re.escape`、`re.subn`、`ValueError`。 返回路径：L480的`raw`。
+- `replace_source_requirements.replace`（L466–L475）：接收`match`。 调用`match[1].rstrip().removesuffix("\\").strip`、`match[1].rstrip().removesuffix`、`match[1].rstrip`、`Path(item["wheel"]).as_uri`、`Path`。 返回路径：L468的`item["name"] + " @ " + Path(item["wheel"]).as_uri() + (" " + marker if marker else "") + "…`。
+- `install`（L483–L527）：接收`project`、`basic`、`harness`。 控制顺序：L499按`basic`分支；L501按`harness`分支；L507按`environment.is_symlink() or (environment.exists() and any(environment.iterdir()))`分支；L508抛异常，停止当前正常路径；L526按`original != {name: sha(project / name) for name in original}`分支；L527抛异常，停止当前正常路径。 调用`Path`、`sha`、`str`、`run`、`json.loads`、`(BUILD / "source-builds.json").read_bytes`、`export.write_text`、`replace_source_requirements`、`export.read_text`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `collect`（L530–L608）：接收`inputs`、`output`、`native`。 控制顺序：L548按`python_runtime["version"] != [3, 14, 7] or python_runtime["machine"] != "x86_64" or p…`分支；L553抛异常，停止当前正常路径；L555遍历`runtime_names`；L562按`sha(target) != expected`分支；L563抛异常，停止当前正常路径；L564遍历`value.get("harness_descriptors", {}).items()`；L565按`sha(Path("/opt/rnd/harness") / name) != expected`分支；L566抛异常，停止当前正常路径。后续分支沿下方源码相同行号继续阅读。 调用`json.loads`、`Path(inputs).read_bytes`、`Path`、`validate_native_descriptor_inputs`、`run`、`str`、`ValueError`、`name.replace`、`sha`等。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `main`（L611–L629）：不接收显式业务参数，从已配置对象/模块读取依赖。 控制顺序：L622按`args.action == "fetch"`分支；L624按`args.action == "build-sources"`分支；L626按`args.action == "install"`分支。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`fetch`、`build_sources`、`install`、`collect`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/daytona_dependency_build.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L560。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/daytona_dependency_build.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L633。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`21662`。本段原文以LF换行结束。
+本段原始字节数：`24947`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/daytona_dependency_build.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "a81486d08895fa457bf1be78566c9034d3e046cb73bfba4c1525a113db412e04"} -->
+<!-- learning-source: {"path": "scripts/daytona_dependency_build.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "d1fff76b5919fdbdc325e95e16a38d6db4494b149b987bf384d2873ca5163eb3"} -->
 ````python
 # scripts/daytona_dependency_build.py
 """Reviewed descriptor-only dependency build; never import candidate code.
@@ -48,6 +50,7 @@ Unsupported source builds fail; locks, source and ABI compatibility are not edit
 """
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -71,6 +74,73 @@ MIRRORS = {
     "https://pypi.tuna.tsinghua.edu.cn/simple": "https://pypi.org/simple",
     "https://pypi.tuna.tsinghua.edu.cn/packages/": "https://files.pythonhosted.org/packages/",
 }
+
+SOURCE_DESCRIPTOR_BYTES = 8_000_000
+
+
+def native_descriptor_roles():
+    """Exact source metadata roles; only runtime projects have image install paths.
+
+    Keep the standalone image verifier's data-only table identical. Both scripts
+    run with -I -S in the image and cannot import arbitrary sibling modules.
+    """
+    return {
+        "runtime": [
+            "backend/pyproject.toml",
+            "backend/uv.lock",
+            "frontend/web/package.json",
+            "frontend/web/pnpm-lock.yaml",
+        ],
+        "portable_launcher": ["deployment/pyproject.toml", "deployment/uv.lock"],
+        "auxiliary_source": [
+            "frontend/app/package.json",
+            "frontend/app/pnpm-lock.yaml",
+            "frontend/app/src/uni_modules/mp-html/package.json",
+            "frontend/docs/package.json",
+            "frontend/docs/pnpm-lock.yaml",
+        ],
+    }
+
+
+def validate_native_descriptor_inputs(value):
+    """Hash inert source descriptor bytes without parsing or running their projects."""
+    roles = native_descriptor_roles()
+    names = {name for paths in roles.values() for name in paths}
+    if type(value) is not dict or value.get("descriptor_roles") != roles:
+        raise ValueError("Native descriptor roles differ from the exact registered policy")
+    for key in ("original_descriptors", "normalized_descriptors"):
+        observed = value.get(key)
+        if (
+            type(observed) is not dict
+            or set(observed) != names
+            or any(
+                type(item) is not str or not re.fullmatch(r"[a-f0-9]{64}", item)
+                for item in observed.values()
+            )
+        ):
+            raise ValueError("Native descriptor inventory must bind all eleven exact source paths")
+    source_names = {*roles["portable_launcher"], *roles["auxiliary_source"]}
+    contents = value.get("source_descriptor_bytes")
+    if type(contents) is not dict or set(contents) != source_names:
+        raise ValueError("Native source-only descriptors require complete inert byte evidence")
+    total = 0
+    for name in source_names:
+        encoded = contents[name]
+        if type(encoded) is not str or len(encoded) > (SOURCE_DESCRIPTOR_BYTES + 2) // 3 * 4:
+            raise ValueError("Native source descriptor bytes exceed their input budget")
+        try:
+            raw = base64.b64decode(encoded, validate=True)
+        except ValueError:
+            raise ValueError("Native source descriptor byte encoding is invalid") from None
+        total += len(raw)
+        if (
+            total > SOURCE_DESCRIPTOR_BYTES
+            or base64.b64encode(raw).decode("ascii") != encoded
+            or hashlib.sha256(raw).hexdigest() != value["original_descriptors"][name]
+            or value["normalized_descriptors"][name] != value["original_descriptors"][name]
+        ):
+            raise ValueError("Native source-only descriptor bytes or immutable hashes changed")
+    return roles
 
 
 def sha(path):
@@ -503,6 +573,7 @@ def install(project, *, basic=False, harness=False):
 
 def collect(inputs, output, *, native=False):
     value = json.loads(Path(inputs).read_bytes())
+    roles = validate_native_descriptor_inputs(value) if native else None
     python_runtime = json.loads(
         run(
             [
@@ -524,9 +595,9 @@ def collect(inputs, output, *, native=False):
         or python_runtime["system"] != "Linux"
     ):
         raise ValueError("Actual build interpreter/platform differs from the reviewed target")
-    for name, expected in value["normalized_descriptors"].items():
-        if native and name.startswith("deployment/"):
-            continue
+    runtime_names = roles["runtime"] if native else value["normalized_descriptors"]
+    for name in runtime_names:
+        expected = value["normalized_descriptors"][name]
         target = (
             Path("/opt/rnd/runtime/fastapiadmin") / name.replace("frontend/web/", "frontend/", 1)
             if native
@@ -574,6 +645,10 @@ def collect(inputs, output, *, native=False):
     value["source_builds"] = (
         json.loads((BUILD / "source-builds.json").read_bytes()) if native else []
     )
+    if native:
+        # Retain all eleven hashes and exact roles in the sealed image manifest.
+        # The seven source-only projects never become install/runtime directories.
+        del value["source_descriptor_bytes"]
     Path(output).write_text(json.dumps(value, sort_keys=True))
 
 

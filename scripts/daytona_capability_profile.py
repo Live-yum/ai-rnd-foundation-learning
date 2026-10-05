@@ -371,10 +371,17 @@ def inspect_dependency_manifest(image_id, profile, descriptors):
             "installed_tree_sha256",
             "original_descriptors",
         }
+        | ({"descriptor_roles"} if profile == "fastapiadmin" else set())
         or type(result.get("schema")) is not int
         or result.get("schema") != 1
         or result.get("profile") != profile
         or result.get("original_descriptors") != descriptors
+        or profile == "fastapiadmin"
+        and (
+            result.get("descriptor_roles") != dependencies.native_descriptor_roles()
+            or set(descriptors)
+            != {name for paths in dependencies.native_descriptor_roles().values() for name in paths}
+        )
         or any(
             not isinstance(result.get(name), str)
             or not re.fullmatch(r"[a-f0-9]{64}", result.get(name, ""))
@@ -397,11 +404,18 @@ def validate_dependency_binding(value, image_id, profile, descriptors):
             "installed_tree_sha256",
             "original_descriptors",
         }
+        | ({"descriptor_roles"} if profile == "fastapiadmin" else set())
         or type(value.get("schema")) is not int
         or value.get("schema") != 1
         or value.get("profile") != profile
         or value.get("image_id") != image_id
         or value.get("original_descriptors") != descriptors
+        or profile == "fastapiadmin"
+        and (
+            value.get("descriptor_roles") != dependencies.native_descriptor_roles()
+            or set(descriptors)
+            != {name for paths in dependencies.native_descriptor_roles().values() for name in paths}
+        )
         or any(
             not isinstance(value.get(name), str) or not re.fullmatch(r"[a-f0-9]{64}", value[name])
             for name in ("manifest_sha256", "installed_tree_sha256")

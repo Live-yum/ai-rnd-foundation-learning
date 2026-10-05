@@ -64,14 +64,7 @@ def expected(profile="python-basic"):
     names = (
         ["pyproject.toml", "uv.lock"]
         if profile == "python-basic"
-        else [
-            "backend/pyproject.toml",
-            "backend/uv.lock",
-            "deployment/pyproject.toml",
-            "deployment/uv.lock",
-            "frontend/web/package.json",
-            "frontend/web/pnpm-lock.yaml",
-        ]
+        else [name for paths in dependencies.native_descriptor_roles().values() for name in paths]
     )
     return {
         "schema": 1,
@@ -80,6 +73,11 @@ def expected(profile="python-basic"):
         "manifest_sha256": "b" * 64,
         "installed_tree_sha256": "c" * 64,
         "original_descriptors": {name: hashlib.sha256(b"descriptor").hexdigest() for name in names},
+        **(
+            {"descriptor_roles": dependencies.native_descriptor_roles()}
+            if profile == "fastapiadmin"
+            else {}
+        ),
     }
 
 

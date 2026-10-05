@@ -6,6 +6,7 @@ Unsupported source builds fail; locks, source and ABI compatibility are not edit
 """
 
 import argparse
+import base64
 import hashlib
 import json
 import os
@@ -29,6 +30,73 @@ MIRRORS = {
     "https://pypi.tuna.tsinghua.edu.cn/simple": "https://pypi.org/simple",
     "https://pypi.tuna.tsinghua.edu.cn/packages/": "https://files.pythonhosted.org/packages/",
 }
+
+SOURCE_DESCRIPTOR_BYTES = 8_000_000
+
+
+def native_descriptor_roles():
+    """Exact source metadata roles; only runtime projects have image install paths.
+
+    Keep the standalone image verifier's data-only table identical. Both scripts
+    run with -I -S in the image and cannot import arbitrary sibling modules.
+    """
+    return {
+        "runtime": [
+            "backend/pyproject.toml",
+            "backend/uv.lock",
+            "frontend/web/package.json",
+            "frontend/web/pnpm-lock.yaml",
+        ],
+        "portable_launcher": ["deployment/pyproject.toml", "deployment/uv.lock"],
+        "auxiliary_source": [
+            "frontend/app/package.json",
+            "frontend/app/pnpm-lock.yaml",
+            "frontend/app/src/uni_modules/mp-html/package.json",
+            "frontend/docs/package.json",
+            "frontend/docs/pnpm-lock.yaml",
+        ],
+    }
+
+
+def validate_native_descriptor_inputs(value):
+    """Hash inert source descriptor bytes without parsing or running their projects."""
+    roles = native_descriptor_roles()
+    names = {name for paths in roles.values() for name in paths}
+    if type(value) is not dict or value.get("descriptor_roles") != roles:
+        raise ValueError("Native descriptor roles differ from the exact registered policy")
+    for key in ("original_descriptors", "normalized_descriptors"):
+        observed = value.get(key)
+        if (
+            type(observed) is not dict
+            or set(observed) != names
+            or any(
+                type(item) is not str or not re.fullmatch(r"[a-f0-9]{64}", item)
+                for item in observed.values()
+            )
+        ):
+            raise ValueError("Native descriptor inventory must bind all eleven exact source paths")
+    source_names = {*roles["portable_launcher"], *roles["auxiliary_source"]}
+    contents = value.get("source_descriptor_bytes")
+    if type(contents) is not dict or set(contents) != source_names:
+        raise ValueError("Native source-only descriptors require complete inert byte evidence")
+    total = 0
+    for name in source_names:
+        encoded = contents[name]
+        if type(encoded) is not str or len(encoded) > (SOURCE_DESCRIPTOR_BYTES + 2) // 3 * 4:
+            raise ValueError("Native source descriptor bytes exceed their input budget")
+        try:
+            raw = base64.b64decode(encoded, validate=True)
+        except ValueError:
+            raise ValueError("Native source descriptor byte encoding is invalid") from None
+        total += len(raw)
+        if (
+            total > SOURCE_DESCRIPTOR_BYTES
+            or base64.b64encode(raw).decode("ascii") != encoded
+            or hashlib.sha256(raw).hexdigest() != value["original_descriptors"][name]
+            or value["normalized_descriptors"][name] != value["original_descriptors"][name]
+        ):
+            raise ValueError("Native source-only descriptor bytes or immutable hashes changed")
+    return roles
 
 
 def sha(path):
@@ -461,6 +529,7 @@ def install(project, *, basic=False, harness=False):
 
 def collect(inputs, output, *, native=False):
     value = json.loads(Path(inputs).read_bytes())
+    roles = validate_native_descriptor_inputs(value) if native else None
     python_runtime = json.loads(
         run(
             [
@@ -482,9 +551,9 @@ def collect(inputs, output, *, native=False):
         or python_runtime["system"] != "Linux"
     ):
         raise ValueError("Actual build interpreter/platform differs from the reviewed target")
-    for name, expected in value["normalized_descriptors"].items():
-        if native and name.startswith("deployment/"):
-            continue
+    runtime_names = roles["runtime"] if native else value["normalized_descriptors"]
+    for name in runtime_names:
+        expected = value["normalized_descriptors"][name]
         target = (
             Path("/opt/rnd/runtime/fastapiadmin") / name.replace("frontend/web/", "frontend/", 1)
             if native
@@ -532,6 +601,10 @@ def collect(inputs, output, *, native=False):
     value["source_builds"] = (
         json.loads((BUILD / "source-builds.json").read_bytes()) if native else []
     )
+    if native:
+        # Retain all eleven hashes and exact roles in the sealed image manifest.
+        # The seven source-only projects never become install/runtime directories.
+        del value["source_descriptor_bytes"]
     Path(output).write_text(json.dumps(value, sort_keys=True))
 
 

@@ -38,6 +38,8 @@ def product(tmp_path):
         '{"name":"fixture","scripts":{"prepare":"DO_NOT_RUN"}}',
     )
     atomic_text(root / "frontend/web/pnpm-lock.yaml", "lockfileVersion: '9.0'\n")
+    for name in native.dependencies.native_descriptor_roles()["auxiliary_source"]:
+        atomic_text(root / name, "{}" if name.endswith(".json") else "lockfileVersion: '9.0'\n")
     atomic_text(
         root / "backend/main.py",
         "raise RuntimeError('never execute candidate source')\n",
@@ -137,6 +139,7 @@ def prepared(tmp_path, product, foundation, monkeypatch):
         "manifest_sha256": "1" * 64,
         "installed_tree_sha256": "2" * 64,
         "original_descriptors": inputs["descriptors"],
+        "descriptor_roles": inputs["descriptor_roles"],
     }
     record["snapshot"]["dependency_manifest"] = dependency_record
     monkeypatch.setattr(

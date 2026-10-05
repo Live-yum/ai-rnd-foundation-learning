@@ -10,11 +10,11 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L233。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `docs/custom-source-isolation.md`；**本文件共有 1 段**。本段覆盖源文件 L1–L243。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`17609`。本段原文以LF换行结束。
+本段原始字节数：`18531`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "67e91ff3533ad59c5885f0adfa62b32a391b612cea0c693e7aefd657288b4c97"} -->
+<!-- learning-source: {"path": "docs/custom-source-isolation.md", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "326d2f5ee3d50122ba651853f07e69a2f068a53aa6bdec9074723283cb22a184"} -->
 ````markdown
 <!-- docs/custom-source-isolation.md -->
 # 自定义源码执行：有证据的启用门
@@ -181,8 +181,18 @@ ZIP 完成完整源码清单往返校验后、其解压副本启动或安装依�
 
 交接检查逐项核对真实文件集合与 SHA-256，拒绝链接、硬链接、非普通文件、额外目录、
 依赖目录及路径冲突；复制使用 no-follow 文件描述符和排他创建。回执绑定捕获时的 ZIP
-摘要、完整清单、六个依赖描述符与 CI head/run/attempt，只有整套原生工具链验收成功后
+摘要、完整清单、全部十一个描述符及其用途与 CI head/run/attempt，只有整套原生工具链验收成功后
 才发布成功状态。缺少平台所需的安全文件接口时直接拒绝，不退回跟随链接的复制。
+
+固定 FastapiAdmin 原产品还包含移动端和文档源码，不能为了凑齐旧的六项假设删除它们。
+描述符按精确路径分为 runtime 四项（backend 与 frontend/web）、portable_launcher 两项
+（deployment）和 auxiliary_source 五项（frontend/app、其 mp-html 子模块及 frontend/docs）。
+完整十一项的哈希和角色都被绑定；任何多项、缺项、替换、角色变化或内容漂移都拒绝。
+
+七项非运行描述符只以有界规范 base64 作为构建输入数据，核验字节、原始与规范化哈希后
+移除传输内容，仅将哈希和角色纳入不可变镜像清单及回执。它们不增加安装根、依赖包或
+运行入口；安装仍限于原有 backend、frontend/web 与独立可信 harness。全部移动端和
+文档源码保持原样，候选运行时仍逐项核对十一项描述符，不接受任意辅助 manifest。
 
 镜像准备、原生认证和竞赛样例统一读取这份已绑定的干净来源。竞赛仅添加明确人工编写的
 模块文件，再验证完整增量清单与回执摘要；不使用宽泛 ignore 模式丢弃合法示例配置。

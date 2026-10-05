@@ -10,37 +10,37 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `scripts.daytona_native_capability_profile`、`workbench.domain`、`workbench.filesystem`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.daytona_dependency_build`、`scripts.daytona_native_capability_profile`、`workbench.domain`、`workbench.filesystem`、`workbench.settings`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `ordinary_path`（L27–L35）：接收`path`。 源码说明：Do not resolve away a linked root or any linked parent.。 控制顺序：L29按`".." in Path(path).parts`分支；L30抛异常，停止当前正常路径；L32遍历`[*reversed(path.parents), path]`；L33按`entry.is_symlink() or (hasattr(entry, "is_junction") and entry.is_junction())`分支；L34抛异常，停止当前正常路径。 调用`Path`、`ValueError`、`Path(path).absolute`、`reversed`、`entry.is_symlink`、`hasattr`、`entry.is_junction`。 返回路径：L35的`path`。
-- `directory_fd`（L39–L57）：接收`path`、`create`。 源码说明：Open every ancestor without following links, including the root argument.。 控制顺序：L41按`not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY")`分支；L42抛异常，停止当前正常路径；L46遍历`path.parts[1:]`；L47按`create`分支。 调用`hasattr`、`ValueError`、`ordinary_path`、`os.open`、`os.mkdir`、`os.close`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
-- `file_identity`（L60–L69）：接收`value`。 返回路径：L61的`( value.st_dev, value.st_ino, value.st_mode, value.st_nlink, value.st_size, value.st_mtime…`。
-- `read_regular`（L72–L92）：接收`directory`、`name`、`expected`。 控制顺序：L76按`not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > 32_000_0…`分支；L83抛异常，停止当前正常路径；L85按`len(data) != before.st_size or file_identity(os.fstat(source.fileno())) != file_ident…`分支；L91抛异常，停止当前正常路径。 调用`os.open`、`os.fdopen`、`os.fstat`、`source.fileno`、`stat.S_ISREG`、`file_identity`、`ValueError`、`source.read`、`len`等。 返回路径：L92的`data`。
-- `validate_inventory`（L95–L125）：接收`inventory`。 控制顺序：L96按`type(inventory) is not dict or not inventory or len(inventory) > 10000`分支；L97抛异常，停止当前正常路径；L99遍历`inventory.items()`；L101按`path is None or not name or path.as_posix() != name or path.is_absolute() or ".." in …`分支；L119抛异常，停止当前正常路径；L123按`len(canonical_directories) != len(directories) or canonical_directories & canonical`分支；L124抛异常，停止当前正常路径。 调用`type`、`len`、`ValueError`、`set`、`inventory.items`、`PurePosixPath`、`path.as_posix`、`path.is_absolute`、`any`等。 返回路径：L125的`directories`。
-- `require_exact_source`（L128–L165）：接收`product`、`inventory`。 源码说明：Inspect every physical entry; no ignore patterns or excluded subtrees.。 控制顺序：L132按`not product.is_dir()`分支；L133抛异常，停止当前正常路径；L140遍历`os.fwalk( ".", dir_fd=root, follow_symlinks=False, onerror=walk_e…`；L143遍历`sorted([*dirs, *names])`；L146按`stat.S_ISDIR(mode.st_mode)`分支；L147按`relative not in directories`分支；L148抛异常，停止当前正常路径；L152按`stat.S_ISREG(mode.st_mode) and mode.st_nlink == 1`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_inventory`、`ordinary_path`、`product.is_dir`、`ValueError`、`set`、`directory_fd`、`os.fwalk`、`sorted`、`(PurePosixPath(base) / name).as_posix`等。 返回路径：L165的`inventory`。
-- `require_exact_source.walk_error`（L136–L137）：接收`error`。 控制顺序：L137抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `copy_exact_source`（L168–L193）：接收`source`、`destination`、`inventory`。 源码说明：A new physical copy of an independently verified clean source, never a filter.。 控制顺序：L172按`destination.is_relative_to(source) or source.is_relative_to(destination)`分支；L173抛异常，停止当前正常路径；L176遍历`sorted(inventory)`；L180按`hashlib.sha256(data).hexdigest() != inventory[name]`分支；L181抛异常，停止当前正常路径。 调用`ordinary_path`、`require_exact_source`、`destination.is_relative_to`、`source.is_relative_to`、`ValueError`、`directory_fd`、`os.mkdir`、`sorted`、`PurePosixPath`等。 返回路径：L193的`destination`。
-- `descriptors`（L196–L201）：接收`inventory`。 控制顺序：L199按`set(observed) != set(DESCRIPTORS)`分支；L200抛异常，停止当前正常路径。 调用`inventory.items`、`Path`、`set`、`ValueError`。 返回路径：L201的`observed`。
-- `run_identity`（L204–L209）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Bind GitHub runs/attempts; local runs instead rely on fresh exclusive output.。 调用`os.environ.get`。 返回路径：L206的`{ name: os.environ.get(name, "") for name in ("GITHUB_SHA", "GITHUB_RUN_ID", "GITHUB_RUN_A…`。
-- `SourceHandoff`（L212–L271）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
-- `SourceHandoff.__init__`（L213–L223）：接收`product`、`receipt`。 控制顺序：L215按`self.receipt.is_relative_to(self.product)`分支；L216抛异常，停止当前正常路径；L219按`self.product.exists()`分支；L220抛异常，停止当前正常路径。 调用`ordinary_path`、`self.receipt.is_relative_to`、`ValueError`、`write_json`、`self.product.exists`、`FileExistsError`、`run_identity`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `SourceHandoff.capture`（L225–L234）：接收`clean_product`、`inventory`、`archive_sha256`。 控制顺序：L226按`self.inventory is not None`分支；L227抛异常，停止当前正常路径；L228按`type(archive_sha256) is not str or not re.fullmatch(r"[a-f0-9]{64}", archive_sha256)`分支；L229抛异常，停止当前正常路径。 调用`ValueError`、`type`、`re.fullmatch`、`dict`、`descriptors`、`copy_exact_source`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
-- `SourceHandoff.complete`（L236–L271）：接收`report`、`original_product`。 控制顺序：L239按`self.inventory is None or self.run != run_identity() or report.get("generated_runtime…`分支；L257抛异常，停止当前正常路径。 调用`report.get`、`restored.get`、`run_identity`、`any`、`type`、`re.fullmatch`、`manifest`、`ValueError`、`require_exact_source`等。 返回路径：L271的`value`。
-- `validate_receipt`（L274–L306）：接收`value`、`product`。 控制顺序：L276按`type(value) is not dict or set(value) != { "schema", "passed", "provenance", "product…`分支；L299抛异常，停止当前正常路径；L302按`value["source_identity"] != digest(inventory) or value["descriptors"] != descriptors(…`分支；L305抛异常，停止当前正常路径。 调用`ordinary_path`、`type`、`set`、`value.get`、`str`、`run_identity`、`re.fullmatch`、`ValueError`、`validate_inventory`等。 返回路径：L306的`value`。
-- `require_handoff`（L309–L327）：接收`product`、`receipt`。 控制顺序：L322按`mode.st_size > 8_000_000`分支；L323抛异常，停止当前正常路径。 调用`ordinary_path`、`directory_fd`、`os.stat`、`ValueError`、`json.loads`、`read_regular`、`validate_receipt`、`require_exact_source`。 返回路径：L327的`value`。
-- `require_handoff.unique_pairs`（L312–L318）：接收`pairs`。 控制顺序：L314遍历`pairs`；L315按`key in result`分支；L316抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L318的`result`。
-- `main`（L330–L336）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`require_handoff`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `ordinary_path`（L28–L36）：接收`path`。 源码说明：Do not resolve away a linked root or any linked parent.。 控制顺序：L30按`".." in Path(path).parts`分支；L31抛异常，停止当前正常路径；L33遍历`[*reversed(path.parents), path]`；L34按`entry.is_symlink() or (hasattr(entry, "is_junction") and entry.is_junction())`分支；L35抛异常，停止当前正常路径。 调用`Path`、`ValueError`、`Path(path).absolute`、`reversed`、`entry.is_symlink`、`hasattr`、`entry.is_junction`。 返回路径：L36的`path`。
+- `directory_fd`（L40–L58）：接收`path`、`create`。 源码说明：Open every ancestor without following links, including the root argument.。 控制顺序：L42按`not hasattr(os, "O_NOFOLLOW") or not hasattr(os, "O_DIRECTORY")`分支；L43抛异常，停止当前正常路径；L47遍历`path.parts[1:]`；L48按`create`分支。 调用`hasattr`、`ValueError`、`ordinary_path`、`os.open`、`os.mkdir`、`os.close`。使用yield把资源/结果交给调用方，继续执行后续清理语句。
+- `file_identity`（L61–L70）：接收`value`。 返回路径：L62的`( value.st_dev, value.st_ino, value.st_mode, value.st_nlink, value.st_size, value.st_mtime…`。
+- `read_regular`（L73–L93）：接收`directory`、`name`、`expected`。 控制顺序：L77按`not stat.S_ISREG(before.st_mode) or before.st_nlink != 1 or before.st_size > 32_000_0…`分支；L84抛异常，停止当前正常路径；L86按`len(data) != before.st_size or file_identity(os.fstat(source.fileno())) != file_ident…`分支；L92抛异常，停止当前正常路径。 调用`os.open`、`os.fdopen`、`os.fstat`、`source.fileno`、`stat.S_ISREG`、`file_identity`、`ValueError`、`source.read`、`len`等。 返回路径：L93的`data`。
+- `validate_inventory`（L96–L126）：接收`inventory`。 控制顺序：L97按`type(inventory) is not dict or not inventory or len(inventory) > 10000`分支；L98抛异常，停止当前正常路径；L100遍历`inventory.items()`；L102按`path is None or not name or path.as_posix() != name or path.is_absolute() or ".." in …`分支；L120抛异常，停止当前正常路径；L124按`len(canonical_directories) != len(directories) or canonical_directories & canonical`分支；L125抛异常，停止当前正常路径。 调用`type`、`len`、`ValueError`、`set`、`inventory.items`、`PurePosixPath`、`path.as_posix`、`path.is_absolute`、`any`等。 返回路径：L126的`directories`。
+- `require_exact_source`（L129–L166）：接收`product`、`inventory`。 源码说明：Inspect every physical entry; no ignore patterns or excluded subtrees.。 控制顺序：L133按`not product.is_dir()`分支；L134抛异常，停止当前正常路径；L141遍历`os.fwalk( ".", dir_fd=root, follow_symlinks=False, onerror=walk_e…`；L144遍历`sorted([*dirs, *names])`；L147按`stat.S_ISDIR(mode.st_mode)`分支；L148按`relative not in directories`分支；L149抛异常，停止当前正常路径；L153按`stat.S_ISREG(mode.st_mode) and mode.st_nlink == 1`分支。后续分支沿下方源码相同行号继续阅读。 调用`validate_inventory`、`ordinary_path`、`product.is_dir`、`ValueError`、`set`、`directory_fd`、`os.fwalk`、`sorted`、`(PurePosixPath(base) / name).as_posix`等。 返回路径：L166的`inventory`。
+- `require_exact_source.walk_error`（L137–L138）：接收`error`。 控制顺序：L138抛异常，停止当前正常路径。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `copy_exact_source`（L169–L194）：接收`source`、`destination`、`inventory`。 源码说明：A new physical copy of an independently verified clean source, never a filter.。 控制顺序：L173按`destination.is_relative_to(source) or source.is_relative_to(destination)`分支；L174抛异常，停止当前正常路径；L177遍历`sorted(inventory)`；L181按`hashlib.sha256(data).hexdigest() != inventory[name]`分支；L182抛异常，停止当前正常路径。 调用`ordinary_path`、`require_exact_source`、`destination.is_relative_to`、`source.is_relative_to`、`ValueError`、`directory_fd`、`os.mkdir`、`sorted`、`PurePosixPath`等。 返回路径：L194的`destination`。
+- `descriptors`（L197–L202）：接收`inventory`。 控制顺序：L200按`set(observed) != set(DESCRIPTORS)`分支；L201抛异常，停止当前正常路径。 调用`inventory.items`、`Path`、`set`、`ValueError`。 返回路径：L202的`observed`。
+- `run_identity`（L205–L210）：不接收显式业务参数，从已配置对象/模块读取依赖。 源码说明：Bind GitHub runs/attempts; local runs instead rely on fresh exclusive output.。 调用`os.environ.get`。 返回路径：L207的`{ name: os.environ.get(name, "") for name in ("GITHUB_SHA", "GITHUB_RUN_ID", "GITHUB_RUN_A…`。
+- `SourceHandoff`（L213–L273）：继承`object`。把同一职责的方法放在一个对象中；`self`表示该对象，实例字段保存其依赖或状态。
+- `SourceHandoff.__init__`（L214–L224）：接收`product`、`receipt`。 控制顺序：L216按`self.receipt.is_relative_to(self.product)`分支；L217抛异常，停止当前正常路径；L220按`self.product.exists()`分支；L221抛异常，停止当前正常路径。 调用`ordinary_path`、`self.receipt.is_relative_to`、`ValueError`、`write_json`、`self.product.exists`、`FileExistsError`、`run_identity`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `SourceHandoff.capture`（L226–L235）：接收`clean_product`、`inventory`、`archive_sha256`。 控制顺序：L227按`self.inventory is not None`分支；L228抛异常，停止当前正常路径；L229按`type(archive_sha256) is not str or not re.fullmatch(r"[a-f0-9]{64}", archive_sha256)`分支；L230抛异常，停止当前正常路径。 调用`ValueError`、`type`、`re.fullmatch`、`dict`、`descriptors`、`copy_exact_source`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
+- `SourceHandoff.complete`（L237–L273）：接收`report`、`original_product`。 控制顺序：L240按`self.inventory is None or self.run != run_identity() or report.get("generated_runtime…`分支；L258抛异常，停止当前正常路径。 调用`report.get`、`restored.get`、`run_identity`、`any`、`type`、`re.fullmatch`、`manifest`、`ValueError`、`require_exact_source`等。 返回路径：L273的`value`。
+- `validate_receipt`（L276–L310）：接收`value`、`product`。 控制顺序：L278按`type(value) is not dict or set(value) != { "schema", "passed", "provenance", "product…`分支；L303抛异常，停止当前正常路径；L306按`value["source_identity"] != digest(inventory) or value["descriptors"] != descriptors(…`分支；L309抛异常，停止当前正常路径。 调用`ordinary_path`、`type`、`set`、`value.get`、`str`、`run_identity`、`native_descriptor_roles`、`re.fullmatch`、`ValueError`等。 返回路径：L310的`value`。
+- `require_handoff`（L313–L331）：接收`product`、`receipt`。 控制顺序：L326按`mode.st_size > 8_000_000`分支；L327抛异常，停止当前正常路径。 调用`ordinary_path`、`directory_fd`、`os.stat`、`ValueError`、`json.loads`、`read_regular`、`validate_receipt`、`require_exact_source`。 返回路径：L331的`value`。
+- `require_handoff.unique_pairs`（L316–L322）：接收`pairs`。 控制顺序：L318遍历`pairs`；L319按`key in result`分支；L320抛异常，停止当前正常路径。 调用`ValueError`。 返回路径：L322的`result`。
+- `main`（L334–L340）：不接收显式业务参数，从已配置对象/模块读取依赖。 调用`argparse.ArgumentParser`、`parser.add_argument`、`parser.parse_args`、`require_handoff`、`print`。没有显式返回业务值；主要效果是上面的校验、写入、调用或异常。
 
 </details>
 
-**创建路径：** `scripts/ci_native_capability_source.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L340。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `scripts/ci_native_capability_source.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L344。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`13967`。本段原文以LF换行结束。
+本段原始字节数：`14207`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "scripts/ci_native_capability_source.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "fddcf07ae075690b6b3594c231816caf1aca4cbf8869d79e702cb465d9052c9a"} -->
+<!-- learning-source: {"path": "scripts/ci_native_capability_source.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "8a5e04677e9bf426bd24928740fc590968a2454fb41832103e1b86cdf98ae720"} -->
 ````python
 # scripts/ci_native_capability_source.py
 """Exact CI-authored source handoff, never a sanitizer for candidate input.
@@ -59,6 +59,7 @@ import stat
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 
+from scripts.daytona_dependency_build import native_descriptor_roles
 from scripts.daytona_native_capability_profile import DESCRIPTORS
 from workbench.domain import digest
 from workbench.filesystem import EXCLUDED_DIRS, manifest, secret_name, write_json
@@ -242,7 +243,7 @@ def descriptors(inventory):
     names = {"pyproject.toml", "uv.lock", "pnpm-lock.yaml", "package.json", "pom.xml"}
     observed = {name: value for name, value in inventory.items() if Path(name).name in names}
     if set(observed) != set(DESCRIPTORS):
-        raise ValueError("CI source handoff requires exactly the six native descriptors")
+        raise ValueError("CI source handoff requires exactly the eleven native source descriptors")
     return observed
 
 
@@ -310,6 +311,7 @@ class SourceHandoff:
             "source_archive_sha256": archive,
             "inventory": self.inventory,
             "descriptors": descriptors(self.inventory),
+            "descriptor_roles": native_descriptor_roles(),
             "run": self.run,
         }
         write_json(self.receipt, value)
@@ -330,6 +332,7 @@ def validate_receipt(value, product):
             "source_archive_sha256",
             "inventory",
             "descriptors",
+            "descriptor_roles",
             "run",
         }
         or type(value.get("schema")) is not int
@@ -338,6 +341,7 @@ def validate_receipt(value, product):
         or value.get("provenance") != PROVENANCE
         or value.get("product") != str(product)
         or value.get("run") != run_identity()
+        or value.get("descriptor_roles") != native_descriptor_roles()
         or type(value.get("source_archive_sha256")) is not str
         or not re.fullmatch(r"[a-f0-9]{64}", value["source_archive_sha256"])
     ):

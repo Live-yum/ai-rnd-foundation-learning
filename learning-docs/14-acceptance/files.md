@@ -114,6 +114,7 @@
 - [tests/test_capability_restart_thread_drain.py](sources/tests__test_capability_restart_thread_drain_py--001.md)：可重复的验收用例；1 段
 - [tests/test_capability_startup_diagnostics.py](sources/tests__test_capability_startup_diagnostics_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_acceptance_gate.py](sources/tests__test_ci_acceptance_gate_py--001.md)：可重复的验收用例；1 段
+- [tests/test_ci_native_capability_full_source.py](sources/tests__test_ci_native_capability_full_source_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_native_capability_security.py](sources/tests__test_ci_native_capability_security_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_native_capability_source.py](sources/tests__test_ci_native_capability_source_py--001.md)：可重复的验收用例；1 段
 - [tests/test_ci_pytest_shards.py](sources/tests__test_ci_pytest_shards_py--001.md)：可重复的验收用例；1 段

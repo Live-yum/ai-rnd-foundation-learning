@@ -10,29 +10,30 @@
 
 **如何编写：** 按页码把同名文件各段依次拼接。只去掉每个代码块第一行的路径注释；不要复制围栏。L行号指最终源文件，不含新增的路径注释。
 
-**先有这些模块：** `scripts.daytona_native_capability_profile`、`workbench.catalog`、`workbench.domain`、`workbench.filesystem`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
+**先有这些模块：** `scripts.daytona_dependency_build`、`scripts.daytona_native_capability_profile`、`workbench.catalog`、`workbench.domain`、`workbench.filesystem`。导入名称对应同名目录/文件；仅定义函数的模块通常在调用时才执行其业务。
 
 <details>
 <summary>可选：本段符号与行号索引（用于定位，不必逐项阅读）</summary>
 
-- `dependency_profile`（L11–L20）：接收`template`、`descriptors`。 调用`dict.fromkeys`。 返回路径：L13的`{ "schema": 1, "profile": template, "image_id": "sha256:" + "3" * 64, "manifest_sha256": "…`。
-- `profile_record`（L23–L46）：接收`product`、`template`。 控制顺序：L25按`product is not None`分支。 调用`manifest(product).items`、`manifest`、`Path`、`dependency_profile`、`Selection(template=template).model_dump`、`Selection`。 返回路径：L33的`{ "recipe_identity": "1" * 64, "selection": Selection(template=template).model_dump(), "ru…`。
-- `dependency_evidence`（L49–L62）：接收`profile`、`inventory`。 调用`dependency_profile`、`digest`。 返回路径：L51的`{ **{ name: profile[name] for name in ("schema", "profile", "manifest_sha256", "installed_…`。
-- `container_binding`（L65–L71）：接收`record`。 返回路径：L66的`{ "runner_image_id": record["runner"]["image_id"], "snapshot_image_id": record["snapshot"]…`。
+- `dependency_profile`（L12–L22）：接收`template`、`descriptors`。 调用`dict.fromkeys`、`native_descriptor_roles`。 返回路径：L14的`{ "schema": 1, "profile": template, "image_id": "sha256:" + "3" * 64, "manifest_sha256": "…`。
+- `profile_record`（L25–L48）：接收`product`、`template`。 控制顺序：L27按`product is not None`分支。 调用`manifest(product).items`、`manifest`、`Path`、`dependency_profile`、`Selection(template=template).model_dump`、`Selection`。 返回路径：L35的`{ "recipe_identity": "1" * 64, "selection": Selection(template=template).model_dump(), "ru…`。
+- `dependency_evidence`（L51–L64）：接收`profile`、`inventory`。 调用`dependency_profile`、`digest`。 返回路径：L53的`{ **{ name: profile[name] for name in ("schema", "profile", "manifest_sha256", "installed_…`。
+- `container_binding`（L67–L73）：接收`record`。 返回路径：L68的`{ "runner_image_id": record["runner"]["image_id"], "snapshot_image_id": record["snapshot"]…`。
 
 </details>
 
-**创建路径：** `tests/capability_dependency_fixtures.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L71。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
+**创建路径：** `tests/capability_dependency_fixtures.py`；**本文件共有 1 段**。本段覆盖源文件 L1–L73。第一行路径注释仅供教材定位，保存时删这一行；下方原有注释、shebang和空行全部保留。
 
-本段原始字节数：`2469`。本段原文以LF换行结束。
+本段原始字节数：`2637`。本段原文以LF换行结束。
 
-<!-- learning-source: {"path": "tests/capability_dependency_fixtures.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "ca0cb7dfdbf9849d4e0a22001635b09ed3412588129630338d7f82a2332b7ed8"} -->
+<!-- learning-source: {"path": "tests/capability_dependency_fixtures.py", "part": 1, "parts": 1, "encoding": "utf-8", "sha256": "59aa673e63e2a068b89f45b44c88a15ce17890497d55be75760e5d36a99c3e43"} -->
 ````python
 # tests/capability_dependency_fixtures.py
 """Synthetic provenance for contract tests only; never a live image attestation."""
 
 from pathlib import Path
 
+from scripts.daytona_dependency_build import native_descriptor_roles
 from scripts.daytona_native_capability_profile import DESCRIPTORS
 from workbench.catalog import Selection
 from workbench.domain import digest
@@ -48,6 +49,7 @@ def dependency_profile(template="python-basic", descriptors=None):
         "manifest_sha256": "6" * 64,
         "installed_tree_sha256": "7" * 64,
         "original_descriptors": descriptors or dict.fromkeys(names, "8" * 64),
+        **({"descriptor_roles": native_descriptor_roles()} if template == "fastapiadmin" else {}),
     }
 
 

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from scripts.daytona_dependency_build import native_descriptor_roles
 from scripts.daytona_native_capability_profile import DESCRIPTORS
 from workbench.catalog import Selection
 from workbench.domain import digest
@@ -17,6 +18,7 @@ def dependency_profile(template="python-basic", descriptors=None):
         "manifest_sha256": "6" * 64,
         "installed_tree_sha256": "7" * 64,
         "original_descriptors": descriptors or dict.fromkeys(names, "8" * 64),
+        **({"descriptor_roles": native_descriptor_roles()} if template == "fastapiadmin" else {}),
     }
 
 

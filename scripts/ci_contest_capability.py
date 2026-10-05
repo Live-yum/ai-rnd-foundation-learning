@@ -99,6 +99,7 @@ def main():
             record["inputs"]["product"] != handoff["product"]
             or record["inputs"]["source_identity"] != handoff["source_identity"]
             or record["inputs"]["descriptors"] != handoff["descriptors"]
+            or record["inputs"]["descriptor_roles"] != handoff["descriptor_roles"]
         ):
             raise ValueError("Authored contest must use the exact registered CI source baseline")
         client = client_for(settings)
